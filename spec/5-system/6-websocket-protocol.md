@@ -178,7 +178,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeName, output, duration }` | 노드 실행 완료 |
 | `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패 |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeName, reason }` | 노드 건너뜀 |
-| `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. 아래 §4.4 참조 |
+| `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig?, conversationThread? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. `conversationThread` 가 동봉되면 UI 가 라이브 thread 패널을 갱신할 수 있다 (선택, §4.4.5). 아래 §4.4 참조 |
 | `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷. 상세 필드 정의는 §4.4 참조 |
 | `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI Agent 가 provider tool(KB/MCP 등)을 실행하기 시작했음을 알림. 디버깅 타임라인이 즉시 pending 상태의 tool 항목을 표시할 수 있도록 turn 종료 전에 발송 |
 | `execution.tool_call_completed` | `{ executionId, nodeId, turnIndex, toolCallId, content, status, error?, durationMs }` | provider tool 실행이 끝났음을 알림. `status` 는 `'success' \| 'error'`. provider 가 throw 한 경우 핸들러가 캐치해 `status: 'error'` 와 `error` 메시지를 채우고 LLM 에는 에러 content 를 그대로 넘겨 다음 턴에서 회복할 기회를 준다 |
@@ -443,6 +443,42 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 ```
 
 > **Reconciliation**: `tool_call_started` / `tool_call_completed` 가 손실되어도 turn 종료 시 도착하는 `execution.ai_message` 의 `messages` 스냅샷과 `meta.turnDebug[].toolCalls` 가 권위적이다. 클라이언트는 `toolCallId` 를 키로 dedup 한다.
+
+#### 4.4.5 Conversation Thread snapshot (`conversationThread`)
+
+`conversationThread` 는 모든 `interactionType` (form / buttons / ai_conversation) 의 payload 에 선택적으로 동봉된다. UI 의 라이브 conversation 패널이 워크플로우 실행 도중 누적되는 thread 를 표시할 때 사용한다.
+
+```json
+{
+  "type": "execution.waiting_for_input",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "interactionType": "ai_conversation",
+    "conversationConfig": { },
+    "conversationThread": {
+      "id": "default",
+      "nextSeq": 4,
+      "turns": [
+        { "seq": 0, "nodeId": "...", "nodeType": "form", "source": "presentation_user", "text": "name=Alice", "timestamp": "..." },
+        { "seq": 1, "nodeId": "...", "nodeType": "ai_agent", "source": "ai_user", "text": "주문 상태 확인해줘", "timestamp": "..." },
+        { "seq": 2, "nodeId": "...", "nodeType": "ai_agent", "source": "ai_assistant", "text": "어떤 주문 번호인가요?", "timestamp": "..." },
+        { "seq": 3, "nodeId": "...", "nodeType": "ai_agent", "source": "ai_user", "text": "ORD-12345", "timestamp": "..." }
+      ],
+      "totalChars": 142
+    }
+  }
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| `conversationThread.id` | v1 은 항상 `"default"` |
+| `conversationThread.nextSeq` | `turns.length` 와 동일 |
+| `conversationThread.turns[i]` | [Spec Conversation Thread §1.2](../conventions/conversation-thread.md#12-conversationturn) 의 ConversationTurn |
+| `conversationThread.totalChars` | 누적 char 길이 (cap 빠른 경로 — 클라이언트 표시 시 무시 가능) |
+
+> Background 본문은 격리된 thread 를 갖는다 — main 흐름의 `EXECUTION_WAITING_FOR_INPUT` payload 에는 background turn 이 포함되지 않는다 ([Spec Conversation Thread §3.2](../conventions/conversation-thread.md#32-background-격리-근거)).
 
 ---
 

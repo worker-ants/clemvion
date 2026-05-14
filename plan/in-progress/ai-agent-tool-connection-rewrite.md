@@ -97,6 +97,8 @@ config 스키마에서 `toolNodeIds` / `toolOverrides` 필드와, 캔버스의 A
 ## 의존성·리스크
 
 - **의존**: `prd-spec-sync.md` 의 spec 정리가 끝난 baseline에서 시작하면 깔끔
+- **순서 의존성**: `conversation-thread.md` (worktree: `conversation-thread-e509c5`) 가 `spec/4-nodes/3-ai/1-ai-agent.md §1` 표를 먼저 개정 — 본 plan 의 §3 spec 작성은 그 merge 이후 착수해야 신규 5필드(`contextScope`/`contextScopeN`/`contextInjectionMode`/`includeToolTurns`/`excludeFromConversationThread`) 와 DEPRECATED 마커(`conversationHistory`/`historyCount`) 위치를 일관되게 다룰 수 있다.
+- **conversation-thread 와의 정책 의존**: 일반 `tool_*` 도구 결과의 ConversationThread 누적 정책은 `conversation-thread.md` v2 에서 결정된다 — 본 plan 활성화 시 `tool_*` 결과를 `ai_tool` source 로 push 할지(현재 KB/MCP 와 동일하게 `includeToolTurns` 게이트 적용) 별도 `tool_call` source 신설할지 확정 필요.
 - **리스크**:
   - 결정 (c) "AI Tool 노드 신설" 시 노드 카탈로그·플러그인 인터페이스 변경 영향이 marketplace plan(`marketplace-and-plugin-sdk.md`) 까지 번질 수 있음
   - multi-turn 도중 도구 호출 → blocking 노드(form/buttons) 진입 시 AI Agent 의 `_resumeState` 관리 복잡도 증가

@@ -206,6 +206,8 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 | `button_continue` | `{ buttonId, buttonLabel, url }` | link 타입 버튼의 Continue 포트 (presentation 노드) |
 | `message_received` | `{ content, role: "user" }` | `ai_agent`, `information_extractor` multi-turn |
 
+> 본 `interaction` 은 [ConversationThread](./conversation-thread.md) 에 자동 push 된다 — 후속 AI Agent 가 `contextScope` 설정으로 자동 주입받을 수 있다 ([Spec Conversation Thread §2](./conversation-thread.md#2-자동-누적-컨트랙트)).
+
 ---
 
 ## Principle 5 — `port` 활성화 모델
