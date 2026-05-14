@@ -77,7 +77,15 @@ export interface ConversationThread {
   id: string;
   /** 다음 append 에 부여될 seq (== `turns.length`). */
   nextSeq: number;
-  turns: ConversationTurn[];
+  /**
+   * 누적된 turn 들. 외부 컨슈머는 ReadonlyArray 로만 다룬다 — 직접
+   * `.push()` / `.splice()` 등으로 변형해서는 안 된다 (불변량 보장:
+   * spec/conventions/conversation-thread.md §3.2 background isolation
+   * 과 §5 inject 가 둘 다 turn 객체의 immutability 에 의존). 모든
+   * mutation 은 `ConversationThreadService.append*` 단일 진입점을 통해
+   * 일어난다 — service 는 internally cast 로 push.
+   */
+  turns: ReadonlyArray<ConversationTurn>;
   /**
    * 누적 char 길이 캐시 — append 시점에 `text.length` 를 누적해 갱신한다.
    * WebSocket payload / `meta.contextInjection.totalInjectedChars` 등 외부
@@ -89,9 +97,26 @@ export interface ConversationThread {
 }
 
 /**
- * 빈 thread 팩토리 — `ExecutionContextService.createContext` 가 사용.
+ * Internal mutable view used by `ConversationThreadService` only — keeps
+ * `turns` writable so the service can `push()` / `splice()` while every
+ * external caller still sees the readonly form.
  */
-export function createEmptyConversationThread(): ConversationThread {
+export interface MutableConversationThread extends Omit<
+  ConversationThread,
+  'turns'
+> {
+  turns: ConversationTurn[];
+}
+
+/**
+ * 빈 thread 팩토리 — `ExecutionContextService.createContext` 가 사용.
+ *
+ * Returns the mutable internal view; assigning the result to a
+ * `ConversationThread` reference (the public type) silently widens to
+ * the readonly turns array — desired for callers, but service paths can
+ * keep the mutable handle when they construct one themselves.
+ */
+export function createEmptyConversationThread(): MutableConversationThread {
   return {
     id: DEFAULT_THREAD_ID,
     nextSeq: 0,
