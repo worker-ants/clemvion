@@ -42,10 +42,16 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "expired") {
+    // install_timeout is Cafe24-private-specific (변경 4): user must delete
+    // and re-register since there's no reauthorize entry point.
     return {
       label: "Expired",
       dotClassName: "bg-yellow-500",
       tone: "warn",
+      detail:
+        integration.statusReason === "install_timeout"
+          ? "Install timed out — delete and re-register"
+          : undefined,
     };
   }
   if (expiresSoon) {

@@ -45,13 +45,17 @@ export class IntegrationDto {
   @ApiPropertyOptional({ nullable: true })
   statusReason?: string | null;
 
-  /** 마지막 에러 요약 `{ code, message, at }`. callback / 노드 실행 실패의 진단 단서. */
+  /** 마지막 에러 요약. callback / 노드 실행 실패의 진단 단서. */
   @ApiPropertyOptional({
     type: 'object',
-    additionalProperties: true,
     nullable: true,
+    properties: {
+      code: { type: 'string', description: 'UPPER_SNAKE_CASE 에러 코드' },
+      message: { type: 'string', description: '사람 친화 메시지' },
+      at: { type: 'string', format: 'date-time' },
+    },
   })
-  lastError?: Record<string, unknown> | null;
+  lastError?: { code?: string; message?: string; at?: string } | null;
 
   /**
    * Safe-to-expose hints derived from credentials. Frontend must use these
