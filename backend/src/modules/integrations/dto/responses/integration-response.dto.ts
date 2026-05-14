@@ -32,14 +32,22 @@ export class IntegrationDto {
 
   /** 상태 */
   @ApiProperty({
-    enum: ['connected', 'expired', 'error'],
+    enum: ['connected', 'expired', 'error', 'pending_install'],
     example: 'connected',
   })
   status: string;
 
-  /** 상태 사유 코드 */
+  /** 상태 사유 코드 (snake_case). pending_install + callback 실패 시 `oauth_token_exchange_failed` 등 진단 단서. */
   @ApiPropertyOptional({ nullable: true })
   statusReason?: string | null;
+
+  /** 마지막 에러 요약 `{ code, message, at }`. callback / 노드 실행 실패의 진단 단서. */
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    nullable: true,
+  })
+  lastError?: Record<string, unknown> | null;
 
   /**
    * 자격 증명 복호화 상태. `needs_reauth`는 저장된 envelope을 현재 키로

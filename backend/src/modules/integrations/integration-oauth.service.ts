@@ -107,6 +107,36 @@ export interface CallbackResult {
   previewToken?: string;
 }
 
+/**
+ * Diagnostic context attached to exceptions thrown from `handleCallback` after
+ * the OAuth state row has been consumed (i.e. once we know which Integration
+ * row this callback belongs to). The controller reads this back from the
+ * caught error and writes `last_error` / `status_reason` onto the row via
+ * `markIntegrationCallbackError`, so the user can see why their callback
+ * failed without DB / log access. Pre-consumption errors (state mismatch)
+ * have no integrationId to attach.
+ */
+export interface CallbackContext {
+  integrationId: string;
+  workspaceId: string;
+  mode: OAuthStateMode;
+}
+
+export function attachCallbackContext<E extends Error>(
+  err: E,
+  context: CallbackContext,
+): E {
+  (err as E & { context?: CallbackContext }).context = context;
+  return err;
+}
+
+export function callbackContextOf(err: unknown): CallbackContext | undefined {
+  if (err && typeof err === 'object' && 'context' in err) {
+    return (err as { context?: CallbackContext }).context;
+  }
+  return undefined;
+}
+
 interface TokenExchangeResult {
   accessToken: string;
   refreshToken: string | null;
@@ -325,25 +355,48 @@ export class IntegrationOAuthService {
     ) {
       record.requestedScopes = rawRow.requested_scopes as string[];
     }
+    // Build the diagnostic context once — every post-state-consumption throw
+    // attaches this so the controller can surface the failure on the row
+    // (see `markIntegrationCallbackError`). Pre-consumption throws (state
+    // mismatch above) have no integrationId yet and intentionally omit it.
+    const context: CallbackContext | undefined = record.integrationId
+      ? {
+          integrationId: record.integrationId,
+          workspaceId: record.workspaceId,
+          mode: record.mode,
+        }
+      : undefined;
+    const withContext = <E extends Error>(err: E): E =>
+      context ? attachCallbackContext(err, context) : err;
+
     if (record.provider !== provider) {
-      throw new BadRequestException({
-        code: 'OAUTH_STATE_MISMATCH',
-        message: 'Provider mismatch for OAuth state',
-      });
+      throw withContext(
+        new BadRequestException({
+          code: 'OAUTH_STATE_MISMATCH',
+          message: 'Provider mismatch for OAuth state',
+        }),
+      );
     }
     if (new Date(record.expiresAt).getTime() < Date.now()) {
-      throw new BadRequestException({
-        code: 'OAUTH_STATE_EXPIRED',
-        message: 'OAuth state has expired',
-      });
+      throw withContext(
+        new BadRequestException({
+          code: 'OAUTH_STATE_EXPIRED',
+          message: 'OAuth state has expired',
+        }),
+      );
     }
 
-    const exchange = await this.exchangeCodeForToken(
-      provider,
-      query.code,
-      record.requestedScopes,
-      record.providerMeta ?? null,
-    );
+    let exchange: TokenExchangeResult;
+    try {
+      exchange = await this.exchangeCodeForToken(
+        provider,
+        query.code,
+        record.requestedScopes,
+        record.providerMeta ?? null,
+      );
+    } catch (err) {
+      throw withContext(err as Error);
+    }
 
     const credentials: Record<string, unknown> = {
       access_token: exchange.accessToken,
@@ -385,49 +438,109 @@ export class IntegrationOAuthService {
     }
 
     if (!record.integrationId) {
-      throw new BadRequestException({
-        code: 'OAUTH_STATE_INVALID',
-        message: 'OAuth state has no associated integration',
-      });
+      throw withContext(
+        new BadRequestException({
+          code: 'OAUTH_STATE_INVALID',
+          message: 'OAuth state has no associated integration',
+        }),
+      );
     }
 
-    await this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(Integration);
-      const integration = await repo.findOne({
-        where: { id: record.integrationId!, workspaceId: record.workspaceId },
-      });
-      if (!integration) {
-        throw new NotFoundException({
-          code: 'RESOURCE_NOT_FOUND',
-          message: 'Integration not found',
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        const repo = manager.getRepository(Integration);
+        const integration = await repo.findOne({
+          where: { id: record.integrationId!, workspaceId: record.workspaceId },
         });
-      }
-      if (
-        record.mode === 'reauthorize' ||
-        integration.status === 'pending_install'
-      ) {
-        integration.credentials = credentials;
-      } else {
-        integration.credentials = {
-          ...integration.credentials,
-          ...credentials,
-          scopes: exchange.scopes,
-        };
-      }
-      integration.status = 'connected';
-      integration.statusReason = null;
-      integration.lastError = null;
-      integration.tokenExpiresAt = exchange.tokenExpiresAt;
-      integration.lastRotatedAt = new Date();
-      integration.installToken = null;
-      await repo.save(integration);
-    });
+        if (!integration) {
+          throw new NotFoundException({
+            code: 'RESOURCE_NOT_FOUND',
+            message: 'Integration not found',
+          });
+        }
+        if (
+          record.mode === 'reauthorize' ||
+          integration.status === 'pending_install'
+        ) {
+          integration.credentials = credentials;
+        } else {
+          integration.credentials = {
+            ...integration.credentials,
+            ...credentials,
+            scopes: exchange.scopes,
+          };
+        }
+        integration.status = 'connected';
+        integration.statusReason = null;
+        integration.lastError = null;
+        integration.tokenExpiresAt = exchange.tokenExpiresAt;
+        integration.lastRotatedAt = new Date();
+        integration.installToken = null;
+        await repo.save(integration);
+      });
+    } catch (err) {
+      throw withContext(err as Error);
+    }
 
     return {
       mode: record.mode,
       provider,
       integrationId: record.integrationId,
     };
+  }
+
+  /**
+   * Record a callback failure on the Integration row so the user can see the
+   * diagnostic in the UI without log / DB access. Best-effort — never throws,
+   * since this is itself an error-handling path. See spec/2-navigation/4-integration.md
+   * §10.4 for the status preservation rules.
+   *
+   * - `pending_install` rows keep their status; the caller can retry "테스트
+   *   실행" on Cafe24 after fixing credentials.
+   * - `connected` rows with code-exchange failure (OAUTH_TOKEN_EXCHANGE_FAILED)
+   *   transition to `error(auth_failed)` per the existing §10.4 policy.
+   * - All other `connected` failures (state mismatch / expired / not found)
+   *   leave status alone and only update `last_error`.
+   * - A vanished row (resource_not_found) is silently skipped.
+   */
+  async markIntegrationCallbackError(
+    integrationId: string,
+    workspaceId: string,
+    errorCode: string,
+    errorMessage: string,
+  ): Promise<void> {
+    try {
+      const integration = await this.integrationRepository.findOne({
+        where: { id: integrationId, workspaceId },
+      });
+      if (!integration) {
+        // Row was deleted or workspace mismatch — nothing to update.
+        return;
+      }
+      const lastError = {
+        code: errorCode,
+        message: errorMessage,
+        at: new Date().toISOString(),
+      };
+      integration.lastError = lastError;
+      if (integration.status === 'pending_install') {
+        // status preserved — user can retry via cafe24 "테스트 실행"
+        integration.statusReason = errorCode.toLowerCase();
+      } else if (
+        integration.status === 'connected' &&
+        errorCode === 'OAUTH_TOKEN_EXCHANGE_FAILED'
+      ) {
+        // §10.4: reauthorize code-exchange failure on a connected row
+        integration.status = 'error';
+        integration.statusReason = 'auth_failed';
+      }
+      // Otherwise (connected + non-token error): last_error only.
+      await this.integrationRepository.save(integration);
+    } catch (err) {
+      this.logger.warn(
+        `markIntegrationCallbackError(${integrationId}) failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   async consumePreviewToken(

@@ -52,6 +52,7 @@ import {
   ALLOWED_OAUTH_PROVIDERS,
   Cafe24InstallQuery,
   IntegrationOAuthService,
+  callbackContextOf,
 } from './integration-oauth.service';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
@@ -299,8 +300,26 @@ export class IntegrationsController {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(renderCallbackHtml({ status: 'success', result }, targetOrigin));
     } catch (err) {
-      const e = err as { message?: string; response?: { message?: string } };
+      const e = err as {
+        message?: string;
+        response?: { message?: string; code?: string };
+      };
+      const errorCode = e.response?.code ?? 'OAUTH_CALLBACK_FAILED';
       const message = e.response?.message ?? e.message ?? 'OAuth failed';
+
+      // If the failure happened after state consumption, the service attached
+      // {integrationId, workspaceId, mode} to the error so we can surface the
+      // diagnostic on the row (spec/2-navigation/4-integration.md §10.4).
+      const ctx = callbackContextOf(err);
+      if (ctx?.integrationId && ctx.workspaceId) {
+        await this.oauthService.markIntegrationCallbackError(
+          ctx.integrationId,
+          ctx.workspaceId,
+          errorCode,
+          message,
+        );
+      }
+
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(
         renderCallbackHtml(
