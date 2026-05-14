@@ -37,6 +37,7 @@ import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
+import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import {
   ExecutionContext,
   NodeHandler,
@@ -343,6 +344,10 @@ describe('ExecutionEngineService', () => {
             add: jest.fn().mockResolvedValue(undefined),
           },
         },
+        // Stateless service — use the real implementation so engine hooks
+        // (form/button resume) actually mutate the in-context thread, which
+        // lets future Phase 4 / 5 tests assert side-effects without re-mocking.
+        ConversationThreadService,
       ],
     }).compile();
 
@@ -1544,6 +1549,46 @@ describe('ExecutionEngineService', () => {
         executionId,
         'execution.completed',
         expect.objectContaining({ status: 'completed' }),
+      );
+    });
+
+    // Phase 3 hook — form resume must push a presentation_user turn to the
+    // ConversationThread so downstream AI Agent nodes can auto-inject it.
+    // SoT: spec/conventions/conversation-thread.md §2.1.
+    //
+    // We assert via spy because the engine deletes the ExecutionContext when
+    // the workflow completes (this test runs the form to terminal state).
+    // Spying captures the hook's call args at the exact resume tick.
+    it('appends presentation_user turn to ConversationThread on form resume', async () => {
+      const conversationThreadService = (
+        service as unknown as {
+          conversationThreadService: ConversationThreadService;
+        }
+      ).conversationThreadService;
+      const appendSpy = jest.spyOn(
+        conversationThreadService,
+        'appendPresentationInteraction',
+      );
+
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+      service.continueExecution(executionId, { approved: true });
+      await flushPromises();
+
+      expect(appendSpy).toHaveBeenCalledTimes(1);
+      expect(appendSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          node: expect.objectContaining({
+            id: 'node-form',
+            type: 'form',
+          }),
+          interaction: expect.objectContaining({
+            type: 'form_submitted',
+            data: { approved: true },
+            receivedAt: expect.any(String),
+          }),
+        }),
       );
     });
 
