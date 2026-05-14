@@ -1625,6 +1625,10 @@ export class ExecutionEngineService
         // 버튼 disabled stuck 버그의 defense-in-depth.)
         interactionType: 'form',
         nodeOutput,
+        // Live ConversationThread snapshot so UI can render the running
+        // thread panel (spec/conventions/conversation-thread.md §4 +
+        // spec/5-system/6-websocket-protocol.md §4.4.5).
+        conversationThread: context.conversationThread,
       },
     );
 
@@ -1984,6 +1988,9 @@ export class ExecutionEngineService
         // 분기하도록 일관화. nodeOutput.interactionType 도 backward compat 으로
         // 유지 (snapshot reconcile 의 nested 읽기 / 기존 e2e assertion 안전 보존).
         interactionType: 'ai_conversation',
+        // Live thread snapshot for UI (spec/conventions/conversation-thread.md §4
+        // + spec/5-system/6-websocket-protocol.md §4.4.5).
+        conversationThread: context.conversationThread,
         nodeOutput: {
           interactionType: 'ai_conversation',
           ...(structuredConfig && Object.keys(structuredConfig).length > 0
@@ -2114,6 +2121,12 @@ export class ExecutionEngineService
           // top-level interactionType — emitAiWaitingForInput 와 동일 shape
           // 유지 (multi-turn 후속 waiting emit). nested 도 backward compat 유지.
           interactionType: 'ai_conversation',
+          // Live thread snapshot for UI (multi-turn 후속 waiting tick — 새
+          // ai_user/ai_assistant turn 이 push 된 직후 UI 가 확인할 수 있도록).
+          // handleAiMessageTurn doesn't carry ExecutionContext, so we look it
+          // up via contextService — single Map access.
+          conversationThread:
+            this.contextService.getContext(executionId)?.conversationThread,
           nodeOutput: {
             interactionType: 'ai_conversation',
             // Pass through handler's echoed node config so the Config
@@ -2372,6 +2385,8 @@ export class ExecutionEngineService
         // 미정 row 를 timeline 마지막으로 보내는 것을 방지.
         startedAt: nodeExec?.startedAt?.toISOString?.(),
         interactionType: 'buttons',
+        // Live thread snapshot for UI (button waiting tick).
+        conversationThread: context.conversationThread,
         buttonConfig: {
           buttons,
           nodeOutput: nodeOutputForEvent,
