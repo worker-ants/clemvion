@@ -285,43 +285,9 @@ export const aiAgentNodeConfigSchema = z
     // 값은 silently 통과한다 (핸들러가 읽지 않으므로 결과적으로 무시됨).
     // 재작성 시 새 입력 경로 디자인에 따라 신규 필드를 추가.
     // 자세한 사유·복원 절차는 plan/in-progress/ai-agent-tool-connection-rewrite.md.
-    // DEPRECATED 2026-05-14 (conversation-thread v1) — replaced by
-    // `contextScope` / `contextScopeN` below. Schema kept one cycle for
-    // backward compat (handler has never read it; safe noop). Removal
-    // scheduled with conversation-thread v2 (tracked in
-    // `plan/in-progress/conversation-thread.md` follow-ups section).
-    conversationHistory: z
-      .enum(['none', 'last_n', 'full'])
-      .default('none')
-      .meta({
-        deprecated: true,
-        ui: {
-          label: 'Conversation History (deprecated — use Conversation Context)',
-          widget: 'select',
-          order: 35,
-          group: 'Advanced',
-          options: [
-            { value: 'none', label: 'None' },
-            { value: 'last_n', label: 'Last N Messages' },
-            { value: 'full', label: 'Full History' },
-          ],
-        },
-      }),
-    // DEPRECATED 2026-05-14 — see `conversationHistory` above.
-    historyCount: z
-      .number()
-      .int()
-      .optional()
-      .meta({
-        deprecated: true,
-        ui: {
-          label: 'History Count (deprecated)',
-          widget: 'number',
-          order: 36,
-          group: 'Advanced',
-          visibleWhen: { field: 'conversationHistory', equals: 'last_n' },
-        },
-      }),
+    // `conversationHistory` / `historyCount` 는 제거됨 — `contextScope` /
+    // `contextScopeN` 로 완전 대체 (spec/conventions/conversation-thread.md §5).
+    // 스키마가 `.passthrough()` 이므로 DB legacy 값은 silently 통과.
 
     // ── Conversation Context (auto-injection from ConversationThread) ──
     // SoT: spec/conventions/conversation-thread.md §5
