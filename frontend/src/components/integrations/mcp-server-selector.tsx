@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 import { MCP_CAPABLE_SERVICE_TYPES } from "@/lib/integrations/mcp-capable-service-types";
-import { Plus, X } from "lucide-react";
+import { Plus, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useT } from "@/lib/i18n";
@@ -122,18 +122,47 @@ export function McpServerSelector({ value, onChange }: Props) {
             const integration = allMcp.find(
               (i) => i.id === ref.integrationId,
             );
+            const isMissing = !integration;
+            // Deleted (or revoked-out-of-list) integrations get a red
+            // border + warning icon + "삭제된 MCP" label so the user
+            // can spot stale references at a glance and remove them.
+            // Replaces the previous silent UUID fallback which left the
+            // entry indistinguishable from a healthy one (2026-05-15 사용자 보고).
+            const containerClasses = isMissing
+              ? "rounded-md border border-red-500/60 bg-red-500/5 p-2"
+              : "rounded-md border border-[hsl(var(--input))] p-2";
             return (
-              <div
-                key={ref.integrationId}
-                className="rounded-md border border-[hsl(var(--input))] p-2"
-              >
+              <div key={ref.integrationId} className={containerClasses}>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium truncate">
-                    {integration?.name ?? `${ref.integrationId.slice(0, 8)}… (missing)`}
+                  {isMissing && (
+                    <AlertTriangle
+                      className="h-3.5 w-3.5 shrink-0 text-red-500"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span
+                    className={
+                      isMissing
+                        ? "text-xs font-medium truncate text-red-600 dark:text-red-400"
+                        : "text-xs font-medium truncate"
+                    }
+                    title={
+                      isMissing
+                        ? `Integration id ${ref.integrationId} no longer exists in this workspace`
+                        : undefined
+                    }
+                  >
+                    {integration?.name ??
+                      `삭제된 MCP (${ref.integrationId.slice(0, 8)}…)`}
                   </span>
                   {integration && (
                     <span className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[9px] uppercase">
                       {integration.status}
+                    </span>
+                  )}
+                  {isMissing && (
+                    <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[9px] uppercase text-red-600 dark:text-red-400">
+                      removed
                     </span>
                   )}
                   <Button
@@ -146,34 +175,41 @@ export function McpServerSelector({ value, onChange }: Props) {
                     <X className="h-3 w-3" aria-hidden="true" />
                   </Button>
                 </div>
-                <div className="mt-1.5 grid grid-cols-2 gap-1 text-[10px]">
-                  <label className="flex cursor-pointer items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={ref.includeResources !== false}
-                      onChange={(e) =>
-                        patch(ref.integrationId, {
-                          includeResources: e.target.checked,
-                        })
-                      }
-                      className="h-3 w-3"
-                    />
-                    Expose Resources
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={ref.includePrompts !== false}
-                      onChange={(e) =>
-                        patch(ref.integrationId, {
-                          includePrompts: e.target.checked,
-                        })
-                      }
-                      className="h-3 w-3"
-                    />
-                    Expose Prompts
-                  </label>
-                </div>
+                {isMissing ? (
+                  <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">
+                    This MCP integration was deleted. Remove this reference or
+                    re-attach a valid MCP server.
+                  </p>
+                ) : (
+                  <div className="mt-1.5 grid grid-cols-2 gap-1 text-[10px]">
+                    <label className="flex cursor-pointer items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={ref.includeResources !== false}
+                        onChange={(e) =>
+                          patch(ref.integrationId, {
+                            includeResources: e.target.checked,
+                          })
+                        }
+                        className="h-3 w-3"
+                      />
+                      Expose Resources
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={ref.includePrompts !== false}
+                        onChange={(e) =>
+                          patch(ref.integrationId, {
+                            includePrompts: e.target.checked,
+                          })
+                        }
+                        className="h-3 w-3"
+                      />
+                      Expose Prompts
+                    </label>
+                  </div>
+                )}
               </div>
             );
           })}

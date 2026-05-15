@@ -87,6 +87,8 @@ export type BeginResult =
       integrationId: string;
       appUrl: string;
       callbackUrl: string;
+      /** scopes 가 변경된 경우 (request-scopes 진입점에서 채워짐) */
+      scopesAdded?: string[];
     };
 
 /** Cafe24 App URL 호출 파라미터 (테스트 실행 시 Cafe24가 전송) */
@@ -606,8 +608,13 @@ export class IntegrationOAuthService {
         integration.lastError = null;
         integration.tokenExpiresAt = exchange.tokenExpiresAt;
         integration.lastRotatedAt = new Date();
-        integration.installToken = null;
-        integration.installTokenIssuedAt = null;
+        // install_token 은 callback 성공 시 **보존** — Cafe24 의 "앱으로
+        // 가기" 등 post-install navigation 이 같은 App URL 을 재호출하므로
+        // 통합 lifetime 동안 유효한 persistent 식별자로 유지한다.
+        // NULL 처리는 24h TTL 만료 (status='expired', status_reason=
+        // 'install_timeout') 와 통합 삭제(row 자체 소멸) 두 경로에서만 발생.
+        // 자세한 근거는 spec/2-navigation/4-integration.md ## Rationale
+        // "Cafe24 App URL 재호출 흐름 — install_token persistent 격상" 항.
         // Backfill plain `mall_id` column for cafe24 rows if it's still
         // NULL — pre-V045 rows pass through this connected path on next
         // re-auth and get the plain projection set. New rows already have
@@ -1148,18 +1155,21 @@ export class IntegrationOAuthService {
       });
     }
 
+    // status 무관 단일 row 조회 — App URL 은 초기 install (pending_install)
+    // 외에 post-install navigation (connected/error/expired) 에서도 호출됨.
+    // V045 partial UNIQUE `(install_token) WHERE install_token IS NOT NULL` 가
+    // 결과를 단일 row 로 강제. spec/2-navigation/4-integration.md ## Rationale
+    // "Cafe24 App URL 재호출 흐름 — install_token persistent 격상".
     const target = await this.integrationRepository.findOne({
       where: {
         installToken,
-        status: 'pending_install',
         serviceType: 'cafe24',
       },
     });
     if (!target) {
-      // install_token unknown — either never issued, already consumed
-      // (callback success → NULL), or TTL-expired (V0XX scanner → NULL).
-      // The token is 128-bit random base64url so this is not an
-      // enumeration oracle. spec/2-navigation/4-integration.md ## Rationale
+      // install_token unknown — 통합 삭제 또는 24h TTL 만료로 소거된 케이스.
+      // The token is 128-bit random base64url so this is not an enumeration
+      // oracle. spec/2-navigation/4-integration.md ## Rationale
       // "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안 전제".
       //
       // 운영 진단용 부가 로그: 같은 mall_id 의 cafe24 통합이 어떤 상태인지
@@ -1189,7 +1199,8 @@ export class IntegrationOAuthService {
       );
       throw new NotFoundException({
         code: 'CAFE24_INSTALL_INVALID_TOKEN',
-        message: 'install_token is not associated with a pending installation',
+        message:
+          'install_token is not associated with any integration (deleted or TTL-expired)',
       });
     }
 
@@ -1216,6 +1227,24 @@ export class IntegrationOAuthService {
         code: 'CAFE24_INSTALL_INVALID_HMAC',
         message: 'HMAC verification failed',
       });
+    }
+
+    // status 분기 — pending_install 만 OAuth authorize 로 진입.
+    // connected/error/expired 는 post-install navigation 으로 간주 (카페24
+    // 쇼핑몰 관리자의 "앱으로 가기" 버튼 등). HMAC 이 통과했다는 건
+    // Cafe24 가 호출한 정당한 요청임을 의미하므로 우리 frontend 의 통합
+    // 상세 페이지로 안내. 자세한 근거는 spec/2-navigation/4-integration.md
+    // ## Rationale "Cafe24 App URL 재호출 흐름" 항.
+    if (target.status !== 'pending_install') {
+      const frontendBaseUrl =
+        process.env.FRONTEND_URL ||
+        process.env.APP_URL ||
+        'http://localhost:3000';
+      const trimmed = frontendBaseUrl.replace(/\/$/, '');
+      this.logger.log(
+        `Cafe24 post-install navigation: mall=${query.mall_id} integration=${target.id} status=${target.status} → redirect to ${trimmed}/integrations/${target.id}`,
+      );
+      return `${trimmed}/integrations/${target.id}`;
     }
 
     const clientId = creds.client_id as string;
