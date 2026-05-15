@@ -538,6 +538,16 @@ export class IntegrationOAuthService {
       provider,
       ...exchange.providerMeta,
     };
+    // Mirror tokenExpiresAt into the credentials JSONB so the shape produced
+    // by the initial callback matches the one produced by Cafe24ApiClient's
+    // atomic refresh path (spec §10.5). Without this mirror, freshly-
+    // connected Cafe24 integrations carried a NULL `credentials.expires_at`
+    // and the legacy proactive-refresh gate (which read only the JSONB) was
+    // skipping them silently — surfacing 401 (`access_token time expired`)
+    // on the first call after Cafe24's 2h TTL.
+    if (exchange.tokenExpiresAt) {
+      credentials.expires_at = exchange.tokenExpiresAt.toISOString();
+    }
 
     // Cafe24-specific: persist mall_id / app_type (+ private-app credentials)
     // into the integration credentials so subsequent token refresh and API

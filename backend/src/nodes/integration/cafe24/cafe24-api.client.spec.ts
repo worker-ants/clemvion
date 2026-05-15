@@ -326,6 +326,7 @@ describe('Cafe24ApiClient', () => {
 
   describe('token refresh', () => {
     it('refreshes proactively when expires_at within 60s — atomic 4-field update', async () => {
+      const within = new Date(Date.now() + 30_000); // 30s — within window
       const integration = makeIntegration({
         credentials: {
           mall_id: 'myshop',
@@ -333,9 +334,13 @@ describe('Cafe24ApiClient', () => {
           access_token: 'old-access',
           refresh_token: 'old-refresh',
           scopes: ['mall.read_product'],
-          expires_at: new Date(Date.now() + 30_000).toISOString(), // 30s — within window
+          expires_at: within.toISOString(),
           cafe24_operator_id: 'op-1',
         },
+        // tokenExpiresAt is the canonical source (spec §10.5) — keep it
+        // in sync with credentials.expires_at so the proactive gate sees
+        // the same instant on both fields.
+        tokenExpiresAt: within,
       });
       process.env.CAFE24_CLIENT_ID = 'env-id';
       process.env.CAFE24_CLIENT_SECRET = 'env-secret';
@@ -403,15 +408,91 @@ describe('Cafe24ApiClient', () => {
       delete process.env.CAFE24_CLIENT_SECRET;
     });
 
+    // Regression — freshly-connected Cafe24 rows historically had a
+    // populated `Integration.tokenExpiresAt` column but a NULL
+    // `credentials.expires_at` mirror (the OAuth callback only wrote the
+    // column). The legacy `ensureFreshToken` gate read only the JSONB
+    // mirror and bailed silently, so the access_token was never refreshed
+    // and Cafe24 returned 401 (`access_token time expired`) two hours
+    // later. Spec §10.5 names the column as canonical — this test pins
+    // the column-driven precedence so the bug cannot regress.
+    it('refreshes proactively from tokenExpiresAt when credentials.expires_at mirror is missing', async () => {
+      const expiredAt = new Date(Date.now() - 60_000); // 60s in the past
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old-access',
+          refresh_token: 'old-refresh',
+          scopes: ['mall.read_product'],
+          // expires_at intentionally absent — simulates the legacy
+          // OAuth-callback shape before the §10.5 mirror was added.
+          cafe24_operator_id: 'op-1',
+        },
+        tokenExpiresAt: expiredAt,
+      });
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      let savedIntegration: Integration | undefined;
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockImplementation(async (e: Integration) => {
+              savedIntegration = e;
+            }),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_in: 7200,
+        }),
+      );
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      const res = await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+      });
+
+      // Refresh fetch + actual API fetch — proactive path actually fired.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'https://myshop.cafe24api.com/api/v2/oauth/token',
+      );
+      expect(savedIntegration).toBeDefined();
+      expect(savedIntegration!.credentials.access_token).toBe('new-access');
+      expect(typeof savedIntegration!.credentials.expires_at).toBe('string');
+      // 2nd fetch carries the refreshed bearer.
+      expect(
+        (fetchMock.mock.calls[1][1] as RequestInit).headers as Record<
+          string,
+          string
+        >,
+      ).toMatchObject({ Authorization: 'Bearer new-access' });
+      expect(res.status).toBe(200);
+
+      delete process.env.CAFE24_CLIENT_ID;
+      delete process.env.CAFE24_CLIENT_SECRET;
+    });
+
     it('refresh 401 marks Integration as auth_failed', async () => {
+      const within = new Date(Date.now() + 1000); // 1s — well within REFRESH_WINDOW_MS
       const integration = makeIntegration({
         credentials: {
           mall_id: 'myshop',
           app_type: 'public',
           access_token: 'old',
           refresh_token: 'old',
-          expires_at: new Date(Date.now() + 1000).toISOString(),
+          expires_at: within.toISOString(),
         },
+        tokenExpiresAt: within,
       });
       process.env.CAFE24_CLIENT_ID = 'env-id';
       process.env.CAFE24_CLIENT_SECRET = 'env-secret';
