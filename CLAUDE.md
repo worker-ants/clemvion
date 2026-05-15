@@ -37,6 +37,7 @@
 | `plan/complete/archive/from-*/` | 고정 경로 | 옛 `memory/`·`user_memo/` 의 1회성·역사 문서 보관. 신규 생성 금지 |
 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `*/review.md` |
 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | consistency-checker 세션. `SUMMARY.md` + 5 checker 별 `*/review.md` + `meta.json` |
+| `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | merge-coordinator 세션. `SUMMARY.md` + 4 analyzer 별 `*/review.md` + `_prompts/`·`_conflicts/`·`meta.json` |
 
 > 옛 flat 경로(`review/<timestamp>/`, `review/consistency/<timestamp>/`) 의 누적된 데이터는 한 디렉토리 안 항목 수가 폭주해 `ls` 등 파일시스템 조회가 무거워지는 문제가 있어 nested 형식으로 전환했다. 기존 데이터는 사용자가 일괄 이동 예정이며, 새 세션부터 위 형식을 강제한다.
 | `.claude/worktrees/<task_name>-<slug>/` | `<task_name>-<slug>` | 신규 작업이 일어나는 worktree. `task_name` 은 요청에 맞는 의미 있는 단어, `slug` 는 호출자가 부여하는 식별자 |
@@ -61,6 +62,7 @@
 | 완료된 작업 추적 | `plan/complete/<name>.md` (`git mv`로 이동) |
 | 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,RESOLUTION,...}.md` |
 | 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,meta.json,<checker>/review.md}` |
+| 통합 검토 산출물 | `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,_prompts,_conflicts,<analyzer>/review.md,meta.json}` |
 | 1회성 분석·역사 문서 | `plan/complete/archive/from-*/` 만 보관, 신규 생성 금지 |
 
 ### 작업 시 점검 (절대 누락 금지)
@@ -113,6 +115,7 @@
 - **plan 과 worktree 의 결속**: 새 plan 을 만들 때 frontmatter 의 `worktree` 필드에 현재 worktree 이름을 기록한다. 동일 worktree 안에서 여러 plan 이 진행되어도 무방하다.
 - **공유 자원 직렬화**: 같은 `spec/` 파일이나 동일 코드 영역을 두 worktree 가 동시에 수정 중이면, plan/in-progress 에 그 사실을 명시적으로 기록하고 작업을 직렬화한다. `consistency-checker` 의 `plan_coherence` 가 이 충돌을 사전 검출한다.
 - **hotfix 예외**: 긴급 hotfix 는 main 에서 직접 작업할 수 있으나, commit message 에 `[hotfix-on-main]` 을 표기한다.
+- **통합 작업 worktree**: 다수 branch 를 통합할 때는 `merge-coordinator` 가 별도 `.claude/worktrees/integrate-<slug>/` 를 신설해 거기서 merge/rebase 를 시도한다. 통합이 PR 로 merge 되면 정리한다.
 
 ### 신규 worktree 생성 명령 예
 
@@ -133,6 +136,7 @@ cd .claude/worktrees/<task_name>-<slug>
 | 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | 스펙 기반의 구현·리팩토링·테스트 작성·빌드·품질 검증. **기획 금지** | `frontend/**`, `backend/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` 은 **read-only** — 수정 필요 시 `project-planner` 로 위임 |
 | 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | spec/plan/구현 착수 **직전** 다른 문서와의 위배 사전 검출. Critical 발견 시 호출자를 차단. | `review/consistency/**` |
 | 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | **사후** 다각도 코드 리뷰 실행. `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` 생성 | `review/**` (SUMMARY 와 각 에이전트 출력) |
+| 통합 조율자 | [`merge-coordinator`](.claude/skills/merge-coordinator/SKILL.md) (`/merge-coordinate`) | 다수 PR/branch 통합 전·중·후 검토 (4 analyzer + 1 summary) + conflict 시 patch 제안 위임 + `/ai-review`·`/consistency-check` 자동 chain. 격리 worktree 안에서 실행 | `review/merge/**`, `.claude/worktrees/integrate-*/**` |
 
 - `spec/` 을 다루면 `project-planner` 로 진입한다.
 - 코드베이스(`frontend/`·`backend/`)를 다루면 `developer` 로 진입한다.

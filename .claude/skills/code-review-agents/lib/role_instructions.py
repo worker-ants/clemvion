@@ -257,3 +257,82 @@ CHECKER_INSTRUCTIONS = {
         "context_key": "__combined_naming_corpus__",
     },
 }
+
+
+# Merge-coordinator analyzers + summary + resolver. Used by
+# `merge_coordinator_orchestrator.py` to build role-specific prompt bodies
+# and by `.claude/agents/<name>.md` definitions (which embed the same
+# perspective and checklist via the regenerator script).
+ANALYZER_INSTRUCTIONS = {
+    "merge_conflict_analyzer": {
+        "ko_title": "Text-level 충돌 분석",
+        "perspective": "다수 branch 를 통합할 때 발생할 git hunk-level conflict 를 예측하고 자동 해결 난이도를 평가한다.",
+        "checklist": """1. **같은 파일·같은 hunk** — 두 branch 이상이 동일 파일의 겹치는 hunk 를 수정하는가
+2. **자동 해결 가능 패턴** — import 정렬, 단순 추가, 동일 의미 리네임 등 mechanical merge 가 가능한지
+3. **수동 개입 필요 패턴** — 같은 함수 본문의 의미가 다른 두 방향으로 수정된 경우
+4. **rename/move 충돌** — 한 branch 가 파일을 옮겼는데 다른 branch 가 같은 파일을 수정한 경우
+5. **삭제·재추가 충돌** — 한쪽이 삭제, 다른 쪽이 수정한 경우
+6. **공백·EOL·인코딩 충돌** — 의미는 같지만 mechanical 충돌이 생기는 경우
+7. **하위 conflict 수** — 통합 1회당 예상 conflict hunk 수 + 영향 파일 수
+8. **권장 통합 순서 힌트** — 어느 branch 를 먼저 합치면 충돌이 줄어드는지 (integration-order-planner 의 input 으로)""",
+    },
+    "semantic_conflict_analyzer": {
+        "ko_title": "의미 충돌 분석",
+        "perspective": "통합 대상 branch 들이 서로의 가정·인터페이스·동작을 깨고 있지 않은지 의미 수준에서 분석한다.",
+        "checklist": """1. **signature 변경 cross-impact** — branch A 가 함수 시그니처를 바꿨고, branch B 가 그 함수의 옛 시그니처를 호출하는가
+2. **behavior drift** — 같은 함수·엔드포인트의 동작이 두 branch 에서 서로 다른 방향으로 진화했는가
+3. **공유 모듈 invariant 위반** — branch 가 공유 모듈의 가정 (예: 락 순서, 호출 순서, 에러 처리 규약) 을 깨는가
+4. **데이터 모델 cross-conflict** — 같은 엔티티/타입을 두 branch 가 호환되지 않게 확장했는가
+5. **공유 상수·환경변수 충돌** — 같은 ENV/config key 의 의미가 두 branch 에서 다른가
+6. **외부 호출 규약 충돌** — webhook 페이로드·SSE 이벤트·queue 메시지 schema 가 충돌하는가
+7. **테스트 가정 충돌** — 한 branch 의 테스트가 다른 branch 의 변경으로 거짓 통과/실패하게 되는가
+8. **의존성 버전 충돌** — package.json·lockfile 의 동일 의존성을 두 branch 가 다른 버전으로 고정했는가""",
+    },
+    "integration_order_planner": {
+        "ko_title": "통합 순서·base 결정",
+        "perspective": "통합 대상 branch 들의 의존성 그래프를 만들고 base branch 와 통합 순서를 동적으로 결정한다.",
+        "checklist": """1. **의존성 추출** — 각 branch 가 다른 branch 의 commit 을 전제로 하거나 PR depends-on 표기가 있는가
+2. **base 결정** — main 또는 가장 안정적인 branch 를 base 로. 사용자 힌트(`MERGE_BASE_HINT`) 가 있으면 우선 검토
+3. **topological 순서** — 의존성 그래프의 위상 정렬로 통합 순서 산출
+4. **충돌 최소 경로** — merge-conflict-analyzer 의 hunk 충돌 정보를 보고 충돌이 적게 발생하는 순서 선택
+5. **cherry-pick 분리 권고** — 한 branch 가 너무 큰 conflict 를 유발하면 일부 commit 만 분리 권고
+6. **rebase vs merge 권고** — branch 별로 적절한 통합 방식
+7. **실패 시 롤백 포인트** — 통합 중 실패 시 되돌아갈 commit
+8. **불가 통합 식별** — 통합이 위험해 추천 안 하는 branch (사용자 직접 해결 필요)""",
+    },
+    "cross_branch_spec_analyzer": {
+        "ko_title": "Branch 간 spec/plan 충돌",
+        "perspective": "통합 대상 branch 들이 spec/, plan/in-progress/ 영역을 어떻게 변경했는지 비교해 cross-branch 충돌을 검출한다. 기존 cross-spec-checker 는 단일 draft vs 기존 spec 이고, 본 analyzer 는 multi-draft 간 충돌이 대상.",
+        "checklist": """1. **같은 spec 파일 다른 변경** — 두 branch 이상이 동일 `spec/<영역>/*.md` 를 서로 다른 방향으로 수정
+2. **같은 plan 영역 동시 진행** — frontmatter 의 `worktree` 가 다른 두 plan 이 동일 spec 파일을 손대고 있는지
+3. **요구사항 ID cross-branch 중복** — branch 마다 다른 의미로 새 NAV-/ED-AI- 등을 도입했는가
+4. **API 계약의 cross-branch divergence** — 같은 endpoint 를 branch 마다 다르게 정의
+5. **Rationale 충돌** — 한 branch 가 추가한 Rationale 결정을 다른 branch 가 무시·번복하고 있는지
+6. **convention 위반의 cross-branch 누적** — 한 branch 의 convention 변경이 다른 branch 의 코드와 어긋남
+7. **plan/in-progress 의 중복 worktree** — `plan_coherence` 의 multi-draft 버전: 같은 영역을 두 plan 이 동시에 점유
+8. **통합 후 plan/spec 의 최종 상태 예측** — 단순 머지로 정합 가능한지, 별도 합의가 필요한지""",
+    },
+    "integration_risk_summary": {
+        "ko_title": "통합 위험 통합 보고서",
+        "perspective": "위 4 analyzer 결과를 통합해 BLOCK 결정과 통합 plan 표를 작성한다.",
+        "checklist": """1. **중복 제거** — 여러 analyzer 가 동일 위험을 다른 각도로 지적한 경우 통합 (가장 강한 등급 채택)
+2. **차단 결정 명시** — Critical 위험이 1건이라도 있으면 상단에 **BLOCK: YES**. 없으면 **BLOCK: NO**
+3. **통합 순서 표** — integration-order-planner 결과를 사람이 읽기 쉬운 표로 (단계 / branch / base / 예상 conflict / 위험도)
+4. **예상 conflict 표** — merge-conflict-analyzer 결과를 파일·hunk 별로 정리
+5. **사용자 confirm 필요 지점** — Phase 2 의 사용자 결정 포인트들 (base 변경 / 순서 변경 / 일부 branch 제외 등) 명시
+6. **권장 조치** — BLOCK 해소 우선, 그 다음 통합 시작 안내""",
+    },
+    "merge_conflict_resolver": {
+        "ko_title": "Merge Conflict Patch 제안",
+        "perspective": "특정 conflict 한 건에 대해 자동 해결 가능한 patch 를 unified-diff 형식으로 제안한다. **자동 적용은 호출자가 결정**.",
+        "checklist": """1. **conflict 정보 추출** — prompt_file 에서 file path / base hunk / ours hunk / theirs hunk / branch 식별자 확인
+2. **자동 해결 가능성 판단** — mechanical merge (import 정렬, 동일 의미 추가, 단순 리네임) 인지, semantic 변경인지
+3. **mechanical patch 작성** — 가능하면 두 변경을 결합한 unified diff 를 `output_file` 에 Write
+4. **semantic 충돌은 fatal** — 두 변경이 서로 다른 방향이면 patch 제안 금지, `STATUS=fatal` + output_file 에 충돌 사유 markdown 으로 기재
+5. **부분 patch 가능 시** — 일부 hunk 만 자동 해결 + 일부는 사용자 결정 필요 → patch 본문에 `# UNRESOLVED` 마커
+6. **사이드 이펙트 점검** — patch 가 의도하지 않은 hunk 를 건드리지 않도록 최소 범위 유지
+7. **테스트·import 정합성** — patch 후 import / type 호환이 깨지지 않는지 정적 확인
+8. **호출자에게 한 줄 응답 — patch 본문은 응답하지 말고 output_file 에만 작성**""",
+    },
+}
+
