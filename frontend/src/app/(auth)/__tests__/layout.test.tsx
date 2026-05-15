@@ -32,13 +32,16 @@ describe("AuthLayout", () => {
     expect(wrapper.className).not.toContain("bg-gradient");
   });
 
-  it("wraps the logo in a /dashboard-equivalent link", () => {
+  it("renders the logo as a non-link element so first Tab lands on the form input", () => {
+    // Enforces the a11y contract from e2e/a11y/smoke.spec.ts — auth screens
+    // intentionally skip a home link in the layout so keyboard users reach
+    // the form input directly. See layout.tsx comment.
     render(
       <AuthLayout>
         <div>card</div>
       </AuthLayout>,
     );
-    const link = screen.getByRole("link", { name: /Clemvion/ });
-    expect(link.getAttribute("href")).toBe("/");
+    const link = screen.queryByRole("link", { name: /Clemvion/i });
+    expect(link).toBeNull();
   });
 });
