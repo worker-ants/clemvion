@@ -37,6 +37,7 @@ import { authApi } from "@/lib/api/auth";
 import { workspacesApi } from "@/lib/api/workspaces";
 import { apiClient } from "@/lib/api/client";
 import { CreateTeamWorkspaceDialog } from "@/components/workspace/create-team-workspace-dialog";
+import { Logo, LogoMark } from "@/components/ui/logo";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
 import type {
@@ -274,19 +275,25 @@ export function Sidebar() {
           hidden && "-translate-x-full",
         )}
       >
-        {/* Logo */}
+        {/* Logo — spec/6-brand.md §8.4.6 + spec/2-navigation/_layout.md §2.1.
+            expanded → Full logo (auto light/dark); collapsed → Icon mark. */}
         <div className="flex h-14 items-center border-b border-[hsl(var(--border))] px-4">
           {!collapsed && (
-            <Link href="/dashboard" className="text-lg font-semibold">
-              {t("sidebar.productName")}
+            <Link
+              href="/dashboard"
+              aria-label={t("sidebar.productName")}
+              className="flex items-center"
+            >
+              <Logo variant="full" theme="auto" size={150} />
             </Link>
           )}
           {collapsed && (
             <Link
               href="/dashboard"
-              className="mx-auto text-lg font-semibold"
+              aria-label={t("sidebar.productName")}
+              className="mx-auto flex items-center"
             >
-              C
+              <LogoMark theme="auto" size={32} />
             </Link>
           )}
           {isSmall && mobileOpen && (
