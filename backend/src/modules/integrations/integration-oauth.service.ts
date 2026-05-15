@@ -867,21 +867,35 @@ export class IntegrationOAuthService {
 
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
     const redirectUri = buildOauthCallbackUrl(appUrl, provider);
-    const form = new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code',
-    });
+
+    // Cafe24 의 token endpoint 는 **Basic auth only** 요구. body 에
+    // client_id/client_secret 을 같이 넣으면 `invalid_request: The request
+    // is invalid. check the request parameters.` 로 거부된다 (2026-05-15
+    // 운영 보고). 다른 provider (google/github) 는 RFC 6749 §2.3.1 의 권장
+    // 대로 body 에 넣는다 — 일부 provider 는 양쪽 다 받지만 우리 옛 코드의
+    // "Basic + body 동시 전송" 은 cafe24 가 reject 한다.
+    //
+    // 출처: spec/2-navigation/4-integration.md §3.2 "토큰 교환 endpoint:
+    // POST .../oauth/token (Basic auth: client_id:client_secret)".
+    // 공식 샘플 `cafe24_app_sample` 도 Authorization 헤더만 사용.
+    const form = isCafe24
+      ? new URLSearchParams({
+          code,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        })
+      : new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        });
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
     };
-    // Cafe24 accepts client credentials via HTTP Basic in addition to the
-    // form body — using both keeps us robust against header-only or
-    // body-only enforcement on the provider side.
     if (isCafe24) {
       headers.Authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
     }
