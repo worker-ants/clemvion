@@ -8,7 +8,7 @@
 ---
 
 ### [WARNING] 리뷰 파일 내부 독백 텍스트 포함
-- **위치**: `review/consistency/2026-05-14_16-55-14/convention_compliance/review.md` (1번 줄), `review/consistency/2026-05-14_17-02-11/cross_spec/review.md` (1번 줄), `review/consistency/2026-05-14_17-02-11/naming_collision/review.md` (1번 줄) 등 다수
+- **위치**: `review/consistency/2026/05/14/16_55_14/convention_compliance/review.md` (1번 줄), `review/consistency/2026/05/14/17_02_11/cross_spec/review.md` (1번 줄), `review/consistency/2026/05/14/17_02_11/naming_collision/review.md` (1번 줄) 등 다수
 - **상세**: 여러 리뷰 파일이 "초안을 전부 읽었습니다. 이제 기존 `node-output.md` convention을 기준으로 비교 검토합니다.", "충분한 정보를 수집했습니다. 이제..." 와 같이 에이전트 내부 처리 과정 텍스트로 시작함. 공식 리뷰 산출물로서 이력 관리 및 재독성이 낮아짐.
 - **제안**: 리뷰 파일은 `## Convention Compliance Check 결과` 같은 섹션 헤더로 시작하도록 통일. 처리 내러티브는 제거.
 

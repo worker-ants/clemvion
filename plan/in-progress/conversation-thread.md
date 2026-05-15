@@ -124,7 +124,7 @@ owner: developer
 **공용 헬퍼 (Phase 15)**
 - `manual-trigger.handler.spec.ts`: mockContext literal → makeContext() 호출로 통일 (B2-W11)
 
-**검증**: 196 suites / 3430 tests green, lint clean, build clean. consistency-check Critical 0 (`review/consistency/2026-05-14_20-13-36/`).
+**검증**: 196 suites / 3430 tests green, lint clean, build clean. consistency-check Critical 0 (`review/consistency/2026/05/14/20_13_36/`).
 
 ### Phase 16-20 — 잔여 follow-up 후속 (사용자 "이어서 해" 요청) ✅
 2026-05-14 단일 commit:

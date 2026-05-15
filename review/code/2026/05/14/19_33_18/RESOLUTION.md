@@ -1,8 +1,8 @@
 # Resolution — ai-review 2026-05-14 (Batches 1 & 2)
 
 본 RESOLUTION 은 두 ai-review 세션의 발견사항에 대한 조치를 통합 기록한다.
-- Batch 1 (코드 변경 중심): `review/2026-05-14_19-33-18/SUMMARY.md`
-- Batch 2 (spec 중심):     `review/2026-05-14_19-38-42/SUMMARY.md`
+- Batch 1 (코드 변경 중심): `review/code/2026/05/14/19_33_18/SUMMARY.md`
+- Batch 2 (spec 중심):     `review/code/2026/05/14/19_38_42/SUMMARY.md`
 
 ---
 

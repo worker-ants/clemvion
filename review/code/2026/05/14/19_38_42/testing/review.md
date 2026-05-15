@@ -52,7 +52,7 @@
 
 ### [WARNING] `text_classifier` / `information_extractor` v1 push 미구현 상태에서 spec 은 "v1 push 적용"으로 선언
 - **위치**: `spec/4-nodes/3-ai/0-common.md` §10 신설 + `spec/conventions/conversation-thread.md` §2.3
-- **상세**: consistency review(`2026-05-14_17-19-21/plan_coherence`) 가 명시하듯, Phase 4 plan 은 `ai-agent.handler.ts` 만 다루고 두 핸들러의 push hook 태스크가 누락되어 있다. spec 이 "v1 push 적용" 을 선언했는데 구현이 없으면 spec 과 코드가 괴리된다. 이를 잡을 테스트도 없다.
+- **상세**: consistency review(`2026/05/14/17_19_21/plan_coherence`) 가 명시하듯, Phase 4 plan 은 `ai-agent.handler.ts` 만 다루고 두 핸들러의 push hook 태스크가 누락되어 있다. spec 이 "v1 push 적용" 을 선언했는데 구현이 없으면 spec 과 코드가 괴리된다. 이를 잡을 테스트도 없다.
 - **제안**: spec write 전 두 핸들러 grep 확인:
   ```bash
   grep -r "appendAi\|conversationThread" backend/src/nodes/ai/text-classifier/ backend/src/nodes/ai/information-extractor/
