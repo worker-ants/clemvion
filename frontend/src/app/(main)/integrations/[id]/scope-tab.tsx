@@ -49,11 +49,15 @@ export function ScopeTab({
       if ("authUrl" in res && res.authUrl) {
         openOAuthPopup(res.authUrl);
         toast.success(t("integrations.scopeRequestOpened"));
+        onChanged();
       } else if ("mode" in res && res.mode === "cafe24_private_pending") {
         setCafe24Pending({ scopesAdded: res.scopesAdded });
         toast.info(t("integrations.cafe24PrivateScopeRequestTitle"));
+        // pending 상태는 cafe24 측 후속 작업이 끝나야 token 이 갱신되므로
+        // 지금 onChanged() 로 refetch 해도 변화 없음 — 의도적으로 생략.
+      } else {
+        toast.error(t("integrations.requestScopesFailed"));
       }
-      onChanged();
     },
     onError: () => toast.error(t("integrations.requestScopesFailed")),
   });
@@ -148,33 +152,42 @@ export function ScopeTab({
           {t("integrations.requestScopesHint")}
         </p>
         <div className="space-y-2 rounded-md border border-[hsl(var(--border))] p-3">
-          {allOptions.map((s) => (
-            <label
-              key={s.value}
-              className="flex cursor-pointer items-start gap-2 text-sm"
-            >
-              <input
-                type="checkbox"
-                checked={selected.includes(s.value)}
-                onChange={() => toggle(s.value)}
-                className="mt-0.5"
-                disabled={currentScopes.includes(s.value)}
-              />
-              <div className="flex-1">
-                <div className="font-medium">
-                  {s.label}
-                  {currentScopes.includes(s.value) && (
-                    <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">
-                      {t("integrations.alreadyGranted")}
-                    </span>
-                  )}
-                </div>
-                <div className="text-xs text-[hsl(var(--muted-foreground))]">
-                  {s.value}
-                </div>
-              </div>
-            </label>
-          ))}
+          {allOptions.length === 0 ? (
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              {t("integrations.noScopeOptionsAvailable")}
+            </p>
+          ) : (
+            allOptions.map((s) => {
+              const isGranted = currentScopes.includes(s.value);
+              return (
+                <label
+                  key={s.value}
+                  className="flex cursor-pointer items-start gap-2 text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(s.value)}
+                    onChange={() => toggle(s.value)}
+                    className="mt-0.5"
+                    disabled={isGranted}
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">
+                      {s.label}
+                      {isGranted && (
+                        <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">
+                          {t("integrations.alreadyGranted")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-[hsl(var(--muted-foreground))]">
+                      {s.value}
+                    </div>
+                  </div>
+                </label>
+              );
+            })
+          )}
         </div>
         <div className="flex justify-end">
           <Button

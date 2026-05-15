@@ -11,19 +11,20 @@ export type ListStatusFilter =
 
 export type CredentialsStatus = "ok" | "needs_reauth";
 
+export interface Cafe24PrivatePendingBase {
+  mode: "cafe24_private_pending";
+  integrationId: string;
+  appUrl: string;
+  callbackUrl: string;
+}
+
 export type OAuthBeginResult =
   | { authUrl: string; state: string }
-  | { mode: "cafe24_private_pending"; integrationId: string; appUrl: string; callbackUrl: string };
+  | Cafe24PrivatePendingBase;
 
 export type RequestScopesResult =
   | { authUrl: string; state: string }
-  | {
-      mode: "cafe24_private_pending";
-      integrationId: string;
-      appUrl: string;
-      callbackUrl: string;
-      scopesAdded: string[];
-    };
+  | (Cafe24PrivatePendingBase & { scopesAdded: string[] });
 
 export interface IntegrationMeta {
   appType: "public" | "private" | null;

@@ -62,13 +62,15 @@ onSuccess: (res) => {
 - [x] spec / plan 분석
 - [x] worktree 생성
 - [x] consistency-check --impl-prep (BLOCK: NO, W-3 반영하여 i18n prefix 조정 — `cafe24PrivateScopeRequest*`)
-- [ ] i18n 키 추가 (ko/en)
-- [ ] requestMutation.onSuccess 분기 + inline alert 렌더링
-- [ ] 단위 테스트 추가 (Cafe24 Private 응답 시 안내 표시)
-- [ ] lint / unit test / build
-- [ ] `[skip-e2e]` 표기 — e2e 범위 아님 (단일 컴포넌트 분기 추가)
-- [ ] ai-review + RESOLUTION
-- [ ] plan complete 이동
+- [x] i18n 키 추가 (ko/en) — `cafe24PrivateScopeRequest{Title,Desc,ScopesAdded}` + `noScopeOptionsAvailable`
+- [x] requestMutation.onSuccess 분기 + inline alert 렌더링 (`scope-tab.tsx` 신규 모듈로 분리, page.tsx 의 named export 제약 해소)
+- [x] 단위 테스트 추가 7건 (cafe24_private_pending / authUrl / onError / 빈 scopesAdded / 재요청 시 alert 리셋 / 빈 scope options / non-oauth2 fallback)
+- [x] lint / unit test / build — frontend 1355/1355 통과
+- [x] `[skip-e2e]` 표기 — e2e 범위 아님 (단일 컴포넌트 분기 추가)
+- [x] ai-review + RESOLUTION — `review/code/2026/05/16/01_00_34/`
+- [ ] spec 역반영 follow-up (project-planner 위임): consistency I-1·I-2·I-4 — `spec/2-navigation/4-integration.md §4.4` 에 영문 안내 문구 예시, `scopesAdded` UI 표현 방식, "inline alert + toast.info" 결정 흡수
+- [ ] spec/Rationale 보완 follow-up (project-planner 위임): consistency W-1 (폐기 결정 cross-reference), W-2 (구 flat 경로 참조 교정)
+- [ ] plan complete 이동 (위 follow-up 들은 별도 plan/in-progress 로 분리해 옮긴 뒤 본 plan 은 complete)
 
 ## 영향 범위
 
