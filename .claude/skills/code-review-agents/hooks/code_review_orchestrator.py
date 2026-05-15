@@ -27,6 +27,7 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib import session  # noqa: E402
+from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -114,19 +115,10 @@ def load_config():
 
 
 # ---------------------------------------------------------------------------
-# Prompt body builder (no system prompt — that lives in the sub-agent
-# definition under .claude/agents/<role>-reviewer.md).
+# Prompt body builder (role-specific — the sub-agent's system prompt also
+# carries the same role, but the orchestrator embeds the perspective and
+# checklist here so each `_prompts/<role>.md` is genuinely role-distinct).
 # ---------------------------------------------------------------------------
-
-
-PROMPT_HEADER = (
-    "# Review Payload\n\n"
-    "본 파일은 orchestrator 가 작성한 리뷰 대상 정보입니다.\n"
-    "sub-agent 의 system prompt 에 정의된 리뷰 관점·등급 기준·출력 형식에 따라\n"
-    "아래 변경 내용을 분석하고, 호출자가 `output_file` 인자로 지정한 경로에\n"
-    "review.md 를 작성하세요. 호출자에게 반환하는 값은 STATUS 한 줄입니다.\n\n"
-    "## 리뷰 대상 파일\n\n"
-)
 
 
 def build_files_section(change_infos, max_file_size, max_total_size=0):
@@ -222,11 +214,51 @@ def build_files_section(change_infos, max_file_size, max_total_size=0):
     return separator.join(sections)
 
 
-def build_agent_prompt_body(change_infos, max_file_size, max_prompt_size):
+def build_agent_prompt_body(agent_name, change_infos, max_file_size, max_prompt_size):
+    """Compose a role-specific prompt body for one reviewer.
+
+    The sub-agent's system prompt already names the reviewer; we still embed
+    the perspective and checklist here so the request itself is role-distinct
+    and the file artefacts (`_prompts/<role>.md`) are not 13 copies of the
+    same payload. See lib/role_instructions.py for the per-role data.
+    """
+    info = REVIEWER_INSTRUCTIONS.get(agent_name)
+    if info is None:
+        # Unknown reviewer key — keep going with a generic header so the
+        # session still produces something useful, but make the gap visible.
+        info = {
+            "ko_title": agent_name,
+            "perspective": "다음 코드 변경을 분석한다.",
+            "checklist": (
+                "(점검 항목이 정의되어 있지 않습니다. "
+                "lib/role_instructions.py 에 항목을 추가하세요.)"
+            ),
+            "scope_optional": False,
+        }
+
+    scope_note = ""
+    if info.get("scope_optional"):
+        scope_note = (
+            "> 변경 코드가 본 reviewer 의 영역과 무관하면 \"해당 없음\" 으로 응답하고\n"
+            "> 위험도를 NONE 으로 설정해 `STATUS=success ISSUES=0` 으로 반환합니다.\n\n"
+        )
+
+    header = (
+        f"# {info['ko_title']} Review Payload\n\n"
+        f"본 파일은 orchestrator 가 {info['ko_title']} reviewer 용으로 작성한 입력입니다. "
+        f"{info['perspective']}\n"
+        "sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로\n"
+        "따르되, 분석 시 아래 \"점검 관점\" 을 빠짐없이 적용하세요. 결과는 `output_file`\n"
+        "인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.\n\n"
+        f"{scope_note}"
+        f"## 점검 관점 ({info['ko_title']})\n\n"
+        f"{info['checklist']}\n\n"
+        "## 리뷰 대상 파일\n\n"
+    )
     files_budget = 0
     if max_prompt_size > 0:
-        files_budget = max(max_prompt_size - len(PROMPT_HEADER), max_prompt_size // 2)
-    return PROMPT_HEADER + build_files_section(change_infos, max_file_size, files_budget)
+        files_budget = max(max_prompt_size - len(header), max_prompt_size // 2)
+    return header + build_files_section(change_infos, max_file_size, files_budget)
 
 
 # ---------------------------------------------------------------------------
@@ -398,12 +430,12 @@ def prepare_session(change_infos, config):
     prompts_dir = os.path.join(session_dir, "_prompts")
     os.makedirs(prompts_dir, exist_ok=True)
 
-    body = build_agent_prompt_body(
-        change_infos, config["max_file_size"], config["max_prompt_size"],
-    )
-
     invocations = []
     for agent in config["agents"]:
+        body = build_agent_prompt_body(
+            agent, change_infos,
+            config["max_file_size"], config["max_prompt_size"],
+        )
         prompt_path = os.path.join(prompts_dir, f"{agent}.md")
         output_path = os.path.join(session_dir, agent, "review.md")
         os.makedirs(os.path.join(session_dir, agent), exist_ok=True)
@@ -540,6 +572,10 @@ def main():
     parser.add_argument("--cli", action="store_true",
                         help="Deprecated alias for --prepare. Model calls are now performed "
                              "by the main Claude session via the Agent tool.")
+    parser.add_argument("--resume", type=str, metavar="SESSION_DIR",
+                        help="Resume an existing session: skip prepare, validate the "
+                             "_retry_state.json, echo the absolute session_dir on stdout. "
+                             "Used by /loop wake-ups to re-enter the same session.")
     parser.add_argument("--commit", type=str, metavar="HASH")
     parser.add_argument("--range", type=str, metavar="FROM..TO")
     parser.add_argument("--branch", type=str, metavar="BRANCH")
@@ -554,6 +590,22 @@ def main():
             "see .claude/skills/code-review-agents/SKILL.md for the new procedure.",
             file=sys.stderr,
         )
+
+    # Resume mode: caller already has a session_dir from an earlier --prepare run
+    # (typically a /loop wake-up). We just validate and echo the path back so the
+    # main session has a single uniform entry-point regardless of first/N-th cycle.
+    if args.resume:
+        sd = os.path.abspath(args.resume)
+        state_file = os.path.join(sd, "_retry_state.json")
+        if not os.path.isfile(state_file):
+            print(
+                f"Error: cannot resume — _retry_state.json missing under {sd}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        debug_log(f"Resuming session: {sd}")
+        print(sd)
+        sys.exit(0)
 
     config = load_config()
     change_infos = collect_change_infos(args, config)

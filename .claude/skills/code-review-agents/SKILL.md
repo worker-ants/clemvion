@@ -22,23 +22,35 @@ description: 13개의 역할 기반 sub-agent(`<role>-reviewer`)를 main Claude 
 
 ### 1. 세션 준비 (Python helper, model 호출 없음)
 
+첫 사이클(또는 /loop 밖):
+
 ```bash
+# /loop 밖
 python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --prepare $ARGUMENTS
+
+# /loop 안 — loop_mode=true 로 초기화하려면 env prefix
+AI_REVIEW_LOOP=1 python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --prepare $ARGUMENTS
 ```
 
-`--prepare` 가 기본 모드. `--cli` 도 deprecated alias 로 받지만 동일 동작.
+`/loop /ai-review --resume <session_dir>` 처럼 wake 후 재진입할 때는 prepare 가 아니라 resume:
+
+```bash
+python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --resume <session_dir>
+```
+
+resume 는 세션을 새로 만들지 않고 `<session_dir>/_retry_state.json` 의 존재만 검증한 뒤 그 경로를 stdout 으로 echo 한다. 누락이면 exit code 1.
+
+`--prepare` 가 기본 모드. `--cli` 도 deprecated alias.
 
 옵션은 다음과 같다 (기존과 동일):
 - 인자 없음 → git diff (staged + unstaged + untracked)
 - `--staged`, `--commit <ref>`, `--range <a>..<b>`, `--branch <base>`, 파일/디렉토리 경로
 
 orchestrator 가 만드는 결과:
-- `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<role>.md` — reviewer 별 입력 페이로드
+- `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<role>.md` — reviewer 별 role-specific 입력 페이로드 (관점·체크리스트·변경 컨텐츠 결합. role 마다 내용이 다름)
 - `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — 재시도/상태 파일
 - `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json` — 세션 메타데이터
 - stdout 마지막 줄(들) = 세션 디렉토리 절대경로 (batch 별로 한 줄씩)
-
-`/loop /ai-review` 로 호출됐다면 환경변수 `AI_REVIEW_LOOP=1` 을 전달해 `loop_mode=true` 로 초기화한다.
 
 ### 2. 상태 파일 로드
 
@@ -64,21 +76,33 @@ sub-agent 는 자기 system prompt 의 호출 규약대로 prompt_file 을 Read,
 
 ### 4. 결과 파싱
 
-각 sub-agent return value 는 다음 한 줄:
+각 sub-agent return value 의 정상 형식:
 ```
 STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HINT=<sec 또는 빈 값>
 ```
 
-분류:
-- `success` → `agents_success` 로 이동.
-- `fatal` → `agents_fatal` 로 이동 (재시도하지 않음).
-- `rate_limit`, `network` → `agents_pending` 에 유지. `rate_limit` 인 경우 `rate_limit_episodes += 1`. `RESET_HINT` 가 있으면 `last_reset_hint_sec` 에 갱신 (여러 reviewer 의 hint 중 최대값 사용).
+**파싱 규칙**: 응답 텍스트 전체에서 정규식 `^STATUS=(\S+)\s+ISSUES=(\d+)\s+PATH=(\S+)(?:\s+RESET_HINT=(\d+)?)?$` 의 **마지막 매칭** 을 STATUS 라인으로 사용. 본문 + STATUS 두 줄 응답에도 안전.
 
-비정상 응답(STATUS 누락·해석 불가) 은 보수적으로 `rate_limit` 로 분류 (재시도 안전). 단, 같은 reviewer 가 3회 연속 비정상이면 `fatal` 로 강등 (operator 개입 신호).
+분류:
+- `success` → `agents_success` 로 이동. **단** `PATH` 가 가리키는 `output_file` 이 존재하지 않거나 비어 있으면 보수적으로 `fatal` 로 강등 (성공 거짓 보고 방어).
+- `fatal` → `agents_fatal` 로 이동 (재시도하지 않음).
+- `rate_limit`, `network` → `agents_pending` 에 유지. `rate_limit` 인 경우 `rate_limit_episodes += 1`. `RESET_HINT` 가 있으면 `last_reset_hint_sec` 에 갱신 (여러 reviewer 의 hint 중 **최대값** — 가장 늦게 풀리는 한도 기준 안전 마진).
+
+**STATUS 라인 미수신 시 (fallback)**: sub-agent 가 한도/네트워크 오류로 본인 응답을 끝맺지 못한 경우, STATUS 정규식 매칭이 없거나 truncated/error 응답이 그대로 main 에 돌아온다. 이때 main 은 응답 전체 텍스트를 다음 키워드로 분류한다:
+- rate-limit 패턴: `Claude AI usage limit`, `rate.?limit`, `rate_limit_exceeded`, `too many requests`, `quota`, `5-hour limit`, `try again in`, `\b429\b`
+- network 패턴: `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `ENOTFOUND`, `EHOSTUNREACH`, `could not resolve`, `connection refused/reset`, `TLS handshake`, `socket hang up`, `overloaded_error`, `service unavailable`, `bad gateway`, `gateway timeout`, `\b50[234]\b`, `APIConnectionError`, `fetch failed`
+
+매칭되면 해당 분류로 pending 유지. 둘 다 안 맞으면 보수적으로 `rate_limit` 로 분류 (재시도 안전). 단, 같은 reviewer 가 3회 연속 STATUS 미수신이면 `fatal` 로 강등 (operator 개입 신호).
 
 ### 5. 상태 갱신
 
-`_retry_state.json` 을 위 결과로 갱신해 Write 로 덮어쓴다. `agent_history[<name>]` 에 시도 기록 추가 (`{ts, status, reset_hint_sec}`).
+`_retry_state.json` 을 위 결과로 갱신해 Write 로 덮어쓴다. 매 사이클마다 갱신할 필드:
+
+- `agents_pending` / `agents_success` / `agents_fatal` — 분류 결과로 재구성.
+- `agent_history[<name>]` — 이번 시도 기록 append (`{ts, status, reset_hint_sec}`).
+- `rate_limit_episodes` — rate_limit 분류된 agent 수만큼 증가.
+- `last_reset_hint_sec` — 이번 사이클의 rate_limit RESET_HINT 중 최대값 (없으면 null 유지).
+- ScheduleWakeup 호출 직전: `wake_history.append({ts, delay_sec, reason})`, `total_wait_sec += delay_sec`.
 
 ### 6. 수렴 분기
 
@@ -86,15 +110,16 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
   1. `Agent(subagent_type="code-review-summary", prompt="session_dir=<session_dir>")` invoke. summary sub-agent 가 자기 컨텍스트에서 `_retry_state.json` → `subagent_invocations[*].output_file` 들을 Read 해 통합한 후 `summary_output_file` (= `<session_dir>/SUMMARY.md`) 에 Write 한다.
   2. summary 의 STATUS 도 동일 규약. `rate_limit/network` 이면 summary 도 재시도 대상 (별도 pending 표기).
   3. SUMMARY.md 생성 완료 후 사용자에게 1-2 문단 요약 + 세션 경로 출력.
-- **남고 `loop_mode=true`**: `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /ai-review", reason="rate-limit retry for <N> agents")` 호출 + "한도 N개 agent 재시도 예약 (Xs 후)" 한 줄 출력 후 turn 종료. **다음 wake 때 orchestrator 를 재실행하지 말 것** — 같은 `session_dir/_retry_state.json` 을 그대로 재진입 (`session_dir` 을 conversation 안에서 보존하거나, `~/.cache/ai-review-session.txt` 같은 외부 hint 사용).
+- **남고 `loop_mode=true`**: `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /ai-review --resume <session_dir>", reason="rate-limit retry for <N> agents")` 호출 + "한도 N개 agent 재시도 예약 (Xs 후)" 한 줄 출력 후 turn 종료. wake prompt 에 `--resume <session_dir>` 절대경로를 그대로 박아 두면 wake 시점에 어떤 세션을 재개할지 모호함이 없다.
 - **남고 `loop_mode=false`**: code-review-summary 를 partial 호출 (pending 항목을 "재시도 필요" 로 명시). 사용자에게 `/loop /ai-review` 로 재시작 안내.
 
 ### 7. /loop 결합
 
-`/loop /ai-review` 가 호출되면 main 은 dynamic mode 안에서 위 1-6 사이클을 반복한다. wake 시점에:
-1. 직전 session_dir 을 복원 (대화 안 또는 외부 hint).
-2. step 2 (상태 파일 로드) 부터 진입. step 1 (orchestrator 재실행) 은 skip.
-3. pending 이 비면 ScheduleWakeup 을 호출하지 않아 /loop 자연 종료.
+`/loop /ai-review` 가 호출되면 main 은 dynamic mode 안에서 위 1-6 사이클을 반복한다.
+
+- **첫 사이클**: 사용자의 원래 인자(`/ai-review --staged` 등) 를 그대로 받아 step 1 의 prepare 명령 실행. 출력된 session_dir 을 기록.
+- **wake 사이클**: ScheduleWakeup prompt 가 `/loop /ai-review --resume <session_dir>` 형태로 발화된다. main 은 step 1 의 prepare 명령 대신 `--resume <session_dir>` 명령으로 orchestrator 호출 → 그 session_dir 만 echo. step 2 (`_retry_state.json` Read) 부터 진입.
+- **자연 종료**: pending 이 비면 summary 호출 후 ScheduleWakeup 미호출 → /loop 자동 종료.
 
 ## 13개 reviewer sub-agent
 
@@ -132,7 +157,7 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 | 환경변수 | 기본값 | 설명 |
 |----------|--------|------|
 | `REVIEW_AGENTS` | (전체 13) | 실행할 reviewer 쉼표 구분 (예: `security,performance`) |
-| `REVIEW_OUTPUT_DIR` | `./review` | 세션 디렉토리 부모 |
+| `REVIEW_OUTPUT_DIR` | `./review/code` | 세션 디렉토리 부모 (nested ISO 분할은 lib.session 이 담당) |
 | `REVIEW_SKIP_EXTENSIONS` | (없음) | 건너뛸 확장자 (예: `md,txt,json`) |
 | `REVIEW_MAX_FILE_SIZE` | `51200` | 개별 파일 컨텐츠 상한 (자) |
 | `REVIEW_MAX_PROMPT_SIZE` | `131072` | reviewer 1명분 prompt body 상한 (자) |

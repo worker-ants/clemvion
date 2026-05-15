@@ -4,9 +4,16 @@
 
 `claude -p` 호출은 더 이상 지원하지 않는다. 13개 reviewer 는 모두 `.claude/agents/<role>-reviewer.md` 에 정의된 sub-agent 이며, main Claude(이 세션) 가 `Agent` tool 로 직접 invoke 한다.
 
+0. **사전 점검**: 현재 worktree 확인 (CLAUDE.md "Worktree 기반 작업 정책"). main 워크트리에서 호출되면 worktree 안내 후 거부.
+
 1. **세션 준비**: 아래 orchestrator 를 실행하면 세션 디렉토리·prompt 파일·재시도 상태 파일을 만들고 절대경로를 stdout 에 출력한다 (model 호출 없음).
    ```bash
+   # /loop 밖
    python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --prepare $ARGUMENTS
+   # /loop 안 (loop_mode=true 초기화)
+   AI_REVIEW_LOOP=1 python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --prepare $ARGUMENTS
+   # wake 사이클 — `$ARGUMENTS` 에 `--resume <session_dir>` 이 들어있을 때
+   python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --resume <session_dir>
    ```
    stdout 의 각 줄이 하나의 세션 디렉토리(batch). 일반적인 경우 1줄.
 
@@ -29,10 +36,10 @@
 
 6. **수렴 분기**:
    - `agents_pending` 가 비면 → summary sub-agent 호출: `Agent(subagent_type="code-review-summary", prompt="session_dir=<session_dir>")`. summary sub-agent 가 자기 컨텍스트에서 `_retry_state.json` 과 13개 reviewer 의 `output_file` 을 Read 해 통합한 후 `summary_output_file` 에 Write. 완료되면 사용자에게 `SUMMARY.md` 의 핵심을 1-2문단으로 요약.
-   - `agents_pending` 가 남고 `loop_mode=true` 이면 `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /ai-review", reason="rate-limit retry for N agents")` 호출 후 한 줄 안내 출력하고 turn 종료. 다음 wake 때 동일 session_dir 로 step 2 부터 재진입 (orchestrator 재실행 없이 기존 세션 재사용 — `REVIEW_OUTPUT_DIR=<session_dir>/..` 로 강제하지 말 것).
+   - `agents_pending` 가 남고 `loop_mode=true` 이면 `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /ai-review --resume <session_dir>", reason="rate-limit retry for N agents")` 호출 후 한 줄 안내 출력하고 turn 종료. 다음 wake 가 `/loop /ai-review --resume <session_dir>` 으로 발화되면 orchestrator 를 `--resume <session_dir>` 으로만 호출 → 동일 session 의 `_retry_state.json` 으로 step 2 부터 재진입.
    - `agents_pending` 가 남고 `loop_mode=false` 이면 partial SUMMARY 작성 후 사용자에게 `/loop /ai-review` 로 재시작 안내.
 
-7. **/loop 결합 시**: `/loop /ai-review` 로 호출되면 orchestrator 에는 `AI_REVIEW_LOOP=1` 을 전달해 `loop_mode=true` 로 초기화한다. 첫 사이클은 새 session 을 만들지만, 이후 wake 들은 기존 session 의 상태 파일을 그대로 재진입한다 — 새로 `--prepare` 호출하지 말 것.
+7. **/loop 결합 시**: `/loop /ai-review` 로 호출되면 첫 사이클에서 `AI_REVIEW_LOOP=1` 환경변수를 prefix 로 추가해 `--prepare` 호출 (loop_mode=true 로 초기화). 이후 wake 사이클은 ScheduleWakeup prompt 안에 박힌 `--resume <session_dir>` 인자로 orchestrator 를 호출 — 새 session 을 만들지 않고 기존 session 의 `_retry_state.json` 을 그대로 재진입.
 
 ## 사용 예시
 

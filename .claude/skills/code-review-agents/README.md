@@ -145,7 +145,7 @@ ScheduleWakeup delay:
 | 변수 | 기본값 | 의미 |
 | --- | --- | --- |
 | `REVIEW_AGENTS` | (전체 13) | 실행할 reviewer 쉼표 구분 |
-| `REVIEW_OUTPUT_DIR` | `./review` | 세션 디렉토리 부모 |
+| `REVIEW_OUTPUT_DIR` | `./review/code` | 세션 디렉토리 부모 (nested ISO 분할은 lib.session 이 담당) |
 | `REVIEW_SKIP_EXTENSIONS` | (없음) | 건너뛸 확장자 |
 | `REVIEW_MAX_FILE_SIZE` | `51200` | 개별 파일 컨텐츠 상한 (자) |
 | `REVIEW_MAX_PROMPT_SIZE` | `131072` | reviewer 1명분 prompt body 상한 (자) |
