@@ -1,5 +1,9 @@
 # HTTP Request output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `output.requestBody` (evaluated, 256KB cap) + `output.response` + `output.error` 병존 (4xx/5xx) + `meta.statusCode` (transport 실패 시 `0`) 유지.
+> 잔여 권고 항목:
+> - Transport 실패 시 `output.response: { error: <message> }` legacy 잔재 제거 — `output.error` 만 사용. spec footnote 가 deprecation 의도 명시.
+
 > 대상 spec: `spec/4-nodes/4-integration/1-http-request.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

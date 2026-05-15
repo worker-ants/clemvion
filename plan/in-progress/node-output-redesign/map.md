@@ -1,5 +1,10 @@
 # Map output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합.
+> 잔여 권고 항목:
+> - §5.1 (시작 시점) 의 `output: items[]` 가 외부 expression 으로 노출되지 않는다는 점을 spec 표현 더 명확화 (또는 handler 가 Loop/Parallel 처럼 `output: null` 반환 + 별도 internal 필드로 분배 — executor 변경 동반).
+> - `errorPolicy: 'skip' / 'continue'` 시 인덱스 보존 마커 (`_skipped: true`) 와 ForEach 의 별도 `output.skipped` 분리 패턴의 통일 여부 검토.
+
 > 대상 spec: `spec/4-nodes/1-logic/7-map.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

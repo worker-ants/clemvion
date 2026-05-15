@@ -1,5 +1,7 @@
 # Manual Trigger output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `config.parameters` (스키마) ↔ `output.parameters` (런타임 값) 직교 + webhook 한정 `output.request` 노출 + `__triggerSource` internal 마커 유지. 잔여 권고 없음 (이름 중복 리네이밍은 호환성 영향이 커 별도 트랙).
+
 > 대상 spec: `spec/4-nodes/7-trigger/1-manual-trigger.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

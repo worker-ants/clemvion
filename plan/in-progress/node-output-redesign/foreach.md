@@ -1,5 +1,10 @@
 # ForEach output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. 컨테이너 컨트랙트 (Principle 9) + `errorPolicy='skip'/'continue'` 시 `output.skipped` 분리 표현 모두 유지.
+> 잔여 권고 항목:
+> - §5.1 (시작 시점) 의 `output: items[]` 외부 노출 모호성 — Map 과 동일 (handler internal 명확화 권장).
+> - Map 의 인라인 `_skipped: true` 마커 vs ForEach 의 별도 `output.skipped` 배열 — 두 노드의 시멘틱 차이로 의도된 분기이지만 다운스트림 일관성 위해 통일 검토 가치.
+
 > 대상 spec: `spec/4-nodes/1-logic/9-foreach.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

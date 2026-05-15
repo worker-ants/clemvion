@@ -1,5 +1,9 @@
 # Table output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `output.rows` + `output.totalRows` (cap 전 크기) + `output.columns` (evaluated label, dynamic 한정) + 1MB cap 신호 (`rowsTruncated`/`rowsTotalCount`) 유지.
+> 잔여 권고 항목:
+> - `output.rendered` HTML snapshot 의 위치 — Carousel/Chart 는 백엔드 HTML 생성 폐지 (frontend client-side 렌더) 인데 Table 만 유지로 카테고리 일관성 결여. `meta.rendered` 로 이동하거나 frontend client-side 렌더 전환 검토. conventions §4.2 footnote 명시.
+
 > 대상 spec: `spec/4-nodes/6-presentation/2-table.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)
