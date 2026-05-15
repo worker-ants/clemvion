@@ -91,7 +91,7 @@ sequenceDiagram
     end
     GP->>PG: UPDATE document SET graph_extraction_status='completed', graph_retry_count=0
     GP->>PG: UPDATE knowledge_base SET entity_count, relation_count (recount)
-    GP->>WS: emit 'document:graph_extracted'
+    GP->>WS: emit 'document:graph_completed'
   end
 
   alt 임베딩 / 추출 retry 시
@@ -192,11 +192,14 @@ sequenceDiagram
 
 ### 2.5 WebSocket
 
+채널은 모두 `kb:${documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). 권위 정의는 backend `WebsocketService.emitKbEvent` 의 `KbEventType` union — 총 12개.
+
 | Event | 발행 |
 | --- | --- |
-| `document:embedding_started/completed/failed/retry` | `EmbeddingService.emitEvent` |
-| `document:graph_started/completed/failed/retry` | `GraphExtractionService.emitEvent` |
-| `kb:reembed_started/finished`, `kb:reextract_started/finished` | KB-level batch finalize 시 |
+| `document:embedding_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed` | `EmbeddingService.emitEvent` |
+| `document:graph_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed` | `GraphExtractionService.emitEvent` |
+
+> KB-level batch 이벤트(`kb:reembed_started/finished`, `kb:reextract_started/finished`, `kb:graph_stats_updated`) 는 spec 에서 폐기됨 — backend 의 emit 경로가 `kb:` 채널에 도달하지 못하는 **dead path**. 후속 plan `plan/in-progress/kb-graph-stats-dead-path.md` 가 코드 측 결함 처리(emit 경로 수정 또는 코드 제거) 를 dev 에 위임한다.
 
 ---
 

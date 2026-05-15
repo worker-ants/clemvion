@@ -223,7 +223,7 @@ ws(s)://{base_url}/ws?token={access_token}
 |------|------|--------|
 | 워크플로우 실행 상태 | Server → Client | execution.*, node.* |
 | 실행 제어 | Client → Server | execution.start/stop/continue |
-| 임베딩 진행 상태 | Server → Client | embedding.progress |
+| KB 문서 상태 (임베딩·그래프 추출) | Server → Client | document:embedding_*, document:graph_* (채널 `kb:{documentId}`) |
 
 ### 10.4 재연결
 
