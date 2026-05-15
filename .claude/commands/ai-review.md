@@ -28,7 +28,7 @@
 5. **상태 갱신**: `_retry_state.json` 을 Write 로 덮어쓴다 (전체 JSON 직렬화 후 Write).
 
 6. **수렴 분기**:
-   - `agents_pending` 가 비면 → summary sub-agent 호출 (`subagent_type=code-review-summary`, prompt 에 `prompt_file` 로 reviewer 결과 목록을 작성한 임시 markdown 경로 + `output_file=<summary_output_file>` 전달). 완료되면 사용자에게 `SUMMARY.md` 의 핵심을 1-2문단으로 요약.
+   - `agents_pending` 가 비면 → summary sub-agent 호출: `Agent(subagent_type="code-review-summary", prompt="session_dir=<session_dir>")`. summary sub-agent 가 자기 컨텍스트에서 `_retry_state.json` 과 13개 reviewer 의 `output_file` 을 Read 해 통합한 후 `summary_output_file` 에 Write. 완료되면 사용자에게 `SUMMARY.md` 의 핵심을 1-2문단으로 요약.
    - `agents_pending` 가 남고 `loop_mode=true` 이면 `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /ai-review", reason="rate-limit retry for N agents")` 호출 후 한 줄 안내 출력하고 turn 종료. 다음 wake 때 동일 session_dir 로 step 2 부터 재진입 (orchestrator 재실행 없이 기존 세션 재사용 — `REVIEW_OUTPUT_DIR=<session_dir>/..` 로 강제하지 말 것).
    - `agents_pending` 가 남고 `loop_mode=false` 이면 partial SUMMARY 작성 후 사용자에게 `/loop /ai-review` 로 재시작 안내.
 

@@ -17,7 +17,7 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 4. **STATUS 파싱·상태 갱신**: `STATUS=success|rate_limit|network|fatal` 한 줄 반환. `/ai-review` 와 동일한 규약. `_retry_state.json` 을 Write 로 갱신.
 
 5. **수렴 분기**:
-   - 모두 완료 → `consistency-summary` sub-agent 호출 (`subagent_type=consistency-summary`, prompt 에 5개 review.md 경로 목록 + `output_file=<summary_output_file>`).
+   - 모두 완료 → `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")` invoke. summary 가 자기 컨텍스트에서 `_retry_state.json` 과 5 checker review.md 를 Read 해 통합 후 `summary_output_file` 에 Write.
    - 남으면 `/ai-review` 와 동일한 ScheduleWakeup 로직 (loop_mode 시).
 
 6. **BLOCK 결정**: SUMMARY.md 작성 후 main 이 그 파일의 상단 30 라인을 Read 해 `BLOCK: YES` 가 있는지 확인.

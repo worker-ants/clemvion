@@ -68,9 +68,8 @@ orchestrator 가 만드는 결과:
 ### 5. 수렴 분기
 
 - **모두 완료**:
-  1. 임시 markdown 작성 — 5 review.md 경로 + target_info — 를 `<session_dir>/_prompts/_summary.md` 로 저장.
-  2. `Agent(subagent_type="consistency-summary", prompt="prompt_file=<_summary.md>\noutput_file=<summary_output_file>")` invoke.
-  3. summary 완료 후 SUMMARY.md 상단 30 라인을 Read 해 `BLOCK: YES` 검출 → 호출자에게 보고.
+  1. `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")` invoke. summary sub-agent 가 자기 컨텍스트에서 `_retry_state.json` → 5 checker 의 `output_file` 들을 Read 해 통합한 후 `summary_output_file` 에 Write.
+  2. summary 완료 후 SUMMARY.md 상단 30 라인을 Read 해 `BLOCK: YES` 검출 → 호출자에게 보고.
 - **남고 `loop_mode=true`**: `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /consistency-check ...", reason="...")` 후 turn 종료. 다음 wake 때 동일 session_dir 의 _retry_state.json 으로 재진입.
 - **남고 `loop_mode=false`**: partial summary 시도 (한도 걸리면 그대로 표시), 사용자에게 `/loop /consistency-check` 안내.
 
