@@ -20,6 +20,7 @@ import {
   toolStatusMapFromItems,
 } from "@/lib/conversation/conversation-utils";
 import { tryParseJson } from "@/lib/utils/parse-json";
+import { useT } from "@/lib/i18n";
 
 interface UseExecutionEventsOptions {
   executionId: string | null;
@@ -45,6 +46,7 @@ function sanitizeUuid(v: unknown): string | undefined {
 export function useExecutionEvents({
   executionId,
 }: UseExecutionEventsOptions): UseExecutionEventsReturn {
+  const t = useT();
   const [isConnected, setIsConnected] = useState(false);
   // snapshotReceived: WS `execution.snapshot` 이 처음 도착했는지. WS handshake
   // 완료 (isConnected) 보다 더 정확한 "real-time data 수신" 신호 — backend 가
@@ -810,13 +812,13 @@ export function useExecutionEvents({
       return;
     }
     const warnTimer = setTimeout(() => {
-      toast.warning(
-        "실시간 업데이트 연결이 지연되고 있습니다. 폴링으로 진행됩니다.",
-        { duration: Infinity, id: "ws-connection-warning" },
-      );
+      toast.warning(t("executions.realtimeFallback"), {
+        duration: Infinity,
+        id: "ws-connection-warning",
+      });
     }, 10000);
     return () => clearTimeout(warnTimer);
-  }, [executionId, snapshotReceived]);
+  }, [executionId, snapshotReceived, t]);
 
   return { isConnected };
 }

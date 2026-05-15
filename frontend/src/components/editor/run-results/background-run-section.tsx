@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
 import { useBackgroundRun } from "@/lib/websocket/use-background-run";
+import { useT, type TFunction } from "@/lib/i18n";
 import type { BackgroundRunStatus } from "@/lib/api/executions";
 import { formatDuration } from "./utils";
 
@@ -31,6 +32,7 @@ export function BackgroundRunSection({
   executionId: string;
   backgroundRunId: string | null;
 }) {
+  const t = useT();
   const { data, isLoading, isError } = useBackgroundRun(
     executionId,
     backgroundRunId,
@@ -40,10 +42,10 @@ export function BackgroundRunSection({
 
   if (isLoading) {
     return (
-      <SectionShell>
+      <SectionShell t={t}>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
-          <span>Background 본문 실행 정보를 불러오고 있어요.</span>
+          <span>{t("executions.backgroundRun.loading")}</span>
         </div>
       </SectionShell>
     );
@@ -51,35 +53,46 @@ export function BackgroundRunSection({
 
   if (isError || !data) {
     return (
-      <SectionShell>
+      <SectionShell t={t}>
         <div className="flex items-center gap-2 text-xs text-amber-700">
           <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-          <span>본문 실행 정보를 가져오지 못했어요.</span>
+          <span>{t("executions.backgroundRun.loadFailed")}</span>
         </div>
       </SectionShell>
     );
   }
 
   return (
-    <SectionShell>
+    <SectionShell t={t}>
       <Header
+        t={t}
         status={data.status}
         startedAt={data.startedAt}
         completedAt={data.completedAt}
         durationMs={data.durationMs}
         backgroundRunId={data.backgroundRunId}
       />
-      <NodeExecutionsList nodes={data.nodeExecutions.data} hasMore={data.nodeExecutions.hasMore} />
-      <Notifications notifications={data.notifications} />
+      <NodeExecutionsList
+        t={t}
+        nodes={data.nodeExecutions.data}
+        hasMore={data.nodeExecutions.hasMore}
+      />
+      <Notifications t={t} notifications={data.notifications} />
     </SectionShell>
   );
 }
 
-function SectionShell({ children }: { children: React.ReactNode }) {
+function SectionShell({
+  t,
+  children,
+}: {
+  t: TFunction;
+  children: React.ReactNode;
+}) {
   return (
     <section className="mt-3 rounded-md border border-gray-200 bg-gray-50/60 p-3 space-y-2">
       <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-        Background body run
+        {t("executions.backgroundRun.sectionTitle")}
       </h4>
       {children}
     </section>
@@ -87,12 +100,14 @@ function SectionShell({ children }: { children: React.ReactNode }) {
 }
 
 function Header({
+  t,
   status,
   startedAt,
   completedAt,
   durationMs,
   backgroundRunId,
 }: {
+  t: TFunction;
   status: BackgroundRunStatus;
   startedAt: string;
   completedAt: string | null;
@@ -102,24 +117,41 @@ function Header({
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2 text-xs">
-        <RunStatusBadge status={status} />
+        <RunStatusBadge t={t} status={status} />
         {durationMs != null && (
           <span className="text-gray-600">{formatDuration(durationMs)}</span>
         )}
       </div>
       <div className="text-[11px] text-gray-500 flex items-center gap-1">
         <Clock className="h-3 w-3" aria-hidden="true" />
-        <span>Started {formatDate(startedAt, "datetime")}</span>
-        {completedAt && <span> · Ended {formatDate(completedAt, "datetime")}</span>}
+        <span>
+          {t("executions.backgroundRun.startedAt", {
+            when: formatDate(startedAt, "datetime"),
+          })}
+        </span>
+        {completedAt && (
+          <span>
+            {" · "}
+            {t("executions.backgroundRun.endedAt", {
+              when: formatDate(completedAt, "datetime"),
+            })}
+          </span>
+        )}
       </div>
       <div className="text-[11px] text-gray-400 font-mono">
-        Run ID: {backgroundRunId}
+        {t("executions.backgroundRun.runIdLabel", { id: backgroundRunId })}
       </div>
     </div>
   );
 }
 
-function RunStatusBadge({ status }: { status: BackgroundRunStatus }) {
+function RunStatusBadge({
+  t,
+  status,
+}: {
+  t: TFunction;
+  status: BackgroundRunStatus;
+}) {
   switch (status) {
     case "running":
       return (
@@ -128,7 +160,7 @@ function RunStatusBadge({ status }: { status: BackgroundRunStatus }) {
           className="text-[10px] px-1.5 py-0 text-blue-600 border-blue-300"
         >
           <Loader2 className="h-2.5 w-2.5 mr-0.5 animate-spin" aria-hidden="true" />
-          Running
+          {t("executions.backgroundRun.statusRunning")}
         </Badge>
       );
     case "completed":
@@ -138,7 +170,7 @@ function RunStatusBadge({ status }: { status: BackgroundRunStatus }) {
           className="text-[10px] px-1.5 py-0 text-green-700 border-green-300"
         >
           <CheckCircle className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
-          Completed
+          {t("executions.backgroundRun.statusCompleted")}
         </Badge>
       );
     case "failed":
@@ -148,7 +180,7 @@ function RunStatusBadge({ status }: { status: BackgroundRunStatus }) {
           className="text-[10px] px-1.5 py-0 text-red-700 border-red-300"
         >
           <XCircle className="h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
-          Failed
+          {t("executions.backgroundRun.statusFailed")}
         </Badge>
       );
     case "pending":
@@ -158,16 +190,18 @@ function RunStatusBadge({ status }: { status: BackgroundRunStatus }) {
           variant="outline"
           className="text-[10px] px-1.5 py-0 text-gray-600 border-gray-300"
         >
-          Pending
+          {t("executions.backgroundRun.statusPending")}
         </Badge>
       );
   }
 }
 
 function NodeExecutionsList({
+  t,
   nodes,
   hasMore,
 }: {
+  t: TFunction;
   nodes: Array<{
     id: string;
     nodeId: string;
@@ -180,15 +214,17 @@ function NodeExecutionsList({
   if (sorted.length === 0) {
     return (
       <p className="text-[11px] text-gray-500">
-        본문 노드가 아직 실행되지 않았어요.
+        {t("executions.backgroundRun.bodyNodesEmpty")}
       </p>
     );
   }
   return (
     <div className="space-y-1">
       <div className="text-[11px] text-gray-600 font-medium">
-        Body nodes ({sorted.length}
-        {hasMore ? "+" : ""})
+        {t("executions.backgroundRun.bodyNodes", {
+          count: sorted.length,
+          suffix: hasMore ? "+" : "",
+        })}
       </div>
       <ul className="space-y-1">
         {sorted.map((n) => (
@@ -213,7 +249,7 @@ function NodeExecutionsList({
       </ul>
       {hasMore && (
         <p className="text-[10px] text-gray-400">
-          본문 노드가 더 있어요. 첫 50개만 표시.
+          {t("executions.backgroundRun.bodyNodesTruncated")}
         </p>
       )}
     </div>
@@ -237,8 +273,10 @@ function NodeStatusTag({ status }: { status: string }) {
 }
 
 function Notifications({
+  t,
   notifications,
 }: {
+  t: TFunction;
   notifications: Array<{
     id: string;
     type: string;
@@ -251,7 +289,9 @@ function Notifications({
   return (
     <div className="space-y-1">
       <div className="text-[11px] text-gray-600 font-medium">
-        Notifications ({notifications.length})
+        {t("executions.backgroundRun.notifications", {
+          count: notifications.length,
+        })}
       </div>
       <ul className="space-y-1">
         {notifications.map((n) => (
