@@ -4,6 +4,7 @@ import {
   formatSummaryLine,
   parseCleanupArgs,
   sweepInvalidJobs,
+  type CleanupLogger,
   type CleanupSummary,
 } from './cleanup-invalid-jobs.util';
 
@@ -255,5 +256,96 @@ describe('sweepInvalidJobs', () => {
     // Both detected; only one successfully removed.
     expect(summary.invalid).toBe(2);
     expect(summary.removed).toBe(1);
+  });
+
+  it('apply + pauseDuringSweep both true: end-to-end ordering', async () => {
+    const invalid = makeJob('1', undefined);
+    const valid = makeJob('2', 'dddddddd-dddd-dddd-dddd-dddddddddddd');
+    const callOrder: string[] = [];
+    const queue: FakeQueue = {
+      pause: jest.fn(() => {
+        callOrder.push('pause');
+        return Promise.resolve();
+      }),
+      getJobs: jest.fn(() => {
+        callOrder.push('getJobs');
+        return Promise.resolve([invalid, valid] as FakeJob[]);
+      }),
+      resume: jest.fn(() => {
+        callOrder.push('resume');
+        return Promise.resolve();
+      }),
+    };
+    invalid.remove = jest.fn(() => {
+      callOrder.push('remove');
+      return Promise.resolve();
+    });
+
+    const summary = await sweepInvalidJobs({
+      name: 'document-embedding',
+      queue: queue as unknown as Queue,
+      apply: true,
+      pauseDuringSweep: true,
+    });
+
+    expect(summary.invalid).toBe(1);
+    expect(summary.removed).toBe(1);
+    expect(summary.applied).toBe(true);
+    expect(callOrder).toEqual(['pause', 'getJobs', 'remove', 'resume']);
+    expect(valid.remove).not.toHaveBeenCalled();
+  });
+
+  it('apply: advances offset by (PAGE_SIZE - removed) to avoid skipping after remove', async () => {
+    const PAGE_SIZE = 1000;
+    // Page 1: all invalid → all removed. Page 2: one residual job.
+    const page1 = Array.from({ length: PAGE_SIZE }, (_, i) =>
+      makeJob(`p1-${i}`, ''),
+    );
+    const page2 = [makeJob('p2-0', undefined)];
+    const queue = makeQueue([page1, page2]);
+
+    const summary = await sweepInvalidJobs({
+      name: 'document-embedding',
+      queue: queue as unknown as Queue,
+      apply: true,
+      pauseDuringSweep: false,
+    });
+
+    expect(summary.invalid).toBe(PAGE_SIZE + 1);
+    expect(summary.removed).toBe(PAGE_SIZE + 1);
+    // Second getJobs call should start at 0 (PAGE_SIZE - PAGE_SIZE removed),
+    // not at PAGE_SIZE — otherwise we'd skip residual rows shifted forward.
+    expect(queue.getJobs).toHaveBeenCalledTimes(2);
+    const secondCallArgs = queue.getJobs.mock.calls[1] as unknown[];
+    expect(secondCallArgs[1]).toBe(0); // start offset
+  });
+
+  it('emits per-job log line with stable grep-friendly format', async () => {
+    const invalid = makeJob('jid-1', undefined, { knowledgeBaseId: 'kb-1' });
+    const queue = makeQueue([[invalid]]);
+    const lines: string[] = [];
+    const logger: CleanupLogger = {
+      log: (l) => lines.push(l),
+      warn: (l) => lines.push(`WARN ${l}`),
+    };
+
+    await sweepInvalidJobs({
+      name: 'document-embedding',
+      queue: queue as unknown as Queue,
+      apply: false,
+      pauseDuringSweep: false,
+      logger,
+    });
+
+    // Header + per-job + tail
+    expect(lines[0]).toBe(
+      '[document-embedding] scanning states=waiting,delayed,failed,paused',
+    );
+    expect(lines).toContain(
+      '  jobId=jid-1 name=job-jid-1 ts=1700000000000 attempts=0 payloadKeys=[documentId,knowledgeBaseId]',
+    );
+    expect(lines[lines.length - 1]).toBe(
+      '[document-embedding] invalid=1 removed=0',
+    );
   });
 });

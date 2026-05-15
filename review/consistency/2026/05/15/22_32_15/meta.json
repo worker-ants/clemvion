@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-15T22:32:15.620080",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/5-system/8-embedding-pipeline.md)",
+  "target_path": "spec/5-system/8-embedding-pipeline.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
