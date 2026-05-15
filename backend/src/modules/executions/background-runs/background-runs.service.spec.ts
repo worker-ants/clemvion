@@ -57,7 +57,7 @@ describe('BackgroundRunsService', () => {
   let service: BackgroundRunsService;
   let executionRepo: { createQueryBuilder: jest.Mock };
   let nodeExecutionRepo: { createQueryBuilder: jest.Mock };
-  let notificationRepo: { find: jest.Mock };
+  let notificationsService: { findByResource: jest.Mock };
 
   const buildOwnershipQB = (workspaceId: string | null) => {
     const qb: Record<string, jest.Mock> = {};
@@ -93,6 +93,7 @@ describe('BackgroundRunsService', () => {
     const qb: Record<string, jest.Mock> = {};
     qb.select = jest.fn().mockReturnValue(qb);
     qb.where = jest.fn().mockReturnValue(qb);
+    qb.setParameters = jest.fn().mockReturnValue(qb);
     qb.getRawOne = jest.fn().mockResolvedValue(raw);
     return qb;
   };
@@ -100,11 +101,13 @@ describe('BackgroundRunsService', () => {
   beforeEach(() => {
     executionRepo = { createQueryBuilder: jest.fn() };
     nodeExecutionRepo = { createQueryBuilder: jest.fn() };
-    notificationRepo = { find: jest.fn().mockResolvedValue([]) };
+    notificationsService = {
+      findByResource: jest.fn().mockResolvedValue([]),
+    };
     service = new BackgroundRunsService(
       executionRepo as never,
       nodeExecutionRepo as never,
-      notificationRepo as never,
+      notificationsService as never,
     );
   });
 
@@ -194,6 +197,45 @@ describe('BackgroundRunsService', () => {
       expect(result.status).toBe('completed');
       expect(result.completedAt).toBe(latestFinished.toISOString());
       expect(result.durationMs).toBeGreaterThan(0);
+    });
+
+    it('returns running status when at least one body node is waiting_for_input (W-21)', async () => {
+      const bgNode = makeBgNodeExec();
+      const body1 = makeBodyNodeExec({ id: 'b1' });
+      const body2 = makeBodyNodeExec({
+        id: 'b2',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        finishedAt: null,
+        durationMs: null,
+      });
+
+      executionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      nodeExecutionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
+        .mockReturnValueOnce(buildBodyPageQB([body1, body2]))
+        .mockReturnValueOnce(
+          buildAggregateQB({
+            total: '2',
+            pending: '0',
+            running: '0',
+            completed: '1',
+            failed: '0',
+            skipped: '0',
+            waiting: '1',
+            latestFinished: null,
+          }),
+        );
+
+      const result = await service.getBackgroundRun(
+        'exec-1',
+        'bg-run-id',
+        baseQuery,
+        'ws-1',
+      );
+
+      expect(result.status).toBe('running');
+      expect(result.completedAt).toBeNull();
     });
 
     it('returns failed status when any body node failed', async () => {
@@ -419,7 +461,7 @@ describe('BackgroundRunsService', () => {
             latestFinished: null,
           }),
         );
-      notificationRepo.find.mockResolvedValueOnce([
+      notificationsService.findByResource.mockResolvedValueOnce([
         {
           id: 'n1',
           type: 'background_failure',
@@ -437,10 +479,10 @@ describe('BackgroundRunsService', () => {
         'ws-1',
       );
 
-      expect(notificationRepo.find).toHaveBeenCalledWith({
-        where: { resourceType: 'background_run', resourceId: 'bg-run-id' },
-        order: { createdAt: 'ASC' },
-      });
+      expect(notificationsService.findByResource).toHaveBeenCalledWith(
+        'background_run',
+        'bg-run-id',
+      );
       expect(result.notifications).toHaveLength(1);
       expect(result.notifications[0]?.type).toBe('background_failure');
     });

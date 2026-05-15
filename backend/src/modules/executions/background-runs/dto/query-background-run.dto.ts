@@ -11,8 +11,9 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 export class QueryBackgroundRunDto {
   @ApiPropertyOptional({
     description:
-      'nodeExecutions 페이지네이션 cursor (opaque base64). 첫 페이지는 생략.',
-    example: 'eyJjcmVhdGVkQXQiOiIyMDI2LTA1LTE1VDA1OjA0OjM3WiIsImlkIjoiMTIzIn0=',
+      'nodeExecutions 페이지네이션 cursor (opaque base64 token). 첫 페이지는 생략. 응답의 `nextCursor` 를 그대로 다음 요청에 전달한다 — 서버 내부 구조에 의존하지 말 것.',
+    example:
+      'eyJzIjoiMjAyNi0wNS0xNVQwNTowNDozNy4wMDBaIiwiaSI6ImExYjJjM2Q0LWU1ZjYtNzg5MC1hYmNkLWVmMTIzNDU2Nzg5MCJ9',
   })
   @IsOptional()
   @IsString()
