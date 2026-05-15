@@ -163,7 +163,7 @@ A readonly view over **user inputs and AI Agent responses** accumulated during t
 </Example>
 
 <Callout type="note">
-`$thread.text` renders the whole thread every time it is evaluated, so calling it repeatedly inside a loop can get expensive. Compute it once and stash the result in a variable.
+`$thread.text` renders the full thread on first access within a single node's evaluation context and then caches the result — so calling it multiple times **inside the same expression / node is cheap**. ForEach and Loop create a fresh node context per iteration, however, so the render repeats once per loop body. If you need it many times inside a loop, stash it in a variable node first.
 </Callout>
 
 <Callout type="tip">
