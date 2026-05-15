@@ -3692,6 +3692,19 @@ export class ExecutionEngineService
     });
     const parentNodeExecutionId = parentNodeExecution?.id ?? '';
 
+    // 핸들러가 발급한 backgroundRunId (모니터링 API 의 조회 키) 를 outputData
+    // JSONB 에서 꺼내 job 으로 전달. 향후 processor 가 알림·WS 이벤트의
+    // 식별자로 사용한다. 옛 NodeExecution (handler 가 backgroundRunId 를
+    // 발급하기 전) 대비 빈 문자열 fallback — 그 경우 알림이 attribute 되지
+    // 않고 WS 이벤트도 발행되지 않는다.
+    const parentMeta = (parentNodeExecution?.outputData?.['meta'] ?? {}) as {
+      backgroundRunId?: unknown;
+    };
+    const backgroundRunId =
+      typeof parentMeta.backgroundRunId === 'string'
+        ? parentMeta.backgroundRunId
+        : '';
+
     const workspaceId =
       typeof context.expressionContext?.workspaceId === 'string'
         ? context.expressionContext.workspaceId
@@ -3703,6 +3716,7 @@ export class ExecutionEngineService
     const job: BackgroundExecutionJob = {
       executionId,
       parentNodeExecutionId,
+      backgroundRunId,
       workspaceId,
       workflowId: context.workflowId,
       bodyEntryNodeIds,

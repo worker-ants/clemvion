@@ -14,6 +14,13 @@ export interface BackgroundExecutionJob {
   executionId: string;
   /** Background 노드 자체의 NodeExecution id. 자식 NodeExecution의 parent로 사용. */
   parentNodeExecutionId: string;
+  /**
+   * Background 핸들러가 발급한 UUID v4. 모니터링 API 의 조회 키이자
+   * WebSocket `background:run:<id>` 채널의 식별자.
+   * scheduleBackgroundBody() 에서 parent NodeExecution.outputData.meta.backgroundRunId
+   * 를 읽어 채운다. handler 발급 키가 부재한 옛 row 대비 빈 문자열 허용.
+   */
+  backgroundRunId: string;
   workspaceId: string;
   workflowId: string;
   /** Background 컨테이너 안쪽 자식 노드의 진입점(들) */

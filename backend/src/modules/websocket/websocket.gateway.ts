@@ -13,17 +13,20 @@ import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ExecutionsService } from '../executions/executions.service';
+import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { ExecutionEventType } from './websocket.service';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
 // 'kb:' = Knowledge Base 문서 처리 진행 채널 (kb:${documentId})
+// 'background:run:' = Background 본문 실행 run-level 이벤트 채널
 const VALID_CHANNEL_PREFIXES = [
   'execution:',
   'workflow:',
   'notifications:',
   'kb:',
+  'background:run:',
 ];
 
 function isValidChannel(channel: string): boolean {
@@ -54,6 +57,8 @@ export class WebsocketGateway
     private readonly executionEngineService: ExecutionEngineService,
     @Inject(forwardRef(() => ExecutionsService))
     private readonly executionsService: ExecutionsService,
+    @Inject(forwardRef(() => BackgroundRunsService))
+    private readonly backgroundRunsService: BackgroundRunsService,
     @Inject(forwardRef(() => KnowledgeBaseService))
     private readonly knowledgeBaseService: KnowledgeBaseService,
   ) {}
@@ -150,6 +155,27 @@ export class WebsocketGateway
         return {
           event: 'subscribed',
           data: { success: false, error: 'Not authorized for this document' },
+        };
+      }
+    }
+
+    // `background:run:${backgroundRunId}` 채널은 backgroundRunId 가 가입자
+    // workspace 의 Execution 에 속하는 경우만 구독 허용. UUID 추측으로 타
+    // workspace 의 background 실행을 엿보는 것을 차단 (kb 채널과 동일 정책).
+    if (channel.startsWith('background:run:')) {
+      const enriched = client as Socket & { workspaceId?: string };
+      const workspaceId = enriched.workspaceId ?? '';
+      const backgroundRunId = channel.slice('background:run:'.length);
+      const allowed = await this.backgroundRunsService
+        .verifyBackgroundRunOwnership(backgroundRunId, workspaceId)
+        .catch(() => false);
+      if (!allowed) {
+        return {
+          event: 'subscribed',
+          data: {
+            success: false,
+            error: 'Not authorized for this background run',
+          },
         };
       }
     }

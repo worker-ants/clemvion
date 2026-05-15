@@ -1025,6 +1025,7 @@ describe('ExecutionEngineService', () => {
       const job = {
         executionId,
         parentNodeExecutionId: 'parent-1',
+        backgroundRunId: 'bg-run-1',
         workspaceId: 'ws-1',
         workflowId,
         bodyEntryNodeIds: ['node-2'],
@@ -1064,6 +1065,7 @@ describe('ExecutionEngineService', () => {
       const job = {
         executionId,
         parentNodeExecutionId: 'parent-1',
+        backgroundRunId: 'bg-run-1',
         workspaceId: 'ws-1',
         workflowId,
         bodyEntryNodeIds: ['node-2'],
@@ -1088,6 +1090,7 @@ describe('ExecutionEngineService', () => {
       await service.executeBackgroundSubgraph({
         executionId,
         parentNodeExecutionId: 'parent-1',
+        backgroundRunId: 'bg-run-1',
         workspaceId: 'ws-1',
         workflowId,
         bodyEntryNodeIds: ['node-2'],
@@ -1110,6 +1113,7 @@ describe('ExecutionEngineService', () => {
       await service.executeBackgroundSubgraph({
         executionId,
         parentNodeExecutionId: 'parent-1',
+        backgroundRunId: 'bg-run-1',
         workspaceId: 'ws-1',
         workflowId,
         bodyEntryNodeIds: ['node-2', 'node-3', 'node-7'],
@@ -1144,6 +1148,7 @@ describe('ExecutionEngineService', () => {
       await service.executeBackgroundSubgraph({
         executionId,
         parentNodeExecutionId: 'background-parent-row',
+        backgroundRunId: 'bg-run-1',
         workspaceId: 'ws-1',
         workflowId,
         bodyEntryNodeIds: ['node-2'],
@@ -1166,6 +1171,7 @@ describe('ExecutionEngineService', () => {
       await service.executeBackgroundSubgraph({
         executionId,
         parentNodeExecutionId: 'parent-1',
+        backgroundRunId: 'bg-run-1',
         workspaceId: 'ws-1',
         workflowId,
         bodyEntryNodeIds: ['node-2'],
