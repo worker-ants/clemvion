@@ -850,5 +850,104 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(savedIntegration.status).toBe('connected');
       expect(savedIntegration.installToken).toBeNull();
     });
+
+    /**
+     * 회귀 보호 (2026-05-15) — Cafe24 의 `/api/v2/oauth/token` 은 Basic auth
+     * **만** 받고 body 에 client_id/client_secret 을 같이 넣으면
+     * `invalid_request: The request is invalid. check the request parameters.`
+     * 로 거부한다. 이 테스트는 real fetch path 에서:
+     *   1. Authorization 헤더에 Basic <base64(client_id:client_secret)> 포함
+     *   2. request body 에는 client_id / client_secret 미포함 (grant_type +
+     *      code + redirect_uri 만)
+     * 둘 다 검증한다.
+     */
+    it('cafe24 token exchange uses Basic auth ONLY (no client_id/secret in body)', async () => {
+      delete process.env.OAUTH_STUB_MODE;
+      const originalFetch = global.fetch;
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: 'tok-cafe24',
+          refresh_token: 'refresh-cafe24',
+          expires_in: 7200,
+          scopes: 'mall.read_product',
+        }),
+        text: async () => '',
+      });
+      (global as { fetch: jest.Mock }).fetch = fetchMock;
+
+      integrationRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'int-cafe24',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+          scopes: ['mall.read_product'],
+        },
+        installToken: 'token',
+      });
+
+      const stateRecord = {
+        id: 'state-token-auth',
+        state: 'state-token-auth',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        provider: 'cafe24',
+        serviceType: 'cafe24',
+        mode: 'reauthorize',
+        integrationId: 'int-cafe24',
+        requestedScopes: ['mall.read_product'],
+        integrationName: 'priv-shop (Cafe24 Private)',
+        scope: 'personal',
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+        },
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      };
+      dataSource.query.mockResolvedValueOnce([[stateRecord], 1]);
+
+      try {
+        await service.handleCallback('cafe24', {
+          code: 'authz-code',
+          state: 'state-token-auth',
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, init] = fetchMock.mock.calls[0] as [
+          string,
+          { headers: Record<string, string>; body: string },
+        ];
+        expect(url).toBe(
+          'https://priv-shop.cafe24api.com/api/v2/oauth/token',
+        );
+        // Authorization header present with Basic auth.
+        expect(init.headers.Authorization).toBe(
+          'Basic ' +
+            Buffer.from('priv-cid:priv-secret').toString('base64'),
+        );
+        // Body must NOT contain client_id / client_secret — Cafe24 rejects
+        // duplicated credentials.
+        const bodyParams = new URLSearchParams(init.body);
+        expect(bodyParams.has('client_id')).toBe(false);
+        expect(bodyParams.has('client_secret')).toBe(false);
+        // Body must contain the standard OAuth grant params.
+        expect(bodyParams.get('grant_type')).toBe('authorization_code');
+        expect(bodyParams.get('code')).toBe('authz-code');
+        expect(bodyParams.get('redirect_uri')).toContain(
+          '/api/3rd-party/cafe24/callback',
+        );
+      } finally {
+        global.fetch = originalFetch;
+        process.env.OAUTH_STUB_MODE = 'true';
+      }
+    });
   });
 });
