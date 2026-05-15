@@ -123,11 +123,18 @@ PNG 변환은 raster 도구(sharp / ImageMagick / Inkscape) 가 필요하므로 
 
 ---
 
-## 5. 회귀 테스트 (`make e2e-test`)
+## 5. 회귀 테스트 (`make e2e-test-full`) — Stage 2 시행 결과
 
-- [ ] **Playwright 시각 회귀** — 사이드바 collapsed/expanded, 인증 카드 (login/register/forgot/reset/verify-email), dashboard 헤더. 스냅샷 baseline 갱신은 같은 PR 안에서 처리.
-- [ ] **favicon HTML 검증** — `<head>` 안의 `<link rel="icon">`, `<link rel="apple-touch-icon">` 정상 노출 확인.
-- [ ] **다크 모드 토글 시각 회귀** — theme switcher 가 이미 구현되어 있다면 같이 검증, 없으면 prefers-color-scheme 매뉴얼 토글.
+- [x] backend supertest 66/66 통과 (Stage 2 가 backend 영역 무관)
+- [x] **fail #1** (a11y smoke — forgot-password 첫 Tab) — 회귀 발견 후 즉시 fix. `(auth)/layout.tsx` 의 로고 `<Link>` 를 non-link `<div>` 로 변경, `(auth)/__tests__/layout.test.tsx` 에 잠금 케이스 추가. commit `3af19e21`.
+- [ ] **fail #2** (password-reset — `/login` redirect timeout) — **local Mac ARM docker 에서 결정적 재현, root cause 미확정, CI 검증 대기**. 상세 bisect 는 `review/code/2026/05/15/19_07_13/e2e-bisect-notes.md`. CSS 변경(`:root` HSL, `@theme`) 이 dev mode HMR 과 race 가능성. CI Ubuntu x86 환경에서 통과 여부로 timing flake 판단 분기.
+- [ ] **Playwright 시각 회귀** (sidebar collapsed/expanded, 인증 카드, dashboard) — 별도 follow-up (pixel snapshot baseline 갱신 필요).
+- [ ] **다크 모드 토글 시각 회귀** — 별도 follow-up.
+
+### fail #2 의 CI 결과별 분기
+
+- CI 통과 → 로컬 docker timing flake 로 분류, 본 항목 close.
+- CI fail → `e2e-bisect-notes.md` 의 "CI 가 만약 fail 하면 시도할 fix 후보" 우선순위 따라 진입 (form 의 setTimeout→useEffect 전환 또는 테스트 결정성 강화).
 
 ---
 
