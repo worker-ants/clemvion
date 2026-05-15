@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'node:crypto';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -145,9 +146,12 @@ describe('Background body monitoring (e2e)', () => {
     expect(triggerRows.rows).toHaveLength(1);
     const trigger = triggerRows.rows[0];
 
-    // 2) saveCanvas — 기존 trigger 재사용 + Background → Code (throw)
-    const bgId = '00000000-0000-4000-8000-000000000002';
-    const codeId = '00000000-0000-4000-8000-000000000003';
+    // 2) saveCanvas — 기존 trigger 재사용 + Background → Code (throw).
+    // Edge UNIQUE 제약이 (source, sourcePort, target, targetPort) 전역
+    // 스코프라 노드 UUID 가 테스트 간 충돌하면 RESOURCE_CONFLICT 가 발생.
+    // 매 호출마다 fresh UUID 발급으로 격리.
+    const bgId = randomUUID();
+    const codeId = randomUUID();
     const save = await request(BASE_URL)
       .post(`/api/workflows/${workflowId}/save`)
       .set('Authorization', `Bearer ${owner.accessToken}`)
