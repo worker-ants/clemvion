@@ -9,12 +9,14 @@ on:
   push:
     branches: [main]
     paths-ignore:
+      - '.claude/**'
       - 'spec/**'
       - 'plan/**'
       - 'review/**'
       - '*.md'
   pull_request:
     paths-ignore:
+      - '.claude/**'
       - 'spec/**'
       - 'plan/**'
       - 'review/**'
