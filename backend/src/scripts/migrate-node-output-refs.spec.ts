@@ -12,7 +12,7 @@ import {
   RESULT_FIELDS,
   RENAMED_OUTPUT_FIELDS,
   RENAMED_META_FIELDS,
-} from '../../scripts/migrate-node-output-refs';
+} from './migrate-node-output-refs';
 
 function typeMap(entries: Record<string, string>): Map<string, string> {
   return new Map(Object.entries(entries));
