@@ -44,10 +44,15 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { Queue } from 'bullmq';
 
-{
+/**
+ * `.env` 로드는 `main()` 진입 시에만 수행 — module import 만으로 `process.env`
+ * 가 오염되면 단위 테스트나 본 모듈을 import 하는 코드가 통제 불가능해진다
+ * (migrate-button-ids.ts 와 동일 패턴).
+ */
+function loadDotenv(): void {
   const envPath = path.resolve(__dirname, '..', '..', '.env');
   const result = dotenv.config({ path: envPath });
-  if (result.error && require.main === module) {
+  if (result.error) {
     console.warn(`[cleanup-invalid-queue-jobs] no .env at ${envPath}`);
   }
 }
@@ -68,6 +73,7 @@ function createQueue(name: string): Queue {
 }
 
 async function main(): Promise<void> {
+  loadDotenv();
   const { apply, pauseDuringSweep } = parseCleanupArgs(process.argv.slice(2));
   const queues = [DOCUMENT_EMBEDDING_QUEUE, GRAPH_EXTRACTION_QUEUE].map(
     (name) => ({ name, queue: createQueue(name) }),
@@ -86,24 +92,33 @@ async function main(): Promise<void> {
       summaries.push(summary);
     }
   } finally {
-    await Promise.all(queues.map(({ queue }) => queue.close()));
-  }
+    // queue.close() 실패가 JSON summary 출력을 가리지 않도록, summary 먼저 출력
+    // → 그 다음 close. close 자체 실패는 warn 으로 강등 (이미 sweep 자체는 끝났음).
+    let totalInvalid = 0;
+    let totalRemoved = 0;
+    for (const s of summaries) {
+      console.log(formatSummaryLine(s));
+      totalInvalid += s.invalid;
+      totalRemoved += s.removed;
+    }
+    console.log(
+      formatSummaryLine({
+        total: true,
+        invalid: totalInvalid,
+        removed: totalRemoved,
+        applied: apply,
+      }),
+    );
 
-  let totalInvalid = 0;
-  let totalRemoved = 0;
-  for (const s of summaries) {
-    console.log(formatSummaryLine(s));
-    totalInvalid += s.invalid;
-    totalRemoved += s.removed;
+    await Promise.all(
+      queues.map(({ name, queue }) =>
+        queue.close().catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[${name}] queue.close() failed: ${msg}`);
+        }),
+      ),
+    );
   }
-  console.log(
-    formatSummaryLine({
-      total: true,
-      invalid: totalInvalid,
-      removed: totalRemoved,
-      applied: apply,
-    }),
-  );
 }
 
 main().catch((err) => {
