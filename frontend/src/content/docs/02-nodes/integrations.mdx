@@ -3,10 +3,10 @@ title: "통합 노드"
 title_en: "Integration nodes"
 section: "02-nodes"
 order: 7
-summary: "HTTP Request, Database Query, Send Email로 외부 서비스와 연동하는 노드들을 설명해요."
-summary_en: "Nodes that connect to external services: HTTP Request, Database Query, and Send Email."
-spec: ["spec/4-nodes/4-integration/0-common.md"]
-code: ["backend/src/nodes/integration/http-request/http-request.schema.ts", "backend/src/nodes/integration/database-query/database-query.schema.ts", "backend/src/nodes/integration/send-email/send-email.schema.ts"]
+summary: "HTTP Request, Database Query, Send Email, Cafe24로 외부 서비스와 연동하는 노드들을 설명해요."
+summary_en: "Nodes that connect to external services: HTTP Request, Database Query, Send Email, and Cafe24."
+spec: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/4-integration/4-cafe24.md"]
+code: ["backend/src/nodes/integration/http-request/http-request.schema.ts", "backend/src/nodes/integration/database-query/database-query.schema.ts", "backend/src/nodes/integration/send-email/send-email.schema.ts", "backend/src/nodes/integration/cafe24/cafe24.schema.ts"]
 ---
 
 이 페이지에서는 외부 서비스와 연동하는 통합 노드 세 종류를 설명해요. 대부분의 통합 노드는 공통적으로 **Integration 엔티티**를 참조해 인증과 연결 정보를 재사용하고, 성공/실패를 각각 다른 출력 포트로 분기해요.
@@ -208,11 +208,57 @@ To/CC/BCC는 배열과 쉼표 구분 문자열 모두 허용해요. 내부적으
   {name: "none", required: false, type: "Integration credential", description: "TLS 없이 일반 SMTP예요.", default: "-"}
 ]} />
 
+## Cafe24
+
+### 언제 쓰나요?
+
+- 한국 이커머스 SaaS **Cafe24** 의 Admin API 18개 카테고리(상품·주문·회원·프로모션·적립금 등 ~180개 endpoint)를 워크플로우에서 호출하고 싶을 때 써요.
+- 같은 Cafe24 통합 한 개를 등록하면 본 노드와 AI Agent 의 MCP 도구 양쪽에서 그대로 재사용돼요(토큰·요청 한도·로그가 일원화돼요).
+
+### 필드
+
+<FieldTable rows={[
+  {name: "integrationId", required: true, type: "UUID", description: "`service_type='cafe24'` 인 Integration 참조예요. 사이드바 → 통합 → Cafe24 카드로 만들어요.", default: "-"},
+  {name: "resource", required: true, type: "enum", description: "Cafe24 카테고리예요. 18개 값 중 하나: `store`, `product`, `order`, `customer`, `community`, `design`, `promotion`, `application`, `category`, `collection`, `supply`, `shipping`, `salesreport`, `personal`, `privacy`, `mileage`, `notification`, `translation`.", default: "-"},
+  {name: "operation", required: true, type: "string", description: "선택한 `resource` 의 operation 식별자예요. 예: `product_list`, `product_get`, `order_list`, `order_update_status`. 메타데이터 테이블이 자동으로 드롭다운을 채워요.", default: "-"},
+  {name: "fields", required: false, type: "Record<string, unknown>", description: "선택한 operation 의 입력 필드 값이에요. 표현식 `{{ }}` 사용 가능해요. 필수·선택 필드는 operation 마다 달라요.", default: "{}"},
+  {name: "pagination", required: false, type: "object", description: "`{ limit?, offset?, cursor? }` 형태예요. 페이지네이션을 지원하는 operation 에서만 의미가 있어요.", default: "-"}
+]} />
+
+### 포트
+
+- `success` — API 호출 정상 완료
+- `error` — 인증 만료·요청 한도(leaky bucket) 초과·Cafe24 측 5xx 등 오류
+
+### 예시
+
+<Example title="어제 미발송 주문 가져오기">
+```ts
+// config
+{
+  integrationId: "…",
+  resource: "order",
+  operation: "order_list",
+  fields: {
+    shop_no: 1,
+    order_status: "N00",
+    start_date: "{{ formatDate($now, \"YYYY-MM-DD\") }}"
+  },
+  pagination: { limit: 50, offset: 0 }
+}
+```
+</Example>
+
+<Callout type="tip">
+처음 사용한다면 **사이드바 → 통합 → Cafe24** 에서 통합부터 만들어야 해요. 통합 등록 흐름(앱 종류 선택, OAuth 콜백, Private 앱 등록)은 [Cafe24 통합 가이드](/docs/06-integrations-and-config/cafe24)에서 자세히 다뤄요. 같은 통합을 AI Agent 노드의 MCP 도구로 노출하는 방법도 그 페이지에 있어요.
+</Callout>
+
 ## 캔버스 요약
 
 - HTTP Request: `{method} {url}` (URL 35자 초과 시 잘림)
 - Database Query: `{queryType} · {쿼리 첫 줄}` (잘림)
 - Send Email: `to: {수신자}` (2명 초과 시 `+N`)
+- Cafe24: `{resource} · {operation}` (operation 명이 길면 잘림)
 
 Integration이 삭제되면 캔버스 요약에 `⚠ Missing integration` 배지가 붙어요.
 
