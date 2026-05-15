@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-05-16T00:40:16.360334",
+  "files": [
+    {
+      "file_path": "backend/src/modules/knowledge-base/graph/kb-stats.helper.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/knowledge-base/graph/kb-stats.helper.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/kb-graph-stats-dead-path.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract"
+  ]
+}
