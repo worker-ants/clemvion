@@ -15,6 +15,16 @@ export type OAuthBeginResult =
   | { authUrl: string; state: string }
   | { mode: "cafe24_private_pending"; integrationId: string; appUrl: string; callbackUrl: string };
 
+export type RequestScopesResult =
+  | { authUrl: string; state: string }
+  | {
+      mode: "cafe24_private_pending";
+      integrationId: string;
+      appUrl: string;
+      callbackUrl: string;
+      scopesAdded: string[];
+    };
+
 export interface IntegrationMeta {
   appType: "public" | "private" | null;
 }
@@ -233,12 +243,12 @@ export const integrationsApi = {
   async requestScopes(
     id: string,
     scopes: string[],
-  ): Promise<OAuthBeginResult> {
+  ): Promise<RequestScopesResult> {
     const { data } = await apiClient.post(
       `/integrations/${id}/request-scopes`,
       { scopes },
     );
-    return unwrap<OAuthBeginResult>(data);
+    return unwrap<RequestScopesResult>(data);
   },
 
   async updateScope(

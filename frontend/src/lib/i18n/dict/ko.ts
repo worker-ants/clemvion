@@ -1582,6 +1582,11 @@ export const ko = {
     requestScopesBtn: "권한 요청",
     scopeRequestOpened: "권한 요청 창을 열었어요",
     requestScopesFailed: "권한 요청에 실패했어요",
+    cafe24PrivateScopeRequestTitle:
+      "Cafe24 Developers 에서 권한을 추가해 주세요",
+    cafe24PrivateScopeRequestDesc:
+      "Cafe24 Developers 의 앱 권한 설정에서 추가 scope 를 활성화한 뒤 '테스트 실행' 을 다시 누르면 새 token 으로 갱신됩니다. (Private 앱은 외부에서 OAuth 화면을 띄울 수 없어 Cafe24 측 작업이 필요해요.)",
+    cafe24PrivateScopeRequestScopesAdded: "추가된 권한",
     scopeOnlyOauth: "권한 관리는 OAuth 통합에서만 사용할 수 있어요.",
     usageEmpty: "현재 이 통합을 사용 중인 워크플로우 노드가 없어요.",
     usageSummary: "{{workflows}}개 워크플로우의 {{nodes}}개 노드에서 사용 중이에요.",
