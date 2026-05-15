@@ -1,0 +1,43 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/SUMMARY.md",
+  "subagent_invocations": [
+    {"name": "security", "subagent_type": "security-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/security.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/security/review.md"},
+    {"name": "performance", "subagent_type": "performance-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/performance.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/performance/review.md"},
+    {"name": "architecture", "subagent_type": "architecture-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/architecture.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/architecture/review.md"},
+    {"name": "requirement", "subagent_type": "requirement-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/requirement.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/requirement/review.md"},
+    {"name": "scope", "subagent_type": "scope-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/scope.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/scope/review.md"},
+    {"name": "side_effect", "subagent_type": "side-effect-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/side_effect.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/side_effect/review.md"},
+    {"name": "maintainability", "subagent_type": "maintainability-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/maintainability.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/maintainability/review.md"},
+    {"name": "testing", "subagent_type": "testing-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/testing.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/testing/review.md"},
+    {"name": "documentation", "subagent_type": "documentation-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/documentation.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/documentation/review.md"},
+    {"name": "dependency", "subagent_type": "dependency-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/dependency.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/dependency/review.md"},
+    {"name": "database", "subagent_type": "database-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/database.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/database/review.md"},
+    {"name": "concurrency", "subagent_type": "concurrency-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/concurrency.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/concurrency/review.md"},
+    {"name": "api_contract", "subagent_type": "api-contract-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/_prompts/api_contract.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/brand-refresh-7a3f12/review/code/2026/05/15/19_07_13/api_contract/review.md"}
+  ],
+  "agents_pending": [],
+  "agents_success": ["security","performance","architecture","requirement","scope","side_effect","maintainability","testing","documentation","dependency","database","concurrency","api_contract"],
+  "agents_fatal": [],
+  "agent_history": {
+    "security": {"status": "success", "issues": 4, "reset_hint_sec": null},
+    "performance": {"status": "success", "issues": 5, "reset_hint_sec": null},
+    "architecture": {"status": "success", "issues": 10, "reset_hint_sec": null},
+    "requirement": {"status": "success", "issues": 9, "reset_hint_sec": null},
+    "scope": {"status": "success", "issues": 8, "reset_hint_sec": null},
+    "side_effect": {"status": "success", "issues": 7, "reset_hint_sec": null},
+    "maintainability": {"status": "success", "issues": 10, "reset_hint_sec": null},
+    "testing": {"status": "success", "issues": 9, "reset_hint_sec": null},
+    "documentation": {"status": "success", "issues": 8, "reset_hint_sec": null},
+    "dependency": {"status": "success", "issues": 5, "reset_hint_sec": null},
+    "database": {"status": "success", "issues": 0, "reset_hint_sec": null},
+    "concurrency": {"status": "success", "issues": 0, "reset_hint_sec": null},
+    "api_contract": {"status": "success", "issues": 0, "reset_hint_sec": null}
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
