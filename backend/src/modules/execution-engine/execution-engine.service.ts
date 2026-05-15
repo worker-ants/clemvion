@@ -3701,9 +3701,14 @@ export class ExecutionEngineService
       parentNodeExecution?.outputData,
     );
 
+    // workspaceId 는 `context.variables.__workspaceId` 에 저장된다 (line 1210
+     // 의 initialVariables). 옛 코드가 `context.expressionContext.workspaceId`
+     // 를 읽었지만 이 경로에는 아무도 쓰지 않아 항상 빈 문자열이 되었고,
+     // 결과적으로 dispatchFailureNotification 의 `if (!data.workspaceId) return;`
+     // 가드가 알림을 건너뛰었다 (Background body 모니터링 e2e 가 회귀로 발견).
     const workspaceId =
-      typeof context.expressionContext?.workspaceId === 'string'
-        ? context.expressionContext.workspaceId
+      typeof context.variables?.['__workspaceId'] === 'string'
+        ? (context.variables['__workspaceId'] as string)
         : '';
 
     // Snapshot relevant context. Shallow-clone is enough — the body
