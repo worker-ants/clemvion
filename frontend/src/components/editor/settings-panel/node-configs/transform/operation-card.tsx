@@ -10,7 +10,48 @@ import type {
 } from "@/types/transform";
 import { TRANSFORM_OPERATION_TYPES } from "@/types/transform";
 import { defaultForType } from "./defaults";
-import { useT } from "@/lib/i18n";
+import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
+
+/**
+ * Map operation `value` → i18n dict key suffix (camelCase). Keeping the lookup
+ * tables here (rather than re-exporting from `types/transform`) so the data
+ * layer stays free of UI presentation concerns.
+ */
+const OPERATION_LABEL_KEY: Record<TransformOperationType, TranslationKey> = {
+  rename_field: "nodeConfigs.transform.operationType.renameFieldLabel",
+  remove_field: "nodeConfigs.transform.operationType.removeFieldLabel",
+  set_field: "nodeConfigs.transform.operationType.setFieldLabel",
+  type_convert: "nodeConfigs.transform.operationType.typeConvertLabel",
+  string_op: "nodeConfigs.transform.operationType.stringOpLabel",
+  math_op: "nodeConfigs.transform.operationType.mathOpLabel",
+  date_op: "nodeConfigs.transform.operationType.dateOpLabel",
+  array_filter: "nodeConfigs.transform.operationType.arrayFilterLabel",
+  array_sort: "nodeConfigs.transform.operationType.arraySortLabel",
+  object_pick: "nodeConfigs.transform.operationType.objectPickLabel",
+  object_omit: "nodeConfigs.transform.operationType.objectOmitLabel",
+};
+
+const OPERATION_CAPTION_KEY: Record<TransformOperationType, TranslationKey> = {
+  rename_field: "nodeConfigs.transform.operationType.renameFieldCaption",
+  remove_field: "nodeConfigs.transform.operationType.removeFieldCaption",
+  set_field: "nodeConfigs.transform.operationType.setFieldCaption",
+  type_convert: "nodeConfigs.transform.operationType.typeConvertCaption",
+  string_op: "nodeConfigs.transform.operationType.stringOpCaption",
+  math_op: "nodeConfigs.transform.operationType.mathOpCaption",
+  date_op: "nodeConfigs.transform.operationType.dateOpCaption",
+  array_filter: "nodeConfigs.transform.operationType.arrayFilterCaption",
+  array_sort: "nodeConfigs.transform.operationType.arraySortCaption",
+  object_pick: "nodeConfigs.transform.operationType.objectPickCaption",
+  object_omit: "nodeConfigs.transform.operationType.objectOmitCaption",
+};
+
+export function operationLabel(t: TFunction, type: TransformOperationType): string {
+  return t(OPERATION_LABEL_KEY[type]);
+}
+
+export function operationCaption(t: TFunction, type: TransformOperationType): string {
+  return t(OPERATION_CAPTION_KEY[type]);
+}
 
 export interface OperationCardProps {
   id: string;
@@ -46,8 +87,6 @@ export function OperationCard({
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-
-  const meta = TRANSFORM_OPERATION_TYPES.find((m) => m.value === op.type);
 
   const handleTypeChange = (next: TransformOperationType) => {
     if (next === op.type) return;
@@ -103,17 +142,15 @@ export function OperationCard({
         }
         className="h-7 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs"
       >
-        {TRANSFORM_OPERATION_TYPES.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
+        {TRANSFORM_OPERATION_TYPES.map((type) => (
+          <option key={type} value={type}>
+            {operationLabel(t, type)}
           </option>
         ))}
       </select>
-      {meta && (
-        <span className="text-[10px] leading-tight text-[hsl(var(--muted-foreground))]">
-          {meta.caption}
-        </span>
-      )}
+      <span className="text-[10px] leading-tight text-[hsl(var(--muted-foreground))]">
+        {operationCaption(t, op.type)}
+      </span>
       {children}
     </div>
   );

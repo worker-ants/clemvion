@@ -16,6 +16,7 @@ import { DocHeader } from "@/components/docs/doc-header";
 import { DocBodyNotice } from "@/components/docs/doc-body-notice";
 import { DEFAULT_LOCALE, isLocale, LOCALES } from "@/lib/i18n/types";
 import { readLocaleCookie } from "@/lib/i18n/server-locale";
+import { translate } from "@/lib/i18n/core";
 
 // 단일 catch-all 라우트: slug[0]을 locale로 해석해서 `/docs/<locale>/<...path>`로 매칭해요.
 // locale이 아닌 첫 세그먼트가 들어오면 (레거시 북마크 등) 쿠키 locale로 redirect.
@@ -47,7 +48,7 @@ export async function generateMetadata({
   const index = getDocsIndex();
   const doc = getDocBySlug(index, parsed.docSlug);
   if (!doc) return {};
-  const titleSuffix = parsed.locale === "ko" ? "사용자 매뉴얼" : "User Manual";
+  const titleSuffix = translate(parsed.locale, "docs.titleSuffix");
   return {
     title: `${localizedTitle(doc.frontmatter, parsed.locale)} · ${titleSuffix}`,
     description: localizedSummary(doc.frontmatter, parsed.locale),

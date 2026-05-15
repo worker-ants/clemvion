@@ -153,7 +153,9 @@ export function McpServerSelector({ value, onChange }: Props) {
                     }
                   >
                     {integration?.name ??
-                      `삭제된 MCP (${ref.integrationId.slice(0, 8)}…)`}
+                      t("integrations.deletedMcpLabel", {
+                        idShort: ref.integrationId.slice(0, 8),
+                      })}
                   </span>
                   {integration && (
                     <span className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[9px] uppercase">

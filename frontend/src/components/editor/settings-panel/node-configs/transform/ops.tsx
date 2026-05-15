@@ -14,7 +14,34 @@ import type {
 } from "@/types/transform";
 import { CONDITION_OPERATORS, DATE_UNITS } from "@/types/transform";
 import { ChipInput } from "./chip-input";
-import { useT } from "@/lib/i18n";
+import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
+
+const CONDITION_OPERATOR_LABEL_KEY: Record<ConditionOperator, TranslationKey> = {
+  eq: "nodeConfigs.transform.conditionOperator.eq",
+  neq: "nodeConfigs.transform.conditionOperator.neq",
+  gt: "nodeConfigs.transform.conditionOperator.gt",
+  gte: "nodeConfigs.transform.conditionOperator.gte",
+  lt: "nodeConfigs.transform.conditionOperator.lt",
+  lte: "nodeConfigs.transform.conditionOperator.lte",
+  contains: "nodeConfigs.transform.conditionOperator.contains",
+  not_contains: "nodeConfigs.transform.conditionOperator.notContains",
+  starts_with: "nodeConfigs.transform.conditionOperator.startsWith",
+  ends_with: "nodeConfigs.transform.conditionOperator.endsWith",
+  is_empty: "nodeConfigs.transform.conditionOperator.isEmpty",
+  is_not_empty: "nodeConfigs.transform.conditionOperator.isNotEmpty",
+  regex: "nodeConfigs.transform.conditionOperator.regex",
+  is_null: "nodeConfigs.transform.conditionOperator.isNull",
+  is_type: "nodeConfigs.transform.conditionOperator.isType",
+};
+
+function conditionOperatorOptions(
+  t: TFunction,
+): Array<{ value: ConditionOperator; label: string }> {
+  return CONDITION_OPERATORS.map((value) => ({
+    value,
+    label: t(CONDITION_OPERATOR_LABEL_KEY[value]),
+  }));
+}
 
 type OpPropsOf<T extends TransformOperation["type"]> = {
   op: Extract<TransformOperation, { type: T }>;
@@ -387,7 +414,7 @@ export function ArrayFilterFields({
       <MiniSelect<ConditionOperator>
         value={op.condition.operator}
         onChange={(v) => updateCondition({ operator: v })}
-        options={CONDITION_OPERATORS}
+        options={conditionOperatorOptions(t)}
       />
       <FieldLabel>{t("nodeConfigs.transform.valueLabel")}</FieldLabel>
       <ExpressionInput
