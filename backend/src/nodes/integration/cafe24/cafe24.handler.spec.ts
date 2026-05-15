@@ -8,6 +8,7 @@ import {
 import { IntegrationError } from '../_base/integration-handler-base';
 import type { ExecutionContext } from '../../core/node-handler.interface';
 import type { Integration } from '../../../modules/integrations/entities/integration.entity';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 type Mock = jest.Mock;
 
@@ -44,6 +45,7 @@ function makeContext(): ExecutionContext {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
   };
 }

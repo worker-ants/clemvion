@@ -1,3 +1,5 @@
+import type { ConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+
 /**
  * Background 노드의 자식 흐름을 비동기로 실행하기 위한 BullMQ 큐 이름.
  * 메인 워크플로우 큐와 분리해 백그라운드 작업이 메인 흐름 처리량을 잠식하지 않도록 한다.
@@ -41,6 +43,17 @@ export interface BackgroundExecutionJob {
   nodeOutputCache: Record<string, unknown>;
   /** Snapshot of context.expressionContext at enqueue time. */
   expressionContext: Record<string, unknown>;
+  /**
+   * Snapshot of context.conversationThread at enqueue time — turns 배열까지
+   * 새 인스턴스로 복사된다. 백그라운드 본문이 새 turn 을 push 해도 메인 흐름의
+   * thread 가 변형되지 않고, 그 반대도 마찬가지 (PRD 3 §4.11 ND-BG-05 격리
+   * 원칙 / spec/conventions/conversation-thread.md §3.2).
+   *
+   * Optional only for backward-compat: jobs enqueued before this field was
+   * introduced (legacy BullMQ payloads) won't carry it; the worker falls
+   * back to an empty thread. New enqueue paths must always populate this.
+   */
+  conversationThread?: ConversationThread;
   /** Background 노드 본문의 구성: 알림·타임아웃 정책. */
   config: {
     notifyOnFailure: boolean;

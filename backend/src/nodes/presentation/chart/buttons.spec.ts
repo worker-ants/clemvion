@@ -1,4 +1,5 @@
 import { ChartHandler } from './chart.handler.js';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('ChartHandler - Buttons', () => {
   let handler: ChartHandler;
@@ -14,6 +15,7 @@ describe('ChartHandler - Buttons', () => {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
   };
 

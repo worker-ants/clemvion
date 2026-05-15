@@ -18,13 +18,28 @@ import {
   AgentToolResult,
   KbSearchDiagnostic,
 } from './tool-providers/agent-tool-provider.interface';
-import { aiAgentNodeMetadata } from './ai-agent.schema';
+import {
+  aiAgentNodeMetadata,
+  DEFAULT_CONTEXT_SCOPE_N,
+} from './ai-agent.schema';
 import {
   ExecutionEventType,
   ToolCallCompletedPayload,
   ToolCallStartedPayload,
   WebsocketService,
 } from '../../../modules/websocket/websocket.service';
+import type {
+  ConversationThread,
+  ConversationTurnToolCall,
+} from '../../../shared/conversation-thread/conversation-thread.types';
+import type {
+  NodeRef,
+  ThreadHolder,
+} from '../../../modules/execution-engine/conversation-thread/conversation-thread.service';
+import {
+  applyCap,
+  renderThreadAsSystemText,
+} from '../../../shared/conversation-thread/thread-renderer';
 
 /**
  * Per-tool execution metadata recorded into `meta.turnDebug[].toolCalls`. The
@@ -267,6 +282,47 @@ class RagAccumulatorGroup {
   }
 }
 
+/**
+ * Map ConversationTurn → LLM ChatMessage (messages-mode injection,
+ * spec/conventions/conversation-thread.md §5.1). Pure function — extracted
+ * from `injectThreadContext` so unit tests can exercise the per-source
+ * mapping in isolation.
+ *
+ * `presentation_user` turns are prefixed with `[from <nodeLabel>]` so the
+ * LLM can attribute the input back to the originating node.
+ */
+function mapTurnsToChatMessages(
+  turns: readonly import('../../../shared/conversation-thread/conversation-thread.types').ConversationTurn[],
+): ChatMessage[] {
+  return turns.map((t): ChatMessage => {
+    switch (t.source) {
+      case 'presentation_user':
+        return {
+          role: 'user',
+          content: `[from ${t.nodeLabel}] ${t.text}`,
+        } as ChatMessage;
+      case 'ai_user':
+        return { role: 'user', content: t.text } as ChatMessage;
+      case 'ai_assistant':
+        return {
+          role: 'assistant',
+          content: t.text,
+          ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
+        } as ChatMessage;
+      case 'ai_tool':
+        return {
+          role: 'tool',
+          content: t.text,
+          ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
+        } as ChatMessage;
+      case 'system':
+        return { role: 'system', content: t.text } as ChatMessage;
+      default:
+        return { role: 'user', content: t.text } as ChatMessage;
+    }
+  });
+}
+
 export class AiAgentHandler implements NodeHandler {
   metadata = aiAgentNodeMetadata;
 
@@ -281,7 +337,242 @@ export class AiAgentHandler implements NodeHandler {
      * this — the handler runs unchanged otherwise.
      */
     private readonly websocketService?: WebsocketService,
+    /**
+     * Optional. When provided, the handler pushes user / assistant turns
+     * into the workflow-scoped ConversationThread (single mutation entrypoint
+     * per spec/conventions/conversation-thread.md §2.2) and auto-injects the
+     * thread on chat calls when `contextScope` is enabled.
+     *
+     * Test fixtures that exercise the handler in isolation may omit this;
+     * the handler then degrades to its original (no-thread) behaviour.
+     */
+    private readonly conversationThreadService?: import('../../../modules/execution-engine/conversation-thread/conversation-thread.service').ConversationThreadService,
   ) {}
+
+  /* ─── ConversationThread push helpers (spec §2.2) ─────────────────────── */
+
+  /**
+   * NodeRef from the engine-injected ExecutionContext (executeSingleTurn /
+   * executeMultiTurn first-turn path). Engine doesn't yet propagate
+   * label/type; fall back to nodeId for label and hard-code 'ai_agent' for
+   * type — sufficient for thread display until engine ships richer node
+   * metadata to handlers (v2).
+   */
+  private buildAiNodeRefFromContext(
+    context: ExecutionContext,
+    config: Record<string, unknown>,
+  ): NodeRef {
+    const id = context.nodeId ?? '';
+    return {
+      id,
+      label: id,
+      type: 'ai_agent',
+      config: context.rawConfig ?? config,
+    };
+  }
+
+  /**
+   * NodeRef from `state` carried across multi-turn resumes. `state.rawConfig`
+   * is the frozen snapshot taken at the first turn (engine `state.rawConfig`
+   * policy — `spec/5-system/4-execution-engine.md §6.1`).
+   */
+  private buildAiNodeRefFromState(state: Record<string, unknown>): NodeRef {
+    const id = (state.nodeId as string | undefined) ?? '';
+    return {
+      id,
+      label: id,
+      type: 'ai_agent',
+      config: (state.rawConfig as Record<string, unknown> | undefined) ?? {},
+    };
+  }
+
+  /** Thread reference carried in `state` from the first multi-turn turn. */
+  private threadHolderFromState(
+    state: Record<string, unknown>,
+  ): ThreadHolder | undefined {
+    const ref = state.conversationThreadRef as ConversationThread | undefined;
+    return ref ? { conversationThread: ref } : undefined;
+  }
+
+  /**
+   * Push a single user/assistant turn onto the thread. No-op when the
+   * service or thread reference is missing (test fixtures, legacy paths).
+   */
+  private pushAiThreadTurn(
+    target: ThreadHolder | undefined,
+    nodeRef: NodeRef,
+    source: 'ai_user' | 'ai_assistant',
+    content: string,
+    toolCalls?: ConversationTurnToolCall[],
+  ): void {
+    if (!this.conversationThreadService || !target) return;
+    if (source === 'ai_user') {
+      this.conversationThreadService.appendAiUserMessage(target, {
+        node: nodeRef,
+        content,
+      });
+    } else {
+      this.conversationThreadService.appendAiAssistantMessage(target, {
+        node: nodeRef,
+        content,
+        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+      });
+    }
+  }
+
+  /**
+   * Inject the ConversationThread (excluding the current node's own turns)
+   * into the LLM chat. spec/conventions/conversation-thread.md §5.
+   *
+   * Returns the mutated messages + system prompt so the caller can hand
+   * them to llmService.chat, plus a debug snapshot for `meta.contextInjection`.
+   *
+   * Single-turn: invoke once immediately before the first chat.
+   * Multi-turn: invoke once during executeMultiTurn (the injected turns are
+   *   then carried in `_resumeState.messages` for every subsequent chat).
+   */
+  private injectThreadContext(args: {
+    target: ThreadHolder | undefined;
+    selfNodeId: string;
+    config: Record<string, unknown>;
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+  }): {
+    messages: ChatMessage[];
+    finalSystemPrompt: string;
+    injection: {
+      appliedScope: 'none' | 'thread' | 'lastN';
+      appliedMode: 'messages' | 'system_text';
+      injectedTurns: number;
+      droppedTurns: number;
+      totalInjectedChars: number;
+    };
+  } {
+    const noopMeta = {
+      appliedScope: 'none' as const,
+      appliedMode: 'messages' as const,
+      injectedTurns: 0,
+      droppedTurns: 0,
+      totalInjectedChars: 0,
+    };
+
+    const scope = args.config.contextScope as
+      | 'none'
+      | 'thread'
+      | 'lastN'
+      | undefined;
+    if (
+      !this.conversationThreadService ||
+      !args.target ||
+      !scope ||
+      scope === 'none'
+    ) {
+      return {
+        messages: args.messages,
+        finalSystemPrompt: args.finalSystemPrompt,
+        injection: noopMeta,
+      };
+    }
+
+    const allTurns = this.conversationThreadService.getThreadExcludingNode(
+      args.target,
+      args.selfNodeId,
+    );
+    if (allTurns.length === 0) {
+      return {
+        messages: args.messages,
+        finalSystemPrompt: args.finalSystemPrompt,
+        injection: { ...noopMeta, appliedScope: scope },
+      };
+    }
+
+    const scoped =
+      scope === 'lastN'
+        ? allTurns.slice(
+            -Math.max(
+              1,
+              (args.config.contextScopeN as number) ?? DEFAULT_CONTEXT_SCOPE_N,
+            ),
+          )
+        : allTurns;
+
+    // Cap (per spec §5.3 — char-based, last-resort safety).
+    const capped = applyCap(scoped);
+
+    const mode =
+      (args.config.contextInjectionMode as 'messages' | 'system_text') ??
+      'messages';
+
+    if (mode === 'system_text') {
+      const text = renderThreadAsSystemText(capped.turns);
+      const newSystemPrompt = args.finalSystemPrompt
+        ? `${args.finalSystemPrompt}\n\n${text}`
+        : text;
+      // Mirror the appended thread text into the messages array's system
+      // entry so callers don't need to re-sync the two surfaces.
+      const newMessages = args.messages.map((m) =>
+        m.role === 'system' ? { ...m, content: newSystemPrompt } : m,
+      );
+      return {
+        messages: newMessages,
+        finalSystemPrompt: newSystemPrompt,
+        injection: {
+          appliedScope: scope,
+          appliedMode: 'system_text',
+          injectedTurns: capped.turns.length,
+          droppedTurns: capped.droppedCount,
+          totalInjectedChars: capped.totalChars,
+        },
+      };
+    }
+
+    // 'messages' mode — prepend (after system) per spec §5.1 mapping.
+    const injected: ChatMessage[] = mapTurnsToChatMessages(capped.turns);
+
+    // Insert injected turns after the leading system message (if any).
+    const systemIdx = args.messages.findIndex((m) => m.role === 'system');
+    const newMessages = [...args.messages];
+    const insertAt = systemIdx >= 0 ? systemIdx + 1 : 0;
+    newMessages.splice(insertAt, 0, ...injected);
+
+    return {
+      messages: newMessages,
+      finalSystemPrompt: args.finalSystemPrompt,
+      injection: {
+        appliedScope: scope,
+        appliedMode: 'messages',
+        injectedTurns: capped.turns.length,
+        droppedTurns: capped.droppedCount,
+        totalInjectedChars: capped.totalChars,
+      },
+    };
+  }
+
+  /**
+   * Tool turn opt-in gate. `includeToolTurns: true` lets KB / MCP / condition
+   * tool-loop turns flow into the thread; default false keeps the thread
+   * lean (only final assistant per spec §2.2 / §2.4).
+   */
+  private isToolTurnsEnabled(
+    source: Record<string, unknown> | undefined,
+  ): boolean {
+    return source?.includeToolTurns === true;
+  }
+
+  /** Tool result push (opt-in via `state.includeToolTurns === true`). */
+  private pushAiToolResultTurn(
+    target: ThreadHolder | undefined,
+    nodeRef: NodeRef,
+    toolCallId: string,
+    content: string,
+  ): void {
+    if (!this.conversationThreadService || !target) return;
+    this.conversationThreadService.appendAiToolResult(target, {
+      node: nodeRef,
+      toolCallId,
+      content,
+    });
+  }
 
   /**
    * Run a provider tool with telemetry: emit started/completed WS events,
@@ -543,13 +834,33 @@ export class AiAgentHandler implements NodeHandler {
     }
 
     // Build messages
-    const messages: ChatMessage[] = [];
+    let messages: ChatMessage[] = [];
     if (finalSystemPrompt) {
       messages.push({ role: 'system', content: finalSystemPrompt });
     }
     if (userPrompt) {
       messages.push({ role: 'user', content: userPrompt });
+      // ConversationThread push (spec §2.2 — single-turn ai_user, 1회).
+      this.pushAiThreadTurn(
+        context,
+        this.buildAiNodeRefFromContext(context, config),
+        'ai_user',
+        userPrompt,
+      );
     }
+
+    // ConversationThread inject (spec §5) — single-turn runs once before
+    // the first chat. The helper updates both the system prompt and the
+    // messages array in lockstep.
+    const singleTurnInjection = this.injectThreadContext({
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      messages,
+      finalSystemPrompt,
+    });
+    messages = singleTurnInjection.messages;
+    finalSystemPrompt = singleTurnInjection.finalSystemPrompt;
 
     const tools = await this.buildTools(
       config,
@@ -610,6 +921,14 @@ export class AiAgentHandler implements NodeHandler {
           classification.matchedCondition.id,
         );
         messages.push({ role: 'assistant', content: result.content || '' });
+        // ConversationThread push (spec §2.2 — single-turn ai_assistant on
+        // condition route).
+        this.pushAiThreadTurn(
+          context,
+          this.buildAiNodeRefFromContext(context, config),
+          'ai_assistant',
+          result.content || '',
+        );
         return this.buildConditionOutput(
           classification.matchedCondition,
           reason,
@@ -650,6 +969,16 @@ export class AiAgentHandler implements NodeHandler {
         content: result.content || '',
         toolCalls: result.toolCalls,
       });
+      // Tool-loop assistant push (opt-in via `includeToolTurns`).
+      if (this.isToolTurnsEnabled(config)) {
+        this.pushAiThreadTurn(
+          context,
+          this.buildAiNodeRefFromContext(context, config),
+          'ai_assistant',
+          result.content || '',
+          result.toolCalls as ConversationTurnToolCall[] | undefined,
+        );
+      }
 
       // Provider tool 호출은 같은 turn 내 Promise.all 로 병렬 실행 + budget
       // 부분 truncate 까지 일괄 처리하는 단일 진입점을 사용 (single-turn /
@@ -674,14 +1003,23 @@ export class AiAgentHandler implements NodeHandler {
 
       for (const tc of classification.conditionToolCalls) {
         // Condition tool: send deferral message (does not count toward toolCallCount).
+        const condDeferralContent = JSON.stringify({
+          result:
+            '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+        });
         messages.push({
           role: 'tool',
-          content: JSON.stringify({
-            result:
-              '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
-          }),
+          content: condDeferralContent,
           toolCallId: tc.id,
         });
+        if (this.isToolTurnsEnabled(config)) {
+          this.pushAiToolResultTurn(
+            context,
+            this.buildAiNodeRefFromContext(context, config),
+            tc.id,
+            condDeferralContent,
+          );
+        }
       }
 
       // 일반 도구도 maxToolCalls 합산 대상이므로 잔여 한도를 초과한 항목은
@@ -691,22 +1029,42 @@ export class AiAgentHandler implements NodeHandler {
       // 와 일치시킨다.
       for (const tc of classification.normalToolCalls) {
         if (toolCallCount >= maxToolCalls) {
+          const budgetContent = JSON.stringify({
+            error: 'tool_call_budget_exceeded',
+          });
           messages.push({
             role: 'tool',
-            content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+            content: budgetContent,
             toolCallId: tc.id,
           });
+          if (this.isToolTurnsEnabled(config)) {
+            this.pushAiToolResultTurn(
+              context,
+              this.buildAiNodeRefFromContext(context, config),
+              tc.id,
+              budgetContent,
+            );
+          }
           continue;
         }
         toolCallCount++;
+        const normalContent = JSON.stringify({
+          result: `Tool ${tc.name} executed`,
+          arguments: tc.arguments,
+        });
         messages.push({
           role: 'tool',
-          content: JSON.stringify({
-            result: `Tool ${tc.name} executed`,
-            arguments: tc.arguments,
-          }),
+          content: normalContent,
           toolCallId: tc.id,
         });
+        if (this.isToolTurnsEnabled(config)) {
+          this.pushAiToolResultTurn(
+            context,
+            this.buildAiNodeRefFromContext(context, config),
+            tc.id,
+            normalContent,
+          );
+        }
       }
 
       const loopRequest = {
@@ -750,6 +1108,23 @@ export class AiAgentHandler implements NodeHandler {
     // response plus per-turn debug trace; tokens and tool-call counts move
     // to `meta.*` (Principle 2).
     const singleTurnDurationMs = Date.now() - singleTurnStartedAt;
+    // ConversationThread push (spec §2.2 — single-turn final ai_assistant,
+    // 1회). Stringify JSON-mode responses so the thread always carries a
+    // displayable text payload.
+    {
+      const finalText =
+        typeof response === 'string'
+          ? response
+          : response === undefined || response === null
+            ? ''
+            : JSON.stringify(response);
+      this.pushAiThreadTurn(
+        context,
+        this.buildAiNodeRefFromContext(context, config),
+        'ai_assistant',
+        finalText,
+      );
+    }
     return {
       config: {
         mode: 'single_turn' as const,
@@ -783,6 +1158,11 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: toolCallCount,
         ragSources: ragAcc.getSources(),
         ragDiagnostics: ragAcc.getDiagnostics(),
+        // ConversationThread injection debug echo (spec §5.3). Echo only
+        // when injection actually happened so noop runs keep the meta lean.
+        ...(singleTurnInjection.injection.appliedScope !== 'none'
+          ? { contextInjection: singleTurnInjection.injection }
+          : {}),
         turnDebug: [
           {
             turnIndex: 1,
@@ -843,10 +1223,25 @@ export class AiAgentHandler implements NodeHandler {
       finalSystemPrompt += this.buildConditionSystemPromptSuffix(conditions);
     }
 
-    const messages: ChatMessage[] = [];
+    let messages: ChatMessage[] = [];
     if (finalSystemPrompt) {
       messages.push({ role: 'system', content: finalSystemPrompt });
     }
+
+    // ConversationThread inject (spec §5) — multi-turn injects once during
+    // executeMultiTurn so the resulting `messages` carry the prepended
+    // turns into `_resumeState.messages` for every subsequent chat. Each
+    // future `processMultiTurnMessage` then just appends the new user/
+    // assistant pair without re-injecting.
+    const multiTurnInjection = this.injectThreadContext({
+      target: context,
+      selfNodeId: context.nodeId ?? '',
+      config,
+      messages,
+      finalSystemPrompt,
+    });
+    messages = multiTurnInjection.messages;
+    finalSystemPrompt = multiTurnInjection.finalSystemPrompt;
 
     const resolvedModel = model || llmConfig.defaultModel;
     const multiTurnStateBase = {
@@ -868,6 +1263,12 @@ export class AiAgentHandler implements NodeHandler {
       nodeId: context.nodeId,
       nodeExecutionId: context.nodeExecutionId,
       workflowId: context.workflowId,
+      // ConversationThread mutation 단일 진입점이 service.append* 인데,
+      // multi-turn 후속 turn 은 ExecutionContext 가 직접 주입되지 않으므로
+      // 첫 turn 시점의 thread reference 를 state 에 보관해 다음 turn 에서도
+      // 같은 thread 객체를 mutate 하도록 한다 (in-memory ExecutionContext
+      // 정책에 의존 — spec/conventions/conversation-thread.md §2.2 / §4).
+      conversationThreadRef: context.conversationThread,
     };
 
     const waitingResult: ResumableNodeHandlerOutput = {
@@ -900,7 +1301,16 @@ export class AiAgentHandler implements NodeHandler {
         turnCount: 0,
         maxTurns,
       },
-      meta: { interactionType: 'ai_conversation' },
+      meta: {
+        interactionType: 'ai_conversation',
+        // Echo the multi-turn first-turn injection so the run-results UI can
+        // show what the agent saw at the conversation's start. Subsequent
+        // turns do not re-inject (spec §5: prepended turns are carried in
+        // `_resumeState.messages`).
+        ...(multiTurnInjection.injection.appliedScope !== 'none'
+          ? { contextInjection: multiTurnInjection.injection }
+          : {}),
+      },
       status: 'waiting_for_input',
       _resumeState: {
         ...multiTurnStateBase,
@@ -963,6 +1373,13 @@ export class AiAgentHandler implements NodeHandler {
 
     // Add user message
     messages.push({ role: 'user', content: userMessage });
+    // ConversationThread push (spec §2.2 — multi-turn ai_user)
+    this.pushAiThreadTurn(
+      this.threadHolderFromState(state),
+      this.buildAiNodeRefFromState(state),
+      'ai_user',
+      userMessage,
+    );
 
     const llmConfigId = state.llmConfigId as string | undefined;
     const llmConfig = await this.llmService.resolveConfig(
@@ -1030,6 +1447,14 @@ export class AiAgentHandler implements NodeHandler {
           classification.matchedCondition.id,
         );
         messages.push({ role: 'assistant', content: result.content || '' });
+        // ConversationThread push (spec §2.2 — multi-turn ai_assistant on
+        // condition route).
+        this.pushAiThreadTurn(
+          this.threadHolderFromState(state),
+          this.buildAiNodeRefFromState(state),
+          'ai_assistant',
+          result.content || '',
+        );
 
         totalInputTokens += result.usage?.inputTokens ?? 0;
         totalOutputTokens += result.usage?.outputTokens ?? 0;
@@ -1075,6 +1500,21 @@ export class AiAgentHandler implements NodeHandler {
         content: result.content || '',
         toolCalls: result.toolCalls,
       });
+      // Tool-loop assistant push (multi-turn opt-in via state.rawConfig
+      // .includeToolTurns).
+      if (
+        this.isToolTurnsEnabled(
+          state.rawConfig as Record<string, unknown> | undefined,
+        )
+      ) {
+        this.pushAiThreadTurn(
+          this.threadHolderFromState(state),
+          this.buildAiNodeRefFromState(state),
+          'ai_assistant',
+          result.content || '',
+          result.toolCalls as ConversationTurnToolCall[] | undefined,
+        );
+      }
 
       // single-turn 과 동일하게 단일 진입점을 사용. resume state 는 새 turn 의
       // nodeId/nodeExecutionId 를 운반하지 않으므로 ?? '' fallback 만 다르다.
@@ -1098,34 +1538,75 @@ export class AiAgentHandler implements NodeHandler {
 
       for (const tc of classification.conditionToolCalls) {
         toolCallCount++;
+        const condDeferralContent = JSON.stringify({
+          result:
+            '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
+        });
         messages.push({
           role: 'tool',
-          content: JSON.stringify({
-            result:
-              '확인되었습니다. 도구 실행 결과를 참고하여 최종 판단해주세요.',
-          }),
+          content: condDeferralContent,
           toolCallId: tc.id,
         });
+        if (
+          this.isToolTurnsEnabled(
+            state.rawConfig as Record<string, unknown> | undefined,
+          )
+        ) {
+          this.pushAiToolResultTurn(
+            this.threadHolderFromState(state),
+            this.buildAiNodeRefFromState(state),
+            tc.id,
+            condDeferralContent,
+          );
+        }
       }
 
       for (const tc of classification.normalToolCalls) {
         if (toolCallCount >= maxToolCalls) {
+          const budgetContent = JSON.stringify({
+            error: 'tool_call_budget_exceeded',
+          });
           messages.push({
             role: 'tool',
-            content: JSON.stringify({ error: 'tool_call_budget_exceeded' }),
+            content: budgetContent,
             toolCallId: tc.id,
           });
+          if (
+            this.isToolTurnsEnabled(
+              state.rawConfig as Record<string, unknown> | undefined,
+            )
+          ) {
+            this.pushAiToolResultTurn(
+              this.threadHolderFromState(state),
+              this.buildAiNodeRefFromState(state),
+              tc.id,
+              budgetContent,
+            );
+          }
           continue;
         }
         toolCallCount++;
+        const normalContent = JSON.stringify({
+          result: `Tool ${tc.name} executed`,
+          arguments: tc.arguments,
+        });
         messages.push({
           role: 'tool',
-          content: JSON.stringify({
-            result: `Tool ${tc.name} executed`,
-            arguments: tc.arguments,
-          }),
+          content: normalContent,
           toolCallId: tc.id,
         });
+        if (
+          this.isToolTurnsEnabled(
+            state.rawConfig as Record<string, unknown> | undefined,
+          )
+        ) {
+          this.pushAiToolResultTurn(
+            this.threadHolderFromState(state),
+            this.buildAiNodeRefFromState(state),
+            tc.id,
+            normalContent,
+          );
+        }
       }
 
       const loopReq = {
@@ -1152,6 +1633,15 @@ export class AiAgentHandler implements NodeHandler {
 
     const turnDurationMs = Date.now() - turnStartedAt;
     messages.push({ role: 'assistant', content: result.content || '' });
+    // ConversationThread push (spec §2.2 — multi-turn final assistant per
+    // turn). The thread accumulates one assistant turn per LLM round-trip;
+    // downstream AI Agent nodes with `contextScope` see the running history.
+    this.pushAiThreadTurn(
+      this.threadHolderFromState(state),
+      this.buildAiNodeRefFromState(state),
+      'ai_assistant',
+      result.content || '',
+    );
 
     totalInputTokens += result.usage?.inputTokens ?? 0;
     totalOutputTokens += result.usage?.outputTokens ?? 0;

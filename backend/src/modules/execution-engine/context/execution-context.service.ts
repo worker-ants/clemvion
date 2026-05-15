@@ -4,6 +4,7 @@ import {
   NodeHandlerOutput,
 } from '../../../nodes/core/node-handler.interface';
 import { wrapBareAsNodeHandlerOutput } from '../handler-output.adapter';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Engine-internal alias that drops the public `Readonly` qualifier on
@@ -39,6 +40,7 @@ export class ExecutionContextService {
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
       recursionDepth: recursionDepth ?? 0,
+      conversationThread: createEmptyConversationThread(),
     };
     this.contexts.set(executionId, context);
     return context;

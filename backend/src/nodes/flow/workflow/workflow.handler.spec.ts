@@ -2,6 +2,7 @@ import { WorkflowHandler, mapSubWorkflowError } from './workflow.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
 import { ErrorCode } from '../../core/error-codes.js';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('WorkflowHandler', () => {
   let handler: WorkflowHandler;
@@ -21,6 +22,7 @@ describe('WorkflowHandler', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
       _executedNodes: new Set<string>(),
     };

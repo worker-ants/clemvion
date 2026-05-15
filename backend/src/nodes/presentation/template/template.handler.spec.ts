@@ -1,4 +1,5 @@
 import { TemplateHandler } from './template.handler.js';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('TemplateHandler', () => {
   let handler: TemplateHandler;
@@ -70,6 +71,7 @@ describe('TemplateHandler', () => {
       nodeOutputCache: {},
       structuredOutputCache: {},
       engineResolvedConfigCache: {},
+      conversationThread: createEmptyConversationThread(),
       recursionDepth: 0,
     };
 

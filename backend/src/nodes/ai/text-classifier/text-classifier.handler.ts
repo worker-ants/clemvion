@@ -31,7 +31,43 @@ function buildCategoryPortIds(categories: Category[]): string[] {
 export class TextClassifierHandler implements NodeHandler {
   metadata = textClassifierNodeMetadata;
 
-  constructor(private readonly llmService: LlmService) {}
+  constructor(
+    private readonly llmService: LlmService,
+    /**
+     * Optional. When provided, the handler pushes the final assistant turn
+     * (single-label: category name; multi-label: matched category names
+     * comma-joined) into the workflow ConversationThread per
+     * spec/conventions/conversation-thread.md §1.4 + §2.3 v2 — so a
+     * downstream AI Agent with `contextScope` can read the classifier's
+     * decision. Test fixtures may omit this; the helper degrades to no-op.
+     */
+    private readonly conversationThreadService?: import('../../../modules/execution-engine/conversation-thread/conversation-thread.service').ConversationThreadService,
+  ) {}
+
+  /**
+   * Push the classifier's final result as an `ai_assistant` turn (spec §1.4
+   * — single-label: `category` value, multi-label:
+   * `categories.map(c => c.name).join(', ')`). No-op when the service is
+   * absent (legacy test path) or when the node opts out via
+   * `excludeFromConversationThread`.
+   */
+  private pushClassifierTurn(
+    context: ExecutionContext,
+    config: Record<string, unknown>,
+    text: string,
+  ): void {
+    if (!this.conversationThreadService) return;
+    const id = context.nodeId ?? '';
+    this.conversationThreadService.appendAiAssistantMessage(context, {
+      node: {
+        id,
+        label: id,
+        type: 'text_classifier',
+        config: context.rawConfig ?? config,
+      },
+      content: text,
+    });
+  }
 
   static readonly NONE_SENTINEL = '__none__';
 
@@ -187,7 +223,7 @@ export class TextClassifierHandler implements NodeHandler {
     const successDurationMs = Date.now() - executeStartedAt;
 
     if (multiLabel) {
-      return this.processMultiLabelResult(
+      const out = this.processMultiLabelResult(
         result,
         categories,
         inputField,
@@ -197,8 +233,15 @@ export class TextClassifierHandler implements NodeHandler {
         configEcho,
         successDurationMs,
       );
+      // ConversationThread push (spec §1.4 v2 — multi-label).
+      const labels = (out.output?.result?.categories ?? [])
+        .map((c) => c.name)
+        .filter((n): n is string => typeof n === 'string')
+        .join(', ');
+      this.pushClassifierTurn(context, config, labels);
+      return out;
     }
-    return this.processSingleLabelResult(
+    const out = this.processSingleLabelResult(
       result,
       categories,
       inputField,
@@ -208,6 +251,13 @@ export class TextClassifierHandler implements NodeHandler {
       configEcho,
       successDurationMs,
     );
+    // ConversationThread push (spec §1.4 v2 — single-label).
+    const single =
+      typeof out.output?.result?.category === 'string'
+        ? out.output.result.category
+        : '';
+    this.pushClassifierTurn(context, config, single);
+    return out;
   }
 
   private buildSingleLabelPrompt(
