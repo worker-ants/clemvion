@@ -55,7 +55,15 @@ PNG 변환은 raster 도구(sharp / ImageMagick / Inkscape) 가 필요하므로 
 
 ---
 
-## 2. CSS 토큰 매핑 (§8.2.4 의 권장 방향 적용)
+## 2. CSS 토큰 매핑 — **테마 롤백 (2026-05-15)**
+
+사용자 피드백 *"전체적인 색상이 별로"* 로 globals.css 의 Vine 토큰 매핑을 **main 으로 전면 롤백**. Shadcn neutral 토큰 (`--primary: 222.2 47.4% 11.2%` 등) 그대로 유지. `(auth)/layout.tsx` 배경도 `bg-gradient-to-br ...` 로 복원.
+
+SVG 자산은 자체 fill 로 Vine 컬러를 보유하므로 로고/파비콘 비주얼은 그대로 유지됨. 단 spec ↔ 코드 일치를 위해 `spec/in-progress/spec-update-brand-followup.md` 의 P-4 항목 (spec §8.2 부분 롤백 / 후속 분리) 을 project-planner 에 위임.
+
+본 §2 의 아래 체크박스는 *원래 계획* 이며, 롤백으로 모두 **무효화**:
+
+## ~~2. (이전 계획) CSS 토큰 매핑~~ — 무효
 
 `frontend/src/app/globals.css` 의 `:root` 와 `.dark` (또는 `[data-theme="dark"]`) 페어를 정리한다.
 
