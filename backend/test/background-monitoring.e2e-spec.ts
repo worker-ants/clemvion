@@ -124,7 +124,8 @@ describe('Background body monitoring (e2e)', () => {
   // -------------------------------------------------------------------------
 
   async function createBackgroundFailingWorkflow(): Promise<string> {
-    // 1) workflow 생성 (빈 캔버스)
+    // 1) workflow 생성 — workflowsService.create 가 Manual Trigger 1개를
+    //    자동으로 함께 만든다 ("정확히 하나" invariant).
     const createRes = await request(BASE_URL)
       .post('/api/workflows')
       .set('Authorization', `Bearer ${owner.accessToken}`)
@@ -133,9 +134,18 @@ describe('Background body monitoring (e2e)', () => {
     expect(createRes.status).toBe(201);
     const workflowId = createRes.body.data.id as string;
 
-    // 2) saveCanvas — Manual Trigger → Background, Background `background` 포트
-    //    → Code (throw 로 본문 의도적 실패)
-    const triggerId = '00000000-0000-4000-8000-000000000001';
+    // 자동 생성된 Manual Trigger 의 ID/라벨을 그대로 reuse — 다른 UUID 로
+    // 새 trigger 를 submit 하면 syncNodes 가 DELETE→INSERT 순으로 처리하다가
+    // UNIQUE(workflow_id, label) 위반 (Postgres 즉시 검증) 으로 409 가 발생할 수
+    // 있다. 기존 row 를 UPDATE 경로로 흡수시켜 회피.
+    const triggerRows = await db.query<{ id: string; label: string }>(
+      `SELECT id, label FROM node WHERE workflow_id = $1 AND type = 'manual_trigger'`,
+      [workflowId],
+    );
+    expect(triggerRows.rows).toHaveLength(1);
+    const trigger = triggerRows.rows[0];
+
+    // 2) saveCanvas — 기존 trigger 재사용 + Background → Code (throw)
     const bgId = '00000000-0000-4000-8000-000000000002';
     const codeId = '00000000-0000-4000-8000-000000000003';
     const save = await request(BASE_URL)
@@ -145,10 +155,10 @@ describe('Background body monitoring (e2e)', () => {
       .send({
         nodes: [
           {
-            id: triggerId,
+            id: trigger.id,
             type: 'manual_trigger',
             category: 'trigger',
-            label: 'Manual Trigger',
+            label: trigger.label,
             positionX: 0,
             positionY: 0,
             config: {},
@@ -182,7 +192,7 @@ describe('Background body monitoring (e2e)', () => {
         ],
         edges: [
           {
-            sourceNodeId: triggerId,
+            sourceNodeId: trigger.id,
             sourcePort: 'out',
             targetNodeId: bgId,
             targetPort: 'in',
@@ -195,7 +205,11 @@ describe('Background body monitoring (e2e)', () => {
           },
         ],
       });
-    expect(save.status).toBe(201);
+    if (save.status !== 201) {
+      throw new Error(
+        `saveCanvas failed: ${save.status} ${JSON.stringify(save.body)}`,
+      );
+    }
     return workflowId;
   }
 

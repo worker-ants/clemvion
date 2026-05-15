@@ -15,7 +15,7 @@ import {
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { ApiOkWrappedResponse } from '../../../common/swagger';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { WorkspaceId } from '../../../common/decorators/workspace.decorator';
 import { BackgroundRunsService } from './background-runs.service';
 import { QueryBackgroundRunDto } from './dto/query-background-run.dto';
 import { BackgroundRunResponseDto } from './dto/background-run-response.dto';
@@ -56,7 +56,10 @@ export class BackgroundRunsController {
     @Param('executionId', ParseUUIDPipe) executionId: string,
     @Param('backgroundRunId', ParseUUIDPipe) backgroundRunId: string,
     @Query() query: QueryBackgroundRunDto,
-    @CurrentUser('workspaceId') workspaceId: string,
+    // `@WorkspaceId()` 가 `X-Workspace-Id` 헤더 우선, JWT 폴백 — 워크스페이스
+    // 스위칭 컨텍스트와 일관. `@CurrentUser('workspaceId')` 는 JWT 만 읽어 팀
+    // 워크스페이스 호출 시 항상 404 (e2e 회귀에서 발견).
+    @WorkspaceId() workspaceId: string,
   ): Promise<BackgroundRunResponseDto> {
     return this.backgroundRunsService.getBackgroundRun(
       executionId,
