@@ -9,20 +9,25 @@ model: sonnet
 
 ## 호출 규약
 
-호출자 prompt 의 `prompt_file=<...>`, `output_file=<...>` 인자 수신.
+호출자 prompt 의 인자는 **한 줄**:
 
-- `prompt_file` = 13 개 reviewer 의 review.md 경로 목록 + 변경 정보 metadata 가 들어있는 markdown.
-- `output_file` = SUMMARY.md 절대경로.
+```
+session_dir=<리뷰 세션 디렉토리 절대경로>
+```
 
 수행 절차:
-1. `prompt_file` 을 Read.
-2. 그 안에 나열된 각 review.md 경로를 Read 로 모두 가져온다.
-3. 아래 요약 지침에 따라 통합 보고서를 작성한다.
-4. 결과를 `output_file` 에 Write.
-5. 호출자에게 한 줄만 반환:
-   `STATUS=<success|rate_limit|network|fatal> ISSUES=<통합 후 발견 건수> PATH=<output_file> RESET_HINT=<seconds 또는 빈 값>`.
+1. `<session_dir>/_retry_state.json` 을 Read. 다음 필드를 추출한다.
+   - `subagent_invocations[]` — `{name, subagent_type, prompt_file, output_file}` 목록 (13개).
+   - `agents_success` / `agents_fatal` / `agents_pending` — reviewer 의 최종 상태.
+   - `summary_output_file` — 본인이 Write 할 통합 보고서 절대경로.
+2. `<session_dir>/meta.json` 을 Read. 변경 파일 목록·메타데이터.
+3. `agents_success` + `agents_fatal` 의 각 reviewer 에 대해 `subagent_invocations[*].output_file` 을 따라 review.md 를 Read 한다. `agents_pending` 에 남은 reviewer 는 partial 표기 — review.md 가 없거나 한도 메시지일 수 있으므로 "재시도 필요" 로 분류한다.
+4. 아래 "요약 지침" + "출력 형식" 에 맞춰 통합 보고서를 작성한다.
+5. 결과를 **`summary_output_file`** 에 Write.
+6. 호출자에게 한 줄**만** 반환:
+   `STATUS=<success|rate_limit|network|fatal> ISSUES=<통합 후 발견 건수> PATH=<summary_output_file> RESET_HINT=<seconds 또는 빈 값>`.
 
-상태 결정 규약은 reviewer 와 동일.
+상태 결정 규약은 reviewer 와 동일 (한도 우회 금지, network/fatal 구분). 한도에 걸려 본인 분석이 끝나지 못한 경우에만 `STATUS=rate_limit`/`network`. reviewer 의 pending 잔존은 본인의 STATUS 에 영향을 주지 않으며, 보고서 본문에 "재시도 필요 N건" 으로만 표기한다.
 
 ## 요약 지침
 

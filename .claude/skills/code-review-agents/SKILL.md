@@ -83,10 +83,9 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 ### 6. 수렴 분기
 
 - **모두 완료** (`agents_pending` 가 빔):
-  1. 임시 markdown 한 개 작성 — 13개 review.md 경로 목록 + 변경 파일 메타 (`meta.json` 에서 가져옴) — `<session_dir>/_prompts/_summary.md` 로 저장.
-  2. `Agent(subagent_type="code-review-summary", prompt="prompt_file=<_summary.md>\noutput_file=<summary_output_file>")` invoke.
-  3. summary 의 STATUS 도 동일 규약. `rate_limit/network` 이면 summary 도 재시도 대상 (별도 pending 표기).
-  4. SUMMARY.md 생성 완료 후 사용자에게 1-2 문단 요약 + 세션 경로 출력.
+  1. `Agent(subagent_type="code-review-summary", prompt="session_dir=<session_dir>")` invoke. summary sub-agent 가 자기 컨텍스트에서 `_retry_state.json` → `subagent_invocations[*].output_file` 들을 Read 해 통합한 후 `summary_output_file` (= `<session_dir>/SUMMARY.md`) 에 Write 한다.
+  2. summary 의 STATUS 도 동일 규약. `rate_limit/network` 이면 summary 도 재시도 대상 (별도 pending 표기).
+  3. SUMMARY.md 생성 완료 후 사용자에게 1-2 문단 요약 + 세션 경로 출력.
 - **남고 `loop_mode=true`**: `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /ai-review", reason="rate-limit retry for <N> agents")` 호출 + "한도 N개 agent 재시도 예약 (Xs 후)" 한 줄 출력 후 turn 종료. **다음 wake 때 orchestrator 를 재실행하지 말 것** — 같은 `session_dir/_retry_state.json` 을 그대로 재진입 (`session_dir` 을 conversation 안에서 보존하거나, `~/.cache/ai-review-session.txt` 같은 외부 hint 사용).
 - **남고 `loop_mode=false`**: code-review-summary 를 partial 호출 (pending 항목을 "재시도 필요" 로 명시). 사용자에게 `/loop /ai-review` 로 재시작 안내.
 

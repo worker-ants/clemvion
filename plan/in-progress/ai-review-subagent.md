@@ -187,7 +187,18 @@ main session 에서 Agent tool 로 sub-agent 를 invoke 하려면 sub-agent defi
 - [x] 18. 문서 path 표현 갱신 (CLAUDE.md / 양 SKILL.md / README.md / commands/consistency-check.md).
 - [x] 19. Smoke test (양쪽 orchestrator + 기본값).
 - [x] 20. follow-up 단계 본 plan 에 기록.
-- [ ] 21. follow-up 커밋 + push.
+- [x] 21. follow-up 커밋 + push (commit 241e0ebb).
+
+## Follow-up — summary sub-agent self-discovery (commit 3)
+
+main 이 매 사이클마다 임시 markdown 을 만들어 summary sub-agent 에 전달하던 단계를 제거. summary sub-agent 가 `session_dir=<...>` 한 인자만 받고 자기 컨텍스트에서 `_retry_state.json` → `subagent_invocations[*].output_file` → `meta.json` 을 직접 Read 해 통합 보고서를 작성하도록 단순화.
+
+- 변경: `.claude/agents/code-review-summary.md`, `.claude/agents/consistency-summary.md` 의 호출 규약 + 수행 절차.
+- 동반 갱신: code-review-agents/SKILL.md (단계 6), consistency-checker/SKILL.md (단계 5), commands/ai-review.md, commands/consistency-check.md.
+- retry_state 스키마 변경 없음 — `summary_subagent_type` / `summary_output_file` 필드가 summary sub-agent 내부에서 직접 참조된다.
+- main 의 절차에서 "임시 `_summary.md` 작성" step 제거 → main 의 turn 길이 1단계 감소, conversation 안에 본문이 들어가지 않아 격리 강화.
+
+- [ ] 22. summary self-discovery follow-up 커밋 + push.
 
 ## 검증
 
