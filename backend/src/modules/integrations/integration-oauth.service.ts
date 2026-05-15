@@ -1160,48 +1160,40 @@ export class IntegrationOAuthService {
     // V045 partial UNIQUE `(install_token) WHERE install_token IS NOT NULL` 가
     // 결과를 단일 row 로 강제. spec/2-navigation/4-integration.md ## Rationale
     // "Cafe24 App URL 재호출 흐름 — install_token persistent 격상".
-    const target = await this.integrationRepository.findOne({
+    let target = await this.integrationRepository.findOne({
       where: {
         installToken,
         serviceType: 'cafe24',
       },
     });
+
     if (!target) {
-      // install_token unknown — 통합 삭제 또는 24h TTL 만료로 소거된 케이스.
-      // The token is 128-bit random base64url so this is not an enumeration
-      // oracle. spec/2-navigation/4-integration.md ## Rationale
-      // "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안 전제".
+      // 회복 흐름 — install_token 직접 매칭이 실패한 경우, 사용자가
+      // Cafe24 Developers 에 등록한 App URL 이 stale (옛 token) 일 가능성.
+      // 같은 mall_id 의 cafe24 row 들을 모아 HMAC trial 검증으로 정확히
+      // 1개가 매칭되면 그 row 로 진행한다. 새 URL 을 만들었지만 사용자가
+      // Cafe24 Developers 갱신을 잊은 시나리오를 자동 보정.
       //
-      // 운영 진단용 부가 로그: 같은 mall_id 의 cafe24 통합이 어떤 상태인지
-      // 확인. 토큰은 URL 에 노출되는 capability 이므로 앞 6자만 로깅 —
-      // enumeration oracle 방어 + 운영 트러블슈팅 균형. installToken 자체는
-      // 평문 컬럼이라 별도 마스킹 불필요. mall_id 만으로는 row 식별 불가능
-      // (workspace 분리) 하므로 정보 누출 위험 낮음.
-      const sameMall = query.mall_id
-        ? await this.integrationRepository.find({
-            where: {
-              mallId: query.mall_id,
-              serviceType: 'cafe24',
-            },
-          })
-        : [];
-      this.logger.warn(
-        `[cafe24-install-404] mall_id=${JSON.stringify(query.mall_id)} token_prefix=${JSON.stringify(installToken.slice(0, 6))} candidates=${JSON.stringify(
-          sameMall.map((r) => ({
-            id: r.id,
-            status: r.status,
-            statusReason: r.statusReason,
-            hasInstallToken: r.installToken !== null,
-            tokenPrefix: r.installToken?.slice(0, 6) ?? null,
-            tokenMatchesUrl: r.installToken === installToken,
-          })),
-        )}`,
-      );
-      throw new NotFoundException({
-        code: 'CAFE24_INSTALL_INVALID_TOKEN',
-        message:
-          'install_token is not associated with any integration (deleted or TTL-expired)',
+      // 비용: O(N) HMAC verify (N = 같은 mall_id 의 cafe24 row 수). per-workspace
+      // 분리 + V046 partial UNIQUE 로 N 은 보통 1~2.
+      //
+      // 보안: HMAC 위조에는 client_secret 이 필요. client_secret 을 가진 자는
+      // 정상 흐름으로도 동일 행위 가능 → 회복 흐름이 추가 권한을 부여하지 않음.
+      // spec/2-navigation/4-integration.md ## Rationale
+      // "Cafe24 install_token mismatch 회복 흐름" 참조.
+      const recovered = await this.tryRecoverByMallId({
+        urlToken: installToken,
+        query,
       });
+      if (recovered) {
+        target = recovered;
+      } else {
+        throw new NotFoundException({
+          code: 'CAFE24_INSTALL_INVALID_TOKEN',
+          message:
+            'install_token is not associated with any integration (deleted, TTL-expired, or stale URL). Update the App URL in Cafe24 Developers to match the current value shown in your integration detail page.',
+        });
+      }
     }
 
     const creds = target.credentials;
@@ -1285,6 +1277,78 @@ export class IntegrationOAuthService {
       response_type: 'code',
     });
     return `${cafe24AuthorizeUrl(query.mall_id)}?${urlParams.toString()}`;
+  }
+
+  /**
+   * Recovery path for `handleInstall` — direct install_token lookup miss.
+   *
+   * 사용자가 Cafe24 Developers 에 등록한 App URL 이 stale (옛 token) 인 경우,
+   * 같은 mall_id 의 cafe24 row 들을 모아 HMAC trial 검증으로 회복 가능한지
+   * 확인. 정확히 하나의 row 가 HMAC 매칭하면 그 row 를 반환 — handleInstall
+   * 의 정상 흐름으로 fall-through.
+   *
+   * - 0 매칭: stale URL 이 아니라 정말 모르는 token (삭제·만료). 회복 불가.
+   * - 1 매칭: 안전 — 그 row 로 진행.
+   * - 2+ 매칭: 여러 workspace 가 같은 mall + 같은 client_secret 을 보유 (드문
+   *   케이스). 어떤 row 로 진행할지 결정 불가 — 회복 포기.
+   *
+   * 보안 분석: HMAC 위조에는 client_secret 이 필요. 회복 흐름은 client_secret
+   * 보유자에게 추가 권한을 부여하지 않는다 (정상 흐름으로도 동일 행위 가능).
+   *
+   * spec/2-navigation/4-integration.md ## Rationale
+   * "Cafe24 install_token mismatch 회복 흐름" 항.
+   */
+  private async tryRecoverByMallId(params: {
+    urlToken: string;
+    query: Cafe24InstallQuery;
+  }): Promise<Integration | null> {
+    const { urlToken, query } = params;
+    if (!query.mall_id) return null;
+
+    const sameMall = await this.integrationRepository.find({
+      where: {
+        mallId: query.mall_id,
+        serviceType: 'cafe24',
+      },
+    });
+
+    // 진단 로그 — 회복 시도 자체는 항상 기록 (404 분석에 필수).
+    // installToken 자체는 평문 컬럼이고 mall_id 분리로 enumeration 가능
+    // 정보 누출 위험 낮음. 앞 6자만 로깅하는 옛 규약은 유지.
+    this.logger.warn(
+      `[cafe24-install-recovery] mall_id=${JSON.stringify(query.mall_id)} url_token_prefix=${JSON.stringify(urlToken.slice(0, 6))} candidates=${JSON.stringify(
+        sameMall.map((r) => ({
+          id: r.id,
+          status: r.status,
+          statusReason: r.statusReason,
+          hasInstallToken: r.installToken !== null,
+          tokenPrefix: r.installToken?.slice(0, 6) ?? null,
+          tokenMatchesUrl: r.installToken === urlToken,
+        })),
+      )}`,
+    );
+
+    const hmacMessage = buildHmacMessage(query.rawQuery);
+    const validated = sameMall.filter((row) => {
+      const creds = row.credentials as Record<string, unknown> | null;
+      const secret = creds?.client_secret;
+      if (typeof secret !== 'string' || secret.length === 0) return false;
+      return verifyHmacWithMessage(hmacMessage, secret, query.hmac);
+    });
+
+    if (validated.length === 1) {
+      const row = validated[0];
+      this.logger.log(
+        `[cafe24-install-recovery] recovered: mall_id=${query.mall_id} integration=${row.id} status=${row.status} db_token_prefix=${JSON.stringify(row.installToken?.slice(0, 6) ?? null)} url_token_prefix=${JSON.stringify(urlToken.slice(0, 6))} — falling through to ${row.status === 'pending_install' ? 'OAuth authorize' : 'post-install navigation'}`,
+      );
+      return row;
+    }
+    if (validated.length > 1) {
+      this.logger.warn(
+        `[cafe24-install-recovery] ambiguous: ${validated.length} rows passed HMAC for mall_id=${query.mall_id} — cannot auto-recover (multiple workspaces share the same client_secret?)`,
+      );
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------
