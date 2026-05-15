@@ -18,18 +18,16 @@ describe("AuthLayout", () => {
     expect(screen.getByTestId("auth-card")).toBeInTheDocument();
   });
 
-  it("uses solid --background (no gradient — spec §8.4.4 prohibits)", () => {
+  it("keeps the original gradient background (theme rolled back post brand-refresh)", () => {
+    // The brand-refresh kept Shadcn neutral theme tokens, so the
+    // pre-existing gradient surface is restored. The brand SVG sits on top.
     const { container } = render(
       <AuthLayout>
         <div>card</div>
       </AuthLayout>,
     );
     const wrapper = container.firstChild as HTMLElement;
-    // bg-[hsl(var(--background))] resolves to soil-50 (light) / vine-dark-bg-base (dark)
-    expect(wrapper.className).toContain("bg-[hsl(var(--background))]");
-    // No gradient class names should remain from the old layout
-    expect(wrapper.className).not.toContain("gradient");
-    expect(wrapper.className).not.toContain("bg-gradient");
+    expect(wrapper.className).toContain("bg-gradient-to-br");
   });
 
   it("renders the logo as a non-link element so first Tab lands on the form input", () => {

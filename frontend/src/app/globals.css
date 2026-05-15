@@ -1,113 +1,56 @@
 @import "tailwindcss";
 
-/*
- * ===== Theme Variables =====
- *
- * Brand tokens are defined in spec/6-brand.md §8.2 (Visual Identity).
- * Each Shadcn-style CSS variable is mapped from a spec brand token.
- * Format: `H S% L%` (Tailwind/Shadcn convention — used inline as `hsl(var(--name))`).
- * Light/dark pairs follow spec §8.2.3.
- *
- * Two declaration layers coexist on purpose:
- *   1. `:root` / `.dark` HSL variables — consumed by Shadcn UI components
- *      via `hsl(var(--primary))` (supports opacity modifiers).
- *   2. `@theme` HEX variables (below) — consumed by Tailwind v4 to
- *      generate utility classes like `bg-vine-700`.
- * Both layers MUST agree on hue. When updating a brand HEX in §8.2, update
- * both this `:root` HSL value AND the matching `@theme` HEX entry. There is
- * no automated drift guard yet — checked manually at PR time.
- */
+/* ===== Theme Variables ===== */
 :root {
-  /* soil-50 #f7f8f6 — spec §8.2.2 page background */
-  --background: 90 12.5% 96.9%;
-  /* ink #0e1a12 — spec §8.2.2 body text */
-  --foreground: 140 30% 7.8%;
-  /* soil-100 #eef5ec — spec §8.2.2 card/mark background.
-     --card, --popover, --secondary, --muted, --accent intentionally share
-     a single neutral background tone in light mode (Shadcn default pattern).
-     Each name preserves the Shadcn slot semantics for downstream components. */
-  --card: 106.7 31% 94.3%;
-  --card-foreground: 140 30% 7.8%;
-  --popover: 90 12.5% 96.9%;
-  --popover-foreground: 140 30% 7.8%;
-  /* vine-700 #1e7a42 — spec §8.2.1 primary action / brand */
-  --primary: 143.5 60.5% 29.8%;
-  /* text-on-dark #e8f5ec — high-contrast text on vine-700 */
-  --primary-foreground: 138.5 39.4% 93.5%;
-  --secondary: 106.7 31% 94.3%;
-  --secondary-foreground: 143.5 60.5% 29.8%;
-  --muted: 106.7 31% 94.3%;
-  /* ink @ ~60% lightness — spec §8.2.2 ink-60 (secondary text).
-     WCAG 2.1 AA 본문 텍스트 ≥ 4.5:1 보장. ink #0e1a12 의 lightness 7.8%
-     를 35% 까지 끌어올려 soil-50 (96.9%) 대비 ~5:1 확보. */
-  --muted-foreground: 140 20% 35%;
-  --accent: 106.7 31% 94.3%;
-  --accent-foreground: 143.5 60.5% 29.8%;
+  --background: 0 0% 100%;
+  --foreground: 0 0% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 3.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  /* WCAG 2.1 AA — 본문 텍스트 ≥ 4.5:1 대비비 보장. lightness 35% 로
+     darkening (이전 46.9% 는 흰 배경에서 ~3.5:1 로 위반 위험), saturation
+     16.3% → 25% 로 살짝 강조해 가독성·구분력 보강. */
+  --muted-foreground: 215.4 25% 35%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
-  /* vine-border #e4e8e0 — spec §8.2.2 */
-  --border: 90 14.8% 89.4%;
-  --input: 90 14.8% 89.4%;
-  /* vine-700 — focus ring matches primary */
-  --ring: 143.5 60.5% 29.8%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
   --radius: 0.5rem;
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 64px;
 }
 
 .dark {
-  /* vine-dark-bg-base #0e1210 — spec §8.2.3 page background */
-  --background: 150 12.5% 6.3%;
-  /* text-on-dark #e8f5ec — spec §8.2.3 body text */
-  --foreground: 138.5 39.4% 93.5%;
-  /* vine-dark-bg-elevated #111e14 — spec §8.2.3 card background */
-  --card: 133.8 27.7% 9.2%;
-  --card-foreground: 138.5 39.4% 93.5%;
-  --popover: 133.8 27.7% 9.2%;
-  --popover-foreground: 138.5 39.4% 93.5%;
-  /* vine-dark-accent #6edc8e — spec §8.2.3 primary in dark mode */
-  --primary: 137.5 61.1% 64.7%;
-  /* vine-dark-bg-base — text on light-green button = dark bg */
-  --primary-foreground: 150 12.5% 6.3%;
-  --secondary: 133.8 27.7% 9.2%;
-  --secondary-foreground: 138.5 39.4% 93.5%;
-  --muted: 133.8 27.7% 9.2%;
-  /* text-on-dark @ ~75% lightness — dark mode secondary text.
-     dark bg #0e1210 (6.3%) 대비 ~7:1 안전 마진. */
-  --muted-foreground: 138.5 25% 75%;
-  --accent: 133.8 27.7% 9.2%;
-  --accent-foreground: 138.5 39.4% 93.5%;
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  /* dark mode 본문 ≥ 4.5:1 보장. lightness 65.1% → 75% 로 밝혀 ~7:1
+     안전 마진. saturation 은 그대로 유지. */
+  --muted-foreground: 215 20.2% 75%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
   --destructive: 0 62.8% 30.6%;
-  /* Destructive button text stays near-white (not text-on-dark) — red
-     hue would tint visibly with the spec's pale-green text token,
-     dropping WCAG contrast on a saturated red surface. */
   --destructive-foreground: 210 40% 98%;
-  /* vine-dark-mid #1e4a2a — spec §8.2.3 */
-  --border: 136.4 42.3% 20.4%;
-  --input: 136.4 42.3% 20.4%;
-  --ring: 137.5 61.1% 64.7%;
-}
-
-/*
- * Brand color tokens — Tailwind v4 `@theme` directive.
- * Names follow spec §8.2.1 / §8.2.3 verbatim.
- * Dark variants are NOT registered as separate Tailwind keys (per spec R-10 +
- * impl-prep INFO 10) — they pair through CSS variables (`:root` / `.dark`) only.
- * Use `bg-primary`, `text-foreground` etc. for theme-aware coloring; use
- * `bg-vine-700` only when you need the literal brand hue regardless of theme.
- */
-@theme {
-  --color-vine-900: #1a4f2c;
-  --color-vine-800: #2a7040;
-  --color-vine-700: #1e7a42;
-  --color-vine-600: #2a8a48;
-  --color-vine-500: #3a9a58;
-  --color-vine-400: #4ab868;
-  --color-vine-300: #5ab872;
-  --color-ink: #0e1a12;
-  --color-soil-50: #f7f8f6;
-  --color-soil-100: #eef5ec;
-  --color-vine-border: #e4e8e0;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
 }
 
 /* ===== Toast ===== */
