@@ -464,7 +464,7 @@ describe('BackgroundRunsService', () => {
       notificationsService.findByResource.mockResolvedValueOnce([
         {
           id: 'n1',
-          type: 'background_failure',
+          type: 'background_failed',
           title: 'Background 본문 실패',
           message: 'failed: oops',
           channel: 'in_app',
@@ -484,7 +484,7 @@ describe('BackgroundRunsService', () => {
         'bg-run-id',
       );
       expect(result.notifications).toHaveLength(1);
-      expect(result.notifications[0]?.type).toBe('background_failure');
+      expect(result.notifications[0]?.type).toBe('background_failed');
     });
   });
 

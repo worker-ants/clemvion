@@ -15,7 +15,7 @@
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
 | notes | String | | `""` | 본문 작업의 목적·주의사항 메모. 동작에 영향 없음 (협업용 textarea) |
-| notifyOnFailure | Boolean | | `false` | 본문 실패 시 워크스페이스 Admin 에게 인앱 알림 (`type: background_failure`) |
+| notifyOnFailure | Boolean | | `false` | 본문 실패 시 워크스페이스 Admin 에게 인앱 알림 (`type: background_failed` — 데이터모델 §Notification.type 의 enum 값) |
 | maxDurationMs | Integer | | `300000` | 본문 최대 실행 시간 (ms). `0` = 무제한. 기본 5분. `Promise.race` 로 타임아웃 적용 |
 
 표현식(`{{ }}`)은 사용하지 않는다 — 모든 필드는 워크플로우 정의 시점의 리터럴이다.

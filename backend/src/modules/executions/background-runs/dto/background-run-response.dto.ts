@@ -93,7 +93,7 @@ export class BackgroundRunNotificationDto {
 
   @ApiProperty({
     description: '알림 타입',
-    example: 'background_failure',
+    example: 'background_failed',
   })
   type: string;
 
@@ -151,7 +151,7 @@ export class BackgroundRunResponseDto {
 
   @ApiProperty({
     description:
-      '본 backgroundRun 와 연관된 알림 (background_failure 등). 전체 반환.',
+      '본 backgroundRun 와 연관된 알림 (background_failed 등). 전체 반환.',
     type: () => [BackgroundRunNotificationDto],
   })
   notifications: BackgroundRunNotificationDto[];
