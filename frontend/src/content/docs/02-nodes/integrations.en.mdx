@@ -1,4 +1,4 @@
-This page covers the three integration nodes that talk to external services. Most of them share a common pattern: they reference an **Integration entity** for reusable auth/connection info, and they route success and failure through separate output ports.
+This page covers the four integration nodes that talk to external services (HTTP Request, Database Query, Send Email, and Cafe24). Most of them share a common pattern: they reference an **Integration entity** for reusable auth/connection info, and they route success and failure through separate output ports.
 
 ## Shared patterns
 
@@ -221,7 +221,7 @@ To/CC/BCC accept both arrays and comma-separated strings. Values are trimmed, bl
 
 ### Example
 
-<Example title="Fetch yesterday's unshipped orders">
+<Example title="Fetch unshipped orders from yesterday to today">
 ```ts
 // config
 {
@@ -231,7 +231,8 @@ To/CC/BCC accept both arrays and comma-separated strings. Values are trimmed, bl
   fields: {
     shop_no: 1,
     order_status: "N00",
-    start_date: "{{ formatDate($now, \"YYYY-MM-DD\") }}"
+    start_date: "{{ formatDate(addTime($now, -1, \"day\"), \"YYYY-MM-DD\") }}",
+    end_date:   "{{ formatDate($now, \"YYYY-MM-DD\") }}"
   },
   pagination: { limit: 50, offset: 0 }
 }

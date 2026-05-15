@@ -9,7 +9,7 @@ spec: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/4-integration/4-c
 code: ["backend/src/nodes/integration/http-request/http-request.schema.ts", "backend/src/nodes/integration/database-query/database-query.schema.ts", "backend/src/nodes/integration/send-email/send-email.schema.ts", "backend/src/nodes/integration/cafe24/cafe24.schema.ts"]
 ---
 
-이 페이지에서는 외부 서비스와 연동하는 통합 노드 세 종류를 설명해요. 대부분의 통합 노드는 공통적으로 **Integration 엔티티**를 참조해 인증과 연결 정보를 재사용하고, 성공/실패를 각각 다른 출력 포트로 분기해요.
+이 페이지에서는 외부 서비스와 연동하는 통합 노드 네 종류(HTTP Request, Database Query, Send Email, Cafe24)를 설명해요. 대부분의 통합 노드는 공통적으로 **Integration 엔티티**를 참조해 인증과 연결 정보를 재사용하고, 성공/실패를 각각 다른 출력 포트로 분기해요.
 
 ## 공통 패턴
 
@@ -232,7 +232,7 @@ To/CC/BCC는 배열과 쉼표 구분 문자열 모두 허용해요. 내부적으
 
 ### 예시
 
-<Example title="어제 미발송 주문 가져오기">
+<Example title="어제부터 오늘까지의 미발송 주문 가져오기">
 ```ts
 // config
 {
@@ -242,7 +242,8 @@ To/CC/BCC는 배열과 쉼표 구분 문자열 모두 허용해요. 내부적으
   fields: {
     shop_no: 1,
     order_status: "N00",
-    start_date: "{{ formatDate($now, \"YYYY-MM-DD\") }}"
+    start_date: "{{ formatDate(addTime($now, -1, \"day\"), \"YYYY-MM-DD\") }}",
+    end_date:   "{{ formatDate($now, \"YYYY-MM-DD\") }}"
   },
   pagination: { limit: 50, offset: 0 }
 }
