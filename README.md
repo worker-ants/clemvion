@@ -1,10 +1,14 @@
 # Clemvion
 
+<p align="left">
+  <img src="frontend/public/logo.svg" alt="Clemvion — Agentic Workflow" width="280">
+</p>
+
 AI가 엮고, 실행하고, 성장시키는 워크플로우 시스템.
 
 **Clemvion**은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실행 플랫폼입니다. 드래그앤드롭 캔버스 에디터에서 워크플로우를 설계하고, 워크플로우 안에 AI 에이전트 노드를 삽입해 각 단계가 단순 실행을 넘어 판단·적응까지 수행합니다. 비기술자부터 개발자까지 모두를 위한 도구입니다.
 
-브랜드 스토리·비주얼 가이드: [`prd/brand.md`](./prd/brand.md).
+브랜드 스토리·비주얼 가이드: [`spec/6-brand.md`](./spec/6-brand.md).
 
 > 참고: git 저장소 URL 과 코드 디렉터리(`backend/`, `frontend/`) 는 인프라 자산으로 그대로 유지됩니다. Docker 이미지 태그(`clemvion/*`), Kubernetes 매니페스트, 문서·UI·이메일·Swagger·인증·OTEL·스토리지 키 등 빌드/배포 자산과 사용자 노출 영역은 모두 `clemvion` 으로 통일되어 있습니다.
 

@@ -1,12 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 56" role="img" aria-label="Clemvion">
-  <title>Clemvion</title>
-  <g transform="translate(6 8)">
-    <path d="M36 6 C 22 2, 8 12, 8 22 C 8 32, 22 42, 36 38"
-          fill="none" stroke="#1F8A4C" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M16 14 Q 8 11 6 16 Q 12 19 16 14 Z" fill="#1F8A4C"/>
-    <path d="M30 32 Q 38 30 40 36 Q 34 39 30 32 Z" fill="#A8D86F"/>
-  </g>
-  <text x="64" y="40"
-        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif"
-        font-size="32" font-weight="600" letter-spacing="-0.6" fill="#111111">Clemvion</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 80" role="img" aria-label="Clemvion — Agentic Workflow">
+  <title>Clemvion — Agentic Workflow</title>
+  <!-- Icon mark: node graph forming a flow tree. Spec spec/6-brand.md §8.1, §8.2.1 -->
+  <line x1="36" y1="16" x2="36" y2="64" stroke="#2a7040" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="36" y1="24" x2="20" y2="36" stroke="#3a9a58" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="36" y1="36" x2="56" y2="28" stroke="#3a9a58" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="36" y1="48" x2="18" y2="58" stroke="#5ab872" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="36" y1="56" x2="54" y2="62" stroke="#5ab872" stroke-width="1.2" stroke-linecap="round"/>
+  <circle cx="36" cy="14" r="4" fill="#1a4f2c"/>
+  <circle cx="18" cy="36" r="3.5" fill="#2a8a48"/>
+  <circle cx="58" cy="27" r="3.5" fill="#2a8a48"/>
+  <circle cx="16" cy="59" r="3" fill="#4ab868"/>
+  <circle cx="55" cy="63" r="3" fill="#4ab868"/>
+  <circle cx="36" cy="66" r="3.5" fill="#3a9a58"/>
+  <circle cx="36" cy="24" r="2.5" fill="#1a4f2c" opacity="0.6"/>
+  <circle cx="36" cy="36" r="2.5" fill="#1a4f2c" opacity="0.6"/>
+  <circle cx="36" cy="48" r="2.5" fill="#1a4f2c" opacity="0.6"/>
+  <!-- Wordmark: base ink, accent vine-700 on `vi`. Spec §8.3 -->
+  <text x="82" y="44" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="200" fill="#0e1a12" letter-spacing="-0.5">clem<tspan font-weight="600" fill="#1e7a42">vi</tspan>on</text>
+  <!-- Sub-copy: AGENTIC WORKFLOW (always-on per Spec §8.4.3) -->
+  <text x="84" y="60" font-family="'Courier New', monospace" font-size="8" fill="#5ab872" letter-spacing="3">AGENTIC WORKFLOW</text>
 </svg>
