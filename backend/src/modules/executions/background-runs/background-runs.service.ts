@@ -54,6 +54,13 @@ export class BackgroundRunsService {
    * `backgroundRunId` 가 식별하는 NodeExecution 의 Execution 이 가입자
    * workspace 에 속하는지 검증한다. 메시지 누수 (channel hijacking) 차단.
    *
+   * **executionId 필터 부재 의도**: WS subscribe 시점에 클라이언트는
+   * backgroundRunId 만 전달하므로 executionId 를 검증에 포함시키지 않는다.
+   * `backgroundRunId` (UUID v4) 의 충돌 확률은 무시 수준이며, NodeExecution
+   * → Execution → Workflow → Workspace 체인으로 workspace 단독 검증해도
+   * IDOR 차단에 충분하다. REST endpoint (`findBackgroundNodeExecution`) 는
+   * executionId 를 추가 필터로 사용해 IDOR 차단을 이중으로 적용한다.
+   *
    * boolean 반환 (kb 채널과 동일 시그니처) — 실패 / 조회 실패 모두 false.
    */
   async verifyBackgroundRunOwnership(
@@ -205,8 +212,13 @@ export class BackgroundRunsService {
     const row = await this.nodeExecutionRepository
       .createQueryBuilder('ne')
       .where('ne.executionId = :executionId', { executionId })
+      // 실제 컬럼명 `output_data` 사용 — TypeORM 의 QueryBuilder 는 단순
+       // 컬럼 reference (`alias.property`) 에서만 property→column 매핑하고,
+       // JSONB `#>>` 같은 raw SQL 표현식 내부는 그대로 전달한다. property 명
+       // (`outputData`) 으로 쓰면 운영에서 `column "outputData" does not exist`
+       // 로 실패한다 (mock 기반 unit test 가 못 잡는 사각).
       .andWhere(
-        "ne.outputData #>> '{meta,backgroundRunId}' = :backgroundRunId",
+        "ne.output_data #>> '{meta,backgroundRunId}' = :backgroundRunId",
         { backgroundRunId },
       )
       .getOne();

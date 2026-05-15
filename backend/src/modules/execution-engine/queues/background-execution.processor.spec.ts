@@ -3,10 +3,15 @@ import type { BackgroundExecutionJob } from './background-execution.queue';
 
 type Mock = jest.Mock;
 
-function makeJob(over: Partial<BackgroundExecutionJob> = {}): {
+function makeJob(
+  over: Partial<BackgroundExecutionJob> = {},
+  attemptsMade = 0,
+): {
   data: BackgroundExecutionJob;
+  attemptsMade: number;
 } {
   return {
+    attemptsMade,
     data: {
       executionId: 'exec-1',
       parentNodeExecutionId: 'pne-1',
@@ -126,6 +131,37 @@ describe('BackgroundExecutionProcessor', () => {
     expect(entries[0].resourceId).toBe('exec-1');
     // WS emit skipped when backgroundRunId is empty (no channel to route to).
     expect(websocket.emitBackgroundRunEvent).not.toHaveBeenCalled();
+  });
+
+  it('skips BACKGROUND_RUN_STARTED on retry (attemptsMade > 0) to keep events idempotent', async () => {
+    const retryJob = makeJob({}, 1);
+    await processor.process(retryJob as never);
+    // only completed is emitted on retry success — started already fired
+    // during attemptsMade=0
+    const events = websocket.emitBackgroundRunEvent.mock.calls.map(
+      (c) => c[1] as string,
+    );
+    expect(events).toEqual(['execution.background_run.completed']);
+  });
+
+  it('sanitizes error messages — stack traces stripped, length capped, connection strings redacted', async () => {
+    const longSecret = 'x'.repeat(600);
+    const err = new Error(
+      `pg connect failed: postgres://user:secret@db.internal:5432/app\n  at Connection.handle (/app/dist/conn.js:42:11)\n  at processTicksAndRejections (node:internal/process:96:5)\n${longSecret}`,
+    );
+    engine.executeBackgroundSubgraph.mockRejectedValueOnce(err);
+    const job = makeJob({
+      config: { notifyOnFailure: true, maxDurationMs: 0 },
+    });
+    await expect(processor.process(job as never)).rejects.toThrow();
+    const failedPayload = websocket.emitBackgroundRunEvent.mock
+      .calls[1][2] as { errorMessage?: string };
+    const errorMessage = failedPayload.errorMessage ?? '';
+    expect(errorMessage).not.toContain('postgres://');
+    expect(errorMessage).toContain('[REDACTED_URI]');
+    expect(errorMessage).not.toContain(' at Connection.handle');
+    // length capped at 500 + ellipsis (501)
+    expect(errorMessage.length).toBeLessThanOrEqual(501);
   });
 
   it('skips notification when no admins are present', async () => {

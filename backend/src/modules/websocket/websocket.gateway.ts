@@ -192,9 +192,19 @@ export class WebsocketGateway
     // Send a one-shot snapshot to the subscribing client only. This replaces
     // the old REST `GET /executions/:id` polling loop: timeline and detail
     // state is now fully hydrated from WS events (snapshot + incremental).
+    //
+    // CRIT — IDOR 차단: snapshot 발행 전 workspace 소유 검증. `findById` 는
+    // workspace 필터를 적용하지 않으므로 channel 만 추측한 사용자가 타
+    // workspace Execution 의 nodeExecutions 스냅샷을 받을 수 있었다. REST
+    // endpoint 의 `verifyOwnership` 와 동일 정책으로 정렬.
     if (isNewSubscription && channel.startsWith('execution:')) {
       const executionId = channel.slice('execution:'.length);
-      void this.emitExecutionSnapshot(client, executionId);
+      const enriched = client as Socket & { workspaceId?: string };
+      void this.emitExecutionSnapshot(
+        client,
+        executionId,
+        enriched.workspaceId ?? '',
+      );
     }
 
     return {
@@ -206,8 +216,16 @@ export class WebsocketGateway
   private async emitExecutionSnapshot(
     client: Socket,
     executionId: string,
+    userWorkspaceId: string,
   ): Promise<void> {
     try {
+      // CRIT — IDOR 차단: workspace 소유 검증 후에만 snapshot 발행.
+      // `verifyOwnership` 은 NotFound 로 통일 — Forbidden 으로 응답하면
+      // attacker 가 executionId 존재 여부를 추론할 수 있다.
+      await this.executionsService.verifyOwnership(
+        executionId,
+        userWorkspaceId,
+      );
       const snapshot = await this.executionsService.findById(executionId);
       client.emit(ExecutionEventType.EXECUTION_SNAPSHOT, {
         executionId,

@@ -61,8 +61,12 @@ export function useBackgroundRun(
     const channel = `background:run:${backgroundRunId}`;
     let cancelled = false;
 
+    // closure 가 stale queryKey 를 잡지 않도록 effect 안에서 재구성. deps 에
+    // executionId 가 포함되므로 변경 시 effect 가 재실행되며 새 키로 갱신.
     const handler = () => {
-      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({
+        queryKey: [QUERY_KEY, executionId, backgroundRunId] as const,
+      });
     };
 
     const ackHandler = (ack: unknown) => {
@@ -103,8 +107,7 @@ export function useBackgroundRun(
       ws.off("subscribed", ackHandler);
       ws.unsubscribe(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backgroundRunId]);
+  }, [backgroundRunId, executionId, queryClient]);
 
   return { data, isLoading, isError, refetch: () => void refetch() };
 }

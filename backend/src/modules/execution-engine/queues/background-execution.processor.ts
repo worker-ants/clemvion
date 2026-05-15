@@ -13,6 +13,29 @@ import {
   WebsocketService,
 } from '../../websocket/websocket.service';
 
+const ERROR_MESSAGE_MAX_LENGTH = 500;
+const STACK_TRACE_PATTERN = /\s+at\s+.*\(.+\)/g;
+const CONNECTION_STRING_PATTERN =
+  /(postgres|postgresql|redis|mongodb|mysql):\/\/[^\s]+/gi;
+
+/**
+ * 본문 실행 실패 메시지를 WS 이벤트 / notification 에 노출하기 전 정리.
+ *
+ * 길이 제한 + stack trace · connection string 패턴 제거. credential 자체는
+ * `WebsocketService.sanitizePayloadForWs` 의 키 기반 마스킹이 추가로 차단하지만,
+ * Error.message 안에 평문으로 들어온 경우를 보강 — defense in depth.
+ */
+function sanitizeErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const stripped = raw
+    .replace(STACK_TRACE_PATTERN, '')
+    .replace(CONNECTION_STRING_PATTERN, '[REDACTED_URI]')
+    .trim();
+  return stripped.length > ERROR_MESSAGE_MAX_LENGTH
+    ? `${stripped.slice(0, ERROR_MESSAGE_MAX_LENGTH)}…`
+    : stripped;
+}
+
 /**
  * Background 노드 큐 워커.
  *
@@ -49,20 +72,28 @@ export class BackgroundExecutionProcessor extends WorkerHost {
     );
 
     const runStartedAt = new Date();
-    this.emitRunStarted(data, runStartedAt);
+    // WS emit 은 try-block 안에서 best-effort 로 호출 — emit 실패가 본문
+    // 실행이나 알림 발송 흐름을 막지 않는다. `safeEmit*` 가 자체 try/catch
+    // 로 logger.warn 만 남기고 swallow.
 
     try {
+      // Started 이벤트는 첫 시도에만 발행 (BullMQ retry 시 중복 차단).
+      if (job.attemptsMade === 0) {
+        this.safeEmitRunStarted(data, runStartedAt);
+      }
       await this.engine.executeBackgroundSubgraph(data);
       this.logger.log(
         `Background job completed · execution=${data.executionId} parent=${data.parentNodeExecutionId}`,
       );
-      this.emitRunCompleted(data, 'completed', runStartedAt);
+      this.safeEmitRunCompleted(data, 'completed', runStartedAt);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = sanitizeErrorMessage(err);
       this.logger.error(
         `Background job failed · execution=${data.executionId} parent=${data.parentNodeExecutionId}: ${message}`,
       );
-      this.emitRunCompleted(data, 'failed', runStartedAt, message);
+      // WS emit 이 throw 해도 알림 발송이 막히지 않도록 분리. 알림이 더
+      // 사용자 가시 영향이 크다 (Admin email/in_app).
+      this.safeEmitRunCompleted(data, 'failed', runStartedAt, message);
       if (data.config.notifyOnFailure) {
         await this.dispatchFailureNotification(data, message);
       }
@@ -71,20 +102,31 @@ export class BackgroundExecutionProcessor extends WorkerHost {
     }
   }
 
-  private emitRunStarted(data: BackgroundExecutionJob, startedAt: Date): void {
+  private safeEmitRunStarted(
+    data: BackgroundExecutionJob,
+    startedAt: Date,
+  ): void {
     if (!data.backgroundRunId) return;
-    this.websocketService.emitBackgroundRunEvent(
-      data.backgroundRunId,
-      BackgroundRunEventType.BACKGROUND_RUN_STARTED,
-      {
-        executionId: data.executionId,
-        parentNodeExecutionId: data.parentNodeExecutionId,
-        startedAt: startedAt.toISOString(),
-      },
-    );
+    try {
+      this.websocketService.emitBackgroundRunEvent(
+        data.backgroundRunId,
+        BackgroundRunEventType.BACKGROUND_RUN_STARTED,
+        {
+          executionId: data.executionId,
+          parentNodeExecutionId: data.parentNodeExecutionId,
+          startedAt: startedAt.toISOString(),
+        },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to emit BACKGROUND_RUN_STARTED for ${data.backgroundRunId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
-  private emitRunCompleted(
+  private safeEmitRunCompleted(
     data: BackgroundExecutionJob,
     status: 'completed' | 'failed',
     startedAt: Date,
@@ -92,18 +134,26 @@ export class BackgroundExecutionProcessor extends WorkerHost {
   ): void {
     if (!data.backgroundRunId) return;
     const completedAt = new Date();
-    this.websocketService.emitBackgroundRunEvent(
-      data.backgroundRunId,
-      BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
-      {
-        executionId: data.executionId,
-        parentNodeExecutionId: data.parentNodeExecutionId,
-        status,
-        completedAt: completedAt.toISOString(),
-        durationMs: completedAt.getTime() - startedAt.getTime(),
-        ...(errorMessage ? { errorMessage } : {}),
-      },
-    );
+    try {
+      this.websocketService.emitBackgroundRunEvent(
+        data.backgroundRunId,
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        {
+          executionId: data.executionId,
+          parentNodeExecutionId: data.parentNodeExecutionId,
+          status,
+          completedAt: completedAt.toISOString(),
+          durationMs: completedAt.getTime() - startedAt.getTime(),
+          ...(errorMessage ? { errorMessage } : {}),
+        },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to emit BACKGROUND_RUN_COMPLETED for ${data.backgroundRunId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   private async dispatchFailureNotification(

@@ -151,15 +151,6 @@ function RunStatusBadge({ status }: { status: BackgroundRunStatus }) {
           Failed
         </Badge>
       );
-    case "cancelled":
-      return (
-        <Badge
-          variant="outline"
-          className="text-[10px] px-1.5 py-0 text-gray-700 border-gray-300"
-        >
-          Cancelled
-        </Badge>
-      );
     case "pending":
     default:
       return (

@@ -100,12 +100,15 @@ export const executionsApi = {
 // spec/4-nodes/1-logic/12-background.md §8
 // ---------------------------------------------------------------------------
 
+/**
+ * Background 본문 run 의 집계 상태. 백엔드에서 현재 4개 값만 발행 — 메인
+ * Execution cancel 이 본문 run 으로 전파되는 흐름은 아직 없다 (spec §8.2).
+ */
 export type BackgroundRunStatus =
   | "pending"
   | "running"
   | "completed"
-  | "failed"
-  | "cancelled";
+  | "failed";
 
 export interface BackgroundRunNodeExecution {
   id: string;
