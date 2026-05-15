@@ -12,6 +12,23 @@ export class NotificationsService {
     private readonly notificationRepository: Repository<Notification>,
   ) {}
 
+  /**
+   * 특정 리소스에 attribute 된 알림 전체 조회 (createdAt ASC).
+   *
+   * 다른 모듈(예: Background 본문 모니터링 API)이 알림 정보를 자기 응답에
+   * 포함시킬 때 Repository 를 직접 주입받지 않고 본 서비스에 위임할 수
+   * 있도록 분리. 비즈니스 규약(예: 정렬 기준)을 단일 sink 에 모은다.
+   */
+  async findByResource(
+    resourceType: string,
+    resourceId: string,
+  ): Promise<Notification[]> {
+    return this.notificationRepository.find({
+      where: { resourceType, resourceId },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
   async findAll(
     workspaceId: string,
     userId: string,

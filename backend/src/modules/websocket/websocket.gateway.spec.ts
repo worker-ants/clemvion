@@ -189,15 +189,15 @@ describe('WebsocketGateway', () => {
       getSubscriptions().set('client-1', new Set());
 
       const result = await gateway.handleSubscribe(
-        { channel: 'background:run:bg-run-id' },
+        { channel: 'background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234' },
         socket,
       );
       expect(result.data.success).toBe(true);
-      expect(result.data.channel).toBe('background:run:bg-run-id');
-      expect(join).toHaveBeenCalledWith('background:run:bg-run-id');
+      expect(result.data.channel).toBe('background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234');
+      expect(join).toHaveBeenCalledWith('background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234');
       const bgRunsService = module.get(BackgroundRunsService);
       expect(bgRunsService.verifyBackgroundRunOwnership).toHaveBeenCalledWith(
-        'bg-run-id',
+        '8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234',
         'ws-1',
       );
     });
@@ -213,11 +213,31 @@ describe('WebsocketGateway', () => {
       ).mockResolvedValueOnce(false);
 
       const result = await gateway.handleSubscribe(
-        { channel: 'background:run:bg-run-id' },
+        { channel: 'background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234' },
         socket,
       );
       expect(result.data.success).toBe(false);
       expect(result.data.error).toBe('Not authorized for this background run');
+      expect(join).not.toHaveBeenCalled();
+    });
+
+    it('should reject background:run channel when the id is not a UUID (W-6 — defense in depth)', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+      const bgRunsService = module.get(BackgroundRunsService);
+      // verify* must not be called when UUID validation fails (saves DB roundtrip).
+      const verifySpy =
+        bgRunsService.verifyBackgroundRunOwnership as jest.Mock;
+      verifySpy.mockClear();
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'background:run:not-a-uuid; DROP TABLE x;' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this background run');
+      expect(verifySpy).not.toHaveBeenCalled();
       expect(join).not.toHaveBeenCalled();
     });
 
@@ -231,7 +251,7 @@ describe('WebsocketGateway', () => {
       ).mockRejectedValueOnce(new Error('PG connection refused'));
 
       const result = await gateway.handleSubscribe(
-        { channel: 'background:run:bg-run-id' },
+        { channel: 'background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234' },
         socket,
       );
       // catch 가 `.catch(() => false)` 로 fail-safe — 권한 부재로 처리.

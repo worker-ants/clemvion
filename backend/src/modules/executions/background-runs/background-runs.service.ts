@@ -10,7 +10,7 @@ import {
   NodeExecution,
   NodeExecutionStatus,
 } from '../../node-executions/entities/node-execution.entity';
-import { Notification } from '../../notifications/entities/notification.entity';
+import { NotificationsService } from '../../notifications/notifications.service';
 import {
   BackgroundRunNodeExecutionDto,
   BackgroundRunNodeExecutionsPageDto,
@@ -45,8 +45,7 @@ export class BackgroundRunsService {
     private readonly executionRepository: Repository<Execution>,
     @InjectRepository(NodeExecution)
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
-    @InjectRepository(Notification)
-    private readonly notificationRepository: Repository<Notification>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -103,15 +102,14 @@ export class BackgroundRunsService {
     const parentNodeExecutionId = backgroundNodeExecution.id;
     const startedAt = this.extractStartedAt(backgroundNodeExecution);
 
-    const pageRows = await this.fetchBodyPage(
-      parentNodeExecutionId,
-      cursor,
-      limit,
-    );
+    // W-17: 본문 page · 집계 · 알림 조회는 상호 독립적이므로 병렬화. DB
+    // 왕복 5회 → 3회 동시 + 2회 직렬로 단축 (verify + bg node + 병렬 3).
+    const [pageRows, aggregate, notifications] = await Promise.all([
+      this.fetchBodyPage(parentNodeExecutionId, cursor, limit),
+      this.aggregateBodyStatus(parentNodeExecutionId),
+      this.fetchNotifications(backgroundRunId),
+    ]);
     const { data, nextCursor, hasMore } = this.buildPage(pageRows, limit);
-
-    // status 산정은 본문 전체에 대해 평가하므로 페이지가 아닌 집계 쿼리로 분리.
-    const aggregate = await this.aggregateBodyStatus(parentNodeExecutionId);
 
     const status = this.deriveBackgroundRunStatus(aggregate);
     const completedAt = this.deriveCompletedAt(aggregate, status);
@@ -119,8 +117,6 @@ export class BackgroundRunsService {
       completedAt && startedAt
         ? new Date(completedAt).getTime() - new Date(startedAt).getTime()
         : null;
-
-    const notifications = await this.fetchNotifications(backgroundRunId);
 
     return {
       backgroundRunId,
@@ -314,20 +310,30 @@ export class BackgroundRunsService {
     latestFinishedAt: Date | null;
   }> {
     // 본문 노드 수가 많아도 단일 집계 쿼리로 처리 — 페이지네이션과 분리.
+    // W-14: SQL 내 상태 값을 enum 으로 참조해 NodeExecutionStatus 변경 시
+    // 컴파일 시점에 감지될 수 있게 한다.
     const raw = await this.nodeExecutionRepository
       .createQueryBuilder('ne')
       .select([
         'COUNT(*) AS total',
-        `SUM(CASE WHEN ne.status = 'pending' THEN 1 ELSE 0 END) AS pending`,
-        `SUM(CASE WHEN ne.status = 'running' THEN 1 ELSE 0 END) AS running`,
-        `SUM(CASE WHEN ne.status = 'completed' THEN 1 ELSE 0 END) AS completed`,
-        `SUM(CASE WHEN ne.status = 'failed' THEN 1 ELSE 0 END) AS failed`,
-        `SUM(CASE WHEN ne.status = 'skipped' THEN 1 ELSE 0 END) AS skipped`,
-        `SUM(CASE WHEN ne.status = 'waiting_for_input' THEN 1 ELSE 0 END) AS waiting`,
+        `SUM(CASE WHEN ne.status = :pendingStatus THEN 1 ELSE 0 END) AS pending`,
+        `SUM(CASE WHEN ne.status = :runningStatus THEN 1 ELSE 0 END) AS running`,
+        `SUM(CASE WHEN ne.status = :completedStatus THEN 1 ELSE 0 END) AS completed`,
+        `SUM(CASE WHEN ne.status = :failedStatus THEN 1 ELSE 0 END) AS failed`,
+        `SUM(CASE WHEN ne.status = :skippedStatus THEN 1 ELSE 0 END) AS skipped`,
+        `SUM(CASE WHEN ne.status = :waitingStatus THEN 1 ELSE 0 END) AS waiting`,
         'MAX(ne.finishedAt) AS latestFinished',
       ])
       .where('ne.parentNodeExecutionId = :parentNodeExecutionId', {
         parentNodeExecutionId,
+      })
+      .setParameters({
+        pendingStatus: NodeExecutionStatus.PENDING,
+        runningStatus: NodeExecutionStatus.RUNNING,
+        completedStatus: NodeExecutionStatus.COMPLETED,
+        failedStatus: NodeExecutionStatus.FAILED,
+        skippedStatus: NodeExecutionStatus.SKIPPED,
+        waitingStatus: NodeExecutionStatus.WAITING_FOR_INPUT,
       })
       .getRawOne<{
         total: string | null;
@@ -391,11 +397,12 @@ export class BackgroundRunsService {
   ): Promise<BackgroundRunNotificationDto[]> {
     // resourceType='background_run' 으로 정확 attribution. processor 변경으로
     // 새 알림은 모두 이 형태 — 옛 (resource_type='execution') 알림은 본 API
-    // 의 범위 밖.
-    const rows = await this.notificationRepository.find({
-      where: { resourceType: 'background_run', resourceId: backgroundRunId },
-      order: { createdAt: 'ASC' },
-    });
+    // 의 범위 밖. 알림 비즈니스 규칙(정렬 등) 은 NotificationsService 에
+    // 위임 (Repository 이중 등록 회피).
+    const rows = await this.notificationsService.findByResource(
+      'background_run',
+      backgroundRunId,
+    );
     return rows.map((row) => ({
       id: row.id,
       type: row.type,

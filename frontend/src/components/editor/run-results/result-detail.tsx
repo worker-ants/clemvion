@@ -39,8 +39,12 @@ import { parseButtonConfig, openExternalLink } from "./button-config";
  * `outputData.meta.backgroundRunId` 추출 — Background 핸들러가 발급한 UUID v4.
  * 부재 시 (옛 NodeExecution 또는 background 가 아닌 노드) null. 모니터링 API
  * 의 조회 키 (spec/4-nodes/1-logic/12-background.md §5.1 / §8).
+ *
+ * **Export 사유**: 단위 테스트(`extract-background-run-id.test.ts`) 가
+ * 다양한 부재 케이스(null, 비-object, meta 누락, 비-string)를 잠그도록 외부
+ * 노출. 컴포넌트 외부에서 직접 호출하지는 않는다.
  */
-function extractBackgroundRunId(output: unknown): string | null {
+export function extractBackgroundRunId(output: unknown): string | null {
   if (output == null || typeof output !== "object") return null;
   const meta = (output as { meta?: unknown }).meta;
   if (meta == null || typeof meta !== "object") return null;
