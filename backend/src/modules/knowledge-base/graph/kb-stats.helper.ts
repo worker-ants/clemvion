@@ -16,15 +16,19 @@ import { DataSource } from 'typeorm';
  * 구독에 도달하지 못하는 dead path 였다 (`KbEventType` union 에도 없는 type 을
  * `as never` 로 강제 통과). frontend 는 이미 `document:graph_completed` 수신 시
  * `kb-graph-stats` React Query 를 invalidate 해 통계를 갱신하므로 UX 영향 없음.
- * 자세한 결정 근거는 `plan/complete/kb-graph-stats-dead-path.md` 와
- * `spec/5-system/6-websocket-protocol.md ## Rationale` 참조.
+ * 자세한 결정 근거는 `spec/5-system/6-websocket-protocol.md ## Rationale` 참조.
  */
 @Injectable()
 export class KbStatsHelper {
   constructor(private readonly dataSource: DataSource) {}
 
   async refresh(knowledgeBaseId: string): Promise<void> {
-    await this.dataSource.query(
+    // `RETURNING` 절은 향후 호출자가 갱신된 카운트를 활용할 수 있도록 유지하되,
+    // 현재는 어느 호출자도 반환값을 사용하지 않는다 — UI 갱신은 frontend 의
+    // `kb-graph-stats` React Query invalidate 경로로 별도 처리되기 때문.
+    await this.dataSource.query<
+      { entity_count: number; relation_count: number }[]
+    >(
       `UPDATE knowledge_base
          SET entity_count = (
                SELECT COUNT(*)::int FROM entity WHERE knowledge_base_id = $1

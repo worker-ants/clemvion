@@ -15,7 +15,7 @@ describe('KbStatsHelper', () => {
     helper = module.get(KbStatsHelper);
   });
 
-  it('runs a single atomic UPDATE that recounts entity + relation and returns the new values', async () => {
+  it('runs a single atomic UPDATE that recounts entity + relation', async () => {
     dataSource.query.mockResolvedValue([
       { entity_count: 12, relation_count: 34 },
     ]);
