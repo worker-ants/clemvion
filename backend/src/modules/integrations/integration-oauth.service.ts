@@ -981,11 +981,24 @@ export class IntegrationOAuthService {
     try {
       if (existingPending) {
         // Reuse the existing row instead of accumulating duplicate pending
-        // rows for the same mall. New install_token + refreshed credentials;
-        // status / name preserved. installTokenIssuedAt is reset so the TTL
-        // scanner doesn't immediately expire the new token (User Decision 3).
-        existingPending.installToken = installToken;
-        existingPending.installTokenIssuedAt = installTokenIssuedAt;
+        // rows for the same mall. **install_token 보존 (idempotent begin)**:
+        // 같은 mall_id 에 대해 begin 을 여러 번 호출해도 사용자가 처음
+        // Cafe24 Developers 에 등록한 URL 이 계속 유효하도록 기존 토큰을
+        // 유지한다. 토큰이 없거나 (legacy / null) credentials 가 변경된
+        // 경우에만 새 토큰을 발급. installTokenIssuedAt 도 토큰을 새로
+        // 발급할 때만 갱신 — 보존 시 기존 TTL 그대로.
+        //
+        // 옛 동작 (매 호출 토큰 재발급) 은 "Connect 버튼 두 번 누르면 첫 번째
+        // URL 이 갑자기 무효화" UX 버그를 일으켰다 (2026-05-15 운영 보고).
+        const credsChanged =
+          existingPending.credentials?.mall_id !== meta.mall_id ||
+          existingPending.credentials?.client_id !== meta.client_id ||
+          existingPending.credentials?.client_secret !== meta.client_secret;
+        const needNewToken = !existingPending.installToken || credsChanged;
+        if (needNewToken) {
+          existingPending.installToken = installToken;
+          existingPending.installTokenIssuedAt = installTokenIssuedAt;
+        }
         existingPending.mallId = meta.mall_id; // backfill plain column if still NULL
         existingPending.credentials = {
           ...existingPending.credentials,
@@ -1043,10 +1056,15 @@ export class IntegrationOAuthService {
     // install_token 이 path segment 로 들어가 cafe24 Developers "테스트
     // 실행" 시 단일 row 조회를 가능하게 한다. spec/2-navigation/4-integration.md
     // §9.2 + Rationale "install_token 을 App URL path 식별 키로 승격".
+    //
+    // existingPending 재사용 분기에서는 기존 token 을 보존할 수 있으므로
+    // DB 에 실제 저장된 `saved.installToken` 을 반환해야 한다 (방금 발급한
+    // installToken 변수가 아니라).
+    const finalToken = saved.installToken ?? installToken;
     return {
       mode: 'cafe24_private_pending',
       integrationId: saved.id,
-      appUrl: buildCafe24InstallUrl(appUrl, installToken),
+      appUrl: buildCafe24InstallUrl(appUrl, finalToken),
       callbackUrl: buildOauthCallbackUrl(appUrl, 'cafe24'),
     };
   }
@@ -1098,6 +1116,32 @@ export class IntegrationOAuthService {
       // The token is 128-bit random base64url so this is not an
       // enumeration oracle. spec/2-navigation/4-integration.md ## Rationale
       // "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안 전제".
+      //
+      // 운영 진단용 부가 로그: 같은 mall_id 의 cafe24 통합이 어떤 상태인지
+      // 확인. 토큰은 URL 에 노출되는 capability 이므로 앞 6자만 로깅 —
+      // enumeration oracle 방어 + 운영 트러블슈팅 균형. installToken 자체는
+      // 평문 컬럼이라 별도 마스킹 불필요. mall_id 만으로는 row 식별 불가능
+      // (workspace 분리) 하므로 정보 누출 위험 낮음.
+      const sameMall = query.mall_id
+        ? await this.integrationRepository.find({
+            where: {
+              mallId: query.mall_id,
+              serviceType: 'cafe24',
+            },
+          })
+        : [];
+      this.logger.warn(
+        `[cafe24-install-404] mall_id=${JSON.stringify(query.mall_id)} token_prefix=${JSON.stringify(installToken.slice(0, 6))} candidates=${JSON.stringify(
+          sameMall.map((r) => ({
+            id: r.id,
+            status: r.status,
+            statusReason: r.statusReason,
+            hasInstallToken: r.installToken !== null,
+            tokenPrefix: r.installToken?.slice(0, 6) ?? null,
+            tokenMatchesUrl: r.installToken === installToken,
+          })),
+        )}`,
+      );
       throw new NotFoundException({
         code: 'CAFE24_INSTALL_INVALID_TOKEN',
         message: 'install_token is not associated with a pending installation',
