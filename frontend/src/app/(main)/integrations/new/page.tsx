@@ -580,6 +580,7 @@ function AuthStep({
         <Cafe24ExtraFields
           credentials={credentials}
           setCredentials={setCredentials}
+          publicAppAvailable={service.meta?.publicAppAvailable !== false}
         />
       )}
 
@@ -673,17 +674,40 @@ function AuthStep({
 function Cafe24ExtraFields({
   credentials,
   setCredentials,
+  publicAppAvailable,
 }: {
   credentials: Record<string, unknown>;
   setCredentials: (c: Record<string, unknown>) => void;
+  /** False when server's CAFE24_CLIENT_* env vars are unset → only Private. */
+  publicAppAvailable: boolean;
 }) {
   const set = (key: string, value: unknown) =>
     setCredentials({ ...credentials, [key]: value });
   const mallId = String(credentials.mall_id ?? "");
-  const appType =
-    (credentials.app_type as "public" | "private" | undefined) ?? "public";
+  // When Public isn't usable on this deployment, force the form to Private
+  // and never even render the toggle so the user can't accidentally pick a
+  // dead-end option. Default to "public" only if the deployment supports it.
+  const rawAppType = credentials.app_type as
+    | "public"
+    | "private"
+    | undefined;
+  const appType: "public" | "private" = !publicAppAvailable
+    ? "private"
+    : (rawAppType ?? "public");
+  // When the deployment forbids Public, coerce the credentials state to
+  // "private" exactly once. Done in an effect (not during render) so we
+  // don't violate React's "no setState during render" rule.
+  useEffect(() => {
+    if (!publicAppAvailable && rawAppType !== "private") {
+      set("app_type", "private");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicAppAvailable, rawAppType]);
   const clientId = String(credentials.client_id ?? "");
   const clientSecret = String(credentials.client_secret ?? "");
+  const appTypeOptions = publicAppAvailable
+    ? (["public", "private"] as const)
+    : (["private"] as const);
 
   return (
     <div className="space-y-4 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4">
@@ -713,7 +737,7 @@ function Cafe24ExtraFields({
           App Type <span className="text-red-500">*</span>
         </Label>
         <div className="inline-flex w-full rounded-lg border border-[hsl(var(--border))] p-1">
-          {(["public", "private"] as const).map((opt) => (
+          {appTypeOptions.map((opt) => (
             <button
               key={opt}
               type="button"
@@ -730,9 +754,19 @@ function Cafe24ExtraFields({
           ))}
         </div>
         <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-          <strong>Public</strong> — official Cafe24 app store app (server-side
-          credentials). <strong>Private</strong> — paste the
-          client_id / client_secret from your shop&apos;s admin.
+          {publicAppAvailable ? (
+            <>
+              <strong>Public</strong> — official Cafe24 app store app
+              (server-side credentials). <strong>Private</strong> — paste the
+              client_id / client_secret from your shop&apos;s admin.
+            </>
+          ) : (
+            <>
+              <strong>Private only</strong> — this deployment has not registered
+              a Cafe24 App Store app, so only self-issued Private apps are
+              available. Paste your shop&apos;s client_id / client_secret below.
+            </>
+          )}
         </p>
       </div>
 

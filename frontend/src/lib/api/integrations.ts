@@ -71,6 +71,14 @@ export interface ServiceDefinition {
   authTypes: string[];
   authVariants: AuthVariant[];
   scopes: ScopeOption[];
+  /**
+   * Service-specific availability hints derived server-side from env / runtime
+   * config. Currently populated only for cafe24 — `publicAppAvailable` reflects
+   * whether the deployment has `CAFE24_CLIENT_ID` / `CAFE24_CLIENT_SECRET` set
+   * (i.e. whether the app-store public-app OAuth flow is usable). Private apps
+   * are always available because the user supplies their own client_id/secret.
+   */
+  meta?: { publicAppAvailable?: boolean };
 }
 
 export interface UsageWorkflow {

@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
+import { renderInstallErrorHtml } from './services/install-error.template';
 import {
   ApiTags,
   ApiOperation,
@@ -133,7 +134,22 @@ export class ThirdPartyOAuthController {
       const status = e.status ?? 400;
       const code = e.response?.code ?? 'CAFE24_INSTALL_FAILED';
       const message = e.response?.message ?? e.message ?? 'Install failed';
-      res.status(status).json({ code, message });
+      // Render an HTML page when the browser is the consumer (Cafe24's "테스트
+      // 실행" / "앱으로 가기" opens this URL in a new tab → user sees this page
+      // directly). JSON is still returned to API-style clients. req.headers
+      // is `?` because some test fixtures construct a bare Request object
+      // without the Express request envelope.
+      const acceptHeader = req.headers?.['accept'] ?? '';
+      const acceptsHtml =
+        typeof acceptHeader === 'string' && acceptHeader.includes('text/html');
+      if (acceptsHtml) {
+        res
+          .status(status)
+          .setHeader('Content-Type', 'text/html; charset=utf-8')
+          .send(renderInstallErrorHtml(code, message));
+      } else {
+        res.status(status).json({ code, message });
+      }
     }
   }
 

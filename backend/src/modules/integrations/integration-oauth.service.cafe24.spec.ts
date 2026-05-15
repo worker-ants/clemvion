@@ -528,6 +528,110 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(code).toBe('CAFE24_INSTALL_INVALID_TOKEN');
     });
 
+    /**
+     * 회귀 보호 (2026-05-15 — install 404 자동 회복) — 사용자가 Cafe24
+     * Developers 에 등록한 App URL 이 stale token (예: 폼 재제출로 token 이
+     * 재발급되었지만 Cafe24 측 URL 갱신을 잊은 케이스) 일 때, 같은 mall_id 의
+     * pending_install row 의 client_secret 으로 HMAC 검증이 통과하면 그 row 의
+     * OAuth 흐름으로 자동 fall-through 한다.
+     */
+    it('recovery — stale URL falls through to current pending_install row when HMAC validates against its client_secret', async () => {
+      const validTs = Math.floor(Date.now() / 1000);
+      // 사용자의 URL token (DB 에는 없음) — 옛 token 시뮬레이션
+      const staleUrlToken = 'STALE_TOKEN_______ABC_'; // 22 chars base64url
+      // DB 에는 현재 token (다른 값) 으로 row 가 존재
+      const currentRow = makePendingRow({
+        installToken: 'CURRENT_TOKEN_____xyz_', // 22 chars
+      });
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      // 1차 findOne (urlToken 으로 검색) → null
+      // 2차 find (mallId 로 검색) → [currentRow]
+      integrationRepo.findOne.mockResolvedValueOnce(null);
+      integrationRepo.find.mockResolvedValueOnce([currentRow]);
+
+      const result = await service.handleInstall(staleUrlToken, {
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac: params.get('hmac')!,
+        rawQuery,
+      });
+
+      // 정상 OAuth authorize URL 로 진행
+      expect(result).toContain(
+        'https://priv-shop.cafe24api.com/api/v2/oauth/authorize',
+      );
+      expect(result).toContain('client_id=priv-client-id');
+
+      // OAuthState 가 currentRow.id 로 생성됨 (recovery 성공)
+      expect(stateRepo.save).toHaveBeenCalledTimes(1);
+      const savedState = stateRepo.create.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(savedState.integrationId).toBe('integration-1');
+    });
+
+    it('recovery — does NOT recover when HMAC fails against all candidates (real attacker scenario)', async () => {
+      const validTs = Math.floor(Date.now() / 1000);
+      const staleUrlToken = 'STALE_TOKEN_______ABC_';
+      const currentRow = makePendingRow({
+        installToken: 'CURRENT_TOKEN_____xyz_',
+      });
+      // HMAC 을 잘못된 secret 으로 계산 — 어떤 후보로도 검증 불가
+      const rawQuery = buildRawQuery(validTs, 'attacker-secret');
+      const params = new URLSearchParams(rawQuery);
+
+      integrationRepo.findOne.mockResolvedValueOnce(null);
+      integrationRepo.find.mockResolvedValueOnce([currentRow]);
+
+      const error = await service
+        .handleInstall(staleUrlToken, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        })
+        .catch((e: Error) => e);
+      const code = (error as { response?: { code?: string } }).response?.code;
+      expect(code).toBe('CAFE24_INSTALL_INVALID_TOKEN');
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('recovery — does NOT recover when multiple candidates pass HMAC (ambiguous workspaces)', async () => {
+      const validTs = Math.floor(Date.now() / 1000);
+      const staleUrlToken = 'STALE_TOKEN_______ABC_';
+      // 두 row 모두 동일 client_secret 보유 — 어느 row 로 진행할지 모호
+      const row1 = makePendingRow({
+        id: 'int-1',
+        workspaceId: 'ws-1',
+        installToken: 'WS1_TOKEN_________xyz_',
+      });
+      const row2 = makePendingRow({
+        id: 'int-2',
+        workspaceId: 'ws-2',
+        installToken: 'WS2_TOKEN_________abc_',
+      });
+      const rawQuery = buildRawQuery(validTs);
+      const params = new URLSearchParams(rawQuery);
+
+      integrationRepo.findOne.mockResolvedValueOnce(null);
+      integrationRepo.find.mockResolvedValueOnce([row1, row2]);
+
+      const error = await service
+        .handleInstall(staleUrlToken, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        })
+        .catch((e: Error) => e);
+      const code = (error as { response?: { code?: string } }).response?.code;
+      expect(code).toBe('CAFE24_INSTALL_INVALID_TOKEN');
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
     it('throws CAFE24_INSTALL_INVALID_HMAC when HMAC does not verify against the row', async () => {
       integrationRepo.findOne.mockResolvedValue(makePendingRow());
 
