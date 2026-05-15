@@ -21,12 +21,24 @@ def make_debug_logger(log_file_path):
 
 
 def create_session_dir(output_dir, subdir=None):
-    """Create `output_dir/[<subdir>/]<timestamp>/` and return the path."""
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    """Create `output_dir/[<subdir>/]<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` and return the path.
+
+    The nested layout (year/month/day/HH_MM_SS) keeps any single directory
+    bounded in size — flat timestamp directories had become impractical to
+    list (`ls`) as review history accumulated. Existing review/<timestamp>/
+    directories are migrated separately by the operator; this function only
+    governs newly created sessions.
+    """
+    now = datetime.now()
     parts = [output_dir]
     if subdir:
         parts.append(subdir)
-    parts.append(timestamp)
+    parts.extend([
+        f"{now.year:04d}",
+        f"{now.month:02d}",
+        f"{now.day:02d}",
+        f"{now.hour:02d}_{now.minute:02d}_{now.second:02d}",
+    ])
     session_dir = os.path.join(*parts)
     os.makedirs(session_dir, exist_ok=True)
     return session_dir

@@ -35,8 +35,10 @@
 | `plan/in-progress/<name>.md` | 평문 | 처리할 항목이 남은 plan. 새 plan 은 항상 여기 |
 | `plan/complete/<name>.md` | 평문 | 모든 항목 완료된 plan. `in-progress/` 에서 `git mv` |
 | `plan/complete/archive/from-*/` | 고정 경로 | 옛 `memory/`·`user_memo/` 의 1회성·역사 문서 보관. 신규 생성 금지 |
-| `review/<timestamp>/` | ISO 형식 | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `*/review.md` |
-| `review/consistency/<timestamp>/` | 고정 prefix | consistency-checker 세션. `SUMMARY.md` + 5 checker 별 `*/review.md` + `meta.json` |
+| `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `*/review.md` |
+| `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | consistency-checker 세션. `SUMMARY.md` + 5 checker 별 `*/review.md` + `meta.json` |
+
+> 옛 flat 경로(`review/<timestamp>/`, `review/consistency/<timestamp>/`) 의 누적된 데이터는 한 디렉토리 안 항목 수가 폭주해 `ls` 등 파일시스템 조회가 무거워지는 문제가 있어 nested 형식으로 전환했다. 기존 데이터는 사용자가 일괄 이동 예정이며, 새 세션부터 위 형식을 강제한다.
 | `.claude/worktrees/<task_name>-<slug>/` | `<task_name>-<slug>` | 신규 작업이 일어나는 worktree. `task_name` 은 요청에 맞는 의미 있는 단어, `slug` 는 호출자가 부여하는 식별자 |
 
 > 옛 `prd/`, `memory/`, `user_memo/` 폴더는 docs-consolidation(2026-05-12) 으로 모두 `spec/` 또는 `plan/complete/archive/` 로 흡수되었다. 신규 문서를 옛 경로 컨벤션으로 만들지 않는다.
@@ -57,8 +59,8 @@
 | 정식 규약 (옛 user_memo CONVENTIONS) | `spec/conventions/<name>.md` |
 | 진행 중 작업 추적 | `plan/in-progress/<name>.md` (frontmatter 에 `worktree` 명시) |
 | 완료된 작업 추적 | `plan/complete/<name>.md` (`git mv`로 이동) |
-| 코드 리뷰 산출물 | `review/<timestamp>/{SUMMARY,RESOLUTION,...}.md` |
-| 일관성 검토 산출물 | `review/consistency/<timestamp>/{SUMMARY,meta.json,<checker>/review.md}` |
+| 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,RESOLUTION,...}.md` |
+| 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,meta.json,<checker>/review.md}` |
 | 1회성 분석·역사 문서 | `plan/complete/archive/from-*/` 만 보관, 신규 생성 금지 |
 
 ### 작업 시 점검 (절대 누락 금지)
@@ -130,12 +132,36 @@ cd .claude/worktrees/<task_name>-<slug>
 | 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | 제품 정의·스펙(spec)의 신규 작성·개정. `spec/` 본문·Overview·Rationale 모두 다룬다. **구현 금지** | `spec/**`, `plan/**` |
 | 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | 스펙 기반의 구현·리팩토링·테스트 작성·빌드·품질 검증. **기획 금지** | `frontend/**`, `backend/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` 은 **read-only** — 수정 필요 시 `project-planner` 로 위임 |
 | 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | spec/plan/구현 착수 **직전** 다른 문서와의 위배 사전 검출. Critical 발견 시 호출자를 차단. | `review/consistency/**` |
-| 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | **사후** 다각도 코드 리뷰 실행. `review/<timestamp>/SUMMARY.md` 생성 | `review/**` (SUMMARY 와 각 에이전트 출력) |
+| 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | **사후** 다각도 코드 리뷰 실행. `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` 생성 | `review/**` (SUMMARY 와 각 에이전트 출력) |
 
 - `spec/` 을 다루면 `project-planner` 로 진입한다.
 - 코드베이스(`frontend/`·`backend/`)를 다루면 `developer` 로 진입한다.
 - 구현 중 스펙 수정이 필요해지면 `developer` 는 작업을 멈추고 `project-planner` 호출 또는 사용자에게 위임한다.
 - `project-planner` 는 `spec/` 에 쓰기 **직전** 에 `consistency-checker --spec` 을 의무 호출하고, Critical 발견 시 차단한다. `developer` 는 구현 착수 **직전** 에 `consistency-checker --impl-prep` 를 의무 호출한다.
+
+## 외부 LLM 호출 정책
+
+요금제 정책 변경으로 다음 두 경로의 model 호출은 **모두 사용 금지**.
+
+- `subprocess.run(["claude", "-p", ...])` — 별도 Claude CLI 인스턴스 spawn
+- `anthropic.Anthropic().messages.create(...)` — Anthropic SDK 직접 호출
+
+본 프로젝트에서 model 을 호출하는 유일한 경로는 **main Claude(현재 session) 가 `Agent` tool 로 sub-agent 를 invoke** 하는 것이다. sub-agent 는 `.claude/agents/<name>.md` 에 정의된 custom subagent 로, 호출 즉시 별도 conversation 으로 격리된다.
+
+### 적용 규칙
+
+- `/ai-review`, `/consistency-check` 모두 hook 자동 trigger 가 아닌 **slash command 진입점**만 사용. PostToolUse 자동 트리거는 사용 불가 (model 호출이 main session 안에서만 가능).
+- orchestrator 스크립트(`.claude/skills/*/hooks/*_orchestrator.py`)는 **prepare 모드**만 갖는다 — diff/context 수집, prompt 파일 작성, `_retry_state.json` 초기화, 세션 경로 stdout 출력. **model 호출 금지**.
+- 모든 sub-agent 는 `prompt_file=<...>` 와 `output_file=<...>` 두 인자를 받아 본문은 output_file 에 Write 하고, main 에게는 한 줄(`STATUS=<...> ISSUES=<n> PATH=<...> RESET_HINT=<sec>`) 만 반환한다. main 의 context window 부담을 최소화하기 위함.
+- `claude -p` 또는 SDK 호출 코드를 새로 추가하지 않는다. 발견되면 sub-agent 위임으로 즉시 전환.
+
+### 사용량 한도 무한 재시도 정책
+
+- sub-agent 가 한도 메시지(`Claude AI usage limit reached`, `rate_limit_exceeded`, `quota`, `try again in ...`, `5-hour limit`) 를 받으면 임의로 우회·재시도하지 않고 그대로 `STATUS=rate_limit` 와 RESET_HINT 를 보고한다. 재시도 결정은 호출자(main) 가 한다.
+- main 은 한도 감지 시 미완료 명단을 `_retry_state.json` 에 유지하고 `ScheduleWakeup(delay=RESET_HINT or 1800, prompt="/loop /ai-review", reason=...)` 으로 재시도를 예약한 뒤 turn 을 종료한다. main session 이 점유되지 않으므로 한도 회복까지 사용자가 다른 일을 할 수 있다.
+- 사용자는 `/loop /ai-review` 또는 `/loop /consistency-check` 로 진입해 dynamic mode 에서 무한 재시도를 위임한다. pending 이 비면 ScheduleWakeup 미호출 → /loop 자연 종료.
+- 네트워크 오류(`STATUS=network`) 도 동일하게 무한 재시도 대상이며 RESET_HINT 없을 때 `RETRY_WAKE_DEFAULT_SEC`(1800s) 사용.
+- 결정적 오류(`STATUS=fatal`) 는 재시도하지 않고 partial SUMMARY 에 표기한다. 예: prompt 파일 부재, sub-agent definition 부재, 명백한 argument 오류.
 
 ## 프로젝트 스펙 문서
 
