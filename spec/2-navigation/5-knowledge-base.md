@@ -102,7 +102,7 @@
 
 - **임베딩 진행 박스** (vector / graph 무관): "완료 {completed} / 전체 {total}" + 실패가 있으면 "{failed} 실패" + RoleGate(editor) 의 [실패 문서 재시도] 버튼. 5s polling (진행 중) / 1분 polling (완료된 상태).
 - **그래프 추출 박스** (graph 모드 KB 만): "{extracted}개 문서 추출 완료 / {total}" + "{failed} 실패" + [실패 문서 재시도] 버튼 + entity/relation 카운트. 동일 polling 정책.
-- 버튼 클릭 → ConfirmModal → `POST /api/knowledge-bases/:id/retry-failed { scope: 'embedding'|'graph' }`. 응답 시 toast 로 "{embedding}개 임베딩 · {graph}개 그래프 추출을 재시도해요".
+- 버튼 클릭 → ConfirmModal → `POST /api/knowledge-bases/:id/retry-failed { scope: 'embedding' | 'graph' | 'all' }`. 응답 시 toast 로 "{embedding}개 임베딩 · {graph}개 그래프 추출을 재시도해요". UI 는 vector / graph 두 분리 버튼이라 `scope: 'embedding'` 또는 `'graph'` 만 전송, `'all'` 은 운영/스크립트용.
 - 백엔드의 `document:embedding_retry`·`graph_retry`·`*_failed`·`*_completed` 이벤트를 `useKbEvents` 가 수신해 즉시 React Query 캐시 invalidate. WS 단절 시 polling fallback.
 
 ### 2.5 문서 업로드
@@ -136,7 +136,7 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 └──────────────────────────────────────────────────────────┘
 ```
 
-- WebSocket 이벤트 (`document:graph_started/progress/completed/error`, `kb:graph_stats_updated`) 로 실시간 갱신
+- WebSocket 이벤트 (`document:graph_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed`) 로 실시간 갱신. KB 단위 통계는 `document:graph_completed` payload 의 `entityCount` / `relationCount` 또는 REST `GET /:id/graph/stats` 폴링으로 조회
 - "Re-extract entire KB" 액션은 `POST /api/knowledge-bases/:kbId/re-extract` 호출 (확인 모달)
 
 #### 2.7.2 P1: Entity / Relation 목록 화면

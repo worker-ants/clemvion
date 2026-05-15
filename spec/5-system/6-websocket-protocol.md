@@ -107,7 +107,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 |------|------|------|
 | 워크플로우 실행 | `execution:{executionId}` | 특정 실행의 모든 이벤트 |
 | 워크플로우 편집 | `workflow:{workflowId}` | 에디터에서 실행 시작/완료 알림 |
-| 임베딩 상태 | `embedding:{knowledgeBaseId}` | Knowledge Base 임베딩 진행 상태 |
+| KB 문서 상태 | `kb:{documentId}` | Knowledge Base 문서별 임베딩·그래프 추출 상태 |
 | 알림 | `notifications:{userId}` | 사용자 알림 실시간 수신 |
 
 ### 3.3 구독/구독 해제
@@ -446,16 +446,28 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 ---
 
-### 4.3 임베딩 이벤트 (Server → Client)
+### 4.3 KB 문서 이벤트 (Server → Client)
 
-채널: `embedding:{knowledgeBaseId}`
+채널: `kb:{documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend 권위 정의는 `WebsocketService.emitKbEvent` 의 `KbEventType` union (12개).
+
+**임베딩 이벤트 (6개):**
 
 | 이벤트 type | payload | 설명 |
 |-------------|---------|------|
-| `embedding.started` | `{ documentId, documentName }` | 임베딩 시작 |
-| `embedding.progress` | `{ documentId, progress, totalChunks, completedChunks }` | 진행률 |
-| `embedding.completed` | `{ documentId, chunkCount }` | 임베딩 완료 |
-| `embedding.failed` | `{ documentId, error }` | 임베딩 실패 |
+| `document:embedding_started` | `{ documentId, knowledgeBaseId }` | processing 시작 |
+| `document:embedding_progress` | `{ documentId, progress: number }` | 청크 배치 완료마다 (0~100) |
+| `document:embedding_completed` | `{ documentId, chunkCount }` | 완료 |
+| `document:embedding_error` | `{ documentId, error: string }` | **(의미 변경, 2026-05-11)** in-flight 일시 오류 — `_retry` 또는 `_failed` 가 곧 따라온다. 영구 실패 신호로 사용하지 말 것 |
+| `document:embedding_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
+| `document:embedding_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
+
+**그래프 추출 이벤트 (6개):** `rag_mode = 'graph'` KB 문서에 대해 동일 채널로 추가 emit.
+
+| 이벤트 type | 설명 |
+|-------------|------|
+| `document:graph_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed` | 임베딩 이벤트와 1:1 대응. payload 상세는 [`spec/5-system/10-graph-rag.md §6`](./10-graph-rag.md) 참조 |
+
+상태 전이 및 의미는 [`spec/5-system/8-embedding-pipeline.md §9.2`](./8-embedding-pipeline.md#92-상태-전이) 와 직접 대응된다.
 
 ### 4.4 알림 이벤트 (Server → Client)
 
@@ -611,3 +623,20 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 6. **토큰 갱신**: Access Token 만료 1분 전에 REST API로 갱신 → `auth.refresh` 전송
 7. **재연결**: `onclose` 이벤트에서 지수 백오프 재연결 + `lastSeq` 전달
 8. **정리**: 페이지 이탈 시 `unsubscribe` + 정상 종료 (close code 1000)
+
+---
+
+## Rationale
+
+### KB 채널 단위 전환 — `embedding:{knowledgeBaseId}` → `kb:{documentId}` (2026-05-16)
+
+초기 spec 은 임베딩 진행 상태를 KB 단위로 broadcast 한다고 기술했으나, backend 실제 구현은 처음부터 **문서 단위 채널** 이었다 (`WebsocketService.emitKbEvent` 의 `KbEventType` union, `kb:${documentId}` 채널). frontend `useKbEvents` 도 동일하게 문서별 구독. spec 의 KB 단위 표기는 기록 오류로 판명되어 정정.
+
+문서 단위 채널의 근거:
+- 문서별 독립 진행 상태 추적이 가능해 progress UI 가 문서마다 갱신.
+- 권한 검증을 문서 소유 KB 단위로 분기하기 쉬움.
+- frontend 가 보유한 documentIds 만큼 구독하므로 무관한 KB 이벤트로 인한 노이즈 차단.
+
+이벤트 표기는 점 표기(`embedding.started`) 에서 콜론+언더스코어(`document:embedding_started`) 로 정렬 — backend type union 의 형식과 일치.
+
+`kb:graph_stats_updated` 같이 KB 단위 통계 이벤트를 도입했던 시도는 `kb-stats.helper.ts:42-46` 가 `emitExecutionEvent` 로 잘못 호출해 채널이 `execution:kb:…` 로 prefix 되어 frontend 의 `kb:` 구독에 도달하지 못하는 **dead path** 였다. spec 에서 일괄 제거. 후속 plan `plan/in-progress/kb-graph-stats-dead-path.md` 가 코드 측 결함 처리(emit 경로 수정 또는 코드 제거) 를 dev 에 위임한다.
