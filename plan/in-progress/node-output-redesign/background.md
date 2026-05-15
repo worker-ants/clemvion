@@ -1,5 +1,7 @@
 # Background output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. fire-and-forget 격리 컨트랙트 + `meta.backgroundRunId` (모니터링 API 조회 키) 유지. 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/1-logic/12-background.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

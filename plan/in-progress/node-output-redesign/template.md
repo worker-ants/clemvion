@@ -1,5 +1,7 @@
 # Template output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `config.template` (raw `{{ }}` 보존) ↔ `output.rendered` (expression resolver 평가 결과) 는 Principle 7 (config echo 원칙) 의 가장 명확한 사례. PR #49 으로 frontend run-results drawer 의 Template preview 글로벌 버튼 바 렌더링도 정상 동작. 잔여 권고 없음 (HTML sanitize 부재는 별도 P1 보안 트랙).
+
 > 대상 spec: `spec/4-nodes/6-presentation/5-template.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

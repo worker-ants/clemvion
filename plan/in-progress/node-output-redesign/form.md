@@ -1,5 +1,7 @@
 # Form output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. Form 은 conventions Principle 1.1 / 4 의 표준 사례 — 단계 (a) waiting `output: {}` + 단계 (b) resumed `output.interaction.{type, data, receivedAt}` 패턴. 옛 `output.submittedData`/`output.view`/`output.type:'form'` 판별자 모두 폐기 마킹 완료. 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/6-presentation/4-form.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

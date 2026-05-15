@@ -1,5 +1,9 @@
 # Carousel output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. static/dynamic 모드 분기 + 블로킹 단계 + per-item 동적 포트 (`<id>__item_<idx>`) 모두 conventions 부합. PR #49 (Template preview 버튼 바 표시 fix) 으로 frontend 렌더링은 정상 동작.
+> 잔여 권고 항목:
+> - `config.buttonConfig` (runtime 생성 `buttons` 합산 + `buttonItemMap`) 의 위치 — `config` 안에 있지만 일부 필드가 runtime 생성이라 Principle 7 (config = raw echo) 와 미묘한 위배. `meta.buttonConfig` 이동 또는 spec 표현 명확화 (frontend 일관 접근 의도 명시) 검토.
+
 > 대상 spec: `spec/4-nodes/6-presentation/1-carousel.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

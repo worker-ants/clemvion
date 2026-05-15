@@ -1,5 +1,7 @@
 # Node Output 재설계 — 노드별 개선안 인덱스
 
+> **최신화 검토 (2026-05-16)**: 본 폴더의 노드별 plan 들은 1차 초안(2026-04 / commit `e228ec96`) 이후 spec/4-nodes/ 와 spec/conventions/node-output.md 가 여러 차례 개선됐다. 본 갱신에서 (a) 모든 plan 파일 상단에 `최신화 검토 (2026-05-16)` 상태 블록을 추가해 현재 spec 부합 여부와 잔여 권고 항목을 명시했고, (b) 신규 노드 **Cafe24** ([cafe24.md](./cafe24.md)) 를 인덱스·요약 표·잔여 권고 통계에 편입했다. 노드 카운트는 27 → 28 로 변경됐다.
+
 본 plan 폴더는 `spec/4-nodes/` 의 모든 노드 spec 을 검토하여, 각 노드의 `output` 필드 정의가 다음 정의에 부합하는지 진단하고 노드별 개선안을 모은 1차 초안이다.
 
 ## 출발점 — output 의 올바른 정의 (사용자 표현 그대로)
@@ -43,17 +45,18 @@
 
 ## 진단 방법론
 
-각 노드 plan 파일은 다음 4 항목으로 구성된다:
+각 노드 plan 파일은 다음 구성을 따른다:
 
-1. **현재 output (spec 인용)** — `spec/4-nodes/.../<node>.md` 의 §5 (출력 구조) 절을 인용
-2. **진단** — 각 항목·필드가 위 정의 ("단계마다 채워지는 field") 와 conventions 11 원칙에 부합하는가
-3. **개선안 — 정리된 output** — 단계별로 채워지는 데이터만 남긴 정리안 (가능하면 case 별 그룹)
-4. **분리 제안** — `output` 에서 빠질 항목의 새 위치 (`config` / `meta` / 본문 metadata 등)
-5. **Rationale** — 분류 근거 + 폐기된 대안
+1. **최신화 검토 블록** (2026-05-16 추가) — 현 spec 과의 정합 여부, 잔여 권고 항목 요약
+2. **현재 output (spec 인용)** — `spec/4-nodes/.../<node>.md` 의 §5 (출력 구조) 절 인용
+3. **진단** — 각 항목·필드가 위 정의 ("단계마다 채워지는 field") 와 conventions 11 원칙에 부합하는가
+4. **개선안 — 정리된 output** — 단계별로 채워지는 데이터만 남긴 정리안 (가능하면 case 별 그룹)
+5. **분리 제안** — `output` 에서 빠질 항목의 새 위치 (`config` / `meta` / 본문 metadata 등)
+6. **Rationale** — 분류 근거 + 폐기된 대안
 
 > 본 작업이 spec 본문에 즉시 반영되는 것은 **아니다**. plan 검토 → 합의 → 별도 phase 에서 `project-planner` 가 spec 본문을 갱신한다 (developer/agent 는 spec 쓰기 권한 없음).
 
-## 노드 목록 (총 27 개)
+## 노드 목록 (총 28 개)
 
 ### 1. Logic 노드 (12 종)
 
@@ -86,13 +89,14 @@
 | Text Classifier | LLM (분류, 동적 포트) | [text-classifier.md](./text-classifier.md) |
 | Information Extractor | LLM (추출, single/multi turn, blocking) | [information-extractor.md](./information-extractor.md) |
 
-### 4. Integration 노드 (3 종)
+### 4. Integration 노드 (4 종)
 
 | 노드 | 카테고리 | plan 파일 |
 | --- | --- | --- |
 | HTTP Request | external (success/error) | [http-request.md](./http-request.md) |
 | Database Query | external (success/error) | [database-query.md](./database-query.md) |
 | Send Email | external (success/error) | [send-email.md](./send-email.md) |
+| **Cafe24** *(신규)* | external (Cafe24 Admin API, success/error) | [cafe24.md](./cafe24.md) |
 
 ### 5. Data 노드 (2 종)
 
@@ -117,19 +121,66 @@
 | --- | --- | --- |
 | Manual Trigger | 진입점 | [manual-trigger.md](./manual-trigger.md) |
 
-## 요약 — 가장 빈번한 부적절 패턴
+## 진행 상태 요약 (2026-05-16)
+
+대부분의 노드 spec 은 conventions 11 Principle 에 부합하도록 정리된 상태다. 28 종 중 잔여 권고 항목이 남은 12종 / 부합 16종 으로 구성된다.
+
+### 잔여 권고가 있는 노드 (12종)
+
+| 노드 | 잔여 권고 요약 |
+| --- | --- |
+| [variable-modification](./variable-modification.md) | `config.recordValues` raw echo 추가 |
+| [map](./map.md) | §5.1 외부 노출 표현 명확화, `_skipped` 인라인 vs ForEach 별도 패턴 통일 검토 |
+| [foreach](./foreach.md) | §5.1 표현 명확화, Map 과 skipped 패턴 통일 검토 |
+| [parallel](./parallel.md) | §5.2 (`done`) `meta.durationMs` + `meta.branches` 보강 |
+| [merge](./merge.md) | `meta.strategy` / `meta.outputFormat` 의 `config` 중복 제거 검토 |
+| [workflow](./workflow.md) | Async `output.workflowId` / `output.status: 'started'` 중복 제거 |
+| [ai-agent](./ai-agent.md) | waiting/resumed `output.messages` ↔ 종결 `output.result.messages` 경로 통일 검토 |
+| [text-classifier](./text-classifier.md) | `output.originalInput` 위치 일관성 (정상 inside `result`, 에러 top-level 분기) |
+| [information-extractor](./information-extractor.md) | waiting `output.maxTurns` 제거 (config 중복), `output.message` (단수) 제거 |
+| [http-request](./http-request.md) | Transport 실패 시 `output.response: { error }` legacy 잔재 제거 |
+| [carousel](./carousel.md) | `config.buttonConfig` (runtime 생성 부분) 위치 검토 (`meta` 이동 또는 표현 명확화) |
+| [table](./table.md) | `output.rendered` HTML snapshot 의 위치 (`meta.rendered` 이동 또는 frontend client-side 렌더 전환) — Carousel/Chart 와 일관성 |
+
+### 부합 (잔여 권고 없음) 노드 (16종)
+
+if-else / switch / loop / variable-declaration / split / filter / background / transform / code / database-query / send-email / cafe24 / chart / form / template / manual-trigger
+
+## 요약 — 가장 빈번한 부적절 패턴 (2026-05-16 갱신)
 
 본 분석에서 반복적으로 검출된 패턴 (전체 plan 의 누적 통계):
 
-1. **리터럴 config 의 `output` echo** — `output.fields` / `output.title` / `output.chartType` / `output.layout` / `output.maxTurns` 등 사용자가 UI 로 정의한 값을 `output` 으로 복사하던 옛 패턴이 일부 spec 에는 명시적으로 폐기 마킹되어 있고, 일부는 잔재 (예: AI Agent 의 `output.metadata.*` 가 `meta.*` 로 이동된 history). 새 spec 본문은 대체로 정리되어 있으나 일관성 점검 필요.
-2. **노드 타입 판별자 (`output.type` / `output.view`)** — Presentation 노드 4종(Carousel/Table/Chart/Template) 에 옛 `output.type: 'carousel'|'table'|...` 과 `output.view` 래퍼가 폐기되어야 함을 spec 이 명시. 본 plan 은 frontend / 데이터 마이그레이션 가드 (DB 잔존 값 처리) 까지 추가 점검.
-3. **부분 결과 / 에러의 병존 컨트랙트 모호** — AI 카테고리 multi-turn (`ai_agent`, `information_extractor`) 에서 `output.error` + `output.result` 병존 케이스가 있고 이를 다운스트림이 어떻게 분기해야 하는지(`output.error` 존재 여부로 판정) spec 이 명시하나, 일부 노드(예: HTTP Request 의 `output.response` + `output.error` 병존) 와의 일관성 점검 필요.
+1. **리터럴 config 의 `output` echo 잔재**:
+   - 발견: `output.workflowId` (workflow async — `config.workflowId` 와 중복), `output.maxTurns` (information_extractor waiting — `config.maxTurns` 와 중복), `meta.strategy` / `meta.outputFormat` (merge — `config.*` 와 중복).
+   - 대부분 spec 본문이 의도적으로 echo 한다고 정당화하지만 Principle 1.1 직교 위반으로 해석됨. 호환성 영향 평가 후 제거 권장.
+
+2. **HTML/SVG snapshot 위치의 카테고리 비대칭**:
+   - Carousel / Chart 는 백엔드 HTML/SVG 생성 폐지 + frontend client-side 렌더로 전환 완료.
+   - Table 은 `output.rendered` (HTML) 유지 — `meta.rendered` 이동 또는 client-side 전환 검토 (conventions §4.2 footnote 명시).
+
+3. **컨테이너 시작/완료 단계 분리의 표현 모호**:
+   - Map / ForEach 의 §5.1 (시작 시점) JSON 예시가 envelope 으로 표시되어 다운스트림이 raw `items[]` 를 볼 수 있다는 오해 가능. spec 표현 명확화 (또는 handler 가 `output: null` 반환 + 별도 internal 필드로 분배) 검토.
+
+4. **컨테이너 노드의 `meta` 누락**:
+   - Parallel §5.2 (`done`) 에 `meta` 자체가 빠져 Loop / ForEach / Map 과 일관성 결여. `meta.durationMs` + `meta.branches` 보강 필요.
+
+5. **LLM 계열 wrapper 경로 비대칭**:
+   - ai_agent / information_extractor 의 multi-turn 노드에서 waiting/resumed 시 `output.messages` (top-level) vs 종결 시 `output.result.messages` (wrapper inside) 의 경로 차이로 다운스트림 분기 비대칭. 시멘틱 의도(진행 상태 vs 도메인 결과) 가 강해 호환성 영향 평가 후 통일 검토.
+   - text_classifier 의 `output.originalInput` 도 정상/에러에서 위치가 달라 유사한 비대칭.
+
+6. **Transport 실패 시 legacy 에러 표면**:
+   - http_request 의 transport 실패 시 `output.response: { error: <message> }` legacy 잔재 — `output.error` 가 있으므로 중복. spec footnote 가 deprecation 의도 명시.
+
+7. **Runtime 생성 필드의 `config` 위치**:
+   - Carousel 의 `config.buttonConfig.buttons` (글로벌 + per-item 합산) 와 `buttonItemMap` 은 handler 가 runtime 생성하지만 `config` 안에 위치 — Principle 7 (config = raw echo) 와 미묘한 위배. frontend 일관 접근 의도가 강해 위치 검토.
+
+> 옛 `output.metadata.*` 패턴 (`ai_agent`) → `meta.*` 마이그레이션, `output.type: 'form'|'carousel'|...` 판별자 폐기, `output.view` 래퍼 폐기, `output.previousOutput` 폐기, Switch `meta.value` deprecated alias 제거 (D4 마이그레이션), deprecated `conversationHistory`/`historyCount` 제거(`6f74333d`/`47a4a059`) 등 1차 초안의 핵심 정리 항목은 모두 spec 본문에 반영 완료.
 
 `spec/conventions/node-output.md` 가 본 분석의 **공식 기준** 이며, 이 인덱스 §"기준 규약" 절에 11 원칙 개요를 인용했다.
 
 ## 다음 단계
 
-1. 사용자/리뷰어가 본 폴더의 plan 파일들을 검토하여 노드별 개선안에 동의/수정 사항을 적는다.
-2. 합의된 개선안을 토대로 별도 phase 에서 **`project-planner` 가 `spec/` 본문을 갱신**한다 (본 plan 은 spec 변경 권한이 없는 developer/agent 가 작성한 1차 초안).
+1. 사용자/리뷰어가 본 폴더의 plan 파일들을 검토하여 위 §"잔여 권고가 있는 노드" 표의 12종 권고 항목에 동의/수정 사항을 적는다.
+2. 합의된 개선안을 토대로 별도 phase 에서 **`project-planner` 가 `spec/` 본문을 갱신**한다 (본 plan 은 spec 변경 권한이 없는 developer/agent 가 작성한 진단 — `project-planner` 가 진입 시 `/consistency-check --spec` 의무 호출).
 3. spec 본문 갱신과 동시에 backend handler / frontend resolver 의 마이그레이션이 필요하면 추가 plan 으로 분리한다.
-4. 모든 노드의 spec 갱신이 완료되고 후속 항목이 0 이 되면 본 폴더를 `plan/complete/` 로 `git mv`.
+4. 모든 노드의 spec 갱신이 완료되고 §"잔여 권고가 있는 노드" 표가 0 이 되면 본 폴더를 `plan/complete/` 로 `git mv`.

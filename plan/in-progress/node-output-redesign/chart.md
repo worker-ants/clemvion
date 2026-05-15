@@ -1,5 +1,7 @@
 # Chart output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. SVG 백엔드 렌더링 폐지 + frontend client-side recharts 직접 렌더 + `output.data` (런타임 집계) 만 surface 하는 정책 유지. 잔여 권고 없음 (`chartType` schema/handler 불일치는 별도 caveat 트랙).
+
 > 대상 spec: `spec/4-nodes/6-presentation/3-chart.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

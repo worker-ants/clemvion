@@ -1,5 +1,9 @@
 # Merge output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. silent 실패 가시화 (`skippedKeys`, `dormantFields`) 유지.
+> 잔여 권고 항목:
+> - `meta.strategy` / `meta.outputFormat` 가 `config.strategy` / `config.outputFormat` 와 의미 중복 (default 폴백 후 같은 값). 호환성 영향 평가 후 제거 검토.
+
 > 대상 spec: `spec/4-nodes/1-logic/11-merge.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

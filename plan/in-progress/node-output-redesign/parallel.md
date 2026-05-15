@@ -1,5 +1,9 @@
 # Parallel output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 의 §5.2 JSON 예시·필드 표에서 `meta` 가 여전히 누락된 상태(2026-05-16 확인). 컨테이너 컨트랙트 (Principle 9) 자체는 정합.
+> 잔여 권고 항목:
+> - §5.2 (`done` 포트) JSON 예시 + 필드 표에 `meta.durationMs` (engine 공통) + `meta.branches` (= `branches.length`, Container 메트릭 — Principle 2) 보강. 다른 Container 노드 (Loop / ForEach / Map) 와 일관성 확보.
+
 > 대상 spec: `spec/4-nodes/1-logic/10-parallel.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)
