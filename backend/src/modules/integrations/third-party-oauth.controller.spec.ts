@@ -393,6 +393,46 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
     );
   });
 
+  /**
+   * 회귀 보호 (2026-05-15) — Cafe24 의 "테스트 실행" / "앱으로 가기" 가 직접
+   * 브라우저 탭으로 우리 URL 을 여는 경로에서 사용자가 JSON 응답을 보지 않도록
+   * Accept: text/html 인 경우 HTML 페이지를 렌더링한다.
+   */
+  it('renders HTML error page when request Accept header includes text/html', async () => {
+    const err = Object.assign(new Error('token gone'), {
+      status: 404,
+      response: { code: 'CAFE24_INSTALL_INVALID_TOKEN', message: 'token gone' },
+    });
+    oauthService.handleInstall.mockRejectedValue(err);
+    const res = makeRes();
+    await controller.cafe24Install(
+      validToken,
+      'shop',
+      '1700000000',
+      'sig',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        url: '/cafe24?mall_id=shop',
+        headers: { accept: 'text/html,application/xhtml+xml' },
+      } as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+    const contentType = (res as { headers?: Record<string, unknown> })
+      .headers?.['Content-Type'];
+    expect(String(contentType ?? '')).toContain('text/html');
+    const bodyStr = String(res.body);
+    expect(bodyStr).toContain('CAFE24_INSTALL_INVALID_TOKEN');
+    expect(bodyStr).toContain('token gone');
+  });
+
   it('delegates valid input to handleInstall and 302-redirects to authorize URL', async () => {
     const res = makeRes();
     await controller.cafe24Install(

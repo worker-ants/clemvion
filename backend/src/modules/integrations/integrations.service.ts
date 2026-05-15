@@ -833,14 +833,31 @@ export class IntegrationsService {
   // ---------------------------------------------------------------
 
   getAvailableServices() {
-    return SERVICE_REGISTRY.map((s) => ({
-      type: s.type,
-      name: s.name,
-      oauthProvider: s.oauthProvider ?? null,
-      authTypes: s.authVariants.map((v) => v.authType),
-      authVariants: s.authVariants,
-      scopes: s.scopes ?? [],
-    }));
+    // Cafe24 Public app 흐름은 우리 서버에 `CAFE24_CLIENT_ID` / `CAFE24_CLIENT_SECRET`
+    // env 가 등록된 경우에만 동작 (앱스토어 등록 앱의 OAuth client credentials).
+    // 미등록이면 신규 통합 폼에서 Public 옵션을 숨겨야 한다 — Private 은 사용자가
+    // 직접 client_id/secret 을 입력하므로 항상 사용 가능. spec/2-navigation/4-integration.md
+    // §5.8 Cafe24 의 `app_type` 필드 enum 분기 기준.
+    const cafe24PublicAvailable = Boolean(
+      process.env.CAFE24_CLIENT_ID && process.env.CAFE24_CLIENT_SECRET,
+    );
+    return SERVICE_REGISTRY.map((s) => {
+      const base = {
+        type: s.type,
+        name: s.name,
+        oauthProvider: s.oauthProvider ?? null,
+        authTypes: s.authVariants.map((v) => v.authType),
+        authVariants: s.authVariants,
+        scopes: s.scopes ?? [],
+      };
+      if (s.type === 'cafe24') {
+        return {
+          ...base,
+          meta: { publicAppAvailable: cafe24PublicAvailable },
+        };
+      }
+      return base;
+    });
   }
 
   /**
