@@ -13,21 +13,36 @@ import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ExecutionsService } from '../executions/executions.service';
+import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { ExecutionEventType } from './websocket.service';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
 // 'kb:' = Knowledge Base 문서 처리 진행 채널 (kb:${documentId})
+// 'background:run:' = Background 본문 실행 run-level 이벤트 채널
 const VALID_CHANNEL_PREFIXES = [
   'execution:',
   'workflow:',
   'notifications:',
   'kb:',
+  'background:run:',
 ];
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isValidChannel(channel: string): boolean {
   return VALID_CHANNEL_PREFIXES.some((prefix) => channel.startsWith(prefix));
+}
+
+/**
+ * UUID 채널 ID 검증 — `background:run:<id>` 와 같이 UUID v4 가 식별자인
+ * 채널에서 임의 문자열이 DB 쿼리로 전달되는 것을 방어 (W-6). 빈 문자열 /
+ * 비-UUID 형식이면 false → handleSubscribe 가 'Not authorized' 로 응답.
+ */
+function isValidUuid(value: string): boolean {
+  return UUID_PATTERN.test(value);
 }
 
 // @Public() bypasses the global JwtAuthGuard for WebSocket message handlers.
@@ -48,15 +63,61 @@ export class WebsocketGateway
   /** Maps socket.id -> set of channels */
   private subscriptions = new Map<string, Set<string>>();
 
+  /**
+   * 채널 prefix 별 인가 전략. handleSubscribe 가 첫 매칭 strategy 의
+   * `authorize` 만 호출한다. 새 채널 타입을 추가할 때 본 배열만 확장하면
+   * subscribe 로직 자체는 건드리지 않는다 (W-13: OCP 개선).
+   *
+   * `null` 반환 = 인가 통과. 그 외는 `{ error }` 로 거부 메시지 명시.
+   */
+  private channelAuthorizers: Array<{
+    matches: (channel: string) => boolean;
+    authorize: (
+      channel: string,
+      workspaceId: string,
+    ) => Promise<{ error: string } | null>;
+  }>;
+
   constructor(
     private readonly jwtService: JwtService,
     @Inject(forwardRef(() => ExecutionEngineService))
     private readonly executionEngineService: ExecutionEngineService,
     @Inject(forwardRef(() => ExecutionsService))
     private readonly executionsService: ExecutionsService,
+    @Inject(forwardRef(() => BackgroundRunsService))
+    private readonly backgroundRunsService: BackgroundRunsService,
     @Inject(forwardRef(() => KnowledgeBaseService))
     private readonly knowledgeBaseService: KnowledgeBaseService,
-  ) {}
+  ) {
+    this.channelAuthorizers = [
+      {
+        matches: (channel) => channel.startsWith('kb:'),
+        authorize: async (channel, workspaceId) => {
+          const documentId = channel.slice('kb:'.length);
+          const allowed = await this.knowledgeBaseService
+            .verifyDocumentOwnership(documentId, workspaceId)
+            .catch(() => false);
+          return allowed ? null : { error: 'Not authorized for this document' };
+        },
+      },
+      {
+        matches: (channel) => channel.startsWith('background:run:'),
+        authorize: async (channel, workspaceId) => {
+          const backgroundRunId = channel.slice('background:run:'.length);
+          // W-6: UUID 형식 검증 — 비-UUID 입력 차단 (DB 쿼리 진입 전).
+          if (!isValidUuid(backgroundRunId)) {
+            return { error: 'Not authorized for this background run' };
+          }
+          const allowed = await this.backgroundRunsService
+            .verifyBackgroundRunOwnership(backgroundRunId, workspaceId)
+            .catch(() => false);
+          return allowed
+            ? null
+            : { error: 'Not authorized for this background run' };
+        },
+      },
+    ];
+  }
 
   handleConnection(client: Socket): void {
     try {
@@ -137,19 +198,26 @@ export class WebsocketGateway
       };
     }
 
-    // `kb:${documentId}` 채널은 가입자 workspace 의 문서만 구독 허용.
-    // documentId UUID 추측으로 타 workspace 의 임베딩/그래프 진행 이벤트를 엿보는 것을 차단.
-    if (channel.startsWith('kb:')) {
-      const enriched = client as Socket & { workspaceId?: string };
-      const workspaceId = enriched.workspaceId ?? '';
-      const documentId = channel.slice('kb:'.length);
-      const allowed = await this.knowledgeBaseService
-        .verifyDocumentOwnership(documentId, workspaceId)
-        .catch(() => false);
-      if (!allowed) {
+    // W-13: 채널별 인가는 strategy 맵을 lookup — 새 채널 추가 시 본 함수
+    // 본문을 건드리지 않고 channelAuthorizers 만 확장하면 된다 (OCP).
+    const enriched = client as Socket & { workspaceId?: string };
+    const workspaceId = enriched.workspaceId ?? '';
+    const authorizer = this.channelAuthorizers.find((a) => a.matches(channel));
+    if (authorizer) {
+      // workspace 가 가입되지 않은 소켓이 인가 대상 채널을 구독하려 시도하면
+      // 즉시 거부 — handleConnection 이 인증 실패 시 disconnect 하므로 정상
+      // 경로에서 도달 불가하지만 의도를 코드로 명시 (side-effect W#2 보강).
+      if (!workspaceId) {
         return {
           event: 'subscribed',
-          data: { success: false, error: 'Not authorized for this document' },
+          data: { success: false, error: 'Not authenticated' },
+        };
+      }
+      const rejection = await authorizer.authorize(channel, workspaceId);
+      if (rejection) {
+        return {
+          event: 'subscribed',
+          data: { success: false, error: rejection.error },
         };
       }
     }
@@ -166,9 +234,19 @@ export class WebsocketGateway
     // Send a one-shot snapshot to the subscribing client only. This replaces
     // the old REST `GET /executions/:id` polling loop: timeline and detail
     // state is now fully hydrated from WS events (snapshot + incremental).
+    //
+    // CRIT — IDOR 차단: snapshot 발행 전 workspace 소유 검증. `findById` 는
+    // workspace 필터를 적용하지 않으므로 channel 만 추측한 사용자가 타
+    // workspace Execution 의 nodeExecutions 스냅샷을 받을 수 있었다. REST
+    // endpoint 의 `verifyOwnership` 와 동일 정책으로 정렬.
     if (isNewSubscription && channel.startsWith('execution:')) {
       const executionId = channel.slice('execution:'.length);
-      void this.emitExecutionSnapshot(client, executionId);
+      const enriched = client as Socket & { workspaceId?: string };
+      void this.emitExecutionSnapshot(
+        client,
+        executionId,
+        enriched.workspaceId ?? '',
+      );
     }
 
     return {
@@ -180,8 +258,16 @@ export class WebsocketGateway
   private async emitExecutionSnapshot(
     client: Socket,
     executionId: string,
+    userWorkspaceId: string,
   ): Promise<void> {
     try {
+      // CRIT — IDOR 차단: workspace 소유 검증 후에만 snapshot 발행.
+      // `verifyOwnership` 은 NotFound 로 통일 — Forbidden 으로 응답하면
+      // attacker 가 executionId 존재 여부를 추론할 수 있다.
+      await this.executionsService.verifyOwnership(
+        executionId,
+        userWorkspaceId,
+      );
       const snapshot = await this.executionsService.findById(executionId);
       client.emit(ExecutionEventType.EXECUTION_SNAPSHOT, {
         executionId,

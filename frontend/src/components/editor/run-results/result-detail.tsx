@@ -30,9 +30,27 @@ import { LlmInformationTab } from "./llm-information-tab";
 import { DynamicFormUI } from "./dynamic-form-ui";
 import { ButtonBar } from "./button-bar";
 import { ConversationInspector } from "./conversation-inspector";
+import { BackgroundRunSection } from "./background-run-section";
 import { parseHistoryMessages } from "./conversation-utils";
 import { formatDuration } from "./utils";
 import { parseButtonConfig, openExternalLink } from "./button-config";
+
+/**
+ * `outputData.meta.backgroundRunId` 추출 — Background 핸들러가 발급한 UUID v4.
+ * 부재 시 (옛 NodeExecution 또는 background 가 아닌 노드) null. 모니터링 API
+ * 의 조회 키 (spec/4-nodes/1-logic/12-background.md §5.1 / §8).
+ *
+ * **Export 사유**: 단위 테스트(`extract-background-run-id.test.ts`) 가
+ * 다양한 부재 케이스(null, 비-object, meta 누락, 비-string)를 잠그도록 외부
+ * 노출. 컴포넌트 외부에서 직접 호출하지는 않는다.
+ */
+export function extractBackgroundRunId(output: unknown): string | null {
+  if (output == null || typeof output !== "object") return null;
+  const meta = (output as { meta?: unknown }).meta;
+  if (meta == null || typeof meta !== "object") return null;
+  const value = (meta as { backgroundRunId?: unknown }).backgroundRunId;
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
 
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
@@ -1061,6 +1079,16 @@ export function ResultDetail({
             )}
           </div>
         )}
+        {result.nodeType === "background" &&
+          executionId &&
+          extractBackgroundRunId(result.outputData) && (
+            <div className="shrink-0 border-t border-gray-200 bg-white px-3 pb-3">
+              <BackgroundRunSection
+                executionId={executionId}
+                backgroundRunId={extractBackgroundRunId(result.outputData)}
+              />
+            </div>
+          )}
       </div>
     </div>
   );

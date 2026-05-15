@@ -397,6 +397,27 @@ Use this when a slow follow-up (sending emails, notifying external APIs, ...) sh
 After a server restart, BullMQ's default retry policy re-attempts pending background jobs. Since the original context may already be gone, make the body idempotent or re-triggerable from outside.
 </Callout>
 
+### Monitoring the background body
+
+Because the Background body runs detached from the main flow, downstream nodes cannot pick up its result as their input. Instead, observe the body via the **monitoring API** and the **Run Results drawer**.
+
+- **Run Results drawer / Execution detail page**: selecting the Background node card reveals a *Background body run* section beneath the detail view.
+  - Shows aggregate status (`pending` / `running` / `completed` / `failed`), started/ended timestamps, and total duration.
+  - Lists the body NodeExecutions in chronological order (first 50). Each row shows the node status and duration.
+  - When `notifyOnFailure` is enabled and the body failed, the dispatched notifications appear in the same section.
+  - While the body is running, the section live-updates over WebSocket and auto-closes the channel on completion.
+- **Direct API call**: when a downstream node needs to poll the body state, use the `meta.backgroundRunId` emitted by the Background node:
+
+  ```
+  GET /api/v1/executions/{executionId}/background-runs/{backgroundRunId}
+  ```
+
+  The response carries `status`, `startedAt`, `completedAt`, the body NodeExecutions (cursor paginated), and related notifications. Only the user who started the execution or any workspace member with Editor+ rights can read it. Full response shape is documented in spec [Background §8](/spec/4-nodes/1-logic/12-background.md#8-모니터링-api).
+
+<Callout type="note">
+Individual body node events are published on the existing main execution channel (`execution:&lt;id&gt;`) — clients pick out the rows whose `parentNodeExecutionId` matches the Background node's NodeExecution.id and render them inside the body card. You don't need an extra subscription beyond what you already have for the main execution.
+</Callout>
+
 ## Tips & notes
 
 - How to work with arrays and objects inside expressions is covered in the [Expression cheatsheet](/docs/04-expression-language/cheatsheet).
