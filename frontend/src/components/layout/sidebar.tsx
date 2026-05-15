@@ -276,17 +276,17 @@ export function Sidebar() {
         )}
       >
         {/* Logo — spec/6-brand.md §8.4.6 + spec/2-navigation/_layout.md §2.1.
-            The brand SVG uses Vine-green accents that wash out on a light
-            surface, so the dark variant is rendered on a vine-dark-bg-elevated
-            (#111e14) container in both themes. Matches the apple-icon visual. */}
-        <div className="flex h-14 items-center border-b border-[hsl(var(--border))] px-4">
+            The entire logo header row is filled with vine-dark-bg-elevated
+            (#111e14) so the Vine-green brand SVG remains crisp regardless of
+            theme. The neutral palette of the sidebar body resumes below. */}
+        <div className="flex h-14 items-center bg-[#111e14] px-4">
           {!collapsed && (
             <Link
               href="/dashboard"
               aria-label={t("sidebar.productName")}
-              className="flex items-center rounded-xl bg-[#111e14] px-3 py-1.5"
+              className="flex items-center"
             >
-              <Logo variant="full" theme="dark" size={140} />
+              <Logo variant="full" theme="dark" size={150} />
             </Link>
           )}
           {collapsed && (
