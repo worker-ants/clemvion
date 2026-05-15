@@ -1,5 +1,10 @@
 # Text Classifier output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. Phase 4 (ai-review 후속 — `meta` 정합 + 측정 기준 통일) 까지 반영된 상태.
+> 잔여 권고 항목:
+> - `output.originalInput` 위치 일관성 — 정상 시 `output.result.originalInput`, 에러 시 `output.originalInput` (top-level) 로 분기. ai_agent 의 `output.error + output.result` 병존 패턴과 정합하도록 `output.result.originalInput` 으로 통일 검토 (또는 에러 시 `output.error.details.originalInput` 만 유지).
+> - `meta.llmCalls` (text_classifier) vs `meta.turnDebug[i].llmCalls` (ai_agent / information_extractor) — single-call 노드와 multi-turn 노드의 위치 차이. 통일 검토 가치 있으나 의미가 다름.
+
 > 대상 spec: `spec/4-nodes/3-ai/2-text-classifier.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

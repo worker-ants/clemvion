@@ -1,5 +1,10 @@
 # Workflow (Sub-Workflow) output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. sync/async/error 3 케이스 분기 유지.
+> 잔여 권고 항목:
+> - §5.2 (Async 정상) 의 `output.workflowId` 제거 — `config.workflowId` 와 의미 중복 (Principle 1.1 직교 위반). 다운스트림은 `$node["X"].config.workflowId` 사용.
+> - §5.2 의 `output.status: 'started'` 제거 — top-level `status: 'started'` 만 유지 (5필드 invariant 일관성).
+
 > 대상 spec: `spec/4-nodes/2-flow/1-workflow.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

@@ -1,5 +1,7 @@
 # Loop output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `breakCondition` 평가 + `meta.exitReason` (D2) 이 활성화되어 컨테이너 컨트랙트 (Principle 9) 가 일관되게 적용된 상태. 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/1-logic/3-loop.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

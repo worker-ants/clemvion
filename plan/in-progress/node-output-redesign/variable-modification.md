@@ -1,5 +1,9 @@
 # Variable Modification output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `recordValues` opt-in 정책(D5)이 활성화되고 마스킹 유틸이 적용된 상태.
+> 잔여 권고 항목:
+> - `config.recordValues` raw echo 추가 (현 spec 에 미명시). 다운스트림이 `meta.modifications[i].before/after` 노출 여부를 판별 가능하게.
+
 > 대상 spec: `spec/4-nodes/1-logic/5-variable-modification.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

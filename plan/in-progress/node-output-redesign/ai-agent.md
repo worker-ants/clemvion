@@ -1,5 +1,9 @@
 # AI Agent output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. 옛 `output.metadata.*` → `meta.*` 마이그레이션 완료, ConversationThread 자동 컨텍스트 주입(`contextScope`, `meta.contextInjection`) + deprecated `conversationHistory`/`historyCount` 제거(PR 머지)까지 반영된 상태.
+> 잔여 권고 항목:
+> - waiting/resumed 시점의 `output.messages` ↔ 종결 시점의 `output.result.messages` 의 경로 차이로 다운스트림 표현식 분기 비대칭. 시멘틱 의도(진행 상태 vs 도메인 결과) 가 강해 호환성 영향 평가 후 통일 검토.
+
 > 대상 spec: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조)
 
 ## 현재 output (spec 인용)

@@ -1,5 +1,7 @@
 # Database Query output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. SELECT 의 `rows`/`rowCount`/`fields` + INSERT 의 `insertId` (MySQL 한정) + 드라이버 native `driverCode` 보존 유지. 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/4-integration/2-database-query.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)
