@@ -85,4 +85,4 @@ owner: project-planner
   - `spec/4-nodes/4-integration/4-cafe24.md` line 456 — flat 경로 nested ISO 로 교정 (cafe24 영역 잔존분 정리)
 - [x] follow-up 별도 plan 으로 분리 — `spec-paths-housekeeping-2026-05-16.md` 신설 (ai-assistant.md:1273, _product-overview.md:83 의 flat 경로 잔존분 — 본 PR 범위 밖, 별도 housekeeping plan)
 - [x] consistency-check I-1 후속 (`spec/0-overview.md §3.4` 에 Inline Alert 패턴 추가 권고) — `spec-overview-ui-patterns-followup-2026-05-16.md` 신설
-- [ ] plan complete 이동 (PR merge 후)
+- [x] plan complete 이동 — PR #46 main 머지 완료, `plan/complete/` 로 이동.

@@ -70,7 +70,7 @@ onSuccess: (res) => {
 - [x] ai-review + RESOLUTION — `review/code/2026/05/16/01_00_34/`
 - [x] spec 역반영 follow-up: PR #46 (`docs(spec): cafe24 Private request-scopes UI 결정 흡수 + Rationale 보강`) 으로 main 머지 — `spec/2-navigation/4-integration.md §4.4` 의 분기 ①/② sub-section + UI bullet 명세, Rationale "Cafe24 Private request-scopes 흐름" 항의 "UI 안내 패턴 결정" 문단 신설.
 - [x] spec/Rationale 보완 follow-up: 같은 PR #46 — Rationale "Cafe24 install_token mismatch 회복 흐름" 항에 "install_token 을 App URL path 식별 키로 승격" cross-reference + N 표현 완화 + TOCTOU 부재 문단 추가, flat 경로 2건 nested ISO 교정.
-- [ ] plan complete 이동 (본 frontend PR 가 main 에 merge 되면 함께 complete)
+- [x] plan complete 이동 — PR #47 (frontend) 와 PR #46 (spec) 모두 main 머지 완료, `plan/complete/` 로 이동.
 
 ## 영향 범위
 
