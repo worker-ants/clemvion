@@ -35,6 +35,8 @@ import { parseHistoryMessages } from "@/components/editor/run-results/conversati
 import { isConversationOutput } from "@/components/editor/run-results/output-shape";
 import { DynamicFormUI } from "@/components/editor/run-results/dynamic-form-ui";
 import { ButtonBar } from "@/components/editor/run-results/button-bar";
+import { BackgroundRunSection } from "@/components/editor/run-results/background-run-section";
+import { extractBackgroundRunId } from "@/components/editor/run-results/result-detail";
 import {
   parseButtonConfig,
   openExternalLink,
@@ -627,6 +629,15 @@ function NodeResultsTab({
               {nodeDetailTab === "error" && (
                 <JsonViewer data={selectedNode.error} />
               )}
+              {selectedNode.node?.type === "background" &&
+                extractBackgroundRunId(selectedNode.outputData) && (
+                  <BackgroundRunSection
+                    executionId={executionId}
+                    backgroundRunId={extractBackgroundRunId(
+                      selectedNode.outputData,
+                    )}
+                  />
+                )}
             </div>
           </div>
         )}
