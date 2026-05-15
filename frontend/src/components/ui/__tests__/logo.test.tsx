@@ -69,6 +69,38 @@ describe("Logo", () => {
     const wrapper = container.firstChild as HTMLElement;
     expect(wrapper.className).toContain("custom-class");
   });
+
+  it("omits inline width style when size is not provided", () => {
+    render(<Logo variant="full" theme="light" />);
+    const img = screen.getByRole("img");
+    expect((img as HTMLElement).style.width).toBe("");
+  });
+
+  it("sets height: auto alongside width to preserve aspect ratio", () => {
+    render(<Logo variant="mark" theme="light" size={48} />);
+    const img = screen.getByRole("img");
+    expect((img as HTMLElement).style.width).toBe("48px");
+    expect((img as HTMLElement).style.height).toBe("auto");
+  });
+
+  it("renders wordmark variant with auto theme (same asset for both modes)", () => {
+    // Wordmark currently has a single tone — see logo.tsx ASSET_PATHS comment.
+    // Both auto-rendered <img>s point at the same path, but the dark wrapper
+    // still toggles via `dark:block` so future split is a trivial change.
+    render(<Logo variant="wordmark" theme="auto" />);
+    const imgs = screen.getAllByRole("img", { hidden: true });
+    expect(imgs).toHaveLength(2);
+    expect(imgs.every((i) => i.getAttribute("src") === "/logo-wordmark.svg")).toBe(true);
+  });
+
+  it("keeps alt on both auto-rendered images so the visible one is announced", () => {
+    // display:none removes the hidden <img> from the a11y tree; we deliberately
+    // do NOT add aria-hidden so that dark-mode users still hear the alt.
+    render(<Logo variant="full" theme="auto" alt="Test alt" />);
+    const imgs = screen.getAllByRole("img", { hidden: true });
+    expect(imgs.every((i) => i.getAttribute("alt") === "Test alt")).toBe(true);
+    expect(imgs.every((i) => i.getAttribute("aria-hidden") == null)).toBe(true);
+  });
 });
 
 describe("LogoMark", () => {
@@ -85,5 +117,11 @@ describe("LogoMark", () => {
     const srcs = imgs.map((i) => i.getAttribute("src"));
     expect(srcs).toContain("/logo-mark.svg");
     expect(srcs).toContain("/logo-mark-dark.svg");
+    // Symmetry with Logo auto: hidden via Tailwind dark: variant on both.
+    const lightImg = imgs.find((i) => i.getAttribute("src") === "/logo-mark.svg")!;
+    const darkImg = imgs.find((i) => i.getAttribute("src") === "/logo-mark-dark.svg")!;
+    expect(lightImg.className).toContain("dark:hidden");
+    expect(darkImg.className).toContain("hidden");
+    expect(darkImg.className).toContain("dark:block");
   });
 });

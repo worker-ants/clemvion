@@ -68,7 +68,18 @@ export function Logo({
     );
   }
 
-  // theme === "auto" — render both, let Tailwind dark: variant toggle visibility.
+  /*
+   * theme === "auto" — render both light and dark assets and let
+   * Tailwind's `dark:` variant toggle visibility via CSS `display`.
+   *
+   * Tradeoff: the browser fetches both SVG assets up front. Acceptable
+   * because brand SVGs are <2KB each and ship from the same origin
+   * (`/public`). For pages where only one mode is reachable (e.g.
+   * always-light marketing pages), prefer `theme="light"` to skip the
+   * dark fetch. We keep both `alt` attributes; the inactive `<img>` is
+   * `display:none`, which removes it from the accessibility tree, so
+   * screen readers announce the visible variant only.
+   */
   return (
     <span className={cn("inline-block", className)} {...rest}>
       <img

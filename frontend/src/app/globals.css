@@ -7,13 +7,25 @@
  * Each Shadcn-style CSS variable is mapped from a spec brand token.
  * Format: `H S% L%` (Tailwind/Shadcn convention — used inline as `hsl(var(--name))`).
  * Light/dark pairs follow spec §8.2.3.
+ *
+ * Two declaration layers coexist on purpose:
+ *   1. `:root` / `.dark` HSL variables — consumed by Shadcn UI components
+ *      via `hsl(var(--primary))` (supports opacity modifiers).
+ *   2. `@theme` HEX variables (below) — consumed by Tailwind v4 to
+ *      generate utility classes like `bg-vine-700`.
+ * Both layers MUST agree on hue. When updating a brand HEX in §8.2, update
+ * both this `:root` HSL value AND the matching `@theme` HEX entry. There is
+ * no automated drift guard yet — checked manually at PR time.
  */
 :root {
   /* soil-50 #f7f8f6 — spec §8.2.2 page background */
   --background: 90 12.5% 96.9%;
   /* ink #0e1a12 — spec §8.2.2 body text */
   --foreground: 140 30% 7.8%;
-  /* soil-100 #eef5ec — spec §8.2.2 card/mark background */
+  /* soil-100 #eef5ec — spec §8.2.2 card/mark background.
+     --card, --popover, --secondary, --muted, --accent intentionally share
+     a single neutral background tone in light mode (Shadcn default pattern).
+     Each name preserves the Shadcn slot semantics for downstream components. */
   --card: 106.7 31% 94.3%;
   --card-foreground: 140 30% 7.8%;
   --popover: 90 12.5% 96.9%;
@@ -66,7 +78,10 @@
   --accent: 133.8 27.7% 9.2%;
   --accent-foreground: 138.5 39.4% 93.5%;
   --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 138.5 39.4% 93.5%;
+  /* Destructive button text stays near-white (not text-on-dark) — red
+     hue would tint visibly with the spec's pale-green text token,
+     dropping WCAG contrast on a saturated red surface. */
+  --destructive-foreground: 210 40% 98%;
   /* vine-dark-mid #1e4a2a — spec §8.2.3 */
   --border: 136.4 42.3% 20.4%;
   --input: 136.4 42.3% 20.4%;
