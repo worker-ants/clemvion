@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Workflow expression migration script — Phase 3 preparation.
  *
@@ -10,14 +9,14 @@
  * Usage (run from repo root OR backend/ — `backend/.env` is auto-loaded):
  *
  *   # dry-run — prints diff, no DB write
- *   npx ts-node backend/scripts/migrate-node-output-refs.ts --dry-run
+ *   npx ts-node backend/src/scripts/migrate-node-output-refs.ts --dry-run
  *
  *   # apply — requires workspace/user ids for the audit_log row
- *   npx ts-node backend/scripts/migrate-node-output-refs.ts --apply \
+ *   npx ts-node backend/src/scripts/migrate-node-output-refs.ts --apply \
  *     --workspace-id <uuid> --user-id <uuid>
  *
  * Inline env override (skips `.env`):
- *   DB_PASSWORD=… npx ts-node backend/scripts/migrate-node-output-refs.ts --apply …
+ *   DB_PASSWORD=… npx ts-node backend/src/scripts/migrate-node-output-refs.ts --apply …
  *
  * The script walks every workflow's nodes, scans the JSONB `config` field
  * for expression strings, and applies a set of per-node-type rewrites.
@@ -34,7 +33,7 @@ import { DataSource } from 'typeorm';
 // values already present in process.env, so CI / Docker env injection and
 // inline `DB_PASSWORD=… npx ts-node …` overrides keep working.
 {
-  const envPath = path.resolve(__dirname, '..', '.env');
+  const envPath = path.resolve(__dirname, '..', '..', '.env');
   const result = dotenv.config({ path: envPath });
   if (result.error && require.main === module) {
     console.warn(
@@ -43,7 +42,8 @@ import { DataSource } from 'typeorm';
   }
 }
 
-const DRY_RUN = process.argv.includes('--dry-run') || !process.argv.includes('--apply');
+const DRY_RUN =
+  process.argv.includes('--dry-run') || !process.argv.includes('--apply');
 
 /** Parse a `--flag=value` or `--flag value` pair from argv. */
 function parseCliFlag(name: string): string | undefined {
@@ -356,12 +356,22 @@ export function rewriteExpression(
 
       if (RELOCATED_FIELDS[type]?.includes(field)) {
         const replacement = match.replace('.output.', '.config.');
-        hits.push({ field, reason: `${type}: ${field} moved to config`, before: match, after: replacement });
+        hits.push({
+          field,
+          reason: `${type}: ${field} moved to config`,
+          before: match,
+          after: replacement,
+        });
         return replacement;
       }
       if (META_FIELDS[type]?.includes(field)) {
         const replacement = match.replace('.output.', '.meta.');
-        hits.push({ field, reason: `${type}: ${field} moved to meta`, before: match, after: replacement });
+        hits.push({
+          field,
+          reason: `${type}: ${field} moved to meta`,
+          before: match,
+          after: replacement,
+        });
         return replacement;
       }
       if (RESULT_FIELDS[type]?.includes(field)) {
@@ -473,7 +483,10 @@ export function walkAndRewrite(
   hits: RewriteHitDetail[],
 ): unknown {
   if (typeof value === 'string') {
-    const { result, hits: stringHits } = rewriteExpression(value, nodeTypeByLabel);
+    const { result, hits: stringHits } = rewriteExpression(
+      value,
+      nodeTypeByLabel,
+    );
     hits.push(...stringHits);
     return result;
   }
