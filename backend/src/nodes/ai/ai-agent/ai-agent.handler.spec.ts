@@ -2,6 +2,7 @@ import { AiAgentHandler } from './ai-agent.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
 import { KbToolProvider, kbToolName } from './tool-providers/kb-tool-provider';
 import { adaptHandlerReturn } from '../../../modules/execution-engine/handler-output.adapter';
+import { makeExecutionContext } from '../../../modules/execution-engine/__test__/make-execution-context';
 
 describe('AiAgentHandler', () => {
   let handler: AiAgentHandler;
@@ -49,15 +50,11 @@ describe('AiAgentHandler', () => {
     );
   });
 
-  const baseContext: ExecutionContext = {
+  const baseContext: ExecutionContext = makeExecutionContext({
     executionId: 'exec-1',
     workflowId: 'wf-1',
     variables: { __workspaceId: 'ws-1' },
-    nodeOutputCache: {},
-    structuredOutputCache: {},
-    engineResolvedConfigCache: {},
-    recursionDepth: 0,
-  };
+  });
 
   describe('validate', () => {
     it('should fail when no prompts are provided', () => {

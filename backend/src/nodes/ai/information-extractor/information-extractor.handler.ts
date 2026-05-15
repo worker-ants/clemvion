@@ -117,7 +117,44 @@ const FINALIZE_TOOL_NAME = 'finalize_extraction';
 export class InformationExtractorHandler implements NodeHandler {
   metadata = informationExtractorNodeMetadata;
   private readonly logger = new Logger(InformationExtractorHandler.name);
-  constructor(private readonly llmService: LlmService) {}
+  constructor(
+    private readonly llmService: LlmService,
+    /**
+     * Optional. Receives the final extracted payload as an `ai_assistant`
+     * turn (text = `JSON.stringify(extracted)`) so a downstream AI Agent
+     * with `contextScope` can use the extracted fields as context per
+     * spec/conventions/conversation-thread.md §1.4 + §2.3 v2. Test
+     * fixtures may omit this; the helper degrades to no-op.
+     *
+     * v2 limitation: only the single-turn `out` branch pushes today.
+     * Multi-turn (`completed` / `max_retries` / `max_turns` / `user_ended`)
+     * push hooks are tracked as a follow-up — they need the same
+     * state-carried thread reference pattern as ai-agent multi-turn.
+     */
+    private readonly conversationThreadService?: import('../../../modules/execution-engine/conversation-thread/conversation-thread.service').ConversationThreadService,
+  ) {}
+
+  /**
+   * Push the extractor's final result as an `ai_assistant` turn (spec §1.4
+   * — `JSON.stringify(extracted)`). No-op without the service.
+   */
+  private pushExtractorTurn(
+    context: ExecutionContext,
+    config: Record<string, unknown>,
+    extracted: Record<string, unknown>,
+  ): void {
+    if (!this.conversationThreadService) return;
+    const id = context.nodeId ?? '';
+    this.conversationThreadService.appendAiAssistantMessage(context, {
+      node: {
+        id,
+        label: id,
+        type: 'information_extractor',
+        config: context.rawConfig ?? config,
+      },
+      content: JSON.stringify(extracted),
+    });
+  }
 
   validate(config: Record<string, unknown>): ValidationResult {
     // Schema SSOT (warningRules + validateConfig) covers no-llm-provider,
@@ -226,6 +263,9 @@ export class InformationExtractorHandler implements NodeHandler {
           string,
           unknown
         >;
+
+        // ConversationThread push (spec §1.4 v2 — single-turn final).
+        this.pushExtractorTurn(context, config, extracted);
 
         return {
           config: configEcho,

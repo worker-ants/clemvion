@@ -1,5 +1,6 @@
 import { ParallelExecutor } from './parallel-executor';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('ParallelExecutor', () => {
   let executor: ParallelExecutor;
@@ -10,6 +11,7 @@ describe('ParallelExecutor', () => {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
     itemContext: { item: 'stale', index: 99, isFirst: false, isLast: false },
     loopContext: { index: 99, count: 99, isFirst: false, isLast: false },

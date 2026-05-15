@@ -1,4 +1,5 @@
 import { CarouselHandler } from './carousel.handler.js';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('CarouselHandler - Buttons', () => {
   let handler: CarouselHandler;
@@ -14,6 +15,7 @@ describe('CarouselHandler - Buttons', () => {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
   };
 

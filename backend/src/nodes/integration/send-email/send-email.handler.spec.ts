@@ -1,5 +1,6 @@
 import { SendEmailHandler } from './send-email.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 const sendMailMock = jest.fn();
 const closeMock = jest.fn();
@@ -20,6 +21,7 @@ function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
     ...(rawConfig ? { rawConfig: Object.freeze({ ...rawConfig }) } : {}),
   };

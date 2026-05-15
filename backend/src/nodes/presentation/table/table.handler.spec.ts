@@ -1,4 +1,5 @@
 import { TableHandler } from './table.handler.js';
+import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('TableHandler', () => {
   let handler: TableHandler;
@@ -14,6 +15,7 @@ describe('TableHandler', () => {
     nodeOutputCache: {},
     structuredOutputCache: {},
     engineResolvedConfigCache: {},
+    conversationThread: createEmptyConversationThread(),
     recursionDepth: 0,
   };
 

@@ -94,6 +94,8 @@ pending → running ──┤                     └─ cancelled
 | `button_continue` | `{ buttonId, buttonLabel, url }` | link 타입 버튼 |
 | `message_received` | `{ content, role: "user" }` | `ai_agent` / `information_extractor` multi-turn |
 
+> presentation 의 `interaction` 과 AI Agent multi-turn 의 `interaction.type='message_received'` 는 모두 [ConversationThread](../conventions/conversation-thread.md#22-ai-agent) 에 자동 push 되어 후속 AI Agent 가 자동 주입 받을 수 있다. push 시점은 nodeOutputCache 갱신과 같은 단일 트랜잭션.
+
 > 현재 엔진은 presentation 노드의 `status: 'submitted' | 'button_click' | 'button_continue'` 레거시 값을 유지한다. Stage 3(presentation Principle 1.1 재작성) 에서 모두 `resumed` 로 통일 예정.
 
 ### 1.2 NodeExecution 상태
@@ -272,7 +274,8 @@ $loop.count = 10              $item.index = 1
 ```
 1. main 포트로 입력 데이터를 즉시 pass-through (메인 흐름 계속)
 2. 핸들러 실행 직후 ExecutionEngineService 의 scheduleBackgroundBody() 가
-   현재 컨텍스트 스냅샷(variables 얕은 복사 + rawConfig)을 담아 본문 진입점들을
+   현재 컨텍스트 스냅샷(variables 얕은 복사 + rawConfig + **conversationThread snapshot —
+   `{ ...thread, turns: [...thread.turns] }` 형태로 turns 배열까지 새 인스턴스로 복사**)을 담아 본문 진입점들을
    `background-execution` 큐로 enqueue
 3. 워커는 executeBackgroundSubgraph() 에서 background 포트 엣지로부터 forward-reachable
    한 서브그래프를 격리된 컨텍스트로 실행 (parentNodeExecutionId 그룹핑)
@@ -281,6 +284,7 @@ $loop.count = 10              $item.index = 1
 
 - 메인 Execution과 동일한 `execution_id`를 공유. 본문 노드의 `parentNodeExecutionId` 가 Background 노드 자신의 NodeExecution id 를 가리킨다
 - 백그라운드 실패가 메인 흐름의 Execution 상태에 영향을 주지 않음
+- conversationThread 는 enqueue 시점 snapshot 으로 격리된다 — background 안에서 발생한 turn 은 메인 thread 에 영향 없고, 그 반대도 마찬가지. PRD §4.11 ND-BG-05 격리 원칙과 일관 ([Spec Conversation Thread §3.2](../conventions/conversation-thread.md#32-background-격리-근거))
 - 백그라운드 실패 시 `notifyOnError=true`이면 `notifyChannels`에 따라 알림 전송:
   - `in_app`: Notification 엔티티 생성 (`type: background_failed`, 실행 시작 사용자에게)
   - `email`: 실행 시작 사용자 이메일로 실패 알림 발송
@@ -484,6 +488,7 @@ interface NodeHandlerRegistry {
 | `$now` | 실행 시점의 현재 시각 (ISO 8601, UTC). 같은 실행 안에서는 동일한 값으로 고정 |
 | `$loop` | loopContext (Loop 컨테이너 내부) |
 | `$item`, `$itemIndex` | itemContext (ForEach 컨테이너 내부) |
+| `$thread` | context.conversationThread | ConversationThread readonly view ([Spec Conversation Thread](../conventions/conversation-thread.md)). v1 은 `turns` / `length` / `text` 만 노출 — 표현식 문법 상세는 [Spec 표현식 §4.4](./5-expression-language.md#44-thread-속성) 참조 |
 
 **핸들러별 제외 규칙**:
 
@@ -554,6 +559,15 @@ interface NodeHandlerRegistry {
     "index": 2,
     "isFirst": false,
     "isLast": false
+  },
+  "conversationThread": {
+    "id": "default",
+    "nextSeq": 2,
+    "turns": [
+      { "seq": 0, "nodeId": "...", "nodeType": "form", "source": "presentation_user", "text": "name=Alice, age=30", "timestamp": "2026-05-14T10:00:00.000Z" },
+      { "seq": 1, "nodeId": "...", "nodeType": "ai_agent", "source": "ai_assistant", "text": "안녕하세요 Alice님", "timestamp": "2026-05-14T10:00:02.500Z" }
+    ],
+    "totalChars": 42
   }
 }
 ```
@@ -572,6 +586,7 @@ interface NodeHandlerRegistry {
 - **의도된 차이**: `context.rawConfig` 는 매 노드 실행 시점의 fresh DB read, `state.rawConfig` 는 첫 turn 시점의 frozen snapshot. 단일 multi-turn 실행 도중 사용자가 워크플로 정의를 변경해도 후속 turn 은 첫 turn 시점의 정의로 일관되게 동작한다 — replay reproducibility.
 | `variables.__workspaceId` | 실행 시작 시 주입 (workflow.workspaceId) | Integration 조회, AI LLM 설정 조회 등 워크스페이스 단위 리소스 해소 |
 | `variables.*` (그 외) | 트리거·워크플로우 변수 | 표현식 `{{ $variables.X }}` 평가 |
+| `conversationThread` | 실행 시작 시 빈 thread (`{ id: 'default', nextSeq: 0, turns: [], totalChars: 0 }`) 로 초기화, 노드 hook 에 의해 누적 | 사용자 인터랙션 + AI 대화 turn 의 단일 진실. `ConversationThreadService.append*` 가 mutation 단일 진입점. 핸들러는 직접 mutate 하지 않음. expression 컨텍스트에 `$thread` 로 노출. 상세: [Spec Conversation Thread](../conventions/conversation-thread.md) |
 
 ### 6.1.1 트리거 입력 파라미터 seeding
 
@@ -628,6 +643,7 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 |------|--------|------|
 | 실행 중 | Redis | 실행 컨텍스트를 Redis에 저장 (TTL: 실행 타임아웃 × 2) |
 | 노드 완료 시 | Redis + PostgreSQL | nodeOutputCache 업데이트(Redis), NodeExecution 레코드 저장(PostgreSQL) |
+| 노드 hook 시 | Redis (`ExecutionContext.conversationThread` 일부) | `ConversationThreadService.append*` 가 presentation `interaction` resume / AI Agent multi-turn message·assistant 발생 시 호출. NodeExecution.outputData (`output.interaction` / `output.messages` / `output.result.response`) 가 영구 SoT 이므로 별도 DB 컬럼 신설 없음 |
 | 실행 완료 시 | PostgreSQL | 전체 컨텍스트를 PostgreSQL에 영구 저장, Redis에서 삭제 |
 
 ### 6.3 재실행/조회 정책 (Replay Policy)

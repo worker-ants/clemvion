@@ -1,4 +1,5 @@
 import { ExecutionContextService } from './execution-context.service';
+import { DEFAULT_THREAD_ID } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('ExecutionContextService', () => {
   let service: ExecutionContextService;
@@ -9,6 +10,18 @@ describe('ExecutionContextService', () => {
   beforeEach(() => {
     service = new ExecutionContextService();
     service.createContext(executionId, workflowId);
+  });
+
+  describe('createContext', () => {
+    it('initializes an empty conversationThread', () => {
+      const ctx = service.getContext(executionId)!;
+      expect(ctx.conversationThread).toEqual({
+        id: DEFAULT_THREAD_ID,
+        nextSeq: 0,
+        turns: [],
+        totalChars: 0,
+      });
+    });
   });
 
   describe('setNodeOutput — production strict mode (NodeHandlerOutput contract)', () => {

@@ -126,10 +126,29 @@ KB / MCP / 일반 provider 도구 호출이 발생한 노드는 `meta.ragSources
 
 > AI 노드의 출력 구조는 [공통 §5 응답 형식 규약 (Principle 11)](#5-응답-형식-규약-principle-11) 의 `output.result.*` / `output.error.*` / `output.interaction.*` wrapper 컨트랙트를 따른다.
 
-## 10. CHANGELOG
+## 10. Conversation Context (자동 컨텍스트 주입)
+
+AI 카테고리 3 노드 공통 규약. v1 은 `ai_agent` 만 push + 자동 주입을 구현하고, `text_classifier` / `information_extractor` 는 동일 인터페이스로 v2 에 push hook (final assistant turn) + 자동 주입이 함께 추가된다 ([Spec Conversation Thread §2.3](../../conventions/conversation-thread.md#23-v1-적용-범위-push-vs-inject-구분)). 두 노드의 final assistant text 변환 규칙은 §1.4 의 v2 표기 행 참조.
+
+| 필드 | 타입 | 필수 | 기본값 | 설명 |
+|---|---|---|---|---|
+| contextScope | `none` / `thread` / `lastN` | ✓ | `none` | 자동 주입할 thread 범위 |
+| contextScopeN | Integer | (lastN 시) | `20` | `lastN` 일 때 최근 N개 turn |
+| contextInjectionMode | `messages` / `system_text` | (scope ≠ none 시) | `messages` | 주입 형식 — LLM messages 배열 prepend / system prompt 텍스트 첨부 |
+| includeToolTurns | Boolean | | `false` | `ai_tool` turn (KB/MCP/condition 결과) 도 thread 에 push 할지 |
+| excludeFromConversationThread | Boolean | | `false` | 본 노드의 user/assistant turn 을 thread 에서 제외 (opt-out) |
+
+> **Default `contextScope: 'none'`** — 기존 워크플로우 영향 없음. 명시 opt-in 시에만 자동 주입 활성화.
+
+상세 규약 (자료구조·스코프·영속화·v2 로드맵) 은 [Spec Conversation Thread](../../conventions/conversation-thread.md) 단일 진실 공급원 참조.
+
+---
+
+## 11. CHANGELOG
 
 | 일자 | 변경 |
 |------|------|
+| 2026-05-14 | §10 Conversation Context 공통 규약 신설. AI 카테고리 3 노드 공통 인터페이스 정의 (v1 ai_agent 만 push + 주입, text_classifier/information_extractor 는 v2 추가). 기존 §10 CHANGELOG → §11 로 번호 변경 |
 | 2026-05-10 | ai_agent §7 출력 구조 7 sub-cases (§7.1~§7.9) 로 재구성 — 옛 §7.4 condition (multi) → §7.6, 옛 §7.5/7.6/7.7 (user_ended/max_turns/error multi) → §7.7/§7.8/§7.9. waiting/resumed 명시적 sub-section (§7.4/§7.5). §9 색인 갱신 |
 | 2026-05-10 | §9 출력 구조 색인 신설. 노드 문서의 §5/§7 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). 기존 §1~§8 anchor 보존 |
 | 2026-05-09 | ai_agent multi-turn ended/condition 경로의 `config.model` echo 정책을 raw template echo 로 통일 (`spec/4-nodes/3-ai/1-ai-agent.md §7` 머리 노트 참조) |

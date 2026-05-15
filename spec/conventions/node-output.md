@@ -74,7 +74,7 @@
 | 분류 | 필수/권장 필드 |
 | --- | --- |
 | **공통** | `meta.durationMs: number` |
-| **LLM 계열** | `meta.model`, `meta.inputTokens`, `meta.outputTokens`, `meta.totalTokens`, `meta.thinkingTokens?`, `meta.toolCalls?` |
+| **LLM 계열** | `meta.model`, `meta.inputTokens`, `meta.outputTokens`, `meta.totalTokens`, `meta.thinkingTokens?`, `meta.toolCalls?`, `meta.contextInjection?` (ConversationThread 자동 주입 시 — `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` echo. 상세: [Spec Conversation Thread §5.3](./conversation-thread.md#53-cap-v1--char-기반)) |
 | **HTTP** | `meta.statusCode`, `meta.durationMs` |
 | **DB** | `meta.durationMs`, `meta.rowCount` |
 | **Code** | `meta.durationMs`, `meta.success`, `meta.logs?`, `meta.error?`, `meta.errorCode?` |
@@ -206,6 +206,8 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 | `button_continue` | `{ buttonId, buttonLabel, url }` | link 타입 버튼의 Continue 포트 (presentation 노드) |
 | `message_received` | `{ content, role: "user" }` | `ai_agent`, `information_extractor` multi-turn |
 
+> 본 `interaction` 은 [ConversationThread](./conversation-thread.md) 에 자동 push 된다 — 후속 AI Agent 가 `contextScope` 설정으로 자동 주입받을 수 있다 ([Spec Conversation Thread §2](./conversation-thread.md#2-자동-누적-컨트랙트)).
+
 ---
 
 ## Principle 5 — `port` 활성화 모델
@@ -312,7 +314,7 @@ async execute(input, config /* evaluated */, context /* { rawConfig, ... } */) {
 | DB 쿼리 결과 | `output.rows`, `output.rowCount`, `output.fields`, `output.insertId?` (그대로 유지) |
 | 이메일 전송 결과 | `output.messageId`, `output.accepted`, `output.rejected`, `output.subject`, `output.body`, `output.bodyType` (subject·body 는 Principle 7 — config 의 raw 와 직교) |
 | 코드 실행 결과 | `output.result` |
-| 프레젠테이션 뷰 | `output.view` (Principle 4 참고) |
+| 프레젠테이션 뷰 (런타임 필드) | `output.items` (carousel dynamic) / `output.rows` + `output.totalRows` (table) / `output.data` (chart) / `output.rendered` (template). 빈 출력 (`{}`) 은 form / carousel static. 옛 `output.view` 래퍼는 Principle 4.2 에서 폐기됨. (Principle 4.3 의 노드별 표 참고) |
 
 > 규칙: **LLM 계열 노드 (ai_agent, text_classifier, information_extractor) 는 `output.result` 아래에 도메인 결과를 모은다.** 이 한 문장이면 3개 노드 모두 일관됩니다.
 

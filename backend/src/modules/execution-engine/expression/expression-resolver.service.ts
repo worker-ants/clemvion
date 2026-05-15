@@ -7,6 +7,7 @@ import {
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { Node } from '../../nodes/entities/node.entity';
 import { EXPRESSION_EXCLUSIONS } from './expression-exclusions';
+import { renderThreadAsSystemText } from '../../../shared/conversation-thread/thread-renderer';
 
 const EXPRESSION_PATTERN = /\{\{/;
 const FULL_EXPRESSION_PATTERN = /^\s*\{\{(.+)\}\}\s*$/s;
@@ -98,6 +99,55 @@ export class ExpressionResolverService {
         : undefined,
       $item: executionContext.itemContext?.item,
       $itemIndex: executionContext.itemContext?.index,
+      // ConversationThread readonly view (spec/5-system/5-expression-language §4.4).
+      // v1 only exposes simple indexing — turns / length / pre-rendered text.
+      // `text` lazily renders via thread-renderer so consumers that don't
+      // touch it pay no cost.
+      $thread: this.buildThreadView(executionContext.conversationThread),
+    };
+  }
+
+  private buildThreadView(thread: ExecutionContext['conversationThread']):
+    | {
+        turns: ExecutionContext['conversationThread']['turns'];
+        length: number;
+        text: string;
+      }
+    | undefined {
+    if (!thread) return undefined;
+    // Snapshot the turns array — expressions are read-only by spec, but
+    // returning the live array would let later append() calls appear to
+    // mutate already-evaluated context objects (e.g. per-iteration loop
+    // bodies that hold a reference). The wrapper and contained turn
+    // objects stay shared (turns are immutable post-push).
+    const snapshot = [...thread.turns];
+    const view: {
+      turns: typeof snapshot;
+      length: number;
+      text?: string;
+    } = {
+      turns: snapshot,
+      length: snapshot.length,
+    };
+    // Lazy `text` — only renders when the expression actually reads
+    // `$thread.text`. Memoized on first access so repeated reads in the
+    // same turn (e.g. inside a Loop) stay O(1). spec/conventions/
+    // conversation-thread.md §7 (v2 lazy roadmap, option A).
+    let cached: string | undefined;
+    Object.defineProperty(view, 'text', {
+      enumerable: true,
+      configurable: false,
+      get(): string {
+        if (cached === undefined) {
+          cached = renderThreadAsSystemText(snapshot);
+        }
+        return cached;
+      },
+    });
+    return view as {
+      turns: typeof snapshot;
+      length: number;
+      text: string;
     };
   }
 
