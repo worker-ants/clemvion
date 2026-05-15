@@ -38,8 +38,8 @@ Producer 측 6 개 호출지점 모두 정상 (`ParseUUIDPipe`/DB-derived uuid).
   - docstring — 운영 호출 예 + 수동 워커 stop 절차 옵션화
 - [x] migrate-* 두 스크립트의 import 경로 + docstring 호출 경로 갱신 (동작 무변경)
 - [x] TEST WORKFLOW — lint(0 errors, 17 warnings 기존 부채), unit test 3484/3484 통과, build OK, dist 진입점 스모크 통과. `[skip-e2e]` (인프라 의존, 본 변경 영역이 e2e 트리거 영역 아님).
-- [ ] REVIEW WORKFLOW — `/ai-review` → RESOLUTION.md → 재테스트
-- [ ] PR 생성
+- [x] REVIEW WORKFLOW — `/ai-review` 13 reviewer 완료 (Critical 0 / Warning 11 / Info 16). 도입 항목 9건 조치(WARNING #2/#3/#5/#8/#10, INFO #6/#7/#10/#11) + 재테스트(lint 0 errors, 3487/3487 통과, build OK) + RESOLUTION.md 작성. 기존 부채 항목은 추적만.
+- [ ] PR 생성 — 사용자 확인 후 진행
 
 ## Side-effect 점검
 
