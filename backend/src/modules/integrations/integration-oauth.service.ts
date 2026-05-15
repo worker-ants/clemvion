@@ -199,6 +199,90 @@ interface TokenExchangeResult {
   providerMeta: Record<string, unknown>;
 }
 
+/**
+ * TypeORM `dataSource.query()` 는 raw SQL 결과를 column 이름 그대로 반환한다.
+ * snake_case 로 정의된 column 은 그 이름으로 노출되어 entity property
+ * (camelCase) 와 불일치하고, `encryptedJsonTransformer` 같은 column
+ * transformer 도 raw query 경로에서는 실행되지 않는다.
+ *
+ * DELETE…RETURNING 의 raw row 를 entity 형태에 가까운 camelCase 객체로
+ * 정규화해 단일 진실 지점을 만든다 — 호출자는 이 함수의 반환값만 다루므로
+ * snake_case ↔ camelCase 혼선을 컴파일러로 잡을 수 있다.
+ */
+function normalizeRawStateRow(
+  raw: Record<string, unknown>,
+): IntegrationOAuthState {
+  // Already-entity-shape input (test mocks, ORM-loaded rows) lacks snake_case
+  // marker columns. Passthrough so callers don't have to know which path
+  // produced the row.
+  if (!('workspace_id' in raw)) {
+    return raw as unknown as IntegrationOAuthState;
+  }
+  const providerMetaRaw = raw.provider_meta;
+  const providerMeta =
+    providerMetaRaw !== null && providerMetaRaw !== undefined
+      ? (decryptJson<Record<string, unknown>>(providerMetaRaw as string) ??
+        null)
+      : null;
+  return {
+    id: raw.id as string,
+    state: raw.state as string,
+    workspaceId: raw.workspace_id as string,
+    userId: raw.user_id as string,
+    provider: raw.provider as string,
+    serviceType: raw.service_type as string,
+    mode: raw.mode as OAuthStateMode,
+    integrationId: (raw.integration_id ?? null) as string | null,
+    requestedScopes: (raw.requested_scopes ?? []) as string[],
+    integrationName: (raw.integration_name ?? null) as string | null,
+    scope: (raw.scope ?? null) as string | null,
+    providerMeta,
+    expiresAt: raw.expires_at as Date,
+    createdAt: raw.created_at as Date,
+  } as IntegrationOAuthState;
+}
+
+/**
+ * preview row 의 raw → entity 정규화. credentials JSONB 도 `decryptJson`
+ * 으로 복호화한다 (state row 와 동일 transformer 패턴).
+ */
+function normalizeRawPreviewRow(
+  raw: Record<string, unknown>,
+): IntegrationOAuthPreview {
+  // 이미 entity-shape 면 그대로 통과 (test mocks, ORM-loaded rows).
+  if (!('workspace_id' in raw)) {
+    return raw as unknown as IntegrationOAuthPreview;
+  }
+  // credentials 는 always encrypted JSONB. transformer 가 raw query 에서
+  // bypass 되므로 명시 복호화. 손상 시 decryptJson 이 null 반환 →
+  // 호출자의 corrupted-row 분기로 처리됨.
+  const credentialsRaw = raw.credentials;
+  let credentials: Record<string, unknown>;
+  if (typeof credentialsRaw === 'string' && credentialsRaw.startsWith('enc:')) {
+    credentials = decryptJson<Record<string, unknown>>(credentialsRaw) ?? {};
+  } else if (typeof credentialsRaw === 'string') {
+    // legacy 미암호화 경로 (없어야 하지만 방어적). corrupted JSON 은
+    // 호출자에서 잡힘.
+    try {
+      credentials = JSON.parse(credentialsRaw) as Record<string, unknown>;
+    } catch {
+      credentials = { __invalid: true };
+    }
+  } else {
+    credentials = (credentialsRaw ?? {}) as Record<string, unknown>;
+  }
+  return {
+    previewToken: raw.preview_token as string,
+    workspaceId: raw.workspace_id as string,
+    userId: raw.user_id as string,
+    serviceType: raw.service_type as string,
+    credentials,
+    tokenExpiresAt: (raw.token_expires_at ?? null) as Date | null,
+    expiresAt: raw.expires_at as Date,
+    createdAt: raw.created_at as Date,
+  } as IntegrationOAuthPreview;
+}
+
 @Injectable()
 export class IntegrationOAuthService {
   private readonly logger = new Logger(IntegrationOAuthService.name);
@@ -395,28 +479,13 @@ export class IntegrationOAuthService {
         message: 'Invalid or already consumed OAuth state',
       });
     }
-    const record = consumed[0];
-
-    // Column transformers (`encryptedJsonTransformer`) only run for entity
-    // round-trips, not for `dataSource.query` raw SQL. Run the same
-    // decrypt step manually so `record.providerMeta` is a plain object
-    // (or null) — otherwise cafe24 callbacks would receive an
-    // `"enc:v1:…"` envelope string and silently misinterpret it. We also
-    // normalise `requested_scopes` (snake_case from raw SQL) onto the
-    // entity field so the rest of the method can read it uniformly.
-    if (record.providerMeta !== null && record.providerMeta !== undefined) {
-      const decrypted = decryptJson<Record<string, unknown>>(
-        record.providerMeta,
-      );
-      record.providerMeta = decrypted ?? null;
-    }
-    const rawRow = record as unknown as Record<string, unknown>;
-    if (
-      Array.isArray(rawRow.requested_scopes) &&
-      !Array.isArray(record.requestedScopes)
-    ) {
-      record.requestedScopes = rawRow.requested_scopes as string[];
-    }
+    // Raw SQL DELETE…RETURNING 의 컬럼은 snake_case 이고 transformer 도
+    // bypass 된다. `normalizeRawStateRow` 로 entity-shape (camelCase +
+    // decrypted providerMeta) 단일 진실 객체로 변환해 이하 코드가 entity
+    // property 만 다루도록 한다.
+    const record = normalizeRawStateRow(
+      consumed[0] as unknown as Record<string, unknown>,
+    );
     // Build the diagnostic context once — every post-state-consumption throw
     // attaches this so the controller can surface the failure on the row
     // (see `markIntegrationCallbackError`). Pre-consumption throws (state
@@ -679,7 +748,12 @@ export class IntegrationOAuthService {
         message: 'OAuth preview token is invalid or already used',
       });
     }
-    const preview = consumed[0];
+    // Raw SQL DELETE…RETURNING 의 컬럼은 snake_case + credentials transformer
+    // bypass. `normalizeRawPreviewRow` 가 entity-shape (camelCase + decrypted
+    // credentials) 단일 진실 객체로 변환한다.
+    const preview = normalizeRawPreviewRow(
+      consumed[0] as unknown as Record<string, unknown>,
+    );
     if (preview.workspaceId !== workspaceId || preview.userId !== userId) {
       throw new BadRequestException({
         code: 'OAUTH_PREVIEW_OWNERSHIP',
@@ -692,26 +766,17 @@ export class IntegrationOAuthService {
         message: 'OAuth preview token has expired',
       });
     }
-
-    // Row was stored with the encrypted transformer; raw SQL bypasses it, so
-    // credentials come back as a string. Normalize via the transformer.
-    // Corrupted rows (manual DB edits, partial decryption) could throw from
-    // JSON.parse — surface as 400 rather than unhandled 500.
-    let creds: Record<string, unknown>;
-    if (typeof preview.credentials === 'string') {
-      try {
-        creds = JSON.parse(preview.credentials) as Record<string, unknown>;
-      } catch {
-        throw new BadRequestException({
-          code: 'INTEGRATION_CREDENTIALS_INVALID',
-          message: 'OAuth preview credentials are corrupted',
-        });
-      }
-    } else {
-      creds = preview.credentials;
+    if (
+      preview.credentials &&
+      (preview.credentials as { __invalid?: boolean }).__invalid
+    ) {
+      throw new BadRequestException({
+        code: 'INTEGRATION_CREDENTIALS_INVALID',
+        message: 'OAuth preview credentials are corrupted',
+      });
     }
     return {
-      credentials: creds,
+      credentials: preview.credentials,
       serviceType: preview.serviceType,
       tokenExpiresAt: preview.tokenExpiresAt
         ? new Date(preview.tokenExpiresAt)

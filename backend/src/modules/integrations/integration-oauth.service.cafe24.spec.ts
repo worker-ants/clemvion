@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { IntegrationOAuthService } from './integration-oauth.service';
+import { encryptJson } from './services/credentials-transformer';
 
 type Mock = jest.Mock;
 
@@ -678,6 +679,78 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(savedIntegration.installToken).toBeNull();
       expect(savedIntegration.statusReason).toBeNull();
       expect(savedIntegration.lastError).toBeNull();
+    });
+
+    /**
+     * 회귀 보호: production raw SQL `DELETE...RETURNING` 의 실제 응답은
+     * snake_case column + encrypted `provider_meta` envelope 문자열이다.
+     * normalizeRawStateRow 가 두 조건을 모두 처리하지 못하면 callback 이
+     * `mall_id missing on OAuth state — cannot build token URL` 로 실패한다
+     * (2026-05-15 운영 보고 사례).
+     */
+    it('handles production raw SQL shape — snake_case + encrypted provider_meta', async () => {
+      const pendingIntegration = {
+        id: 'pending-int-prod',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        credentials: {
+          mall_id: 'gehrig0301',
+          app_type: 'private',
+          client_id: 'prod-cid',
+          client_secret: 'prod-secret',
+          scopes: ['mall.read_product'],
+        },
+        installToken: 'install-token-prod',
+        statusReason: null,
+        lastError: null,
+        tokenExpiresAt: null,
+        lastRotatedAt: null,
+      };
+      integrationRepo.findOne = jest.fn().mockResolvedValue(pendingIntegration);
+
+      // raw row matches what PostgreSQL DELETE...RETURNING actually returns:
+      // snake_case column names + encrypted provider_meta envelope string.
+      const rawStateRow = {
+        id: 'state-prod',
+        state: 'state-token-prod',
+        workspace_id: 'ws-1',
+        user_id: 'u-1',
+        provider: 'cafe24',
+        service_type: 'cafe24',
+        mode: 'reauthorize',
+        integration_id: 'pending-int-prod',
+        requested_scopes: ['mall.read_product'],
+        integration_name: 'gehrig0301 (Cafe24 Private)',
+        scope: 'personal',
+        provider_meta: encryptJson({
+          mall_id: 'gehrig0301',
+          app_type: 'private',
+          client_id: 'prod-cid',
+          client_secret: 'prod-secret',
+        }),
+        expires_at: new Date(Date.now() + 60_000),
+        created_at: new Date(),
+      };
+      dataSource.query.mockResolvedValueOnce([[rawStateRow], 1]);
+
+      const result = await service.handleCallback('cafe24', {
+        code: 'authz-code-prod',
+        state: 'state-token-prod',
+      });
+
+      expect(result.mode).toBe('reauthorize');
+      expect(result.provider).toBe('cafe24');
+      expect(result.integrationId).toBe('pending-int-prod');
+
+      // Integration transitioned to connected — exchange used decrypted
+      // provider_meta.mall_id (would have failed with CAFE24_INVALID_MALL_ID
+      // if the normalizer didn't decrypt the envelope).
+      const savedIntegration = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(savedIntegration.status).toBe('connected');
+      expect(savedIntegration.installToken).toBeNull();
     });
   });
 });
