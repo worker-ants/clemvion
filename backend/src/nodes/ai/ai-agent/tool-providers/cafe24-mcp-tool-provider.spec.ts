@@ -4,10 +4,26 @@ import {
   Cafe24AuthFailedError,
   Cafe24RateLimitedError,
 } from '../../../integration/cafe24/cafe24-api.client';
+import {
+  listAllCafe24Operations,
+  scopeForOperation,
+} from '../../../integration/cafe24/metadata/index';
 import type { Integration } from '../../../../modules/integrations/entities/integration.entity';
 import type { ToolCall } from '../../../../modules/llm/interfaces/llm-client.interface';
 
 type Mock = jest.Mock;
+
+// Union of every scope our metadata could possibly require. Default test
+// integration starts with all-scopes so the legacy "emits one ToolDef per
+// operation" assertions hold. Scope-filter tests override `credentials.scopes`
+// explicitly.
+const ALL_CAFE24_SCOPES: readonly string[] = Array.from(
+  new Set(
+    listAllCafe24Operations().map(({ resource, operation }) =>
+      scopeForOperation(resource, operation),
+    ),
+  ),
+);
 
 function makeIntegration(overrides: Partial<Integration> = {}): Integration {
   return {
@@ -21,6 +37,7 @@ function makeIntegration(overrides: Partial<Integration> = {}): Integration {
       app_type: 'public',
       access_token: 't',
       refresh_token: 'r',
+      scopes: [...ALL_CAFE24_SCOPES],
     },
     scope: 'personal',
     status: 'connected',
@@ -127,6 +144,91 @@ describe('Cafe24McpToolProvider', () => {
     it('skips integrations that are not connected', async () => {
       integrationsService.getForExecution.mockResolvedValue(
         makeIntegration({ status: 'expired' }),
+      );
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      expect(tools).toEqual([]);
+    });
+
+    /**
+     * 회귀 보호 (2026-05-15) — 사용자 보고: AI 에이전트가
+     * `shops_list` (mall.read_store) 를 호출 → 403 insufficient_scope.
+     * 사용자 token 권한은 `mall.read_product/write_product/read_order` 만
+     * 보유. operation 이 요구하는 scope 가 granted 에 없으면 tool 자체를
+     * 노출하지 말아야 한다.
+     */
+    it('filters operations whose required scope is not in credentials.scopes', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 't',
+          refresh_token: 'r',
+          // Only product read — no store, no order, no write_product.
+          scopes: ['mall.read_product'],
+        },
+      });
+      integrationsService.getForExecution.mockResolvedValue(integration);
+
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      const names = tools.map((t) => t.name);
+
+      // product_list / product_get require mall.read_product — exposed.
+      expect(names).toEqual(
+        expect.arrayContaining([
+          'mcp_abcdef12__product_list',
+          'mcp_abcdef12__product_get',
+        ]),
+      );
+      // shops_list requires mall.read_store — NOT in granted → must be
+      // filtered out (this is the bug-fix invariant).
+      expect(names).not.toContain('mcp_abcdef12__shops_list');
+      expect(names).not.toContain('mcp_abcdef12__store_get');
+      // product_create requires mall.write_product — NOT granted →
+      // filtered.
+      expect(names).not.toContain('mcp_abcdef12__product_create');
+      // No order ops either — mall.read_order not granted.
+      expect(names.some((n) => n.includes('__orders_'))).toBe(false);
+    });
+
+    it('exposes zero tools when integration has empty scopes array', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({
+          credentials: {
+            mall_id: 'myshop',
+            app_type: 'public',
+            access_token: 't',
+            refresh_token: 'r',
+            scopes: [],
+          },
+        }),
+      );
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      expect(tools).toEqual([]);
+    });
+
+    it('exposes zero tools when integration has no scopes field (legacy / corrupted credentials)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({
+          credentials: {
+            mall_id: 'myshop',
+            app_type: 'public',
+            access_token: 't',
+            refresh_token: 'r',
+            // scopes field missing entirely.
+          },
+        }),
       );
       const tools = await provider.buildTools({
         config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
