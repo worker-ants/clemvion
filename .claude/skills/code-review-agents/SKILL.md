@@ -150,15 +150,30 @@ main 은 별도 sub-agent 위임 없이 **자기 turn 안에서** 두 skill 의 
 3. **type check + 단위 테스트** 실행 (작업 영역에 맞춰 `npm test`, `npm run typecheck`, `make ...`).
 4. 수정 commit (`fix(<area>): <SUMMARY 항목>` 또는 `refactor(<area>): ...`).
 
-#### 8.4 e2e 자동 실행
+#### 8.4 로컬 e2e 의무 실행 (skip 절대 금지)
 
-모든 Critical / Warning 항목 처리 후:
+모든 Critical / Warning 항목 처리 후 **반드시 로컬에서** e2e 를 실행한다:
 
 ```bash
+# backend 만 변경한 경우
 make e2e-test
+
+# frontend 또는 frontend + backend 가 함께 변경된 경우
+make e2e-test-full
 ```
 
-(CLAUDE.md 의 "개발 방법론" 절 — `docker-compose.e2e.yml` 기반 격리 인프라 사용)
+(CLAUDE.md "개발 방법론" 절 — `docker-compose.e2e.yml` 기반 격리 인프라)
+
+**금지 사항** (자동 후속 흐름에서 e2e 우회는 절대 허용 안 됨):
+
+- **GitHub Action / CI 로 미루기 금지**. CI 가 같은 명령을 다시 실행하더라도 그것은 본 흐름의 검증을 대체하지 않는다. **push 전에 로컬 e2e 가 통과해야 RESOLUTION 단계 (8.6) 진입**.
+- **`[skip-e2e]` 커밋 표기 사용 금지**. developer/SKILL.md 의 `[skip-e2e]` 옵션은 사람 개발자가 의식적으로 판단하는 경우에 한정되며, /ai-review 자동 후속 흐름에서는 적용하지 않는다. 자동 흐름이 만든 fix commit 은 반드시 e2e 통과로 검증.
+- **단위·통합 테스트로 대체 금지**. unit / integration / lint / typecheck 가 모두 통과해도 e2e 는 별개. multi-actor·인프라 회귀를 검출하는 유일한 안전망이다.
+- **변경 영역이 작아 보여도 실행**. "UI 트윅이라 e2e 불필요" 같은 판단은 자동 흐름에서 금지. ai-review 가 fix 한 코드 변경이 있는 한 e2e 는 무조건 실행.
+
+**예외** (단계 8.7 안전 가드로 이관):
+
+- docker 인프라가 환경상 실행 불가 (e2e 시작 단계에서 명백한 환경 오류 — Docker daemon 미동작, 디스크 공간 부족 등). 이 경우 자동 진행 중단 + 사용자 보고. e2e 자체를 skip 하고 통과로 처리하는 것은 절대 금지.
 
 e2e 통과 → 단계 8.6 진행.
 e2e 실패 → 단계 8.5.
@@ -189,10 +204,13 @@ e2e 실패 → 단계 8.5.
 - consistency-check `--spec` 의 `BLOCK: YES` (8.2.3) — spec 의 의미 변경 결정.
 - e2e 누적 3회 실패 (8.5).
 - 직전 수정과 무관한 사전 결함 (8.5).
+- **docker 인프라가 실행 불가** — Docker daemon 미동작, 디스크 공간 부족, `make e2e-test` 가 시작도 못 하는 환경 오류. e2e 자체 skip 은 금지이므로 이 경우만 자동 진행을 중단하고 사용자에게 환경 복구 요청.
 - 자동 수정이 production 코드의 동작을 의도 이상으로 바꿀 위험이 큰 변경 (예: 데이터베이스 마이그레이션, 외부 API 계약 변경) — main 의 판단으로 보수적 차단.
 - ai-review 가 SUMMARY 본문에서 명시적으로 "사용자 결정 필요" 표기한 항목.
 
 자동 진행이 중단되면 main 은 SUMMARY 와 진행 상황을 사용자에게 1-2 문단으로 보고하고, 미해결 항목을 RESOLUTION.md 에 보류 상태로 기록.
+
+**그 외 어떤 사유로도 e2e skip 은 불가**. `[skip-e2e]` / "변경 영역이 작아서" / "CI 가 처리할 것" / "단위 테스트로 충분" — 모두 자동 후속 흐름에서는 허용 안 됨.
 
 ## 13개 reviewer sub-agent
 
