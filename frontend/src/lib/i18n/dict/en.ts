@@ -1589,6 +1589,7 @@ export const en: Dict = {
     cafe24PrivateScopeRequestDesc:
       "Enable the additional scopes in your Cafe24 Developers app permission settings, then click \"Test run\" again to refresh the token with the new scopes. (Private apps cannot initiate the OAuth flow externally, so the action must happen on Cafe24.)",
     cafe24PrivateScopeRequestScopesAdded: "Scopes added",
+    noScopeOptionsAvailable: "No additional scopes are available for this service.",
     scopeOnlyOauth: "Scope management is only available for OAuth integrations.",
     usageEmpty: "No workflow nodes currently use this integration.",
     usageSummary: "Used by {{nodes}} nodes across {{workflows}} workflows.",
