@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * F-2 button id backfill 마이그레이션 스크립트.
  *
@@ -16,10 +15,10 @@
  * Usage (run from repo root OR backend/ — `backend/.env` is auto-loaded):
  *
  *   # dry-run — prints planned changes, no DB write
- *   npx ts-node backend/scripts/migrate-button-ids.ts --dry-run
+ *   npx ts-node backend/src/scripts/migrate-button-ids.ts --dry-run
  *
  *   # apply — requires workspace/user ids for the audit_log row
- *   npx ts-node backend/scripts/migrate-button-ids.ts --apply \
+ *   npx ts-node backend/src/scripts/migrate-button-ids.ts --apply \
  *     --workspace-id <uuid> --user-id <uuid>
  *
  * 대상 노드 타입: carousel / chart / table / template.
@@ -29,14 +28,14 @@
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { DataSource } from 'typeorm';
-import { isValidStablePortId } from '../src/nodes/core/port-id.util';
+import { isValidStablePortId } from '../nodes/core/port-id.util';
 
 /**
  * `.env` 로드는 main() 진입 시에만 수행 — module import 만으로 process.env 가
  * 오염되면 단위 테스트가 통제 불가능해진다 (review W-9).
  */
 function loadDotenv(): void {
-  const envPath = path.resolve(__dirname, '..', '.env');
+  const envPath = path.resolve(__dirname, '..', '..', '.env');
   const result = dotenv.config({ path: envPath });
   if (result.error) {
     console.warn(
@@ -225,7 +224,6 @@ async function main(): Promise<void> {
 }
 
 async function runMigration(ds: DataSource): Promise<void> {
-
   const rows = (await ds.query<
     Array<{
       workflow_id: string;
@@ -251,7 +249,12 @@ async function runMigration(ds: DataSource): Promise<void> {
   const pendingUpdates: Array<{ nodeId: string; newConfig: unknown }> = [];
 
   for (const row of rows) {
-    const newConfig = backfillButtonIds(row.workflow_id, row.id, row.config, hits);
+    const newConfig = backfillButtonIds(
+      row.workflow_id,
+      row.id,
+      row.config,
+      hits,
+    );
     if (newConfig !== row.config) {
       pendingUpdates.push({ nodeId: row.id, newConfig });
     }

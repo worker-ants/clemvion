@@ -4,10 +4,7 @@
  * prod apply); this suite locks in the idempotency / preservation /
  * fallback rules so legacy edges survive the migration.
  */
-import {
-  backfillButtonIds,
-  BackfillHit,
-} from '../../scripts/migrate-button-ids';
+import { backfillButtonIds, BackfillHit } from './migrate-button-ids';
 
 describe('backfillButtonIds', () => {
   function run(config: Record<string, unknown>): {
