@@ -225,7 +225,7 @@ URL 은 중첩 구조 (`executions/:id/background-runs/:id`) 를 사용한다. `
 | `backgroundRunId` | string (UUID v4) | echo |
 | `executionId` | string (UUID) | 메인 실행 ID echo |
 | `parentNodeExecutionId` | string (UUID) | Background 노드 자체의 `NodeExecution.id`. 본문 노드들이 이 ID 를 `parentNodeExecutionId` 로 stamp 받는다 (§4-4) |
-| `status` | `'pending' \| 'running' \| 'completed' \| 'failed' \| 'cancelled'` | 본문 서브그래프 집계 상태. `completed` = 모든 본문 노드 completed/skipped, `failed` = 한 개 이상 failed (메인 status 와 무관), `cancelled` = `maxDurationMs` 초과 등 |
+| `status` | `'pending' \| 'running' \| 'completed' \| 'failed'` | 본문 서브그래프 집계 상태. `pending` = 본문 노드 아직 미실행, `running` = 일부 본문 노드가 진행 중/대기, `completed` = 모든 본문 노드 completed/skipped, `failed` = 한 개 이상 failed (메인 status 와 무관). 메인 Execution cancel 이 본문 run 으로 전파되는 흐름은 아직 없어 별도 `cancelled` 상태는 발행되지 않는다 |
 | `startedAt` | ISO8601 | 본문 enqueue 시점 (§5.1 `meta.forkedAt` 와 동일 기준) |
 | `completedAt` | ISO8601 \| null | 본문 종료 시점. `status` 가 `running` / `pending` 이면 null |
 | `durationMs` | number \| null | `completedAt - startedAt` (서버 계산). 진행 중이면 null |
@@ -238,20 +238,18 @@ URL 은 중첩 구조 (`executions/:id/background-runs/:id`) 를 사용한다. `
 
 `nodeExecutions` 만 cursor 페이지네이션 대상이다. `notifications` 는 backgroundRun 당 통상 0~수 건이므로 전체 반환.
 
-- **정렬 키**: `NodeExecution.createdAt ASC, id ASC` (안정 순서)
-- **cursor**: opaque base64 — 서버가 `{lastCreatedAt, lastId}` 를 직렬화. 클라이언트는 해석하지 않음
+- **정렬 키**: `NodeExecution.startedAt ASC, id ASC` (안정 순서 — NodeExecution 엔티티에 별도 createdAt 컬럼이 없어 `startedAt` 사용)
+- **cursor**: opaque base64 — 서버 내부 직렬화. 클라이언트는 해석하지 않으며 응답의 `nextCursor` 를 그대로 다음 요청에 전달한다
 - **limit 기본**: 50, 최대 200
 - **빈 페이지**: `data: [], nextCursor: null, hasMore: false`
 
 ### 8.4 권한
 
-`executionId` 로 식별되는 메인 실행의 워크스페이스에 대해:
-- 본 실행을 시작한 사용자 (`Execution.executed_by`) **또는**
-- 워크스페이스 Editor 이상 멤버
-
-→ 두 조건 중 하나를 만족하면 조회 가능. 그 외 403. `executionId` 가 존재하지 않거나 워크스페이스가 다르면 404 (IDOR 차단 — `ExecutionsController.stop` 동일 패턴).
+`executionId` 로 식별되는 메인 실행의 워크스페이스 멤버만 조회 가능. 멤버가 아니거나 `executionId` 가 존재하지 않으면 404 — Forbidden 으로 응답하면 attacker 가 ID 존재 여부를 추론할 수 있어 IDOR 차단 목적으로 NotFound 로 통일한다 (`ExecutionsController.findOne` 동일 패턴).
 
 `backgroundRunId` 가 `executionId` 안에 존재하지 않으면 404.
+
+> **Note**: 역할(Role) 기반 추가 제한(Viewer 차단 등) 은 현재 구현하지 않는다 — 기존 `ExecutionsController` 단건 조회도 workspace 멤버이기만 하면 허용하는 패턴이라 일관성을 유지한다. 향후 Role-based 차단이 필요해지면 `RolesGuard` 를 두 endpoint 에 함께 적용한다.
 
 ### 8.5 실시간 갱신 — WebSocket 채널
 
@@ -286,8 +284,7 @@ AI Assistant 의 read-only 실행 조회 도구 (`ED-AI-35~38`) 는 본 API 를 
 | 400 | `INVALID_CURSOR` | cursor 디코딩 실패 |
 | 400 | `INVALID_LIMIT` | `limit` 1 미만 또는 200 초과 |
 | 401 | (인증 미들웨어) | 토큰 없음/만료 |
-| 403 | `FORBIDDEN_BACKGROUND_RUN` | 워크스페이스 비멤버 또는 Editor 미만 |
-| 404 | `EXECUTION_NOT_FOUND` | `executionId` 부재 (IDOR 차단) |
+| 404 | `EXECUTION_NOT_FOUND` | `executionId` 부재 또는 워크스페이스 mismatch (IDOR 차단 — Forbidden 으로 leak 하지 않는다) |
 | 404 | `BACKGROUND_RUN_NOT_FOUND` | `backgroundRunId` 가 해당 execution 에 없음 |
 
 본 API 는 외부 부수효과를 일으키지 않으므로 5xx 는 표준 NestJS 핸들러에 위임 (DB 장애 등).
@@ -311,7 +308,7 @@ AI Assistant 의 read-only 실행 조회 도구 (`ED-AI-35~38`) 는 본 API 를 
 
 - Background 본문이 수십 노드 이하면 단순 응답으로도 충분하나, 본문이 Loop / ForEach 를 포함하면 수백 NodeExecution 으로 확장 가능
 - 추후 `?limit=` query param 만 추가하는 것도 non-breaking 이지만, 클라이언트가 `data: [...]` 의 단순 배열을 가정하면 응답 형태 변경 시 breaking — 처음부터 `{ data, nextCursor, hasMore }` 컨테이너로 고정
-- 정렬 키는 `(createdAt ASC, id ASC)` 안정 순서 — 동시에 생성된 노드의 정렬 흔들림 방지
+- 정렬 키는 `(startedAt ASC, id ASC)` 안정 순서 — 동시에 시작된 노드의 정렬 흔들림 방지
 
 ### WebSocket 채널 격리 결정
 

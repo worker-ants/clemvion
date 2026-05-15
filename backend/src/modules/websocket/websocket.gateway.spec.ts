@@ -183,8 +183,66 @@ describe('WebsocketGateway', () => {
       expect(join).not.toHaveBeenCalled();
     });
 
+    it('should accept background:run channel when ownership verified', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'background:run:bg-run-id' },
+        socket,
+      );
+      expect(result.data.success).toBe(true);
+      expect(result.data.channel).toBe('background:run:bg-run-id');
+      expect(join).toHaveBeenCalledWith('background:run:bg-run-id');
+      const bgRunsService = module.get(BackgroundRunsService);
+      expect(bgRunsService.verifyBackgroundRunOwnership).toHaveBeenCalledWith(
+        'bg-run-id',
+        'ws-1',
+      );
+    });
+
+    it('should reject background:run channel when ownership check fails (cross-workspace)', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId =
+        'ws-attacker';
+      getSubscriptions().set('client-1', new Set());
+      const bgRunsService = module.get(BackgroundRunsService);
+      (
+        bgRunsService.verifyBackgroundRunOwnership as jest.Mock
+      ).mockResolvedValueOnce(false);
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'background:run:bg-run-id' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this background run');
+      expect(join).not.toHaveBeenCalled();
+    });
+
+    it('should reject background:run channel when verifyBackgroundRunOwnership throws (DB error)', async () => {
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      getSubscriptions().set('client-1', new Set());
+      const bgRunsService = module.get(BackgroundRunsService);
+      (
+        bgRunsService.verifyBackgroundRunOwnership as jest.Mock
+      ).mockRejectedValueOnce(new Error('PG connection refused'));
+
+      const result = await gateway.handleSubscribe(
+        { channel: 'background:run:bg-run-id' },
+        socket,
+      );
+      // catch 가 `.catch(() => false)` 로 fail-safe — 권한 부재로 처리.
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toBe('Not authorized for this background run');
+      expect(join).not.toHaveBeenCalled();
+    });
+
     it('should emit execution.snapshot to the subscribing client when execution exists', async () => {
       const { socket, emit } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
       getSubscriptions().set('client-1', new Set());
 
       const fakeExecution = {
@@ -210,6 +268,32 @@ describe('WebsocketGateway', () => {
           execution: fakeExecution,
         }),
       );
+    });
+
+    it('should NOT emit execution.snapshot when workspace ownership check fails (IDOR block)', async () => {
+      const { socket, emit } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-attacker';
+      getSubscriptions().set('client-1', new Set());
+
+      const execService = module.get(ExecutionsService);
+      // verifyOwnership rejects on workspace mismatch — emitExecutionSnapshot
+      // 가 try/catch 에서 swallow 하므로 .findById 는 호출되지 않아야 한다.
+      (execService.verifyOwnership as jest.Mock).mockRejectedValueOnce(
+        new Error('Execution not found'),
+      );
+
+      await gateway.handleSubscribe({ channel: 'execution:exec-victim' }, socket);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(execService.verifyOwnership).toHaveBeenCalledWith(
+        'exec-victim',
+        'ws-attacker',
+      );
+      expect(execService.findById).not.toHaveBeenCalled();
+      const snapshotEmitted = emit.mock.calls.some(
+        (call: unknown[]) => call[0] === 'execution.snapshot',
+      );
+      expect(snapshotEmitted).toBe(false);
     });
 
     it('should not re-emit snapshot on duplicate subscribe', async () => {

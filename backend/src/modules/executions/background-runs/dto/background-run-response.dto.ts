@@ -1,11 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+/**
+ * Background 본문 run 의 집계 상태. 현재 서버 경로상 발행되는 4개 상태만 정의.
+ * `cancelled` 는 메인 Execution cancel 이 본문 run 으로 전파되는 흐름이 없어
+ * `deriveBackgroundRunStatus` 에 분기가 없다 — 추후 확장 시 추가.
+ */
 export type BackgroundRunStatus =
   | 'pending'
   | 'running'
   | 'completed'
-  | 'failed'
-  | 'cancelled';
+  | 'failed';
 
 export class BackgroundRunNodeExecutionDto {
   @ApiProperty({ description: 'NodeExecution UUID', format: 'uuid' })
@@ -124,7 +128,7 @@ export class BackgroundRunResponseDto {
 
   @ApiProperty({
     description: 'Background 본문 집계 상태',
-    enum: ['pending', 'running', 'completed', 'failed', 'cancelled'],
+    enum: ['pending', 'running', 'completed', 'failed'],
   })
   status: BackgroundRunStatus;
 

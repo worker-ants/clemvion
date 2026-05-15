@@ -5,8 +5,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 /**
  * Background 본문 모니터링 API 의 cursor 페이지네이션 쿼리.
  *
- * cursor 는 opaque base64 — 서버가 `{ lastCreatedAt, lastId }` 를 직렬화하며
- * 클라이언트는 해석하지 않는다 (spec/4-nodes/1-logic/12-background.md §8.3).
+ * cursor 는 opaque base64 token — 서버 내부 구조에 의존하지 말고 응답의
+ * `nextCursor` 값을 그대로 다음 요청에 전달한다 (spec/4-nodes/1-logic/12-background.md §8.3).
  */
 export class QueryBackgroundRunDto {
   @ApiPropertyOptional({

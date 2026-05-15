@@ -1075,14 +1075,16 @@ export function ResultDetail({
             )}
           </div>
         )}
-        {result.nodeType === "background" && executionId && (
-          <div className="shrink-0 border-t border-gray-200 bg-white px-3 pb-3">
-            <BackgroundRunSection
-              executionId={executionId}
-              backgroundRunId={extractBackgroundRunId(result.outputData)}
-            />
-          </div>
-        )}
+        {result.nodeType === "background" &&
+          executionId &&
+          extractBackgroundRunId(result.outputData) && (
+            <div className="shrink-0 border-t border-gray-200 bg-white px-3 pb-3">
+              <BackgroundRunSection
+                executionId={executionId}
+                backgroundRunId={extractBackgroundRunId(result.outputData)}
+              />
+            </div>
+          )}
       </div>
     </div>
   );
