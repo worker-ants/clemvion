@@ -78,9 +78,56 @@ export class Cafe24AuthFailedError extends Error {
     readonly mallId: string,
     readonly responseBody: unknown,
   ) {
-    super(`Cafe24 authentication failed (${status}) for mall ${mallId}`);
+    const summary = summarizeCafe24ErrorBody(responseBody);
+    const suffix = summary ? ` — ${summary}` : '';
+    super(
+      `Cafe24 authentication failed (${status}) for mall ${mallId}${suffix}`,
+    );
     this.name = 'Cafe24AuthFailedError';
   }
+}
+
+/**
+ * Extract a compact, user-actionable summary from Cafe24's error body.
+ * Cafe24 wraps errors in several shapes depending on which API/endpoint
+ * surface — try each one in order. The summary surfaces on the
+ * `Cafe24AuthFailedError.message` so the MCP error response carries the
+ * real cause ("INVALID_TOKEN: Access token has expired") rather than a
+ * generic "authentication failed (403)". Tokens never appear in Cafe24's
+ * error bodies, so it's safe to forward.
+ */
+function summarizeCafe24ErrorBody(body: unknown): string {
+  if (body === null || body === undefined) return '';
+  if (typeof body === 'string') return body.slice(0, 200);
+  if (typeof body !== 'object') return '';
+  const b = body as Record<string, unknown>;
+  const errorObj =
+    typeof b.error === 'object' && b.error !== null
+      ? (b.error as Record<string, unknown>)
+      : null;
+  const code =
+    pickString(b.error_code) ||
+    (errorObj && pickString(errorObj.code)) ||
+    (typeof b.error === 'string' ? b.error : null);
+  const message =
+    pickString(b.error_message) ||
+    (errorObj && pickString(errorObj.message)) ||
+    pickString(b.error_description) ||
+    pickString(b.message);
+  if (code && message) return `${code}: ${message}`.slice(0, 200);
+  if (code) return code.slice(0, 200);
+  if (message) return message.slice(0, 200);
+  // Fall back to a JSON snippet — last resort so we never silently drop
+  // diagnostic info on an unfamiliar shape.
+  try {
+    return JSON.stringify(body).slice(0, 200);
+  } catch {
+    return '';
+  }
+}
+
+function pickString(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
 export class Cafe24TransportFailedError extends Error {
@@ -264,6 +311,13 @@ export class Cafe24ApiClient {
 
     if (response.status === 401 || response.status === 403) {
       const body = await safeReadJson(response);
+      const bodyForLog =
+        typeof body === 'string'
+          ? body.slice(0, 500)
+          : JSON.stringify(body).slice(0, 500);
+      this.logger.warn(
+        `Cafe24 token refresh ${response.status} mall=${creds.mall_id}: ${bodyForLog}`,
+      );
       await this.markAuthFailed(integration);
       throw new Cafe24AuthFailedError(response.status, creds.mall_id, body);
     }
@@ -434,6 +488,19 @@ export class Cafe24ApiClient {
 
     if (response.status === 401 || response.status === 403) {
       const errBody = await safeReadJson(response);
+      // Server-side diagnostic — Cafe24's error code/description rarely
+      // contains sensitive info (it never echoes tokens), and without this
+      // log there is no way to tell APP_NOT_INSTALLED from EXPIRED_TOKEN
+      // from INSUFFICIENT_SCOPE — every cause surfaces to the user as
+      // "auth failed (403)". Trimmed to 500 chars so an unexpectedly large
+      // body cannot blow up the log line.
+      const bodyForLog =
+        typeof errBody === 'string'
+          ? errBody.slice(0, 500)
+          : JSON.stringify(errBody).slice(0, 500);
+      this.logger.warn(
+        `Cafe24 API ${response.status} mall=${mallId} ${opts.method} ${opts.path}: ${bodyForLog}`,
+      );
       await this.markAuthFailed(integration);
       throw new Cafe24AuthFailedError(response.status, mallId, errBody);
     }

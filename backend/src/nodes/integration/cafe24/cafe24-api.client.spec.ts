@@ -244,6 +244,74 @@ describe('Cafe24ApiClient', () => {
         expect(integration.statusReason).toBe('auth_failed');
       },
     );
+
+    it('surfaces Cafe24 error_code + error_message in Error.message so MCP callers see the cause', async () => {
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          {
+            error_code: 'INSUFFICIENT_SCOPE',
+            error_message:
+              'Access token does not have the required permissions',
+          },
+          { status: 403 },
+        ),
+      );
+
+      const integration = makeIntegration();
+      const caught = await client
+        .call(integration, { method: 'GET', path: 'products' })
+        .catch((err: unknown) => err);
+      expect(caught).toBeInstanceOf(Cafe24AuthFailedError);
+      const message = (caught as Error).message;
+      expect(message).toContain('INSUFFICIENT_SCOPE');
+      expect(message).toContain(
+        'Access token does not have the required permissions',
+      );
+    });
+
+    it('surfaces OAuth-shape error/error_description fields (Cafe24 token endpoint format)', async () => {
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          {
+            error: 'invalid_token',
+            error_description: 'Access token has expired',
+          },
+          { status: 401 },
+        ),
+      );
+
+      const integration = makeIntegration();
+      const caught = await client
+        .call(integration, { method: 'GET', path: 'orders' })
+        .catch((err: unknown) => err);
+      expect(caught).toBeInstanceOf(Cafe24AuthFailedError);
+      const message = (caught as Error).message;
+      expect(message).toContain('invalid_token');
+      expect(message).toContain('Access token has expired');
+    });
+
+    it('surfaces nested error.code/error.message shape (modern v2 API format)', async () => {
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          {
+            error: {
+              code: 'APP_NOT_INSTALLED',
+              message: 'The app has not been installed on this mall',
+            },
+          },
+          { status: 403 },
+        ),
+      );
+
+      const integration = makeIntegration();
+      const caught = await client
+        .call(integration, { method: 'GET', path: 'products' })
+        .catch((err: unknown) => err);
+      expect(caught).toBeInstanceOf(Cafe24AuthFailedError);
+      const message = (caught as Error).message;
+      expect(message).toContain('APP_NOT_INSTALLED');
+      expect(message).toContain('The app has not been installed on this mall');
+    });
   });
 
   describe('transport failure', () => {

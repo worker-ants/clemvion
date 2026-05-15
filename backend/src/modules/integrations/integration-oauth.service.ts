@@ -931,7 +931,38 @@ export class IntegrationOAuthService {
       });
     }
 
-    return normalizeTokenResponse(provider, data, requestedScopes);
+    const result = normalizeTokenResponse(provider, data, requestedScopes);
+
+    // Diagnostic — record what scope/mall the provider *actually* granted vs
+    // what we asked for. Helps catch the silent-mismatch case where
+    // Cafe24's app-level permissions are narrower than our requested scopes
+    // (token issued but every API call 403s on the missing scope) or where
+    // the user authorized into a different mall than we redirected to.
+    if (isCafe24) {
+      const pm = (providerMeta ?? {}) as Partial<Cafe24BeginMeta>;
+      const echoMallId =
+        typeof result.providerMeta?.cafe24_response_mall_id === 'string'
+          ? result.providerMeta.cafe24_response_mall_id
+          : null;
+      if (echoMallId && pm.mall_id && echoMallId !== pm.mall_id) {
+        this.logger.warn(
+          `Cafe24 token mall_id mismatch: requested=${pm.mall_id} echoed=${echoMallId} — subsequent API calls against ${pm.mall_id} will 403`,
+        );
+      }
+      const missingScopes = requestedScopes.filter(
+        (s) => !result.scopes.includes(s),
+      );
+      if (missingScopes.length > 0) {
+        this.logger.warn(
+          `Cafe24 granted fewer scopes than requested for mall=${pm.mall_id ?? echoMallId ?? 'unknown'}: requested=${requestedScopes.join(',')} granted=${result.scopes.join(',')} missing=${missingScopes.join(',')}`,
+        );
+      }
+      this.logger.log(
+        `Cafe24 token exchange succeeded: mall_id=${echoMallId ?? pm.mall_id ?? 'unknown'} granted_scopes=${result.scopes.join(',')} expires_at=${result.tokenExpiresAt?.toISOString() ?? 'none'}`,
+      );
+    }
+
+    return result;
   }
 
   // ---------------------------------------------------------------------
@@ -1264,10 +1295,29 @@ function normalizeTokenResponse(
     ? new Date(Date.now() + expiresIn * 1000)
     : null;
 
+  // Cafe24 returns `scopes` as an ARRAY (e.g. `["mall.read_product", ...]`).
+  // OAuth standard providers (google/github) return `scope` as a space- or
+  // comma-delimited string. Read both — array first, then string — so we
+  // record what was *actually granted* rather than silently falling back
+  // to `requestedScopes`. The fallback to requestedScopes is kept only for
+  // providers that never echo scope back (legacy GitHub OAuth tokens).
+  //
+  // `scopes !== null` (even when the array is empty) is treated as
+  // authoritative: an empty array means "the provider granted nothing",
+  // not "the provider was silent". Silent fallback to requestedScopes
+  // hides this case and would let us claim scopes we don't have.
+  const scopesArray = Array.isArray(data.scopes)
+    ? (data.scopes as unknown[]).filter(
+        (s): s is string => typeof s === 'string' && s.length > 0,
+      )
+    : null;
   const scopeString = readString(data, 'scope');
-  const returnedScopes = scopeString
-    ? scopeString.split(/[,\s]+/).filter(Boolean)
-    : requestedScopes;
+  const returnedScopes =
+    scopesArray !== null
+      ? scopesArray
+      : scopeString
+        ? scopeString.split(/[,\s]+/).filter(Boolean)
+        : requestedScopes;
 
   const providerMeta: Record<string, unknown> = {};
   if (provider === 'google') {

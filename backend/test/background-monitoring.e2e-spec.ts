@@ -42,7 +42,8 @@ async function pollExecution(
   intervalMs = 200,
 ): Promise<{ status: string; nodeExecutions: NodeExecutionRow[] }> {
   const start = Date.now();
-  let last: { status: string; nodeExecutions: NodeExecutionRow[] } | null = null;
+  let last: { status: string; nodeExecutions: NodeExecutionRow[] } | null =
+    null;
   while (Date.now() - start < timeoutMs) {
     const res = await request(BASE_URL)
       .get(`/api/executions/${executionId}`)
@@ -104,7 +105,10 @@ describe('Background body monitoring (e2e)', () => {
   // -------------------------------------------------------------------------
 
   it('V047 / V048 인덱스가 모두 `pg_index.indisvalid = true` 로 적용된다', async () => {
-    const result = await db.query<{ indexrelname: string; indisvalid: boolean }>(
+    const result = await db.query<{
+      indexrelname: string;
+      indisvalid: boolean;
+    }>(
       `SELECT i.indexrelid::regclass::text AS indexrelname, i.indisvalid
          FROM pg_index i
         WHERE i.indexrelid::regclass::text IN (
@@ -272,7 +276,7 @@ describe('Background body monitoring (e2e)', () => {
       .set('X-Workspace-Id', workspaceId);
     if (ownOk.status !== 200) {
       // 진단용 로그 — CI 실패 분석 가속.
-      // eslint-disable-next-line no-console
+
       console.error('ownOk failed', {
         status: ownOk.status,
         body: ownOk.body,
@@ -336,9 +340,7 @@ describe('Background body monitoring (e2e)', () => {
 
     // 본문 모니터링 API 의 `notifications` 필드에도 동일 row 가 노출되어야 한다.
     const apiRes = await request(BASE_URL)
-      .get(
-        `/api/executions/${executionId}/background-runs/${backgroundRunId}`,
-      )
+      .get(`/api/executions/${executionId}/background-runs/${backgroundRunId}`)
       .set('Authorization', `Bearer ${owner.accessToken}`)
       .set('X-Workspace-Id', workspaceId);
     expect(apiRes.status).toBe(200);

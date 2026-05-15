@@ -31,8 +31,12 @@ describe('extractBackgroundRunId (W-18)', () => {
 
   it('returns empty string when backgroundRunId is not a string', () => {
     expect(extractBackgroundRunId({ meta: { backgroundRunId: 123 } })).toBe('');
-    expect(extractBackgroundRunId({ meta: { backgroundRunId: null } })).toBe('');
-    expect(extractBackgroundRunId({ meta: { backgroundRunId: ['x'] } })).toBe('');
+    expect(extractBackgroundRunId({ meta: { backgroundRunId: null } })).toBe(
+      '',
+    );
+    expect(extractBackgroundRunId({ meta: { backgroundRunId: ['x'] } })).toBe(
+      '',
+    );
   });
 
   it('returns empty string when backgroundRunId is empty', () => {

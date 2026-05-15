@@ -176,7 +176,7 @@ export class BackgroundExecutionProcessor extends WorkerHost {
     try {
       await this.notificationsService.createMany(
         recipients.map((userId) => ({
-          workspaceId: data.workspaceId!,
+          workspaceId: data.workspaceId,
           userId,
           type: 'background_failed',
           title: 'Background 본문 실패',
