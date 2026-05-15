@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import {
   PresentationContent,
   JsonContent,
@@ -113,7 +113,8 @@ describe("PresentationContent", () => {
         />,
       );
 
-      // rendered 가 없으면 TemplateContent 가 JsonContent 로 fallback (data = output)
+      // rendered 가 없으면 TemplateContent 가 null 반환 → 공유 Output Data 섹션의
+      // JsonContent 만 표시 (data = output, "foo": "bar" 포함)
       expect(screen.getByText(/"foo": "bar"/)).toBeDefined();
     });
 
@@ -278,6 +279,293 @@ describe("PresentationContent", () => {
       expect(approve).not.toBeNull();
       // Selected button carries primary-color classes in the renderer's styling.
       expect(approve?.className).toContain("bg-[hsl(var(--primary))]");
+    });
+  });
+
+  describe("Template global buttons", () => {
+    // Spec 4-nodes/6-presentation/0-common.md §1, §6.5 and 5-template.md §1, §5.4 —
+    // Template supports ButtonDef and must render a button bar below its rendered
+    // content while waiting_for_input (and keep the selected button highlighted
+    // after resume).
+    it("renders global buttons from envelope config.buttonConfig", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              config: {
+                outputFormat: "html",
+                template: "<h1>Hello</h1>",
+                buttonConfig: {
+                  buttons: [
+                    { id: "approve", label: "Approve", type: "port" },
+                    { id: "reject", label: "Reject", type: "port" },
+                  ],
+                },
+              },
+              output: { rendered: "<h1>Hello</h1>" },
+              status: "waiting_for_input",
+              meta: { interactionType: "buttons" },
+            },
+          })}
+          onPortButtonClick={() => {}}
+        />,
+      );
+
+      expect(screen.getByText("Approve")).toBeDefined();
+      expect(screen.getByText("Reject")).toBeDefined();
+    });
+
+    it("still renders buttons from legacy flat data.buttonConfig", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              rendered: "Hello plaintext",
+              buttonConfig: {
+                buttons: [{ id: "ok", label: "OK", type: "port" }],
+              },
+            },
+          })}
+          onPortButtonClick={() => {}}
+        />,
+      );
+
+      expect(screen.getByText("OK")).toBeDefined();
+    });
+
+    it("invokes onPortButtonClick for port-type buttons", () => {
+      const handler = vi.fn();
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              config: {
+                outputFormat: "text",
+                buttonConfig: {
+                  buttons: [{ id: "approve", label: "Approve", type: "port" }],
+                },
+              },
+              output: { rendered: "ready" },
+              status: "waiting_for_input",
+            },
+          })}
+          onPortButtonClick={handler}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Approve"));
+      expect(handler).toHaveBeenCalledWith("approve");
+    });
+
+    it("invokes onLinkButtonClick for link-type buttons", () => {
+      const linkHandler = vi.fn();
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              config: {
+                outputFormat: "text",
+                buttonConfig: {
+                  buttons: [
+                    {
+                      id: "docs",
+                      label: "Docs",
+                      type: "link",
+                      url: "https://example.com",
+                    },
+                  ],
+                },
+              },
+              output: { rendered: "ready" },
+              status: "waiting_for_input",
+            },
+          })}
+          onLinkButtonClick={linkHandler}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Docs"));
+      expect(linkHandler).toHaveBeenCalledWith("https://example.com");
+    });
+
+    it("highlights selected button on resumed shape", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            status: "completed",
+            outputData: {
+              config: {
+                outputFormat: "text",
+                buttonConfig: {
+                  buttons: [
+                    { id: "approve", label: "Approve", type: "port" },
+                    { id: "reject", label: "Reject", type: "port" },
+                  ],
+                },
+              },
+              output: {
+                interaction: {
+                  interactionType: "button_click",
+                  buttonId: "approve",
+                },
+                previousOutput: { rendered: "snapshot" },
+              },
+              status: "button_click",
+            },
+          })}
+        />,
+      );
+
+      const approve = screen.getByText("Approve").closest("button");
+      expect(approve).not.toBeNull();
+      expect(approve?.className).toContain("bg-[hsl(var(--primary))]");
+    });
+
+    it("renders no button bar when buttonConfig is absent", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              config: { outputFormat: "text" },
+              output: { rendered: "Plain content" },
+            },
+          })}
+        />,
+      );
+
+      // Rendered content stays intact, but no buttons surface.
+      expect(screen.getByText("Plain content")).toBeDefined();
+      expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("renders buttons even with previewOnly (button bar must remain interactive while waiting_for_input)", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              config: {
+                outputFormat: "text",
+                buttonConfig: {
+                  buttons: [{ id: "approve", label: "Approve", type: "port" }],
+                },
+              },
+              output: { rendered: "Confirm?" },
+              status: "waiting_for_input",
+            },
+          })}
+          onPortButtonClick={() => {}}
+          previewOnly
+        />,
+      );
+
+      expect(screen.getByText("Approve")).toBeDefined();
+      // previewOnly suppresses the "Preview (...)" header and the Output Data section.
+      expect(screen.queryByText(/Preview \(/)).toBeNull();
+      expect(screen.queryByText("Output Data")).toBeNull();
+    });
+
+    it("rejects non-http(s) urls at the click site (defense in depth)", () => {
+      const linkHandler = vi.fn();
+      const portHandler = vi.fn();
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              config: {
+                outputFormat: "text",
+                buttonConfig: {
+                  buttons: [
+                    {
+                      id: "evil",
+                      label: "Evil",
+                      type: "link",
+                      // Unsafe scheme — must not reach onLinkButtonClick even
+                      // though openExternalLink would also block it later.
+                      url: "javascript:alert(1)",
+                    },
+                  ],
+                },
+              },
+              output: { rendered: "ready" },
+              status: "waiting_for_input",
+            },
+          })}
+          onPortButtonClick={portHandler}
+          onLinkButtonClick={linkHandler}
+        />,
+      );
+
+      fireEvent.click(screen.getByText("Evil"));
+      expect(linkHandler).not.toHaveBeenCalled();
+      // Falls through to port click with the button id (renderer keeps a
+      // single callback path even when the URL is rejected).
+      expect(portHandler).toHaveBeenCalledWith("evil");
+    });
+
+    it("uses legacy flat outputFormat as previewHeader fallback", () => {
+      // Legacy flat shape (pre-envelope migration) keeps `outputFormat` at the
+      // top level. The previewHeader must surface it instead of silently
+      // defaulting to "text" — otherwise html/markdown historic runs would
+      // appear mislabelled. Content rendering itself is unaffected here
+      // (TemplateContent still reads from envelope `config`, not the legacy
+      // top-level field — that's a separate pre-existing limitation).
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              rendered: "Some output",
+              outputFormat: "markdown",
+            },
+          })}
+        />,
+      );
+
+      expect(screen.getByText("Preview (markdown)")).toBeDefined();
+    });
+  });
+
+  describe("Template buttonItemMap filtering", () => {
+    // Spec 4-nodes/6-presentation/0-common.md §3 — `buttonItemMap` is a
+    // Carousel-only construct, but the shared filtering logic in
+    // PresentationContent (`!(btn.id in buttonItemMap)`) must still exclude
+    // any spurious item-mapped entries when a Template payload accidentally
+    // carries one — otherwise a per-item button would leak into the global
+    // bar of a node type that has no per-item concept.
+    it("excludes buttons present in buttonItemMap from the global bar", () => {
+      render(
+        <PresentationContent
+          result={makeResult({
+            nodeType: "template",
+            outputData: {
+              config: {
+                outputFormat: "text",
+                buttonConfig: {
+                  buttons: [
+                    { id: "global-1", label: "Global", type: "port" },
+                    { id: "item-1", label: "Item only", type: "port" },
+                  ],
+                  buttonItemMap: { "item-1": 0 },
+                },
+              },
+              output: { rendered: "ready" },
+              status: "waiting_for_input",
+            },
+          })}
+          onPortButtonClick={() => {}}
+        />,
+      );
+
+      expect(screen.getByText("Global")).toBeDefined();
+      expect(screen.queryByText("Item only")).toBeNull();
     });
   });
 });
