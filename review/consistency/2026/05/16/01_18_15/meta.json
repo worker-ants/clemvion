@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-16T01:18:15.171902",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-cafe24-private-followup.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
