@@ -17,9 +17,9 @@ Stage 1 (`spec/6-brand.md` §8 정식 개정) 의 인수인계를 받아, 신 br
 
 ## 0. 착수 전 의무 절차
 
-- [ ] **현재 worktree 확인** — main 워크트리에서 진입 금지. 본 plan 의 worktree 는 `brand-refresh-7a3f12`.
-- [ ] **`/consistency-check --impl-prep spec/6-brand.md` 호출** (`developer` skill 의무). Critical 0 건 확인 시 착수.
-- [ ] **Stage 1 산출물 재읽기** — `spec/6-brand.md` §8 (특히 §8.2 컬러 토큰, §8.4 로고 시스템, §8.6 자산 마이그레이션) 과 `_layout.md §2.1`, `10-auth-flow.md §1`.
+- [x] **현재 worktree 확인** — main 워크트리에서 진입 금지. 본 plan 의 worktree 는 `brand-refresh-7a3f12`.
+- [x] **`/consistency-check --impl-prep spec/6-brand.md` 호출** (`developer` skill 의무). Critical 0 건 확인 시 착수.
+- [x] **Stage 1 산출물 재읽기** — `spec/6-brand.md` §8 (특히 §8.2 컬러 토큰, §8.4 로고 시스템, §8.6 자산 마이그레이션) 과 `_layout.md §2.1`, `10-auth-flow.md §1`.
 
 ---
 
@@ -29,11 +29,11 @@ Stage 1 (`spec/6-brand.md` §8 정식 개정) 의 인수인계를 받아, 신 br
 
 ### 1.1 SVG 자산 (5종)
 
-- [ ] `frontend/public/logo.svg` — Full logo (light). viewBox `260×80`. mark + wordmark + sub-copy 3요소. 색은 §8.2.1 / §8.2.2 의 light 토큰.
-- [ ] `frontend/public/logo-dark.svg` — Full logo (dark). 동 viewBox. 색은 §8.2.3 의 dark 토큰.
-- [ ] `frontend/public/logo-mark.svg` — Icon mark (light, 96px master).
-- [ ] `frontend/public/logo-mark-dark.svg` — Icon mark (dark, 96px master).
-- [ ] `frontend/public/logo-wordmark.svg` — Wordmark only (sub-copy 없음). 라이트 변종. 다크 변종은 `<Logo />` 컴포넌트의 `currentColor` 활용 또는 추후 분리.
+- [x] `frontend/public/logo.svg` — Full logo (light). viewBox `260×80`. mark + wordmark + sub-copy 3요소. 색은 §8.2.1 / §8.2.2 의 light 토큰.
+- [x] `frontend/public/logo-dark.svg` — Full logo (dark). 동 viewBox. 색은 §8.2.3 의 dark 토큰.
+- [x] `frontend/public/logo-mark.svg` — Icon mark (light, 96px master).
+- [x] `frontend/public/logo-mark-dark.svg` — Icon mark (dark, 96px master).
+- [x] `frontend/public/logo-wordmark.svg` — Wordmark only (sub-copy 없음). 라이트 변종. 다크 변종은 `<Logo />` 컴포넌트의 `currentColor` 활용 또는 추후 분리.
 
 SVG 작성 시 주의:
 - 워드마크 `<text>` 의 fontFamily 에 `Helvetica Neue, Helvetica, Arial, sans-serif` 시스템 스택 명시 (§8.3, R-11).
@@ -42,16 +42,16 @@ SVG 작성 시 주의:
 
 ### 1.2 Favicon multi-size 합성
 
-- [ ] **16px 전용 vector 신규 작성** — 96px master 의 단순 축소 금지 (§8.4.2). 노드 ≤ 4 / 라인 ≤ 3 으로 단순화. SVG 로 작업 후 PNG 16×16 export.
-- [ ] **32px vector** — master 의 축소판 사용 가능.
-- [ ] **48px vector** — master 의 축소판 사용 가능.
-- [ ] `frontend/src/app/favicon.ico` — 위 3개 사이즈를 합성한 multi-size .ico 생성. ImageMagick / `png-to-ico` 등 도구 사용 가능.
-- [ ] `frontend/src/app/icon.svg` — Next.js metadata 용 32px SVG (단일 사이즈).
+- [x] **16px 전용 vector 신규 작성** — 96px master 의 단순 축소 금지 (§8.4.2). 노드 ≤ 4 / 라인 ≤ 3 으로 단순화. `frontend/public/favicon-16.svg` 로 배치.
+- [x] **32px vector** — `frontend/src/app/icon.svg` 가 master 의 축소판으로 작동. Next.js metadata 가 자동 노출.
+- [ ] **48px vector + multi-size `favicon.ico` 합성** — *Follow-up*. ImageMagick / `png-to-ico` 등 raster 도구 필요. 현 PR 에서는 옛 `favicon.ico` 삭제, modern 브라우저는 `icon.svg` 사용.
 
-### 1.3 PNG 자산
+### 1.3 PNG 자산 (Follow-up)
 
-- [ ] `frontend/src/app/apple-icon.png` — 180×180 PNG. light 모드 mark 를 배경 padding 16px 정도와 함께 배치. iOS 가 코너 라운드를 자동 적용하므로 SVG mark 의 `rx` 는 제거하거나 0 으로.
-- [ ] `frontend/src/app/opengraph-image.png` — 1200×630 PNG. Full logo (light) 중앙 배치 + 좌상단/우하단 노드 그래프 모티프 배경. soil-50 배경.
+PNG 변환은 raster 도구(sharp / ImageMagick / Inkscape) 가 필요하므로 별도 PR 로 분리한다. 현 PR 에서는 SVG 등가물을 임시 사용:
+
+- [ ] `frontend/src/app/apple-icon.png` (180×180) — 임시로 `frontend/public/apple-icon.svg` 사용 (modern iOS ≥ 12 가 SVG apple-touch-icon 지원). 폴백 PNG 는 follow-up.
+- [ ] `frontend/src/app/opengraph-image.png` (1200×630) — *현 PR 에서는 OG/Twitter `images` 메타데이터 비활성화*. SVG OG 카드는 X/Slack/Facebook 크롤러가 안정적으로 렌더하지 않아 소셜 미리보기가 깨질 위험. PNG 생성 후 `frontend/src/app/layout.tsx` 의 `openGraph.images` 와 `twitter.card`(`summary_large_image`로 복원) 를 재활성화.
 
 ---
 
@@ -59,23 +59,23 @@ SVG 작성 시 주의:
 
 `frontend/src/app/globals.css` 의 `:root` 와 `.dark` (또는 `[data-theme="dark"]`) 페어를 정리한다.
 
-- [ ] **현행 generic HSL `--primary` (`222.2 47.4% 11.2%`) 폐기** → §8.2.1 의 `vine-700` (`#1e7a42`) HSL 변환값으로 교체.
-- [ ] 라이트 모드 `:root` 매핑:
+- [x] **현행 generic HSL `--primary` (`222.2 47.4% 11.2%`) 폐기** → §8.2.1 의 `vine-700` (`#1e7a42`) HSL 변환값으로 교체.
+- [x] 라이트 모드 `:root` 매핑:
   - `--primary` ← `vine-700`
   - `--background` ← `soil-50`
   - `--card` ← `soil-100`
   - `--foreground` ← `ink`
   - `--muted-foreground` ← `ink-60` 또는 `ink-40`
   - `--border` ← `vine-border`
-- [ ] 다크 모드 페어:
+- [x] 다크 모드 페어:
   - `--primary` ← `vine-dark-accent`
   - `--background` ← `vine-dark-bg-base`
   - `--card` ← `vine-dark-bg-elevated`
   - `--foreground` ← `text-on-dark`
-  - 기타 §8.2.3 대응표 그대로
-- [ ] **HSL/RGB 표현 일관성** — Tailwind / Shadcn 컨벤션 (`hsl(var(--primary))`) 을 유지하려면 HEX → HSL 변환 후 공백 구분 표기 사용.
-- [ ] **주석으로 매핑 명시** — 각 CSS 변수 옆에 brand 토큰 이름 주석 (`/* vine-700 from spec/6-brand.md §8.2.1 */`).
-- [ ] **Tailwind theme 갱신** (있는 경우) — `tailwind.config` 의 `colors` 에 `vine-300 ~ vine-900` ramp 와 `vine-dark-*` 추가.
+  - 기타 §8.2.3 대응표 그대로 (단 `--destructive-foreground` 는 red 배경 가독성 보장을 위해 near-white 유지 — globals.css 인라인 주석 참고)
+- [x] **HSL/RGB 표현 일관성** — Tailwind / Shadcn 컨벤션 (`hsl(var(--primary))`) 을 유지하려면 HEX → HSL 변환 후 공백 구분 표기 사용.
+- [x] **주석으로 매핑 명시** — 각 CSS 변수 옆에 brand 토큰 이름 주석 (`/* vine-700 from spec/6-brand.md §8.2.1 */`).
+- [x] **Tailwind v4 `@theme` directive 갱신** — `--color-vine-300 ~ --color-vine-900` ramp + `--color-ink`, `--color-soil-50/100`, `--color-vine-border` 등록. **다크 토큰(`vine-dark-*`) 은 별도 Tailwind 키로 등록하지 않는다** — `:root` / `.dark` CSS 변수 페어(`--primary` 등) 가 자동 전환을 담당 (spec R-10, impl-prep INFO 10).
 
 검증:
 - [ ] 매핑 후 dev server 가동 → 사이드바·인증 화면이 신 컬러로 렌더되는지 확인.
@@ -86,13 +86,13 @@ SVG 작성 시 주의:
 
 새 컴포넌트 위치: `frontend/src/components/ui/logo.tsx` (Shadcn ui 그룹과 일관).
 
-- [ ] `<Logo />` — props:
+- [x] `<Logo />` — props:
   - `variant?: "full" | "mark" | "wordmark"` (default: `"full"`)
-  - `theme?: "light" | "dark" | "auto"` (default: `"auto"` — `prefers-color-scheme` 또는 next-themes provider 사용)
-  - `size?: number` (px, default: full=160 / mark=32 / wordmark=120)
-  - 내부적으로 `<Image src=... alt="Clemvion" />` 또는 직접 `<svg>` 임베드. Next.js `<Image>` 권장 (`unoptimized` 옵션 svg 에서 검토).
-- [ ] alt 속성: full/wordmark = `"Clemvion — Agentic Workflow"`, mark = `"Clemvion"`.
-- [ ] dark variant 자동 전환 시 client component (`"use client"`) 필요. server-side rendering 일관성 위해 className-based 다크모드 (Tailwind `dark:` variant) 활용.
+  - `theme?: "light" | "dark" | "auto"` (default: `"auto"` — Tailwind `dark:` variant 로 CSS 토글)
+  - `size?: number` (px) — **기본값 없음**. 미전달 시 underlying SVG 의 natural viewBox 크기로 렌더. caller 가 사용 자리에 맞게 결정 (sidebar=150, auth=200, README inline=280 등).
+  - 정적 SVG 파일을 `<img>` 로 임베드. brand SVG 는 ~1–2KB 의 작은 정적 자산이라 `next/image` 의 최적화 이점이 없고, SSR 일관성 위해 plain `<img>` 채택 (`@next/next/no-img-element` lint 는 파일 레벨 disable).
+- [x] alt 속성: full = `"Clemvion — Agentic Workflow"` (sub-copy 항상 동반), mark/wordmark = `"Clemvion"`.
+- [x] dark variant 자동 전환 — `theme="auto"` 시 두 자산 모두 렌더하고 Tailwind `dark:hidden` / `hidden dark:block` 으로 CSS 토글. server component 호환.
 
 ---
 
@@ -100,38 +100,26 @@ SVG 작성 시 주의:
 
 ### 4.1 사이드바 (`frontend/src/components/layout/sidebar.tsx`)
 
-- [ ] 사이드바 최상단에 로고 슬롯 추가. 현재는 워크스페이스 셀렉터부터 시작 — 그 위에 배치.
-- [ ] expanded (`!collapsed`) → `<Logo variant="full" theme="auto" />`
-- [ ] collapsed → `<Logo variant="mark" theme="auto" />`
-- [ ] 로고 wrapper 에 `<Link href="/dashboard">` 로 감싸 클릭 시 dashboard 이동 (§8.4.6, `_layout.md §2.1`).
+- [x] 사이드바 최상단에 로고 슬롯 추가. 옛 코드의 productName 텍스트 + "C" 단일 글자를 교체.
+- [x] expanded (`!collapsed`) → `<Logo variant="full" theme="auto" size={150} />`
+- [x] collapsed → `<LogoMark theme="auto" size={32} />`
+- [x] 로고 wrapper 에 `<Link href="/dashboard">` 로 감싸 클릭 시 dashboard 이동 (§8.4.6, `_layout.md §2.1`).
 
 ### 4.2 인증 화면 (`frontend/src/app/(auth)/layout.tsx` 또는 폼 컴포넌트)
 
-- [ ] `(auth)/layout.tsx` 의 카드 컨테이너 위에 `<Logo variant="full" theme="light" />` 중앙 배치.
-- [ ] 배경을 현재 그라데이션 → `soil-50` 단색으로 교체 (`bg-gradient-to-br ...` 제거, `bg-[hsl(var(--background))]` 또는 `bg-soil-50`).
-- [ ] 영향 받는 페이지: `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email`.
+- [x] `(auth)/layout.tsx` 의 카드 컨테이너 위에 `<Logo variant="full" theme="auto" size={200} />` 중앙 배치 (다크 모드도 자동 전환).
+- [x] 배경을 현재 그라데이션 → `bg-[hsl(var(--background))]` 단색으로 교체. soil-50 (라이트) / vine-dark-bg-base (다크) 자동 매핑.
+- [x] 영향 받는 페이지: `/login`, `/register`, `/forgot-password`, `/reset-password`, `/verify-email` (layout 1개에서 일괄 처리).
 
 ### 4.3 Next.js metadata (favicon, apple-icon, OG)
 
-- [ ] `frontend/src/app/layout.tsx` 의 `metadata` 객체에 `icons` 명시:
-  ```ts
-  icons: {
-    icon: [
-      { url: "/favicon.ico" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
-    apple: "/apple-icon.png",
-  },
-  openGraph: {
-    images: [{ url: "/opengraph-image.png", width: 1200, height: 630 }],
-  },
-  ```
-  (Next.js 자동 인식에만 의존하지 않고 명시 — 자산 변경 시 cache 무효화 명확화)
-- [ ] `metadata.title` / `description` 도 §8.5 의 어조와 일치하는지 확인.
+- [x] `frontend/src/app/layout.tsx` 의 `metadata.icons` 명시 — `favicon-16.svg` (16×16) + `icon.svg` (32×32) + `apple-icon.svg` (180×180). 자동 인식 의존 제거.
+- [x] `openGraph` / `twitter` — `images` 는 **현 PR 에서 비활성화** (SVG OG 카드 크롤러 호환성 이슈). `title` / `description` 만 유지. PNG 자산 생성 후 §1.3 follow-up 에서 `summary_large_image` 카드 + `opengraph-image.png` 복원.
+- [x] `metadata.title` / `description` §8.5 어조 검토 — 그대로 유지.
 
 ### 4.4 README.md
 
-- [ ] 프로젝트 루트 `README.md` 헤더에 full logo (light) svg 임베드 (`<img src="frontend/public/logo.svg" alt="Clemvion — Agentic Workflow">` 또는 마크다운 이미지 문법).
+- [x] 프로젝트 루트 `README.md` 헤더에 full logo svg 임베드 (`<img src="frontend/public/logo.svg" alt="Clemvion — Agentic Workflow" width="280">`). 옛 `prd/brand.md` 링크는 `spec/6-brand.md` 로 정정.
 
 ---
 
