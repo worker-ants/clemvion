@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-05-16T01:50:28.301526",
+  "files": [
+    {
+      "file_path": "frontend/src/components/editor/run-results/__tests__/presentation-renderers.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "plan/in-progress/template-preview-buttons-fix.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract"
+  ]
+}

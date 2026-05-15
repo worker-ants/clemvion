@@ -227,7 +227,7 @@ function CarouselContent({ data, config, selectedButtonId, onPortButtonClick, on
                     )}
                     onClick={() => {
                       if (isSelected) return;
-                      if (btn.type === "link" && btn.url) {
+                      if (btn.type === "link" && isHttpUrl(btn.url)) {
                         onLinkButtonClick?.(btn.url);
                       } else {
                         onPortButtonClick?.(btn.id);
@@ -330,6 +330,20 @@ function ChartContent({
   );
 }
 
+/**
+ * Renders the bordered preview fragment for a Template node (html / markdown
+ * / text). The "Preview (format)" header, Output Data section, and global
+ * button bar are owned by `PresentationContent` — keep this component pure so
+ * the shared flow stays consistent with Carousel/Table/Chart.
+ *
+ * Spec refs:
+ *  - presentation 0-common.md §1, §6.5 (Template supports ButtonDef and the
+ *    button bar renders below the content)
+ *  - presentation 5-template.md §1, §5.4 (`buttons` field, waiting payload)
+ *
+ * Returns `null` when `rendered` is missing so the parent's Output Data
+ * section surfaces the raw payload while the button bar still appears.
+ */
 function TemplateContent({
   data,
   config,
@@ -342,10 +356,6 @@ function TemplateContent({
   const outputFormat = config?.outputFormat as string | undefined;
   const content = data.rendered as string | undefined;
 
-  // When `rendered` is missing, return null so the shared Output Data section
-  // surfaces the raw payload — and the global button bar still renders
-  // underneath (presentation 0-common §6.5: Template button bar must appear
-  // even on partial content).
   if (!content) return null;
 
   if (outputFormat === "html") {
@@ -525,10 +535,15 @@ export function PresentationContent({
 
   // Template gets a format suffix in the Preview header so html/markdown/text
   // rendering mode is visible at a glance (parity with the pre-refactor UX).
+  // Legacy flat shape pre-dates the envelope migration — fall back to the
+  // top-level `outputFormat` so historic Template runs still surface the
+  // correct format.
+  const templateFormat =
+    (envelopeConfig?.outputFormat as string | undefined) ??
+    (rawInput?.outputFormat as string | undefined) ??
+    "text";
   const previewHeader =
-    result.nodeType === "template"
-      ? `Preview (${(envelopeConfig?.outputFormat as string) ?? "text"})`
-      : "Preview";
+    result.nodeType === "template" ? `Preview (${templateFormat})` : "Preview";
 
   return (
     <div className="space-y-3">
@@ -559,7 +574,7 @@ export function PresentationContent({
                   )}
                   onClick={() => {
                     if (isSelected) return;
-                    if (btn.type === "link" && btn.url) {
+                    if (btn.type === "link" && isHttpUrl(btn.url)) {
                       onLinkButtonClick?.(btn.url);
                     } else {
                       onPortButtonClick?.(btn.id);
