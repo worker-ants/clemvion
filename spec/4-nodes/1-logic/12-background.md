@@ -255,18 +255,18 @@ URL 은 중첩 구조 (`executions/:id/background-runs/:id`) 를 사용한다. `
 
 ### 8.5 실시간 갱신 — WebSocket 채널
 
-본문 실행 중 NodeExecution 상태 변화를 실시간 수신하려면 별도 WebSocket 채널을 구독한다.
+본문 서브그래프 진행을 실시간 수신하려면 별도 WebSocket 채널을 구독한다.
 
 | 채널 | 이벤트 | payload |
 |------|--------|---------|
-| `background:run:<backgroundRunId>` | `NODE_STARTED` | `{ nodeExecutionId, nodeId, startedAt }` |
-| 〃 | `NODE_COMPLETED` | `{ nodeExecutionId, nodeId, status, completedAt, durationMs }` |
-| 〃 | `BACKGROUND_RUN_COMPLETED` | `{ status, completedAt, durationMs }` |
-| 〃 | `BACKGROUND_RUN_FAILED` | `{ failedNodeId, errorCode, errorMessage }` |
+| `background:run:<backgroundRunId>` | `execution.background_run.started` | `{ backgroundRunId, executionId, parentNodeExecutionId, startedAt }` |
+| 〃 | `execution.background_run.completed` | `{ backgroundRunId, status: 'completed' \| 'failed' \| 'cancelled', completedAt, durationMs, failedNodeId?, errorMessage? }` |
 
-- 채널은 기존 `execution:<id>` 와 격리된다 — 메인 흐름 구독자에게 본문 이벤트가 전파되지 않으며, 반대도 동일 (격리 컨트랙트 §4 의 사용자 가시 표현).
+- 본문 안의 개별 NodeExecution 이벤트(`execution.node.started` 등) 는 **기존 `execution:<id>` 채널에 그대로 발행** 된다. 본문 노드의 `parentNodeExecutionId` 가 Background 노드의 `NodeExecution.id` 와 일치하므로 클라이언트가 그 키로 필터해 본문 카드 안의 타임라인을 갱신한다.
+- `background:run:<id>` 채널은 **run 수명주기 이벤트만** 발행한다 — 채널의 책임을 좁혀 메인 채널과의 데이터 중복을 막는다.
+- 채널은 기존 `execution:<id>` 와 격리된다 — 메인 흐름 구독자에게 run-level 이벤트가 전파되지 않으며, 반대도 동일 (격리 컨트랙트 §4 의 사용자 가시 표현).
 - 권한 검증: 구독 시 §8.4 와 동일 정책. `backgroundRunId` 에서 `executionId` 를 역조회해 워크스페이스 확인.
-- 본문 종료 후 채널은 자동 close.
+- 본문 종료 후 채널은 추가 이벤트를 발행하지 않는다 (재구독 시 서버는 마지막 상태 snapshot 을 emit 하지 않음 — REST GET 으로 조회).
 
 ### 8.6 AI Assistant 도구 노출
 

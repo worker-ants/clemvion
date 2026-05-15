@@ -64,6 +64,19 @@ export enum NodeEventType {
 }
 
 /**
+ * Background 본문 run-level 이벤트. 본문 안의 NodeExecution 변화는 기존
+ * `execution:<id>` 채널에 그대로 발행되며 (`parentNodeExecutionId` 로 필터),
+ * 본 채널은 **run 의 시작/종료** 같은 수명주기 이벤트만 받는다.
+ *
+ * 채널: `background:run:<backgroundRunId>` — execution:<id> 와 격리.
+ * spec/4-nodes/1-logic/12-background.md §8.5 참조.
+ */
+export enum BackgroundRunEventType {
+  BACKGROUND_RUN_STARTED = 'execution.background_run.started',
+  BACKGROUND_RUN_COMPLETED = 'execution.background_run.completed',
+}
+
+/**
  * WARN #10 (Security) — credential-like 키를 가진 필드를 WS 이벤트 페이로드에서
  * 마스킹. 핸들러가 echo 하지 말아야 할 자격증명 (password, apiKey, token, secret,
  * credentials.access_token 등) 이 노드 output / meta 에 실수로 포함된 경우에
@@ -165,6 +178,32 @@ export class WebsocketService {
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
         ? sanitizedPayload
         : { data: sanitizedPayload }) as Record<string, unknown>),
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * Background 본문 run 의 수명주기 이벤트를 `background:run:<id>` 채널에 발행.
+   * processor 가 본문 실행 시작 / 종료 시 호출 — execution:<id> 와 격리된
+   * 채널이라 메인 흐름 구독자에게 본문 이벤트가 전파되지 않는다.
+   *
+   * `backgroundRunId` 가 비어있으면 (옛 NodeExecution 의 본문 실행) emit 을
+   * skip — 채널 식별자가 없어 라우팅 불가.
+   */
+  emitBackgroundRunEvent(
+    backgroundRunId: string,
+    eventType: BackgroundRunEventType,
+    payload: Record<string, unknown>,
+  ): void {
+    if (!backgroundRunId) return;
+    const channel = `background:run:${backgroundRunId}`;
+    const sanitizedPayload = sanitizePayloadForWs(payload) as Record<
+      string,
+      unknown
+    >;
+    this.gateway.broadcastToChannel(channel, eventType, {
+      backgroundRunId,
+      ...sanitizedPayload,
       timestamp: new Date().toISOString(),
     });
   }

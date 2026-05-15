@@ -4,6 +4,7 @@ import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ExecutionsService } from '../executions/executions.service';
+import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 
 function createMockSocket(overrides: Record<string, unknown> = {}): {
@@ -64,6 +65,13 @@ describe('WebsocketGateway', () => {
           useValue: {
             // 기본 통과 — 거부 케이스는 별도 테스트에서 override
             verifyDocumentOwnership: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
+          provide: BackgroundRunsService,
+          useValue: {
+            // 기본 통과 — 거부 케이스는 별도 테스트에서 override
+            verifyBackgroundRunOwnership: jest.fn().mockResolvedValue(true),
           },
         },
       ],
