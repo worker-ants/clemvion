@@ -763,17 +763,19 @@ describe('IntegrationOAuthService', () => {
       expect(result.credentials.access_token).toBe('t');
     });
 
-    it('parses credentials when stored as a JSON string (normalized path)', async () => {
+    it('parses credentials when raw row is snake_case + plain JSON string (legacy path)', async () => {
+      // Raw SQL DELETE…RETURNING 의 실제 응답 shape (snake_case).
+      // normalizeRawPreviewRow 이 legacy 미암호화 string 도 JSON.parse 한다.
       dataSource.query.mockResolvedValue([
         [
           {
-            previewToken: 'tmp_x',
-            workspaceId: 'ws-1',
-            userId: 'u-1',
-            serviceType: 'google',
+            preview_token: 'tmp_x',
+            workspace_id: 'ws-1',
+            user_id: 'u-1',
+            service_type: 'google',
             credentials: JSON.stringify({ access_token: 't-str' }),
-            tokenExpiresAt: null,
-            expiresAt: new Date(Date.now() + 60_000),
+            token_expires_at: null,
+            expires_at: new Date(Date.now() + 60_000),
           },
         ],
         1,
@@ -782,17 +784,17 @@ describe('IntegrationOAuthService', () => {
       expect(result.credentials.access_token).toBe('t-str');
     });
 
-    it('rejects with BadRequest when credentials string is corrupt (not unhandled 500)', async () => {
+    it('rejects with BadRequest when raw credentials string is corrupt (not unhandled 500)', async () => {
       dataSource.query.mockResolvedValue([
         [
           {
-            previewToken: 'tmp_x',
-            workspaceId: 'ws-1',
-            userId: 'u-1',
-            serviceType: 'google',
+            preview_token: 'tmp_x',
+            workspace_id: 'ws-1',
+            user_id: 'u-1',
+            service_type: 'google',
             credentials: '{ not-valid-json',
-            tokenExpiresAt: null,
-            expiresAt: new Date(Date.now() + 60_000),
+            token_expires_at: null,
+            expires_at: new Date(Date.now() + 60_000),
           },
         ],
         1,
