@@ -227,7 +227,7 @@ function CarouselContent({ data, config, selectedButtonId, onPortButtonClick, on
                     )}
                     onClick={() => {
                       if (isSelected) return;
-                      if (btn.type === "link" && btn.url) {
+                      if (btn.type === "link" && isHttpUrl(btn.url)) {
                         onLinkButtonClick?.(btn.url);
                       } else {
                         onPortButtonClick?.(btn.id);
@@ -330,69 +330,59 @@ function ChartContent({
   );
 }
 
+/**
+ * Renders the bordered preview fragment for a Template node (html / markdown
+ * / text). The "Preview (format)" header, Output Data section, and global
+ * button bar are owned by `PresentationContent` — keep this component pure so
+ * the shared flow stays consistent with Carousel/Table/Chart.
+ *
+ * Spec refs:
+ *  - presentation 0-common.md §1, §6.5 (Template supports ButtonDef and the
+ *    button bar renders below the content)
+ *  - presentation 5-template.md §1, §5.4 (`buttons` field, waiting payload)
+ *
+ * Returns `null` when `rendered` is missing so the parent's Output Data
+ * section surfaces the raw payload while the button bar still appears.
+ */
 function TemplateContent({
   data,
   config,
-  previewOnly = false,
 }: {
   data: Record<string, unknown>;
   config?: Record<string, unknown>;
-  previewOnly?: boolean;
 }) {
   // Principle 1.1 직교: outputFormat 은 config 리터럴, rendered 는 expression resolver 평가 결과.
   // 옛 `data.format` / `data.content` 잔재는 폐기됨 (Principle 1.1.4, presentation 0-common §4).
   const outputFormat = config?.outputFormat as string | undefined;
   const content = data.rendered as string | undefined;
 
-  if (!content) return <JsonContent data={data} />;
-
-  let preview: React.ReactNode;
+  if (!content) return null;
 
   if (outputFormat === "html") {
-    preview = (
-      <div
-        className="prose prose-sm max-w-none overflow-auto text-xs"
-        dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
-      />
+    return (
+      <div className="rounded border border-[hsl(var(--border))] p-3">
+        <div
+          className="prose prose-sm max-w-none overflow-auto text-xs"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
+        />
+      </div>
     );
-  } else if (outputFormat === "markdown") {
-    // Convert basic markdown to HTML for preview
-    preview = (
-      <div
-        className="prose prose-sm max-w-none overflow-auto text-xs"
-        dangerouslySetInnerHTML={{ __html: sanitizeHtml(markdownToHtml(content)) }}
-      />
+  }
+  if (outputFormat === "markdown") {
+    return (
+      <div className="rounded border border-[hsl(var(--border))] p-3">
+        <div
+          className="prose prose-sm max-w-none overflow-auto text-xs"
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(markdownToHtml(content)) }}
+        />
+      </div>
     );
-  } else {
-    preview = (
+  }
+  return (
+    <div className="rounded border border-[hsl(var(--border))] p-3">
       <pre className="overflow-auto whitespace-pre-wrap break-words text-xs font-mono bg-[hsl(var(--muted))] rounded p-2">
         {content}
       </pre>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      {/* Rendered preview */}
-      <div>
-        {!previewOnly && (
-          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
-            Preview ({outputFormat ?? "text"})
-          </p>
-        )}
-        <div className="rounded border border-[hsl(var(--border))] p-3">
-          {preview}
-        </div>
-      </div>
-      {/* Debug data */}
-      {!previewOnly && (
-        <div>
-          <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
-            Output Data
-          </p>
-          <JsonContent data={data} />
-        </div>
-      )}
     </div>
   );
 }
@@ -489,11 +479,6 @@ export function PresentationContent({
       typeof interaction.buttonId === "string" ? interaction.buttonId : undefined;
   }
 
-  // Template already includes its own debug data section
-  if (result.nodeType === "template") {
-    return <TemplateContent data={data} config={envelopeConfig} previewOnly={previewOnly} />;
-  }
-
   let preview: React.ReactNode;
   switch (result.nodeType) {
     case "table":
@@ -515,6 +500,12 @@ export function PresentationContent({
       break;
     case "form":
       preview = <FormSubmittedContent data={data} />;
+      break;
+    case "template":
+      // Template joins the shared preview + button bar + Output Data flow so
+      // that ButtonDef (spec 4-nodes/6-presentation/0-common.md §1, §6.5 and
+      // 5-template.md §1, §5.4) renders below the rendered content.
+      preview = <TemplateContent data={data} config={envelopeConfig} />;
       break;
     default:
       return <JsonContent data={data} />;
@@ -542,13 +533,25 @@ export function PresentationContent({
     : allButtons;
   const isInteractive = !!(onPortButtonClick || onLinkButtonClick);
 
+  // Template gets a format suffix in the Preview header so html/markdown/text
+  // rendering mode is visible at a glance (parity with the pre-refactor UX).
+  // Legacy flat shape pre-dates the envelope migration — fall back to the
+  // top-level `outputFormat` so historic Template runs still surface the
+  // correct format.
+  const templateFormat =
+    (envelopeConfig?.outputFormat as string | undefined) ??
+    (rawInput?.outputFormat as string | undefined) ??
+    "text";
+  const previewHeader =
+    result.nodeType === "template" ? `Preview (${templateFormat})` : "Preview";
+
   return (
     <div className="space-y-3">
       {/* Preview */}
       <div>
         {!previewOnly && (
           <p className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">
-            Preview
+            {previewHeader}
           </p>
         )}
         {preview}
@@ -571,7 +574,7 @@ export function PresentationContent({
                   )}
                   onClick={() => {
                     if (isSelected) return;
-                    if (btn.type === "link" && btn.url) {
+                    if (btn.type === "link" && isHttpUrl(btn.url)) {
                       onLinkButtonClick?.(btn.url);
                     } else {
                       onPortButtonClick?.(btn.id);
