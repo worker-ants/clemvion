@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Clemvion — Agentic Workflow">
+  <title>Clemvion — Agentic Workflow</title>
+  <!-- OG image 1200×630. Spec §8.4.1. -->
+  <rect width="1200" height="630" fill="#f7f8f6"/>
+
+  <!-- Background node graph motif (decorative, low opacity) -->
+  <g opacity="0.06">
+    <line x1="120" y1="80" x2="120" y2="420" stroke="#2a7040" stroke-width="2"/>
+    <line x1="120" y1="140" x2="60" y2="200" stroke="#3a9a58" stroke-width="2"/>
+    <line x1="120" y1="220" x2="200" y2="180" stroke="#3a9a58" stroke-width="2"/>
+    <circle cx="120" cy="60" r="10" fill="#1a4f2c"/>
+    <circle cx="50" cy="210" r="9" fill="#2a8a48"/>
+    <circle cx="210" cy="170" r="9" fill="#2a8a48"/>
+
+    <line x1="1080" y1="220" x2="1080" y2="560" stroke="#2a7040" stroke-width="2"/>
+    <line x1="1080" y1="280" x2="1140" y2="340" stroke="#3a9a58" stroke-width="2"/>
+    <line x1="1080" y1="360" x2="1000" y2="320" stroke="#3a9a58" stroke-width="2"/>
+    <circle cx="1080" cy="200" r="10" fill="#1a4f2c"/>
+    <circle cx="1150" cy="350" r="9" fill="#2a8a48"/>
+    <circle cx="990" cy="310" r="9" fill="#2a8a48"/>
+  </g>
+
+  <!-- Centered full logo (mark + wordmark + sub-copy). Scaled ~5.5x from 260x80 master. -->
+  <g transform="translate(285 200) scale(2.4)">
+    <line x1="36" y1="16" x2="36" y2="64" stroke="#2a7040" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="36" y1="24" x2="20" y2="36" stroke="#3a9a58" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="36" y1="36" x2="56" y2="28" stroke="#3a9a58" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="36" y1="48" x2="18" y2="58" stroke="#5ab872" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="36" y1="56" x2="54" y2="62" stroke="#5ab872" stroke-width="1.2" stroke-linecap="round"/>
+    <circle cx="36" cy="14" r="4" fill="#1a4f2c"/>
+    <circle cx="18" cy="36" r="3.5" fill="#2a8a48"/>
+    <circle cx="58" cy="27" r="3.5" fill="#2a8a48"/>
+    <circle cx="16" cy="59" r="3" fill="#4ab868"/>
+    <circle cx="55" cy="63" r="3" fill="#4ab868"/>
+    <circle cx="36" cy="66" r="3.5" fill="#3a9a58"/>
+    <circle cx="36" cy="24" r="2.5" fill="#1a4f2c" opacity="0.6"/>
+    <circle cx="36" cy="36" r="2.5" fill="#1a4f2c" opacity="0.6"/>
+    <circle cx="36" cy="48" r="2.5" fill="#1a4f2c" opacity="0.6"/>
+    <text x="82" y="44" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="26" font-weight="200" fill="#0e1a12" letter-spacing="-0.5">clem<tspan font-weight="600" fill="#1e7a42">vi</tspan>on</text>
+    <text x="84" y="60" font-family="'Courier New', monospace" font-size="8" fill="#5ab872" letter-spacing="3">AGENTIC WORKFLOW</text>
+  </g>
+
+  <!-- Tagline at bottom -->
+  <text x="600" y="540" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="24" font-weight="300" fill="#0e1a12" letter-spacing="-0.2" opacity="0.7">AI가 엮고, 실행하고, 성장시키는 워크플로우 시스템</text>
+</svg>
