@@ -284,7 +284,7 @@ $loop.count = 10              $item.index = 1
 - 백그라운드 실패 시 `notifyOnError=true`이면 `notifyChannels`에 따라 알림 전송:
   - `in_app`: Notification 엔티티 생성 (`type: background_failed`, 실행 시작 사용자에게)
   - `email`: 실행 시작 사용자 이메일로 실패 알림 발송
-- Execution 상세 화면에서 Background 실행 결과를 별도 섹션으로 표시 (성공/실패 불문). 본문 실행 모니터링 API 는 `plan/in-progress/background-monitoring-api.md` 에서 별도 추적
+- Execution 상세 화면에서 Background 실행 결과를 별도 섹션으로 표시 (성공/실패 불문) — 노드 카드는 메인 카드와 동일하되 [Run Results Drawer §10.15](../3-workflow-editor/3-execution.md#1015-background-본문-실행-결과) 의 본문 실행 결과 섹션을 펼쳐 본문 NodeExecution 타임라인을 확인. 본문 실행 모니터링 API 는 [Background 모니터링 API](../4-nodes/1-logic/12-background.md#8-모니터링-api) 참조
 
 ---
 
