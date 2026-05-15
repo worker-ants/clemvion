@@ -33,6 +33,7 @@ import {
   FileSearch,
   Zap,
   Filter,
+  ShoppingBag,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
@@ -67,6 +68,7 @@ const ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
   FileSearch,
   Zap,
   Filter,
+  ShoppingBag,
 };
 
 interface NodeIconProps extends LucideProps {
