@@ -41,6 +41,17 @@
 
 7. **/loop 결합 시**: `/loop /ai-review` 로 호출되면 첫 사이클에서 `AI_REVIEW_LOOP=1` 환경변수를 prefix 로 추가해 `--prepare` 호출 (loop_mode=true 로 초기화). 이후 wake 사이클은 ScheduleWakeup prompt 안에 박힌 `--resume <session_dir>` 인자로 orchestrator 를 호출 — 새 session 을 만들지 않고 기존 session 의 `_retry_state.json` 을 그대로 재진입.
 
+8. **자동 후속 흐름** (SUMMARY → 이슈 해결 → e2e → 재리뷰): SUMMARY.md 의 Critical / Warning 이 1건 이상이면 main 이 다음을 자동 수행 (단계 8 의 자세한 절차는 SKILL.md 참고):
+   - 발견사항을 **spec 관련** / **코드 관련** 으로 분류.
+   - spec 관련 → `project-planner` 절차 (draft → `/consistency-check --spec` → `BLOCK: NO` 시 spec 반영). `BLOCK: YES` 면 자동 진행 중단.
+   - 코드 관련 → `developer` 절차 (수정 + 단위 테스트 + commit).
+   - 모두 처리 후 `make e2e-test` 자동 실행.
+   - e2e 통과 → `RESOLUTION.md` 작성 + 종료.
+   - e2e 실패 → 원인 분석 + 추가 fix (최대 3회). 그 뒤에도 실패하거나 사전 결함이면 자동 진행 중단 + 사용자 보고.
+   - INFO 등급은 RESOLUTION 에 추적 항목으로만 기록.
+
+   안전 가드 — 자동 진행 중단 사유: consistency-check `BLOCK: YES`, e2e 누적 3회 실패, 직전 수정과 무관한 사전 결함, 의미 변경 큰 자동 수정 (DB 마이그레이션·외부 API 계약 등), SUMMARY 본문이 "사용자 결정 필요" 명시한 항목.
+
 ## 사용 예시
 
 ### Git diff 기준 (기본)

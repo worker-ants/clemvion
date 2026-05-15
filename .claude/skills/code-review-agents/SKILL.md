@@ -121,6 +121,79 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 - **wake 사이클**: ScheduleWakeup prompt 가 `/loop /ai-review --resume <session_dir>` 형태로 발화된다. main 은 step 1 의 prepare 명령 대신 `--resume <session_dir>` 명령으로 orchestrator 호출 → 그 session_dir 만 echo. step 2 (`_retry_state.json` Read) 부터 진입.
 - **자연 종료**: pending 이 비면 summary 호출 후 ScheduleWakeup 미호출 → /loop 자동 종료.
 
+### 8. 자동 후속 흐름 (SUMMARY → 이슈 해결 → e2e → 재리뷰)
+
+리뷰가 끝나고 SUMMARY.md 가 작성되면 main 이 **자동으로** 이슈 해결까지 진행한다 (사용자 결정: 완전 자동). 단 무한 루프와 잘못된 자동 수정을 막기 위한 가드는 적용한다.
+
+`SUMMARY.md` 의 발견사항이 모두 `NONE / INFO` 만이면 본 단계는 skip (RESOLUTION 만 작성 후 종료). Critical / WARNING 이 1건 이상이면 진입:
+
+#### 8.1 분류
+
+각 발견사항을 다음 두 부류로 분류:
+
+- **spec 관련**: 요구사항 ID / API 계약 / Rationale / convention 위반 / spec 문서 자체의 누락. `project-planner` skill 의 책임 영역.
+- **코드 관련**: 구현 버그 / 테스트 누락 / 리팩토링 / 의존성 / 성능 / 보안 / DB / 동시성. `developer` skill 의 책임 영역.
+
+main 은 별도 sub-agent 위임 없이 **자기 turn 안에서** 두 skill 의 절차를 직접 수행한다. (sub-agent 격리는 분석 단계에 한정; 수정·테스트는 cwd 의 작업 worktree 안에서 main 이 직접 손대야 한다.)
+
+#### 8.2 spec 관련 항목 처리 — `project-planner` 절차
+
+1. 변경안을 `plan/in-progress/spec-draft-<name>.md` 에 draft 로 작성.
+2. `/consistency-check --spec plan/in-progress/spec-draft-<name>.md` 자동 호출.
+3. SUMMARY.md 의 `BLOCK: NO` 일 때만 `spec/` 본문에 반영. `BLOCK: YES` 면 자동 진행을 멈추고 사용자에게 보고 (안전 가드 — spec 의 의미 변경은 사용자 결정 영역).
+4. spec 변경 commit (`docs(spec): <SUMMARY 항목>`).
+
+#### 8.3 코드 관련 항목 처리 — `developer` 절차
+
+1. 변경 대상 파일·테스트 식별.
+2. 코드 수정 + 필요한 단위 테스트 추가.
+3. **type check + 단위 테스트** 실행 (작업 영역에 맞춰 `npm test`, `npm run typecheck`, `make ...`).
+4. 수정 commit (`fix(<area>): <SUMMARY 항목>` 또는 `refactor(<area>): ...`).
+
+#### 8.4 e2e 자동 실행
+
+모든 Critical / Warning 항목 처리 후:
+
+```bash
+make e2e-test
+```
+
+(CLAUDE.md 의 "개발 방법론" 절 — `docker-compose.e2e.yml` 기반 격리 인프라 사용)
+
+e2e 통과 → 단계 8.6 진행.
+e2e 실패 → 단계 8.5.
+
+#### 8.5 e2e 실패 시 재시도 (최대 3회)
+
+1. 실패 로그 (test output / docker logs) 를 분석해 원인 파악.
+2. 원인이 직전 수정과 명확히 연결되면 추가 fix commit 후 e2e 재실행.
+3. 원인이 모호하거나 직전 수정과 무관한 사전 결함이면 **자동 진행 중단** — 사용자에게 보고.
+4. 누적 3회 실패하면 자동 진행 중단 후 사용자에게 보고.
+
+이 단계의 이터레이션 카운트는 `_retry_state.json` 의 `auto_fix_iterations` 필드에 누적 (orchestrator 가 만든 필드는 아니지만 main 이 동적 추가).
+
+#### 8.6 RESOLUTION.md 작성
+
+성공 종료 시 `review/code/<...>/RESOLUTION.md` 에 다음을 기록:
+
+- 해결한 Critical / Warning 항목 (SUMMARY 의 #번호 와 매핑)
+- 각 항목의 fix commit hash + 영향 파일
+- e2e 결과 (통과·반복 횟수)
+- INFO 등급 중 별도 plan 으로 옮긴 항목 (필요 시 `plan/in-progress/` 추가)
+- 보류 항목 (사용자 결정 필요)
+
+#### 8.7 안전 가드 요약
+
+자동 진행을 중단하고 사용자에게 보고하는 경우:
+
+- consistency-check `--spec` 의 `BLOCK: YES` (8.2.3) — spec 의 의미 변경 결정.
+- e2e 누적 3회 실패 (8.5).
+- 직전 수정과 무관한 사전 결함 (8.5).
+- 자동 수정이 production 코드의 동작을 의도 이상으로 바꿀 위험이 큰 변경 (예: 데이터베이스 마이그레이션, 외부 API 계약 변경) — main 의 판단으로 보수적 차단.
+- ai-review 가 SUMMARY 본문에서 명시적으로 "사용자 결정 필요" 표기한 항목.
+
+자동 진행이 중단되면 main 은 SUMMARY 와 진행 상황을 사용자에게 1-2 문단으로 보고하고, 미해결 항목을 RESOLUTION.md 에 보류 상태로 기록.
+
 ## 13개 reviewer sub-agent
 
 | sub-agent type | 핵심 관점 |

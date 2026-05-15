@@ -190,6 +190,36 @@ main session 에서 Agent tool 로 sub-agent 를 invoke 하려면 sub-agent defi
 - [x] 21. follow-up 커밋 + push (commit 241e0ebb).
 - [x] 22. summary self-discovery follow-up 커밋 + push (commit 04302603).
 
+## Follow-up — 사용자 테스트 피드백 (commit 5+6)
+
+사용자가 실제 `/ai-review` 호출 시 두 가지 이슈 보고:
+1. 이중 경로 — `review/2026-05-15_15-29-14` (옛 flat) 와 `review/code/2026/05/15/15_30_00` (새 nested) 가 동시에 생성됨.
+2. 자동 후속 흐름 누락 — 옛 동작 (리뷰 → planner/developer 위임 → 이슈 해결 → e2e) 이 빠짐.
+
+### 이슈 1 — commit 16a80728 (`fix(settings): plugins 등록 제거`)
+
+원인: `.claude/settings.json` 의 `plugins: [".claude/skills/code-review-agents"]` 가 plugin 시스템을 통해 plugin path 의 `hooks.json` 을 PostToolUse 로 자동 등록. 옛 hooks.json (Write/Edit 트리거) 이 옛 orchestrator 를 fork → `session.create_session_dir` 만 옛 flat 형식으로 만들고 본문은 `claude -p` 부재로 실패.
+
+해결: `plugins` 배열 제거. slash command 가 진입점이 된 후로 plugin 자동 등록은 필요 없음. 머지 후 main 의 hooks.json 도 함께 사라지면 옛 path 생성 메커니즘 완전 소멸.
+
+### 이슈 2 — 자동 후속 흐름 (commit 6 in progress)
+
+SKILL.md 에 "단계 8. 자동 후속 흐름" 신설:
+
+- 8.1 분류: spec 관련 / 코드 관련.
+- 8.2 spec 관련: `project-planner` 절차 (draft → `/consistency-check --spec` → `BLOCK: NO` 시 spec 반영).
+- 8.3 코드 관련: `developer` 절차 (수정 + 단위 테스트 + commit).
+- 8.4 모두 처리 후 `make e2e-test` 자동 실행.
+- 8.5 실패 시 원인 분석 + 추가 fix (최대 3회).
+- 8.6 통과 시 `RESOLUTION.md` 작성.
+- 8.7 안전 가드: consistency-check `BLOCK: YES`, e2e 누적 3회 실패, 직전 수정과 무관한 사전 결함, DB 마이그레이션·외부 API 계약 변경, SUMMARY "사용자 결정 필요" 표기 → 자동 중단 + 사용자 보고.
+
+동반 갱신: commands/ai-review.md 의 단계 8 추가, README.md 의 아키텍처 그림에 자동 후속 흐름 추가.
+
+- [x] 23. settings.json plugins 제거 commit (16a80728).
+- [x] 24. SKILL.md / commands / README 의 자동 후속 흐름 작성.
+- [ ] 25. 자동 후속 흐름 commit + push.
+
 ## Follow-up — 지침 통합 보강 (commit 4)
 
 전체 skill·agent 지침 검토 결과 발견된 약점 일괄 보강. 사용자 확인 사항: C3 (role-specific prompt 재작성) 적용, E1·E2 (가독성) 적용, C3 의 단일 공유 제안은 거부 (역할 격리 강화 의도).
