@@ -13,7 +13,7 @@
 ### **[WARNING]** `execution-engine.md §5.5` ExpressionContext 구성 표에 `$thread` 미반영
 
 - **위치**: `spec/5-system/4-execution-engine.md` (파일 43)
-- **상세**: 변경 diff는 §6.1 컨텍스트 필드 표에만 `$thread` 행을 추가한다. consistency-check 세션 2회(`2026-05-14_17-02-11/cross_spec/review.md`, 파일 21)에서 명시적으로 지적한 **"§5.5 ExpressionContext 구성 표 — `$thread` 누락"** WARNING은 해소되지 않았다. §5.5는 표현식 컨텍스트 변수의 단일 진실(source of truth) 테이블로, 여기서 빠지면 두 표가 불일치 상태가 된다.
+- **상세**: 변경 diff는 §6.1 컨텍스트 필드 표에만 `$thread` 행을 추가한다. consistency-check 세션 2회(`2026/05/14/17_02_11/cross_spec/review.md`, 파일 21)에서 명시적으로 지적한 **"§5.5 ExpressionContext 구성 표 — `$thread` 누락"** WARNING은 해소되지 않았다. §5.5는 표현식 컨텍스트 변수의 단일 진실(source of truth) 테이블로, 여기서 빠지면 두 표가 불일치 상태가 된다.
 - **제안**: `execution-engine.md §5.5` ExpressionContext 구성 표에 `| $thread | context.conversationThread | ConversationThread readonly view — 상세: [Spec Conversation Thread](../conventions/conversation-thread.md) |` 행 추가.
 
 ---
@@ -21,7 +21,7 @@
 ### **[WARNING]** presentation 노드 spec에 `excludeFromConversationThread` 필드 미반영
 
 - **위치**: `spec/4-nodes/6-presentation/` 하위 노드 spec 파일들 (이번 변경 범위 밖)
-- **상세**: `spec/conventions/conversation-thread.md §2.4`는 "각 노드에 공통 boolean config: `excludeFromConversationThread`"를 정의하고, `spec/4-nodes/3-ai/0-common.md §10`도 이 필드를 AI 공통 규약에 포함한다. 그러나 presentation 노드 spec(`form`, `carousel`, `table`, `chart`, `template`)에는 이 필드가 추가됐는지 이번 diff에서 확인되지 않는다. consistency-check `2026-05-14_17-19-21/cross_spec/review.md`(파일 28)도 이를 INFO로 지적했다.
+- **상세**: `spec/conventions/conversation-thread.md §2.4`는 "각 노드에 공통 boolean config: `excludeFromConversationThread`"를 정의하고, `spec/4-nodes/3-ai/0-common.md §10`도 이 필드를 AI 공통 규약에 포함한다. 그러나 presentation 노드 spec(`form`, `carousel`, `table`, `chart`, `template`)에는 이 필드가 추가됐는지 이번 diff에서 확인되지 않는다. consistency-check `2026/05/14/17_19_21/cross_spec/review.md`(파일 28)도 이를 INFO로 지적했다.
 - **제안**: 구현 착수 전 `spec/4-nodes/6-presentation/` 하위 각 노드 spec의 config 필드 목록에 `excludeFromConversationThread: Boolean (default false)` 추가 확인 후 누락 시 보완.
 
 ---
@@ -37,7 +37,7 @@
 ### **[INFO]** `ai_user` push 순서 — spec 수정 여부 미확인
 
 - **위치**: `spec/4-nodes/3-ai/1-ai-agent.md §6.1` (파일 42, diff 크기 초과로 내용 미제공)
-- **상세**: consistency-check `2026-05-14_19-16-43/SUMMARY.md`(파일 33) W5는 "step 2.5(LLM 호출 이후)에 `ai_user` push가 배치되면서 설명은 'LLM 호출 전'으로 기술해 모순"을 WARNING으로 식별했다. `1-ai-agent.md` diff가 제공되지 않아 이 모순이 해소됐는지 확인 불가.
+- **상세**: consistency-check `2026/05/14/19_16_43/SUMMARY.md`(파일 33) W5는 "step 2.5(LLM 호출 이후)에 `ai_user` push가 배치되면서 설명은 'LLM 호출 전'으로 기술해 모순"을 WARNING으로 식별했다. `1-ai-agent.md` diff가 제공되지 않아 이 모순이 해소됐는지 확인 불가.
 - **제안**: `ai_agent.md §6.1`의 step 2.5 내용을 확인해 `ai_user` push가 LLM 호출(step 2) **이전**, `ai_assistant` push가 LLM 응답 수신 **이후**로 분리 기술됐는지 검증.
 
 ---
