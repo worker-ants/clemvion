@@ -45,12 +45,12 @@
    - 발견사항을 **spec 관련** / **코드 관련** 으로 분류.
    - spec 관련 → `project-planner` 절차 (draft → `/consistency-check --spec` → `BLOCK: NO` 시 spec 반영). `BLOCK: YES` 면 자동 진행 중단.
    - 코드 관련 → `developer` 절차 (수정 + 단위 테스트 + commit).
-   - 모두 처리 후 `make e2e-test` 자동 실행.
+   - 모두 처리 후 **로컬 e2e 의무 실행** — backend 만 변경이면 `make e2e-test`, frontend 가 함께면 `make e2e-test-full`. **skip 절대 금지** — `[skip-e2e]` 표기 사용 금지, CI/GitHub Action 으로 미루지 말 것, 단위·통합 테스트로 대체 금지, "변경 영역이 작아서" 판단 금지.
    - e2e 통과 → `RESOLUTION.md` 작성 + 종료.
    - e2e 실패 → 원인 분석 + 추가 fix (최대 3회). 그 뒤에도 실패하거나 사전 결함이면 자동 진행 중단 + 사용자 보고.
    - INFO 등급은 RESOLUTION 에 추적 항목으로만 기록.
 
-   안전 가드 — 자동 진행 중단 사유: consistency-check `BLOCK: YES`, e2e 누적 3회 실패, 직전 수정과 무관한 사전 결함, 의미 변경 큰 자동 수정 (DB 마이그레이션·외부 API 계약 등), SUMMARY 본문이 "사용자 결정 필요" 명시한 항목.
+   안전 가드 — 자동 진행 중단 사유: consistency-check `BLOCK: YES`, e2e 누적 3회 실패, 직전 수정과 무관한 사전 결함, **docker 인프라 실행 불가** (Docker daemon 미동작 등 — e2e 자체 skip 은 금지이므로 이 경우만 환경 복구 요청), 의미 변경 큰 자동 수정 (DB 마이그레이션·외부 API 계약 등), SUMMARY 본문이 "사용자 결정 필요" 명시한 항목.
 
 ## 사용 예시
 
