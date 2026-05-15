@@ -14,6 +14,21 @@ export interface BackgroundExecutionJob {
   executionId: string;
   /** Background 노드 자체의 NodeExecution id. 자식 NodeExecution의 parent로 사용. */
   parentNodeExecutionId: string;
+  /**
+   * Background 핸들러가 발급한 UUID v4. 모니터링 API 의 조회 키이자
+   * WebSocket `background:run:<id>` 채널의 식별자.
+   *
+   * `scheduleBackgroundBody()` 에서 parent NodeExecution 의
+   * `outputData.meta.backgroundRunId` 를 읽어 채운다. 다음 두 경우 부재
+   * (`undefined`) 가능:
+   *   - 옛 NodeExecution 의 본문 실행 (handler 가 키 발급 전 row).
+   *   - 인-플라이트 큐 메시지 — 배포 순간 Redis 에 적재된 구 버전 메시지
+   *     (`backgroundRunId` 필드 없음) 를 새 processor 가 역직렬화.
+   *
+   * 부재 시 processor 는 WS 이벤트 emit 을 건너뛰고 notification 도
+   * `resourceType='execution'` 으로 fallback 한다 — 기능 회귀 없음.
+   */
+  backgroundRunId?: string;
   workspaceId: string;
   workflowId: string;
   /** Background 컨테이너 안쪽 자식 노드의 진입점(들) */

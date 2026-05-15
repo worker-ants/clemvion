@@ -26,8 +26,17 @@ export class NotificationDto {
   @ApiProperty()
   message: string;
 
-  /** 관련 리소스 타입 */
-  @ApiPropertyOptional({ nullable: true, example: 'execution' })
+  /**
+   * 관련 리소스 타입. 알림 유형에 따라 `execution` (일반 실행 관련),
+   * `background_run` (Background 본문 실패 — Background 모니터링 API §8 참조)
+   * 등이 들어간다. 클라이언트는 unknown 값을 dead link 로 처리해야 한다.
+   */
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 'execution',
+    description:
+      '연관 리소스 종류 — 현재 발행되는 값: `execution`, `background_run`',
+  })
   resourceType?: string | null;
 
   /** 관련 리소스 UUID */

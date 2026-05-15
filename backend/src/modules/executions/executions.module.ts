@@ -5,7 +5,10 @@ import { NodeExecution } from '../node-executions/entities/node-execution.entity
 import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-log.entity';
 import { ExecutionsController } from './executions.controller';
 import { ExecutionsService } from './executions.service';
+import { BackgroundRunsController } from './background-runs/background-runs.controller';
+import { BackgroundRunsService } from './background-runs/background-runs.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -16,9 +19,16 @@ import { ExecutionEngineModule } from '../execution-engine/execution-engine.modu
     //  주므로 이중 등록은 단순 token 공유 — 데이터 정합성 영향 없음).
     TypeOrmModule.forFeature([Execution, NodeExecution, ExecutionNodeLog]),
     ExecutionEngineModule,
+    // BackgroundRunsService 가 NotificationsService.findByResource() 에
+    // 위임 — Notification Repository 를 본 모듈에서 직접 forFeature 등록
+    // 하지 않는다 (단일 ownership 유지).
+    NotificationsModule,
   ],
-  controllers: [ExecutionsController],
-  providers: [ExecutionsService],
-  exports: [ExecutionsService],
+  controllers: [ExecutionsController, BackgroundRunsController],
+  providers: [ExecutionsService, BackgroundRunsService],
+  // BackgroundRunsService 는 WebsocketGateway 가 채널 subscribe 가드
+  // (`verifyBackgroundRunOwnership`) 호출 때문에 export 한다. 다른 사용처
+  // 가 없으면 본 export 를 줄이고 NestJS Guard 로 분리할 수 있다 (follow-up).
+  exports: [ExecutionsService, BackgroundRunsService],
 })
 export class ExecutionsModule {}

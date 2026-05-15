@@ -51,6 +51,7 @@ import {
   coerceContainerNumberOptional,
   coerceErrorPolicy,
 } from './utils/coerce-container-param';
+import { extractBackgroundRunId } from './utils/extract-background-run-id';
 import {
   ExecutionContext,
   isResumableNodeHandler,
@@ -3692,9 +3693,22 @@ export class ExecutionEngineService
     });
     const parentNodeExecutionId = parentNodeExecution?.id ?? '';
 
+    // 핸들러가 발급한 backgroundRunId (모니터링 API 의 조회 키) 를 outputData
+    // JSONB 에서 꺼내 job 으로 전달. 옛 NodeExecution / 비정상 메타 형태에
+    // 대비한 추출 로직은 `extractBackgroundRunId` 가 단일 sink 로 책임진다
+    // (W-18 회귀 잠금 — utils/extract-background-run-id.spec.ts).
+    const backgroundRunId = extractBackgroundRunId(
+      parentNodeExecution?.outputData,
+    );
+
+    // workspaceId 는 `context.variables.__workspaceId` 에 저장된다 (line 1210
+     // 의 initialVariables). 옛 코드가 `context.expressionContext.workspaceId`
+     // 를 읽었지만 이 경로에는 아무도 쓰지 않아 항상 빈 문자열이 되었고,
+     // 결과적으로 dispatchFailureNotification 의 `if (!data.workspaceId) return;`
+     // 가드가 알림을 건너뛰었다 (Background body 모니터링 e2e 가 회귀로 발견).
     const workspaceId =
-      typeof context.expressionContext?.workspaceId === 'string'
-        ? context.expressionContext.workspaceId
+      typeof context.variables?.['__workspaceId'] === 'string'
+        ? (context.variables['__workspaceId'] as string)
         : '';
 
     // Snapshot relevant context. Shallow-clone is enough — the body
@@ -3703,6 +3717,7 @@ export class ExecutionEngineService
     const job: BackgroundExecutionJob = {
       executionId,
       parentNodeExecutionId,
+      backgroundRunId,
       workspaceId,
       workflowId: context.workflowId,
       bodyEntryNodeIds,
