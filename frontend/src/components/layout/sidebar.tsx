@@ -276,15 +276,17 @@ export function Sidebar() {
         )}
       >
         {/* Logo — spec/6-brand.md §8.4.6 + spec/2-navigation/_layout.md §2.1.
-            expanded → Full logo (auto light/dark); collapsed → Icon mark. */}
+            The brand SVG uses Vine-green accents that wash out on a light
+            surface, so the dark variant is rendered on a vine-dark-bg-elevated
+            (#111e14) container in both themes. Matches the apple-icon visual. */}
         <div className="flex h-14 items-center border-b border-[hsl(var(--border))] px-4">
           {!collapsed && (
             <Link
               href="/dashboard"
               aria-label={t("sidebar.productName")}
-              className="flex items-center"
+              className="flex items-center rounded-xl bg-[#111e14] px-3 py-1.5"
             >
-              <Logo variant="full" theme="auto" size={150} />
+              <Logo variant="full" theme="dark" size={140} />
             </Link>
           )}
           {collapsed && (
@@ -293,7 +295,7 @@ export function Sidebar() {
               aria-label={t("sidebar.productName")}
               className="mx-auto flex items-center"
             >
-              <LogoMark theme="auto" size={32} />
+              <LogoMark theme="dark" size={32} />
             </Link>
           )}
           {isSmall && mobileOpen && (
