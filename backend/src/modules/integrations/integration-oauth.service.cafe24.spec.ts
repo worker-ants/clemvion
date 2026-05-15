@@ -861,6 +861,87 @@ describe('IntegrationOAuthService — Cafe24', () => {
      *      code + redirect_uri 만)
      * 둘 다 검증한다.
      */
+    /**
+     * 회귀 보호 (2026-05-15 — 2차) — Cafe24 는 `scopes` 필드를 **배열로**
+     * 반환한다 (OAuth 표준의 `scope` 문자열이 아님). 옛 코드는 array 파싱이
+     * 없어 항상 requestedScopes 로 fallback → 사용자에게 "권한 부여 완료" 로
+     * 표시되지만 실제 token 은 더 적은 scope 만 보유 → API 호출 시 403.
+     */
+    it('cafe24 token exchange stores Cafe24-returned scopes ARRAY (not requested scopes fallback)', async () => {
+      delete process.env.OAUTH_STUB_MODE;
+      const originalFetch = global.fetch;
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: 'tok-cafe24',
+          refresh_token: 'refresh-cafe24',
+          expires_in: 7200,
+          // Cafe24 returns scopes as ARRAY — and possibly narrower than
+          // what we requested (app-level permission setting).
+          scopes: ['mall.read_product'],
+        }),
+        text: async () => '',
+      });
+      (global as { fetch: jest.Mock }).fetch = fetchMock;
+
+      integrationRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'int-cafe24-scopes',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+          scopes: ['mall.read_product', 'mall.write_product'],
+        },
+        installToken: 'token',
+      });
+
+      const stateRecord = {
+        id: 'state-scopes-array',
+        state: 'state-scopes-array',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        provider: 'cafe24',
+        serviceType: 'cafe24',
+        mode: 'reauthorize',
+        integrationId: 'int-cafe24-scopes',
+        // We REQUESTED two scopes, but Cafe24 only grants one.
+        requestedScopes: ['mall.read_product', 'mall.write_product'],
+        integrationName: 'priv-shop (Cafe24 Private)',
+        scope: 'personal',
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+        },
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      };
+      dataSource.query.mockResolvedValueOnce([[stateRecord], 1]);
+
+      try {
+        await service.handleCallback('cafe24', {
+          code: 'authz-code',
+          state: 'state-scopes-array',
+        });
+
+        const savedIntegration = integrationRepo.save.mock
+          .calls[0][0] as Record<string, unknown>;
+        const creds = savedIntegration.credentials as Record<string, unknown>;
+        // Stored scopes must be what Cafe24 ACTUALLY granted (1), not what
+        // we requested (2). Without this, the UI silently shows the wrong
+        // permissions to the user.
+        expect(creds.scopes).toEqual(['mall.read_product']);
+      } finally {
+        global.fetch = originalFetch;
+        process.env.OAUTH_STUB_MODE = 'true';
+      }
+    });
+
     it('cafe24 token exchange uses Basic auth ONLY (no client_id/secret in body)', async () => {
       delete process.env.OAUTH_STUB_MODE;
       const originalFetch = global.fetch;
@@ -925,13 +1006,10 @@ describe('IntegrationOAuthService — Cafe24', () => {
           string,
           { headers: Record<string, string>; body: string },
         ];
-        expect(url).toBe(
-          'https://priv-shop.cafe24api.com/api/v2/oauth/token',
-        );
+        expect(url).toBe('https://priv-shop.cafe24api.com/api/v2/oauth/token');
         // Authorization header present with Basic auth.
         expect(init.headers.Authorization).toBe(
-          'Basic ' +
-            Buffer.from('priv-cid:priv-secret').toString('base64'),
+          'Basic ' + Buffer.from('priv-cid:priv-secret').toString('base64'),
         );
         // Body must NOT contain client_id / client_secret — Cafe24 rejects
         // duplicated credentials.

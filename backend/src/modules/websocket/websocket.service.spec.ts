@@ -1,7 +1,4 @@
-import {
-  BackgroundRunEventType,
-  WebsocketService,
-} from './websocket.service';
+import { BackgroundRunEventType, WebsocketService } from './websocket.service';
 
 describe('WebsocketService', () => {
   let service: WebsocketService;
