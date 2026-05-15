@@ -598,11 +598,13 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(authorizeUrl).not.toContain('client_secret');
       expect(authorizeUrl).not.toContain(clientSecret);
 
-      // Single-row lookup, not the old in-memory scan.
+      // Single-row lookup, not the old in-memory scan. Status is NOT in
+      // the where clause — `install_token` 의 V045 partial UNIQUE 가
+      // 결과를 단일 row 로 강제하고, status 분기는 lookup 후 처리한다
+      // (post-install navigation 흐름 추가 — 2026-05-15).
       expect(integrationRepo.findOne).toHaveBeenCalledWith({
         where: {
           installToken: INSTALL_TOKEN,
-          status: 'pending_install',
           serviceType: 'cafe24',
         },
       });
@@ -615,6 +617,92 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(savedState.mode).toBe('reauthorize');
       expect(savedState.integrationId).toBe('integration-1');
       expect(savedState.provider).toBe('cafe24');
+    });
+
+    /**
+     * 회귀 보호 (2026-05-15 — post-install navigation) — Cafe24 의
+     * "앱으로 가기" 버튼이 같은 App URL 을 재호출. status='connected'
+     * 인 통합에 대해서는 OAuth authorize 가 아닌 우리 frontend 의 통합
+     * 상세 페이지로 302 한다.
+     */
+    it('redirects to frontend integrations page when row status is connected (post-install navigation)', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makePendingRow({ status: 'connected', installToken: INSTALL_TOKEN }),
+      );
+      const originalFrontend = process.env.FRONTEND_URL;
+      process.env.FRONTEND_URL = 'https://app.example.com';
+
+      try {
+        const validTs = Math.floor(Date.now() / 1000);
+        const rawQuery = buildRawQuery(validTs);
+        const params = new URLSearchParams(rawQuery);
+
+        const url = await service.handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        });
+
+        expect(url).toBe('https://app.example.com/integrations/integration-1');
+        // Must NOT generate an OAuthState — no OAuth re-auth on post-install nav.
+        expect(stateRepo.save).not.toHaveBeenCalled();
+      } finally {
+        if (originalFrontend === undefined) delete process.env.FRONTEND_URL;
+        else process.env.FRONTEND_URL = originalFrontend;
+      }
+    });
+
+    it.each(['error', 'expired'] as const)(
+      'redirects to frontend for status=%s (post-install nav also works for non-connected non-pending rows)',
+      async (status) => {
+        integrationRepo.findOne.mockResolvedValue(
+          makePendingRow({ status, installToken: INSTALL_TOKEN }),
+        );
+        const originalFrontend = process.env.FRONTEND_URL;
+        process.env.FRONTEND_URL = 'https://app.example.com';
+
+        try {
+          const validTs = Math.floor(Date.now() / 1000);
+          const rawQuery = buildRawQuery(validTs);
+          const params = new URLSearchParams(rawQuery);
+
+          const url = await service.handleInstall(INSTALL_TOKEN, {
+            mall_id: 'priv-shop',
+            timestamp: String(validTs),
+            hmac: params.get('hmac')!,
+            rawQuery,
+          });
+
+          expect(url).toBe(
+            'https://app.example.com/integrations/integration-1',
+          );
+          expect(stateRepo.save).not.toHaveBeenCalled();
+        } finally {
+          if (originalFrontend === undefined) delete process.env.FRONTEND_URL;
+          else process.env.FRONTEND_URL = originalFrontend;
+        }
+      },
+    );
+
+    it('still rejects bad HMAC on connected row (no bypass on post-install nav)', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makePendingRow({ status: 'connected', installToken: INSTALL_TOKEN }),
+      );
+
+      const validTs = Math.floor(Date.now() / 1000);
+      // Use the WRONG secret to force HMAC mismatch.
+      const rawQuery = buildRawQuery(validTs, 'attacker-controlled-secret');
+      const params = new URLSearchParams(rawQuery);
+
+      await expect(
+        service.handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -767,14 +855,16 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(result.mode).toBe('reauthorize');
       expect(result.integrationId).toBe('pending-int-id');
 
-      // Integration must be saved with connected status and cleared installToken.
+      // Integration must be saved with connected status. installToken is
+      // PRESERVED (not cleared) — needed for post-install navigation
+      // (카페24 "앱으로 가기" 버튼의 App URL 재호출 식별 키).
       expect(integrationRepo.save).toHaveBeenCalledTimes(1);
       const savedIntegration = integrationRepo.save.mock.calls[0][0] as Record<
         string,
         unknown
       >;
       expect(savedIntegration.status).toBe('connected');
-      expect(savedIntegration.installToken).toBeNull();
+      expect(savedIntegration.installToken).toBe('some-install-token');
       expect(savedIntegration.statusReason).toBeNull();
       expect(savedIntegration.lastError).toBeNull();
     });
@@ -842,13 +932,14 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
       // Integration transitioned to connected — exchange used decrypted
       // provider_meta.mall_id (would have failed with CAFE24_INVALID_MALL_ID
-      // if the normalizer didn't decrypt the envelope).
+      // if the normalizer didn't decrypt the envelope). installToken is
+      // PRESERVED (for post-install navigation re-call).
       const savedIntegration = integrationRepo.save.mock.calls[0][0] as Record<
         string,
         unknown
       >;
       expect(savedIntegration.status).toBe('connected');
-      expect(savedIntegration.installToken).toBeNull();
+      expect(savedIntegration.installToken).toBe('install-token-prod');
     });
 
     /**

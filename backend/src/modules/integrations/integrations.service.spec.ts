@@ -457,6 +457,97 @@ describe('IntegrationsService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    /**
+     * 회귀 보호 (2026-05-15) — 옛 코드는 cafe24 통합에서 begin 호출 시
+     * providerMeta 누락으로 `CAFE24_INVALID_MALL_ID` 가 발생. cafe24 의
+     * begin 검증부는 mall_id 를 providerMeta 에서 읽으므로 requestScopes 가
+     * entity.credentials.mall_id 를 거쳐 전달해야 한다.
+     */
+    it('passes cafe24 mall_id/app_type as providerMeta for Public app', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'cafe24',
+          authType: 'oauth2',
+          credentials: {
+            mall_id: 'gehrig0301',
+            app_type: 'public',
+            access_token: 't',
+            refresh_token: 'r',
+            scopes: ['mall.read_product'],
+          },
+        }),
+      );
+      await service.requestScopes('int-1', 'ws-1', 'user-1', 'member', {
+        scopes: ['mall.read_store'],
+      });
+      expect(oauthServiceMock.begin).toHaveBeenCalledWith(
+        expect.objectContaining({
+          service: 'cafe24',
+          mode: 'request_scopes',
+          providerMeta: { mall_id: 'gehrig0301', app_type: 'public' },
+        }),
+      );
+    });
+
+    /**
+     * 회귀 보호 (2026-05-15) — Cafe24 Private 은 우리 서버가 OAuth 를
+     * 시작할 수 없으므로 begin 호출이 `CAFE24_PRIVATE_APP_USE_TEST_RUN`
+     * 으로 거부됨. requestScopes 는 이 경로를 우회하고 기존 install_token
+     * 을 재사용하는 `cafe24_private_pending` 응답을 반환한다.
+     */
+    it('cafe24 Private — bypasses begin and returns cafe24_private_pending with merged scopes saved', async () => {
+      const original = process.env.APP_URL;
+      process.env.APP_URL = 'https://app.example.com';
+      const integration = makeIntegration({
+        serviceType: 'cafe24',
+        authType: 'oauth2',
+        credentials: {
+          mall_id: 'gehrig0301',
+          app_type: 'private',
+          client_id: 'cid',
+          client_secret: 'csec',
+          access_token: 't',
+          refresh_token: 'r',
+          scopes: ['mall.read_product'],
+        },
+        installToken: 'PreservedToken123456__',
+      });
+      integrationRepo.findOne.mockResolvedValue(integration);
+      integrationRepo.save = jest
+        .fn()
+        .mockImplementation((e: Integration) => Promise.resolve(e));
+      try {
+        const result = await service.requestScopes(
+          'int-1',
+          'ws-1',
+          'user-1',
+          'member',
+          { scopes: ['mall.read_store', 'mall.read_product'] },
+        );
+        // Must NOT call begin — Private bypasses OAuth.
+        expect(oauthServiceMock.begin).not.toHaveBeenCalled();
+        // Returns the cafe24_private_pending shape with appUrl reusing
+        // the existing installToken (so the URL stays registered in
+        // Cafe24 Developers).
+        expect(result).toMatchObject({
+          mode: 'cafe24_private_pending',
+          integrationId: 'int-1',
+          appUrl:
+            'https://app.example.com/api/3rd-party/cafe24/install/PreservedToken123456__',
+          callbackUrl: 'https://app.example.com/api/3rd-party/cafe24/callback',
+          scopesAdded: ['mall.read_store'],
+        });
+        // credentials.scopes is merged + saved.
+        expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+        const saved = integrationRepo.save.mock.calls[0][0] as Integration;
+        const creds = saved.credentials;
+        expect(creds.scopes).toEqual(['mall.read_product', 'mall.read_store']);
+      } finally {
+        if (original === undefined) delete process.env.APP_URL;
+        else process.env.APP_URL = original;
+      }
+    });
   });
 
   // -----------------------------------------------------------------
