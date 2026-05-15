@@ -94,3 +94,81 @@ export const executionsApi = {
     return data as PaginatedExecutions;
   },
 };
+
+// ---------------------------------------------------------------------------
+// Background run monitoring API
+// spec/4-nodes/1-logic/12-background.md §8
+// ---------------------------------------------------------------------------
+
+export type BackgroundRunStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export interface BackgroundRunNodeExecution {
+  id: string;
+  executionId: string;
+  nodeId: string;
+  parentNodeExecutionId: string;
+  status:
+    | "pending"
+    | "running"
+    | "completed"
+    | "failed"
+    | "skipped"
+    | "waiting_for_input";
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  inputData: Record<string, unknown> | null;
+  outputData: Record<string, unknown> | null;
+  error: Record<string, unknown> | null;
+}
+
+export interface BackgroundRunNodeExecutionsPage {
+  data: BackgroundRunNodeExecution[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface BackgroundRunNotification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  channel: string;
+  createdAt: string;
+}
+
+export interface BackgroundRunData {
+  backgroundRunId: string;
+  executionId: string;
+  parentNodeExecutionId: string;
+  status: BackgroundRunStatus;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  nodeExecutions: BackgroundRunNodeExecutionsPage;
+  notifications: BackgroundRunNotification[];
+}
+
+export interface BackgroundRunQueryParams {
+  cursor?: string;
+  limit?: number;
+}
+
+export const backgroundRunsApi = {
+  getById: async (
+    executionId: string,
+    backgroundRunId: string,
+    params?: BackgroundRunQueryParams,
+  ): Promise<BackgroundRunData> => {
+    const { data } = await apiClient.get(
+      `/executions/${executionId}/background-runs/${backgroundRunId}`,
+      { params },
+    );
+    return unwrap<BackgroundRunData>(data);
+  },
+};
