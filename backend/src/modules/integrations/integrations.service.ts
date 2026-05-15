@@ -700,6 +700,49 @@ export class IntegrationsService {
     const mergedScopes = Array.from(
       new Set([...existingScopes, ...body.scopes]),
     );
+    const scopesAdded = mergedScopes.filter((s) => !existingScopes.includes(s));
+
+    // Cafe24 Private 분기 — OAuth popup 진입점이 없어 begin 호출 불가
+    // (Private 은 우리 서버가 OAuth 를 시작 못 함). 대신 기존 install_token
+    // 을 그대로 두고 `credentials.scopes` 만 merge 갱신한 뒤,
+    // 사용자에게 Cafe24 Developers 에서 권한 추가 후 "테스트 실행" 재호출
+    // 안내. 자세한 근거는 spec/2-navigation/4-integration.md ## Rationale
+    // "Cafe24 Private request-scopes 흐름" 항.
+    const creds = entity.credentials;
+    if (
+      entity.serviceType === 'cafe24' &&
+      creds.app_type === 'private' &&
+      typeof entity.installToken === 'string' &&
+      entity.installToken.length > 0
+    ) {
+      entity.credentials = {
+        ...entity.credentials,
+        scopes: mergedScopes,
+      };
+      await this.integrationRepository.save(entity);
+
+      const appBaseUrl = process.env.APP_URL || 'http://localhost:3011';
+      return {
+        mode: 'cafe24_private_pending',
+        integrationId: entity.id,
+        appUrl: `${appBaseUrl.replace(/\/$/, '')}/api/3rd-party/cafe24/install/${entity.installToken}`,
+        callbackUrl: `${appBaseUrl.replace(/\/$/, '')}/api/3rd-party/cafe24/callback`,
+        scopesAdded,
+      };
+    }
+
+    // For cafe24 Public + other OAuth providers (Google/GitHub etc.), we
+    // still need to carry mall_id / app_type into begin's providerMeta so
+    // the cafe24 begin validation doesn't reject with CAFE24_INVALID_MALL_ID.
+    // Without this passthrough the user got "mall_id is required" even though
+    // the integration has it in credentials (2026-05-15 사용자 보고).
+    const providerMeta: Record<string, unknown> | undefined =
+      entity.serviceType === 'cafe24'
+        ? {
+            mall_id: creds.mall_id,
+            app_type: creds.app_type,
+          }
+        : undefined;
 
     return this.oauthService.begin({
       workspaceId,
@@ -708,6 +751,7 @@ export class IntegrationsService {
       scopes: mergedScopes,
       mode: 'request_scopes',
       integrationId: entity.id,
+      ...(providerMeta ? { providerMeta } : {}),
     });
   }
 
