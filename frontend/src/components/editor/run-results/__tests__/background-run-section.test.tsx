@@ -82,10 +82,10 @@ describe("BackgroundRunSection", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Completed")).toBeInTheDocument();
+      expect(screen.getByText("완료")).toBeInTheDocument();
     });
     expect(screen.getByText(/Run ID: bg-1/)).toBeInTheDocument();
-    expect(screen.getByText(/Body nodes/)).toBeInTheDocument();
+    expect(screen.getByText(/본문 노드/)).toBeInTheDocument();
     expect(screen.getByText("node-A")).toBeInTheDocument();
   });
 
@@ -174,6 +174,6 @@ describe("BackgroundRunSection", () => {
     await waitFor(() => {
       expect(screen.getByText("Send email failed")).toBeInTheDocument();
     });
-    expect(screen.getByText(/Notifications \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText(/알림 \(1\)/)).toBeInTheDocument();
   });
 });

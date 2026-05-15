@@ -1,4 +1,7 @@
 import { cn } from "@/lib/utils/cn";
+import { DEFAULT_LOCALE } from "@/lib/i18n/types";
+import { readLocaleCookie } from "@/lib/i18n/server-locale";
+import { translate, type TranslationKey } from "@/lib/i18n/core";
 
 type CalloutType = "note" | "tip" | "warn";
 
@@ -6,26 +9,26 @@ type CalloutType = "note" | "tip" | "warn";
 // 가독성을 확보해요.
 const STYLES: Record<
   CalloutType,
-  { container: string; label: string; accent: string }
+  { container: string; labelKey: TranslationKey; accent: string }
 > = {
   note: {
     container: "border-blue-500/40 bg-blue-500/5",
     accent: "text-blue-700 dark:text-blue-300",
-    label: "참고",
+    labelKey: "docs.callout.note",
   },
   tip: {
     container: "border-emerald-500/40 bg-emerald-500/5",
     accent: "text-emerald-700 dark:text-emerald-300",
-    label: "팁",
+    labelKey: "docs.callout.tip",
   },
   warn: {
     container: "border-amber-500/50 bg-amber-500/10",
     accent: "text-amber-700 dark:text-amber-300",
-    label: "주의",
+    labelKey: "docs.callout.warn",
   },
 };
 
-export function Callout({
+export async function Callout({
   type = "note",
   title,
   children,
@@ -35,6 +38,7 @@ export function Callout({
   children: React.ReactNode;
 }) {
   const style = STYLES[type];
+  const locale = (await readLocaleCookie()) ?? DEFAULT_LOCALE;
   return (
     <aside
       role="note"
@@ -49,7 +53,7 @@ export function Callout({
           style.accent,
         )}
       >
-        {title ?? style.label}
+        {title ?? translate(locale, style.labelKey)}
       </p>
       <div className="space-y-2">{children}</div>
     </aside>

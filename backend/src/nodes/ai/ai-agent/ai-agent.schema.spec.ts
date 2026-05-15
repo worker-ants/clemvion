@@ -18,7 +18,6 @@ describe('aiAgentNodeConfigSchema', () => {
     expect(result.ragThreshold).toBe(0.7);
     expect(result.conditions).toEqual([]);
     expect(result.maxToolCalls).toBe(10);
-    expect(result.conversationHistory).toBe('none');
     expect(result.maxTurns).toBe(20);
     // Conversation Context (spec/conventions/conversation-thread.md §5).
     // Defaults preserve existing workflow behaviour: contextScope='none' so
