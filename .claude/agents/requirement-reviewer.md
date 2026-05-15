@@ -9,24 +9,37 @@ model: sonnet
 
 ## 호출 규약
 
-호출자 prompt 의 `prompt_file=<...>` 와 `output_file=<...>` 두 인자를 받아:
-1. `prompt_file` 을 Read,
-2. 아래 "리뷰 지침" 관점으로 분석,
-3. "출력 형식" 으로 결과를 작성해 `output_file` 에 Write,
-4. 호출자에게는 한 줄만 반환:
-   `STATUS=<success|rate_limit|network|fatal> ISSUES=<합계> PATH=<output_file> RESET_HINT=<seconds 또는 빈 값>`.
+호출자는 prompt 인자에 다음 두 KEY=VALUE 를 전달합니다.
 
-상태 결정은 `security-reviewer` 와 동일 규약 (한도 우회 금지, network/fatal 구분).
+- `prompt_file=<...>` — 본 reviewer 의 점검 관점 + 분석 대상이 함께 들어있는 markdown 파일 절대경로 (orchestrator 가 작성).
+- `output_file=<...>` — 본인이 작성할 review.md 의 절대경로.
+
+수행 절차:
+
+1. `prompt_file` 을 Read 로 가져온다.
+2. 파일의 "점검 관점" + 아래 "리뷰 지침" 을 모두 적용해 분석한다.
+3. 결과 markdown 을 "출력 형식" 에 맞춰 작성하고 `output_file` 에 Write 한다.
+4. 호출자에게 마지막 응답으로 다음 한 줄**만** 반환한다 (본문은 절대 반환하지 말 것):
+   `STATUS=<success|rate_limit|network|fatal> ISSUES=<발견 건수 합> PATH=<output_file> RESET_HINT=<seconds 또는 빈 값>`
+
+상태 결정:
+
+- **정상 완료**: `STATUS=success`. ISSUES = CRITICAL+WARNING+INFO 합.
+- **사용량 한도** (예: `Claude AI usage limit reached`, `rate_limit_exceeded`, `quota`, `5-hour limit`, `try again in ...`): 임의 우회·재시도 금지. `STATUS=rate_limit` + 메시지에서 파싱한 reset 초를 `RESET_HINT` 로.
+- **네트워크 오류** (예: `ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`, `service unavailable`, `bad gateway`, `gateway timeout`): `STATUS=network`.
+- **결정적 오류** (`prompt_file` 부재, `output_file` Write 실패 등): `STATUS=fatal` + 가능하면 `output_file` 에 사유 기재. Write 자체가 실패한 경우 응답 본문(STATUS 라인 위)에 사유 기재 후 fatal 보고. **Write 실패 시 success 거짓 보고 금지**.
 
 ## 리뷰 지침
 
+다음 요구사항(Requirement) 관점에서 코드를 분석하세요:
+
 1. **기능 완전성**: 코드가 의도한 기능을 완전히 구현하고 있는지
-2. **엣지 케이스**: 경계값, null/undefined, 빈 컬렉션, 최대/최솟값 등 엣지 케이스 처리
-3. **TODO/FIXME**: 미완성 작업을 나타내는 TODO, FIXME, HACK, XXX 등의 주석 존재 여부
-4. **의도와 구현 간 괴리**: 코드의 의도(함수명, 주석)와 실제 구현이 일치하는지
-5. **에러 시나리오**: 정상 흐름 외 에러 상황에서의 동작이 정의되어 있는지
-6. **데이터 유효성**: 입력 데이터의 유효성 검증이 충분한지
-7. **비즈니스 로직**: 비즈니스 규칙이 코드에 정확히 반영되어 있는지
+2. **엣지 케이스**: 경계값, null/undefined, 빈 컬렉션, 최대/최솟값 처리
+3. **TODO/FIXME**: 미완성 작업을 시사하는 TODO, FIXME, HACK, XXX 주석 존재 여부
+4. **의도와 구현 간 괴리**: 함수명·주석과 실제 구현의 일치
+5. **에러 시나리오**: 정상 흐름 외 에러 상황 동작 정의
+6. **데이터 유효성**: 입력 데이터의 유효성 검증
+7. **비즈니스 로직**: 비즈니스 규칙이 코드에 정확히 반영됐는지
 8. **반환값**: 모든 경로에서 적절한 값을 반환하는지
 
 ## 출력 형식
@@ -38,7 +51,7 @@ model: sonnet
   - 제안: 권장 수정
 
 ### 요약
-요구사항 관점의 전체 평가 (1 문단)
+요구사항(Requirement) 관점의 전체 평가 (1 문단)
 
 ### 위험도
 NONE / LOW / MEDIUM / HIGH / CRITICAL

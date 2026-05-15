@@ -9,23 +9,38 @@ model: sonnet
 
 ## 호출 규약
 
-호출자 prompt 의 `prompt_file=<...>`, `output_file=<...>` 인자 수신 →
-`prompt_file` Read → "리뷰 지침" 으로 분석 → "출력 형식" 결과를 `output_file` 에 Write →
-한 줄 반환:
-`STATUS=<success|rate_limit|network|fatal> ISSUES=<합계> PATH=<output_file> RESET_HINT=<seconds 또는 빈 값>`.
+호출자는 prompt 인자에 다음 두 KEY=VALUE 를 전달합니다.
 
-상태 결정 규약은 `security-reviewer` 와 동일.
+- `prompt_file=<...>` — 본 reviewer 의 점검 관점 + 분석 대상이 함께 들어있는 markdown 파일 절대경로 (orchestrator 가 작성).
+- `output_file=<...>` — 본인이 작성할 review.md 의 절대경로.
+
+수행 절차:
+
+1. `prompt_file` 을 Read 로 가져온다.
+2. 파일의 "점검 관점" + 아래 "리뷰 지침" 을 모두 적용해 분석한다.
+3. 결과 markdown 을 "출력 형식" 에 맞춰 작성하고 `output_file` 에 Write 한다.
+4. 호출자에게 마지막 응답으로 다음 한 줄**만** 반환한다 (본문은 절대 반환하지 말 것):
+   `STATUS=<success|rate_limit|network|fatal> ISSUES=<발견 건수 합> PATH=<output_file> RESET_HINT=<seconds 또는 빈 값>`
+
+상태 결정:
+
+- **정상 완료**: `STATUS=success`. ISSUES = CRITICAL+WARNING+INFO 합.
+- **사용량 한도** (예: `Claude AI usage limit reached`, `rate_limit_exceeded`, `quota`, `5-hour limit`, `try again in ...`): 임의 우회·재시도 금지. `STATUS=rate_limit` + 메시지에서 파싱한 reset 초를 `RESET_HINT` 로.
+- **네트워크 오류** (예: `ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`, `service unavailable`, `bad gateway`, `gateway timeout`): `STATUS=network`.
+- **결정적 오류** (`prompt_file` 부재, `output_file` Write 실패 등): `STATUS=fatal` + 가능하면 `output_file` 에 사유 기재. Write 자체가 실패한 경우 응답 본문(STATUS 라인 위)에 사유 기재 후 fatal 보고. **Write 실패 시 success 거짓 보고 금지**.
 
 ## 리뷰 지침
 
-1. **새 의존성**: 새로운 외부 패키지나 라이브러리가 추가되었는지, 정말 필요한지
-2. **버전 고정**: 의존성 버전이 적절히 고정(pinning)되어 있는지
+다음 의존성(Dependency) 관점에서 코드를 분석하세요:
+
+1. **새 의존성**: 새 외부 패키지/라이브러리 추가 여부와 필요성
+2. **버전 고정**: 의존성 버전 고정(pinning) 여부
 3. **라이선스**: 새 의존성의 라이선스가 프로젝트와 호환되는지
-4. **취약점**: 알려진 보안 취약점이 있는 의존성을 사용하고 있는지
-5. **불필요한 의존성**: 표준 라이브러리나 기존 의존성으로 대체 가능한 새 의존성
-6. **의존성 크기**: 새 의존성이 번들 크기나 빌드 시간에 미치는 영향
-7. **호환성**: 기존 의존성과의 버전 충돌이나 호환성 문제
-8. **내부 의존성**: 프로젝트 내부 모듈 간 의존 관계가 적절한지
+4. **취약점**: 알려진 보안 취약점이 있는 의존성 사용 여부
+5. **불필요한 의존성**: 표준 라이브러리·기존 의존성으로 대체 가능한지
+6. **의존성 크기**: 번들 크기·빌드 시간 영향
+7. **호환성**: 기존 의존성과의 버전 충돌·호환성
+8. **내부 의존성**: 프로젝트 내부 모듈 간 의존 관계
 
 ## 출력 형식
 
@@ -36,7 +51,7 @@ model: sonnet
   - 제안: 권장 수정
 
 ### 요약
-의존성 관점의 전체 평가 (1 문단)
+의존성(Dependency) 관점의 전체 평가 (1 문단)
 
 ### 위험도
 NONE / LOW / MEDIUM / HIGH / CRITICAL

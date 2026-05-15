@@ -37,21 +37,28 @@ summary: `consistency-summary` sub-agent 가 5개 결과를 통합해 SUMMARY.md
 ### 1. 세션 준비 (Python helper, model 호출 없음)
 
 ```bash
+# /loop 밖
 python3 .claude/skills/consistency-checker/hooks/consistency_orchestrator.py [옵션]
+
+# /loop 안 — loop_mode=true 로 초기화하려면 env prefix
+AI_REVIEW_LOOP=1 python3 .claude/skills/consistency-checker/hooks/consistency_orchestrator.py [옵션]
+
+# wake 사이클 — 새 세션 만들지 않고 기존 세션 재진입
+python3 .claude/skills/consistency-checker/hooks/consistency_orchestrator.py --resume <session_dir>
 ```
 
-모드는 택일 필수:
+모드는 첫 호출에서 택일 필수 (`--resume` 이 없을 때):
 - `--spec <path>` — spec draft (예: `plan/in-progress/spec-draft-nav.md`). project-planner 의 `spec/` 쓰기 직전 의무.
 - `--plan <path>` — plan draft.
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
 
+`--resume <session_dir>` 은 위 모드들과 mutually exclusive — wake 후 동일 세션의 `_retry_state.json` 만 검증 후 그 경로를 stdout 으로 echo. 누락 시 exit code 1.
+
 orchestrator 가 만드는 결과:
-- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<checker>.md` — checker 별 페이로드.
+- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<checker>.md` — checker 별 role-specific 페이로드 (관점·체크리스트·target 문서·보조 코퍼스 결합. checker 마다 다름).
 - `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — 재시도/상태 파일.
 - `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json` — mode / target_path / checker 명단.
 - stdout 마지막 줄 = 세션 디렉토리 절대경로.
-
-`/loop /consistency-check` 로 호출됐다면 `AI_REVIEW_LOOP=1` 전달.
 
 ### 2. 상태 파일 로드
 
@@ -63,14 +70,14 @@ orchestrator 가 만드는 결과:
 
 ### 4. STATUS 파싱·상태 갱신
 
-`STATUS=success|rate_limit|network|fatal` 한 줄 반환. ai-review 와 동일한 분류 규약. `_retry_state.json` 을 Write 로 갱신.
+`STATUS=success|rate_limit|network|fatal` 한 줄 반환. ai-review 의 [SKILL.md 단계 4](../code-review-agents/SKILL.md) 와 동일한 분류 규약 — 정규식 마지막 매칭, output_file 존재 확인, STATUS 미수신 시 키워드 fallback, `_retry_state.json` 의 `agents_pending/success/fatal`·`agent_history`·`rate_limit_episodes`·`last_reset_hint_sec`·`wake_history`·`total_wait_sec` 갱신.
 
 ### 5. 수렴 분기
 
 - **모두 완료**:
   1. `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")` invoke. summary sub-agent 가 자기 컨텍스트에서 `_retry_state.json` → 5 checker 의 `output_file` 들을 Read 해 통합한 후 `summary_output_file` 에 Write.
   2. summary 완료 후 SUMMARY.md 상단 30 라인을 Read 해 `BLOCK: YES` 검출 → 호출자에게 보고.
-- **남고 `loop_mode=true`**: `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /consistency-check ...", reason="...")` 후 turn 종료. 다음 wake 때 동일 session_dir 의 _retry_state.json 으로 재진입.
+- **남고 `loop_mode=true`**: `ScheduleWakeup(delay=last_reset_hint_sec or 1800, prompt="/loop /consistency-check --resume <session_dir>", reason="rate-limit retry for <N> checkers")` 후 turn 종료. wake prompt 에 `--resume <session_dir>` 을 박아 두면 다음 wake 가 어떤 세션을 재개할지 모호함이 없다. 첫 호출의 모드(--spec/--plan/--impl-prep) 인자는 더 이상 필요 없다 (`_retry_state.json` 이 이미 invocation 목록을 가지고 있음).
 - **남고 `loop_mode=false`**: partial summary 시도 (한도 걸리면 그대로 표시), 사용자에게 `/loop /consistency-check` 안내.
 
 ### 6. BLOCK 처리

@@ -28,6 +28,7 @@ CODE_REVIEW_SKILL = os.path.normpath(os.path.join(SKILL_DIR, "..", "code-review-
 sys.path.insert(0, CODE_REVIEW_SKILL)
 
 from lib import session  # noqa: E402
+from lib.role_instructions import CHECKER_INSTRUCTIONS  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -219,48 +220,59 @@ def budget_substitutions(context, max_context_size):
     return out
 
 
-def build_checker_prompt_body(checker_name, subs):
-    """Compose the prompt body the sub-agent will read.
+def _checker_corpus(checker_name, subs):
+    """Return the supplementary corpus a given checker consumes."""
+    if checker_name == "naming_collision":
+        # naming_collision combines three sub-corpora.
+        return "\n\n".join([
+            subs.get("related_specs", ""),
+            subs.get("plan_in_progress", ""),
+            subs.get("conventions", ""),
+        ])
+    info = CHECKER_INSTRUCTIONS.get(checker_name, {})
+    key = info.get("context_key")
+    if not key:
+        return ""
+    return subs.get(key, "")
 
-    The sub-agent's *system prompt* already defines the review aspects and
-    output format (see .claude/agents/<checker>-checker.md). The body assembled
-    here is just the target document and the supporting corpus the checker
-    needs — split by checker so each agent receives only what it inspects.
+
+def build_checker_prompt_body(checker_name, subs):
+    """Compose a role-specific prompt body for one checker.
+
+    The sub-agent's system prompt already names the checker; we also embed
+    the perspective and checklist here so each `_prompts/<checker>.md` is
+    genuinely role-distinct rather than the same payload routed to N agents.
+    Each checker only receives the supplementary corpus it needs.
     """
+    info = CHECKER_INSTRUCTIONS.get(checker_name)
+    if info is None:
+        info = {
+            "ko_title": checker_name,
+            "perspective": "target 문서를 검토한다.",
+            "checklist": (
+                "(점검 항목이 정의되어 있지 않습니다. "
+                "lib/role_instructions.py 에 항목을 추가하세요.)"
+            ),
+            "context_label": "보조 코퍼스",
+        }
+
+    corpus = _checker_corpus(checker_name, subs)
     parts = [
-        "# Consistency Check Payload\n\n",
-        "본 파일은 orchestrator 가 작성한 검토 대상 정보입니다.\n",
-        "sub-agent 의 system prompt 에 정의된 검토 지침·등급 기준·출력 형식에 따라\n",
-        "분석하고, 호출자가 `output_file` 인자로 지정한 경로에 review.md 를 작성하세요.\n",
-        "호출자에게는 STATUS 한 줄만 반환합니다.\n\n",
+        f"# {info['ko_title']} Check Payload\n\n",
+        f"본 파일은 orchestrator 가 {info['ko_title']} checker 용으로 작성한 입력입니다. "
+        f"{info['perspective']}\n",
+        "sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로\n",
+        "따르되, 분석 시 아래 \"점검 관점\" 을 빠짐없이 적용하세요. 결과는 `output_file`\n",
+        "인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.\n\n",
+        f"## 점검 관점 ({info['ko_title']})\n\n",
+        f"{info['checklist']}\n\n",
         f"## 검토 모드\n{subs.get('mode', '')}\n\n",
         f"## Target 문서\n경로: `{subs.get('target_path', '')}`\n\n",
         f"```\n{subs.get('target_doc', '')}\n```\n\n",
+        f"## {info.get('context_label', '보조 코퍼스')}\n\n",
+        corpus,
+        "\n",
     ]
-    if checker_name == "cross_spec":
-        parts.append("## 관련 spec 본문 (다른 영역 포함)\n\n")
-        parts.append(subs.get("related_specs", ""))
-        parts.append("\n")
-    elif checker_name == "rationale_continuity":
-        parts.append("## 관련 Rationale 발췌\n\n")
-        parts.append(subs.get("rationale_excerpts", ""))
-        parts.append("\n")
-    elif checker_name == "convention_compliance":
-        parts.append("## 정식 규약 모음 (spec/conventions/)\n\n")
-        parts.append(subs.get("conventions", ""))
-        parts.append("\n")
-    elif checker_name == "plan_coherence":
-        parts.append("## 진행 중 plan 문서 모음 (plan/in-progress/)\n\n")
-        parts.append(subs.get("plan_in_progress", ""))
-        parts.append("\n")
-    elif checker_name == "naming_collision":
-        parts.append("## 검색 대상 코퍼스 (spec/, plan/in-progress/, conventions/)\n\n")
-        parts.append(subs.get("related_specs", ""))
-        parts.append("\n\n")
-        parts.append(subs.get("plan_in_progress", ""))
-        parts.append("\n\n")
-        parts.append(subs.get("conventions", ""))
-        parts.append("\n")
     return "".join(parts)
 
 
@@ -332,19 +344,40 @@ def prepare_session(context, config):
 
 def main():
     parser = argparse.ArgumentParser(description="Consistency Checker Orchestrator (prepare).")
-    mode = parser.add_mutually_exclusive_group(required=True)
+    mode = parser.add_mutually_exclusive_group(required=False)
     mode.add_argument("--spec", type=str, metavar="PATH",
                       help="spec draft path (e.g., plan/in-progress/spec-draft-foo.md)")
     mode.add_argument("--plan", type=str, metavar="PATH",
                       help="plan draft path")
     mode.add_argument("--impl-prep", type=str, dest="impl_prep", metavar="SCOPE",
                       help="pre-implementation check scope (spec/<area>/ path)")
+    parser.add_argument("--resume", type=str, metavar="SESSION_DIR",
+                        help="Resume an existing session: skip prepare, validate the "
+                             "_retry_state.json, echo the absolute session_dir on stdout. "
+                             "Used by /loop wake-ups to re-enter the same session.")
 
     args = parser.parse_args()
 
     if os.environ.get("DISABLE_CONSISTENCY_CHECK", "0") == "1":
         print("DISABLE_CONSISTENCY_CHECK=1, skipping.", file=sys.stderr)
         sys.exit(0)
+
+    # Resume mode mirrors code_review_orchestrator: validate + echo the path.
+    if args.resume:
+        sd = os.path.abspath(args.resume)
+        state_file = os.path.join(sd, "_retry_state.json")
+        if not os.path.isfile(state_file):
+            print(
+                f"Error: cannot resume — _retry_state.json missing under {sd}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        debug_log(f"Resuming consistency session: {sd}")
+        print(sd)
+        sys.exit(0)
+
+    if not (args.spec or args.plan or args.impl_prep):
+        parser.error("--spec / --plan / --impl-prep 중 하나가 필요합니다 (또는 --resume <SESSION_DIR>).")
 
     config = load_config()
     root = repo_root()
