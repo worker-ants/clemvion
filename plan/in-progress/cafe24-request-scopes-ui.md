@@ -68,9 +68,9 @@ onSuccess: (res) => {
 - [x] lint / unit test / build — frontend 1355/1355 통과
 - [x] `[skip-e2e]` 표기 — e2e 범위 아님 (단일 컴포넌트 분기 추가)
 - [x] ai-review + RESOLUTION — `review/code/2026/05/16/01_00_34/`
-- [ ] spec 역반영 follow-up (project-planner 위임): consistency I-1·I-2·I-4 — `spec/2-navigation/4-integration.md §4.4` 에 영문 안내 문구 예시, `scopesAdded` UI 표현 방식, "inline alert + toast.info" 결정 흡수
-- [ ] spec/Rationale 보완 follow-up (project-planner 위임): consistency W-1 (폐기 결정 cross-reference), W-2 (구 flat 경로 참조 교정)
-- [ ] plan complete 이동 (위 follow-up 들은 별도 plan/in-progress 로 분리해 옮긴 뒤 본 plan 은 complete)
+- [x] spec 역반영 follow-up: PR #46 (`docs(spec): cafe24 Private request-scopes UI 결정 흡수 + Rationale 보강`) 으로 main 머지 — `spec/2-navigation/4-integration.md §4.4` 의 분기 ①/② sub-section + UI bullet 명세, Rationale "Cafe24 Private request-scopes 흐름" 항의 "UI 안내 패턴 결정" 문단 신설.
+- [x] spec/Rationale 보완 follow-up: 같은 PR #46 — Rationale "Cafe24 install_token mismatch 회복 흐름" 항에 "install_token 을 App URL path 식별 키로 승격" cross-reference + N 표현 완화 + TOCTOU 부재 문단 추가, flat 경로 2건 nested ISO 교정.
+- [ ] plan complete 이동 (본 frontend PR 가 main 에 merge 되면 함께 complete)
 
 ## 영향 범위
 
