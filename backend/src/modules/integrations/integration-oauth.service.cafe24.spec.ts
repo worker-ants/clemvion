@@ -541,7 +541,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         createdAt: new Date(),
       };
 
-      dataSource.query.mockResolvedValueOnce([stateRecord]);
+      // TypeORM 0.3.x PostgresQueryRunner: DELETE/UPDATE returns
+      // `[rowsArray, rowCount]` tuple, not a flat rows array.
+      dataSource.query.mockResolvedValueOnce([[stateRecord], 1]);
 
       const result = await service.handleCallback('cafe24', {
         code: 'authz-code',
@@ -590,7 +592,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         createdAt: new Date(),
       };
 
-      dataSource.query.mockResolvedValueOnce([stateRecord]);
+      // TypeORM 0.3.x PostgresQueryRunner: DELETE/UPDATE returns
+      // `[rowsArray, rowCount]` tuple, not a flat rows array.
+      dataSource.query.mockResolvedValueOnce([[stateRecord], 1]);
 
       await service.handleCallback('cafe24', {
         code: 'authz-code',
@@ -652,7 +656,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         createdAt: new Date(),
       };
 
-      dataSource.query.mockResolvedValueOnce([stateRecord]);
+      // TypeORM 0.3.x PostgresQueryRunner: DELETE/UPDATE returns
+      // `[rowsArray, rowCount]` tuple, not a flat rows array.
+      dataSource.query.mockResolvedValueOnce([[stateRecord], 1]);
 
       const result = await service.handleCallback('cafe24', {
         code: 'authz-code',
