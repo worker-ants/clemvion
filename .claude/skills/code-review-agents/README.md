@@ -10,7 +10,11 @@
                                   → STATUS 파싱 + _retry_state.json 갱신
                                   → 모두 완료 → code-review-summary sub-agent → SUMMARY.md
                                   → 남음 + /loop → ScheduleWakeup → turn 종료
+                                  → SUMMARY 에 Critical/Warning → 자동 후속
+                                    (분류 → spec/코드 수정 → e2e → 재리뷰 → RESOLUTION.md)
 ```
+
+자동 후속 흐름은 SKILL.md "단계 8. 자동 후속 흐름" 참고. 안전 가드(consistency-check `BLOCK: YES`, e2e 누적 3회 실패, DB 마이그레이션·외부 API 계약 변경 등) 가 발화되면 자동 진행 중단 + 사용자 보고.
 
 `claude -p` subprocess 와 Anthropic SDK 직접 호출은 요금제 정책상 사용 불가하므로 제거되었다. 모든 model 호출은 main session 의 `Agent` tool 한 곳을 통한다.
 
