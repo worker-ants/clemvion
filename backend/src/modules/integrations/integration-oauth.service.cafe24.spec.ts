@@ -326,12 +326,110 @@ describe('IntegrationOAuthService — Cafe24', () => {
       // Stale diagnostic cleared on reuse so the user starts from a clean slate.
       expect(saved.statusReason).toBeNull();
       expect(saved.lastError).toBeNull();
-      // Token refreshed.
+      // Credentials changed (old-cid → cid) → token refreshed.
       expect(saved.installToken).not.toBe('old-token');
       // Credentials replaced with new submission.
       const creds = saved.credentials as Record<string, unknown>;
       expect(creds.client_id).toBe('cid');
       expect(creds.client_secret).toBe('csec');
+    });
+
+    /**
+     * Idempotent begin (2026-05-15) — `existingPending` 재사용 시 credentials
+     * 가 동일하면 install_token 을 **보존**한다. 옛 동작은 매 호출 토큰을
+     * 재발급해 사용자가 Cafe24 Developers 에 등록한 URL 이 갑자기 무효화되는
+     * UX 버그가 있었다.
+     */
+    it('preserves install_token on reuse when credentials are unchanged (idempotent begin)', async () => {
+      const existingPending = {
+        id: 'existing-pending',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        serviceType: 'cafe24',
+        installToken: 'preserved-token',
+        installTokenIssuedAt: new Date('2026-05-15T00:00:00Z'),
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'cid',
+          client_secret: 'csec',
+          scopes: ['mall.read_product'],
+        },
+        statusReason: null,
+        lastError: null,
+      };
+      integrationRepo.find = jest.fn().mockResolvedValue([existingPending]);
+
+      const result = await service.begin(privateBeginParams());
+      const r = result as { appUrl: string; integrationId: string };
+      expect(r.integrationId).toBe('existing-pending');
+      // URL must carry the preserved token so the user can keep the
+      // already-registered Cafe24 Developers App URL.
+      expect(r.appUrl).toContain('preserved-token');
+      // The save call must NOT overwrite the token.
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.installToken).toBe('preserved-token');
+    });
+
+    it('refreshes install_token when client_id changes (credentials differ)', async () => {
+      const existingPending = {
+        id: 'existing-pending',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        serviceType: 'cafe24',
+        installToken: 'preserved-token',
+        installTokenIssuedAt: new Date('2026-05-15T00:00:00Z'),
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'different-cid',
+          client_secret: 'csec',
+          scopes: ['mall.read_product'],
+        },
+        statusReason: null,
+        lastError: null,
+      };
+      integrationRepo.find = jest.fn().mockResolvedValue([existingPending]);
+
+      await service.begin(privateBeginParams());
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.installToken).not.toBe('preserved-token');
+    });
+
+    it('issues a new install_token when existing row has null token (legacy / cleared)', async () => {
+      const existingPending = {
+        id: 'existing-pending',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        serviceType: 'cafe24',
+        installToken: null,
+        installTokenIssuedAt: null,
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'cid',
+          client_secret: 'csec',
+          scopes: ['mall.read_product'],
+        },
+        statusReason: null,
+        lastError: null,
+      };
+      integrationRepo.find = jest.fn().mockResolvedValue([existingPending]);
+
+      await service.begin(privateBeginParams());
+      const saved = integrationRepo.save.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(saved.installToken).toBeTruthy();
+      expect(typeof saved.installToken).toBe('string');
+      expect((saved.installToken as string).length).toBe(22);
     });
 
     it('creates a new row when no existing cafe24 private row matches the mall_id', async () => {
