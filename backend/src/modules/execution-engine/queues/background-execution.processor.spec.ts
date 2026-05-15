@@ -111,7 +111,10 @@ describe('BackgroundExecutionProcessor', () => {
     // started + completed(failed)
     expect(websocket.emitBackgroundRunEvent).toHaveBeenCalledTimes(2);
     const calls = websocket.emitBackgroundRunEvent.mock.calls;
-    const failedPayload = calls[1][2] as { status: string; errorMessage?: string };
+    const failedPayload = calls[1][2] as {
+      status: string;
+      errorMessage?: string;
+    };
     expect(failedPayload.status).toBe('failed');
     expect(failedPayload.errorMessage).toBe('boom');
   });
@@ -154,8 +157,9 @@ describe('BackgroundExecutionProcessor', () => {
       config: { notifyOnFailure: true, maxDurationMs: 0 },
     });
     await expect(processor.process(job as never)).rejects.toThrow();
-    const failedPayload = websocket.emitBackgroundRunEvent.mock
-      .calls[1][2] as { errorMessage?: string };
+    const failedPayload = websocket.emitBackgroundRunEvent.mock.calls[1][2] as {
+      errorMessage?: string;
+    };
     const errorMessage = failedPayload.errorMessage ?? '';
     expect(errorMessage).not.toContain('postgres://');
     expect(errorMessage).toContain('[REDACTED_URI]');

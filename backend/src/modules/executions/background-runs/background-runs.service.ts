@@ -13,7 +13,6 @@ import {
 import { NotificationsService } from '../../notifications/notifications.service';
 import {
   BackgroundRunNodeExecutionDto,
-  BackgroundRunNodeExecutionsPageDto,
   BackgroundRunNotificationDto,
   BackgroundRunResponseDto,
   BackgroundRunStatus,
@@ -74,10 +73,9 @@ export class BackgroundRunsService {
       .createQueryBuilder('ne')
       .innerJoin('execution', 'e', 'e.id = ne.execution_id')
       .innerJoin('workflow', 'w', 'w.id = e.workflow_id')
-      .where(
-        "ne.output_data #>> '{meta,backgroundRunId}' = :backgroundRunId",
-        { backgroundRunId },
-      )
+      .where("ne.output_data #>> '{meta,backgroundRunId}' = :backgroundRunId", {
+        backgroundRunId,
+      })
       .select('w.workspace_id', 'workspaceId')
       .getRawOne<{ workspaceId: string }>();
     return !!raw?.workspaceId && raw.workspaceId === userWorkspaceId;
@@ -209,10 +207,10 @@ export class BackgroundRunsService {
       .createQueryBuilder('ne')
       .where('ne.executionId = :executionId', { executionId })
       // 실제 컬럼명 `output_data` 사용 — TypeORM 의 QueryBuilder 는 단순
-       // 컬럼 reference (`alias.property`) 에서만 property→column 매핑하고,
-       // JSONB `#>>` 같은 raw SQL 표현식 내부는 그대로 전달한다. property 명
-       // (`outputData`) 으로 쓰면 운영에서 `column "outputData" does not exist`
-       // 로 실패한다 (mock 기반 unit test 가 못 잡는 사각).
+      // 컬럼 reference (`alias.property`) 에서만 property→column 매핑하고,
+      // JSONB `#>>` 같은 raw SQL 표현식 내부는 그대로 전달한다. property 명
+      // (`outputData`) 으로 쓰면 운영에서 `column "outputData" does not exist`
+      // 로 실패한다 (mock 기반 unit test 가 못 잡는 사각).
       .andWhere(
         "ne.output_data #>> '{meta,backgroundRunId}' = :backgroundRunId",
         { backgroundRunId },
@@ -255,7 +253,9 @@ export class BackgroundRunsService {
         },
       );
     }
-    qb.orderBy('ne.startedAt', 'ASC').addOrderBy('ne.id', 'ASC').take(limit + 1);
+    qb.orderBy('ne.startedAt', 'ASC')
+      .addOrderBy('ne.id', 'ASC')
+      .take(limit + 1);
     return qb.getMany();
   }
 
@@ -281,7 +281,9 @@ export class BackgroundRunsService {
     return { data, nextCursor, hasMore };
   }
 
-  private toNodeExecutionDto(row: NodeExecution): BackgroundRunNodeExecutionDto {
+  private toNodeExecutionDto(
+    row: NodeExecution,
+  ): BackgroundRunNodeExecutionDto {
     return {
       id: row.id,
       executionId: row.executionId,
@@ -297,9 +299,7 @@ export class BackgroundRunsService {
     };
   }
 
-  private async aggregateBodyStatus(
-    parentNodeExecutionId: string,
-  ): Promise<{
+  private async aggregateBodyStatus(parentNodeExecutionId: string): Promise<{
     totalCount: number;
     pendingCount: number;
     runningCount: number;
