@@ -1,5 +1,11 @@
 # Information Extractor output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. 옛 `output.output.extracted.*` 이중 중첩 폐기 + `output.result.extracted` 통일 + multi-turn `LLM_CALL_FAILED + result` 병존 패턴까지 반영.
+> 잔여 권고 항목:
+> - waiting 시점 `output.maxTurns` 제거 — `config.maxTurns` 와 동일 값(Principle 1.1 직교 위반).
+> - waiting 시점 `output.message` (단수) 제거 — `output.messages[-1].content` 와 의미 중복 (`output.messages` 가 SSOT).
+> - waiting `output.messages` ↔ 종결 `output.result.messages` 경로 통일 — ai_agent 와 동일 이슈.
+
 > 대상 spec: `spec/4-nodes/3-ai/3-information-extractor.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

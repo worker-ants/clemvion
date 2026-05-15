@@ -1,5 +1,7 @@
 # Switch output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `meta.value` deprecated alias 가 D4 마이그레이션으로 제거되었고 `meta.resolvedValue` 로 통일된 상태. 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/1-logic/2-switch.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

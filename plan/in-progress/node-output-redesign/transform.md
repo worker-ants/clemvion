@@ -1,5 +1,7 @@
 # Transform output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. `output` root 직접 노출은 의도적 Principle 8 예외 (사용자 입력 객체 재구조화 시멘틱). 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/5-data/1-transform.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

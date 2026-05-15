@@ -1,5 +1,7 @@
 # Send Email output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. evaluated `subject`/`body`/`bodyType` (Principle 7 — config raw 와 직교) + `output.error.details.to` 마스킹 + DI stub (`status: 'requires_integration'`) 유지. 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/4-integration/3-send-email.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

@@ -1,5 +1,7 @@
 # Variable Declaration output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. side-effect 결과는 `$var.<name>` 로 참조되고 `output` 은 input pass-through — 일관성 유지. 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/1-logic/4-variable-declaration.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)

@@ -1,5 +1,7 @@
 # Code output 개선안
 
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. 사용자 `return` 값 root 자유 형태(Principle 8 예외) + 에러 시 표준 `output.error` envelope 분기 유지. 잔여 권고 없음.
+
 > 대상 spec: `spec/4-nodes/5-data/2-code.md` (§5 출력 구조)
 
 ## 현재 output (spec 인용)
