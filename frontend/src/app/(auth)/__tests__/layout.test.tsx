@@ -3,18 +3,16 @@ import { render, screen } from "@testing-library/react";
 import AuthLayout from "../layout";
 
 describe("AuthLayout", () => {
-  it("renders the full logo above the card slot (spec §8.4.6 + 10-auth-flow.md §1)", () => {
+  it("renders the dark-theme full logo above the card slot (spec §8.4.6)", () => {
     render(
       <AuthLayout>
         <div data-testid="auth-card">card</div>
       </AuthLayout>,
     );
-    // Logo + card both present, logo announces full alt (sub-copy is always-on)
-    const imgs = screen.getAllByRole("img", { hidden: true });
-    expect(imgs.length).toBeGreaterThan(0);
-    expect(
-      imgs.some((img) => img.getAttribute("alt")?.includes("Agentic Workflow")),
-    ).toBe(true);
+    // The auth slot uses the dark logo variant on a dark surface for contrast.
+    const img = screen.getByRole("img");
+    expect(img.getAttribute("src")).toBe("/logo-dark.svg");
+    expect(img.getAttribute("alt")).toContain("Agentic Workflow");
     expect(screen.getByTestId("auth-card")).toBeInTheDocument();
   });
 
@@ -28,6 +26,21 @@ describe("AuthLayout", () => {
     );
     const wrapper = container.firstChild as HTMLElement;
     expect(wrapper.className).toContain("bg-gradient-to-br");
+  });
+
+  it("wraps the logo in a vine-dark-bg-elevated surface for contrast", () => {
+    // Vine-green accents wash out on the light gradient surface. The logo
+    // sits on a #111e14 (vine-dark-bg-elevated) container — same look as
+    // the apple-icon. Verified at the wrapper of the <img>.
+    render(
+      <AuthLayout>
+        <div>card</div>
+      </AuthLayout>,
+    );
+    const img = screen.getByRole("img");
+    const wrapper = img.parentElement?.parentElement;
+    expect(wrapper?.className).toContain("bg-[#111e14]");
+    expect(wrapper?.className).toMatch(/rounded/);
   });
 
   it("renders the logo as a non-link element so first Tab lands on the form input", () => {
