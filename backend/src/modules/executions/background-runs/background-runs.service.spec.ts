@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BackgroundRunsService } from './background-runs.service';
 import { NodeExecutionStatus } from '../../node-executions/entities/node-execution.entity';
 
@@ -19,7 +16,9 @@ interface FakeNodeExec {
   error: Record<string, unknown> | null;
 }
 
-const makeBgNodeExec = (overrides: Partial<FakeNodeExec> = {}): FakeNodeExec => ({
+const makeBgNodeExec = (
+  overrides: Partial<FakeNodeExec> = {},
+): FakeNodeExec => ({
   id: 'bg-ne-1',
   executionId: 'exec-1',
   nodeId: 'bg-node-1',
@@ -30,7 +29,10 @@ const makeBgNodeExec = (overrides: Partial<FakeNodeExec> = {}): FakeNodeExec => 
   durationMs: 100,
   inputData: null,
   outputData: {
-    meta: { backgroundRunId: 'bg-run-id', forkedAt: '2026-05-15T05:04:37.123Z' },
+    meta: {
+      backgroundRunId: 'bg-run-id',
+      forkedAt: '2026-05-15T05:04:37.123Z',
+    },
   },
   error: null,
   ...overrides,
@@ -64,9 +66,11 @@ describe('BackgroundRunsService', () => {
     qb.leftJoin = jest.fn().mockReturnValue(qb);
     qb.select = jest.fn().mockReturnValue(qb);
     qb.where = jest.fn().mockReturnValue(qb);
-    qb.getOne = jest.fn().mockResolvedValue(
-      workspaceId ? { id: 'exec-1', workflow: { workspaceId } } : null,
-    );
+    qb.getOne = jest
+      .fn()
+      .mockResolvedValue(
+        workspaceId ? { id: 'exec-1', workflow: { workspaceId } } : null,
+      );
     return qb;
   };
 
@@ -123,8 +127,9 @@ describe('BackgroundRunsService', () => {
         durationMs: null,
       });
 
-      executionRepo.createQueryBuilder
-        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
       nodeExecutionRepo.createQueryBuilder
         .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
         .mockReturnValueOnce(buildBodyPageQB([bodyRunning]))
@@ -169,8 +174,9 @@ describe('BackgroundRunsService', () => {
       });
       const latestFinished = new Date('2026-05-15T05:04:50.000Z');
 
-      executionRepo.createQueryBuilder
-        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
       nodeExecutionRepo.createQueryBuilder
         .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
         .mockReturnValueOnce(buildBodyPageQB([body1, body2]))
@@ -209,8 +215,9 @@ describe('BackgroundRunsService', () => {
         durationMs: null,
       });
 
-      executionRepo.createQueryBuilder
-        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
       nodeExecutionRepo.createQueryBuilder
         .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
         .mockReturnValueOnce(buildBodyPageQB([body1, body2]))
@@ -246,8 +253,9 @@ describe('BackgroundRunsService', () => {
         status: NodeExecutionStatus.FAILED,
       });
 
-      executionRepo.createQueryBuilder
-        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
       nodeExecutionRepo.createQueryBuilder
         .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
         .mockReturnValueOnce(buildBodyPageQB([body1, body2]))
@@ -276,8 +284,9 @@ describe('BackgroundRunsService', () => {
 
     it('returns pending status when no body NodeExecution exists yet', async () => {
       const bgNode = makeBgNodeExec();
-      executionRepo.createQueryBuilder
-        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
       nodeExecutionRepo.createQueryBuilder
         .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
         .mockReturnValueOnce(buildBodyPageQB([]))
@@ -347,8 +356,9 @@ describe('BackgroundRunsService', () => {
         makeBodyNodeExec({ id: 'b3' }),
       ];
 
-      executionRepo.createQueryBuilder
-        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
       nodeExecutionRepo.createQueryBuilder
         .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
         .mockReturnValueOnce(buildBodyPageQB(rows))
@@ -401,12 +411,7 @@ describe('BackgroundRunsService', () => {
 
     it('rejects out-of-range limit', async () => {
       await expect(
-        service.getBackgroundRun(
-          'exec-1',
-          'bg-run-id',
-          { limit: 999 },
-          'ws-1',
-        ),
+        service.getBackgroundRun('exec-1', 'bg-run-id', { limit: 999 }, 'ws-1'),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -414,8 +419,9 @@ describe('BackgroundRunsService', () => {
       const bgNode = makeBgNodeExec({
         outputData: { meta: { backgroundRunId: 'bg-run-id' } }, // no forkedAt
       });
-      executionRepo.createQueryBuilder
-        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
       nodeExecutionRepo.createQueryBuilder
         .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
         .mockReturnValueOnce(buildBodyPageQB([]))
@@ -444,8 +450,9 @@ describe('BackgroundRunsService', () => {
 
     it('includes notifications when resourceType=background_run rows exist', async () => {
       const bgNode = makeBgNodeExec();
-      executionRepo.createQueryBuilder
-        .mockReturnValueOnce(buildOwnershipQB('ws-1'));
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
       nodeExecutionRepo.createQueryBuilder
         .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
         .mockReturnValueOnce(buildBodyPageQB([]))

@@ -193,8 +193,12 @@ describe('WebsocketGateway', () => {
         socket,
       );
       expect(result.data.success).toBe(true);
-      expect(result.data.channel).toBe('background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234');
-      expect(join).toHaveBeenCalledWith('background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234');
+      expect(result.data.channel).toBe(
+        'background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234',
+      );
+      expect(join).toHaveBeenCalledWith(
+        'background:run:8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234',
+      );
       const bgRunsService = module.get(BackgroundRunsService);
       expect(bgRunsService.verifyBackgroundRunOwnership).toHaveBeenCalledWith(
         '8f3c6b1a-0d2e-4a7e-9c1d-2f0e5a8b1234',
@@ -204,8 +208,7 @@ describe('WebsocketGateway', () => {
 
     it('should reject background:run channel when ownership check fails (cross-workspace)', async () => {
       const { socket, join } = createMockSocket({ id: 'client-1' });
-      (socket as Socket & { workspaceId?: string }).workspaceId =
-        'ws-attacker';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-attacker';
       getSubscriptions().set('client-1', new Set());
       const bgRunsService = module.get(BackgroundRunsService);
       (
@@ -227,8 +230,7 @@ describe('WebsocketGateway', () => {
       getSubscriptions().set('client-1', new Set());
       const bgRunsService = module.get(BackgroundRunsService);
       // verify* must not be called when UUID validation fails (saves DB roundtrip).
-      const verifySpy =
-        bgRunsService.verifyBackgroundRunOwnership as jest.Mock;
+      const verifySpy = bgRunsService.verifyBackgroundRunOwnership as jest.Mock;
       verifySpy.mockClear();
 
       const result = await gateway.handleSubscribe(
@@ -302,7 +304,10 @@ describe('WebsocketGateway', () => {
         new Error('Execution not found'),
       );
 
-      await gateway.handleSubscribe({ channel: 'execution:exec-victim' }, socket);
+      await gateway.handleSubscribe(
+        { channel: 'execution:exec-victim' },
+        socket,
+      );
       await new Promise((resolve) => setImmediate(resolve));
 
       expect(execService.verifyOwnership).toHaveBeenCalledWith(
