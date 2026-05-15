@@ -48,7 +48,7 @@
 
 | 영역 | 위치 | 내용 |
 |------|------|------|
-| 로고 | 상단 | 제품 로고. 클릭 시 대시보드(홈, `/dashboard`)로 이동 |
+| 로고 | 상단 | 제품 로고. 사이드바 expanded 상태에서는 **Full logo (light)** , collapsed 상태에서는 **Icon mark** 를 표시. 클릭 시 대시보드(홈, `/dashboard`)로 이동. 자세한 변종·색은 [`spec/6-brand.md` §8.4](../6-brand.md#84-로고-시스템) 참조 (변종·색의 단일 진실은 brand spec) |
 | 메인 메뉴 | 중앙 | 내비게이션 항목 목록 |
 | 사용자 영역 | 하단 | 아바타 + 사용자 이름 |
 
@@ -134,3 +134,13 @@
 | 페이지 제목 | 현재 페이지 이름 (예: "Workflows", "Schedule") |
 | 설명/브레드크럼 | 하위 페이지의 경우 브레드크럼 표시 |
 | 액션 버튼 | 페이지별 주요 액션 (예: "+ New Workflow", "+ Add Schedule") |
+
+---
+
+## Rationale
+
+### R-1. 사이드바 로고 변종 규칙 (2026-05-15)
+
+§2.1 로고 행에 expanded/collapsed 변종 규칙을 추가한 이유: 본 문서는 사이드바의 **자리**만 정의하고, 자리에 들어가는 로고 변종·색은 `spec/6-brand.md §8.4` (brand spec) 가 단일 진실로 결정한다. 본 행은 brand spec §8.4.6 의 결정(expanded → Full logo / collapsed → Icon mark)을 자리 정의에 반영한 것이다.
+
+근거 출처: `spec/6-brand.md §8.4.6` (로고 노출 자리) 및 동 문서 R-9 (브랜드 spec 의 라우트 spec 우선권). 사전 일관성 검토 세션: `review/consistency/2026/05/15/18_36_51/`.
