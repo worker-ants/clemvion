@@ -21,6 +21,7 @@ import {
   Cafe24OperationMetadata,
   Cafe24Resource,
   listAllCafe24Operations,
+  scopeForOperation,
 } from '../../../integration/cafe24/metadata/index.js';
 import { Integration } from '../../../../modules/integrations/entities/integration.entity.js';
 
@@ -131,18 +132,42 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       const sid = sanitizeSid(integration.id);
       const enabled = this.applyAllowlist(ref.enabledTools);
 
+      // Filter operations by what scopes Cafe24 actually granted us.
+      // The integration's `credentials.scopes` records the scopes echoed
+      // back by Cafe24's `/oauth/token` response (after PR #37) — these
+      // are the *real* permissions on the access_token, not what we asked
+      // for. Exposing an operation that requires a scope we don't hold
+      // makes the AI Agent try it and 403 with `insufficient_scope`,
+      // which (a) wastes a tool round-trip and (b) flips the integration
+      // status to `error(auth_failed)` via the 401/403 handler in
+      // Cafe24ApiClient — a UX regression because the integration WAS
+      // working fine for the scopes it actually has.
+      const grantedScopes = extractGrantedScopes(integration);
       const opMap = new Map<
         string,
         { resource: Cafe24Resource; operation: Cafe24OperationMetadata }
       >();
+      const skippedByScope: string[] = [];
       for (const { resource, operation } of listAllCafe24Operations()) {
         if (!enabled(operation.id)) continue;
+        const required = scopeForOperation(resource, operation);
+        if (!grantedScopes.has(required)) {
+          skippedByScope.push(`${operation.id}(needs ${required})`);
+          continue;
+        }
         opMap.set(operation.id, { resource, operation });
         tools.push({
           name: `mcp_${sid}__${operation.id}`,
           description: `${operation.description}\n\n(Cafe24 ${operation.method} ${operation.path} — via Internal Bridge: ${integration.name})`,
           parameters: this.buildJsonSchema(operation),
         });
+      }
+      if (skippedByScope.length > 0) {
+        // Log only a sample — the full list can run into hundreds for a
+        // mall with a single scope granted.
+        this.logger.log(
+          `Cafe24 integration ${integration.id} (${integration.name}) — ${skippedByScope.length} operation(s) skipped due to missing scope. granted=[${[...grantedScopes].join(',')}] sample=[${skippedByScope.slice(0, 5).join(',')}${skippedByScope.length > 5 ? ',...' : ''}]`,
+        );
       }
       // Only retain the sid for THIS execution if buildTools hasn't seen
       // it on this execution before — buildTools may be invoked multiple
@@ -504,6 +529,22 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
   private errMsg(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
   }
+}
+
+/**
+ * Read the granted Cafe24 scopes from an Integration. Returns a Set so
+ * the lookup is O(1) per operation. Falls back to an empty Set when
+ * scopes are missing — that yields zero tools, which is correct for an
+ * unknown-permission integration (better than letting the AI Agent
+ * blindly 403 every endpoint).
+ */
+function extractGrantedScopes(integration: Integration): Set<string> {
+  const creds = integration.credentials as Record<string, unknown> | undefined;
+  const scopes = creds?.scopes;
+  if (!Array.isArray(scopes)) return new Set();
+  return new Set(
+    scopes.filter((s): s is string => typeof s === 'string' && s.length > 0),
+  );
 }
 
 /**
