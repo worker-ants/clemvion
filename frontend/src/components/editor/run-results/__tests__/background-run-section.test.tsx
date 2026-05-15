@@ -158,7 +158,7 @@ describe("BackgroundRunSection", () => {
       notifications: [
         {
           id: "n1",
-          type: "background_failure",
+          type: "background_failed",
           title: "Background 본문 실패",
           message: "Send email failed",
           channel: "in_app",

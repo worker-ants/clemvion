@@ -173,17 +173,26 @@ export class BackgroundExecutionProcessor extends WorkerHost {
     const resourceType = hasRunId ? 'background_run' : 'execution';
     const resourceId = hasRunId ? data.backgroundRunId : data.executionId;
 
-    await this.notificationsService.createMany(
-      recipients.map((userId) => ({
-        workspaceId: data.workspaceId,
-        userId,
-        type: 'background_failure',
-        title: 'Background 본문 실패',
-        message: `워크플로우 ${data.workflowId}의 Background 본문 실행이 실패했어요: ${message}`,
-        resourceType,
-        resourceId,
-        channel: 'in_app',
-      })),
-    );
+    try {
+      await this.notificationsService.createMany(
+        recipients.map((userId) => ({
+          workspaceId: data.workspaceId!,
+          userId,
+          type: 'background_failed',
+          title: 'Background 본문 실패',
+          message: `워크플로우 ${data.workflowId}의 Background 본문 실행이 실패했어요: ${message}`,
+          resourceType,
+          resourceId,
+          channel: 'in_app',
+        })),
+      );
+    } catch (err) {
+      // 알림 발송 실패가 background body 의 retry 결정을 흔들지 않도록 격리.
+      this.logger.error(
+        `Failed to dispatch background_failed notification (workspaceId=${data.workspaceId}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 }

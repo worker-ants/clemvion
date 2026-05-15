@@ -83,7 +83,7 @@ describe('BackgroundExecutionProcessor', () => {
       resourceId: string;
     }>;
     expect(entries).toHaveLength(2);
-    expect(entries[0].type).toBe('background_failure');
+    expect(entries[0].type).toBe('background_failed');
     // Background 모니터링 API 가 정확히 attribute 하도록 backgroundRunId 로 기록.
     expect(entries[0].resourceType).toBe('background_run');
     expect(entries[0].resourceId).toBe('bg-run-1');

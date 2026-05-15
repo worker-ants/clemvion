@@ -189,7 +189,13 @@ describe('Background body monitoring (e2e)', () => {
             positionY: 100,
             config: {
               language: 'javascript',
-              code: "throw new Error('e2e background body intentional failure');",
+              // 의도적 syntax error — Code 노드의 runtime throw 는 handler
+              // 가 자체 catch 후 `error` port 로 라우팅(graceful)하므로
+              // executeBackgroundSubgraph 가 reject 하지 않는다. validate()
+              // 단계의 syntax error 는 executeNode 가 `INVALID_NODE_CONFIG`
+              // 로 throw 해 호출 체인으로 전파 → dispatchFailureNotification
+              // 까지 도달.
+              code: 'this is { not valid javascript',
               timeout: 5,
             },
           },
@@ -264,6 +270,17 @@ describe('Background body monitoring (e2e)', () => {
       .get(`/api/executions/${executionId}/background-runs/${backgroundRunId}`)
       .set('Authorization', `Bearer ${owner.accessToken}`)
       .set('X-Workspace-Id', workspaceId);
+    if (ownOk.status !== 200) {
+      // 진단용 로그 — CI 실패 분석 가속.
+      // eslint-disable-next-line no-console
+      console.error('ownOk failed', {
+        status: ownOk.status,
+        body: ownOk.body,
+        executionId,
+        backgroundRunId,
+        workspaceId,
+      });
+    }
     expect(ownOk.status).toBe(200);
     expect(ownOk.body.data.backgroundRunId).toBe(backgroundRunId);
 
@@ -312,7 +329,7 @@ describe('Background body monitoring (e2e)', () => {
 
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      expect(row.type).toBe('background_failure');
+      expect(row.type).toBe('background_failed');
       expect(row.resource_type).toBe('background_run');
       expect(row.resource_id).toBe(backgroundRunId);
     }
@@ -329,6 +346,6 @@ describe('Background body monitoring (e2e)', () => {
       type: string;
     }>;
     expect(notifications.length).toBeGreaterThan(0);
-    expect(notifications[0].type).toBe('background_failure');
+    expect(notifications[0].type).toBe('background_failed');
   }, 45_000);
 });
