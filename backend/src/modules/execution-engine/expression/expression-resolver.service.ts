@@ -9,7 +9,6 @@ import { Node } from '../../nodes/entities/node.entity';
 import { EXPRESSION_EXCLUSIONS } from './expression-exclusions';
 import { renderThreadAsSystemText } from '../../../shared/conversation-thread/thread-renderer';
 
-const EXPRESSION_PATTERN = /\{\{/;
 const FULL_EXPRESSION_PATTERN = /^\s*\{\{(.+)\}\}\s*$/s;
 const MAX_DEPTH = 10;
 
@@ -236,13 +235,18 @@ export class ExpressionResolverService {
     ctx: EngineContext,
     path: string,
   ): unknown {
-    if (!EXPRESSION_PATTERN.test(value)) return value;
+    // Fast-path 1: 표현식 토큰 자체가 없으면 즉시 통과. indexOf 는 regex 보다 cheap.
+    if (value.indexOf('{{') === -1) return value;
+    // Fast-path 2: FULL_EXPRESSION_PATTERN 한 번만 매칭해 두 분기 (단독 표현식
+    // vs 혼합 텍스트) 를 판별. 옛 코드는 EXPRESSION_PATTERN.test 와 FULL_*.test 를
+    // 분리 호출해 동일 정규식 엔진 startup 을 두 번 지불했다 (W-26).
+    const isFull = FULL_EXPRESSION_PATTERN.test(value);
 
     try {
       const result = evaluate(value, ctx);
 
       // If the entire value is a single expression, preserve the evaluated type
-      if (FULL_EXPRESSION_PATTERN.test(value)) {
+      if (isFull) {
         return result;
       }
 

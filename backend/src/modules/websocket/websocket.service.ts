@@ -90,18 +90,43 @@ const CREDENTIAL_KEY_PATTERN =
 const MAX_SANITIZE_DEPTH = 10;
 
 /**
+ * 동일 객체 참조에 대한 sanitize 결과 캐시.
+ *
+ * ForEach 가 같은 `node.config` 를 5,000회 emit 해도 sanitize 는 1회만 수행된다.
+ * WeakMap 이라 객체가 GC 되면 자동 정리. depth 마다 별도 캐시인 이유: 동일 부분트리가
+ * 다른 깊이로 재방문될 때 (`MAX_SANITIZE_DEPTH` 경계 분기) 결과 형태가 달라질 수 있어서.
+ * 실제 hot path 에서는 대부분 depth 0 이므로 캐시 적중률은 사실상 단일 캐시와 동일.
+ */
+const SANITIZE_CACHE = new WeakMap<object, unknown>();
+
+/**
  * WS emit 페이로드에서 credential-like 키를 마스킹.
  *
  * - 자식 변경이 없으면 입력 그대로의 참조를 반환해 GC pressure 를 피한다 (참조 동일성 보장).
  * - depth 가 {@link MAX_SANITIZE_DEPTH} 를 초과하면 그 노드 이하의 키 매칭을 신뢰할 수 없다.
  *   하부에 credential 이 숨어 있을 가능성을 차단하기 위해 통째로 `'[REDACTED_DEPTH]'` 로 대체한다
  *   (옛 구현은 원본을 그대로 반환해 누출 위험이 있었음 — Review 후속 #4).
+ * - 동일 객체 참조 재방문 시 {@link SANITIZE_CACHE} 에서 O(1) 조회. CPU 핫패스 완화 (C-4).
  *
  * @returns 동일 구조의 새 값(자식 mutation 발생 시) 또는 입력과 동일한 참조(변경 없을 때)
  */
 function sanitizePayloadForWs(value: unknown, depth = 0): unknown {
   if (value === null || typeof value !== 'object') return value;
   if (depth > MAX_SANITIZE_DEPTH) return '[REDACTED_DEPTH]';
+  // depth 0 진입만 캐시 검사 — 부분트리는 부모 호출이 이미 캐시 적중 시 진입 자체 안 함.
+  // 캐시 키는 입력 object identity. 결과는 sanitized output (원본일 수도 있음).
+  if (depth === 0) {
+    const cached = SANITIZE_CACHE.get(value);
+    if (cached !== undefined) return cached;
+  }
+  const result = sanitizeInner(value, depth);
+  if (depth === 0) {
+    SANITIZE_CACHE.set(value, result);
+  }
+  return result;
+}
+
+function sanitizeInner(value: object, depth: number): unknown {
   if (Array.isArray(value)) {
     let mutated = false;
     const out: unknown[] = new Array(value.length);
