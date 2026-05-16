@@ -877,6 +877,7 @@ export const ko = {
     sharedRemoveRow: "행 제거",
     fieldHelpAriaLabel: "도움말",
     fieldHelpLearnMore: "자세히 보기 →",
+    assistantAriaLabel: "어시스턴트 응답",
     conversation: {
       viewInReferences: "참조 탭에서 보기",
       toolCall: "도구 호출",
@@ -888,6 +889,12 @@ export const ko = {
       composerWaitingPlaceholder: "AI 응답을 기다리는 중...",
       composerPlaceholder: "메시지를 입력하세요...",
       endConversation: "대화 종료",
+    },
+    expression: {
+      insertVariable: "변수 삽입",
+      sourceItemDetail: "현재 행 항목",
+      builtIn: "기본 제공",
+      functions: "함수",
     },
     runResults: {
       tabPreview: "미리보기",
