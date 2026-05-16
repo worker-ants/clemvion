@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ConflictException,
@@ -73,6 +74,18 @@ export interface IntegrationTestResult {
 type TransportTester = (
   authType: string,
   credentials: Record<string, unknown>,
+) => Promise<IntegrationTestResult>;
+
+/**
+ * Entity-aware variant — receives the persisted Integration row so the tester
+ * can use side-effects like proactive token refresh, status transitions, or
+ * DB-backed retry state. Registered out-of-band by infrastructure modules
+ * that own these side-effects (e.g. Cafe24Module → registers cafe24's
+ * `pingConnection` here so IntegrationsModule never has to depend on
+ * `nodes/*`). Falls through to {@link TransportTester} when not registered.
+ */
+export type EntityAwareTester = (
+  integration: Integration,
 ) => Promise<IntegrationTestResult>;
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
@@ -153,11 +166,20 @@ export class IntegrationCredentialsUnreadableError extends BadRequestException {
 
 @Injectable()
 export class IntegrationsService {
+  private readonly logger = new Logger(IntegrationsService.name);
   /**
    * Map of `service_type` → transport-level test. Services without an entry
    * fall back to the structural-only validation in {@link dispatchTest}.
    */
   private readonly transportTesters: Map<string, TransportTester>;
+
+  /**
+   * Map of `service_type` → entity-aware test. Populated at runtime by
+   * infrastructure modules via {@link registerEntityTester}. Used only by
+   * {@link testConnection} (saved integration), not by {@link previewTest}
+   * (entity does not yet exist).
+   */
+  private readonly entityTesters = new Map<string, EntityAwareTester>();
 
   constructor(
     @InjectRepository(Integration)
@@ -174,6 +196,27 @@ export class IntegrationsService {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
     ]);
+  }
+
+  /**
+   * Out-of-band registration of an entity-aware tester for a given
+   * `service_type`. Called by infrastructure modules at startup
+   * (Cafe24Module.onModuleInit) so this module never has to depend on
+   * `nodes/*` directly.
+   *
+   * **Calling contract** — invoke once per service_type from the owning
+   * module's `onModuleInit`. Re-registration is allowed (test resets) but
+   * emits a warning so production wiring drift surfaces in logs. The tester
+   * itself MUST not throw — return a failure result instead, since
+   * {@link testConnection} surfaces the result as-is to the HTTP response.
+   */
+  registerEntityTester(serviceType: string, tester: EntityAwareTester): void {
+    if (this.entityTesters.has(serviceType)) {
+      this.logger.warn(
+        `Overwriting existing entity-aware tester for service_type='${serviceType}' — likely duplicate registration in module wiring`,
+      );
+    }
+    this.entityTesters.set(serviceType, tester);
   }
 
   // ---------------------------------------------------------------
@@ -558,6 +601,12 @@ export class IntegrationsService {
         message:
           'Credentials cannot be decrypted with the current key. Reconnect to rebuild this integration.',
       };
+    }
+    // Entity-aware tester wins when registered (e.g. cafe24's pingConnection
+    // needs the row for proactive refresh + 401 retry against the real API).
+    const entityTester = this.entityTesters.get(entity.serviceType);
+    if (entityTester) {
+      return entityTester(entity);
     }
     return this.dispatchTest(
       entity.serviceType,
