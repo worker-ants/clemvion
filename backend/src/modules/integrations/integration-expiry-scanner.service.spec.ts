@@ -3,7 +3,9 @@ import {
   JOB_CONNECTED_EXPIRY,
   JOB_PENDING_INSTALL_TTL,
   JOB_USAGE_LOG_PRUNE,
+  JOB_CAFE24_BACKGROUND_REFRESH,
 } from './integration-expiry-scanner.service';
+import { REFRESH_PROACTIVE_THRESHOLD_DAYS } from './cafe24-token-refresh.constants';
 
 type Mock = jest.Mock;
 
@@ -26,6 +28,7 @@ describe('IntegrationExpiryScannerService.run', () => {
   let workspacesService: { findAdminUserIds: Mock };
   let notificationsService: { createMany: Mock };
   let queue: Record<string, Mock>;
+  let cafe24RefreshQueue: { add: Mock };
 
   beforeEach(() => {
     integrationRepo = repo();
@@ -38,6 +41,7 @@ describe('IntegrationExpiryScannerService.run', () => {
       createMany: jest.fn().mockResolvedValue(undefined),
     };
     queue = { upsertJobScheduler: jest.fn() };
+    cafe24RefreshQueue = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };
 
     scanner = new IntegrationExpiryScannerService(
       integrationRepo as never,
@@ -47,6 +51,7 @@ describe('IntegrationExpiryScannerService.run', () => {
       workspacesService as never,
       notificationsService as never,
       queue as never,
+      cafe24RefreshQueue as never,
     );
   });
 
@@ -305,6 +310,9 @@ describe('IntegrationExpiryScannerService.process — per-job routing', () => {
       andWhere: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected: 0 }),
     });
+    const cafe24RefreshQueue = {
+      add: jest.fn().mockResolvedValue({ id: 'job-1' }),
+    };
     const scanner = new IntegrationExpiryScannerService(
       integrationRepo as never,
       repo() as never,
@@ -313,8 +321,9 @@ describe('IntegrationExpiryScannerService.process — per-job routing', () => {
       { findAdminUserIds: jest.fn().mockResolvedValue([]) } as never,
       { createMany: jest.fn().mockResolvedValue(undefined) } as never,
       { upsertJobScheduler: jest.fn() } as never,
+      cafe24RefreshQueue as never,
     );
-    return { scanner, integrationRepo, usageLogRepo };
+    return { scanner, integrationRepo, usageLogRepo, cafe24RefreshQueue };
   }
 
   it('routes JOB_CONNECTED_EXPIRY → run()', async () => {
@@ -365,6 +374,18 @@ describe('IntegrationExpiryScannerService.process — per-job routing', () => {
     expect(expireSpy).not.toHaveBeenCalled();
   });
 
+  it('routes JOB_CAFE24_BACKGROUND_REFRESH → enqueueCafe24BackgroundRefresh()', async () => {
+    const { scanner } = makeScanner();
+    const bgSpy = jest
+      .spyOn(scanner, 'enqueueCafe24BackgroundRefresh')
+      .mockResolvedValue(0);
+    await scanner.process({
+      name: JOB_CAFE24_BACKGROUND_REFRESH,
+      data: { triggeredAt: new Date().toISOString() },
+    } as never);
+    expect(bgSpy).toHaveBeenCalled();
+  });
+
   it('propagates failures so BullMQ retries (no .catch swallow)', async () => {
     const { scanner } = makeScanner();
     jest
@@ -401,9 +422,109 @@ describe('IntegrationExpiryScannerService.pruneUsageLogs', () => {
       { findAdminUserIds: jest.fn() } as never,
       { createMany: jest.fn() } as never,
       { upsertJobScheduler: jest.fn() } as never,
+      { add: jest.fn() } as never,
     );
     const affected = await scanner.pruneUsageLogs(new Date());
     expect(affected).toBe(42);
     expect(usageLogRepo.delete).toHaveBeenCalled();
+  });
+});
+
+describe('IntegrationExpiryScannerService.enqueueCafe24BackgroundRefresh', () => {
+  // 14일 refresh_token 만료 전 자동 갱신 — idle 통합도 영구 유효 유지.
+  // lastRotatedAt < now - REFRESH_PROACTIVE_THRESHOLD_DAYS 인 cafe24 통합을
+  // refresh 큐로 enqueue. jobId = integrationId 로 proactive 호출과 dedup.
+  function makeScanner() {
+    const integrationRepo = repo();
+    const cafe24RefreshQueue = {
+      add: jest.fn().mockResolvedValue({ id: 'job-1' }),
+    };
+    const scanner = new IntegrationExpiryScannerService(
+      integrationRepo as never,
+      repo() as never,
+      repo() as never,
+      repo() as never,
+      { findAdminUserIds: jest.fn() } as never,
+      { createMany: jest.fn() } as never,
+      { upsertJobScheduler: jest.fn() } as never,
+      cafe24RefreshQueue as never,
+    );
+    return { scanner, integrationRepo, cafe24RefreshQueue };
+  }
+
+  it('enqueues refresh jobs for stale (lastRotatedAt < cutoff) connected cafe24 integrations', async () => {
+    const { scanner, integrationRepo, cafe24RefreshQueue } = makeScanner();
+    const now = new Date('2026-05-16T00:00:00Z');
+    integrationRepo.find.mockResolvedValue([
+      { id: 'int-a', lastRotatedAt: new Date('2026-05-01T00:00:00Z') },
+      { id: 'int-b', lastRotatedAt: new Date('2026-04-20T00:00:00Z') },
+    ]);
+
+    const count = await scanner.enqueueCafe24BackgroundRefresh(now);
+    expect(count).toBe(2);
+
+    // cutoff 검증: now - 10 days
+    const expectedCutoff = new Date(
+      now.getTime() - REFRESH_PROACTIVE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000,
+    );
+    expect(integrationRepo.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          serviceType: 'cafe24',
+          status: 'connected',
+        }),
+      }),
+    );
+    const findCall = integrationRepo.find.mock.calls[0][0] as {
+      where: { lastRotatedAt: { value: Date } };
+    };
+    expect(findCall.where.lastRotatedAt).toBeDefined();
+    // typeorm LessThan wraps the value — _value or _useParameter property
+    const cutoffArg = findCall.where.lastRotatedAt as {
+      _value?: Date;
+      value?: Date;
+    };
+    const actualCutoff = cutoffArg._value ?? cutoffArg.value;
+    expect(actualCutoff?.getTime()).toBe(expectedCutoff.getTime());
+
+    // 각 통합이 jobId=integrationId 로 enqueue
+    expect(cafe24RefreshQueue.add).toHaveBeenCalledTimes(2);
+    expect(cafe24RefreshQueue.add).toHaveBeenNthCalledWith(
+      1,
+      'refresh-cafe24-token',
+      { integrationId: 'int-a', source: 'background' },
+      expect.objectContaining({ jobId: 'int-a', attempts: 1 }),
+    );
+    expect(cafe24RefreshQueue.add).toHaveBeenNthCalledWith(
+      2,
+      'refresh-cafe24-token',
+      { integrationId: 'int-b', source: 'background' },
+      expect.objectContaining({ jobId: 'int-b', attempts: 1 }),
+    );
+  });
+
+  it('returns 0 and skips enqueue when no candidates', async () => {
+    const { scanner, integrationRepo, cafe24RefreshQueue } = makeScanner();
+    integrationRepo.find.mockResolvedValue([]);
+    const count = await scanner.enqueueCafe24BackgroundRefresh(new Date());
+    expect(count).toBe(0);
+    expect(cafe24RefreshQueue.add).not.toHaveBeenCalled();
+  });
+
+  it('survives partial enqueue failures — counts only successful', async () => {
+    const { scanner, integrationRepo, cafe24RefreshQueue } = makeScanner();
+    integrationRepo.find.mockResolvedValue([
+      { id: 'int-a', lastRotatedAt: new Date('2026-04-01T00:00:00Z') },
+      { id: 'int-b', lastRotatedAt: new Date('2026-04-02T00:00:00Z') },
+      { id: 'int-c', lastRotatedAt: new Date('2026-04-03T00:00:00Z') },
+    ]);
+    cafe24RefreshQueue.add
+      .mockResolvedValueOnce({ id: 'job-a' })
+      .mockRejectedValueOnce(new Error('Redis 일시 장애'))
+      .mockResolvedValueOnce({ id: 'job-c' });
+
+    const count = await scanner.enqueueCafe24BackgroundRefresh(new Date());
+    expect(count).toBe(2);
+    expect(cafe24RefreshQueue.add).toHaveBeenCalledTimes(3);
   });
 });
