@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ConflictException,
@@ -165,6 +166,7 @@ export class IntegrationCredentialsUnreadableError extends BadRequestException {
 
 @Injectable()
 export class IntegrationsService {
+  private readonly logger = new Logger(IntegrationsService.name);
   /**
    * Map of `service_type` → transport-level test. Services without an entry
    * fall back to the structural-only validation in {@link dispatchTest}.
@@ -200,9 +202,20 @@ export class IntegrationsService {
    * Out-of-band registration of an entity-aware tester for a given
    * `service_type`. Called by infrastructure modules at startup
    * (Cafe24Module.onModuleInit) so this module never has to depend on
-   * `nodes/*` directly. Last registration wins.
+   * `nodes/*` directly.
+   *
+   * **Calling contract** — invoke once per service_type from the owning
+   * module's `onModuleInit`. Re-registration is allowed (test resets) but
+   * emits a warning so production wiring drift surfaces in logs. The tester
+   * itself MUST not throw — return a failure result instead, since
+   * {@link testConnection} surfaces the result as-is to the HTTP response.
    */
   registerEntityTester(serviceType: string, tester: EntityAwareTester): void {
+    if (this.entityTesters.has(serviceType)) {
+      this.logger.warn(
+        `Overwriting existing entity-aware tester for service_type='${serviceType}' — likely duplicate registration in module wiring`,
+      );
+    }
     this.entityTesters.set(serviceType, tester);
   }
 

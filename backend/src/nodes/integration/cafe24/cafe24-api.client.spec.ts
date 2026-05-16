@@ -912,6 +912,14 @@ describe('Cafe24ApiClient', () => {
   // 401 시 markAuthFailed 즉시 발사하지 않고 refresh + 1회 재시도 후
   // 그래도 실패할 때만 auth_failed 로 격하한다 (race-condition 자가 회복).
   describe('pingConnection (test-connection probe)', () => {
+    afterEach(() => {
+      // 환경 변수 격리 — describe 내 it 들이 process.env 에 set 한 값이
+      // 다른 테스트로 leak 되지 않도록 보장. 예외로 set 후 delete 미실행
+      // 케이스도 여기서 일괄 정리.
+      delete process.env.CAFE24_CLIENT_ID;
+      delete process.env.CAFE24_CLIENT_SECRET;
+    });
+
     function freshIntegration(): Integration {
       // 토큰이 expiry window 밖에 있어 ensureFreshToken 이 트리거되지 않게
       // 한다. 401 retry 분기를 명시적으로 검증하기 위함.
@@ -927,6 +935,7 @@ describe('Cafe24ApiClient', () => {
           cafe24_operator_id: 'op-1',
         },
         tokenExpiresAt: farFuture,
+        consecutiveNetworkFailures: 0,
       });
     }
 
@@ -1118,7 +1127,7 @@ describe('Cafe24ApiClient', () => {
       delete process.env.CAFE24_CLIENT_SECRET;
     });
 
-    it('403 — returns failure but does NOT mark auth_failed (test is for diagnostics, not status drift)', async () => {
+    it('403 — returns INSUFFICIENT_SCOPE without flipping status (diagnostic only)', async () => {
       const integration = freshIntegration();
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(
@@ -1133,7 +1142,7 @@ describe('Cafe24ApiClient', () => {
       const result = await client.pingConnection(integration);
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe('CAFE24_AUTH_FAILED');
+      expect(result.code).toBe('CAFE24_INSUFFICIENT_SCOPE');
       expect(result.message).toContain('INSUFFICIENT_SCOPE');
       // 403 은 retry 하지 않고, status 격하도 않는다
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1142,6 +1151,75 @@ describe('Cafe24ApiClient', () => {
         expect.objectContaining({ status: 'error' }),
       );
       expect(integration.status).toBe('connected');
+    });
+
+    it('401 → refresh succeeds → retry 403 — returns INSUFFICIENT_SCOPE WITHOUT markAuthFailed (403 정책 일관)', async () => {
+      const integration = freshIntegration();
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockResolvedValue(undefined),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      fetchMock
+        .mockResolvedValueOnce(
+          makeJsonResponse(
+            { error: 'invalid_token', error_description: 'expired' },
+            { status: 401 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse({
+            access_token: 'new-access',
+            refresh_token: 'new-refresh',
+            expires_in: 7200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse(
+            {
+              error_code: 'INSUFFICIENT_SCOPE',
+              error_message: 'missing scope',
+            },
+            { status: 403 },
+          ),
+        );
+
+      const result = await client.pingConnection(integration);
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('CAFE24_INSUFFICIENT_SCOPE');
+      // 첫 403 과 동일하게 status 격하 안 함
+      expect(repo.update).not.toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({ status: 'error' }),
+      );
+      expect(integration.status).toBe('connected');
+    });
+
+    it('incomplete credentials — never throws, returns INTEGRATION_INCOMPLETE result', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          // mall_id 누락 — assertCredentials 가 throw 하는 경로
+          access_token: 't',
+          refresh_token: 'r',
+        },
+      });
+
+      const result = await client.pingConnection(integration);
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('INTEGRATION_INCOMPLETE');
+      expect(result.message).toContain('mall_id');
+      // fetch 자체가 호출되어서는 안 됨
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('transport failure — returns failure WITHOUT incrementing consecutive_network_failures', async () => {

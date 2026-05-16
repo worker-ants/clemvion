@@ -71,8 +71,8 @@ owner: developer
 - [x] worktree 셋업 (`.claude/worktrees/cafe24-test-connection-2d7fa4`)
 - [x] spec 분석 (§3.3, §5.8, §10.5)
 - [x] 사전 일관성 검토 (`/consistency-check --impl-prep`) — BLOCK: YES, spec 위임만 직렬화. 코드 진행
-- [ ] 테스트 선작성
-- [ ] 구현 (`pingConnection`, dispatchTest 외부 분기, 테스트 카운터 합산 제외)
-- [ ] TEST WORKFLOW
-- [ ] REVIEW WORKFLOW
-- [ ] spec 갱신 위임 노트 분리 (`spec-update-cafe24-test-connection.md`) — 본 PR 과 별개로 머지 가능 시점에 작성
+- [x] 테스트 선작성
+- [x] 구현 (`pingConnection`, dispatchTest 외부 분기, 테스트 카운터 합산 제외)
+- [x] TEST WORKFLOW (lint 통과·208 unit suites·12 e2e suites 통과)
+- [x] REVIEW WORKFLOW (`review/code/2026/05/16/13_59_20`) + Warning 조치
+- [x] spec 갱신 위임 노트 작성 (`spec-update-cafe24-test-connection.md`) — 3개 in-flight 머지 후 project-planner 실행
