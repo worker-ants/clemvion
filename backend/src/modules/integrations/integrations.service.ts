@@ -374,15 +374,27 @@ export class IntegrationsService {
     // 트랜잭션 미적용 의도 (2026-05-16 — ai-review W23 검토 결과):
     //   1. `save()` 단일 INSERT 실패 시 row 미생성 — 자체로 atomic.
     //   2. `auditLogsService.record` 는 step 1 성공 후에만 호출 — 실패 row 의
-    //      audit 없음.
+    //      audit 없음. 또한 best-effort 로 swallow (아래 별도 try/catch) — row
+    //      가 이미 commit 된 상태에서 audit 실패가 user-visible 500 으로
+    //      빠지지 않도록 한다 (ai-review INFO 10 — 2026-05-16).
     //   3. preview_token 은 본 메서드 진입 전 `consumePreviewToken` 에서 이미
     //      `DELETE…RETURNING` 으로 원자 소비된 capability token. V045
     //      UNIQUE race loser 가 토큰을 재사용해도 보안상 위험 — 의도적으로
     //      재사용 차단 (race-loser 는 OAuth 재실행 필요, 이는 spec 의도).
     // 따라서 본 try/catch 블록을 dataSource.transaction 으로 감쌀 implementational
     // 이득이 없다. 향후 audit log 외 부작용이 추가되면 재검토.
+    let saved: Integration;
     try {
-      const saved = await this.integrationRepository.save(entity);
+      saved = await this.integrationRepository.save(entity);
+    } catch (err) {
+      this.throwIfUniqueViolation(err);
+      throw err;
+    }
+    // audit 기록은 best-effort — row 는 이미 commit 됐으므로 audit 실패가
+    // 호출자에게 500 으로 노출되면 안 된다. AuditLogsService.record 자체도
+    // 내부 try/catch 로 swallow 하지만, 방어선을 본 메서드에도 둬서 향후
+    // record 구현이 throw 하도록 변경돼도 회귀 없게 한다.
+    try {
       await this.auditLogsService.record({
         workspaceId,
         userId,
@@ -395,11 +407,14 @@ export class IntegrationsService {
           scope: saved.scope,
         },
       });
-      return this.toPublic(saved);
     } catch (err) {
-      this.throwIfUniqueViolation(err);
-      throw err;
+      this.logger.warn(
+        `Failed to record audit log for integration.created id=${saved.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
+    return this.toPublic(saved);
   }
 
   async update(

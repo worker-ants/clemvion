@@ -7,6 +7,7 @@ import {
 import {
   IntegrationsService,
   IntegrationCredentialsUnreadableError,
+  type PublicIntegration,
 } from './integrations.service';
 import type { Integration } from './entities/integration.entity';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
@@ -918,6 +919,45 @@ describe('IntegrationsService', () => {
         .catch((e: Error) => e);
       const response = (error as { response?: { code?: string } }).response;
       expect(response?.code).toBe('INTEGRATION_NAME_TAKEN');
+    });
+
+    // 트랜잭션 미적용 결정 (W23 검토 결과) 의 회귀 안전망 — ai-review INFO 10
+    // (2026-05-16). `auditLogsService.record` 가 내부 try/catch 로 모든
+    // exception 을 swallow 하므로 audit 기록 실패는 user-visible 흐름에
+    // 영향을 주지 않는다. 향후 audit log 가 throw 하도록 변경되면 본 테스트가
+    // 회귀를 감지 — Integration row 는 commit 되었으므로 사용자에게 결과를
+    // 정상 반환해야 한다 (audit 누락은 best-effort 정책).
+    it('returns integration even when audit log record throws internally (best-effort audit)', async () => {
+      // record() 가 내부 try/catch 를 통과하지 못하고 throw 한다고 가정.
+      // (실제 record() 구현은 내부에서 swallow 하므로 본 시나리오는 회귀 시
+      // 만 발생.)
+      auditLogsService.record = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('audit DB unreachable'));
+
+      // save() 는 정상 — row 가 commit 된 상태.
+      const result = await service
+        .create('ws-1', 'user-1', 'member', {
+          serviceType: 'http',
+          authType: 'api_key',
+          name: 'My API (audit fail)',
+          credentials: {
+            location: 'header',
+            key_name: 'X-Api-Key',
+            value: 'secret',
+          },
+        })
+        .catch((e: Error) => e);
+
+      // 호출자에게는 row 가 정상 반환되어야 한다 (audit 실패는 swallow).
+      // 만약 audit 실패가 user-visible 500 으로 빠지면 본 단언이 실패해
+      // 회귀를 감지.
+      expect(result).not.toBeInstanceOf(Error);
+      expect((result as PublicIntegration).name).toBe('My API (audit fail)');
+      // audit 시도는 반드시 일어났어야 한다 (best-effort 의무).
+      expect(auditLogsService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'integration.created' }),
+      );
     });
   });
 
