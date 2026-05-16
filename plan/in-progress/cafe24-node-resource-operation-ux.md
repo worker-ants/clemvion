@@ -64,13 +64,25 @@ owner: developer
 - [x] `frontend/src/lib/i18n/dict/{ko,en}.ts` — 신규 키 9개 (`cafe24OperationSelectPlaceholder`, `cafe24OperationSelectResourceFirst`, `cafe24OperationPlannedSuffix`, `cafe24OperationCoverageHint`, `cafe24OperationPlannedHint`, `cafe24OperationUnknown`, `cafe24FieldsRequired`, `cafe24FieldsOptional`, `cafe24FieldsEmpty`, `cafe24FieldsEnumHint`, `cafe24FieldsBooleanHint`, `cafe24FieldsDefaultHint`) + 폐기 4개 (`cafe24OperationPlaceholder`, `cafe24OperationHint`, `cafe24FieldsKeyPlaceholder`, `cafe24FieldsValuePlaceholder`)
 - [x] `cafe24-config.test.tsx` 전면 재작성 — vitest 14 cases (resource→op reset, planned disabled, paginated 분기, 표현식 보존, 키 교집합 보존, enum/default hint, unknown op hint, no-extras fallback)
 - [x] frontend vitest 1392/1392, tsc/eslint 통과
-- [ ] consistency-check (impl-prep) 세션 + Critical 0 확인
-- [ ] 수동 UI sanity (편집기에서 cafe24 노드 추가 → Resource 선택 → Operation 선택 시 dynamic fields/pagination 확인)
+- [x] consistency-check `review/consistency/2026/05/16/13_09_46/` — Critical 1건 (i18n dict split rebase) 해소
+- [x] 수동 UI sanity — 본 환경에서 Next.js dev 서버/브라우저 구동 불가, PR 머지 전 사용자 점검 항목으로 명시
 
-### Phase 4 — Coverage 확장 (별 트랙, 본 PR 종료 후)
+### Phase 4 — spec §9.9 정리 (이 PR — claude/cafe24-spec-buffer-cleanup-2b6e9c)
 
-- Planned → Supported 전환 PR (operation 추가, metadata row 1개 = 카탈로그 1행 supported 화)
-- 사용자 피드백 통로 (옵션): planned 항목 옆 "구현 요청" 버튼 — 별 작업
+Phase 3 머지로 KeyValueEditor + 내부 편집 버퍼 패턴이 코드베이스에서 사라졌으므로 spec 의 옛 결정 절도 정리한다.
+
+- [x] `spec/4-nodes/4-integration/4-cafe24.md §2` — "편집 버퍼" 줄 제거, 메타데이터 기반 typed 동적 폼 동작 + 호환 키 보존 + planned 옵션 노출 + paginated 분기를 본문에 정리
+- [x] `spec/4-nodes/4-integration/4-cafe24.md §9.9` — (A) 옛 자유 key/value 입력 / (B) 메타데이터 기반 typed 동적 폼 비교로 재작성. 채택안 (B) + 호환 키 보존 결정 명시. 옛 "object-shaped contract + 편집 버퍼" 패턴이 본 프로젝트에서 더 이상 적용되지 않음을 명시 (적용 범위 변경)
+- [x] CHANGELOG `2026-05-16 (ux-cleanup)` 행 추가
+- [ ] consistency-check (--spec) 세션 + Critical 0 확인
+- [ ] 본 plan 을 `plan/complete/` 로 이동 (`git mv`) — 남은 follow-up 항목은 별 plan 으로 split
+
+### Phase 5+ (별 트랙, 본 plan 의 범위 외)
+
+`plan/in-progress/cafe24-followup-backlog.md` (PR #87 도입) 에 통합 백로그. 본 plan 의 범위는 노드 UX 개편으로 닫고, 아래 항목은 backlog 에서 추적:
+
+- **Coverage 확장**: planned → supported 전환 (operation 추가, metadata row 1개 = 카탈로그 1행 supported 화) — 별 PR 묶음 단위
+- **사용자 피드백 통로**: planned 항목 옆 "구현 요청" 버튼 — 별 설계 항목 (`cafe24-followup-backlog.md` 의 향후 결정 사항으로 흡수 가능)
 
 ## 위험
 
