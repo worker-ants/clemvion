@@ -101,6 +101,8 @@ export class AuthController {
   }
 
   @Public()
+  // W-47 — credential stuffing / 계정 생성 남용 차단. IP 당 10 req/min.
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -163,6 +165,9 @@ export class AuthController {
   }
 
   @Public()
+  // W-47 — brute force 차단. IP 당 10 req/min. 계정별 lockout (5회 실패 → 10분)
+  // 와 별개 — IP 가 여러 계정을 순회해도 throttle 이 먼저 막는다.
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
