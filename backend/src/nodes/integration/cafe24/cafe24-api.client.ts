@@ -1061,6 +1061,14 @@ export class Cafe24ApiClient {
         url.searchParams.append(k, stringifyQueryValue(v));
       }
     }
+    if (
+      url.protocol !== 'https:' ||
+      !url.hostname.endsWith('.cafe24api.com')
+    ) {
+      throw new Error(
+        `Cafe24ApiClient: refusing to call non-Cafe24 host ${url.hostname} (SSRF guard)`,
+      );
+    }
     return url.toString();
   }
 }
