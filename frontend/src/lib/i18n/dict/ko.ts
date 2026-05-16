@@ -1083,6 +1083,7 @@ export const ko = {
       switchHint: "평가할 표현식",
       cases: "케이스",
       caseLabel: "레이블",
+      caseDefaultLabel: "케이스 {{index}}",
       caseValue: "값 또는 {{ 표현식 }}",
       typeString: "문자열",
       typeNumber: "숫자",
