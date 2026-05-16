@@ -89,7 +89,7 @@ PR #52 → #85 의 7 PR 사이클로 운영 결함·Critical 22건·High 11건·
 - [x] A-1: integration_action_required — 사용자 결정 + 구현 완료 (2026-05-16, spec + 신규 notifier + Cafe24ApiClient 통합)
 - [ ] A-1 follow-up: frontend i18n / 알림 표시 UI 의 `integration_action_required` 핸들링 — 현재는 type 을 generic 으로 렌더링하므로 기본 동작. 사용자 액션 버튼 (재인증 단축 링크) 별 plan
 - [x] B-1: 보안 Medium 6건 — 묶음 PR (2026-05-16, B-1-1/2/4/5/6 처리, B-1-3 은 spec 명문화만 + Redis nonce cache 는 별 plan 으로 잔여)
-- [ ] B-1-3 follow-up: timestamp replay nonce cache — Redis DI + 운영 비용 평가 필요
+- [x] B-1-3 follow-up: timestamp replay nonce cache — 2026-05-16 `Cafe24InstallNonceCache` + handleInstall hook + spec 갱신 완료
 - [x] B-2: 동시성 Medium 4건 — 묶음 PR (2026-05-16, B-2-1/2/3/4 모두 처리)
 - [x] B-3: 요구사항/API Medium 7건 — 묶음 PR (2026-05-16, B-3-1~7 모두 처리)
 - [x] B-4: 데이터베이스 Medium 5건 — 묶음 PR (2026-05-16, V051 + 코드 4건 모두 처리)

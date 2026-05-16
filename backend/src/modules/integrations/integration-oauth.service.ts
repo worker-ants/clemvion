@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   NotFoundException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
@@ -25,6 +26,7 @@ import { findService } from './services/service-registry';
 import { decryptJson } from './services/credentials-transformer';
 import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import { normalizeStatusReason } from './integration-status-reason';
+import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
@@ -348,6 +350,11 @@ export class IntegrationOAuthService {
     @InjectRepository(IntegrationOAuthPreview)
     private readonly previewRepository: Repository<IntegrationOAuthPreview>,
     private readonly dataSource: DataSource,
+    // B-1-3: timestamp replay 보호용 Redis nonce cache. `@Optional()` 로
+    // 두어 옛 테스트 (mock 없이 직접 생성) 와 Redis 미설정 환경에서도
+    // graceful degradation.
+    @Optional()
+    private readonly installNonceCache?: Cafe24InstallNonceCache,
   ) {}
 
   static isAllowedProvider(value: string): value is OAuthProvider {
@@ -1306,6 +1313,25 @@ export class IntegrationOAuthService {
         code: 'CAFE24_INSTALL_INVALID_HMAC',
         message: 'HMAC verification failed',
       });
+    }
+
+    // B-1-3: timestamp replay nonce 검사. HMAC 통과 직후, 동일
+    // (mall_id, timestamp, hmac) 튜플이 5분 윈도우 안에서 재전송됐는지 확인.
+    // Redis 미설정 / 통신 실패 시 isReplay 가 false → 옛 정책 (±5분 윈도우만) 으로
+    // graceful fallback. spec/4-nodes/4-integration/4-cafe24.md 잔여 위험 절 참조.
+    if (this.installNonceCache) {
+      const isReplay = await this.installNonceCache.isReplay({
+        mallId: query.mall_id,
+        timestamp: query.timestamp,
+        hmac: query.hmac,
+      });
+      if (isReplay) {
+        throw new BadRequestException({
+          code: 'CAFE24_INSTALL_REPLAY',
+          message:
+            'Request (mall_id, timestamp, hmac) tuple has been seen within the 10-minute window — refusing replay.',
+        });
+      }
     }
 
     // status 분기 — pending_install 만 OAuth authorize 로 진입.
