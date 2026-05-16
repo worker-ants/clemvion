@@ -21,19 +21,25 @@ import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 // execution_node_log 행 수 상한. ForEach 같은 컨테이너에서 행 수가 폭증하는 경우
 // 메모리 적재량을 묶어두기 위한 안전망 — UI timeline 은 정렬된 nodeId prefix 만
 // 필요하므로 상한을 초과한 경우는 잘려도 표시 흐름은 유지된다.
-const MAX_EXECUTION_PATH_ROWS = 10_000;
+// 테스트에서도 동일 상수를 참조하도록 export.
+export const MAX_EXECUTION_PATH_ROWS = 10_000;
 
 /**
  * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
  * triggerSource/triggerLabel 두 필드를 추가한 shape. `executionPath` 는
  * `execution_node_log` 의 (execution_id, id) 정렬 결과로 채워진다 — entity
  * 컬럼이 사라졌으므로 service 가 외부 API 호환성을 위해 별도 채움.
+ *
+ * `executionPathTruncated` 는 `executionPath.length === MAX_EXECUTION_PATH_ROWS`
+ * 인 상황에서 추가 행이 잘렸을 수 있음을 알린다 — 프론트엔드 UI 가 "이 이후 일부
+ * 로그가 표시되지 않습니다" 배너를 띄울 수 있도록.
  */
 export type ExecutionDetailWithTrigger = Execution & {
   nodeExecutions: NodeExecution[];
   triggerSource: ExecutionTriggerSource;
   triggerLabel: string | null;
   executionPath: string[];
+  executionPathTruncated: boolean;
 };
 
 @Injectable()
@@ -136,6 +142,10 @@ export class ExecutionsService {
           }),
         ]);
         const executionPath = pathRows.map((r) => r.nodeId);
+        // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
+        // UI 는 이 플래그로 배너를 띄우거나 후속 페이지 요청을 결정한다.
+        const executionPathTruncated =
+          pathRows.length >= MAX_EXECUTION_PATH_ROWS;
 
         const parentName = execution.parentExecutionId
           ? (
@@ -154,6 +164,7 @@ export class ExecutionsService {
           triggerSource: trigger.source,
           triggerLabel: trigger.label,
           executionPath,
+          executionPathTruncated,
         };
       },
     );

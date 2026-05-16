@@ -1,4 +1,7 @@
-import { ExecutionsService } from './executions.service';
+import {
+  ExecutionsService,
+  MAX_EXECUTION_PATH_ROWS,
+} from './executions.service';
 import { ExecutionStatus } from './entities/execution.entity';
 
 /**
@@ -345,13 +348,15 @@ describe('ExecutionsService', () => {
 
       const result = (await service.findById('eF1')) as {
         executionPath: string[];
+        executionPathTruncated: boolean;
       };
       expect(result.executionPath).toEqual(['n1', 'n2', 'n3']);
+      expect(result.executionPathTruncated).toBe(false);
       expect(executionNodeLogRepo.find).toHaveBeenCalledWith({
         where: { executionId: 'eF1' },
         order: { id: 'ASC' },
         select: { nodeId: true },
-        take: 10_000,
+        take: MAX_EXECUTION_PATH_ROWS,
       });
     });
 
@@ -365,8 +370,32 @@ describe('ExecutionsService', () => {
 
       const result = (await service.findById('eF2')) as {
         executionPath: string[];
+        executionPathTruncated: boolean;
       };
       expect(result.executionPath).toEqual([]);
+      expect(result.executionPathTruncated).toBe(false);
+    });
+
+    it('execution_node_log 가 상한과 동일 길이로 돌아오면 executionPathTruncated=true', async () => {
+      // pathRows.length >= MAX_EXECUTION_PATH_ROWS 면 그 너머의 행이 잘렸을 수
+      // 있음을 UI 에 알린다 (Review 후속 #6).
+      const row = baseFake({ id: 'eF3' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+      executionNodeLogRepo.find.mockResolvedValue(
+        Array.from({ length: MAX_EXECUTION_PATH_ROWS }, (_, i) => ({
+          nodeId: `n${i}`,
+        })),
+      );
+
+      const result = (await service.findById('eF3')) as {
+        executionPath: string[];
+        executionPathTruncated: boolean;
+      };
+      expect(result.executionPath.length).toBe(MAX_EXECUTION_PATH_ROWS);
+      expect(result.executionPathTruncated).toBe(true);
     });
 
     it('list 응답 (findByWorkflow) 의 executionPath 는 N+1 회피로 빈 배열', async () => {

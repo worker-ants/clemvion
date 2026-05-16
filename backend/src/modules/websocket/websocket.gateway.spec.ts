@@ -351,6 +351,45 @@ describe('WebsocketGateway', () => {
       expect(result.data.success).toBe(false);
       expect(result.data.error).toContain('Maximum subscriptions');
     });
+
+    it('enforces MAX_SUBSCRIPTIONS across concurrent subscribe with deferred authorize (TOCTOU race)', async () => {
+      // 시나리오: clientSubs.size === 19, MAX === 20.
+      // 동시에 두 개의 인가 대상 채널(kb:doc-A, kb:doc-B) 을 subscribe 한다.
+      // authorize 가 둘 다 yield 한 뒤 차례로 resolve 될 때, recheck + add 의
+      // 원자성이 깨지면 size 가 21 까지 증가할 수 있다.
+      const { socket, join } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      const subs = new Set<string>();
+      for (let i = 0; i < 19; i++) subs.add(`execution:exec-${i}`);
+      getSubscriptions().set('client-1', subs);
+
+      // kb:doc 채널은 verifyDocumentOwnership 으로 인가 (async).
+      const kbService = module.get(KnowledgeBaseService);
+      // 두 호출 모두 deferred resolve 로 동시에 await 경계에 머무르게 한다.
+      let resolveA: (v: boolean) => void = () => undefined;
+      let resolveB: (v: boolean) => void = () => undefined;
+      (kbService.verifyDocumentOwnership as jest.Mock)
+        .mockImplementationOnce(
+          () => new Promise<boolean>((r) => (resolveA = r)),
+        )
+        .mockImplementationOnce(
+          () => new Promise<boolean>((r) => (resolveB = r)),
+        );
+
+      const pA = gateway.handleSubscribe({ channel: 'kb:doc-A' }, socket);
+      const pB = gateway.handleSubscribe({ channel: 'kb:doc-B' }, socket);
+      // 둘 다 authorize 단계에 진입한 뒤 동시 resolve.
+      resolveA(true);
+      resolveB(true);
+      const [rA, rB] = await Promise.all([pA, pB]);
+
+      // 정확히 한 개만 성공해야 한다 (20 한도). 둘 다 실패도 안 됨.
+      const successes = [rA, rB].filter((r) => r.data.success).length;
+      expect(successes).toBe(1);
+      expect(subs.size).toBeLessThanOrEqual(20);
+      // 실패한 쪽은 채널에 join 하지 않는다 (롤백/거부).
+      expect(join).toHaveBeenCalledTimes(successes);
+    });
   });
 
   describe('handleUnsubscribe', () => {

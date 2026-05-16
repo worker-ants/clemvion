@@ -147,9 +147,15 @@ export class HooksService {
       // 알고리즘 허용 목록. 외부 입력(트리거 설정)이 그대로 crypto.createHmac 에
       // 전달되므로 화이트리스트로 좁혀 임의 알고리즘·낮은 보안 다이제스트 사용을 차단한다.
       if (!HMAC_ALLOWED_ALGORITHMS.has(algorithm)) {
+        // 응답 메시지는 다른 인증 실패와 동일하게 고정 — 알고리즘 값을 반사하면
+        // 외부 호출자가 서버 내부 구성을 탐지할 단서를 얻는다 (information leakage).
+        // 진단은 서버 로그에만 남긴다.
+        this.logger.warn(
+          `webhook HMAC config rejected: algorithm=${algorithm} (not in allow-list)`,
+        );
         throw new UnauthorizedException({
           code: 'AUTH_FAILED',
-          message: `Unsupported HMAC algorithm: ${algorithm}`,
+          message: 'Authentication failed',
         });
       }
       const signature = headers[hmacHeader] ?? '';
