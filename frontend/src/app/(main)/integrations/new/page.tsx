@@ -24,6 +24,11 @@ import {
   type IntegrationScope,
   type ServiceDefinition,
 } from "@/lib/api/integrations";
+import { getIntegrationErrorI18nKey } from "@/lib/api/integration-error-codes";
+import {
+  useCafe24MallIdPrecheck,
+  CAFE24_MALL_ID_PATTERN,
+} from "@/lib/integrations/use-cafe24-mall-id-precheck";
 import { ServiceIcon } from "../_shared/service-icons";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
@@ -92,70 +97,20 @@ export default function NewIntegrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant]);
 
-  // Cafe24 mall_id 사전 중복 감지 상태 (2026-05-16).
-  // mall_id 입력 시 350ms debounce 로 backend precheck endpoint 호출 →
-  // conflict 발견 시 inline 경고 배너 + Connect 버튼 disable.
-  // spec/2-navigation/4-integration.md §9.2.
-  const [cafe24Conflict, setCafe24Conflict] =
-    useState<Cafe24PrecheckResult | null>(null);
-  const [cafe24PrecheckLoading, setCafe24PrecheckLoading] = useState(false);
-  const cafe24MallIdInput = String(credentials.mall_id ?? "").trim();
+  // Cafe24 mall_id 사전 중복 감지 — 350ms debounce + AbortController + state 묶음을
+  // `useCafe24MallIdPrecheck` 훅으로 분리해 page.tsx 응집도 향상 (ai-review W9,
+  // 2026-05-16). spec/2-navigation/4-integration.md §9.2.
   const isCafe24OAuth =
     variant?.authType === "oauth2" && serviceType === "cafe24";
-
-  // mall_id 패턴 매칭이 안 되면 precheck 호출 자체를 skip — backend 가
-  // 400 으로 거부할 페이로드를 보낼 필요 없음. 패턴이 풀리는 순간
-  // 이전 conflict 표시·로딩 상태도 클리어해 사용자 입력 도중 잘못된
-  // 빨간 배너 또는 영구 spinner 가 남지 않도록.
-  useEffect(() => {
-    if (!isCafe24OAuth) {
-      setCafe24Conflict(null);
-      setCafe24PrecheckLoading(false);
-      return;
-    }
-    if (!/^[a-z0-9-]{3,50}$/.test(cafe24MallIdInput)) {
-      setCafe24Conflict(null);
-      setCafe24PrecheckLoading(false);
-      return;
-    }
-    // mall_id 가 바뀔 때마다 350ms debounce — 짧으면 brute-force 호출,
-    // 길면 사용자가 Connect 클릭 시 stale 결과를 보게 됨.
-    //
-    // `AbortController` 로 in-flight 요청도 cancel — 사용자가 빠르게 타이핑하면
-    // 직전 fetch 가 backend 까지 도달했어도 응답을 기다리지 않고 abort 해
-    // throttle 카운터·서버 부하를 절약 (ai-review INFO #6, 2026-05-16).
-    // `controller.signal.aborted` 가 cancel 여부의 단일 진실 — 별도 boolean
-    // flag 미사용 (ai-review INFO #11).
-    const controller = new AbortController();
-    const { signal } = controller;
-    setCafe24PrecheckLoading(true);
-    const t = setTimeout(async () => {
-      try {
-        const result = await integrationsApi.cafe24Precheck(
-          cafe24MallIdInput,
-          signal,
-        );
-        if (!signal.aborted) setCafe24Conflict(result);
-      } catch {
-        // AbortError 는 정상 cancel 시그널 — silent (signal.aborted=true 분기).
-        // 그 외 오류도 backend 가드가 backstop 이므로 inline 배너를 띄우지
-        // 못해도 안전 (silent fail).
-        if (!signal.aborted) setCafe24Conflict(null);
-      } finally {
-        if (!signal.aborted) setCafe24PrecheckLoading(false);
-      }
-    }, 350);
-    return () => {
-      clearTimeout(t);
-      controller.abort();
-    };
-  }, [isCafe24OAuth, cafe24MallIdInput]);
+  const cafe24MallIdInput = String(credentials.mall_id ?? "").trim();
+  const { conflict: cafe24Conflict, loading: cafe24PrecheckLoading } =
+    useCafe24MallIdPrecheck(cafe24MallIdInput, isCafe24OAuth);
 
   /**
-   * 에러 토스트 — `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 한글 i18n
-   * 메시지를 primary 로, backend 의 영문 message 는 괄호 안 보조 정보로
-   * 노출. 다른 코드는 기존 동작 유지 (backend message 우선).
-   * 사용자가 "괄호 등을 이용해서 보조 안내로 사용" 지시 (2026-05-16).
+   * 에러 토스트 — 도메인-aware 코드 매핑 (`INTEGRATION_ERROR_CODE_TO_I18N`) 에
+   * 등록된 backend 코드는 한글 i18n 메시지를 primary 로, backend 영문 message 는
+   * 괄호 안 보조 정보로 노출. 매핑 없는 코드는 backend message 우선.
+   * 사용자가 "괄호 등을 이용해서 보조 안내로 사용" 지시 (2026-05-16, ai-review W11).
    */
   const formatErrorToast = (
     err: unknown,
@@ -167,8 +122,9 @@ export default function NewIntegrationPage() {
     };
     const backendCode = e.response?.data?.code;
     const backendMessage = e.response?.data?.message ?? e.message;
-    if (backendCode === "CAFE24_PRIVATE_APP_ALREADY_CONNECTED") {
-      const primary = t("integrations.cafe24DuplicateMallToast");
+    const mappedKey = getIntegrationErrorI18nKey(backendCode);
+    if (mappedKey) {
+      const primary = t(mappedKey);
       return backendMessage ? `${primary} (${backendMessage})` : primary;
     }
     return backendMessage ?? t(fallbackKey);
@@ -380,22 +336,22 @@ export default function NewIntegrationPage() {
       // so users hit them locally before the popup opens.
       if (serviceType === "cafe24") {
         const mallId = String(credentials.mall_id ?? "").trim();
-        if (!/^[a-z0-9-]{3,50}$/.test(mallId)) {
-          return "Mall ID must be 3-50 lowercase letters, digits, or hyphens.";
+        if (!CAFE24_MALL_ID_PATTERN.test(mallId)) {
+          return t("integrations.cafe24ValidateMallIdPattern");
         }
         const appType = credentials.app_type as
           | "public"
           | "private"
           | undefined;
         if (appType !== "public" && appType !== "private") {
-          return "Cafe24 app type must be 'public' or 'private'.";
+          return t("integrations.cafe24ValidateAppType");
         }
         if (appType === "private") {
           if (!String(credentials.client_id ?? "").trim()) {
-            return "Private apps require client_id.";
+            return t("integrations.cafe24ValidatePrivateClientIdRequired");
           }
           if (!String(credentials.client_secret ?? "").trim()) {
-            return "Private apps require client_secret.";
+            return t("integrations.cafe24ValidatePrivateClientSecretRequired");
           }
         }
       }
