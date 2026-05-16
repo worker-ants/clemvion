@@ -112,6 +112,15 @@ export class NodeDefinitionDto {
   /** 출력 스키마 (선택) */
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   outputSchema?: Record<string, unknown>;
+
+  /**
+   * 노드 컴포넌트별 추가 페이로드. 대부분의 노드는 비어 있다 — cafe24
+   * 노드만 operationsByResource / plannedByResource 카탈로그를 동봉해
+   * frontend 동적 폼 (Resource → Operation → 동적 fields) 을 구성하는데
+   * 사용한다. shape 는 노드 타입별로 다르므로 unknown.
+   */
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  extras?: Record<string, unknown>;
 }
 
 /** 노드 카테고리 메타 */

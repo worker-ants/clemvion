@@ -4,7 +4,7 @@
 
 ## 배경
 
-PR #5 의 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` 작성 과정에서 다음 두 정합성 이슈가 노출되었다.
+PR #5 의 `spec/data-flow/4-file-storage.md`·`spec/data-flow/3-execution.md` 작성 과정에서 다음 두 정합성 이슈가 노출되었다.
 
 1. **S3 키 패턴 불일치** — `spec/0-overview.md §2.7` 의 버킷 구조 다이어그램이 `{workspaceId}/knowledge-base/{kbId}/{documentId}_{originalName}` 로 표기되어 있으나, 실제 코드(`backend/src/modules/knowledge-base/knowledge-base.service.ts:723`) 는 `kb/<kbId>/<docId>/<filename>` 패턴을 사용한다.
 2. **execution_path 컬럼 폐기 미반영** — `backend/migrations/V036__execution_drop_execution_path.sql` 가 `execution.execution_path UUID[]` 컬럼을 DROP 했고, `V035__execution_node_log_create.sql` 가 `execution_node_log` 테이블을 신설해 대체했으나, `spec/1-data-model.md §2.13` 가 여전히 옛 컬럼을 언급하고 있었다.
@@ -15,7 +15,7 @@ PR #5 의 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` 작성
   - Form/Avatar 영역은 코드 측 upload 호출이 존재하지 않으므로 "계획" 상태로 분리 표기. `s3Service.upload` 호출 site 는 grep 결과 KB 한 곳뿐.
 - [x] **§2.13 정정** — `spec/1-data-model.md` 의 Execution 테이블에서 `execution_path UUID[]` 행 제거. 신규 §2.13.1 `ExecutionNodeLog` 추가. 인덱스 전략 표에 `(execution_id, id)` 추가. 본문 하단 Rationale 섹션 신설 — V035/V036 migration 인용.
 - [x] **plan 노트 생성** — 본 문서.
-- [x] **data-flow cross-link 갱신** — PR #5 머지 후 plan-cleanup 후속 작업(2026-05-13) 에서 `spec/data-flow/file-storage.md` Rationale §S3 key 권장 문구 + `spec/data-flow/execution.md` Rationale §execution_path DROP 두 곳에 본 plan 으로 해소됐다는 cross-link 추가.
+- [x] **data-flow cross-link 갱신** — PR #5 머지 후 plan-cleanup 후속 작업(2026-05-13) 에서 `spec/data-flow/4-file-storage.md` Rationale §S3 key 권장 문구 + `spec/data-flow/3-execution.md` Rationale §execution_path DROP 두 곳에 본 plan 으로 해소됐다는 cross-link 추가.
 - [x] **잔존 broken refs 11건 일괄 정정** — `check-doc-links.py` 가 baseline 으로 보고하던 11건(docs-consolidation 2026-05-12 잔존)을 동일 PR 안에서 해소. 세 그룹:
   - Group A (1건): `spec/2-navigation/14-execution-history.md` 의 옛 `./2-workflow-editor.md` 참조를 `../3-workflow-editor/_product-overview.md` 로 정정.
   - Group B (4건): `spec/3-workflow-editor/_product-overview.md` 와 `spec/4-nodes/3-ai/_product-overview.md` 의 `../frontend/...` 상대 깊이를 `../../frontend/...` / `../../../frontend/...` 로 정정.
@@ -36,4 +36,4 @@ PR #5 의 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` 작성
 
 ## 후속
 
-- PR #5 머지 후 `spec/data-flow/file-storage.md`·`spec/data-flow/execution.md` Rationale 두 곳에 본 plan 해소 cross-link 추가 완료 (2026-05-13). 작업 closure → `plan/complete/` 로 이동.
+- PR #5 머지 후 `spec/data-flow/4-file-storage.md`·`spec/data-flow/3-execution.md` Rationale 두 곳에 본 plan 해소 cross-link 추가 완료 (2026-05-13). 작업 closure → `plan/complete/` 로 이동.

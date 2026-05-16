@@ -1368,6 +1368,13 @@ export class IntegrationOAuthService {
    * "Cafe24 install_token mismatch 회복 흐름" 항.
    */
   private async tryRecoverByMallId(params: {
+    /**
+     * Caller-side documentation only — the URL `:installToken` that
+     * triggered this recovery attempt. Kept on the signature so callers
+     * read self-documenting context at the call site, but the recovery
+     * logic itself depends solely on `query.mall_id` + the candidate
+     * row's `client_secret` (HMAC re-verification re-derives the token).
+     */
     urlToken: string;
     query: Cafe24InstallQuery;
   }): Promise<Integration | null> {

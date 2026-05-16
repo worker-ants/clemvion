@@ -169,9 +169,7 @@ describe('Parallel node', () => {
         branchCount: 1,
       });
       expect(errors).toContain('branchCount must be 2 to 16.');
-      expect(errors).toContain(
-        'branchCount must be a value between 2 and 16.',
-      );
+      expect(errors).toContain('branchCount must be a value between 2 and 16.');
     });
   });
 

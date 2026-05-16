@@ -86,7 +86,7 @@ describe('validateVariableModificationConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (variable_modification)', () => {
-  it('emits the Korean warning on a freshly-created node', () => {
+  it('emits the warning on a freshly-created node', () => {
     expect(
       evaluateMetadataBlockingErrors(variableModificationNodeMetadata, {}),
     ).toContain('At least one modification must be added.');

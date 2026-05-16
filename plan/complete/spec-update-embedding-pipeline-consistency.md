@@ -21,7 +21,7 @@ owner: project-planner
   - `spec/5-system/6-websocket-protocol.md §3.2/§4.3` 갱신 (KB 단위 → 문서 단위 채널, 점 표기 → 콜론+언더스코어).
   - `spec/2-navigation/5-knowledge-base.md §2.7.1` 갱신 (`document:graph_*` 6개 명시, `kb:graph_stats_updated` 제거).
   - `spec/5-system/10-graph-rag.md §2.3/§4.2/§6` 갱신 (채널 명시, `kb:graph_stats_updated` 행 삭제).
-  - `spec/data-flow/knowledge-base.md §2.5` 갱신 (12개 이벤트 + 단일 채널).
+  - `spec/data-flow/6-knowledge-base.md §2.5` 갱신 (12개 이벤트 + 단일 채널).
   - `spec/5-system/2-api-convention.md §10.3` 갱신 (옛 `embedding.progress` 표기 → `document:embedding_*`, `document:graph_*`).
 
 ## Warning (해소 완료)

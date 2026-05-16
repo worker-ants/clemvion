@@ -210,7 +210,7 @@ describe('validateInformationExtractorConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (information_extractor)', () => {
-  it('emits Korean warnings on a freshly-created node', () => {
+  it('emits warnings on a freshly-created node', () => {
     const errors = evaluateMetadataBlockingErrors(
       informationExtractorNodeMetadata,
       {},

@@ -72,7 +72,7 @@ describe('validateVariableDeclarationConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (variable_declaration)', () => {
-  it('emits the Korean warning on a freshly-created node', () => {
+  it('emits the warning on a freshly-created node', () => {
     expect(
       evaluateMetadataBlockingErrors(variableDeclarationNodeMetadata, {}),
     ).toContain('At least one variable must be defined.');

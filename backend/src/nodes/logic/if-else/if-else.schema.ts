@@ -160,7 +160,7 @@ export const ifElseMetadata: NodeComponentMetadata = {
     {
       id: 'if_else:first-condition-field-empty',
       when: 'length(conditions) > 0 && !conditions.0.field',
-      message: 'First condition\'s field must be entered.',
+      message: "First condition's field must be entered.",
     },
   ],
   validateConfig: validateIfElseConfig,

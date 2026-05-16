@@ -6,6 +6,7 @@ import {
   cafe24NodeOutputSchema,
   cafe24NodePorts,
 } from './cafe24.schema';
+import { buildCafe24Extras } from './metadata/public-meta';
 
 export const cafe24NodeComponent: NodeComponent = {
   metadata: cafe24NodeMetadata,
@@ -24,4 +25,8 @@ export const cafe24NodeComponent: NodeComponent = {
     }
     return new Cafe24Handler(deps.integrationsService, deps.cafe24ApiClient);
   },
+  // Ships the (resource, operation) catalog to the frontend so the dynamic
+  // form can render Operation select + typed Fields without an extra round
+  // trip. `method` / `path` are intentionally stripped — see public-meta.ts.
+  extras: () => buildCafe24Extras(),
 };
