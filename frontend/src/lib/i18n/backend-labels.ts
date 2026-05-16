@@ -368,6 +368,110 @@ const WARNING_KO: Record<string, string> = {
   "waitAll must be a boolean.": "waitAll는 boolean이어야 합니다.",
 };
 
+// Accepts both the display label (Trigger / Logic / ...) emitted by
+// `NODE_CATEGORIES` and the lowercase id (trigger / logic / ...) stored on
+// `NodeDefinition.category` so either rendering shape works.
+const NODE_CATEGORY_KO: Record<string, string> = {
+  AI: "AI",
+  Data: "데이터",
+  Flow: "플로우",
+  Integration: "통합",
+  Logic: "로직",
+  Presentation: "표시",
+  Trigger: "트리거",
+  ai: "AI",
+  data: "데이터",
+  flow: "플로우",
+  integration: "통합",
+  logic: "로직",
+  presentation: "표시",
+  trigger: "트리거",
+};
+
+const NODE_PORT_LABEL_KO: Record<string, string> = {
+  Background: "백그라운드",
+  Body: "본문",
+  Default: "기본",
+  Done: "완료",
+  Emit: "방출",
+  Error: "오류",
+  False: "False",
+  Input: "입력",
+  Main: "메인",
+  Match: "일치",
+  Output: "출력",
+  Success: "성공",
+  True: "True",
+  Unmatched: "미일치",
+};
+
+const NODE_LABEL_KO: Record<string, string> = {
+  "AI Agent": "AI 에이전트",
+  Background: "백그라운드",
+  Cafe24: "Cafe24",
+  Carousel: "캐러셀",
+  Chart: "차트",
+  Code: "코드",
+  Database: "데이터베이스",
+  Filter: "필터",
+  ForEach: "ForEach",
+  Form: "폼",
+  "HTTP Request": "HTTP 요청",
+  "If/Else": "If/Else",
+  "Information Extractor": "정보 추출기",
+  Loop: "반복",
+  "Manual Trigger": "수동 트리거",
+  Map: "Map",
+  Merge: "병합",
+  Parallel: "병렬",
+  "Send Email": "이메일 발송",
+  Split: "분할",
+  "Sub-Workflow": "서브 워크플로우",
+  Switch: "분기",
+  Table: "테이블",
+  Template: "템플릿",
+  "Text Classifier": "텍스트 분류기",
+  Transform: "변환",
+  Variable: "변수",
+  "Set Variable": "변수 설정",
+};
+
+const NODE_DESCRIPTION_KO: Record<string, string> = {
+  "Chat with LLM using KB search and MCP server tools":
+    "KB 검색과 MCP 서버 도구를 활용해 LLM과 대화",
+  "Run downstream branch in background without blocking the main flow":
+    "메인 플로우를 막지 않고 하위 분기를 백그라운드로 실행",
+  "Call any Cafe24 Admin API endpoint via resource/operation":
+    "Cafe24 Admin API 엔드포인트를 resource/operation 으로 호출",
+  "Display as slides": "슬라이드로 표시",
+  "Visualize as chart": "차트로 시각화",
+  "Run JavaScript code": "JavaScript 코드 실행",
+  "Execute SQL queries": "SQL 쿼리 실행",
+  "Filter array by conditions": "조건으로 배열 필터링",
+  "Iterate over array": "배열을 순회",
+  "User input form": "사용자 입력 폼",
+  "Make HTTP requests": "HTTP 요청 보내기",
+  "Conditional branching": "조건 분기",
+  "Extract structured data from text": "텍스트에서 구조화된 데이터 추출",
+  "Repeat N times": "N번 반복",
+  "Start point for manual workflow execution": "수동 워크플로우 실행 시작점",
+  "Transform array items via body subgraph":
+    "본문 서브그래프로 배열 항목 변환",
+  "Combine inputs": "입력 병합",
+  "Fan-out input to N branches. Each branch runs concurrently when PARALLEL_ENGINE=v1, otherwise sequentially in topological order.":
+    "입력을 N 개 분기로 fan-out. PARALLEL_ENGINE=v1 일 때 각 분기가 동시 실행되며, 그렇지 않으면 토폴로지 순서로 순차 진행됩니다.",
+  "Send emails via SMTP": "SMTP 로 이메일 발송",
+  "Split array items": "배열 항목 분할",
+  "Multi-path branching": "다중 경로 분기",
+  "Display as table": "테이블로 표시",
+  "Render templates": "템플릿 렌더링",
+  "Classify text into categories": "텍스트를 카테고리로 분류",
+  "Transform data": "데이터 변환",
+  "Declare variables": "변수 선언",
+  "Modify variables": "변수 변경",
+  "Call another workflow": "다른 워크플로우 호출",
+};
+
 function pickKo(
   table: Record<string, string>,
   value: string | undefined,
@@ -430,4 +534,36 @@ export function translateBackendWarning(
 ): string | undefined {
   if (locale !== "ko") return value;
   return pickKo(WARNING_KO, value);
+}
+
+export function translateNodeCategory(
+  value: string | undefined,
+  locale: Locale,
+): string | undefined {
+  if (locale !== "ko") return value;
+  return pickKo(NODE_CATEGORY_KO, value);
+}
+
+export function translateNodeLabel(
+  value: string | undefined,
+  locale: Locale,
+): string | undefined {
+  if (locale !== "ko") return value;
+  return pickKo(NODE_LABEL_KO, value);
+}
+
+export function translateNodeDescription(
+  value: string | undefined,
+  locale: Locale,
+): string | undefined {
+  if (locale !== "ko") return value;
+  return pickKo(NODE_DESCRIPTION_KO, value);
+}
+
+export function translateNodePortLabel(
+  value: string | undefined,
+  locale: Locale,
+): string | undefined {
+  if (locale !== "ko") return value;
+  return pickKo(NODE_PORT_LABEL_KO, value);
 }
