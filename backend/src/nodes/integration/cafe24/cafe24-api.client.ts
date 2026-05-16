@@ -708,7 +708,7 @@ export class Cafe24ApiClient {
     let bodyString: string | undefined;
     if (opts.body !== undefined && opts.method !== 'GET') {
       headers['Content-Type'] = 'application/json';
-      bodyString = JSON.stringify(opts.body);
+      bodyString = JSON.stringify(wrapInCafe24Envelope(opts.body));
     }
 
     const controller = new AbortController();
@@ -846,6 +846,29 @@ function defaultSleep(ms: number): Promise<void> {
 // lint warnings; the bare `fetch` identifier resolves through TypeScript's
 // own DOM/Node `lib` declarations and is typed as `typeof fetch` cleanly.
 const defaultFetch: typeof fetch = fetch;
+
+/**
+ * Wrap a write-request body in Cafe24's `request` envelope.
+ *
+ * Cafe24 Admin API rejects flat bodies with `400 "Please enter the Request
+ * parameter."` — every POST/PUT must be shaped as
+ * `{ shop_no?, request: { ...rest } }` where `shop_no` is the only field
+ * allowed to live at the top level alongside `request`. Centralising the
+ * transform here keeps both the node handler and the MCP tool provider
+ * caller-side flat: they pass the metadata-driven body map as-is, and the
+ * wire format stays a pure protocol concern of this client.
+ *
+ * See https://developers.cafe24.com/docs/ko/api/admin/ — every "Request
+ * body" example wraps its payload under `request:`.
+ */
+function wrapInCafe24Envelope(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  const { shop_no, ...rest } = body;
+  const envelope: Record<string, unknown> = { request: rest };
+  if (shop_no !== undefined) envelope.shop_no = shop_no;
+  return envelope;
+}
 
 /**
  * Coerce a query parameter value to a string without ever producing the
