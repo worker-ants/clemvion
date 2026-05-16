@@ -31,10 +31,18 @@ export function wrapDataSchema<T>(dto: ClassRef<T>): SchemaObject {
  * `OAuthBeginPopupResultDto` vs `OAuthBeginCafe24PendingResultDto`).
  * 각 DTO 가 `discriminator` 역할의 필드(예: `mode`)를 자체적으로 강제하므로
  * Swagger 콘솔에서 분기별 example 이 따로 노출됩니다.
+ *
+ * 빈 배열은 OpenAPI 가 거부하는 invalid schema 이므로 호출 시점에 즉시
+ * fail-fast — silent 스키마 손상을 방지.
  */
 export function wrapOneOfDataSchema(
   dtos: ReadonlyArray<ClassRef<unknown>>,
 ): SchemaObject {
+  if (dtos.length === 0) {
+    throw new Error(
+      'wrapOneOfDataSchema requires at least one DTO (got empty array).',
+    );
+  }
   return {
     type: 'object',
     required: ['data'],

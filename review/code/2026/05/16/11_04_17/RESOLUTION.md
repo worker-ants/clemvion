@@ -71,3 +71,36 @@ worktree: `.claude/worktrees/prod-rereview-fix-a7c93f`
 3. **Frontend flaky test 안정화**: `execution-list-page.test.tsx` 의 `findByText` 셀렉터를 `getByRole('cell', ...)` 같은 유니크 셀렉터로 교체 (별도 PR).
 4. **CI 스냅샷 검증 추가**: `WARNING_KO` 매핑 누락을 빌드 시 차단 (I7).
 5. **임계값 상수화**: `CONSECUTIVE_NETWORK_FAILURE_THRESHOLD = 3` (I5).
+
+---
+
+## REVIEW WORKFLOW (fix branch) — `review/code/2026/05/16/11_55_54`
+
+조치 직후 fix branch 에 `/ai-review` 를 다시 실행한 결과 (13 reviewer, 0 Critical, 9 Warning, 14 Info). 본 추가 회 의미 있는 Warnings 에 대한 조치.
+
+| # | 항목 | 조치 |
+|---|------|------|
+| W1 | frontend 잔존 `authorizeUrl` | **검증 완료 — 0건**. `grep -rn "authorizeUrl" frontend/src/` 출력 없음. 프론트엔드는 본래 `authUrl` 사용. |
+| W2 | DTO 분리 Swagger breaking change | **이력 정보로 RESOLUTION 에 명시**. 외부 generated client 가 있다면 재생성 필요 — 본 프로젝트는 frontend 가 직접 작성한 discriminated union 만 사용. |
+| W3 | TypeORM 내부 `_value._value` 직접 접근 | **public API 로 전환**. `FindOperator.type` (public 문자열) 과 `value` (public getter) 만 사용하도록 테스트 정정. `Not(In([...]))` 의 outer.value 가 inner 배열을 직접 노출함을 실측 후 한 레이어만 검증. |
+| W4 | `wrapOneOfDataSchema` 빈 배열 가드 | **fail-fast 추가**. 빈 배열 입력 시 즉시 `throw new Error('wrapOneOfDataSchema requires at least one DTO...')`. |
+| W5 | spec §11 미문서화 | **plan 노트 작성됨** — `plan/in-progress/spec-update-cafe24-background-refresh.md`. project-planner 위임 대기. |
+| W6 | `wrapOneOfDataSchema` 단위 테스트 부재 | **3개 테스트 추가**. (a) 정상 oneOf 빌드, (b) 단일 DTO degenerate 케이스, (c) 빈 배열 throw. `api-wrapped.spec.ts`. |
+| W7 | `formUrlEncode` 단위 테스트 부재 | **본 변경 범위 밖**. 본 함수는 사전부터 있던 코드이며 이번 PR에서 수정하지 않음. HMAC 통합 테스트 (`integration-oauth.service.cafe24.spec.ts` 의 `handleInstall` 케이스) 가 간접 검증. 후속 plan 으로 분리. |
+| W8 | popup 분기 `authUrl` wire 단언 부족 | **테스트 강화**. `typeof publicResp.authUrl === 'string'` + 비공백 단언, `state` 타입 단언, `authorizeUrl` 회귀 부재 단언 추가. |
+| W9 | `as Record<string, unknown>` 캐스트 | **discriminator 기반 단언**. Private 분기에서 `publicResp.mode === 'cafe24_private_pending'` 명시 단언 + 공유 회귀 안전망 (`authorizeUrl` 부재). |
+
+### 미적용 (Info 후속 plan)
+
+I1 (DTO 배열 공유 상수), I2 (oneOf discriminator), I4 (헬퍼 추출), I5 (description 통일), I7 (CONCURRENTLY 롤백 주석), I8 (CHANGELOG migration note), I9 (reauthorize description), I10 (포맷팅 분리 PR), I11 (테스트 위치 정정), I12 (`urlToken` 회귀 테스트), I13 (`@nestjs/swagger/dist` import path), I14 (status 선검증 guard 확인) — 후속 cleanup PR.
+
+### 최종 검증
+
+| 단계 | 결과 |
+|------|------|
+| backend lint | ✅ 0 errors, 17 warnings (사전부터) |
+| backend unit test | ✅ 206 suites, **3652 tests** pass (+3 from wrapOneOfDataSchema tests) |
+| backend build | ✅ |
+| frontend lint / build | ✅ |
+| frontend unit test | ⚠️ 1 flaky (사전부터, 내 변경과 무관) |
+| e2e (`make e2e-test`) | ✅ 12 suites, 66 tests pass |
