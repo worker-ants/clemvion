@@ -398,6 +398,61 @@ describe('ExecutionsService', () => {
       expect(result.executionPathTruncated).toBe(true);
     });
 
+    it('종결 상태 (completed) 첫 findById 결과를 인스턴스 캐시에 보관, 2회차는 DB 미조회 (W-27)', async () => {
+      const row = baseFake({
+        id: 'eF-cached',
+        status: ExecutionStatus.COMPLETED,
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+      executionNodeLogRepo.find.mockResolvedValue([{ nodeId: 'n1' }]);
+
+      const first = await service.findById('eF-cached');
+      expect(first.executionPath).toEqual(['n1']);
+      expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+
+      // 2회차 — createQueryBuilder 가 다시 호출되지 않아야 한다.
+      const second = await service.findById('eF-cached');
+      expect(second).toBe(first); // 동일 참조 반환 (캐시 hit)
+      expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    });
+
+    it('진행 중 상태 (running) 는 캐시하지 않음 — 매번 DB 재조회', async () => {
+      const row = baseFake({
+        id: 'eF-running',
+        status: ExecutionStatus.RUNNING,
+      });
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+      executionNodeLogRepo.find.mockResolvedValue([]);
+
+      await service.findById('eF-running');
+      await service.findById('eF-running');
+      expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(2);
+    });
+
+    it('invalidateSnapshotCache 호출 후엔 캐시 무효화 — DB 재조회', async () => {
+      const completedRow = baseFake({
+        id: 'eF-inv',
+        status: ExecutionStatus.COMPLETED,
+      });
+      executionRepo.createQueryBuilder.mockReturnValue(
+        buildSingleQB(completedRow) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+      executionNodeLogRepo.find.mockResolvedValue([]);
+
+      await service.findById('eF-inv');
+      expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+      service.invalidateSnapshotCache('eF-inv');
+      await service.findById('eF-inv');
+      expect(executionRepo.createQueryBuilder).toHaveBeenCalledTimes(2);
+    });
+
     it('list 응답 (findByWorkflow) 의 executionPath 는 N+1 회피로 빈 배열', async () => {
       const row = baseFake({ id: 'eL1' });
       executionRepo.createQueryBuilder.mockReturnValueOnce(

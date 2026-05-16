@@ -25,6 +25,20 @@ import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 export const MAX_EXECUTION_PATH_ROWS = 10_000;
 
 /**
+ * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
+ * WS 구독자 다수가 동시에 동일 execution 채널에 구독해 반복 fetch 가 발생하면
+ * REPEATABLE READ 트랜잭션 + 3개 SELECT 가 매번 실행돼 DB 부하가 누적된다.
+ * 본 인스턴스 메모리 LRU 로 1차 캐시 — 종결 상태 진입 후의 모든 fetch 는 O(1).
+ *
+ * 캐시 제외: PENDING / RUNNING / WAITING_FOR_INPUT — 진행 중에는 nodeExecutions 가
+ * 증가하므로 stale 우려.
+ *
+ * 인스턴스 수직 캐시이므로 멀티 인스턴스 hit ratio 는 sticky session WS 배포에서
+ * 자연스럽게 보장된다. 멀티 인스턴스 cross-hit 이 필요하면 Redis 로 승격 가능.
+ */
+const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
+
+/**
  * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
  * triggerSource/triggerLabel 두 필드를 추가한 shape. `executionPath` 는
  * `execution_node_log` 의 (execution_id, id) 정렬 결과로 채워진다 — entity
@@ -44,6 +58,11 @@ export type ExecutionDetailWithTrigger = Execution & {
 
 @Injectable()
 export class ExecutionsService {
+  // 종결 상태 execution detail 의 인스턴스 LRU 캐시 (W-27).
+  // 삽입 순서 = LRU — Map iteration 이 삽입 순서를 보장하므로 별도 자료구조 없이
+  // size 초과 시 첫 키 (가장 오래된 진입) 를 evict.
+  private readonly snapshotCache = new Map<string, ExecutionDetailWithTrigger>();
+
   constructor(
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
@@ -53,6 +72,46 @@ export class ExecutionsService {
     private readonly executionNodeLogRepository: Repository<ExecutionNodeLog>,
     private readonly executionEngineService: ExecutionEngineService,
   ) {}
+
+  private readSnapshotCache(id: string): ExecutionDetailWithTrigger | undefined {
+    const cached = this.snapshotCache.get(id);
+    if (cached !== undefined) {
+      // LRU: 최근 사용으로 갱신.
+      this.snapshotCache.delete(id);
+      this.snapshotCache.set(id, cached);
+    }
+    return cached;
+  }
+
+  private writeSnapshotCache(
+    id: string,
+    snapshot: ExecutionDetailWithTrigger,
+  ): void {
+    // 진행 중 상태는 절대 캐시 금지 (stale 위험).
+    if (
+      snapshot.status !== ExecutionStatus.COMPLETED &&
+      snapshot.status !== ExecutionStatus.FAILED &&
+      snapshot.status !== ExecutionStatus.CANCELLED
+    ) {
+      return;
+    }
+    if (this.snapshotCache.has(id)) {
+      this.snapshotCache.delete(id);
+    } else if (this.snapshotCache.size >= SNAPSHOT_CACHE_MAX_ENTRIES) {
+      // 가장 오래된 키 evict.
+      const oldest = this.snapshotCache.keys().next().value;
+      if (oldest !== undefined) this.snapshotCache.delete(oldest);
+    }
+    this.snapshotCache.set(id, snapshot);
+  }
+
+  /**
+   * 외부에서 execution 상태가 변경됐을 가능성을 알리는 hook (예: cancel · 재실행).
+   * 캐시 stale 방지용 — 호출자는 mutation 후 호출.
+   */
+  invalidateSnapshotCache(id: string): void {
+    this.snapshotCache.delete(id);
+  }
 
   /**
    * IDOR 차단용 helper — execution 이 사용자의 workspace 에 속하는지 검증.
@@ -89,6 +148,10 @@ export class ExecutionsService {
   }
 
   async findById(id: string): Promise<ExecutionDetailWithTrigger> {
+    // W-27 — 종결 상태 execution snapshot 은 불변. 인스턴스 LRU 캐시에서 즉시 회신.
+    const cached = this.readSnapshotCache(id);
+    if (cached) return cached;
+
     // Carousel disabled stuck (Phase 3 fix) — Execution + NodeExecution 두 개의
     // SELECT 가 trxn 외부에서 별도로 실행되면, 그 사이에 엔진의
     // `waitForButtonInteraction` 트랜잭션이 commit 할 때 snapshot 이
@@ -99,7 +162,7 @@ export class ExecutionsService {
     //
     // `REPEATABLE READ` 트랜잭션 안에서 두 SELECT 를 묶어, 동일 snapshot 시점
     // 의 일관된 데이터만 응답한다. 단순 read 라 deadlock 위험 없음.
-    return this.executionRepository.manager.transaction(
+    const snapshot = await this.executionRepository.manager.transaction(
       'REPEATABLE READ',
       async (manager): Promise<ExecutionDetailWithTrigger> => {
         // 안전 컬럼만 선택적으로 join — User.passwordHash 등 민감 필드 노출
@@ -168,6 +231,8 @@ export class ExecutionsService {
         };
       },
     );
+    this.writeSnapshotCache(id, snapshot);
+    return snapshot;
   }
 
   /**
@@ -273,8 +338,11 @@ export class ExecutionsService {
       const refreshed = await this.executionRepository.findOne({
         where: { id },
       });
+      this.invalidateSnapshotCache(id);
       return refreshed ?? execution;
     }
+    // 상태 전이가 일어난 이상 캐시된 snapshot 은 stale.
+    this.invalidateSnapshotCache(id);
 
     const refreshed = await this.executionRepository.findOne({ where: { id } });
     return refreshed ?? execution;
