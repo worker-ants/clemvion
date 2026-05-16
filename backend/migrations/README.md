@@ -12,6 +12,7 @@ V<번호>__<설명>.sql
 - 새 마이그레이션 추가 시 마지막 번호 +1.
 - **이미 적용된 파일은 절대 수정하지 않습니다.** 변경이 필요하면 새 마이그레이션 파일을 추가하세요.
 - ⚠️ **alphanumeric suffix 금지** — `V035a`, `V035_1` 처럼 정수가 아닌 접미사를 붙이면 Flyway 의 기본 version 파서가 매치에 실패해 **silent skip** 됩니다 (schema_history 미등록). 한 작업을 두 트랜잭션으로 분리해야 한다면 `V035` / `V036` 처럼 별도 정수 prefix 두 파일로 작성하세요. 본 컨벤션은 `backend/src/migrations.spec.ts` 가드가 매 빌드/CI 마다 자동 검증합니다.
+- ⚠️ **V번호 중복 금지** — 같은 V<N>__*.sql 이 둘 이상이면 Flyway 가 silent skip / 비결정적 적용을 할 수 있어 세 단계로 차단합니다: `backend/src/migrations.spec.ts` (유닛테스트), `scripts/check-migration-versions.py` (PR CI), `check-duplicate-versions.sh` (Docker 이미지 빌드 시점). 정책 본문: [`spec/conventions/migrations.md`](../../spec/conventions/migrations.md) §6.
 
 ## 적용 방법
 
