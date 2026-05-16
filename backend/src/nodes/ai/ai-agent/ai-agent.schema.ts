@@ -25,7 +25,7 @@ const mcpServerRefSchema = z.object({
       ui: {
         label: 'Enabled Tools',
         widget: 'field-array',
-        hint: '비워두면 서버의 모든 일반 도구를 LLM 에 노출합니다.',
+        hint: "Leave empty to expose all of the server's regular tools to the LLM.",
       },
     }),
   includeResources: z
@@ -35,7 +35,7 @@ const mcpServerRefSchema = z.object({
       ui: {
         label: 'Expose Resources',
         widget: 'checkbox',
-        hint: '서버가 resources capability 를 보고할 때 list/read 메타도구를 노출',
+        hint: 'Expose list/read meta-tools when the server reports resources capability',
       },
     }),
   includePrompts: z
@@ -45,7 +45,7 @@ const mcpServerRefSchema = z.object({
       ui: {
         label: 'Expose Prompts',
         widget: 'checkbox',
-        hint: '서버가 prompts capability 를 보고할 때 list/get 메타도구를 노출',
+        hint: 'Expose list/get meta-tools when the server reports prompts capability',
       },
     }),
   toolOverrides: z
@@ -180,7 +180,7 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'Knowledge Bases',
           widget: 'kb-selector',
-          hint: '선택한 KB 가 LLM 에 검색 도구로 노출됩니다. LLM 이 사용자 의도를 보고 능동적으로 호출합니다.',
+          hint: 'Selected KBs are exposed to the LLM as search tools. The LLM calls them autonomously based on user intent.',
           order: 10,
           group: 'Knowledge Base (RAG)',
         },
@@ -193,7 +193,7 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'RAG Top-K (default)',
           widget: 'number',
-          hint: 'KB tool 호출 시 반환할 청크 수의 기본값 (LLM 이 호출 인자로 override 가능)',
+          hint: 'Default chunk count returned per KB tool call (LLM can override via call arguments)',
           order: 11,
           group: 'Knowledge Base (RAG)',
         },
@@ -205,7 +205,7 @@ export const aiAgentNodeConfigSchema = z
         ui: {
           label: 'RAG Threshold (default)',
           widget: 'number',
-          hint: '최소 유사도 임계값 (0-1) 의 기본값 (LLM 이 호출 인자로 override 가능)',
+          hint: 'Default minimum similarity threshold (0-1) (LLM can override via call arguments)',
           order: 12,
           group: 'Knowledge Base (RAG)',
         },
@@ -223,7 +223,7 @@ export const aiAgentNodeConfigSchema = z
           label: 'MCP Servers',
           widget: 'mcp-server-selector',
           itemLabel: 'MCP Server',
-          hint: '워크스페이스에 등록된 MCP 서버를 추가하면 LLM 이 해당 서버의 도구를 능동적으로 호출합니다.',
+          hint: 'Add a workspace-registered MCP server to let the LLM autonomously call its tools.',
           order: 15,
           group: 'MCP Servers',
         },
