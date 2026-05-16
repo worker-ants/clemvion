@@ -555,6 +555,29 @@ describe('IntegrationOAuthService', () => {
     it('returns input unchanged for empty / non-string', () => {
       expect(sanitizeLastErrorMessage('')).toBe('');
     });
+
+    // SEC-C2 — Cafe24 가 응답에 `client-secret` (하이픈) 또는 `"secret":...`
+    // 단독 키워드를 echo 하는 비정상 케이스 대비. 운영 보고 (2026-05-16)
+    // 후 패턴 확장.
+    it('masks hyphenated client-secret variant', () => {
+      expect(
+        sanitizeLastErrorMessage('error: client-secret=sk_abc123 invalid'),
+      ).toBe('error: *** invalid');
+    });
+
+    it('masks standalone "secret:" keyword (JSON-style echo)', () => {
+      expect(sanitizeLastErrorMessage('echo: "secret":"verySecret"')).toContain(
+        '***',
+      );
+      expect(
+        sanitizeLastErrorMessage('echo: "secret":"verySecret"'),
+      ).not.toMatch(/verySecret/);
+    });
+
+    it('masks hyphenated access-token / refresh-token / api-key', () => {
+      expect(sanitizeLastErrorMessage('access-token=abc def')).toBe('*** def');
+      expect(sanitizeLastErrorMessage('api-key=xyz fail')).toBe('*** fail');
+    });
   });
 
   describe('markIntegrationCallbackError', () => {
@@ -763,9 +786,11 @@ describe('IntegrationOAuthService', () => {
       expect(result.credentials.access_token).toBe('t');
     });
 
-    it('parses credentials when raw row is snake_case + plain JSON string (legacy path)', async () => {
-      // Raw SQL DELETE…RETURNING 의 실제 응답 shape (snake_case).
-      // normalizeRawPreviewRow 이 legacy 미암호화 string 도 JSON.parse 한다.
+    // SEC-C1/H-5: 옛 동작은 `enc:` prefix 가 없는 plaintext credentials 도
+    // `JSON.parse` 해 통과시켰다. 이는 암호화 invariant 를 우회하는 경로를
+    // 열어두는 보안 결함이라 hard-fail 로 변경. 이제 plaintext 는
+    // `INTEGRATION_CREDENTIALS_INVALID` 로 거부된다.
+    it('rejects plaintext (no enc: prefix) credentials as security defense', async () => {
       dataSource.query.mockResolvedValue([
         [
           {
@@ -780,8 +805,13 @@ describe('IntegrationOAuthService', () => {
         ],
         1,
       ]);
-      const result = await service.consumePreviewToken('tmp_x', 'ws-1', 'u-1');
-      expect(result.credentials.access_token).toBe('t-str');
+      await expect(
+        service.consumePreviewToken('tmp_x', 'ws-1', 'u-1'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'INTEGRATION_CREDENTIALS_INVALID',
+        }),
+      });
     });
 
     it('rejects with BadRequest when raw credentials string is corrupt (not unhandled 500)', async () => {
