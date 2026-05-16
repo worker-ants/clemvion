@@ -1,0 +1,1460 @@
+{
+  "timestamp": "2026-05-16T11:04:17.928966",
+  "files": [
+    {
+      "file_path": "CHANGELOG.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "Makefile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "backend/migrations/V049__integration_consecutive_network_failures.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "backend/migrations/V050__integration_cafe24_connected_rotated_idx.conf",
+      "change_type": "Review",
+      "file_extension": "conf"
+    },
+    {
+      "file_path": "backend/migrations/V050__integration_cafe24_connected_rotated_idx.sql",
+      "change_type": "Review",
+      "file_extension": "sql"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/dto/responses/integration-response.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/entities/integration.entity.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/integration-expiry-scanner.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/integration-expiry-scanner.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/integration-oauth.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/integration-oauth.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/integrations.service.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/integrations.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/third-party-oauth.controller.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/modules/integrations/third-party-oauth.controller.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/ai-agent/ai-agent.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/ai-agent/ai-agent.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/ai-agent/ai-agent.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/information-extractor/information-extractor.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/information-extractor/information-extractor.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/llm-provider-rule.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/text-classifier/text-classifier.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/text-classifier/text-classifier.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/ai/text-classifier/text-classifier.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/core/metadata-validation.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/data/code/code.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/data/code/code.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/data/code/code.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/data/transform/transform.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/data/transform/transform.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/data/transform/transform.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/flow/workflow/workflow.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/flow/workflow/workflow.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/flow/workflow/workflow.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/cafe24/cafe24-api.client.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/cafe24/cafe24-api.client.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/cafe24/cafe24-token-refresh.processor.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/cafe24/cafe24-token-refresh.processor.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/cafe24/cafe24.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/database-query/database-query.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/database-query/database-query.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/http-request/http-request.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/http-request/http-request.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/http-request/http-request.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/send-email/send-email.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/send-email/send-email.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/integration/send-email/send-email.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/filter/filter.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/filter/filter.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/filter/filter.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/foreach/foreach.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/foreach/foreach.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/foreach/foreach.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/if-else/if-else.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/if-else/if-else.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/if-else/if-else.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/loop/loop.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/loop/loop.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/loop/loop.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/map/map.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/map/map.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/map/map.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/merge/merge.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/merge/merge.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/parallel/parallel.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/parallel/parallel.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/split/split.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/split/split.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/split/split.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/switch/switch.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/switch/switch.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/switch/switch.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/variable-declaration/variable-declaration.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/variable-declaration/variable-declaration.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/variable-declaration/variable-declaration.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/variable-modification/variable-modification.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/variable-modification/variable-modification.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/logic/variable-modification/variable-modification.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/carousel/carousel.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/carousel/carousel.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/carousel/carousel.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/chart/chart.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/chart/chart.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/chart/chart.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/form/form.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/form/form.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/form/form.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/table/table.handler.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/table/table.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/table/table.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/template/template.schema.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "backend/src/nodes/presentation/template/template.schema.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "frontend/src/components/editor/canvas/custom-node.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "frontend/src/components/editor/settings-panel/node-configs/__tests__/cafe24-config.test.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "frontend/src/components/editor/settings-panel/node-configs/shared.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "frontend/src/content/docs/02-nodes/ai.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "frontend/src/content/docs/02-nodes/ai.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "frontend/src/content/docs/02-nodes/integrations.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "frontend/src/content/docs/02-nodes/integrations.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "frontend/src/content/docs/02-nodes/overview.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "frontend/src/content/docs/02-nodes/overview.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "frontend/src/content/docs/04-expression-language/variables-and-context.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "frontend/src/content/docs/04-expression-language/variables-and-context.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "frontend/src/lib/docs/__tests__/registry.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "frontend/src/lib/i18n/backend-labels.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "frontend/src/lib/i18n/dict/en.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "frontend/src/lib/i18n/dict/ko.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "frontend/src/lib/utils/node-config-summary.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/complete/cafe24-fields-add-button-fix.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/complete/e2e-makefile-followup-2026-05-16.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/complete/e2e-makefile-stale-image-fix-2026-05-16.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/spec-update-cafe24-fields-ui-buffer.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/user-guide-sync-2026-05-16.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/RESOLUTION.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/api_contract.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/architecture.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/concurrency.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/database.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/dependency.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/documentation.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/maintainability.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/performance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/requirement.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/scope.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/security.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/side_effect.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_prompts/testing.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/08_35_36/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/RESOLUTION.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/api_contract.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/architecture.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/concurrency.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/database.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/dependency.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/documentation.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/maintainability.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/performance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/requirement.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/scope.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/security.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/side_effect.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_prompts/testing.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_17_17/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/RESOLUTION.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/api_contract.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/architecture.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/concurrency.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/database.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/dependency.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/documentation.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/maintainability.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/performance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/requirement.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/scope.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/security.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/side_effect.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_prompts/testing.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_22_53/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/RESOLUTION.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/api_contract.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/architecture.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/concurrency.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/database.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/dependency.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/documentation.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/maintainability.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/performance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/requirement.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/scope.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/security.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/side_effect.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_prompts/testing.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/api_contract/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/architecture/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/concurrency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/database/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/dependency/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/documentation/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/maintainability/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/performance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/requirement/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/scope/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/security/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/side_effect/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/code/2026/05/16/09_43_04/testing/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/_prompts/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/_prompts/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/_prompts/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/_prompts/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/_prompts/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/convention_compliance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/cross_spec/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/naming_collision/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/plan_coherence/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/08_22_34/rationale_continuity/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/_prompts/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/_prompts/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/_prompts/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/_prompts/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/_prompts/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/convention_compliance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/cross_spec/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/naming_collision/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/plan_coherence/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_03_04/rationale_continuity/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/_prompts/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/_prompts/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/_prompts/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/_prompts/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/_prompts/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/convention_compliance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/cross_spec/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/naming_collision/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/plan_coherence/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_13_51/rationale_continuity/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/_prompts/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/_prompts/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/_prompts/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/_prompts/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/_prompts/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/convention_compliance/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/cross_spec/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/naming_collision/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/plan_coherence/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/05/16/09_34_14/rationale_continuity/review.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract"
+  ]
+}
