@@ -383,5 +383,64 @@ describe('Cafe24McpToolProvider', () => {
       provider.__resetForTesting();
       expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(false);
     });
+
+    // Regression: B-2-3 from cafe24-followup-backlog. multi-turn AI Agent
+    // can invoke buildTools twice on the same executionId before any
+    // cleanup. Each retain must be matched by exactly one release —
+    // ensuring sidCount never goes negative and stays positive while
+    // the execution is alive. Without the `newForThisExecution` guard
+    // (already in buildTools), the second buildTools would double-retain
+    // and break the invariant.
+    it('buildTools twice on same executionId then single cleanup releases sid to 0', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-multi',
+      });
+      // Second buildTools — simulates multi-turn resume of the same agent.
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-multi',
+      });
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(true);
+
+      await provider.cleanup({ executionId: 'exec-multi' });
+
+      // Single cleanup must take sidCount to 0 — matches() now false.
+      // 옛 더블 retain 회귀 시 매치 유지로 새 execution 시 stale state 노출.
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(
+        false,
+      );
+    });
+
+    // Regression: two concurrent executions sharing the same Integration —
+    // each retains once, each cleanup releases once. The middle state
+    // (after first cleanup) must still see the sid alive for the other
+    // execution.
+    it('two executions on same Integration — first cleanup keeps sid alive for second', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-A',
+      });
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-B',
+      });
+
+      await provider.cleanup({ executionId: 'exec-A' });
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(true);
+
+      await provider.cleanup({ executionId: 'exec-B' });
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(
+        false,
+      );
+    });
   });
 });

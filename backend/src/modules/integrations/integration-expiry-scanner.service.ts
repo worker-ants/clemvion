@@ -20,6 +20,7 @@ import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
 import { User } from '../users/entities/user.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import {
   CAFE24_REFRESH_JOB,
   CAFE24_REFRESH_QUEUE,
@@ -404,7 +405,7 @@ export class IntegrationExpiryScannerService
       });
       return true;
     } catch (err) {
-      if ((err as { code?: string })?.code === '23505') return false;
+      if (isPostgresUniqueViolation(err)) return false;
       throw err;
     }
   }
