@@ -876,6 +876,7 @@ export const en: Dict = {
     searchNodesPlaceholder: "Search nodes...",
     noNodesFound: "No nodes found",
     sharedAdd: "Add",
+    sharedRemoveRow: "Remove row",
     fieldHelpAriaLabel: "Help",
     fieldHelpLearnMore: "Learn more →",
   },
