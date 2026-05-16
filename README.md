@@ -74,8 +74,9 @@ Client (Next.js SPA)
 
 ```
 ./
-├── prd/                        # 제품 요구 사항 정의서 (PRD)
-├── spec/                       # 기술 스펙 문서 (SDD)
+├── spec/                       # 제품 정의·기술 명세 (single source of truth — 옛 prd/ 도 흡수)
+├── plan/                       # 작업 추적 (in-progress/ ↔ complete/)
+├── review/                     # 코드 리뷰·일관성 검토 산출물 (시점별)
 ├── frontend/                   # 클라이언트 (Next.js)
 │   └── src/
 │       ├── app/                #   App Router 페이지
@@ -227,9 +228,22 @@ npm run dev
 | 테스트 | `npm run test` | `npm run test` |
 | 테스트 (E2E) | - | `npm run test:e2e` |
 
+### 격리 인프라 기반 e2e (`make e2e-*`)
+
+`docker-compose.e2e.yml` 의 격리 Postgres/Redis/MinIO 위에서 backend e2e 와 playwright 를 실행한다. 개발용 인프라(`docker-compose.yml`) 와 `name:` top-level key 가 다르므로 동시 기동해도 충돌 없음.
+
+```bash
+make e2e-test        # backend supertest 1-shot (~30–60s). 끝나면 자동 down
+make e2e-test-full   # backend + playwright. 끝나면 자동 down
+make e2e-up          # 인프라 + backend-e2e 만 백그라운드 기동 (runner 제외)
+make e2e-down        # 정리 (volume·orphan 모두)
+```
+
+빌드 타겟 세 개 (`e2e-up`, `e2e-test`, `e2e-test-full`) 모두 매 실행 시 `docker compose ... --build` 로 backend 이미지를 갱신한다 (`e2e-down` 은 정리 전용이라 제외). BuildKit layer cache 가 변경 없는 layer 는 재사용하므로 첫 build 이후 오버헤드는 작고, 새로 추가한 컨트롤러·라우트가 stale 이미지에 반영되지 않아 사일런트 404 로 실패하는 회귀를 차단한다.
+
 ### 문서 링크 검증
 
-`prd/`, `spec/` 의 markdown 내부 링크와 `frontend/src/content/docs/**.mdx` frontmatter `spec:` 항목 정합성을 확인한다.
+`spec/` 의 markdown 내부 링크와 `frontend/src/content/docs/**.mdx` frontmatter `spec:` 항목 정합성을 확인한다.
 
 ```bash
 python3 scripts/check-doc-links.py
@@ -238,7 +252,7 @@ python3 scripts/check-doc-links.py
 - 종료 코드: 깨진 항목이 있으면 `1`, 모두 정상이면 `0`
 - 의존성 없음 (Python 3 표준 라이브러리만 사용)
 - 검사 항목: 파일 경로 존재 여부, anchor (`#section`) 가 대상 파일 헤딩 슬러그에 매칭되는지, MDX `spec:` 배열의 모든 경로 존재 여부
-- PR 머지 전 또는 spec/PRD 헤딩을 변경한 후 한 번씩 돌려서 cross-reference 깨짐을 잡는 용도
+- PR 머지 전 또는 spec 헤딩을 변경한 후 한 번씩 돌려서 cross-reference 깨짐을 잡는 용도
 
 ### 운영 스크립트 (backend/scripts)
 
