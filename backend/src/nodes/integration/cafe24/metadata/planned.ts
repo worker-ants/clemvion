@@ -361,11 +361,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   customer: [
     { id: 'customer_delete', label: '회원 탈퇴 처리' },
     { id: 'customer_autoupdate_get', label: '회원 등급 자동 갱신 조회' },
-    { id: 'customer_memos_count', label: '회원 메모 개수' },
-    { id: 'customer_memos_list', label: '회원 메모 목록', paginated: true },
-    { id: 'customer_memos_get', label: '회원 메모 단건 조회' },
-    { id: 'customer_memos_update', label: '회원 메모 수정' },
-    { id: 'customer_memos_delete', label: '회원 메모 삭제' },
     { id: 'customer_paymentinfo_list', label: '회원 결제수단 목록' },
     { id: 'customer_paymentinfo_delete', label: '회원 결제수단 삭제' },
     { id: 'customer_paymentinfo_delete_by_id', label: '회원 결제수단 ID 삭제' },
