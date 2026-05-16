@@ -433,8 +433,5 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'recipientgroups_update', label: '수신자 그룹 수정' },
     { id: 'recipientgroups_delete', label: '수신자 그룹 삭제' },
   ],
-  translation: [
-    { id: 'translation_themes_get', label: '테마 번역 단건 조회' },
-    { id: 'translation_themes_update', label: '테마 번역 수정' },
-  ],
+  translation: [],
 };
