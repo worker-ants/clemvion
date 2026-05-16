@@ -197,4 +197,20 @@ export const integrations = {
   oauthFailedShort: "OAuth에 실패했어요",
   oauthCompletedToast: "OAuth가 완료됐어요. 저장을 계속해 주세요.",
   reauthorizeBtn2: "재인증",
+  // ----- Cafe24 mall_id 중복 사전 감지 (2026-05-16) -----
+  // mall_id 입력 시점에 precheck endpoint 호출 → conflict 발견 시 inline
+  // 경고 배너 + Connect 버튼 disable. spec/2-navigation/4-integration.md §9.2.
+  cafe24DuplicateMallTitle: "이 mall ID 는 이미 연결되어 있어요",
+  cafe24DuplicateMallConnectedDesc:
+    "같은 워크스페이스에 같은 mall_id 의 Cafe24 통합이 이미 활성 상태로 연결돼 있어요. 기존 통합을 사용하거나 삭제한 뒤 다시 등록해 주세요.",
+  cafe24DuplicateMallPendingDesc:
+    "같은 mall_id 의 Cafe24 통합이 이미 설치 대기 중이에요. 기존 통합을 사용해 install 을 마치거나, 통합 상세에서 삭제한 뒤 다시 등록해 주세요.",
+  cafe24DuplicateMallExpiredDesc:
+    "같은 mall_id 의 Cafe24 통합이 이미 만료 상태로 존재해요. 새 통합을 등록하려면 먼저 기존 통합을 삭제해 주세요.",
+  cafe24DuplicateMallErrorDesc:
+    "같은 mall_id 의 Cafe24 통합이 이미 오류 상태로 존재해요. 통합 상세에서 재인증을 시도하거나 삭제한 뒤 다시 등록해 주세요.",
+  cafe24DuplicateMallViewExisting: "기존 통합 열기",
+  // 사후 toast 의 한글 primary 메시지. backend 영문 message 는 (괄호) 안에 보조 표시.
+  cafe24DuplicateMallToast: "이 mall ID 는 이미 연결되어 있어 추가할 수 없어요",
+  cafe24DuplicateMallChecking: "확인 중…",
 } as const;

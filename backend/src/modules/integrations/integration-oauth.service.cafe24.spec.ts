@@ -506,6 +506,274 @@ describe('IntegrationOAuthService — Cafe24', () => {
     });
   });
 
+  // Public 흐름 사전 가드 (2026-05-16). 옛 코드는 public begin 단계에서
+  // 중복 체크가 없어 사용자가 Cafe24 동의까지 마친 뒤 finalize 단계의
+  // V045 partial UNIQUE 위반이 500 으로 빠지던 UX 결함을 막는다.
+  // 동일 mall_id 의 `connected` row 가 존재하면 begin 자체가 409 로 거부.
+  describe('begin — public app duplicate prevention', () => {
+    function publicBeginParams() {
+      return {
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        service: 'cafe24',
+        scopes: ['mall.read_product'],
+        mode: 'new' as const,
+        providerMeta: {
+          mall_id: 'pub-shop',
+          app_type: 'public' as const,
+        },
+      };
+    }
+
+    it('rejects with 409 when a connected public integration exists for the same mall_id', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'existing-public-connected',
+          workspaceId: 'ws-1',
+          status: 'connected',
+          serviceType: 'cafe24',
+          mallId: 'pub-shop',
+          credentials: { mall_id: 'pub-shop', app_type: 'public' },
+        },
+      ]);
+
+      const error = await service
+        .begin(publicBeginParams())
+        .catch((e: Error) => e);
+      const response = (error as { response?: { code?: string } }).response;
+      expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      // No OAuth state row created — the guard fires before save.
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects with 409 when a connected private integration exists for the same mall_id (app_type 무관)', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'existing-private-connected',
+          workspaceId: 'ws-1',
+          status: 'connected',
+          serviceType: 'cafe24',
+          mallId: 'pub-shop',
+          credentials: { mall_id: 'pub-shop', app_type: 'private' },
+        },
+      ]);
+
+      const error = await service
+        .begin(publicBeginParams())
+        .catch((e: Error) => e);
+      const response = (error as { response?: { code?: string } }).response;
+      expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      expect(stateRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('proceeds when only non-connected rows exist (pending/expired/error — V045 backstop handles finalize)', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'existing-expired',
+          status: 'expired',
+          serviceType: 'cafe24',
+          mallId: 'pub-shop',
+          credentials: { mall_id: 'pub-shop', app_type: 'public' },
+        },
+      ]);
+
+      const result = await service.begin(publicBeginParams());
+      // Begin succeeds (returns authorize URL); duplicate is caught at
+      // POST /api/integrations finalize by `throwIfUniqueViolation` against
+      // `idx_integration_cafe24_workspace_mall`.
+      expect((result as { authUrl: string }).authUrl).toMatch(
+        /^https:\/\/pub-shop\.cafe24api\.com\/api\/v2\/oauth\/authorize\?/,
+      );
+      expect(stateRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('proceeds when no cafe24 row exists for this mall', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([]);
+      const result = await service.begin(publicBeginParams());
+      expect((result as { authUrl: string }).authUrl).toContain(
+        'pub-shop.cafe24api.com',
+      );
+    });
+
+    it('matches legacy rows (mall_id stored in credentials JSONB only)', async () => {
+      // V045 이전 row 는 plain `mall_id` 컬럼이 NULL — JSONB 의 mall_id 로
+      // 매칭. find() 가 두 번 호출되며 첫 번째 (mallId='pub-shop') 는 빈
+      // 배열, 두 번째 (mallId IS NULL) 는 legacy row 를 반환.
+      let callCount = 0;
+      integrationRepo.find = jest.fn().mockImplementation(() => {
+        callCount += 1;
+        if (callCount === 1) return Promise.resolve([]);
+        return Promise.resolve([
+          {
+            id: 'legacy-connected',
+            status: 'connected',
+            serviceType: 'cafe24',
+            mallId: null,
+            credentials: { mall_id: 'pub-shop', app_type: 'public' },
+          },
+        ]);
+      });
+
+      const error = await service
+        .begin(publicBeginParams())
+        .catch((e: Error) => e);
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+      );
+    });
+  });
+
+  // precheck — frontend 의 사전 감지 inline 알림을 위한 read-only API.
+  // 동일 (workspaceId, mallId) cafe24 row 의 status / id / name 을 반환.
+  // priority: connected > pending_install > error > expired.
+  describe('precheckCafe24Mall', () => {
+    it('returns conflict=false when no cafe24 row exists', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([]);
+      const result = await service.precheckCafe24Mall('ws-1', 'fresh-mall');
+      expect(result).toEqual({ conflict: false });
+    });
+
+    it('returns conflict=true with status=connected when a connected row exists', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'conn-1',
+          name: 'priv-shop (Cafe24 Private)',
+          status: 'connected',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result).toEqual({
+        conflict: true,
+        existingIntegrationId: 'conn-1',
+        existingName: 'priv-shop (Cafe24 Private)',
+        status: 'connected',
+      });
+    });
+
+    it('prefers connected over pending_install when both exist', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'pending-1',
+          name: 'pending',
+          status: 'pending_install',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+        {
+          id: 'conn-1',
+          name: 'connected',
+          status: 'connected',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.status).toBe('connected');
+      expect(result.existingIntegrationId).toBe('conn-1');
+    });
+
+    it('returns status=pending_install when only pending row exists', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'pending-1',
+          name: 'pending',
+          status: 'pending_install',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.status).toBe('pending_install');
+      expect(result.existingIntegrationId).toBe('pending-1');
+    });
+
+    it('returns status=error when only error row exists', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'err-1',
+          name: 'broken',
+          status: 'error',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.status).toBe('error');
+    });
+
+    it('returns status=expired when only expired row exists', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'exp-1',
+          name: 'gone',
+          status: 'expired',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.status).toBe('expired');
+      expect(result.existingIntegrationId).toBe('exp-1');
+    });
+
+    /**
+     * Fallback 분기 — priority 외 status (예: 미래 추가될 transitional
+     * `initializing`) 가 들어오면 frontend 가 unknown enum 으로 silent
+     * fallthrough 하지 않도록 `status` 필드를 omit. conflict 만 true.
+     */
+    it('omits status when row has a status outside the priority enum (fallback)', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'tx-1',
+          name: 'unknown-state',
+          status: 'initializing',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.conflict).toBe(true);
+      expect(result.existingIntegrationId).toBe('tx-1');
+      expect(result.status).toBeUndefined();
+    });
+
+    /**
+     * Legacy row (V045 이전) — plain `mall_id` 컬럼이 NULL 이라 primary 쿼리
+     * 에선 매칭되지 않고, fallback (mallId IS NULL) + JSONB filter 로 잡힌다.
+     * backfill 완료 후 본 분기 제거 예정.
+     */
+    it('matches legacy rows via credentials.mall_id JSONB when plain column is NULL', async () => {
+      let callCount = 0;
+      integrationRepo.find = jest.fn().mockImplementation(() => {
+        callCount += 1;
+        if (callCount === 1) return Promise.resolve([]);
+        return Promise.resolve([
+          {
+            id: 'legacy-conn',
+            name: 'legacy',
+            status: 'connected',
+            serviceType: 'cafe24',
+            mallId: null,
+            credentials: { mall_id: 'priv-shop', app_type: 'public' },
+          },
+        ]);
+      });
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.conflict).toBe(true);
+      expect(result.status).toBe('connected');
+      expect(result.existingIntegrationId).toBe('legacy-conn');
+    });
+  });
+
   describe('handleInstall — Cafe24 private app App URL', () => {
     const clientSecret = 'test-private-secret';
     // 16바이트 base64url = 22자 (spec/2-navigation/4-integration.md §9.2)

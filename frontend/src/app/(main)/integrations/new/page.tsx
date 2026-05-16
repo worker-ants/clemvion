@@ -5,7 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, Copy, Loader2, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  Copy,
+  Loader2,
+  XCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,12 +20,13 @@ import { cn } from "@/lib/utils/cn";
 import {
   integrationsApi,
   type AuthVariant,
+  type Cafe24PrecheckResult,
   type IntegrationScope,
   type ServiceDefinition,
 } from "@/lib/api/integrations";
 import { ServiceIcon } from "../_shared/service-icons";
 import { CredentialsForm } from "../_shared/credentials-form";
-import { useT, type TFunction } from "@/lib/i18n";
+import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { useCafe24PendingPolling } from "@/lib/integrations/use-cafe24-pending-polling";
 
 interface OAuthCallbackPayload {
@@ -84,6 +92,77 @@ export default function NewIntegrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variant]);
 
+  // Cafe24 mall_id 사전 중복 감지 상태 (2026-05-16).
+  // mall_id 입력 시 350ms debounce 로 backend precheck endpoint 호출 →
+  // conflict 발견 시 inline 경고 배너 + Connect 버튼 disable.
+  // spec/2-navigation/4-integration.md §9.2.
+  const [cafe24Conflict, setCafe24Conflict] =
+    useState<Cafe24PrecheckResult | null>(null);
+  const [cafe24PrecheckLoading, setCafe24PrecheckLoading] = useState(false);
+  const cafe24MallIdInput = String(credentials.mall_id ?? "").trim();
+  const isCafe24OAuth =
+    variant?.authType === "oauth2" && serviceType === "cafe24";
+
+  // mall_id 패턴 매칭이 안 되면 precheck 호출 자체를 skip — backend 가
+  // 400 으로 거부할 페이로드를 보낼 필요 없음. 패턴이 풀리는 순간
+  // 이전 conflict 표시·로딩 상태도 클리어해 사용자 입력 도중 잘못된
+  // 빨간 배너 또는 영구 spinner 가 남지 않도록.
+  useEffect(() => {
+    if (!isCafe24OAuth) {
+      setCafe24Conflict(null);
+      setCafe24PrecheckLoading(false);
+      return;
+    }
+    if (!/^[a-z0-9-]{3,50}$/.test(cafe24MallIdInput)) {
+      setCafe24Conflict(null);
+      setCafe24PrecheckLoading(false);
+      return;
+    }
+    // mall_id 가 바뀔 때마다 350ms debounce — 짧으면 brute-force 호출,
+    // 길면 사용자가 Connect 클릭 시 stale 결과를 보게 됨.
+    let cancelled = false;
+    setCafe24PrecheckLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const result = await integrationsApi.cafe24Precheck(cafe24MallIdInput);
+        if (!cancelled) setCafe24Conflict(result);
+      } catch {
+        // precheck 자체 실패는 silent — Connect 시점의 backend 가드가
+        // backstop. inline 배너를 띄우지 못해도 안전.
+        if (!cancelled) setCafe24Conflict(null);
+      } finally {
+        if (!cancelled) setCafe24PrecheckLoading(false);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [isCafe24OAuth, cafe24MallIdInput]);
+
+  /**
+   * 에러 토스트 — `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 한글 i18n
+   * 메시지를 primary 로, backend 의 영문 message 는 괄호 안 보조 정보로
+   * 노출. 다른 코드는 기존 동작 유지 (backend message 우선).
+   * 사용자가 "괄호 등을 이용해서 보조 안내로 사용" 지시 (2026-05-16).
+   */
+  const formatErrorToast = (
+    err: unknown,
+    fallbackKey: TranslationKey,
+  ): string => {
+    const e = err as {
+      response?: { data?: { message?: string; code?: string } };
+      message?: string;
+    };
+    const backendCode = e.response?.data?.code;
+    const backendMessage = e.response?.data?.message ?? e.message;
+    if (backendCode === "CAFE24_PRIVATE_APP_ALREADY_CONNECTED") {
+      const primary = t("integrations.cafe24DuplicateMallToast");
+      return backendMessage ? `${primary} (${backendMessage})` : primary;
+    }
+    return backendMessage ?? t(fallbackKey);
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const isOAuth = variant?.authType === "oauth2";
@@ -105,13 +184,9 @@ export default function NewIntegrationPage() {
       router.push(`/integrations/${created.id}`);
     },
     onError: (err: unknown) => {
-      const e = err as {
-        response?: { data?: { message?: string; code?: string } };
-        message?: string;
-      };
-      const msg =
-        e.response?.data?.message ?? e.message ?? t("integrations.integrationCreateFailedDefault");
-      toast.error(msg);
+      toast.error(
+        formatErrorToast(err, "integrations.integrationCreateFailedDefault"),
+      );
     },
   });
 
@@ -187,8 +262,7 @@ export default function NewIntegrationPage() {
       toast.message(t("integrations.oauthContinueInPopup"));
     },
     onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string } } };
-      toast.error(e.response?.data?.message ?? t("integrations.oauthStartFailed"));
+      toast.error(formatErrorToast(err, "integrations.oauthStartFailed"));
     },
   });
 
@@ -393,6 +467,8 @@ export default function NewIntegrationPage() {
           previewToken={previewToken}
           oauthWaiting={oauthWaiting}
           oauthError={oauthError}
+          cafe24Conflict={cafe24Conflict}
+          cafe24PrecheckLoading={cafe24PrecheckLoading}
           onConnect={() => {
             if (!name.trim()) {
               toast.error(t("integrations.nameRequired"));
@@ -400,6 +476,15 @@ export default function NewIntegrationPage() {
             }
             if (selectedScopes.length === 0) {
               toast.error(t("integrations.selectAtLeastOneScope"));
+              return;
+            }
+            // 사전 감지로 중복이 이미 잡혔으면 backend 왕복 자체를 막는다.
+            // backend 도 동일한 가드를 가지지만 사용자 입장에선 toast 만
+            // 보고 OAuth 흐름이 시작 안 되니 inline 배너가 더 명확.
+            if (cafe24Conflict?.conflict) {
+              toast.error(
+                t("integrations.cafe24DuplicateMallToast"),
+              );
               return;
             }
             oauthBeginMutation.mutate();
@@ -467,6 +552,8 @@ interface AuthStepProps {
   previewToken: string | null;
   oauthWaiting: boolean;
   oauthError: string | null;
+  cafe24Conflict: Cafe24PrecheckResult | null;
+  cafe24PrecheckLoading: boolean;
   onConnect: () => void;
   connecting: boolean;
   onContinue: () => void;
@@ -489,6 +576,8 @@ function AuthStep({
   previewToken,
   oauthWaiting,
   oauthError,
+  cafe24Conflict,
+  cafe24PrecheckLoading,
   onConnect,
   connecting,
   onContinue,
@@ -581,6 +670,8 @@ function AuthStep({
           credentials={credentials}
           setCredentials={setCredentials}
           publicAppAvailable={service.meta?.publicAppAvailable !== false}
+          conflict={cafe24Conflict}
+          precheckLoading={cafe24PrecheckLoading}
         />
       )}
 
@@ -641,7 +732,18 @@ function AuthStep({
           <Button
             variant={previewToken ? "outline" : "default"}
             onClick={onConnect}
-            disabled={connecting || oauthWaiting}
+            // Cafe24 사전 중복 감지 — conflict 가 발견된 mall_id 로는 OAuth
+            // 진입 자체를 막는다. 사용자가 mall_id 를 다른 값으로 바꾸거나
+            // 기존 통합을 삭제하지 않는 한 Connect 비활성. precheck 가
+            // 350ms debounce 후 fetching 중인 동안에도 Connect 를 비활성화해
+            // "사전 감지 결과를 보기 전에 OAuth 시작" race 를 막는다.
+            // backend 가드는 backstop 으로 살아있어 우회 시도도 안전.
+            disabled={
+              connecting ||
+              oauthWaiting ||
+              cafe24PrecheckLoading ||
+              cafe24Conflict?.conflict === true
+            }
           >
             {connecting || oauthWaiting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -675,12 +777,21 @@ function Cafe24ExtraFields({
   credentials,
   setCredentials,
   publicAppAvailable,
+  conflict,
+  precheckLoading,
 }: {
   credentials: Record<string, unknown>;
   setCredentials: (c: Record<string, unknown>) => void;
   /** False when server's CAFE24_CLIENT_* env vars are unset → only Private. */
   publicAppAvailable: boolean;
+  /** Cafe24 mall_id 사전 중복 감지 결과 (null 이면 미감지 / 진행 중). */
+  conflict: Cafe24PrecheckResult | null;
+  /** debounce 호출 중 표시용 (배너 자리 안정화). */
+  precheckLoading: boolean;
 }) {
+  // `t` 를 prop 으로 받지 않고 useT 를 직접 호출 — 다른 컴포넌트(`AuthStep` 등)
+  // 와의 일관성. ai-review WARNING #10 (2026-05-16) 조치.
+  const t = useT();
   const set = (key: string, value: unknown) =>
     setCredentials({ ...credentials, [key]: value });
   const mallId = String(credentials.mall_id ?? "");
@@ -709,6 +820,19 @@ function Cafe24ExtraFields({
     ? (["public", "private"] as const)
     : (["private"] as const);
 
+  // 상태별 안내 메시지 분기 — connected 는 가장 강한 차단, pending_install
+  // 은 install 진행 중 안내, expired/error 는 정리 후 재등록 안내.
+  // spec/2-navigation/4-integration.md §9.2 Rationale "precheck endpoint".
+  const conflictDescKey: TranslationKey | null = !conflict?.conflict
+    ? null
+    : conflict.status === "pending_install"
+      ? "integrations.cafe24DuplicateMallPendingDesc"
+      : conflict.status === "expired"
+        ? "integrations.cafe24DuplicateMallExpiredDesc"
+        : conflict.status === "error"
+          ? "integrations.cafe24DuplicateMallErrorDesc"
+          : "integrations.cafe24DuplicateMallConnectedDesc";
+
   return (
     <div className="space-y-4 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4">
       <div>
@@ -725,11 +849,50 @@ function Cafe24ExtraFields({
           // unescaped hyphen inside a character class. Same semantic as
           // the backend regex /^[a-z0-9-]{3,50}$/.
           pattern="^[a-z0-9\-]{3,50}$"
+          aria-invalid={conflict?.conflict ? true : undefined}
+          aria-describedby={
+            conflict?.conflict ? "cafe24-mall-dup-banner" : undefined
+          }
         />
         <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
           Lower-case letters, digits, and hyphens, 3–50 chars. Forms the
           base URL <code>https://{"{mall_id}"}.cafe24api.com</code>.
         </p>
+        {/* 사전 중복 감지 inline 배너 — precheck endpoint 응답에 따라
+            상태별 안내 + 기존 통합으로 가는 deep link 노출. */}
+        {conflict?.conflict && conflictDescKey && (
+          <div
+            id="cafe24-mall-dup-banner"
+            role="alert"
+            className="mt-2 flex gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200"
+          >
+            <AlertTriangle
+              className="mt-0.5 h-4 w-4 flex-shrink-0"
+              aria-hidden
+            />
+            <div className="space-y-1.5">
+              <div className="font-semibold">
+                {t("integrations.cafe24DuplicateMallTitle")}
+              </div>
+              <div>{t(conflictDescKey)}</div>
+              {conflict.existingIntegrationId && (
+                <Link
+                  href={`/integrations/${conflict.existingIntegrationId}`}
+                  className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
+                >
+                  {t("integrations.cafe24DuplicateMallViewExisting")}
+                  {conflict.existingName ? ` — ${conflict.existingName}` : ""}
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+        {precheckLoading && !conflict?.conflict && (
+          <p className="mt-1 inline-flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            {t("integrations.cafe24DuplicateMallChecking")}
+          </p>
+        )}
       </div>
 
       <div>

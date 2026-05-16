@@ -231,6 +231,42 @@ export class OAuthBeginCafe24PendingResultDto {
   scopesAdded?: string[];
 }
 
+/**
+ * Cafe24 mall_id 사전 중복 감지 응답.
+ *
+ * 프론트엔드가 mall_id 입력 시점에 350ms debounce 로 호출해 inline 경고
+ * 배너를 띄우는 read-only endpoint. 동일 (workspaceId, mall_id) cafe24 row 의
+ * 상태를 가장 제한적인 것부터 (`connected > pending_install > error > expired`)
+ * 반환. 인증 정보 누설 방지를 위해 (id, name, status) 만 노출 — 자격 증명·
+ * 토큰·timestamps 비포함. spec/2-navigation/4-integration.md §9.2 Rationale
+ * "precheck endpoint — mall_id 입력 단계 사전 감지 UX".
+ */
+export class Cafe24PrecheckResultDto {
+  @ApiProperty({
+    description:
+      '동일 (workspaceId, mall_id) cafe24 통합이 이미 존재하면 true. false 면 begin 호출이 안전.',
+  })
+  conflict!: boolean;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: '충돌 대상 통합의 UUID. conflict=true 일 때만 채워진다.',
+  })
+  existingIntegrationId?: string;
+
+  @ApiPropertyOptional({
+    description: '충돌 대상 통합의 표시 이름. conflict=true 일 때만 채워진다.',
+  })
+  existingName?: string;
+
+  @ApiPropertyOptional({
+    enum: ['connected', 'pending_install', 'expired', 'error'],
+    description:
+      '충돌 대상 통합의 현재 상태. 프론트엔드 inline 안내 메시지 분기 기준.',
+  })
+  status?: 'connected' | 'pending_install' | 'expired' | 'error';
+}
+
 /** 사용처 조회 응답 */
 export class IntegrationUsageItemDto {
   @ApiProperty({ format: 'uuid' })
