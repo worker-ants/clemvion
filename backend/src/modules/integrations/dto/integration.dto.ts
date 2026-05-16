@@ -390,3 +390,30 @@ export class ActivityQueryDto {
   @Max(30)
   days?: number;
 }
+
+/**
+ * Cafe24 mall_id 사전 중복 감지 query.
+ *
+ * 프론트엔드가 `/integrations/new` 의 cafe24 step 에서 mall_id 입력 시점에
+ * debounce 호출. 같은 워크스페이스에 이미 같은 mall 의 cafe24 통합이 있는지
+ * 확인해 inline 경고 배너를 띄운다. begin 단계 사전 가드와 동일 SELECT 를
+ * 노출하므로 throttle (분당 60회) 로 brute-force enumeration 차단.
+ */
+export class Cafe24PrecheckQueryDto {
+  @ApiProperty({
+    description:
+      'Cafe24 mall identifier — lowercase letters / digits / hyphens, 3–50자',
+    example: 'myshop',
+    pattern: '^[a-z0-9-]{3,50}$',
+  })
+  @IsString()
+  @MinLength(3)
+  @MaxLength(50)
+  // SSRF 방어와 begin DTO 와 동일한 정규식을 사용.
+  // CAFE24_MALL_ID_PATTERN = /^[a-z0-9-]{3,50}$/
+  @Matches(/^[a-z0-9-]{3,50}$/, {
+    message:
+      'mallId must match /^[a-z0-9-]{3,50}$/ — lowercase letters, digits, and hyphens only',
+  })
+  mallId!: string;
+}

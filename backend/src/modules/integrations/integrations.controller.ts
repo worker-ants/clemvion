@@ -34,6 +34,7 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import {
+  Cafe24PrecheckResultDto,
   IntegrationActivityDto,
   IntegrationDto,
   IntegrationUsagesDto,
@@ -49,6 +50,7 @@ import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import {
   ActivityQueryDto,
+  Cafe24PrecheckQueryDto,
   CreateIntegrationDto,
   ListIntegrationsQueryDto,
   OAuthBeginDto,
@@ -167,7 +169,7 @@ export class IntegrationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiConflictResponse({
     description:
-      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id, app_type=private) 의 connected 통합이 이미 존재. 기존 통합을 사용하거나 삭제 후 재등록.',
+      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 기존 통합을 사용하거나 삭제 후 재등록. spec/2-navigation/4-integration.md §9.2.',
   })
   async oauthBegin(
     @WorkspaceId() workspaceId: string,
@@ -205,6 +207,33 @@ export class IntegrationsController {
   // 가 호출하는 endpoints (Cafe24 install + OAuth callback) 는
   // `ThirdPartyOAuthController` (`/api/3rd-party/...`) 가 담당.
   // spec/2-navigation/4-integration.md §9.2.
+
+  // ※ 라우트 선언 순서 주의: `cafe24/precheck` 는 동적 경로
+  // `@Get(':id')` / `@Get(':id/usages')` / `@Get(':id/activity')` 보다
+  // **앞에** 선언되어야 한다. NestJS 는 Express 라우터 순서를 따르므로
+  // `:id` 가 먼저 매칭되면 `cafe24/precheck` 가 `id='cafe24'` 의
+  // `ParseUUIDPipe` 위반으로 400 을 받는다. 빌드 타임에 탐지되지 않으므로
+  // 향후 리팩토링 시 본 주석을 보존할 것.
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get('cafe24/precheck')
+  @ApiOperation({
+    summary: 'Cafe24 mall_id 중복 사전 감지',
+    description:
+      '현재 워크스페이스에 같은 mall_id 의 cafe24 통합이 이미 있는지 사전 확인합니다. 프론트엔드가 mall_id 입력 단계에서 debounce 호출해 inline 경고 배너를 띄우는 용도. 자격 증명·토큰은 포함되지 않으며, 가장 제한적인 상태 (connected > pending_install > error > expired) 만 반환합니다. 분당 60회 제한.',
+  })
+  @ApiOkWrappedResponse(Cafe24PrecheckResultDto, {
+    description:
+      'conflict 여부 + (존재 시) 충돌 대상 통합의 id/name/status. 자격 증명 미포함',
+  })
+  @ApiBadRequestResponse({ description: 'mallId 형식 위반 (^[a-z0-9-]{3,50}$)' })
+  @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 60회)' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  async cafe24Precheck(
+    @WorkspaceId() workspaceId: string,
+    @Query() query: Cafe24PrecheckQueryDto,
+  ) {
+    return this.oauthService.precheckCafe24Mall(workspaceId, query.mallId);
+  }
 
   @Get(':id')
   @ApiOperation({
