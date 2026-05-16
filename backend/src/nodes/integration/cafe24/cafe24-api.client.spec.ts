@@ -156,7 +156,31 @@ describe('Cafe24ApiClient', () => {
       expect(res.retries).toBe(0);
     });
 
-    it('PUT — serialises body as JSON with content-type', async () => {
+    it('PUT — wraps body in Cafe24 `request` envelope (shop_no stays top-level)', async () => {
+      // Cafe24 Admin API rejects flat bodies with 400 "Please enter the
+      // Request parameter." All write requests (POST/PUT) MUST be wrapped
+      // as `{ shop_no?, request: { ...rest } }`. shop_no is the only
+      // exception that lives at the top level alongside `request`.
+      // See https://developers.cafe24.com/docs/ko/api/admin/#update-a-product
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'PUT',
+        path: 'products/1001',
+        body: { shop_no: 1, product_name: 'Updated', price: '10000.00' },
+      });
+
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      expect((init.headers as Record<string, string>)['Content-Type']).toBe(
+        'application/json',
+      );
+      expect(JSON.parse(init.body as string)).toEqual({
+        shop_no: 1,
+        request: { product_name: 'Updated', price: '10000.00' },
+      });
+    });
+
+    it('PUT without shop_no — body becomes `{ request: {...} }`', async () => {
       fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
       const integration = makeIntegration();
       await client.call(integration, {
@@ -166,10 +190,59 @@ describe('Cafe24ApiClient', () => {
       });
 
       const init = fetchMock.mock.calls[0][1] as RequestInit;
-      expect((init.headers as Record<string, string>)['Content-Type']).toBe(
-        'application/json',
-      );
-      expect(init.body).toBe('{"product_name":"Updated"}');
+      expect(JSON.parse(init.body as string)).toEqual({
+        request: { product_name: 'Updated' },
+      });
+    });
+
+    it('POST — same envelope applied to create requests', async () => {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'POST',
+        path: 'products',
+        body: { shop_no: 1, product_name: 'New', price: '5000.00' },
+      });
+
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      expect(JSON.parse(init.body as string)).toEqual({
+        shop_no: 1,
+        request: { product_name: 'New', price: '5000.00' },
+      });
+    });
+
+    it('PUT with only shop_no in body — sends shop_no + empty request envelope', async () => {
+      // Degenerate case — caller passed only shop_no. We still emit the
+      // envelope so Cafe24's parser sees the required `request` key rather
+      // than 400 "Please enter the Request parameter."
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'PUT',
+        path: 'products/1001',
+        body: { shop_no: 1 },
+      });
+
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      expect(JSON.parse(init.body as string)).toEqual({
+        shop_no: 1,
+        request: {},
+      });
+    });
+
+    it('GET — never wraps in envelope (no body)', async () => {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ products: [] }));
+      const integration = makeIntegration();
+      await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+        // GET requests carry shop_no on the query string; body is never
+        // populated by the handler. Sanity-check the client doesn't
+        // synthesise one.
+      });
+
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      expect(init.body).toBeUndefined();
     });
   });
 
