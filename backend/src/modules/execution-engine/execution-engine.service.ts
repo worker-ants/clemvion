@@ -63,12 +63,12 @@ import {
 } from '../../nodes/core/node-handler.interface';
 import { NODE_TYPES } from '../../nodes/core/node-types.constants';
 import {
-  WebsocketService,
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
+import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -77,11 +77,6 @@ import {
   AI_LLM_PROVIDER_NODE_TYPES,
   AI_NO_LLM_PROVIDER_MESSAGE,
 } from '../../nodes/ai/llm-provider-rule';
-import { RagSearchService } from '../knowledge-base/search/rag-search.service';
-import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
-import { IntegrationsService } from '../integrations/integrations.service';
-import { McpClientService } from '../mcp/mcp-client.service';
-import { Cafe24ApiClient } from '../../nodes/integration/cafe24/cafe24-api.client';
 import {
   BACKGROUND_EXECUTION_QUEUE,
   BackgroundExecutionJob,
@@ -440,17 +435,12 @@ export class ExecutionEngineService
     private readonly contextService: ExecutionContextService,
     private readonly errorPolicyHandler: ErrorPolicyHandler,
     private readonly expressionResolver: ExpressionResolverService,
-    @Inject(forwardRef(() => WebsocketService))
-    private readonly websocketService: WebsocketService,
     private readonly eventEmitter: ExecutionEventEmitter,
     private readonly graphTraversal: GraphTraversalService,
+    @Inject(forwardRef(() => NodeHandlerDependenciesProvider))
+    private readonly handlerDeps: NodeHandlerDependenciesProvider,
     private readonly configService: ConfigService,
     private readonly llmService: LlmService,
-    private readonly ragSearchService: RagSearchService,
-    private readonly knowledgeBaseService: KnowledgeBaseService,
-    private readonly integrationsService: IntegrationsService,
-    private readonly mcpClientService: McpClientService,
-    private readonly cafe24ApiClient: Cafe24ApiClient,
     private readonly foreachExecutor: ForEachExecutor,
     private readonly loopExecutor: LoopExecutor,
     private readonly parallelExecutor: ParallelExecutor,
@@ -624,17 +614,10 @@ export class ExecutionEngineService
   }
 
   private registerHandlers() {
-    this.componentRegistry.bootstrap(ALL_NODE_COMPONENTS, {
-      llmService: this.llmService,
-      ragSearchService: this.ragSearchService,
-      knowledgeBaseService: this.knowledgeBaseService,
-      integrationsService: this.integrationsService,
-      mcpClientService: this.mcpClientService,
-      workflowExecutor: this,
-      websocketService: this.websocketService,
-      cafe24ApiClient: this.cafe24ApiClient,
-      conversationThreadService: this.conversationThreadService,
-    });
+    this.componentRegistry.bootstrap(
+      ALL_NODE_COMPONENTS,
+      this.handlerDeps.build(this),
+    );
   }
 
   /**
