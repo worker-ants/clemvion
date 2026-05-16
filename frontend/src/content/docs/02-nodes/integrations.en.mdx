@@ -1,4 +1,4 @@
-This page covers the three integration nodes that talk to external services. Most of them share a common pattern: they reference an **Integration entity** for reusable auth/connection info, and they route success and failure through separate output ports.
+This page covers the four integration nodes that talk to external services (HTTP Request, Database Query, Send Email, and Cafe24). Most of them share a common pattern: they reference an **Integration entity** for reusable auth/connection info, and they route success and failure through separate output ports.
 
 ## Shared patterns
 
@@ -197,11 +197,58 @@ To/CC/BCC accept both arrays and comma-separated strings. Values are trimmed, bl
   {name: "none", required: false, type: "Integration credential", description: "Plain SMTP without TLS.", default: "-"}
 ]} />
 
+## Cafe24
+
+### When to use it
+
+- To call the Korean e-commerce SaaS **Cafe24** Admin API across its 18 categories (products, orders, customers, promotions, mileage, and so on — about 180 endpoints) from a workflow.
+- The same Cafe24 integration is reused by both this node and the AI Agent's MCP tool surface, so OAuth tokens, leaky-bucket rate limits, and call logs stay unified.
+
+### Fields
+
+<FieldTable rows={[
+  {name: "integrationId", required: true, type: "UUID", description: "Reference to an Integration with `service_type='cafe24'`. Create one from sidebar → Integrations → Cafe24 card.", default: "-"},
+  {name: "resource", required: true, type: "enum", description: "Cafe24 category — one of 18 values: `store`, `product`, `order`, `customer`, `community`, `design`, `promotion`, `application`, `category`, `collection`, `supply`, `shipping`, `salesreport`, `personal`, `privacy`, `mileage`, `notification`, `translation`.", default: "-"},
+  {name: "operation", required: true, type: "string", description: "Operation identifier for the selected resource — e.g. `product_list`, `product_get`, `order_list`, `order_update_status`. The metadata table fills the dropdown automatically.", default: "-"},
+  {name: "fields", required: false, type: "Record<string, unknown>", description: "Input fields for the selected operation. Expression `{{ }}` allowed. Required vs. optional varies per operation.", default: "{}"},
+  {name: "pagination", required: false, type: "object", description: "`{ limit?, offset?, cursor? }`. Meaningful only when the operation supports pagination.", default: "-"}
+]} />
+
+### Ports
+
+- `success` — API call succeeded
+- `error` — auth expired, leaky-bucket rate limit exceeded, Cafe24-side 5xx, etc.
+
+### Example
+
+<Example title="Fetch unshipped orders from yesterday to today">
+```ts
+// config
+{
+  integrationId: "…",
+  resource: "order",
+  operation: "order_list",
+  fields: {
+    shop_no: 1,
+    order_status: "N00",
+    start_date: "{{ formatDate(addTime($now, -1, \"day\"), \"YYYY-MM-DD\") }}",
+    end_date:   "{{ formatDate($now, \"YYYY-MM-DD\") }}"
+  },
+  pagination: { limit: 50, offset: 0 }
+}
+```
+</Example>
+
+<Callout type="tip">
+If this is your first time, register the integration from **sidebar → Integrations → Cafe24** first. The full onboarding (app type, OAuth callback, registering a Private app) is covered in the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24). That page also explains how to expose the same integration as an MCP tool on an AI Agent node.
+</Callout>
+
 ## Canvas summary
 
 - HTTP Request: `{method} {url}` (URL trimmed at 35 chars)
 - Database Query: `{queryType} · {first line of the query}` (trimmed)
 - Send Email: `to: {recipient}` (with `+N` when there are more than 2)
+- Cafe24: `{resource} · {operation}` (operation name trimmed when long)
 
 When the referenced Integration is deleted, a `⚠ Missing integration` badge appears on the canvas summary.
 

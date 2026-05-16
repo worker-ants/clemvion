@@ -12,7 +12,8 @@ This page lists the **built-in reference variables** you can use inside expressi
   { name: "$trigger", type: "Object", description: "Trigger payload — webhook body, schedule context, etc." },
   { name: "$loop", type: "Object", description: "Loop-node inner context — index, iteration count, first/last flags." },
   { name: "$item", type: "Any", description: "The current item inside a ForEach/Map container." },
-  { name: "$itemIndex", type: "Number", description: "Current ForEach index, 0-based." }
+  { name: "$itemIndex", type: "Number", description: "Current ForEach index, 0-based." },
+  { name: "$thread", type: "Object", description: "Conversation Thread — a readonly snapshot of user and AI Agent turns accumulated during this workflow execution. Exposes `turns`, `length`, and `text`." }
 ]} />
 
 ## `$input`: the previous node's result
@@ -132,6 +133,42 @@ Access the raw data provided by Webhook, Schedule, or Manual triggers.
 {{ $trigger.body.event }}
 ```
 </Example>
+
+## `$thread`: Conversation Thread
+
+A readonly view over **user inputs and AI Agent responses** accumulated during this workflow execution. Independent of an AI Agent node's `contextScope` auto-injection — you can read it from any expression in the workflow.
+
+<FieldTable rows={[
+  { name: "turns", type: "Array", description: "Readonly snapshot of the ConversationTurn array. Each turn carries `source`, `role`, `nodeId`, `data`, and so on." },
+  { name: "length", type: "Number", description: "Number of accumulated turns." },
+  { name: "text", type: "String", description: "Full thread rendered in system_text format. Memoized after the first access." }
+]} />
+
+<Example title="Branch on accumulated turn count">
+```ts
+{{ $thread.length > 5 }}
+```
+</Example>
+
+<Example title="Attach the full thread text as input to a downstream node">
+```ts
+{{ $thread.text }}
+```
+</Example>
+
+<Example title="Pick a field from the first form turn (when source is presentation_user)">
+```ts
+{{ $thread.turns[0].data.email }}
+```
+</Example>
+
+<Callout type="note">
+`$thread.text` renders the full thread on first access within a single node's evaluation context and then caches the result — so calling it multiple times **inside the same expression / node is cheap**. ForEach and Loop create a fresh node context per iteration, however, so the render repeats once per loop body. If you need it many times inside a loop, stash it in a variable node first.
+</Callout>
+
+<Callout type="tip">
+For most AI Agent calls it is simpler to let the node auto-inject the thread via [Conversation Context settings](/docs/02-nodes/ai#conversation-context). Reach for `$thread` directly when (1) a non-AI node (Transform / HTTP / Code) needs to shape the thread, or (2) you only want a slice of the turns.
+</Callout>
 
 ## Tips & notes
 
