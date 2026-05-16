@@ -436,18 +436,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'discountcodes_create', label: '할인 코드 생성' },
     { id: 'discountcodes_update', label: '할인 코드 수정' },
     { id: 'discountcodes_delete', label: '할인 코드 삭제' },
-    {
-      id: 'serialcoupons_list',
-      label: '시리얼 쿠폰 코드 조회',
-      paginated: true,
-    },
-    { id: 'serialcoupons_generate', label: '시리얼 쿠폰 코드 생성' },
-    { id: 'serialcoupons_delete', label: '시리얼 쿠폰 코드 삭제' },
-    { id: 'serialcoupons_issues_get', label: '시리얼 쿠폰 발급 코드 조회' },
-    {
-      id: 'serialcoupons_issues_register',
-      label: '시리얼 쿠폰 발급 코드 등록',
-    },
   ],
   application: [
     { id: 'apps_update', label: '앱 정보 수정' },
