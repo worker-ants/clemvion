@@ -1,3 +1,47 @@
+# 성능(Performance) Review Payload
+
+본 파일은 orchestrator 가 성능(Performance) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 성능 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (성능(Performance))
+
+1. **알고리즘 복잡도**: 시간/공간 복잡도, 비효율적인 알고리즘
+2. **N+1 쿼리/호출**: 반복문 내 DB·API 호출, 배치 처리 가능 여부
+3. **메모리 할당**: 불필요한 객체 생성, 대규모 데이터 적재, 메모리 누수 가능성
+4. **캐싱**: 반복 계산/호출 결과 캐싱 필요성, 캐시 무효화 전략
+5. **블로킹 I/O**: 동기 I/O 병목, 비동기 처리가 필요한 구간
+6. **불필요한 연산**: 중복 계산, 과도한 문자열 연결 (O(n²) 누적 등)
+7. **데이터 구조**: 용도에 맞지 않는 자료구조 사용
+8. **지연 로딩**: 즉시 필요하지 않은 리소스의 선행 로딩
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

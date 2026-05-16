@@ -1,3 +1,47 @@
+# 변경 범위(Scope) Review Payload
+
+본 파일은 orchestrator 가 변경 범위(Scope) reviewer 용으로 작성한 입력입니다. 다음 코드 변경이 의도된 범위를 벗어나지 않는지 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (변경 범위(Scope))
+
+1. **의도 이상의 변경**: 요청된 변경 외 추가 수정이 포함됐는지
+2. **불필요한 리팩토링**: 현재 작업과 관련 없는 코드 정리·리팩토링
+3. **기능 확장**: 요청하지 않은 기능 추가 (over-engineering)
+4. **무관한 수정**: 변경 의도와 관련 없는 파일·코드 영역 수정
+5. **포맷팅 변경**: 의미 없는 공백·줄바꿈·포맷팅이 실질 변경과 섞여 있는지
+6. **주석 변경**: 불필요한 주석 추가/삭제/수정
+7. **임포트 변경**: 사용하지 않는 임포트 추가나 불필요한 정리
+8. **설정 변경**: 의도하지 않은 설정 파일 변경
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

@@ -1,3 +1,47 @@
+# 보안(Security) Review Payload
+
+본 파일은 orchestrator 가 보안(Security) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 보안 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (보안(Security))
+
+1. **인젝션 취약점**: SQL 인젝션, XSS, 커맨드 인젝션, LDAP 인젝션, 경로 탐색 등
+2. **하드코딩된 시크릿**: API 키, 비밀번호, 토큰, 인증서 등이 코드에 직접 포함되어 있는지
+3. **인증/인가**: 인증 우회 가능성, 권한 검증 누락, 세션 관리 문제
+4. **입력 검증**: 사용자 입력의 적절한 검증 및 새니타이징 여부
+5. **OWASP Top 10**: 위 항목 외 OWASP Top 10 해당 취약점
+6. **암호화**: 안전하지 않은 해시/암호화 알고리즘, 평문 전송
+7. **에러 처리**: 민감 정보가 에러 메시지에 노출되는지
+8. **의존성 보안**: 알려진 취약점이 있는 라이브러리 사용 여부
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

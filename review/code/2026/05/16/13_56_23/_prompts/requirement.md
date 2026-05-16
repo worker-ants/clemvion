@@ -1,3 +1,47 @@
+# 요구사항(Requirement) Review Payload
+
+본 파일은 orchestrator 가 요구사항(Requirement) reviewer 용으로 작성한 입력입니다. 다음 코드 변경이 의도한 기능을 충족하는지 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (요구사항(Requirement))
+
+1. **기능 완전성**: 코드가 의도한 기능을 완전히 구현하고 있는지
+2. **엣지 케이스**: 경계값, null/undefined, 빈 컬렉션, 최대/최솟값 처리
+3. **TODO/FIXME**: 미완성 작업을 시사하는 TODO, FIXME, HACK, XXX 주석 존재 여부
+4. **의도와 구현 간 괴리**: 함수명·주석과 실제 구현의 일치
+5. **에러 시나리오**: 정상 흐름 외 에러 상황 동작 정의
+6. **데이터 유효성**: 입력 데이터의 유효성 검증
+7. **비즈니스 로직**: 비즈니스 규칙이 코드에 정확히 반영됐는지
+8. **반환값**: 모든 경로에서 적절한 값을 반환하는지
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

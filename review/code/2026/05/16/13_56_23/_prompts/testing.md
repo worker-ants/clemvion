@@ -1,3 +1,47 @@
+# 테스트(Testing) Review Payload
+
+본 파일은 orchestrator 가 테스트(Testing) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 테스트 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (테스트(Testing))
+
+1. **테스트 존재 여부**: 변경 코드에 대한 테스트 존재·추가 필요성
+2. **커버리지 갭**: 테스트로 커버되지 않는 코드 경로
+3. **엣지 케이스 테스트**: 경계값·예외 상황·null 처리 테스트 필요 여부
+4. **Mock 적절성**: mock/stub 사용 적절성, 실제 동작과의 괴리
+5. **테스트 격리**: 테스트 간 의존성 없이 독립 실행 가능한지
+6. **테스트 가독성**: 테스트 코드가 명확하고 의도를 잘 표현
+7. **회귀 테스트**: 기존 테스트가 변경 후에도 유효한지
+8. **테스트 용이성**: 코드가 테스트하기 쉬운 구조인지 (의존성 주입 등)
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

@@ -1,3 +1,50 @@
+# API 계약(API Contract) Review Payload
+
+본 파일은 orchestrator 가 API 계약(API Contract) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 API 계약 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+> 변경 코드가 본 reviewer 의 영역과 무관하면 "해당 없음" 으로 응답하고
+> 위험도를 NONE 으로 설정해 `STATUS=success ISSUES=0` 으로 반환합니다.
+
+## 점검 관점 (API 계약(API Contract))
+
+1. **하위 호환성**: 기존 API 클라이언트 영향, breaking change 여부
+2. **버전 관리**: API 버전이 적절히 관리되는지
+3. **응답 형식**: API 응답 구조의 일관성·스키마 준수
+4. **에러 응답**: 에러 응답 형식 일관성·HTTP 상태 코드 적절성
+5. **요청 검증**: 요청 매개변수·바디 유효성 검증 충분성
+6. **URL/경로 설계**: RESTful 원칙·일관된 네이밍
+7. **페이지네이션**: 목록 API 의 페이지네이션 적절성
+8. **인증/인가**: 엔드포인트의 인증/인가 적용
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1069,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

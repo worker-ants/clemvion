@@ -1,3 +1,47 @@
+# 문서화(Documentation) Review Payload
+
+본 파일은 orchestrator 가 문서화(Documentation) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 문서화 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (문서화(Documentation))
+
+1. **독스트링/JSDoc**: 공개 함수·클래스·모듈에 적절한 문서가 있는지
+2. **README 업데이트**: 새 기능·설정이 추가된 경우 README 업데이트 필요성
+3. **API 문서**: API 엔드포인트 변경 시 문서 업데이트 필요성
+4. **주석 정확성**: 기존 주석이 변경된 코드와 일치하는지 (오래된 주석)
+5. **인라인 주석**: 복잡한 로직에 적절한 설명
+6. **변경 이력**: 중요한 변경에 대한 CHANGELOG 업데이트 필요성
+7. **설정 문서**: 새 환경변수·설정 옵션 문서화
+8. **예제 코드**: 사용법을 보여주는 예제 필요성
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

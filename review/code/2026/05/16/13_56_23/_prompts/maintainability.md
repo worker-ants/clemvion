@@ -1,3 +1,47 @@
+# 유지보수성(Maintainability) Review Payload
+
+본 파일은 orchestrator 가 유지보수성(Maintainability) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 유지보수성 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (유지보수성(Maintainability))
+
+1. **가독성**: 코드가 읽기 쉽고 의도가 명확한지
+2. **네이밍**: 변수/함수/클래스 이름이 목적을 잘 나타내는지, 컨벤션 일관성
+3. **함수 길이**: 함수가 너무 길거나 여러 책임을 가지고 있는지
+4. **중첩 깊이**: 조건문·반복문 중첩 과도 여부
+5. **매직 넘버**: 의미를 알 수 없는 하드코딩된 숫자·문자열
+6. **중복 코드**: 동일하거나 유사한 코드가 반복되는지
+7. **코드 복잡도**: 순환 복잡도가 높지 않은지
+8. **일관성**: 기존 코드베이스 스타일·패턴 준수
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```
