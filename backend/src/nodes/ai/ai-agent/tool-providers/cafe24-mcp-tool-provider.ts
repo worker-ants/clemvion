@@ -352,12 +352,19 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
           })
           .catch(() => undefined);
       }
+      // B-3-1: 노드 경로의 `output.response` (success 시 result.body) 와
+      // 일관되게, MCP 에러 envelope 도 Cafe24 원문 errorBody (있을 때) 를
+      // `error.response` 에 보존한다 — LLM 이 retryability·구체 사유를
+      // 직접 추론할 수 있어 다단계 자가복구 시나리오를 지원.
       return {
         toolCallId: call.id,
         content: JSON.stringify({
           error: {
             code: errInfo.code,
             message: errInfo.message,
+            ...(errInfo.response !== undefined
+              ? { response: errInfo.response }
+              : {}),
           },
         }),
         status: 'error',
@@ -510,9 +517,17 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     return 'CAFE24_4XX';
   }
 
-  private classifyError(err: unknown): { code: string; message: string } {
+  private classifyError(err: unknown): {
+    code: string;
+    message: string;
+    response?: unknown;
+  } {
     if (err instanceof Cafe24AuthFailedError) {
-      return { code: 'CAFE24_AUTH_FAILED', message: err.message };
+      return {
+        code: 'CAFE24_AUTH_FAILED',
+        message: err.message,
+        response: err.responseBody,
+      };
     }
     if (err instanceof Cafe24RateLimitedError) {
       return { code: 'CAFE24_RATE_LIMITED', message: err.message };

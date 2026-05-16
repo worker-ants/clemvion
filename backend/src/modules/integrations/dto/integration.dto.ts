@@ -7,6 +7,7 @@ import {
   ArrayUnique,
   IsNotEmpty,
   IsInt,
+  IsUUID,
   Matches,
   Max,
   MaxLength,
@@ -222,6 +223,9 @@ export class OAuthBeginDto {
   })
   @IsOptional()
   @IsString()
+  // B-3-5: Integration.id 는 entity 가 uuid PK 로 정의 — 입력단에서 UUID
+  // 형식을 강제해 잘못된 토큰 ID 가 service layer 까지 도달하지 않게 한다.
+  @IsUUID('all')
   integrationId?: string;
 
   /** new 모드에서 사용할 통합 이름 */
@@ -345,6 +349,9 @@ export class RequestScopesDto {
   @IsArray()
   @ArrayUnique()
   @IsString({ each: true })
+  // B-3-6: OAuthBeginDto.scopes 와 동일하게 항목당 128자 상한. 옛 길이
+  // 무제한 vector 는 over-long scope 으로 인한 storage abuse 위험.
+  @MaxLength(128, { each: true })
   scopes: string[];
 }
 
