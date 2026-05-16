@@ -290,56 +290,46 @@ class RagAccumulatorGroup {
  *
  * `presentation_user` turns are prefixed with `[from <nodeLabel>]` so the
  * LLM can attribute the input back to the originating node.
+ *
+ * Every returned message carries `source: 'injected'` for the WebSocket
+ * emit layer (spec/5-system/6-websocket-protocol.md §4.4.6) — set once at
+ * the bottom of the function rather than per-case so adding a new turn
+ * source can't accidentally drop the marker. System messages are filtered
+ * out before reaching the emit payload (`buildConversationConfigFromOutput`),
+ * so the marker on them is harmless.
  */
 function mapTurnsToChatMessages(
   turns: readonly import('../../../shared/conversation-thread/conversation-thread.types').ConversationTurn[],
 ): ChatMessage[] {
-  // All messages produced here are prepended via ConversationThread injection
-  // and must carry `source: 'injected'` for the WebSocket emit layer
-  // (spec/5-system/6-websocket-protocol.md §4.4.6). The current node's
-  // handler will push its own `live` messages on top of these.
-  return turns.map((t): ChatMessage => {
-    switch (t.source) {
-      case 'presentation_user':
-        return {
-          role: 'user',
-          content: `[from ${t.nodeLabel}] ${t.text}`,
-          source: 'injected',
-        } as ChatMessage;
-      case 'ai_user':
-        return {
-          role: 'user',
-          content: t.text,
-          source: 'injected',
-        } as ChatMessage;
-      case 'ai_assistant':
-        return {
-          role: 'assistant',
-          content: t.text,
-          ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
-          source: 'injected',
-        } as ChatMessage;
-      case 'ai_tool':
-        return {
-          role: 'tool',
-          content: t.text,
-          ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
-          source: 'injected',
-        } as ChatMessage;
-      case 'system':
-        return {
-          role: 'system',
-          content: t.text,
-          source: 'injected',
-        } as ChatMessage;
-      default:
-        return {
-          role: 'user',
-          content: t.text,
-          source: 'injected',
-        } as ChatMessage;
-    }
-  });
+  return turns
+    .map((t): ChatMessage => {
+      switch (t.source) {
+        case 'presentation_user':
+          return {
+            role: 'user',
+            content: `[from ${t.nodeLabel}] ${t.text}`,
+          } as ChatMessage;
+        case 'ai_user':
+          return { role: 'user', content: t.text } as ChatMessage;
+        case 'ai_assistant':
+          return {
+            role: 'assistant',
+            content: t.text,
+            ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
+          } as ChatMessage;
+        case 'ai_tool':
+          return {
+            role: 'tool',
+            content: t.text,
+            ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
+          } as ChatMessage;
+        case 'system':
+          return { role: 'system', content: t.text } as ChatMessage;
+        default:
+          return { role: 'user', content: t.text } as ChatMessage;
+      }
+    })
+    .map((m) => ({ ...m, source: 'injected' as const }));
 }
 
 export class AiAgentHandler implements NodeHandler {

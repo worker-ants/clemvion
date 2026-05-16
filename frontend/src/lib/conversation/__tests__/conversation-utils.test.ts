@@ -436,8 +436,77 @@ describe("messagesToConversationItems — source marker (spec/5-system/6-websock
       { role: "assistant", content: "기온 12.3도입니다.", source: "live" },
     ]);
     const tool = items.find((i) => i.type === "tool");
-    expect(tool).toMatchObject({ turnIndex: 1 });
+    expect(tool).toMatchObject({ turnIndex: 1, isInjected: false });
     const finalAssistant = items.filter((i) => i.type === "assistant").at(-1);
     expect(finalAssistant?.turnIndex).toBe(1);
+  });
+
+  it("matches live assistant to debug payload when an injected assistant precedes it in the same turn", () => {
+    // Regression coverage for W13: injected assistant → live tool call →
+    // live assistant. assistantIdxInTurn must only advance on live entries,
+    // so the live assistant maps to debugByTurn.get(1).llmCalls[0]
+    // (not [1]) — the injected assistant has no corresponding llmCall.
+    const debugByTurn = new Map([
+      [
+        1,
+        {
+          turnIndex: 1,
+          llmCalls: [
+            {
+              requestPayload: { messages: ["live-only"] },
+              responsePayload: { content: "기온 12.3도입니다.", usage: {} },
+              durationMs: 200,
+            },
+          ],
+        },
+      ],
+    ]);
+    const items = messagesToConversationItems(
+      [
+        {
+          role: "assistant",
+          content: "[from PrevAgent] 이전 응답",
+          source: "injected",
+        },
+        { role: "user", content: "오늘 날씨", source: "live" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "call_1",
+              name: "get_weather",
+              arguments: '{"city":"Seoul"}',
+            },
+          ],
+          source: "live",
+        },
+        {
+          role: "tool",
+          toolCallId: "call_1",
+          content: '{"temperature":12.3}',
+        },
+        { role: "assistant", content: "기온 12.3도입니다.", source: "live" },
+      ],
+      { debugByTurn },
+    );
+
+    const injectedAssistant = items.find(
+      (i) => i.type === "assistant" && i.isInjected,
+    );
+    expect(injectedAssistant).toBeDefined();
+    // Injected assistant must NOT claim a debug payload slot.
+    expect(injectedAssistant?.requestPayload).toBeUndefined();
+    expect(injectedAssistant?.responsePayload).toBeUndefined();
+
+    // The two live assistants land in callIdx 0 then 1; debug has 1 entry
+    // so callIdx 0 matches and callIdx 1 stays undefined. The matched one
+    // (the tool-calling assistant in this case) must carry the payload.
+    const liveAssistants = items.filter(
+      (i) => i.type === "assistant" && !i.isInjected,
+    );
+    expect(liveAssistants).toHaveLength(2);
+    expect(liveAssistants[0].requestPayload).toEqual({ messages: ["live-only"] });
+    expect(liveAssistants[1].requestPayload).toBeUndefined();
   });
 });

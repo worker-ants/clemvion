@@ -31,20 +31,22 @@ interface TurnDebugEntry {
   durationMs?: number;
 }
 
-interface RawMessage {
+/**
+ * Origin marker emitted by backend per
+ * spec/5-system/6-websocket-protocol.md §4.4.6. `'live'` = produced by the
+ * current AI node's handler in this turn. `'injected'` = prepended by
+ * ConversationThread injection (an upstream node's turn). Missing → treated
+ * as `'live'` for backward compatibility with older payloads and persisted
+ * `outputData.messages`.
+ */
+export type MessageSource = "live" | "injected";
+
+export interface RawMessage {
   role: string;
   content?: string;
   toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
   toolCallId?: string;
-  /**
-   * Origin marker emitted by backend per
-   * spec/5-system/6-websocket-protocol.md §4.4.6. `'live'` = produced by the
-   * current AI node's handler in this turn. `'injected'` = prepended by
-   * ConversationThread injection (an upstream node's turn). Missing → treated
-   * as `'live'` for backward compatibility with older payloads and persisted
-   * `outputData.messages`.
-   */
-  source?: "live" | "injected";
+  source?: MessageSource;
 }
 
 interface ToolStatusInfo {

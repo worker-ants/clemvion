@@ -6124,6 +6124,46 @@ describe('buildConversationConfigFromOutput', () => {
     ]);
   });
 
+  it("preserves existing source: 'live' as-is (no double-wrap)", () => {
+    const original = { role: 'user', content: 'hi', source: 'live' };
+    const conv = buildConversationConfigFromOutput({
+      messages: [original],
+    });
+    // Backfill must short-circuit on already-marked items so identity is
+    // preserved (no needless object allocations on hot paths).
+    expect(conv.messages[0]).toBe(original);
+  });
+
+  it('returns empty messages array unchanged', () => {
+    const conv = buildConversationConfigFromOutput({ messages: [] });
+    expect(conv.messages).toEqual([]);
+  });
+
+  it('handles a multi-turn mixed sequence (system stripped, injected preserved, live backfilled)', () => {
+    const conv = buildConversationConfigFromOutput({
+      messages: [
+        { role: 'system', content: 'You are helpful' },
+        {
+          role: 'user',
+          content: '[from Form] name=Alice',
+          source: 'injected',
+        },
+        {
+          role: 'assistant',
+          content: '[from PrevAgent] Welcome',
+          source: 'injected',
+        },
+        { role: 'user', content: '실제 메시지' },
+        { role: 'assistant', content: '응답' },
+      ],
+    });
+    expect(conv.messages).toHaveLength(4);
+    expect(conv.messages[0].source).toBe('injected');
+    expect(conv.messages[1].source).toBe('injected');
+    expect(conv.messages[2].source).toBe('live');
+    expect(conv.messages[3].source).toBe('live');
+  });
+
   it('includes maxTurns only when present', () => {
     const withMax = buildConversationConfigFromOutput({ maxTurns: 5 });
     expect(withMax.maxTurns).toBe(5);
