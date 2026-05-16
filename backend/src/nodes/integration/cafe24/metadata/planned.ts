@@ -428,9 +428,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
       label: '위시리스트 보유 회원 수',
     },
   ],
-  mileage: [
-    { id: 'points_report', label: '적립금 리포트 조회' },
-  ],
+  mileage: [],
   notification: [
     { id: 'customers_invitation_send', label: '회원 활성화 초대 발송' },
     { id: 'recipientgroups_create', label: '수신자 그룹 생성' },
