@@ -416,14 +416,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'icons_update_settings', label: '상점 아이콘 설정 수정' },
   ],
   promotion: [
-    { id: 'coupon_count', label: '쿠폰 개수 조회' },
     { id: 'coupon_manage', label: '쿠폰 관리 (사용/중지)' },
-    {
-      id: 'coupon_issuance_customers_list',
-      label: '쿠폰 발급 대상 회원 목록',
-      paginated: true,
-    },
-    { id: 'coupon_issues_list', label: '발급 쿠폰 목록', paginated: true },
     { id: 'benefits_list', label: '회원 혜택 목록', paginated: true },
     { id: 'benefits_count', label: '회원 혜택 개수' },
     { id: 'benefits_get', label: '회원 혜택 단건 조회' },
@@ -437,12 +430,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'customerevents_get', label: '회원 정보 이벤트 조회' },
     { id: 'customerevents_create', label: '회원 정보 이벤트 생성' },
     { id: 'customerevents_update_status', label: '회원 정보 이벤트 상태 수정' },
-    {
-      id: 'customers_coupons_list',
-      label: '회원별 쿠폰 목록',
-      paginated: true,
-    },
-    { id: 'customers_coupons_count', label: '회원별 쿠폰 개수' },
     { id: 'customers_coupons_delete', label: '회원 쿠폰 삭제' },
     { id: 'discountcodes_list', label: '할인 코드 목록', paginated: true },
     { id: 'discountcodes_get', label: '할인 코드 단건 조회' },
