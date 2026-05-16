@@ -18,12 +18,26 @@ function makeQueryBuilder(results: unknown[] = []) {
   return qb;
 }
 
+/**
+ * production `buildHmacMessage` 와 정확히 동일한 인코딩을 사용해야 한다.
+ * SEC H-1 (2026-05-16) — Cafe24 공식 Java URLEncoder 호환 (공백 `+`).
+ */
+function formUrlEncodeForTest(value: string): string {
+  return encodeURIComponent(value)
+    .replace(/%20/g, '+')
+    .replace(/!/g, '%21')
+    .replace(/'/g, '%27')
+    .replace(/\(/g, '%28')
+    .replace(/\)/g, '%29')
+    .replace(/~/g, '%7E');
+}
+
 function computeTestHmac(rawQuery: string, secret: string): string {
   const params = new URLSearchParams(rawQuery);
   params.delete('hmac');
   const message = [...params.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .map(([k, v]) => `${k}=${formUrlEncodeForTest(v)}`)
     .join('&');
   return createHmac('sha256', secret).update(message, 'utf8').digest('base64');
 }
@@ -432,21 +446,12 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect((saved.installToken as string).length).toBe(22);
     });
 
-    it('creates a new row when no existing cafe24 private row matches the mall_id', async () => {
-      integrationRepo.find = jest.fn().mockResolvedValue([
-        // Different mall_id — does not collide.
-        {
-          id: 'other',
-          status: 'connected',
-          credentials: { mall_id: 'other-shop', app_type: 'private' },
-        },
-        // Same mall_id but public — does not collide.
-        {
-          id: 'public-row',
-          status: 'connected',
-          credentials: { mall_id: 'priv-shop', app_type: 'public' },
-        },
-      ]);
+    it('creates a new row when no existing cafe24 row matches the mall_id', async () => {
+      // C2 follow-up (2026-05-16) — `find` 은 이제 `{ workspaceId,
+      // serviceType, mallId }` 로 SQL 직접 조회. mockResolvedValue 가
+      // 두 번 호출되며 (mall 직접 조회 + legacy NULL fallback) 둘 다 빈
+      // 배열 → 새 row 생성.
+      integrationRepo.find = jest.fn().mockResolvedValue([]);
       integrationRepo.save.mockImplementation((entity: unknown) =>
         Promise.resolve({ ...(entity as object), id: 'new-id' }),
       );
@@ -456,6 +461,27 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(r.integrationId).toBe('new-id');
       // create was called (fresh row), not just save on existing.
       expect(integrationRepo.create).toHaveBeenCalled();
+    });
+
+    // REQ HIGH-5 회귀 — spec §9.2 가 명시한 "app_type 무관" 중복 감지.
+    // 옛 코드는 `sameMall.filter((row) => row.credentials?.app_type === 'private')`
+    // 으로 public 충돌을 허용했다. 이제 같은 mall_id 의 connected 통합이
+    // public 이든 private 이든 모두 ConflictException.
+    it('rejects when same mall_id is already connected as public (spec §9.2 — app_type 무관)', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'public-row',
+          status: 'connected',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'public' },
+        },
+      ]);
+
+      await expect(service.begin(privateBeginParams())).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+        }),
+      });
     });
   });
 
@@ -648,6 +674,29 @@ describe('IntegrationOAuthService — Cafe24', () => {
           rawQuery,
         }),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    // SEC H-1 회귀 — Cafe24 가 보내는 query 의 value 에 공백이 포함될 수
+    // 있다 (예: `user_name=John Doe`). 옛 구현은 `encodeURIComponent` 로
+    // 공백을 `%20` 인코딩했으나 Cafe24 공식 Java 샘플은 `URLEncoder.encode`
+    // (`+`) 를 사용해 HMAC 메시지 형태가 일치하지 않아 정상 요청이
+    // 거부되었다. `formUrlEncode` 로 정정 후 통과하는지 검증.
+    it('accepts HMAC for queries containing space-encoded values (URLEncoder compat)', async () => {
+      integrationRepo.findOne.mockResolvedValue(makePendingRow());
+      const validTs = Math.floor(Date.now() / 1000);
+      const base = `mall_id=priv-shop&timestamp=${validTs}&user_id=admin&user_name=John+Doe`;
+      const hmac = computeTestHmac(base, clientSecret);
+      const rawQuery = `${base}&hmac=${encodeURIComponent(hmac)}`;
+      const params = new URLSearchParams(rawQuery);
+
+      // 공백 포함 정상 요청이 throw 없이 OAuth authorize URL 을 반환해야 함
+      const result = await service.handleInstall(INSTALL_TOKEN, {
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac: params.get('hmac')!,
+        rawQuery,
+      });
+      expect(result).toContain('oauth/authorize');
     });
 
     it('throws CAFE24_INSTALL_INVALID_HMAC when mall_id of the row does not match the query', async () => {
