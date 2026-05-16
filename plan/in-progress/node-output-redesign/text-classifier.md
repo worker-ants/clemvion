@@ -1,9 +1,11 @@
 # Text Classifier output 개선안
 
-> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. Phase 4 (ai-review 후속 — `meta` 정합 + 측정 기준 통일) 까지 반영된 상태.
+> **최신화 검토 (2026-05-16)**: 현 spec 과 본 plan 의 분석이 정합. Phase 4 (ai-review 후속 — `meta` 정합 + 측정 기준 통일) 까지 반영된 상태. 2026-05-16 구현 분석에서 schema autocomplete 잔재 1건 신규 검출 (`error: z.string()` legacy 필드).
 > 잔여 권고 항목:
 > - `output.originalInput` 위치 일관성 — 정상 시 `output.result.originalInput`, 에러 시 `output.originalInput` (top-level) 로 분기. ai_agent 의 `output.error + output.result` 병존 패턴과 정합하도록 `output.result.originalInput` 으로 통일 검토 (또는 에러 시 `output.error.details.originalInput` 만 유지).
 > - `meta.llmCalls` (text_classifier) vs `meta.turnDebug[i].llmCalls` (ai_agent / information_extractor) — single-call 노드와 multi-turn 노드의 위치 차이. 통일 검토 가치 있으나 의미가 다름.
+> - **(2026-05-16 신규)** schema `output` autocomplete (`text-classifier.schema.ts:124`) 의 `error: z.string().optional()` legacy 필드 — Principle 3 envelope (`{code, message, details}`) 이전 잔재, 제거 권고.
+> - **(2026-05-16 신규)** `output.error.details.originalInput` 500자 cap 의 boundary unit-test 누락.
 
 > 대상 spec: `spec/4-nodes/3-ai/2-text-classifier.md` (§5 출력 구조)
 
@@ -142,3 +144,59 @@ Text Classifier 는 분류 노드 (단계 1개). single/multi label × 정상/fa
 - LLM 카테고리 통일 wrapper (`output.result.*`) 는 ai_agent / information_extractor 와 정합 — 유지.
 - `output.originalInput` 의 위치 분기 (정상=안, 에러=밖) 는 spec 작성 시 `result` wrapper 가 없는 케이스 (에러) 를 구하기 위한 임시 해결로 보임. 통일 권장.
 - `evidence` cap (20 항목 × 200자, DoS 방지) 은 spec §4 마지막 줄 명시 — 보안 메트릭으로서 합리적.
+
+## 구현 분석 (2026-05-16)
+
+대상 파일: `backend/src/nodes/ai/text-classifier/{text-classifier.handler.ts, text-classifier.schema.ts, text-classifier.handler.spec.ts, text-classifier.schema.spec.ts, text-classifier.thread.spec.ts, text-classifier.component.ts}`.
+
+1. **spec §5 ↔ handler return 정합성**:
+   - single-label 정상 — `text-classifier.handler.ts:433-453` 의 `processSingleLabelResult` return `{ config: configEcho, output: { result: { category, confidence?, evidence?, originalInput } }, meta: {...}, port: <portIds[i]>|'fallback' }` 가 spec §5.1 과 일치 (`status` 없음 — 종결 단계 단일).
+   - multi-label 정상 — `:518-537` `processMultiLabelResult` return `{ output: { result: { categories, originalInput } }, port: matchedPorts | 'fallback' }` 가 spec §5.2 와 일치. fan-out (`port: string[]`) 패턴은 Principle 5 정합.
+   - 에러 — `:184-209` `try/catch` 블록이 `{ output: { error:{code:'LLM_CALL_FAILED', message, details:{originalInput:truncated}}, originalInput }, port:'error' }` 반환. spec §5.3 과 일치하나 **`output.originalInput` (top-level) 이 정상 시 `output.result.originalInput` (안쪽) 과 위치 비대칭** — plan 의 기존 잔여 권고 그대로 검증됨.
+
+2. **schema ↔ spec config 정합성**:
+   - `textClassifierNodeConfigSchema` (`text-classifier.schema.ts:37-95`) 의 모든 필드 (`llmConfigId`, `model`, `inputField`, `categories`, `instructions`, `includeConfidence`, `includeEvidence`, `multiLabel`) 가 spec §1 표와 동일. default 값 일치 (`includeConfidence:false`, `includeEvidence:false`, `multiLabel:false`).
+   - `categoryDefSchema` (`:16-35`) 의 `id`/`name`/`description`/`examples` 4 필드도 spec §1 의 CategoryDef 와 정합 — `id` 의 `[a-zA-Z0-9_-]+` regex + 64 max + `hidden: true` UI 메타 일치.
+
+3. **validate 일관성**:
+   - `:74-80` `handler.validate()` 는 `evaluateMetadataBlockingErrors` (warningRules + `validateConfig` SSOT). SSOT 침범 없음.
+   - `warningRules` (`schema.ts:201-217`) 의 `no-llm-provider` / `no-categories` / `no-input-field` 와 `validateTextClassifierConfig` (`:144-175`) 의 per-category `name`/`__none__`/`id 중복` 검증이 spec §6 표와 일치. duplicate id 차단(`:152-170`) 은 review W-4 회귀 방어.
+
+4. **에러 컨트랙트 (Principle 3)**:
+   - `:163-210` 의 try/catch — `LLM_CALL_FAILED` envelope. `output.error.details.originalInput` (truncate 500자) + `output.originalInput` (full) 분리는 spec §5.3 footnote 와 일치.
+   - **gap**: spec §6 의 `LLM_RATE_LIMITED` / `LLM_RESPONSE_INVALID` 는 "reserved — 현재 핸들러는 `LLM_CALL_FAILED` 로 통합 / fallback 으로 회복" 으로 명시 — handler 는 429 도 catch-all 로 `LLM_CALL_FAILED` 로 묶고, JSON 파싱 실패는 `:415-424` substring fallback 으로 회복. spec ↔ impl 정합 (예약 상태).
+
+5. **conventions Principle 0–11 위반 패턴**:
+   - Principle 0 (5필드): 정상 / 에러 모두 `{ config, output, meta, port }` 4 필드 — `status` 생략 (종결 단계 단일이라 합리적). 부합.
+   - Principle 1.1 (config↔output 직교): `output.originalInput` (에러 시 top-level) 이 `config.inputField` 와 의미적으로는 다르다 (`inputField` = raw expression `{{ }}`, `originalInput` = resolved 입력) — 직교성은 유지. 그러나 정상 `output.result.originalInput` 와 에러 `output.originalInput` 의 위치 비대칭이 다운스트림 표현식 분기를 강제. 기존 plan §"진단 1" 권고 그대로.
+   - Principle 2: `meta.{durationMs, model, *Tokens, llmCalls}` 정합. `llmCalls` 는 ai-agent 의 `turnDebug[i].llmCalls` 와 위치만 다르고 의도 동일 (single-call 노드는 turn wrapper 불필요) — 기존 plan §"진단 2" 의 통일 검토 권고 유효.
+   - Principle 3: `output.error.{code, message, details}` 표준 envelope 부합.
+   - Principle 5: `port: string` (single-label) / `port: string[]` (multi-label fan-out) / `port: 'fallback' | 'error'`. Principle 6 의 `class_<i>` index fallback (`:27-29` `buildCategoryPortIds` → `resolveStablePortId`) 적용. 부합.
+   - Principle 7: `:104-116` `configEcho` 가 `categories`(raw)/`inputField`(raw, `{{ }}` 보존)/`multiLabel` 을 항상 echo, optional `llmConfigId`/`model`/`instructions` 는 정의된 경우만 echo. spec §5.1 예시와 일치.
+   - Principle 8.2: `output.result.{category|categories}` 통일 wrapper 부합.
+
+6. **handler 테스트 (`text-classifier.handler.spec.ts`)**:
+   - validate / single-label 정상·fallback·JSON parse 실패·substring fallback / multi-label / `includeEvidence` 의 cap·필터·empty fallback / `includeConfidence` 0 falsy 안전 / custom `category.id` 라우팅·`class_<i>` index fallback / `error` 포트·meta 메트릭 (`:331-396`) 까지 폭넓게 커버 (총 1077 줄).
+   - `meta.durationMs` 측정 기준 단일화 (성공 / fallback / error 모두 `executeStartedAt` 기준) 가 명시되어 있고 (`:87-90`) 테스트가 검증 (`:345-367`).
+   - **미세 누락**: spec §5.3 의 `output.error.details.originalInput` truncate 500자 cap 의 boundary test (501자 입력 → 500자) 가 직접 케이스로 보이지 않음.
+   - ConversationThread push (`pushClassifierTurn` `:54-70`) 은 별도 `text-classifier.thread.spec.ts` (134 줄) 가 spec §1.4 v2 의 single-label/multi-label `appendAiAssistantMessage` 호출을 검증.
+
+7. **횡단 일관성 (AI 3종)**:
+   - LLM common wrapper 부합 — `output.result.*` / `output.error.*` 정합.
+   - `originalInput` 패턴 — 정상 `output.result.originalInput` / 에러 `output.originalInput` (top-level) + `output.error.details.originalInput` (truncated). ai-agent 의 multi-turn `output.result + output.error 병존` (§7.9 footnote) 과 시멘틱 의도가 비슷하나 path 다름. **info-extractor 도 single-turn 에러 시 `output.error.details.originalInput` 만 두는 단일 위치 정책** — text_classifier 만 top-level + details 두 곳에 둠.
+   - error 코드 명명 — `LLM_CALL_FAILED` 는 3 노드 공통. text-classifier 는 단일 코드만 발화 (다른 코드는 reserved). info-extractor 는 `LLM_RESPONSE_INVALID` / `MAX_COLLECTION_RETRIES_EXCEEDED` 추가. ai-agent 는 어느 코드도 발화 안 함 (handler 미구현).
+
+8. **구현 품질**:
+   - `sanitizeEvidence` (`:545-555`) 의 `MAX_EVIDENCE_ITEMS = 20` / `MAX_EVIDENCE_ITEM_LENGTH = 200` cap 은 spec §4 마지막 줄과 일치. non-string 필터링까지 견고.
+   - `resolveStablePortId` 호출 (`:28`) — port-id.util.ts 의 단일 진실 공급원 (frontend resolver 와 동일 규칙).
+   - `truncateForErrorDetails` (`:11`) — `core/error-codes.ts` 의 공통 helper 사용 (다른 노드와 통일).
+   - dead code 없음. legacy `error: z.string().optional()` 필드가 schema 의 output autocomplete (`schema.ts:124`) 에 남아 있으나 handler 는 사용 안 함 — Principle 3 envelope 이전의 잔재로 보임.
+
+## 종합 개선안 (2026-05-16)
+
+- [ ] (spec) §5.3 의 `output.originalInput` (top-level) 처리 정책 결정 — 옵션 A(추천): 제거 + `output.error.details.originalInput` (이미 존재, truncated) 만 유지. 옵션 B: `output.result.originalInput` 도 함께 emit 해 정상/에러 양쪽에서 path 통일. 근거: `text-classifier.handler.ts:184-209`, 기존 plan §"진단 1".
+- [ ] (impl) 위 결정에 따라 `:191-193` 의 `output.originalInput` 키 제거 또는 `output.result.originalInput` 보강. 단위 테스트 `:331-396` 갱신.
+- [ ] (spec) `meta.llmCalls` (single-call) ↔ `meta.turnDebug[i].llmCalls` (multi-turn) 위치 통일 검토 — 옵션 A: text-classifier 도 `meta.turnDebug[0].llmCalls` wrapper 채택해 AI 3종 동일. 옵션 B: ai-agent / info-extractor 가 single-call 경로에 `meta.llmCalls` 노출 추가. 근거: 기존 plan §"진단 2", spec §5.1 의 `meta.llmCalls` ↔ `[공통 §6](../../../spec/4-nodes/3-ai/0-common.md#6-토큰-회계-meta)` 의 `meta.turnDebug` 위치 차이.
+- [ ] (impl) `output.error.details.originalInput` 의 500자 cap boundary 테스트 추가 — 501자 입력이 500자로 잘리고 `output.originalInput` 은 full 유지 검증. 근거: `:173-193`, `truncateForErrorDetails`.
+- [ ] (spec) §5.3 `output.error.code` 표의 `LLM_RATE_LIMITED` / `LLM_RESPONSE_INVALID` "reserved" 라벨 유지 명시 — 현 handler 는 발화하지 않음. spec ↔ impl 명시적 정합 유지.
+- [ ] (impl, optional) schema autocomplete 의 legacy `error: z.string().optional()` 필드 (`text-classifier.schema.ts:124`) 제거 검토 — Principle 3 envelope 이전 잔재. `error: z.object({code, message, details}).optional()` 로 교체해 ai-agent / info-extractor schema 와 통일.
