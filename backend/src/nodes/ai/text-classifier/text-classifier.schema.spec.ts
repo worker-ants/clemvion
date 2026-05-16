@@ -266,8 +266,8 @@ describe('evaluateMetadataBlockingErrors integration (text_classifier)', () => {
       {},
     );
     expect(errors.some((e) => e.includes('LLM provider'))).toBe(true);
-    expect(errors).toContain('하나 이상의 카테고리를 추가해야 합니다.');
-    expect(errors).toContain('Input Field 를 입력해야 합니다.');
+    expect(errors).toContain('At least one category must be added.');
+    expect(errors).toContain('Input Field must be entered.');
   });
 
   it('returns [] when fully configured', () => {

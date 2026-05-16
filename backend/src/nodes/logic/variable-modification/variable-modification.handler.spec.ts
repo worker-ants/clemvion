@@ -42,8 +42,8 @@ describe('VariableModificationHandler', () => {
     it('should reject missing modifications', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      // Schema warningRule "최소 1개 이상의 변경을 추가해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('변경'))).toBe(true);
+      // Schema warningRule "At least one modification must be added." fires.
+      expect(result.errors.some((e) => e.includes('modification'))).toBe(true);
     });
 
     it('should reject non-array modifications', () => {
@@ -54,7 +54,7 @@ describe('VariableModificationHandler', () => {
     it('should reject empty modifications array', () => {
       const result = handler.validate({ modifications: [] });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('변경'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('modification'))).toBe(true);
     });
 
     it('should reject modification with missing variable', () => {

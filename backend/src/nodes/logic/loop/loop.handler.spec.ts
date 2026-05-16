@@ -45,7 +45,7 @@ describe('LoopHandler', () => {
     it('rejects missing count', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      // Schema warningRule "Count 를 입력해야 합니다." fires.
+      // Schema warningRule "Count must be entered." fires.
       expect(result.errors.some((e) => e.includes('Count'))).toBe(true);
     });
 

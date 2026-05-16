@@ -23,7 +23,7 @@
  * 과도해진다 — 메시지 상수를 공유해 typo / 표현 변형을 막는다.
  */
 export const AI_NO_LLM_PROVIDER_MESSAGE =
-  'LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).';
+  'LLM provider or model must be selected (auto-handled by the canvas when a workspace default provider is configured).';
 
 export const AI_LLM_PROVIDER_NODE_TYPES: ReadonlySet<string> = new Set([
   'ai_agent',

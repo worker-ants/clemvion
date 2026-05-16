@@ -89,29 +89,29 @@ export function validateParallelConfig(config: unknown): string[] {
   const rawBranch = c.branchCount;
   if (rawBranch !== undefined) {
     if (typeof rawBranch !== 'number' || !Number.isFinite(rawBranch)) {
-      errors.push('branchCount는 정수여야 합니다.');
+      errors.push('branchCount must be an integer.');
     } else if (!Number.isInteger(rawBranch)) {
-      errors.push('branchCount는 정수여야 합니다.');
+      errors.push('branchCount must be an integer.');
     } else if (rawBranch < 2 || rawBranch > 16) {
-      errors.push('branchCount는 2 이상 16 이하의 값이어야 합니다.');
+      errors.push('branchCount must be a value between 2 and 16.');
     }
   }
 
   if (c.maxConcurrency !== undefined) {
     const rawMax = c.maxConcurrency;
     if (typeof rawMax !== 'number' || !Number.isFinite(rawMax)) {
-      errors.push('maxConcurrency는 숫자여야 합니다.');
+      errors.push('maxConcurrency must be a number.');
     } else if (!Number.isInteger(rawMax)) {
-      errors.push('maxConcurrency는 정수여야 합니다.');
+      errors.push('maxConcurrency must be an integer.');
     } else if (rawMax < 0 || rawMax > 16) {
       errors.push(
-        'maxConcurrency는 0 이상 16 이하의 값이어야 합니다 (0 = 제한 없음).',
+        'maxConcurrency must be a value between 0 and 16 (0 = unlimited).',
       );
     }
   }
 
   if (c.waitAll !== undefined && typeof c.waitAll !== 'boolean') {
-    errors.push('waitAll는 boolean이어야 합니다.');
+    errors.push('waitAll must be a boolean.');
   }
 
   return errors;
@@ -122,7 +122,7 @@ export const parallelNodeMetadata: NodeComponentMetadata = {
   category: 'logic',
   label: 'Parallel',
   description:
-    'Fan-out input to N branches. PARALLEL_ENGINE=v1 일 때 각 분기가 동시 실행되며, 그렇지 않으면 토폴로지 순서로 순차 진행됩니다.',
+    'Fan-out input to N branches. Each branch runs concurrently when PARALLEL_ENGINE=v1, otherwise sequentially in topological order.',
   icon: 'Split',
   color: '#3B82F6',
   executionMetadata: { kind: 'parallel' },
@@ -141,7 +141,7 @@ export const parallelNodeMetadata: NodeComponentMetadata = {
     {
       id: 'parallel:branch-count-out-of-range',
       when: 'branchCount < 2 || branchCount > 16',
-      message: 'branchCount 는 2 이상 16 이하여야 합니다.',
+      message: 'branchCount must be 2 to 16.',
     },
   ],
   validateConfig: validateParallelConfig,

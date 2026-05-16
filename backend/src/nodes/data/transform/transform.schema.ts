@@ -241,7 +241,7 @@ export const transformNodeMetadata: NodeComponentMetadata = {
     {
       id: 'transform:no-operations',
       when: 'length(operations) == 0',
-      message: '하나 이상의 변환 작업을 추가해야 합니다.',
+      message: 'At least one transform operation must be added.',
     },
   ],
   validateConfig: validateTransformConfig,

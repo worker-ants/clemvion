@@ -49,13 +49,13 @@ describe('TableHandler', () => {
     it('should warn when columns is missing (schema warningRule)', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('컬럼'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('column'))).toBe(true);
     });
 
     it('should warn when columns array is empty (schema warningRule)', () => {
       const result = handler.validate({ columns: [] });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('컬럼'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('column'))).toBe(true);
     });
 
     it('should fail when columns is not an array', () => {
@@ -81,7 +81,7 @@ describe('TableHandler', () => {
         rows: [{ col0: 'Value' }],
       });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('컬럼'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('column'))).toBe(true);
     });
 
     it('should accept missing rows in static mode (schema default is [])', () => {
@@ -118,7 +118,7 @@ describe('TableHandler', () => {
         columns: [{ field: 'name', label: 'Name' }],
       });
       expect(result.valid).toBe(false);
-      // Schema warningRule "Mode 는 static 또는 dynamic 이어야 합니다." fires.
+      // Schema warningRule "Mode must be either static or dynamic." fires.
       expect(result.errors.some((e) => e.includes('Mode'))).toBe(true);
     });
 

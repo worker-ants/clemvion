@@ -126,9 +126,9 @@ describe('evaluateMetadataBlockingErrors integration (http_request)', () => {
     const errors = evaluateMetadataBlockingErrors(httpRequestNodeMetadata, {
       authentication: 'integration',
     });
-    expect(errors).toContain('URL 을 입력해야 합니다.');
+    expect(errors).toContain('URL must be entered.');
     expect(errors).toContain(
-      'Integration 인증을 사용하려면 integration 을 선택해야 합니다.',
+      'Integration must be selected when using Integration auth.',
     );
   });
 

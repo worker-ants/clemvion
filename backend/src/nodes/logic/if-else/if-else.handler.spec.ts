@@ -33,8 +33,8 @@ describe('IfElseHandler', () => {
     it('should return invalid when conditions is missing', () => {
       const result = handler.validate({ combineMode: 'and' });
       expect(result.valid).toBe(false);
-      // Schema warningRule "최소 1개 이상의 조건을 추가해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('조건'))).toBe(true);
+      // Schema warningRule "At least one condition must be added." fires.
+      expect(result.errors.some((e) => e.includes('condition'))).toBe(true);
     });
 
     it('should return invalid when conditions is empty', () => {
@@ -43,7 +43,7 @@ describe('IfElseHandler', () => {
         combineMode: 'and',
       });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('조건'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('condition'))).toBe(true);
     });
 
     it('should return invalid for missing field in condition', () => {

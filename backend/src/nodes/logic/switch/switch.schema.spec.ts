@@ -274,9 +274,9 @@ describe('Switch node schema', () => {
     it('emits both Korean warnings on a freshly-created node', () => {
       const errors = evaluateMetadataBlockingErrors(switchNodeMetadata, {});
       expect(errors).toContain(
-        'Value 모드에서는 Switch Value 를 입력해야 합니다.',
+        'In Value mode, Switch Value must be entered.',
       );
-      expect(errors).toContain('최소 1개 이상의 case 를 추가해야 합니다.');
+      expect(errors).toContain('At least one case must be added.');
     });
 
     it('returns [] when fully configured (value mode)', () => {

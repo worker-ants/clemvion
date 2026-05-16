@@ -303,6 +303,71 @@ const OPTION_LABEL_KO: Record<string, string> = {
   "Thread — inject full thread": "스레드 — 전체 스레드 주입",
 };
 
+/**
+ * Backend `warningRules` / `validateConfig` 가 반환하는 검증 메시지의 ko 매핑.
+ * 캔버스 노드 배지(`getConfigSummary`)와 어시스턴트 review 출력에서 영문 SoT
+ * 를 ko 로 표시할 때 사용한다. 신규 검증 메시지를 추가할 때마다 영문 원문 →
+ * 한국어 매핑을 함께 등록한다.
+ */
+const WARNING_KO: Record<string, string> = {
+  "At least one case must be added.": "최소 1개 이상의 case 를 추가해야 합니다.",
+  "At least one category must be added.": "하나 이상의 카테고리를 추가해야 합니다.",
+  "At least one column must be defined.": "컬럼을 1개 이상 정의해야 합니다.",
+  "At least one condition must be added.": "최소 1개 이상의 조건을 추가해야 합니다.",
+  "At least one extraction field must be defined.": "하나 이상의 추출 필드를 정의해야 합니다.",
+  "At least one field must be defined.": "최소 1개 이상의 필드를 정의해야 합니다.",
+  "At least one modification must be added.": "최소 1개 이상의 변경을 추가해야 합니다.",
+  "At least one transform operation must be added.": "하나 이상의 변환 작업을 추가해야 합니다.",
+  "At least one variable must be defined.": "최소 1개 이상의 변수를 정의해야 합니다.",
+  "Array field must be entered.": "배열 필드를 입력해야 합니다.",
+  "Body must be entered.": "본문을 입력해야 합니다.",
+  "Body of the code to run must be entered.": "실행할 코드를 입력해야 합니다.",
+  "Chart type must be selected.": "차트 타입을 선택해야 합니다.",
+  "Conditions are limited to 20 entries.": "Conditions 는 최대 20개까지 추가할 수 있습니다.",
+  "Count must be entered.": "Count 를 입력해야 합니다.",
+  "Database integration must be selected.": "Database integration 을 선택해야 합니다.",
+  "Email integration must be selected.": "Email integration 을 선택해야 합니다.",
+  "Either System Prompt or User Prompt must be entered.": "System Prompt 또는 User Prompt 중 하나는 입력해야 합니다.",
+  "Fan-out input to N branches. Each branch runs concurrently when PARALLEL_ENGINE=v1, otherwise sequentially in topological order.":
+    "N 개의 분기로 입력을 fan-out 합니다. PARALLEL_ENGINE=v1 일 때 각 분기가 동시 실행되며, 그렇지 않으면 토폴로지 순서로 순차 진행됩니다.",
+  "Field path must be entered.": "Field path 를 입력해야 합니다.",
+  "First condition's field must be entered.": "첫 번째 조건의 필드를 입력해야 합니다.",
+  "First modification's target variable must be selected.": "첫 번째 변경의 대상 변수를 선택해야 합니다.",
+  "First variable's name must be entered.": "첫 번째 변수의 이름을 입력해야 합니다.",
+  "In Dynamic mode, a Title field must be entered.": "Dynamic 모드에서는 Title 필드를 입력해야 합니다.",
+  "In Single Turn mode, Input Field must be entered.": "Single Turn 모드에서는 Input Field 를 입력해야 합니다.",
+  "In Static mode, at least one slide must be added.": "Static 모드에서는 최소 1개 이상의 슬라이드를 추가해야 합니다.",
+  "In Value mode, Switch Value must be entered.": "Value 모드에서는 Switch Value 를 입력해야 합니다.",
+  "Input field must be entered.": "Input 필드를 입력해야 합니다.",
+  "Input Field must be entered.": "Input Field 를 입력해야 합니다.",
+  "Integration must be selected.": "Integration 을 선택해야 합니다.",
+  "Integration must be selected when using Integration auth.": "Integration 인증을 사용하려면 integration 을 선택해야 합니다.",
+  "LLM provider or model must be selected (auto-handled by the canvas when a workspace default provider is configured).":
+    "LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).",
+  "Merge strategy must be selected.": "Merge strategy 를 선택해야 합니다.",
+  "Mode must be either static or dynamic.": "Mode 는 static 또는 dynamic 이어야 합니다.",
+  "Multi Turn mode requires System Prompt.": "Multi Turn 모드에서는 System Prompt 가 필요합니다.",
+  "Operation must be selected.": "Operation 을 선택해야 합니다.",
+  "Recipient (To) must include at least one address.": "수신자 (To) 를 한 명 이상 입력해야 합니다.",
+  "Resource must be selected.": "Resource 를 선택해야 합니다.",
+  "Resource / operation not selected": "Resource / operation 미선택",
+  "SQL query must be entered.": "SQL query 를 입력해야 합니다.",
+  "Subject must be entered.": "제목을 입력해야 합니다.",
+  "Target workflow must be selected.": "실행할 워크플로우를 선택해야 합니다.",
+  "Template body must be entered.": "Template 본문을 입력해야 합니다.",
+  "URL must be entered.": "URL 을 입력해야 합니다.",
+  "X-axis field must be entered.": "X축 필드를 입력해야 합니다.",
+  "Y-axis field must be entered.": "Y축 필드를 입력해야 합니다.",
+  "branchCount must be 2 to 16.": "branchCount 는 2 이상 16 이하여야 합니다.",
+  "branchCount must be a value between 2 and 16.": "branchCount는 2 이상 16 이하의 값이어야 합니다.",
+  "branchCount must be an integer.": "branchCount는 정수여야 합니다.",
+  "maxConcurrency must be a number.": "maxConcurrency는 숫자여야 합니다.",
+  "maxConcurrency must be a value between 0 and 16 (0 = unlimited).":
+    "maxConcurrency는 0 이상 16 이하의 값이어야 합니다 (0 = 제한 없음).",
+  "maxConcurrency must be an integer.": "maxConcurrency는 정수여야 합니다.",
+  "waitAll must be a boolean.": "waitAll는 boolean이어야 합니다.",
+};
+
 function pickKo(
   table: Record<string, string>,
   value: string | undefined,
@@ -357,4 +422,12 @@ export function translateBackendOptionLabel(
 ): string | undefined {
   if (locale !== "ko") return value;
   return pickKo(OPTION_LABEL_KO, value);
+}
+
+export function translateBackendWarning(
+  value: string | undefined,
+  locale: Locale,
+): string | undefined {
+  if (locale !== "ko") return value;
+  return pickKo(WARNING_KO, value);
 }

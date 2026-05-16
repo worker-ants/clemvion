@@ -216,9 +216,9 @@ describe('evaluateMetadataBlockingErrors integration (information_extractor)', (
       {},
     );
     expect(errors.some((e) => e.includes('LLM provider'))).toBe(true);
-    expect(errors).toContain('하나 이상의 추출 필드를 정의해야 합니다.');
+    expect(errors).toContain('At least one extraction field must be defined.');
     expect(errors).toContain(
-      'Single Turn 모드에서는 Input Field 를 입력해야 합니다.',
+      'In Single Turn mode, Input Field must be entered.',
     );
   });
 

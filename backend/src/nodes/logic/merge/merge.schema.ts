@@ -91,7 +91,7 @@ export const mergeNodeMetadata: NodeComponentMetadata = {
     {
       id: 'merge:no-strategy',
       when: '!strategy',
-      message: 'Merge strategy 를 선택해야 합니다.',
+      message: 'Merge strategy must be selected.',
     },
   ],
 };

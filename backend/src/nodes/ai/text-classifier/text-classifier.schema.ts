@@ -207,12 +207,12 @@ export const textClassifierNodeMetadata: NodeComponentMetadata = {
     {
       id: 'text_classifier:no-categories',
       when: 'length(categories) == 0',
-      message: '하나 이상의 카테고리를 추가해야 합니다.',
+      message: 'At least one category must be added.',
     },
     {
       id: 'text_classifier:no-input-field',
       when: '!inputField',
-      message: 'Input Field 를 입력해야 합니다.',
+      message: 'Input Field must be entered.',
     },
   ],
   validateConfig: validateTextClassifierConfig,

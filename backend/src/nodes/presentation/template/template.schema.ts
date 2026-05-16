@@ -151,7 +151,7 @@ export const templateNodeMetadata: NodeComponentMetadata = {
     {
       id: 'template:no-template',
       when: '!template',
-      message: 'Template 본문을 입력해야 합니다.',
+      message: 'Template body must be entered.',
     },
   ],
   validateConfig: validateTemplateConfig,

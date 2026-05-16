@@ -185,7 +185,7 @@ export const workflowNodeMetadata: NodeComponentMetadata = {
     {
       id: 'workflow:no-workflow-selected',
       when: '!workflowId',
-      message: '실행할 워크플로우를 선택해야 합니다.',
+      message: 'Target workflow must be selected.',
     },
   ],
   validateConfig: validateWorkflowConfig,

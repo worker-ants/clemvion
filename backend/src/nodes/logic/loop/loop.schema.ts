@@ -155,7 +155,7 @@ export const loopNodeMetadata: NodeComponentMetadata = {
     {
       id: 'loop:no-count',
       when: '!count',
-      message: 'Count 를 입력해야 합니다.',
+      message: 'Count must be entered.',
     },
   ],
   validateConfig: validateLoopConfig,

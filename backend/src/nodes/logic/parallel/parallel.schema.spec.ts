@@ -129,13 +129,13 @@ describe('Parallel node', () => {
 
     it('rejects branchCount=2.5 (non-integer)', () => {
       expect(validateParallelConfig({ branchCount: 2.5 })).toContain(
-        'branchCount는 정수여야 합니다.',
+        'branchCount must be an integer.',
       );
     });
 
     it('rejects branchCount=1 (out of range)', () => {
       expect(validateParallelConfig({ branchCount: 1 })).toContain(
-        'branchCount는 2 이상 16 이하의 값이어야 합니다.',
+        'branchCount must be a value between 2 and 16.',
       );
     });
 
@@ -143,14 +143,14 @@ describe('Parallel node', () => {
       expect(
         validateParallelConfig({ branchCount: 4, maxConcurrency: -1 }),
       ).toContain(
-        'maxConcurrency는 0 이상 16 이하의 값이어야 합니다 (0 = 제한 없음).',
+        'maxConcurrency must be a value between 0 and 16 (0 = unlimited).',
       );
     });
 
     it('rejects waitAll being a non-boolean', () => {
       expect(
         validateParallelConfig({ branchCount: 4, waitAll: 'yes' }),
-      ).toContain('waitAll는 boolean이어야 합니다.');
+      ).toContain('waitAll must be a boolean.');
     });
   });
 
@@ -168,9 +168,9 @@ describe('Parallel node', () => {
       const errors = evaluateMetadataBlockingErrors(parallelNodeMetadata, {
         branchCount: 1,
       });
-      expect(errors).toContain('branchCount 는 2 이상 16 이하여야 합니다.');
+      expect(errors).toContain('branchCount must be 2 to 16.');
       expect(errors).toContain(
-        'branchCount는 2 이상 16 이하의 값이어야 합니다.',
+        'branchCount must be a value between 2 and 16.',
       );
     });
   });

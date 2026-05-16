@@ -232,12 +232,12 @@ export const httpRequestNodeMetadata: NodeComponentMetadata = {
     {
       id: 'http_request:no-url',
       when: '!url',
-      message: 'URL 을 입력해야 합니다.',
+      message: 'URL must be entered.',
     },
     {
       id: 'http_request:integration-auth-needs-integration-id',
       when: 'authentication == integration && !integrationId',
-      message: 'Integration 인증을 사용하려면 integration 을 선택해야 합니다.',
+      message: 'Integration must be selected when using Integration auth.',
     },
   ],
   validateConfig: validateHttpRequestConfig,

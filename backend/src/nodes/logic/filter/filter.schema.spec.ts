@@ -87,8 +87,8 @@ describe('validateFilterConfig (imperative)', () => {
 describe('evaluateMetadataBlockingErrors integration (filter)', () => {
   it('emits both Korean warnings when nothing is configured', () => {
     const errors = evaluateMetadataBlockingErrors(filterNodeMetadata, {});
-    expect(errors).toContain('Input 필드를 입력해야 합니다.');
-    expect(errors).toContain('최소 1개 이상의 조건을 추가해야 합니다.');
+    expect(errors).toContain('Input field must be entered.');
+    expect(errors).toContain('At least one condition must be added.');
   });
 
   it('returns [] when fully configured', () => {

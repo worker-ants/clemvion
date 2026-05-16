@@ -52,7 +52,7 @@ describe('ChartHandler', () => {
       const result = handler.validate({ xAxis: { field: 'x' } });
       expect(result.valid).toBe(false);
       // Schema warningRule fires when chartType is missing.
-      expect(result.errors.some((e) => e.includes('차트 타입'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('Chart type'))).toBe(true);
     });
 
     it('should reject invalid chartType', () => {
@@ -78,8 +78,8 @@ describe('ChartHandler', () => {
     it('should reject missing xAxis', () => {
       const result = handler.validate({ chartType: 'bar' });
       expect(result.valid).toBe(false);
-      // Schema warningRule "X축 필드를 입력해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('X축'))).toBe(true);
+      // Schema warningRule "X-axis field must be entered." fires.
+      expect(result.errors.some((e) => e.includes('X-axis'))).toBe(true);
     });
 
     it('should reject xAxis without field', () => {
