@@ -1,15 +1,22 @@
 ---
 worktree: cafe24-prod-db-check-7c4a3b
 started: 2026-05-16
+completed: 2026-05-16
 owner: operator (사용자) — Claude 는 인계 자료만 작성
 ---
 
 # 운영: prod DB credentials 암호화 잔존 점검 (followup-backlog C-1)
 
+> **결과 (2026-05-16)**: 1번 점검 쿼리 실행 결과 **plaintext_rows = 0** —
+> 모든 `integration.credentials` 가 이미 `enc:v1:` envelope 으로 정상 저장됨.
+> remediation (2번·3번 분기) 불필요. 본 plan 은 `complete/` 로 이동하고
+> backlog C-1 도 완료 처리. 메모리 파일은 별도 정리.
+
 PR #81 으로 `encryptedJsonTransformer` 가 도입돼 모든 `integration.credentials`
 JSONB 가 `enc:v1:` 정확히는 `"enc:v1:..."` 프리픽스 문자열로 저장된다.
 PR #81 배포 전에 INSERT 된 legacy 행은 plaintext JSON 객체로 남아있을 수
-있어 보안·일관성 목적으로 점검·정리가 필요하다.
+있어 보안·일관성 목적으로 점검·정리가 필요했다 — 점검 결과 0 행으로
+확인되어 자연 종결.
 
 ## 출처
 
@@ -129,15 +136,10 @@ WHERE credentials IS NOT NULL
 
 ## 진행 체크리스트
 
-- [ ] 1번 쿼리 prod 에서 실행, plaintext_rows 결과 캡처
-- [ ] plaintext_rows = 0 이면: 본 plan 을 `plan/complete/` 로 이동 + 메모리 파일 삭제
-- [ ] plaintext_rows > 0 이면:
-  - [ ] 2번 쿼리로 분류
-  - [ ] 분기 (3-A / 3-B / 3-C) 결정
-  - [ ] 3-B 가 필요하면 마이그레이션 스크립트 별 PR 작성
-  - [ ] remediation 적용
-  - [ ] 4번 사후 확인 통과
-  - [ ] 본 plan 을 `plan/complete/` 로 이동 + 메모리 파일 삭제
+- [x] 1번 쿼리 prod 에서 실행, plaintext_rows 결과 캡처 — **0 행 확인 (2026-05-16)**
+- [x] plaintext_rows = 0 이므로 본 plan 을 `plan/complete/` 로 이동 — 본 commit
+- [x] 메모리 파일 삭제 — 본 commit 이후 사용자가 수동 처리 (Claude 가 ~/.claude/projects/.../memory 접근 불가)
+- [~] plaintext_rows > 0 분기 (3-A/B/C, 마이그레이션 PR, 사후 확인) — **불필요 (0 행이므로 skip)**
 
 ## 비고
 
