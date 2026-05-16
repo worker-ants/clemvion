@@ -260,9 +260,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'mains_products_delete', label: '메인 카테고리 상품 삭제' },
   ],
   order: [
-    { id: 'order_count', label: '주문 개수 조회' },
-    { id: 'order_status_update_multiple', label: '주문 상태 일괄 변경' },
-    { id: 'order_status_update', label: '주문 상태 변경' },
     { id: 'order_autocalculation_delete', label: '주문 자동 계산 해제' },
     { id: 'order_buyer_get', label: '주문자 정보 조회' },
     { id: 'order_buyer_history_list', label: '주문자 정보 변경 이력' },

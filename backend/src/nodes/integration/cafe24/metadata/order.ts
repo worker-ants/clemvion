@@ -134,4 +134,85 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
+  {
+    id: 'order_count',
+    label: '주문 개수 조회',
+    description:
+      'Retrieve a count of orders matching the supplied filter (status, payment status, date range).',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'orders/count',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+      status: {
+        type: 'string',
+        location: 'query',
+        description: 'Order status filter (Cafe24 status codes, comma-separated)',
+      },
+      payment_status: {
+        type: 'string',
+        location: 'query',
+        description: 'Payment status filter',
+      },
+      order_date_from: {
+        type: 'string',
+        location: 'query',
+        description: 'Orders placed on/after this date (YYYY-MM-DD)',
+      },
+      order_date_to: {
+        type: 'string',
+        location: 'query',
+        description: 'Orders placed on/before this date (YYYY-MM-DD)',
+      },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'order_status_update',
+    label: '주문 상태 변경',
+    description:
+      "Update the status of a single order. Path placeholder reuses the codebase-wide `order_id` naming (Cafe24 docs call this `order_no`).",
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'orders/{order_id}',
+    requiredFields: ['order_id', 'status'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+      status: {
+        type: 'string',
+        location: 'body',
+        description:
+          'New order status code. Allowed values depend on the mall workflow (e.g. N00, N10, N20, ...). See Cafe24 docs for the current status table.',
+      },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'order_status_update_multiple',
+    label: '주문 상태 일괄 변경',
+    description:
+      'Update the status of multiple orders at once. Returns HTTP 207 (Multi-Status) when individual orders have differing outcomes.',
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'orders/status',
+    requiredFields: ['order_id', 'status'],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+      order_id: {
+        type: 'array',
+        location: 'body',
+        description:
+          'Array of order ids to update (Cafe24 docs label this `order_no`). Each entry receives the same `status` change.',
+      },
+      status: {
+        type: 'string',
+        location: 'body',
+        description:
+          'New status applied to every order in the batch. See Cafe24 docs for valid status codes.',
+      },
+    },
+    responseShape: 'list',
+  },
 ];
