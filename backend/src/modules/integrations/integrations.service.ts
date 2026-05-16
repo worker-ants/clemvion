@@ -200,6 +200,18 @@ export class IntegrationsService {
       qb.andWhere('i.status = :s', { s: 'expired' });
     } else if (status === 'error') {
       qb.andWhere('i.status = :s', { s: 'error' });
+    } else if (status === 'attention') {
+      // Virtual filter — Expired ∪ Error ∪ (Connected within 7d).
+      // pending_install is excluded by design (spec §2.4): it represents an
+      // active external flow (Cafe24 Developers "Test Run") in progress, not
+      // a state that needs the user's attention here.
+      qb.andWhere(
+        `(i.status IN ('expired', 'error')
+          OR (i.status = 'connected'
+              AND i.token_expires_at IS NOT NULL
+              AND i.token_expires_at > NOW()
+              AND i.token_expires_at <= NOW() + INTERVAL '7 days'))`,
+      );
     }
 
     qb.orderBy('i.created_at', 'DESC');

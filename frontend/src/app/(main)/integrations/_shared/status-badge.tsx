@@ -92,6 +92,64 @@ export function needsAttention(integration: IntegrationDto): boolean {
   return true;
 }
 
+export interface AttentionBreakdown {
+  expired: number;
+  expiring: number;
+  error: number;
+  total: number;
+  /**
+   * id of the single attention row when `total === 1`. Used by the banner's
+   * single-row UX (direct jump to detail instead of filter). `null` when the
+   * banner-as-filter UX applies. With multiple attention rows the field
+   * surfaces the most urgent one (error > expired > expiring) — callers that
+   * want strict single-row semantics must guard on `total === 1`.
+   */
+  mostUrgentId: string | null;
+}
+
+/**
+ * Single source of truth for the "Need attention" set on the integrations
+ * list page. Delegates to `needsAttention()` so the predicate stays
+ * consistent between per-row badges, the banner aggregate count, and the
+ * `?status=attention` server filter. spec §2.4.
+ */
+export function computeAttentionBreakdown(
+  integrations: IntegrationDto[],
+): AttentionBreakdown {
+  let expired = 0;
+  let expiring = 0;
+  let error = 0;
+  let mostUrgent: { id: string; rank: number } | null = null;
+
+  for (const i of integrations) {
+    if (!needsAttention(i)) continue;
+    let rank: number;
+    if (i.status === "error") {
+      error += 1;
+      rank = 3;
+    } else if (i.status === "expired") {
+      expired += 1;
+      rank = 2;
+    } else {
+      // connected + expiring-soon — needsAttention guarantees this branch.
+      expiring += 1;
+      rank = 1;
+    }
+    if (!mostUrgent || rank > mostUrgent.rank) {
+      mostUrgent = { id: i.id, rank };
+    }
+  }
+
+  const total = expired + expiring + error;
+  return {
+    expired,
+    expiring,
+    error,
+    total,
+    mostUrgentId: mostUrgent?.id ?? null,
+  };
+}
+
 interface StatusBadgeProps {
   integration: IntegrationDto;
   className?: string;
