@@ -120,7 +120,35 @@ export const productOperations: Cafe24OperationMetadata[] = [
 ];
 ```
 
-## 4. 신규 endpoint 추가 절차
+## 4. Wire-format 규약 — POST/PUT `request` envelope
+
+Cafe24 Admin API 의 모든 **POST/PUT** 본문은 다음 형태로 직렬화된다 (Cafe24 자체 규약):
+
+```json
+{ "shop_no": <n>, "request": { ...payload } }
+```
+
+- `shop_no` 는 top-level 에 두는 유일한 필드. 그 외 모든 필드는 `request` 안으로 wrap.
+- Cafe24 request envelope 변환은 `Cafe24ApiClient` (`backend/src/nodes/integration/cafe24/cafe24-api.client.ts` 의 `wrapInCafe24Envelope`) 가 일괄 처리한다. 메타데이터 row 작성자는 `fields[*].location: 'body'` 분류만 신경 쓰면 되고, envelope 적용은 자동.
+- caller 가 넘긴 body 의 직렬화 결과 (모두 POST/PUT 기준):
+
+  | caller 의 flat body | wire 직렬화 결과 |
+  |---|---|
+  | `{ shop_no: 1, product_name: "X" }` | `{"shop_no":1,"request":{"product_name":"X"}}` |
+  | `{ product_name: "X" }` (shop_no 생략) | `{"request":{"product_name":"X"}}` |
+  | `{ shop_no: 1 }` (degenerate — payload 없음) | `{"shop_no":1,"request":{}}` |
+  | `{}` 또는 body 미지정 | body 미전송 (Content-Type 도 부여 안 함) |
+
+- `shop_no` 의 값이 `0` 또는 `null` 인 경우도 그대로 top-level 로 hoist (caller 의 실수가 wire 위에서 가시화되도록). `undefined` 만 hoist 제외.
+- `request` 키 자체가 없으면 Cafe24 가 `400 "Please enter the Request parameter."` 를 반환하므로, body 에 다른 필드가 없는 (degenerate) 케이스도 빈 `request: {}` 를 함께 보낸다.
+- DELETE 에는 Cafe24 request envelope 을 적용하지 않는다 — 우리 메타데이터의 DELETE row 는 모두 path-only (body 필드 없음) 다. 향후 다른 HTTP method (PATCH 등) 가 추가되면 그 시점에 wire format 확인 후 명시적으로 envelope 적용 여부를 결정한다 (현재 코드는 POST/PUT allowlist 로 강제).
+- caller 가 이미 `{request: ...}` 형태로 pre-wrap 한 body 를 넘기면 wrapper 가 즉시 throw 하여 이중 래핑을 차단한다 (개발 단계 가드 — 현재 모든 caller 는 flat body 만 사용한다는 전제).
+
+본 규약을 누락하면 Cafe24 가 `400 "Please enter the Request parameter."` 를 반환한다 — 운영 사고 사례 (2026-05-16, `mcp_b74e1adc__product_update` 실패) 가 본 절 신설의 직접 배경.
+
+> **용어 주의**: 본 절의 "Cafe24 request envelope" / "POST/PUT request envelope" 은 Cafe24 wire format 의 `request` 래퍼다. CONVENTIONS Principle 7 의 **노드 출력 envelope** (`{config, output, meta, port}`) 와 무관한 별개 개념이다.
+
+## 5. 신규 endpoint 추가 절차
 
 1. [Cafe24 공식 문서](https://developers.cafe24.com/docs/ko/api/admin/) 에서 endpoint 의 method / path / 필드 확인.
 2. 해당 resource 의 metadata 파일(`backend/src/nodes/integration/cafe24/metadata/<resource>.ts`) 에 §2 형식으로 row 1 추가.
@@ -135,7 +163,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
    - **카탈로그 ↔ 메타데이터 양방향 동기** (`catalog-sync.spec.ts`)
 8. **spec 본문 수정 불요** — `4-cafe24.md` 는 형식만 정의.
 
-## 5. MCP Bridge 와의 매핑
+## 6. MCP Bridge 와의 매핑
 
 > **레이어 경계**: 본 절의 `Cafe24McpBridge.callTool(name, args)` 와 `listTools()` 가 반환하는 도구 `name` 은 **bare operation id** (예: `product_list`) 다. MCP Client 레이어가 외부 노출 시점에 `mcp_<sid>__` prefix 를 자동 부여한다 ([Spec MCP Client §5.2](../5-system/11-mcp-client.md#52-도구-이름-규칙)). AI Agent config 의 `mcpServers[].enabledTools` 도 bare id 배열로 저장된다.
 
@@ -159,15 +187,16 @@ function operationToMcpTool(op: Cafe24OperationMetadata): McpTool {
 
 `Cafe24McpBridge.callTool(name, args)` 는 args 를 노드 핸들러의 `fields` 와 동일하게 처리하여 `Cafe24ApiClient` 로 위임 — **노드와 MCP 가 같은 호출 경로를 공유**.
 
-## 6. allowlist 와의 관계
+## 7. allowlist 와의 관계
 
 > 용어: **UI grouping 단위 = "카테고리"** (사용자 친화 표기) — 백엔드 메타데이터 파일 구조의 "Resource" 와 동일 범위를 가리키며, 문맥에 따라 혼용한다. spec 본문에서는 UI 맥락이면 "카테고리", 백엔드/Operation 메타데이터 맥락이면 "Resource" 사용. `Node.category` Enum 과는 별개 개념 (이름 충돌은 §2 의 `scopeType` 채택으로 이미 회피).
 
 AI Agent `mcpServers[].enabledTools` 가 비어있으면 모든 operation 이 노출. 사용자가 `['product_list', 'product_get']` 로 좁히면 그 둘만 LLM tool 로 노출 (bare id 비교). UI 는 카테고리 단위 grouping (예: "Product (read 전부)" 체크 → 백엔드는 `['product_list', 'product_get']` 로 저장).
 
-## 7. CHANGELOG
+## 8. CHANGELOG
 
 | 일자 | 변경 |
 |------|------|
 | 2026-05-13 | 신규 컨벤션 — Cafe24 API metadata 의 형식·디렉토리·추가 절차 정의. `scopeType` 필드명 채택 (`Node.category` 와의 명명 충돌 회피) |
-| 2026-05-16 | 자매 카탈로그 [`cafe24-api-catalog/`](./cafe24-api-catalog/_overview.md) 신설을 반영 — §4 추가 절차에 카탈로그 row 갱신·coverage matrix 갱신·양방향 동기 테스트 단계 명시. 도입 결정은 사용자 요청 "Cafe24 docs 전수 등재" (2026-05-16). |
+| 2026-05-16 | 자매 카탈로그 [`cafe24-api-catalog/`](./cafe24-api-catalog/_overview.md) 신설을 반영 — §5 (옛 §4) 추가 절차에 카탈로그 row 갱신·coverage matrix 갱신·양방향 동기 테스트 단계 명시. 도입 결정은 사용자 요청 "Cafe24 docs 전수 등재" (2026-05-16). |
+| 2026-05-16 (envelope) | §4 신설 — Cafe24 Admin API 의 POST/PUT 본문 `request` envelope 규약 명문화. 코드 fix (PR #102) 와 결속. 운영에서 `product_update` 가 `400 "Please enter the Request parameter."` 로 실패한 사례 후속. 기존 §4–§7 은 §5–§8 로 번호 +1 이동. consistency-check 세션: `review/consistency/2026/05/16/15_45_35/` (BLOCK: NO). |
