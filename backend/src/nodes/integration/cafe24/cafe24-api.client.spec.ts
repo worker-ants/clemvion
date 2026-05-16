@@ -312,6 +312,102 @@ describe('Cafe24ApiClient', () => {
       expect(message).toContain('APP_NOT_INSTALLED');
       expect(message).toContain('The app has not been installed on this mall');
     });
+
+    // REQ-C3 — 403 응답에 scope-부족 시그널이 있으면 statusReason='insufficient_scope'
+    // 로 분기. spec §6 의 `error(insufficient_scope)` 전이.
+    it('on 403 + INSUFFICIENT_SCOPE signal — flips statusReason to insufficient_scope', async () => {
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          {
+            error_code: 'INSUFFICIENT_SCOPE',
+            error_message: 'missing scope: mall.write_product',
+          },
+          { status: 403 },
+        ),
+      );
+      const integration = makeIntegration();
+      await expect(
+        client.call(integration, { method: 'GET', path: 'products' }),
+      ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({
+          status: 'error',
+          statusReason: 'insufficient_scope',
+        }),
+      );
+      expect(integration.statusReason).toBe('insufficient_scope');
+    });
+
+    it('on 401 — always auth_failed (insufficient_scope is 403-only)', async () => {
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          { error_code: 'INSUFFICIENT_SCOPE', error_message: 'whatever' },
+          { status: 401 },
+        ),
+      );
+      const integration = makeIntegration();
+      await expect(
+        client.call(integration, { method: 'GET', path: 'products' }),
+      ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({ statusReason: 'auth_failed' }),
+      );
+    });
+  });
+
+  // REQ-C2 — spec §6 `connected → error(network) | 3회 연속 실패`. fetch 가
+  // transport 레벨에서 실패할 때 카운터 증가, 3 도달 시 status 전이.
+  describe('consecutive network failures (REQ-C2)', () => {
+    it('increments consecutiveNetworkFailures on transport failure', async () => {
+      fetchMock.mockRejectedValueOnce(new Error('ECONNRESET'));
+      const integration = makeIntegration({ consecutiveNetworkFailures: 0 });
+      await expect(
+        client.call(integration, { method: 'GET', path: 'orders' }),
+      ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({ consecutiveNetworkFailures: 1 }),
+      );
+    });
+
+    it('demotes to error(network) on 3rd consecutive failure', async () => {
+      fetchMock.mockRejectedValueOnce(new Error('ECONNRESET'));
+      const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+      await expect(
+        client.call(integration, { method: 'GET', path: 'orders' }),
+      ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({
+          status: 'error',
+          statusReason: 'network',
+          consecutiveNetworkFailures: 0,
+        }),
+      );
+      expect(integration.status).toBe('error');
+      expect(integration.statusReason).toBe('network');
+      expect(integration.consecutiveNetworkFailures).toBe(0);
+    });
+
+    it('resets counter on successful response', async () => {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      const integration = makeIntegration({ consecutiveNetworkFailures: 2 });
+      await client.call(integration, { method: 'GET', path: 'orders' });
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({ consecutiveNetworkFailures: 0 }),
+      );
+    });
+
+    it('does not call update when counter is already 0 on success (best-effort skip)', async () => {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      const integration = makeIntegration({ consecutiveNetworkFailures: 0 });
+      await client.call(integration, { method: 'GET', path: 'orders' });
+      // 일반 성공 경로에서 update 호출이 없어야 한다 (rapid path).
+      expect(repo.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('transport failure', () => {
@@ -664,6 +760,150 @@ describe('Cafe24ApiClient', () => {
 
       expect(queue.add).not.toHaveBeenCalled();
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    // 회귀 — CONC-1: waitUntilFinished 가 timeout 으로 reject 되었지만 worker
+    // 가 실제로는 refresh 를 끝낸 시나리오. catch 블록이 DB 재확인 후
+    // `tokenExpiresAt > now + REFRESH_WINDOW_MS` 면 정상 진행해야 하며,
+    // 호출자 객체에 fresh credentials 를 mutate 한 뒤 API 호출까지 성공.
+    // 이 보호가 없으면 caller 의 stale reference 로 retry 시 401 → false
+    // `auth_failed` 격하.
+    it('recovers when waitUntilFinished times out but worker already refreshed (CONC-1)', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'r',
+        },
+        tokenExpiresAt: expiredAt,
+      });
+
+      // worker 가 실제로는 갱신 완료 — DB 에 fresh state.
+      integrationRepo.findOne.mockResolvedValue({
+        ...integration,
+        credentials: {
+          ...integration.credentials,
+          access_token: 'silently-refreshed',
+        },
+        tokenExpiresAt: refreshedAt,
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      });
+
+      // waitUntilFinished 는 reject — Redis 이벤트 손실 시뮬레이션.
+      queue.add.mockResolvedValue({
+        id: integration.id,
+        waitUntilFinished: jest
+          .fn()
+          .mockRejectedValue(new Error('waitUntilFinished timeout')),
+      });
+
+      // 실제 API call 은 1회 — caller mutate 후 정상 진행.
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      const res = await queuedClient.call(integration, {
+        method: 'GET',
+        path: 'products',
+      });
+
+      // caller object 가 fresh state 로 mutate 됨
+      expect(integration.tokenExpiresAt).toEqual(refreshedAt);
+      // API fetch 는 새 bearer 로 1회 호출됨
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(
+        (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<
+          string,
+          string
+        >,
+      ).toMatchObject({ Authorization: 'Bearer silently-refreshed' });
+      expect(res.status).toBe(200);
+    });
+
+    // 회귀 — TEST-C1: queue.add 자체가 Redis 장애로 throw 하는 경로.
+    // 현재 구현은 별도 catch 가 없어 Error 가 그대로 propagate 된다 — 그
+    // 동작이 의도임을 명시 (call() 의 호출자가 어떤 error 타입을 받는지
+    // 고정). 향후 transport 분류로 wrap 하려면 본 테스트가 함께 수정됨.
+    it('propagates queue.add failures (Redis down) as-is to caller', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'r',
+        },
+        tokenExpiresAt: expiredAt,
+      });
+
+      queue.add.mockRejectedValue(new Error('ECONNREFUSED'));
+
+      await expect(
+        queuedClient.call(integration, { method: 'GET', path: 'products' }),
+      ).rejects.toThrow('ECONNREFUSED');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    // 회귀 — TEST-C1: timeout reject + DB row 가 여전히 `connected` 인데
+    // tokenExpiresAt 가 fresh 가 아닌 케이스. worker 가 진짜로 실패했지만
+    // markAuthFailed 까지 도달 못한 시나리오. TransportFailedError 로
+    // surface 되어야 한다 (auth_failed 가 아님).
+    it('surfaces TransportFailedError when timeout reject + DB row not auth_failed and token not fresh', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'r',
+        },
+        tokenExpiresAt: expiredAt,
+      });
+
+      // DB row 는 여전히 connected 이지만 tokenExpiresAt 갱신되지 않음.
+      integrationRepo.findOne.mockResolvedValue({
+        ...integration,
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+        tokenExpiresAt: expiredAt,
+      });
+
+      queue.add.mockResolvedValue({
+        id: integration.id,
+        waitUntilFinished: jest
+          .fn()
+          .mockRejectedValue(new Error('genuine timeout')),
+      });
+
+      await expect(
+        queuedClient.call(integration, { method: 'GET', path: 'products' }),
+      ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    // 회귀 — TEST-C1: worker 성공 + queueEvent 도 정상 후 findOne 이 null
+    // 반환 (통합이 그 사이 삭제) — TransportFailedError surface.
+    it('surfaces TransportFailedError when integration vanishes between worker success and re-fetch', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'r',
+        },
+        tokenExpiresAt: expiredAt,
+      });
+
+      integrationRepo.findOne.mockResolvedValue(null);
+
+      queue.add.mockResolvedValue({
+        id: integration.id,
+        waitUntilFinished: jest.fn().mockResolvedValue(undefined),
+      });
+
+      await expect(
+        queuedClient.call(integration, { method: 'GET', path: 'products' }),
+      ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
     });
   });
 });
