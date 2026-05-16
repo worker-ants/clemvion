@@ -126,7 +126,12 @@ export function SwitchConfig({ config, onChange }: { config: Config; onChange: O
       hasDefault: true,
       cases: [
         ...cases,
-        { id: crypto.randomUUID(), label: `Case ${cases.length + 1}`, value: "", valueType: "string" },
+        {
+          id: crypto.randomUUID(),
+          label: t("nodeConfigs.logic.caseDefaultLabel", { index: cases.length + 1 }),
+          value: "",
+          valueType: "string",
+        },
       ],
     });
 
