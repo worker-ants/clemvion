@@ -68,6 +68,7 @@ import {
   NodeEventType,
 } from '../websocket/websocket.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
+import { GraphTraversalService } from './graph/graph-traversal.service';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -442,6 +443,7 @@ export class ExecutionEngineService
     @Inject(forwardRef(() => WebsocketService))
     private readonly websocketService: WebsocketService,
     private readonly eventEmitter: ExecutionEventEmitter,
+    private readonly graphTraversal: GraphTraversalService,
     private readonly configService: ConfigService,
     private readonly llmService: LlmService,
     private readonly ragSearchService: RagSearchService,
@@ -743,7 +745,7 @@ export class ExecutionEngineService
       sortedIndexMap.set(sortedNodeIds[i], i);
     }
     const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-      this.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
+      this.graphTraversal.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
 
     // Use target-only nodeMap for expression resolution.
     // $node references in the target workflow should resolve against the
@@ -780,7 +782,7 @@ export class ExecutionEngineService
     // Seed reachability (CRIT #2 — runExecution 과 동일한 helper). Background
     // processor 는 explicit entry ids (targets of `background`-port edges) 를
     // 전달하고, 그 외에는 trigger-first / no-incoming-edge fallback 사용.
-    const reachable = this.seedInitialReachability(
+    const reachable = this.graphTraversal.seedInitialReachability(
       sortedNodeIds,
       subNodeMap,
       forwardEdges,
@@ -852,7 +854,7 @@ export class ExecutionEngineService
           executedNodes.add(nodeId);
           // Pass clean input through trigger node's output slot
           this.contextService.setNodeOutput(executionId, nodeId, cleanInput);
-          this.propagateReachability(
+          this.graphTraversal.propagateReachability(
             nodeId,
             outgoingEdgeMap,
             context.nodeOutputCache,
@@ -986,7 +988,7 @@ export class ExecutionEngineService
         lastOutput = context.nodeOutputCache[node.id];
 
         // Propagate reachability to downstream nodes through activated edges
-        this.propagateReachability(
+        this.graphTraversal.propagateReachability(
           nodeId,
           outgoingEdgeMap,
           context.nodeOutputCache,
@@ -1228,7 +1230,7 @@ export class ExecutionEngineService
       // edge lookup 을 한 곳에 빌드. Pointer 이동·O(1) gatherNodeInput·port
       // routing 에 사용.
       const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-        this.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
+        this.graphTraversal.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
 
       // 8. Create execution context (inject workspaceId for AI handlers)
       const workflow = await this.workflowRepository.findOneBy({
@@ -1264,7 +1266,7 @@ export class ExecutionEngineService
       context._executedNodes = executedNodes;
       // CRIT #2 — executeInline 과 동일한 helper. trigger-first / no-incoming
       // fallback 으로 reachable seed.
-      const reachable = this.seedInitialReachability(
+      const reachable = this.graphTraversal.seedInitialReachability(
         sortedNodeIds,
         nodeMap,
         forwardEdges,
@@ -1443,7 +1445,7 @@ export class ExecutionEngineService
 
         // Propagate reachability to downstream nodes through activated edges.
         // Must happen after blocking interactions which may set _selectedPort.
-        this.propagateReachability(
+        this.graphTraversal.propagateReachability(
           nodeId,
           outgoingEdgeMap,
           context.nodeOutputCache,
@@ -3181,7 +3183,7 @@ export class ExecutionEngineService
         const sourceOutput = nodeOutputCache[sourceId];
         // Port-aware filtering: if source has _selectedPort, only pass data
         // if the edge's sourcePort matches the selected port
-        if (this.isPortFiltered(sourceOutput, incomingEdges[0].sourcePort)) {
+        if (this.graphTraversal.isPortFiltered(sourceOutput, incomingEdges[0].sourcePort)) {
           return undefined;
         }
         return this.stripControlFields(sourceOutput);
@@ -3197,7 +3199,7 @@ export class ExecutionEngineService
       if (executedNodes.has(edge.sourceNodeId)) {
         const sourceOutput = nodeOutputCache[edge.sourceNodeId];
         // Port-aware filtering for multi-input nodes
-        if (this.isPortFiltered(sourceOutput, edge.sourcePort)) {
+        if (this.graphTraversal.isPortFiltered(sourceOutput, edge.sourcePort)) {
           continue;
         }
         merged[edge.sourceNodeId] = this.stripControlFields(sourceOutput);
@@ -3242,32 +3244,6 @@ export class ExecutionEngineService
       return { ...extra, data, _selectedPort: port };
     }
     return output;
-  }
-
-  /**
-   * Check if a source output should be filtered based on port selection.
-   * Returns true if the output has _selectedPort and it doesn't match the edge's sourcePort.
-   * Supports both single port (string) and multi-port (string[]) selection.
-   */
-  private isPortFiltered(
-    sourceOutput: unknown,
-    edgeSourcePort: string,
-  ): boolean {
-    if (
-      sourceOutput &&
-      typeof sourceOutput === 'object' &&
-      '_selectedPort' in (sourceOutput as Record<string, unknown>)
-    ) {
-      const selectedPort = (sourceOutput as Record<string, unknown>)
-        ._selectedPort;
-      if (Array.isArray(selectedPort)) {
-        return (
-          selectedPort.length > 0 && !selectedPort.includes(edgeSourcePort)
-        );
-      }
-      return edgeSourcePort !== selectedPort;
-    }
-    return false;
   }
 
   /**
@@ -3330,7 +3306,7 @@ export class ExecutionEngineService
   ): { edge: GraphEdge; targetIndex: number } | null {
     const sourceOutput = nodeOutputCache[sourceNodeId];
     for (const backEdge of backEdges) {
-      if (!this.isPortFiltered(sourceOutput, backEdge.edge.sourcePort)) {
+      if (!this.graphTraversal.isPortFiltered(sourceOutput, backEdge.edge.sourcePort)) {
         return backEdge;
       }
     }
@@ -3368,111 +3344,6 @@ export class ExecutionEngineService
       },
     );
     executedNodes.add(nodeId);
-  }
-
-  /**
-   * CRIT #2 (Architecture) — `executeInline` 과 `runExecution` 의 그래프 순회
-   * 셋업이 거의 동일하게 중복되어 있어 한쪽 버그 수정이 다른 쪽에 적용되지
-   * 않는 위험이 있었다. 본 helper 는 두 경로가 공통으로 필요한 edge lookup
-   * 맵 (back / outgoing / incoming) 을 한 번에 빌드한다.
-   *
-   * 기존 동작과 100% 동등 — 단순히 데이터 빌드 로직을 한 곳에 모은 것.
-   */
-  private buildEdgeIndexes(
-    graphEdges: GraphEdge[],
-    backEdges: GraphEdge[],
-    sortedIndexMap: Map<string, number>,
-  ): {
-    backEdgeMap: Map<string, Array<{ edge: GraphEdge; targetIndex: number }>>;
-    outgoingEdgeMap: Map<string, GraphEdge[]>;
-    incomingEdgeMap: Map<string, GraphEdge[]>;
-  } {
-    const backEdgeMap = new Map<
-      string,
-      Array<{ edge: GraphEdge; targetIndex: number }>
-    >();
-    for (const edge of backEdges) {
-      const targetIndex = sortedIndexMap.get(edge.targetNodeId);
-      // Skip back-edges whose target is not in the sorted graph (defensive).
-      if (targetIndex === undefined) continue;
-      const list = backEdgeMap.get(edge.sourceNodeId) ?? [];
-      list.push({ edge, targetIndex });
-      backEdgeMap.set(edge.sourceNodeId, list);
-    }
-
-    const outgoingEdgeMap = new Map<string, GraphEdge[]>();
-    const incomingEdgeMap = new Map<string, GraphEdge[]>();
-    for (const edge of graphEdges) {
-      const outList = outgoingEdgeMap.get(edge.sourceNodeId) ?? [];
-      outList.push(edge);
-      outgoingEdgeMap.set(edge.sourceNodeId, outList);
-      const inList = incomingEdgeMap.get(edge.targetNodeId) ?? [];
-      inList.push(edge);
-      incomingEdgeMap.set(edge.targetNodeId, inList);
-    }
-
-    return { backEdgeMap, outgoingEdgeMap, incomingEdgeMap };
-  }
-
-  /**
-   * CRIT #2 — 그래프 순회의 reachability 초기 시드 셋업. 두 entry 정책을
-   * 지원한다:
-   *   - **explicitEntryIds** (Background subgraph): 호출자가 명시한 진입점
-   *     만 seed. 다른 노드는 단방향 edge propagation 으로 도달.
-   *   - **trigger-first / no-incoming fallback**: TRIGGER category 노드를
-   *     seed. 없으면 indegree=0 인 노드를 seed (sub-workflow / 일반 실행).
-   *
-   * `executeInline` / `runExecution` 양쪽이 거의 동일한 로직을 갖고 있던 것을
-   * 일치화. 동작 변경 없음.
-   */
-  private seedInitialReachability(
-    sortedNodeIds: string[],
-    nodeMap: Map<string, Node>,
-    forwardEdges: GraphEdge[],
-    explicitEntryIds?: string[],
-  ): Set<string> {
-    const reachable = new Set<string>();
-    if (explicitEntryIds && explicitEntryIds.length > 0) {
-      for (const id of explicitEntryIds) {
-        if (nodeMap.has(id)) reachable.add(id);
-      }
-      return reachable;
-    }
-    for (const id of sortedNodeIds) {
-      const node = nodeMap.get(id);
-      if (node?.category === NodeCategory.TRIGGER) reachable.add(id);
-    }
-    if (reachable.size === 0) {
-      const nodesWithIncoming = new Set(
-        forwardEdges.map((e) => e.targetNodeId),
-      );
-      for (const id of sortedNodeIds) {
-        if (!nodesWithIncoming.has(id)) reachable.add(id);
-      }
-    }
-    return reachable;
-  }
-
-  /**
-   * After a node executes, propagate reachability to downstream nodes
-   * through edges whose sourcePort matches the node's _selectedPort.
-   * If the node has no _selectedPort, all outgoing edges are activated.
-   * Note: disabled nodes must NOT call this method — caller responsibility.
-   */
-  private propagateReachability(
-    nodeId: string,
-    outgoingEdgeMap: Map<string, GraphEdge[]>,
-    nodeOutputCache: Record<string, unknown>,
-    reachable: Set<string>,
-  ): void {
-    const sourceOutput = nodeOutputCache[nodeId];
-    const outgoingEdges = outgoingEdgeMap.get(nodeId) ?? [];
-    for (const edge of outgoingEdges) {
-      if (this.isPortFiltered(sourceOutput, edge.sourcePort)) {
-        continue;
-      }
-      reachable.add(edge.targetNodeId);
-    }
   }
 
   /**
@@ -3581,7 +3452,7 @@ export class ExecutionEngineService
         );
       }
 
-      this.propagateReachability(
+      this.graphTraversal.propagateReachability(
         nodeId,
         outgoingEdgeMap,
         context.nodeOutputCache,
@@ -4159,7 +4030,7 @@ export class ExecutionEngineService
         );
       }
 
-      this.propagateReachability(
+      this.graphTraversal.propagateReachability(
         nodeId,
         plan.outgoingEdgeMap,
         context.nodeOutputCache,
@@ -4398,7 +4269,7 @@ export class ExecutionEngineService
 
     // Activate `done` downstream via the main outgoingEdgeMap (Parallel →
     // done-port edges). Branch exit → join (Merge) edges are also activated.
-    this.propagateReachability(
+    this.graphTraversal.propagateReachability(
       parallelNode.id,
       outgoingEdgeMap,
       context.nodeOutputCache,
@@ -4406,7 +4277,7 @@ export class ExecutionEngineService
     );
     for (const branch of plan.branches) {
       for (const exitId of branch.exitNodeIds) {
-        this.propagateReachability(
+        this.graphTraversal.propagateReachability(
           exitId,
           outgoingEdgeMap,
           context.nodeOutputCache,

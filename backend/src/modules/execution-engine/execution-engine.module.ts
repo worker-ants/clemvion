@@ -29,6 +29,7 @@ import { BackgroundExecutionProcessor } from './queues/background-execution.proc
 import { ContinuationBusService } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
+import { GraphTraversalService } from './graph/graph-traversal.service';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { ExecutionEventEmitter } from './events/execution-event-emitter.service'
     ContinuationBusService,
     ConversationThreadService,
     ExecutionEventEmitter,
+    GraphTraversalService,
   ],
   exports: [
     ExecutionEngineService,
