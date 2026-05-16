@@ -398,44 +398,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'classifications_count', label: '사용자 정의 카테고리 수' },
     { id: 'origin_list', label: '원산지 목록 조회', paginated: true },
   ],
-  supply: [
-    { id: 'suppliers_create', label: '공급사 등록' },
-    { id: 'suppliers_update', label: '공급사 수정' },
-    { id: 'suppliers_delete', label: '공급사 삭제' },
-    {
-      id: 'suppliers_users_list',
-      label: '공급사 사용자 목록',
-      paginated: true,
-    },
-    { id: 'suppliers_users_count', label: '공급사 사용자 수' },
-    { id: 'suppliers_users_get', label: '공급사 사용자 단건 조회' },
-    { id: 'suppliers_users_create', label: '공급사 사용자 등록' },
-    { id: 'suppliers_users_update', label: '공급사 사용자 수정' },
-    { id: 'suppliers_users_delete', label: '공급사 사용자 삭제' },
-    { id: 'suppliers_users_regional_list', label: '사용자 지역별 배송비 목록' },
-    {
-      id: 'suppliers_users_regional_create',
-      label: '사용자 지역별 배송비 등록',
-    },
-    {
-      id: 'suppliers_users_regional_delete',
-      label: '사용자 지역별 배송비 삭제',
-    },
-    {
-      id: 'suppliers_users_regional_settings_get',
-      label: '지역별 배송비 설정 조회',
-    },
-    {
-      id: 'suppliers_users_regional_settings_update',
-      label: '지역별 배송비 설정 수정',
-    },
-    { id: 'shipping_suppliers_get', label: '공급사 배송 설정 조회' },
-    { id: 'shipping_suppliers_update', label: '공급사 배송 설정 수정' },
-    {
-      id: 'shipping_suppliers_additionalfees_get',
-      label: '공급사 국제 배송 추가비 조회',
-    },
-  ],
+  supply: [],
   shipping: [],
   salesreport: [],
   personal: [

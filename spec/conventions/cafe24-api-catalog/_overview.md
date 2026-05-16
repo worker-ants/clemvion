@@ -93,7 +93,7 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | [application](./application.md) | 11 | 7+ | 8 |
 | [category](./category.md) | 19 | 0 | 5 |
 | [collection](./collection.md) | 7 | 6+ | 5 |
-| [supply](./supply.md) | 3 | 18+ | 6 |
+| [supply](./supply.md) | 20 | 0 | 6 |
 | [shipping](./shipping.md) | 15 | 0 | 5 |
 | [salesreport](./salesreport.md) | 5 | 0 | 5 |
 | [personal](./personal.md) | 2 | 3+ | 3 |
@@ -101,7 +101,7 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | [mileage](./mileage.md) | 7 | 3+ | 5 |
 | [notification](./notification.md) | 8 | 4+ | 7 |
 | [translation](./translation.md) | 7 | 2+ | 4 |
-| **합계** | **196** | **~177** | **~250** |
+| **합계** | **213** | **~160** | **~250** |
 
 > "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 endpoint 합계는 ~500.
 
@@ -140,3 +140,4 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | 2026-05-16 (coverage Phase 7d) | Application resource — apps_update + scripttags CRUD 5건 + webhooks_update + webhooks_logs_list = 8건. application supported 3 → 11, 합계 165 → 173. |
 | 2026-05-16 (coverage Phase 7e) | Shipping resource 완성 — carriers CRUD 3건 + regionalsurcharges 2건 + shipping_settings 2건 + shipping_additionalfees_countries + shippingorigins CRUD 5건 = 13건. shipping supported 2 → 15, planned 13 → 0, 합계 173 → 186. shipping 세 번째 0-planned resource. |
 | 2026-05-16 (coverage Phase 7f) | Category resource 완성 — decorationimages 2건 (get/update) + seo 2건 (get/update) + mains 3건 (add/update/delete) + autodisplay 3건 (create/update/delete) = 10건. category supported 9 → 19, planned 10 → 0, 합계 186 → 196. category 네 번째 0-planned resource. |
+| 2026-05-16 (coverage Phase 7g) | Supply resource 완성 — suppliers CUD 3건 + suppliers_users CRUD 6건 + suppliers_users regional shipping 5건 + shipping_suppliers 3건 = 17건. supply supported 3 → 20, planned 17 → 0, 합계 196 → 213. supply 다섯 번째 0-planned resource. 본 사이클 (Phase 7 a~g) 종료. |
