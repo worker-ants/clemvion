@@ -15,6 +15,12 @@ vi.mock("@/lib/api/integrations", () => ({
 
 import { useCafe24MallIdPrecheck } from "../use-cafe24-mall-id-precheck";
 
+/**
+ * Production `PRECHECK_DEBOUNCE_MS` (350) + buffer. cafe24-precheck.test.tsx
+ * 의 `DEBOUNCE_ADVANCE_MS` 와 동일 의미 — 두 곳을 함께 갱신해야 한다.
+ */
+const DEBOUNCE_ADVANCE_MS = 360;
+
 describe("useCafe24MallIdPrecheck", () => {
   beforeEach(() => {
     // resetAllMocks 는 implementation 까지 클리어 — mockResolvedValueOnce
@@ -43,6 +49,13 @@ describe("useCafe24MallIdPrecheck", () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it("빈 mall_id 는 fetch skip (ai-review W4 — 패턴 변경 시 빈 문자열 회귀 보호)", () => {
+    const { result } = renderHook(() => useCafe24MallIdPrecheck("", true));
+    expect(precheckMock).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.conflict).toBeNull();
+  });
+
   it("유효 mall_id + enabled 면 350ms debounce 후 fetch + 결과 반영", async () => {
     precheckMock.mockResolvedValueOnce({
       conflict: true,
@@ -57,7 +70,7 @@ describe("useCafe24MallIdPrecheck", () => {
     expect(result.current.loading).toBe(true);
     expect(result.current.conflict).toBeNull();
     await act(async () => {
-      vi.advanceTimersByTime(360);
+      vi.advanceTimersByTime(DEBOUNCE_ADVANCE_MS);
     });
     await waitFor(() => {
       expect(result.current.conflict).toEqual({
@@ -87,7 +100,7 @@ describe("useCafe24MallIdPrecheck", () => {
       { initialProps: { mallId: "shop-a", enabled: true } },
     );
     await act(async () => {
-      vi.advanceTimersByTime(360);
+      vi.advanceTimersByTime(DEBOUNCE_ADVANCE_MS);
     });
     await waitFor(() => expect(precheckMock).toHaveBeenCalledTimes(1));
     expect(firstSignal?.aborted).toBe(false);
@@ -109,7 +122,7 @@ describe("useCafe24MallIdPrecheck", () => {
       { initialProps: { mallId: "myshop", enabled: true } },
     );
     await act(async () => {
-      vi.advanceTimersByTime(360);
+      vi.advanceTimersByTime(DEBOUNCE_ADVANCE_MS);
     });
     await waitFor(() => expect(result.current.conflict).not.toBeNull());
 
@@ -124,7 +137,7 @@ describe("useCafe24MallIdPrecheck", () => {
       useCafe24MallIdPrecheck("myshop", true),
     );
     await act(async () => {
-      vi.advanceTimersByTime(360);
+      vi.advanceTimersByTime(DEBOUNCE_ADVANCE_MS);
     });
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
