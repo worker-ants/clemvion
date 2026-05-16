@@ -101,10 +101,10 @@ describe("ResultDetail", () => {
         />,
       );
 
-      expect(screen.getByText("Input")).toBeDefined();
-      expect(screen.getByText("Output")).toBeDefined();
+      expect(screen.getByText("입력")).toBeDefined();
+      expect(screen.getByText("출력")).toBeDefined();
       // Preview tab should NOT be shown for non-presentation nodes
-      expect(screen.queryByText("Preview")).toBeNull();
+      expect(screen.queryByText("미리보기")).toBeNull();
     });
 
     it("shows Preview, Input, Output tabs for presentation completed nodes", () => {
@@ -123,9 +123,9 @@ describe("ResultDetail", () => {
       );
 
       // Tab buttons exist
-      expect(screen.getAllByText("Preview").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText("Input")).toBeDefined();
-      expect(screen.getByText("Output")).toBeDefined();
+      expect(screen.getAllByText("미리보기").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("입력")).toBeDefined();
+      expect(screen.getByText("출력")).toBeDefined();
     });
 
     it("defaults to Preview tab for presentation nodes with outputData", () => {
@@ -175,7 +175,7 @@ describe("ResultDetail", () => {
         />,
       );
 
-      expect(screen.getByText("Error")).toBeDefined();
+      expect(screen.getByText("오류")).toBeDefined();
       expect(screen.getByText(/Connection timeout/)).toBeDefined();
     });
 
@@ -196,7 +196,7 @@ describe("ResultDetail", () => {
       expect(screen.getByText(/statusCode/)).toBeDefined();
 
       // Switch to Input tab
-      fireEvent.click(screen.getByText("Input"));
+      fireEvent.click(screen.getByText("입력"));
       expect(screen.getByText(/example\.com/)).toBeDefined();
     });
 
@@ -213,8 +213,8 @@ describe("ResultDetail", () => {
       );
 
       // Switch to Input tab
-      fireEvent.click(screen.getByText("Input"));
-      expect(screen.getByText("Loading input data...")).toBeDefined();
+      fireEvent.click(screen.getByText("입력"));
+      expect(screen.getByText("입력 데이터 로드 중...")).toBeDefined();
     });
   });
 
@@ -288,10 +288,10 @@ describe("ResultDetail", () => {
 
     // Conversation is now rendered inside the Preview tab, so all standard
     // tabs remain accessible to the user.
-    expect(screen.getByRole("button", { name: "Preview" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Input" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Output" })).toBeDefined();
-    expect(screen.getByRole("button", { name: "Config" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "미리보기" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "입력" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "출력" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "설정" })).toBeDefined();
     expect(screen.getByText("My name is Alice")).toBeDefined();
   });
 
@@ -312,8 +312,8 @@ describe("ResultDetail", () => {
       />,
     );
 
-    expect(screen.getByText("Input")).toBeDefined();
-    expect(screen.getByText("Output")).toBeDefined();
+    expect(screen.getByText("입력")).toBeDefined();
+    expect(screen.getByText("출력")).toBeDefined();
   });
 
   describe("selection-driven tab visibility for AI conversation nodes", () => {
@@ -345,20 +345,20 @@ describe("ResultDetail", () => {
         />,
       );
       expect(
-        screen.getByRole("button", { name: "Preview" }),
+        screen.getByRole("button", { name: "미리보기" }),
       ).toBeDefined();
-      expect(screen.getByRole("button", { name: "Input" })).toBeDefined();
-      expect(screen.getByRole("button", { name: "Output" })).toBeDefined();
+      expect(screen.getByRole("button", { name: "입력" })).toBeDefined();
+      expect(screen.getByRole("button", { name: "출력" })).toBeDefined();
       expect(
-        screen.getByRole("button", { name: "LLM Usage" }),
+        screen.getByRole("button", { name: "LLM 사용량" }),
       ).toBeDefined();
-      expect(screen.getByRole("button", { name: "Config" })).toBeDefined();
+      expect(screen.getByRole("button", { name: "설정" })).toBeDefined();
       expect(
         screen.queryByRole("button", { name: "LLM Information" }),
       ).toBeNull();
       // Response / Request are message-level only.
-      expect(screen.queryByRole("button", { name: "Response" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Request" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "응답" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "요청" })).toBeNull();
     });
 
     it("user message selected → only Preview tab", () => {
@@ -375,19 +375,19 @@ describe("ResultDetail", () => {
         />,
       );
       expect(
-        screen.getByRole("button", { name: "Preview" }),
+        screen.getByRole("button", { name: "미리보기" }),
       ).toBeDefined();
-      expect(screen.queryByRole("button", { name: "Input" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Output" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "입력" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "출력" })).toBeNull();
       expect(
         screen.queryByRole("button", { name: "LLM Information" }),
       ).toBeNull();
       expect(
-        screen.queryByRole("button", { name: "LLM Usage" }),
+        screen.queryByRole("button", { name: "LLM 사용량" }),
       ).toBeNull();
-      expect(screen.queryByRole("button", { name: "Response" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Request" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Config" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "응답" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "요청" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "설정" })).toBeNull();
     });
 
     it("assistant message selected → Preview + Response/Request/LLM Usage", () => {
@@ -404,23 +404,23 @@ describe("ResultDetail", () => {
         />,
       );
       expect(
-        screen.getByRole("button", { name: "Preview" }),
+        screen.getByRole("button", { name: "미리보기" }),
       ).toBeDefined();
       expect(
-        screen.getByRole("button", { name: "Response" }),
+        screen.getByRole("button", { name: "응답" }),
       ).toBeDefined();
       expect(
-        screen.getByRole("button", { name: "Request" }),
+        screen.getByRole("button", { name: "요청" }),
       ).toBeDefined();
       expect(
-        screen.getByRole("button", { name: "LLM Usage" }),
+        screen.getByRole("button", { name: "LLM 사용량" }),
       ).toBeDefined();
       expect(
         screen.queryByRole("button", { name: "LLM Information" }),
       ).toBeNull();
-      expect(screen.queryByRole("button", { name: "Input" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Output" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Config" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "입력" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "출력" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "설정" })).toBeNull();
     });
   });
 
@@ -441,7 +441,7 @@ describe("ResultDetail", () => {
         />,
       );
 
-      const metaTab = screen.getByRole("button", { name: "Meta" });
+      const metaTab = screen.getByRole("button", { name: "메타" });
       fireEvent.click(metaTab);
       expect(screen.getByText(/durationMs/)).toBeDefined();
       expect(screen.getByText(/statusCode/)).toBeDefined();
@@ -462,7 +462,7 @@ describe("ResultDetail", () => {
         />,
       );
 
-      expect(screen.queryByRole("button", { name: "Meta" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "메타" })).toBeNull();
     });
 
     it("shows Port tab with the port value", () => {
@@ -481,7 +481,7 @@ describe("ResultDetail", () => {
         />,
       );
 
-      const portTab = screen.getByRole("button", { name: "Port" });
+      const portTab = screen.getByRole("button", { name: "포트" });
       fireEvent.click(portTab);
       expect(screen.getByText("true")).toBeDefined();
     });
@@ -503,7 +503,7 @@ describe("ResultDetail", () => {
         />,
       );
 
-      const statusTab = screen.getByRole("button", { name: "Status" });
+      const statusTab = screen.getByRole("button", { name: "상태" });
       fireEvent.click(statusTab);
       expect(screen.getByText("waiting_for_input")).toBeDefined();
     });
@@ -524,8 +524,8 @@ describe("ResultDetail", () => {
         />,
       );
 
-      expect(screen.queryByRole("button", { name: "Port" })).toBeNull();
-      expect(screen.queryByRole("button", { name: "Status" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "포트" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "상태" })).toBeNull();
     });
   });
 
@@ -541,8 +541,8 @@ describe("ResultDetail", () => {
     );
 
     // Should not have tab buttons
-    expect(screen.queryByText("Input")).toBeNull();
-    expect(screen.queryByText("Output")).toBeNull();
+    expect(screen.queryByText("입력")).toBeNull();
+    expect(screen.queryByText("출력")).toBeNull();
   });
 
   describe("References tab + Preview chip (KB)", () => {
@@ -619,7 +619,7 @@ describe("ResultDetail", () => {
 
     it("shows References tab when AI node has RAG data", () => {
       render(<ResultDetail result={makeAiResult()} {...defaultProps} />);
-      expect(screen.getByText("References")).toBeDefined();
+      expect(screen.getByText("참조")).toBeDefined();
     });
 
     it("hides References tab for AI node with no RAG attempt", () => {
@@ -653,24 +653,24 @@ describe("ResultDetail", () => {
         },
       });
       render(<ResultDetail result={noRag} {...defaultProps} />);
-      expect(screen.queryByText("References")).toBeNull();
+      expect(screen.queryByText("참조")).toBeNull();
     });
 
     it("renders turn-grouped chunks inside the References tab", () => {
       render(<ResultDetail result={makeAiResult()} {...defaultProps} />);
-      fireEvent.click(screen.getByText("References"));
+      fireEvent.click(screen.getByText("참조"));
       // Aggregate header + turn-1 group must be rendered.
-      expect(screen.getByText(/Node total/)).toBeDefined();
-      expect(screen.getByText("Turn 1")).toBeDefined();
+      expect(screen.getByText(/노드 전체/)).toBeDefined();
+      expect(screen.getByText("턴 1")).toBeDefined();
       // turn 2 는 attempted=false + sources=[] 라 그룹에서 제외돼야 한다.
-      expect(screen.queryByText("Turn 2")).toBeNull();
+      expect(screen.queryByText("턴 2")).toBeNull();
       expect(screen.getAllByText("환불.md").length).toBeGreaterThanOrEqual(1);
     });
 
     it("does NOT render the RAG section under the Output tab anymore", () => {
       render(<ResultDetail result={makeAiResult()} {...defaultProps} />);
       // Output 탭은 default 가 아니라 명시 클릭 (Preview chrome 없음 → fallback output 가능하지만 안전하게 클릭).
-      fireEvent.click(screen.getByText("Output"));
+      fireEvent.click(screen.getByText("출력"));
       // RagReferencesSection 의 헤더 "References" 는 Output 탭에서 더 이상 보이지 않아야 한다 — 단,
       // tab 버튼 자체는 항상 노출되므로 'Queries used' 같은 본문 marker 로 검증.
       expect(screen.queryByText(/Queries used/)).toBeNull();
@@ -706,7 +706,7 @@ describe("ResultDetail", () => {
 
       // SummaryView assistant row 에 chip 노출 + References 탭 버튼 노출.
       expect(screen.getAllByTitle("View in References tab").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText("References")).toBeDefined();
+      expect(screen.getByText("참조")).toBeDefined();
     });
 
     // 멀티턴 + 모든 turn 에 RAG 가 있는 fixture — message-level 필터가
@@ -790,11 +790,11 @@ describe("ResultDetail", () => {
           selectedConversationItemIndex={3}
         />,
       );
-      fireEvent.click(screen.getByText("References"));
+      fireEvent.click(screen.getByText("참조"));
 
-      expect(screen.queryByText(/Node total/)).toBeNull();
-      expect(screen.getByText("Turn 2")).toBeDefined();
-      expect(screen.queryByText("Turn 1")).toBeNull();
+      expect(screen.queryByText(/노드 전체/)).toBeNull();
+      expect(screen.getByText("턴 2")).toBeDefined();
+      expect(screen.queryByText("턴 1")).toBeNull();
       expect(screen.getByText("요금.md")).toBeDefined();
       expect(screen.queryByText("환불.md")).toBeNull();
     });
@@ -808,7 +808,7 @@ describe("ResultDetail", () => {
           selectedConversationItemIndex={0}
         />,
       );
-      expect(screen.queryByText("References")).toBeNull();
+      expect(screen.queryByText("참조")).toBeNull();
     });
 
     it("restores node-level cumulative view when selection is cleared", () => {
@@ -820,8 +820,8 @@ describe("ResultDetail", () => {
           selectedConversationItemIndex={1}
         />,
       );
-      fireEvent.click(screen.getByText("References"));
-      expect(screen.queryByText(/Node total/)).toBeNull();
+      fireEvent.click(screen.getByText("참조"));
+      expect(screen.queryByText(/노드 전체/)).toBeNull();
 
       rerender(
         <ResultDetail
@@ -830,9 +830,9 @@ describe("ResultDetail", () => {
           selectedConversationItemIndex={null}
         />,
       );
-      expect(screen.getByText(/Node total/)).toBeDefined();
-      expect(screen.getByText("Turn 1")).toBeDefined();
-      expect(screen.getByText("Turn 2")).toBeDefined();
+      expect(screen.getByText(/노드 전체/)).toBeDefined();
+      expect(screen.getByText("턴 1")).toBeDefined();
+      expect(screen.getByText("턴 2")).toBeDefined();
     });
 
     it("jumps to References tab when assistant message chip is clicked (completed multi-turn)", () => {
@@ -856,7 +856,7 @@ describe("ResultDetail", () => {
       fireEvent.click(chip);
 
       // References 탭으로 전환되어 turn-1 그룹 헤더가 보여야 한다.
-      expect(screen.getByText("Turn 1")).toBeDefined();
+      expect(screen.getByText("턴 1")).toBeDefined();
       // 그리고 scrollIntoView 가 호출돼 자동 스크롤이 일어났어야 한다.
       expect(scrollSpy).toHaveBeenCalled();
     });
