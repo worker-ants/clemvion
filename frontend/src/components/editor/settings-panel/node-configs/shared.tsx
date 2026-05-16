@@ -60,7 +60,13 @@ export function SelectField({
   label: React.ReactNode;
   value: string;
   onChange: (value: string) => void;
-  options: { value: string; label: string }[];
+  /**
+   * `disabled` per option renders the row as unselectable (greyed out by
+   * the browser). The cafe24 node uses it for `status: planned` operations
+   * — visible in the dropdown so users see what's coming next, but blocked
+   * from being picked.
+   */
+  options: { value: string; label: string; disabled?: boolean }[];
   hint?: string;
   required?: boolean;
 }) {
@@ -73,7 +79,7 @@ export function SelectField({
         className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs text-[hsl(var(--foreground))]"
       >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
+          <option key={opt.value} value={opt.value} disabled={opt.disabled}>
             {opt.label}
           </option>
         ))}

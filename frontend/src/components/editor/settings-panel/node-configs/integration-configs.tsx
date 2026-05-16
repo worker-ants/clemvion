@@ -1,10 +1,16 @@
-import { useState } from "react";
 import { FieldGroup, SelectField, NumberField, CheckboxField, KeyValueEditor } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { IntegrationSelector } from "./integration-selector";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { getNodeDefinition } from "@/lib/node-definitions";
+import type {
+  Cafe24NodeExtras,
+  Cafe24OperationField,
+  Cafe24PlannedOperation,
+  Cafe24SupportedOperation,
+} from "@/lib/node-definitions/types";
 
 type Config = Record<string, unknown>;
 type OnChange = (config: Config) => void;
@@ -249,6 +255,9 @@ export function DatabaseQueryConfig({ config, onChange }: { config: Config; onCh
 // ===== Cafe24 =====
 // Resource keys mirror Cafe24 Admin API resource names and double as
 // translation keys under `nodeConfigs.integration.cafe24Resources.*`.
+// Backend `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/metadata/types.ts`)
+// and the catalog at `spec/conventions/cafe24-api-catalog/` must stay in sync
+// with this list; `catalog-sync.spec.ts` guards the backend side.
 const CAFE24_RESOURCE_KEYS = [
   "store",
   "product",
@@ -272,6 +281,35 @@ const CAFE24_RESOURCE_KEYS = [
 type Cafe24ResourceKey = (typeof CAFE24_RESOURCE_KEYS)[number];
 
 /**
+ * Read the cafe24 node definition's `extras` payload — supplied by the
+ * backend through `GET /nodes/definitions` (see
+ * `backend/src/nodes/integration/cafe24/metadata/public-meta.ts`). Returns
+ * `null` when definitions haven't loaded yet (initial editor mount) or when
+ * the node ships without extras (older backend). In both cases the form
+ * degrades gracefully — Operation select shows a "definitions loading"
+ * placeholder and Fields editor falls back to free-form text.
+ */
+function readCafe24Extras(): Cafe24NodeExtras | null {
+  const def = getNodeDefinition("cafe24");
+  const extras = def?.extras;
+  if (!extras || typeof extras !== "object") return null;
+  // The extras payload is shipped as Record<string, unknown> on
+  // NodeDefinition (the typed surface is intentionally opaque per
+  // `NodeDefinitionResponse.extras` JSDoc) — narrow here using a few
+  // structural checks so callers can rely on the typed shape.
+  const e = extras as Partial<Cafe24NodeExtras>;
+  if (
+    !e.operationsByResource ||
+    !e.plannedByResource ||
+    typeof e.operationsByResource !== "object" ||
+    typeof e.plannedByResource !== "object"
+  ) {
+    return null;
+  }
+  return e as Cafe24NodeExtras;
+}
+
+/**
  * Convert the persisted `config.fields` shape (or any unknown input) to the
  * `{key, value}[]` form the editor renders. Accepts:
  *
@@ -281,92 +319,209 @@ type Cafe24ResourceKey = (typeof CAFE24_RESOURCE_KEYS)[number];
  *
  * Exported so the conversion can be exercised directly by unit tests.
  */
-export function normalizeCafe24Fields(
-  raw: unknown,
-): Array<{ key: string; value: string }> {
-  if (Array.isArray(raw)) {
-    return raw
-      .filter(
-        (e): e is { key: string; value: string } =>
-          !!e && typeof e === "object" && "key" in e && "value" in e,
-      )
-      .map((e) => ({ key: String(e.key), value: String(e.value ?? "") }));
+function readFieldValues(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (v === undefined || v === null) {
+      out[k] = "";
+    } else if (typeof v === "object") {
+      out[k] = JSON.stringify(v);
+    } else {
+      out[k] = String(v);
+    }
   }
-  if (raw && typeof raw === "object") {
-    return Object.entries(raw as Record<string, unknown>).map(([k, v]) => ({
-      key: k,
-      value: v === undefined || v === null ? "" : String(v),
-    }));
+  return out;
+}
+
+function pruneFieldsToOperation(
+  values: Record<string, string>,
+  op: Cafe24SupportedOperation | undefined,
+): Record<string, string> {
+  if (!op) return values;
+  const known = new Set(op.fields.map((f) => f.name));
+  const next: Record<string, string> = {};
+  for (const [k, v] of Object.entries(values)) {
+    if (known.has(k)) next[k] = v;
   }
-  return [];
+  return next;
+}
+
+function findSupportedOperation(
+  extras: Cafe24NodeExtras | null,
+  resource: string,
+  operation: string,
+): Cafe24SupportedOperation | undefined {
+  if (!extras || !resource || !operation) return undefined;
+  const list = extras.operationsByResource[resource] as
+    | Cafe24SupportedOperation[]
+    | undefined;
+  return list?.find((op) => op.id === operation);
+}
+
+function findPlannedOperation(
+  extras: Cafe24NodeExtras | null,
+  resource: string,
+  operation: string,
+): Cafe24PlannedOperation | undefined {
+  if (!extras || !resource || !operation) return undefined;
+  const list = extras.plannedByResource[resource] as
+    | Cafe24PlannedOperation[]
+    | undefined;
+  return list?.find((op) => op.id === operation);
 }
 
 /**
- * Convert the UI's key-value list back to the persisted object form that the
- * backend handler expects (`Record<string, unknown>`). Empty-key rows are
- * dropped because they have no meaningful object representation — they
- * remain visible in the UI because the editor list lives in local React
- * state (see `Cafe24Config`). When two rows share a key, the **later** row's
- * value wins (last-write-wins) to match the natural object-spread mental
- * model.
+ * One field row inside the dynamic Fields form. The value editor is always
+ * an `ExpressionInput` so `{{ $input.x }}` expressions remain supported
+ * everywhere (decided 2026-05-16). `enum` / `boolean` / `default` are
+ * surfaced as hint text rather than specialised widgets so the
+ * expression-input experience stays uniform.
  */
-export function fieldRowsToObject(
-  rows: ReadonlyArray<{ key: string; value: string }>,
-): Record<string, string> {
-  const obj: Record<string, string> = {};
-  for (const it of rows) {
-    if (it.key) obj[it.key] = it.value;
+function Cafe24FieldRow({
+  field,
+  value,
+  onChange,
+  t,
+}: {
+  field: Cafe24OperationField;
+  value: string;
+  onChange: (next: string) => void;
+  t: ReturnType<typeof useT>;
+}) {
+  const hintBits: string[] = [];
+  if (field.description) hintBits.push(field.description);
+  if (field.type === "enum" && field.enum && field.enum.length > 0) {
+    hintBits.push(
+      t("nodeConfigs.integration.cafe24FieldsEnumHint", {
+        values: field.enum.join(" / "),
+      }),
+    );
+  } else if (field.type === "boolean") {
+    hintBits.push(t("nodeConfigs.integration.cafe24FieldsBooleanHint"));
   }
-  return obj;
+  if (field.default !== undefined) {
+    hintBits.push(
+      t("nodeConfigs.integration.cafe24FieldsDefaultHint", {
+        value: String(field.default),
+      }),
+    );
+  }
+  return (
+    <FieldGroup
+      label={field.name}
+      hint={hintBits.join(" · ") || undefined}
+      required={field.required}
+    >
+      <ExpressionInput bare label="" value={value} onChange={onChange} />
+    </FieldGroup>
+  );
 }
 
-export function Cafe24Config({ config, onChange }: { config: Config; onChange: OnChange }) {
+export function Cafe24Config({
+  config,
+  onChange,
+}: {
+  config: Config;
+  onChange: OnChange;
+}) {
   const t = useT();
-  // The Fields editor maintains a list of {key, value} pairs locally so the
-  // user can add a blank row and type its key before it becomes a persisted
-  // object entry. The previous implementation derived the list from
-  // `config.fields` (object form) on every render, which silently dropped
-  // empty-key rows the moment they were created — making the "Add" button
-  // appear non-functional.
-  const [fieldRows, setFieldRows] = useState<
-    Array<{ key: string; value: string }>
-  >(() => normalizeCafe24Fields(config.fields));
+  // Extras ship with `GET /nodes/definitions` (Phase 2). When they're not
+  // available (definitions still loading on initial mount, or an older
+  // backend that doesn't supply extras), `readCafe24Extras()` returns null
+  // and we degrade gracefully — Operation select shows the planned/supported
+  // catalog as soon as the store fills in.
+  const extras = readCafe24Extras();
 
-  // Track the `config.fields` reference we last propagated upstream so we
-  // can detect *external* changes (undo/redo, programmatic reset) and
-  // re-sync the local list during render. Reference equality is enough:
-  // when we call `onChange`, the new `config.fields` reference is *our*
-  // newly-built object, so `lastSeenFields === config.fields` and we skip.
-  // When a parent overwrites `config.fields` with a different object, the
-  // reference differs and we re-derive the list. This is React's documented
-  // "storing information from previous renders" pattern — bounded to a
-  // single setState call per reference change, so no render loop.
-  const [lastSeenFields, setLastSeenFields] = useState<unknown>(config.fields);
+  const resource = (config.resource as string) ?? "";
+  const operation = (config.operation as string) ?? "";
+  const supportedOp = findSupportedOperation(extras, resource, operation);
+  const plannedOp = findPlannedOperation(extras, resource, operation);
+  const fieldValues = readFieldValues(config.fields);
 
-  if (lastSeenFields !== config.fields) {
-    setLastSeenFields(config.fields);
-    setFieldRows(normalizeCafe24Fields(config.fields));
-  }
-
-  const handleFieldRowsChange = (
-    items: Array<{ key: string; value: string }>,
-  ) => {
-    setFieldRows(items);
-    const obj = fieldRowsToObject(items);
-    const nextConfig = { ...config, fields: obj };
-    setLastSeenFields(nextConfig.fields);
-    onChange(nextConfig);
-  };
-
-  const pagination = (config.pagination as { limit?: number; offset?: number } | undefined) ?? {};
+  const pagination =
+    (config.pagination as { limit?: number; offset?: number } | undefined) ?? {};
 
   const resourceOptions = [
-    { value: "", label: t("nodeConfigs.integration.cafe24ResourceSelectPlaceholder") },
+    {
+      value: "",
+      label: t("nodeConfigs.integration.cafe24ResourceSelectPlaceholder"),
+    },
     ...CAFE24_RESOURCE_KEYS.map((key: Cafe24ResourceKey) => ({
       value: key,
       label: t(`nodeConfigs.integration.cafe24Resources.${key}` as const),
     })),
   ];
+
+  const supportedListForResource =
+    (resource && extras?.operationsByResource[resource]) || [];
+  const plannedListForResource =
+    (resource && extras?.plannedByResource[resource]) || [];
+  const plannedSuffix = t(
+    "nodeConfigs.integration.cafe24OperationPlannedSuffix",
+  );
+
+  // Operation options combine supported (enabled) + planned (disabled).
+  // Planned rows stay visible — but un-selectable — so users can see what's
+  // coming next without trial-and-error.
+  const operationOptions = !resource
+    ? [
+        {
+          value: "",
+          label: t(
+            "nodeConfigs.integration.cafe24OperationSelectResourceFirst",
+          ),
+          disabled: true,
+        },
+      ]
+    : [
+        {
+          value: "",
+          label: t("nodeConfigs.integration.cafe24OperationSelectPlaceholder"),
+        },
+        ...supportedListForResource.map((op) => ({
+          value: op.id,
+          label: op.label,
+        })),
+        ...plannedListForResource.map((op) => ({
+          value: op.id,
+          label: `${op.label} ${plannedSuffix}`,
+          disabled: true,
+        })),
+      ];
+
+  const coverageHint =
+    resource && extras
+      ? t("nodeConfigs.integration.cafe24OperationCoverageHint", {
+          supported: supportedListForResource.length,
+          planned: plannedListForResource.length,
+        })
+      : undefined;
+
+  const handleResourceChange = (next: string) => {
+    // Resource change wipes the operation + fields so we never carry stale
+    // state across unrelated APIs. The pagination block is conditional on
+    // the next operation's `paginated` flag, so dropping `fields` is enough.
+    onChange({ ...config, resource: next, operation: "", fields: {} });
+  };
+
+  const handleOperationChange = (nextOpId: string) => {
+    const nextSupported = findSupportedOperation(extras, resource, nextOpId);
+    const prunedFields = pruneFieldsToOperation(fieldValues, nextSupported);
+    onChange({ ...config, operation: nextOpId, fields: prunedFields });
+  };
+
+  const handleFieldChange = (fieldName: string, nextValue: string) => {
+    onChange({
+      ...config,
+      fields: { ...fieldValues, [fieldName]: nextValue },
+    });
+  };
+
+  // Required-first ordering mirrors §2 of spec/4-nodes/4-integration/4-cafe24.md
+  // — required must-fills surface above optional refinements.
+  const requiredFields = supportedOp?.fields.filter((f) => f.required) ?? [];
+  const optionalFields = supportedOp?.fields.filter((f) => !f.required) ?? [];
 
   return (
     <div className="flex flex-col gap-3">
@@ -379,59 +534,105 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
       />
       <SelectField
         label={t("nodeConfigs.integration.cafe24Resource")}
-        value={(config.resource as string) ?? ""}
-        onChange={(v) =>
-          // Reset operation when resource changes — the previous opId is
-          // unlikely to belong to the new resource's metadata.
-          onChange({ ...config, resource: v, operation: "" })
-        }
+        value={resource}
+        onChange={handleResourceChange}
         options={resourceOptions}
       />
-      <ExpressionInput
+      <SelectField
         label={t("nodeConfigs.integration.cafe24Operation")}
-        value={(config.operation as string) ?? ""}
-        onChange={(v) => onChange({ ...config, operation: v })}
-        placeholder={t("nodeConfigs.integration.cafe24OperationPlaceholder")}
-        hint={t("nodeConfigs.integration.cafe24OperationHint")}
+        value={operation}
+        onChange={handleOperationChange}
+        options={operationOptions}
+        hint={coverageHint}
       />
-      <KeyValueEditor
-        label={t("nodeConfigs.integration.cafe24Fields")}
-        items={fieldRows}
-        onChange={handleFieldRowsChange}
-        keyPlaceholder={t("nodeConfigs.integration.cafe24FieldsKeyPlaceholder")}
-        valuePlaceholder={t("nodeConfigs.integration.cafe24FieldsValuePlaceholder")}
-        expressionValues
-      />
-      <FieldGroup
-        label={t("nodeConfigs.integration.cafe24Pagination")}
-        hint={t("nodeConfigs.integration.cafe24PaginationHint")}
-      >
-        <div className="flex gap-3">
-          <NumberField
-            label={t("nodeConfigs.integration.cafe24Limit")}
-            value={pagination.limit ?? 50}
-            onChange={(v) =>
-              onChange({
-                ...config,
-                pagination: { ...pagination, limit: v },
-              })
-            }
-            min={1}
-            max={500}
-          />
-          <NumberField
-            label={t("nodeConfigs.integration.cafe24Offset")}
-            value={pagination.offset ?? 0}
-            onChange={(v) =>
-              onChange({
-                ...config,
-                pagination: { ...pagination, offset: v },
-              })
-            }
-            min={0}
-          />
-        </div>
-      </FieldGroup>
+      {plannedOp && (
+        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+          {t("nodeConfigs.integration.cafe24OperationPlannedHint")}
+        </p>
+      )}
+      {!supportedOp && !plannedOp && operation && resource && extras && (
+        <p className="text-[10px] text-amber-500">
+          {t("nodeConfigs.integration.cafe24OperationUnknown")}
+        </p>
+      )}
+      {supportedOp && (
+        <>
+          {requiredFields.length === 0 && optionalFields.length === 0 ? (
+            <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+              {t("nodeConfigs.integration.cafe24FieldsEmpty")}
+            </p>
+          ) : (
+            <>
+              {requiredFields.length > 0 && (
+                <FieldGroup
+                  label={t("nodeConfigs.integration.cafe24FieldsRequired")}
+                >
+                  <div className="flex flex-col gap-2">
+                    {requiredFields.map((f) => (
+                      <Cafe24FieldRow
+                        key={f.name}
+                        field={f}
+                        value={fieldValues[f.name] ?? ""}
+                        onChange={(v) => handleFieldChange(f.name, v)}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                </FieldGroup>
+              )}
+              {optionalFields.length > 0 && (
+                <FieldGroup
+                  label={t("nodeConfigs.integration.cafe24FieldsOptional")}
+                >
+                  <div className="flex flex-col gap-2">
+                    {optionalFields.map((f) => (
+                      <Cafe24FieldRow
+                        key={f.name}
+                        field={f}
+                        value={fieldValues[f.name] ?? ""}
+                        onChange={(v) => handleFieldChange(f.name, v)}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                </FieldGroup>
+              )}
+            </>
+          )}
+          {supportedOp.paginated && (
+            <FieldGroup
+              label={t("nodeConfigs.integration.cafe24Pagination")}
+              hint={t("nodeConfigs.integration.cafe24PaginationHint")}
+            >
+              <div className="flex gap-3">
+                <NumberField
+                  label={t("nodeConfigs.integration.cafe24Limit")}
+                  value={pagination.limit ?? 50}
+                  onChange={(v) =>
+                    onChange({
+                      ...config,
+                      pagination: { ...pagination, limit: v },
+                    })
+                  }
+                  min={1}
+                  max={500}
+                />
+                <NumberField
+                  label={t("nodeConfigs.integration.cafe24Offset")}
+                  value={pagination.offset ?? 0}
+                  onChange={(v) =>
+                    onChange({
+                      ...config,
+                      pagination: { ...pagination, offset: v },
+                    })
+                  }
+                  min={0}
+                />
+              </div>
+            </FieldGroup>
+          )}
+        </>
+      )}
     </div>
   );
 }
