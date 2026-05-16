@@ -5,6 +5,8 @@ import request from 'supertest';
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
+type RegisterResult = Awaited<ReturnType<typeof registerAndLogin>>;
+
 /**
  * e2e: Cafe24 mall_id precheck endpoint — spec/2-navigation/4-integration.md §9.2.
  *
@@ -22,6 +24,7 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
 describe('Cafe24 precheck endpoint (e2e)', () => {
   let db: Client;
+  let owner: RegisterResult;
   let token: string;
   let workspaceId: string;
   let otherWorkspaceId: string;
@@ -29,7 +32,7 @@ describe('Cafe24 precheck endpoint (e2e)', () => {
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
-    const owner = await registerAndLogin(BASE_URL, uniqueEmail('cafe24-pre'), db);
+    owner = await registerAndLogin(BASE_URL, uniqueEmail('cafe24-pre'), db);
     token = owner.accessToken;
     workspaceId = await createTeamWorkspace(
       BASE_URL,
@@ -57,12 +60,16 @@ describe('Cafe24 precheck endpoint (e2e)', () => {
     // 직접 DB INSERT — controller 의 cafe24 create 흐름은 OAuth 가 필요해
     // e2e 에서 시뮬레이션이 번거롭다. precheck endpoint 는 row 의 status /
     // mallId 만 보므로 minimal row 로 충분.
+    // credentials 는 JSONB (encryptedJsonTransformer 를 우회) — precheck
+    // endpoint 는 credentials 를 읽지 않으므로 빈 객체로 충분. mall_id 는
+    // plain 컬럼이라 별도 매핑 없이 직접 set. created_by 는 NOT NULL 이라
+    // owner 의 userId 를 넘긴다.
     const r = await db.query<{ id: string }>(
       `INSERT INTO integration
-        (workspace_id, service_type, auth_type, name, scope, status, mall_id, credentials)
-       VALUES ($1, 'cafe24', 'oauth2', $2, 'personal', $3, $4, '\\x'::bytea)
+        (workspace_id, service_type, auth_type, name, scope, status, mall_id, credentials, created_by)
+       VALUES ($1, 'cafe24', 'oauth2', $2, 'personal', $3, $4, '{}'::jsonb, $5)
        RETURNING id`,
-      [opts.workspaceId, name, opts.status, opts.mallId],
+      [opts.workspaceId, name, opts.status, opts.mallId, owner.userId],
     );
     return r.rows[0].id;
   }
@@ -135,7 +142,9 @@ describe('Cafe24 precheck endpoint (e2e)', () => {
   it('route order — cafe24/precheck is matched before @Get(":id") (no ParseUUIDPipe 400)', async () => {
     const res = await request(BASE_URL)
       .get('/api/integrations/cafe24/precheck')
-      .query({ mallId: 'route-order-' + Math.random().toString(36).slice(2, 8) })
+      .query({
+        mallId: 'route-order-' + Math.random().toString(36).slice(2, 8),
+      })
       .set('Authorization', `Bearer ${token}`)
       .set('X-Workspace-Id', workspaceId);
     // route 가 잘못 잡히면 ParseUUIDPipe 가 'cafe24' 를 UUID 로 해석 시도해

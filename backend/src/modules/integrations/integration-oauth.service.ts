@@ -402,11 +402,10 @@ export class IntegrationOAuthService {
         // "Cafe24 Public 흐름의 begin-time 사전 가드 추가". 코드 재사용:
         // private 흐름과 동일한 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` —
         // spec line 725 가 이미 "app_type 무관" 으로 정의해 의미상 정합.
-        const existingConnected =
-          await this.findConnectedCafe24MallIntegration(
-            params.workspaceId,
-            meta.mall_id,
-          );
+        const existingConnected = await this.findConnectedCafe24MallIntegration(
+          params.workspaceId,
+          meta.mall_id,
+        );
         if (existingConnected) {
           throw new ConflictException({
             code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',

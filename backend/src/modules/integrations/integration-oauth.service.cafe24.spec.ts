@@ -617,9 +617,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const error = await service
         .begin(publicBeginParams())
         .catch((e: Error) => e);
-      expect(
-        (error as { response?: { code?: string } }).response?.code,
-      ).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+      expect((error as { response?: { code?: string } }).response?.code).toBe(
+        'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+      );
     });
   });
 

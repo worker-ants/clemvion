@@ -870,10 +870,13 @@ describe('IntegrationsService', () => {
     // private begin 동시 신청) 모두 동일한 409 코드로 변환.
     it('translates cafe24 mall_id unique violation to CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)', async () => {
       integrationRepo.save = jest.fn().mockRejectedValueOnce(
-        Object.assign(new Error('duplicate key value violates unique constraint'), {
-          code: '23505',
-          constraint: 'idx_integration_cafe24_workspace_mall',
-        }),
+        Object.assign(
+          new Error('duplicate key value violates unique constraint'),
+          {
+            code: '23505',
+            constraint: 'idx_integration_cafe24_workspace_mall',
+          },
+        ),
       );
       const error = await service
         .create('ws-1', 'user-1', 'member', {
@@ -893,10 +896,13 @@ describe('IntegrationsService', () => {
 
     it('translates integration name unique violation to INTEGRATION_NAME_TAKEN (409)', async () => {
       integrationRepo.save = jest.fn().mockRejectedValueOnce(
-        Object.assign(new Error('duplicate key value violates unique constraint'), {
-          code: '23505',
-          constraint: 'integration_workspace_name_unique',
-        }),
+        Object.assign(
+          new Error('duplicate key value violates unique constraint'),
+          {
+            code: '23505',
+            constraint: 'integration_workspace_name_unique',
+          },
+        ),
       );
       const error = await service
         .create('ws-1', 'user-1', 'member', {
