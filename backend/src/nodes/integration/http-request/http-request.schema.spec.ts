@@ -122,7 +122,7 @@ describe('validateHttpRequestConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (http_request)', () => {
-  it('emits both Korean warnings on a freshly-created integration-auth node', () => {
+  it('emits both warnings on a freshly-created integration-auth node', () => {
     const errors = evaluateMetadataBlockingErrors(httpRequestNodeMetadata, {
       authentication: 'integration',
     });

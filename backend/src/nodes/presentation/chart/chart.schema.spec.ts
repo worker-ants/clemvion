@@ -97,7 +97,7 @@ describe('validateChartConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (chart)', () => {
-  it('emits Korean warning messages for axis-field omissions', () => {
+  it('emits warning messages for axis-field omissions', () => {
     const errors = evaluateMetadataBlockingErrors(chartMetadata, {
       chartType: 'bar',
       xAxis: {},

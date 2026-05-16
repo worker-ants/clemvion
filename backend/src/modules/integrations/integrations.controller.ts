@@ -30,13 +30,15 @@ import {
 import {
   ApiCreatedWrappedResponse,
   ApiOkPaginatedResponse,
+  ApiOkWrappedOneOfResponse,
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import {
   IntegrationActivityDto,
   IntegrationDto,
   IntegrationUsagesDto,
-  OAuthBeginResultDto,
+  OAuthBeginCafe24PendingResultDto,
+  OAuthBeginPopupResultDto,
   PreviewTestResultDto,
   ServiceCatalogDto,
   TestConnectionResultDto,
@@ -138,9 +140,13 @@ export class IntegrationsController {
     description:
       'OAuth 흐름을 시작해 인증 URL과 state 토큰을 반환합니다. new/reauthorize/request_scopes 모드를 지원합니다.',
   })
-  @ApiOkWrappedResponse(OAuthBeginResultDto, {
-    description: '인증 URL 및 state 토큰',
-  })
+  @ApiOkWrappedOneOfResponse(
+    [OAuthBeginPopupResultDto, OAuthBeginCafe24PendingResultDto],
+    {
+      description:
+        '일반 흐름은 { authUrl, state }, Cafe24 Private 흐름은 { mode, integrationId, appUrl, callbackUrl, scopesAdded? }.',
+    },
+  )
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiConflictResponse({
@@ -359,9 +365,13 @@ export class IntegrationsController {
       '만료되었거나 오류 상태인 OAuth 통합에 대해 재인증 플로우를 트리거합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkWrappedResponse(OAuthBeginResultDto, {
-    description: '재인증 URL 및 state 토큰',
-  })
+  @ApiOkWrappedOneOfResponse(
+    [OAuthBeginPopupResultDto, OAuthBeginCafe24PendingResultDto],
+    {
+      description:
+        '일반 흐름은 { authUrl, state }, Cafe24 Private 흐름은 { mode, integrationId, appUrl, callbackUrl }.',
+    },
+  )
   @ApiBadRequestResponse({ description: 'OAuth 기반 통합이 아님' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 통합을 찾을 수 없음' })
@@ -380,9 +390,13 @@ export class IntegrationsController {
       '기존 OAuth 통합에 추가 스코프를 요청합니다. provider가 incremental auth를 지원해야 합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkWrappedResponse(OAuthBeginResultDto, {
-    description: '스코프 추가 인증 URL',
-  })
+  @ApiOkWrappedOneOfResponse(
+    [OAuthBeginPopupResultDto, OAuthBeginCafe24PendingResultDto],
+    {
+      description:
+        '일반 흐름은 { authUrl, state }, Cafe24 Private 흐름은 { mode, integrationId, appUrl, callbackUrl, scopesAdded }.',
+    },
+  )
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 incremental auth 미지원',
   })

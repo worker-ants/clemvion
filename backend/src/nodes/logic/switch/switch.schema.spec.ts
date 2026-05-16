@@ -271,11 +271,9 @@ describe('Switch node schema', () => {
   });
 
   describe('evaluateMetadataBlockingErrors integration (switch)', () => {
-    it('emits both Korean warnings on a freshly-created node', () => {
+    it('emits both warnings on a freshly-created node', () => {
       const errors = evaluateMetadataBlockingErrors(switchNodeMetadata, {});
-      expect(errors).toContain(
-        'In Value mode, Switch Value must be entered.',
-      );
+      expect(errors).toContain('In Value mode, Switch Value must be entered.');
       expect(errors).toContain('At least one case must be added.');
     });
 

@@ -166,7 +166,7 @@ export const variableModificationNodeMetadata: NodeComponentMetadata = {
     {
       id: 'variable_modification:first-variable-empty',
       when: 'length(modifications) > 0 && !modifications.0.variable',
-      message: 'First modification\'s target variable must be selected.',
+      message: "First modification's target variable must be selected.",
     },
   ],
   validateConfig: validateVariableModificationConfig,
