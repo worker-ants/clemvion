@@ -983,7 +983,10 @@ export class IntegrationsService {
     if (entity.serviceType !== 'cafe24') return null;
     const appType = entity.credentials?.app_type;
     if (appType !== 'private') return null;
-    if (typeof entity.installToken !== 'string' || entity.installToken.length === 0) {
+    if (
+      typeof entity.installToken !== 'string' ||
+      entity.installToken.length === 0
+    ) {
       return null;
     }
     const appBaseUrl = (process.env.APP_URL || 'http://localhost:3011').replace(
