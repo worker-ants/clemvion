@@ -476,15 +476,21 @@ describe('IntegrationExpiryScannerService.enqueueCafe24BackgroundRefresh', () =>
       }),
     );
     const findCall = integrationRepo.find.mock.calls[0][0] as {
-      where: { lastRotatedAt: { value: Date } };
+      where: { lastRotatedAt: unknown };
     };
     expect(findCall.where.lastRotatedAt).toBeDefined();
-    // typeorm LessThan wraps the value — _value or _useParameter property
-    const cutoffArg = findCall.where.lastRotatedAt as {
-      _value?: Date;
-      value?: Date;
+    // TypeORM Or(LessThan(cutoff), IsNull()) — Or FindOperator 의 내부
+    // shape 에서 LessThan 분기의 cutoff 값을 추출.
+    const orOp = findCall.where.lastRotatedAt as {
+      type?: string;
+      _value?: Array<{ type?: string; _value?: Date }>;
+      value?: Array<{ type?: string; value?: Date }>;
     };
-    const actualCutoff = cutoffArg._value ?? cutoffArg.value;
+    const inner = orOp._value ?? orOp.value ?? [];
+    const lessThan = inner.find(
+      (op) => (op as { type?: string }).type === 'lessThan',
+    ) as { _value?: Date; value?: Date } | undefined;
+    const actualCutoff = lessThan?._value ?? lessThan?.value;
     expect(actualCutoff?.getTime()).toBe(expectedCutoff.getTime());
 
     // 각 통합이 jobId=integrationId 로 enqueue
@@ -509,6 +515,52 @@ describe('IntegrationExpiryScannerService.enqueueCafe24BackgroundRefresh', () =>
     const count = await scanner.enqueueCafe24BackgroundRefresh(new Date());
     expect(count).toBe(0);
     expect(cafe24RefreshQueue.add).not.toHaveBeenCalled();
+  });
+
+  // 회귀 — TypeORM `Or(LessThan(cutoff), IsNull())` 가 `lastRotatedAt IS NULL`
+  // 통합도 enqueue 대상에 포함하는지 검증. `integrations.service.ts` 의
+  // create() 가 `lastRotatedAt = new Date()` 로 명시 초기화하지만 V045 이전
+  // legacy row 또는 다른 ETL 진입점이 NULL 로 저장하더라도 background
+  // refresh 가 누락하지 않아야 한다. 본 테스트는 production 코드의 `where`
+  // 절이 IsNull 분기를 명시 포함하는지를 fixture 형태로 고정.
+  it('includes lastRotatedAt=NULL integrations (Or-IsNull belt-and-suspenders)', async () => {
+    const { scanner, integrationRepo } = makeScanner();
+    await scanner.enqueueCafe24BackgroundRefresh(new Date());
+    const findCall = integrationRepo.find.mock.calls[0][0] as {
+      where: { lastRotatedAt: { _value?: unknown; type?: string } };
+    };
+    // TypeORM 의 Or(...) 는 FindOperator 로 직렬화되므로 정확한 내부 shape
+    // 보다 type 이름 + value 의 존재를 부드럽게 검증.
+    const op = findCall.where.lastRotatedAt as unknown as {
+      type?: string;
+    };
+    expect(op).toBeDefined();
+    // Or operator 면 type='or', LessThan(cutoff) 단독이면 type='lessThan'.
+    // IsNull 분기 누락 회귀 시 이 expect 가 실패한다.
+    expect(op.type).toBe('or');
+  });
+
+  // 회귀 — TypeORM where 절이 status='connected' 필터를 가져 error/expired/
+  // pending_install 통합은 enqueue 되지 않음을 명시. background 경로가
+  // 사용자 reauthorize 의도를 우회하지 않게 보호.
+  it('excludes non-connected integrations via where clause filter', async () => {
+    const { scanner, integrationRepo } = makeScanner();
+    await scanner.enqueueCafe24BackgroundRefresh(new Date());
+    const findCall = integrationRepo.find.mock.calls[0][0] as {
+      where: { status: string };
+    };
+    expect(findCall.where.status).toBe('connected');
+  });
+
+  // 회귀 — serviceType='cafe24' 필터. 다른 provider 통합이 cutoff 를
+  // 만족해도 enqueue 되지 않아야 한다.
+  it('limits scan to serviceType=cafe24 only', async () => {
+    const { scanner, integrationRepo } = makeScanner();
+    await scanner.enqueueCafe24BackgroundRefresh(new Date());
+    const findCall = integrationRepo.find.mock.calls[0][0] as {
+      where: { serviceType: string };
+    };
+    expect(findCall.where.serviceType).toBe('cafe24');
   });
 
   it('survives partial enqueue failures — counts only successful', async () => {

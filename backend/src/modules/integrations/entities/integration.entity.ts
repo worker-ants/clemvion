@@ -116,6 +116,21 @@ export class Integration {
   })
   lastError: Record<string, unknown> | null;
 
+  /**
+   * 연속 transport 실패 카운터. spec §6 "connected → error(network) | 노드
+   * 실행 중 커넥션 실패 3회 연속" 상태 전이의 구현 기반. Cafe24ApiClient 가
+   * 각 호출의 fetch 실패 시 증가시키고, 성공 시 0 으로 리셋한다. 3 도달
+   * 시점에 markStatus('error', 'network') 호출 + 카운터 리셋.
+   *
+   * spec/2-navigation/4-integration.md §6 / REQ-C2 (2026-05-16).
+   */
+  @Column({
+    name: 'consecutive_network_failures',
+    type: 'int',
+    default: 0,
+  })
+  consecutiveNetworkFailures: number;
+
   @Column({ name: 'created_by' })
   createdBy: string;
 

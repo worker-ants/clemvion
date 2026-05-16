@@ -11,6 +11,7 @@ import {
   Cafe24RefreshJobData,
   REFRESH_JOB_WAIT_TIMEOUT_MS,
 } from '../../../modules/integrations/cafe24-token-refresh.constants.js';
+import { sanitizeLastErrorMessage } from '../../../modules/integrations/integration-oauth.service.js';
 
 /**
  * Optional DI tokens for swapping the network / sleep primitives in tests.
@@ -370,10 +371,24 @@ export class Cafe24ApiClient {
       await job.waitUntilFinished(events, REFRESH_JOB_WAIT_TIMEOUT_MS);
     } catch (err) {
       // waitUntilFinished resolves on completion and rejects on failure or
-      // timeout. Re-fetch the integration to surface the actual auth state
-      // — if the worker called markAuthFailed, the row already reflects it
-      // and we throw the canonical error. If it was a timeout/other error,
-      // bubble up as a transport-level failure.
+      // timeout. **Critical race**: in a multi-pod cluster the worker can
+      // complete the refresh on Pod B while Pod A's `waitUntilFinished` is
+      // still pending — if QueueEvents misses the `completed` event (Redis
+      // hiccup, brief network blip) Pod A times out **even though the
+      // refresh was successful and the DB row carries a fresh token**.
+      //
+      // Re-fetch the integration and consult the DB state directly:
+      // 1. `status='error', statusReason='auth_failed'` — worker called
+      //    markAuthFailed (refresh_token invalid). Surface canonical error.
+      // 2. `tokenExpiresAt > now + REFRESH_WINDOW_MS` — token IS fresh,
+      //    worker succeeded but the event was lost. Treat as success,
+      //    fall through to caller mutation below.
+      // 3. Otherwise — genuine transport failure. Throw.
+      //
+      // Without this fall-through, the caller's stale `integration`
+      // reference is used in any retry → old access_token → 401 →
+      // `markAuthFailed` → the integration the worker just refreshed
+      // gets demoted to `error(auth_failed)` (CONC-1).
       const fresh = await this.integrationRepository.findOne({
         where: { id: integration.id },
       });
@@ -383,11 +398,26 @@ export class Cafe24ApiClient {
           integration.id;
         throw new Cafe24AuthFailedError(401, mallId, fresh.lastError);
       }
-      throw new Cafe24TransportFailedError(err);
+      const freshExpiry = fresh ? resolveTokenExpiry(fresh) : null;
+      if (
+        !fresh ||
+        fresh.status !== 'connected' ||
+        freshExpiry === null ||
+        freshExpiry - Date.now() <= REFRESH_WINDOW_MS
+      ) {
+        throw new Cafe24TransportFailedError(err);
+      }
+      // Worker actually succeeded — the timeout was spurious. Log a
+      // debug breadcrumb and fall through (the post-try block below will
+      // re-fetch and mutate the caller).
+      this.logger.debug(
+        `Cafe24 refresh worker succeeded for ${integration.id} but waitUntilFinished timed out — recovered via DB re-read`,
+      );
     }
 
-    // Worker succeeded. Re-fetch from DB and mutate the caller's reference
-    // so the next stage of call() sees the refreshed bearer.
+    // Worker succeeded (either via QueueEvents or via the fall-through
+    // above). Re-fetch from DB and mutate the caller's reference so the
+    // next stage of call() sees the refreshed bearer.
     const fresh = await this.integrationRepository.findOne({
       where: { id: integration.id },
     });
@@ -432,15 +462,26 @@ export class Cafe24ApiClient {
         body: form.toString(),
       });
     } catch (err) {
+      // REQ-C2: refresh 자체의 transport 실패도 connected 의 연속 실패에
+      // 포함시킨다. spec §6 의 카운터는 "노드 실행 중 커넥션 실패" 를
+      // 정의하는데, refresh 는 노드 실행의 사전 단계이므로 동일 카운터에
+      // 합산하는 것이 일관적.
+      await this.recordNetworkFailure(integration, err);
       throw new Cafe24TransportFailedError(err);
     }
 
     if (response.status === 401 || response.status === 403) {
       const body = await safeReadJson(response);
-      const bodyForLog =
+      // SEC-C2: Cafe24 가 응답에 client_secret 의 일부나 token 조각을
+      // echo 하는 비정상 케이스 (운영 보고 2026-05-16) 를 대비해 운영
+      // 로그에 그대로 평문 기록하지 않는다. `sanitizeLastErrorMessage`
+      // 의 패턴이 적용되어 `client_secret=...`, `Bearer ...`,
+      // `Authorization: ...` 등은 `***` 로 마스킹.
+      const bodyForLog = sanitizeLastErrorMessage(
         typeof body === 'string'
           ? body.slice(0, 500)
-          : JSON.stringify(body).slice(0, 500);
+          : JSON.stringify(body).slice(0, 500),
+      );
       this.logger.warn(
         `Cafe24 token refresh ${response.status} mall=${creds.mall_id}: ${bodyForLog}`,
       );
@@ -449,8 +490,11 @@ export class Cafe24ApiClient {
     }
     if (!response.ok) {
       const body = await safeReadJson(response);
+      // SEC-C2: 옛 코드는 raw body 를 그대로 Error message 에 넣어 throw
+      // 했고, 이 message 가 `markIntegrationCallbackError` 의 lastError 에
+      // 잔류하는 경로가 있었다. 직접 sanitize 후 message 에 포함.
       throw new Error(
-        `Cafe24 token refresh failed (${response.status}): ${JSON.stringify(body)}`,
+        `Cafe24 token refresh failed (${response.status}): ${sanitizeLastErrorMessage(JSON.stringify(body))}`,
       );
     }
 
@@ -519,22 +563,130 @@ export class Cafe24ApiClient {
     return { clientId: id, clientSecret: secret };
   }
 
-  private async markAuthFailed(integration: Integration): Promise<void> {
+  private async markAuthFailed(
+    integration: Integration,
+    reason: 'auth_failed' | 'insufficient_scope' = 'auth_failed',
+  ): Promise<void> {
     try {
       await this.integrationRepository.update(integration.id, {
         status: 'error',
-        statusReason: 'auth_failed',
+        statusReason: reason,
         lastError: {
           code: 'CAFE24_AUTH_FAILED',
-          message: 'Cafe24 returned 401/403',
+          message:
+            reason === 'insufficient_scope'
+              ? 'Cafe24 returned 403 (insufficient scope)'
+              : 'Cafe24 returned 401/403',
           at: new Date().toISOString(),
         },
       });
       integration.status = 'error';
-      integration.statusReason = 'auth_failed';
+      integration.statusReason = reason;
     } catch (err) {
       this.logger.warn(
-        `Failed to mark Integration ${integration.id} as auth_failed: ${extractErrorMessage(err)}`,
+        `Failed to mark Integration ${integration.id} as ${reason}: ${extractErrorMessage(err)}`,
+      );
+    }
+  }
+
+  /**
+   * REQ-C3 — spec §6 의 `connected → error(insufficient_scope) | 403 +
+   * 서비스별 missing_scope 시그널` 전이. Cafe24 가 403 응답 body 의
+   * `error_code` / `error.code` / `error_message` 에 다음 시그널을 echo
+   * 하는 경우 insufficient_scope 로 분기.
+   *
+   * 우리가 토큰 발급 단계에서 부여받지 못한 scope 를 사용하는 노드를
+   * 호출하면 Cafe24 가 `403 INSUFFICIENT_SCOPE` 또는 유사 메시지를
+   * 반환. 이때 사용자가 reauthorize 만 시도하면 같은 401/403 반복.
+   * Spec 은 별도 statusReason 으로 UI 가 "권한 부족" 안내를 띄울 수
+   * 있게 한다.
+   */
+  private detectInsufficientScope(errBody: unknown): boolean {
+    if (errBody === null || errBody === undefined) return false;
+    if (typeof errBody === 'string') {
+      return /\binsufficient[_ ]?scope\b|\bmissing[_ ]?scope\b|\bINVALID[_ ]?SCOPE\b/i.test(
+        errBody,
+      );
+    }
+    if (typeof errBody !== 'object') return false;
+    const b = errBody as Record<string, unknown>;
+    const candidates: unknown[] = [
+      b.error_code,
+      b.error_message,
+      b.error_description,
+      b.message,
+    ];
+    if (typeof b.error === 'object' && b.error !== null) {
+      const e = b.error as Record<string, unknown>;
+      candidates.push(e.code, e.message, e.description);
+    } else if (typeof b.error === 'string') {
+      candidates.push(b.error);
+    }
+    for (const c of candidates) {
+      if (typeof c !== 'string') continue;
+      if (
+        /\binsufficient[_ ]?scope\b|\bmissing[_ ]?scope\b|\bINVALID[_ ]?SCOPE\b/i.test(
+          c,
+        )
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * REQ-C2 — spec §6 의 `connected → error(network) | 3회 연속 실패` 전이.
+   * fetch 가 transport 레벨에서 실패할 때 카운터를 +1 한다. 3 도달 시점에
+   * status 를 `error(network)` 로 전이하고 카운터를 리셋. 카운터 리셋은
+   * `resetNetworkFailures` 가 담당하며 다음 정상 응답 시 호출된다.
+   */
+  private async recordNetworkFailure(
+    integration: Integration,
+    cause: unknown,
+  ): Promise<void> {
+    try {
+      const next = (integration.consecutiveNetworkFailures ?? 0) + 1;
+      if (next >= 3) {
+        await this.integrationRepository.update(integration.id, {
+          status: 'error',
+          statusReason: 'network',
+          consecutiveNetworkFailures: 0,
+          lastError: {
+            code: 'CAFE24_TRANSPORT_FAILED',
+            message: extractErrorMessage(cause).slice(0, 200),
+            at: new Date().toISOString(),
+          },
+        });
+        integration.status = 'error';
+        integration.statusReason = 'network';
+        integration.consecutiveNetworkFailures = 0;
+        this.logger.warn(
+          `Cafe24 integration ${integration.id} demoted to error(network) — 3 consecutive transport failures (spec §6)`,
+        );
+      } else {
+        await this.integrationRepository.update(integration.id, {
+          consecutiveNetworkFailures: next,
+        });
+        integration.consecutiveNetworkFailures = next;
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to record network failure for ${integration.id}: ${extractErrorMessage(err)}`,
+      );
+    }
+  }
+
+  private async resetNetworkFailures(integration: Integration): Promise<void> {
+    if ((integration.consecutiveNetworkFailures ?? 0) === 0) return;
+    try {
+      await this.integrationRepository.update(integration.id, {
+        consecutiveNetworkFailures: 0,
+      });
+      integration.consecutiveNetworkFailures = 0;
+    } catch (err) {
+      this.logger.warn(
+        `Failed to reset network failures counter for ${integration.id}: ${extractErrorMessage(err)}`,
       );
     }
   }
@@ -572,6 +724,11 @@ export class Cafe24ApiClient {
         signal: controller.signal,
       });
     } catch (err) {
+      // REQ-C2: 연속 transport 실패 카운터 +1. 3 도달 시 markStatus
+      // `error(network)` 로 전이 (spec §6). recordNetworkFailure 내부에서
+      // 실패하더라도 본 throw 는 그대로 진행 — caller 가 transport 오류로
+      // 처리. 카운터 갱신 실패는 best-effort.
+      await this.recordNetworkFailure(integration, err);
       throw new Cafe24TransportFailedError(err);
     } finally {
       clearTimeout(timer);
@@ -579,6 +736,12 @@ export class Cafe24ApiClient {
 
     const respHeaders = readHeaderMap(response.headers);
     const callMeta = parseRateLimitHeaders(respHeaders);
+
+    // REQ-C2: HTTP 응답이 정상적으로 돌아왔다 = transport 레벨은 성공.
+    // 다음 단계의 status 분기와 무관하게 카운터 리셋. 401/403 인 경우는
+    // markAuthFailed 가 별도로 status='error(auth_failed)' 로 전이하므로
+    // 카운터 리셋은 무해 (그 행은 이미 connected 가 아님).
+    await this.resetNetworkFailures(integration);
 
     // Rate-limited — retry per spec policy with random jitter so multiple
     // concurrent callers sharing the same Integration don't all wake up
@@ -619,15 +782,24 @@ export class Cafe24ApiClient {
       // log there is no way to tell APP_NOT_INSTALLED from EXPIRED_TOKEN
       // from INSUFFICIENT_SCOPE — every cause surfaces to the user as
       // "auth failed (403)". Trimmed to 500 chars so an unexpectedly large
-      // body cannot blow up the log line.
-      const bodyForLog =
+      // body cannot blow up the log line. SEC-C2: 보호 차원으로
+      // `sanitizeLastErrorMessage` 적용 — Cafe24 가 echo 하는 비정상
+      // 시크릿 조각을 운영 로그에 평문 기록하지 않는다.
+      const bodyForLog = sanitizeLastErrorMessage(
         typeof errBody === 'string'
           ? errBody.slice(0, 500)
-          : JSON.stringify(errBody).slice(0, 500);
+          : JSON.stringify(errBody).slice(0, 500),
+      );
       this.logger.warn(
         `Cafe24 API ${response.status} mall=${mallId} ${opts.method} ${opts.path}: ${bodyForLog}`,
       );
-      await this.markAuthFailed(integration);
+      // REQ-C3: 403 + scope 시그널 시 status_reason='insufficient_scope'
+      // 로 분기. 401 은 항상 auth_failed (토큰 자체 문제).
+      const reason: 'auth_failed' | 'insufficient_scope' =
+        response.status === 403 && this.detectInsufficientScope(errBody)
+          ? 'insufficient_scope'
+          : 'auth_failed';
+      await this.markAuthFailed(integration, reason);
       throw new Cafe24AuthFailedError(response.status, mallId, errBody);
     }
 
