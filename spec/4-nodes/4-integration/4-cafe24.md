@@ -54,9 +54,10 @@
 - Integration 드롭다운: `IntegrationSelector` 의 `serviceTypes=['cafe24']` 필터 (Cafe24 만 표시).
 - Resource 드롭다운: 18 카테고리. 메타데이터에 정의된 라벨 표시 (예: `product` → "Product (상품)").
 - Operation 드롭다운: Resource 변경 시 동적 갱신. 메타데이터의 (resource, operation) → label 매핑.
-- Fields: Operation 선택 시 메타데이터의 입력 스키마(JSON Schema 호환 형식) 로 동적 폼 렌더. Required / Optional 두 그룹으로 분리.
-  - **편집 버퍼**: UI 는 내부적으로 `Array<{key, value}>` 편집 버퍼를 React state 로 관리하고, `onChange` 시 빈 key 행을 제거한 뒤 `Record<string, unknown>` 로 변환해 `config.fields` 에 저장한다. 빈 key 행을 즉시 버퍼에서 떨어뜨리지 않도록 해 "추가" 버튼이 행을 즉시 보여준다 (배경: §9.9).
-- Pagination: operation 메타데이터에 `paginated: true` 가 있을 때만 표시.
+- Fields: Operation 선택 시 메타데이터의 입력 스키마(JSON Schema 호환 형식) 로 동적 폼 렌더. Required / Optional 두 그룹으로 분리. 각 필드는 `ExpressionInput` 베이스 위젯을 사용하여 표현식(`{{ }}`) 입력을 모든 칸에서 허용하며, `enum` / `boolean` / `default` 정보는 hint 텍스트로 표면화한다. 키는 메타데이터로 고정되므로 사용자가 임의 key 를 추가하는 경로는 없다 (배경: §9.9).
+  - **호환 키 보존**: Operation 변경 시 새 op 의 `fields[].name` 과 교집합인 키만 유지하고 무관 키는 drop. 예) `product_get` (shop_no 만) → `product_list` (shop_no + display + ...) 전환 시 `shop_no` 값은 유지된다.
+- Operation 후보 표시: 카탈로그 (`spec/conventions/cafe24-api-catalog/`) 의 `status: planned` 행도 dropdown 에 노출하되 disabled + "(지원 예정)" 접미사로 구분. resource 옆에 "지원 N개 · 추후 지원 M개" coverage hint.
+- Pagination: operation 메타데이터에 `paginated: true` 가 있을 때만 표시. supported 가 아닌 operation (planned / unknown) 선택 시 fields/pagination 미렌더.
 
 ## 3. 포트
 
@@ -471,15 +472,17 @@ function verifyHmac(rawQuery: string, clientSecret: string, receivedHmac: string
 |------|-----|------|
 | `RECOVERY_CANDIDATE_LIMIT` | `5` (코드 상수, 환경변수 아님) | install_token mismatch 회복 흐름의 HMAC trial 상한. workspace 횡단으로 같은 mall_id 가 5건 초과면 회복 포기 (DoS amplification 차단). 정상 운영에서 mall_id 당 cafe24 row 는 보통 1~2건. |
 
-### 9.9 Fields 편집 UI 의 내부 버퍼 분리
+### 9.9 Fields 편집 UI — 메타데이터 기반 typed 동적 폼
 
 대안:
-- (A) `config.fields` 를 그대로 컴포넌트 state 의 원천으로 사용 — 빈 key 행이 object 변환 시 즉시 제거되어 "추가" 버튼이 행을 보여주지 못한다 (PR #62 가 해결한 버그).
-- (B, 채택) **내부 편집 버퍼** — `Array<{key, value}>` 형태로 React state 에 유지. `onChange` 시 빈 key 행을 제거하고 `Record<string, unknown>` 로 변환해 `config.fields` 에 propagate. 외부에서 `config.fields` 가 다른 reference 로 바뀌면 (undo/redo, 프로그래밍적 reset) 다음 렌더에서 버퍼를 재동기화한다.
+- (A) **자유 key/value 행 입력** (옛 KeyValueEditor 패턴, PR #62) — 사용자가 키 이름을 외워서 입력. 빈 key 행을 위한 내부 편집 버퍼(`Array<{key, value}>`) 분리가 필요했음. 메타데이터가 frontend 에 없으니 어느 키가 필수/선택인지 UI 가 안내하지 못했다.
+- (B, 채택) **operation 메타데이터 기반 동적 폼** (PR #88, 2026-05-16) — Phase 2 의 `extras.operationsByResource` 페이로드로 (resource, operation) 별 `fields[]` 가 frontend 에 도달한다. UI 는 메타데이터에 명시된 키만 행으로 렌더하고 required / optional 두 그룹으로 분리. 사용자가 임의 key 를 추가하는 경로 자체가 없어 (A) 의 빈 key 행 / 편집 버퍼 문제는 구조적으로 소멸. 모든 값 입력칸은 `ExpressionInput` 베이스로 표현식 (`{{ }}`) 입력을 유지한다.
 
-**적용 범위**: 본 결정은 **object-shaped backend contract** (`config.X: Record<string, unknown>`) 를 가진 통합 노드에 한정한다. `http_request` 의 `headers` / `queryParams` 처럼 `KeyValue[]` 형태로 직렬화하는 노드는 빈 key 행도 그대로 echo 되므로 본 버퍼 분리 패턴 적용 대상 외다. backend 가 받는 직렬화 형식 (`Record<string, unknown>`) 은 불변이다 (§1 config 스키마 — 변경 시 본 결정 재검토 필요).
+**적용 범위 변경 (2026-05-16)**: 옛 결정 (A → B 분리 버퍼) 은 cafe24 노드가 KeyValueEditor 를 사용하던 시기에 한정된 문제였다. Phase 3 의 동적 폼 채택으로 cafe24 노드에서 KeyValueEditor 의존을 완전히 제거했고, 다른 통합 노드 (`http_request` 의 `headers` / `queryParams`) 는 처음부터 `KeyValue[]` 형태로 직렬화하여 본 결정의 대상이 아니었다 (빈 key 행도 그대로 echo). 따라서 옛 "object-shaped backend contract + KeyValueEditor UI" 패턴은 본 프로젝트에서 더 이상 사용되지 않는다. 향후 같은 시나리오 (메타데이터 부재 + object 직렬화 + 사용자 자유 key 입력) 가 다시 필요해질 경우 본 절의 (A) 안을 재검토할 수 있다.
 
-> 출처: consistency-check 세션 `review/consistency/2026/05/16/09_03_04/SUMMARY.md` (INFO 1·2 — cross_spec + rationale_continuity 동일 위배 통합).
+**호환 키 보존 (Phase 3 추가 결정)**: Operation 변경 시 fields 를 전부 reset 하면 같은 키를 다음 operation 도 받는 경우 사용자가 다시 입력해야 함. 새 op 의 `fields[].name` 과 현재 `config.fields` 의 키 집합의 **교집합** 만 유지해 ("product_get → product_list" 같은 점진 전환에서 `shop_no` 등 공통 키 보존) 무관 키는 drop. Resource 변경 시는 의미 단절이 너무 커 fields 전체 reset.
+
+> 출처: consistency-check 세션 `review/consistency/2026/05/16/09_03_04/SUMMARY.md` (옛 A→B 분리 결정), `review/consistency/2026/05/16/13_09_46/SUMMARY.md` (B 채택 + Phase 3 호환 키 보존 결정).
 
 ## 10. CHANGELOG
 
@@ -494,3 +497,4 @@ function verifyHmac(rawQuery: string, clientSecret: string, receivedHmac: string
 | 2026-05-16 | spec drift 정리 (PR #56/#67 머지 후속). §4 step 6 — refresh 실패 status 전이를 `expired` 에서 `error(auth_failed)` / `error(network)` 로 정정 (REQ HIGH-2). §9.6 — 옛 "Redis 분산 mutex 별도 spec" 미결을 BullMQ `cafe24-token-refresh` 큐 (jobId dedup) 도입으로 해소 (SPEC-3). §9.8 — HMAC 검증 코드를 `formUrlEncode` (Java URLEncoder 호환) 로 정정 (PR #67 SEC H-1), `tryRecoverByMallId` 회복 흐름 + `RECOVERY_CANDIDATE_LIMIT=5` ENV 표 추가 (SPEC-1, PR #67 SEC H-2). 자세한 결정 배경은 [Spec 통합 화면 ## Rationale](../../2-navigation/4-integration.md#rationale) 의 신규 항목 4건 참조. consistency-check 세션: `review/consistency/2026/05/16/11_11_07/` (Critical 0). |
 | 2026-05-16 (후속) | 본문 정리 (코드/계약 무변경) — §2 설정 UI 에 fields 편집 버퍼 분리 원칙 한 줄 추가, §9 Rationale 에 §9.9 (Fields 편집 UI 의 내부 버퍼 분리) 신설 (PR #62 후속). §9.7 OAuth scope wire format 본문 위치 정정 (편집 오류 수정 — §9.8 뒤에 orphan 으로 있던 본문을 §9.7 헤더 바로 뒤로 이동, 내용 변경 없음). 출처: `review/consistency/2026/05/16/09_03_04/SUMMARY.md` INFO 1·2. §5 Case sparse 번호 (5.1·5.3·5.8) 는 4 integration 노드 공유 컨벤션으로 확인되어 변경하지 않음 (consistency 세션 `review/consistency/2026/05/16/11_36_49/`). |
 | 2026-05-16 (catalog) | §9.3 Resource/Operation 메타데이터 위치 갱신 — Cafe24 Admin API 전수 카탈로그 [`spec/conventions/cafe24-api-catalog/`](../../conventions/cafe24-api-catalog/_overview.md) 신설(18 resource × supported 53 + planned ~300). backend `catalog-sync.spec.ts` 양방향 동기 테스트 도입. 노드 UX 개편 plan: `plan/in-progress/cafe24-node-resource-operation-ux.md`. |
+| 2026-05-16 (ux-cleanup) | §2 / §9.9 본문 정리 — Phase 3 (PR #88, Cafe24Config 재작성) 가 옛 KeyValueEditor + 편집 버퍼 패턴을 완전히 폐기했으므로 §2 의 "편집 버퍼" 줄을 제거하고 메타데이터 기반 typed 동적 폼 + 호환 키 보존 동작으로 교체. §9.9 도 (A) 옛 자유 key/value 입력 / (B) 메타데이터 기반 동적 폼 두 안의 비교로 재작성하여 채택안을 (B) 로 명시. 옛 §9.9 의 "object-shaped contract + 편집 버퍼" 패턴은 본 프로젝트에서 더 이상 사용되지 않음을 명시. 호환 키 보존 결정 추가. consistency-check 세션: `review/consistency/2026/05/16/13_29_47/`. |
