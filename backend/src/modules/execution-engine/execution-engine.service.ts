@@ -418,6 +418,32 @@ export class ExecutionEngineService
    */
   private static readonly MAX_RECURSION_DEPTH = 10;
 
+  /**
+   * Sub-workflow 진입점에서 호출자-피호출자 workspace 격리를 강제한다 (W-6).
+   *
+   * 호출자 workspaceId 가 비어 있으면(옛 진입 경로, 트리거에서 직접 실행 등)
+   * 진단 로그만 남기고 통과 — 점진적 도입을 위함. 향후 모든 호출자가
+   * `parentWorkspaceId` 를 전달하도록 정착되면 unknown 진입을 fail-closed 로
+   * 전환한다.
+   */
+  private assertSameWorkspace(
+    targetWorkspaceId: string,
+    callerWorkspaceId: string | undefined,
+  ): void {
+    if (!callerWorkspaceId) {
+      // 진입점 누락 — 트리거 / 옛 호출자. 로그만 남기고 통과.
+      this.logger.warn(
+        `[workspace-isolation] Sub-workflow invoked without parentWorkspaceId (target=${targetWorkspaceId}). Update caller to pass workspace context.`,
+      );
+      return;
+    }
+    if (targetWorkspaceId !== callerWorkspaceId) {
+      throw new Error(
+        `WORKFLOW_FORBIDDEN_WORKSPACE: Sub-workflow ${targetWorkspaceId} is not accessible from workspace ${callerWorkspaceId}`,
+      );
+    }
+  }
+
   constructor(
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
@@ -714,6 +740,19 @@ export class ExecutionEngineService
     this.logger.log(
       `[executeInline] Starting inline execution of workflow ${workflowId} within execution ${executionId}`,
     );
+
+    // Workspace 격리: target workflow 가 호출자와 다른 workspace 면 차단 (W-6).
+    // context.variables.__workspaceId 는 runExecution 이 부모 workflow.workspaceId
+    // 로 주입한다 (line 1238 참고).
+    const callerWorkspaceId =
+      (context.variables?.__workspaceId as string | undefined) || undefined;
+    const targetWorkflow = await this.workflowRepository.findOneBy({
+      id: workflowId,
+    });
+    if (!targetWorkflow) {
+      throw new Error(`Workflow not found: ${workflowId}`);
+    }
+    this.assertSameWorkspace(targetWorkflow.workspaceId, callerWorkspaceId);
 
     // Load target workflow's nodes and edges
     const subNodes = await this.nodeRepository.findBy({ workflowId });
@@ -1052,6 +1091,7 @@ export class ExecutionEngineService
     if (!workflow) {
       throw new Error(`Workflow not found: ${workflowId}`);
     }
+    this.assertSameWorkspace(workflow.workspaceId, options?.parentWorkspaceId);
 
     const execution = this.executionRepository.create({
       workflowId,
@@ -1158,6 +1198,7 @@ export class ExecutionEngineService
     if (!workflow) {
       throw new Error(`Workflow not found: ${workflowId}`);
     }
+    this.assertSameWorkspace(workflow.workspaceId, options?.parentWorkspaceId);
 
     const execution = this.executionRepository.create({
       workflowId,

@@ -21,6 +21,7 @@ import {
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
+import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
 
 interface DbCredentials {
@@ -135,6 +136,13 @@ export class DatabaseQueryHandler
         'INTEGRATION_INCOMPLETE',
         `Database integration is missing fields: ${missing.join(', ')}`,
       );
+    }
+
+    // SSRF/DNS-rebinding guard: 사용자 제공 DB host 가 loopback/private IP 로
+    // 해석되면 차단. 정상 사용 사례 (private VPC 안 RDS) 는 환경변수
+    // ALLOW_PRIVATE_HOST_TARGETS=true 로 의식적 opt-in (W-5).
+    if (creds.host) {
+      await assertSafeOutboundHostResolved(creds.host);
     }
 
     const driver = creds.driver ?? 'postgres';

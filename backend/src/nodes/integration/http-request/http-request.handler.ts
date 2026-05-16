@@ -13,7 +13,10 @@ import {
 import { truncateBodyForOutput } from '../../core/truncate-output.util.js';
 import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
-import { assertSafeOutboundUrl } from './http-safety.js';
+import {
+  assertSafeOutboundHostResolved,
+  assertSafeOutboundUrl,
+} from './http-safety.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
 
 /**
@@ -262,9 +265,15 @@ export class HttpRequestHandler
     // SSRF guard for Integration-backed calls only. Un-authenticated HTTP
     // requests (authentication=none / custom) may legitimately target
     // internal services in some deployments, so we don't block those here.
+    //
+    // Two-layer 검증: 호스트 리터럴 (IP 직접 지정 차단) → DNS resolve 후 IP
+    // 재검사 (DNS rebinding 차단). 이전엔 hostname literal 검사만 했기 때문에
+    // 공격자가 통제하는 DNS 가 공개 hostname 을 내부 IP 로 reso 시키는 시나리오에
+    // 무방어였다 (W-4).
     if (authentication === 'integration') {
       try {
-        assertSafeOutboundUrl(url);
+        const parsed = assertSafeOutboundUrl(url);
+        await assertSafeOutboundHostResolved(parsed.hostname);
       } catch (err) {
         if (integrationId) {
           await this.logUsage(context, {
@@ -303,7 +312,8 @@ export class HttpRequestHandler
         }
         const location = res.headers.get('location') as string;
         const next = new URL(location, url).toString();
-        assertSafeOutboundUrl(next);
+        const parsedNext = assertSafeOutboundUrl(next);
+        await assertSafeOutboundHostResolved(parsedNext.hostname);
         url = next;
         hops++;
         res = await fetch(url, fetchOptions);
