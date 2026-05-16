@@ -37,7 +37,7 @@ export const backgroundNodeConfigSchema = z
         ui: {
           label: 'Notes',
           widget: 'textarea',
-          hint: '백그라운드에서 수행할 작업의 목적·주의사항을 적어두면 협업할 때 편해요.',
+          hint: "Describe the background task's purpose or caveats — handy for teammates collaborating later.",
         },
       }),
     notifyOnFailure: z
@@ -46,7 +46,7 @@ export const backgroundNodeConfigSchema = z
       .meta({
         ui: {
           label: 'Notify on failure',
-          hint: '백그라운드 본문에서 오류가 발생하면 워크스페이스 Admin에게 인앱 알림을 보내요.',
+          hint: 'Send an in-app notification to workspace admins when the background body errors.',
         },
       }),
     maxDurationMs: z
@@ -56,8 +56,8 @@ export const backgroundNodeConfigSchema = z
       .default(300000)
       .meta({
         ui: {
-          label: 'Max duration (ms)',
-          hint: '본문이 이 시간을 넘기면 강제 종료해요. 0을 입력하면 무제한이에요. 기본 5분(300000).',
+          label: 'Max Duration (ms)',
+          hint: 'Force-stop the body when it exceeds this duration. 0 = unlimited. Default 5 minutes (300000).',
         },
       }),
   })
