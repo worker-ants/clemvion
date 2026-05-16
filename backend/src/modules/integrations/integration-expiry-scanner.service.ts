@@ -20,7 +20,6 @@ import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
 import { User } from '../users/entities/user.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import {
   CAFE24_REFRESH_JOB,
   CAFE24_REFRESH_QUEUE,
@@ -319,6 +318,25 @@ export class IntegrationExpiryScannerService
     }> = [];
     const integrationsToUpdate: Integration[] = [];
 
+    // B-4-2: 옛 패턴은 candidates 루프 안에서 매 integration 마다
+    // userRepository.find 를 호출 → N+1. 모든 candidates 의 recipient 를
+    // 먼저 모은 뒤 단 한 번의 user.find(In(...)) 로 일괄 로딩한다.
+    const recipientsByIntegration = new Map<string, string[]>();
+    const allRecipientIds = new Set<string>();
+    for (const integration of candidates) {
+      const recipients = await this.resolveRecipients(integration);
+      recipientsByIntegration.set(integration.id, recipients);
+      for (const r of recipients) allRecipientIds.add(r);
+    }
+    const allUsers = allRecipientIds.size
+      ? await this.userRepository.find({
+          where: { id: In([...allRecipientIds]) },
+        })
+      : [];
+    const prefsByUser = new Map(
+      allUsers.map((u) => [u.id, u.notificationPreferences ?? {}]),
+    );
+
     for (const integration of candidates) {
       if (!integration.tokenExpiresAt) continue;
       const remainMs = integration.tokenExpiresAt.getTime() - now.getTime();
@@ -338,15 +356,8 @@ export class IntegrationExpiryScannerService
         integrationsToUpdate.push(integration);
       }
 
-      const recipients = await this.resolveRecipients(integration);
+      const recipients = recipientsByIntegration.get(integration.id) ?? [];
       if (recipients.length === 0) continue;
-
-      const users = await this.userRepository.find({
-        where: { id: In(recipients) },
-      });
-      const prefsByUser = new Map(
-        users.map((u) => [u.id, u.notificationPreferences ?? {}]),
-      );
 
       for (const userId of recipients) {
         const prefs = prefsByUser.get(userId) ?? {};
@@ -397,17 +408,17 @@ export class IntegrationExpiryScannerService
     threshold: ExpiryThreshold,
     tokenExpiresAt: Date,
   ): Promise<boolean> {
-    try {
-      await this.dispatchRepository.insert({
-        integrationId,
-        threshold,
-        tokenExpiresAt,
-      });
-      return true;
-    } catch (err) {
-      if (isPostgresUniqueViolation(err)) return false;
-      throw err;
-    }
+    // B-4-5: 옛 try/catch + 23505 catch 패턴을 PostgreSQL `INSERT ON CONFLICT
+    // DO NOTHING` 으로 교체. partial UNIQUE 충돌이 정상 흐름의 일부 (중복
+    // 임계 발사 방지) 이므로 예외 throw + catch 비용을 0 으로 만든다.
+    // identifiers.length 가 0 이면 conflict — claim 실패.
+    const result = await this.dispatchRepository
+      .createQueryBuilder()
+      .insert()
+      .values({ integrationId, threshold, tokenExpiresAt })
+      .orIgnore()
+      .execute();
+    return (result.identifiers ?? []).length > 0;
   }
 
   private async resolveRecipients(integration: Integration): Promise<string[]> {
