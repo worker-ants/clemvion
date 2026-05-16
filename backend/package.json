@@ -13,6 +13,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "cleanup:queue-jobs": "node dist/scripts/cleanup-invalid-queue-jobs.js",
+    "cleanup:queue-jobs:apply": "node dist/scripts/cleanup-invalid-queue-jobs.js --apply --pause-during-sweep",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
