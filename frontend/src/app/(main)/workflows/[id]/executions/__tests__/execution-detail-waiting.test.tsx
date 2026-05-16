@@ -215,10 +215,10 @@ describe("ExecutionDetailPage - waiting interaction", () => {
     });
 
     // ConversationInspector exposes an icon-only End button with a
-    // title="End conversation" attribute.
+    // localized title attribute (ko default in vitest env).
     const endBtn = screen
       .getAllByRole("button")
-      .find((b) => b.getAttribute("title") === "End conversation");
+      .find((b) => b.getAttribute("title") === "대화 종료");
     if (!endBtn) throw new Error("End conversation button not found");
     fireEvent.click(endBtn);
 

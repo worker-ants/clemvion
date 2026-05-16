@@ -705,7 +705,7 @@ describe("ResultDetail", () => {
       );
 
       // SummaryView assistant row 에 chip 노출 + References 탭 버튼 노출.
-      expect(screen.getAllByTitle("View in References tab").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByTitle("참조 탭에서 보기").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("참조")).toBeDefined();
     });
 
@@ -851,7 +851,7 @@ describe("ResultDetail", () => {
       );
 
       // Preview 탭의 SummaryView assistant row 에서 chip ("📚 환불.md") 노출 확인 후 클릭.
-      const chip = screen.getAllByTitle("View in References tab")[0];
+      const chip = screen.getAllByTitle("참조 탭에서 보기")[0];
       expect(chip).toBeDefined();
       fireEvent.click(chip);
 
