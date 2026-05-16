@@ -91,6 +91,33 @@ describe('WebsocketService', () => {
       ).toBe(inner);
     });
 
+    it('동일 객체 reference 재방문 시 sanitize 결과를 WeakMap 캐시로 재사용 (C-4)', () => {
+      // ForEach 가 같은 outer 객체를 N회 emit 하는 시나리오. 두 emit 모두에서
+      // detail/inner 가 원본과 동일 참조를 그대로 통과해야 한다 (변경 없음 → 원본 반환).
+      const inner = { count: 1, label: 'ok' };
+      const outer = { status: 'ok', detail: inner };
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        outer,
+      );
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        outer,
+      );
+      const p1 = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const p2 = gateway.broadcastToChannel.mock.calls[1][2] as Record<
+        string,
+        unknown
+      >;
+      expect(p1.detail).toBe(inner);
+      expect(p2.detail).toBe(inner);
+    });
+
     it('redacts the whole subtree when sanitize depth exceeds MAX_SANITIZE_DEPTH', () => {
       // depth 초과 경로에서는 credential 키 매칭을 더 수행할 수 없으므로
       // 보수적으로 [REDACTED_DEPTH] 로 통째 마스킹 (Review 후속 #4).
