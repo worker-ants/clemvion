@@ -233,7 +233,7 @@ WebSocket 알림 (KB 상세 실시간 갱신)
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `graph_extraction_status` | Enum | pending / processing / completed / error. `vector` 모드 KB 에서는 항상 `pending` 으로 두고 사용하지 않음 |
+| `graph_extraction_status` | Enum | pending / processing / completed / error / failed. `vector` 모드 KB 에서는 항상 `pending` 으로 두고 사용하지 않음. `failed` 는 재시도 소진 후 영구 실패 상태 (§7 / §3.2 의 에러 처리 흐름 참조) |
 
 ### 2.3 Entity (신규)
 

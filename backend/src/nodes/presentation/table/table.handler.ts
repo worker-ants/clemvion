@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   ExecutionContext,
   NodeHandler,
@@ -20,6 +21,7 @@ import { tableNodeMetadata } from './table.schema.js';
 type TableMode = 'static' | 'dynamic';
 
 const EXPRESSION_PATTERN = /\{\{/;
+const logger = new Logger('TableHandler');
 
 interface ColumnConfig {
   field: string;
@@ -261,12 +263,10 @@ export class TableHandler implements NodeHandler {
     try {
       return evaluate(template, ctx);
     } catch (e) {
-      console.error('[TableHandler] safeEvaluate error:', template, e);
-      console.error(
-        '[TableHandler] ctx.$sourceItem:',
-        JSON.stringify(ctx.$sourceItem),
+      logger.error(
+        `safeEvaluate error: template=${template} sourceItem=${JSON.stringify(ctx.$sourceItem)} var=${JSON.stringify(ctx.$var)}`,
+        e instanceof Error ? e.stack : String(e),
       );
-      console.error('[TableHandler] ctx.$var:', JSON.stringify(ctx.$var));
       return null;
     }
   }

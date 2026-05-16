@@ -351,6 +351,7 @@ describe('ExecutionsService', () => {
         where: { executionId: 'eF1' },
         order: { id: 'ASC' },
         select: { nodeId: true },
+        take: 10_000,
       });
     });
 

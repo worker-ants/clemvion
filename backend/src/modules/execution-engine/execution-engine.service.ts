@@ -3634,6 +3634,7 @@ export class ExecutionEngineService
     // infinite loop or stack overflow.
     this.assertNoContainerCycle(containerNode, allNodes);
 
+    const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
     const children = allNodes.filter((n) => n.containerId === containerNode.id);
     const childIds = new Set(children.map((c) => c.id));
 
@@ -3676,7 +3677,7 @@ export class ExecutionEngineService
       if (orphanEmitEdges.length > 0) {
         const sourceLabels = orphanEmitEdges
           .map((e) => {
-            const sourceNode = allNodes.find((n) => n.id === e.sourceNodeId);
+            const sourceNode = nodeMap.get(e.sourceNodeId);
             return sourceNode?.label ?? sourceNode?.type ?? e.sourceNodeId;
           })
           .join(', ');
@@ -3732,7 +3733,7 @@ export class ExecutionEngineService
       internalEdges,
       sortedNodeIds,
       outgoingEdgeMap,
-      nodeMap: new Map(allNodes.map((n) => [n.id, n])),
+      nodeMap,
     };
   }
 

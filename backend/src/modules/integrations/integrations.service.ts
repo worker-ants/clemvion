@@ -699,7 +699,7 @@ export class IntegrationsService {
       );
     } catch (err) {
       // Usage logging must not break execution — swallow and continue.
-      console.warn(
+      this.logger.warn(
         `Failed to log integration usage: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
