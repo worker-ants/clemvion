@@ -90,7 +90,7 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | [community](./community.md) | 13 | 15+ | 9 |
 | [design](./design.md) | 1 | 5+ | 3 |
 | [promotion](./promotion.md) | 35 | 0 | 10 |
-| [application](./application.md) | 11 | 7+ | 8 |
+| [application](./application.md) | 19 | 0 | 8 |
 | [category](./category.md) | 19 | 0 | 5 |
 | [collection](./collection.md) | 7 | 6+ | 5 |
 | [supply](./supply.md) | 20 | 0 | 6 |
@@ -101,7 +101,7 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | [mileage](./mileage.md) | 8 | 0 | 5 |
 | [notification](./notification.md) | 12 | 0 | 7 |
 | [translation](./translation.md) | 9 | 0 | 4 |
-| **합계** | **229** | **~144** | **~250** |
+| **합계** | **237** | **~136** | **~250** |
 
 > "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 endpoint 합계는 ~500.
 
@@ -147,3 +147,4 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | 2026-05-16 (coverage Phase 8d) | Personal resource 완성 — `customers_wishlist_count` + `products_carts_count` + `products_carts_list` 3건. personal supported 2 → 5, planned 3 → 0, 합계 217 → 220. personal 아홉 번째 0-planned resource. |
 | 2026-05-16 (coverage Phase 8e) | Notification resource 완성 — `customers_invitation_send` + recipientgroups CUD 3건 = 4건. notification supported 8 → 12, planned 4 → 0, 합계 220 → 224. notification 열 번째 0-planned resource. |
 | 2026-05-16 (coverage Phase 8f) | Privacy resource 완성 — customers_privacy list/count/update 3건 + products_wishlist_customers list/count 2건 = 5건. privacy supported 1 → 6, planned 5 → 0, 합계 224 → 229. privacy 열한 번째 0-planned resource. |
+| 2026-05-16 (coverage Phase 8g) | Application resource 완성 — appstore_orders get/create 2건 + appstore_payments list/count 2건 + databridge_logs_list + recipes list/create/delete 3건 = 8건. application supported 11 → 19, planned 8 → 0, 합계 229 → 237. application 열두 번째 0-planned resource. |
