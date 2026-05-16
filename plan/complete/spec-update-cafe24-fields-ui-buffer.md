@@ -33,8 +33,8 @@ owner: project-planner (다음 진입자)
 
 ## 작업 항목
 
-- [ ] `project-planner` 가 spec/4-nodes/4-integration/4-cafe24.md 에 한 줄 추가
-- [ ] (선택) 별도 시점 — §9 Rationale 절 순서 정리 (9.7/9.8 역전) + §5 Case 번호 연속화. SUMMARY.md INFO 3·4 참고
+- [x] `project-planner` 가 spec/4-nodes/4-integration/4-cafe24.md 에 한 줄 추가 (2026-05-16, `cafe24-fields-spec-update-e7a3f2` worktree — §2 Fields 불릿 + §9.9 Rationale 신설)
+- [x] (선택) 별도 시점 — §9 Rationale 절 순서 정리 (9.7/9.8 역전) 완료 (편집 오류였던 9.7 orphan 본문을 헤더 뒤로 이동, 내용 변경 없음). §5 Case 번호 연속화는 4 integration 노드 공유 sparse 컨벤션이라 false positive 로 판정 — 변경하지 않음. 결정 근거는 `review/consistency/2026/05/16/11_36_49/SUMMARY.md` 와 spec CHANGELOG 2026-05-16 항목 참고.
 
 ## 영향 범위
 

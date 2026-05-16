@@ -35,7 +35,7 @@ owner: developer
 - `spec/2-navigation/13-user-guide.md` §2 IA 의 `06-integrations-and-config/` 트리에 `cafe24` 항목 추가
 - `spec/4-nodes/4-integration/4-cafe24.md` §2/§5.1 의 `{{ $now.iso }}` → `{{ $now }}` 정정 (W1)
 - `spec/4-nodes/4-integration/4-cafe24.md` §9.4/§9.8 에 `install_token mismatch 회복 분기` 보강 (W3)
-- `spec/4-nodes/4-integration/4-cafe24.md` §5 섹션 번호 불연속 정리 (W4)
+- ~~`spec/4-nodes/4-integration/4-cafe24.md` §5 섹션 번호 불연속 정리 (W4)~~ — **false positive 확인 (2026-05-16, `cafe24-fields-spec-update-e7a3f2`)**. §5.1·§5.3·§5.8 sparse 스키마는 4 integration 노드 (`http_request`, `database_query`, `send_email`, `cafe24`) 공유 컨벤션 (HTTP status code 풍의 카테고리 구분) 으로 `spec/4-nodes/4-integration/0-common.md` §7 노드 출력 색인표가 이 번호 정렬을 전제로 한다. 변경하지 않는다. 결정 근거는 `review/consistency/2026/05/16/11_36_49/SUMMARY.md` 와 `spec/4-nodes/4-integration/4-cafe24.md` §10 CHANGELOG 2026-05-16 항목 참고.
 - `spec/5-system/5-expression-language.md` §4.1 에 `$schedule` 변수 추가 (W2)
 - `spec/5-system/5-expression-language.md` 함수 목록에 `today()` 함수 명시
 - I3, I7, I8, I9, I10 등 정합·구조 항목 (SUMMARY.md 참고)
