@@ -212,4 +212,5 @@ export const integrations: Dict["integrations"] = {
   cafe24DuplicateMallViewExisting: "Open existing integration",
   cafe24DuplicateMallToast:
     "This mall ID is already connected and cannot be added",
+  cafe24DuplicateMallChecking: "Checking…",
 };

@@ -169,7 +169,7 @@ export class IntegrationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiConflictResponse({
     description:
-      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 기존 통합을 사용하거나 삭제 후 재등록. spec/2-navigation/4-integration.md §9.2.',
+      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 에러 코드 이름의 `PRIVATE` 토큰은 historical artifact 이며 spec §9.2 가 "app_type 무관" 으로 의미를 정의한다. 클라이언트는 코드 이름이 아닌 명시된 의미 (mall_id 기준 중복) 로 분기해야 한다. 기존 통합을 사용하거나 삭제 후 재등록. spec/2-navigation/4-integration.md §9.2 + §9.4.',
   })
   async oauthBegin(
     @WorkspaceId() workspaceId: string,

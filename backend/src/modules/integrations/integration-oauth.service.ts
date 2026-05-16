@@ -308,6 +308,22 @@ function normalizeRawPreviewRow(
   } as IntegrationOAuthPreview;
 }
 
+/**
+ * `precheckCafe24Mall` 의 conflict 분기 우선순위 — 가장 제한적인 상태부터.
+ * `connected` 는 진짜 중복(완료된 통합), `pending_install` 은 install 중(재사용
+ * 가능), `error` 는 재인증 가능, `expired` 는 정리 후 재등록 가능.
+ * frontend 의 i18n 메시지 분기와 동일한 순서 (`integration-response.dto.ts` 의
+ * `Cafe24PrecheckResultDto.status` enum 주석 참조).
+ */
+const CAFE24_PRECHECK_STATUS_PRIORITY = [
+  'connected',
+  'pending_install',
+  'error',
+  'expired',
+] as const;
+type Cafe24PrecheckStatus =
+  (typeof CAFE24_PRECHECK_STATUS_PRIORITY)[number];
+
 @Injectable()
 export class IntegrationOAuthService {
   private readonly logger = new Logger(IntegrationOAuthService.name);
@@ -1471,25 +1487,36 @@ export class IntegrationOAuthService {
    *
    * Primary path: SQL filter on the V045 plain `mall_id` column (O(1) rows).
    * Legacy fallback: rows from before V045 still have `mall_id IS NULL` —
-   * match them via the encrypted `credentials.mall_id` JSONB field. backfill
-   * 완료 후 fallback 제거 예정.
+   * match them via the encrypted `credentials.mall_id` JSONB field.
+   *
+   * **Legacy fallback 제거 조건** (2026-05-16 기준): V045 backfill 마이그레이션
+   * (마이그레이션 추적 plan `plan/in-progress/cafe24-mall-dup-ux.md` 참조) 이
+   * 완료되어 모든 cafe24 row 의 `mall_id` plain 컬럼이 NOT NULL 임을 확인한
+   * 뒤 legacy 쿼리 + filter 블록을 삭제. 동시에 V046 partial UNIQUE 의
+   * `mall_id IS NOT NULL` 조건도 검토 (NOT NULL constraint 로 강화 가능).
    *
    * Shared by `createPrivatePendingIntegration` (begin private guard +
    * pending_install reuse), the public-flow begin guard, and
    * `precheckCafe24Mall` (frontend pre-detection endpoint).
+   *
+   * Performance — `Promise.all` 병렬 발행으로 평균 응답 latency 절반.
+   * legacy 쿼리는 backfill 완료 후 제거 예정이며 그 시점에 단일 쿼리로 회귀.
    */
   private async findAllCafe24RowsForMall(
     workspaceId: string,
     mallId: string,
   ): Promise<Integration[]> {
-    const direct = await this.integrationRepository.find({
-      where: { workspaceId, serviceType: 'cafe24', mallId },
-    });
-    const legacy = (
-      await this.integrationRepository.find({
+    const [direct, legacyRaw] = await Promise.all([
+      this.integrationRepository.find({
+        where: { workspaceId, serviceType: 'cafe24', mallId },
+      }),
+      this.integrationRepository.find({
         where: { workspaceId, serviceType: 'cafe24', mallId: IsNull() },
-      })
-    ).filter((row) => row.credentials?.mall_id === mallId);
+      }),
+    ]);
+    const legacy = legacyRaw.filter(
+      (row) => row.credentials?.mall_id === mallId,
+    );
     return [...direct, ...legacy];
   }
 
@@ -1525,21 +1552,14 @@ export class IntegrationOAuthService {
     conflict: boolean;
     existingIntegrationId?: string;
     existingName?: string;
-    status?: 'connected' | 'pending_install' | 'expired' | 'error';
+    status?: Cafe24PrecheckStatus;
   }> {
     const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
     if (all.length === 0) return { conflict: false };
-    // priority: connected > pending_install > error > expired (most-
-    // restrictive first — `connected` is a true duplicate, `pending_install`
-    // indicates an in-progress install that should reuse, error/expired are
-    // recoverable via reauthorize / delete + re-add).
-    const PRIORITY = [
-      'connected',
-      'pending_install',
-      'error',
-      'expired',
-    ] as const;
-    for (const status of PRIORITY) {
+    // Priority 순으로 가장 제한적인 상태부터 검사. 상수는 클래스 상단의
+    // `CAFE24_PRECHECK_STATUS_PRIORITY` 에 정의 — DTO 주석 / 프론트 i18n 분기
+    // 와 단일 진실 유지.
+    for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
       const hit = all.find((row) => row.status === status);
       if (hit) {
         return {
@@ -1550,18 +1570,16 @@ export class IntegrationOAuthService {
         };
       }
     }
-    // Fallback: any other status (e.g. transitional). Surface as conflict so
-    // the user knows a row exists and the V045 UNIQUE will reject finalize.
+    // Fallback: priority 에 없는 transitional status (현재 DB enum 에는 없으나
+    // 미래 추가 가능성 대비). 강제 캐스팅 대신 status 를 omit 해 클라이언트가
+    // "알 수 없는 상태 — 일단 conflict" 로만 해석하도록 한다. spec/conventions
+    // /swagger.md — enum 범위 밖 값은 frontend silent fallthrough 방지를
+    // 위해 명시적으로 미반환.
     const fallback = all[0];
     return {
       conflict: true,
       existingIntegrationId: fallback.id,
       existingName: fallback.name,
-      status: fallback.status as
-        | 'connected'
-        | 'pending_install'
-        | 'expired'
-        | 'error',
     };
   }
 
