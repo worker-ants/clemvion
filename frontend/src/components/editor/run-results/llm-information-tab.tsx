@@ -12,6 +12,7 @@ import {
   type LlmCallTrace,
 } from "./llm-call-trace";
 import { extractAiMetadata } from "./output-shape";
+import { useT } from "@/lib/i18n";
 
 type LlmInfoMode = "aggregate" | "single-call";
 
@@ -59,12 +60,6 @@ interface LlmInformationTabProps {
 
 type SubTabId = "response" | "request" | "usage";
 
-const SUB_TABS: { id: SubTabId; label: string }[] = [
-  { id: "response", label: "Response" },
-  { id: "request", label: "Request" },
-  { id: "usage", label: "Usage" },
-];
-
 export function LlmInformationTab({
   result,
   mode = "aggregate",
@@ -108,6 +103,7 @@ function AggregateUsage({
   result: NodeResult;
   calls: LlmCallTrace[];
 }) {
+  const t = useT();
   const aiMeta = useMemo(
     () => extractAiMetadata(result.outputData),
     [result.outputData],
@@ -116,8 +112,7 @@ function AggregateUsage({
   if (calls.length === 0 && !aiMeta) {
     return (
       <div className="text-xs text-[hsl(var(--muted-foreground))]">
-        LLM 호출 정보가 저장되어 있지 않습니다. (이전 버전 실행 기록 또는
-        아직 호출이 이루어지지 않은 상태일 수 있습니다.)
+        {t("editor.llmInfo.noCallsAggregate")}
       </div>
     );
   }
@@ -148,35 +143,35 @@ function AggregateUsage({
   const toolCalls = aiMeta?.toolCalls;
 
   const rows: Array<{ label: string; value: string }> = [];
-  rows.push({ label: "Model", value: model ?? "-" });
+  rows.push({ label: t("editor.llmInfo.metaModel"), value: model ?? "-" });
   rows.push({
-    label: "Total Tokens",
+    label: t("editor.llmInfo.metaTotalTokens"),
     value: totalTokens != null ? String(totalTokens) : "-",
   });
   rows.push({
-    label: "Request Tokens",
+    label: t("editor.llmInfo.metaRequestTokens"),
     value: requestTokens != null ? String(requestTokens) : "-",
   });
   rows.push({
-    label: "Response Tokens",
+    label: t("editor.llmInfo.metaResponseTokens"),
     value: responseTokens != null ? String(responseTokens) : "-",
   });
   rows.push({
-    label: "Thinking Tokens",
+    label: t("editor.llmInfo.metaThinkingTokens"),
     value: thinkingTokens != null ? String(thinkingTokens) : "-",
   });
   if (turnCount != null) {
-    rows.push({ label: "Turn Count", value: String(turnCount) });
+    rows.push({ label: t("editor.llmInfo.metaTurnCount"), value: String(turnCount) });
   }
   if (toolCalls != null) {
-    rows.push({ label: "Tool Calls", value: String(toolCalls) });
+    rows.push({ label: t("editor.llmInfo.metaToolCalls"), value: String(toolCalls) });
   }
-  rows.push({ label: "LLM Calls", value: String(totalCalls) });
+  rows.push({ label: t("editor.llmInfo.metaLlmCalls"), value: String(totalCalls) });
 
   return (
     <div className="flex flex-col gap-3">
       <div className="text-xs font-medium text-[hsl(var(--foreground))]">
-        Usage
+        {t("editor.llmInfo.aggregateUsage")}
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
         {rows.map((r) => (
@@ -227,6 +222,7 @@ function SingleCallView({
   selectedCallIndex?: number;
   onSelectCallIndex?: (index: number) => void;
 }) {
+  const t = useT();
   const turnCounts = useMemo(() => countCallsPerTurn(allCalls), [allCalls]);
   const [internalIndex, setInternalIndex] = useState(0);
   const [internalSubTab, setInternalSubTab] = useState<SubTabId>("response");
@@ -239,10 +235,16 @@ function SingleCallView({
   };
   const subTab: SubTabId = forcedSubTab ?? internalSubTab;
 
+  const subTabs: { id: SubTabId; label: string }[] = [
+    { id: "response", label: t("editor.llmInfo.tabResponse") },
+    { id: "request", label: t("editor.llmInfo.tabRequest") },
+    { id: "usage", label: t("editor.llmInfo.tabUsage") },
+  ];
+
   if (calls.length === 0) {
     return (
       <div className="text-xs text-[hsl(var(--muted-foreground))]">
-        해당 턴에 대한 LLM 호출 정보가 저장되어 있지 않습니다.
+        {t("editor.llmInfo.noCallsForTurn")}
       </div>
     );
   }
@@ -255,7 +257,7 @@ function SingleCallView({
       {calls.length > 1 && (
         <div>
           <label className="mb-1 block text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
-            Call
+            {t("editor.llmInfo.callSelector")}
           </label>
           <select
             className="w-full rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-xs"
@@ -272,18 +274,18 @@ function SingleCallView({
       )}
       {forcedSubTab === undefined && (
         <div className="flex gap-1 border-b border-[hsl(var(--border))]">
-          {SUB_TABS.map((t) => (
+          {subTabs.map((tab) => (
             <button
-              key={t.id}
+              key={tab.id}
               type="button"
               className={`px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
-                subTab === t.id
+                subTab === tab.id
                   ? "border-[hsl(var(--primary))] text-[hsl(var(--foreground))]"
                   : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
               }`}
-              onClick={() => setInternalSubTab(t.id)}
+              onClick={() => setInternalSubTab(tab.id)}
             >
-              {t.label}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -298,10 +300,11 @@ function SingleCallView({
 }
 
 function ResponsePane({ call }: { call: LlmCallTrace }) {
+  const t = useT();
   if (call.responsePayload == null) {
     return (
       <div className="text-xs text-[hsl(var(--muted-foreground))]">
-        응답 페이로드 없음
+        {t("editor.llmInfo.noResponsePayload")}
       </div>
     );
   }
@@ -313,20 +316,31 @@ function ResponsePane({ call }: { call: LlmCallTrace }) {
 }
 
 function RequestPane({ call }: { call: LlmCallTrace }) {
+  const t = useT();
   if (call.requestPayload == null) {
     return (
       <div className="text-xs text-[hsl(var(--muted-foreground))]">
-        요청 페이로드 없음
+        {t("editor.llmInfo.noRequestPayload")}
       </div>
     );
   }
   const parsed = parseRequestPayload(call.requestPayload);
+  const systemPromptLabel =
+    parsed.systemPrompts.length > 1
+      ? t("editor.llmInfo.systemPromptsLabel", {
+          count: parsed.systemPrompts.length,
+        })
+      : t("editor.llmInfo.systemPromptLabel");
+  const messagesLabel =
+    parsed.nonSystemMessages.length > 0
+      ? t("editor.llmInfo.messagesLabelWithCount", {
+          count: parsed.nonSystemMessages.length,
+        })
+      : t("editor.llmInfo.messagesLabel");
   return (
     <div className="space-y-3 text-xs">
       {parsed.systemPrompts.length > 0 && (
-        <RequestSection
-          label={`System Prompt${parsed.systemPrompts.length > 1 ? `s (${parsed.systemPrompts.length})` : ""}`}
-        >
+        <RequestSection label={systemPromptLabel}>
           <div className="space-y-2">
             {parsed.systemPrompts.map((sp, i) => (
               <pre
@@ -340,7 +354,9 @@ function RequestPane({ call }: { call: LlmCallTrace }) {
         </RequestSection>
       )}
       {parsed.tools.length > 0 && (
-        <RequestSection label={`Tools (${parsed.tools.length})`}>
+        <RequestSection
+          label={t("editor.llmInfo.toolsLabel", { count: parsed.tools.length })}
+        >
           <div className="space-y-2">
             {parsed.tools.map((tool, i) => (
               <ToolSchemaCard key={`${tool.name}-${i}`} tool={tool} />
@@ -348,12 +364,10 @@ function RequestPane({ call }: { call: LlmCallTrace }) {
           </div>
         </RequestSection>
       )}
-      <RequestSection
-        label={`Messages${parsed.nonSystemMessages.length > 0 ? ` (${parsed.nonSystemMessages.length})` : ""}`}
-      >
+      <RequestSection label={messagesLabel}>
         {parsed.nonSystemMessages.length === 0 ? (
           <p className="italic text-[hsl(var(--muted-foreground))]">
-            (no user/assistant/tool messages)
+            {t("editor.llmInfo.noNonSystemMessages")}
           </p>
         ) : (
           <pre className="rounded bg-[hsl(var(--muted))] p-2 overflow-x-auto whitespace-pre-wrap break-words">
@@ -362,7 +376,7 @@ function RequestPane({ call }: { call: LlmCallTrace }) {
         )}
       </RequestSection>
       {Object.keys(parsed.params).length > 0 && (
-        <RequestSection label="Parameters">
+        <RequestSection label={t("editor.llmInfo.parametersLabel")}>
           <pre className="rounded bg-[hsl(var(--muted))] p-2 overflow-x-auto">
             {JSON.stringify(parsed.params, null, 2)}
           </pre>
@@ -464,6 +478,7 @@ function ToolSchemaCard({ tool }: { tool: ParsedRequestTool }) {
 }
 
 function UsagePane({ call }: { call: LlmCallTrace }) {
+  const t = useT();
   const response = call.responsePayload as
     | { model?: string; usage?: Record<string, unknown> }
     | undefined;
@@ -481,15 +496,15 @@ function UsagePane({ call }: { call: LlmCallTrace }) {
     <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
       {model && (
         <>
-          <div className="text-[hsl(var(--muted-foreground))]">Model</div>
+          <div className="text-[hsl(var(--muted-foreground))]">{t("editor.llmInfo.metaModel")}</div>
           <div className="font-mono">{model}</div>
         </>
       )}
-      <div className="text-[hsl(var(--muted-foreground))]">Input Tokens</div>
+      <div className="text-[hsl(var(--muted-foreground))]">{t("editor.llmInfo.metaInputTokens")}</div>
       <div className="font-mono">{usage?.inputTokens ?? 0}</div>
-      <div className="text-[hsl(var(--muted-foreground))]">Output Tokens</div>
+      <div className="text-[hsl(var(--muted-foreground))]">{t("editor.llmInfo.metaOutputTokens")}</div>
       <div className="font-mono">{usage?.outputTokens ?? 0}</div>
-      <div className="text-[hsl(var(--muted-foreground))]">Total Tokens</div>
+      <div className="text-[hsl(var(--muted-foreground))]">{t("editor.llmInfo.metaTotalTokens")}</div>
       <div className="font-mono">
         {usage?.totalTokens ??
           (usage?.inputTokens ?? 0) + (usage?.outputTokens ?? 0)}
@@ -497,14 +512,14 @@ function UsagePane({ call }: { call: LlmCallTrace }) {
       {usage?.thinkingTokens != null && (
         <>
           <div className="text-[hsl(var(--muted-foreground))]">
-            Thinking Tokens
+            {t("editor.llmInfo.metaThinkingTokens")}
           </div>
           <div className="font-mono">{usage.thinkingTokens}</div>
         </>
       )}
       {call.durationMs != null && (
         <>
-          <div className="text-[hsl(var(--muted-foreground))]">Latency</div>
+          <div className="text-[hsl(var(--muted-foreground))]">{t("editor.llmInfo.metaLatency")}</div>
           <div className="font-mono">
             {call.durationMs < 1000
               ? `${call.durationMs}ms`
