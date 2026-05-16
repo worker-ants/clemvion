@@ -1,7 +1,7 @@
 ---
-worktree: cafe24-node-ux-catalog-4b8f2c (Phase 1) / cafe24-node-ux-impl-9d3e1a (Phase 2~)
+worktree: cafe24-node-ux-frontend-f5a3b8 (Phase 3, active) — Phase 1 & 2 worktrees merged & removed
 started: 2026-05-16
-owner: project-planner (Phase 1) / developer (Phase 2+)
+owner: developer
 ---
 
 # Plan: Cafe24 노드 Resource → Operation UX 개편
@@ -32,36 +32,40 @@ owner: project-planner (Phase 1) / developer (Phase 2+)
 - [x] `spec/4-nodes/4-integration/4-cafe24.md` §9.3 + `spec/conventions/cafe24-api-metadata.md` §4 — 카탈로그 링크
 - [x] consistency-check 세션 `review/consistency/2026/05/16/11_43_07/` — Critical 0
 
-### Phase 2 — 백엔드 frontend payload (이 PR — claude/cafe24-node-ux-impl-9d3e1a)
+### Phase 2 — 백엔드 frontend payload (PR #80, merged)
 
-상세 설계 결정 (2026-05-16):
+- [x] `NodeComponent.extras?: () => unknown` + registry `listDefinitions()` + `NodeDefinitionDto.extras?`
+- [x] `PublicCafe24Operation` / `PublicCafe24Field` 타입 (`backend/.../metadata/public-meta.ts`) — `method`/`path` 제외
+- [x] `CAFE24_PLANNED_BY_RESOURCE` (`planned.ts`) — 18 resource × ~300 row, 카탈로그 mirror
+- [x] `cafe24.component.ts` `extras: () => buildCafe24Extras()`
+- [x] `catalog-sync.spec.ts` 확장 — planned.ts ↔ 카탈로그 MD 4 추가 cases
+- [x] `public-meta.spec.ts` — extras 페이로드 shape 15 cases (jest 250/250)
+- [x] `frontend/src/lib/node-definitions/types.ts` — `NodeDefinitionResponse.extras?` + `Cafe24NodeExtras` / `Cafe24SupportedOperation` / `Cafe24PlannedOperation` / `Cafe24OperationField`
+- [x] consistency-check `review/consistency/2026/05/16/12_08_11/` — Critical 1 (Cafe24PlannedOperation 동명이의 → Cafe24PlannedOperationEntry 로 리네임 해소)
 
-- **`NodeComponent.extras?: () => unknown`** — 옵셔널 메서드. 컴포넌트가 frontend 에 추가로 보내고 싶은 페이로드 반환. registry 의 `listDefinitions()` 결과에 `extras` 로 surface, `/nodes/definitions` 응답 DTO 에 옵셔널 필드로 추가.
-- **`PublicCafe24Operation` 타입** — `Cafe24OperationMetadata` 의 frontend 안전 부분만 추출. **`method` / `path` 는 제외** (frontend 가 알 필요 없고 URL 구조 노출 회피). 포함: `id`, `label`, `description`, `scope`, `paginated`, `requiredFields`, `fields[]` (각 필드: `name`, `type`, `required`, `description?`, `enum?`, `default?`, `location?`).
-- **planned 데이터** — 카탈로그 MD 가 정답(SoT) 이지만 production 번들에 spec/ 없음 → backend 에 `planned.ts` 데이터 파일을 별도로 유지하고 sync test 가 catalog MD ↔ planned.ts parity 강제. 양쪽 모두 갱신해야 PR 머지 가능.
-- **응답 shape**: `definitions[i].extras = { operationsByResource: Record<resource, PublicCafe24Operation[]>, plannedByResource: Record<resource, PublicCafe24Planned[]> }` — cafe24 노드만 채움, 다른 노드는 `extras` 없음.
+### Phase 3 — 프런트 Cafe24Config 재작성 (이 PR — claude/cafe24-node-ux-frontend-f5a3b8)
+
+상세 설계 결정:
+
+- **데이터 출처**: `getNodeDefinition('cafe24')?.extras` → `Cafe24NodeExtras` 로 narrow. 정의가 로드되지 않았으면 `null` 반환 → 사용자가 Operation 을 선택할 수 없는 disabled 상태로 fallback (편집기 진입 시 일시적). 별도 API 호출 없음.
+- **Resource select**: 18 카테고리 enum 그대로 (기존 동작 유지).
+- **Operation select**: supported 옵션 + planned 옵션 (disabled, "(지원 예정)" 접미사). 빈 resource 시 "리소스를 먼저 선택하세요" 단일 placeholder. coverage hint 로 "지원 N개 · 추후 지원 M개" 표시.
+- **Resource 변경**: `operation`/`fields` 동시 reset. pagination 은 op 의 `paginated` 분기에서 자연히 사라짐.
+- **Operation 변경**: 새 op 의 `fields[].name` 과 교집합인 키만 유지. 그래서 product_list → product_get 으로 바꾸면 `shop_no` 같은 공통 키는 보존되고 `display`/`since` 같은 무관 키는 drop.
+- **동적 Fields 폼**: `requiredFields` 그룹 + optional 그룹 두 섹션. 각 필드 widget 은 `ExpressionInput`(bare) 베이스 — `enum`/`boolean`/`default` 는 hint 텍스트로 노출 (`허용 값: T / F`, `값: true / false (표현식 사용 가능)`, `기본값: 1`). 표현식(`{{ }}`) 모든 칸에서 가능.
+- **Pagination 분기**: `supportedOp.paginated === true` 일 때만 Limit/Offset 두 칸 노출. 기존 무조건 노출 폐기.
+- **Planned op 선택 시**: dynamic fields 미렌더 + "이 작업은 아직 지원되지 않습니다" 한 줄 hint.
+- **Unknown op (catalog 에도 없는 ID)**: amber 색 "메타데이터에 없는 작업입니다" hint — legacy 워크플로 호환.
 
 체크리스트:
 
-- [ ] `backend/src/nodes/core/node-component.interface.ts` — `NodeComponent.extras?: () => unknown` 추가
-- [ ] `backend/src/nodes/core/node-component.registry.ts` — `NodeDefinitionView.extras?: unknown` 추가, `listDefinitions()` 가 호출 + 전달
-- [ ] `backend/src/modules/nodes/dto/responses/node-response.dto.ts` — `NodeDefinitionDto.extras?: Record<string, unknown>` (Swagger 표기)
-- [ ] `backend/src/nodes/integration/cafe24/metadata/public-meta.ts` — `PublicCafe24Operation` / `PublicCafe24Field` / `PublicCafe24Planned` 타입 + `toPublicOperation(meta)` helper
-- [ ] `backend/src/nodes/integration/cafe24/metadata/planned.ts` — `CAFE24_PLANNED_BY_RESOURCE` (id + label + paginated, 카탈로그 mirror)
-- [ ] `backend/src/nodes/integration/cafe24/cafe24.component.ts` — `extras()` 구현
-- [ ] `catalog-sync.spec.ts` 확장 — planned.ts ↔ 카탈로그 MD 양방향 parity
-- [ ] `cafe24-extras.spec.ts` (or 기존 metadata test 확장) — extras 페이로드 shape 검증, method/path 누출 없음
-- [ ] `frontend/src/lib/node-definitions/types.ts` — `NodeDefinitionResponse.extras?: unknown`
+- [x] `frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx` — `Cafe24Config` 재작성, 옛 `normalizeCafe24Fields` / `fieldRowsToObject` / KeyValueEditor 의존 제거, `readCafe24Extras` / `Cafe24FieldRow` / 헬퍼 4개 신설
+- [x] `frontend/src/components/editor/settings-panel/node-configs/shared.tsx` — `SelectField.options[].disabled?` 지원 (planned 옵션용)
+- [x] `frontend/src/lib/i18n/dict/{ko,en}.ts` — 신규 키 9개 (`cafe24OperationSelectPlaceholder`, `cafe24OperationSelectResourceFirst`, `cafe24OperationPlannedSuffix`, `cafe24OperationCoverageHint`, `cafe24OperationPlannedHint`, `cafe24OperationUnknown`, `cafe24FieldsRequired`, `cafe24FieldsOptional`, `cafe24FieldsEmpty`, `cafe24FieldsEnumHint`, `cafe24FieldsBooleanHint`, `cafe24FieldsDefaultHint`) + 폐기 4개 (`cafe24OperationPlaceholder`, `cafe24OperationHint`, `cafe24FieldsKeyPlaceholder`, `cafe24FieldsValuePlaceholder`)
+- [x] `cafe24-config.test.tsx` 전면 재작성 — vitest 14 cases (resource→op reset, planned disabled, paginated 분기, 표현식 보존, 키 교집합 보존, enum/default hint, unknown op hint, no-extras fallback)
+- [x] frontend vitest 1392/1392, tsc/eslint 통과
 - [ ] consistency-check (impl-prep) 세션 + Critical 0 확인
-
-### Phase 3 — 프런트 Cafe24Config 재작성 (같은 PR or 별 PR)
-
-- [ ] Operation select (resource → ops) — `status: planned` 인 op 는 disabled + "지원 예정" 배지
-- [ ] Coverage indicator — "Product · 7/15 지원" 한 줄
-- [ ] 동적 fields 폼: required/optional 두 그룹, type 별 위젯 (string/number/enum/boolean) — 모두 ExpressionInput 호환 (사용자 결정: 표현식 유지)
-- [ ] Pagination 조건부 노출 (`op.paginated === true`)
-- [ ] Operation 변경 시 호환 가능 키만 유지 (교집합)
-- [ ] `Cafe24Config.test.tsx` 추가 (resource→op reset, paginated 분기, planned disabled, 표현식 입력 보존)
+- [ ] 수동 UI sanity (편집기에서 cafe24 노드 추가 → Resource 선택 → Operation 선택 시 dynamic fields/pagination 확인)
 
 ### Phase 4 — Coverage 확장 (별 트랙, 본 PR 종료 후)
 
