@@ -213,4 +213,11 @@ export const integrations: Dict["integrations"] = {
   cafe24DuplicateMallToast:
     "This mall ID is already connected and cannot be added",
   cafe24DuplicateMallChecking: "Checking…",
+  // ----- Cafe24 begin-time validation (frontend pre-check) -----
+  cafe24ValidateMallIdPattern:
+    "Mall ID must be 3–50 lowercase letters, digits, or hyphens.",
+  cafe24ValidateAppType: "Cafe24 app type must be 'public' or 'private'.",
+  cafe24ValidatePrivateClientIdRequired: "Private apps require client_id.",
+  cafe24ValidatePrivateClientSecretRequired:
+    "Private apps require client_secret.",
 };

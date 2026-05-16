@@ -76,6 +76,20 @@ async function renderPage() {
   });
 }
 
+/**
+ * page.tsx 의 debounce 는 350ms (`setTimeout(..., 350)`). 테스트에서
+ * `vi.advanceTimersByTime` 인자는 (debounce + 약간의 buffer) 로 정해
+ * setTimeout 이 fire 한 뒤 후속 마이크로태스크가 flush 될 시간을 확보한다.
+ * 한 곳에 모아 매직 넘버 분산을 막는다 (ai-review INFO 12 — 2026-05-16).
+ */
+const DEBOUNCE_ADVANCE_MS = 360;
+
+async function advanceDebounce() {
+  await act(async () => {
+    vi.advanceTimersByTime(DEBOUNCE_ADVANCE_MS);
+  });
+}
+
 describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -101,9 +115,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
 
     // 350ms debounce — 그 전엔 호출 없음
     expect(precheckMock).not.toHaveBeenCalled();
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     await waitFor(() => {
       // 두 번째 인자는 AbortController.signal (INFO 6 — 2026-05-16)
       expect(precheckMock).toHaveBeenCalledWith(
@@ -132,9 +144,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
 
     // 첫 mall_id 입력 → 350ms debounce → fetch 시작 (응답 보류)
     await user.type(mallIdInput, "shop-a");
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     await waitFor(() => {
       expect(precheckMock).toHaveBeenCalledTimes(1);
     });
@@ -146,9 +156,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     // abort 는 동기적으로 발생 (effect cleanup)
     expect(firstSignal?.aborted).toBe(true);
     // 새 debounce 만료 후 두 번째 호출
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     await waitFor(() => {
       expect(precheckMock).toHaveBeenCalledTimes(2);
     });
@@ -181,9 +189,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     await screen.findByLabelText(/Mall ID/i);
     const mallIdInput = screen.getByLabelText(/Mall ID/i);
     await user.type(mallIdInput, "myshop");
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
 
     // 한글 배너 제목 + 본문 (connected 분기)
     await waitFor(() => {
@@ -213,9 +219,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     await screen.findByLabelText(/Mall ID/i);
     const mallIdInput = screen.getByLabelText(/Mall ID/i);
     await user.type(mallIdInput, "myshop");
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     await waitFor(() => {
       expect(
         screen.getByText(/이미 설치 대기 중이에요/),
@@ -235,9 +239,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     await screen.findByLabelText(/Mall ID/i);
     const mallIdInput = screen.getByLabelText(/Mall ID/i);
     await user.type(mallIdInput, "myshop");
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     await waitFor(() => {
       expect(
         screen.getByText(/이미 만료 상태로 존재해요/),
@@ -257,9 +259,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     await screen.findByLabelText(/Mall ID/i);
     const mallIdInput = screen.getByLabelText(/Mall ID/i);
     await user.type(mallIdInput, "myshop");
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     await waitFor(() => {
       expect(
         screen.getByText(/이미 오류 상태로 존재해요/),
@@ -274,9 +274,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     await screen.findByLabelText(/Mall ID/i);
     const mallIdInput = screen.getByLabelText(/Mall ID/i);
     await user.type(mallIdInput, "myshop");
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     // 배너 미표시
     expect(
       screen.queryByText("이 mall ID 는 이미 연결되어 있어요"),
@@ -295,9 +293,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     await screen.findByLabelText(/Mall ID/i);
     const mallIdInput = screen.getByLabelText(/Mall ID/i);
     await user.type(mallIdInput, "myshop");
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
 
     await waitFor(() => {
       expect(
@@ -324,9 +320,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     const mallIdInput = screen.getByLabelText(/Mall ID/i);
     await user.type(mallIdInput, "myshop");
     // 350ms debounce 직후 fetch 시작 — 응답 보류 중
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     // 로딩 인디케이터 노출
     await waitFor(() => {
       expect(screen.getByText(/확인 중…/)).toBeInTheDocument();
@@ -371,9 +365,7 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
     await user.type(nameInput, "My Cafe24");
     const mallIdInput = screen.getByLabelText(/Mall ID/i);
     await user.type(mallIdInput, "myshop");
-    await act(async () => {
-      vi.advanceTimersByTime(360);
-    });
+    await advanceDebounce();
     // precheck 호출 끝나고 conflict=false 확인
     await waitFor(() => {
       expect(precheckMock).toHaveBeenCalled();

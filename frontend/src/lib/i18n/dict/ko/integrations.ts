@@ -213,4 +213,13 @@ export const integrations = {
   // 사후 toast 의 한글 primary 메시지. backend 영문 message 는 (괄호) 안에 보조 표시.
   cafe24DuplicateMallToast: "이 mall ID 는 이미 연결되어 있어 추가할 수 없어요",
   cafe24DuplicateMallChecking: "확인 중…",
+  // ----- Cafe24 begin-time validation (frontend 사전 검증) -----
+  // backend OAuth begin 의 mirror — 사용자가 popup 열기 전에 잡아준다.
+  cafe24ValidateMallIdPattern:
+    "Mall ID 는 3~50자의 영문 소문자·숫자·하이픈만 가능해요.",
+  cafe24ValidateAppType: "Cafe24 앱 유형은 public 또는 private 여야 해요.",
+  cafe24ValidatePrivateClientIdRequired:
+    "Private 앱은 client_id 가 필수예요.",
+  cafe24ValidatePrivateClientSecretRequired:
+    "Private 앱은 client_secret 이 필수예요.",
 } as const;
