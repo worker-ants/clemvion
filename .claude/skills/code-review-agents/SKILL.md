@@ -12,7 +12,8 @@ description: 13개의 역할 기반 sub-agent(`<role>-reviewer`)를 main Claude 
 - 사용자가 "코드 리뷰해줘", "ai-review 실행해줘", "이 변경사항 검토해줘" 를 요청할 때
 - 기능 구현·버그 수정·리팩토링 완료 직후 품질 검증이 필요할 때
 - 특정 커밋·브랜치·파일·디렉토리에 대한 다각도 검토가 필요할 때
-- 특정 관점만 점검할 때 (환경변수 `REVIEW_AGENTS` 로 선별)
+- 특정 관점만 점검할 때 (환경변수 `REVIEW_AGENTS` 로 선별, 또는 자동 선별 — 기본 `--route=auto`)
+- 전수 감사가 필요할 때 (`--route=all` 로 router skip)
 
 ## 실행 절차 (main Claude 가 따른다)
 
@@ -26,16 +27,16 @@ description: 13개의 역할 기반 sub-agent(`<role>-reviewer`)를 main Claude 
 
 ```bash
 # /loop 밖
-python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --prepare $ARGUMENTS
+python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --prepare $ARGUMENTS
 
 # /loop 안 — loop_mode=true 로 초기화하려면 env prefix
-AI_REVIEW_LOOP=1 python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --prepare $ARGUMENTS
+AI_REVIEW_LOOP=1 python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --prepare $ARGUMENTS
 ```
 
 `/loop /ai-review --resume <session_dir>` 처럼 wake 후 재진입할 때는 prepare 가 아니라 resume:
 
 ```bash
-python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --resume <session_dir>
+python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --resume <session_dir>
 ```
 
 resume 는 세션을 새로 만들지 않고 `<session_dir>/_retry_state.json` 의 존재만 검증한 뒤 그 경로를 stdout 으로 echo 한다. 누락이면 exit code 1.
@@ -56,9 +57,31 @@ orchestrator 가 만드는 결과:
 
 세션 디렉토리의 `_retry_state.json` 을 Read. 주요 필드:
 - `subagent_invocations[]` — `{name, subagent_type, prompt_file, output_file}` 목록.
-- `agents_pending`, `agents_success`, `agents_fatal`.
+- `agents_pending`, `agents_success`, `agents_fatal`, `agents_skipped`.
+- `agents_forced` — router_safety 강제 포함 (router 가 끄지 못함).
+- `router_subagent_type`, `router_output_file`, `routing_status` (`pending` / `done` / `skipped`), `routing_skip_reason`.
 - `summary_subagent_type`, `summary_output_file`.
 - `loop_mode`, `last_reset_hint_sec`, `rate_limit_episodes`.
+
+### 2.5. 라우터 호출 (routing_status=="pending" 일 때만, 첫 사이클에서 1회)
+
+`--route=auto` (기본) 동작이다. `routing_status` 가 `skipped` 또는 `done` 이면 건너뛴다 (resume 사이클에서 자동 skip).
+
+1. **단일 호출**: `Agent(subagent_type="review-router", prompt="prompt_file=<router_prompt_file>\noutput_file=<router_output_file>")` 한 번만. 병렬 fan-out 아님. 인자는 `_retry_state.json` 의 동명 필드 값을 그대로 사용 (reviewer 호출과 동일 KEY=VALUE 패턴).
+2. **응답 파싱**: STATUS 한 줄. 정상이면 `router_output_file`(= `_routing_decision.json`) 이 생성되어 있다.
+3. **분류 + 적용**:
+   - `STATUS=success` → `_routing_decision.json` Read. `decisions[].selected==false` 인 reviewer 들을 `agents_pending` 에서 제거해 `agents_skipped` 로 옮긴다. `agents_forced` 에 있는 reviewer 는 무조건 `agents_pending` 유지 (router definition 이 강제하지만 main 에서도 한 번 더 확인).
+   - **선택된 수 가드**:
+     - filter 후 `agents_pending` 이 **0 명** 이면 → 이 변경에 적용 가능한 reviewer 가 없음 (미분류 파일만 변경된 케이스). 13명 fallback **하지 않고** minimal SUMMARY.md 작성 후 종료 — 본문에 변경 파일 목록 + "이 변경에는 적용 가능한 reviewer 가 없음. 분류 가능 카테고리(소스/패키지/문서/마이그레이션/API 스펙/spec 본문) 어디에도 매칭되지 않음." 명시. code-review-summary sub-agent 호출 없이 main 이 직접 작성 (의미 있는 reviewer 결과가 0 이라 통합할 게 없음).
+     - 1명 이상이면 그대로 step 3 으로 진행 (router 가 그 reviewer 만 의미있다고 본 것이라 신뢰).
+   - `STATUS=fatal` 이고 `_routing_decision.json` 이 "no applicable reviewer" 사유 — 즉 router 가 자체 가드로 0명 fatal 한 케이스 — 위와 동일하게 minimal SUMMARY 작성 후 종료.
+   - `STATUS=fatal` 그 외 (router 자체 오류 — prompt_file 부재, JSON 직렬화 실패 등) → router 결정 폐기 + 전체 reviewer fallback. `routing_status="skipped"` + `routing_skip_reason="router fatal: <문구>"`.
+   - `STATUS=rate_limit` 또는 `STATUS=network` → router 자체를 retry 대상으로. `routing_status` 는 `pending` 유지. `/loop` 안이면 ScheduleWakeup 으로 재시도, 밖이면 한도 안내 후 partial.
+4. **상태 저장**: 정상 / fallback 처리 후 `routing_status="done"` 으로 갱신하고 `_retry_state.json` Write. resume 사이클에서 router 가 재호출되지 않는다.
+
+> router 는 reviewer 와 동일한 context 정책으로 동작한다 — `_prompts/_router.md` 에 변경 코드 전체(diff + 파일 컨텐츠) + 13 reviewer 의 관점 + agents_forced 목록이 들어가며, router 는 자유롭게 Read/Grep/Glob/Bash 로 추가 탐색한다. 모델만 haiku 다.
+>
+> **강제 포함 정책 (router safety) 매트릭스**는 `.claude/skills/code-review-agents/README.md` 의 "Router safety policy" 절 또는 `lib/router_safety.py` 의 module docstring 참고. 코드(`_RULES`/패턴 상수) 가 SSOT.
 
 ### 3. 병렬 sub-agent 호출
 
@@ -117,8 +140,8 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 
 `/loop /ai-review` 가 호출되면 main 은 dynamic mode 안에서 위 1-6 사이클을 반복한다.
 
-- **첫 사이클**: 사용자의 원래 인자(`/ai-review --staged` 등) 를 그대로 받아 step 1 의 prepare 명령 실행. 출력된 session_dir 을 기록.
-- **wake 사이클**: ScheduleWakeup prompt 가 `/loop /ai-review --resume <session_dir>` 형태로 발화된다. main 은 step 1 의 prepare 명령 대신 `--resume <session_dir>` 명령으로 orchestrator 호출 → 그 session_dir 만 echo. step 2 (`_retry_state.json` Read) 부터 진입.
+- **첫 사이클**: 사용자의 원래 인자(`/ai-review --staged` 등) 를 그대로 받아 step 1 의 prepare 명령 실행. 출력된 session_dir 을 기록. 이 사이클에서만 router 가 호출된다 (step 2.5).
+- **wake 사이클**: ScheduleWakeup prompt 가 `/loop /ai-review --resume <session_dir>` 형태로 발화된다. main 은 step 1 의 prepare 명령 대신 `--resume <session_dir>` 명령으로 orchestrator 호출 → 그 session_dir 만 echo. step 2 (`_retry_state.json` Read) 부터 진입. **`routing_status` 가 이미 `done` 이므로 step 2.5 는 자동 skip** — router 는 첫 사이클에서만 실행되며 pending 잔존이 줄어들 뿐이다.
 - **자연 종료**: pending 이 비면 summary 호출 후 ScheduleWakeup 미호출 → /loop 자동 종료.
 
 ### 8. 자동 후속 흐름 (SUMMARY → 이슈 해결 → e2e → 재리뷰)
@@ -247,7 +270,7 @@ e2e 실패 → 단계 8.5.
 
 | 환경변수 | 기본값 | 설명 |
 |----------|--------|------|
-| `REVIEW_AGENTS` | (전체 13) | 실행할 reviewer 쉼표 구분 (예: `security,performance`) |
+| `REVIEW_AGENTS` | (전체 13) | 실행할 reviewer 쉼표 구분 (예: `security,performance`). **설정 시 review-router 자동 skip** (사용자 의도 우선). |
 | `REVIEW_OUTPUT_DIR` | `./review/code` | 세션 디렉토리 부모 (nested ISO 분할은 lib.session 이 담당) |
 | `REVIEW_SKIP_EXTENSIONS` | (없음) | 건너뛸 확장자 (예: `md,txt,json`) |
 | `REVIEW_MAX_FILE_SIZE` | `51200` | 개별 파일 컨텐츠 상한 (자) |

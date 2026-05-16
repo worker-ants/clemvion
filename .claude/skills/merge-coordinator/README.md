@@ -74,10 +74,10 @@ review/
         │   └── ...
         ├── _retry_state.json
         ├── meta.json
-        ├── merge_conflict_analyzer/review.md
-        ├── semantic_conflict_analyzer/review.md
-        ├── integration_order_planner/review.md
-        ├── cross_branch_spec_analyzer/review.md
+        ├── merge_conflict_analyzer.md    ← analyzer 별 결과 (<analyzer>.md)
+        ├── semantic_conflict_analyzer.md
+        ├── integration_order_planner.md
+        ├── cross_branch_spec_analyzer.md
         ├── SUMMARY.md
         └── RESOLUTION.md (선택)
 ```

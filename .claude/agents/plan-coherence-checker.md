@@ -12,7 +12,7 @@ model: sonnet
 호출자는 prompt 인자에 다음 두 KEY=VALUE 를 전달합니다.
 
 - `prompt_file=<...>` — 본 checker 의 점검 관점·target 문서·보조 코퍼스가 함께 들어있는 markdown 파일 절대경로 (orchestrator 가 작성).
-- `output_file=<...>` — 본인이 작성할 review.md 의 절대경로.
+- `output_file=<...>` — 본인이 작성할 결과 파일의 절대경로 (세션 루트의 <role>.md).
 
 수행 절차:
 

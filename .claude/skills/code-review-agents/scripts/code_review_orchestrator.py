@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from lib import session  # noqa: E402
 from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
+from lib.router_safety import compute_forced_agents  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -91,9 +92,10 @@ def should_skip_binary(file_path):
 # ---------------------------------------------------------------------------
 
 
-def load_config():
+def load_config(route_mode="auto"):
     agents_env = os.environ.get("REVIEW_AGENTS", "").strip()
-    if agents_env:
+    agents_explicit = bool(agents_env)
+    if agents_explicit:
         agents = [a.strip() for a in agents_env.split(",") if a.strip()]
     else:
         agents = list(ALL_AGENTS)
@@ -107,6 +109,8 @@ def load_config():
     return {
         "output_dir": os.environ.get("REVIEW_OUTPUT_DIR", "./review/code"),
         "agents": agents,
+        "agents_explicit": agents_explicit,
+        "route_mode": route_mode,
         "max_file_size": int(os.environ.get("REVIEW_MAX_FILE_SIZE", "51200")),
         "max_prompt_size": int(os.environ.get("REVIEW_MAX_PROMPT_SIZE", "131072")),
         "batch_size": int(os.environ.get("REVIEW_BATCH_SIZE", "50")),
@@ -249,11 +253,68 @@ def build_agent_prompt_body(agent_name, change_infos, max_file_size, max_prompt_
         f"{info['perspective']}\n"
         "sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로\n"
         "따르되, 분석 시 아래 \"점검 관점\" 을 빠짐없이 적용하세요. 결과는 `output_file`\n"
-        "인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.\n\n"
+        "인자가 가리키는 경로에 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.\n\n"
         f"{scope_note}"
         f"## 점검 관점 ({info['ko_title']})\n\n"
         f"{info['checklist']}\n\n"
         "## 리뷰 대상 파일\n\n"
+    )
+    files_budget = 0
+    if max_prompt_size > 0:
+        files_budget = max(max_prompt_size - len(header), max_prompt_size // 2)
+    return header + build_files_section(change_infos, max_file_size, files_budget)
+
+
+def build_router_prompt_body(
+    agents, agents_forced, agents_forced_reasons,
+    change_infos, max_file_size, max_prompt_size,
+):
+    """Compose the review-router's prompt payload.
+
+    The router used to read only headers of each reviewer prompt as a
+    context-saving measure, then sample 1–2 files. That approach missed
+    reviewers whose relevance was only visible inside diff bodies
+    (account/, payment/, etc.) — see plan/in-progress/
+    harness-review-router-c4f1a2.md for the decision trail. The router
+    now receives the same change-file payload as a reviewer plus the
+    forced list and the 13 perspectives so it can decide on meaning, not
+    filenames.
+    """
+    forced_block_lines = []
+    if agents_forced:
+        for name in agents_forced:
+            info = REVIEWER_INSTRUCTIONS.get(name, {})
+            title = info.get("ko_title", name)
+            reasons = agents_forced_reasons.get(name) or []
+            reason_text = " / ".join(reasons) if reasons else "(이유 미기재)"
+            forced_block_lines.append(f"- **{name}** ({title}) — {reason_text}")
+        forced_block = "\n".join(forced_block_lines)
+    else:
+        forced_block = "(이번 세션에서 router_safety 가 강제 포함한 reviewer 없음)"
+
+    perspective_lines = []
+    for name in agents:
+        info = REVIEWER_INSTRUCTIONS.get(name, {})
+        title = info.get("ko_title", name)
+        perspective = info.get("perspective", "")
+        scope_note = " (영역 무관 시 NONE 가능)" if info.get("scope_optional") else ""
+        perspective_lines.append(f"- `{name}` — {title}{scope_note}: {perspective}")
+    perspective_block = "\n".join(perspective_lines)
+
+    header = (
+        "# Review Router Payload\n\n"
+        "본 파일은 orchestrator 가 review-router 용으로 작성한 입력입니다. "
+        "아래 변경 코드를 보고, 13명의 reviewer 후보 중 어떤 reviewer 를 실제로 실행할지 결정하세요.\n\n"
+        "## 결정 규칙\n"
+        "- 아래 **강제 포함** 목록은 router_safety 가 결정한 것으로, router 가 끄지 못합니다 (selected=true 고정).\n"
+        "- 그 외 reviewer 는 변경 코드의 실제 의미를 보고 판단. **확신 없으면 selected=true** (false-negative 가 false-positive 보다 위험).\n"
+        "- selected 수가 0 또는 1 이면 호출자가 본 결정을 폐기하고 전체 reviewer fallback 합니다 (역시 false-negative 방어).\n"
+        "- 변경 코드 본문을 직접 분석할 수 있도록 변경 파일 컨텍스트가 함께 전달됩니다. 추가 탐색이 필요하면 Read/Grep/Glob/Bash 를 자유롭게 사용해도 됩니다.\n\n"
+        "## 강제 포함 (router 가 끄지 못함)\n\n"
+        f"{forced_block}\n\n"
+        "## 13 reviewer 후보와 관점\n\n"
+        f"{perspective_block}\n\n"
+        "## 변경 파일 컨텍스트\n\n"
     )
     files_budget = 0
     if max_prompt_size > 0:
@@ -437,8 +498,7 @@ def prepare_session(change_infos, config):
             config["max_file_size"], config["max_prompt_size"],
         )
         prompt_path = os.path.join(prompts_dir, f"{agent}.md")
-        output_path = os.path.join(session_dir, agent, "review.md")
-        os.makedirs(os.path.join(session_dir, agent), exist_ok=True)
+        output_path = os.path.join(session_dir, f"{agent}.md")
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(body)
         invocations.append({
@@ -448,10 +508,56 @@ def prepare_session(change_infos, config):
             "output_file": os.path.abspath(output_path),
         })
 
+    # Router safety: compute agents the router cannot drop.
+    forced_agents, forced_reasons = compute_forced_agents(
+        [ci["file_path"] for ci in change_infos],
+        config["agents"],
+    )
+
+    # Routing decision: pending → router will run; skipped → bypass router.
+    # Router is bypassed when:
+    #   - REVIEW_AGENTS is explicitly set (user intent overrides router)
+    #   - --route=all (escape hatch for full audit)
+    if config["route_mode"] == "all" or config["agents_explicit"]:
+        routing_status = "skipped"
+        skip_reason = (
+            "REVIEW_AGENTS explicitly set"
+            if config["agents_explicit"] else "--route=all"
+        )
+    else:
+        routing_status = "pending"
+        skip_reason = None
+
+    router_output_file = os.path.abspath(
+        os.path.join(session_dir, "_routing_decision.json")
+    )
+
+    # Router-specific prompt body — same context budget as a reviewer so the
+    # router can decide on meaning instead of filenames. Only written when
+    # the router will actually be invoked (routing_status == "pending").
+    router_prompt_file = None
+    if routing_status == "pending":
+        router_body = build_router_prompt_body(
+            config["agents"], forced_agents, forced_reasons,
+            change_infos, config["max_file_size"], config["max_prompt_size"],
+        )
+        router_prompt_path = os.path.join(prompts_dir, "_router.md")
+        with open(router_prompt_path, "w", encoding="utf-8") as f:
+            f.write(router_body)
+        router_prompt_file = os.path.abspath(router_prompt_path)
+
     retry_state = {
         "session_dir": os.path.abspath(session_dir),
         "summary_subagent_type": "code-review-summary",
         "summary_output_file": os.path.abspath(os.path.join(session_dir, "SUMMARY.md")),
+        "router_subagent_type": "review-router",
+        "router_prompt_file": router_prompt_file,
+        "router_output_file": router_output_file,
+        "routing_status": routing_status,
+        "routing_skip_reason": skip_reason,
+        "agents_forced": forced_agents,
+        "agents_forced_reasons": forced_reasons,
+        "agents_skipped": [],
         "subagent_invocations": invocations,
         "agents_pending": [inv["name"] for inv in invocations],
         "agents_success": [],
@@ -477,12 +583,16 @@ def prepare_session(change_infos, config):
             } for ci in change_infos
         ],
         "agents": config["agents"],
+        "route_mode": config["route_mode"],
+        "agents_explicit": config["agents_explicit"],
+        "agents_forced": forced_agents,
     }
     session.save_metadata(session_dir, meta)
 
     debug_log(
         f"Prepared session: {session_dir} ({len(change_infos)} files, "
-        f"{len(invocations)} agents)"
+        f"{len(invocations)} agents, route={config['route_mode']}, "
+        f"forced={forced_agents}, routing_status={routing_status})"
     )
     return os.path.abspath(session_dir)
 
@@ -580,6 +690,13 @@ def main():
     parser.add_argument("--range", type=str, metavar="FROM..TO")
     parser.add_argument("--branch", type=str, metavar="BRANCH")
     parser.add_argument("--staged", action="store_true")
+    parser.add_argument(
+        "--route", type=str, choices=["auto", "all"], default="auto",
+        help="auto (default): review-router selects a subset of reviewers. "
+             "all: bypass router and invoke every reviewer (legacy behavior). "
+             "If REVIEW_AGENTS env var is set, the router is bypassed "
+             "regardless of this flag (explicit user intent wins).",
+    )
     parser.add_argument("files", nargs="*")
 
     args, _ = parser.parse_known_args()
@@ -607,7 +724,7 @@ def main():
         print(sd)
         sys.exit(0)
 
-    config = load_config()
+    config = load_config(route_mode=args.route)
     change_infos = collect_change_infos(args, config)
     if not change_infos:
         print("No reviewable files found.", file=sys.stderr)
