@@ -17,22 +17,22 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `coupon_manage` | 쿠폰 관리 (사용/중지) | Coupon management | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#coupon-management) |
 | `coupon_issuance_customers_list` | 쿠폰 발급 대상 회원 목록 | Retrieve a list of eligible customers for conditional issuance | GET | `coupons/{coupon_no}/issuancecustomers` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-eligible-customers-for-conditional-issuance) |
 | `coupon_issues_list` | 발급 쿠폰 목록 | Retrieve a list of issued coupons | GET | `coupons/issues` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-issued-coupons) |
-| `benefits_list` | 회원 혜택 목록 | Retrieve a list of customer benefits | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-customer-benefits) |
-| `benefits_count` | 회원 혜택 개수 | Retrieve a count of customer benefits | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-customer-benefits) |
-| `benefits_get` | 회원 혜택 단건 조회 | Retrieve a customer benefit | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-customer-benefit) |
-| `benefits_create` | 회원 혜택 생성 | Create a customer benefit | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-customer-benefit) |
-| `benefits_update` | 회원 혜택 수정 | Update a customer benefit | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-customer-benefit) |
-| `benefits_delete` | 회원 혜택 삭제 | Delete a customer benefit | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-customer-benefit) |
+| `benefits_list` | 회원 혜택 목록 | Retrieve a list of customer benefits | GET | `benefits` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-customer-benefits) |
+| `benefits_count` | 회원 혜택 개수 | Retrieve a count of customer benefits | GET | `benefits/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-customer-benefits) |
+| `benefits_get` | 회원 혜택 단건 조회 | Retrieve a customer benefit | GET | `benefits/{benefit_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-customer-benefit) |
+| `benefits_create` | 회원 혜택 생성 | Create a customer benefit | POST | `benefits` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-customer-benefit) |
+| `benefits_update` | 회원 혜택 수정 | Update a customer benefit | PUT | `benefits/{benefit_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-customer-benefit) |
+| `benefits_delete` | 회원 혜택 삭제 | Delete a customer benefit | DELETE | `benefits/{benefit_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-customer-benefit) |
 | `commonevents_list` | 전체 이벤트 목록 | Retrieve a list of storewide promotions | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-storewide-promotions) |
 | `commonevents_create` | 전체 이벤트 생성 | Create a storewide promotion | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-storewide-promotion) |
 | `commonevents_update` | 전체 이벤트 수정 | Update a storewide promotion | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-storewide-promotion) |
 | `commonevents_delete` | 전체 이벤트 삭제 | Delete a storewide promotion | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-storewide-promotion) |
-| `customerevents_get` | 회원 정보 이벤트 조회 | View member information event | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#view-member-information-event) |
-| `customerevents_create` | 회원 정보 이벤트 생성 | Create a member information modification event | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-member-information-modification-event) |
-| `customerevents_update_status` | 회원 정보 이벤트 상태 수정 | Update information update campaign status | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-information-update-campaign-status) |
+| `customerevents_get` | 회원 정보 이벤트 조회 | View member information event | GET | `customerevents` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#view-member-information-event) |
+| `customerevents_create` | 회원 정보 이벤트 생성 | Create a member information modification event | POST | `customerevents` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-member-information-modification-event) |
+| `customerevents_update_status` | 회원 정보 이벤트 상태 수정 | Update information update campaign status | PUT | `customerevents` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-information-update-campaign-status) |
 | `customers_coupons_list` | 회원별 쿠폰 목록 | Retrieve a list of customer coupons | GET | `customers/{member_id}/coupons` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-customer-coupons) |
 | `customers_coupons_count` | 회원별 쿠폰 개수 | Retrieve a count of customer coupons | GET | `customers/{member_id}/coupons/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-customer-coupons) |
-| `customers_coupons_delete` | 회원 쿠폰 삭제 | Delete a customer coupon | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-customer-coupon) |
+| `customers_coupons_delete` | 회원 쿠폰 삭제 | Delete a customer coupon | DELETE | `customers/{member_id}/coupons/{coupon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-customer-coupon) |
 | `discountcodes_list` | 할인 코드 목록 | Retrieve a list of discount codes | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-discount-codes) |
 | `discountcodes_get` | 할인 코드 단건 조회 | Retrieve a discount code | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-discount-code) |
 | `discountcodes_create` | 할인 코드 생성 | Create a discount code | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-discount-code) |
