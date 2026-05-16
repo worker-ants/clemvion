@@ -3,6 +3,7 @@ import {
   Logger,
   Module,
   OnApplicationShutdown,
+  OnModuleInit,
   Provider,
 } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -16,6 +17,8 @@ import {
   CAFE24_REFRESH_QUEUE,
   CAFE24_REFRESH_QUEUE_EVENTS,
 } from '../../../modules/integrations/cafe24-token-refresh.constants';
+import { IntegrationsModule } from '../../../modules/integrations/integrations.module';
+import { IntegrationsService } from '../../../modules/integrations/integrations.service';
 
 /**
  * QueueEvents provider — Cafe24ApiClient 가 `waitUntilFinished` 로 worker
@@ -57,6 +60,9 @@ const cafe24RefreshQueueEventsProvider: Provider = {
   imports: [
     TypeOrmModule.forFeature([Integration]),
     BullModule.registerQueue({ name: CAFE24_REFRESH_QUEUE }),
+    // IntegrationsService 에 cafe24 entity-aware tester 를 등록하기 위함.
+    // dependency direction 은 nodes → modules 로 유지된다 (역방향 import 없음).
+    IntegrationsModule,
   ],
   providers: [
     Cafe24ApiClient,
@@ -65,13 +71,36 @@ const cafe24RefreshQueueEventsProvider: Provider = {
   ],
   exports: [Cafe24ApiClient],
 })
-export class Cafe24Module implements OnApplicationShutdown {
+export class Cafe24Module implements OnApplicationShutdown, OnModuleInit {
   private readonly logger = new Logger(Cafe24Module.name);
 
   constructor(
     @Inject(CAFE24_REFRESH_QUEUE_EVENTS)
     private readonly queueEvents: QueueEvents,
+    private readonly integrations: IntegrationsService,
+    private readonly cafe24Api: Cafe24ApiClient,
   ) {}
+
+  /**
+   * `POST /api/integrations/:id/test` 의 cafe24 분기를 활성화한다. spec
+   * §5.8 의 `GET /api/v2/admin/apps` 핑 + 401 시 refresh + 1회 재시도 정책.
+   * IntegrationsModule 이 `nodes/*` 를 import 하지 않도록 register 패턴으로
+   * 우회 — dependency direction 보존.
+   */
+  onModuleInit(): void {
+    this.integrations.registerEntityTester('cafe24', async (integration) => {
+      const result = await this.cafe24Api.pingConnection(integration);
+      return {
+        success: result.success,
+        message:
+          result.message ??
+          (result.success
+            ? 'Cafe24 connection successful'
+            : 'Cafe24 connection failed'),
+        code: result.code,
+      };
+    });
+  }
 
   async onApplicationShutdown(): Promise<void> {
     try {
