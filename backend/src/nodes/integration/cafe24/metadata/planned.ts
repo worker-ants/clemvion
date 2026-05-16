@@ -573,11 +573,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'shippingorigins_update', label: '출고지 수정' },
     { id: 'shippingorigins_delete', label: '출고지 삭제' },
   ],
-  salesreport: [
-    { id: 'salesreport_monthly', label: '월별 매출 통계' },
-    { id: 'salesreport_hourly', label: '시간대별 매출 통계' },
-    { id: 'salesreport_volume', label: '매출 리포트 조회' },
-  ],
+  salesreport: [],
   personal: [
     { id: 'customers_wishlist_count', label: '위시리스트 상품 개수' },
     { id: 'products_carts_count', label: '상품 담은 장바구니 수' },
