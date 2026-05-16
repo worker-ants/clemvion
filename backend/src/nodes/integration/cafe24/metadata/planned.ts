@@ -400,24 +400,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   shipping: [],
   salesreport: [],
   personal: [],
-  privacy: [
-    {
-      id: 'customers_privacy_list',
-      label: '회원 개인정보 목록 조회',
-      paginated: true,
-    },
-    { id: 'customers_privacy_count', label: '회원 개인정보 개수 조회' },
-    { id: 'customers_privacy_update', label: '회원 개인정보 수정' },
-    {
-      id: 'products_wishlist_customers_list',
-      label: '위시리스트 보유 회원 목록',
-      paginated: true,
-    },
-    {
-      id: 'products_wishlist_customers_count',
-      label: '위시리스트 보유 회원 수',
-    },
-  ],
+  privacy: [],
   mileage: [],
   notification: [],
   translation: [],
