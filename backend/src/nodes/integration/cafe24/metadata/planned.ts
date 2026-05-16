@@ -559,24 +559,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'recipientgroups_delete', label: '수신자 그룹 삭제' },
   ],
   translation: [
-    { id: 'translation_products_update', label: '상품 번역 수정' },
-    {
-      id: 'translation_categories_list',
-      label: '카테고리 번역 목록 조회',
-      paginated: true,
-    },
-    { id: 'translation_categories_update', label: '카테고리 번역 수정' },
-    {
-      id: 'translation_store_list',
-      label: '상점 번역 목록 조회',
-      paginated: true,
-    },
-    { id: 'translation_store_update', label: '상점 번역 수정' },
-    {
-      id: 'translation_themes_list',
-      label: '테마 번역 목록 조회',
-      paginated: true,
-    },
     { id: 'translation_themes_get', label: '테마 번역 단건 조회' },
     { id: 'translation_themes_update', label: '테마 번역 수정' },
   ],
