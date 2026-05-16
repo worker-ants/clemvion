@@ -366,7 +366,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'coupon_manage', label: '쿠폰 관리 (사용/중지)' },
   ],
   application: [
-    { id: 'apps_update', label: '앱 정보 수정' },
     { id: 'appstore_orders_get', label: '앱스토어 주문 조회' },
     { id: 'appstore_orders_create', label: '앱스토어 주문 생성' },
     {
@@ -383,13 +382,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'recipes_list', label: '레시피 목록 조회', paginated: true },
     { id: 'recipes_create', label: '레시피 생성' },
     { id: 'recipes_delete', label: '레시피 삭제' },
-    { id: 'scripttags_count', label: '스크립트태그 개수 조회' },
-    { id: 'scripttags_get', label: '스크립트태그 단건 조회' },
-    { id: 'scripttags_create', label: '스크립트태그 생성' },
-    { id: 'scripttags_update', label: '스크립트태그 수정' },
-    { id: 'scripttags_delete', label: '스크립트태그 삭제' },
-    { id: 'webhooks_logs_list', label: 'Webhook 로그 목록', paginated: true },
-    { id: 'webhooks_update', label: 'Webhook 설정 수정' },
   ],
   category: [
     {
