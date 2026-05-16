@@ -417,6 +417,32 @@ describe('IntegrationsService', () => {
       });
     });
 
+    it('warns when registerEntityTester overwrites an existing registration (drift detection)', async () => {
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: Mock } }).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      const first = jest
+        .fn()
+        .mockResolvedValue({ success: true, message: 'first' });
+      const second = jest
+        .fn()
+        .mockResolvedValue({ success: true, message: 'second' });
+
+      service.registerEntityTester('cafe24', first);
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      service.registerEntityTester('cafe24', second);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("service_type='cafe24'"),
+      );
+
+      warnSpy.mockRestore();
+    });
+
     it('falls through to dispatchTest when no entity tester is registered for the service_type', async () => {
       const cafe24Integration = makeIntegration({
         serviceType: 'cafe24',
