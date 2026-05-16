@@ -5,6 +5,7 @@ import {
   Cafe24RateLimitedError,
   Cafe24TransportFailedError,
   __resetCafe24LocksForTesting,
+  wrapInCafe24Envelope,
 } from './cafe24-api.client';
 import type { Integration } from '../../../modules/integrations/entities/integration.entity';
 
@@ -156,93 +157,142 @@ describe('Cafe24ApiClient', () => {
       expect(res.retries).toBe(0);
     });
 
-    it('PUT — wraps body in Cafe24 `request` envelope (shop_no stays top-level)', async () => {
-      // Cafe24 Admin API rejects flat bodies with 400 "Please enter the
-      // Request parameter." All write requests (POST/PUT) MUST be wrapped
-      // as `{ shop_no?, request: { ...rest } }`. shop_no is the only
-      // exception that lives at the top level alongside `request`.
-      // See https://developers.cafe24.com/docs/ko/api/admin/#update-a-product
+    // ----- Cafe24 `request` envelope (POST/PUT) -----
+    // Cafe24 Admin API rejects flat bodies with 400 "Please enter the
+    // Request parameter." All write requests (POST/PUT) MUST be wrapped
+    // as `{ shop_no?, request: { ...rest } }`. shop_no is the only
+    // exception that lives at the top level alongside `request`.
+    // See https://developers.cafe24.com/docs/ko/api/admin/#update-a-product
+    async function captureWireBody(
+      opts: Parameters<Cafe24ApiClient['call']>[1],
+    ): Promise<unknown> {
       fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
-      const integration = makeIntegration();
-      await client.call(integration, {
+      await client.call(makeIntegration(), opts);
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      return init.body === undefined
+        ? undefined
+        : JSON.parse(init.body as string);
+    }
+
+    it.each<{
+      label: string;
+      method: 'POST' | 'PUT';
+      path: string;
+      body: Record<string, unknown>;
+      expected: Record<string, unknown>;
+    }>([
+      {
+        label: 'PUT with shop_no — shop_no top-level, rest wrapped',
         method: 'PUT',
         path: 'products/1001',
         body: { shop_no: 1, product_name: 'Updated', price: '10000.00' },
-      });
+        expected: {
+          shop_no: 1,
+          request: { product_name: 'Updated', price: '10000.00' },
+        },
+      },
+      {
+        label: 'PUT without shop_no — body becomes `{ request: {...} }`',
+        method: 'PUT',
+        path: 'products/1001',
+        body: { product_name: 'Updated' },
+        expected: { request: { product_name: 'Updated' } },
+      },
+      {
+        label: 'POST create — same envelope applied',
+        method: 'POST',
+        path: 'products',
+        body: { shop_no: 1, product_name: 'New', price: '5000.00' },
+        expected: {
+          shop_no: 1,
+          request: { product_name: 'New', price: '5000.00' },
+        },
+      },
+      {
+        label: 'PUT with only shop_no — sends shop_no + empty request envelope',
+        // Degenerate case — caller passed only shop_no. We still emit
+        // the envelope so Cafe24's parser sees the required `request` key
+        // rather than 400 "Please enter the Request parameter."
+        method: 'PUT',
+        path: 'products/1001',
+        body: { shop_no: 1 },
+        expected: { shop_no: 1, request: {} },
+      },
+    ])('$label', async ({ method, path, body, expected }) => {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+      await client.call(makeIntegration(), { method, path, body });
 
       const init = fetchMock.mock.calls[0][1] as RequestInit;
       expect((init.headers as Record<string, string>)['Content-Type']).toBe(
         'application/json',
       );
-      expect(JSON.parse(init.body as string)).toEqual({
-        shop_no: 1,
-        request: { product_name: 'Updated', price: '10000.00' },
-      });
-    });
-
-    it('PUT without shop_no — body becomes `{ request: {...} }`', async () => {
-      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
-      const integration = makeIntegration();
-      await client.call(integration, {
-        method: 'PUT',
-        path: 'products/1001',
-        body: { product_name: 'Updated' },
-      });
-
-      const init = fetchMock.mock.calls[0][1] as RequestInit;
-      expect(JSON.parse(init.body as string)).toEqual({
-        request: { product_name: 'Updated' },
-      });
-    });
-
-    it('POST — same envelope applied to create requests', async () => {
-      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
-      const integration = makeIntegration();
-      await client.call(integration, {
-        method: 'POST',
-        path: 'products',
-        body: { shop_no: 1, product_name: 'New', price: '5000.00' },
-      });
-
-      const init = fetchMock.mock.calls[0][1] as RequestInit;
-      expect(JSON.parse(init.body as string)).toEqual({
-        shop_no: 1,
-        request: { product_name: 'New', price: '5000.00' },
-      });
-    });
-
-    it('PUT with only shop_no in body — sends shop_no + empty request envelope', async () => {
-      // Degenerate case — caller passed only shop_no. We still emit the
-      // envelope so Cafe24's parser sees the required `request` key rather
-      // than 400 "Please enter the Request parameter."
-      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
-      const integration = makeIntegration();
-      await client.call(integration, {
-        method: 'PUT',
-        path: 'products/1001',
-        body: { shop_no: 1 },
-      });
-
-      const init = fetchMock.mock.calls[0][1] as RequestInit;
-      expect(JSON.parse(init.body as string)).toEqual({
-        shop_no: 1,
-        request: {},
-      });
+      expect(JSON.parse(init.body as string)).toEqual(expected);
     });
 
     it('GET — never wraps in envelope (no body)', async () => {
-      fetchMock.mockResolvedValueOnce(makeJsonResponse({ products: [] }));
-      const integration = makeIntegration();
-      await client.call(integration, {
+      const wire = await captureWireBody({
         method: 'GET',
         path: 'products',
         // GET requests carry shop_no on the query string; body is never
         // populated by the handler. Sanity-check the client doesn't
         // synthesise one.
       });
+      expect(wire).toBeUndefined();
+    });
 
-      const init = fetchMock.mock.calls[0][1] as RequestInit;
-      expect(init.body).toBeUndefined();
+    it('DELETE — envelope NOT applied even when body is somehow populated', async () => {
+      // Cafe24 DELETE endpoints we map are all path-only — no body fields
+      // exist in metadata. This test guards the allowlist: a hypothetical
+      // future DELETE with body must not silently inherit the POST/PUT
+      // envelope (different endpoints may use different body shapes).
+      const wire = await captureWireBody({
+        method: 'DELETE',
+        path: 'products/1001',
+        body: { reason: 'cleanup' },
+      });
+      expect(wire).toEqual({ reason: 'cleanup' });
+    });
+  });
+
+  describe('wrapInCafe24Envelope (direct unit tests)', () => {
+    // The integration-level tests above exercise the helper through the
+    // full client.call() path. These direct tests pin the helper's
+    // contract for shop_no falsy values, throws, and purity — corners
+    // that would otherwise need a full client setup to assert.
+
+    it('hoists falsy shop_no values (0, null) to the top level', () => {
+      // shop_no === 0 is meaningful (some single-mall flows); shop_no
+      // === null should propagate so a caller mistake is visible on the
+      // wire rather than silently dropped.
+      expect(wrapInCafe24Envelope({ shop_no: 0, product_name: 'x' })).toEqual({
+        shop_no: 0,
+        request: { product_name: 'x' },
+      });
+      expect(
+        wrapInCafe24Envelope({ shop_no: null, product_name: 'x' }),
+      ).toEqual({
+        shop_no: null,
+        request: { product_name: 'x' },
+      });
+    });
+
+    it('omits shop_no key when value is undefined', () => {
+      expect(
+        wrapInCafe24Envelope({ shop_no: undefined, product_name: 'x' }),
+      ).toEqual({ request: { product_name: 'x' } });
+    });
+
+    it('throws when caller pre-wraps with a `request` key (double-wrap guard)', () => {
+      expect(() =>
+        wrapInCafe24Envelope({ request: { product_name: 'x' } }),
+      ).toThrow(/pre-existing `request` key/);
+    });
+
+    it('does not mutate the input object', () => {
+      const input = { shop_no: 1, product_name: 'x' };
+      const snapshot = { ...input };
+      wrapInCafe24Envelope(input);
+      expect(input).toEqual(snapshot);
     });
   });
 

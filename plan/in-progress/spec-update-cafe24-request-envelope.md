@@ -1,8 +1,10 @@
 ---
 worktree: cafe24-request-envelope-fix-a1b2c3
 started: 2026-05-16
-owner: developer (→ project-planner 위임 필요)
+owner: developer
 ---
+
+> 본 노트는 spec 본문 수정을 `project-planner` 에 위임하기 위한 인계서다 — 본 PR 의 코드 fix 와 결속되어 있다.
 
 # spec-update: Cafe24 `request` envelope 규약 문서화
 
