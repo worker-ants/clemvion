@@ -9,8 +9,8 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | id | 라벨 (한) | English title | method | path | scope | paginated | status | docs |
 |----|---|---|---|---|---|---|---|---|
 | `suppliers_list` | 공급사 목록 조회 | Retrieve a list of suppliers | GET | `suppliers` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-suppliers) |
-| `suppliers_count` | 공급사 개수 조회 | Retrieve a count of suppliers | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-suppliers) |
-| `suppliers_get` | 공급사 단건 조회 | Retrieve a supplier | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-supplier) |
+| `suppliers_count` | 공급사 개수 조회 | Retrieve a count of suppliers | GET | `suppliers/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-suppliers) |
+| `suppliers_get` | 공급사 단건 조회 | Retrieve a supplier | GET | `suppliers/{supplier_code}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-supplier) |
 | `suppliers_create` | 공급사 등록 | Create a supplier | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-supplier) |
 | `suppliers_update` | 공급사 수정 | Update a supplier | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-supplier) |
 | `suppliers_delete` | 공급사 삭제 | Delete a supplier | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-supplier) |

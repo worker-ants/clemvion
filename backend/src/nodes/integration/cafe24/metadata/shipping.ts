@@ -14,4 +14,19 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
   },
+  // Phase 6d — shipping baseline
+  {
+    id: 'carriers_get',
+    label: '배송사 단건 조회',
+    description: 'Retrieve a single shipping carrier by carrier_no.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'carriers/{carrier_no}',
+    requiredFields: ['carrier_no'],
+    fields: {
+      carrier_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
 ];

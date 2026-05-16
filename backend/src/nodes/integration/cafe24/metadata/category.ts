@@ -102,4 +102,46 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
     paginated: true,
   },
+  // Phase 6d — category baselines
+  {
+    id: 'category_count',
+    label: '카테고리 개수 조회',
+    description: 'Retrieve the count of product categories.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'categories/count',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'mains_list',
+    label: '메인 카테고리 목록',
+    description: 'List the main categories pinned to the storefront home.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'mains',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'list',
+    paginated: true,
+  },
+  {
+    id: 'autodisplay_list',
+    label: '자동 진열 목록',
+    description: 'List automated category display layouts.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'autodisplay',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'list',
+    paginated: true,
+  },
 ];
