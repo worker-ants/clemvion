@@ -550,12 +550,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     },
   ],
   mileage: [
-    { id: 'points_autoexpiration_get', label: '적립금 자동 만료 조회' },
-    { id: 'points_autoexpiration_create', label: '적립금 자동 만료 생성' },
-    { id: 'points_autoexpiration_delete', label: '적립금 자동 만료 삭제' },
     { id: 'points_report', label: '적립금 리포트 조회' },
-    { id: 'credits_list', label: '예치금 내역 조회', paginated: true },
-    { id: 'credits_report', label: '예치금 리포트 조회' },
   ],
   notification: [
     { id: 'sms_receivers_get', label: 'SMS 수신자 조회' },
