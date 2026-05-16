@@ -371,6 +371,16 @@ export class IntegrationsService {
       lastRotatedAt: new Date(),
     });
 
+    // 트랜잭션 미적용 의도 (2026-05-16 — ai-review W23 검토 결과):
+    //   1. `save()` 단일 INSERT 실패 시 row 미생성 — 자체로 atomic.
+    //   2. `auditLogsService.record` 는 step 1 성공 후에만 호출 — 실패 row 의
+    //      audit 없음.
+    //   3. preview_token 은 본 메서드 진입 전 `consumePreviewToken` 에서 이미
+    //      `DELETE…RETURNING` 으로 원자 소비된 capability token. V045
+    //      UNIQUE race loser 가 토큰을 재사용해도 보안상 위험 — 의도적으로
+    //      재사용 차단 (race-loser 는 OAuth 재실행 필요, 이는 spec 의도).
+    // 따라서 본 try/catch 블록을 dataSource.transaction 으로 감쌀 implementational
+    // 이득이 없다. 향후 audit log 외 부작용이 추가되면 재검토.
     try {
       const saved = await this.integrationRepository.save(entity);
       await this.auditLogsService.record({

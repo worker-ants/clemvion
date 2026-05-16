@@ -219,7 +219,7 @@ export class IntegrationsController {
   @ApiOperation({
     summary: 'Cafe24 mall_id 중복 사전 감지',
     description:
-      '현재 워크스페이스에 같은 mall_id 의 cafe24 통합이 이미 있는지 사전 확인합니다. 프론트엔드가 mall_id 입력 단계에서 debounce 호출해 inline 경고 배너를 띄우는 용도. 자격 증명·토큰은 포함되지 않으며, 가장 제한적인 상태 (connected > pending_install > error > expired) 만 반환합니다. 분당 60회 제한.',
+      "현재 워크스페이스에 같은 mall_id 의 cafe24 통합이 이미 있는지 사전 확인합니다. 프론트엔드가 mall_id 입력 단계에서 debounce 호출해 inline 경고 배너를 띄우는 용도. 자격 증명·토큰은 포함되지 않으며, 가장 제한적인 상태 (connected > pending_install > error > expired) 만 반환합니다. 분당 60회 제한. spec/2-navigation/4-integration.md §9.2 Rationale 'precheck endpoint' 참조.",
   })
   @ApiOkWrappedResponse(Cafe24PrecheckResultDto, {
     description:

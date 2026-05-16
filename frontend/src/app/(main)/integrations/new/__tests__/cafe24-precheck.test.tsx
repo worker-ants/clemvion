@@ -105,7 +105,52 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
       vi.advanceTimersByTime(360);
     });
     await waitFor(() => {
-      expect(precheckMock).toHaveBeenCalledWith("myshop");
+      // 두 번째 인자는 AbortController.signal (INFO 6 — 2026-05-16)
+      expect(precheckMock).toHaveBeenCalledWith(
+        "myshop",
+        expect.any(AbortSignal),
+      );
+    });
+  });
+
+  it("mall_id 가 바뀌면 in-flight precheck 요청을 abort (INFO 6 — 2026-05-16)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    // 첫 요청이 resolve 되지 않은 상태에서 두 번째 입력이 들어오면 첫 요청
+    // 의 AbortController.signal 이 aborted 가 되어야 한다.
+    let firstSignal: AbortSignal | undefined;
+    precheckMock.mockImplementationOnce(
+      (_mallId: string, signal: AbortSignal) => {
+        firstSignal = signal;
+        return new Promise(() => {}); // 영원히 resolve 안 됨
+      },
+    );
+    precheckMock.mockResolvedValueOnce({ conflict: false });
+
+    await renderPage();
+    await screen.findByLabelText(/Mall ID/i);
+    const mallIdInput = screen.getByLabelText(/Mall ID/i);
+
+    // 첫 mall_id 입력 → 350ms debounce → fetch 시작 (응답 보류)
+    await user.type(mallIdInput, "shop-a");
+    await act(async () => {
+      vi.advanceTimersByTime(360);
+    });
+    await waitFor(() => {
+      expect(precheckMock).toHaveBeenCalledTimes(1);
+    });
+    expect(firstSignal?.aborted).toBe(false);
+
+    // 두 번째 입력 → 첫 요청 abort + 새 debounce 시작
+    await user.clear(mallIdInput);
+    await user.type(mallIdInput, "shop-b");
+    // abort 는 동기적으로 발생 (effect cleanup)
+    expect(firstSignal?.aborted).toBe(true);
+    // 새 debounce 만료 후 두 번째 호출
+    await act(async () => {
+      vi.advanceTimersByTime(360);
+    });
+    await waitFor(() => {
+      expect(precheckMock).toHaveBeenCalledTimes(2);
     });
   });
 
