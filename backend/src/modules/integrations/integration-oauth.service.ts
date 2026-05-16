@@ -27,6 +27,7 @@ import { decryptJson } from './services/credentials-transformer';
 import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import { normalizeStatusReason } from './integration-status-reason';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
+import { getAppBaseUrl } from '../../common/utils/app-base-url';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
@@ -490,7 +491,7 @@ export class IntegrationOAuthService {
     });
     await this.stateRepository.save(record);
 
-    const appUrl = process.env.APP_URL || 'http://localhost:3011';
+    const appUrl = getAppBaseUrl();
     const redirectUri = buildOauthCallbackUrl(appUrl, service.oauthProvider);
     // Cafe24 deviates from RFC 6749 §3.3 (space-delimited) and requires
     // comma-delimited scopes on /oauth/authorize. Sending space-delimited
@@ -968,7 +969,7 @@ export class IntegrationOAuthService {
       tokenUrl = STATIC_TOKEN_URLS[provider];
     }
 
-    const appUrl = process.env.APP_URL || 'http://localhost:3011';
+    const appUrl = getAppBaseUrl();
     const redirectUri = buildOauthCallbackUrl(appUrl, provider);
 
     // Cafe24 의 token endpoint 는 **Basic auth only** 요구. body 에
@@ -1079,7 +1080,7 @@ export class IntegrationOAuthService {
     > &
       Cafe24BeginMeta,
   ): Promise<BeginResult> {
-    const appUrl = process.env.APP_URL || 'http://localhost:3011';
+    const appUrl = getAppBaseUrl();
 
     // Duplicate-prevention — shared helper (also used by public-flow begin
     // and the precheck endpoint). 동일 (workspaceId, mall_id) 의 `connected`
@@ -1359,7 +1360,7 @@ export class IntegrationOAuthService {
     const scopes = Array.isArray(creds.scopes)
       ? (creds.scopes as string[])
       : [];
-    const appUrl = process.env.APP_URL || 'http://localhost:3011';
+    const appUrl = getAppBaseUrl();
     const redirectUri = buildOauthCallbackUrl(appUrl, 'cafe24');
 
     const state = randomBytes(24).toString('hex');
