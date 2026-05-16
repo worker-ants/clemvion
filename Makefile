@@ -37,6 +37,10 @@ e2e-test:
 # 하여 runner2 가 skip 되고, `$$?` 는 마지막 실행된 명령의 exit code 를 캡처한다
 # (runner1 실패 → STATUS=runner1 exit, runner2 실패 → STATUS=runner2 exit, 둘 다
 # 성공 → 0). e2e-down 은 항상 실행되며 최종 exit 코드는 STATUS.
+#
+# 설계 의도: runner1 (backend e2e) 실패 시 runner2 (playwright) 는 실행하지
+# 않는다 — 백엔드 e2e 통과가 frontend e2e 의 선행 조건이며, 백엔드가 깨진
+# 상태에서 playwright 를 돌려 노이즈 실패를 발생시키지 않기 위함.
 e2e-test-full:
 	$(COMPOSE_E2E) up -d --wait --build backend-e2e
 	$(COMPOSE_E2E) run --rm --build backend-e2e-runner && \

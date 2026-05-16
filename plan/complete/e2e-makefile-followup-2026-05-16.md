@@ -34,5 +34,5 @@ owner: developer
 
 - [x] consistency-check --impl-prep — Critical 3건은 모두 사전 결함, 본 plan 범위로 흡수해 동반 해소. `review/consistency/2026/05/16/09_34_14/`.
 - [x] 구현
-- [ ] TEST WORKFLOW
-- [ ] REVIEW WORKFLOW
+- [x] TEST WORKFLOW — backend lint/unit/build 영향 없음 (코드 변경 0), e2e (`make e2e-test`) 12/12 suites, 66/66 tests PASS.
+- [x] REVIEW WORKFLOW — 13/13 reviewer success, Critical 0, Warning 3 (1건 즉시 조치 + 2건 plan 라이프사이클 자연 해소), Info 1건 즉시 조치. `review/code/2026/05/16/09_43_04/`.

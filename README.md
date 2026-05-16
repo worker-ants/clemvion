@@ -239,7 +239,7 @@ make e2e-up          # 인프라 + backend-e2e 만 백그라운드 기동 (runne
 make e2e-down        # 정리 (volume·orphan 모두)
 ```
 
-세 `e2e-*` 타겟 모두 매 실행 시 `docker compose ... --build` 로 backend 이미지를 갱신한다. BuildKit layer cache 가 변경 없는 layer 는 재사용하므로 첫 build 이후 오버헤드는 작고, 새로 추가한 컨트롤러·라우트가 stale 이미지에 반영되지 않아 사일런트 404 로 실패하는 회귀를 차단한다.
+빌드 타겟 세 개 (`e2e-up`, `e2e-test`, `e2e-test-full`) 모두 매 실행 시 `docker compose ... --build` 로 backend 이미지를 갱신한다 (`e2e-down` 은 정리 전용이라 제외). BuildKit layer cache 가 변경 없는 layer 는 재사용하므로 첫 build 이후 오버헤드는 작고, 새로 추가한 컨트롤러·라우트가 stale 이미지에 반영되지 않아 사일런트 404 로 실패하는 회귀를 차단한다.
 
 ### 문서 링크 검증
 
