@@ -75,6 +75,18 @@ type TransportTester = (
   credentials: Record<string, unknown>,
 ) => Promise<IntegrationTestResult>;
 
+/**
+ * Entity-aware variant — receives the persisted Integration row so the tester
+ * can use side-effects like proactive token refresh, status transitions, or
+ * DB-backed retry state. Registered out-of-band by infrastructure modules
+ * that own these side-effects (e.g. Cafe24Module → registers cafe24's
+ * `pingConnection` here so IntegrationsModule never has to depend on
+ * `nodes/*`). Falls through to {@link TransportTester} when not registered.
+ */
+export type EntityAwareTester = (
+  integration: Integration,
+) => Promise<IntegrationTestResult>;
+
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 /**
@@ -159,6 +171,14 @@ export class IntegrationsService {
    */
   private readonly transportTesters: Map<string, TransportTester>;
 
+  /**
+   * Map of `service_type` → entity-aware test. Populated at runtime by
+   * infrastructure modules via {@link registerEntityTester}. Used only by
+   * {@link testConnection} (saved integration), not by {@link previewTest}
+   * (entity does not yet exist).
+   */
+  private readonly entityTesters = new Map<string, EntityAwareTester>();
+
   constructor(
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
@@ -174,6 +194,16 @@ export class IntegrationsService {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
     ]);
+  }
+
+  /**
+   * Out-of-band registration of an entity-aware tester for a given
+   * `service_type`. Called by infrastructure modules at startup
+   * (Cafe24Module.onModuleInit) so this module never has to depend on
+   * `nodes/*` directly. Last registration wins.
+   */
+  registerEntityTester(serviceType: string, tester: EntityAwareTester): void {
+    this.entityTesters.set(serviceType, tester);
   }
 
   // ---------------------------------------------------------------
@@ -558,6 +588,12 @@ export class IntegrationsService {
         message:
           'Credentials cannot be decrypted with the current key. Reconnect to rebuild this integration.',
       };
+    }
+    // Entity-aware tester wins when registered (e.g. cafe24's pingConnection
+    // needs the row for proactive refresh + 401 retry against the real API).
+    const entityTester = this.entityTesters.get(entity.serviceType);
+    if (entityTester) {
+      return entityTester(entity);
     }
     return this.dispatchTest(
       entity.serviceType,
