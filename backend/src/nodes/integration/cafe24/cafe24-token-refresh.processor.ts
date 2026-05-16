@@ -78,13 +78,20 @@ export class Cafe24TokenRefreshProcessor extends WorkerHost {
       return;
     }
 
-    // 백그라운드 경로는 status='connected' 만 대상. 호출자 검증을 신뢰하지
-    // 않고 worker 에서 다시 확인 — `error`/`expired` 상태인데 큐에 잘못
-    // 들어온 잡이 토큰을 자동 회복시키면 사용자가 의도한 reauthorize
-    // 흐름이 우회될 수 있다.
-    if (source === 'background' && fresh.status !== 'connected') {
+    // CONC H-2 (2026-05-16) — status 검증은 source 와 무관하게 적용한다.
+    // BullMQ jobId dedup 의 부수 효과 때문 — proactive 가 먼저 enqueue 된
+    // 직후 background 가 같은 jobId 로 add() 하면 worker 는 기존 잡의
+    // `source='proactive'` data 만 보게 된다 (data 는 dedup 시 덮어쓰지
+    // 않음). 옛 코드는 `source === 'background'` 일 때만 status 검증을
+    // 수행해, 위 race 가 발생하면 사용자가 의도한 reauthorize 흐름이
+    // 우회될 수 있었다. 이제 source 무관하게 connected 만 처리해 race-safe.
+    //
+    // 호출자 (Cafe24ApiClient.call) 는 어차피 handler 의 `resolveIntegration`
+    // 에서 status='connected' 검증을 거친 뒤에만 도착하므로 proactive 경로
+    // 도 이 검증이 정상 흐름에 영향을 주지 않는다.
+    if (fresh.status !== 'connected') {
       this.logger.log(
-        `Cafe24 background refresh skipped for ${integrationId} — status=${fresh.status} (reauthorize required)`,
+        `Cafe24 refresh skipped for ${integrationId} — status=${fresh.status} (reauthorize required, source=${source})`,
       );
       return;
     }
