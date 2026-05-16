@@ -225,7 +225,9 @@ export class IntegrationsController {
     description:
       'conflict 여부 + (존재 시) 충돌 대상 통합의 id/name/status. 자격 증명 미포함',
   })
-  @ApiBadRequestResponse({ description: 'mallId 형식 위반 (^[a-z0-9-]{3,50}$)' })
+  @ApiBadRequestResponse({
+    description: 'mallId 형식 위반 (^[a-z0-9-]{3,50}$)',
+  })
   @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 60회)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async cafe24Precheck(
