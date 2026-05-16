@@ -332,8 +332,7 @@ const CAFE24_PRECHECK_STATUS_PRIORITY = [
   'error',
   'expired',
 ] as const;
-type Cafe24PrecheckStatus =
-  (typeof CAFE24_PRECHECK_STATUS_PRIORITY)[number];
+type Cafe24PrecheckStatus = (typeof CAFE24_PRECHECK_STATUS_PRIORITY)[number];
 
 @Injectable()
 export class IntegrationOAuthService {

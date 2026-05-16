@@ -120,23 +120,33 @@ export default function NewIntegrationPage() {
     }
     // mall_id 가 바뀔 때마다 350ms debounce — 짧으면 brute-force 호출,
     // 길면 사용자가 Connect 클릭 시 stale 결과를 보게 됨.
-    let cancelled = false;
+    //
+    // `AbortController` 로 in-flight 요청도 cancel — 사용자가 빠르게 타이핑하면
+    // 직전 fetch 가 backend 까지 도달했어도 응답을 기다리지 않고 abort 해
+    // throttle 카운터·서버 부하를 절약 (ai-review INFO #6, 2026-05-16).
+    const controller = new AbortController();
+    let aborted = false;
     setCafe24PrecheckLoading(true);
     const t = setTimeout(async () => {
       try {
-        const result = await integrationsApi.cafe24Precheck(cafe24MallIdInput);
-        if (!cancelled) setCafe24Conflict(result);
-      } catch {
-        // precheck 자체 실패는 silent — Connect 시점의 backend 가드가
-        // backstop. inline 배너를 띄우지 못해도 안전.
-        if (!cancelled) setCafe24Conflict(null);
+        const result = await integrationsApi.cafe24Precheck(
+          cafe24MallIdInput,
+          controller.signal,
+        );
+        if (!aborted) setCafe24Conflict(result);
+      } catch (err) {
+        // AbortError 는 정상 cancel 시그널 — silent. 그 외는 backend 가드가
+        // backstop 이므로 inline 배너를 띄우지 못해도 안전 (silent fail).
+        if (!aborted) setCafe24Conflict(null);
+        void err;
       } finally {
-        if (!cancelled) setCafe24PrecheckLoading(false);
+        if (!aborted) setCafe24PrecheckLoading(false);
       }
     }, 350);
     return () => {
-      cancelled = true;
+      aborted = true;
       clearTimeout(t);
+      controller.abort();
     };
   }, [isCafe24OAuth, cafe24MallIdInput]);
 
