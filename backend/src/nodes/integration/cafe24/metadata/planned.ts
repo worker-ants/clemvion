@@ -397,15 +397,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   ],
   promotion: [
     { id: 'coupon_manage', label: '쿠폰 관리 (사용/중지)' },
-    { id: 'commonevents_list', label: '전체 이벤트 목록', paginated: true },
-    { id: 'commonevents_create', label: '전체 이벤트 생성' },
-    { id: 'commonevents_update', label: '전체 이벤트 수정' },
-    { id: 'commonevents_delete', label: '전체 이벤트 삭제' },
-    { id: 'discountcodes_list', label: '할인 코드 목록', paginated: true },
-    { id: 'discountcodes_get', label: '할인 코드 단건 조회' },
-    { id: 'discountcodes_create', label: '할인 코드 생성' },
-    { id: 'discountcodes_update', label: '할인 코드 수정' },
-    { id: 'discountcodes_delete', label: '할인 코드 삭제' },
   ],
   application: [
     { id: 'apps_update', label: '앱 정보 수정' },
