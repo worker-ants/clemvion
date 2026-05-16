@@ -246,26 +246,29 @@ export function DatabaseQueryConfig({ config, onChange }: { config: Config; onCh
 }
 
 // ===== Cafe24 =====
-const CAFE24_RESOURCES: ReadonlyArray<{ value: string; label: string }> = [
-  { value: "store", label: "Store (상점)" },
-  { value: "product", label: "Product (상품)" },
-  { value: "order", label: "Order (주문)" },
-  { value: "customer", label: "Customer (회원)" },
-  { value: "community", label: "Community (게시판)" },
-  { value: "design", label: "Design (디자인)" },
-  { value: "promotion", label: "Promotion (프로모션)" },
-  { value: "application", label: "Application (앱 관리)" },
-  { value: "category", label: "Category (상품분류)" },
-  { value: "collection", label: "Collection (판매분류)" },
-  { value: "supply", label: "Supply (공급사)" },
-  { value: "shipping", label: "Shipping (배송)" },
-  { value: "salesreport", label: "Salesreport (매출통계)" },
-  { value: "personal", label: "Personal (개인화)" },
-  { value: "privacy", label: "Privacy (개인정보)" },
-  { value: "mileage", label: "Mileage (적립금)" },
-  { value: "notification", label: "Notification (알림)" },
-  { value: "translation", label: "Translation (번역)" },
-];
+// Resource keys mirror Cafe24 Admin API resource names and double as
+// translation keys under `nodeConfigs.integration.cafe24Resources.*`.
+const CAFE24_RESOURCE_KEYS = [
+  "store",
+  "product",
+  "order",
+  "customer",
+  "community",
+  "design",
+  "promotion",
+  "application",
+  "category",
+  "collection",
+  "supply",
+  "shipping",
+  "salesreport",
+  "personal",
+  "privacy",
+  "mileage",
+  "notification",
+  "translation",
+] as const;
+type Cafe24ResourceKey = (typeof CAFE24_RESOURCE_KEYS)[number];
 
 function normalizeCafe24Fields(
   raw: unknown,
@@ -297,6 +300,14 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
   const fields = normalizeCafe24Fields(config.fields);
   const pagination = (config.pagination as { limit?: number; offset?: number } | undefined) ?? {};
 
+  const resourceOptions = [
+    { value: "", label: t("nodeConfigs.integration.cafe24ResourceSelectPlaceholder") },
+    ...CAFE24_RESOURCE_KEYS.map((key: Cafe24ResourceKey) => ({
+      value: key,
+      label: t(`nodeConfigs.integration.cafe24Resources.${key}` as const),
+    })),
+  ];
+
   return (
     <div className="flex flex-col gap-3">
       <IntegrationSelector
@@ -307,27 +318,24 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
         serviceDisplayName="Cafe24"
       />
       <SelectField
-        label="Resource"
+        label={t("nodeConfigs.integration.cafe24Resource")}
         value={(config.resource as string) ?? ""}
         onChange={(v) =>
           // Reset operation when resource changes — the previous opId is
           // unlikely to belong to the new resource's metadata.
           onChange({ ...config, resource: v, operation: "" })
         }
-        options={[
-          { value: "", label: "— Select resource —" },
-          ...CAFE24_RESOURCES,
-        ]}
+        options={resourceOptions}
       />
       <ExpressionInput
-        label="Operation"
+        label={t("nodeConfigs.integration.cafe24Operation")}
         value={(config.operation as string) ?? ""}
         onChange={(v) => onChange({ ...config, operation: v })}
-        placeholder="e.g. product_list, order_get, customer_update"
-        hint="Operation id from spec/conventions/cafe24-api-metadata.md (e.g. product_list, product_get, product_update, order_list, ...)"
+        placeholder={t("nodeConfigs.integration.cafe24OperationPlaceholder")}
+        hint={t("nodeConfigs.integration.cafe24OperationHint")}
       />
       <KeyValueEditor
-        label="Fields"
+        label={t("nodeConfigs.integration.cafe24Fields")}
         items={fields.map((f) => ({ key: f.key, value: f.value }))}
         onChange={(items) => {
           // Translate KeyValue back to a plain object so the backend
@@ -341,14 +349,17 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
           // an object; the UI maintains it as a list for ergonomic editing.
           onChange({ ...config, fields: obj });
         }}
-        keyPlaceholder="shop_no, product_no, ..."
-        valuePlaceholder="value or {{ $input.x }}"
+        keyPlaceholder={t("nodeConfigs.integration.cafe24FieldsKeyPlaceholder")}
+        valuePlaceholder={t("nodeConfigs.integration.cafe24FieldsValuePlaceholder")}
         expressionValues
       />
-      <FieldGroup label="Pagination (optional)" hint="Used when the chosen operation is paginated">
+      <FieldGroup
+        label={t("nodeConfigs.integration.cafe24Pagination")}
+        hint={t("nodeConfigs.integration.cafe24PaginationHint")}
+      >
         <div className="flex gap-3">
           <NumberField
-            label="Limit"
+            label={t("nodeConfigs.integration.cafe24Limit")}
             value={pagination.limit ?? 50}
             onChange={(v) =>
               onChange({
@@ -360,7 +371,7 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
             max={500}
           />
           <NumberField
-            label="Offset"
+            label={t("nodeConfigs.integration.cafe24Offset")}
             value={pagination.offset ?? 0}
             onChange={(v) =>
               onChange({
