@@ -434,7 +434,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'webhooks_update', label: 'Webhook 설정 수정' },
   ],
   category: [
-    { id: 'category_count', label: '카테고리 개수 조회' },
     {
       id: 'category_decorationimages_get',
       label: '카테고리 꾸미기 이미지 조회',
@@ -445,20 +444,14 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     },
     { id: 'category_seo_get', label: '카테고리 SEO 조회' },
     { id: 'category_seo_update', label: '카테고리 SEO 수정' },
-    { id: 'mains_list', label: '메인 카테고리 목록 조회', paginated: true },
     { id: 'mains_add', label: '메인 카테고리 추가' },
     { id: 'mains_update', label: '메인 카테고리 수정' },
     { id: 'mains_delete', label: '메인 카테고리 삭제' },
-    { id: 'autodisplay_list', label: '자동 진열 목록 조회', paginated: true },
     { id: 'autodisplay_create', label: '자동 진열 생성' },
     { id: 'autodisplay_update', label: '자동 진열 수정' },
     { id: 'autodisplay_delete', label: '자동 진열 삭제' },
   ],
   collection: [
-    { id: 'brands_count', label: '브랜드 개수 조회' },
-    { id: 'brands_create', label: '브랜드 생성' },
-    { id: 'brands_update', label: '브랜드 수정' },
-    { id: 'brands_delete', label: '브랜드 삭제' },
     { id: 'manufacturers_count', label: '제조사 개수 조회' },
     { id: 'manufacturers_get', label: '제조사 단건 조회' },
     { id: 'manufacturers_create', label: '제조사 생성' },
@@ -473,8 +466,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'origin_list', label: '원산지 목록 조회', paginated: true },
   ],
   supply: [
-    { id: 'suppliers_count', label: '공급사 개수 조회' },
-    { id: 'suppliers_get', label: '공급사 단건 조회' },
     { id: 'suppliers_create', label: '공급사 등록' },
     { id: 'suppliers_update', label: '공급사 수정' },
     { id: 'suppliers_delete', label: '공급사 삭제' },
@@ -513,7 +504,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     },
   ],
   shipping: [
-    { id: 'carriers_get', label: '배송사 단건 조회' },
     { id: 'carriers_create', label: '배송사 등록' },
     { id: 'carriers_update', label: '배송사 수정' },
     { id: 'carriers_delete', label: '배송사 삭제' },
