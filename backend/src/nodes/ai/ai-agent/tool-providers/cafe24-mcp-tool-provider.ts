@@ -564,10 +564,13 @@ function scalarToString(value: unknown): string {
 }
 
 /**
- * Compute the sid for a tool name from an Integration id. Mirrors
- * `McpToolProvider.sidFor` so cafe24 and external MCP sids cannot
- * accidentally collide on the wire (both use the same 8-char strip rule).
+ * Compute the sid for a tool name from an Integration id. 16자 prefix +
+ * non-alphanumeric → underscore. UUID v4 의 random 영역에서 16자를 가져오므로
+ * 충돌 확률은 birthday paradox 기준 ~10^9 row 단위에서야 우려된다. 옛 8자
+ * prefix 는 SaaS 규모 (~10^4 integration) 에서 비현실적으로 충돌이 가까웠다.
+ * `McpToolProvider` 의 SID_LENGTHS 사다리 (8/12/32) 와는 별 namespace —
+ * cafe24 사이드는 단일 사다리 끊고 16자로 고정 확장.
  */
 export function sanitizeSid(integrationId: string): string {
-  return integrationId.slice(0, 8).replace(/[^a-z0-9]/gi, '_');
+  return integrationId.slice(0, 16).replace(/[^a-z0-9]/gi, '_');
 }

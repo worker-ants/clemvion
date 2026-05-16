@@ -1254,10 +1254,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
         expect(joined).toContain('mall_id_mismatch');
         expect(joined).toContain('priv-shop'); // urlMallId
         expect(joined).toContain('different-shop'); // dbMallId
-        // 토큰 전체가 아니라 prefix..suffix 형태로만 기록
-        expect(joined).toContain('AbCd');
-        expect(joined).toContain('StUv');
+        // 토큰 자체는 절대 노출 금지 — 존재 여부만 (present)/(none) 으로 표기
+        expect(joined).toContain('(present)');
         expect(joined).not.toContain(INSTALL_TOKEN); // 전체 토큰 미포함
+        expect(joined).not.toContain('AbCd'); // 옛 prefix 마저도 미포함
+        expect(joined).not.toContain('StUv'); // 옛 suffix 마저도 미포함
         // client_secret 절대 누출 금지
         expect(joined).not.toContain(clientSecret);
       });

@@ -726,21 +726,11 @@ describe('IntegrationOAuthService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('rejects mismatched owner', async () => {
-      dataSource.query.mockResolvedValue([
-        [
-          {
-            previewToken: 'tmp_x',
-            workspaceId: 'other',
-            userId: 'u-1',
-            serviceType: 'google',
-            credentials: { access_token: 't' },
-            tokenExpiresAt: null,
-            expiresAt: new Date(Date.now() + 60_000),
-          },
-        ],
-        1,
-      ]);
+    it('rejects mismatched owner (filtered at SQL WHERE — returns 0 rows = INVALID)', async () => {
+      // workspace_id + user_id 가 WHERE 절에 추가됐으므로 비소유자의 DELETE 는
+      // 0 rows 로 반환되어 OAUTH_PREVIEW_INVALID 와 동일한 메시지로 fallthrough.
+      // 토큰 존재 여부 자체를 노출하지 않는다.
+      dataSource.query.mockResolvedValue([[], 0]);
       await expect(
         service.consumePreviewToken('tmp_x', 'ws-1', 'u-1'),
       ).rejects.toThrow(BadRequestException);

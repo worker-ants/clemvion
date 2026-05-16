@@ -85,8 +85,8 @@ describe('Cafe24McpToolProvider', () => {
         executionId: 'exec-1',
       });
 
-      // The first 8 chars of the integration id, sanitised, are the sid.
-      const sid = 'abcdef12';
+      // The first 16 chars of the integration id, sanitised, are the sid.
+      const sid = 'abcdef1234567890';
       expect(tools.length).toBeGreaterThan(0);
       for (const t of tools) {
         expect(t.name.startsWith(`mcp_${sid}__`)).toBe(true);
@@ -116,8 +116,8 @@ describe('Cafe24McpToolProvider', () => {
       const names = tools.map((t) => t.name);
       expect(names).toEqual(
         expect.arrayContaining([
-          'mcp_abcdef12__product_list',
-          'mcp_abcdef12__product_get',
+          'mcp_abcdef1234567890__product_list',
+          'mcp_abcdef1234567890__product_get',
         ]),
       );
       // No other operations exposed.
@@ -138,7 +138,7 @@ describe('Cafe24McpToolProvider', () => {
         executionId: 'exec-1',
       });
       expect(tools).toEqual([]);
-      expect(provider.matches('mcp_abcdef12__product_list')).toBe(false);
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(false);
     });
 
     it('skips integrations that are not connected', async () => {
@@ -183,17 +183,17 @@ describe('Cafe24McpToolProvider', () => {
       // product_list / product_get require mall.read_product — exposed.
       expect(names).toEqual(
         expect.arrayContaining([
-          'mcp_abcdef12__product_list',
-          'mcp_abcdef12__product_get',
+          'mcp_abcdef1234567890__product_list',
+          'mcp_abcdef1234567890__product_get',
         ]),
       );
       // shops_list requires mall.read_store — NOT in granted → must be
       // filtered out (this is the bug-fix invariant).
-      expect(names).not.toContain('mcp_abcdef12__shops_list');
-      expect(names).not.toContain('mcp_abcdef12__store_get');
+      expect(names).not.toContain('mcp_abcdef1234567890__shops_list');
+      expect(names).not.toContain('mcp_abcdef1234567890__store_get');
       // product_create requires mall.write_product — NOT granted →
       // filtered.
-      expect(names).not.toContain('mcp_abcdef12__product_create');
+      expect(names).not.toContain('mcp_abcdef1234567890__product_create');
       // No order ops either — mall.read_order not granted.
       expect(names.some((n) => n.includes('__orders_'))).toBe(false);
     });
@@ -248,7 +248,7 @@ describe('Cafe24McpToolProvider', () => {
         workspaceId: 'ws-1',
         executionId: 'exec-1',
       });
-      return { sid: 'abcdef12', integration };
+      return { sid: 'abcdef1234567890', integration };
     }
 
     it('dispatches to Cafe24ApiClient and returns success payload', async () => {
@@ -343,7 +343,7 @@ describe('Cafe24McpToolProvider', () => {
 
     it('returns CAFE24_MCP_NO_SESSION when buildTools was not called for this execution', async () => {
       const res = await provider.execute(
-        makeCall('mcp_abcdef12__product_list', { shop_no: 1 }),
+        makeCall('mcp_abcdef1234567890__product_list', { shop_no: 1 }),
         {
           config: {},
           workspaceId: 'ws-1',
@@ -363,10 +363,10 @@ describe('Cafe24McpToolProvider', () => {
         workspaceId: 'ws-1',
         executionId: 'exec-1',
       });
-      expect(provider.matches('mcp_abcdef12__product_list')).toBe(true);
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(true);
 
       await provider.cleanup({ executionId: 'exec-1' });
-      expect(provider.matches('mcp_abcdef12__product_list')).toBe(false);
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(false);
     });
 
     it('cleanup() without executionId is a no-op (other sessions stay alive)', async () => {
@@ -378,10 +378,10 @@ describe('Cafe24McpToolProvider', () => {
       });
       // No executionId — must NOT tear down exec-A.
       await provider.cleanup({});
-      expect(provider.matches('mcp_abcdef12__product_list')).toBe(true);
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(true);
       // __resetForTesting drops everything (tests can use this).
       provider.__resetForTesting();
-      expect(provider.matches('mcp_abcdef12__product_list')).toBe(false);
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(false);
     });
   });
 });
