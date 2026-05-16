@@ -879,6 +879,7 @@ export const en: Dict = {
     sharedRemoveRow: "Remove row",
     fieldHelpAriaLabel: "Help",
     fieldHelpLearnMore: "Learn more →",
+    assistantAriaLabel: "Assistant response",
     conversation: {
       viewInReferences: "View in References tab",
       toolCall: "Tool Call",
@@ -890,6 +891,12 @@ export const en: Dict = {
       composerWaitingPlaceholder: "Waiting for AI response...",
       composerPlaceholder: "Type a message...",
       endConversation: "End conversation",
+    },
+    expression: {
+      insertVariable: "Insert variable",
+      sourceItemDetail: "Current row item",
+      builtIn: "Built-in",
+      functions: "Functions",
     },
     runResults: {
       tabPreview: "Preview",

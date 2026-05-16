@@ -9,6 +9,7 @@ import { Braces, ChevronRight, ChevronDown } from "lucide-react";
 import type { ExpressionData } from "./use-expression-context";
 import { getValueType } from "./resolve-nested-path";
 import { BUILT_IN_PICKER_VARIABLES } from "./expression-constants";
+import { useT } from "@/lib/i18n";
 
 interface VariablePickerProps {
   expressionData: ExpressionData;
@@ -263,6 +264,7 @@ export function VariablePicker({
   open,
   onOpenChange,
 }: VariablePickerProps) {
+  const t = useT();
   const [expandedCategories, setExpandedCategories] = useState<
     Record<string, boolean>
   >({
@@ -304,7 +306,7 @@ export function VariablePicker({
           size="icon"
           className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2"
           tabIndex={-1}
-          title="Insert variable"
+          title={t("editor.expression.insertVariable")}
         >
           <Braces className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
         </Button>
@@ -353,7 +355,7 @@ export function VariablePicker({
               <>
                 <PickerItem
                   label="$sourceItem"
-                  detail="Current row item"
+                  detail={t("editor.expression.sourceItemDetail")}
                   colorClass={TYPE_COLORS.variable}
                   onClick={() => handleInsert("$sourceItem")}
                 />
@@ -430,7 +432,7 @@ export function VariablePicker({
         {/* Built-in variables — container-only scopes are filtered above. */}
         <div>
           <CategoryHeader
-            label="Built-in"
+            label={t("editor.expression.builtIn")}
             expanded={expandedCategories.builtin ?? false}
             onToggle={() => toggleCategory("builtin")}
             count={scopedBuiltIns.length}
@@ -451,7 +453,7 @@ export function VariablePicker({
         {expressionData.functionNames.length > 0 && (
           <div>
             <CategoryHeader
-              label="Functions"
+              label={t("editor.expression.functions")}
               expanded={expandedCategories.functions ?? false}
               onToggle={() => toggleCategory("functions")}
               count={expressionData.functionNames.length}
