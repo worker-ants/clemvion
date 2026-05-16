@@ -229,8 +229,8 @@ stateDiagram-v2
 | --- | --- | --- |
 | OAuth provider (Google·GitHub 등) | 외부 → 내부 (callback) | `auth-oauth.service.ts` |
 | SMTP | 내부 → 외부 | 이메일 인증·비밀번호 reset·초대 메일 |
-| Workspace 도메인 | 내부 cross-ref | 신규 가입 시 personal workspace 자동 생성. 상세: [`workspace.md`](./workspace.md) |
-| Audit 도메인 | 내부 cross-ref | 워크스페이스 컨텍스트가 있는 인증 액션은 `audit_log`, 사용자 컨텍스트만 있는 이벤트는 `login_history`. 상세: [`audit.md`](./audit.md) |
+| Workspace 도메인 | 내부 cross-ref | 신규 가입 시 personal workspace 자동 생성. 상세: [`workspace.md`](./12-workspace.md) |
+| Audit 도메인 | 내부 cross-ref | 워크스페이스 컨텍스트가 있는 인증 액션은 `audit_log`, 사용자 컨텍스트만 있는 이벤트는 `login_history`. 상세: [`audit.md`](./1-audit.md) |
 
 ---
 

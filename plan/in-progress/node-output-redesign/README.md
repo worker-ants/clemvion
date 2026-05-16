@@ -79,7 +79,7 @@
 
 | 노드 | 카테고리 | plan 파일 |
 | --- | --- | --- |
-| Workflow (Sub-Workflow) | 호출 (sync/async) | [workflow.md](./workflow.md) |
+| Workflow (Sub-Workflow) | 호출 (sync/async) | [workflow.md](./11-workflow.md) |
 
 ### 3. AI 노드 (3 종)
 
@@ -134,7 +134,7 @@
 | [foreach](./foreach.md) | §5.1 표현 명확화, Map 과 skipped 패턴 통일 검토 |
 | [parallel](./parallel.md) | §5.2 (`done`) `meta.durationMs` + `meta.branches` 보강 |
 | [merge](./merge.md) | `meta.strategy` / `meta.outputFormat` 의 `config` 중복 제거 검토 |
-| [workflow](./workflow.md) | Async `output.workflowId` / `output.status: 'started'` 중복 제거 |
+| [workflow](./11-workflow.md) | Async `output.workflowId` / `output.status: 'started'` 중복 제거 |
 | [ai-agent](./ai-agent.md) | waiting/resumed `output.messages` ↔ 종결 `output.result.messages` 경로 통일 검토 |
 | [text-classifier](./text-classifier.md) | `output.originalInput` 위치 일관성 (정상 inside `result`, 에러 top-level 분기) |
 | [information-extractor](./information-extractor.md) | waiting `output.maxTurns` 제거 (config 중복), `output.message` (단수) 제거 |

@@ -187,7 +187,7 @@ sequenceDiagram
 
 | Sink | 흐름 | 비고 |
 | --- | --- | --- |
-| LLM provider (embed) | 임베딩 / 검색 query embed | `LlmService.embed`. 사용량 → [`llm-usage.md`](./llm-usage.md) |
+| LLM provider (embed) | 임베딩 / 검색 query embed | `LlmService.embed`. 사용량 → [`llm-usage.md`](./7-llm-usage.md) |
 | LLM provider (chat) | graph 추출 prompt | `LlmService.chat` with `extraction_llm_config_id` 또는 ws default |
 
 ### 2.5 WebSocket
@@ -239,8 +239,8 @@ stateDiagram-v2
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
 | LLM 도메인 | 외부 | embed / chat 호출, `llm_config_id` 해석 |
-| LLM Usage | cross-ref | 모든 LLM 호출은 `llm_usage_log` 적재 — [`llm-usage.md`](./llm-usage.md) |
-| File Storage | cross-ref | KB 가 S3 의 유일한 production 사용처 — [`file-storage.md`](./file-storage.md) |
+| LLM Usage | cross-ref | 모든 LLM 호출은 `llm_usage_log` 적재 — [`llm-usage.md`](./7-llm-usage.md) |
+| File Storage | cross-ref | KB 가 S3 의 유일한 production 사용처 — [`file-storage.md`](./4-file-storage.md) |
 | Execution 도메인 | cross-ref | AI Agent 노드가 KB tool 로 RAG 검색 호출 |
 
 ---
@@ -273,4 +273,4 @@ graph 추출이 LLM chat (느림·rate limit 빡빡) 인 반면 embedding 은 em
 
 `spec/0-overview.md §2.7` 은 `{workspaceId}/knowledge-base/{kbId}/{documentId}_{filename}` 을
 제안하지만 현재 코드는 `kb/{kbId}/{docId}/{filename}` 으로 업로드한다. data-flow 는 코드 기준으로
-기재하고, 정합성 정리는 별도 plan 으로 분리 ([`file-storage.md`](./file-storage.md) Rationale 참고).
+기재하고, 정합성 정리는 별도 plan 으로 분리 ([`file-storage.md`](./4-file-storage.md) Rationale 참고).

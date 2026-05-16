@@ -51,7 +51,7 @@ PR #18 (`claude/cafe24-pending-polish-7fdb7e` 브랜치) 에서 cafe24 private "
 
 - [ ] **`lastError.message` 길이 제한·민감 패턴 필터링.** `markIntegrationCallbackError` 저장 시 `message.slice(0, 200)` + 토큰 / 비밀번호 패턴 마스킹. (이전 review Info 1-2)
 - [ ] **신규 에러 코드 2종 `@ApiResponse` 데코레이터.** `CAFE24_INSTALL_INVALID_TOKEN(404)`, `CAFE24_PRIVATE_APP_ALREADY_CONNECTED(409)` 를 swagger doc 에 명시. (ai-review I19. ~~`CAFE24_INSTALL_LEGACY_PATH(410)`~~ 은 2026-05-15 namespace 이전으로 무효화 — 옛 prefix 전체가 자연 404.)
-- [ ] **`process()` 에러 격리 정책 spec 명시.** 현재 `.catch(logger.error)` 로 BullMQ 재시도가 안 일어남 — 의도된 설계라면 spec/data-flow/integration.md §1.4 에 명문화 + Sentry / Datadog 연동 검토. (ai-review W7)
+- [ ] **`process()` 에러 격리 정책 spec 명시.** 현재 `.catch(logger.error)` 로 BullMQ 재시도가 안 일어남 — 의도된 설계라면 spec/data-flow/5-integration.md §1.4 에 명문화 + Sentry / Datadog 연동 검토. (ai-review W7)
 - [ ] **`verifyHmacWithMessage` timing-safe 구현 확인.** `crypto.timingSafeEqual` 사용 여부 점검. (ai-review I15)
 
 ## 그룹 E — 테스트 보강

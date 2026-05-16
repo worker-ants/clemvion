@@ -166,9 +166,9 @@ stateDiagram-v2
 
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
-| Auth 도메인 | cross-ref | 회원가입 시 personal workspace 자동 생성. token payload 에 `activeWorkspaceId` 포함. [`auth.md`](./auth.md) |
+| Auth 도메인 | cross-ref | 회원가입 시 personal workspace 자동 생성. token payload 에 `activeWorkspaceId` 포함. [`auth.md`](./2-auth.md) |
 | Mail 도메인 | 내부 → 외부 | 초대 메일 SMTP |
-| Audit 도메인 | cross-ref | `workspace.*` 액션은 `audit_log` 적재. [`audit.md`](./audit.md) |
+| Audit 도메인 | cross-ref | `workspace.*` 액션은 `audit_log` 적재. [`audit.md`](./1-audit.md) |
 
 ---
 
