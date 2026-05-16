@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -106,6 +106,32 @@ export class NotificationsService {
       .execute();
 
     return { affected: result.affected || 0 };
+  }
+
+  /**
+   * Idempotency 헬퍼 — 같은 (workspace, type, resourceId, title) 조합으로
+   * `withinMs` 이내에 발사된 알림이 있는지 검사. `integration_action_required`
+   * 같이 동일 상태 전이를 반복 발사하지 않으려는 호출자가 사용 (spec §11.2).
+   * title 까지 매칭하므로 다른 status_reason (다른 title) 은 별도 카운트.
+   */
+  async hasRecentByResource(params: {
+    workspaceId: string;
+    type: string;
+    resourceId: string;
+    title: string;
+    withinMs: number;
+  }): Promise<boolean> {
+    const cutoff = new Date(Date.now() - params.withinMs);
+    const count = await this.notificationRepository.count({
+      where: {
+        workspaceId: params.workspaceId,
+        type: params.type,
+        resourceId: params.resourceId,
+        title: params.title,
+        createdAt: MoreThanOrEqual(cutoff),
+      },
+    });
+    return count > 0;
   }
 
   /**
