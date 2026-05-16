@@ -34,6 +34,7 @@ import { BackgroundRunSection } from "./background-run-section";
 import { parseHistoryMessages } from "./conversation-utils";
 import { formatDuration } from "./utils";
 import { parseButtonConfig, openExternalLink } from "./button-config";
+import { useT, type TFunction } from "@/lib/i18n";
 
 /**
  * `outputData.meta.backgroundRunId` 추출 — Background 핸들러가 발급한 UUID v4.
@@ -178,6 +179,7 @@ function NodeDetailTabs({
   scrollKey,
   aiMetadata,
 }: NodeDetailTabsProps) {
+  const t = useT();
   const isPresentation = result.nodeCategory === "presentation";
   const showPreview = hasPreview ?? (isPresentation && !!result.outputData);
   const aiNode = isAiNode(result.nodeType);
@@ -223,22 +225,22 @@ function NodeDetailTabs({
         ));
 
   const detailTabs: { id: DetailTab; label: string; show: boolean }[] = [
-    { id: "preview", label: "Preview", show: showPreview },
-    { id: "input", label: "Input", show: !messageLevel },
-    { id: "output", label: "Output", show: !messageLevel },
-    { id: "response", label: "Response", show: aiNode && isAssistantSelected },
-    { id: "request", label: "Request", show: aiNode && isAssistantSelected },
+    { id: "preview", label: t("editor.runResults.tabPreview"), show: showPreview },
+    { id: "input", label: t("editor.runResults.tabInput"), show: !messageLevel },
+    { id: "output", label: t("editor.runResults.tabOutput"), show: !messageLevel },
+    { id: "response", label: t("editor.runResults.tabResponse"), show: aiNode && isAssistantSelected },
+    { id: "request", label: t("editor.runResults.tabRequest"), show: aiNode && isAssistantSelected },
     {
       id: "llm_usage",
-      label: "LLM Usage",
+      label: t("editor.runResults.tabLlmUsage"),
       show: aiNode && (!messageLevel || isAssistantSelected),
     },
-    { id: "references", label: "References", show: hasReferences },
-    { id: "config", label: "Config", show: !messageLevel },
-    { id: "meta", label: "Meta", show: hasMeta },
-    { id: "port", label: "Port", show: hasPort },
-    { id: "status", label: "Status", show: hasStatus },
-    { id: "error", label: "Error", show: !messageLevel && !!result.error },
+    { id: "references", label: t("editor.runResults.tabReferences"), show: hasReferences },
+    { id: "config", label: t("editor.runResults.tabConfig"), show: !messageLevel },
+    { id: "meta", label: t("editor.runResults.tabMeta"), show: hasMeta },
+    { id: "port", label: t("editor.runResults.tabPort"), show: hasPort },
+    { id: "status", label: t("editor.runResults.tabStatus"), show: hasStatus },
+    { id: "error", label: t("editor.runResults.tabError"), show: !messageLevel && !!result.error },
   ];
   const visibleIds = new Set(
     detailTabs.filter((t) => t.show).map((t) => t.id),
@@ -304,7 +306,7 @@ function NodeDetailTabs({
         {effectiveActiveTab === "input" && (
           result.inputData != null
             ? <JsonContent data={result.inputData} />
-            : <span className="text-xs text-[hsl(var(--muted-foreground))]">Loading input data...</span>
+            : <span className="text-xs text-[hsl(var(--muted-foreground))]">{t("editor.runResults.loadingInput")}</span>
         )}
         {effectiveActiveTab === "output" && (
           <OutputTabContent
@@ -377,16 +379,16 @@ function NodeDetailTabs({
         )}
         {effectiveActiveTab === "port" && (
           <SingleValueTab
-            label="Port"
+            label={t("editor.runResults.tabPort")}
             value={unwrapped.port}
-            hint="Emitted output port id. Downstream edges attached to this port will fire."
+            hint={t("editor.runResults.portHint")}
           />
         )}
         {effectiveActiveTab === "status" && (
           <SingleValueTab
-            label="Status"
+            label={t("editor.runResults.tabStatus")}
             value={unwrapped.status}
-            hint="Engine directive from the handler (e.g. waiting_for_input, requires_integration)."
+            hint={t("editor.runResults.statusHint")}
           />
         )}
         {effectiveActiveTab === "error" && (
@@ -493,29 +495,30 @@ function SingleValueTab({
  * so Text Classifier's grid stays compact.
  */
 function AiMetadataGrid({ meta }: { meta: AiMetadata }) {
+  const t = useT();
   const rows: Array<{ label: string; value: string }> = [];
-  rows.push({ label: "Model", value: meta.model ?? "-" });
+  rows.push({ label: t("editor.runResults.metaModel"), value: meta.model ?? "-" });
   rows.push({
-    label: "Total Tokens",
+    label: t("editor.runResults.metaTotalTokens"),
     value: meta.totalTokens != null ? String(meta.totalTokens) : "-",
   });
   rows.push({
-    label: "Request Tokens",
+    label: t("editor.runResults.metaRequestTokens"),
     value: meta.requestTokens != null ? String(meta.requestTokens) : "-",
   });
   rows.push({
-    label: "Response Tokens",
+    label: t("editor.runResults.metaResponseTokens"),
     value: meta.responseTokens != null ? String(meta.responseTokens) : "-",
   });
   rows.push({
-    label: "Thinking Tokens",
+    label: t("editor.runResults.metaThinkingTokens"),
     value: meta.thinkingTokens != null ? String(meta.thinkingTokens) : "-",
   });
   if (meta.turnCount != null) {
-    rows.push({ label: "Turn Count", value: String(meta.turnCount) });
+    rows.push({ label: t("editor.runResults.metaTurnCount"), value: String(meta.turnCount) });
   }
   if (meta.toolCalls != null) {
-    rows.push({ label: "Tool Calls", value: String(meta.toolCalls) });
+    rows.push({ label: t("editor.runResults.metaToolCalls"), value: String(meta.toolCalls) });
   }
 
   return (
@@ -542,14 +545,15 @@ function RagReferencesSection({
   sources: RagSource[];
   diagnostics: RagDiagnostics | null;
 }) {
+  const t = useT();
   // 한 번도 RAG 가 시도되지 않았고 sources 도 없으면 섹션 숨김 (KB 미사용 노드).
   if (!diagnostics && sources.length === 0) return null;
   if (diagnostics && !diagnostics.attempted && sources.length === 0) {
     return (
       <div className="rounded border border-dashed border-[hsl(var(--border))] p-2 text-xs text-[hsl(var(--muted-foreground))]">
-        <div className="font-medium">References</div>
+        <div className="font-medium">{t("editor.runResults.references")}</div>
         <div className="mt-1">
-          {ragSkipReasonLabel(diagnostics.skipReason)}
+          {ragSkipReasonLabel(diagnostics.skipReason, t)}
         </div>
       </div>
     );
@@ -557,15 +561,17 @@ function RagReferencesSection({
   return (
     <div className="space-y-2 rounded border border-[hsl(var(--border))] p-2">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium">References</span>
+        <span className="font-medium">{t("editor.runResults.references")}</span>
         <span className="text-[hsl(var(--muted-foreground))]">
-          {sources.length} chunk(s)
-          {diagnostics ? ` · ${diagnostics.searchedKbCount} KB` : ""}
+          {t("editor.runResults.chunkCount", { count: sources.length })}
+          {diagnostics
+            ? ` · ${t("editor.runResults.kbCount", { count: diagnostics.searchedKbCount })}`
+            : ""}
         </span>
       </div>
       {diagnostics && diagnostics.queriesUsed.length > 0 && (
         <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          Queries used:{" "}
+          {t("editor.runResults.queriesUsed")}{" "}
           {diagnostics.queriesUsed.map((q, i) => (
             <span
               key={`${q}-${i}`}
@@ -578,7 +584,7 @@ function RagReferencesSection({
       )}
       {sources.length === 0 && diagnostics?.skipReason === "no_results" && (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          {ragSkipReasonLabel("no_results")}
+          {ragSkipReasonLabel("no_results", t)}
         </p>
       )}
       {sources.length > 0 && (
@@ -615,16 +621,17 @@ function RagReferencesSection({
 
 function ragSkipReasonLabel(
   reason: RagDiagnostics["skipReason"] | undefined,
+  t: TFunction,
 ): string {
   switch (reason) {
     case "empty_kb_list":
-      return "No knowledge bases configured for this node.";
+      return t("editor.runResults.ragNoKbConfigured");
     case "empty_user_prompt":
-      return "User message was empty — RAG search skipped.";
+      return t("editor.runResults.ragEmptyUserPrompt");
     case "no_results":
-      return "No matching chunks found above threshold.";
+      return t("editor.runResults.ragNoResults");
     default:
-      return "RAG search did not run.";
+      return t("editor.runResults.ragNotRun");
   }
 }
 
@@ -652,6 +659,7 @@ function ReferencesTabContent({
   scrollKey: number;
   selectedMessage: ConversationItem | null;
 }) {
+  const t = useT();
   const isMessageLevel = selectedMessage?.type === "assistant";
   const turnEntries = isMessageLevel
     ? meta.turnDebug.filter((t) => t.turnIndex === selectedMessage!.turnIndex)
@@ -704,11 +712,13 @@ function ReferencesTabContent({
             )}
           >
             <div className="mb-2 flex items-center justify-between text-xs">
-              <span className="font-medium">Turn {entry.turnIndex}</span>
+              <span className="font-medium">
+                {t("editor.runResults.turnLabel", { index: entry.turnIndex })}
+              </span>
               <span className="text-[hsl(var(--muted-foreground))]">
-                {entry.ragSources.length} chunk(s)
+                {t("editor.runResults.chunkCount", { count: entry.ragSources.length })}
                 {entry.ragDiagnostics
-                  ? ` · ${entry.ragDiagnostics.searchedKbCount} KB`
+                  ? ` · ${t("editor.runResults.kbCount", { count: entry.ragDiagnostics.searchedKbCount })}`
                   : ""}
               </span>
             </div>
@@ -733,19 +743,25 @@ function NodeAggregateRagSummary({
   diagnostics: RagDiagnostics | null;
   turnCount: number;
 }) {
+  const t = useT();
   const totalChunks = sources.length;
   return (
     <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-2 text-xs">
       <div className="flex items-center justify-between">
-        <span className="font-medium">Node total</span>
+        <span className="font-medium">{t("editor.runResults.nodeTotal")}</span>
         <span className="text-[hsl(var(--muted-foreground))]">
-          {totalChunks} chunk(s) across {turnCount} turn(s)
-          {diagnostics ? ` · ${diagnostics.searchedKbCount} KB` : ""}
+          {t("editor.runResults.chunksAcrossTurns", {
+            chunks: totalChunks,
+            turns: turnCount,
+          })}
+          {diagnostics
+            ? ` · ${t("editor.runResults.kbCount", { count: diagnostics.searchedKbCount })}`
+            : ""}
         </span>
       </div>
       {diagnostics && diagnostics.queriesUsed.length > 0 && (
         <div className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-          Queries:{" "}
+          {t("editor.runResults.queries")}{" "}
           {diagnostics.queriesUsed.map((q, i) => (
             <span
               key={`${q}-${i}`}
@@ -770,12 +786,12 @@ function ConfigTabContent({
 }: {
   unwrapped: ReturnType<typeof unwrapNodeOutput>;
 }) {
+  const t = useT();
   const echo = unwrapped.config;
   if (!echo || Object.keys(echo).length === 0) {
     return (
       <span className="text-xs text-[hsl(var(--muted-foreground))]">
-        This node didn&apos;t record a config — it may be a handler still on
-        the legacy output shape.
+        {t("editor.runResults.configMissing")}
       </span>
     );
   }
