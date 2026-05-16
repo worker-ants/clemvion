@@ -148,7 +148,8 @@ export const orderOperations: Cafe24OperationMetadata[] = [
       status: {
         type: 'string',
         location: 'query',
-        description: 'Order status filter (Cafe24 status codes, comma-separated)',
+        description:
+          'Order status filter (Cafe24 status codes, comma-separated)',
       },
       payment_status: {
         type: 'string',
@@ -172,7 +173,7 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     id: 'order_status_update',
     label: '주문 상태 변경',
     description:
-      "Update the status of a single order. Path placeholder reuses the codebase-wide `order_id` naming (Cafe24 docs call this `order_no`).",
+      'Update the status of a single order. Path placeholder reuses the codebase-wide `order_id` naming (Cafe24 docs call this `order_no`).',
     scopeType: 'write',
     method: 'PUT',
     path: 'orders/{order_id}',

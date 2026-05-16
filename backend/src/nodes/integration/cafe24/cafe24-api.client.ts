@@ -144,6 +144,48 @@ function pickString(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
+/**
+ * Convert a thrown error from `pingConnection` 내부 단계 into the same
+ * `IntegrationTestResult` shape the surrounding flow returns. Keeps the
+ * "never throws" contract centralised and avoids 3 copies of the same
+ * try/catch ladder.
+ *
+ * 알려진 종류:
+ * - `Cafe24AuthFailedError` (401/403 — refresh 단계 또는 자격증명 불완전 시)
+ * - `Cafe24TransportFailedError` (refresh fetch 실패)
+ * - `Cafe24IncompleteCredentialsError` (assertCredentials)
+ * 그 외 unknown 은 transport 실패로 분류 (best-effort — pingConnection 의
+ * "never throws" 계약을 위해 silently swallow 하지 않고 메시지를 surface).
+ */
+function mapPingError(err: unknown): {
+  success: false;
+  code: string;
+  message: string;
+} {
+  if (err instanceof Cafe24AuthFailedError) {
+    return { success: false, code: 'CAFE24_AUTH_FAILED', message: err.message };
+  }
+  if (err instanceof Cafe24IncompleteCredentialsError) {
+    return {
+      success: false,
+      code: 'INTEGRATION_INCOMPLETE',
+      message: err.message,
+    };
+  }
+  if (err instanceof Cafe24TransportFailedError) {
+    return {
+      success: false,
+      code: 'CAFE24_TRANSPORT_FAILED',
+      message: err.message,
+    };
+  }
+  return {
+    success: false,
+    code: 'CAFE24_TRANSPORT_FAILED',
+    message: extractErrorMessage(err),
+  };
+}
+
 export class Cafe24TransportFailedError extends Error {
   readonly code = 'CAFE24_TRANSPORT_FAILED';
   constructor(readonly cause: unknown) {
@@ -269,6 +311,174 @@ export class Cafe24ApiClient {
         0,
       );
     });
+  }
+
+  /**
+   * 사용자 진단용 연결 테스트. spec/2-navigation/4-integration.md §5.8 의
+   * `GET /api/v2/admin/apps` 핑으로 access_token 의 유효성을 확인한다.
+   *
+   * `call()` 과 다른 점:
+   * - 401 시 즉시 `markAuthFailed` 를 발사하지 않고 명시적으로 refresh 후
+   *   1회 재시도. proactive `ensureFreshToken` 이 race condition 으로 빗나간
+   *   stale token 을 자가 회복한다.
+   * - 401 재시도도 실패하면 토큰 자체 문제로 확정해 `markAuthFailed` 로
+   *   `error(auth_failed)` 전이.
+   * - 403 은 어느 시점이든 status 격하하지 않고 메시지만 전달 (스코프
+   *   부족·앱 미설치는 사용자가 reauth/scope 추가로 해결).
+   * - transport 실패는 `consecutive_network_failures` 카운터에 합산하지
+   *   않는다. 사용자가 직접 누른 진단 호출이라 노드 자동 호출의 신호로
+   *   섞여서는 안 된다.
+   *
+   * **never throws** — 자격증명 누락·refresh 실패·HTTP 실패·transport 실패
+   * 모두 `{ success: false, code, message }` 형태로 변환해 반환한다.
+   *
+   * 잠금 의미: `withIntegrationLock` 은 task 단위 promise-chain 직렬화이며,
+   * task 내부에서 호출하는 `ensureFreshToken`/`refreshAccessToken`/`rawPing`
+   * 은 락을 다시 잡지 않는다. `call()` 도 동일 패턴이므로 재진입 데드락
+   * 위험은 없다.
+   */
+  async pingConnection(
+    integration: Integration,
+  ): Promise<{ success: boolean; code?: string; message?: string }> {
+    return withIntegrationLock(integration.id, async () => {
+      let creds: Cafe24Credentials;
+      try {
+        creds = (integration.credentials ?? {}) as Cafe24Credentials;
+        this.assertCredentials(creds);
+      } catch (err) {
+        // assertCredentials 가 throw 하는 경로도 테스트 결과로 변환해야
+        // "never throws" 계약을 지킨다.
+        return mapPingError(err);
+      }
+
+      // 1차: proactive refresh window 안이면 미리 갱신.
+      try {
+        await this.ensureFreshToken(integration);
+      } catch (err) {
+        return mapPingError(err);
+      }
+
+      const mallId = creds.mall_id!;
+
+      // 2차: /apps 핑.
+      const first = await this.rawPing(
+        mallId,
+        this.currentAccessToken(integration),
+      );
+      if (first.kind === 'success') return { success: true };
+      if (first.kind === 'transport') {
+        return {
+          success: false,
+          code: 'CAFE24_TRANSPORT_FAILED',
+          message: first.message,
+        };
+      }
+      if (first.status === 403) {
+        return {
+          success: false,
+          code: 'CAFE24_INSUFFICIENT_SCOPE',
+          message: this.formatAuthFailure(first.status, mallId, first.body),
+        };
+      }
+      // status === 401: 명시적 refresh 후 1회 재시도.
+      try {
+        await this.refreshAccessToken(integration);
+      } catch (err) {
+        return mapPingError(err);
+      }
+
+      const second = await this.rawPing(
+        mallId,
+        this.currentAccessToken(integration),
+      );
+      if (second.kind === 'success') return { success: true };
+      if (second.kind === 'transport') {
+        return {
+          success: false,
+          code: 'CAFE24_TRANSPORT_FAILED',
+          message: second.message,
+        };
+      }
+      if (second.status === 403) {
+        // 1차와 동일하게 status 격하하지 않음.
+        return {
+          success: false,
+          code: 'CAFE24_INSUFFICIENT_SCOPE',
+          message: this.formatAuthFailure(second.status, mallId, second.body),
+        };
+      }
+      // 재시도도 401 — 토큰 자체 문제로 확정. status 격하.
+      if (second.status === 401) {
+        await this.markAuthFailed(integration);
+      }
+      return {
+        success: false,
+        code: 'CAFE24_AUTH_FAILED',
+        message: this.formatAuthFailure(second.status, mallId, second.body),
+      };
+    });
+  }
+
+  private currentAccessToken(integration: Integration): string {
+    const creds = (integration.credentials ?? {}) as Cafe24Credentials;
+    return creds.access_token!;
+  }
+
+  /** Per-call timeout for the diagnostic ping. Matches `call()` 의 30초. */
+  private static readonly PING_TIMEOUT_MS = 30_000;
+
+  /**
+   * 단일 fetch — 카운터·status 격하 부작용 없는 raw probe. pingConnection 의
+   * 401 retry 분기를 명시적으로 제어하기 위해 executeWithRateLimit 와 분리.
+   *
+   * Discriminated union return:
+   * - `kind: 'success'` — HTTP 2xx
+   * - `kind: 'http'` — HTTP 응답이 왔으나 비-2xx (status·body 동봉)
+   * - `kind: 'transport'` — fetch 자체 실패 (network·timeout)
+   */
+  private async rawPing(
+    mallId: string,
+    accessToken: string,
+  ): Promise<
+    | { kind: 'success' }
+    | { kind: 'http'; status: number; body: unknown }
+    | { kind: 'transport'; message: string }
+  > {
+    const url = this.buildUrl(mallId, 'apps');
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      Cafe24ApiClient.PING_TIMEOUT_MS,
+    );
+    let response: Response;
+    try {
+      response = await this.fetchImpl(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      return { kind: 'transport', message: extractErrorMessage(err) };
+    } finally {
+      clearTimeout(timer);
+    }
+    if (response.ok) return { kind: 'success' };
+    const body = await safeReadJson(response);
+    return { kind: 'http', status: response.status, body };
+  }
+
+  /** Single-line summary of an auth failure for the test result message. */
+  private formatAuthFailure(
+    status: number,
+    mallId: string,
+    body: unknown,
+  ): string {
+    const summary = summarizeCafe24ErrorBody(body);
+    const suffix = summary ? ` — ${summary}` : '';
+    return `Cafe24 authentication failed (${status}) for mall ${mallId}${suffix}`;
   }
 
   private assertCredentials(creds: Cafe24Credentials): void {

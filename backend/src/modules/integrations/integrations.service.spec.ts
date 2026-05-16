@@ -383,6 +383,86 @@ describe('IntegrationsService', () => {
         NotFoundException,
       );
     });
+
+    it('uses registered entity-aware tester for matching service_type — wins over dispatchTest', async () => {
+      const cafe24Integration = makeIntegration({
+        serviceType: 'cafe24',
+        authType: 'oauth2',
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 't',
+          refresh_token: 'r',
+          scopes: ['mall.read_product'],
+          expires_at: new Date(Date.now() + 1e7).toISOString(),
+          cafe24_operator_id: 'op-1',
+        },
+      });
+      integrationRepo.findOne.mockResolvedValue(cafe24Integration);
+
+      const probe = jest.fn().mockResolvedValue({
+        success: false,
+        message: 'expired',
+        code: 'CAFE24_AUTH_FAILED',
+      });
+      service.registerEntityTester('cafe24', probe);
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(probe).toHaveBeenCalledWith(cafe24Integration);
+      expect(result).toEqual({
+        success: false,
+        message: 'expired',
+        code: 'CAFE24_AUTH_FAILED',
+      });
+    });
+
+    it('warns when registerEntityTester overwrites an existing registration (drift detection)', async () => {
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: Mock } }).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+
+      const first = jest
+        .fn()
+        .mockResolvedValue({ success: true, message: 'first' });
+      const second = jest
+        .fn()
+        .mockResolvedValue({ success: true, message: 'second' });
+
+      service.registerEntityTester('cafe24', first);
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      service.registerEntityTester('cafe24', second);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("service_type='cafe24'"),
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it('falls through to dispatchTest when no entity tester is registered for the service_type', async () => {
+      const cafe24Integration = makeIntegration({
+        serviceType: 'cafe24',
+        authType: 'oauth2',
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 't',
+          refresh_token: 'r',
+          scopes: ['mall.read_product'],
+          expires_at: new Date(Date.now() + 1e7).toISOString(),
+          cafe24_operator_id: 'op-1',
+        },
+      });
+      integrationRepo.findOne.mockResolvedValue(cafe24Integration);
+
+      // No entity tester registered — fallback path returns structural success.
+      const result = await service.testConnection('int-1', 'ws-1');
+      expect(result.success).toBe(true);
+    });
   });
 
   // -----------------------------------------------------------------
