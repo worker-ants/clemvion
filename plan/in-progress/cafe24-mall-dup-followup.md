@@ -44,9 +44,10 @@ PR #107 (`cafe24-mall-dup-ux-a7f2c8`) 의 ai-review RESOLUTION.md 에서 deferre
 ## 진행 상태
 
 - [x] W20 test factory (`buildFakeCafe24Integration`)
-- [x] W21 Swagger note (`@ApiOperation.description` 에 라우트 순서 명시)
+- [x] W21 Swagger note — 1차 추가 후 ai-review W3 피드백 (드리프트 위험) 에 따라
+  description 에서 제거, 코드 주석 + e2e 테스트로 단일 진실 유지
 - [x] W23 transaction check (분석 후 의도 주석 추가, 실제 트랜잭션 미적용)
 - [x] INFO 6 AbortController (api client + page.tsx + 신규 abort 검증 테스트)
 - [x] TEST WORKFLOW — backend 3731 / frontend 1425 / e2e 79 통과
-- [ ] AI-REVIEW
+- [x] AI-REVIEW — Critical 0, Warning 4 (모두 처리: W1/W2/W3/W4) + INFO 11 같이 처리
 - [ ] PR

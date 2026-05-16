@@ -124,27 +124,28 @@ export default function NewIntegrationPage() {
     // `AbortController` 로 in-flight 요청도 cancel — 사용자가 빠르게 타이핑하면
     // 직전 fetch 가 backend 까지 도달했어도 응답을 기다리지 않고 abort 해
     // throttle 카운터·서버 부하를 절약 (ai-review INFO #6, 2026-05-16).
+    // `controller.signal.aborted` 가 cancel 여부의 단일 진실 — 별도 boolean
+    // flag 미사용 (ai-review INFO #11).
     const controller = new AbortController();
-    let aborted = false;
+    const { signal } = controller;
     setCafe24PrecheckLoading(true);
     const t = setTimeout(async () => {
       try {
         const result = await integrationsApi.cafe24Precheck(
           cafe24MallIdInput,
-          controller.signal,
+          signal,
         );
-        if (!aborted) setCafe24Conflict(result);
-      } catch (err) {
-        // AbortError 는 정상 cancel 시그널 — silent. 그 외는 backend 가드가
-        // backstop 이므로 inline 배너를 띄우지 못해도 안전 (silent fail).
-        if (!aborted) setCafe24Conflict(null);
-        void err;
+        if (!signal.aborted) setCafe24Conflict(result);
+      } catch {
+        // AbortError 는 정상 cancel 시그널 — silent (signal.aborted=true 분기).
+        // 그 외 오류도 backend 가드가 backstop 이므로 inline 배너를 띄우지
+        // 못해도 안전 (silent fail).
+        if (!signal.aborted) setCafe24Conflict(null);
       } finally {
-        if (!aborted) setCafe24PrecheckLoading(false);
+        if (!signal.aborted) setCafe24PrecheckLoading(false);
       }
     }, 350);
     return () => {
-      aborted = true;
       clearTimeout(t);
       controller.abort();
     };

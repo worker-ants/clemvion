@@ -62,6 +62,7 @@ function makeRepo(): Record<string, Mock> {
 function buildFakeCafe24Integration(
   overrides: Partial<{
     id: string;
+    workspaceId: string;
     name: string;
     status: string;
     /** plain `mall_id` 컬럼. null 이면 V045 이전 legacy row */
@@ -80,8 +81,11 @@ function buildFakeCafe24Integration(
 ): Record<string, unknown> {
   const mallId =
     overrides.mallId === undefined ? 'priv-shop' : overrides.mallId;
+  // `??` 는 `null`/`undefined` 모두 nullish 처리하므로 mallId 가 null 이어도
+  // 'priv-shop' fallback 으로 정상 전파 — credentials.mall_id 는 항상 유효한
+  // 문자열. 명시성을 위해 괄호 추가 (ai-review W2 — 2026-05-16).
   const credentialsMallId =
-    overrides.credentialsMallId ?? mallId ?? 'priv-shop';
+    overrides.credentialsMallId ?? (mallId ?? 'priv-shop');
   const appType = overrides.appType ?? 'private';
   const credentials: Record<string, unknown> = {
     mall_id: credentialsMallId,
@@ -94,6 +98,9 @@ function buildFakeCafe24Integration(
   if (overrides.scopes !== undefined) credentials.scopes = overrides.scopes;
   return {
     id: overrides.id ?? 'fake-integration-1',
+    // workspaceId 기본값 'ws-1' — 향후 서비스 로직이 본 필드를 읽어도
+    // 묵시적 undefined mock 으로 무증상 결함이 생기지 않도록 (ai-review W1).
+    workspaceId: overrides.workspaceId ?? 'ws-1',
     name: overrides.name ?? `${credentialsMallId} (Cafe24)`,
     status: overrides.status ?? 'connected',
     serviceType: 'cafe24',
