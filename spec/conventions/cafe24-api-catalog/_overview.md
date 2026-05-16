@@ -84,7 +84,7 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | Resource | Supported | Planned | Cafe24 docs sub-resource 수 |
 |----------|-----------|---------|---|
 | [store](./store.md) | 2 | 50+ | 50+ |
-| [product](./product.md) | 7 | 25+ | 28 |
+| [product](./product.md) | 14 | 25+ | 28 |
 | [order](./order.md) | 9 | 40+ | 47 |
 | [customer](./customer.md) | 5 | 15+ | 12 |
 | [community](./community.md) | 3 | 25+ | 9 |
@@ -101,7 +101,7 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | [mileage](./mileage.md) | 2 | 8+ | 5 |
 | [notification](./notification.md) | 2 | 10+ | 7 |
 | [translation](./translation.md) | 1 | 8+ | 4 |
-| **합계** | **56** | **~300** | **~250** |
+| **합계** | **63** | **~300** | **~250** |
 
 > "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 endpoint 합계는 ~500.
 
@@ -122,3 +122,4 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 |------|------|
 | 2026-05-16 | 신규 컨벤션 — 18 resource 카탈로그 + 양방향 동기 테스트 도입. 사용자 결정(2026-05-16) "Cafe24 docs 전수 등재" 에 따라 supported 53 + planned ~300 으로 초기 채움. |
 | 2026-05-16 (coverage Phase 5a) | Order resource — `order_count`, `order_status_update`, `order_status_update_multiple` 3건을 planned → supported 로 승격 (backend metadata + planned.ts mirror 동시 갱신). order supported 6 → 9, 합계 53 → 56. |
+| 2026-05-16 (coverage Phase 5b) | Product resource — `product_count`, `product_options_list/create/update/delete`, `product_seo_get/update` 7건을 planned → supported 로 승격. product supported 7 → 14, 합계 56 → 63. |
