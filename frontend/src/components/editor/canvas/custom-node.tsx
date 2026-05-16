@@ -13,6 +13,7 @@ import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summa
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
 import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
 import { useLocale } from "@/lib/i18n";
+import { translateNodePortLabel } from "@/lib/i18n/backend-labels";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { NodeIcon } from "./node-icon";
 
@@ -213,7 +214,7 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
                         : "text-[hsl(var(--muted-foreground))]",
                     )}
                   >
-                    {port.label}
+                    {translateNodePortLabel(port.label, locale) ?? port.label}
                   </span>
                 </div>
               );
@@ -266,17 +267,21 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
                   <div className="border-t border-dashed border-[hsl(var(--border))] my-0.5" />
                 )}
                 <div className="relative flex items-center justify-end">
-                  {group ? (
-                    <span className="text-[10px]">
-                      <span className="text-[hsl(var(--muted-foreground))/0.6]">{group}</span>
-                      <span className="text-[hsl(var(--muted-foreground))/0.4] mx-1">›</span>
-                      <span className="text-[hsl(var(--muted-foreground))]">{port.label}</span>
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-                      {port.label}
-                    </span>
-                  )}
+                  {(() => {
+                    const portLabel =
+                      translateNodePortLabel(port.label, locale) ?? port.label;
+                    return group ? (
+                      <span className="text-[10px]">
+                        <span className="text-[hsl(var(--muted-foreground))/0.6]">{group}</span>
+                        <span className="text-[hsl(var(--muted-foreground))/0.4] mx-1">›</span>
+                        <span className="text-[hsl(var(--muted-foreground))]">{portLabel}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        {portLabel}
+                      </span>
+                    );
+                  })()}
                   <Handle
                     id={port.id}
                     type="source"
