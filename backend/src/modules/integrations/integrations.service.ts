@@ -288,6 +288,14 @@ export class IntegrationsService {
       scope: requestedScope,
       status: 'connected',
       tokenExpiresAt,
+      // lastRotatedAt 을 명시 초기화한다. 본 컬럼은
+      // `IntegrationExpiryScannerService.enqueueCafe24BackgroundRefresh` 의
+      // cutoff 비교 (`LessThan(now - 10d)`) 에 사용된다. NULL 로 저장하면
+      // PostgreSQL 의 NULL < value = NULL (FALSE) 시맨틱으로 row 가
+      // background refresh 대상에서 영원히 제외 → 신규 Cafe24 통합이 14일
+      // idle 시 refresh_token 까지 만료되어 PR #56 의 idle 보호가 무력화된다.
+      // 발급 시점을 기록해 cutoff 비교가 의도대로 동작하게 한다.
+      lastRotatedAt: new Date(),
     });
 
     try {
