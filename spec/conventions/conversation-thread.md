@@ -169,6 +169,8 @@ race-free.
 | `ai_tool` | `tool` | (없음, `toolCallId` 매칭) |
 | `system` | `system` | (없음) — **Anthropic API 비호환**: messages 배열 내 `role: 'system'` 미지원. provider 가 anthropic 이면 `system_text` 모드 또는 별도 분기로 우회 필수. v1 자동 push 없으므로 현재 실질 문제 없음 (수동 push 도입 시 provider 분기 검증 필수). |
 
+> **WebSocket emit 결과의 `source` 마커**: 위 매핑으로 messages 배열에 prepend 된 모든 항목은 emit 시 `source: 'injected'` 를 동봉한다. 한편 AI Agent 핸들러가 `processMultiTurnMessageInner` 등에서 실제 turn 처리 결과로 push 하는 user/assistant/tool 메시지는 `source: 'live'`. 이 마커는 [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 WebSocket 페이로드 전용 2값 표식이며, 본 §1.1 의 `ConversationTurnSource` (내부 5값 enum) 와는 구별된다 — emit 단계에서 §4.4.6 의 매핑 표에 따라 축약된다.
+
 ### 5.2 system_text 모드
 
 `thread-renderer` 가 헤더 `[#seq · timestamp · label (type) · source]` + text 본문으로 렌더해 `finalSystemPrompt` 끝에 첨부. KB guidance / condition suffix 보다 뒤.
@@ -227,3 +229,4 @@ race-free.
 |---|---|
 | 2026-05-14 | 신규 작성 — Conversation Thread 정식 도입 |
 | 2026-05-16 | AI Agent 의 옛 `conversationHistory` / `historyCount` schema·UI 메타 제거 (`contextScope` / `contextScopeN` 로 단일화) |
+| 2026-05-16 | §5.1 에 emit 레이어 연계 설명 신규 추가 — injection 산출 메시지가 WebSocket emit 시 `source: 'injected'` 마커를 동봉하며, 이는 [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 WebSocket 페이로드 전용 2값 표식이다 (내부 `ConversationTurnSource` 5값과 구별). 디버깅 타임라인의 turn 카운팅이 backend `turnCount` 와 일치하기 위한 전제 |

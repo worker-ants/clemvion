@@ -3,6 +3,18 @@ export interface ChatMessage {
   content: string;
   toolCallId?: string;
   toolCalls?: ToolCall[];
+  /**
+   * Origin marker for AI Agent's WebSocket emit per
+   * spec/5-system/6-websocket-protocol.md §4.4.6:
+   *  - `'live'`: produced by the current AI node's handler in this turn.
+   *  - `'injected'`: prepended via ConversationThread injection (an upstream
+   *    node's turn mapped per spec/conventions/conversation-thread.md §5.1).
+   *
+   * Strictly transport-layer metadata — `LlmService` strips this field
+   * before forwarding to provider clients so LLM APIs only see the canonical
+   * `{role, content, toolCalls?, toolCallId?}` shape.
+   */
+  source?: 'live' | 'injected';
 }
 
 export interface ToolDef {

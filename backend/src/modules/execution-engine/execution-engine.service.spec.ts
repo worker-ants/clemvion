@@ -6091,10 +6091,77 @@ describe('buildConversationConfigFromOutput', () => {
         { role: 'system', content: 'reset' },
       ],
     });
+    // Each non-system message gets `source: 'live'` backfilled per
+    // spec/5-system/6-websocket-protocol.md §4.4.6 (default when handler
+    // didn't tag the push site explicitly).
     expect(conv.messages).toEqual([
-      { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'hello' },
+      { role: 'user', content: 'hi', source: 'live' },
+      { role: 'assistant', content: 'hello', source: 'live' },
     ]);
+  });
+
+  it("preserves explicit source: 'injected' from ConversationThread injection (§4.4.6)", () => {
+    const conv = buildConversationConfigFromOutput({
+      messages: [
+        { role: 'system', content: 'You are helpful' },
+        {
+          role: 'user',
+          content: '[from Template] start',
+          source: 'injected',
+        },
+        { role: 'user', content: 'live message', source: 'live' },
+        { role: 'assistant', content: 'response' }, // unmarked → backfilled
+      ],
+    });
+    expect(conv.messages).toEqual([
+      {
+        role: 'user',
+        content: '[from Template] start',
+        source: 'injected',
+      },
+      { role: 'user', content: 'live message', source: 'live' },
+      { role: 'assistant', content: 'response', source: 'live' },
+    ]);
+  });
+
+  it("preserves existing source: 'live' as-is (no double-wrap)", () => {
+    const original = { role: 'user', content: 'hi', source: 'live' };
+    const conv = buildConversationConfigFromOutput({
+      messages: [original],
+    });
+    // Backfill must short-circuit on already-marked items so identity is
+    // preserved (no needless object allocations on hot paths).
+    expect(conv.messages[0]).toBe(original);
+  });
+
+  it('returns empty messages array unchanged', () => {
+    const conv = buildConversationConfigFromOutput({ messages: [] });
+    expect(conv.messages).toEqual([]);
+  });
+
+  it('handles a multi-turn mixed sequence (system stripped, injected preserved, live backfilled)', () => {
+    const conv = buildConversationConfigFromOutput({
+      messages: [
+        { role: 'system', content: 'You are helpful' },
+        {
+          role: 'user',
+          content: '[from Form] name=Alice',
+          source: 'injected',
+        },
+        {
+          role: 'assistant',
+          content: '[from PrevAgent] Welcome',
+          source: 'injected',
+        },
+        { role: 'user', content: '실제 메시지' },
+        { role: 'assistant', content: '응답' },
+      ],
+    });
+    expect(conv.messages).toHaveLength(4);
+    expect(conv.messages[0].source).toBe('injected');
+    expect(conv.messages[1].source).toBe('injected');
+    expect(conv.messages[2].source).toBe('live');
+    expect(conv.messages[3].source).toBe('live');
   });
 
   it('includes maxTurns only when present', () => {

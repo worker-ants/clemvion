@@ -18,6 +18,7 @@ import {
 import {
   messagesToConversationItems,
   toolStatusMapFromItems,
+  type RawMessage,
 } from "@/lib/conversation/conversation-utils";
 import { tryParseJson } from "@/lib/utils/parse-json";
 import { useT } from "@/lib/i18n";
@@ -217,12 +218,9 @@ export function useExecutionEvents({
       if (interactionType === "ai_conversation") {
         const convConfig = nodeOutputObj?.conversationConfig as {
           message?: string;
-          messages?: Array<{
-            role: string;
-            content?: string;
-            toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
-            toolCallId?: string;
-          }>;
+          // RawMessage carries `source` (spec/5-system/6-websocket-protocol.md
+          // §4.4.6). Single source of truth shared with messagesToConversationItems.
+          messages?: RawMessage[];
           turnCount?: number;
           maxTurns?: number;
         } | undefined;
@@ -312,12 +310,9 @@ export function useExecutionEvents({
         nodeId?: string;
         message?: string;
         turnCount?: number;
-        messages?: Array<{
-          role: string;
-          content?: string;
-          toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
-          toolCallId?: string;
-        }>;
+        // RawMessage carries `source` (spec/5-system/6-websocket-protocol.md
+        // §4.4.6). Shared with messagesToConversationItems converter.
+        messages?: RawMessage[];
         metadata?: {
           model?: string;
           inputTokens?: number;
