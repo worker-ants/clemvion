@@ -280,7 +280,7 @@ function normalizeRawStateRow(
 }
 
 // 모듈 수준 logger — class instance 외부의 normalize 헬퍼들이 사용. (W-31)
-const moduleLogger = new Logger('IntegrationOAuthService');
+const logger = new Logger('IntegrationOAuthService');
 
 /**
  * preview row 의 raw → entity 정규화. credentials JSONB 도 `decryptJson`
@@ -307,7 +307,7 @@ function normalizeRawPreviewRow(
     // 암호화 invariant 를 우회하는 경로를 열어둔다. 명시적으로 invalid 로
     // 마크해 호출자가 `OAUTH_PREVIEW_INVALID` 분기로 처리하게 한다.
     // 운영 진단을 위해 warn 로그도 함께 남긴다.
-    moduleLogger.warn(
+    logger.warn(
       `[security] preview row credentials is plaintext (no 'enc:' prefix) — refusing to consume. previewToken=${typeof raw.preview_token === 'string' ? raw.preview_token.slice(0, 8) : 'unknown'}…`,
     );
     credentials = { __invalid: true };

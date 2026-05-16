@@ -292,6 +292,61 @@ describe('HooksService', () => {
         service.handleWebhook('abc', { ...input, headers }, rawBody),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
+
+    it('hmac: unsupported algorithm response does not leak the rejected name', async () => {
+      // information leakage 차단: 거부 응답이 알고리즘명을 반사하면 외부 호출자가
+      // 서버 구성을 탐지할 단서를 얻는다. 응답 메시지는 일반 인증 실패와 동일해야 한다.
+      triggerRepo.findOne.mockResolvedValue({
+        ...activeTrigger,
+        config: {
+          authType: 'hmac',
+          secret: hmacSecret,
+          hmacHeader: 'x-hub-signature-256',
+          hmacAlgorithm: 'md5',
+        },
+      });
+      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
+      const rawBody = Buffer.from(JSON.stringify(input.body));
+      const err = await service
+        .handleWebhook(
+          'abc',
+          { ...input, headers: { 'x-hub-signature-256': 'md5=x' } },
+          rawBody,
+        )
+        .catch((e: unknown) => e as UnauthorizedException);
+      const response = (err as UnauthorizedException).getResponse() as {
+        code: string;
+        message: string;
+      };
+      expect(response.code).toBe('AUTH_FAILED');
+      expect(response.message).toBe('Authentication failed');
+      expect(response.message).not.toMatch(/md5/i);
+    });
+
+    it('hmac: accepts valid sha512 signature (allow-list 두 번째 알고리즘 경로)', async () => {
+      const sha512Trigger: Trigger = {
+        ...activeTrigger,
+        config: {
+          authType: 'hmac',
+          secret: hmacSecret,
+          hmacHeader: 'x-hub-signature-512',
+          hmacAlgorithm: 'sha512',
+        },
+      };
+      triggerRepo.findOne.mockResolvedValue(sha512Trigger);
+      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
+      engine.execute.mockResolvedValue('exec-sha512');
+      const rawBody = Buffer.from(JSON.stringify(input.body));
+      const sig = `sha512=${createHmac('sha512', hmacSecret).update(rawBody).digest('hex')}`;
+      const headers = { 'x-hub-signature-512': sig };
+      const res = await service.handleWebhook(
+        'abc',
+        { ...input, headers },
+        rawBody,
+      );
+      expect(res).toEqual({ executionId: 'exec-sha512' });
+    });
   });
 
   it('passes { parameters: {} } when workflow has no trigger parameters schema', async () => {

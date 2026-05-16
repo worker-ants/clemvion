@@ -132,6 +132,7 @@ describe('Webhook trigger (e2e)', () => {
 
   it('E. HMAC auth — 서명 누락 401, 올바른 서명 202', async () => {
     const path = `e2e-e-${crypto.randomBytes(8).toString('hex')}`;
+    // test-only literal, not a real secret — webhook HMAC e2e 시나리오용
     const secret = 'super-secret-hmac-key';
     await createWebhookTrigger(uniqueName('hook-e'), path, {
       authType: 'hmac',

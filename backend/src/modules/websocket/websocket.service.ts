@@ -89,9 +89,19 @@ const CREDENTIAL_KEY_PATTERN =
 
 const MAX_SANITIZE_DEPTH = 10;
 
+/**
+ * WS emit 페이로드에서 credential-like 키를 마스킹.
+ *
+ * - 자식 변경이 없으면 입력 그대로의 참조를 반환해 GC pressure 를 피한다 (참조 동일성 보장).
+ * - depth 가 {@link MAX_SANITIZE_DEPTH} 를 초과하면 그 노드 이하의 키 매칭을 신뢰할 수 없다.
+ *   하부에 credential 이 숨어 있을 가능성을 차단하기 위해 통째로 `'[REDACTED_DEPTH]'` 로 대체한다
+ *   (옛 구현은 원본을 그대로 반환해 누출 위험이 있었음 — Review 후속 #4).
+ *
+ * @returns 동일 구조의 새 값(자식 mutation 발생 시) 또는 입력과 동일한 참조(변경 없을 때)
+ */
 function sanitizePayloadForWs(value: unknown, depth = 0): unknown {
-  if (depth > MAX_SANITIZE_DEPTH) return value;
   if (value === null || typeof value !== 'object') return value;
+  if (depth > MAX_SANITIZE_DEPTH) return '[REDACTED_DEPTH]';
   if (Array.isArray(value)) {
     let mutated = false;
     const out: unknown[] = new Array(value.length);
