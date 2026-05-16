@@ -78,7 +78,7 @@ describe('AlertsEvaluatorService.run', () => {
   let executionRepo: Record<string, Mock>;
   let llmUsageRepo: Record<string, Mock>;
   let workflowRepo: Record<string, Mock>;
-  let notificationsService: { createMany: Mock };
+  let notificationsService: { createMany: Mock; hasRecentByResource: Mock };
   let workspacesService: { findAdminUserIds: Mock };
   let queue: Record<string, Mock>;
 
@@ -92,6 +92,9 @@ describe('AlertsEvaluatorService.run', () => {
     workflowRepo = {};
     notificationsService = {
       createMany: jest.fn().mockResolvedValue(undefined),
+      // W-75 — 후속 신규 메서드. 본 spec 은 직접 호출하지 않아도 NotificationsService
+      // 가 변경되어도 런타임 에러가 나지 않도록 mock surface 를 동기화한다.
+      hasRecentByResource: jest.fn().mockResolvedValue(false),
     };
     workspacesService = {
       findAdminUserIds: jest.fn().mockResolvedValue(['admin-1', 'admin-2']),
