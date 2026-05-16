@@ -14,11 +14,14 @@ const RESOURCE_ENUM = z.enum(
   CAFE24_RESOURCES as unknown as [string, ...string[]],
 );
 
+// B-3-7: Cafe24 Admin API 는 cursor 페이지네이션을 지원하지 않는다 (limit/offset
+// 만 사용). 옛 cursor 필드는 잘못된 추측이었으며 사용처가 없다. 제거해 사용자
+// 가 잘못된 cursor 입력으로 noisy 4xx 를 받지 않게 한다.
+// spec/4-nodes/4-integration/4-cafe24.md §3.3 (pagination) 참조.
 export const cafe24PaginationSchema = z
   .object({
     limit: z.number().int().positive().optional(),
     offset: z.number().int().nonnegative().optional(),
-    cursor: z.string().optional(),
   })
   .partial()
   .passthrough();
@@ -73,7 +76,6 @@ export const cafe24NodeOutputSchema = z
           .object({
             limit: z.number().optional(),
             offset: z.number().optional(),
-            cursor: z.string().optional(),
           })
           .partial()
           .passthrough()

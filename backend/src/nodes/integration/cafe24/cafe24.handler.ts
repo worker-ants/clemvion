@@ -68,15 +68,33 @@ export class Cafe24Handler
     if (!config.integrationId || typeof config.integrationId !== 'string') {
       errors.push('integrationId is required and must be a string');
     }
+    let resourceValid = false;
     if (!config.resource || typeof config.resource !== 'string') {
       errors.push('resource is required and must be a string');
     } else if (
       !(CAFE24_RESOURCES as readonly string[]).includes(config.resource)
     ) {
       errors.push(`resource must be one of: ${CAFE24_RESOURCES.join(', ')}`);
+    } else {
+      resourceValid = true;
     }
     if (!config.operation || typeof config.operation !== 'string') {
       errors.push('operation is required and must be a string');
+    } else if (resourceValid) {
+      // B-3-3: 캔버스 배지가 잘못된 operation 선택을 즉시 경고할 수 있도록
+      // resource + operation 조합이 메타데이터에 존재하는지 검증한다. 잘못된
+      // 조합은 실행 직전에 IntegrationError(CAFE24_UNKNOWN_OPERATION) 로
+      // 터질텐데, validate() 가 같은 검사를 미리 수행해 캔버스에서 차단.
+      // planned 작업은 아직 메타데이터에 없으므로 INFO 분류로 메시지에 명시.
+      const op = findCafe24Operation(
+        config.resource as Cafe24Resource,
+        config.operation,
+      );
+      if (!op) {
+        errors.push(
+          `operation '${String(config.operation)}' is not a supported '${String(config.resource)}' operation in this build. If you intend a planned operation, update the metadata first.`,
+        );
+      }
     }
     if (
       config.fields !== undefined &&
@@ -265,7 +283,7 @@ export class Cafe24Handler
     operation: Cafe24OperationMetadata,
     fields: Record<string, unknown>,
     pagination:
-      | { limit?: number; offset?: number; cursor?: string }
+      | { limit?: number; offset?: number }
       | undefined,
   ): {
     path: string;
@@ -300,10 +318,22 @@ export class Cafe24Handler
     }
 
     // Pagination always travels on query, regardless of operation shape.
+    // Cafe24 Admin API supports limit/offset only (B-3-7) — cursor field
+    // was removed from cafe24PaginationSchema.
     if (pagination && operation.paginated) {
       if (pagination.limit !== undefined) query.limit = pagination.limit;
       if (pagination.offset !== undefined) query.offset = pagination.offset;
-      if (pagination.cursor !== undefined) query.cursor = pagination.cursor;
+    }
+
+    // B-3-2: path placeholder hard-fail. 사용자가 required path field 를
+    // 누락하거나 fields 매핑에 오류가 있으면 `{member_id}` 같은 잔여
+    // placeholder 가 그대로 Cafe24 에 전달되어 noisy 404/422 가 발생한다.
+    // 메타데이터-실제 호출 간 silent drift 를 차단하기 위해 fail-fast.
+    const unresolved = path.match(/\{[^}]+\}/g);
+    if (unresolved && unresolved.length > 0) {
+      throw new Error(
+        `CAFE24_UNRESOLVED_PATH_PARAM: operation '${operation.id}' has unresolved path placeholder(s): ${unresolved.join(', ')}. Check that required fields are provided and field metadata location='path' is correct.`,
+      );
     }
 
     const hasBody = Object.keys(body).length > 0 && operation.method !== 'GET';
