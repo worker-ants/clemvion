@@ -218,6 +218,16 @@ export const REFRESH_WINDOW_MS = 60_000;
 const MAX_RATE_LIMIT_RETRIES = 2;
 
 /**
+ * HTTP methods whose body must be Cafe24-envelope-wrapped before send.
+ * DELETE is intentionally excluded — see callsite in
+ * `executeWithRateLimit`.
+ */
+const WRITE_METHODS_WITH_ENVELOPE: ReadonlySet<Cafe24Method> = new Set([
+  'POST',
+  'PUT',
+]);
+
+/**
  * Internal helper — a Promise chain keyed by Integration ID acts as a
  * mutex. Each `call()` chains its work onto the existing tail so only one
  * fetch per Integration is in-flight at a time within this process.
@@ -915,8 +925,20 @@ export class Cafe24ApiClient {
       Accept: 'application/json',
     };
 
+    // Envelope wrapping is POST/PUT-only. DELETE has no documented body
+    // shape that uses the `request` wrapper (and our metadata DELETE rows
+    // are path-only — no body fields), so DELETE with body would be a
+    // metadata mistake we'd rather surface than silently re-wrap. Any
+    // future method (e.g. PATCH) must be added to this allowlist
+    // explicitly so its wire-format expectation gets reviewed.
     let bodyString: string | undefined;
-    if (opts.body !== undefined && opts.method !== 'GET') {
+    if (
+      opts.body !== undefined &&
+      WRITE_METHODS_WITH_ENVELOPE.has(opts.method)
+    ) {
+      headers['Content-Type'] = 'application/json';
+      bodyString = JSON.stringify(wrapInCafe24Envelope(opts.body));
+    } else if (opts.body !== undefined && opts.method !== 'GET') {
       headers['Content-Type'] = 'application/json';
       bodyString = JSON.stringify(opts.body);
     }
@@ -1056,6 +1078,50 @@ function defaultSleep(ms: number): Promise<void> {
 // lint warnings; the bare `fetch` identifier resolves through TypeScript's
 // own DOM/Node `lib` declarations and is typed as `typeof fetch` cleanly.
 const defaultFetch: typeof fetch = fetch;
+
+/**
+ * Wrap a write-request body in Cafe24's `request` envelope.
+ *
+ * Cafe24 Admin API rejects flat bodies with `400 "Please enter the Request
+ * parameter."` — every POST/PUT must be shaped as
+ * `{ shop_no?, request: { ...rest } }` where `shop_no` is the only field
+ * allowed to live at the top level alongside `request`. Source: every
+ * `https://developers.cafe24.com/docs/ko/api/admin/` "Request body" sample
+ * follows this exact shape; no other top-level keys are documented across
+ * the catalog we use. Centralising the transform here keeps both the node
+ * handler and the MCP tool provider caller-side flat: they pass the
+ * metadata-driven body map as-is, and the wire format stays a pure
+ * protocol concern of this client.
+ *
+ * **Caller contract**: pass a *flat* body map (the metadata-driven
+ * `location: 'body'` fields). Do NOT pre-wrap — if the input already has
+ * a `request` key the function throws, because re-wrapping would produce
+ * `{ request: { request: ... } }` which Cafe24 silently accepts but
+ * misinterprets (every wrapped field becomes ignored).
+ *
+ * **Purity**: returns a new object; never mutates the input. Safe to call
+ * repeatedly on the same `Cafe24CallOptions` across 429 retry attempts.
+ *
+ * **`shop_no` handling**: any non-`undefined` value (including `0` and
+ * `null`) is hoisted to the top level. `0` is meaningful — Cafe24 uses
+ * shop_no `0` for some single-mall flows — and `null` propagates through
+ * unchanged so a caller mistake is visible in the wire payload rather
+ * than silently dropped.
+ *
+ * Exported for direct unit testing.
+ */
+export function wrapInCafe24Envelope(body: Record<string, unknown>): {
+  shop_no?: unknown;
+  request: Record<string, unknown>;
+} {
+  if (Object.prototype.hasOwnProperty.call(body, 'request')) {
+    throw new Error(
+      'wrapInCafe24Envelope received a body with a pre-existing `request` key — caller must not pre-wrap',
+    );
+  }
+  const { shop_no, ...rest } = body;
+  return shop_no !== undefined ? { shop_no, request: rest } : { request: rest };
+}
 
 /**
  * Coerce a query parameter value to a string without ever producing the
