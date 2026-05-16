@@ -287,11 +287,18 @@ export const integrationsApi = {
    *
    * 응답에는 자격 증명·토큰·timestamps 가 포함되지 않으며, 가장 제한적인
    * 상태 (`connected > pending_install > error > expired`) 만 반환된다.
-   * spec/2-navigation/4-integration.md §9.2.
+   *
+   * `signal` 인자로 AbortController.signal 을 받으면 호출자가 unmount /
+   * 사용자 입력 변경 시 in-flight 요청을 cancel 할 수 있다 (backend 호출
+   * 자체를 차단해 부하·throttle 카운터 절약). spec/2-navigation/4-integration.md §9.2.
    */
-  async cafe24Precheck(mallId: string): Promise<Cafe24PrecheckResult> {
+  async cafe24Precheck(
+    mallId: string,
+    signal?: AbortSignal,
+  ): Promise<Cafe24PrecheckResult> {
     const { data } = await apiClient.get("/integrations/cafe24/precheck", {
       params: { mallId },
+      signal,
     });
     return unwrap<Cafe24PrecheckResult>(data);
   },

@@ -52,6 +52,60 @@ function makeRepo(): Record<string, Mock> {
   };
 }
 
+/**
+ * Cafe24 Integration row 의 in-memory mock 객체 factory.
+ *
+ * 기존 spec 파일 곳곳에 흩어져 있던 인라인 mock object 의 반복 선언을 통일.
+ * V045 plain mall_id 와 JSONB `credentials.mall_id` 가 다른 legacy 케이스도
+ * 지원 — `credentialsMallId` override 로 명시. ai-review W20 (2026-05-16) 조치.
+ */
+function buildFakeCafe24Integration(
+  overrides: Partial<{
+    id: string;
+    name: string;
+    status: string;
+    /** plain `mall_id` 컬럼. null 이면 V045 이전 legacy row */
+    mallId: string | null;
+    appType: 'public' | 'private';
+    /** credentials.mall_id (legacy 케이스에서 plain mallId 와 다를 수 있음) */
+    credentialsMallId: string;
+    clientId: string;
+    clientSecret: string;
+    scopes: string[];
+    installToken: string | null;
+    installTokenIssuedAt: Date | null;
+    statusReason: string | null;
+    lastError: unknown;
+  }> = {},
+): Record<string, unknown> {
+  const mallId =
+    overrides.mallId === undefined ? 'priv-shop' : overrides.mallId;
+  const credentialsMallId =
+    overrides.credentialsMallId ?? mallId ?? 'priv-shop';
+  const appType = overrides.appType ?? 'private';
+  const credentials: Record<string, unknown> = {
+    mall_id: credentialsMallId,
+    app_type: appType,
+  };
+  if (overrides.clientId !== undefined)
+    credentials.client_id = overrides.clientId;
+  if (overrides.clientSecret !== undefined)
+    credentials.client_secret = overrides.clientSecret;
+  if (overrides.scopes !== undefined) credentials.scopes = overrides.scopes;
+  return {
+    id: overrides.id ?? 'fake-integration-1',
+    name: overrides.name ?? `${credentialsMallId} (Cafe24)`,
+    status: overrides.status ?? 'connected',
+    serviceType: 'cafe24',
+    mallId,
+    installToken: overrides.installToken,
+    installTokenIssuedAt: overrides.installTokenIssuedAt,
+    statusReason: overrides.statusReason ?? null,
+    lastError: overrides.lastError ?? null,
+    credentials,
+  };
+}
+
 describe('IntegrationOAuthService — Cafe24', () => {
   let service: IntegrationOAuthService;
   let integrationRepo: Record<string, Mock>;
@@ -311,13 +365,10 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('rejects with 409 when a connected private integration exists for the same mall_id', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'existing-connected',
-          workspaceId: 'ws-1',
           status: 'connected',
-          serviceType: 'cafe24',
-          credentials: { mall_id: 'priv-shop', app_type: 'private' },
-        },
+        }),
       ]);
       const error = await service
         .begin(privateBeginParams())
@@ -490,12 +541,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
     // public 이든 private 이든 모두 ConflictException.
     it('rejects when same mall_id is already connected as public (spec §9.2 — app_type 무관)', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'public-row',
           status: 'connected',
-          mallId: 'priv-shop',
-          credentials: { mall_id: 'priv-shop', app_type: 'public' },
-        },
+          appType: 'public',
+        }),
       ]);
 
       await expect(service.begin(privateBeginParams())).rejects.toMatchObject({
@@ -527,14 +577,12 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('rejects with 409 when a connected public integration exists for the same mall_id', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'existing-public-connected',
-          workspaceId: 'ws-1',
           status: 'connected',
-          serviceType: 'cafe24',
           mallId: 'pub-shop',
-          credentials: { mall_id: 'pub-shop', app_type: 'public' },
-        },
+          appType: 'public',
+        }),
       ]);
 
       const error = await service
@@ -548,14 +596,12 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('rejects with 409 when a connected private integration exists for the same mall_id (app_type 무관)', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'existing-private-connected',
-          workspaceId: 'ws-1',
           status: 'connected',
-          serviceType: 'cafe24',
           mallId: 'pub-shop',
-          credentials: { mall_id: 'pub-shop', app_type: 'private' },
-        },
+          appType: 'private',
+        }),
       ]);
 
       const error = await service
@@ -568,13 +614,12 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('proceeds when only non-connected rows exist (pending/expired/error — V045 backstop handles finalize)', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'existing-expired',
           status: 'expired',
-          serviceType: 'cafe24',
           mallId: 'pub-shop',
-          credentials: { mall_id: 'pub-shop', app_type: 'public' },
-        },
+          appType: 'public',
+        }),
       ]);
 
       const result = await service.begin(publicBeginParams());
@@ -604,13 +649,13 @@ describe('IntegrationOAuthService — Cafe24', () => {
         callCount += 1;
         if (callCount === 1) return Promise.resolve([]);
         return Promise.resolve([
-          {
+          buildFakeCafe24Integration({
             id: 'legacy-connected',
             status: 'connected',
-            serviceType: 'cafe24',
             mallId: null,
-            credentials: { mall_id: 'pub-shop', app_type: 'public' },
-          },
+            credentialsMallId: 'pub-shop',
+            appType: 'public',
+          }),
         ]);
       });
 
@@ -635,14 +680,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('returns conflict=true with status=connected when a connected row exists', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'conn-1',
           name: 'priv-shop (Cafe24 Private)',
           status: 'connected',
-          serviceType: 'cafe24',
-          mallId: 'priv-shop',
-          credentials: { mall_id: 'priv-shop', app_type: 'private' },
-        },
+        }),
       ]);
       const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
       expect(result).toEqual({
@@ -655,22 +697,16 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('prefers connected over pending_install when both exist', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'pending-1',
           name: 'pending',
           status: 'pending_install',
-          serviceType: 'cafe24',
-          mallId: 'priv-shop',
-          credentials: { mall_id: 'priv-shop', app_type: 'private' },
-        },
-        {
+        }),
+        buildFakeCafe24Integration({
           id: 'conn-1',
           name: 'connected',
           status: 'connected',
-          serviceType: 'cafe24',
-          mallId: 'priv-shop',
-          credentials: { mall_id: 'priv-shop', app_type: 'private' },
-        },
+        }),
       ]);
       const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
       expect(result.status).toBe('connected');
@@ -679,14 +715,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('returns status=pending_install when only pending row exists', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'pending-1',
           name: 'pending',
           status: 'pending_install',
-          serviceType: 'cafe24',
-          mallId: 'priv-shop',
-          credentials: { mall_id: 'priv-shop', app_type: 'private' },
-        },
+        }),
       ]);
       const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
       expect(result.status).toBe('pending_install');
@@ -695,14 +728,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('returns status=error when only error row exists', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'err-1',
           name: 'broken',
           status: 'error',
-          serviceType: 'cafe24',
-          mallId: 'priv-shop',
-          credentials: { mall_id: 'priv-shop', app_type: 'private' },
-        },
+        }),
       ]);
       const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
       expect(result.status).toBe('error');
@@ -710,14 +740,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
     it('returns status=expired when only expired row exists', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'exp-1',
           name: 'gone',
           status: 'expired',
-          serviceType: 'cafe24',
-          mallId: 'priv-shop',
-          credentials: { mall_id: 'priv-shop', app_type: 'private' },
-        },
+        }),
       ]);
       const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
       expect(result.status).toBe('expired');
@@ -731,14 +758,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
      */
     it('omits status when row has a status outside the priority enum (fallback)', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([
-        {
+        buildFakeCafe24Integration({
           id: 'tx-1',
           name: 'unknown-state',
           status: 'initializing',
-          serviceType: 'cafe24',
-          mallId: 'priv-shop',
-          credentials: { mall_id: 'priv-shop', app_type: 'private' },
-        },
+        }),
       ]);
       const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
       expect(result.conflict).toBe(true);
@@ -757,14 +781,14 @@ describe('IntegrationOAuthService — Cafe24', () => {
         callCount += 1;
         if (callCount === 1) return Promise.resolve([]);
         return Promise.resolve([
-          {
+          buildFakeCafe24Integration({
             id: 'legacy-conn',
             name: 'legacy',
             status: 'connected',
-            serviceType: 'cafe24',
             mallId: null,
-            credentials: { mall_id: 'priv-shop', app_type: 'public' },
-          },
+            credentialsMallId: 'priv-shop',
+            appType: 'public',
+          }),
         ]);
       });
       const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
