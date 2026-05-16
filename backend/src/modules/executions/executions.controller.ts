@@ -53,7 +53,13 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('workspaceId') workspaceId: string,
+  ) {
+    // W-44 — IDOR 차단. findById 는 workspace 필터를 적용하지 않으므로
+    // ID 만 추측한 다른 workspace 사용자에게 상세를 회신할 수 있었다.
+    await this.executionsService.verifyOwnership(id, workspaceId);
     return this.executionsService.findById(id);
   }
 
@@ -74,8 +80,15 @@ export class ExecutionsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findByWorkflow(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
+    @CurrentUser('workspaceId') workspaceId: string,
     @Query() query: QueryExecutionDto,
   ) {
+    // W-44 — IDOR 차단. workflow 가 사용자의 workspace 에 속하는지 검증한 뒤에만
+    // 실행 목록을 반환한다. 일치하지 않으면 NotFound 로 ID enumeration 도 방지.
+    await this.executionsService.verifyWorkflowOwnership(
+      workflowId,
+      workspaceId,
+    );
     return this.executionsService.findByWorkflow(workflowId, query);
   }
 
