@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# pre-commit hook — block commits on the default branch of the main worktree.
+#
+# Activate with: `git config core.hooksPath .githooks` (run once per clone;
+# `scripts/setup-githooks.sh` does this for you).
+#
+# Policy delegates to .claude/hooks/_lib/branch_guard.py so this hook and
+# the Claude Code PreToolUse hook share one source of truth. Override
+# with BYPASS_DEFAULT_BRANCH_GUARD=1 when you have a conscious reason to
+# commit on the default branch (release tagging, hotfix you can't avoid).
+#
+# Failure mode: if Python or the guard module can't load we fail open
+# (allow the commit) — a broken guard must not block routine work. The
+# PreToolUse hook covers the same ground from the editor side, and a
+# missing guard module would have surfaced there first.
+
+set -u
+
+if [ "${BYPASS_DEFAULT_BRANCH_GUARD:-}" = "1" ]; then
+    exit 0
+fi
+
+# Locate the repo top so we can find the guard module regardless of
+# where `git commit` was invoked from inside the tree.
+repo_top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+guard="$repo_top/.claude/hooks/_lib/branch_guard.py"
+
+if [ ! -f "$guard" ]; then
+    # Guard not present (older checkout?) — fail open.
+    exit 0
+fi
+
+# Run the guard. Exit code 2 means blocked; anything else (including
+# Python crashes) means allow.
+python3 "$guard"
+rc=$?
+if [ "$rc" -eq 2 ]; then
+    echo "" >&2
+    echo "Commit aborted by .githooks/pre-commit." >&2
+    echo "Switch to a feature branch (or a worktree under .claude/worktrees/)," >&2
+    echo "or set BYPASS_DEFAULT_BRANCH_GUARD=1 for this single commit." >&2
+    exit 1
+fi
+exit 0

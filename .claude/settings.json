@@ -4,6 +4,27 @@
     "command": "bash .claude/statusline.sh"
   },
   "hooks": {
-    "PostToolUse": []
+    "PostToolUse": [],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/guard_default_branch_edit.py"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/guard_default_branch_prompt.py"
+          }
+        ]
+      }
+    ]
   }
 }

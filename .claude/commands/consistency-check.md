@@ -9,11 +9,11 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 1. **세션 준비**:
    ```bash
    # /loop 밖
-   python3 .claude/skills/consistency-checker/hooks/consistency_orchestrator.py $ARGUMENTS
+   python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py $ARGUMENTS
    # /loop 안 (loop_mode=true 초기화)
-   AI_REVIEW_LOOP=1 python3 .claude/skills/consistency-checker/hooks/consistency_orchestrator.py $ARGUMENTS
+   AI_REVIEW_LOOP=1 python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py $ARGUMENTS
    # wake 사이클 — `$ARGUMENTS` 에 `--resume <session_dir>` 이 들어있을 때
-   python3 .claude/skills/consistency-checker/hooks/consistency_orchestrator.py --resume <session_dir>
+   python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py --resume <session_dir>
    ```
    stdout 마지막 줄이 세션 디렉토리 절대경로. model 호출 없음.
 
@@ -24,7 +24,7 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 4. **STATUS 파싱·상태 갱신**: `STATUS=success|rate_limit|network|fatal` 한 줄 반환. `/ai-review` 와 동일한 규약. `_retry_state.json` 을 Write 로 갱신.
 
 5. **수렴 분기**:
-   - 모두 완료 → `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")` invoke. summary 가 자기 컨텍스트에서 `_retry_state.json` 과 5 checker review.md 를 Read 해 통합 후 `summary_output_file` 에 Write.
+   - 모두 완료 → `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")` invoke. summary 가 자기 컨텍스트에서 `_retry_state.json` 과 5 checker 의 결과 파일(`<session_dir>/<checker>.md`)을 Read 해 통합 후 `summary_output_file` 에 Write.
    - 남으면 `/ai-review` 와 동일한 ScheduleWakeup 로직. wake prompt 는 `/loop /consistency-check --resume <session_dir>` 형태 (첫 호출의 --spec/--plan/--impl-prep 인자는 보존할 필요 없음 — _retry_state.json 이 이미 invocations 목록을 가지고 있음).
 
 6. **BLOCK 결정**: SUMMARY.md 작성 후 main 이 그 파일의 상단 30 라인을 Read 해 `BLOCK: YES` 가 있는지 확인.
@@ -47,7 +47,7 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 ## 산출물
 
 - `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 (BLOCK 결정 명시)
-- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<checker>/review.md` — 5 checker 별 상세
+- `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<checker>.md` — 5 checker 별 상세
 - `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — pending/success/fatal 상태
 - `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<checker>.md` — orchestrator 가 만든 입력 페이로드
 - `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json` — 모드·target·checker 명단
