@@ -44,13 +44,13 @@ description: 다수 PR/branch 의 통합 전 충돌·정합성·side effect 를 
 
 ```bash
 # /loop 밖
-python3 .claude/skills/merge-coordinator/hooks/merge_coordinator_orchestrator.py --prepare $ARGUMENTS
+python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --prepare $ARGUMENTS
 
 # /loop 안 (loop_mode=true 초기화)
-AI_REVIEW_LOOP=1 python3 .claude/skills/merge-coordinator/hooks/merge_coordinator_orchestrator.py --prepare $ARGUMENTS
+AI_REVIEW_LOOP=1 python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --prepare $ARGUMENTS
 
 # wake 사이클 — `$ARGUMENTS` 에 `--resume <session_dir>`
-python3 .claude/skills/merge-coordinator/hooks/merge_coordinator_orchestrator.py --resume <session_dir>
+python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --resume <session_dir>
 ```
 
 옵션:
@@ -106,9 +106,9 @@ SUMMARY.md 작성 후 main 이 그 파일 상단 30 라인을 Read 해 `BLOCK: Y
 3. **사후 검토 자동 chain** (모든 branch 통합 완료 후):
    ```bash
    # 코드 리뷰 (integration_base..HEAD)
-   python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --prepare --range <integration_base>..HEAD
+   python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --prepare --range <integration_base>..HEAD
    # 일관성 검토 (영향 받은 spec 영역)
-   python3 .claude/skills/consistency-checker/hooks/consistency_orchestrator.py --impl-prep <영향 spec 영역>
+   python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py --impl-prep <영향 spec 영역>
    ```
    두 세션 모두 본 skill 의 절차와 동일하게 진행 (Agent tool 병렬 호출 → SUMMARY.md → BLOCK 확인).
 
@@ -161,10 +161,10 @@ review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/
 │   └── ...
 ├── _retry_state.json
 ├── meta.json
-├── merge_conflict_analyzer/review.md
-├── semantic_conflict_analyzer/review.md
-├── integration_order_planner/review.md
-├── cross_branch_spec_analyzer/review.md
+├── merge_conflict_analyzer.md            ← analyzer 별 결과 (<analyzer>.md)
+├── semantic_conflict_analyzer.md
+├── integration_order_planner.md
+├── cross_branch_spec_analyzer.md
 ├── SUMMARY.md                            ← integration-risk-summary 가 작성
 └── RESOLUTION.md                          ← 사용자/main 이 통합 결과 기록 (선택)
 ```

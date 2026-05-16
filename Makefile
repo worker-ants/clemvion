@@ -5,14 +5,18 @@
 
 COMPOSE_E2E := docker compose -f docker-compose.e2e.yml
 
-.PHONY: help e2e-up e2e-down e2e-test e2e-test-full
+.PHONY: help setup-githooks e2e-up e2e-down e2e-test e2e-test-full
 
 help:
 	@echo "Targets:"
+	@echo "  setup-githooks 체크인된 .githooks/ 를 git core.hooksPath 로 등록 (clone 후 1회)"
 	@echo "  e2e-up         e2e 인프라 + backend-e2e 까지 백그라운드 기동 (runner 제외, 자동 image rebuild)"
 	@echo "  e2e-down       e2e 리소스 정리 (volume·orphan 모두)"
 	@echo "  e2e-test       backend e2e (supertest) 1-shot — 자동 image rebuild, 끝나면 자동 down"
 	@echo "  e2e-test-full  backend + playwright — 자동 image rebuild, 끝나면 자동 down"
+
+setup-githooks:
+	@bash scripts/setup-githooks.sh
 
 # `--build` 는 source 변경 후 stale 이미지 사용을 방지한다. Docker BuildKit
 # layer cache 가 변경되지 않은 layer 는 재사용하므로 첫 build 이후 부담은 작다.

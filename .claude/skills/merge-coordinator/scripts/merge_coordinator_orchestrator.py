@@ -191,7 +191,7 @@ HEADER_TEMPLATE = """# {title} Payload
 
 본 파일은 orchestrator 가 `{title}` analyzer 용으로 작성한 입력입니다. {perspective}
 
-sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로 따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file` 인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로 따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file` 인자가 가리키는 경로에 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
 
 ## 점검 관점 ({title})
 
@@ -324,8 +324,7 @@ def prepare_session(branches_info, base, config):
             config["max_prompt_size"],
         )
         prompt_path = os.path.join(prompts_dir, f"{analyzer}.md")
-        output_path = os.path.join(session_dir, analyzer, "review.md")
-        os.makedirs(os.path.join(session_dir, analyzer), exist_ok=True)
+        output_path = os.path.join(session_dir, f"{analyzer}.md")
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(body)
         invocations.append({

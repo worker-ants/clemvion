@@ -35,9 +35,9 @@
 | `plan/in-progress/<name>.md` | 평문 | 처리할 항목이 남은 plan. 새 plan 은 항상 여기 |
 | `plan/complete/<name>.md` | 평문 | 모든 항목 완료된 plan. `in-progress/` 에서 `git mv` |
 | `plan/complete/archive/from-*/` | 고정 경로 | 옛 `memory/`·`user_memo/` 의 1회성·역사 문서 보관. 신규 생성 금지 |
-| `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `*/review.md` |
-| `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | consistency-checker 세션. `SUMMARY.md` + 5 checker 별 `*/review.md` + `meta.json` |
-| `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | merge-coordinator 세션. `SUMMARY.md` + 4 analyzer 별 `*/review.md` + `_prompts/`·`_conflicts/`·`meta.json` |
+| `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | 코드 리뷰 세션. `SUMMARY.md`·`RESOLUTION.md` + 분야별 `<role>.md` (예: `security.md`) |
+| `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | consistency-checker 세션. `SUMMARY.md` + 5 checker 별 `<checker>.md` + `meta.json` |
+| `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` | nested ISO | merge-coordinator 세션. `SUMMARY.md` + 4 analyzer 별 `<analyzer>.md` + `_prompts/`·`_conflicts/`·`meta.json` |
 
 > 옛 flat 경로(`review/<timestamp>/`, `review/consistency/<timestamp>/`) 의 누적된 데이터는 한 디렉토리 안 항목 수가 폭주해 `ls` 등 파일시스템 조회가 무거워지는 문제가 있어 nested 형식으로 전환했다. 기존 데이터는 사용자가 일괄 이동 예정이며, 새 세션부터 위 형식을 강제한다.
 | `.claude/worktrees/<task_name>-<slug>/` | `<task_name>-<slug>` | 신규 작업이 일어나는 worktree. `task_name` 은 요청에 맞는 의미 있는 단어, `slug` 는 호출자가 부여하는 식별자 |
@@ -60,9 +60,9 @@
 | 정식 규약 (옛 user_memo CONVENTIONS) | `spec/conventions/<name>.md` |
 | 진행 중 작업 추적 | `plan/in-progress/<name>.md` (frontmatter 에 `worktree` 명시) |
 | 완료된 작업 추적 | `plan/complete/<name>.md` (`git mv`로 이동) |
-| 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,RESOLUTION,...}.md` |
-| 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,meta.json,<checker>/review.md}` |
-| 통합 검토 산출물 | `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY,_prompts,_conflicts,<analyzer>/review.md,meta.json}` |
+| 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY.md,RESOLUTION.md,<role>.md,_routing_decision.json,...}` |
+| 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY.md,meta.json,<checker>.md,...}` |
+| 통합 검토 산출물 | `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/{SUMMARY.md,meta.json,<analyzer>.md,_prompts,_conflicts,...}` |
 | 1회성 분석·역사 문서 | `plan/complete/archive/from-*/` 만 보관, 신규 생성 금지 |
 
 ### 작업 시 점검 (절대 누락 금지)
@@ -114,7 +114,7 @@
 - **수명 = PR 단위**: 작업이 PR 로 merge 되면 즉시 `git worktree remove` 로 정리한다. 사용 끝난 worktree 를 누적시키지 않는다.
 - **plan 과 worktree 의 결속**: 새 plan 을 만들 때 frontmatter 의 `worktree` 필드에 현재 worktree 이름을 기록한다. 동일 worktree 안에서 여러 plan 이 진행되어도 무방하다.
 - **공유 자원 직렬화**: 같은 `spec/` 파일이나 동일 코드 영역을 두 worktree 가 동시에 수정 중이면, plan/in-progress 에 그 사실을 명시적으로 기록하고 작업을 직렬화한다. `consistency-checker` 의 `plan_coherence` 가 이 충돌을 사전 검출한다.
-- **hotfix 예외**: 긴급 hotfix 는 main 에서 직접 작업할 수 있으나, commit message 에 `[hotfix-on-main]` 을 표기한다.
+- **hotfix 예외**: 긴급 hotfix 도 별도 branch 에서 작업한다. 정말 default branch 에서 직접 commit 해야 하는 경우는 `BYPASS_DEFAULT_BRANCH_GUARD=1` 로 한 commit 만 우회 (아래 Enforcement 절 참고).
 - **통합 작업 worktree**: 다수 branch 를 통합할 때는 `merge-coordinator` 가 별도 `.claude/worktrees/integrate-<slug>/` 를 신설해 거기서 merge/rebase 를 시도한다. 통합이 PR 로 merge 되면 정리한다.
 
 ### 신규 worktree 생성 명령 예
@@ -125,6 +125,34 @@ cd .claude/worktrees/<task_name>-<slug>
 ```
 
 `branch_name` 은 일반적으로 `claude/<task_name>-<slug>` 또는 작업 의도에 맞는 feature 브랜치명을 사용한다.
+
+### Enforcement (자동 차단 3-layer)
+
+CLAUDE.md / SKILL.md 의 worktree 규칙은 모델 자율 준수만으로는 위반된 사례가 있어, 다음 3-layer 자동 차단을 둔다. 모두 같은 정책을 공유하며 판정은 `.claude/hooks/_lib/branch_guard.py` 한 곳에서 한다.
+
+- **차단 조건**: 최상위 `.git` 이 **디렉토리**(== main worktree) **AND** 현재 branch == origin default branch.
+- **허용**: 위 조건 아닌 모든 경우. linked worktree (`.git` 이 파일) 거나, branch 가 default 가 아니거나, origin 자체가 없으면 통과.
+
+| Layer | 위치 | 시점 | 효과 |
+|---|---|---|---|
+| **A. PreToolUse hook** | `.claude/hooks/guard_default_branch_edit.py` | Write/Edit/MultiEdit/NotebookEdit 직전 | 차단 + Claude 에게 사유 전달 |
+| **B. UserPromptSubmit hook** | `.claude/hooks/guard_default_branch_prompt.py` | 사용자 prompt 진입 | 작업성 키워드 매칭 시 reminder inject (안내, 차단 X) |
+| **C. git pre-commit hook** | `.githooks/pre-commit` | `git commit` 직전 | exit 1 로 commit 자체 차단 |
+
+활성화:
+
+```bash
+make setup-githooks   # 또는: git config core.hooksPath .githooks
+```
+
+A·B 는 `.claude/settings.json` 등록만으로 자동 동작. C 는 한 번 `setup-githooks` 실행 필요 (`core.hooksPath` 는 clone 별 git config 라 동기화 안 됨).
+
+우회:
+
+- **branch 변경** (정상 동선): 다른 branch / worktree 로 옮기면 자동 통과.
+- **`BYPASS_DEFAULT_BRANCH_GUARD=1`**: 단발성 우회. 의식적 결정 (release tagging, 긴급 hotfix 등) 에만 사용.
+
+옛 `[hotfix-on-main]` commit message escape hatch 는 폐기 — branch 변경만으로 충분하므로 별도 표기 불필요.
 
 ## Skill 체계 (역할 분담)
 

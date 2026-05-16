@@ -21,7 +21,7 @@ session_dir=<일관성 검토 세션 디렉토리 절대경로>
    - `agents_success` / `agents_fatal` / `agents_pending`.
    - `summary_output_file` — 본인이 Write 할 SUMMARY.md 절대경로.
 2. `<session_dir>/meta.json` 을 Read. mode / target_path / checker 명단.
-3. `agents_success` + `agents_fatal` 의 각 checker 에 대해 `subagent_invocations[*].output_file` 을 따라 review.md 를 Read. `agents_pending` 잔존은 "재시도 필요" 로 분류 (이번 사이클에 결과 없음).
+3. `agents_success` + `agents_fatal` 의 각 checker 에 대해 `subagent_invocations[*].output_file` 이 가리키는 결과 파일(`<session_dir>/<checker>.md`)을 Read. `agents_pending` 잔존은 "재시도 필요" 로 분류 (이번 사이클에 결과 없음).
 4. 아래 "요약 지침" + "출력 형식" 으로 통합 보고서를 작성한다. Critical 발견이 1건이라도 있으면 상단에 **`BLOCK: YES`** 명시.
 5. 결과를 **`summary_output_file`** 에 Write.
 6. 호출자에게 한 줄**만** 반환:
