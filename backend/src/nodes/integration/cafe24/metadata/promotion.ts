@@ -99,4 +99,80 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
+  {
+    id: 'coupon_count',
+    label: '쿠폰 개수 조회',
+    description:
+      'Retrieve the total count of coupons. Sibling of coupon_list (paginated).',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'coupons/count',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'coupon_issues_list',
+    label: '발급 쿠폰 목록 조회',
+    description:
+      'List the issuance records of a coupon (who received it, when).',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'coupons/issues',
+    requiredFields: ['coupon_no'],
+    fields: {
+      coupon_no: { type: 'number', location: 'query' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'list',
+    paginated: true,
+  },
+  {
+    id: 'coupon_issuance_customers_list',
+    label: '쿠폰 발급 대상 회원 목록',
+    description:
+      'List customers eligible for conditional issuance of a coupon.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'coupons/{coupon_no}/issuancecustomers',
+    requiredFields: ['coupon_no'],
+    fields: {
+      coupon_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'list',
+    paginated: true,
+  },
+  {
+    id: 'customers_coupons_list',
+    label: '회원별 쿠폰 목록',
+    description:
+      "List the coupons a customer holds. Uses the codebase-wide `member_id` path placeholder (Cafe24 docs call this `customer_no`).",
+    scopeType: 'read',
+    method: 'GET',
+    path: 'customers/{member_id}/coupons',
+    requiredFields: ['member_id'],
+    fields: {
+      member_id: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'list',
+    paginated: true,
+  },
+  {
+    id: 'customers_coupons_count',
+    label: '회원별 쿠폰 개수',
+    description: 'Retrieve the count of coupons a customer holds.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'customers/{member_id}/coupons/count',
+    requiredFields: ['member_id'],
+    fields: {
+      member_id: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
 ];
