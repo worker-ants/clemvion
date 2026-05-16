@@ -16,6 +16,7 @@ import { IntegrationsController } from './integrations.controller';
 import { ThirdPartyOAuthController } from './third-party-oauth.controller';
 import { IntegrationsService } from './integrations.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
+import { IntegrationActionRequiredNotifier } from './integration-action-required-notifier.service';
 import {
   IntegrationExpiryScannerService,
   INTEGRATION_EXPIRY_QUEUE,
@@ -51,7 +52,8 @@ import { CAFE24_REFRESH_QUEUE } from './cafe24-token-refresh.constants';
     IntegrationsService,
     IntegrationOAuthService,
     IntegrationExpiryScannerService,
+    IntegrationActionRequiredNotifier,
   ],
-  exports: [IntegrationsService],
+  exports: [IntegrationsService, IntegrationActionRequiredNotifier],
 })
 export class IntegrationsModule {}

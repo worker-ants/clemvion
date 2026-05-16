@@ -837,7 +837,9 @@ for each integration:
 
 ### 11.2 알림 생성
 
-`Notification` 엔티티를 사용 (type = `integration_expired`).
+두 가지 `Notification.type` 을 사용한다 — 분리 원칙은 **수동성 vs 능동성**:
+
+#### `integration_expired` (passive — 만료 임박/도래)
 
 | 상황 | 제목 | 메시지 | 수신자 |
 |------|------|--------|--------|
@@ -848,9 +850,26 @@ for each integration:
 
 **중복 방지**: `(integration_id, threshold_key)`로 유니크 판정. 임계치별 최대 1회.
 
-**알림 발사 정책** (2026-05-16 정정): `integration_expired` 알림은 **refresh_token 없는 provider 의 `token_expires_at` 만료 (`status_reason='token_expired'`) 에만 발사**한다 (위 표의 7일/3일/당일 임계). 다음 전이는 **알림 미발사** — UI 배지 (사이드바 카운트 + 목록 카드 뱃지) 와 노드 에디터 경고 (§7.3) 로만 통지:
+**발사 정책**: **refresh_token 없는 provider 의 `token_expires_at` 만료 (`status_reason='token_expired'`) 에만 발사**한다 (위 표의 7일/3일/당일 임계).
+
+#### `integration_action_required` (active — 사용자 즉시 액션 필요) — 2026-05-16 A-1 신설
+
+| 상황 (`status_reason`) | 제목 | 메시지 | 수신자 |
+|------|------|--------|--------|
+| `auth_failed` | `Integration disconnected` | `"<name>" needs reauthorization — Cafe24 rejected the access token. Reconnect to resume.` | Personal: 소유자 / Organization: Admin 전원 |
+| `insufficient_scope` | `Integration missing permissions` | `"<name>" is missing required scopes — open Settings → Integrations and re-grant access.` | 동일 |
+| `network` | `Integration network failure` | `"<name>" failed 3 consecutive network calls. Check Cafe24 status or retry later.` | 동일 |
+
+**중복 방지**: `(integration_id, status_reason)` 으로 유니크 판정 — 같은 사유로 같은 통합에 대해 최대 1회. 사용자가 재연결해 `connected` 로 회복하면 dedup 키 리셋.
+
+**발사 정책**: `Cafe24ApiClient.markAuthFailed` (auth_failed / insufficient_scope) 와 `recordNetworkFailure` (3회 누적 후 network) 안에서 발사. transition 이 **인-라인** 으로 알림을 emit 한다 — daily scanner 가 아닌 본 시점에서 1회.
+
+**채널**: `notifyIntegrationExpiryByEmail` (옛 이름 그대로 재사용 — `integration_action_required` 에도 같이 적용) 활성화 시 `channel='both'`, 기본 `'in_app'`.
+
+#### 알림 미발사 케이스
+
+UI 배지 (사이드바 카운트 + 목록 카드 뱃지) 와 노드 에디터 경고 (§7.3) 로만 통지하며 별도 push 알림 미발사:
 - **Cafe24 Private `install_timeout`** — 사용자가 외부 install 흐름 진행 중인 명시적 상태 ([Rationale "install_timeout 알림 미발사"](#rationale) 참고).
-- **refresh 실패의 `error(auth_failed)`, transport 3회 실패의 `error(network)`, scope 부족의 `error(insufficient_scope)`** — 사용자 액션 필요한 `error(*)` 도메인. 향후 `Notification.type` 에 `integration_action_required` 같은 별도 타입 신설 검토.
 
 ### 11.3 이메일 옵션
 
