@@ -8,7 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, LessThan, Repository } from 'typeorm';
+import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
   INSTALL_TOKEN_BYTES,
@@ -26,6 +26,14 @@ import { decryptJson } from './services/credentials-transformer';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * SEC H-2: Cafe24 install_token mismatch 회복 흐름 (`tryRecoverByMallId`)
+ * 의 HMAC trial 후보 수 상한. 정상 운영에서 같은 mall_id 의 cafe24 row 는
+ * 보통 1~2 개 (V046 partial UNIQUE 가 workspace+mall 단위 dedup). 5 이상이면
+ * 의도적 DoS amplification 가능성이 있어 회복 자체를 포기 (404 반환).
+ */
+const RECOVERY_CANDIDATE_LIMIT = 5;
 
 export const ALLOWED_OAUTH_PROVIDERS = ['google', 'github', 'cafe24'] as const;
 export type OAuthProvider = (typeof ALLOWED_OAUTH_PROVIDERS)[number];
@@ -607,8 +615,15 @@ export class IntegrationOAuthService {
     try {
       await this.dataSource.transaction(async (manager) => {
         const repo = manager.getRepository(Integration);
+        // CONC H-3 (2026-05-16): `SELECT ... FOR UPDATE` 로 row lock 을 잡아
+        // 동시 reauthorize callback 의 lost update 를 차단. PostgreSQL READ
+        // COMMITTED 에서 두 트랜잭션이 같은 row 를 동시 read → save 하면
+        // last-write-wins 로 한쪽 토큰이 사라지고, Cafe24 의 refresh_token
+        // rotation 정책 상 살아남은 토큰도 무효일 수 있다. pessimistic_write
+        // lock 이 두 번째 트랜잭션을 첫 commit 까지 대기시켜 serial 보장.
         const integration = await repo.findOne({
           where: { id: record.integrationId!, workspaceId: record.workspaceId },
+          lock: { mode: 'pessimistic_write' },
         });
         if (!integration) {
           throw new NotFoundException({
@@ -1010,43 +1025,57 @@ export class IntegrationOAuthService {
   ): Promise<BeginResult> {
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
 
-    // Duplicate-prevention via plain `mall_id` column (V045) — DB-level
-    // SQL filter + partial UNIQUE index. The pre-V045 in-memory scan over
-    // encrypted credentials JSONB had two problems we now close: O(N)
-    // decrypt cost and a TOCTOU race window between SELECT and INSERT
-    // (the partial UNIQUE makes the race an SQL constraint violation
-    // instead of a silently-duplicated row).
+    // Duplicate-prevention.
     //
-    // We still need an in-memory check first to (a) distinguish
-    // connected→409 from pending→reuse, and (b) handle pre-V045 rows
-    // whose `mall_id` is still NULL (we fall back to credentials.mall_id
-    // for those). The UNIQUE index is the backstop for truly concurrent
-    // INSERTs that slip past both checks.
-    const existing = await this.integrationRepository.find({
+    // C2 + E2 (2026-05-16) — 두 가지 동시 개선:
+    //   • C2 (REQ HIGH-5): spec §9.2 는 중복 감지를 "app_type 무관" 으로
+    //     정의한다. 옛 in-memory 필터는 `row.credentials?.app_type ===
+    //     'private'` 까지 AND 로 걸어, public 으로 이미 연결된 동일 mall_id
+    //     에 대해 Private 앱 begin 을 허용하던 결함이 있었다. 이 조건을
+    //     제거해 spec 일치.
+    //   • E2 (DB H-2): 옛 코드는 workspace 의 모든 cafe24 row 를 in-memory
+    //     로 가져온 뒤 mall_id 비교. V045 의 plain mall_id 컬럼 + V046
+    //     partial UNIQUE 가 있는 지금은 SQL 직접 조회가 가능하므로
+    //     `{ workspaceId, serviceType, mallId }` 조건으로 단일 쿼리.
+    //     workspace 당 cafe24 통합이 많아도 O(1) 행만 가져온다.
+    //
+    // 단 V045 이전 row (`mallId IS NULL`) 의 fallback 은 별도 보정 쿼리로
+    // 처리한다. 이는 곧 backfill 완료 후 제거 예정.
+    const sameMall = await this.integrationRepository.find({
       where: {
         workspaceId: params.workspaceId,
         serviceType: 'cafe24',
+        mallId: meta.mall_id,
       },
     });
-    const sameMall = existing.filter((row) => {
-      const plainMall = row.mallId;
-      const credsMall = row.credentials?.mall_id;
-      const effectiveMallId = plainMall ?? credsMall;
-      return (
-        effectiveMallId === meta.mall_id &&
-        row.credentials?.app_type === 'private'
-      );
-    });
-    const alreadyConnected = sameMall.find((row) => row.status === 'connected');
+    // V045 이전 row 보정 — plain mall_id 컬럼이 NULL 인 행은 credentials
+    // JSONB 의 mall_id 로 매칭. backfill 완료 후 제거 예정.
+    const sameMallLegacy = (
+      await this.integrationRepository.find({
+        where: {
+          workspaceId: params.workspaceId,
+          serviceType: 'cafe24',
+          mallId: IsNull(),
+        },
+      })
+    ).filter((row) => row.credentials?.mall_id === meta.mall_id);
+    const allSameMall = [...sameMall, ...sameMallLegacy];
+    const alreadyConnected = allSameMall.find(
+      (row) => row.status === 'connected',
+    );
     if (alreadyConnected) {
       throw new ConflictException({
         code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-        message: `A Cafe24 Private integration for mall_id "${meta.mall_id}" already exists and is connected. Use the existing integration or delete it first.`,
+        message: `A Cafe24 integration for mall_id "${meta.mall_id}" already exists and is connected. Use the existing integration or delete it first.`,
         integrationId: alreadyConnected.id,
       });
     }
-    const existingPending = sameMall.find(
-      (row) => row.status === 'pending_install',
+    // 기존 pending_install 재사용은 private app 끼리만 의미가 있다.
+    // (public app 의 pending 행은 OAuth 흐름 자체가 다름.)
+    const existingPending = allSameMall.find(
+      (row) =>
+        row.status === 'pending_install' &&
+        row.credentials?.app_type === 'private',
     );
 
     // 16바이트 base64url (22자, 128-bit) — INSTALL_TOKEN_BYTES 상수에서
@@ -1330,25 +1359,37 @@ export class IntegrationOAuthService {
     const { urlToken, query } = params;
     if (!query.mall_id) return null;
 
+    // SEC H-2 (2026-05-16) — 옛 동작은 mall_id 매칭되는 모든 workspace 의 row
+    // 를 가져온 뒤 in-memory HMAC trial 을 N번 수행했다. 공격자가 인기 mall_id
+    // (예: `test`) 로 무효 install_token 을 분산 IP 로 반복 요청하면 DB
+    // full-scan + HMAC 연산 amplification 가능. `take: RECOVERY_CANDIDATE_LIMIT`
+    // 로 후보 상한을 둬 amplification 을 차단. 정상 운영에서는 per-mall 행
+    // 수가 보통 1~2 이므로 영향 없음. 한도 초과 시 회복 포기 (404).
     const sameMall = await this.integrationRepository.find({
       where: {
         mallId: query.mall_id,
         serviceType: 'cafe24',
       },
+      take: RECOVERY_CANDIDATE_LIMIT + 1, // +1 to detect overflow
     });
 
+    if (sameMall.length > RECOVERY_CANDIDATE_LIMIT) {
+      this.logger.warn(
+        `[cafe24-install-recovery] candidate overflow for mall_id=${query.mall_id} (>${RECOVERY_CANDIDATE_LIMIT}) — refusing recovery to bound HMAC trial cost`,
+      );
+      return null;
+    }
+
     // 진단 로그 — 회복 시도 자체는 항상 기록 (404 분석에 필수).
-    // installToken 자체는 평문 컬럼이고 mall_id 분리로 enumeration 가능
-    // 정보 누출 위험 낮음. 앞 6자만 로깅하는 옛 규약은 유지.
+    // SEC H-2: Integration UUID + tokenPrefix 가 cross-tenant enumeration
+    // 정보가 될 수 있어 로그에서 제거. status / statusReason 만 남겨
+    // 운영 진단에는 충분.
     this.logger.warn(
-      `[cafe24-install-recovery] mall_id=${JSON.stringify(query.mall_id)} url_token_prefix=${JSON.stringify(urlToken.slice(0, 6))} candidates=${JSON.stringify(
+      `[cafe24-install-recovery] mall_id=${JSON.stringify(query.mall_id)} candidates=${sameMall.length} statuses=${JSON.stringify(
         sameMall.map((r) => ({
-          id: r.id,
           status: r.status,
           statusReason: r.statusReason,
           hasInstallToken: r.installToken !== null,
-          tokenPrefix: r.installToken?.slice(0, 6) ?? null,
-          tokenMatchesUrl: r.installToken === urlToken,
         })),
       )}`,
     );
@@ -1363,8 +1404,10 @@ export class IntegrationOAuthService {
 
     if (validated.length === 1) {
       const row = validated[0];
+      // SEC H-2: 회복 성공 로그도 UUID/tokenPrefix 제거. mall_id + status 만
+      // 으로 운영 진단 충분.
       this.logger.log(
-        `[cafe24-install-recovery] recovered: mall_id=${query.mall_id} integration=${row.id} status=${row.status} db_token_prefix=${JSON.stringify(row.installToken?.slice(0, 6) ?? null)} url_token_prefix=${JSON.stringify(urlToken.slice(0, 6))} — falling through to ${row.status === 'pending_install' ? 'OAuth authorize' : 'post-install navigation'}`,
+        `[cafe24-install-recovery] recovered: mall_id=${query.mall_id} status=${row.status} → falling through to ${row.status === 'pending_install' ? 'OAuth authorize' : 'post-install navigation'}`,
       );
       return row;
     }
@@ -1516,20 +1559,55 @@ function readNumber(obj: Record<string, unknown>, key: string): number | null {
  *
  * Algorithm (official Cafe24 sample — Java `validationCheckHmac`):
  *   1. Remove `hmac` from params, sort remaining keys alphabetically
- *   2. Rebuild as URL-encoded query string
+ *   2. Rebuild as URL-encoded query string using Java `URLEncoder.encode(value, "UTF-8")`
+ *      (application/x-www-form-urlencoded — spaces → `+`)
  *   3. HmacSHA256(client_secret, message) → Base64
  *   4. Compare (timing-safe) with the received (URL-decoded) hmac value
  *
  * Split into buildHmacMessage + verifyHmacWithMessage so callers with multiple
  * candidate secrets can compute the message once and reuse it per candidate.
+ *
+ * SEC H-1 (2026-05-16): `encodeURIComponent` 는 공백을 `%20` 으로 인코딩하지만
+ * Cafe24 공식 Java 샘플의 `URLEncoder.encode(value, "UTF-8")` 는 공백을 `+`
+ * 로 인코딩한다 (application/x-www-form-urlencoded MIME). user_name 등 공백
+ * 포함 파라미터가 있는 정상 요청이 옛 구현에서 HMAC 불일치로 거부되던
+ * 문제 (보안적 우회는 불가 — 공백 처리 차이만 영향) 를 `formUrlEncode` 로
+ * 정정. RFC 3986 의 `*`, `-`, `.`, `_` 등 unreserved 문자 처리도 함께 정렬.
  */
 function buildHmacMessage(rawQuery: string): string {
   const params = new URLSearchParams(rawQuery);
   params.delete('hmac');
   return [...params.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .map(([k, v]) => `${k}=${formUrlEncode(v)}`)
     .join('&');
+}
+
+/**
+ * Java `URLEncoder.encode(value, "UTF-8")` 와 일치하는 인코딩.
+ *
+ * Cafe24 의 공식 HMAC 검증 샘플이 사용하는 인코딩 방식:
+ * - 공백 → `+`
+ * - `*`, `-`, `.`, `_`, 알파벳·숫자는 그대로
+ * - 그 외 모든 문자는 `%HH` (UTF-8 바이트 단위)
+ *
+ * `encodeURIComponent` 는 공백을 `%20`, `*`/`-`/`.`/`_`/`!`/`(`/`)`/`'`/`~`
+ * 를 그대로 두지만 공백 처리만 다르다. Cafe24 가 보내는 메시지 안에
+ * 별표·괄호 등이 들어올 가능성은 사실상 없으므로 공백 차이만 정정해도
+ * 충분하지만, 명시적으로 Java 호환 인코더를 만들어두면 향후 회귀를 막을
+ * 수 있다.
+ */
+function formUrlEncode(value: string): string {
+  return encodeURIComponent(value)
+    .replace(/%20/g, '+')
+    // encodeURIComponent 는 `!`, `'`, `(`, `)`, `*` 를 인코딩하지 않으나
+    // Java URLEncoder 는 `*` 만 그대로 두고 나머지는 인코딩한다. Cafe24
+    // 메시지가 이런 문자를 포함할 가능성은 극히 낮지만 호환을 위해 명시.
+    .replace(/!/g, '%21')
+    .replace(/'/g, '%27')
+    .replace(/\(/g, '%28')
+    .replace(/\)/g, '%29')
+    .replace(/~/g, '%7E');
 }
 
 function verifyHmacWithMessage(

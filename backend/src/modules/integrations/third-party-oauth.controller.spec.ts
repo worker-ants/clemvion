@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
-import { ThirdPartyOAuthController } from './third-party-oauth.controller';
+import {
+  ThirdPartyOAuthController,
+  isValidPostMessageOrigin,
+} from './third-party-oauth.controller';
 import { IntegrationOAuthService } from './integration-oauth.service';
 
 function makeRes() {
@@ -194,7 +197,7 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       res as never,
     );
     expect(res.statusCode).toBe(404);
-    expect((res.body as { code: string }).code).toBe(
+    expect((res.body as { error: { code: string } }).error.code).toBe(
       'CAFE24_INSTALL_INVALID_TOKEN',
     );
     expect(oauthService.handleInstall).not.toHaveBeenCalled();
@@ -282,7 +285,7 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       res as never,
     );
     expect(res.statusCode).toBe(400);
-    expect((res.body as { code: string }).code).toBe(
+    expect((res.body as { error: { code: string } }).error.code).toBe(
       'CAFE24_INSTALL_MISSING_PARAMS',
     );
   });
@@ -306,7 +309,7 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       res as never,
     );
     expect(res.statusCode).toBe(400);
-    expect((res.body as { code: string }).code).toBe(
+    expect((res.body as { error: { code: string } }).error.code).toBe(
       'CAFE24_INSTALL_MISSING_PARAMS',
     );
   });
@@ -330,7 +333,7 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       res as never,
     );
     expect(res.statusCode).toBe(400);
-    expect((res.body as { code: string }).code).toBe(
+    expect((res.body as { error: { code: string } }).error.code).toBe(
       'CAFE24_INSTALL_MISSING_PARAMS',
     );
   });
@@ -359,7 +362,7 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       res as never,
     );
     expect(res.statusCode).toBe(403);
-    expect((res.body as { code: string }).code).toBe(
+    expect((res.body as { error: { code: string } }).error.code).toBe(
       'CAFE24_INSTALL_INVALID_HMAC',
     );
   });
@@ -388,7 +391,7 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       res as never,
     );
     expect(res.statusCode).toBe(404);
-    expect((res.body as { code: string }).code).toBe(
+    expect((res.body as { error: { code: string } }).error.code).toBe(
       'CAFE24_INSTALL_INVALID_TOKEN',
     );
   });
@@ -460,5 +463,36 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       302,
       'https://myshop.cafe24api.com/api/v2/oauth/authorize',
     );
+  });
+});
+
+// SEC H-3 — `isValidPostMessageOrigin` 회귀 보호. postMessage targetOrigin
+// 으로 들어가는 FRONTEND_URL / APP_URL 의 shape 가 잘못 설정되면 OAuth
+// 결과 (previewToken 등) 가 외부 origin 에 누출되므로 엄격 검증.
+describe('isValidPostMessageOrigin', () => {
+  it.each([
+    'https://app.clemvion.com',
+    'https://app.clemvion.com/',
+    'https://staging.clemvion.com:8443',
+    'http://localhost:3000',
+    'http://localhost',
+    'http://127.0.0.1:3010',
+  ])('accepts %s', (origin) => {
+    expect(isValidPostMessageOrigin(origin)).toBe(true);
+  });
+
+  it.each([
+    '*',
+    'null',
+    '',
+    'https://app.example.com/path', // path 포함 거부
+    'https://app.example.com/?q=1', // query 포함 거부
+    'http://example.com', // non-localhost http 거부
+    'ftp://example.com', // 비-http(s) 프로토콜 거부
+    'not-a-url',
+    'javascript:alert(1)',
+    '//example.com',
+  ])('rejects %s', (origin) => {
+    expect(isValidPostMessageOrigin(origin)).toBe(false);
   });
 });
