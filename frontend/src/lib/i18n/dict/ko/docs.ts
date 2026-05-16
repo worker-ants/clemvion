@@ -1,0 +1,28 @@
+export const docs = {
+  title: "사용자 가이드",
+  titleSuffix: "사용자 매뉴얼",
+  search: "문서 검색",
+  noResults: "검색 결과가 없어요",
+  onThisPage: "이 페이지",
+  previous: "이전",
+  next: "다음",
+  sectionGettingStarted: "시작하기",
+  sectionNodes: "노드 가이드",
+  sectionExpression: "표현식 언어",
+  sectionRunAndDebug: "실행과 디버깅",
+  sectionIntegrationsConfig: "통합과 설정",
+  sectionFaq: "자주 묻는 질문",
+  bodyKoreanNotice: "본문은 아직 한국어로만 제공돼요. 제품 사용 중 언어 변경을 원하면 프로필에서 언어 설정을 바꿔요.",
+  fieldTable: {
+    name: "이름",
+    required: "필수",
+    type: "타입",
+    description: "설명",
+    default: "기본값",
+  },
+  callout: {
+    note: "참고",
+    tip: "팁",
+    warn: "주의",
+  },
+} as const;
