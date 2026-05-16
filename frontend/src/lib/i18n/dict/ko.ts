@@ -1806,6 +1806,9 @@ export const ko = {
     cafe24PrivatePendingTerminal:
       "이 통합은 더 이상 대기 상태가 아니에요. 상세 페이지에서 상태와 다음 단계를 확인하세요.",
     cafe24PrivatePendingLastErrorLabel: "마지막 콜백 오류",
+    cafe24DetailAppUrlTitle: "Cafe24 App URL",
+    cafe24DetailAppUrlDesc:
+      "Cafe24 Developers → 내 앱 → 개발 정보의 '앱 URL' 에 이 값을 등록하세요. 카페24 admin 의 '앱으로 가기' / Cafe24 Developers 의 '테스트 실행' 모두 이 URL 을 호출합니다. URL 이 일치하지 않으면 HMAC 검증이 실패해 호출이 거부됩니다.",
     oauthPopupClosedNoResult:
       "OAuth 팝업이 결과 없이 닫혔어요. 다시 시도하거나 페이지를 새로고침 해주세요.",
     copied: "복사됨",
