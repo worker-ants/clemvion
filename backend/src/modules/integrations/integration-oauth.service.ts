@@ -1255,6 +1255,11 @@ export class IntegrationOAuthService {
       // Defensive: should not happen given the install_token uniqueness
       // and the begin-time validation, but a token used against a different
       // mall_id is treated like a bad HMAC (no info leak).
+      this.logHmacFailure({
+        reason: 'mall_id_mismatch',
+        urlMallId: query.mall_id,
+        target,
+      });
       throw new ForbiddenException({
         code: 'CAFE24_INSTALL_INVALID_HMAC',
         message: 'HMAC verification failed',
@@ -1262,6 +1267,11 @@ export class IntegrationOAuthService {
     }
     const secret = creds.client_secret;
     if (typeof secret !== 'string') {
+      this.logHmacFailure({
+        reason: 'no_client_secret',
+        urlMallId: query.mall_id,
+        target,
+      });
       throw new ForbiddenException({
         code: 'CAFE24_INSTALL_INVALID_HMAC',
         message: 'HMAC verification failed',
@@ -1269,6 +1279,11 @@ export class IntegrationOAuthService {
     }
     const hmacMessage = buildHmacMessage(query.rawQuery);
     if (!verifyHmacWithMessage(hmacMessage, secret, query.hmac)) {
+      this.logHmacFailure({
+        reason: 'hmac_verify_failed',
+        urlMallId: query.mall_id,
+        target,
+      });
       throw new ForbiddenException({
         code: 'CAFE24_INSTALL_INVALID_HMAC',
         message: 'HMAC verification failed',
@@ -1426,6 +1441,35 @@ export class IntegrationOAuthService {
     return null;
   }
 
+  /**
+   * `CAFE24_INSTALL_INVALID_HMAC` 응답을 던지기 직전 호출하는 진단 로그
+   * 헬퍼. 3 분기(mall_id_mismatch / no_client_secret / hmac_verify_failed)
+   * 모두 동일 응답 코드를 반환하므로 (capability-token 가정 보호), 운영
+   * 환경에서 원인 판별은 로그에 의존한다. spec/2-navigation/4-integration.md
+   * Rationale "Cafe24 App URL 상세 페이지 표시" 의 "HMAC 검증 진단 로그
+   * 보강" 단락.
+   *
+   * 절대 로깅 금지: `client_secret`, install_token 의 전체 값.
+   * 로깅 허용: reason, urlMallId, dbMallId, dbAppType, status, statusReason,
+   * tokenPreview (prefix 4자 + suffix 4자).
+   */
+  private logHmacFailure(params: {
+    reason: 'mall_id_mismatch' | 'no_client_secret' | 'hmac_verify_failed';
+    urlMallId: string;
+    target: Integration;
+  }): void {
+    const { reason, urlMallId, target } = params;
+    const creds = (target.credentials as Record<string, unknown> | null) ?? {};
+    const dbMallId =
+      typeof creds.mall_id === 'string' ? creds.mall_id : '(missing)';
+    const dbAppType =
+      typeof creds.app_type === 'string' ? creds.app_type : '(missing)';
+    const tokenPreview = previewInstallToken(target.installToken);
+    this.logger.warn(
+      `[cafe24-install-hmac-fail] reason=${reason} urlMallId=${JSON.stringify(urlMallId)} dbMallId=${JSON.stringify(dbMallId)} dbAppType=${dbAppType} status=${target.status} statusReason=${target.statusReason ?? 'null'} token=${tokenPreview}`,
+    );
+  }
+
   // ---------------------------------------------------------------------
   // Maintenance
   // ---------------------------------------------------------------------
@@ -1581,6 +1625,17 @@ function readNumber(obj: Record<string, unknown>, key: string): number | null {
  * 문제 (보안적 우회는 불가 — 공백 처리 차이만 영향) 를 `formUrlEncode` 로
  * 정정. RFC 3986 의 `*`, `-`, `.`, `_` 등 unreserved 문자 처리도 함께 정렬.
  */
+/**
+ * Install_token 의 안전 미리보기 — prefix 4 + ".." + suffix 4. 전체 토큰은
+ * logs / Referer 에 노출되지 않게 보호 (capability token 성격). 22자 미만은
+ * `(short)` 로 마스킹. null/undefined 는 `(none)`.
+ */
+function previewInstallToken(token: string | null | undefined): string {
+  if (typeof token !== 'string' || token.length === 0) return '(none)';
+  if (token.length < 12) return '(short)';
+  return `${token.slice(0, 4)}..${token.slice(-4)}`;
+}
+
 function buildHmacMessage(rawQuery: string): string {
   const params = new URLSearchParams(rawQuery);
   params.delete('hmac');

@@ -166,6 +166,9 @@ export const integrations: Dict["integrations"] = {
   cafe24PrivatePendingTerminal:
     "This integration is no longer pending. Open the details for status and next steps.",
   cafe24PrivatePendingLastErrorLabel: "Last callback error",
+  cafe24DetailAppUrlTitle: "Cafe24 App URL",
+  cafe24DetailAppUrlDesc:
+    "Register this URL as the App URL in Cafe24 Developers → My App → Development Info. Cafe24 admin's 'Open app' button and the Developers 'Test run' button both call this URL. If it doesn't match, HMAC verification fails and the call is rejected.",
   oauthPopupClosedNoResult:
     "OAuth popup closed without returning a result. Try again or reload this page.",
   copied: "Copied",

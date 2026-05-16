@@ -229,6 +229,143 @@ describe('IntegrationsService', () => {
         expect(result.credentialsStatus).toBe('needs_reauth');
       });
     });
+
+    // -----------------------------------------------------------------
+    // appUrl — Cafe24 Private 통합 한정. 상세 페이지의 Cafe24 App URL 카드가
+    // Cafe24 Developers 의 "앱 URL" 갱신 안내에 노출하는 actionable URL.
+    // spec/2-navigation/4-integration.md §4.2 + §9.1 + Rationale "Cafe24
+    // App URL 상세 페이지 표시".
+    // -----------------------------------------------------------------
+    describe('appUrl', () => {
+      const ORIGINAL_APP_URL = process.env.APP_URL;
+      beforeEach(() => {
+        process.env.APP_URL = 'https://app.example.com';
+      });
+      afterAll(() => {
+        if (ORIGINAL_APP_URL === undefined) {
+          delete process.env.APP_URL;
+        } else {
+          process.env.APP_URL = ORIGINAL_APP_URL;
+        }
+      });
+
+      it('returns full App URL for Cafe24 Private with installToken', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            installToken: 'AbCdEfGhIjKlMnOpQrStUv',
+            credentials: {
+              mall_id: 'myshop',
+              app_type: 'private',
+              client_id: 'cid',
+              client_secret: 'csec',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBe(
+          'https://app.example.com/api/3rd-party/cafe24/install/AbCdEfGhIjKlMnOpQrStUv',
+        );
+      });
+
+      it('returns null for Cafe24 Private when installToken is null (TTL 만료)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            installToken: null,
+            credentials: {
+              mall_id: 'myshop',
+              app_type: 'private',
+              client_id: 'cid',
+              client_secret: 'csec',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBeNull();
+      });
+
+      it('returns null for Cafe24 Public (App URL 흐름 미사용)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            installToken: null,
+            credentials: {
+              mall_id: 'myshop',
+              app_type: 'public',
+              access_token: 'tok',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBeNull();
+      });
+
+      it('returns null for non-cafe24 service types', async () => {
+        // Default makeIntegration uses serviceType='google'.
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBeNull();
+      });
+
+      it('does NOT expose installToken as a top-level field (식별자 분산 방지)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            installToken: 'AbCdEfGhIjKlMnOpQrStUv',
+            credentials: {
+              mall_id: 'myshop',
+              app_type: 'private',
+              client_id: 'cid',
+              client_secret: 'csec',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(
+          (result as unknown as Record<string, unknown>).installToken,
+        ).toBeUndefined();
+      });
+
+      it('trims trailing slash from APP_URL when building App URL', async () => {
+        process.env.APP_URL = 'https://app.example.com/';
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            installToken: 'AbCdEfGhIjKlMnOpQrStUv',
+            credentials: {
+              mall_id: 'myshop',
+              app_type: 'private',
+              client_id: 'cid',
+              client_secret: 'csec',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBe(
+          'https://app.example.com/api/3rd-party/cafe24/install/AbCdEfGhIjKlMnOpQrStUv',
+        );
+      });
+
+      it('returns null when credentials are unreadable even for cafe24 private', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            installToken: 'AbCdEfGhIjKlMnOpQrStUv',
+            credentials: { __unreadable: true } as unknown as Record<
+              string,
+              unknown
+            >,
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBeNull();
+      });
+    });
   });
 
   // -----------------------------------------------------------------
