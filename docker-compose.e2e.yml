@@ -39,7 +39,8 @@ services:
       retries: 10
 
   minio:
-    image: minio/minio:latest
+    # W-59 — docker-compose.yml 의 minio 와 동일 release 로 고정.
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     environment:
       MINIO_ROOT_USER: clemvion
       MINIO_ROOT_PASSWORD: clemvion-e2e
@@ -51,7 +52,8 @@ services:
       retries: 10
 
   createbuckets:
-    image: minio/mc:latest
+    # W-59 — docker-compose.yml 의 mc 와 동일 release 로 고정.
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
       minio:
         condition: service_healthy
@@ -167,7 +169,9 @@ services:
   # 의존성이 없다 (backend e2e 가 별도로 통신 정합성을 보장). dev 서버는
   # playwright.config 의 webServer 가 자동으로 띄운다.
   playwright-runner:
-    image: mcr.microsoft.com/playwright:v1.47.0-jammy
+    # W-58 — frontend package.json 의 @playwright/test ^1.59 과 동일 major.minor
+    # 로 정렬. browser binary / Node modules 간 호환성을 보장한다.
+    image: mcr.microsoft.com/playwright:v1.59.1-jammy
     working_dir: /app/frontend
     volumes:
       - ./frontend:/app/frontend

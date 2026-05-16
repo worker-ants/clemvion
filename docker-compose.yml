@@ -28,7 +28,9 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    # W-59 — 'latest' 는 silent breaking change 위험. 검증된 RELEASE 태그로 고정.
+    # 갱신 시 mc 이미지 (createbuckets) 와 동시에 올린다.
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     ports:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -45,7 +47,8 @@ services:
       retries: 5
 
   createbuckets:
-    image: minio/mc:latest
+    # W-59 — minio 서버 이미지와 동일 release 라인으로 고정.
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
       minio:
         condition: service_healthy
