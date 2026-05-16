@@ -560,5 +560,68 @@ describe('AiAgentHandler — ConversationThread push & inject', () => {
         droppedTurns: 0,
       });
     });
+
+    // spec/5-system/6-websocket-protocol.md §4.4.6 — `source: 'injected'`
+    // must mark every message that comes from ConversationThread injection
+    // (mapTurnsToChatMessages) so the frontend can skip them when computing
+    // turn indices. Handler push sites leave `source` undefined; the emit
+    // layer (buildConversationConfigFromOutput) backfills `'live'` there.
+    it("tags injected messages with source: 'injected' and leaves handler-pushed messages unmarked", async () => {
+      const context = makeContext();
+      seedThreadFromOtherNode(context);
+      const first = await handler.execute(
+        undefined,
+        {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          maxToolCalls: 10,
+          maxTurns: 20,
+          contextScope: 'thread',
+          contextInjectionMode: 'messages',
+        },
+        context,
+      );
+      const state = (first as { _resumeState: Record<string, unknown> })
+        ._resumeState;
+
+      const turnResult = (await handler.processMultiTurnMessage(
+        '실제 메시지',
+        state,
+      )) as {
+        output: {
+          messages: Array<{
+            role: string;
+            content: string;
+            source?: 'live' | 'injected';
+          }>;
+        };
+      };
+
+      const msgs = turnResult.output.messages;
+      // This is the **pre-backfill** state — processMultiTurnMessage returns
+      // the raw _resumeState.messages. The emit-layer helper
+      // (buildConversationConfigFromOutput → withSourceMarker) is what
+      // fills handler-pushed messages with `source: 'live'`. Here we verify
+      // only the handler's contract: injected entries carry 'injected',
+      // handler-pushed entries are left unmarked for the emit layer.
+      const injected = msgs.filter((m) => m.source === 'injected');
+      const unmarked = msgs.filter((m) => m.source === undefined);
+      const live = msgs.filter((m) => m.source === 'live');
+
+      // seedThreadFromOtherNode injects exactly 2 turns
+      // (form_submitted → user, prev assistant → assistant).
+      expect(injected).toHaveLength(2);
+      expect(injected.map((m) => m.role)).toEqual(['user', 'assistant']);
+      // Handler push sites stay unmarked at this stage — no accidental
+      // 'live' tagging happens in the handler.
+      expect(live).toHaveLength(0);
+      // Exactly 1 live user + 1 live assistant unmarked.
+      expect(unmarked.filter((m) => m.role === 'user')).toHaveLength(1);
+      expect(unmarked.filter((m) => m.role === 'assistant')).toHaveLength(1);
+      expect(unmarked.find((m) => m.role === 'user')?.content).toBe(
+        '실제 메시지',
+      );
+    });
   });
 });

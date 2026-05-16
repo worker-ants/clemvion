@@ -272,8 +272,31 @@ export function buildAiMessageDebugFromResumeState(
 }
 
 /**
+ * Backfill `source: 'live'` on any non-system message that lacks the marker.
+ * The handler's `messages.push` sites leave `source` undefined so the
+ * 'live' default applies here in one place; injection results from
+ * `mapTurnsToChatMessages` already set `'injected'` and are preserved.
+ * System messages are skipped — they're filtered out before reaching the
+ * emit payload anyway, but the explicit guard makes the function safe to
+ * call regardless of filter ordering.
+ * Spec: spec/5-system/6-websocket-protocol.md §4.4.6.
+ */
+function withSourceMarker(
+  messages: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return messages.map((m) => {
+    if (m.role === 'system') return m;
+    return m.source === 'injected' || m.source === 'live'
+      ? m
+      : { ...m, source: 'live' as const };
+  });
+}
+
+/**
  * Build the WS-event `conversationConfig` block from a NodeHandlerOutput's
- * `output`. System messages are filtered out for client display.
+ * `output`. System messages are filtered out for client display, and each
+ * remaining message is guaranteed to carry a `source: 'live' | 'injected'`
+ * marker per spec/5-system/6-websocket-protocol.md §4.4.6.
  */
 export function buildConversationConfigFromOutput(
   output: Record<string, unknown> | undefined,
@@ -301,7 +324,7 @@ export function buildConversationConfigFromOutput(
   } = {
     message: (o.message as string | undefined) ?? '',
     turnCount: (o.turnCount as number | undefined) ?? 0,
-    messages: messagesAll.filter((m) => m.role !== 'system'),
+    messages: withSourceMarker(messagesAll.filter((m) => m.role !== 'system')),
   };
   const maxTurns = o.maxTurns as number | undefined;
   if (maxTurns !== undefined) result.maxTurns = maxTurns;
@@ -2163,7 +2186,9 @@ export class ExecutionEngineService
     const sourceMessages = Array.isArray(newResult.messages)
       ? (newResult.messages as Array<Record<string, unknown>>)
       : [];
-    const condMessages = sourceMessages.filter((m) => m.role !== 'system');
+    const condMessages = withSourceMarker(
+      sourceMessages.filter((m) => m.role !== 'system'),
+    );
     const responseText = (newResult.response as string | undefined) ?? '';
     const turnCount = newResult.turnCount as number | undefined;
     const metaSource =
