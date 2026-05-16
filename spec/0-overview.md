@@ -87,6 +87,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 |------|------|
 | **Parallel 노드 (P1)** | `PARALLEL_ENGINE=v1` 환경변수로 활성화하면 `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다(off 시 기존 순차 동작). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge·중첩 Parallel은 금지. Merge `wait_all` 조합으로 결과 합산 가능. P2에서 중첩 Parallel과 waitAll=false를 추가할 예정이다. |
 | **조직 레벨 Integration 공유** | 팀 워크스페이스 단위 Integration 공유는 후속 단계에서 도입 예정이다. |
+| **Cafe24 통합** | 워크플로 `cafe24` 단일 노드 (18 카테고리 메타데이터 기반 Resource × Operation) + AI Agent Internal MCP Bridge 양방향 노출 + Public/Private 앱 OAuth + Cafe24 Developers "테스트 실행" / "앱으로 가기" App URL 흐름 + leaky-bucket rate limit + BullMQ 기반 cross-pod refresh 직렬화 + 10일 임계 백그라운드 갱신 (refresh_token 14일 만료 전 자동 갱신) — 모두 구현 완료 (PR #20-#67). spec: [Cafe24 노드](./4-nodes/4-integration/4-cafe24.md), [통합 §5.8](./2-navigation/4-integration.md#58-cafe24). 남은 작업: Internal MCP Bridge 패턴을 Shopify·Naver Smartstore 등 first-party 이커머스로 확장 (§6.3). |
 
 #### 6.3 로드맵 / 미구현 (❌)
 
@@ -97,8 +98,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
-| **Cafe24 통합** | spec 완료(2026-05-13). 워크플로 `cafe24` 노드 + AI Agent Internal MCP Bridge 양방향 노출. 18 카테고리 메타데이터 기반 단일 노드. 후속 implementation 진행 예정 ([Spec Cafe24 노드](./4-nodes/4-integration/4-cafe24.md) · [Spec 통합 §5.8](./2-navigation/4-integration.md#58-cafe24)). |
-| **Internal MCP Bridge 패턴 확장** | Cafe24 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge) 패턴으로 추가. |
+| **Internal MCP Bridge 패턴 확장** | Cafe24 (구현 완료, §6.2) 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge) 패턴으로 추가. |
 
 ---
 
