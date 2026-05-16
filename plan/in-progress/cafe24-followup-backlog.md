@@ -93,7 +93,8 @@ PR #52 → #85 의 7 PR 사이클로 운영 결함·Critical 22건·High 11건·
 - [x] B-3: 요구사항/API Medium 7건 — 묶음 PR (2026-05-16, B-3-1~7 모두 처리)
 - [x] B-4: 데이터베이스 Medium 5건 — 묶음 PR (2026-05-16, V051 + 코드 4건 모두 처리)
 - [x] B-5: 테스트 Medium 8건 — 묶음 PR (2026-05-16, B-5-1/2/3/4/5/6/7 처리. B-5-8 e2e 는 별 plan 으로 잔여)
-- [ ] B-5-8 follow-up: Cafe24 OAuth + handleInstall/handleCallback + BullMQ refresh e2e — docker-compose.e2e.yml 풀-스택 부팅 필요
+- [x] B-5-8 follow-up: handleInstall e2e — 2026-05-16 `integration-cafe24-install.e2e-spec.ts` 신설 (happy + replay + HMAC + nonce). callback/refresh e2e 는 외부 Cafe24 token endpoint mock 추가 인프라 필요 — 별 follow-up
+- [ ] B-5-8 partial: handleCallback + BullMQ refresh e2e — Cafe24 token endpoint mock 이 backend-e2e 컨테이너 내부에서 동작해야 함 (nock/msw 인프라 추가 필요)
 - [ ] C-1: prod DB 점검 — 운영 task
 
 ## Cafe24 정비 사이클 (참고 — 완료)
