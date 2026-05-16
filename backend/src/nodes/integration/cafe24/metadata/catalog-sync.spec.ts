@@ -6,6 +6,7 @@ import {
   CAFE24_RESOURCES,
   findCafe24Operation,
 } from './index.js';
+import { CAFE24_PLANNED_BY_RESOURCE } from './planned.js';
 import type { Cafe24Resource } from './types.js';
 
 /**
@@ -22,6 +23,8 @@ import type { Cafe24Resource } from './types.js';
  * 4. catalog 파일이 18 resource 와 1:1 대응해야 함
  * 5. id 는 한 파일 안에서 unique 해야 함
  * 6. status 는 `supported` | `planned` | `deprecated` 중 하나
+ * 7. `status: planned` row 는 `CAFE24_PLANNED_BY_RESOURCE` (planned.ts) 에 매칭
+ *    되어야 하고 `paginated` 가 일치해야 함 (양방향)
  */
 
 const CATALOG_DIR = join(
@@ -255,6 +258,75 @@ describe('Cafe24 API catalog ↔ metadata sync', () => {
           if (!supportedIds.has(op.id)) {
             throw new Error(
               `${resource}.md: metadata operation "${op.id}" is not registered as a supported row`,
+            );
+          }
+        }
+      }
+    });
+  });
+
+  describe('catalog ↔ planned.ts', () => {
+    it('every planned row in catalog exists in CAFE24_PLANNED_BY_RESOURCE', () => {
+      for (const resource of CAFE24_RESOURCES) {
+        const plannedIds = new Set(
+          CAFE24_PLANNED_BY_RESOURCE[resource].map((p) => p.id),
+        );
+        for (const row of catalog[resource]) {
+          if (row.status !== 'planned') continue;
+          if (!plannedIds.has(row.id)) {
+            throw new Error(
+              `${resource}.md: planned row "${row.id}" missing from CAFE24_PLANNED_BY_RESOURCE — add it to backend/src/nodes/integration/cafe24/metadata/planned.ts`,
+            );
+          }
+        }
+      }
+    });
+
+    it('every CAFE24_PLANNED_BY_RESOURCE entry exists as a planned row in catalog', () => {
+      for (const resource of CAFE24_RESOURCES) {
+        const plannedRows = new Set(
+          catalog[resource]
+            .filter((r) => r.status === 'planned')
+            .map((r) => r.id),
+        );
+        for (const op of CAFE24_PLANNED_BY_RESOURCE[resource]) {
+          if (!plannedRows.has(op.id)) {
+            throw new Error(
+              `planned.ts ${resource}: "${op.id}" has no matching planned row in ${resource}.md`,
+            );
+          }
+        }
+      }
+    });
+
+    it('planned row paginated flag matches planned.ts', () => {
+      for (const resource of CAFE24_RESOURCES) {
+        const plannedById = new Map(
+          CAFE24_PLANNED_BY_RESOURCE[resource].map((p) => [p.id, p]),
+        );
+        for (const row of catalog[resource]) {
+          if (row.status !== 'planned') continue;
+          const planned = plannedById.get(row.id);
+          if (!planned) continue; // covered by previous test
+          const expectedPag = planned.paginated === true;
+          if (expectedPag !== row.paginated) {
+            throw new Error(
+              `${resource}.md row "${row.id}": paginated mismatch (catalog=${row.paginated}, planned.ts=${expectedPag})`,
+            );
+          }
+        }
+      }
+    });
+
+    it('planned ids do not collide with supported ids within a resource', () => {
+      for (const resource of CAFE24_RESOURCES) {
+        const supportedIds = new Set(
+          CAFE24_OPERATIONS_BY_RESOURCE[resource].map((op) => op.id),
+        );
+        for (const planned of CAFE24_PLANNED_BY_RESOURCE[resource]) {
+          if (supportedIds.has(planned.id)) {
+            throw new Error(
+              `planned.ts ${resource}: id "${planned.id}" collides with a supported operation`,
             );
           }
         }
