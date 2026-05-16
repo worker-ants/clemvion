@@ -118,7 +118,7 @@ sequenceDiagram
 | `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` (V011) | FK CASCADE on trigger_id |
 | `schedule` | sweep | UPDATE `next_run_at, last_run_at` | `(next_run_at, is_active)` |
 | `auth_config` | 웹훅 인증 | SELECT `type, config (decrypted), ip_whitelist` | FK from `trigger.auth_config_id` |
-| `execution` | 진입 시 | INSERT (자세히는 [`execution.md`](./execution.md)) | `trigger_id` FK SET NULL (트리거 삭제 시 실행 이력 보존) |
+| `execution` | 진입 시 | INSERT (자세히는 [`execution.md`](./3-execution.md)) | `trigger_id` FK SET NULL (트리거 삭제 시 실행 이력 보존) |
 
 ### 2.2 Redis (BullMQ)
 
@@ -157,7 +157,7 @@ Schedule 과의 동기화는 양방향 — 둘 중 하나만 변경해도 다른
 
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
-| Execution 도메인 | cross-ref | 모든 트리거가 최종 진입 — [`execution.md`](./execution.md) |
+| Execution 도메인 | cross-ref | 모든 트리거가 최종 진입 — [`execution.md`](./3-execution.md) |
 | Auth 도메인 (AuthConfig) | webhook 인증 | API Key / Bearer / Basic. credentials 는 암호화 |
 
 ---

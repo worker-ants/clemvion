@@ -347,7 +347,7 @@ verifyHmac 의 TypeScript 예시 자체는 그대로 유지 (알고리즘은 동
 §11 서두 (§11.1 직전) 에 다음 한 줄 추가:
 
 ```
-> Cafe24 Private 의 `pending_install` 24h TTL 만료 처리도 동일 만료 스캐너가 dispatch 한다 — 큐 메시지 `reason` 으로 `token_expiring` 과 `pending_install_timeout` 두 갈래로 분리한다. 상세 흐름은 [data-flow §1.4](../data-flow/integration.md#14-oauth-만료-스캐너-bullmq-integration-expiry) 참조.
+> Cafe24 Private 의 `pending_install` 24h TTL 만료 처리도 동일 만료 스캐너가 dispatch 한다 — 큐 메시지 `reason` 으로 `token_expiring` 과 `pending_install_timeout` 두 갈래로 분리한다. 상세 흐름은 [data-flow §1.4](../data-flow/5-integration.md#14-oauth-만료-스캐너-bullmq-integration-expiry) 참조.
 ```
 
 ### 2K. §4.2 Overview 탭 Reauthorize 행 (W5) — 비활성 조건 추가
@@ -364,7 +364,7 @@ verifyHmac 의 TypeScript 예시 자체는 그대로 유지 (알고리즘은 동
 + | Quick actions | `Test connection` (connected 한정), `Reauthorize`(OAuth · `pending_install` 또는 cafe24 private 에서 비활성), `Rotate credentials`(비OAuth), `Edit alias` |
 ```
 
-## DRAFT 3 — `spec/data-flow/integration.md`
+## DRAFT 3 — `spec/data-flow/5-integration.md`
 
 ### 3A. §3.1 상태 전이 다이어그램 (replace — pending_install 분기 추가)
 
@@ -500,7 +500,7 @@ sequenceDiagram
 
 - `spec/1-data-model.md` §2.10, §3 (인덱스는 미변경, 본문만 보강)
 - `spec/2-navigation/4-integration.md` §2.2, §2.4, §3.2, §6, §9.2, §9.4, §10.2, §10.4, §14.2 + 신규 ## Rationale
-- `spec/data-flow/integration.md` §1.2 (sub-diagram 추가), §1.4 (pending_install 분기 추가), §2.1, §3.1, §3.2
+- `spec/data-flow/5-integration.md` §1.2 (sub-diagram 추가), §1.4 (pending_install 분기 추가), §2.1, §3.1, §3.2
 - `spec/4-nodes/4-integration/4-cafe24.md` §9.4 (App URL path 갱신), §9.8 (식별 전략 재서술), §337 줄 (Resource → 카테고리 용어 교정), §10 CHANGELOG
 - `spec/conventions/cafe24-api-metadata.md` §6 첫 단락 (용어 명시 inline, I10)
 - `spec/2-navigation/4-integration.md` §2.3 (W4 — pending_install 필터 칩 미포함 inline note), §4.2 (W5 — Reauthorize 비활성 조건), §11 서두 (W7 — pending_install TTL forward-ref)

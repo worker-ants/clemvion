@@ -794,7 +794,7 @@ window.close();
 
 ## 11. 만료 스캐너 및 알림
 
-> 만료 스캐너는 **네 개의 독립 BullMQ job** (`connected-expiry` / `pending-install-ttl` / `usage-log-prune` / `cafe24-background-refresh`) 으로 운영된다 — 각 job 은 자체 retry (`attempts: 3`, 60s exponential backoff) 와 큐 메트릭을 가지므로 한 패스의 실패가 다른 패스의 실행을 막지 않는다. Cafe24 Private 의 `pending_install` 24h TTL 만료는 `pending-install-ttl` job 이 담당. Cafe24 의 `refresh_token` 14일 만료 전 자동 갱신은 `cafe24-background-refresh` job 이 enqueuer 역할로 담당 (실제 갱신은 `cafe24-token-refresh` 큐의 worker — §10.5 참조). 상세 흐름·격리 정책은 [data-flow §1.4](../data-flow/integration.md#14-oauth-만료-스캐너-bullmq-integration-expiry) 참조.
+> 만료 스캐너는 **네 개의 독립 BullMQ job** (`connected-expiry` / `pending-install-ttl` / `usage-log-prune` / `cafe24-background-refresh`) 으로 운영된다 — 각 job 은 자체 retry (`attempts: 3`, 60s exponential backoff) 와 큐 메트릭을 가지므로 한 패스의 실패가 다른 패스의 실행을 막지 않는다. Cafe24 Private 의 `pending_install` 24h TTL 만료는 `pending-install-ttl` job 이 담당. Cafe24 의 `refresh_token` 14일 만료 전 자동 갱신은 `cafe24-background-refresh` job 이 enqueuer 역할로 담당 (실제 갱신은 `cafe24-token-refresh` 큐의 worker — §10.5 참조). 상세 흐름·격리 정책은 [data-flow §1.4](../data-flow/5-integration.md#14-oauth-만료-스캐너-bullmq-integration-expiry) 참조.
 
 > `service_type='mcp'` Integration 은 OAuth refresh token 흐름이 아니므로 `token_expires_at` 가 항상 NULL → 본 §11 의 임계치 알림 흐름은 적용되지 않는다. MCP 인증 실패는 노드 실행 시점에 401/403 으로 감지되어 `error(auth_failed)` 로 격하되며, 사용자는 `Rotate credentials` 로 토큰을 교체한다 (상세 [Spec MCP Client §8](../5-system/11-mcp-client.md#8-에러-처리)).
 

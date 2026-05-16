@@ -9,7 +9,7 @@
 ### System role
 
 워크스페이스 안에서 사용자가 시각적으로 편집하는 자동화 단위. 노드·엣지·메타 설정·버전 스냅샷·AI
-Assistant 채팅 세션을 묶어 단일 진실로 관리한다. 실행 자체는 [`execution.md`](./execution.md) 가
+Assistant 채팅 세션을 묶어 단일 진실로 관리한다. 실행 자체는 [`execution.md`](./3-execution.md) 가
 담당하고, 본 문서는 *편집 시점* 의 데이터 흐름을 다룬다.
 
 코드 진입점:
@@ -130,9 +130,9 @@ Postgres 에 반영된다 (별도 우회 경로 없음). 변경 결과는 `tool_
 
 | Sink | 흐름 | 비고 |
 | --- | --- | --- |
-| Redis | — | 본 도메인은 큐를 직접 enqueue 하지 않음. 실행 트리거 시 [`execution.md`](./execution.md) 의 큐로 진입. |
-| S3 | — | 워크플로우 자체는 S3 를 사용하지 않음. Form 노드 첨부는 [`file-storage.md`](./file-storage.md) 가 다룸. |
-| LLM provider | Assistant 응답 스트리밍 | `LlmService.chat`. 사용량은 `llm_usage_log` 에 적재 ([`llm-usage.md`](./llm-usage.md)) |
+| Redis | — | 본 도메인은 큐를 직접 enqueue 하지 않음. 실행 트리거 시 [`execution.md`](./3-execution.md) 의 큐로 진입. |
+| S3 | — | 워크플로우 자체는 S3 를 사용하지 않음. Form 노드 첨부는 [`file-storage.md`](./4-file-storage.md) 가 다룸. |
+| LLM provider | Assistant 응답 스트리밍 | `LlmService.chat`. 사용량은 `llm_usage_log` 에 적재 ([`llm-usage.md`](./7-llm-usage.md)) |
 | WebSocket | Assistant SSE / Editor 협업 emit | 단일 sink `WebsocketService` |
 
 ---
@@ -169,8 +169,8 @@ stateDiagram-v2
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
 | Auth / Workspace | RBAC 검사 | editor 이상이 CRUD 가능 |
-| Execution 도메인 | 워크플로우 실행 트리거 | [`execution.md`](./execution.md) |
-| LLM Usage 도메인 | Assistant LLM 호출 | [`llm-usage.md`](./llm-usage.md) |
+| Execution 도메인 | 워크플로우 실행 트리거 | [`execution.md`](./3-execution.md) |
+| LLM Usage 도메인 | Assistant LLM 호출 | [`llm-usage.md`](./7-llm-usage.md) |
 | WebSocket | Assistant 스트리밍 emit | `session:${sessionId}` room |
 
 ---
@@ -196,4 +196,4 @@ trade-off 는 row 크기가 커질 수 있다는 점이지만, 버전 단위 빈
 `prompt_tokens / completion_tokens / total_tokens / thinking_tokens / model` 을 별 컬럼이 아닌
 단일 JSONB 로 둔 이유는 provider 마다 키 구조가 다르고, V018 처럼 새 필드(`thinking_tokens`)가
 중간에 추가될 때 마이그레이션 없이 점진적으로 채울 수 있기 때문이다. 집계가 필요한 경우 `llm_usage_log`
-table 이 정규화된 카운트를 별도로 갖는다 ([`llm-usage.md`](./llm-usage.md)).
+table 이 정규화된 카운트를 별도로 갖는다 ([`llm-usage.md`](./7-llm-usage.md)).

@@ -12,7 +12,7 @@ PR #75 의 후속 follow-up 3건 중 F-2, F-3 만 처리 (F-1 보류 — 별 pla
 
 ### F-1 (보류 — 별 plan 으로 분리)
 
-`spec/data-flow/integration.md` → `1-integration.md` rename 은 본 plan 범위 외. `spec/data-flow/` 폴더 내 12 파일이 모두 plain-named (audit.md, auth.md, execution.md, file-storage.md, ...) — integration.md 단독 rename 시 폴더 내 일관성 깨짐. 데이터-flow 폴더 전체 rename 또는 명명 규약 예외 명시는 별 PR 로 분리 (별 영향 범위가 12 파일 + cross-link 다수).
+`spec/data-flow/5-integration.md` → `1-integration.md` rename 은 본 plan 범위 외. `spec/data-flow/` 폴더 내 12 파일이 모두 plain-named (audit.md, auth.md, execution.md, file-storage.md, ...) — integration.md 단독 rename 시 폴더 내 일관성 깨짐. 데이터-flow 폴더 전체 rename 또는 명명 규약 예외 명시는 별 PR 로 분리 (별 영향 범위가 12 파일 + cross-link 다수).
 
 ### F-2 (본 plan — 처리됨)
 
