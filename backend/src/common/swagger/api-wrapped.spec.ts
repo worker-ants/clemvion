@@ -61,6 +61,27 @@ describe('api-wrapped schema builders', () => {
     expect(() => wrapOneOfDataSchema([])).toThrow(/requires at least one DTO/);
   });
 
+  it('wrapOneOfDataSchema attaches discriminator when provided', () => {
+    const schema = wrapOneOfDataSchema([BranchADto, BranchBDto], {
+      propertyName: 'kind',
+    });
+    const dataSchema = schema.properties?.data as {
+      oneOf: unknown[];
+      discriminator?: { propertyName: string };
+    };
+    expect(dataSchema.discriminator).toEqual({ propertyName: 'kind' });
+    expect(dataSchema.oneOf).toHaveLength(2);
+  });
+
+  it('wrapOneOfDataSchema omits discriminator by default', () => {
+    const schema = wrapOneOfDataSchema([BranchADto, BranchBDto]);
+    const dataSchema = schema.properties?.data as {
+      oneOf: unknown[];
+      discriminator?: unknown;
+    };
+    expect(dataSchema.discriminator).toBeUndefined();
+  });
+
   it('wrapPaginatedSchema matches PaginatedResponseDto shape', () => {
     const schema = wrapPaginatedSchema(SampleDto);
     const data = schema.properties?.data as Record<string, unknown>;
