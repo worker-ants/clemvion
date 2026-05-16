@@ -125,4 +125,35 @@ export const translationOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
     paginated: true,
   },
+  // Phase 8c — Translation 완성 (테마 번역 단건 조회/수정)
+  {
+    id: 'translation_themes_get',
+    label: '테마 번역 단건 조회',
+    description: 'Retrieve a single theme translation entry by theme_no.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'translation/themes/{theme_no}',
+    requiredFields: ['theme_no', 'language_code'],
+    fields: {
+      theme_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+      language_code: { type: 'string', location: 'query' },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'translation_themes_update',
+    label: '테마 번역 수정',
+    description: 'Update a single theme translation entry (partial). Refer to Cafe24 docs for full body schema.',
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'translation/themes/{theme_no}',
+    requiredFields: ['theme_no', 'language_code'],
+    fields: {
+      theme_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+      language_code: { type: 'string', location: 'query' },
+    },
+    responseShape: 'single',
+  },
 ];
