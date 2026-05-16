@@ -90,17 +90,24 @@ export class ThirdPartyOAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    // API H-1 (2026-05-16): spec/5-system/2-api-convention.md §5.3 은
+    // 에러 응답을 `{ error: { code, message } }` envelope 으로 통일한다.
+    // 옛 코드는 bare `{ code, message }` 를 반환해 규약 위반이었다.
     if (!INSTALL_TOKEN_PATTERN.test(installToken)) {
       res.status(404).json({
-        code: 'CAFE24_INSTALL_INVALID_TOKEN',
-        message: 'install_token format invalid',
+        error: {
+          code: 'CAFE24_INSTALL_INVALID_TOKEN',
+          message: 'install_token format invalid',
+        },
       });
       return;
     }
     if (!mallId || !timestamp || !hmac) {
       res.status(400).json({
-        code: 'CAFE24_INSTALL_MISSING_PARAMS',
-        message: 'mall_id, timestamp, hmac are required',
+        error: {
+          code: 'CAFE24_INSTALL_MISSING_PARAMS',
+          message: 'mall_id, timestamp, hmac are required',
+        },
       });
       return;
     }
@@ -148,7 +155,8 @@ export class ThirdPartyOAuthController {
           .setHeader('Content-Type', 'text/html; charset=utf-8')
           .send(renderInstallErrorHtml(code, message));
       } else {
-        res.status(status).json({ code, message });
+        // API H-1: 자체 API 규약 §5.3 envelope.
+        res.status(status).json({ error: { code, message } });
       }
     }
   }
@@ -170,7 +178,17 @@ export class ThirdPartyOAuthController {
   @ApiOperation({
     summary: 'OAuth 콜백 처리 (통합 연동)',
     description:
-      'OAuth provider 가 리디렉션하는 콜백 엔드포인트입니다. 인증 불필요. 처리 후 결과를 담은 HTML 페이지를 반환하며 `postMessage`로 부모 창에 결과를 전달합니다. 사용자 소셜 로그인 콜백(/api/auth/oauth/:provider/callback) 과 별개입니다.',
+      'OAuth provider 가 리디렉션하는 콜백 엔드포인트입니다. 인증 불필요. 처리 후 결과를 담은 HTML 페이지를 반환하며 `postMessage`로 부모 창에 결과를 전달합니다. 사용자 소셜 로그인 콜백(/api/auth/oauth/:provider/callback) 과 별개입니다.\n\n' +
+      '**postMessage payload 의 에러 코드 어휘 (API H-3 / spec §10.4):**\n' +
+      '- `OAUTH_PROVIDER_UNKNOWN` — 허용되지 않은 provider\n' +
+      '- `OAUTH_DENIED` — 사용자가 authorize 단계에서 거부 (`?error=...`)\n' +
+      '- `OAUTH_STATE_MISSING` / `OAUTH_STATE_MISMATCH` / `OAUTH_STATE_EXPIRED` — CSRF state 토큰 검증 실패\n' +
+      '- `OAUTH_CODE_MISSING` — authorization code 미수신\n' +
+      '- `OAUTH_TOKEN_EXCHANGE_FAILED` — provider 토큰 endpoint 호출 실패\n' +
+      '- `OAUTH_STATE_INVALID` — reauthorize state 의 integrationId 누락 등 구조 오류\n' +
+      '- `RESOURCE_NOT_FOUND` — state 의 integrationId 가 가리키는 row 부재\n' +
+      '\n' +
+      'frontend 는 `postMessage` event.data.error.code 로 분기. 응답 HTTP status 는 항상 200 (HTML page 자체는 정상 반환).',
   })
   @ApiParam({
     name: 'provider',
@@ -179,7 +197,7 @@ export class ThirdPartyOAuthController {
   })
   @ApiProduces('text/html')
   @ApiOkResponse({
-    description: 'OAuth 처리 결과 HTML 페이지',
+    description: 'OAuth 처리 결과 HTML 페이지 (postMessage payload 에 분기 정보 포함)',
   })
   @ApiBadRequestResponse({ description: '지원하지 않는 OAuth provider' })
   async oauthCallback(
@@ -194,6 +212,18 @@ export class ThirdPartyOAuthController {
       res.status(500).setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(
         '<p>OAuth callback misconfigured: FRONTEND_URL / APP_URL not set.</p>',
+      );
+      return;
+    }
+    // SEC H-3 (2026-05-16): `targetOrigin` 은 `renderCallbackHtml` 의
+    // `postMessage(payload, targetOrigin)` 으로 전달돼 OAuth 결과
+    // (`previewToken`, `integrationId` 등) 를 부모 창에 통보한다.
+    // `*` 이거나 외부 도메인으로 잘못 설정되면 결과가 임의 origin 에 노출.
+    // 부팅 시 origin shape 를 검증해 잘못된 설정을 명시 거부.
+    if (!isValidPostMessageOrigin(targetOrigin)) {
+      res.status(500).setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(
+        '<p>OAuth callback misconfigured: FRONTEND_URL / APP_URL must be a concrete https:// or http://localhost origin (wildcards rejected).</p>',
       );
       return;
     }
@@ -235,4 +265,41 @@ export class ThirdPartyOAuthController {
       );
     }
   }
+}
+
+/**
+ * SEC H-3 — postMessage(payload, targetOrigin) 의 targetOrigin 으로 안전한
+ * origin 인지 검증.
+ *
+ * 허용:
+ *   - `https://...` 로 시작하는 origin (path 없음, query 없음)
+ *   - `http://localhost(:port)?` (개발 환경)
+ *   - `http://127.0.0.1(:port)?` (개발 환경)
+ *
+ * 거부:
+ *   - `*` 또는 `null` (wildcard)
+ *   - `http://...` (localhost 외 비-TLS)
+ *   - 경로/쿼리 포함 (`https://foo.com/path`) — origin 만 허용
+ *   - 비-URL 문자열
+ *
+ * 잘못 설정된 운영 환경에서 OAuth 결과 (previewToken, integrationId) 가
+ * 외부 origin 에 누출되는 것을 차단.
+ */
+export function isValidPostMessageOrigin(origin: string): boolean {
+  if (!origin || origin === '*' || origin === 'null') return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return false;
+  }
+  // origin 만 허용 — 경로/쿼리/fragment 가 있으면 거부
+  if (parsed.pathname !== '/' && parsed.pathname !== '') return false;
+  if (parsed.search || parsed.hash) return false;
+  if (parsed.protocol === 'https:') return true;
+  if (parsed.protocol === 'http:') {
+    // localhost / 127.0.0.1 만 평문 허용
+    return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+  }
+  return false;
 }

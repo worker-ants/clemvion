@@ -72,29 +72,35 @@ describe('Cafe24TokenRefreshProcessor', () => {
     expect(cafe24ApiClient.refreshAccessToken).not.toHaveBeenCalled();
   });
 
-  it('background source — skips non-connected integrations to preserve user reauthorize flow', async () => {
-    integrationRepository.findOne.mockResolvedValue(
-      makeIntegration({ status: 'error', statusReason: 'auth_failed' }),
-    );
-    await processor.process(
-      makeJob({ integrationId: 'int-1', source: 'background' }),
-    );
-    expect(cafe24ApiClient.refreshAccessToken).not.toHaveBeenCalled();
-  });
+  // CONC H-2 회귀 — source 와 무관하게 status='connected' 만 처리해야 한다.
+  // 옛 코드는 proactive 경로에서 status 검증을 건너뛰어, BullMQ jobId
+  // dedup race (proactive 가 먼저 enqueue → background 가 같은 잡 재사용,
+  // worker 는 'proactive' source 만 봄) 시 사용자가 의도한 reauthorize
+  // 흐름이 우회될 수 있었다. source 무관 status 검증으로 race-safe.
+  it.each(['proactive', 'background'] as const)(
+    '%s source — skips when status is not connected (CONC H-2 race-safe)',
+    async (source) => {
+      integrationRepository.findOne.mockResolvedValue(
+        makeIntegration({ status: 'error', statusReason: 'auth_failed' }),
+      );
+      await processor.process(makeJob({ integrationId: 'int-1', source }));
+      expect(cafe24ApiClient.refreshAccessToken).not.toHaveBeenCalled();
+    },
+  );
 
-  it('proactive source — still attempts even on non-connected (caller decides)', async () => {
-    // proactive 경로는 API 호출 직전 lazy path. 호출자가 이미 status 검증을
-    // 끝낸 후 도착한 잡이므로 worker 가 status 를 재차 거부하지 않는다.
-    // 만약 다른 워크플로우가 status 를 바꾼 race 라면 refresh 자체는 시도되고
-    // (refresh_token 이 살아있으면) connected 로 복원될 수도 있다.
-    integrationRepository.findOne.mockResolvedValue(
-      makeIntegration({ status: 'expired' }),
-    );
-    await processor.process(
-      makeJob({ integrationId: 'int-1', source: 'proactive' }),
-    );
-    expect(cafe24ApiClient.refreshAccessToken).toHaveBeenCalledTimes(1);
-  });
+  // CONC H-2 회귀 (2026-05-16 follow-up) — source 와 무관하게 expired
+  // status 도 거부해야 한다. Phase 2 의 source-based 검증을 source-
+  // agnostic 으로 격상하면서 의도된 동작.
+  it.each(['proactive', 'background'] as const)(
+    '%s source — skips when status is expired',
+    async (source) => {
+      integrationRepository.findOne.mockResolvedValue(
+        makeIntegration({ status: 'expired' }),
+      );
+      await processor.process(makeJob({ integrationId: 'int-1', source }));
+      expect(cafe24ApiClient.refreshAccessToken).not.toHaveBeenCalled();
+    },
+  );
 
   // TEST-C2 — refreshAccessToken 이 throw 했을 때 process() 가 그대로
   // re-throw 해야 BullMQ 가 job 을 failed 로 마킹한다. `.catch()` 로
