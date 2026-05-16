@@ -23,6 +23,7 @@ import {
 import { IntegrationOAuthPreview } from './entities/integration-oauth-preview.entity';
 import { findService } from './services/service-registry';
 import { decryptJson } from './services/credentials-transformer';
+import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
@@ -1157,13 +1158,13 @@ export class IntegrationOAuthService {
       // Concurrent INSERT race: another request inserted the same
       // (workspace_id, mall_id) just now. V045 partial UNIQUE caught it.
       // Translate to the same 409 the in-memory check would have raised.
-      const pgCode = (err as { code?: string; driverError?: { code?: string } })
-        ?.driverError?.code;
-      const constraint = (
-        err as { constraint?: string; driverError?: { constraint?: string } }
-      )?.driverError?.constraint;
+      const constraint =
+        (err as { constraint?: string; driverError?: { constraint?: string } })
+          ?.constraint ??
+        (err as { driverError?: { constraint?: string } })?.driverError
+          ?.constraint;
       if (
-        pgCode === '23505' &&
+        isPostgresUniqueViolation(err) &&
         constraint === 'idx_integration_cafe24_workspace_mall'
       ) {
         throw new ConflictException({

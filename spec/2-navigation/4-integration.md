@@ -820,7 +820,7 @@ window.close();
 | Job name | 대상 | 동작 |
 |----------|------|------|
 | `connected-expiry` | `status NOT IN (expired, error, pending_install) AND token_expires_at IS NOT NULL` | `remain ≤ 0d` → `status=expired`, 알림. `remain ≤ 3d` / `≤ 7d` → 알림만 (중복 방지 키). |
-| `pending-install-ttl` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` (Cafe24 Private 한정) | `status='expired', status_reason='install_timeout', install_token=NULL` 으로 bulk UPDATE. **알림 미발사** — 사용자가 외부 install 흐름 진행 중인 명시적 상태로 UI 배지 + 통합 상세 페이지로 통지 충분 (§11.2 + Rationale "install_timeout 알림 미발사" 참고). |
+| `pending-install-ttl` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` (Cafe24 Private 한정) | `status='expired', status_reason='install_timeout', install_token=NULL` 으로 bulk UPDATE. **격리 수준**: PostgreSQL default READ COMMITTED + UPDATE … WHERE 의 row-level write lock 으로 충분. WHERE 절이 단일 행 단위로 매칭되고, `pending_install → expired` 전이는 idempotent (이미 expired 인 행은 WHERE 의 status 조건에서 자동 제외) 이라 동시 실행 (예: cron + 수동 호출) 시 한 cycle 의 일부 행을 두 잡이 나눠 처리하더라도 최종 상태는 동일. SERIALIZABLE / advisory lock 불필요. **알림 미발사** — 사용자가 외부 install 흐름 진행 중인 명시적 상태로 UI 배지 + 통합 상세 페이지로 통지 충분 (§11.2 + Rationale "install_timeout 알림 미발사" 참고). |
 | `usage-log-prune` | `integration_usage_log.at < now-90d` | 행 삭제 (보존 정책) |
 | `cafe24-background-refresh` | `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-10d OR last_rotated_at IS NULL)` | `cafe24-token-refresh` 큐로 enqueue (`jobId = integrationId` dedup). 실제 refresh 는 `Cafe24TokenRefreshProcessor` worker 가 수행. 10일 임계 = refresh_token 14일 - 4일 안전 마진 ([Rationale](#rationale) 참조). |
 
