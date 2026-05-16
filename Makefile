@@ -9,10 +9,10 @@ COMPOSE_E2E := docker compose -f docker-compose.e2e.yml
 
 help:
 	@echo "Targets:"
-	@echo "  e2e-up         e2e 인프라 + backend-e2e 까지 백그라운드 기동 (runner 제외)"
+	@echo "  e2e-up         e2e 인프라 + backend-e2e 까지 백그라운드 기동 (runner 제외, 자동 image rebuild)"
 	@echo "  e2e-down       e2e 리소스 정리 (volume·orphan 모두)"
-	@echo "  e2e-test       backend e2e (supertest) 1-shot — 끝나면 자동 down"
-	@echo "  e2e-test-full  backend + playwright 까지 — 끝나면 자동 down"
+	@echo "  e2e-test       backend e2e (supertest) 1-shot — 자동 image rebuild, 끝나면 자동 down"
+	@echo "  e2e-test-full  backend + playwright — 자동 image rebuild, 끝나면 자동 down"
 
 # `--build` 는 source 변경 후 stale 이미지 사용을 방지한다. Docker BuildKit
 # layer cache 가 변경되지 않은 layer 는 재사용하므로 첫 build 이후 부담은 작다.
@@ -32,6 +32,11 @@ e2e-test:
 	$(COMPOSE_E2E) run --rm --build backend-e2e-runner; STATUS=$$?; \
 	$(MAKE) e2e-down; exit $$STATUS
 
+# `e2e-test` 와 패턴이 약간 달라 보이지만 동작은 일치한다.
+# `runner1 && runner2; STATUS=$$?` 형태로, runner1 실패 시 `&&` 가 short-circuit
+# 하여 runner2 가 skip 되고, `$$?` 는 마지막 실행된 명령의 exit code 를 캡처한다
+# (runner1 실패 → STATUS=runner1 exit, runner2 실패 → STATUS=runner2 exit, 둘 다
+# 성공 → 0). e2e-down 은 항상 실행되며 최종 exit 코드는 STATUS.
 e2e-test-full:
 	$(COMPOSE_E2E) up -d --wait --build backend-e2e
 	$(COMPOSE_E2E) run --rm --build backend-e2e-runner && \
