@@ -87,9 +87,12 @@ export interface ConversationItem {
    * (an upstream node's turn prepended to messages) rather than processed
    * live by the current AI node. Mirrors the WebSocket payload's
    * `messages[].source === 'injected'` (spec/5-system/6-websocket-protocol.md
-   * §4.4.6). Used by the debugging timeline to skip injected user messages
-   * when computing turn indices and by UI to render an "injected context"
-   * chip.
+   * §4.4.6).
+   *
+   * Optional because older persisted data may omit the marker — treat
+   * undefined the same as `false` (i.e. live). Used by the debugging
+   * timeline to skip injected user messages when computing turn indices,
+   * and by UI to render an "injected context" chip.
    */
   isInjected?: boolean;
   /** Timestamp when the message was sent/received */

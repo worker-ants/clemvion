@@ -72,6 +72,125 @@ describe('LlmService', () => {
       expect(mockClient.chat).toHaveBeenCalledWith(params);
       expect(result.content).toBe('response');
     });
+
+    // spec/5-system/6-websocket-protocol.md §4.4.6 — `source` is a
+    // transport-only marker for WebSocket emit. LlmService must strip it
+    // before forwarding to provider clients so LLM APIs only see the
+    // canonical {role, content, toolCalls?, toolCallId?} shape.
+    describe('source field stripping (spec §4.4.6)', () => {
+      const config = {
+        id: 'config-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as never;
+
+      it("strips source: 'live' before calling provider client", async () => {
+        await service.chat(config, {
+          model: 'gpt-4o',
+          messages: [
+            { role: 'user', content: 'hi', source: 'live' },
+            { role: 'assistant', content: 'hello', source: 'live' },
+          ],
+        });
+        const forwarded = mockClient.chat.mock.calls[0][0] as {
+          messages: Array<Record<string, unknown>>;
+        };
+        expect(forwarded.messages).toEqual([
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'hello' },
+        ]);
+        for (const m of forwarded.messages) {
+          expect(m).not.toHaveProperty('source');
+        }
+      });
+
+      it("strips source: 'injected' before calling provider client", async () => {
+        await service.chat(config, {
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: '[from Template] start',
+              source: 'injected',
+            },
+            { role: 'user', content: 'live', source: 'live' },
+          ],
+        });
+        const forwarded = mockClient.chat.mock.calls[0][0] as {
+          messages: Array<Record<string, unknown>>;
+        };
+        expect(forwarded.messages[0]).not.toHaveProperty('source');
+        expect(forwarded.messages[1]).not.toHaveProperty('source');
+        expect(forwarded.messages[0].content).toBe('[from Template] start');
+      });
+
+      it('passes through unrelated fields (toolCalls, toolCallId) intact', async () => {
+        await service.chat(config, {
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'assistant',
+              content: '',
+              toolCalls: [
+                { id: 'call_1', name: 'get_weather', arguments: '{}' },
+              ],
+              source: 'live',
+            },
+            {
+              role: 'tool',
+              content: '{"temp":12}',
+              toolCallId: 'call_1',
+              source: 'live',
+            },
+          ],
+        });
+        const forwarded = mockClient.chat.mock.calls[0][0] as {
+          messages: Array<Record<string, unknown>>;
+        };
+        expect(forwarded.messages[0]).toEqual({
+          role: 'assistant',
+          content: '',
+          toolCalls: [{ id: 'call_1', name: 'get_weather', arguments: '{}' }],
+        });
+        expect(forwarded.messages[1]).toEqual({
+          role: 'tool',
+          content: '{"temp":12}',
+          toolCallId: 'call_1',
+        });
+      });
+
+      it('preserves other ChatParams fields (model, temperature, tools)', async () => {
+        await service.chat(config, {
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'hi', source: 'live' }],
+          temperature: 0.5,
+          maxTokens: 100,
+          tools: [{ name: 't', description: 'd', parameters: {} }],
+        });
+        const forwarded = mockClient.chat.mock.calls[0][0] as Record<
+          string,
+          unknown
+        >;
+        expect(forwarded.model).toBe('gpt-4o');
+        expect(forwarded.temperature).toBe(0.5);
+        expect(forwarded.maxTokens).toBe(100);
+        expect(forwarded.tools).toEqual([
+          { name: 't', description: 'd', parameters: {} },
+        ]);
+      });
+
+      it('handles messages with no source field (older callers)', async () => {
+        await service.chat(config, {
+          model: 'gpt-4o',
+          messages: [{ role: 'user', content: 'hi' }],
+        });
+        const forwarded = mockClient.chat.mock.calls[0][0] as {
+          messages: Array<Record<string, unknown>>;
+        };
+        expect(forwarded.messages).toEqual([{ role: 'user', content: 'hi' }]);
+      });
+    });
   });
 
   describe('embed', () => {

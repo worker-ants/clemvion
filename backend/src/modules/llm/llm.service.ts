@@ -87,10 +87,7 @@ export class LlmService {
     // marker on its in-memory `messages` array so emit paths preserve it.
     const sanitized: ChatParams = {
       ...params,
-      messages: params.messages.map(({ source, ...rest }) => {
-        void source;
-        return rest;
-      }),
+      messages: params.messages.map(({ source: _source, ...rest }) => rest),
     };
     // disableInnerRetry: 호출자가 외부에서 retryWithBackoff 같은 자체 재시도 layer 를 가진 경우
     // 내부 rate-limit 재시도 (withRetry) 와 겹쳐 호출 횟수가 비선형 증폭되는 것을 막는다.

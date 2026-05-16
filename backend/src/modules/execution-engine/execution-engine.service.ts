@@ -276,16 +276,20 @@ export function buildAiMessageDebugFromResumeState(
  * The handler's `messages.push` sites leave `source` undefined so the
  * 'live' default applies here in one place; injection results from
  * `mapTurnsToChatMessages` already set `'injected'` and are preserved.
+ * System messages are skipped — they're filtered out before reaching the
+ * emit payload anyway, but the explicit guard makes the function safe to
+ * call regardless of filter ordering.
  * Spec: spec/5-system/6-websocket-protocol.md §4.4.6.
  */
 function withSourceMarker(
   messages: Array<Record<string, unknown>>,
 ): Array<Record<string, unknown>> {
-  return messages.map((m) =>
-    m.source === 'injected' || m.source === 'live'
+  return messages.map((m) => {
+    if (m.role === 'system') return m;
+    return m.source === 'injected' || m.source === 'live'
       ? m
-      : { ...m, source: 'live' as const },
-  );
+      : { ...m, source: 'live' as const };
+  });
 }
 
 /**

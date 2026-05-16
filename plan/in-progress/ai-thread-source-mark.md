@@ -74,6 +74,10 @@ WebSocket `execution.ai_message` 와 `execution.waiting_for_input` 의 `messages
 - `output.messages` 가 DB 에 영속화될 때 source 가 함께 저장되는지 결정 필요 — frontend 의 `parseHistoryMessages` 가 완료된 노드 복원 시에도 같은 변환을 거치므로 일관성 차원에서 영속화 권장.
 - Information Extractor multi-turn 도 동일 핸들러 패턴 → 함께 갱신.
 
+## Follow-up (별도 PR)
+
+- **UI: "injected context" chip 표시** — `ConversationItem.isInjected === true` 인 항목에 대해 ConversationInspector 가 시각적 구분(chip / 다른 배경색) 을 추가. 본 PR 은 데이터 레이어 (마커 부여 + turn 카운팅) 까지만 다룬다. ai-review SUMMARY W11.
+
 ## Open Questions
 
 - (Phase 3) injection 메시지를 UI conversation timeline 에 보여줄 것인지(현재 보여주고 있음) vs 숨길 것인지. **잠정 결정**: 보여주되 turn 카운팅에서만 제외. inspector 에서 chip 으로 구분 표시는 추후 결정.

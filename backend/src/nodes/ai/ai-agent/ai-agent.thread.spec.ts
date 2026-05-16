@@ -599,22 +599,24 @@ describe('AiAgentHandler — ConversationThread push & inject', () => {
       };
 
       const msgs = turnResult.output.messages;
-      // Expect: [system?, injected user (form), injected assistant (prev), live user, live assistant]
+      // This is the **pre-backfill** state — processMultiTurnMessage returns
+      // the raw _resumeState.messages. The emit-layer helper
+      // (buildConversationConfigFromOutput → withSourceMarker) is what
+      // fills handler-pushed messages with `source: 'live'`. Here we verify
+      // only the handler's contract: injected entries carry 'injected',
+      // handler-pushed entries are left unmarked for the emit layer.
       const injected = msgs.filter((m) => m.source === 'injected');
       const unmarked = msgs.filter((m) => m.source === undefined);
       const live = msgs.filter((m) => m.source === 'live');
 
-      // mapTurnsToChatMessages marked the 2 injected entries.
-      expect(injected.length).toBeGreaterThanOrEqual(2);
-      const injectedRoles = injected.map((m) => m.role);
-      expect(injectedRoles).toEqual(
-        expect.arrayContaining(['user', 'assistant']),
-      );
-      // Handler push sites (user message + final assistant) stay unmarked —
-      // the emit layer fills 'live' there. No accidental 'live' tagging on
-      // handler push.
-      expect(live.length).toBe(0);
-      // Exactly 1 live user + 1 live assistant in unmarked bucket.
+      // seedThreadFromOtherNode injects exactly 2 turns
+      // (form_submitted → user, prev assistant → assistant).
+      expect(injected).toHaveLength(2);
+      expect(injected.map((m) => m.role)).toEqual(['user', 'assistant']);
+      // Handler push sites stay unmarked at this stage — no accidental
+      // 'live' tagging happens in the handler.
+      expect(live).toHaveLength(0);
+      // Exactly 1 live user + 1 live assistant unmarked.
       expect(unmarked.filter((m) => m.role === 'user')).toHaveLength(1);
       expect(unmarked.filter((m) => m.role === 'assistant')).toHaveLength(1);
       expect(unmarked.find((m) => m.role === 'user')?.content).toBe(
