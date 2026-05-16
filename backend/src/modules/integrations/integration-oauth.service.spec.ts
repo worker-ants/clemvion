@@ -161,6 +161,30 @@ describe('IntegrationOAuthService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // B-5-7: provider_mismatch — state.provider 가 callback 경로의 provider 와
+    // 다르면 BadRequestException. 옛 회귀에서 같은 state 가 잘못된 provider
+    // 콜백을 통과해 다른 서비스로 코드 교환을 시도하는 시나리오 차단.
+    it('rejects provider mismatch (state.provider !== route.provider)', async () => {
+      dataSource.query.mockResolvedValue([
+        [
+          {
+            provider: 'google',
+            serviceType: 'google',
+            mode: 'new',
+            workspaceId: 'ws-1',
+            userId: 'u-1',
+            requestedScopes: ['https://www.googleapis.com/auth/drive'],
+            integrationId: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        ],
+        1,
+      ]);
+      await expect(
+        service.handleCallback('github', { code: 'x', state: 'y' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('returns previewToken for new mode', async () => {
       dataSource.query.mockResolvedValue([
         [

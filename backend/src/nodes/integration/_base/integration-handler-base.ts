@@ -82,14 +82,23 @@ export class IntegrationHandlerBase {
       }
       return;
     }
-    await this.integrationsService.logUsage({
-      integrationId: params.integrationId,
-      nodeExecutionId: context.nodeExecutionId,
-      workflowId: context.workflowId,
-      status: params.status,
-      durationMs: params.durationMs,
-      error: params.error ?? null,
-    });
+    // B-5-6: logUsage 실패 (예: db down) 가 노드 실행 자체를 깨면 안 된다.
+    // logUsage 는 진단/관측 용도이며, 우선 사용자 노드 실행 성공/실패는
+    // 보존하고 logUsage 실패는 warn 로그로만 surface.
+    try {
+      await this.integrationsService.logUsage({
+        integrationId: params.integrationId,
+        nodeExecutionId: context.nodeExecutionId,
+        workflowId: context.workflowId,
+        status: params.status,
+        durationMs: params.durationMs,
+        error: params.error ?? null,
+      });
+    } catch (err) {
+      logger.warn(
+        `logUsage failed for integration ${params.integrationId} (status=${params.status}) — swallowing to avoid crashing node execution: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 }
 
