@@ -52,7 +52,7 @@ sequenceDiagram
 | `execution_failed` | `ExecutionEngineService` (실행 종료 시) | `execution.status='failed'`. 워크플로우 owner / 실행자에게. |
 | `background_failed` | `BackgroundExecutionProcessor` | `config.notifyOnFailure=true` 인 Background 본문 실패 |
 | `schedule_failed` | `ScheduleRunnerService` | 스케줄 발사 후 execution 이 즉시 실패 또는 enqueue 자체 실패 |
-| `integration_expired` | `IntegrationExpiryScanner` | OAuth 토큰 만료 / refresh 실패. user.notification_preferences.integrationExpiryEmail 토글 적용 |
+| `integration_expired` | `IntegrationExpiryScanner` | `connected → expired` 전이에만 발사 — refresh_token 없는 provider 의 `token_expires_at` 만료(`token_expired`) 또는 Cafe24 Private 24h TTL 만료(`install_timeout`). **(2026-05-16 갱신)** refresh 실패의 `error(auth_failed)`, transport 3회 실패의 `error(network)`, scope 부족의 `error(insufficient_scope)` 전이는 본 type 으로 알림 미발사 — UI 배지 (사이드바 카운트, 목록 카드 뱃지, 노드 에디터 경고) 로만 통지 ([Spec 통합 §11.2](../2-navigation/4-integration.md#112-알림-생성)). 향후 `error` 도메인 알림 필요 시 `integration_action_required` 타입 신설 검토. `user.notification_preferences.integrationExpiryEmail` 토글로 채널 (in_app / both) 선택. |
 | `marketplace_update` | (도입 시) 마켓플레이스 모듈 | 설치한 템플릿·에이전트의 새 버전 |
 | `team_invite` | `WorkspaceInvitationsService` | 새 멤버 초대 (해당 이메일이 이미 가입자인 경우에만 in-app 알림 + 이메일 둘 다) |
 
