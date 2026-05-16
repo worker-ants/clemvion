@@ -199,4 +199,17 @@ export const integrations: Dict["integrations"] = {
   oauthFailedShort: "OAuth failed",
   oauthCompletedToast: "OAuth completed. Continue to save.",
   reauthorizeBtn2: "Reauthorize",
+  // ----- Cafe24 mall_id duplicate pre-detection (2026-05-16) -----
+  cafe24DuplicateMallTitle: "This mall ID is already connected",
+  cafe24DuplicateMallConnectedDesc:
+    "A Cafe24 integration for the same mall_id is already active in this workspace. Use the existing integration or delete it first.",
+  cafe24DuplicateMallPendingDesc:
+    "A Cafe24 integration for the same mall_id is already pending installation. Finish the install on the existing integration, or delete it from integration details and re-register.",
+  cafe24DuplicateMallExpiredDesc:
+    "A Cafe24 integration for the same mall_id already exists but is expired. Delete the existing one before registering a new one.",
+  cafe24DuplicateMallErrorDesc:
+    "A Cafe24 integration for the same mall_id already exists in error state. Reauthorize from integration details, or delete it first.",
+  cafe24DuplicateMallViewExisting: "Open existing integration",
+  cafe24DuplicateMallToast:
+    "This mall ID is already connected and cannot be added",
 };
