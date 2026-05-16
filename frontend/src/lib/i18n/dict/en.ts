@@ -1085,6 +1085,7 @@ export const en: Dict = {
       switchHint: "Expression to evaluate",
       cases: "Cases",
       caseLabel: "Label",
+      caseDefaultLabel: "Case {{index}}",
       caseValue: "Value or {{ expression }}",
       typeString: "String",
       typeNumber: "Number",
