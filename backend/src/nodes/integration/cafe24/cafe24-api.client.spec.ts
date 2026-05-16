@@ -524,4 +524,146 @@ describe('Cafe24ApiClient', () => {
   // they were found to interact poorly with jest's unhandled-rejection
   // capture for the "task throws" case — the same correctness is covered
   // by the live serialisation that the refresh test relies on.
+
+  describe('queue-backed refresh (multi-instance race protection)', () => {
+    // 큐가 바인딩된 경로 — production wiring. Cafe24ApiClient 가 직접
+    // refreshAccessToken 을 호출하는 대신, BullMQ 큐에 enqueue + worker
+    // 완료 대기 + DB 재로드 패턴으로 동작하는지 검증.
+    let queue: { add: jest.Mock };
+    let queueEvents: object;
+    let integrationRepo: { findOne: jest.Mock };
+    let queuedClient: Cafe24ApiClient;
+    const expiredAt = new Date(Date.now() - 60_000);
+    const refreshedAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+    beforeEach(() => {
+      integrationRepo = { findOne: jest.fn() };
+      queue = { add: jest.fn() };
+      queueEvents = {}; // opaque — passed through to waitUntilFinished
+
+      queuedClient = new Cafe24ApiClient(
+        integrationRepo as never,
+        dataSource as never,
+        fetchMock as unknown as typeof fetch,
+        sleepMock as unknown as (ms: number) => Promise<void>,
+        queue as never,
+        queueEvents as never,
+      );
+    });
+
+    it('routes refresh through BullMQ when queue is bound: jobId dedup + re-fetch', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'old-refresh',
+          scopes: ['mall.read_product'],
+        },
+        tokenExpiresAt: expiredAt,
+      });
+
+      // worker 가 DB 를 갱신했다고 가정 — client 가 finOne 으로 다시 로드.
+      const refreshedIntegration = {
+        ...integration,
+        credentials: {
+          ...integration.credentials,
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_at: refreshedAt.toISOString(),
+        },
+        tokenExpiresAt: refreshedAt,
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      };
+      integrationRepo.findOne.mockResolvedValue(refreshedIntegration);
+
+      // queue.add 가 반환하는 job 의 waitUntilFinished — 즉시 성공.
+      queue.add.mockResolvedValue({
+        id: integration.id,
+        waitUntilFinished: jest.fn().mockResolvedValue(undefined),
+      });
+
+      // 실제 Cafe24 API 호출 — 1회 (refresh 는 큐 worker 가 처리, client 는 안 함)
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      const res = await queuedClient.call(integration, {
+        method: 'GET',
+        path: 'products',
+      });
+
+      // refresh fetch 는 일어나지 않음 — worker 의 책임. client 는 API 1회만 fetch.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // 큐 enqueue 확인 — jobId = integrationId
+      expect(queue.add).toHaveBeenCalledWith(
+        'refresh-cafe24-token',
+        { integrationId: integration.id, source: 'proactive' },
+        expect.objectContaining({ jobId: integration.id, attempts: 1 }),
+      );
+
+      // 재로드 + 새 bearer 사용
+      expect(integrationRepo.findOne).toHaveBeenCalledWith({
+        where: { id: integration.id },
+      });
+      const apiCall = fetchMock.mock.calls[0];
+      const apiInit = apiCall[1] as RequestInit;
+      expect((apiInit.headers as Record<string, string>).Authorization).toBe(
+        'Bearer new-access',
+      );
+
+      // 호출자 reference 도 갱신되었는지 (executeWithRateLimit 가 본 token 사용)
+      expect(integration.tokenExpiresAt).toEqual(refreshedAt);
+      expect(res.status).toBe(200);
+    });
+
+    it('surfaces Cafe24AuthFailedError when worker marks integration as auth_failed', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'invalid-refresh',
+        },
+        tokenExpiresAt: expiredAt,
+      });
+
+      // worker 가 refresh 실패 후 markAuthFailed 수행 → DB row 가 error 상태
+      integrationRepo.findOne.mockResolvedValue({
+        ...integration,
+        status: 'error',
+        statusReason: 'auth_failed',
+        lastError: { code: 'CAFE24_AUTH_FAILED', message: 'refresh failed' },
+      });
+
+      queue.add.mockResolvedValue({
+        id: integration.id,
+        waitUntilFinished: jest.fn().mockRejectedValue(new Error('job failed')),
+      });
+
+      await expect(
+        queuedClient.call(integration, { method: 'GET', path: 'products' }),
+      ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+
+      // API fetch 는 발생하지 않음 — refresh 가 실패해 call() 가 일찍 종료
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('skips queue path when token still fresh (proactive gate short-circuits before enqueue)', async () => {
+      const integration = makeIntegration({
+        tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1h future
+      });
+
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      await queuedClient.call(integration, {
+        method: 'GET',
+        path: 'products',
+      });
+
+      expect(queue.add).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });

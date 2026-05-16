@@ -20,6 +20,7 @@ import {
   IntegrationExpiryScannerService,
   INTEGRATION_EXPIRY_QUEUE,
 } from './integration-expiry-scanner.service';
+import { CAFE24_REFRESH_QUEUE } from './cafe24-token-refresh.constants';
 
 @Module({
   imports: [
@@ -36,6 +37,10 @@ import {
       User,
     ]),
     BullModule.registerQueue({ name: INTEGRATION_EXPIRY_QUEUE }),
+    // Background refresh 패스가 enqueue 할 큐. 같은 큐를 Cafe24Module 이
+    // worker 와 함께 별도 registerQueue — BullMQ 의 registerQueue 는 동일
+    // 이름 다중 호출에 idempotent (Redis queue 는 동일 인스턴스 참조).
+    BullModule.registerQueue({ name: CAFE24_REFRESH_QUEUE }),
     WorkspacesModule,
     NotificationsModule,
     AuditLogsModule,
