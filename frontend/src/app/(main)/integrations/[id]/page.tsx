@@ -32,6 +32,7 @@ import { isReauthorizeDisabled } from "@/lib/integrations/reauthorize";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { ScopeTab } from "./scope-tab";
+import { Cafe24AppUrlCard } from "./cafe24-app-url-card";
 import { openOAuthPopup } from "./open-oauth-popup";
 
 const TABS = [
@@ -337,6 +338,12 @@ function OverviewTab({
           {t("integrations.testConnectionBtn")}
         </Button>
       </div>
+
+      {integration.appUrl && (
+        <div className="sm:col-span-2">
+          <Cafe24AppUrlCard appUrl={integration.appUrl} t={t} />
+        </div>
+      )}
     </div>
   );
 }

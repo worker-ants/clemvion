@@ -87,7 +87,7 @@ sequenceDiagram
     Svc->>PG: SELECT+DELETE state
     Svc->>Prov: token exchange
     alt 토큰 교환 성공
-      Svc->>PG: UPDATE integration SET status=connected, install_token=NULL, credentials ENC, token_expires_at, last_rotated_at
+      Svc->>PG: UPDATE integration SET status=connected, credentials ENC, token_expires_at, last_rotated_at<br/>(install_token + install_token_issued_at 보존 — post-install navigation 식별 키)
     else 토큰 교환 실패
       Svc->>PG: UPDATE integration SET status_reason='oauth_token_exchange_failed', last_error={code,message,at} (status 는 pending_install 유지, install_token 도 유지)
     end

@@ -881,6 +881,146 @@ describe('IntegrationOAuthService — Cafe24', () => {
         }),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    // ---------------------------------------------------------------
+    // 진단 로그 (2026-05-16) — HMAC 검증 실패 3 분기는 모두 동일한
+    // CAFE24_INSTALL_INVALID_HMAC 응답을 반환하지만, 운영 환경에서 어느
+    // 분기에서 실패했는지 판별 가능해야 한다. `logger.warn` 로
+    // reason / urlMallId / dbMallId / dbAppType / status / statusReason /
+    // 토큰 prefix+suffix 4자 를 기록한다. **client_secret 자체는 절대
+    // 로깅하지 않는다** (SECRET_LEAK_PATTERNS 와 일관).
+    // spec/2-navigation/4-integration.md ## Rationale "Cafe24 App URL
+    // 상세 페이지 표시" 의 "HMAC 검증 진단 로그 보강" 단락.
+    // ---------------------------------------------------------------
+    describe('handleInstall — HMAC 진단 로그', () => {
+      let warnSpy: jest.SpyInstance;
+      beforeEach(() => {
+        warnSpy = jest
+          .spyOn(
+            (service as unknown as { logger: { warn: (msg: string) => void } })
+              .logger,
+            'warn',
+          )
+          .mockImplementation(() => undefined);
+      });
+      afterEach(() => {
+        warnSpy.mockRestore();
+      });
+
+      function logCalls(): string[] {
+        return warnSpy.mock.calls.map((args) => String(args[0]));
+      }
+
+      it('logs reason=mall_id_mismatch with both mall_ids (client_secret 누락 없음)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makePendingRow({
+            credentials: {
+              mall_id: 'different-shop',
+              app_type: 'private',
+              client_id: 'priv-client-id',
+              client_secret: clientSecret,
+              scopes: [],
+            },
+            status: 'connected',
+            statusReason: null,
+          }),
+        );
+        const validTs = Math.floor(Date.now() / 1000);
+        const rawQuery = buildRawQuery(validTs);
+        const params = new URLSearchParams(rawQuery);
+
+        await service
+          .handleInstall(INSTALL_TOKEN, {
+            mall_id: 'priv-shop',
+            timestamp: String(validTs),
+            hmac: params.get('hmac')!,
+            rawQuery,
+          })
+          .catch(() => undefined);
+
+        const joined = logCalls().join('\n');
+        expect(joined).toContain('cafe24-install-hmac-fail');
+        expect(joined).toContain('mall_id_mismatch');
+        expect(joined).toContain('priv-shop'); // urlMallId
+        expect(joined).toContain('different-shop'); // dbMallId
+        // 토큰 전체가 아니라 prefix..suffix 형태로만 기록
+        expect(joined).toContain('AbCd');
+        expect(joined).toContain('StUv');
+        expect(joined).not.toContain(INSTALL_TOKEN); // 전체 토큰 미포함
+        // client_secret 절대 누출 금지
+        expect(joined).not.toContain(clientSecret);
+      });
+
+      it('logs reason=no_client_secret when credentials lack client_secret', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makePendingRow({
+            credentials: {
+              mall_id: 'priv-shop',
+              app_type: 'private',
+              client_id: 'priv-client-id',
+              // client_secret intentionally omitted
+              scopes: [],
+            },
+          }),
+        );
+        const validTs = Math.floor(Date.now() / 1000);
+        const rawQuery = buildRawQuery(validTs);
+        const params = new URLSearchParams(rawQuery);
+
+        await service
+          .handleInstall(INSTALL_TOKEN, {
+            mall_id: 'priv-shop',
+            timestamp: String(validTs),
+            hmac: params.get('hmac')!,
+            rawQuery,
+          })
+          .catch(() => undefined);
+
+        const joined = logCalls().join('\n');
+        expect(joined).toContain('no_client_secret');
+      });
+
+      it('logs reason=hmac_verify_failed when HMAC does not match', async () => {
+        integrationRepo.findOne.mockResolvedValue(makePendingRow());
+        const validTs = Math.floor(Date.now() / 1000);
+        const rawQuery = buildRawQuery(validTs, 'attacker-controlled-secret');
+        const params = new URLSearchParams(rawQuery);
+
+        await service
+          .handleInstall(INSTALL_TOKEN, {
+            mall_id: 'priv-shop',
+            timestamp: String(validTs),
+            hmac: params.get('hmac')!,
+            rawQuery,
+          })
+          .catch(() => undefined);
+
+        const joined = logCalls().join('\n');
+        expect(joined).toContain('hmac_verify_failed');
+        // 정상 매칭 분기라 dbMallId 도 priv-shop
+        expect(joined).toContain('priv-shop');
+        expect(joined).not.toContain(clientSecret);
+      });
+
+      it('does not log diagnostic on happy path (no spurious warn)', async () => {
+        integrationRepo.findOne.mockResolvedValue(makePendingRow());
+        const validTs = Math.floor(Date.now() / 1000);
+        const rawQuery = buildRawQuery(validTs);
+        const params = new URLSearchParams(rawQuery);
+
+        await service.handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        });
+
+        const hmacFailLogs = logCalls().filter((m) =>
+          m.includes('cafe24-install-hmac-fail'),
+        );
+        expect(hmacFailLogs).toHaveLength(0);
+      });
+    });
   });
 
   describe('handleCallback — cafe24 stub flow', () => {

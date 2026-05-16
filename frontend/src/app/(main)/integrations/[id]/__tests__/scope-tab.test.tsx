@@ -60,6 +60,7 @@ function buildIntegration(overrides: Partial<IntegrationDto> = {}): IntegrationD
     lastRotatedAt: null,
     lastError: null,
     meta: { appType: "private" },
+    appUrl: null,
     createdBy: "user-1",
     createdAt: "2000-01-01T00:00:00Z",
     updatedAt: "2000-01-01T00:00:00Z",
