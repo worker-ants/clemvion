@@ -9,7 +9,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | id | 라벨 (한) | English title | method | path | scope | paginated | status | docs |
 |----|---|---|---|---|---|---|---|---|
 | `shipping_companies_list` | 배송사 목록 조회 | Retrieve a list of shipping carriers | GET | `shippingcompanies` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-shipping-carriers) |
-| `carriers_get` | 배송사 단건 조회 | Retrieve a shipping carrier | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-shipping-carrier) |
+| `carriers_get` | 배송사 단건 조회 | Retrieve a shipping carrier | GET | `carriers/{carrier_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-shipping-carrier) |
 | `carriers_create` | 배송사 등록 | Create a shipping carrier | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-shipping-carrier) |
 | `carriers_update` | 배송사 수정 | Update a shipping carrier | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-shipping-carrier) |
 | `carriers_delete` | 배송사 삭제 | Delete a shipping carrier | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-shipping-carrier) |
