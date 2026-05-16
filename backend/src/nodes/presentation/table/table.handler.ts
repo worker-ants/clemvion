@@ -263,8 +263,18 @@ export class TableHandler implements NodeHandler {
     try {
       return evaluate(template, ctx);
     } catch (e) {
+      // PII/토큰 노출 차단: ctx.$sourceItem / ctx.$var 의 키 이름만 로깅한다.
+      // 전체 값 직렬화는 운영 로그를 통한 민감 정보 유출 경로가 된다 (Review INFO #4).
+      const sourceKeys =
+        ctx.$sourceItem && typeof ctx.$sourceItem === 'object'
+          ? Object.keys(ctx.$sourceItem as Record<string, unknown>)
+          : typeof ctx.$sourceItem;
+      const varKeys =
+        ctx.$var && typeof ctx.$var === 'object'
+          ? Object.keys(ctx.$var as Record<string, unknown>)
+          : typeof ctx.$var;
       logger.error(
-        `safeEvaluate error: template=${template} sourceItem=${JSON.stringify(ctx.$sourceItem)} var=${JSON.stringify(ctx.$var)}`,
+        `safeEvaluate error: template=${template} sourceItemKeys=${JSON.stringify(sourceKeys)} varKeys=${JSON.stringify(varKeys)}`,
         e instanceof Error ? e.stack : String(e),
       );
       return null;
