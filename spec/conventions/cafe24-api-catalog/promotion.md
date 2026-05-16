@@ -14,7 +14,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `coupon_issue` | 쿠폰 발급 | Create coupon issuance history | POST | `coupons/{coupon_no}/issues` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-coupon-issuance-history) |
 | `coupon_delete` | 쿠폰 삭제 | Coupon management (delete) | DELETE | `coupons/{coupon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#coupon-management) |
 | `coupon_count` | 쿠폰 개수 조회 | Retrieve a count of coupons | GET | `coupons/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-coupons) |
-| `coupon_manage` | 쿠폰 관리 (사용/중지) | Coupon management | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#coupon-management) |
+| `coupon_manage` | 쿠폰 관리 (사용/중지) | Coupon management (pause/resume) | PUT | `coupons/{coupon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#coupon-management) |
 | `coupon_issuance_customers_list` | 쿠폰 발급 대상 회원 목록 | Retrieve a list of eligible customers for conditional issuance | GET | `coupons/{coupon_no}/issuancecustomers` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-eligible-customers-for-conditional-issuance) |
 | `coupon_issues_list` | 발급 쿠폰 목록 | Retrieve a list of issued coupons | GET | `coupons/issues` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-issued-coupons) |
 | `benefits_list` | 회원 혜택 목록 | Retrieve a list of customer benefits | GET | `benefits` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-customer-benefits) |

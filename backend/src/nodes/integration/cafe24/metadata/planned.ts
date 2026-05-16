@@ -362,9 +362,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'icons_list', label: '디자인 아이콘 목록 조회' },
     { id: 'icons_update_settings', label: '상점 아이콘 설정 수정' },
   ],
-  promotion: [
-    { id: 'coupon_manage', label: '쿠폰 관리 (사용/중지)' },
-  ],
+  promotion: [],
   application: [
     { id: 'appstore_orders_get', label: '앱스토어 주문 조회' },
     { id: 'appstore_orders_create', label: '앱스토어 주문 생성' },
