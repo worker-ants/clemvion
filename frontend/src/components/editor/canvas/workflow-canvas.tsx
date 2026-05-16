@@ -44,7 +44,11 @@ import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { CanvasEmptyState } from "./canvas-empty-state";
 import { isWorkflowEmpty } from "@/lib/node-definitions/is-trigger";
-import { useT } from "@/lib/i18n";
+import { useT, useLocale } from "@/lib/i18n";
+import {
+  translateNodeCategory,
+  translateNodeLabel,
+} from "@/lib/i18n/backend-labels";
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { custom: CustomEdge };
@@ -75,6 +79,7 @@ interface NodeSearchPopupState {
 
 export function WorkflowCanvas() {
   const t = useT();
+  const locale = useLocale();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
   const [nodeContextMenu, setNodeContextMenu] =
@@ -371,13 +376,15 @@ export function WorkflowCanvas() {
       const existingLabels = nodes.map(
         (n) => (n.data as Record<string, unknown>).label as string,
       );
+      const baseLabel =
+        translateNodeLabel(definition.label, locale) ?? definition.label;
       const newNode = {
         id: crypto.randomUUID(),
         type: "custom",
         position: nodeSearchPopup.flowPosition,
         data: {
           type: nodeType,
-          label: generateUniqueLabel(definition.label, existingLabels),
+          label: generateUniqueLabel(baseLabel, existingLabels),
           config: buildInitialConfig(nodeType, definition.defaultConfig),
           category: definition.category,
           isDisabled: false,
@@ -386,7 +393,7 @@ export function WorkflowCanvas() {
       addNode(newNode);
       setNodeSearchPopup(null);
     },
-    [nodeSearchPopup, nodes, pushUndo, addNode, buildInitialConfig],
+    [nodeSearchPopup, nodes, pushUndo, addNode, buildInitialConfig, locale],
   );
 
   const closeAllMenus = useCallback(() => {
@@ -427,13 +434,15 @@ export function WorkflowCanvas() {
       const existingLabels = nodes.map(
         (n) => (n.data as Record<string, unknown>).label as string,
       );
+      const baseLabel =
+        translateNodeLabel(definition.label, locale) ?? definition.label;
       const newNode = {
         id: crypto.randomUUID(),
         type: "custom",
         position,
         data: {
           type: nodeType,
-          label: generateUniqueLabel(definition.label, existingLabels),
+          label: generateUniqueLabel(baseLabel, existingLabels),
           config: buildInitialConfig(nodeType, definition.defaultConfig),
           category: definition.category,
           isDisabled: false,
@@ -442,7 +451,7 @@ export function WorkflowCanvas() {
 
       addNode(newNode);
     },
-    [addNode, pushUndo, nodes, buildInitialConfig],
+    [addNode, pushUndo, nodes, buildInitialConfig, locale],
   );
 
   const onInit = useCallback((instance: ReactFlowInstance) => {
@@ -631,23 +640,29 @@ export function WorkflowCanvas() {
                 {t("editor.noNodesFound")}
               </div>
             ) : (
-              filteredNodes.map((def) => (
-                <button
-                  key={def.type}
-                  type="button"
-                  onClick={() => handleAddNodeFromSearch(def.type)}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-[hsl(var(--accent))]"
-                >
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: def.color }}
-                  />
-                  <span>{def.label}</span>
-                  <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">
-                    {def.category}
-                  </span>
-                </button>
-              ))
+              filteredNodes.map((def) => {
+                const label =
+                  translateNodeLabel(def.label, locale) ?? def.label;
+                const category =
+                  translateNodeCategory(def.category, locale) ?? def.category;
+                return (
+                  <button
+                    key={def.type}
+                    type="button"
+                    onClick={() => handleAddNodeFromSearch(def.type)}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-[hsl(var(--accent))]"
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: def.color }}
+                    />
+                    <span>{label}</span>
+                    <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">
+                      {category}
+                    </span>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
