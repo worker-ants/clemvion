@@ -212,4 +212,5 @@ export const integrations = {
   cafe24DuplicateMallViewExisting: "기존 통합 열기",
   // 사후 toast 의 한글 primary 메시지. backend 영문 message 는 (괄호) 안에 보조 표시.
   cafe24DuplicateMallToast: "이 mall ID 는 이미 연결되어 있어 추가할 수 없어요",
+  cafe24DuplicateMallChecking: "확인 중…",
 } as const;

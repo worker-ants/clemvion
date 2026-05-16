@@ -237,4 +237,114 @@ describe("/integrations/new — Cafe24 mall_id 사전 중복 감지", () => {
       screen.queryByText("이 mall ID 는 이미 연결되어 있어요"),
     ).not.toBeInTheDocument();
   });
+
+  it("conflict=true 일 때 Connect 버튼이 disabled (ai-review W1·W2 회귀)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    precheckMock.mockResolvedValueOnce({
+      conflict: true,
+      existingIntegrationId: "int-abc",
+      existingName: "myshop (Cafe24)",
+      status: "connected",
+    });
+    await renderPage();
+    await screen.findByLabelText(/Mall ID/i);
+    const mallIdInput = screen.getByLabelText(/Mall ID/i);
+    await user.type(mallIdInput, "myshop");
+    await act(async () => {
+      vi.advanceTimersByTime(360);
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("이 mall ID 는 이미 연결되어 있어요"),
+      ).toBeInTheDocument();
+    });
+    const connectBtn = screen.getByRole("button", {
+      name: /Cafe24 연결하기/i,
+    });
+    expect(connectBtn).toBeDisabled();
+  });
+
+  it("precheck 로딩 구간 (350ms debounce + fetch) 동안 Connect 버튼 disabled + 인디케이터 노출 (ai-review W1·W8)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    // precheck 호출이 응답하지 않은 상태 시뮬레이션 — Promise 가 resolve 되지 않는다
+    let resolvePrecheck: (v: unknown) => void = () => {};
+    precheckMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePrecheck = resolve;
+      }),
+    );
+    await renderPage();
+    await screen.findByLabelText(/Mall ID/i);
+    const mallIdInput = screen.getByLabelText(/Mall ID/i);
+    await user.type(mallIdInput, "myshop");
+    // 350ms debounce 직후 fetch 시작 — 응답 보류 중
+    await act(async () => {
+      vi.advanceTimersByTime(360);
+    });
+    // 로딩 인디케이터 노출
+    await waitFor(() => {
+      expect(screen.getByText(/확인 중…/)).toBeInTheDocument();
+    });
+    // Connect 버튼은 disabled (사전 감지 결과 보기 전에 OAuth 시작 race 차단)
+    const connectBtn = screen.getByRole("button", {
+      name: /Cafe24 연결하기/i,
+    });
+    expect(connectBtn).toBeDisabled();
+    // 응답 도착 → 정상화
+    await act(async () => {
+      resolvePrecheck({ conflict: false });
+    });
+    await waitFor(() => {
+      expect(screen.queryByText(/확인 중…/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("CAFE24_PRIVATE_APP_ALREADY_CONNECTED 코드는 한글 i18n primary + 영문 backend 메시지 보조 (ai-review W7)", async () => {
+    // 사전 감지를 우회해 직접 Connect 흐름 시뮬레이션 — precheck 는 빈 결과로
+    // 통과 후 begin 호출이 backend 가드에 걸려 409 를 반환하는 경로 검증.
+    precheckMock.mockResolvedValue({ conflict: false });
+    oauthBeginMock.mockRejectedValueOnce({
+      response: {
+        data: {
+          code: "CAFE24_PRIVATE_APP_ALREADY_CONNECTED",
+          message:
+            'A Cafe24 integration for mall_id "myshop" already exists and is connected.',
+        },
+      },
+    });
+    const toastSpy = vi.fn();
+    const sonnerModule = await import("sonner");
+    vi.spyOn(sonnerModule.toast, "error").mockImplementation(toastSpy);
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await renderPage();
+    await screen.findByLabelText(/Mall ID/i);
+
+    // 통합 이름 + scope 입력 (Connect 클릭 가능 상태로 만들기)
+    const nameInput = document.getElementById("int-name") as HTMLInputElement;
+    await user.type(nameInput, "My Cafe24");
+    const mallIdInput = screen.getByLabelText(/Mall ID/i);
+    await user.type(mallIdInput, "myshop");
+    await act(async () => {
+      vi.advanceTimersByTime(360);
+    });
+    // precheck 호출 끝나고 conflict=false 확인
+    await waitFor(() => {
+      expect(precheckMock).toHaveBeenCalled();
+    });
+
+    const connectBtn = screen.getByRole("button", {
+      name: /Cafe24 연결하기/i,
+    });
+    await user.click(connectBtn);
+
+    // toast.error 호출 메시지에 한글 primary + (영문 backend) 가 포함
+    await waitFor(() => {
+      expect(toastSpy).toHaveBeenCalled();
+    });
+    const msg = toastSpy.mock.calls[0][0] as string;
+    expect(msg).toContain("이 mall ID 는 이미 연결되어 있어 추가할 수 없어요");
+    expect(msg).toContain("A Cafe24 integration for mall_id");
+  });
 });

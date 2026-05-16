@@ -105,15 +105,17 @@ export default function NewIntegrationPage() {
 
   // mall_id 패턴 매칭이 안 되면 precheck 호출 자체를 skip — backend 가
   // 400 으로 거부할 페이로드를 보낼 필요 없음. 패턴이 풀리는 순간
-  // 이전 conflict 표시도 클리어해 사용자 입력 도중 잘못된 빨간 배너가
-  // 남아있지 않도록.
+  // 이전 conflict 표시·로딩 상태도 클리어해 사용자 입력 도중 잘못된
+  // 빨간 배너 또는 영구 spinner 가 남지 않도록.
   useEffect(() => {
     if (!isCafe24OAuth) {
       setCafe24Conflict(null);
+      setCafe24PrecheckLoading(false);
       return;
     }
     if (!/^[a-z0-9-]{3,50}$/.test(cafe24MallIdInput)) {
       setCafe24Conflict(null);
+      setCafe24PrecheckLoading(false);
       return;
     }
     // mall_id 가 바뀔 때마다 350ms debounce — 짧으면 brute-force 호출,
@@ -670,7 +672,6 @@ function AuthStep({
           publicAppAvailable={service.meta?.publicAppAvailable !== false}
           conflict={cafe24Conflict}
           precheckLoading={cafe24PrecheckLoading}
-          t={t}
         />
       )}
 
@@ -733,11 +734,14 @@ function AuthStep({
             onClick={onConnect}
             // Cafe24 사전 중복 감지 — conflict 가 발견된 mall_id 로는 OAuth
             // 진입 자체를 막는다. 사용자가 mall_id 를 다른 값으로 바꾸거나
-            // 기존 통합을 삭제하지 않는 한 Connect 비활성. backend 가드는
-            // backstop 으로 살아있어 의도적 우회 시도도 안전.
+            // 기존 통합을 삭제하지 않는 한 Connect 비활성. precheck 가
+            // 350ms debounce 후 fetching 중인 동안에도 Connect 를 비활성화해
+            // "사전 감지 결과를 보기 전에 OAuth 시작" race 를 막는다.
+            // backend 가드는 backstop 으로 살아있어 우회 시도도 안전.
             disabled={
               connecting ||
               oauthWaiting ||
+              cafe24PrecheckLoading ||
               cafe24Conflict?.conflict === true
             }
           >
@@ -775,7 +779,6 @@ function Cafe24ExtraFields({
   publicAppAvailable,
   conflict,
   precheckLoading,
-  t,
 }: {
   credentials: Record<string, unknown>;
   setCredentials: (c: Record<string, unknown>) => void;
@@ -785,8 +788,10 @@ function Cafe24ExtraFields({
   conflict: Cafe24PrecheckResult | null;
   /** debounce 호출 중 표시용 (배너 자리 안정화). */
   precheckLoading: boolean;
-  t: TFunction;
 }) {
+  // `t` 를 prop 으로 받지 않고 useT 를 직접 호출 — 다른 컴포넌트(`AuthStep` 등)
+  // 와의 일관성. ai-review WARNING #10 (2026-05-16) 조치.
+  const t = useT();
   const set = (key: string, value: unknown) =>
     setCredentials({ ...credentials, [key]: value });
   const mallId = String(credentials.mall_id ?? "");
@@ -885,7 +890,7 @@ function Cafe24ExtraFields({
         {precheckLoading && !conflict?.conflict && (
           <p className="mt-1 inline-flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
             <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-            checking…
+            {t("integrations.cafe24DuplicateMallChecking")}
           </p>
         )}
       </div>

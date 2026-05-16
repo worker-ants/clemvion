@@ -177,4 +177,28 @@ describe('Cafe24 precheck endpoint (e2e)', () => {
       .query({ mallId: 'unauth-test' });
     expect(res.status).toBe(401);
   });
+
+  it('returns status=pending_install when only a pending_install row exists', async () => {
+    const mallId = 'pend-' + Math.random().toString(36).slice(2, 8);
+    const name = uniqueName('Cafe24Pending');
+    const integrationId = await insertCafe24Row({
+      workspaceId,
+      mallId,
+      status: 'pending_install',
+      name,
+    });
+
+    const res = await request(BASE_URL)
+      .get('/api/integrations/cafe24/precheck')
+      .query({ mallId })
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      conflict: true,
+      existingIntegrationId: integrationId,
+      existingName: name,
+      status: 'pending_install',
+    });
+  });
 });

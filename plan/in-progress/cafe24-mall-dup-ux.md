@@ -65,9 +65,9 @@ GET /api/integrations/cafe24/precheck?mallId=<mall>
 - [x] 스펙 / 코드 흐름 파악
 - [x] plan 노트 작성
 - [x] consistency-check --impl-prep
-- [ ] Backend (1) Public begin guard
-- [ ] Backend (2) throwIfUniqueViolation 확장
-- [ ] Backend (3) Precheck endpoint
-- [ ] Frontend (4) Inline pre-detection + Korean toast
-- [ ] TEST + REVIEW WORKFLOW
+- [x] Backend (1) Public begin guard
+- [x] Backend (2) throwIfUniqueViolation 확장
+- [x] Backend (3) Precheck endpoint
+- [x] Frontend (4) Inline pre-detection + Korean toast
+- [x] TEST + REVIEW WORKFLOW (rebase 후 재리뷰, Critical 0건, Warning 조치 완료)
 - [ ] Spec 위임 (project-planner)

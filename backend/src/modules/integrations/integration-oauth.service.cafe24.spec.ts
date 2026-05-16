@@ -707,6 +707,71 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
       expect(result.status).toBe('error');
     });
+
+    it('returns status=expired when only expired row exists', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'exp-1',
+          name: 'gone',
+          status: 'expired',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.status).toBe('expired');
+      expect(result.existingIntegrationId).toBe('exp-1');
+    });
+
+    /**
+     * Fallback 분기 — priority 외 status (예: 미래 추가될 transitional
+     * `initializing`) 가 들어오면 frontend 가 unknown enum 으로 silent
+     * fallthrough 하지 않도록 `status` 필드를 omit. conflict 만 true.
+     */
+    it('omits status when row has a status outside the priority enum (fallback)', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        {
+          id: 'tx-1',
+          name: 'unknown-state',
+          status: 'initializing',
+          serviceType: 'cafe24',
+          mallId: 'priv-shop',
+          credentials: { mall_id: 'priv-shop', app_type: 'private' },
+        },
+      ]);
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.conflict).toBe(true);
+      expect(result.existingIntegrationId).toBe('tx-1');
+      expect(result.status).toBeUndefined();
+    });
+
+    /**
+     * Legacy row (V045 이전) — plain `mall_id` 컬럼이 NULL 이라 primary 쿼리
+     * 에선 매칭되지 않고, fallback (mallId IS NULL) + JSONB filter 로 잡힌다.
+     * backfill 완료 후 본 분기 제거 예정.
+     */
+    it('matches legacy rows via credentials.mall_id JSONB when plain column is NULL', async () => {
+      let callCount = 0;
+      integrationRepo.find = jest.fn().mockImplementation(() => {
+        callCount += 1;
+        if (callCount === 1) return Promise.resolve([]);
+        return Promise.resolve([
+          {
+            id: 'legacy-conn',
+            name: 'legacy',
+            status: 'connected',
+            serviceType: 'cafe24',
+            mallId: null,
+            credentials: { mall_id: 'priv-shop', app_type: 'public' },
+          },
+        ]);
+      });
+      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      expect(result.conflict).toBe(true);
+      expect(result.status).toBe('connected');
+      expect(result.existingIntegrationId).toBe('legacy-conn');
+    });
   });
 
   describe('handleInstall — Cafe24 private app App URL', () => {
