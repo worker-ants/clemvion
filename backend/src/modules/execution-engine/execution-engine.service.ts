@@ -67,6 +67,7 @@ import {
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
+import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -440,6 +441,7 @@ export class ExecutionEngineService
     private readonly expressionResolver: ExpressionResolverService,
     @Inject(forwardRef(() => WebsocketService))
     private readonly websocketService: WebsocketService,
+    private readonly eventEmitter: ExecutionEventEmitter,
     private readonly configService: ConfigService,
     private readonly llmService: LlmService,
     private readonly ragSearchService: RagSearchService,
@@ -1194,7 +1196,7 @@ export class ExecutionEngineService
     try {
       // 3. Transition to RUNNING
       await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
-      this.websocketService.emitExecutionEvent(
+      this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_STARTED,
         { status: ExecutionStatus.RUNNING },
@@ -1491,7 +1493,7 @@ export class ExecutionEngineService
       }
 
       // Emit after all DB writes are complete
-      this.websocketService.emitExecutionEvent(
+      this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_COMPLETED,
         { status: ExecutionStatus.COMPLETED },
@@ -1505,7 +1507,7 @@ export class ExecutionEngineService
           savedExecution.finishedAt.getTime() -
           savedExecution.startedAt.getTime();
         await this.executionRepository.save(savedExecution);
-        this.websocketService.emitExecutionEvent(
+        this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_CANCELLED,
           { status: ExecutionStatus.CANCELLED },
@@ -1530,7 +1532,7 @@ export class ExecutionEngineService
         savedExecution.finishedAt.getTime() -
         savedExecution.startedAt.getTime();
       await this.executionRepository.save(savedExecution);
-      this.websocketService.emitExecutionEvent(
+      this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_FAILED,
         {
@@ -1631,7 +1633,7 @@ export class ExecutionEngineService
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
     );
-    this.websocketService.emitExecutionEvent(
+    this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
       {
@@ -1760,7 +1762,7 @@ export class ExecutionEngineService
     );
 
     if (nodeExec) {
-      this.websocketService.emitNodeEvent(
+      this.eventEmitter.emitNode(
         executionId,
         node.id,
         NodeEventType.NODE_COMPLETED,
@@ -1781,7 +1783,7 @@ export class ExecutionEngineService
         },
       );
     }
-    this.websocketService.emitExecutionEvent(
+    this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
       { status: ExecutionStatus.RUNNING },
@@ -1996,7 +1998,7 @@ export class ExecutionEngineService
 
     const initialConv = buildConversationConfigFromOutput(structuredOutput);
 
-    this.websocketService.emitExecutionEvent(
+    this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
       {
@@ -2109,7 +2111,7 @@ export class ExecutionEngineService
       // lastTurnDurationMs on resumeState) are intentionally not emitted —
       // turnDebugHistory's last entry already carries the same data and
       // additionally preserves the per-call sequence in tool loops.
-      this.websocketService.emitExecutionEvent(
+      this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.AI_MESSAGE,
         {
@@ -2131,7 +2133,7 @@ export class ExecutionEngineService
       );
 
       // Emit waiting_for_input again
-      this.websocketService.emitExecutionEvent(
+      this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
         {
@@ -2197,7 +2199,7 @@ export class ExecutionEngineService
     // Shared shape with the waiting_for_input emit above — the helper
     // reads `turnDebugHistory`; the terminal path stores the same array
     // under `meta.turnDebug`, so we adapt the key in-line.
-    this.websocketService.emitExecutionEvent(
+    this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.AI_MESSAGE,
       {
@@ -2308,7 +2310,7 @@ export class ExecutionEngineService
     );
 
     if (nodeExec) {
-      this.websocketService.emitNodeEvent(
+      this.eventEmitter.emitNode(
         executionId,
         node.id,
         NodeEventType.NODE_COMPLETED,
@@ -2327,7 +2329,7 @@ export class ExecutionEngineService
         },
       );
     }
-    this.websocketService.emitExecutionEvent(
+    this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
       { status: ExecutionStatus.RUNNING },
@@ -2397,7 +2399,7 @@ export class ExecutionEngineService
     );
 
     // Emit waiting event so frontend can render buttons
-    this.websocketService.emitExecutionEvent(
+    this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
       {
@@ -2651,7 +2653,7 @@ export class ExecutionEngineService
     );
 
     if (nodeExec) {
-      this.websocketService.emitNodeEvent(
+      this.eventEmitter.emitNode(
         executionId,
         node.id,
         NodeEventType.NODE_COMPLETED,
@@ -2670,7 +2672,7 @@ export class ExecutionEngineService
         },
       );
     }
-    this.websocketService.emitExecutionEvent(
+    this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
       { status: ExecutionStatus.RUNNING },
@@ -2720,7 +2722,7 @@ export class ExecutionEngineService
       context.parentNodeExecutionId,
       nodeInput,
     );
-    this.websocketService.emitNodeEvent(
+    this.eventEmitter.emitNode(
       executionId,
       node.id,
       NodeEventType.NODE_STARTED,
@@ -2880,7 +2882,7 @@ export class ExecutionEngineService
           nodeExecution.finishedAt.getTime() -
           nodeExecution.startedAt.getTime();
         await this.nodeExecutionRepository.save(nodeExecution);
-        this.websocketService.emitNodeEvent(
+        this.eventEmitter.emitNode(
           executionId,
           node.id,
           NodeEventType.NODE_COMPLETED,
@@ -2926,7 +2928,7 @@ export class ExecutionEngineService
             nodeExecution.finishedAt.getTime() -
             nodeExecution.startedAt.getTime();
           await this.nodeExecutionRepository.save(nodeExecution);
-          this.websocketService.emitNodeEvent(
+          this.eventEmitter.emitNode(
             executionId,
             node.id,
             NodeEventType.NODE_SKIPPED,
@@ -2991,7 +2993,7 @@ export class ExecutionEngineService
             nodeExecution.finishedAt.getTime() -
             nodeExecution.startedAt.getTime();
           await this.nodeExecutionRepository.save(nodeExecution);
-          this.websocketService.emitNodeEvent(
+          this.eventEmitter.emitNode(
             executionId,
             node.id,
             NodeEventType.NODE_FAILED,
@@ -3352,7 +3354,7 @@ export class ExecutionEngineService
       NodeExecutionStatus.SKIPPED,
       context.parentNodeExecutionId,
     );
-    this.websocketService.emitNodeEvent(
+    this.eventEmitter.emitNode(
       executionId,
       nodeId,
       NodeEventType.NODE_SKIPPED,
@@ -3535,7 +3537,7 @@ export class ExecutionEngineService
           NodeExecutionStatus.SKIPPED,
           context.parentNodeExecutionId,
         );
-        this.websocketService.emitNodeEvent(
+        this.eventEmitter.emitNode(
           executionId,
           nodeId,
           NodeEventType.NODE_SKIPPED,
@@ -4081,7 +4083,7 @@ export class ExecutionEngineService
           NodeExecutionStatus.SKIPPED,
           context.parentNodeExecutionId,
         );
-        this.websocketService.emitNodeEvent(
+        this.eventEmitter.emitNode(
           executionId,
           nodeId,
           NodeEventType.NODE_SKIPPED,
@@ -4462,7 +4464,7 @@ export class ExecutionEngineService
         }
         await this.nodeExecutionRepository.save(nodeExec);
       }
-      this.websocketService.emitNodeEvent(
+      this.eventEmitter.emitNode(
         executionId,
         containerNode.id,
         NodeEventType.NODE_FAILED,
