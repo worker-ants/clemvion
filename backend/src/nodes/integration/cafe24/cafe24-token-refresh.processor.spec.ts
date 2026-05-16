@@ -95,4 +95,20 @@ describe('Cafe24TokenRefreshProcessor', () => {
     );
     expect(cafe24ApiClient.refreshAccessToken).toHaveBeenCalledTimes(1);
   });
+
+  // TEST-C2 — refreshAccessToken 이 throw 했을 때 process() 가 그대로
+  // re-throw 해야 BullMQ 가 job 을 failed 로 마킹한다. `.catch()` 로
+  // 삼키면 refresh 실패가 silently no-op 되어 알림·진단이 불가능해진다.
+  // 본 테스트는 propagation invariant 를 회귀 방지.
+  it('propagates refreshAccessToken failure (BullMQ failed marking depends on this)', async () => {
+    integrationRepository.findOne.mockResolvedValue(makeIntegration());
+    const refreshError = new Error('refresh_token invalid');
+    cafe24ApiClient.refreshAccessToken.mockRejectedValue(refreshError);
+
+    await expect(
+      processor.process(
+        makeJob({ integrationId: 'int-1', source: 'proactive' }),
+      ),
+    ).rejects.toBe(refreshError);
+  });
 });

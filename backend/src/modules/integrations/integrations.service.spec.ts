@@ -621,6 +621,28 @@ describe('IntegrationsService', () => {
         expect.objectContaining({ action: 'integration.created' }),
       );
     });
+
+    // 회귀 — 신규 통합 생성 시 lastRotatedAt 이 명시 초기화되어야 한다.
+    // 없으면 NULL 로 저장되어 `enqueueCafe24BackgroundRefresh` 의 cutoff
+    // 비교 (`LessThan(now - 10d)`) 에서 PostgreSQL 의 `NULL < value = FALSE`
+    // 시맨틱으로 영원히 제외 → 신규 Cafe24 통합 14일 idle 시 refresh_token
+    // 만료. PR #56 의 idle 보호 무력화 회귀를 차단.
+    it('initializes lastRotatedAt on create so background refresh covers fresh integrations', async () => {
+      await service.create('ws-1', 'user-1', 'member', {
+        serviceType: 'http',
+        authType: 'api_key',
+        name: 'My API',
+        credentials: {
+          location: 'header',
+          key_name: 'X-Api-Key',
+          value: 'secret',
+        },
+      });
+      const createArg = integrationRepo.create.mock.calls[0][0] as {
+        lastRotatedAt?: Date;
+      };
+      expect(createArg.lastRotatedAt).toBeInstanceOf(Date);
+    });
   });
 
   // -----------------------------------------------------------------

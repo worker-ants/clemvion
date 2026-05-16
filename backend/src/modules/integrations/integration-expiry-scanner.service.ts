@@ -2,7 +2,15 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Processor, WorkerHost, InjectQueue } from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, LessThan, LessThanOrEqual, Not, Repository } from 'typeorm';
+import {
+  In,
+  IsNull,
+  LessThan,
+  LessThanOrEqual,
+  Not,
+  Or,
+  Repository,
+} from 'typeorm';
 import { Integration } from './entities/integration.entity';
 import {
   IntegrationExpiryDispatch,
@@ -178,11 +186,16 @@ export class IntegrationExpiryScannerService
     const cutoff = new Date(
       now.getTime() - REFRESH_PROACTIVE_THRESHOLD_DAYS * DAY_MS,
     );
+    // `lastRotatedAt IS NULL` 통합도 대상에 포함한다. 신규 create() 경로는
+    // 이제 `lastRotatedAt = new Date()` 로 명시 초기화하지만 (`integrations.
+    // service.ts`), V045 이전 legacy row 와 다른 진입 경로(향후 추가될 수
+    // 있는 manual ETL 등) 에 대비한 belt-and-suspenders. PostgreSQL 의
+    // `NULL < cutoff = FALSE` 시맨틱 때문에 IS NULL 분기를 OR 로 명시.
     const targets = await this.integrationRepository.find({
       where: {
         serviceType: 'cafe24',
         status: 'connected',
-        lastRotatedAt: LessThan(cutoff),
+        lastRotatedAt: Or(LessThan(cutoff), IsNull()),
       },
       select: ['id', 'lastRotatedAt'],
     });
@@ -282,7 +295,13 @@ export class IntegrationExpiryScannerService
 
     const candidates = await this.integrationRepository.find({
       where: {
-        status: Not(In(['expired', 'error'])),
+        // spec/2-navigation/4-integration.md §11.1 + §2.4 가 `pending_install`
+        // 을 만료 알림 대상에서 제외하도록 명시. 정상 흐름에서는
+        // pending_install 의 `tokenExpiresAt` 가 NULL 이라 LessThanOrEqual 조건
+        // 에 매칭되지 않지만, 엣지 케이스 (재사용 분기에서 tokenExpiresAt 가
+        // 의도치 않게 보존되는 경우 등) 를 차단하기 위해 status 필터에 명시
+        // 추가 (REQ-C1).
+        status: Not(In(['expired', 'error', 'pending_install'])),
         tokenExpiresAt: LessThanOrEqual(horizon),
       },
     });
