@@ -242,6 +242,7 @@ export function KeyValueEditor({
               size="icon"
               className="h-7 w-7 shrink-0"
               onClick={() => removeItem(i)}
+              aria-label={t("editor.sharedRemoveRow")}
             >
               <X size={12} />
             </Button>

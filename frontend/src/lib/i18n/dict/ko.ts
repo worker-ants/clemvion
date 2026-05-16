@@ -874,6 +874,7 @@ export const ko = {
     searchNodesPlaceholder: "노드 검색...",
     noNodesFound: "일치하는 노드가 없어요",
     sharedAdd: "추가",
+    sharedRemoveRow: "행 제거",
     fieldHelpAriaLabel: "도움말",
     fieldHelpLearnMore: "자세히 보기 →",
   },

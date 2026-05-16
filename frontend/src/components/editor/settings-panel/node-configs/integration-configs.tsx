@@ -271,14 +271,19 @@ const CAFE24_RESOURCE_KEYS = [
 ] as const;
 type Cafe24ResourceKey = (typeof CAFE24_RESOURCE_KEYS)[number];
 
-function normalizeCafe24Fields(
+/**
+ * Convert the persisted `config.fields` shape (or any unknown input) to the
+ * `{key, value}[]` form the editor renders. Accepts:
+ *
+ * - object → entries; `null`/`undefined` values become `""`.
+ * - array of `{key, value}` → coerced to strings.
+ * - anything else (including `null`, primitives) → empty list.
+ *
+ * Exported so the conversion can be exercised directly by unit tests.
+ */
+export function normalizeCafe24Fields(
   raw: unknown,
 ): Array<{ key: string; value: string }> {
-  // The handler reads `config.fields` as a flat object (Record<string,
-  // unknown>), but the UI maintains a list of {key, value} pairs for
-  // ergonomic editing. Accept both shapes so the panel doesn't crash on
-  // its second render — the prior version would do `.map()` against the
-  // object form after the first edit and throw at runtime.
   if (Array.isArray(raw)) {
     return raw
       .filter(
@@ -296,12 +301,16 @@ function normalizeCafe24Fields(
   return [];
 }
 
-// Convert the UI's key-value list back to the persisted object form that the
-// backend handler expects (`Record<string, unknown>`). Empty-key rows are
-// dropped because they have no meaningful object representation — but they
-// remain visible in the UI because the editor list lives in local React state
-// (see `Cafe24Config`).
-function fieldRowsToObject(
+/**
+ * Convert the UI's key-value list back to the persisted object form that the
+ * backend handler expects (`Record<string, unknown>`). Empty-key rows are
+ * dropped because they have no meaningful object representation — they
+ * remain visible in the UI because the editor list lives in local React
+ * state (see `Cafe24Config`). When two rows share a key, the **later** row's
+ * value wins (last-write-wins) to match the natural object-spread mental
+ * model.
+ */
+export function fieldRowsToObject(
   rows: ReadonlyArray<{ key: string; value: string }>,
 ): Record<string, string> {
   const obj: Record<string, string> = {};
@@ -309,19 +318,6 @@ function fieldRowsToObject(
     if (it.key) obj[it.key] = it.value;
   }
   return obj;
-}
-
-function objectsEqual(
-  a: Record<string, unknown>,
-  b: Record<string, unknown>,
-): boolean {
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) {
-    if (String(a[k] ?? "") !== String(b[k] ?? "")) return false;
-  }
-  return true;
 }
 
 export function Cafe24Config({ config, onChange }: { config: Config; onChange: OnChange }) {
@@ -336,25 +332,20 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
     Array<{ key: string; value: string }>
   >(() => normalizeCafe24Fields(config.fields));
 
-  // Track the last object we propagated upstream so we can detect *external*
-  // changes to `config.fields` (e.g. undo/redo, programmatic reset) and
-  // re-sync the local list during render. React's recommended "store
-  // information from previous renders" pattern keeps this in state, not
-  // in a ref (see https://react.dev/reference/react/useState).
-  const [lastPropagated, setLastPropagated] = useState<Record<string, unknown>>(
-    () => fieldRowsToObject(fieldRows),
-  );
+  // Track the `config.fields` reference we last propagated upstream so we
+  // can detect *external* changes (undo/redo, programmatic reset) and
+  // re-sync the local list during render. Reference equality is enough:
+  // when we call `onChange`, the new `config.fields` reference is *our*
+  // newly-built object, so `lastSeenFields === config.fields` and we skip.
+  // When a parent overwrites `config.fields` with a different object, the
+  // reference differs and we re-derive the list. This is React's documented
+  // "storing information from previous renders" pattern — bounded to a
+  // single setState call per reference change, so no render loop.
+  const [lastSeenFields, setLastSeenFields] = useState<unknown>(config.fields);
 
-  const externalFields =
-    config.fields && typeof config.fields === "object" && !Array.isArray(config.fields)
-      ? (config.fields as Record<string, unknown>)
-      : {};
-  if (!objectsEqual(externalFields, lastPropagated)) {
-    // Derived-state update during render: React batches these into the
-    // current pass without an extra re-render.
-    const nextRows = normalizeCafe24Fields(externalFields);
-    setFieldRows(nextRows);
-    setLastPropagated(fieldRowsToObject(nextRows));
+  if (lastSeenFields !== config.fields) {
+    setLastSeenFields(config.fields);
+    setFieldRows(normalizeCafe24Fields(config.fields));
   }
 
   const handleFieldRowsChange = (
@@ -362,8 +353,9 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
   ) => {
     setFieldRows(items);
     const obj = fieldRowsToObject(items);
-    setLastPropagated(obj);
-    onChange({ ...config, fields: obj });
+    const nextConfig = { ...config, fields: obj };
+    setLastSeenFields(nextConfig.fields);
+    onChange(nextConfig);
   };
 
   const pagination = (config.pagination as { limit?: number; offset?: number } | undefined) ?? {};
