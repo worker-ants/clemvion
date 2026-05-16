@@ -52,7 +52,7 @@ describe('IntegrationExpiryScannerService.run', () => {
   let usageLogRepo: Record<string, Mock>;
   let userRepo: Record<string, Mock>;
   let workspacesService: { findAdminUserIds: Mock };
-  let notificationsService: { createMany: Mock };
+  let notificationsService: { createMany: Mock; hasRecentByResource: Mock };
   let queue: Record<string, Mock>;
   let cafe24RefreshQueue: { add: Mock };
 
@@ -65,6 +65,9 @@ describe('IntegrationExpiryScannerService.run', () => {
     workspacesService = { findAdminUserIds: jest.fn().mockResolvedValue([]) };
     notificationsService = {
       createMany: jest.fn().mockResolvedValue(undefined),
+      // W-75 — NotificationsService 의 신규 hasRecentByResource 메서드.
+      // 본 spec 은 직접 호출하지 않지만 surface 동기화로 런타임 회귀 방지.
+      hasRecentByResource: jest.fn().mockResolvedValue(false),
     };
     queue = { upsertJobScheduler: jest.fn() };
     cafe24RefreshQueue = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };

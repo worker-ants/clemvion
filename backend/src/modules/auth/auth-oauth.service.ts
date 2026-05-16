@@ -17,17 +17,13 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuthService } from './auth.service';
 import { User } from '../users/entities/user.entity';
 
+import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
+
 const STATE_TTL_MS = 10 * 60 * 1000;
 
-/**
- * OAUTH_STUB_MODE 는 dev/test 환경에서만 활성화 가능. staging 또는
- * production 으로 잘못 배포되면 stub 토큰이 실제 사용자 데이터에 발급되어
- * 인증 우회를 허용할 위험이 있어 NODE_ENV 화이트리스트로 강제 제한한다.
- */
+/** OAUTH_STUB_MODE 가드 — dev/test 만 활성 (W-74 단일 헬퍼). */
 function isOAuthStubEnabled(): boolean {
-  if (process.env.OAUTH_STUB_MODE !== 'true') return false;
-  const env = process.env.NODE_ENV;
-  return env === 'test' || env === 'development';
+  return isOAuthStubModeAllowed();
 }
 
 export const AUTH_OAUTH_PROVIDERS = ['google', 'github'] as const;

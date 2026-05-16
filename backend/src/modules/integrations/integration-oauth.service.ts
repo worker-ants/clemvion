@@ -27,6 +27,7 @@ import { decryptJson } from './services/credentials-transformer';
 import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import { normalizeStatusReason } from './integration-status-reason';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
+import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
@@ -58,15 +59,9 @@ const STATIC_TOKEN_URLS: Record<'google' | 'github', string> = {
 
 const CAFE24_MALL_ID_PATTERN = /^[a-z0-9-]{3,50}$/;
 
-/**
- * Integration OAUTH_STUB_MODE 는 dev/test 환경에서만 활성화 가능. staging
- * 또는 production 으로 잘못 배포되면 stub 토큰이 실제 사용자 통합에 발급되어
- * 인증 우회를 허용할 위험이 있어 NODE_ENV 화이트리스트로 강제 제한한다.
- */
+/** Integration OAUTH_STUB_MODE 가드 — 단일 헬퍼 위임 (W-74). */
 function isIntegrationOAuthStubEnabled(): boolean {
-  if (process.env.OAUTH_STUB_MODE !== 'true') return false;
-  const env = process.env.NODE_ENV;
-  return env === 'test' || env === 'development';
+  return isOAuthStubModeAllowed();
 }
 
 function cafe24AuthorizeUrl(mallId: string): string {
