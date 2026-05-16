@@ -89,7 +89,7 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | [customer](./customer.md) | 24 | 0 | 12 |
 | [community](./community.md) | 13 | 15+ | 9 |
 | [design](./design.md) | 1 | 5+ | 3 |
-| [promotion](./promotion.md) | 34 | 6+ | 10 |
+| [promotion](./promotion.md) | 35 | 0 | 10 |
 | [application](./application.md) | 11 | 7+ | 8 |
 | [category](./category.md) | 19 | 0 | 5 |
 | [collection](./collection.md) | 7 | 6+ | 5 |
@@ -101,7 +101,7 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | [mileage](./mileage.md) | 8 | 0 | 5 |
 | [notification](./notification.md) | 8 | 4+ | 7 |
 | [translation](./translation.md) | 7 | 2+ | 4 |
-| **합계** | **214** | **~159** | **~250** |
+| **합계** | **215** | **~158** | **~250** |
 
 > "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 endpoint 합계는 ~500.
 
@@ -142,3 +142,4 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 | 2026-05-16 (coverage Phase 7f) | Category resource 완성 — decorationimages 2건 (get/update) + seo 2건 (get/update) + mains 3건 (add/update/delete) + autodisplay 3건 (create/update/delete) = 10건. category supported 9 → 19, planned 10 → 0, 합계 186 → 196. category 네 번째 0-planned resource. |
 | 2026-05-16 (coverage Phase 7g) | Supply resource 완성 — suppliers CUD 3건 + suppliers_users CRUD 6건 + suppliers_users regional shipping 5건 + shipping_suppliers 3건 = 17건. supply supported 3 → 20, planned 17 → 0, 합계 196 → 213. supply 다섯 번째 0-planned resource. 본 사이클 (Phase 7 a~g) 종료. |
 | 2026-05-16 (coverage Phase 8a) | Mileage resource 완성 — `points_report` 1건. mileage supported 7 → 8, planned 1 → 0, 합계 213 → 214. mileage 여섯 번째 0-planned resource. |
+| 2026-05-16 (coverage Phase 8b) | Promotion resource 완성 — `coupon_manage` 1건 (use_coupon T/F 토글). promotion supported 34 → 35, planned 1 → 0, 합계 214 → 215. promotion 일곱 번째 0-planned resource. |

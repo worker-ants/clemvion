@@ -578,4 +578,20 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
+  // Phase 8b — Promotion 완성 (coupon_manage)
+  {
+    id: 'coupon_manage',
+    label: '쿠폰 관리 (사용/중지)',
+    description: 'Manage a coupon — pause or resume it via `use_coupon` enum.',
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'coupons/{coupon_no}',
+    requiredFields: ['coupon_no'],
+    fields: {
+      coupon_no: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'body', default: 1 },
+      use_coupon: { type: 'enum', location: 'body', enum: ['T', 'F'] },
+    },
+    responseShape: 'single',
+  },
 ];
