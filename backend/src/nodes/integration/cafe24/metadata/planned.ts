@@ -83,13 +83,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'orders_status_update', label: '주문 상태 표기 수정' },
     { id: 'payment_setting_get', label: '결제 설정 조회' },
     { id: 'payment_setting_update', label: '결제 설정 수정' },
-    { id: 'paymentgateway_create', label: '결제대행사 생성' },
-    { id: 'paymentgateway_update', label: '결제대행사 수정' },
-    { id: 'paymentgateway_delete', label: '결제대행사 삭제' },
-    {
-      id: 'paymentgateway_paymentmethods_list',
-      label: '결제대행사 결제수단 목록',
-    },
     {
       id: 'paymentgateway_paymentmethods_create',
       label: '결제대행사 결제수단 생성',
@@ -101,11 +94,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     {
       id: 'paymentgateway_paymentmethods_delete',
       label: '결제대행사 결제수단 삭제',
-    },
-    { id: 'paymentmethods_list', label: '결제수단 목록' },
-    {
-      id: 'paymentmethods_paymentproviders_list',
-      label: '결제수단별 제공사 목록',
     },
     {
       id: 'paymentmethods_paymentproviders_update_display',
