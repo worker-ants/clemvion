@@ -88,6 +88,29 @@ export class ExecutionsService {
     }
   }
 
+  /**
+   * Workflow 가 사용자의 workspace 에 속하는지 검증 — `findByWorkflow` 같이
+   * workflowId 만 받는 list 엔드포인트에서 사용 (W-44 IDOR 차단).
+   * verifyOwnership 와 동일하게 NotFound 로 통일해 ID enumeration 차단.
+   */
+  async verifyWorkflowOwnership(
+    workflowId: string,
+    userWorkspaceId: string,
+  ): Promise<void> {
+    const row = await this.executionRepository.manager
+      .createQueryBuilder()
+      .select('w.workspace_id', 'workspaceId')
+      .from('workflow', 'w')
+      .where('w.id = :id', { id: workflowId })
+      .getRawOne<{ workspaceId: string | null }>();
+    if (!row || !row.workspaceId || row.workspaceId !== userWorkspaceId) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Workflow not found',
+      });
+    }
+  }
+
   async findById(id: string): Promise<ExecutionDetailWithTrigger> {
     // Carousel disabled stuck (Phase 3 fix) — Execution + NodeExecution 두 개의
     // SELECT 가 trxn 외부에서 별도로 실행되면, 그 사이에 엔진의
