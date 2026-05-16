@@ -1,9 +1,13 @@
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  hasExplicitSectionLabel,
   localizedSectionLabel,
   localizedSummary,
   localizedTitle,
 } from "../locale";
+import { LOCALES } from "@/lib/i18n/types";
 
 describe("localizedSectionLabel", () => {
   it("returns the Korean label for known section keys", () => {
@@ -77,5 +81,61 @@ describe("localizedSummary", () => {
         "ko",
       ),
     ).toBe("요약");
+  });
+});
+
+/**
+ * `frontend/src/content/docs/` 의 모든 (숨김 아닌) 섹션 디렉토리가
+ * `SECTION_LABELS_BY_LOCALE` 의 모든 로케일에 명시적으로 등록되어 있는지
+ * 검증한다.
+ *
+ * 누락 시 `humanize()` 폴백이 동작해 사이드바·검색 인덱스가 어색한 영문
+ * 라벨로 렌더된다 (예: "Faq" 대신 "자주 묻는 질문"). 사후 보정
+ * (`docs(user-guide): FAQ 섹션 이동 + locale.ts 라벨 동기화`) 패턴을
+ * 사전 차단한다.
+ *
+ * 정책 위치: developer/SKILL.md DOCUMENTATION 매핑표 (유저 가이드 신규 섹션 행).
+ * 추가 절차: spec/2-navigation/13-user-guide.md §5.
+ */
+describe("SECTION_LABELS_BY_LOCALE coverage", () => {
+  const DOCS_DIR = join(__dirname, "..", "..", "..", "content", "docs");
+
+  function listSectionDirs(): string[] {
+    return readdirSync(DOCS_DIR)
+      .filter((name) => {
+        if (name.startsWith("_")) return false; // 숨김 (예: _glossary, _i18n-conventions)
+        const full = join(DOCS_DIR, name);
+        try {
+          return statSync(full).isDirectory();
+        } catch {
+          return false;
+        }
+      })
+      .sort();
+  }
+
+  it("content/docs/ 디렉토리에 섹션이 하나 이상 존재한다 (회귀 가드)", () => {
+    expect(listSectionDirs().length).toBeGreaterThan(0);
+  });
+
+  for (const locale of LOCALES) {
+    it(`모든 섹션 디렉토리가 ${locale} 로케일에 명시적 라벨로 등록되어 있다`, () => {
+      const missing = listSectionDirs().filter(
+        (key) => !hasExplicitSectionLabel(key, locale),
+      );
+      expect(missing).toEqual([]);
+    });
+  }
+});
+
+describe("hasExplicitSectionLabel", () => {
+  it("등록된 섹션은 true 를 반환한다", () => {
+    expect(hasExplicitSectionLabel("01-getting-started", "ko")).toBe(true);
+    expect(hasExplicitSectionLabel("99-faq", "en")).toBe(true);
+  });
+
+  it("등록되지 않은 섹션은 false 를 반환한다", () => {
+    expect(hasExplicitSectionLabel("97-future-section", "ko")).toBe(false);
+    expect(hasExplicitSectionLabel("97-future-section", "en")).toBe(false);
   });
 });
