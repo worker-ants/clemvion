@@ -17,6 +17,7 @@ import { ThirdPartyOAuthController } from './third-party-oauth.controller';
 import { IntegrationsService } from './integrations.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { IntegrationActionRequiredNotifier } from './integration-action-required-notifier.service';
+import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
 import {
   IntegrationExpiryScannerService,
   INTEGRATION_EXPIRY_QUEUE,
@@ -53,7 +54,12 @@ import { CAFE24_REFRESH_QUEUE } from './cafe24-token-refresh.constants';
     IntegrationOAuthService,
     IntegrationExpiryScannerService,
     IntegrationActionRequiredNotifier,
+    Cafe24InstallNonceCache,
   ],
-  exports: [IntegrationsService, IntegrationActionRequiredNotifier],
+  exports: [
+    IntegrationsService,
+    IntegrationActionRequiredNotifier,
+    Cafe24InstallNonceCache,
+  ],
 })
 export class IntegrationsModule {}
