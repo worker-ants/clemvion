@@ -172,12 +172,24 @@ export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
 /** Patterns we mask before persisting lastError.message — provider errors
  * occasionally echo back tokens or partial secrets, and we never want those
  * to land in the DB even briefly. The match is conservative: regex hits
- * replace the entire matched run with `***`. */
-const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
+ * replace the entire matched run with `***`.
+ *
+ * 2026-05-16 (SEC-C2) — Cafe24 가 token endpoint 에러 응답에 `client-secret`
+ * (하이픈) 또는 `secret: ...` 단독 키워드를 echo 하는 사례가 운영 로그에서
+ * 확인되어 패턴을 확장. 이 sanitizer 는 더 이상 OAuth 흐름 전용이 아니며
+ * cafe24-api.client.ts 의 raw error 로그·throw 경로도 동일 패턴을
+ * 거쳐야 한다 (export 되어 cross-module 재사용). */
+export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   // OAuth-style bearer tokens
   /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
-  // Cafe24 token endpoints frequently include the secret in body / URL
-  /\b(client_secret|access_token|refresh_token|id_token|api_key|password|passwd|pwd)\s*[=:]\s*[^\s&'"]+/gi,
+  // Cafe24 token endpoints frequently include the secret in body / URL.
+  // 하이픈 변형 (`client-secret`) + JSON 따옴표 변형 (`"client_secret":"..."`)
+  // 까지 함께 매칭한다. value 분기 두 가지:
+  //   (a) `="abc"` / `:"abc"` — quoted (JSON or URL-encoded body)
+  //   (b) `=abc` / `:abc` — bare token (URL query or shell echo)
+  /"?\b(client[_-]secret|access[_-]token|refresh[_-]token|id[_-]token|api[_-]key|password|passwd|pwd)"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
+  // 단독 `secret` 키워드 (JSON `"secret":"..."` 또는 query `secret=...`)
+  /"?\bsecret"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
   // Authorization header values
   /\bAuthorization:\s*\S+/gi,
 ];
@@ -263,13 +275,16 @@ function normalizeRawPreviewRow(
   if (typeof credentialsRaw === 'string' && credentialsRaw.startsWith('enc:')) {
     credentials = decryptJson<Record<string, unknown>>(credentialsRaw) ?? {};
   } else if (typeof credentialsRaw === 'string') {
-    // legacy 미암호화 경로 (없어야 하지만 방어적). corrupted JSON 은
-    // 호출자에서 잡힘.
-    try {
-      credentials = JSON.parse(credentialsRaw) as Record<string, unknown>;
-    } catch {
-      credentials = { __invalid: true };
-    }
+    // SEC-C1/H-5: `enc:` prefix 가 없는 plaintext 문자열은 transformer 가
+    // 의도적으로 우회된 흔적이다 (직접 DB 쓰기 또는 마이그레이션 누락).
+    // 옛 코드는 "legacy 방어" 명목으로 조용히 JSON.parse 했으나, 이는
+    // 암호화 invariant 를 우회하는 경로를 열어둔다. 명시적으로 invalid 로
+    // 마크해 호출자가 `OAUTH_PREVIEW_INVALID` 분기로 처리하게 한다.
+    // 운영 진단을 위해 warn 로그도 함께 남긴다.
+    console.warn(
+      `[security] preview row credentials is plaintext (no 'enc:' prefix) — refusing to consume. previewToken=${typeof raw.preview_token === 'string' ? raw.preview_token.slice(0, 8) : 'unknown'}…`,
+    );
+    credentials = { __invalid: true };
   } else {
     credentials = (credentialsRaw ?? {}) as Record<string, unknown>;
   }
