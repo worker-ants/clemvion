@@ -71,7 +71,7 @@ PR #52 → #85 의 7 PR 사이클로 운영 결함·Critical 22건·High 11건·
 - **B-5-5. `Cafe24TransportFailedError` envelope 변환 케이스**: MCP provider 의 classifyError 검증.
 - **B-5-6. `Cafe24Handler.logUsage` failure swallow**: db 다운 시 result port 검증.
 - **B-5-7. provider_mismatch 분기**: state.provider != route provider 케이스.
-- **B-5-8. e2e**: backend/test/ 에 Cafe24 OAuth + handleInstall + handleCallback + BullMQ refresh 통합 시나리오 추가.
+- **B-5-8. e2e + unit/integration**: backend/test/ 에 Cafe24 OAuth + handleInstall 통합 시나리오 추가 (완료, `integration-cafe24-install.e2e-spec.ts`). handleCallback + BullMQ refresh 는 outbound Cafe24 token endpoint mock 인프라(nock/msw 또는 stub container) 부담이 과해 e2e 는 보류하고 unit/integration 보강으로 대체 (2026-05-16 결정 — 진행 목록 B-5-8 alt 참조).
 
 ## C. 운영 점검 (deferred)
 
@@ -95,7 +95,8 @@ PR #52 → #85 의 7 PR 사이클로 운영 결함·Critical 22건·High 11건·
 - [x] B-4: 데이터베이스 Medium 5건 — 묶음 PR (2026-05-16, V051 + 코드 4건 모두 처리)
 - [x] B-5: 테스트 Medium 8건 — 묶음 PR (2026-05-16, B-5-1/2/3/4/5/6/7 처리. B-5-8 e2e 는 별 plan 으로 잔여)
 - [x] B-5-8 follow-up: handleInstall e2e — 2026-05-16 `integration-cafe24-install.e2e-spec.ts` 신설 (happy + replay + HMAC + nonce). callback/refresh e2e 는 외부 Cafe24 token endpoint mock 추가 인프라 필요 — 별 follow-up
-- [ ] B-5-8 partial: handleCallback + BullMQ refresh e2e — Cafe24 token endpoint mock 이 backend-e2e 컨테이너 내부에서 동작해야 함 (nock/msw 인프라 추가 필요)
+- [~] B-5-8 partial: handleCallback + BullMQ refresh e2e — **e2e 보류, unit/integration 보강으로 대체 (2026-05-16 결정)**. Cafe24 token endpoint 가 outbound HTTPS 라 backend-e2e 컨테이너 안에서 nock/msw 인터셉트 또는 별도 stub container 인프라가 필요한데, 본 기능의 위험도 대비 투자가 과해 보류. 대신 아래 B-5-8 alt 로 진행.
+- [ ] B-5-8 alt: handleCallback / BullMQ refresh unit·integration 보강 — `exchangeCodeForToken` / `refreshAccessToken` 의 fetch 경로를 unit 으로 분리해 mock fetch + 응답 fixture 로 검증. 대상 시나리오: (a) callback 성공 → preview row 생성, (b) callback `invalid_grant` → `error(auth_failed)` 전이, (c) BullMQ refresh 성공 → atomic 4-field UPDATE, (d) refresh `invalid_grant` → status 전이 + 14일 idle 보호 회귀, (e) refresh transport 3연속 실패 → `error(network)`. 인프라 부담 없이 단위 테스트로 확실히 커버 가능한 영역만 보강.
 - [x] C-1: prod DB 점검 — **plaintext_rows = 0 확인 (2026-05-16)**. remediation 불필요. plan: `plan/complete/cafe24-prod-db-encryption-check.md`
 
 ## Cafe24 정비 사이클 (참고 — 완료)
