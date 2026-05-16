@@ -125,4 +125,20 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
+  // Phase 8a — Mileage 완성
+  {
+    id: 'points_report',
+    label: '적립금 리포트 조회',
+    description: 'Retrieve a points (mileage) report by date range.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'points/report',
+    requiredFields: ['start_date', 'end_date'],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+      start_date: { type: 'string', location: 'query' },
+      end_date: { type: 'string', location: 'query' },
+    },
+    responseShape: 'single',
+  },
 ];
