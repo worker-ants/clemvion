@@ -1606,26 +1606,6 @@ function readNumber(obj: Record<string, unknown>, key: string): number | null {
 }
 
 /**
- * Verifies the Cafe24 App URL HMAC signature.
- *
- * Algorithm (official Cafe24 sample — Java `validationCheckHmac`):
- *   1. Remove `hmac` from params, sort remaining keys alphabetically
- *   2. Rebuild as URL-encoded query string using Java `URLEncoder.encode(value, "UTF-8")`
- *      (application/x-www-form-urlencoded — spaces → `+`)
- *   3. HmacSHA256(client_secret, message) → Base64
- *   4. Compare (timing-safe) with the received (URL-decoded) hmac value
- *
- * Split into buildHmacMessage + verifyHmacWithMessage so callers with multiple
- * candidate secrets can compute the message once and reuse it per candidate.
- *
- * SEC H-1 (2026-05-16): `encodeURIComponent` 는 공백을 `%20` 으로 인코딩하지만
- * Cafe24 공식 Java 샘플의 `URLEncoder.encode(value, "UTF-8")` 는 공백을 `+`
- * 로 인코딩한다 (application/x-www-form-urlencoded MIME). user_name 등 공백
- * 포함 파라미터가 있는 정상 요청이 옛 구현에서 HMAC 불일치로 거부되던
- * 문제 (보안적 우회는 불가 — 공백 처리 차이만 영향) 를 `formUrlEncode` 로
- * 정정. RFC 3986 의 `*`, `-`, `.`, `_` 등 unreserved 문자 처리도 함께 정렬.
- */
-/**
  * Install_token 의 안전 미리보기 — prefix 4 + ".." + suffix 4. 전체 토큰은
  * logs / Referer 에 노출되지 않게 보호 (capability token 성격). 22자 미만은
  * `(short)` 로 마스킹. null/undefined 는 `(none)`.
@@ -1636,42 +1616,41 @@ function previewInstallToken(token: string | null | undefined): string {
   return `${token.slice(0, 4)}..${token.slice(-4)}`;
 }
 
-function buildHmacMessage(rawQuery: string): string {
-  const params = new URLSearchParams(rawQuery);
-  params.delete('hmac');
-  return [...params.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${formUrlEncode(v)}`)
-    .join('&');
-}
-
 /**
- * Java `URLEncoder.encode(value, "UTF-8")` 와 일치하는 인코딩.
+ * Builds the Cafe24 App URL HMAC verification message.
  *
- * Cafe24 의 공식 HMAC 검증 샘플이 사용하는 인코딩 방식:
- * - 공백 → `+`
- * - `*`, `-`, `.`, `_`, 알파벳·숫자는 그대로
- * - 그 외 모든 문자는 `%HH` (UTF-8 바이트 단위)
+ * Algorithm (official Cafe24 sample — Java `validationCheckHmac`):
+ *   1. Split rawQuery on `&`, then split each part on first `=`. Drop the
+ *      `hmac` entry. Sort the remaining entries by key (byte-lexicographic).
+ *   2. **Preserve raw URL-encoded values** — concatenate the original
+ *      `key=raw-value` strings as-is (no decode, no re-encode).
  *
- * `encodeURIComponent` 는 공백을 `%20`, `*`/`-`/`.`/`_`/`!`/`(`/`)`/`'`/`~`
- * 를 그대로 두지만 공백 처리만 다르다. Cafe24 가 보내는 메시지 안에
- * 별표·괄호 등이 들어올 가능성은 사실상 없으므로 공백 차이만 정정해도
- * 충분하지만, 명시적으로 Java 호환 인코더를 만들어두면 향후 회귀를 막을
- * 수 있다.
+ * The actual HMAC-SHA256 + Base64 + timing-safe compare happens in
+ * {@link verifyHmacWithMessage}. Split so callers with multiple candidate
+ * secrets compute the message once and reuse per candidate.
+ *
+ * **2026-05-16 재정정**: PR #67 SEC H-1 가 "Java `URLEncoder.encode` 호환
+ * (공백 `+`)" 으로 정정했으나 그 가정이 오류였음 — 운영 사용자 보고 (신규
+ * 통합 직후 즉시 HMAC 실패, PR #89 의 진단 로그가 `reason=hmac_verify_failed`
+ * 식별). Cafe24 의 실제 알고리즘은 `request.getQueryString()` 의 byte 를
+ * decode/re-encode 없이 그대로 사용한다 — URL 의 `%20` 이 메시지에서 `+` 로
+ * 변환되면서 byte 불일치 발생. raw 보존이 인코더 invariant. 자세한 결정
+ * 배경은 `spec/2-navigation/4-integration.md` Rationale "HMAC 검증 알고리즘
+ * — raw URL-encoded 값 보존 (2026-05-16 재정정)" 항 + `spec/4-nodes/4-integration/
+ * 4-cafe24.md` §9.8 참조.
  */
-function formUrlEncode(value: string): string {
-  return (
-    encodeURIComponent(value)
-      .replace(/%20/g, '+')
-      // encodeURIComponent 는 `!`, `'`, `(`, `)`, `*` 를 인코딩하지 않으나
-      // Java URLEncoder 는 `*` 만 그대로 두고 나머지는 인코딩한다. Cafe24
-      // 메시지가 이런 문자를 포함할 가능성은 극히 낮지만 호환을 위해 명시.
-      .replace(/!/g, '%21')
-      .replace(/'/g, '%27')
-      .replace(/\(/g, '%28')
-      .replace(/\)/g, '%29')
-      .replace(/~/g, '%7E')
-  );
+function buildHmacMessage(rawQuery: string): string {
+  return rawQuery
+    .split('&')
+    .map((part) => {
+      const eqIdx = part.indexOf('=');
+      const key = eqIdx === -1 ? part : part.slice(0, eqIdx);
+      return { key, raw: part };
+    })
+    .filter((p) => p.key.length > 0 && p.key !== 'hmac')
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    .map((p) => p.raw)
+    .join('&');
 }
 
 function verifyHmacWithMessage(
