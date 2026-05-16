@@ -18,6 +18,11 @@ import {
 } from './utils/execution-trigger';
 import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 
+// execution_node_log 행 수 상한. ForEach 같은 컨테이너에서 행 수가 폭증하는 경우
+// 메모리 적재량을 묶어두기 위한 안전망 — UI timeline 은 정렬된 nodeId prefix 만
+// 필요하므로 상한을 초과한 경우는 잘려도 표시 흐름은 유지된다.
+const MAX_EXECUTION_PATH_ROWS = 10_000;
+
 /**
  * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
  * triggerSource/triggerLabel 두 필드를 추가한 shape. `executionPath` 는
@@ -120,10 +125,14 @@ export class ExecutionsService {
           // executionPath 는 execution_node_log 의 (execution_id, id) 순서로
           // 채운다. BIGSERIAL `id` 가 단조증가이므로 다중 인스턴스 환경에서도
           // 단일 source of truth 를 유지한다.
+          // 대규모 ForEach 실행에서 로그 행이 수만 건에 달할 수 있어 안전 상한을
+          // 둔다 — UI 가 timeline 을 그리는 데 필요한 prefix 만 필요하므로
+          // MAX_EXECUTION_PATH_ROWS 까지만 가져온다.
           manager.find(ExecutionNodeLog, {
             where: { executionId: id },
             order: { id: 'ASC' },
             select: { nodeId: true },
+            take: MAX_EXECUTION_PATH_ROWS,
           }),
         ]);
         const executionPath = pathRows.map((r) => r.nodeId);

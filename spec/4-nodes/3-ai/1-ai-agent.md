@@ -22,7 +22,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | knowledgeBases | UUID[] | | `[]` | 참조할 Knowledge Base ID 목록. [공통 §2](./0-common.md#2-knowledge-base-연동) |
 | ragTopK | Integer | | `5` | KB tool 호출 시 반환할 청크 수의 기본값 (LLM 이 호출 인자로 override 가능) |
 | ragThreshold | Float | | `0.7` | 최소 유사도 임계값 (0-1) 의 기본값 (LLM 이 호출 인자로 override 가능) |
-| mcpServers | McpServerRef[] | | `[]` | MCP-capable Integration 참조 목록. `service_type ∈ ('mcp', 'cafe24')` 모두 수용 — 후자는 backend `Cafe24McpBridge` 가 in-process `IMcpClient` 로 동작 ([Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge)). [공통 §3](./0-common.md#3-mcp-서버-연결-ai-agent-전용) |
+| mcpServers | McpServerRef[] | | `[]` | MCP-capable Integration 참조 목록. `service_type ∈ ('mcp', 'cafe24')` 모두 수용 — 후자는 backend `Cafe24McpBridge` 가 in-process `IMcpClient` 로 동작 ([Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge-in-process)). [공통 §3](./0-common.md#3-mcp-서버-연결-ai-agent-전용) |
 | maxToolCalls | Integer | ✓ | `10` | 최대 도구 호출 횟수 (KB·MCP·일반 합산) |
 | contextScope | `none` / `thread` / `lastN` | ✓ | `none` | 자동 주입할 thread 범위. [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) |
 | contextScopeN | Integer | | `20` | `lastN` 시 최근 N개 turn |

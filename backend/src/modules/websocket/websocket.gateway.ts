@@ -220,6 +220,17 @@ export class WebsocketGateway
           data: { success: false, error: rejection.error },
         };
       }
+      // authorize() 가 await 경계라 그 사이 동일 클라이언트의 다른 subscribe 가
+      // 진행되어 한도를 통과한 뒤 add 단계에 진입할 수 있다. 추가 직전 재검사.
+      if (clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION) {
+        return {
+          event: 'subscribed',
+          data: {
+            success: false,
+            error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
+          },
+        };
+      }
     }
 
     // Detect first-time subscription so we only send the snapshot once. A

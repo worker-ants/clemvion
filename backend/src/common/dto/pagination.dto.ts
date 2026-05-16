@@ -6,6 +6,7 @@ import {
   IsString,
   IsIn,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -47,6 +48,13 @@ export class PaginationQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(64)
+  // 안전한 컬럼명 패턴 (영문/숫자/밑줄). 서비스별 화이트리스트(`getSortColumn`)가
+  // 다층 방어를 제공하지만 DTO 레벨에서 raw SQL 식별자에 들어갈 수 있는 위험
+  // 문자를 1차 차단해 ORDER BY 인젝션 / 식별자 우회를 막는다.
+  @Matches(/^[a-zA-Z][a-zA-Z0-9_]*$/, {
+    message: 'sort must be alphanumeric/underscore identifier',
+  })
   sort?: string = 'created_at';
 
   /** 정렬 방향 (asc | desc) */

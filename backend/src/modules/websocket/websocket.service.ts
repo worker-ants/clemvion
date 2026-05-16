@@ -93,17 +93,30 @@ function sanitizePayloadForWs(value: unknown, depth = 0): unknown {
   if (depth > MAX_SANITIZE_DEPTH) return value;
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) {
-    return value.map((item) => sanitizePayloadForWs(item, depth + 1));
+    let mutated = false;
+    const out: unknown[] = new Array(value.length);
+    for (let i = 0; i < value.length; i++) {
+      const sanitized = sanitizePayloadForWs(value[i], depth + 1);
+      if (sanitized !== value[i]) mutated = true;
+      out[i] = sanitized;
+    }
+    return mutated ? out : value;
   }
-  const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+  let result: Record<string, unknown> | null = null;
+  const obj = value as Record<string, unknown>;
+  for (const [k, v] of Object.entries(obj)) {
     if (CREDENTIAL_KEY_PATTERN.test(k)) {
+      if (!result) result = { ...obj };
       result[k] = '[REDACTED]';
     } else {
-      result[k] = sanitizePayloadForWs(v, depth + 1);
+      const sanitized = sanitizePayloadForWs(v, depth + 1);
+      if (sanitized !== v) {
+        if (!result) result = { ...obj };
+        result[k] = sanitized;
+      }
     }
   }
-  return result;
+  return result ?? value;
 }
 
 /**

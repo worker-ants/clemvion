@@ -71,7 +71,7 @@ describe('Webhook trigger (e2e)', () => {
   }
 
   it('A. 활성 webhook 트리거 수신 → 202 + executionId', async () => {
-    const path = `e2e-a-${Date.now()}`;
+    const path = `e2e-a-${crypto.randomBytes(8).toString('hex')}`;
     await createWebhookTrigger(uniqueName('hook-a'), path);
 
     const res = await request(BASE_URL)
@@ -92,7 +92,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('C. 비활성 트리거 → 410 TRIGGER_INACTIVE', async () => {
-    const path = `e2e-c-${Date.now()}`;
+    const path = `e2e-c-${crypto.randomBytes(8).toString('hex')}`;
     const triggerId = await createWebhookTrigger(uniqueName('hook-c'), path);
 
     // 비활성화.
@@ -109,7 +109,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('D. bearer auth — 잘못된 토큰 401, 올바른 토큰 202', async () => {
-    const path = `e2e-d-${Date.now()}`;
+    const path = `e2e-d-${crypto.randomBytes(8).toString('hex')}`;
     const expectedToken = 'secret-token-abc';
     await createWebhookTrigger(uniqueName('hook-d'), path, {
       authType: 'bearer',
@@ -131,7 +131,7 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('E. HMAC auth — 서명 누락 401, 올바른 서명 202', async () => {
-    const path = `e2e-e-${Date.now()}`;
+    const path = `e2e-e-${crypto.randomBytes(8).toString('hex')}`;
     const secret = 'super-secret-hmac-key';
     await createWebhookTrigger(uniqueName('hook-e'), path, {
       authType: 'hmac',
