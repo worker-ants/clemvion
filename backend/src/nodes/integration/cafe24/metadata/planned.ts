@@ -399,15 +399,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   supply: [],
   shipping: [],
   salesreport: [],
-  personal: [
-    { id: 'customers_wishlist_count', label: '위시리스트 상품 개수' },
-    { id: 'products_carts_count', label: '상품 담은 장바구니 수' },
-    {
-      id: 'products_carts_list',
-      label: '상품 담은 장바구니 목록',
-      paginated: true,
-    },
-  ],
+  personal: [],
   privacy: [
     {
       id: 'customers_privacy_list',
