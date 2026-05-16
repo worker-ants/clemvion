@@ -66,7 +66,7 @@ describe('validateLoopConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (loop)', () => {
-  it('emits the Korean warning when count is missing', () => {
+  it('emits the warning when count is missing', () => {
     expect(evaluateMetadataBlockingErrors(loopNodeMetadata, {})).toContain(
       'Count must be entered.',
     );

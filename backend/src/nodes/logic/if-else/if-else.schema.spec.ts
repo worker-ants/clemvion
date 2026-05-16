@@ -76,7 +76,7 @@ describe('validateIfElseConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (if_else)', () => {
-  it('emits both Korean warnings on a freshly-created node', () => {
+  it('emits both warnings on a freshly-created node', () => {
     const errors = evaluateMetadataBlockingErrors(ifElseMetadata, {});
     expect(errors).toContain('At least one condition must be added.');
   });

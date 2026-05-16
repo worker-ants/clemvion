@@ -215,6 +215,15 @@ describe('IntegrationOAuthService — Cafe24', () => {
         mall_id: 'myshop',
         app_type: 'public',
       });
+      // DTO branch invariants (spec §9.2): Cafe24 Public 분기는 popup 흐름
+      // 이므로 Private 전용 필드(integrationId / appUrl / callbackUrl / mode)
+      // 는 응답에 포함되지 않아야 한다. DTO 가 required→optional 로 완화된
+      // 상태에서 호출부가 분기를 잘못 식별하지 않도록 명시 단언.
+      const publicResp = result as Record<string, unknown>;
+      expect(publicResp.mode).toBeUndefined();
+      expect(publicResp.integrationId).toBeUndefined();
+      expect(publicResp.appUrl).toBeUndefined();
+      expect(publicResp.callbackUrl).toBeUndefined();
     });
 
     it('private app — creates pending_install integration and returns pending result', async () => {
@@ -266,8 +275,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
       // No state row yet (state is created later in handleInstall).
       expect(stateRepo.save).not.toHaveBeenCalled();
-      // No authUrl — the browser never opens a popup for private apps.
-      expect((result as Record<string, unknown>).authUrl).toBeUndefined();
+      // DTO branch invariants (spec §9.2): Private 분기는 popup 흐름이 아니므로
+      // Public 전용 필드(authUrl / state) 가 응답에 포함되지 않아야 한다.
+      const privateResp = result as Record<string, unknown>;
+      expect(privateResp.authUrl).toBeUndefined();
+      expect(privateResp.state).toBeUndefined();
     });
   });
 

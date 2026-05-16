@@ -260,7 +260,7 @@ describe('validateTextClassifierConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (text_classifier)', () => {
-  it('emits multiple Korean warnings on a freshly-created node', () => {
+  it('emits multiple warnings on a freshly-created node', () => {
     const errors = evaluateMetadataBlockingErrors(
       textClassifierNodeMetadata,
       {},

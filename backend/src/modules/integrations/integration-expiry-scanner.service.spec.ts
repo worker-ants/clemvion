@@ -218,6 +218,25 @@ describe('IntegrationExpiryScannerService.run', () => {
     const count = await scanner.run(new Date('2026-04-12T00:00:00Z'));
     expect(count).toBe(0);
   });
+
+  // REQ-C1 — spec §11.1 + §2.4: pending_install 은 만료 알림 대상에서 명시
+  // 제외. find()의 where 절 status filter 가 `Not(In([..., 'pending_install']))`
+  // 을 포함하는지 확인 (TypeORM operator 내부 `_value` 직접 검사).
+  it('excludes pending_install from the run() candidate query (REQ-C1)', async () => {
+    integrationRepo.find.mockResolvedValue([]);
+    await scanner.run(new Date('2026-04-12T00:00:00Z'));
+    expect(integrationRepo.find).toHaveBeenCalledTimes(1);
+    const whereArg = (
+      integrationRepo.find.mock.calls[0][0] as {
+        where: Record<string, unknown>;
+      }
+    ).where;
+    const statusOp = whereArg.status as { _value: { _value: string[] } };
+    // Not(In([...])) → outer _value 는 In operator, In 의 _value 는 배열
+    expect(statusOp._value._value).toEqual(
+      expect.arrayContaining(['expired', 'error', 'pending_install']),
+    );
+  });
 });
 
 describe('IntegrationExpiryScannerService.expirePendingInstalls', () => {

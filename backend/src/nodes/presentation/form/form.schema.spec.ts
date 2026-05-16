@@ -59,7 +59,7 @@ describe('optionSchema (select/radio/checkbox 옵션)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (form)', () => {
-  it('returns the Korean warning message for an empty form', () => {
+  it('returns the warning message for an empty form', () => {
     expect(evaluateMetadataBlockingErrors(formNodeMetadata, {})).toEqual([
       'At least one field must be defined.',
     ]);
