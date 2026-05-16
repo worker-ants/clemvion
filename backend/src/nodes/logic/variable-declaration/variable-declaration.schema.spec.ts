@@ -75,7 +75,7 @@ describe('evaluateMetadataBlockingErrors integration (variable_declaration)', ()
   it('emits the Korean warning on a freshly-created node', () => {
     expect(
       evaluateMetadataBlockingErrors(variableDeclarationNodeMetadata, {}),
-    ).toContain('최소 1개 이상의 변수를 정의해야 합니다.');
+    ).toContain('At least one variable must be defined.');
   });
 
   it('returns [] when configured with a valid variable', () => {

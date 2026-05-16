@@ -174,7 +174,7 @@ export const formNodeMetadata: NodeComponentMetadata = {
     {
       id: 'form:no-fields',
       when: 'length(fields) == 0',
-      message: '최소 1개 이상의 필드를 정의해야 합니다.',
+      message: 'At least one field must be defined.',
     },
   ],
 };

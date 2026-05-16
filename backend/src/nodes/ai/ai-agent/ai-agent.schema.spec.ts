@@ -356,7 +356,7 @@ describe('evaluateMetadataBlockingErrors integration (ai_agent)', () => {
     // both "no provider" and "single-turn needs prompt" should fire
     expect(errors.some((e) => e.includes('LLM provider'))).toBe(true);
     expect(errors).toContain(
-      'System Prompt 또는 User Prompt 중 하나는 입력해야 합니다.',
+      'Either System Prompt or User Prompt must be entered.',
     );
   });
 

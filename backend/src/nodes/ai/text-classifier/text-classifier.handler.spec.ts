@@ -67,8 +67,8 @@ describe('TextClassifierHandler', () => {
     it('should fail without categories', () => {
       const result = handler.validate({ inputField: 'test', model: 'gpt-4' });
       expect(result.valid).toBe(false);
-      // Schema warningRule "하나 이상의 카테고리를 추가해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('카테고리'))).toBe(true);
+      // Schema warningRule "At least one category must be added." fires.
+      expect(result.errors.some((e) => e.includes('category'))).toBe(true);
     });
 
     it('should fail with empty categories array', () => {
@@ -78,7 +78,7 @@ describe('TextClassifierHandler', () => {
         categories: [],
       });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('카테고리'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('category'))).toBe(true);
     });
 
     it('should fail when category name is empty', () => {
@@ -97,7 +97,7 @@ describe('TextClassifierHandler', () => {
         categories: [{ name: 'A', description: 'Cat A' }],
       });
       expect(result.valid).toBe(false);
-      // Schema warningRule "Input Field 를 입력해야 합니다." fires.
+      // Schema warningRule "Input Field must be entered." fires.
       expect(result.errors.some((e) => e.includes('Input Field'))).toBe(true);
     });
 

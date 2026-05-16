@@ -158,12 +158,12 @@ export const databaseQueryNodeMetadata: NodeComponentMetadata = {
     {
       id: 'database_query:no-integration',
       when: '!integrationId',
-      message: 'Database integration 을 선택해야 합니다.',
+      message: 'Database integration must be selected.',
     },
     {
       id: 'database_query:no-query',
       when: '!query',
-      message: 'SQL query 를 입력해야 합니다.',
+      message: 'SQL query must be entered.',
     },
   ],
   validateConfig: validateDatabaseQueryConfig,

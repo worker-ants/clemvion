@@ -31,8 +31,8 @@ describe('TransformHandler', () => {
     it('should fail when operations is missing', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      // Schema warningRule "하나 이상의 변환 작업을 추가해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('변환'))).toBe(true);
+      // Schema warningRule "At least one transform operation must be added." fires.
+      expect(result.errors.some((e) => e.includes('transform'))).toBe(true);
     });
 
     it('should fail when operations is not an array', () => {

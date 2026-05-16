@@ -32,14 +32,14 @@ describe('FormHandler', () => {
     it('rejects missing fields', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      // Schema warningRule "최소 1개 이상의 필드를 정의해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('필드'))).toBe(true);
+      // Schema warningRule "At least one field must be defined." fires.
+      expect(result.errors.some((e) => e.includes('field'))).toBe(true);
     });
 
     it('rejects empty fields array', () => {
       const result = handler.validate({ fields: [] });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('필드'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('field'))).toBe(true);
     });
 
     it('rejects non-array fields', () => {
@@ -51,7 +51,7 @@ describe('FormHandler', () => {
     it('rejects null fields', () => {
       const result = handler.validate({ fields: null });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('필드'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('field'))).toBe(true);
     });
   });
 

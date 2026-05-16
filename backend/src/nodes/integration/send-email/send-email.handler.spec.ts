@@ -76,7 +76,7 @@ describe('SendEmailHandler', () => {
       void _drop;
       const result = handler.validate(rest);
       expect(result.valid).toBe(false);
-      // Schema warningRule "Email integration 을 선택해야 합니다." fires.
+      // Schema warningRule "Email integration must be selected." fires.
       expect(result.errors.join(' ')).toContain('integration');
     });
 
@@ -85,7 +85,7 @@ describe('SendEmailHandler', () => {
       void _drop;
       const result = handler.validate(rest);
       expect(result.valid).toBe(false);
-      // Schema warningRule "수신자 (To) 를 한 명 이상 입력해야 합니다." fires
+      // Schema warningRule "Recipient (To) must include at least one address." fires
       // alongside the imperative recipient sum-type guard. Both contain "To".
       expect(result.errors.join(' ')).toMatch(/to|To|수신자/);
     });

@@ -133,7 +133,7 @@ describe('validateTransformConfig (imperative)', () => {
 describe('evaluateMetadataBlockingErrors integration (transform)', () => {
   it('emits the Korean warning when no operations are defined', () => {
     expect(evaluateMetadataBlockingErrors(transformNodeMetadata, {})).toContain(
-      '하나 이상의 변환 작업을 추가해야 합니다.',
+      'At least one transform operation must be added.',
     );
   });
 

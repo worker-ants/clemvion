@@ -77,7 +77,7 @@ export const splitNodeMetadata: NodeComponentMetadata = {
     {
       id: 'split:no-field-path',
       when: '!fieldPath',
-      message: 'Field path 를 입력해야 합니다.',
+      message: 'Field path must be entered.',
     },
   ],
 };
