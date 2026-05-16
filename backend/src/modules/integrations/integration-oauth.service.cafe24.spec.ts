@@ -19,26 +19,23 @@ function makeQueryBuilder(results: unknown[] = []) {
 }
 
 /**
- * production `buildHmacMessage` 와 정확히 동일한 인코딩을 사용해야 한다.
- * SEC H-1 (2026-05-16) — Cafe24 공식 Java URLEncoder 호환 (공백 `+`).
+ * production `buildHmacMessage` 와 정확히 동일한 알고리즘을 사용해야 한다.
+ * **2026-05-16 재정정**: Cafe24 의 실제 알고리즘은 URL value 를 decode/
+ * re-encode 없이 raw byte 그대로 HMAC 메시지에 사용한다 (`validationCheckHmac`
+ * Java 샘플: `request.getQueryString()` → split → TreeMap 보존). 옛 SEC H-1
+ * 의 `formUrlEncodeForTest` 헬퍼는 self-fulfilling 검증 (compute 와 verify
+ * 가 같은 broken 알고리즘) 이어서 실제 Cafe24 동작을 못 잡았던 회귀 원인.
  */
-function formUrlEncodeForTest(value: string): string {
-  return encodeURIComponent(value)
-    .replace(/%20/g, '+')
-    .replace(/!/g, '%21')
-    .replace(/'/g, '%27')
-    .replace(/\(/g, '%28')
-    .replace(/\)/g, '%29')
-    .replace(/~/g, '%7E');
-}
-
 function computeTestHmac(rawQuery: string, secret: string): string {
-  const params = new URLSearchParams(rawQuery);
-  params.delete('hmac');
-  const message = [...params.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${formUrlEncodeForTest(v)}`)
-    .join('&');
+  const parts = rawQuery
+    .split('&')
+    .filter((p) => p.length > 0 && !p.startsWith('hmac=') && p.includes('='))
+    .sort((a, b) => {
+      const keyA = a.slice(0, a.indexOf('='));
+      const keyB = b.slice(0, b.indexOf('='));
+      return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
+    });
+  const message = parts.join('&');
   return createHmac('sha256', secret).update(message, 'utf8').digest('base64');
 }
 
@@ -700,20 +697,21 @@ describe('IntegrationOAuthService — Cafe24', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    // SEC H-1 회귀 — Cafe24 가 보내는 query 의 value 에 공백이 포함될 수
-    // 있다 (예: `user_name=John Doe`). 옛 구현은 `encodeURIComponent` 로
-    // 공백을 `%20` 인코딩했으나 Cafe24 공식 Java 샘플은 `URLEncoder.encode`
-    // (`+`) 를 사용해 HMAC 메시지 형태가 일치하지 않아 정상 요청이
-    // 거부되었다. `formUrlEncode` 로 정정 후 통과하는지 검증.
-    it('accepts HMAC for queries containing space-encoded values (URLEncoder compat)', async () => {
+    // 회귀 보호 (2026-05-16 hmac-raw-fix) — Cafe24 는 URL value 를 raw byte 그대로
+    // HMAC 메시지에 사용한다. 운영 환경에서 Cafe24 가 공백을 `%20` 으로 보내는데,
+    // 옛 SEC H-1 (PR #67) 의 `formUrlEncode` 가 `%20` 을 `+` 로 변환해 byte 불일치
+    // → 신규 통합 직후 즉시 HMAC 실패하던 결함을 raw-value 보존으로 정정.
+    // 결정 배경: spec/2-navigation/4-integration.md Rationale
+    // "HMAC 검증 알고리즘 — raw URL-encoded 값 보존 (2026-05-16 재정정)".
+    it('accepts HMAC for %20 space-encoded values (Cafe24 실제 운영 형식)', async () => {
       integrationRepo.findOne.mockResolvedValue(makePendingRow());
       const validTs = Math.floor(Date.now() / 1000);
-      const base = `mall_id=priv-shop&timestamp=${validTs}&user_id=admin&user_name=John+Doe`;
+      // Cafe24 가 실제로 보내는 형식 — 공백을 %20 으로 인코딩 ("대표 관리자")
+      const base = `mall_id=priv-shop&timestamp=${validTs}&user_id=admin&user_name=%EB%8C%80%ED%91%9C%20%EA%B4%80%EB%A6%AC%EC%9E%90`;
       const hmac = computeTestHmac(base, clientSecret);
       const rawQuery = `${base}&hmac=${encodeURIComponent(hmac)}`;
       const params = new URLSearchParams(rawQuery);
 
-      // 공백 포함 정상 요청이 throw 없이 OAuth authorize URL 을 반환해야 함
       const result = await service.handleInstall(INSTALL_TOKEN, {
         mall_id: 'priv-shop',
         timestamp: String(validTs),
@@ -721,6 +719,51 @@ describe('IntegrationOAuthService — Cafe24', () => {
         rawQuery,
       });
       expect(result).toContain('oauth/authorize');
+    });
+
+    // 회귀 보호 — Cafe24 가 향후 `+` 인코딩으로 바꿔도 raw-value 보존 알고리즘은
+    // 자동 호환 (encoder invariant). URL value 의 byte 가 같으면 메시지의 byte 도
+    // 같으므로 매칭 성립.
+    it('accepts HMAC for + space-encoded values (encoder invariant)', async () => {
+      integrationRepo.findOne.mockResolvedValue(makePendingRow());
+      const validTs = Math.floor(Date.now() / 1000);
+      const base = `mall_id=priv-shop&timestamp=${validTs}&user_id=admin&user_name=John+Doe`;
+      const hmac = computeTestHmac(base, clientSecret);
+      const rawQuery = `${base}&hmac=${encodeURIComponent(hmac)}`;
+      const params = new URLSearchParams(rawQuery);
+
+      const result = await service.handleInstall(INSTALL_TOKEN, {
+        mall_id: 'priv-shop',
+        timestamp: String(validTs),
+        hmac: params.get('hmac')!,
+        rawQuery,
+      });
+      expect(result).toContain('oauth/authorize');
+    });
+
+    // 회귀 보호 — 옛 SEC H-1 알고리즘 (formUrlEncode 가 `%20` 을 `+` 로 변환한
+    // 메시지로 HMAC 계산) 으로 만든 hmac 은 거부되어야 한다. 이 테스트가 통과해야
+    // self-fulfilling 회귀가 다시 일어나지 않는다.
+    it('rejects HMAC computed by old SEC H-1 algorithm (%20 → + re-encoding)', async () => {
+      integrationRepo.findOne.mockResolvedValue(makePendingRow());
+      const validTs = Math.floor(Date.now() / 1000);
+      // URL 은 %20, 그러나 HMAC 은 옛 SEC H-1 처럼 + 로 변환된 메시지로 계산
+      const realUrl = `mall_id=priv-shop&timestamp=${validTs}&user_id=admin&user_name=%EB%8C%80%ED%91%9C%20%EA%B4%80%EB%A6%AC%EC%9E%90`;
+      const oldStyleMessage = `mall_id=priv-shop&timestamp=${validTs}&user_id=admin&user_name=%EB%8C%80%ED%91%9C+%EA%B4%80%EB%A6%AC%EC%9E%90`;
+      const wrongHmac = createHmac('sha256', clientSecret)
+        .update(oldStyleMessage, 'utf8')
+        .digest('base64');
+      const rawQuery = `${realUrl}&hmac=${encodeURIComponent(wrongHmac)}`;
+      const params = new URLSearchParams(rawQuery);
+
+      await expect(
+        service.handleInstall(INSTALL_TOKEN, {
+          mall_id: 'priv-shop',
+          timestamp: String(validTs),
+          hmac: params.get('hmac')!,
+          rawQuery,
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('throws CAFE24_INSTALL_INVALID_HMAC when mall_id of the row does not match the query', async () => {
