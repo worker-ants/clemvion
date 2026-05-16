@@ -104,18 +104,18 @@ Schema 매핑 표 · 상태 전이 · 외부 의존) 를 따른다.
 
 | 도메인 | 파일 | 한 줄 요약 |
 | --- | --- | --- |
-| 인증 | [`auth.md`](./auth.md) | 회원가입·로그인·OAuth·refresh token 회전·세션 종료 흐름 |
-| 워크스페이스 | [`workspace.md`](./workspace.md) | 워크스페이스·멤버·초대 토큰·RBAC 흐름 |
-| 워크플로우 | [`workflow.md`](./workflow.md) | 워크플로우·노드·엣지 CRUD, 버전 스냅샷, AI Assistant 세션 |
-| 실행 | [`execution.md`](./execution.md) | 워크플로우 실행 엔진·BullMQ 큐·노드 실행 로그 |
-| Knowledge Base | [`knowledge-base.md`](./knowledge-base.md) | KB 생성·문서 업로드·임베딩 파이프라인·Graph RAG·RAG 검색 |
-| Integration | [`integration.md`](./integration.md) | 외부 OAuth credential 암호화 저장·만료 스캔·사용 로그 |
-| Trigger | [`triggers.md`](./triggers.md) | Webhook·Schedule·Manual trigger 진입과 Execution 연결 |
-| LLM Usage | [`llm-usage.md`](./llm-usage.md) | LLM Config 해석·LLM 호출·usage_log 적재 |
-| File Storage | [`file-storage.md`](./file-storage.md) | S3/MinIO 버킷 구조·파일 라이프사이클·실제 사용처 |
-| Notifications | [`notifications.md`](./notifications.md) | `notification` table·이메일·WebSocket emit 흐름 |
-| Audit | [`audit.md`](./audit.md) | `audit_log` 와 `login_history` 적재 흐름 |
-| Observability | [`observability.md`](./observability.md) | Health check·Dashboard·Statistics·Alerts evaluator |
+| 인증 | [`auth.md`](./2-auth.md) | 회원가입·로그인·OAuth·refresh token 회전·세션 종료 흐름 |
+| 워크스페이스 | [`workspace.md`](./12-workspace.md) | 워크스페이스·멤버·초대 토큰·RBAC 흐름 |
+| 워크플로우 | [`workflow.md`](./11-workflow.md) | 워크플로우·노드·엣지 CRUD, 버전 스냅샷, AI Assistant 세션 |
+| 실행 | [`execution.md`](./3-execution.md) | 워크플로우 실행 엔진·BullMQ 큐·노드 실행 로그 |
+| Knowledge Base | [`knowledge-base.md`](./6-knowledge-base.md) | KB 생성·문서 업로드·임베딩 파이프라인·Graph RAG·RAG 검색 |
+| Integration | [`integration.md`](./5-integration.md) | 외부 OAuth credential 암호화 저장·만료 스캔·사용 로그 |
+| Trigger | [`triggers.md`](./10-triggers.md) | Webhook·Schedule·Manual trigger 진입과 Execution 연결 |
+| LLM Usage | [`llm-usage.md`](./7-llm-usage.md) | LLM Config 해석·LLM 호출·usage_log 적재 |
+| File Storage | [`file-storage.md`](./4-file-storage.md) | S3/MinIO 버킷 구조·파일 라이프사이클·실제 사용처 |
+| Notifications | [`notifications.md`](./8-notifications.md) | `notification` table·이메일·WebSocket emit 흐름 |
+| Audit | [`audit.md`](./1-audit.md) | `audit_log` 와 `login_history` 적재 흐름 |
+| Observability | [`observability.md`](./9-observability.md) | Health check·Dashboard·Statistics·Alerts evaluator |
 
 ---
 

@@ -66,7 +66,7 @@ Cafe24 private "Pending install" 멈춤 사례 분석 (`/Users/gehrig/.claude/pl
 
 - (편의) §14.2 의 "Resource 단위 grouping" 표현이 `spec/conventions/cafe24-api-metadata.md §6` 의 "카테고리 단위 grouping" 과 상충 → "카테고리" 로 단어 1개 교정 (W7).
 
-### C. spec/data-flow/integration.md §3.2
+### C. spec/data-flow/5-integration.md §3.2
 
 **Warning**
 

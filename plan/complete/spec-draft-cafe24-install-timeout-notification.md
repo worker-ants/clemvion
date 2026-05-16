@@ -8,7 +8,7 @@ owner: project-planner
 
 ## 배경
 
-PR #76 의 consistency-check 결과 W-2: `expirePendingInstalls()` 의 `install_timeout` 분기에서 `Notification` (type='integration_expired') 가 발사되지 않으나, spec/data-flow/notifications.md 의 갱신 표현이 "expired 두 경로 (token_expired, install_timeout) 만 발사" 로 install_timeout 도 발사한다고 시사. 코드와 spec 불일치.
+PR #76 의 consistency-check 결과 W-2: `expirePendingInstalls()` 의 `install_timeout` 분기에서 `Notification` (type='integration_expired') 가 발사되지 않으나, spec/data-flow/8-notifications.md 의 갱신 표현이 "expired 두 경로 (token_expired, install_timeout) 만 발사" 로 install_timeout 도 발사한다고 시사. 코드와 spec 불일치.
 
 코드 검토:
 - `expirePendingInstalls()` — 단일 atomic bulk UPDATE 로 status 만 전이, `notificationsService.createMany` 호출 없음 (`backend/src/modules/integrations/integration-expiry-scanner.service.ts:251-287`).
@@ -27,7 +27,7 @@ PR #76 의 consistency-check 결과 W-2: `expirePendingInstalls()` 의 `install_
 
 ## 변경 spec 파일 (3건)
 
-### 1. `spec/data-flow/notifications.md` §1.1
+### 1. `spec/data-flow/8-notifications.md` §1.1
 
 `integration_expired` 발사 조건 — "두 경로" 표현을 정정:
 - 옛 (PR #76): "expired 전이 두 경로 (token_expired, install_timeout) 만 발사"

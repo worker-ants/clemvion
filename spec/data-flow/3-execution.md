@@ -201,11 +201,11 @@ stateDiagram-v2
 
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
-| Trigger 도메인 | 진입 | [`triggers.md`](./triggers.md) — webhook / schedule / manual |
-| LLM Usage 도메인 | AI 노드 호출 시 | LLM 호출 후 `llm_usage_log` 적재. [`llm-usage.md`](./llm-usage.md) |
-| Integration 도메인 | http_request / database_query / send_email 노드 | credentials 해석. [`integration.md`](./integration.md) |
-| Knowledge Base 도메인 | AI Agent 의 KB 도구 호출 | RAG 검색 진입. [`knowledge-base.md`](./knowledge-base.md) |
-| Notifications 도메인 | execution_failed / background_failed | [`notifications.md`](./notifications.md) |
+| Trigger 도메인 | 진입 | [`triggers.md`](./10-triggers.md) — webhook / schedule / manual |
+| LLM Usage 도메인 | AI 노드 호출 시 | LLM 호출 후 `llm_usage_log` 적재. [`llm-usage.md`](./7-llm-usage.md) |
+| Integration 도메인 | http_request / database_query / send_email 노드 | credentials 해석. [`integration.md`](./5-integration.md) |
+| Knowledge Base 도메인 | AI Agent 의 KB 도구 호출 | RAG 검색 진입. [`knowledge-base.md`](./6-knowledge-base.md) |
+| Notifications 도메인 | execution_failed / background_failed | [`notifications.md`](./8-notifications.md) |
 | WebSocket | 모든 상태 전이 emit | 단일 sink |
 
 ---
