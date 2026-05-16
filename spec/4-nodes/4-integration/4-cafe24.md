@@ -425,34 +425,33 @@ Cafe24 는 App URL 호출 시 **HmacSHA256 + Base64** 서명(`hmac` 파라미터
 
 **알고리즘 (공식 문서 + 공식 Java 샘플 기준):**
 
-1. `hmac` 파라미터를 제외한 나머지 쿼리 파라미터를 **알파벳순 정렬**
-2. **form-urlencoded** query string 형태로 직렬화: `key=URLencoded-value&...`. 값 인코딩은 Java `URLEncoder.encode(value, "UTF-8")` 호환 — `application/x-www-form-urlencoded` MIME 규약 (공백 → `+`).
+1. `hmac` 파라미터를 제외한 나머지 쿼리 파라미터를 **알파벳순 정렬** (key 기준)
+2. **원본 URL-encoded 값을 그대로 보존** 해서 query string 형태로 직렬화: `key=raw-value&...`. **decode/re-encode 금지** — Cafe24 의 공식 Java 샘플 `validationCheckHmac` 는 `request.getQueryString()` 을 `&` 로 split 한 뒤 `=` 로 한 번만 split 해서 value 부분을 **raw 그대로** TreeMap 에 저장한다. 즉 Cafe24 가 URL 에 `%20` 으로 보냈으면 HMAC 메시지에도 `%20`, `+` 로 보냈으면 `+` 그대로 유지된다. value 의 의미를 해석하지 않고 byte 단위로 매칭하는 게 정답. **재정정 배경**은 [Spec 통합 화면 ## Rationale](../../2-navigation/4-integration.md#rationale) "HMAC 검증 알고리즘 — raw URL-encoded 값 보존 (2026-05-16 재정정)" 항 참조.
 3. `client_secret` 을 키로 HmacSHA256 해싱
 4. 결과를 **Base64 인코딩**
 5. URL-decoded `hmac` 파라미터 값과 timing-safe 비교
 
 ```typescript
-// (2026-05-16 갱신) `encodeURIComponent` 는 공백을 `%20` 으로 인코딩하지만
-// Cafe24 공식 Java 샘플의 `URLEncoder.encode` 는 공백을 `+` 로 인코딩한다.
-// `formUrlEncode` 로 정정하지 않으면 user_name 등 공백 포함 정상 요청이
-// HMAC 불일치로 거부된다 (PR #67 SEC H-1).
-function formUrlEncode(value: string): string {
-  return encodeURIComponent(value)
-    .replace(/%20/g, '+')
-    .replace(/!/g, '%21')
-    .replace(/'/g, '%27')
-    .replace(/\(/g, '%28')
-    .replace(/\)/g, '%29')
-    .replace(/~/g, '%7E');
+// (2026-05-16 재정정) Cafe24 는 URL 의 값을 decode/re-encode 없이 raw 그대로
+// HMAC 메시지에 사용한다. URLEncoder 호환 인코더 (PR #67 SEC H-1) 가정은
+// 오류였으며 (사용자 보고 — 신규 통합 직후 HMAC 실패), 운영 URL 의 `%20` 이
+// 메시지 안에서 `+` 로 변환되어 byte 불일치를 일으켰다. raw 보존이 invariant.
+function buildHmacMessage(rawQuery: string): string {
+  return rawQuery
+    .split('&')
+    .map((part) => {
+      const eqIdx = part.indexOf('=');
+      const key = eqIdx === -1 ? part : part.slice(0, eqIdx);
+      return { key, raw: part };
+    })
+    .filter((p) => p.key.length > 0 && p.key !== 'hmac')
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+    .map((p) => p.raw)
+    .join('&');
 }
 
 function verifyHmac(rawQuery: string, clientSecret: string, receivedHmac: string): boolean {
-  const params = new URLSearchParams(rawQuery);
-  params.delete('hmac');
-  const message = [...params.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${formUrlEncode(v)}`)
-    .join('&');
+  const message = buildHmacMessage(rawQuery);
   const computed = createHmac('sha256', clientSecret).update(message, 'utf8').digest('base64');
   return timingSafeEqual(Buffer.from(computed), Buffer.from(receivedHmac));
 }
@@ -498,3 +497,4 @@ function verifyHmac(rawQuery: string, clientSecret: string, receivedHmac: string
 | 2026-05-16 (후속) | 본문 정리 (코드/계약 무변경) — §2 설정 UI 에 fields 편집 버퍼 분리 원칙 한 줄 추가, §9 Rationale 에 §9.9 (Fields 편집 UI 의 내부 버퍼 분리) 신설 (PR #62 후속). §9.7 OAuth scope wire format 본문 위치 정정 (편집 오류 수정 — §9.8 뒤에 orphan 으로 있던 본문을 §9.7 헤더 바로 뒤로 이동, 내용 변경 없음). 출처: `review/consistency/2026/05/16/09_03_04/SUMMARY.md` INFO 1·2. §5 Case sparse 번호 (5.1·5.3·5.8) 는 4 integration 노드 공유 컨벤션으로 확인되어 변경하지 않음 (consistency 세션 `review/consistency/2026/05/16/11_36_49/`). |
 | 2026-05-16 (catalog) | §9.3 Resource/Operation 메타데이터 위치 갱신 — Cafe24 Admin API 전수 카탈로그 [`spec/conventions/cafe24-api-catalog/`](../../conventions/cafe24-api-catalog/_overview.md) 신설(18 resource × supported 53 + planned ~300). backend `catalog-sync.spec.ts` 양방향 동기 테스트 도입. 노드 UX 개편 plan: `plan/in-progress/cafe24-node-resource-operation-ux.md`. |
 | 2026-05-16 (ux-cleanup) | §2 / §9.9 본문 정리 — Phase 3 (PR #88, Cafe24Config 재작성) 가 옛 KeyValueEditor + 편집 버퍼 패턴을 완전히 폐기했으므로 §2 의 "편집 버퍼" 줄을 제거하고 메타데이터 기반 typed 동적 폼 + 호환 키 보존 동작으로 교체. §9.9 도 (A) 옛 자유 key/value 입력 / (B) 메타데이터 기반 동적 폼 두 안의 비교로 재작성하여 채택안을 (B) 로 명시. 옛 §9.9 의 "object-shaped contract + 편집 버퍼" 패턴은 본 프로젝트에서 더 이상 사용되지 않음을 명시. 호환 키 보존 결정 추가. consistency-check 세션: `review/consistency/2026/05/16/13_29_47/`. |
+| 2026-05-16 (hmac-raw-fix) | §9.8 HMAC 검증 알고리즘 **재정정** — PR #67 SEC H-1 의 "Java URLEncoder 호환 (공백 `+`)" 가정이 오류였음. Cafe24 공식 샘플은 URL 의 값을 decode/re-encode 없이 raw 그대로 HMAC 메시지에 사용한다 (`request.getQueryString()` split → TreeMap 보존). 운영 사용자 보고 (2026-05-16) — Cafe24 가 URL 에 `%20` 으로 공백을 인코딩해 보내는데 우리는 `+` 로 변환해 메시지 불일치. raw-value 보존 방식으로 재정정. 자세한 결정 배경은 [Spec 통합 화면 ## Rationale](../../2-navigation/4-integration.md#rationale) "HMAC 검증 알고리즘 — raw URL-encoded 값 보존 (2026-05-16 재정정)" 항. consistency-check 세션: `review/consistency/2026/05/16/14_06_49/`. |
