@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -23,7 +29,7 @@ import Redis from 'ioredis';
  * spec/4-nodes/4-integration/4-cafe24.md (HMAC verification / replay 절) 참조.
  */
 @Injectable()
-export class Cafe24InstallNonceCache {
+export class Cafe24InstallNonceCache implements OnModuleDestroy {
   private readonly logger = new Logger(Cafe24InstallNonceCache.name);
   private readonly redis: Redis | null;
   /** ±5분 윈도우 의 2배 — Cafe24 가 윈도우 안에서 다시 호출하지 못하게 한다. */
@@ -119,5 +125,14 @@ export class Cafe24InstallNonceCache {
     } catch {
       // shutdown 중 실패는 무시
     }
+  }
+
+  /**
+   * NestJS lifecycle — graceful shutdown 시 Redis 연결 누수 방지 (W-73).
+   * 옛 코드는 close() 만 두고 어디서도 호출하지 않아 SIGTERM 후에도 connection
+   * pool 이 dangling 상태였다.
+   */
+  async onModuleDestroy(): Promise<void> {
+    await this.close();
   }
 }
