@@ -28,6 +28,7 @@ import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue'
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
+import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { ConversationThreadService } from './conversation-thread/conversation-th
     BackgroundExecutionProcessor,
     ContinuationBusService,
     ConversationThreadService,
+    ExecutionEventEmitter,
   ],
   exports: [
     ExecutionEngineService,

@@ -18,6 +18,7 @@ import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
 import { ParallelExecutor } from './containers/parallel-executor';
 import { WebsocketService } from '../websocket/websocket.service';
+import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../llm/llm.service';
 import { RagSearchService } from '../knowledge-base/search/rag-search.service';
@@ -212,6 +213,7 @@ describe('ExecutionEngineService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExecutionEngineService,
+        ExecutionEventEmitter,
         NodeHandlerRegistry,
         NodeComponentRegistry,
         ExecutionContextService,
