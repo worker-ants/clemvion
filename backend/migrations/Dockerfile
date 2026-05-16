@@ -27,5 +27,15 @@ COPY backend/migrations/V*.sql /flyway/sql/
 # 에러나므로 첫 .conf 도입 시 함께 추가하는 것이 한 쌍.
 COPY backend/migrations/V*.conf /flyway/sql/
 
+# V번호 중복 가드 — 빌드 시점 fail-fast.
+# 동일 V번호 .sql 이 둘 이상이면 Flyway 가 silent skip / 비결정적 적용을 할 수
+# 있어, 이미지 빌드 자체를 실패시켜 운영 도달을 막는다. 동일 검사가
+# backend/src/migrations.spec.ts 와 scripts/check-migration-versions.py 에도
+# 있으나, 그 두 단계가 우회된 빌드 (긴급 hotfix·로컬 직접 빌드 등) 에 대한
+# 최후 방어선. 정책 본문: spec/conventions/migrations.md §6
+COPY backend/migrations/check-duplicate-versions.sh /usr/local/bin/check-duplicate-versions.sh
+RUN chmod +x /usr/local/bin/check-duplicate-versions.sh \
+ && /usr/local/bin/check-duplicate-versions.sh /flyway/sql
+
 # ENTRYPOINT inherits `flyway` from the base image; default to a no-op probe.
 CMD ["info"]

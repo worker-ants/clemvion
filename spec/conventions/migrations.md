@@ -61,7 +61,7 @@ Flyway 의 `outOfOrder=true` 옵션은 옛 V번호가 늦게 들어와도 실행
 
 ## 6. 충돌 검출 / 머지 race
 
-본 repo 는 두 단계 안전망으로 V번호 충돌과 merge race 를 모두 차단한다.
+본 repo 는 다음 안전망으로 V번호 충돌과 merge race 를 차단한다. 우회 가능한 단계가 있을 때마다 다음 단계가 fail-fast 로 잡도록 다층화되어 있다 — 유닛테스트 → PR CI → 머지 직전 rebase → 사후 recheck → 이미지 빌드 시점.
 
 ### 6.1 PR CI 가드 (`scripts/check-migration-versions.py`)
 
@@ -102,6 +102,35 @@ PR CI 가 통과한 직후 다른 PR 이 먼저 머지되어 main 의 max(V) 가
 - **Auto-nudge** — 열린 PR 중 `backend/migrations/**` 파일이 변경 목록에 포함된 PR 들에 "rebase + CI 재실행 필요" 코멘트를 자동 게시. PR 작성자가 race 가능성을 즉시 인지하고 §6.2 규약을 수행하도록 nudge.
 
 두 작업 모두 머지 자체를 막진 못한다 — 무료 private 환경에서 가능한 최대 강도는 "즉시 가시화 + nudge" 다. 향후 유료 플랜으로 전환 시 [§7 대안 4](#대안-4-github-branch-protection--require-branches-to-be-up-to-date) 의 branch protection 을 §6.2 로 승격하고 본 절은 backup 으로 유지할 수 있다.
+
+### 6.4 빌드 시점 가드 (`backend/migrations/check-duplicate-versions.sh`)
+
+마이그레이션 Docker 이미지 ([`backend/migrations/Dockerfile`](../../backend/migrations/Dockerfile)) 빌드의 마지막 RUN 단계에서 `/flyway/sql` 디렉토리의 `V*.sql` 파일을 검사해 동일 V번호가 둘 이상이면 **빌드 자체를 fail** 시킨다. 같은 정수로 정규화되는 모든 형태(`V41` vs `V041`, `V050__a.sql` vs `V050__b.sql` 등) 가 중복으로 잡힌다.
+
+용도는 §6.1·§6.3 와 동일한 중복 검출이지만 검사 시점이 다르다 — 다음 시나리오에서도 차단된다.
+
+- **유닛테스트·PR CI 가 우회된 빌드** — 긴급 hotfix, 로컬 운영자의 임시 빌드, 외부 환경의 직접 `docker build`.
+- **CI 가드 스크립트나 spec 자체가 잘못 수정**되어 §6.1 가 무의미해진 경우 — 빌드 단계의 가드는 동일 이미지를 사용하는 모든 환경에서 동일하게 적용되므로 정책 수정의 일시적 drift 에도 안전.
+
+위반 출력 예 (stderr) :
+
+```text
+ERROR: duplicate Flyway migration version(s) detected in /flyway/sql:
+  V041:
+    - /flyway/sql/V041__one.sql
+    - /flyway/sql/V041__two.sql
+
+Policy: spec/conventions/migrations.md §6 (V번호 단조성·중복 방지).
+Add a new migration with a unique V<N+1> prefix instead.
+```
+
+로컬에서 이미지 빌드 없이 같은 검사를 돌리려면:
+
+```bash
+backend/migrations/check-duplicate-versions.sh backend/migrations
+```
+
+본 가드는 §6.1 / §6.3 의 Python 가드와 동일한 V번호 정규화 규칙(`V0*([0-9]+)__`) 을 사용한다. 정책 변경이 발생하면 두 가드를 함께 갱신해야 한다.
 
 ## 7. 폐기 대안 (Rationale)
 
