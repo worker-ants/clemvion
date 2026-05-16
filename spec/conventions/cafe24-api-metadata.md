@@ -1,6 +1,6 @@
 # CONVENTION: Cafe24 API Metadata
 
-> 관련 문서: [Spec Cafe24 노드](../4-nodes/4-integration/4-cafe24.md) · [Spec 통합 §5.8 Cafe24](../2-navigation/4-integration.md#58-cafe24) · [Spec MCP Client §2.3 Internal Bridge](../5-system/11-mcp-client.md#23-internal-bridge) · [Cafe24 API Catalog](./cafe24-api-catalog/_overview.md)
+> 관련 문서: [Spec Cafe24 노드](../4-nodes/4-integration/4-cafe24.md) · [Spec 통합 §5.8 Cafe24](../2-navigation/4-integration.md#58-cafe24) · [Spec MCP Client §2.3 Internal Bridge](../5-system/11-mcp-client.md#23-internal-bridge-in-process) · [Cafe24 API Catalog](./cafe24-api-catalog/_overview.md)
 
 본 컨벤션은 Cafe24 Admin API 의 endpoint 매핑 메타데이터 **형식** 을 정의한다. 실제 endpoint 의 전수 카탈로그(supported/planned/deprecated)는 [`cafe24-api-catalog/`](./cafe24-api-catalog/_overview.md) 에 있고, backend 메타데이터 row 와 카탈로그는 `catalog-sync.spec.ts` 로 양방향 동기 보호된다.
 

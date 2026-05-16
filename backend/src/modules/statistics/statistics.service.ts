@@ -83,7 +83,7 @@ export class StatisticsService {
   ): Promise<StatisticsSummary> {
     const { startDate, endDate } = this.resolveDateRange(query);
 
-    const result = await this.executionRepository
+    const qb = this.executionRepository
       .createQueryBuilder('e')
       .innerJoin('e.workflow', 'w')
       .select([
@@ -95,31 +95,15 @@ export class StatisticsService {
       ])
       .where('w.workspace_id = :workspaceId', { workspaceId })
       .andWhere('e.started_at >= :startDate', { startDate })
-      .andWhere('e.started_at <= :endDate', { endDate })
-      .getRawOne<Record<string, unknown>>();
+      .andWhere('e.started_at <= :endDate', { endDate });
 
     if (query.workflowId) {
-      const filtered = await this.executionRepository
-        .createQueryBuilder('e')
-        .innerJoin('e.workflow', 'w')
-        .select([
-          'COUNT(*)::int AS "totalExecutions"',
-          'COUNT(*) FILTER (WHERE e.status = \'completed\')::int AS "successCount"',
-          'COUNT(*) FILTER (WHERE e.status = \'failed\')::int AS "failedCount"',
-          'COUNT(*) FILTER (WHERE e.status = \'cancelled\')::int AS "cancelledCount"',
-          'COALESCE(AVG(e.duration_ms) FILTER (WHERE e.duration_ms IS NOT NULL), 0)::float AS "avgDurationMs"',
-        ])
-        .where('w.workspace_id = :workspaceId', { workspaceId })
-        .andWhere('e.workflow_id = :workflowId', {
-          workflowId: query.workflowId,
-        })
-        .andWhere('e.started_at >= :startDate', { startDate })
-        .andWhere('e.started_at <= :endDate', { endDate })
-        .getRawOne<Record<string, unknown>>();
-
-      return this.buildSummary(filtered ?? {});
+      qb.andWhere('e.workflow_id = :workflowId', {
+        workflowId: query.workflowId,
+      });
     }
 
+    const result = await qb.getRawOne<Record<string, unknown>>();
     return this.buildSummary(result ?? {});
   }
 
