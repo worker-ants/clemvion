@@ -731,9 +731,17 @@ export class Cafe24ApiClient {
 
     // Atomic 4-field UPDATE — spec §10.5. credentials + tokenExpiresAt are
     // co-located on the Integration row so a single save() is atomic.
+    // B-4-3: BullMQ jobId dedup 외에 DB row-level write lock 도 추가
+    // (defense-in-depth). 같은 integrationId 의 동시 refresh 요청이 두
+    // pod 에서 BullMQ dedup 우회로 도달하더라도 PostgreSQL row lock 이
+    // serialize. lock 이 잠시 대기하므로 latency 영향은 작고, 잘못된 토큰
+    // 덮어쓰기 위험을 0 으로 만든다.
     await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Integration);
-      const fresh = await repo.findOne({ where: { id: integration.id } });
+      const fresh = await repo.findOne({
+        where: { id: integration.id },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!fresh) throw new Error('Integration vanished during refresh');
       const updatedCreds: Cafe24Credentials = {
         ...((fresh.credentials ?? {}) as Cafe24Credentials),

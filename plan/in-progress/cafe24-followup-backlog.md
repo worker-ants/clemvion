@@ -91,7 +91,7 @@ PR #52 → #85 의 7 PR 사이클로 운영 결함·Critical 22건·High 11건·
 - [ ] B-1-3 follow-up: timestamp replay nonce cache — Redis DI + 운영 비용 평가 필요
 - [x] B-2: 동시성 Medium 4건 — 묶음 PR (2026-05-16, B-2-1/2/3/4 모두 처리)
 - [x] B-3: 요구사항/API Medium 7건 — 묶음 PR (2026-05-16, B-3-1~7 모두 처리)
-- [ ] B-4: 데이터베이스 Medium 5건 — 묶음 PR (별 마이그레이션 필요)
+- [x] B-4: 데이터베이스 Medium 5건 — 묶음 PR (2026-05-16, V051 + 코드 4건 모두 처리)
 - [x] B-5: 테스트 Medium 8건 — 묶음 PR (2026-05-16, B-5-1/2/3/4/5/6/7 처리. B-5-8 e2e 는 별 plan 으로 잔여)
 - [ ] B-5-8 follow-up: Cafe24 OAuth + handleInstall/handleCallback + BullMQ refresh e2e — docker-compose.e2e.yml 풀-스택 부팅 필요
 - [ ] C-1: prod DB 점검 — 운영 task

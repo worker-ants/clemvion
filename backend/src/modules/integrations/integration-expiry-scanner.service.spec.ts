@@ -9,13 +9,39 @@ import { REFRESH_PROACTIVE_THRESHOLD_DAYS } from './cafe24-token-refresh.constan
 
 type Mock = jest.Mock;
 
+/**
+ * Default queryBuilder mock for `claimThreshold` 의 INSERT … ON CONFLICT DO
+ * NOTHING (B-4-5). identifiers.length > 0 → 새 행이 들어갔다는 신호로 해석.
+ * 개별 테스트가 `dispatchRepo.__execute.mockResolvedValueOnce({ identifiers: [] })`
+ * 같은 형태로 conflict 응답을 흉내낼 수 있다.
+ */
+function makeInsertBuilder(executeMock: Mock): Record<string, Mock> {
+  const builder: Record<string, Mock> = {
+    insert: jest.fn(),
+    values: jest.fn(),
+    orIgnore: jest.fn(),
+    execute: executeMock,
+  };
+  builder.insert.mockReturnValue(builder);
+  builder.values.mockReturnValue(builder);
+  builder.orIgnore.mockReturnValue(builder);
+  return builder;
+}
+
 function repo(): Record<string, Mock> {
+  const execute = jest.fn().mockResolvedValue({ identifiers: [{ id: 1 }] });
+  const insertBuilder = makeInsertBuilder(execute);
   return {
     find: jest.fn().mockResolvedValue([]),
     save: jest.fn().mockResolvedValue(undefined),
     insert: jest.fn().mockResolvedValue(undefined),
     create: jest.fn().mockImplementation((data: unknown) => data),
     delete: jest.fn().mockResolvedValue({ affected: 0 }),
+    createQueryBuilder: jest.fn().mockReturnValue(insertBuilder),
+    // Expose the execute mock so individual tests can simulate conflict
+    // (identifiers: []) or unique violation behavior.
+    __insertExecute: execute,
+    __insertBuilder: insertBuilder,
   };
 }
 
@@ -75,7 +101,9 @@ describe('IntegrationExpiryScannerService.run', () => {
 
     const count = await scanner.run(now);
     expect(count).toBe(1);
-    expect(dispatchRepo.insert).toHaveBeenCalledWith(
+    // claimThreshold 가 INSERT … ON CONFLICT DO NOTHING (B-4-5) 로 변경 — values()
+    // 인자에 (integrationId, threshold) 가 들어갔는지 확인.
+    expect(dispatchRepo.__insertBuilder.values).toHaveBeenCalledWith(
       expect.objectContaining({ threshold: '7d', integrationId: 'int-1' }),
     );
     expect(notificationsService.createMany).toHaveBeenCalledWith(
@@ -148,9 +176,8 @@ describe('IntegrationExpiryScannerService.run', () => {
         tokenExpiresAt: new Date('2026-04-14T00:00:00Z'),
       },
     ]);
-    dispatchRepo.insert.mockRejectedValue(
-      Object.assign(new Error('dup'), { code: '23505' }),
-    );
+    // B-4-5: conflict 시뮬레이션 — identifiers.length === 0 으로 claim 실패.
+    dispatchRepo.__insertExecute.mockResolvedValue({ identifiers: [] });
 
     const count = await scanner.run(new Date('2026-04-12T00:00:00Z'));
     expect(count).toBe(0);
