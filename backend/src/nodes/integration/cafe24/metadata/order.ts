@@ -216,4 +216,138 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
   },
+  // Phase 6a — A/S 자동화 (cancellation / exchange / return / refund)
+  {
+    id: 'refunds_list',
+    label: '환불 목록 조회',
+    description: 'List refunds for the mall.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'refunds',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+      start_date: { type: 'string', location: 'query' },
+      end_date: { type: 'string', location: 'query' },
+    },
+    responseShape: 'list',
+    paginated: true,
+  },
+  {
+    id: 'refunds_get',
+    label: '환불 단건 조회',
+    description: 'Retrieve a single refund by refund_no.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'refunds/{refund_no}',
+    requiredFields: ['refund_no'],
+    fields: {
+      refund_no: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'cancellation_get',
+    label: '취소 조회',
+    description: 'Retrieve an order cancellation by cancellation_no.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'cancellation/{cancellation_no}',
+    requiredFields: ['cancellation_no'],
+    fields: {
+      cancellation_no: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'cancellation_create_multiple',
+    label: '취소 일괄 생성',
+    description:
+      'Bulk-create order cancellations. Pass `requests` as an array of cancellation request objects; see Cafe24 docs for the per-item schema. HTTP 207 when statuses vary by object.',
+    scopeType: 'write',
+    method: 'POST',
+    path: 'cancellation',
+    requiredFields: ['requests'],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+      requests: {
+        type: 'array',
+        location: 'body',
+        description:
+          'Array of cancellation request objects (order_id, items, reason, ...).',
+      },
+    },
+    responseShape: 'list',
+  },
+  {
+    id: 'exchange_get',
+    label: '교환 조회',
+    description:
+      'Retrieve exchange details for an order. Path placeholder reuses the codebase-wide `order_id` (Cafe24 docs label this `order_no`).',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'orders/exchange/{order_id}',
+    requiredFields: ['order_id'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'exchange_create_multiple',
+    label: '교환 일괄 생성',
+    description:
+      'Bulk-create exchanges. Pass `requests` as an array — each entry typically carries order_id, exchange_item_no, product_no, variant_code, exchange_reason, exchange_quantity, shipping fees.',
+    scopeType: 'write',
+    method: 'POST',
+    path: 'orders/exchanges',
+    requiredFields: ['requests'],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+      requests: {
+        type: 'array',
+        location: 'body',
+        description:
+          'Array of exchange request objects. HTTP 207 when statuses vary by object.',
+      },
+    },
+    responseShape: 'list',
+  },
+  {
+    id: 'return_get',
+    label: '반품 조회',
+    description: 'Retrieve a return by return_no.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'return/{return_no}',
+    requiredFields: ['return_no'],
+    fields: {
+      return_no: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'return_create_multiple',
+    label: '반품 일괄 생성',
+    description:
+      'Bulk-create order returns. Pass `requests` as an array of return-item objects (order_id, items, return reason, refund method).',
+    scopeType: 'write',
+    method: 'POST',
+    path: 'return',
+    requiredFields: ['requests'],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+      requests: {
+        type: 'array',
+        location: 'body',
+        description:
+          'Array of return request objects. HTTP 207 when individual items have differing outcomes.',
+      },
+    },
+    responseShape: 'list',
+  },
 ];
