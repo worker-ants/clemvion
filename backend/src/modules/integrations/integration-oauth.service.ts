@@ -1356,7 +1356,11 @@ export class IntegrationOAuthService {
     urlToken: string;
     query: Cafe24InstallQuery;
   }): Promise<Integration | null> {
-    const { urlToken, query } = params;
+    // `urlToken` is kept on the params type for caller-side documentation
+    // (it identifies which install_token triggered recovery) but the recovery
+    // itself only depends on `mall_id` — HMAC re-verification re-derives the
+    // token via the candidate row's client_secret.
+    const { query } = params;
     if (!query.mall_id) return null;
 
     // SEC H-2 (2026-05-16) — 옛 동작은 mall_id 매칭되는 모든 workspace 의 row
@@ -1598,16 +1602,18 @@ function buildHmacMessage(rawQuery: string): string {
  * 수 있다.
  */
 function formUrlEncode(value: string): string {
-  return encodeURIComponent(value)
-    .replace(/%20/g, '+')
-    // encodeURIComponent 는 `!`, `'`, `(`, `)`, `*` 를 인코딩하지 않으나
-    // Java URLEncoder 는 `*` 만 그대로 두고 나머지는 인코딩한다. Cafe24
-    // 메시지가 이런 문자를 포함할 가능성은 극히 낮지만 호환을 위해 명시.
-    .replace(/!/g, '%21')
-    .replace(/'/g, '%27')
-    .replace(/\(/g, '%28')
-    .replace(/\)/g, '%29')
-    .replace(/~/g, '%7E');
+  return (
+    encodeURIComponent(value)
+      .replace(/%20/g, '+')
+      // encodeURIComponent 는 `!`, `'`, `(`, `)`, `*` 를 인코딩하지 않으나
+      // Java URLEncoder 는 `*` 만 그대로 두고 나머지는 인코딩한다. Cafe24
+      // 메시지가 이런 문자를 포함할 가능성은 극히 낮지만 호환을 위해 명시.
+      .replace(/!/g, '%21')
+      .replace(/'/g, '%27')
+      .replace(/\(/g, '%28')
+      .replace(/\)/g, '%29')
+      .replace(/~/g, '%7E')
+  );
 }
 
 function verifyHmacWithMessage(

@@ -2,12 +2,23 @@ import { ApiProperty, getSchemaPath } from '@nestjs/swagger';
 import {
   wrapDataSchema,
   wrapItemsSchema,
+  wrapOneOfDataSchema,
   wrapPaginatedSchema,
 } from './api-wrapped';
 
 class SampleDto {
   @ApiProperty({ example: 'a' })
   id: string;
+}
+
+class BranchADto {
+  @ApiProperty({ enum: ['a'] })
+  kind!: 'a';
+}
+
+class BranchBDto {
+  @ApiProperty({ enum: ['b'] })
+  kind!: 'b';
 }
 
 describe('api-wrapped schema builders', () => {
@@ -26,6 +37,28 @@ describe('api-wrapped schema builders', () => {
       type: 'array',
       items: { $ref: getSchemaPath(SampleDto) },
     });
+  });
+
+  it('wrapOneOfDataSchema builds { data: { oneOf: [refs] } }', () => {
+    const schema = wrapOneOfDataSchema([BranchADto, BranchBDto]);
+    expect(schema.type).toBe('object');
+    expect(schema.required).toEqual(['data']);
+    const dataSchema = schema.properties?.data as { oneOf: unknown[] };
+    expect(dataSchema.oneOf).toEqual([
+      { $ref: getSchemaPath(BranchADto) },
+      { $ref: getSchemaPath(BranchBDto) },
+    ]);
+  });
+
+  it('wrapOneOfDataSchema accepts a single DTO (degenerate oneOf still valid)', () => {
+    const schema = wrapOneOfDataSchema([SampleDto]);
+    const dataSchema = schema.properties?.data as { oneOf: unknown[] };
+    expect(dataSchema.oneOf).toHaveLength(1);
+    expect(dataSchema.oneOf[0]).toEqual({ $ref: getSchemaPath(SampleDto) });
+  });
+
+  it('wrapOneOfDataSchema throws on empty array (OpenAPI rejects empty oneOf)', () => {
+    expect(() => wrapOneOfDataSchema([])).toThrow(/requires at least one DTO/);
   });
 
   it('wrapPaginatedSchema matches PaginatedResponseDto shape', () => {

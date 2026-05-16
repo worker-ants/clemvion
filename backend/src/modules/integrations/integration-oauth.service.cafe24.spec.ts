@@ -215,6 +215,22 @@ describe('IntegrationOAuthService — Cafe24', () => {
         mall_id: 'myshop',
         app_type: 'public',
       });
+      // DTO branch invariants (spec §9.2): Cafe24 Public 분기는 popup 흐름
+      // 이므로 (a) wire shape 키가 `authUrl` (NOT `authorizeUrl` — DTO 분리
+      // 시 정정한 필드명) 으로 채워지고 (b) Private 전용 필드(integrationId /
+      // appUrl / callbackUrl / mode) 는 응답에 포함되지 않아야 한다. DTO 가
+      // required→optional 로 완화된 상태에서 호출부가 분기를 잘못 식별하지
+      // 않도록 명시 단언. mode discriminator 부재 = popup 분기.
+      const publicResp = result as Record<string, unknown>;
+      expect(publicResp.mode).toBeUndefined();
+      expect(typeof publicResp.authUrl).toBe('string');
+      expect((publicResp.authUrl as string).length).toBeGreaterThan(0);
+      expect(typeof publicResp.state).toBe('string');
+      expect(publicResp.integrationId).toBeUndefined();
+      expect(publicResp.appUrl).toBeUndefined();
+      expect(publicResp.callbackUrl).toBeUndefined();
+      // Sanity: 옛 이름 `authorizeUrl` 으로 응답을 만들지 않도록 회귀 안전망.
+      expect(publicResp.authorizeUrl).toBeUndefined();
     });
 
     it('private app — creates pending_install integration and returns pending result', async () => {
@@ -266,8 +282,16 @@ describe('IntegrationOAuthService — Cafe24', () => {
 
       // No state row yet (state is created later in handleInstall).
       expect(stateRepo.save).not.toHaveBeenCalled();
-      // No authUrl — the browser never opens a popup for private apps.
-      expect((result as Record<string, unknown>).authUrl).toBeUndefined();
+      // DTO branch invariants (spec §9.2): Private 분기는 popup 흐름이 아니므로
+      // (a) `mode` discriminator 가 정확히 'cafe24_private_pending' 이며
+      // (b) Public 전용 필드(authUrl / state / authorizeUrl) 가 응답에 포함되지
+      // 않아야 한다. discriminator 기반으로 분기 단언 — 호출부가 type narrowing
+      // 으로 분기를 식별할 수 있는 contract 보장.
+      const privateResp = result as Record<string, unknown>;
+      expect(privateResp.mode).toBe('cafe24_private_pending');
+      expect(privateResp.authUrl).toBeUndefined();
+      expect(privateResp.state).toBeUndefined();
+      expect(privateResp.authorizeUrl).toBeUndefined();
     });
   });
 

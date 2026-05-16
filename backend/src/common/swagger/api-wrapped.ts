@@ -26,6 +26,35 @@ export function wrapDataSchema<T>(dto: ClassRef<T>): SchemaObject {
 }
 
 /**
+ * `{ data: { oneOf: [<ref(A)>, <ref(B)>, ...] } }` 스키마 객체를 생성합니다.
+ * 응답이 분기에 따라 서로 다른 DTO shape 을 반환하는 경우 사용합니다 (예:
+ * `OAuthBeginPopupResultDto` vs `OAuthBeginCafe24PendingResultDto`).
+ * 각 DTO 가 `discriminator` 역할의 필드(예: `mode`)를 자체적으로 강제하므로
+ * Swagger 콘솔에서 분기별 example 이 따로 노출됩니다.
+ *
+ * 빈 배열은 OpenAPI 가 거부하는 invalid schema 이므로 호출 시점에 즉시
+ * fail-fast — silent 스키마 손상을 방지.
+ */
+export function wrapOneOfDataSchema(
+  dtos: ReadonlyArray<ClassRef<unknown>>,
+): SchemaObject {
+  if (dtos.length === 0) {
+    throw new Error(
+      'wrapOneOfDataSchema requires at least one DTO (got empty array).',
+    );
+  }
+  return {
+    type: 'object',
+    required: ['data'],
+    properties: {
+      data: {
+        oneOf: dtos.map((d) => ({ $ref: getSchemaPath(d) })),
+      },
+    },
+  };
+}
+
+/**
  * `{ data: <ref>[] }` 스키마 객체를 생성합니다. 단순 배열 응답용.
  */
 export function wrapItemsSchema<T>(dto: ClassRef<T>): SchemaObject {
@@ -87,6 +116,20 @@ export function ApiOkWrappedResponse<T>(
   return applyDecorators(
     ApiExtraModels(dto),
     ApiOkResponse({ ...options, schema: wrapDataSchema(dto) }),
+  );
+}
+
+/**
+ * `@ApiOkResponse` + `@ApiExtraModels(...dtos)` + `{ data: { oneOf } }` 래퍼.
+ * 분기 응답(예: OAuth begin 의 popup vs cafe24_private_pending) 문서화용.
+ */
+export function ApiOkWrappedOneOfResponse(
+  dtos: ReadonlyArray<ClassRef<unknown>>,
+  options: ExtraOptions = {},
+) {
+  return applyDecorators(
+    ApiExtraModels(...dtos),
+    ApiOkResponse({ ...options, schema: wrapOneOfDataSchema(dtos) }),
   );
 }
 
