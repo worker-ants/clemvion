@@ -1,7 +1,7 @@
 ---
-worktree: cafe24-node-ux-catalog-4b8f2c
+worktree: cafe24-node-ux-catalog-4b8f2c (Phase 1) / cafe24-node-ux-impl-9d3e1a (Phase 2~)
 started: 2026-05-16
-owner: project-planner → developer (Phase 2/3)
+owner: project-planner (Phase 1) / developer (Phase 2+)
 ---
 
 # Plan: Cafe24 노드 Resource → Operation UX 개편
@@ -24,26 +24,35 @@ owner: project-planner → developer (Phase 2/3)
 
 ## 작업 단위
 
-### Phase 1 — Spec 카탈로그 + 동기 테스트 (이 PR)
+### Phase 1 — Spec 카탈로그 + 동기 테스트 (PR #78, MERGEABLE)
 
-- [ ] `spec/conventions/cafe24-api-catalog/_overview.md` 신규
-  - 컬럼 정의, status enum (`supported` / `planned` / `deprecated`), 동기 정책, coverage matrix, 18 resource 링크
-- [ ] `spec/conventions/cafe24-api-catalog/{store,product,order,customer,community,design,promotion,application,category,collection,supply,shipping,salesreport,personal,privacy,mileage,notification,translation}.md` (18개) — 각 파일이 해당 resource 의 모든 operation 표
-  - Cafe24 공식 docs 전수 (option C — 사용자 결정 2026-05-16)
-  - 현재 metadata 에 있는 ~53개는 `status: supported`
-  - 나머지는 `status: planned`
-- [ ] Backend sync test (`backend/src/nodes/integration/cafe24/metadata/catalog-sync.spec.ts`)
-  - 카탈로그 MD 표를 파싱해 `(resource, id, status, paginated)` 추출
-  - `CAFE24_OPERATIONS_BY_RESOURCE` 와 양방향 비교
-- [ ] `spec/4-nodes/4-integration/4-cafe24.md` §9.3 + `spec/conventions/cafe24-api-metadata.md` §4 — 카탈로그 링크 한 줄씩
-- [ ] `/consistency-check --spec` 호출 (project-planner 의무) — Critical 0 확인 후 commit
+- [x] `spec/conventions/cafe24-api-catalog/_overview.md` 신규
+- [x] `spec/conventions/cafe24-api-catalog/{18 resource}.md` (Cafe24 docs 전수, supported 53 + planned ~300)
+- [x] Backend sync test `catalog-sync.spec.ts` (jest 8/8 통과, 양방향)
+- [x] `spec/4-nodes/4-integration/4-cafe24.md` §9.3 + `spec/conventions/cafe24-api-metadata.md` §4 — 카탈로그 링크
+- [x] consistency-check 세션 `review/consistency/2026/05/16/11_43_07/` — Critical 0
 
-### Phase 2 — 백엔드 메타데이터 frontend payload (별 PR)
+### Phase 2 — 백엔드 frontend payload (이 PR — claude/cafe24-node-ux-impl-9d3e1a)
 
-- [ ] `Cafe24OperationMetadata.toPublicOperationMeta()` (label, requiredFields, fields, paginated, status, description, scope 만 전달; path/method 제외)
-- [ ] `NodeDefinitionResponse.extras?: Record<string, unknown>` 신규 옵셔널 필드
-- [ ] `cafe24NodeMetadata.extras = { operationsByResource, planned: [...] }` — planned 항목은 카탈로그에서만 와야 하므로 build-time inline 또는 sync test 의 cross-reference 가 SoT
-- [ ] zod 메타에 노출 (definition response 직렬화)
+상세 설계 결정 (2026-05-16):
+
+- **`NodeComponent.extras?: () => unknown`** — 옵셔널 메서드. 컴포넌트가 frontend 에 추가로 보내고 싶은 페이로드 반환. registry 의 `listDefinitions()` 결과에 `extras` 로 surface, `/nodes/definitions` 응답 DTO 에 옵셔널 필드로 추가.
+- **`PublicCafe24Operation` 타입** — `Cafe24OperationMetadata` 의 frontend 안전 부분만 추출. **`method` / `path` 는 제외** (frontend 가 알 필요 없고 URL 구조 노출 회피). 포함: `id`, `label`, `description`, `scope`, `paginated`, `requiredFields`, `fields[]` (각 필드: `name`, `type`, `required`, `description?`, `enum?`, `default?`, `location?`).
+- **planned 데이터** — 카탈로그 MD 가 정답(SoT) 이지만 production 번들에 spec/ 없음 → backend 에 `planned.ts` 데이터 파일을 별도로 유지하고 sync test 가 catalog MD ↔ planned.ts parity 강제. 양쪽 모두 갱신해야 PR 머지 가능.
+- **응답 shape**: `definitions[i].extras = { operationsByResource: Record<resource, PublicCafe24Operation[]>, plannedByResource: Record<resource, PublicCafe24Planned[]> }` — cafe24 노드만 채움, 다른 노드는 `extras` 없음.
+
+체크리스트:
+
+- [ ] `backend/src/nodes/core/node-component.interface.ts` — `NodeComponent.extras?: () => unknown` 추가
+- [ ] `backend/src/nodes/core/node-component.registry.ts` — `NodeDefinitionView.extras?: unknown` 추가, `listDefinitions()` 가 호출 + 전달
+- [ ] `backend/src/modules/nodes/dto/responses/node-response.dto.ts` — `NodeDefinitionDto.extras?: Record<string, unknown>` (Swagger 표기)
+- [ ] `backend/src/nodes/integration/cafe24/metadata/public-meta.ts` — `PublicCafe24Operation` / `PublicCafe24Field` / `PublicCafe24Planned` 타입 + `toPublicOperation(meta)` helper
+- [ ] `backend/src/nodes/integration/cafe24/metadata/planned.ts` — `CAFE24_PLANNED_BY_RESOURCE` (id + label + paginated, 카탈로그 mirror)
+- [ ] `backend/src/nodes/integration/cafe24/cafe24.component.ts` — `extras()` 구현
+- [ ] `catalog-sync.spec.ts` 확장 — planned.ts ↔ 카탈로그 MD 양방향 parity
+- [ ] `cafe24-extras.spec.ts` (or 기존 metadata test 확장) — extras 페이로드 shape 검증, method/path 누출 없음
+- [ ] `frontend/src/lib/node-definitions/types.ts` — `NodeDefinitionResponse.extras?: unknown`
+- [ ] consistency-check (impl-prep) 세션 + Critical 0 확인
 
 ### Phase 3 — 프런트 Cafe24Config 재작성 (같은 PR or 별 PR)
 
