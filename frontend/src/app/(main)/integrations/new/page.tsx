@@ -25,7 +25,10 @@ import {
   type ServiceDefinition,
 } from "@/lib/api/integrations";
 import { getIntegrationErrorI18nKey } from "@/lib/api/integration-error-codes";
-import { useCafe24MallIdPrecheck } from "@/lib/integrations/use-cafe24-mall-id-precheck";
+import {
+  useCafe24MallIdPrecheck,
+  CAFE24_MALL_ID_PATTERN,
+} from "@/lib/integrations/use-cafe24-mall-id-precheck";
 import { ServiceIcon } from "../_shared/service-icons";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
@@ -333,7 +336,7 @@ export default function NewIntegrationPage() {
       // so users hit them locally before the popup opens.
       if (serviceType === "cafe24") {
         const mallId = String(credentials.mall_id ?? "").trim();
-        if (!/^[a-z0-9-]{3,50}$/.test(mallId)) {
+        if (!CAFE24_MALL_ID_PATTERN.test(mallId)) {
           return t("integrations.cafe24ValidateMallIdPattern");
         }
         const appType = credentials.app_type as

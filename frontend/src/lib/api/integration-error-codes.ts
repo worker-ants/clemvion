@@ -17,7 +17,9 @@ import type { TranslationKey } from "@/lib/i18n";
 export const INTEGRATION_LOCALIZED_ERROR_CODES = {
   /**
    * 동일 (workspaceId, mall_id) cafe24 통합이 이미 존재 — app_type 무관.
-   * 코드 이름의 `PRIVATE` 토큰은 historical artifact (spec Rationale 참조).
+   * 코드 이름의 `PRIVATE` 토큰은 historical artifact (2026-05-15 신설 당시
+   * Private 흐름 한정이었음). spec/2-navigation/4-integration.md §9.4
+   * Rationale "CAFE24_PRIVATE_APP_ALREADY_CONNECTED 코드명 유지 결정" 참조.
    */
   CAFE24_DUPLICATE_MALL: "CAFE24_PRIVATE_APP_ALREADY_CONNECTED",
 } as const;
