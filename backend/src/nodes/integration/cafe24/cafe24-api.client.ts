@@ -12,6 +12,7 @@ import {
   REFRESH_JOB_WAIT_TIMEOUT_MS,
 } from '../../../modules/integrations/cafe24-token-refresh.constants.js';
 import { sanitizeLastErrorMessage } from '../../../modules/integrations/integration-oauth.service.js';
+import { IntegrationActionRequiredNotifier } from '../../../modules/integrations/integration-action-required-notifier.service.js';
 
 /**
  * Optional DI tokens for swapping the network / sleep primitives in tests.
@@ -289,6 +290,10 @@ export class Cafe24ApiClient {
     @Optional()
     @Inject(CAFE24_REFRESH_QUEUE_EVENTS)
     refreshQueueEvents?: QueueEvents,
+    // A-1: integration_action_required 알림 발사기. @Optional 로 두어
+    // 옛 테스트 (notifier 없이 직접 생성) 가 깨지지 않게 한다.
+    @Optional()
+    private readonly actionRequiredNotifier?: IntegrationActionRequiredNotifier,
   ) {
     this.fetchImpl = fetchImpl ?? defaultFetch;
     this.sleepImpl = sleepImpl ?? defaultSleep;
@@ -795,6 +800,10 @@ export class Cafe24ApiClient {
     integration: Integration,
     reason: 'auth_failed' | 'insufficient_scope' = 'auth_failed',
   ): Promise<void> {
+    // A-1: error 도메인 신규 진입에만 알림. 이미 같은 reason 으로 error 였으면
+    // 알림 emit 을 건너뛴다 (notifier 의 24h dedup 으로 추가 보호도 있음).
+    const transitioning =
+      integration.status !== 'error' || integration.statusReason !== reason;
     try {
       await this.integrationRepository.update(integration.id, {
         status: 'error',
@@ -810,6 +819,9 @@ export class Cafe24ApiClient {
       });
       integration.status = 'error';
       integration.statusReason = reason;
+      if (transitioning && this.actionRequiredNotifier) {
+        await this.actionRequiredNotifier.notify(integration, reason);
+      }
     } catch (err) {
       this.logger.warn(
         `Failed to mark Integration ${integration.id} as ${reason}: ${extractErrorMessage(err)}`,
@@ -892,6 +904,12 @@ export class Cafe24ApiClient {
         this.logger.warn(
           `Cafe24 integration ${integration.id} demoted to error(network) — 3 consecutive transport failures (spec §6)`,
         );
+        // A-1: threshold-hit 시점만 알림 (반복 발사 없음 — counter reset 후
+        // 다시 누적되어야 같은 reason 으로 재발사 가능). notifier 의 24h dedup
+        // 이 추가 보호.
+        if (this.actionRequiredNotifier) {
+          await this.actionRequiredNotifier.notify(integration, 'network');
+        }
       } else {
         await this.integrationRepository.update(integration.id, {
           consecutiveNetworkFailures: next,
