@@ -5,6 +5,12 @@ export interface SubWorkflowOptions {
   parentExecutionId?: string;
   recursionDepth?: number;
   timeoutMs?: number;
+  /**
+   * 호출자 workspace 의 ID. 엔진은 target workflow 의 workspaceId 와 비교해
+   * 일치하지 않으면 `WORKFLOW_FORBIDDEN_WORKSPACE` 로 차단한다.
+   * 옛 동작과의 호환을 위해 optional 이지만, 모든 신규 호출자는 반드시 전달해야 한다.
+   */
+  parentWorkspaceId?: string;
 }
 
 export interface SubWorkflowResult {

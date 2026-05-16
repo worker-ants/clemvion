@@ -41,10 +41,10 @@
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.1.17",
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.55.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.205.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.76.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
     "@opentelemetry/resources": "^2.0.0",
-    "@opentelemetry/sdk-node": "^0.205.0",
+    "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
     "@workflow/expression-engine": "file:../packages/expression-engine",
     "@workflow/node-summary": "file:../packages/node-summary",
@@ -117,6 +117,7 @@
     "ip-address": "^10.2.0",
     "express-rate-limit": "^8.5.1",
     "protobufjs": "^7.5.6",
-    "fast-uri": "^3.1.2"
+    "fast-uri": "^3.1.2",
+    "hono": "^4.12.18"
   }
 }
