@@ -24,6 +24,7 @@ import { IntegrationOAuthPreview } from './entities/integration-oauth-preview.en
 import { findService } from './services/service-registry';
 import { decryptJson } from './services/credentials-transformer';
 import { isPostgresUniqueViolation } from '../../common/db/pg-error';
+import { normalizeStatusReason } from './integration-status-reason';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
@@ -798,7 +799,10 @@ export class IntegrationOAuthService {
       integration.lastError = lastError;
       if (integration.status === 'pending_install') {
         // status preserved — user can retry via cafe24 "테스트 실행"
-        integration.statusReason = errorCode.toLowerCase();
+        // B-3-4: errorCode.toLowerCase() 를 union 화이트리스트로 정규화.
+        // 알 수 없는 코드는 `unknown_error` 로 fallback 해 UI/응답이 union
+        // 밖 값을 노출하지 않게 한다.
+        integration.statusReason = normalizeStatusReason(errorCode.toLowerCase());
       } else if (
         integration.status === 'connected' &&
         errorCode === 'OAUTH_TOKEN_EXCHANGE_FAILED'
