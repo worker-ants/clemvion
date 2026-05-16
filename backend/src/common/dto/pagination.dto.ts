@@ -42,9 +42,13 @@ export class PaginationQueryDto {
 
   /** 정렬 기준 컬럼명 */
   @ApiPropertyOptional({
-    description: '정렬 기준 컬럼명',
+    description:
+      '정렬 기준 컬럼명. 영문 시작 + 영문/숫자/밑줄 만 허용 (최대 64자). ' +
+      '서비스별 허용 컬럼 화이트리스트가 별도로 적용된다.',
     default: 'created_at',
     example: 'created_at',
+    pattern: '^[a-zA-Z][a-zA-Z0-9_]*$',
+    maxLength: 64,
   })
   @IsOptional()
   @IsString()

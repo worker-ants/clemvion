@@ -188,10 +188,13 @@ POST /api/hooks/:endpointPath
 
 ```
 요청 헤더:  X-Hub-Signature-256: sha256=<hex-digest>
-검증 방식:  HMAC-SHA256(secret, rawBody) === 헤더 값
+검증 방식:  HMAC-<algorithm>(secret, rawBody) === 헤더 값
 ```
 
 GitHub Webhook과 동일한 방식.
+
+- **알고리즘 허용 목록**: `sha256`, `sha512` 만 허용. 다른 값 (`md5`, `sha1` 등) 은 인증 실패로 처리된다. 거부 응답은 다른 인증 실패와 동일한 메시지(`AUTH_FAILED` / "Authentication failed") 만 반환하며, 알고리즘 명을 클라이언트로 반사하지 않는다 (information leakage 차단). 진단은 서버 로그에만 남는다.
+- **rawBody 요구**: HMAC 검증은 파싱 전 원본 바이트가 필요하다. NestJS 부트스트랩에서 `rawBody: true` 활성화가 필수다 ([§구현 §11.3 — main.ts](#)).
 
 ### 4.3 Bearer Token
 

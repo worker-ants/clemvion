@@ -68,5 +68,49 @@ describe('WebsocketService', () => {
       // 측 sanitizeErrorMessage 가 길이 cap / stack/connection 패턴 제거 담당).
       expect(payload.errorMessage).toBe('pg failure');
     });
+
+    it('preserves nested object reference identity when no credential key is present', () => {
+      // GC-pressure 최적화: 자식 변경이 없으면 sanitize 가 새 객체를 만들지
+      // 않고 원본 참조를 그대로 반환해야 한다 (Review 후속 #14 / W-25).
+      const inner = { count: 3, label: 'ok' };
+      const outer = { status: 'completed', detail: { inner } };
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        outer,
+      );
+      const payload = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      // backgroundRunId / timestamp 가 spread 로 추가되므로 payload 자체는 새 객체.
+      // detail / detail.inner 두 레벨이 모두 원본 참조 그대로 보존되는지 확인.
+      expect(payload.detail).toBe(outer.detail);
+      expect(
+        (payload.detail as { inner: typeof inner }).inner,
+      ).toBe(inner);
+    });
+
+    it('redacts the whole subtree when sanitize depth exceeds MAX_SANITIZE_DEPTH', () => {
+      // depth 초과 경로에서는 credential 키 매칭을 더 수행할 수 없으므로
+      // 보수적으로 [REDACTED_DEPTH] 로 통째 마스킹 (Review 후속 #4).
+      // MAX_SANITIZE_DEPTH = 10 — 11단계 깊이 페이로드 끝에 credential 을 박아
+      // 통째 마스킹이 되는지 검증.
+      let deep: Record<string, unknown> = { api_key: 'should-not-leak' };
+      for (let i = 0; i < 12; i++) deep = { next: deep };
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        { wrapper: deep },
+      );
+      const payload = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      // 직렬화해서 어디에도 평문 secret 이 남아있지 않은지 strict 검증.
+      const serialized = JSON.stringify(payload);
+      expect(serialized).not.toContain('should-not-leak');
+      expect(serialized).toContain('[REDACTED_DEPTH]');
+    });
   });
 });

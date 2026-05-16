@@ -220,25 +220,41 @@ export class WebsocketGateway
           data: { success: false, error: rejection.error },
         };
       }
-      // authorize() 가 await 경계라 그 사이 동일 클라이언트의 다른 subscribe 가
-      // 진행되어 한도를 통과한 뒤 add 단계에 진입할 수 있다. 추가 직전 재검사.
-      if (clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION) {
-        return {
-          event: 'subscribed',
-          data: {
-            success: false,
-            error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
-          },
-        };
-      }
     }
 
+    // 원자 블록: authorize() await 이후의 한도 검사와 Set add 를 한 동기 구간
+    // 안에 묶는다. JS event-loop 가 single-thread 라 이 두 동작 사이에 다른
+    // subscribe 핸들러가 끼어들 수 없지만, tentative-add + 사후 검증 패턴으로
+    // 만에 하나 향후 add 후 다른 await 가 들어가는 리팩토링이 일어나도
+    // last-write-wins 가 한도를 초과하지 않도록 가드한다.
     // Detect first-time subscription so we only send the snapshot once. A
     // re-subscribe (e.g. after the hook re-binds without actually
     // disconnecting) must not re-emit — the client's store would merge
     // a second snapshot and double-append terminal rows.
     const isNewSubscription = !clientSubs.has(channel);
+    if (isNewSubscription && clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION) {
+      return {
+        event: 'subscribed',
+        data: {
+          success: false,
+          error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
+        },
+      };
+    }
     clientSubs.add(channel);
+    if (clientSubs.size > MAX_SUBSCRIPTIONS_PER_CONNECTION) {
+      // tentative-add 사후 가드. add 가 size 를 한도 너머로 밀어 올렸다면
+      // 즉시 롤백하고 거부. Set.add 가 이미 있는 키면 size 증가 없으므로
+      // 재구독 경로에는 영향 없음.
+      clientSubs.delete(channel);
+      return {
+        event: 'subscribed',
+        data: {
+          success: false,
+          error: `Maximum subscriptions (${MAX_SUBSCRIPTIONS_PER_CONNECTION}) reached`,
+        },
+      };
+    }
     void client.join(channel);
     this.logger.debug(`Client ${client.id} subscribed to ${channel}`);
 
