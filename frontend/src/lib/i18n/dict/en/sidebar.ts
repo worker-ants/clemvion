@@ -1,0 +1,32 @@
+import type { Dict } from "../types";
+
+export const sidebar: Dict["sidebar"] = {
+  dashboard: "Dashboard",
+  workflows: "Workflows",
+  triggers: "Triggers",
+  schedule: "Schedule",
+  integration: "Integration",
+  knowledgeBase: "Knowledge Base",
+  llmConfig: "LLM Config",
+  authentication: "Authentication",
+  statistics: "Statistics",
+  userGuide: "User Guide",
+  notifications: "Notifications",
+  noNotifications: "No notifications",
+  switchWorkspace: "Switch workspace",
+  manageWorkspaces: "Manage workspaces",
+  workspace: "Workspace",
+  yourWorkspaces: "Your workspace",
+  teamWorkspaces: "Team workspaces",
+  newTeamWorkspace: "New team workspace",
+  settingsHere: "Current workspace settings",
+  profile: "My Profile",
+  logout: "Logout",
+  collapse: "Collapse",
+  user: "User",
+  productName: "Clemvion",
+  aria: {
+    mainNav: "Main navigation",
+    skipToMain: "Skip to main content",
+  },
+};
