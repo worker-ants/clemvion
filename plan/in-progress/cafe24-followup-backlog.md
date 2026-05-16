@@ -87,7 +87,8 @@ PR #52 → #85 의 7 PR 사이클로 운영 결함·Critical 22건·High 11건·
 본 plan 은 백로그 — 항목 처리 시 별 plan 으로 분리해 in-progress 로 이동.
 
 - [ ] A-1: integration_action_required — 사용자 결정 필요
-- [ ] B-1: 보안 Medium 6건 — 묶음 PR
+- [x] B-1: 보안 Medium 6건 — 묶음 PR (2026-05-16, B-1-1/2/4/5/6 처리, B-1-3 은 spec 명문화만 + Redis nonce cache 는 별 plan 으로 잔여)
+- [ ] B-1-3 follow-up: timestamp replay nonce cache — Redis DI + 운영 비용 평가 필요
 - [ ] B-2: 동시성 Medium 4건 — 묶음 PR
 - [ ] B-3: 요구사항/API Medium 7건 — 묶음 PR
 - [ ] B-4: 데이터베이스 Medium 5건 — 묶음 PR (별 마이그레이션 필요)
