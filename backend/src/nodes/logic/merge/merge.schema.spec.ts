@@ -27,7 +27,7 @@ describe('mergeNodeMetadata.warningRules', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (merge)', () => {
-  it('emits the Korean warning when strategy is missing', () => {
+  it('emits the warning when strategy is missing', () => {
     expect(evaluateMetadataBlockingErrors(mergeNodeMetadata, {})).toEqual([
       'Merge strategy must be selected.',
     ]);

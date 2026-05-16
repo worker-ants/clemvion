@@ -197,7 +197,8 @@ export class ThirdPartyOAuthController {
   })
   @ApiProduces('text/html')
   @ApiOkResponse({
-    description: 'OAuth 처리 결과 HTML 페이지 (postMessage payload 에 분기 정보 포함)',
+    description:
+      'OAuth 처리 결과 HTML 페이지 (postMessage payload 에 분기 정보 포함)',
   })
   @ApiBadRequestResponse({ description: '지원하지 않는 OAuth provider' })
   async oauthCallback(

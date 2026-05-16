@@ -19,18 +19,18 @@
 ### 새 파일
 
 - `spec/data-flow/0-overview.md` — 폴더 진입 문서, 시스템 수준 다이어그램, 도메인 인덱스, 공통 규약
-- `spec/data-flow/auth.md` — 사용자 인증·세션·OAuth·refresh token 흐름
-- `spec/data-flow/workspace.md` — 워크스페이스·멤버십·초대·RBAC 흐름
-- `spec/data-flow/workflow.md` — 워크플로우 CRUD·버전·노드·엣지·AI Assistant 흐름
-- `spec/data-flow/execution.md` — 실행 엔진·BullMQ 큐·실행 로그·노드 실행 결과 흐름
-- `spec/data-flow/knowledge-base.md` — KB·문서 업로드·임베딩·Graph RAG·RAG 검색 흐름
-- `spec/data-flow/integration.md` — 외부 통합·OAuth credential 암호화·사용 로그
-- `spec/data-flow/triggers.md` — Webhook·Schedule·Manual trigger 진입
-- `spec/data-flow/llm-usage.md` — LLM 호출·usage_log·LLM config 흐름
-- `spec/data-flow/file-storage.md` — S3/MinIO 사용처·파일 라이프사이클
-- `spec/data-flow/notifications.md` — 알림·이메일·WebSocket emit
-- `spec/data-flow/audit.md` — audit_log·login_history
-- `spec/data-flow/observability.md` — health·dashboard·statistics·alert
+- `spec/data-flow/2-auth.md` — 사용자 인증·세션·OAuth·refresh token 흐름
+- `spec/data-flow/12-workspace.md` — 워크스페이스·멤버십·초대·RBAC 흐름
+- `spec/data-flow/11-workflow.md` — 워크플로우 CRUD·버전·노드·엣지·AI Assistant 흐름
+- `spec/data-flow/3-execution.md` — 실행 엔진·BullMQ 큐·실행 로그·노드 실행 결과 흐름
+- `spec/data-flow/6-knowledge-base.md` — KB·문서 업로드·임베딩·Graph RAG·RAG 검색 흐름
+- `spec/data-flow/5-integration.md` — 외부 통합·OAuth credential 암호화·사용 로그
+- `spec/data-flow/10-triggers.md` — Webhook·Schedule·Manual trigger 진입
+- `spec/data-flow/7-llm-usage.md` — LLM 호출·usage_log·LLM config 흐름
+- `spec/data-flow/4-file-storage.md` — S3/MinIO 사용처·파일 라이프사이클
+- `spec/data-flow/8-notifications.md` — 알림·이메일·WebSocket emit
+- `spec/data-flow/1-audit.md` — audit_log·login_history
+- `spec/data-flow/9-observability.md` — health·dashboard·statistics·alert
 
 ### 기존 문서 수정
 
@@ -40,18 +40,18 @@
 
 - [x] `spec/data-flow/0-overview.md` 작성
 - [x] `spec/0-overview.md` §8 갱신
-- [x] `spec/data-flow/auth.md` 작성
-- [x] `spec/data-flow/workspace.md` 작성
-- [x] `spec/data-flow/workflow.md` 작성
-- [x] `spec/data-flow/execution.md` 작성
-- [x] `spec/data-flow/knowledge-base.md` 작성
-- [x] `spec/data-flow/integration.md` 작성
-- [x] `spec/data-flow/triggers.md` 작성
-- [x] `spec/data-flow/llm-usage.md` 작성
-- [x] `spec/data-flow/file-storage.md` 작성
-- [x] `spec/data-flow/notifications.md` 작성
-- [x] `spec/data-flow/audit.md` 작성
-- [x] `spec/data-flow/observability.md` 작성
+- [x] `spec/data-flow/2-auth.md` 작성
+- [x] `spec/data-flow/12-workspace.md` 작성
+- [x] `spec/data-flow/11-workflow.md` 작성
+- [x] `spec/data-flow/3-execution.md` 작성
+- [x] `spec/data-flow/6-knowledge-base.md` 작성
+- [x] `spec/data-flow/5-integration.md` 작성
+- [x] `spec/data-flow/10-triggers.md` 작성
+- [x] `spec/data-flow/7-llm-usage.md` 작성
+- [x] `spec/data-flow/4-file-storage.md` 작성
+- [x] `spec/data-flow/8-notifications.md` 작성
+- [x] `spec/data-flow/1-audit.md` 작성
+- [x] `spec/data-flow/9-observability.md` 작성
 - [x] `python3 scripts/check-doc-links.py` 통과 확인
 
 ## 결정 사항

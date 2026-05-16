@@ -121,7 +121,7 @@ export const variableDeclarationNodeMetadata: NodeComponentMetadata = {
     {
       id: 'variable_declaration:first-variable-name-empty',
       when: 'length(variables) > 0 && !variables.0.name',
-      message: 'First variable\'s name must be entered.',
+      message: "First variable's name must be entered.",
     },
   ],
   validateConfig: validateVariableDeclarationConfig,

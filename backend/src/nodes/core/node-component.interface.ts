@@ -149,7 +149,7 @@ export interface NodeComponentMetadata {
   warningRules?: readonly WarningRule[];
   /**
    * Imperative escape hatch for warnings the {@link warningRules} mini-DSL
-   * cannot express. Returns Korean messages — same shape as
+   * cannot express. Returns warning messages — same shape as
    * `handler.validate(config).errors`. Per the SSOT contract, this lives on
    * the same node component as the schema (no logic outside the node folder).
    *
@@ -292,4 +292,16 @@ export interface NodeComponent<TConfig = Record<string, unknown>> {
   inputSchema?: ZodSchema<unknown>;
   outputSchema?: ZodSchema<unknown>;
   createHandler: (deps: HandlerDependencies) => NodeHandler;
+  /**
+   * Optional extra payload shipped to the frontend through
+   * `GET /nodes/definitions`. Use sparingly — most nodes are fully
+   * described by `configSchema` + `metadata`. Designed for cases where
+   * the dynamic form needs a lookup table the schema alone can't carry
+   * (e.g. the cafe24 node ships its operations-by-resource catalog
+   * derived from `backend/src/nodes/integration/cafe24/metadata/*`).
+   *
+   * Must return JSON-serializable data. Called once per
+   * `GET /nodes/definitions` request from `NodeComponentRegistry`.
+   */
+  extras?: () => unknown;
 }

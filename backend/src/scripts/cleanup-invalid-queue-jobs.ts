@@ -22,10 +22,11 @@
  *
  * 사용 (운영 환경, 컴파일된 dist 산출물 사용):
  *
- *   # 권장: 컨테이너 안에서 npm script 호출
- *   docker compose exec backend npm run cleanup:queue-jobs -- --apply --pause-during-sweep
+ *   # 권장: 컨테이너 안에서 npm script 호출 (dry-run / apply 분리)
+ *   docker compose exec backend npm run cleanup:queue-jobs           # dry-run
+ *   docker compose exec backend npm run cleanup:queue-jobs:apply     # --apply --pause-during-sweep
  *
- *   # 또는 dist 직접
+ *   # 또는 dist 직접 (수동으로 flag 조합이 필요할 때)
  *   node backend/dist/scripts/cleanup-invalid-queue-jobs.js --apply --pause-during-sweep
  *
  * 운영 절차:

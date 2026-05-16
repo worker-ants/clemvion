@@ -237,7 +237,9 @@ describe('Send Email node schema', () => {
     it('emits all four declarative warnings on a freshly-created node', () => {
       const errors = evaluateMetadataBlockingErrors(sendEmailNodeMetadata, {});
       expect(errors).toContain('Email integration must be selected.');
-      expect(errors).toContain('Recipient (To) must include at least one address.');
+      expect(errors).toContain(
+        'Recipient (To) must include at least one address.',
+      );
       expect(errors).toContain('Subject must be entered.');
       expect(errors).toContain('Body must be entered.');
     });

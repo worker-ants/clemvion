@@ -39,6 +39,7 @@ function normalizeResponse(raw: NodeDefinitionResponse): NodeDefinition {
     configSchema: raw.configSchema,
     inputSchema: raw.inputSchema,
     outputSchema: raw.outputSchema,
+    extras: raw.extras,
   };
 }
 

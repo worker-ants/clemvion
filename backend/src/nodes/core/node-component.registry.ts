@@ -21,6 +21,13 @@ export interface NodeDefinitionView {
   defaultConfig: Record<string, unknown>;
   inputSchema?: unknown;
   outputSchema?: unknown;
+  /**
+   * Optional component-specific extras shipped to the frontend (see
+   * `NodeComponent.extras` JSDoc). Currently used only by the cafe24 node
+   * to deliver the operations-by-resource catalog so the dynamic form can
+   * render Operation select + typed Fields without an extra round trip.
+   */
+  extras?: unknown;
 }
 
 /**
@@ -69,6 +76,7 @@ export class NodeComponentRegistry {
       defaultConfig: this.resolveDefaultConfig(c),
       inputSchema: c.inputSchema ? z.toJSONSchema(c.inputSchema) : undefined,
       outputSchema: c.outputSchema ? z.toJSONSchema(c.outputSchema) : undefined,
+      extras: c.extras?.(),
     }));
   }
 

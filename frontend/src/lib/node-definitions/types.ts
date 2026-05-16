@@ -172,7 +172,74 @@ export type NodeDefinitionResponse = {
   defaultConfig: Record<string, unknown>;
   inputSchema?: JsonSchemaNode;
   outputSchema?: JsonSchemaNode;
+  /**
+   * Optional per-node-type payload that doesn't fit the JSON Schema model.
+   * Most nodes leave this undefined — currently only the `cafe24` node
+   * ships a {@link Cafe24NodeExtras} catalog so its dynamic Operation
+   * select + typed Fields form can render without an extra round trip.
+   * Consumers should narrow by `node.type` before reading.
+   */
+  extras?: Record<string, unknown>;
 };
+
+/**
+ * Shape of the `cafe24` node's `extras` payload. Mirrors the backend's
+ * `PublicCafe24Extras` (`backend/src/nodes/integration/cafe24/metadata/public-meta.ts`).
+ * `method` / `path` are intentionally absent — the frontend renders the
+ * form from labels + field types only.
+ */
+export type Cafe24NodeExtras = {
+  operationsByResource: Record<string, Cafe24SupportedOperation[]>;
+  plannedByResource: Record<string, Cafe24PlannedOperation[]>;
+};
+
+/**
+ * Mirrors the backend `Cafe24FieldType` in
+ * `backend/src/nodes/integration/cafe24/metadata/types.ts`. Keep this union
+ * in sync with the backend definition and with `spec/conventions/cafe24-api-metadata.md` §2.
+ * Frontend doesn't import backend modules, so additions here are silent
+ * unless mirrored on both sides.
+ */
+export type Cafe24FieldType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "array"
+  | "object"
+  | "enum";
+
+/** Mirrors backend `Cafe24FieldLocation`. See note on {@link Cafe24FieldType}. */
+export type Cafe24FieldLocation = "path" | "query" | "body";
+
+export type Cafe24OperationField = {
+  name: string;
+  type: Cafe24FieldType;
+  location: Cafe24FieldLocation;
+  required: boolean;
+  description?: string;
+  enum?: readonly string[];
+  default?: unknown;
+};
+
+export type Cafe24SupportedOperation = {
+  status: "supported";
+  id: string;
+  label: string;
+  description: string;
+  scope: "read" | "write";
+  paginated: boolean;
+  requiredFields: readonly string[];
+  fields: readonly Cafe24OperationField[];
+};
+
+export type Cafe24PlannedOperation = {
+  status: "planned";
+  id: string;
+  label: string;
+  paginated: boolean;
+};
+
+export type Cafe24Operation = Cafe24SupportedOperation | Cafe24PlannedOperation;
 
 /** Flattened definition used by the rest of the app (palette, canvas, panels). */
 export type NodeDefinition = {
@@ -194,4 +261,6 @@ export type NodeDefinition = {
   configSchema: JsonSchemaNode;
   inputSchema?: JsonSchemaNode;
   outputSchema?: JsonSchemaNode;
+  /** See {@link NodeDefinitionResponse.extras}. */
+  extras?: Record<string, unknown>;
 };

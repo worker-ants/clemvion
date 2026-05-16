@@ -61,7 +61,7 @@ describe('validateCodeConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (code)', () => {
-  it('emits the Korean warning when code body is empty', () => {
+  it('emits the warning when code body is empty', () => {
     expect(evaluateMetadataBlockingErrors(codeNodeMetadata, {})).toContain(
       'Body of the code to run must be entered.',
     );

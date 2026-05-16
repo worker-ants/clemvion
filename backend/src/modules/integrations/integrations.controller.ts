@@ -30,13 +30,15 @@ import {
 import {
   ApiCreatedWrappedResponse,
   ApiOkPaginatedResponse,
+  ApiOkWrappedOneOfResponse,
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import {
   IntegrationActivityDto,
   IntegrationDto,
   IntegrationUsagesDto,
-  OAuthBeginResultDto,
+  OAuthBeginCafe24PendingResultDto,
+  OAuthBeginPopupResultDto,
   PreviewTestResultDto,
   ServiceCatalogDto,
   TestConnectionResultDto,
@@ -57,6 +59,26 @@ import {
   UpdateScopeDto,
 } from './dto/integration.dto';
 import { findVariant } from './services/service-registry';
+
+/**
+ * OAuth begin / reauthorize / request-scopes 세 엔드포인트가 동일한 분기
+ * 응답을 갖는다 (popup `{ authUrl, state }` vs Cafe24 Private
+ * `{ mode, integrationId, appUrl, callbackUrl, scopesAdded? }`). DTO 가 추가될
+ * 때 세 데코레이터를 따로 수정하지 않도록 공유 상수로 추출 (shotgun surgery
+ * 방지).
+ */
+const OAUTH_BEGIN_RESULT_DTOS = [
+  OAuthBeginPopupResultDto,
+  OAuthBeginCafe24PendingResultDto,
+] as const;
+
+/**
+ * Swagger description SoT — 세 엔드포인트의 oneOf 응답 설명을 한 곳에서 관리.
+ * `scopesAdded` 는 `request_scopes` mode 에서만 채워지므로 표기 일관성을 위해
+ * 항상 optional 마커 (`scopesAdded?`) 로 노출한다 (spec §9.2 §9.3).
+ */
+const OAUTH_BEGIN_RESULT_DESCRIPTION =
+  '일반 흐름은 { authUrl, state }, Cafe24 Private 흐름은 { mode, integrationId, appUrl, callbackUrl, scopesAdded? }.';
 
 @ApiTags('Integrations')
 @ApiBearerAuth('access-token')
@@ -138,8 +160,8 @@ export class IntegrationsController {
     description:
       'OAuth 흐름을 시작해 인증 URL과 state 토큰을 반환합니다. new/reauthorize/request_scopes 모드를 지원합니다.',
   })
-  @ApiOkWrappedResponse(OAuthBeginResultDto, {
-    description: '인증 URL 및 state 토큰',
+  @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
+    description: OAUTH_BEGIN_RESULT_DESCRIPTION,
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
@@ -359,8 +381,8 @@ export class IntegrationsController {
       '만료되었거나 오류 상태인 OAuth 통합에 대해 재인증 플로우를 트리거합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkWrappedResponse(OAuthBeginResultDto, {
-    description: '재인증 URL 및 state 토큰',
+  @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
+    description: OAUTH_BEGIN_RESULT_DESCRIPTION,
   })
   @ApiBadRequestResponse({ description: 'OAuth 기반 통합이 아님' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
@@ -380,8 +402,8 @@ export class IntegrationsController {
       '기존 OAuth 통합에 추가 스코프를 요청합니다. provider가 incremental auth를 지원해야 합니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
-  @ApiOkWrappedResponse(OAuthBeginResultDto, {
-    description: '스코프 추가 인증 URL',
+  @ApiOkWrappedOneOfResponse(OAUTH_BEGIN_RESULT_DTOS, {
+    description: OAUTH_BEGIN_RESULT_DESCRIPTION,
   })
   @ApiBadRequestResponse({
     description: '입력값 검증 실패 또는 incremental auth 미지원',

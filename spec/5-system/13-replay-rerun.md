@@ -376,7 +376,7 @@ dry-run 모드로 실행된 NodeExecution 은 별도 컬럼 추가 없이 `outpu
 
 `inputModified` 는 `useOriginalInput === false` 이고 `inputOverride` 가 원본 `inputData.parameters` 와 다를 때 `true`. 대용량 입력은 metadata 에 저장하지 않는다 — 변경 여부만 boolean.
 
-감사 로그 표준 schema 는 [Spec 데이터 흐름 — audit](../data-flow/audit.md) 참조.
+감사 로그 표준 schema 는 [Spec 데이터 흐름 — audit](../data-flow/1-audit.md) 참조.
 
 ---
 

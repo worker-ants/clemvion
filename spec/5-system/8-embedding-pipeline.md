@@ -155,7 +155,7 @@ CREATE INDEX idx_document_chunk_embedding
   WITH (lists = 100);
 ```
 
-> 위 DDL 은 컨셉 예시. 실제 운영 인덱스는 V022/V023 (+ V030~V032 후속 정비) 으로 **차원별 partial HNSW** (`vector` / `halfvec`) 로 분리되어 있다. 마이그레이션 상세는 [`spec/data-flow/knowledge-base.md §2.3`](../data-flow/knowledge-base.md) 및 `backend/migrations/V022_*.sql`, `V023_*.sql`, `V030_*.sql`–`V032_*.sql` 참조.
+> 위 DDL 은 컨셉 예시. 실제 운영 인덱스는 V022/V023 (+ V030~V032 후속 정비) 으로 **차원별 partial HNSW** (`vector` / `halfvec`) 로 분리되어 있다. 마이그레이션 상세는 [`spec/data-flow/6-knowledge-base.md §2.3`](../data-flow/6-knowledge-base.md) 및 `backend/migrations/V022_*.sql`, `V023_*.sql`, `V030_*.sql`–`V032_*.sql` 참조.
 
 ---
 
