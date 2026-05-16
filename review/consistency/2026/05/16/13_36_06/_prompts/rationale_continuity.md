@@ -1,3 +1,24 @@
+# Rationale 연속성 Check Payload
+
+본 파일은 orchestrator 가 Rationale 연속성 checker 용으로 작성한 입력입니다. target 문서가 기존 spec 의 `## Rationale` 에서 이미 기각·폐기된 결정을 다시 도입하거나 합의 원칙을 무시하지 않는지 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (Rationale 연속성)
+
+1. **기각된 대안의 재도입** — target 이 과거 Rationale 에서 명시적으로 거부한 대안을 다시 채택하고 있는가 (이유 명시 없이)
+2. **합의된 원칙 위반** — Rationale 에 박혀있는 설계 원칙을 따르지 않고 있는가
+3. **결정의 무근거 번복** — 과거 결정을 뒤집으면서 새 Rationale 를 함께 작성하지 않고 있는가
+4. **암묵적 가정 충돌** — Rationale 에 기록된 시스템 invariant 를 우회하는 설계가 들어와 있는가
+
+## 검토 모드
+spec draft 검토 (--spec)
+
+## Target 문서
+경로: `spec/2-navigation/4-integration.md`
+
+```
 # Spec: 통합 관리 화면
 
 > 관련 문서: [PRD 내비게이션](./_product-overview.md#34-integration-통합) · [PRD 통합/연동](../4-nodes/4-integration/_product-overview.md) · [Spec 레이아웃](./_layout.md) · [데이터 모델 - Integration](../1-data-model.md#210-integration) · [데이터 모델 - IntegrationUsageLog](../1-data-model.md#2101-integrationusagelog) · [PRD 노드 시스템 §Integration 노드](../4-nodes/_product-overview.md#7-integration-노드-3종)
@@ -856,7 +877,7 @@ for each integration:
 
 ### 11.4 UI 배지
 
-- 사이드바 Integration 메뉴: `status IN (expired, error) OR (status='connected' AND token_expires_at IS NOT NULL AND token_expires_at > NOW() AND token_expires_at <= NOW() + INTERVAL '7d')` 카운트 — §2.4 배너 포함 조건 및 §9.1 `?status=attention` 가상 필터값과 동일한 술어. `pending_install` 은 제외.
+- 사이드바 Integration 메뉴: `status IN (expired, error) OR (token_expires_at <= now() + 7d)` 카운트
 - 목록 페이지: 카드 모서리 뱃지 + "Need attention" 배너 (§2.4)
 - 상세 헤더: 상태 배지 + 만료 임박일 경우 `Expires in Nd` 표시
 
@@ -1172,3 +1193,769 @@ PR #75/#76 의 spec 표현 ("expired 전이 두 경로 — token_expired, instal
 기각된 옵션 (install_timeout 알림 발사): UI 배지로 충분히 통지되는 자기-시작 상태에 알림을 더하면 over-noise. 향후 별도 도메인 알림 (예: `integration_action_required`) 신설 시 재검토 가능.
 
 **범위**: 본 결정은 `Notification.type='integration_expired'` 미발사만 다룬다. UI 배지·다음 install 시도 시 `install_token=NULL` 로 인한 404 등 다른 동작은 영향 없음.
+
+```
+
+## 관련 Rationale 발췌
+
+### Rationale 발췌
+
+#### `spec/1-data-model.md` 의 Rationale
+
+## Rationale
+
+### Execution.execution_path → ExecutionNodeLog (V035 → V036)
+
+옛 `execution.execution_path UUID[]` 컬럼은 단일 인스턴스 환경에서는 동작했으나, 다중 backend 인스턴스가 동시에 `array_append()` 로 갱신할 때 인스턴스 간 절대 순서가 보장되지 않았다. 대체 모델로 append-only 테이블 `execution_node_log` 를 도입했고, BIGSERIAL `id` 가 PostgreSQL sequence (concurrency-safe) 로 부여되므로 `(execution_id, id)` 정렬이 곧 노드 실행 순서가 된다.
+
+이행은 lock 영향 최소화를 위해 두 단계로 분리되었다.
+
+- `backend/migrations/V035__execution_node_log_create.sql` — 테이블 생성 + `UNNEST WITH ORDINALITY` 로 기존 array 데이터 이행. `executeInTransaction=false`.
+- `backend/migrations/V036__execution_drop_execution_path.sql` — 컬럼 DROP. `lock_timeout=3s` 로 운영 영향 최소화.
+
+설계·운영 세부는 [`spec/5-system/4-execution-engine.md §7.4`](./5-system/4-execution-engine.md) 참고. 외부 API 응답의 `executionPath: string[]` 시그니처는 유지되며, `findById` 가 본 테이블의 정렬 쿼리로 채운다.
+
+### install_token 형식 (32byte hex → 16byte base64url, 2026-05-15)
+
+옛 32바이트 hex (64자) 는 Cafe24 Developers App URL 입력 필드의 100자 한도를 path prefix 단축만으로는 못 맞춰 함께 단축. 16바이트 (128-bit) 면 capability token 으로 NIST/OWASP 권장 (96-bit 이상) 을 충분히 상회. DB 컬럼 `install_token` 은 `String?` 으로 길이 제약이 없어 schema 변경 불필요 — 마이그레이션 entry 신규 추가 없음. 상세 배경·대안 비교는 [Spec 통합 화면 §9.2 Rationale "Cafe24 App URL 100자 한도 대응" 항](./2-navigation/4-integration.md#rationale).
+
+#### `spec/2-navigation/1-workflow-list.md` 의 Rationale
+
+## Rationale
+
+### 1. "공유 워크플로우" 의 정의 — 팀 워크스페이스 전체
+
+NAV-WF-07 의 "공유" 기준으로 두 옵션을 검토했다:
+
+- (a) **팀 워크스페이스에 속한 모든 워크플로우** = 공유 (선택)
+- (b) `createdBy ≠ 현재 사용자` 또는 명시적 sharedWith 컬럼 = 공유 (폐기)
+
+(a) 를 채택한 이유:
+
+- PRD 의 NAV-WF-07 원문("팀 워크스페이스에서 공유된 워크플로우 구분 표시")이 워크스페이스 단위의 격리·공유를 전제로 하고 있어, 워크스페이스 = 공유 단위라는 정의와 자연스럽게 부합한다.
+- 데이터 모델상 워크플로우 격리는 이미 `workspaceId` 로 처리되며(`backend/src/modules/workflows/entities/workflow.entity.ts`), `sharedWith` 컬럼이나 추가 마이그레이션 없이 구현 가능하다.
+- (b) 는 같은 팀 안에서 "내 것" 과 "남의 것" 을 다시 분리하는 정의지만, 그 구분은 §2.3 의 **소유 필터** 가 담당하므로 뱃지에서까지 중복으로 표현할 필요가 없다.
+
+결과적으로 뱃지(워크스페이스 = 공유)와 필터(작성자 단위 세분화)가 역할 분담된다.
+
+#### `spec/2-navigation/10-auth-flow.md` 의 Rationale
+
+## Rationale
+
+### R-1. 인증 화면 배경 — 그라데이션 복원 (2026-05-15 롤백)
+
+§1 배경 기술을 *"제품 브랜드 색상 또는 그래디언트"* (main 표현) 로 **복원**. 이전 Stage 1 (commit `b6267429`) 에서 *"`soil-50` 단색, 그라데이션 금지"* 로 구체화했으나, 동일자 §8 부분 롤백 (`spec/6-brand.md` R-13) 에서 `soil-50` 토큰이 §8.2 와 함께 폐기되어 본 표현도 함께 복원했다.
+
+코드 상태: `frontend/src/app/(auth)/layout.tsx` 는 `bg-gradient-to-br from-[hsl(var(--background))] via-[hsl(var(--muted))] to-[hsl(var(--background))]` 패턴 — Shadcn neutral 그라데이션. 로고는 `#111e14` 라운드 컨테이너 안에 별도 배치 (그라데이션 위 dark surface 로 시인성 확보).
+
+### R-2. `[Logo]` 자리 변종 명시 (2026-05-15 정정)
+
+§1 의 `[Logo]` 플레이스홀더에 *"Full logo 변종 사용"* 명시. 이전 Stage 1 에서는 *"Full logo (light)"* 로 라이트 한정했으나, §8 부분 롤백 (`spec/6-brand.md` R-13) 에서 라이트/다크 자산 선택을 노출 자리의 surface 톤에 위임하는 형태로 바뀌어 본 행에서도 라이트 한정을 제거.
+
+본 문서는 로고가 노출되는 **자리**를 정의하고, 자리에 들어가는 변종·라이트/다크 선택은 brand spec §8.4.1 매트릭스 + §8.4.6 의 노출 자리 규정을 따른다 (R-9 — 브랜드 spec 의 라우트 spec 우선권).
+
+근거 출처: `spec/6-brand.md §8.4.1`, `§8.4.6`, `R-13`. 사전 일관성 검토 세션: `review/consistency/2026/05/15/18_36_51/` (Stage 1), `review/consistency/2026/05/15/23_45_11/` (롤백).
+
+#### `spec/2-navigation/9-user-profile.md` 의 Rationale
+
+## Rationale
+
+### `/profile` 편집 인터랙션의 분리 (§2)
+
+초기 와이어프레임은 사용자 정보·환경설정·비밀번호 변경을 한 페이지의 폼으로 묶고 하단 단일 `[Save Changes]` 버튼으로 모두 커밋하는 형태였다. 다음과 같은 footgun 이 식별되어 현재의 하이브리드 편집 패턴(인라인 토글 + sub-route + diff 확인 모달) 으로 개정했다.
+
+- **이질적 변경의 의도 충돌** — 자격증명(비밀번호)·개인정보(이름·아바타)·환경설정(언어·테마) 은 위험 수준이 서로 다른데도 한 번의 클릭이 모두를 동시에 PATCH 하는 구조였다. 사용자 의도와 실제 결과가 어긋날 가능성이 컸다.
+- **무방비 편집 활성화** — 모든 input 이 디폴트로 활성화되어 있어 단순 탐색 중에도 실수 입력이 그대로 저장 대상이 되었다.
+- **세션 강제 종료 패턴과의 톤 불일치** — `/profile/sessions` 의 강제 종료는 이미 `RevokeConfirmDialog`(password/TOTP 재인증) 로 명시적 의도를 분리해 안전하게 운영 중인데, 같은 영역의 다른 민감 동작은 그 톤을 따르지 못하고 있었다.
+
+해법으로 (a) `/profile` 을 디폴트 readonly 로 두고 카드 단위 [편집] 토글로 의도를 분리, (b) 저위험 항목(이름·환경설정) 도 저장 직전 변경 전·후 diff 확인 모달을 한 단계 거치게 해 실수 방지, (c) 고위험 항목(비밀번호) 은 별도 sub-route 진입 자체가 의도 표명 역할을 하도록 채택했다. 이메일은 기존 결정대로 "별도 변경 (확인 메일)" 으로 본 화면에서 분리한 상태를 유지한다.
+
+폐기된 대안:
+
+- **모달 일원화** — 모든 편집을 모달로 처리(인라인 토글 없음). 환경설정처럼 자주 만지는 항목까지 매번 모달이 떠야 해 마찰이 과도하다고 판단.
+- **전 항목 sub-route** — 환경설정·이름까지 모두 별도 라우트로 분리. 라우팅·뒤로가기 비용이 가치 대비 과도. 위험 수준에 비례한 마찰이 더 합리적.
+- **단일 페이지 + 섹션별 Save 버튼** — 폼은 그대로 두고 Save 만 섹션 단위로 쪼개기. "폼이 디폴트로 노출되어 무방비" 라는 핵심 문제를 해결하지 못함.
+
+#### `spec/2-navigation/_layout.md` 의 Rationale
+
+## Rationale
+
+### R-1. 사이드바 로고 변종 규칙 (2026-05-15)
+
+§2.1 로고 행에 expanded/collapsed 변종 규칙을 추가한 이유: 본 문서는 사이드바의 **자리**만 정의하고, 자리에 들어가는 로고 변종·색은 `spec/6-brand.md §8.4` (brand spec) 가 단일 진실로 결정한다. 본 행은 brand spec §8.4.6 의 결정(expanded → Full logo / collapsed → Icon mark)을 자리 정의에 반영한 것이다.
+
+근거 출처: `spec/6-brand.md §8.4.6` (로고 노출 자리) 및 동 문서 R-9 (브랜드 spec 의 라우트 spec 우선권). 사전 일관성 검토 세션: `review/consistency/2026/05/15/18_36_51/`.
+
+### R-2. §2.1 로고 행 정정 (2026-05-15 롤백)
+
+§8.2 컬러 토큰 정식화 폐기(`spec/6-brand.md` R-13) 와 함께, 본 §2.1 의 *"Full logo (light)"* 표현에서 *(light)* 한정을 제거. 라이트/다크 자산 선택은 노출 자리(surface) 의 배경 톤에 따라 brand spec §8.4 가 결정한다. R-1 의 §8.4.6 참조는 본 롤백 후에도 유효하며, 다만 §8.4.6 표 자체가 *"라이트/다크 자산 선택은 노출 자리에 맞춤"* 표현으로 정정되었다.
+
+사전 일관성 검토 세션: `review/consistency/2026/05/15/23_45_11/`.
+
+#### `spec/3-workflow-editor/4-ai-assistant.md` 의 Rationale
+
+## Rationale
+
+본 spec 결정 사항의 배경·근거. memory/ 에 남아있던 작업 메모를 inline 흡수한 것이며, 폐기된 대안과 1회성 분석 자료는 `plan/complete/archive/from-memory/` 를 참조.
+
+_원본 메모: memory/workflow-ai-assistant-decisions.md_
+
+### Workflow AI Assistant — 기획 결정 메모
+
+Workflow AI Assistant(에디터 내 채팅형 AI) 스펙 작성 시 사용자와 합의한 결정 사항을 구현자가 재참조할 수 있도록 정리한다.
+
+#### 확정된 결정 사항
+
+| 항목 | 결정 | 근거 |
+|------|------|------|
+| 제품 명칭 | **Workflow AI Assistant** / 워크플로우 AI 어시스턴트 | PRD/Spec/i18n 전 영역에서 통일 사용. "Copilot", "AI Workflow Builder" 후보는 기각 |
+| PRD 배치 | `prd/2-workflow-editor.md` §10, 요구사항 ID 접두사 `ED-AI-*` | 에디터 내부 UI/UX가 주 영역이므로 에디터 문서에 포함. PRD 6에서는 cross-ref만 |
+| 채팅 세션 영속화 | **서버 저장** (신규 엔티티 `AssistantSession`, `AssistantMessage`) | 페이지 새로고침·재접속 시 이어서 대화 지원. 관련: `spec/1-data-model.md` §2.20~2.21 |
+| 변경 적용 방식 | 즉시 반영 + Undo (`editor-store` 재사용) | 기존 자동 저장/Ctrl+S 흐름과 일관. DB 영구 기록은 사용자의 Save를 통해서만 |
+| 스트리밍 | SSE + `LLMClient.stream()` 신규 메서드 | 관련: `spec/5-system/7-llm-client.md` §8 |
+| 스트리밍 v1 지원 provider | OpenAI, Anthropic만 | Google/Azure는 Tool-use 포맷 차이로 후속. 미지원 provider 선택 시 `ASSISTANT_STREAMING_UNSUPPORTED` 에러 |
+| NodeSettings Panel과 동시 오픈 | **상호 배타** (Assistant 열면 Settings 닫힘) | MVP 단순화. 사용자 피드백에 따라 후속 버전에서 나란히 배치 가능 |
+| Assistant의 편집 권한 | `editor` 역할 이상 | 기존 RBAC 규약 재사용 |
+
+#### 구현 시 유의 사항 (승인된 기술 플랜 `~/.claude/plans/ui-partitioned-porcupine.md` 대비 변경점)
+
+원래 기술 플랜에는 "채팅 히스토리는 in-memory only (MVP)"로 명시되어 있었으나, **기획 단계에서 서버 영속화로 변경**되었다. 따라서 다음 작업이 추가된다:
+
+1. **DB 엔티티 2개 신규**: `AssistantSession`, `AssistantMessage` (Flyway 마이그레이션 필요)
+2. **REST API 5개 신규**: `GET/POST/PATCH/DELETE /workflow-assistant/sessions`, `GET /workflow-assistant/sessions/:id`. SSE 엔드포인트는 `POST /workflow-assistant/sessions/:id/messages`로 경로 변경 (기존 플랜의 `/workflow-assistant/message`가 아님).
+3. **백엔드 Service**: 세션/메시지 CRUD + 대화 컨텍스트 조립(최근 30턴 프롬프트 주입 룰).
+4. **프론트엔드 스토어**: `assistant-store.ts`가 서버 세션 id를 들고 있어야 하며, 패널 오픈 시 `GET /sessions?workflowId=...`로 기존 세션을 로드.
+5. **Cascade 삭제**: `Workspace` 삭제 → `Workflow` 삭제 → `AssistantSession` 삭제 → `AssistantMessage` 삭제. Flyway 마이그레이션에서 ON DELETE CASCADE FK 설정.
+
+#### 미결 UX (발견 시 확인 필요)
+
+- 세션 보관 기간/자동 archive 정책 — 현재 Spec은 "수동 삭제까지 영속". 향후 워크스페이스별 용량 제한과 연계 가능.
+- 세션 공유/내보내기 — v1 스코프 밖 명시. 팀 워크스페이스 RBAC 선행 필요.
+- Plan 카드의 step을 사용자가 직접 편집/체크 가능한지 — 현재 Spec은 "사용자 조작 불가, 진행도 표시 전용"(§3.3). 필요해지면 별도 RFC.
+
+_원본 메모: memory/workflow-assistant-prompt-restructure.md_
+
+### Workflow AI Assistant 시스템 프롬프트 재구조 (2026-04-22)
+
+`backend/src/modules/workflow-assistant/prompts/system-prompt.ts` 를 5블록 구조로 재편한 작업의 핵심 결정 사항과 향후 주의점을 정리한다.
+
+#### 왜 바꿨나
+
+##### 이전 구조의 문제
+
+1. **규칙 중복.** "plan-only vs execution turn" 분기가 5군데(L84/L85/L129/L138–153/L251)에 흩어져 LLM이 매 턴 파싱해야 했다. `planStepId` 태깅 규칙도 4군데, `get_node_schema` 선행 규칙도 4군데 반복.
+2. **토큰/캐시 비효율.** 매 턴 변하는 `workflow snapshot JSON`(L121)과 `activePlanSection`(L87 근처)이 프롬프트 상단에 있어 provider prefix cache가 사실상 매 턴 무효화.
+3. **시각적 우선순위 부재.** 섹션이 전부 `##` 동일 레벨, MUST/SHOULD 계층 구분 없음. 서술형 문장 안에 분기 로직이 숨어 있었음.
+4. **부정문 지배.** DO NOT / NEVER / MUST NOT 위주. 긍정형 격언이 드물었다.
+5. **예시 중복.** 6개 예시 중 3개가 사실상 같은 교훈(trigger 연결 + dynamic-ports + label/id) 반복.
+
+#### 새 구조 (5블록)
+
+1. **ROLE & TURN-OP PROTOCOL** — 역할 1문장 + 툴 호출 규약 + **turn 결정표** (Markdown table: `Turn type | Emit prose? | finish call? | Further tools | When it applies`)
+2. **CONTRACTS (MUST)** — Node output contract (CONVENTIONS 0/1.1/2/8), Label vs identifier, Entry-point connectivity, Dynamic-ports (schema-first + stable ids), Plan gating (openQuestions / planStepId / completeness)
+3. **EDIT PLAYBOOK** — Closing the turn, pendingUserConfig, Editing existing node's config, Layout guidance, Error handling, Examples (3개)
+4. **REFERENCE** — Node catalog, Expression language
+5. **DYNAMIC STATE** — Active plan context + Current workflow snapshot JSON (**반드시 프롬프트 끝에 위치**)
+
+##### 주요 효과
+
+- **Prefix cache 친화.** 정적 콘텐츠가 앞, 동적 상태가 뒤로 이동해 prefix-cache hit rate가 크게 개선될 것으로 기대.
+- **규칙 단일 소스.** "Call `finish` immediately after `propose_plan`" 문구가 **딱 한 곳(turn 결정표)** 에만 존재. 다른 섹션에서는 "the decision table above" 로만 참조.
+- **Expression reference 캐시.** `EXPRESSION_REFERENCE_CACHE` 모듈 스코프 변수로 한 번만 문자열화. 이전엔 매 턴 `getAllFunctionNames().sort().join()` 을 재실행.
+- **예시 3개로 축소** — Ex1 단순 edit / Ex2 dynamic-ports+pendingUserConfig (label/id 동시 커버) / Ex3 openQuestions 포함 복잡 요청.
+
+#### 새 구조를 고정하는 테스트
+
+`system-prompt.spec.ts` 에 `5-block structural layout (cache-friendly ordering)` describe 블록 추가. 향후 변경 시 다음이 깨지면 안 된다:
+
+- `## Expression language` 이후에 workflow snapshot JSON(`"nodes":[`) 이 위치.
+- `## Expression language` 이후에 `## Active plan context` 위치.
+- `Label vs identifier` (CONTRACTS) 는 `## Expression language` (REFERENCE) 보다 앞.
+- Turn 결정표 헤더 `| Turn ... | ... prose ... | ... finish ...` 형태가 존재하고 `plan-only` / `execution` 두 턴 종류가 본문에 등장.
+- `Call finish immediately after propose_plan` 정규식 매치가 **1회 이하** (중복 금지).
+
+#### 보존한 계약 (기존 테스트가 보장하는 것)
+
+다음은 절대 문구를 깨면 안 된다 (regex 매칭됨):
+
+- `[dynamic-ports]` 카탈로그 마커
+- P0 guard rail: `manual_trigger` entry-point / `openQuestions` finish 금지 / `get_node_schema` MANDATORY
+- Label vs identifier 예시: `btn_approve`, `승인`, `interaction.data.buttonId`, `interaction.data.email`, `data["승인"]` 금지 사례
+- `## Closing the turn ... execution turn` 헤더 (동일 라인에 두 문구)
+- `pendingUserConfig`, 4종 selector: `integration-selector`, `llm-config-selector`, `kb-selector`, `workflow-selector`
+- `TODO|placeholder` 금지 가드
+- `## Expression language`, `validate()`, `INVALID_EXPRESSION`, `Optional chaining`, `` `??` ``, `Arrow`, `Template literal`
+- `Editing an existing node's config`, `shallow-merged`, `[REDACTED]`, `minimum patch`, "keep .* id"
+- Active plan rendering: `[x] s1 · add_node` / `[ ] s2 · add_edge` / `• [note] ...` / `awaiting approval` / XML fence `<user-request>...</user-request>`
+
+#### 이번 작업에서 발견한 pre-existing 이슈
+
+TEST WORKFLOW 중 다음 테스트가 **main 브랜치에서도 실패** 함을 확인 (git stash 로 재현):
+
+- `backend/src/modules/workflow-assistant/tools/validate-expressions.spec.ts` — "accepts optional chaining" 케이스
+- `backend/src/modules/workflow-assistant/tools/shadow-workflow.spec.ts` — "accepts add_node with optional chaining (supported syntax)"
+
+원인은 `@workflow/expression-engine` 패키지의 optional chaining 파서가 한글 키 인덱싱(`$node["1depth 음식 종류"]?.output?.interaction?.data.field`)을 거부하는 것으로 보인다. 최근 커밋 `6f6cfe1 표현식에 ? 지원` 에서 도입하려던 수정이 불완전한 듯하다.
+
+**이번 프롬프트 재구조 작업 범위 밖**이므로 별도 이슈로 처리해야 한다. 프롬프트 재구조는 이 실패들과 독립적으로 완결.
+
+#### 유지보수 시 체크
+
+- 섹션을 추가할 때 **블록 경계를 넘지 말 것.** 정적 내용은 BLOCK 1~4, 동적 내용은 BLOCK 5. 이 규율이 캐시 효과의 근간.
+- `STATIC_BLOCK_1_*`, `STATIC_BLOCK_2_*`, `STATIC_BLOCK_3_*` 모듈 스코프 상수로 빌드 타임에 1회만 문자열화됨. 동적 값이 필요하면 이 상수에 넣지 말고 `buildSystemPrompt` 본체에서 조립.
+- 새 규칙을 추가하기 전, **기존 섹션에 흡수 가능한지 먼저 검토.** 규칙을 여러 곳에 반복 넣으면 이번 리팩토링이 무효화된다.
+- Harmony control token 경고(`<|channel|>` 등) 는 OpenAI gpt-oss 계열 대비 유산. 현 provider (OpenAI/Anthropic/Google) 모두에서 발생하지 않는다는 것이 확인되면 제거 가능.
+
+_원본 메모: memory/workflow-assistant-self-review-and-error-hints.md_
+
+### Workflow Assistant — 자체 점검 + 에러 풍부화 (2026-04-23)
+
+Assistant 가 복합 워크플로우 (예: 설문조사) 를 만들 때 실패 tool call 이 연쇄적으로 발생하던 문제와, 완료 후 자체 점검이 없던 문제를 해결한다. 본 메모는 향후 유지보수 시 놓치면 안 되는 결정·제약을 정리한다.
+
+#### Part A — Tool-call 오류 감소
+
+##### 에러 풍부화 (ShadowResult 확장)
+
+`ShadowResult` 에 optional 필드 추가:
+- `knownTypes: string[]` (정렬, 최대 `KNOWN_TYPES_MAX=40`) — `UNKNOWN_NODE_TYPE`
+- `suggestedType: string` — alias 맵 hit (`NODE_TYPE_ALIASES`) 우선, 없으면 Levenshtein ≤ 3
+- `repeatCount: number` — 같은 label LABEL_CONFLICT 가 `LABEL_CONFLICT_REPEAT_THRESHOLD(=2)` 이상 반복 시
+- `hint: string` — 복구 지침 한 문장. 세 케이스에서 set 될 수 있다 (JSDoc 에 명시):
+  - UNKNOWN_NODE_TYPE (alias / Levenshtein / 후보 없음 별로 문구 다름)
+  - LABEL_CONFLICT (repeatCount ≥ 2)
+  - NODE_NOT_FOUND on add_edge (recentFailedAddNodeLabels 가 있을 때 cascading 힌트)
+
+##### alias 별칭 정책
+
+`NODE_TYPE_ALIASES` 는 `error_message | error | alert | notification | message | text → template`.
+기준: LLM 이 "UI 메세지용 전용 노드" 가 있다고 가정해 만들어내는 타입명을 `template` 으로 라우팅.
+반드시 `this.knownNodeTypes.has(aliasHit)` 를 확인한 뒤에만 suggestedType 으로 싣는다 (registry 변화 대응).
+
+##### LABEL_CONFLICT ≠ 실패한 노드 생성
+
+**규약**: `addNode()` 의 LABEL_CONFLICT 분기에서는 `recordFailedAddNode` 를 호출하지 않는다. 이유: LABEL_CONFLICT 는 "이름만 겹쳤을 뿐 타입·config 자체는 타당" 한 상태이므로, 이후 `add_edge` 가 NODE_NOT_FOUND 로 떨어졌을 때 cascading 힌트에 섞이면 "앞서 노드 생성이 실패했다" 는 잘못된 진단을 LLM 에 준다. 테스트: `shadow-workflow.spec.ts` "LABEL_CONFLICT does NOT poison the cascading NODE_NOT_FOUND hint".
+
+##### LLM 제공 문자열 embedding 규약
+
+LLM 이 자유 텍스트로 채우는 값(label, attemptedType) 을 힌트/에러 메세지에 embed 할 때는 **반드시** `sanitizeLlmProvidedString(value, maxLen)` 경유. 이 헬퍼가 제어 문자·개행 제거, 백틱·꺾쇠 중화, 길이 절단을 일관 처리한다. 이유: LLM 출력이 `\n## HACK` 같은 마크다운 헤더/인젝션을 품은 채 힌트로 재주입되면 다음 라운드 프롬프트에서 지시문으로 오해될 수 있다.
+
+길이 상수:
+- `ATTEMPTED_TYPE_MAX_LEN = 64` — node type 후보 embed
+- `LABEL_HINT_MAX_LEN = 80` — NODE_NOT_FOUND 힌트 label 목록
+
+##### schemaCache 정책
+
+`workflow-assistant-stream.service.ts` 의 턴 스코프 `schemaCache: Map<string, { result, hits }>`.
+
+카운트 규칙: **hits 값은 호출 순번 그 자체**. 첫 호출 후 1, 두 번째 2, 세 번째 3...
+- hits=1 (첫 호출): 정상 실행, cache set
+- hits=2 (두 번째): cached + `warning: 'REDUNDANT_SCHEMA_LOOKUP'` + `cached: true`
+- hits ≥ 3 (`SCHEMA_LOOKUP_HARD_STOP`): `ok: false, error: 'REDUNDANT_SCHEMA_LOOKUP'` (hard stop)
+
+이 상수를 변경할 때는 서비스 L137–142 주석 + L459–462 inline 주석 + 테스트 3회차 기대값을 모두 동시에 고친다.
+
+#### Part B — 2-stage finish (self-review)
+
+##### 흐름
+
+LLM 이 `finish` 를 호출하면 서버는 아래 순서로 판정:
+
+1. `evaluateFinishGuard` → `PLAN_NOT_COMPLETE` 면 block (기존 동작, 변경 없음).
+2. 통과하면 `evaluateReviewGuard` → `WORKFLOW_REVIEW_REQUIRED` 면 block.
+3. 둘 다 통과하면 `{ ok: true }` 로 finish 성공.
+
+Review 는 **한 턴에 한 번만** 발동 (`state.reviewCompleted`, `state.reviewRoundCount < 2`). 두 번째 `finish` 는 review 를 건너뛰고 통과해, LLM 이 사용자에게 다음 턴에서 후속 지시를 받을 기회를 보장.
+
+##### review skip 조건 (`shouldSkipReview`)
+
+다음 중 하나라도 참이면 review 는 발동하지 않는다. **시스템 프롬프트의 Self-review 섹션 설명과 반드시 동기화 유지** (프롬프트·구현 drift 가 곧 LLM 혼란으로 이어짐):
+
+- `state.reviewCompleted`
+- `state.reviewRoundCount >= 2`
+- `state.finishBlockCount > 0` — PLAN_NOT_COMPLETE 가 이미 발동했다면 LLM 은 한 라운드 feedback 을 받았으므로 review 는 중복
+- `state.planClearedThisTurn`
+- 이번 턴 성공 edit 이 0 — 실행 턴 아님
+- non-trigger 노드 ≤ 1 — trivial 편집 (plan 유무 무관)
+
+##### 체크리스트 항목 (`review-workflow.ts`)
+
+Blocking:
+- **UNRESOLVED_FAILED_CALLS** — `kind === 'edit'` 실패 중 같은 label(add_node) / id(update/remove) / source+target+port 튜플(add_edge, camelCase 도 포함) 로 성공 흔적이 없는 것. **`finish` / `explore` 계열은 제외** (review-guard feedback 이나 `REDUNDANT_SCHEMA_LOOKUP` 은 실패 의미가 아님).
+- **`PORT_NOT_FOUND` (2026-04-23 추가, add_edge 단계에서 즉시 반환)** — UNRESOLVED_FAILED_CALLS 과는 다른 class. `ShadowWorkflow.addEdge` 가 `portResolver` (stream.service 에서 `resolveEffectiveOutputPorts` 기반 주입) 로 source/target 포트 존재성을 검사, 없는 포트면 즉시 `PORT_NOT_FOUND` + `portInfo.knownPorts` 로 reject. 사용자가 config update 실패로 생성되지 못한 동적 포트 (carousel 버튼 / switch case 등) 에 edge 를 붙이려는 실수를 첫 시도에서 catch. 컨테이너 loopback `emit` 포트는 여전히 허용 (spec §4.4).
+- **ORPHAN_NODES** — trigger category 에서 BFS 도달 불가 + container emit loopback 조상도 미reachable. `byId` Map 은 `collectOrphans` 에서 1회 생성 후 인자로 주입 (O(N²) → O(N+E)).
+- **DANGLING_OUTPUT_PORTS** (2026-04-23 추가) — `resolveEffectiveOutputPorts` 가 돌려주는 `isUserConfigured=true` 포트 중 outgoing edge 없는 것. "ORPHAN_NODES 는 입력 방향 reachability, 이 검사는 출력 방향 connectivity" 의 대칭 쌍. weak 포트 (`error`/`default`/`fallback`/`continue`/단일 static `out`) 는 제외 — terminal 노드는 정상 케이스. `nodeDefs` 가 `BuildReviewChecklistInput` 으로 주입되어야 작동; 빈 배열이면 no-op. 상한 `MAX_DANGLING_PORTS=20`.
+- **FAKE_STEP_COMPLETION** — `planStepId` 또는 `planStepIds` 가 붙은 호출들이 step 에 연결되어 있으나 모두 `ok: false`.
+- **PENDING_USER_CONFIG_UNMENTIONED** — pendingUserConfig 있는 노드의 label 이 assistantText 에 포함되지 않음.
+
+Non-blocking:
+- **REQUEST_COVERAGE_LOW** — originalRequest 의미 토큰과 노드 label 겹침 비율 < 30%. 경고만.
+
+##### Port 해석 (resolve-dynamic-ports.ts)
+
+`frontend/src/lib/node-definitions/resolve-dynamic-ports.ts` 의 로직을 backend 로 포팅한 `tools/resolve-dynamic-ports.ts` 가 SSOT. 6 종 `DynamicPortsSpec` (switch-cases, classifier-categories, ai-agent-conditional, info-extractor-mode, presentation-buttons, parallel-branches) 를 전부 지원. 반환 구조에 `isUserConfigured: boolean` 추가 — strong (user-authored) vs weak (framework-synthesized) 구분이 DANGLING_OUTPUT_PORTS 의 핵심 필터. Frontend 사본과 드리프트하지 않도록 `resolve-dynamic-ports.spec.ts` 에 kind 별 시나리오 미러 (16 테스트).
+
+##### 프롬프트 인젝션 방어
+
+`WORKFLOW_REVIEW_REQUIRED` payload 의 `originalRequest` 필드는 `truncateReviewOriginalRequest()` 로 `REVIEW_ORIGINAL_REQUEST_MAX_LEN=200` 자로 잘라 싣는다. 전체 원문은 system prompt 의 Active plan context 에 XML fence 로 이미 중화되어 주입되므로 review 쪽에는 요약만.
+
+##### 프론트엔드 영향
+
+`tool-call-badge.tsx` 는 `kind === 'edit' | 'explore'` 만 SSE 로 구독하므로 `finish` tool_result (`ok: false, error: 'WORKFLOW_REVIEW_REQUIRED'`) 는 UI 빨간 배지로 누출되지 않는다. 사용자는 review 라운드 중 LLM 이 추가로 부른 `get_current_workflow` / 수정 edit 배지 + Korean "검토 완료" 문장만 본다.
+
+#### 유지보수 체크리스트
+
+- `SCHEMA_LOOKUP_HARD_STOP` 변경 시: 상수 정의부 + 인라인 주석 + 테스트 기대값 3곳 동시 수정.
+- `ShadowResult` 필드 추가/제거 시: JSDoc 블록 + 테스트 fixture + 후속 `detectPendingUserConfig` / `toChatMessages` rehydration 경로 확인.
+- Review skip 조건 변경 시: `prompts/system-prompt.ts` Self-review 섹션 문구 동기화 (테스트 `system-prompt.spec.ts` "teaches the 2-stage finish self-review routine..." 가 고정).
+- `NODE_TYPE_ALIASES` 변경 시: alias 가 registry 에 존재하지 않으면 Levenshtein fallthrough 로 빠지는지 회귀 확인 (`shadow-workflow.spec.ts` "falls through to Levenshtein when alias exists but not in knownTypes").
+- `resolveEffectiveOutputPorts` 변경 시: **frontend `resolveDynamicPorts` 와 동일 동작** 을 유지하는지 확인. 두 파일이 각자의 spec 을 가지므로 어느 한쪽만 업데이트하면 review false positive/negative 가 생긴다. 새로운 `DynamicPortsSpec.kind` 추가 시 양쪽에 동시에 branch 추가.
+- DANGLING_OUTPUT_PORTS 의 weak/strong 경계 변경 시: `resolve-dynamic-ports.spec.ts` 의 `isUserConfigured` 단언 + `review-workflow.spec.ts` "does NOT flag weak ports" 케이스 모두 업데이트.
+
+#### Follow-up (스코프 밖, 별도 이슈)
+
+- `ShadowResult` discriminated union 전환
+- `ShadowWorkflow` SRP 분리 (`ShadowWorkflowErrorAdvisor`)
+- `schemaCache` 응답 명시 구조 래핑 (`{ ok, data, cached, warning }`)
+- CHANGELOG 정책 수립 후 본 변경 소급 반영
+
+_원본 메모: memory/workflow-assistant-provider-quirks-and-review-always.md_
+
+### Workflow Assistant — 프로바이더 이상동작 대응 + review 항상 발동 (2026-04-23)
+
+초기 self-review + 에러 풍부화 배포 후 다양한 LLM 프로바이더에서 관찰된 이슈에 대한 2차 대응을 정리.
+
+#### 1. 프로토콜 이상: tool_call + finishReason=stop (gpt-oss-120b)
+
+##### 증상
+gpt-oss-120b 같은 오픈소스 서빙이 edit tool 호출 후에도 `finish` tool 을 부르지 않고 `finishReason: 'stop'` 으로 round 를 종료. LLM text 채널에는 "다음 단계 진행 중" 같은 내레이션을 남겨 사용자는 "멈춤" 으로 체감.
+
+##### 대응
+`stream.service.ts` 루프 종료 조건 확장:
+```ts
+const hadSuccessfulEditThisRound = pendingResultsForLlm.some(...)
+const shouldContinueLoop =
+  pendingResultsForLlm.length > 0 &&
+  (finishReason === 'tool_calls' ||
+   (!finishResolved && hadSuccessfulEditThisRound));
+```
+
+**edit 가 실제로 성공한 round 에서만** round-trip. propose_plan / explore 만 있는 plan-only round 는 기존처럼 stop 으로 종료 (추가 round 의 ROI 없음).
+
+##### 프롬프트 강화
+`STATIC_BLOCK_3_EDIT_PLAYBOOK` Closing the turn 섹션:
+- **Past tense only** — "진행 중", "차례대로", "다음 단계", "이어서 진행하겠습니다" 등 미래형 내레이션 금지 (포착된 실제 leak 패턴).
+- **finish 필수** — tool 호출 후 반드시 `finish` 를 명시 호출해야 함을 강조. 서버의 round-trip 은 fallback 이며 의존 금지.
+
+#### 2. Harmony control token 누수 (gpt-oss)
+
+##### 증상
+gpt-oss-120b 가 `<|channel|>final<|message|>...` 같은 내부 제어 토큰을 응답에 노출. OpenAI SDK 의 SSE 파서가 이를 파싱하다 "Failed to parse input at pos 0: ..." 로 throw → 사용자에게 raw `LLM_CONNECTION_ERROR` 노출.
+
+##### 대응 (2계층)
+`openai.client.ts`:
+1. **Streaming stripping** — `delta.content` / tool_call arguments 에서 harmony 제어 토큰 제거. 패턴 2개 사용:
+   - `HARMONY_CHANNEL_PREAMBLE_REGEX = /<\|channel\|>[\s\S]*?<\|message\|>/g` — preamble 전체 (channel 이름 포함) 한 번에.
+   - `HARMONY_STANDALONE_TOKEN_REGEX = /<\|(channel|start|end|message|return|constrain|...)\|>/g` — 잔여 단독 토큰.
+2. **Parse error 분류** — catch 블록에서 에러 메세지가 harmony 패턴 매치면 `LLM_OUTPUT_MALFORMED` 로 분류하고 사용자 친화적 한국어 안내문으로 치환. Raw 메세지는 UI 에 노출하지 않음 (로그에만).
+
+#### 3. 에러 UI 시안성 개선
+
+##### 증상
+어시스턴트 패널 error box 가 `text-red-800/200` 탁한 shade 사용 → 배경과 대비 부족, 특히 11px 소형 텍스트에서 가독성 낮음.
+
+##### 대응
+`assistant-message.tsx` 의 error box 를 systemHint 패턴과 동기화:
+- 본문 텍스트: `text-red-950 dark:text-red-50` + `font-medium` — "가장 짙은 shade / 가장 옅은 shade" 대비 극대화.
+- 에러 코드 pill: 별도 shade 배경 (red-200 light / red-800 dark) + border 로 명확히 구분.
+- 본문 글자 크기 `10px → 11px` 로 상향 (message.error 타이틀과 동일 레벨).
+- 긴 영문 에러 메세지 대비 `break-all` 추가.
+
+#### 4. Gemini-3-flash 존재하지 않는 노드 타입 발명
+
+##### 증상
+Gemini-3-flash 이 `음식 종류 선택` 같은 label 로 add_node 시도 — catalog 에 없는 type 을 기본 시나리오 표현으로 발명. 첫 `UNKNOWN_NODE_TYPE` 응답의 `suggestedType` / `knownTypes` 힌트도 무시하고 반복 재시도.
+
+##### 대응
+1. **`NODE_TYPE_ALIASES` 확장** — LLM 이 빈번히 발명하는 패턴을 실제 존재 타입으로 매핑 추가:
+   - `user_input / input / question / prompt / survey / text_input` → `form`
+   - `choice / choices / options / selection / selector / button_group / category / buttons` → `carousel`
+   - `router / route / branch / conditional` → `switch` (boolean 은 `if_else`)
+   - `email / send_mail / mail` → `send_email`
+   - `display / show / render / result / output` → `template`
+
+2. **프롬프트 강화** — `STATIC_BLOCK_3_EDIT_PLAYBOOK` Common pitfalls:
+   - "Node types are a fixed catalog — do NOT invent new types based on your task wording." 추가.
+   - 각 카테고리별 "흔한 오발명 → 실제 타입" 표 내장 (message/input/choice/branching/email 5계열).
+
+3. **UNKNOWN_NODE_TYPE 시 suggestedType 을 알려주는 것에 더해 alias 매핑이 광범위해 대부분의 발명 패턴을 한 번에 교정**.
+
+#### 5. Review guard 항상 발동 (사용자 요구 반영)
+
+##### 증상
+`finishBlockCount > 0` skip 조건 때문에 PLAN_NOT_COMPLETE 가 fire 한 다음에는 review 가 발동하지 않음. 사용자 보고: 복잡한 워크플로우에서 plan 가드를 통과한 뒤에도 orphan / pendingUserConfig 미안내 이슈가 여전히 발생.
+
+##### 대응
+`evaluateReviewGuard` 의 `shouldSkipReview` 에서 `finishBlockCount > 0` 체크 **제거**. 두 가드는 독립 계층으로 운영:
+- PLAN_NOT_COMPLETE — plan 체크박스 충족성 (step ↔ tool call 매핑)
+- WORKFLOW_REVIEW_REQUIRED — 워크플로우 품질 (orphan / 실패 미해결 / pendingUserConfig 안내 / fake step 완료)
+
+Plan 가드가 fire 했다는 것은 LLM 이 한 번 보정 했을 뿐, 결과 워크플로우의 품질을 보장하지 않음. 두 가드 모두 fire 하는 3~4 round 시나리오가 현실적 정상 경로.
+
+##### 남은 skip 조건 (최소 안전망)
+- `reviewCompleted` / `reviewRoundCount >= 2` — 같은 턴 review 1회 상한
+- `planClearedThisTurn` — 화제 전환
+- 성공 edit 0 — 실행 턴 아님
+- non-trigger 노드 ≤ 1 — trivial 편집 (ROI 낮음)
+
+##### PENDING_USER_CONFIG_UNMENTIONED 상세화
+details 문자열에 구체적 노드 label + 빠진 selector 목록을 인라인으로 실어, LLM 이 다음 라운드 한국어 마무리 메세지 작성 시 즉시 참조할 수 있게 함. 예:
+> "SendEmail (Integration); AIAgent (LLM Config). In the next round, emit a Korean summary that names each listed node label verbatim..."
+
+> **2026-04-24 업데이트 — 본 가드는 이제 "candidate 0 인 항목" 에만 발동한다.**
+> spec ED-AI-39 로 in-message candidate picker 가 도입되어, 워크스페이스에
+> 후보가 1건 이상 있으면 프런트 picker 가 UX 를 완결한다. LLM 의 한국어
+> mention 은 후보 목록이 비어있어 **사용자가 직접 Integration/LLM/KB/워크플로
+> 를 등록해야 하는 경우에만** 필요하다. 상세는
+> *workflow-assistant-candidate-picker.md (본 Rationale 섹션 내)*.
+
+#### 6. Plan-only 턴의 핑퐁 루프 차단 (gemini-3-flash-preview)
+
+##### 증상
+사용자 보고 (2026-04-23): 복합 설문조사 워크플로우 요청 → gemini-3-flash-preview 가
+`propose_plan` 직후 `finish` 를 호출하지 않고 같은 턴에 수십 개의 edit 을 연쇄 발사.
+프로바이더가 `finishReason: 'tool_calls'` 로 종료 → 서버가 round-trip → LLM 이
+`PLAN_AWAITING_APPROVAL` 피드백을 보고도 또 edit 재시도 → `MAX_TOOL_LOOP_ROUNDS (50)`
+도달 → 사용자 UI 에 "진행이 중단됐어요" + 수십 개의 빨간 배지.
+
+##### 대응 (서버 강제)
+`stream.service.ts` 의 `shouldContinueLoop` 판정 앞에 단락 가드 추가:
+```ts
+const planProposedPendingApproval = !!planForTurn && !planForTurn.approvedAt;
+if (planProposedPendingApproval) finishReason = 'stop';
+const shouldContinueLoop = !planProposedPendingApproval && ...;
+```
+
+- Plan 을 제안했는데 아직 미승인 → 이번 턴 내 round-trip 금지 (1 라운드 종료).
+- `finishReason` 을 `'stop'` 으로 덮어써 클라이언트가 "승인 대기" UI 로 전환.
+- 시스템 프롬프트의 "Plan-only turn | Call finish immediately after propose_plan"
+  규칙을 서버가 실제로 enforce. LLM 이 규칙 준수하지 않아도 핑퐁 루프는 발생 안 함.
+
+##### 호환성
+- 정상 경로 (`propose_plan` → `finish` 한 라운드 내): `finishResolved=true`,
+  `finishReason='stop'` 이 이미 내려가 있어 기존 `shouldContinueLoop=false` 로 자연 종료.
+  가드는 중복 발동해도 동일한 최종 결과.
+- `clear_plan` 이후 새 plan 없이 edit 만 하는 턴: `planForTurn=null` 이라 가드 미발동.
+- History 에서 load 된 approved plan 실행 턴: `planForTurn=null`, 가드 미발동.
+
+##### 회귀 테스트
+`stream.service.spec.ts` — "does NOT round-trip when a plan was proposed and is
+pending approval, even if the provider reports finishReason=tool_calls
+(Gemini-3-flash pattern)". `chatStream` 호출 횟수 1 + `finishReason=stop` + error
+이벤트 없음을 동시에 고정.
+
+#### 7. Stall 자동 복구 (gpt-oss-120b 임의 중단)
+
+##### 증상
+gpt-oss-120b 가 pending step 이 남은 plan 실행 턴에서 tool call 을 하지 않고
+텍스트만 뱉고 `finishReason: 'stop'` 으로 종료. 기존 "edit 성공 round 에만 round-trip"
+가드로는 cover 되지 않아 턴이 조용히 끝남. frontend 는 `turnStalledHint` 로
+"이어서 진행해줘" 안내를 띄우지만 사용자가 수동으로 follow-up 을 입력해야 했다.
+
+##### 대응 (서버 자동 복구)
+`stream.service.ts` 의 기존 `shouldContinueLoop` 뒤에 **stall 복구 블록** 추가:
+
+```ts
+const hasPendingActionableSteps = (() => {
+  if (planPending || finishResolved) return false;
+  if (pendingResultsForLlm.length > 0) return false;  // 이미 위 경로가 cover
+  const ctx = findActivePlanContext(...);
+  if (!ctx || ctx.status !== 'active') return false;
+  return ctx.plan.steps
+    .filter(s => s.action !== 'note')
+    .some(s => !ctx.completedStepIds.has(s.id));
+})();
+if (hasPendingActionableSteps && consecutiveStallRounds < MAX_STALL_ROUNDS) {
+  consecutiveStallRounds++;
+  messages.push({ role: 'assistant', content: roundText });
+  messages.push({ role: 'user', content: '이어서 진행해줘.' });
+  continue;
+}
+```
+
+- Text-only stall + pending plan → 서버가 user 역할의 nudge "이어서 진행해줘." 를
+  messages 배열에 주입하고 루프 계속. LLM 은 다음 라운드에서 system prompt 의
+  Active plan context + user nudge 를 보고 `[ ]` pending step 부터 resume.
+- `MAX_STALL_ROUNDS = 2` 로 runaway 방지 — 2 번 연속 stall 하면 실제 막힌 상태로
+  간주해 턴 종료 (MAX_TOOL_LOOP_ROUNDS=50 전에 탈출).
+- 진척이 있는 라운드는 `consecutiveStallRounds = 0` 으로 리셋.
+- 이 값 조정 시 `stream.service.spec.ts` "gives up after MAX_STALL_ROUNDS..." 고정
+  테스트도 동시에 업데이트.
+
+##### 호환성
+- Plan-only 턴 (미승인): `planPending` 단락으로 stall 가드도 건너뜀 — 사용자 approve
+  대기가 올바른 상태.
+- 이미 finish 성공: `finishResolved=true` 로 제외.
+- Pending step 없음: plan 완료 상태면 nudge 의미 없음 → 가드 비발동.
+- `pendingResultsForLlm.length > 0` 인 경우: 기존 shouldContinueLoop 가 이미 cover.
+
+##### 회귀 테스트
+`stream.service.spec.ts` "auto-continue on stall with pending plan" describe:
+- "auto-nudges LLM when a round ends text-only + stop + plan has pending steps"
+- "gives up after MAX_STALL_ROUNDS (2) consecutive text-only stalls to prevent runaway loops"
+- "does NOT auto-continue when plan has no pending actionable steps"
+
+#### 8. UX: plan-only 자동 안내 hint 제거 (2026-04-23)
+
+##### 증상
+plan-only 턴에서 plan card 와 함께 "계획대로 진행해 주세요." systemHint 가 동시에
+노출 → plan card 의 "계획대로 진행" 버튼 + 동일 문구의 info 박스가 중복 메시지로
+인식. 사용자 피드백: 버튼이 이미 있으므로 hint 는 불필요.
+
+##### 대응
+`frontend/src/lib/stores/assistant-store.ts` 의 done 이벤트 systemHint 분기에서
+`planApproveConfirm` 주입 조건을 제거. `turnStalledHint` / `turnCompletedHint` 만
+유지. i18n 문자열 자체는 `approveActivePlan` 이 user 메시지로 전송할 때 사용하므로
+유지.
+
+#### 9. UX: 에러 버블에 "이어서 진행" 버튼 추가 (2026-04-23)
+
+##### 증상
+`ASSISTANT_TOO_MANY_TOOL_CALLS` 에러 발생 시 사용자가 입력창에 "이어서 진행해줘"
+를 직접 타이핑해야 복구 가능.
+
+##### 대응
+- `continueAfterBudget` action 을 `assistant-store.ts` 에 추가 — `sendMessage`
+  래퍼로 locale-aware 메시지 전송.
+- `assistant-message.tsx` 에 `RESUMABLE_ERROR_CODES` 집합 (현재 `ASSISTANT_TOO_MANY_TOOL_CALLS`
+  1 개) 을 정의, 에러 버블 아래에 "이어서 진행" 버튼 노출. `NO_LLM_CONFIG` /
+  `STREAM_FAILED` 는 resume 불가이므로 버튼 없음.
+- `assistant-panel.tsx` 가 `onContinueAfterBudget` 콜백을 `AssistantMessageView`
+  로 주입해 snapshot 결합 유지 (plan approve 버튼과 동일 패턴).
+
+#### 11. NODE_NOT_FOUND label-lookalike hint (2026-04-24)
+
+##### 증상
+LLM 이 `update_node` / `remove_node` / `add_edge` 의 `id` / `source_id` / `target_id`
+자리에 사용자에게 보이는 **label** (예: `"SendEmail"`) 을 실수로 넣어
+`NODE_NOT_FOUND` 가 연쇄 발생. 이로 인해 config patch 도 전혀 반영 안 되는
+2차 증상까지 번짐.
+
+##### 대응 (2-layer)
+1. **시스템 프롬프트 강화** (`system-prompt.ts`):
+   - Contracts 블록 "Label vs identifier" 섹션에 "Tool arguments: always
+     reference a node by its UUID, never by its label" 하위 문단 추가.
+     UUID 의 유일한 출처 2가지 (`result.id` / `currentWorkflow.nodes[*].id`)
+     명시 + 위반 예 (`update_node({id: "SendEmail"})`) 포함.
+   - "Labels are globally unique" 문장에 "유일성은 add_node 충돌 감지용 —
+     UUID 대체 근거 아님" 단서 병기.
+
+2. **서버 label-lookalike hint** (`shadow-workflow.ts`):
+   - `buildLabelAsIdHint(value)`: shadow 에 `node.label === value` 인 노드가
+     있으면 `[hint] Value "<label>" matches the label of an existing node
+     (id: <uuid>). ... [/hint]` 형태의 복구 문자열 반환. `findByLabel` 위임으로
+     순회 로직 중복 제거. `sanitizeLlmProvidedString` 으로 label 을
+     C0+C1+Bidi+zero-width 까지 중화 + `JSON.stringify` 로 escape.
+   - `updateNode` / `removeNode`: `NODE_NOT_FOUND` 분기에 바로 hint 부착.
+   - `addEdge`: **cascading failed-add_node FIFO 가 먼저**. 비었을 때만
+     source 우선 label-lookalike fallback (target 은 source 매치 없을 때만).
+     두 힌트가 섞이지 않도록 단일 hint.
+
+##### 호환성·주의
+- `ShadowResult.hint` 는 기존부터 optional 필드. 기존 `NODE_NOT_FOUND` 소비자는
+  hint 없이도 동일 동작.
+- `value.length > LABEL_HINT_MAX_LEN * 4` 는 label 후보에서 제외 (Levenshtein
+  유사 방어).
+- `[hint] … [/hint]` 마커는 이번부터 label-lookalike 계열에만 적용. 기존
+  cascading 힌트 등은 기존 형식 유지.
+
+##### 관련 spec
+- `spec/3-workflow-editor/4-ai-assistant.md` §4.4.1 "NODE_NOT_FOUND hint 규칙"
+  에 cascading / label-lookalike 의 발동 조건·우선순위·보안 정책 정리.
+- §8 "워크플로우 조립 규칙" 행에 "tool argument id 자리 UUID 전용" 한 문장
+  추가.
+
+##### 회귀 테스트
+`shadow-workflow.spec.ts` → `NODE_NOT_FOUND label-lookalike hint` describe:
+- update/remove/add_edge source/target 별 hint 부착
+- 양측 label → source 단일 hint
+- 공백 전용 id → hint 없음
+- cascading FIFO 비어있을 때 label-lookalike fallback 반례
+- cascading 우선순위 (FIFO 있으면 cascading hint)
+- label sanitisation (newline, `<script>`)
+
+`system-prompt.spec.ts` → "teaches that tool-argument id slots need UUIDs,
+never node labels" 로 슬로건 고정 + `result.id` / `nodes[*].id` / "matches the
+label of" 매칭.
+
+관련 리뷰: `review/2026-04-24_18-27-09/`.
+
+#### 10. Stall 자동 복구 UX — 메시지 박스 분리 + `auto_resume` SSE 이벤트 (2026-04-24)
+
+##### 배경
+§7 의 stall 복구가 발동하면 같은 `assistantText` 에 여러 라운드 텍스트가 누적되어
+단일 `WorkflowAssistantMessage` row 로 저장된다. gpt-oss-120b 는 라운드 종료 직전
+"계속 진행해도 될까요?" 같은 confirmation 문구를 반복적으로 뱉는 quirk 가 있어,
+stall 전·후 라운드의 같은 문구가 한 버블 안에서 2~3번 겹쳐 UX 가 지저분해진다.
+
+##### 대응
+**구조적 해결** — 서버가 stall 복구로 추가 라운드를 시작하는 순간, 누적된 텍스트를
+별도 row 로 먼저 persist 하고 커서를 리셋한다. 이후 라운드는 새 row 에 누적된다.
+프론트에게는 `event: auto_resume` 을 발행해 "새 버블로 분리해 달라" 는 신호를 준다.
+
+**엔티티 변경** — `WorkflowAssistantMessage` 에 3개 필드 추가:
+- `autoResumed: boolean` — 이 row 가 복구로 인해 새로 시작된 row 이면 true
+- `autoResumeReason: string | null` — 현재 `'stall_pending_steps'` 한 종류
+- `autoResumeAttempt: number | null` — 1..MAX_STALL_ROUNDS
+
+마이그레이션 `V020__assistant_message_auto_resume.sql` 로 기본값 false / null 로
+기존 row 호환.
+
+**stream.service 변경** — stall 복구 블록 (§7) 에서:
+```ts
+// 1) 현재까지의 assistant 텍스트를 "중간 row" 로 먼저 persist
+await this.persistAssistantTurn(sessionId, assistantText, pendingToolCalls,
+  planPersisted ? null : planForTurn, null, 'auto_resume_pending',
+  /* resumeMeta */ { autoResumed: false, ... });
+if (planForTurn) planPersisted = true;
+// 2) 누적 커서 리셋 — 다음 라운드는 새 row
+assistantText = ''; pendingToolCalls = [];
+// 3) SSE 로 프론트에 신호
+yield { event: 'auto_resume', data: { reason, attempt, max } };
+// 4) 기존 nudge 주입 + continue
+```
+
+턴 종료 시점의 최종 persist 에는 `autoResumed: consecutiveStallRounds > 0` 를 전달.
+
+**`persistAssistantTurn` 시그니처 확장** — 마지막 파라미터로 `resumeMeta` 를 받고
+기본값으로 `{autoResumed: false, autoResumeReason: null, autoResumeAttempt: null}`
+를 쓴다. 기존 호출부 변경 최소.
+
+**Plan 중복 방지** — 같은 턴 안에 plan 이 최초로 emit 되는 row 에만 plan 을 싣고,
+그 뒤로 분리된 row 는 `plan=null` 로 persist. 로컬 `planPersisted` 플래그로 관리.
+
+##### 프론트 변경
+- `AssistantSseEvent` union 에 `auto_resume` 추가 (api/assistant.ts)
+- `AssistantDisplayMessage` 에 `autoResume?: {reason, attempt, max}` 추가
+- `handleSseEvent` 는 그대로 유지하고, `sendMessage` 의 onEvent 콜백에서
+  `auto_resume` 이벤트를 가로채 현재 `currentAssistantId` 를 새 UUID 로 갱신하면서
+  새 assistant row 를 push.
+- `hydrateMessage` 에서 서버의 `autoResumed=true` row 를 `autoResume` 메타로 복원.
+- `assistant-message.tsx` 에서 `message.autoResume` 이 있으면 버블 위에 divider
+  렌더 ("🔄 자동으로 이어서 진행했어요 (N/M)"). i18n `assistant.autoResumedHint`.
+
+##### 호환성
+- 기존 row (autoResumed=false) 는 divider 가 표시되지 않음 → 기존 세션 그대로.
+- 정상 턴 (stall 없음): `persistAssistantTurn` 이 한 번만 호출되어 row 1개.
+- stall 1회 복구: row 2개 (`auto_resume_pending` + 최종). 최종 row 에만 autoResumed=true.
+- stall 2회: row 3개. 최종 row 에 autoResumedAttempt=2.
+- `MAX_STALL_ROUNDS` 상한에 걸려 포기하는 경우: 마지막 row 도 autoResumed=true 로
+  persist (포기 직전 "이어서 진행해줘" 가 주입되지 않았지만 텍스트가 새 버블로
+  분리되는 것은 동일하게 유지 — 서버가 분리 persist 를 이미 수행했음).
+
+##### 회귀 테스트
+`stream.service.spec.ts` "auto-continue on stall with pending plan" describe 의
+기존 3개 테스트에 다음 어서션 추가:
+- `appendMessage` 호출 횟수가 (stall N회) + 1 개 (최종) 임을 확인.
+- N+1 개 row 중 중간 row 들은 `finishReason='auto_resume_pending'`, `autoResumed=false`.
+- 최종 row 는 `autoResumed=true`, `autoResumeReason='stall_pending_steps'`,
+  `autoResumeAttempt=N`.
+- SSE 이벤트 스트림에 `event: 'auto_resume'` 이 N회 포함, attempt 가 1..N 순증.
+- plan 은 최초 emit 된 row 에만 실리고 이후 row 들의 plan=null.
+
+`assistant-store.test.ts` — `auto_resume` 이벤트 수신 시 messages 배열에 새 row 가
+추가되고 `streamingMessageId` 가 갱신되며, `autoResume` 메타가 세팅되는지 검증.
+
+#### 유지보수 체크리스트
+
+- `stripHarmonyTokens` 추가 제어 토큰 관찰 시 `HARMONY_STANDALONE_TOKEN_REGEX` 유니온에 추가.
+- `NODE_TYPE_ALIASES` 에 새 alias 추가 시 `shadow-workflow.spec.ts` it.each 케이스에도 추가.
+- Review skip 조건 변경 시 `system-prompt.ts` Self-review 섹션 문구 동기화.
+- Error UI 스타일 변경 시 systemHint 와 스타일 일관성 유지 (dark/light 모두 950/50 대비 규약).
+- Plan-only 가드 (`planProposedPendingApproval`) 의 단락 조건 변경 시 위 "호환성" 3개 시나리오
+  모두 회귀 테스트로 고정되어 있는지 확인. `stream.service.spec.ts` 에서 `finishReason=stop`
+- `MAX_STALL_ROUNDS` / stall 가드 조건 변경 시: "auto-continue on stall with pending plan"
+  describe 의 3 테스트 (auto-nudge / max-stall / no-pending-steps) 동시 업데이트 +
+  §10 의 row 분리 / auto_resume 이벤트 어서션도 같이 업데이트.
+- `auto_resume` SSE event schema 변경 시: backend `AssistantStreamEvent` union,
+  frontend `AssistantSseEvent` union, controller 가 단순 JSON.stringify 하므로
+  별도 DTO 없음. `assistant.autoResumedHint` i18n 포맷 (`{{attempt}}/{{max}}`) 도
+  페이로드 shape 에 묶여있으니 payload key 이름 변경 시 placeholder 동시 업데이트.
+- `WorkflowAssistantMessage` 에 신규 필드 추가 시: migration SQL 과 entity 의
+  nullable/default 가 일치해야 한다 (autoResumed default false, 나머지 null).
+  `appendMessage` 의 `Partial<WorkflowAssistantMessage>` 수용 패턴 덕분에 서비스
+  계층 호출부 변경은 불필요.
+- `RESUMABLE_ERROR_CODES` 에 새 에러 코드 추가 시: (1) backend 가 실제로 해당 코드 발행하는지
+  확인, (2) "이어서 진행해줘" follow-up 이 의미있는 복구인지 재검토, (3) `continueAfterBudget`
+  대신 별도 resume 액션이 필요한지 판단.
+  을 기대하는 기존 플래닝 관련 테스트들이 이 가드에 의해 영향받지 않아야 한다.
+
+_원본 메모: memory/workflow-assistant-candidate-picker.md_
+
+### Workflow Assistant — Candidate Picker 정책 결정 (2026-04-24)
+
+#### 배경
+
+2026-04-24 사용자 피드백: "메일전송 노드에 SMTP integration 을 설정해야 하는데, 설정된 항목이 있음에도 스스로 하지를 못해". 기존 정책은 시스템 프롬프트로 `integration-selector` 등 user-action widget 의 id 주입을 **명시적으로 금지** 했고, `PENDING_USER_CONFIG_UNMENTIONED` 리뷰 가드가 "마무리 메시지에 사용자 설정 안내" 를 강제하는 구조였다. 결과적으로 Assistant 는 워크스페이스에 단일 SMTP integration 이 있어도 자동 연결하지 않고 사용자에게 수동 설정을 미뤘다.
+
+#### 최종 정책 (ED-AI-39)
+
+**"설정 가능한 항목이 존재하면 사용자에게 명시적 확인 후 주입, 없으면 기존 안내 유지"** — 방향 B 채택:
+
+- 백엔드 `add_node` / `update_node` 성공 응답의 `pendingUserConfig[i]` 에 **워크스페이스 후보 목록 (`candidates: CandidateEntry[]`)** 을 실어 프런트에 전달.
+- 프런트는 해당 edit 버블 아래에 드롭다운 picker 렌더. 사용자 Confirm 클릭 시 `editor-store.updateNode` 로 즉시 반영 (LLM 경유 없음).
+- 후보 0개: amber 안내 박스 + Settings 딥링크. 기존 수동 설정 경로 유지.
+- 후보 1개도 자동 선택 금지 — 단일 option 드롭다운으로 사용자 확인 필수.
+- 적용 scope: 4종 widget 전체 (`integration-selector` · `llm-config-selector` · `kb-selector` · `workflow-selector`).
+
+#### 문서 변경 지도
+
+| 문서 | 섹션 | 변경 요점 |
+|------|------|-----------|
+| `prd/2-workflow-editor.md` | §10.4 | `ED-AI-39` 신규 — 명시적 확인 + picker UX 의무. |
+| `spec/3-workflow-editor/4-ai-assistant.md` | §3.2 | "Candidate picker" 행 추가. |
+| | §3.3 | picker 접근성(aria, 키보드) 규정. |
+| | §4.3 | 편집 도구 반환 shape 에 `pendingUserConfig?` 명시. |
+| | §4.3.1 (신규) | `PendingUserConfigField` / `CandidateEntry` 타입, widget별 조회 범위·상한(20), 프런트 동작, LLM 계약. |
+| | §5.3.1 | tool_call.data.result 설명에 `pendingUserConfig` 언급. |
+| | §6.0 | rehydrate 시 canvas 현재 값 vs picker 상태 판정 규칙. |
+| | §8 | "Selector 필드 정책" 행 추가 — LLM 은 id 빈 값 제출, closing mention 은 candidate 0 case 에만. |
+| | §10 | `WORKFLOW_REVIEW_REQUIRED` 행에 `PENDING_USER_CONFIG_UNMENTIONED` 는 candidate 0 에만 발동함을 명시. |
+| | §13 | `candidatePicker*` i18n 5키 추가. |
+| | §14 | ED-AI-39 매핑. |
+
+#### 구현자가 기억해야 할 계약 (요약)
+
+1. **서버**: `collectPendingUserConfig` 는 기존처럼 schema 를 훑어 비어있는 selector 필드를 수집하되, 추가로 widget 별 저장소(integrationRepo / llmConfigRepo / kbRepo / workflowRepo) 를 워크스페이스 스코프로 쿼리해 `candidates` 를 채운다. 상한 20, connected/최근 등 정렬 규칙은 §4.3.1 표 그대로.
+2. **LLM 프롬프트**: §8 "Selector 필드 정책" 행을 `STATIC_BLOCK_3_EDIT_PLAYBOOK` 에 투영. 기존 "You must NOT fill ... surface them in the closing message" 를 "Leave ids empty; server attaches candidates; mention only when candidates list is empty" 로 교체.
+3. **Review guard**: `collectUnmentionedPendingUserConfig` 는 `candidates?.length === 0` 인 항목에 대해서만 missingFields 로 카운트. 후보가 1+ 인 항목은 guard 에서 제외.
+4. **프런트 렌더**: `AssistantMessageView` 의 tool_call badge 그룹 아래, error bubble 이나 systemHint 보다 **위**에 picker 블록 배치. Confirm 시 `editor-store.updateNode(nodeId, { config: { [field]: selectedId } })` 호출. 이후 picker 는 "✓ 설정됨" 으로 고정 (Undo 로도 picker 상태를 되돌리지 않는다 — UX 복잡도 대비 실익 낮음).
+5. **Rehydrate**: `hydrateMessage` 에서 `tool_calls[*].result.pendingUserConfig` 를 읽고, 해당 노드의 현재 canvas 값이 채워져 있으면 "✓ 설정됨", 비어있으면 interactive picker 로 복원. 판정은 editor-store 의 현재 노드 config 에서 `field` 경로를 dot-path 로 읽어 비교.
+
+#### Out of scope (후속)
+
+- Plan 카드 안 picker 통합 UI (현재는 edit 버블 전용).
+- Picker 에서 "후보 인라인 등록 (Integration 등록 폼 임베드)" — 현재는 Settings 딥링크.
+- Tool-area 노드의 `toolOwnerId` — user-action widget 이 아니라 이번 정책 대상이 아님.
+- UI 컴포넌트 테스트 (RTL 환경 미도입).
+
+#### 관련 메모
+
+- *workflow-assistant-provider-quirks-and-review-always.md (본 Rationale 섹션 내)* — 기존 `PENDING_USER_CONFIG_UNMENTIONED` 동작 원본. 본 정책으로 "candidate 0 only" 로 축소됨을 인지.
+- *workflow-ai-assistant-decisions.md (본 Rationale 섹션 내)* — Assistant 초기 설계 결정.
+
+#### 실행 계획 (Spec 밖, 구현용)
+
+구현은 `developer` skill 에서 수행. PRD/Spec 업데이트 완료했으므로 다음 단계:
+
+1. Backend: `detect-pending-user-config.ts` 에 widget → repo 매핑 추가. `explore-tools.service` 의 로직 재사용 또는 새 `CandidateLookupService` 를 경유해 per-widget 조회.
+2. Backend: `system-prompt.ts` 의 `STATIC_BLOCK_3_EDIT_PLAYBOOK` Selector 정책 블록 교체.
+3. Backend: `review-workflow.ts` 의 `collectUnmentionedPendingUserConfig` 를 candidate 0 조건으로 좁힘.
+4. Frontend: `assistant-store.ts` 에 picker state / confirm action / rehydrate 판정 추가. `assistant-message.tsx` 에 picker 컴포넌트 삽입.
+5. i18n ko/en 사전 5키 추가.
+6. 테스트: stream.service.spec 의 pendingUserConfig 기존 케이스를 candidates 포함으로 확장 + 새 review guard 완화 케이스 + frontend store 의 picker 상태 전이 테스트.
+
+_원본 메모: memory/workflow-assistant-execution-tools-decisions.md_
+
+### Workflow AI Assi
+
+... (truncated due to size limit) ...
