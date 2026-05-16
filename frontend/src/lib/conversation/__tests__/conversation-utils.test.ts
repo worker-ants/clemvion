@@ -325,3 +325,119 @@ describe("parseHistoryMessages — tool message integration", () => {
     expect(items).toHaveLength(2);
   });
 });
+
+describe("messagesToConversationItems — source marker (spec/5-system/6-websocket-protocol.md §4.4.6)", () => {
+  it("does not increment currentTurn for injected user messages so assistant turnIndex matches backend turnCount", () => {
+    // Scenario from the regression that motivated source markers: a
+    // ConversationThread injection from an upstream Template node prepends
+    // `role: 'user'` with source='injected'. Without the marker, the
+    // converter would assign turnIndex=2 to the assistant message even
+    // though backend's turnCount=1 — breaking llmCalls lookup in the
+    // debugging timeline.
+    const debugByTurn = new Map([
+      [
+        1,
+        {
+          turnIndex: 1,
+          llmCalls: [
+            {
+              requestPayload: { messages: ["..."] },
+              responsePayload: { content: "응답", usage: {} },
+              durationMs: 100,
+            },
+          ],
+        },
+      ],
+    ]);
+    const items = messagesToConversationItems(
+      [
+        {
+          role: "user",
+          content: "[from Template] clicked: 시작",
+          source: "injected",
+        },
+        { role: "user", content: "어떤 상품이 있는지 알려줘", source: "live" },
+        { role: "assistant", content: "죄송합니다...", source: "live" },
+      ],
+      { debugByTurn },
+    );
+
+    expect(items).toHaveLength(3);
+    expect(items[0]).toMatchObject({
+      type: "user",
+      content: "[from Template] clicked: 시작",
+      turnIndex: 1,
+      isInjected: true,
+    });
+    expect(items[1]).toMatchObject({
+      type: "user",
+      content: "어떤 상품이 있는지 알려줘",
+      turnIndex: 1,
+      isInjected: false,
+    });
+    expect(items[2]).toMatchObject({
+      type: "assistant",
+      content: "죄송합니다...",
+      turnIndex: 1,
+      isInjected: false,
+    });
+    // Debug payload now attaches because debugByTurn.get(1) matches.
+    expect(items[2].requestPayload).toEqual({ messages: ["..."] });
+    expect(items[2].responsePayload).toMatchObject({ content: "응답" });
+  });
+
+  it("treats missing source as 'live' for backward compatibility with older payloads", () => {
+    const items = messagesToConversationItems([
+      { role: "user", content: "안녕" },
+      { role: "assistant", content: "안녕하세요!" },
+    ]);
+    expect(items[0]).toMatchObject({ turnIndex: 1, isInjected: false });
+    expect(items[1]).toMatchObject({ turnIndex: 1, isInjected: false });
+  });
+
+  it("handles multiple injected user messages followed by a live turn (multi-thread injection)", () => {
+    const items = messagesToConversationItems([
+      { role: "user", content: "[from Form] name=Alice", source: "injected" },
+      { role: "user", content: "[from AI Agent] 안녕", source: "injected" },
+      {
+        role: "assistant",
+        content: "[from AI Agent] 안녕하세요",
+        source: "injected",
+      },
+      { role: "user", content: "실제 사용자 메시지", source: "live" },
+      { role: "assistant", content: "응답", source: "live" },
+    ]);
+    const liveAssistant = items.find(
+      (i) => i.type === "assistant" && !i.isInjected,
+    );
+    expect(liveAssistant?.turnIndex).toBe(1);
+    // Two injected user messages do not bump turn.
+    const liveUser = items.find((i) => i.type === "user" && !i.isInjected);
+    expect(liveUser?.turnIndex).toBe(1);
+  });
+
+  it("tool message inherits turnIndex of its originating assistant call (injected vs live aware)", () => {
+    const items = messagesToConversationItems([
+      { role: "user", content: "[from Template] start", source: "injected" },
+      { role: "user", content: "오늘 날씨", source: "live" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          { id: "call_1", name: "get_weather", arguments: '{"city":"Seoul"}' },
+        ],
+        source: "live",
+      },
+      {
+        role: "tool",
+        toolCallId: "call_1",
+        content: '{"temperature":12.3}',
+      },
+      { role: "assistant", content: "기온 12.3도입니다.", source: "live" },
+    ]);
+    const tool = items.find((i) => i.type === "tool");
+    expect(tool).toMatchObject({ turnIndex: 1 });
+    const finalAssistant = items.filter((i) => i.type === "assistant").at(-1);
+    expect(finalAssistant?.turnIndex).toBe(1);
+  });
+});

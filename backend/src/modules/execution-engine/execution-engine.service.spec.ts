@@ -6091,9 +6091,36 @@ describe('buildConversationConfigFromOutput', () => {
         { role: 'system', content: 'reset' },
       ],
     });
+    // Each non-system message gets `source: 'live'` backfilled per
+    // spec/5-system/6-websocket-protocol.md §4.4.6 (default when handler
+    // didn't tag the push site explicitly).
     expect(conv.messages).toEqual([
-      { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'hello' },
+      { role: 'user', content: 'hi', source: 'live' },
+      { role: 'assistant', content: 'hello', source: 'live' },
+    ]);
+  });
+
+  it("preserves explicit source: 'injected' from ConversationThread injection (§4.4.6)", () => {
+    const conv = buildConversationConfigFromOutput({
+      messages: [
+        { role: 'system', content: 'You are helpful' },
+        {
+          role: 'user',
+          content: '[from Template] start',
+          source: 'injected',
+        },
+        { role: 'user', content: 'live message', source: 'live' },
+        { role: 'assistant', content: 'response' }, // unmarked → backfilled
+      ],
+    });
+    expect(conv.messages).toEqual([
+      {
+        role: 'user',
+        content: '[from Template] start',
+        source: 'injected',
+      },
+      { role: 'user', content: 'live message', source: 'live' },
+      { role: 'assistant', content: 'response', source: 'live' },
     ]);
   });
 

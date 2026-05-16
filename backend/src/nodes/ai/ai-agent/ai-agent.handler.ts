@@ -294,31 +294,50 @@ class RagAccumulatorGroup {
 function mapTurnsToChatMessages(
   turns: readonly import('../../../shared/conversation-thread/conversation-thread.types').ConversationTurn[],
 ): ChatMessage[] {
+  // All messages produced here are prepended via ConversationThread injection
+  // and must carry `source: 'injected'` for the WebSocket emit layer
+  // (spec/5-system/6-websocket-protocol.md §4.4.6). The current node's
+  // handler will push its own `live` messages on top of these.
   return turns.map((t): ChatMessage => {
     switch (t.source) {
       case 'presentation_user':
         return {
           role: 'user',
           content: `[from ${t.nodeLabel}] ${t.text}`,
+          source: 'injected',
         } as ChatMessage;
       case 'ai_user':
-        return { role: 'user', content: t.text } as ChatMessage;
+        return {
+          role: 'user',
+          content: t.text,
+          source: 'injected',
+        } as ChatMessage;
       case 'ai_assistant':
         return {
           role: 'assistant',
           content: t.text,
           ...(t.toolCalls ? { toolCalls: t.toolCalls } : {}),
+          source: 'injected',
         } as ChatMessage;
       case 'ai_tool':
         return {
           role: 'tool',
           content: t.text,
           ...(t.toolCallId ? { toolCallId: t.toolCallId } : {}),
+          source: 'injected',
         } as ChatMessage;
       case 'system':
-        return { role: 'system', content: t.text } as ChatMessage;
+        return {
+          role: 'system',
+          content: t.text,
+          source: 'injected',
+        } as ChatMessage;
       default:
-        return { role: 'user', content: t.text } as ChatMessage;
+        return {
+          role: 'user',
+          content: t.text,
+          source: 'injected',
+        } as ChatMessage;
     }
   });
 }
