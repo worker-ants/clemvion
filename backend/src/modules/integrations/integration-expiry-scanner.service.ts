@@ -12,6 +12,12 @@ import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
 import { User } from '../users/entities/user.entity';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  CAFE24_REFRESH_JOB,
+  CAFE24_REFRESH_QUEUE,
+  Cafe24RefreshJobData,
+  REFRESH_PROACTIVE_THRESHOLD_DAYS,
+} from './cafe24-token-refresh.constants';
 
 export const INTEGRATION_EXPIRY_QUEUE = 'integration-expiry-scanner';
 
@@ -28,6 +34,7 @@ const PENDING_INSTALL_TTL_HOURS = 24;
 export const JOB_CONNECTED_EXPIRY = 'connected-expiry';
 export const JOB_PENDING_INSTALL_TTL = 'pending-install-ttl';
 export const JOB_USAGE_LOG_PRUNE = 'usage-log-prune';
+export const JOB_CAFE24_BACKGROUND_REFRESH = 'cafe24-background-refresh';
 
 interface ExpiryJobData {
   triggeredAt: string;
@@ -66,6 +73,8 @@ export class IntegrationExpiryScannerService
     private readonly notificationsService: NotificationsService,
     @InjectQueue(INTEGRATION_EXPIRY_QUEUE)
     private readonly queue: Queue<ExpiryJobData>,
+    @InjectQueue(CAFE24_REFRESH_QUEUE)
+    private readonly cafe24RefreshQueue: Queue<Cafe24RefreshJobData>,
   ) {
     super();
   }
@@ -99,8 +108,17 @@ export class IntegrationExpiryScannerService
       data: { triggeredAt },
       opts: DAILY_PASS_OPTS,
     });
+    await this.queue.upsertJobScheduler(
+      'cafe24-background-refresh-daily',
+      repeat,
+      {
+        name: JOB_CAFE24_BACKGROUND_REFRESH,
+        data: { triggeredAt },
+        opts: DAILY_PASS_OPTS,
+      },
+    );
     this.logger.log(
-      'Registered integration expiry schedulers: connected-expiry, pending-install-ttl, usage-log-prune (daily 00:00 UTC)',
+      'Registered integration expiry schedulers: connected-expiry, pending-install-ttl, usage-log-prune, cafe24-background-refresh (daily 00:00 UTC)',
     );
   }
 
@@ -123,11 +141,88 @@ export class IntegrationExpiryScannerService
       case JOB_USAGE_LOG_PRUNE:
         await this.pruneUsageLogs(new Date());
         return;
+      case JOB_CAFE24_BACKGROUND_REFRESH:
+        await this.enqueueCafe24BackgroundRefresh(new Date());
+        return;
       default:
         throw new Error(
           `Unknown integration-expiry job: ${job.name} — check scheduler registrations in onModuleInit`,
         );
     }
+  }
+
+  /**
+   * Cafe24 백그라운드 갱신 패스.
+   *
+   * **동기:** Cafe24 의 refresh_token 은 14일 유효이며, 매 refresh 마다
+   * Cafe24 가 새 refresh_token 을 발급 (rotation) 한다. 활성 통합 (주 1회
+   * 이상 사용) 은 매 사용 시점에 proactive refresh 가 일어나 사실상 영구
+   * 유효하지만, 14일 이상 idle 인 통합은 refresh_token 까지 만료되어
+   * 사용자 재인증이 필요해진다. 본 패스는 idle 통합을 자동으로 갱신해
+   * 사실상 무한 활성 상태를 유지한다.
+   *
+   * **대상 선정:** `status='connected'` AND `service_type='cafe24'` AND
+   * `lastRotatedAt < now - REFRESH_PROACTIVE_THRESHOLD_DAYS` (기본 10일).
+   * 14일 마감 전 4일의 안전 마진 확보.
+   *
+   * **실행 방식:** 각 통합에 대해 `cafe24-token-refresh` 큐로 enqueue 만 하고
+   * 본 잡 자체는 즉시 종료. 실제 refresh 는 `Cafe24TokenRefreshProcessor`
+   * 가 처리하며, `jobId = integrationId` dedup 으로 같은 통합에 대한 동시
+   * proactive call 과 race 가 없다.
+   *
+   * **오류 정책:** enqueue 실패 (Redis 장애 등) 는 본 잡 자체의 BullMQ
+   * retry (`DAILY_PASS_OPTS` 의 exponential backoff) 에 맡긴다. 개별 통합의
+   * refresh 실패는 worker 의 책임 (`markAuthFailed`).
+   */
+  async enqueueCafe24BackgroundRefresh(now: Date): Promise<number> {
+    const cutoff = new Date(
+      now.getTime() - REFRESH_PROACTIVE_THRESHOLD_DAYS * DAY_MS,
+    );
+    const targets = await this.integrationRepository.find({
+      where: {
+        serviceType: 'cafe24',
+        status: 'connected',
+        lastRotatedAt: LessThan(cutoff),
+      },
+      select: ['id', 'lastRotatedAt'],
+    });
+
+    if (targets.length === 0) {
+      this.logger.log(
+        `Cafe24 background refresh: no candidates (cutoff=${cutoff.toISOString()})`,
+      );
+      return 0;
+    }
+
+    let enqueued = 0;
+    for (const target of targets) {
+      try {
+        await this.cafe24RefreshQueue.add(
+          CAFE24_REFRESH_JOB,
+          { integrationId: target.id, source: 'background' },
+          {
+            // jobId dedup — 동일 통합에 대해 proactive refresh 가 이미 큐에
+            // 들어가 있으면 그 잡 참조가 반환되어 backend 가 별도 refresh 를
+            // 트리거하지 않는다.
+            jobId: target.id,
+            attempts: 1,
+            removeOnComplete: { age: 60 },
+            removeOnFail: { age: 300 },
+          },
+        );
+        enqueued++;
+      } catch (err) {
+        // 개별 enqueue 실패는 다음 일일 패스에서 재시도되므로 본 패스
+        // 전체를 죽이지 않는다.
+        this.logger.warn(
+          `Cafe24 background refresh enqueue failed for ${target.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    this.logger.log(
+      `Cafe24 background refresh: enqueued ${enqueued}/${targets.length} integrations (lastRotatedAt < ${cutoff.toISOString()})`,
+    );
+    return enqueued;
   }
 
   /**
