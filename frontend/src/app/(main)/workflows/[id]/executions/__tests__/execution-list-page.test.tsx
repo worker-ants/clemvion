@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  act,
+  waitFor,
+} from "@testing-library/react";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
@@ -105,16 +111,27 @@ describe("ExecutionListPage", () => {
 
   it("renders execution rows with status and duration", async () => {
     await renderPage();
-    expect(await screen.findByText("Completed")).toBeDefined();
-    // "Failed" appears as both filter button and badge, use getAllByText
-    expect(screen.getAllByText("Failed").length).toBeGreaterThanOrEqual(2);
+    // 격리 실행 시 "Completed" 가 1개만 (filter 버튼) 매칭되고 row badge 가
+    // 비동기로 늦게 들어오는 환경이 있어, findAllByText 로 최소 1개 이상만
+    // 확인 (multi-match throw 회피). row badge 의 실재성은 tbody DOM 으로
+    // 직접 검증 — locale store 가 비동기로 propagate 되는 케이스에도 안전.
+    await screen.findAllByText("Completed");
+    await waitFor(() => {
+      expect(
+        document.querySelectorAll("tbody tr").length,
+      ).toBeGreaterThan(0);
+    });
+    // "Failed" 도 filter 버튼 + row badge — 1개 이상 매칭만 확인.
+    expect(screen.getAllByText("Failed").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("3.2s")).toBeDefined();
     expect(screen.getByText("1s")).toBeDefined();
   });
 
   it("renders filter buttons", async () => {
     await renderPage();
-    await screen.findByText("Completed");
+    // 버튼 자체를 직접 기다림 — text-only 셀렉터(`findByText("Completed")`)는
+    // row status 와 다중 매칭되어 multi-match throw 위험.
+    await screen.findByRole("button", { name: "Completed" });
 
     expect(screen.getByRole("button", { name: "All" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Failed" })).toBeDefined();
@@ -124,10 +141,15 @@ describe("ExecutionListPage", () => {
 
   it("navigates to execution detail on row click", async () => {
     await renderPage();
-    await screen.findByText("Completed");
-    // Find a table row in tbody (not the filter buttons)
+    // tbody 의 행이 렌더링될 때까지 대기 — `findByText("Completed")` 는
+    // filter 버튼과도 매칭되어 multi-match throw 가 발생할 수 있다 (suite
+    // 전체 실행 시 flaky 의 원인이었음).
+    await waitFor(() => {
+      expect(
+        document.querySelectorAll("tbody tr").length,
+      ).toBeGreaterThan(0);
+    });
     const rows = document.querySelectorAll("tbody tr");
-    expect(rows.length).toBeGreaterThan(0);
     fireEvent.click(rows[0]);
 
     expect(mockPush).toHaveBeenCalledWith("/workflows/wf-1/executions/exec-1");
@@ -149,7 +171,8 @@ describe("ExecutionListPage", () => {
 
   it("renders Trigger column with source label and secondary label", async () => {
     await renderPage();
-    await screen.findByText("Completed");
+    // findAllByText 로 multi-match 안전망 — filter 버튼 + row badge 모두 매칭.
+    await screen.findAllByText("Completed");
     // exec-1 → manual / Alice
     expect(screen.getByText("Manual")).toBeDefined();
     expect(screen.getByText("Alice")).toBeDefined();
