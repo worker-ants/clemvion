@@ -116,12 +116,12 @@ export const variableDeclarationNodeMetadata: NodeComponentMetadata = {
     {
       id: 'variable_declaration:no-variables',
       when: 'length(variables) == 0',
-      message: '최소 1개 이상의 변수를 정의해야 합니다.',
+      message: 'At least one variable must be defined.',
     },
     {
       id: 'variable_declaration:first-variable-name-empty',
       when: 'length(variables) > 0 && !variables.0.name',
-      message: '첫 번째 변수의 이름을 입력해야 합니다.',
+      message: 'First variable\'s name must be entered.',
     },
   ],
   validateConfig: validateVariableDeclarationConfig,

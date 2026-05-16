@@ -51,7 +51,7 @@ describe('HttpRequestHandler', () => {
     it('should fail when url is missing', () => {
       const result = handler.validate({ method: 'GET' });
       expect(result.valid).toBe(false);
-      // Schema warningRule "URL 을 입력해야 합니다." fires.
+      // Schema warningRule "URL must be entered." fires.
       expect(result.errors.some((e) => e.includes('URL'))).toBe(true);
     });
 

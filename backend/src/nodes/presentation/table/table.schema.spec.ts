@@ -127,7 +127,7 @@ describe('evaluateMetadataBlockingErrors integration (table)', () => {
       columns: [],
       sortBy: 'phantom',
     });
-    expect(errors).toContain('컬럼을 1개 이상 정의해야 합니다.');
+    expect(errors).toContain('At least one column must be defined.');
     // sortBy doesn't match because columns is empty → no field list → skipped.
     // Add a column to confirm that branch fires correctly:
     const withColumn = evaluateMetadataBlockingErrors(tableNodeMetadata, {

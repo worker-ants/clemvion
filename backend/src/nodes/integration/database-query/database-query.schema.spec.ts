@@ -72,8 +72,8 @@ describe('evaluateMetadataBlockingErrors integration (database_query)', () => {
       databaseQueryNodeMetadata,
       {},
     );
-    expect(errors).toContain('Database integration 을 선택해야 합니다.');
-    expect(errors).toContain('SQL query 를 입력해야 합니다.');
+    expect(errors).toContain('Database integration must be selected.');
+    expect(errors).toContain('SQL query must be entered.');
   });
 
   it('returns [] when fully configured', () => {

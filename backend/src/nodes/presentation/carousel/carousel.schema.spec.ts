@@ -298,7 +298,7 @@ describe('evaluateMetadataBlockingErrors integration (carousel)', () => {
     });
     // Declarative fires:
     expect(errors).toContain(
-      'Dynamic 모드에서는 Title 필드를 입력해야 합니다.',
+      'In Dynamic mode, a Title field must be entered.',
     );
     // Imperative (validateButtons) fires:
     expect(errors).toEqual(

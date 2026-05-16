@@ -30,8 +30,8 @@ describe('CodeHandler', () => {
     it('should reject missing code', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      // Schema warningRule "실행할 코드를 입력해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('코드'))).toBe(true);
+      // Schema warningRule "Body of the code to run must be entered." fires.
+      expect(result.errors.some((e) => e.includes('code'))).toBe(true);
     });
 
     it('should reject empty code string', () => {

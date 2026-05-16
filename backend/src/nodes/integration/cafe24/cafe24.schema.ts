@@ -135,23 +135,23 @@ export const cafe24NodeMetadata: NodeComponentMetadata = {
   summaryTemplate: {
     template: '{{resource}} · {{operation}}',
     warnWhen: '!resource || !operation',
-    warnMessage: 'Resource / operation 미선택',
+    warnMessage: 'Resource / operation not selected',
   },
   warningRules: [
     {
       id: 'cafe24:no-integration',
       when: '!integrationId',
-      message: 'Integration 을 선택해야 합니다.',
+      message: 'Integration must be selected.',
     },
     {
       id: 'cafe24:no-resource',
       when: '!resource',
-      message: 'Resource 를 선택해야 합니다.',
+      message: 'Resource must be selected.',
     },
     {
       id: 'cafe24:no-operation',
       when: '!operation',
-      message: 'Operation 을 선택해야 합니다.',
+      message: 'Operation must be selected.',
     },
   ],
 };

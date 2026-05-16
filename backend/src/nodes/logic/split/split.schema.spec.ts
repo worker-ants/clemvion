@@ -29,7 +29,7 @@ describe('splitNodeMetadata.warningRules', () => {
 describe('evaluateMetadataBlockingErrors integration (split)', () => {
   it('emits the Korean warning when fieldPath is missing', () => {
     expect(evaluateMetadataBlockingErrors(splitNodeMetadata, {})).toEqual([
-      'Field path 를 입력해야 합니다.',
+      'Field path must be entered.',
     ]);
   });
 

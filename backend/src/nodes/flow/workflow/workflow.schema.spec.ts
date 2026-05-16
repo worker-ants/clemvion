@@ -81,7 +81,7 @@ describe('validateWorkflowConfig (imperative)', () => {
 describe('evaluateMetadataBlockingErrors integration (workflow)', () => {
   it('emits the Korean warning when no workflow is selected', () => {
     expect(evaluateMetadataBlockingErrors(workflowNodeMetadata, {})).toContain(
-      '실행할 워크플로우를 선택해야 합니다.',
+      'Target workflow must be selected.',
     );
   });
 
@@ -97,7 +97,7 @@ describe('evaluateMetadataBlockingErrors integration (workflow)', () => {
     const errors = evaluateMetadataBlockingErrors(workflowNodeMetadata, {
       timeout: -5,
     });
-    expect(errors).toContain('실행할 워크플로우를 선택해야 합니다.');
+    expect(errors).toContain('Target workflow must be selected.');
     expect(errors).toContain(
       'timeout must be a non-negative number (0 = no timeout)',
     );

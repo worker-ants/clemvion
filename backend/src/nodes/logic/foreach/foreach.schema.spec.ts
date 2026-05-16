@@ -29,7 +29,7 @@ describe('foreachNodeMetadata.warningRules', () => {
 describe('evaluateMetadataBlockingErrors integration (foreach)', () => {
   it('emits the Korean warning when arrayField is missing', () => {
     expect(evaluateMetadataBlockingErrors(foreachNodeMetadata, {})).toEqual([
-      '배열 필드를 입력해야 합니다.',
+      'Array field must be entered.',
     ]);
   });
 

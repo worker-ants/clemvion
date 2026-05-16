@@ -47,7 +47,7 @@ describe('CarouselHandler', () => {
     it('should fail when titleField is missing in dynamic mode', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      // Schema warningRule "Dynamic 모드에서는 Title 필드를 입력해야 합니다." fires.
+      // Schema warningRule "In Dynamic mode, a Title field must be entered." fires.
       expect(result.errors.some((e) => e.includes('Title'))).toBe(true);
     });
 
@@ -95,14 +95,14 @@ describe('CarouselHandler', () => {
     it('should fail when items is missing in static mode', () => {
       const result = handler.validate({ mode: 'static' });
       expect(result.valid).toBe(false);
-      // Schema warningRule "Static 모드에서는 최소 1개 이상의 슬라이드를 추가해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('슬라이드'))).toBe(true);
+      // Schema warningRule "In Static mode, at least one slide must be added." fires.
+      expect(result.errors.some((e) => e.includes('slide'))).toBe(true);
     });
 
     it('should fail when items is empty array in static mode', () => {
       const result = handler.validate({ mode: 'static', items: [] });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('슬라이드'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('slide'))).toBe(true);
     });
 
     it('should fail when items is not an array in static mode', () => {
@@ -144,7 +144,7 @@ describe('CarouselHandler', () => {
     it('should fail for invalid mode value', () => {
       const result = handler.validate({ mode: 'unknown' });
       expect(result.valid).toBe(false);
-      // Schema warningRule "Mode 는 static 또는 dynamic 이어야 합니다." fires.
+      // Schema warningRule "Mode must be either static or dynamic." fires.
       expect(result.errors.some((e) => e.includes('Mode'))).toBe(true);
     });
 

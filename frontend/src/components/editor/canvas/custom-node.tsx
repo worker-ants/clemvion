@@ -12,6 +12,7 @@ import { useExecutionStore } from "@/lib/stores/execution-store";
 import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
 import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
+import { useLocale } from "@/lib/i18n";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { NodeIcon } from "./node-icon";
 
@@ -81,9 +82,10 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
     return { hasDefaultLlmConfig: configs.some((c) => c.isDefault) };
   }, [isAiNode, llmConfigsData]);
 
+  const locale = useLocale();
   const summary = useMemo(
-    () => getConfigSummary(data.type, data.config, summaryContext),
-    [data.type, data.config, summaryContext],
+    () => getConfigSummary(data.type, data.config, summaryContext, locale),
+    [data.type, data.config, summaryContext, locale],
   );
 
   const { display: displayText, isTruncated } = useMemo(

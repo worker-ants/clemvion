@@ -24,7 +24,7 @@ describe('SplitHandler', () => {
     it('fails when fieldPath is missing', () => {
       const result = handler.validate({});
       expect(result.valid).toBe(false);
-      // Schema warningRule "Field path 를 입력해야 합니다." fires.
+      // Schema warningRule "Field path must be entered." fires.
       expect(result.errors.some((e) => e.includes('Field path'))).toBe(true);
     });
 

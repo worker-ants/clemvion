@@ -559,17 +559,17 @@ export const aiAgentNodeMetadata: NodeComponentMetadata = {
     {
       id: 'ai_agent:multi-turn-needs-system-prompt',
       when: 'mode == multi_turn && !systemPrompt',
-      message: 'Multi Turn 모드에서는 System Prompt 가 필요합니다.',
+      message: 'Multi Turn mode requires System Prompt.',
     },
     {
       id: 'ai_agent:single-turn-needs-prompt',
       when: 'mode != multi_turn && !systemPrompt && !userPrompt',
-      message: 'System Prompt 또는 User Prompt 중 하나는 입력해야 합니다.',
+      message: 'Either System Prompt or User Prompt must be entered.',
     },
     {
       id: 'ai_agent:too-many-conditions',
       when: 'length(conditions) > 20',
-      message: 'Conditions 는 최대 20개까지 추가할 수 있습니다.',
+      message: 'Conditions are limited to 20 entries.',
     },
   ],
   validateConfig: validateAiAgentConfig,

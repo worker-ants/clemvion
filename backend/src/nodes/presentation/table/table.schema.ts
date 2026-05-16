@@ -296,12 +296,12 @@ export const tableNodeMetadata: NodeComponentMetadata = {
     {
       id: 'table:no-columns',
       when: 'length(columns) == 0',
-      message: '컬럼을 1개 이상 정의해야 합니다.',
+      message: 'At least one column must be defined.',
     },
     {
       id: 'table:invalid-mode',
       when: 'mode != static && mode != dynamic',
-      message: 'Mode 는 static 또는 dynamic 이어야 합니다.',
+      message: 'Mode must be either static or dynamic.',
     },
   ],
   validateConfig: validateTableConfig,
