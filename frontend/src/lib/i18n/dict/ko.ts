@@ -877,6 +877,13 @@ export const ko = {
     sharedRemoveRow: "행 제거",
     fieldHelpAriaLabel: "도움말",
     fieldHelpLearnMore: "자세히 보기 →",
+    expression: {
+      insertVariable: "변수 삽입",
+      sourceItemDetail: "현재 행 항목",
+      builtIn: "기본 제공",
+      functions: "함수",
+    },
+    assistantAriaLabel: "어시스턴트 응답",
     runResults: {
       tabPreview: "미리보기",
       tabInput: "입력",

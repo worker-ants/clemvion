@@ -879,6 +879,13 @@ export const en: Dict = {
     sharedRemoveRow: "Remove row",
     fieldHelpAriaLabel: "Help",
     fieldHelpLearnMore: "Learn more →",
+    expression: {
+      insertVariable: "Insert variable",
+      sourceItemDetail: "Current row item",
+      builtIn: "Built-in",
+      functions: "Functions",
+    },
+    assistantAriaLabel: "Assistant response",
     runResults: {
       tabPreview: "Preview",
       tabInput: "Input",
