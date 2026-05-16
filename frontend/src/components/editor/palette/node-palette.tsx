@@ -11,10 +11,16 @@ import type { NodeDefinition } from "@/lib/node-definitions";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import { NodeIcon } from "../canvas/node-icon";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
-import { useT } from "@/lib/i18n";
+import { useT, useLocale } from "@/lib/i18n";
+import {
+  translateNodeCategory,
+  translateNodeLabel,
+  translateNodeDescription,
+} from "@/lib/i18n/backend-labels";
 
 export function NodePalette() {
   const t = useT();
+  const locale = useLocale();
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   // Subscribe so the palette re-renders once definitions/categories finish loading.
@@ -58,12 +64,21 @@ export function NodePalette() {
         {categories.map((cat) => {
           const nodes = getNodesByCategory(cat.id);
           const filtered = lowerSearch
-            ? nodes.filter((n) => n.label.toLowerCase().includes(lowerSearch))
+            ? nodes.filter((n) => {
+                const localizedLabel =
+                  translateNodeLabel(n.label, locale) ?? n.label;
+                return (
+                  localizedLabel.toLowerCase().includes(lowerSearch) ||
+                  n.label.toLowerCase().includes(lowerSearch)
+                );
+              })
             : nodes;
 
           if (filtered.length === 0) return null;
 
           const isCollapsed = collapsed[cat.id] ?? false;
+          const categoryLabel =
+            translateNodeCategory(cat.label, locale) ?? cat.label;
 
           return (
             <div key={cat.id} className="mb-2">
@@ -82,7 +97,7 @@ export function NodePalette() {
                   className="h-2 w-2 rounded-full"
                   style={{ backgroundColor: cat.color }}
                 />
-                {cat.label}
+                {categoryLabel}
                 <span className="ml-auto text-[10px] text-[hsl(var(--muted-foreground))]">
                   {filtered.length}
                 </span>
@@ -96,6 +111,7 @@ export function NodePalette() {
                       key={node.type}
                       node={node}
                       onDragStart={onDragStart}
+                      locale={locale}
                     />
                   ))}
                 </div>
@@ -111,10 +127,15 @@ export function NodePalette() {
 function PaletteItem({
   node,
   onDragStart,
+  locale,
 }: {
   node: NodeDefinition;
   onDragStart: (event: React.DragEvent, nodeType: string) => void;
+  locale: Parameters<typeof translateNodeLabel>[1];
 }) {
+  const label = translateNodeLabel(node.label, locale) ?? node.label;
+  const description =
+    translateNodeDescription(node.description, locale) ?? node.description;
   return (
     <div
       draggable
@@ -124,10 +145,10 @@ function PaletteItem({
         "text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]",
         "active:cursor-grabbing",
       )}
-      title={node.description}
+      title={description}
     >
       <NodeIcon name={node.icon} size={14} style={{ color: node.color }} />
-      <span className="truncate">{node.label}</span>
+      <span className="truncate">{label}</span>
     </div>
   );
 }
