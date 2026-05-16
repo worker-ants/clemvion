@@ -1,7 +1,16 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue, QueueEvents } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Integration } from '../../../modules/integrations/entities/integration.entity.js';
+import {
+  CAFE24_REFRESH_JOB,
+  CAFE24_REFRESH_QUEUE,
+  CAFE24_REFRESH_QUEUE_EVENTS,
+  Cafe24RefreshJobData,
+  REFRESH_JOB_WAIT_TIMEOUT_MS,
+} from '../../../modules/integrations/cafe24-token-refresh.constants.js';
 
 /**
  * Optional DI tokens for swapping the network / sleep primitives in tests.
@@ -27,8 +36,12 @@ export const CAFE24_SLEEP_IMPL = 'CAFE24_SLEEP_IMPL';
  *   `X-Cafe24-Time-Remain` driven backoff with up to 2 retries on 429.
  * - Serialise concurrent calls per Integration via an in-process mutex so
  *   the workflow node and the AI Agent MCP bridge can share the same
- *   bucket without overdrive. Scope: a single backend instance — see
- *   spec §9.6 for the multi-instance trade-off.
+ *   rate-limit bucket without overdrive (single-pod scope — Cafe24's
+ *   leaky bucket is per-app+per-mall so cross-pod serialization is not
+ *   required for rate limits). Refresh operations, by contrast, MUST be
+ *   serialized cluster-wide because Cafe24 invalidates the previous
+ *   refresh_token on every rotation — see `refreshViaQueue` (BullMQ
+ *   `jobId = integrationId` dedup, spec §9.6 resolution).
  * - Translate 401/403 into an atomic Integration.status transition to
  *   `error(auth_failed)` (spec §6.1).
  */
@@ -158,7 +171,7 @@ interface Cafe24Credentials {
   cafe24_operator_id?: string;
 }
 
-const REFRESH_WINDOW_MS = 60_000;
+export const REFRESH_WINDOW_MS = 60_000;
 const MAX_RATE_LIMIT_RETRIES = 2;
 
 /**
@@ -195,6 +208,8 @@ export class Cafe24ApiClient {
   private readonly logger = new Logger(Cafe24ApiClient.name);
   private readonly fetchImpl: typeof fetch;
   private readonly sleepImpl: (ms: number) => Promise<void>;
+  private readonly refreshQueue: Queue<Cafe24RefreshJobData> | null;
+  private readonly refreshQueueEvents: QueueEvents | null;
 
   constructor(
     @InjectRepository(Integration)
@@ -210,9 +225,22 @@ export class Cafe24ApiClient {
     @Optional()
     @Inject(CAFE24_SLEEP_IMPL)
     sleepImpl?: (ms: number) => Promise<void>,
+    // BullMQ refresh queue — production binds via Cafe24Module so refresh
+    // operations serialize cross-instance (spec §9.6 trade-off resolution).
+    // Tests construct the client without the queue and fall through to the
+    // legacy in-process refresh path; existing test fixtures need no
+    // BullMQ stubbing.
+    @Optional()
+    @InjectQueue(CAFE24_REFRESH_QUEUE)
+    refreshQueue?: Queue<Cafe24RefreshJobData>,
+    @Optional()
+    @Inject(CAFE24_REFRESH_QUEUE_EVENTS)
+    refreshQueueEvents?: QueueEvents,
   ) {
     this.fetchImpl = fetchImpl ?? defaultFetch;
     this.sleepImpl = sleepImpl ?? defaultSleep;
+    this.refreshQueue = refreshQueue ?? null;
+    this.refreshQueueEvents = refreshQueueEvents ?? null;
   }
 
   async call(
@@ -276,6 +304,15 @@ export class Cafe24ApiClient {
    * a 401 (`access_token time expired`) on the first call after Cafe24's
    * 2h TTL.
    *
+   * **Cross-instance race protection:** when a BullMQ refresh queue is
+   * bound (production), the actual refresh is delegated to the queue with
+   * `jobId = integrationId` so two pods cannot fire `/oauth/token` with
+   * the same old refresh_token simultaneously. The caller waits for the
+   * worker to finish, then re-reads the integration row from the DB to
+   * see the refreshed credentials. When no queue is bound (unit tests),
+   * the legacy in-process refresh path runs — same correctness, single
+   * pod.
+   *
    * Returns silently on success; throws Cafe24AuthFailedError on refresh
    * failure (caller treats as `error(auth_failed)` state transition).
    */
@@ -284,7 +321,86 @@ export class Cafe24ApiClient {
     if (expiresAtMs === null) return;
     if (expiresAtMs - Date.now() > REFRESH_WINDOW_MS) return;
 
+    if (this.refreshQueue && this.refreshQueueEvents) {
+      await this.refreshViaQueue(integration, 'proactive');
+      return;
+    }
     await this.refreshAccessToken(integration);
+  }
+
+  /**
+   * Cross-instance-safe refresh path.
+   *
+   * Enqueues a refresh job with `jobId = integration.id`. BullMQ rejects
+   * duplicate jobIds while the existing job is in waiting/active state and
+   * returns the existing job reference instead, so concurrent callers
+   * (within the same pod or across pods) all wait on the same worker
+   * execution. After the worker completes, we re-read the integration row
+   * from the DB and mutate the caller's reference so the subsequent
+   * `executeWithRateLimit` sees the refreshed bearer.
+   *
+   * If the worker called `markAuthFailed` (refresh_token invalid), the
+   * fresh row carries `status='error'` — surface as Cafe24AuthFailedError
+   * to keep call() error semantics consistent with the in-process path.
+   */
+  private async refreshViaQueue(
+    integration: Integration,
+    source: 'proactive' | 'background',
+  ): Promise<void> {
+    const queue = this.refreshQueue!;
+    const events = this.refreshQueueEvents!;
+    const job = await queue.add(
+      CAFE24_REFRESH_JOB,
+      { integrationId: integration.id, source },
+      {
+        // jobId dedup across the cluster — same id, same job reference.
+        jobId: integration.id,
+        // attempts:1 because refresh failures (invalid_grant) are terminal
+        // — retrying replays the same 401 and just floods the alert path.
+        attempts: 1,
+        // Keep completed jobs briefly so concurrent `add()` from a slow
+        // caller still resolves to a real job reference; the next refresh
+        // round (≥1h later in normal use) will not collide.
+        removeOnComplete: { age: 60 },
+        removeOnFail: { age: 300 },
+      },
+    );
+
+    try {
+      await job.waitUntilFinished(events, REFRESH_JOB_WAIT_TIMEOUT_MS);
+    } catch (err) {
+      // waitUntilFinished resolves on completion and rejects on failure or
+      // timeout. Re-fetch the integration to surface the actual auth state
+      // — if the worker called markAuthFailed, the row already reflects it
+      // and we throw the canonical error. If it was a timeout/other error,
+      // bubble up as a transport-level failure.
+      const fresh = await this.integrationRepository.findOne({
+        where: { id: integration.id },
+      });
+      if (fresh?.status === 'error' && fresh.statusReason === 'auth_failed') {
+        const mallId =
+          (fresh.credentials as Cafe24Credentials | undefined)?.mall_id ??
+          integration.id;
+        throw new Cafe24AuthFailedError(401, mallId, fresh.lastError);
+      }
+      throw new Cafe24TransportFailedError(err);
+    }
+
+    // Worker succeeded. Re-fetch from DB and mutate the caller's reference
+    // so the next stage of call() sees the refreshed bearer.
+    const fresh = await this.integrationRepository.findOne({
+      where: { id: integration.id },
+    });
+    if (!fresh) {
+      throw new Cafe24TransportFailedError(
+        new Error('Integration vanished during refresh'),
+      );
+    }
+    integration.credentials = fresh.credentials;
+    integration.tokenExpiresAt = fresh.tokenExpiresAt;
+    integration.status = fresh.status;
+    integration.statusReason = fresh.statusReason;
+    integration.lastError = fresh.lastError;
   }
 
   async refreshAccessToken(integration: Integration): Promise<void> {
@@ -626,8 +742,12 @@ async function safeReadJson(response: Response): Promise<unknown> {
  * because the atomic 4-field UPDATE in `refreshAccessToken` writes the
  * column last and the OAuth callback path historically only wrote the
  * column — trusting the column avoids a stale-mirror trap.
+ *
+ * Exported because the BullMQ refresh worker re-evaluates expiry on job
+ * pickup (race protection: a refresh that completed milliseconds before
+ * the worker started should short-circuit).
  */
-function resolveTokenExpiry(integration: {
+export function resolveTokenExpiry(integration: {
   tokenExpiresAt?: Date | null;
   credentials?: Record<string, unknown> | null;
 }): number | null {

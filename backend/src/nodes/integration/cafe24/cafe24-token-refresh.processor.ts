@@ -1,0 +1,108 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Integration } from '../../../modules/integrations/entities/integration.entity';
+import {
+  Cafe24ApiClient,
+  REFRESH_WINDOW_MS,
+  resolveTokenExpiry,
+} from './cafe24-api.client';
+import {
+  CAFE24_REFRESH_QUEUE,
+  Cafe24RefreshJobData,
+} from '../../../modules/integrations/cafe24-token-refresh.constants';
+
+/**
+ * Cafe24 토큰 갱신 큐의 worker.
+ *
+ * **존재 이유 — 멀티 인스턴스 race 보호:**
+ * 두 backend pod 이 같은 통합에 대해 동시에 refresh 를 시도하면, 둘 다
+ * Cafe24 `/oauth/token` 에 같은 old refresh_token 으로 요청을 보낸다.
+ * 결과는 (Cafe24 의 rotation 정책에 따라) 둘 중 하나가 실패하거나, 둘
+ * 다 새 토큰을 받지만 DB 는 last-write-wins 로 한 쪽 토큰만 살아남고
+ * 나머지는 orphan 이 된다. 다음 refresh 가 orphan 으로 들어가면 401.
+ *
+ * 본 worker 가 `jobId = integrationId` 로 큐에 들어온 잡을 처리함으로써
+ * Cafe24 HTTP 요청 자체가 클러스터 전체에서 직렬화된다 — `Queue.add` 가
+ * 같은 jobId 의 잡이 이미 대기/실행 중이면 그 잡 참조를 반환하므로
+ * 모든 호출자가 동일 worker 의 결과를 공유한다.
+ *
+ * **잡 처리 흐름:**
+ * 1. DB 에서 통합 다시 로드 (호출자가 보낸 참조는 stale 일 수 있음 —
+ *    백그라운드 스캐너는 ID 만 보낸다).
+ * 2. `serviceType !== 'cafe24'` 거부 (큐가 cafe24 전용이지만 방어적 체크).
+ * 3. **재확인** — 잡 enqueue 와 worker pickup 사이에 다른 경로가 이미
+ *    refresh 했을 수 있다. `resolveTokenExpiry(fresh) - now > REFRESH_WINDOW_MS`
+ *    이면 short-circuit (불필요한 Cafe24 호출 방지).
+ * 4. `cafe24ApiClient.refreshAccessToken(fresh)` 호출. 성공 시 통합 row
+ *    의 4-field atomic update; 실패 시 markAuthFailed (기존 동작).
+ *
+ * **재시도 정책:** `attempts: 1`. refresh 실패는 거의 항상 terminal
+ * (refresh_token 자체 만료 / Cafe24 가 invalidate). 자동 재시도하면
+ * 같은 401 을 N 번 반복하고 알림만 늘어난다. BullMQ retry 대신 호출자
+ * (다음 API 호출 또는 다음 일일 스캐너 패스) 가 자연스럽게 재시도하게
+ * 둔다.
+ */
+@Injectable()
+@Processor(CAFE24_REFRESH_QUEUE)
+export class Cafe24TokenRefreshProcessor extends WorkerHost {
+  private readonly logger = new Logger(Cafe24TokenRefreshProcessor.name);
+
+  constructor(
+    @InjectRepository(Integration)
+    private readonly integrationRepository: Repository<Integration>,
+    private readonly cafe24ApiClient: Cafe24ApiClient,
+  ) {
+    super();
+  }
+
+  async process(job: Job<Cafe24RefreshJobData>): Promise<void> {
+    const { integrationId, source } = job.data;
+    const fresh = await this.integrationRepository.findOne({
+      where: { id: integrationId },
+    });
+    if (!fresh) {
+      // 삭제된 통합 — silently no-op. 같은 jobId 로 다시 enqueue 될 일도
+      // 없으므로 idempotent.
+      this.logger.warn(
+        `Cafe24 refresh job for missing integration ${integrationId} (source=${source}) — skipping`,
+      );
+      return;
+    }
+    if (fresh.serviceType !== 'cafe24') {
+      this.logger.warn(
+        `Cafe24 refresh job dispatched for non-cafe24 integration ${integrationId} (serviceType=${fresh.serviceType}) — skipping`,
+      );
+      return;
+    }
+
+    // 백그라운드 경로는 status='connected' 만 대상. 호출자 검증을 신뢰하지
+    // 않고 worker 에서 다시 확인 — `error`/`expired` 상태인데 큐에 잘못
+    // 들어온 잡이 토큰을 자동 회복시키면 사용자가 의도한 reauthorize
+    // 흐름이 우회될 수 있다.
+    if (source === 'background' && fresh.status !== 'connected') {
+      this.logger.log(
+        `Cafe24 background refresh skipped for ${integrationId} — status=${fresh.status} (reauthorize required)`,
+      );
+      return;
+    }
+
+    // 재확인: enqueue 시점과 pickup 시점 사이에 다른 경로가 이미 갱신했을
+    // 가능성. proactive 경로는 매 API 호출마다 enqueue 할 수 있으므로
+    // 이 short-circuit 이 중요하다.
+    const expiresAtMs = resolveTokenExpiry(fresh);
+    if (expiresAtMs !== null && expiresAtMs - Date.now() > REFRESH_WINDOW_MS) {
+      this.logger.debug(
+        `Cafe24 refresh ${integrationId} no-op — token already fresh (expires ${new Date(expiresAtMs).toISOString()})`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `Cafe24 refresh ${integrationId} via queue worker (source=${source})`,
+    );
+    await this.cafe24ApiClient.refreshAccessToken(fresh);
+  }
+}

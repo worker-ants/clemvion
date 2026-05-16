@@ -4,7 +4,7 @@ started: 2026-05-16
 owner: developer / 사용자 본인 (gehrig)
 ---
 
-# Cafe24 access_token 자동 갱신 회복
+# Cafe24 access_token 자동 갱신 회복 + 백그라운드 갱신 + BullMQ 직렬화
 
 ## 문제
 
@@ -60,3 +60,74 @@ owner: developer / 사용자 본인 (gehrig)
 ## 후속 follow-up
 
 - 없음. 본 plan 은 단일 PR 로 완결.
+
+---
+
+## Phase 2 — 백그라운드 갱신 + 멀티 인스턴스 race 방지 (2026-05-16 추가)
+
+### 동기
+
+Phase 1 fix 머지 직전 다음 두 한계가 드러남:
+
+1. **idle 통합 14일 만료**: proactive refresh 는 API 호출 직전 lazy 라서, 통합이 14일 이상 idle 이면 refresh_token 자체가 만료되어 사용자가 재인증해야 한다.
+2. **멀티 인스턴스 race**: 두 backend pod 이 같은 통합에 대해 같은 시점에 refresh 를 시도하면 Cafe24 `/oauth/token` 에 같은 old refresh_token 으로 동시 요청이 발생. last-write-wins 로 한쪽 토큰 orphan 또는 false `auth_failed` 격하 가능. 기존 in-memory `withIntegrationLock` 은 같은 pod 에서만 직렬화.
+
+### 설계
+
+**새 BullMQ 큐 `cafe24-token-refresh`** 도입:
+
+- jobId = integrationId — 같은 통합에 대한 동시 enqueue 가 클러스터 전체에서 단일 worker 실행으로 dedup. 모든 호출자가 동일 job 결과를 `waitUntilFinished` 로 공유.
+- Worker (`Cafe24TokenRefreshProcessor`) 가 실제 Cafe24 HTTP 요청 + 4-field atomic DB UPDATE 를 단일 instance 에서만 수행 → race 원천 봉쇄.
+- 큐 이름·상수는 `modules/integrations/cafe24-token-refresh.constants.ts` 에 두어 `nodes → modules` 의존 방향 보존.
+
+**프로액티브 경로 (`Cafe24ApiClient.ensureFreshToken`):**
+
+- 큐가 바인딩되면 (`refreshQueue && refreshQueueEvents`) `refreshViaQueue` 로 위임 — enqueue + `waitUntilFinished(30s)` + DB 재로드 + 호출자 reference 갱신.
+- 큐 미바인딩 시 (테스트 등) 레거시 in-process `refreshAccessToken` fallthrough — 기존 unit test fixture 호환.
+- Worker 가 `markAuthFailed` 처리한 경우 — DB 재로드 시 `status='error'` 발견 → `Cafe24AuthFailedError` 로 surface (기존 의미 유지).
+
+**백그라운드 스캐너 (`integration-expiry-scanner` 새 잡):**
+
+- 새 잡 `JOB_CAFE24_BACKGROUND_REFRESH` — 일일 00:00 UTC. `IntegrationExpiryScannerService.enqueueCafe24BackgroundRefresh` 가 `lastRotatedAt < now - REFRESH_PROACTIVE_THRESHOLD_DAYS` (기본 10일) AND `status='connected'` AND `service_type='cafe24'` 인 통합을 스캔해 같은 refresh 큐로 enqueue.
+- jobId dedup 이 적용되므로 동시 proactive call 과 자동 충돌 회피.
+- refresh_token 14일 만료 대비 4일 안전 마진 — 사용자가 통합을 만들고 무한 idle 해도 자동으로 살아있는 상태 유지.
+
+**Module wiring:**
+
+- `Cafe24Module` — registerQueue + Processor + QueueEvents provider + OnApplicationShutdown 으로 QueueEvents close.
+- `IntegrationsModule` — registerQueue (스캐너의 enqueue 용). BullMQ 의 multi-module registerQueue 는 같은 Redis queue 를 가리킴.
+
+### 코드
+
+- 신규 `modules/integrations/cafe24-token-refresh.constants.ts` — 큐 이름, 임계 상수, job data 타입.
+- 신규 `nodes/integration/cafe24/cafe24-token-refresh.processor.ts` — Worker. DB 재확인 short-circuit, status 보호, attempts=1.
+- 수정 `cafe24-api.client.ts` — Optional@InjectQueue + Optional@Inject(QueueEvents). `refreshViaQueue` 헬퍼. 기존 `refreshAccessToken` 는 worker 가 직접 호출하는 entry point 로 유지.
+- 수정 `cafe24.module.ts` — registerQueue, Processor provider, QueueEvents provider, OnApplicationShutdown.
+- 수정 `integrations.module.ts` — registerQueue (enqueue 용).
+- 수정 `integration-expiry-scanner.service.ts` — `JOB_CAFE24_BACKGROUND_REFRESH`, `enqueueCafe24BackgroundRefresh()`, scheduler 등록.
+
+### 테스트
+
+- `cafe24-token-refresh.processor.spec.ts` — 6 케이스: 만료 token refresh / 이미 fresh 일 때 short-circuit / 통합 없을 때 skip / serviceType 방어 / background+non-connected skip / proactive+expired status 는 시도.
+- `cafe24-api.client.spec.ts` — 3 케이스 추가: 큐 경로 라우팅 (jobId + re-fetch) / worker 가 markAuthFailed 했을 때 Cafe24AuthFailedError surface / token 여전히 fresh 면 enqueue skip.
+- `integration-expiry-scanner.service.spec.ts` — 4 케이스 추가: process 라우팅 (JOB_CAFE24_BACKGROUND_REFRESH) / enqueue 동작 (cutoff 계산, jobId dedup) / 후보 없을 때 0 / 부분 실패 생존.
+
+검증:
+
+- `npx jest` (backend 전체) → 3594 / 3594 통과 (+13 new).
+- `npm run build` → 통과.
+- lint 무경고 (변경 영역). 기존 unrelated error 1건은 out of scope.
+
+### Rationale 메모
+
+- **왜 BullMQ?** 사용자 명시 요청. 대안 (PostgreSQL advisory lock, redlock) 보다 BullMQ 가 이미 스택에 있고, 백그라운드 갱신 스케줄러와 같은 인프라 공유로 운영 면 단순. waitUntilFinished 의 latency (1~2s) 는 refresh 가 어차피 Cafe24 HTTP round-trip 을 포함하므로 obscured.
+- **attempts=1**: refresh 실패는 거의 terminal (invalid_grant). retry 가 같은 401 을 반복 → markAuthFailed → 사용자 알림 중복. 호출자 다음 시도 (다음 API call 또는 다음 일일 스캐너) 에 위임.
+- **lastRotatedAt 10일 임계**: 14일 refresh_token 만료 대비 4일 margin. 더 짧게 잡으면 (예: 1일) Cafe24 leaky bucket 에 부담 (각 통합 매일 refresh). 10일은 안전 + 부하 균형.
+- **`Cafe24Module.onApplicationShutdown` 에서 QueueEvents close**: factory provider 가 만든 인스턴스는 NestJS 의 일반 useClass/useExisting 라이프사이클을 거치지 않아 명시 close 가 필요. Redis 커넥션 leak 방지.
+- **status='error' 통합 자동 회복 안 함 (background 경로)**: Phase 1 에서 어차피 사용자가 한 번 reauthorize 해야 한다. 자동 회복은 사용자 의도 우회. proactive 경로는 호출자 (workflow 노드 등) 가 status 검증을 이미 수행한 후 도착하므로 그대로 시도.
+
+### 사용자 액션
+
+- Phase 2 머지 후 즉시 새 BullMQ 큐가 살아남. 신규 통합은 자동으로 보호 받음.
+- 기존 `error(auth_failed)` 통합은 여전히 사용자 reauthorize 가 필요 (자동 회복 안 함).
+- 14일 이상 idle 통합은 다음 일일 백그라운드 패스 (00:00 UTC) 에서 자동 갱신.
