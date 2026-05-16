@@ -17,11 +17,18 @@ import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
+// Filter parameter values accepted by GET /api/integrations#status.
+// Includes two virtual filter values (spec/2-navigation/4-integration.md
+// §2.3 + §9.1 + Rationale "Attention 가상 필터값"):
+//   - `expiring`  = status='connected' AND token_expires_at within 7d
+//   - `attention` = Expired ∪ Expiring ∪ Error (single chip surface)
+// Neither exists in the Integration.status DB enum.
 export const INTEGRATION_STATUSES = [
   'connected',
   'expiring',
   'expired',
   'error',
+  'attention',
 ] as const;
 export type IntegrationStatusFilter = (typeof INTEGRATION_STATUSES)[number];
 
@@ -66,9 +73,9 @@ export class ListIntegrationsQueryDto extends PaginationQueryDto {
   /** 통합 상태 필터 */
   @ApiPropertyOptional({
     description:
-      '통합 상태 필터. connected=정상, expiring=만료 임박, expired=만료, error=오류',
+      '통합 상태 필터. connected=정상, expiring=만료 임박(가상), expired=만료, error=오류, attention=주의 필요(가상 — expired ∪ expiring ∪ error). expiring/attention 은 DB Enum 에 없는 가상 필터값으로 서버에서 합집합 WHERE 절로 변환된다 (spec §9.1).',
     enum: INTEGRATION_STATUSES,
-    example: 'connected',
+    example: 'attention',
   })
   @IsOptional()
   @IsIn(INTEGRATION_STATUSES)

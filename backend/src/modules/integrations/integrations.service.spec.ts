@@ -672,6 +672,41 @@ describe('IntegrationsService', () => {
       const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');
       expect(sql).not.toContain('service_type IN');
     });
+
+    // attention is a virtual filter value (spec/2-navigation/4-integration.md
+    // §2.4 + §9.1 Rationale "Attention 가상 필터값"). It compiles to the
+    // union of expired ∪ error ∪ (connected within 7d), and never matches
+    // pending_install rows — those are an explicit external-flow state.
+    it('status=attention emits union WHERE covering expired, error, and connected within 7d', async () => {
+      const qb = makeQueryBuilder({ count: 0, many: [] });
+      integrationRepo.createQueryBuilder.mockReturnValue(qb);
+      await service.findAll('ws-1', { status: 'attention' });
+      const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');
+      expect(sql).toContain("'expired'");
+      expect(sql).toContain("'error'");
+      expect(sql).toContain("'connected'");
+      expect(sql).toContain('token_expires_at IS NOT NULL');
+      expect(sql).toContain('token_expires_at > NOW()');
+      expect(sql).toContain("7 days");
+    });
+
+    it('status=attention does not include pending_install rows', async () => {
+      const qb = makeQueryBuilder({ count: 0, many: [] });
+      integrationRepo.createQueryBuilder.mockReturnValue(qb);
+      await service.findAll('ws-1', { status: 'attention' });
+      const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');
+      expect(sql).not.toContain("'pending_install'");
+    });
+
+    it('status=attention does not also pin status to a single value', async () => {
+      const qb = makeQueryBuilder({ count: 0, many: [] });
+      integrationRepo.createQueryBuilder.mockReturnValue(qb);
+      await service.findAll('ws-1', { status: 'attention' });
+      const sqls = qb.andWhere.mock.calls.map((c) => c[0]) as string[];
+      // The single-value branch (used for expired/error/connected filters)
+      // would emit `i.status = :s`. Attention's union must not also pin it.
+      expect(sqls.some((s) => /i\.status\s*=\s*:s\b/.test(s))).toBe(false);
+    });
   });
 
   // -----------------------------------------------------------------
