@@ -3,6 +3,7 @@ import {
   Cafe24ApiClient,
   Cafe24AuthFailedError,
   Cafe24RateLimitedError,
+  Cafe24TransportFailedError,
 } from '../../../integration/cafe24/cafe24-api.client';
 import {
   listAllCafe24Operations,
@@ -340,6 +341,35 @@ describe('Cafe24McpToolProvider', () => {
       expect(res.status).toBe('error');
       expect(JSON.parse(res.content).error.code).toBe('CAFE24_RATE_LIMITED');
     });
+
+    // B-5-5: Cafe24TransportFailedError envelope 변환 — 분류된 코드가
+    // CAFE24_TRANSPORT_FAILED 가 되고, 노드 경로와 일관되게 logUsage 가
+    // failed 로 기록되는지.
+    it('translates Cafe24TransportFailedError into CAFE24_TRANSPORT_FAILED', async () => {
+      const { sid } = await setup();
+      apiClient.call.mockRejectedValue(
+        new Cafe24TransportFailedError(new Error('ECONNRESET — connection reset by peer')),
+      );
+      const res = await provider.execute(
+        makeCall(`mcp_${sid}__product_list`, { shop_no: 1 }),
+        {
+          config: {},
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
+        },
+      );
+      expect(res.status).toBe('error');
+      expect(JSON.parse(res.content).error.code).toBe('CAFE24_TRANSPORT_FAILED');
+      expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({ code: 'CAFE24_TRANSPORT_FAILED' }),
+        }),
+      );
+    });
+
 
     it('returns CAFE24_MCP_NO_SESSION when buildTools was not called for this execution', async () => {
       const res = await provider.execute(

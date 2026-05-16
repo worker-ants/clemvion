@@ -341,6 +341,37 @@ describe('Cafe24ApiClient', () => {
       ).rejects.toBeInstanceOf(Cafe24RateLimitedError);
       expect(fetchMock).toHaveBeenCalledTimes(3); // initial + 2 retries
     });
+
+    // B-5-3: 경계값 — 429 2회 + 3번째 성공 → res.retries === 2. 옛 테스트는
+    // retries=0 (성공 1회) 와 retries=1 (1회 retry) 만 검증했다. retries=2 가
+    // MAX_RATE_LIMIT_RETRIES 경계값으로 안정해서 잘 동작하는지 검증.
+    it('success on 3rd attempt (after 2 retries) — res.retries === 2', async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          makeJsonResponse(null, {
+            status: 429,
+            headers: { 'x-cafe24-call-remain': '1' },
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse(null, {
+            status: 429,
+            headers: { 'x-cafe24-call-remain': '1' },
+          }),
+        )
+        .mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      const integration = makeIntegration();
+      const res = await client.call(integration, {
+        method: 'GET',
+        path: 'orders',
+      });
+
+      expect(sleepMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3); // initial + 2 retries
+      expect(res.status).toBe(200);
+      expect(res.retries).toBe(2);
+    });
   });
 
   describe('auth failure', () => {
@@ -866,6 +897,43 @@ describe('Cafe24ApiClient', () => {
       ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
 
       // API fetch 는 발생하지 않음 — refresh 가 실패해 call() 가 일찍 종료
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    // B-5-1: PR #67 의 error(auth_failed) 외 다른 statusReason 검증. worker 가
+    // network timeout 으로 실패해 status='error', statusReason='network' (또는
+    // 그 외 비-auth_failed) 으로 row 를 표시한 경우 — refreshViaQueue 는 그
+    // 분기가 아니므로 Cafe24TransportFailedError 를 던져야 한다 (auth 가 아닌
+    // transport-level failure).
+    it('non-auth_failed statusReason on row — throws Cafe24TransportFailedError (not AuthFailed)', async () => {
+      const expiredAt = new Date(Date.now() - 10 * 60 * 1000);
+      const integration = makeIntegration({
+        tokenExpiresAt: expiredAt,
+      });
+      // expire credentials.expires_at as well so the proactive gate fires.
+      (integration.credentials as { expires_at: string }).expires_at =
+        expiredAt.toISOString();
+
+      // worker 가 network failure 누적으로 status=error,statusReason='network'
+      // 처리. auth_failed 분기를 타지 않아야 한다.
+      integrationRepo.findOne.mockResolvedValue({
+        ...integration,
+        status: 'error',
+        statusReason: 'network',
+        tokenExpiresAt: expiredAt,
+        lastError: { code: 'CAFE24_TRANSPORT_FAILED', message: 'ECONNRESET' },
+      });
+
+      queue.add.mockResolvedValue({
+        id: integration.id,
+        waitUntilFinished: jest
+          .fn()
+          .mockRejectedValue(new Error('job failed')),
+      });
+
+      await expect(
+        queuedClient.call(integration, { method: 'GET', path: 'products' }),
+      ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
       expect(fetchMock).not.toHaveBeenCalled();
     });
 

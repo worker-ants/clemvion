@@ -471,5 +471,33 @@ describe('Cafe24Handler', () => {
         ),
       ).rejects.toMatchObject({ code: 'INTEGRATION_NOT_FOUND' });
     });
+
+    // B-5-6: logUsage 가 DB 다운 등으로 실패해도 result port 는 정상.
+    // logUsage 는 진단용이며 실패가 노드 실행 자체를 깨면 안 된다.
+    it('logUsage failure does not crash the handler — result port still success', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({
+        status: 200,
+        body: { products: [] },
+        headers: {},
+        retries: 0,
+      });
+      integrationsService.logUsage.mockRejectedValue(new Error('db down'));
+
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
+        makeContext(),
+      );
+
+      // result.port should still be 'success' — logUsage failure swallowed.
+      expect(result.port).toBe('success');
+      expect(integrationsService.logUsage).toHaveBeenCalled();
+    });
   });
 });
