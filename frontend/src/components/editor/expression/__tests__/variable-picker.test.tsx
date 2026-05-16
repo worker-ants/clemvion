@@ -36,7 +36,7 @@ describe("VariablePicker container scope gating", () => {
     const { getByText, queryByText } = renderPicker(makeData());
 
     // Expand the Built-in section
-    fireEvent.click(getByText("Built-in"));
+    fireEvent.click(getByText("기본 제공"));
 
     expect(queryByText("$loop")).toBeNull();
     expect(queryByText("$item")).toBeNull();
@@ -50,7 +50,7 @@ describe("VariablePicker container scope gating", () => {
     const { getByText, queryByText } = renderPicker(
       makeData({ containerScope: { hasLoop: true, hasItem: false } }),
     );
-    fireEvent.click(getByText("Built-in"));
+    fireEvent.click(getByText("기본 제공"));
     expect(queryByText("$loop")).not.toBeNull();
     expect(queryByText("$item")).toBeNull();
   });
@@ -59,7 +59,7 @@ describe("VariablePicker container scope gating", () => {
     const { getByText, queryByText } = renderPicker(
       makeData({ containerScope: { hasLoop: false, hasItem: true } }),
     );
-    fireEvent.click(getByText("Built-in"));
+    fireEvent.click(getByText("기본 제공"));
     expect(queryByText("$item")).not.toBeNull();
     expect(queryByText("$itemIndex")).not.toBeNull();
     expect(queryByText("$loop")).toBeNull();
@@ -69,7 +69,7 @@ describe("VariablePicker container scope gating", () => {
     const { getByText, queryByText } = renderPicker(
       makeData({ containerScope: { hasLoop: true, hasItem: true } }),
     );
-    fireEvent.click(getByText("Built-in"));
+    fireEvent.click(getByText("기본 제공"));
     expect(queryByText("$loop")).not.toBeNull();
     expect(queryByText("$item")).not.toBeNull();
     expect(queryByText("$itemIndex")).not.toBeNull();
@@ -83,7 +83,7 @@ describe("VariablePicker container scope gating", () => {
     const { getByText, queryByText } = renderPicker(
       makeData({ containerScope: { hasLoop: true, hasItem: true } }),
     );
-    fireEvent.click(getByText("Built-in"));
+    fireEvent.click(getByText("기본 제공"));
     expect(queryByText("$today")).toBeNull();
   });
 });

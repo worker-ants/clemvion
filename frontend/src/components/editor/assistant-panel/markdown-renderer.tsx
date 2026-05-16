@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ComponentProps } from "react";
+import { useT } from "@/lib/i18n";
 
 /**
  * Renders an assistant-style chat message as markdown.
@@ -30,10 +31,11 @@ import type { ComponentProps } from "react";
  *   Keeping the sanitize there avoids running the regex twice per render.
  */
 export function MarkdownRenderer({ content }: { content: string }) {
+  const t = useT();
   return (
     <div
       role="region"
-      aria-label="Assistant response"
+      aria-label={t("editor.assistantAriaLabel")}
       className={[
         // paragraph / line spacing tuned for compact chat bubbles
         "[&_p]:my-1 [&_p]:leading-relaxed",
