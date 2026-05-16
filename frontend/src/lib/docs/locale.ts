@@ -52,6 +52,19 @@ export function localizedSectionLabel(key: string, locale: Locale): string {
   return SECTION_LABELS_BY_LOCALE[locale][key] ?? humanize(key);
 }
 
+/**
+ * 주어진 섹션 키가 해당 로케일에 명시적 라벨로 등록되어 있는지 반환한다.
+ * `humanize()` 폴백을 사용하는 경우 false. 테스트에서 신규 섹션 디렉토리가
+ * `SECTION_LABELS_BY_LOCALE` 양쪽 로케일에 등록됐는지 결정적으로 검증하기
+ * 위해 노출한다.
+ */
+export function hasExplicitSectionLabel(key: string, locale: Locale): boolean {
+  return Object.prototype.hasOwnProperty.call(
+    SECTION_LABELS_BY_LOCALE[locale],
+    key,
+  );
+}
+
 export function localizedTitle(
   fm: LocalizedDocFrontmatter,
   locale: Locale,
