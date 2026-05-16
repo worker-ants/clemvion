@@ -70,4 +70,4 @@ GET /api/integrations/cafe24/precheck?mallId=<mall>
 - [x] Backend (3) Precheck endpoint
 - [x] Frontend (4) Inline pre-detection + Korean toast
 - [x] TEST + REVIEW WORKFLOW (rebase 후 재리뷰, Critical 0건, Warning 조치 완료)
-- [ ] Spec 위임 (project-planner)
+- [x] Spec 갱신 (project-planner — §9.2 begin 행 + precheck endpoint 행, §9.4 errors 보강, Rationale 3개 항목 신설)
