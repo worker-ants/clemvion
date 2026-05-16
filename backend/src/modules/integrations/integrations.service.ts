@@ -201,19 +201,35 @@ export class IntegrationsService {
         serviceTypes: serviceType,
       });
     }
+    // EXPIRING_SOON_INTERVAL — 7 days threshold shared with frontend
+    // `EXPIRING_SOON_DAYS` (status-badge.tsx). Update both layers together.
+    // spec/2-navigation/4-integration.md §2.3, §2.4, §11.4.
+    const EXPIRING_SOON_INTERVAL = "INTERVAL '7 days'";
     if (status === 'connected') {
       qb.andWhere('i.status = :s', { s: 'connected' }).andWhere(
-        "(i.token_expires_at IS NULL OR i.token_expires_at > NOW() + INTERVAL '7 days')",
+        `(i.token_expires_at IS NULL OR i.token_expires_at > NOW() + ${EXPIRING_SOON_INTERVAL})`,
       );
     } else if (status === 'expiring') {
       qb.andWhere('i.status = :s', { s: 'connected' })
         .andWhere('i.token_expires_at IS NOT NULL')
-        .andWhere("i.token_expires_at <= NOW() + INTERVAL '7 days'")
+        .andWhere(`i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}`)
         .andWhere('i.token_expires_at > NOW()');
     } else if (status === 'expired') {
       qb.andWhere('i.status = :s', { s: 'expired' });
     } else if (status === 'error') {
       qb.andWhere('i.status = :s', { s: 'error' });
+    } else if (status === 'attention') {
+      // Virtual filter — Expired ∪ Error ∪ (Connected within 7d).
+      // pending_install is excluded by design (spec §2.4): it represents an
+      // active external flow (Cafe24 Developers "Test Run") in progress, not
+      // a state that needs the user's attention here.
+      qb.andWhere(
+        `(i.status IN ('expired', 'error')
+          OR (i.status = 'connected'
+              AND i.token_expires_at IS NOT NULL
+              AND i.token_expires_at > NOW()
+              AND i.token_expires_at <= NOW() + ${EXPIRING_SOON_INTERVAL}))`,
+      );
     }
 
     qb.orderBy('i.created_at', 'DESC');

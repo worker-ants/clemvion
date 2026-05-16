@@ -1,0 +1,58 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06",
+  "summary_subagent_type": "consistency-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/SUMMARY.md",
+  "subagent_invocations": [
+    {
+      "name": "cross_spec",
+      "subagent_type": "cross-spec-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/_prompts/cross_spec.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/cross_spec/review.md"
+    },
+    {
+      "name": "rationale_continuity",
+      "subagent_type": "rationale-continuity-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/_prompts/rationale_continuity.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/rationale_continuity/review.md"
+    },
+    {
+      "name": "convention_compliance",
+      "subagent_type": "convention-compliance-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/_prompts/convention_compliance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/convention_compliance/review.md"
+    },
+    {
+      "name": "plan_coherence",
+      "subagent_type": "plan-coherence-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/_prompts/plan_coherence.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/plan_coherence/review.md"
+    },
+    {
+      "name": "naming_collision",
+      "subagent_type": "naming-collision-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/_prompts/naming_collision.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-attention-filter-053b74/review/consistency/2026/05/16/13_36_06/naming_collision/review.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "agents_fatal": [],
+  "agent_history": {
+    "cross_spec": [{"status": "success", "issues": 9}],
+    "rationale_continuity": [{"status": "success", "issues": 9}],
+    "convention_compliance": [{"status": "success", "issues": 6}],
+    "plan_coherence": [{"status": "success", "issues": 6}],
+    "naming_collision": [{"status": "success", "issues": 4}]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

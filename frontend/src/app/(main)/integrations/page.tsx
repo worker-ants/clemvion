@@ -23,7 +23,11 @@ import {
   type ListStatusFilter,
 } from "@/lib/api/integrations";
 import { ServiceIcon, prettyAuthType } from "./_shared/service-icons";
-import { StatusBadge, needsAttention } from "./_shared/status-badge";
+import {
+  StatusBadge,
+  computeAttentionBreakdown,
+  type AttentionBreakdown,
+} from "./_shared/status-badge";
 import { ServicePickerModal } from "./_shared/service-picker-modal";
 import { useT, type TranslationKey } from "@/lib/i18n";
 
@@ -35,6 +39,7 @@ const SCOPE_OPTIONS: { value: "all" | "personal" | "organization"; labelKey: Tra
 
 const STATUS_FILTERS: { value: ListStatusFilter; labelKey: TranslationKey }[] = [
   { value: "all", labelKey: "integrations.statusAll" },
+  { value: "attention", labelKey: "integrations.statusAttention" },
   { value: "connected", labelKey: "integrations.statusConnected" },
   { value: "expiring", labelKey: "integrations.statusExpiring" },
   { value: "expired", labelKey: "integrations.statusExpired" },
@@ -115,8 +120,8 @@ export default function IntegrationsPage() {
   const integrations = useMemo(() => listData?.data ?? [], [listData]);
   const pagination = listData?.pagination;
 
-  const attentionCount = useMemo(
-    () => integrations.filter(needsAttention).length,
+  const attention = useMemo(
+    () => computeAttentionBreakdown(integrations),
     [integrations],
   );
 
@@ -165,19 +170,19 @@ export default function IntegrationsPage() {
         </RoleGate>
       </div>
 
-      {attentionCount > 0 && (
-        <button
-          type="button"
-          onClick={() => updateParam("status", "expiring")}
-          className="flex w-full items-center gap-3 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-left text-sm text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200"
-        >
-          <AlertTriangle className="h-5 w-5 shrink-0" />
-          <span>
-            <strong>{attentionCount}</strong> {t("integrations.attentionPrefix")}
-            {" "}
-            {t("integrations.attentionSuffix")}
-          </span>
-        </button>
+      {attention.total > 0 && (
+        <AttentionBanner
+          breakdown={attention}
+          onActivate={() => {
+            // spec §2.4 — single row jumps to detail, multi-row applies the
+            // attention virtual filter.
+            if (attention.total === 1 && attention.mostUrgentId) {
+              router.push(`/integrations/${attention.mostUrgentId}`);
+            } else {
+              updateParam("status", "attention");
+            }
+          }}
+        />
       )}
 
       <div className="flex flex-col gap-3">
@@ -330,6 +335,89 @@ export default function IntegrationsPage() {
         />
       )}
     </div>
+  );
+}
+
+// spec/2-navigation/4-integration.md §2.4 — "Need attention" banner.
+// Breakdown-aware title + per-category counts, red tone when any error row
+// is present (amber otherwise). Click action is owned by the parent so the
+// 1-row → detail-jump vs. N-row → attention-filter branch lives where it
+// reads naturally (next to the rest of the URL handling).
+
+// Tone palette indexed by whether the breakdown contains at least one error
+// row. Centralised so the banner button and its icon stay in lock-step when
+// we tweak the colour palette.
+const ATTENTION_BANNER_TONE = {
+  error: {
+    banner:
+      "border-red-300 bg-red-50 text-red-900 hover:bg-red-100 dark:border-red-900 dark:bg-red-950 dark:text-red-200",
+    icon: "text-red-600 dark:text-red-400",
+  },
+  warn: {
+    banner:
+      "border-yellow-300 bg-yellow-50 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200",
+    icon: "text-yellow-600 dark:text-yellow-400",
+  },
+} as const;
+
+interface AttentionBannerProps {
+  breakdown: AttentionBreakdown;
+  /**
+   * Invoked when the user activates the banner (click / keyboard). The
+   * parent decides what to do: single-row breakdowns jump to the detail
+   * page, multi-row breakdowns apply the `?status=attention` filter. The
+   * banner itself is intentionally action-agnostic.
+   */
+  onActivate: () => void;
+}
+
+function AttentionBanner({ breakdown, onActivate }: AttentionBannerProps) {
+  const t = useT();
+  const hasError = breakdown.error > 0;
+  const tone = hasError ? ATTENTION_BANNER_TONE.error : ATTENTION_BANNER_TONE.warn;
+  const isSingle = breakdown.total === 1;
+  const title = isSingle
+    ? t("integrations.attentionTitleSingle")
+    : t("integrations.attentionTitlePlural", { count: breakdown.total });
+  const callToAction = isSingle
+    ? t("integrations.attentionClickToOpen")
+    : t("integrations.attentionClickToFilter");
+  return (
+    <button
+      type="button"
+      onClick={onActivate}
+      className={cn(
+        "flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors",
+        tone.banner,
+      )}
+    >
+      <AlertTriangle className={cn("mt-0.5 h-5 w-5 shrink-0", tone.icon)} />
+      <span className="flex flex-col gap-0.5">
+        <strong className="font-semibold">{title}</strong>
+        <span className="text-xs opacity-90">
+          {[
+            breakdown.expired > 0
+              ? t("integrations.attentionBreakdownExpired", {
+                  count: breakdown.expired,
+                })
+              : null,
+            breakdown.expiring > 0
+              ? t("integrations.attentionBreakdownExpiring", {
+                  count: breakdown.expiring,
+                })
+              : null,
+            breakdown.error > 0
+              ? t("integrations.attentionBreakdownError", {
+                  count: breakdown.error,
+                })
+              : null,
+            callToAction,
+          ]
+            .filter((s): s is string => Boolean(s))
+            .join(" · ")}
+        </span>
+      </span>
+    </button>
   );
 }
 
