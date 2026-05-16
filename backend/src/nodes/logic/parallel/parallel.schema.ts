@@ -80,7 +80,7 @@ export const parallelNodePorts: NodePorts = {
  * integer in [0, 16]" + "branchCount must be an integer in [2, 16]" rules
  * are already enforced by the zod schema (`int().min().max()`), so the
  * remaining domain check is just the integer-ness guard for explicit values.
- * Kept here to match handler.validate's Korean messages 1:1.
+ * Kept here to match handler.validate's warning messages 1:1.
  */
 export function validateParallelConfig(config: unknown): string[] {
   const c = (config ?? {}) as Record<string, unknown>;

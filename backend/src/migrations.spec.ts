@@ -110,18 +110,14 @@ describe('findDuplicateVersions (가드 로직 음성 케이스)', () => {
   });
 
   it('zero-padding drift: V01 vs V001 도 같은 정수 1 로 정규화되어 중복', () => {
-    expect(
-      findDuplicateVersions(['V01__pad.sql', 'V001__unpad.sql']),
-    ).toEqual([1]);
+    expect(findDuplicateVersions(['V01__pad.sql', 'V001__unpad.sql'])).toEqual([
+      1,
+    ]);
   });
 
   it('같은 V번호 3개 이상이어도 정수 한 번만 보고된다', () => {
     expect(
-      findDuplicateVersions([
-        'V050__a.sql',
-        'V050__b.sql',
-        'V050__c.sql',
-      ]),
+      findDuplicateVersions(['V050__a.sql', 'V050__b.sql', 'V050__c.sql']),
     ).toEqual([50]);
   });
 
@@ -138,10 +134,7 @@ describe('findDuplicateVersions (가드 로직 음성 케이스)', () => {
 
   it('짝지어진 .conf 는 정수로 카운트되지 않는다 (.sql 만 검사 대상)', () => {
     expect(
-      findDuplicateVersions([
-        'V030__only.sql',
-        'V030__only.conf',
-      ]),
+      findDuplicateVersions(['V030__only.sql', 'V030__only.conf']),
     ).toEqual([]);
   });
 

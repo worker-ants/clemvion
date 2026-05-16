@@ -149,7 +149,7 @@ export interface NodeComponentMetadata {
   warningRules?: readonly WarningRule[];
   /**
    * Imperative escape hatch for warnings the {@link warningRules} mini-DSL
-   * cannot express. Returns Korean messages — same shape as
+   * cannot express. Returns warning messages — same shape as
    * `handler.validate(config).errors`. Per the SSOT contract, this lives on
    * the same node component as the schema (no logic outside the node folder).
    *

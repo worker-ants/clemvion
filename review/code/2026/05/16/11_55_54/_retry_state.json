@@ -1,0 +1,108 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/SUMMARY.md",
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/security/review.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/performance/review.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/architecture/review.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/requirement/review.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/scope/review.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/side_effect/review.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/maintainability/review.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/testing/review.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/documentation/review.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/dependency/review.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/database/review.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/concurrency/review.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/prod-rereview-fix-a7c93f/review/code/2026/05/16/11_55_54/api_contract/review.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract"
+  ],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

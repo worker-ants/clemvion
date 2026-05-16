@@ -297,9 +297,7 @@ describe('evaluateMetadataBlockingErrors integration (carousel)', () => {
       buttons: [{ type: 'port', label: '' }],
     });
     // Declarative fires:
-    expect(errors).toContain(
-      'In Dynamic mode, a Title field must be entered.',
-    );
+    expect(errors).toContain('In Dynamic mode, a Title field must be entered.');
     // Imperative (validateButtons) fires:
     expect(errors).toEqual(
       expect.arrayContaining([

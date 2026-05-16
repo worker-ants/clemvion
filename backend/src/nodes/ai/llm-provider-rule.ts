@@ -4,6 +4,11 @@
  *
  * 캔버스 / handler.validate / execution-engine 사이의 SSOT.
  *
+ * **Language SoT**: 본 메시지는 English 가 single source of truth 이며,
+ * 프론트엔드 `WARNING_KO` (`frontend/src/lib/i18n/backend-labels.ts`) 가 ko
+ * 번역을 담당한다. 영문 원본을 바꿀 때 반드시 `WARNING_KO` 의 매핑 키도 동시
+ * 갱신해 캔버스 배지의 ko 표시가 깨지지 않게 한다.
+ *
  * 배경
  * ----
  * 각 노드의 schema 에는 동일한 모양의 declarative rule 이 선언돼 있다:

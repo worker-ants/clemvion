@@ -79,7 +79,7 @@ describe('validateWorkflowConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (workflow)', () => {
-  it('emits the Korean warning when no workflow is selected', () => {
+  it('emits the warning when no workflow is selected', () => {
     expect(evaluateMetadataBlockingErrors(workflowNodeMetadata, {})).toContain(
       'Target workflow must be selected.',
     );

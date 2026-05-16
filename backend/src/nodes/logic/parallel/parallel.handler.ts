@@ -20,7 +20,7 @@ export class ParallelHandler implements NodeHandler {
 
   validate(config: Record<string, unknown>): ValidationResult {
     // Schema SSOT (warningRules + validateConfig) mirrors all of handler's
-    // legacy inline rules verbatim (Korean messages preserved 1:1).
+    // legacy inline rules verbatim (warning messages preserved 1:1).
     const errors = evaluateMetadataBlockingErrors(this.metadata, config);
     return { valid: errors.length === 0, errors };
   }

@@ -27,7 +27,7 @@ describe('foreachNodeMetadata.warningRules', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (foreach)', () => {
-  it('emits the Korean warning when arrayField is missing', () => {
+  it('emits the warning when arrayField is missing', () => {
     expect(evaluateMetadataBlockingErrors(foreachNodeMetadata, {})).toEqual([
       'Array field must be entered.',
     ]);

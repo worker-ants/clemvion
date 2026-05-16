@@ -27,7 +27,7 @@ describe('mapNodeMetadata.warningRules', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (map)', () => {
-  it('emits the Korean warning when inputField is missing', () => {
+  it('emits the warning when inputField is missing', () => {
     expect(evaluateMetadataBlockingErrors(mapNodeMetadata, {})).toEqual([
       'Input field must be entered.',
     ]);
