@@ -53,7 +53,7 @@ export const filterNodeConfigSchema = z
           label: 'Conditions',
           widget: 'condition-builder',
           itemLabel: 'Condition',
-          hint: '도트 경로(예: "name", "address.city") 또는 표현식("{{ $item.name }}"). 비워두거나 "$item" 으로 두면 item 자체와 비교합니다.',
+          hint: 'Dot-path (e.g. "name", "address.city") or expression ("{{ $item.name }}"). Leave empty or use "$item" to compare against the item itself.',
         },
       }),
     combineMode: z
