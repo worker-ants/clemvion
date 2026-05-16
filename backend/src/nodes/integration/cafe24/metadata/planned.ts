@@ -553,13 +553,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'points_report', label: '적립금 리포트 조회' },
   ],
   notification: [
-    { id: 'sms_receivers_get', label: 'SMS 수신자 조회' },
-    { id: 'sms_senders_list', label: 'SMS 발신자 목록 조회' },
-    { id: 'automails_get', label: '자동 이메일 설정 조회' },
-    { id: 'automails_update', label: '자동 이메일 설정 수정' },
     { id: 'customers_invitation_send', label: '회원 활성화 초대 발송' },
-    { id: 'recipientgroups_list', label: '수신자 그룹 목록', paginated: true },
-    { id: 'recipientgroups_get', label: '수신자 그룹 상세' },
     { id: 'recipientgroups_create', label: '수신자 그룹 생성' },
     { id: 'recipientgroups_update', label: '수신자 그룹 수정' },
     { id: 'recipientgroups_delete', label: '수신자 그룹 삭제' },
