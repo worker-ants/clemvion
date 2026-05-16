@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { FieldGroup, SelectField, NumberField, CheckboxField, KeyValueEditor } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { IntegrationSelector } from "./integration-selector";
@@ -270,14 +271,19 @@ const CAFE24_RESOURCE_KEYS = [
 ] as const;
 type Cafe24ResourceKey = (typeof CAFE24_RESOURCE_KEYS)[number];
 
-function normalizeCafe24Fields(
+/**
+ * Convert the persisted `config.fields` shape (or any unknown input) to the
+ * `{key, value}[]` form the editor renders. Accepts:
+ *
+ * - object → entries; `null`/`undefined` values become `""`.
+ * - array of `{key, value}` → coerced to strings.
+ * - anything else (including `null`, primitives) → empty list.
+ *
+ * Exported so the conversion can be exercised directly by unit tests.
+ */
+export function normalizeCafe24Fields(
   raw: unknown,
 ): Array<{ key: string; value: string }> {
-  // The handler reads `config.fields` as a flat object (Record<string,
-  // unknown>), but the UI maintains a list of {key, value} pairs for
-  // ergonomic editing. Accept both shapes so the panel doesn't crash on
-  // its second render — the prior version would do `.map()` against the
-  // object form after the first edit and throw at runtime.
   if (Array.isArray(raw)) {
     return raw
       .filter(
@@ -295,9 +301,63 @@ function normalizeCafe24Fields(
   return [];
 }
 
+/**
+ * Convert the UI's key-value list back to the persisted object form that the
+ * backend handler expects (`Record<string, unknown>`). Empty-key rows are
+ * dropped because they have no meaningful object representation — they
+ * remain visible in the UI because the editor list lives in local React
+ * state (see `Cafe24Config`). When two rows share a key, the **later** row's
+ * value wins (last-write-wins) to match the natural object-spread mental
+ * model.
+ */
+export function fieldRowsToObject(
+  rows: ReadonlyArray<{ key: string; value: string }>,
+): Record<string, string> {
+  const obj: Record<string, string> = {};
+  for (const it of rows) {
+    if (it.key) obj[it.key] = it.value;
+  }
+  return obj;
+}
+
 export function Cafe24Config({ config, onChange }: { config: Config; onChange: OnChange }) {
   const t = useT();
-  const fields = normalizeCafe24Fields(config.fields);
+  // The Fields editor maintains a list of {key, value} pairs locally so the
+  // user can add a blank row and type its key before it becomes a persisted
+  // object entry. The previous implementation derived the list from
+  // `config.fields` (object form) on every render, which silently dropped
+  // empty-key rows the moment they were created — making the "Add" button
+  // appear non-functional.
+  const [fieldRows, setFieldRows] = useState<
+    Array<{ key: string; value: string }>
+  >(() => normalizeCafe24Fields(config.fields));
+
+  // Track the `config.fields` reference we last propagated upstream so we
+  // can detect *external* changes (undo/redo, programmatic reset) and
+  // re-sync the local list during render. Reference equality is enough:
+  // when we call `onChange`, the new `config.fields` reference is *our*
+  // newly-built object, so `lastSeenFields === config.fields` and we skip.
+  // When a parent overwrites `config.fields` with a different object, the
+  // reference differs and we re-derive the list. This is React's documented
+  // "storing information from previous renders" pattern — bounded to a
+  // single setState call per reference change, so no render loop.
+  const [lastSeenFields, setLastSeenFields] = useState<unknown>(config.fields);
+
+  if (lastSeenFields !== config.fields) {
+    setLastSeenFields(config.fields);
+    setFieldRows(normalizeCafe24Fields(config.fields));
+  }
+
+  const handleFieldRowsChange = (
+    items: Array<{ key: string; value: string }>,
+  ) => {
+    setFieldRows(items);
+    const obj = fieldRowsToObject(items);
+    const nextConfig = { ...config, fields: obj };
+    setLastSeenFields(nextConfig.fields);
+    onChange(nextConfig);
+  };
+
   const pagination = (config.pagination as { limit?: number; offset?: number } | undefined) ?? {};
 
   const resourceOptions = [
@@ -336,19 +396,8 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
       />
       <KeyValueEditor
         label={t("nodeConfigs.integration.cafe24Fields")}
-        items={fields.map((f) => ({ key: f.key, value: f.value }))}
-        onChange={(items) => {
-          // Translate KeyValue back to a plain object so the backend
-          // schema (which expects Record<string, unknown>) is happy.
-          const obj: Record<string, string> = {};
-          for (const it of items) {
-            if (it.key) obj[it.key] = it.value;
-          }
-          // Persist BOTH the keyvalue list (for UI round-trip) and the
-          // resolved object form. The handler reads `config.fields` as
-          // an object; the UI maintains it as a list for ergonomic editing.
-          onChange({ ...config, fields: obj });
-        }}
+        items={fieldRows}
+        onChange={handleFieldRowsChange}
         keyPlaceholder={t("nodeConfigs.integration.cafe24FieldsKeyPlaceholder")}
         valuePlaceholder={t("nodeConfigs.integration.cafe24FieldsValuePlaceholder")}
         expressionValues
