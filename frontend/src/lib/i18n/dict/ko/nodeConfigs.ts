@@ -134,12 +134,21 @@ export const nodeConfigs = {
     cafe24Resource: "리소스",
     cafe24ResourceSelectPlaceholder: "— 리소스 선택 —",
     cafe24Operation: "작업",
-    cafe24OperationPlaceholder: "예: product_list, order_get, customer_update",
-    cafe24OperationHint:
-      "spec/conventions/cafe24-api-metadata.md 에 정의된 Operation id (예: product_list, product_get, product_update, order_list, ...)",
-    cafe24Fields: "필드",
-    cafe24FieldsKeyPlaceholder: "shop_no, product_no, ...",
-    cafe24FieldsValuePlaceholder: "값 또는 {{ $input.x }}",
+    cafe24OperationSelectPlaceholder: "— 작업 선택 —",
+    cafe24OperationSelectResourceFirst: "리소스를 먼저 선택하세요",
+    cafe24OperationPlannedSuffix: "(지원 예정)",
+    cafe24OperationCoverageHint:
+      "지원 {{ supported }}개 · 추후 지원 {{ planned }}개",
+    cafe24OperationPlannedHint:
+      "이 작업은 아직 지원되지 않습니다. 카탈로그에 등재되어 있고 추후 지원될 예정입니다.",
+    cafe24OperationUnknown:
+      "현재 메타데이터에 없는 작업입니다. 리소스를 다시 선택하거나 작업 ID 를 확인하세요.",
+    cafe24FieldsRequired: "필수 필드",
+    cafe24FieldsOptional: "선택 필드",
+    cafe24FieldsEmpty: "이 작업은 추가 필드가 필요하지 않습니다.",
+    cafe24FieldsEnumHint: "허용 값: {{ values }}",
+    cafe24FieldsBooleanHint: "값: true / false (표현식 사용 가능)",
+    cafe24FieldsDefaultHint: "기본값: {{ value }}",
     cafe24Pagination: "페이지네이션 (선택)",
     cafe24PaginationHint: "선택한 작업이 페이지네이션을 지원할 때 적용됩니다",
     cafe24Limit: "Limit (최대 개수)",

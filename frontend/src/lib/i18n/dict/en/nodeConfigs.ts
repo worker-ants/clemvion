@@ -136,12 +136,21 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     cafe24Resource: "Resource",
     cafe24ResourceSelectPlaceholder: "— Select resource —",
     cafe24Operation: "Operation",
-    cafe24OperationPlaceholder: "e.g. product_list, order_get, customer_update",
-    cafe24OperationHint:
-      "Operation id from spec/conventions/cafe24-api-metadata.md (e.g. product_list, product_get, product_update, order_list, ...)",
-    cafe24Fields: "Fields",
-    cafe24FieldsKeyPlaceholder: "shop_no, product_no, ...",
-    cafe24FieldsValuePlaceholder: "value or {{ $input.x }}",
+    cafe24OperationSelectPlaceholder: "— Select operation —",
+    cafe24OperationSelectResourceFirst: "Select a resource first",
+    cafe24OperationPlannedSuffix: "(coming soon)",
+    cafe24OperationCoverageHint:
+      "{{ supported }} supported · {{ planned }} planned",
+    cafe24OperationPlannedHint:
+      "This operation is not yet supported. It is listed in the catalog and will be implemented later.",
+    cafe24OperationUnknown:
+      "Operation is not in the current metadata. Re-pick the resource or verify the operation id.",
+    cafe24FieldsRequired: "Required",
+    cafe24FieldsOptional: "Optional",
+    cafe24FieldsEmpty: "This operation has no extra fields.",
+    cafe24FieldsEnumHint: "Allowed values: {{ values }}",
+    cafe24FieldsBooleanHint: "true / false (expression allowed)",
+    cafe24FieldsDefaultHint: "Default: {{ value }}",
     cafe24Pagination: "Pagination (optional)",
     cafe24PaginationHint: "Used when the chosen operation is paginated",
     cafe24Limit: "Limit",
