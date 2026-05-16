@@ -26,52 +26,52 @@ spec_files:
 ### Step 0–3 (셋업)
 - [x] worktree `cafe24-app-url-detail-a7c3f4` 생성
 - [x] `spec/2-navigation/4-integration.md` 전체 (Overview / 본문 / Rationale) 읽기
-- [ ] `/consistency-check --impl-prep spec/2-navigation/4-integration.md` 실행 — Critical 0건 확인
+- [x] `/consistency-check --impl-prep spec/2-navigation/4-integration.md` 실행 — Critical 0건 확인
 
 ### Step 4 (DOCUMENTATION)
-- [ ] `frontend/src/lib/i18n/dict/ko.ts` 신규 키 추가
-- [ ] `frontend/src/lib/i18n/dict/en.ts` 신규 키 추가
-- [ ] `plan/in-progress/spec-update-cafe24-app-url-detail.md` 작성 — spec/2-navigation/4-integration.md §4.2 + Rationale 추가 제안 (developer 권한 밖이므로 project-planner 위임)
+- [x] `frontend/src/lib/i18n/dict/ko.ts` 신규 키 추가
+- [x] `frontend/src/lib/i18n/dict/en.ts` 신규 키 추가
+- [x] `plan/in-progress/spec-update-cafe24-app-url-detail.md` 작성 — spec/2-navigation/4-integration.md §4.2 + Rationale 추가 제안 (developer 권한 밖이므로 project-planner 위임)
 
 ### Step 5–7 (테스트 + 구현)
 
 **Backend tests**
-- [ ] `backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts`
+- [x] `backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts`
   - mall_id_mismatch 시 `logger.warn` 호출 + reason 필드 확인
   - no_client_secret 시 동일
   - hmac_verify_failed 시 동일
   - tryRecoverByMallId 의 후보 0건 / 다중 매칭 / 모두 verify 실패 케이스 로그
-- [ ] `backend/src/modules/integrations/integrations.service.spec.ts`
+- [x] `backend/src/modules/integrations/integrations.service.spec.ts`
   - `toPublic` 의 cafe24 private → `appUrl` non-null 노출 + `installToken` 응답에서 제거
   - cafe24 public / 그 외 → `appUrl: null`
 
 **Backend impl**
-- [ ] `handleInstall`: 3 분기 각각 `logger.warn` 추가 (reason, urlMallId, dbMallId, dbAppType, status, statusReason, tokenPreview)
-- [ ] `tryRecoverByMallId`: HMAC 후보 0건/다중 분기 로그 (이미 있는 진단 로그 보강)
-- [ ] `PublicIntegration` 타입: `appUrl: string | null` 추가, `installToken` 응답 제거
-- [ ] `IntegrationsService.toPublic`: cafe24 private 일 때 `buildCafe24InstallUrl(APP_URL, installToken)` 으로 `appUrl` 계산
-- [ ] `buildCafe24InstallUrl` 헬퍼 / `third-party-oauth.constants.ts` 의 callback URL 헬퍼 재사용
+- [x] `handleInstall`: 3 분기 각각 `logger.warn` 추가 (reason, urlMallId, dbMallId, dbAppType, status, statusReason, tokenPreview)
+- [x] `tryRecoverByMallId`: HMAC 후보 0건/다중 분기 로그 (이미 있는 진단 로그 보강)
+- [x] `PublicIntegration` 타입: `appUrl: string | null` 추가, `installToken` 응답 제거
+- [x] `IntegrationsService.toPublic`: cafe24 private 일 때 `buildCafe24InstallUrl(APP_URL, installToken)` 으로 `appUrl` 계산
+- [x] `buildCafe24InstallUrl` 헬퍼 / `third-party-oauth.constants.ts` 의 callback URL 헬퍼 재사용
 
 **Frontend tests + impl**
-- [ ] `frontend/src/lib/api/integrations.ts` `IntegrationDto` 에 `appUrl: string | null`
-- [ ] `frontend/src/app/(main)/integrations/[id]/__tests__/app-url-card.test.tsx` 신규 RTL 테스트
-- [ ] 상세 페이지에 `Cafe24AppUrlCard` 컴포넌트 추가 — App URL / Redirect URI / 안내 문구 + 복사 버튼
-- [ ] 신규 등록 흐름의 `Cafe24PrivatePending` 카피 UX 패턴과 일관 유지
+- [x] `frontend/src/lib/api/integrations.ts` `IntegrationDto` 에 `appUrl: string | null`
+- [x] `frontend/src/app/(main)/integrations/[id]/__tests__/app-url-card.test.tsx` 신규 RTL 테스트
+- [x] 상세 페이지에 `Cafe24AppUrlCard` 컴포넌트 추가 — App URL / Redirect URI / 안내 문구 + 복사 버튼
+- [x] 신규 등록 흐름의 `Cafe24PrivatePending` 카피 UX 패턴과 일관 유지
 
 ### Step 8 (TEST WORKFLOW)
-- [ ] `cd backend && npm run lint`
-- [ ] `cd frontend && npm run lint`
-- [ ] `cd backend && npm test`
-- [ ] `cd frontend && npm test`
-- [ ] `cd backend && npm run build`
-- [ ] `cd frontend && npm run build`
-- [ ] `make e2e-test` (integration 영역 변경 → 필수)
+- [x] `cd backend && npm run lint`
+- [x] `cd frontend && npm run lint`
+- [x] `cd backend && npm test`
+- [x] `cd frontend && npm test`
+- [x] `cd backend && npm run build`
+- [x] `cd frontend && npm run build`
+- [x] `make e2e-test` (integration 영역 변경 → 필수)
 
 ### Step 9 (REVIEW WORKFLOW)
-- [ ] `/ai-review` 호출
-- [ ] Warning+ 이슈 조치
-- [ ] `review/.../RESOLUTION.md` 작성
-- [ ] TEST WORKFLOW 재실행
+- [x] `/ai-review` 호출
+- [x] Warning+ 이슈 조치
+- [x] `review/.../RESOLUTION.md` 작성
+- [x] TEST WORKFLOW 재실행
 
 ## 결정 사항 / Open question
 
