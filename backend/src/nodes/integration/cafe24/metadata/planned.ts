@@ -363,24 +363,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'icons_update_settings', label: '상점 아이콘 설정 수정' },
   ],
   promotion: [],
-  application: [
-    { id: 'appstore_orders_get', label: '앱스토어 주문 조회' },
-    { id: 'appstore_orders_create', label: '앱스토어 주문 생성' },
-    {
-      id: 'appstore_payments_list',
-      label: '앱스토어 결제 목록',
-      paginated: true,
-    },
-    { id: 'appstore_payments_count', label: '앱스토어 결제 수' },
-    {
-      id: 'databridge_logs_list',
-      label: 'DataBridge 로그 목록',
-      paginated: true,
-    },
-    { id: 'recipes_list', label: '레시피 목록 조회', paginated: true },
-    { id: 'recipes_create', label: '레시피 생성' },
-    { id: 'recipes_delete', label: '레시피 삭제' },
-  ],
+  application: [],
   category: [],
   collection: [
     { id: 'manufacturers_count', label: '제조사 개수 조회' },
