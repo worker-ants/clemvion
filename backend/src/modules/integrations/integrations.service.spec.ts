@@ -860,6 +860,65 @@ describe('IntegrationsService', () => {
       };
       expect(createArg.lastRotatedAt).toBeInstanceOf(Date);
     });
+
+    // V045 partial UNIQUE `idx_integration_cafe24_workspace_mall` race
+    // backstop (2026-05-16) — Cafe24 Public 흐름은 begin 단계에서 row 를
+    // 만들지 않으므로 finalize (`POST /api/integrations`) 의 INSERT 가 동시
+    // 진입 시 V045 UNIQUE 위반을 일으킬 수 있다. 옛 `throwIfUniqueViolation`
+    // 은 `integration_workspace_name_unique` 만 처리해 raw QueryFailedError
+    // 가 500 으로 빠지던 결함을 해결. 두 race 경로 (public finalize +
+    // private begin 동시 신청) 모두 동일한 409 코드로 변환.
+    it('translates cafe24 mall_id unique violation to CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)', async () => {
+      integrationRepo.save = jest.fn().mockRejectedValueOnce(
+        Object.assign(
+          new Error('duplicate key value violates unique constraint'),
+          {
+            code: '23505',
+            constraint: 'idx_integration_cafe24_workspace_mall',
+          },
+        ),
+      );
+      const error = await service
+        .create('ws-1', 'user-1', 'member', {
+          serviceType: 'http',
+          authType: 'api_key',
+          name: 'My API',
+          credentials: {
+            location: 'header',
+            key_name: 'X-Api-Key',
+            value: 'secret',
+          },
+        })
+        .catch((e: Error) => e);
+      const response = (error as { response?: { code?: string } }).response;
+      expect(response?.code).toBe('CAFE24_PRIVATE_APP_ALREADY_CONNECTED');
+    });
+
+    it('translates integration name unique violation to INTEGRATION_NAME_TAKEN (409)', async () => {
+      integrationRepo.save = jest.fn().mockRejectedValueOnce(
+        Object.assign(
+          new Error('duplicate key value violates unique constraint'),
+          {
+            code: '23505',
+            constraint: 'integration_workspace_name_unique',
+          },
+        ),
+      );
+      const error = await service
+        .create('ws-1', 'user-1', 'member', {
+          serviceType: 'http',
+          authType: 'api_key',
+          name: 'My API',
+          credentials: {
+            location: 'header',
+            key_name: 'X-Api-Key',
+            value: 'secret',
+          },
+        })
+        .catch((e: Error) => e);
+      const response = (error as { response?: { code?: string } }).response;
+      expect(response?.code).toBe('INTEGRATION_NAME_TAKEN');
+    });
   });
 
   // -----------------------------------------------------------------

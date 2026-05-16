@@ -1098,13 +1098,24 @@ export class IntegrationsService {
   private throwIfUniqueViolation(err: unknown): void {
     const code = (err as { code?: string })?.code;
     const constraint = (err as { constraint?: string })?.constraint;
-    if (
-      code === '23505' &&
-      constraint === 'integration_workspace_name_unique'
-    ) {
+    if (code !== '23505') return;
+    if (constraint === 'integration_workspace_name_unique') {
       throw new ConflictException({
         code: 'INTEGRATION_NAME_TAKEN',
         message: 'Integration name is already in use within this workspace',
+      });
+    }
+    // V045 partial UNIQUE `(workspace_id, mall_id) WHERE service_type='cafe24'`
+    // — Cafe24 Public 흐름은 begin 단계에서 row 를 만들지 않아 finalize
+    // 단계의 동시 신청 race 또는 begin pre-check 통과 후 DB-level race 가
+    // 본 constraint 로 잡힌다. 옛 코드는 본 분기를 누락해 raw QueryFailedError
+    // 가 500 으로 빠지던 결함이 있었다. spec/2-navigation/4-integration.md
+    // §9.4 — `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 의 race backstop 분기.
+    if (constraint === 'idx_integration_cafe24_workspace_mall') {
+      throw new ConflictException({
+        code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+        message:
+          'A Cafe24 integration with this mall_id already exists in this workspace. Use the existing integration or delete it first.',
       });
     }
   }

@@ -308,6 +308,22 @@ function normalizeRawPreviewRow(
   } as IntegrationOAuthPreview;
 }
 
+/**
+ * `precheckCafe24Mall` 의 conflict 분기 우선순위 — 가장 제한적인 상태부터.
+ * `connected` 는 진짜 중복(완료된 통합), `pending_install` 은 install 중(재사용
+ * 가능), `error` 는 재인증 가능, `expired` 는 정리 후 재등록 가능.
+ * frontend 의 i18n 메시지 분기와 동일한 순서 (`integration-response.dto.ts` 의
+ * `Cafe24PrecheckResultDto.status` enum 주석 참조).
+ */
+const CAFE24_PRECHECK_STATUS_PRIORITY = [
+  'connected',
+  'pending_install',
+  'error',
+  'expired',
+] as const;
+type Cafe24PrecheckStatus =
+  (typeof CAFE24_PRECHECK_STATUS_PRIORITY)[number];
+
 @Injectable()
 export class IntegrationOAuthService {
   private readonly logger = new Logger(IntegrationOAuthService.name);
@@ -393,6 +409,26 @@ export class IntegrationOAuthService {
           });
         }
         clientId = envClientId;
+        // Public-flow begin pre-check (2026-05-16): block before any OAuth
+        // round-trip if `(workspaceId, mall_id)` already has a `connected`
+        // cafe24 Integration. Without this, the user would only learn of
+        // the conflict at finalize (`POST /api/integrations`) — *after*
+        // completing the consent flow — where V045 partial UNIQUE rejects
+        // the INSERT. spec/2-navigation/4-integration.md §9.2 Rationale
+        // "Cafe24 Public 흐름의 begin-time 사전 가드 추가". 코드 재사용:
+        // private 흐름과 동일한 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` —
+        // spec line 725 가 이미 "app_type 무관" 으로 정의해 의미상 정합.
+        const existingConnected = await this.findConnectedCafe24MallIntegration(
+          params.workspaceId,
+          meta.mall_id,
+        );
+        if (existingConnected) {
+          throw new ConflictException({
+            code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+            message: `A Cafe24 integration for mall_id "${meta.mall_id}" already exists and is connected. Use the existing integration or delete it first.`,
+            integrationId: existingConnected.id,
+          });
+        }
       }
       providerMeta = {
         mall_id: meta.mall_id,
@@ -1025,41 +1061,13 @@ export class IntegrationOAuthService {
   ): Promise<BeginResult> {
     const appUrl = process.env.APP_URL || 'http://localhost:3011';
 
-    // Duplicate-prevention.
-    //
-    // C2 + E2 (2026-05-16) — 두 가지 동시 개선:
-    //   • C2 (REQ HIGH-5): spec §9.2 는 중복 감지를 "app_type 무관" 으로
-    //     정의한다. 옛 in-memory 필터는 `row.credentials?.app_type ===
-    //     'private'` 까지 AND 로 걸어, public 으로 이미 연결된 동일 mall_id
-    //     에 대해 Private 앱 begin 을 허용하던 결함이 있었다. 이 조건을
-    //     제거해 spec 일치.
-    //   • E2 (DB H-2): 옛 코드는 workspace 의 모든 cafe24 row 를 in-memory
-    //     로 가져온 뒤 mall_id 비교. V045 의 plain mall_id 컬럼 + V046
-    //     partial UNIQUE 가 있는 지금은 SQL 직접 조회가 가능하므로
-    //     `{ workspaceId, serviceType, mallId }` 조건으로 단일 쿼리.
-    //     workspace 당 cafe24 통합이 많아도 O(1) 행만 가져온다.
-    //
-    // 단 V045 이전 row (`mallId IS NULL`) 의 fallback 은 별도 보정 쿼리로
-    // 처리한다. 이는 곧 backfill 완료 후 제거 예정.
-    const sameMall = await this.integrationRepository.find({
-      where: {
-        workspaceId: params.workspaceId,
-        serviceType: 'cafe24',
-        mallId: meta.mall_id,
-      },
-    });
-    // V045 이전 row 보정 — plain mall_id 컬럼이 NULL 인 행은 credentials
-    // JSONB 의 mall_id 로 매칭. backfill 완료 후 제거 예정.
-    const sameMallLegacy = (
-      await this.integrationRepository.find({
-        where: {
-          workspaceId: params.workspaceId,
-          serviceType: 'cafe24',
-          mallId: IsNull(),
-        },
-      })
-    ).filter((row) => row.credentials?.mall_id === meta.mall_id);
-    const allSameMall = [...sameMall, ...sameMallLegacy];
+    // Duplicate-prevention — shared helper (also used by public-flow begin
+    // and the precheck endpoint). 동일 (workspaceId, mall_id) 의 `connected`
+    // cafe24 row 가 있으면 즉시 409 로 거부. spec §9.2 "app_type 무관".
+    const allSameMall = await this.findAllCafe24RowsForMall(
+      params.workspaceId,
+      meta.mall_id,
+    );
     const alreadyConnected = allSameMall.find(
       (row) => row.status === 'connected',
     );
@@ -1468,6 +1476,111 @@ export class IntegrationOAuthService {
     this.logger.warn(
       `[cafe24-install-hmac-fail] reason=${reason} urlMallId=${JSON.stringify(urlMallId)} dbMallId=${JSON.stringify(dbMallId)} dbAppType=${dbAppType} status=${target.status} statusReason=${target.statusReason ?? 'null'} token=${tokenPreview}`,
     );
+  }
+
+  // ---------------------------------------------------------------------
+  // Cafe24 duplicate-detection — begin pre-check + precheck endpoint
+  // ---------------------------------------------------------------------
+
+  /**
+   * Return all cafe24 Integration rows for `(workspaceId, mallId)`.
+   *
+   * Primary path: SQL filter on the V045 plain `mall_id` column (O(1) rows).
+   * Legacy fallback: rows from before V045 still have `mall_id IS NULL` —
+   * match them via the encrypted `credentials.mall_id` JSONB field.
+   *
+   * **Legacy fallback 제거 조건** (2026-05-16 기준): V045 backfill 마이그레이션
+   * (마이그레이션 추적 plan `plan/in-progress/cafe24-mall-dup-ux.md` 참조) 이
+   * 완료되어 모든 cafe24 row 의 `mall_id` plain 컬럼이 NOT NULL 임을 확인한
+   * 뒤 legacy 쿼리 + filter 블록을 삭제. 동시에 V046 partial UNIQUE 의
+   * `mall_id IS NOT NULL` 조건도 검토 (NOT NULL constraint 로 강화 가능).
+   *
+   * Shared by `createPrivatePendingIntegration` (begin private guard +
+   * pending_install reuse), the public-flow begin guard, and
+   * `precheckCafe24Mall` (frontend pre-detection endpoint).
+   *
+   * Performance — `Promise.all` 병렬 발행으로 평균 응답 latency 절반.
+   * legacy 쿼리는 backfill 완료 후 제거 예정이며 그 시점에 단일 쿼리로 회귀.
+   */
+  private async findAllCafe24RowsForMall(
+    workspaceId: string,
+    mallId: string,
+  ): Promise<Integration[]> {
+    const [direct, legacyRaw] = await Promise.all([
+      this.integrationRepository.find({
+        where: { workspaceId, serviceType: 'cafe24', mallId },
+      }),
+      this.integrationRepository.find({
+        where: { workspaceId, serviceType: 'cafe24', mallId: IsNull() },
+      }),
+    ]);
+    const legacy = legacyRaw.filter(
+      (row) => row.credentials?.mall_id === mallId,
+    );
+    return [...direct, ...legacy];
+  }
+
+  /**
+   * Return the first `connected` cafe24 row for `(workspaceId, mallId)`,
+   * or null if none exists. Used by both public-flow and private-flow
+   * begin pre-checks to block duplicate adds before any OAuth round-trip.
+   */
+  private async findConnectedCafe24MallIntegration(
+    workspaceId: string,
+    mallId: string,
+  ): Promise<Integration | null> {
+    const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
+    return all.find((row) => row.status === 'connected') ?? null;
+  }
+
+  /**
+   * Read-only conflict snapshot for the frontend's mall_id input precheck.
+   *
+   * Returns the most-restrictive cafe24 row for `(workspaceId, mallId)` —
+   * priority `connected > pending_install > error > expired` — so the UI
+   * can render context-aware inline warnings *before* the user clicks
+   * Connect. spec/2-navigation/4-integration.md §9.2 Rationale "precheck
+   * endpoint — mall_id 입력 단계 사전 감지 UX".
+   *
+   * Never exposes credentials/tokens/timestamps — only the bare
+   * (id, name, status) tuple needed for the inline alert + deep link.
+   */
+  async precheckCafe24Mall(
+    workspaceId: string,
+    mallId: string,
+  ): Promise<{
+    conflict: boolean;
+    existingIntegrationId?: string;
+    existingName?: string;
+    status?: Cafe24PrecheckStatus;
+  }> {
+    const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
+    if (all.length === 0) return { conflict: false };
+    // Priority 순으로 가장 제한적인 상태부터 검사. 상수는 클래스 상단의
+    // `CAFE24_PRECHECK_STATUS_PRIORITY` 에 정의 — DTO 주석 / 프론트 i18n 분기
+    // 와 단일 진실 유지.
+    for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
+      const hit = all.find((row) => row.status === status);
+      if (hit) {
+        return {
+          conflict: true,
+          existingIntegrationId: hit.id,
+          existingName: hit.name,
+          status,
+        };
+      }
+    }
+    // Fallback: priority 에 없는 transitional status (현재 DB enum 에는 없으나
+    // 미래 추가 가능성 대비). 강제 캐스팅 대신 status 를 omit 해 클라이언트가
+    // "알 수 없는 상태 — 일단 conflict" 로만 해석하도록 한다. spec/conventions
+    // /swagger.md — enum 범위 밖 값은 frontend silent fallthrough 방지를
+    // 위해 명시적으로 미반환.
+    const fallback = all[0];
+    return {
+      conflict: true,
+      existingIntegrationId: fallback.id,
+      existingName: fallback.name,
+    };
   }
 
   // ---------------------------------------------------------------------

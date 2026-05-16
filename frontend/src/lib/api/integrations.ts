@@ -277,4 +277,29 @@ export const integrationsApi = {
     });
     return unwrap<IntegrationDto>(data);
   },
+
+  /**
+   * Cafe24 mall_id 사전 중복 감지.
+   *
+   * `/integrations/new` 의 cafe24 step 에서 mall_id 입력 시점에 debounce 로
+   * 호출. 같은 워크스페이스에 같은 mall_id 의 cafe24 통합이 이미 존재하면
+   * inline 경고 배너를 띄워 OAuth 진입 자체를 사전 차단한다.
+   *
+   * 응답에는 자격 증명·토큰·timestamps 가 포함되지 않으며, 가장 제한적인
+   * 상태 (`connected > pending_install > error > expired`) 만 반환된다.
+   * spec/2-navigation/4-integration.md §9.2.
+   */
+  async cafe24Precheck(mallId: string): Promise<Cafe24PrecheckResult> {
+    const { data } = await apiClient.get("/integrations/cafe24/precheck", {
+      params: { mallId },
+    });
+    return unwrap<Cafe24PrecheckResult>(data);
+  },
 };
+
+export interface Cafe24PrecheckResult {
+  conflict: boolean;
+  existingIntegrationId?: string;
+  existingName?: string;
+  status?: "connected" | "pending_install" | "expired" | "error";
+}
