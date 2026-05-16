@@ -4,7 +4,10 @@ import {
   createHash,
   randomBytes,
 } from 'crypto';
+import { Logger } from '@nestjs/common';
 import { ValueTransformer } from 'typeorm';
+
+const logger = new Logger('IntegrationCredentialsTransformer');
 
 /**
  * AES-256-GCM ValueTransformer for sensitive JSONB credentials.
@@ -42,8 +45,8 @@ function getKey(): Buffer | null {
   const raw = process.env.INTEGRATION_ENCRYPTION_KEY;
   if (!raw) {
     if (!warnedMissingKey) {
-      console.warn(
-        '[integrations] INTEGRATION_ENCRYPTION_KEY is not set — credentials are stored unencrypted. Set a 32+ byte secret for production.',
+      logger.warn(
+        'INTEGRATION_ENCRYPTION_KEY is not set — credentials are stored unencrypted. Set a 32+ byte secret for production.',
       );
       warnedMissingKey = true;
     }
@@ -55,8 +58,8 @@ function getKey(): Buffer | null {
 
 function unreadable(original?: unknown): Record<string, unknown> {
   if (!warnedUnreadable) {
-    console.warn(
-      '[integrations] decryptJson failed for a stored credential — surfacing as needs_reauth. Further occurrences suppressed.',
+    logger.warn(
+      'decryptJson failed for a stored credential — surfacing as needs_reauth. Further occurrences suppressed.',
     );
     warnedUnreadable = true;
   }

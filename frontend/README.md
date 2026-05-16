@@ -6,13 +6,9 @@ First, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
+
+> 본 프로젝트는 npm 전용입니다. yarn / pnpm / bun 사용은 금지 (루트 CLAUDE.md "패키지 매니저" 참고).
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 

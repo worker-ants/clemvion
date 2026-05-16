@@ -16,6 +16,8 @@ import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigg
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
 import * as crypto from 'crypto';
 
+const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
+
 interface WebhookConfig {
   authType?: 'none' | 'hmac' | 'bearer';
   secret?: string;
@@ -142,6 +144,14 @@ export class HooksService {
         config.hmacHeader ?? 'x-hub-signature-256'
       ).toLowerCase();
       const algorithm = config.hmacAlgorithm ?? 'sha256';
+      // 알고리즘 허용 목록. 외부 입력(트리거 설정)이 그대로 crypto.createHmac 에
+      // 전달되므로 화이트리스트로 좁혀 임의 알고리즘·낮은 보안 다이제스트 사용을 차단한다.
+      if (!HMAC_ALLOWED_ALGORITHMS.has(algorithm)) {
+        throw new UnauthorizedException({
+          code: 'AUTH_FAILED',
+          message: `Unsupported HMAC algorithm: ${algorithm}`,
+        });
+      }
       const signature = headers[hmacHeader] ?? '';
       const secret = config.secret ?? '';
 

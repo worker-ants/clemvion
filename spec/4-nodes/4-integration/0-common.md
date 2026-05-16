@@ -125,4 +125,4 @@ Integration 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-ou
 | 일자 | 변경 |
 |------|------|
 | 2026-05-10 | §6 5필드 공통 규약 / §7 출력 구조 색인 신설. 노드 문서 §5 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). `http_request.meta.duration` → `meta.durationMs` 통일 (Breaking, P0). 기존 §1~§5 anchor 보존 |
-| 2026-05-13 | 도입부 scope note 에 `cafe24` 캔버스 노드 추가 + 진입 링크. §5 캔버스 요약 표 / §7 출력 색인에 cafe24 행 추가. Integration 엔티티의 "캔버스 노드 + AI Agent MCP 도구" 첫 동시 사용 사례 ([Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge)). cafe24 노드는 5필드 invariant + Principle 7 config echo 그대로 채택 ([4-cafe24.md §5](./4-cafe24.md#5-출력-구조)) |
+| 2026-05-13 | 도입부 scope note 에 `cafe24` 캔버스 노드 추가 + 진입 링크. §5 캔버스 요약 표 / §7 출력 색인에 cafe24 행 추가. Integration 엔티티의 "캔버스 노드 + AI Agent MCP 도구" 첫 동시 사용 사례 ([Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge-in-process)). cafe24 노드는 5필드 invariant + Principle 7 config echo 그대로 채택 ([4-cafe24.md §5](./4-cafe24.md#5-출력-구조)) |

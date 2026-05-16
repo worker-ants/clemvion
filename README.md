@@ -330,8 +330,8 @@ kubectl apply -k k8s/overlays/staging    # 스테이징
 
 자세한 사용법(SealedSecrets 통합, Ingress 컨트롤러별 annotation, ArgoCD PreSync hook 등)은 [`k8s/README.md`](./k8s/README.md) 를 참고하세요.
 
-# integration (SSO)
-## Google OAuth 연동 설정
+## integration (SSO)
+### Google OAuth 연동 설정
 
 1. Google Cloud Console에서 OAuth 클라이언트 생성
 
