@@ -2,8 +2,14 @@ import { apiClient } from "./client";
 
 export type IntegrationStatus = "connected" | "expired" | "error" | "pending_install";
 export type IntegrationScope = "personal" | "organization";
+// `expiring` and `attention` are virtual filter values — spec
+// /2-navigation/4-integration.md §2.3, §9.1, Rationale "Attention 가상
+// 필터값". The DB Integration.status enum holds only `connected`/`expired`/
+// `error`/`pending_install`; the backend rewrites these two virtual values
+// into union WHERE clauses.
 export type ListStatusFilter =
   | "all"
+  | "attention"
   | "connected"
   | "expiring"
   | "expired"
