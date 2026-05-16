@@ -451,8 +451,8 @@ describe("CustomNode", () => {
     });
     expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
     expect(container.querySelector('[data-testid="handle-error"]')).toBeInTheDocument();
-    expect(screen.getByText("Output")).toBeInTheDocument();
-    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.getByText("출력")).toBeInTheDocument();
+    expect(screen.getByText("오류")).toBeInTheDocument();
   });
 
   it("renders ai_agent with single_turn fallback when mode is not set", () => {
@@ -502,7 +502,7 @@ describe("CustomNode", () => {
     expect(container.querySelector('[data-testid="handle-error"]')).toBeInTheDocument();
     expect(screen.getByText("User Ended")).toBeInTheDocument();
     expect(screen.getByText("Max Turns")).toBeInTheDocument();
-    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.getByText("오류")).toBeInTheDocument();
   });
 
   it("renders multi_turn ai_agent with conditions and system ports", () => {
