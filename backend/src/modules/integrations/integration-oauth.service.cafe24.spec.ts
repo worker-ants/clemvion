@@ -858,6 +858,15 @@ describe('IntegrationOAuthService — Cafe24', () => {
       expect(creds.cafe24_operator_id).toMatch(/^stub-operator-/);
       expect(typeof creds.access_token).toBe('string');
       expect(creds.scopes).toEqual(['mall.read_product']);
+      // Regression — `credentials.expires_at` must be mirrored from
+      // `tokenExpiresAt` so the Cafe24ApiClient proactive-refresh gate
+      // fires on freshly-connected rows. Spec §10.5 — without this
+      // mirror, the JSONB-only legacy gate skipped refresh silently and
+      // every Cafe24 integration flipped to `error(auth_failed)` ~2h
+      // after the initial connect.
+      expect(typeof creds.expires_at).toBe('string');
+      const previewTokenExpiresAt = previewArg.tokenExpiresAt as Date;
+      expect(creds.expires_at).toBe(previewTokenExpiresAt.toISOString());
     });
 
     it('private app — preserves client_id/secret on credentials', async () => {
