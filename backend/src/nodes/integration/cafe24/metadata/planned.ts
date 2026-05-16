@@ -419,11 +419,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     },
   ],
   mileage: [],
-  notification: [
-    { id: 'customers_invitation_send', label: '회원 활성화 초대 발송' },
-    { id: 'recipientgroups_create', label: '수신자 그룹 생성' },
-    { id: 'recipientgroups_update', label: '수신자 그룹 수정' },
-    { id: 'recipientgroups_delete', label: '수신자 그룹 삭제' },
-  ],
+  notification: [],
   translation: [],
 };
