@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-16T09:03:04.490363",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/4-nodes/4-integration/4-cafe24.md\n\n작업 요약: cafe24 노드 설정 UI(`frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx` 의 `Cafe24Config`) 에서 fields 항목의 \"추가\" 버튼이 동작하지 않는 버그 수정.\n\n원인: `KeyValueEditor` 가 빈 행 `{key:\"\", value:\"\"}` 추가 → `onChange` 콜백이 빈 key 를 가진 행을 object 변환 시 즉시 제거 → 다음 렌더에서 새 행이 사라짐.\n\n수정 방향: `Cafe24Config` 내부에 keyvalue 편집용 React state 를 도입해 빈 key 행이 UI 에 유지되도록 함. 사용자가 key 를 입력하면 그 시점에 object 형태(`Record<string,unknown>`) 로 `config.fields` 에 반영. 백엔드 계약(spec/4-nodes/4-integration/4-cafe24.md §1, conventions/cafe24-api-metadata.md) 의 object shape 은 그대로 보존.\n\n영향 영역: frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx + 신규 unit test 1건. 백엔드/스펙/데이터모델 변경 없음.)",
+  "target_path": "spec/4-nodes/4-integration/4-cafe24.md\n\n작업 요약: cafe24 노드 설정 UI(`frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx` 의 `Cafe24Config`) 에서 fields 항목의 \"추가\" 버튼이 동작하지 않는 버그 수정.\n\n원인: `KeyValueEditor` 가 빈 행 `{key:\"\", value:\"\"}` 추가 → `onChange` 콜백이 빈 key 를 가진 행을 object 변환 시 즉시 제거 → 다음 렌더에서 새 행이 사라짐.\n\n수정 방향: `Cafe24Config` 내부에 keyvalue 편집용 React state 를 도입해 빈 key 행이 UI 에 유지되도록 함. 사용자가 key 를 입력하면 그 시점에 object 형태(`Record<string,unknown>`) 로 `config.fields` 에 반영. 백엔드 계약(spec/4-nodes/4-integration/4-cafe24.md §1, conventions/cafe24-api-metadata.md) 의 object shape 은 그대로 보존.\n\n영향 영역: frontend/src/components/editor/settings-panel/node-configs/integration-configs.tsx + 신규 unit test 1건. 백엔드/스펙/데이터모델 변경 없음.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
