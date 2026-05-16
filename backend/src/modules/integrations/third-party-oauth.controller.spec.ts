@@ -425,9 +425,10 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       res as never,
     );
     expect(res.statusCode).toBe(404);
-    const contentType = (res as { headers?: Record<string, unknown> })
-      .headers?.['Content-Type'];
-    expect(String(contentType ?? '')).toContain('text/html');
+    const contentType = (res as { headers?: Record<string, string> }).headers?.[
+      'Content-Type'
+    ];
+    expect(contentType ?? '').toContain('text/html');
     const bodyStr = String(res.body);
     expect(bodyStr).toContain('CAFE24_INSTALL_INVALID_TOKEN');
     expect(bodyStr).toContain('token gone');

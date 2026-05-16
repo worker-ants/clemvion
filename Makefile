@@ -14,8 +14,12 @@ help:
 	@echo "  e2e-test       backend e2e (supertest) 1-shot — 끝나면 자동 down"
 	@echo "  e2e-test-full  backend + playwright 까지 — 끝나면 자동 down"
 
+# `--build` 는 source 변경 후 stale 이미지 사용을 방지한다. Docker BuildKit
+# layer cache 가 변경되지 않은 layer 는 재사용하므로 첫 build 이후 부담은 작다.
+# 누락 시 새로 추가한 controller / 라우트가 컨테이너에 반영되지 않아 e2e 가
+# 사일런트하게 404 로 실패한다 (예: 2026-05-15 background-monitoring 사전 결함).
 e2e-up:
-	$(COMPOSE_E2E) up -d --wait backend-e2e
+	$(COMPOSE_E2E) up -d --wait --build backend-e2e
 
 e2e-down:
 	$(COMPOSE_E2E) down -v --remove-orphans
@@ -24,12 +28,12 @@ e2e-down:
 # `--abort-on-container-exit` 패턴은 Docker Desktop 의 network race 와 충돌하는
 # 사례가 있어 분리. 실패하더라도 후속 e2e-down 이 실행되도록 `; STATUS=$$?` 패턴 사용.
 e2e-test:
-	$(COMPOSE_E2E) up -d --wait backend-e2e
-	$(COMPOSE_E2E) run --rm backend-e2e-runner; STATUS=$$?; \
+	$(COMPOSE_E2E) up -d --wait --build backend-e2e
+	$(COMPOSE_E2E) run --rm --build backend-e2e-runner; STATUS=$$?; \
 	$(MAKE) e2e-down; exit $$STATUS
 
 e2e-test-full:
-	$(COMPOSE_E2E) up -d --wait backend-e2e
-	$(COMPOSE_E2E) run --rm backend-e2e-runner && \
-	  $(COMPOSE_E2E) run --rm playwright-runner; STATUS=$$?; \
+	$(COMPOSE_E2E) up -d --wait --build backend-e2e
+	$(COMPOSE_E2E) run --rm --build backend-e2e-runner && \
+	  $(COMPOSE_E2E) run --rm --build playwright-runner; STATUS=$$?; \
 	$(MAKE) e2e-down; exit $$STATUS
