@@ -1,8 +1,10 @@
-# Node Output 재설계 — 노드별 개선안 인덱스
+# Node 개선안 — 노드별 종합 인덱스
 
-> **최신화 검토 (2026-05-16)**: 본 폴더의 노드별 plan 들은 1차 초안(2026-04 / commit `e228ec96`) 이후 spec/4-nodes/ 와 spec/conventions/node-output.md 가 여러 차례 개선됐다. 본 갱신에서 (a) 모든 plan 파일 상단에 `최신화 검토 (2026-05-16)` 상태 블록을 추가해 현재 spec 부합 여부와 잔여 권고 항목을 명시했고, (b) 신규 노드 **Cafe24** ([cafe24.md](./cafe24.md)) 를 인덱스·요약 표·잔여 권고 통계에 편입했다. 노드 카운트는 27 → 28 로 변경됐다.
+> **3차 확장 (2026-05-16 구현 분석)**: 본 폴더는 28종 노드별 spec ↔ **backend 구현** ↔ 기존 plan 을 모두 비교한 종합 분석 단계로 확장됐다. 모든 노드 plan 파일에 `## 구현 분석 (2026-05-16)` 과 `## 종합 개선안 (2026-05-16)` 두 새 섹션이 추가되었다. 28종 중 **잔여 권고가 1건 이상인 노드 27 / 완전 부합 1**(split). 권고는 `(spec)` · `(impl)` · `(frontend)` 접두로 분류한다. 자세한 단면별 통계는 §"종합 개선안 통계 (2026-05-16)" 표.
+>
+> **2차 갱신 (2026-05-16 spec 정합)**: 본 폴더의 노드별 plan 들은 1차 초안(2026-04 / commit `e228ec96`) 이후 spec/4-nodes/ 와 spec/conventions/node-output.md 가 여러 차례 개선됐다. 본 갱신에서 (a) 모든 plan 파일 상단에 `최신화 검토 (2026-05-16)` 상태 블록을 추가해 현재 spec 부합 여부와 잔여 권고 항목을 명시했고, (b) 신규 노드 **Cafe24** ([cafe24.md](./cafe24.md)) 를 인덱스·요약 표·잔여 권고 통계에 편입했다. 노드 카운트는 27 → 28 로 변경됐다.
 
-본 plan 폴더는 `spec/4-nodes/` 의 모든 노드 spec 을 검토하여, 각 노드의 `output` 필드 정의가 다음 정의에 부합하는지 진단하고 노드별 개선안을 모은 1차 초안이다.
+본 plan 폴더는 `spec/4-nodes/` 의 모든 노드 spec 을 검토하여, 각 노드의 `output` 필드 정의가 다음 정의에 부합하는지 진단하고 노드별 개선안을 모은 자료다. 2026-05-16 갱신부터 backend 구현 (`backend/src/nodes/**/*.handler.ts`, `*.schema.ts`, `*.spec.ts`) 정합성도 함께 다룬다.
 
 ## 출발점 — output 의 올바른 정의 (사용자 표현 그대로)
 
@@ -45,16 +47,31 @@
 
 ## 진단 방법론
 
-각 노드 plan 파일은 다음 구성을 따른다:
+각 노드 plan 파일은 다음 8 섹션 구성을 따른다 (2026-05-16 §7/§8 추가):
 
-1. **최신화 검토 블록** (2026-05-16 추가) — 현 spec 과의 정합 여부, 잔여 권고 항목 요약
+1. **최신화 검토 블록** — 현 spec / 구현 정합 여부, 잔여 권고 항목 요약
 2. **현재 output (spec 인용)** — `spec/4-nodes/.../<node>.md` 의 §5 (출력 구조) 절 인용
-3. **진단** — 각 항목·필드가 위 정의 ("단계마다 채워지는 field") 와 conventions 11 원칙에 부합하는가
-4. **개선안 — 정리된 output** — 단계별로 채워지는 데이터만 남긴 정리안 (가능하면 case 별 그룹)
+3. **진단** — 각 항목·필드가 정의 ("단계마다 채워지는 field") 와 conventions 11 원칙에 부합하는가 (spec 본문 관점)
+4. **개선안 — 정리된 output** — 단계별로 채워지는 데이터만 남긴 정리안 (spec 본문 관점)
 5. **분리 제안** — `output` 에서 빠질 항목의 새 위치 (`config` / `meta` / 본문 metadata 등)
 6. **Rationale** — 분류 근거 + 폐기된 대안
+7. **구현 분석 (2026-05-16)** — `*.handler.ts` / `*.schema.ts` / `*.spec.ts` / `*.component.ts` 단면별 점검. 모든 인용은 `파일:라인` 형식.
+8. **종합 개선안 (2026-05-16)** — spec + 구현 + 테스트 단면을 묶어 `(spec)` / `(impl)` / `(frontend)` 접두 체크박스로 나열.
 
-> 본 작업이 spec 본문에 즉시 반영되는 것은 **아니다**. plan 검토 → 합의 → 별도 phase 에서 `project-planner` 가 spec 본문을 갱신한다 (developer/agent 는 spec 쓰기 권한 없음).
+> 본 작업이 spec / 구현에 즉시 반영되는 것은 **아니다**. plan 검토 → 합의 → 별도 phase 에서 `project-planner` 가 `(spec)` 항목을, `developer` 가 `(impl)` / `(frontend)` 항목을 처리한다.
+
+### 점검 단면 (구현 분석)
+
+각 노드 §7 은 다음 8 단면을 순서대로 점검한다 (발견 없으면 짧게 "변경 없음"):
+
+1. spec §5 ↔ handler `return` 정합성 (단계별 case 형태 일치)
+2. schema (Zod) ↔ spec config 정합성 (default / optional / enum)
+3. `handler.validate()` / `warningRules` / `validateConfig` SSOT 일관성
+4. 에러 컨트랙트 (Principle 3) — pre-flight throw vs `port:'error'` + `output.error.{code,message,details?}`
+5. conventions Principle 0–11 위반 패턴
+6. handler 테스트 — spec §5 case 커버
+7. 횡단 일관성 — 같은 카테고리 노드들과의 패턴 정합
+8. 구현 품질 — dead code, 매직 넘버, 안전성 처리
 
 ## 노드 목록 (총 28 개)
 
@@ -123,9 +140,11 @@
 
 ## 진행 상태 요약 (2026-05-16)
 
+### Phase 1 — spec 본문 정합 관점 (12종 잔여 / 16종 부합)
+
 대부분의 노드 spec 은 conventions 11 Principle 에 부합하도록 정리된 상태다. 28 종 중 잔여 권고 항목이 남은 12종 / 부합 16종 으로 구성된다.
 
-### 잔여 권고가 있는 노드 (12종)
+#### 잔여 권고가 있는 노드 (12종)
 
 | 노드 | 잔여 권고 요약 |
 | --- | --- |
@@ -142,13 +161,54 @@
 | [carousel](./carousel.md) | `config.buttonConfig` (runtime 생성 부분) 위치 검토 (`meta` 이동 또는 표현 명확화) |
 | [table](./table.md) | `output.rendered` HTML snapshot 의 위치 (`meta.rendered` 이동 또는 frontend client-side 렌더 전환) — Carousel/Chart 와 일관성 |
 
-### 부합 (잔여 권고 없음) 노드 (16종)
+#### 부합 (잔여 권고 없음) 노드 (16종)
 
 if-else / switch / loop / variable-declaration / split / filter / background / transform / code / database-query / send-email / cafe24 / chart / form / template / manual-trigger
 
+### Phase 2 — 구현 분석 관점 (28종 전수, 2026-05-16 추가)
+
+각 노드의 §"구현 분석" / §"종합 개선안" 섹션에서 도출된 권고를 단면별로 카운트한 표. `(spec)` 은 spec 본문 추가/정정, `(impl)` 은 backend handler/schema/tests 변경, `(frontend)` 는 frontend resolver/component 변경.
+
+| 노드 | spec | impl | frontend | 핵심 갭 |
+| --- | :-: | :-: | :-: | --- |
+| [if-else](./if-else.md) | 2 | 1 | 0 | `strictComparison` echo 누락, `matchedConditions` short-circuit 명시 |
+| [switch](./switch.md) | 1 | 2 | 0 | `hasDefault`/`strictComparison` echo 누락 |
+| [loop](./loop.md) | 1 | 2 | 0 | `count` schema 타입 echo 일치성 |
+| [split](./split.md) | **0** | **0** | **0** | **완전 부합 ✓** |
+| [variable-declaration](./variable-declaration.md) | 0 | 1 | 0 | `rawConfig` fallback 안전성 |
+| [variable-modification](./variable-modification.md) | 1 | 2 | 0 | `recordValues` conditional echo (Principle 7 "항상 echo" 미세 충돌) |
+| [map](./map.md) | 2 | 3+1 | 0 | `errorPolicy` echo 누락, `meta.iterations/fellBackToEmpty` 부재, 시작 시점 output 표현 (items[] vs null) |
+| [filter](./filter.md) | 1 | 1 | 0 | spec 정합도 최상, 미시 보강만 |
+| [foreach](./foreach.md) | 1 | 3 | 0 | `errorPolicy` echo, `collectResults` dead field (schema 부재) |
+| [parallel](./parallel.md) | 2 | 3 | 0 | `meta.durationMs`/`meta.branches` 누락, `handler.spec.ts` 별도 파일 부재 |
+| [merge](./merge.md) | 2 | 3 | 1 | `meta.strategy`/`outputFormat` config 중복 |
+| [background](./background.md) | 1 | 1 | 1 | rawConfig 명시 echo (credential leak 가드 baseline 사례) |
+| [workflow](./workflow.md) | 4 | 2 | 1 | async `output.workflowId`/`output.status` 중복 제거 |
+| [manual-trigger](./manual-trigger.md) | 2 | 2 | 1 | 단독 진입점 미시 보강 |
+| [ai-agent](./ai-agent.md) | 3 | **6** | 0 | **CRITICAL — `output.error`/`port:'error'` builder 미구현** (`llmService.chat` throw 가 엔진 FAILED 로 빠짐) |
+| [text-classifier](./text-classifier.md) | 2 | 3 | 0 | `output.originalInput` 위치 비대칭 (정상 inside result / 에러 top-level), config echo 비대칭 |
+| [information-extractor](./information-extractor.md) | 1 | **7** | 0 | `output.maxTurns`/`message`/`turnCount` 잔재, ConversationThread v2 multi-turn push 미구현, `MAX_TURN_DEBUG_HISTORY` cap 누락 |
+| [http-request](./http-request.md) | 1 | 3 | 0 | transport 실패 `output.response: { error }` legacy 잔재 제거 |
+| [database-query](./database-query.md) | 0 | 3 | 0 | `meta.statusCode` 미부여, rows truncation cap 누락 |
+| [send-email](./send-email.md) | 1 | 2 | 0 | body cap 일관성 |
+| [cafe24](./cafe24.md) | 2 | 3 | 0 | §1 pagination `cursor?: string` schema 폐기 잔재 정정 |
+| [transform](./transform.md) | 1 | 1 | 0 | 미시 보강만 |
+| [code](./code.md) | 1 | **4** | 0 | `timeout` schema 누락 (UI 30s slider ↔ schema 부재), `$node`/`$helpers` 미주입, timer 셰도잉 명시 누락 |
+| [carousel](./carousel.md) | 2 | 3 | 0 | `maxItems` echo 누락, `buttonConfig` runtime 생성 위치 |
+| [table](./table.md) | 2 | 3 | 0 | `output.rendered` HTML snapshot 위치 비대칭 (Carousel/Chart 는 client 전환 완료) |
+| [chart](./chart.md) | 1 | **4** | 0 | `chartOutputSchema` (schema:113-118) 옛 dead schema, `groupBy` 다중시리즈 미구현, raw echo 누락 |
+| [form](./form.md) | 1 | 2 | 0 | 양호, blocking 재개 토큰 보강 |
+| [template](./template.md) | 1 | **4** | 0 | `helpers` echo 누락, XSS 안전성 보강 |
+| **합계** | **~39** | **~74** | **~3** | spec/impl 비율 ≈ 1:1.9 (구현 갭이 더 많이 발견됨) |
+
+> 위 28종 중 **split** 만 모든 단면이 완전 부합 (구현 분석에서도 추가 권고 없음). 나머지 27종은 1건 이상의 새 권고 발생 — 대부분 미세 보강이지만 `ai-agent` (에러 builder 미구현) 와 `information-extractor` (ConversationThread v2 미구현) 는 P0/P1 우선순위.
+
 ## 요약 — 가장 빈번한 부적절 패턴 (2026-05-16 갱신)
 
-본 분석에서 반복적으로 검출된 패턴 (전체 plan 의 누적 통계):
+본 분석에서 반복적으로 검출된 패턴 (전체 plan 의 누적 통계).
+**§A** — spec 본문 정합 관점 (1차 분석), **§B** — 구현 분석 관점 (2026-05-16 추가).
+
+### §A — spec 본문 관점
 
 1. **리터럴 config 의 `output` echo 잔재**:
    - 발견: `output.workflowId` (workflow async — `config.workflowId` 와 중복), `output.maxTurns` (information_extractor waiting — `config.maxTurns` 와 중복), `meta.strategy` / `meta.outputFormat` (merge — `config.*` 와 중복).
@@ -176,11 +236,84 @@ if-else / switch / loop / variable-declaration / split / filter / background / t
 
 > 옛 `output.metadata.*` 패턴 (`ai_agent`) → `meta.*` 마이그레이션, `output.type: 'form'|'carousel'|...` 판별자 폐기, `output.view` 래퍼 폐기, `output.previousOutput` 폐기, Switch `meta.value` deprecated alias 제거 (D4 마이그레이션), deprecated `conversationHistory`/`historyCount` 제거(`6f74333d`/`47a4a059`) 등 1차 초안의 핵심 정리 항목은 모두 spec 본문에 반영 완료.
 
+### §B — 구현 분석 관점 (2026-05-16)
+
+1. **`handler.configEcho` ↔ schema 비대칭 (빈출)**:
+   - schema 에 정의된 raw config 필드 일부를 handler 가 echo 객체에 surface 하지 않는 패턴. Principle 7 ("UI 에서 설정한 비민감 값 항상 echo") 와 미세 불일치.
+   - 발견: if-else `strictComparison`, switch `hasDefault`/`strictComparison`, map `errorPolicy`, foreach `errorPolicy`, carousel `maxItems`, chart `dataField`/`groupBy`/`colors`, template `helpers` 등.
+   - 처리: spec §5 JSON 예시가 echo 하지 않는다면 "echo 정책 명시" (spec) 또는 "echo 추가" (impl) 중 택일. spec/impl 의 의도 정렬 필요.
+
+2. **AI 노드 에러 컨트랙트 비대칭 (P0)**:
+   - **ai-agent 만 `output.error`/`port:'error'` builder 미구현** — `llmService.chat` throw 가 엔진 FAILED 로 전파됨. spec §7.3/§7.9 의 에러 routing 미준수.
+   - text-classifier / information-extractor 는 `try/catch + buildErrorOutput` 패턴 구현.
+   - 우선순위: P0 — AI 3종 간 에러 처리 비대칭이 다운스트림 노드 흐름에 영향.
+
+3. **AI 노드 multi-turn 경로 비대칭 (Principle 8 위반)**:
+   - waiting/resumed 시 `output.messages` (top-level) vs 종결 시 `output.result.messages` (wrapper inside) 경로 차이.
+   - ai-agent / information-extractor 양쪽 동일 패턴. text-classifier 의 `output.originalInput` 위치 (정상 inside result / 에러 top-level) 도 같은 비대칭.
+
+4. **AI waiting echo 잔재 (Principle 1.1 위반)**:
+   - ai-agent / information-extractor 의 waiting `output.message`(단수) / `output.maxTurns` / `output.turnCount` 가 config 와 중복 echo. 함께 제거 권장.
+
+5. **Container 4종 시작/완료 표현 비대칭**:
+   - 시작 시점 output 표현 — Map/ForEach `items[]` 분배 vs Background `null` (Principle 9). 표현 통일 필요.
+   - Parallel `meta` 누락 — `durationMs`/`branches` 보강 권고 (다른 컨테이너와 비대칭).
+   - ForEach `collectResults` dead field (schema 부재).
+   - Parallel `handler.spec.ts` 별도 파일 부재 (schema.spec 에 통합) — 다른 컨테이너와 테스트 구조 비대칭.
+
+6. **Integration 4종 횡단**:
+   - `IntegrationHandlerBase` 공통 패턴 (`resolveIntegration`/`logUsage`/`sanitizeMessage`) 4종 정합.
+   - `IntegrationError` re-throw vs runtime catch 분기 — HTTP (throw 유지) vs DB/Email/Cafe24 (catch→`port:'error'`) 의도된 비대칭. spec 명시 권장.
+   - `meta.statusCode` 부여 — HTTP/Cafe24 만 (DB/Email 미보유). `statusCode=0` magic number 도 HTTP/Cafe24 공유.
+   - `truncateBodyForOutput` 256KB cap — HTTP requestBody / Email body 공유, DB rows / Cafe24 response 는 cap 없음.
+
+7. **Code 노드 sandbox API 갭**:
+   - `timeout` UI 슬라이더 (30s, 1–120s) spec 에 명시, schema 에 미정의.
+   - `$node` / `$helpers` 스펙 약속 vs `buildSandbox` 미주입.
+   - `setTimeout`/`setInterval`/`setImmediate` 명시 셰도잉 누락 (vm 격리로 우연 차단).
+
+8. **ConversationThread v2 미구현 (information-extractor)**:
+   - multi-turn push 가 single-turn `out` 만 추가. ai-agent 는 v2 push 구현 — info-extractor 만 비대칭.
+
+9. **HTTP transport 실패 legacy**:
+   - `output.response: { error: <message> }` 잔재 — `output.error` 가 있으므로 중복. spec footnote 가 deprecation 의도 명시했으나 impl 잔존.
+
+10. **Cafe24 §1 pagination cursor 잔재**:
+    - schema 에서 폐기됐지만 spec §1 에 `cursor?: string` 잔재. spec 정정 권고.
+
+11. **Table HTML snapshot 위치 비대칭**:
+    - Carousel/Chart 는 backend HTML/SVG 생성 폐지 + frontend client-side 렌더 완료, Table 만 `output.rendered` 유지. `meta.rendered` 이동 또는 client 전환 검토 (1차 분석 §B.2 와 동일).
+
+12. **Dead schema 잔재**:
+    - `chartOutputSchema` (`chart.schema.ts:113-118`) 옛 `{type, chartType, ...}` 정의 — 새 spec 본문과 불일치. Principle 1.1.4 위반. import 추적 후 제거 권장.
+
 `spec/conventions/node-output.md` 가 본 분석의 **공식 기준** 이며, 이 인덱스 §"기준 규약" 절에 11 원칙 개요를 인용했다.
 
 ## 다음 단계
 
-1. 사용자/리뷰어가 본 폴더의 plan 파일들을 검토하여 위 §"잔여 권고가 있는 노드" 표의 12종 권고 항목에 동의/수정 사항을 적는다.
-2. 합의된 개선안을 토대로 별도 phase 에서 **`project-planner` 가 `spec/` 본문을 갱신**한다 (본 plan 은 spec 변경 권한이 없는 developer/agent 가 작성한 진단 — `project-planner` 가 진입 시 `/consistency-check --spec` 의무 호출).
-3. spec 본문 갱신과 동시에 backend handler / frontend resolver 의 마이그레이션이 필요하면 추가 plan 으로 분리한다.
-4. 모든 노드의 spec 갱신이 완료되고 §"잔여 권고가 있는 노드" 표가 0 이 되면 본 폴더를 `plan/complete/` 로 `git mv`.
+본 plan 폴더의 권고는 두 단면 (spec 본문 / 구현) 으로 분리되어 있으므로 처리 phase 도 분리한다.
+
+### Phase A — spec 본문 갱신 (`project-planner`)
+
+1. 사용자/리뷰어가 §"진행 상태 요약" Phase 1 표 (잔여 권고 12종) 의 spec 권고와 Phase 2 표의 `(spec)` 항목을 검토하여 동의/수정 사항을 적는다.
+2. 합의된 spec 권고를 토대로 **`project-planner` 가 `spec/4-nodes/**.md` 를 갱신**한다.
+   - 진입 시 `/consistency-check --spec` 의무 호출.
+   - 우선순위: ai-agent 에러 컨트랙트 명시 → workflow async 중복 제거 → handler.configEcho 정책 명시.
+
+### Phase B — 구현 갱신 (`developer`)
+
+1. spec 갱신과 동시에 또는 그 직후, §"진행 상태 요약" Phase 2 표의 `(impl)` 항목을 별도 plan 으로 분리해 **`developer` 가 backend handler / schema / tests 를 갱신**한다.
+   - 진입 시 `/consistency-check --impl-prep` 의무 호출.
+   - **P0**: ai-agent `buildErrorOutput` + `port:'error'` 추가.
+   - **P1**: information-extractor ConversationThread v2 multi-turn push, Code 노드 sandbox API (`$node`/`$helpers`/`timeout` schema).
+   - **P2**: handler.configEcho ↔ schema 비대칭 (각 노드 일괄), HTTP transport legacy `output.response.error` 제거, Chart `chartOutputSchema` dead schema 제거.
+
+### Phase C — frontend 동반 (`developer`)
+
+§"진행 상태 요약" Phase 2 표의 `(frontend)` 항목은 backend 갱신과 한 PR 로 묶거나 별도 plan 으로 분리한다. 주요 대상: workflow/manual-trigger/merge/background.
+
+### 종료 조건
+
+- 모든 노드의 §"종합 개선안" 체크박스가 `[x]` 처리되거나 폐기 결정.
+- §"진행 상태 요약" Phase 1 잔여 권고 표가 0 종, Phase 2 표의 spec/impl/frontend 합계가 0 이 됨.
+- 두 조건 충족 시 본 폴더를 `plan/complete/` 로 `git mv`.
