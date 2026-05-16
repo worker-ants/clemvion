@@ -262,16 +262,26 @@ export class Cafe24ApiClient {
   }
 
   /**
-   * If `expires_at` is missing or within REFRESH_WINDOW_MS, exchange the
-   * refresh_token and atomically update credentials + tokenExpiresAt.
+   * If the token is missing or within REFRESH_WINDOW_MS of expiry, exchange
+   * the refresh_token and atomically update credentials + tokenExpiresAt.
+   *
+   * Source of truth for the expiry instant is `Integration.tokenExpiresAt`
+   * (spec/2-navigation/4-integration.md §10.5 — the canonical column the
+   * atomic refresh writes). The mirror at `credentials.expires_at` is kept
+   * in sync by the refresh path and the OAuth callback path, but older
+   * rows or non-cafe24 flows may have a NULL mirror — falling back to the
+   * entity column ensures proactive refresh fires for those too. Without
+   * this fallback, a freshly-connected integration whose initial callback
+   * only set the column would silently skip refresh forever and surface
+   * a 401 (`access_token time expired`) on the first call after Cafe24's
+   * 2h TTL.
+   *
    * Returns silently on success; throws Cafe24AuthFailedError on refresh
    * failure (caller treats as `error(auth_failed)` state transition).
    */
   private async ensureFreshToken(integration: Integration): Promise<void> {
-    const creds = (integration.credentials ?? {}) as Cafe24Credentials;
-    if (!creds.expires_at) return;
-    const expiresAtMs = Date.parse(creds.expires_at);
-    if (!Number.isFinite(expiresAtMs)) return;
+    const expiresAtMs = resolveTokenExpiry(integration);
+    if (expiresAtMs === null) return;
     if (expiresAtMs - Date.now() > REFRESH_WINDOW_MS) return;
 
     await this.refreshAccessToken(integration);
@@ -605,6 +615,36 @@ async function safeReadJson(response: Response): Promise<unknown> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve the access-token expiry instant from an Integration row.
+ *
+ * Precedence: `Integration.tokenExpiresAt` (spec §10.5 canonical column) →
+ * `credentials.expires_at` (JSONB mirror). Returns null when neither is set
+ * or both parse as invalid. The entity column wins when both are present
+ * because the atomic 4-field UPDATE in `refreshAccessToken` writes the
+ * column last and the OAuth callback path historically only wrote the
+ * column — trusting the column avoids a stale-mirror trap.
+ */
+function resolveTokenExpiry(integration: {
+  tokenExpiresAt?: Date | null;
+  credentials?: Record<string, unknown> | null;
+}): number | null {
+  const col = integration.tokenExpiresAt;
+  if (col instanceof Date && Number.isFinite(col.getTime())) {
+    return col.getTime();
+  }
+  if (typeof col === 'string' && col) {
+    const parsed = Date.parse(col);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  const creds = (integration.credentials ?? {}) as Cafe24Credentials;
+  if (creds.expires_at) {
+    const parsed = Date.parse(creds.expires_at);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function readString(obj: Record<string, unknown>, key: string): string | null {
