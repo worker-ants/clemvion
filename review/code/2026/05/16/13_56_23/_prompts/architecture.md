@@ -1,3 +1,47 @@
+# 아키텍처(Architecture) Review Payload
+
+본 파일은 orchestrator 가 아키텍처(Architecture) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 아키텍처 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (아키텍처(Architecture))
+
+1. **SOLID 원칙**: 단일 책임, 개방-폐쇄, 리스코프 치환, 인터페이스 분리, 의존성 역전
+2. **결합도/응집도**: 모듈 간 결합도가 낮고 응집도가 높은지
+3. **레이어 책임**: 프레젠테이션/비즈니스/데이터 레이어 책임 분리
+4. **디자인 패턴**: 적절한 패턴 사용 여부, 안티패턴 존재 여부
+5. **순환 의존성**: 모듈/패키지 간 순환 참조 여부
+6. **추상화 수준**: 적절한 추상화 레벨, 과도하거나 부족한 추상화
+7. **모듈 경계**: 모듈/서비스 간 경계가 명확한지
+8. **확장성**: 향후 기능 확장에 유연한 구조인지
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

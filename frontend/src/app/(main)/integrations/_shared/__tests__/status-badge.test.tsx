@@ -208,4 +208,62 @@ describe("computeAttentionBreakdown", () => {
     const filtered = items.filter(needsAttention);
     expect(br.total).toBe(filtered.length);
   });
+
+  it("picks error > expired > expiring for mostUrgentId when categories coexist", () => {
+    const items: IntegrationDto[] = [
+      row({ id: "exp-1", status: "expired" }),
+      row({
+        id: "soon-1",
+        status: "connected",
+        tokenExpiresAt: inDays(2),
+      }),
+      row({ id: "err-1", status: "error" }),
+    ];
+    expect(computeAttentionBreakdown(items).mostUrgentId).toBe("err-1");
+  });
+
+  it("falls back to expired when no error rows are present", () => {
+    const items: IntegrationDto[] = [
+      row({
+        id: "soon-1",
+        status: "connected",
+        tokenExpiresAt: inDays(2),
+      }),
+      row({ id: "exp-1", status: "expired" }),
+    ];
+    expect(computeAttentionBreakdown(items).mostUrgentId).toBe("exp-1");
+  });
+
+  it("returns null mostUrgentId on an empty list", () => {
+    expect(computeAttentionBreakdown([])).toEqual({
+      expired: 0,
+      expiring: 0,
+      error: 0,
+      total: 0,
+      mostUrgentId: null,
+    });
+  });
+
+  // EXPIRING_SOON_DAYS = 7 — locked-in boundary. Tokens expiring within 7
+  // days are attention-worthy; anything beyond is not.
+  it("counts a token expiring in just under 7 days as expiring", () => {
+    const justUnder = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000 - 60_000,
+    ).toISOString();
+    const items: IntegrationDto[] = [
+      row({ id: "edge", status: "connected", tokenExpiresAt: justUnder }),
+    ];
+    expect(computeAttentionBreakdown(items).expiring).toBe(1);
+  });
+
+  it("does NOT count a token expiring well past 7 days as expiring", () => {
+    const items: IntegrationDto[] = [
+      row({
+        id: "far",
+        status: "connected",
+        tokenExpiresAt: inDays(30),
+      }),
+    ];
+    expect(computeAttentionBreakdown(items).total).toBe(0);
+  });
 });

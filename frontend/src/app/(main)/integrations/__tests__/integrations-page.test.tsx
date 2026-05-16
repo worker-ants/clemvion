@@ -244,4 +244,44 @@ describe("IntegrationsPage — attention banner", () => {
       screen.queryByText(/needs? attention/i),
     ).not.toBeInTheDocument();
   });
+
+  // EXPIRING_SOON_DAYS = 7 — a connected row whose token expires far in the
+  // future must not count toward attention even if other rows do.
+  it("hides the banner for a connected row whose token expires well past 7 days", async () => {
+    listMock.mockResolvedValue({
+      data: [
+        attentionRow({
+          id: "far-out",
+          status: "connected",
+          tokenExpiresAt: new Date(
+            Date.now() + 30 * 24 * 60 * 60 * 1000,
+          ).toISOString(),
+        }),
+      ],
+      pagination: { page: 1, limit: 30, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Acme");
+    expect(
+      screen.queryByText(/needs? attention/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // Single-row case takes the navigation (push) path because the banner
+  // jumps straight to detail rather than rewriting the filter URL.
+  it("single-row banner click uses router.push, not replace", async () => {
+    listMock.mockResolvedValue({
+      data: [attentionRow({ id: "lonely", status: "error" })],
+      pagination: { page: 1, limit: 30, totalItems: 1, totalPages: 1 },
+    });
+    await renderPage();
+    await screen.findByText("Acme");
+    const banner = screen.getByRole("button", {
+      name: /integration needs attention/i,
+    });
+    await userEvent.click(banner);
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    const pushArg = mockPush.mock.calls.at(-1)?.[0] as string;
+    expect(pushArg).toBe("/integrations/lonely");
+  });
 });

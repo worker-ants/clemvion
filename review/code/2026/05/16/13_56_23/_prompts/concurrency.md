@@ -1,3 +1,50 @@
+# 동시성(Concurrency) Review Payload
+
+본 파일은 orchestrator 가 동시성(Concurrency) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 동시성/병렬 처리 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+> 변경 코드가 본 reviewer 의 영역과 무관하면 "해당 없음" 으로 응답하고
+> 위험도를 NONE 으로 설정해 `STATUS=success ISSUES=0` 으로 반환합니다.
+
+## 점검 관점 (동시성(Concurrency))
+
+1. **경쟁 조건(Race Condition)**: 공유 자원 동시 접근으로 인한 경쟁 조건
+2. **데드락**: 여러 락 사용 시 데드락 가능성
+3. **동기화**: 공유 자원에 대한 적절한 동기화 (mutex/semaphore/lock)
+4. **스레드 안전성**: 변수·컬렉션·객체의 스레드 세이프 여부
+5. **async/await**: 비동기 코드의 올바른 사용, await 누락
+6. **원자성**: 복합 연산의 원자성 보장
+7. **이벤트 루프**: 이벤트 루프 블로킹·콜백 지옥·Promise 체인 관리
+8. **리소스 풀링**: 스레드 풀·커넥션 풀의 크기·관리
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1069,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

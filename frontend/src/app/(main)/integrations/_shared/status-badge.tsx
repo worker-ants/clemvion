@@ -75,10 +75,16 @@ export function computeStatus(integration: IntegrationDto): StatusView {
   return { label: "Connected", dotClassName: "bg-green-500", tone: "ok" };
 }
 
+// EXPIRING_SOON_DAYS — kept in sync with backend `EXPIRING_SOON_INTERVAL`
+// (integrations.service.ts) and spec §2.3/§2.4/§11.4. Change both layers
+// together; the parity tests in __tests__ guard the literal value.
+export const EXPIRING_SOON_DAYS = 7;
+const EXPIRING_SOON_MS = EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000;
+
 export function isExpiringSoon(at: string | null | undefined): boolean {
   if (!at) return false;
   const ms = new Date(at).getTime() - Date.now();
-  return ms > 0 && ms <= 7 * 24 * 60 * 60 * 1000;
+  return ms > 0 && ms <= EXPIRING_SOON_MS;
 }
 
 function daysUntil(at: string): number {
@@ -116,6 +122,10 @@ export interface AttentionBreakdown {
 export function computeAttentionBreakdown(
   integrations: IntegrationDto[],
 ): AttentionBreakdown {
+  // Priority order for `mostUrgentId` when multiple categories coexist.
+  // Used by the banner's single-row → detail-jump UX (total === 1 case) and
+  // surfaces the most actionable row when callers want a deterministic pick.
+  const ATTENTION_RANK = { error: 3, expired: 2, expiring: 1 } as const;
   let expired = 0;
   let expiring = 0;
   let error = 0;
@@ -126,14 +136,14 @@ export function computeAttentionBreakdown(
     let rank: number;
     if (i.status === "error") {
       error += 1;
-      rank = 3;
+      rank = ATTENTION_RANK.error;
     } else if (i.status === "expired") {
       expired += 1;
-      rank = 2;
+      rank = ATTENTION_RANK.expired;
     } else {
       // connected + expiring-soon — needsAttention guarantees this branch.
       expiring += 1;
-      rank = 1;
+      rank = ATTENTION_RANK.expiring;
     }
     if (!mostUrgent || rank > mostUrgent.rank) {
       mostUrgent = { id: i.id, rank };

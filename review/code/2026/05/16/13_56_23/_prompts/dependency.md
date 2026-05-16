@@ -1,3 +1,47 @@
+# 의존성(Dependency) Review Payload
+
+본 파일은 orchestrator 가 의존성(Dependency) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 의존성 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (의존성(Dependency))
+
+1. **새 의존성**: 새 외부 패키지/라이브러리 추가 여부와 필요성
+2. **버전 고정**: 의존성 버전 고정(pinning) 여부
+3. **라이선스**: 새 의존성의 라이선스가 프로젝트와 호환되는지
+4. **취약점**: 알려진 보안 취약점이 있는 의존성 사용 여부
+5. **불필요한 의존성**: 표준 라이브러리·기존 의존성으로 대체 가능한지
+6. **의존성 크기**: 번들 크기·빌드 시간 영향
+7. **호환성**: 기존 의존성과의 버전 충돌·호환성
+8. **내부 의존성**: 프로젝트 내부 모듈 간 의존 관계
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

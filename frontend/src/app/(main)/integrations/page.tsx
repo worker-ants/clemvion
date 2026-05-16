@@ -343,15 +343,38 @@ export default function IntegrationsPage() {
 // is present (amber otherwise). Click action is owned by the parent so the
 // 1-row → detail-jump vs. N-row → attention-filter branch lives where it
 // reads naturally (next to the rest of the URL handling).
-function AttentionBanner({
-  breakdown,
-  onActivate,
-}: {
+
+// Tone palette indexed by whether the breakdown contains at least one error
+// row. Centralised so the banner button and its icon stay in lock-step when
+// we tweak the colour palette.
+const ATTENTION_BANNER_TONE = {
+  error: {
+    banner:
+      "border-red-300 bg-red-50 text-red-900 hover:bg-red-100 dark:border-red-900 dark:bg-red-950 dark:text-red-200",
+    icon: "text-red-600 dark:text-red-400",
+  },
+  warn: {
+    banner:
+      "border-yellow-300 bg-yellow-50 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200",
+    icon: "text-yellow-600 dark:text-yellow-400",
+  },
+} as const;
+
+interface AttentionBannerProps {
   breakdown: AttentionBreakdown;
+  /**
+   * Invoked when the user activates the banner (click / keyboard). The
+   * parent decides what to do: single-row breakdowns jump to the detail
+   * page, multi-row breakdowns apply the `?status=attention` filter. The
+   * banner itself is intentionally action-agnostic.
+   */
   onActivate: () => void;
-}) {
+}
+
+function AttentionBanner({ breakdown, onActivate }: AttentionBannerProps) {
   const t = useT();
   const hasError = breakdown.error > 0;
+  const tone = hasError ? ATTENTION_BANNER_TONE.error : ATTENTION_BANNER_TONE.warn;
   const isSingle = breakdown.total === 1;
   const title = isSingle
     ? t("integrations.attentionTitleSingle")
@@ -365,19 +388,10 @@ function AttentionBanner({
       onClick={onActivate}
       className={cn(
         "flex w-full items-start gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-colors",
-        hasError
-          ? "border-red-300 bg-red-50 text-red-900 hover:bg-red-100 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
-          : "border-yellow-300 bg-yellow-50 text-yellow-900 hover:bg-yellow-100 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200",
+        tone.banner,
       )}
     >
-      <AlertTriangle
-        className={cn(
-          "mt-0.5 h-5 w-5 shrink-0",
-          hasError
-            ? "text-red-600 dark:text-red-400"
-            : "text-yellow-600 dark:text-yellow-400",
-        )}
-      />
+      <AlertTriangle className={cn("mt-0.5 h-5 w-5 shrink-0", tone.icon)} />
       <span className="flex flex-col gap-0.5">
         <strong className="font-semibold">{title}</strong>
         <span className="text-xs opacity-90">

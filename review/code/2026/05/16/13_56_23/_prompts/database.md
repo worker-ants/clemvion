@@ -1,3 +1,50 @@
+# 데이터베이스(Database) Review Payload
+
+본 파일은 orchestrator 가 데이터베이스(Database) reviewer 용으로 작성한 입력입니다. 다음 코드 변경을 데이터베이스 관점에서 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+> 변경 코드가 본 reviewer 의 영역과 무관하면 "해당 없음" 으로 응답하고
+> 위험도를 NONE 으로 설정해 `STATUS=success ISSUES=0` 으로 반환합니다.
+
+## 점검 관점 (데이터베이스(Database))
+
+1. **인덱스**: 쿼리에 적절한 인덱스 사용·누락 가능성
+2. **N+1 쿼리**: 반복문 내 개별 쿼리 실행 N+1 문제
+3. **트랜잭션**: 데이터 정합성을 위한 트랜잭션 사용 적절성
+4. **마이그레이션 안전성**: 스키마 변경이 무중단 배포에 안전한지 (lock, 데이터 손실)
+5. **스키마 설계**: 테이블 구조·관계·정규화/비정규화 적절성
+6. **커넥션 관리**: 커넥션 풀 사용·적절한 해제
+7. **SQL 인젝션** (DB 특화 관점): 파라미터화된 쿼리 사용 여부
+8. **대량 데이터**: 대용량 테이블에서의 쿼리 성능·페이지네이션
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1069,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```

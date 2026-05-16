@@ -1,3 +1,47 @@
+# 부작용(Side Effect) Review Payload
+
+본 파일은 orchestrator 가 부작용(Side Effect) reviewer 용으로 작성한 입력입니다. 다음 코드 변경이 의도하지 않은 부작용을 일으키지 않는지 분석한다.
+sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로
+따르되, 분석 시 아래 "점검 관점" 을 빠짐없이 적용하세요. 결과는 `output_file`
+인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.
+
+## 점검 관점 (부작용(Side Effect))
+
+1. **의도치 않은 상태 변경**: 함수가 예상 외의 전역/공유 상태를 변경하는지
+2. **전역 변수**: 전역 변수 수정 또는 새 전역 변수 도입
+3. **파일시스템 부작용**: 예상치 못한 파일 생성·수정·삭제
+4. **시그니처 변경**: 기존 함수/메서드 시그니처 변경의 호출자 영향
+5. **인터페이스 변경**: 공개 API 변경이 기존 사용자에 미치는 영향
+6. **환경 변수**: 환경 변수의 예상치 못한 읽기/쓰기
+7. **네트워크 호출**: 의도하지 않은 외부 서비스 호출
+8. **이벤트/콜백**: 이벤트 발생·콜백 호출의 변경
+
+## 리뷰 대상 파일
+
+### 파일 1: backend/src/modules/integrations/integrations.service.spec.ts
+- 변경 유형: Review
+- 언어: ts
+
+#### 변경된 코드
+```
+diff --git a/backend/src/modules/integrations/integrations.service.spec.ts b/backend/src/modules/integrations/integrations.service.spec.ts
+index 64515e7e..4d51d70c 100644
+--- a/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -687,7 +687,7 @@ describe('IntegrationsService', () => {
+       expect(sql).toContain("'connected'");
+       expect(sql).toContain('token_expires_at IS NOT NULL');
+       expect(sql).toContain('token_expires_at > NOW()');
+-      expect(sql).toContain("7 days");
++      expect(sql).toContain('7 days');
+     });
+ 
+     it('status=attention does not include pending_install rows', async () => {
+
+```
+
+#### 전체 파일 컨텍스트
+```
 import {
   NotFoundException,
   BadRequestException,
@@ -1022,3 +1066,5 @@ describe('IntegrationsService', () => {
     });
   });
 });
+
+```
