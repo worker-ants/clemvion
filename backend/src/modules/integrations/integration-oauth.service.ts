@@ -54,6 +54,17 @@ const STATIC_TOKEN_URLS: Record<'google' | 'github', string> = {
 
 const CAFE24_MALL_ID_PATTERN = /^[a-z0-9-]{3,50}$/;
 
+/**
+ * Integration OAUTH_STUB_MODE 는 dev/test 환경에서만 활성화 가능. staging
+ * 또는 production 으로 잘못 배포되면 stub 토큰이 실제 사용자 통합에 발급되어
+ * 인증 우회를 허용할 위험이 있어 NODE_ENV 화이트리스트로 강제 제한한다.
+ */
+function isIntegrationOAuthStubEnabled(): boolean {
+  if (process.env.OAUTH_STUB_MODE !== 'true') return false;
+  const env = process.env.NODE_ENV;
+  return env === 'test' || env === 'development';
+}
+
 function cafe24AuthorizeUrl(mallId: string): string {
   return `https://${mallId}.cafe24api.com/api/v2/oauth/authorize`;
 }
@@ -815,14 +826,18 @@ export class IntegrationOAuthService {
     tokenExpiresAt: Date | null;
   }> {
     // DELETE … RETURNING for atomicity — only one consumer can win.
+    // Ownership (workspace_id + user_id) 을 WHERE 절에서 직접 매칭하여,
+    // 토큰 값을 알아낸 비소유자가 DELETE 만 수행해 DoS 시키는 시나리오를
+    // 차단한다. 비소유자의 시도는 0 rows 로 반환되어 OAUTH_PREVIEW_INVALID
+    // 와 동일한 메시지로 fallthrough — 토큰 존재/소유 여부를 노출하지 않음.
     // TypeORM 0.3.x 의 PostgresQueryRunner 는 DELETE 결과를
     // `[rowsArray, rowCount]` 튜플로 반환하므로 `result[0]` 으로
     // rows array 를 꺼낸다 (handleCallback 의 state 소비와 동일 패턴).
     const queryResult = await this.dataSource.query<
       [IntegrationOAuthPreview[], number]
     >(
-      'DELETE FROM integration_oauth_preview WHERE preview_token = $1 RETURNING *',
-      [previewToken],
+      'DELETE FROM integration_oauth_preview WHERE preview_token = $1 AND workspace_id = $2 AND user_id = $3 RETURNING *',
+      [previewToken, workspaceId, userId],
     );
     const consumed = queryResult[0];
     if (!consumed || consumed.length === 0) {
@@ -837,12 +852,6 @@ export class IntegrationOAuthService {
     const preview = normalizeRawPreviewRow(
       consumed[0] as unknown as Record<string, unknown>,
     );
-    if (preview.workspaceId !== workspaceId || preview.userId !== userId) {
-      throw new BadRequestException({
-        code: 'OAUTH_PREVIEW_OWNERSHIP',
-        message: 'OAuth preview token does not belong to the current session',
-      });
-    }
     if (new Date(preview.expiresAt).getTime() < Date.now()) {
       throw new BadRequestException({
         code: 'OAUTH_PREVIEW_EXPIRED',
@@ -877,18 +886,15 @@ export class IntegrationOAuthService {
     requestedScopes: string[],
     providerMeta: Record<string, unknown> | null,
   ): Promise<TokenExchangeResult> {
-    if (
-      process.env.OAUTH_STUB_MODE === 'true' &&
-      process.env.NODE_ENV !== 'production'
-    ) {
+    if (isIntegrationOAuthStubEnabled()) {
       return stubTokenResult(provider, requestedScopes, providerMeta);
     }
     if (
       process.env.OAUTH_STUB_MODE === 'true' &&
-      process.env.NODE_ENV === 'production'
+      !isIntegrationOAuthStubEnabled()
     ) {
       this.logger.error(
-        'OAUTH_STUB_MODE is set in production — ignoring. Stub mode must never run with real users; fix the deployment configuration.',
+        `OAUTH_STUB_MODE is set in NODE_ENV=${process.env.NODE_ENV ?? '(unset)'} — ignoring. Stub mode is only honored in NODE_ENV=test or development; fix the deployment configuration.`,
       );
     }
 
@@ -1719,14 +1725,14 @@ function readNumber(obj: Record<string, unknown>, key: string): number | null {
 }
 
 /**
- * Install_token 의 안전 미리보기 — prefix 4 + ".." + suffix 4. 전체 토큰은
- * logs / Referer 에 노출되지 않게 보호 (capability token 성격). 22자 미만은
- * `(short)` 로 마스킹. null/undefined 는 `(none)`.
+ * Install_token 의 안전 로깅 표시 — 토큰 자체 (또는 그 일부) 는 절대 노출하지
+ * 않고 존재 여부만 알린다. capability token 의 brute-force surface 를 0 으로
+ * 축소. 디버깅에 토큰을 식별할 필요가 있을 때는 `target.id` 로 row 를 특정.
  */
 function previewInstallToken(token: string | null | undefined): string {
   if (typeof token !== 'string' || token.length === 0) return '(none)';
   if (token.length < 12) return '(short)';
-  return `${token.slice(0, 4)}..${token.slice(-4)}`;
+  return '(present)';
 }
 
 /**

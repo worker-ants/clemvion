@@ -19,6 +19,17 @@ import { User } from '../users/entities/user.entity';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * OAUTH_STUB_MODE 는 dev/test 환경에서만 활성화 가능. staging 또는
+ * production 으로 잘못 배포되면 stub 토큰이 실제 사용자 데이터에 발급되어
+ * 인증 우회를 허용할 위험이 있어 NODE_ENV 화이트리스트로 강제 제한한다.
+ */
+function isOAuthStubEnabled(): boolean {
+  if (process.env.OAUTH_STUB_MODE !== 'true') return false;
+  const env = process.env.NODE_ENV;
+  return env === 'test' || env === 'development';
+}
+
 export const AUTH_OAUTH_PROVIDERS = ['google', 'github'] as const;
 export type AuthOAuthProvider = (typeof AUTH_OAUTH_PROVIDERS)[number];
 
@@ -80,7 +91,7 @@ export class AuthOauthService {
   // Providers are considered "enabled" when their CLIENT_ID is configured,
   // OR when stub mode is on (so local dev sees buttons without real creds).
   getEnabledProviders(): AuthOAuthProvider[] {
-    const stub = process.env.OAUTH_STUB_MODE === 'true';
+    const stub = isOAuthStubEnabled();
     return AUTH_OAUTH_PROVIDERS.filter((p) => {
       if (stub) return true;
       return Boolean(process.env[`${p.toUpperCase()}_CLIENT_ID`]);
@@ -163,7 +174,7 @@ export class AuthOauthService {
     provider: AuthOAuthProvider,
     code: string,
   ): Promise<string> {
-    if (process.env.OAUTH_STUB_MODE === 'true') {
+    if (isOAuthStubEnabled()) {
       return `stub-${provider}-${randomBytes(8).toString('hex')}`;
     }
 
@@ -222,7 +233,7 @@ export class AuthOauthService {
     provider: AuthOAuthProvider,
     accessToken: string,
   ): Promise<OauthProfile> {
-    if (process.env.OAUTH_STUB_MODE === 'true') {
+    if (isOAuthStubEnabled()) {
       const suffix = randomBytes(4).toString('hex');
       return {
         providerId: `stub-${provider}-${suffix}`,
