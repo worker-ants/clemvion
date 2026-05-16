@@ -179,7 +179,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패 |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeName, reason }` | 노드 건너뜀 |
 | `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig?, conversationThread? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. `conversationThread` 가 동봉되면 UI 가 라이브 thread 패널을 갱신할 수 있다 (선택, §4.4.5). 아래 §4.4 참조 |
-| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷. 상세 필드 정의는 §4.4 참조 |
+| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷이며, 각 항목은 `source: 'live' \| 'injected'` 마커를 동봉한다 (§4.4.6). 상세 필드 정의는 §4.4 참조 |
 | `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI Agent 가 provider tool(KB/MCP 등)을 실행하기 시작했음을 알림. 디버깅 타임라인이 즉시 pending 상태의 tool 항목을 표시할 수 있도록 turn 종료 전에 발송 |
 | `execution.tool_call_completed` | `{ executionId, nodeId, turnIndex, toolCallId, content, status, error?, durationMs }` | provider tool 실행이 끝났음을 알림. `status` 는 `'success' \| 'error'`. provider 가 throw 한 경우 핸들러가 캐치해 `status: 'error'` 와 `error` 메시지를 채우고 LLM 에는 에러 content 를 그대로 넘겨 다음 턴에서 회복할 기회를 준다 |
 
@@ -301,9 +301,12 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
     "conversationConfig": {
       "message": "안녕하세요! 무엇을 도와드릴까요?",
       "messages": [
-        { "role": "system", "content": "..." },
-        { "role": "user", "content": "첫 번째 사용자 메시지" },
-        { "role": "assistant", "content": "안녕하세요! 무엇을 도와드릴까요?" }
+        { "role": "user", "content": "[from Template] clicked: 시작",
+          "source": "injected" },
+        { "role": "user", "content": "첫 번째 사용자 메시지",
+          "source": "live" },
+        { "role": "assistant", "content": "안녕하세요! 무엇을 도와드릴까요?",
+          "source": "live" }
       ],
       "turnCount": 1,
       "maxTurns": 20
@@ -339,6 +342,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `message` | string | 어시스턴트 응답의 사용자 표시용 텍스트 |
 | `turnCount` | number | 현재까지의 user→assistant 사이클 수 |
 | `messages` | object[] | system 을 제외한 user / assistant / tool 메시지 권위 스냅샷 |
+| `messages[].source` | `'live' \| 'injected'` | 각 메시지 origin 식별 — `live` 는 이번 emit 을 일으킨 AI 노드가 직접 처리/생성한 메시지, `injected` 는 ConversationThread 자동 주입으로 prepend 된 컨텍스트 메시지. 디버깅 타임라인의 turn 매칭이 backend `turnCount` 와 정합을 유지하기 위한 필수 정보. 자세한 정의는 §4.4.6 |
 | `metadata.model` | string? | 마지막 호출에 사용된 모델 식별자 |
 | `metadata.inputTokens` | number? | **대화 전체 누적** 입력 토큰 (해당 턴 단독 아님) |
 | `metadata.outputTokens` | number? | **대화 전체 누적** 출력 토큰 |
@@ -356,7 +360,14 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
     "nodeId": "uuid",
     "message": "주문번호 ORD-12345는 현재 배송 중입니다.",
     "turnCount": 2,
-    "messages": [ ... ],
+    "messages": [
+      { "role": "user", "content": "[from Template] clicked: 시작",
+        "source": "injected" },
+      { "role": "user", "content": "주문 ORD-12345 확인해줘",
+        "source": "live" },
+      { "role": "assistant", "content": "주문번호 ORD-12345는 현재 배송 중입니다.",
+        "source": "live" }
+    ],
     "metadata": {
       "model": "claude-sonnet-4-6",
       "inputTokens": 512,
@@ -479,6 +490,38 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `conversationThread.totalChars` | 누적 char 길이 (cap 빠른 경로 — 클라이언트 표시 시 무시 가능) |
 
 > Background 본문은 격리된 thread 를 갖는다 — main 흐름의 `EXECUTION_WAITING_FOR_INPUT` payload 에는 background turn 이 포함되지 않는다 ([Spec Conversation Thread §3.2](../conventions/conversation-thread.md#32-background-격리-근거)).
+
+#### 4.4.6 `messages[].source` 마커
+
+`waiting_for_input.conversationConfig.messages` 와 `ai_message.messages` 의 각 항목은 다음 두 값 중 하나의 `source` 마커를 갖는다.
+
+> **명확화**: 이 마커는 WebSocket 페이로드 전용 2값 표식이며, 백엔드 내부의 `ConversationTurnSource` (5값 enum, [Conversation Thread §1.1](../conventions/conversation-thread.md#11-conversationturnsource)) 와는 별개의 개념이다. 내부 5값은 emit 단계에서 아래 매핑으로 2값으로 축약된다.
+
+| 값 | 의미 |
+|---|---|
+| `live` | 이번 emit 을 일으킨 AI 노드가 현재 실행 turn 에서 실제로 처리/생성한 메시지. `processMultiTurnMessageInner` 가 push 한 user / assistant / tool 메시지, single-turn 의 userPrompt → 최종 assistant 등이 모두 여기에 해당. |
+| `injected` | `ConversationThread` 자동 주입 (`contextScope: 'thread' \| 'lastN'`) 또는 명시 `$thread` 사용으로 messages 배열 앞에 prepend 된 컨텍스트 메시지. 업스트림 노드의 turn 이 [Conversation Thread §5.1](../conventions/conversation-thread.md#51-messages-모드-매핑) 매핑으로 변환된 결과. |
+
+**ConversationTurnSource → `source` 매핑:**
+
+| ConversationTurnSource (내부 5값) | emit 시 `source` | 비고 |
+|---|---|---|
+| `presentation_user` | `injected` | 업스트림 Form/Carousel/Template 등의 turn. `[from <nodeLabel>] ` prefix 가 붙은 `role: 'user'` 메시지. |
+| `ai_user` (업스트림 다른 AI Agent) | `injected` | injection 경로로 prepend 된 다른 AI Agent 의 사용자 turn. |
+| `ai_user` (자기 노드의 처리 결과) | `live` | `processMultiTurnMessageInner` 가 push 한 현재 사용자 메시지. |
+| `ai_assistant` (업스트림 다른 AI Agent) | `injected` | injection 경로로 prepend 된 다른 AI Agent 의 어시스턴트 turn. |
+| `ai_assistant` (자기 노드의 turn 결과) | `live` | 현재 노드가 LLM 호출로 생성한 어시스턴트 응답. |
+| `ai_tool` (업스트림) | `injected` | injection 으로 prepend 된 tool 결과 (`includeToolTurns: true` 한정). |
+| `ai_tool` (자기 노드의 tool loop) | `live` | 현재 turn 의 tool 호출 결과. |
+| `system` | (해당 없음) | system 메시지는 `buildConversationConfigFromOutput` 에서 필터링되어 emit 페이로드에 포함되지 않는다. |
+
+> 핵심 분기 기준: **emit 페이로드 생성 시점에 해당 메시지가 "이번 emit 을 일으킨 AI Agent 노드 자기가 직접 처리/생성한 것" 이면 `live`, 그 외 (다른 노드 origin 의 thread injection 결과) 는 `injected`**. 같은 ConversationTurnSource (`ai_user`/`ai_assistant`/`ai_tool`) 라도 origin 노드가 자기인지에 따라 마커가 갈린다.
+
+**소비 측 권장 동작:**
+
+- 디버깅 타임라인의 turn 카운팅(`llmCalls[]` 와 어시스턴트 메시지 매칭) 은 `source === 'live'` 인 user 메시지만 세야 backend `turnCount` 와 일치한다.
+- 대화 UI 표시는 `injected` 도 함께 보여주되, "주입된 컨텍스트" 임을 시각적으로 구분(예: chip) 하는 것을 권장.
+- `source` 필드가 누락된 경우 (옛 backend / 옛 DB 영속 페이로드 호환) `'live'` 로 간주한다 — 이력 재구성 경로 (`parseHistoryMessages`) 도 동일.
 
 ---
 
@@ -663,6 +706,21 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 ---
 
 ## Rationale
+
+### 메시지 origin 마커 도입 — `messages[].source` (2026-05-16)
+
+`ConversationThread.contextScope` 가 활성화된 AI Agent 는 매 turn `processMultiTurnMessageInner` 직전에 `[system, ...injectedThread, ...selfHistory]` 형태로 messages 배열을 재빌드한다. injected 부분은 업스트림 Presentation 노드 / 다른 AI Agent 의 turn 을 `role: 'user' | 'assistant' | 'tool'` 로 변환한 결과로, payload 의 `messages` 스냅샷에 그대로 포함된다.
+
+이때 frontend 가 messages 를 순회하며 user 개수로 turn 인덱스를 도출하면 backend 의 권위 `turnCount` (= 핸들러가 실제로 처리한 user→assistant 사이클 수) 와 어긋난다. 결과적으로 `llmCalls[]` 와 어시스턴트 메시지를 매칭할 수 없어 Response / Request / LLM Usage 탭이 빈 상태로 표시되는 회귀 발생.
+
+후보 안:
+1. **(채택)** 메시지에 `source: 'live' | 'injected'` 마커를 부여. 소비 측이 `live` 만으로 turn 을 센다. 후속 origin (예: 미래의 system_text 자동 push, multi-thread 머지) 추가 시 enum 값 확장만 하면 되어 확장성 우수.
+2. (기각) backend 가 `injectedContextLength: number` 만 동봉. 단순하지만 messages 배열의 prefix 가 연속된 injection 이라는 단단한 가정이 필요해, 향후 inline 주입(중간 삽입) 또는 [Conversation Thread §7 v2 로드맵 "Multi-thread"](../conventions/conversation-thread.md#7-v2-로드맵) 의 분기별 thread 머지 시나리오에서 prefix 위치 추정이 깨진다.
+3. (기각) 어시스턴트 메시지에 `turnIndex` 를 직접 동봉. 의미 중복 (`llmCalls[]` 와 1:1 매칭은 시간순 누적이면 충분), 또한 user 메시지의 turn 매핑은 여전히 필요해 근본 해소 불가.
+
+**영속 정책 (미정)**: 본 spec 은 transport 레이어 (WebSocket emit) 의 `source` 마커 정의에 한정. `NodeExecution.outputData.messages` 의 DB 영속 형태에 `source` 가 동봉될지는 별도 결정 사항이며, 구현 phase 의 backend 작업에서 결정한다. 미동봉으로 진행하더라도 §4.4.6 의 "필드 누락 시 `'live'` 로 간주" 폴백 규약으로 이력 재구성이 안전하게 작동한다. 단, 이력 화면의 디버깅 타임라인이 현재 emit 과 동일 정확도를 가지려면 영속 형태에도 마커가 들어가는 것이 바람직 — 향후 DB 컬럼 신설 ([Conversation Thread §7 v2 로드맵](../conventions/conversation-thread.md#7-v2-로드맵)) 시점에 함께 결정한다.
+
+> 관련 일관성 검토: `review/consistency/2026/05/16/09_42_54/SUMMARY.md` (BLOCK: NO, WARNING 1건 — `ConversationTurnSource` 와 명명 혼동 위험을 §4.4.6 명확화 문장으로 해소).
 
 ### KB 채널 단위 전환 — `embedding:{knowledgeBaseId}` → `kb:{documentId}` (2026-05-16)
 
