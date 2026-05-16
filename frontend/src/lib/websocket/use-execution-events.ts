@@ -222,6 +222,8 @@ export function useExecutionEvents({
             content?: string;
             toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
             toolCallId?: string;
+            // spec/5-system/6-websocket-protocol.md §4.4.6
+            source?: "live" | "injected";
           }>;
           turnCount?: number;
           maxTurns?: number;
@@ -317,6 +319,8 @@ export function useExecutionEvents({
           content?: string;
           toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
           toolCallId?: string;
+          // spec/5-system/6-websocket-protocol.md §4.4.6
+          source?: "live" | "injected";
         }>;
         metadata?: {
           model?: string;

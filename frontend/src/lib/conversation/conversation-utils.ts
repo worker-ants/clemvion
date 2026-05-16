@@ -36,6 +36,15 @@ interface RawMessage {
   content?: string;
   toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
   toolCallId?: string;
+  /**
+   * Origin marker emitted by backend per
+   * spec/5-system/6-websocket-protocol.md §4.4.6. `'live'` = produced by the
+   * current AI node's handler in this turn. `'injected'` = prepended by
+   * ConversationThread injection (an upstream node's turn). Missing → treated
+   * as `'live'` for backward compatibility with older payloads and persisted
+   * `outputData.messages`.
+   */
+  source?: "live" | "injected";
 }
 
 interface ToolStatusInfo {
@@ -75,20 +84,37 @@ export function messagesToConversationItems(
   >();
 
   for (const msg of messages) {
+    // spec/5-system/6-websocket-protocol.md §4.4.6 — `source` defaults to
+    // `'live'` when absent (older backends / persisted outputData).
+    const isInjected = msg.source === "injected";
+
     if (msg.role === "user") {
-      currentTurn++;
-      assistantIdxInTurn = 0;
+      // Only `live` user messages advance the turn counter. Injected user
+      // messages (ConversationThread prepended an upstream node's turn) are
+      // displayed in the timeline but must NOT shift `currentTurn`, or the
+      // assistant's `turnIndex` would diverge from backend `turnCount` and
+      // the debug payload lookup in `debugByTurn` would miss.
+      if (!isInjected) {
+        currentTurn++;
+        assistantIdxInTurn = 0;
+      }
       items.push({
         type: "user",
         content: msg.content ?? "",
-        turnIndex: currentTurn,
+        turnIndex: currentTurn || 1,
+        isInjected,
       });
       continue;
     }
 
     if (msg.role === "assistant") {
+      // For injected assistant messages (other AI Agent's turn prepended via
+      // thread injection), keep the current turn so they group with whatever
+      // injected user messages preceded them. `assistantIdxInTurn` increment
+      // is also skipped — the current node's `llmCalls[]` only covers live
+      // assistant calls.
       const turn = currentTurn || 1;
-      const debug = debugByTurn?.get(turn);
+      const debug = isInjected ? undefined : debugByTurn?.get(turn);
 
       let callDebug: LlmCallEntry | undefined;
       if (debug?.llmCalls && debug.llmCalls.length > 0) {
@@ -131,6 +157,7 @@ export function messagesToConversationItems(
         type: "assistant",
         content: msg.content ?? "",
         turnIndex: turn,
+        isInjected,
         assistantToolCalls: toolCalls?.length ? toolCalls : undefined,
         requestPayload: callDebug?.requestPayload,
         responsePayload: callDebug?.responsePayload,
@@ -142,7 +169,12 @@ export function messagesToConversationItems(
         },
       });
 
-      assistantIdxInTurn++;
+      // Only advance the per-turn assistant index for live calls — injected
+      // assistant messages aren't backed by an entry in this node's
+      // `debugByTurn` so they shouldn't claim a `llmCalls[]` slot.
+      if (!isInjected) {
+        assistantIdxInTurn++;
+      }
       continue;
     }
 
@@ -155,6 +187,7 @@ export function messagesToConversationItems(
         type: "tool",
         content: info?.name ?? "(unknown tool)",
         turnIndex: info?.turnIndex ?? (currentTurn || 1),
+        isInjected,
         toolCallId: callId,
         toolArgs: info?.arguments ? tryParseJson(info.arguments) : undefined,
         toolResult: tryParseJson(msg.content),

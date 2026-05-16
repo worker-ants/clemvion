@@ -82,6 +82,16 @@ export interface ConversationItem {
   /** Human-readable error message when toolStatus is 'error'. */
   error?: string;
   turnIndex: number;
+  /**
+   * `true` when this item was produced by `ConversationThread` injection
+   * (an upstream node's turn prepended to messages) rather than processed
+   * live by the current AI node. Mirrors the WebSocket payload's
+   * `messages[].source === 'injected'` (spec/5-system/6-websocket-protocol.md
+   * §4.4.6). Used by the debugging timeline to skip injected user messages
+   * when computing turn indices and by UI to render an "injected context"
+   * chip.
+   */
+  isInjected?: boolean;
   /** Timestamp when the message was sent/received */
   timestamp?: string;
   /** Duration in ms (for assistant: LLM latency, for tool: provider exec time) */

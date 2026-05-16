@@ -80,6 +80,18 @@ export class LlmService {
     opts?: { timeoutMs?: number; disableInnerRetry?: boolean },
   ): Promise<ChatResult> {
     const client = this.createClient(config);
+    // Strip `source` (WebSocket emit metadata per
+    // spec/5-system/6-websocket-protocol.md §4.4.6) before forwarding to the
+    // provider client — LLM APIs only see the canonical
+    // {role, content, toolCalls?, toolCallId?} shape. The handler keeps the
+    // marker on its in-memory `messages` array so emit paths preserve it.
+    const sanitized: ChatParams = {
+      ...params,
+      messages: params.messages.map(({ source, ...rest }) => {
+        void source;
+        return rest;
+      }),
+    };
     // disableInnerRetry: 호출자가 외부에서 retryWithBackoff 같은 자체 재시도 layer 를 가진 경우
     // 내부 rate-limit 재시도 (withRetry) 와 겹쳐 호출 횟수가 비선형 증폭되는 것을 막는다.
     const run = () =>
@@ -87,8 +99,8 @@ export class LlmService {
         ? // LLMClient.chat 은 아직 AbortSignal 을 받지 않으므로 race 만 적용
           // (후속 PR 에서 인터페이스 확장 시 signal 도 전달). 백그라운드 소켓은
           // provider HTTP 클라이언트가 자체 keep-alive 풀로 GC.
-          withTimeout(() => client.chat(params), opts.timeoutMs)
-        : client.chat(params);
+          withTimeout(() => client.chat(sanitized), opts.timeoutMs)
+        : client.chat(sanitized);
     const result = await (opts?.disableInnerRetry
       ? run()
       : this.withRetry(run));
