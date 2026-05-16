@@ -3,7 +3,9 @@ import type { NodeComponentMetadata } from './node-component.interface';
 
 /**
  * Evaluate every warning declared on a node component's metadata against a
- * concrete `config` and return the resulting Korean messages.
+ * concrete `config` and return the resulting messages (English SoT —
+ * frontend `getConfigSummary` translates them via `WARNING_KO` for the ko
+ * locale; backend / assistant pipelines stay on the English originals).
  *
  * SSOT bridge — both surfaces ultimately call this:
  *   - Backend `handler.validate()` (each node's handler) wires this into its
