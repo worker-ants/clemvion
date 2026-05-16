@@ -279,28 +279,115 @@ function nodesContainerIdsEqual(a: Node[], b: Node[]): boolean {
  * container. Used on workflow load, edge removal, and node removal.
  */
 function deriveContainerAssignments(nodes: Node[], edges: Edge[]): Node[] {
-  let current = nodes.map((n) => {
-    const data = n.data as Record<string, unknown> | undefined;
-    if (!data || data.containerId == null) return n;
-    return { ...n, data: { ...data, containerId: null } };
-  });
+  // 옛 구현은 매 pass 마다 nodes.find (O(N)) 와 nodes.map (O(N)) 을 반복해서
+  // 16 × |edges| × O(N) 비용을 지불했다. 대형 워크플로 (500 node × 500 edge) 에서
+  // 4M 회 비교가 발생해 UI 가 렉 걸렸다 (W-23).
+  //
+  // 개선: containerId 만 Map<nodeId, string | null> 로 분리해 in-place 갱신.
+  // 노드 메타데이터(타입·카테고리)는 별도 Map 으로 1회 캐시. fixed-point 도달 후
+  // 단일 nodes.map 으로 결과를 emit (immutable 보장).
+  if (nodes.length === 0) return nodes;
+  const nodeMap = new Map<string, Node>();
+  const containerIdById = new Map<string, string | null>();
+  for (const n of nodes) {
+    nodeMap.set(n.id, n);
+    containerIdById.set(n.id, null);
+  }
+
   for (let pass = 0; pass < 16; pass++) {
     let changed = false;
     for (const e of edges) {
-      const next = propagateContainerOnConnect(current, {
-        source: e.source,
-        sourceHandle: e.sourceHandle ?? null,
-        target: e.target,
-        targetHandle: e.targetHandle ?? null,
-      });
-      if (next !== current) {
-        current = next;
+      if (
+        propagateContainerInMap(nodeMap, containerIdById, {
+          source: e.source,
+          sourceHandle: e.sourceHandle ?? null,
+          target: e.target,
+          targetHandle: e.targetHandle ?? null,
+        })
+      ) {
         changed = true;
       }
     }
     if (!changed) break;
   }
-  return current;
+
+  // 단일 패스로 결과 노드 배열을 emit. containerId 변경이 없는 노드는 원본 그대로.
+  let mutated = false;
+  const result = nodes.map((n) => {
+    const data = n.data as Record<string, unknown> | undefined;
+    const oldValue =
+      data && typeof data.containerId === 'string' ? data.containerId : null;
+    const newValue = containerIdById.get(n.id) ?? null;
+    if (oldValue === newValue) return n;
+    mutated = true;
+    return { ...n, data: { ...(data ?? {}), containerId: newValue } };
+  });
+  return mutated ? result : nodes;
+}
+
+/**
+ * `propagateContainerOnConnect` 의 in-place 변형. containerIdById 를 직접
+ * 갱신하고 변경 여부만 boolean 으로 반환한다. 기존 함수와 동일한 3개 규칙을
+ * 적용한다.
+ */
+function propagateContainerInMap(
+  nodeMap: Map<string, Node>,
+  containerIdById: Map<string, string | null>,
+  connection: Connection,
+): boolean {
+  const sourceNode = connection.source
+    ? nodeMap.get(connection.source)
+    : undefined;
+  const targetNode = connection.target
+    ? nodeMap.get(connection.target)
+    : undefined;
+  if (!sourceNode || !targetNode) return false;
+
+  const prevSource = containerIdById.get(sourceNode.id) ?? null;
+  const prevTarget = containerIdById.get(targetNode.id) ?? null;
+  let nextSource = prevSource;
+  let nextTarget = prevTarget;
+
+  // Rule 1 — body port forces the target into this container.
+  if (isContainerNode(sourceNode) && connection.sourceHandle === 'body') {
+    nextTarget = sourceNode.id;
+  }
+  // Rule 2 — emit port forces the source into this container.
+  if (isContainerNode(targetNode) && connection.targetHandle === 'emit') {
+    nextSource = targetNode.id;
+  }
+  // Rule 3 — chain propagation between two regular nodes.
+  if (
+    !isContainerNode(sourceNode) &&
+    !isContainerNode(targetNode) &&
+    nextSource !== nextTarget
+  ) {
+    if (nextSource && !nextTarget) {
+      nextTarget = nextSource;
+    } else if (!nextSource && nextTarget) {
+      nextSource = nextTarget;
+    }
+  }
+
+  // Trigger 노드는 container 멤버가 될 수 없다 (applyContainerAssignment 의
+  // category=trigger 가드와 동일 invariant).
+  const sourceCategory = (sourceNode.data as { category?: string } | undefined)
+    ?.category;
+  const targetCategory = (targetNode.data as { category?: string } | undefined)
+    ?.category;
+  if (sourceCategory === 'trigger') nextSource = prevSource;
+  if (targetCategory === 'trigger') nextTarget = prevTarget;
+
+  let changed = false;
+  if (nextSource !== prevSource) {
+    containerIdById.set(sourceNode.id, nextSource);
+    changed = true;
+  }
+  if (nextTarget !== prevTarget) {
+    containerIdById.set(targetNode.id, nextTarget);
+    changed = true;
+  }
+  return changed;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({

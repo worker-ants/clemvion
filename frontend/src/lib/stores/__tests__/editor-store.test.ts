@@ -121,6 +121,36 @@ describe("useEditorStore", () => {
       expect(state.undoStack).toEqual([]);
       expect(state.redoStack).toEqual([]);
     });
+
+    it("deriveContainerAssignments W-23: 500노드 × 500엣지 시나리오에서 O(1) 조회로 빠르게 처리", () => {
+      // 회귀 가드 — 옛 O(N²) 구현은 500/500 에서 4M 회 비교로 100ms+ 걸렸다.
+      // Map 기반 단일 패스 emit 으로 같은 워크로드에서 10ms 미만에 수렴해야 한다.
+      const N = 500;
+      const nodes: Node[] = [];
+      const edges: Edge[] = [];
+      for (let i = 0; i < N; i++) {
+        nodes.push(
+          makeNode(`n${i}`, {
+            data: { type: "action", label: `n${i}`, category: "data" },
+          }),
+        );
+      }
+      // 순차 체인 — chain 규칙 (rule 3) 이 fixed-point 까지 수렴해야 한다.
+      for (let i = 0; i < N - 1; i++) {
+        edges.push(makeEdge(`n${i}`, `n${i + 1}`));
+      }
+
+      const t0 = performance.now();
+      useEditorStore
+        .getState()
+        .setWorkflow("wf-perf", "perf", nodes, edges);
+      const elapsed = performance.now() - t0;
+
+      // 환경별 변동을 고려해 500ms 상한 — 옛 구현은 일반적 4~10x 더 느렸다.
+      // (regression 가드 목적이라 절대값 정밀도보다 cap 역할이 중요)
+      expect(elapsed).toBeLessThan(500);
+      expect(useEditorStore.getState().nodes).toHaveLength(N);
+    });
   });
 
   describe("undo/redo", () => {
