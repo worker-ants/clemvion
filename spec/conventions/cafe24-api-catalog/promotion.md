@@ -23,21 +23,21 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `benefits_create` | 회원 혜택 생성 | Create a customer benefit | POST | `benefits` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-customer-benefit) |
 | `benefits_update` | 회원 혜택 수정 | Update a customer benefit | PUT | `benefits/{benefit_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-customer-benefit) |
 | `benefits_delete` | 회원 혜택 삭제 | Delete a customer benefit | DELETE | `benefits/{benefit_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-customer-benefit) |
-| `commonevents_list` | 전체 이벤트 목록 | Retrieve a list of storewide promotions | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-storewide-promotions) |
-| `commonevents_create` | 전체 이벤트 생성 | Create a storewide promotion | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-storewide-promotion) |
-| `commonevents_update` | 전체 이벤트 수정 | Update a storewide promotion | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-storewide-promotion) |
-| `commonevents_delete` | 전체 이벤트 삭제 | Delete a storewide promotion | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-storewide-promotion) |
+| `commonevents_list` | 전체 이벤트 목록 | Retrieve a list of storewide promotions | GET | `commonevents` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-storewide-promotions) |
+| `commonevents_create` | 전체 이벤트 생성 | Create a storewide promotion | POST | `commonevents` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-storewide-promotion) |
+| `commonevents_update` | 전체 이벤트 수정 | Update a storewide promotion | PUT | `commonevents/{event_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-storewide-promotion) |
+| `commonevents_delete` | 전체 이벤트 삭제 | Delete a storewide promotion | DELETE | `commonevents/{event_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-storewide-promotion) |
 | `customerevents_get` | 회원 정보 이벤트 조회 | View member information event | GET | `customerevents` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#view-member-information-event) |
 | `customerevents_create` | 회원 정보 이벤트 생성 | Create a member information modification event | POST | `customerevents` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-member-information-modification-event) |
 | `customerevents_update_status` | 회원 정보 이벤트 상태 수정 | Update information update campaign status | PUT | `customerevents` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-information-update-campaign-status) |
 | `customers_coupons_list` | 회원별 쿠폰 목록 | Retrieve a list of customer coupons | GET | `customers/{member_id}/coupons` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-customer-coupons) |
 | `customers_coupons_count` | 회원별 쿠폰 개수 | Retrieve a count of customer coupons | GET | `customers/{member_id}/coupons/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-customer-coupons) |
 | `customers_coupons_delete` | 회원 쿠폰 삭제 | Delete a customer coupon | DELETE | `customers/{member_id}/coupons/{coupon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-customer-coupon) |
-| `discountcodes_list` | 할인 코드 목록 | Retrieve a list of discount codes | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-discount-codes) |
-| `discountcodes_get` | 할인 코드 단건 조회 | Retrieve a discount code | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-discount-code) |
-| `discountcodes_create` | 할인 코드 생성 | Create a discount code | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-discount-code) |
-| `discountcodes_update` | 할인 코드 수정 | Update a discount code | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-discount-code) |
-| `discountcodes_delete` | 할인 코드 삭제 | Delete a discount code | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-discount-code) |
+| `discountcodes_list` | 할인 코드 목록 | Retrieve a list of discount codes | GET | `discountcodes` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-discount-codes) |
+| `discountcodes_get` | 할인 코드 단건 조회 | Retrieve a discount code | GET | `discountcodes/{discount_code}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-discount-code) |
+| `discountcodes_create` | 할인 코드 생성 | Create a discount code | POST | `discountcodes` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-discount-code) |
+| `discountcodes_update` | 할인 코드 수정 | Update a discount code | PUT | `discountcodes/{discount_code}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-discount-code) |
+| `discountcodes_delete` | 할인 코드 삭제 | Delete a discount code | DELETE | `discountcodes/{discount_code}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-discount-code) |
 | `serialcoupons_list` | 시리얼 쿠폰 코드 조회 | Retrieve coupon codes | GET | `serialcoupons` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-coupon-codes) |
 | `serialcoupons_generate` | 시리얼 쿠폰 코드 생성 | Generate coupon code | POST | `serialcoupons/{coupon_no}/generate` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#generate-coupon-code) |
 | `serialcoupons_delete` | 시리얼 쿠폰 코드 삭제 | Delete coupon code | DELETE | `serialcoupons/{coupon_no}/{code}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-coupon-code) |
