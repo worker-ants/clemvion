@@ -383,24 +383,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'recipes_create', label: '레시피 생성' },
     { id: 'recipes_delete', label: '레시피 삭제' },
   ],
-  category: [
-    {
-      id: 'category_decorationimages_get',
-      label: '카테고리 꾸미기 이미지 조회',
-    },
-    {
-      id: 'category_decorationimages_update',
-      label: '카테고리 꾸미기 이미지 수정',
-    },
-    { id: 'category_seo_get', label: '카테고리 SEO 조회' },
-    { id: 'category_seo_update', label: '카테고리 SEO 수정' },
-    { id: 'mains_add', label: '메인 카테고리 추가' },
-    { id: 'mains_update', label: '메인 카테고리 수정' },
-    { id: 'mains_delete', label: '메인 카테고리 삭제' },
-    { id: 'autodisplay_create', label: '자동 진열 생성' },
-    { id: 'autodisplay_update', label: '자동 진열 수정' },
-    { id: 'autodisplay_delete', label: '자동 진열 삭제' },
-  ],
+  category: [],
   collection: [
     { id: 'manufacturers_count', label: '제조사 개수 조회' },
     { id: 'manufacturers_get', label: '제조사 단건 조회' },
