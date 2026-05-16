@@ -51,6 +51,7 @@ const LABEL_KO: Record<string, string> = {
   "Expose Resources": "리소스 노출",
   Field: "필드",
   "Field Path": "필드 경로",
+  Fields: "필드",
   Filename: "파일 이름",
   "Follow Redirects": "리다이렉트 따라가기",
   "Group By": "그룹 기준",
@@ -101,6 +102,7 @@ const LABEL_KO: Record<string, string> = {
   "Output Format": "출력 형식",
   Output: "출력",
   "Page Size": "페이지 크기",
+  Pagination: "페이지네이션",
   Parameters: "매개변수",
   "Partial on Timeout": "타임아웃 시 부분 병합",
   Prompt: "프롬프트",
@@ -111,6 +113,7 @@ const LABEL_KO: Record<string, string> = {
   "RAG Top-K": "RAG Top-K",
   "RAG Top-K (default)": "RAG Top-K (기본값)",
   Required: "필수",
+  Resource: "리소스",
   "Response Format": "응답 형식",
   "Response Type": "응답 유형",
   Rows: "행",
@@ -155,6 +158,10 @@ const HINT_KO: Record<string, string> = {
     "KB tool 호출 시 반환할 청크 수의 기본값 (LLM 이 호출 인자로 override 가능)",
   "Default minimum similarity threshold (0-1) (LLM can override via call arguments)":
     "최소 유사도 임계값 (0-1) 의 기본값 (LLM 이 호출 인자로 override 가능)",
+  "Describe the background task's purpose or caveats — handy for teammates collaborating later.":
+    "백그라운드에서 수행할 작업의 목적·주의사항을 적어두면 협업할 때 편해요.",
+  "Dot-path (e.g. \"name\", \"address.city\") or expression (\"{{ $item.name }}\"). Leave empty or use \"$item\" to compare against the item itself.":
+    "도트 경로(예: \"name\", \"address.city\") 또는 표현식(\"{{ $item.name }}\"). 비워두거나 \"$item\" 으로 두면 item 자체와 비교합니다.",
   "Dot-path or inline expression returning an array":
     "배열을 반환하는 점 경로 또는 인라인 표현식",
   "Exit loop when condition is met": "조건이 충족되면 루프를 종료",
@@ -167,6 +174,8 @@ const HINT_KO: Record<string, string> = {
   "Expression to build the user message":
     "사용자 메시지를 구성하는 표현식",
   "Field path for slide title": "슬라이드 제목에 사용할 필드 경로",
+  "Force-stop the body when it exceeds this duration. 0 = unlimited. Default 5 minutes (300000).":
+    "본문이 이 시간을 넘기면 강제 종료해요. 0을 입력하면 무제한이에요. 기본 5분(300000).",
   "How many times to re-prompt the LLM when it reports completion but required fields are still missing. 0 = unlimited.":
     "LLM이 완료를 보고했지만 필수 필드가 누락된 경우 재프롬프트할 횟수입니다. 0 = 무제한.",
   "Integer literal or expression": "정수 리터럴 또는 표현식",
@@ -176,17 +185,23 @@ const HINT_KO: Record<string, string> = {
     "비워두면 제공자 기본값을 사용합니다",
   "Leave empty to expose all of the server's regular tools to the LLM.":
     "비워두면 서버의 모든 일반 도구를 LLM 에 노출합니다.",
+  "Max branches running concurrently (0 = same as branchCount, unlimited). When smaller than branchCount, the rest wait until a slot frees up.":
+    "동시에 실행할 분기의 최대 개수 (0 = branchCount와 동일, 제한 없음). 값이 branchCount보다 작으면 나머지는 슬롯이 빌 때까지 대기합니다.",
   "Merge arrived inputs when timeout elapses":
     "타임아웃 발생 시 도착한 입력들을 병합",
   "Minimum similarity score (0-1)": "최소 유사도 점수 (0~1)",
   "No operations defined": "정의된 작업이 없습니다",
   "Number of chunks to retrieve": "가져올 청크 수",
+  "Number of parallel branches (2-16). branch_0 ~ branch_{N-1} output ports are generated dynamically.":
+    "병렬 실행할 분기 수 (2~16). branch_0 ~ branch_{N-1} 출력 포트가 동적으로 생성됩니다.",
   "Optional field to sort by": "정렬에 사용할 선택 필드",
   "Push KB / MCP / condition tool turns to the thread (default: only the final assistant response).":
     "KB / MCP / 조건 도구 호출도 스레드에 함께 푸시합니다 (기본: 최종 어시스턴트 응답만).",
   "Safety cap on loop iterations": "루프 반복 횟수 안전 상한",
   "Selected KBs are exposed to the LLM as search tools. The LLM calls them autonomously based on user intent.":
     "선택한 KB 가 LLM 에 검색 도구로 노출됩니다. LLM 이 사용자 의도를 보고 능동적으로 호출합니다.",
+  "Send an in-app notification to workspace admins when the background body errors.":
+    "백그라운드 본문에서 오류가 발생하면 워크스페이스 Admin에게 인앱 알림을 보내요.",
   "Skip pushing this node’s user / assistant turns to the workflow thread (opt-out).":
     "이 노드의 사용자 / 어시스턴트 턴을 워크플로우 스레드에 푸시하지 않습니다 (옵트아웃).",
   "Supports markdown and expressions":
@@ -199,6 +214,8 @@ const HINT_KO: Record<string, string> = {
     "현재 배열 항목을 참조하려면 {{ $item.* }}을(를) 사용하세요",
   "Use return to produce output. $input, $vars, $helpers are injected.":
     "return으로 출력값을 만드세요. $input, $vars, $helpers가 주입됩니다.",
+  "true: continue to the next node only after all branches finish. Phase P1 hardcodes true; false is not supported yet.":
+    "true: 모든 분기 완료 후 다음 노드로 진행. Phase P1에서는 항상 true로 동작하며 false는 미지원입니다.",
 };
 
 const PLACEHOLDER_KO: Record<string, string> = {
