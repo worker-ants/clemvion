@@ -17,13 +17,13 @@
 
 ```bash
 # /loop 밖
-python3 .claude/skills/merge-coordinator/hooks/merge_coordinator_orchestrator.py --prepare $ARGUMENTS
+python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --prepare $ARGUMENTS
 
 # /loop 안
-AI_REVIEW_LOOP=1 python3 .claude/skills/merge-coordinator/hooks/merge_coordinator_orchestrator.py --prepare $ARGUMENTS
+AI_REVIEW_LOOP=1 python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --prepare $ARGUMENTS
 
 # wake 사이클 (`$ARGUMENTS` 에 `--resume <session_dir>` 포함)
-python3 .claude/skills/merge-coordinator/hooks/merge_coordinator_orchestrator.py --resume <session_dir>
+python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --resume <session_dir>
 ```
 
 stdout 마지막 줄이 세션 디렉토리. `_retry_state.json` Read 후 4 analyzer 를 **한 응답 안에서** 병렬 invoke:
@@ -59,8 +59,8 @@ SUMMARY.md 상단 30 라인에서 `BLOCK: YES` 검출:
    - resolver 호출 기록을 `_retry_state.json` 의 `resolver_invocations` 에 append.
 4. 모든 branch 통합 완료 → 자동 chain:
    ```bash
-   python3 .claude/skills/code-review-agents/hooks/code_review_orchestrator.py --prepare --range <integration_base>..HEAD
-   python3 .claude/skills/consistency-checker/hooks/consistency_orchestrator.py --impl-prep <영향 spec 영역>
+   python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --prepare --range <integration_base>..HEAD
+   python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py --impl-prep <영향 spec 영역>
    ```
    두 세션 모두 본 skill 흐름과 동일 (Agent 병렬 → SUMMARY → BLOCK 확인). 둘 중 BLOCK 시 사용자 보고 + 롤백 권고.
 5. 모두 통과 → 통합 결과 path 안내. **최종 PR/푸시는 사용자 결정** (자동 X).
@@ -79,7 +79,7 @@ SUMMARY.md 상단 30 라인에서 `BLOCK: YES` 검출:
 ## 산출물
 
 - `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 + BLOCK 결정
-- `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<analyzer>/review.md` — 4 analyzer 별 상세
+- `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<analyzer>.md` — 4 analyzer 별 상세
 - `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — pending/success/fatal + resolver invocations + branches/base
 - `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<analyzer>.md` — orchestrator 가 만든 페이로드
 - `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_conflicts/<n>.{md,patch}` — Phase 3 conflict 정보 + resolver patch

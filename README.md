@@ -198,6 +198,9 @@ ENCRYPTION_KEY=<32-byte-hex>
 ### 3. 의존성 설치 및 실행
 
 ```bash
+# (clone 후 1회) git hook 등록 — default branch 직접 commit 차단
+make setup-githooks
+
 # Packages (expression-engine 빌드 - backend에서 참조)
 cd packages/expression-engine
 npm install
@@ -213,6 +216,8 @@ cd frontend
 npm install
 npm run dev
 ```
+
+> `make setup-githooks` 는 `git config core.hooksPath .githooks` 한 줄을 실행한다. 자세한 차단 정책은 `CLAUDE.md` 의 "Enforcement (자동 차단 3-layer)" 절 참고.
 
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3011/api

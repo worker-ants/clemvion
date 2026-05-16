@@ -263,7 +263,7 @@ def build_checker_prompt_body(checker_name, subs):
         f"{info['perspective']}\n",
         "sub-agent 의 system prompt 에 정의된 호출 규약·등급 기준·출력 형식을 그대로\n",
         "따르되, 분석 시 아래 \"점검 관점\" 을 빠짐없이 적용하세요. 결과는 `output_file`\n",
-        "인자에 review.md 로 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.\n\n",
+        "인자가 가리키는 경로에 Write 하고 호출자에게는 STATUS 한 줄만 반환합니다.\n\n",
         f"## 점검 관점 ({info['ko_title']})\n\n",
         f"{info['checklist']}\n\n",
         f"## 검토 모드\n{subs.get('mode', '')}\n\n",
@@ -291,8 +291,7 @@ def prepare_session(context, config):
     invocations = []
     for checker in config["agents"]:
         prompt_path = os.path.join(prompts_dir, f"{checker}.md")
-        output_path = os.path.join(session_dir, checker, "review.md")
-        os.makedirs(os.path.join(session_dir, checker), exist_ok=True)
+        output_path = os.path.join(session_dir, f"{checker}.md")
         body = build_checker_prompt_body(checker, substitutions)
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(body)
