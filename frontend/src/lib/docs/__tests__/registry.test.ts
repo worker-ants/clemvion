@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 import {
@@ -210,4 +211,44 @@ describe("buildSearchIndex(locale)", () => {
     expect(b).toBeDefined();
     expect(b?.title).toBe("두 번째 페이지");
   });
+});
+
+// spec/2-navigation/13-user-guide.md §11 ("빌드 시 검증") 의 요구사항:
+// "registry.ts 단위 테스트에서 모든 spec:/code: 경로 존재 확인".
+// 작성된 사용자 매뉴얼의 frontmatter 가 실재하는 spec / 코드 파일을 가리키는지
+// CI 시점에 강제해서, 리네임·삭제·오타로 매뉴얼이 dangling 참조가 되는 것을 방지한다.
+describe("real docs frontmatter spec/code paths", () => {
+  const repoRoot = path.resolve(__dirname, "..", "..", "..", "..", "..");
+  const realDocsRoot = path.resolve(__dirname, "..", "..", "..", "content", "docs");
+
+  // 본 worktree 에 실제 content/docs 가 있을 때만 검증. 격리 환경에서 docs 폴더가
+  // 부재할 수 있으므로 부재 시는 skip — 표준 개발 환경에서는 항상 수행된다.
+  const hasRealDocs = fs.existsSync(realDocsRoot);
+
+  it.runIf(hasRealDocs)(
+    "모든 .mdx frontmatter 의 spec/code 경로가 실재해요",
+    () => {
+      const index = loadDocsIndex(realDocsRoot, { includeDrafts: true });
+      const missing: string[] = [];
+      for (const section of index.sections) {
+        for (const page of section.pages) {
+          const fm = page.frontmatter;
+          const refs = [
+            ...(fm.spec ?? []).map((p) => ({ kind: "spec" as const, raw: p })),
+            ...(fm.code ?? []).map((p) => ({ kind: "code" as const, raw: p })),
+          ];
+          for (const ref of refs) {
+            // 일부 code 경로는 디렉터리이거나 trailing `/` 가 붙어 있다 — 양쪽 모두 허용.
+            const abs = path.resolve(repoRoot, ref.raw);
+            if (!fs.existsSync(abs)) {
+              missing.push(
+                `${section.key}/${page.slug.slice(-1)[0]} → ${ref.kind}: ${ref.raw}`,
+              );
+            }
+          }
+        }
+      }
+      expect(missing, missing.join("\n")).toEqual([]);
+    },
+  );
 });

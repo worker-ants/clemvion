@@ -28,8 +28,11 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "maxToolCalls", required: false, type: "integer", description: "Max tool calls.", default: "10"},
   {name: "Tool nodes (Tool Area)", required: false, type: "Node list", description: "Nodes dropped into the canvas Tool Area are auto-registered as the agent's tools. Managed purely by drag and drop — no explicit setting.", default: "None"},
   {name: "toolOverrides", required: false, type: "ToolOverride[]", description: "Per-tool name/description/input-mapping overrides.", default: "[]"},
-  {name: "conversationHistory", required: false, type: "`none` / `last_n` / `full`", description: "Conversation-history retention strategy.", default: "none"},
-  {name: "historyCount", required: false, type: "integer", description: "How many messages to keep with `last_n`.", default: "-"},
+  {name: "contextScope", required: false, type: "`none` / `thread` / `lastN`", description: "Automatic Conversation Thread injection scope. `none` sends only system+user, `thread` injects the full workflow thread, and `lastN` injects only the most recent N turns.", default: "none"},
+  {name: "contextScopeN", required: false, type: "integer", description: "Number of most recent turns to inject when `contextScope=lastN`.", default: "20"},
+  {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "How the thread is injected. `messages` prepends per-turn role messages to the LLM messages array; `system_text` renders the thread as a single text block appended to the system prompt.", default: "messages"},
+  {name: "includeToolTurns", required: false, type: "boolean", description: "When true, also pushes KB/MCP/condition tool-call turns into the thread. Defaults to pushing only the final assistant response.", default: "false"},
+  {name: "excludeFromConversationThread", required: false, type: "boolean", description: "When checked, skips pushing this node's user/assistant turns into the workflow thread (opt-out).", default: "false"},
   {name: "maxTurns", required: false, type: "integer", description: "Max conversation turns in Multi Turn mode. `0` means unlimited.", default: "20"}
 ]} />
 
@@ -43,6 +46,23 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
 <Callout type="note">
 Conditions are exposed to the LLM as special tools (`cond_*`). When the LLM calls only condition tools, the run branches to that port; when it calls them alongside regular tools, regular tools run first and the decision is re-evaluated. Up to 20 conditions allowed.
 </Callout>
+
+### Conversation Context
+
+A workflow run keeps a **Conversation Thread** that accumulates user and AI Agent turns during execution. An AI Agent node can inject that thread into the LLM call automatically — you don't need to splice `{{ $thread.text }}` into the system prompt by hand, just set `contextScope`.
+
+- `contextScope: none` — disables auto-injection; the LLM sees only this node's `systemPrompt` / `userPrompt`. (Default.)
+- `contextScope: thread` — sends every turn from the workflow thread alongside the LLM call. Token usage can grow quickly in long conversations.
+- `contextScope: lastN` — sends only the most recent `contextScopeN` turns (default 20). Use this to balance token cost against context retention.
+
+Injection mode (`contextInjectionMode`) has two flavors.
+
+- `messages` (default) — prepends per-turn `role: user/assistant` messages to the front of the LLM messages array. Plays well with tool calls and feels natural on chat models like OpenAI / Anthropic.
+- `system_text` — renders the turns into a single text block appended to the system prompt. Use it when you want to keep the messages slot empty or target a single-system-prompt model.
+
+By default the thread receives **only the final assistant response and user turns**. Turn on `includeToolTurns` to also persist KB / MCP / condition tool-call turns. Conversely, set `excludeFromConversationThread` to keep a node out of the thread entirely (handy for background classifier-style LLM calls).
+
+To reference the thread directly from expressions, use `{{ $thread.length }}`, `{{ $thread.text }}`, or `{{ $thread.turns[0].data.email }}`. See [Variables and context · $thread](/docs/04-expression-language/variables-and-context#thread-conversation-thread) for details.
 
 ### Example
 
