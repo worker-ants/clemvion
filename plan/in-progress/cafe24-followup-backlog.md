@@ -92,7 +92,8 @@ PR #52 → #85 의 7 PR 사이클로 운영 결함·Critical 22건·High 11건·
 - [ ] B-2: 동시성 Medium 4건 — 묶음 PR
 - [ ] B-3: 요구사항/API Medium 7건 — 묶음 PR
 - [ ] B-4: 데이터베이스 Medium 5건 — 묶음 PR (별 마이그레이션 필요)
-- [ ] B-5: 테스트 Medium 8건 — 묶음 PR
+- [x] B-5: 테스트 Medium 8건 — 묶음 PR (2026-05-16, B-5-1/2/3/4/5/6/7 처리. B-5-8 e2e 는 별 plan 으로 잔여)
+- [ ] B-5-8 follow-up: Cafe24 OAuth + handleInstall/handleCallback + BullMQ refresh e2e — docker-compose.e2e.yml 풀-스택 부팅 필요
 - [ ] C-1: prod DB 점검 — 운영 task
 
 ## Cafe24 정비 사이클 (참고 — 완료)
