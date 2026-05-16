@@ -252,22 +252,22 @@ export const sendEmailNodeMetadata: NodeComponentMetadata = {
     {
       id: 'send_email:no-integration',
       when: '!integrationId',
-      message: 'Email integration 을 선택해야 합니다.',
+      message: 'Email integration must be selected.',
     },
     {
       id: 'send_email:no-recipient',
       when: 'length(to) == 0',
-      message: '수신자 (To) 를 한 명 이상 입력해야 합니다.',
+      message: 'Recipient (To) must include at least one address.',
     },
     {
       id: 'send_email:no-subject',
       when: '!subject',
-      message: '제목을 입력해야 합니다.',
+      message: 'Subject must be entered.',
     },
     {
       id: 'send_email:no-body',
       when: '!body',
-      message: '본문을 입력해야 합니다.',
+      message: 'Body must be entered.',
     },
   ],
   validateConfig: validateSendEmailConfig,

@@ -83,7 +83,7 @@ export const mapNodeMetadata: NodeComponentMetadata = {
     {
       id: 'map:no-input-field',
       when: '!inputField',
-      message: 'Input 필드를 입력해야 합니다.',
+      message: 'Input field must be entered.',
     },
   ],
 };

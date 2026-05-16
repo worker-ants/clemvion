@@ -53,7 +53,7 @@ describe('validateTemplateConfig (imperative)', () => {
 describe('evaluateMetadataBlockingErrors integration (template)', () => {
   it('emits the Korean warning when template body is empty', () => {
     expect(evaluateMetadataBlockingErrors(templateNodeMetadata, {})).toContain(
-      'Template 본문을 입력해야 합니다.',
+      'Template body must be entered.',
     );
   });
 

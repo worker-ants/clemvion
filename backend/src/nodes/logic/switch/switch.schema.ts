@@ -212,12 +212,12 @@ export const switchNodeMetadata: NodeComponentMetadata = {
       // `mode != expression` instead of `mode == value` covers both.
       id: 'switch:value-mode-needs-switch-value',
       when: 'mode != expression && !switchValue',
-      message: 'Value 모드에서는 Switch Value 를 입력해야 합니다.',
+      message: 'In Value mode, Switch Value must be entered.',
     },
     {
       id: 'switch:no-cases',
       when: 'length(cases) == 0',
-      message: '최소 1개 이상의 case 를 추가해야 합니다.',
+      message: 'At least one case must be added.',
     },
   ],
   validateConfig: validateSwitchConfig,

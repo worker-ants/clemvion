@@ -64,7 +64,7 @@ describe('FilterHandler', () => {
         combineMode: 'and',
       });
       expect(result.valid).toBe(false);
-      // Schema warningRule "Input 필드를 입력해야 합니다." fires.
+      // Schema warningRule "Input field must be entered." fires.
       expect(result.errors.some((e) => e.includes('Input'))).toBe(true);
     });
 
@@ -74,8 +74,8 @@ describe('FilterHandler', () => {
         combineMode: 'and',
       });
       expect(result.valid).toBe(false);
-      // Schema warningRule "최소 1개 이상의 조건을 추가해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('조건'))).toBe(true);
+      // Schema warningRule "At least one condition must be added." fires.
+      expect(result.errors.some((e) => e.includes('condition'))).toBe(true);
     });
 
     it('should return invalid when conditions is empty', () => {
@@ -85,7 +85,7 @@ describe('FilterHandler', () => {
         combineMode: 'and',
       });
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.includes('조건'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('condition'))).toBe(true);
     });
 
     it('should accept missing field as item-self sentinel', () => {

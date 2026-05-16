@@ -110,7 +110,7 @@ export const codeNodeMetadata: NodeComponentMetadata = {
     {
       id: 'code:no-code',
       when: '!code',
-      message: '실행할 코드를 입력해야 합니다.',
+      message: 'Body of the code to run must be entered.',
     },
   ],
   validateConfig: validateCodeConfig,

@@ -431,17 +431,17 @@ export const carouselNodeMetadata: NodeComponentMetadata = {
     {
       id: 'carousel:dynamic-mode-needs-title-field',
       when: 'mode == dynamic && !titleField',
-      message: 'Dynamic 모드에서는 Title 필드를 입력해야 합니다.',
+      message: 'In Dynamic mode, a Title field must be entered.',
     },
     {
       id: 'carousel:static-mode-needs-items',
       when: 'mode == static && length(items) == 0',
-      message: 'Static 모드에서는 최소 1개 이상의 슬라이드를 추가해야 합니다.',
+      message: 'In Static mode, at least one slide must be added.',
     },
     {
       id: 'carousel:invalid-mode',
       when: 'mode != static && mode != dynamic',
-      message: 'Mode 는 static 또는 dynamic 이어야 합니다.',
+      message: 'Mode must be either static or dynamic.',
     },
   ],
   validateConfig: validateCarouselConfig,

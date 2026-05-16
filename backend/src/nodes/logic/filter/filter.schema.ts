@@ -155,12 +155,12 @@ export const filterNodeMetadata: NodeComponentMetadata = {
     {
       id: 'filter:no-input-field',
       when: '!inputField',
-      message: 'Input 필드를 입력해야 합니다.',
+      message: 'Input field must be entered.',
     },
     {
       id: 'filter:no-conditions',
       when: 'length(conditions) == 0',
-      message: '최소 1개 이상의 조건을 추가해야 합니다.',
+      message: 'At least one condition must be added.',
     },
   ],
   validateConfig: validateFilterConfig,

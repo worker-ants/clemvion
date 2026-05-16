@@ -4,6 +4,8 @@ import {
   type EvaluatedWarning,
 } from "@workflow/node-summary";
 import { getNodeDefinition } from "@/lib/stores/node-definitions-store";
+import { translateBackendWarning } from "@/lib/i18n/backend-labels";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/types";
 
 type NodeConfig = Record<string, unknown>;
 
@@ -60,6 +62,7 @@ export function getConfigSummary(
   nodeType: string,
   config: NodeConfig,
   context?: SummaryContext,
+  locale: Locale = DEFAULT_LOCALE,
 ): ConfigSummaryResult | null {
   if (nodeType === "manual_trigger") return null;
 
@@ -78,7 +81,9 @@ export function getConfigSummary(
     return true;
   });
   if (blocking) {
-    return { text: `⚠ ${blocking.message}`, isWarning: true };
+    const localized =
+      translateBackendWarning(blocking.message, locale) ?? blocking.message;
+    return { text: `⚠ ${localized}`, isWarning: true };
   }
 
   return renderSummaryTemplate(def?.summaryTemplate, config);

@@ -51,7 +51,7 @@ describe('SwitchHandler', () => {
         cases: [{ id: 'case-1', value: 'a' }],
       });
       expect(result.valid).toBe(false);
-      // Schema warningRule "Value 모드에서는 Switch Value 를 입력해야 합니다." fires.
+      // Schema warningRule "In Value mode, Switch Value must be entered." fires.
       expect(result.errors.some((e) => e.includes('Switch Value'))).toBe(true);
     });
 
@@ -113,7 +113,7 @@ describe('SwitchHandler', () => {
         cases: [],
       });
       expect(result.valid).toBe(false);
-      // Schema warningRule "최소 1개 이상의 case 를 추가해야 합니다." fires.
+      // Schema warningRule "At least one case must be added." fires.
       expect(result.errors.some((e) => e.includes('case'))).toBe(true);
     });
 

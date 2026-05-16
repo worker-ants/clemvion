@@ -155,12 +155,12 @@ export const ifElseMetadata: NodeComponentMetadata = {
     {
       id: 'if_else:no-conditions',
       when: 'length(conditions) == 0',
-      message: '최소 1개 이상의 조건을 추가해야 합니다.',
+      message: 'At least one condition must be added.',
     },
     {
       id: 'if_else:first-condition-field-empty',
       when: 'length(conditions) > 0 && !conditions.0.field',
-      message: '첫 번째 조건의 필드를 입력해야 합니다.',
+      message: 'First condition\'s field must be entered.',
     },
   ],
   validateConfig: validateIfElseConfig,

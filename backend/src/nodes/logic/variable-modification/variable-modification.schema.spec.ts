@@ -89,7 +89,7 @@ describe('evaluateMetadataBlockingErrors integration (variable_modification)', (
   it('emits the Korean warning on a freshly-created node', () => {
     expect(
       evaluateMetadataBlockingErrors(variableModificationNodeMetadata, {}),
-    ).toContain('최소 1개 이상의 변경을 추가해야 합니다.');
+    ).toContain('At least one modification must be added.');
   });
 
   it('returns [] when configured', () => {

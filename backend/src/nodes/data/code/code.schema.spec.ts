@@ -63,7 +63,7 @@ describe('validateCodeConfig (imperative)', () => {
 describe('evaluateMetadataBlockingErrors integration (code)', () => {
   it('emits the Korean warning when code body is empty', () => {
     expect(evaluateMetadataBlockingErrors(codeNodeMetadata, {})).toContain(
-      '실행할 코드를 입력해야 합니다.',
+      'Body of the code to run must be entered.',
     );
   });
 
@@ -77,7 +77,7 @@ describe('evaluateMetadataBlockingErrors integration (code)', () => {
     const errors = evaluateMetadataBlockingErrors(codeNodeMetadata, {
       timeout: 999,
     });
-    expect(errors).toContain('실행할 코드를 입력해야 합니다.');
+    expect(errors).toContain('Body of the code to run must be entered.');
     expect(errors).toContain(
       'timeout must be a number between 1 and 120 seconds',
     );

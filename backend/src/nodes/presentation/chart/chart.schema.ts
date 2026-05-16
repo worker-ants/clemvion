@@ -158,17 +158,17 @@ export const chartMetadata: NodeComponentMetadata = {
     {
       id: 'chart:no-chart-type',
       when: '!chartType',
-      message: '차트 타입을 선택해야 합니다.',
+      message: 'Chart type must be selected.',
     },
     {
       id: 'chart:no-x-axis-field',
       when: '!xAxis.field',
-      message: 'X축 필드를 입력해야 합니다.',
+      message: 'X-axis field must be entered.',
     },
     {
       id: 'chart:no-y-axis-field',
       when: '!yAxis.field',
-      message: 'Y축 필드를 입력해야 합니다.',
+      message: 'Y-axis field must be entered.',
     },
   ],
   validateConfig: validateChartConfig,

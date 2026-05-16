@@ -105,8 +105,8 @@ describe('evaluateMetadataBlockingErrors integration (chart)', () => {
     });
     expect(errors).toEqual(
       expect.arrayContaining([
-        'X축 필드를 입력해야 합니다.',
-        'Y축 필드를 입력해야 합니다.',
+        'X-axis field must be entered.',
+        'Y-axis field must be entered.',
       ]),
     );
   });

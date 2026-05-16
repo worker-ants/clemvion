@@ -109,7 +109,7 @@ describe('AiAgentHandler', () => {
         model: 'gpt-4',
       });
       expect(result.valid).toBe(false);
-      // Schema warningRule "Multi Turn 모드에서는 System Prompt 가 필요합니다." fires.
+      // Schema warningRule "Multi Turn mode requires System Prompt." fires.
       expect(result.errors.some((e) => e.includes('Multi Turn'))).toBe(true);
     });
   });
@@ -1789,7 +1789,7 @@ describe('AiAgentHandler', () => {
         conditions,
       });
       expect(result.valid).toBe(false);
-      // Schema warningRule "Conditions 는 최대 20개까지 추가할 수 있습니다." fires.
+      // Schema warningRule "Conditions are limited to 20 entries." fires.
       expect(result.errors.some((e) => e.includes('20'))).toBe(true);
     });
   });

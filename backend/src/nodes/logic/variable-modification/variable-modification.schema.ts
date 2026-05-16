@@ -161,12 +161,12 @@ export const variableModificationNodeMetadata: NodeComponentMetadata = {
     {
       id: 'variable_modification:no-modifications',
       when: 'length(modifications) == 0',
-      message: '최소 1개 이상의 변경을 추가해야 합니다.',
+      message: 'At least one modification must be added.',
     },
     {
       id: 'variable_modification:first-variable-empty',
       when: 'length(modifications) > 0 && !modifications.0.variable',
-      message: '첫 번째 변경의 대상 변수를 선택해야 합니다.',
+      message: 'First modification\'s target variable must be selected.',
     },
   ],
   validateConfig: validateVariableModificationConfig,

@@ -52,8 +52,8 @@ describe('WorkflowHandler', () => {
     it('should fail when workflowId is missing', () => {
       const result = handler.validate({ mode: 'sync' });
       expect(result.valid).toBe(false);
-      // Schema warningRule "실행할 워크플로우를 선택해야 합니다." fires.
-      expect(result.errors.some((e) => e.includes('워크플로우'))).toBe(true);
+      // Schema warningRule "Target workflow must be selected." fires.
+      expect(result.errors.some((e) => e.includes('workflow'))).toBe(true);
     });
 
     it('should fail when workflowId is not a string', () => {

@@ -76,7 +76,7 @@ export const foreachNodeMetadata: NodeComponentMetadata = {
     {
       id: 'foreach:no-array-field',
       when: '!arrayField',
-      message: '배열 필드를 입력해야 합니다.',
+      message: 'Array field must be entered.',
     },
   ],
 };

@@ -280,12 +280,12 @@ export const informationExtractorNodeMetadata: NodeComponentMetadata = {
     {
       id: 'information_extractor:no-output-schema',
       when: 'length(outputSchema) == 0',
-      message: '하나 이상의 추출 필드를 정의해야 합니다.',
+      message: 'At least one extraction field must be defined.',
     },
     {
       id: 'information_extractor:single-turn-needs-input-field',
       when: 'mode != multi_turn && !inputField',
-      message: 'Single Turn 모드에서는 Input Field 를 입력해야 합니다.',
+      message: 'In Single Turn mode, Input Field must be entered.',
     },
   ],
   validateConfig: validateInformationExtractorConfig,
