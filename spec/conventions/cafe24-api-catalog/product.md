@@ -15,16 +15,16 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `product_delete` | 상품 삭제 | Delete a product | DELETE | `products/{product_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product) |
 | `product_variants_list` | 상품 품목(옵션) 목록 조회 | Retrieve a list of product variants | GET | `products/{product_no}/variants` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-product-variants) |
 | `product_variants_inventory_update` | 상품 품목 재고 수정 | Update a product variant inventory | PUT | `products/{product_no}/variants/{variant_code}/inventories` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-product-variant-inventory) |
-| `product_count` | 상품 개수 조회 | Retrieve a count of products | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-products) |
+| `product_count` | 상품 개수 조회 | Retrieve a count of products | GET | `products/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-products) |
 | `product_variants_get` | 상품 품목 단건 조회 | Retrieve a product variant | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-variant) |
 | `product_variants_update` | 상품 품목 수정 | Update a product variant | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-product-variant) |
 | `product_variants_update_multiple` | 상품 품목 일괄 수정 | Update multiple product variants | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-multiple-product-variants) |
 | `product_variants_delete` | 상품 품목 삭제 | Delete a product variant | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-variant) |
 | `product_variants_inventory_get` | 상품 품목 재고 조회 | Retrieve inventory details of a product variant | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-inventory-details-of-a-product-variant) |
-| `product_options_list` | 상품 옵션 목록 조회 | Retrieve a list of product options | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-product-options) |
-| `product_options_create` | 상품 옵션 생성 | Create product options | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-product-options) |
-| `product_options_update` | 상품 옵션 수정 | Update product options | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-options) |
-| `product_options_delete` | 상품 옵션 삭제 | Delete a product option | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-option) |
+| `product_options_list` | 상품 옵션 목록 조회 | Retrieve a list of product options | GET | `products/{product_no}/options` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-product-options) |
+| `product_options_create` | 상품 옵션 생성 | Create product options | POST | `products/{product_no}/options` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-product-options) |
+| `product_options_update` | 상품 옵션 수정 | Update product options | PUT | `products/{product_no}/options` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-options) |
+| `product_options_delete` | 상품 옵션 삭제 | Delete a product option | DELETE | `products/{product_no}/options/{option_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-option) |
 | `product_additionalimages_create` | 추가 이미지 등록 | Create an additional product image | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-additional-product-image) |
 | `product_additionalimages_update` | 추가 이미지 수정 | Update an additional product image | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-additional-product-image) |
 | `product_additionalimages_delete` | 추가 이미지 삭제 | Delete an additional product image | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-an-additional-product-image) |
@@ -51,8 +51,8 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `product_memos_create` | 상품 메모 생성 | Create a product memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-product-memo) |
 | `product_memos_update` | 상품 메모 수정 | Update a product memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-product-memo) |
 | `product_memos_delete` | 상품 메모 삭제 | Delete a product memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-memo) |
-| `product_seo_get` | 상품 SEO 조회 | Retrieve a product's SEO settings | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-s-seo-settings) |
-| `product_seo_update` | 상품 SEO 수정 | Update product SEO settings | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-seo-settings) |
+| `product_seo_get` | 상품 SEO 조회 | Retrieve a product's SEO settings | GET | `products/{product_no}/seo` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-s-seo-settings) |
+| `product_seo_update` | 상품 SEO 수정 | Update product SEO settings | PUT | `products/{product_no}/seo` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-seo-settings) |
 | `product_tags_list` | 상품 태그 목록 | Retrieve a list of a product's product tags | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-a-product-s-product-tags) |
 | `product_tags_count` | 상품 태그 개수 | Retrieve a count of a product's product tags | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-a-product-s-product-tags) |
 | `product_tags_create` | 상품 태그 생성 | Create product tags | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-product-tags) |
