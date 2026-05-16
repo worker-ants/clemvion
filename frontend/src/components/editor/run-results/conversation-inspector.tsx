@@ -11,6 +11,7 @@ import { resolveResultField } from "./resolve-result-field";
 import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
 import { tryParseJson } from "@/lib/utils/parse-json";
 import { formatDate } from "@/lib/utils/date";
+import { useT } from "@/lib/i18n";
 
 /** Chip 한 줄에 inline 으로 보일 최대 문서명 개수 (나머지는 `+N` 으로 축약). */
 const MAX_VISIBLE_DOC_NAMES = 2;
@@ -36,6 +37,7 @@ function ReferencesChip({
   onClick: () => void;
   compact?: boolean;
 }) {
+  const t = useT();
   if (sources.length === 0) return null;
   const docNames = Array.from(new Set(sources.map((s) => s.documentName)));
   const shown = docNames.slice(0, MAX_VISIBLE_DOC_NAMES);
@@ -47,7 +49,7 @@ function ReferencesChip({
         e.stopPropagation();
         onClick();
       }}
-      title="View in References tab"
+      title={t("editor.conversation.viewInReferences")}
       className={cn(
         "inline-flex items-center gap-1 rounded bg-[hsl(var(--accent))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]/80 transition-colors",
         compact ? "px-1 py-0 text-[10px]" : "px-1.5 py-0.5 text-[10px] font-medium",
@@ -61,6 +63,7 @@ function ReferencesChip({
 }
 
 function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const count = toolCalls.length;
   return (
@@ -71,9 +74,9 @@ function ToolCallBadge({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
       >
         <Wrench size={10} />
-        <span>Tool Call</span>
+        <span>{t("editor.conversation.toolCall")}</span>
         {open ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-        <span>{count} tool{count > 1 ? "s" : ""} called</span>
+        <span>{t("editor.conversation.toolsCalled", { count })}</span>
       </button>
       {open && (
         <div className="mt-1.5 space-y-1">
@@ -147,6 +150,7 @@ export function ConversationInspector({
   turnRefIndex,
   onJumpToReferences,
 }: ConversationInspectorProps) {
+  const t = useT();
   const selectedItem =
     selectedItemIndex != null
       ? conversationMessages[selectedItemIndex]
@@ -163,7 +167,7 @@ export function ConversationInspector({
                 className="flex items-center gap-1 px-3 pt-2 pb-1 text-xs text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] transition-colors"
                 onClick={onBackToConversation}
               >
-                ← Back to conversation
+                {t("editor.conversation.backToConversation")}
               </button>
             )}
             <SelectedItemDetail
@@ -438,6 +442,7 @@ function SummaryView({
   turnRefIndex?: Map<number, RagSource[]>;
   onJumpToReferences?: (turnIndex: number) => void;
 }) {
+  const t = useT();
   const config = conversationConfig as Record<string, unknown> | null;
   const rawOutput = result.outputData as Record<string, unknown> | null;
   // Support new `{ config, output, ... }` wrapper and legacy flat shape.
@@ -523,12 +528,19 @@ function SummaryView({
       <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
         {(() => {
           if (isLive) {
-            return `Turn ${(config?.turnCount as number) ?? items.filter((m) => m.type === "user").length} / ${(config?.maxTurns as number) || "∞"}`;
+            const current =
+              (config?.turnCount as number) ??
+              items.filter((m) => m.type === "user").length;
+            const max = (config?.maxTurns as number) || "∞";
+            return t("editor.conversation.turnProgress", { current, max });
           }
-          if (!output) return "Conversation";
+          if (!output) return t("editor.conversation.conversationHeader");
           const turnCount = resolveResultField<number>(output, "turnCount");
           const endReason = resolveResultField<string>(output, "endReason");
-          return `${turnCount ?? "?"} turns — ${endReason ?? ""}`;
+          return t("editor.conversation.turnsEndReason", {
+            turns: turnCount ?? "?",
+            reason: endReason ?? "",
+          });
         })()}
       </div>
 
@@ -702,6 +714,7 @@ function MessageInput({
   onSend: (message: string) => void;
   onEnd: () => void;
 }) {
+  const t = useT();
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -738,7 +751,9 @@ function MessageInput({
           onKeyDown={handleKeyDown}
           disabled={isDisabled}
           placeholder={
-            isDisabled ? "Waiting for AI response..." : "Type a message..."
+            isDisabled
+              ? t("editor.conversation.composerWaitingPlaceholder")
+              : t("editor.conversation.composerPlaceholder")
           }
           className="flex-1 resize-none rounded border border-[hsl(var(--input))] bg-transparent px-2 py-1.5 text-xs placeholder:text-[hsl(var(--muted-foreground))] disabled:opacity-50"
           rows={1}
@@ -761,7 +776,7 @@ function MessageInput({
             variant="outline"
             className="h-7 w-7"
             onClick={onEnd}
-            title="End conversation"
+            title={t("editor.conversation.endConversation")}
           >
             <Square className="h-3 w-3" />
           </Button>

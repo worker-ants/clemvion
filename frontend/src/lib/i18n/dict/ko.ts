@@ -877,6 +877,18 @@ export const ko = {
     sharedRemoveRow: "행 제거",
     fieldHelpAriaLabel: "도움말",
     fieldHelpLearnMore: "자세히 보기 →",
+    conversation: {
+      viewInReferences: "참조 탭에서 보기",
+      toolCall: "도구 호출",
+      toolsCalled: "{{count}}개 도구 호출",
+      backToConversation: "← 대화로 돌아가기",
+      turnProgress: "턴 {{current}} / {{max}}",
+      conversationHeader: "대화",
+      turnsEndReason: "{{turns}}턴 — {{reason}}",
+      composerWaitingPlaceholder: "AI 응답을 기다리는 중...",
+      composerPlaceholder: "메시지를 입력하세요...",
+      endConversation: "대화 종료",
+    },
     runResults: {
       tabPreview: "미리보기",
       tabInput: "입력",

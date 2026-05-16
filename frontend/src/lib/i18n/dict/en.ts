@@ -879,6 +879,18 @@ export const en: Dict = {
     sharedRemoveRow: "Remove row",
     fieldHelpAriaLabel: "Help",
     fieldHelpLearnMore: "Learn more →",
+    conversation: {
+      viewInReferences: "View in References tab",
+      toolCall: "Tool Call",
+      toolsCalled: "{{count}} tool(s) called",
+      backToConversation: "← Back to conversation",
+      turnProgress: "Turn {{current}} / {{max}}",
+      conversationHeader: "Conversation",
+      turnsEndReason: "{{turns}} turns — {{reason}}",
+      composerWaitingPlaceholder: "Waiting for AI response...",
+      composerPlaceholder: "Type a message...",
+      endConversation: "End conversation",
+    },
     runResults: {
       tabPreview: "Preview",
       tabInput: "Input",
