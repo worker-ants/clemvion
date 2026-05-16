@@ -29,8 +29,15 @@ import type { Cafe24Resource } from './types.js';
 
 const CATALOG_DIR = join(
   __dirname,
-  '..', '..', '..', '..', '..', '..',
-  'spec', 'conventions', 'cafe24-api-catalog',
+  '..',
+  '..',
+  '..',
+  '..',
+  '..',
+  '..',
+  'spec',
+  'conventions',
+  'cafe24-api-catalog',
 );
 
 type CatalogStatus = 'supported' | 'planned' | 'deprecated';
@@ -132,7 +139,10 @@ describe('Cafe24 API catalog ↔ metadata sync', () => {
       const files = readdirSync(CATALOG_DIR)
         .filter((f) => f.endsWith('.md'))
         .sort();
-      const expected = ['_overview.md', ...CAFE24_RESOURCES.map((r) => `${r}.md`)].sort();
+      const expected = [
+        '_overview.md',
+        ...CAFE24_RESOURCES.map((r) => `${r}.md`),
+      ].sort();
       expect(files).toEqual(expected);
     });
 
@@ -153,9 +163,7 @@ describe('Cafe24 API catalog ↔ metadata sync', () => {
         const seen = new Set<string>();
         for (const id of ids) {
           if (seen.has(id)) {
-            throw new Error(
-              `${resource}.md: duplicate id "${id}"`,
-            );
+            throw new Error(`${resource}.md: duplicate id "${id}"`);
           }
           seen.add(id);
         }
