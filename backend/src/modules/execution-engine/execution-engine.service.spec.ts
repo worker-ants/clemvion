@@ -537,6 +537,72 @@ describe('ExecutionEngineService', () => {
       ).rejects.toThrow(/INVALID_SUB_WORKFLOW_TRIGGER/);
     });
 
+    it('차단: 호출자 workspace 와 sub-workflow workspace 불일치 (W-6)', async () => {
+      mockWorkflowRepo.findOneBy.mockResolvedValueOnce({
+        id: workflowId,
+        workspaceId: 'ws-target',
+        name: 'cross-ws-target',
+      });
+      const context = contextService.createContext(executionId, workflowId);
+      context.variables = {
+        ...(context.variables ?? {}),
+        __workspaceId: 'ws-attacker',
+      };
+
+      await expect(
+        service.executeInline(
+          workflowId,
+          {},
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'p',
+          },
+        ),
+      ).rejects.toThrow(/WORKFLOW_FORBIDDEN_WORKSPACE/);
+    });
+
+    it('통과: 동일 workspace (W-6)', async () => {
+      mockWorkflowRepo.findOneBy.mockResolvedValueOnce({
+        id: workflowId,
+        workspaceId: 'ws-1',
+        name: 'same-ws-target',
+      });
+      const manualTriggerNode: Partial<Node> = {
+        id: 'manual-trigger-same-ws',
+        workflowId,
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        label: 'Manual',
+        config: {},
+        isDisabled: false,
+      };
+      mockNodeRepo.findBy.mockResolvedValueOnce([manualTriggerNode]);
+      mockEdgeRepo.findBy.mockResolvedValueOnce([]);
+
+      const context = contextService.createContext(executionId, workflowId);
+      context.variables = {
+        ...(context.variables ?? {}),
+        __workspaceId: 'ws-1',
+      };
+
+      await expect(
+        service.executeInline(
+          workflowId,
+          { x: 1 },
+          {
+            executionId,
+            context,
+            executedNodes: new Set<string>(),
+            recursionDepth: 1,
+            parentNodeExecutionId: 'p',
+          },
+        ),
+      ).resolves.toBeDefined();
+    });
+
     it('passes manual_trigger through pass-through (input forwarded as output)', async () => {
       const manualTriggerNode: Partial<Node> = {
         id: 'manual-trigger-in-sub',

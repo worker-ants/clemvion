@@ -92,6 +92,10 @@ export class WorkflowHandler implements NodeHandler {
       timeout: rawConfig.timeout,
     };
 
+    // 부모 workspace 컨텍스트 — 엔진의 workspace 격리 검증에 사용 (W-6).
+    const parentWorkspaceId =
+      (context.variables?.__workspaceId as string | undefined) || undefined;
+
     if (mode === 'async') {
       try {
         const subExecutionId = await this.executionEngine.executeAsync(
@@ -100,6 +104,7 @@ export class WorkflowHandler implements NodeHandler {
           {
             parentExecutionId: context.executionId,
             recursionDepth: currentDepth + 1,
+            parentWorkspaceId,
           },
         );
 
