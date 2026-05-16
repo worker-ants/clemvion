@@ -46,6 +46,16 @@ export interface IntegrationDto {
   lastRotatedAt: string | null;
   lastError: { code?: string; message?: string; at?: string } | Record<string, unknown> | null;
   meta: IntegrationMeta;
+  /**
+   * Cafe24 Private 통합 한정의 actionable URL. Cafe24 Developers Console
+   * 의 "앱 URL" 갱신용으로 상세 페이지 App URL 카드가 노출.
+   * `${APP_URL}/api/3rd-party/cafe24/install/:installToken` 형식이며, 그 외
+   * 통합은 항상 `null`. `installToken` 은 본 URL 의 path segment 안에만
+   * 존재하며 별도 필드로 노출되지 않는다 — 식별자 분산 방지.
+   * spec/2-navigation/4-integration.md §9.1 + Rationale "Cafe24 App URL
+   * 상세 페이지 표시".
+   */
+  appUrl: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

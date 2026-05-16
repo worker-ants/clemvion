@@ -17,6 +17,7 @@ import {
   IntegrationOAuthService,
   type BeginResult,
 } from './integration-oauth.service';
+import { buildCafe24InstallUrl } from './third-party-oauth.constants';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import {
   ListIntegrationsQueryDto,
@@ -114,10 +115,23 @@ export interface IntegrationMeta {
   appType: 'public' | 'private' | null;
 }
 
-export type PublicIntegration = Omit<Integration, 'credentials'> & {
+export type PublicIntegration = Omit<
+  Integration,
+  'credentials' | 'installToken' | 'installTokenIssuedAt'
+> & {
   credentials: Record<string, unknown>;
   credentialsStatus: CredentialsStatus;
   meta: IntegrationMeta;
+  /**
+   * Cafe24 Private 통합 한정의 actionable URL. Cafe24 Developers Console
+   * 의 "앱 URL" 갱신용으로 상세 페이지의 Cafe24 App URL 카드가 노출한다.
+   * `${APP_URL}/api/3rd-party/cafe24/install/:installToken` 형식이며,
+   * 그 외 통합은 항상 `null`. `installToken` 은 본 URL 의 path segment 안
+   * 에만 존재하며 별도 필드로 노출되지 않는다 (식별자 분산 방지 —
+   * spec/2-navigation/4-integration.md Rationale "Cafe24 App URL 상세
+   * 페이지 표시" 참조).
+   */
+  appUrl: string | null;
 };
 
 /**
@@ -914,22 +928,35 @@ export class IntegrationsService {
     const credsUnreadable = isUnreadableCredentials(entity.credentials);
     const lastErrorUnreadable = isUnreadableCredentials(entity.lastError);
     const meta = this.buildIntegrationMeta(entity, credsUnreadable);
+    // `installToken` / `installTokenIssuedAt` 는 PublicIntegration 응답에서
+    // 제외 — App URL path segment 안에 이미 포함되어 별도 필드 노출은 식별자
+    // 분산을 유발한다. spec/2-navigation/4-integration.md Rationale "Cafe24
+    // App URL 상세 페이지 표시" 참조. entity spread 후 명시적 제거.
+    const {
+      installToken: _installToken,
+      installTokenIssuedAt: _installTokenIssuedAt,
+      ...sanitizedEntity
+    } = entity;
+    void _installToken;
+    void _installTokenIssuedAt;
+    const appUrl = this.buildCafe24AppUrl(entity, credsUnreadable);
     if (credsUnreadable) {
       // Single corrupted row must not leak the sentinel marker into the API
       // response and must surface as a reconnect prompt rather than a
       // half-broken "connected" card.
       return {
-        ...entity,
+        ...sanitizedEntity,
         credentials: {},
         lastError: lastErrorUnreadable ? null : entity.lastError,
         status: 'error',
         statusReason: 'credentials_unreadable',
         credentialsStatus: 'needs_reauth',
         meta,
+        appUrl,
       };
     }
     return {
-      ...entity,
+      ...sanitizedEntity,
       credentials: maskCredentials(
         entity.credentials,
         entity.serviceType,
@@ -938,7 +965,32 @@ export class IntegrationsService {
       lastError: lastErrorUnreadable ? null : entity.lastError,
       credentialsStatus: 'ok',
       meta,
+      appUrl,
     };
+  }
+
+  /**
+   * Cafe24 Private 통합의 App URL 을 계산. 그 외 service_type / app_type 은
+   * 항상 `null`. credentials 가 unreadable 이면 app_type 판별 불가이므로 `null`.
+   * spec/2-navigation/4-integration.md §4.2 + §9.1 + Rationale "Cafe24 App
+   * URL 상세 페이지 표시".
+   */
+  private buildCafe24AppUrl(
+    entity: Integration,
+    credsUnreadable: boolean,
+  ): string | null {
+    if (credsUnreadable) return null;
+    if (entity.serviceType !== 'cafe24') return null;
+    const appType = entity.credentials?.app_type;
+    if (appType !== 'private') return null;
+    if (typeof entity.installToken !== 'string' || entity.installToken.length === 0) {
+      return null;
+    }
+    const appBaseUrl = (process.env.APP_URL || 'http://localhost:3011').replace(
+      /\/$/,
+      '',
+    );
+    return buildCafe24InstallUrl(appBaseUrl, entity.installToken);
   }
 
   /**
