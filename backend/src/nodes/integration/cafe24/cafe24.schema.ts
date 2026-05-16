@@ -130,7 +130,7 @@ export const cafe24NodeMetadata: NodeComponentMetadata = {
   label: 'Cafe24',
   description: 'Call any Cafe24 Admin API endpoint via resource/operation',
   icon: 'ShoppingBag',
-  color: '#2F3E4D',
+  color: '#F97316',
   executionMetadata: { kind: 'standard' },
   summaryTemplate: {
     template: '{{resource}} · {{operation}}',

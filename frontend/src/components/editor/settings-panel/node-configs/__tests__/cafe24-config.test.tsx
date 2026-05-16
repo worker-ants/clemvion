@@ -115,7 +115,7 @@ function seedCafe24NodeDefinition(extras: Cafe24NodeExtras | null) {
     label: "Cafe24",
     description: "",
     icon: "ShoppingBag",
-    color: "#2F3E4D",
+    color: "#F97316",
     inputs: [],
     outputs: [],
     defaultConfig: {},
