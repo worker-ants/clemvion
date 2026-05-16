@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { FieldGroup, SelectField, NumberField, CheckboxField, KeyValueEditor } from "./shared";
 import { ExpressionInput } from "@/components/editor/expression";
 import { IntegrationSelector } from "./integration-selector";
@@ -295,9 +296,76 @@ function normalizeCafe24Fields(
   return [];
 }
 
+// Convert the UI's key-value list back to the persisted object form that the
+// backend handler expects (`Record<string, unknown>`). Empty-key rows are
+// dropped because they have no meaningful object representation — but they
+// remain visible in the UI because the editor list lives in local React state
+// (see `Cafe24Config`).
+function fieldRowsToObject(
+  rows: ReadonlyArray<{ key: string; value: string }>,
+): Record<string, string> {
+  const obj: Record<string, string> = {};
+  for (const it of rows) {
+    if (it.key) obj[it.key] = it.value;
+  }
+  return obj;
+}
+
+function objectsEqual(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (String(a[k] ?? "") !== String(b[k] ?? "")) return false;
+  }
+  return true;
+}
+
 export function Cafe24Config({ config, onChange }: { config: Config; onChange: OnChange }) {
   const t = useT();
-  const fields = normalizeCafe24Fields(config.fields);
+  // The Fields editor maintains a list of {key, value} pairs locally so the
+  // user can add a blank row and type its key before it becomes a persisted
+  // object entry. The previous implementation derived the list from
+  // `config.fields` (object form) on every render, which silently dropped
+  // empty-key rows the moment they were created — making the "Add" button
+  // appear non-functional.
+  const [fieldRows, setFieldRows] = useState<
+    Array<{ key: string; value: string }>
+  >(() => normalizeCafe24Fields(config.fields));
+
+  // Track the last object we propagated upstream so we can detect *external*
+  // changes to `config.fields` (e.g. undo/redo, programmatic reset) and
+  // re-sync the local list during render. React's recommended "store
+  // information from previous renders" pattern keeps this in state, not
+  // in a ref (see https://react.dev/reference/react/useState).
+  const [lastPropagated, setLastPropagated] = useState<Record<string, unknown>>(
+    () => fieldRowsToObject(fieldRows),
+  );
+
+  const externalFields =
+    config.fields && typeof config.fields === "object" && !Array.isArray(config.fields)
+      ? (config.fields as Record<string, unknown>)
+      : {};
+  if (!objectsEqual(externalFields, lastPropagated)) {
+    // Derived-state update during render: React batches these into the
+    // current pass without an extra re-render.
+    const nextRows = normalizeCafe24Fields(externalFields);
+    setFieldRows(nextRows);
+    setLastPropagated(fieldRowsToObject(nextRows));
+  }
+
+  const handleFieldRowsChange = (
+    items: Array<{ key: string; value: string }>,
+  ) => {
+    setFieldRows(items);
+    const obj = fieldRowsToObject(items);
+    setLastPropagated(obj);
+    onChange({ ...config, fields: obj });
+  };
+
   const pagination = (config.pagination as { limit?: number; offset?: number } | undefined) ?? {};
 
   const resourceOptions = [
@@ -336,19 +404,8 @@ export function Cafe24Config({ config, onChange }: { config: Config; onChange: O
       />
       <KeyValueEditor
         label={t("nodeConfigs.integration.cafe24Fields")}
-        items={fields.map((f) => ({ key: f.key, value: f.value }))}
-        onChange={(items) => {
-          // Translate KeyValue back to a plain object so the backend
-          // schema (which expects Record<string, unknown>) is happy.
-          const obj: Record<string, string> = {};
-          for (const it of items) {
-            if (it.key) obj[it.key] = it.value;
-          }
-          // Persist BOTH the keyvalue list (for UI round-trip) and the
-          // resolved object form. The handler reads `config.fields` as
-          // an object; the UI maintains it as a list for ergonomic editing.
-          onChange({ ...config, fields: obj });
-        }}
+        items={fieldRows}
+        onChange={handleFieldRowsChange}
         keyPlaceholder={t("nodeConfigs.integration.cafe24FieldsKeyPlaceholder")}
         valuePlaceholder={t("nodeConfigs.integration.cafe24FieldsValuePlaceholder")}
         expressionValues
