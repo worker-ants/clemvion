@@ -40,11 +40,11 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
 | `$sourceItem` | `unknown` | 현재 순회 중인 배열 항목 |
 | `$sourceItemIndex` | `number` | 현재 항목의 0-based 인덱스 |
 
-기존 변수(`$input`, `$var`, `$node`, `$execution` 등)도 동시 사용 가능. `columns` 는 [표현식 제외 목록(`expression-exclusions.table`)](../../../backend/src/modules/execution-engine/expression/expression-exclusions.ts) 에 등록되어 핸들러가 per-row 컨텍스트로 평가한다 (엔진이 사전 평가하지 않음).
+기존 변수(`$input`, `$var`, `$node`, `$execution` 등)도 동시 사용 가능. `columns` 는 [표현식 제외 목록(`expression-exclusions.table`)](../../../codebase/backend/src/modules/execution-engine/expression/expression-exclusions.ts) 에 등록되어 핸들러가 per-row 컨텍스트로 평가한다 (엔진이 사전 평가하지 않음).
 
 > 버튼 클릭 시까지 무제한 대기 (외부 cancel/종료 전까지 타임아웃 없음).
 >
-> Source of truth: `backend/src/nodes/presentation/table/table.schema.ts` (export `tableNodeConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/presentation/table/table.schema.ts` (export `tableNodeConfigSchema`)
 
 ## 2. 설정 UI
 
@@ -149,7 +149,7 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
    - `buttons.length > 0` → §5.4 (waiting). 엔진이 사용자 입력 수신 후 §5.5 (resumed).
    - 아니면 → §5.1 (비-블로킹).
 
-> 핸들러: `backend/src/nodes/presentation/table/table.handler.ts`. config echo 는 `context.rawConfig` 우선 (CONVENTIONS Principle 7).
+> 핸들러: `codebase/backend/src/nodes/presentation/table/table.handler.ts`. config echo 는 `context.rawConfig` 우선 (CONVENTIONS Principle 7).
 
 ## 5. 출력 구조
 

@@ -21,9 +21,9 @@ main 브랜치(`bbd838ef`) 기준 코드베이스 **전체** 를 유지보수성
 
 ## 검토 범위
 
-- `backend/src/modules/integrations/` — 가장 hot 한 영역, 누적 변경 검토
-- `backend/src/nodes/` — 노드별 패턴 일관성
-- `frontend/src/components/` — 컴포넌트 구조·prop drilling·중복
+- `codebase/backend/src/modules/integrations/` — 가장 hot 한 영역, 누적 변경 검토
+- `codebase/backend/src/nodes/` — 노드별 패턴 일관성
+- `codebase/frontend/src/components/` — 컴포넌트 구조·prop drilling·중복
 - `spec/conventions/` — 정식 규약과 코드 부합
 - `packages/` — 패키지 내부 구조
 

@@ -2,7 +2,7 @@
 
 > 관련 문서: [Spec Cafe24 노드](../../4-nodes/4-integration/4-cafe24.md) · [Cafe24 API Metadata 컨벤션](../cafe24-api-metadata.md) · [Cafe24 공식 Admin API 문서](https://developers.cafe24.com/docs/ko/api/admin/)
 
-본 디렉토리(`spec/conventions/cafe24-api-catalog/`) 는 Cafe24 Admin API 의 **모든 endpoint** 를 18 resource 단위로 enumerate 한 단일 진실(single source of truth)이다. 노드 메타데이터(`backend/src/nodes/integration/cafe24/metadata/*.ts`) 가 어디까지 구현됐고 어디가 남았는지가 한 화면에서 보이도록 유지한다.
+본 디렉토리(`spec/conventions/cafe24-api-catalog/`) 는 Cafe24 Admin API 의 **모든 endpoint** 를 18 resource 단위로 enumerate 한 단일 진실(single source of truth)이다. 노드 메타데이터(`codebase/backend/src/nodes/integration/cafe24/metadata/*.ts`) 가 어디까지 구현됐고 어디가 남았는지가 한 화면에서 보이도록 유지한다.
 
 ---
 
@@ -31,7 +31,7 @@ spec/conventions/cafe24-api-catalog/
   translation.md      # Translation (번역)
 ```
 
-resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/metadata/types.ts`) 와 1:1 일치한다.
+resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integration/cafe24/metadata/types.ts`) 와 1:1 일치한다.
 
 ## 2. 표 컬럼 정의
 
@@ -62,9 +62,9 @@ resource 이름은 `Cafe24Resource` enum (`backend/src/nodes/integration/cafe24/
 
 ## 4. 동기 정책 (Sync Contract)
 
-본 카탈로그는 `backend/src/nodes/integration/cafe24/metadata/*.ts` 와 **양방향 동기 테스트**로 보호된다.
+본 카탈로그는 `codebase/backend/src/nodes/integration/cafe24/metadata/*.ts` 와 **양방향 동기 테스트**로 보호된다.
 
-**테스트 위치**: `backend/src/nodes/integration/cafe24/metadata/catalog-sync.spec.ts`
+**테스트 위치**: `codebase/backend/src/nodes/integration/cafe24/metadata/catalog-sync.spec.ts`
 
 **검증 규칙**:
 

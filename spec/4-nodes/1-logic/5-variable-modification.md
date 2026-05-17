@@ -34,7 +34,7 @@
 
 > ⚠ **In-place mutation 주의**: `push` / `pop` 은 동일 배열 참조를 변경한다. 다른 노드의 `output` 또는 다른 변수가 같은 배열 참조를 보유하면 조용히 함께 변경되므로 디버깅이 어렵다. 안전한 변경이 필요하면 `set` 으로 새 배열을 할당한다.
 
-> Source of truth: `backend/src/nodes/logic/variable-modification/variable-modification.schema.ts` (export `variableModificationNodeConfigSchema`). UI 메타데이터 / warningRules / `validateVariableModificationConfig` 는 frontend canvas 와 backend `handler.validate` 가 공유하는 SSOT.
+> Source of truth: `codebase/backend/src/nodes/logic/variable-modification/variable-modification.schema.ts` (export `variableModificationNodeConfigSchema`). UI 메타데이터 / warningRules / `validateVariableModificationConfig` 는 frontend canvas 와 backend `handler.validate` 가 공유하는 SSOT.
 
 ## 2. 설정 UI
 
@@ -76,7 +76,7 @@
 ## 4. 실행 로직
 
 1. `validate` — schema warningRules + `validateVariableModificationConfig` 가 `modifications` 비어 있음 / 첫 항목 변수 누락 / 항목별 `variable` 미지정 / `operation` 화이트리스트 미일치를 검사. 핸들러는 `modifications` 가 배열이 아닌 경우만 추가로 reject (Pre-flight throw, CONVENTIONS Principle 3.1).
-2. `modifications[]` 를 순서대로 순회하며 [`applyModification`](../../../backend/src/nodes/logic/variable-modification/variable-modification.handler.ts) 호출:
+2. `modifications[]` 를 순서대로 순회하며 [`applyModification`](../../../codebase/backend/src/nodes/logic/variable-modification/variable-modification.handler.ts) 호출:
    - 현재 값 (`context.variables[mod.variable]`) 조회
    - `mod.operation` 에 따라 §1.2 표 동작 적용. 비-매칭 타입은 fallback 적용 (silent coercion)
    - 결과를 `context.variables[mod.variable]` 에 저장 (`push` / `pop` 은 in-place mutation)
@@ -114,10 +114,10 @@
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.modifications` | ModDef[] | config echo (Principle 7) | 사용자가 입력한 raw 수정 목록 — `value` 의 `{{ }}` 표현식은 평가 전 형태로 보존 (`backend/src/nodes/logic/variable-modification/variable-modification.handler.ts` 가 `context.rawConfig.modifications` 를 echo) |
+| `config.modifications` | ModDef[] | config echo (Principle 7) | 사용자가 입력한 raw 수정 목록 — `value` 의 `{{ }}` 표현식은 평가 전 형태로 보존 (`codebase/backend/src/nodes/logic/variable-modification/variable-modification.handler.ts` 가 `context.rawConfig.modifications` 를 echo) |
 | `output` | (input 전체) | runtime — pass-through | input 데이터 그대로 (변형 없음). side-effect 는 `context.variables` 로만 발생 |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms). 모든 노드 공통 |
-| `meta.modifications` | `Array<{ variable: string, operation: string, applied: boolean, before?: unknown, after?: unknown }>` | handler | 적용된 modification 목록. `variable` 누락이나 `pop` on non-array 등 no-op 인 경우 `applied=false` (CONVENTIONS Principle 2 — 실행 메트릭). `config.recordValues=true` 일 때만 `before`/`after` 가 추가되며, 다음 마스킹 정책이 적용된다 (`backend/src/nodes/logic/_shared/value-masking.util.ts`): (1) 변수명이 secret 패턴 (`password`/`token`/`apiKey` 등) 매칭 시 `'***'`, (2) JSON 직렬화 4096 byte 초과 시 `'[truncated:N bytes]'`, (3) 함수/심볼은 `'[unsupported:...]'`, (4) 그 외 primitive·소형 컬렉션은 deep-clone 으로 보존 (이후 mutation 무관). default `false` |
+| `meta.modifications` | `Array<{ variable: string, operation: string, applied: boolean, before?: unknown, after?: unknown }>` | handler | 적용된 modification 목록. `variable` 누락이나 `pop` on non-array 등 no-op 인 경우 `applied=false` (CONVENTIONS Principle 2 — 실행 메트릭). `config.recordValues=true` 일 때만 `before`/`after` 가 추가되며, 다음 마스킹 정책이 적용된다 (`codebase/backend/src/nodes/logic/_shared/value-masking.util.ts`): (1) 변수명이 secret 패턴 (`password`/`token`/`apiKey` 등) 매칭 시 `'***'`, (2) JSON 직렬화 4096 byte 초과 시 `'[truncated:N bytes]'`, (3) 함수/심볼은 `'[unsupported:...]'`, (4) 그 외 primitive·소형 컬렉션은 deep-clone 으로 보존 (이후 mutation 무관). default `false` |
 | `meta.coercionWarnings` | `Array<{ variable: string, operation: string, fromType: string, error?: string }>` | handler | 비-매칭 타입 fallback (`increment` on non-number → `0`, `append` on non-string → `''`, `push` / `pop` on non-array) 이 발생한 항목. 변수 미존재 (initial create) 는 경고 대상이 아니다 |
 | `meta.createdVariables` | `string[]` | handler | 본 modification 에서 선언 없이 처음 생성된 변수 이름 (사용자 오탈자 감지) |
 | `port` | (생략) | — | 단일 출력 노드이므로 `undefined` (CONVENTIONS Principle 5) |

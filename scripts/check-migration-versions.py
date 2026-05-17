@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-MIGRATIONS_DIR = Path("backend") / "migrations"
+MIGRATIONS_DIR = Path("codebase") / "backend" / "migrations"
 SQL_RE = re.compile(r"^V(?P<num>\d+)__(?P<name>[A-Za-z0-9_]+)\.sql$")
 CONF_RE = re.compile(r"^V(?P<num>\d+)__(?P<name>[A-Za-z0-9_]+)\.conf$")
 
@@ -60,7 +60,7 @@ def run_git(args: list[str], cwd: Path) -> str:
 
 
 def list_local_files(root: Path) -> list[str]:
-    """현재 worktree 의 backend/migrations 파일 목록 (basename)."""
+    """현재 worktree 의 codebase/backend/migrations 파일 목록 (basename)."""
     target = root / MIGRATIONS_DIR
     if not target.is_dir():
         return []
@@ -68,7 +68,7 @@ def list_local_files(root: Path) -> list[str]:
 
 
 def list_base_files(root: Path, base_ref: str) -> tuple[list[str], str]:
-    """비교 기준 ref (보통 main) 의 backend/migrations 파일 목록.
+    """비교 기준 ref (보통 main) 의 codebase/backend/migrations 파일 목록.
 
     merge-base 가 있으면 그 ref 의 ls-tree 를, 없으면 base_ref 자체의 ls-tree 를
     사용한다. PR open 시점에 base 가 갱신되어도 분기 시점 기준으로 비교해야
@@ -82,7 +82,7 @@ def list_base_files(root: Path, base_ref: str) -> tuple[list[str], str]:
         line = line.strip()
         if not line:
             continue
-        # ls-tree 는 항상 backend/migrations/<name> 형태로 반환.
+        # ls-tree 는 항상 codebase/backend/migrations/<name> 형태로 반환.
         files.append(Path(line).name)
     return sorted(files), ref
 

@@ -2,7 +2,7 @@
 
 > 관련 문서: [PRD 워크플로우 에디터 §10](./_product-overview.md#10-ai-assistant-ed-ai-) · [PRD AI 플랫폼 §3.6](../4-nodes/3-ai/_product-overview.md) · [Spec 캔버스 §1 레이아웃](./0-canvas.md) · [Spec 노드 공통](./1-node-common.md) · [Spec 실행/디버깅](./3-execution.md) · [Spec LLM 클라이언트](../5-system/7-llm-client.md) · [Spec 데이터 모델 §2.20~2.21](../1-data-model.md#220-assistantsession) · [Spec WebSocket](../5-system/6-websocket-protocol.md)
 
-> **구현 상태**: ✅ 구현 완료 — backend `backend/src/modules/workflow-assistant/` (controller·session·stream service·prompts·tools·entities), frontend `frontend/src/components/editor/assistant-panel/` + `frontend/src/lib/stores/assistant-store.ts` + `assistant-editor-bridge.ts` 모두 활성. v1 범위는 §1.2 참조.
+> **구현 상태**: ✅ 구현 완료 — backend `codebase/backend/src/modules/workflow-assistant/` (controller·session·stream service·prompts·tools·entities), frontend `codebase/frontend/src/components/editor/assistant-panel/` + `codebase/frontend/src/lib/stores/assistant-store.ts` + `assistant-editor-bridge.ts` 모두 활성. v1 범위는 §1.2 참조.
 
 ---
 
@@ -618,7 +618,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | 판단 heuristic | §2.1 표를 자연어로 서술 |
 | **Active plan context** (있을 때만) | 활성 plan 이 있을 때 상단에 주입. 사용자의 원 요청·plan 제목/요약·승인 여부·step 체크박스(`[x]`/`[ ]`)·미답변 openQuestions·RULES(완료된 step 재실행 금지, 화제 전환 시 `clear_plan` 선호출, 미완 상태 `finish` 금지) 를 포함. `cleared` 상태면 섹션 생략, `completed` 상태면 한 줄 완료 요약만 유지 |
 | 노드 카탈로그 | `NodeComponentRegistry.listDefinitions()` 결과를 요약(type, category, description, 주요 config 필드, ports). `isDynamicPorts` 노드에는 `[dynamic-ports]` 마커를 붙여 "config 에 따라 실제 포트가 바뀐다" 는 맥락만 안내한다. **실제 port id 는 `add_node`/`update_node` 의 `result.ports` (§4.3.2)** 로 자동 내려오므로 `get_node_schema` 선행 호출은 거의 불필요 — 스냅샷에만 있고 이 턴에 편집하지 않은 노드에 edge 를 연결할 때만 on-demand 호출 |
-| 워크플로우 조립 규칙 | 새 노드 추가 시 데이터 경로가 `manual_trigger` 에서 시작되도록 반드시 `add_edge` 로 연결, 고립 노드 금지. **`add_edge` 의 port 값은 직전 `add_node`/`update_node` 성공 응답의 `result.ports.outputs[*].id` 를 그대로 사용** — 추측·하드코딩 금지. **`update_node` / `remove_node` / `add_edge` 의 `id` / `source_id` / `target_id` 자리에는 UUID 만 허용** — 사용자에게 보이는 node label 을 넣으면 `NODE_NOT_FOUND` 가 반환된다 (§4.4.1 label-lookalike hint 가 복구를 안내). UUID 의 유일한 출처는 직전 `add_node` 성공 응답의 `result.id` 또는 `currentWorkflow.nodes[*].id`. `openQuestions` 가 있는 plan 은 사용자 답변을 받기 전에 `finish` 호출 금지. **모든 dynamic-ports 노드의 sub-entry (`switch.cases`, `ai_agent.conditions`, `text_classifier.categories`, `carousel/table/chart/template` 의 `items[*].buttons`·`itemButtons`·`buttons`) 는 안정적·고유한 `id` 가 필수** — 누락 시 resolver 가 `case_0` · `cond_0` · `class_0` · `items_0_btn_1` 같은 index 기반 fallback id 로 포트를 발행하며 `result.ports` 에도 같은 fallback id 가 내려온다. LLM 은 그 id 를 그대로 써도 동작하지만, 추후 사용자가 label 을 수정할 때 index 가 다시 맞춰지는 위험이 있으므로 가급적 안정적인 custom id 를 지정. (`information_extractor` 는 `config.mode` 기반 시스템 포트(`completed`/`user_ended`/`max_turns`/`error` 또는 `out`/`error`)만 발행하므로 sub-entry id 가 없다.) **buttons 자동 부여 정책 (carousel/chart/table/template)**: `add_node`/`update_node` 시 button entry 의 `id` 가 비어있으면 서버 (`shadow-workflow.normalizeNodeButtonIds`) 가 `label` 을 kebab-case 로 변환해 안정적인 slug 를 부여한다 (충돌 시 `-2`/`-3` 접미사). label 이 영문/숫자가 아닌 경우만 index fallback (`btn_${i}` 등) 으로 떨어진다. **기존 id 는 항상 보존** — 사용자가 후속에 label 만 수정해도 slug 가 재생성되지 않으므로 edge 가 안전. 마이그레이션 노트: 본 정책 도입 전에 저장된 워크플로의 빈 button id 는 `backend/scripts/migrate-button-ids.ts` backfill 로 resolver fallback id 가 채워진다 — 즉 도입 시점 기준 모든 button 은 id 가 살아있다. |
+| 워크플로우 조립 규칙 | 새 노드 추가 시 데이터 경로가 `manual_trigger` 에서 시작되도록 반드시 `add_edge` 로 연결, 고립 노드 금지. **`add_edge` 의 port 값은 직전 `add_node`/`update_node` 성공 응답의 `result.ports.outputs[*].id` 를 그대로 사용** — 추측·하드코딩 금지. **`update_node` / `remove_node` / `add_edge` 의 `id` / `source_id` / `target_id` 자리에는 UUID 만 허용** — 사용자에게 보이는 node label 을 넣으면 `NODE_NOT_FOUND` 가 반환된다 (§4.4.1 label-lookalike hint 가 복구를 안내). UUID 의 유일한 출처는 직전 `add_node` 성공 응답의 `result.id` 또는 `currentWorkflow.nodes[*].id`. `openQuestions` 가 있는 plan 은 사용자 답변을 받기 전에 `finish` 호출 금지. **모든 dynamic-ports 노드의 sub-entry (`switch.cases`, `ai_agent.conditions`, `text_classifier.categories`, `carousel/table/chart/template` 의 `items[*].buttons`·`itemButtons`·`buttons`) 는 안정적·고유한 `id` 가 필수** — 누락 시 resolver 가 `case_0` · `cond_0` · `class_0` · `items_0_btn_1` 같은 index 기반 fallback id 로 포트를 발행하며 `result.ports` 에도 같은 fallback id 가 내려온다. LLM 은 그 id 를 그대로 써도 동작하지만, 추후 사용자가 label 을 수정할 때 index 가 다시 맞춰지는 위험이 있으므로 가급적 안정적인 custom id 를 지정. (`information_extractor` 는 `config.mode` 기반 시스템 포트(`completed`/`user_ended`/`max_turns`/`error` 또는 `out`/`error`)만 발행하므로 sub-entry id 가 없다.) **buttons 자동 부여 정책 (carousel/chart/table/template)**: `add_node`/`update_node` 시 button entry 의 `id` 가 비어있으면 서버 (`shadow-workflow.normalizeNodeButtonIds`) 가 `label` 을 kebab-case 로 변환해 안정적인 slug 를 부여한다 (충돌 시 `-2`/`-3` 접미사). label 이 영문/숫자가 아닌 경우만 index fallback (`btn_${i}` 등) 으로 떨어진다. **기존 id 는 항상 보존** — 사용자가 후속에 label 만 수정해도 slug 가 재생성되지 않으므로 edge 가 안전. 마이그레이션 노트: 본 정책 도입 전에 저장된 워크플로의 빈 button id 는 `codebase/backend/scripts/migrate-button-ids.ts` backfill 로 resolver fallback id 가 채워진다 — 즉 도입 시점 기준 모든 button 은 id 가 살아있다. |
 | I/O 규약 | [`CONVENTIONS.md`](../conventions/node-output.md) 의 Principle 0, 1.1, 2, 8 요약을 복사 투입 |
 | 현재 워크플로우 | `currentWorkflow` 요약 JSON. 섹션 앞에 "authoritative snapshot" 지침을 동반 — 단순 조회는 프롬프트에서 직접 답하고, 편집 이후 재확인에만 `get_current_workflow` 호출 |
 | 레이아웃 지침 | 스냅샷의 노드별 측정값(`width`/`height`, px) 이 있으면 그것을 기준으로 `x = predecessor.x + (predecessor.width ?? 250) + 32` 배치. 분기 시 y offset 은 `max(predecessor.height ?? 80, 80) + 24` 기준. 측정값이 없는 노드(초기 렌더 전 또는 동일 턴에 방금 추가된 노드)는 250×80 px 를 폴백으로 가정 — "발명 금지" |
@@ -820,7 +820,7 @@ _원본 메모: memory/workflow-assistant-prompt-restructure.md_
 
 ### Workflow AI Assistant 시스템 프롬프트 재구조 (2026-04-22)
 
-`backend/src/modules/workflow-assistant/prompts/system-prompt.ts` 를 5블록 구조로 재편한 작업의 핵심 결정 사항과 향후 주의점을 정리한다.
+`codebase/backend/src/modules/workflow-assistant/prompts/system-prompt.ts` 를 5블록 구조로 재편한 작업의 핵심 결정 사항과 향후 주의점을 정리한다.
 
 #### 왜 바꿨나
 
@@ -875,8 +875,8 @@ _원본 메모: memory/workflow-assistant-prompt-restructure.md_
 
 TEST WORKFLOW 중 다음 테스트가 **main 브랜치에서도 실패** 함을 확인 (git stash 로 재현):
 
-- `backend/src/modules/workflow-assistant/tools/validate-expressions.spec.ts` — "accepts optional chaining" 케이스
-- `backend/src/modules/workflow-assistant/tools/shadow-workflow.spec.ts` — "accepts add_node with optional chaining (supported syntax)"
+- `codebase/backend/src/modules/workflow-assistant/tools/validate-expressions.spec.ts` — "accepts optional chaining" 케이스
+- `codebase/backend/src/modules/workflow-assistant/tools/shadow-workflow.spec.ts` — "accepts add_node with optional chaining (supported syntax)"
 
 원인은 `@workflow/expression-engine` 패키지의 optional chaining 파서가 한글 키 인덱싱(`$node["1depth 음식 종류"]?.output?.interaction?.data.field`)을 거부하는 것으로 보인다. 최근 커밋 `6f6cfe1 표현식에 ? 지원` 에서 도입하려던 수정이 불완전한 듯하다.
 
@@ -975,7 +975,7 @@ Non-blocking:
 
 ##### Port 해석 (resolve-dynamic-ports.ts)
 
-`frontend/src/lib/node-definitions/resolve-dynamic-ports.ts` 의 로직을 backend 로 포팅한 `tools/resolve-dynamic-ports.ts` 가 SSOT. 6 종 `DynamicPortsSpec` (switch-cases, classifier-categories, ai-agent-conditional, info-extractor-mode, presentation-buttons, parallel-branches) 를 전부 지원. 반환 구조에 `isUserConfigured: boolean` 추가 — strong (user-authored) vs weak (framework-synthesized) 구분이 DANGLING_OUTPUT_PORTS 의 핵심 필터. Frontend 사본과 드리프트하지 않도록 `resolve-dynamic-ports.spec.ts` 에 kind 별 시나리오 미러 (16 테스트).
+`codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts` 의 로직을 backend 로 포팅한 `tools/resolve-dynamic-ports.ts` 가 SSOT. 6 종 `DynamicPortsSpec` (switch-cases, classifier-categories, ai-agent-conditional, info-extractor-mode, presentation-buttons, parallel-branches) 를 전부 지원. 반환 구조에 `isUserConfigured: boolean` 추가 — strong (user-authored) vs weak (framework-synthesized) 구분이 DANGLING_OUTPUT_PORTS 의 핵심 필터. Frontend 사본과 드리프트하지 않도록 `resolve-dynamic-ports.spec.ts` 에 kind 별 시나리오 미러 (16 테스트).
 
 ##### 프롬프트 인젝션 방어
 
@@ -1195,7 +1195,7 @@ plan-only 턴에서 plan card 와 함께 "계획대로 진행해 주세요." sys
 인식. 사용자 피드백: 버튼이 이미 있으므로 hint 는 불필요.
 
 ##### 대응
-`frontend/src/lib/stores/assistant-store.ts` 의 done 이벤트 systemHint 분기에서
+`codebase/frontend/src/lib/stores/assistant-store.ts` 의 done 이벤트 systemHint 분기에서
 `planApproveConfirm` 주입 조건을 제거. `turnStalledHint` / `turnCompletedHint` 만
 유지. i18n 문자열 자체는 `approveActivePlan` 이 user 메시지로 전송할 때 사용하므로
 유지.
@@ -1485,7 +1485,7 @@ ExecutionDetailsResponse {
    c. 그렇지 않으면 `execution.parentExecutionId` 가 가리키는 부모를 한 번 조회해 `parent.workflowId === session.workflowId` 면 통과.
    d. 둘 다 아니면 `EXECUTION_NOT_IN_SCOPE`. (workspace 경계 체크는 `execution.workflow.workspaceId === session.workspaceId` 로 별도 수행 → 없으면 `EXECUTION_NOT_FOUND` 와 동일 취급으로 information leak 방지.)
 3. **sub-workflow 확장.** 통과한 `execution` 에 대해 `executions.repo.find({ where: { parentExecutionId: execution.id } })` 로 직계 자식 목록을 조회, 각각에 대해 `findById` 를 불러 `subExecutions` 채움. 2-depth 이상은 자식 실행의 `subExecutions` 를 채우지 않고 `subExecutionsTruncatedDepth: 1` 를 세팅. 자식 실행의 `nodeExecutions.length > 0` 이면 이미 내부에 sub-workflow 가 존재한다는 힌트 — `subExecutionsTruncatedDepth` 는 자식 한 건이라도 2-depth 자손이 있으면 발행.
-4. **마스킹 구현.** `backend/src/common/utils/mask-sensitive-fields.util.ts` 재사용. 응답 직렬화 직전에 `inputData`/`outputData`/`error` 필드를 각각 한 번씩 통과시킴. 원본 DB row 는 건드리지 않음.
+4. **마스킹 구현.** `codebase/backend/src/common/utils/mask-sensitive-fields.util.ts` 재사용. 응답 직렬화 직전에 `inputData`/`outputData`/`error` 필드를 각각 한 번씩 통과시킴. 원본 DB row 는 건드리지 않음.
 5. **tool kind 분류.** `tool-definitions.ts:15-30` 의 `TOOL_KIND_BY_NAME` 에 두 이름을 `'explore'` 로 추가.
 6. **dispatch 추가.** `workflow-assistant-stream.service.ts` 의 `handleExploreCall()` switch 에 두 case 추가.
 7. **시스템 프롬프트 갱신.** `system-prompt.ts` 에 "실행 이슈 진단 패턴" 한 단락(2-step: list → detail) 추가. 스펙 §8 에 이미 해당 행 추가됨 — 프롬프트 구현은 그 내용을 옮기기만 하면 됨.

@@ -22,7 +22,7 @@ owner: developer (다음 진입자)
   - 재인증 단축 링크 버튼 (Cafe24 통합으로 deep-link)
   - 알림 메시지의 한·영 i18n 키 (`notifications.types.integration_action_required.*`)
   - 알림 inbox 의 type 필터 옵션 추가
-- **영향 범위**: `frontend/src/components/notifications/*`, `frontend/src/lib/i18n/dict/{ko,en}.ts`
+- **영향 범위**: `codebase/frontend/src/components/notifications/*`, `codebase/frontend/src/lib/i18n/dict/{ko,en}.ts`
 
 ### B-5-8 alt — handleCallback / BullMQ refresh unit·integration 보강
 
@@ -34,7 +34,7 @@ owner: developer (다음 진입자)
   - (c) BullMQ refresh 성공 → atomic 4-field UPDATE
   - (d) refresh `invalid_grant` → status 전이 + 14일 idle 보호 회귀
   - (e) refresh transport 3연속 실패 → `error(network)`
-- **영향 범위**: `backend/src/modules/integrations/cafe24/**.spec.ts`
+- **영향 범위**: `codebase/backend/src/modules/integrations/cafe24/**.spec.ts`
 
 ### Polish-followup 잔여 (PR #18–#21 cycle)
 

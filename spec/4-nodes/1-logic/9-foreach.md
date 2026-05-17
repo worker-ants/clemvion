@@ -15,7 +15,7 @@
 | arrayField | Expression | ✓ | `''` | 대상 배열 필드 경로. **dot-path 문자열**(`"items"`)이면 `$input` 에 적용, **inline 표현식**(`{{ $var.a }}`)이면 resolver 가 치환한 값을 직접 사용 |
 | errorPolicy | `stop` / `skip` / `continue` | | `stop` | 에러 정책. [공통 §4](./0-common.md#4-에러-정책-errorpolicy) |
 
-> Source of truth: `backend/src/nodes/logic/foreach/foreach.schema.ts` (export `foreachNodeConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/logic/foreach/foreach.schema.ts` (export `foreachNodeConfigSchema`)
 
 빈/null 입력 fallback: `arrayField` 해석 결과가 배열이 아니면 `[]` 로 처리 (CONVENTIONS Principle 10).
 
@@ -60,7 +60,7 @@
 
 ## 4. 실행 로직
 
-1. `arrayField` 로 배열 추출 ([`resolveFieldValue`](../../../backend/src/nodes/core/nested-value.util.ts)). dot-path 문자열이면 `$input` 에 적용, inline 표현식이면 resolver 가 치환한 값을 직접 사용. 배열이 아니거나 경로 미존재 시 `[]` 로 fallback (Principle 10).
+1. `arrayField` 로 배열 추출 ([`resolveFieldValue`](../../../codebase/backend/src/nodes/core/nested-value.util.ts)). dot-path 문자열이면 `$input` 에 적용, inline 표현식이면 resolver 가 치환한 값을 직접 사용. 배열이 아니거나 경로 미존재 시 `[]` 로 fallback (Principle 10).
 2. 핸들러는 §5.1 형태로 `output: items[]` 를 반환 → 엔진이 각 item 을 body iteration 입력으로 분배 (Principle 9.1).
 3. 각 항목에 대해 엔진이:
    - `$item` / `$itemIndex` 를 바인딩하고 body 서브그래프를 토폴로지 순서로 실행.

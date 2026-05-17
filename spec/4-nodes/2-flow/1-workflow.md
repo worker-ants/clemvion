@@ -23,7 +23,7 @@
 | paramName | string | 서브 워크플로우 입력 키 이름 (handler 가 읽는 키) |
 | expression | unknown | 매핑할 값의 expression 또는 리터럴 (engine 이 평가 후 핸들러에 전달) |
 
-> Source of truth: `backend/src/nodes/flow/workflow/workflow.schema.ts` (export `workflowNodeConfigSchema`). 스키마 / 핸들러 모두 `paramName` / `expression` 을 사용한다.
+> Source of truth: `codebase/backend/src/nodes/flow/workflow/workflow.schema.ts` (export `workflowNodeConfigSchema`). 스키마 / 핸들러 모두 `paramName` / `expression` 을 사용한다.
 
 ## 2. 설정 UI
 

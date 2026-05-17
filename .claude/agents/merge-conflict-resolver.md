@@ -16,7 +16,7 @@ model: sonnet
   - base / ours / theirs 각각의 hunk (또는 conflict 마커가 박힌 파일 전체)
   - 각 변경의 branch 식별자 (`ours_branch=...`, `theirs_branch=...`)
   - 통합 base sha
-  - 영향 영역 분류 (frontend/backend/spec/plan 등)
+  - 영향 영역 분류 (codebase/frontend/backend/spec/plan 등)
 - `output_file=<...>` — 본인이 작성할 **patch 파일 (unified diff)** 또는 fatal 사유 markdown 의 절대경로. 호출자가 사용자 confirm 후 `git apply <output_file>` 으로 적용할 수 있도록 한다.
 
 수행 절차:

@@ -8,7 +8,7 @@
 #
 #   1. sanity         — main 의 V번호 dup/gap/단조성/.conf 페어 전수검사.
 #                       위반 시 워크플로 fail 로 Actions 탭에 빨간불.
-#   2. nudge-open-prs — 열린 PR 중 backend/migrations/ 를 건드린 PR 에
+#   2. nudge-open-prs — 열린 PR 중 codebase/backend/migrations/ 를 건드린 PR 에
 #                       "rebase + CI 재실행 필요" 코멘트 자동 게시.
 #
 # 정책 본문은 spec/conventions/migrations.md §6.2 / §6.3 / §7 대안 4.
@@ -19,7 +19,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'backend/migrations/**'
+      - 'codebase/backend/migrations/**'
 
 permissions:
   contents: read
@@ -65,15 +65,15 @@ jobs:
           sha="${{ github.sha }}"
           short_sha="${sha:0:7}"
 
-          # 열린 PR 중 backend/migrations/ 하위 파일이 하나라도 포함된 PR 만 추출.
+          # 열린 PR 중 codebase/backend/migrations/ 하위 파일이 하나라도 포함된 PR 만 추출.
           # gh pr list --json files 는 PR 별 변경 파일 목록을 반환한다.
           mapfile -t prs < <(
             gh pr list --repo "$repo" --state open --json number,files \
-              --jq '.[] | select([.files[].path | startswith("backend/migrations/")] | any) | .number'
+              --jq '.[] | select([.files[].path | startswith("codebase/backend/migrations/")] | any) | .number'
           )
 
           if [ "${#prs[@]}" -eq 0 ]; then
-            echo "No open PRs touch backend/migrations/ — skipping nudge."
+            echo "No open PRs touch codebase/backend/migrations/ — skipping nudge."
             exit 0
           fi
 

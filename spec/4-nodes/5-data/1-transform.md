@@ -19,7 +19,7 @@
 - `math_op.operand` — 숫자 표현식
 - 기타 operation 의 `args` 내부 문자열 필드
 
-> Source of truth: `backend/src/nodes/data/transform/transform.schema.ts` (export `transformNodeConfigSchema`, `validateTransformConfig`)
+> Source of truth: `codebase/backend/src/nodes/data/transform/transform.schema.ts` (export `transformNodeConfigSchema`, `validateTransformConfig`)
 
 ### 1.1 Operation 정의
 

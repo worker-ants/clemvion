@@ -89,9 +89,9 @@ flowchart LR
 
 | 항목 | 사실 |
 | --- | --- |
-| Primary DB | PostgreSQL (`pgvector/pgvector:pg18`), TypeORM 매핑. 마이그레이션은 Flyway (`backend/migrations/V*.sql`). |
+| Primary DB | PostgreSQL (`pgvector/pgvector:pg18`), TypeORM 매핑. 마이그레이션은 Flyway (`codebase/backend/migrations/V*.sql`). |
 | Queue | Redis 7 + BullMQ. 현재 등록된 큐: `background-execution`, `document-embedding`, `graph-extraction`, `schedule-execution`, `alerts-evaluator`, `integration-expiry`. |
-| Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 (`backend/src/modules/knowledge-base/knowledge-base.service.ts:723`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
+| Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 (`codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:723`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
 | WebSocket | Socket.io. 실행 상태·KB 진행률·AI Assistant 스트리밍 emit. 단일 sink (`WebsocketService`). |
 | Auth | JWT access + rotated refresh (`refresh_token` table). Bearer 또는 cookie. |
 
@@ -143,8 +143,8 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 - **Redis**: BullMQ 큐 이름·repeat job key·캐시 key 패턴
 - **S3**: bucket·prefix·key 패턴
 
-컬럼명·타입·제약조건은 항상 `backend/src/modules/<domain>/entities/*.entity.ts` 또는
-`backend/migrations/V*.sql` 에서 직접 인용한다. 두 소스가 충돌하면 **migration 이 진실** 이다.
+컬럼명·타입·제약조건은 항상 `codebase/backend/src/modules/<domain>/entities/*.entity.ts` 또는
+`codebase/backend/migrations/V*.sql` 에서 직접 인용한다. 두 소스가 충돌하면 **migration 이 진실** 이다.
 
 ### 3.4 상태 전이 / 흐름 단계
 

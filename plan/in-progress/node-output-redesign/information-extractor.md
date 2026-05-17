@@ -161,7 +161,7 @@ Information Extractor 는 ai_agent 와 매우 유사한 구조 (single/multi tur
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/ai/information-extractor/{information-extractor.handler.ts, information-extractor.schema.ts, information-extractor.handler.spec.ts, information-extractor.schema.spec.ts, information-extractor.thread.spec.ts, information-extractor.component.ts}`.
+대상 파일: `codebase/backend/src/nodes/ai/information-extractor/{information-extractor.handler.ts, information-extractor.schema.ts, information-extractor.handler.spec.ts, information-extractor.schema.spec.ts, information-extractor.thread.spec.ts, information-extractor.component.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - single-turn 정상 (`out`) — `information-extractor.handler.ts:270-291` 의 return `{ config: configEcho, output: { result: { extracted, endReason:'out', turnCount:1, originalInput } }, meta: {...}, port:'out', status:'ended' }` 가 spec §5.1 과 일치.

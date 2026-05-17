@@ -21,7 +21,7 @@ dist/
 __pycache__/
 *.pyc
 
-# Playwright run artifacts (root 로 떨어진 trace/screenshot — frontend/.gitignore
+# Playwright run artifacts (root 로 떨어진 trace/screenshot — codebase/frontend/.gitignore
 # 의 test-results/ 와 별개. playwright 가 cwd 에 따라 root 에 만드는 케이스 대비)
 test-results/
 

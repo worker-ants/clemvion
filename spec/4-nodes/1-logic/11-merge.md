@@ -19,7 +19,7 @@
 | timeout | Integer (≥ 0) | | `300` | 입력 대기 타임아웃 (초). `0 = no timeout`. **P1 dormant** |
 | partialOnTimeout | Boolean | | `false` | 타임아웃 시 부분 병합 수행 여부. **P1 dormant** |
 
-> Source of truth: `backend/src/nodes/logic/merge/merge.schema.ts` (export `mergeNodeConfigSchema`).
+> Source of truth: `codebase/backend/src/nodes/logic/merge/merge.schema.ts` (export `mergeNodeConfigSchema`).
 
 ### 1.1 병합 전략 (`strategy`)
 

@@ -14,9 +14,9 @@ JavaScript 코드를 작성하여 자유로운 데이터 처리를 수행한다.
 | code | String | ✓ | `''` | 실행할 코드 본문. `return` 문으로 출력값을 반환 |
 | timeout | Number | | `30` | 실행 타임아웃 (초). 1~120초 범위 |
 
-표현식(`{{ }}`) 은 `code` 본문에서 **사용하지 않는다** — 입력 데이터는 코드 내부에서 `$input` / `$vars` 변수로 직접 참조한다 (Data 공통 §1). 핸들러는 `code` 를 [`expression-exclusions`](../../../backend/src/modules/execution-engine/expression/expression-exclusions.ts) 에 의해 평가 없이 그대로 받는다.
+표현식(`{{ }}`) 은 `code` 본문에서 **사용하지 않는다** — 입력 데이터는 코드 내부에서 `$input` / `$vars` 변수로 직접 참조한다 (Data 공통 §1). 핸들러는 `code` 를 [`expression-exclusions`](../../../codebase/backend/src/modules/execution-engine/expression/expression-exclusions.ts) 에 의해 평가 없이 그대로 받는다.
 
-> Source of truth: `backend/src/nodes/data/code/code.schema.ts` (export `codeNodeConfigSchema`, `codeNodeMetadata`)
+> Source of truth: `codebase/backend/src/nodes/data/code/code.schema.ts` (export `codeNodeConfigSchema`, `codeNodeMetadata`)
 
 ## 2. 설정 UI — 코드 에디터
 

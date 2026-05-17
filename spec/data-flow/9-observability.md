@@ -20,11 +20,11 @@
 
 코드 진입점:
 
-- `backend/src/modules/health/health.service.ts` — DB · Redis · S3 ping
-- `backend/src/modules/dashboard/dashboard.service.ts` — KPI 계산
-- `backend/src/modules/statistics/statistics.service.ts` — 시계열 집계
-- `backend/src/modules/alerts/alerts-evaluator.service.ts` — `ALERTS_EVALUATOR_QUEUE` cron + processor
-- `backend/src/modules/alerts/alerts.service.ts` — alert_rule CRUD
+- `codebase/backend/src/modules/health/health.service.ts` — DB · Redis · S3 ping
+- `codebase/backend/src/modules/dashboard/dashboard.service.ts` — KPI 계산
+- `codebase/backend/src/modules/statistics/statistics.service.ts` — 시계열 집계
+- `codebase/backend/src/modules/alerts/alerts-evaluator.service.ts` — `ALERTS_EVALUATOR_QUEUE` cron + processor
+- `codebase/backend/src/modules/alerts/alerts.service.ts` — alert_rule CRUD
 
 ---
 

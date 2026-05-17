@@ -8,7 +8,7 @@ metadata:
 data:
   NODE_ENV: "production"
   APP_PORT: "3011"
-  # 환경별 overlay에서 patch (frontend/backend host 분리)
+  # 환경별 overlay에서 patch (codebase/frontend/backend host 분리)
   APP_URL: "https://api.example.com"
   FRONTEND_URL: "https://app.example.com"
 

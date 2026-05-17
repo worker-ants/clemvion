@@ -69,7 +69,7 @@
 | `waiting_for_input` | 가능 — 제출 전까지 폼을 반복 제출/수정할 수 있음 |
 | `cancelled` (외부 cancel 후 전이) | 불가 — 새 실행을 시작해야 함 |
 
-> Source of truth: `backend/src/nodes/presentation/form/form.schema.ts` (export `formNodeConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/presentation/form/form.schema.ts` (export `formNodeConfigSchema`)
 
 ## 2. 설정 UI
 

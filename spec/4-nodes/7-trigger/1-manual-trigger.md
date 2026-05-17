@@ -19,7 +19,7 @@
 > - `output.parameters` = `Record<string, unknown>` — 어댑터 입력 + `defaultValue` 병합 결과로 해석된 **런타임 값** (실행 시점에만 존재).
 > 두 필드는 echo 관계가 아니다.
 
-> Source of truth: `backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts` (export `manualTriggerConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts` (export `manualTriggerConfigSchema`)
 
 ## 2. 설정 UI
 

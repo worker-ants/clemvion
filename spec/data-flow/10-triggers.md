@@ -19,10 +19,10 @@
 
 코드 진입점:
 
-- `backend/src/modules/triggers/triggers.service.ts` — Trigger CRUD
-- `backend/src/modules/schedules/schedules.service.ts` — Schedule CRUD
-- `backend/src/modules/schedules/schedule-runner.service.ts` — `SCHEDULE_QUEUE = 'schedule-execution'` producer + processor
-- `backend/src/modules/hooks/hooks.controller.ts` — `/api/webhooks/:path` 진입
+- `codebase/backend/src/modules/triggers/triggers.service.ts` — Trigger CRUD
+- `codebase/backend/src/modules/schedules/schedules.service.ts` — Schedule CRUD
+- `codebase/backend/src/modules/schedules/schedule-runner.service.ts` — `SCHEDULE_QUEUE = 'schedule-execution'` producer + processor
+- `codebase/backend/src/modules/hooks/hooks.controller.ts` — `/api/webhooks/:path` 진입
 
 ---
 

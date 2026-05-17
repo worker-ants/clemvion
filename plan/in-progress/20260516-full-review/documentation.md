@@ -23,7 +23,7 @@
 
 ### 2. README FRONTEND_URL 포트 불일치
 
-- **[CRITICAL]** README 내 `backend/.env` 예시(line 183)에 `FRONTEND_URL=http://localhost:3000`으로 명시되어 있으나, 동일 파일 하단 Google OAuth 설정 섹션(line 356)에 `FRONTEND_URL=http://localhost:3002`가 병기되어 있고 주석마저 "기본값이 3002라서 실제 포트와 일치하는지 확인"이라고 안내함. 실제 docker-compose.yml 상 frontend 컨테이너 포트는 3012이며, README 아키텍처 서술(line 217)은 `http://localhost:3000`을 정식 주소로 명기함.
+- **[CRITICAL]** README 내 `codebase/backend/.env` 예시(line 183)에 `FRONTEND_URL=http://localhost:3000`으로 명시되어 있으나, 동일 파일 하단 Google OAuth 설정 섹션(line 356)에 `FRONTEND_URL=http://localhost:3002`가 병기되어 있고 주석마저 "기본값이 3002라서 실제 포트와 일치하는지 확인"이라고 안내함. 실제 docker-compose.yml 상 frontend 컨테이너 포트는 3012이며, README 아키텍처 서술(line 217)은 `http://localhost:3000`을 정식 주소로 명기함.
   - 위치: `README.md:183, 217, 354-357` / `docker-compose.yml:176`
   - 상세: 세 가지 포트(3000, 3002, 3012)가 공존하는 혼란 상태. 개발자가 OAuth redirect URI 를 잘못 등록할 위험.
   - 제안: 사용 환경(host dev vs. docker fullstack)별 정확한 포트를 명확히 구분해 기재. docker fullstack 모드는 3012, host dev 는 3000 으로 통일 안내.
@@ -41,17 +41,17 @@
 
 ### 4. README 환경변수 템플릿에서 `INTEGRATION_ENCRYPTION_KEY` 누락
 
-- **[WARNING]** `README.md` 의 `backend/.env` 예시 블록(line 155–196)에는 `ENCRYPTION_KEY` 만 있고 `INTEGRATION_ENCRYPTION_KEY` 가 없음. 그러나 동일 README의 k8s 런타임 환경변수 안내(line 309)에는 `INTEGRATION_ENCRYPTION_KEY`가 명시되어 있음. backend 코드에서도 실제로 사용됨(`credentials-transformer.spec.ts` 참조).
+- **[WARNING]** `README.md` 의 `codebase/backend/.env` 예시 블록(line 155–196)에는 `ENCRYPTION_KEY` 만 있고 `INTEGRATION_ENCRYPTION_KEY` 가 없음. 그러나 동일 README의 k8s 런타임 환경변수 안내(line 309)에는 `INTEGRATION_ENCRYPTION_KEY`가 명시되어 있음. backend 코드에서도 실제로 사용됨(`credentials-transformer.spec.ts` 참조).
   - 위치: `README.md:155-196` (env 템플릿 블록)
   - 상세: 신규 개발자가 `.env` 설정 시 `INTEGRATION_ENCRYPTION_KEY`를 누락할 수 있어 통합 자격증명 암호화 실패가 런타임에 발생.
-  - 제안: `backend/.env` 예시에 `INTEGRATION_ENCRYPTION_KEY=<32-byte-hex>` 항목 추가.
+  - 제안: `codebase/backend/.env` 예시에 `INTEGRATION_ENCRYPTION_KEY=<32-byte-hex>` 항목 추가.
 
 ---
 
-### 5. frontend/README.md 에 npm 전용 규약 위반 — yarn/pnpm/bun 안내
+### 5. codebase/frontend/README.md 에 npm 전용 규약 위반 — yarn/pnpm/bun 안내
 
-- **[WARNING]** `frontend/README.md:10-14` 의 Getting Started 섹션에 `yarn dev`, `pnpm dev`, `bun dev` 명령이 예시로 나열됨. 프로젝트 규약(`CLAUDE.md`)은 "npm 을 사용한다. (yarn, pnpm 등을 사용하지 않는다.)"를 명시.
-  - 위치: `frontend/README.md:10-14`
+- **[WARNING]** `codebase/frontend/README.md:10-14` 의 Getting Started 섹션에 `yarn dev`, `pnpm dev`, `bun dev` 명령이 예시로 나열됨. 프로젝트 규약(`CLAUDE.md`)은 "npm 을 사용한다. (yarn, pnpm 등을 사용하지 않는다.)"를 명시.
+  - 위치: `codebase/frontend/README.md:10-14`
   - 상세: Next.js scaffold 기본 README가 그대로 남아 있어 프로젝트 규약과 불일치. 기여자 혼란 유발.
   - 제안: yarn/pnpm/bun 줄 제거, npm 단일 명령만 유지.
 
@@ -61,7 +61,7 @@
 
 - **[WARNING]** `packages/expression-engine`과 `packages/node-summary` 에 README.md 가 존재하지 않음.
   - 위치: `/Volumes/project/private/clemvion/packages/expression-engine/`, `/Volumes/project/private/clemvion/packages/node-summary/`
-  - 상세: 두 패키지는 frontend/backend 모두에서 `file:` 의존성으로 참조됨. 패키지 목적, API, 빌드 방법이 root README 와 backend README 에 산재되어 있으나 패키지 자체 README 가 없어 패키지 단독 탐색 시 컨텍스트 부재.
+  - 상세: 두 패키지는 codebase/frontend/backend 모두에서 `file:` 의존성으로 참조됨. 패키지 목적, API, 빌드 방법이 root README 와 backend README 에 산재되어 있으나 패키지 자체 README 가 없어 패키지 단독 탐색 시 컨텍스트 부재.
   - 제안: 각 패키지에 최소한의 README(목적, 빌드/사용법, export API 간략 설명) 추가.
 
 ---
@@ -102,28 +102,28 @@
 
 ---
 
-### 11. backend/README.md 의 환경변수 목록 불완전
+### 11. codebase/backend/README.md 의 환경변수 목록 불완전
 
-- **[INFO]** `backend/README.md`의 환경변수 섹션은 `DB_*`, `REDIS_*`, `JWT_*`, `S3_*`, `MAIL_*`, `ENCRYPTION_KEY` 만 나열하고 `INTEGRATION_ENCRYPTION_KEY`, `OAUTH_STUB_MODE`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CAFE24_CLIENT_ID`, `CAFE24_CLIENT_SECRET`, `APP_URL`, `FRONTEND_URL` 등 실제 필요한 환경변수 다수가 누락됨.
-  - 위치: `backend/README.md:29-35`
+- **[INFO]** `codebase/backend/README.md`의 환경변수 섹션은 `DB_*`, `REDIS_*`, `JWT_*`, `S3_*`, `MAIL_*`, `ENCRYPTION_KEY` 만 나열하고 `INTEGRATION_ENCRYPTION_KEY`, `OAUTH_STUB_MODE`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `CAFE24_CLIENT_ID`, `CAFE24_CLIENT_SECRET`, `APP_URL`, `FRONTEND_URL` 등 실제 필요한 환경변수 다수가 누락됨.
+  - 위치: `codebase/backend/README.md:29-35`
   - 상세: 간략한 README 이므로 "자세한 내용은 root README 참조" 안내를 추가하거나 root README env 섹션으로 위임하는 링크가 필요.
-  - 제안: `backend/README.md`에 root README 의 환경변수 섹션으로 링크 추가 또는 간략 목록 보완.
+  - 제안: `codebase/backend/README.md`에 root README 의 환경변수 섹션으로 링크 추가 또는 간략 목록 보완.
 
 ---
 
 ### 12. backend 핵심 서비스에 JSDoc 밀도 저조
 
-- **[INFO]** `backend/src/modules/execution-engine/execution-engine.service.ts` (4,733 라인)는 프로젝트 핵심 복잡 모듈이나 JSDoc 주석이 63개 블록에 불과하며 공개 메서드 대부분에 파라미터/반환값 설명 없음. 노드 핸들러 파일 15개(`split`, `foreach`, `merge`, `switch`, `variable-declaration`, `if-else`, `filter`, `loop`, `code`, `transform`, `form`, `chart`, `template`, `carousel`, `table`)에 JSDoc 블록 자체가 0개임.
-  - 위치: `backend/src/nodes/logic/`, `backend/src/nodes/presentation/`, `backend/src/nodes/data/`
+- **[INFO]** `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (4,733 라인)는 프로젝트 핵심 복잡 모듈이나 JSDoc 주석이 63개 블록에 불과하며 공개 메서드 대부분에 파라미터/반환값 설명 없음. 노드 핸들러 파일 15개(`split`, `foreach`, `merge`, `switch`, `variable-declaration`, `if-else`, `filter`, `loop`, `code`, `transform`, `form`, `chart`, `template`, `carousel`, `table`)에 JSDoc 블록 자체가 0개임.
+  - 위치: `codebase/backend/src/nodes/logic/`, `codebase/backend/src/nodes/presentation/`, `codebase/backend/src/nodes/data/`
   - 상세: spec/conventions/swagger.md 는 DTO JSDoc 주석 추가를 강제하지만 핸들러 함수 자체에 대한 JSDoc 규약은 명시되지 않음. 핵심 비즈니스 로직 함수에 최소한의 목적 주석 부재.
   - 제안: 최소한 핸들러의 `handle()` 메서드에 처리 개요, 특수 포트(error/done), 사이드이펙트 관련 한 줄 JSDoc 추가.
 
 ---
 
-### 13. frontend/README.md — create-next-app 보일러플레이트 잔존
+### 13. codebase/frontend/README.md — create-next-app 보일러플레이트 잔존
 
-- **[INFO]** `frontend/README.md:104-112` 의 "Learn More" 섹션에 Next.js 공식 문서 링크와 GitHub 저장소 링크가 그대로 남아 있음. 프로젝트 고유 문서로 대체되지 않음.
-  - 위치: `frontend/README.md:104-112`
+- **[INFO]** `codebase/frontend/README.md:104-112` 의 "Learn More" 섹션에 Next.js 공식 문서 링크와 GitHub 저장소 링크가 그대로 남아 있음. 프로젝트 고유 문서로 대체되지 않음.
+  - 위치: `codebase/frontend/README.md:104-112`
   - 상세: 미관상 문제이며 외부 기여자에게 "아직 설정이 안 된 프로젝트"로 오인될 수 있음.
   - 제안: 제거하거나 프로젝트 spec/docs 링크로 대체.
 
@@ -131,7 +131,7 @@
 
 ## 요약
 
-전반적으로 spec 문서는 단일 진실 원칙(single source of truth)에 맞게 잘 구조화되어 있고 docs-consolidation 전환도 대부분 완료된 상태다. 그러나 `check-doc-links.py` 검증 결과 스펙 간 내부 앵커 링크 13건이 깨져 있으며 — 특히 `spec/5-system/11-mcp-client.md` 헤딩 변경에 따른 파급이 11개 파일에 걸쳐 있어 즉각 수정이 필요하다. README 에서는 FRONTEND_URL 포트(3000/3002/3012 혼재)와 INTEGRATION_ENCRYPTION_KEY 누락이 신규 개발자·운영자 온보딩을 방해하는 실질적 오류다. 56개 spec 파일의 Rationale 섹션 부재는 장기 유지보수 비용을 높이는 구조적 gap이며, 두 내부 패키지에 README 가 없는 점도 보완이 필요하다. frontend/README.md 에 잔존하는 비-npm 패키지 관리자 안내는 프로젝트 규약과 직접 충돌한다.
+전반적으로 spec 문서는 단일 진실 원칙(single source of truth)에 맞게 잘 구조화되어 있고 docs-consolidation 전환도 대부분 완료된 상태다. 그러나 `check-doc-links.py` 검증 결과 스펙 간 내부 앵커 링크 13건이 깨져 있으며 — 특히 `spec/5-system/11-mcp-client.md` 헤딩 변경에 따른 파급이 11개 파일에 걸쳐 있어 즉각 수정이 필요하다. README 에서는 FRONTEND_URL 포트(3000/3002/3012 혼재)와 INTEGRATION_ENCRYPTION_KEY 누락이 신규 개발자·운영자 온보딩을 방해하는 실질적 오류다. 56개 spec 파일의 Rationale 섹션 부재는 장기 유지보수 비용을 높이는 구조적 gap이며, 두 내부 패키지에 README 가 없는 점도 보완이 필요하다. codebase/frontend/README.md 에 잔존하는 비-npm 패키지 관리자 안내는 프로젝트 규약과 직접 충돌한다.
 
 ## 위험도
 

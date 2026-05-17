@@ -97,7 +97,7 @@ Filter 는 **데이터 변형 + 양쪽 포트 동시 활성화 분기 노드** (
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/logic/filter/{filter.handler.ts, filter.schema.ts, filter.handler.spec.ts, filter.schema.spec.ts, filter.component.ts}` 와 `backend/src/nodes/logic/_shared/condition-eval.util.ts` (공유 condition 평가 + `MAX_REGEX_LENGTH=200`).
+대상 파일: `codebase/backend/src/nodes/logic/filter/{filter.handler.ts, filter.schema.ts, filter.handler.spec.ts, filter.schema.spec.ts, filter.component.ts}` 와 `codebase/backend/src/nodes/logic/_shared/condition-eval.util.ts` (공유 condition 평가 + `MAX_REGEX_LENGTH=200`).
 
 1. **spec §5 ↔ handler return 정합성**:
    - `filter.handler.ts:171-192` return `{ config: { inputField, conditions, combineMode, strictComparison }, output: { match, unmatched }, meta: { matchedCount, unmatchedCount, totalCount, fellBackToEmpty, invalidRegexPatterns } }` 가 spec §5.1 와 5필드/sub-key 모두 일치.

@@ -14,11 +14,11 @@
 
 코드 진입점:
 
-- `backend/src/modules/execution-engine/execution-engine.service.ts` — `execute / executeInline / executeSync / executeAsync / runExecution`
-- `backend/src/modules/execution-engine/queues/background-execution.queue.ts` — `BACKGROUND_EXECUTION_QUEUE`
-- `backend/src/modules/execution-engine/queues/background-execution.processor.ts` — 큐 consumer
-- `backend/src/modules/execution-engine/continuation/continuation-bus.service.ts` — 폼·버튼 인터랙션 깨우기 (Redis pub/sub)
-- `backend/src/modules/execution-engine/state/state-machine.ts` — Execution / NodeExecution 상태 전이
+- `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` — `execute / executeInline / executeSync / executeAsync / runExecution`
+- `codebase/backend/src/modules/execution-engine/queues/background-execution.queue.ts` — `BACKGROUND_EXECUTION_QUEUE`
+- `codebase/backend/src/modules/execution-engine/queues/background-execution.processor.ts` — 큐 consumer
+- `codebase/backend/src/modules/execution-engine/continuation/continuation-bus.service.ts` — 폼·버튼 인터랙션 깨우기 (Redis pub/sub)
+- `codebase/backend/src/modules/execution-engine/state/state-machine.ts` — Execution / NodeExecution 상태 전이
 
 ---
 

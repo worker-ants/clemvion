@@ -108,7 +108,7 @@ Code 는 사용자 정의 JS 실행 노드 (단계 1개). 정상 / 런타임 thr
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/data/code/{code.handler.ts, code.schema.ts, code.handler.spec.ts, code.schema.spec.ts, code.component.ts}`.
+대상 파일: `codebase/backend/src/nodes/data/code/{code.handler.ts, code.schema.ts, code.handler.spec.ts, code.schema.spec.ts, code.component.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - **정상 (`port: 'success'`)**: `code.handler.ts:199-208` 의 return `{ config: {code,language,timeout}, output: result, meta: {success:true, logs}, port: 'success' }` 가 spec §5.1 JSON 예시와 완전 일치.

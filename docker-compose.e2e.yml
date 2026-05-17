@@ -71,12 +71,12 @@ services:
   migrate:
     build:
       context: .
-      dockerfile: backend/migrations/Dockerfile
+      dockerfile: codebase/backend/migrations/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ./backend/migrations:/flyway/sql:ro
+      - ./codebase/backend/migrations:/flyway/sql:ro
     command:
       - migrate
       - -url=jdbc:postgresql://postgres:5432/clemvion_e2e
@@ -91,7 +91,7 @@ services:
   backend-e2e:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: codebase/backend/Dockerfile
       target: runner
     environment:
       NODE_ENV: test
@@ -143,7 +143,7 @@ services:
   backend-e2e-runner:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: codebase/backend/Dockerfile
       target: deps
     working_dir: /app/backend
     command: ["npm", "run", "test:e2e"]
@@ -158,7 +158,7 @@ services:
       # 호스트 backend 소스를 그대로 사용. node_modules 는 anonymous volume 으로
       # 가려서 deps stage 가 설치한 dev dep 가 호스트의 (잠재적으로 부재한) node_modules
       # 로 덮어씌워지지 않도록 한다.
-      - ./backend:/app/backend
+      - ./codebase/backend:/app/backend
       - /app/backend/node_modules
     depends_on:
       backend-e2e:
@@ -174,7 +174,7 @@ services:
     image: mcr.microsoft.com/playwright:v1.59.1-jammy
     working_dir: /app/frontend
     volumes:
-      - ./frontend:/app/frontend
+      - ./codebase/frontend:/app/frontend
       - /app/frontend/node_modules
     command:
       - sh

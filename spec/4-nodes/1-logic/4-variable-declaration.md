@@ -29,7 +29,7 @@
 - 문자열인데 `type='array'` / `'object'` → `JSON.parse` 시도, 실패 시 `null`
 - 변환 실패는 **silent** — 사용자 의도와 다른 저장이 일어나도 별도 에러 throw 하지 않음
 
-> Source of truth: `backend/src/nodes/logic/variable-declaration/variable-declaration.schema.ts` (export `variableDeclarationNodeConfigSchema`, `varDefSchema`) / `backend/src/modules/execution-engine/utils/coerce-type.ts`
+> Source of truth: `codebase/backend/src/nodes/logic/variable-declaration/variable-declaration.schema.ts` (export `variableDeclarationNodeConfigSchema`, `varDefSchema`) / `codebase/backend/src/modules/execution-engine/utils/coerce-type.ts`
 
 ## 2. 설정 UI
 
