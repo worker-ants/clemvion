@@ -180,6 +180,35 @@ describe('Cafe24 install endpoint (e2e)', () => {
       );
     });
 
+    // W-38 — App URL spec §header 의 rejection paths 표에 "mall_id 불일치
+    // (row recovery fall-through 후에도) → 403" 케이스가 명시됐으나 e2e 누락.
+    // install_token 으로 찾은 row 의 mall_id 와 query 의 mall_id 가 다르면
+    // (intruder 가 자기 mall 로 다른 사람의 install_token 을 들고 와도)
+    // HMAC 메시지 안에 mall_id 가 포함돼 검증이 실패한다. spec 표기와 실제
+    // 동작이 일치함을 회귀로 박제.
+    it('mall_id mismatch with install_token row → 403 CAFE24_INSTALL_INVALID_HMAC', async () => {
+      const rowMallId = 'mall-' + randomBytes(4).toString('hex');
+      const installToken = makeInstallToken();
+      await insertPendingInstall({ mallId: rowMallId, installToken });
+
+      // 공격 시나리오: install_token 은 정상이지만 query 의 mall_id 가 row
+      // 와 다르다. attacker 는 row 의 client_secret 을 모르므로 정확한 HMAC
+      // 을 만들 수 없지만, 설령 자신의 secret 으로 HMAC 을 만들어도 거부됨.
+      const intruderMallId = 'mall-' + randomBytes(4).toString('hex');
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const base = `mall_id=${intruderMallId}&timestamp=${ts}&user_id=admin`;
+      const hmac = computeHmac(buildHmacMessage(base), clientSecret);
+      const rawQuery = `${base}&hmac=${encodeURIComponent(hmac)}`;
+
+      const res = await request(BASE_URL)
+        .get(`/api/3rd-party/cafe24/install/${installToken}`)
+        .query(rawQuery);
+      expect(res.status).toBe(403);
+      expect(res.body?.code ?? res.body?.error?.code).toBe(
+        'CAFE24_INSTALL_INVALID_HMAC',
+      );
+    });
+
     it('install_token not found → 404 CAFE24_INSTALL_INVALID_TOKEN', async () => {
       const nonExistentToken = makeInstallToken();
       const ts = Math.floor(Date.now() / 1000).toString();

@@ -97,4 +97,31 @@ describe('Cafe24InstallNonceCache', () => {
     await cache.close();
     expect(redis.quit).toHaveBeenCalled();
   });
+
+  // W-39 — HMAC prefix(8자) 만으로 키를 만들기 때문에, 첫 8자가 동일하고
+  // 나머지가 다른 두 HMAC 은 동일 nonce key 로 합쳐진다. 즉 두 번째 호출이
+  // 실제론 다른 HMAC 임에도 replay 로 마킹된다. 이건 의도된 trade-off
+  // (충돌 확률 64^8 = 2.8e14 로 사실상 무시 가능) 이지만, 그 trade-off 가
+  // 변동 없이 유지된다는 invariant 를 회귀로 박제한다 — 누군가 prefix 길이
+  // 를 손대거나 키 전략을 바꾸면 본 테스트가 명시적 신호를 준다.
+  it('HMAC prefix collision: same first-8-chars maps to same nonce key (documented trade-off)', async () => {
+    redis.set.mockResolvedValueOnce('OK').mockResolvedValueOnce(null);
+    const first = await cache.isReplay({
+      mallId: 'myshop',
+      timestamp: '1700000000',
+      hmac: 'AAAA1234-payload-one',
+    });
+    const second = await cache.isReplay({
+      mallId: 'myshop',
+      timestamp: '1700000000',
+      hmac: 'AAAA1234-payload-two-DIFFERENT',
+    });
+
+    expect(first).toBe(false);
+    expect(second).toBe(true);
+
+    const keys = redis.set.mock.calls.map((c) => c[0] as string);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[0]).toContain(':AAAA1234');
+  });
 });

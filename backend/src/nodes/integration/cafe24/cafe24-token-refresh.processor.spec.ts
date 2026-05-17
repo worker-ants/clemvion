@@ -4,11 +4,18 @@ import type { Job } from 'bullmq';
 import type { Cafe24RefreshJobData } from '../../../modules/integrations/cafe24-token-refresh.constants';
 
 describe('Cafe24TokenRefreshProcessor', () => {
+  // W-40 — fake timer 로 wall clock 고정. processor 내부 `Date.now()` 와
+  // setup 의 `new Date(Date.now() - 30_000)` 사이 ms 단위 drift 가 슬로우
+  // 머신 (특히 CI) 에서 expiry 분기 결과를 흔들 수 있어 명시적으로 고정.
+  const NOW_MS = 1_700_000_000_000;
+
   let processor: Cafe24TokenRefreshProcessor;
   let integrationRepository: { findOne: jest.Mock };
   let cafe24ApiClient: { refreshAccessToken: jest.Mock };
 
   beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(NOW_MS);
     integrationRepository = { findOne: jest.fn() };
     cafe24ApiClient = {
       refreshAccessToken: jest.fn().mockResolvedValue(undefined),
@@ -17,6 +24,10 @@ describe('Cafe24TokenRefreshProcessor', () => {
       integrationRepository as never,
       cafe24ApiClient as never,
     );
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   function makeJob(data: Cafe24RefreshJobData): Job<Cafe24RefreshJobData> {
@@ -29,7 +40,7 @@ describe('Cafe24TokenRefreshProcessor', () => {
       serviceType: 'cafe24',
       status: 'connected',
       credentials: { mall_id: 'shop', refresh_token: 'r' },
-      tokenExpiresAt: new Date(Date.now() - 30_000), // 30s past expiry
+      tokenExpiresAt: new Date(NOW_MS - 30_000), // 30s past expiry
       ...overrides,
     } as Integration;
   }
@@ -45,7 +56,7 @@ describe('Cafe24TokenRefreshProcessor', () => {
   it('short-circuits when token is already fresh (race protection)', async () => {
     integrationRepository.findOne.mockResolvedValue(
       makeIntegration({
-        tokenExpiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1h future
+        tokenExpiresAt: new Date(NOW_MS + 60 * 60 * 1000), // 1h future
       }),
     );
     await processor.process(
