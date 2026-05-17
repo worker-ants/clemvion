@@ -114,77 +114,81 @@ describe('Cafe24Handler', () => {
     });
   });
 
-  describe('execute — pre-flight throws', () => {
+  describe('execute — pre-flight errors route to port:error (D4)', () => {
+    // D4 (2026-05-17) — handler.validate() 가 잡지 못한 IntegrationError 는
+    // catch + port:'error' 로 라우팅. Integration 4종 모두 동일 패턴.
+    const expectErrorOutput = (
+      result: unknown,
+      expectedCode: string,
+    ): void => {
+      const r = result as Record<string, unknown>;
+      expect(r.port).toBe('error');
+      const output = r.output as { error: { code: string } };
+      expect(output.error.code).toBe(expectedCode);
+    };
+
     it('CAFE24_UNKNOWN_OPERATION on operation not in metadata', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
-      await expect(
-        handler.execute(
-          null,
-          {
-            integrationId: 'id',
-            resource: 'product',
-            operation: 'product_does_not_exist',
-            fields: {},
-          },
-          makeContext(),
-        ),
-      ).rejects.toMatchObject({
-        code: 'CAFE24_UNKNOWN_OPERATION',
-      });
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_does_not_exist',
+          fields: {},
+        },
+        makeContext(),
+      );
+      expectErrorOutput(result, 'CAFE24_UNKNOWN_OPERATION');
     });
 
     it('CAFE24_MISSING_FIELDS when requiredFields not supplied', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
-      await expect(
-        handler.execute(
-          null,
-          {
-            integrationId: 'id',
-            resource: 'product',
-            operation: 'product_get',
-            fields: {}, // product_no missing
-          },
-          makeContext(),
-        ),
-      ).rejects.toMatchObject({
-        code: 'CAFE24_MISSING_FIELDS',
-      });
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_get',
+          fields: {}, // product_no missing
+        },
+        makeContext(),
+      );
+      expectErrorOutput(result, 'CAFE24_MISSING_FIELDS');
     });
 
     it('INTEGRATION_TYPE_MISMATCH when integration serviceType is not cafe24', async () => {
       integrationsService.getForExecution.mockResolvedValue(
         makeIntegration({ serviceType: 'mcp' }),
       );
-      await expect(
-        handler.execute(
-          null,
-          {
-            integrationId: 'id',
-            resource: 'product',
-            operation: 'product_list',
-            fields: { shop_no: 1 },
-          },
-          makeContext(),
-        ),
-      ).rejects.toMatchObject({ code: 'INTEGRATION_TYPE_MISMATCH' });
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
+        makeContext(),
+      );
+      expectErrorOutput(result, 'INTEGRATION_TYPE_MISMATCH');
     });
 
     it('INTEGRATION_NOT_CONNECTED when status !== connected', async () => {
       integrationsService.getForExecution.mockResolvedValue(
         makeIntegration({ status: 'expired' }),
       );
-      await expect(
-        handler.execute(
-          null,
-          {
-            integrationId: 'id',
-            resource: 'product',
-            operation: 'product_list',
-            fields: { shop_no: 1 },
-          },
-          makeContext(),
-        ),
-      ).rejects.toMatchObject({ code: 'INTEGRATION_NOT_CONNECTED' });
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
+        makeContext(),
+      );
+      expectErrorOutput(result, 'INTEGRATION_NOT_CONNECTED');
     });
 
     it('CAFE24_INVALID_MALL_ID when credentials.mall_id is malformed', async () => {
@@ -198,18 +202,17 @@ describe('Cafe24Handler', () => {
           },
         }),
       );
-      await expect(
-        handler.execute(
-          null,
-          {
-            integrationId: 'id',
-            resource: 'product',
-            operation: 'product_list',
-            fields: { shop_no: 1 },
-          },
-          makeContext(),
-        ),
-      ).rejects.toMatchObject({ code: 'CAFE24_INVALID_MALL_ID' });
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
+        makeContext(),
+      );
+      expectErrorOutput(result, 'CAFE24_INVALID_MALL_ID');
     });
   });
 
@@ -453,23 +456,24 @@ describe('Cafe24Handler', () => {
       expect((result.meta as Record<string, unknown>).statusCode).toBe(0);
     });
 
-    it('IntegrationError thrown by base layer is re-raised (pre-flight)', async () => {
+    it('IntegrationError from base layer routes to port:error (D4)', async () => {
       integrationsService.getForExecution.mockRejectedValue(
         new IntegrationError('INTEGRATION_NOT_FOUND', 'gone'),
       );
 
-      await expect(
-        handler.execute(
-          null,
-          {
-            integrationId: 'id',
-            resource: 'product',
-            operation: 'product_list',
-            fields: { shop_no: 1 },
-          },
-          makeContext(),
-        ),
-      ).rejects.toMatchObject({ code: 'INTEGRATION_NOT_FOUND' });
+      const result = (await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
+        makeContext(),
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const out = result.output as { error: { code: string } };
+      expect(out.error.code).toBe('INTEGRATION_NOT_FOUND');
     });
 
     // B-5-6: logUsage 가 DB 다운 등으로 실패해도 result port 는 정상.

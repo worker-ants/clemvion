@@ -101,14 +101,6 @@ export class DatabaseQueryHandler
   ): Promise<NodeHandlerOutput> {
     const integrationId = config.integrationId as string;
     const query = config.query as string;
-    const parameters = parseParameters(config.parameters);
-
-    if (!this.integrationsService) {
-      throw new IntegrationError(
-        'INTEGRATION_SERVICE_UNAVAILABLE',
-        'Database node requires an integrations service to be configured',
-      );
-    }
 
     const start = Date.now();
     // CONVENTIONS Principle 7 — config echoes raw integrationId / query /
@@ -122,31 +114,44 @@ export class DatabaseQueryHandler
       parameters: rawConfig.parameters,
     };
 
-    // Pre-flight configuration errors throw (halt workflow). Runtime
-    // execution errors route to the `error` port so authors can branch.
-    const integration = await this.resolveIntegration(
-      integrationId,
-      context,
-      'database',
-    );
-    const creds = integration.credentials as Partial<DbCredentials>;
-    const missing = missingDbFields(creds);
-    if (missing.length > 0) {
-      throw new IntegrationError(
-        'INTEGRATION_INCOMPLETE',
-        `Database integration is missing fields: ${missing.join(', ')}`,
-      );
-    }
-
-    // SSRF/DNS-rebinding guard: 사용자 제공 DB host 가 loopback/private IP 로
-    // 해석되면 차단. 정상 사용 사례 (private VPC 안 RDS) 는 환경변수
-    // ALLOW_PRIVATE_HOST_TARGETS=true 로 의식적 opt-in (W-5).
-    if (creds.host) {
-      await assertSafeOutboundHostResolved(creds.host);
-    }
-
-    const driver = creds.driver ?? 'postgres';
+    // D4 (2026-05-17, plan/in-progress/node-output-redesign) — Integration
+    // 4종 모두 send-email 의 catch-all 패턴으로 통일. handler.validate() 가
+    // 거른 config 형식 오류만 throw, 그 외 IntegrationError / parameters
+    // 파싱 실패 / resolveIntegration 실패 / SSRF guard 실패 모두 catch 후
+    // port:'error' 로 라우팅. fallback 코드는 INTEGRATION_CALL_FAILED.
+    let driver: 'postgres' | 'mysql' = 'postgres';
     try {
+      const parameters = parseParameters(config.parameters);
+
+      if (!this.integrationsService) {
+        throw new IntegrationError(
+          'INTEGRATION_SERVICE_UNAVAILABLE',
+          'Database node requires an integrations service to be configured',
+        );
+      }
+
+      const integration = await this.resolveIntegration(
+        integrationId,
+        context,
+        'database',
+      );
+      const creds = integration.credentials as Partial<DbCredentials>;
+      const missing = missingDbFields(creds);
+      if (missing.length > 0) {
+        throw new IntegrationError(
+          'INTEGRATION_INCOMPLETE',
+          `Database integration is missing fields: ${missing.join(', ')}`,
+        );
+      }
+
+      // SSRF/DNS-rebinding guard: 사용자 제공 DB host 가 loopback/private IP 로
+      // 해석되면 차단. 정상 사용 사례 (private VPC 안 RDS) 는 환경변수
+      // ALLOW_PRIVATE_HOST_TARGETS=true 로 의식적 opt-in (W-5).
+      if (creds.host) {
+        await assertSafeOutboundHostResolved(creds.host);
+      }
+
+      driver = creds.driver ?? 'postgres';
       const result =
         driver === 'mysql'
           ? await this.executeMysql(
@@ -181,11 +186,10 @@ export class DatabaseQueryHandler
         durationMs,
         error: toLogError(err),
       }).catch(() => {});
-      // `IntegrationError` branch is defensive — `resolveIntegration` /
-      // `missingDbFields` throw outside the try block, and the executors
-      // only surface driver-native errors. We keep the instanceof check
-      // so any future driver wrapper that re-raises an `IntegrationError`
-      // still routes its `code` through unchanged.
+      // D4 — IntegrationError (resolve / missingDbFields / parseParameters /
+      // SSRF guard 등) 는 그대로 code 를 surface, 그 외 (SQL throw 등) 는
+      // driver-specific mapper 로 분류. SSRF guard 의 plain Error 는
+      // mapDbError 의 fallback (`INTEGRATION_CALL_FAILED`) 로 흐른다.
       const errorEnvelope =
         err instanceof IntegrationError
           ? {

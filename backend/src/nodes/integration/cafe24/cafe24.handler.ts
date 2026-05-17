@@ -122,12 +122,6 @@ export class Cafe24Handler
       pagination: rawConfig.pagination,
     });
 
-    if (!this.apiClient) {
-      throw new Error(
-        'Cafe24ApiClient is not available in this environment — cannot dispatch',
-      );
-    }
-
     const integrationId = config.integrationId as string;
     const resource = config.resource as Cafe24Resource;
     const operationId = config.operation as string;
@@ -136,143 +130,185 @@ export class Cafe24Handler
       | { limit?: number; offset?: number; cursor?: string }
       | undefined;
 
-    // 1. Resource/operation metadata lookup — pre-flight.
-    const operation = findCafe24Operation(resource, operationId);
-    if (!operation) {
-      throw new IntegrationError(
-        'CAFE24_UNKNOWN_OPERATION',
-        `operation "${operationId}" not defined for resource "${resource}"`,
-      );
-    }
-
-    // 2. Required field check — pre-flight.
-    const missing = operation.requiredFields.filter(
-      (key) =>
-        fields[key] === undefined || fields[key] === null || fields[key] === '',
-    );
-    if (missing.length > 0) {
-      throw new IntegrationError(
-        'CAFE24_MISSING_FIELDS',
-        `missing required fields [${missing.join(', ')}] for ${resource}.${operationId}`,
-      );
-    }
-
-    // 3. Integration resolve (status='connected', serviceType='cafe24').
-    const integration = await this.resolveIntegration(
-      integrationId,
-      context,
-      'cafe24',
-    );
-
-    // 4. Credentials sanity: mall_id format. (Other field assertions happen
-    //    inside Cafe24ApiClient.)
-    const creds = (integration.credentials ?? {}) as {
-      mall_id?: string;
-    };
-    if (!creds.mall_id || !MALL_ID_PATTERN.test(creds.mall_id)) {
-      throw new IntegrationError(
-        'CAFE24_INVALID_MALL_ID',
-        `mall_id "${creds.mall_id ?? '<missing>'}" does not match /^[a-z0-9-]{3,50}$/`,
-      );
-    }
-
-    // 5. URL placeholder substitution + query/body split.
-    const { path, query, body } = this.buildRequestParts(
-      operation,
-      fields,
-      pagination,
-    );
-
-    // 6. Execute via Cafe24ApiClient (auto refresh + rate limit + mutex).
-    let result: Cafe24CallResult;
+    // D4 (2026-05-17, plan/in-progress/node-output-redesign) — Integration
+    // 4종 모두 send-email 의 catch-all 패턴으로 통일. handler.validate() 가
+    // 거른 config 형식 오류만 throw, 그 외 IntegrationError (resolve /
+    // CAFE24_UNKNOWN_OPERATION / CAFE24_MISSING_FIELDS / CAFE24_INVALID_MALL_ID
+    // / INTEGRATION_*) 와 환경 오류 (apiClient 미주입) 모두 catch + port:'error'.
+    let mallIdForErrorDetails: string | undefined;
     try {
-      result = await this.apiClient.call(integration, {
-        method: operation.method as Cafe24Method,
-        path,
-        query,
-        body,
-      });
-    } catch (err) {
-      const durationMs = Date.now() - started;
-      const errorOutput = this.mapClientErrorToOutput(
-        err,
-        creds.mall_id,
-        resource,
-        operationId,
+      if (!this.apiClient) {
+        throw new IntegrationError(
+          'INTEGRATION_SERVICE_UNAVAILABLE',
+          'Cafe24ApiClient is not available in this environment — cannot dispatch',
+        );
+      }
+
+      // 1. Resource/operation metadata lookup.
+      const operation = findCafe24Operation(resource, operationId);
+      if (!operation) {
+        throw new IntegrationError(
+          'CAFE24_UNKNOWN_OPERATION',
+          `operation "${operationId}" not defined for resource "${resource}"`,
+        );
+      }
+
+      // 2. Required field check.
+      const missing = operation.requiredFields.filter(
+        (key) =>
+          fields[key] === undefined ||
+          fields[key] === null ||
+          fields[key] === '',
       );
+      if (missing.length > 0) {
+        throw new IntegrationError(
+          'CAFE24_MISSING_FIELDS',
+          `missing required fields [${missing.join(', ')}] for ${resource}.${operationId}`,
+        );
+      }
+
+      // 3. Integration resolve (status='connected', serviceType='cafe24').
+      const integration = await this.resolveIntegration(
+        integrationId,
+        context,
+        'cafe24',
+      );
+
+      // 4. Credentials sanity: mall_id format. (Other field assertions happen
+      //    inside Cafe24ApiClient.)
+      const creds = (integration.credentials ?? {}) as {
+        mall_id?: string;
+      };
+      mallIdForErrorDetails = creds.mall_id;
+      if (!creds.mall_id || !MALL_ID_PATTERN.test(creds.mall_id)) {
+        throw new IntegrationError(
+          'CAFE24_INVALID_MALL_ID',
+          `mall_id "${creds.mall_id ?? '<missing>'}" does not match /^[a-z0-9-]{3,50}$/`,
+        );
+      }
+
+      // 5. URL placeholder substitution + query/body split.
+      const { path, query, body } = this.buildRequestParts(
+        operation,
+        fields,
+        pagination,
+      );
+
+      // 6. Execute via Cafe24ApiClient (auto refresh + rate limit + mutex).
+      let result: Cafe24CallResult;
+      try {
+        result = await this.apiClient.call(integration, {
+          method: operation.method as Cafe24Method,
+          path,
+          query,
+          body,
+        });
+      } catch (err) {
+        const durationMs = Date.now() - started;
+        const errorOutput = this.mapClientErrorToOutput(
+          err,
+          creds.mall_id,
+          resource,
+          operationId,
+        );
+        await this.logUsage(context, {
+          integrationId,
+          status: 'failed',
+          durationMs,
+          error: { code: errorOutput.code, message: errorOutput.message },
+        });
+        return {
+          config: echo,
+          output: {
+            ...(errorOutput.responseBody !== undefined
+              ? { response: errorOutput.responseBody }
+              : {}),
+            error: {
+              code: errorOutput.code,
+              message: errorOutput.message,
+              details: errorOutput.details,
+            },
+          },
+          meta: { statusCode: errorOutput.statusCode, durationMs },
+          port: 'error',
+        };
+      }
+
+      const durationMs = Date.now() - started;
+
+      // 7. HTTP-level non-2xx → translate to error envelope. 401/403 already
+      //    surfaced as Cafe24AuthFailedError inside the client; remaining 4xx/5xx
+      //    here mean the body is preserved on `output.response` (debug aid).
+      if (result.status >= 400) {
+        const code = this.codeForStatus(result.status);
+        const details: Record<string, unknown> = {
+          statusCode: result.status,
+          mallId: creds.mall_id,
+          resource,
+          operation: operationId,
+        };
+        const c24 = this.extractCafe24Error(result.body);
+        if (c24.code) details.cafe24ErrorCode = c24.code;
+        if (c24.message) details.cafe24Message = c24.message;
+
+        await this.logUsage(context, {
+          integrationId,
+          status: 'failed',
+          durationMs,
+          error: { code, message: `Cafe24 API returned ${result.status}` },
+        });
+        return {
+          config: echo,
+          output: {
+            response: result.body,
+            error: {
+              code,
+              message: `Cafe24 API returned ${result.status}`,
+              details,
+            },
+          },
+          meta: this.buildMeta(result, durationMs),
+          port: 'error',
+        };
+      }
+
+      // 8. Success.
       await this.logUsage(context, {
         integrationId,
-        status: 'failed',
+        status: 'success',
         durationMs,
-        error: { code: errorOutput.code, message: errorOutput.message },
       });
       return {
         config: echo,
-        output: {
-          ...(errorOutput.responseBody !== undefined
-            ? { response: errorOutput.responseBody }
-            : {}),
-          error: {
-            code: errorOutput.code,
-            message: errorOutput.message,
-            details: errorOutput.details,
-          },
-        },
-        meta: { statusCode: errorOutput.statusCode, durationMs },
-        port: 'error',
-      };
-    }
-
-    const durationMs = Date.now() - started;
-
-    // 7. HTTP-level non-2xx → translate to error envelope. 401/403 already
-    //    surfaced as Cafe24AuthFailedError inside the client; remaining 4xx/5xx
-    //    here mean the body is preserved on `output.response` (debug aid).
-    if (result.status >= 400) {
-      const code = this.codeForStatus(result.status);
-      const details: Record<string, unknown> = {
-        statusCode: result.status,
-        mallId: creds.mall_id,
-        resource,
-        operation: operationId,
-      };
-      const c24 = this.extractCafe24Error(result.body);
-      if (c24.code) details.cafe24ErrorCode = c24.code;
-      if (c24.message) details.cafe24Message = c24.message;
-
-      await this.logUsage(context, {
-        integrationId,
-        status: 'failed',
-        durationMs,
-        error: { code, message: `Cafe24 API returned ${result.status}` },
-      });
-      return {
-        config: echo,
-        output: {
-          response: result.body,
-          error: {
-            code,
-            message: `Cafe24 API returned ${result.status}`,
-            details,
-          },
-        },
+        output: { response: result.body },
         meta: this.buildMeta(result, durationMs),
+        port: 'success',
+      };
+    } catch (err) {
+      // D4 — pre-flight throws (CAFE24_UNKNOWN_OPERATION / CAFE24_MISSING_FIELDS
+      // / CAFE24_INVALID_MALL_ID / INTEGRATION_* / INTEGRATION_SERVICE_UNAVAILABLE)
+      // 가 모두 본 catch 로 흘러 port:'error' 로 변환된다.
+      const durationMs = Date.now() - started;
+      const code =
+        err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED';
+      const message = err instanceof Error ? err.message : String(err);
+      await this.logUsage(context, {
+        integrationId,
+        status: 'failed',
+        durationMs,
+        error: { code, message },
+      }).catch(() => {});
+      const details: Record<string, unknown> = { resource, operation: operationId };
+      if (mallIdForErrorDetails) details.mallId = mallIdForErrorDetails;
+      return {
+        config: echo,
+        output: {
+          error: { code, message, details },
+        },
+        meta: { statusCode: 0, durationMs },
         port: 'error',
       };
     }
-
-    // 8. Success.
-    await this.logUsage(context, {
-      integrationId,
-      status: 'success',
-      durationMs,
-    });
-    return {
-      config: echo,
-      output: { response: result.body },
-      meta: this.buildMeta(result, durationMs),
-      port: 'success',
-    };
   }
 
   // -------------------------------------------------------------------

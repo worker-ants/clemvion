@@ -81,11 +81,11 @@
 
 [Integration 공통 §4 Handler 실행 세멘틱](./0-common.md#4-handler-실행-세멘틱) 의 6단계 계약을 따른다. 노드 고유 흐름:
 
-1. **Config 정규화**: `resource` / `operation` 을 메타데이터에서 조회하여 `{ method, path, requiredFields, optionalFields, paginated, responseShape }` 해석. 미존재 시 throw `CAFE24_UNKNOWN_OPERATION`.
+1. **Config 정규화**: `resource` / `operation` 을 메타데이터에서 조회하여 `{ method, path, requiredFields, optionalFields, paginated, responseShape }` 해석. 미존재 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'CAFE24_UNKNOWN_OPERATION'`) 라우팅 (D4, 2026-05-17).
 2. **Config echo 빌드** (Principle 7): `context.rawConfig` 를 그대로 spread — `resource`, `operation`, `fields`, `pagination` 의 `{{ }}` 표현식 보존. **자격증명은 echo 금지** — `integrationId` 만 echo.
-3. **Integration 자격증명 해석**: `IntegrationsService.getForExecution(integrationId, workspaceId)` → `serviceType='cafe24'` 검증, `status='connected'` 검증. 실패 시 `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` ([공통 §4.2](./0-common.md#42-공통-에러-코드)).
-4. **credentials 충족 검증** (공통 §4.2 `INTEGRATION_INCOMPLETE`): `mall_id`, `app_type`, `access_token`, `refresh_token` 누락 시 throw. `app_type='private'` 인데 `client_id`/`client_secret` 누락 시 동일.
-5. **Required fields 검증**: 메타데이터의 `requiredFields` 에 명시된 키가 `config.fields` 에 모두 존재하는지 검증. 누락 시 throw `CAFE24_MISSING_FIELDS` (어느 필드인지 details 에 명시).
+3. **Integration 자격증명 해석**: `IntegrationsService.getForExecution(integrationId, workspaceId)` → `serviceType='cafe24'` 검증, `status='connected'` 검증. 실패 시 `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` 코드로 §5.3 라우팅 ([공통 §4.2](./0-common.md#42-공통-에러-코드), D4).
+4. **credentials 충족 검증** (공통 §4.2 `INTEGRATION_INCOMPLETE`): `mall_id`, `app_type`, `access_token`, `refresh_token` 누락 시 catch 후 §5.3 라우팅. `app_type='private'` 인데 `client_id`/`client_secret` 누락 시 동일 (D4).
+5. **Required fields 검증**: 메타데이터의 `requiredFields` 에 명시된 키가 `config.fields` 에 모두 존재하는지 검증. 누락 시 catch 후 §5.3 (`output.error.code = 'CAFE24_MISSING_FIELDS'`, `details` 에 어느 필드인지 명시) 라우팅 (D4).
 6. **토큰 만료 확인 및 갱신**: `Integration.token_expires_at` 가 만료됐거나 60초 내 만료 예정이면 자동 갱신 ([§통합 §10.5 토큰 자동 갱신](../../2-navigation/4-integration.md#105-토큰-자동-갱신)). 갱신 실패 시: `refresh_token invalid_grant` 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기 폐기 — 2026-05-16, [통합 §6 / Rationale "refresh 실패 시 status_reason 통일"](../../2-navigation/4-integration.md#rationale)), transport 3회 연속 실패면 `error(network)` 로 전이. throw `INTEGRATION_NOT_CONNECTED` 는 동일. 또한 모든 cafe24 refresh 호출은 `cafe24-token-refresh` BullMQ 큐의 `jobId = integrationId` dedup 으로 클러스터 전체 직렬화된다 (§9.6 참고).
 7. **URL 구성**: `https://{credentials.mall_id}.cafe24api.com/api/v2/admin/{operation.path}` — `{path}` 는 메타데이터에 정의된 path template (예: `products/{product_no}`). path parameter 는 `fields` 에서 채움.
 8. **Query / Body 구성**: 메타데이터의 `fields[*].location` (path / query / body) 에 따라 분배. `pagination.{limit, offset}` 는 항상 query. body 의 envelope 직렬화는 step 9 의 wrapper 가 단일 책임으로 담당한다 (§4.2 참고).
@@ -287,21 +287,19 @@ CONVENTIONS Principle 3.2 의 표준 envelope `output.error.{code, message, deta
 }
 ```
 
-### 5.8 Pre-flight throw (노드 실패)
+### 5.8 (D4 — 2026-05-17) handler.validate 실패만 throw, 나머지 모두 §5.3 으로 라우팅
 
-다음은 모두 throw → 노드 실행 실패 처리 (CONVENTIONS Principle 3.1). 워크플로우 수준에서는 `error` 포트가 아닌 실행 실패로 표면화된다.
+D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 노드 실행 실패 경로를 정의했었다. 현재는 다음 두 경로로 분리된다:
 
-| 발생 조건 | 메시지 / 코드 | 시점 |
-|-----------|----------------|------|
-| `integrationId` 누락 | `Integration 을 선택해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
-| `resource` 누락 또는 enum 미일치 | `resource must be one of: store, product, order, ... (18 categories)` | handler.validate |
-| `operation` 누락 또는 메타데이터에 미존재 | `CAFE24_UNKNOWN_OPERATION: operation "<value>" not defined for resource "<resource>"` | handler.execute |
-| Integration `serviceType !== 'cafe24'` | `INTEGRATION_TYPE_MISMATCH` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) | handler.execute |
-| Integration `status !== 'connected'` | `INTEGRATION_NOT_CONNECTED` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) | handler.execute |
-| credentials 필수 필드 누락 (`mall_id`, `access_token`, `refresh_token`, app_type=private 시 `client_id`/`client_secret`) | `INTEGRATION_INCOMPLETE` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) | handler.execute |
-| `mall_id` 형식 위반 (소문자 영숫자·하이픈, 3~50자 외) | `CAFE24_INVALID_MALL_ID: mall_id must match /^[a-z0-9-]{3,50}$/` | handler.execute |
-| operation 의 `requiredFields` 중 일부 누락 | `CAFE24_MISSING_FIELDS: missing required fields [field1, field2]` | handler.execute |
-| `__workspaceId` 컨텍스트 누락 | `Missing workspace context — handler cannot resolve the integration` | handler.execute |
+- **`handler.validate()` 실패** (config 형식 자체가 잘못된 경우): 여전히 사전 검증 단계에서 노드 실행 자체가 시작되지 않는다. warningRule + `evaluateMetadataBlockingErrors` 가 throw 하며 엔진이 워크플로우를 실패 처리. 예: `Integration 을 선택해야 합니다.`, `resource must be one of: store, product, order, ... (18 categories)`.
+- **`execute()` 안의 모든 IntegrationError**: §5.3 (`port: 'error'` + `output.error.*`) 으로 라우팅된다. 다음 코드들이 해당:
+  - `CAFE24_UNKNOWN_OPERATION` — `operation` 이 메타데이터에 미존재
+  - `CAFE24_MISSING_FIELDS` — operation 의 `requiredFields` 중 일부 누락 (`details` 에 어느 필드인지 명시)
+  - `CAFE24_INVALID_MALL_ID` — `mall_id` 형식 위반 (소문자 영숫자·하이픈, 3~50자 외)
+  - `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` ([공통 §4.2](./0-common.md#42-공통-에러-코드))
+  - `INTEGRATION_SERVICE_UNAVAILABLE` — `__workspaceId` 컨텍스트 누락 / `Cafe24ApiClient` 미주입
+
+> D4 이전의 "throw → 노드 실패" 동작은 폐기. 모든 `IntegrationError.code` 가 `output.error.code` 로 surface. Usage 로그 (`status: 'failed'` + `error: {code, message}`) 는 양쪽 모두에서 동일하게 기록.
 
 ## 6. 에러 코드
 
@@ -316,8 +314,11 @@ CONVENTIONS Principle 3.2 의 표준 envelope `output.error.{code, message, deta
 | `CAFE24_RATE_LIMITED` | 429 응답 + 재시도 소진 | 서버 body 보존 (있으면) | 429 |
 | `CAFE24_5XX` | `500 ≤ statusCode < 600` | 서버 body 보존 | 응답 status |
 | `CAFE24_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout) | 미정의 | `0` |
-
-Pre-flight throw 코드는 §5.8 참조 — `output.error.code` 가 아니라 노드 실행 실패로 분기되며, `IntegrationUsageLog` 의 `error.code` 로만 기록된다 (`CAFE24_UNKNOWN_OPERATION`, `CAFE24_MISSING_FIELDS`, `CAFE24_INVALID_MALL_ID`, `INTEGRATION_*`).
+| `CAFE24_UNKNOWN_OPERATION` (D4) | `operation` 이 메타데이터에 미존재. 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
+| `CAFE24_MISSING_FIELDS` (D4) | operation 의 `requiredFields` 중 일부 누락. 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
+| `CAFE24_INVALID_MALL_ID` (D4) | `mall_id` 형식 위반. 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
+| `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
+| `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | `__workspaceId` 컨텍스트 누락 / `Cafe24ApiClient` 미주입 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
 
 ### 6.1 인증 실패 자동 status 전환
 

@@ -668,40 +668,48 @@ describe('DatabaseQueryHandler', () => {
         },
       });
       const handler = new DatabaseQueryHandler(service as never);
-      await expect(
-        handler.execute(
-          null,
-          { integrationId: 'int-1', query: 'SELECT 1' },
-          ctx(),
-        ),
-      ).rejects.toThrow(/missing fields/);
+      // D4 (2026-05-17) — IntegrationError 가 더 이상 throw 되지 않고
+      // port:'error' 로 라우팅된다.
+      const result = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT 1' },
+        ctx(),
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const output = result.output as { error: { code: string; message: string } };
+      expect(output.error.code).toBe('INTEGRATION_INCOMPLETE');
+      expect(output.error.message).toMatch(/missing fields/);
     });
 
-    it('rejects invalid parameters JSON', async () => {
+    it('routes invalid parameters JSON to port:error (D4)', async () => {
       const { service } = makeService();
       const handler = new DatabaseQueryHandler(service as never);
-      await expect(
-        handler.execute(
-          null,
-          {
-            integrationId: 'int-1',
-            query: 'SELECT 1',
-            parameters: 'not json',
-          },
-          ctx(),
-        ),
-      ).rejects.toThrow(/JSON array/);
+      const result = (await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: 'SELECT 1',
+          parameters: 'not json',
+        },
+        ctx(),
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const output = result.output as { error: { code: string; message: string } };
+      expect(output.error.code).toBe('INVALID_PARAMETERS');
+      expect(output.error.message).toMatch(/JSON array/);
     });
 
-    it('throws when integrations service is missing', async () => {
+    it('routes missing integrations service to port:error (D4)', async () => {
       const handler = new DatabaseQueryHandler();
-      await expect(
-        handler.execute(
-          null,
-          { integrationId: 'int-1', query: 'SELECT 1' },
-          ctx(),
-        ),
-      ).rejects.toThrow(/integrations service/);
+      const result = (await handler.execute(
+        null,
+        { integrationId: 'int-1', query: 'SELECT 1' },
+        ctx(),
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const output = result.output as { error: { code: string; message: string } };
+      expect(output.error.code).toBe('INTEGRATION_SERVICE_UNAVAILABLE');
+      expect(output.error.message).toMatch(/integrations service/);
     });
   });
 });
