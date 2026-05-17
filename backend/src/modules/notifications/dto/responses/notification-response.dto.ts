@@ -55,6 +55,15 @@ export class NotificationDto {
   @ApiPropertyOptional({ format: 'date-time', nullable: true })
   emailSentAt?: string | null;
 
+  /**
+   * dismiss 시각 (soft delete) — `null` 이면 visible, 채워지면 사용자가 닫은 상태.
+   * 목록·미읽음 카운트는 `dismissed_at IS NULL` 만 반환하므로 본 응답에 나타나는
+   * row 의 값은 일반적으로 `null` 이다. 자세한 라이프사이클은
+   * spec/data-flow/8-notifications.md §4 참조.
+   */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  dismissedAt?: string | null;
+
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })
   createdAt: string;
