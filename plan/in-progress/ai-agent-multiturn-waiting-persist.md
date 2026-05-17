@@ -67,3 +67,8 @@ owner: developer
 ## Follow-up
 
 - [ ] (옵션) spec/5-system/6-websocket-protocol.md §4.4.6 의 `source` 마커 영속 정책 결정과 함께, multi-turn 후속 turn 의 outputData 갱신 시점을 §4.4 또는 conversation-thread 컨벤션에 명시 — project-planner 위임 후보. 본 PR 의 scope 밖.
+- [ ] (ai-review W2) `nodeExec.outputData = …` 후 `save()` 패턴을 TypeORM `update(id, { outputData })` 단일 쿼리로 전환 — button/form/AI 첫 turn 모두 동일 패턴이라 cross-cutting refactor. 별 plan 으로 분리.
+- [ ] (ai-review W8) `codebase/frontend/src/lib/docs/__tests__/registry.test.ts` 의 `it.runIf(hasRealDocs)` 조건부 실행 — CI step 에서 `content/docs` 존재 확인 또는 skip 시 warn 로그. 별 plan.
+- [ ] (ai-review INFO 5) `catalog-sync.spec.ts` 와 `registry.test.ts` 의 `__dirname` `..` 반복 패턴을 공유 `repoRoot()` 헬퍼로 중앙화 — monorepo housekeeping.
+- [ ] (consistency WARN 1, 2, 5) Information Extractor multi-turn 의 WebSocket 커맨드 · 엔진 continuation bus 경로 spec 보강 + AI Agent §5 예약 포트 `completed` 추가 — project-planner 위임.
+- [ ] (consistency Critical) `spec/conventions/cafe24-api-catalog/_overview.md` 파일명 규약 위반 (언더스코어 prefix) — project-planner 위임. 본 PR scope 밖.
