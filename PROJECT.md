@@ -28,9 +28,12 @@
 | e2e (backend supertest, ~30–60s) | `make e2e-test` |
 | e2e (backend + playwright) | `make e2e-test-full` |
 | e2e 인프라 정리 (중간 종료 시) | `make e2e-down` |
+| e2e stale project 일괄 정리 (worktree 삭제 후) | `make e2e-prune` |
 | git hook 등록 (clone 후 1회) | `make setup-githooks` |
 
 **순서 근거**: e2e 는 `docker-compose.e2e.yml` 에서 backend 이미지를 빌드해 실행하므로, 로컬 `npm run build` 가 통과해야 e2e 도 의미가 있다. build 실패를 먼저 잡으면 docker 빌드 시간(분 단위) 낭비를 피한다.
+
+**Worktree 별 e2e 자동 격리**: `make e2e-*` 는 현재 worktree dir basename 으로 compose project name 을 도출 (main worktree = `clemvion-e2e`, `.claude/worktrees/<task>-<slug>/` = `clemvion-e2e-<task>-<slug>`). 컨테이너·볼륨·network 가 worktree 별로 분리되므로 여러 worktree 에서 e2e 를 **동시에** 돌려도 충돌 없음. image 자체는 worktree 간 공유되어 (각 빌드 서비스에 `image:` 명시) 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다. `COMPOSE_PROJECT=foo make e2e-test` 로 사용자 override 가능. 자세한 내용은 `docker-compose.e2e.yml` 헤더 주석과 `Makefile` 상단 참고.
 
 ## e2e 면제 화이트리스트
 
