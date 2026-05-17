@@ -98,8 +98,10 @@ owner: developer
 ## 진행 체크리스트
 
 - [x] consistency-check --impl-prep 호출 + 결과 archive (`review/consistency/2026/05/17/12_16_00/`)
-- [ ] **선행**: project-planner 가 spec 갱신 (별도 worktree, `spec-update-integration-autorefresh.md` 의 §A~§G + W-3/W-4/I-2/I-4 메모 반영)
-- [ ] consistency-check --impl-prep 재실행 후 BLOCK: NO 확인
+- [x] **선행**: project-planner 가 spec 갱신 (PR #139, merge commit c4200d51, 2026-05-17)
+- [x] consistency-check --impl-prep 재실행 (세션 `review/consistency/2026/05/17/12_54_16/`) — **BLOCK: YES** (Critical 1건: `14-execution-history.md` 줄 1 자기 참조 PRD 링크 — 본 작업과 무관한 docs-consolidation 잔재 영역)
+- [ ] **선행(2차)**: 사용자 결정(2026-05-17)으로 작은 spec 위생 PR 먼저 — `14-execution-history.md` 자기 참조 링크 제거 + `1-data-model.md §2.10` 에 `autoRefresh` derived 가상 필드 주석 추가 (W-1 동시 처리). project-planner 위임 별도 worktree 진행
+- [ ] spec 위생 PR merge 후 본 worktree 로 복귀 → main rebase → consistency-check 재실행 → BLOCK: NO 확인 → 구현 진입
 - [ ] DOCUMENTATION 영향 매핑 확인 (i18n parity, swagger)
 - [ ] 백엔드: service-registry 필드 + DTO + toPublic + 단위 테스트
 - [ ] 프론트엔드: status-badge 분기 + StatusBadge + 단위 테스트

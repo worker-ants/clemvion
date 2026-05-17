@@ -92,9 +92,11 @@ owner: developer (project-planner 위임 요청)
 ## 진행 체크리스트
 
 - [x] developer 가 발견·노트 작성 (2026-05-17)
-- [ ] **사용자 결정**: spec 먼저 갱신 (2026-05-17 결정 — 본 plan 진행)
-- [ ] project-planner 호출 → 별도 worktree 에서 spec 본문 갱신
-- [ ] spec 갱신 PR merge
-- [ ] integration-token-ui-autorefresh worktree 로 복귀 → consistency-check 재실행 → 본 PR 구현 진입
+- [x] **사용자 결정**: spec 먼저 갱신 (2026-05-17 결정 — 본 plan 진행)
+- [x] project-planner 호출 → 별도 worktree(`spec-integration-autorefresh-b2c4f1`)에서 spec 본문 갱신
+- [x] spec 갱신 PR #139 merge (2026-05-17, commit c4200d51)
+- [x] integration-token-ui-autorefresh worktree 로 복귀 → main rebase 완료
+- [ ] consistency-check 재실행 → BLOCK: NO 확인 (진행 중)
+- [ ] 본 PR 구현 진입 (자매 plan `integration-token-ui-autorefresh.md` 가 추적)
 - [ ] 후속 attention 술어 PR (backend 쿼리 + frontend needsAttention) 분리 발주
 - [ ] 본 plan 의 처리 완료 시 `git mv` → `plan/complete/`
