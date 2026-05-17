@@ -192,6 +192,7 @@ MAIL_PASS=<smtp-password>
 MAIL_FROM=noreply@example.com    # 배포 환경에서는 실제 발신 도메인으로 교체 (RFC 2606 placeholder)
 
 # Security
+# 일반 암호화 (32-byte hex / 64 hex chars). 빈 값이면 암호화 비활성 (dev 전용).
 ENCRYPTION_KEY=<32-byte-hex>
 # Integration 자격증명 (OAuth refresh token / API key / DB password 등) JSONB
 # 컬럼을 AES-256-GCM 으로 암호화한다. 누락 시 평문 저장 + 부팅 경고. 운영에서는
