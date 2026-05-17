@@ -95,6 +95,9 @@ describe('AlertsEvaluatorService.run', () => {
       // W-75 — 후속 신규 메서드. 본 spec 은 직접 호출하지 않아도 NotificationsService
       // 가 변경되어도 런타임 에러가 나지 않도록 mock surface 를 동기화한다.
       hasRecentByResource: jest.fn().mockResolvedValue(false),
+      // dismiss 도입 (spec/data-flow/8-notifications.md §4) — surface 동기화.
+      dismiss: jest.fn(),
+      dismissAll: jest.fn().mockResolvedValue({ affected: 0 }),
     };
     workspacesService = {
       findAdminUserIds: jest.fn().mockResolvedValue(['admin-1', 'admin-2']),

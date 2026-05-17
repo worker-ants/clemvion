@@ -78,7 +78,10 @@ export class IntegrationActionRequiredNotifier {
           message,
           resourceType: 'integration' as const,
           resourceId: integration.id,
-          channel: (wantsEmail ? 'both' : 'in_app') as 'both' | 'in_app',
+          channel: (wantsEmail ? 'both' : 'in_app') as
+            | 'both'
+            | 'in_app'
+            | 'email',
         };
       });
 

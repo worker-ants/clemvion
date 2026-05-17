@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   GitBranch,
@@ -184,7 +184,8 @@ export function Sidebar() {
   });
   const unreadCount = unreadQuery.data ?? 0;
 
-  // Notification list
+  // Notification list — `dismissed_at IS NULL` 알림만 (backend 가 필터링).
+  // 자세한 라이프사이클은 spec/data-flow/8-notifications.md §3-§4 참조.
   const notifListQuery = useQuery({
     queryKey: ["notifications", "list"],
     queryFn: async () => {
@@ -195,10 +196,89 @@ export function Sidebar() {
         message: string;
         isRead: boolean;
         createdAt: string;
+        resourceType?: string | null;
+        resourceId?: string | null;
+        type?: string;
       }>;
     },
     enabled: notifOpen,
   });
+
+  const queryClient = useQueryClient();
+  const invalidateNotifs = () => {
+    queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+    queryClient.invalidateQueries({
+      queryKey: ["notifications", "unread-count"],
+    });
+  };
+
+  // Mutations — spec/data-flow/8-notifications.md §4.2.
+  const markReadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.patch(`/notifications/${id}/read`);
+    },
+    onSuccess: invalidateNotifs,
+  });
+  const dismissOneMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.post(`/notifications/${id}/dismiss`);
+    },
+    onSuccess: invalidateNotifs,
+  });
+  const markAllReadMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post(`/notifications/mark-all-read`);
+    },
+    onSuccess: invalidateNotifs,
+  });
+  const dismissAllMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post(`/notifications/dismiss-all`);
+    },
+    onSuccess: invalidateNotifs,
+  });
+
+  // 알림 타입별 deep link — spec §11.2 의 type 분류와 frontend 라우트 매핑.
+  // 라우트 존재 여부 확인이 어려운 type 은 null 반환 — 클릭 시 읽음 처리만 일어나고
+  // 라우팅은 일어나지 않는다.
+  function notificationHref(notif: {
+    type?: string;
+    resourceType?: string | null;
+    resourceId?: string | null;
+  }): string | null {
+    const { type, resourceId } = notif;
+    if (!type) return null;
+    switch (type) {
+      case "integration_expired":
+      case "integration_action_required":
+        return "/integration";
+      case "execution_failed":
+      case "background_failed":
+      case "schedule_failed":
+        return resourceId ? `/workflows/${resourceId}` : "/workflows";
+      case "team_invite":
+        return "/profile";
+      default:
+        return null;
+    }
+  }
+
+  function handleNotifClick(notif: {
+    id: string;
+    isRead: boolean;
+    type?: string;
+    resourceType?: string | null;
+    resourceId?: string | null;
+  }) {
+    if (!notif.isRead) {
+      markReadMutation.mutate(notif.id);
+    }
+    const href = notificationHref(notif);
+    if (href) {
+      setNotifOpen(false);
+      router.push(href);
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -334,32 +414,109 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Notification bell */}
+        {/* Notification bell — spec/2-navigation/_layout.md §3.1, spec/data-flow/8-notifications.md §4 */}
         <div className="relative px-2 pb-1" ref={notifRef}>
           {notifOpen && (
-            <div className="absolute bottom-full left-2 right-2 mb-1 max-h-[300px] overflow-y-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg">
-              <div className="border-b border-[hsl(var(--border))] px-3 py-2">
-                <p className="text-sm font-medium">{t("sidebar.notifications")}</p>
+            <div className="absolute bottom-full left-2 right-2 mb-1 max-h-[360px] overflow-y-auto rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-lg">
+              <div className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border))] px-3 py-2">
+                <p className="text-sm font-medium">
+                  {t("sidebar.notifications")}
+                </p>
+                {(notifListQuery.data?.length ?? 0) > 0 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => markAllReadMutation.mutate()}
+                      disabled={
+                        markAllReadMutation.isPending || unreadCount === 0
+                      }
+                      className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--accent-foreground))] disabled:opacity-50"
+                    >
+                      {t("sidebar.markAllRead")}
+                    </button>
+                    <span className="text-[hsl(var(--muted-foreground))]">·</span>
+                    <button
+                      type="button"
+                      onClick={() => dismissAllMutation.mutate()}
+                      disabled={dismissAllMutation.isPending}
+                      className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))] disabled:opacity-50"
+                    >
+                      {t("sidebar.dismissAll")}
+                    </button>
+                  </div>
+                )}
               </div>
               {!notifListQuery.data?.length ? (
                 <div className="px-3 py-4 text-center text-sm text-[hsl(var(--muted-foreground))]">
                   {t("sidebar.noNotifications")}
                 </div>
               ) : (
-                notifListQuery.data.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className={cn(
-                      "border-b border-[hsl(var(--border))] px-3 py-2 last:border-b-0",
-                      !notif.isRead && "bg-[hsl(var(--accent))/0.3]",
-                    )}
-                  >
-                    <p className="text-sm font-medium">{notif.title}</p>
-                    <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                      {notif.message}
-                    </p>
-                  </div>
-                ))
+                notifListQuery.data.map((notif) => {
+                  const isUnread = !notif.isRead;
+                  return (
+                    <div
+                      key={notif.id}
+                      className={cn(
+                        "group relative flex items-start gap-2 border-b border-[hsl(var(--border))] px-3 py-2 last:border-b-0",
+                        isUnread && "bg-[hsl(var(--accent))/0.3]",
+                      )}
+                    >
+                      {/* Unread dot indicator (spec §4.1) */}
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                          isUnread
+                            ? "bg-[hsl(var(--primary))]"
+                            : "bg-transparent",
+                        )}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleNotifClick(notif)}
+                        className="flex-1 cursor-pointer text-left"
+                      >
+                        <p className="pr-12 text-sm font-medium">
+                          {notif.title}
+                        </p>
+                        <p className="pr-12 text-xs text-[hsl(var(--muted-foreground))]">
+                          {notif.message}
+                        </p>
+                      </button>
+                      {/* Hover actions (spec §4.2) */}
+                      <div className="absolute right-2 top-2 hidden items-center gap-1 group-hover:flex">
+                        {isUnread && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markReadMutation.mutate(notif.id);
+                            }}
+                            disabled={markReadMutation.isPending}
+                            title={t("sidebar.markRead")}
+                            aria-label={t("sidebar.markRead")}
+                            className="rounded p-1 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dismissOneMutation.mutate(notif.id);
+                          }}
+                          disabled={dismissOneMutation.isPending}
+                          title={t("sidebar.dismiss")}
+                          aria-label={t("sidebar.dismiss")}
+                          className="rounded p-1 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--destructive))]"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           )}
