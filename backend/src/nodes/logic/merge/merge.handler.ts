@@ -122,10 +122,8 @@ export class MergeHandler implements NodeHandler {
     //    Always present (empty array when none) for consumer simplicity.
     // `meta.durationMs` is injected by the engine, not here.
 
-    // CONVENTIONS Principle 7 — config echoes raw strategy / outputFormat.
-    // merge config fields are bounded enums (no `{{ ... }}` templates), so
-    // raw === evaluated in the common case; rawConfig is still used for
-    // consistency.
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field; `timeout` / `partialOnTimeout` were previously missing.
     const rawConfig = (context.rawConfig ?? config) as unknown as MergeConfig;
     const dormantFields: string[] = [];
     if (typeof timeout === 'number' && timeout > 0) {
@@ -139,6 +137,8 @@ export class MergeHandler implements NodeHandler {
       config: {
         strategy: rawConfig.strategy ?? DEFAULT_STRATEGY,
         outputFormat: rawConfig.outputFormat ?? DEFAULT_OUTPUT_FORMAT,
+        timeout: rawConfig.timeout,
+        partialOnTimeout: rawConfig.partialOnTimeout,
       },
       output: formatted,
       meta: {
