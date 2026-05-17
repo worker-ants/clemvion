@@ -554,6 +554,7 @@ AI Agent 노드가 활용하는 외부 [Model Context Protocol](https://modelcon
 - Google/GitHub 처럼 정적 authorize URL 이 아니라 `https://{mall_id}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=...&state=...&redirect_uri=...&scope=...` 로 mall 마다 다른 URL.
 - 토큰 교환 endpoint: `POST https://{mall_id}.cafe24api.com/api/v2/oauth/token` (Basic auth: `client_id:client_secret`).
 - Refresh: 동일 endpoint, `grant_type=refresh_token`. 자동 갱신은 §10.5 흐름 그대로.
+- **응답 shape (Cafe24 quirk)**: Cafe24 의 `/oauth/token` 응답은 OAuth 표준 `expires_in` (초) 을 돌려주지 않고 **`expires_at` (ISO8601 문자열)** 만 돌려준다. backend 의 token-exchange normalizer 는 `expires_in` 을 먼저 시도하고 cafe24 한정으로 `expires_at` 파싱, 둘 다 없으면 cafe24 documented access_token TTL 인 2h default 로 fallback ([Rationale "Cafe24 token 응답의 `expires_at` 처리"](#cafe24-token-응답의-expires_at-처리-2026-05-17)).
 
 **Scope 권장 프리셋**
 
@@ -1325,3 +1326,38 @@ Public 흐름은 begin 단계에서 Integration row 를 만들지 않으므로 V
 - `paymentmethods_list` / `paymentmethods_paymentproviders_list` / `paymentmethods_paymentproviders_update_display` 는 별도 승인 여부 미확인 — 빈칸 유지.
 
 **출처**: 사용자 보고 (2026-05-17). consistency-check 세션: `review/consistency/2026/05/17/12_12_46/` (BLOCK: NO).
+
+### Cafe24 token 응답의 `expires_at` 처리 (2026-05-17)
+
+**문제**: 사용자 보고 — 카페24 통합이 "정상(connected)" 으로 표시되는 상태에서 AI Agent MCP 호출이 `Cafe24 authentication failed (401) for mall <mall_id> — access_token time expired. (invalid_token)` 으로 401 을 받음. proactive refresh 가 동작해야 하는 시점에 동작하지 않음. 일일 백그라운드 잡도 안 살림.
+
+**원인**: backend 의 OAuth callback `normalizeTokenResponse` 가 OAuth 표준 `expires_in` (초) 만 읽었는데, Cafe24 의 `/api/v2/oauth/token` 응답은 `expires_in` 을 돌려주지 않고 `expires_at` (ISO8601 문자열) 만 돌려준다. 결과적으로 신규 cafe24 통합의 `Integration.token_expires_at` 컬럼과 `credentials.expires_at` JSONB mirror 가 모두 NULL 로 저장됐다. 그 row 들에 대해:
+
+- `Cafe24ApiClient.ensureFreshToken` 가 `expiresAtMs === null` 일 때 silently return → proactive refresh 영영 미발사.
+- `connected-expiry` 일일 잡은 `token_expires_at IS NOT NULL` 만 후보로 보아 invisible.
+- `cafe24-background-refresh` 는 `last_rotated_at < now - 10d OR IS NULL` 기준이라 신규 (=lastRotatedAt recent) 행을 안 잡음.
+
+결과적으로 install 후 2h 경과 (Cafe24 의 실 access_token TTL) 부터 모든 API 호출이 401 로 좌초. 사용자가 직접 reauthorize 누르기 전까지 회복 경로 없음.
+
+**픽스**:
+
+- (A) **callback normalizer 보강** — `parseTokenExpiresAt(provider, data)` 가 `expires_in` 을 먼저 시도하고 cafe24 한정으로 `expires_at` ISO 문자열을 파싱한다. 둘 다 없으면 cafe24 의 documented access_token TTL 인 **2h default** 로 fallback. 다른 provider 는 옛 동작 (null) 유지.
+- (B) **`ensureFreshToken` null 안전 보강** — 이미 NULL 로 DB 에 저장된 row 들의 자가 회복을 위해 `expiresAtMs === null` 을 "needs refresh" 로 해석. cafe24 의 access_token 은 항상 만료가 있어 NULL 은 정상 상태가 아니라는 가정. 다음 호출 시 자동으로 refresh + 4-field 원자 UPDATE 가 일어나 `token_expires_at` 가 채워진다.
+- (C) **`Cafe24ApiClient.refreshAccessToken` 보강** — refresh 응답에서도 같은 quirk 가 있으므로 `expires_in` → `expires_at` → 2h fallback 순으로 파싱.
+
+**기각 대안**:
+
+- DB 마이그레이션으로 NULL row 의 `token_expires_at` 를 `last_rotated_at + 2h` 로 backfill — (B) 의 자가 회복이 동일 효과를 내며 마이그레이션 없이 다음 호출에서 자동 적용. 별도 SQL backfill 불필요.
+- cafe24 한정 별도 normalizer 분기 — `normalizeTokenResponse` 한 함수 안에서 provider 분기로 충분. 추가 분리는 과잉.
+
+**Trade-off / 잔여 위험**:
+
+- Cafe24 가 향후 응답 shape 을 변경 (예: `expires_in` 도 같이 echo) 해도 본 픽스는 backward-compatible — 표준 필드를 먼저 시도하기 때문.
+- (B) 의 null=needs-refresh 정책이 비정상 row (예: 데이터 손상으로 credentials 가 사라진 경우) 에 대해 refresh 시도 → refresh 자체가 실패하면 `error(auth_failed)` 로 격하. 옛 silent-skip 보다 진단성이 높아 trade-off 수용.
+
+**테스트**:
+
+- `integration-oauth.service.cafe24.spec.ts` — Cafe24 의 실제 응답 shape (`expires_at` ISO string, no `expires_in`) 에서 `tokenExpiresAt` 이 정확히 파싱되는지, 둘 다 없으면 2h fallback 인지 회귀 테스트 2건 추가.
+- `cafe24-api.client.spec.ts` — `tokenExpiresAt === null` AND `credentials.expires_at` 미존재 row 가 다음 호출에서 자동으로 refresh + 4-field 원자 UPDATE 되는지 회귀 테스트 1건 추가.
+
+**출처**: 사용자 보고 (2026-05-17, 15:33 KST — gehrig0301 mall). 동일 시간대의 [`Cafe24 별도 승인 scope 의 식별·안내`](#cafe24-별도-승인-scope-의-식별안내-2026-05-17) 와 시간대만 같고 별개 이슈.

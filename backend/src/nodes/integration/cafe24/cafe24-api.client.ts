@@ -548,8 +548,17 @@ export class Cafe24ApiClient {
    */
   private async ensureFreshToken(integration: Integration): Promise<void> {
     const expiresAtMs = resolveTokenExpiry(integration);
-    if (expiresAtMs === null) return;
-    if (expiresAtMs - Date.now() > REFRESH_WINDOW_MS) return;
+    // 옛 코드는 `expiresAtMs === null` 일 때 silently return 했다. 그 결과,
+    // OAuth callback 단계가 `expires_in` 만 읽어 cafe24 응답에서 NULL 로
+    // 저장된 row 가 영영 refresh 되지 않아 2h 후 첫 호출에서 `access_token
+    // time expired (401)` 로 좌초했다 (사용자 보고 2026-05-17). callback 측
+    // 픽스 (`parseTokenExpiresAt` — cafe24 `expires_at` 파싱 + 2h fallback)
+    // 와 함께, 이미 DB 에 NULL 로 저장된 통합도 다음 호출 시 자가 회복되도록
+    // null 을 "needs refresh" 로 해석한다. cafe24 는 항상 access_token 에
+    // 만료가 있어 (Cafe24 docs) NULL 은 정상 상태가 아님.
+    if (expiresAtMs !== null && expiresAtMs - Date.now() > REFRESH_WINDOW_MS) {
+      return;
+    }
 
     if (this.refreshQueue && this.refreshQueueEvents) {
       await this.refreshViaQueue(integration, 'proactive');
@@ -730,13 +739,22 @@ export class Cafe24ApiClient {
     const data = (await response.json()) as Record<string, unknown>;
     const accessToken = readString(data, 'access_token');
     const refreshToken = readString(data, 'refresh_token');
-    const expiresIn = readNumber(data, 'expires_in');
     if (!accessToken) {
       throw new Error('Cafe24 token refresh response missing access_token');
     }
+    // Cafe24 의 refresh 응답은 expires_in 이 아니라 expires_at (ISO string)
+    // 을 돌려준다 (token exchange 응답과 동일 shape). 옛 코드는 expires_in
+    // 만 읽고 둘 다 없으면 2h fallback 으로 빠져 실제 Cafe24 만료 시각과
+    // 미세한 어긋남이 누적될 수 있었다. cafe24 의 docs 가 권하는 expires_at
+    // 을 우선 파싱하고, 둘 다 없으면 documented access_token TTL (2h) 로
+    // fallback.
+    const expiresIn = readNumber(data, 'expires_in');
+    const expiresAtStr = readString(data, 'expires_at');
     const expiresAt = expiresIn
       ? new Date(Date.now() + expiresIn * 1000)
-      : new Date(Date.now() + 2 * 60 * 60 * 1000); // Cafe24 default 2h
+      : expiresAtStr && Number.isFinite(Date.parse(expiresAtStr))
+        ? new Date(Date.parse(expiresAtStr))
+        : new Date(Date.now() + 2 * 60 * 60 * 1000); // Cafe24 default 2h
 
     // Atomic 4-field UPDATE — spec §10.5. credentials + tokenExpiresAt are
     // co-located on the Integration row so a single save() is atomic.

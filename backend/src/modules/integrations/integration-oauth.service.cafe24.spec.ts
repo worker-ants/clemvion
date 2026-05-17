@@ -85,7 +85,7 @@ function buildFakeCafe24Integration(
   // 'priv-shop' fallback 으로 정상 전파 — credentials.mall_id 는 항상 유효한
   // 문자열. 명시성을 위해 괄호 추가 (ai-review W2 — 2026-05-16).
   const credentialsMallId =
-    overrides.credentialsMallId ?? (mallId ?? 'priv-shop');
+    overrides.credentialsMallId ?? mallId ?? 'priv-shop';
   const appType = overrides.appType ?? 'private';
   const credentials: Record<string, unknown> = {
     mall_id: credentialsMallId,
@@ -1696,6 +1696,176 @@ describe('IntegrationOAuthService — Cafe24', () => {
         // we requested (2). Without this, the UI silently shows the wrong
         // permissions to the user.
         expect(creds.scopes).toEqual(['mall.read_product']);
+      } finally {
+        global.fetch = originalFetch;
+        process.env.OAUTH_STUB_MODE = 'true';
+      }
+    });
+
+    /**
+     * 회귀 보호 (2026-05-17) — Cafe24 의 `/api/v2/oauth/token` 응답은
+     * OAuth 표준의 `expires_in` (초) 이 아니라 **`expires_at` (ISO8601
+     * 문자열)** 만 돌려준다. 옛 코드는 `expires_in` 만 읽어 cafe24 통합의
+     * `tokenExpiresAt` 이 항상 null 로 저장됐고 → `Cafe24ApiClient.
+     * ensureFreshToken` 의 `expiresAtMs === null` 가드에 걸려 proactive
+     * refresh 가 영영 실행되지 않아, 신규 cafe24 통합이 Cafe24 의 2h 실 TTL
+     * 경과 후 첫 호출에서 `access_token time expired (401)` 으로 좌초했다.
+     *
+     * 본 테스트는 Cafe24 의 실제 응답 shape (expires_at 있고 expires_in 없음)
+     * 에서 `tokenExpiresAt` 이 ISO 문자열을 파싱해 정확히 채워지는지 검증.
+     */
+    it('cafe24 token exchange parses expires_at ISO string into tokenExpiresAt (no expires_in)', async () => {
+      delete process.env.OAUTH_STUB_MODE;
+      const originalFetch = global.fetch;
+      const expectedExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: 'tok-cafe24-exp-at',
+          refresh_token: 'refresh-cafe24-exp-at',
+          // Cafe24 의 실제 응답 shape — expires_at ISO string, no expires_in.
+          expires_at: expectedExpiry.toISOString(),
+          scopes: ['mall.read_product'],
+        }),
+        text: async () => '',
+      });
+      (global as { fetch: jest.Mock }).fetch = fetchMock;
+
+      integrationRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'int-cafe24-exp-at',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+          scopes: ['mall.read_product'],
+        },
+        installToken: 'token',
+      });
+
+      const stateRecord = {
+        id: 'state-exp-at',
+        state: 'state-exp-at',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        provider: 'cafe24',
+        serviceType: 'cafe24',
+        mode: 'reauthorize',
+        integrationId: 'int-cafe24-exp-at',
+        requestedScopes: ['mall.read_product'],
+        integrationName: 'priv-shop (Cafe24 Private)',
+        scope: 'personal',
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+        },
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      };
+      dataSource.query.mockResolvedValueOnce([[stateRecord], 1]);
+
+      try {
+        await service.handleCallback('cafe24', {
+          code: 'authz-code',
+          state: 'state-exp-at',
+        });
+
+        const savedIntegration = integrationRepo.save.mock
+          .calls[0][0] as Record<string, unknown>;
+        // 가장 중요한 회귀 어서션 — tokenExpiresAt 가 null 이 아니라
+        // Cafe24 가 돌려준 expires_at 을 정확히 반영해야 한다.
+        expect(savedIntegration.tokenExpiresAt).toBeInstanceOf(Date);
+        expect((savedIntegration.tokenExpiresAt as Date).toISOString()).toBe(
+          expectedExpiry.toISOString(),
+        );
+        // credentials.expires_at mirror 도 동일 시각으로 동기.
+        const creds = savedIntegration.credentials as Record<string, unknown>;
+        expect(creds.expires_at).toBe(expectedExpiry.toISOString());
+      } finally {
+        global.fetch = originalFetch;
+        process.env.OAUTH_STUB_MODE = 'true';
+      }
+    });
+
+    /**
+     * 회귀 보호 (2026-05-17) — Cafe24 가 어떤 이유로 expires_in/expires_at
+     * 둘 다 빠뜨려도 (예: 비정상 응답·spec 변경) tokenExpiresAt 이 null 이
+     * 되지 않도록 cafe24 한정 default 2h fallback 을 둔다. cafe24 access_token
+     * 의 documented TTL 이 2h.
+     */
+    it('cafe24 token exchange falls back to 2h default when neither expires_in nor expires_at present', async () => {
+      delete process.env.OAUTH_STUB_MODE;
+      const originalFetch = global.fetch;
+      const before = Date.now();
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: 'tok-cafe24-no-exp',
+          refresh_token: 'refresh-cafe24-no-exp',
+          scopes: ['mall.read_product'],
+          // 의도적으로 expires_in / expires_at 둘 다 누락.
+        }),
+        text: async () => '',
+      });
+      (global as { fetch: jest.Mock }).fetch = fetchMock;
+
+      integrationRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'int-cafe24-no-exp',
+        workspaceId: 'ws-1',
+        status: 'pending_install',
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+          scopes: ['mall.read_product'],
+        },
+        installToken: 'token',
+      });
+
+      const stateRecord = {
+        id: 'state-no-exp',
+        state: 'state-no-exp',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        provider: 'cafe24',
+        serviceType: 'cafe24',
+        mode: 'reauthorize',
+        integrationId: 'int-cafe24-no-exp',
+        requestedScopes: ['mall.read_product'],
+        integrationName: 'priv-shop (Cafe24 Private)',
+        scope: 'personal',
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+        },
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      };
+      dataSource.query.mockResolvedValueOnce([[stateRecord], 1]);
+
+      try {
+        await service.handleCallback('cafe24', {
+          code: 'authz-code',
+          state: 'state-no-exp',
+        });
+
+        const savedIntegration = integrationRepo.save.mock
+          .calls[0][0] as Record<string, unknown>;
+        expect(savedIntegration.tokenExpiresAt).toBeInstanceOf(Date);
+        const fallbackMs = (savedIntegration.tokenExpiresAt as Date).getTime();
+        const minExpected = before + 2 * 60 * 60 * 1000 - 1_000;
+        const maxExpected = Date.now() + 2 * 60 * 60 * 1000 + 1_000;
+        expect(fallbackMs).toBeGreaterThanOrEqual(minExpected);
+        expect(fallbackMs).toBeLessThanOrEqual(maxExpected);
       } finally {
         global.fetch = originalFetch;
         process.env.OAUTH_STUB_MODE = 'true';
