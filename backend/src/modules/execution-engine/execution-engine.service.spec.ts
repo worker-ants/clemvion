@@ -1956,7 +1956,8 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () => ({
           config: { mode: 'multi_turn' },
-          output: { messages: [], message: '', turnCount: 0 },
+          // D6 (2026-05-17) — waiting `output.result.*` 단일 경로.
+          output: { result: { messages: [], message: '', turnCount: 0 } },
           meta: { interactionType: 'ai_conversation' },
           status: 'waiting_for_input',
           _resumeState: {
@@ -2003,12 +2004,14 @@ describe('ExecutionEngineService', () => {
       const handler = makeAiAgentHandler(() => ({
         config: { mode: 'multi_turn' },
         output: {
-          messages: [
-            { role: 'user', content: 'hi' },
-            { role: 'assistant', content: 'hello' },
-          ],
-          message: 'hello',
-          turnCount: 1,
+          result: {
+            messages: [
+              { role: 'user', content: 'hi' },
+              { role: 'assistant', content: 'hello' },
+            ],
+            message: 'hello',
+            turnCount: 1,
+          },
         },
         meta: { interactionType: 'ai_conversation' },
         status: 'waiting_for_input',
@@ -2091,12 +2094,14 @@ describe('ExecutionEngineService', () => {
       const handler = makeAiAgentHandler(() => ({
         config: { mode: 'multi_turn' },
         output: {
-          messages: [
-            { role: 'user', content: 'hi' },
-            { role: 'assistant', content: 'final' },
-          ],
-          message: 'final',
-          turnCount: 1,
+          result: {
+            messages: [
+              { role: 'user', content: 'hi' },
+              { role: 'assistant', content: 'final' },
+            ],
+            message: 'final',
+            turnCount: 1,
+          },
         },
         meta: { interactionType: 'ai_conversation' },
         status: 'waiting_for_input',
@@ -2574,7 +2579,7 @@ describe('ExecutionEngineService', () => {
         [string, Record<string, unknown>]
       >(async () => ({
         config: { mode: 'multi_turn' },
-        output: { messages: [], message: '', turnCount: 1 },
+        output: { result: { messages: [], message: '', turnCount: 1 } },
         meta: { interactionType: 'ai_conversation' },
         status: 'waiting_for_input',
         _resumeState: {
@@ -2591,7 +2596,7 @@ describe('ExecutionEngineService', () => {
         validate: () => ({ valid: true, errors: [] }),
         execute: jest.fn(async () => ({
           config: { mode: 'multi_turn' },
-          output: { messages: [], message: '', turnCount: 0 },
+          output: { result: { messages: [], message: '', turnCount: 0 } },
           meta: { interactionType: 'ai_conversation' },
           status: 'waiting_for_input',
           _resumeState: {
@@ -6126,6 +6131,10 @@ describe('buildAiMessageDebugFromResumeState', () => {
 // 변환한다. spec/5-system/4-execution-engine.md §1.3 의 multi-turn 컨트랙트
 // 일부로, system 메시지 필터링 / partial 필드 선택적 전파 등 비자명한 변환을
 // 포함한다.
+//
+// D6 (2026-05-17) — 대화 필드는 `output.result.*` 단일 경로. 옛 top-level
+// `output.message` / `.messages` / `.turnCount` / `.maxTurns` 는 폐기됐고,
+// `partial.*` (info-extractor 부분 수집) 만 top-level 유지.
 describe('buildConversationConfigFromOutput', () => {
   it('returns defaults when output is undefined', () => {
     const conv = buildConversationConfigFromOutput(undefined);
@@ -6145,10 +6154,9 @@ describe('buildConversationConfigFromOutput', () => {
     });
   });
 
-  it('echoes message and turnCount from output', () => {
+  it('echoes message and turnCount from output.result', () => {
     const conv = buildConversationConfigFromOutput({
-      message: 'hello',
-      turnCount: 3,
+      result: { message: 'hello', turnCount: 3 },
     });
     expect(conv.message).toBe('hello');
     expect(conv.turnCount).toBe(3);
@@ -6156,12 +6164,14 @@ describe('buildConversationConfigFromOutput', () => {
 
   it('filters system role messages (CONVENTIONS — system 메시지는 client 미노출)', () => {
     const conv = buildConversationConfigFromOutput({
-      messages: [
-        { role: 'system', content: 'You are helpful' },
-        { role: 'user', content: 'hi' },
-        { role: 'assistant', content: 'hello' },
-        { role: 'system', content: 'reset' },
-      ],
+      result: {
+        messages: [
+          { role: 'system', content: 'You are helpful' },
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'hello' },
+          { role: 'system', content: 'reset' },
+        ],
+      },
     });
     // Each non-system message gets `source: 'live'` backfilled per
     // spec/5-system/6-websocket-protocol.md §4.4.6 (default when handler
@@ -6174,16 +6184,18 @@ describe('buildConversationConfigFromOutput', () => {
 
   it("preserves explicit source: 'injected' from ConversationThread injection (§4.4.6)", () => {
     const conv = buildConversationConfigFromOutput({
-      messages: [
-        { role: 'system', content: 'You are helpful' },
-        {
-          role: 'user',
-          content: '[from Template] start',
-          source: 'injected',
-        },
-        { role: 'user', content: 'live message', source: 'live' },
-        { role: 'assistant', content: 'response' }, // unmarked → backfilled
-      ],
+      result: {
+        messages: [
+          { role: 'system', content: 'You are helpful' },
+          {
+            role: 'user',
+            content: '[from Template] start',
+            source: 'injected',
+          },
+          { role: 'user', content: 'live message', source: 'live' },
+          { role: 'assistant', content: 'response' }, // unmarked → backfilled
+        ],
+      },
     });
     expect(conv.messages).toEqual([
       {
@@ -6199,7 +6211,7 @@ describe('buildConversationConfigFromOutput', () => {
   it("preserves existing source: 'live' as-is (no double-wrap)", () => {
     const original = { role: 'user', content: 'hi', source: 'live' };
     const conv = buildConversationConfigFromOutput({
-      messages: [original],
+      result: { messages: [original] },
     });
     // Backfill must short-circuit on already-marked items so identity is
     // preserved (no needless object allocations on hot paths).
@@ -6207,27 +6219,31 @@ describe('buildConversationConfigFromOutput', () => {
   });
 
   it('returns empty messages array unchanged', () => {
-    const conv = buildConversationConfigFromOutput({ messages: [] });
+    const conv = buildConversationConfigFromOutput({
+      result: { messages: [] },
+    });
     expect(conv.messages).toEqual([]);
   });
 
   it('handles a multi-turn mixed sequence (system stripped, injected preserved, live backfilled)', () => {
     const conv = buildConversationConfigFromOutput({
-      messages: [
-        { role: 'system', content: 'You are helpful' },
-        {
-          role: 'user',
-          content: '[from Form] name=Alice',
-          source: 'injected',
-        },
-        {
-          role: 'assistant',
-          content: '[from PrevAgent] Welcome',
-          source: 'injected',
-        },
-        { role: 'user', content: '실제 메시지' },
-        { role: 'assistant', content: '응답' },
-      ],
+      result: {
+        messages: [
+          { role: 'system', content: 'You are helpful' },
+          {
+            role: 'user',
+            content: '[from Form] name=Alice',
+            source: 'injected',
+          },
+          {
+            role: 'assistant',
+            content: '[from PrevAgent] Welcome',
+            source: 'injected',
+          },
+          { role: 'user', content: '실제 메시지' },
+          { role: 'assistant', content: '응답' },
+        ],
+      },
     });
     expect(conv.messages).toHaveLength(4);
     expect(conv.messages[0].source).toBe('injected');
@@ -6237,7 +6253,9 @@ describe('buildConversationConfigFromOutput', () => {
   });
 
   it('includes maxTurns only when present', () => {
-    const withMax = buildConversationConfigFromOutput({ maxTurns: 5 });
+    const withMax = buildConversationConfigFromOutput({
+      result: { maxTurns: 5 },
+    });
     expect(withMax.maxTurns).toBe(5);
     const without = buildConversationConfigFromOutput({});
     expect(without).not.toHaveProperty('maxTurns');
@@ -6266,10 +6284,29 @@ describe('buildConversationConfigFromOutput', () => {
   });
 
   it('handles missing partial gracefully', () => {
-    const conv = buildConversationConfigFromOutput({ message: 'hi' });
+    const conv = buildConversationConfigFromOutput({
+      result: { message: 'hi' },
+    });
     expect(conv.message).toBe('hi');
     expect(conv).not.toHaveProperty('extracted');
     expect(conv).not.toHaveProperty('missingFields');
+  });
+
+  // D6 회귀 차단 — 옛 top-level shape (`output.message` / `.messages` /
+  // `.turnCount` / `.maxTurns`) 은 더 이상 인식되지 않는다. 핸들러가 옛
+  // shape 으로 회귀했을 때 빈 conversationConfig 가 emit 되어 사용자에게
+  // assistant 응답이 전달되지 않던 회귀를 차단한다 (D6 동기화).
+  it('ignores legacy top-level message/messages/turnCount/maxTurns (D6 정합)', () => {
+    const conv = buildConversationConfigFromOutput({
+      message: 'legacy-msg',
+      messages: [{ role: 'assistant', content: 'legacy' }],
+      turnCount: 99,
+      maxTurns: 42,
+    });
+    expect(conv.message).toBe('');
+    expect(conv.messages).toEqual([]);
+    expect(conv.turnCount).toBe(0);
+    expect(conv).not.toHaveProperty('maxTurns');
   });
 });
 
