@@ -24,6 +24,7 @@ type ExecutionStatus = string;
 async function pollExecution(
   executionId: string,
   authHeader: { Authorization: string },
+  workspaceId: string,
   predicate: (status: ExecutionStatus) => boolean,
   timeoutMs = 10_000,
   intervalMs = 200,
@@ -33,7 +34,11 @@ async function pollExecution(
   while (Date.now() - start < timeoutMs) {
     const res = await request(BASE_URL)
       .get(`/api/executions/${executionId}`)
-      .set(authHeader);
+      .set(authHeader)
+      // ExecutionsController 가 `@WorkspaceId()` 로 헤더 우선 + JWT 폴백.
+      // createTeamWorkspace 로 만든 팀 컨텍스트와 token 의 personal workspaceId
+      // 가 다르므로 헤더로 명시해야 verifyOwnership 가 매칭된다.
+      .set('X-Workspace-Id', workspaceId);
     if (res.status === 200) {
       const status = (res.body.data as { status: string }).status;
       last = { status, body: res.body };
@@ -91,6 +96,7 @@ describe('Workflow Execution (e2e)', () => {
     const final = await pollExecution(
       executionId,
       { Authorization: `Bearer ${ownerToken}` },
+      workspaceId,
       (s) =>
         TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
       15_000,
@@ -110,6 +116,7 @@ describe('Workflow Execution (e2e)', () => {
     await pollExecution(
       executionId,
       { Authorization: `Bearer ${ownerToken}` },
+      workspaceId,
       (s) =>
         TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
       15_000,
@@ -170,6 +177,7 @@ describe('Workflow Execution (e2e)', () => {
     await pollExecution(
       executionId,
       { Authorization: `Bearer ${ownerToken}` },
+      workspaceId,
       (s) =>
         TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
       15_000,
@@ -206,6 +214,7 @@ describe('Workflow Execution (e2e)', () => {
       pollExecution(
         r1.body.data.executionId,
         { Authorization: `Bearer ${ownerToken}` },
+        workspaceId,
         (s) =>
           TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
         15_000,
@@ -213,6 +222,7 @@ describe('Workflow Execution (e2e)', () => {
       pollExecution(
         r2.body.data.executionId,
         { Authorization: `Bearer ${ownerToken}` },
+        workspaceId,
         (s) =>
           TERMINAL_STATUSES.includes(s as (typeof TERMINAL_STATUSES)[number]),
         15_000,
