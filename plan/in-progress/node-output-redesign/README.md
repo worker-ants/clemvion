@@ -289,6 +289,45 @@ if-else / switch / loop / variable-declaration / split / filter / background / t
 
 `spec/conventions/node-output.md` 가 본 분석의 **공식 기준** 이며, 이 인덱스 §"기준 규약" 절에 11 원칙 개요를 인용했다.
 
+## 결정 사항 (2026-05-17)
+
+본 plan 의 §"요약 — 가장 빈번한 부적절 패턴" 에서 도출된 6개 횡단 결정사항에 대한 사용자 결정. 후속 spec/impl 작업의 baseline.
+
+| ID | 항목 | 결정 | 영향 노드 |
+| --- | --- | --- | --- |
+| **D1** | handler.configEcho ↔ schema 비대칭 정렬 방향 | **A안 — impl 정렬**: handler 가 schema 의 모든 비민감 raw 필드를 항상 echo. Background 의 명시 enumeration + spread 회피 패턴을 baseline 으로. spec/conventions 에 "Principle 7 의 echo 는 spread 가 아닌 명시 키 enumeration 으로" 1줄 명문화. | if-else, switch, loop, map, foreach, merge, carousel, chart, template, table, variable-modification |
+| **D2** | Map/ForEach 시작 시점 (§5.1) 표현 모호성 | **B안 — impl 통일**: Map/ForEach handler 도 Parallel/Background 처럼 `output: null` 반환 + 분배용 items 는 별도 internal 필드. ForEachExecutor / engine 분배 로직 변경 동반. spec §5.1 JSON 예시도 `output: null` 로 갱신. | map, foreach |
+| **D3** | Map `_skipped` 인라인 vs ForEach `output.skipped` 별도 | **A안 — 현 정책 유지**: 시멘틱 차이(변형 배열 vs 항목 독립) 로 의도된 분기. 두 spec 본문에 footnote 로 차이 명시. | map, foreach |
+| **D4** | Integration 4종 `IntegrationError` 비대칭 처리 | **B안 — 4종 모두 `port:'error'` 로 통일**: HTTP 의 throw 경로를 catch → `buildErrorOutput` + `port:'error'` 로 변경. DB/Email/Cafe24 와 일관. `0-common.md` 와 각 노드 §5.8 갱신. | http-request, database-query, send-email, cafe24 |
+| **D5** | Table `output.rendered` HTML snapshot 위치 정합 | **B안 — frontend client-side 렌더로 전환**: backend handler 의 HTML rendered 생성 폐지. frontend table component 가 `output.data + config` 로 직접 렌더. Carousel/Chart 와 완전 일관. spec §5 JSON 예시에서 `output.rendered` 제거. | table |
+| **D6** | AI 3종 multi-turn `messages` 경로 비대칭 | **C안 — waiting 시 `output.result.messages` 로 통합**: ai-agent / information-extractor 의 waiting/resumed 시 top-level `output.messages` 를 `output.result.messages` wrapper 안으로 이동하여 종결 경로와 통일. text-classifier `output.originalInput` 도 같은 정책 (정상/에러 모두 `output.result.originalInput` 또는 `output.error.details.originalInput`) 으로 정합. | ai-agent, information-extractor, text-classifier |
+
+### 호환성·breaking 영향
+
+- **Non-breaking (필드 추가형)**: D1, D3 (footnote), D2 (executor 내부 변경 — 외부 expression 영향 없음).
+- **Breaking (다운스트림 expression 마이그레이션 필요)**:
+  - **D4** — 기존 HTTP `IntegrationError` 가 throw → engine FAILED 로 fail-fast 되던 워크플로가 이제 `error` 포트로 흐름. 사용자 워크플로 동작 변화.
+  - **D5** — `$node["T"].output.rendered` 참조 워크플로 깨짐. 다운스트림 마이그레이션 가이드 필요.
+  - **D6** — `$node["X"].output.messages` (waiting) 참조 워크플로 영향. `$node["X"].output.result.messages` 로 통합 후 단일 경로.
+- **마이그레이션 도구**: D4/D5/D6 변경 시 frontend autocomplete + sample fixture + 노드 spec 의 §5 JSON 예시를 동기 갱신. 필요 시 사용자 워크플로의 expression 분석/안내 도구 별도 검토.
+
+### 처리 순서
+
+D1 → D2 → D3 → D4 → D5 → D6 (알파벳·숫자 순서). 각 D 별로 별도 plan 분리 + 별도 PR. 처리 시 worktree 단위:
+
+| ID | 새 worktree | plan 분리 |
+| --- | --- | --- |
+| D1 | `node-output-d1-config-echo-XXXX` | `plan/in-progress/node-output-d1-config-echo/README.md` |
+| D2 | `node-output-d2-container-start-XXXX` | `plan/in-progress/node-output-d2-container-start/README.md` |
+| D3 | `node-output-d3-skipped-footnote-XXXX` | (D1 또는 D2 와 묶어도 무방, footnote 만) |
+| D4 | `node-output-d4-integration-port-error-XXXX` | `plan/in-progress/node-output-d4-integration-port-error/README.md` |
+| D5 | `node-output-d5-table-client-render-XXXX` | `plan/in-progress/node-output-d5-table-client-render/README.md` |
+| D6 | `node-output-d6-ai-messages-unified-XXXX` | `plan/in-progress/node-output-d6-ai-messages-unified/README.md` |
+
+각 작업은 `developer` skill 진입 시 `/consistency-check --impl-prep` 의무 호출, `project-planner` 작업 시 `/consistency-check --spec` 의무 호출.
+
+> **P0/P1/P2/P3** 우선순위 항목들 (ai-agent error builder, Workflow async 중복, Code sandbox API, Template XSS 등) 은 본 결정사항과 별개로 §"진행 상태 요약" Phase 2 표를 보고 각 노드별 결정 필요. 본 6개 결정은 횡단 정책에 한정.
+
 ## 다음 단계
 
 본 plan 폴더의 권고는 두 단면 (spec 본문 / 구현) 으로 분리되어 있으므로 처리 phase 도 분리한다.
