@@ -10,7 +10,7 @@ npm run dev
 
 > 본 프로젝트는 npm 전용입니다. yarn / pnpm / bun 사용은 금지 (루트 CLAUDE.md "패키지 매니저" 참고).
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3012](http://localhost:3012) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
@@ -127,7 +127,7 @@ docker build -f frontend/Dockerfile \
 | `NEXT_PUBLIC_API_URL` | **build-time** | client bundle에 inline. `--build-arg`로 전달. 환경별 이미지 빌드 필요 |
 | `NEXT_PUBLIC_WS_URL` | **build-time** | 동일 |
 | `INTERNAL_API_URL` | runtime | Server Component fetch 시 우선 사용 (예: `http://backend.<ns>.svc:3011/api`) |
-| `PORT` / `HOSTNAME` | runtime | 기본 `3000` / `0.0.0.0` (Dockerfile에서 설정) |
+| `PORT` / `HOSTNAME` | runtime | 기본 `3012` / `0.0.0.0` (Dockerfile에서 설정) |
 
 ### 헬스체크
 
