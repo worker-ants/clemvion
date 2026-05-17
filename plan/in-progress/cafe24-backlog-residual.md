@@ -42,7 +42,7 @@ owner: developer (다음 진입자)
 
 - [ ] **운영(A-2)**: nginx access log 의 `:installToken` segment 마스킹 또는 query parameter 이동 검토. (ai-review W6 / W11) — 운영 ops 작업, 코드 변경 없음
 - [ ] **운영(A-3)**: install endpoint IP 기반 rate limiting 추가 layer (현재 30 req/min throttle 만 적용). token oracle enumeration 방어 강화. (ai-review W7)
-- [ ] **C-3**: `isReauthorizeDisabled` 위치 이동 — badge UI 컴포넌트(`status-badge.tsx`) 에서 export 중 → `lib/integrations/utils.ts` 등 도메인 모듈로. (ai-review I6)
+- [ ] **C-3**: `isReauthorizeDisabled` 위치 이동 — badge UI 컴포넌트(`status-badge.tsx`) 에서 export 중 → `lib/integrations/utils.ts` 등 도메인 모듈로. (ai-review I6) — ⚠ **integration-token-ui-autorefresh PR (구현 worktree `integration-token-ui-autorefresh-a3f9b2`) merge 이후 진행**. 그 PR 이 `status-badge.tsx` 의 `computeStatus`·`needsAttention` 분기를 동시 수정하므로 동일 파일에서 merge conflict 위험. 출처: `review/consistency/2026/05/17/12_34_47/SUMMARY.md` W-2 / `2026/05/17/12_16_00/SUMMARY.md` W-3.
 - [ ] **C-6**: `buildIntegrationMeta` 레지스트리 패턴 — 현재 cafe24 만 하드코딩. 두 번째 provider 추가 직전 시점에 `Map<serviceType, (entity) => IntegrationMeta>` 로 전환. (deferred)
 - [ ] **D-1**: 신규 에러 코드 2종 `@ApiResponse` 데코레이터 — `CAFE24_INSTALL_INVALID_TOKEN(404)`, `CAFE24_PRIVATE_APP_ALREADY_CONNECTED(409)` swagger 명시. (ai-review I19)
 - [ ] **D-2**: `process()` 에러 격리 정책 spec 명시 (`.catch(logger.error)` BullMQ 재시도 회피) — Sentry/Datadog 연동 검토. (ai-review W7)
