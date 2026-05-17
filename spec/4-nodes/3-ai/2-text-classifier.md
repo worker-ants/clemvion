@@ -286,8 +286,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
       "details": {
         "originalInput": "환불 요청드립니다 …(truncated)"
       }
-    },
-    "originalInput": "환불 요청드립니다"
+    }
   },
   "meta": {
     "durationMs": 5021,
@@ -307,8 +306,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 |------|------|------|------|
 | `output.error.code` | String | handler return | `UPPER_SNAKE_CASE`. 본 노드의 예약어: `LLM_CALL_FAILED` (네트워크/타임아웃/5xx), `LLM_RATE_LIMITED` (429), `LLM_RESPONSE_INVALID` (JSON 파싱 + substring fallback 모두 실패 — 현재 핸들러는 substring fallback 으로 회복하므로 이 코드는 reserved) |
 | `output.error.message` | String | handler return | 사람이 읽는 메시지 (provider 원문 보존, 국제화 없음). 다운스트림에서 사용자에게 노출 시 sanitize 책임은 호출자 |
-| `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (에러 envelope 의 PII / 대용량 방지). `output.originalInput` (full) 과는 별개 — error details 만 truncate |
-| `output.originalInput` | String | handler return | LLM 에 투입된 resolved 원문 (truncation 없음). 성공 case 의 `output.result.originalInput` 와 동일 의미 — 재진입/디버깅 시 원문 재확인용 |
+| `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (에러 envelope 의 PII / 대용량 방지). D6 통일 — 정상은 `output.result.originalInput` (full), 에러는 본 필드 (truncated) 단일 경로 |
 | `meta.durationMs` | number | handler return | `execute()` 진입부터 catch 블록 진입 직전까지의 소요 시간 (ms). 성공 경로와 동일 측정 기준 (Principle 2) |
 | `meta.model` | String | handler return | 호출 시도된 모델 ID (`config.model` 또는 `llmConfig.defaultModel`) |
 | `meta.{inputTokens, outputTokens, totalTokens}` | number | handler return | 에러 시 LLM 응답 미수신 → 모두 `0`. 표현식이 `undefined` 로 falling through 하지 않도록 명시 0 default |
@@ -316,6 +314,8 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | `port` | `'error'` | handler return | 에러 분기 |
 
 > 본 핸들러는 JSON 파싱 실패 시 substring fallback 으로 회복하므로 `LLM_RESPONSE_INVALID` 는 발화하지 않는다. fallback 매칭에도 실패하면 §5.1 fallback case (`port: 'fallback'`, `category: null`) 로 정상 종료된다. `error` 포트는 LLM API 호출 자체의 throw 만 라우팅한다.
+
+> **D6 결정 (2026-05-17)**: 종전 top-level `output.originalInput` (full, truncation 없음) 은 폐기. 정상 (`output.result.originalInput`) / 에러 (`output.error.details.originalInput` truncated) 양쪽이 단일 경로로 통일. 에러 시 full 입력이 필요한 워크플로는 깨지므로 마이그레이션 필요 (truncated 버전만 surface). (plan/in-progress/node-output-redesign D6)
 
 **Expression 접근 예**:
 - `$node["Intent"].output.error.code` → `"LLM_CALL_FAILED"`
