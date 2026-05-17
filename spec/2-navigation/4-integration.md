@@ -809,7 +809,8 @@ window.close();
 ### 10.5 토큰 자동 갱신
 
 - Refresh token 보유 시 (provider 가 refresh_token 발급·갱신을 보장 — 현재 `cafe24`, `google`): 노드 실행 직전 만료 확인 → 만료됐으면 갱신 후 호출. 이 자동 갱신 가능 여부는 `IntegrationDto.autoRefresh: boolean` (§9.1) 로 클라이언트에 노출되어 상태 배지·attention 술어·Reauthorize hover 안내의 분기 신호로 쓰인다.
-- **갱신 실패 시 (2026-05-16 갱신)**: `refresh_token` 자체가 무효 (`invalid_grant`) 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기는 폐기 — [Rationale "refresh 실패 시 status_reason 통일"](#rationale) 참고). transport 실패가 3회 연속이면 `error(network)` 로 전이 (PR #67 V049 카운터). `integration_expired` 알림은 `expired` 전이에만 발사하며 `error(*)` 전이는 UI 배지로만 표시 (§11 참고).
+- **401 자동 회복 (`call()` 경로, 2026-05-17 추가)**: proactive 갱신이 race condition (DB `expires_at` 미동기, 다중 인스턴스, NULL legacy row 등) 으로 빗나가 만료된 access_token 으로 Cafe24 API 호출이 401 을 받으면, `refresh_token` 으로 access_token 을 갱신한 뒤 동일 요청을 **1회만** 재시도. 재시도가 2xx 면 `status='connected'` 유지 (애초에 격하 없음). 재시도도 401 이면 토큰 자체 문제로 확정해 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 `error(auth_failed)` 전이 발사. 403 은 본 자동 회복 대상 아님 (즉시 격하). 재시도 분기는 `refreshViaQueue` (`jobId = integrationId`) 를 거치므로 클러스터 전체 단일 refresh — thundering herd 사고 없음. 재시도 횟수는 정확히 1회 (429 rate limit 재시도와 별개 카운터). [§5.8 연결 테스트의 `pingConnection()`](#58-cafe24) 의 동일 패턴과 정책 통일. Rationale 의 "`call()` 의 401 자동 회복 (2026-05-17)" 참고.
+- **갱신 실패 시 (2026-05-16 갱신)**: `refresh_token` 자체가 무효 (`invalid_grant`) 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기는 폐기 — [Rationale "refresh 실패 시 status_reason 통일"](#rationale) 참고; cafe24 의 경우 본 격하 경로는 [§6.1 공통 격하 동작](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 에 명세). transport 실패가 3회 연속이면 `error(network)` 로 전이 (PR #67 V049 카운터). `integration_expired` 알림은 `expired` 전이에만 발사하며 `error(*)` 전이는 UI 배지로만 표시 (§11 참고).
 - 갱신 성공 시: `Integration.last_rotated_at` 도 함께 갱신해 백그라운드 갱신 스캐너의 cutoff 비교에 사용된다 (§11.1 `cafe24-background-refresh`).
 - **원자 갱신**: 토큰 갱신 성공 시 `credentials.access_token` / `credentials.refresh_token` / `credentials.expires_at` / `Integration.token_expires_at` 4개 필드를 **동일 트랜잭션 내 원자 UPDATE**. partial write 시 다음 노드 실행이 inconsistent token state 를 사용하는 race condition 방지.
 - **Cafe24 한정**: 갱신 endpoint 도 `https://{credentials.mall_id}.cafe24api.com/api/v2/oauth/token`. `mall_id` 누락 시 `INTEGRATION_INCOMPLETE` 로 즉시 실패. **백그라운드 갱신**: 일일 `cafe24-background-refresh` 잡 (§11.1) 이 `lastRotatedAt < now - 10d OR IS NULL` 인 connected cafe24 통합을 `cafe24-token-refresh` 큐로 enqueue 해 14일 idle 통합의 refresh_token 도 자동 갱신한다. **멀티 인스턴스 race**: 모든 cafe24 refresh 호출은 `cafe24-token-refresh` 큐의 `jobId = integrationId` dedup 으로 클러스터 전체 직렬화된다 ([Rationale "BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소"](#rationale) 참고).
@@ -1363,3 +1364,43 @@ Public 흐름은 begin 단계에서 Integration row 를 만들지 않으므로 V
 - `cafe24-api.client.spec.ts` — `tokenExpiresAt === null` AND `credentials.expires_at` 미존재 row 가 다음 호출에서 자동으로 refresh + 4-field 원자 UPDATE 되는지 회귀 테스트 1건 추가.
 
 **출처**: 사용자 보고 (2026-05-17, 15:33 KST — gehrig0301 mall). 동일 시간대의 [`Cafe24 별도 승인 scope 의 식별·안내`](#cafe24-별도-승인-scope-의-식별안내-2026-05-17) 와 시간대만 같고 별개 이슈.
+
+### `call()` 의 401 자동 회복 (2026-05-17)
+
+**문제**: 사용자 보고 — 최초 OAuth 연동 직후 MCP/노드 호출은 정상이지만, access_token 만료 후 (refresh_token 유효) 다시 시도하면 401 받고 갱신 없이 즉시 `error(auth_failed)` 로 전이. 사용자가 재인증을 강제당함. 원인은 proactive `ensureFreshToken` (§10.5 첫 bullet) 이 다음 race window 에서 빗나갈 수 있어 만료된 token 으로 Cafe24 호출이 발사되는 것:
+
+- NULL `expires_at` legacy row (callback fix 이전 생성된 통합 — 위 "Cafe24 token 응답의 `expires_at` 처리 (2026-05-17)" 항 참고)
+- 다중 인스턴스 cache 미동기 (한 pod 의 refresh 결과가 다른 pod 의 메모리에 즉시 반영되지 않음)
+- DB write 와 wall clock 간 미세 어긋남 (60s window 직전 도달)
+
+**결정**: §5.8 의 연결 테스트 (`pingConnection`) 가 이미 갖고 있는 "401 → refresh → 1회 재시도" 패턴을 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 401 분기와 §10.5 의 reactive 회복 정책으로 정식 채택. 코드는 `Cafe24ApiClient.executeWithRateLimit()` 의 401 분기를 `pingConnection()` 과 동일하게 수정. 403 은 refresh 로 회복 불가이므로 즉시 격하 (기존 정책 유지).
+
+**기각 대안**:
+
+- (A) **proactive window 확대 (예: 60s → 5min)** — race window 만 좁힐 뿐 근원 미해결. 다중 인스턴스 cache miss 는 window 크기와 무관하게 발생.
+- (B) **여러 번 재시도 (예: 3회 exponential backoff)** — refresh_token 자체가 invalid 면 무한 retry 가 alert 폭탄 + Cafe24 rate limit 위반 (`/oauth/token` 자체에도 rate limit 존재). 1회로 충분 — 첫 401 + refresh 성공이면 재시도 1회, refresh 실패면 즉시 격하.
+- (C) **즉시 격하 유지하고 사용자가 재인증** (옛 정책 그대로) — 정상 갱신 가능한 케이스가 false negative 로 사용자 friction 증가. UX 후퇴. `pingConnection()` 이 이미 자가 회복 패턴인 것과 정책 분기. **기각 범위는 Cafe24 (`call()` 경로) 한정** — 외부 MCP 서버 (Spec MCP Client §8.4 본문) 는 refresh_token 이 없어 (C) 가 여전히 유효한 채택안.
+
+**§8.4 (MCP Client) 의 "운영 가시성 해친다" 우려에 대한 반박**: §8.4 는 외부 MCP 서버 (refresh_token 없는 토큰 모델) 의 race-of-clock 시나리오를 막기 위한 정책이다. cafe24 처럼 refresh_token 을 보유한 provider 의 401 자가 회복은:
+
+- "토큰이 외부에서 일시 회복" 이 아니라 "우리 서버가 refresh 로 명시적 갱신" — race-of-clock 시나리오 자체가 발생하지 않음.
+- refresh 가 토큰 lifecycle 의 정상 단계 — refresh_token 보유 provider 의 정상 운영 흐름.
+- status 깜빡임 (`error ↔ connected` 왕복) 도 발생하지 않음 — 자가 회복은 격하 **전** 단계에서 일어나므로 `status='connected'` 가 유지될 뿐.
+
+따라서 §8.4 정책은 외부 MCP 한정으로 유지하고, Internal Bridge 의 refresh_token 보유 provider 는 §6.1 의 자가 회복 정책을 적용한다.
+
+**적용 범위**:
+
+- `Cafe24ApiClient.call()` → `executeWithRateLimit()` (cafe24 노드 + AI Agent Internal MCP Bridge 양쪽)
+- `pingConnection()` 은 이미 동일 패턴 (변경 없음, 정책 통일 완성)
+
+**비적용 범위**:
+
+- 외부 MCP 서버 (§8.4 본문 그대로 적용 — refresh_token 없음)
+- 403 (스코프/권한 부족 — refresh 무의미)
+- refresh 자체의 401/403 (이미 격하 트리거, 재시도 없음)
+- 429 / 5xx / transport — 본 정책과 무관, 기존 흐름 유지
+
+**구현 plan**: `plan/in-progress/cafe24-call-401-retry.md` (worktree `cafe24-401-refresh-a3f2c1`).
+
+**consistency-check 세션**: `review/consistency/2026/05/17/21_06_13/` (BLOCK: NO — WARNING 1 건은 §8.4 본문 + line 69 안내문을 단일 commit 으로 원자 반영하여 해소, INFO 5건은 본 spec 갱신에 함께 반영).
