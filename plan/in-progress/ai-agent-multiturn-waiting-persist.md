@@ -38,14 +38,15 @@ owner: developer
 ## 작업
 
 - [x] 스펙 분석 (`spec/4-nodes/3-ai/1-ai-agent.md` §7.4, `spec/5-system/4-execution-engine.md` §원자성, `spec/5-system/6-websocket-protocol.md` §4.4)
-- [ ] consistency-check --impl-prep (관련 spec 영역)
-- [ ] 테스트 선작성 — `execution-engine.service.spec.ts` 의 `handleAiMessageTurn` 분기에 다음 케이스 추가:
+- [x] consistency-check --impl-prep (관련 spec 영역) — `review/consistency/2026/05/17/21_25_34/`
+- [x] 테스트 선작성 — `execution-engine.service.spec.ts` 의 `handleAiMessageTurn` 분기에 다음 케이스 추가:
   - 케이스 A: multi-turn 후속 turn 의 `waiting_for_input` 처리 후 `nodeExecutionRepository.save` 가 호출되고 outputData 의 `messages` 가 누적치를 반영한다
   - 케이스 B: `_resumeState` 가 DB 영속 outputData 에 포함되지 않는다 (WARN #6 — 기존 정책 회귀 방지)
   - 케이스 C: outputData 의 meta.interactionType 이 `'ai_conversation'` 으로 마킹된다 (snapshot reconcile 일관성)
-- [ ] 구현 — `handleAiMessageTurn` 의 waiting 분기에 `nodeExec.outputData = withInteractionMeta(persistedOutput, 'ai_conversation')` + `nodeExecutionRepository.save(nodeExec)` 추가. `_resumeState` strip 패턴은 `emitAiWaitingForInput` 와 동일하게 적용.
-- [ ] TEST WORKFLOW — lint·unit·build·e2e
-- [ ] REVIEW WORKFLOW — /ai-review, RESOLUTION.md
+- [x] 구현 — `handleAiMessageTurn` 의 waiting 분기에 `nodeExec.outputData = withInteractionMeta(safe, 'ai_conversation')` + `nodeExecutionRepository.save(nodeExec)` 추가. `_resumeState` allowlist destructure strip 및 nodeExec null warn 로그 적용.
+- [x] API 문서 / 사용자 매뉴얼 영향 여부 확인 — REST `/executions/:id` 응답은 기존 `NodeExecution.outputData` 그대로 통과시키는 구조 (PROJECT.md "변경 유형 → 갱신 위치 매핑" 의 "백엔드 API 추가·변경" 미해당), 사용자 매뉴얼에 외부 노출 컨트랙트 신규 항목 없음 → 갱신 불요.
+- [x] TEST WORKFLOW — lint·unit·build·e2e
+- [x] REVIEW WORKFLOW — /ai-review, RESOLUTION.md — `review/code/2026/05/17/21_47_58/`
 - [ ] plan complete 이동 (마지막 PR 안에서)
 
 ## Consistency-Check 결과 (review/consistency/2026/05/17/21_25_34/)

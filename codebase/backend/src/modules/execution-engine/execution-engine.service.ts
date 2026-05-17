@@ -2143,18 +2143,41 @@ export class ExecutionEngineService
       // The Execution row stays WAITING_FOR_INPUT (self-transition) so we
       // save just the NodeExecution; no `updateExecutionStatus` needed.
       //
-      // WARN #6 — strip `_resumeState` before persisting. It carries
-      // engine-internal turn debug, model state, and rawConfig (potential
+      // WARN #6 — strip `_resumeState` via allowlist destructure (any new
+      // internal field at the top level is automatically excluded; matches
+      // `emitAiWaitingForInput` policy). `_resumeState` carries engine-
+      // internal turn debug, model state, and rawConfig (potential
       // credentials). Multi-turn state lives in the in-memory cache only;
       // server restart triggers `recoverStuckExecutions` → FAILED.
+      //
+      // `nodeExec` should normally exist here — the first turn entered via
+      // `emitAiWaitingForInput` already persisted it. A null arrival means
+      // the row was lost between turns (e.g. external truncation, cleanup
+      // race); the in-memory cache is still authoritative for the live
+      // session, but the cross-tab snapshot cannot be hydrated. Warn loudly
+      // instead of silently skipping so the gap shows up in logs.
       if (nodeExec) {
-        const persistedOutput: Record<string, unknown> = { ...adaptedNext };
-        delete persistedOutput._resumeState;
-        nodeExec.outputData = withInteractionMeta(
-          persistedOutput,
-          'ai_conversation',
+        const { _resumeState: _stripped, ...safe } = adaptedNext as unknown as {
+          _resumeState?: unknown;
+        } & Record<string, unknown>;
+        void _stripped;
+        nodeExec.outputData = withInteractionMeta(safe, 'ai_conversation');
+        try {
+          await this.nodeExecutionRepository.save(nodeExec);
+        } catch (err) {
+          this.logger.error(
+            `handleAiMessageTurn: failed to persist NodeExecution.outputData for ` +
+              `executionId=${executionId} nodeId=${node.id}: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+          );
+        }
+      } else {
+        this.logger.warn(
+          `handleAiMessageTurn: nodeExec missing for executionId=${executionId} ` +
+            `nodeId=${node.id} — DB outputData persist skipped, cross-tab snapshot ` +
+            `will lag in-memory turn state until next NODE_COMPLETED.`,
         );
-        await this.nodeExecutionRepository.save(nodeExec);
       }
 
       // Update state for next turn

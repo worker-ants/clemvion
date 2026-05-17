@@ -2193,7 +2193,13 @@ describe('ExecutionEngineService', () => {
       // 첫 turn waiting 진입 시점의 save 호출은 무시 — 후속 turn 만 검증.
       mockNodeExecutionRepo.save.mockClear();
 
+      // ai-review W4 — flushPromises 만으로는 깊은 Promise 체인이 누락될
+      // 수 있고, 미처리 rejection 도 false-negative 로 통과한다. 본
+      // entry point 자체는 동기 디스패치라 await 가 즉시 풀리지만,
+      // flushPromises 를 2회 호출해 후속 마이크로태스크 (NodeExec save 등)
+      // 가 모두 settle 될 시간을 확보한다.
       service.continueAiConversation(executionId, 'hi');
+      await flushPromises();
       await flushPromises();
 
       // 후속 turn waiting 분기에서 NodeExecution save 가 호출되어야 한다.
@@ -2201,9 +2207,23 @@ describe('ExecutionEngineService', () => {
       expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
 
       // save 된 entity 중 ai_agent 노드의 것 한 건 이상.
+      // ai-review W5 — nodeId 하드코딩이 fixture 와 결합되어 있어 fixture
+      // 변경 시 한 곳만 갱신하도록 상수화 + 진단성 메시지 분리. Jest 의
+      // expect() 는 두 번째 인자 메시지를 지원하지 않아 throw 로 분기.
+      const AGENT_NODE_ID = 'node-agent';
       const savedAgentRows = mockNodeExecutionRepo.save.mock.calls
         .map((call: unknown[]) => call[0] as Partial<NodeExecution>)
-        .filter((e) => e?.nodeId === 'node-agent');
+        .filter((e) => e?.nodeId === AGENT_NODE_ID);
+      if (savedAgentRows.length === 0) {
+        const allNodeIds = mockNodeExecutionRepo.save.mock.calls.map(
+          (call: unknown[]) => (call[0] as Partial<NodeExecution>)?.nodeId,
+        );
+        throw new Error(
+          `no NodeExecution.save was made for nodeId=${AGENT_NODE_ID} — ` +
+            `multi-turn follow-up persist may be skipped or fixture nodeId ` +
+            `changed (observed save calls: [${allNodeIds.join(', ')}])`,
+        );
+      }
       expect(savedAgentRows.length).toBeGreaterThanOrEqual(1);
 
       const persisted = savedAgentRows[savedAgentRows.length - 1];
