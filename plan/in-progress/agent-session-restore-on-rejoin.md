@@ -45,3 +45,7 @@ owner: developer
 - 의존성: `parseHistoryMessages` (이미 export 됨, 완료된 대화 표시에 사용 중) → 추가 모듈 변경 없음
 - backend 변경 없음 (데이터 영속화는 이미 정상)
 - spec 변경 불필요 (구현 디테일, 외부 계약 변화 없음)
+
+## Follow-up (별도 plan / project-planner 위임)
+
+- [ ] `spec/5-system/6-websocket-protocol.md` 또는 `spec/4-nodes/3-ai/1-ai-agent.md` 의 `## Rationale` 에 "WS / REST 두 경로의 conversation messages 시드 동등 원칙" 기록. consistency-check I-11 권고 — project-planner 위임.
