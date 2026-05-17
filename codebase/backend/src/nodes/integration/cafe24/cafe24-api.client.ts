@@ -992,6 +992,14 @@ export class Cafe24ApiClient {
     accessToken: string,
     opts: Cafe24CallOptions,
     attempt: number,
+    /**
+     * 401 자가 회복 (spec §6.1) 의 1회 재시도 flag. proactive
+     * `ensureFreshToken` 이 race window 로 빗나가 만료된 access_token 으로
+     * 호출이 401 을 받으면, refresh 후 동일 요청을 정확히 1회 재시도한다.
+     * `true` 로 진입하면 다시 401 을 받아도 retry 하지 않고 격하 — 무한
+     * 재귀 차단.
+     */
+    triedAuthRetry: boolean = false,
   ): Promise<Cafe24CallResult> {
     const url = this.buildUrl(mallId, opts.path, opts.query);
 
@@ -1100,6 +1108,41 @@ export class Cafe24ApiClient {
       this.logger.warn(
         `Cafe24 API ${response.status} mall=${mallId} ${opts.method} ${opts.path}: ${bodyForLog}`,
       );
+
+      // Spec §6.1 — 401 자가 회복: proactive `ensureFreshToken` 이 race
+      // window (NULL legacy row, 다중 인스턴스 cache miss, DB-wall clock
+      // skew) 로 빗나가 만료된 토큰으로 호출이 401 을 받은 경우 refresh
+      // 후 정확히 1회 재시도. `pingConnection()` (§5.8) 의 동일 패턴.
+      // refresh 경로는 `ensureFreshToken` 과 동일하게 큐가 있으면
+      // `refreshViaQueue` (jobId dedup 으로 클러스터 전체 직렬화), 없으면
+      // legacy in-process `refreshAccessToken`. refresh 자체가 401/403 이면
+      // refresh 단계가 이미 `markAuthFailed` 발사 + throw 하므로 본 분기는
+      // 그 throw 를 그대로 caller 에게 전파한다 (re-throw 불필요 — 별도
+      // catch 가 없으므로 자동 propagate).
+      //
+      // 403 은 refresh 로 회복 불가능 (스코프 부족 / 앱 미설치) — 즉시 격하.
+      if (response.status === 401 && !triedAuthRetry) {
+        if (this.refreshQueue && this.refreshQueueEvents) {
+          await this.refreshViaQueue(integration, 'proactive');
+        } else {
+          await this.refreshAccessToken(integration);
+        }
+        // refresh 성공 — 새 access_token 으로 재시도. attempt counter 는
+        // 새 요청 기준으로 리셋 (429 retry 와 별개 카운터).
+        const refreshedToken =
+          ((integration.credentials ?? {}) as Cafe24Credentials)
+            .access_token ?? accessToken;
+        return this.executeWithRateLimit(
+          integration,
+          mallId,
+          refreshedToken,
+          opts,
+          0,
+          true,
+        );
+      }
+
+      // 403 또는 401-after-retry — 격하 확정.
       // REQ-C3: 403 + scope 시그널 시 status_reason='insufficient_scope'
       // 로 분기. 401 은 항상 auth_failed (토큰 자체 문제).
       const reason: 'auth_failed' | 'insufficient_scope' =
