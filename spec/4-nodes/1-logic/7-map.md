@@ -143,6 +143,12 @@
 
 > **`errorPolicy: 'skip' / 'continue'` 시 결과 형태**: 인덱스 보존을 위해 실패 항목은 `output.mapped[i] = { _skipped: true, error: { code, message } }` 형태로 삽입된다 ([공통 §4](./0-common.md#4-에러-정책-errorpolicy) · [실행 엔진 §3.2](../../5-system/4-execution-engine.md#32-foreach--map-실행)). Map 의 의도는 "동일 타입 변환 배열" 이므로 다운스트림은 `_skipped` 플래그로 정상/실패를 구분해야 한다.
 
+> **D3 결정 (2026-05-17) — ForEach 와의 의도된 분기**: ForEach 는 `output.items[i] = null` placeholder + `output.skipped[]` 별도 배열로 실패를 분리한다 ([9-foreach.md §5.3](./9-foreach.md#53-case-변형-errorpolicy--skip--continue-시-결과-분리)). 두 노드의 차이는 **시멘틱 차이**에서 의도된 것:
+> - **Map** = "**동일 타입 변환 배열**" 계약. 다운스트림은 `mapped.map(...)` 처럼 배열 전체를 한 번에 다루기 때문에, 실패 항목도 같은 배열에 인라인으로 두는 편이 자연스럽다. `_skipped` 플래그로 분기.
+> - **ForEach** = "**독립 항목 반복**" 계약. 각 iteration 이 독립이므로 성공-실패가 한 배열에 섞이지 않는 편이 의미가 명확하다. `items[]` 는 성공+null 만, `skipped[]` 는 실패만.
+>
+> 따라서 D3 는 통일하지 않고 현 정책을 유지한다 (plan/in-progress/node-output-redesign D3).
+
 ### 5.7 엔진 오버라이트 컨트랙트 (Principle 9)
 
 | 시점 | 노드 `output` | 책임 |
