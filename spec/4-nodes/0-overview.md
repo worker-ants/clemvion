@@ -42,7 +42,7 @@ backend/src/nodes/
 
 #### 메타데이터 API
 
-- `GET /api/v1/nodes/definitions` — `{ definitions, categories }` 객체를 반환한다. `definitions`는 등록된 모든 노드의 `{ metadata, ports, configSchema, defaultConfig, inputSchema?, outputSchema? }` 배열이며, 스키마는 Zod v4의 `z.toJSONSchema()`로 직렬화된 JSON Schema 포맷이다. `categories`는 `{ id, label, icon, color, order }[]` 형태의 카테고리 메타데이터 배열로, 프론트엔드 팔레트의 섹션 헤더(레이블·bullet 색상·아이콘)를 렌더링하는 단일 소스다. 프론트엔드는 본 엔드포인트로 노드 팔레트, 설정 폼, 포트 카탈로그를 구성한다.
+- `GET /api/nodes/definitions` — `{ definitions, categories }` 객체를 반환한다. `definitions`는 등록된 모든 노드의 `{ metadata, ports, configSchema, defaultConfig, inputSchema?, outputSchema? }` 배열이며, 스키마는 Zod v4의 `z.toJSONSchema()`로 직렬화된 JSON Schema 포맷이다. `categories`는 `{ id, label, icon, color, order }[]` 형태의 카테고리 메타데이터 배열로, 프론트엔드 팔레트의 섹션 헤더(레이블·bullet 색상·아이콘)를 렌더링하는 단일 소스다. 프론트엔드는 본 엔드포인트로 노드 팔레트, 설정 폼, 포트 카탈로그를 구성한다.
 
 ### 1.1 노드 추상 구조
 
