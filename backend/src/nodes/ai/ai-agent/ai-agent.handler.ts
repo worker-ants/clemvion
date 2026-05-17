@@ -1300,15 +1300,18 @@ export class AiAgentHandler implements NodeHandler {
             ? { conditions }
             : {}),
       },
-      // CONVENTIONS §4.3 — waiting `output` carries the live conversation
-      // snapshot. `message` (current AI turn content) and `turnCount` are
-      // surfaced alongside `messages` so workflow authors can reference
-      // `$node["X"].output.message` / `.turnCount` while the node is paused.
+      // CONVENTIONS §4.3 — waiting `output.result.*` carries the live
+      // conversation snapshot. D6 (2026-05-17) — `messages` / `message` /
+      // `turnCount` / `maxTurns` 가 종결 시점 (`output.result.*`) 과 단일
+      // 경로로 통일되어 다운스트림 expression `$node["X"].output.result.*`
+      // 가 waiting/ended 양쪽에서 동일하게 동작.
       output: {
-        messages,
-        message: '',
-        turnCount: 0,
-        maxTurns,
+        result: {
+          messages,
+          message: '',
+          turnCount: 0,
+          maxTurns,
+        },
       },
       meta: {
         interactionType: 'ai_conversation',
@@ -1724,11 +1727,14 @@ export class AiAgentHandler implements NodeHandler {
             ? { conditions }
             : {}),
       },
+      // D6 (2026-05-17) — resumed waiting tick 도 단일 경로로 통일.
       output: {
-        messages,
-        message: result.content || '',
-        turnCount,
-        maxTurns,
+        result: {
+          messages,
+          message: result.content || '',
+          turnCount,
+          maxTurns,
+        },
       },
       meta: { interactionType: 'ai_conversation' },
       status: 'waiting_for_input',

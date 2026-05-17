@@ -395,7 +395,10 @@ export type AiAgentConfig = z.infer<typeof aiAgentNodeConfigSchema>;
  *
  *  - Single-turn `out` / multi-turn ended / condition / error → `output.result.*`
  *  - Single-turn / multi-turn `error` → `output.error.*`
- *  - Multi-turn waiting / resumed → `output.messages` + `output.interaction?`
+ *  - Multi-turn waiting / resumed → `output.result.*` (messages/message/turnCount/maxTurns)
+ *    + `output.interaction?` (resumed only). D6 (2026-05-17) — waiting 시점
+ *    의 `messages` / `message` / `turnCount` / `maxTurns` 가 종결 시점과
+ *    단일 경로 (`output.result.*`) 로 통일.
  *
  * Intentionally permissive (`.passthrough()` + `.optional()`) — we only need
  * to enumerate stable keys for autocomplete, not reject runtime data.
@@ -406,13 +409,19 @@ export type AiAgentConfig = z.infer<typeof aiAgentNodeConfigSchema>;
 export const aiAgentNodeOutputSchema = z
   .object({
     // Terminal results live under `output.result.*` (single-turn `out`,
-    // multi-turn ended/condition).
+    // multi-turn ended/condition). D6 (2026-05-17) — waiting/resumed
+    // 시점의 `messages` / `message` / `turnCount` / `maxTurns` 도 동일
+    // 경로 (`output.result.*`) 로 통일되어 schema 가 종결/대기 양쪽을
+    // 단일 형태로 표현한다.
     result: z
       .object({
         response: z.unknown(),
         endReason: z.string(),
         turnCount: z.number(),
         messages: z.array(z.unknown()),
+        // D6 — waiting/resumed 전용 라이브 스냅샷 필드.
+        message: z.string(),
+        maxTurns: z.number(),
         condition: z
           .object({
             id: z.string(),
@@ -435,13 +444,10 @@ export const aiAgentNodeOutputSchema = z
       .partial()
       .passthrough()
       .optional(),
-    // Multi-turn `waiting_for_input` / `resumed` snapshots carry the
-    // accumulated chat under `output.messages` and (on resume) the user
-    // interaction payload under `output.interaction`.
-    messages: z.array(z.unknown()).optional(),
-    message: z.string().optional(),
-    turnCount: z.number().optional(),
-    maxTurns: z.number().optional(),
+    // Multi-turn `resumed` snapshots carry the user interaction payload
+    // under `output.interaction`. D6 — `messages` / `message` /
+    // `turnCount` / `maxTurns` 의 top-level slot 폐기, `output.result.*`
+    // 로 이동 (위 참조).
     interaction: z
       .object({
         type: z.string(),

@@ -287,7 +287,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
    e. 갱신된 대화 이력으로 LLM 호출 + Tool/Condition 처리 (Single Turn 3단계와 동일한 분류 로직)
    f. 조건이 충족되면 해당 포트로 라우팅하고 종료 (§7.6)
    g. 조건 미충족 시 AI 응답을 WebSocket 으로 전달
-   h. 종료 조건 미충족 시 다시 `waiting_for_input` 상태로 전환 (§7.4 — `output.messages` 가 누적 상태로 갱신)
+   h. 종료 조건 미충족 시 다시 `waiting_for_input` 상태로 전환 (§7.4 — `output.result.messages` 가 누적 상태로 갱신)
 
 3. **종료 조건** (하나라도 충족 시 대화 종료, 각 사유별 전용 포트로 라우팅):
    a. LLM이 조건 도구를 호출 → 해당 조건의 출력 포트(`{condition.id}`) 로 분기 (§7.6)
@@ -513,10 +513,15 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
     ]
   },
   "output": {
-    "messages": [
-      { "role": "user", "content": "안녕하세요" },
-      { "role": "assistant", "content": "안녕하세요, 무엇을 도와드릴까요?" }
-    ]
+    "result": {
+      "messages": [
+        { "role": "user", "content": "안녕하세요" },
+        { "role": "assistant", "content": "안녕하세요, 무엇을 도와드릴까요?" }
+      ],
+      "message": "안녕하세요, 무엇을 도와드릴까요?",
+      "turnCount": 1,
+      "maxTurns": 20
+    }
   },
   "meta": {
     "durationMs": 1500,
@@ -558,7 +563,10 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.*` | (raw echo) | Principle 7 | 첫 turn 은 `context.rawConfig`, 후속 turn 은 `state.rawConfig` (frozen snapshot) 를 echo |
-| `output.messages` | ChatMessage[] | runtime accumulator | 첫 turn 은 빈 배열 (LLM 호출 전). 후속 turn 부터 system 제외한 user/assistant/tool 메시지 누적 |
+| `output.result.messages` | ChatMessage[] | runtime accumulator | 첫 turn 은 빈 배열 (LLM 호출 전). 후속 turn 부터 system 제외한 user/assistant/tool 메시지 누적 |
+| `output.result.message` | string | handler return | 현재 턴의 assistant 응답 (waiting 시점) — 첫 진입 시 `""` |
+| `output.result.turnCount` | number | handler return | 누적 turn 수 (첫 진입 시 `0`) |
+| `output.result.maxTurns` | number | handler return | config 의 `maxTurns` 값 echo |
 | `meta.interactionType` | `"ai_conversation"` | handler return | run-results UI 의 conversation Preview 탭 식별자 (Principle 1.1.4 의 노드 판별자가 아니라 인터랙션 타입 라벨) |
 | `meta.durationMs` / 토큰 / `turnDebug` | — | (§7.1 과 동일 위치) | 진행 중 누적치를 노출해 References / LLM Usage 탭이 동작 |
 | `status` | `"waiting_for_input"` | handler return | 엔진이 실행을 일시 정지 |
@@ -576,9 +584,11 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 {
   "config": { "mode": "multi_turn", "model": "gpt-4o", "maxTurns": 20 },
   "output": {
-    "messages": [
-      { "role": "user", "content": "환불 문의입니다" }
-    ],
+    "result": {
+      "messages": [
+        { "role": "user", "content": "환불 문의입니다" }
+      ]
+    },
     "interaction": {
       "type": "message_received",
       "data": { "content": "환불 문의입니다", "role": "user" },
@@ -593,12 +603,14 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `output.messages` | ChatMessage[] | 사용자 메시지가 append 된 직후의 누적 대화 (모델 응답은 아직 없음) |
+| `output.result.messages` | ChatMessage[] | 사용자 메시지가 append 된 직후의 누적 대화 (모델 응답은 아직 없음) |
 | `output.interaction.type` | `"message_received"` | interaction 종류 (Principle 4.5) |
 | `output.interaction.data.content` | string | 사용자가 입력한 메시지 본문 |
 | `output.interaction.data.role` | `"user"` | 고정값 |
 | `output.interaction.receivedAt` | ISO8601 string | 수신 시각 |
 | `status` | `"resumed"` | 1회성 transient 마커 |
+
+> **D6 결정 (2026-05-17)**: waiting/resumed 의 `messages` / `message` / `turnCount` / `maxTurns` 가 종결 시점 (`output.result.*`) 과 단일 경로로 통일. 옛 top-level `output.messages` / `.message` / `.turnCount` / `.maxTurns` 는 폐기 — 다운스트림 expression 은 `$node["X"].output.result.messages` 처럼 단일 경로로 접근한다. interaction 페이로드는 의미 분리 유지 (`output.interaction.*`). (plan/in-progress/node-output-redesign D6)
 
 ### 7.6 Multi Turn 모드 — 조건 매칭 (`{condition.id}` 포트)
 

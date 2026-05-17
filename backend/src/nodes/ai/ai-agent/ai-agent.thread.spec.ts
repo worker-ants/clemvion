@@ -590,15 +590,19 @@ describe('AiAgentHandler — ConversationThread push & inject', () => {
         state,
       )) as {
         output: {
-          messages: Array<{
-            role: string;
-            content: string;
-            source?: 'live' | 'injected';
-          }>;
+          result: {
+            messages: Array<{
+              role: string;
+              content: string;
+              source?: 'live' | 'injected';
+            }>;
+          };
         };
       };
 
-      const msgs = turnResult.output.messages;
+      // D6 (2026-05-17) — waiting/resumed `messages` 가 `output.result.messages`
+      // 단일 경로로 통일.
+      const msgs = turnResult.output.result.messages;
       // This is the **pre-backfill** state — processMultiTurnMessage returns
       // the raw _resumeState.messages. The emit-layer helper
       // (buildConversationConfigFromOutput → withSourceMarker) is what
