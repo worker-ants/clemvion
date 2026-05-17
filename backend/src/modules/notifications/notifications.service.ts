@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThanOrEqual, Repository } from 'typeorm';
+import { IsNull, MoreThanOrEqual, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -43,10 +43,13 @@ export class NotificationsService {
       isRead,
     } = query;
 
+    // dismissed (`dismissed_at IS NOT NULL`) 알림은 목록에서 제외 — spec §4.3.
+    // hasRecentByResource (중복 방지) 는 본 필터를 적용하지 않는다 (spec §4.4).
     const qb = this.notificationRepository
       .createQueryBuilder('n')
       .where('n.workspace_id = :workspaceId', { workspaceId })
-      .andWhere('n.user_id = :userId', { userId });
+      .andWhere('n.user_id = :userId', { userId })
+      .andWhere('n.dismissed_at IS NULL');
 
     if (type) {
       qb.andWhere('n.type = :type', { type });
@@ -71,8 +74,9 @@ export class NotificationsService {
     workspaceId: string,
     userId: string,
   ): Promise<{ count: number }> {
+    // dismissed 알림은 미읽음 카운트에서 제외 — spec §4.3.
     const count = await this.notificationRepository.count({
-      where: { workspaceId, userId, isRead: false },
+      where: { workspaceId, userId, isRead: false, dismissedAt: IsNull() },
     });
     return { count };
   }
@@ -109,10 +113,98 @@ export class NotificationsService {
   }
 
   /**
+   * 단건 dismiss — 알림을 사용자 popover/list 에서 숨긴다 (soft delete).
+   *
+   * spec/data-flow/8-notifications.md §4.2.
+   * - 원자 UPDATE: `dismissed_at IS NULL` 인 행에만 `dismissed_at=now()` 를 적용.
+   *   동시 요청 race condition 회피 (review session 17_09_09 I-4) — findOne-then-save
+   *   패턴은 last-write-wins 위험이 있어 단일 SQL UPDATE 로 통합.
+   * - 본인 소유 알림이 아니면 `NotFoundException`. 본인 소유 + 이미 dismissed 인
+   *   경우는 멱등 성공 (기존 dismissed_at 반환).
+   * - row 자체는 보존 (hasRecentByResource 중복 방지에 영향 없도록, spec §4.4).
+   * - 응답의 `dismissedAt` 은 ISO 8601 UTC 문자열 (DTO 명세 일치, review session
+   *   17_09_09 I-18).
+   */
+  async dismiss(
+    id: string,
+    userId: string,
+  ): Promise<{ id: string; dismissedAt: string }> {
+    // 1) 원자 UPDATE — dismissed_at IS NULL 인 행만 갱신. RETURNING 으로 dismissed_at 회수.
+    //    TypeORM `.returning(string)` 의 raw SQL 형태로 컬럼명을 정확히 지정한다
+    //    (배열 형태는 entity property 이름을 받지만, snake_case 컬럼명과 매핑 시
+    //    드라이버에 따라 회귀가 있어 raw SQL 표기가 안정적).
+    const updateResult = await this.notificationRepository
+      .createQueryBuilder()
+      .update(Notification)
+      .set({ dismissedAt: () => 'NOW()' })
+      .where('id = :id', { id })
+      .andWhere('user_id = :userId', { userId })
+      .andWhere('dismissed_at IS NULL')
+      .returning('id, dismissed_at')
+      .execute();
+
+    if ((updateResult.affected ?? 0) > 0) {
+      const row = (
+        updateResult.raw as Array<{
+          id: string;
+          dismissed_at: Date | string;
+        }>
+      )[0];
+      const dismissedAtIso =
+        row.dismissed_at instanceof Date
+          ? row.dismissed_at.toISOString()
+          : new Date(row.dismissed_at).toISOString();
+      return { id: row.id, dismissedAt: dismissedAtIso };
+    }
+
+    // 2) UPDATE 가 0행 영향 → 본인 소유 + 이미 dismissed 이거나, 미존재/타인 소유.
+    //    findOne 으로 분기. 본인 소유 + 이미 dismissed 면 멱등 성공으로 처리.
+    const existing = await this.notificationRepository.findOne({
+      where: { id, userId },
+    });
+    if (!existing) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Notification not found',
+      });
+    }
+    return {
+      id: existing.id,
+      dismissedAt: (existing.dismissedAt as Date).toISOString(),
+    };
+  }
+
+  /**
+   * 일괄 dismiss — 현재 워크스페이스에서 로그인 사용자의 모든 visible 알림을
+   * dismiss 처리한다. 이미 dismissed 인 행은 건드리지 않으므로 affected count 에서 제외.
+   *
+   * spec/data-flow/8-notifications.md §4.2.
+   */
+  async dismissAll(
+    workspaceId: string,
+    userId: string,
+  ): Promise<{ affected: number }> {
+    const result = await this.notificationRepository
+      .createQueryBuilder()
+      .update(Notification)
+      .set({ dismissedAt: () => 'NOW()' })
+      .where('workspace_id = :workspaceId', { workspaceId })
+      .andWhere('user_id = :userId', { userId })
+      .andWhere('dismissed_at IS NULL')
+      .execute();
+
+    return { affected: result.affected || 0 };
+  }
+
+  /**
    * Idempotency 헬퍼 — 같은 (workspace, type, resourceId, title) 조합으로
    * `withinMs` 이내에 발사된 알림이 있는지 검사. `integration_action_required`
    * 같이 동일 상태 전이를 반복 발사하지 않으려는 호출자가 사용 (spec §11.2).
    * title 까지 매칭하므로 다른 status_reason (다른 title) 은 별도 카운트.
+   *
+   * **dismissed row 포함** — 사용자가 닫았다는 사실이 알림 재발사 빈도를 다시
+   * 풀어버리면 같은 장애에 대해 over-noise 가 발생한다. dismiss 는 표시 차원의
+   * 결정일 뿐 중복 방지의 "최근 발사 여부" 와 별개 (spec §4.4 + Rationale).
    */
   async hasRecentByResource(params: {
     workspaceId: string;

@@ -68,6 +68,9 @@ describe('IntegrationExpiryScannerService.run', () => {
       // W-75 — NotificationsService 의 신규 hasRecentByResource 메서드.
       // 본 spec 은 직접 호출하지 않지만 surface 동기화로 런타임 회귀 방지.
       hasRecentByResource: jest.fn().mockResolvedValue(false),
+      // dismiss 도입 (spec/data-flow/8-notifications.md §4) — surface 동기화.
+      dismiss: jest.fn(),
+      dismissAll: jest.fn().mockResolvedValue({ affected: 0 }),
     };
     queue = { upsertJobScheduler: jest.fn() };
     cafe24RefreshQueue = { add: jest.fn().mockResolvedValue({ id: 'job-1' }) };

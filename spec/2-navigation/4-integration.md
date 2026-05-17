@@ -873,6 +873,8 @@ for each integration:
 
 **중복 방지**: `(integration_id, status_reason)` 으로 유니크 판정 — 같은 사유로 같은 통합에 대해 최대 1회. 사용자가 재연결해 `connected` 로 회복하면 dedup 키 리셋.
 
+> 24h 중복 방지(`hasRecentByResource`) 는 row 존재 여부로 판단하며, 사용자가 알림을 닫아 `dismissed_at` 이 채워진 row 도 카운트에 포함된다 ([`data-flow/8-notifications.md §4.4`](../data-flow/8-notifications.md#44-중복-방지-hasrecentbyresource-와의-관계)). 닫기는 표시 차원의 결정일 뿐 알림 재발사 빈도와 무관하다.
+
 **발사 정책**: `Cafe24ApiClient.markAuthFailed` (auth_failed / insufficient_scope) 와 `recordNetworkFailure` (3회 누적 후 network) 안에서 발사. transition 이 **인-라인** 으로 알림을 emit 한다 — daily scanner 가 아닌 본 시점에서 1회.
 
 **채널**: `notifyIntegrationExpiryByEmail` (옛 이름 그대로 재사용 — `integration_action_required` 에도 같이 적용) 활성화 시 `channel='both'`, 기본 `'in_app'`.

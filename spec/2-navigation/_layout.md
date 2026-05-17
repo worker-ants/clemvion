@@ -92,7 +92,10 @@
 ### 3.1 기본 상태
 - 사용자 아바타(또는 이니셜) + 이름 표시
 - 현재 워크스페이스 이름 표시 (축소 텍스트)
-- 알림 벨 아이콘 (미읽은 알림 수 뱃지 표시, 사용자 영역 옆 또는 사이드바 하단)
+- 알림 벨 아이콘 (visible 미읽은 알림 수 뱃지 표시 — `is_read=false AND dismissed_at IS NULL`, 사용자 영역 옆 또는 사이드바 하단)
+  - 팝오버를 열면 알림 목록이 표시되며, 각 항목 hover 시 우측에 ✓(개별 읽음) / ✕(개별 닫기) 액션이 노출된다. 항목 본문 클릭 시 자동 읽음 처리 + `resource_type`/`resource_id` 기반 deep link 이동.
+  - 팝오버 헤더 우측 메뉴에 "모두 읽음 처리"(`POST /notifications/mark-all-read`) 와 "모두 지우기"(`POST /notifications/dismiss-all`) 일괄 액션을 분리해 노출한다. 두 액션은 독립이며 한쪽이 다른쪽을 함의하지 않는다.
+  - 자세한 read/dismiss 라이프사이클·DTO·동사 선택 근거는 [data-flow/8-notifications.md §3-§4](../data-flow/8-notifications.md#3-상태-전이) 참조.
 
 ### 3.2 클릭 시 팝업 메뉴
 
