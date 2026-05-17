@@ -74,11 +74,11 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | `out` | Output | data | false | 발송 성공 (부분 거부 포함). §5.1 |
 | `error` | Error | error | false | runtime 전송 실패 — `EMAIL_SEND_FAILED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED`. §5.3 |
 
-> Send Email 은 동적 포트가 없다. Pre-flight (`validate()`) 검증 실패는 §5.8 throw.
+> Send Email 은 동적 포트가 없다. D4 (2026-05-17, send-email 은 이미 reference 패턴) — `handler.validate()` 실패만 throw → 노드 실행 자체가 시작되지 않음. `execute()` 안의 모든 실패는 §5.3 (`port:'error'`) 로 라우팅.
 
 ## 4. 실행 로직
 
-1. **Pre-flight 검증** (`validate()`) — `evaluateMetadataBlockingErrors` (warningRules 평가) + `validateConfig` (recipient sum-type) + `subject`/`body` 문자열 / `bodyType` enum 체크. 실패 시 throw → §5.8
+1. **Pre-flight 검증** (`validate()`) — `evaluateMetadataBlockingErrors` (warningRules 평가) + `validateConfig` (recipient sum-type) + `subject`/`body` 문자열 / `bodyType` enum 체크. 실패 시 throw → 노드 실행 자체가 시작되지 않음 (워크플로우 실패 처리). 이외 모든 실행 단계 실패는 §5.3 (`port:'error'`) 으로 라우팅 (D4)
 2. **수신자 정규화** — `to`/`cc`/`bcc` 각각:
    - 배열 → 원소를 `trim()` 후 빈 문자열 제거
    - 문자열 → 콤마 split 후 각 토큰 `trim()`
@@ -203,10 +203,12 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | 코드 | 조건 |
 |------|------|
 | `EMAIL_SEND_FAILED` | nodemailer `sendMail` 이 throw 한 generic transport 실패 (네트워크/SMTP 응답 오류 등). `IntegrationError` 가 아닌 모든 catch 분기의 fallback |
+| `EMAIL_NO_RECIPIENTS` (D4) | `to` 정규화 결과가 빈 배열 — `execute()` 안에서 검증. 종전 throw 였으나 D4 이후 본 경로 |
 | `INTEGRATION_INCOMPLETE` | SMTP credentials 의 `host`/`port`/`secure`/`username`/`password`/`default_from` 중 하나라도 누락 |
 | `INTEGRATION_TYPE_MISMATCH` | 참조된 Integration 의 `serviceType` 이 `'email'` 이 아님 |
 | `INTEGRATION_NOT_CONNECTED` | Integration 상태가 `connected` 가 아님 (`expired` / `error`) |
 | `INTEGRATION_NOT_FOUND` | `integrationId` 가 워크스페이스에 존재하지 않음 |
+| `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | `__workspaceId` 컨텍스트 누락 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 |
 | `INTEGRATION_CALL_FAILED` | 기타 분류되지 않은 실패 (베이스 helper 의 fallback — `IntegrationsService.getForExecution` 내부에서 발생 가능) |
 
 > `IntegrationError` 가 catch 된 경우 그 `code` 가 `output.error.code` 로 직접 노출된다 (예: `INTEGRATION_NOT_CONNECTED`). 그 외 모든 throw 는 `EMAIL_SEND_FAILED` 로 mapping. 자격증명 echo / 평문 노출은 `sanitizeMessage` + `maskEmailForErrorDetails` + `truncateForErrorDetails` 가 차단한다.
@@ -251,26 +253,22 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 > 본 케이스는 **runtime 정상 경로 분기** 가 아니라 환경 구성 누락을 알리는 escape hatch 다. 워크플로 작성자가 직접 마주칠 일이 없으며, 다운스트림 노드는 `status === 'requires_integration'` 으로 분기하지 않는다.
 
-### 5.8 Pre-flight throw (config 검증 실패)
+### 5.8 (D4 — 2026-05-17) handler.validate 실패만 throw, 나머지 모두 §5.3 으로 라우팅
 
-다음 조건은 `validate()` 또는 `execute()` 진입 직후 throw → 노드 자체 실패 (CONVENTIONS Principle 3.1). `error` 포트로 라우팅되지 않는다.
+D4 이전에 send-email 은 이미 catch-all 패턴을 갖춰 다른 Integration 4종의 reference 였다. D4 통일 후에는 spec 표현도 다른 노드와 동일 구조로 명문화된다:
 
-| 발생 조건 | 메시지 (예) | 시점 |
-|-----------|-------------|------|
-| `integrationId` 누락 | `Email integration 을 선택해야 합니다.` | warningRule (캔버스 배지) + `evaluateMetadataBlockingErrors` |
-| `to` 빈 배열 / 형식 오류 | `수신자 (To) 를 한 명 이상 입력해야 합니다.` / `to is required and must be a non-empty string or array of email addresses` | warningRule + `validateSendEmailConfig` |
-| `cc` / `bcc` 형식 오류 (set 이지만 비-recipient shape) | `cc must be a string or array of email addresses` | `validateSendEmailConfig` |
-| `subject` 누락 / 비-string | `제목을 입력해야 합니다.` / `subject is required and must be a string` | warningRule + handler.validate |
-| `body` 누락 / 비-string | `본문을 입력해야 합니다.` / `body is required and must be a string` | warningRule + handler.validate |
-| `bodyType` 가 `text`/`html` 외 | `bodyType must be either "text" or "html"` | handler.validate |
-| `to` 정규화 결과가 빈 배열 | `No valid recipients after normalizing the \`to\` field` | `execute()` (validate 통과 후 trim/공백 제거 결과) |
-| `__workspaceId` 누락 | `Missing workspace context — handler cannot resolve the integration` | `resolveIntegration` (엔진 환경 문제) |
+- **`handler.validate()` 실패** (config 형식 자체가 잘못된 경우): warningRule + `evaluateMetadataBlockingErrors` + `validateSendEmailConfig` 가 throw → 엔진이 워크플로우 실패 처리. 예: `Email integration 을 선택해야 합니다.`, `수신자 (To) 를 한 명 이상 입력해야 합니다.`, `subject is required and must be a string`, `bodyType must be either "text" or "html"`.
+- **`execute()` 안의 모든 실패**: §5.3 (`port: 'error'` + `output.error.*`) 으로 라우팅된다. 다음 코드들이 해당:
+  - `EMAIL_SEND_FAILED` — nodemailer transport / SMTP 응답 실패 (fallback)
+  - `EMAIL_NO_RECIPIENTS` — `to` 정규화 결과가 빈 배열 (종전 throw, D4 이후 본 경로)
+  - `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` ([공통 §4.2](./0-common.md#42-공통-에러-코드))
+  - `INTEGRATION_SERVICE_UNAVAILABLE` — `__workspaceId` 컨텍스트 누락 (deployment 오류)
 
-> ⚠ **개선안 항목 (P1, [send_email.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/integration/send_email.md#3-제안된-output-구조))**: `to` 정규화 결과가 빈 배열인 케이스 (`EMAIL_NO_RECIPIENTS`) 는 본질적으로 runtime 표현식 평가 결과이므로 `error` 포트로 라우팅되는 편이 일관적이다. 현재는 throw — spec 변경 시 §5.3 enum 으로 이동하고 본 §5.8 행에서 제거한다.
+> D4 결정으로 종전 §5.8 의 "throw → 노드 자체 실패" 표현은 `handler.validate()` 단계에만 한정된다. 종전 footnote 의 P1 개선안 (`EMAIL_NO_RECIPIENTS` 의 error 포트 라우팅) 도 D4 와 함께 완료.
 
 ## 6. 에러 코드
 
-§5.3 의 `output.error.code` enum (`EMAIL_SEND_FAILED` / `INTEGRATION_*`) 와 §5.8 의 pre-flight throw 메시지를 통합 참조한다. [공통 §4.2 공통 에러 코드](./0-common.md#42-공통-에러-코드) 표는 모든 Integration 노드에 적용된다.
+§5.3 의 `output.error.code` enum (`EMAIL_SEND_FAILED` / `EMAIL_NO_RECIPIENTS` / `INTEGRATION_*` / `INTEGRATION_SERVICE_UNAVAILABLE`) 가 모든 실행 단계 실패 경로의 surface. [공통 §4.2 공통 에러 코드](./0-common.md#42-공통-에러-코드) 표는 모든 Integration 노드에 적용된다.
 
 `output.error.message` 는 `IntegrationHandlerBase.sanitizeMessage` 가 비밀 토큰 (`Bearer …` / `password=…` / 32+ 자 hex/base64 등) 을 `***` 로 마스킹한 후 노출된다. `output.error.details.to` 의 수신자 목록은 `maskEmailForErrorDetails` 로 로컬 파트가 마스킹된다 (`alice@example.com` → `a***@example.com`).
 
