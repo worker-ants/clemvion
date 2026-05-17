@@ -4,7 +4,11 @@
 
 base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 
-> **일부 operation 별도 승인 필요** — `mall.read_store` / `mall.write_store` 자체는 일반 사용 가능하지만, 안의 일부 operation (Activitylogs, Menus, Naverpay/Kakaopay setting, Paymentgateway 관련, Financials paymentgateway) 은 카페24 본사가 별도 승인한 클라이언트만 사용할 수 있다. 해당 row 만 `restricted: op` 로 표기되며, 대응 backend 메타데이터의 `restrictedApproval.level='operation'` + `category` 가 `activitylogs` / `menus` / `naverpay_setting` / `kakaopay_setting` / `pg_settings` 중 하나로 채워진다. 자매 일반 operation 의 `restricted` 컬럼은 빈칸 유지. 명단 SoT: [`cafe24-restricted-scopes.md §2`](../cafe24-restricted-scopes.md#2-operation-단위-별도-승인-store-scope-안의-일부).
+> **일부 operation 별도 승인 필요** — `mall.read_store` / `mall.write_store` 자체는 일반 사용 가능하지만, 안의 일부 operation (Activitylogs, Menus, Naverpay/Kakaopay setting, Paymentgateway 관련, Financials paymentgateway) 은 카페24 본사가 별도 승인한 클라이언트만 사용할 수 있다. 해당 row 만 `restricted: operation` 으로 표기되며, 대응 backend 메타데이터의 `restrictedApproval.level='operation'` + `approvalGroup` 이 `activitylogs` / `menus` / `naverpay_setting` / `kakaopay_setting` / `pg_settings` 중 하나로 채워진다. 자매 일반 operation 의 `restricted` 컬럼은 빈칸 유지. 명단 SoT: [`cafe24-restricted-scopes.md §2`](../cafe24-restricted-scopes.md#2-operation-단위-별도-승인-store-scope-안의-일부).
+
+## Rationale
+
+설계 근거 (컬럼 정의·동기 정책·status enum) 는 [`_overview.md`](./_overview.md) 의 §2·§4·§7. 별도 승인 라벨링의 의사결정 배경은 [`cafe24-restricted-scopes.md ## Rationale`](../cafe24-restricted-scopes.md#rationale).
 >
 > ※ `paymentmethods_list` / `paymentmethods_paymentproviders_list` / `paymentmethods_paymentproviders_update_display` 는 사용자 자료에 명시되지 않아 빈칸 유지. 공식 문서 재검증 후 별도 승인 대상으로 확인되면 동시 갱신.
 
@@ -15,8 +19,8 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `store_get` | 상점 정보 조회 | Retrieve store details | GET | `store` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-store-details) |
 | `shops_list` | 멀티쇼핑몰 목록 조회 | Retrieve a list of shops | GET | `shops` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-shops) |
 | `shops_get` | 멀티쇼핑몰 단건 조회 | Retrieve a shop | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-shop) |
-| `activitylogs_list` | 액션 로그 목록 | Retrieve a list of action logs | ? | ? | ? | op | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-action-logs) |
-| `activitylogs_get` | 액션 로그 단건 조회 | Retrieve an action log | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-action-log) |
+| `activitylogs_list` | 액션 로그 목록 | Retrieve a list of action logs | ? | ? | ? | operation | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-action-logs) |
+| `activitylogs_get` | 액션 로그 단건 조회 | Retrieve an action log | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-action-log) |
 | `automessages_arguments_get` | 자동 메시지 변수 목록 | Retrieve the list of available variables for automated messages | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-the-list-of-available-variables-for-automated-messages) |
 | `automessages_setting_get` | 자동 메시지 설정 조회 | Retrieve the automated message settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-the-automated-message-settings) |
 | `automessages_setting_update` | 자동 메시지 설정 수정 | Update an automated message | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-automated-message) |
@@ -35,7 +39,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `customers_setting_get` | 회원 관련 설정 조회 | Retrieve member related settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-member-related-settings) |
 | `customers_setting_update` | 회원 관련 설정 수정 | Update customers setting | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-customers-setting) |
 | `dashboard_get` | 대시보드 조회 | Retrieve a dashboard | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-dashboard) |
-| `financials_paymentgateway_get` | 결제대행사 계약 정보 조회 | Retrieve a list of payment gateway contract details | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-payment-gateway-contract-details) |
+| `financials_paymentgateway_get` | 결제대행사 계약 정보 조회 | Retrieve a list of payment gateway contract details | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-payment-gateway-contract-details) |
 | `financials_store_get` | 상점 거래 정보 조회 | Retrieve the transaction information of a store | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-the-transaction-information-of-a-store) |
 | `images_setting_get` | 상품 이미지 크기 설정 조회 | Retrieve product image size settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-product-image-size-settings) |
 | `images_setting_update` | 상품 이미지 크기 설정 수정 | Update product image size settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-image-size-settings) |
@@ -44,16 +48,16 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `kakaoalimtalk_profile_get` | 카카오 채널 발신자 프로필 키 조회 | Retrieve a Kakao channel sender profile key | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-kakao-channel-sender-profile-key) |
 | `kakaoalimtalk_setting_get` | 카카오 알림톡 설정 조회 | Retrieve the Kakao info talk settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-the-kakao-info-talk-settings) |
 | `kakaoalimtalk_setting_update` | 카카오 알림톡 설정 수정 | Update the Kakao info talk settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-the-kakao-info-talk-settings) |
-| `kakaopay_setting_get` | 카카오페이 주문 설정 조회 | Retrieve settings for kakaopay orders | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-settings-for-kakaopay-orders) |
-| `kakaopay_setting_update` | 카카오페이 주문 설정 수정 | Update settings for kakaopay orders | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-settings-for-kakaopay-orders) |
+| `kakaopay_setting_get` | 카카오페이 주문 설정 조회 | Retrieve settings for kakaopay orders | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-settings-for-kakaopay-orders) |
+| `kakaopay_setting_update` | 카카오페이 주문 설정 수정 | Update settings for kakaopay orders | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-settings-for-kakaopay-orders) |
 | `mains_properties_setting_get` | 메인 진열 추가 설정 조회 | Retrieve additional settings for products on the main screen | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-additional-settings-for-products-on-the-main-screen) |
 | `mains_properties_setting_update` | 메인 진열 추가 설정 수정 | Update additional settings for products on the main screen | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-additional-settings-for-products-on-the-main-screen) |
-| `menus_get` | 메뉴 조회 | Retrieve menus | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-menus) |
+| `menus_get` | 메뉴 조회 | Retrieve menus | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-menus) |
 | `mobile_setting_get` | 모바일 설정 조회 | Retrieve mobile settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-mobile-settings) |
 | `mobile_setting_update` | 모바일 설정 수정 | Update mobile settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-mobile-settings) |
-| `naverpay_setting_get` | 네이버페이 설정 조회 | Retrieve Naver Pay settings | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-naver-pay-settings) |
-| `naverpay_setting_create` | 네이버페이 설정 생성 | Create Naver Pay settings | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-naver-pay-settings) |
-| `naverpay_setting_update` | 네이버페이 설정 수정 | Update Naver Pay settings | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-naver-pay-settings) |
+| `naverpay_setting_get` | 네이버페이 설정 조회 | Retrieve Naver Pay settings | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-naver-pay-settings) |
+| `naverpay_setting_create` | 네이버페이 설정 생성 | Create Naver Pay settings | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-naver-pay-settings) |
+| `naverpay_setting_update` | 네이버페이 설정 수정 | Update Naver Pay settings | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-naver-pay-settings) |
 | `orderform_setting_get` | 주문서 양식 설정 조회 | Retrieve the order order form settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-the-order-order-form-settings) |
 | `orderform_setting_update` | 주문서 양식 설정 수정 | Update the order order form settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-the-order-order-form-settings) |
 | `orders_setting_get` | 주문 설정 조회 | Retrieve order settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-order-settings) |
@@ -62,13 +66,13 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `orders_status_update` | 주문 상태 표기 수정 | Update order status displayed | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-order-status-displayed) |
 | `payment_setting_get` | 결제 설정 조회 | Retrieve payment settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-payment-settings) |
 | `payment_setting_update` | 결제 설정 수정 | Update payment settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-payment-settings) |
-| `paymentgateway_create` | 결제대행사 생성 | Create a payment gateway | POST | `paymentgateway` | write | op |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-payment-gateway) |
-| `paymentgateway_update` | 결제대행사 수정 | Update a payment gateway | PUT | `paymentgateway/{paymentgateway_id}` | write | op |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-payment-gateway) |
-| `paymentgateway_delete` | 결제대행사 삭제 | Delete a payment gateway | DELETE | `paymentgateway/{paymentgateway_id}` | write | op |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-payment-gateway) |
-| `paymentgateway_paymentmethods_list` | 결제대행사 결제수단 목록 | Retrieve a list of payment gateway methods | GET | `paymentgateway/paymentmethods` | read | op |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-payment-gateway-methods) |
-| `paymentgateway_paymentmethods_create` | 결제대행사 결제수단 생성 | Create a payment gateway method | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-payment-gateway-method) |
-| `paymentgateway_paymentmethods_update` | 결제대행사 결제수단 수정 | Update a payment method of a payment gateway | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-payment-method-of-a-payment-gateway) |
-| `paymentgateway_paymentmethods_delete` | 결제대행사 결제수단 삭제 | Delete a payment method of a payment gateway | ? | ? | ? | op |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-payment-method-of-a-payment-gateway) |
+| `paymentgateway_create` | 결제대행사 생성 | Create a payment gateway | POST | `paymentgateway` | write | operation |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-payment-gateway) |
+| `paymentgateway_update` | 결제대행사 수정 | Update a payment gateway | PUT | `paymentgateway/{paymentgateway_id}` | write | operation |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-payment-gateway) |
+| `paymentgateway_delete` | 결제대행사 삭제 | Delete a payment gateway | DELETE | `paymentgateway/{paymentgateway_id}` | write | operation |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-payment-gateway) |
+| `paymentgateway_paymentmethods_list` | 결제대행사 결제수단 목록 | Retrieve a list of payment gateway methods | GET | `paymentgateway/paymentmethods` | read | operation |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-payment-gateway-methods) |
+| `paymentgateway_paymentmethods_create` | 결제대행사 결제수단 생성 | Create a payment gateway method | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-payment-gateway-method) |
+| `paymentgateway_paymentmethods_update` | 결제대행사 결제수단 수정 | Update a payment method of a payment gateway | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-payment-method-of-a-payment-gateway) |
+| `paymentgateway_paymentmethods_delete` | 결제대행사 결제수단 삭제 | Delete a payment method of a payment gateway | ? | ? | ? | operation |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-payment-method-of-a-payment-gateway) |
 | `paymentmethods_list` | 결제수단 목록 | Retrieve a list of payment methods | GET | `paymentmethods` | read |  | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-payment-methods) |
 | `paymentmethods_paymentproviders_list` | 결제수단별 제공사 목록 | Retrieve a list of providers by payment method | GET | `paymentmethods/paymentproviders` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-providers-by-payment-method) |
 | `paymentmethods_paymentproviders_update_display` | 결제수단 노출 상태 수정 | Update the display status of a payment method | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-the-display-status-of-a-payment-method) |
