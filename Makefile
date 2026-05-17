@@ -10,13 +10,21 @@
 #   - main worktree (basename=clemvion) → `clemvion-e2e` (기존 동작 그대로).
 #   - `.claude/worktrees/<task>-<slug>/` → `clemvion-e2e-<task>-<slug>`.
 #   - 사용자가 `COMPOSE_PROJECT=foo make e2e-test` 로 override 가능 (`?=` 사용).
+#     주의 1 — 셸/CI 가 이미 `COMPOSE_PROJECT` 를 export 했다면 본 Makefile 의 기본
+#     도출 로직이 **무시되고** 외부 값이 그대로 적용된다. CI 에서 export 한
+#     `COMPOSE_PROJECT` 가 실수로 e2e namespace 까지 덮어쓰지 않도록 주의.
+#     주의 2 — `make -C <다른 디렉토리> e2e-test` 형태로 호출하면 `$(CURDIR)` 가
+#     호출자 디렉토리가 아닌 `-C` 의 대상이 되어 격리 키가 달라진다. 호출자가
+#     예측 가능한 격리를 원하면 `COMPOSE_PROJECT=...` 를 명시한다.
 #
 # Worktree dir basename 을 docker compose project 명명 규칙(`[a-z0-9][a-z0-9_-]*`)
 # 으로 정규화: 소문자화 + 영문/숫자/`_`/`-` 외 문자는 `-` 치환.
-_WT := $(shell basename "$(CURDIR)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g')
-COMPOSE_PROJECT ?= $(if $(filter clemvion,$(_WT)),clemvion-e2e,clemvion-e2e-$(_WT))
+_WT_BASENAME := $(shell basename "$(CURDIR)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g')
+COMPOSE_PROJECT ?= $(if $(filter clemvion,$(_WT_BASENAME)),clemvion-e2e,clemvion-e2e-$(_WT_BASENAME))
 
-COMPOSE_E2E := docker compose -f docker-compose.e2e.yml -p $(COMPOSE_PROJECT)
+# 단일 진실 — 다른 타겟들이 이 변수만 참조하도록 한다.
+E2E_COMPOSE_FILE := $(CURDIR)/docker-compose.e2e.yml
+COMPOSE_E2E := docker compose -f $(E2E_COMPOSE_FILE) -p $(COMPOSE_PROJECT)
 
 .PHONY: help setup-githooks e2e-up e2e-down e2e-test e2e-test-full e2e-prune
 
@@ -68,14 +76,20 @@ e2e-test-full:
 	$(MAKE) e2e-down; exit $$STATUS
 
 # worktree 가 `git worktree remove` 로 사라져도 docker 쪽의 stale compose project
-# 가 남는다. 본 타겟은 `clemvion-e2e` 접두를 가진 모든 compose project 를 일괄
-# `down -v --remove-orphans` 한다. jq 의존 — macOS 는 `brew install jq`.
+# 가 남는다. 본 타겟은 `clemvion-e2e` / `clemvion-e2e-*` 로 시작하는 모든 compose
+# project 를 일괄 `down -v --remove-orphans` 한다.
+#
+# 필터링은 jq 의 `startswith` 로 한다 — `docker compose ls --filter "name=..."` 의
+# 매칭 semantics 는 compose 버전에 따라 substring/prefix 가 달라 신뢰하기 어렵다.
+# 우리는 명시적으로 anchor 된 prefix 매칭이 필요하므로 jq 단계에서 보장한다.
+# jq 의존 — macOS 는 `brew install jq`.
 e2e-prune:
 	@command -v jq >/dev/null 2>&1 || { \
 	  echo "e2e-prune: jq 가 필요합니다. macOS: brew install jq" >&2; exit 1; }
-	@projects=$$(docker compose ls -a --filter "name=clemvion-e2e" --format json | jq -r '.[].Name'); \
+	@projects=$$(docker compose ls -a --format json \
+	  | jq -r '.[] | select(.Name == "clemvion-e2e" or (.Name | startswith("clemvion-e2e-"))) | .Name'); \
 	if [ -z "$$projects" ]; then echo "정리할 clemvion-e2e* compose project 없음"; exit 0; fi; \
 	for proj in $$projects; do \
 	  echo "→ pruning $$proj"; \
-	  docker compose -p $$proj -f docker-compose.e2e.yml down -v --remove-orphans; \
+	  docker compose -p "$$proj" -f "$(E2E_COMPOSE_FILE)" down -v --remove-orphans; \
 	done
