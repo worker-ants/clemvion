@@ -78,12 +78,12 @@
    - 파싱 실패 시 정규식으로 userinfo 만 제거 (best-effort)
 3. **Integration 자격증명 해석** (`authentication='integration'` 일 때만):
    - `IntegrationsService.getForExecution(integrationId, workspaceId)` 호출 → `serviceType='http'` 검증, `status='connected'` 검증
-   - `auth_type` 별 credential 빌드 (§4.1 표). 실패 시 `INTEGRATION_INCOMPLETE` 등 throw + Usage 로그 `failed` 기록
+   - `auth_type` 별 credential 빌드 (§4.1 표). 실패 시 `INTEGRATION_INCOMPLETE` 등 catch 후 §5.3 (`port: 'error'`) 라우팅 + Usage 로그 `failed` 기록 (D4, 2026-05-17)
 4. **URL 결합**: `base_url` 이 있고 `url` 이 절대(`https?://`)가 아니면 `{base_url}/{url}` (중복 슬래시 정규화)
 5. **Query Params 병합**: 노드 `queryParams` → URL 에 append → `auth_type='api_key' & location='query'` credential append
 6. **Headers 병합** (뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 **integration 자격증명 헤더가 사용자 입력을 덮어쓴다** (사용자가 `Authorization` 을 위조해 자격증명을 무력화하는 경로 차단)
 7. **Body 직렬화**: `GET` / `HEAD` 외 method 일 때 `bodyType` 에 따라 직렬화. `form-data` 는 multipart boundary 자동 부여 (Content-Type 미지정)
-8. **SSRF 가드** (`authentication='integration'` 일 때만): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단. 실패 시 throw + Usage 로그 (`HTTP_BLOCKED`)
+8. **SSRF 가드** (`authentication='integration'` 일 때만): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅 + Usage 로그 `failed` 기록 (D4, 2026-05-17)
 9. **fetch 호출**: `AbortController` 로 `timeout` 적용, `redirect: 'manual'`. `integration` 인증인 경우 3xx 응답을 받으면 최대 5홉까지 수동 follow + 매 홉 SSRF 재검증
 10. **응답 파싱**: `responseType='json'` → `res.json()` (실패 시 `null`), 그 외 `text`
 11. **Usage 로깅** (§4.2): `integration` 인증일 때만 `success` / `failed` 기록
@@ -100,7 +100,7 @@
 | `api_key` + `location=query` | URL 쿼리 파라미터 append | `?token=secret` |
 | `bearer_token` | `Authorization: Bearer {token}` | — |
 | `basic` | `Authorization: Basic {base64(username:password)}` | — |
-| 그 외 | `INTEGRATION_AUTH_UNSUPPORTED` throw | — |
+| 그 외 | `INTEGRATION_AUTH_UNSUPPORTED` (catch 후 §5.3 라우팅, D4 2026-05-17) | — |
 
 ### 4.2 Usage 로깅 매트릭스 (`authentication='integration'` 일 때)
 
@@ -286,32 +286,19 @@ CONVENTIONS Principle 3.2 의 표준 envelope `output.error.{code, message, deta
 - `$node["X"].output.response` → 서버 body (4xx/5xx) 또는 `{ error: "..." }` (transport)
 - `$node["X"].port === 'error'` → 분기 라우팅
 
-### 5.8 Pre-flight throw (노드 실패)
+### 5.8 (D4 — 2026-05-17) handler.validate 실패만 throw, 나머지 모두 §5.3 으로 라우팅
 
-다음은 모두 throw → 노드 실행 실패 처리 (CONVENTIONS Principle 3.1). 워크플로우 수준에서는 `error` 포트가 아닌 실행 실패로 표면화된다.
+D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 노드 실행 실패 경로를 정의했었다. 현재는 다음 두 경로로 분리된다:
 
-| 발생 조건 | 메시지 / 코드 | 시점 |
-|-----------|----------------|------|
-| `url` 누락 | `URL 을 입력해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
-| `method` 가 enum 미일치 | `method must be one of: GET, POST, ...` | handler.validate |
-| `method` 가 string 아님 | `method must be a string` | handler.validate |
-| `url` 이 string 아님 | `url is required and must be a string` | handler.validate |
-| `authentication='integration'` & `integrationId` 누락 | `Integration 인증을 사용하려면 integration 을 선택해야 합니다.` | warningRule (캔버스 배지) |
-| `authentication='integration'` & `integrationId` 가 string 아님 | `integrationId is required when authentication is "integration"` | handler.validate |
-| `timeout ≤ 0` 또는 number 아님 | `timeout must be a positive number` | handler.validate (`validateConfig`) |
-| `headers[i].key` 또는 `value` 에 CRLF (`\r` / `\n`) | `CRLF characters are not allowed in key/value` | schema (zod) |
-| `__workspaceId` 컨텍스트 누락 | `Missing workspace context — handler cannot resolve the integration` | handler.execute (integration 인증 시) |
-| `IntegrationsService` 미주입 | `Integration-based authentication is not available in this environment` | handler.execute (integration 인증 시) |
-| Integration 조회 실패 | `INTEGRATION_NOT_FOUND` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) | handler.execute |
-| Integration `serviceType !== 'http'` | `INTEGRATION_TYPE_MISMATCH` | handler.execute |
-| Integration `status !== 'connected'` | `INTEGRATION_NOT_CONNECTED` | handler.execute |
-| `auth_type` 별 필수 필드 누락 (`api_key` 의 `location/key_name/value`, `bearer_token` 의 `token`, `basic` 의 `username/password`) | `INTEGRATION_INCOMPLETE` | handler.execute |
-| 지원하지 않는 `auth_type` | `INTEGRATION_AUTH_UNSUPPORTED` | handler.execute |
-| `authentication='integration'` & 최종 URL 이 사설/loopback/link-local/CGNAT/IPv6 ULA | `SSRF_BLOCKED: hostname "..." resolves to a restricted network range` (Usage `HTTP_BLOCKED`) | handler.execute (`assertSafeOutboundUrl`) |
-| `authentication='integration'` & redirect 5홉 초과 | `SSRF_BLOCKED: redirect chain exceeded 5 hops` | handler.execute |
-| `authentication='integration'` & 프로토콜이 `http`/`https` 외 | `SSRF_BLOCKED: protocol "..." is not allowed` | handler.execute |
+- **`handler.validate()` 실패** (config 형식 자체가 잘못된 경우): 여전히 사전 검증 단계에서 노드 실행 자체가 시작되지 않는다. warningRule + `evaluateMetadataBlockingErrors` 가 throw 하며 엔진이 워크플로우를 실패 처리. 예: `URL 을 입력해야 합니다.`, `method must be one of: ...`, `timeout must be a positive number`, `CRLF characters are not allowed in key/value`, `integrationId is required when authentication is "integration"`.
+- **`execute()` 안의 모든 IntegrationError / SSRF / auth 실패**: §5.3 (`port: 'error'` + `output.error.*`) 으로 라우팅된다. 다음 코드들이 해당:
+  - `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` ([공통 §4.2](./0-common.md#42-공통-에러-코드))
+  - `INTEGRATION_AUTH_UNSUPPORTED` — 지원하지 않는 auth_type
+  - `HTTP_BLOCKED` — SSRF 차단 (사설/loopback/link-local/CGNAT/IPv6 ULA / redirect 5홉 초과 / 비-http(s) 프로토콜). Usage 로그에도 `HTTP_BLOCKED` 코드로 기록.
+  - `Integration-based authentication is not available in this environment` — 내부 환경 오류는 `INTEGRATION_SERVICE_UNAVAILABLE` 코드로
+  - `Missing workspace context` — `INTEGRATION_SERVICE_UNAVAILABLE` 코드로
 
-> SSRF 차단은 현재 throw 경로다. 아카이브 개선안(`HTTP_SSRF_BLOCKED` 코드로 `error` 포트 라우팅 전환)은 P1 후보 — 본 spec 의 정책은 **throw 유지**이며, 변경 시 [공통 §6.1](./0-common.md#61-metaduration-vs-metadurationms-명명-통일) 와 같은 방식으로 별도 항목 추가 후 반영한다.
+> D4 이전의 "throw → 노드 실패" 동작은 폐기. 종전 아카이브 개선안의 `HTTP_SSRF_BLOCKED` → error 포트 전환 P1 후보는 D4 결정과 함께 완료 (코드명은 기존 `HTTP_BLOCKED` 유지). Usage 로그 (`status: 'failed'` + `error: {code, message}`) 는 동일하게 기록.
 
 ## 6. 에러 코드
 
@@ -322,8 +309,9 @@ CONVENTIONS Principle 3.2 의 표준 envelope `output.error.{code, message, deta
 | `HTTP_4XX` | `400 ≤ statusCode < 500` (또는 manual redirect 한도 도달한 3xx 도달 시) | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
 | `HTTP_5XX` | `500 ≤ statusCode < 600` | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
 | `HTTP_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout) | `{ error: <message> }` (legacy 잔재) | — (response 없음) | `0` |
-
-Pre-flight throw 코드는 §5.8 참조 — 이들은 `output.error.code` 가 아니라 노드 실행 실패로 분기되며, `IntegrationUsageLog` 의 `error.code` 로만 기록된다 (`HTTP_BLOCKED`, `INTEGRATION_*` 등).
+| `HTTP_BLOCKED` (D4) | SSRF 차단 (호스트 검증·DNS rebinding·redirect 한도·비-http(s) 프로토콜). 종전 throw 였으나 D4 이후 본 경로 | — | — | `0` |
+| `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_AUTH_UNSUPPORTED` 모두 본 경로로 surface | — | — | `0` |
+| `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | IntegrationsService 미주입 또는 workspace context 누락 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 | — | — | `0` |
 
 ## 7. 캔버스 요약
 

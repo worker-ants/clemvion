@@ -678,18 +678,21 @@ describe('HttpRequestHandler', () => {
     it('blocks outbound requests to private IPv4 ranges', async () => {
       const { service, logUsage } = makeService('bearer_token', { token: 't' });
       const handler = new HttpRequestHandler(service as never);
-      await expect(
-        handler.execute(
-          null,
-          {
-            method: 'GET',
-            url: 'http://169.254.169.254/latest/meta-data/',
-            authentication: 'integration',
-            integrationId: 'int-1',
-          },
-          contextWithWorkspace,
-        ),
-      ).rejects.toThrow(/SSRF_BLOCKED/);
+      // D4 (2026-05-17) — SSRF 차단이 throw 대신 port:'error' + HTTP_BLOCKED 로 라우팅.
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'http://169.254.169.254/latest/meta-data/',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const output = result.output as { error: { code: string; message: string } };
+      expect(output.error.code).toBe('HTTP_BLOCKED');
+      expect(output.error.message).toMatch(/SSRF_BLOCKED/);
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'failed',
@@ -698,21 +701,23 @@ describe('HttpRequestHandler', () => {
       );
     });
 
-    it('blocks localhost by name', async () => {
+    it('blocks localhost by name (D4 — port:error + HTTP_BLOCKED)', async () => {
       const { service } = makeService('bearer_token', { token: 't' });
       const handler = new HttpRequestHandler(service as never);
-      await expect(
-        handler.execute(
-          null,
-          {
-            method: 'GET',
-            url: 'http://localhost:9000/admin',
-            authentication: 'integration',
-            integrationId: 'int-1',
-          },
-          contextWithWorkspace,
-        ),
-      ).rejects.toThrow(/SSRF_BLOCKED/);
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'http://localhost:9000/admin',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+      expect(result.port).toBe('error');
+      const output = result.output as { error: { code: string; message: string } };
+      expect(output.error.code).toBe('HTTP_BLOCKED');
+      expect(output.error.message).toMatch(/SSRF_BLOCKED/);
     });
 
     it('logs HTTP transport failure with HTTP_TRANSPORT_FAILED', async () => {
