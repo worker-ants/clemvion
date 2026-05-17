@@ -80,15 +80,15 @@ export class VariableModificationHandler implements NodeHandler {
       );
     }
 
-    // CONVENTIONS Principle 7 — config echoes raw modifications (`value`
-    // templates preserved); runtime mutations above use the evaluated
-    // `mod.value` from the resolved `config`.
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field unconditionally; `recordValues` previously echoed only when
+    // true (Principle 7 "always echo" violation).
     const rawConfig = (context.rawConfig ??
       config) as unknown as VariableModificationConfig;
     return Promise.resolve({
       config: {
         modifications: rawConfig.modifications,
-        ...(recordValues === true ? { recordValues: true } : {}),
+        recordValues: rawConfig.recordValues,
       },
       output: input,
       // CONVENTIONS Principle 2 — meta surfaces execution metrics for

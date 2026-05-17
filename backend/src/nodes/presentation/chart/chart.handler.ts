@@ -70,16 +70,19 @@ export class ChartHandler implements NodeHandler {
       ? this.aggregate(data, yAxis.aggregation)
       : data;
 
-    // CONVENTIONS Principle 7 — config echoes raw chartType / title / xAxis
-    // / yAxis (`title` may include `{{ ... }}` templates the engine resolved
-    // before dispatch). evaluated chart data lives in output.
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field unconditionally; `dataField` / `groupBy` / `colors` were
+    // previously missing.
     const rawConfig = context.rawConfig ?? config;
     const payload: Record<string, unknown> = { data: chartData };
     const configEcho: Record<string, unknown> = {
       chartType: rawConfig.chartType,
       title: rawConfig.title,
+      dataField: rawConfig.dataField,
       xAxis: rawConfig.xAxis ?? xAxis,
       yAxis: rawConfig.yAxis ?? yAxis,
+      groupBy: rawConfig.groupBy,
+      colors: rawConfig.colors,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;

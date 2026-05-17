@@ -56,9 +56,8 @@ export class IfElseHandler implements NodeHandler {
     const passed =
       combineMode === 'and' ? results.every(Boolean) : results.some(Boolean);
 
-    // CONVENTIONS Principle 7 — config echoes raw conditions (template
-    // strings preserved). Engine populates `rawConfig`; fallback to evaluated
-    // config keeps unit tests that bypass the engine working.
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field; `strictComparison` was previously missing.
     const rawConfig = (context.rawConfig ?? config) as unknown as IfElseConfig;
     // CONVENTIONS Principle 2 — meta carries execution metrics. `conditionResult`
     // lets downstream expressions read the boolean directly without parsing
@@ -69,6 +68,8 @@ export class IfElseHandler implements NodeHandler {
       config: {
         conditions: rawConfig.conditions,
         combineMode: rawConfig.combineMode ?? 'and',
+        strictComparison: (rawConfig as { strictComparison?: boolean })
+          .strictComparison,
       },
       output: input,
       meta: {
