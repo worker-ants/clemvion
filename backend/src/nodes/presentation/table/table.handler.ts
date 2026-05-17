@@ -18,6 +18,11 @@ import {
 import { ButtonDef } from '../_shared/button.types.js';
 import { tableNodeMetadata } from './table.schema.js';
 
+// D5 (2026-05-17) — Table client-side render 전환. backend 는 더 이상
+// `output.rendered` HTML snapshot 을 생성하지 않으며, frontend
+// `TableContent` 컴포넌트가 `output.rows` + `output.columns` 로 직접
+// 렌더한다. Carousel / Chart 와 완전 일관 (config + data → 클라이언트 렌더).
+
 type TableMode = 'static' | 'dynamic';
 
 const EXPRESSION_PATTERN = /\{\{/;
@@ -124,10 +129,7 @@ export class TableHandler implements NodeHandler {
       dataRows = dataRows.slice(0, pageSize);
     }
 
-    // Cap evaluated `rows` at the Presentation 1MB threshold BEFORE
-    // rendering so the HTML stays aligned with the surfaced rows array.
-    // Otherwise rendered would echo the full dataset's HTML even when rows
-    // are truncated, defeating the cap.
+    // Cap evaluated `rows` at the Presentation 1MB threshold.
     const cappedRows = truncateArrayForOutput(dataRows, PRESENTATION_MAX_BYTES);
 
     // Resolve label expressions (once, using first item context if available)
@@ -138,16 +140,11 @@ export class TableHandler implements NodeHandler {
       context,
     );
 
-    const rendered = this.renderHtml(
-      resolvedColumns,
-      columns,
-      cappedRows.value,
-    );
-
     // CONVENTIONS Principle 7 — config echoes raw column definitions
     // (per-column `field` / `label` may be `{{ ... }}` templates the engine
     // resolved before dispatch). evaluated rows + resolved column labels
-    // live in output.
+    // live in output. D5 (2026-05-17) — `output.rendered` HTML snapshot 폐기,
+    // frontend `TableContent` 가 `rows` + `columns` 로 직접 렌더.
     const rawConfig = context.rawConfig ?? config;
     const payload: Record<string, unknown> = {
       rows: cappedRows.value,
@@ -155,7 +152,6 @@ export class TableHandler implements NodeHandler {
       // sort) so downstream observers can detect the cap even without the
       // explicit `rowsTruncated` flag (`rows.length !== totalRows`).
       totalRows: dataRows.length,
-      rendered,
       // Surface resolved (label-evaluated) columns on output for downstream
       // nodes that want the post-evaluation view.
       columns: resolvedColumns,
@@ -228,30 +224,6 @@ export class TableHandler implements NodeHandler {
     });
   }
 
-  private renderHtml(
-    resolvedColumns: ColumnConfig[],
-    originalColumns: ColumnConfig[],
-    rows: Record<string, unknown>[],
-  ): string {
-    const headerCells = resolvedColumns
-      .map((col) => `<th>${this.escapeHtml(col.label)}</th>`)
-      .join('');
-
-    const bodyRows = rows
-      .map((row) => {
-        const cells = originalColumns
-          .map(
-            (col) =>
-              `<td>${this.escapeHtml(this.toDisplayString(row[col.field]))}</td>`,
-          )
-          .join('');
-        return `<tr>${cells}</tr>`;
-      })
-      .join('');
-
-    return `<table><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
-  }
-
   private resolveDataSource(
     config: Record<string, unknown>,
     input: unknown,
@@ -280,23 +252,5 @@ export class TableHandler implements NodeHandler {
       );
       return null;
     }
-  }
-
-  private toDisplayString(value: unknown): string {
-    if (value == null) return '';
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return value.toString();
-    }
-    return JSON.stringify(value);
-  }
-
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;');
   }
 }
