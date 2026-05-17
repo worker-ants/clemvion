@@ -12,7 +12,7 @@ owner: developer
 
 ## 근본 원인
 
-`frontend/src/lib/websocket/apply-execution-snapshot.ts:223-227` — REST 스냅샷 적용 경로의 `ai_conversation` 분기는 `pauseForConversation(nodeId, convConfig)` 만 호출하고 `setConversationMessages()` 를 호출하지 않음.
+`codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts:223-227` — REST 스냅샷 적용 경로의 `ai_conversation` 분기는 `pauseForConversation(nodeId, convConfig)` 만 호출하고 `setConversationMessages()` 를 호출하지 않음.
 
 비교 — WebSocket 이벤트 경로 `use-execution-events.ts:233-269` 는 `convConfig.messages` 가 있고 store 가 비었을 때 `messagesToConversationItems(...)` 로 변환 후 `setConversationMessages(items)` 를 호출해 메시지를 시드한다.
 
@@ -41,7 +41,7 @@ owner: developer
 
 ## Side Effect 점검
 
-- 영향 받는 파일: `frontend/src/lib/websocket/apply-execution-snapshot.ts` (단일)
+- 영향 받는 파일: `codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts` (단일)
 - 의존성: `parseHistoryMessages` (이미 export 됨, 완료된 대화 표시에 사용 중) → 추가 모듈 변경 없음
 - backend 변경 없음 (데이터 영속화는 이미 정상)
 - spec 변경 불필요 (구현 디테일, 외부 계약 변화 없음)

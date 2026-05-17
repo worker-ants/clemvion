@@ -102,7 +102,7 @@ Template 은 expression resolver 가 `config.template` 을 평가한 결과를 `
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/presentation/template/{template.handler.ts, template.schema.ts, template.handler.spec.ts, buttons.spec.ts, template.schema.spec.ts}`.
+대상 파일: `codebase/backend/src/nodes/presentation/template/{template.handler.ts, template.schema.ts, template.handler.spec.ts, buttons.spec.ts, template.schema.spec.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - 비-블로킹: `template.handler.ts:71` `return { config: configEcho, output: payload }`. payload = `{ rendered: content }` (`:49`) — spec §5.1 와 일치.

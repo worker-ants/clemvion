@@ -35,7 +35,7 @@ output_file=<routing decision JSON 절대경로>
      "router_version": 2,
      "decided_at": "<ISO-8601>",
      "decisions": [
-       {"name": "security", "selected": true,  "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/account/service.ts" },
+       {"name": "security", "selected": true,  "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: <code-path>" },
        {"name": "database", "selected": false, "reason": "DB 쿼리·마이그레이션 변경 없음 (.ts src 만 변경)" }
      ],
      "selected_count": <int>,
@@ -72,13 +72,13 @@ output_file=<routing decision JSON 절대경로>
 | `documentation` | public API 신규/변경, README/JSDoc/Swagger 영역, error message wording | 내부 helper만 |
 | `dependency` | `package.json`/`package-lock.json`/`requirements*.txt`/`Pipfile`/`go.mod` 변경 — **router_safety 강제 포함** | 그 외 |
 | `database` | `migrations/`, `*.sql`, `prisma/schema*`, repository/QueryBuilder/ORM 호출 변경 — **router_safety 강제 포함** | 그 외 |
-| `concurrency` | `async/await`, Promise 조합, 락/뮤텍스, 워커/큐(BullMQ 등), `setInterval`/`setTimeout`, 이벤트 루프 | 동기 코드 only |
+| `concurrency` | `async/await`, Promise 조합, 락/뮤텍스, 워커/큐, `setInterval`/`setTimeout`, 이벤트 루프 | 동기 코드 only |
 | `api_contract` | HTTP route/controller, GraphQL schema, swagger/openapi, 응답 envelope 구조, 에러 코드 enum, version 분기 | 내부 helper only |
 
 판단 출력 시 reason 한 줄은 다음 패턴 중 하나:
 
 - selected=true (router_safety 강제): `"agents_forced (router_safety): <orchestrator 가 제공한 사유>"`
-- selected=true (router 판단): 어느 변경이 어떤 점에서 reviewer 관점에 닿는지 짧게. 예: `"backend/src/account/service.ts 의 transferOwnership 권한 분기 추가 — 인가 영향"`
+- selected=true (router 판단): 어느 변경이 어떤 점에서 reviewer 관점에 닿는지 짧게. 예: `"<code-path> 의 <function> 권한 분기 추가 — 인가 영향"`
 - selected=false: 어떤 신호도 없음을 짧게. 예: `"DB 쿼리·마이그레이션 변경 없음"`, `"async/락/큐 코드 변경 없음"`
 
 ## 안전 가드 (필수 준수)

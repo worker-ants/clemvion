@@ -1,0 +1,305 @@
+---
+title: "프레젠테이션 노드"
+title_en: "Presentation nodes"
+section: "02-nodes"
+order: 8
+summary: "Carousel, Chart, Form, Table, Template로 데이터를 시각적으로 보여주거나 사용자 입력을 받는 노드들을 설명해요."
+summary_en: "Nodes that visualise data or collect user input: Carousel, Chart, Form, Table, and Template."
+spec: ["spec/4-nodes/6-presentation/0-common.md"]
+code: ["codebase/backend/src/nodes/presentation/carousel/carousel.schema.ts", "codebase/backend/src/nodes/presentation/chart/chart.schema.ts", "codebase/backend/src/nodes/presentation/form/form.schema.ts", "codebase/backend/src/nodes/presentation/table/table.schema.ts", "codebase/backend/src/nodes/presentation/template/template.schema.ts"]
+---
+
+이 페이지에서는 워크플로우의 결과를 **시각화**하거나 **사용자 입력**을 받는 프레젠테이션 노드 다섯 가지를 설명해요. Carousel·Table·Chart·Template은 버튼을 달아 Human-in-the-loop로 동작시킬 수도 있고, Form은 기본이 블로킹 입력 노드예요.
+
+## 공통 패턴 — 버튼과 블로킹 모드
+
+Carousel, Table, Chart, Template 네 노드는 공통 `buttons` 필드를 갖고 있어요. 버튼이 하나라도 설정되면 실행이 **waiting_for_input** 상태로 진입해서 사용자의 클릭을 무제한 대기해요.
+
+<FieldTable rows={[
+  {name: "버튼 없음", required: false, type: "Non-blocking", description: "`out` 포트 하나로 바로 다음 노드에 데이터가 전달돼요.", default: "-"},
+  {name: "port 버튼", required: false, type: "Blocking", description: "`out` 포트가 제거되고, 각 버튼 ID(UUID v4)에 대응하는 동적 출력 포트가 생겨요.", default: "-"},
+  {name: "link 버튼만", required: false, type: "Blocking + continue", description: "`continue` 포트가 자동 생성돼요. Continue 클릭 시 해당 포트로 렌더링 출력이 전달돼요.", default: "-"},
+  {name: "혼합", required: false, type: "port + link", description: "port 버튼별 동적 포트 + link 버튼은 외부 URL 오픈(실행 상태 변경 없음)으로 동작해요.", default: "-"}
+]} />
+
+**ButtonDef 구조:**
+
+<FieldTable rows={[
+  {name: "id", required: false, type: "UUID v4 (자동)", description: "불변 버튼 식별자예요. port 타입이면 동적 출력 포트 ID로도 사용돼요.", default: "자동 생성"},
+  {name: "label", required: true, type: "expression", description: "버튼 텍스트예요.", default: "-"},
+  {name: "type", required: true, type: "`link` / `port`", description: "link는 외부 URL 이동, port는 워크플로우 분기예요.", default: "port"},
+  {name: "url", required: false, type: "expression", description: "`type=link`일 때 필수예요.", default: "-"},
+  {name: "style", required: false, type: "`primary` / `secondary` / `outline` / `danger`", description: "버튼 스타일이에요.", default: "secondary"}
+]} />
+
+<Callout type="warn">
+노드당 버튼은 **최대 10개**예요. port 버튼의 동적 포트에 연결선을 잇지 않으면 경고가 표시돼요(에러는 아니에요). 버튼 클릭 시까지 타임아웃 없이 대기하니, 장시간 대기를 전제로 설계해요.
+</Callout>
+
+## Carousel
+
+### 언제 쓰나요?
+
+- 데이터를 **슬라이드** 형태로 보여주고 싶을 때 써요.
+- **Static** 모드에서 슬라이드를 직접 정의하거나, **Dynamic** 모드에서 배열 데이터를 자동 매핑할 수 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "mode", required: false, type: "`static` / `dynamic`", description: "정적 아이템 목록 또는 배열 기반 동적 생성 중 선택해요.", default: "dynamic"},
+  {name: "items", required: false, type: "ItemDef[]", description: "Static 모드에서 슬라이드 목록이에요. 각 항목은 `title`, `description`, `image`, `buttons`를 포함해요.", default: "[]"},
+  {name: "source", required: false, type: "expression", description: "Dynamic 모드에서 배열을 반환하는 표현식이에요. 미설정 시 입력 포트 데이터를 직접 사용해요.", default: "-"},
+  {name: "titleField", required: false, type: "string", description: "Dynamic 모드 슬라이드 제목 필드 경로예요.", default: "-"},
+  {name: "descriptionField", required: false, type: "string", description: "Dynamic 모드 설명 필드 경로예요.", default: "-"},
+  {name: "imageField", required: false, type: "string", description: "Dynamic 모드 이미지 URL 필드 경로예요.", default: "-"},
+  {name: "maxItems", required: false, type: "integer(1~100)", description: "Dynamic 모드 최대 슬라이드 수예요.", default: "10"},
+  {name: "itemButtons", required: false, type: "ButtonDef[]", description: "Dynamic 모드에서 모든 아이템에 동일하게 붙는 공통 버튼이에요. 최대 4개.", default: "[]"},
+  {name: "layout", required: false, type: "`card` / `image` / `minimal`", description: "레이아웃이에요.", default: "card"},
+  {name: "buttons", required: false, type: "ButtonDef[]", description: "글로벌 버튼이에요. 비어있지 않으면 블로킹 모드가 활성화돼요.", default: "[]"}
+]} />
+
+### 예시
+
+<Example title="Dynamic 모드 + 아이템 버튼">
+```ts
+// config
+{
+  mode: "dynamic",
+  source: "{{ $node[\"API\"].output.results }}",
+  titleField: "name",
+  descriptionField: "summary",
+  imageField: "thumbnail",
+  maxItems: 10,
+  itemButtons: [
+    { label: "선택", type: "port", style: "primary" }
+  ],
+  layout: "card"
+}
+
+// 아이템 버튼 클릭 시 동적 포트로 출력
+{
+  type: "button_click",
+  buttonId: "…",
+  buttonLabel: "선택",
+  clickedAt: "…",
+  selectedItem: { title: "…", description: "…" },
+  nodeOutput: { type: "carousel", items: [...], layout: "card", rendered: "<html>…" }
+}
+```
+</Example>
+
+## Table
+
+### 언제 쓰나요?
+
+- 데이터를 **테이블** 형태로 보여주고, 정렬·페이지네이션을 적용하고 싶을 때 써요.
+- Static 모드로 표를 직접 구성하거나, Dynamic 모드로 배열 데이터 소스에서 매핑할 수 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "mode", required: false, type: "`static` / `dynamic`", description: "정적 또는 동적 모드예요.", default: "dynamic"},
+  {name: "dataSource", required: false, type: "expression", description: "Dynamic 모드에서 배열 데이터 소스예요. 미지정 시 이전 노드 입력을 사용해요.", default: "-"},
+  {name: "columns", required: true, type: "ColumnDef[]", description: "컬럼 정의예요. 각 항목은 `field`, `label`, `width`, `sortable`, `format`을 포함해요. `field`는 dot-path 또는 per-item `{{ }}` 표현식을 허용해요.", default: "[]"},
+  {name: "rows", required: false, type: "RowDef[]", description: "Static 모드 행 데이터예요. 각 행은 컬럼 field를 키로 하는 문자열 객체예요.", default: "[]"},
+  {name: "pagination", required: false, type: "boolean", description: "페이지네이션 활성화 여부예요.", default: "true"},
+  {name: "pageSize", required: false, type: "integer(1~200)", description: "페이지당 행 수예요.", default: "20"},
+  {name: "sortBy", required: false, type: "string", description: "기본 정렬 컬럼 필드명이에요.", default: "-"},
+  {name: "sortOrder", required: false, type: "`asc` / `desc`", description: "기본 정렬 방향이에요.", default: "asc"},
+  {name: "buttons", required: false, type: "ButtonDef[]", description: "블로킹 버튼 목록이에요.", default: "[]"}
+]} />
+
+Dynamic 모드의 컬럼 표현식에서는 `$dataSource`, `$sourceItem`, `$sourceItemIndex`를 per-item 변수로 쓸 수 있어요.
+
+### 예시
+
+<Example title="Dynamic 모드 + per-item 표현식 컬럼">
+```ts
+// config
+{
+  mode: "dynamic",
+  dataSource: "{{ $node[\"API\"].output.users }}",
+  columns: [
+    { field: "name", label: "이름", width: "200px" },
+    { field: "{{ $sourceItem.first + ' ' + $sourceItem.last }}", label: "전체 이름" },
+    { field: "score", label: "점수", sortable: true, format: "0,0.00" }
+  ],
+  pagination: true,
+  pageSize: 20,
+  sortBy: "score",
+  sortOrder: "desc"
+}
+```
+</Example>
+
+<Callout type="note">
+Table은 기본적으로 페이지네이션이 켜져 있어요. 대량 데이터를 표시할 때 최대 200행/페이지를 강제하니, 필요한 양만 안전하게 보여줘요.
+</Callout>
+
+## Chart
+
+### 언제 쓰나요?
+
+- 숫자 데이터를 **바·라인·파이·도넛·면적** 차트로 시각화하고 싶을 때 써요.
+- X축이 중복되는 데이터는 자동으로 aggregation으로 합산해요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "chartType", required: true, type: "`bar` / `line` / `pie` / `donut` / `area`", description: "차트 유형이에요.", default: "bar"},
+  {name: "dataField", required: true, type: "string", description: "데이터 배열 필드 경로예요.", default: "-"},
+  {name: "xAxis", required: true, type: "AxisDef", description: "X축 정의예요. `field`(필수)와 `label`(선택)을 포함해요.", default: "-"},
+  {name: "yAxis", required: true, type: "AxisDef", description: "Y축 정의예요. `field`, `label`, `aggregation`(sum/count/avg/min/max)을 포함해요.", default: "-"},
+  {name: "groupBy", required: false, type: "string", description: "다중 시리즈를 만들 그룹화 필드예요.", default: "-"},
+  {name: "title", required: false, type: "string", description: "차트 제목이에요.", default: "-"},
+  {name: "colors", required: false, type: "string[]", description: "커스텀 색상 배열이에요.", default: "-"},
+  {name: "buttons", required: false, type: "ButtonDef[]", description: "블로킹 버튼 목록이에요.", default: "[]"}
+]} />
+
+### Aggregation 규칙
+
+<FieldTable rows={[
+  {name: "sum (기본)", required: false, type: "같은 X 키", description: "같은 X축 키에 매핑된 Y값을 합산해요. null/undefined는 건너뛰어요.", default: "-"},
+  {name: "count", required: false, type: "행 수", description: "해당 X 키에 속한 행 수를 세요. null도 포함해서 카운트해요.", default: "-"},
+  {name: "avg / min / max", required: false, type: "평균/최소/최대", description: "null/undefined Y값은 건너뛰어요. 분모에서도 제외돼요.", default: "-"},
+  {name: "null X축", required: false, type: "제외", description: "X축 값이 null/undefined인 행은 차트에서 제외돼요.", default: "-"}
+]} />
+
+### 예시
+
+<Example title="월별 매출 바 차트">
+```ts
+// config
+{
+  chartType: "bar",
+  title: "Monthly Revenue",
+  dataField: "sales",
+  xAxis: { field: "month", label: "월" },
+  yAxis: { field: "revenue", label: "매출", aggregation: "sum" },
+  groupBy: "region",
+  colors: ["#3B82F6", "#10B981"]
+}
+```
+</Example>
+
+## Form
+
+### 언제 쓰나요?
+
+- 워크플로우 중간에 **사용자 입력**이 필요할 때 써요(Human-in-the-loop).
+- 실행이 일시 정지되고, 폼이 제출되면 검증 통과 시 재개돼요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "title", required: true, type: "string", description: "폼 제목이에요.", default: "-"},
+  {name: "description", required: false, type: "markdown", description: "폼 설명이에요.", default: "-"},
+  {name: "submitLabel", required: false, type: "string", description: "제출 버튼 텍스트예요.", default: "Submit"},
+  {name: "fields", required: true, type: "FormField[]", description: "폼 필드 목록이에요. 각 필드는 `name`, `type`, `label`, `required`, `options`, `defaultValue`, `validation`을 포함해요.", default: "[]"}
+]} />
+
+지원 필드 타입: `text`, `number`, `email`, `textarea`, `select`, `checkbox`, `radio`, `date`, `file`.
+
+파일 필드에만 있는 설정:
+
+<FieldTable rows={[
+  {name: "allowedMimeTypes", required: false, type: "string[]", description: "허용 MIME 타입 목록이에요. 기본 허용은 이미지·PDF·오피스 문서·텍스트예요.", default: "스펙 기본 목록"},
+  {name: "maxFileSize", required: false, type: "number(MB)", description: "단일 파일 최대 크기예요.", default: "10"},
+  {name: "maxTotalSize", required: false, type: "number(MB)", description: "필드 내 전체 파일 합계 최대 크기예요.", default: "50"},
+  {name: "maxFiles", required: false, type: "number", description: "필드당 최대 파일 수예요.", default: "5"}
+]} />
+
+### 예시
+
+<Example title="승인 요청 폼">
+```ts
+// config
+{
+  title: "Approval Request",
+  description: "아래 내용을 확인하고 **승인 여부**를 선택해요.",
+  submitLabel: "Submit",
+  fields: [
+    {
+      name: "approval", type: "select", label: "승인 여부", required: true,
+      options: [{ label: "승인", value: "approved" }, { label: "반려", value: "rejected" }]
+    },
+    { name: "comment", type: "textarea", label: "코멘트", required: false,
+      validation: { maxLength: 500, message: "코멘트는 500자 이내로 입력해요" } }
+  ]
+}
+
+// 제출 후 out 포트 출력
+{
+  type: "form",
+  submittedData: { approval: "approved", comment: "Looks good" },
+  submittedAt: "…",
+  submittedBy: "user-uuid"
+}
+```
+</Example>
+
+<Callout type="warn">
+Form 실행은 **폼 제출 시까지 무제한 대기**해요. 실행 상태가 `waiting_for_input`으로 바뀌며, 외부 cancel/종료 외에는 타임아웃이 발생하지 않아요. 실행 파일(.exe, .sh), 스크립트(.js, .py), 아카이브(.zip) 등은 기본 허용 MIME 목록에 포함되지 않으니 필요 시 명시적으로 확장해요.
+</Callout>
+
+## Template
+
+### 언제 쓰나요?
+
+- **Handlebars 스타일 템플릿**으로 HTML/Markdown/텍스트 콘텐츠를 생성하고 싶을 때 써요.
+- 리포트 본문, 이메일 HTML 바디, 알림 메시지 등을 유연하게 만들 수 있어요.
+
+### 필드
+
+<FieldTable rows={[
+  {name: "template", required: true, type: "string", description: "Handlebars 문법 템플릿이에요.", default: "-"},
+  {name: "outputFormat", required: false, type: "`html` / `markdown` / `text`", description: "출력 형식이에요.", default: "html"},
+  {name: "helpers", required: false, type: "boolean", description: "내장 Handlebars 헬퍼를 활성화해요.", default: "true"},
+  {name: "buttons", required: false, type: "ButtonDef[]", description: "블로킹 버튼 목록이에요.", default: "[]"}
+]} />
+
+### 내장 헬퍼
+
+<FieldTable rows={[
+  {name: "{{#if}}, {{#unless}}, {{#each}}", required: false, type: "제어", description: "조건부 렌더링과 반복이에요.", default: "-"},
+  {name: "formatDate", required: false, type: "날짜", description: "`{{formatDate createdAt \"YYYY-MM-DD\"}}`.", default: "-"},
+  {name: "formatNumber", required: false, type: "숫자", description: "`{{formatNumber price \"0,0.00\"}}`.", default: "-"},
+  {name: "truncate", required: false, type: "문자열", description: "지정 길이로 잘라요.", default: "-"},
+  {name: "uppercase, lowercase", required: false, type: "문자열", description: "대/소문자 변환이에요.", default: "-"},
+  {name: "json", required: false, type: "문자열화", description: "객체를 JSON 문자열로 바꿔요.", default: "-"}
+]} />
+
+### 예시
+
+<Example title="월간 리포트 템플릿">
+```ts
+// template
+<h1>{{title}}</h1>
+<p>Generated: {{formatDate generatedAt "YYYY-MM-DD"}}</p>
+
+{{#each items}}
+  <div class="item">
+    <h2>{{this.name}}</h2>
+    <p>{{truncate this.desc 120}}</p>
+  </div>
+{{/each}}
+```
+</Example>
+
+<Callout type="note">
+HTML 출력은 실행 결과 뷰어에서 **샌드박스 iframe**으로 렌더링돼요. 외부 스크립트 실행은 차단되니, 동적 동작이 필요하면 Template 바깥에서 처리해요.
+</Callout>
+
+## 캔버스 요약
+
+- Carousel: `{layout} · {titleField}` 또는 `{layout} · {N} buttons`
+- Table: `{N} columns · pagination` 또는 `{N} columns · {N} buttons`
+- Chart: `{chartType} · {xAxis.field} / {yAxis.field}` 또는 `{chartType} · {N} buttons`
+- Form: `{N} fields · "{title}"`
+- Template: `{outputFormat} · {N} lines` 또는 `{outputFormat} · {N} buttons`
+
+## 팁 & 참고
+
+- 실행 결과 드로어에서 각 프레젠테이션 노드가 어떻게 렌더링되는지는 [실행 결과](/docs/05-run-and-debug/run-results)에서 다뤄요.
+- 버튼 블로킹·폼 대기·AI 대화가 섞인 워크플로우에서 실행 상태가 `waiting_for_input`으로 바뀌면, 사용자가 버튼을 누르거나 폼을 제출하기 전까지 실행이 일시정지돼요. 사용자의 응답이 들어오면 자동으로 이어서 실행돼요.
+- 파워유저 팁: 버튼이 있는 Presentation 노드는 버튼마다 전용 출력 포트가 자동으로 생겨요. 사용자가 누른 버튼의 포트로만 흐름이 이어지므로, 버튼별 후속 동작을 분기해서 디자인할 수 있어요.

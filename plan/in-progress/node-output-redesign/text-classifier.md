@@ -147,7 +147,7 @@ Text Classifier 는 분류 노드 (단계 1개). single/multi label × 정상/fa
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/ai/text-classifier/{text-classifier.handler.ts, text-classifier.schema.ts, text-classifier.handler.spec.ts, text-classifier.schema.spec.ts, text-classifier.thread.spec.ts, text-classifier.component.ts}`.
+대상 파일: `codebase/backend/src/nodes/ai/text-classifier/{text-classifier.handler.ts, text-classifier.schema.ts, text-classifier.handler.spec.ts, text-classifier.schema.spec.ts, text-classifier.thread.spec.ts, text-classifier.component.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - single-label 정상 — `text-classifier.handler.ts:433-453` 의 `processSingleLabelResult` return `{ config: configEcho, output: { result: { category, confidence?, evidence?, originalInput } }, meta: {...}, port: <portIds[i]>|'fallback' }` 가 spec §5.1 과 일치 (`status` 없음 — 종결 단계 단일).

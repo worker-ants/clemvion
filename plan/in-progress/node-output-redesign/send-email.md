@@ -133,7 +133,7 @@ Send Email 은 외부 호출 노드 (단계 1개). 정상 / runtime 에러 / DI 
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/integration/send-email/{send-email.handler.ts, send-email.schema.ts, send-email.handler.spec.ts, send-email.schema.spec.ts}` + `backend/src/nodes/core/error-codes.ts` (maskEmailForErrorDetails / truncateForErrorDetails).
+대상 파일: `codebase/backend/src/nodes/integration/send-email/{send-email.handler.ts, send-email.schema.ts, send-email.handler.spec.ts, send-email.schema.spec.ts}` + `codebase/backend/src/nodes/core/error-codes.ts` (maskEmailForErrorDetails / truncateForErrorDetails).
 
 1. **spec §5 ↔ handler return 정합성**:
    - 정상 (`send-email.handler.ts:174-186`): `{ config: configEcho, output: { messageId, accepted, rejected, subject, body: cappedBody.value, bodyType, ...(truncated ? { bodyTruncated: true } : {}) }, meta: { durationMs, deliveryStatus: 'sent' } }`. **`port` 미반환** — schema 의 `port: z.enum(['out', 'error']).optional()` 와 정합 (default 단일 success 포트). spec §5.1 의 `"port": "out"` 은 명시했지만 handler 는 미반환 → 엔진이 default 포트로 라우팅. spec 의 의도 부합.

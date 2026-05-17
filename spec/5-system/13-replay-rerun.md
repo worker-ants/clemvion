@@ -260,7 +260,7 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 - `re_run_of != NULL` 인 행은 같은 `chain_id` 의 다른 행을 참조해야 함 (cross-chain re-run 불가)
 - chain 깊이 32 제한은 **애플리케이션 레벨** 에서 enforce (DB constraint 로 표현 어려움)
 
-마이그레이션은 PR2 (`backend/migrations/V###__execution_re_run_chain.sql`) 에서 작성하며, 본 spec 은 컬럼·인덱스·불변식만 명세한다. 기존 row 의 백필은 `chain_id = id`, `re_run_of = NULL` 로 일괄 채움 (모두 chain 의 원본으로 간주).
+마이그레이션은 PR2 (`codebase/backend/migrations/V###__execution_re_run_chain.sql`) 에서 작성하며, 본 spec 은 컬럼·인덱스·불변식만 명세한다. 기존 row 의 백필은 `chain_id = id`, `re_run_of = NULL` 로 일괄 채움 (모두 chain 의 원본으로 간주).
 
 ### 9.2 NodeExecution dry-run 표기
 

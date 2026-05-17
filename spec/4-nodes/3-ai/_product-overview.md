@@ -130,7 +130,7 @@
 
 ### 3.6 Workflow AI Assistant
 
-> **구현 상태**: ✅ 구현 완료 · 상세 요구사항: [Spec 3-workflow-editor §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) (`ED-AI-*`) · 상세 스펙: [Spec 3-workflow-editor/4](../../3-workflow-editor/4-ai-assistant.md) · 사용자 가이드: [AI 어시스턴트 개요](../../../frontend/src/content/docs/03-workflow-editor/overview.mdx) · [Hands-on Walkthrough](../../../frontend/src/content/docs/03-workflow-editor/walkthrough.mdx)
+> **구현 상태**: ✅ 구현 완료 · 상세 요구사항: [Spec 3-workflow-editor §10](../../3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-) (`ED-AI-*`) · 상세 스펙: [Spec 3-workflow-editor/4](../../3-workflow-editor/4-ai-assistant.md) · 사용자 가이드: [AI 어시스턴트 개요](../../../codebase/frontend/src/content/docs/03-workflow-editor/overview.mdx) · [Hands-on Walkthrough](../../../codebase/frontend/src/content/docs/03-workflow-editor/walkthrough.mdx)
 
 워크플로우 에디터에 내장된 채팅형 AI 에이전트로, 사용자의 자연어 요청을 받아 노드·엣지를 자동 구성·수정한다. 단순 지시뿐 아니라 "주문 취소 프로세스 추가" 같은 모호한 요구를 **Clarify → Plan → Execute** 대화 루프로 구체화한다. 실행(`Run`) 은 사용자가 수행하되, Assistant 는 실행 결과(노드별 입출력·에러·타임라인) 를 읽기 전용 탐색 도구로 조회해 실패 원인을 진단하고 해당 노드 수정을 제안한다 ([PRD 2 §10.9](../../3-workflow-editor/_product-overview.md#109-실행-결과-조회-진단수정)).
 

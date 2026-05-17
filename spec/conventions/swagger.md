@@ -1,6 +1,6 @@
 # Swagger 문서화 일관된 패턴 가이드
 
-본 프로젝트는 `@nestjs/swagger` CLI 플러그인을 **이미 활성화**했습니다 (`backend/nest-cli.json`).
+본 프로젝트는 `@nestjs/swagger` CLI 플러그인을 **이미 활성화**했습니다 (`codebase/backend/nest-cli.json`).
 플러그인은 아래를 자동 처리합니다:
 - DTO 파일(`*.dto.ts`)에서 `class-validator` 데코레이터 → `@ApiProperty` 자동 생성
 - 파라미터 타입, `?` 유무, enum, min/max 등 기본 메타 추론
@@ -194,12 +194,12 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 **2026-04-20 도입**: 모든 성공 응답은 `@ApiOkResponse({ schema: ... })` 의 인라인 객체가 아닌 **응답 DTO 클래스 + 공용 래퍼 헬퍼** 를 사용합니다.
 
 ### 5-1. 응답 DTO 위치
-- `backend/src/modules/<module>/dto/responses/*-response.dto.ts`
+- `codebase/backend/src/modules/<module>/dto/responses/*-response.dto.ts`
 - 엔티티(`entities/*.entity.ts`) 를 그대로 노출하지 말고, API 응답 형태에 맞춰 별도 DTO 를 만듭니다. 비밀값(credentials, passwordHash 등)은 마스킹하거나 제외합니다.
 - 중복 필드는 `PickType` / `OmitType` / `PartialType` (`@nestjs/swagger`) 로 재사용할 수 있습니다.
 
 ### 5-2. 공용 래퍼 헬퍼
-`backend/src/common/swagger/` 에서 다음을 제공합니다 (import: `from '../../common/swagger'`).
+`codebase/backend/src/common/swagger/` 에서 다음을 제공합니다 (import: `from '../../common/swagger'`).
 
 | 헬퍼 | 용도 | 반환 스키마 |
 |------|------|------------|
@@ -241,7 +241,7 @@ async create(...) { ... }
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
 
 ### 5-5. 에러 응답 참조
-`backend/src/common/swagger/error-response.dto.ts` 의 `ErrorResponseDto` 는 `GlobalExceptionFilter` 출력을 1:1 로 표현합니다. 필요 시 `@ApiBadRequestResponse({ type: ErrorResponseDto })` 등으로 참조할 수 있습니다.
+`codebase/backend/src/common/swagger/error-response.dto.ts` 의 `ErrorResponseDto` 는 `GlobalExceptionFilter` 출력을 1:1 로 표현합니다. 필요 시 `@ApiBadRequestResponse({ type: ErrorResponseDto })` 등으로 참조할 수 있습니다.
 
 ---
 

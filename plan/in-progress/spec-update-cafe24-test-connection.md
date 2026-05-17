@@ -55,8 +55,8 @@ checker, 2026-05-16 13:37 세션 Critical 1·2):
 
 ## 구현 위치 (참조용)
 
-- `backend/src/nodes/integration/cafe24/cafe24-api.client.ts` — `pingConnection(integration)` 추가
-- `backend/src/modules/integrations/integrations.service.ts` — `dispatchTest` 외부에서 cafe24 entity-aware 분기
+- `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` — `pingConnection(integration)` 추가
+- `codebase/backend/src/modules/integrations/integrations.service.ts` — `dispatchTest` 외부에서 cafe24 entity-aware 분기
 
 ## 처리 후
 

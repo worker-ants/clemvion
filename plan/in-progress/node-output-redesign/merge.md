@@ -87,7 +87,7 @@ Merge 는 **데이터 변형 노드** (단계 1개). 여러 입력 → `outputFo
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/logic/merge/{merge.handler.ts, merge.schema.ts, merge.handler.spec.ts, merge.schema.spec.ts, merge.component.ts}`.
+대상 파일: `codebase/backend/src/nodes/logic/merge/{merge.handler.ts, merge.schema.ts, merge.handler.spec.ts, merge.schema.spec.ts, merge.component.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - `merge.handler.ts:138-152` 의 return 객체 `{ config: { strategy, outputFormat }, output: formatted, meta: { inputCount, strategy, outputFormat, skippedKeys, dormantFields } }` — spec §5.1 JSON 과 정합. 단일 출력 데이터 변형 노드.

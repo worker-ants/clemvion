@@ -175,17 +175,9 @@ main 은 별도 sub-agent 위임 없이 **자기 turn 안에서** 두 skill 의 
 
 #### 8.4 로컬 e2e 의무 실행 (skip 절대 금지)
 
-모든 Critical / Warning 항목 처리 후 **반드시 로컬에서** e2e 를 실행한다:
+모든 Critical / Warning 항목 처리 후 **반드시 로컬에서** e2e 를 실행한다.
 
-```bash
-# backend 만 변경한 경우
-make e2e-test
-
-# frontend 또는 frontend + backend 가 함께 변경된 경우
-make e2e-test-full
-```
-
-(CLAUDE.md "개발 방법론" 절 — `docker-compose.e2e.yml` 기반 격리 인프라)
+실제 명령·인프라는 `PROJECT.md §빌드·린트·테스트 명령` 참고 (예: `make e2e-test`, `make e2e-test-full`). 영역별 어느 명령을 쓸지의 분기 기준 (backend 만 / frontend 포함) 도 PROJECT.md 의 정의를 따른다.
 
 **금지 사항** (자동 후속 흐름에서 e2e 우회는 절대 허용 안 됨):
 
@@ -228,7 +220,7 @@ e2e 실패 → 단계 8.5.
 - consistency-check `--spec` 의 `BLOCK: YES` (8.2.3) — spec 의 의미 변경 결정.
 - e2e 누적 3회 실패 (8.5).
 - 직전 수정과 무관한 사전 결함 (8.5).
-- **docker 인프라가 실행 불가** — Docker daemon 미동작, 디스크 공간 부족, `make e2e-test` 가 시작도 못 하는 환경 오류. e2e 자체 skip 은 금지이므로 이 경우만 자동 진행을 중단하고 사용자에게 환경 복구 요청.
+- **e2e 인프라가 실행 불가** — Docker daemon 미동작, 디스크 공간 부족, `PROJECT.md` 의 e2e 명령이 시작도 못 하는 환경 오류. e2e 자체 skip 은 금지이므로 이 경우만 자동 진행을 중단하고 사용자에게 환경 복구 요청.
 - 자동 수정이 production 코드의 동작을 의도 이상으로 바꿀 위험이 큰 변경 (예: 데이터베이스 마이그레이션, 외부 API 계약 변경) — main 의 판단으로 보수적 차단.
 - ai-review 가 SUMMARY 본문에서 명시적으로 "사용자 결정 필요" 표기한 항목.
 

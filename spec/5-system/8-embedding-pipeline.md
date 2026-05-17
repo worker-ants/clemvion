@@ -155,7 +155,7 @@ CREATE INDEX idx_document_chunk_embedding
   WITH (lists = 100);
 ```
 
-> 위 DDL 은 컨셉 예시. 실제 운영 인덱스는 V022/V023 (+ V030~V032 후속 정비) 으로 **차원별 partial HNSW** (`vector` / `halfvec`) 로 분리되어 있다. 마이그레이션 상세는 [`spec/data-flow/6-knowledge-base.md §2.3`](../data-flow/6-knowledge-base.md) 및 `backend/migrations/V022_*.sql`, `V023_*.sql`, `V030_*.sql`–`V032_*.sql` 참조.
+> 위 DDL 은 컨셉 예시. 실제 운영 인덱스는 V022/V023 (+ V030~V032 후속 정비) 으로 **차원별 partial HNSW** (`vector` / `halfvec`) 로 분리되어 있다. 마이그레이션 상세는 [`spec/data-flow/6-knowledge-base.md §2.3`](../data-flow/6-knowledge-base.md) 및 `codebase/backend/migrations/V022_*.sql`, `V023_*.sql`, `V030_*.sql`–`V032_*.sql` 참조.
 
 ---
 
@@ -305,7 +305,7 @@ SELECT id FROM document
 
 #### 핵심 결과
 
-- **V021** (`backend/migrations/V021__variable_embedding_dimension.sql`): `document_chunk.embedding` 을 untyped `vector` 로 변경, `knowledge_base.embedding_dimension` 컬럼 추가, `embedding_model` default 통일, V005 NOTE 인덱스(`idx_document_chunk_embedding`) IF EXISTS 정리.
+- **V021** (`codebase/backend/migrations/V021__variable_embedding_dimension.sql`): `document_chunk.embedding` 을 untyped `vector` 로 변경, `knowledge_base.embedding_dimension` 컬럼 추가, `embedding_model` default 통일, V005 NOTE 인덱스(`idx_document_chunk_embedding`) IF EXISTS 정리.
 - **V022** (+ `.conf`): 차원별 partial HNSW 인덱스(768/1536/3072) `CREATE INDEX CONCURRENTLY` 로 분리. `executeInTransaction=false`.
 - **EmbeddingService**: 첫 임베딩 시 KB.embeddingDimension 자동 채움, 이후 배치는 차원 일관성 강제. 빈 vector 도 throw.
 - **KnowledgeBaseService**: `update` 에서 embeddingModel 실제 변경 시 `embeddingDimension = null` 함께 reset. `reEmbedAll(id, ws)` 신설 — `inFlightReEmbeds` in-memory 잠금(중복 호출 409) + `p-limit(5)` 동시 큐잉 상한.

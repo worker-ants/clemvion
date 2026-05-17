@@ -23,12 +23,18 @@ import subprocess
 import sys
 from datetime import datetime
 
-# Make sibling lib package importable when invoked as a standalone script.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Make sibling lib package importable when invoked as a standalone script,
+# plus the harness-wide _lib at .claude/skills/_lib/.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_SKILL_DIR = os.path.dirname(_SCRIPT_DIR)
+_SKILLS_DIR = os.path.dirname(_SKILL_DIR)  # .claude/skills/
+sys.path.insert(0, _SKILL_DIR)
+sys.path.insert(0, _SKILLS_DIR)
 
 from lib import session  # noqa: E402
 from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
 from lib.router_safety import compute_forced_agents  # noqa: E402
+from _lib import project_config  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/code-review-agents-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -273,12 +279,10 @@ def build_router_prompt_body(
 
     The router used to read only headers of each reviewer prompt as a
     context-saving measure, then sample 1–2 files. That approach missed
-    reviewers whose relevance was only visible inside diff bodies
-    (account/, payment/, etc.) — see plan/complete/
-    harness-review-router-c4f1a2.md for the decision trail. The router
-    now receives the same change-file payload as a reviewer plus the
-    forced list and the 13 perspectives so it can decide on meaning, not
-    filenames.
+    reviewers whose relevance was only visible inside diff bodies, so
+    the router now receives the same change-file payload as a reviewer
+    plus the forced list and the 13 perspectives so it can decide on
+    meaning, not filenames.
     """
     forced_block_lines = []
     if agents_forced:

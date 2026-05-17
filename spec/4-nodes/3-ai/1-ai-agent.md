@@ -50,7 +50,7 @@ LLM 기반 AI Agent를 실행. 프롬프트, RAG, Tool Use를 지원. **Single T
 | label | String | ✓ | 조건 이름 (UI 표시 및 포트 라벨) |
 | prompt | String (≤ 2000자) | ✓ | 조건 설명 (LLM 도구의 description 으로 사용 — "언제 이 조건을 선택해야 하는지" 기술) |
 
-> Source of truth: `backend/src/nodes/ai/ai-agent/ai-agent.schema.ts` (export `aiAgentNodeConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts` (export `aiAgentNodeConfigSchema`)
 >
 > Conversation Thread 자동 주입은 [공통 §10](./0-common.md#10-conversation-context-자동-컨텍스트-주입) 및 [Spec Conversation Thread](../../conventions/conversation-thread.md) 참조.
 

@@ -22,12 +22,12 @@ main 브랜치(`bbd838ef`) 기준 코드베이스의 동시성·async 패턴을 
 
 ## 검토 범위
 
-- `backend/src/modules/execution-engine/` — 워크플로 실행 동시성
-- `backend/src/modules/integrations/` — OAuth nonce, replay
-- `backend/src/modules/websocket/` — broadcast
-- `backend/src/modules/schedules/` — 스케줄 동시 트리거
-- `backend/src/modules/triggers/`
-- `frontend/src/lib/websocket/`, `frontend/src/lib/stores/` — 클라이언트 동시 상태
+- `codebase/backend/src/modules/execution-engine/` — 워크플로 실행 동시성
+- `codebase/backend/src/modules/integrations/` — OAuth nonce, replay
+- `codebase/backend/src/modules/websocket/` — broadcast
+- `codebase/backend/src/modules/schedules/` — 스케줄 동시 트리거
+- `codebase/backend/src/modules/triggers/`
+- `codebase/frontend/src/lib/websocket/`, `codebase/frontend/src/lib/stores/` — 클라이언트 동시 상태
 
 ## 작업 지침
 

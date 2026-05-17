@@ -111,7 +111,7 @@ Map 은 **컨테이너 노드** (반복 변형). 단계 2개:
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/logic/map/{map.handler.ts, map.schema.ts, map.handler.spec.ts, map.schema.spec.ts, map.component.ts}` 와 `backend/src/modules/execution-engine/execution-engine.service.ts` (Map 컨테이너 finalise 분기) · `backend/src/modules/execution-engine/containers/foreach-executor.ts` (공유 executor).
+대상 파일: `codebase/backend/src/nodes/logic/map/{map.handler.ts, map.schema.ts, map.handler.spec.ts, map.schema.spec.ts, map.component.ts}` 와 `codebase/backend/src/modules/execution-engine/execution-engine.service.ts` (Map 컨테이너 finalise 분기) · `codebase/backend/src/modules/execution-engine/containers/foreach-executor.ts` (공유 executor).
 
 1. **spec §5 ↔ handler return 정합성**:
    - **시작 시점 (port `body`)**: `map.handler.ts:56-59` return `{ config: { inputField }, output: items }` — spec §5.1 의 `meta.durationMs: 0` / `port: 'body'` 는 engine 이 inject (handler 책임 아님). handler 는 `port` 도 반환하지 않음 (engine 의 ForEachExecutor 가 body 포트 활성화 책임).

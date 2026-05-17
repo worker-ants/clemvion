@@ -14,10 +14,10 @@ integration 의 credentials 를 가져와 외부 API 호출에 사용하고, 호
 
 코드 진입점:
 
-- `backend/src/modules/integrations/integrations.service.ts` — CRUD
-- `backend/src/modules/integrations/integration-oauth.service.ts` — OAuth start / callback
-- `backend/src/modules/integrations/integration-expiry-scanner.service.ts` — 만료 스캐너
-- `backend/src/modules/integrations/services/credentials-transformer.ts` — `credentials` JSONB 의 AES 암호화 (entity column transformer)
+- `codebase/backend/src/modules/integrations/integrations.service.ts` — CRUD
+- `codebase/backend/src/modules/integrations/integration-oauth.service.ts` — OAuth start / callback
+- `codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts` — 만료 스캐너
+- `codebase/backend/src/modules/integrations/services/credentials-transformer.ts` — `credentials` JSONB 의 AES 암호화 (entity column transformer)
 
 ---
 

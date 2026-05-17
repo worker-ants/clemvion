@@ -25,7 +25,7 @@
 
 표현식(`{{ }}`)은 `url`·`headers[i].value`·`queryParams[i].value`·`body` 안에서 사용 가능.
 
-> Source of truth: `backend/src/nodes/integration/http-request/http-request.schema.ts` (export `httpRequestNodeConfigSchema`, `httpRequestNodeMetadata`)
+> Source of truth: `codebase/backend/src/nodes/integration/http-request/http-request.schema.ts` (export `httpRequestNodeConfigSchema`, `httpRequestNodeMetadata`)
 
 ## 2. 설정 UI
 

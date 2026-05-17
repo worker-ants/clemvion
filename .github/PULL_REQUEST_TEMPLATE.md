@@ -8,7 +8,7 @@
 
 ## Migration checklist
 
-> `backend/migrations/**` 를 변경한 PR 만 체크. 그 외 PR 은 본 섹션을 삭제해도 됨.
+> `codebase/backend/migrations/**` 를 변경한 PR 만 체크. 그 외 PR 은 본 섹션을 삭제해도 됨.
 
 - [ ] 머지 직전 `git fetch origin main && git rebase origin/main` 으로 base 최신화
 - [ ] rebase 후 push → `migration-check` 가 latest commit 기준 green

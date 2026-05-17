@@ -18,7 +18,7 @@ TOTP 인증 + 복구 코드는 ✅. WebAuthn (Passkey / 보안 키 등) 은 후�
 - `spec/5-system/1-auth.md` (인증 / 2FA 흐름)
 - `spec/2-navigation/9-user-profile.md` (보안 설정 화면)
 - `plan/complete/feature-roadmap/06-2fa.md` (TOTP 구현 history)
-- 코드: `backend/src/modules/auth/two-factor*/`, `frontend/src/app/(main)/profile/security/`
+- 코드: `codebase/backend/src/modules/auth/two-factor*/`, `codebase/frontend/src/app/(main)/profile/security/`
 
 ## 작업 단위
 
@@ -59,7 +59,7 @@ TOTP 인증 + 복구 코드는 ✅. WebAuthn (Passkey / 보안 키 등) 은 후�
 
 ### 6. 매뉴얼
 
-- [ ] `frontend/src/content/docs/` 보안 가이드에 Passkey 등록·사용법 추가
+- [ ] `codebase/frontend/src/content/docs/` 보안 가이드에 Passkey 등록·사용법 추가
 
 ### 7. REVIEW
 

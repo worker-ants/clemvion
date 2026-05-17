@@ -7,7 +7,7 @@ PRD/Spec 문서 및 frontend MDX frontmatter 의 내부 링크 정합성 검사.
   - 외부 URL (http:, https:, mailto:) 은 제외
   - 파일 경로가 실제 존재하는지 확인
   - anchor (#section) 가 대상 파일 헤딩에서 GitHub-style slug 로 매칭되는지 확인
-- frontend/src/content/docs/**.mdx 의 frontmatter spec: ["..."] 배열에 적힌 모든 경로
+- codebase/frontend/src/content/docs/**.mdx 의 frontmatter spec: ["..."] 배열에 적힌 모든 경로
 
 종료 코드: 깨진 항목이 있으면 1, 없으면 0.
 
@@ -94,7 +94,7 @@ def iter_md_files(root: str, subdirs: Iterable[str]) -> Iterable[str]:
 
 
 def iter_mdx_files(root: str) -> Iterable[str]:
-    base = os.path.join(root, "frontend", "src", "content", "docs")
+    base = os.path.join(root, "codebase", "frontend", "src", "content", "docs")
     if not os.path.isdir(base):
         return
     for dp, _, fs in os.walk(base):
@@ -147,7 +147,7 @@ def check_md_links(files: Iterable[str], root: str, anchor_cache: dict[str, set[
 
 
 def check_mdx_frontmatter(root: str) -> list[str]:
-    """frontend/src/content/docs/**.mdx 의 frontmatter `spec:` 배열 항목들을 검증."""
+    """codebase/frontend/src/content/docs/**.mdx 의 frontmatter `spec:` 배열 항목들을 검증."""
     broken: list[str] = []
     for path in iter_mdx_files(root):
         try:

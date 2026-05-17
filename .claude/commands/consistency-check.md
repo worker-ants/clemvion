@@ -39,10 +39,10 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 
 ## 사용 예시
 
-- `/consistency-check --spec plan/in-progress/spec-draft-webhook.md`
-- `/consistency-check --plan plan/in-progress/auth-refactor.md`
-- `/consistency-check --impl-prep spec/5-system/`
-- `/loop /consistency-check --plan plan/in-progress/foo.md` — 사용량 한도 자동 재시도
+- `/consistency-check --spec plan/in-progress/spec-draft-<area>.md`
+- `/consistency-check --plan plan/in-progress/<task>.md`
+- `/consistency-check --impl-prep spec/<area>/`
+- `/loop /consistency-check --plan plan/in-progress/<task>.md` — 사용량 한도 자동 재시도
 
 ## 산출물
 
