@@ -218,7 +218,10 @@ describe("buildSearchIndex(locale)", () => {
 // 작성된 사용자 매뉴얼의 frontmatter 가 실재하는 spec / 코드 파일을 가리키는지
 // CI 시점에 강제해서, 리네임·삭제·오타로 매뉴얼이 dangling 참조가 되는 것을 방지한다.
 describe("real docs frontmatter spec/code paths", () => {
-  const repoRoot = path.resolve(__dirname, "..", "..", "..", "..", "..");
+  // __dirname = codebase/frontend/src/lib/docs/__tests__
+  // 6 hops back lands at the repo root. commit 33521233 (codebase/ wrapper)
+  // added one level that this resolver did not follow.
+  const repoRoot = path.resolve(__dirname, "..", "..", "..", "..", "..", "..");
   const realDocsRoot = path.resolve(__dirname, "..", "..", "..", "content", "docs");
 
   // 본 worktree 에 실제 content/docs 가 있을 때만 검증. 격리 환경에서 docs 폴더가

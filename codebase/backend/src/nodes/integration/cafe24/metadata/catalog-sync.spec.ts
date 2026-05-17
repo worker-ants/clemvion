@@ -30,8 +30,12 @@ import type { Cafe24Resource } from './types.js';
  *    명단 SoT: `spec/conventions/cafe24-restricted-scopes.md`.
  */
 
+// __dirname = codebase/backend/src/nodes/integration/cafe24/metadata
+// 7 hops back lands at the repo root (codebase/ wrapper added by commit
+// 33521233 needs one extra `..` that the rename did not propagate here).
 const CATALOG_DIR = join(
   __dirname,
+  '..',
   '..',
   '..',
   '..',
