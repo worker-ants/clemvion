@@ -2232,7 +2232,9 @@ describe('ExecutionEngineService', () => {
       expect(outputData).not.toHaveProperty('_resumeState');
       // 페이로드 전체를 직렬화해 internal 식별자가 한 줄도 흘러나가지 않았는지 확인.
       const serialized = JSON.stringify(outputData);
-      expect(serialized).not.toContain('INTERNAL_SYSTEM_PROMPT_SHOULD_NOT_PERSIST');
+      expect(serialized).not.toContain(
+        'INTERNAL_SYSTEM_PROMPT_SHOULD_NOT_PERSIST',
+      );
       expect(serialized).not.toContain('cred-leak-canary');
     });
 

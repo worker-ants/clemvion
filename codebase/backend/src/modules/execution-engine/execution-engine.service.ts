@@ -779,7 +779,11 @@ export class ExecutionEngineService
       sortedIndexMap.set(sortedNodeIds[i], i);
     }
     const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-      this.graphTraversal.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
+      this.graphTraversal.buildEdgeIndexes(
+        graphEdges,
+        backEdges,
+        sortedIndexMap,
+      );
 
     // Use target-only nodeMap for expression resolution.
     // $node references in the target workflow should resolve against the
@@ -1262,7 +1266,11 @@ export class ExecutionEngineService
       // edge lookup 을 한 곳에 빌드. Pointer 이동·O(1) gatherNodeInput·port
       // routing 에 사용.
       const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-        this.graphTraversal.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
+        this.graphTraversal.buildEdgeIndexes(
+          graphEdges,
+          backEdges,
+          sortedIndexMap,
+        );
 
       // 8. Create execution context (inject workspaceId for AI handlers)
       const workflow = await this.workflowRepository.findOneBy({
@@ -3241,7 +3249,12 @@ export class ExecutionEngineService
         const sourceOutput = nodeOutputCache[sourceId];
         // Port-aware filtering: if source has _selectedPort, only pass data
         // if the edge's sourcePort matches the selected port
-        if (this.graphTraversal.isPortFiltered(sourceOutput, incomingEdges[0].sourcePort)) {
+        if (
+          this.graphTraversal.isPortFiltered(
+            sourceOutput,
+            incomingEdges[0].sourcePort,
+          )
+        ) {
           return undefined;
         }
         return this.stripControlFields(sourceOutput);
@@ -3364,7 +3377,12 @@ export class ExecutionEngineService
   ): { edge: GraphEdge; targetIndex: number } | null {
     const sourceOutput = nodeOutputCache[sourceNodeId];
     for (const backEdge of backEdges) {
-      if (!this.graphTraversal.isPortFiltered(sourceOutput, backEdge.edge.sourcePort)) {
+      if (
+        !this.graphTraversal.isPortFiltered(
+          sourceOutput,
+          backEdge.edge.sourcePort,
+        )
+      ) {
         return backEdge;
       }
     }
