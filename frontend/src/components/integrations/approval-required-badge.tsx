@@ -4,6 +4,14 @@ import { AlertTriangle } from "lucide-react";
 import { type TFunction } from "@/lib/i18n";
 
 /**
+ * Mirror of `backend/src/nodes/integration/cafe24/metadata/restricted-approval.ts`
+ * `CAFE24_INQUIRY_URL`. Kept here as a literal to avoid coupling the
+ * frontend bundle to a backend-only module — the URL is stable and any
+ * change requires touching both sides anyway.
+ */
+const CAFE24_INQUIRY_URL = "https://developers.cafe24.com";
+
+/**
  * Reusable ⚠ badge for Cafe24 partner-approval scopes/operations.
  *
  * Rendered next to scope checkbox labels (wizard Step 2 + integration
@@ -32,7 +40,7 @@ export function ApprovalRequiredBadge({ t }: { t: TFunction }) {
  */
 export function RestrictedScopeNotice({
   count,
-  inquiryUrl = "https://developers.cafe24.com",
+  inquiryUrl = CAFE24_INQUIRY_URL,
   t,
 }: {
   count: number;

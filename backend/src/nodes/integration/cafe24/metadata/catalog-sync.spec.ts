@@ -62,6 +62,10 @@ interface CatalogRow {
 // Header-based dynamic column indexing — supports catalog files with or without
 // the optional `restricted` column. See `_overview.md` §2 for canonical order:
 // `id | 라벨 (한) | English title | method | path | scope | restricted? | paginated | status | docs`.
+//
+// Minimum cell count: 9 (the 9 mandatory columns excluding `restricted`).
+// Rows shorter than this are malformed markdown and skipped silently.
+const MIN_CATALOG_COLUMNS = 9;
 const CANONICAL_HEADERS = [
   'id',
   '라벨 (한)',
@@ -135,7 +139,7 @@ function parseCatalogFile(filePath: string): CatalogRow[] {
       .split('|')
       .slice(1, -1)
       .map((c) => c.trim());
-    if (cells.length < 9) continue;
+    if (cells.length < MIN_CATALOG_COLUMNS) continue;
 
     const idCell = cellOr(cells, columnIndex.id);
     const id = idCell.replace(/^`|`$/g, '').trim();
@@ -399,7 +403,12 @@ describe('Cafe24 API catalog ↔ metadata sync', () => {
         for (const row of catalog[resource]) {
           if (row.status !== 'supported') continue;
           if (row.restricted === '') continue;
-          const op = findCafe24Operation(resource, row.id)!;
+          const op = findCafe24Operation(resource, row.id);
+          if (!op) {
+            throw new Error(
+              `${resource}.md row "${row.id}": catalog marks restricted="${row.restricted}" but no metadata row exists (rule 1+8)`,
+            );
+          }
           if (!op.restrictedApproval) {
             throw new Error(
               `${resource}.md row "${row.id}": catalog restricted="${row.restricted}" but metadata.restrictedApproval is undefined`,
@@ -413,7 +422,8 @@ describe('Cafe24 API catalog ↔ metadata sync', () => {
       for (const resource of CAFE24_RESOURCES) {
         for (const row of catalog[resource]) {
           if (row.status !== 'supported') continue;
-          const op = findCafe24Operation(resource, row.id)!;
+          const op = findCafe24Operation(resource, row.id);
+          if (!op) continue; // covered by previous test
           const expected = op.restrictedApproval?.level;
           if (expected === undefined) {
             if (row.restricted !== '') {

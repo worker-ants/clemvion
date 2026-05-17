@@ -783,6 +783,17 @@ export class IntegrationOAuthService {
    *   leave status alone and only update `last_error`.
    * - A vanished row (resource_not_found) is silently skipped.
    */
+  /**
+   * Record a callback failure onto the Integration row.
+   *
+   * @param extra Provider-specific structured context attached to
+   *   `last_error.details`. For Cafe24 `invalid_scope` callbacks the
+   *   handler should pass `extra.requiresCafe24Approval` so the detail
+   *   view can render the partner-approval hint (spec/2-navigation/4-
+   *   integration.md §10.4 + cafe24-restricted-scopes.md §4.3). Omit
+   *   entirely for non-Cafe24 providers — the `details` field is then
+   *   left absent so unrelated providers don't carry an empty bag.
+   */
   async markIntegrationCallbackError(
     integrationId: string,
     workspaceId: string,
