@@ -22,6 +22,12 @@
 #     project name 이 바뀌어도 모든 worktree 가 같은 image (예: `clemvion-e2e/backend:latest`)
 #     를 공유하므로, 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다.
 #     container/volume 만 project 별 격리, image 는 공유.
+#   - 트레이드오프: 두 worktree 가 동일 image tag 를 거의 동시에 `--build` 하면 마지막
+#     build 가 tag 를 차지한다. BuildKit 은 layer 단위 cache 공유로 보통 안전하지만,
+#     소스가 다른 두 worktree 가 정말 동시에 빌드를 시작하면 한쪽이 직전 build 결과의
+#     image 로 실행될 수 있다. 이슈 의심 시 `make e2e-prune` + `docker image prune` 후
+#     순차로 재실행하면 해소된다. 완전 격리가 필요해지면 image 이름에도 project name
+#     을 섞을 수 있으나, 그 순간 본 파일의 캐시 공유 이점이 사라진다.
 #
 # 영속화 없음(ephemeral) — 매 실행마다 깨끗한 schema 가 보장된다.
 # runner 서비스는 `profiles: ["test"]` 로 분리되어 `make e2e-up` 만으로는 안 뜬다.
@@ -79,7 +85,7 @@ services:
       "
 
   migrate:
-    # Project name 과 무관하게 모든 worktree 가 같은 image 를 공유 (build cache 절약).
+    # image 공유 — 헤더의 "Image 캐시 공유" 절 참고.
     image: clemvion-e2e/migrate:latest
     build:
       context: .
@@ -101,7 +107,7 @@ services:
   # ---------------- Backend under test ----------------
   # production-like image (target=runner). NODE_ENV 만 test 로 override.
   backend-e2e:
-    # Project name 과 무관하게 모든 worktree 가 같은 image 를 공유 (build cache 절약).
+    # image 공유 — 헤더의 "Image 캐시 공유" 절 참고.
     image: clemvion-e2e/backend:latest
     build:
       context: .
@@ -155,7 +161,7 @@ services:
 
   # backend e2e (supertest / HTTP). dev dep + src 가 필요해 deps stage + 호스트 mount.
   backend-e2e-runner:
-    # Project name 과 무관하게 모든 worktree 가 같은 deps image 를 공유.
+    # image 공유 — 헤더의 "Image 캐시 공유" 절 참고.
     image: clemvion-e2e/backend-deps:latest
     build:
       context: .

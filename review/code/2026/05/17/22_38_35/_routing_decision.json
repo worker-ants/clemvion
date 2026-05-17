@@ -1,0 +1,78 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-17T22:40:00Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): Dockerfile / docker-compose 변경 — base image·package install (dependency) + USER·secret·port·privileged (security): docker-compose.e2e.yml"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "Docker Compose 명칭/메타데이터 변경만 있으며 성능 영향 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "아키텍처 변경 없음 — e2e 인프라 격리 운영 규칙 업데이트만 해당"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "Makefile + docker-compose.e2e.yml 의 COMPOSE_PROJECT 격리 메커니즘 — worktree 별 자동 프로젝트 격리로 병렬 e2e 실행 요구사항 충족"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "CLAUDE.md, PROJECT.md, README.md, docker-compose.e2e.yml, Makefile 등 다중 영역 동시 수정 — 의도 범위 벗어남 검증 필요"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "COMPOSE_PROJECT 도출 로직·Makefile 규칙 변경 — e2e 타겟 실행 환경 전역에 영향, 기존 worktree/main 동작 보존 확인 필요"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "Makefile 의 shell 정규화 (tr/sed) + 변수 도출 로직 추가 — 복잡도 증가, 유지보수성 검증 필요"
+    },
+    {
+      "name": "testing",
+      "selected": false,
+      "reason": "테스트 코드 변경 없음 — 문서 및 build script 메타데이터만 갱신"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: CLAUDE.md, PROJECT.md, README.md (외 1건)"
+    },
+    {
+      "name": "dependency",
+      "selected": true,
+      "reason": "agents_forced (router_safety): Dockerfile / docker-compose 변경 — base image·package install (dependency) + USER·secret·port·privileged (security): docker-compose.e2e.yml"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB 마이그레이션·쿼리·ORM 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/Promise/락/워커/큐 코드 변경 없음 — Makefile 은 순차 shell"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "docker-compose.e2e.yml 의 포트/exposed service 설정 변경 가능 — API 계약 영향 범위 검증 필요"
+    }
+  ],
+  "selected_count": 8,
+  "skipped_count": 5,
+  "forced": [
+    "security",
+    "dependency",
+    "documentation"
+  ]
+}

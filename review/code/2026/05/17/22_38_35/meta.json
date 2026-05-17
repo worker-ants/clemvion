@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-05-17T22:38:35.823598",
+  "files": [
+    {
+      "file_path": "CLAUDE.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "Makefile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "PROJECT.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "docker-compose.e2e.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": "plan/in-progress/e2e-compose-isolate.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "dependency",
+    "documentation",
+    "security"
+  ]
+}
