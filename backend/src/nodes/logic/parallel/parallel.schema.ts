@@ -64,6 +64,18 @@ export const parallelNodeConfigSchema = z
           hint: 'true: continue to the next node only after all branches finish. Phase P1 hardcodes true; false is not supported yet.',
         },
       }),
+    // W-7: 분기 에러 정책. parallel-specific 필드 (공통 errorHandling 와 별개)
+    // 로 노출 — 사용자가 stop/continue 를 명확히 선택. 미설정 시 'stop'.
+    errorPolicy: z
+      .enum(['stop', 'continue'])
+      .default('stop')
+      .meta({
+        ui: {
+          label: 'Error Policy',
+          widget: 'select',
+          hint: 'stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches, collect rejected branches in output.branches[i].error.',
+        },
+      }),
   })
   .passthrough();
 export type ParallelConfig = z.infer<typeof parallelNodeConfigSchema>;
@@ -112,6 +124,14 @@ export function validateParallelConfig(config: unknown): string[] {
 
   if (c.waitAll !== undefined && typeof c.waitAll !== 'boolean') {
     errors.push('waitAll must be a boolean.');
+  }
+
+  if (
+    c.errorPolicy !== undefined &&
+    c.errorPolicy !== 'stop' &&
+    c.errorPolicy !== 'continue'
+  ) {
+    errors.push("errorPolicy must be 'stop' or 'continue'.");
   }
 
   return errors;
