@@ -11,6 +11,7 @@ import {
   ProviderExecCtx,
 } from './agent-tool-provider.interface.js';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
+import { parseMcpToolName } from './mcp-tool-provider.js';
 import {
   Cafe24ApiClient,
   Cafe24AuthFailedError,
@@ -451,20 +452,15 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     return raw as Array<{ integrationId?: string; enabledTools?: string[] }>;
   }
 
+  // W-30 — `parseMcpToolName` (mcp-tool-provider.ts) 와 동일 분해 로직을 두
+  // provider 에 별도로 작성해 PREFIX / SEP 변경 시 한쪽만 갱신되는 위험이 있었다.
+  // 단일 source 로 위임.
   private extractSid(toolName: string): string | null {
-    // mcp_<sid>__<rest>. Split on the first `__`.
-    if (!toolName.startsWith('mcp_')) return null;
-    const afterPrefix = toolName.slice(4);
-    const idx = afterPrefix.indexOf('__');
-    if (idx <= 0) return null;
-    return afterPrefix.slice(0, idx);
+    return parseMcpToolName(toolName)?.sid ?? null;
   }
 
   private extractOperationId(toolName: string): string | null {
-    const afterPrefix = toolName.slice(4);
-    const idx = afterPrefix.indexOf('__');
-    if (idx <= 0) return null;
-    return afterPrefix.slice(idx + 2);
+    return parseMcpToolName(toolName)?.toolNameSanitized ?? null;
   }
 
   private applyAllowlist(

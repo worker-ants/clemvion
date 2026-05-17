@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Integration } from './entities/integration.entity';
+import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
 import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
@@ -827,12 +828,12 @@ export class IntegrationsService {
       };
       await this.integrationRepository.save(entity);
 
-      const appBaseUrl = process.env.APP_URL || 'http://localhost:3011';
+      const appBaseUrl = getAppBaseUrl();
       return {
         mode: 'cafe24_private_pending',
         integrationId: entity.id,
-        appUrl: `${appBaseUrl.replace(/\/$/, '')}/api/3rd-party/cafe24/install/${entity.installToken}`,
-        callbackUrl: `${appBaseUrl.replace(/\/$/, '')}/api/3rd-party/cafe24/callback`,
+        appUrl: `${appBaseUrl}/api/3rd-party/cafe24/install/${entity.installToken}`,
+        callbackUrl: `${appBaseUrl}/api/3rd-party/cafe24/callback`,
         scopesAdded,
       };
     }
@@ -1073,11 +1074,7 @@ export class IntegrationsService {
     ) {
       return null;
     }
-    const appBaseUrl = (process.env.APP_URL || 'http://localhost:3011').replace(
-      /\/$/,
-      '',
-    );
-    return buildCafe24InstallUrl(appBaseUrl, entity.installToken);
+    return buildCafe24InstallUrl(getAppBaseUrl(), entity.installToken);
   }
 
   /**
