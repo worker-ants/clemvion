@@ -263,6 +263,27 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 - 엔진은 `Object.freeze` 적용한 shallow snapshot 을 주입한다 — top-level 필드 mutation 은 strict 모드에서 TypeError 가 발생한다.
 - **Shallow 임에 유의** — `rawConfig.headers.foo = '...'` 같은 중첩 객체 변이는 차단되지 않는다. 핸들러는 rawConfig 를 read-only 로 다루어야 하며, 변형이 필요하면 `structuredClone` 으로 복제한다.
 
+**`config` echo 구현 방식 — 명시 enumeration 의무화** (D1 결정, 2026-05-17):
+
+- ✅ **권장 — 명시 키 enumeration**: 각 비민감 필드를 명시적으로 나열해 echo 한다.
+  ```ts
+  return {
+    config: {
+      integrationId: context.rawConfig?.integrationId,
+      to: context.rawConfig?.to,
+      subject: context.rawConfig?.subject,
+      // ... 비민감 필드 명시 나열
+    },
+    output: { /* ... */ },
+  };
+  ```
+- ❌ **금지 — spread 패턴**: `{ ...context.rawConfig }` 또는 `{ ...rawConfig, ...overrides }` 형태로 echo 하지 않는다. 이유:
+  1. **credential leak 위험** — schema 에 신규 민감 필드가 추가됐을 때 자동 노출.
+  2. **회귀 감지 곤란** — 어떤 필드가 echo 되는지 단위 테스트로 명시 검증 불가.
+  3. **dead field echo** — 폐기 예정 필드가 자동으로 계속 surface.
+- 본 정책의 baseline 패턴: `background.handler.ts:64-68` + `background.handler.spec.ts:84-103` 의 `apiKey` 가드 테스트.
+- 모든 노드 handler 는 schema 의 비민감 필드를 **항상 echo 한다** (`undefined` 도 포함). 일부 노드(`switch.hasDefault`, `if-else.strictComparison`, `map.errorPolicy`, `foreach.errorPolicy`, `carousel.maxItems`, `chart.dataField`/`groupBy`/`colors`, `template.helpers`, `table.pagination`, `variable-modification.recordValues` 등) 의 echo 누락은 본 정책에 부합하도록 보강한다.
+
 ### 핸들러 구현 가이드
 
 ```ts

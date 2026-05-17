@@ -164,19 +164,20 @@ export class TableHandler implements NodeHandler {
       payload.rowsTruncated = true;
       payload.rowsTotalCount = cappedRows.originalLength;
     }
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field unconditionally; `dataSource` / `rows` / `pagination` were
+    // previously missing.
     const configEcho: Record<string, unknown> = {
       mode: rawConfig.mode ?? mode,
+      dataSource: rawConfig.dataSource,
       columns: rawConfig.columns ?? columns,
-      ...(rawConfig.pageSize !== undefined
-        ? { pageSize: rawConfig.pageSize }
-        : pageSize !== undefined
-          ? { pageSize }
-          : {}),
-      ...(rawConfig.sortBy !== undefined
-        ? { sortBy: rawConfig.sortBy, sortOrder: rawConfig.sortOrder }
-        : sortBy !== undefined
-          ? { sortBy, sortOrder }
-          : {}),
+      rows: rawConfig.rows,
+      pagination: rawConfig.pagination,
+      pageSize:
+        rawConfig.pageSize !== undefined ? rawConfig.pageSize : pageSize,
+      sortBy: rawConfig.sortBy !== undefined ? rawConfig.sortBy : sortBy,
+      sortOrder:
+        rawConfig.sortOrder !== undefined ? rawConfig.sortOrder : sortOrder,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;

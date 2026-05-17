@@ -49,12 +49,14 @@ export class MapHandler implements NodeHandler {
     const resolved = resolveFieldValue(input, inputField);
     const items = Array.isArray(resolved) ? resolved : [];
 
-    // CONVENTIONS Principle 7 — config echoes the raw inputField template
-    // (`{{ ... }}` preserved). resolved items still flow as the body
-    // iteration source (engine override per Principle 9).
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field; `errorPolicy` was previously missing.
     const rawConfig = (context.rawConfig ?? config) as unknown as MapConfig;
     return Promise.resolve({
-      config: { inputField: rawConfig.inputField },
+      config: {
+        inputField: rawConfig.inputField,
+        errorPolicy: (rawConfig as { errorPolicy?: string }).errorPolicy,
+      },
       output: items,
     });
   }

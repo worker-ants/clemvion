@@ -79,14 +79,15 @@ export class SwitchHandler implements NodeHandler {
       config as unknown as SwitchConfig;
     const resolvedMode: SwitchMode = mode ?? 'value';
     const strict = strictComparison === true;
-    // CONVENTIONS Principle 7 — config echoes raw switchValue / cases
-    // (templates preserved). Engine populates `rawConfig`; unit-test
-    // fallback to evaluated config.
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field; `hasDefault` / `strictComparison` were previously missing.
     const rawConfig = (context.rawConfig ?? config) as unknown as SwitchConfig;
     const configEcho = {
       switchValue: rawConfig.switchValue,
       cases: rawConfig.cases,
       mode: rawConfig.mode ?? 'value',
+      hasDefault: rawConfig.hasDefault,
+      strictComparison: rawConfig.strictComparison,
     };
 
     // The expression engine pre-resolves `switchValue` templates (`{{ ... }}`)

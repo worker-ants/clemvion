@@ -40,16 +40,15 @@ export class TemplateHandler implements NodeHandler {
     const content = typeof config.template === 'string' ? config.template : '';
     const outputFormat = (config.outputFormat as string) ?? 'text';
 
-    // CONVENTIONS Principle 7 — config echoes the **raw** template source
-    // (`{{ ... }}` preserved); `output.rendered` carries the evaluated
-    // content the engine produced. This corrects the prior behavior of
-    // stamping the evaluated `content` into `config.template`, which broke
-    // the raw / evaluated orthogonality (Principle 1.1).
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field; `helpers` was previously missing. `output.rendered` carries
+    // the evaluated content (Principle 1.1 raw vs evaluated orthogonality).
     const rawConfig = context.rawConfig ?? config;
     const payload: Record<string, unknown> = { rendered: content };
     const configEcho: Record<string, unknown> = {
-      outputFormat: rawConfig.outputFormat ?? outputFormat,
       template: rawConfig.template,
+      outputFormat: rawConfig.outputFormat ?? outputFormat,
+      helpers: rawConfig.helpers,
     };
 
     const buttons = config.buttons as ButtonDef[] | undefined;

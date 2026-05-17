@@ -178,20 +178,22 @@ export class CarouselHandler implements NodeHandler {
     // dispatch). Runtime-evaluated dynamic items live in `output.items`;
     // static literal items live solely in `config.items` (Principle 1.1
     // config↔output orthogonality).
+    // D1 (2026-05-17) — explicit enumeration baseline. Echo every non-sensitive
+    // schema field unconditionally so undefined keys still surface intent and
+    // future credential-shaped fields can't slip in via spread.
     const rawConfig = context.rawConfig ?? config;
     const configEcho: Record<string, unknown> = {
-      layout: rawConfig.layout ?? layout,
       mode: rawConfig.mode ?? mode,
+      layout: rawConfig.layout ?? layout,
+      items: rawConfig.items,
+      source: rawConfig.source,
+      titleField: rawConfig.titleField,
+      descriptionField: rawConfig.descriptionField,
+      imageField: rawConfig.imageField,
+      maxItems: rawConfig.maxItems,
+      buttons: rawConfig.buttons,
+      itemButtons: rawConfig.itemButtons,
     };
-    if (Array.isArray(rawConfig.items)) configEcho.items = rawConfig.items;
-    if (rawConfig.titleField) configEcho.titleField = rawConfig.titleField;
-    if (rawConfig.descriptionField)
-      configEcho.descriptionField = rawConfig.descriptionField;
-    if (rawConfig.imageField) configEcho.imageField = rawConfig.imageField;
-    if (Array.isArray(rawConfig.buttons))
-      configEcho.buttons = rawConfig.buttons;
-    if (Array.isArray(rawConfig.itemButtons))
-      configEcho.itemButtons = rawConfig.itemButtons;
 
     // Build the output payload with static/dynamic split per CONVENTIONS
     // Principle 1.1 (config↔output orthogonality) + Principle 4.3 (waiting
