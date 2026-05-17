@@ -6,6 +6,7 @@ import {
 } from "../stores/execution-store";
 import { ExecutionData, NodeExecutionData } from "../api/executions";
 import { getNodeDefinition } from "../node-definitions";
+import { parseHistoryMessages } from "../conversation/conversation-utils";
 
 /**
  * Snapshot reconcile / REST polling 의 store hydration entry point.
@@ -26,6 +27,11 @@ import { getNodeDefinition } from "../node-definitions";
  *  - 마지막 fallback (`inferInteractionTypeFromNodeType`) 은 carousel/chart/
  *    table/template → `'buttons'` 자동 추론. backend 의 `meta.interactionType`
  *    누락 또는 REST API 의 `node` relation 누락 시에도 정확한 hydration 보장.
+ *  - `ai_conversation` 분기: store.conversationMessages 가 비어있고
+ *    `outputData.output.result.messages`(또는 legacy nested/flat) 가 존재
+ *    하면 `parseHistoryMessages` 로 시드. 페이지 재진입 시 WS 이벤트가
+ *    도착하기 전 REST 만으로도 대화 timeline 이 그려지도록 한다.
+ *    WS 가 먼저 채운 경우엔 덮어쓰지 않아 timeline 보호.
  *
  * Hook 외부에서 호출 가능 (Zustand 의 `useExecutionStore.getState()` 패턴).
  *
@@ -50,6 +56,7 @@ export function applyExecutionSnapshot(
     pauseForForm,
     pauseForButtons,
     pauseForConversation,
+    setConversationMessages,
     resumeFromForm,
     resumeFromButtons,
     resumeFromConversation,
@@ -225,6 +232,17 @@ export function applyExecutionSnapshot(
           ? (raw.config as Record<string, unknown> | undefined)
           : (raw.conversationConfig as Record<string, unknown> | undefined);
         pauseForConversation(waitingNode.nodeId, convConfig ?? null);
+
+        // 페이지 재진입 hydration — store.conversationMessages 가 비어있고
+        // outputData 에 메시지가 영속되어 있으면 시드한다. WS 경로
+        // (`use-execution-events.ts:handleWaitingForInput`) 와 동등.
+        // 비어있지 않은 경우엔 덮어쓰지 않아 WS 가 먼저 채운 timeline 보호.
+        if (useExecutionStore.getState().conversationMessages.length === 0) {
+          const items = parseHistoryMessages(raw);
+          if (items.length > 0) {
+            setConversationMessages(items);
+          }
+        }
       } else if (interactionType === "buttons") {
         const btnConfig = isStructured
           ? (raw.config as Record<string, unknown> | undefined)
