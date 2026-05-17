@@ -1,4 +1,5 @@
 import type { Cafe24OperationMetadata } from './types.js';
+import { RESTRICTED_APPROVAL } from './restricted-approval.js';
 
 export const mileageOperations: Cafe24OperationMetadata[] = [
   {
@@ -17,6 +18,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
     paginated: true,
+    restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },
   {
     id: 'mileage_grant',
@@ -43,6 +45,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
       },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },
   // Phase 6e — Mileage 보완
   {
@@ -59,6 +62,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },
   {
     id: 'points_autoexpiration_create',
@@ -80,6 +84,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
       },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },
   {
     id: 'points_autoexpiration_delete',
@@ -93,6 +98,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
       id: { type: 'string', location: 'path' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },
   {
     id: 'credits_list',
@@ -109,11 +115,13 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
     paginated: true,
+    restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },
   {
     id: 'credits_report',
     label: '예치금 리포트 조회',
-    description: 'Retrieve the credit (예치금) summary report for a date range.',
+    description:
+      'Retrieve the credit (예치금) summary report for a date range.',
     scopeType: 'read',
     method: 'GET',
     path: 'credits/report',
@@ -124,6 +132,7 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
       end_date: { type: 'string', location: 'query' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },
   // Phase 8a — Mileage 완성
   {
@@ -140,5 +149,6 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
       end_date: { type: 'string', location: 'query' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.mileage,
   },
 ];
