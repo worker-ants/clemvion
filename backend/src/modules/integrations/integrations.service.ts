@@ -146,6 +146,17 @@ export type PublicIntegration = Omit<
    * 페이지 표시" 참조).
    */
   appUrl: string | null;
+  /**
+   * Derived 가상 필드 — `ServiceDefinition.supportsTokenAutoRefresh`
+   * (`service-registry.ts`) 에서 매 응답 시점에 계산. DB 컬럼 아님.
+   * UI 의 attention/expiring 술어, 상세 페이지 헤더의 "Auto-renews"
+   * 보조 라벨, Reauthorize hover 안내 분기 신호.
+   *
+   * spec/2-navigation/4-integration.md §9.1 + Rationale "자동 갱신 통합을
+   * attention 술어에서 제외 (2026-05-17)" + spec/1-data-model.md §2.10
+   * "응답 DTO 전용 derived 필드".
+   */
+  autoRefresh: boolean;
 };
 
 /**
@@ -1025,6 +1036,11 @@ export class IntegrationsService {
     void _installToken;
     void _installTokenIssuedAt;
     const appUrl = this.buildCafe24AppUrl(entity, credsUnreadable);
+    // autoRefresh — derived from service registry, not a DB column. Computed
+    // once per response. credsUnreadable 분기에서도 service 정의 기반이라
+    // 일관된 값. spec/2-navigation/4-integration.md §9.1 + Rationale.
+    const autoRefresh =
+      findService(entity.serviceType)?.supportsTokenAutoRefresh === true;
     if (credsUnreadable) {
       // Single corrupted row must not leak the sentinel marker into the API
       // response and must surface as a reconnect prompt rather than a
@@ -1038,6 +1054,7 @@ export class IntegrationsService {
         credentialsStatus: 'needs_reauth',
         meta,
         appUrl,
+        autoRefresh,
       };
     }
     return {
@@ -1051,6 +1068,7 @@ export class IntegrationsService {
       credentialsStatus: 'ok',
       meta,
       appUrl,
+      autoRefresh,
     };
   }
 

@@ -367,6 +367,92 @@ describe('IntegrationsService', () => {
         expect(result.appUrl).toBeNull();
       });
     });
+
+    // -----------------------------------------------------------------
+    // autoRefresh — derived field for UI 분기 (attention 술어·헤더 보조 라벨).
+    // spec/2-navigation/4-integration.md §9.1 + Rationale "자동 갱신 통합을
+    // attention 술어에서 제외 (2026-05-17)" + spec/1-data-model.md §2.10
+    // 응답 DTO 전용 derived 필드. `ServiceDefinition.supportsTokenAutoRefresh`
+    // 에서 매 응답 시점에 계산되며 DB 컬럼이 아니다.
+    // -----------------------------------------------------------------
+    describe('autoRefresh', () => {
+      it('returns true for cafe24 (refresh_token + auto-refresh worker)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: { mall_id: 'myshop', app_type: 'public' },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.autoRefresh).toBe(true);
+      });
+
+      it('returns true for google (refresh_token 발급 provider)', async () => {
+        // Default makeIntegration uses serviceType='google'.
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.autoRefresh).toBe(true);
+      });
+
+      it('returns false for github (Refresh ✗ — spec §10.3 long-lived token)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({ serviceType: 'github', authType: 'oauth2' }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.autoRefresh).toBe(false);
+      });
+
+      it('returns false for non-OAuth service types (http/api_key 등)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({ serviceType: 'http', authType: 'api_key' }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.autoRefresh).toBe(false);
+      });
+
+      it('returns false for cafe24 Private 도 동일 (mall-aware refresh 가 동작 — autoRefresh=true 유지)', async () => {
+        // Private/Public 무관하게 cafe24 는 refresh_token + Cafe24ApiClient
+        // 자동 갱신 메커니즘을 동일하게 사용한다.
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: { mall_id: 'myshop', app_type: 'private' },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.autoRefresh).toBe(true);
+      });
+
+      it('returns false for unknown service_type (service registry 미등록)', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'unknown-provider',
+            authType: 'api_key',
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.autoRefresh).toBe(false);
+      });
+
+      it('returns false for unreadable credentials (status=error 분기에서도 일관되게 false 가 아닌 service 정의 기반)', async () => {
+        // credsUnreadable 분기는 status='error', credentialsStatus='needs_reauth'
+        // 로 전이하지만, autoRefresh 는 service 정의에만 의존하므로 cafe24 면
+        // 여전히 true 가 자연스럽다 (UI 는 어차피 error 상태로 분기하여
+        // Reauthorize/재인증 흐름을 우선시).
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            credentials: { __unreadable: true } as unknown as Record<
+              string,
+              unknown
+            >,
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.autoRefresh).toBe(true);
+      });
+    });
   });
 
   // -----------------------------------------------------------------

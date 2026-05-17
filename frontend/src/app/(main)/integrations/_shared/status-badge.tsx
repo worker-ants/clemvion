@@ -12,10 +12,24 @@ import {
 export { isReauthorizeDisabled };
 
 export interface StatusView {
+  /** Main status label rendered next to the colored dot. */
   label: string;
   dotClassName: string;
   tone: "ok" | "warn" | "err";
+  /**
+   * Short diagnostic shown in parentheses next to the label — meant for
+   * error/attention reasons (e.g. `auth_failed`, `oauth_token_exchange_failed`
+   * snippet). Implies an actionable problem.
+   */
   detail?: string;
+  /**
+   * Auxiliary informational caption rendered in a muted tone after the
+   * label, used to convey background-OK signals such as auto-refresh
+   * countdowns. Distinct from `detail` — `subLabel` is *not* an error
+   * indicator. spec/2-navigation/4-integration.md §4.1 헤더 정책 +
+   * Rationale "자동 갱신 통합을 attention 술어에서 제외 (2026-05-17)".
+   */
+  subLabel?: string;
 }
 
 export function computeStatus(integration: IntegrationDto): StatusView {
@@ -29,12 +43,6 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "pending_install") {
-    // If a callback failure was recorded, surface its diagnostic instead of
-    // the generic "complete test run" hint — the user needs to fix the
-    // reported error (e.g. invalid client_id) before re-running test in
-    // Cafe24 Developers. spec/2-navigation/4-integration.md §10.4
-    // lastError.message is human-friendlier when available; status_reason
-    // is the snake_case fallback.
     const diagnostic = pickErrorMessage(integration);
     return {
       label: "Pending install",
@@ -52,8 +60,6 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "expired") {
-    // install_timeout is Cafe24-private-specific: user must delete
-    // and re-register since there's no reauthorize entry point.
     return {
       label: "Expired",
       dotClassName: "bg-yellow-500",
@@ -64,7 +70,12 @@ export function computeStatus(integration: IntegrationDto): StatusView {
           : undefined,
     };
   }
-  if (expiresSoon) {
+  // expiresSoon 분기는 autoRefresh=false 통합에만 적용 — 짧은-수명 OAuth
+  // 토큰(cafe24 access_token 2h 등) 이 항상 노란 'Expires today' 로
+  // 표시되는 거짓 양성을 막기 위함. autoRefresh=true 통합은 만료 임박
+  // 해도 'Connected' 메인 라벨 유지 + 보조 라벨로만 안내.
+  // spec/2-navigation/4-integration.md §2.4 / §4.1 + Rationale.
+  if (expiresSoon && !integration.autoRefresh) {
     const days = daysUntil(integration.tokenExpiresAt!);
     return {
       label: days <= 0 ? "Expires today" : `Expires in ${days}d`,
@@ -72,7 +83,18 @@ export function computeStatus(integration: IntegrationDto): StatusView {
       tone: "warn",
     };
   }
-  return { label: "Connected", dotClassName: "bg-green-500", tone: "ok" };
+  // Connected 분기. autoRefresh=true + tokenExpiresAt 가 있는 경우 보조
+  // 라벨로 "Auto-renews · in <duration>" 안내.
+  const subLabel =
+    integration.autoRefresh && integration.tokenExpiresAt
+      ? `Auto-renews · in ${humanizeUntil(integration.tokenExpiresAt)}`
+      : undefined;
+  return {
+    label: "Connected",
+    dotClassName: "bg-green-500",
+    tone: "ok",
+    subLabel,
+  };
 }
 
 // EXPIRING_SOON_DAYS — kept in sync with backend `EXPIRING_SOON_INTERVAL`
@@ -90,6 +112,25 @@ export function isExpiringSoon(at: string | null | undefined): boolean {
 function daysUntil(at: string): number {
   const ms = new Date(at).getTime() - Date.now();
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
+
+// Human-friendly remaining time for the "Auto-renews · in <X>" subLabel.
+// Short (< 1h): minutes only. Medium (< 24h): hours + minutes. Long: days.
+// Past or invalid → empty string so callers can guard with truthy check.
+// spec/2-navigation/4-integration.md §4.1 헤더 메타 라인 규약.
+export function humanizeUntil(at: string): string {
+  const ms = new Date(at).getTime() - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "less than a minute";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  if (hours < 24) {
+    return remMinutes === 0 ? `${hours}h` : `${hours}h ${remMinutes}m`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
 }
 
 export function needsAttention(integration: IntegrationDto): boolean {
@@ -186,6 +227,11 @@ export function StatusBadge({ integration, className }: StatusBadgeProps) {
       {view.detail ? (
         <span className="text-xs text-[hsl(var(--muted-foreground))]">
           ({view.detail})
+        </span>
+      ) : null}
+      {view.subLabel ? (
+        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+          · {view.subLabel}
         </span>
       ) : null}
     </span>

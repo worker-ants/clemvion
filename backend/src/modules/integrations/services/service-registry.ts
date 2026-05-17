@@ -47,6 +47,24 @@ export interface ServiceDefinition {
   scopes?: ScopeOption[];
   /** OAuth provider identifier, if any variant is oauth2 */
   oauthProvider?: 'google' | 'github' | 'cafe24';
+  /**
+   * Whether this service supports background token auto-refresh.
+   * True means the provider issues a `refresh_token` AND we run a refresh
+   * mechanism for it (proactive or scheduled) — so the user doesn't need
+   * to take action on `token_expires_at` countdown.
+   *
+   * Currently `cafe24` (background queue + proactive `ensureFreshToken`)
+   * and `google` (refresh_token at OAuth callback, on-demand refresh on
+   * 401). `github` is intentionally false — its OAuth tokens are long-
+   * lived and don't issue refresh_token (spec §10.3 Refresh: ✗).
+   *
+   * Surfaced to the client as `IntegrationDto.autoRefresh: boolean`
+   * (derived, not a DB column). Used for UI branching: attention/expiring
+   * 술어 제외, 상세 페이지 헤더의 "Auto-renews" 보조 라벨, Reauthorize
+   * hover 안내. spec/2-navigation/4-integration.md §9.1 + Rationale
+   * "자동 갱신 통합을 attention 술어에서 제외 (2026-05-17)".
+   */
+  supportsTokenAutoRefresh?: boolean;
 }
 
 /**
@@ -246,6 +264,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     type: 'google',
     name: 'Google',
     oauthProvider: 'google',
+    supportsTokenAutoRefresh: true,
     authVariants: [
       {
         authType: 'oauth2',
@@ -520,6 +539,7 @@ export const SERVICE_REGISTRY: ServiceDefinition[] = [
     type: 'cafe24',
     name: 'Cafe24',
     oauthProvider: 'cafe24',
+    supportsTokenAutoRefresh: true,
     authVariants: [
       {
         authType: 'oauth2',
