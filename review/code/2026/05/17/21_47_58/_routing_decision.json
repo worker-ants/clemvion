@@ -1,0 +1,82 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-17T21:47:58Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: execution-engine.service.ts 에서 _resumeState strip (WARN #6 — 민감 internal state 누수 방지) 및 credential/시크릿 미노출 검증 필요"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "DB persistence 추가는 필요한 변경이며, 단발성 save 호출 (기존 패턴과 동일) — 성능 회귀 신호 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "기존 메서드 내 한 라인 수정 (waiting_for_input 분기에 출력 영속 추가) — 모듈 경계/DI/인터페이스 변경 없음"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: 누적 메시지 outputData 반영 (spec/5-system/4-execution-engine.md §646 'NodeExecution.outputData SoT') 및 spec/4-nodes/3-ai/1-ai-agent.md §7.4 (waiting_for_input 상태의 누적 messages 갱신) 명세 충족 확인"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: 의도(multi-turn 후속 turn outputData 영속) 대비 5개 파일 (execution-engine spec/impl, cafe24 spec/impl, plan doc) 동시 변경 — 범위 정당성 확인"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: DB persistence 추가 (NodeExecution.save 호출) — Execution 상태/WS 페이로드 변경, REST snapshot 재분배 영향 범위 검증 필요"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: 메서드 길이 증가 (32줄 신규 persistence 로직 + 주석), 코드 복잡도, 기존 패턴(emitAiWaitingForInput/waitForButtonInteraction)과의 일관성 확인"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변학 시 항상 적용: 신규 test case 추가 (persists outputData on multi-turn follow-up waiting turn) — 테스트 페어 완성도, _resumeState strip 회귀 가드(WARN #6), interactionType 마킹 검증 포함 확인"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경: plan/in-progress/ai-agent-multiturn-waiting-persist.md 신규 작성, review/consistency 결과 문서 동반 — 문서화 완성도 및 spec 참조 정확성"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/lock 파일 변경 없음 — 신규 의존성 추가 없음"
+    },
+    {
+      "name": "database",
+      "selected": true,
+      "reason": "nodeExecutionRepository.save() 호출 추가 — DB 영속 로직 신규 진입, transactions/atomicity, row 생명주기 및 스냅샷 snapshot reconcile 경로와의 정합성 검증 필요"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "multi-turn 후속 turn 처리 중 출력 캐시(in-memory contextService) + DB 영속 간 상태 일관성 — async/await 기존 구조는 유지하되, 동시 탭 접근 시 race condition 및 cache invalidation 검증"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "REST `/executions/:id` 응답 구조 변경 — 후속 turn 메시지 누적이 outputData 에 반영되어 snapshot hydration 경로를 통해 클라이언트 응답에 반영; spec/5-system/6-websocket-protocol.md 와의 정합성 및 기존 apply-execution-snapshot.ts hydration 자동 처리 검증"
+    }
+  ],
+  "selected_count": 11,
+  "skipped_count": 2,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

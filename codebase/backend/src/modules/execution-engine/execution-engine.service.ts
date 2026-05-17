@@ -779,7 +779,11 @@ export class ExecutionEngineService
       sortedIndexMap.set(sortedNodeIds[i], i);
     }
     const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-      this.graphTraversal.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
+      this.graphTraversal.buildEdgeIndexes(
+        graphEdges,
+        backEdges,
+        sortedIndexMap,
+      );
 
     // Use target-only nodeMap for expression resolution.
     // $node references in the target workflow should resolve against the
@@ -1262,7 +1266,11 @@ export class ExecutionEngineService
       // edge lookup 을 한 곳에 빌드. Pointer 이동·O(1) gatherNodeInput·port
       // routing 에 사용.
       const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-        this.graphTraversal.buildEdgeIndexes(graphEdges, backEdges, sortedIndexMap);
+        this.graphTraversal.buildEdgeIndexes(
+          graphEdges,
+          backEdges,
+          sortedIndexMap,
+        );
 
       // 8. Create execution context (inject workspaceId for AI handlers)
       const workflow = await this.workflowRepository.findOneBy({
@@ -2122,6 +2130,55 @@ export class ExecutionEngineService
       );
       const flatNext = this.applyPortSelection(toEngineFlatShape(adaptedNext));
       this.contextService.setNodeOutput(executionId, node.id, flatNext);
+
+      // Persist the accumulated turn snapshot to `NodeExecution.outputData`
+      // (DB SoT — spec/5-system/4-execution-engine.md §646). Without this,
+      // a second client (e.g. the execution detail page opened in another
+      // tab) reading via REST `/executions/:id` sees only the first turn's
+      // messages, because the in-memory `structuredOutputCache` is local to
+      // the originating tab's WebSocket subscription.
+      //
+      // Mirrors `emitAiWaitingForInput` (first-turn entry) and
+      // `waitForButtonInteraction` (button waiting) — both already do this.
+      // The Execution row stays WAITING_FOR_INPUT (self-transition) so we
+      // save just the NodeExecution; no `updateExecutionStatus` needed.
+      //
+      // WARN #6 — strip `_resumeState` via allowlist destructure (any new
+      // internal field at the top level is automatically excluded; matches
+      // `emitAiWaitingForInput` policy). `_resumeState` carries engine-
+      // internal turn debug, model state, and rawConfig (potential
+      // credentials). Multi-turn state lives in the in-memory cache only;
+      // server restart triggers `recoverStuckExecutions` → FAILED.
+      //
+      // `nodeExec` should normally exist here — the first turn entered via
+      // `emitAiWaitingForInput` already persisted it. A null arrival means
+      // the row was lost between turns (e.g. external truncation, cleanup
+      // race); the in-memory cache is still authoritative for the live
+      // session, but the cross-tab snapshot cannot be hydrated. Warn loudly
+      // instead of silently skipping so the gap shows up in logs.
+      if (nodeExec) {
+        const { _resumeState: _stripped, ...safe } = adaptedNext as unknown as {
+          _resumeState?: unknown;
+        } & Record<string, unknown>;
+        void _stripped;
+        nodeExec.outputData = withInteractionMeta(safe, 'ai_conversation');
+        try {
+          await this.nodeExecutionRepository.save(nodeExec);
+        } catch (err) {
+          this.logger.error(
+            `handleAiMessageTurn: failed to persist NodeExecution.outputData for ` +
+              `executionId=${executionId} nodeId=${node.id}: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+          );
+        }
+      } else {
+        this.logger.warn(
+          `handleAiMessageTurn: nodeExec missing for executionId=${executionId} ` +
+            `nodeId=${node.id} — DB outputData persist skipped, cross-tab snapshot ` +
+            `will lag in-memory turn state until next NODE_COMPLETED.`,
+        );
+      }
 
       // Update state for next turn
       const nextResumeState = adaptedNext._resumeState as Record<
@@ -3215,7 +3272,12 @@ export class ExecutionEngineService
         const sourceOutput = nodeOutputCache[sourceId];
         // Port-aware filtering: if source has _selectedPort, only pass data
         // if the edge's sourcePort matches the selected port
-        if (this.graphTraversal.isPortFiltered(sourceOutput, incomingEdges[0].sourcePort)) {
+        if (
+          this.graphTraversal.isPortFiltered(
+            sourceOutput,
+            incomingEdges[0].sourcePort,
+          )
+        ) {
           return undefined;
         }
         return this.stripControlFields(sourceOutput);
@@ -3338,7 +3400,12 @@ export class ExecutionEngineService
   ): { edge: GraphEdge; targetIndex: number } | null {
     const sourceOutput = nodeOutputCache[sourceNodeId];
     for (const backEdge of backEdges) {
-      if (!this.graphTraversal.isPortFiltered(sourceOutput, backEdge.edge.sourcePort)) {
+      if (
+        !this.graphTraversal.isPortFiltered(
+          sourceOutput,
+          backEdge.edge.sourcePort,
+        )
+      ) {
         return backEdge;
       }
     }
