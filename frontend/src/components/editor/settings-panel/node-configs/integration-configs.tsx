@@ -481,7 +481,9 @@ export function Cafe24Config({
         },
         ...supportedListForResource.map((op) => ({
           value: op.id,
-          label: op.label,
+          label: op.restrictedApproval
+            ? `${op.label} ⚠ ${t("nodeConfigs.integration.cafe24OperationApprovalSuffix")}`
+            : op.label,
         })),
         ...plannedListForResource.map((op) => ({
           value: op.id,
@@ -548,6 +550,11 @@ export function Cafe24Config({
       {plannedOp && (
         <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
           {t("nodeConfigs.integration.cafe24OperationPlannedHint")}
+        </p>
+      )}
+      {supportedOp?.restrictedApproval && (
+        <p className="text-[10px] text-amber-700 dark:text-amber-300">
+          ⚠ {t("integrations.approvalRequiredTooltip")}
         </p>
       )}
       {!supportedOp && !plannedOp && operation && resource && extras && (

@@ -1,4 +1,5 @@
 import type { Cafe24OperationMetadata } from './types.js';
+import { RESTRICTED_APPROVAL } from './restricted-approval.js';
 
 export const notificationOperations: Cafe24OperationMetadata[] = [
   {
@@ -16,6 +17,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       content: { type: 'string', location: 'body' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'sms_balance_get',
@@ -29,6 +31,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   // Phase 6f — Notification 보완
   {
@@ -43,6 +46,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'list',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'sms_receivers_get',
@@ -58,6 +62,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       cellphone: { type: 'string', location: 'query' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'automails_get',
@@ -71,6 +76,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'automails_update',
@@ -85,6 +91,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'recipientgroups_list',
@@ -99,6 +106,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
     paginated: true,
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'recipientgroups_get',
@@ -113,6 +121,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   // Phase 8e — Notification 완성 (invitation + recipientgroups CUD)
   {
@@ -128,11 +137,13 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       member_id: { type: 'string', location: 'body' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'recipientgroups_create',
     label: '수신자 그룹 생성',
-    description: 'Create a distribution group. Body schema partial — refer to Cafe24 docs.',
+    description:
+      'Create a distribution group. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
     method: 'POST',
     path: 'recipientgroups',
@@ -142,6 +153,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       group_name: { type: 'string', location: 'body' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'recipientgroups_update',
@@ -157,6 +169,7 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       group_name: { type: 'string', location: 'body' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
   {
     id: 'recipientgroups_delete',
@@ -170,5 +183,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
       group_no: { type: 'number', location: 'path' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.notification,
   },
 ];

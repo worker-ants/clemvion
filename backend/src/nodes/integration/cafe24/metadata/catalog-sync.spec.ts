@@ -25,6 +25,9 @@ import type { Cafe24Resource } from './types.js';
  * 6. status 는 `supported` | `planned` | `deprecated` 중 하나
  * 7. `status: planned` row 는 `CAFE24_PLANNED_BY_RESOURCE` (planned.ts) 에 매칭
  *    되어야 하고 `paginated` 가 일치해야 함 (양방향)
+ * 8. **`restricted` 컬럼 ↔ `restrictedApproval` 양방향 동기** — catalog `scope`/`operation` ↔ metadata `level='scope'/'operation'`.
+ *    `level='program'` 인 메타데이터는 catalog 대상이 아니라 본 검증에서 제외.
+ *    명단 SoT: `spec/conventions/cafe24-restricted-scopes.md`.
  */
 
 const CATALOG_DIR = join(
@@ -41,6 +44,7 @@ const CATALOG_DIR = join(
 );
 
 type CatalogStatus = 'supported' | 'planned' | 'deprecated';
+type CatalogRestricted = 'scope' | 'operation' | '';
 
 interface CatalogRow {
   id: string;
@@ -49,9 +53,55 @@ interface CatalogRow {
   method: string;
   path: string;
   scope: string;
+  restricted: CatalogRestricted;
   paginated: boolean;
   status: CatalogStatus;
   docsUrl: string;
+}
+
+// Header-based dynamic column indexing — supports catalog files with or without
+// the optional `restricted` column. See `_overview.md` §2 for canonical order:
+// `id | 라벨 (한) | English title | method | path | scope | restricted? | paginated | status | docs`.
+//
+// Minimum cell count: 9 (the 9 mandatory columns excluding `restricted`).
+// Rows shorter than this are malformed markdown and skipped silently.
+const MIN_CATALOG_COLUMNS = 9;
+const CANONICAL_HEADERS = [
+  'id',
+  '라벨 (한)',
+  'english title',
+  'method',
+  'path',
+  'scope',
+  'restricted',
+  'paginated',
+  'status',
+  'docs',
+];
+
+function parseHeaderCells(line: string): string[] {
+  return line
+    .split('|')
+    .slice(1, -1)
+    .map((c) => c.trim().toLowerCase().replace(/`/g, ''));
+}
+
+function buildColumnIndex(headerCells: string[]): Record<string, number> {
+  const idx: Record<string, number> = {};
+  for (const name of CANONICAL_HEADERS) {
+    const found = headerCells.indexOf(name);
+    if (found >= 0) idx[name] = found;
+  }
+  return idx;
+}
+
+function cellOr(
+  cells: string[],
+  idx: number | undefined,
+  fallback = '',
+): string {
+  if (idx === undefined || idx < 0 || idx >= cells.length) return fallback;
+  return cells[idx];
 }
 
 function parseCatalogFile(filePath: string): CatalogRow[] {
@@ -60,19 +110,25 @@ function parseCatalogFile(filePath: string): CatalogRow[] {
   const rows: CatalogRow[] = [];
   let inTable = false;
   let headerSeen = false;
+  let columnIndex: Record<string, number> = {};
 
   for (const line of lines) {
     if (!line.trim().startsWith('|')) {
       if (inTable) inTable = false;
       headerSeen = false;
+      columnIndex = {};
       continue;
     }
     if (!inTable) {
       inTable = true;
       headerSeen = false;
+      // First row is the header
+      const headerCells = parseHeaderCells(line);
+      columnIndex = buildColumnIndex(headerCells);
+      continue;
     }
     if (!headerSeen) {
-      // First two `|`-rows are header + separator
+      // Second row is the separator `|---|---|...|`
       if (/^\s*\|[\s-:|]+\|\s*$/.test(line)) {
         headerSeen = true;
       }
@@ -83,34 +139,31 @@ function parseCatalogFile(filePath: string): CatalogRow[] {
       .split('|')
       .slice(1, -1)
       .map((c) => c.trim());
-    if (cells.length < 9) continue;
-    const [
-      idCell,
-      labelKoCell,
-      englishTitleCell,
-      methodCell,
-      pathCell,
-      scopeCell,
-      paginatedCell,
-      statusCell,
-      docsCell,
-    ] = cells;
+    if (cells.length < MIN_CATALOG_COLUMNS) continue;
 
+    const idCell = cellOr(cells, columnIndex.id);
     const id = idCell.replace(/^`|`$/g, '').trim();
     if (!id) continue;
-    const path = pathCell.replace(/^`|`$/g, '').trim();
-    const status = statusCell as CatalogStatus;
+
+    const pathCell = cellOr(cells, columnIndex.path);
+    const docsCell = cellOr(cells, columnIndex.docs);
     const docsMatch = docsCell.match(/\((https?:\/\/[^)]+)\)/);
+    const restrictedRaw = cellOr(cells, columnIndex.restricted);
+    const restricted: CatalogRestricted =
+      restrictedRaw === 'scope' || restrictedRaw === 'operation'
+        ? restrictedRaw
+        : '';
 
     rows.push({
       id,
-      labelKo: labelKoCell,
-      englishTitle: englishTitleCell,
-      method: methodCell,
-      path,
-      scope: scopeCell,
-      paginated: paginatedCell === '✓',
-      status,
+      labelKo: cellOr(cells, columnIndex['라벨 (한)']),
+      englishTitle: cellOr(cells, columnIndex['english title']),
+      method: cellOr(cells, columnIndex.method),
+      path: pathCell.replace(/^`|`$/g, '').trim(),
+      scope: cellOr(cells, columnIndex.scope),
+      restricted,
+      paginated: cellOr(cells, columnIndex.paginated) === '✓',
+      status: cellOr(cells, columnIndex.status) as CatalogStatus,
       docsUrl: docsMatch?.[1] ?? docsCell,
     });
   }
@@ -335,6 +388,90 @@ describe('Cafe24 API catalog ↔ metadata sync', () => {
           if (supportedIds.has(planned.id)) {
             throw new Error(
               `planned.ts ${resource}: id "${planned.id}" collides with a supported operation`,
+            );
+          }
+        }
+      }
+    });
+  });
+
+  // Rule 8 — restrictedApproval ↔ catalog `restricted` two-way sync.
+  // SoT: spec/conventions/cafe24-restricted-scopes.md.
+  describe('catalog `restricted` ↔ metadata `restrictedApproval`', () => {
+    it('supported row with restricted=scope|operation has metadata.restrictedApproval', () => {
+      for (const resource of CAFE24_RESOURCES) {
+        for (const row of catalog[resource]) {
+          if (row.status !== 'supported') continue;
+          if (row.restricted === '') continue;
+          const op = findCafe24Operation(resource, row.id);
+          if (!op) {
+            throw new Error(
+              `${resource}.md row "${row.id}": catalog marks restricted="${row.restricted}" but no metadata row exists (rule 1+8)`,
+            );
+          }
+          if (!op.restrictedApproval) {
+            throw new Error(
+              `${resource}.md row "${row.id}": catalog restricted="${row.restricted}" but metadata.restrictedApproval is undefined`,
+            );
+          }
+        }
+      }
+    });
+
+    it('supported row restricted column matches metadata.restrictedApproval.level', () => {
+      for (const resource of CAFE24_RESOURCES) {
+        for (const row of catalog[resource]) {
+          if (row.status !== 'supported') continue;
+          const op = findCafe24Operation(resource, row.id);
+          if (!op) continue; // covered by previous test
+          const expected = op.restrictedApproval?.level;
+          if (expected === undefined) {
+            if (row.restricted !== '') {
+              throw new Error(
+                `${resource}.md row "${row.id}": catalog restricted="${row.restricted}" but metadata has no restrictedApproval`,
+              );
+            }
+            continue;
+          }
+          // `program` level rows are not catalog-tracked
+          if (expected === 'program') continue;
+          if (expected !== row.restricted) {
+            throw new Error(
+              `${resource}.md row "${row.id}": restricted mismatch (catalog="${row.restricted}", metadata.level="${expected}")`,
+            );
+          }
+        }
+      }
+    });
+
+    it('metadata operations with restrictedApproval (excluding program level) are flagged in catalog', () => {
+      for (const resource of CAFE24_RESOURCES) {
+        const supportedRowsById = new Map(
+          catalog[resource]
+            .filter((r) => r.status === 'supported')
+            .map((r) => [r.id, r] as const),
+        );
+        for (const op of CAFE24_OPERATIONS_BY_RESOURCE[resource]) {
+          if (!op.restrictedApproval) continue;
+          if (op.restrictedApproval.level === 'program') continue;
+          const row = supportedRowsById.get(op.id);
+          if (!row) continue; // caught by metadata→catalog test above
+          if (row.restricted === '') {
+            throw new Error(
+              `${resource}.md row "${op.id}": metadata.restrictedApproval set but catalog restricted column is empty`,
+            );
+          }
+        }
+      }
+    });
+
+    it('restrictedApproval.inquiryUrl is non-empty when set', () => {
+      for (const resource of CAFE24_RESOURCES) {
+        for (const op of CAFE24_OPERATIONS_BY_RESOURCE[resource]) {
+          if (!op.restrictedApproval) continue;
+          if (!op.restrictedApproval.inquiryUrl) {
+            throw new Error(
+              `${resource} ${op.id}: restrictedApproval.inquiryUrl must be non-empty`,
             );
           }
         }

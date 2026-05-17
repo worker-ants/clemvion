@@ -783,11 +783,23 @@ export class IntegrationOAuthService {
    *   leave status alone and only update `last_error`.
    * - A vanished row (resource_not_found) is silently skipped.
    */
+  /**
+   * Record a callback failure onto the Integration row.
+   *
+   * @param extra Provider-specific structured context attached to
+   *   `last_error.details`. For Cafe24 `invalid_scope` callbacks the
+   *   handler should pass `extra.requiresCafe24Approval` so the detail
+   *   view can render the partner-approval hint (spec/2-navigation/4-
+   *   integration.md §10.4 + cafe24-restricted-scopes.md §4.3). Omit
+   *   entirely for non-Cafe24 providers — the `details` field is then
+   *   left absent so unrelated providers don't carry an empty bag.
+   */
   async markIntegrationCallbackError(
     integrationId: string,
     workspaceId: string,
     errorCode: string,
     errorMessage: string,
+    extra?: { requiresCafe24Approval?: string[] },
   ): Promise<void> {
     try {
       const integration = await this.integrationRepository.findOne({
@@ -797,10 +809,15 @@ export class IntegrationOAuthService {
         // Row was deleted or workspace mismatch — nothing to update.
         return;
       }
+      const detailsObj: Record<string, unknown> | undefined =
+        extra?.requiresCafe24Approval && extra.requiresCafe24Approval.length > 0
+          ? { requiresCafe24Approval: extra.requiresCafe24Approval }
+          : undefined;
       const lastError = {
         code: errorCode,
         message: sanitizeLastErrorMessage(errorMessage),
         at: new Date().toISOString(),
+        ...(detailsObj ? { details: detailsObj } : {}),
       };
       integration.lastError = lastError;
       if (integration.status === 'pending_install') {
@@ -808,7 +825,9 @@ export class IntegrationOAuthService {
         // B-3-4: errorCode.toLowerCase() 를 union 화이트리스트로 정규화.
         // 알 수 없는 코드는 `unknown_error` 로 fallback 해 UI/응답이 union
         // 밖 값을 노출하지 않게 한다.
-        integration.statusReason = normalizeStatusReason(errorCode.toLowerCase());
+        integration.statusReason = normalizeStatusReason(
+          errorCode.toLowerCase(),
+        );
       } else if (
         integration.status === 'connected' &&
         errorCode === 'OAUTH_TOKEN_EXCHANGE_FAILED'

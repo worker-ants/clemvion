@@ -13,6 +13,10 @@ import {
 } from '../../../modules/integrations/cafe24-token-refresh.constants.js';
 import { sanitizeLastErrorMessage } from '../../../modules/integrations/integration-oauth.service.js';
 import { IntegrationActionRequiredNotifier } from '../../../modules/integrations/integration-action-required-notifier.service.js';
+import {
+  extractCafe24ScopeTokens,
+  pickRestrictedApprovalScopes,
+} from './metadata/restricted-approval.js';
 
 /**
  * Optional DI tokens for swapping the network / sleep primitives in tests.
@@ -796,14 +800,40 @@ export class Cafe24ApiClient {
     return { clientId: id, clientSecret: secret };
   }
 
+  /**
+   * Atomically transition the Integration to `error(reason)` and emit the
+   * action-required notification on first entry into that bucket.
+   *
+   * @param errBody Cafe24 response body from the failing 401/403 call.
+   *   Required when `reason === 'insufficient_scope'` so we can populate
+   *   `last_error.details.requiresCafe24Approval` from the response;
+   *   ignored for plain auth failures. Other 401/403 paths (refresh
+   *   loops, pre-flight pings) MUST forward the body if they have one
+   *   so the UI can surface the partner-approval hint.
+   *   See `spec/2-navigation/4-integration.md` §10.4 + spec/conventions/
+   *   cafe24-restricted-scopes.md §4.3.
+   */
   private async markAuthFailed(
     integration: Integration,
     reason: 'auth_failed' | 'insufficient_scope' = 'auth_failed',
+    errBody?: unknown,
   ): Promise<void> {
     // A-1: error 도메인 신규 진입에만 알림. 이미 같은 reason 으로 error 였으면
     // 알림 emit 을 건너뛴다 (notifier 의 24h dedup 으로 추가 보호도 있음).
     const transitioning =
       integration.status !== 'error' || integration.statusReason !== reason;
+    // requiresCafe24Approval — Cafe24 응답에서 mall.<read|write>_<r> 토큰을
+    // 뽑아 별도 승인 명단 (`cafe24-restricted-scopes.md` §1) 과 교차한다.
+    // 매칭이 비어 있으면 details 자체를 omit 해 다른 reason 의 last_error
+    // shape 과 분리. spec/2-navigation/4-integration.md §10.4 정책.
+    const requiresApproval =
+      reason === 'insufficient_scope'
+        ? pickRestrictedApprovalScopes(extractCafe24ScopeTokens(errBody))
+        : undefined;
+    const lastErrorDetails =
+      requiresApproval !== undefined
+        ? { requiresCafe24Approval: requiresApproval }
+        : undefined;
     try {
       await this.integrationRepository.update(integration.id, {
         status: 'error',
@@ -815,6 +845,7 @@ export class Cafe24ApiClient {
               ? 'Cafe24 returned 403 (insufficient scope)'
               : 'Cafe24 returned 401/403',
           at: new Date().toISOString(),
+          ...(lastErrorDetails ? { details: lastErrorDetails } : {}),
         },
       });
       integration.status = 'error';
@@ -1057,7 +1088,7 @@ export class Cafe24ApiClient {
         response.status === 403 && this.detectInsufficientScope(errBody)
           ? 'insufficient_scope'
           : 'auth_failed';
-      await this.markAuthFailed(integration, reason);
+      await this.markAuthFailed(integration, reason, errBody);
       throw new Cafe24AuthFailedError(response.status, mallId, errBody);
     }
 
@@ -1087,10 +1118,7 @@ export class Cafe24ApiClient {
         url.searchParams.append(k, stringifyQueryValue(v));
       }
     }
-    if (
-      url.protocol !== 'https:' ||
-      !url.hostname.endsWith('.cafe24api.com')
-    ) {
+    if (url.protocol !== 'https:' || !url.hostname.endsWith('.cafe24api.com')) {
       throw new Error(
         `Cafe24ApiClient: refusing to call non-Cafe24 host ${url.hostname} (SSRF guard)`,
       );

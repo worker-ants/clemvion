@@ -28,6 +28,47 @@ export interface Cafe24FieldSpec {
 export type Cafe24ResponseShape = 'list' | 'single' | 'empty';
 
 /**
+ * `approvalGroup` (not `category`) intentionally — avoids collision with
+ * `Cafe24Resource` (the catalog category) and `Node.category` enum
+ * (`integration` / `logic` / `ai` / ...). Same anti-collision pattern as
+ * `scopeType` on `Cafe24OperationMetadata`.
+ *
+ * SoT for the actual list: `spec/conventions/cafe24-restricted-scopes.md`.
+ */
+export type Cafe24ApprovalGroup =
+  | 'mileage'
+  | 'notification'
+  | 'privacy'
+  | 'activitylogs'
+  | 'menus'
+  | 'naverpay_setting'
+  | 'kakaopay_setting'
+  | 'pg_settings'
+  // Reserved placeholder for the Cafe24 Analytics API track (separate
+  // approval program). No corresponding `RESTRICTED_APPROVAL` entry today —
+  // the Admin API catalog has no row that points at this group. Will be
+  // populated when Analytics support ships. See cafe24-restricted-scopes.md §3.
+  | 'analytics';
+
+export interface Cafe24RestrictedApproval {
+  /**
+   * `scope`: the entire OAuth scope requires Cafe24 partner approval — all
+   * sibling operations in the same resource share the label.
+   * `operation`: only this single row needs approval (used inside the
+   * general `mall.read_store` / `mall.write_store` scope).
+   * `program`: a different track (e.g. Cafe24 Analytics) that is not part
+   * of the Admin API catalog — these rows are skipped by catalog-sync.
+   */
+  level: 'scope' | 'operation' | 'program';
+  /** UI message bucket. See `spec/conventions/cafe24-api-metadata.md` §2. */
+  approvalGroup: Cafe24ApprovalGroup;
+  /** Optional anchor in Cafe24 developer docs. */
+  docsUrl?: string;
+  /** Required link to the Cafe24 developer center inquiry form. */
+  inquiryUrl: string;
+}
+
+/**
  * `scopeType` (not `category`) intentionally — avoids collision with
  * `Node.category` enum (`integration` / `logic` / `ai` / ...).
  * Maps directly to Cafe24 scope strings: `mall.read_<resource>` /
@@ -44,6 +85,12 @@ export interface Cafe24OperationMetadata {
   fields: Record<string, Cafe24FieldSpec>;
   responseShape?: Cafe24ResponseShape;
   paginated?: boolean;
+  /**
+   * Cafe24 partner-approval requirement marker. When set, frontend renders
+   * a ⚠ badge + tooltip on the Operation dropdown / AI agent allowlist /
+   * scope checkboxes. SoT: `spec/conventions/cafe24-restricted-scopes.md`.
+   */
+  restrictedApproval?: Cafe24RestrictedApproval;
 }
 
 export type Cafe24Resource =
