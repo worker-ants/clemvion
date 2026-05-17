@@ -9,7 +9,7 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { WorkspaceId } from '../../common/decorators/workspace.decorator';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -55,10 +55,15 @@ export class ExecutionsController {
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser('workspaceId') workspaceId: string,
+    @WorkspaceId() workspaceId: string,
   ) {
     // W-44 — IDOR 차단. findById 는 workspace 필터를 적용하지 않으므로
     // ID 만 추측한 다른 workspace 사용자에게 상세를 회신할 수 있었다.
+    //
+    // `@WorkspaceId()` 가 `X-Workspace-Id` 헤더 우선 + JWT 폴백 (W-44-FU).
+    // 옛 `@CurrentUser('workspaceId')` 는 JWT 만 읽어 워크스페이스 스위칭 후
+    // 팀 워크스페이스의 실행 조회가 항상 404. workflows / background-runs
+    // controller 와 동일한 표준 패턴으로 정렬.
     await this.executionsService.verifyOwnership(id, workspaceId);
     return this.executionsService.findById(id);
   }
@@ -80,7 +85,7 @@ export class ExecutionsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async findByWorkflow(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
-    @CurrentUser('workspaceId') workspaceId: string,
+    @WorkspaceId() workspaceId: string,
     @Query() query: QueryExecutionDto,
   ) {
     // W-44 — IDOR 차단. workflow 가 사용자의 workspace 에 속하는지 검증한 뒤에만
@@ -110,7 +115,7 @@ export class ExecutionsController {
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   async stop(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser('workspaceId') workspaceId: string,
+    @WorkspaceId() workspaceId: string,
   ) {
     // CRIT #1 — IDOR 차단. 실행 소유 workspace 검증.
     await this.executionsService.verifyOwnership(id, workspaceId);
@@ -132,7 +137,7 @@ export class ExecutionsController {
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   async continueExecution(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser('workspaceId') workspaceId: string,
+    @WorkspaceId() workspaceId: string,
     @Body() body?: { formData?: unknown },
   ) {
     // CRIT #1 — IDOR 차단.
