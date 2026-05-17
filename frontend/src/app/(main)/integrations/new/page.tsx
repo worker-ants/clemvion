@@ -33,6 +33,10 @@ import { ServiceIcon } from "../_shared/service-icons";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { useCafe24PendingPolling } from "@/lib/integrations/use-cafe24-pending-polling";
+import {
+  ApprovalRequiredBadge,
+  RestrictedScopeNotice,
+} from "@/components/integrations/approval-required-badge";
 
 interface OAuthCallbackPayload {
   type: "oauth_callback";
@@ -671,6 +675,7 @@ function AuthStep({
                     {s.value}
                   </div>
                 </div>
+                {s.requiresApproval && <ApprovalRequiredBadge t={t} />}
                 {s.recommended && (
                   <span className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                     {t("integrations.recommendedBadge")}
@@ -679,6 +684,14 @@ function AuthStep({
               </label>
             ))}
           </div>
+          <RestrictedScopeNotice
+            count={
+              service.scopes.filter(
+                (s) => s.requiresApproval && selectedScopes.includes(s.value),
+              ).length
+            }
+            t={t}
+          />
         </div>
       )}
 

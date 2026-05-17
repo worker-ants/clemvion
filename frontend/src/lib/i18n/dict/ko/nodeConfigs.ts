@@ -137,6 +137,7 @@ export const nodeConfigs = {
     cafe24OperationSelectPlaceholder: "— 작업 선택 —",
     cafe24OperationSelectResourceFirst: "리소스를 먼저 선택하세요",
     cafe24OperationPlannedSuffix: "(지원 예정)",
+    cafe24OperationApprovalSuffix: "별도 승인 필요",
     cafe24OperationCoverageHint:
       "지원 {{ supported }}개 · 추후 지원 {{ planned }}개",
     cafe24OperationPlannedHint:

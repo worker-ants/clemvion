@@ -50,7 +50,21 @@ export interface IntegrationDto {
   tokenExpiresAt: string | null;
   lastUsedAt: string | null;
   lastRotatedAt: string | null;
-  lastError: { code?: string; message?: string; at?: string } | Record<string, unknown> | null;
+  lastError:
+    | {
+        code?: string;
+        message?: string;
+        at?: string;
+        /**
+         * Free-form additional context per status_reason. Currently used by
+         * Cafe24 to carry `requiresCafe24Approval: string[]` when the
+         * underlying scope failure overlaps the partner-approval list.
+         * SoT: `spec/conventions/cafe24-restricted-scopes.md` §4.3.
+         */
+        details?: Record<string, unknown>;
+      }
+    | Record<string, unknown>
+    | null;
   meta: IntegrationMeta;
   /**
    * Cafe24 Private 통합 한정의 actionable URL. Cafe24 Developers Console
@@ -89,6 +103,12 @@ export interface ScopeOption {
   value: string;
   label: string;
   recommended?: boolean;
+  /**
+   * Cafe24 partner-approval marker — true when this scope requires explicit
+   * approval from Cafe24 before consent succeeds. Frontend renders a ⚠
+   * badge + tooltip. SoT: `spec/conventions/cafe24-restricted-scopes.md` §1.
+   */
+  requiresApproval?: boolean;
 }
 
 export interface ServiceDefinition {
