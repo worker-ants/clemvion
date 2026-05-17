@@ -153,6 +153,8 @@ Step 2 auth     ──submit──▶ Step 3 test
    - `Mall ID` (예: `myshop` — `https://myshop.cafe24api.com` 의 hostname prefix). 형식: `/^[a-z0-9-]{3,50}$/` ([§5.8 credentials JSONB](#58-cafe24) validation rule).
    - `App type` 라디오: **Public** 선택.
 2. **Scope 카테고리 프리셋** (체크박스, 카테고리 단위): Product (R/W), Order (R/W), Customer (R/W), Category (R/W), Promotion (R/W), Mileage (R/W), Shipping (R/W), Salesreport (R), Translation (R/W), Notification (R/W), 기타 카테고리는 "고급" 토글 아래. 각 체크박스가 Cafe24 scope (`mall.read_<category>` / `mall.write_<category>`) 와 매핑.
+
+   > **별도 승인 필요 권한 안내** — 체크박스 옆 ⚠ 아이콘이 표시된 카테고리는 카페24 본사가 별도 승인한 클라이언트만 사용 가능하다 (Mileage / Notification / Privacy 의 R·W 전부, Store 안 일부 sub-resource). 명단의 SoT 는 [`spec/conventions/cafe24-restricted-scopes.md`](../conventions/cafe24-restricted-scopes.md). 체크 자체는 차단하지 않으나, 체크된 권한 중 별도 승인 대상이 1개 이상이면 폼 하단에 영구 amber 경고 배너를 띄운다 — 미승인 상태로 진행하면 OAuth 단계에서 `invalid_scope` 또는 호출 시 `INSUFFICIENT_SCOPE (403)` 으로 실패할 수 있다. tooltip 문구·경고 배너 i18n 키는 같은 컨벤션 §4.1.
 3. **[Connect with Cafe24]** 클릭 → 백엔드 `POST /api/integrations/oauth/begin` 호출. body:
    ```jsonc
    {
@@ -279,6 +281,7 @@ Step 2 auth     ──submit──▶ Step 3 test
 | 현재 scope 목록 | `credentials.scopes[]` 전체를 체크된 상태로 표시 |
 | 권장 scope 목록 | 서비스별 프리셋. 현재 scope에 없는 항목은 체크 해제 상태 |
 | 누락 scope 배지 | `status_reason = insufficient_scope`일 때 누락 scope 목록을 빨간 뱃지로 강조 |
+| 별도 승인 ⚠ 배지 | 현재 scope · 권장 scope · 누락 scope 의 각 항목 옆에 backend 메타데이터의 `restrictedApproval` (또는 `oauth/begin` 응답의 동등 정보) 가 있는 scope/operation 만 ⚠ 배지 자동 노출. tooltip 본문은 [`cafe24-restricted-scopes.md §4.1`](../conventions/cafe24-restricted-scopes.md#41-사용자-안내-ui) 의 i18n 문구. `[Request scopes]` 버튼 위쪽에 "추가하려는 scope 중 N개는 카페24 별도 승인 필요" 보조 텍스트 (N=교집합 크기). `status_reason='oauth_invalid_scope'` 또는 `INSUFFICIENT_SCOPE` 응답의 `details.requiresCafe24Approval` 가 채워져 있으면 "이 권한은 카페24 별도 승인이 필요해요" 분기 메시지 추가 노출 (§10.4 참조) |
 | `[Request scopes]` 버튼 | 체크된 추가 scope 와 함께 `POST /api/integrations/:id/request-scopes` 호출. 응답 분기는 아래 두 가지 — provider 분기는 backend 가 응답 shape 으로 결정하므로 frontend 는 응답 shape 만 보고 UI 를 분기한다. 응답 필드 전체 정의는 §9.2 참조. |
 
 **분기 ① — 일반 OAuth provider (Google / GitHub / Cafe24 Public)**
@@ -550,26 +553,28 @@ AI Agent 노드가 활용하는 외부 [Model Context Protocol](https://modelcon
 
 **Scope 권장 프리셋**
 
-| 카테고리 | scope 값 (R / W) |
-|---------|------------------|
-| Product | `mall.read_product` / `mall.write_product` |
-| Order | `mall.read_order` / `mall.write_order` |
-| Customer | `mall.read_customer` / `mall.write_customer` |
-| Category | `mall.read_category` / `mall.write_category` |
-| Promotion | `mall.read_promotion` / `mall.write_promotion` |
-| Mileage | `mall.read_mileage` / `mall.write_mileage` |
-| Shipping | `mall.read_shipping` / `mall.write_shipping` |
-| Sales report | `mall.read_salesreport` / — (write 없음) |
-| Translation | `mall.read_translation` / `mall.write_translation` |
-| Notification | `mall.read_notification` / `mall.write_notification` |
-| Application | `mall.read_application` / `mall.write_application` |
-| Store | `mall.read_store` / `mall.write_store` |
-| Design | `mall.read_design` / `mall.write_design` |
-| Community | `mall.read_community` / `mall.write_community` |
-| Collection | `mall.read_collection` / `mall.write_collection` |
-| Supply | `mall.read_supply` / `mall.write_supply` |
-| Personal | `mall.read_personal` / `mall.write_personal` |
-| Privacy | `mall.read_privacy` / `mall.write_privacy` |
+| 카테고리 | scope 값 (R / W) | 별도 승인 |
+|---------|------------------|----------|
+| Product | `mall.read_product` / `mall.write_product` | |
+| Order | `mall.read_order` / `mall.write_order` | |
+| Customer | `mall.read_customer` / `mall.write_customer` | |
+| Category | `mall.read_category` / `mall.write_category` | |
+| Promotion | `mall.read_promotion` / `mall.write_promotion` | |
+| Mileage | `mall.read_mileage` / `mall.write_mileage` | ⚠ 필요 (R/W) |
+| Shipping | `mall.read_shipping` / `mall.write_shipping` | |
+| Sales report | `mall.read_salesreport` / — (write 없음) | |
+| Translation | `mall.read_translation` / `mall.write_translation` | |
+| Notification | `mall.read_notification` / `mall.write_notification` | ⚠ 필요 (R/W) |
+| Application | `mall.read_application` / `mall.write_application` | |
+| Store | `mall.read_store` / `mall.write_store` | ⚠ 일부 sub-resource |
+| Design | `mall.read_design` / `mall.write_design` | |
+| Community | `mall.read_community` / `mall.write_community` | |
+| Collection | `mall.read_collection` / `mall.write_collection` | |
+| Supply | `mall.read_supply` / `mall.write_supply` | |
+| Personal | `mall.read_personal` / `mall.write_personal` | |
+| Privacy | `mall.read_privacy` / `mall.write_privacy` | ⚠ 필요 (R/W) |
+
+> "⚠" 표기된 카테고리는 카페24 본사가 별도 승인한 클라이언트만 사용 가능하다. 일반 사용자가 무심코 체크 후 OAuth 진행 시 `invalid_scope` 로 실패할 수 있어, UI 에서 체크박스 옆에 ⚠ 아이콘 + tooltip + 폼 하단 경고 배너로 인지를 보장한다. Store 의 "일부 sub-resource" 는 scope 단위가 아닌 operation 단위 (Activitylogs, Menus, Naverpay/Kakaopay setting, Paymentgateway 관련, Financials paymentgateway) 라 노드 Operation 드롭다운 ([Spec Cafe24 노드 §2](../4-nodes/4-integration/4-cafe24.md#2-설정-ui)) 의 ⚠ 라벨이 1차 안내 지점이다. 명단의 SoT 는 [`spec/conventions/cafe24-restricted-scopes.md`](../conventions/cafe24-restricted-scopes.md).
 
 UI 는 카테고리 단위 체크박스(R / W 두 컬럼) + "고급" 토글 아래 개별 scope 추가 입력란.
 
@@ -718,7 +723,7 @@ Please replace or remove these node references first.
   - `INTEGRATION_TEST_FAILED` (422) — 연결 테스트 실패
   - `OAUTH_STATE_MISMATCH` (400)
   - `OAUTH_CONFIG_MISSING` (500)
-  - `INSUFFICIENT_SCOPE` (403) — 노드 실행 중 감지 시 `Integration.status`도 갱신
+  - `INSUFFICIENT_SCOPE` (403) — 노드 실행 중 감지 시 `Integration.status` 도 `error(insufficient_scope)` 로 갱신. 응답 `details` 는 다음 필드를 포함한다: `missingScopes: string[]` (Cafe24 응답에서 추출한 누락 scope 목록 — 본 코드 도입 시 신설된 필드), 그리고 `requiresCafe24Approval?: string[]` (Cafe24 통합에 한정 — `missingScopes` ∩ [`spec/conventions/cafe24-restricted-scopes.md`](../conventions/cafe24-restricted-scopes.md) §1 의 교집합. 다른 provider 통합에서는 본 필드 자체를 omit). frontend 는 `requiresCafe24Approval` 가 비어있지 않으면 에러 메시지에 "이 권한은 카페24 별도 승인이 필요해요" 분기 메시지를 추가 노출한다. 본 보강은 기존 코드를 분기시키지 않는 추가 필드일 뿐 — 신규 에러 코드 미추가 (하위 호환 유지).
   - `CAFE24_INSTALL_MISSING_PARAMS` (400) — App URL 호출에 `mall_id` / `timestamp` / `hmac` 중 하나라도 누락. capability-token 가정(install_token 추측 불가) 에 영향 없는 파라미터 누락 분기로 별도 코드 (404/403 합산 정책과 무관 — Rationale 참조).
   - `CAFE24_INSTALL_INVALID_TOKEN` (404) — App URL 의 `install_token` 미존재 (통합 삭제 또는 24h TTL 만료로 소거). callback 성공만으로는 소거되지 않음 (post-install navigation 의 식별 키로 보존). 직접 매칭 실패 시 `tryRecoverByMallId` 회복 흐름 fall-back 후에도 미매칭이면 본 코드 반환 ([Rationale "Cafe24 install_token mismatch 회복 흐름"](#rationale) 참조).
   - `CAFE24_INSTALL_INVALID_HMAC` (403) — App URL HMAC 검증 실패
@@ -791,6 +796,7 @@ window.close();
 | 사용자 거부 | `Authorization was denied.` | 변경 없음 |
 | 코드 교환 실패 (mode=`reauthorize`, status=`connected`) | `Failed to connect to {provider}.` (auto-close 3~5초 지연 — 사용자가 메시지 읽도록) | `error(auth_failed)` + `last_error` 기록 |
 | 코드 교환 실패 (mode=`reauthorize`, status=`pending_install` — Cafe24 Private 초기 install) | 동일 | **status 보존 (`pending_install` 유지)** + `status_reason='oauth_token_exchange_failed'` + `last_error.code='OAUTH_TOKEN_EXCHANGE_FAILED'` 기록. cafe24 측 설정 수정 후 재시도 가능 |
+| Cafe24 `invalid_scope` (authorize / token exchange 단계 양쪽) | `Authorization rejected: invalid scope.` (안내 본문에 별도 승인 안내 분기) | **status 보존** + `status_reason='oauth_invalid_scope'` ([Spec Integration 데이터 모델 §2.10](../1-data-model.md#210-integration) status_reason 열거 참조) + `last_error.code='OAUTH_INVALID_SCOPE'` + `last_error.details.requiresCafe24Approval: string[]` (요청 scopes ∩ [`cafe24-restricted-scopes.md §1`](../conventions/cafe24-restricted-scopes.md#1-scope-단위-별도-승인-resource-전체-영향) 의 교집합) 기록. 통합 상세 페이지가 본 단서를 읽어 "이 권한은 카페24 별도 승인이 필요해요" 분기 메시지 노출. 진입 경로는 `oauth_token_exchange_failed` 와 분리 — 본 사유는 Cafe24 가 명시적으로 scope 거부한 케이스이고, `oauth_token_exchange_failed` 는 그 외 토큰 교환 실패 전부 (네트워크, 서버 오류, 알 수 없는 invalid_grant 등). |
 | state mismatch / expired (state row 소비 후) | `Security validation failed.` / `OAuth state has expired.` | integrationId 가 식별되면 `status_reason='oauth_state_mismatch'` 또는 `oauth_state_expired` 만 기록, status 보존 |
 | 토큰 발급 후 row 조회 실패 (resource not found) | `Integration not found.` | 변경 불가 (row 가 사라진 케이스. integrationId 만 식별, row 가 없으니 갱신 대상 없음) |
 | 네트워크 오류 | `Connection error.` | integrationId 식별되면 `last_error` 만 기록, status 보존 |
@@ -1280,3 +1286,22 @@ Public 흐름은 begin 단계에서 Integration row 를 만들지 않으므로 V
 **O(N) 폐기와의 관계** — [install_token 을 App URL path 식별 키로 승격](#install_token-을-app-url-path-식별-키로-승격-2026-05-14) 항에서 폐기된 "전방위 O(N) mall_id 스캔 + HMAC trial" 패턴과 본 endpoint 는 다르다. precheck 는 V045 plain mall_id 컬럼의 단일 인덱스 lookup (`(workspace_id, mall_id) WHERE service_type='cafe24'`) 으로 O(1) row 만 가져온다. legacy `mall_id IS NULL` fallback 만 backfill 완료 전 임시로 추가 쿼리 발행 — 향후 backfill 종료 시 제거된다 (구현 코드 주석 `findAllCafe24RowsForMall` 참조).
 
 라우트 선언 순서 주의 — `@Get('cafe24/precheck')` 는 동적 경로 `@Get(':id')` 보다 **앞에** 선언되어야 NestJS 가 `cafe24` 를 `:id` 로 소비해 `ParseUUIDPipe` 위반 400 을 일으키지 않는다. controller 코드 주석에 회귀 안전망으로 명시.
+
+### Cafe24 별도 승인 scope 의 식별·안내 (2026-05-17)
+
+**문제**: Cafe24 Admin API 중 mileage/notification/privacy 의 모든 scope 와 store 안 일부 operation (activitylogs, menus, naverpay/kakaopay/PG settings 등) 은 카페24 본사가 별도 승인한 클라이언트만 사용 가능하다. spec 에 이를 표현하는 차원이 없어 사용자가 위저드에서 일반 카테고리처럼 체크 → OAuth `invalid_scope` 거부 또는 호출 시 `INSUFFICIENT_SCOPE (403)` 으로 좌초. 원인 안내 장치 부재.
+
+**채택**: backend 메타데이터의 `Cafe24OperationMetadata.restrictedApproval` 필드와 catalog 의 `restricted` 컬럼을 SoT 로 두고, UI 4 화면 (위저드 §3.2 / 통합 상세 §4.4 / Cafe24 노드 Operation 드롭다운 / AI Agent allowlist) 이 같은 필드를 읽어 ⚠ 배지·tooltip·경고 배너를 자동 렌더. 명단 자체의 진위 SoT 는 신규 컨벤션 [`spec/conventions/cafe24-restricted-scopes.md`](../conventions/cafe24-restricted-scopes.md). 에러 안내는 §10.4 의 `oauth_invalid_scope` 행과 §9.4 의 `INSUFFICIENT_SCOPE` 의 `details.requiresCafe24Approval` 보강 필드 2 경로로 분리 (OAuth 단계 vs 호출 단계).
+
+**기각 대안**:
+
+- (A) **차단 정책** — 체크 시점에 사용자 진행을 막는다. 이미 본사 승인을 받은 합법 사용자 케이스를 막아버려 기각. 안내만, 차단 없음 정책 채택. 단 amber 경고 배너로 인지를 강제한다.
+- (B) **신규 에러 코드 추가** (`CAFE24_APPROVAL_REQUIRED` 등) — 기존 `INSUFFICIENT_SCOPE (403)` / OAuth `invalid_scope` 처리 경로를 분기시켜 client 코드 호환성에 영향. `details.requiresCafe24Approval` 보강 필드 + `status_reason='oauth_invalid_scope'` 의 enum 확장만으로 표현 가능.
+- (C) **catalog `status` enum 확장** — `supported` / `planned` / `deprecated` 와는 직교 차원이라 enum 확장은 의미 오염. 별도 컬럼 `restricted` 가 정답.
+
+**Trade-off / 미해결**:
+
+- mileage resource 안의 `credits_*` (예치금) 가 정확히 `mall.read_mileage` 를 쓰는지 vs 별도 scope 인지의 공식 분리 확인은 사용자 자료 범위 밖. scope 단위 라벨링 (`level='scope'`) 을 mileage resource 전체에 적용. 향후 공식 문서로 분리 확인되면 정정 ([`cafe24-restricted-scopes.md §5`](../conventions/cafe24-restricted-scopes.md#5-명단-갱신-절차)).
+- `paymentmethods_list` / `paymentmethods_paymentproviders_list` / `paymentmethods_paymentproviders_update_display` 는 별도 승인 여부 미확인 — 빈칸 유지.
+
+**출처**: 사용자 보고 (2026-05-17). consistency-check 세션: `review/consistency/2026/05/17/12_12_46/` (BLOCK: NO).
