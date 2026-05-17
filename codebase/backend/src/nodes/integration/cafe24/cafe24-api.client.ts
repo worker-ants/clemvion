@@ -1130,8 +1130,8 @@ export class Cafe24ApiClient {
         // refresh 성공 — 새 access_token 으로 재시도. attempt counter 는
         // 새 요청 기준으로 리셋 (429 retry 와 별개 카운터).
         const refreshedToken =
-          ((integration.credentials ?? {}) as Cafe24Credentials)
-            .access_token ?? accessToken;
+          ((integration.credentials ?? {}) as Cafe24Credentials).access_token ??
+          accessToken;
         return this.executeWithRateLimit(
           integration,
           mallId,
