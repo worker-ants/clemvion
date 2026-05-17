@@ -1,7 +1,7 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "bash .claude/statusline.sh"
+    "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/statusline.sh\""
   },
   "hooks": {
     "PostToolUse": [],
@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/guard_default_branch_edit.py"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_default_branch_edit.py\""
           }
         ]
       }
@@ -21,7 +21,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/guard_default_branch_prompt.py"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_default_branch_prompt.py\""
           }
         ]
       }
