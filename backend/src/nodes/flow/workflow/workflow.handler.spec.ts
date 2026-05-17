@@ -1,4 +1,8 @@
 import { WorkflowHandler, mapSubWorkflowError } from './workflow.handler.js';
+import {
+  WorkflowNotFoundError,
+  SubWorkflowTimeoutError,
+} from '../../../modules/execution-engine/workflow-errors.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
 import { ErrorCode } from '../../core/error-codes.js';
@@ -628,6 +632,29 @@ describe('WorkflowHandler', () => {
         ErrorCode.SUB_WORKFLOW_FAILED,
       );
       expect(mapSubWorkflowError('')).toBe(ErrorCode.SUB_WORKFLOW_FAILED);
+    });
+
+    // W-17 — typed error 우선 분기. executor 가 `WorkflowNotFoundError` /
+    // `SubWorkflowTimeoutError` 를 throw 하면 message text 와 무관하게
+    // 매핑되어, 누군가 executor 메시지를 손대도 silent regression 없이
+    // 정확한 ErrorCode 가 유지된다.
+    it('maps WorkflowNotFoundError instance → SUB_WORKFLOW_NOT_FOUND (typed branch)', () => {
+      expect(mapSubWorkflowError(new WorkflowNotFoundError('wf-1'))).toBe(
+        ErrorCode.SUB_WORKFLOW_NOT_FOUND,
+      );
+    });
+
+    it('maps SubWorkflowTimeoutError instance → SUB_WORKFLOW_TIMEOUT (typed branch)', () => {
+      expect(mapSubWorkflowError(new SubWorkflowTimeoutError(5000))).toBe(
+        ErrorCode.SUB_WORKFLOW_TIMEOUT,
+      );
+    });
+
+    it('typed branch wins over misleading message text', () => {
+      // Construct a typed NotFound whose message would also match the "queue
+      // failed" fallback substring. The instanceof branch must take priority.
+      const trap = new WorkflowNotFoundError('wf-queue-failed');
+      expect(mapSubWorkflowError(trap)).toBe(ErrorCode.SUB_WORKFLOW_NOT_FOUND);
     });
   });
 });
