@@ -112,7 +112,7 @@ export class IntegrationDto {
    * spec/2-navigation/4-integration.md §9.1 + Rationale "자동 갱신 통합을
    * attention 술어에서 제외 (2026-05-17)".
    */
-  @ApiProperty({ example: true })
+  @ApiProperty({ type: 'boolean', example: true })
   autoRefresh: boolean;
 }
 

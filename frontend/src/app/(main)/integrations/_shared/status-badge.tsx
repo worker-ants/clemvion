@@ -43,6 +43,12 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "pending_install") {
+    // If a callback failure was recorded, surface its diagnostic instead of
+    // the generic "complete test run" hint — the user needs to fix the
+    // reported error (e.g. invalid client_id) before re-running test in
+    // Cafe24 Developers. spec/2-navigation/4-integration.md §10.4
+    // lastError.message is human-friendlier when available; status_reason
+    // is the snake_case fallback.
     const diagnostic = pickErrorMessage(integration);
     return {
       label: "Pending install",
@@ -60,6 +66,8 @@ export function computeStatus(integration: IntegrationDto): StatusView {
     };
   }
   if (integration.status === "expired") {
+    // install_timeout is Cafe24-private-specific: user must delete
+    // and re-register since there's no reauthorize entry point.
     return {
       label: "Expired",
       dotClassName: "bg-yellow-500",
@@ -114,10 +122,20 @@ function daysUntil(at: string): number {
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
 }
 
-// Human-friendly remaining time for the "Auto-renews · in <X>" subLabel.
-// Short (< 1h): minutes only. Medium (< 24h): hours + minutes. Long: days.
-// Past or invalid → empty string so callers can guard with truthy check.
-// spec/2-navigation/4-integration.md §4.1 헤더 메타 라인 규약.
+/**
+ * Human-friendly remaining time until the given ISO timestamp, used by the
+ * "Auto-renews · in <X>" subLabel (header status badge) and the Overview
+ * Token Expires row friendly value. Short (< 1h): minutes only. Medium
+ * (< 24h): hours + minutes. Long: days.
+ *
+ * @param at - ISO 8601 timestamp string (UTC). Invalid or already-past
+ *             values return `""` so callers can guard with a truthy check
+ *             without rendering misleading "0m" countdowns.
+ * @returns Localized-agnostic short form (e.g. `"1h 24m"`, `"45m"`, `"3d"`)
+ *          or `""` for past / invalid input.
+ *
+ * spec/2-navigation/4-integration.md §4.1 헤더 메타 라인 규약.
+ */
 export function humanizeUntil(at: string): string {
   const ms = new Date(at).getTime() - Date.now();
   if (!Number.isFinite(ms) || ms <= 0) return "";
@@ -134,6 +152,15 @@ export function humanizeUntil(at: string): string {
 }
 
 export function needsAttention(integration: IntegrationDto): boolean {
+  // TODO(autoRefresh 가드): spec/2-navigation/4-integration.md §2.4·§11.4
+  // (PR #139) 가 attention 술어에서 `autoRefresh=true` 통합을 제외하도록
+  // 정의했으나, 본 가드의 frontend 반영과 backend `EXPIRING_SOON_INTERVAL`
+  // 쿼리 변경(`integrations.service.ts:248~275`) 은 같은 PR 에서 동기되어야
+  // 사이드바 카운트·목록 attention 카드와 일관된다. 후속 PR
+  // (`plan/in-progress/integration-token-ui-autorefresh.md` 의 "본 PR 범위
+  // 밖" + `20260516-full-review/SUMMARY.md` W-32 와 병합 처리) 에서 처리.
+  // 그 PR 전까지는 spec PR #139 의 attention 술어와 frontend 구현 사이에
+  // 일시적 불일치 (cafe24 가 사이드바 카운트에 포함) 가 잔존한다.
   if (integration.status === "connected") return isExpiringSoon(integration.tokenExpiresAt);
   if (integration.status === "pending_install") return false;
   return true;
