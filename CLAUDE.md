@@ -18,7 +18,8 @@
   ├── review/                # 코드 리뷰 / 일관성 검토 산출물 (시점별 디렉토리)
   ├── codebase/              # 애플리케이션 코드 영역 (.claude.project.json 의 code_areas 기본값)
   │   ├── frontend/          #   클라이언트 (Next.js)
-  │   └── backend/           #   서버 (Nest.js)
+  │   ├── backend/           #   서버 (Nest.js)
+  │   └── packages/          #   공유 라이브러리 (frontend/backend 가 file:../packages/* 로 참조)
   └── .claude/worktrees/     # 모든 신규 작업이 일어나는 git worktree 들 (main 워크트리는 통합용)
 ```
 

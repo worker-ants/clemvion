@@ -2,7 +2,7 @@
 
 워크플로우 표현식 언어(`{{ ... }}`) 의 tokenizer / parser / AST evaluator. 백엔드와 프론트엔드가 같은 평가 의미를 공유하기 위한 SSOT 패키지다.
 
-스펙: [`spec/5-system/5-expression-language.md`](../../spec/5-system/5-expression-language.md)
+스펙: [`spec/5-system/5-expression-language.md`](../../../spec/5-system/5-expression-language.md)
 
 ## 빌드
 
@@ -38,4 +38,4 @@ const result = evaluate('{{ $input.name }}', {
 ## 의존성·boundary
 
 - **Node-only**: 빌드 아티팩트는 ESM/CJS 양쪽으로 emit 하지만, 외부 의존 코드는 plain TS 만 사용. `liquidjs` 등 외부 평가 엔진은 사용하지 않는다 (샌드박스 invariant 보존).
-- **Single direction**: `@workflow/node-summary` · `codebase/backend` · `codebase/frontend` 가 본 패키지를 참조한다. 본 패키지는 다른 `packages/*` 를 참조하지 않는다.
+- **Single direction**: `@workflow/node-summary` · `codebase/backend` · `codebase/frontend` 가 본 패키지를 참조한다. 본 패키지는 다른 `codebase/packages/*` 를 참조하지 않는다.

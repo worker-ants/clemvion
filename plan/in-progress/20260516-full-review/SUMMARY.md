@@ -2,7 +2,7 @@
 
 > 기준 커밋: `bbd838ef` (main)
 > 검토 일시: 2026-05-16
-> 범위: spec/, codebase/backend/, codebase/frontend/, packages/ 전체
+> 범위: spec/, codebase/backend/, codebase/frontend/, codebase/packages/ 전체
 > 리뷰 세션: `plan/in-progress/20260516-full-review/`
 > 세션 메타: 13/13 reviewer 성공, 총 154 issue
 
@@ -124,7 +124,7 @@
 | W-76 | 문서 | README `INTEGRATION_ENCRYPTION_KEY` 누락 — 신규 개발자가 설정 시 통합 자격증명 암호화 실패 | `README.md:155-196` | `codebase/backend/.env` 예시에 `INTEGRATION_ENCRYPTION_KEY=<32-byte-hex>` 추가 |
 | W-77 | 문서 | `codebase/frontend/README.md` yarn/pnpm/bun 명령 나열 — 프로젝트 규약(npm 전용)과 충돌 | `codebase/frontend/README.md:10-14` | yarn/pnpm/bun 줄 제거, npm 단일 명령만 유지 |
 | W-78 | 문서 | spec 파일 85개 중 56개(66%)에 `## Rationale` 섹션 부재 | `spec/4-nodes/1-logic/` 외 다수 | 비자명한 complex 노드와 핵심 시스템 스펙부터 우선 추가 |
-| W-79 | 문서 | `packages/expression-engine`, `packages/node-summary` README 없음 | `packages/expression-engine/`, `packages/node-summary/` | 최소한의 README(목적, 빌드/사용법, export API) 추가 |
+| W-79 | 문서 | `codebase/packages/expression-engine`, `codebase/packages/node-summary` README 없음 | `codebase/packages/expression-engine/`, `codebase/packages/node-summary/` | 최소한의 README(목적, 빌드/사용법, export API) 추가 |
 | W-80 | 문서 | `README.md:328` `# integration (SSO)` h1 헤딩 수준 오류 | `README.md:328` | `## integration (SSO)`로 변경 |
 
 ---
@@ -141,7 +141,7 @@
 | 유지보수성 | 5 | `sanitizeId`/`sanitizeToolName` 동일 정규식 중복; `Cafe24McpToolProvider.__resetForTesting()` public API 노출; `result-detail.tsx` 1,111줄 |
 | 테스트 | 5 | 프론트엔드 Cafe24 Private App 설치 흐름 e2e 미커버; Zustand 전역 상태 초기화 패턴 누락; fix ↔ test 추적성(`// 회귀 안전망: <issue-ref>` 주석) 낮음 |
 | API 계약 | 4 | `DELETE /workspaces/:id` 204 대신 200; OAuth 콜백 access_token URL 노출(`?token=...`); `GET /login-history` cursor DTO 미사용 |
-| 아키텍처 | 3 | `nodes/core/node-component.interface.ts`가 `modules/` 구체 서비스 타입 import; frontend 컴포넌트 레이어 직접 API 호출; `packages/*` 경계 건전함(긍정) |
+| 아키텍처 | 3 | `nodes/core/node-component.interface.ts`가 `modules/` 구체 서비스 타입 import; frontend 컴포넌트 레이어 직접 API 호출; `codebase/packages/*` 경계 건전함(긍정) |
 | 의존성 | 4 | `expression-engine` `dayjs` 버전 낮음; `react`/`react-dom` exact pin; `cron-parser` 중복 설치; `p-limit@7` ESM/CJS 혼용 |
 | 데이터베이스 | 3 | `AuthConfig.type` CHECK constraint ORM 미반영; `LlmConfig.apiKey` VARCHAR(500) 암호화 후 근접 가능성; `findByResource` N+1 잠재 + 인덱스 누락 |
 | 동시성 | 4 | `WebsocketGateway.subscriptions` async 핸들러 interleave; Nonce SETNX 원자성 확인됨(긍정); `ContinuationBusService` 분산 락 확인됨(긍정); `ParallelExecutor.nodeOutputCache` shallow copy invariant 런타임 검증 없음 |
@@ -175,7 +175,7 @@
 
 없음. 13개 에이전트 모두 발견사항을 보고했다.
 
-긍정 확인 항목(현행 유지 권장): expression-engine AST 샌드박스; Cafe24 OAuth HMAC + Redis SETNX replay 방어; `ContinuationBusService` Lua script 분산 락; `packages/*` 패키지 경계 단방향; `.env` git 추적 제외.
+긍정 확인 항목(현행 유지 권장): expression-engine AST 샌드박스; Cafe24 OAuth HMAC + Redis SETNX replay 방어; `ContinuationBusService` Lua script 분산 락; `codebase/packages/*` 패키지 경계 단방향; `.env` git 추적 제외.
 
 ---
 

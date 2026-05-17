@@ -11,7 +11,7 @@
 |------|------|------|
 | 클라이언트 | `codebase/frontend/` | Next.js 16, React 19, TypeScript, Tailwind CSS, Radix UI, Zustand, TanStack Query, @xyflow/react |
 | 서버 | `codebase/backend/` | NestJS 11, TypeScript, TypeORM, Socket.io |
-| 공유 패키지 | `packages/expression-engine/`, `packages/node-summary/` | TypeScript. `codebase/{frontend,backend}` 가 `file:../../packages/*` 로 참조 |
+| 공유 패키지 | `codebase/packages/expression-engine/`, `codebase/packages/node-summary/` | TypeScript. `codebase/{frontend,backend}` 가 `file:../packages/*` 로 참조 |
 | 인프라 매니페스트 | `k8s/` | Kubernetes deployment, service, ingress |
 | 빌드 helper | `scripts/` | Python 검증 스크립트, setup-githooks.sh |
 
@@ -152,7 +152,7 @@ e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 �
 ## 도메인 어휘
 
 - **노드 카테고리**: logic / flow / ai / integration / data / presentation / trigger (총 7 카테고리, 28 종)
-- **표현식 언어**: `{{ ... }}` 템플릿. tokenizer / parser / AST evaluator 는 `packages/expression-engine` SSOT. 평가 의미는 백엔드·프론트엔드 공유
+- **표현식 언어**: `{{ ... }}` 템플릿. tokenizer / parser / AST evaluator 는 `codebase/packages/expression-engine` SSOT. 평가 의미는 백엔드·프론트엔드 공유
 - **노드 출력 컨벤션**: `spec/conventions/node-output.md` 의 11 Principle (5필드 invariant: `{config, output, meta?, port?, status?}`, config↔output 직교, meta=메트릭, 에러 컨트랙트 `port:'error'` + `output.error.{code,message,details?}` 등)
 - **인프라 의존**: PostgreSQL (DB) · Redis/BullMQ (캐시·큐) · MinIO (오브젝트 스토리지) · Flyway (DB 마이그레이션) · Socket.io (실시간)
 - **`spec/conventions/`**: 정식 규약 모음 — `node-output.md`, `swagger.md`, `migrations.md`, `conversation-thread.md`, `cafe24-api-metadata.md` 등

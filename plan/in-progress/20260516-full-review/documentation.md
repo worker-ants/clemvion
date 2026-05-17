@@ -57,9 +57,9 @@
 
 ---
 
-### 6. packages/ 하위 패키지에 README 없음
+### 6. codebase/packages/ 하위 패키지에 README 없음
 
-- **[WARNING]** `packages/expression-engine`과 `packages/node-summary` 에 README.md 가 존재하지 않음.
+- **[WARNING]** `codebase/packages/expression-engine`과 `codebase/packages/node-summary` 에 README.md 가 존재하지 않음.
   - 위치: `/Volumes/project/private/clemvion/packages/expression-engine/`, `/Volumes/project/private/clemvion/packages/node-summary/`
   - 상세: 두 패키지는 codebase/frontend/backend 모두에서 `file:` 의존성으로 참조됨. 패키지 목적, API, 빌드 방법이 root README 와 backend README 에 산재되어 있으나 패키지 자체 README 가 없어 패키지 단독 탐색 시 컨텍스트 부재.
   - 제안: 각 패키지에 최소한의 README(목적, 빌드/사용법, export API 간략 설명) 추가.

@@ -2,7 +2,7 @@
 
 > 기준 커밋: `bbd838ef` (main)  
 > 검토 일시: 2026-05-16  
-> 범위: spec/, codebase/backend/, codebase/frontend/, packages/ 전체
+> 범위: spec/, codebase/backend/, codebase/frontend/, codebase/packages/ 전체
 
 ---
 

@@ -1,4 +1,4 @@
-# Build context must be the repo root so that ../packages/* are reachable.
+# Build context must be the repo root so that codebase/packages/* are reachable.
 #   docker build -f codebase/backend/Dockerfile -t clemvion/backend .
 
 # ---------- deps: install all deps (incl. native compile for bcrypt) ----------
@@ -9,12 +9,12 @@ FROM node:24-alpine AS deps
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
 
-COPY packages/expression-engine/package.json packages/expression-engine/package-lock.json packages/expression-engine/tsconfig.json ./packages/expression-engine/
-COPY packages/expression-engine/src ./packages/expression-engine/src
+COPY codebase/packages/expression-engine/package.json codebase/packages/expression-engine/package-lock.json codebase/packages/expression-engine/tsconfig.json ./packages/expression-engine/
+COPY codebase/packages/expression-engine/src ./packages/expression-engine/src
 RUN cd packages/expression-engine && npm ci && npm run build
 
-COPY packages/node-summary/package.json packages/node-summary/package-lock.json packages/node-summary/tsconfig.json ./packages/node-summary/
-COPY packages/node-summary/src ./packages/node-summary/src
+COPY codebase/packages/node-summary/package.json codebase/packages/node-summary/package-lock.json codebase/packages/node-summary/tsconfig.json ./packages/node-summary/
+COPY codebase/packages/node-summary/src ./packages/node-summary/src
 RUN cd packages/node-summary && npm ci && npm run build
 
 COPY codebase/backend/package.json codebase/backend/package-lock.json ./backend/

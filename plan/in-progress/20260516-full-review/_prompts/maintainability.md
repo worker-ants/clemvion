@@ -25,7 +25,7 @@ main 브랜치(`bbd838ef`) 기준 코드베이스 **전체** 를 유지보수성
 - `codebase/backend/src/nodes/` — 노드별 패턴 일관성
 - `codebase/frontend/src/components/` — 컴포넌트 구조·prop drilling·중복
 - `spec/conventions/` — 정식 규약과 코드 부합
-- `packages/` — 패키지 내부 구조
+- `codebase/packages/` — 패키지 내부 구조
 
 ## 작업 지침
 

@@ -34,7 +34,7 @@ main 브랜치(`bbd838ef`) 기준 **최근 ~50 커밋** 의 의도치 않은 부
 5. **이벤트/콜백 부수 효과**: 이벤트 emit 추가가 기존 listener 에 영향
 6. **로깅 부작용**: 로그 추가가 PII 노출 (security 와 연계)
 7. **import 부작용**: side-effectful import (polyfill, monkey-patch)
-8. **공유 모듈 변경**: `common/`, `shared/`, `packages/` 의 변경이 의도 외 모듈에 영향
+8. **공유 모듈 변경**: `common/`, `shared/`, `codebase/packages/` 의 변경이 의도 외 모듈에 영향
 
 ## 출력 형식
 

@@ -420,7 +420,7 @@ function getExpressionReferenceSection(): string {
   const functions = getAllFunctionNames().sort().join(', ');
   expressionReferenceCache = `## Expression language (what works inside \`{{ ... }}\`)
 
-Every expression you write in a config field is parsed by \`packages/expression-engine\`. The server runs \`validate()\` on all config strings before committing an \`add_node\` / \`update_node\`, so unsupported JS constructs are rejected up-front with \`ok: false, error: 'INVALID_EXPRESSION'\` — you get a second chance on the next tool round, but only if you fix the actual syntax. Stay strictly inside the grammar below.
+Every expression you write in a config field is parsed by \`codebase/packages/expression-engine\`. The server runs \`validate()\` on all config strings before committing an \`add_node\` / \`update_node\`, so unsupported JS constructs are rejected up-front with \`ok: false, error: 'INVALID_EXPRESSION'\` — you get a second chance on the next tool round, but only if you fix the actual syntax. Stay strictly inside the grammar below.
 
 ### Supported
 

@@ -43,8 +43,8 @@
   - 상세: `@dnd-kit/sortable@10.0.0`의 `peerDependencies`는 `@dnd-kit/core: "^6.3.0"`을 요구하므로 현재 조합은 peer dep을 충족한다. 그러나 core가 `6.x`에 머무는 반면 sortable이 `10.x`로 큰 major 도약을 한 상태이며, 패키지 목록만 보면 수상한 버전 차이처럼 보인다. 향후 `@dnd-kit/core`의 major 업데이트 시 누락될 위험이 있다.
   - 제안: `@dnd-kit/core`를 sortable@10과 함께 출시된 최신 major 버전으로 정렬 여부 확인. release notes 기준으로 core가 여전히 6.x 최신이라면 현 상태 유지, 아니라면 함께 업데이트.
 
-- **[INFO]** `packages/expression-engine/package.json`의 `dayjs` 버전이 상위 패키지보다 낮음
-  - 위치: `packages/expression-engine/package.json`
+- **[INFO]** `codebase/packages/expression-engine/package.json`의 `dayjs` 버전이 상위 패키지보다 낮음
+  - 위치: `codebase/packages/expression-engine/package.json`
   - 상세: `dayjs: "^1.11.13"` vs codebase/backend/frontend의 `"^1.11.20"`. npm 설치 시 semver range 충족이 가능한 경우 hoisting으로 같은 버전이 공유되지만, file: 링크 방식의 내부 패키지라 분리 설치될 경우 다른 인스턴스가 적재될 수 있다.
   - 제안: `expression-engine/package.json`의 dayjs를 `"^1.11.20"`으로 상향 통일.
 
