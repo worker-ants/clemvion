@@ -160,6 +160,8 @@ GET /api/triggers?type=webhook&status=active
 
 Rate Limit 초과 시 `429` 응답 + `Retry-After` 헤더.
 
+> **`NODE_ENV=test` 환경 한정 skip**: e2e 가 단일 컨테이너 IP 에서 빠른 인증 호출을 직렬로 폭주시켜 자체 throttle 한계 (100/60s) 에 막히는 자기충돌을 피하기 위해, test 환경에서는 `ThrottlerModule` 의 `skipIf` 가 전역적으로 throttle 을 우회한다. production / development 동작은 무변경 — 위 표의 제한이 그대로 강제된다. helper: `backend/src/common/utils/throttler-skip.ts`.
+
 ---
 
 ## 8. 페이지네이션

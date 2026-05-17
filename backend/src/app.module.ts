@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { shouldSkipThrottle } from './common/utils/throttler-skip';
 import { BullModule } from '@nestjs/bullmq';
 import {
   appConfig,
@@ -179,6 +180,10 @@ export const ROOT_ENTITIES = [
     // Rate Limiting
     ThrottlerModule.forRoot({
       throttlers: [{ name: 'default', ttl: 60000, limit: 100 }],
+      // e2e: 단일 컨테이너 IP 에서 빠른 register 호출이 100/60s 한계에 걸려
+      // 14/15 suite 가 RATE_LIMITED 로 깨지는 사전 결함 해소. production /
+      // development 동작은 무변경 (NODE_ENV=test 일 때만 skip).
+      skipIf: shouldSkipThrottle,
     }),
 
     // Scheduled jobs (login_history pruner 등)
