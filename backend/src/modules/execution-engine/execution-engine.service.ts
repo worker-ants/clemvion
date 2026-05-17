@@ -21,6 +21,10 @@ import { Edge } from '../edges/entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import {
+  WorkflowNotFoundError,
+  SubWorkflowTimeoutError,
+} from './workflow-errors';
+import {
   ContinuationBusService,
   ContinuationMessage,
   RECOVERY_LOCK_KEY,
@@ -665,7 +669,7 @@ export class ExecutionEngineService
       id: workflowId,
     });
     if (!workflow) {
-      throw new Error(`Workflow not found: ${workflowId}`);
+      throw new WorkflowNotFoundError(workflowId);
     }
 
     // 2. Create Execution record
@@ -737,7 +741,7 @@ export class ExecutionEngineService
       id: workflowId,
     });
     if (!targetWorkflow) {
-      throw new Error(`Workflow not found: ${workflowId}`);
+      throw new WorkflowNotFoundError(workflowId);
     }
     this.assertSameWorkspace(targetWorkflow.workspaceId, callerWorkspaceId);
 
@@ -1076,7 +1080,7 @@ export class ExecutionEngineService
       id: workflowId,
     });
     if (!workflow) {
-      throw new Error(`Workflow not found: ${workflowId}`);
+      throw new WorkflowNotFoundError(workflowId);
     }
     this.assertSameWorkspace(workflow.workspaceId, options?.parentWorkspaceId);
 
@@ -1096,11 +1100,7 @@ export class ExecutionEngineService
       timeoutMs > 0
         ? new Promise<never>((_, reject) => {
             timeoutHandle = setTimeout(() => {
-              reject(
-                new Error(
-                  `Sub-workflow execution timed out after ${timeoutMs}ms`,
-                ),
-              );
+              reject(new SubWorkflowTimeoutError(timeoutMs));
             }, timeoutMs);
           })
         : null;
@@ -1183,7 +1183,7 @@ export class ExecutionEngineService
       id: workflowId,
     });
     if (!workflow) {
-      throw new Error(`Workflow not found: ${workflowId}`);
+      throw new WorkflowNotFoundError(workflowId);
     }
     this.assertSameWorkspace(workflow.workspaceId, options?.parentWorkspaceId);
 

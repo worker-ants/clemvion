@@ -11,6 +11,10 @@ import {
   truncateForErrorDetails,
 } from '../../core/error-codes.js';
 import { WorkflowExecutor } from '../../core/workflow-executor.interface.js';
+import {
+  WorkflowNotFoundError,
+  SubWorkflowTimeoutError,
+} from '../../../modules/execution-engine/workflow-errors.js';
 import { workflowNodeMetadata } from './workflow.schema.js';
 
 interface MappingDef {
@@ -193,7 +197,7 @@ export class WorkflowHandler implements NodeHandler {
     port: 'error';
   } {
     const rawMessage = err instanceof Error ? err.message : String(err);
-    const code = mapSubWorkflowError(rawMessage);
+    const code = mapSubWorkflowError(err);
     const safeMessage = truncateForErrorDetails(rawMessage) ?? '';
     return {
       config: configEcho,
@@ -213,19 +217,34 @@ export class WorkflowHandler implements NodeHandler {
 }
 
 /**
- * Map a sub-workflow executor error message to a CONVENTIONS §3.2 error code.
- * Exported for unit testing — the executor today throws plain `Error` with
- * descriptive messages; we pattern-match on the message text until the
- * executor exposes a structured error type.
+ * Map a sub-workflow executor error to a CONVENTIONS §3.2 error code.
+ * Exported for unit testing.
  *
- * TODO: replace with `instanceof WorkflowNotFoundError` / `WorkflowTimeoutError`
- * branches once `WorkflowExecutor` ships a typed error hierarchy. Tracked in
- * `plan/in-progress/spec-4-nodes-unimplemented-cleanup.md`.
+ * **Primary**: `instanceof` 분기. `WorkflowExecutor` 구현이 typed error
+ * (`WorkflowNotFoundError` / `SubWorkflowTimeoutError`) 를 throw 하면 본
+ * 분기가 우선 매칭된다 — executor 메시지를 손대도 silent regression 이
+ * 발생하지 않는다.
+ *
+ * **Fallback**: 메시지 부분문자열 매칭. 외부 throw (third-party executor
+ * 어댑터 / queue layer / 옛 호출자) 가 plain `Error` 를 던질 때를 위한
+ * defensive backstop. Queue 실패는 현재 typed error 가 없어 메시지 매칭만
+ * 으로 매핑된다 (`SUB_WORKFLOW_QUEUE_FAILED`).
+ *
+ * 어느 분기도 매칭 안 되면 generic `SUB_WORKFLOW_FAILED`.
  *
  * @internal
  */
-export function mapSubWorkflowError(message: string): ErrorCodeValue {
-  // Case-insensitive — Node's stock errors use mixed casing across paths.
+export function mapSubWorkflowError(err: unknown): ErrorCodeValue {
+  if (err instanceof WorkflowNotFoundError) {
+    return ErrorCode.SUB_WORKFLOW_NOT_FOUND;
+  }
+  if (err instanceof SubWorkflowTimeoutError) {
+    return ErrorCode.SUB_WORKFLOW_TIMEOUT;
+  }
+  // Defensive backstop — 외부 executor / queue layer 가 plain Error 로 던진
+  // 경우 메시지 토큰으로 분류. typed error 가 도입된 in-process executor
+  // 에서는 도달하지 않는다.
+  const message = err instanceof Error ? err.message : String(err);
   const lower = message.toLowerCase();
   if (lower.includes('workflow not found')) {
     return ErrorCode.SUB_WORKFLOW_NOT_FOUND;
