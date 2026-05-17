@@ -274,7 +274,7 @@ def build_router_prompt_body(
     The router used to read only headers of each reviewer prompt as a
     context-saving measure, then sample 1–2 files. That approach missed
     reviewers whose relevance was only visible inside diff bodies
-    (account/, payment/, etc.) — see plan/in-progress/
+    (account/, payment/, etc.) — see plan/complete/
     harness-review-router-c4f1a2.md for the decision trail. The router
     now receives the same change-file payload as a reviewer plus the
     forced list and the 13 perspectives so it can decide on meaning, not
