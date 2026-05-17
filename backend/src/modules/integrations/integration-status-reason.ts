@@ -24,11 +24,18 @@ export const INTEGRATION_STATUS_REASONS = [
   'oauth_token_exchange_failed',
   'oauth_preview_invalid',
   'oauth_preview_expired',
+  // Cafe24 refused the requested scope at authorize / token exchange.
+  // Carries `last_error.details.requiresCafe24Approval: string[]` when the
+  // refused scope(s) are part of the partner-approval list. Distinct from
+  // `oauth_token_exchange_failed` (catch-all for other token failures).
+  // spec/conventions/cafe24-restricted-scopes.md §4.3.
+  'oauth_invalid_scope',
   // 미분류 fallback — 운영 알람 신호. 새 케이스는 위 union 에 추가.
   'unknown_error',
 ] as const;
 
-export type IntegrationStatusReason = (typeof INTEGRATION_STATUS_REASONS)[number];
+export type IntegrationStatusReason =
+  (typeof INTEGRATION_STATUS_REASONS)[number];
 
 const STATUS_REASON_SET: ReadonlySet<string> = new Set(
   INTEGRATION_STATUS_REASONS as readonly string[],
@@ -39,7 +46,9 @@ const STATUS_REASON_SET: ReadonlySet<string> = new Set(
  * 으로 넘길 때, union 에 포함되면 그대로 쓰고 아니면 `unknown_error` 로
  * 정규화한다. UI/API 응답이 union 밖 값을 노출하지 않도록 보장.
  */
-export function normalizeStatusReason(raw: string | null | undefined): IntegrationStatusReason {
+export function normalizeStatusReason(
+  raw: string | null | undefined,
+): IntegrationStatusReason {
   if (!raw) return 'unknown_error';
   return STATUS_REASON_SET.has(raw)
     ? (raw as IntegrationStatusReason)

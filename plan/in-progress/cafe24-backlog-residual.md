@@ -49,6 +49,7 @@ owner: developer (다음 진입자)
 - [ ] **E-1**: `buildIntegrationMeta` 직접 단위 테스트 — cafe24 외 serviceType / unreadable credentials 경계. (ai-review batch 2 W14)
 - [ ] **E-3**: `callbackContextOf` 단독 단위 테스트 — null/primitive 등 엣지. (이전 review Info 6)
 - [ ] **F-2**: `spec/2-navigation/4-integration.md §6` mermaid 에 `install_token` 보존 정책 명시 (data-flow §1.2.1 에는 이미 있음). (이전 review I3)
+  > ※ 같은 파일을 `plan/in-progress/cafe24-restricted-scopes.md` (worktree `cafe24-restricted-scopes-a1b2c3`) 가 §3.2 / §4.4 / §5 / §9.4 / §10.4 / Rationale 영역에서 동시 수정 중이다. consistency-check (`review/consistency/2026/05/17/12_12_46/`) W-8 으로 검출. **머지 순서 권장**: F-2 는 cafe24-restricted-scopes 가 main 에 머지된 후 착수 (영역은 §6 mermaid 로 분리되나 안전 확보).
 - [ ] **F-3**: `spec/conventions/swagger.md §2-4` 실재 확인 및 cross-link 정정. (이전 review I5)
 
 ## 처리 후

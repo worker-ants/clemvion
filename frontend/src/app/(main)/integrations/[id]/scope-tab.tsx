@@ -12,6 +12,22 @@ import {
 } from "@/lib/api/integrations";
 import { type TFunction } from "@/lib/i18n";
 import { openOAuthPopup } from "./open-oauth-popup";
+import {
+  ApprovalRequiredBadge,
+  RestrictedScopeNotice,
+} from "@/components/integrations/approval-required-badge";
+
+function readRequiresApproval(
+  lastError: IntegrationDto["lastError"],
+): string[] {
+  if (!lastError || typeof lastError !== "object") return [];
+  const details = (lastError as { details?: unknown }).details;
+  if (!details || typeof details !== "object") return [];
+  const arr = (details as { requiresCafe24Approval?: unknown })
+    .requiresCafe24Approval;
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((s): s is string => typeof s === "string");
+}
 
 export function ScopeTab({
   integration,
@@ -34,6 +50,15 @@ export function ScopeTab({
     allOptions.length > 0
       ? allOptions.filter((s) => !currentScopes.includes(s.value))
       : [];
+  const approvalLookup = new Map(
+    allOptions.map((s) => [s.value, s.requiresApproval === true] as const),
+  );
+  // last_error.details.requiresCafe24Approval — backend (`markAuthFailed` 또는
+  // `markIntegrationCallbackError`) 가 별도 승인 명단 ∩ 누락 scope 교집합을 채움.
+  // spec/2-navigation/4-integration.md §9.4 / cafe24-restricted-scopes.md §4.3.
+  // `IntegrationDto.lastError` 의 union 분기를 안전하게 좁히기 위해 type guard
+  // 함수 사용 — 백엔드가 details 를 omit 한 케이스도 깨끗히 처리.
+  const requiresApprovalFromError = readRequiresApproval(integration.lastError);
 
   const [selected, setSelected] = useState<string[]>([]);
   const [cafe24Pending, setCafe24Pending] = useState<{
@@ -89,9 +114,10 @@ export function ScopeTab({
           {currentScopes.map((s) => (
             <li
               key={s}
-              className="rounded-full bg-[hsl(var(--muted))] px-2.5 py-1 text-xs"
+              className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))] px-2.5 py-1 text-xs"
             >
               {s}
+              {approvalLookup.get(s) && <ApprovalRequiredBadge t={t} />}
             </li>
           ))}
         </ul>
@@ -106,12 +132,20 @@ export function ScopeTab({
             {missingScopes.map((s) => (
               <li
                 key={s.value}
-                className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-900 dark:text-red-200"
+                className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800 dark:bg-red-900 dark:text-red-200"
               >
                 {s.value}
+                {s.requiresApproval && <ApprovalRequiredBadge t={t} />}
               </li>
             ))}
           </ul>
+          {requiresApprovalFromError.length > 0 && (
+            <p className="mt-2 text-xs text-red-900 dark:text-red-200">
+              {t("integrations.cafe24RestrictedApprovalApiError", {
+                scopes: requiresApprovalFromError.join(", "),
+              })}
+            </p>
+          )}
         </section>
       )}
 
@@ -172,10 +206,11 @@ export function ScopeTab({
                     disabled={isGranted}
                   />
                   <div className="flex-1">
-                    <div className="font-medium">
-                      {s.label}
+                    <div className="flex items-center gap-2 font-medium">
+                      <span>{s.label}</span>
+                      {s.requiresApproval && <ApprovalRequiredBadge t={t} />}
                       {isGranted && (
-                        <span className="ml-2 text-xs text-[hsl(var(--muted-foreground))]">
+                        <span className="text-xs text-[hsl(var(--muted-foreground))]">
                           {t("integrations.alreadyGranted")}
                         </span>
                       )}
@@ -189,6 +224,14 @@ export function ScopeTab({
             })
           )}
         </div>
+        <RestrictedScopeNotice
+          count={
+            allOptions.filter(
+              (s) => s.requiresApproval && selected.includes(s.value),
+            ).length
+          }
+          t={t}
+        />
         <div className="flex justify-end">
           <Button
             onClick={() => requestMutation.mutate()}

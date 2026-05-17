@@ -151,6 +151,14 @@ export const integrations = {
   authTypeLabel2: "인증 유형",
   oauthScopesLabel: "OAuth 권한",
   recommendedBadge: "권장",
+  approvalRequiredBadge: "별도 승인",
+  approvalRequiredTooltip:
+    "카페24 본사 승인이 필요한 권한입니다. 미승인 상태로 동의를 시도하면 invalid_scope 로 실패하거나, 인증 후 호출 시 403 이 반환될 수 있어요.",
+  approvalInquiryLink: "Cafe24 개발자센터 문의 →",
+  cafe24RestrictedScopeNotice:
+    "선택한 권한 중 카페24 본사 승인이 필요한 항목이 있습니다 ({{count}}개). 미승인 상태로 진행하면 OAuth 또는 호출 단계에서 실패할 수 있어요.",
+  cafe24RestrictedApprovalApiError:
+    "이 권한은 카페24 별도 승인이 필요합니다 — {{scopes}}",
   cafe24ScopeWarning:
     "Cafe24 는 앱 설정에 사전 등록된 권한만 OAuth 요청을 허용해요. 선택한 권한이 Cafe24 Developers → 내 앱 → 사용 권한(Scope) 에 모두 체크돼 있어야 하며, 하나라도 누락되면 OAuth 가 invalid_scope 로 거부돼요. 처음에는 1개만 켜고 동작을 확인한 뒤 점진적으로 늘리길 권해요.",
   cafe24PrivatePendingTitle: "Cafe24 Developers 설정을 완료해 주세요",

@@ -50,7 +50,26 @@ export interface IntegrationDto {
   tokenExpiresAt: string | null;
   lastUsedAt: string | null;
   lastRotatedAt: string | null;
-  lastError: { code?: string; message?: string; at?: string } | Record<string, unknown> | null;
+  lastError:
+    | {
+        code?: string;
+        message?: string;
+        at?: string;
+        /**
+         * Per-status_reason structured context. Backend may populate
+         * `requiresCafe24Approval: string[]` when a Cafe24 scope failure
+         * overlaps the partner-approval list. Other known keys are
+         * provider-defined extensions — readers MUST runtime-check the
+         * fields they consume (the index signature on this type only
+         * promises "JSON-shaped" not "schema-validated").
+         * SoT: `spec/conventions/cafe24-restricted-scopes.md` §4.3.
+         */
+        details?: {
+          requiresCafe24Approval?: string[];
+        } & Record<string, unknown>;
+      }
+    | Record<string, unknown>
+    | null;
   meta: IntegrationMeta;
   /**
    * Cafe24 Private 통합 한정의 actionable URL. Cafe24 Developers Console
@@ -99,6 +118,12 @@ export interface ScopeOption {
   value: string;
   label: string;
   recommended?: boolean;
+  /**
+   * Cafe24 partner-approval marker — true when this scope requires explicit
+   * approval from Cafe24 before consent succeeds. Frontend renders a ⚠
+   * badge + tooltip. SoT: `spec/conventions/cafe24-restricted-scopes.md` §1.
+   */
+  requiresApproval?: boolean;
 }
 
 export interface ServiceDefinition {

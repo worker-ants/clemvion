@@ -38,6 +38,13 @@ export interface ScopeOption {
   value: string;
   label: string;
   recommended?: boolean;
+  /**
+   * Cafe24 partner-approval flag — true when this scope (e.g.
+   * `mall.read_mileage`) requires explicit Cafe24 approval before the
+   * OAuth consent will succeed. Frontend renders a ⚠ badge + tooltip.
+   * SoT: `spec/conventions/cafe24-restricted-scopes.md` §1.
+   */
+  requiresApproval?: boolean;
 }
 
 export interface ServiceDefinition {
@@ -153,15 +160,23 @@ const CAFE24_SCOPES: ScopeOption[] = [
   { value: 'mall.write_category', label: '카테고리 수정' },
   { value: 'mall.read_promotion', label: '프로모션 조회' },
   { value: 'mall.write_promotion', label: '프로모션 수정' },
-  { value: 'mall.read_mileage', label: '적립금 조회' },
-  { value: 'mall.write_mileage', label: '적립금 수정' },
+  { value: 'mall.read_mileage', label: '적립금 조회', requiresApproval: true },
+  { value: 'mall.write_mileage', label: '적립금 수정', requiresApproval: true },
   { value: 'mall.read_shipping', label: '배송 조회' },
   { value: 'mall.write_shipping', label: '배송 수정' },
   { value: 'mall.read_salesreport', label: '매출 통계 조회' },
   { value: 'mall.read_translation', label: '번역 조회' },
   { value: 'mall.write_translation', label: '번역 수정' },
-  { value: 'mall.read_notification', label: '알림 조회' },
-  { value: 'mall.write_notification', label: '알림 발송' },
+  {
+    value: 'mall.read_notification',
+    label: '알림 조회',
+    requiresApproval: true,
+  },
+  {
+    value: 'mall.write_notification',
+    label: '알림 발송',
+    requiresApproval: true,
+  },
   // Less common — kept under the "고급" toggle in the UI
   { value: 'mall.read_application', label: '앱 관리 조회' },
   { value: 'mall.write_application', label: '앱 관리 수정' },
@@ -177,8 +192,12 @@ const CAFE24_SCOPES: ScopeOption[] = [
   { value: 'mall.write_supply', label: '공급사 수정' },
   { value: 'mall.read_personal', label: '개인화 조회' },
   { value: 'mall.write_personal', label: '개인화 수정' },
-  { value: 'mall.read_privacy', label: '개인정보 조회' },
-  { value: 'mall.write_privacy', label: '개인정보 수정' },
+  { value: 'mall.read_privacy', label: '개인정보 조회', requiresApproval: true },
+  {
+    value: 'mall.write_privacy',
+    label: '개인정보 수정',
+    requiresApproval: true,
+  },
 ];
 
 const HTTP_COMMON: CredentialField[] = [

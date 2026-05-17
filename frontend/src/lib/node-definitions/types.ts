@@ -221,6 +221,24 @@ export type Cafe24OperationField = {
   default?: unknown;
 };
 
+export type Cafe24ApprovalGroup =
+  | "mileage"
+  | "notification"
+  | "privacy"
+  | "activitylogs"
+  | "menus"
+  | "naverpay_setting"
+  | "kakaopay_setting"
+  | "pg_settings"
+  | "analytics";
+
+export type Cafe24RestrictedApproval = {
+  level: "scope" | "operation" | "program";
+  approvalGroup: Cafe24ApprovalGroup;
+  docsUrl?: string;
+  inquiryUrl: string;
+};
+
 export type Cafe24SupportedOperation = {
   status: "supported";
   id: string;
@@ -230,6 +248,11 @@ export type Cafe24SupportedOperation = {
   paginated: boolean;
   requiredFields: readonly string[];
   fields: readonly Cafe24OperationField[];
+  /**
+   * Cafe24 partner-approval marker — present iff backend metadata declared it.
+   * SoT: `spec/conventions/cafe24-restricted-scopes.md`.
+   */
+  restrictedApproval?: Cafe24RestrictedApproval;
 };
 
 export type Cafe24PlannedOperation = {
