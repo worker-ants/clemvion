@@ -158,17 +158,19 @@ Logic 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.m
 
 ### 9.1 컨테이너 노드 핸들러 ↔ 엔진 오버라이트 컨트랙트
 
-Loop / ForEach / Map / Parallel 핸들러는 다음 두 시점에 두 가지 다른 출력을 낸다:
+Loop / ForEach / Map / Parallel 의 노드 envelope 는 시점에 따라 두 가지 다른 `output` 을 갖는다:
 
-1. **시작 시점 (body 진입 직전)**: `output: items[]` 반환. 엔진은 이 배열을 body iteration 입력으로 분배.
-2. **완료 시점 (모든 iteration 종료 후)**: 핸들러는 `null` 또는 미반환. **엔진이 `{ <컬렉션>: [...], count: N }` 으로 `output` 을 덮어쓴다** (Principle 9).
+1. **시작 시점 (body 진입 직전)**: 핸들러가 한 번 실행되어 `output: items[]` 를 반환한다. 엔진은 이 배열을 body iteration 입력으로 분배.
+2. **완료 시점 (모든 iteration 종료 후)**: **엔진이 핸들러 호출 없이 `output` 을 `{ <컬렉션>: [...], count: N }` 으로 직접 덮어쓴다** (Principle 9). 핸들러는 두 번째 tick 으로 재호출되지 않는다.
 
-| 노드 | 컬렉션 키 | 시작 시점 output | 완료 시점 output (엔진 오버라이트) |
+| 노드 | 컬렉션 키 | 시작 시점 output (handler return) | 완료 시점 output (engine override) |
 |------|-----------|--------------------|----------------------------------------|
 | `loop` | `iterations` | (없음 — Loop는 입력 분배 안 함) | `{ iterations: [...], count }` |
 | `foreach` | `items` | `items[]` (body 입력 분배) | `{ items: [...], count }` |
-| `map` | `mapped` | `items[]` | `{ mapped: [...], count }` |
+| `map` | `mapped` | `items[]` (body 입력 분배) | `{ mapped: [...], count }` |
 | `parallel` | `branches` | (없음 — 분기별 빈 입력) | `{ branches: [...], count }` |
+
+> **D2 결정 (2026-05-17, plan/in-progress/node-output-redesign)**: 시작 시점의 `output: items[]` 는 **엔진-내부 전용 중간 표현** 이다. body 분배 직후 엔진 오버라이트로 envelope 의 `output` 이 `{ <컬렉션>, count }` 로 교체되므로, **다운스트림 expression (`$node["X"].output.*`) · 외부 observer (run history API · webhook payload 등) 어디서도 raw 배열이 노출되지 않는다**. 핸들러 시그니처(`output: items[]`)와 외부 노출 형태가 다른 이질감은 의도된 설계 — 5필드 invariant (`{config, output, meta?, port?, status?}`) 를 깨지 않고 분배용 데이터를 엔진에 전달하기 위한 컨트랙트다.
 
 다운스트림 노드는 `done` 포트 이후에 항상 `{ <컬렉션>, count }` 형태를 본다.
 
