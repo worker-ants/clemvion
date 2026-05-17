@@ -28,3 +28,10 @@ test-results/
 # temp
 .claire/
 temp/
+
+# Reviewer/checker/coordinator sub-agent 입력 페이로드 (orchestrator 가 호출 직전
+# 작성, sub-agent 가 한 번 읽고 끝). diff + role checklist 의 시점 직렬화본이라
+# commit hash + .claude/skills/ 로 항상 재생성 가능하고, 리뷰 결론은 별도
+# <role>.md / SUMMARY.md / meta.json 에 남는다. review/ 전체의 ~70% 를 차지해
+# blob 누적이 빠르므로 git 에 두지 않는다.
+review/**/_prompts/
