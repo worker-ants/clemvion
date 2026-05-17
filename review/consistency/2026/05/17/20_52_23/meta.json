@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-17T20:52:23.829707",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=cafe24-call-401-retry)",
+  "target_path": "cafe24-call-401-retry",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

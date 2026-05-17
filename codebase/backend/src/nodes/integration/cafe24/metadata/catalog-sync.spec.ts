@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -30,18 +31,39 @@ import type { Cafe24Resource } from './types.js';
  *    명단 SoT: `spec/conventions/cafe24-restricted-scopes.md`.
  */
 
-// __dirname = codebase/backend/src/nodes/integration/cafe24/metadata
-// 7 hops back lands at the repo root (codebase/ wrapper added by commit
-// 33521233 needs one extra `..` that the rename did not propagate here).
+// Repo root resolution.
+//
+// `git rev-parse --show-toplevel` 이 가장 견고하다 — linked worktree
+// (`.claude/worktrees/<name>/`) 환경에서도 그 worktree 자체의 root 를
+// 반환하므로 main / worktree 양쪽 모두 정확하다.
+//
+// `__dirname` 기반 hardcoded 상대 경로는 codebase/ wrapper 추가 (commit
+// 33521233) 로 7-levels-up 으로 갱신됐지만, 여전히 linked worktree 에서는
+// 한 level 부족해 `codebase/spec/...` 로 풀려 ENOENT 가 난다. 따라서
+// git CLI 가 가용하면 git rev-parse 를 우선 사용하고, git 바이너리 부재
+// 시에만 7-levels-up fallback 으로 main worktree 동작을 보전한다.
+function resolveRepoRoot(): string {
+  try {
+    return execSync('git rev-parse --show-toplevel', {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return join(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      '..',
+      '..',
+      '..',
+      '..',
+    );
+  }
+}
+const REPO_ROOT = resolveRepoRoot();
 const CATALOG_DIR = join(
-  __dirname,
-  '..',
-  '..',
-  '..',
-  '..',
-  '..',
-  '..',
-  '..',
+  REPO_ROOT,
   'spec',
   'conventions',
   'cafe24-api-catalog',

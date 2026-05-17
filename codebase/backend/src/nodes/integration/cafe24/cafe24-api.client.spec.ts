@@ -375,29 +375,208 @@ describe('Cafe24ApiClient', () => {
   });
 
   describe('auth failure', () => {
-    it.each([401, 403] as const)(
-      'on %i — flips Integration.status to error(auth_failed) and throws Cafe24AuthFailedError',
-      async (status) => {
-        fetchMock.mockResolvedValueOnce(
-          makeJsonResponse({ error: 'Unauthorized' }, { status }),
-        );
+    // Helper — wire `dataSource.transaction` so that an inline
+    // `refreshAccessToken` reaches a fresh integration row (the same shape
+    // the `token refresh` suite uses). Required for 401 reactive refresh
+    // (§6.1) because the retry path goes through `refreshAccessToken`
+    // when the BullMQ queue is unbound (test default).
+    function wireRefreshTransaction(integration: Integration): void {
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockResolvedValue(undefined),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+    }
 
-        const integration = makeIntegration();
-        await expect(
-          client.call(integration, { method: 'GET', path: 'orders' }),
-        ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+    // CAFE24_CLIENT_ID / CAFE24_CLIENT_SECRET 은 refreshAccessToken() 안의
+    // resolveClientCredentials() 가 public app (app_type='public') 케이스에서
+    // 읽는 OAuth Basic 자격증명. 테스트 fixture 값.
+    function setRefreshClientEnv(): void {
+      process.env.CAFE24_CLIENT_ID = 'fake-client-id-for-test';
+      process.env.CAFE24_CLIENT_SECRET = 'fake-client-secret-for-test';
+    }
 
-        expect(repo.update).toHaveBeenCalledWith(
-          integration.id,
-          expect.objectContaining({
-            status: 'error',
-            statusReason: 'auth_failed',
-          }),
-        );
-        expect(integration.status).toBe('error');
-        expect(integration.statusReason).toBe('auth_failed');
-      },
-    );
+    // 잔존 안전망 — 본문 끝에서 수동 호출 (idempotent). afterEach 가
+    // primary cleanup 이지만 케이스 본문에서 명시적으로 부르면 디버깅 시
+    // teardown 시점이 명확하다.
+    function clearRefreshClientEnv(): void {
+      delete process.env.CAFE24_CLIENT_ID;
+      delete process.env.CAFE24_CLIENT_SECRET;
+    }
+
+    // afterEach 훅으로 자동 cleanup — 테스트 중간 실패 시에도 후속 테스트로
+    // env 오염 누출되지 않도록.
+    afterEach(() => {
+      clearRefreshClientEnv();
+      dataSource.transaction.mockReset();
+    });
+
+    // 403 — 즉시 격하 (refresh 무의미). spec §6.1 "403 즉시 격하".
+    it('on 403 — flips Integration.status to error(auth_failed) and throws Cafe24AuthFailedError immediately (no refresh)', async () => {
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({ error: 'Forbidden' }, { status: 403 }),
+      );
+
+      const integration = makeIntegration();
+      await expect(
+        client.call(integration, { method: 'GET', path: 'orders' }),
+      ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+
+      // Single fetch — no refresh attempted on 403.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({
+          status: 'error',
+          statusReason: 'auth_failed',
+        }),
+      );
+      expect(integration.status).toBe('error');
+      expect(integration.statusReason).toBe('auth_failed');
+    });
+
+    // T-1 (spec §6.1 401 자가 회복) — proactive `ensureFreshToken` 이 race
+    // window 로 빗나가 만료된 access_token 으로 API 호출이 401 을 받은 경우.
+    // refresh + 1회 재시도 후 성공하면 status 가 connected 로 유지된다 (애초에
+    // 격하 없음). pingConnection() 의 동일 패턴과 정책 통일.
+    it('on 401 — refreshes access_token and retries once; status stays connected on retry success (§6.1)', async () => {
+      const integration = makeIntegration();
+      wireRefreshTransaction(integration);
+      setRefreshClientEnv();
+
+      // (1) 1차 API 401 — race window. (2) refresh 200. (3) 재시도 API 200.
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          { error: 'invalid_token', error_description: 'expired' },
+          { status: 401 },
+        ),
+      );
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_in: 7200,
+        }),
+      );
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({ products: [{ product_no: 1 }] }),
+      );
+
+      const res = await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      // 2번째 fetch 는 refresh endpoint.
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        'https://myshop.cafe24api.com/api/v2/oauth/token',
+      );
+      // 3번째 fetch 는 새 access_token 으로 동일 path 재호출.
+      expect(fetchMock.mock.calls[2][0]).toBe(
+        'https://myshop.cafe24api.com/api/v2/admin/products',
+      );
+      expect(
+        (fetchMock.mock.calls[2][1] as RequestInit).headers as Record<
+          string,
+          string
+        >,
+      ).toMatchObject({ Authorization: 'Bearer new-access' });
+      expect(res.status).toBe(200);
+
+      // 핵심 invariant — 재시도 성공 시 status 는 connected 유지.
+      expect(integration.status).toBe('connected');
+      expect(integration.statusReason).toBeNull();
+      // markAuthFailed 호출 안 됨 — repo.update 가 status='error' 로 불리지
+      // 않았다. (refresh 의 transaction 안 save 는 별도 manager 의 txRepo
+      // 를 통과하므로 외부 repo.update mock 과 무관.)
+      const errorUpdates = repo.update.mock.calls.filter(
+        (c: unknown[]) =>
+          typeof c[1] === 'object' &&
+          c[1] !== null &&
+          (c[1] as { status?: string }).status === 'error',
+      );
+      expect(errorUpdates).toHaveLength(0);
+
+      clearRefreshClientEnv();
+    });
+
+    // T-2 (spec §6.1 401 → 재시도도 401 → 격하)
+    it('on 401 → refresh OK → retry still 401 — flips to error(auth_failed) and throws', async () => {
+      const integration = makeIntegration();
+      wireRefreshTransaction(integration);
+      setRefreshClientEnv();
+
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({ error: 'invalid_token' }, { status: 401 }),
+      );
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_in: 7200,
+        }),
+      );
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          { error: 'invalid_token', error_description: 'still expired' },
+          { status: 401 },
+        ),
+      );
+
+      await expect(
+        client.call(integration, { method: 'GET', path: 'orders' }),
+      ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+
+      // API 401 + refresh + API 401 = 3 fetches.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({
+          status: 'error',
+          statusReason: 'auth_failed',
+        }),
+      );
+      expect(integration.status).toBe('error');
+      expect(integration.statusReason).toBe('auth_failed');
+
+      clearRefreshClientEnv();
+    });
+
+    // T-3 (spec §6.1) — refresh 단계 자체가 401 (invalid_grant) 이면
+    // refresh 단계가 이미 markAuthFailed 발사 + throw. API 재시도 없음.
+    it('on 401 → refresh itself returns 401 (invalid_grant) — refresh step demotes; no API retry', async () => {
+      const integration = makeIntegration();
+      wireRefreshTransaction(integration);
+      setRefreshClientEnv();
+
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({ error: 'invalid_token' }, { status: 401 }),
+      );
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({ error: 'invalid_grant' }, { status: 401 }),
+      );
+
+      await expect(
+        client.call(integration, { method: 'GET', path: 'orders' }),
+      ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+
+      // API 401 + refresh 401 — 재시도 없음 = 2 fetches only.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(repo.update).toHaveBeenCalledWith(
+        integration.id,
+        expect.objectContaining({
+          status: 'error',
+          statusReason: 'auth_failed',
+        }),
+      );
+
+      clearRefreshClientEnv();
+    });
 
     it('surfaces Cafe24 error_code + error_message in Error.message so MCP callers see the cause', async () => {
       fetchMock.mockResolvedValueOnce(
@@ -423,7 +602,29 @@ describe('Cafe24ApiClient', () => {
       );
     });
 
-    it('surfaces OAuth-shape error/error_description fields (Cafe24 token endpoint format)', async () => {
+    // 401 의 surface 메시지는 재시도 후 throw 시 살아남아야 한다 (1차/2차
+    // 모두 같은 error_description 을 echo 한다고 가정).
+    it('surfaces OAuth-shape error/error_description fields after refresh+retry exhausted (Cafe24 token endpoint format)', async () => {
+      const integration = makeIntegration();
+      wireRefreshTransaction(integration);
+      setRefreshClientEnv();
+
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          {
+            error: 'invalid_token',
+            error_description: 'Access token has expired',
+          },
+          { status: 401 },
+        ),
+      );
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_in: 7200,
+        }),
+      );
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(
           {
@@ -434,7 +635,6 @@ describe('Cafe24ApiClient', () => {
         ),
       );
 
-      const integration = makeIntegration();
       const caught = await client
         .call(integration, { method: 'GET', path: 'orders' })
         .catch((err: unknown) => err);
@@ -442,6 +642,8 @@ describe('Cafe24ApiClient', () => {
       const message = (caught as Error).message;
       expect(message).toContain('invalid_token');
       expect(message).toContain('Access token has expired');
+
+      clearRefreshClientEnv();
     });
 
     it('surfaces nested error.code/error.message shape (modern v2 API format)', async () => {
@@ -469,7 +671,7 @@ describe('Cafe24ApiClient', () => {
 
     // REQ-C3 — 403 응답에 scope-부족 시그널이 있으면 statusReason='insufficient_scope'
     // 로 분기. spec §6 의 `error(insufficient_scope)` 전이.
-    it('on 403 + INSUFFICIENT_SCOPE signal — flips statusReason to insufficient_scope', async () => {
+    it('on 403 + INSUFFICIENT_SCOPE signal — flips statusReason to insufficient_scope (no refresh)', async () => {
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(
           {
@@ -483,6 +685,8 @@ describe('Cafe24ApiClient', () => {
       await expect(
         client.call(integration, { method: 'GET', path: 'products' }),
       ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
+      // 403 — refresh 시도 안 함, 1 fetch.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(repo.update).toHaveBeenCalledWith(
         integration.id,
         expect.objectContaining({
@@ -493,14 +697,31 @@ describe('Cafe24ApiClient', () => {
       expect(integration.statusReason).toBe('insufficient_scope');
     });
 
-    it('on 401 — always auth_failed (insufficient_scope is 403-only)', async () => {
+    it('on 401 — always auth_failed even if INSUFFICIENT_SCOPE signal echoed (insufficient_scope is 403-only)', async () => {
+      const integration = makeIntegration();
+      wireRefreshTransaction(integration);
+      setRefreshClientEnv();
+
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(
           { error_code: 'INSUFFICIENT_SCOPE', error_message: 'whatever' },
           { status: 401 },
         ),
       );
-      const integration = makeIntegration();
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_in: 7200,
+        }),
+      );
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          { error_code: 'INSUFFICIENT_SCOPE', error_message: 'whatever' },
+          { status: 401 },
+        ),
+      );
+
       await expect(
         client.call(integration, { method: 'GET', path: 'products' }),
       ).rejects.toBeInstanceOf(Cafe24AuthFailedError);
@@ -508,6 +729,8 @@ describe('Cafe24ApiClient', () => {
         integration.id,
         expect.objectContaining({ statusReason: 'auth_failed' }),
       );
+
+      clearRefreshClientEnv();
     });
   });
 
