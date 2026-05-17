@@ -16,7 +16,7 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3012",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -26,7 +26,7 @@ export default defineConfig({
     ? undefined
     : {
         command: "npm run dev",
-        url: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+        url: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3012",
         reuseExistingServer: !process.env.CI,
         timeout: 180_000,
       },
