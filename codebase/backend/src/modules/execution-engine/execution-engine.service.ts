@@ -2123,6 +2123,32 @@ export class ExecutionEngineService
       const flatNext = this.applyPortSelection(toEngineFlatShape(adaptedNext));
       this.contextService.setNodeOutput(executionId, node.id, flatNext);
 
+      // Persist the accumulated turn snapshot to `NodeExecution.outputData`
+      // (DB SoT — spec/5-system/4-execution-engine.md §646). Without this,
+      // a second client (e.g. the execution detail page opened in another
+      // tab) reading via REST `/executions/:id` sees only the first turn's
+      // messages, because the in-memory `structuredOutputCache` is local to
+      // the originating tab's WebSocket subscription.
+      //
+      // Mirrors `emitAiWaitingForInput` (first-turn entry) and
+      // `waitForButtonInteraction` (button waiting) — both already do this.
+      // The Execution row stays WAITING_FOR_INPUT (self-transition) so we
+      // save just the NodeExecution; no `updateExecutionStatus` needed.
+      //
+      // WARN #6 — strip `_resumeState` before persisting. It carries
+      // engine-internal turn debug, model state, and rawConfig (potential
+      // credentials). Multi-turn state lives in the in-memory cache only;
+      // server restart triggers `recoverStuckExecutions` → FAILED.
+      if (nodeExec) {
+        const persistedOutput: Record<string, unknown> = { ...adaptedNext };
+        delete persistedOutput._resumeState;
+        nodeExec.outputData = withInteractionMeta(
+          persistedOutput,
+          'ai_conversation',
+        );
+        await this.nodeExecutionRepository.save(nodeExec);
+      }
+
       // Update state for next turn
       const nextResumeState = adaptedNext._resumeState as Record<
         string,
