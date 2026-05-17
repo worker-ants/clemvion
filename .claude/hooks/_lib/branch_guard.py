@@ -6,7 +6,7 @@ This module is consumed by:
   - .claude/hooks/guard_default_branch_prompt.py  (UserPromptSubmit hook)
   - .githooks/pre-commit                          (via `python3 -m`)
 
-Policy (set with the user, see plan/complete/harness-review-router-c4f1a2.md):
+Policy:
   - BLOCK when both:
       1. The top-level `.git` is a **directory** (== main worktree, not a
          linked worktree where `.git` is a file).

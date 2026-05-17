@@ -124,8 +124,8 @@ review/
     "security", "requirement", "scope", "side_effect", "maintainability", "testing"
   ],
   "agents_forced_reasons": {              // 각 forced reviewer 의 trigger 사유 (여러 규칙이 같은 reviewer 를 강제할 수 있음)
-    "security": ["소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/account/service.ts"],
-    "requirement": ["소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/account/service.ts"]
+    "security": ["소스 코드 변경 — 코드 변경 시 항상 적용: <code-path>"],
+    "requirement": ["소스 코드 변경 — 코드 변경 시 항상 적용: <code-path>"]
   },
   "agents_skipped": [],                   // router 가 이번 세션에서 생략한 reviewer 들
   "subagent_invocations": [

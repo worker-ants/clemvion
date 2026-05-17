@@ -66,22 +66,27 @@ if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
   fi
 fi
 
-plan_count=0
-plan_current=""
+DIM=$'\033[2m'; BOLD=$'\033[1m'; RESET=$'\033[0m'
+CYAN=$'\033[36m'; BLUE=$'\033[34m'; YELLOW=$'\033[33m'
+GREEN=$'\033[32m'; MAGENTA=$'\033[35m'; GRAY=$'\033[90m'
+SEP="${DIM} │ ${RESET}"
+
+plan_segment=""
 plan_dir="$cwd/plan/in-progress"
 if [ -d "$plan_dir" ]; then
   plan_count=$(find "$plan_dir" -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+  plan_current=""
   if [ "$plan_count" -gt 0 ]; then
     latest=$(find "$plan_dir" -type f -name '*.md' -exec stat -f '%m %N' {} \; 2>/dev/null \
               | sort -rn | head -1 | cut -d' ' -f2-)
     [ -n "$latest" ] && plan_current=$(basename "$latest" .md)
   fi
+  plan_segment=$(printf '%splan: %s%d%s in-progress%s▶ %s%s%s' \
+    "$SEP" \
+    "${BOLD}" "$plan_count" "${RESET}" \
+    "$SEP" \
+    "${BOLD}" "${plan_current:-none}" "${RESET}")
 fi
-
-DIM=$'\033[2m'; BOLD=$'\033[1m'; RESET=$'\033[0m'
-CYAN=$'\033[36m'; BLUE=$'\033[34m'; YELLOW=$'\033[33m'
-GREEN=$'\033[32m'; MAGENTA=$'\033[35m'; GRAY=$'\033[90m'
-SEP="${DIM} │ ${RESET}"
 
 # line 1: model · dir · ctx · cost · style
 printf '%s%s%s%s%s%s%s%sctx %s%d%%%s (%s)%s%s%s%s (%s tok)%sstyle: %s%s%s\n' \
@@ -95,10 +100,7 @@ printf '%s%s%s%s%s%s%s%sctx %s%d%%%s (%s)%s%s%s%s (%s tok)%sstyle: %s%s%s\n' \
   "$SEP" \
   "${GRAY}" "$output_style" "${RESET}"
 
-# line 2: git · plan-count · plan-current
-printf '  %s%s%s%splan: %s%d%s in-progress%s▶ %s%s%s' \
+# line 2: git (+ plan if plan/in-progress/ exists)
+printf '  %s%s%s%s' \
   "${MAGENTA}" "${git_segment:-no-git}" "${RESET}" \
-  "$SEP" \
-  "${BOLD}" "$plan_count" "${RESET}" \
-  "$SEP" \
-  "${BOLD}" "${plan_current:-none}" "${RESET}"
+  "$plan_segment"
