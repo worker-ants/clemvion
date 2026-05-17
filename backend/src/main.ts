@@ -21,6 +21,10 @@ const cookieParser = require('cookie-parser') as () => (
   next: (err?: unknown) => void,
 ) => void;
 import { AppModule } from './app.module';
+import {
+  assertCorsOriginsConfigured,
+  corsOriginCallback,
+} from './common/utils/cors-origins';
 
 async function bootstrap() {
   // Fail-closed: OAUTH_STUB_MODE bypasses real provider verification, so
@@ -118,13 +122,15 @@ async function bootstrap() {
     },
   });
 
-  // CORS
+  // CORS (W-1: 다중 도메인 allowlist + production fail-closed).
+  // 우선순위: CORS_ORIGINS (콤마 구분) → FRONTEND_URL → wildcard (dev/test 만).
+  assertCorsOriginsConfigured();
   app.enableCors({
-    origin: configService.get<string>('app.frontendUrl'),
+    origin: corsOriginCallback,
     credentials: true,
   });
 
-  const port = configService.get<number>('app.port') || 3001;
+  const port = configService.get<number>('app.port') || 3011;
   await app.listen(port);
   console.log(`Application running on port ${port}`);
   console.log(`Swagger docs available at http://localhost:${port}/docs`);

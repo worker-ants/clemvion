@@ -53,11 +53,12 @@ function computeCookieDomain(frontendUrl: string, backendUrl: string): string {
 }
 
 export const appConfig = registerAs('app', () => {
-  const url = process.env.APP_URL || 'http://localhost:3001';
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  // canonical 포트는 backend/.env.example 의 APP_PORT=3011 / FRONTEND_URL=:3012 (C-8).
+  const url = process.env.APP_URL || 'http://localhost:3011';
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3012';
 
   return {
-    port: parseInt(process.env.APP_PORT || '3001', 10),
+    port: parseInt(process.env.APP_PORT || '3011', 10),
     url,
     frontendUrl,
     encryptionKey: process.env.ENCRYPTION_KEY || '',
