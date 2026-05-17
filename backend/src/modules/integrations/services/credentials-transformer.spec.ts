@@ -123,6 +123,52 @@ describe('credentials-transformer', () => {
     expect(isUnreadableCredentials(result)).toBe(true);
   });
 
+  // W-42 — e2e (integration-cafe24-install) 가 credentials 를 raw JSONB 로
+  // INSERT 해 production 의 transformer 경로(encrypt → store as string →
+  // decrypt) 를 우회한다. 그 갭을 unit 에서 메우기 위해 양 모드 (KEY 있음 /
+  // 없음) 에서 transformer.to/from 이 동일한 row payload round-trip 보장을
+  // 명시적으로 검증.
+  it('transformer.to/from is symmetric in encryption mode (production path)', () => {
+    process.env.INTEGRATION_ENCRYPTION_KEY = 'unit-test-secret';
+    const credentials = {
+      mall_id: 'shop',
+      client_id: 'e2e-client-id',
+      client_secret: 'super-secret',
+      scopes: ['mall.read_product'],
+    };
+    const stored = encryptedJsonTransformer.to(credentials);
+    expect(typeof stored).toBe('string');
+    expect(stored as string).toMatch(/^enc:v1:/);
+    expect(stored as string).not.toContain('super-secret');
+    expect(encryptedJsonTransformer.from(stored)).toEqual(credentials);
+  });
+
+  it('transformer.to/from is symmetric in plaintext mode (KEY unset — dev / e2e raw insert)', () => {
+    delete process.env.INTEGRATION_ENCRYPTION_KEY;
+    const credentials = {
+      mall_id: 'shop',
+      client_id: 'e2e-client-id',
+      client_secret: 'super-secret',
+      scopes: ['mall.read_product'],
+    };
+    const stored = encryptedJsonTransformer.to(credentials);
+    expect(typeof stored).toBe('string');
+    expect(stored as string).not.toMatch(/^enc:v1:/);
+    expect(encryptedJsonTransformer.from(stored)).toEqual(credentials);
+  });
+
+  it('transformer.from accepts row written in either mode interchangeably', () => {
+    process.env.INTEGRATION_ENCRYPTION_KEY = 'unit-test-secret';
+    const credentials = { token: 't' };
+    const encStored = encryptedJsonTransformer.to(credentials);
+    delete process.env.INTEGRATION_ENCRYPTION_KEY;
+    const plainStored = encryptedJsonTransformer.to(credentials);
+
+    process.env.INTEGRATION_ENCRYPTION_KEY = 'unit-test-secret';
+    expect(encryptedJsonTransformer.from(encStored)).toEqual(credentials);
+    expect(encryptedJsonTransformer.from(plainStored)).toEqual(credentials);
+  });
+
   it('round-trips unreadable rows verbatim instead of destroying ciphertext', () => {
     process.env.INTEGRATION_ENCRYPTION_KEY = 'old-key';
     const originalCipher = encryptJson({ secret: 'value' });
