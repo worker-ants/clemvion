@@ -12,10 +12,24 @@ import {
 export { isReauthorizeDisabled };
 
 export interface StatusView {
+  /** Main status label rendered next to the colored dot. */
   label: string;
   dotClassName: string;
   tone: "ok" | "warn" | "err";
+  /**
+   * Short diagnostic shown in parentheses next to the label — meant for
+   * error/attention reasons (e.g. `auth_failed`, `oauth_token_exchange_failed`
+   * snippet). Implies an actionable problem.
+   */
   detail?: string;
+  /**
+   * Auxiliary informational caption rendered in a muted tone after the
+   * label, used to convey background-OK signals such as auto-refresh
+   * countdowns. Distinct from `detail` — `subLabel` is *not* an error
+   * indicator. spec/2-navigation/4-integration.md §4.1 헤더 정책 +
+   * Rationale "자동 갱신 통합을 attention 술어에서 제외 (2026-05-17)".
+   */
+  subLabel?: string;
 }
 
 export function computeStatus(integration: IntegrationDto): StatusView {
@@ -64,7 +78,12 @@ export function computeStatus(integration: IntegrationDto): StatusView {
           : undefined,
     };
   }
-  if (expiresSoon) {
+  // expiresSoon 분기는 autoRefresh=false 통합에만 적용 — 짧은-수명 OAuth
+  // 토큰(cafe24 access_token 2h 등) 이 항상 노란 'Expires today' 로
+  // 표시되는 거짓 양성을 막기 위함. autoRefresh=true 통합은 만료 임박
+  // 해도 'Connected' 메인 라벨 유지 + 보조 라벨로만 안내.
+  // spec/2-navigation/4-integration.md §2.4 / §4.1 + Rationale.
+  if (expiresSoon && !integration.autoRefresh) {
     const days = daysUntil(integration.tokenExpiresAt!);
     return {
       label: days <= 0 ? "Expires today" : `Expires in ${days}d`,
@@ -72,7 +91,18 @@ export function computeStatus(integration: IntegrationDto): StatusView {
       tone: "warn",
     };
   }
-  return { label: "Connected", dotClassName: "bg-green-500", tone: "ok" };
+  // Connected 분기. autoRefresh=true + tokenExpiresAt 가 있는 경우 보조
+  // 라벨로 "Auto-renews · in <duration>" 안내.
+  const subLabel =
+    integration.autoRefresh && integration.tokenExpiresAt
+      ? `Auto-renews · in ${humanizeUntil(integration.tokenExpiresAt)}`
+      : undefined;
+  return {
+    label: "Connected",
+    dotClassName: "bg-green-500",
+    tone: "ok",
+    subLabel,
+  };
 }
 
 // EXPIRING_SOON_DAYS — kept in sync with backend `EXPIRING_SOON_INTERVAL`
@@ -92,7 +122,45 @@ function daysUntil(at: string): number {
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
 }
 
+/**
+ * Human-friendly remaining time until the given ISO timestamp, used by the
+ * "Auto-renews · in <X>" subLabel (header status badge) and the Overview
+ * Token Expires row friendly value. Short (< 1h): minutes only. Medium
+ * (< 24h): hours + minutes. Long: days.
+ *
+ * @param at - ISO 8601 timestamp string (UTC). Invalid or already-past
+ *             values return `""` so callers can guard with a truthy check
+ *             without rendering misleading "0m" countdowns.
+ * @returns Localized-agnostic short form (e.g. `"1h 24m"`, `"45m"`, `"3d"`)
+ *          or `""` for past / invalid input.
+ *
+ * spec/2-navigation/4-integration.md §4.1 헤더 메타 라인 규약.
+ */
+export function humanizeUntil(at: string): string {
+  const ms = new Date(at).getTime() - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "less than a minute";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  if (hours < 24) {
+    return remMinutes === 0 ? `${hours}h` : `${hours}h ${remMinutes}m`;
+  }
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
 export function needsAttention(integration: IntegrationDto): boolean {
+  // TODO(autoRefresh 가드): spec/2-navigation/4-integration.md §2.4·§11.4
+  // (PR #139) 가 attention 술어에서 `autoRefresh=true` 통합을 제외하도록
+  // 정의했으나, 본 가드의 frontend 반영과 backend `EXPIRING_SOON_INTERVAL`
+  // 쿼리 변경(`integrations.service.ts:248~275`) 은 같은 PR 에서 동기되어야
+  // 사이드바 카운트·목록 attention 카드와 일관된다. 후속 PR
+  // (`plan/in-progress/integration-token-ui-autorefresh.md` 의 "본 PR 범위
+  // 밖" + `20260516-full-review/SUMMARY.md` W-32 와 병합 처리) 에서 처리.
+  // 그 PR 전까지는 spec PR #139 의 attention 술어와 frontend 구현 사이에
+  // 일시적 불일치 (cafe24 가 사이드바 카운트에 포함) 가 잔존한다.
   if (integration.status === "connected") return isExpiringSoon(integration.tokenExpiresAt);
   if (integration.status === "pending_install") return false;
   return true;
@@ -186,6 +254,11 @@ export function StatusBadge({ integration, className }: StatusBadgeProps) {
       {view.detail ? (
         <span className="text-xs text-[hsl(var(--muted-foreground))]">
           ({view.detail})
+        </span>
+      ) : null}
+      {view.subLabel ? (
+        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+          · {view.subLabel}
         </span>
       ) : null}
     </span>

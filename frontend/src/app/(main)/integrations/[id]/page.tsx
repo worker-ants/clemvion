@@ -27,7 +27,13 @@ import {
   type UsageWorkflow,
 } from "@/lib/api/integrations";
 import { ServiceIcon, prettyAuthType } from "../_shared/service-icons";
-import { StatusBadge } from "../_shared/status-badge";
+import { StatusBadge, humanizeUntil } from "../_shared/status-badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { isReauthorizeDisabled } from "@/lib/integrations/reauthorize";
 import { CredentialsForm } from "../_shared/credentials-form";
 import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
@@ -321,8 +327,17 @@ function OverviewTab({
         label={t("integrations.tokenExpiresLabel")}
         value={
           integration.tokenExpiresAt
-            ? formatDate(integration.tokenExpiresAt, "datetime")
+            ? integration.autoRefresh
+              ? t("integrations.tokenExpiresAuto", {
+                  duration: humanizeUntil(integration.tokenExpiresAt),
+                })
+              : formatDate(integration.tokenExpiresAt, "datetime")
             : "—"
+        }
+        tooltip={
+          integration.autoRefresh && integration.tokenExpiresAt
+            ? formatDate(integration.tokenExpiresAt, "datetime")
+            : undefined
         }
       />
 
@@ -348,11 +363,44 @@ function OverviewTab({
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({
+  label,
+  value,
+  tooltip,
+}: {
+  label: string;
+  value: string;
+  /**
+   * Optional supplementary detail surfaced on hover. Used by the "Token
+   * Expires" row to demote the absolute timestamp behind the friendlier
+   * `Auto-renews · in <duration>` caption (spec/2-navigation/4-integration.md
+   * §4.2). When omitted the row renders without any hover affordance.
+   */
+  tooltip?: string;
+}) {
+  const valueNode = (
+    <div
+      className={cn(
+        "mt-1 break-all text-sm",
+        tooltip && "cursor-help underline decoration-dotted underline-offset-4",
+      )}
+    >
+      {value}
+    </div>
+  );
   return (
     <div>
       <div className="text-xs text-[hsl(var(--muted-foreground))]">{label}</div>
-      <div className="mt-1 break-all text-sm">{value}</div>
+      {tooltip ? (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>{valueNode}</TooltipTrigger>
+            <TooltipContent>{tooltip}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : (
+        valueNode
+      )}
     </div>
   );
 }
