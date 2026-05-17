@@ -1656,6 +1656,46 @@ export class IntegrationOAuthService {
   }
 }
 
+/**
+ * Resolve the access_token expiry instant from a provider's OAuth token
+ * response.
+ *
+ * **Provider quirk (Cafe24)**: Cafe24 의 `/api/v2/oauth/token` 응답은 OAuth
+ * 표준의 `expires_in` (초) 을 돌려주지 않고 `expires_at` (ISO8601 문자열) 만
+ * 돌려준다 ([Cafe24 공식 docs](https://developers.cafe24.com/docs/ko/api/admin/#refresh-access-token)).
+ * 옛 코드는 `expires_in` 만 읽어 cafe24 의 `tokenExpiresAt` 이 항상 null 로
+ * 저장됐고 → `Cafe24ApiClient.ensureFreshToken` 의 `expiresAtMs === null`
+ * 가드에 걸려 proactive refresh 가 영영 실행되지 않아, 신규 cafe24 통합이
+ * Cafe24 의 2h 실 TTL 경과 후 첫 호출에서 `access_token time expired (401)`
+ * 으로 좌초했다 (사용자 보고 2026-05-17).
+ *
+ * **읽기 순서**: 표준 `expires_in` → cafe24 의 `expires_at` ISO string.
+ * 둘 다 없으면 cafe24 한정 2h default (Cafe24 의 documented access_token
+ * 수명). 다른 provider 는 null 유지 (해당 provider 가 expires_in 을 항상
+ * 돌려준다는 기존 가정 유지).
+ *
+ * Exported for direct unit testing.
+ */
+export function parseTokenExpiresAt(
+  provider: OAuthProvider,
+  data: Record<string, unknown>,
+): Date | null {
+  const expiresIn = readNumber(data, 'expires_in');
+  if (expiresIn) {
+    return new Date(Date.now() + expiresIn * 1000);
+  }
+  if (provider === 'cafe24') {
+    const expiresAtStr = readString(data, 'expires_at');
+    if (expiresAtStr) {
+      const parsed = Date.parse(expiresAtStr);
+      if (Number.isFinite(parsed)) return new Date(parsed);
+    }
+    // Cafe24 default — access_token 은 발급 시점 + 2h.
+    return new Date(Date.now() + 2 * 60 * 60 * 1000);
+  }
+  return null;
+}
+
 function normalizeTokenResponse(
   provider: OAuthProvider,
   data: Record<string, unknown>,
@@ -1669,10 +1709,7 @@ function normalizeTokenResponse(
     });
   }
   const refreshToken = readString(data, 'refresh_token') ?? null;
-  const expiresIn = readNumber(data, 'expires_in');
-  const tokenExpiresAt = expiresIn
-    ? new Date(Date.now() + expiresIn * 1000)
-    : null;
+  const tokenExpiresAt = parseTokenExpiresAt(provider, data);
 
   // Cafe24 returns `scopes` as an ARRAY (e.g. `["mall.read_product", ...]`).
   // OAuth standard providers (google/github) return `scope` as a space- or

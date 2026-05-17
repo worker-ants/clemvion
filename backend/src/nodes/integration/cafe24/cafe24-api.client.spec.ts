@@ -732,6 +732,94 @@ describe('Cafe24ApiClient', () => {
       delete process.env.CAFE24_CLIENT_SECRET;
     });
 
+    // 회귀 보호 (2026-05-17) — Cafe24 의 OAuth callback (`normalizeTokenResponse`)
+    // 옛 버전은 표준 `expires_in` 만 읽어, `expires_at` (ISO string) 만 돌려주는
+    // Cafe24 응답에서 `tokenExpiresAt` 이 항상 NULL 로 저장됐다. 그 row 의
+    // `credentials.expires_at` 도 동일 경로로 NULL. 옛 `ensureFreshToken` 은
+    // `expiresAtMs === null` 일 때 silently return 해, 신규 Cafe24 통합이
+    // 2h 후 첫 호출에서 401 (`access_token time expired`) 으로 좌초했다.
+    //
+    // 본 테스트는 callback 측 픽스와 별개로 (즉 이미 NULL 로 저장된 row 들이
+    // 다음 호출에서 자가 회복되도록) `ensureFreshToken` 이 null expiry 를
+    // "needs refresh" 로 해석하는지 검증.
+    it('refreshes proactively when both tokenExpiresAt and credentials.expires_at are NULL (NULL = needs refresh)', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'stale-access',
+          refresh_token: 'stale-refresh',
+          scopes: ['mall.read_product'],
+          // expires_at intentionally absent (옛 callback bug)
+          cafe24_operator_id: 'op-1',
+        },
+        // tokenExpiresAt also NULL (옛 callback bug)
+        tokenExpiresAt: null,
+      });
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      let savedIntegration: Integration | undefined;
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockImplementation(async (e: Integration) => {
+              savedIntegration = e;
+            }),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      // 1) refresh response — Cafe24 의 실제 shape (expires_at ISO string)
+      const newExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({
+          access_token: 'fresh-access',
+          refresh_token: 'fresh-refresh',
+          expires_at: newExpiry.toISOString(),
+        }),
+      );
+      // 2) actual API call
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      const res = await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+      });
+
+      // NULL expiry triggered refresh (2 fetches: token endpoint + API).
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'https://myshop.cafe24api.com/api/v2/oauth/token',
+      );
+
+      // Atomic 4-field UPDATE wrote a real expiry instant, picking up the
+      // ISO `expires_at` from Cafe24's response.
+      expect(savedIntegration).toBeDefined();
+      expect(savedIntegration!.tokenExpiresAt).toBeInstanceOf(Date);
+      expect(savedIntegration!.tokenExpiresAt!.toISOString()).toBe(
+        newExpiry.toISOString(),
+      );
+      expect(savedIntegration!.credentials.access_token).toBe('fresh-access');
+      expect(savedIntegration!.credentials.expires_at).toBe(
+        newExpiry.toISOString(),
+      );
+
+      // 2nd fetch uses the refreshed bearer.
+      expect(
+        (fetchMock.mock.calls[1][1] as RequestInit).headers as Record<
+          string,
+          string
+        >,
+      ).toMatchObject({ Authorization: 'Bearer fresh-access' });
+      expect(res.status).toBe(200);
+
+      delete process.env.CAFE24_CLIENT_ID;
+      delete process.env.CAFE24_CLIENT_SECRET;
+    });
+
     it('refresh 401 marks Integration as auth_failed', async () => {
       const within = new Date(Date.now() + 1000); // 1s — well within REFRESH_WINDOW_MS
       const integration = makeIntegration({
@@ -926,9 +1014,7 @@ describe('Cafe24ApiClient', () => {
 
       queue.add.mockResolvedValue({
         id: integration.id,
-        waitUntilFinished: jest
-          .fn()
-          .mockRejectedValue(new Error('job failed')),
+        waitUntilFinished: jest.fn().mockRejectedValue(new Error('job failed')),
       });
 
       await expect(
