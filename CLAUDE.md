@@ -50,7 +50,7 @@
 
 모든 개발은 반드시 **SDD(Spec-Driven Development)** 와 **TDD(Test-Driven Development)** 로 접근한다. 아래 공통 규약은 **반드시 누락 없이** 지켜진다.
 
-테스트는 unit · integration · **e2e**(`make e2e-test`, `docker-compose.e2e.yml` 기반 격리 인프라) 3 계층으로 운영하며, 영역별 작성·실행 규약은 `.claude/skills/developer/SKILL.md` 의 TEST WORKFLOW 와 E2E TEST WRITING GUIDE 에 위임한다.
+테스트는 unit · integration · **e2e** 3 계층으로 운영한다. 실제 실행 명령·인프라·면제 화이트리스트·e2e 작성 패턴은 모두 [`PROJECT.md`](./PROJECT.md) 의 `§빌드·린트·테스트 명령` / `§e2e 면제 화이트리스트` / `§e2e 테스트 작성 가이드` 를 따른다. workflow 의 generic 단계 정의는 [`developer/SKILL.md`](./.claude/skills/developer/SKILL.md) §TEST WORKFLOW.
 
 ### 정보 저장 위치 (단일 진실 원칙)
 
