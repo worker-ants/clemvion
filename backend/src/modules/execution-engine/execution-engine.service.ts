@@ -298,6 +298,13 @@ function withSourceMarker(
  * `output`. System messages are filtered out for client display, and each
  * remaining message is guaranteed to carry a `source: 'live' | 'injected'`
  * marker per spec/5-system/6-websocket-protocol.md §4.4.6.
+ *
+ * D6 (2026-05-17) — multi-turn 의 `message` / `messages` / `turnCount` /
+ * `maxTurns` 는 waiting/resumed/ended 모두 `output.result.*` 단일 경로로
+ * 통일됐다. 이 함수는 waiting / 첫 진입 시점에서 호출되며 핸들러가 push 한
+ * `output.result.*` 를 그대로 읽어야 한다 (spec/4-nodes/3-ai/1-ai-agent.md
+ * §7.4/§7.5). `output.partial.*` (info-extractor 의 부분 수집 진행 상태)
+ * 은 D6 에서 의미 분리 유지로 top-level 그대로.
  */
 export function buildConversationConfigFromOutput(
   output: Record<string, unknown> | undefined,
@@ -311,9 +318,10 @@ export function buildConversationConfigFromOutput(
   collectionRetryCount?: number;
 } {
   const o = output ?? {};
+  const r = (o.result as Record<string, unknown> | undefined) ?? {};
   const partial = (o.partial as Record<string, unknown> | undefined) ?? {};
   const messagesAll =
-    (o.messages as Array<Record<string, unknown>> | undefined) ?? [];
+    (r.messages as Array<Record<string, unknown>> | undefined) ?? [];
   const result: {
     message: string;
     turnCount: number;
@@ -323,11 +331,11 @@ export function buildConversationConfigFromOutput(
     missingFields?: string[];
     collectionRetryCount?: number;
   } = {
-    message: (o.message as string | undefined) ?? '',
-    turnCount: (o.turnCount as number | undefined) ?? 0,
+    message: (r.message as string | undefined) ?? '',
+    turnCount: (r.turnCount as number | undefined) ?? 0,
     messages: withSourceMarker(messagesAll.filter((m) => m.role !== 'system')),
   };
-  const maxTurns = o.maxTurns as number | undefined;
+  const maxTurns = r.maxTurns as number | undefined;
   if (maxTurns !== undefined) result.maxTurns = maxTurns;
   if (partial.extracted !== undefined)
     result.extracted = partial.extracted as Record<string, unknown>;
