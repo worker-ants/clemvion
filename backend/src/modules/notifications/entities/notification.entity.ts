@@ -52,6 +52,11 @@ export class Notification {
   @Column({ name: 'email_sent_at', type: 'timestamptz', nullable: true })
   emailSentAt: Date;
 
+  // soft delete — NULL=visible, 채워짐=사용자가 닫은 시각.
+  // 목록·미읽음 카운트는 dismissed_at IS NULL 만 본다 (spec/data-flow/8-notifications.md §4).
+  @Column({ name: 'dismissed_at', type: 'timestamptz', nullable: true })
+  dismissedAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }
