@@ -358,11 +358,15 @@ describe('TextClassifierHandler', () => {
       expect((result as any).port).toBe('error');
       assertErrorMeta(result.meta as Record<string, unknown>, 'gpt-4o-mini');
       // Negative assertion — the legacy `output._llmCalls` mirror was
-      // dropped so the error envelope matches spec §5.3 (only `output.error`
-      // + `output.originalInput` at the top level). Catches future drift.
+      // dropped so the error envelope matches spec §5.3. D6 (2026-05-17) —
+      // 종전 top-level `output.originalInput` 폐기, error 케이스는
+      // `output.error.details.originalInput` (truncated 500 char) 만 surface.
       const data = result.output as Record<string, unknown>;
       expect(data).not.toHaveProperty('_llmCalls');
-      expect(data.originalInput).toBe('I need a refund');
+      expect(data).not.toHaveProperty('originalInput');
+      const errorEnvelope = data.error as Record<string, unknown>;
+      const errDetails = errorEnvelope.details as Record<string, unknown>;
+      expect(errDetails.originalInput).toBe('I need a refund');
     });
 
     it('should fall back model from llmConfig.defaultModel when config.model is unset (error path)', async () => {
@@ -832,7 +836,11 @@ describe('TextClassifierHandler', () => {
       assertErrorMeta(result.meta as Record<string, unknown>, 'gpt-4o-mini');
       const data = result.output as Record<string, unknown>;
       expect(data).not.toHaveProperty('_llmCalls');
-      expect(data.originalInput).toBe(
+      // D6 (2026-05-17) — top-level `output.originalInput` 폐기.
+      expect(data).not.toHaveProperty('originalInput');
+      const errEnv = data.error as Record<string, unknown>;
+      const errDetails = errEnv.details as Record<string, unknown>;
+      expect(errDetails.originalInput).toBe(
         'I need a refund and the app is crashing',
       );
     });

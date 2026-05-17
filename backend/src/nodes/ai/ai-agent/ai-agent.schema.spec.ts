@@ -89,9 +89,10 @@ describe('aiAgentNodeOutputSchema', () => {
   // parse successfully, and parseless fields (unknown keys) must pass through.
   // Phase 1 (D) — fixtures now describe the inner `output` namespace of the
   // canonical 5-field NodeHandlerOutput. Single-turn / multi-turn ended /
-  // condition all expose `output.result.*`; errors expose `output.error.*`;
-  // multi-turn waiting/resumed expose `output.messages` (+ optional
-  // `output.interaction`).
+  // condition all expose `output.result.*`; errors expose `output.error.*`.
+  // D6 (2026-05-17) — multi-turn waiting/resumed snapshots 도 `output.result.*`
+  // 단일 경로로 통일 (옛 top-level `output.messages` / `message` / `turnCount`
+  // / `maxTurns` 폐기).
   it('accepts a single-turn success `output.result.*` return', () => {
     const fixture = {
       result: {
@@ -104,12 +105,14 @@ describe('aiAgentNodeOutputSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('accepts a multi-turn waiting `output.messages` return', () => {
+  it('accepts a multi-turn waiting `output.result.*` return (D6)', () => {
     const fixture = {
-      messages: [],
-      message: '',
-      turnCount: 0,
-      maxTurns: 20,
+      result: {
+        messages: [],
+        message: '',
+        turnCount: 0,
+        maxTurns: 20,
+      },
     };
     const result = aiAgentNodeOutputSchema.safeParse(fixture);
     expect(result.success).toBe(true);

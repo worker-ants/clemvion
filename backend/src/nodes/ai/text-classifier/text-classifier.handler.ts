@@ -166,10 +166,10 @@ export class TextClassifierHandler implements NodeHandler {
       const message = error instanceof Error ? error.message : String(error);
       // CONVENTIONS §7 — truncate originalInput in the error envelope so long
       // user prompts / PII don't land full-length in `output.error.details`.
-      // `output.originalInput` (top-level) intentionally carries the full
-      // resolved text — same shape as the success path's
-      // `output.result.originalInput` so downstream nodes can re-inspect the
-      // exact LLM input regardless of which port fired.
+      // D6 (2026-05-17) — 정상 (`output.result.originalInput`) / 에러
+      // (`output.error.details.originalInput`) 모두 단일 경로로 통일.
+      // 종전 top-level `output.originalInput` (full) 은 폐기 — error 시
+      // truncated 버전 (500 char cap) 만 surface 한다.
       const truncatedInput = truncateForErrorDetails(inputField, 500);
       // CONVENTIONS Principle 2 — meta carries execution metrics in every
       // case (success / fallback / error). Token fields are 0-defaulted on
@@ -189,7 +189,6 @@ export class TextClassifierHandler implements NodeHandler {
             message,
             details: { originalInput: truncatedInput },
           },
-          originalInput: inputField,
         },
         meta: {
           durationMs: Date.now() - executeStartedAt,

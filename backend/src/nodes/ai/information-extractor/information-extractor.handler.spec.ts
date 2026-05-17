@@ -430,11 +430,14 @@ describe('InformationExtractorHandler', () => {
       const meta = output.meta as Record<string, unknown>;
       expect(meta.interactionType).toBe('ai_conversation');
 
-      const conv = output.output as Record<string, unknown>;
+      // D6 (2026-05-17) — waiting `output.result.*` 단일 경로.
+      // `partial` 은 result/partial 의미 분리로 별도 슬롯 유지.
+      const outBody = output.output as Record<string, unknown>;
+      const conv = outBody.result as Record<string, unknown>;
       expect(conv.message).toBe('주문번호를 알려주세요');
       expect(conv.turnCount).toBe(1);
       expect(conv.maxTurns).toBe(5);
-      const partial = conv.partial as Record<string, unknown>;
+      const partial = outBody.partial as Record<string, unknown>;
       expect(partial.extracted).toBeDefined();
       const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(1);
@@ -481,7 +484,11 @@ describe('InformationExtractorHandler', () => {
       expect(mockLlmService.chat).not.toHaveBeenCalled();
       const output = result as unknown as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      const conv = output.output as Record<string, unknown>;
+      // D6 — waiting `output.result.*` 단일 경로.
+      const conv = (output.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
       expect(conv.turnCount).toBe(0);
       const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(0);
@@ -628,7 +635,11 @@ describe('InformationExtractorHandler', () => {
 
       const output = result as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      const conv = output.output as Record<string, unknown>;
+      // D6 — resumed waiting `output.result.*` 단일 경로.
+      const conv = (output.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
       expect(conv.message).toBe('다시 주문번호를 알려주세요');
       expect(conv.turnCount).toBe(2);
     });

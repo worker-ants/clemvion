@@ -889,7 +889,11 @@ describe('AiAgentHandler', () => {
       expect(config.mode).toBe('multi_turn');
       expect(config.maxTurns).toBe(10);
 
-      const conv = output.output as Record<string, unknown>;
+      // D6 (2026-05-17) — waiting `output.result.*` 단일 경로.
+      const conv = (output.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
       expect(conv.turnCount).toBe(0);
       expect(conv.message).toBe('');
       expect(conv.messages).toHaveLength(1); // system only
@@ -920,7 +924,11 @@ describe('AiAgentHandler', () => {
 
       const output = result as unknown as Record<string, unknown>;
       expect(output.status).toBe('waiting_for_input');
-      const conv = output.output as Record<string, unknown>;
+      // D6 — waiting `output.result.*` 단일 경로.
+      const conv = (output.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
       expect(conv.turnCount).toBe(0);
       // 시스템 메시지만 있고 user 메시지는 push 되지 않는다.
       expect(conv.messages).toHaveLength(1);
@@ -1009,7 +1017,11 @@ describe('AiAgentHandler', () => {
       const meta = output.meta as Record<string, unknown>;
       expect(meta.interactionType).toBe('ai_conversation');
 
-      const conv = output.output as Record<string, unknown>;
+      // D6 — resumed waiting `output.result.*` 단일 경로.
+      const conv = (output.output as Record<string, unknown>).result as Record<
+        string,
+        unknown
+      >;
       expect(conv.message).toBe('Sure, I can help with that.');
       expect(conv.turnCount).toBe(2);
 
