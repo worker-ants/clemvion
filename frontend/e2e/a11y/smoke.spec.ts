@@ -13,7 +13,7 @@ const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] as const;
  * critical 위반 0 이 Stage 10 종료 기준.
  *
  * dev 서버가 떠 있어야 한다 (`PLAYWRIGHT_BASE_URL` 또는 default
- * http://localhost:3000). dev 서버 미기동 시 Playwright 가 connection refused
+ * http://localhost:3012). dev 서버 미기동 시 Playwright 가 connection refused
  * 로 실패하므로 별도 startup 도구 (webServer) 는 본 단계에서는 도입하지 않는다.
  */
 test.describe("a11y smoke — login page", () => {

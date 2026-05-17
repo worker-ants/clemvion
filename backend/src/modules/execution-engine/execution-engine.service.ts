@@ -4217,13 +4217,25 @@ export class ExecutionEngineService
       );
     }
 
-    const errorPolicyConfig = this.getErrorPolicyConfig(parallelNode);
-    const errorPolicy: ParallelErrorPolicy =
-      errorPolicyConfig.policy === 'skip_node' ||
-      errorPolicyConfig.policy === 'use_default_output' ||
-      errorPolicyConfig.policy === 'route_to_error_port'
-        ? 'continue'
-        : 'stop';
+    // W-7: parallel-specific `config.errorPolicy` 가 1순위. 미지정 시 공통
+    // `errorHandling.policy` 의 매핑으로 fallback (옛 동선 호환). 둘 다 미지정
+    // 이면 'stop'.
+    const parallelErrorPolicyRaw = engineResolvedConfig.errorPolicy;
+    let errorPolicy: ParallelErrorPolicy;
+    if (
+      parallelErrorPolicyRaw === 'stop' ||
+      parallelErrorPolicyRaw === 'continue'
+    ) {
+      errorPolicy = parallelErrorPolicyRaw;
+    } else {
+      const errorPolicyConfig = this.getErrorPolicyConfig(parallelNode);
+      errorPolicy =
+        errorPolicyConfig.policy === 'skip_node' ||
+        errorPolicyConfig.policy === 'use_default_output' ||
+        errorPolicyConfig.policy === 'route_to_error_port'
+          ? 'continue'
+          : 'stop';
+    }
 
     const plan = this.planParallelBody(
       parallelNode,

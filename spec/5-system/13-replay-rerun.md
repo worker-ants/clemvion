@@ -25,7 +25,7 @@
 
 ### 3. 본 spec 이 다루는 범위
 
-- Re-run 의 **API 계약** (`POST /api/v1/executions/:executionId/re-run`)
+- Re-run 의 **API 계약** (`POST /api/executions/:executionId/re-run`)
 - 외부 부수효과 안전장치 — **확인 모달 + dry-run 토글** (A5 결정)
 - 입력 데이터 모달 UX — 원본 미리보기 + 사용자 편집 (B2)
 - 데이터 모델 — `re_run_of` self-FK + `chain_id` UUID + chain 깊이 32 제한 (E3)
@@ -183,7 +183,7 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 
 ## 8. API
 
-### 8.1 POST /api/v1/executions/:executionId/re-run
+### 8.1 POST /api/executions/:executionId/re-run
 
 원본 실행을 기반으로 새 Execution 을 시작한다.
 
@@ -230,7 +230,7 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 
 본 엔드포인트는 [Spec API 규칙 §5](./2-api-convention.md) 의 표준 응답 envelope 와 [Spec 에러 처리](./3-error-handling.md) 의 에러 shape 를 그대로 따른다.
 
-### 8.2 GET /api/v1/executions/:executionId/chain
+### 8.2 GET /api/executions/:executionId/chain
 
 같은 chain 의 모든 실행을 시간 순으로 반환 (실행 상세 페이지의 chain badge 가 사용).
 
@@ -313,7 +313,7 @@ dry-run 모드로 실행된 NodeExecution 은 별도 컬럼 추가 없이 `outpu
 | 입력 데이터 폼 | 원본의 `inputData.parameters` | Manual Trigger parameters 스키마 기반 동적 폼. 필드 라벨/타입은 워크플로의 manual_trigger 노드 config 에서 도출 ([Spec 실행 엔진 §6.1.1](./4-execution-engine.md#611-트리거-입력-파라미터-seeding)) |
 | "원본 입력 그대로 사용" 토글 | OFF (편집 가능) | ON 으로 두면 폼 read-only + "재실행" 버튼이 한 클릭 경로 |
 | "dry-run 모드" 토글 | OFF | 워크플로에 `supportsDryRun: false` 노드가 있으면 disabled + tooltip "이 워크플로는 dry-run 미지원 노드를 포함합니다 (RR-PL-01)" |
-| "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/v1/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/workflows/:workflowId/executions/:newId`) |
+| "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/workflows/:workflowId/executions/:newId`) |
 | "취소" 버튼 | — | 모달 닫기. 변경 입력 폐기 |
 
 ### 10.3 Chain 표시

@@ -69,6 +69,29 @@ describe("PresentationContent", () => {
       expect(screen.getByText("Paragraph")).toBeDefined();
     });
 
+    it("strips inline style attribute from html (W-3)", () => {
+      // style 은 CSS 속성을 따로 화이트리스트 하기 어려워 ALLOWED_ATTR 에서 제거.
+      // class 는 유지 — 미리 정의된 클래스만 의도된 시각 효과를 가진다.
+      const { container } = render(
+        <PresentationContent
+          result={makeResult({
+            outputData: {
+              config: { outputFormat: "html" },
+              output: {
+                rendered:
+                  '<div class="kept" style="background:url(javascript:alert(1))">A</div>',
+              },
+            },
+          })}
+        />,
+      );
+
+      const div = container.querySelector("div.kept");
+      expect(div).not.toBeNull();
+      expect(div!.getAttribute("style")).toBeNull();
+      expect(div!.getAttribute("class")).toBe("kept");
+    });
+
     it("renders markdown preview", () => {
       render(
         <PresentationContent

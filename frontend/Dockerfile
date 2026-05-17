@@ -40,7 +40,7 @@ RUN cd frontend && npm run build
 FROM node:24-alpine AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
+ENV PORT=3012
 ENV HOSTNAME=0.0.0.0
 WORKDIR /app
 
@@ -51,5 +51,5 @@ COPY --from=builder --chown=node:node /app/frontend/.next/static ./frontend/.nex
 COPY --from=builder --chown=node:node /app/frontend/public ./frontend/public
 
 USER node
-EXPOSE 3000
+EXPOSE 3012
 CMD ["node", "frontend/server.js"]

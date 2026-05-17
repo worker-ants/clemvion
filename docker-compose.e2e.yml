@@ -182,5 +182,5 @@ services:
       - "npm ci && npx playwright install --with-deps chromium && npm run e2e"
     environment:
       CI: "true"
-      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      PLAYWRIGHT_BASE_URL: http://localhost:3012
     profiles: ["test"]

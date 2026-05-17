@@ -180,7 +180,7 @@ S3_REGION=us-east-1
 # App
 APP_PORT=3011
 APP_URL=http://localhost:3011
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:3012
 
 # Email (dev: console / prod: smtp)
 MAIL_TRANSPORT=console
@@ -223,7 +223,7 @@ npm run dev
 
 > `make setup-githooks` 는 `git config core.hooksPath .githooks` 한 줄을 실행한다. 자세한 차단 정책은 `CLAUDE.md` 의 "Enforcement (자동 차단 3-layer)" 절 참고.
 
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:3012
 - Backend API: http://localhost:3011/api
 - MinIO Console: http://localhost:9001
 
@@ -360,8 +360,8 @@ GOOGLE_CLIENT_ID=<복사한 client id>.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=<복사한 client secret>
 ```
 
-# 프론트엔드 리다이렉트 대상 (기본값이 3002라서 실제 포트와 일치하는지 확인)
+# 프론트엔드 리다이렉트 대상 (기본 3012; frontend/.env 의 PORT 와 일치해야 함)
 ```text
-FRONTEND_URL=http://localhost:3002
+FRONTEND_URL=http://localhost:3012
 APP_URL=http://localhost:3011
 ```

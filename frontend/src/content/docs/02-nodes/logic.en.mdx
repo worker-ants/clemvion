@@ -409,7 +409,7 @@ Because the Background body runs detached from the main flow, downstream nodes c
 - **Direct API call**: when a downstream node needs to poll the body state, use the `meta.backgroundRunId` emitted by the Background node:
 
   ```
-  GET /api/v1/executions/{executionId}/background-runs/{backgroundRunId}
+  GET /api/executions/{executionId}/background-runs/{backgroundRunId}
   ```
 
   The response carries `status`, `startedAt`, `completedAt`, the body NodeExecutions (cursor paginated), and related notifications. Only the user who started the execution or any workspace member with Editor+ rights can read it. Full response shape is documented in spec [Background §8](/spec/4-nodes/1-logic/12-background.md#8-모니터링-api).

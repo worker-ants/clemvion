@@ -9,11 +9,13 @@ import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('Parallel node', () => {
-  it('스키마 기본값: branchCount=2, maxConcurrency=0, waitAll=true', () => {
+  it('스키마 기본값: branchCount=2, maxConcurrency=0, waitAll=true, errorPolicy=stop', () => {
     const parsed = parallelNodeConfigSchema.parse({});
     expect(parsed.branchCount).toBe(2);
     expect(parsed.maxConcurrency).toBe(0);
     expect(parsed.waitAll).toBe(true);
+    // W-7
+    expect(parsed.errorPolicy).toBe('stop');
   });
 
   it('스키마: 명시적으로 값을 전달하면 그대로 유지', () => {
@@ -21,10 +23,18 @@ describe('Parallel node', () => {
       branchCount: 4,
       maxConcurrency: 2,
       waitAll: false,
+      errorPolicy: 'continue',
     });
     expect(parsed.branchCount).toBe(4);
     expect(parsed.maxConcurrency).toBe(2);
     expect(parsed.waitAll).toBe(false);
+    expect(parsed.errorPolicy).toBe('continue');
+  });
+
+  it('스키마: errorPolicy 가 enum 외 값이면 reject (W-7)', () => {
+    expect(() =>
+      parallelNodeConfigSchema.parse({ errorPolicy: 'silly' }),
+    ).toThrow();
   });
 
   it('메타데이터: type=parallel, category=logic', () => {
@@ -151,6 +161,21 @@ describe('Parallel node', () => {
       expect(
         validateParallelConfig({ branchCount: 4, waitAll: 'yes' }),
       ).toContain('waitAll must be a boolean.');
+    });
+
+    it('rejects errorPolicy 외 값 (W-7)', () => {
+      expect(
+        validateParallelConfig({ branchCount: 2, errorPolicy: 'panic' }),
+      ).toContain("errorPolicy must be 'stop' or 'continue'.");
+    });
+
+    it('errorPolicy=stop / continue 는 통과 (W-7)', () => {
+      expect(
+        validateParallelConfig({ branchCount: 2, errorPolicy: 'stop' }),
+      ).toEqual([]);
+      expect(
+        validateParallelConfig({ branchCount: 2, errorPolicy: 'continue' }),
+      ).toEqual([]);
     });
   });
 

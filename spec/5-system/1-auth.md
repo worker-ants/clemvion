@@ -65,7 +65,7 @@
 #### 1.5.2 흐름 (미가입자 가입 경로)
 
 ```
-1. Admin+ 가 POST /api/v1/workspaces/:id/invitations { email, role }
+1. Admin+ 가 POST /api/workspaces/:id/invitations { email, role }
    → 토큰 생성, expiresAt = NOW() + 7d, 이메일 발송
 2. 수신자가 메일의 링크 클릭 → 프론트엔드 가입 페이지 `/auth/register?invitationToken={token}`
 3. 프론트엔드: GET /api/invitations/:token 로 메타 prefetch

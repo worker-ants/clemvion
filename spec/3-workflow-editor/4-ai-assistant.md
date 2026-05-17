@@ -445,7 +445,7 @@ interface RuntimePortDescriptor {
 | 항목 | 값 |
 |------|-----|
 | Method | `POST` |
-| Path | `/api/v1/workflow-assistant/sessions/{sessionId}/messages` |
+| Path | `/api/workflow-assistant/sessions/{sessionId}/messages` |
 | Content-Type | 요청: `application/json` · 응답: `text/event-stream` |
 | Auth | JWT (기존 `Authorization: Bearer`) |
 | Role | `editor` 이상 |
@@ -555,18 +555,18 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 
 | Method | Path | 설명 |
 |--------|------|------|
-| `GET` | `/api/v1/workflow-assistant/sessions?workflowId={id}` | 특정 워크플로우의 세션 목록 (최근순) |
-| `POST` | `/api/v1/workflow-assistant/sessions` | 세션 생성. Body: `{workflowId, llmConfigId?}`. Response: 세션 엔티티 |
-| `GET` | `/api/v1/workflow-assistant/sessions/{id}` | 세션 메타데이터 + 메시지 전체 |
-| `PATCH` | `/api/v1/workflow-assistant/sessions/{id}` | `{title?, llmConfigId?}` 업데이트 |
-| `DELETE` | `/api/v1/workflow-assistant/sessions/{id}` | 세션 삭제 (cascade로 메시지 삭제) |
-| `POST` | `/api/v1/workflow-assistant/sessions/{id}/messages` | **SSE 스트림**. 사용자 메시지 전송 + assistant 응답 스트림 (§5) |
+| `GET` | `/api/workflow-assistant/sessions?workflowId={id}` | 특정 워크플로우의 세션 목록 (최근순) |
+| `POST` | `/api/workflow-assistant/sessions` | 세션 생성. Body: `{workflowId, llmConfigId?}`. Response: 세션 엔티티 |
+| `GET` | `/api/workflow-assistant/sessions/{id}` | 세션 메타데이터 + 메시지 전체 |
+| `PATCH` | `/api/workflow-assistant/sessions/{id}` | `{title?, llmConfigId?}` 업데이트 |
+| `DELETE` | `/api/workflow-assistant/sessions/{id}` | 세션 삭제 (cascade로 메시지 삭제) |
+| `POST` | `/api/workflow-assistant/sessions/{id}/messages` | **SSE 스트림**. 사용자 메시지 전송 + assistant 응답 스트림 (§5) |
 
 모든 엔드포인트는 `editor` 이상 역할이 필요하고, `workspace_id`는 JWT에서 주입된다.
 
 ### 6.0 Assistant message 응답 필드
 
-`GET /api/v1/workflow-assistant/sessions/{id}` 응답의 `messages[*]` 는 기본적으로 `WorkflowAssistantMessage` entity 를 그대로 직렬화한다. 다음 필드가 **자동 재개** 이력을 기록한다:
+`GET /api/workflow-assistant/sessions/{id}` 응답의 `messages[*]` 는 기본적으로 `WorkflowAssistantMessage` entity 를 그대로 직렬화한다. 다음 필드가 **자동 재개** 이력을 기록한다:
 
 | 필드 | 타입 | 의미 |
 |------|------|------|
