@@ -15,8 +15,23 @@
  *   - transformer 가 평문이면 암호화, 이미 enc:v1: 프리픽스면 그대로 (idempotent)
  *   - 실패 시 row id 출력 후 계속 (graceful per-row)
  */
+import * as path from 'path';
+import * as dotenv from 'dotenv';
 import { DataSource } from 'typeorm';
 import { AuthConfig } from '../modules/auth-configs/entities/auth-config.entity';
+
+// Load `backend/.env` relative to this script so the CLI works from any CWD.
+// `dotenv.config` does not override values already in process.env, so Docker
+// env injection and inline overrides keep winning.
+{
+  const envPath = path.resolve(__dirname, '..', '..', '.env');
+  const result = dotenv.config({ path: envPath });
+  if (result.error && require.main === module) {
+    console.warn(
+      `[encrypt-auth-config] .env not loaded at ${envPath} (${result.error.message}) — relying on process.env only.`,
+    );
+  }
+}
 
 async function main(): Promise<void> {
   const key = process.env.INTEGRATION_ENCRYPTION_KEY;
@@ -31,9 +46,9 @@ async function main(): Promise<void> {
     type: 'postgres',
     host: process.env.DB_HOST ?? 'localhost',
     port: Number(process.env.DB_PORT ?? 5432),
-    username: process.env.DB_USER ?? 'postgres',
-    password: process.env.DB_PASS ?? 'postgres',
-    database: process.env.DB_NAME ?? 'clemvion',
+    username: process.env.DB_USERNAME ?? 'workflow',
+    password: process.env.DB_PASSWORD ?? 'workflow_dev',
+    database: process.env.DB_DATABASE ?? 'workflow',
     entities: [AuthConfig],
     synchronize: false,
   });
