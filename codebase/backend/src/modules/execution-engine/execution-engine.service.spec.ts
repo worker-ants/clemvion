@@ -2142,6 +2142,100 @@ describe('ExecutionEngineService', () => {
       expect(payload.durationMs).toBe(120);
     });
 
+    // multi-turn 후속 turn 의 NodeExecution.outputData DB 영속 회귀 가드.
+    //
+    // 버그: 워크플로 실행 중인 AI Agent multi-turn 의 첫 turn 후속(2번째 turn
+    // 부터)에서 `handleAiMessageTurn` 의 waiting_for_input 분기가 in-memory
+    // context cache 만 갱신하고 `nodeExecutionRepository.save` 를 호출하지 않아,
+    // 같은 실행을 다른 탭(실행 상세 페이지)에서 열면 첫 user 메시지 외 후속
+    // user/assistant/tool 메시지가 표시되지 않았다.
+    //
+    // spec/5-system/4-execution-engine.md §646 — "NodeExecution.outputData
+    // 가 영구 SoT". spec/4-nodes/3-ai/1-ai-agent.md §7.4 — "종료 조건 미충족
+    // 시 다시 waiting_for_input — output.result.messages 가 누적 상태로 갱신".
+    it('persists outputData (messages + interactionType + _resumeState strip) on multi-turn follow-up waiting turn', async () => {
+      const handler = makeAiAgentHandler(() => ({
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            messages: [
+              { role: 'user', content: 'hi' },
+              { role: 'assistant', content: 'hello' },
+            ],
+            message: 'hello',
+            turnCount: 1,
+          },
+        },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [
+            { role: 'user', content: 'hi' },
+            { role: 'assistant', content: 'hello' },
+          ],
+          turnCount: 1,
+          model: 'test-model',
+          totalInputTokens: 5,
+          totalOutputTokens: 2,
+          turnDebugHistory: [
+            { turnIndex: 1, llmCalls: [], totalDurationMs: 120 },
+          ],
+          // 민감 internal state — DB 에 새어 나가면 WARN #6 회귀.
+          systemPrompt: 'INTERNAL_SYSTEM_PROMPT_SHOULD_NOT_PERSIST',
+          llmConfigId: 'cred-leak-canary',
+        },
+      }));
+      handlerRegistry.register('ai_agent', handler);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // 첫 turn waiting 진입 시점의 save 호출은 무시 — 후속 turn 만 검증.
+      mockNodeExecutionRepo.save.mockClear();
+
+      service.continueAiConversation(executionId, 'hi');
+      await flushPromises();
+
+      // 후속 turn waiting 분기에서 NodeExecution save 가 호출되어야 한다.
+      // (Button/Form 대기 및 첫 turn 대기와 동일 패턴.)
+      expect(mockNodeExecutionRepo.save).toHaveBeenCalled();
+
+      // save 된 entity 중 ai_agent 노드의 것 한 건 이상.
+      const savedAgentRows = mockNodeExecutionRepo.save.mock.calls
+        .map((call: unknown[]) => call[0] as Partial<NodeExecution>)
+        .filter((e) => e?.nodeId === 'node-agent');
+      expect(savedAgentRows.length).toBeGreaterThanOrEqual(1);
+
+      const persisted = savedAgentRows[savedAgentRows.length - 1];
+      const outputData = persisted.outputData as Record<string, unknown>;
+      expect(outputData).toBeDefined();
+
+      // (a) 누적 messages 가 outputData.output.result.messages 에 반영.
+      const output = outputData.output as Record<string, unknown> | undefined;
+      const result = output?.result as Record<string, unknown> | undefined;
+      const messages = result?.messages as Array<Record<string, unknown>>;
+      expect(Array.isArray(messages)).toBe(true);
+      expect(messages.length).toBeGreaterThanOrEqual(2);
+      expect(messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'user', content: 'hi' }),
+          expect.objectContaining({ role: 'assistant', content: 'hello' }),
+        ]),
+      );
+
+      // (b) meta.interactionType 이 'ai_conversation' 으로 마킹 — REST snapshot
+      // hydration 분기 정합성 (snapshot reconcile 가 ai_conversation 분기로 진입).
+      const meta = outputData.meta as Record<string, unknown> | undefined;
+      expect(meta?.interactionType).toBe('ai_conversation');
+
+      // (c) WARN #6 회귀 가드 — `_resumeState` 는 DB 영속 페이로드에서 strip.
+      expect(outputData).not.toHaveProperty('_resumeState');
+      // 페이로드 전체를 직렬화해 internal 식별자가 한 줄도 흘러나가지 않았는지 확인.
+      const serialized = JSON.stringify(outputData);
+      expect(serialized).not.toContain('INTERNAL_SYSTEM_PROMPT_SHOULD_NOT_PERSIST');
+      expect(serialized).not.toContain('cred-leak-canary');
+    });
+
     // WARN #21 — endAiConversation 종료 흐름 전체 테스트.
     //
     // 시나리오:
