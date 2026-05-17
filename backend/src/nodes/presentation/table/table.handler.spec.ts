@@ -417,60 +417,22 @@ describe('TableHandler', () => {
       expect(rows[0]).toEqual({ name: 'Test' });
     });
 
-    // Rendered HTML
-    it('should include rendered HTML in output', async () => {
+    // D5 (2026-05-17) — `output.rendered` 폐기. frontend `TableContent` 가
+    // `rows` + `columns` 로 직접 렌더하므로 backend 의 HTML snapshot 생성
+    // 책임이 사라졌다. 기존 "rendered HTML / escaping / value formatting"
+    // 케이스들은 frontend renderer 테스트로 책임이 이동.
+    it('should expose rows and columns for client-side rendering', async () => {
       const result = (await handler.execute(
         [{ name: 'Alice' }],
         { columns: [{ field: 'name', label: 'Name' }] },
         context,
       )) as unknown as Record<string, unknown>;
 
-      expect(result.output.rendered).toBeDefined();
-      expect(typeof result.output.rendered).toBe('string');
-      expect(result.output.rendered as string).toContain('<table>');
-      expect(result.output.rendered as string).toContain('Alice');
-    });
-
-    it('should escape HTML in rendered output', async () => {
-      const result = (await handler.execute(
-        [{ name: '<script>alert("xss")</script>' }],
-        { columns: [{ field: 'name', label: 'Name' }] },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      expect(result.output.rendered as string).not.toContain('<script>');
-      expect(result.output.rendered as string).toContain('&lt;script&gt;');
-    });
-
-    it('should render object values as JSON string', async () => {
-      const result = (await handler.execute(
-        null,
-        {
-          mode: 'static',
-          columns: [{ field: 'col0', label: 'Data' }],
-          rows: [{ col0: { nested: 'value' } }],
-        },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      // HTML escaping converts quotes to &quot;
-      expect(result.output.rendered as string).toContain(
-        '{&quot;nested&quot;:&quot;value&quot;}',
-      );
-    });
-
-    it('should render array values as JSON string', async () => {
-      const result = (await handler.execute(
-        null,
-        {
-          mode: 'static',
-          columns: [{ field: 'col0', label: 'List' }],
-          rows: [{ col0: [1, 2, 3] }],
-        },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      expect(result.output.rendered as string).toContain('[1,2,3]');
+      expect(result.output.rendered).toBeUndefined();
+      const rows = result.output.rows as Array<Record<string, unknown>>;
+      const columns = result.output.columns as Array<Record<string, unknown>>;
+      expect(rows).toEqual([{ name: 'Alice' }]);
+      expect(columns).toEqual([{ field: 'name', label: 'Name' }]);
     });
 
     it('should sort stably when some values are null', async () => {
@@ -811,37 +773,9 @@ describe('TableHandler', () => {
       ).toBeLessThanOrEqual(1024 * 1024);
     });
 
-    it('rendered HTML is generated from the capped rows, not the full dataset', async () => {
-      // Regression for ai-review CRIT #1: a downstream node reading
-      // `output.rendered` must not see HTML for rows that were dropped
-      // from `output.rows` — otherwise the cap leaks via rendered.
-      const heavy = 'q'.repeat(200 * 1024);
-      const sourceRows = Array.from({ length: 6 }, (_, i) => ({
-        idx: `row-${i}`,
-        blob: heavy,
-      }));
-
-      const result = (await handler.execute(
-        sourceRows,
-        {
-          mode: 'dynamic',
-          columns: [
-            { field: 'idx', label: 'Idx' },
-            { field: 'blob', label: 'Blob' },
-          ],
-        },
-        context,
-      )) as unknown as Record<string, unknown>;
-
-      const out = result.output as Record<string, unknown>;
-      const rows = out.rows as Array<Record<string, unknown>>;
-      const rendered = out.rendered as string;
-      for (const row of rows) {
-        expect(rendered).toContain(row.idx as string);
-      }
-      for (let i = rows.length; i < sourceRows.length; i++) {
-        expect(rendered).not.toContain(`row-${i}`);
-      }
-    });
+    // D5 (2026-05-17) — `output.rendered` 폐기로 "rendered cap" 회귀 케이스는
+    // 더 이상 적용되지 않는다 (`rows` cap 만으로 충분, frontend 가 cap 후
+    // rows 로 직접 렌더). cap 자체 검증은 위 케이스("응답을 PRESENTATION_MAX_BYTES
+    // 이하로 자른다") 가 계속 보호.
   });
 });

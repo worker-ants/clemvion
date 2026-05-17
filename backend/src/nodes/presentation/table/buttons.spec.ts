@@ -53,7 +53,8 @@ describe('TableHandler - Buttons', () => {
       expect(result.status).toBe('waiting_for_input');
       expect(result.meta?.interactionType).toBe('buttons');
       expect(result.output.rows).toBeDefined();
-      expect(result.output.rendered).toBeDefined();
+      // D5 (2026-05-17) — `output.rendered` 폐기. frontend client-side 렌더.
+      expect(result.output.rendered).toBeUndefined();
     });
 
     it('should return normal output without buttons', async () => {

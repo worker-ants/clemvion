@@ -177,7 +177,6 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
       { "name": "Bob", "email": "bob@test.com" }
     ],
     "totalRows": 2,
-    "rendered": "<table><thead><tr><th>Name</th><th>Email</th></tr></thead><tbody>…</tbody></table>",
     "columns": [
       { "field": "name", "label": "Name" },
       { "field": "email", "label": "Email" }
@@ -185,6 +184,8 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
   }
 }
 ```
+
+> **D5 결정 (2026-05-17) — `output.rendered` 폐기, frontend client-side 렌더로 전환** (plan/in-progress/node-output-redesign D5): backend 는 HTML snapshot 을 더 이상 생성하지 않는다. 다운스트림/UI 는 `output.rows` + `output.columns` 로 직접 렌더한다 (Carousel/Chart 와 완전 일관). escape 책임은 표시 계층 (React JSX 자동 escape) 으로 이동. 다운스트림 expression `$node["T"].output.rendered` 참조 워크플로는 깨지므로 마이그레이션 필요.
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
@@ -194,7 +195,6 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
 | `config.sortBy` / `config.sortOrder` | string? / enum? | config echo | 정렬 설정 (sortBy 있을 때만 echo) |
 | `output.rows` | `Record<string, unknown>[]` | runtime | static: `columns[*].field` 기준으로 필터링된 행 / dynamic: `dataSource` 항목별로 평가된 셀. cap 후 잘린 결과일 수 있음 |
 | `output.totalRows` | number | runtime | **cap 적용 전** 데이터셋 크기 (pageSize / sort 적용 후). `rows.length !== totalRows` 만으로 cap 감지 가능 |
-| `output.rendered` | string | runtime | cap 적용된 `rows` 로부터 생성한 HTML 테이블. `<script>` 등은 escape |
 | `output.columns` | ColumnDef[] | runtime | `label` 표현식이 평가된 컬럼 (dynamic 모드 한정). config 의 raw label 과 직교 (Principle 1.1 / Principle 7) |
 | `output.rowsTruncated?` | `true` | runtime — cap 동작 시에만 | 1MB cap 으로 tail 이 잘렸음을 표시 |
 | `output.rowsTotalCount?` | number | runtime — cap 동작 시에만 | cap 전 element 개수 |
@@ -235,7 +235,6 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
       { "name": "Bob", "email": "bob@test.com" }
     ],
     "totalRows": 2,
-    "rendered": "<table>…</table>",
     "columns": [
       { "field": "name", "label": "Name" },
       { "field": "email", "label": "Email" }
@@ -252,7 +251,7 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.*` | (§5.1 + 추가) | config echo | §5.1 의 모든 필드 + `buttons` (raw ButtonDef[]) + `buttonConfig.buttons` (엔진 입력 페이로드) |
-| `output.rows` / `output.totalRows` / `output.rendered` / `output.columns` | (§5.1 동일) | runtime | 동일. waiting 시점의 immutable snapshot |
+| `output.rows` / `output.totalRows` / `output.columns` | (§5.1 동일) | runtime | 동일. waiting 시점의 immutable snapshot |
 | `output.rowsTruncated?` / `output.rowsTotalCount?` | (§5.1 동일) | runtime — cap 동작 시 | 동일 |
 | `meta.interactionType` | `'buttons'` | handler return | UI 가 어떤 인터랙션을 그릴지 결정 |
 | `meta.durationMs` | number | handler return (engine override) | 엔진이 실제 측정값으로 덮어씀 — 핸들러는 `0` 으로 placeholder |
@@ -262,7 +261,7 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
 
 ### 5.5 Case: Resumed (버튼 클릭 / Continue 후)
 
-엔진이 사용자 입력을 받아 §5.4 의 `output` 에 `interaction` 을 추가하고 `port` / `status` 를 갱신한다. waiting 시점의 `rows` / `totalRows` / `rendered` / `columns` 는 immutable snapshot 으로 유지된다 ([공통 §4.2](./0-common.md#42-resumed-버튼-클릭--폼-제출-후) / CONVENTIONS §4.4).
+엔진이 사용자 입력을 받아 §5.4 의 `output` 에 `interaction` 을 추가하고 `port` / `status` 를 갱신한다. waiting 시점의 `rows` / `totalRows` / `columns` 는 immutable snapshot 으로 유지된다 ([공통 §4.2](./0-common.md#42-resumed-버튼-클릭--폼-제출-후) / CONVENTIONS §4.4).
 
 #### 5.5.1 port 버튼 클릭
 
@@ -275,7 +274,6 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
       { "name": "Bob", "email": "bob@test.com" }
     ],
     "totalRows": 2,
-    "rendered": "<table>…</table>",
     "columns": [ /* waiting snapshot 유지 */ ],
     "interaction": {
       "type": "button_click",
@@ -313,7 +311,6 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
   "output": {
     "rows": [ /* waiting snapshot */ ],
     "totalRows": 2,
-    "rendered": "<table>…</table>",
     "columns": [ /* waiting snapshot */ ],
     "interaction": {
       "type": "button_continue",
