@@ -190,7 +190,7 @@ make e2e-test-full
 **금지 사항** (자동 후속 흐름에서 e2e 우회는 절대 허용 안 됨):
 
 - **GitHub Action / CI 로 미루기 금지**. CI 가 같은 명령을 다시 실행하더라도 그것은 본 흐름의 검증을 대체하지 않는다. **push 전에 로컬 e2e 가 통과해야 RESOLUTION 단계 (8.6) 진입**.
-- **`[skip-e2e]` 커밋 표기 사용 금지**. developer/SKILL.md 의 `[skip-e2e]` 옵션은 사람 개발자가 의식적으로 판단하는 경우에 한정되며, /ai-review 자동 후속 흐름에서는 적용하지 않는다. 자동 흐름이 만든 fix commit 은 반드시 e2e 통과로 검증.
+- **`[skip-e2e]` 커밋 표기 사용 금지**. `developer/SKILL.md` 의 TEST WORKFLOW 도 `[skip-e2e]` **자체 발급을 금지**하며, 수동 흐름의 면제는 화이트리스트 또는 사용자 명시 승인 후 RESOLUTION 기록 형태로만 가능하다. /ai-review 자동 후속 흐름은 그보다 더 엄격해서 ai-review 가 fix 한 코드 변경은 무조건 e2e 통과로 검증해야 한다.
 - **단위·통합 테스트로 대체 금지**. unit / integration / lint / typecheck 가 모두 통과해도 e2e 는 별개. multi-actor·인프라 회귀를 검출하는 유일한 안전망이다.
 - **변경 영역이 작아 보여도 실행**. "UI 트윅이라 e2e 불필요" 같은 판단은 자동 흐름에서 금지. ai-review 가 fix 한 코드 변경이 있는 한 e2e 는 무조건 실행.
 
@@ -212,13 +212,14 @@ e2e 실패 → 단계 8.5.
 
 #### 8.6 RESOLUTION.md 작성
 
-성공 종료 시 `review/code/<...>/RESOLUTION.md` 에 다음을 기록:
+성공 종료 시 `review/code/<...>/RESOLUTION.md` 에 `developer/SKILL.md` 의 **RESOLUTION.md mandatory schema** 를 그대로 따른다. 자동 흐름에서도 동일한 schema 가 적용된다 — 누락된 섹션이 있으면 8.6 이 끝난 것이 아니다.
 
-- 해결한 Critical / Warning 항목 (SUMMARY 의 #번호 와 매핑)
-- 각 항목의 fix commit hash + 영향 파일
-- e2e 결과 (통과·반복 횟수)
-- INFO 등급 중 별도 plan 으로 옮긴 항목 (필요 시 `plan/in-progress/` 추가)
-- 보류 항목 (사용자 결정 필요)
+자동 흐름 특수 규칙:
+
+- `## TEST 결과` 의 e2e 줄은 자동 흐름에서 두 형식만 허용된다 — **통과** 또는 **자동 흐름 환경 차단** (단계 8.7 의 docker 인프라 실행 불가). "면제 (화이트리스트)" / "보류 (사용자 승인)" 은 수동 흐름 전용이며 자동 흐름에서는 8.4 의 "skip 절대 금지" 정책으로 인해 발급 불가.
+- 환경 차단으로 보류한 경우, 자동 진행을 멈추고 사용자에게 `needs input:` 으로 환경 복구를 요청한다 (RESOLUTION 에 보류 표기 + 8.7 안전 가드 인용).
+- 해결한 Critical / Warning 항목은 SUMMARY 의 #번호 와 매핑하여 `## 조치 항목` 에 기록.
+- INFO 등급 중 별도 plan 으로 옮긴 항목은 `## 보류·후속 항목` 에 plan 경로 함께 기록.
 
 #### 8.7 안전 가드 요약
 
