@@ -152,6 +152,14 @@ export const integrations: Dict["integrations"] = {
   authTypeLabel2: "Authentication Type",
   oauthScopesLabel: "OAuth Scopes",
   recommendedBadge: "Recommended",
+  approvalRequiredBadge: "Approval required",
+  approvalRequiredTooltip:
+    "This permission requires Cafe24 partner approval. Without approval, the OAuth flow may reject it as invalid_scope, or API calls may return 403.",
+  approvalInquiryLink: "Contact Cafe24 Developer Center →",
+  cafe24RestrictedScopeNotice:
+    "{{count}} of your selected scopes require Cafe24 partner approval. Without approval, the OAuth flow or subsequent API calls may fail.",
+  cafe24RestrictedApprovalApiError:
+    "This permission requires Cafe24 partner approval — {{scopes}}",
   cafe24ScopeWarning:
     "Cafe24 only allows OAuth requests for scopes pre-registered on the app. Every scope you tick here must also be enabled at Cafe24 Developers → My App → Permissions (Scope) — if even one is missing, the OAuth call is rejected with invalid_scope. Start with a single scope and add more once it works.",
   cafe24PrivatePendingTitle: "Complete the Cafe24 Developers setup",

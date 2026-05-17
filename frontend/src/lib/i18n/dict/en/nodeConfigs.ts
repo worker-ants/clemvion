@@ -139,6 +139,7 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     cafe24OperationSelectPlaceholder: "— Select operation —",
     cafe24OperationSelectResourceFirst: "Select a resource first",
     cafe24OperationPlannedSuffix: "(coming soon)",
+    cafe24OperationApprovalSuffix: "Approval required",
     cafe24OperationCoverageHint:
       "{{ supported }} supported · {{ planned }} planned",
     cafe24OperationPlannedHint:
