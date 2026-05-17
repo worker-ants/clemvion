@@ -157,7 +157,7 @@ Cafe24 는 외부 API 호출 노드 (단계 1개). HTTP Request 와 같은 `succ
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/integration/cafe24/{cafe24.handler.ts, cafe24.schema.ts, cafe24-api.client.ts, cafe24.handler.spec.ts, cafe24-token-refresh.processor.ts, metadata/*}`.
+대상 파일: `codebase/backend/src/nodes/integration/cafe24/{cafe24.handler.ts, cafe24.schema.ts, cafe24-api.client.ts, cafe24.handler.spec.ts, cafe24-token-refresh.processor.ts, metadata/*}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - 정상 (`cafe24.handler.ts:269-275`): `{ config: echo, output: { response: result.body }, meta: buildMeta(result, durationMs), port: 'success' }`. `buildMeta` (`:347-361`) 가 `statusCode/durationMs/callUsage?/callRemain?/callLimit?/timeUsage?/timeRemain?` 동봉 — spec §5.1 표 정확 일치.

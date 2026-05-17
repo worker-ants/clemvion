@@ -13,7 +13,7 @@ SaaS 는 AWS S3 를 사용한다. 두 환경은 S3 API 호환이라 코드는 �
 
 코드 진입점:
 
-- `backend/src/common/services/s3.service.ts` — `upload(key, body, contentType)`, `download(key)`, `delete(key)`
+- `codebase/backend/src/common/services/s3.service.ts` — `upload(key, body, contentType)`, `download(key)`, `delete(key)`
 - ConfigService 키: `s3.bucket`, `s3.endpoint`, `s3.region`, `s3.accessKey`, `s3.secretKey`
 
 ---
@@ -33,7 +33,7 @@ flowchart LR
   Del[Document DELETE API] -->|DELETE key| S3
 ```
 
-코드 위치: `backend/src/modules/knowledge-base/knowledge-base.service.ts:723, 756`, `embedding.service.ts:163`.
+코드 위치: `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:723, 756`, `embedding.service.ts:163`.
 
 | 동작 | 키 | 호출 |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ flowchart LR
 ### 1.2 (Spec 상 정의되지만 미구현) Form 첨부 / Avatar
 
 `spec/0-overview.md §2.7` 의 버킷 구조 (`{workspaceId}/forms/{executionId}/{fileId}_{filename}`,
-`{workspaceId}/avatars/{userId}.{ext}`) 는 현재 `backend/` 코드에서 `s3Service.upload` 를 호출하는
+`{workspaceId}/avatars/{userId}.{ext}`) 는 현재 `codebase/backend/` 코드에서 `s3Service.upload` 를 호출하는
 경로가 없다. Form 노드와 Avatar 기능이 도입될 때 본 문서를 갱신한다.
 
 ---

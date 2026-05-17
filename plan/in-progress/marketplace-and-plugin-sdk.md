@@ -69,7 +69,7 @@
 
 ND-EX-01~03 / NF-EX-04 와 결합.
 
-- [ ] **SDK 패키지** — `@clemvion/node-sdk` npm 패키지. NodeComponent 인터페이스 (`backend/src/nodes/core/`) 를 외부 개발자가 사용할 수 있도록 export
+- [ ] **SDK 패키지** — `@clemvion/node-sdk` npm 패키지. NodeComponent 인터페이스 (`codebase/backend/src/nodes/core/`) 를 외부 개발자가 사용할 수 있도록 export
 - [ ] **manifest.json** 스펙 확정 (spec `4-nodes/0-overview.md` §4 초안 기반 + 권한·의존성·아이콘 필드 추가)
 - [ ] **샌드박싱** — 외부 노드 실행 시 isolated-vm / Docker 격리 (spec `5-data/2-code.md` §로드맵에 isolated-vm 언급)
 - [ ] **서명 및 검증** — manifest 에 서명 (Ed25519 등), 설치 시 검증
@@ -78,11 +78,11 @@ ND-EX-01~03 / NF-EX-04 와 결합.
 - [ ] **팔레트 노출 (ED-PL-05)** — 카테고리 `Custom (마켓)` 색상 (`#F59E0B` 앰버) + 출처 배지
 - [ ] **노드 핸들러 계약 호환성** — handler 가 `NodeHandler.execute` 시그니처 + `NodeHandlerOutput` envelope 을 따르는지 검증
 - [ ] **CLI** — `clemvion-node init` / `clemvion-node test` / `clemvion-node publish`
-- [ ] **개발자 가이드** — `frontend/src/content/docs/` 또는 별도 docs site
+- [ ] **개발자 가이드** — `codebase/frontend/src/content/docs/` 또는 별도 docs site
 
 ### 매뉴얼·문서
 
-- [ ] `frontend/src/content/docs/` 마켓 사용 가이드
+- [ ] `codebase/frontend/src/content/docs/` 마켓 사용 가이드
 - [ ] 개발자 (퍼블리셔) 가이드 — 별도 페이지
 
 ### 검증

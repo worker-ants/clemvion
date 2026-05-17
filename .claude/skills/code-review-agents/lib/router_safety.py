@@ -65,7 +65,19 @@ from __future__ import annotations
 
 import fnmatch
 import os
+import sys
 from typing import Iterable
+
+# Reach the harness-wide _lib so router_safety can read project_config too
+# (forced rules that depend on corpus paths — e.g. spec/ glob — must respect
+# the project's `.claude.project.json`).
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_SKILL_DIR = os.path.dirname(_THIS_DIR)
+_SKILLS_DIR = os.path.dirname(_SKILL_DIR)
+if _SKILLS_DIR not in sys.path:
+    sys.path.insert(0, _SKILLS_DIR)
+
+from _lib import project_config  # noqa: E402
 
 
 # Reviewers that must always run when any source-code file changes. The
@@ -167,11 +179,22 @@ _API_SPEC_PATTERNS = [
     "**/openapi*.json", "**/swagger*.json",
 ]
 
-_SPEC_MD_PATTERNS = [
-    "spec/**/*.md",
-    "spec/conventions/*.md",
-    "spec/**/_product-overview.md",
-]
+def _build_spec_md_patterns(spec_dir: str, conventions_dir: str) -> list[str]:
+    """Compose the glob patterns for the spec rule from corpora paths."""
+    return [
+        f"{spec_dir}/**/*.md",
+        f"{conventions_dir}/*.md",
+        f"{spec_dir}/**/_product-overview.md",
+    ]
+
+
+# Default patterns — used by ``_RULES`` at module load. ``compute_forced_agents``
+# substitutes these with config-driven patterns when a non-default ``repo_root``
+# is passed (or when ``.claude.project.json`` overrides ``corpora.spec`` /
+# ``corpora.conventions``).
+_DEFAULT_SPEC_DIR = project_config.DEFAULTS["corpora"]["spec"]
+_DEFAULT_CONVENTIONS_DIR = project_config.DEFAULTS["corpora"]["conventions"]
+_SPEC_MD_PATTERNS = _build_spec_md_patterns(_DEFAULT_SPEC_DIR, _DEFAULT_CONVENTIONS_DIR)
 
 # Docker build/runtime — image tag, package install, USER, port, secret
 # COPY, privileged/host-network options. Both `dependency` (image/tag/
@@ -284,6 +307,7 @@ def _is_source_file(path: str) -> bool:
 def compute_forced_agents(
     file_paths: Iterable[str],
     available_agents: Iterable[str],
+    repo_root: str | None = None,
 ) -> tuple[list[str], dict[str, list[str]]]:
     """Return (forced_agents_sorted, reasons_by_agent).
 
@@ -292,6 +316,10 @@ def compute_forced_agents(
       can actually invoke (usually ALL_AGENTS, but `REVIEW_AGENTS=...` may
       narrow this). Rules that target an unavailable reviewer are dropped
       silently — the user's explicit selection wins.
+    - `repo_root`: project root used to load ``.claude.project.json``. When
+      omitted, defaults to ``os.getcwd()``. Non-default ``corpora.spec`` /
+      ``corpora.conventions`` rebuild the spec-md rule's patterns; all other
+      rules are repo-agnostic.
 
     Two rule kinds are folded together:
       1. Path-pattern rules in `_RULES` (e.g. lockfile → dependency).
@@ -306,9 +334,23 @@ def compute_forced_agents(
     available = set(available_agents)
     forced: dict[str, list[str]] = {}
 
+    # Resolve spec rule patterns from project config when the corpora paths
+    # differ from defaults. Common case (default config) reuses _RULES as-is.
+    cfg = project_config.load(repo_root or os.getcwd())
+    cfg_spec = cfg["corpora"]["spec"]
+    cfg_conv = cfg["corpora"]["conventions"]
+    if (cfg_spec, cfg_conv) == (_DEFAULT_SPEC_DIR, _DEFAULT_CONVENTIONS_DIR):
+        rules = _RULES
+    else:
+        configured_spec_patterns = _build_spec_md_patterns(cfg_spec, cfg_conv)
+        rules = [
+            (reviewers, configured_spec_patterns if patterns is _SPEC_MD_PATTERNS else patterns, why)
+            for reviewers, patterns, why in _RULES
+        ]
+
     # Rule kind 1 — path patterns. A single rule can name multiple
     # reviewers; each available reviewer in the tuple receives the note.
-    for reviewers, patterns, why in _RULES:
+    for reviewers, patterns, why in rules:
         matched_files: list[str] = []
         for pattern in patterns:
             for p in paths:

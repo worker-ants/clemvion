@@ -1,0 +1,3 @@
+{
+  "_schema": ".claude.project.json — see .claude/skills/_lib/project_config.py for the loader and default values. Every key is optional; missing keys fall back to harness defaults."
+}

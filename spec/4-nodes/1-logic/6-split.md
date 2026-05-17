@@ -12,7 +12,7 @@
 |------|------|------|--------|------|
 | fieldPath | Expression | ✓ | `''` | 분리할 배열 필드 경로. **dot-path 문자열**(`"items"`, `"order.items"`)이면 `$input` 에 적용하고, **inline 표현식**(`{{ $var.a }}`)이면 expression resolver 가 평가한 값 자체를 그대로 사용 |
 
-> Source of truth: `backend/src/nodes/logic/split/split.schema.ts` (export `splitNodeConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/logic/split/split.schema.ts` (export `splitNodeConfigSchema`)
 
 ## 2. 설정 UI
 
@@ -46,7 +46,7 @@
 ## 4. 실행 로직
 
 1. `context.rawConfig.fieldPath` 를 `config` 에 echo (Principle 7 — `{{ }}` 템플릿 보존).
-2. `config.fieldPath`(평가 후 값) 를 [`resolveFieldValue(input, fieldPath)`](../../../backend/src/nodes/core/nested-value.util.ts) 로 해석:
+2. `config.fieldPath`(평가 후 값) 를 [`resolveFieldValue(input, fieldPath)`](../../../codebase/backend/src/nodes/core/nested-value.util.ts) 로 해석:
    - dot-path 문자열이면 `input` 에 적용해 중첩 값 조회.
    - inline 표현식 결과(이미 배열 값)이면 그 값을 그대로 사용.
 3. 결과가 배열이 아니면 (Principle 10 fallback) 빈 배열로 처리하며, `meta.fellBackToEmpty = true` 로 표시.

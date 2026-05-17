@@ -113,7 +113,7 @@ Database Query 는 외부 호출 노드 (단계 1개). SELECT/INSERT/UPDATE/DELE
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/integration/database-query/{database-query.handler.ts, database-query.schema.ts, database-query.schema.spec.ts, database-query.handler.spec.ts}`.
+대상 파일: `codebase/backend/src/nodes/integration/database-query/{database-query.handler.ts, database-query.schema.ts, database-query.schema.spec.ts, database-query.handler.spec.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - 정상 분기 (`database-query.handler.ts:162-167`): `{ config: configEcho, output: result, meta: { durationMs }, port: 'success' }` — spec §5.1 정확 일치. `result` 는 driver-specific (PG `executePostgres :233-255`, MySQL `executeMysql :199-231`) 가 `{ rows, rowCount, fields, insertId? }` 객체를 만들어 반환.

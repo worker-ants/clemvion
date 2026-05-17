@@ -172,7 +172,7 @@
 | 사용 횟수 | **1회 사용** — accept 또는 재발송 시 즉시 invalidate |
 | 이메일 일치 검증 | accept 시 **로그인 사용자 이메일 = 토큰의 초대 이메일** 강제. 불일치 시 400 (`invitation_email_mismatch`) |
 | 가입 흐름 | 미가입자는 `?invitationToken=...` 쿼리로 회원가입 페이지 진입. 이메일이 prefill + readOnly 로 고정되어 다른 이메일로 가입 자체가 불가. 가입 성공 트랜잭션 내에서 자동 accept |
-| 발송 채널 | 시스템 SMTP (`backend/src/modules/mail/`). 워크스페이스 SMTP Integration 은 사용하지 않음 |
+| 발송 채널 | 시스템 SMTP (`codebase/backend/src/modules/mail/`). 워크스페이스 SMTP Integration 은 사용하지 않음 |
 | 대기 중 초대 UI | 만료일 표시 + [재발송] / [취소] 액션. 대기 중 한 이메일에 대해 다중 초대 누적 금지 — 같은 이메일로 다시 초대 시 기존 토큰을 무효화하고 신규 발급 |
 
 상세 흐름·API 는 [Spec 인증/인가 §1.5](../5-system/1-auth.md#15-초대-토큰-흐름) 참고.

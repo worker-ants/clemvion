@@ -17,7 +17,7 @@
 | waitAll | Boolean | | `true` | 모든 분기 완료 대기 여부. **P1 에서는 항상 `true` 로 동작** (`false` 는 dead field — fire-and-forget 은 [Background 노드](./12-background.md) 사용) |
 | errorPolicy | `stop` / `continue` | | `stop` | 분기 에러 정책. [공통 §4](./0-common.md#4-에러-정책-errorpolicy). `stop` = 첫 실패 시 즉시 throw, `continue` = 모든 분기 종료 대기 후 실패 정보 수집 |
 
-> Source of truth: `backend/src/nodes/logic/parallel/parallel.schema.ts` (export `parallelNodeConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/logic/parallel/parallel.schema.ts` (export `parallelNodeConfigSchema`)
 >
 > `errorPolicy` 는 `parallelNodeConfigSchema` 에 직접 노출된 parallel-specific 필드다 (공통 `errorHandling.policy` 와 별개). 엔진은 `config.errorPolicy` 가 명시되면 그 값을 그대로 사용하고, 미지정 시 공통 `errorHandling.policy` 의 매핑(`skip_node`/`use_default_output`/`route_to_error_port` → `continue`, 그 외 → `stop`)으로 fallback 한다 (옛 동선 호환).
 >

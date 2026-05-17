@@ -81,7 +81,7 @@ Transform 은 **순수 데이터 변형 노드** (단계 1개). operation 체인
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/data/transform/{transform.handler.ts, transform.schema.ts, transform.handler.spec.ts, transform.schema.spec.ts, transform.component.ts}`.
+대상 파일: `codebase/backend/src/nodes/data/transform/{transform.handler.ts, transform.schema.ts, transform.handler.spec.ts, transform.schema.spec.ts, transform.component.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - `transform.handler.ts:158-165` 의 return 객체 키 `{ config, output, meta }` 가 spec §5.1 과 일치. `port` / `status` 미지정 (단일 출력 비-블로킹 — Principle 5 부합).

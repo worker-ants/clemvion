@@ -146,7 +146,7 @@
 
 ## 10. AI Assistant (ED-AI-*)
 
-> 상세: [Spec AI Assistant](./4-ai-assistant.md) · 관련 [AI 플랫폼 §3.6](../4-nodes/3-ai/_product-overview.md#36-workflow-ai-assistant) · 사용자 가이드: [AI 어시스턴트 개요](../../frontend/src/content/docs/03-workflow-editor/overview.mdx) · [Hands-on Walkthrough](../../frontend/src/content/docs/03-workflow-editor/walkthrough.mdx)
+> 상세: [Spec AI Assistant](./4-ai-assistant.md) · 관련 [AI 플랫폼 §3.6](../4-nodes/3-ai/_product-overview.md#36-workflow-ai-assistant) · 사용자 가이드: [AI 어시스턴트 개요](../../codebase/frontend/src/content/docs/03-workflow-editor/overview.mdx) · [Hands-on Walkthrough](../../codebase/frontend/src/content/docs/03-workflow-editor/walkthrough.mdx)
 
 워크플로우 에디터에 내장된 채팅형 AI 에이전트(**Workflow AI Assistant**)가 사용자의 자연어 요구사항을 받아 노드·엣지를 자동으로 생성·수정한다. 단순 지시("HTTP 헤더 추가")뿐 아니라 모호하고 큰 요청("주문 취소 프로세스 추가")도 대화로 구체화해 완성한다. LLM은 [LLM Config](../4-nodes/3-ai/_product-overview.md#31-llm-프로바이더-관리)에 등록된 모델을 사용한다.
 

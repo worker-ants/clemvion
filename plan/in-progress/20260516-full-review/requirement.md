@@ -2,7 +2,7 @@
 
 > 기준 커밋: `bbd838ef` (main)  
 > 검토 일시: 2026-05-16  
-> 범위: spec/, backend/, frontend/, packages/ 전체
+> 범위: spec/, codebase/backend/, codebase/frontend/, codebase/packages/ 전체
 
 ---
 
@@ -13,12 +13,12 @@
 #### 기능 완전성 / 스펙 준수
 
 - **[CRITICAL]** Re-run(재실행) 백엔드·프론트엔드 미구현
-  - 위치: `backend/src/modules/executions/executions.controller.ts` (전체), `spec/5-system/13-replay-rerun.md`
+  - 위치: `codebase/backend/src/modules/executions/executions.controller.ts` (전체), `spec/5-system/13-replay-rerun.md`
   - 상세: spec `13-replay-rerun.md` 는 `POST /api/v1/executions/:executionId/re-run` 과 `GET .../chain` 을 정의하고 있으나, `ExecutionsController` 에 두 엔드포인트가 존재하지 않는다. Re-run 의 권한 가드(RR-PL-06), dry-run handler 분기, chain 깊이 32 제한, audit_log `re_run_initiated` 이벤트, rate limit, 프론트엔드 "Re-run" 버튼/모달/chain badge 모두 미구현이다. `plan/in-progress/replay-rerun.md` §3/4/5 항목 전체가 미체크(`[ ]`) 상태.
   - 제안: `replay-rerun.md` PR2 항목을 새 worktree 에서 진행. DB 마이그레이션(`re_run_of`, `chain_id` 컬럼)부터 선행.
 
 - **[CRITICAL]** `Execution` 엔티티에 Re-run 추적 컬럼 누락 — spec/data-model 불일치
-  - 위치: `backend/src/modules/executions/entities/execution.entity.ts:21-81`, `spec/5-system/13-replay-rerun.md §9.1`, `spec/1-data-model.md §2.13`
+  - 위치: `codebase/backend/src/modules/executions/entities/execution.entity.ts:21-81`, `spec/5-system/13-replay-rerun.md §9.1`, `spec/1-data-model.md §2.13`
   - 상세: spec RR-PL-05 는 `re_run_of UUID NULL REFERENCES executions(id)` 와 `chain_id UUID NOT NULL` 두 컬럼을 요구하고, `plan/in-progress/spec-update-impl-prep-findings.md` C1 도 `1-data-model.md §2.13` 에 해당 컬럼이 빠졌음을 지적했다. Execution 엔티티에 두 컬럼이 없어 Re-run 구현 자체가 불가능한 전제 조건 누락이다.
   - 제안: TypeORM migration 으로 컬럼 추가 + `spec/1-data-model.md §2.13` 갱신 (C1 처리).
 
@@ -28,12 +28,12 @@
   - 제안: 도구 연결 모델 결정을 위한 사용자 합의를 우선 진행.
 
 - **[WARNING]** Parallel 노드 `errorPolicy` schema 미노출 — P2 backlog
-  - 위치: `backend/src/nodes/logic/parallel/parallel.schema.ts` (추정), `spec/4-nodes/1-logic/10-parallel.md §1`, `plan/in-progress/parallel-p2.md §1`
+  - 위치: `codebase/backend/src/nodes/logic/parallel/parallel.schema.ts` (추정), `spec/4-nodes/1-logic/10-parallel.md §1`, `plan/in-progress/parallel-p2.md §1`
   - 상세: spec 이 `errorPolicy: stop | continue` 를 정의하고 `ParallelExecutor` 에도 구현되어 있으나, `parallelNodeConfigSchema` 에 노출되지 않아 다운스트림은 항상 기본값 `stop` 으로만 동작한다. spec 내 `⚠ 미구현 (P1)` 박스가 잔존. 동일 패턴으로 `waitAll: false` 도 schema 에는 있으나 엔진이 무시한다(사실상 dead field).
   - 제안: `parallel-p2.md §1` 처리 — schema 에 `errorPolicy` 노출 + `waitAll: false` 는 사용자 결정 후 schema 제거 또는 validate reject.
 
 - **[WARNING]** Merge 노드 `timeout`/`partialOnTimeout` dormant — 명시적 경고 없음
-  - 위치: `backend/src/nodes/logic/merge/merge.handler.ts:89-101`
+  - 위치: `codebase/backend/src/nodes/logic/merge/merge.handler.ts:89-101`
   - 상세: `timeout > 0` 이거나 `partialOnTimeout=true` 로 설정된 Merge 노드가 실행되면 **warn 로그만** 출력되고 실제로는 아무 효과가 없다. 사용자가 config 에서 값을 설정했을 때 editor UI 가 이를 비활성(dormant)으로 표기하지 않으면 사용자 오해가 발생한다. `plan/in-progress/merge-p2-async-fanin.md` 의 선결 조건(엔진 비동기 모델)이 해소되지 않는 한 계속 dormant.
   - 제안: 프론트엔드 Merge 설정 패널에 해당 필드를 disabled + "(P2에서 활성화 예정)" 툴팁으로 표기하거나, merge.handler.ts 에서 validate 단계에 경고 룰 추가.
 
@@ -43,12 +43,12 @@
   - 제안: `0-unimplemented-overview.md` 권장 순서대로 Phase A (워크플로 템플릿 마켓) 부터 단계적 진행.
 
 - **[WARNING]** Background 모니터링 API — plan 인덱스와 실제 구현 상태 불일치
-  - 위치: `plan/in-progress/0-unimplemented-overview.md:54` ("❌ 미구현"), `backend/src/modules/executions/background-runs/background-runs.controller.ts`
+  - 위치: `plan/in-progress/0-unimplemented-overview.md:54` ("❌ 미구현"), `codebase/backend/src/modules/executions/background-runs/background-runs.controller.ts`
   - 상세: `0-unimplemented-overview.md` §A 표와 §plan 목록에 `background-monitoring-api.md` 가 여전히 ❌ 미구현으로 표기되어 있으나, 실제로는 `BackgroundRunsController.findOne` (`GET /executions/:executionId/background-runs/:backgroundRunId`) 가 구현되어 있고 `plan/complete/background-monitoring-api.md` 로 이동 완료된 상태이다. 인덱스 문서가 stale하여 미구현 범위 판단을 오도한다.
   - 제안: `plan/in-progress/0-unimplemented-overview.md` §A 표에서 background 모니터링 API 항목을 ✅로 갱신 + `plan/` 목록에서 제거.
 
 - **[WARNING]** `integration_action_required` 알림 프론트엔드 type-specific 처리 미구현
-  - 위치: `plan/in-progress/cafe24-backlog-residual.md §A-1`, `frontend/src/components/` (notification 관련 파일 미탐지)
+  - 위치: `plan/in-progress/cafe24-backlog-residual.md §A-1`, `codebase/frontend/src/components/` (notification 관련 파일 미탐지)
   - 상세: backend `IntegrationActionRequiredNotifier` 가 `type='integration_action_required'` 알림을 발사하고, spec §11.2 는 재인증 단축 링크 버튼과 type 별 i18n 키(`notifications.types.integration_action_required.*`)를 정의하고 있으나, frontend 는 현재 type 을 generic 렌더링으로만 처리한다. 재인증 딥링크와 알림 inbox type 필터 옵션도 미구현.
   - 제안: `cafe24-backlog-residual.md §A-1` 의 미체크 항목 처리 — frontend notification 컴포넌트에 type-specific 분기 추가.
 
@@ -62,7 +62,7 @@
   - 제안: `spec/5-system/10-graph-rag.md §2.2` Enum 목록에 `failed` 추가. `spec-update-impl-prep-findings.md` C2 체크.
 
 - **[WARNING]** `callbackContextOf` 함수 — null/primitive 입력 엣지 미테스트
-  - 위치: `backend/src/modules/integrations/integration-oauth.service.ts:170-175`
+  - 위치: `codebase/backend/src/modules/integrations/integration-oauth.service.ts:170-175`
   - 상세: `callbackContextOf` 는 `err && typeof err === 'object'` 를 확인하지만 `null`(typeof null === 'object'), 배열, Date 등은 `'context' in null` 호출 전 guard 에서 걸린다. `err` 가 null 이면 `err &&` 에서 false 반환이지만, `plan/in-progress/cafe24-backlog-residual.md E-3` 에서 이미 단독 단위 테스트 부재를 지적하고 있다.
   - 제안: `E-3` 체크박스를 처리하여 null/primitive/배열 케이스 단위 테스트 추가.
 
@@ -76,17 +76,17 @@
 #### TODO/FIXME/HACK 잔존
 
 - **[WARNING]** `workflow.handler.ts` — 타입 계층 없이 메시지 패턴 매칭으로 에러 분류
-  - 위치: `backend/src/nodes/flow/workflow/workflow.handler.ts:216-220`
+  - 위치: `codebase/backend/src/nodes/flow/workflow/workflow.handler.ts:216-220`
   - 상세: `mapSubWorkflowError()` 함수가 `WorkflowNotFoundError` / `WorkflowTimeoutError` 인스턴스 체크 대신 에러 메시지 문자열을 소문자 매칭으로 분류한다. 코드에 `TODO: replace with instanceof WorkflowNotFoundError / WorkflowTimeoutError branches once WorkflowExecutor ships a typed error hierarchy` 주석이 존재. 메시지 문자열이 변경되면 silent regression 발생 위험.
   - 제안: `WorkflowExecutor` 에 typed error 계층 도입 후 `instanceof` 분기로 전환. 중간 대안으로 에러 코드 enum 첨부.
 
 - **[INFO]** `review-workflow.ts` — ED-AI-39 legacy fallback 정리 필요
-  - 위치: `backend/src/modules/workflow-assistant/tools/review-workflow.ts:716-718`
+  - 위치: `codebase/backend/src/modules/workflow-assistant/tools/review-workflow.ts:716-718`
   - 상세: `TODO(ED-AI-39): legacy fallback 은 기존 세션의 pre-ED-AI-39 row 를 위한 방어다. 세션 메시지가 회전(retention)되면 조건의 !Array.isArray(...) 절을 제거` 주석이 있다. 세션 retention 이 완료된 시점을 추적하지 않으면 dead code 가 누적된다.
   - 제안: 세션 retention 정책에 따른 만료 일자를 주석에 명시하거나, 모니터링 알림으로 연결.
 
 - **[INFO]** frontend `llm-configs.test.ts` — axios 인터셉터 적용 시 제거 예정인 fallback 계약
-  - 위치: `frontend/src/lib/api/__tests__/llm-configs.test.ts:54`
+  - 위치: `codebase/frontend/src/lib/api/__tests__/llm-configs.test.ts:54`
   - 상세: `// TODO: response envelope 중앙화(axios 인터셉터) 적용 시 이 fallback 계약은 제거한다.` — 중앙화 작업이 완료되면 이 주석과 fallback 코드를 제거해야 하나 추적 plan 이 없다.
   - 제안: response envelope 중앙화 plan 에 이 테스트 fallback 제거를 후속 항목으로 추가.
 
@@ -102,7 +102,7 @@
 - **[WARNING]** `exchangeCodeForToken` / `refreshAccessToken` fetch 경로 단위 테스트 부재
   - 위치: `plan/in-progress/cafe24-backlog-residual.md §B-5-8`
   - 상세: e2e 가 outbound mock 인프라 부담으로 보류 결정되었으나, unit/integration 으로 대체하는 `B-5-8 alt` 의 5개 시나리오((a) callback 성공, (b) invalid_grant, (c) atomic UPDATE, (d) 14일 idle 보호 회귀, (e) transport 3연속 실패)가 모두 미체크. 핵심 OAuth 경로의 실패 분기가 자동 검증 사각지대.
-  - 제안: `cafe24-backlog-residual.md §B-5-8` 처리 — `backend/src/modules/integrations/cafe24/**.spec.ts` 에 mock fetch + fixture 기반 단위 테스트 추가.
+  - 제안: `cafe24-backlog-residual.md §B-5-8` 처리 — `codebase/backend/src/modules/integrations/cafe24/**.spec.ts` 에 mock fetch + fixture 기반 단위 테스트 추가.
 
 ---
 
@@ -147,7 +147,7 @@
 #### plan 백로그 / 하네스 미해소
 
 - **[WARNING]** i18n ko↔en dict parity 자동 가드 적용 여부 미확인 (harness-i18n plan P0)
-  - 위치: `plan/in-progress/harness-i18n-userguide-gap.md`, `frontend/src/lib/i18n/__tests__/i18n.test.ts`
+  - 위치: `plan/in-progress/harness-i18n-userguide-gap.md`, `codebase/frontend/src/lib/i18n/__tests__/i18n.test.ts`
   - 상세: `harness-i18n-userguide-gap.md` §P0 항목("DONE (본 PR)" 표기)은 본 plan 이 완료된 PR 이 존재함을 의미하나, `harness-review-router-c4f1a2` worktree 가 진행 중으로 표기되어 있어 실제 main 브랜치 병합 여부가 불명확. parity 테스트가 main 에 미병합된 경우 신규 노드/필드 추가 시 ko/en dict 불일치가 자동으로 잡히지 않는다.
   - 제안: `harness-review-router-c4f1a2` worktree 상태 확인 → main 병합 완료 여부 검증 후 plan 상태 갱신.
 
@@ -158,7 +158,7 @@
 
 - **[INFO]** `isReauthorizeDisabled` 도메인 로직이 badge UI 컴포넌트에 위치
   - 위치: `plan/in-progress/cafe24-backlog-residual.md §C-3`
-  - 상세: `frontend/src/components/integrations/status-badge.tsx` 에서 export 되어 있어 테스트 및 재사용이 어렵다.
+  - 상세: `codebase/frontend/src/components/integrations/status-badge.tsx` 에서 export 되어 있어 테스트 및 재사용이 어렵다.
   - 제안: `lib/integrations/utils.ts` 등 도메인 모듈로 이동.
 
 ---

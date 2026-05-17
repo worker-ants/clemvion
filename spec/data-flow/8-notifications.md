@@ -14,10 +14,10 @@
 
 코드 진입점:
 
-- `backend/src/modules/notifications/notifications.service.ts` — 적재 + 사용자 환경설정 확인 + 이메일 발송
-- `backend/src/modules/notifications/notifications.controller.ts` — 목록 / 읽음 처리
-- `backend/src/modules/mail/mail.service.ts` — SMTP 발송
-- `backend/src/modules/websocket/websocket.service.ts` — `notification:new` emit
+- `codebase/backend/src/modules/notifications/notifications.service.ts` — 적재 + 사용자 환경설정 확인 + 이메일 발송
+- `codebase/backend/src/modules/notifications/notifications.controller.ts` — 목록 / 읽음 처리
+- `codebase/backend/src/modules/mail/mail.service.ts` — SMTP 발송
+- `codebase/backend/src/modules/websocket/websocket.service.ts` — `notification:new` emit
 
 ---
 
@@ -140,8 +140,8 @@ stateDiagram-v2
 
 DTO 위치 ([`spec/conventions/swagger.md §5-1`](../conventions/swagger.md#5-1-응답-dto-위치) 패턴):
 
-- `backend/src/modules/notifications/dto/responses/dismiss-notification-response.dto.ts` (`DismissNotificationResponseDto`)
-- `backend/src/modules/notifications/dto/responses/dismiss-all-notifications-response.dto.ts` (`DismissAllNotificationsResponseDto`)
+- `codebase/backend/src/modules/notifications/dto/responses/dismiss-notification-response.dto.ts` (`DismissNotificationResponseDto`)
+- `codebase/backend/src/modules/notifications/dto/responses/dismiss-all-notifications-response.dto.ts` (`DismissAllNotificationsResponseDto`)
 
 ### 4.3 목록·카운트에 미치는 영향
 

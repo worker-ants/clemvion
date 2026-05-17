@@ -19,7 +19,7 @@ PRD 3 §4.9 ND-PL-01~04, PRD 0 §6.2~§6.3 에서 Parallel 노드의 P1 (`PARALL
 - `prd/0-overview.md` §6.2 / §6.3 (P1 ✅, P2 로드맵)
 - `spec/4-nodes/1-logic/10-parallel.md` §1 (P2 박스), §3 (`config.waitAll` raw echo), §6 (graph 검증)
 - `user_memo/node-specs-improvement/logic/parallel.md` §2 항목 6 / §3
-- `backend/src/modules/execution-engine/parallel-executor.ts` (있다면) / `nodes/logic/parallel/` 핸들러
+- `codebase/backend/src/modules/execution-engine/parallel-executor.ts` (있다면) / `nodes/logic/parallel/` 핸들러
 
 ## 작업 단위
 

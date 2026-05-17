@@ -1,0 +1,300 @@
+---
+title: "표현식 치트시트"
+title_en: "Expression cheatsheet"
+section: "04-expression-language"
+order: 3
+summary: "이 페이지에서는 자주 쓰는 표현식 패턴을 모아서 빠르게 복사해 쓸 수 있게 정리했어요."
+summary_en: "Copy-paste-ready expression patterns for the most common needs."
+spec: ["spec/5-system/5-expression-language.md"]
+code: ["codebase/packages/expression-engine/src/functions/"]
+---
+
+이 페이지에서는 노드 설정에서 바로 복사해 쓸 수 있는 **실전 표현식 패턴**을 모아뒀어요. 각 예시는 `@workflow/expression-engine`에서 실제로 동작해요.
+
+## 조건부
+
+<Example title="삼항 연산으로 기본값 지정">
+```ts
+{{ $input.name ? $input.name : "익명" }}
+```
+</Example>
+
+<Example title="`||`로 falsy 값 폴백">
+```ts
+{{ $input.title || "(제목 없음)" }}
+```
+</Example>
+
+<Example title="복합 조건 (AND / OR)">
+```ts
+{{ $input.age >= 18 && $input.country == "KR" }}
+```
+</Example>
+
+<Example title="값이 비어 있는지 검사">
+```ts
+{{ isEmpty($input.items) ? "목록 없음" : "목록 있음" }}
+```
+</Example>
+
+<Callout type="note">`isEmpty()`는 `null`, `""`, `[]`, `{}`를 모두 empty로 판정해요. 숫자 `0`과 `false`는 empty가 아니에요.</Callout>
+
+## 문자열 결합
+
+<Example title="문자열 보간">
+```ts
+안녕하세요, {{ $input.firstName }} {{ $input.lastName }}님!
+```
+</Example>
+
+<Example title="`+` 연산자로 직접 이어붙이기">
+```ts
+{{ "주문 ID: " + $input.orderId }}
+```
+</Example>
+
+<Example title="배열을 구분자로 합치기">
+```ts
+{{ join($input.tags, ", ") }}
+```
+</Example>
+
+<Example title="대소문자 변환과 공백 제거">
+```ts
+{{ lowercase(trim($input.email)) }}
+{{ uppercase($input.code) }}
+```
+</Example>
+
+<Example title="포함 여부 · 접두사 · 접미사">
+```ts
+{{ contains($input.subject, "긴급") }}
+{{ startsWith($input.path, "/api/") }}
+{{ endsWith($input.fileName, ".pdf") }}
+```
+</Example>
+
+<Example title="치환 · 분할 · 부분 추출">
+```ts
+{{ replace($input.text, "old", "new") }}
+{{ replaceAll($input.csv, ",", " | ") }}
+{{ split($input.path, "/") }}
+{{ substring($input.summary, 0, 100) }}
+```
+</Example>
+
+<Example title="자릿수 맞추기 (zero-padding 등)">
+```ts
+{{ padStart(toString($input.day), 2, "0") }}
+{{ padEnd($input.label, 10, " ") }}
+```
+</Example>
+
+<Example title="문자열 · 배열 길이">
+```ts
+{{ length($input.title) }}
+{{ length($input.items) }}
+```
+</Example>
+
+## 배열 접근
+
+<Example title="인덱스 접근">
+```ts
+{{ $input.items[0].name }}
+```
+</Example>
+
+<Example title="첫 번째 · 마지막 요소">
+```ts
+{{ first($input.items) }}
+{{ last($input.items) }}
+```
+</Example>
+
+<Example title="부분 배열과 포함 여부">
+```ts
+{{ slice($input.items, 0, 5) }}
+{{ includes($input.tags, "urgent") }}
+```
+</Example>
+
+<Example title="중복 제거 · null 제거">
+```ts
+{{ unique($input.categories) }}
+{{ compact($input.maybeValues) }}
+```
+</Example>
+
+<Example title="역순 · 1단계 평탄화 · 두 배열 이어붙이기">
+```ts
+{{ reverse($input.history) }}
+{{ flatten($input.groupedItems) }}
+{{ concat($input.list1, $input.list2) }}
+```
+</Example>
+
+## 필드 기본값 · 안전 접근
+
+<Example title="null 안전 접근 (옵셔널 체이닝 `?.`)">
+```ts
+{{ $input.user?.name }}
+{{ $node["Fetch User"]?.output?.profile?.age }}
+{{ $input.items?.[0] }}
+```
+</Example>
+
+<Example title="null 안전 접근 (삼항 · 대체 값이 필요할 때)">
+```ts
+{{ $input.user?.name || "알 수 없음" }}
+{{ $input.user ? $input.user.name : "알 수 없음" }}
+```
+</Example>
+
+<Example title="`||`로 기본값 대체">
+```ts
+{{ $input.retryCount || 0 }}
+```
+</Example>
+
+<Example title="객체 병합으로 기본값 덮어쓰기">
+```ts
+{{ merge({ "status": "pending", "retries": 0 }, $input) }}
+```
+</Example>
+
+<Example title="필요한 키만 추출 · 제외">
+```ts
+{{ pick($input, ["id", "email"]) }}
+{{ omit($input, ["password", "token"]) }}
+```
+</Example>
+
+<Example title="객체의 키 · 값 · 항목 순회 · 키 존재 확인">
+```ts
+{{ keys($input.flags) }}
+{{ values($input.scores) }}
+{{ entries($input.config) }}
+{{ hasKey($input, "userId") }}
+```
+</Example>
+
+## 날짜 포맷
+
+<Example title="ISO 문자열을 사람이 읽는 형식으로">
+```ts
+{{ formatDate($input.createdAt, "YYYY-MM-DD HH:mm") }}
+```
+</Example>
+
+<Example title="현재 시각 · 오늘 날짜 · 임의 문자열 파싱">
+```ts
+{{ now() }}
+{{ today() }}
+{{ parseDate($input.dateString) }}
+```
+</Example>
+
+<Example title="오늘 날짜로 파일명 만들기 (UTC 기준)">
+```ts
+report-{{ formatDate($now, "YYYY-MM-DD") }}.csv
+```
+</Example>
+
+<Example title="날짜에 시간 더하기 · 빼기">
+```ts
+{{ addTime($now, 7, "days") }}
+{{ subtractTime($now, 1, "hours") }}
+```
+</Example>
+
+<Example title="두 날짜 차이 계산">
+```ts
+{{ diffTime($input.endedAt, $input.startedAt, "minutes") }}
+```
+</Example>
+
+<Callout type="tip">시간 단위는 `years`, `months`, `days`, `hours`, `minutes`, `seconds`를 써요. 포맷 토큰은 `YYYY`, `MM`, `DD`, `HH`, `mm`, `ss`, `ddd`를 주로 써요.</Callout>
+
+## 숫자 연산
+
+<Example title="반올림과 소수점 자릿수">
+```ts
+{{ round($input.price * 1.1, 2) }}
+{{ toFixed($input.rate, 4) }}
+```
+</Example>
+
+<Example title="올림 · 내림 · 임의 난수">
+```ts
+{{ ceil($input.itemCount / 10) }}
+{{ floor($input.score) }}
+{{ random() }}
+```
+</Example>
+
+<Example title="최솟값 · 최댓값 · 절대값">
+```ts
+{{ min($input.a, $input.b, 100) }}
+{{ max($input.scores) }}
+{{ abs($input.delta) }}
+```
+</Example>
+
+<Example title="문자열을 숫자로">
+```ts
+{{ parseInt($input.countStr) }}
+{{ parseFloat($input.weightStr) }}
+```
+</Example>
+
+## 타입 변환과 JSON
+
+<Example title="JSON 문자열화와 파싱">
+```ts
+{{ toJSON($input) }}
+{{ fromJSON($input.rawPayload) }}
+```
+</Example>
+
+<Example title="문자열 · 숫자 · 불리언 변환">
+```ts
+{{ toString($input.id) }}
+{{ toNumber($input.priceStr) }}
+{{ toBoolean($input.flag) }}
+```
+</Example>
+
+<Example title="타입 확인 · null/undefined 검사">
+```ts
+{{ typeOf($input.value) == "array" }}
+{{ isNull($input.optionalField) ? "(없음)" : $input.optionalField }}
+```
+</Example>
+
+## 동적 설정 조합
+
+<Example title="HTTP URL에 경로 파라미터 끼우기">
+```ts
+https://api.example.com/users/{{ $input.userId }}/orders?from={{ formatDate($now, "YYYY-MM-DD") }}
+```
+</Example>
+
+<Example title="Slack / 이메일 메시지 조립">
+```ts
+🚨 {{ $node["AI Agent"].output.severity }} — {{ $input.summary }}
+실행 ID: {{ $execution.id }}
+```
+</Example>
+
+<Example title="ForEach 안에서 인덱스와 항목 함께 쓰기">
+```ts
+[{{ $itemIndex + 1 }}] {{ $item.title }} — {{ formatDate($item.createdAt, "MM/DD") }}
+```
+</Example>
+
+## 팁 & 참고
+
+- 전체 문법과 연산자 우선순위는 [표현식 기초](/docs/04-expression-language/basics)를 참고해요.
+- 참조 변수 목록은 [변수와 컨텍스트](/docs/04-expression-language/variables-and-context)에 정리되어 있어요.
+- 표현식이 실패하면 해당 노드가 **실행 실패**로 처리돼요. 복구 전략은 [에러 처리](/docs/05-run-and-debug/error-handling)에서 설명해요.

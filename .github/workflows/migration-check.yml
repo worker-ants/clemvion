@@ -16,7 +16,7 @@ name: migration-check
 on:
   pull_request:
     paths:
-      - 'backend/migrations/**'
+      - 'codebase/backend/migrations/**'
       - 'scripts/check-migration-versions.py'
       - '.github/workflows/migration-check.yml'
 

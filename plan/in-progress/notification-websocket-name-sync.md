@@ -17,7 +17,7 @@ owner: project-planner
   - `8-notifications.md`: room `user:<userId>`
   - `6-websocket-protocol.md §4.4`: 채널 `notifications:{userId}`
 
-두 spec 이 어긋난 표기를 유지 중이며, 코드 진실은 `backend/src/modules/websocket/websocket.service.ts` 확인 필요.
+두 spec 이 어긋난 표기를 유지 중이며, 코드 진실은 `codebase/backend/src/modules/websocket/websocket.service.ts` 확인 필요.
 
 ## 본 작업과 분리한 근거
 
@@ -26,8 +26,8 @@ dismiss endpoint (`POST /notifications/:id/dismiss`, `POST /notifications/dismis
 ## 작업 범위
 
 - [ ] 새 worktree 생성 (`notification-websocket-name-sync-<slug>`)
-- [ ] `backend/src/modules/websocket/websocket.service.ts` 의 실제 emit 코드 확인 — 이벤트명·채널명 진실 식별
-- [ ] frontend WebSocket 클라이언트 (`frontend/src/hooks/use*.ts` 등) 의 subscribe 표기도 확인
+- [ ] `codebase/backend/src/modules/websocket/websocket.service.ts` 의 실제 emit 코드 확인 — 이벤트명·채널명 진실 식별
+- [ ] frontend WebSocket 클라이언트 (`codebase/frontend/src/hooks/use*.ts` 등) 의 subscribe 표기도 확인
 - [ ] `spec/data-flow/8-notifications.md` 와 `spec/5-system/6-websocket-protocol.md §4.4` 를 코드 진실 기준으로 일치시킨다
 - [ ] 두 spec 모두 같은 구분자 (콜론 또는 점) 와 같은 채널 prefix 로 통일
 - [ ] follow-up 으로 `notification.read` / `notification.dismissed` (또는 콜론 표기) 신설 검토를 본 작업 안에서 함께 결정해 spec 에 명시

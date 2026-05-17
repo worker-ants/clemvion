@@ -132,7 +132,7 @@ HTTP Request 는 외부 호출 노드 (단계 1개). 정상 / HTTP 에러 / tran
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/integration/http-request/{http-request.handler.ts, http-request.schema.ts, http-request.handler.spec.ts, http-safety.ts}` + `backend/src/nodes/integration/_base/{integration-handler-base.ts, sanitize-response-headers.util.ts}`.
+대상 파일: `codebase/backend/src/nodes/integration/http-request/{http-request.handler.ts, http-request.schema.ts, http-request.handler.spec.ts, http-safety.ts}` + `codebase/backend/src/nodes/integration/_base/{integration-handler-base.ts, sanitize-response-headers.util.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - 2xx 분기 (`http-request.handler.ts:343-349`): `{config: configEcho, output: { response, ...bodyFields }, meta, port: 'success' }` — spec §5.1 과 정합. `bodyFields` 는 `buildBodyOutputFields` 가 만드는 `{ requestBodyType, requestBody?, bodyTruncated?, responseHeaders? }` (`:415-427`).

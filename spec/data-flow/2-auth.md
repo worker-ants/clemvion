@@ -14,11 +14,11 @@
 
 코드 진입점:
 
-- `backend/src/modules/auth/auth.controller.ts` — `/api/auth/*` REST 진입
-- `backend/src/modules/auth/auth.service.ts` — register / login / refresh / logout
-- `backend/src/modules/auth/auth-oauth.service.ts` — OAuth state 발급·콜백
-- `backend/src/modules/auth/sessions.service.ts` — 활성 세션 목록·revoke
-- `backend/src/modules/auth/login-history.service.ts` — 이벤트 적재
+- `codebase/backend/src/modules/auth/auth.controller.ts` — `/api/auth/*` REST 진입
+- `codebase/backend/src/modules/auth/auth.service.ts` — register / login / refresh / logout
+- `codebase/backend/src/modules/auth/auth-oauth.service.ts` — OAuth state 발급·콜백
+- `codebase/backend/src/modules/auth/sessions.service.ts` — 활성 세션 목록·revoke
+- `codebase/backend/src/modules/auth/login-history.service.ts` — 이벤트 적재
 
 ---
 
@@ -157,8 +157,8 @@ sequenceDiagram
 
 ## 2. Schema 매핑
 
-> 컬럼 정의의 단일 진실은 `spec/1-data-model.md` 와 `backend/src/modules/users/entities/user.entity.ts`,
-> `backend/src/modules/auth/entities/*.entity.ts`. 본 표는 흐름에서 read/write 되는 컬럼만 발췌.
+> 컬럼 정의의 단일 진실은 `spec/1-data-model.md` 와 `codebase/backend/src/modules/users/entities/user.entity.ts`,
+> `codebase/backend/src/modules/auth/entities/*.entity.ts`. 본 표는 흐름에서 read/write 되는 컬럼만 발췌.
 
 ### 2.1 Postgres
 
@@ -185,7 +185,7 @@ Auth 도메인은 BullMQ 큐를 사용하지 않는다. 단, Login rate limit �
 
 | Sink | 흐름 | 비고 |
 | --- | --- | --- |
-| SMTP (MailService) | 이메일 인증·비밀번호 reset·초대 메일 | `backend/src/modules/mail/mail.service.ts` |
+| SMTP (MailService) | 이메일 인증·비밀번호 reset·초대 메일 | `codebase/backend/src/modules/mail/mail.service.ts` |
 | OAuth provider | authorize / token / userinfo | Google·GitHub. 셀프 호스팅은 LDAP/SAML 추가 가능 (`spec/5-system/1-auth.md §1.3`) |
 
 ---

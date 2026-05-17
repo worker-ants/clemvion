@@ -28,14 +28,17 @@ import subprocess
 import sys
 from datetime import datetime
 
-# Reuse the shared library from code-review-agents.
+# Reuse the shared library from code-review-agents, plus the harness-wide _lib.
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(THIS_DIR)
-CODE_REVIEW_SKILL = os.path.normpath(os.path.join(SKILL_DIR, "..", "code-review-agents"))
+SKILLS_DIR = os.path.dirname(SKILL_DIR)  # .claude/skills/
+CODE_REVIEW_SKILL = os.path.normpath(os.path.join(SKILLS_DIR, "code-review-agents"))
 sys.path.insert(0, CODE_REVIEW_SKILL)
+sys.path.insert(0, SKILLS_DIR)
 
 from lib import session  # noqa: E402
 from lib.role_instructions import ANALYZER_INSTRUCTIONS  # noqa: E402
+from _lib import project_config  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/merge-coordinator-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -147,21 +150,44 @@ def branch_touched_files(base, head):
     return [f for f in r.stdout.strip().splitlines() if f]
 
 
-def categorise_paths(paths):
-    """Group paths by top-level area (spec/, plan/, frontend/, backend/, .claude/, other)."""
-    groups = {"spec": [], "plan": [], "frontend": [], "backend": [], ".claude": [], "other": []}
+def categorise_paths(paths, repo_root=None):
+    """Group paths by top-level area.
+
+    Fixed groups: ``spec``, ``plan``, ``.claude``, ``other``.
+    Code areas come from ``.claude.project.json`` ``code_areas`` (default:
+    ``["codebase"]``). Each path is matched against:
+      1. ``spec/`` → ``spec``
+      2. ``plan/`` → ``plan``
+      3. ``.claude/`` → ``.claude``
+      4. ``<area>/`` for each entry of ``code_areas`` → that area
+      5. Otherwise → ``other``
+    """
+    cfg = project_config.load(repo_root or os.getcwd())
+    code_areas = cfg.get("code_areas") or ["codebase"]
+
+    groups = {"spec": [], "plan": []}
+    for area in code_areas:
+        groups[area] = []
+    groups[".claude"] = []
+    groups["other"] = []
+
     for p in paths:
         if p.startswith("spec/"):
             groups["spec"].append(p)
-        elif p.startswith("plan/"):
+            continue
+        if p.startswith("plan/"):
             groups["plan"].append(p)
-        elif p.startswith("frontend/"):
-            groups["frontend"].append(p)
-        elif p.startswith("backend/"):
-            groups["backend"].append(p)
-        elif p.startswith(".claude/"):
+            continue
+        if p.startswith(".claude/"):
             groups[".claude"].append(p)
-        else:
+            continue
+        matched = False
+        for area in code_areas:
+            if p.startswith(f"{area}/"):
+                groups[area].append(p)
+                matched = True
+                break
+        if not matched:
             groups["other"].append(p)
     return groups
 

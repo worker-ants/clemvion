@@ -50,7 +50,7 @@
 | `TYPE_MISMATCH` | 데이터 타입 불일치 |
 | `ERROR_PORT_FALLBACK` | 에러 포트로 라우팅 시도했으나 연결된 엣지 없음 → Stop Workflow 폴백 |
 
-노드 수준 런타임 에러 (`output.error.code` 로 라우팅, §3.2 참조) — 정식 목록은 `backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum. 주요 항목:
+노드 수준 런타임 에러 (`output.error.code` 로 라우팅, §3.2 참조) — 정식 목록은 `codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum. 주요 항목:
 
 | 카테고리 | 코드 |
 |----------|------|
@@ -169,7 +169,7 @@
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| code | String | UPPER_SNAKE_CASE 에러 코드 (`backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 참조) |
+| code | String | UPPER_SNAKE_CASE 에러 코드 (`codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 참조) |
 | message | String | 사람이 읽을 수 있는 에러 메시지 (국제화 없음) |
 | details | Object? | 노드별 부가 정보 — stack / originalInput / attempts / missingFields 등. JSON 직렬화 가능해야 함 |
 

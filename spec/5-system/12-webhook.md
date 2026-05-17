@@ -261,7 +261,7 @@ Webhook으로 수신된 데이터는 아래 구조로 워크플로우에 전달:
 ## 6. 구현 파일 구조
 
 ```
-backend/src/modules/hooks/
+codebase/backend/src/modules/hooks/
   ├── hooks.module.ts          # 모듈 정의
   ├── hooks.controller.ts      # POST /api/hooks/:endpointPath
   └── hooks.service.ts         # 트리거 조회, 인증 검증, 실행 트리거

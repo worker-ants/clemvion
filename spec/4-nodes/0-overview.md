@@ -8,10 +8,10 @@
 
 ### 1.0 노드 컴포넌트 구조 (Backend)
 
-노드는 `backend/src/nodes/<category>/<type>/` 폴더에 컴포넌트 단위로 구성된다. 각 노드 컴포넌트는 구조 정의와 실행 로직을 한 폴더에 응집시킨다.
+노드는 `codebase/backend/src/nodes/<category>/<type>/` 폴더에 컴포넌트 단위로 구성된다. 각 노드 컴포넌트는 구조 정의와 실행 로직을 한 폴더에 응집시킨다.
 
 ```
-backend/src/nodes/
+codebase/backend/src/nodes/
 ├── core/
 │   ├── node-component.interface.ts   # NodeComponent 타입, Ports 타입, HandlerDependencies
 │   ├── node-component.registry.ts    # 모든 컴포넌트 부트스트랩 + metadata/JSON schema 조회

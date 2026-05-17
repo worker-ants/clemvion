@@ -2,7 +2,7 @@
 
 ## 미션
 
-main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `packages/`, `backend/`, `frontend/` — 를 요구사항 충족 관점에서 면밀히 검토한다. 본 검토는 단일 diff 가 아니라 누적 상태에 대한 전체 audit 이다.
+main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `codebase/packages/`, `codebase/backend/`, `codebase/frontend/` — 를 요구사항 충족 관점에서 면밀히 검토한다. 본 검토는 단일 diff 가 아니라 누적 상태에 대한 전체 audit 이다.
 
 ## 사용자 강조 관점
 
@@ -22,9 +22,9 @@ main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `pa
 ## 검토 범위 (재귀)
 
 - `spec/` — 116 개 MD 파일. 0-overview, 1-data-model, 2-navigation/, 3-workflow-editor/, 4-nodes/, 5-system/, 6-brand, conventions/, data-flow/
-- `packages/` — expression-engine, node-summary
-- `backend/src/` — modules/ (20+ 모듈), nodes/ (7 카테고리), common/, shared/
-- `frontend/src/` — app/((editor|main|auth)), components/, lib/
+- `codebase/packages/` — expression-engine, node-summary
+- `codebase/backend/src/` — modules/ (20+ 모듈), nodes/ (7 카테고리), common/, shared/
+- `codebase/frontend/src/` — app/((editor|main|auth)), components/, lib/
 
 ## 작업 지침
 

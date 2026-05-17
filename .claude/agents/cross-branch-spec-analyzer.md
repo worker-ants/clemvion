@@ -35,7 +35,7 @@ model: sonnet
 
 1. **같은 spec 파일 다른 변경** — 두 branch 이상이 동일 `spec/<영역>/*.md` 를 서로 다른 방향으로 수정
 2. **같은 plan 영역 동시 진행** — frontmatter 의 `worktree` 가 다른 두 plan 이 동일 spec 파일을 손대고 있는지
-3. **요구사항 ID cross-branch 중복** — branch 마다 다른 의미로 새 NAV-/ED-AI- 등을 도입했는가
+3. **요구사항 ID cross-branch 중복** — branch 마다 다른 의미로 같은 요구사항 ID prefix 를 도입했는가
 4. **API 계약의 cross-branch divergence** — 같은 endpoint 를 branch 마다 다르게 정의
 5. **Rationale 충돌** — 한 branch 가 추가한 Rationale 결정을 다른 branch 가 무시·번복하고 있는지
 6. **convention 위반의 cross-branch 누적** — 한 branch 의 convention 변경이 다른 branch 의 코드와 어긋남

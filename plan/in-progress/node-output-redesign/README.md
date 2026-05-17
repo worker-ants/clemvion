@@ -6,7 +6,7 @@
 >
 > **2차 갱신 (2026-05-16 spec 정합)**: 본 폴더의 노드별 plan 들은 1차 초안(2026-04 / commit `e228ec96`) 이후 spec/4-nodes/ 와 spec/conventions/node-output.md 가 여러 차례 개선됐다. 본 갱신에서 (a) 모든 plan 파일 상단에 `최신화 검토 (2026-05-16)` 상태 블록을 추가해 현재 spec 부합 여부와 잔여 권고 항목을 명시했고, (b) 신규 노드 **Cafe24** ([cafe24.md](./cafe24.md)) 를 인덱스·요약 표·잔여 권고 통계에 편입했다. 노드 카운트는 27 → 28 로 변경됐다.
 
-본 plan 폴더는 `spec/4-nodes/` 의 모든 노드 spec 을 검토하여, 각 노드의 `output` 필드 정의가 다음 정의에 부합하는지 진단하고 노드별 개선안을 모은 자료다. 2026-05-16 갱신부터 backend 구현 (`backend/src/nodes/**/*.handler.ts`, `*.schema.ts`, `*.spec.ts`) 정합성도 함께 다룬다.
+본 plan 폴더는 `spec/4-nodes/` 의 모든 노드 spec 을 검토하여, 각 노드의 `output` 필드 정의가 다음 정의에 부합하는지 진단하고 노드별 개선안을 모은 자료다. 2026-05-16 갱신부터 backend 구현 (`codebase/backend/src/nodes/**/*.handler.ts`, `*.schema.ts`, `*.spec.ts`) 정합성도 함께 다룬다.
 
 ## 출발점 — output 의 올바른 정의 (사용자 표현 그대로)
 

@@ -13,7 +13,7 @@
 | inputField | Expression | ✓ | `''` | 변환 대상 배열 필드. **dot-path 문자열** (`"items"`) 이면 `$input` 에 적용, **inline 표현식** (`{{ $var.a }}`) 이면 resolver 가 치환한 값을 직접 사용 |
 | errorPolicy | `stop` / `skip` / `continue` | | `stop` | 반복 중 에러 정책. [공통 §4](./0-common.md#4-에러-정책-errorpolicy) |
 
-> Source of truth: `backend/src/nodes/logic/map/map.schema.ts` (export `mapNodeConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/logic/map/map.schema.ts` (export `mapNodeConfigSchema`)
 
 ## 2. 설정 UI
 
