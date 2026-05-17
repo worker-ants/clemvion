@@ -46,6 +46,8 @@ describe("applyExecutionSnapshot — REST → store bridge (Carousel disabled st
       waitingConversationConfig: null,
       waitingInteractionType: null,
       selectedResultNodeId: null,
+      conversationMessages: [],
+      selectedConversationItemIndex: null,
     });
   });
 
@@ -322,6 +324,211 @@ describe("applyExecutionSnapshot — REST → store bridge (Carousel disabled st
     expect(useExecutionStore.getState().status).toBe("waiting_for_input");
     expect(useExecutionStore.getState().waitingNodeId).toBe("carousel-node");
     expect(useExecutionStore.getState().waitingInteractionType).toBe("buttons");
+  });
+
+  // ai_conversation 재진입 hydration — multi-turn AI Agent 가 waiting 인 상태에서
+  // 사용자가 다른 페이지로 이동했다가 돌아왔을 때, WS 이벤트가 도착하기 전 REST
+  // 스냅샷만으로도 store.conversationMessages 가 채워져야 빈 채팅 화면 회귀가
+  // 발생하지 않는다. WS 경로(`use-execution-events.ts:handleWaitingForInput`)
+  // 와 동등한 hydration 을 REST 경로에도 갖춘다.
+  it("ai_conversation waiting REST 스냅샷 — 빈 store 일 때 outputData.output.result.messages 로 hydrate", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-ai-1",
+            executionId: "exec-1",
+            nodeId: "ai-agent-node",
+            nodeType: "ai_agent",
+            status: "waiting_for_input",
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: { mode: "multi_turn", model: "gpt-4o", maxTurns: 10 },
+              output: {
+                result: {
+                  messages: [
+                    { role: "user", content: "안녕" },
+                    { role: "assistant", content: "안녕하세요! 무엇을 도와드릴까요?" },
+                    { role: "user", content: "오늘 날씨 알려줘" },
+                    { role: "assistant", content: "현재 위치 기준으로 맑음입니다." },
+                  ],
+                  message: "현재 위치 기준으로 맑음입니다.",
+                  turnCount: 2,
+                  maxTurns: 10,
+                },
+              },
+              status: "waiting_for_input",
+              meta: { interactionType: "ai_conversation" },
+            },
+          },
+        ],
+      }),
+    );
+
+    const state = useExecutionStore.getState();
+    expect(state.waitingInteractionType).toBe("ai_conversation");
+    expect(state.waitingNodeId).toBe("ai-agent-node");
+    expect(state.conversationMessages).toHaveLength(4);
+    expect(state.conversationMessages[0]).toMatchObject({
+      type: "user",
+      content: "안녕",
+      turnIndex: 1,
+    });
+    expect(state.conversationMessages[3]).toMatchObject({
+      type: "assistant",
+      content: "현재 위치 기준으로 맑음입니다.",
+      turnIndex: 2,
+    });
+  });
+
+  it("ai_conversation waiting REST 스냅샷 — store 가 이미 메시지를 갖고 있으면 덮어쓰지 않음 (재발신 보호)", () => {
+    // WS 이벤트가 먼저 도착해 store 를 채운 상황. 뒤이은 REST 폴링이 도착해도
+    // 중복으로 다시 시드해서는 안 된다 (use-execution-events.ts:233-269 패턴).
+    useExecutionStore.setState({
+      conversationMessages: [
+        { type: "user", content: "기존 메시지", turnIndex: 1 },
+      ],
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-ai-1",
+            executionId: "exec-1",
+            nodeId: "ai-agent-node",
+            nodeType: "ai_agent",
+            status: "waiting_for_input",
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: { mode: "multi_turn" },
+              output: {
+                result: {
+                  messages: [
+                    { role: "user", content: "재발신된 메시지" },
+                    { role: "assistant", content: "응답" },
+                  ],
+                  message: "응답",
+                  turnCount: 1,
+                  maxTurns: 10,
+                },
+              },
+              status: "waiting_for_input",
+              meta: { interactionType: "ai_conversation" },
+            },
+          },
+        ],
+      }),
+    );
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages).toHaveLength(1);
+    expect(state.conversationMessages[0]?.content).toBe("기존 메시지");
+  });
+
+  it("ai_conversation waiting REST 스냅샷 — meta.turnDebug 로 assistant 메시지의 model 정보가 attach 됨", () => {
+    applyExecutionSnapshot(
+      createExec({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-ai-1",
+            executionId: "exec-1",
+            nodeId: "ai-agent-node",
+            nodeType: "ai_agent",
+            status: "waiting_for_input",
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: { mode: "multi_turn", model: "gpt-4o" },
+              output: {
+                result: {
+                  messages: [
+                    { role: "user", content: "Q" },
+                    { role: "assistant", content: "A" },
+                  ],
+                  message: "A",
+                  turnCount: 1,
+                  maxTurns: 10,
+                },
+              },
+              status: "waiting_for_input",
+              meta: {
+                interactionType: "ai_conversation",
+                turnDebug: [
+                  {
+                    turnIndex: 1,
+                    llmCalls: [
+                      {
+                        requestPayload: { model: "gpt-4o", messages: [] },
+                        responsePayload: {
+                          model: "gpt-4o-2024-08-06",
+                          usage: { inputTokens: 10, outputTokens: 5 },
+                        },
+                        durationMs: 420,
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages).toHaveLength(2);
+    const assistant = state.conversationMessages[1];
+    expect(assistant?.type).toBe("assistant");
+    expect(assistant?.metadata?.model).toBe("gpt-4o-2024-08-06");
+    expect(assistant?.metadata?.inputTokens).toBe(10);
+    expect(assistant?.metadata?.outputTokens).toBe(5);
+    expect(assistant?.durationMs).toBe(420);
+  });
+
+  it("ai_conversation waiting REST 스냅샷 — messages 가 비어있으면 setConversationMessages 호출 안 함", () => {
+    // 첫 진입 직전 (messages 가 아직 빈 배열) 인 케이스. 빈 배열로 시드하면
+    // 이후 도착하는 WS ai_message 이벤트가 정상 append 되지만, 빈 배열로 set
+    // 자체는 의미가 없다 — 그러나 setConversationMessages 가 호출되면
+    // selectedConversationItemIndex 가 reset 될 수 있으니 보호한다.
+    useExecutionStore.setState({
+      selectedConversationItemIndex: 3,
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-ai-1",
+            executionId: "exec-1",
+            nodeId: "ai-agent-node",
+            nodeType: "ai_agent",
+            status: "waiting_for_input",
+            startedAt: "2026-04-01T00:00:00Z",
+            outputData: {
+              config: { mode: "multi_turn" },
+              output: {
+                result: {
+                  messages: [],
+                  message: "",
+                  turnCount: 0,
+                  maxTurns: 10,
+                },
+              },
+              status: "waiting_for_input",
+              meta: { interactionType: "ai_conversation" },
+            },
+          },
+        ],
+      }),
+    );
+
+    const state = useExecutionStore.getState();
+    expect(state.waitingInteractionType).toBe("ai_conversation");
+    expect(state.conversationMessages).toEqual([]);
   });
 
   it("terminal status (completed) 는 reconcile 안 함 — node 가 stale 이라도", () => {
