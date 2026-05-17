@@ -89,7 +89,7 @@
 6. **토큰 만료 확인 및 갱신**: `Integration.token_expires_at` 가 만료됐거나 60초 내 만료 예정이면 자동 갱신 ([§통합 §10.5 토큰 자동 갱신](../../2-navigation/4-integration.md#105-토큰-자동-갱신)). 갱신 실패 시: `refresh_token invalid_grant` 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기 폐기 — 2026-05-16, [통합 §6 / Rationale "refresh 실패 시 status_reason 통일"](../../2-navigation/4-integration.md#rationale)), transport 3회 연속 실패면 `error(network)` 로 전이. throw `INTEGRATION_NOT_CONNECTED` 는 동일. 또한 모든 cafe24 refresh 호출은 `cafe24-token-refresh` BullMQ 큐의 `jobId = integrationId` dedup 으로 클러스터 전체 직렬화된다 (§9.6 참고).
 7. **URL 구성**: `https://{credentials.mall_id}.cafe24api.com/api/v2/admin/{operation.path}` — `{path}` 는 메타데이터에 정의된 path template (예: `products/{product_no}`). path parameter 는 `fields` 에서 채움.
 8. **Query / Body 구성**: 메타데이터의 `fields[*].location` (path / query / body) 에 따라 분배. `pagination.{limit, offset}` 는 항상 query. body 의 envelope 직렬화는 step 9 의 wrapper 가 단일 책임으로 담당한다 (§4.2 참고).
-9. **호출 (rate-limit-aware)**: `Cafe24ApiClient` wrapper 가 다음을 수행 — `Authorization: Bearer {access_token}` 헤더 부여 → POST/PUT 본문은 Cafe24 request envelope 으로 wrap (§4.2) → fetch → 응답 헤더 `X-Cafe24-Call-Remain` 모니터링 → 429 응답 시 헤더 값(초) 만큼 sleep 후 재시도(최대 2회).
+9. **호출 (rate-limit-aware + 401 reactive refresh)**: `Cafe24ApiClient` wrapper 가 다음을 수행 — `Authorization: Bearer {access_token}` 헤더 부여 → POST/PUT 본문은 Cafe24 request envelope 으로 wrap (§4.2) → fetch → 응답 헤더 `X-Cafe24-Call-Remain` 모니터링 → 429 응답 시 헤더 값(초) 만큼 sleep 후 재시도(최대 2회). **401 응답 시** `refresh_token` 으로 access_token 을 1회 갱신 후 동일 요청 1회 재시도 (§6.1 의 401 분기 — proactive step 6 가 race window 로 빗나간 경우 자가 회복). 재시도가 2xx 면 step 10 정상 흐름; 재시도도 401 이면 §6.1 격하 (`error(auth_failed)`). 403 은 본 reactive refresh 대상 아님 — 즉시 §6.1 격하.
 10. **응답 파싱**: JSON 본문을 그대로 `output.response` 에 보존. `meta.statusCode`, `meta.durationMs`, `meta.callUsage` (헤더 `X-Cafe24-Call-Usage`), `meta.callRemain` (헤더 `X-Cafe24-Call-Remain`).
 11. **Usage 로깅** ([공통 §4 의 6단계 Usage 로깅](./0-common.md#4-handler-실행-세멘틱)): 성공·실패 무관 1건. `error.code` 는 §6 의 vocabulary.
 12. **반환 분기**:
@@ -310,7 +310,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 | `CAFE24_4XX` | `400 ≤ statusCode < 500` (404·422 외의 fallback) | 서버 body 보존 | 응답 status |
 | `CAFE24_404` | Cafe24 응답 404 (자주 분기되는 케이스) | 서버 body 보존 | 404 |
 | `CAFE24_422` | Cafe24 응답 422 (validation 실패) | 서버 body 보존 | 422 |
-| `CAFE24_AUTH_FAILED` | 401 / 403. `Integration.status` 를 `error(auth_failed)` 로 atomic 전이 | 서버 body 보존 | 401 / 403 |
+| `CAFE24_AUTH_FAILED` | **401**: refresh + 1회 재시도 후에도 401 (§6.1) / **403**: 즉시. `Integration.status` 를 `error(auth_failed)` 또는 `error(insufficient_scope)` 로 atomic 전이 | 서버 body 보존 | 401 / 403 |
 | `CAFE24_RATE_LIMITED` | 429 응답 + 재시도 소진 | 서버 body 보존 (있으면) | 429 |
 | `CAFE24_5XX` | `500 ≤ statusCode < 600` | 서버 body 보존 | 응답 status |
 | `CAFE24_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout) | 미정의 | `0` |
@@ -322,13 +322,32 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 
 ### 6.1 인증 실패 자동 status 전환
 
-응답이 401/403 이면 다음을 동시에 수행 (Spec MCP Client §8.4 와 동일 정책):
+#### 401 (access_token 만료) — refresh + 1회 재시도
+
+401 응답은 access_token 만료 가능성이 있어 `refresh_token` 으로 1회 갱신 후 동일 요청을 재시도한다. 재시도 흐름은 [Spec 통합 §10.5 토큰 자동 갱신](../../2-navigation/4-integration.md#105-토큰-자동-갱신) 의 "401 자동 회복 (`call()` 경로)" 와 동일 정책.
+
+1. refresh 시도 (`refreshViaQueue` — `jobId = integrationId` 로 클러스터 전체 직렬화)
+2. refresh 성공 → 새 access_token 으로 **동일 요청 1회 재시도**
+3. 재시도 응답이 2xx → `status='connected'` 유지 (애초에 `error` 로 전이하지 않음). 정상 결과 반환
+4. 재시도 응답도 401 → 토큰 자체 문제 확정 → 아래 "공통 격하" 1~3 발사
+
+refresh 자체가 401/403 (`invalid_grant`) 으로 실패하면 refresh 단계가 이미 `error(auth_failed)` 로 전이시키고 throw — 재시도 없음. 재시도 횟수는 **정확히 1회** (무한 retry 차단). 429 rate limit 재시도와 별개 카운터.
+
+본 자가 회복은 [§5.8 의 연결 테스트 (`pingConnection`)](#58-d4--2026-05-17-handlervalidate-실패만-throw-나머지-모두-53-으로-라우팅) 의 동일 패턴과 정책 통일.
+
+#### 403 (스코프 부족 / 앱 미설치) — 즉시 격하
+
+403 은 refresh 로 회복 불가능하므로 즉시 격하한다 (`insufficient_scope` 시그널 시 `status_reason='insufficient_scope'`, 그 외 `auth_failed`).
+
+#### 공통 격하 동작 (Spec MCP Client §8.4 의 일반 정책)
+
+위 두 분기에서 격하가 결정되면 다음을 동시에 수행:
 
 1. `port: 'error'`, `output.error.code = 'CAFE24_AUTH_FAILED'` 로 분기
 2. `IntegrationUsageLog.error.code = 'CAFE24_AUTH_FAILED'` 로 로그 기록
-3. **`Integration.status` 를 `error` 로, `status_reason` 을 `auth_failed` 로 atomic UPDATE 전환** — 다음 노드 실행이 기동될 때 통합 관리 화면이 "Need attention" 배너로 자동 노출
+3. **`Integration.status` 를 `error` 로, `status_reason` 을 `auth_failed` (또는 `insufficient_scope`) 로 atomic UPDATE 전환** — 다음 노드 실행이 기동될 때 통합 관리 화면이 "Need attention" 배너로 자동 노출
 
-자동 복구 없음 — 토큰이 다시 유효해지면 사용자가 명시적으로 `Reauthorize` 로 `connected` 복귀.
+격하 이후 `error → connected` 자동 전이는 없다 — 사용자가 명시적으로 `Reauthorize` 로 복귀 ([Spec MCP Client §8.4](../../5-system/11-mcp-client.md#84-인증-실패-자동-status-전환) 의 race-of-clock 시나리오 방지 정책).
 
 ## 7. 캔버스 요약
 
@@ -549,3 +568,4 @@ UI 4 화면 (통합 추가 위저드 / 통합 상세 §4.4 Scope & Permissions /
 | 2026-05-16 (envelope) | §4 step 8/9 본문 보강 + §4.2 신설 + §9.10 Rationale 추가 — Cafe24 POST/PUT 본문의 `request` envelope 책임을 wrapper (`Cafe24ApiClient`) 단일 지점으로 명문화 (코드 fix PR #102 와 결속). 운영 사고 (`product_update` 가 `400 "Please enter the Request parameter."` 반환) 후속. 규약 본문 단일 진실은 [`spec/conventions/cafe24-api-metadata.md` §4](../../conventions/cafe24-api-metadata.md#4-wire-format-규약--postput-request-envelope). §8.1·§8.3 의 cafe24-api-metadata anchor (`#5-mcp-…` / `#6-allowlist-…`) 도 절 번호 +1 이동에 맞춰 `#6-mcp-…` / `#7-allowlist-…` 로 갱신. consistency-check 세션: `review/consistency/2026/05/16/15_45_35/` (BLOCK: NO). |
 | 2026-05-17 | §2 Operation 드롭다운에 별도 승인 ⚠ 라벨 명세 + §8.3 AI Agent allowlist UI 의 동일 ⚠ 라벨 명세 + §9.11 Rationale 신설. 메타데이터 `Cafe24OperationMetadata.restrictedApproval` 신설 ([cafe24-api-metadata 컨벤션 §2](../../conventions/cafe24-api-metadata.md#2-operation-메타데이터-형식)) + 카탈로그 `restricted` 컬럼 ([_overview §2](../../conventions/cafe24-api-catalog/_overview.md#2-표-컬럼-정의)) + SoT 컨벤션 [`cafe24-restricted-scopes.md`](../../conventions/cafe24-restricted-scopes.md) 신설과 한 세트. 사용자 보고 (2026-05-17) — 카페24 본사 승인 필요 권한이 사용자에게 식별되지 않는 UX 문제 해소. consistency-check 세션: `review/consistency/2026/05/17/12_12_46/` (BLOCK: NO). |
 | 2026-05-17 (drift fix) | §2 별도 승인 라벨 설명에 `approvalGroup` 명명 명시 (옛 `category` 충돌 회피, W-8). impl-prep consistency-check 세션: `review/consistency/2026/05/17/12_37_41/`. |
+| 2026-05-17 (401 자동 회복) | §6.1 전면 재구성 — 401 분기에 "refresh + 1회 재시도" 자가 회복 정책 도입 (옛 "401/403 모두 즉시 격하" 폐기), 403 분기는 즉시 격하 유지. §4 step 9 (호출) 에 reactive 401 회복 흐름 한 줄 보강. §6 에러 코드 표 `CAFE24_AUTH_FAILED` 행에 401 (재시도 후) / 403 (즉시) 구분 명시. [Spec 통합 §10.5](../../2-navigation/4-integration.md#105-토큰-자동-갱신) 신규 bullet 및 [Spec 통합 § Rationale "`call()` 의 401 자동 회복 (2026-05-17)"](../../2-navigation/4-integration.md#rationale) 와 한 세트. [Spec MCP Client §8.4](../../5-system/11-mcp-client.md#84-인증-실패-자동-status-전환) 도 동시 갱신 — 외부 MCP 한정 정책 + Internal Bridge (cafe24 등) 예외 명시. 사용자 보고 (2026-05-17) — access_token 만료 후 401 만 받고 토큰 갱신 없이 즉시 `error(auth_failed)` 격하되어 재인증 강제 문제 해소. 구현 plan: `plan/in-progress/cafe24-call-401-retry.md` (worktree `cafe24-401-refresh-a3f2c1`). consistency-check 세션: `review/consistency/2026/05/17/21_06_13/` (BLOCK: NO). |
