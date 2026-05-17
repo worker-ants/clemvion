@@ -410,7 +410,7 @@ describe('IntegrationsService', () => {
         expect(result.autoRefresh).toBe(false);
       });
 
-      it('returns false for cafe24 Private 도 동일 (mall-aware refresh 가 동작 — autoRefresh=true 유지)', async () => {
+      it('returns true for cafe24 Private 도 동일 (mall-aware refresh 가 동작 — autoRefresh=true 유지)', async () => {
         // Private/Public 무관하게 cafe24 는 refresh_token + Cafe24ApiClient
         // 자동 갱신 메커니즘을 동일하게 사용한다.
         integrationRepo.findOne.mockResolvedValue(

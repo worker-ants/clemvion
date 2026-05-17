@@ -3,6 +3,7 @@ import {
   computeStatus,
   isReauthorizeDisabled,
   computeAttentionBreakdown,
+  humanizeUntil,
   needsAttention,
 } from "../status-badge";
 import type { IntegrationDto } from "@/lib/api/integrations";
@@ -184,6 +185,50 @@ describe("computeStatus", () => {
       // tokenExpiresAt 가 없으면 만료 카운트다운이 무의미 → subLabel 미노출
       expect(view.subLabel).toBeUndefined();
     });
+  });
+});
+
+// spec/2-navigation/4-integration.md §4.1 헤더 메타 라인 규약 — `Auto-renews ·
+// in <duration>` 보조 라벨에서 사용. 단위 변환 경계 + 입력 가드 보장.
+describe("humanizeUntil", () => {
+  const minutesFromNow = (m: number) =>
+    new Date(Date.now() + m * 60_000).toISOString();
+
+  it("returns empty string for past timestamps (no misleading '0m')", () => {
+    expect(humanizeUntil(minutesFromNow(-1))).toBe("");
+  });
+
+  it("returns empty string for zero / 'now' timestamps", () => {
+    expect(humanizeUntil(new Date(Date.now()).toISOString())).toBe("");
+  });
+
+  it("returns empty string for invalid ISO input (NaN guard)", () => {
+    expect(humanizeUntil("not-a-date")).toBe("");
+    expect(humanizeUntil("")).toBe("");
+  });
+
+  it("returns 'less than a minute' when remaining < 60s", () => {
+    const in30s = new Date(Date.now() + 30 * 1000).toISOString();
+    expect(humanizeUntil(in30s)).toBe("less than a minute");
+  });
+
+  it("returns minutes-only form when under an hour", () => {
+    expect(humanizeUntil(minutesFromNow(45))).toBe("45m");
+  });
+
+  it("returns hours-only form when remainder minutes are zero", () => {
+    expect(humanizeUntil(minutesFromNow(60))).toBe("1h");
+    expect(humanizeUntil(minutesFromNow(120))).toBe("2h");
+  });
+
+  it("returns hours + minutes when both nonzero", () => {
+    // 84m → 1h 24m — the case the bug report originally showed.
+    expect(humanizeUntil(minutesFromNow(84))).toBe("1h 24m");
+  });
+
+  it("returns days when remaining ≥ 24h", () => {
+    expect(humanizeUntil(minutesFromNow(24 * 60))).toBe("1d");
+    expect(humanizeUntil(minutesFromNow(3 * 24 * 60))).toBe("3d");
   });
 });
 

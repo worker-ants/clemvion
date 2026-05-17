@@ -1,0 +1,81 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-17T13:44:54+09:00",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/modules/integrations/dto/responses/integration-response.dto.ts, backend/src/modules/integrations/integrations.service.spec.ts, backend/src/modules/integrations/integrations.service.ts (외 7건)"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "derived 필드 계산은 간단한 lookup (O(1)), 반복문·I/O·캐시·비동기 패턴 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "service registry 확장 + PublicIntegration 타입 신규 필드 추가 — 응답 API 구조 변경"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/modules/integrations/dto/responses/integration-response.dto.ts, backend/src/modules/integrations/integrations.service.spec.ts, backend/src/modules/integrations/integrations.service.ts (외 7건)"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/modules/integrations/dto/responses/integration-response.dto.ts, backend/src/modules/integrations/integrations.service.spec.ts, backend/src/modules/integrations/integrations.service.ts (외 7건)"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/modules/integrations/dto/responses/integration-response.dto.ts, backend/src/modules/integrations/integrations.service.spec.ts, backend/src/modules/integrations/integrations.service.ts (외 7건)"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/modules/integrations/dto/responses/integration-response.dto.ts, backend/src/modules/integrations/integrations.service.spec.ts, backend/src/modules/integrations/integrations.service.ts (외 7건)"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: backend/src/modules/integrations/dto/responses/integration-response.dto.ts, backend/src/modules/integrations/integrations.service.spec.ts, backend/src/modules/integrations/integrations.service.ts (외 7건)"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "IntegrationDto 신규 필드 JSDoc 주석 + Swagger @ApiProperty 데코레이터 + i18n 한영 번역 추가 (integrations.tokenExpiresAuto)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/package-lock.json 변경 없음 — 기존 의존성만 사용"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "autoRefresh 는 derived 가상 필드 (DB 컬럼 아님) — 마이그레이션·쿼리 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await·Promise·락·워커·이벤트 루프 코드 변경 없음 — 동기 lookup만 수행"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "IntegrationDto 응답에 신규 boolean 필드 추가 — 프론트엔드 타입 동기 + 스웨거 스키마 변경"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 4,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing"
+  ]
+}
