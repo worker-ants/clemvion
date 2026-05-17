@@ -114,6 +114,7 @@ Client (Next.js SPA)
 
 - Node.js 20+
 - Docker & Docker Compose
+- `jq` (`make e2e-prune` 실행 시 필요. macOS: `brew install jq`. 그 외 타겟은 jq 불필요)
 
 ### 1. 인프라 실행
 
@@ -242,16 +243,27 @@ npm run dev
 
 ### 격리 인프라 기반 e2e (`make e2e-*`)
 
-`docker-compose.e2e.yml` 의 격리 Postgres/Redis/MinIO 위에서 backend e2e 와 playwright 를 실행한다. 개발용 인프라(`docker-compose.yml`) 와 `name:` top-level key 가 다르므로 동시 기동해도 충돌 없음.
+`docker-compose.e2e.yml` 의 격리 Postgres/Redis/MinIO 위에서 backend e2e 와 playwright 를 실행한다. compose project name 은 `Makefile` 이 현재 worktree dir basename 으로 도출 (`-p` flag) 하므로, 개발용 인프라(`docker-compose.yml`, project=`clemvion`) 와도 자동 분리되고 **여러 worktree 가 e2e 를 동시에 돌려도 컨테이너·볼륨·network 가 자동 격리**된다. 호스트 포트도 노출하지 않아 dev 가 5432/6379 등을 점유 중이어도 충돌 없음.
+
+- main worktree: `clemvion-e2e`
+- `.claude/worktrees/<task>-<slug>/`: `clemvion-e2e-<task>-<slug>`
+- override: `COMPOSE_PROJECT=foo make e2e-test`
+
+빌드 서비스마다 `image:` 가 명시되어 있어 (`clemvion-e2e/backend:latest`, `clemvion-e2e/migrate:latest`, `clemvion-e2e/backend-deps:latest`) image 자체는 worktree 간 공유 → 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다.
 
 ```bash
 make e2e-test        # backend supertest 1-shot (~30–60s). 끝나면 자동 down
 make e2e-test-full   # backend + playwright. 끝나면 자동 down
 make e2e-up          # 인프라 + backend-e2e 만 백그라운드 기동 (runner 제외)
-make e2e-down        # 정리 (volume·orphan 모두)
+make e2e-down        # 현 worktree 의 e2e 정리 (volume·orphan 모두)
+make e2e-prune       # 모든 worktree 의 stale clemvion-e2e* compose project 일괄 정리 (jq 필요)
 ```
 
-빌드 타겟 세 개 (`e2e-up`, `e2e-test`, `e2e-test-full`) 모두 매 실행 시 `docker compose ... --build` 로 backend 이미지를 갱신한다 (`e2e-down` 은 정리 전용이라 제외). BuildKit layer cache 가 변경 없는 layer 는 재사용하므로 첫 build 이후 오버헤드는 작고, 새로 추가한 컨트롤러·라우트가 stale 이미지에 반영되지 않아 사일런트 404 로 실패하는 회귀를 차단한다.
+빌드 타겟 세 개 (`e2e-up`, `e2e-test`, `e2e-test-full`) 모두 매 실행 시 `docker compose ... --build` 로 backend 이미지를 갱신한다 (`e2e-down` / `e2e-prune` 은 정리 전용이라 제외). BuildKit layer cache 가 변경 없는 layer 는 재사용하므로 첫 build 이후 오버헤드는 작고, 새로 추가한 컨트롤러·라우트가 stale 이미지에 반영되지 않아 사일런트 404 로 실패하는 회귀를 차단한다.
+
+> `git worktree remove` 로 worktree 를 정리한 뒤 docker daemon 에 해당 project 의 컨테이너·볼륨이 남아있을 수 있다. 주기적으로 `make e2e-prune` 으로 일괄 정리하거나, 정리 직전에 해당 worktree 안에서 `make e2e-down` 을 먼저 호출한다.
+>
+> **본 격리 방식 적용 직후 첫 실행 시** 이전 단일 `clemvion-e2e` namespace 로 만들어진 잔여 컨테이너·볼륨이 있을 수 있다. 한 번 `make e2e-prune` (또는 `docker compose -p clemvion-e2e -f docker-compose.e2e.yml down -v --remove-orphans`) 으로 비워주면 깔끔하다.
 
 ### 문서 링크 검증
 

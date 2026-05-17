@@ -118,6 +118,7 @@
 - **수명 = PR 단위**: 작업이 PR 로 merge 되면 즉시 `git worktree remove` 로 정리한다. 사용 끝난 worktree 를 누적시키지 않는다.
 - **plan 과 worktree 의 결속**: 새 plan 을 만들 때 frontmatter 의 `worktree` 필드에 현재 worktree 이름을 기록한다. 동일 worktree 안에서 여러 plan 이 진행되어도 무방하다.
 - **공유 자원 직렬화**: 같은 `spec/` 파일이나 동일 코드 영역을 두 worktree 가 동시에 수정 중이면, plan/in-progress 에 그 사실을 명시적으로 기록하고 작업을 직렬화한다. `consistency-checker` 의 `plan_coherence` 가 이 충돌을 사전 검출한다.
+- **e2e 인프라는 worktree 별 자동 격리**: `make e2e-*` 는 현재 worktree dir basename 으로 compose project name 을 도출하므로 여러 worktree 가 e2e 를 **동시에** 돌려도 컨테이너·볼륨·network 가 자동 분리된다 (`PROJECT.md §빌드·린트·테스트 명령` 참고). worktree 정리 후 docker 쪽 stale 은 `make e2e-prune` 으로 일괄 정리.
 - **hotfix 예외**: 긴급 hotfix 도 별도 branch 에서 작업한다. 정말 default branch 에서 직접 commit 해야 하는 경우는 `BYPASS_DEFAULT_BRANCH_GUARD=1` 로 한 commit 만 우회 (아래 Enforcement 절 참고).
 - **통합 작업 worktree**: 다수 branch 를 통합할 때는 `merge-coordinator` 가 별도 `.claude/worktrees/integrate-<slug>/` 를 신설해 거기서 merge/rebase 를 시도한다. 통합이 PR 로 merge 되면 정리한다.
 
