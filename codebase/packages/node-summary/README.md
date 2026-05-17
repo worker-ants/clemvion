@@ -57,5 +57,5 @@ return {
 
 ## boundary
 
-- 본 패키지는 `@workflow/expression-engine` 만 (필요한 경우) 참조하며 다른 `packages/*` 를 참조하지 않는다.
+- 본 패키지는 `@workflow/expression-engine` 만 (필요한 경우) 참조하며 다른 `codebase/packages/*` 를 참조하지 않는다.
 - DOM / Node API 비의존 — 양쪽 런타임에서 동일하게 동작.

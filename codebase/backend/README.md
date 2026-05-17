@@ -35,7 +35,7 @@ npm run start:dev
 
 ## Docker
 
-프로덕션 이미지는 `codebase/backend/Dockerfile`(멀티스테이지, non-root `node` 유저)로 빌드합니다. 빌드 컨텍스트는 **repo 루트** — `file:../packages/*` 의존성을 함께 가져오기 위함입니다.
+프로덕션 이미지는 `codebase/backend/Dockerfile`(멀티스테이지, non-root `node` 유저)로 빌드합니다. 빌드 컨텍스트는 **repo 루트** — `file:../codebase/packages/*` 의존성을 함께 가져오기 위함입니다.
 
 ```bash
 # repo 루트에서

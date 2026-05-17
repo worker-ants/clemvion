@@ -86,23 +86,24 @@ Client (Next.js SPA)
 │   │       │   └── (editor)/       #     워크플로우 에디터
 │   │       ├── components/         #   공통 컴포넌트
 │   │       └── lib/                #   유틸리티, 훅, API 클라이언트, 스토어
-│   └── backend/               # 서버 (NestJS)
-│       └── src/
-│           └── modules/
-│               ├── auth/           #   인증 (JWT, Passport)
-│               ├── workflows/      #   워크플로우 관리
-│               ├── nodes/          #   노드 정의 및 설정
-│               ├── edges/          #   노드 간 연결
-│               ├── execution-engine/#  워크플로우 실행 엔진
-│               ├── executions/     #   실행 이력
-│               ├── triggers/       #   Webhook, Schedule, Manual 트리거
-│               ├── schedules/      #   Cron 스케줄 관리
-│               ├── integrations/   #   외부 서비스 연동
-│               ├── websocket/      #   실시간 통신
-│               ├── dashboard/      #   대시보드 통계
-│               └── ...             #   users, workspaces, notifications 등
-├── packages/
-│   └── expression-engine/      # Expression Language 엔진
+│   ├── backend/               # 서버 (NestJS)
+│   │   └── src/
+│   │       └── modules/
+│   │           ├── auth/           #   인증 (JWT, Passport)
+│   │           ├── workflows/      #   워크플로우 관리
+│   │           ├── nodes/          #   노드 정의 및 설정
+│   │           ├── edges/          #   노드 간 연결
+│   │           ├── execution-engine/#  워크플로우 실행 엔진
+│   │           ├── executions/     #   실행 이력
+│   │           ├── triggers/       #   Webhook, Schedule, Manual 트리거
+│   │           ├── schedules/      #   Cron 스케줄 관리
+│   │           ├── integrations/   #   외부 서비스 연동
+│   │           ├── websocket/      #   실시간 통신
+│   │           ├── dashboard/      #   대시보드 통계
+│   │           └── ...             #   users, workspaces, notifications 등
+│   └── packages/              # 공유 라이브러리 (file:../packages/* 로 frontend/backend 가 참조)
+│       ├── expression-engine/      # Expression Language 엔진
+│       └── node-summary/           # 노드 warning/summary SSOT
 ├── docker-compose.yml          # 인프라(PostgreSQL/Redis/MinIO) + (--profile app 시) codebase/backend/frontend/migrate
 └── README.md
 ```
@@ -138,7 +139,7 @@ docker compose --profile app up
 - `dist`, `.next`, `node_modules` 는 named volume(`backend_node_modules`, `backend_dist`, `frontend_node_modules`, `frontend_next`)으로 host 와 격리되어 macOS native 모듈(예: bcrypt)이 컨테이너로 새지 않습니다.
 - 컨테이너에 의존성을 추가할 때는 `docker compose exec backend npm install <pkg>` 로 컨테이너 안에서 실행하고, named volume 재시드가 필요하면 `docker volume rm clemvion_backend_node_modules` 후 `docker compose --profile app up --build`.
   - 이전 버전(`idea-workflow_*`) 볼륨이 남아 있다면 한 번에 정리: `docker volume ls -q --filter name=^idea-workflow_ | xargs -r docker volume rm`.
-- `packages/expression-engine`·`packages/node-summary` 는 이미지에 baked-in. 변경 시 `docker compose build backend frontend` 로 재빌드.
+- `codebase/packages/expression-engine`·`codebase/packages/node-summary` 는 이미지에 baked-in. 변경 시 `docker compose build backend frontend` 로 재빌드.
 - 마이그레이션만 재실행: `docker compose --profile app run --rm migrate`.
 
 > 풀스택 dev 모드를 쓰면 아래 「3. 의존성 설치 및 실행」 단계는 건너뛸 수 있습니다 (host-mode dev 는 여전히 지원).
@@ -208,7 +209,7 @@ INTEGRATION_ENCRYPTION_KEY=<32-byte-hex>
 make setup-githooks
 
 # Packages (expression-engine 빌드 - backend에서 참조)
-cd packages/expression-engine
+cd codebase/packages/expression-engine
 npm install
 npm run build
 
@@ -299,7 +300,7 @@ npx ts-node codebase/backend/src/scripts/cleanup-invalid-queue-jobs.ts --apply -
 
 ### 빌드
 
-세 이미지 모두 **repo 루트가 빌드 컨텍스트**입니다 (`packages/*` 의 `file:` 의존성을 트래킹하기 위함).
+세 이미지 모두 **repo 루트가 빌드 컨텍스트**입니다 (`codebase/packages/*` 의 `file:` 의존성을 트래킹하기 위함).
 
 ```bash
 # Backend

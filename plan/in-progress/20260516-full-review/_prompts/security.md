@@ -2,7 +2,7 @@
 
 ## 미션
 
-main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `packages/`, `codebase/backend/`, `codebase/frontend/` — 를 보안 관점에서 면밀히 검토한다. 본 검토는 단일 diff 가 아니라 누적 상태에 대한 전체 audit 이다.
+main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `codebase/packages/`, `codebase/backend/`, `codebase/frontend/` — 를 보안 관점에서 면밀히 검토한다. 본 검토는 단일 diff 가 아니라 누적 상태에 대한 전체 audit 이다.
 
 ## 사용자 강조 관점
 
@@ -27,7 +27,7 @@ main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `pa
 - `codebase/frontend/src/app/api/`, `codebase/frontend/src/lib/api/` — 클라이언트측 secret 노출, CSRF, XSS
 - `spec/5-system/` (특히 인증·통합·webhook 관련) — 보안 요구사항 본문
 - `spec/conventions/` — 정식 규약
-- `packages/expression-engine/` — 사용자 표현식 evaluator → 인젝션 위험
+- `codebase/packages/expression-engine/` — 사용자 표현식 evaluator → 인젝션 위험
 
 ## 작업 지침
 

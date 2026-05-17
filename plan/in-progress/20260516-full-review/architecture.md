@@ -76,10 +76,10 @@
 
 ---
 
-### 9. packages/expression-engine, packages/node-summary 패키지 경계는 건전함
+### 9. codebase/packages/expression-engine, codebase/packages/node-summary 패키지 경계는 건전함
 
-- **[INFO]** `packages/expression-engine`과 `packages/node-summary`는 `codebase/backend/`·`codebase/frontend/` 내부 경로를 import하지 않는다. 파일 의존성 스캔 결과 단방향 경계가 유지되고 있다.
-  - 위치: `packages/expression-engine/src/`, `packages/node-summary/src/`
+- **[INFO]** `codebase/packages/expression-engine`과 `codebase/packages/node-summary`는 `codebase/backend/`·`codebase/frontend/` 내부 경로를 import하지 않는다. 파일 의존성 스캔 결과 단방향 경계가 유지되고 있다.
+  - 위치: `codebase/packages/expression-engine/src/`, `codebase/packages/node-summary/src/`
   - 상세: 두 패키지는 순수 로직 라이브러리로 backend·frontend가 npm file 의존성으로 소비한다. 현재 상태는 아키텍처 설계 의도에 부합한다.
   - 제안: 유지. 향후 패키지가 node_modules 경로 등 외부를 import하지 않도록 CI에서 `madge --circular` 또는 `dependency-cruiser` 규칙을 추가한다.
 

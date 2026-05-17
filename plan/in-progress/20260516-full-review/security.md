@@ -73,7 +73,7 @@
 ---
 
 - **[INFO]** expression-engine 은 AST tree-walk 방식으로 `eval` / `new Function` 미사용 — 인젝션 위험 없음
-  - 위치: `packages/expression-engine/src/evaluator.ts`
+  - 위치: `codebase/packages/expression-engine/src/evaluator.ts`
   - 상세: expression-engine 은 자체 파서로 AST 를 생성하고 tree-walk 방식으로 평가한다. `eval()`, `new Function()`, `child_process` 를 전혀 사용하지 않는다. 함수 호출은 허용 목록(`getFunction`, `hasFunction`)으로만 가능하며, 타임아웃(100ms)과 최대 깊이(100) 가드가 있다. 프로토타입 오염도 `__proto__`, `constructor` 키워드가 AST Identifier 레벨에서 허용 목록 밖이다.
   - 제안: 현행 유지. 허용 함수 목록(`functions/index.ts`)에 새 함수 추가 시 사이드 이펙트(파일시스템, 네트워크 호출) 없음을 코드 리뷰에서 확인.
 

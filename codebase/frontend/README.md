@@ -110,7 +110,7 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 프로덕션 이미지는 `codebase/frontend/Dockerfile`로 빌드합니다. Next.js의 `output: "standalone"` 모드를 사용해 `.next/standalone/server.js`를 직접 실행하는 슬림 이미지를 만듭니다 (`next.config.ts` 참고).
 
-빌드 컨텍스트는 **repo 루트** — 모노레포(`file:../packages/*`) 의존성과 `outputFileTracingRoot` 트레이싱을 위함입니다.
+빌드 컨텍스트는 **repo 루트** — 모노레포(`file:../codebase/packages/*`) 의존성과 `outputFileTracingRoot` 트레이싱을 위함입니다.
 
 ```bash
 # repo 루트에서

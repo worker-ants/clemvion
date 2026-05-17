@@ -58,7 +58,7 @@
   - 제안: `DATE_TRUNC('day', e.started_at AT TIME ZONE 'UTC')` 를 사용하면 함수 기반 인덱스를 활용할 수 있고, 결과를 ISO 형식으로 변환하는 것도 더 명확하다.
 
 - **[INFO]** `Evaluator` 클래스가 `new` 로 매 expression 마다 인스턴스 생성
-  - 위치: `packages/expression-engine/src/evaluator.ts:59-77`
+  - 위치: `codebase/packages/expression-engine/src/evaluator.ts:59-77`
   - 상세: `evaluate()` 최상위 함수(index.ts)는 표현식마다 `new Evaluator(context, options)` 를 생성한다. `startTime`/`depth` 는 인스턴스 상태이므로 재사용이 불가하나, 표현식 엔진이 hot path(모든 노드 config 필드마다 호출)인 점을 고려하면 GC pressure가 축적된다.
   - 제안: 상태를 함수 매개변수로 넘기는 방식(클로저 또는 파라미터)으로 전환하면 클래스 인스턴스 heap 할당을 제거할 수 있다. 또는 오브젝트 풀링 패턴을 적용한다.
 
