@@ -320,7 +320,7 @@ D1 → D2 → D3 → D4 → D5 → D6 (알파벳·숫자 순서). 각 D 별로 �
 | D1 | `node-output-d1-config-echo-XXXX` | `plan/in-progress/node-output-d1-config-echo/README.md` |
 | D2 | `node-output-d2-flow-spec-clarify` (라안 — spec only) | (별도 plan 분리 불필요 — common §9.1 + Map/ForEach §5.1·§5.7 footnote 만) |
 | D3 | `node-output-d3-skipped-footnote-XXXX` | (D1 또는 D2 와 묶어도 무방, footnote 만) |
-| D4 | `node-output-d4-integration-port-error-XXXX` | `plan/in-progress/node-output-d4-integration-port-error/README.md` |
+| D4 | `node-output-d4-integration-port-error` (send-email reference 패턴을 HTTP / DB / cafe24 핸들러에 적용. `handler.validate()` 실패만 throw, `execute()` 안의 모든 IntegrationError 는 catch + `port:'error'`) | spec/4-nodes/4-integration/{0-common,1-http-request,2-database-query,3-send-email,4-cafe24}.md + backend integration/{http-request,database-query,cafe24}.handler.ts + 다수 *.spec.ts |
 | D5 | `node-output-d5-table-client-render` (frontend `TableContent` 가 이미 client-side 렌더 중이라 backend 의 `output.rendered` 폐기만 필요) | spec/4-nodes/6-presentation/2-table.md + backend table.handler.ts / table.schema.ts / table.handler.spec.ts / buttons.spec.ts |
 | D6 | `node-output-d6-ai-messages-unified` (ai-agent + information-extractor waiting/resumed `output.result.*` 통일, text-classifier 에러 top-level `originalInput` 폐기) | spec/4-nodes/3-ai/{1-ai-agent.md,2-text-classifier.md,3-information-extractor.md} + backend ai/{ai-agent,information-extractor,text-classifier}.handler.ts + ai-agent.schema.ts + 다수 *.spec.ts |
 

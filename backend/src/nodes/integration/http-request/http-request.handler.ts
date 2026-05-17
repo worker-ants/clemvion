@@ -170,8 +170,20 @@ export class HttpRequestHandler
     let baseUrl: string | undefined;
     if (authentication === 'integration' && integrationId) {
       if (!this.integrationsService) {
-        throw new Error(
-          'Integration-based authentication is not available in this environment',
+        // D4 (2026-05-17, plan/in-progress/node-output-redesign) — 종전 throw
+        // 였으나 모든 IntegrationError + 환경 오류를 port:'error' 로 통일.
+        // URL resolve / SSRF guard 전이라 base_url 결합 전의 raw URL 만 보유.
+        return buildPreflightErrorOutput(
+          new IntegrationError(
+            'INTEGRATION_SERVICE_UNAVAILABLE',
+            'Integration-based authentication is not available in this environment',
+          ),
+          configEcho,
+          cappedRequestBody,
+          bodyType,
+          method,
+          initialUrl,
+          Date.now() - start,
         );
       }
       try {
@@ -193,7 +205,16 @@ export class HttpRequestHandler
           durationMs: Date.now() - start,
           error: toLogError(err),
         });
-        throw err;
+        // D4 — 종전 throw 였으나 port:'error' 로 통일.
+        return buildPreflightErrorOutput(
+          err,
+          configEcho,
+          cappedRequestBody,
+          bodyType,
+          method,
+          initialUrl,
+          Date.now() - start,
+        );
       }
     }
 
@@ -286,7 +307,19 @@ export class HttpRequestHandler
             },
           }).catch(() => {});
         }
-        throw err;
+        // D4 (2026-05-17) — SSRF 차단 throw → port:'error' (HTTP_BLOCKED).
+        return buildPreflightErrorOutput(
+          new IntegrationError(
+            'HTTP_BLOCKED',
+            err instanceof Error ? err.message : String(err),
+          ),
+          configEcho,
+          cappedRequestBody,
+          bodyType,
+          method,
+          url,
+          Date.now() - start,
+        );
       }
     }
 
@@ -434,6 +467,41 @@ function buildBodyOutputFields(
   if (capped.truncated) fields.bodyTruncated = true;
   if (responseHeaders !== undefined) fields.responseHeaders = responseHeaders;
   return fields;
+}
+
+/**
+ * D4 (2026-05-17, plan/in-progress/node-output-redesign) — Integration 4종
+ * 모두 send-email 의 catch-all 패턴으로 통일. 종전 HTTP / DB / cafe24 의
+ * pre-flight throw (integration resolve / auth build / SSRF guard) 가 노드
+ * 실행 실패로 흘렀던 동작을 `port: 'error'` + `output.error.*` envelope 로
+ * 변환. transport-error / non-2xx 경로와 동일 envelope 형태를 유지한다.
+ */
+function buildPreflightErrorOutput(
+  err: unknown,
+  configEcho: Record<string, unknown>,
+  cappedRequestBody: { value: unknown; truncated: boolean },
+  bodyType: string,
+  method: string,
+  url: string,
+  durationMs: number,
+): NodeHandlerOutput {
+  const code =
+    err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED';
+  const message = err instanceof Error ? err.message : String(err);
+  const bodyFields = buildBodyOutputFields(cappedRequestBody, bodyType);
+  return {
+    config: configEcho,
+    output: {
+      ...bodyFields,
+      error: {
+        code,
+        message,
+        details: { url: sanitizeUrlCredentials(url), method },
+      },
+    },
+    meta: { statusCode: 0, durationMs },
+    port: 'error',
+  };
 }
 
 /**
