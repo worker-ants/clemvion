@@ -81,6 +81,7 @@
 
 - **이동 시 `git mv` 사용** — 단순 복사·삭제가 아니라 `git mv` 로 옮겨 history를 보존한다.
 - **상태 갱신 시점**: 작업 단계가 끝날 때마다 plan 문서를 갱신하고, 모든 항목이 완료된 순간에 `complete/`로 이동한다. 새로운 후속 항목이 발견되면 다시 `in-progress/`로 되돌린다.
+- **이동은 마지막 작업 PR 안에서 처리** — plan 의 모든 체크박스가 `[x]` 가 되고 미해결 follow-up 도 0건이 되는 그 PR 안에서 함께 `git mv` 한다. **plan 이동만 담은 별 PR 로 분리하지 않는다** (PR 증식 + 이동 누락 패턴 차단). 코드 변경 commit 과 분리해 `chore(plan): mark <name> complete` 형태의 commit 을 같은 PR 에 추가한다. review 중 일부 항목이 follow-up 으로 빠지면 같은 PR 의 추가 commit 으로 plan 의 해당 항목을 `[ ]` 로 되돌리고 `git mv` 도 `in-progress/` 로 revert.
 - **분류 기준**: 미체크 체크박스(`[ ]`), "TODO", "남은 작업", "다음 단계", "결정 필요", 미해결 follow-up 항목이 하나라도 있으면 `in-progress/` 다.
 - **인입 참조**: `review/**` 처럼 시점 기록 성격의 문서는 옛 경로를 그대로 둔다(역사 기록). `spec/` 등 살아있는 문서의 plan 링크는 이동과 동시에 갱신한다.
 - **frontmatter 메타데이터**: `plan/in-progress/<name>.md` 상단에 다음 frontmatter 를 둔다. 동시 작업 추적과 worktree 충돌 검출(consistency-checker 의 `plan_coherence` checker)에 사용된다.
