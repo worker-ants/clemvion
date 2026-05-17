@@ -92,46 +92,56 @@ describe('NotificationsService — dismiss', () => {
     });
   });
 
-  describe('dismiss — 단건', () => {
-    it('visible 알림을 dismissed 로 전환하고 시각을 반환한다', async () => {
+  describe('dismiss — 단건 (atomic UPDATE)', () => {
+    it('visible 알림을 dismissed 로 전환하고 ISO 시각을 반환한다', async () => {
       const fixedDate = new Date('2026-05-17T12:00:00Z');
-      jest.useFakeTimers().setSystemTime(fixedDate);
-
-      const notif = {
-        id: 'notif-1',
-        userId: 'user-1',
-        dismissedAt: null,
-      };
-      repo.findOne.mockResolvedValue(notif);
-      repo.save.mockImplementation(async (n: any) => n);
+      const qb = makeQb(0, [], 1);
+      qb.returning = jest.fn(() => qb);
+      qb.execute = jest.fn().mockResolvedValue({
+        affected: 1,
+        raw: [{ id: 'notif-1', dismissed_at: fixedDate }],
+      });
+      repo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await service.dismiss('notif-1', 'user-1');
 
-      expect(repo.findOne).toHaveBeenCalledWith({
-        where: { id: 'notif-1', userId: 'user-1' },
+      expect(qb.where).toHaveBeenCalledWith('id = :id', { id: 'notif-1' });
+      const andWhereArgs = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
+      expect(andWhereArgs).toContain('user_id = :userId');
+      expect(andWhereArgs).toContain('dismissed_at IS NULL');
+      expect(result).toEqual({
+        id: 'notif-1',
+        dismissedAt: fixedDate.toISOString(),
       });
-      expect(notif.dismissedAt).toEqual(fixedDate);
-      expect(result).toEqual({ id: 'notif-1', dismissedAt: fixedDate });
-
-      jest.useRealTimers();
+      expect(repo.findOne).not.toHaveBeenCalled();
     });
 
-    it('멱등 — 이미 dismissed 면 기존 시각을 그대로 반환 (save 호출 없음)', async () => {
+    it('멱등 — 이미 dismissed 면 (affected=0) findOne 으로 기존 시각 회수', async () => {
       const existingTime = new Date('2026-05-10T09:00:00Z');
-      const notif = {
+      const qb = makeQb(0, [], 0);
+      qb.returning = jest.fn(() => qb);
+      qb.execute = jest.fn().mockResolvedValue({ affected: 0, raw: [] });
+      repo.createQueryBuilder.mockReturnValue(qb);
+      repo.findOne.mockResolvedValue({
         id: 'notif-2',
         userId: 'user-1',
         dismissedAt: existingTime,
-      };
-      repo.findOne.mockResolvedValue(notif);
+      });
 
       const result = await service.dismiss('notif-2', 'user-1');
 
-      expect(result).toEqual({ id: 'notif-2', dismissedAt: existingTime });
+      expect(result).toEqual({
+        id: 'notif-2',
+        dismissedAt: existingTime.toISOString(),
+      });
       expect(repo.save).not.toHaveBeenCalled();
     });
 
     it('본인 소유 아닌 알림 (또는 미존재) 은 NotFoundException', async () => {
+      const qb = makeQb(0, [], 0);
+      qb.returning = jest.fn(() => qb);
+      qb.execute = jest.fn().mockResolvedValue({ affected: 0, raw: [] });
+      repo.createQueryBuilder.mockReturnValue(qb);
       repo.findOne.mockResolvedValue(null);
 
       await expect(service.dismiss('notif-x', 'user-1')).rejects.toBeInstanceOf(
