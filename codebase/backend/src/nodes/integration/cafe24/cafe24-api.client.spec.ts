@@ -392,15 +392,28 @@ describe('Cafe24ApiClient', () => {
       );
     }
 
+    // CAFE24_CLIENT_ID / CAFE24_CLIENT_SECRET 은 refreshAccessToken() 안의
+    // resolveClientCredentials() 가 public app (app_type='public') 케이스에서
+    // 읽는 OAuth Basic 자격증명. 테스트 fixture 값.
     function setRefreshClientEnv(): void {
-      process.env.CAFE24_CLIENT_ID = 'env-id';
-      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+      process.env.CAFE24_CLIENT_ID = 'fake-client-id-for-test';
+      process.env.CAFE24_CLIENT_SECRET = 'fake-client-secret-for-test';
     }
 
+    // 잔존 안전망 — 본문 끝에서 수동 호출 (idempotent). afterEach 가
+    // primary cleanup 이지만 케이스 본문에서 명시적으로 부르면 디버깅 시
+    // teardown 시점이 명확하다.
     function clearRefreshClientEnv(): void {
       delete process.env.CAFE24_CLIENT_ID;
       delete process.env.CAFE24_CLIENT_SECRET;
     }
+
+    // afterEach 훅으로 자동 cleanup — 테스트 중간 실패 시에도 후속 테스트로
+    // env 오염 누출되지 않도록.
+    afterEach(() => {
+      clearRefreshClientEnv();
+      dataSource.transaction.mockReset();
+    });
 
     // 403 — 즉시 격하 (refresh 무의미). spec §6.1 "403 즉시 격하".
     it('on 403 — flips Integration.status to error(auth_failed) and throws Cafe24AuthFailedError immediately (no refresh)', async () => {
