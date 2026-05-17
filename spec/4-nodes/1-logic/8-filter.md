@@ -29,7 +29,7 @@
 | `'name'`, `'user.profile.age'` | item 의 dot-path lookup |
 | `'{{ $item.<key> }}'` 등 | 인라인 표현식. per-item context (`$item`, `$itemIndex`) 로 평가. workflow context (`$var`, `$input` 등) 도 상속 |
 
-> Source of truth: `backend/src/nodes/logic/filter/filter.schema.ts` (export `filterNodeConfigSchema` / `validateFilterConfig`).
+> Source of truth: `codebase/backend/src/nodes/logic/filter/filter.schema.ts` (export `filterNodeConfigSchema` / `validateFilterConfig`).
 
 ## 2. 설정 UI
 
@@ -90,7 +90,7 @@
    - `null` / `undefined` → `[]` fallback (Principle 10), `meta.fellBackToEmpty: true` 로 표시.
    - 그 외 비배열(string·number·object) → throw (`Filter inputField does not resolve to an array`).
 3. 각 항목에 대해 `$item` / `$itemIndex` 를 expression context 에 바인딩.
-4. 각 조건의 `field` / `value` 를 [`condition-eval.util`](../../../backend/src/nodes/logic/_shared/condition-eval.util.ts) 의 `evaluateResolvedCondition` 으로 평가:
+4. 각 조건의 `field` / `value` 를 [`condition-eval.util`](../../../codebase/backend/src/nodes/logic/_shared/condition-eval.util.ts) 의 `evaluateResolvedCondition` 으로 평가:
    - `field` 가 빈/`$item` 이면 item 자체, 표현식이면 평가, 그 외 dot-path lookup.
    - `value` 가 표현식이면 평가, 그 외 리터럴.
    - `regex` 연산자는 패턴 길이 ≤ 200 인 경우만 컴파일하며, 컴파일 실패 / 길이 초과는 silent `false` 처리 후 패턴별로 캐싱한다.

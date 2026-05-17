@@ -107,7 +107,7 @@ Parallel 은 **컨테이너** (병렬 fan-out). 단계 2개. Loop 와 같이 `ou
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/logic/parallel/{parallel.handler.ts, parallel.schema.ts, parallel.schema.spec.ts, parallel.component.ts}`. `parallel.handler.spec.ts` 는 존재하지 않으며 `parallel.schema.spec.ts` 에 handler.execute / handler.validate 테스트가 통합되어 있다.
+대상 파일: `codebase/backend/src/nodes/logic/parallel/{parallel.handler.ts, parallel.schema.ts, parallel.schema.spec.ts, parallel.component.ts}`. `parallel.handler.spec.ts` 는 존재하지 않으며 `parallel.schema.spec.ts` 에 handler.execute / handler.validate 테스트가 통합되어 있다.
 
 1. **spec §5 ↔ handler return 정합성 (컨테이너 컨트랙트)**:
    - `parallel.handler.ts:52-60` 의 return 객체 `{ config: { branchCount, maxConcurrency, waitAll }, output: null, port: ports }` — 시작 시점 반환. spec §5.1 JSON 과 정합 (`output: null` + `port: string[]`).

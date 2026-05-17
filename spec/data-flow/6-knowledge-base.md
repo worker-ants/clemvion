@@ -15,12 +15,12 @@ rerank 의 Hybrid 흐름.
 
 코드 진입점:
 
-- `backend/src/modules/knowledge-base/knowledge-base.service.ts` — KB / Document CRUD + S3 업/다운로드
-- `backend/src/modules/knowledge-base/embedding/embedding.service.ts` — 문서 → 청크 → 임베딩
-- `backend/src/modules/knowledge-base/graph/graph-extraction.service.ts` — chunk → entity/relation 추출
-- `backend/src/modules/knowledge-base/graph/graph-query.service.ts` — 그래프 확장
-- `backend/src/modules/knowledge-base/search/rag-search.service.ts` — vector / graph RAG 검색
-- `backend/src/modules/knowledge-base/queues/*.ts` — BullMQ 큐 (document-embedding, graph-extraction)
+- `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts` — KB / Document CRUD + S3 업/다운로드
+- `codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts` — 문서 → 청크 → 임베딩
+- `codebase/backend/src/modules/knowledge-base/graph/graph-extraction.service.ts` — chunk → entity/relation 추출
+- `codebase/backend/src/modules/knowledge-base/graph/graph-query.service.ts` — 그래프 확장
+- `codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts` — vector / graph RAG 검색
+- `codebase/backend/src/modules/knowledge-base/queues/*.ts` — BullMQ 큐 (document-embedding, graph-extraction)
 
 ---
 

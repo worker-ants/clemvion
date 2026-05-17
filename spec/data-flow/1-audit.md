@@ -14,8 +14,8 @@
 
 코드 진입점:
 
-- `backend/src/modules/audit-logs/audit-logs.service.ts` — `record`, `findByWorkspace`
-- `backend/src/modules/auth/login-history.service.ts` — `record`, `findMyHistory`
+- `codebase/backend/src/modules/audit-logs/audit-logs.service.ts` — `record`, `findByWorkspace`
+- `codebase/backend/src/modules/auth/login-history.service.ts` — `record`, `findMyHistory`
 - 호출자: 각 도메인의 service (Workflows / Triggers / Integrations / Workspaces / Alerts 등)
 
 ---
@@ -48,7 +48,7 @@ sequenceDiagram
 ```
 
 `event` 종류: `login_success`, `login_failed`, `totp_failed`, `logout`, `session_revoked`,
-`token_reuse_detected` (`backend/src/modules/auth/entities/login-history.entity.ts:12`).
+`token_reuse_detected` (`codebase/backend/src/modules/auth/entities/login-history.entity.ts:12`).
 
 ---
 

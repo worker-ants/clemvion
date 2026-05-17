@@ -31,7 +31,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 > **보안**: nodemailer 의 `path` / `href` 옵션은 의도적으로 노출하지 않는다. 사용자 입력으로 임의 로컬 파일 (`/etc/passwd` 등) 또는 외부 URL 접근이 발생할 수 있어, `disableFileAccess: true` / `disableUrlAccess: true` 를 sendMail 옵션에 부여하고 핸들러도 `path` / `href` 키를 strip 한다.
 
-> Source of truth: `backend/src/nodes/integration/send-email/send-email.schema.ts` (export `sendEmailNodeConfigSchema` / `sendEmailNodeMetadata`).
+> Source of truth: `codebase/backend/src/nodes/integration/send-email/send-email.schema.ts` (export `sendEmailNodeConfigSchema` / `sendEmailNodeMetadata`).
 
 ## 2. 설정 UI
 

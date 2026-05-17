@@ -6,17 +6,19 @@
 
 `Monorepo`로 구성되어 있다.
 
-- 서버는 반드시 `backend`에 구성한다.
-- 클라이언트는 반드시 `frontend`에 구성한다.
-- 제품 정의·기술 명세는 **`spec/` 단일 폴더**에 통합 관리한다 (docs-consolidation 2026-05-12 이후).
+- 모든 애플리케이션 코드는 **`codebase/` 하위**에 둔다.
+  - 서버는 반드시 `codebase/backend`에 구성한다.
+  - 클라이언트는 반드시 `codebase/frontend`에 구성한다.
+- 제품 정의·기술 명세는 **`spec/` 단일 폴더**에 통합 관리한다.
 
 ```text
 ./ (Root)
   ├── spec/                  # 제품의 단일 진실 (single source of truth). 상세 트리는 spec/0-overview.md §8 참고
   ├── plan/                  # 작업 추적 라이프사이클 (in-progress/ ↔ complete/)
   ├── review/                # 코드 리뷰 / 일관성 검토 산출물 (시점별 디렉토리)
-  ├── frontend/              # 클라이언트 (Next.js)
-  ├── backend/               # 서버 (Nest.js)
+  ├── codebase/              # 애플리케이션 코드 영역 (.claude.project.json 의 code_areas 기본값)
+  │   ├── frontend/          #   클라이언트 (Next.js)
+  │   └── backend/           #   서버 (Nest.js)
   └── .claude/worktrees/     # 모든 신규 작업이 일어나는 git worktree 들 (main 워크트리는 통합용)
 ```
 
@@ -162,13 +164,13 @@ A·B 는 `.claude/settings.json` 등록만으로 자동 동작. C 는 한 번 `s
 | 역할 | Skill | 담당 업무 | 쓰기 권한 |
 | ---- | ----- | --------- | --------- |
 | 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | 제품 정의·스펙(spec)의 신규 작성·개정. `spec/` 본문·Overview·Rationale 모두 다룬다. **구현 금지** | `spec/**`, `plan/**` |
-| 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | 스펙 기반의 구현·리팩토링·테스트 작성·빌드·품질 검증. **기획 금지** | `frontend/**`, `backend/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` 은 **read-only** — 수정 필요 시 `project-planner` 로 위임 |
+| 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | 스펙 기반의 구현·리팩토링·테스트 작성·빌드·품질 검증. **기획 금지** | `codebase/frontend/**`, `codebase/backend/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` 은 **read-only** — 수정 필요 시 `project-planner` 로 위임 |
 | 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | spec/plan/구현 착수 **직전** 다른 문서와의 위배 사전 검출. Critical 발견 시 호출자를 차단. | `review/consistency/**` |
 | 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | **사후** 다각도 코드 리뷰 실행. `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` 생성 | `review/**` (SUMMARY 와 각 에이전트 출력) |
 | 통합 조율자 | [`merge-coordinator`](.claude/skills/merge-coordinator/SKILL.md) (`/merge-coordinate`) | 다수 PR/branch 통합 전·중·후 검토 (4 analyzer + 1 summary) + conflict 시 patch 제안 위임 + `/ai-review`·`/consistency-check` 자동 chain. 격리 worktree 안에서 실행 | `review/merge/**`, `.claude/worktrees/integrate-*/**` |
 
 - `spec/` 을 다루면 `project-planner` 로 진입한다.
-- 코드베이스(`frontend/`·`backend/`)를 다루면 `developer` 로 진입한다.
+- 코드베이스(`codebase/frontend/`·`codebase/backend/`)를 다루면 `developer` 로 진입한다.
 - 구현 중 스펙 수정이 필요해지면 `developer` 는 작업을 멈추고 `project-planner` 호출 또는 사용자에게 위임한다.
 - `project-planner` 는 `spec/` 에 쓰기 **직전** 에 `consistency-checker --spec` 을 의무 호출하고, Critical 발견 시 차단한다. `developer` 는 구현 착수 **직전** 에 `consistency-checker --impl-prep` 를 의무 호출한다.
 

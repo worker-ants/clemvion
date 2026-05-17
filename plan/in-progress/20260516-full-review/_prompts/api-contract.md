@@ -21,11 +21,11 @@ main 브랜치(`bbd838ef`) 기준 코드베이스 **전체** 의 HTTP/WebSocket/
 
 ## 검토 범위
 
-- `backend/src/modules/*/controllers/`, `backend/src/modules/*/*.controller.ts`
-- `backend/src/common/dto/`, `backend/src/common/filters/` — 응답 wrapping, 글로벌 에러
-- `backend/src/common/swagger/` — Swagger 데코레이터 패턴
-- `frontend/src/lib/api/` — 클라이언트측 API 호출 (계약 사용자 관점)
-- `frontend/src/app/api/` — Next.js BFF
+- `codebase/backend/src/modules/*/controllers/`, `codebase/backend/src/modules/*/*.controller.ts`
+- `codebase/backend/src/common/dto/`, `codebase/backend/src/common/filters/` — 응답 wrapping, 글로벌 에러
+- `codebase/backend/src/common/swagger/` — Swagger 데코레이터 패턴
+- `codebase/frontend/src/lib/api/` — 클라이언트측 API 호출 (계약 사용자 관점)
+- `codebase/frontend/src/app/api/` — Next.js BFF
 - `spec/5-system/` 특히 webhook, integration, auth 관련
 - `spec/conventions/swagger.md`, `spec/conventions/` 기타
 

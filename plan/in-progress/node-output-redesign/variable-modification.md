@@ -87,7 +87,7 @@ Variable Modification 도 **pass-through + side-effect 노드** (단계 1개). v
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/logic/variable-modification/{variable-modification.handler.ts, variable-modification.schema.ts, variable-modification.handler.spec.ts, variable-modification.schema.spec.ts, variable-modification.component.ts}` 와 `backend/src/nodes/logic/_shared/value-masking.util.ts`.
+대상 파일: `codebase/backend/src/nodes/logic/variable-modification/{variable-modification.handler.ts, variable-modification.schema.ts, variable-modification.handler.spec.ts, variable-modification.schema.spec.ts, variable-modification.component.ts}` 와 `codebase/backend/src/nodes/logic/_shared/value-masking.util.ts`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - `variable-modification.handler.ts:88-101` return `{ config: { modifications, recordValues? }, output: input, meta: { modifications, coercionWarnings, createdVariables } }` 가 spec §5.1 와 일치 (`durationMs` 는 engine inject).

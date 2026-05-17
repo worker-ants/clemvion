@@ -14,7 +14,7 @@
 | maxIterations | Integer | | `1000` | 최대 반복 제한 (안전 캡). [공통 §6](./0-common.md#6-리소스-제한). `count` 가 이 값을 초과하면 `MAX_ITERATIONS_EXCEEDED` throw |
 | breakCondition | Expression? | | `undefined` | Boolean 표현식 (선택). 매 반복 종료 직후 평가되어 truthy 면 조기 종료 (§6 step 6, `meta.exitReason='break'`). `$loop.index`, `$var.*`, `$node[...].output` 등을 참조 가능. 평가 실패는 silent false (loop 진행 — `execution-engine.service.ts` 의 `buildLoopBreakConditionEvaluator` 가 `evaluate()` 호출을 try/catch 로 감쌈) |
 
-> Source of truth: `backend/src/nodes/logic/loop/loop.schema.ts` (export `loopNodeConfigSchema`, `validateLoopConfig`)
+> Source of truth: `codebase/backend/src/nodes/logic/loop/loop.schema.ts` (export `loopNodeConfigSchema`, `validateLoopConfig`)
 
 ## 2. 설정 UI
 

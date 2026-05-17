@@ -620,7 +620,7 @@ type ExecuteOptions = {
 - **Schedule (cron 자동 발화)**: `ScheduleRunnerService.process()`가 `schedule.parameterValues`를 제한 컨텍스트(`{ $now, $schedule: { id, cronExpression, timezone } }`)로 ExpressionResolver에 통과시킨 뒤 `resolveTriggerParameters` 수행 → `{ parameters }` + `{ triggerId: schedule.triggerId }` 로 `execute()` 호출. `$node`, `$input`, `$var` 불가. 결과 Execution 행은 `trigger_id` 컬럼이 채워져 출처가 `schedule` 로 분류된다.
 - **Schedule "지금 실행"**: 사용자가 수동으로 즉시 실행 버튼을 누른 경우는 Manual 경로와 동일하게 `{ executedBy: userId }` 로 호출 — 출처는 `manual`.
 
-> 출처 분류 규칙(우선순위 + 라벨)은 [Spec 실행 내역 §2.4](../2-navigation/14-execution-history.md#24-테이블) 참조. 분류 헬퍼 구현은 `backend/src/modules/executions/utils/execution-trigger.ts` 의 `deriveExecutionTrigger`.
+> 출처 분류 규칙(우선순위 + 라벨)은 [Spec 실행 내역 §2.4](../2-navigation/14-execution-history.md#24-테이블) 참조. 분류 헬퍼 구현은 `codebase/backend/src/modules/executions/utils/execution-trigger.ts` 의 `deriveExecutionTrigger`.
 
 Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 

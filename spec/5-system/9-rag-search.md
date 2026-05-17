@@ -215,6 +215,6 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 
 ## 7. 확장 포인트 — AgentToolProvider
 
-KB 검색은 `AgentToolProvider` 추상화의 첫 구현체 (`KbToolProvider`)다. 같은 인터페이스로 다른 "핸들러 내부 실행형" tool (workspace 변수 조회, MCP server, 외부 vector store 등) 을 추가할 수 있다. 인터페이스 정의: `backend/src/nodes/ai/ai-agent/tool-providers/agent-tool-provider.interface.ts`.
+KB 검색은 `AgentToolProvider` 추상화의 첫 구현체 (`KbToolProvider`)다. 같은 인터페이스로 다른 "핸들러 내부 실행형" tool (workspace 변수 조회, MCP server, 외부 vector store 등) 을 추가할 수 있다. 인터페이스 정의: `codebase/backend/src/nodes/ai/ai-agent/tool-providers/agent-tool-provider.interface.ts`.
 
 기존 `tool_<nodeId>` 메커니즘 (워크플로 캔버스에서 다른 노드를 AI Agent 의 tool 로 연결) 은 별도 경로로 유지되며, 외부 execution engine 이 실제 호출을 수행한다.

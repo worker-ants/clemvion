@@ -16,7 +16,7 @@
 
 지원 연산자는 [공통 §2](./0-common.md#2-지원-연산자) 참조. 표현식(`{{ }}`)은 `condition.field`·`condition.value`에서 사용 가능.
 
-> Source of truth: `backend/src/nodes/logic/if-else/if-else.schema.ts` (export `ifElseConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/logic/if-else/if-else.schema.ts` (export `ifElseConfigSchema`)
 
 ## 2. 설정 UI
 
@@ -56,7 +56,7 @@
 
 ## 4. 실행 로직
 
-1. `input` 데이터에 대해 모든 `conditions[i]` 를 [`evaluateCondition`](../../../backend/src/nodes/core/condition-evaluator.util.ts) 으로 평가 (`strictComparison` 옵션 적용)
+1. `input` 데이터에 대해 모든 `conditions[i]` 를 [`evaluateCondition`](../../../codebase/backend/src/nodes/core/condition-evaluator.util.ts) 으로 평가 (`strictComparison` 옵션 적용)
 2. `combineMode` 에 따라 결과를 결합: `and` → 모두 true / `or` → 하나라도 true
 3. 결과가 true → §5.1 (`port: 'true'`) / false → §5.2 (`port: 'false'`)
 4. `input` 은 변형 없이 그대로 `output` 에 복사 (Logic 공통 §Pass-through 규약)

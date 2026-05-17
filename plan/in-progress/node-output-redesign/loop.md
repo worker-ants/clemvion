@@ -93,7 +93,7 @@ Loop 은 **컨테이너 노드**로 두 단계가 명확하다 — (1) 시작(bo
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/logic/loop/{loop.handler.ts, loop.schema.ts, loop.handler.spec.ts, loop.schema.spec.ts, loop.component.ts}`. 엔진 측 오버라이트 로직 (`LoopExecutor` / `meta.exitReason` 채움)은 본 노드 디렉토리 밖이므로 read-only 로 가정.
+대상 파일: `codebase/backend/src/nodes/logic/loop/{loop.handler.ts, loop.schema.ts, loop.handler.spec.ts, loop.schema.spec.ts, loop.component.ts}`. 엔진 측 오버라이트 로직 (`LoopExecutor` / `meta.exitReason` 채움)은 본 노드 디렉토리 밖이므로 read-only 로 가정.
 
 1. **spec §5 ↔ handler return 정합성**:
    - `loop.handler.ts:39-45` 의 return `{ config: { count, maxIterations }, output: null }` 가 spec §5.1 (시작 시점) 과 일치. `breakCondition` 미echo 는 spec §5.1 footnote 의 의도된 결정과 부합.
@@ -118,7 +118,7 @@ Loop 은 **컨테이너 노드**로 두 단계가 명확하다 — (1) 시작(bo
 
 6. **handler 테스트 (`loop.handler.spec.ts`)**:
    - count numeric / string / expression / 누락 / 음수 / `count > maxIterations` / numeric maxIterations / rawConfig echo / output: null 모두 커버 (`:1-115`).
-   - **미세 누락**: 엔진 오버라이트 결과 (`output.iterations` / `meta.exitReason`) 의 통합 테스트는 본 spec 디렉토리에 없음 — 엔진 통합 테스트가 `backend/src/execution-engine/*` 또는 `backend/test/` 에 있을 것 (read-only 가정으로 미확인).
+   - **미세 누락**: 엔진 오버라이트 결과 (`output.iterations` / `meta.exitReason`) 의 통합 테스트는 본 spec 디렉토리에 없음 — 엔진 통합 테스트가 `codebase/backend/src/execution-engine/*` 또는 `codebase/backend/test/` 에 있을 것 (read-only 가정으로 미확인).
 
 7. **횡단 일관성 (컨테이너 4종)**:
    - Loop / Map / ForEach / Parallel 모두 `output: null` → 엔진 오버라이트 컨트랙트. Loop 의 컬렉션 키는 `iterations` 로 README 잔여 권고 표의 Parallel `done` 시점 meta 누락과 대조되어 양호.

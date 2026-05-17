@@ -32,7 +32,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 
 > ⚠ **마이그레이션 주의**: 기존 워크플로의 카테고리에 후속으로 `id` 를 추가하면 출력 포트 id 가 `class_${i}` → 사용자 지정 id 로 바뀐다. 그 카테고리에 연결된 기존 엣지(`source_port: class_0` 등)는 dangling 상태가 되므로 엣지를 수동 재연결해야 한다. 신규 카테고리에는 처음부터 `id` 를 지정해 두면 안전.
 
-> Source of truth: `backend/src/nodes/ai/text-classifier/text-classifier.schema.ts` (export `textClassifierNodeConfigSchema` / `validateTextClassifierConfig`).
+> Source of truth: `codebase/backend/src/nodes/ai/text-classifier/text-classifier.schema.ts` (export `textClassifierNodeConfigSchema` / `validateTextClassifierConfig`).
 
 ## 2. 설정 UI
 

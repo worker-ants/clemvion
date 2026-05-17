@@ -20,7 +20,7 @@
 
 표현식(`{{ }}`)은 사용하지 않는다 — 모든 필드는 워크플로우 정의 시점의 리터럴이다.
 
-> Source of truth: `backend/src/nodes/logic/background/background.schema.ts` (export `backgroundNodeConfigSchema`)
+> Source of truth: `codebase/backend/src/nodes/logic/background/background.schema.ts` (export `backgroundNodeConfigSchema`)
 
 ## 2. 설정 UI
 

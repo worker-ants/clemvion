@@ -485,7 +485,7 @@ i18n 키와 에러 매핑은 [Spec Re-run §10.4 i18n 키](../5-system/13-replay
 ## 7. 라우팅
 
 ```
-frontend/src/app/(main)/workflows/[id]/executions/
+codebase/frontend/src/app/(main)/workflows/[id]/executions/
 ├── page.tsx                    # 실행 내역 목록 페이지
 └── [executionId]/
     └── page.tsx                # 실행 상세 페이지

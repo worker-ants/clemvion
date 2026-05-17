@@ -14,9 +14,9 @@ personal workspace 를 가지며, 추가로 N개의 team workspace 에 멤버로
 
 코드 진입점:
 
-- `backend/src/modules/workspaces/workspaces.service.ts` — 워크스페이스 CRUD·멤버 관리
-- `backend/src/modules/workspaces/workspace-invitations.service.ts` — 초대 발급·수락
-- `backend/src/modules/workspaces/invitations.controller.ts` — `/api/workspaces/:id/invitations`
+- `codebase/backend/src/modules/workspaces/workspaces.service.ts` — 워크스페이스 CRUD·멤버 관리
+- `codebase/backend/src/modules/workspaces/workspace-invitations.service.ts` — 초대 발급·수락
+- `codebase/backend/src/modules/workspaces/invitations.controller.ts` — `/api/workspaces/:id/invitations`
 
 `X-Workspace-Id` 는 클라이언트 요청 헤더로 받지 않고 **서버가 access token 의 사용자에 대해 자동 매핑**
 한다 (회원가입 시 personal workspace 가 default).

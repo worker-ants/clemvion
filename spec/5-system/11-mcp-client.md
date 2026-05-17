@@ -118,7 +118,7 @@ MCP 서버는 **신규 노드가 아니라** 기존 Integration 엔티티의 새
 > - `http://` URL 허용 (단 `file://` / `ws://` 등 다른 scheme 은 여전히 거부)
 > - 위 SSRF 호스트 블록리스트 전체 우회 (loopback / RFC 1918 / cloud metadata 모두 등록 가능)
 >
-> 본 토글은 운영 환경에서 절대 활성화해서는 안 된다 — 워크스페이스 admin 이 등록한 URL 을 그대로 신뢰하게 되어 SSRF 방어 표면이 다시 열린다. 기본값 `false`. `backend/.env.example` 에 경고와 함께 명시.
+> 본 토글은 운영 환경에서 절대 활성화해서는 안 된다 — 워크스페이스 admin 이 등록한 URL 을 그대로 신뢰하게 되어 SSRF 방어 표면이 다시 열린다. 기본값 `false`. `codebase/backend/.env.example` 에 경고와 함께 명시.
 
 ### 3.3 capabilities 캐시 (선택)
 

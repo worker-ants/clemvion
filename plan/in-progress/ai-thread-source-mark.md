@@ -32,16 +32,16 @@ WebSocket `execution.ai_message` 와 `execution.waiting_for_input` 의 `messages
 
 ### Phase 2 — Backend 구현 (developer)
 
-- [ ] `backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`
+- [ ] `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`
   - `mapTurnsToChatMessages` 가 반환하는 메시지에 `source: 'injected'` 부여 (ChatMessage 타입 확장 필요).
   - `processMultiTurnMessageInner` 가 push 하는 사용자/어시스턴트/툴 메시지에 `source: 'live'` 부여.
   - `executeMultiTurn` (single-turn 의 첫 진입) 의 system message 도 emit 대상이 아니므로 마커 부여는 옵션 — 일관성을 위해 system 에도 `'live'` 부여 검토.
-- [ ] `backend/src/nodes/ai/information-extractor/information-extractor.handler.ts`
+- [ ] `codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts`
   - multi-turn 모드 처리 경로에 동일 마커 부여 (스펙 일관성).
-- [ ] `backend/src/modules/execution-engine/execution-engine.service.ts`
+- [ ] `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`
   - `buildConversationConfigFromOutput` 가 `messages` 를 필터링할 때 `source` 필드를 그대로 통과시키도록 확인 (현재는 spread 이므로 자동 통과되겠지만, 타입 시그니처 보강).
   - `handleAiMessageTurn` 의 `ai_message` emit 분기 (waiting/terminal 둘 다) 에서 `condMessages` 가 source 를 보존하도록 확인.
-- [ ] `backend/src/shared/conversation-thread/thread-renderer.ts` 등 messages 모드 매핑 코드 위치 확인 후 동일 적용.
+- [ ] `codebase/backend/src/shared/conversation-thread/thread-renderer.ts` 등 messages 모드 매핑 코드 위치 확인 후 동일 적용.
 - [ ] Unit test:
   - `ai-agent.handler.spec.ts`: injection 이 있는 multi-turn 케이스에서 emit 되는 messages 각 항목의 `source` 값 검증.
   - `execution-engine.service.spec.ts`: `buildConversationConfigFromOutput` 의 source 보존 확인.
@@ -49,15 +49,15 @@ WebSocket `execution.ai_message` 와 `execution.waiting_for_input` 의 `messages
 
 ### Phase 3 — Frontend 구현 (developer)
 
-- [ ] `frontend/src/lib/conversation/conversation-utils.ts`
+- [ ] `codebase/frontend/src/lib/conversation/conversation-utils.ts`
   - `RawMessage` 타입에 `source?: 'live' | 'injected'` 필드 추가.
   - `messagesToConversationItems` 의 user 분기에서 `msg.source === 'injected'` 이면 `currentTurn++` 를 건너뛰고 별도 item 으로만 push (또는 push 자체 생략 — UI 표시 정책은 추가 결정 필요).
-- [ ] `frontend/src/lib/websocket/use-execution-events.ts`
+- [ ] `codebase/frontend/src/lib/websocket/use-execution-events.ts`
   - `payload.messages[]` 타입에 `source` 필드 추가.
   - `convConfig.messages` 동일 처리.
-- [ ] `frontend/src/lib/stores/execution-store.ts`
+- [ ] `codebase/frontend/src/lib/stores/execution-store.ts`
   - `ConversationItem` 에 `isInjected?: boolean` (또는 동등) 마커 추가 검토 — UI 가 inspector 에서 injection chip 등을 구분 표시할 수 있도록.
-- [ ] `frontend/src/components/editor/run-results/conversation-utils.ts` (`parseHistoryMessages`) — DB 에서 복원한 완료 노드의 messages 에도 source 가 들어있도록 backend 의 `output.messages` 영속화 형태도 확인 + 일관 처리.
+- [ ] `codebase/frontend/src/components/editor/run-results/conversation-utils.ts` (`parseHistoryMessages`) — DB 에서 복원한 완료 노드의 messages 에도 source 가 들어있도록 backend 의 `output.messages` 영속화 형태도 확인 + 일관 처리.
 - [ ] Unit test:
   - `conversation-utils.test.ts` (또는 신규): injection user 메시지가 turn 카운팅에서 제외되는지 회귀 테스트.
   - assistant 메시지가 backend `turnCount` 와 같은 `turnIndex` 를 얻는지 검증.

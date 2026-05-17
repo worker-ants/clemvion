@@ -8,7 +8,7 @@
   - 제안: `spec/4-nodes/4-integration/4-cafe24.md` §3 Input 표와 §4.2 Query 구성 단계에서 `cursor` 필드 언급을 제거하고, B-3-7 결정 근거("Cafe24 Admin API 는 limit/offset 만 지원")를 Rationale 에 명문화한다.
 
 - **[WARNING]** test(cafe24) 커밋(d6baf89a)에 런타임 프로덕션 코드 변경 혼입
-  - 위치: `d6baf89a` / `backend/src/nodes/integration/_base/integration-handler-base.ts`
+  - 위치: `d6baf89a` / `codebase/backend/src/nodes/integration/_base/integration-handler-base.ts`
   - 상세: 커밋 제목이 `test(cafe24): 테스트 Medium 묶음 + logUsage swallow` 이고 followup-backlog B-5 항목으로 분류되어 있으나, `integration-handler-base.ts` 의 `logUsage()` 를 try/catch 로 감싸는 프로덕션 런타임 동작 변경(B-5-6)이 포함되었다. 이는 테스트 추가가 아니라 동작 변경이므로 별도 fix 커밋 또는 fix 접두사 분리가 맞다. 범위 혼합으로 커밋 의미가 흐려지고 롤백/bisect 시 테스트와 런타임 변경을 분리할 수 없다.
   - 제안: `logUsage` try/catch 변경(B-5-6)과 테스트 케이스 추가(B-5-1/B-5-3/B-5-5/B-5-7)를 별도 커밋으로 분리. 동일 backlog 항목 안이더라도 `fix:` 와 `test:` 성격의 변경은 원자성을 위해 분리하는 것이 좋다.
 
@@ -18,8 +18,8 @@
   - 제안: review 산출물(세션 _prompts, SUMMARY, RESOLUTION, reviewer 별 review.md)은 별도 `chore(review):` 커밋으로 분리한다. 코드 변경과 review 아카이브는 서로 다른 라이프사이클을 가지므로 혼합하면 코드 diff 추적이 방해된다.
 
 - **[INFO]** B-2-1 `pg-error.ts` 공통 헬퍼 신설 — 범위 준수, 스펙 미언급
-  - 위치: `4a75e77b` / `backend/src/common/db/pg-error.ts`
-  - 상세: PostgreSQL 에러 코드 추출 헬퍼를 `backend/src/common/db/` 아래 신설한 것은 B-2-1 의 중복 패턴 통일 의도에 부합하는 적절한 범위 확장이다. 단, 공통 인프라 헬퍼 신설인 만큼 spec 또는 conventions 에 패턴 언급이 없어 향후 중복 구현이 발생할 수 있다.
+  - 위치: `4a75e77b` / `codebase/backend/src/common/db/pg-error.ts`
+  - 상세: PostgreSQL 에러 코드 추출 헬퍼를 `codebase/backend/src/common/db/` 아래 신설한 것은 B-2-1 의 중복 패턴 통일 의도에 부합하는 적절한 범위 확장이다. 단, 공통 인프라 헬퍼 신설인 만큼 spec 또는 conventions 에 패턴 언급이 없어 향후 중복 구현이 발생할 수 있다.
   - 제안: `spec/conventions/` 에 PostgreSQL 에러 처리 헬퍼 사용 규약을 한 줄이라도 추가하면 다른 모듈에서의 중복 inline 패턴을 방지할 수 있다.
 
 - **[INFO]** Phase 8 (g/h/i/j) feat 커밋들 — 범위 적절, spec 동시 갱신 확인됨

@@ -1,0 +1,184 @@
+---
+title: "Cafe24 통합"
+title_en: "Cafe24 integration"
+section: "06-integrations-and-config"
+order: 5
+summary: "Cafe24 쇼핑몰을 통합으로 등록하고, 워크플로 cafe24 노드와 AI Agent의 MCP 도구 양쪽에서 같은 인증을 사용해 Admin API 18개 카테고리를 호출하는 방법을 설명해요."
+summary_en: "Register a Cafe24 mall as an integration and call any of its 18 Admin API categories from both the cafe24 workflow node and the AI Agent's MCP tool surface using the same credentials."
+spec: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/conventions/cafe24-api-metadata.md", "spec/2-navigation/4-integration.md", "spec/5-system/11-mcp-client.md"]
+code: ["codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts", "codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integration-oauth.service.ts"]
+---
+
+이 페이지에서는 한국의 이커머스 SaaS **Cafe24** 의 Admin API 를 통합으로 등록해서 워크플로 노드와 AI Agent 양쪽에서 활용하는 방법을 설명해요.
+
+## Cafe24 통합은 어떤 가치를 주나요?
+
+- **하나의 인증으로 두 가지 사용처** — Cafe24 통합 한 개를 만들면 (a) 워크플로 캔버스의 `Cafe24` 노드와 (b) AI Agent 노드의 MCP 도구 양쪽에서 그대로 사용할 수 있어요. 두 경로의 토큰 갱신·요청 한도(leaky bucket)·활동 로그가 모두 통합돼 일원화됩니다.
+- **18개 카테고리 전체 커버** — 상품·주문·회원·카테고리·프로모션·적립금 등 Cafe24 Admin API 18개 카테고리의 모든 endpoint 를 메타데이터 기반 단일 노드로 호출해요. 자주 쓰는 작업은 Resource → Operation 두 번의 드롭다운으로 끝나요.
+- **AI Agent 자연어 호출** — Internal MCP Bridge 라는 in-process 방식을 통해 LLM 이 `"지난주 미발송 주문 가져와줘"` 같은 자연어 명령을 자동으로 적절한 endpoint 호출로 변환해 실행해요.
+
+## Cafe24 통합 만들기
+
+### 1) 통합 추가 모달에서 Cafe24 선택
+
+사이드바 **통합** → **+ 통합 추가** → 카드 목록에서 **🛒 Cafe24** 카드 클릭 → Cafe24 통합 생성 폼으로 이동.
+
+### 2) (Private 앱일 때) Cafe24 개발자 센터에서 앱 먼저 만들기
+
+App Type = **Private** 로 진행하려면 Cafe24 가 발급해주는 `client_id` / `client_secret` 이 먼저 필요해요. Cafe24 자체는 "공개/비공개" 명시적 토글이 없고 **앱스토어에 게시하지 않으면 자동으로 비공개(자기 쇼핑몰 전용)** 이 돼요.
+
+1. [Cafe24 Developers](https://developers.cafe24.com) 에 본인 Cafe24 쇼핑몰 운영자 계정으로 로그인
+2. 상단 메뉴 **`Apps`** → **`My Apps (앱 관리 / 내 앱)`** 진입
+3. **`앱 등록 / 새 앱 만들기 / ADD PRODUCT`** 버튼 클릭 → 종류로 **`Web`** 선택
+4. 다음 항목 입력:
+
+| 항목 | 입력값 |
+|---|---|
+| **관리 상품명 (App Name)** | 자유 — 예: `Clemvion Integration` |
+| **App URL** | **`https://<당신의-서비스>/api/3rd-party/cafe24/install/<install_token>`** — Cafe24 가 "테스트 실행" 버튼을 누를 때 호출하는 endpoint. `<install_token>` 은 우리 통합 설정 화면이 발급한 22자 토큰입니다. 통합 화면 "App URL" 필드의 **전체 URL 을 그대로 복사** 해서 붙여넣으세요 (직접 작성하지 마세요). Cafe24 의 100자 한도에 맞춰 짧게 설계되어 있어요 |
+| **Redirect URI** | **`https://<당신의-서비스>/api/3rd-party/cafe24/callback`** — 이 서비스 백엔드의 OAuth callback endpoint. **Cafe24 는 character-by-character exact match 로 검증** 하니 trailing slash / `http` vs `https` / 포트 / 오타 모두 정확히 맞춰주세요. 환경별 (로컬·스테이징·프로덕션) 로 다르면 Cafe24 앱 설정에 모두 등록해두는 것을 권장합니다 |
+| **API 권한 (Scope)** | 통합에서 호출할 카테고리의 read/write 체크. 이 통합 Step 2 폼의 Scope 체크박스와 같은 값들 |
+| Webhook 설정 | (선택 — 비워둬도 됨) |
+
+5. 등록 완료 후 같은 화면에서 발급된 **`Client ID`** / **`Client Secret`** 을 복사해 둡니다.
+
+> Private 앱 인증은 우리 서비스가 팝업을 여는 방식이 아니에요. Cafe24 Developers 의 **"테스트 실행"** 버튼을 눌러야만 흐름이 시작되는 구조입니다 — 아래 Step 4 를 반드시 읽어주세요.
+
+### 3) Step 2 — 사전 입력
+
+OAuth 버튼을 누르기 전에 다음 정보가 필요해요. Cafe24 는 URL 자체가 `mall_id` 에 의존하기 때문에 일반 OAuth 흐름과 달리 미리 입력해 줘야 해요.
+
+| 필드 | 설명 |
+|---|---|
+| **Name** | 통합 별칭 (예: `My Shop`). 워크스페이스 내 유일하게 |
+| **Scope** | Personal / Organization. 조직 통합은 Admin 만 만들 수 있어요 |
+| **Mall ID** | Cafe24 쇼핑몰 식별자. `https://{mall_id}.cafe24api.com` 의 prefix. `/^[a-z0-9-]{3,50}$/` 형식 |
+| **App Type** | **Public** (Cafe24 앱스토어에 등록된 앱 — 서버 환경변수의 client_id/secret 사용) / **Private** (사용자가 직접 발급한 비공개 앱 — 폼에 client_id/secret 입력) |
+| **Client ID / Client Secret** | App Type = Private 일 때만 노출. 자기 쇼핑몰 관리자 페이지에서 발급한 OAuth credentials |
+| **Scopes** | 카테고리 단위로 read / write 체크. 예: `mall.read_product`, `mall.write_order`. 최소 1개 필요 |
+
+### 4) [Connect with Cafe24] 버튼 — 앱 타입별 동작
+
+**Public 앱일 때:**
+팝업이 열리며 Cafe24 의 OAuth 동의 화면이 나와요. 동의하면 자동으로 부모창에 결과가 전달되고, 토큰 교환과 통합 생성이 완료됩니다.
+
+**Private 앱일 때:**
+버튼을 클릭하면 팝업 대신 아래와 같은 안내 화면이 나타납니다.
+
+1. 서비스가 `pending_install` 상태의 통합을 미리 생성합니다.
+2. 화면에 **App URL** 과 **Redirect URI** 두 값이 표시됩니다 — 복사 버튼으로 가져가세요.
+3. 이 값들이 **Step 2(위 단계)에서 Cafe24 Developers 앱 설정에 이미 등록돼 있어야** 해요.
+4. [Cafe24 Developers](https://developers.cafe24.com) 에서 해당 앱 → **테스트 실행** 버튼을 클릭합니다.
+5. Cafe24 가 등록된 App URL 로 HMAC 서명된 요청을 보내고, 서비스가 이를 검증한 뒤 자동으로 OAuth 동의 화면으로 리다이렉트해요.
+6. 동의하면 토큰이 발급되고 통합 상태가 `pending_install` → `connected` 로 전환됩니다.
+
+> 토큰은 자동 갱신돼요. `access_token` 만료 시각이 60초 안에 임박하면 노드 실행 직전 백엔드가 mall_id 의존 endpoint 로 갱신 호출을 보내요. 갱신 실패가 누적되면 통합 상태가 `expired` 로 전이되고 알림이 발사돼요.
+
+## 워크플로에서 사용하기 — `Cafe24` 노드
+
+캔버스에서 카테고리 패널 → **Integration → Cafe24** 노드를 끌어다 놓아요. 설정 패널에서:
+
+| 필드 | 동작 |
+|---|---|
+| **Integration** | 위에서 만든 Cafe24 통합 선택 |
+| **Resource** | 18개 카테고리에서 선택 (Product / Order / Customer / Category / Promotion 등) |
+| **Operation** | 호출할 endpoint 식별자. 예: `product_list`, `order_get`, `customer_update`. 자세한 목록은 `spec/conventions/cafe24-api-metadata.md` 또는 [Cafe24 공식 문서](https://developers.cafe24.com/docs/ko/api/admin/) 참고 |
+| **Fields** | Operation 별 입력값. 표현식 `{{ $input.x }}` 사용 가능 |
+| **Pagination** | Limit / Offset (paginated operation 일 때만) |
+
+성공 응답은 `output.response` 에 그대로 보존돼요. 후속 노드에서 `$node["Cafe24"].output.response.products[0].product_no` 처럼 접근하세요.
+
+### 실패 시
+
+- 4xx/5xx: `port='error'`, `output.error.code` 가 `CAFE24_404` / `CAFE24_422` / `CAFE24_4XX` / `CAFE24_5XX` 등으로 채워져요.
+- 401/403: `CAFE24_AUTH_FAILED` 로 분기됨과 동시에 통합 상태가 자동으로 `error(auth_failed)` 로 전환돼요. 사용자가 다시 인증해야 합니다.
+- 429 (요청 한도 초과): wrapper 가 헤더 값만큼 자동 대기 후 최대 2회 재시도. 그래도 실패하면 `CAFE24_RATE_LIMITED`.
+- 네트워크 오류: `CAFE24_TRANSPORT_FAILED`.
+
+## AI Agent 에서 사용하기 — MCP 도구
+
+AI Agent 노드 설정 패널 → **MCP Servers → + Add MCP Server**. 통합 선택 모달이 두 그룹으로 나뉘어 보여요.
+
+```
+🌐 Generic MCP (HTTP) servers
+  - My Notion MCP
+🛒 Cafe24 stores (Internal Bridge)
+  - My Shop
+```
+
+Cafe24 통합을 추가하면 LLM 이 사용할 수 있는 도구가 자동으로 노출돼요. 도구 이름은 `mcp_<sid>__<resource>_<operation>` 형식 (예: `mcp_abcdef12__product_list`).
+
+- **allowlist** — `enabledTools` 에 호출 허용 operation id 목록을 적어두면 LLM 컨텍스트가 작아져서 응답 품질이 좋아져요. 권장: 워크플로 목적에 맞는 카테고리 한정.
+- **요청 한도 공유** — 같은 통합을 워크플로 cafe24 노드와 AI Agent 양쪽에서 동시에 사용하면 leaky bucket 이 공유돼요. 한쪽이 429 로 대기하는 동안 다른쪽도 자동으로 직렬화돼 백오프 됩니다 (동일 프로세스 인스턴스 한정).
+
+## OAuth scope 권장 프리셋
+
+| 카테고리 | scope 값 |
+|---|---|
+| Product | `mall.read_product` / `mall.write_product` |
+| Order | `mall.read_order` / `mall.write_order` |
+| Customer | `mall.read_customer` / `mall.write_customer` |
+| Category | `mall.read_category` / `mall.write_category` |
+| Promotion | `mall.read_promotion` / `mall.write_promotion` |
+| Mileage | `mall.read_mileage` / `mall.write_mileage` |
+| Shipping | `mall.read_shipping` / `mall.write_shipping` |
+| Salesreport | `mall.read_salesreport` (write 없음) |
+
+그 외 18개 카테고리의 전체 scope 는 [Cafe24 공식 문서](https://developers.cafe24.com/docs/ko/api/admin/#api-index) 의 각 카테고리 페이지를 참고하세요.
+
+## 환경변수
+
+| 변수 | 용도 |
+|---|---|
+| `APP_URL` | 이 서비스의 공개 base URL (예: `https://your-service.com`). Cafe24 Private 앱의 App URL / callbackUrl 생성에 사용. 기본값: `http://localhost:3011` |
+| `CAFE24_CLIENT_ID` | Public 앱 흐름에서 모든 사용자가 공유하는 Cafe24 앱스토어 앱의 client_id. 사용자가 App Type=Public 으로 통합을 만들 때 사용 |
+| `CAFE24_CLIENT_SECRET` | 위 client_id 의 secret. 백엔드 외부로 노출되지 않습니다 |
+| `OAUTH_STUB_MODE` | `true` 로 설정하면 외부 OAuth 호출 없이 가짜 토큰 반환. 로컬 개발 / 단위 테스트 전용 |
+
+## 관련 spec
+
+- 노드 spec: `spec/4-nodes/4-integration/4-cafe24.md`
+- 통합 화면 spec: `spec/2-navigation/4-integration.md` §5.8 / §10.3
+- Internal MCP Bridge spec: `spec/5-system/11-mcp-client.md` §2.3
+- 메타데이터 컨벤션: `spec/conventions/cafe24-api-metadata.md`
+
+## 자주 묻는 질문
+
+**Q. OAuth 시작 시 `invalid_request: The redirec_uri added by Cafe24 Developers is invalid` 가 나와요.**
+Cafe24 Developers 의 앱 설정에 등록된 Redirect URI 와 이 서비스가 보낸 `redirect_uri` 파라미터가 **정확히 일치하지 않을 때** 발생합니다. Cafe24 는 한 글자라도 다르면 거부합니다 — trailing slash (`…/cafe24` vs `…/cafe24/`), `http` vs `https`, 호스트 오타, 포트 표기 등을 확인하세요. 가장 빠른 검증 방법: 오류 화면 직전 브라우저 주소창에 떴던 authorize URL 의 `redirect_uri=` 쿼리 값을 그대로 복사해 Cafe24 Developers 의 Redirect URI 필드에 붙여넣기.
+
+**Q. 다른 환경 (로컬·스테이징·프로덕션) 의 callback URL 은 어떻게 등록하나요?**
+Cafe24 앱 설정의 Redirect URI 는 여러 개 등록할 수 있어요. 각 환경의 `https://<env-host>/api/3rd-party/cafe24/callback` 를 모두 추가해두면, 통합 등록 시 어느 환경에서 시작하더라도 동일 앱으로 OAuth 가 통과됩니다.
+
+**Q. OAuth 시작 시 `invalid_scope: The scope added by Cafe24 Developers is invalid` 가 나와요.**
+Cafe24 는 RFC 6749 §3.3 의 공백 구분이 아닌 **콤마 구분 scope** 를 요구합니다 (자체 규약). 본 서비스는 이미 콤마 구분으로 전송하지만, 그럼에도 `invalid_scope` 가 발생한다면 다음 둘 중 하나입니다:
+
+1. **사용 권한 사전 등록 누락 (가장 흔함)** — Cafe24 는 *앱 설정에 사전 등록된 scope 만* OAuth 요청을 허용합니다. 통합 폼에서 체크한 권한 중 단 하나라도 Cafe24 Developers → 내 앱 → 사용 권한(Scope) 에 활성화돼 있지 않으면 *전체* OAuth 가 거부됩니다.
+
+   - [Cafe24 Developers](https://developers.cafe24.com) 로그인 → **`Apps` → `My Apps`** → 해당 앱 클릭
+   - **`개발 정보` / `App Information`** 탭 → 하단 **`사용 권한` / `Permissions` / `Scope`** 섹션
+   - 통합 폼에서 체크한 scope 와 **동일한 항목들을 모두 체크** → 저장 → 다시 [Cafe24 연결] 시도
+
+2. **앱 타입 미스매치** — Front store 앱인데 Admin scope(`mall.*`) 를 요청하거나 그 반대일 때.
+
+> Tip: 어떤 scope 가 누락인지 빠르게 좁히고 싶다면, 통합 폼에서 scope 를 1개만 (예: `mall.read_product`) 켜고 시도해 보세요. 통과하면 점진적으로 늘려가며 어디서 막히는지 확인할 수 있어요.
+
+**Q. 개발 중인 단계에서도 통합을 등록할 수 있나요?**
+네. Cafe24 앱스토어 등록 (Public) 없이도 **자체 앱(Private)** 방식으로 등록할 수 있어요. 다만 Private 앱은 우리 서비스가 OAuth 팝업을 먼저 여는 방식이 아니라, **Cafe24 쪽에서 "테스트 실행"을 눌러야** 인증 흐름이 시작됩니다. 절차 요약:
+
+1. Cafe24 Developers 에서 앱 생성 → App URL / Redirect URI 등록 → Scope 활성화 → client_id/client_secret 발급
+2. 이 서비스 사이드바 **통합** 에서 App Type=Private, Mall ID, Client ID/Secret, Scope 입력 → [Cafe24 연결]
+3. 화면에 뜨는 App URL 을 Cafe24 Developers 앱의 App URL 과 동일한지 확인 후 **"테스트 실행"** 클릭
+4. Cafe24 가 App URL 을 호출 → 서비스가 HMAC 검증 → Cafe24 OAuth 동의 화면 → 동의 → 통합 `connected`
+
+**Q. mall_id 를 잘못 입력했는데 어떻게 고치나요?**
+사용자가 직접 수정할 수 있는 통합 메타 (별칭) 외에는 다시 만드시는 것이 안전해요. 잘못된 mall_id 는 OAuth begin 단계에서 `/^[a-z0-9-]{3,50}$/` 패턴 검증으로 거부됩니다.
+
+**Q. Public 앱 인증인데 처음 인증 시 `OAUTH_CONFIG_MISSING` 오류가 나요.**
+서버 환경변수 `CAFE24_CLIENT_ID` / `CAFE24_CLIENT_SECRET` 가 설정되지 않은 상태입니다. 운영자에게 환경변수 등록을 요청하거나, App Type 을 Private 로 바꿔서 본인 앱 credentials 를 직접 입력하면 돼요.
+
+**Q. AI Agent 에서 호출 시 `CAFE24_MCP_NO_SESSION` 이 나와요.**
+AI Agent 노드의 `mcpServers` 에서 해당 Cafe24 통합을 다시 한 번 추가했는지 확인해 주세요. 통합 추가 시점이 AI Agent 노드 실행 시점보다 늦으면 발생합니다.
+
+**Q. 자주 호출하다 보면 응답이 느려질 때가 있어요.**
+Cafe24 의 leaky bucket 한도에 도달해서 백엔드가 자동 backoff 하고 있는 상태입니다. `meta.callUsage` 와 `meta.callRemain` 헤더 값을 통해 현재 사용률을 확인할 수 있어요. 같은 통합을 너무 많은 워크플로에서 동시 사용 중이면 통합을 분리해 사용량을 나누는 것을 고려해 보세요.

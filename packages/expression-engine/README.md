@@ -12,7 +12,7 @@ npm run watch           # 변경 감시
 npm test                # jest 단위 테스트
 ```
 
-`backend` 와 `frontend` 가 workspace dep 로 참조하므로 두 앱을 실행하기 전에 본 패키지가 한 번 build 되어 있어야 한다. 모노레포 루트에서 `make build` 또는 `npm -w @workflow/expression-engine run build` 로 일괄 처리한다.
+`codebase/backend` 와 `codebase/frontend` 가 workspace dep 로 참조하므로 두 앱을 실행하기 전에 본 패키지가 한 번 build 되어 있어야 한다. 모노레포 루트에서 `make build` 또는 `npm -w @workflow/expression-engine run build` 로 일괄 처리한다.
 
 ## 사용
 
@@ -38,4 +38,4 @@ const result = evaluate('{{ $input.name }}', {
 ## 의존성·boundary
 
 - **Node-only**: 빌드 아티팩트는 ESM/CJS 양쪽으로 emit 하지만, 외부 의존 코드는 plain TS 만 사용. `liquidjs` 등 외부 평가 엔진은 사용하지 않는다 (샌드박스 invariant 보존).
-- **Single direction**: `@workflow/node-summary` · `backend` · `frontend` 가 본 패키지를 참조한다. 본 패키지는 다른 `packages/*` 를 참조하지 않는다.
+- **Single direction**: `@workflow/node-summary` · `codebase/backend` · `codebase/frontend` 가 본 패키지를 참조한다. 본 패키지는 다른 `packages/*` 를 참조하지 않는다.

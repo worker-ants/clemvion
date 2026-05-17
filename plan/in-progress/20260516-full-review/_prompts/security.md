@@ -2,7 +2,7 @@
 
 ## 미션
 
-main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `packages/`, `backend/`, `frontend/` — 를 보안 관점에서 면밀히 검토한다. 본 검토는 단일 diff 가 아니라 누적 상태에 대한 전체 audit 이다.
+main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `packages/`, `codebase/backend/`, `codebase/frontend/` — 를 보안 관점에서 면밀히 검토한다. 본 검토는 단일 diff 가 아니라 누적 상태에 대한 전체 audit 이다.
 
 ## 사용자 강조 관점
 
@@ -16,15 +16,15 @@ main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `pa
 ## 최근 병렬 작업 컨텍스트
 
 - 최근 cafe24 OAuth followup: HMAC 검증, timestamp replay (Redis nonce), prod DB encryption check, error notification 신설 — 보안 핵심 영역의 누적 변경
-- `backend/src/modules/integrations/` 가 hot zone — cafe24, mall-dup, install e2e 다수 머지
-- `backend/.env`, `frontend/.env` 가 워크트리에 존재 — 시크릿 노출 점검 필요
+- `codebase/backend/src/modules/integrations/` 가 hot zone — cafe24, mall-dup, install e2e 다수 머지
+- `codebase/backend/.env`, `codebase/frontend/.env` 가 워크트리에 존재 — 시크릿 노출 점검 필요
 
 ## 검토 범위 (재귀)
 
-- `backend/src/modules/auth/`, `backend/src/modules/integrations/`, `backend/src/common/guards/`, `backend/src/common/decorators/` — 인증·인가 핵심
-- `backend/src/modules/` 전반 — 컨트롤러의 권한 검증 누락
-- `backend/src/common/filters/`, `backend/src/common/interceptors/` — 에러 응답에서 민감 정보 노출
-- `frontend/src/app/api/`, `frontend/src/lib/api/` — 클라이언트측 secret 노출, CSRF, XSS
+- `codebase/backend/src/modules/auth/`, `codebase/backend/src/modules/integrations/`, `codebase/backend/src/common/guards/`, `codebase/backend/src/common/decorators/` — 인증·인가 핵심
+- `codebase/backend/src/modules/` 전반 — 컨트롤러의 권한 검증 누락
+- `codebase/backend/src/common/filters/`, `codebase/backend/src/common/interceptors/` — 에러 응답에서 민감 정보 노출
+- `codebase/frontend/src/app/api/`, `codebase/frontend/src/lib/api/` — 클라이언트측 secret 노출, CSRF, XSS
 - `spec/5-system/` (특히 인증·통합·webhook 관련) — 보안 요구사항 본문
 - `spec/conventions/` — 정식 규약
 - `packages/expression-engine/` — 사용자 표현식 evaluator → 인젝션 위험
@@ -34,7 +34,7 @@ main 브랜치(`bbd838ef`) 기준의 코드베이스 **전체** — `spec/`, `pa
 1. 인증·인가 → 시크릿 → 입력 검증 → 암호화 → 에러 노출 순으로 점검.
 2. `.env` / `.env.example` 의 파일은 Read 하되, 발견된 실제 시크릿 값은 review 에 인용하지 말고 "파일 경로 + 노출 사실" 만 기재.
 3. `grep` 으로 다음 패턴 스캔: `eval(`, `exec(`, `child_process`, `dangerouslySetInnerHTML`, `process.env\.[A-Z_]+`, `BigInt|crypto\.createHmac`, `raw query|queryRunner|EntityManager\.query`, `bcrypt|argon|scrypt|sha1|md5`.
-4. cafe24 OAuth 영역(`backend/src/modules/integrations/cafe24/` 또는 유사 경로) 의 HMAC·nonce·timestamp 처리를 OWASP 관점에서 재검토.
+4. cafe24 OAuth 영역(`codebase/backend/src/modules/integrations/cafe24/` 또는 유사 경로) 의 HMAC·nonce·timestamp 처리를 OWASP 관점에서 재검토.
 5. 결과는 `output_file` 인자 경로에 Write. STATUS 한 줄만 반환.
 
 ## Security-specific 강조 포인트

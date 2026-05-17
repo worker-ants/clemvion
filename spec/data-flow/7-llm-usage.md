@@ -14,11 +14,11 @@ LLM 호출을 단일 facade (`LlmService`) 로 통합한다. 호출마다 사용
 
 코드 진입점:
 
-- `backend/src/modules/llm-config/llm-config.service.ts` — LLMConfig CRUD
-- `backend/src/modules/llm/llm.service.ts` — `chat`, `embed`, `resolveConfig`
-- `backend/src/modules/llm/llm-client.factory.ts` — provider 별 client 생성 (OpenAI · Anthropic · Google · Azure · Ollama · vLLM)
-- `backend/src/modules/llm/llm-usage-log.service.ts` — usage 적재
-- `backend/src/modules/llm/llm-preview.service.ts` — UI 의 모델 시험 호출
+- `codebase/backend/src/modules/llm-config/llm-config.service.ts` — LLMConfig CRUD
+- `codebase/backend/src/modules/llm/llm.service.ts` — `chat`, `embed`, `resolveConfig`
+- `codebase/backend/src/modules/llm/llm-client.factory.ts` — provider 별 client 생성 (OpenAI · Anthropic · Google · Azure · Ollama · vLLM)
+- `codebase/backend/src/modules/llm/llm-usage-log.service.ts` — usage 적재
+- `codebase/backend/src/modules/llm/llm-preview.service.ts` — UI 의 모델 시험 호출
 
 ---
 

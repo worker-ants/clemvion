@@ -73,16 +73,16 @@ services:
     profiles: ["app"]
     build:
       context: .
-      dockerfile: backend/migrations/Dockerfile
+      dockerfile: codebase/backend/migrations/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     # Dockerfile 의 COPY 는 K8s/CI 이미지 빌드용으로 유지하고, compose 에서는
-    # 호스트 backend/migrations 를 그대로 노출시켜 새 V###__*.sql/.conf 추가 시
+    # 호스트 codebase/backend/migrations 를 그대로 노출시켜 새 V###__*.sql/.conf 추가 시
     # 이미지 재빌드 없이 즉시 반영되도록 한다. Flyway 기본 location 이 /flyway/sql
     # 이므로 별도 -locations 플래그 불필요. SQL 디렉터리에는 쓰지 않으므로 :ro.
     volumes:
-      - ./backend/migrations:/flyway/sql:ro
+      - ./codebase/backend/migrations:/flyway/sql:ro
     # 배열 형태: 셸 파싱을 거치지 않으므로 JDBC URL의 ':' / '=' 가 안전.
     command:
       - migrate
@@ -101,12 +101,12 @@ services:
     profiles: ["app"]
     build:
       context: .
-      dockerfile: backend/migrations/Dockerfile
+      dockerfile: codebase/backend/migrations/Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ./backend/migrations:/flyway/sql:ro
+      - ./codebase/backend/migrations:/flyway/sql:ro
     command:
       - repair
       - -url=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
@@ -119,14 +119,14 @@ services:
     profiles: ["app"]
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: codebase/backend/Dockerfile
       target: deps
     working_dir: /app/backend
     command: ["npm", "run", "start:dev"]
     env_file:
-      - ./backend/.env
+      - ./codebase/backend/.env
     # @nestjs/config 는 process.env 에 이미 있는 키를 덮어쓰지 않으므로,
-    # 여기 environment 가 backend/.env 의 동명 키를 항상 이긴다.
+    # 여기 environment 가 codebase/backend/.env 의 동명 키를 항상 이긴다.
     environment:
       NODE_ENV: development
       APP_PORT: "3011"
@@ -147,7 +147,7 @@ services:
     ports:
       - "3011:3011"
     volumes:
-      - ./backend:/app/backend
+      - ./codebase/backend:/app/backend
       - backend_node_modules:/app/backend/node_modules
       - backend_dist:/app/backend/dist
     depends_on:
@@ -164,21 +164,21 @@ services:
     profiles: ["app"]
     build:
       context: .
-      dockerfile: frontend/Dockerfile
+      dockerfile: codebase/frontend/Dockerfile
       target: deps
     working_dir: /app/frontend
     # package.json 의 `dev` 는 `source .env 2>/dev/null; next dev …` 형태이므로
-    # 컨테이너에 주입할 값은 host frontend/.env 에 직접 작성한다.
+    # 컨테이너에 주입할 값은 host codebase/frontend/.env 에 직접 작성한다.
     # (compose `environment:` 로 줘도 `source` 가 덮어쓸 수 있음 — 폴링 변수만 예외적으로 둠)
     command: ["npm", "run", "dev"]
     env_file:
-      - ./frontend/.env
+      - ./codebase/frontend/.env
     environment:
       WATCHPACK_POLLING: "true"
     ports:
       - "3012:3012"
     volumes:
-      - ./frontend:/app/frontend
+      - ./codebase/frontend:/app/frontend
       - frontend_node_modules:/app/frontend/node_modules
       - frontend_next:/app/frontend/.next
     depends_on:

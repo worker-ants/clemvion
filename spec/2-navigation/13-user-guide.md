@@ -79,7 +79,7 @@ section: "02-nodes"
 order: 6
 summary: "자연어 처리·분류·추출 노드의 사용법을 알아봐요."
 spec: ["spec/4-nodes/3-ai/0-common.md", "spec/5-system/7-llm-client.md"]
-code: ["backend/src/nodes/ai/**", "frontend/src/components/editor/settings-panel/node-configs/ai-configs.tsx"]
+code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/editor/settings-panel/node-configs/ai-configs.tsx"]
 ---
 ```
 
@@ -101,8 +101,8 @@ code: ["backend/src/nodes/ai/**", "frontend/src/components/editor/settings-panel
 | 항목 | 규칙 |
 | --- | --- |
 | 독자 | 비기술자 + 개발자 모두. 각 페이지 "랜딩 → 상세 → 팁/참고" 3층 구조 |
-| 문체 | 정중한 해요체. 세부 원칙은 [`_glossary.md`](../../frontend/src/content/docs/_glossary.md) |
-| 소스 | `spec/*.md` 를 1차 소스로 재작성. `backend/src/nodes/**` 스키마와 `frontend/src/components/editor/settings-panel/node-configs/*` 로 필드명 검증 |
+| 문체 | 정중한 해요체. 세부 원칙은 [`_glossary.md`](../../codebase/frontend/src/content/docs/_glossary.md) |
+| 소스 | `spec/*.md` 를 1차 소스로 재작성. `codebase/backend/src/nodes/**` 스키마와 `codebase/frontend/src/components/editor/settings-panel/node-configs/*` 로 필드명 검증 |
 | 이미지 | 텍스트·ASCII·코드 예시 우선. 스크린샷은 후속 작업 |
 | 예제 표현식 | `{{ ... }}` 문법. `@workflow/expression-engine`이 파싱 가능한 문법이어야 함 |
 
@@ -117,7 +117,7 @@ code: ["backend/src/nodes/ai/**", "frontend/src/components/editor/settings-panel
 
 ## 9. 네비게이션 생성
 
-빌드타임에 `frontend/src/lib/docs/registry.ts`가 `frontend/src/content/docs/**/*.mdx`를 스캔해 섹션 트리를 만든다.
+빌드타임에 `codebase/frontend/src/lib/docs/registry.ts`가 `codebase/frontend/src/content/docs/**/*.mdx`를 스캔해 섹션 트리를 만든다.
 
 - 프론트매터 `draft: true`인 파일은 production에서 제외
 - `_`로 시작하는 파일·디렉터리는 스캔에서 제외(예: `_glossary.md`)

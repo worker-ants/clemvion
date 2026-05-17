@@ -26,7 +26,7 @@
 | valueType | `string` / `number` / `boolean` | | mode=value 시 case `value` 가 문자열일 때 비교 전 타입 강제 변환. `'42'` + `valueType=number` → `42` (NaN 시 원본 유지) |
 | condition | ConditionGroup | mode=expression 시 ✓ | 조건식 (mode=expression). 구조는 [공통 §1](./0-common.md#1-conditiongroup-구조) |
 
-> Source of truth: `backend/src/nodes/logic/switch/switch.schema.ts` (export `switchNodeConfigSchema`, `caseDefSchema`)
+> Source of truth: `codebase/backend/src/nodes/logic/switch/switch.schema.ts` (export `switchNodeConfigSchema`, `caseDefSchema`)
 
 ## 2. 설정 UI
 
@@ -140,7 +140,7 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
 | `meta.resolvedValue` | unknown | handler return | mode=value 일 때만 — 평가된 `switchValue` (expression resolver 가 해석한 primitive). mode=expression 에서는 생략 |
 | `port` | `<case.id>` | handler return | 매칭된 case 의 동적 포트 ID |
 
-> 옛 `meta.value` deprecated alias 는 D4 (logic-node-followups) 에서 제거되었다. 기존 워크플로 표현식은 `backend/scripts/migrate-node-output-refs.ts` 의 `RENAMED_META_FIELDS.switch` 마이그레이션으로 `meta.resolvedValue` 로 자동 rewrite 된다.
+> 옛 `meta.value` deprecated alias 는 D4 (logic-node-followups) 에서 제거되었다. 기존 워크플로 표현식은 `codebase/backend/scripts/migrate-node-output-refs.ts` 의 `RENAMED_META_FIELDS.switch` 마이그레이션으로 `meta.resolvedValue` 로 자동 rewrite 된다.
 
 **Expression 접근 예**:
 - `$node["X"].output.user.name` → `"Alice"` (pass-through)
@@ -193,7 +193,7 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
 - `$node["X"].meta.matchedCaseIndex` → `-1`
 
 > **후속 정비안** — [개선안 logic/switch.md](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/switch.md) §3 잔여 항목:
-> - **(완료)** `meta.value` deprecated alias 제거 — D4 (logic-node-followups). 마이그레이션 스크립트(`backend/scripts/migrate-node-output-refs.ts` `RENAMED_META_FIELDS.switch`) 가 기존 워크플로 표현식을 `meta.resolvedValue` 로 자동 rewrite.
+> - **(완료)** `meta.value` deprecated alias 제거 — D4 (logic-node-followups). 마이그레이션 스크립트(`codebase/backend/scripts/migrate-node-output-refs.ts` `RENAMED_META_FIELDS.switch`) 가 기존 워크플로 표현식을 `meta.resolvedValue` 로 자동 rewrite.
 > - **(완료)** case id reserved word 검증 — D7. `['default', 'out', 'error']` 를 frontend case id 입력에서 reject (warningRule + 단위 테스트). schema regex 는 문법만 검증하고 의미 충돌은 frontend layer 가 차단.
 > - **(보류)** `meta.switchPath` 추가 (개선안 §3 #1) — switchValue 가 raw 표현식으로 `config` 에 echo 되므로 별도 필드 가치 낮음 (D6).
 > - **유지** `config.strictComparison` — 개선안에서는 dead-field 가능성 검토했으나 현 구현이 실제로 사용 중. 그대로 유지.

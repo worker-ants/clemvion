@@ -90,7 +90,7 @@ Manual Trigger 는 **워크플로우 진입점** (단계 1개). 어댑터 종류
 
 ## 구현 분석 (2026-05-16)
 
-대상 파일: `backend/src/nodes/trigger/manual-trigger/{manual-trigger.handler.ts, manual-trigger.schema.ts, manual-trigger.handler.spec.ts, manual-trigger.component.ts}`.
+대상 파일: `codebase/backend/src/nodes/trigger/manual-trigger/{manual-trigger.handler.ts, manual-trigger.schema.ts, manual-trigger.handler.spec.ts, manual-trigger.component.ts}`.
 
 1. **spec §5 ↔ handler return 정합성**:
    - **Manual / Schedule** (`manual-trigger.handler.ts:129-143`): `{ config: { parameters: rawParameters }, output: { parameters: resolvedParameters }, meta: { source } }` — spec §5.1 과 일치. `output.request` 가 webhook 가 아닌 경우 생략 (`:130-137` 조건문).

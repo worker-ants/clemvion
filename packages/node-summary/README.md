@@ -15,7 +15,7 @@ npm run watch
 npm test
 ```
 
-`backend` / `frontend` 가 workspace dep 로 import 하므로 두 앱 실행 전 build 가 선행되어야 한다.
+`codebase/backend` / `codebase/frontend` 가 workspace dep 로 import 하므로 두 앱 실행 전 build 가 선행되어야 한다.
 
 ## 사용
 

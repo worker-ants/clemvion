@@ -7,14 +7,14 @@ i18n dict 파일 (ko.ts / en.ts) 을 top-level 섹션 단위로 분리한다.
 유지한다 (예: 신규 locale 추가 시 동일 패턴으로 split).
 
 입력:
-  frontend/src/lib/i18n/dict/ko.ts
-  frontend/src/lib/i18n/dict/en.ts
+  codebase/frontend/src/lib/i18n/dict/ko.ts
+  codebase/frontend/src/lib/i18n/dict/en.ts
 
 출력:
-  frontend/src/lib/i18n/dict/ko/<section>.ts  (× 22)
-  frontend/src/lib/i18n/dict/ko/index.ts
-  frontend/src/lib/i18n/dict/en/<section>.ts  (× 22)
-  frontend/src/lib/i18n/dict/en/index.ts
+  codebase/frontend/src/lib/i18n/dict/ko/<section>.ts  (× 22)
+  codebase/frontend/src/lib/i18n/dict/ko/index.ts
+  codebase/frontend/src/lib/i18n/dict/en/<section>.ts  (× 22)
+  codebase/frontend/src/lib/i18n/dict/en/index.ts
 
 분리 규칙:
   - top-level 섹션 header: 줄 시작이 2 공백 + 이름 + ": {"
@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DICT_DIR = ROOT / "frontend" / "src" / "lib" / "i18n" / "dict"
+DICT_DIR = ROOT / "codebase" / "frontend" / "src" / "lib" / "i18n" / "dict"
 
 SECTION_HEADER = re.compile(r"^  ([a-zA-Z_]+): \{$")
 
@@ -218,9 +218,9 @@ def main() -> int:
         return 1
 
     print("\n분리 완료. 다음 단계:")
-    print("  1. cd frontend && npx tsc --noEmit")
-    print("  2. cd frontend && npm test")
-    print("  3. cd frontend && npm run build")
+    print("  1. cd codebase/frontend && npx tsc --noEmit")
+    print("  2. cd codebase/frontend && npm test")
+    print("  3. cd codebase/frontend && npm run build")
     print("  4. 통과 시 원본 ko.ts / en.ts 삭제")
     return 0
 

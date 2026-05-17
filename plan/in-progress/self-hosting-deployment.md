@@ -15,14 +15,14 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 | **NF-DP-03** | Kubernetes Helm Chart 제공 (클러스터 배포) | ❌ |
 | **NF-DP-06** | 셀프 호스팅 설치/운영 문서 | ❌ |
 
-현재 `docker-compose.yml` 은 **로컬 개발용 인프라 (Postgres pgvector + Redis + MinIO)** 만 정의. backend/frontend 자체의 컨테이너 이미지 빌드 + 풀 번들 + production 모드 환경변수 + reverse proxy + DB 마이그레이션 자동화는 미구현.
+현재 `docker-compose.yml` 은 **로컬 개발용 인프라 (Postgres pgvector + Redis + MinIO)** 만 정의. codebase/backend/frontend 자체의 컨테이너 이미지 빌드 + 풀 번들 + production 모드 환경변수 + reverse proxy + DB 마이그레이션 자동화는 미구현.
 
 ## 관련 문서
 
 - `prd/5-non-functional.md` §2 / §3 / §7
 - `prd/0-overview.md` §6.3 "배포 자동화 확장" 로드맵
 - 현재 `docker-compose.yml` (dev infra 전용)
-- `backend/migrations/` (Flyway 스타일 SQL — 자동 실행 메커니즘 필요)
+- `codebase/backend/migrations/` (Flyway 스타일 SQL — 자동 실행 메커니즘 필요)
 - `spec/0-overview.md` §2.7 Object Storage / §2.8 DB 마이그레이션 (Flyway)
 
 ## 작업 단위
@@ -38,8 +38,8 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 
 ### 2. 컨테이너 이미지
 
-- [ ] `backend/Dockerfile` — multi-stage build (deps → build → runtime). Flyway CLI 또는 동등한 마이그레이션 도구 포함
-- [ ] `frontend/Dockerfile` — Next.js standalone 또는 정적 빌드. SSR 페이지가 있으면 standalone 권장
+- [ ] `codebase/backend/Dockerfile` — multi-stage build (deps → build → runtime). Flyway CLI 또는 동등한 마이그레이션 도구 포함
+- [ ] `codebase/frontend/Dockerfile` — Next.js standalone 또는 정적 빌드. SSR 페이지가 있으면 standalone 권장
 - [ ] CI/CD 파이프라인에서 이미지 자동 빌드 + 레지스트리 push (GHCR 또는 Docker Hub)
 
 ### 3. Docker Compose 풀 번들 (NF-DP-02)
@@ -54,7 +54,7 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 ### 4. Kubernetes Helm Chart (NF-DP-03)
 
 - [ ] `charts/clemvion/` 디렉터리 생성
-- [ ] templates: Deployment (backend/frontend/worker), Service, Ingress, PVC (postgres/redis/minio), HPA, ServiceAccount, ConfigMap, Secret
+- [ ] templates: Deployment (codebase/backend/frontend/worker), Service, Ingress, PVC (postgres/redis/minio), HPA, ServiceAccount, ConfigMap, Secret
 - [ ] values.yaml — 환경별 override (dev/staging/prod)
 - [ ] Helm test — `helm install --dry-run` + `helm test` 동작
 - [ ] DB / Redis / MinIO 는 in-cluster (PVC) 또는 외부 (RDS/ElastiCache/S3) 모두 지원하도록 chart 옵션 분기
@@ -62,7 +62,7 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 
 ### 5. 운영·보안 가이드 (NF-SC-08, NF-DP-06)
 
-- [ ] `docs/self-hosting/` 디렉터리 신설 (또는 `frontend/src/content/docs/` 매뉴얼 영역)
+- [ ] `docs/self-hosting/` 디렉터리 신설 (또는 `codebase/frontend/src/content/docs/` 매뉴얼 영역)
   - `installation.md` — Docker Compose / K8s 설치 순서
   - `security.md` — 시크릿 관리 / TLS / Reverse proxy 설정 / 데이터베이스 암호화 / 백업
   - `upgrade.md` — 버전 업그레이드 절차 (마이그레이션 호환성 / 롤백)
@@ -95,7 +95,7 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 
 ## 의존성·리스크
 
-- **의존**: backend/frontend 의 환경변수 정합성 — 누락된 env var 없는지 audit 필요
+- **의존**: codebase/backend/frontend 의 환경변수 정합성 — 누락된 env var 없는지 audit 필요
 - **리스크**:
   - Flyway migration lock — production DB 에서 마이그레이션 실패 시 backend 부팅 차단 → graceful error 처리
   - MinIO 버킷 자동 생성 권한 — root credential 노출 위험. 별도 service account 권장
