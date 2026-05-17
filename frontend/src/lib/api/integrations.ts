@@ -56,12 +56,17 @@ export interface IntegrationDto {
         message?: string;
         at?: string;
         /**
-         * Free-form additional context per status_reason. Currently used by
-         * Cafe24 to carry `requiresCafe24Approval: string[]` when the
-         * underlying scope failure overlaps the partner-approval list.
+         * Per-status_reason structured context. Backend may populate
+         * `requiresCafe24Approval: string[]` when a Cafe24 scope failure
+         * overlaps the partner-approval list. Other known keys are
+         * provider-defined extensions — readers MUST runtime-check the
+         * fields they consume (the index signature on this type only
+         * promises "JSON-shaped" not "schema-validated").
          * SoT: `spec/conventions/cafe24-restricted-scopes.md` §4.3.
          */
-        details?: Record<string, unknown>;
+        details?: {
+          requiresCafe24Approval?: string[];
+        } & Record<string, unknown>;
       }
     | Record<string, unknown>
     | null;

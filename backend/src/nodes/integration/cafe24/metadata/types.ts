@@ -44,6 +44,10 @@ export type Cafe24ApprovalGroup =
   | 'naverpay_setting'
   | 'kakaopay_setting'
   | 'pg_settings'
+  // Reserved placeholder for the Cafe24 Analytics API track (separate
+  // approval program). No corresponding `RESTRICTED_APPROVAL` entry today —
+  // the Admin API catalog has no row that points at this group. Will be
+  // populated when Analytics support ships. See cafe24-restricted-scopes.md §3.
   | 'analytics';
 
 export interface Cafe24RestrictedApproval {

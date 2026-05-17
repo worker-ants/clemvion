@@ -17,6 +17,18 @@ import {
   RestrictedScopeNotice,
 } from "@/components/integrations/approval-required-badge";
 
+function readRequiresApproval(
+  lastError: IntegrationDto["lastError"],
+): string[] {
+  if (!lastError || typeof lastError !== "object") return [];
+  const details = (lastError as { details?: unknown }).details;
+  if (!details || typeof details !== "object") return [];
+  const arr = (details as { requiresCafe24Approval?: unknown })
+    .requiresCafe24Approval;
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((s): s is string => typeof s === "string");
+}
+
 export function ScopeTab({
   integration,
   service,
@@ -44,10 +56,9 @@ export function ScopeTab({
   // last_error.details.requiresCafe24Approval — backend (`markAuthFailed` 또는
   // `markIntegrationCallbackError`) 가 별도 승인 명단 ∩ 누락 scope 교집합을 채움.
   // spec/2-navigation/4-integration.md §9.4 / cafe24-restricted-scopes.md §4.3.
-  const requiresApprovalFromError =
-    (integration.lastError?.details as
-      | { requiresCafe24Approval?: string[] }
-      | undefined)?.requiresCafe24Approval ?? [];
+  // `IntegrationDto.lastError` 의 union 분기를 안전하게 좁히기 위해 type guard
+  // 함수 사용 — 백엔드가 details 를 omit 한 케이스도 깨끗히 처리.
+  const requiresApprovalFromError = readRequiresApproval(integration.lastError);
 
   const [selected, setSelected] = useState<string[]>([]);
   const [cafe24Pending, setCafe24Pending] = useState<{

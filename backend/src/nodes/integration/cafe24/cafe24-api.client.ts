@@ -800,6 +800,19 @@ export class Cafe24ApiClient {
     return { clientId: id, clientSecret: secret };
   }
 
+  /**
+   * Atomically transition the Integration to `error(reason)` and emit the
+   * action-required notification on first entry into that bucket.
+   *
+   * @param errBody Cafe24 response body from the failing 401/403 call.
+   *   Required when `reason === 'insufficient_scope'` so we can populate
+   *   `last_error.details.requiresCafe24Approval` from the response;
+   *   ignored for plain auth failures. Other 401/403 paths (refresh
+   *   loops, pre-flight pings) MUST forward the body if they have one
+   *   so the UI can surface the partner-approval hint.
+   *   See `spec/2-navigation/4-integration.md` §10.4 + spec/conventions/
+   *   cafe24-restricted-scopes.md §4.3.
+   */
   private async markAuthFailed(
     integration: Integration,
     reason: 'auth_failed' | 'insufficient_scope' = 'auth_failed',
