@@ -86,7 +86,8 @@ export const tableNodeOutputSchema = z
       .object({
         rows: z.array(z.record(z.string(), z.unknown())).optional(),
         totalRows: z.number().optional(),
-        rendered: z.string().optional(),
+        // D5 (2026-05-17) — `output.rendered` HTML snapshot 폐기.
+        // frontend `TableContent` 가 `rows` + `columns` 로 직접 렌더.
         interaction: z
           .object({
             type: z.string().optional(),
