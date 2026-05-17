@@ -54,6 +54,7 @@ export class ParallelHandler implements NodeHandler {
         branchCount: rawConfig.branchCount,
         maxConcurrency: rawConfig.maxConcurrency,
         waitAll: rawConfig.waitAll,
+        errorPolicy: rawConfig.errorPolicy,
       },
       output: null,
       port: ports,

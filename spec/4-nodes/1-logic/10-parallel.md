@@ -19,7 +19,7 @@
 
 > Source of truth: `backend/src/nodes/logic/parallel/parallel.schema.ts` (export `parallelNodeConfigSchema`)
 >
-> ⚠ **미구현 (P1)**: `errorPolicy` 는 `ParallelExecutor` 에는 구현되어 있으나 현재 `parallelNodeConfigSchema` 에는 노출되지 않았다 ([아카이브 개선안 logic/parallel.md §2 항목 6](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/parallel.md#2-식별된-불일치)). schema 노출 시까지 다운스트림은 기본값(`stop`)으로 동작한다.
+> `errorPolicy` 는 `parallelNodeConfigSchema` 에 직접 노출된 parallel-specific 필드다 (공통 `errorHandling.policy` 와 별개). 엔진은 `config.errorPolicy` 가 명시되면 그 값을 그대로 사용하고, 미지정 시 공통 `errorHandling.policy` 의 매핑(`skip_node`/`use_default_output`/`route_to_error_port` → `continue`, 그 외 → `stop`)으로 fallback 한다 (옛 동선 호환).
 >
 > ⚠ **미구현 (P1)**: `waitAll: false` 는 schema 에 노출되어 있으나 엔진 단계에서 무시된다. 아카이브 개선안은 schema 제거 또는 validate 단계 reject 를 제안한다 ([logic/parallel.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/parallel.md#3-제안된-output-구조)).
 
@@ -35,6 +35,9 @@
 │                                      │
 │  Wait for All Branches      [✓]      │
 │  P1 에서는 항상 true 로 동작         │
+│                                      │
+│  Error Policy        [stop       ▾]  │
+│  stop / continue                     │
 └──────────────────────────────────────┘
 ```
 

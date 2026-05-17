@@ -93,5 +93,22 @@ export const mergeNodeMetadata: NodeComponentMetadata = {
       when: '!strategy',
       message: 'Merge strategy must be selected.',
     },
+    // W-8: timeout / partialOnTimeout 는 schema 에 노출되어 있지만 P1 에서는
+    // dormant — handler 가 warn 로그만 남기고 결과에 영향 없다. 사용자가
+    // 무의식적으로 설정한 채로 두면 "barrier 가 동작한다" 고 오인할 수 있어
+    // 캔버스 배지 단계에서 경고 노출.
+    {
+      id: 'merge:timeout-dormant',
+      when: 'timeout > 0',
+      message:
+        'Merge timeout is dormant in Phase P1 — value is logged but no barrier is enforced. The Phase P2 barrier will honor it.',
+    },
+    {
+      id: 'merge:partial-on-timeout-dormant',
+      // mini-DSL 은 truthy 단일 변수 평가 지원 (===/!== 는 미지원).
+      when: 'partialOnTimeout',
+      message:
+        'Merge partialOnTimeout is dormant in Phase P1 — only takes effect alongside the Phase P2 barrier.',
+    },
   ],
 };
