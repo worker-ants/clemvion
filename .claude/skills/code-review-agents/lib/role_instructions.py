@@ -203,10 +203,10 @@ CHECKER_INSTRUCTIONS = {
         "perspective": "target 문서(draft)가 기존 `spec/**` 의 다른 영역과 충돌하는지 분석한다.",
         "checklist": """1. **데이터 모델 충돌** — target 이 정의하는 엔티티·필드가 다른 영역의 동일 엔티티 정의와 모순되는가
 2. **API 계약 충돌** — endpoint·HTTP method·request/response shape 이 다른 spec 의 정의와 어긋나는가
-3. **요구사항 ID 충돌** — 요구사항 ID(예: `NAV-*`, `ED-AI-*`)가 다른 영역에서 다른 의미로 이미 사용 중인가
+3. **요구사항 ID 충돌** — target 이 새로 부여하는 요구사항 ID 가 다른 영역에서 다른 의미로 이미 사용 중인가
 4. **상태 전이 충돌** — 같은 도메인 엔티티의 상태 머신이 영역마다 다르게 기술되어 있는가
 5. **권한·RBAC 모델 충돌** — 새 권한 구조가 기존 RBAC 규칙과 어긋나는가
-6. **계층 책임 충돌** — frontend/backend 경계·노드 카테고리 간 책임 분할이 기존 결정과 일치하는가""",
+6. **계층 책임 충돌** — 코드베이스 영역(예: 서버/클라이언트, 도메인 모듈) 간 책임 분할이 기존 결정과 일치하는가""",
         "context_label": "관련 spec 본문 (다른 영역 포함)",
         "context_key": "related_specs",
     },
@@ -224,10 +224,10 @@ CHECKER_INSTRUCTIONS = {
         "ko_title": "정식 규약 준수",
         "perspective": "target 문서가 정식 규약(`spec/conventions/**`) 을 따르고 있는지 분석한다.",
         "checklist": """1. **명명 규약** — 파일·식별자·API endpoint 명명이 conventions 규칙과 일치하는가
-2. **출력 포맷 규약** — 노드 Output, API 응답, error code 형식 등이 정식 규약을 따르는가
+2. **출력 포맷 규약** — API 응답·이벤트 페이로드·에러 코드 등 출력 형식이 `spec/conventions/` 의 정식 규약을 따르는가
 3. **문서 구조 규약** — Overview / 본문 / Rationale 3섹션 권장, `_product-overview.md`·`0-` prefix 등 CLAUDE.md 의 명명 컨벤션 준수
-4. **API 문서 규약** — Swagger 패턴·request/response DTO 명명
-5. **금지 항목** — conventions 에서 명시적으로 금지한 패턴(예: 옛 prd/, memory/ 경로 사용)을 답습하고 있지 않은가""",
+4. **API 문서 규약** — API 문서 도구(OpenAPI/Swagger 등)의 데코레이터·DTO 명명 패턴 준수
+5. **금지 항목** — conventions 에서 명시적으로 금지한 패턴을 답습하고 있지 않은가""",
         "context_label": "정식 규약 모음 (spec/conventions/)",
         "context_key": "conventions",
     },
@@ -305,7 +305,7 @@ ANALYZER_INSTRUCTIONS = {
         "perspective": "통합 대상 branch 들이 spec/, plan/in-progress/ 영역을 어떻게 변경했는지 비교해 cross-branch 충돌을 검출한다. 기존 cross-spec-checker 는 단일 draft vs 기존 spec 이고, 본 analyzer 는 multi-draft 간 충돌이 대상.",
         "checklist": """1. **같은 spec 파일 다른 변경** — 두 branch 이상이 동일 `spec/<영역>/*.md` 를 서로 다른 방향으로 수정
 2. **같은 plan 영역 동시 진행** — frontmatter 의 `worktree` 가 다른 두 plan 이 동일 spec 파일을 손대고 있는지
-3. **요구사항 ID cross-branch 중복** — branch 마다 다른 의미로 새 NAV-/ED-AI- 등을 도입했는가
+3. **요구사항 ID cross-branch 중복** — branch 마다 다른 의미로 같은 요구사항 ID prefix 를 도입했는가
 4. **API 계약의 cross-branch divergence** — 같은 endpoint 를 branch 마다 다르게 정의
 5. **Rationale 충돌** — 한 branch 가 추가한 Rationale 결정을 다른 branch 가 무시·번복하고 있는지
 6. **convention 위반의 cross-branch 누적** — 한 branch 의 convention 변경이 다른 branch 의 코드와 어긋남
