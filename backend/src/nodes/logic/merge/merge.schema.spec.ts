@@ -24,6 +24,35 @@ describe('mergeNodeMetadata.warningRules', () => {
       );
     });
   });
+
+  // W-8: dormant 필드가 설정되면 캔버스 배지로 노출.
+  describe('merge:timeout-dormant', () => {
+    it('fires when timeout > 0', () => {
+      expect(firedIds({ strategy: 'wait_all', timeout: 60 })).toContain(
+        'merge:timeout-dormant',
+      );
+    });
+
+    it('does NOT fire when timeout=0', () => {
+      expect(firedIds({ strategy: 'wait_all', timeout: 0 })).not.toContain(
+        'merge:timeout-dormant',
+      );
+    });
+  });
+
+  describe('merge:partial-on-timeout-dormant', () => {
+    it('fires when partialOnTimeout=true', () => {
+      expect(
+        firedIds({ strategy: 'wait_all', partialOnTimeout: true }),
+      ).toContain('merge:partial-on-timeout-dormant');
+    });
+
+    it('does NOT fire when partialOnTimeout=false', () => {
+      expect(
+        firedIds({ strategy: 'wait_all', partialOnTimeout: false }),
+      ).not.toContain('merge:partial-on-timeout-dormant');
+    });
+  });
 });
 
 describe('evaluateMetadataBlockingErrors integration (merge)', () => {

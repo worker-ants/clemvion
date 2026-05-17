@@ -5,7 +5,7 @@
 여러 입력 경로의 데이터를 하나로 합치는 **데이터 노드**. `strategy` 와 `outputFormat` 의 조합으로 결과 형태를 결정한다. Phase P1 순차 엔진 기준 모든 predecessor 가 이미 해소된 뒤 실행되므로 별도의 fan-in barrier 는 적용되지 않는다.
 
 > **P1 한정 동작**:
-> - `timeout` / `partialOnTimeout` 은 schema 에는 존재하나 P1 에서는 dormant — 0이 아닌 값을 설정하면 핸들러가 warn 로그만 출력한다. 실제 barrier 는 P2 에서 활성화 예정.
+> - `timeout` / `partialOnTimeout` 은 schema 에는 노출되어 있으나 P1 에서는 dormant — 0이 아닌 값을 설정하면 핸들러가 warn 로그를 남기고 캔버스에는 `warningRules` (`merge:timeout-dormant`, `merge:partial-on-timeout-dormant`) 기반 배지가 표시되어 사용자가 dormant 상태를 즉시 인지한다. 실제 barrier 는 P2 에서 활성화 예정.
 > - `strategy: 'first'` 는 "먼저 도착한 입력" 이 아니라 **predecessor 키 정렬 후 첫 번째** 값을 반환한다 (Phase P1 한정).
 
 ---

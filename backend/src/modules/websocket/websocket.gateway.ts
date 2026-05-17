@@ -16,6 +16,7 @@ import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { ExecutionEventType } from './websocket.service';
+import { corsOriginCallback } from '../../common/utils/cors-origins';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
@@ -49,7 +50,9 @@ function isValidUuid(value: string): boolean {
 // Authentication is handled manually in handleConnection() via JWT verification.
 @Public()
 @WebSocketGateway({
-  cors: { origin: '*', credentials: true },
+  // W-1: HTTP CORS 와 동일 allowlist 적용 (단일 helper). dev/test 에서
+  // CORS_ORIGINS·FRONTEND_URL 미설정 시 wildcard 로 fallback.
+  cors: { origin: corsOriginCallback, credentials: true },
   namespace: '/ws',
 })
 export class WebsocketGateway

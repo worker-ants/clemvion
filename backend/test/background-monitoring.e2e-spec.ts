@@ -12,7 +12,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *
  * 검증 영역:
  *   1) V047 / V048 인덱스의 `pg_index.indisvalid = true` 운영 안전성
- *   2) Cross-workspace `GET /api/v1/executions/:id/background-runs/:bgid` → 404
+ *   2) Cross-workspace `GET /api/executions/:id/background-runs/:bgid` → 404
  *   3) WS `background:run:<id>` 비-UUID / cross-workspace 구독 거부
  *      ⇒ socket.io-client 의존성 부재로 e2e 미커버. 동일 시나리오는
  *         `websocket.gateway.spec.ts` 의 unit test 4건이 이미 회귀 잠금
