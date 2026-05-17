@@ -108,6 +108,28 @@ export class NotificationsController {
     return this.notificationsService.markAllRead(workspaceId, user.sub);
   }
 
+  // 라우트 선언 순서: 고정 경로(`dismiss-all`) 가 파라미터 경로(`:id/dismiss`) 보다
+  // 먼저 와야 NestJS 라우터의 잠재적 shadowing 위험을 회피한다 (현재 NestJS 는
+  // 명시적 path > param 우선 매칭으로 declaration order 무관이지만, 코드 가독성과
+  // 향후 라우터 교체·미들웨어 변경 안전성을 위해 명시 순서를 둔다).
+  @Post('dismiss-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '전체 알림 닫기 (soft delete 일괄)',
+    description:
+      '현재 워크스페이스에서 로그인 사용자의 모든 visible 알림을 일괄 닫기 처리합니다. `mark-all-read` 와 독립이며 (한쪽이 다른쪽을 함의하지 않음), 이미 닫힌 알림은 affected count 에서 제외됩니다.',
+  })
+  @ApiOkWrappedResponse(DismissAllNotificationsResponseDto, {
+    description: 'dismiss 처리된 건수',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  async dismissAll(
+    @WorkspaceId() workspaceId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.notificationsService.dismissAll(workspaceId, user.sub);
+  }
+
   @Post(':id/dismiss')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -126,23 +148,5 @@ export class NotificationsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.notificationsService.dismiss(id, user.sub);
-  }
-
-  @Post('dismiss-all')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: '전체 알림 닫기 (soft delete 일괄)',
-    description:
-      '현재 워크스페이스에서 로그인 사용자의 모든 visible 알림을 일괄 닫기 처리합니다. `mark-all-read` 와 독립이며 (한쪽이 다른쪽을 함의하지 않음), 이미 닫힌 알림은 affected count 에서 제외됩니다.',
-  })
-  @ApiOkWrappedResponse(DismissAllNotificationsResponseDto, {
-    description: 'dismiss 처리된 건수',
-  })
-  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  async dismissAll(
-    @WorkspaceId() workspaceId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
-    return this.notificationsService.dismissAll(workspaceId, user.sub);
   }
 }

@@ -116,34 +116,62 @@ export class NotificationsService {
    * 단건 dismiss — 알림을 사용자 popover/list 에서 숨긴다 (soft delete).
    *
    * spec/data-flow/8-notifications.md §4.2.
-   * - `dismissed_at IS NULL` 인 행에만 `dismissed_at=now()` 를 적용. 이미 dismissed
-   *   인 행은 기존 시각 보존 (멱등성).
+   * - 원자 UPDATE: `dismissed_at IS NULL` 인 행에만 `dismissed_at=now()` 를 적용.
+   *   동시 요청 race condition 회피 (review session 17_09_09 I-4) — findOne-then-save
+   *   패턴은 last-write-wins 위험이 있어 단일 SQL UPDATE 로 통합.
    * - 본인 소유 알림이 아니면 `NotFoundException`. 본인 소유 + 이미 dismissed 인
    *   경우는 멱등 성공 (기존 dismissed_at 반환).
    * - row 자체는 보존 (hasRecentByResource 중복 방지에 영향 없도록, spec §4.4).
+   * - 응답의 `dismissedAt` 은 ISO 8601 UTC 문자열 (DTO 명세 일치, review session
+   *   17_09_09 I-18).
    */
   async dismiss(
     id: string,
     userId: string,
-  ): Promise<{ id: string; dismissedAt: Date }> {
-    const notification = await this.notificationRepository.findOne({
+  ): Promise<{ id: string; dismissedAt: string }> {
+    // 1) 원자 UPDATE — dismissed_at IS NULL 인 행만 갱신. RETURNING 으로 dismissed_at 회수.
+    //    TypeORM `.returning(string)` 의 raw SQL 형태로 컬럼명을 정확히 지정한다
+    //    (배열 형태는 entity property 이름을 받지만, snake_case 컬럼명과 매핑 시
+    //    드라이버에 따라 회귀가 있어 raw SQL 표기가 안정적).
+    const updateResult = await this.notificationRepository
+      .createQueryBuilder()
+      .update(Notification)
+      .set({ dismissedAt: () => 'NOW()' })
+      .where('id = :id', { id })
+      .andWhere('user_id = :userId', { userId })
+      .andWhere('dismissed_at IS NULL')
+      .returning('id, dismissed_at')
+      .execute();
+
+    if ((updateResult.affected ?? 0) > 0) {
+      const row = (
+        updateResult.raw as Array<{
+          id: string;
+          dismissed_at: Date | string;
+        }>
+      )[0];
+      const dismissedAtIso =
+        row.dismissed_at instanceof Date
+          ? row.dismissed_at.toISOString()
+          : new Date(row.dismissed_at).toISOString();
+      return { id: row.id, dismissedAt: dismissedAtIso };
+    }
+
+    // 2) UPDATE 가 0행 영향 → 본인 소유 + 이미 dismissed 이거나, 미존재/타인 소유.
+    //    findOne 으로 분기. 본인 소유 + 이미 dismissed 면 멱등 성공으로 처리.
+    const existing = await this.notificationRepository.findOne({
       where: { id, userId },
     });
-    if (!notification) {
+    if (!existing) {
       throw new NotFoundException({
         code: 'RESOURCE_NOT_FOUND',
         message: 'Notification not found',
       });
     }
-
-    if (notification.dismissedAt) {
-      // 멱등 — 이미 dismissed. 기존 시각 그대로 반환.
-      return { id: notification.id, dismissedAt: notification.dismissedAt };
-    }
-
-    notification.dismissedAt = new Date();
-    const saved = await this.notificationRepository.save(notification);
-    return { id: saved.id, dismissedAt: saved.dismissedAt as Date };
+    return {
+      id: existing.id,
+      dismissedAt: (existing.dismissedAt as Date).toISOString(),
+    };
   }
 
   /**
