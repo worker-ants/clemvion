@@ -21,14 +21,17 @@ import re
 import sys
 from datetime import datetime
 
-# Reuse the shared library from code-review-agents.
+# Reuse the shared library from code-review-agents, plus the harness-wide _lib.
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(THIS_DIR)
-CODE_REVIEW_SKILL = os.path.normpath(os.path.join(SKILL_DIR, "..", "code-review-agents"))
+SKILLS_DIR = os.path.dirname(SKILL_DIR)  # .claude/skills/
+CODE_REVIEW_SKILL = os.path.normpath(os.path.join(SKILLS_DIR, "code-review-agents"))
 sys.path.insert(0, CODE_REVIEW_SKILL)
+sys.path.insert(0, SKILLS_DIR)
 
 from lib import session  # noqa: E402
 from lib.role_instructions import CHECKER_INSTRUCTIONS  # noqa: E402
+from _lib import project_config  # noqa: E402
 
 DEBUG_LOG_FILE = "/tmp/consistency-checker-log.txt"
 debug_log = session.make_debug_logger(DEBUG_LOG_FILE)
@@ -137,9 +140,11 @@ def extract_rationale_sections(file_paths, root):
 
 
 def collect_context(args, root):
-    spec_dir = os.path.join(root, "spec")
-    conventions_dir = os.path.join(spec_dir, "conventions")
-    plan_dir = os.path.join(root, "plan", "in-progress")
+    cfg = project_config.load(root)
+    corpora = cfg["corpora"]
+    spec_dir = os.path.join(root, corpora["spec"])
+    conventions_dir = os.path.join(root, corpora["conventions"])
+    plan_dir = os.path.join(root, corpora["plan_in_progress"])
 
     excluded = set()
     target_path_rel = ""
@@ -172,8 +177,16 @@ def collect_context(args, root):
         raise ValueError("Mode 가 지정되지 않았습니다: --spec / --plan / --impl-prep 중 하나가 필요합니다.")
 
     all_spec_files = collect_markdown_files(spec_dir, exclude_paths=excluded)
-    convention_files = [p for p in all_spec_files if conventions_dir in p]
-    other_spec_files = [p for p in all_spec_files if conventions_dir not in p]
+    # Conventions may live under spec_dir (default) or be relocated by
+    # .claude.project.json — handle both. When relocated, collect the
+    # conventions corpus separately so the convention-compliance checker
+    # still sees its source files.
+    if conventions_dir == spec_dir or conventions_dir.startswith(spec_dir + os.sep):
+        convention_files = [p for p in all_spec_files if conventions_dir in p]
+        other_spec_files = [p for p in all_spec_files if conventions_dir not in p]
+    else:
+        convention_files = collect_markdown_files(conventions_dir, exclude_paths=excluded)
+        other_spec_files = all_spec_files
     plan_files = collect_markdown_files(plan_dir, exclude_paths=excluded)
 
     related_specs = format_file_bundle(other_spec_files, root, "관련 spec 본문")
