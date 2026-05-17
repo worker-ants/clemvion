@@ -5,16 +5,32 @@
 #   make e2e-test     # backend e2e (supertest) 1-shot
 #   make e2e-test-full# backend + playwright 까지
 #   make e2e-down     # 정리 (volume·orphan 모두)
+#   make e2e-prune    # 모든 clemvion-e2e* worktree 의 stale project 일괄 정리
 #
-# `name:` 으로 project 가 `clemvion-e2e` 로 박제되어 있어, 기본 `docker compose up`
-# (= docker-compose.yml, project=clemvion) 의 dev 인프라와 named volume·컨테이너
-# 이름·network 가 자동으로 격리된다. 호스트 포트도 노출하지 않아 dev 가 5432/6379
-# 등을 점유 중이어도 충돌이 발생하지 않는다.
+# Project name 격리:
+#   - `name:` 키는 의도적으로 두지 않는다. project namespace 는 `Makefile` 이 현재
+#     worktree dir basename 으로 도출해 `-p` flag 로 주입한다 (`COMPOSE_PROJECT`).
+#   - main worktree (basename=clemvion): `clemvion-e2e` (기존 동작 그대로).
+#   - `.claude/worktrees/<task>-<slug>`: `clemvion-e2e-<task>-<slug>`.
+#   - 사용자가 `COMPOSE_PROJECT=foo make e2e-test` 로 override 가능.
+#   - 효과: 여러 worktree 가 e2e 를 동시에 돌려도 컨테이너·볼륨·network 가 worktree
+#     별로 격리. dev compose (project=clemvion) 와도 자동 분리.
+#   - 호스트 포트를 노출하지 않으므로 (의도된 설계) 포트 충돌 없음.
+#
+# Image 캐시 공유:
+#   - 빌드 서비스마다 `image:` 를 명시해 image namespace 는 project 와 분리한다.
+#     project name 이 바뀌어도 모든 worktree 가 같은 image (예: `clemvion-e2e/backend:latest`)
+#     를 공유하므로, 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다.
+#     container/volume 만 project 별 격리, image 는 공유.
+#   - 트레이드오프: 두 worktree 가 동일 image tag 를 거의 동시에 `--build` 하면 마지막
+#     build 가 tag 를 차지한다. BuildKit 은 layer 단위 cache 공유로 보통 안전하지만,
+#     소스가 다른 두 worktree 가 정말 동시에 빌드를 시작하면 한쪽이 직전 build 결과의
+#     image 로 실행될 수 있다. 이슈 의심 시 `make e2e-prune` + `docker image prune` 후
+#     순차로 재실행하면 해소된다. 완전 격리가 필요해지면 image 이름에도 project name
+#     을 섞을 수 있으나, 그 순간 본 파일의 캐시 공유 이점이 사라진다.
 #
 # 영속화 없음(ephemeral) — 매 실행마다 깨끗한 schema 가 보장된다.
 # runner 서비스는 `profiles: ["test"]` 로 분리되어 `make e2e-up` 만으로는 안 뜬다.
-
-name: clemvion-e2e
 
 services:
   # ---------------- Infra ----------------
@@ -69,6 +85,8 @@ services:
       "
 
   migrate:
+    # image 공유 — 헤더의 "Image 캐시 공유" 절 참고.
+    image: clemvion-e2e/migrate:latest
     build:
       context: .
       dockerfile: codebase/backend/migrations/Dockerfile
@@ -89,6 +107,8 @@ services:
   # ---------------- Backend under test ----------------
   # production-like image (target=runner). NODE_ENV 만 test 로 override.
   backend-e2e:
+    # image 공유 — 헤더의 "Image 캐시 공유" 절 참고.
+    image: clemvion-e2e/backend:latest
     build:
       context: .
       dockerfile: codebase/backend/Dockerfile
@@ -141,6 +161,8 @@ services:
 
   # backend e2e (supertest / HTTP). dev dep + src 가 필요해 deps stage + 호스트 mount.
   backend-e2e-runner:
+    # image 공유 — 헤더의 "Image 캐시 공유" 절 참고.
+    image: clemvion-e2e/backend-deps:latest
     build:
       context: .
       dockerfile: codebase/backend/Dockerfile
