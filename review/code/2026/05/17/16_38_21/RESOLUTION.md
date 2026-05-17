@@ -43,11 +43,9 @@
   - 첫 sweep 5건 실패는 worktree 의 `packages/expression-engine` 가 `dayjs` 모듈을 찾지 못한 환경 문제 (npm install 부분 실패). main worktree 의 동일 패키지 `node_modules` 를 심볼릭 링크해 해결 후 1456/1456.
 - **build**: 통과 — `npm run build` (Next.js, no errors/warnings)
 - **e2e (backend)**: 통과 — `make e2e-test` **86/86 passing** (15 suites) — 직전 commit `4a99cd54` 기준으로 검증 완료. 이후 추가된 변경(JSDoc + plan.md + 테스트 9건)은 runtime 코드 무영향 → 재실행 면제.
-- **e2e (full, playwright 포함)**: **자동 흐름 환경 차단** — docker compose minio 컨테이너가 healthy 상태에서 즉시 exited(0) 로 종료되며 dependency chain 이 깨지는 transient docker 인프라 문제 (`Error response from daemon: No such container: ...`, `container clemvion-e2e-minio-1 exited (0)`). 본 변경과 무관한 환경 문제로 SKILL.md "/ai-review 8.7 안전 가드 — docker 인프라 실행 불가" 에 해당.
-  - 직전 commit `4a99cd54` 기준의 e2e-test-full 은 정상 동작했으며 playwright 결과는 `36/37 pass` (1건 실패: `auth/password-reset.spec.ts:51` redirect 타이밍 — 본 변경과 파일·도메인 모두 무관, 최근 commits `ae3465cb` / `99cf1973` / `ea3d7f29` 모두 해당 e2e 파일을 패치 중인 플레이키 영역).
-  - RESOLUTION 추가 변경(JSDoc + plan + 테스트) 은 frontend 런타임 코드 미터치라 playwright 회귀 가능성 없음.
-
-> 환경 차단 사유로 docker 인프라 e2e-full 재실행 불가 — 사용자 환경(Docker daemon stale container 정리 등) 복구 요청 사항. 단, 본 PR 코드의 본질적 검증(20 unit tests covering 3 outputData shapes + reconcile path + multi-turn debug + overwrite protection)은 완료되어 있고, backend e2e 86/86 통과 + frontend lint/build clean 으로 회귀 위험 LOW 로 판단.
+- **e2e (full, playwright 포함)**: 통과 — `make e2e-test-full` backend **86/86** + playwright **37/37** (origin/main 으로 rebase 후 재실행).
+  - 직전 sweep 의 playwright `auth/password-reset.spec.ts:51` redirect 타이밍 실패와 `make e2e-test-full` 의 docker minio 컨테이너 transient 종료는 모두 rebase 후 재실행에서 해소 (사전 결함성 플레이크 + docker stale container 정리로 추정).
+  - 이로써 본 PR 의 코드 변경 + REVIEW 추가 변경(JSDoc + plan + 테스트 9건)이 origin/main 최신 상태(`b70d70e3`, PR #161 multi-turn AI emit fix 포함)에서 e2e 무회귀 확정.
 
 ## 산출물
 
