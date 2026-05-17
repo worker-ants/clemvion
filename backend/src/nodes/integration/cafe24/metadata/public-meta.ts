@@ -19,6 +19,7 @@ import {
   type Cafe24FieldSpec,
   type Cafe24OperationMetadata,
   type Cafe24Resource,
+  type Cafe24RestrictedApproval,
 } from './index.js';
 import {
   CAFE24_PLANNED_BY_RESOURCE,
@@ -47,6 +48,12 @@ export interface PublicCafe24OperationSupported {
   paginated: boolean;
   requiredFields: readonly string[];
   fields: readonly PublicCafe24Field[];
+  /**
+   * Cafe24 partner-approval marker. Present iff backend metadata declares
+   * `restrictedApproval` for this operation. Frontend renders a ⚠ badge
+   * + tooltip when set. SoT: `spec/conventions/cafe24-restricted-scopes.md`.
+   */
+  restrictedApproval?: Cafe24RestrictedApproval;
 }
 
 export interface PublicCafe24OperationPlanned {
@@ -100,6 +107,9 @@ export function toPublicSupportedOperation(
     paginated: op.paginated === true,
     requiredFields: op.requiredFields,
     fields,
+    ...(op.restrictedApproval
+      ? { restrictedApproval: op.restrictedApproval }
+      : {}),
   };
 }
 

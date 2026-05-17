@@ -1,4 +1,5 @@
 import type { Cafe24OperationMetadata } from './types.js';
+import { RESTRICTED_APPROVAL } from './restricted-approval.js';
 
 export const storeOperations: Cafe24OperationMetadata[] = [
   {
@@ -66,6 +67,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'list',
+    restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
   },
   {
     id: 'paymentgateway_create',
@@ -89,6 +91,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       authentication_key: { type: 'string', location: 'body' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
   },
   {
     id: 'paymentgateway_update',
@@ -106,6 +109,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       authentication_key: { type: 'string', location: 'body' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
   },
   {
     id: 'paymentgateway_delete',
@@ -119,5 +123,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       paymentgateway_id: { type: 'string', location: 'path' },
     },
     responseShape: 'single',
+    restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
   },
 ];
