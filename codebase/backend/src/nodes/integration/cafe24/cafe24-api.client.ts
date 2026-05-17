@@ -578,6 +578,13 @@ export class Cafe24ApiClient {
    * from the DB and mutate the caller's reference so the subsequent
    * `executeWithRateLimit` sees the refreshed bearer.
    *
+   * **Side-effect contract** (caller invariant): on successful return, the
+   * caller's `integration.credentials.access_token` IS guaranteed to be
+   * the freshly-issued token — both this method and `refreshAccessToken`
+   * re-fetch the row from the DB and mutate the live entity. Callers that
+   * read `integration.credentials.access_token` immediately after refresh
+   * can rely on it without additional DB round-trips.
+   *
    * If the worker called `markAuthFailed` (refresh_token invalid), the
    * fresh row carries `status='error'` — surface as Cafe24AuthFailedError
    * to keep call() error semantics consistent with the in-process path.
@@ -669,6 +676,35 @@ export class Cafe24ApiClient {
     integration.status = fresh.status;
     integration.statusReason = fresh.statusReason;
     integration.lastError = fresh.lastError;
+  }
+
+  /**
+   * Spec §6.1 / §5.8 의 401 자가 회복 공통 helper — `executeWithRateLimit`
+   * (노드/MCP 실행 경로) 와 `pingConnection` (연결 테스트 경로) 가 같은
+   * refresh+1회 retry 정책을 공유하기 위한 단일 진입점.
+   *
+   * 동작:
+   * - BullMQ refresh 큐가 바인딩되어 있으면 `refreshViaQueue('proactive')` —
+   *   `jobId = integrationId` dedup 으로 클러스터 전체 직렬화 (thundering
+   *   herd 방지, refresh_token rotation race 보호).
+   * - 큐 미바인딩 (테스트 환경) 시 in-process `refreshAccessToken`. 프로덕션
+   *   환경은 항상 큐 바인딩 — DI 미주입은 deployment 오류로 간주.
+   *
+   * **Side-effect contract**: 정상 return 후 `integration.credentials
+   * .access_token` 은 새 토큰으로 갱신됨. caller 는 별도 DB round-trip 없이
+   * `integration.credentials.access_token` 을 그대로 다음 호출에 사용 가능.
+   *
+   * **에러 의미**: refresh 가 401/403 (`invalid_grant`) 으로 실패하면
+   * 두 경로 모두 자체적으로 `markAuthFailed` 발사 + `Cafe24AuthFailedError`
+   * throw → caller 에게 자동 propagate. caller 는 별도 catch 없이 그대로
+   * throw 를 통과시키면 됨. transport 실패는 `Cafe24TransportFailedError`.
+   */
+  private async performAuthRefresh(integration: Integration): Promise<void> {
+    if (this.refreshQueue && this.refreshQueueEvents) {
+      await this.refreshViaQueue(integration, 'proactive');
+      return;
+    }
+    await this.refreshAccessToken(integration);
   }
 
   async refreshAccessToken(integration: Integration): Promise<void> {
@@ -1109,29 +1145,26 @@ export class Cafe24ApiClient {
         `Cafe24 API ${response.status} mall=${mallId} ${opts.method} ${opts.path}: ${bodyForLog}`,
       );
 
-      // Spec §6.1 — 401 자가 회복: proactive `ensureFreshToken` 이 race
+      // Spec §6.1 401 자가 회복 — proactive ensureFreshToken 이 race
       // window (NULL legacy row, 다중 인스턴스 cache miss, DB-wall clock
-      // skew) 로 빗나가 만료된 토큰으로 호출이 401 을 받은 경우 refresh
-      // 후 정확히 1회 재시도. `pingConnection()` (§5.8) 의 동일 패턴.
-      // refresh 경로는 `ensureFreshToken` 과 동일하게 큐가 있으면
-      // `refreshViaQueue` (jobId dedup 으로 클러스터 전체 직렬화), 없으면
-      // legacy in-process `refreshAccessToken`. refresh 자체가 401/403 이면
-      // refresh 단계가 이미 `markAuthFailed` 발사 + throw 하므로 본 분기는
-      // 그 throw 를 그대로 caller 에게 전파한다 (re-throw 불필요 — 별도
-      // catch 가 없으므로 자동 propagate).
-      //
-      // 403 은 refresh 로 회복 불가능 (스코프 부족 / 앱 미설치) — 즉시 격하.
+      // skew) 로 빗나간 경우의 최후 안전망. pingConnection() (§5.8) 과
+      // 정책 통일. 403 은 refresh 로 회복 불가 (스코프/앱 미설치) — 즉시
+      // 격하로 직진. refresh 자체가 401/403 이면 performAuthRefresh 내부
+      // (refreshAccessToken / refreshViaQueue) 가 이미 markAuthFailed +
+      // Cafe24AuthFailedError throw 하므로 자동 propagate.
       if (response.status === 401 && !triedAuthRetry) {
-        if (this.refreshQueue && this.refreshQueueEvents) {
-          await this.refreshViaQueue(integration, 'proactive');
-        } else {
-          await this.refreshAccessToken(integration);
-        }
-        // refresh 성공 — 새 access_token 으로 재시도. attempt counter 는
-        // 새 요청 기준으로 리셋 (429 retry 와 별개 카운터).
+        await this.performAuthRefresh(integration);
+        // performAuthRefresh contract 상 새 토큰이 integration.credentials
+        // 에 mutate 되어 있음 (refreshAccessToken / refreshViaQueue 둘 다).
+        // performAuthRefresh 의 side-effect contract 상 integration.credentials
+        // .access_token 은 새 토큰으로 갱신됨. fallback `?? accessToken` 은
+        // 만일 contract 가 깨질 경우 무한 401 루프 (triedAuthRetry=true 가
+        // 차단) 로 가지 않고 옛 토큰으로 한 번 더 시도 후 격하되는 방어선.
         const refreshedToken =
-          ((integration.credentials ?? {}) as Cafe24Credentials).access_token ??
+          (integration.credentials as Cafe24Credentials | null)?.access_token ??
           accessToken;
+        // attempt counter 리셋: 401 자가 회복은 429 rate limit retry 와
+        // 별개의 단발성 흐름. triedAuthRetry=true 로 재귀 차단.
         return this.executeWithRateLimit(
           integration,
           mallId,
