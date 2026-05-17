@@ -989,14 +989,18 @@ export class InformationExtractorHandler implements NodeHandler {
         mode: 'multi_turn',
         maxCollectionRetries: state.maxCollectionRetries,
       },
-      // CONVENTIONS §4.3 — waiting `output: { messages, partial? }` plus
-      // the live turn snapshot (`message`/`turnCount`/`maxTurns`) so engine
-      // can rebuild the WS event payload from a single canonical source.
+      // CONVENTIONS §4.3 — waiting payload. D6 (2026-05-17) — multi-turn
+      // 대화 상태(`messages` / `message` / `turnCount` / `maxTurns`) 를
+      // 종결 시점 (`output.result.*`) 과 단일 경로로 통일. 진행 중 부분
+      // 수집은 별도 `output.partial.*` 슬롯 (5필드 invariant 안에서 result/
+      // partial 의 의미적 분리 유지).
       output: {
-        messages: state.messages,
-        message: followUp,
-        turnCount: state.turnCount,
-        maxTurns: state.maxTurns,
+        result: {
+          messages: state.messages,
+          message: followUp,
+          turnCount: state.turnCount,
+          maxTurns: state.maxTurns,
+        },
         partial: {
           extracted,
           missingFields,
