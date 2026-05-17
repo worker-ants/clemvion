@@ -1,9 +1,14 @@
 /**
  * AuthConfig.config 평문 → AES-256-GCM 재암호화 1회용 스크립트.
  *
- * 사용:
+ * 사용 (개발, ts-node):
  *   INTEGRATION_ENCRYPTION_KEY=<32byte-hex> \
- *     npm --prefix backend run encrypt-auth-config
+ *     npx ts-node backend/src/scripts/encrypt-auth-config.ts
+ *
+ * 사용 (운영, 컴파일된 dist 산출물):
+ *   docker compose exec backend npm run encrypt-auth-config
+ *   # 또는 dist 직접:
+ *   INTEGRATION_ENCRYPTION_KEY=... node backend/dist/scripts/encrypt-auth-config.js
  *
  * 동작:
  *   - 모든 auth_config row 를 entity 로 읽고 save() 호출
@@ -11,7 +16,7 @@
  *   - 실패 시 row id 출력 후 계속 (graceful per-row)
  */
 import { DataSource } from 'typeorm';
-import { AuthConfig } from '../src/modules/auth-configs/entities/auth-config.entity';
+import { AuthConfig } from '../modules/auth-configs/entities/auth-config.entity';
 
 async function main(): Promise<void> {
   const key = process.env.INTEGRATION_ENCRYPTION_KEY;
