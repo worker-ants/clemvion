@@ -35,6 +35,17 @@ function isHttpUrl(url: unknown): url is string {
   }
 }
 
+// W-3: `style` 속성은 DOMPurify 의 ALLOWED_ATTR 에서 제거.
+//
+// 사유: inline `style` 은 화이트리스트 CSS 속성을 따로 제한하기 어려워
+// (DOMPurify 는 CSS 파서를 갖지 않음) clickjacking·CSS 누출·data: URL 등의
+// 우회 벡터를 막기 까다롭다. presentation 노드의 스타일링은 미리 정의된
+// 클래스만 허용하는 `class` 기반 접근으로 한정 — 신규 스타일이 필요하면
+// Tailwind 유틸리티 클래스 또는 globals.css 에 정의된 컴포넌트 클래스를 사용.
+//
+// SVG presentation 속성 (`fill`, `stroke`, `transform`, ...) 은 element-level
+// 속성이지 CSS 속성이 아니므로 그대로 유지 — 이 값들은 SVG attribute parser 가
+// 검증해 잘못된 값은 무시된다.
 const SANITIZE_CONFIG = {
   ALLOWED_TAGS: [
     "div", "span", "p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -43,7 +54,7 @@ const SANITIZE_CONFIG = {
     "svg", "path", "g", "rect", "circle", "line", "polyline", "polygon", "text",
   ],
   ALLOWED_ATTR: [
-    "class", "style", "href", "src", "alt", "width", "height",
+    "class", "href", "src", "alt", "width", "height",
     "target", "rel", "colspan", "rowspan",
     "viewBox", "d", "fill", "stroke", "stroke-width", "transform",
     "x", "y", "cx", "cy", "r", "rx", "ry", "x1", "y1", "x2", "y2",
