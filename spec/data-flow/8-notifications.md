@@ -64,7 +64,7 @@ sequenceDiagram
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 |
 | --- | --- | --- | --- |
-| `notification` | 적재 | INSERT `workspace_id, user_id, type, title, message, resource_type?, resource_id?, is_read=false, channel, email_sent_at?, dismissed_at=NULL` (V001 + `dismissed_at` 컬럼 추가는 별도 V`<NNN>` — 착수 직전 `ls backend/migrations/` 로 현행 최신 번호 확인 후 +1, +2 채움) | `(user_id, is_read, created_at DESC) WHERE dismissed_at IS NULL`, `(workspace_id, created_at DESC)` (V002 + partial 전환 V`<NNN+1>`) — 두 인덱스의 dismissed 필터 정책 차이: 사용자별 미읽음 쿼리 (벨 배지·popover) 는 visible 만 보기 때문에 partial, 워크스페이스 단위 조회는 향후 admin/감사 쿼리에서 dismissed 포함 전체 조회 여지를 두기 위해 비-partial 유지 |
+| `notification` | 적재 | INSERT `workspace_id, user_id, type, title, message, resource_type?, resource_id?, is_read=false, channel, email_sent_at?, dismissed_at=NULL` (V001 + dismissed_at 컬럼 추가 V055) | `(user_id, is_read, created_at DESC) WHERE dismissed_at IS NULL`, `(workspace_id, created_at DESC)` (V002 + partial 전환 V056) — 두 인덱스의 dismissed 필터 정책 차이: 사용자별 미읽음 쿼리 (벨 배지·popover) 는 visible 만 보기 때문에 partial, 워크스페이스 단위 조회는 향후 admin/감사 쿼리에서 dismissed 포함 전체 조회 여지를 두기 위해 비-partial 유지 |
 | `notification` | 읽음 처리 | UPDATE `is_read=true` | — |
 | `notification` | dismiss 처리 (단건) | UPDATE `dismissed_at=now()` WHERE `id=? AND user_id=? AND dismissed_at IS NULL` | — |
 | `notification` | dismiss 처리 (일괄) | UPDATE `dismissed_at=now()` WHERE `workspace_id=? AND user_id=? AND dismissed_at IS NULL` | — |
