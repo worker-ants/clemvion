@@ -3,6 +3,7 @@ import {
   computeStatus,
   isReauthorizeDisabled,
   computeAttentionBreakdown,
+  humanizeUntil,
   needsAttention,
 } from "../status-badge";
 import type { IntegrationDto } from "@/lib/api/integrations";
@@ -24,6 +25,8 @@ function row(overrides: Partial<IntegrationDto>): IntegrationDto {
     tokenExpiresAt: null,
     lastUsedAt: null,
     lastRotatedAt: null,
+    autoRefresh: true,
+    appUrl: null,
     createdBy: "u",
     createdAt: "2026-05-14T00:00:00Z",
     updatedAt: "2026-05-14T00:00:00Z",
@@ -99,6 +102,133 @@ describe("computeStatus", () => {
       }),
     );
     expect(view.detail).toContain("invalid_grant");
+  });
+
+  // -----------------------------------------------------------------
+  // autoRefresh — spec/2-navigation/4-integration.md §4.1 헤더 정책 +
+  // Rationale "자동 갱신 통합을 attention 술어에서 제외 (2026-05-17)".
+  // 짧은-수명 OAuth 토큰(cafe24 2h 등)이 항상 "Expires today" 노란 톤
+  // 으로 표시되는 거짓 양성을 막기 위한 분기. autoRefresh=true 통합은
+  // 만료 임박해도 메인 라벨 "Connected" 유지 + 보조 라벨로만 안내.
+  // -----------------------------------------------------------------
+  const inMinutes = (m: number) =>
+    new Date(Date.now() + m * 60 * 1000).toISOString();
+  const inDaysIso = (d: number) =>
+    new Date(Date.now() + d * 24 * 60 * 60 * 1000).toISOString();
+
+  describe("autoRefresh + expiresSoon", () => {
+    it("keeps 'Connected' label when autoRefresh=true even if expiring within 7d", () => {
+      // cafe24 2h token: tokenExpiresAt 90분 후 → expiresSoon true 인데도
+      // autoRefresh=true 라 노란 'Expires today' 가 아닌 'Connected' 가
+      // 메인 라벨이어야 한다.
+      const view = computeStatus(
+        row({
+          status: "connected",
+          autoRefresh: true,
+          tokenExpiresAt: inMinutes(90),
+        }),
+      );
+      expect(view.label).toBe("Connected");
+      expect(view.tone).toBe("ok");
+      expect(view.dotClassName).toBe("bg-green-500");
+    });
+
+    it("emits 'Auto-renews' subLabel when autoRefresh=true and connected", () => {
+      const view = computeStatus(
+        row({
+          status: "connected",
+          autoRefresh: true,
+          tokenExpiresAt: inMinutes(90),
+        }),
+      );
+      expect(view.subLabel).toBeDefined();
+      expect(view.subLabel).toMatch(/Auto-renews/i);
+    });
+
+    it("falls back to 'Expires in Nd' when autoRefresh=false and expiresSoon", () => {
+      const view = computeStatus(
+        row({
+          status: "connected",
+          autoRefresh: false,
+          tokenExpiresAt: inDaysIso(3),
+        }),
+      );
+      expect(view.label).toMatch(/Expires/);
+      expect(view.tone).toBe("warn");
+    });
+
+    it("no subLabel when autoRefresh=true but not connected (error/expired)", () => {
+      const errView = computeStatus(
+        row({
+          status: "error",
+          autoRefresh: true,
+          statusReason: "auth_failed",
+        }),
+      );
+      expect(errView.subLabel).toBeUndefined();
+
+      const expView = computeStatus(
+        row({ status: "expired", autoRefresh: true }),
+      );
+      expect(expView.subLabel).toBeUndefined();
+    });
+
+    it("no subLabel when autoRefresh=true and connected but tokenExpiresAt is null (MCP 등)", () => {
+      const view = computeStatus(
+        row({
+          status: "connected",
+          autoRefresh: true,
+          tokenExpiresAt: null,
+        }),
+      );
+      expect(view.label).toBe("Connected");
+      // tokenExpiresAt 가 없으면 만료 카운트다운이 무의미 → subLabel 미노출
+      expect(view.subLabel).toBeUndefined();
+    });
+  });
+});
+
+// spec/2-navigation/4-integration.md §4.1 헤더 메타 라인 규약 — `Auto-renews ·
+// in <duration>` 보조 라벨에서 사용. 단위 변환 경계 + 입력 가드 보장.
+describe("humanizeUntil", () => {
+  const minutesFromNow = (m: number) =>
+    new Date(Date.now() + m * 60_000).toISOString();
+
+  it("returns empty string for past timestamps (no misleading '0m')", () => {
+    expect(humanizeUntil(minutesFromNow(-1))).toBe("");
+  });
+
+  it("returns empty string for zero / 'now' timestamps", () => {
+    expect(humanizeUntil(new Date(Date.now()).toISOString())).toBe("");
+  });
+
+  it("returns empty string for invalid ISO input (NaN guard)", () => {
+    expect(humanizeUntil("not-a-date")).toBe("");
+    expect(humanizeUntil("")).toBe("");
+  });
+
+  it("returns 'less than a minute' when remaining < 60s", () => {
+    const in30s = new Date(Date.now() + 30 * 1000).toISOString();
+    expect(humanizeUntil(in30s)).toBe("less than a minute");
+  });
+
+  it("returns minutes-only form when under an hour", () => {
+    expect(humanizeUntil(minutesFromNow(45))).toBe("45m");
+  });
+
+  it("returns hours-only form when remainder minutes are zero", () => {
+    expect(humanizeUntil(minutesFromNow(60))).toBe("1h");
+    expect(humanizeUntil(minutesFromNow(120))).toBe("2h");
+  });
+
+  it("returns hours + minutes when both nonzero", () => {
+    // 84m → 1h 24m — the case the bug report originally showed.
+    expect(humanizeUntil(minutesFromNow(84))).toBe("1h 24m");
+  });
+
+  it("returns days when remaining ≥ 24h", () => {
+    expect(humanizeUntil(minutesFromNow(24 * 60))).toBe("1d");
+    expect(humanizeUntil(minutesFromNow(3 * 24 * 60))).toBe("3d");
   });
 });
 

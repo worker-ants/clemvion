@@ -101,6 +101,19 @@ export class IntegrationDto {
   /** 수정 시각 */
   @ApiProperty({ format: 'date-time' })
   updatedAt: string;
+
+  /**
+   * 자동 갱신 가능 통합 식별자 (derived 가상 필드, DB 컬럼 아님).
+   * `ServiceDefinition.supportsTokenAutoRefresh` (service registry)
+   * 에서 매 응답 시점에 계산. 현재 cafe24·google 만 true,
+   * github (Refresh ✗) 포함 그 외는 false.
+   * UI 의 attention/expiring 술어 제외, 상세 페이지 헤더의 "Auto-renews"
+   * 보조 라벨, Reauthorize hover 안내 분기 신호로 사용된다.
+   * spec/2-navigation/4-integration.md §9.1 + Rationale "자동 갱신 통합을
+   * attention 술어에서 제외 (2026-05-17)".
+   */
+  @ApiProperty({ type: 'boolean', example: true })
+  autoRefresh: boolean;
 }
 
 /** 지원 서비스 카탈로그 엔트리 */

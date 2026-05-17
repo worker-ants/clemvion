@@ -78,6 +78,7 @@ export const integrations = {
   lastUsedLabel: "최근 사용",
   lastRotatedLabel: "최근 교체",
   tokenExpiresLabel: "토큰 만료",
+  tokenExpiresAuto: "자동 갱신 · {{duration}} 후 만료",
   testConnectionBtn: "연결 테스트",
   nameUpdated: "이름을 변경했어요",
   nameUpdateFailed: "이름 변경에 실패했어요",
