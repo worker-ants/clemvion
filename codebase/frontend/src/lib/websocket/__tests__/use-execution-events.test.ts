@@ -1909,6 +1909,128 @@ describe("useExecutionEvents", () => {
       expect(msgs[2].content).toBe("second");
     });
 
+    // 회귀: ai_message 가 thread items 를 message-derived items 로 덮어쓴
+    // 직후 후속 waiting_for_input 의 thread snapshot 이 source 분기
+    // (presentation_user) 를 복원해야 한다 (spec §9.1). 기존 idempotency
+    // 가드는 `conversationMessages.length` 와 비교했고 multi-turn 사이클이
+    // 끝나면 length 가 마침 thread nextSeq 와 같아져 영구 skip — Template
+    // click 이 plain user bubble 로 박혀버리는 회귀가 있었다.
+    it("ai_message 덮어쓰기 후 후속 waiting_for_input snapshot 으로 presentation 복원", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const waitingHandler = getWaitingHandler();
+      const onCalls = (mockClient.on as Mock).mock.calls;
+      const aiMessageHandler = onCalls.find(
+        (c: unknown[]) => c[0] === "execution.ai_message",
+      )?.[1] as (data: unknown) => void;
+
+      // 1) 초기 waiting — thread 에 Template presentation_user + AI 인사.
+      waitingHandler({
+        waitingNodeId: "ai-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: { conversationConfig: { messages: [], turnCount: 0, maxTurns: 5 } },
+        conversationThread: {
+          id: "default",
+          nextSeq: 2,
+          turns: [
+            {
+              seq: 0,
+              nodeId: "tpl-1",
+              nodeLabel: "Template",
+              nodeType: "template",
+              source: "presentation_user",
+              text: "clicked: AI와 대화하기",
+              data: { buttonId: "open_chat", buttonLabel: "AI와 대화하기" },
+            },
+            {
+              seq: 1,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_assistant",
+              text: "안녕하세요",
+            },
+          ],
+        },
+      });
+      expect(
+        useExecutionStore.getState().conversationMessages[0].type,
+      ).toBe("presentation");
+
+      // 2) 사용자가 turn 진행 후 ai_message 도착 — emit messages 는 source 별
+      //    분기를 모르므로 첫 항목이 plain user 로 박힌다.
+      aiMessageHandler({
+        nodeId: "ai-1",
+        message: "안녕하세요. 무엇을 도와드릴까요?",
+        turnCount: 1,
+        messages: [
+          {
+            role: "user",
+            content: "[from Template] clicked: AI와 대화하기",
+            source: "injected",
+          },
+          { role: "user", content: "지금 어떤 상품이 판매중이야?" },
+          {
+            role: "assistant",
+            content: "현재 판매중인 상품 목록입니다.",
+          },
+        ],
+      });
+      const afterAiMessage =
+        useExecutionStore.getState().conversationMessages;
+      // length 가 새 nextSeq 와 우연히 같아지는 시나리오 재현.
+      expect(afterAiMessage).toHaveLength(3);
+      expect(afterAiMessage[0].type).toBe("user");
+
+      // 3) 후속 waiting_for_input — nextSeq 가 advance 했으므로 thread
+      //    snapshot 으로 다시 적용되고 presentation 분기가 복원된다.
+      waitingHandler({
+        waitingNodeId: "ai-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: { conversationConfig: { messages: [], turnCount: 1, maxTurns: 5 } },
+        conversationThread: {
+          id: "default",
+          nextSeq: 3,
+          turns: [
+            {
+              seq: 0,
+              nodeId: "tpl-1",
+              nodeLabel: "Template",
+              nodeType: "template",
+              source: "presentation_user",
+              text: "clicked: AI와 대화하기",
+              data: { buttonId: "open_chat", buttonLabel: "AI와 대화하기" },
+            },
+            {
+              seq: 1,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_user",
+              text: "지금 어떤 상품이 판매중이야?",
+            },
+            {
+              seq: 2,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_assistant",
+              text: "현재 판매중인 상품 목록입니다.",
+            },
+          ],
+        },
+      });
+
+      const restored = useExecutionStore.getState().conversationMessages;
+      expect(restored).toHaveLength(3);
+      expect(restored[0].type).toBe("presentation");
+      expect(restored[0].presentation?.nodeLabel).toBe("Template");
+      expect(restored[1].type).toBe("user");
+      expect(restored[2].type).toBe("assistant");
+    });
+
     it("thread snapshot 부재 시 emit messages fallback (backward compat)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
