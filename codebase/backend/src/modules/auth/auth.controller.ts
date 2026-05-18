@@ -672,7 +672,8 @@ export class AuthController {
   })
   @ApiBadRequestResponse({ description: '이메일 형식 오류' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto.email);
+    const result = await this.authService.forgotPassword(dto.email);
+    return { data: result };
   }
 
   @Public()
@@ -704,7 +705,8 @@ export class AuthController {
   @ApiOkWrappedResponse(CheckEmailResultDto, { description: '사용 가능 여부' })
   @ApiBadRequestResponse({ description: '이메일 형식 오류' })
   async checkEmail(@Body() dto: CheckEmailDto) {
-    return this.authService.checkEmail(dto.email);
+    const result = await this.authService.checkEmail(dto.email);
+    return { data: result };
   }
 
   @Public()
