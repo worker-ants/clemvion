@@ -425,10 +425,14 @@ describe("applyExecutionSnapshot — ai_conversation REST 스냅샷 hydration", 
     const state = useExecutionStore.getState();
     expect(state.waitingInteractionType).toBe("ai_conversation");
     expect(state.waitingNodeId).toBe("ai-agent-node");
+    // handler config (mode/model/maxTurns) 와 output.result (turnCount/message)
+    // 가 병합돼야 SummaryView 의 "단계 N / M" 카운터가 정상 동작한다.
     expect(state.waitingConversationConfig).toMatchObject({
       mode: "multi_turn",
       model: "test-model",
       maxTurns: 10,
+      turnCount: 2,
+      message: "현재 위치 기준으로 맑음입니다.",
     });
     expect(state.conversationMessages).toHaveLength(4);
     expect(state.conversationMessages[0]).toMatchObject({
@@ -441,6 +445,134 @@ describe("applyExecutionSnapshot — ai_conversation REST 스냅샷 hydration", 
       content: "현재 위치 기준으로 맑음입니다.",
       turnIndex: 2,
     });
+  });
+
+  it("재진입 시나리오 — 같은 waiting 노드 + 빈 conversationMessages → 영속 outputData 에서 재시드 (early return 이 안전망 차단하지 않아야 함)", () => {
+    // SPA 페이지 이동 후 재진입: store 의 waitingNodeId 는 Zustand singleton
+    // 으로 보존되지만 conversationMessages 는 어떤 race / clear 사유로 비어
+    // 있을 수 있다. snapshot 의 영속 outputData (DB) 에는 모든 messages 가
+    // 들어있으므로 안전망이 재시드해야 timeline 이 부활한다.
+    useExecutionStore.setState({
+      status: "waiting_for_input",
+      waitingNodeId: "ai-agent-node",
+      waitingInteractionType: "ai_conversation",
+      waitingConversationConfig: { mode: "multi_turn", model: "test-model" },
+      conversationMessages: [], // ← 비어있는 상태
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          aiNodeExec({
+            config: { mode: "multi_turn", model: "test-model", maxTurns: 10 },
+            output: {
+              result: {
+                messages: [
+                  { role: "user", content: "재진입 전 메시지 1" },
+                  { role: "assistant", content: "재진입 전 응답 1" },
+                  { role: "user", content: "재진입 전 메시지 2" },
+                  { role: "assistant", content: "재진입 전 응답 2" },
+                ],
+                message: "재진입 전 응답 2",
+                turnCount: 2,
+                maxTurns: 10,
+              },
+            },
+            status: "waiting_for_input",
+            meta: { interactionType: "ai_conversation" },
+          }),
+        ],
+      }),
+    );
+
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages).toHaveLength(4);
+    expect(state.conversationMessages[0]?.content).toBe("재진입 전 메시지 1");
+    expect(state.conversationMessages[3]?.content).toBe("재진입 전 응답 2");
+  });
+
+  it("재진입 시나리오 — 같은 waiting 노드 + store 에 메시지 보존 → 덮어쓰지 않음", () => {
+    // 정상 SPA 재진입: store 가 메시지를 유지한 채 재구독. snapshot 이 안전망
+    // 재시드를 호출하지만 store 비어있지 않으므로 no-op (선택 인덱스 등 UI
+    // state 보호).
+    useExecutionStore.setState({
+      status: "waiting_for_input",
+      waitingNodeId: "ai-agent-node",
+      waitingInteractionType: "ai_conversation",
+      conversationMessages: [
+        { type: "user", content: "기존 메시지 A", turnIndex: 1 },
+        { type: "assistant", content: "기존 응답 A", turnIndex: 1 },
+      ],
+      selectedConversationItemIndex: 1,
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          aiNodeExec({
+            config: { mode: "multi_turn" },
+            output: {
+              result: {
+                messages: [
+                  { role: "user", content: "snapshot 메시지" },
+                  { role: "assistant", content: "snapshot 응답" },
+                ],
+                message: "snapshot 응답",
+                turnCount: 1,
+                maxTurns: 10,
+              },
+            },
+            status: "waiting_for_input",
+            meta: { interactionType: "ai_conversation" },
+          }),
+        ],
+      }),
+    );
+
+    const state = useExecutionStore.getState();
+    // 기존 메시지 보존 + 선택 인덱스 보존
+    expect(state.conversationMessages).toHaveLength(2);
+    expect(state.conversationMessages[0]?.content).toBe("기존 메시지 A");
+    expect(state.selectedConversationItemIndex).toBe(1);
+  });
+
+  it("재진입 시나리오 — form 노드는 early return 후 conversationMessages 재시드 안 함 (AI 분기 한정 안전망)", () => {
+    // ai_conversation 이외의 interactionType (form/buttons) 은 외부에서
+    // conversationMessages 가 의도적으로 비어있을 수 있으므로 안전망이
+    // 작동하지 않아야 한다.
+    useExecutionStore.setState({
+      status: "waiting_for_input",
+      waitingNodeId: "form-node",
+      waitingInteractionType: "form",
+      conversationMessages: [],
+    });
+
+    applyExecutionSnapshot(
+      createExec({
+        status: "waiting_for_input",
+        nodeExecutions: [
+          {
+            id: "ne-form",
+            executionId: "exec-1",
+            nodeId: "form-node",
+            nodeType: "form",
+            status: "waiting_for_input",
+            startedAt: "2026-04-01T00:00:00Z",
+            // 비현실적이지만 가드 검증을 위해 messages 가 들어있는 outputData
+            // 를 흘려보내도 ai_conversation 가드가 작동해 시드 차단.
+            outputData: {
+              config: { fields: [] },
+              output: { result: { messages: [{ role: "user", content: "x" }] } },
+              status: "waiting_for_input",
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(useExecutionStore.getState().conversationMessages).toHaveLength(0);
   });
 
   it("legacy nested shape `{config, output:{messages}}` (result wrapper 없음) → 시드", () => {
