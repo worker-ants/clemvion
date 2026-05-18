@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-18T23:26:44.008354",
+  "mode": "plan draft 검토 (--plan)",
+  "target_path": "plan/in-progress/node-config-required-defaults-sweep.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

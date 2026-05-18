@@ -24,7 +24,7 @@
 | name | String | ✓ | 필드 식별자 — 제출 데이터(`output.interaction.data`)의 키 |
 | type | Enum | ✓ | `text` / `number` / `email` / `textarea` / `select` / `checkbox` / `radio` / `date` / `file` |
 | label | String | ✓ | 필드 라벨 |
-| required | Boolean? | | 필수 입력 여부 (기본 `false`) |
+| required | Boolean? | | 폼 **사용자** 입력 강제 여부 (기본 `false`). `config.fields` 자체의 "1개 이상 정의" 필수성(§1·§6)과는 다른 layer — 전자는 폼 제출 검증, 후자는 노드 설정 패널의 asterisk(`config.fields.ui.required`). |
 | options | Option[]? | | `select`/`radio`/`checkbox` 용 선택지 (`{ label, value }`) |
 | defaultValue | Any? | | 기본값 (`{{ }}` 표현식 사용 가능) |
 | validation | ValidationRule? | | 유효성 검증 규칙 |
