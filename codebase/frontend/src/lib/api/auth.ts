@@ -98,13 +98,22 @@ export const authApi = {
     apiClient.post<{ data: { accessToken: string } }>("/auth/refresh", {}),
 
   forgotPassword: (email: string) =>
-    apiClient.post("/auth/forgot-password", { email }),
+    apiClient.post<{ data: { message: string } }>(
+      "/auth/forgot-password",
+      { email },
+    ),
 
   resetPassword: (token: string, newPassword: string) =>
-    apiClient.post("/auth/reset-password", { token, newPassword }),
+    apiClient.post<{ data: { message: string } }>(
+      "/auth/reset-password",
+      { token, newPassword },
+    ),
 
   checkEmail: (email: string) =>
-    apiClient.post<{ available: boolean }>("/auth/check-email", { email }),
+    apiClient.post<{ data: { available: boolean } }>(
+      "/auth/check-email",
+      { email },
+    ),
 
   // ========== WebAuthn 2FA ==========
 
