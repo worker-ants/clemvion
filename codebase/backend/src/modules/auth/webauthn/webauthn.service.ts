@@ -26,11 +26,11 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   AuthenticatorTransportFuture,
 } from '@simplewebauthn/server';
-import { UsersService } from '../users/users.service';
+import { UsersService } from '../../users/users.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
-import { RefreshToken } from './entities/refresh-token.entity';
-import { LoginHistoryService } from './login-history.service';
-import type { WebAuthnConfig } from '../../common/config/webauthn.config';
+import { RefreshToken } from '../entities/refresh-token.entity';
+import { LoginHistoryService } from '../login-history.service';
+import type { WebAuthnConfig } from '../../../common/config/webauthn.config';
 
 const RECOVERY_CODE_COUNT = 10;
 const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (spec/5-system/1-auth.md §1.4.3·§1.4.C)

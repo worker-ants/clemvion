@@ -8,11 +8,10 @@ import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { TotpService } from './totp.service';
-import { WebAuthnService } from './webauthn.service';
+import { WebAuthnModule } from './webauthn/webauthn.module';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuthOAuthState } from './entities/auth-oauth-state.entity';
 import { LoginHistory } from './entities/login-history.entity';
-import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { LoginHistoryService } from './login-history.service';
 import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
@@ -34,15 +33,13 @@ import { MailModule } from '../mail/mail.module';
         },
       }),
     }),
-    TypeOrmModule.forFeature([
-      RefreshToken,
-      AuthOAuthState,
-      LoginHistory,
-      WebAuthnCredential,
-    ]),
+    TypeOrmModule.forFeature([RefreshToken, AuthOAuthState, LoginHistory]),
     UsersModule,
     WorkspacesModule,
     MailModule,
+    // WebAuthn 도메인은 별도 서브모듈 — AuthService 가 login 분기 등에서
+    // WebAuthnService.countCredentials() 등으로 호출 (단방향). spec §1.4.H.
+    WebAuthnModule,
   ],
   controllers: [AuthController, SessionsController],
   providers: [
@@ -50,11 +47,10 @@ import { MailModule } from '../mail/mail.module';
     AuthOauthService,
     JwtStrategy,
     TotpService,
-    WebAuthnService,
     LoginHistoryService,
     SessionsService,
     LoginHistoryPrunerService,
   ],
-  exports: [AuthService, TotpService, WebAuthnService, LoginHistoryService],
+  exports: [AuthService, TotpService, LoginHistoryService, WebAuthnModule],
 })
 export class AuthModule {}
