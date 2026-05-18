@@ -129,6 +129,20 @@ describe("formatDate", () => {
     expect(result).toBe("2026-06-20T00:00:00.000Z");
   });
 
+  it("formats with datetime-tz format (datetime + timezone short name)", () => {
+    const result = formatDate("2026-01-15T12:00:00Z", "datetime-tz", "en");
+    // Must include month + year + hour:minute…
+    expect(result).toContain("Jan");
+    expect(result).toContain("2026");
+    expect(result).toMatch(/\d{1,2}:\d{2}/);
+    // …plus a timezone token. `timeZoneName: "short"` produces values like
+    // `KST`, `EST`, `GMT+9`, `PST`, `UTC` depending on the runner's TZ; the
+    // common shape is "letters" or "GMT[+-]N" appended after the time. We
+    // assert the presence of at least one such token rather than the exact
+    // value to stay portable across CI environments.
+    expect(result).toMatch(/(?:GMT[+\-−]?\d{1,2}(?::\d{2})?|UTC|[A-Z]{2,5})\b/);
+  });
+
   it("formats with time format (hour:minute, client TZ)", () => {
     const result = formatDate("2026-01-15T12:00:00Z", "time", "en");
     // Output is hour:minute in client local TZ (no exact value asserted because
