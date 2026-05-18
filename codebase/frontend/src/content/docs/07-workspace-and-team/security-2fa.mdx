@@ -1,0 +1,78 @@
+---
+title: "2단계 인증 (TOTP · Passkey)"
+title_en: "Two-factor authentication (TOTP · Passkey)"
+section: "07-workspace-and-team"
+order: 2
+summary: "Authenticator 앱(TOTP) 과 Passkey · 보안 키 두 가지 2단계 인증 방식, 복구 코드, 로그인 우선 순위까지 정리해요."
+summary_en: "TOTP authenticator apps and Passkey · security keys, recovery codes, and the WebAuthn-first login policy explained."
+spec: ["spec/5-system/1-auth.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/10-auth-flow.md"]
+code: [
+  "codebase/backend/src/modules/auth/totp.service.ts",
+  "codebase/backend/src/modules/auth/webauthn.service.ts",
+  "codebase/frontend/src/app/(main)/profile/security/page.tsx",
+  "codebase/frontend/src/app/(main)/profile/security/passkey-card.tsx",
+]
+---
+
+`/profile/security` 에서 **TOTP** (Authenticator 앱) 과 **Passkey · 보안 키** 두 가지 2단계 인증 방식을 모두 켜 둘 수 있어요. 각자 별도의 복구 코드 10개를 받고, 로그인 시 어떤 방식으로 통과할지는 정해진 우선순위를 따릅니다.
+
+## 두 방식 비교
+
+| 항목 | TOTP | Passkey · 보안 키 |
+|------|------|-------------------|
+| 호환 도구 | Google Authenticator · Authy · 1Password TOTP 등 | 기기 내장 Passkey (iPhone Face ID, Android, Windows Hello), YubiKey 같은 보안 키 |
+| 등록 단계 | QR 코드 → 인증 앱 스캔 → 6자리 코드 입력 | 등록 버튼 → 브라우저 prompt → 기기 잠금 해제 / 지문 / PIN |
+| 다중 등록 | 한 사용자당 1개 | **사용자당 N개** (모바일 + 데스크톱 + 보안 키 동시) |
+| 복구 코드 | TOTP 활성화 시 10개 | 첫 Passkey 등록 시 10개 (**TOTP 와 별도 풀**) |
+| Phishing 저항 | 약함 (코드가 노출 가능) | 강함 (origin 바인딩) |
+
+> 두 방식 모두 활성화해 두는 걸 권장해요 — 휴대폰 분실·인증기 고장 시 다른 채널로 로그인할 수 있어요.
+
+## Passkey 등록하기
+
+1. `/profile/security` 진입 → **Passkey · 보안 키** 카드에서 기기 이름(선택) 입력 후 **Passkey 등록** 클릭.
+2. 브라우저가 인증기 선택 prompt 를 띄워요 — 기기 내장 Passkey, 보안 키, 다른 기기의 Passkey 중 고를 수 있어요.
+3. 인증기 잠금 해제(지문 · Face ID · PIN) 가 끝나면 등록이 완료돼요.
+4. **첫 Passkey 등록인 경우** 화면에 노란색 박스로 **WebAuthn 복구 코드 10개** 가 한 번만 표시돼요. 안전한 곳(비밀번호 매니저)에 저장해 주세요.
+
+> 이후 추가 등록 시에는 복구 코드가 다시 발급되지 않아요. 분실 시 카드 하단의 **복구 코드 재발급** 으로 새로 받을 수 있어요 (기존 미사용 코드는 폐기).
+
+### 브라우저 호환성
+
+- 데스크톱: Chrome, Edge, Firefox, Safari 16+ 모두 지원.
+- 모바일: iOS 16+ Safari, Android Chrome 모두 지원.
+- 브라우저가 미지원이면 카드 상단에 경고가 표시되고 등록 버튼이 비활성화돼요. 이 경우 TOTP 만 사용하거나, 같은 계정으로 지원 브라우저에서 등록해 두면 다른 환경에서도 보안 키로 인증할 수 있어요.
+
+## 로그인 시 무엇이 노출되나요?
+
+`/auth/login` 통과 후 2단계 인증 화면은 다음 우선순위를 따라요:
+
+1. **Passkey 가 1개라도 등록되어 있으면** Passkey 인증 화면만 표시돼요. TOTP 입력란은 노출되지 않아요.
+2. **Passkey 가 없고 TOTP 만 활성화** 되어 있으면 기존 TOTP 입력 화면이 표시돼요.
+3. **둘 다 비활성** 이면 2FA 단계 자체를 건너뛰어요.
+
+> TOTP 로 우회해 로그인하고 싶다면 `/profile/security` 에서 모든 Passkey 를 먼저 삭제해야 해요. 강한 인증 수단(Passkey) 이 등록된 상태에서 약한 수단(TOTP) 으로 자동 전환되는 것은 보안상 차단돼요.
+
+### Passkey 인증이 실패하면?
+
+- 화면 하단 **복구 코드 사용하기** 링크 → WebAuthn 전용 복구 코드 입력. 한 번 사용된 코드는 즉시 폐기돼요.
+- 인증기를 분실한 경우, 같은 계정에 등록된 다른 Passkey(예: 보안 키) 로도 로그인할 수 있어요.
+- 모든 Passkey + 복구 코드까지 분실하면 워크스페이스 관리자나 고객 지원이 계정 복구를 도와줘야 해요.
+
+## Passkey 관리
+
+- **이름 변경**: 목록의 연필 아이콘 → 새 이름 입력 → **저장**.
+- **삭제**: 휴지통 아이콘 → 확인. 마지막 Passkey 를 삭제하면 WebAuthn 복구 코드도 함께 폐기돼요.
+- **마지막 사용 시각** · **등록일** · **transports** (usb · nfc · ble · internal · hybrid) 가 각 행에 표시돼 의심스러운 인증기를 식별할 수 있어요.
+
+## 셀프 호스팅 환경 안내
+
+운영 도메인이 SaaS 와 다르면 다음 환경변수를 설정해 주세요:
+
+| 변수 | 예 | 설명 |
+|------|----|------|
+| `WEBAUTHN_RP_ID` | `clemvion.example.com` | Relying Party ID. 호스트명만, 포트·스킴 없음 |
+| `WEBAUTHN_RP_NAME` | `Clemvion` | 브라우저 인증 prompt 에 표시될 이름 |
+| `WEBAUTHN_ORIGIN` | `https://app.example.com,https://www.example.com` | 콤마 구분 origin 목록 (같은 RP 의 multi-origin 허용) |
+
+설정 누락 시 백엔드가 경고 로그를 남기고 `FRONTEND_URL` 기반으로 폴백하지만, 운영 환경에서는 명시적 설정을 권장해요. 잘못된 RP/origin 으로 등록한 Passkey 는 인증 시 항상 실패해요.
