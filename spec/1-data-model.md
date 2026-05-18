@@ -62,7 +62,7 @@ User ──┬── Workspace (1:N)
 | type | Enum | personal / team |
 | owner_id | UUID | FK → User |
 | slug | String | URL 슬러그 |
-| settings | JSONB | 워크스페이스 설정 |
+| settings | JSONB | 워크스페이스 설정. 알려진 키: `timezone: string?` (IANA, NAV-SC-06 — 미설정 시 서버 default `process.env.TZ` → `UTC`. AI 노드의 System Context Prefix ([Spec AI 공통 §11.3](./4-nodes/3-ai/0-common.md#113-timezone-sot-정책)) 와 Schedule 의 default timezone 이 본 값을 참조) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
