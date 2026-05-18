@@ -7,13 +7,39 @@ export class AccessTokenDto {
   accessToken: string;
 }
 
-/** 2FA challenge 필요 응답 */
+/**
+ * 2FA challenge 필요 응답.
+ *
+ * spec/5-system/1-auth.md §1.4.2 — WebAuthn 우선, TOTP fallback 자동 금지.
+ *
+ *   methods ⊇ ['webauthn']  → 사용자에게 WebAuthn 화면만 노출
+ *   methods === ['totp']    → 사용자에게 TOTP 입력 화면 노출
+ *
+ * `requiresTotp` 는 deprecated backward-compat 필드 (`methods` 에 'totp' 포함이면 true).
+ * 새 클라이언트는 `requires2fa` + `methods` 만 본다. 두 필드 충돌 시 `requires2fa` 우선.
+ */
 export class LoginChallengeDto {
-  @ApiProperty({ example: true })
-  requiresTotp: boolean;
+  @ApiProperty({ example: true, description: '2FA 통과가 필요' })
+  requires2fa: boolean;
 
-  @ApiProperty()
+  @ApiProperty({
+    type: [String],
+    enum: ['webauthn', 'totp'],
+    example: ['webauthn'],
+    description:
+      '클라이언트에 노출할 2FA 방식. WebAuthn credential 보유 시 ["webauthn"] 만, 아니면 ["totp"].',
+  })
+  methods: Array<'webauthn' | 'totp'>;
+
+  @ApiProperty({ description: 'mfa_challenge JWT (5분). 후속 verify 요청에 동봉' })
   challengeToken: string;
+
+  @ApiPropertyOptional({
+    description:
+      'DEPRECATED — `methods` 가 \'totp\' 포함이면 true. 두 마이너 버전 후 제거 예정 (spec §1.4.2).',
+    deprecated: true,
+  })
+  requiresTotp?: boolean;
 }
 
 /** TOTP setup 결과 */
