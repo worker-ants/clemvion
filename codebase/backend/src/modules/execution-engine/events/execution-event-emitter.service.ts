@@ -44,6 +44,11 @@ export class ExecutionEventEmitter {
     eventType: NodeEventType,
     payload: unknown,
   ): void {
-    this.websocketService.emitNodeEvent(executionId, nodeId, eventType, payload);
+    this.websocketService.emitNodeEvent(
+      executionId,
+      nodeId,
+      eventType,
+      payload,
+    );
   }
 }

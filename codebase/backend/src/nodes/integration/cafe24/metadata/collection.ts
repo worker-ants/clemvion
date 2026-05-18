@@ -133,7 +133,8 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'manufacturers_create',
     label: '제조사 생성',
-    description: 'Create a manufacturer. Body schema partial — refer to Cafe24 docs.',
+    description:
+      'Create a manufacturer. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
     method: 'POST',
     path: 'manufacturers',

@@ -35,7 +35,7 @@ describe('PaginationQueryDto.sort 검증', () => {
       'col,1',
       'col.1',
       'CASE WHEN',
-      "name; SELECT 1",
+      'name; SELECT 1',
     ];
     for (const v of invalid) {
       const errs = await validateSort(v);

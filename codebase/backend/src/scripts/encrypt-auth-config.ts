@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   console.log(`Scanning ${rows.length} auth_config row(s)…`);
 
   let migrated = 0;
-  let skipped = 0;
+  const skipped = 0;
   let failed = 0;
   for (const row of rows) {
     try {

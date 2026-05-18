@@ -184,10 +184,7 @@ describe('Cafe24 partner-approval helpers', () => {
       };
       const tokens = extractCafe24ScopeTokens(errBody);
       const picked = pickRestrictedApprovalScopes(tokens);
-      expect(picked).toEqual([
-        'mall.read_mileage',
-        'mall.write_notification',
-      ]);
+      expect(picked).toEqual(['mall.read_mileage', 'mall.write_notification']);
     });
 
     it('returns undefined when only non-restricted scopes are mentioned', () => {

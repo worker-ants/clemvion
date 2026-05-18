@@ -61,7 +61,8 @@ export const designOperations: Cafe24OperationMetadata[] = [
   {
     id: 'theme_pages_create',
     label: '테마 페이지 생성',
-    description: 'Create a theme page. Body schema partial — refer to Cafe24 docs.',
+    description:
+      'Create a theme page. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
     method: 'POST',
     path: 'themes/{theme_no}/pages',
@@ -76,7 +77,8 @@ export const designOperations: Cafe24OperationMetadata[] = [
   {
     id: 'theme_pages_update',
     label: '테마 페이지 수정',
-    description: 'Update theme page contents (partial). Refer to Cafe24 docs for full schema.',
+    description:
+      'Update theme page contents (partial). Refer to Cafe24 docs for full schema.',
     scopeType: 'write',
     method: 'PUT',
     path: 'themes/{theme_no}/pages/{page_path}',
@@ -118,7 +120,8 @@ export const designOperations: Cafe24OperationMetadata[] = [
   {
     id: 'icons_update_settings',
     label: '상점 아이콘 설정 수정',
-    description: 'Update storefront icon settings (partial). Refer to Cafe24 docs for full schema.',
+    description:
+      'Update storefront icon settings (partial). Refer to Cafe24 docs for full schema.',
     scopeType: 'write',
     method: 'PUT',
     path: 'icons',

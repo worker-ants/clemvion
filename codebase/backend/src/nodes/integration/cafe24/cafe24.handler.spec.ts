@@ -117,10 +117,7 @@ describe('Cafe24Handler', () => {
   describe('execute — pre-flight errors route to port:error (D4)', () => {
     // D4 (2026-05-17) — handler.validate() 가 잡지 못한 IntegrationError 는
     // catch + port:'error' 로 라우팅. Integration 4종 모두 동일 패턴.
-    const expectErrorOutput = (
-      result: unknown,
-      expectedCode: string,
-    ): void => {
+    const expectErrorOutput = (result: unknown, expectedCode: string): void => {
       const r = result as Record<string, unknown>;
       expect(r.port).toBe('error');
       const output = r.output as { error: { code: string } };

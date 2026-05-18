@@ -1,0 +1,82 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-18T17:25:35Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/dto/pagination.dto.spec.ts (외 30건)"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "포맷팅·린팅 변경만 해당 — I/O, 반복, 캐시 등 성능 영향 코드 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈·계층·인터페이스 변경 없음 — 기존 함수 내 formatting 수정만"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 본문 변경 및 소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/dto/pagination.dto.spec.ts (외 30건)"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/dto/pagination.dto.spec.ts (외 30건)"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/dto/pagination.dto.spec.ts (외 30건)"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/dto/pagination.dto.spec.ts (외 30건)"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/dto/pagination.dto.spec.ts (외 30건)"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: plan/complete/spec-update-cafe24-test-connection.md (외 3건)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json, requirements.txt, go.mod 등 의존성 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migrations/, *.sql, prisma/schema, repository/QueryBuilder 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await, Promise, 락/뮤텍스, 워커/큐, setInterval/setTimeout 코드 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP route/controller, GraphQL schema, Swagger/OpenAPI 응답 구조 변경 없음"
+    }
+  ],
+  "selected_count": 7,
+  "skipped_count": 6,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

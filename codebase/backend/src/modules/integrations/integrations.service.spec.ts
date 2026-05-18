@@ -550,6 +550,58 @@ describe('IntegrationsService', () => {
       const result = await service.testConnection('int-1', 'ws-1');
       expect(result.success).toBe(true);
     });
+
+    it('rejects pending_install integration with INTEGRATION_INCOMPLETE — no entity tester or dispatch call', async () => {
+      // spec/2-navigation/4-integration.md §9.1 + Rationale "연결 테스트 endpoint
+      // 의 `pending_install` 가드 — 응답 형식 (2026-05-18)". Token is not yet
+      // issued, so an external probe is meaningless; the guard runs before the
+      // entity tester / dispatchTest path.
+      const pendingCafe24 = makeIntegration({
+        serviceType: 'cafe24',
+        authType: 'oauth2',
+        status: 'pending_install',
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'private',
+          client_id: 'cid',
+          client_secret: 'csecret',
+          // No access_token / refresh_token — typical pending_install shape.
+        },
+      });
+      integrationRepo.findOne.mockResolvedValue(pendingCafe24);
+
+      const probe = jest.fn();
+      service.registerEntityTester('cafe24', probe);
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(probe).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        success: false,
+        code: 'INTEGRATION_INCOMPLETE',
+        message: expect.stringContaining('pending_install'),
+      });
+    });
+
+    it('pending_install guard is service_type-agnostic — same response for non-cafe24 row', async () => {
+      // The guard checks status only; future providers adopting pending_install
+      // inherit the protection automatically.
+      const pendingHttp = makeIntegration({
+        serviceType: 'http',
+        authType: 'api_key',
+        status: 'pending_install',
+        credentials: { api_key: 'k' },
+      });
+      integrationRepo.findOne.mockResolvedValue(pendingHttp);
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(result).toEqual({
+        success: false,
+        code: 'INTEGRATION_INCOMPLETE',
+        message: expect.stringContaining('pending_install'),
+      });
+    });
   });
 
   // -----------------------------------------------------------------

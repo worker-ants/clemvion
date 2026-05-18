@@ -27,7 +27,9 @@ describe('Cafe24InstallNonceCache', () => {
     });
     expect(result).toBe(false);
     expect(redis.set).toHaveBeenCalledWith(
-      expect.stringContaining('cafe24:install:nonce:myshop:1700000000:abcd1234'),
+      expect.stringContaining(
+        'cafe24:install:nonce:myshop:1700000000:abcd1234',
+      ),
       '1',
       'EX',
       Cafe24InstallNonceCache.TTL_SEC,
