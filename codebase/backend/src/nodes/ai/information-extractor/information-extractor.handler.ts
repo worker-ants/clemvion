@@ -344,8 +344,11 @@ export class InformationExtractorHandler implements NodeHandler {
     const resolvedModel = model || llmConfig.defaultModel;
 
     // System Context Prefix — spec/4-nodes/3-ai/0-common.md §11.4 ordering [1].
-    // multi-turn 은 첫 진입 시 1회 prepend 하고 state.messages[0] 에 frozen 되어
-    // 후속 turn 에서도 같은 prefix 를 본다 ($now 가 execution-frozen).
+    // executeMultiTurn 은 첫 진입 시점에만 호출되며 결과 systemPrompt 가
+    // state.messages 의 일부로 영속된다 (system role 메시지). 후속 turn
+    // (processMultiTurnMessage / endMultiTurnConversation) 은 systemPrompt 를
+    // 새로 빌드하지 않고 영속된 messages 를 그대로 재사용하므로 prefix 는 자연히
+    // turn 간 frozen.
     const systemContextPrefix = buildSystemContextPrefixFromContext({
       context,
       config,

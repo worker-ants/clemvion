@@ -1244,9 +1244,11 @@ export class AiAgentHandler implements NodeHandler {
     // 여기서 server-side safety net 을 제공).
     const ragAcc = new RagAccumulator(knowledgeBases.length);
 
-    // System Context Prefix — spec §11.4 ordering [1]. multi-turn 은 첫 진입
-    // 시 1회 prepend 하고 `state.systemPrompt` 로 저장돼 후속 turn 에서도 같은
-    // prefix 를 본다 (turn 마다 재계산 불필요 — `$now` 가 execution-frozen).
+    // System Context Prefix — spec §11.4 ordering [1]. multi-turn 의 executeMultiTurn
+    // 은 첫 진입 시점에만 호출되며, 결과 messages 배열이 `_resumeState.messages` 의
+    // 일부로 영속된다 (system role 메시지 포함). 후속 turn (processMultiTurnMessage)
+    // 은 systemPrompt 를 새로 빌드하지 않고 영속된 messages 를 그대로 재사용하므로,
+    // prefix 는 자연히 turn 간 frozen.
     const systemContextPrefix = buildSystemContextPrefixFromContext({
       context,
       config,

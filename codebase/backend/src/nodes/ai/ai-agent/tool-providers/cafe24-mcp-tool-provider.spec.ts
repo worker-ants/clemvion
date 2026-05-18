@@ -118,11 +118,26 @@ describe('Cafe24McpToolProvider', () => {
         executionId: 'exec-1',
       });
 
+      const KST_SUFFIX =
+        'All date/time parameters and response fields use KST (Asia/Seoul, UTC+9)';
+
+      // (1) 대표 도구 (product_list — date filter 있는 케이스) 의 description 을
+      // 직접 조회해 suffix 위치·내용을 검증. tools 배열이 비어있어도 find 가
+      // undefined 를 반환하므로 가드 + 명시적 assertion 으로 false positive 차단.
+      const productList = tools.find(
+        (t) => t.name === 'mcp_abcdef1234567890__product_list',
+      );
+      expect(productList).toBeDefined();
+      expect(productList!.description).toContain(KST_SUFFIX);
+      // suffix 가 description 의 끝 부분에 위치하는지 (Cafe24 wire-format hint 뒤).
+      expect(productList!.description.lastIndexOf(KST_SUFFIX)).toBeGreaterThan(
+        productList!.description.indexOf('(Cafe24 '),
+      );
+
+      // (2) 모든 도구가 동일 suffix 포함. 길이 가드는 (1) 의 명시 검증으로 보완.
       expect(tools.length).toBeGreaterThan(0);
       for (const t of tools) {
-        expect(t.description).toContain(
-          'All date/time parameters and response fields use KST (Asia/Seoul, UTC+9)',
-        );
+        expect(t.description).toContain(KST_SUFFIX);
       }
     });
 
