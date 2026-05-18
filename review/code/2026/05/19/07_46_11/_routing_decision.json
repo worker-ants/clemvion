@@ -1,0 +1,82 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-19T07:46:11Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "스키마 메타 + 정적 주석 변경만 — 반복문/I/O/캐시 성능 영향 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈 경계 변경 없음 — 동일 loop.schema.ts 내 메타 데이터 정리"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 본문 변경 및 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경 — plan/spec/review 문서 9건"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/package-lock.json 변경 없음 — ts schema 수정만"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migration/ORM 쿼리 변경 없음 — 런타임 검증 로직만 변경"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await/Promise/락 변경 없음 — 동기 검증 로직"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP route/GraphQL/응답 구조 변경 없음 — 내부 노드 검증 스키마"
+    }
+  ],
+  "selected_count": 7,
+  "skipped_count": 6,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

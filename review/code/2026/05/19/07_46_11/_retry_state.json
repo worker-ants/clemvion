@@ -1,0 +1,38 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_routing_decision.json",
+  "routing_status": "done",
+  "routing_skip_reason": null,
+  "agents_forced": ["documentation", "maintainability", "requirement", "scope", "security", "side_effect", "testing"],
+  "agents_skipped": ["performance", "architecture", "dependency", "database", "concurrency", "api_contract"],
+  "subagent_invocations": [
+    {"name": "security", "subagent_type": "security-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_prompts/security.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/security.md"},
+    {"name": "requirement", "subagent_type": "requirement-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_prompts/requirement.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/requirement.md"},
+    {"name": "scope", "subagent_type": "scope-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_prompts/scope.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/scope.md"},
+    {"name": "side_effect", "subagent_type": "side-effect-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_prompts/side_effect.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/side_effect.md"},
+    {"name": "maintainability", "subagent_type": "maintainability-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_prompts/maintainability.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/maintainability.md"},
+    {"name": "testing", "subagent_type": "testing-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_prompts/testing.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/testing.md"},
+    {"name": "documentation", "subagent_type": "documentation-reviewer", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/_prompts/documentation.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/loop-count-policy/review/code/2026/05/19/07_46_11/documentation.md"}
+  ],
+  "agents_pending": [],
+  "agents_success": ["security", "requirement", "scope", "side_effect", "maintainability", "testing", "documentation"],
+  "agents_fatal": [],
+  "agent_history": {
+    "security": [{"status": "success", "issues": 4}],
+    "requirement": [{"status": "success", "issues": 5}],
+    "scope": [{"status": "success", "issues": 4}],
+    "side_effect": [{"status": "success", "issues": 5}],
+    "maintainability": [{"status": "success", "issues": 1}],
+    "testing": [{"status": "success", "issues": 6}],
+    "documentation": [{"status": "success", "issues": 8}]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
