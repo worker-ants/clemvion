@@ -92,7 +92,7 @@ describe('Session revocation (e2e)', () => {
       .set('Authorization', `Bearer ${accessTokenA}`)
       .set('Cookie', cookieA);
     expect(list.status).toBe(200);
-    const sessions = list.body.data as Array<{
+    const sessions = list.body.data.items as Array<{
       familyId: string;
       isCurrent: boolean;
     }>;
@@ -110,7 +110,7 @@ describe('Session revocation (e2e)', () => {
       .set('Authorization', `Bearer ${accessTokenA}`)
       .set('Cookie', cookieA);
     const targetFamilyId = (
-      list.body.data as Array<{ familyId: string; isCurrent: boolean }>
+      list.body.data.items as Array<{ familyId: string; isCurrent: boolean }>
     ).find((s) => !s.isCurrent)!.familyId;
 
     const noAuth = await request(BASE_URL)
@@ -129,7 +129,7 @@ describe('Session revocation (e2e)', () => {
       .set('Authorization', `Bearer ${accessTokenA}`)
       .set('Cookie', cookieA);
     const targetFamilyId = (
-      list.body.data as Array<{ familyId: string; isCurrent: boolean }>
+      list.body.data.items as Array<{ familyId: string; isCurrent: boolean }>
     ).find((s) => !s.isCurrent)!.familyId; // cookieB 의 family
 
     const revoke = await request(BASE_URL)
@@ -163,7 +163,7 @@ describe('Session revocation (e2e)', () => {
         .get('/api/users/me/sessions')
         .set('Authorization', `Bearer ${accessTokenA}`)
         .set('Cookie', cookieA);
-      const userRow = list.body.data as Array<{ familyId: string }>;
+      const userRow = list.body.data.items as Array<{ familyId: string }>;
       expect(userRow.length).toBeGreaterThanOrEqual(2);
       const userEmail = (
         await db.query<{ email: string }>(
@@ -183,9 +183,9 @@ describe('Session revocation (e2e)', () => {
       .get('/api/users/me/sessions')
       .set('Authorization', `Bearer ${accessTokenA}`)
       .set('Cookie', cookieA);
-    expect((before.body.data as Array<unknown>).length).toBeGreaterThanOrEqual(
-      3,
-    );
+    expect(
+      (before.body.data.items as Array<unknown>).length,
+    ).toBeGreaterThanOrEqual(3);
 
     const revokeOthers = await request(BASE_URL)
       .post('/api/users/me/sessions/revoke-others')
@@ -194,7 +194,7 @@ describe('Session revocation (e2e)', () => {
       .send({ password: TEST_PASSWORD });
     expect(revokeOthers.status).toBe(200);
 
-    const after = revokeOthers.body.data as Array<{ isCurrent: boolean }>;
+    const after = revokeOthers.body.data.items as Array<{ isCurrent: boolean }>;
     expect(after.length).toBe(1);
     expect(after[0].isCurrent).toBe(true);
 
@@ -218,9 +218,9 @@ describe('Session revocation (e2e)', () => {
       .set('Authorization', `Bearer ${accessTokenA}`)
       .set('Cookie', cookieA);
     expect(hist.status).toBe(200);
-    // LoginHistoryPageDto = { data: LoginHistoryItem[], nextCursor: string | null }
-    // 외부 wrapping 까지 합치면 res.body.data.data 가 배열.
-    const items = hist.body.data.data as Array<{ event: string }>;
+    // LoginHistoryPageDto = { items: LoginHistoryItem[], nextCursor: string | null }
+    // 외부 wrapping 까지 합치면 res.body.data.items 가 배열.
+    const items = hist.body.data.items as Array<{ event: string }>;
     expect(items.length).toBeGreaterThanOrEqual(2); // 두 번 로그인 했음
     expect(items.every((i) => typeof i.event === 'string')).toBe(true);
     expect(items.some((i) => i.event === 'login_success')).toBe(true);
