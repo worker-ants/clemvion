@@ -25,7 +25,7 @@ export interface LoginData {
 }
 
 /**
- * /auth/login 응답.
+ * /auth/login 응답 — discriminated union.
  *
  * spec/5-system/1-auth.md §1.4.2 — WebAuthn 우선, TOTP fallback 자동 금지.
  *   methods 가 'webauthn' 포함 → WebAuthn 화면만 노출 (TOTP 입력란 비노출)
@@ -33,16 +33,41 @@ export interface LoginData {
  *
  * `requiresTotp` 는 deprecated backward-compat 필드. 두 마이너 버전 후 제거 예정.
  * 새 클라이언트는 `requires2fa` + `methods` 만 사용. 두 필드 충돌 시 `requires2fa` 우선.
+ *
+ * Swagger 측은 `oneOf: [AccessTokenDto, LoginChallengeDto]` 로 분리 표기 (백엔드 §9 follow-up).
  */
+export interface AccessTokenResponse {
+  accessToken: string;
+}
+
+export interface TwoFactorChallengeResponse {
+  requires2fa: true;
+  methods: Array<"webauthn" | "totp">;
+  challengeToken: string;
+  /** @deprecated — `methods` 에 'totp' 포함 시 true. 두 마이너 버전 후 제거. */
+  requiresTotp?: boolean;
+}
+
 export type LoginResponseData =
-  | { accessToken: string }
-  | {
-      requires2fa: true;
-      methods: Array<"webauthn" | "totp">;
-      challengeToken: string;
-      /** @deprecated — `methods` 에 'totp' 포함 시 true */
-      requiresTotp?: boolean;
-    };
+  | AccessTokenResponse
+  | TwoFactorChallengeResponse;
+
+/**
+ * 타입 가드: `LoginResponseData` 가 2FA challenge 인지 판별.
+ * `if (isTwoFactorChallenge(payload)) { payload.challengeToken ... }` 형태로 사용.
+ */
+export function isTwoFactorChallenge(
+  payload: LoginResponseData,
+): payload is TwoFactorChallengeResponse {
+  return "requires2fa" in payload && payload.requires2fa === true;
+}
+
+/** 타입 가드: 2FA 없이 즉시 발급된 access token 응답인지 판별. */
+export function isAccessTokenResponse(
+  payload: LoginResponseData,
+): payload is AccessTokenResponse {
+  return !isTwoFactorChallenge(payload);
+}
 
 export interface WebAuthnCredentialSummary {
   id: string;

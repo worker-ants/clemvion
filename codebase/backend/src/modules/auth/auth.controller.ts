@@ -33,11 +33,13 @@ import {
 import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedResponse,
+  ApiOkWrappedOneOfResponse,
 } from '../../common/swagger';
 import {
   AccessTokenDto,
   AuthMessageDto,
   CheckEmailResultDto,
+  LoginChallengeDto,
   OauthProvidersDto,
   RegisterResultDto,
   TotpDisableResultDto,
@@ -196,9 +198,9 @@ export class AuthController {
     description:
       '이메일/비밀번호로 로그인합니다. 성공 시 Access Token을 본문으로, Refresh Token을 httpOnly 쿠키로 발급합니다. 비밀번호 5회 실패 시 10분간 계정이 잠깁니다.',
   })
-  @ApiOkWrappedResponse(AccessTokenDto, {
+  @ApiOkWrappedOneOfResponse([AccessTokenDto, LoginChallengeDto], {
     description:
-      '로그인 성공. 2FA 가 활성화된 계정은 `{ requiresTotp, challengeToken }` 형태로 응답될 수 있어요.',
+      '로그인 성공. 2FA 비활성 계정: `{ accessToken }`. 2FA 활성 계정: `{ requires2fa, methods, challengeToken }` — 후속 verify 호출 필요.',
   })
   @ApiUnauthorizedResponse({
     description: '이메일/비밀번호 불일치, 이메일 미검증, 또는 계정 잠김',
