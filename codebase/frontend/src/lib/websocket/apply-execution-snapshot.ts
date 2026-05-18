@@ -188,7 +188,15 @@ export function applyExecutionSnapshot(
     const waitingNode = execution.nodeExecutions?.find(
       (ne) => ne.status === "waiting_for_input",
     );
-    if (currentWaiting && currentWaiting === waitingNode?.nodeId) return;
+    if (currentWaiting && currentWaiting === waitingNode?.nodeId) {
+      // form/buttons 의 waitingConfig 는 store 가 그대로 보존되므로 재설정
+      // 불필요. 다만 AI 대화의 `conversationMessages` 는 별도 슬롯이라,
+      // 페이지 재진입·재구독 후 store 가 비어있는 경우 backend 영속
+      // outputData 에서 안전망 재시드가 필요하다 (이 early return 으로
+      // 건너뛰면 영구히 빈 채로 남던 회귀가 있었음).
+      maybeSeedAiConversationMessages(waitingNode);
+      return;
+    }
     if (waitingNode?.outputData) {
       const raw = waitingNode.outputData as Record<string, unknown>;
 
@@ -228,8 +236,15 @@ export function applyExecutionSnapshot(
         inferInteractionTypeFromNodeType(fallbackNodeType);
 
       if (interactionType === "ai_conversation") {
+        // D6 (2026-05-17) — multi-turn 대화 상태(`message` / `turnCount` /
+        // `maxTurns` / `messages`)는 structured envelope 의 `output.result.*`
+        // 에 있고, handler config (model, systemPrompt, mode, ...) 는
+        // `config.*` 에 있다. SummaryView 의 단계 카운터는 `turnCount` /
+        // `maxTurns` 를 읽으므로 두 위치를 병합해서 넘긴다 — 그렇지 않으면
+        // `config.turnCount` 가 항상 undefined 라 카운터가 깨진다 (legacy
+        // shape 의 `conversationConfig` 한 객체에 모여있던 필드들과 동등).
         const convConfig = isStructured
-          ? (raw.config as Record<string, unknown> | undefined)
+          ? buildConvConfigFromStructured(raw)
           : (raw.conversationConfig as Record<string, unknown> | undefined);
         pauseForConversation(waitingNode.nodeId, convConfig ?? null);
 
@@ -256,6 +271,54 @@ export function applyExecutionSnapshot(
       }
     }
   }
+}
+
+/**
+ * 같은 waiting 노드 reconcile (early return) 경로에서도 AI 대화 메시지
+ * 안전망은 유지한다. store 가 비어있고 영속 outputData 에 messages 가
+ * 있으면 시드해, SPA 재진입·WS 재구독 후 store 와 backend 가 어긋난
+ * 상태로 timeline 이 영구히 비어 보이는 회귀를 차단한다. form/buttons 는
+ * `waitingFormConfig` / `waitingButtonConfig` 단일 객체로 store 가
+ * 보존되어 같은 안전망이 필요 없다.
+ */
+function maybeSeedAiConversationMessages(
+  waitingNode: NodeExecutionData | undefined,
+): void {
+  if (!waitingNode?.outputData) return;
+  const { waitingInteractionType, conversationMessages, setConversationMessages } =
+    useExecutionStore.getState();
+  if (waitingInteractionType !== "ai_conversation") return;
+  if (conversationMessages.length > 0) return;
+  const items = parseHistoryMessages(waitingNode.outputData);
+  if (items.length > 0) {
+    setConversationMessages(items);
+  }
+}
+
+/**
+ * Structured envelope (`{config, output:{result:{...}}, meta, status}`) 에서
+ * SummaryView 가 기대하는 `conversationConfig` shape 으로 평탄화한다.
+ * D6 (2026-05-17) 통일로 multi-turn 대화 상태(`message` / `turnCount` /
+ * `maxTurns` / `messages`)는 `output.result.*`, handler 설정 (model, mode,
+ * systemPrompt 등)은 `config.*` 에 분리되어 있어, snapshot reconcile 이
+ * 두 위치를 병합해야 단계 카운터 등 UI 가 정상 동작한다. handler config
+ * 가 base, output.result 가 override (같은 `maxTurns` 가 양쪽에 있을 때
+ * runtime 의 실제 값을 우선).
+ */
+function buildConvConfigFromStructured(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const handlerConfig =
+    (raw.config as Record<string, unknown> | undefined) ?? {};
+  const output = raw.output as Record<string, unknown> | undefined;
+  const result = output?.result as Record<string, unknown> | undefined;
+  if (!result) return { ...handlerConfig };
+  const merged: Record<string, unknown> = { ...handlerConfig };
+  if (typeof result.message === "string") merged.message = result.message;
+  if (typeof result.turnCount === "number") merged.turnCount = result.turnCount;
+  if (typeof result.maxTurns === "number") merged.maxTurns = result.maxTurns;
+  if (Array.isArray(result.messages)) merged.messages = result.messages;
+  return merged;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
