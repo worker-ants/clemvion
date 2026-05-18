@@ -31,7 +31,8 @@ describe('cors-origins (W-1)', () => {
     });
 
     it('CORS_ORIGINS 가 FRONTEND_URL 보다 우선', () => {
-      process.env.CORS_ORIGINS = 'https://app.example.com,https://admin.example.com';
+      process.env.CORS_ORIGINS =
+        'https://app.example.com,https://admin.example.com';
       process.env.FRONTEND_URL = 'https://ignored.example.com';
       expect(getAllowedOrigins()).toEqual([
         'https://app.example.com',
@@ -40,7 +41,8 @@ describe('cors-origins (W-1)', () => {
     });
 
     it('후행 슬래시 제거 + 공백 트리밍 + 빈 항목 무시', () => {
-      process.env.CORS_ORIGINS = ' https://a.example.com/ , ,https://b.example.com ';
+      process.env.CORS_ORIGINS =
+        ' https://a.example.com/ , ,https://b.example.com ';
       expect(getAllowedOrigins()).toEqual([
         'https://a.example.com',
         'https://b.example.com',
@@ -72,7 +74,8 @@ describe('cors-origins (W-1)', () => {
     });
 
     it('allowlist 매칭 → true', () => {
-      process.env.CORS_ORIGINS = 'https://app.example.com,https://admin.example.com';
+      process.env.CORS_ORIGINS =
+        'https://app.example.com,https://admin.example.com';
       expect(isOriginAllowed('https://app.example.com')).toBe(true);
       expect(isOriginAllowed('https://admin.example.com')).toBe(true);
     });
@@ -107,7 +110,9 @@ describe('cors-origins (W-1)', () => {
   describe('assertCorsOriginsConfigured', () => {
     it('production + wildcard → throw', () => {
       process.env.NODE_ENV = 'production';
-      expect(() => assertCorsOriginsConfigured()).toThrow(/CORS misconfiguration/);
+      expect(() => assertCorsOriginsConfigured()).toThrow(
+        /CORS misconfiguration/,
+      );
     });
 
     it('production + 명시 설정 → 통과', () => {

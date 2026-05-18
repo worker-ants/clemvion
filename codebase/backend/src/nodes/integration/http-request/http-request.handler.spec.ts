@@ -690,7 +690,9 @@ describe('HttpRequestHandler', () => {
         contextWithWorkspace,
       )) as unknown as Record<string, unknown>;
       expect(result.port).toBe('error');
-      const output = result.output as { error: { code: string; message: string } };
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
       expect(output.error.code).toBe('HTTP_BLOCKED');
       expect(output.error.message).toMatch(/SSRF_BLOCKED/);
       expect(logUsage).toHaveBeenCalledWith(
@@ -715,7 +717,9 @@ describe('HttpRequestHandler', () => {
         contextWithWorkspace,
       )) as unknown as Record<string, unknown>;
       expect(result.port).toBe('error');
-      const output = result.output as { error: { code: string; message: string } };
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
       expect(output.error.code).toBe('HTTP_BLOCKED');
       expect(output.error.message).toMatch(/SSRF_BLOCKED/);
     });

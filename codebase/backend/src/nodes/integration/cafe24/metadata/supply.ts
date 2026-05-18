@@ -47,7 +47,8 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   {
     id: 'suppliers_create',
     label: '공급사 등록',
-    description: 'Register a new supplier. Body schema partial — refer to Cafe24 docs for full schema.',
+    description:
+      'Register a new supplier. Body schema partial — refer to Cafe24 docs for full schema.',
     scopeType: 'write',
     method: 'POST',
     path: 'suppliers',
@@ -55,14 +56,20 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       supplier_name: { type: 'string', location: 'body' },
-      use_supplier: { type: 'enum', location: 'body', enum: ['T', 'F'], default: 'T' },
+      use_supplier: {
+        type: 'enum',
+        location: 'body',
+        enum: ['T', 'F'],
+        default: 'T',
+      },
     },
     responseShape: 'single',
   },
   {
     id: 'suppliers_update',
     label: '공급사 수정',
-    description: 'Update an existing supplier (partial). Refer to Cafe24 docs for full schema.',
+    description:
+      'Update an existing supplier (partial). Refer to Cafe24 docs for full schema.',
     scopeType: 'write',
     method: 'PUT',
     path: 'suppliers/{supplier_code}',
@@ -134,7 +141,8 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   {
     id: 'suppliers_users_create',
     label: '공급사 사용자 등록',
-    description: 'Create a supplier user account. Body schema partial — refer to Cafe24 docs.',
+    description:
+      'Create a supplier user account. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
     method: 'POST',
     path: 'suppliers/users',
@@ -192,7 +200,8 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   {
     id: 'suppliers_users_regional_create',
     label: '사용자 지역별 배송비 등록',
-    description: 'Create regional shipping fee for a supplier user. Body schema partial — refer to Cafe24 docs.',
+    description:
+      'Create regional shipping fee for a supplier user. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
     method: 'POST',
     path: 'suppliers/users/{user_id}/regionalshippingfees',
@@ -233,7 +242,8 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   {
     id: 'suppliers_users_regional_settings_update',
     label: '지역별 배송비 설정 수정',
-    description: "Update a supplier user's regional shipping fee settings (partial).",
+    description:
+      "Update a supplier user's regional shipping fee settings (partial).",
     scopeType: 'write',
     method: 'PUT',
     path: 'suppliers/users/{user_id}/regionalshippingfees/settings',
@@ -275,7 +285,8 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   {
     id: 'shipping_suppliers_additionalfees_get',
     label: '공급사 국제 배송 추가비 조회',
-    description: 'Retrieve additional handling fees for supplier international shipping.',
+    description:
+      'Retrieve additional handling fees for supplier international shipping.',
     scopeType: 'read',
     method: 'GET',
     path: 'shipping/suppliers/{supplier_code}/additionalfees',

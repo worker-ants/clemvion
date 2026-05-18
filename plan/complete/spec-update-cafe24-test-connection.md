@@ -61,3 +61,12 @@ checker, 2026-05-16 13:37 세션 Critical 1·2):
 ## 처리 후
 
 본 노트를 `plan/complete/` 로 이동(`git mv`).
+
+---
+
+**2026-05-18 처리 완료** — worktree `cafe24-test-spec-guard-263221` 에서 단일 PR 로 다음을 동시 반영:
+
+- **spec §5.8 "테스트 방법"**: `/admin/store` → `/admin/apps`, 401 자가 회복, 403/`CAFE24_INSUFFICIENT_SCOPE` 처리, transport 실패 카운터 제외, preview-test 단순 ping 명문화.
+- **spec §9.1 `/test` 행 비고**: `pending_install` row 는 200 + `{ success:false, code:'INTEGRATION_INCOMPLETE' }` 로 거부 — service_type 무관 status 가드, UI 버튼 비활성의 backend backstop.
+- **spec Rationale**: "연결 테스트 endpoint 를 `/store` 에서 `/apps` 로 전환 (2026-05-18)", "연결 테스트 endpoint 의 `pending_install` 가드 — 응답 형식 (2026-05-18)" 두 항 추가. plan 원안의 422 안은 인접 가드 (`INTEGRATION_CREDENTIALS_UNREADABLE`, cafe24 incomplete credentials) 와의 응답 형식 일관성을 우선해 200 + success:false 로 갱신.
+- **`IntegrationsService.testConnection` 가드**: `entity.status === 'pending_install'` 한 줄 분기 추가, service_type 무관. unit test 2 케이스 추가 (cafe24 + http) — 전체 backend 217 suites · 3895 tests 통과.

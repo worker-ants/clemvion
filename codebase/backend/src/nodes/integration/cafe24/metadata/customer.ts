@@ -206,7 +206,7 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   {
     id: 'customer_paymentinfo_list',
     label: '회원 결제수단 목록',
-    description: 'List a customer\'s saved payment methods.',
+    description: "List a customer's saved payment methods.",
     scopeType: 'read',
     method: 'GET',
     path: 'customers/{member_id}/paymentinformation',
@@ -234,7 +234,7 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   {
     id: 'customer_paymentinfo_delete_by_id',
     label: '회원 결제수단 ID 삭제',
-    description: "Remove a specific payment method from a customer.",
+    description: 'Remove a specific payment method from a customer.',
     scopeType: 'write',
     method: 'DELETE',
     path: 'customers/{member_id}/paymentinformation/{payment_method_id}',

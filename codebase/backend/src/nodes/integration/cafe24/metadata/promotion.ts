@@ -149,7 +149,7 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     id: 'customers_coupons_list',
     label: '회원별 쿠폰 목록',
     description:
-      "List the coupons a customer holds. Uses the codebase-wide `member_id` path placeholder (Cafe24 docs call this `customer_no`).",
+      'List the coupons a customer holds. Uses the codebase-wide `member_id` path placeholder (Cafe24 docs call this `customer_no`).',
     scopeType: 'read',
     method: 'GET',
     path: 'customers/{member_id}/coupons',
@@ -321,7 +321,8 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
       benefit_scope: {
         type: 'string',
         location: 'body',
-        description: 'Scope (all products / specific category / specific products)',
+        description:
+          'Scope (all products / specific category / specific products)',
       },
       benefit_description: { type: 'string', location: 'body' },
       discount_amount: { type: 'number', location: 'body' },
@@ -399,7 +400,8 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'customerevents_update_status',
     label: '회원 정보 이벤트 상태 수정',
-    description: 'Update the run-status of the member-information-update event.',
+    description:
+      'Update the run-status of the member-information-update event.',
     scopeType: 'write',
     method: 'PUT',
     path: 'customerevents',

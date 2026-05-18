@@ -235,7 +235,10 @@ export class WebsocketGateway
     // disconnecting) must not re-emit — the client's store would merge
     // a second snapshot and double-append terminal rows.
     const isNewSubscription = !clientSubs.has(channel);
-    if (isNewSubscription && clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION) {
+    if (
+      isNewSubscription &&
+      clientSubs.size >= MAX_SUBSCRIPTIONS_PER_CONNECTION
+    ) {
       return {
         event: 'subscribed',
         data: {

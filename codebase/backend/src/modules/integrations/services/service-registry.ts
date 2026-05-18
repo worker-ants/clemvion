@@ -192,7 +192,11 @@ const CAFE24_SCOPES: ScopeOption[] = [
   { value: 'mall.write_supply', label: '공급사 수정' },
   { value: 'mall.read_personal', label: '개인화 조회' },
   { value: 'mall.write_personal', label: '개인화 수정' },
-  { value: 'mall.read_privacy', label: '개인정보 조회', requiresApproval: true },
+  {
+    value: 'mall.read_privacy',
+    label: '개인정보 조회',
+    requiresApproval: true,
+  },
   {
     value: 'mall.write_privacy',
     label: '개인정보 수정',
