@@ -462,12 +462,13 @@ Private 앱 연동 흐름 요약:
 - Cafe24 leaky bucket 은 Integration 단위 quota (mall_id 기준) → 인스턴스 간 동시 호출 시 429 가 자체적으로 backoff 신호로 작동. 따라서 API 호출 자체의 cross-pod 직렬화는 불필요.
 - **(2026-05-16 갱신)** Token refresh 의 cross-pod 직렬화는 PR #56 의 BullMQ `cafe24-token-refresh` 큐 (`jobId = integrationId` dedup) 로 해소됐다. 옛 "Redis 기반 분산 mutex 도입은 별도 spec 으로" 미결 사항은 본 큐 도입으로 종결. 자세한 결정 배경은 [통합 화면 ## Rationale "BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소"](../../2-navigation/4-integration.md#rationale) 참고.
 - 즉 현재 구조: **API 호출 = 같은 pod 내 in-memory mutex** (leaky bucket 공유) + **Token refresh = BullMQ 큐 클러스터 직렬화** (refresh_token rotation race 차단) 의 2단 보호.
-- **(2026-05-18 갱신) Refresh 진입점은 셋 — 모두 동일 BullMQ 큐 경유**:
-  1. `Cafe24ApiClient.call()` proactive (`ensureFreshToken` → `refreshViaQueue`) — API 호출 직전 token expiry window 검사.
-  2. `connected-expiry` 일일 잡의 0d 분기 — `service_type='cafe24'` AND refresh_token 보유 행을 enqueue (이전 `expired` 격하 분기 폐기).
-  3. `Cafe24McpToolProvider.buildTools()` — `status='expired'` AND refresh_token 보유 AND `status_reason !== 'install_timeout'` 행에 한해 1회 큐 경유 refresh 시도 (§8.6 자가 회복). expired 가 race window 또는 잔여 데이터로 남아있는 경우의 두 번째 방어선.
+- **(2026-05-18 갱신) Refresh 진입점은 넷 — 모두 동일 BullMQ 큐 경유**:
+  1. `Cafe24ApiClient.call()` proactive (`ensureFreshToken` → `refreshViaQueue`) — API 호출 직전 token expiry window 검사. `source='proactive'`.
+  2. `connected-expiry` 일일 잡의 0d 분기 — `service_type='cafe24'` AND refresh_token 보유 행을 enqueue (이전 `expired` 격하 분기 폐기). `source='background'`.
+  3. `Cafe24McpToolProvider.buildTools()` — `status='expired'` AND refresh_token 보유 AND `status_reason !== 'install_timeout'` 행에 한해 1회 큐 경유 refresh 시도 (§8.6 자가 회복). expired 가 race window 또는 잔여 데이터로 남아있는 경우의 두 번째 방어선. `source='background'`.
+  4. `Cafe24ApiClient.performAuthRefresh` (`executeWithRateLimit` 의 401 자가 회복 경로) — caller 가 empirical 401 을 받은 신호. `source='reactive_401'`. 워커가 short-circuit guard 를 skip 하고 항상 refresh 시도하며, `removeOnComplete: { age: 0 }` 로 완료된 job 의 잔존 dedup 차단. caller 는 새 token 으로 동일 요청을 1회 retry (`triedAuthRetry=true` flag 로 무한 재귀 차단). 자세한 결정 배경은 [Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)"](../../2-navigation/4-integration.md#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18) 참고.
 
-  세 진입점 모두 `jobId = integrationId` dedup 을 거치므로 같은 통합에 동시 요청이 와도 클러스터 전체에서 worker 가 단일 실행한다. leaky bucket 부담은 (3) 이 정상 케이스 (`connected`) 를 우회하므로 noticeable 증가 없음.
+  네 진입점 모두 `jobId = integrationId` dedup 을 거치므로 같은 통합에 동시 요청이 와도 클러스터 전체에서 worker 가 단일 실행한다 (waiting/active 상태 dedup 보증). leaky bucket 부담은 (3) 이 정상 케이스 (`connected`) 를 우회하고 (4) 가 실제 401 을 empirical 으로 받은 케이스에만 발사되므로 noticeable 증가 없음.
 
 ### 9.7 OAuth scope wire format — 콤마 구분 (RFC 6749 예외)
 
