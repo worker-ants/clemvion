@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -27,6 +27,7 @@ import type {
 } from '@simplewebauthn/server';
 import { UsersService } from '../users/users.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
 import { LoginHistoryService } from './login-history.service';
 import type { WebAuthnConfig } from '../../common/config/webauthn.config';
 
@@ -70,6 +71,8 @@ export class WebAuthnService {
   constructor(
     @InjectRepository(WebAuthnCredential)
     private readonly credentialRepo: Repository<WebAuthnCredential>,
+    @InjectRepository(RefreshToken)
+    private readonly refreshTokenRepo: Repository<RefreshToken>,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
@@ -155,7 +158,9 @@ export class WebAuthnService {
         expectedChallenge: payload.challenge,
         expectedOrigin: origins,
         expectedRPID: rpID,
-        requireUserVerification: false,
+        // counter=0 인증기의 replay 방어를 강화 — UV 플래그가 매 인증마다 검증돼
+        // counter 외 추가 freshness 신호로 작용 (review W-3).
+        requireUserVerification: true,
       });
     } catch (err) {
       this.logger.warn(
@@ -260,6 +265,13 @@ export class WebAuthnService {
     const { rpID, origins } = this.getConfig();
 
     const credentialId = response.id;
+    // Race condition note (review W-8 follow-up): two concurrent verifies of
+    // the same assertion could both read counter=N and write counter=N+1,
+    // masking a replay. SELECT FOR UPDATE here requires wrapping in a
+    // transaction (TypeORM throws PessimisticLockTransactionRequiredError
+    // otherwise). Tracked as follow-up — current single-statement update is
+    // still safe against the more common scenario (sequential replay) because
+    // @simplewebauthn/server rejects on counter <= stored.
     const credential = await this.credentialRepo.findOne({
       where: { credentialId, userId },
     });
@@ -277,7 +289,9 @@ export class WebAuthnService {
         expectedChallenge: payload.challenge,
         expectedOrigin: origins,
         expectedRPID: rpID,
-        requireUserVerification: false,
+        // counter=0 인증기의 replay 방어를 강화 — UV 플래그가 매 인증마다 검증돼
+        // counter 외 추가 freshness 신호로 작용 (review W-3).
+        requireUserVerification: true,
         credential: {
           id: credential.credentialId,
           publicKey: new Uint8Array(credential.publicKey),
@@ -289,8 +303,14 @@ export class WebAuthnService {
       const msg = err instanceof Error ? err.message : String(err);
       const counterRegression = /counter/i.test(msg) && /regress|same|less/i.test(msg);
       if (counterRegression) {
-        // Rationale 1.4.E — 즉시 삭제
+        // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
+        // (ai-review C-3): 인증기 복제 공격 시 기존 발급된 access/refresh
+        // 토큰이 그대로 살아있으면 공격자가 다음 인증 시도 없이도 접근 가능.
         await this.credentialRepo.delete({ id: credential.id });
+        await this.refreshTokenRepo.update(
+          { userId, isRevoked: false },
+          { isRevoked: true },
+        );
         await this.loginHistory.record({
           userId,
           email: (await this.usersService.findById(userId))?.email ?? 'unknown',
@@ -300,7 +320,7 @@ export class WebAuthnService {
           failureReason: 'WEBAUTHN_COUNTER_REGRESSION',
         });
         this.logger.error(
-          `WebAuthn counter regression detected for user ${userId}, credential ${credential.id} — credential deleted`,
+          `WebAuthn counter regression detected for user ${userId}, credential ${credential.id} — credential deleted, all sessions revoked`,
         );
         throw new UnauthorizedException({
           code: 'WEBAUTHN_COUNTER_REGRESSION',
@@ -344,15 +364,30 @@ export class WebAuthnService {
     return { verified: true };
   }
 
-  /** 복구 코드로 2FA 통과. 일치 시 해당 항목 1회 제거. */
+  /**
+   * 복구 코드로 2FA 통과. 일치 시 해당 항목 1회 제거.
+   *
+   * 비교는 `crypto.timingSafeEqual` 로 모든 후보를 끝까지 순회해 타이밍 누설을 차단한다
+   * (review I-5). 평균/최악 모두 동일 시간 소요.
+   */
   async verifyRecoveryCode(userId: string, code: string): Promise<boolean> {
     const user = await this.usersService.findById(userId);
     if (!user || !user.webauthnRecoveryCodes) return false;
-    const hash = hashRecoveryCode(code.trim());
+    const candidate = Buffer.from(hashRecoveryCode(code.trim()), 'hex');
     const codes = user.webauthnRecoveryCodes;
-    const idx = codes.indexOf(hash);
-    if (idx < 0) return false;
-    const remaining = codes.filter((_, i) => i !== idx);
+    let matchIdx = -1;
+    for (let i = 0; i < codes.length; i++) {
+      const stored = Buffer.from(codes[i], 'hex');
+      if (
+        stored.length === candidate.length &&
+        timingSafeEqual(stored, candidate)
+      ) {
+        matchIdx = i;
+        // early-exit 하지 않고 끝까지 비교
+      }
+    }
+    if (matchIdx < 0) return false;
+    const remaining = codes.filter((_, i) => i !== matchIdx);
     await this.usersService.update(userId, {
       webauthnRecoveryCodes: remaining.length > 0 ? remaining : null,
     });

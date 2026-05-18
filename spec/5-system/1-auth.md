@@ -112,7 +112,7 @@ POST /api/auth/2fa/webauthn/recovery { challengeToken, code }
 → webauthn_recovery_codes 해시 비교 → 일치 시 row 에서 항목 제거 + JWT 발급
 ```
 
-counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다. 서비스 코드는 해당 credential 을 강제 비활성 (별도 컬럼 추가 없이 row 삭제) 하고 LoginHistory 에 `webauthn_failed`(`failure_reason='WEBAUTHN_COUNTER_REGRESSION'`) 를 기록한다. 동일 family refresh-token 강제 revoke 는 별도 follow-up (현 단계에서는 다음 인증 시도부터 차단되는 것으로 충분).
+counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다. 서비스 코드는 해당 credential row 를 즉시 삭제 (suspend 컬럼 없음 — Rationale 1.4.E) 하고 **해당 사용자의 활성 refresh token 전체를 즉시 revoke** 한다 — 클론 공격자가 기존 access/refresh 로 계속 접근하는 위협을 차단. LoginHistory 에 `webauthn_failed`(`failure_reason='WEBAUTHN_COUNTER_REGRESSION'`) 를 함께 기록한다.
 
 ### 1.5 초대 토큰 흐름
 
