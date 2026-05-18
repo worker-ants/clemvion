@@ -155,10 +155,14 @@
 1. 입력 검증 (이메일 형식, 비밀번호 비어있지 않음)
 2. POST /api/auth/login { email, password }
 3. 2FA 미설정 → JWT 발급 → 대시보드(`/dashboard`)로 리다이렉트
-4. 2FA 설정됨 → 2FA 입력 화면으로 이동 (임시 토큰 포함)
+4. 2FA 설정됨 → 응답 { requires2fa, methods, challengeToken } 수신 → 2FA 입력 화면으로 이동
+   - methods 가 'webauthn' 포함 → WebAuthn 화면 (TOTP 입력란 비노출 — [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지))
+   - methods 가 'totp' 만 → TOTP 화면
 5. 로그인 실패 → "Invalid email or password" 에러 (구체적 이유 미노출)
 6. 5회 실패 → 계정 10분 잠금 + "Account locked. Try again in 10 minutes."
 ```
+
+응답의 `requiresTotp` 는 deprecated 호환 필드이며 두 필드 충돌 시 `requires2fa` 가 우선한다. 자세한 deprecate 타임라인은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지) 를 따른다.
 
 ### 3.3 "Remember me" 동작
 
@@ -168,6 +172,10 @@
 | 체크 | 30일 |
 
 ### 3.4 2FA 입력 화면
+
+응답 `methods` 에 따라 두 화면 중 하나가 노출된다.
+
+#### 3.4.1 TOTP 화면 (methods = ['totp'])
 
 ```
 ┌──────────────────────────────────┐
@@ -188,10 +196,35 @@
 ```
 
 - 6자리 숫자 자동 포커스 이동
-- `POST /api/auth/verify-2fa { tempToken, code }`
+- `POST /api/auth/login/totp { challengeToken, code }`
 - 성공 → JWT 발급 → 리다이렉트
 - 실패 → "Invalid code. Please try again."
 - 복구 코드 입력 모드 전환 시 단일 입력 필드로 변경
+
+#### 3.4.2 WebAuthn 화면 (methods 가 'webauthn' 포함)
+
+```
+┌──────────────────────────────────┐
+│           [Logo]                 │
+│                                  │
+│    Two-factor authentication     │
+│                                  │
+│    Use your Passkey or security  │
+│    key to sign in                │
+│                                  │
+│    [   Use Passkey / Key     ]   │
+│                                  │
+│    → Use a recovery code         │
+│    [       ← Back            ]   │
+└──────────────────────────────────┘
+```
+
+- 페이지 마운트 시 자동으로 `navigator.credentials.get()` 호출 흐름 진입.
+- `POST /api/auth/2fa/webauthn/authenticate/options { challengeToken }` → optionsToken + PublicKeyCredentialRequestOptions 수신.
+- 사용자가 인증기 동작 → `POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }`.
+- 실패 시 동일 화면에 "Use a recovery code" 링크 → 입력 필드 노출 → `POST /api/auth/2fa/webauthn/recovery { challengeToken, code }`.
+- **TOTP 화면으로 자동 전환되지 않는다.** 사용자가 TOTP 만 사용하길 원하면 보안 설정에서 WebAuthn credential 을 먼저 모두 삭제해야 한다 (auth spec §1.4.D Rationale).
+- 브라우저가 WebAuthn 미지원이거나 사용자 인증기에 접근 불가 시 안내문 + 복구 코드 입력 링크만 노출.
 
 ---
 
@@ -392,8 +425,9 @@
 | GET | /api/invitations/:token | 초대 토큰 메타 조회 (가입 페이지 prefill 용, 인증 불요) |
 | POST | /api/auth/verify-email | 이메일 인증 확인 (쿼리: token) |
 | POST | /api/auth/resend-verification | 인증 이메일 재발송 |
-| POST | /api/auth/login | 로그인 |
-| POST | /api/auth/verify-2fa | 2FA 코드 검증 |
+| POST | /api/auth/login | 로그인 (2FA 활성 시 `{ requires2fa, methods, challengeToken }` 응답) |
+| POST | /api/auth/login/totp | 2FA TOTP 검증 (`{ challengeToken, code }`) — 옛 `/api/auth/verify-2fa` 표기는 폐기, canonical 정의는 [auth spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
+| POST | /api/auth/2fa/webauthn/authenticate/options · /verify · /recovery | WebAuthn 2FA 흐름. canonical 정의는 [auth spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
 | POST | /api/auth/logout | 로그아웃 |
 | POST | /api/auth/refresh | 토큰 갱신 |
 | POST | /api/auth/forgot-password | 비밀번호 재설정 요청 |

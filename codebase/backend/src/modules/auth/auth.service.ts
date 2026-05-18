@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
 import { User } from '../users/entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
@@ -37,6 +38,8 @@ export class AuthService {
     private readonly mailService: MailService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepository: Repository<RefreshToken>,
+    @InjectRepository(WebAuthnCredential)
+    private readonly webauthnCredentialRepository: Repository<WebAuthnCredential>,
     private readonly dataSource: DataSource,
     private readonly loginHistory: LoginHistoryService,
   ) {}
@@ -223,7 +226,12 @@ export class AuthService {
     ctx: AuthContext = {},
   ): Promise<
     | { accessToken: string; refreshToken: string }
-    | { requiresTotp: true; challengeToken: string }
+    | {
+        requires2fa: true;
+        methods: Array<'webauthn' | 'totp'>;
+        challengeToken: string;
+        requiresTotp?: boolean;
+      }
   > {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
@@ -306,13 +314,33 @@ export class AuthService {
 
     await this.usersService.resetLoginAttempts(user.id);
 
-    // 2FA 활성 사용자: 5분 만료 challenge token 발급, 클라이언트는 /auth/login/totp로 검증
-    if (user.twoFactorEnabled) {
+    // 2FA 활성 사용자: 5분 만료 challenge token 발급. spec/5-system/1-auth.md §1.4.2 —
+    //   WebAuthn credential ≥ 1 → methods=['webauthn'] (TOTP fallback 자동 금지)
+    //   else two_factor_enabled=true → methods=['totp']
+    const webauthnCount = await this.webauthnCredentialRepository.count({
+      where: { userId: user.id },
+    });
+    const hasTotp = user.twoFactorEnabled;
+    if (webauthnCount > 0 || hasTotp) {
+      const methods: Array<'webauthn' | 'totp'> =
+        webauthnCount > 0 ? ['webauthn'] : ['totp'];
       const challengeToken = this.jwtService.sign(
-        { sub: user.id, mfa_challenge: true, rememberMe: !!dto.rememberMe },
+        {
+          sub: user.id,
+          mfa_challenge: true,
+          method: methods[0],
+          rememberMe: !!dto.rememberMe,
+        },
         { expiresIn: 300 },
       );
-      return { requiresTotp: true, challengeToken };
+      return {
+        requires2fa: true,
+        methods,
+        challengeToken,
+        // backward-compat: methods=='totp' 인 경우만 true. WebAuthn-only 사용자에게는 false
+        // (deprecated — spec/5-system/1-auth.md §1.4.2, 두 마이너 버전 후 제거)
+        requiresTotp: methods.includes('totp'),
+      };
     }
 
     const tokens = await this.generateTokens(
@@ -363,6 +391,17 @@ export class AuthService {
         message: '이 계정은 2FA가 비활성 상태예요. 다시 로그인해 주세요.',
       });
     }
+    // spec/5-system/1-auth.md Rationale 1.4.D — WebAuthn credential 보유 사용자는
+    // TOTP 자동 fallback 차단. 강제 우회 시도를 API 레이어에서 거부.
+    const webauthnCount = await this.webauthnCredentialRepository.count({
+      where: { userId: user.id },
+    });
+    if (webauthnCount > 0) {
+      throw new UnauthorizedException({
+        code: 'WEBAUTHN_REQUIRED',
+        message: 'Passkey 로 로그인해 주세요. (WebAuthn 등록 사용자는 TOTP 우회 불가)',
+      });
+    }
     const ok = await verifier(user, code);
     if (!ok) {
       await this.loginHistory.record({
@@ -384,6 +423,69 @@ export class AuthService {
       undefined,
       ctx,
     );
+    await this.loginHistory.record({
+      userId: user.id,
+      email: user.email,
+      event: 'login_success',
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return tokens;
+  }
+
+  /**
+   * WebAuthn 2FA 단계 진입 — `/auth/login` 발급 challengeToken 을 검증하고
+   * 사용자/`rememberMe` 를 추출한다. WebAuthnService 가 실제 ceremony 검증을 마친 뒤
+   * 본 함수가 반환한 user 로 `issueTokensAfterMfa` 를 호출해 토큰 발급한다.
+   */
+  async consumeChallengeToken(
+    challengeToken: string,
+    expectedMethod: 'webauthn' | 'totp',
+  ): Promise<{ user: User; rememberMe: boolean }> {
+    let payload: {
+      sub: string;
+      mfa_challenge?: boolean;
+      method?: string;
+      rememberMe?: boolean;
+    };
+    try {
+      payload = this.jwtService.verify(challengeToken);
+    } catch {
+      throw new UnauthorizedException({
+        code: 'CHALLENGE_INVALID',
+        message: '인증 세션이 만료됐어요. 다시 로그인해 주세요.',
+      });
+    }
+    if (!payload.mfa_challenge) {
+      throw new UnauthorizedException({
+        code: 'CHALLENGE_INVALID',
+        message: '잘못된 challenge token이에요.',
+      });
+    }
+    // method 가 박혀있으면 일치 검증 (예: TOTP 분기 토큰을 WebAuthn verify 로 우회 차단)
+    if (payload.method && payload.method !== expectedMethod) {
+      throw new UnauthorizedException({
+        code: 'CHALLENGE_METHOD_MISMATCH',
+        message: '이 challenge token 은 다른 인증 방식용이에요.',
+      });
+    }
+    const user = await this.usersService.findById(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException({
+        code: 'CHALLENGE_INVALID',
+        message: '인증 세션이 유효하지 않아요.',
+      });
+    }
+    return { user, rememberMe: !!payload.rememberMe };
+  }
+
+  /** WebAuthn 또는 다른 2FA 방식 verify 성공 후 정식 토큰 발급. */
+  async issueTokensAfterMfa(
+    user: User,
+    rememberMe: boolean,
+    ctx: AuthContext = {},
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const tokens = await this.generateTokens(user, rememberMe, undefined, ctx);
     await this.loginHistory.record({
       userId: user.id,
       email: user.email,

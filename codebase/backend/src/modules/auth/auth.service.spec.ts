@@ -11,6 +11,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
@@ -120,6 +121,13 @@ describe('AuthService', () => {
         {
           provide: getRepositoryToken(RefreshToken),
           useValue: mockRefreshTokenRepo,
+        },
+        {
+          provide: getRepositoryToken(WebAuthnCredential),
+          useValue: {
+            count: jest.fn().mockResolvedValue(0),
+            find: jest.fn().mockResolvedValue([]),
+          },
         },
         {
           provide: DataSource,
@@ -361,7 +369,7 @@ describe('AuthService', () => {
         password: 'Test123!@#',
       });
 
-      if ('requiresTotp' in result) {
+      if ('requires2fa' in result) {
         throw new Error('expected token result, got 2FA challenge');
       }
       expect(result.accessToken).toBe('mock-access-token');
@@ -659,7 +667,7 @@ describe('AuthService', () => {
         password: 'Test123!@#',
       });
 
-      if ('requiresTotp' in result) {
+      if ('requires2fa' in result) {
         throw new Error('expected token result, got 2FA challenge');
       }
       expect(result.accessToken).toBe('mock-access-token');
@@ -687,7 +695,7 @@ describe('AuthService', () => {
         password: 'Test123!@#',
       });
 
-      if ('requiresTotp' in result) {
+      if ('requires2fa' in result) {
         throw new Error('expected token result, got 2FA challenge');
       }
       expect(result.accessToken).toBe('mock-access-token');

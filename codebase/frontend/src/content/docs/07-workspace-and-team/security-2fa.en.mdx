@@ -1,0 +1,76 @@
+---
+title: "Two-factor authentication (TOTP · Passkey)"
+section: "07-workspace-and-team"
+order: 2
+summary: "TOTP authenticator apps and Passkey · security keys, recovery codes, and the WebAuthn-first login policy explained."
+spec: ["spec/5-system/1-auth.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/10-auth-flow.md"]
+code: [
+  "codebase/backend/src/modules/auth/totp.service.ts",
+  "codebase/backend/src/modules/auth/webauthn.service.ts",
+  "codebase/frontend/src/app/(main)/profile/security/page.tsx",
+  "codebase/frontend/src/app/(main)/profile/security/passkey-card.tsx",
+]
+---
+
+You can enable **TOTP** (authenticator apps) and **Passkey · security keys** as two independent second factors from `/profile/security`. Each method has its own pool of 10 recovery codes, and which one is used during sign-in follows a fixed priority.
+
+## Comparison
+
+| Aspect | TOTP | Passkey · security key |
+|--------|------|------------------------|
+| Compatible tools | Google Authenticator, Authy, 1Password TOTP, … | Built-in passkeys (Face ID, Android, Windows Hello), security keys like YubiKey |
+| Registration | QR → scan with app → enter 6-digit code | Click *Register Passkey* → browser prompt → unlock device / fingerprint / PIN |
+| Multiple registrations | 1 per user | **N per user** (mobile + desktop + security key all at once) |
+| Recovery codes | 10 issued at TOTP activation | 10 issued on first Passkey registration (**separate pool from TOTP**) |
+| Phishing resistance | Weak (code can leak) | Strong (origin-bound) |
+
+> Enabling both is recommended — if you lose your phone or break an authenticator, the other channel still works.
+
+## Registering a Passkey
+
+1. Open `/profile/security` → in the **Passkey · Security Key** card, optionally enter a device name and click **Register Passkey**.
+2. Your browser prompts you to pick an authenticator — built-in passkey, security key, or a passkey on another device.
+3. Unlock the authenticator (fingerprint · Face ID · PIN) and registration completes.
+4. **For your first Passkey** the screen shows a yellow box containing **10 WebAuthn recovery codes — one time only**. Save them somewhere safe (password manager).
+
+> Subsequent registrations do not re-issue recovery codes. If you lose them, use the **Regenerate** button at the bottom of the card (it discards any unused codes and issues 10 new ones).
+
+### Browser support
+
+- Desktop: Chrome, Edge, Firefox, Safari 16+.
+- Mobile: iOS 16+ Safari, Android Chrome.
+- If the current browser is unsupported the card shows a warning and the register button is disabled. Use TOTP, or register from a supported browser — the registered Passkey can still authenticate from other environments via security keys / cross-device flows.
+
+## Sign-in priority
+
+After `/auth/login` succeeds, the 2FA screen follows this priority:
+
+1. **If you have at least one Passkey registered**, only the Passkey screen is shown. TOTP input is hidden.
+2. **Otherwise, if TOTP is enabled**, the existing TOTP screen is shown.
+3. **If neither is set up**, the 2FA step is skipped entirely.
+
+> To fall back to TOTP, delete every Passkey from `/profile/security` first. Automatic downgrade from a phishing-resistant factor (Passkey) to a weaker factor (TOTP) is intentionally blocked.
+
+### When Passkey fails
+
+- Click **Use a recovery code** to enter a WebAuthn-specific recovery code. Each code is one-shot.
+- If you have multiple Passkeys, try a different one (e.g. a security key when your phone is unavailable).
+- If you lose every Passkey *and* every recovery code, a workspace admin or customer support must recover the account.
+
+## Managing Passkeys
+
+- **Rename**: pencil icon → new name → **Save**.
+- **Delete**: trash icon → confirm. Deleting your last Passkey also discards the WebAuthn recovery codes.
+- Each row shows **last used**, **registration date**, and **transports** (usb · nfc · ble · internal · hybrid) so you can identify suspicious authenticators.
+
+## Self-hosting
+
+If your production hostname differs from the SaaS deployment, set these env vars:
+
+| Variable | Example | Description |
+|----------|---------|-------------|
+| `WEBAUTHN_RP_ID` | `clemvion.example.com` | Relying Party ID. Hostname only, no port or scheme |
+| `WEBAUTHN_RP_NAME` | `Clemvion` | Name shown in the browser authentication prompt |
+| `WEBAUTHN_ORIGIN` | `https://app.example.com,https://www.example.com` | Comma-separated origin list (multi-origin under the same RP) |
+
+The backend warns and falls back to `FRONTEND_URL` if these are missing, but explicit configuration is recommended in production. Passkeys registered against a wrong RP / origin always fail authentication.
