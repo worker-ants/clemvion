@@ -76,6 +76,19 @@ owner: developer
 - [ ] /ai-review + /consistency-check 실행 결과 RESOLUTION.md 처리
 - [ ] PR merge 후 본 plan `git mv` to `plan/complete/`
 
+## 후속 follow-up (별 plan/PR)
+
+ai-review (`review/code/2026/05/18/23_11_13/SUMMARY.md`) 에서 식별된 별 작업들:
+
+- **loop.count default 합의** — `default('1')` 이라 `loop:no-count` warningRule 이 dead. `default('')` 변경 시 신규 노드 UX·기존 workflow 영향 검토 필요.
+- **send-email.to zod ↔ validator 정준화** — zod 는 array 전용 / validator 는 string 도 허용. 단일 string `to` 로 저장된 기존 workflow 영향 (DB 조사) 후 한쪽으로 통일.
+- **shared `VALID_OPS` enum 파생화** — `variable-modification.VALID_OPERATIONS`, `filter.VALID_OPS` 가 enum option 을 리터럴 중복. `Schema.options` 에서 직접 파생하도록 리팩토링.
+- **테스트 패턴 통일** — Integration/Form 의 인라인 `z.toJSONSchema` vs Logic 의 공유 spec(`logic-ui-required.spec.ts`) 혼재. 공유 `getUiMeta` 헬퍼 추출.
+- **`uiMeta` 시그니처 확장** — `ZodObject` 캐스트 강제 → `z.ZodTypeAny` 등 generic.
+- **주석 상세도 통일 + 동명 충돌 명시** — `form.fields.ui.required` vs `formFieldSchema.required` 동명 혼동, `send-email subject/body` `.default('')`+`ui.required` 조합 의도 등.
+
+각 항목은 본 PR 머지 후 별 worktree·plan 으로 분리.
+
 ## 관련 문서
 
 - 메커니즘: `codebase/backend/src/nodes/core/node-component.interface.ts:222-236` (ui.required / requiredWhen)
