@@ -114,10 +114,10 @@ export class LoginHistoryService {
 
     const rows = await qb.getMany();
     const hasMore = rows.length > limit;
-    const data = hasMore ? rows.slice(0, limit) : rows;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
     return {
-      data: data.map((row) => this.toDto(row)),
-      nextCursor: hasMore ? encodeCursor(data[data.length - 1]) : null,
+      items: pageRows.map((row) => this.toDto(row)),
+      nextCursor: hasMore ? encodeCursor(pageRows[pageRows.length - 1]) : null,
     };
   }
 

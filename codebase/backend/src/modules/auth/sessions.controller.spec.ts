@@ -55,7 +55,7 @@ describe('SessionsController', () => {
         req as never,
       );
 
-      expect(result).toEqual({ data: [sample] });
+      expect(result).toEqual({ data: { items: [sample] } });
       expect(sessionsService.listActiveSessions).toHaveBeenCalledWith(
         'u',
         'cookie-val',
@@ -104,7 +104,7 @@ describe('SessionsController', () => {
         }),
         'cookie-val',
       );
-      expect(result).toEqual({ data: [sample] });
+      expect(result).toEqual({ data: { items: [sample] } });
     });
   });
 
@@ -146,7 +146,7 @@ describe('SessionsController', () => {
 
   describe('getLoginHistory', () => {
     const page: LoginHistoryPageDto = {
-      data: [
+      items: [
         {
           id: 'h1',
           event: 'login_success',
