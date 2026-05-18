@@ -37,12 +37,14 @@ export const productOperations: Cafe24OperationMetadata[] = [
       since: {
         type: 'string',
         location: 'query',
-        description: 'ISO8601 date — created_after',
+        description:
+          'ISO8601 datetime (KST, UTC+9) — created_after. Naive ISO 도 Cafe24 가 KST 로 해석',
       },
       until: {
         type: 'string',
         location: 'query',
-        description: 'ISO8601 date — created_before',
+        description:
+          'ISO8601 datetime (KST, UTC+9) — created_before. Naive ISO 도 Cafe24 가 KST 로 해석',
       },
       product_name: {
         type: 'string',
@@ -208,12 +210,14 @@ export const productOperations: Cafe24OperationMetadata[] = [
       since: {
         type: 'string',
         location: 'query',
-        description: 'ISO8601 date — created_after',
+        description:
+          'ISO8601 datetime (KST, UTC+9) — created_after. Naive ISO 도 Cafe24 가 KST 로 해석',
       },
       until: {
         type: 'string',
         location: 'query',
-        description: 'ISO8601 date — created_before',
+        description:
+          'ISO8601 datetime (KST, UTC+9) — created_before. Naive ISO 도 Cafe24 가 KST 로 해석',
       },
     },
     responseShape: 'single',

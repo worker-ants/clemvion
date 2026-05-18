@@ -31,6 +31,9 @@ import type { Cafe24OperationMetadata, Cafe24Resource } from './types.js';
 
 export * from './types.js';
 
+export const CAFE24_TIMEZONE_SUFFIX =
+  'All date/time parameters and response fields use KST (Asia/Seoul, UTC+9) unless the field description states otherwise.';
+
 export const CAFE24_OPERATIONS_BY_RESOURCE: Record<
   Cafe24Resource,
   readonly Cafe24OperationMetadata[]
