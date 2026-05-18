@@ -46,16 +46,11 @@
 | **PRD 2 §4 ED-PL-05 마켓 커스텀 노드 팔레트 표시** | (마켓 의존) | `marketplace-and-plugin-sdk.md` |
 | **PRD 3 §6.1 ND-AG-06/10/21 AI Agent 도구 연결** | 🚧 의도적 제거, 재작성 예정 | `ai-agent-tool-connection-rewrite.md` |
 | **PRD 3 §4.9 ND-PL-03 Parallel 결과 합산 / 중첩 Parallel / waitAll=false** | 🚧 P2 예정 | `parallel-p2.md` |
-| **Spec 4-nodes/1-logic/3-loop §1 / §6 breakCondition** | ✅ 활성화 (D2, meta.exitReason 추가) | `complete/logic-node-followups.md` |
-| **Spec 4-nodes/1-logic/1-if-else `is_type` / `regex` 연산자** | ✅ 구현 (D1, evaluator 통합) | `complete/logic-node-followups.md` |
-| **Spec 4-nodes/1-logic/0-common If/Else, Switch `meta.matchedConditions` / `meta.matchedCaseIndex`** | ✅ 핸들러 구현 + spec 정합 (PR-1) | `complete/logic-node-followups.md` |
-| **Spec 4-nodes/1-logic/0-common Variable Decl/Mod meta** | ✅ 핸들러 구현 + recordValues opt-in (D5) | `complete/logic-node-followups.md` |
 | **Spec 4-nodes/1-logic/11-merge `timeout` / `partialOnTimeout`** | 🚧 P2 dormant (엔진 비동기 모델 선결) | `merge-p2-async-fanin.md` |
-| **Spec 4-nodes/1-logic/12-background 모니터링 API** | ✅ 구현 (2026-05-15, `GET /api/executions/:executionId/background-runs/:backgroundRunId` + cursor 페이지네이션) | `complete/background-monitoring-api.md` |
-| **Spec 5-system/4-execution-engine §6.3 Re-run** | 🚧 미구현 (future PRD) | `replay-rerun.md` |
-| **PRD 1 §3.11 NAV-UP-05 미가입자 초대 토큰** | ✅ 구현 (2026-05-12) | `complete/team-workspace-followups.md` |
-| **PRD 1 §3.1 NAV-WF-07 공유 워크플로우 표시** | ✅ 구현 (2026-05-12, 팀 워크스페이스 전체 'Shared' 표시) | `complete/team-workspace-followups.md` |
+| **Spec 5-system/4-execution-engine §6.3 Re-run** | 🚧 PR1 (spec) ✅ / PR2 (구현) 대기 | `replay-rerun.md` |
 | **PRD 5 NF-SC-10 2FA WebAuthn** | 🚧 TOTP만 ✅, WebAuthn 후속 | `2fa-webauthn.md` |
+
+> Logic 카테고리 (Loop breakCondition / If-Else `is_type`·`regex` / If-Else·Switch `meta.matchedConditions` / Variable Decl·Mod meta) 및 Background 모니터링 API, NAV-UP-05·NAV-WF-07 는 모두 ✅ 완료 — 본 표에서 제거. 상세는 위 `### 최근 완료` 또는 `plan/complete/{logic-node-followups,background-monitoring-api,team-workspace-followups}.md` 참고.
 
 ### B. 인프라/배포 (셀프 호스팅)
 
