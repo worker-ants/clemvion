@@ -10,11 +10,7 @@ import {
   ProviderCleanupCtx,
   ProviderExecCtx,
 } from './agent-tool-provider.interface.js';
-import {
-  McpServerSummary,
-  McpSkipReason,
-  pushMcpServerSummary,
-} from './mcp-diagnostics.js';
+import { McpSkipReason, pushMcpServerSummary } from './mcp-diagnostics.js';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import {
@@ -288,7 +284,10 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       return { kind: 'skipped', skipReason: 'expired_no_refresh_token' };
     }
     try {
-      await this.cafe24ApiClient.refreshTokenViaQueue(integration, 'background');
+      await this.cafe24ApiClient.refreshTokenViaQueue(
+        integration,
+        'background',
+      );
     } catch (err) {
       if (err instanceof Cafe24AuthFailedError) {
         return { kind: 'skipped', skipReason: 'expired_refresh_failed' };

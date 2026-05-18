@@ -298,7 +298,10 @@ export class Cafe24Handler
         durationMs,
         error: { code, message },
       }).catch(() => {});
-      const details: Record<string, unknown> = { resource, operation: operationId };
+      const details: Record<string, unknown> = {
+        resource,
+        operation: operationId,
+      };
       if (mallIdForErrorDetails) details.mallId = mallIdForErrorDetails;
       return {
         config: echo,
@@ -318,9 +321,7 @@ export class Cafe24Handler
   private buildRequestParts(
     operation: Cafe24OperationMetadata,
     fields: Record<string, unknown>,
-    pagination:
-      | { limit?: number; offset?: number }
-      | undefined,
+    pagination: { limit?: number; offset?: number } | undefined,
   ): {
     path: string;
     query: Record<string, unknown>;

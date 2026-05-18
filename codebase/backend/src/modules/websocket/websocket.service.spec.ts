@@ -86,9 +86,7 @@ describe('WebsocketService', () => {
       // backgroundRunId / timestamp 가 spread 로 추가되므로 payload 자체는 새 객체.
       // detail / detail.inner 두 레벨이 모두 원본 참조 그대로 보존되는지 확인.
       expect(payload.detail).toBe(outer.detail);
-      expect(
-        (payload.detail as { inner: typeof inner }).inner,
-      ).toBe(inner);
+      expect((payload.detail as { inner: typeof inner }).inner).toBe(inner);
     });
 
     it('동일 객체 reference 재방문 시 sanitize 결과를 WeakMap 캐시로 재사용 (C-4)', () => {

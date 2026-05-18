@@ -8,9 +8,7 @@ jest.mock('node:dns/promises', () => ({
   lookup: jest.fn(),
 }));
 
-const { lookup } = jest.requireMock('node:dns/promises') as {
-  lookup: jest.Mock;
-};
+const { lookup } = jest.requireMock('node:dns/promises');
 
 describe('http-safety — assertSafeOutboundUrl (synchronous literal check)', () => {
   beforeEach(() => {
@@ -18,25 +16,27 @@ describe('http-safety — assertSafeOutboundUrl (synchronous literal check)', ()
   });
 
   it('블록: localhost', () => {
-    expect(() =>
-      assertSafeOutboundUrl('http://localhost/admin'),
-    ).toThrow(/SSRF_BLOCKED/);
+    expect(() => assertSafeOutboundUrl('http://localhost/admin')).toThrow(
+      /SSRF_BLOCKED/,
+    );
   });
 
   it('블록: 127.0.0.1', () => {
-    expect(() =>
-      assertSafeOutboundUrl('http://127.0.0.1:8080'),
-    ).toThrow(/SSRF_BLOCKED/);
+    expect(() => assertSafeOutboundUrl('http://127.0.0.1:8080')).toThrow(
+      /SSRF_BLOCKED/,
+    );
   });
 
   it('블록: 169.254.169.254 (cloud metadata)', () => {
-    expect(() =>
-      assertSafeOutboundUrl('http://169.254.169.254/'),
-    ).toThrow(/SSRF_BLOCKED/);
+    expect(() => assertSafeOutboundUrl('http://169.254.169.254/')).toThrow(
+      /SSRF_BLOCKED/,
+    );
   });
 
   it('블록: IPv6 ::1', () => {
-    expect(() => assertSafeOutboundUrl('http://[::1]/')).toThrow(/SSRF_BLOCKED/);
+    expect(() => assertSafeOutboundUrl('http://[::1]/')).toThrow(
+      /SSRF_BLOCKED/,
+    );
   });
 
   it('블록: 비-HTTP 프로토콜 (file://)', () => {
@@ -46,14 +46,14 @@ describe('http-safety — assertSafeOutboundUrl (synchronous literal check)', ()
   });
 
   it('통과: 정상 공개 호스트', () => {
-    expect(() => assertSafeOutboundUrl('https://api.github.com/repos')).not.toThrow();
+    expect(() =>
+      assertSafeOutboundUrl('https://api.github.com/repos'),
+    ).not.toThrow();
   });
 
   it('ALLOW_PRIVATE_HOST_TARGETS=true 일 때는 private 호스트 통과', () => {
     process.env.ALLOW_PRIVATE_HOST_TARGETS = 'true';
-    expect(() =>
-      assertSafeOutboundUrl('http://127.0.0.1:8080'),
-    ).not.toThrow();
+    expect(() => assertSafeOutboundUrl('http://127.0.0.1:8080')).not.toThrow();
   });
 });
 
@@ -95,9 +95,9 @@ describe('http-safety — assertSafeOutboundHostResolved (DNS-aware)', () => {
   });
 
   it('hostname literal 차단 (DNS lookup 호출 전)', async () => {
-    await expect(
-      assertSafeOutboundHostResolved('127.0.0.1'),
-    ).rejects.toThrow(/SSRF_BLOCKED/);
+    await expect(assertSafeOutboundHostResolved('127.0.0.1')).rejects.toThrow(
+      /SSRF_BLOCKED/,
+    );
     expect(lookup).not.toHaveBeenCalled();
   });
 

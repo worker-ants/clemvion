@@ -49,16 +49,7 @@ function resolveRepoRoot(): string {
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
-    return join(
-      __dirname,
-      '..',
-      '..',
-      '..',
-      '..',
-      '..',
-      '..',
-      '..',
-    );
+    return join(__dirname, '..', '..', '..', '..', '..', '..', '..');
   }
 }
 const REPO_ROOT = resolveRepoRoot();

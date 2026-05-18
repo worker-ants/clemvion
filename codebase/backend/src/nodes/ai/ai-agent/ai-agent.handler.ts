@@ -1865,8 +1865,9 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
         ragDiagnostics: metadata.ragDiagnostics,
-        ...(AiAgentHandler.buildMcpDiagnosticsMeta(metadata.mcpServerSummaries) ??
-          {}),
+        ...(AiAgentHandler.buildMcpDiagnosticsMeta(
+          metadata.mcpServerSummaries,
+        ) ?? {}),
         turnDebug: turnDebugHistory ?? [],
       },
       port,
@@ -1954,8 +1955,9 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
         ragDiagnostics: metadata.ragDiagnostics,
-        ...(AiAgentHandler.buildMcpDiagnosticsMeta(metadata.mcpServerSummaries) ??
-          {}),
+        ...(AiAgentHandler.buildMcpDiagnosticsMeta(
+          metadata.mcpServerSummaries,
+        ) ?? {}),
         turnDebug: turnDebugHistory ?? [],
       },
       port: condition.id,

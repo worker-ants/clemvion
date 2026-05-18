@@ -676,7 +676,9 @@ describe('DatabaseQueryHandler', () => {
         ctx(),
       )) as unknown as Record<string, unknown>;
       expect(result.port).toBe('error');
-      const output = result.output as { error: { code: string; message: string } };
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
       expect(output.error.code).toBe('INTEGRATION_INCOMPLETE');
       expect(output.error.message).toMatch(/missing fields/);
     });
@@ -694,7 +696,9 @@ describe('DatabaseQueryHandler', () => {
         ctx(),
       )) as unknown as Record<string, unknown>;
       expect(result.port).toBe('error');
-      const output = result.output as { error: { code: string; message: string } };
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
       expect(output.error.code).toBe('INVALID_PARAMETERS');
       expect(output.error.message).toMatch(/JSON array/);
     });
@@ -707,7 +711,9 @@ describe('DatabaseQueryHandler', () => {
         ctx(),
       )) as unknown as Record<string, unknown>;
       expect(result.port).toBe('error');
-      const output = result.output as { error: { code: string; message: string } };
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
       expect(output.error.code).toBe('INTEGRATION_SERVICE_UNAVAILABLE');
       expect(output.error.message).toMatch(/integrations service/);
     });
