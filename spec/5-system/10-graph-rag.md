@@ -6,8 +6,6 @@
 
 ## Overview (제품 정의)
 
-> 출처: `prd/9-graph-rag.md` — docs-consolidation(2026-05-12)으로 본 문서에 흡수.
-
 > **구현 상태**: ✅ **P0~P2 구현 완료** (검증 일자: 2026-05-11). KB 모드 선택, 추출 파이프라인 (`graph-extraction` 큐 chained dispatch), Hybrid 검색 (`RagSearchService` graph 분기), Entity / Relation CRUD, 3D 그래프 시각화 (`graph-3d-renderer.tsx`) 까지 동작. 마이그레이션 `V025__graph_rag.sql` ~ `V027__relation_head_tail_index.sql` 적용. 본 문서 범위 밖 (§2.2) 의 community detection / Neo4j 등 P2 이후 항목만 미구현으로 남는다.
 
 ---
@@ -233,7 +231,7 @@ WebSocket 알림 (KB 상세 실시간 갱신)
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| `graph_extraction_status` | Enum | pending / processing / completed / error / failed. `vector` 모드 KB 에서는 항상 `pending` 으로 두고 사용하지 않음. `failed` 는 재시도 소진 후 영구 실패 상태 (§7 / §3.2 의 에러 처리 흐름 참조) |
+| `graph_extraction_status` | Enum | `pending` / `processing` / `completed` / `error` / `failed`. `vector` 모드 KB 에서는 NULL 또는 미사용. 의미는 [Spec 데이터 모델 §2.12 Document.embedding_status](../1-data-model.md#212-document) 와 동일 — `error` 는 in-flight 재시도 중 일시 오류, `failed` 는 최대 재시도 소진 또는 비재시도성 오류로 인한 최종 실패 (§3.2 / §7 처리 흐름 참조). 5종 enum 의 canonical 정의는 [Spec 데이터 모델 §2.12](../1-data-model.md#212-document) |
 
 ### 2.3 Entity (신규)
 
@@ -561,11 +559,11 @@ LIMIT $5;        -- ragTopK
 
 ## Rationale
 
-Graph RAG 도메인 모델 결정의 배경·근거. memory/ 에 남아있던 작업 메모를 inline 흡수한 것이며, 폐기된 대안과 1회성 분석 자료는 `plan/complete/archive/from-memory/` 를 참조.
-
-_원본 메모: memory/graph-rag-decisions.md_
+Graph RAG 도메인 모델 결정의 배경·근거. 옛 `memory/graph-rag-decisions.md` 의 내용을 inline 흡수한 것이며, 폐기된 대안과 1회성 분석 자료는 `plan/complete/archive/from-memory/` 에 보관한다.
 
 ### Memory: Graph RAG 기획 결정 (2026-05-02)
+
+> **역사 기록**: 아래는 docs-consolidation(2026-05-12) 이전 시점의 결정 스냅샷이다. 표·목록 안에 등장하는 `prd/*.md` 경로는 그 당시의 PRD 트리이며, 현재는 본 문서(및 `spec/` 트리 전반) 로 흡수되었다. 결정 자체는 여전히 유효해 그대로 보존하되, 경로는 사후 갱신하지 않는다 — 결정이 내려진 시점의 컨텍스트를 보존하기 위함.
 
 #### 도메인 용어
 
