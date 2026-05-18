@@ -205,6 +205,13 @@ describe('ExecutionEngineService', () => {
 
     mockWorkflowRepo = {
       findOneBy: jest.fn().mockResolvedValue(mockWorkflow),
+      // runExecution 의 createContext 단계에서 workflow + workspace 를 join 으로
+      // 가져오는 호출 (workspace timezone 을 __workspaceTimezone 으로 주입하기 위함).
+      // spec/4-nodes/3-ai/0-common.md §11.3.
+      findOne: jest.fn().mockResolvedValue({
+        ...mockWorkflow,
+        workspace: { id: 'ws-1', settings: {} },
+      }),
     };
 
     mockExecutionNodeLogRepo = {
