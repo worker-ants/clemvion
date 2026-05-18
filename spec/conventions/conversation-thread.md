@@ -28,8 +28,8 @@
 | `nodeType` | String | 예: `form`, `carousel`, `ai_agent` |
 | `timestamp` | String (ISO 8601) | 서버 시각 |
 | `source` | ConversationTurnSource | §1.1 |
-| `text` | String | system_text injection 과 UI 의 1차 텍스트. 빈 문자열 가능 (구조화 데이터만 있는 경우) |
-| `data?` | Object | 구조화 원본 — `output.interaction.data` snapshot |
+| `text` | String | system_text injection 과 messages 모드의 user/assistant content. **LLM-facing 1차 텍스트** — `[from <nodeLabel>]` prefix, `[user-input]…[/user-input]` 같은 인라인 마커는 박지 않는다 (§1.5·§1.6). UI 표시는 §11 의 매핑표를 따라 `source` + `nodeLabel` + `data` 메타로 분기 — `text` 를 raw 로 직접 노출하지 않는다. 빈 문자열 가능 (구조화 데이터만 있는 경우) |
+| `data?` | Object | 구조화 원본 — `output.interaction.data` snapshot ([Spec node-output §4.5](./node-output.md#45-interactiondata-payload-규격)). `interaction.type` 별 shape 은 §4.5 의 정의를 그대로 따른다: `form_submitted` → `{ [fieldName]: value }` (data 자체가 제출된 필드 값의 flat map — wrapping 키 없음), `button_click` → `{ buttonId, buttonLabel, selectedItem? }`, `button_continue` → `{ buttonId, buttonLabel, url }`, `message_received` → `{ content, role }`. 추가 임의 inline marker (§1.6) 박지 않음 |
 | `toolCalls?` | Array<{id,name,arguments}> | `source='ai_assistant'` 한정. provider 호환성을 위해 messages 모드에서 drop 가능 |
 | `toolCallId?` | String | `source='ai_tool'` 한정 |
 
@@ -44,15 +44,35 @@
 
 ### 1.4 `text` 변환 규칙
 
-| `interaction.type` | text |
-|---|---|
-| `form_submitted` | `name=John, age=30` (key=value 리스트, 200자 cap, value 가 객체/배열이면 JSON 직렬화) |
-| `button_click` | `clicked: <buttonLabel>` (label 미존재 시 `<buttonId>`) |
-| `button_continue` | `continued: <url>` (url 미존재 시 `continued`) |
-| `message_received` (ai_user) | 메시지 본문 그대로 |
-| `ai_agent` final assistant | `output.result.response` 그대로 (CONVENTIONS Principle 8.2 LLM 응답 텍스트 경로) |
-| `text_classifier` final assistant (v2) | single-label: `output.result.category`. Multi-label: `output.result.categories.map(c => c.name).join(', ')` (categories 는 객체 배열이라 raw `.join` 불가). |
-| `information_extractor` final assistant (v2) | `output.result.extracted` 를 항상 `JSON.stringify` 직렬화 (`responseFormat` 필드는 `ai_agent` 전용 — extractor 는 항상 구조화 출력). |
+`text` 는 LLM-facing 텍스트 — system_text 모드의 thread-renderer 본문과 messages 모드의 user/assistant content 로 그대로 흐른다. UI 표시는 §11 의 매핑표를 우선 적용하며, `text` 의 동사 prefix (`clicked:`, `continued:`) 는 UI 카드 헤더로 분리 표시되어 본문에는 buttonLabel / URL 만 남는다.
+
+| `interaction.type` | text (LLM-facing) | UI 카드 헤더 (참고) | UI 카드 본문 (참고) |
+|---|---|---|---|
+| `form_submitted` | `name=John, age=30` (key=value 리스트, 200자 cap, value 가 객체/배열이면 JSON 직렬화) | `<nodeLabel> · form submitted` | `data` 자체가 `{ [fieldName]: value }` flat map ([node-output §4.5](./node-output.md#45-interactiondata-payload-규격)) — UI 는 그 key-value 를 표로 렌더 |
+| `button_click` | `clicked: <buttonLabel>` (label 미존재 시 `<buttonId>`) | `<nodeLabel> · button clicked` | `data.buttonLabel` (없으면 `data.buttonId`) |
+| `button_continue` | `continued: <url>` (url 미존재 시 `continued`) | `<nodeLabel> · link continue` | `data.url` |
+| `message_received` (ai_user) | 메시지 본문 그대로 | (없음 — chat bubble) | `text` |
+| `ai_agent` final assistant | `output.result.response` 그대로 (CONVENTIONS Principle 8.2 LLM 응답 텍스트 경로) | (없음 — chat bubble) | `text` (markdown) |
+| `text_classifier` final assistant (v2) | single-label: `output.result.category`. Multi-label: `output.result.categories.map(c => c.name).join(', ')` (categories 는 객체 배열이라 raw `.join` 불가). | `<nodeLabel> · classified` | `text` |
+| `information_extractor` final assistant (v2) | `output.result.extracted` 를 항상 `JSON.stringify` 직렬화 (`responseFormat` 필드는 `ai_agent` 전용 — extractor 는 항상 구조화 출력). | `<nodeLabel> · extracted` | `text` (JSON pretty) |
+
+### 1.5 LLM payload prefix 컨벤션
+
+`[from <nodeLabel>] ` prefix (messages 모드, §5.1) 와 `<context source="..." node="...">…</context>` markup wrap (system_text 모드, §5.2 의 thread-renderer 헤더) 은 **LLM payload builder 의 책임**이다. `ConversationTurn.text` 와 `output.messages[].content` (DB 영속) 에는 prefix 가 포함되지 않은 raw 본문만 저장한다.
+
+예외: WebSocket emit 의 `ai_message.messages[]` / `waiting_for_input.conversationConfig.messages[]` 는 LLM 으로 보낸 페이로드와 1:1 정합 필요 — prefix 가 포함된 형태로 emit 된다. 이는 `source: 'injected'` 마커 ([Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커)) 로 구분 가능하며, 미리보기 UI 는 §11.3 D4 에 따라 `conversationThread` snapshot 을 1차 소스로 사용해 prefix 노출을 회피한다.
+
+### 1.6 금지된 인라인 마커
+
+다음은 `ConversationTurn.text`, `output.messages[].content`, `interaction.data.*` 의 string 필드에 박는 것을 **금지**한다:
+
+| 마커 | 이유 | 대체 |
+|---|---|---|
+| `[from <nodeLabel>]` (turn.text 안) | LLM payload prefix 는 builder 책임 (§1.5) | builder 에서 prepend |
+| `[user-input]…[/user-input]` | spec 외 임의 마커 — UI raw 노출 시 사용자 오인 + 향후 파싱 부담 | `data.buttonLabel` 등 1급 필드로 격상 (§1.2, [node-output §4.5](./node-output.md#45-interactiondata-payload-규격)) |
+| `[/...]` `[#...]` 형태의 임의 BBCode 풍 inline tag | 동일 사유 | 동일 |
+
+라벨 / 이벤트 / 메타는 항상 `turn.data` 의 1급 필드로 격상한다. consistency-checker 의 `convention-compliance` 가 본 절을 위반 검출 대상으로 한다.
 
 ---
 
@@ -221,12 +241,75 @@ race-free.
 
 설계 결정의 근거는 [Spec AI Agent §12](../4-nodes/3-ai/1-ai-agent.md#12-rationale) Rationale 섹션에 단일 인라인 — Conversation Thread 도입 동기, 선택지 비교, v1/v2 경계, 옛 `conversationHistory` 필드 제거 사유. 본 문서는 컨벤션의 단일 진실 공급원이며 동기·역사는 AI Agent 본문에 둔다.
 
+### 8.1 Conversation Preview 의 렌더 규칙 분리 (2026-05-18)
+
+**결정**: ConversationTurn 스키마는 그대로 두고, UI 렌더 규칙 (§9) + LLM payload prefix 책임 경계 (§1.5) + 금지된 인라인 마커 (§1.6) 만 명문화.
+
+**대안 비교**:
+
+| 대안 | 채택 여부 | 사유 |
+|---|---|---|
+| A. `ConversationTurn` 에 `displayKind: 'bubble'/'card'/'tool'/'system'` 필드 신설 | ❌ | `source` enum 으로 이미 1:1 도출 가능 — 중복. source → displayKind 매핑을 spec 한 곳(§9)에 명시하는 것으로 충분 |
+| B. UI 가 emit messages 의 raw content 를 그대로 표시 + `source: 'injected'` 만으로 chip 표시 | ❌ | `[from <nodeLabel>]` prefix 와 `[user-input]…[/user-input]` 같은 임의 marker 가 그대로 노출됨. 사용자 오인의 근본 원인 |
+| C. (채택) emit messages 와 `conversationThread` snapshot 의 역할 분리 + source 별 시각 매핑 강제 | ✅ | 데이터 모델 무변경. `conversationThread` snapshot 은 [WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread) 에서 이미 emit. source/nodeLabel/data 메타로 raw 파싱 없이 분기 가능 |
+
+**`[from <nodeLabel>]` prefix 를 `turn.text` 에 박지 않는 이유**: LLM payload 표현 (prefix prepended) 과 thread 의 본문 (raw) 은 서로 다른 layer 의 표현. text 에 박으면 ① UI 가 raw 노출 시 사용자 오인 ② thread 가 다른 LLM provider / 다른 formatter 로 가야 할 때 prefix 가 박혀 있으면 후처리 strip 부담 ③ DB 영속 형태도 prefix 가 박혀 retroactive cleanup 어려움. builder 단계에서 prepend 하면 위 3가지 모두 회피.
+
+**`[user-input]…[/user-input]` 마커 폐기 이유**: spec 정의되지 않은 임의 marker 는 ① UI 가 raw 노출 시 노이즈 ② 향후 다른 노드가 다른 marker 박으면 파싱 부담 폭증 ③ 라벨이 의미상 1급 필드(`buttonLabel`)인데 inline marker 로 격하되어 표현 ④ XSS / prompt injection 표면 확장. `data.buttonLabel` 격상으로 4가지 모두 해소.
+
+**chip 표시 "권장 → 필수" 격상 이유** ([WebSocket §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 옛 "권장" → §9.2 의 강제 3중 신호): 사용자 오인 0% 목표는 한 신호 (chip 만) 로는 달성 불가 — 색약·다크모드·소형 화면·스크롤 상태 모두에서 안정적 구분을 위해 ① 아이콘 ② 컨테이너 형식 (bubble vs 회색 카드) ③ chip 3중을 동시 적용해야 한다. `ai-thread-source-mark` plan (2026-05-16, Phase 1 spec 완료) 이 chip 표시를 "Follow-up (별도 PR)" 으로 미뤘으나, 본 작업이 그 Follow-up 을 정식 spec 으로 흡수하며 단일 신호로는 부족하다고 판단, 강제 매핑으로 격상.
+
+**emit messages 를 conversation Preview 에서 격리한 이유** (§9.3 D4 / §9.4 D6): `ai-thread-source-mark` Open Question 의 잠정 결정은 "injection 메시지를 UI conversation timeline 에 보여주되 turn 카운팅에서만 제외" 였다. 본 작업은 이 잠정 결정을 재검토해 **conversation Preview 의 1차 소스를 `conversationThread` snapshot 으로 교체**하고 emit messages 는 LLM debug 패널 (Request/Response/LLM Usage) 전용으로 격리한다. 사유: emit messages 는 LLM 으로 간 페이로드와 1:1 정합이 목적이라 `[from <nodeLabel>]` prefix 가 박혀 있고, 이를 conversation Preview 가 그대로 표시하면 사용자 오인 + raw payload 의 strip 부담이 매 렌더마다 발생. `conversationThread` snapshot 은 source/nodeLabel/data 메타가 라이브로 살아있어 raw 파싱 없이 시각 분기가 자연스럽다.
+
 ---
 
-## 9. CHANGELOG
+## 9. 미리보기 UI 렌더 규칙
+
+AI Agent 노드 run-results 패널의 conversation Preview 탭, 그리고 모든 노드의 conversation timeline 표시 UI 가 따르는 시각 규약. **1차 데이터 소스는 `waiting_for_input.conversationThread.turns` snapshot** ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) — emit messages (`ai_message.messages[]`) 가 아니다.
+
+### 9.1 source 별 시각 매핑 (강제)
+
+| ConversationTurnSource | UI 형식 | 헤더 | 본문 |
+|---|---|---|---|
+| `ai_user` | 👤 user chat bubble (오른쪽 정렬, 강조 배경) | — | `text` |
+| `ai_assistant` | 🤖 assistant chat bubble (왼쪽 정렬, 일반 배경) | — | `text` (markdown 렌더) |
+| `presentation_user` | 🧩 회색 시스템 카드 (full-width) | `<nodeType-icon> <nodeLabel>` chip + interaction 라벨 (`button clicked` / `form submitted` / `link continue`) | `data` 메타에서 추출 (§1.4 표 참고). `text` 의 동사 prefix (`clicked:` / `continued:`) 는 헤더로 흡수되어 본문에 중복 노출 금지 |
+| `ai_tool` | 🔧 도구 호출 카드 (`mcp_*` 카드와 동일 시각) | tool name + status badge (200/4xx/5xx) | result preview (JSON / text, 토글 가능) |
+| `system` | ℹ️ 가운데정렬 system note 라인 (얇은 회색 텍스트) — **v1 자동 push 없음** (§1.1 "예약"). 수동 push 또는 v2 자동 push 도입 시 활성화. UI 는 본 행 형식을 미리 구현해 두기만 한다 | "System note" | `text` |
+
+### 9.2 시각 구분 신호 (3중 강제)
+
+사용자가 진짜 user 메시지와 다른 source 를 혼동하지 않도록 다음 3중 신호를 **동시에** 적용:
+
+1. **아이콘**: 👤 (user) vs 🤖 (assistant) vs 🧩 (presentation) vs 🔧 (tool) vs ℹ️ (system) — 서로 겹치지 않는 글리프.
+2. **컨테이너 형식**: chat bubble (둥근 배경, 좌·우 정렬) vs full-width 회색 카드 vs 가운데 라인.
+3. **출처 chip**: presentation/tool/system 은 헤더에 `<nodeLabel>` chip 을 노출. chat bubble (user/assistant) 은 chip 없음.
+
+한 신호만으로 구분하지 않는다 (색약·다크모드·소형 화면 환경 고려). [WebSocket §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 옛 권장(injected chip) 의 강제 격상 — Rationale 은 §8.1.
+
+### 9.3 데이터 소스 선택
+
+| UI 용도 | 1차 소스 | 비고 |
+|---|---|---|
+| conversation Preview 탭 (`meta.interactionType: "ai_conversation"`) | `conversationThread.turns` snapshot ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) | source/nodeLabel/data 메타 직접 활용 |
+| LLM Usage / Request / Response 탭 (debug) | `ai_message.messages[]` (emit) | source 마커 (`live`/`injected`) 와 prefix 가 LLM 으로 간 형태 그대로 표시. "Raw payload" 토글로 prefix·marker 가시화 |
+| 실행 이력 (`/executions/:id`) 복원 view | NodeExecution 의 `output.messages` (DB 영속) + `output.interaction` | `output.messages[].content` 에는 prefix 미포함 (§1.5). 두 경로(`output.messages` = LLM 호출 결과 누적, `output.interaction` = presentation 인터랙션 1건) 는 §4 영속화 표에서 별도 SoT — UI 복원 시 두 경로를 합쳐 `conversationThread.turns` 와 동등한 view 를 재구성한다. debug 탭만 emit 형태 재구성 |
+
+### 9.4 emit messages 의 raw 노출 금지
+
+conversation Preview 탭과 모든 conversation timeline UI 는 `ai_message.messages[]` 의 `content` 를 raw 로 노출하지 않는다. raw payload 가 필요한 debug 패널 (LLM Request / Response) 만 예외이며, 해당 패널은 "Raw payload" 토글로 명시한다.
+
+### 9.5 옛 임의 inline marker 호환
+
+옛 버전이 `[user-input]…[/user-input]` 같은 inline marker 를 박은 `output.messages` 가 DB 에 남아 있을 수 있다. 미리보기 렌더러는 다음 정규식으로 best-effort strip 한다: `/\[\/?user-input\]/g`. 신규 emit/저장에는 본 마커 사용 금지 (§1.6).
+
+---
+
+## 10. CHANGELOG
 
 | 일자 | 변경 |
 |---|---|
 | 2026-05-14 | 신규 작성 — Conversation Thread 정식 도입 |
 | 2026-05-16 | AI Agent 의 옛 `conversationHistory` / `historyCount` schema·UI 메타 제거 (`contextScope` / `contextScopeN` 로 단일화) |
 | 2026-05-16 | §5.1 에 emit 레이어 연계 설명 신규 추가 — injection 산출 메시지가 WebSocket emit 시 `source: 'injected'` 마커를 동봉하며, 이는 [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 WebSocket 페이로드 전용 2값 표식이다 (내부 `ConversationTurnSource` 5값과 구별). 디버깅 타임라인의 turn 카운팅이 backend `turnCount` 와 일치하기 위한 전제 |
+| 2026-05-18 | §1.2 의 `text` / `data` 의미 명확화. §1.5 (LLM payload prefix 컨벤션) · §1.6 (금지된 인라인 마커) · §9 (미리보기 UI 렌더 규칙) 신규. §8.1 Rationale 추가. [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 chip "권장" 을 §9.2 의 3중 신호 정규 매핑으로 강제 격상 |
