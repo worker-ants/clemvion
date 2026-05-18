@@ -177,11 +177,14 @@ it("모든 <slug>.mdx 는 <slug>.en.mdx sibling 을 가진다 (draft 제외)", (
 | **P0 (1차)** | 1-A 경로 정정 + 1-B 매핑표 + 1-C 절차 명확화 | **DONE (본 PR)** | 30 분 (developer/SKILL.md 1 파일) | 큼 — 모든 신규 작업의 진입 시점에 효과 |
 | **P0 (1차)** | 4-A ko↔en parity 테스트 | **DONE (본 PR)** | 1 시간 (i18n.test.ts) | 큼 — PR #57 같은 케이스 즉시 차단 |
 | **P0 (1차)** | 4-B SECTION_LABELS coverage 테스트 | **DONE (본 PR)** | 1 시간 (locale.test.ts + `hasExplicitSectionLabel` export) | 중 — PR #50 같은 케이스 차단 |
-| **P1 (2차)** | 2-옵션 A: convention-compliance-checker prompt 확장 | 미진행 | 2 시간 + 1주 관측 | 중 — planner 단계에서 잡힘 |
-| **P1 (2차)** | 3단계: documentation-reviewer 체크리스트 확장 | 미진행 | 1 시간 | 중 — 사후 리뷰 보강 |
-| **P2 (3차)** | 4-C mdx sibling coverage (warn-only) | 미진행 | 2 시간 | 작음 — KO 폴백이 의도된 동작이라 hard gate 무리 |
-| **P3 (후속)** | 4-D ESLint 한국어 하드코딩 룰 | 미진행 | 4 시간 + 예외 관리 | 중장기 — 일단 4-A 로 부분 커버 |
-| **P3 (후속)** | 2-옵션 B: 신규 checker 분리 | 미진행 | 4 시간 | 호출량 관측 후 결정 |
+| **P1 (2차)** | 2-옵션 A: convention-compliance-checker prompt 확장 | **DONE (후속 PR, 옵션 변형)** — spec/conventions/i18n-userguide.md 신설로 등가 처리. generic agent prompt 수정 없이 자동 inheritance. (commit 8c4cbe8f) | 30 분 (conventions 문서) | 중 — checker 가 spec/conventions/ 를 자동으로 본다 |
+| **P1 (2차)** | 3단계: documentation-reviewer 체크리스트 확장 | **의도적 미채택** — 공유 하네스 (.claude/agents/*) 수정 회피. spec/conventions/i18n-userguide.md 가 동일 점검 항목을 정식 규약으로 제공 | — | — |
+| **P1-B (신규)** | backend-labels parity 테스트 (warningRules / NodeMetadata label·description) | **DONE (후속 PR)** — backend SoT 와 frontend ko 매핑 차집합 검증. Merge 도먼트 경고 2건 ko 매핑 추가 (commit 884d6867) | 2 시간 | 큼 — PR #57 / cbffad22 패턴 결정적 차단 |
+| **P1-C (신규)** | 노드 MDX coverage 테스트 | **DONE (후속 PR)** — backend 노드 schema 파일이 02-nodes/*.mdx 의 frontmatter code: 어딘가에 등장하는지 검증 (commit f49d7f0a) | 2 시간 | 중 — `docs(user-guide): sync MDX with implementation` 패턴 차단 |
+| **P1-D (신규)** | PROJECT.md 매핑표에 errorCode 행 추가 + 자동 가드 절 보강 | **DONE (후속 PR)** — backend 신규 errorCode/warningCode 발행 시 backend-labels.ts 갱신 명시 (commit 6778b5cb) | 5 분 | 중 |
+| **P2 (3차)** | 4-C mdx sibling coverage (warn-only) | **의도적 미채택** — KO 폴백 + 안내 배너가 정상 동작 (_i18n-conventions.md §"새 로케일 추가 절차"). hard fail 무리, warn-only 도 실효성 낮음 | — | — |
+| **P3 (후속)** | 4-D ESLint 한국어 하드코딩 룰 | **DONE 등가 (후속 PR, 옵션 변형)** — P2-b grep 기반 ratchet 테스트로 대체. ESLint custom rule 부담 회피 (commit 9839241a) | 1.5 시간 (vs ESLint 4 시간) | 중 — 신규 위반은 결정적 차단, 기존 baseline 은 점진적 0 화 |
+| **P3 (후속)** | 2-옵션 B: 신규 checker 분리 | **의도적 미채택** — 옵션 A (spec/conventions/i18n-userguide.md) 가 등가 효과로 안착. 별 checker 호출 비용·시간 증가 회피 | — | — |
 
 ## 본 PR 변경사항 (P0)
 
@@ -196,9 +199,20 @@ it("모든 <slug>.mdx 는 <slug>.en.mdx sibling 을 가진다 (draft 제외)", (
 - 음성 2 (새 섹션 디렉토리, locale.ts 미등록): coverage 테스트 양쪽 로케일 모두 fail.
 - lint·build 통과.
 
-## 후속 (P1+)
+## 후속 (P1+) — 본 plan 으로 모두 처리됨
 
-남은 항목은 본 plan 을 `plan/in-progress/` 에 유지한 상태로 후속 PR 에서 처리.
+P1+ 항목은 다음 후속 PR (worktree-i18n-guard-extension-a7b3c9) 으로 모두 처리됐다:
+
+- **P1-A (2-옵션 A 변형)**: `spec/conventions/i18n-userguide.md` 신설 — 7 Principle 정식 규약. convention-compliance-checker 가 spec/conventions/ 를 자동 inheritance 하므로 공유 하네스 agent 수정 없이 동일 효과 (commit 8c4cbe8f).
+- **P1-B (신규)**: backend-labels parity 테스트 — backend `*.schema.ts` 의 NodeComponentMetadata 발행 영문 SoT 가 frontend `WARNING_KO` / `NODE_LABEL_KO` / `NODE_DESCRIPTION_KO` 에 매핑됐는지 정적 검증. Merge 도먼트 경고 2건 ko 매핑 동시 추가 (commit 884d6867).
+- **P1-C (신규)**: 노드 MDX coverage 테스트 — backend 의 모든 노드 schema 파일이 02-nodes/<cat>.mdx 의 frontmatter `code:` 어딘가에 등장하는지 검증 (commit f49d7f0a).
+- **P1-D (신규)**: PROJECT.md 매핑표에 backend errorCode 발행 행 추가 + §자동 가드 절에 신규 3개 테스트 + spec/conventions/i18n-userguide.md 링크 (commit 6778b5cb).
+- **P2-b (4-D 변형)**: 하드코딩 한국어 ratchet 테스트 — `src/{components,app,lib}/**` 한국어 라인 카운트가 baseline 이상으로 증가하지 않도록 감시. ESLint custom rule 부담 회피. baseline 초기 6 파일 32 라인 (commit 9839241a).
+
+**의도적 미채택 항목**:
+- 3단계 documentation-reviewer 체크리스트 확장 — 공유 하네스 (.claude/agents/*) 수정 회피. P1-A 의 conventions 등록으로 등가 효과.
+- 4-C mdx sibling coverage — KO 폴백 + 안내 배너가 의도된 동작 (_i18n-conventions.md). hard fail 무리, warn-only 도 실효성 낮음.
+- 2-옵션 B 신규 checker 분리 — P1-A 가 등가 효과로 안착. 호출 비용 증가 회피.
 
 ## 비고
 

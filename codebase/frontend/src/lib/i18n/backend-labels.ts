@@ -309,7 +309,8 @@ const OPTION_LABEL_KO: Record<string, string> = {
  * 를 ko 로 표시할 때 사용한다. 신규 검증 메시지를 추가할 때마다 영문 원문 →
  * 한국어 매핑을 함께 등록한다.
  */
-const WARNING_KO: Record<string, string> = {
+/** @internal — exported for parity guard (`__tests__/backend-labels.test.ts`). */
+export const WARNING_KO: Record<string, string> = {
   "At least one case must be added.": "최소 1개 이상의 case 를 추가해야 합니다.",
   "At least one category must be added.": "하나 이상의 카테고리를 추가해야 합니다.",
   "At least one column must be defined.": "컬럼을 1개 이상 정의해야 합니다.",
@@ -345,6 +346,10 @@ const WARNING_KO: Record<string, string> = {
   "LLM provider or model must be selected (auto-handled by the canvas when a workspace default provider is configured).":
     "LLM provider 또는 model 을 선택해야 합니다 (workspace 기본 provider 가 설정된 경우 캔버스에서 자동 처리).",
   "Merge strategy must be selected.": "Merge strategy 를 선택해야 합니다.",
+  "Merge partialOnTimeout is dormant in Phase P1 — only takes effect alongside the Phase P2 barrier.":
+    "Merge partialOnTimeout 은 Phase P1 에서는 동작하지 않아요 — Phase P2 의 barrier 가 도입되면 그때 함께 효과가 적용돼요.",
+  "Merge timeout is dormant in Phase P1 — value is logged but no barrier is enforced. The Phase P2 barrier will honor it.":
+    "Merge timeout 은 Phase P1 에서는 동작하지 않아요 — 값은 로그에만 남고 barrier 가 강제되지 않아요. Phase P2 의 barrier 가 도입되면 이 값을 따라요.",
   "Mode must be either static or dynamic.": "Mode 는 static 또는 dynamic 이어야 합니다.",
   "Multi Turn mode requires System Prompt.": "Multi Turn 모드에서는 System Prompt 가 필요합니다.",
   "Operation must be selected.": "Operation 을 선택해야 합니다.",
@@ -405,7 +410,8 @@ const NODE_PORT_LABEL_KO: Record<string, string> = {
   Unmatched: "미일치",
 };
 
-const NODE_LABEL_KO: Record<string, string> = {
+/** @internal — exported for parity guard (`__tests__/backend-labels.test.ts`). */
+export const NODE_LABEL_KO: Record<string, string> = {
   "AI Agent": "AI 에이전트",
   Background: "백그라운드",
   Cafe24: "Cafe24",
@@ -436,7 +442,8 @@ const NODE_LABEL_KO: Record<string, string> = {
   "Set Variable": "변수 설정",
 };
 
-const NODE_DESCRIPTION_KO: Record<string, string> = {
+/** @internal — exported for parity guard (`__tests__/backend-labels.test.ts`). */
+export const NODE_DESCRIPTION_KO: Record<string, string> = {
   "Chat with LLM using KB search and MCP server tools":
     "KB 검색과 MCP 서버 도구를 활용해 LLM과 대화",
   "Run downstream branch in background without blocking the main flow":

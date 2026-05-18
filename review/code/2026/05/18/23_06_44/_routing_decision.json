@@ -1,0 +1,82 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-18T23:06:44Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "테스트 작성·exports 추가·문서화 변경 — I/O 최적화·캐시·반복문 성능 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "테스트 파일과 문서·상수 export — 모듈 경계·서비스 레이어·DI 변경 없음"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): PROJECT.md 문서 변경 + 신규 .ts/.json 문서/테스트 파일"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/package-lock.json/npm 의존성 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migrations/SQL/Prisma schema 변경 없음 — frontend i18n 테스트만"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await·Promise·락·워커·큐·이벤트루프 변경 없음 — 동기 테스트만"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP route·GraphQL·swagger 변경 없음 — 내부 backend-labels 매핑만"
+    }
+  ],
+  "selected_count": 8,
+  "skipped_count": 5,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}
