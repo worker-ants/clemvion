@@ -107,6 +107,8 @@ export const sendEmailNodeConfigSchema = z
           label: 'Integration',
           widget: 'integration-selector',
           order: 1,
+          // warningRule `send_email:no-integration` 와 정렬.
+          required: true,
         },
         // Assistant candidate picker 의 후보 조회 범위 힌트.
         // backend 의 CandidateLookupService 가 Integration 테이블을
@@ -123,6 +125,8 @@ export const sendEmailNodeConfigSchema = z
           widget: 'field-array',
           itemLabel: 'Recipient',
           order: 2,
+          // warningRule `send_email:no-recipient` 와 정렬.
+          required: true,
         },
       }),
     cc: z
@@ -151,11 +155,27 @@ export const sendEmailNodeConfigSchema = z
     subject: z
       .string()
       .default('')
-      .meta({ ui: { label: 'Subject', widget: 'expression', order: 5 } }),
+      .meta({
+        ui: {
+          label: 'Subject',
+          widget: 'expression',
+          order: 5,
+          // warningRule `send_email:no-subject` 와 정렬.
+          required: true,
+        },
+      }),
     body: z
       .string()
       .default('')
-      .meta({ ui: { label: 'Body', widget: 'expression', order: 6 } }),
+      .meta({
+        ui: {
+          label: 'Body',
+          widget: 'expression',
+          order: 6,
+          // warningRule `send_email:no-body` 와 정렬.
+          required: true,
+        },
+      }),
     bodyType: z
       .enum(['text', 'html'])
       .default('text')

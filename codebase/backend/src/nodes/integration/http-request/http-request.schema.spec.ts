@@ -1,5 +1,7 @@
+import { z } from 'zod';
 import { evaluateWarnings } from '@workflow/node-summary';
 import {
+  httpRequestNodeConfigSchema,
   httpRequestNodeMetadata,
   keyValueSchema,
   validateHttpRequestConfig,
@@ -118,6 +120,30 @@ describe('validateHttpRequestConfig (imperative)', () => {
     expect(validateHttpRequestConfig({ timeout: -1 })).toContain(
       'timeout must be a positive number',
     );
+  });
+});
+
+describe('httpRequestNodeConfigSchema ui.required / requiredWhen', () => {
+  // warningRules SSOT 와 frontend asterisk 표시가 어긋나지 않도록 잠금.
+  type Props = Record<
+    string,
+    { ui?: { required?: boolean; requiredWhen?: unknown } }
+  >;
+  const properties = (
+    z.toJSONSchema(httpRequestNodeConfigSchema) as unknown as {
+      properties?: Props;
+    }
+  ).properties;
+
+  it('marks url as required (mirrors http_request:no-url)', () => {
+    expect(properties?.url?.ui?.required).toBe(true);
+  });
+
+  it('marks integrationId requiredWhen authentication=integration', () => {
+    expect(properties?.integrationId?.ui?.requiredWhen).toEqual({
+      field: 'authentication',
+      equals: 'integration',
+    });
   });
 });
 

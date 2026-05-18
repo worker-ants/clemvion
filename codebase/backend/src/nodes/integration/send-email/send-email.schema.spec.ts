@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { evaluateWarnings } from '@workflow/node-summary';
 import {
   sendEmailNodeConfigSchema,
@@ -7,6 +8,25 @@ import {
   validateSendEmailConfig,
 } from './send-email.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+
+describe('sendEmailNodeConfigSchema ui.required', () => {
+  // warningRules SSOT 와 frontend asterisk 표시가 어긋나지 않도록 잠금.
+  type Props = Record<string, { ui?: { required?: boolean } }>;
+  const properties = (
+    z.toJSONSchema(sendEmailNodeConfigSchema) as unknown as {
+      properties?: Props;
+    }
+  ).properties;
+
+  it.each([
+    ['integrationId', 'send_email:no-integration'],
+    ['to', 'send_email:no-recipient'],
+    ['subject', 'send_email:no-subject'],
+    ['body', 'send_email:no-body'],
+  ])('marks %s as required (mirrors %s)', (key) => {
+    expect(properties?.[key]?.ui?.required).toBe(true);
+  });
+});
 
 describe('Send Email node schema', () => {
   describe('sendEmailNodeConfigSchema defaults', () => {
