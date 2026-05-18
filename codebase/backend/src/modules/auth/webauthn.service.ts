@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -87,16 +88,37 @@ export class WebAuthnService {
     return cfg;
   }
 
-  /** 사용자 본인의 credential 목록 (base64url challenge 형태로 노출 금지 — 공개 필드만). */
+  /** WebAuthn 기능 활성 여부 — `WEBAUTHN_RP_ID` + `WEBAUTHN_ORIGIN` 모두 설정되어 있어야 true. */
+  isEnabled(): boolean {
+    return this.getConfig().enabled;
+  }
+
+  /** 기능 비활성 시 503 으로 가드. spec/5-system/1-auth.md §1.4.3. */
+  private assertEnabled(): void {
+    if (!this.getConfig().enabled) {
+      throw new ServiceUnavailableException({
+        code: 'WEBAUTHN_DISABLED',
+        message:
+          'WebAuthn (Passkey · 보안 키) 기능이 이 서버에서 비활성화되어 있어요. 관리자에게 문의해 주세요.',
+      });
+    }
+  }
+
+  /** 사용자 본인의 credential 목록 — 비활성 시 빈 배열 반환 (UI 가 빈 카드를 그릴 수 있도록). */
   async listCredentials(userId: string): Promise<WebAuthnCredential[]> {
+    if (!this.getConfig().enabled) return [];
     return this.credentialRepo.find({
       where: { userId },
       order: { createdAt: 'ASC' },
     });
   }
 
-  /** 등록된 credential 개수 — login() 분기 결정용. */
+  /**
+   * 등록된 credential 개수 — login() 분기 결정용. 비활성 시 0 반환 (TOTP/일반 분기로 빠짐).
+   * DB row 자체는 보존되며, 운영자가 env 를 다시 설정하면 그대로 사용 가능.
+   */
   async countCredentials(userId: string): Promise<number> {
+    if (!this.getConfig().enabled) return 0;
     return this.credentialRepo.count({ where: { userId } });
   }
 
@@ -106,6 +128,7 @@ export class WebAuthnService {
     publicKey: PublicKeyCredentialCreationOptionsJSON;
     optionsToken: string;
   }> {
+    this.assertEnabled();
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new NotFoundException({
@@ -148,6 +171,7 @@ export class WebAuthnService {
     credentialUuid: string;
     webauthnRecoveryCodes: string[];
   }> {
+    this.assertEnabled();
     const payload = this.verifyOptionsToken(optionsToken, 'webauthn_register', userId);
     const { rpID, origins } = this.getConfig();
 
@@ -229,6 +253,7 @@ export class WebAuthnService {
     publicKey: PublicKeyCredentialRequestOptionsJSON;
     optionsToken: string;
   }> {
+    this.assertEnabled();
     const { rpID } = this.getConfig();
     const credentials = await this.listCredentials(userId);
     if (credentials.length === 0) {
@@ -261,6 +286,7 @@ export class WebAuthnService {
     response: AuthenticationResponseJSON,
     ctx: WebAuthnLoginContext = {},
   ): Promise<{ verified: boolean }> {
+    this.assertEnabled();
     const payload = this.verifyOptionsToken(optionsToken, 'webauthn_auth', userId);
     const { rpID, origins } = this.getConfig();
 
@@ -371,6 +397,7 @@ export class WebAuthnService {
    * (review I-5). 평균/최악 모두 동일 시간 소요.
    */
   async verifyRecoveryCode(userId: string, code: string): Promise<boolean> {
+    this.assertEnabled();
     const user = await this.usersService.findById(userId);
     if (!user || !user.webauthnRecoveryCodes) return false;
     const candidate = Buffer.from(hashRecoveryCode(code.trim()), 'hex');
@@ -404,6 +431,7 @@ export class WebAuthnService {
     credentialUuid: string,
     deviceName: string,
   ): Promise<WebAuthnCredential> {
+    this.assertEnabled();
     const credential = await this.credentialRepo.findOne({
       where: { id: credentialUuid },
     });
@@ -426,6 +454,7 @@ export class WebAuthnService {
 
   /** 개별 삭제. 마지막 credential 이면 user.webauthn_recovery_codes 도 NULL 화. */
   async deleteCredential(userId: string, credentialUuid: string): Promise<void> {
+    this.assertEnabled();
     const credential = await this.credentialRepo.findOne({
       where: { id: credentialUuid },
     });
@@ -445,7 +474,8 @@ export class WebAuthnService {
 
   /** 복구 코드 재발급 (호출 전 비밀번호 재확인은 컨트롤러에서). */
   async regenerateRecoveryCodes(userId: string): Promise<string[]> {
-    const count = await this.countCredentials(userId);
+    this.assertEnabled();
+    const count = await this.credentialRepo.count({ where: { userId } });
     if (count === 0) {
       throw new ForbiddenException({
         code: 'WEBAUTHN_NOT_REGISTERED',
