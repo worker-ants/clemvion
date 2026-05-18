@@ -12,7 +12,7 @@ import {
   browserSupportsWebAuthn,
   startAuthentication,
 } from "@simplewebauthn/browser";
-import { authApi } from "@/lib/api/auth";
+import { authApi, isTwoFactorChallenge } from "@/lib/api/auth";
 import { usersApi } from "@/lib/api/users";
 import { setAccessToken } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -140,7 +140,7 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
         rememberMe: data.rememberMe,
       });
       const payload = response.data.data;
-      if (payload && "requires2fa" in payload && payload.requires2fa) {
+      if (isTwoFactorChallenge(payload)) {
         setChallengeToken(payload.challengeToken);
         // spec/5-system/1-auth.md §1.4.2 — WebAuthn 우선, TOTP fallback 자동 금지
         const method = payload.methods.includes("webauthn") ? "webauthn" : "totp";
@@ -157,11 +157,7 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
         );
         return;
       }
-      const accessToken =
-        payload && "accessToken" in payload ? payload.accessToken : undefined;
-      if (accessToken) {
-        await completeLogin(accessToken);
-      }
+      await completeLogin(payload.accessToken);
     } catch (err) {
       const error = err as AxiosError<{ message?: string }>;
       const message = error.response?.data?.message ?? t("auth.login.genericFailed");
