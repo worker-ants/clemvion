@@ -113,6 +113,43 @@ describe('Cafe24TokenRefreshProcessor', () => {
     },
   );
 
+  // 2026-05-18 — source='reactive_401' 은 short-circuit guard 를 skip 하고
+  // 항상 refresh 를 시도해야 한다. caller (executeWithRateLimit 의 401 자가
+  // 회복) 가 empirical 401 을 받았다는 강한 신호이므로 DB 의 tokenExpiresAt
+  // 을 신뢰하면 안 된다 (옛 TZ 모호성 회귀로 9h 미래로 저장된 케이스 등).
+  // 본 테스트는 short-circuit 회피 invariant 를 회귀 방지.
+  // spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT —
+  // JWT exp 격상 (2026-05-18)".
+  it('reactive_401 source — token 이 fresh 로 보여도 short-circuit skip 하고 refresh', async () => {
+    integrationRepository.findOne.mockResolvedValue(
+      makeIntegration({
+        // DB 가 1h 미래 expiry 로 보고 있음 (proactive 라면 short-circuit)
+        tokenExpiresAt: new Date(NOW_MS + 60 * 60 * 1000),
+      }),
+    );
+    await processor.process(
+      makeJob({ integrationId: 'int-1', source: 'reactive_401' }),
+    );
+    // 핵심 어서션: short-circuit 무시하고 refresh 가 실행됨
+    expect(cafe24ApiClient.refreshAccessToken).toHaveBeenCalledTimes(1);
+  });
+
+  // 회귀 보호 — reactive_401 도 status='connected' 가 아니면 skip (CONC H-2
+  // race-safe invariant 는 모든 source 에 적용). reactive_401 의 short-circuit
+  // skip 은 *expiry guard* 만 우회하지 status guard 까지 우회하지는 않는다.
+  it.each(['error', 'expired', 'pending_install'] as const)(
+    'reactive_401 source — status %s 일 때는 여전히 skip',
+    async (status) => {
+      integrationRepository.findOne.mockResolvedValue(
+        makeIntegration({ status }),
+      );
+      await processor.process(
+        makeJob({ integrationId: 'int-1', source: 'reactive_401' }),
+      );
+      expect(cafe24ApiClient.refreshAccessToken).not.toHaveBeenCalled();
+    },
+  );
+
   // TEST-C2 — refreshAccessToken 이 throw 했을 때 process() 가 그대로
   // re-throw 해야 BullMQ 가 job 을 failed 로 마킹한다. `.catch()` 로
   // 삼키면 refresh 실패가 silently no-op 되어 알림·진단이 불가능해진다.
