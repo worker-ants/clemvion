@@ -51,7 +51,7 @@ ai-review W-2 / consistency-check I-2 지적사항. node-config-required-default
   - §4 실행 로직 step 2 "수신자 정규화" 의 "문자열 → 콤마 split" 분기 제거
   - §Principle 7 echo 단락 갱신
   - **§8 Rationale 신설** — array-only 정준화 결정 + 3개 선택지 비교 + breaking + 스테이징 마이그레이션 skip 근거 + 6 layer 동작 명시
-- [x] `frontend backend-labels.ts` — recipient 에러 메시지는 ko 매핑 자체가 없어 동기화 불필요 (Recipient warningRule 한국어는 유지)
+- [x] `frontend backend-labels.ts` — 초기 판단 ("ko 매핑 없어 동기화 불필요") 이후 consistency-check I-2 지적으로 validator 에러 3종 ko 매핑 추가 완료 (i18n Principle 3 양방향 가드 통과)
 - [x] 본 sweep plan `node-config-required-defaults-sweep.md` 후속 follow-up 섹션에서 B 항목을 "→ send-email-to-array-only 로 분리" 로 마킹
 - [ ] consistency-check 통과
 - [ ] tests + lint + typecheck (현 시점: 66 tests pass, lint clean)

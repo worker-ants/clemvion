@@ -226,10 +226,18 @@ function isRecipientsLike(value: unknown): boolean {
   );
 }
 
+/**
+ * cc/bcc 가 사용자가 "명시한 값" 인지 판단. 명시되었다면 추가로 array-only
+ * 형식 검증을 trigger 해야 한다. 명시되지 않았다면 (unset / 빈 배열) 검증
+ * skip — optional field 이므로 부재가 valid 상태.
+ *
+ * **주의**: 비-배열 truthy 값 (예: `string`, `number`) 도 "set" 으로 판단해
+ * `true` 를 반환한다. 이는 "사용자가 값을 넣었지만 형식이 잘못됐다" 는
+ * 의미로, 호출자(`validateSendEmailConfig`) 가 `isRecipientsLike` 로 다시
+ * 검사해 reject 메시지를 push 하는 패턴을 의도한다. 직접 호출자 외 다른
+ * 컨텍스트에서 단독 사용 시 함수명이 오해를 부를 수 있음.
+ */
 function isOptionalRecipientSet(value: unknown): boolean {
-  // unset (undefined / null) 과 명시적 빈 배열은 "미설정" — 검증 skip.
-  // 그 외 (잘못된 타입 포함) 는 사용자가 명시적으로 값을 넣은 것으로 보고
-  // isRecipientsLike 가 array-only 형식 검증으로 reject 한다.
   if (value === undefined || value === null) return false;
   if (Array.isArray(value) && value.length === 0) return false;
   return true;
@@ -271,8 +279,9 @@ export const sendEmailNodeMetadata: NodeComponentMetadata = {
   //  - backend handler.validate's "integrationId is required" / "subject is
   //    required" / "body is required" rules.
   // `bodyType` enum is bounded by zod (`'text' | 'html'`), so no extra rule
-  // is needed there. Recipient sum-type validation (string | string[]) lives
-  // in `validateConfig` because the mini-DSL can't model that shape.
+  // is needed there. Recipient **array-only** validation (non-empty array
+  // of non-empty trimmed strings) lives in `validateConfig` because the
+  // mini-DSL can't model the per-element guard. 2026-05-19 정준화 (spec §8.1).
   warningRules: [
     {
       id: 'send_email:no-integration',
