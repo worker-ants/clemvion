@@ -144,6 +144,10 @@ export const formNodeConfigSchema = z
           label: 'Fields',
           widget: 'field-array',
           itemLabel: 'Field',
+          // warningRule `form:no-fields` 와 정렬 — zod default([]) 는 신규
+          // 노드의 저장 관용성을 위해 유지하고 필수성은 ui.required 로
+          // 표면화 (node-component.interface.ts:222-226).
+          required: true,
         },
       }),
   })
