@@ -148,27 +148,51 @@ cd ".claude/worktrees/${TASK}-${SLUG}"
 - **hotfix 예외**: 긴급 hotfix 도 별도 branch 에서 작업한다. 정말 default branch 에서 직접 commit 해야 하는 경우는 `BYPASS_DEFAULT_BRANCH_GUARD=1` 로 한 commit 만 우회 (아래 Enforcement 절 참고).
 - **통합 작업 worktree**: 다수 branch 를 통합할 때는 `merge-coordinator` 가 별도 `.claude/worktrees/integrate-<slug>/` 를 신설해 거기서 merge/rebase 를 시도한다. 통합이 PR 로 merge 되면 정리한다.
 
-### 신규 worktree 생성 명령 예
+### 신규 worktree 생성 — 3가지 경로 (모두 동등)
+
+세 경로 모두 결과적으로 `.claude/worktrees/<task_name>-<slug>/` 안의 새 branch (`claude/<task_name>-<slug>`) 로 CWD 가 옮겨진다. 어느 것을 쓸지는 호출자가 결정한다.
+
+**① `ensure-worktree.sh` 헬퍼 (권장 — 일반 CLI / hook 메시지)**
 
 ```bash
-git worktree add .claude/worktrees/<task_name>-<slug> -b <branch_name>
+.claude/tools/ensure-worktree.sh <task_name>
+# 출력 마지막 줄의 `cd ...` 를 그대로 실행
 cd .claude/worktrees/<task_name>-<slug>
+```
+
+slug 는 자동 생성된다. 이미 worktree 안이면 no-op. branch guard hook 의 차단 메시지가 가리키는 canonical 명령이라 카피-페이스트가 가장 단순하다.
+
+**② `EnterWorktree` tool (백그라운드 세션·에이전트 권장)**
+
+```
+EnterWorktree(name="<task_name>-<slug>")
+```
+
+세션 CWD 를 자동으로 옮긴다 (별도 `cd` 불필요). 백그라운드 세션 프롬프트가 이미 권장하는 경로 — `path=...` 로 기존 worktree 에 들어갈 수도 있다. project 컨벤션을 따르려면 `name` 에 `<task_name>-<slug>` 형식을 명시한다 (생략하면 random name 생성).
+
+**③ Native `git worktree add` (스크립트·CI)**
+
+```bash
+TASK=<task>; SLUG=$(openssl rand -hex 3)
+git worktree add ".claude/worktrees/${TASK}-${SLUG}" -b "claude/${TASK}-${SLUG}"
+cd ".claude/worktrees/${TASK}-${SLUG}"
 ```
 
 `branch_name` 은 일반적으로 `claude/<task_name>-<slug>` 또는 작업 의도에 맞는 feature 브랜치명을 사용한다.
 
-### Enforcement (자동 차단 3-layer)
+### Enforcement (자동 차단 4-layer)
 
-CLAUDE.md / SKILL.md 의 worktree 규칙은 모델 자율 준수만으로는 위반된 사례가 있어, 다음 3-layer 자동 차단을 둔다. 모두 같은 정책을 공유하며 판정은 `.claude/hooks/_lib/branch_guard.py` 한 곳에서 한다.
+CLAUDE.md / SKILL.md 의 worktree 규칙은 모델 자율 준수만으로는 위반된 사례가 있어, 다음 4-layer 자동 차단을 둔다. 모두 같은 정책을 공유하며 판정은 `.claude/hooks/_lib/branch_guard.py` 한 곳에서 한다.
 
 - **차단 조건**: 최상위 `.git` 이 **디렉토리**(== main worktree) **AND** 현재 branch == origin default branch.
 - **허용**: 위 조건 아닌 모든 경우. linked worktree (`.git` 이 파일) 거나, branch 가 default 가 아니거나, origin 자체가 없으면 통과.
 
 | Layer | 위치 | 시점 | 효과 |
 |---|---|---|---|
-| **A. PreToolUse hook** | `.claude/hooks/guard_default_branch_edit.py` | Write/Edit/MultiEdit/NotebookEdit 직전 | 차단 + Claude 에게 사유 전달 |
-| **B. UserPromptSubmit hook** | `.claude/hooks/guard_default_branch_prompt.py` | 사용자 prompt 진입 | 작업성 키워드 매칭 시 reminder inject (안내, 차단 X) |
-| **C. git pre-commit hook** | `.githooks/pre-commit` | `git commit` 직전 | exit 1 로 commit 자체 차단 |
+| **A. PreToolUse (edit)** | `.claude/hooks/guard_default_branch_edit.py` | Write/Edit/MultiEdit/NotebookEdit 직전 | 차단 + 사유·복구 명령 전달 |
+| **B. UserPromptSubmit** | `.claude/hooks/guard_default_branch_prompt.py` | 사용자 prompt 진입 | 작업성 키워드 매칭 시 reminder inject (안내, 차단 X) |
+| **D. PreToolUse (bash)** | `.claude/hooks/guard_default_branch_bash.py` | mutating Bash 명령 (npm/git commit/mkdir/...) 직전 | 세션당 1회 reminder inject (차단 X, sunk-cost 누적 전 조기 신호) |
+| **C. git pre-commit** | `.githooks/pre-commit` | `git commit` 직전 | exit 1 로 commit 자체 차단 |
 
 활성화:
 
@@ -176,7 +200,9 @@ CLAUDE.md / SKILL.md 의 worktree 규칙은 모델 자율 준수만으로는 위
 make setup-githooks   # 또는: git config core.hooksPath .githooks
 ```
 
-A·B 는 `.claude/settings.json` 등록만으로 자동 동작. C 는 한 번 `setup-githooks` 실행 필요 (`core.hooksPath` 는 clone 별 git config 라 동기화 안 됨).
+A·B·D 는 `.claude/settings.json` 등록만으로 자동 동작. C 는 한 번 `setup-githooks` 실행 필요 (`core.hooksPath` 는 clone 별 git config 라 동기화 안 됨).
+
+D 의 read/silent 정책: `ls`, `cat`, `grep`, `find`, `pwd`, `git status`, `git log`, `git diff`, `git show` 등 inspection 명령은 매칭 패턴에서 의도적으로 제외. mutating 분류는 `guard_default_branch_bash.py` 의 `_MUTATING` 정규식 참고.
 
 우회:
 
