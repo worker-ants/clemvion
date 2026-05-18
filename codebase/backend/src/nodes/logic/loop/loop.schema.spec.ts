@@ -1,32 +1,12 @@
-import { evaluateWarnings } from '@workflow/node-summary';
 import { loopNodeMetadata, validateLoopConfig } from './loop.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('loopNodeMetadata.warningRules', () => {
-  const firedIds = (config: unknown) =>
-    evaluateWarnings(
-      config as Record<string, unknown>,
-      loopNodeMetadata.warningRules,
-    ).map((w) => w.id);
-
-  describe('loop:no-count', () => {
-    it('fires when count is missing', () => {
-      expect(firedIds({})).toContain('loop:no-count');
-    });
-
-    it('fires when count is empty string', () => {
-      expect(firedIds({ count: '' })).toContain('loop:no-count');
-    });
-
-    it('does NOT fire when count is a numeric string', () => {
-      expect(firedIds({ count: '10' })).not.toContain('loop:no-count');
-    });
-
-    it('does NOT fire when count is an expression', () => {
-      expect(firedIds({ count: '{{ $var.n }}' })).not.toContain(
-        'loop:no-count',
-      );
-    });
+  // count zod schema 가 default('1') 이라 빈 값 발생 경로가 닫혀 있음.
+  // "count missing" warningRule 은 의도적으로 두지 않는다 — dead rule 회피.
+  // 정책 배경: spec/4-nodes/1-logic/3-loop.md §8 Rationale.
+  it('is intentionally empty — see spec §8 Rationale', () => {
+    expect(loopNodeMetadata.warningRules).toEqual([]);
   });
 });
 
@@ -66,15 +46,22 @@ describe('validateLoopConfig (imperative)', () => {
 });
 
 describe('evaluateMetadataBlockingErrors integration (loop)', () => {
-  it('emits the warning when count is missing', () => {
-    expect(evaluateMetadataBlockingErrors(loopNodeMetadata, {})).toContain(
-      'Count must be entered.',
-    );
+  // "최소 반복 1회" 정책: zod default('1') 이 빈 값을 미리 채우므로 빈
+  // config 가 handler.validate 단계까지 도달하면 단순히 통과한다 — 0/음수 등
+  // 명시적 무효 값만 validateLoopConfig 가 잡는다.
+  it('returns [] when config is empty (zod default fills count)', () => {
+    expect(evaluateMetadataBlockingErrors(loopNodeMetadata, {})).toEqual([]);
   });
 
   it('returns [] when count is set and valid', () => {
     expect(
       evaluateMetadataBlockingErrors(loopNodeMetadata, { count: '10' }),
     ).toEqual([]);
+  });
+
+  it('still blocks explicit zero count', () => {
+    expect(
+      evaluateMetadataBlockingErrors(loopNodeMetadata, { count: '0' }),
+    ).toContain('count must be greater than 0');
   });
 });

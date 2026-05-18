@@ -36,7 +36,9 @@ export const loopNodeConfigSchema = z
           widget: 'expression',
           placeholder: '10 or {{ $var.count }}',
           hint: 'Integer literal or expression',
-          // warningRule `loop:no-count` 와 정렬.
+          // `default('1')` + `ui.required: true` = "최소 반복 1회" 정책.
+          // 빈 값 발생 경로가 zod default 로 닫혀 있어 별도 warningRule
+          // 불필요. spec/4-nodes/1-logic/3-loop.md §8 Rationale 참고.
           required: true,
         },
       }),
@@ -147,18 +149,11 @@ export const loopNodeMetadata: NodeComponentMetadata = {
   isContainer: true,
   executionMetadata: { kind: 'container' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
-  // Mirror points:
-  //  - frontend `loopSummary` warning ("Count not set")
-  //  - backend handler.validate's "count is required" structural rule.
-  // The numeric-parse / cross-field "count ≤ maxIterations" lives in
-  // `validateConfig` because the mini-DSL can't express the
-  // "looks-like-{{expression}}" carve-out.
-  warningRules: [
-    {
-      id: 'loop:no-count',
-      when: '!count',
-      message: 'Count must be entered.',
-    },
-  ],
+  // "count missing" warningRule 은 의도적으로 두지 않음 — `count` zod
+  // schema 가 `default('1')` 이라 빈 값 발생 경로가 닫혀 있어 발화 불가.
+  // 정책 배경은 spec/4-nodes/1-logic/3-loop.md §8 Rationale "최소 반복 1회".
+  // 숫자 파싱 / "count ≤ maxIterations" 등 cross-field 검증은
+  // `validateConfig` 에 둠 (mini-DSL 표현력 한계).
+  warningRules: [],
   validateConfig: validateLoopConfig,
 };
