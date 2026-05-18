@@ -73,6 +73,10 @@ export const ifElseConfigSchema = z
           label: 'Conditions',
           widget: 'condition-builder',
           itemLabel: 'Condition',
+          // warningRule `if_else:no-conditions` 와 정렬 — zod 의 default([]) 는
+          // 신규 노드의 저장 관용성을 위해 유지하고 필수성은 ui.required 로
+          // 표면화 (node-component.interface.ts:222-226).
+          required: true,
         },
       }),
     combineMode: z

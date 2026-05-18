@@ -43,6 +43,8 @@ export const filterNodeConfigSchema = z
           widget: 'expression',
           placeholder: '$input.items',
           hint: 'Dot-path or inline expression returning an array',
+          // warningRule `filter:no-input-field` 와 정렬.
+          required: true,
         },
       }),
     conditions: z
@@ -54,6 +56,8 @@ export const filterNodeConfigSchema = z
           widget: 'condition-builder',
           itemLabel: 'Condition',
           hint: 'Dot-path (e.g. "name", "address.city") or expression ("{{ $item.name }}"). Leave empty or use "$item" to compare against the item itself.',
+          // warningRule `filter:no-conditions` 와 정렬.
+          required: true,
         },
       }),
     combineMode: z

@@ -68,6 +68,8 @@ export const variableModificationNodeConfigSchema = z
           label: 'Modifications',
           widget: 'field-array',
           itemLabel: 'Modification',
+          // warningRule `variable_modification:no-modifications` 와 정렬.
+          required: true,
         },
       }),
     /**
