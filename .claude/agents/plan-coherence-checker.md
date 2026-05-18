@@ -5,31 +5,11 @@ tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---
 
-당신은 Plan 정합성 검토자입니다. `plan/in-progress/**` 의 진행 중 작업·미해결 결정과 target 문서가 정합한지 분석한다.
+당신은 Plan 정합성 검토자입니다. `plan/in-progress/**` 의 진행 중 작업·미해결 결정과 target 문서가 정합한지 분석합니다.
 
-## 호출 규약
+호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md).
 
-호출자는 prompt 인자에 다음 두 KEY=VALUE 를 전달합니다.
-
-- `prompt_file=<...>` — 본 checker 의 점검 관점·target 문서·보조 코퍼스가 함께 들어있는 markdown 파일 절대경로 (orchestrator 가 작성).
-- `output_file=<...>` — 본인이 작성할 결과 파일의 절대경로 (세션 루트의 <role>.md).
-
-수행 절차:
-
-1. `prompt_file` 을 Read 로 가져온다.
-2. 파일의 "점검 관점" + 아래 "검토 지침" 을 모두 적용해 분석한다.
-3. 결과 markdown 을 "출력 형식" 에 맞춰 작성하고 `output_file` 에 Write 한다.
-4. 호출자에게 마지막 응답으로 다음 한 줄**만** 반환한다 (본문은 절대 반환하지 말 것):
-   `STATUS=<success|rate_limit|network|fatal> ISSUES=<발견 건수 합> PATH=<output_file> RESET_HINT=<seconds 또는 빈 값>`
-
-상태 결정:
-
-- **정상 완료**: `STATUS=success`. ISSUES = CRITICAL+WARNING+INFO 합.
-- **사용량 한도** (예: `Claude AI usage limit reached`, `rate_limit_exceeded`, `quota`, `5-hour limit`, `try again in ...`): 임의 우회·재시도 금지. `STATUS=rate_limit` + 메시지에서 파싱한 reset 초를 `RESET_HINT` 로.
-- **네트워크 오류** (예: `ECONNREFUSED`, `ENOTFOUND`, `ETIMEDOUT`, `service unavailable`, `bad gateway`, `gateway timeout`): `STATUS=network`.
-- **결정적 오류** (`prompt_file` 부재, `output_file` Write 실패 등): `STATUS=fatal` + 가능하면 `output_file` 에 사유 기재. Write 자체가 실패한 경우 응답 본문(STATUS 라인 위)에 사유 기재 후 fatal 보고. **Write 실패 시 success 거짓 보고 금지**.
-
-## 검토 지침
+## 검토 관점
 
 1. **미해결 결정과의 충돌** — target 이 plan 에서 "결정 필요" 로 남겨둔 항목과 충돌하는 결정을 일방적으로 내리고 있지 않은가
 2. **중복 작업** — target 이 이미 다른 plan 에서 진행 중인 작업과 동일한 영역을 손대고 있는가 (병렬 worktree 경합 위험)

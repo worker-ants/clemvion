@@ -125,6 +125,127 @@ def load_config(route_mode="auto"):
 
 
 # ---------------------------------------------------------------------------
+# State helpers (used by --summary-state, --update, --apply-routing).
+# Read/Write _retry_state.json on behalf of main so the JSON itself never
+# enters main's context. The whole point of these helpers: main reads only
+# a one-line summary from stdout.
+# ---------------------------------------------------------------------------
+
+
+def _load_state(session_dir):
+    state_file = os.path.join(session_dir, "_retry_state.json")
+    if not os.path.isfile(state_file):
+        print(f"Error: _retry_state.json missing under {session_dir}", file=sys.stderr)
+        sys.exit(1)
+    with open(state_file, "r", encoding="utf-8") as f:
+        return state_file, json.load(f)
+
+
+def _save_state(state_file, state):
+    with open(state_file, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+
+
+def _emit_summary_state(session_dir):
+    """One-line summary of _retry_state.json — kept terse for main ctx."""
+    _, state = _load_state(os.path.abspath(session_dir))
+    pending = len(state.get("agents_pending", []))
+    success = len(state.get("agents_success", []))
+    fatal = len(state.get("agents_fatal", []))
+    skipped = len(state.get("agents_skipped", []))
+    routing = state.get("routing_status", "pending")
+    last_reset = state.get("last_reset_hint_sec")
+    last_reset_str = str(last_reset) if last_reset is not None else "null"
+    print(
+        f"pending={pending} success={success} fatal={fatal} "
+        f"skipped={skipped} routing={routing} last_reset={last_reset_str}"
+    )
+
+
+def _apply_status_update(session_dir, agent, status, reset_hint):
+    """Move agent between pending/success/fatal buckets and record history."""
+    state_file, state = _load_state(os.path.abspath(session_dir))
+    for bucket in ("agents_pending", "agents_success", "agents_fatal"):
+        if agent in state.get(bucket, []):
+            state[bucket].remove(agent)
+
+    if status == "success":
+        state.setdefault("agents_success", []).append(agent)
+    elif status == "fatal":
+        state.setdefault("agents_fatal", []).append(agent)
+    else:
+        # rate_limit / network — keep in pending for retry
+        state.setdefault("agents_pending", []).append(agent)
+        if status == "rate_limit":
+            state["rate_limit_episodes"] = state.get("rate_limit_episodes", 0) + 1
+        if reset_hint is not None:
+            prev = state.get("last_reset_hint_sec") or 0
+            state["last_reset_hint_sec"] = max(prev, reset_hint)
+
+    history_entry = {
+        "ts": datetime.utcnow().isoformat() + "Z",
+        "status": status,
+    }
+    if reset_hint is not None:
+        history_entry["reset_hint_sec"] = reset_hint
+    state.setdefault("agent_history", {}).setdefault(agent, []).append(history_entry)
+
+    _save_state(state_file, state)
+    print(
+        f"agent={agent} status={status} "
+        f"pending={len(state.get('agents_pending', []))} "
+        f"success={len(state.get('agents_success', []))} "
+        f"fatal={len(state.get('agents_fatal', []))}"
+    )
+
+
+def _apply_routing(session_dir, fallback=False):
+    """Consume _routing_decision.json and update _retry_state.json.
+
+    Without --fallback: read decisions[], move selected=false agents from
+    pending to skipped. Echo 'applied=<selected_count> skipped=<skipped_count>'.
+
+    With --fallback: mark routing_status='skipped' with fallback reason,
+    keep all reviewers in pending (router failure path).
+    """
+    sd = os.path.abspath(session_dir)
+    state_file, state = _load_state(sd)
+
+    if fallback:
+        state["routing_status"] = "skipped"
+        state["routing_skip_reason"] = "router fatal — fallback to all reviewers"
+        _save_state(state_file, state)
+        print(f"applied={len(state.get('agents_pending', []))} skipped=0 fallback=yes")
+        return
+
+    decision_file = os.path.join(sd, "_routing_decision.json")
+    if not os.path.isfile(decision_file):
+        print(f"Error: _routing_decision.json missing under {sd}", file=sys.stderr)
+        sys.exit(1)
+    with open(decision_file, "r", encoding="utf-8") as f:
+        decision = json.load(f)
+
+    forced = set(state.get("agents_forced", []))
+    selected = []
+    skipped = []
+    for d in decision.get("decisions", []):
+        name = d.get("name")
+        if d.get("selected") or name in forced:
+            selected.append(name)
+        else:
+            skipped.append(name)
+
+    # Build new pending list: keep only selected (or forced) agents.
+    state["agents_pending"] = [a for a in state.get("agents_pending", []) if a in selected]
+    state.setdefault("agents_skipped", []).extend(
+        a for a in skipped if a not in state.get("agents_skipped", [])
+    )
+    state["routing_status"] = "done"
+    _save_state(state_file, state)
+    print(f"applied={len(state['agents_pending'])} skipped={len(state['agents_skipped'])}")
+
+
+# ---------------------------------------------------------------------------
 # Prompt body builder (role-specific — the sub-agent's system prompt also
 # carries the same role, but the orchestrator embeds the perspective and
 # checklist here so each `_prompts/<role>.md` is genuinely role-distinct).
@@ -690,6 +811,28 @@ def main():
                         help="Resume an existing session: skip prepare, validate the "
                              "_retry_state.json, echo the absolute session_dir on stdout. "
                              "Used by /loop wake-ups to re-enter the same session.")
+    parser.add_argument("--summary-state", type=str, metavar="SESSION_DIR",
+                        help="Echo a one-line summary of _retry_state.json to stdout: "
+                             "pending=N success=N fatal=N routing=<status> last_reset=<sec|null>. "
+                             "Main uses this for branch decisions without loading full JSON.")
+    parser.add_argument("--update", type=str, metavar="SESSION_DIR",
+                        help="Update a single agent's status in _retry_state.json. "
+                             "Requires --agent and --status. Optional --reset-hint <sec>.")
+    parser.add_argument("--agent", type=str, metavar="NAME",
+                        help="Agent name for --update.")
+    parser.add_argument("--status", type=str, metavar="STATUS",
+                        choices=["success", "rate_limit", "network", "fatal"],
+                        help="Status value for --update.")
+    parser.add_argument("--reset-hint", type=int, metavar="SEC",
+                        help="reset_hint_sec for --update (used on rate_limit).")
+    parser.add_argument("--apply-routing", type=str, metavar="SESSION_DIR",
+                        help="Apply review-router decision from _routing_decision.json to "
+                             "_retry_state.json. Moves un-selected agents from pending to "
+                             "skipped. Echoes 'applied=N skipped=M' to stdout. "
+                             "If --fallback, ignore router decision and mark routing skipped.")
+    parser.add_argument("--fallback", action="store_true",
+                        help="With --apply-routing: treat as router failure (fallback to "
+                             "all reviewers, routing_status=skipped + reason).")
     parser.add_argument("--commit", type=str, metavar="HASH")
     parser.add_argument("--range", type=str, metavar="FROM..TO")
     parser.add_argument("--branch", type=str, metavar="BRANCH")
@@ -726,6 +869,28 @@ def main():
             sys.exit(1)
         debug_log(f"Resuming session: {sd}")
         print(sd)
+        sys.exit(0)
+
+    # Summary-state mode: echo a single line so main does not need to Read
+    # _retry_state.json into its own context.
+    if args.summary_state:
+        _emit_summary_state(args.summary_state)
+        sys.exit(0)
+
+    # Update mode: mutate _retry_state.json on behalf of main (move one agent
+    # between pending/success/fatal buckets, optionally record reset_hint).
+    if args.update:
+        if not args.agent or not args.status:
+            print("Error: --update requires --agent NAME and --status STATUS",
+                  file=sys.stderr)
+            sys.exit(2)
+        _apply_status_update(args.update, args.agent, args.status, args.reset_hint)
+        sys.exit(0)
+
+    # Apply-routing mode: consume _routing_decision.json (or fallback) and
+    # update _retry_state.json accordingly. Echoes one line: applied=N skipped=M.
+    if args.apply_routing:
+        _apply_routing(args.apply_routing, fallback=args.fallback)
         sys.exit(0)
 
     config = load_config(route_mode=args.route)
