@@ -23,8 +23,12 @@ describe('sendEmailNodeConfigSchema ui.required', () => {
     ['to', 'send_email:no-recipient'],
     ['subject', 'send_email:no-subject'],
     ['body', 'send_email:no-body'],
-  ])('marks %s as required (mirrors %s)', (key) => {
+  ])('marks %s as required (mirrors warningRule %s)', (key, ruleId) => {
     expect(properties?.[key]?.ui?.required).toBe(true);
+    // ruleId 가 metadata.warningRules 에 실제 존재해야 두 source 가 묶인다.
+    expect(
+      sendEmailNodeMetadata.warningRules?.some((r) => r.id === ruleId),
+    ).toBe(true);
   });
 });
 
