@@ -12,6 +12,7 @@ import {
   REFRESH_JOB_WAIT_TIMEOUT_MS,
 } from '../../../modules/integrations/cafe24-token-refresh.constants.js';
 import { sanitizeLastErrorMessage } from '../../../modules/integrations/integration-oauth.service.js';
+import { parseJwtExp } from '../../../modules/integrations/jwt-exp.js';
 import { IntegrationActionRequiredNotifier } from '../../../modules/integrations/integration-action-required-notifier.service.js';
 import {
   extractCafe24ScopeTokens,
@@ -591,10 +592,21 @@ export class Cafe24ApiClient {
    */
   private async refreshViaQueue(
     integration: Integration,
-    source: 'proactive' | 'background',
+    source: Cafe24RefreshJobData['source'],
   ): Promise<void> {
     const queue = this.refreshQueue!;
     const events = this.refreshQueueEvents!;
+    // 2026-05-18 — source='reactive_401' 은 completed job 의 잔존 dedup 을
+    // 차단하기 위해 `removeOnComplete: { age: 0 }`. proactive 가 직전에
+    // completed 상태로 남아있고 (60s 잔존), reactive_401 이 같은 jobId 로
+    // add 하면 BullMQ 가 그 completed job 으로 dedup 시켜 worker 가 다시
+    // 안 도는 edge case — caller 가 empirical 401 을 받았는데도 실효적
+    // refresh 가 일어나지 않는 회귀의 마지막 차단막. waiting/active 상태
+    // dedup (cross-pod race 보호) 은 그대로 유지된다.
+    // spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료
+    // SoT — JWT exp 격상 (2026-05-18)".
+    const removeOnComplete =
+      source === 'reactive_401' ? { age: 0 } : { age: 60 };
     const job = await queue.add(
       CAFE24_REFRESH_JOB,
       { integrationId: integration.id, source },
@@ -606,8 +618,9 @@ export class Cafe24ApiClient {
         attempts: 1,
         // Keep completed jobs briefly so concurrent `add()` from a slow
         // caller still resolves to a real job reference; the next refresh
-        // round (≥1h later in normal use) will not collide.
-        removeOnComplete: { age: 60 },
+        // round (≥1h later in normal use) will not collide. reactive_401
+        // 은 stale dedup 차단을 위해 즉시 제거 (위 주석 참고).
+        removeOnComplete,
         removeOnFail: { age: 300 },
       },
     );
@@ -684,9 +697,13 @@ export class Cafe24ApiClient {
    * refresh+1회 retry 정책을 공유하기 위한 단일 진입점.
    *
    * 동작:
-   * - BullMQ refresh 큐가 바인딩되어 있으면 `refreshViaQueue('proactive')` —
+   * - BullMQ refresh 큐가 바인딩되어 있으면 `refreshViaQueue('reactive_401')` —
    *   `jobId = integrationId` dedup 으로 클러스터 전체 직렬화 (thundering
-   *   herd 방지, refresh_token rotation race 보호).
+   *   herd 방지, refresh_token rotation race 보호). source `'reactive_401'`
+   *   은 worker 의 short-circuit guard 를 skip 시켜 DB 의 잘못된 `expiresAt`
+   *   에 의한 refresh 무력화 회귀를 차단한다 (caller 가 empirical 401 을
+   *   받은 강한 신호이므로 DB 신뢰 불가). spec/2-navigation/4-integration.md
+   *   ## Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)".
    * - 큐 미바인딩 (테스트 환경) 시 in-process `refreshAccessToken`. 프로덕션
    *   환경은 항상 큐 바인딩 — DI 미주입은 deployment 오류로 간주.
    *
@@ -701,7 +718,7 @@ export class Cafe24ApiClient {
    */
   private async performAuthRefresh(integration: Integration): Promise<void> {
     if (this.refreshQueue && this.refreshQueueEvents) {
-      await this.refreshViaQueue(integration, 'proactive');
+      await this.refreshViaQueue(integration, 'reactive_401');
       return;
     }
     await this.refreshAccessToken(integration);
@@ -809,19 +826,29 @@ export class Cafe24ApiClient {
     if (!accessToken) {
       throw new Error('Cafe24 token refresh response missing access_token');
     }
-    // Cafe24 의 refresh 응답은 expires_in 이 아니라 expires_at (ISO string)
-    // 을 돌려준다 (token exchange 응답과 동일 shape). 옛 코드는 expires_in
-    // 만 읽고 둘 다 없으면 2h fallback 으로 빠져 실제 Cafe24 만료 시각과
-    // 미세한 어긋남이 누적될 수 있었다. cafe24 의 docs 가 권하는 expires_at
-    // 을 우선 파싱하고, 둘 다 없으면 documented access_token TTL (2h) 로
-    // fallback.
+    // 만료 시각 SoT — JWT exp 우선 (2026-05-18 갱신). Cafe24 의 access_token
+    // 은 JWT 라 `exp` claim 이 RFC 7519 정의상 epoch seconds (UTC absolute)
+    // 라 TZ 모호성 없음. 옛 코드는 TZ-less ISO 를 Date.parse 로 처리해 서버
+    // local time 으로 해석돼 UTC 컨테이너에서 9h skew 가 발생하던 회귀를
+    // 본 precedence 로 영구 차단. spec/2-navigation/4-integration.md §10.5
+    // + Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)".
+    //
+    // precedence: JWT exp → expires_in → expires_at ISO (TZ-less 면 +09:00
+    // KST 정규화) → 2h default.
+    const jwtExpMs = parseJwtExp(accessToken);
     const expiresIn = readNumber(data, 'expires_in');
     const expiresAtStr = readString(data, 'expires_at');
-    const expiresAt = expiresIn
-      ? new Date(Date.now() + expiresIn * 1000)
-      : expiresAtStr && Number.isFinite(Date.parse(expiresAtStr))
-        ? new Date(Date.parse(expiresAtStr))
-        : new Date(Date.now() + 2 * 60 * 60 * 1000); // Cafe24 default 2h
+    const expiresAt =
+      jwtExpMs !== null
+        ? new Date(jwtExpMs)
+        : expiresIn
+          ? new Date(Date.now() + expiresIn * 1000)
+          : expiresAtStr &&
+              Number.isFinite(
+                Date.parse(normalizeCafe24IsoTimezone(expiresAtStr)),
+              )
+            ? new Date(Date.parse(normalizeCafe24IsoTimezone(expiresAtStr)))
+            : new Date(Date.now() + 2 * 60 * 60 * 1000); // Cafe24 default 2h
 
     // Atomic 4-field UPDATE — spec §10.5. credentials + tokenExpiresAt are
     // co-located on the Integration row so a single save() is atomic.
@@ -1400,6 +1427,21 @@ export function resolveTokenExpiry(integration: {
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
+}
+
+/**
+ * Cafe24 의 `/oauth/token` 응답이 TZ designator (`Z` 또는 `±HH:MM`/`±HHMM`)
+ * 없는 ISO8601 문자열을 보내는 경우 KST (`+09:00`) 부여로 정규화. 옛 코드는
+ * Date.parse 가 ECMA-262 사양상 TZ-less ISO 를 *서버 local time* 으로
+ * 해석해 UTC 컨테이너에서 9h skew 가 발생해 proactive refresh 와 워커
+ * short-circuit 이 동시에 빗나가는 회귀가 있었다 (사용자 보고 2026-05-18).
+ *
+ * 본 정규화는 JWT exp 파싱이 비정상으로 null 인 경우의 fallback 안전망.
+ * spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT —
+ * JWT exp 격상 (2026-05-18)".
+ */
+function normalizeCafe24IsoTimezone(iso: string): string {
+  return /Z$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}+09:00`;
 }
 
 function readString(obj: Record<string, unknown>, key: string): string | null {
