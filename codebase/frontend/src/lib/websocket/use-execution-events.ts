@@ -157,9 +157,12 @@ export function useExecutionEvents({
         // -thread.md §9.3 에 의해 conversation Preview 의 1차 데이터 소스.
         // emit messages (`convConfig.messages`) 는 LLM debug 패널 전용.
         conversationThread?: {
+          /** v1 fixed: `"default"` */
           id?: string;
+          /** == turns.length; used for idempotent re-application. */
           nextSeq?: number;
           turns?: ConversationTurn[];
+          /** Cumulative char budget (cap fast-path); ignored by UI. */
           totalChars?: number;
         };
       };
@@ -246,11 +249,28 @@ export function useExecutionEvents({
         //
         // Fallback: thread snapshot 이 비어있거나 옛 backend 가 동봉하지 않는
         // 경우 (백워드 호환), emit messages → ConversationItem 변환을 1회 사용.
+        //
+        // **Idempotency**: `EXECUTION_WAITING_FOR_INPUT` is re-emitted on
+        // WebSocket reconnect (and on every multi-turn cycle). The thread
+        // snapshot is authoritative — reapplying it would *overwrite live*
+        // turns the store already accumulated via `addConversationMessage`
+        // between snapshots. Skip when `nextSeq` matches the last applied
+        // snapshot so reapplication is a no-op.
         const threadTurns = payload.conversationThread?.turns;
-        if (threadTurns && threadTurns.length > 0) {
-          const items = threadTurnsToConversationItems(threadTurns);
-          if (items.length > 0) {
-            setConversationMessages(items);
+        if (threadTurns?.length) {
+          const nextSeq = payload.conversationThread?.nextSeq ?? threadTurns.length;
+          const { conversationMessages } = useExecutionStore.getState();
+          // Seed when empty; otherwise only overwrite when the snapshot
+          // advances beyond what's already on screen. `nextSeq` equals
+          // `turns.length` (spec §1.3) so item count comparison is safe.
+          if (
+            conversationMessages.length === 0 ||
+            nextSeq > conversationMessages.length
+          ) {
+            const items = threadTurnsToConversationItems(threadTurns);
+            if (items.length > 0) {
+              setConversationMessages(items);
+            }
           }
         } else if (convConfig?.messages) {
           // Legacy / fallback path — same behaviour as before this change.

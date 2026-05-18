@@ -29,6 +29,36 @@ export interface ConversationTurn {
   toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
   toolCallId?: string;
   timestamp?: string;
+  /**
+   * Optional structured interaction type carried by `presentation_user`
+   * turns. Backend may eventually populate this directly from the
+   * presentation node's `output.interaction.type`. When absent, the
+   * frontend falls back to `inferInteractionTypeFromData` so changes to
+   * how backend reports this field stay non-breaking.
+   */
+  interactionType?: "button_click" | "form_submitted" | "button_continue";
+}
+
+/**
+ * Infer a `presentation_user` turn's `interaction.type` from the shape of
+ * `data` (node-output §4.5):
+ *   - `{ buttonId, buttonLabel, url, ... }` → `button_continue` (URL +
+ *     buttonId both required so a stray `url` field in a form payload
+ *     doesn't mis-classify as a link continue)
+ *   - `{ buttonId, buttonLabel, ... }` → `button_click`
+ *   - else (data is a flat field map, or missing) → `form_submitted`
+ *
+ * Used as fallback when `ConversationTurn.interactionType` is not carried
+ * on the wire.
+ */
+export function inferInteractionTypeFromData(
+  data: Record<string, unknown> | undefined,
+): "button_click" | "form_submitted" | "button_continue" {
+  if (!data || typeof data !== "object") return "form_submitted";
+  const hasButtonId = "buttonId" in data;
+  if (hasButtonId && "url" in data) return "button_continue";
+  if (hasButtonId) return "button_click";
+  return "form_submitted";
 }
 
 /**
@@ -39,9 +69,18 @@ export interface ConversationTurn {
  * must not produce it. The renderer strips opening and closing tags only
  * (label content is preserved) so the visible body stays clean for both
  * live conversationThread snapshots and historical `output.messages`.
+ *
+ * **replace-only**: the `/g` flag on this regex would corrupt `lastIndex`
+ * across `exec`/`test` calls on the same instance; only use it with
+ * `String.prototype.replace`.
  */
 const USER_INPUT_MARKER_RE = /\[\/?user-input\]/g;
 
+/**
+ * @param s — input string. `undefined` and `""` both return `""`.
+ * @returns the input with all `[user-input]` and `[/user-input]` tags
+ *   removed. Inner label content is preserved.
+ */
 export function stripInlineMarkers(s: string | undefined): string {
   if (!s) return "";
   return s.replace(USER_INPUT_MARKER_RE, "");
@@ -70,6 +109,12 @@ export function threadTurnsToConversationItems(
 ): ConversationItem[] {
   if (!Array.isArray(turns) || turns.length === 0) return [];
   const items: ConversationItem[] = [];
+  // spec/conventions/conversation-thread.md §1.1 — turn counter advances on
+  // `ai_user` source only (presentation_user / system do not contribute).
+  // ai_assistant / ai_tool inherit the current counter. Edge case: a thread
+  // that starts with ai_assistant before any ai_user (transient mid-execution
+  // snapshot) gets turnIndex 1 as a non-zero floor so renderer key paths
+  // (`${item.type}-${item.turnIndex}`) stay stable.
   let turnIndex = 0;
   for (const turn of turns) {
     switch (turn.source) {
@@ -84,11 +129,11 @@ export function threadTurnsToConversationItems(
         break;
       }
       case "ai_assistant": {
-        const turn0 = turnIndex || 1;
+        const effectiveTurnIndex = turnIndex || 1;
         items.push({
           type: "assistant",
           content: stripInlineMarkers(turn.text),
-          turnIndex: turn0,
+          turnIndex: effectiveTurnIndex,
           assistantToolCalls: turn.toolCalls?.length
             ? turn.toolCalls.map((tc) => ({
                 name: tc.name ?? "",
@@ -100,7 +145,7 @@ export function threadTurnsToConversationItems(
         break;
       }
       case "ai_tool": {
-        const turn0 = turnIndex || 1;
+        const effectiveTurnIndex = turnIndex || 1;
         items.push({
           type: "tool",
           // For tool turns the `text` is usually the tool result body; the
@@ -108,7 +153,7 @@ export function threadTurnsToConversationItems(
           // We leave `content` to the renderer (which looks up the tool name
           // from the previous assistant call when available).
           content: turn.text || "",
-          turnIndex: turn0,
+          turnIndex: effectiveTurnIndex,
           toolCallId: turn.toolCallId,
           toolResult: tryParseJson(turn.text ?? ""),
           timestamp: turn.timestamp,
@@ -116,18 +161,10 @@ export function threadTurnsToConversationItems(
         break;
       }
       case "presentation_user": {
-        const data = turn.data as Record<string, unknown> | undefined;
-        // `interaction.type` is not carried on the turn directly; infer from
-        // the structured `data` shape per spec/conventions/node-output.md §4.5:
-        //   - { buttonId, buttonLabel, url } → button_continue
-        //   - { buttonId, buttonLabel } → button_click
-        //   - else (flat field map) → form_submitted
-        const interactionType: "button_click" | "form_submitted" | "button_continue" =
-          data && typeof data === "object" && "url" in data && "buttonId" in data
-            ? "button_continue"
-            : data && typeof data === "object" && "buttonId" in data
-              ? "button_click"
-              : "form_submitted";
+        // Prefer the wire-level field when backend ships it; otherwise infer
+        // from `data` shape (node-output §4.5).
+        const interactionType =
+          turn.interactionType ?? inferInteractionTypeFromData(turn.data);
         items.push({
           type: "presentation",
           content: stripInlineMarkers(turn.text),
@@ -136,7 +173,7 @@ export function threadTurnsToConversationItems(
             nodeLabel: turn.nodeLabel,
             nodeType: turn.nodeType,
             interactionType,
-            data,
+            data: turn.data,
           },
           timestamp: turn.timestamp,
         });
@@ -150,6 +187,18 @@ export function threadTurnsToConversationItems(
           timestamp: turn.timestamp,
         });
         break;
+      }
+      default: {
+        // Unknown source (forward-compat: backend ships a value the frontend
+        // hasn't been updated for yet). Skip silently and warn — soft
+        // exhaustive check, no runtime crash.
+        const _exhaustive: never = turn.source;
+        if (typeof console !== "undefined") {
+          console.warn(
+            "[threadTurnsToConversationItems] unknown ConversationTurnSource:",
+            _exhaustive,
+          );
+        }
       }
     }
   }
@@ -222,6 +271,12 @@ interface ConvertOptions {
  * shape. Tool messages are linked back to the assistant call that produced
  * them via `toolCallId`, so each tool item knows its name and arguments
  * even though the raw `role: 'tool'` message only carries the result content.
+ *
+ * **Note**: returned `content` for `user` and `assistant` items has
+ * `[user-input]…[/user-input]` markers stripped (spec
+ * conversation-thread §9.5 compat). The raw bytes are preserved on
+ * `requestPayload` / `responsePayload` so LLM debug panels still see what
+ * was actually sent to the model.
  */
 export function messagesToConversationItems(
   messages: RawMessage[],

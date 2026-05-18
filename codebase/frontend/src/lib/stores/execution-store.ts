@@ -76,6 +76,9 @@ export interface ToolCallInfo {
  * - `"system"` — a `system` turn (workflow-level manual push; v1 has no
  *   automatic push but the UI shape is reserved so we don't need a follow-up
  *   migration when v2 ships).
+ *
+ * @todo Remove the "reserved" qualifier on `"system"` once v2 ships automatic
+ *   push for it (see spec conversation-thread §1.1 "예약, v1 자동 누적 없음").
  */
 export interface ConversationItem {
   type: "user" | "assistant" | "tool" | "presentation" | "system";

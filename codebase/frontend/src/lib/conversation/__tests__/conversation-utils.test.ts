@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   parseHistoryMessages,
   messagesToConversationItems,
   threadTurnsToConversationItems,
   stripInlineMarkers,
+  inferInteractionTypeFromData,
   type ConversationTurn,
 } from "../conversation-utils";
 
@@ -704,5 +705,92 @@ describe("threadTurnsToConversationItems", () => {
     expect(items[0].assistantToolCalls).toEqual([
       { name: "get_weather", arguments: '{"city":"Seoul"}' },
     ]);
+  });
+
+  it("ai_assistant before any ai_user gets turnIndex 1 fallback (edge case)", () => {
+    // Transient snapshot mid-execution where only assistant has been pushed
+    // — turnIndex must be a stable non-zero so renderer key paths stay valid.
+    const items = threadTurnsToConversationItems([
+      makeTurn({ source: "ai_assistant", text: "first reply" }),
+    ]);
+    expect(items[0]).toMatchObject({
+      type: "assistant",
+      turnIndex: 1,
+    });
+  });
+
+  it("ai_tool before any ai_user also gets turnIndex 1 fallback", () => {
+    const items = threadTurnsToConversationItems([
+      makeTurn({
+        source: "ai_tool",
+        text: "{}",
+        toolCallId: "c1",
+      }),
+    ]);
+    expect(items[0]).toMatchObject({ type: "tool", turnIndex: 1 });
+  });
+
+  it("presentation_user with undefined data falls back to form_submitted", () => {
+    const items = threadTurnsToConversationItems([
+      makeTurn({ source: "presentation_user", data: undefined }),
+    ]);
+    expect(items[0].presentation?.interactionType).toBe("form_submitted");
+  });
+
+  it("prefers explicit turn.interactionType over data shape inference", () => {
+    // Backend may eventually populate interactionType directly; honour it
+    // even when data shape would suggest otherwise.
+    const items = threadTurnsToConversationItems([
+      makeTurn({
+        source: "presentation_user",
+        // data has buttonId but no url — would infer button_click
+        data: { buttonId: "x", buttonLabel: "X" },
+        interactionType: "form_submitted",
+      }),
+    ]);
+    expect(items[0].presentation?.interactionType).toBe("form_submitted");
+  });
+
+  it("unknown source values are silently skipped with a console.warn", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const items = threadTurnsToConversationItems([
+      // Forward-compat: backend ships a value the frontend doesn't know yet
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      makeTurn({ source: "future_source" as any, text: "x" }),
+      makeTurn({ source: "ai_user", text: "real user" }),
+    ]);
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe("user");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("unknown ConversationTurnSource"),
+      expect.anything(),
+    );
+    warnSpy.mockRestore();
+  });
+});
+
+describe("inferInteractionTypeFromData (§9.1 data shape rules)", () => {
+  it("button_click when data has buttonId but no url", () => {
+    expect(
+      inferInteractionTypeFromData({ buttonId: "x", buttonLabel: "X" }),
+    ).toBe("button_click");
+  });
+
+  it("button_continue requires BOTH buttonId AND url (stray url in form payload doesn't mis-classify)", () => {
+    expect(
+      inferInteractionTypeFromData({ buttonId: "x", buttonLabel: "X", url: "u" }),
+    ).toBe("button_continue");
+    // url alone without buttonId is treated as form_submitted (a form may
+    // legitimately submit a 'url' field).
+    expect(
+      inferInteractionTypeFromData({ url: "https://example.com" }),
+    ).toBe("form_submitted");
+  });
+
+  it("form_submitted for plain field maps and missing data", () => {
+    expect(inferInteractionTypeFromData({ name: "A", age: 3 })).toBe(
+      "form_submitted",
+    );
+    expect(inferInteractionTypeFromData(undefined)).toBe("form_submitted");
   });
 });

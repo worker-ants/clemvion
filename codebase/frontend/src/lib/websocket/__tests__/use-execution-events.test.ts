@@ -1732,4 +1732,206 @@ describe("useExecutionEvents", () => {
       expect(mockToast.warning).toHaveBeenCalled();
     });
   });
+
+  // spec/conventions/conversation-thread.md §9.3 — conversation Preview 의
+  // 1차 데이터 소스는 conversationThread.turns snapshot.
+  describe("ai_conversation waiting_for_input — conversationThread snapshot 우선", () => {
+    function getWaitingHandler() {
+      const onCalls = (mockClient.on as Mock).mock.calls;
+      return onCalls.find(
+        (c: unknown[]) => c[0] === "execution.waiting_for_input",
+      )?.[1] as (data: unknown) => void;
+    }
+
+    it("conversationThread.turns 가 있으면 emit messages 대신 thread snapshot 으로 변환", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const handler = getWaitingHandler();
+
+      handler({
+        waitingNodeId: "ai-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: {
+          conversationConfig: {
+            // emit messages 는 prefix 박힌 형태로 들어와도 무시되어야 한다
+            messages: [{ role: "user", content: "[from Template] noise" }],
+            turnCount: 1,
+            maxTurns: 5,
+          },
+        },
+        conversationThread: {
+          id: "default",
+          nextSeq: 2,
+          turns: [
+            {
+              seq: 0,
+              nodeId: "tpl-1",
+              nodeLabel: "Template",
+              nodeType: "template",
+              source: "presentation_user",
+              text: "clicked: AI와 대화하기",
+              data: { buttonId: "open_chat", buttonLabel: "AI와 대화하기" },
+            },
+            {
+              seq: 1,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_user",
+              text: "질문",
+            },
+          ],
+        },
+      });
+
+      const msgs = useExecutionStore.getState().conversationMessages;
+      expect(msgs).toHaveLength(2);
+      expect(msgs[0].type).toBe("presentation");
+      expect(msgs[0].presentation?.nodeLabel).toBe("Template");
+      expect(msgs[1].type).toBe("user");
+      expect(msgs[1].content).toBe("질문");
+    });
+
+    it("재emit 시 동일 snapshot 은 store 를 덮어쓰지 않는다 (idempotency)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const handler = getWaitingHandler();
+
+      const payload = {
+        waitingNodeId: "ai-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: { conversationConfig: { messages: [] } },
+        conversationThread: {
+          id: "default",
+          nextSeq: 1,
+          turns: [
+            {
+              seq: 0,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_user",
+              text: "안녕",
+            },
+          ],
+        },
+      };
+
+      handler(payload);
+      const first = useExecutionStore.getState().conversationMessages;
+      expect(first).toHaveLength(1);
+
+      // Mid-snapshot 로컬로 추가된 in-flight live turn 을 시뮬레이션.
+      useExecutionStore.getState().addConversationMessage({
+        type: "assistant",
+        content: "응답 중...",
+        turnIndex: 1,
+      });
+      const accumulated = useExecutionStore.getState().conversationMessages;
+      expect(accumulated).toHaveLength(2);
+
+      // 같은 payload 재emit (WS reconnect 시뮬레이션). 동일 nextSeq 이므로
+      // 누적된 live turn 을 덮어쓰지 않아야 한다.
+      handler(payload);
+      const after = useExecutionStore.getState().conversationMessages;
+      expect(after).toHaveLength(2);
+      expect(after[1].content).toBe("응답 중...");
+    });
+
+    it("새 turn 이 추가된 snapshot 이 오면 (nextSeq advance) 덮어쓴다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const handler = getWaitingHandler();
+
+      handler({
+        waitingNodeId: "ai-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: { conversationConfig: { messages: [] } },
+        conversationThread: {
+          id: "default",
+          nextSeq: 1,
+          turns: [
+            {
+              seq: 0,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_user",
+              text: "first",
+            },
+          ],
+        },
+      });
+
+      handler({
+        waitingNodeId: "ai-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: { conversationConfig: { messages: [] } },
+        conversationThread: {
+          id: "default",
+          nextSeq: 3,
+          turns: [
+            {
+              seq: 0,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_user",
+              text: "first",
+            },
+            {
+              seq: 1,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_assistant",
+              text: "reply",
+            },
+            {
+              seq: 2,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_user",
+              text: "second",
+            },
+          ],
+        },
+      });
+
+      const msgs = useExecutionStore.getState().conversationMessages;
+      expect(msgs).toHaveLength(3);
+      expect(msgs[1].content).toBe("reply");
+      expect(msgs[2].content).toBe("second");
+    });
+
+    it("thread snapshot 부재 시 emit messages fallback (backward compat)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const handler = getWaitingHandler();
+
+      handler({
+        waitingNodeId: "ai-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: {
+          conversationConfig: {
+            messages: [{ role: "user", content: "fallback msg" }],
+            turnCount: 1,
+            maxTurns: 5,
+          },
+        },
+        // conversationThread 미동봉 (옛 backend)
+      });
+
+      const msgs = useExecutionStore.getState().conversationMessages;
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0].type).toBe("user");
+      expect(msgs[0].content).toBe("fallback msg");
+    });
+  });
 });
