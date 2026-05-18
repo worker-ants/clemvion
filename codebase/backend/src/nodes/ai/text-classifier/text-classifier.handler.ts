@@ -10,6 +10,7 @@ import { LlmService } from '../../../modules/llm/llm.service';
 import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface';
 import { truncateForErrorDetails } from '../../core/error-codes';
 import { textClassifierNodeMetadata } from './text-classifier.schema';
+import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 
 interface Category {
   id?: string;
@@ -149,11 +150,19 @@ export class TextClassifierHandler implements NodeHandler {
           includeEvidence,
         );
 
+    // System Context Prefix — spec/4-nodes/3-ai/0-common.md §11.4 ordering [1].
+    const systemContextPrefix = buildSystemContextPrefixFromContext({
+      context,
+      config,
+      now: new Date(),
+    });
+    const finalSystemPrompt = systemContextPrefix + systemPrompt;
+
     let result: ChatResult;
     const requestPayload = {
       model: model || llmConfig.defaultModel,
       messages: [
-        { role: 'system' as const, content: systemPrompt },
+        { role: 'system' as const, content: finalSystemPrompt },
         { role: 'user' as const, content: inputField },
       ],
       responseFormat: 'json' as const,

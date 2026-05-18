@@ -15,6 +15,7 @@ import {
 } from '../../../modules/llm/interfaces/llm-client.interface';
 import { Logger } from '@nestjs/common';
 import { informationExtractorNodeMetadata } from './information-extractor.schema';
+import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 
 interface OutputField {
   name: string;
@@ -198,11 +199,16 @@ export class InformationExtractorHandler implements NodeHandler {
       workspaceId,
     );
 
-    const systemPrompt = this.buildSingleTurnSystemPrompt(
-      outputSchema,
-      instructions,
-      examples,
-    );
+    // System Context Prefix — spec/4-nodes/3-ai/0-common.md §11.4 ordering [1].
+    // info-extractor 의 systemPrompt 는 단일 build 단계라 prefix prepend 면 충분.
+    const systemContextPrefix = buildSystemContextPrefixFromContext({
+      context,
+      config,
+      now: new Date(),
+    });
+    const systemPrompt =
+      systemContextPrefix +
+      this.buildSingleTurnSystemPrompt(outputSchema, instructions, examples);
     const jsonSchema = this.buildJsonSchema(outputSchema, false);
 
     const startedAt = Date.now();
@@ -337,11 +343,17 @@ export class InformationExtractorHandler implements NodeHandler {
     );
     const resolvedModel = model || llmConfig.defaultModel;
 
-    const systemPrompt = this.buildMultiTurnSystemPrompt(
-      outputSchema,
-      instructions,
-      examples,
-    );
+    // System Context Prefix — spec/4-nodes/3-ai/0-common.md §11.4 ordering [1].
+    // multi-turn 은 첫 진입 시 1회 prepend 하고 state.messages[0] 에 frozen 되어
+    // 후속 turn 에서도 같은 prefix 를 본다 ($now 가 execution-frozen).
+    const systemContextPrefix = buildSystemContextPrefixFromContext({
+      context,
+      config,
+      now: new Date(),
+    });
+    const systemPrompt =
+      systemContextPrefix +
+      this.buildMultiTurnSystemPrompt(outputSchema, instructions, examples);
 
     // CONVENTIONS Principle 7 — capture rawConfig so the multi-turn ended
     // echo (multiTurnConfigEcho) and downstream resume turns surface

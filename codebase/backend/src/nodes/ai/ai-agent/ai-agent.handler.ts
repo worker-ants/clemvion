@@ -7,6 +7,7 @@ import {
   ResumableNodeHandlerOutput,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
 import { LlmService } from '../../../modules/llm/llm.service';
 import {
   ChatMessage,
@@ -839,7 +840,18 @@ export class AiAgentHandler implements NodeHandler {
     const mcpDiagnosticsAcc: McpServerSummary[] = [];
 
     // System prompt: KB 검색은 더 이상 prefill 하지 않는다. LLM 이 능동 호출 결정.
-    let finalSystemPrompt = systemPrompt;
+    // spec/4-nodes/3-ai/0-common.md §11.4 ordering:
+    //   [1] System Context Prefix  ← buildSystemContextPrefixFromContext
+    //   [2] 사용자 systemPrompt
+    //   [3] KB_TOOL_GUIDANCE
+    //   [4] Condition suffix
+    //   [5] Thread injection (system_text 모드)
+    const systemContextPrefix = buildSystemContextPrefixFromContext({
+      context,
+      config,
+      now: new Date(),
+    });
+    let finalSystemPrompt = systemContextPrefix + systemPrompt;
     if (knowledgeBases.length > 0) {
       finalSystemPrompt += KB_TOOL_GUIDANCE;
     }
@@ -1232,7 +1244,15 @@ export class AiAgentHandler implements NodeHandler {
     // 여기서 server-side safety net 을 제공).
     const ragAcc = new RagAccumulator(knowledgeBases.length);
 
-    let finalSystemPrompt = systemPrompt;
+    // System Context Prefix — spec §11.4 ordering [1]. multi-turn 은 첫 진입
+    // 시 1회 prepend 하고 `state.systemPrompt` 로 저장돼 후속 turn 에서도 같은
+    // prefix 를 본다 (turn 마다 재계산 불필요 — `$now` 가 execution-frozen).
+    const systemContextPrefix = buildSystemContextPrefixFromContext({
+      context,
+      config,
+      now: new Date(),
+    });
+    let finalSystemPrompt = systemContextPrefix + systemPrompt;
     if (knowledgeBases.length > 0) {
       finalSystemPrompt += KB_TOOL_GUIDANCE;
     }
