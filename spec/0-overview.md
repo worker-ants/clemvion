@@ -311,9 +311,16 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 - 유효성 검증 즉시 피드백
 
 ### 3.4 상태 표시 패턴
-- **Badge/Tag**: Active(초록), Inactive(회색), Error(빨강), Processing(파랑 스피너)
-- **Toast**: 성공/실패/정보 알림
+- **Badge/Tag**: 리소스의 **상태** 를 한 단어로 표시. Active(초록), Inactive(회색), Error(빨강), Processing(파랑 스피너). 색은 리소스 상태 의미용 — 아래 Inline Alert 의 톤(긴급도) 과는 직교한다 (같은 파랑이라도 Badge 의 Processing 과 Alert 의 info 는 의미가 다름).
+- **Toast**: 성공/실패/정보 알림. 도착 신호용 — 사용자가 다음 화면으로 넘어가도 무방한 **단발성** 메시지. Inline Alert 와 함께 쓸 때는 "응답이 왔다" 만 알리는 보조 역할 (본문은 Alert) 이며, standalone toast (mutate 단발 결과 통지) 와는 역할이 다르다.
+- **Inline Alert**: 페이지 안에 영구 표시되는 안내 블록. 사용자가 **외부 작업**(예: Cafe24 Developers 콘솔에서 권한 활성화, 본사 승인 신청, 외부 시스템 키 회전, 이메일 인증)을 진행하는 동안 안내를 계속 참조해야 할 때 사용. modal/dialog 와의 차이는 "닫혀도 사라지지 않는다" — 사용자가 화면을 떠나지 않고 외부 작업과 안내를 병행할 수 있다.
+  - **톤 매핑**: info(파랑) · warning(amber) · error(red) 3단계. **긴급도** 의미로 사용 — Badge 의 색(리소스 상태) 과 직교한다. 의미가 다른 두 alert 가 한 화면에 공존하면 톤으로 즉시 구분된다. 단순 상태 표시는 Badge 의 영역이며, Inline Alert 는 "사용자가 다음에 무엇을 해야 하는가" 가 본문일 때 쓴다.
+  - **Toast 와의 역할 분리**: alert = 안내 본문, toast = 도착 신호. 응답이 왔다는 사실은 toast 가 1회 알리고, "무엇을 해야 하는가" 는 alert 가 계속 표시한다. 둘은 보완적이며 서로를 대체하지 않는다 — 외부 작업 안내를 toast 만으로 처리하면 사용자가 다른 화면으로 넘어간 순간 사라져 컨텍스트가 끊긴다.
+  - **생존 주기**: 다음 관련 mutate 가 시작되기 **직전** (`useMutation` 의 `onMutate`) 에 비워, 옛 안내가 새 요청과 섞이지 않게 한다. 사용자가 명시적으로 닫는 X 버튼은 두지 않는다 — 외부 작업이 끝나 자동 갱신되거나, 다음 시도가 시작될 때 reset 된다. 사용자 dismiss 가 안전한 케이스(예: 단순 정보 안내, mutate 와 연결되지 않은 경고)에 한해 X 버튼을 허용한다.
+  - **위치**: 사용처가 navigation 외부(향후 webhook signing key 회전, notification preference 변경 등) 로 확장될 가능성이 있어 영역별 `_layout.md` 가 아닌 `0-overview.md` 의 cross-cutting 자리에 둔다.
+  - **현재 사용처**: Cafe24 Public 신규 등록 폼의 별도 승인 필요 권한 경고 (warning, 영구 — [§3.2 of 4-integration](./2-navigation/4-integration.md#32-step-2-인증-정보-입력) · [cafe24-restricted-scopes §4.2](./conventions/cafe24-restricted-scopes.md#42-차단-정책)), Scope & Permissions 탭의 Cafe24 Private 권한 추가 응답 안내 (warning — [§4.4 of 4-integration](./2-navigation/4-integration.md#44-scope--permissions-탭-oauth-한정)).
 - **Skeleton**: 로딩 중 UI 플레이스홀더
+- **에러 페이지·빈 상태**: 본 카탈로그의 대상은 in-page 신호(Badge/Toast/Alert/Skeleton). page-level 의 에러 페이지·빈 상태 패턴은 [`spec/2-navigation/11-error-empty-states.md`](./2-navigation/11-error-empty-states.md) 의 canonical 정의를 따른다.
 
 ### 3.5 반응형 및 테마
 - 최소 해상도: 1280x720

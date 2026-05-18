@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-18T17:22:08.664136",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/0-overview.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
