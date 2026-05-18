@@ -309,6 +309,7 @@ const OPTION_LABEL_KO: Record<string, string> = {
  * 를 ko 로 표시할 때 사용한다. 신규 검증 메시지를 추가할 때마다 영문 원문 →
  * 한국어 매핑을 함께 등록한다.
  */
+/** @internal — exported for parity guard (`__tests__/backend-labels.test.ts`). */
 export const WARNING_KO: Record<string, string> = {
   "At least one case must be added.": "최소 1개 이상의 case 를 추가해야 합니다.",
   "At least one category must be added.": "하나 이상의 카테고리를 추가해야 합니다.",
@@ -409,6 +410,7 @@ const NODE_PORT_LABEL_KO: Record<string, string> = {
   Unmatched: "미일치",
 };
 
+/** @internal — exported for parity guard (`__tests__/backend-labels.test.ts`). */
 export const NODE_LABEL_KO: Record<string, string> = {
   "AI Agent": "AI 에이전트",
   Background: "백그라운드",
@@ -440,6 +442,7 @@ export const NODE_LABEL_KO: Record<string, string> = {
   "Set Variable": "변수 설정",
 };
 
+/** @internal — exported for parity guard (`__tests__/backend-labels.test.ts`). */
 export const NODE_DESCRIPTION_KO: Record<string, string> = {
   "Chat with LLM using KB search and MCP server tools":
     "KB 검색과 MCP 서버 도구를 활용해 LLM과 대화",

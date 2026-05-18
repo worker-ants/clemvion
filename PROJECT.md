@@ -72,7 +72,8 @@
 | 통합 신규/제공자 변경 | `codebase/frontend/src/content/docs/06-integrations-and-config/<provider>.{mdx,en.mdx}` + dict 키 | `cd codebase/frontend && npm test -- i18n docs` |
 | 유저 가이드 신규 섹션 디렉토리 (`codebase/frontend/src/content/docs/<NN>-<name>/`) | `codebase/frontend/src/lib/docs/locale.ts` 의 `SECTION_LABELS_BY_LOCALE` **양쪽 로케일 등록** (KO/EN 모두) | `cd codebase/frontend && npm test -- locale` |
 | 백엔드 API 추가·변경 | (a) controller·DTO 의 swagger jsdoc<br>(b) API 노출 변경이 사용자 안내에 영향 → 관련 user-guide 페이지 | swagger 단위 테스트 / 빌드 |
-| 신규 errorCode·warningCode 발행 (backend 어디서든) | `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `WARNING_KO` / `ERROR_KO` (또는 해당 영역 매핑) 에 한국어 매핑 등록. 영문 SoT 원칙 — 백엔드는 영문 코드/메시지, frontend 가 매핑 | `cd codebase/frontend && npm test -- backend-labels` |
+| 신규 warningCode 발행 (backend warningRules) | `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `WARNING_KO` 에 한국어 매핑 등록. 영문 SoT 원칙 — 백엔드는 영문 코드/메시지, frontend 가 매핑 | `cd codebase/frontend && npm test -- backend-labels` |
+| 신규 errorCode 발행 (`codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 추가) | 현재 `backend-labels.ts` 에 `ERROR_KO` 매핑 테이블이 없어 영문 message 가 그대로 노출됨. 후속 plan 에서 `ERROR_KO` 신설 검토 — 그 전까지는 errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 | — (후속 가드 미도입) |
 | 인증·권한·세션 흐름 변경 | `codebase/frontend/src/content/docs/07-workspace-and-team/` 의 관련 페이지 + e2e | `make e2e-test` |
 | 표현식 언어 변경 | `codebase/frontend/src/content/docs/04-expression-language/{basics,variables-and-context,cheatsheet}.mdx` + `.en.mdx` | 수동 (registry 테스트로 frontmatter 검증) |
 | 실행·디버깅 흐름 변경 | `codebase/frontend/src/content/docs/05-run-and-debug/` | 동일 |

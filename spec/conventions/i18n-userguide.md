@@ -41,15 +41,21 @@ const label = "에러가 발생했어요";            // ❌ (UI 노출 string)
 
 ---
 
-## Principle 3 — 백엔드 발행 errorCode / warningCode 의 frontend 매핑 의무
+## Principle 3 — 백엔드 발행 warningCode / 노드 라벨의 frontend 매핑 의무
 
-백엔드 코드(`codebase/backend/`)가 사용자 가시 응답으로 던지는 모든 `errorCode` · `warningCode` · 노드 schema label 은 **영문 SoT** 로 두고, 프론트엔드 `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 매핑 테이블(`WARNING_KO`·`ERROR_KO`·노드 label 매핑 등) 에 **동일 PR 안에서** 한국어 매핑을 등록한다.
+백엔드 코드(`codebase/backend/`)가 사용자 가시 응답으로 던지는 `warningRules[].message` · 노드 schema `label`·`description` 은 **영문 SoT** 로 두고, 프론트엔드 `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 매핑 테이블(`WARNING_KO` · `NODE_LABEL_KO` · `NODE_DESCRIPTION_KO`) 에 **동일 PR 안에서** 한국어 매핑을 등록한다.
 
 - ❌ 금지: 백엔드 응답에 한국어 문자열을 직접 박는 행위 (지역화 불가능 상태).
-- ❌ 금지: 백엔드만 새 errorCode 발행, frontend 매핑 누락.
+- ❌ 금지: 백엔드만 새 warningCode 발행, frontend 매핑 누락.
 - ✅ 허용: 매핑 없는 상태로 코드 통과는 `pickKo` 등의 graceful fallback 으로 영문이 그대로 노출되도록 한 의도적 설계 — 그러나 매핑 누락은 정식 위반이며 후속 보정 commit 으로 회수되지 않도록 한다.
 
-**자동 가드 (P1-B)**: backend errorCode/warningCode SoT 와 `backend-labels.ts` 의 매핑 키 집합 차집합 검증. 누락 시 fail.
+**자동 가드 (P1-B)**: backend `*.schema.ts` 의 정적 추출(`warningRules[].message` · `NodeMetadata.label` · `NodeMetadata.description`) 결과와 `WARNING_KO` · `NODE_LABEL_KO` · `NODE_DESCRIPTION_KO` 키 집합의 차집합을 검증. 누락 시 fail. 정적 파싱이라 동적 message (`\`${...}\``) · imperative `validateConfig` 반환 · import 해온 상수는 미커버 — 향후 ts-morph 기반 정적 분석으로 보강.
+
+### errorCode 의 처리 (현재 갭)
+
+`codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum (UPPER_SNAKE_CASE — `HTTP_TIMEOUT`, `DB_QUERY_FAILED` 등) 이 발행하는 영문 `message` 는 현재 `backend-labels.ts` 의 매핑 대상이 아니다 (`ERROR_KO` 미존재). 따라서 errorCode 의 사용자 가시 message 는 ko 로케일에서도 영문이 그대로 노출된다.
+
+후속 plan: `ERROR_KO` 신설 + `translateBackendError(code, message, locale)` 도입 검토. 그 전까지는 errorCode 추가 시 PR 본문에 "ko 로케일에서 영문 노출" 을 명시한다.
 
 ---
 
@@ -107,7 +113,7 @@ const label = "에러가 발생했어요";            // ❌ (UI 노출 string)
 | --- | --- | --- |
 | 1 (TSX 하드코딩) | `i18n.test.ts` 의 ratchet (P2-b) | warn → 추후 fail |
 | 2 (ko/en parity) | `i18n.test.ts` 의 `dict parity (ko ↔ en)` | hard fail |
-| 3 (backend-labels 매핑) | `i18n.test.ts` 의 `backend-labels parity` (P1-B) | hard fail |
+| 3 (backend-labels 매핑) | `backend-labels.test.ts` 의 `backend-labels parity` (P1-B) | hard fail |
 | 4 (노드 MDX 추가) | `registry.test.ts` 또는 `nodes-coverage.test.ts` (P1-C) | hard fail |
 | 5 (SECTION_LABELS) | `locale.test.ts` 의 `SECTION_LABELS_BY_LOCALE coverage` | hard fail |
 | 6 (글로서리·문체) | — | manual / reviewer |

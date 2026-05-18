@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, it, expect } from "vitest";
-import { loadDocsIndex } from "../registry";
+import { describe, it, expect, beforeAll } from "vitest";
+import { loadDocsIndex, type DocsIndex } from "../registry";
 
 /**
  * Node MDX coverage guard.
@@ -40,6 +40,8 @@ const backendNodesRoot = path.resolve(
 const docsRoot = path.resolve(__dirname, "..", "..", "..", "content", "docs");
 const nodesDocsRoot = path.resolve(docsRoot, "02-nodes");
 
+// 격리·CI 환경에서 backend 또는 content/docs 가 부재할 수 있으므로 fs 존재
+// 시에만 검증 (backend-labels.test.ts §hasBackend 와 동일 패턴).
 const hasBackend = fs.existsSync(backendNodesRoot);
 const hasDocs = fs.existsSync(nodesDocsRoot);
 
@@ -77,20 +79,33 @@ function collectNodeSchemaFiles(root: string): {
   return out;
 }
 
+// 현재 backend 노드 카탈로그(7 카테고리 27 노드) 대비 여유 마진. 절반 가량으로
+// 줄어들면 수집 로직이나 디렉토리 구조 변경으로 가드 검증 범위를 잃었을 가능성.
+const MIN_EXPECTED_NODE_SCHEMAS = 10;
+
 describe.runIf(hasBackend && hasDocs)(
   "node MDX coverage (backend → 02-nodes/<cat>.mdx)",
   () => {
-    const schemas = collectNodeSchemaFiles(backendNodesRoot);
-    const docs = loadDocsIndex(docsRoot, { includeDrafts: true });
-    const nodesSection = docs.sections.find((s) => s.key === "02-nodes");
+    // `describe` 콜백 최상단에서 IO 를 수행하면 vitest 의 수집 단계에서 에러가
+    // 나도 `it` 들이 등록되기 전이라 사용자에게 noisy crash 로 노출된다.
+    // `beforeAll` 안으로 옮겨 수집과 IO 를 분리.
+    let schemas: { category: string; nodeName: string; schemaPath: string }[];
+    let docs: DocsIndex;
+    let referencedAbsPaths: Set<string>;
 
-    // 모든 02-nodes/*.mdx 의 frontmatter `code:` 를 합집합으로 모은다 (정규화: 절대경로).
-    const referencedAbsPaths = new Set<string>();
-    for (const page of nodesSection?.pages ?? []) {
-      for (const ref of page.frontmatter.code ?? []) {
-        referencedAbsPaths.add(path.resolve(repoRoot, ref));
+    beforeAll(() => {
+      schemas = collectNodeSchemaFiles(backendNodesRoot);
+      docs = loadDocsIndex(docsRoot, { includeDrafts: true });
+      const nodesSection = docs.sections.find((s) => s.key === "02-nodes");
+
+      // 모든 02-nodes/*.mdx 의 frontmatter `code:` 를 합집합으로 모은다 (정규화: 절대경로).
+      referencedAbsPaths = new Set<string>();
+      for (const page of nodesSection?.pages ?? []) {
+        for (const ref of page.frontmatter.code ?? []) {
+          referencedAbsPaths.add(path.resolve(repoRoot, ref));
+        }
       }
-    }
+    });
 
     it("backend 의 모든 노드 schema 파일이 어떤 02-nodes/*.mdx 의 code: 에 등장해요", () => {
       const missing = schemas
@@ -109,11 +124,12 @@ describe.runIf(hasBackend && hasDocs)(
       ).toEqual([]);
     });
 
-    it("sanity: 일정 수 이상의 노드 schema 가 발견돼요 (>= 10)", () => {
-      expect(schemas.length).toBeGreaterThanOrEqual(10);
+    it(`sanity: 일정 수 이상의 노드 schema 가 발견돼요 (>= ${MIN_EXPECTED_NODE_SCHEMAS})`, () => {
+      expect(schemas.length).toBeGreaterThanOrEqual(MIN_EXPECTED_NODE_SCHEMAS);
     });
 
     it("sanity: 02-nodes 섹션이 비어있지 않아요", () => {
+      const nodesSection = docs.sections.find((s) => s.key === "02-nodes");
       expect(nodesSection?.pages.length ?? 0).toBeGreaterThan(0);
     });
   },

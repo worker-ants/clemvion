@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import {
   WARNING_KO,
   NODE_LABEL_KO,
@@ -17,6 +17,13 @@ import {
  * 패턴(예: PR #57, cbffad22 backend warningRules ko 매핑)을 차단.
  *
  * spec/conventions/i18n-userguide.md Principle 3 의 결정적 가드.
+ *
+ * 한계 — 본 가드는 schema 파일을 정규식으로 정적 파싱한다. 다음 형태는 미커버:
+ * - 동적으로 생성된 message (`message: \`${prefix} ...\``, 변수에서 가져온 값)
+ * - import 해온 message 상수 (다른 파일에서 정의된 string)
+ * - validateConfig 의 imperative 반환 (런타임 평가 필요)
+ *
+ * 후속 과제: ts-morph 또는 TypeScript compiler API 기반 정적 분석으로 대체.
  */
 
 // __dirname = codebase/frontend/src/lib/i18n/__tests__
@@ -41,12 +48,22 @@ const backendNodesRoot = path.resolve(
 // 격리·CI 환경에서 backend 가 부재할 수 있으므로 fs 존재 시에만 검증.
 const hasBackend = fs.existsSync(backendNodesRoot);
 
-function walkSchemaFiles(dir: string): string[] {
+/**
+ * `nodes/<cat>/<name>/<...>.schema.ts` 만 수집. nodes-coverage.test.ts 와
+ * 동일한 수집 범위 (`_` prefix 디렉토리, `core/` 인프라 제외) 를 강제해
+ * 두 가드의 검증 대상이 일관되도록 한다.
+ */
+function walkSchemaFiles(dir: string, isTop = true): string[] {
   const out: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walkSchemaFiles(full));
-    else if (entry.isFile() && entry.name.endsWith(".schema.ts")) out.push(full);
+    if (entry.isDirectory()) {
+      if (entry.name.startsWith("_")) continue;
+      if (isTop && entry.name === "core") continue;
+      const full = path.join(dir, entry.name);
+      out.push(...walkSchemaFiles(full, false));
+    } else if (entry.isFile() && entry.name.endsWith(".schema.ts")) {
+      out.push(path.join(dir, entry.name));
+    }
   }
   return out;
 }
@@ -111,6 +128,17 @@ function extractNodeMetadataTopFields(source: string): {
   return { labels: [...labels], descriptions: [...descriptions] };
 }
 
+/**
+ * 객체 본문에서 **최상위 깊이** 의 `<key>: '<value>'` 쌍만 모은다. 중첩 객체·
+ * 배열·괄호식·문자열 리터럴·주석을 모두 건너뛰는 단순 상태 기계.
+ *
+ * 한계 — 정규식 기반이라 다음은 미커버:
+ * - 동적 키 (`[symbol]: '...'`)
+ * - template literal 안의 `${...}` 표현식이 backtick 종료로 오인될 수 있음 (skipString 한계)
+ * - getter/setter, 구조분해 할당
+ *
+ * NodeComponentMetadata 의 단순 `key: 'string'` 패턴에 한정해 사용한다.
+ */
 function collectTopLevelStringFields(block: string): Record<string, string> {
   const fields: Record<string, string> = {};
   let depth = 0;
@@ -147,7 +175,7 @@ function collectTopLevelStringFields(block: string): Record<string, string> {
         /^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(['"`])((?:\\.|(?!\2).)*)\2/,
       );
       if (fm) {
-        fields[fm[1]] = unescape(fm[3]);
+        fields[fm[1]] = unescapeString(fm[3]);
         i += fm[0].length;
         continue;
       }
@@ -157,6 +185,13 @@ function collectTopLevelStringFields(block: string): Record<string, string> {
   return fields;
 }
 
+/**
+ * 인용부호로 시작하는 문자열 리터럴을 건너뛰고 종료 위치를 반환.
+ *
+ * 한계 — backtick (`` ` ``) 문자열 안의 `${...}` interpolation 을 처리하지
+ * 않으므로 표현식 안의 중첩 문자열·끝 backtick 이 잘못 매칭될 수 있다. 본
+ * 가드는 backend schema 의 단순 string literal 만 처리하므로 실용 한도 안.
+ */
 function skipString(block: string, start: number): number {
   const quote = block[start];
   let i = start + 1;
@@ -167,7 +202,12 @@ function skipString(block: string, start: number): number {
   return i + 1;
 }
 
-function unescape(s: string): string {
+/**
+ * 정규식 capture group 으로 뽑은 string 안의 escape sequence (`\\n`, `\\"` 등)
+ * 를 실제 문자로 복원. 전역 `unescape()` (deprecated) 와 명칭 충돌 회피를 위해
+ * `unescapeString` 명명.
+ */
+function unescapeString(s: string): string {
   return s.replace(/\\(['"`\\nrt])/g, (_, ch) => {
     if (ch === "n") return "\n";
     if (ch === "r") return "\r";
@@ -177,18 +217,24 @@ function unescape(s: string): string {
 }
 
 describe.runIf(hasBackend)("backend-labels parity (영문 SoT → ko 매핑)", () => {
-  const schemaFiles = walkSchemaFiles(backendNodesRoot);
+  // `describe` 콜백 최상단에서 IO 를 수행하면 vitest 의 수집 단계에서 에러가
+  // 나도 `it` 들이 등록되기 전이라 사용자에게 noisy crash 로 노출된다.
+  // `beforeAll` 안으로 옮겨 수집과 IO 를 분리.
+  let schemaFiles: string[];
   const allWarnings = new Set<string>();
   const allLabels = new Set<string>();
   const allDescriptions = new Set<string>();
 
-  for (const file of schemaFiles) {
-    const source = fs.readFileSync(file, "utf8");
-    for (const w of extractWarningMessages(source)) allWarnings.add(w);
-    const top = extractNodeMetadataTopFields(source);
-    for (const l of top.labels) allLabels.add(l);
-    for (const d of top.descriptions) allDescriptions.add(d);
-  }
+  beforeAll(() => {
+    schemaFiles = walkSchemaFiles(backendNodesRoot);
+    for (const file of schemaFiles) {
+      const source = fs.readFileSync(file, "utf8");
+      for (const w of extractWarningMessages(source)) allWarnings.add(w);
+      const top = extractNodeMetadataTopFields(source);
+      for (const l of top.labels) allLabels.add(l);
+      for (const d of top.descriptions) allDescriptions.add(d);
+    }
+  });
 
   it("backend warningRules 의 모든 message 가 WARNING_KO 에 매핑돼요", () => {
     const koKeys = new Set(Object.keys(WARNING_KO));
@@ -223,7 +269,11 @@ describe.runIf(hasBackend)("backend-labels parity (영문 SoT → ko 매핑)", (
     ).toEqual([]);
   });
 
-  it("발견한 schema 파일이 sanity 수준이에요 (>= 10 개)", () => {
-    expect(schemaFiles.length).toBeGreaterThanOrEqual(10);
+  // 현재 backend 노드 카탈로그(7 카테고리 27 노드) 대비 여유 마진.
+  // 절반 가량으로 줄어들면 ratchet 가드가 의도된 검증 범위를 잃었을 가능성.
+  const MIN_EXPECTED_NODE_SCHEMAS = 10;
+
+  it(`발견한 schema 파일이 sanity 수준이에요 (>= ${MIN_EXPECTED_NODE_SCHEMAS} 개)`, () => {
+    expect(schemaFiles.length).toBeGreaterThanOrEqual(MIN_EXPECTED_NODE_SCHEMAS);
   });
 });
