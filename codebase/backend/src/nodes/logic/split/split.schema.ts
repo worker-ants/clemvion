@@ -43,6 +43,8 @@ export const splitNodeConfigSchema = z
           widget: 'expression',
           placeholder: '$input.items',
           hint: 'Dot-path or inline expression returning an array',
+          // warningRule `split:no-field-path` 와 정렬.
+          required: true,
         },
       }),
   })
