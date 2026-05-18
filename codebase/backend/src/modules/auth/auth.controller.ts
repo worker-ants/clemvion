@@ -334,6 +334,18 @@ export class AuthController {
   // WebAuthn 2FA endpoints — spec/5-system/1-auth.md §1.4 + §5
   // ============================================================
 
+  @Public()
+  @Get('2fa/webauthn/availability')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'WebAuthn 기능 활성 여부',
+    description:
+      '서버 env (WEBAUTHN_RP_ID + WEBAUTHN_ORIGIN) 설정 여부를 알려줍니다. 프론트엔드가 Passkey UI 노출 여부를 결정할 때 사용. 인증 불요.',
+  })
+  webauthnAvailability() {
+    return { data: { enabled: this.webauthnService.isEnabled() } };
+  }
+
   @Post('2fa/webauthn/register/options')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)

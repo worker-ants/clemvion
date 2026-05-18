@@ -35,13 +35,24 @@ export function PasskeyCard() {
   const [editingName, setEditingName] = useState("");
   const [regenPassword, setRegenPassword] = useState("");
 
+  // 서버 env(WEBAUTHN_RP_ID + WEBAUTHN_ORIGIN) 미설정 시 기능 비활성 — 카드 자체를 숨긴다.
+  const availabilityQuery = useQuery({
+    queryKey: ["webauthn", "availability"] as const,
+    queryFn: async () => {
+      const res = await authApi.webauthnAvailability();
+      return res.data.data.enabled;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const serverEnabled = availabilityQuery.data === true;
+
   const credentialsQuery = useQuery({
     queryKey: QK_LIST,
     queryFn: async () => {
       const res = await authApi.webauthnListCredentials();
       return res.data.data.items;
     },
-    enabled: supported,
+    enabled: supported && serverEnabled,
   });
 
   const registerMutation = useMutation({
@@ -102,6 +113,10 @@ export function PasskeyCard() {
 
   const credentials = credentialsQuery.data ?? [];
   const hasCredentials = credentials.length > 0;
+
+  if (!availabilityQuery.isPending && !serverEnabled) {
+    return null;
+  }
 
   return (
     <Card>

@@ -108,6 +108,11 @@ export const authApi = {
 
   // ========== WebAuthn 2FA ==========
 
+  webauthnAvailability: () =>
+    apiClient.get<{ data: { enabled: boolean } }>(
+      "/auth/2fa/webauthn/availability",
+    ),
+
   webauthnRegisterOptions: () =>
     apiClient.post<{ data: WebAuthnRegisterOptionsResult }>(
       "/auth/2fa/webauthn/register/options",
