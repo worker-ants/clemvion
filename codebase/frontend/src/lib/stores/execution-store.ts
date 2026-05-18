@@ -62,9 +62,36 @@ export interface ToolCallInfo {
   arguments?: string;
 }
 
+/**
+ * Discriminator for a conversation timeline item. Mirrors
+ * `ConversationTurnSource` (spec/conventions/conversation-thread.md §1.1) but
+ * folded into the existing 3 `user`/`assistant`/`tool` ConversationItem shapes
+ * for AI-Agent-owned items, plus two extra kinds for thread context that
+ * isn't an AI turn:
+ *
+ * - `"presentation"` — a `presentation_user` turn (Form/Carousel/Template
+ *   click / form submit / link continue). Rendered as a grey system card
+ *   (spec §9.1) with structured metadata from `presentation` field, not a
+ *   chat bubble.
+ * - `"system"` — a `system` turn (workflow-level manual push; v1 has no
+ *   automatic push but the UI shape is reserved so we don't need a follow-up
+ *   migration when v2 ships).
+ */
 export interface ConversationItem {
-  type: "user" | "assistant" | "tool";
+  type: "user" | "assistant" | "tool" | "presentation" | "system";
   content: string;
+  /**
+   * Structured metadata for `type: "presentation"` items, snapshotted from
+   * `ConversationTurn.{nodeLabel, nodeType, data}` and the originating
+   * `interaction.type`. Lets the renderer compose the chip header and body
+   * without parsing `content` (spec/conventions/conversation-thread.md §9.1).
+   */
+  presentation?: {
+    nodeLabel: string;
+    nodeType: string;
+    interactionType: "button_click" | "form_submitted" | "button_continue";
+    data?: Record<string, unknown>;
+  };
   /** Tool calls made by the assistant in this message (function calling) */
   assistantToolCalls?: ToolCallInfo[];
   toolArgs?: unknown;

@@ -1,6 +1,161 @@
 import type { ConversationItem } from "@/lib/stores/execution-store";
 import { tryParseJson } from "@/lib/utils/parse-json";
 
+/**
+ * `ConversationTurn` wire shape carried inside `EXECUTION_WAITING_FOR_INPUT`
+ * payload's `conversationThread.turns`. Mirrors
+ * spec/conventions/conversation-thread.md §1.2 ConversationTurn (the
+ * authoritative spec) and §1.1 ConversationTurnSource for the `source` enum.
+ *
+ * Frontend uses this as the **1차 데이터 소스** for the conversation Preview
+ * tab (spec §9.3) — emit messages (`ai_message.messages[]`) are reserved for
+ * the LLM debug panels (Request / Response / LLM Usage).
+ */
+export type ConversationTurnSource =
+  | "ai_user"
+  | "ai_assistant"
+  | "ai_tool"
+  | "presentation_user"
+  | "system";
+
+export interface ConversationTurn {
+  seq: number;
+  nodeId: string;
+  nodeLabel: string;
+  nodeType: string;
+  source: ConversationTurnSource;
+  text: string;
+  data?: Record<string, unknown>;
+  toolCalls?: Array<{ id?: string; name?: string; arguments?: string }>;
+  toolCallId?: string;
+  timestamp?: string;
+}
+
+/**
+ * spec/conventions/conversation-thread.md §9.5 compatibility strip — older
+ * persisted data may carry inline marker pairs like
+ * `[user-input]label[/user-input]` injected by legacy Template/Form handler
+ * code. The marker has been formally banned by §1.6; new emit/storage paths
+ * must not produce it. The renderer strips opening and closing tags only
+ * (label content is preserved) so the visible body stays clean for both
+ * live conversationThread snapshots and historical `output.messages`.
+ */
+const USER_INPUT_MARKER_RE = /\[\/?user-input\]/g;
+
+export function stripInlineMarkers(s: string | undefined): string {
+  if (!s) return "";
+  return s.replace(USER_INPUT_MARKER_RE, "");
+}
+
+/**
+ * Convert a `ConversationThread.turns` snapshot (the 1차 데이터 소스 for
+ * conversation Preview per spec §9.3) into the inspector's `ConversationItem`
+ * timeline shape. Each source maps to a single render kind that
+ * `ConversationInspector` already knows how to draw:
+ *
+ *   - `ai_user` → `{ type: "user" }` chat bubble
+ *   - `ai_assistant` → `{ type: "assistant" }` chat bubble
+ *   - `ai_tool` → `{ type: "tool" }` tool-call row
+ *   - `presentation_user` → `{ type: "presentation" }` grey system card with
+ *     structured `presentation` metadata (nodeLabel + interaction kind + data)
+ *   - `system` → `{ type: "system" }` centered note row
+ *
+ * `turnIndex` is allocated only to `ai_user` / `ai_assistant` / `ai_tool`
+ * items so debug lookups (`debugByTurn`) keep working; `presentation` and
+ * `system` items carry `turnIndex: 0` because they don't participate in
+ * AI-Agent turn counting (spec §1.1 — turn counter advances on ai_user only).
+ */
+export function threadTurnsToConversationItems(
+  turns: ConversationTurn[],
+): ConversationItem[] {
+  if (!Array.isArray(turns) || turns.length === 0) return [];
+  const items: ConversationItem[] = [];
+  let turnIndex = 0;
+  for (const turn of turns) {
+    switch (turn.source) {
+      case "ai_user": {
+        turnIndex++;
+        items.push({
+          type: "user",
+          content: stripInlineMarkers(turn.text),
+          turnIndex,
+          timestamp: turn.timestamp,
+        });
+        break;
+      }
+      case "ai_assistant": {
+        const turn0 = turnIndex || 1;
+        items.push({
+          type: "assistant",
+          content: stripInlineMarkers(turn.text),
+          turnIndex: turn0,
+          assistantToolCalls: turn.toolCalls?.length
+            ? turn.toolCalls.map((tc) => ({
+                name: tc.name ?? "",
+                arguments: tc.arguments,
+              }))
+            : undefined,
+          timestamp: turn.timestamp,
+        });
+        break;
+      }
+      case "ai_tool": {
+        const turn0 = turnIndex || 1;
+        items.push({
+          type: "tool",
+          // For tool turns the `text` is usually the tool result body; the
+          // toolCallId is the link back to the assistant call that named it.
+          // We leave `content` to the renderer (which looks up the tool name
+          // from the previous assistant call when available).
+          content: turn.text || "",
+          turnIndex: turn0,
+          toolCallId: turn.toolCallId,
+          toolResult: tryParseJson(turn.text ?? ""),
+          timestamp: turn.timestamp,
+        });
+        break;
+      }
+      case "presentation_user": {
+        const data = turn.data as Record<string, unknown> | undefined;
+        // `interaction.type` is not carried on the turn directly; infer from
+        // the structured `data` shape per spec/conventions/node-output.md §4.5:
+        //   - { buttonId, buttonLabel, url } → button_continue
+        //   - { buttonId, buttonLabel } → button_click
+        //   - else (flat field map) → form_submitted
+        const interactionType: "button_click" | "form_submitted" | "button_continue" =
+          data && typeof data === "object" && "url" in data && "buttonId" in data
+            ? "button_continue"
+            : data && typeof data === "object" && "buttonId" in data
+              ? "button_click"
+              : "form_submitted";
+        items.push({
+          type: "presentation",
+          content: stripInlineMarkers(turn.text),
+          turnIndex: 0,
+          presentation: {
+            nodeLabel: turn.nodeLabel,
+            nodeType: turn.nodeType,
+            interactionType,
+            data,
+          },
+          timestamp: turn.timestamp,
+        });
+        break;
+      }
+      case "system": {
+        items.push({
+          type: "system",
+          content: stripInlineMarkers(turn.text),
+          turnIndex: 0,
+          timestamp: turn.timestamp,
+        });
+        break;
+      }
+    }
+  }
+  return items;
+}
+
 interface LlmCallEntry {
   requestPayload?: unknown;
   responsePayload?: unknown;
@@ -102,7 +257,10 @@ export function messagesToConversationItems(
       }
       items.push({
         type: "user",
-        content: msg.content ?? "",
+        // §9.5 compat — strip legacy `[user-input]…[/user-input]` markers from
+        // the visible body. Raw payload (requestPayload/responsePayload) is
+        // unaffected — debug panels still see what was actually sent to LLM.
+        content: stripInlineMarkers(msg.content),
         turnIndex: currentTurn || 1,
         isInjected,
       });
@@ -157,7 +315,7 @@ export function messagesToConversationItems(
 
       items.push({
         type: "assistant",
-        content: msg.content ?? "",
+        content: stripInlineMarkers(msg.content),
         turnIndex: turn,
         isInjected,
         assistantToolCalls: toolCalls?.length ? toolCalls : undefined,
