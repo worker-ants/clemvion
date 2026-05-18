@@ -54,7 +54,7 @@
 
 - [ ] `POST /api/v1/executions/:executionId/re-run` 엔드포인트 — [Spec Re-run §8.1](../../spec/5-system/13-replay-rerun.md#81-post-apiv1executionsexecutionidre-run) 명세 그대로 구현
 - [ ] `GET /api/v1/executions/:executionId/chain` 엔드포인트 — [Spec §8.2](../../spec/5-system/13-replay-rerun.md#82-get-apiv1executionsexecutionidchain)
-- [ ] V### 마이그레이션 — `re_run_of UUID NULL REFERENCES executions(id)` + `chain_id UUID NOT NULL` + 인덱스 2개 ([Spec §9.1](../../spec/5-system/13-replay-rerun.md#91-executions-테이블-컬럼-추가)). 기존 row 백필: `chain_id = id`
+- [ ] V### 마이그레이션 — `re_run_of UUID NULL REFERENCES executions(id)` + `chain_id UUID NOT NULL` + 인덱스 2개 ([Spec §9.1](../../spec/5-system/13-replay-rerun.md#91-executions-테이블-컬럼-추가)). 기존 row 백필: `chain_id = id`. **V057·V058 은 `plan/in-progress/2fa-webauthn.md` 가 선점 — 본 plan 착수 시 max(V) 재확인 후 V059 이후 사용**
 - [ ] dry-run handler 분기 — handler 가 `meta.dryRun === true` + 외부 부수효과 카테고리이면 mock 출력 ([Spec §7.2](../../spec/5-system/13-replay-rerun.md#72-dry-run-동작-명세))
 - [ ] 노드 메타에 `supportsDryRun: boolean` 필드 추가 + Integration 카테고리 노드 (HTTP/Email/Database write) 에 `true` 부여
 - [ ] 권한 가드 (RR-PL-06) + RBAC Editor+ + 워크스페이스 격리

@@ -36,13 +36,83 @@
 
 ### 1.4 2FA (Two-Factor Authentication)
 
-| 항목 | 설명 |
+두 가지 방식을 지원한다. 한 사용자가 둘 다 등록할 수 있고, 등록 자체는 독립적이다.
+
+| 방식 | 설명 |
 |------|------|
-| 방식 | TOTP (Time-based One-Time Password) |
-| 앱 호환 | Google Authenticator, Authy 등 |
-| 설정 플로우 | QR 코드 표시 → 인증 앱 스캔 → 6자리 코드 입력 확인 |
-| 백업 코드 | 10개 일회용 복구 코드 생성 및 다운로드 |
-| 비활성화 | 현재 코드 입력 후 비활성화 |
+| **TOTP** | Time-based One-Time Password. Google Authenticator · Authy 등 RFC 6238 클라이언트와 호환. QR 코드 스캔 → 6자리 코드 입력 → 활성화. 비활성화 시 비밀번호 재확인 + 코드 입력 |
+| **WebAuthn (Passkey · 보안 키)** | FIDO2/WebAuthn 표준. `@simplewebauthn/server` + `@simplewebauthn/browser` 구현. 사용자당 다중 credential 등록 허용 (모바일 + 데스크톱 + 보안 키). 자세한 데이터 모델은 [데이터 모델 §2.21 WebAuthnCredential](../1-data-model.md#221-webauthncredential) |
+
+#### 1.4.1 복구 코드
+
+| 항목 | TOTP | WebAuthn |
+|------|------|----------|
+| 발급 시점 | TOTP 활성화 verify 성공 시점 | 첫 WebAuthn credential 등록 verify 성공 시점 |
+| 개수 | 10개 (포맷 `xxxx-xxxx-xxxx`) | 10개 (동일 포맷) |
+| 저장 | `user.totp_recovery_codes`: SHA-256 해시 배열, 사용 시 항목 제거 | `user.webauthn_recovery_codes`: SHA-256 해시 배열, 사용 시 항목 제거. **TOTP 와 별도 분리** |
+| 폐기 | TOTP 비활성화 시 NULL | 사용자의 모든 credential 삭제 시 NULL. 사용자 명시적 "복구 코드 재발급" 도 지원 |
+| 사용 화면 | 로그인 2FA 단계에서 "복구 코드 사용" 링크 → 입력 필드 | 동일 동선, 단 별도 코드 풀에서 검증 |
+
+TOTP/WebAuthn 두 풀을 분리하는 이유는 한쪽을 비활성화해도 다른 쪽 복구가 계속 유효하도록 하기 위함이다 (Rationale 1.4.B 참고).
+
+#### 1.4.2 로그인 시 인증 방식 선택 — **WebAuthn 우선, TOTP fallback 자동 금지**
+
+`/auth/login` 의 비밀번호 검증을 통과한 뒤 2FA 단계를 분기한다:
+
+| 사용자 상태 | 응답 | 로그인 2단계 화면 |
+|-------------|------|------------------|
+| WebAuthn credential ≥ 1 | `{ requires2fa: true, methods: ['webauthn'], challengeToken, requiresTotp: <true if TOTP active else false> }` | WebAuthn 인증 화면. TOTP 코드 입력란은 숨김 |
+| WebAuthn credential = 0 AND `two_factor_enabled = true` | `{ requires2fa: true, methods: ['totp'], challengeToken, requiresTotp: true }` | TOTP 입력 화면 (기존과 동일) |
+| 둘 다 없음 | `{ accessToken }` (즉시 로그인) | — |
+
+규칙:
+
+- **WebAuthn 이 1개라도 등록된 사용자에게는 로그인 화면에서 TOTP 입력을 제공하지 않는다.** 사용자가 TOTP 로 우회하길 원하면 보안 설정에서 WebAuthn credential 을 먼저 모두 삭제해야 한다 (Rationale 1.4.D — fallback 채널을 자동으로 노출하면 약한 인증 수단이 강한 인증 수단을 우회하는 위협이 있음).
+- WebAuthn 실패 시 사용자는 동일 화면의 **"복구 코드 사용"** 링크로 WebAuthn 전용 복구 코드 입력 필드를 노출할 수 있다 (TOTP 화면으로 자동 전환되지 않음).
+- `requiresTotp` 는 기존 클라이언트 호환을 위한 **deprecated** 필드다. 도입 이유: WebAuthn 추가 이전 클라이언트(릴리스 < 2026-05-18) 가 본 응답을 분해할 수 있도록 한동안 함께 내려준다. **제거 조건**: (1) 두 마이너 버전 후 (예: 본 변경이 v0.7 이면 v0.9 에서 제거), (2) `methods` 만 보는 새 프론트엔드가 동일 PR 에서 함께 배포되어 backward-only 사용처가 사라진 것이 확인된 후 — 둘 중 늦은 시점. 새 클라이언트는 `requires2fa` + `methods` 만 본다. 두 필드 충돌 시 `requires2fa` 가 우선한다.
+
+#### 1.4.3 WebAuthn 환경변수
+
+셀프 호스팅 운영에서 도메인이 SaaS 와 다르므로 다음 환경변수로 분리한다 (모두 누락 시 `FRONTEND_URL` 의 hostname 으로 best-effort 폴백 + warn 로그). 실제 적용은 `codebase/backend/src/common/config/webauthn.config.ts` 에서 `registerAs('webauthn', ...)` 로 등록.
+
+| 변수 | 용도 | 예 |
+|------|------|----|
+| `WEBAUTHN_RP_ID` | Relying Party ID (호스트명, 포트·스킴 없음) | `clemvion.example.com` |
+| `WEBAUTHN_RP_NAME` | 사용자 다이얼로그에 표시될 이름 | `Clemvion` |
+| `WEBAUTHN_ORIGIN` | 콤마 구분 허용 origin 목록. 같은 RP 의 multi-origin 지원 | `https://clemvion.example.com,https://app.clemvion.example.com` |
+
+#### 1.4.4 WebAuthn 흐름
+
+**등록** (`/profile/security` 의 "Passkey 등록"):
+
+```
+1. POST /api/auth/2fa/webauthn/register/options          (JWT 인증 필수)
+   → 서버: generateRegistrationOptions + optionsToken JWT 발급 (kind=webauthn_register, 5분)
+2. 클라이언트: navigator.credentials.create(options)
+3. POST /api/auth/2fa/webauthn/register/verify { optionsToken, response }
+   → 서버: verifyRegistrationResponse → webauthn_credential row INSERT
+   → 첫 등록이면 webauthn_recovery_codes 10개 발급 + 평문 응답 (일회성 표시)
+```
+
+**인증** (로그인 2FA 단계):
+
+```
+1. POST /api/auth/2fa/webauthn/authenticate/options { challengeToken }
+   → 서버: challengeToken (mfa_challenge JWT) 검증 → generateAuthenticationOptions + optionsToken (kind=webauthn_auth, 5분)
+2. 클라이언트: navigator.credentials.get(options)
+3. POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }
+   → verifyAuthenticationResponse → counter 갱신
+   → JWT access + refresh cookie 발급
+```
+
+**복구 코드 fallback**:
+
+```
+POST /api/auth/2fa/webauthn/recovery { challengeToken, code }
+→ webauthn_recovery_codes 해시 비교 → 일치 시 row 에서 항목 제거 + JWT 발급
+```
+
+counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다. 서비스 코드는 해당 credential 을 강제 비활성 (별도 컬럼 추가 없이 row 삭제) 하고 LoginHistory 에 `webauthn_failed`(`failure_reason='WEBAUTHN_COUNTER_REGRESSION'`) 를 기록한다. 동일 family refresh-token 강제 revoke 는 별도 follow-up (현 단계에서는 다음 인증 시도부터 차단되는 것으로 충분).
 
 ### 1.5 초대 토큰 흐름
 
@@ -140,7 +210,7 @@
 | 초과 시 | 가장 오래된 세션 자동 종료 |
 | 비활동 만료 | 30일간 미사용 시 Refresh Token 무효화 |
 | 강제 종료 | 사용자가 활성 세션 목록에서 개별 종료 가능 (family 전체 revoke) |
-| 강제 종료 재인증 | 비밀번호 재확인 필수. OAuth-only 사용자는 2FA TOTP 또는 이메일 OTP 로 대체 |
+| 강제 종료 재인증 | 비밀번호 재확인 필수. OAuth-only 사용자는 등록된 2FA (TOTP 또는 WebAuthn) 또는 이메일 OTP 로 대체. 두 방식 모두 등록한 사용자는 §1.4.2 의 우선순위(WebAuthn 우선) 를 따른다 |
 | 현재 세션 식별 | 서버가 요청의 refresh-token 쿠키 해시를 조회해 `isCurrent` 플래그로 응답 — raw token은 JS로 노출하지 않음 |
 | 메타데이터 | 발급 시점의 IP·User-Agent·디바이스 라벨 및 마지막 사용 시각을 RefreshToken 에 기록 |
 | 클라이언트 IP | Cloudflare 무료 플랜 호환: `CF-Connecting-IP` 헤더를 1순위, `X-Forwarded-For` 첫 IP, `req.ip` 순으로 추출 |
@@ -232,7 +302,8 @@
 |--------|------|
 | login_success | 비밀번호 또는 OAuth 로그인 성공 |
 | login_failed | 비밀번호 불일치·계정 잠금·이메일 미인증 등 실패 |
-| totp_failed | 2FA 코드 검증 실패 |
+| totp_failed | 2FA TOTP 코드 검증 실패 |
+| webauthn_failed | 2FA WebAuthn 검증 실패. `failure_reason` 으로 `WEBAUTHN_INVALID`·`WEBAUTHN_COUNTER_REGRESSION` 등 세부 구분 |
 | logout | 사용자가 `/auth/logout` 호출 → 호출 디바이스 family 전체 revoke |
 | session_revoked | 사용자가 활성 세션 목록에서 다른 family 강제 종료 |
 | token_reuse_detected | revoke된 refresh token 재사용 감지 → family 전체 revoke |
@@ -246,7 +317,20 @@
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | POST | /api/auth/register | 회원가입 |
-| POST | /api/auth/login | 로그인 |
+| POST | /api/auth/login | 로그인 (비밀번호 검증 — 2FA 활성 사용자는 `{ requires2fa, methods, challengeToken, requiresTotp? }` 응답) |
+| POST | /api/auth/login/totp | 로그인 2FA TOTP 검증 (`challengeToken` + 6자리 code 또는 복구 코드). 성공 시 access/refresh 발급 |
+| POST | /api/auth/2fa/setup | TOTP 설정 시작 (인증 필수) — secret 발급 + QR data URL 반환 |
+| POST | /api/auth/2fa/verify | TOTP 활성화 verify (인증 필수) — 활성화 + TOTP 복구 코드 10개 일회성 반환 |
+| POST | /api/auth/2fa/disable | TOTP 비활성 (인증 + 비밀번호 재확인) |
+| POST | /api/auth/2fa/webauthn/register/options | WebAuthn 등록 options 발급. **인증 필수** (JWT). 응답에 `optionsToken` JWT (`kind=webauthn_register`, exp 5분) 동봉 |
+| POST | /api/auth/2fa/webauthn/register/verify | WebAuthn 등록 verify. **인증 필수** (JWT). credential 저장 + 첫 등록 시 복구 코드 10개 평문 반환 (이후 SHA-256 해시만 보관). 실패: 400 `WEBAUTHN_VERIFY_FAILED`, optionsToken 무효 시 400 `INVALID_OPTIONS_TOKEN` |
+| POST | /api/auth/2fa/webauthn/authenticate/options | WebAuthn 로그인 2FA options. **인증 불요** (`@Public`) — 본문의 `challengeToken` (mfa_challenge JWT) 으로 userId 식별. 응답에 `optionsToken` JWT (`kind=webauthn_auth`). 검증 실패: 401 `CHALLENGE_INVALID` |
+| POST | /api/auth/2fa/webauthn/authenticate/verify | WebAuthn 로그인 2FA verify. **인증 불요** (`@Public`) — `challengeToken` + `optionsToken` 동시 검증. 성공 시 access/refresh 발급. 실패: 401 `WEBAUTHN_INVALID`, counter 역행 시 401 + 해당 credential row 삭제 + LoginHistory `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`) |
+| POST | /api/auth/2fa/webauthn/recovery | WebAuthn 복구 코드로 2FA 통과. **인증 불요** (`@Public`) — `challengeToken` + `code`. 실패: 401 `RECOVERY_CODE_INVALID` |
+| GET | /api/auth/2fa/webauthn/credentials | 사용자의 WebAuthn credential 목록. **인증 필수** (JWT). 응답: `[{id, deviceName, transports, lastUsedAt, createdAt}]` (publicKey·counter 미노출) |
+| PATCH | /api/auth/2fa/webauthn/credentials/:id | credential `device_name` 수정. **인증 필수** (JWT). `:id` 는 UUID. 200 + 갱신된 row. 본인 소유 아니면 404 (enumeration 방지) |
+| DELETE | /api/auth/2fa/webauthn/credentials/:id | credential 삭제. **인증 필수** (JWT). **마지막 credential 삭제 시 `user.webauthn_recovery_codes` 를 `WebAuthnService.deleteCredential` 가 NULL 화** (DB 트리거 아님). 204 |
+| POST | /api/auth/2fa/webauthn/recovery-codes/regenerate | WebAuthn 복구 코드 재발급. **인증 필수** (JWT) + 본문에 `password` 재확인. 기존 미사용 코드 폐기 후 10개 새로 발급. TOTP 의 `/api/auth/2fa/disable` 과 대칭적인 네임스페이스 (TOTP 측 복구 코드 재발급은 현재 미지원 — 비활성→재활성으로 재발급) |
 | POST | /api/auth/logout | 로그아웃 (호출 디바이스 family 전체 revoke) |
 | POST | /api/auth/refresh | 토큰 갱신 |
 | POST | /api/auth/forgot-password | 비밀번호 재설정 요청 |
@@ -291,3 +375,64 @@
 ### 1.5.C — 토큰 만료 7일
 
 7일은 산업 표준이면서, "주말 끼고 가입" 같은 사용자 행동도 충분히 흡수한다. 더 짧으면 (예: 24~48시간) 재발송이 잦아져 운영 부담이 늘고, 더 길면 (14일+) 토큰 누출 시 노출 기간이 길어진다. 재발송 시 만료 시계는 새 토큰 발급 시점부터 다시 7일이므로, 특수 케이스는 재발송으로 해결한다.
+
+### 1.4.A — WebAuthn 라이브러리: `@simplewebauthn/server` + `@simplewebauthn/browser`
+
+후보:
+
+- **`@simplewebauthn/*` (선택)** — 서버·브라우저 양쪽 모듈을 같은 메인테이너가 관리. FIDO2 L3 / WebAuthn spec 추적이 빠르고, registration·authentication 의 `generate`·`verify` 페어가 대칭이라 코드가 단순. Node 18+ 에서 ESM/CJS 모두 동작.
+- `fido2-lib` — 저수준 API. CBOR / COSE 해석을 직접 다뤄야 해 보일러플레이트가 많음.
+- 직접 구현 — 비현실적. WebAuthn spec 변화 추적·attestation 검증 보안 리스크가 큼.
+
+`@simplewebauthn/server` 가 다음 두 항목을 무료로 제공한다: (a) attestation/assertion 의 origin·rpID·challenge 일관성 검증, (b) counter 역행 감지. 본 spec 의 보안 요구를 라이브러리가 그대로 만족한다.
+
+### 1.4.B — 복구 코드 풀 분리 (TOTP / WebAuthn 별도)
+
+세 옵션을 검토했다:
+
+- **별도 풀 (선택)** — `user.totp_recovery_codes` 와 `user.webauthn_recovery_codes` 두 컬럼.
+- 공통 풀 — 한 컬럼에서 TOTP·WebAuthn 양쪽 fallback.
+- WebAuthn 만 fallback 없음 — 사용자가 마지막 credential 분실 시 계정 잠김.
+
+별도 풀을 선택한 이유:
+
+- 사용자가 한쪽 방식만 비활성화·재설정해도 다른 쪽 복구가 유지되어야 한다. 공통 풀이면 TOTP 비활성화 시점에 WebAuthn 복구도 함께 폐기되어야 할지 결정이 모호해진다.
+- "WebAuthn 만 사용" 사용자에게도 TOTP 활성화 없이 복구 수단을 제공해야 한다. 공통 풀 가설은 "TOTP 가 항상 켜져 있다" 라는 가정에 의존한다.
+- 추가 컬럼 한 개의 비용은 미미 (NULL 일 때 PostgreSQL 은 추가 공간 거의 사용 안 함).
+
+### 1.4.C — WebAuthn challenge: stateless JWT (별도 테이블 없음)
+
+검토한 두 옵션:
+
+- **stateless JWT (선택)** — `optionsToken` 으로 발급. payload `{ kind, sub, challenge, exp(5분) }`.
+- `webauthn_challenge` 테이블 — INSERT/SELECT/DELETE 필요.
+
+JWT 채택 이유:
+
+- WebAuthn spec 의 challenge unique·fresh 요건은 challenge 자체가 random 이고 verify 시 클라이언트 응답과 일치 확인하면 만족된다. 서버 측 DB 의 단명 row 가 unique 강제에 필수는 아님.
+- replay 방어: JWT 만료 5분 + `kind` 검증으로 의도 다른 흐름(`register`↔`auth`) 교차 사용 차단.
+- 운영 부담 감소: 단명 row 의 cleanup 배치·인덱스 부재.
+- 트레이드오프: 같은 5분 윈도우 안에서 동일 JWT 의 두 번째 verify 가 시도되면, `@simplewebauthn/server` 의 verify 는 challenge·response 짝의 cryptographic uniqueness 로 거부한다 (credential 의 counter 증가가 한 번만 발생). 즉 JWT 단독 reuse 만으로 인증을 통과할 수 없음.
+
+### 1.4.E — counter 역행 시 credential 강제 삭제 (vs suspend)
+
+WebAuthn 인증기의 sign counter 가 역행하면 (저장값 ≥ 신규값) `@simplewebauthn/server` 의 `verifyAuthenticationResponse` 는 reject 한다. 본 spec 은 reject 시 **해당 row 를 즉시 삭제** 하고 `failure_reason=WEBAUTHN_COUNTER_REGRESSION` 으로 LoginHistory 에 기록한다.
+
+검토한 두 옵션:
+
+- **삭제 (선택)** — credential row 제거. 사용자가 같은 인증기를 다시 쓰려면 `/profile/security` 에서 재등록.
+- suspend — 별도 `disabled_at` 컬럼 + 사용자가 명시적으로 "다시 활성화" 가능.
+
+삭제를 선택한 이유:
+
+- counter 역행은 (a) 인증기 복제·클론 공격 (b) 인증기 firmware 오류 두 가지로 좁혀진다. 둘 다 신뢰가 깨진 상태이므로 즉시 신뢰 철회가 원칙.
+- suspend 는 사용자에게 "재활성화" 선택지를 주는데, 이는 클론 공격자가 본인을 사칭해 재활성화 버튼을 눌러도 동일한 효과 — 보안 이득이 작다.
+- 운영 단순화: 추가 컬럼·UI 흐름·테스트 케이스가 줄어든다. 재등록 비용이 사용자에게 미미.
+
+### 1.4.D — 로그인 시 TOTP 자동 fallback 금지
+
+WebAuthn 등록 사용자에게 로그인 화면이 TOTP 입력란을 함께 노출하지 않는다. 이유:
+
+- 보안: WebAuthn 은 phishing-resistant, TOTP 는 사용자가 코드를 입력하는 시점에 phishing 에 취약. 사용자가 강한 인증 수단을 등록했는데 약한 수단으로 자동 우회 가능하면 등록한 의미가 약해진다.
+- 사용자가 의도적으로 TOTP 로 전환하길 원하면 보안 설정에서 WebAuthn credential 을 모두 삭제 (혹은 webauthn 복구 코드 사용) 한 뒤 재로그인 가능. 의식적인 다운그레이드만 허용한다.
+- 분실 시 잠김 위협은 별도 복구 코드 (§1.4.1) 로 완화. 복구 코드 분실까지 가정한 계정 복구는 본 spec 범위 밖 (관리자 개입 경로).
