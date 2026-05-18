@@ -1270,7 +1270,7 @@ LLM 이 `update_node` / `remove_node` / `add_edge` 의 `id` / `source_id` / `tar
 never node labels" 로 슬로건 고정 + `result.id` / `nodes[*].id` / "matches the
 label of" 매칭.
 
-관련 리뷰: `review/2026-04-24_18-27-09/`.
+관련 리뷰: `review/code/2026/04/24/18_27_09/`.
 
 #### 10. Stall 자동 복구 UX — 메시지 박스 분리 + `auto_resume` SSE 이벤트 (2026-04-24)
 
