@@ -2,6 +2,7 @@ import {
   ToolCall,
   ToolDef,
 } from '../../../../modules/llm/interfaces/llm-client.interface';
+import type { McpServerSummary } from './mcp-diagnostics';
 
 /**
  * AgentToolProvider — AI Agent 노드가 LLM 에 노출하는 "핸들러 내부 실행형" tool 의
@@ -58,6 +59,13 @@ export interface ProviderBuildCtx {
    * 외부 connect 가 1회만 일어나도록 보장한다 (spec/5-system/11-mcp-client.md §4.3).
    */
   executionId?: string;
+  /**
+   * MCP build 결과 누적 슬롯 — provider 가 entry 1건을 push 하면 핸들러가
+   * `meta.mcpDiagnostics.serverSummaries` 로 emit 한다. 핸들러가 array 를
+   * 소유·관리하므로 provider 는 push 만. spec/5-system/11-mcp-client.md §6.2.
+   * 미주입 (undefined) 시 provider 는 silently no-op — 진단 비활성 환경 호환.
+   */
+  mcpDiagnostics?: McpServerSummary[];
 }
 
 export interface ProviderExecCtx {

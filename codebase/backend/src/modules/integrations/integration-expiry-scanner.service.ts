@@ -351,9 +351,40 @@ export class IntegrationExpiryScannerService
       if (!claimed) continue;
 
       if (threshold === '0d' && integration.status !== 'expired') {
-        integration.status = 'expired';
-        integration.statusReason = null;
-        integrationsToUpdate.push(integration);
+        // spec/data-flow/5-integration.md §1.4 / spec/2-navigation/4-integration.md §11.1
+        // (2026-05-18 갱신): refresh_token 보유 provider 는 `expired` 격하 대신
+        // 큐 enqueue 로 refresh 시도. 실패 시 worker (Cafe24TokenRefreshProcessor)
+        // 가 `error(auth_failed)` 또는 `error(network)` 로 전이. 현재 큐 인프라가
+        // cafe24 전용이라 cafe24 한정으로 분기하며, 그 외 (mcp / refresh_token
+        // 없는 provider) 는 종전대로 expired 격하.
+        if (isCafe24RefreshCapable(integration)) {
+          try {
+            await this.cafe24RefreshQueue.add(
+              CAFE24_REFRESH_JOB,
+              { integrationId: integration.id, source: 'background' },
+              {
+                // jobId dedup — proactive refresh / cafe24-background-refresh 와
+                // 같은 통합에 대한 동시 enqueue 가 단일 worker 실행으로 모임.
+                jobId: integration.id,
+                attempts: 1,
+                removeOnComplete: { age: 60 },
+                removeOnFail: { age: 300 },
+              },
+            );
+          } catch (err) {
+            // enqueue 실패는 다음 일일 패스에서 재시도되므로 본 패스 전체를
+            // 죽이지 않는다. 알림은 그대로 발사하여 사용자에게 가시성 유지.
+            this.logger.warn(
+              `connected-expiry 0d cafe24 refresh enqueue failed for ${integration.id}: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            );
+          }
+        } else {
+          integration.status = 'expired';
+          integration.statusReason = null;
+          integrationsToUpdate.push(integration);
+        }
       }
 
       const recipients = recipientsByIntegration.get(integration.id) ?? [];
@@ -452,4 +483,23 @@ function messageFor(
   }
   const date = integration.tokenExpiresAt?.toISOString().slice(0, 10) ?? '';
   return `${name} will expire on ${date}.`;
+}
+
+/**
+ * `connected-expiry` scanner 의 0d 분기에서 `expired` 격하 대신 큐 enqueue
+ * 로 refresh 시도가 가능한 통합인지 판별.
+ *
+ * spec/2-navigation/4-integration.md §11.1 (2026-05-18 갱신) — 현재
+ * `cafe24-token-refresh` 큐 인프라가 cafe24 전용이라 cafe24 + refresh_token
+ * 보유 행만 대상. 향후 다른 first-party Integration (Shopify, Naver
+ * Smartstore 등) 이 같은 패턴을 사용하면 service_type 별로 분기 확장.
+ */
+function isCafe24RefreshCapable(integration: Integration): boolean {
+  if (integration.serviceType !== 'cafe24') return false;
+  const creds = integration.credentials as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const rt = creds?.refresh_token;
+  return typeof rt === 'string' && rt.length > 0;
 }

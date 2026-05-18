@@ -707,6 +707,37 @@ export class Cafe24ApiClient {
     await this.refreshAccessToken(integration);
   }
 
+  /**
+   * 외부 호출자 (현재 `Cafe24McpToolProvider.buildTools` — spec §8.6 expired
+   * 자가 회복) 가 큐 경유 refresh 를 명시적으로 트리거할 수 있도록 노출한
+   * public entry. proactive `ensureFreshToken` 과 reactive 401 retry 가 둘
+   * 다 `refreshViaQueue` 를 거치는 것과 같은 단일 경로 (jobId dedup) 를
+   * 강제한다 — direct in-process refresh path 우회 방지.
+   *
+   * 본 메서드의 `source` 는 BullMQ payload 의 `source` 필드로 직접 흘러가며,
+   * 진단·메트릭 라벨링에 사용된다 ('proactive' / 'background'). buildTools
+   * 단계 호출은 'background' 로 분류 — API 호출 직전 (`call()`) proactive 와
+   * 구분되는 진입점이므로.
+   *
+   * 큐 미바인딩 (테스트 환경) 시 in-process `refreshAccessToken` 으로 폴백.
+   * 동작·에러 의미는 `performAuthRefresh` 와 동일.
+   */
+  async refreshTokenViaQueue(
+    integration: Integration,
+    source: 'proactive' | 'background' = 'background',
+  ): Promise<void> {
+    if (this.refreshQueue && this.refreshQueueEvents) {
+      await this.refreshViaQueue(integration, source);
+      return;
+    }
+    // 큐 미바인딩은 테스트 환경 또는 deployment 설정 누락 신호. 운영에서
+    // 발생하면 cross-pod dedup 보호가 풀린 상태이므로 가시성 확보.
+    this.logger.warn(
+      `cafe24 refreshQueue not bound — falling back to in-process refresh (integrationId=${integration.id}, source=${source})`,
+    );
+    await this.refreshAccessToken(integration);
+  }
+
   async refreshAccessToken(integration: Integration): Promise<void> {
     const creds = (integration.credentials ?? {}) as Cafe24Credentials;
     if (!creds.mall_id || !creds.refresh_token) {
