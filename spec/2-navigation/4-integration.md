@@ -583,7 +583,13 @@ AI Agent 노드가 활용하는 외부 [Model Context Protocol](https://modelcon
 
 UI 는 카테고리 단위 체크박스(R / W 두 컬럼) + "고급" 토글 아래 개별 scope 추가 입력란.
 
-**테스트 방법**: 저장된 `access_token` 으로 `GET https://{mall_id}.cafe24api.com/api/v2/admin/store` 핑. 응답 200 + JSON 본문 확인.
+**테스트 방법**: 저장된 `access_token` 으로 `GET https://{mall_id}.cafe24api.com/api/v2/admin/apps` 핑. 응답 200 + JSON 본문 확인.
+
+- **Endpoint 선택 근거**: `/apps` 는 자기 앱 정보 조회로, 모든 cafe24 통합이 자기 앱이므로 scope 부족 위험이 가장 적다. 옛 `/store` 는 `mall.read_store` scope 가 없으면 403 으로 false negative 발생 ([Rationale "연결 테스트 endpoint 를 `/store` 에서 `/apps` 로 전환 (2026-05-18)"](#연결-테스트-endpoint-를-store-에서-apps-로-전환-2026-05-18) 참고).
+- **401 자동 회복**: 응답 401 (`access_token time expired` 등) 시 `refresh_token` 으로 access_token 을 갱신한 뒤 1회 재시도. 재시도도 401 이면 `error(auth_failed)` 로 전이. §10.5 의 proactive `ensureFreshToken` 이 race condition (DB `expires_at` 미동기, 다중 인스턴스 등) 으로 빗나간 경우 자가 회복하기 위함 — `call()` 경로의 401 자동 회복 (§10.5) 과 동일 패턴.
+- **403 처리**: status 격하하지 않고 `CAFE24_INSUFFICIENT_SCOPE` 메시지만 전달. 스코프 부족·앱 미설치는 사용자가 reauth/scope 추가로 해결.
+- **transport 실패 카운터 제외**: 사용자가 직접 누른 진단용 호출이므로, `Integration.consecutive_network_failures` (§14.1) 합산 대상에서 제외. 이 카운터는 노드 실행 시점의 자동 호출만 합산한다.
+- **사전 검증(`POST /api/integrations/preview-test`)**: 저장 전 자격 증명의 구조적 유효성만 검증하며, 외부 네트워크 호출은 수행하지 않는다 (§9.2 controller 의 throttle 20/min — 막 발급된 토큰이라 refresh 가 불필요).
 
 **Rate Limit 정책**: Cafe24 leaky bucket. 응답 헤더 `X-Cafe24-Call-Remain`(재개까지 초), `X-Cafe24-Call-Usage`(%), `X-Api-Call-Limit`(현재/상한) 을 backend `Cafe24ApiClient` wrapper 가 모니터링. 429 응답 시 `X-Cafe24-Call-Remain` 값만큼 sleep 후 최대 2회 재시도. 노드 호출 / AI Agent MCP 호출 모두 같은 wrapper 를 통과해 동일 프로세스 인스턴스 내 Integration 단위로 leaky bucket 공유 — 같은 Integration 을 동시에 헤비하게 쓰면 양쪽이 함께 대기한다. 멀티 인스턴스 환경의 직렬화는 보장되지 않음 ([Spec Cafe24 §4.1](../4-nodes/4-integration/4-cafe24.md#41-rate-limit-처리-상세) 참조).
 
@@ -696,7 +702,7 @@ Please replace or remove these node references first.
 | GET | `/api/integrations/:id` | 상세 조회. credentials 는 마스킹. 응답 envelope 는 [API 규약 §5.1](../5-system/2-api-convention.md#51-단일-리소스) 의 `{ data: IntegrationDto }` 형식이며, `IntegrationDto` 는 다음 두 derived 필드를 포함한다 — (a) `appUrl: string \| null` — Cafe24 Private 통합 (`service_type='cafe24' AND credentials.app_type='private'`) 은 `${APP_URL}/api/3rd-party/cafe24/install/:installToken` 값, 그 외 통합은 `null`. `install_token` 자체는 응답에 별도 필드로 노출되지 않고 App URL path segment 안에만 포함된다 (식별자 분산 방지 — Rationale "Cafe24 App URL 상세 페이지 표시" 참조). (b) **`autoRefresh: boolean`** — 자동 갱신 가능 통합 식별자. 백엔드 service registry 의 `ServiceDefinition.supportsTokenAutoRefresh` (`codebase/backend/src/modules/integrations/services/service-registry.ts`) 에서 파생되는 derived 필드로 DB 컬럼이 아니며 매 응답 시점에 계산된다. 현재 `service_type='cafe24'`, `service_type='google'` 이 `true`, 그 외(`github` 포함 — Refresh ✗, §10.3) 는 `false`. 사이드바 카운트(§11.4) / `Need attention` 배너(§2.4) / `Expiring`·`Attention` 칩(§2.3) / 상세 페이지 헤더·Overview(§4.1·§4.2) 의 UI 분기 신호로 사용된다. 권한 레벨 무관 — 모든 인증된 요청에서 동일하게 포함된다. ※ `ServiceDefinition.supportsTokenAutoRefresh` 옵션 자체는 후속 구현 PR(`plan/in-progress/integration-token-ui-autorefresh.md`) 에서 service registry 에 추가될 예정 — spec 본 항이 코드보다 선행 정의되는 일시적 드리프트는 의도된 SDD 순서다. |
 | PATCH | `/api/integrations/:id` | 별칭 등 메타 수정 |
 | DELETE | `/api/integrations/:id` | 삭제 (사용처 있으면 409) |
-| POST | `/api/integrations/:id/test` | 현재 저장된 자격 증명으로 연결 테스트 |
+| POST | `/api/integrations/:id/test` | 현재 저장된 자격 증명으로 연결 테스트. ※ `status='pending_install'` row 는 외부 호출 없이 `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 로 즉시 거부 — 토큰 미발급 상태라 외부 API 호출 자체가 무의미. service_type 무관 status 기반 가드 (현재 `pending_install` 은 Cafe24 Private 전용이지만 향후 다른 provider 도입 시 자동 적용). UI 측 버튼 비활성 (§4.2) 의 백엔드 backstop. 응답 형식은 인접 가드 (`INTEGRATION_CREDENTIALS_UNREADABLE`, cafe24 incomplete credentials) 와 동일한 `IntegrationTestResult` shape — 자세한 근거는 Rationale "연결 테스트 endpoint 의 `pending_install` 가드 — 응답 형식 (2026-05-18)" 참고. |
 | GET | `/api/integrations/services` | 지원 서비스 메타데이터 (필드 스키마 포함) |
 
 ### 9.2 인증 / 회전 / Scope
@@ -1010,6 +1016,37 @@ Integration 생성·삭제·회전·재인증·scope 전환 이벤트를 `resour
 **과거 결정과의 호환**: `Attention 가상 필터값` (2026-05-16) 의 "**DB Enum 비확장 — 영속화되는 상태와 화면 필터링용 술어를 분리**" 원칙은 그대로 유지된다. `autoRefresh` 는 영속 상태가 아닌 derived 식별자라 같은 원칙 안에서 새 술어가 합성된다. `pending_install` 제외 (2026-05-14) 도 같은 사상 — 외부 흐름 진행 중 정상 상태를 attention 에서 제외.
 
 **프론트엔드·백엔드 영향 (구현 PR)**: 후속 구현 PR (`plan/in-progress/integration-token-ui-autorefresh.md`) 이 (a) `codebase/backend/src/modules/integrations/services/service-registry.ts` 의 `ServiceDefinition.supportsTokenAutoRefresh` 옵션 추가 + cafe24/google true, (b) `IntegrationsService.toPublic` 의 `autoRefresh` 매핑, (c) 목록·사이드바 카운트 쿼리 (`integrations.service.ts` 의 `EXPIRING_SOON_INTERVAL` 사용 부) 의 `AND NOT autoRefresh` 가드, (d) frontend `_shared/status-badge.tsx::computeStatus` / `needsAttention` 의 동일 가드, (e) 상세 페이지 헤더 보조 라벨·Overview Tooltip 을 동기 반영한다.
+
+### 연결 테스트 endpoint 를 `/store` 에서 `/apps` 로 전환 (2026-05-18)
+
+§5.8 의 "테스트 방법" 은 옛 spec 에서 `GET /api/v2/admin/store` 로 정의되어 있었으나 운영 중 두 가지 false negative 가 보고됐다 — (a) cafe24 통합이 `mall.read_store` scope 를 포함하지 않으면 403 으로 실패해 "토큰은 유효한데 연결 테스트만 실패" 하는 혼란, (b) `/store` 가 store-level 메타데이터라 일부 운영자 권한에서 응답 shape 가 비결정적. 전환 후의 `GET /api/v2/admin/apps` 는 **자기 앱 정보 조회** 이며 모든 cafe24 통합이 자기 앱이므로 scope 부족 위험이 가장 적다 (Cafe24 OAuth 가 발급한 토큰이라면 본질적으로 자기 앱 정보 조회 권한은 항상 있음).
+
+**다른 후보 검토**:
+- `/scopes` — 토큰의 현재 scope 만 반환해 가볍지만, 응답 shape 가 단순 배열이라 "JSON 본문 200 OK" 검증의 형식적 의미가 약함.
+- `/oauth/token` introspection — Cafe24 가 표준 introspection endpoint 를 제공하지 않음.
+- `/products?limit=1` 류 도메인 호출 — scope 부족 위험이 가장 큼.
+
+**transport 실패 카운터 제외**: §14.1 의 `consecutive_network_failures` 카운터는 노드 실행 경로의 자동 호출이 누적해 `error(network)` 로 격하시키는 운영 신호다. 사용자가 직접 누른 연결 테스트는 일회성 진단이라 합산하면 거짓 양성 (사용자 클릭만으로 격하) 위험이 커서 명시 제외. 이 결정은 `Cafe24ApiClient.pingConnection()` 의 "never throws + 메시지만 surface" 계약과 짝을 이룬다.
+
+**401 자가 회복 정책의 통일**: `call()` 경로의 401 자가 회복 (Rationale "`call()` 의 401 자동 회복 (2026-05-17)") 과 동일하게, ping 도 401 시 refresh 1회 재시도. proactive `ensureFreshToken` (§10.5) 이 race condition 으로 빗나간 stale token 을 자가 회복하는 같은 패턴.
+
+### 연결 테스트 endpoint 의 `pending_install` 가드 — 응답 형식 (2026-05-18)
+
+`POST /api/integrations/:id/test` 는 `IntegrationsService.testConnection` 진입부에서 `status='pending_install'` row 를 외부 호출 없이 거부한다. `pending_install` 은 토큰 미발급 상태이므로 외부 API 호출 자체가 의미가 없고, UI 의 버튼 비활성 (§4.2 의 Test connection 비활성 조건) 이 우회된 API 직호출에 대한 backend backstop 이 필요했다.
+
+**응답 형식 — 200 + `{ success:false, code:'INTEGRATION_INCOMPLETE' }` 채택**:
+
+- **인접 가드와의 일관성**: 같은 endpoint 의 다른 가드 두 개가 모두 같은 모양이다 — (a) `INTEGRATION_CREDENTIALS_UNREADABLE` (`testConnection` 도입부의 복호화 실패 분기), (b) cafe24 `pingConnection` 의 `INTEGRATION_INCOMPLETE` (자격증명 필드 누락 분기, `cafe24-api.client.ts` `mapPingError`). 두 분기 모두 200 + `IntegrationTestResult` shape 으로 반환한다.
+- **Endpoint 시맨틱**: `:id/test` 는 "검증" 이 아니라 "테스트를 수행하고 결과를 반환" 하는 endpoint. 결과 body 형식이 이미 `{ success, code, message }` 의 success/false 패턴이라 가드 결과도 같은 shape 으로 표현하는 게 자연스럽다.
+- **Frontend 영향 0**: 사용자가 "Test Connection" 버튼을 눌렀을 때 결과 카드를 그대로 보여주는 기존 흐름이 새 분기에도 그대로 동작한다 — i18n 메시지·error toast 추가 없음.
+
+**검토된 다른 안과 기각 사유**:
+- `422 UnprocessableEntityException` — HTTP 시맨틱은 가장 정확하지만, frontend 가 IntegrationTestResult 카드와 별도 error toast 두 경로를 처리해야 하고, 기존 service 의 다른 throw 들 (rotate/scope/INVALID_CREDENTIALS) 이 모두 `400` 이라 status code 다양성을 도입하는 부담. plan 원안의 "422" 는 본 결정에서 응답 형식 일관성을 우선해 200 + success:false 로 갱신했다.
+- `400 BadRequestException` — 기존 throw 패턴과는 일관하지만 HTTP 의미상 "input validation" 으로 읽혀 "resource state 거부" 와 mismatch. frontend UX 약화는 422 와 동일.
+
+**service_type 무관 status 가드**: 현재 `pending_install` 은 Cafe24 Private 전용 status 지만, 가드는 service_type 을 보지 않고 status 만 본다 — 향후 다른 provider 가 같은 status 를 도입해도 자동 적용되며, 가드 코드는 단순한 한 줄 if. `Integration.status` enum 자체가 영속 상태의 SoT 라 status 만 보는 게 단일 진실 원칙에도 부합.
+
+**§9.1 표 비고에 명시한 이유**: 별도 `§9.5 "Endpoint 보호 정책"` 절을 신설하는 안도 검토했으나, 본 가드 한 건만으로는 절을 새로 둘 정도의 규모가 아니고, 인접 endpoint 의 비고 (precheck 의 priority status, oauth/begin 의 idempotent 분기 등) 와 같은 표현 패턴이라 §9.1 표 비고 한 줄 + 본 Rationale 한 항이 가장 가벼운 SoT 배치다.
 
 ### Cafe24 Private 앱의 callback 실패는 왜 status 를 보존하나 (2026-05-14)
 

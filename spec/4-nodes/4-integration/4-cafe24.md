@@ -333,7 +333,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 
 refresh 자체가 401/403 (`invalid_grant`) 으로 실패하면 refresh 단계가 이미 `error(auth_failed)` 로 전이시키고 throw — 재시도 없음. 재시도 횟수는 **정확히 1회** (무한 retry 차단). 429 rate limit 재시도와 별개 카운터.
 
-본 자가 회복은 [§5.8 의 연결 테스트 (`pingConnection`)](#58-d4--2026-05-17-handlervalidate-실패만-throw-나머지-모두-53-으로-라우팅) 의 동일 패턴과 정책 통일.
+본 자가 회복은 [통합 §5.8 의 연결 테스트 (`pingConnection`)](../../2-navigation/4-integration.md#58-cafe24) 의 동일 패턴과 정책 통일.
 
 #### 403 (스코프 부족 / 앱 미설치) — 즉시 격하
 
