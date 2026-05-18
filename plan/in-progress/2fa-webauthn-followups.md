@@ -40,9 +40,9 @@ owner: TBD
 
 ### 4. WebAuthn-only 계정의 비밀번호 재설정 흐름
 
-- [ ] 현재 `passwordResetToken` 흐름이 WebAuthn-only 사용자에게도 동작하는지 검증
-- [ ] 비밀번호 미설정 사용자가 reset 시도 시 UX 결정
-- [ ] 필요 시 spec/5-system/1-auth.md 보완
+- [x] 현재 `passwordResetToken` 흐름이 WebAuthn-only 사용자에게도 동작하는지 검증 — 정상 동작 (코드 동작 확인, `auth.service.ts forgotPassword/resetPassword` 가 가입 경로 무관 처리)
+- [x] 비밀번호 미설정 사용자(OAuth-only) 가 reset 시도 시 UX 결정 — opt-in "비밀번호 추가" 흐름으로 동작 (의도적)
+- [x] spec/5-system/1-auth.md §1.1.A 신설 (가입 경로별 동작·설계 원칙 명시)
 
 ### 5. 기존 컨트롤러 응답 wrap 일관성 정리
 
