@@ -520,7 +520,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 **소비 측 권장 동작:**
 
 - 디버깅 타임라인의 turn 카운팅(`llmCalls[]` 와 어시스턴트 메시지 매칭) 은 `source === 'live'` 인 user 메시지만 세야 backend `turnCount` 와 일치한다.
-- 대화 UI 표시는 `injected` 도 함께 보여주되, "주입된 컨텍스트" 임을 시각적으로 구분(예: chip) 하는 것을 권장.
+- 대화 UI (conversation Preview 탭, conversation timeline) 는 emit messages 가 아닌 `waiting_for_input.conversationThread.turns` snapshot (§4.4.5) 을 1차 소스로 사용한다. source 별 시각 매핑은 [Spec Conversation Thread §9](../conventions/conversation-thread.md#9-미리보기-ui-렌더-규칙) 의 강제 규약을 따른다 — `injected` chip 표시는 "권장" 이 아니라 §9.2 의 3중 신호(아이콘 + 컨테이너 형식 + chip) 동시 적용이 **필수** 다. LLM debug 패널 (Request / Response / LLM Usage) 만 emit messages 의 raw payload 를 사용하며, 이때도 "Raw payload" 토글로 명시한다 (§9.3·§9.4).
 - `source` 필드가 누락된 경우 (옛 backend / 옛 DB 영속 페이로드 호환) `'live'` 로 간주한다 — 이력 재구성 경로 (`parseHistoryMessages`) 도 동일.
 
 ---

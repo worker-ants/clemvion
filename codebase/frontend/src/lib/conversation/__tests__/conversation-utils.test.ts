@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   parseHistoryMessages,
   messagesToConversationItems,
+  threadTurnsToConversationItems,
+  stripInlineMarkers,
+  inferInteractionTypeFromData,
+  type ConversationTurn,
 } from "../conversation-utils";
 
 describe("messagesToConversationItems", () => {
@@ -508,5 +512,285 @@ describe("messagesToConversationItems — source marker (spec/5-system/6-websock
     expect(liveAssistants).toHaveLength(2);
     expect(liveAssistants[0].requestPayload).toEqual({ messages: ["live-only"] });
     expect(liveAssistants[1].requestPayload).toBeUndefined();
+  });
+});
+
+describe("messagesToConversationItems — inline marker strip (§9.5)", () => {
+  it("strips [user-input]…[/user-input] markers from user / assistant content", () => {
+    const items = messagesToConversationItems([
+      { role: "user", content: "[user-input]질문[/user-input]" },
+      { role: "assistant", content: "응답 [user-input]X[/user-input]" },
+    ]);
+    expect(items[0].content).toBe("질문");
+    expect(items[1].content).toBe("응답 X");
+  });
+});
+
+describe("stripInlineMarkers", () => {
+  it("removes opening and closing [user-input] tags but keeps label", () => {
+    expect(stripInlineMarkers("[user-input]AI와 대화하기[/user-input]")).toBe(
+      "AI와 대화하기",
+    );
+  });
+
+  it("is idempotent for strings without markers", () => {
+    expect(stripInlineMarkers("plain text")).toBe("plain text");
+  });
+
+  it("handles undefined / empty input gracefully", () => {
+    expect(stripInlineMarkers(undefined)).toBe("");
+    expect(stripInlineMarkers("")).toBe("");
+  });
+
+  it("strips multiple marker pairs in one string (legacy stacked input)", () => {
+    expect(
+      stripInlineMarkers("[user-input]a[/user-input] / [user-input]b[/user-input]"),
+    ).toBe("a / b");
+  });
+});
+
+describe("threadTurnsToConversationItems", () => {
+  function makeTurn(partial: Partial<ConversationTurn>): ConversationTurn {
+    return {
+      seq: 0,
+      nodeId: "node-1",
+      nodeLabel: "Node",
+      nodeType: "ai_agent",
+      source: "ai_user",
+      text: "",
+      ...partial,
+    };
+  }
+
+  it("returns empty array for empty / non-array input", () => {
+    expect(threadTurnsToConversationItems([])).toEqual([]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(threadTurnsToConversationItems(null as any)).toEqual([]);
+  });
+
+  it("maps the 5 ConversationTurnSource values to the correct ConversationItem.type", () => {
+    const turns: ConversationTurn[] = [
+      makeTurn({
+        seq: 0,
+        source: "presentation_user",
+        nodeLabel: "Template",
+        nodeType: "template",
+        text: "clicked: AI와 대화하기",
+        data: { buttonId: "open_chat", buttonLabel: "AI와 대화하기" },
+      }),
+      makeTurn({ seq: 1, source: "ai_user", text: "어떤 상품이 있는지 알려줘" }),
+      makeTurn({ seq: 2, source: "ai_assistant", text: "현재 상품은…" }),
+      makeTurn({
+        seq: 3,
+        source: "ai_tool",
+        text: '{"status":200}',
+        toolCallId: "call_1",
+      }),
+      makeTurn({ seq: 4, source: "system", text: "안내 메시지" }),
+    ];
+
+    const items = threadTurnsToConversationItems(turns);
+    expect(items.map((i) => i.type)).toEqual([
+      "presentation",
+      "user",
+      "assistant",
+      "tool",
+      "system",
+    ]);
+  });
+
+  it("advances turnIndex only on ai_user — presentation and system items get turnIndex 0", () => {
+    const turns: ConversationTurn[] = [
+      makeTurn({
+        seq: 0,
+        source: "presentation_user",
+        data: { buttonId: "b", buttonLabel: "L" },
+      }),
+      makeTurn({ seq: 1, source: "ai_user", text: "first" }),
+      makeTurn({ seq: 2, source: "ai_assistant", text: "reply" }),
+      makeTurn({
+        seq: 3,
+        source: "ai_tool",
+        text: "{}",
+        toolCallId: "c1",
+      }),
+      makeTurn({ seq: 4, source: "ai_user", text: "second" }),
+    ];
+
+    const items = threadTurnsToConversationItems(turns);
+    expect(items[0]).toMatchObject({ type: "presentation", turnIndex: 0 });
+    expect(items[1]).toMatchObject({ type: "user", turnIndex: 1 });
+    expect(items[2]).toMatchObject({ type: "assistant", turnIndex: 1 });
+    expect(items[3]).toMatchObject({ type: "tool", turnIndex: 1 });
+    expect(items[4]).toMatchObject({ type: "user", turnIndex: 2 });
+  });
+
+  it("infers interactionType from data shape (button_click / button_continue / form_submitted)", () => {
+    const items = threadTurnsToConversationItems([
+      makeTurn({
+        source: "presentation_user",
+        nodeLabel: "Carousel",
+        nodeType: "carousel",
+        text: "clicked: Buy",
+        data: { buttonId: "buy", buttonLabel: "Buy", selectedItem: { id: 1 } },
+      }),
+      makeTurn({
+        source: "presentation_user",
+        nodeLabel: "Link",
+        nodeType: "template",
+        text: "continued: https://example.com",
+        data: { buttonId: "go", buttonLabel: "Open", url: "https://example.com" },
+      }),
+      makeTurn({
+        source: "presentation_user",
+        nodeLabel: "Form",
+        nodeType: "form",
+        text: "name=Alice, age=30",
+        data: { name: "Alice", age: 30 },
+      }),
+    ]);
+
+    expect(items[0].presentation?.interactionType).toBe("button_click");
+    expect(items[1].presentation?.interactionType).toBe("button_continue");
+    expect(items[2].presentation?.interactionType).toBe("form_submitted");
+  });
+
+  it("snapshots nodeLabel and data so renderer can compose chip header without parsing text", () => {
+    const items = threadTurnsToConversationItems([
+      makeTurn({
+        source: "presentation_user",
+        nodeLabel: "MyTemplate",
+        nodeType: "template",
+        text: "clicked: AI와 대화하기",
+        data: { buttonId: "chat", buttonLabel: "AI와 대화하기" },
+      }),
+    ]);
+
+    expect(items[0].presentation).toEqual({
+      nodeLabel: "MyTemplate",
+      nodeType: "template",
+      interactionType: "button_click",
+      data: { buttonId: "chat", buttonLabel: "AI와 대화하기" },
+    });
+  });
+
+  it("strips [user-input]…[/user-input] markers from text bodies (§9.5 compat)", () => {
+    const items = threadTurnsToConversationItems([
+      makeTurn({
+        source: "presentation_user",
+        text: "clicked: [user-input]AI와 대화하기[/user-input]",
+        data: { buttonId: "chat", buttonLabel: "AI와 대화하기" },
+      }),
+      makeTurn({
+        source: "ai_user",
+        text: "[user-input]질문[/user-input]",
+      }),
+    ]);
+
+    expect(items[0].content).toBe("clicked: AI와 대화하기");
+    expect(items[1].content).toBe("질문");
+  });
+
+  it("carries assistantToolCalls from turn.toolCalls when present", () => {
+    const items = threadTurnsToConversationItems([
+      makeTurn({
+        source: "ai_assistant",
+        text: "",
+        toolCalls: [
+          { id: "c1", name: "get_weather", arguments: '{"city":"Seoul"}' },
+        ],
+      }),
+    ]);
+
+    expect(items[0].assistantToolCalls).toEqual([
+      { name: "get_weather", arguments: '{"city":"Seoul"}' },
+    ]);
+  });
+
+  it("ai_assistant before any ai_user gets turnIndex 1 fallback (edge case)", () => {
+    // Transient snapshot mid-execution where only assistant has been pushed
+    // — turnIndex must be a stable non-zero so renderer key paths stay valid.
+    const items = threadTurnsToConversationItems([
+      makeTurn({ source: "ai_assistant", text: "first reply" }),
+    ]);
+    expect(items[0]).toMatchObject({
+      type: "assistant",
+      turnIndex: 1,
+    });
+  });
+
+  it("ai_tool before any ai_user also gets turnIndex 1 fallback", () => {
+    const items = threadTurnsToConversationItems([
+      makeTurn({
+        source: "ai_tool",
+        text: "{}",
+        toolCallId: "c1",
+      }),
+    ]);
+    expect(items[0]).toMatchObject({ type: "tool", turnIndex: 1 });
+  });
+
+  it("presentation_user with undefined data falls back to form_submitted", () => {
+    const items = threadTurnsToConversationItems([
+      makeTurn({ source: "presentation_user", data: undefined }),
+    ]);
+    expect(items[0].presentation?.interactionType).toBe("form_submitted");
+  });
+
+  it("prefers explicit turn.interactionType over data shape inference", () => {
+    // Backend may eventually populate interactionType directly; honour it
+    // even when data shape would suggest otherwise.
+    const items = threadTurnsToConversationItems([
+      makeTurn({
+        source: "presentation_user",
+        // data has buttonId but no url — would infer button_click
+        data: { buttonId: "x", buttonLabel: "X" },
+        interactionType: "form_submitted",
+      }),
+    ]);
+    expect(items[0].presentation?.interactionType).toBe("form_submitted");
+  });
+
+  it("unknown source values are silently skipped with a console.warn", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const items = threadTurnsToConversationItems([
+      // Forward-compat: backend ships a value the frontend doesn't know yet
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      makeTurn({ source: "future_source" as any, text: "x" }),
+      makeTurn({ source: "ai_user", text: "real user" }),
+    ]);
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe("user");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("unknown ConversationTurnSource"),
+      expect.anything(),
+    );
+    warnSpy.mockRestore();
+  });
+});
+
+describe("inferInteractionTypeFromData (§9.1 data shape rules)", () => {
+  it("button_click when data has buttonId but no url", () => {
+    expect(
+      inferInteractionTypeFromData({ buttonId: "x", buttonLabel: "X" }),
+    ).toBe("button_click");
+  });
+
+  it("button_continue requires BOTH buttonId AND url (stray url in form payload doesn't mis-classify)", () => {
+    expect(
+      inferInteractionTypeFromData({ buttonId: "x", buttonLabel: "X", url: "u" }),
+    ).toBe("button_continue");
+    // url alone without buttonId is treated as form_submitted (a form may
+    // legitimately submit a 'url' field).
+    expect(
+      inferInteractionTypeFromData({ url: "https://example.com" }),
+    ).toBe("form_submitted");
+  });
+
+  it("form_submitted for plain field maps and missing data", () => {
+    expect(inferInteractionTypeFromData({ name: "A", age: 3 })).toBe(
+      "form_submitted",
+    );
+    expect(inferInteractionTypeFromData(undefined)).toBe("form_submitted");
   });
 });

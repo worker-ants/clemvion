@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem } from "@/lib/stores/execution-store";
-import { CheckCircle, Loader2, XCircle, Wrench } from "lucide-react";
+import { CheckCircle, Loader2, XCircle, Wrench, Info } from "lucide-react";
 
 interface ConversationTimelineItemProps {
   item: ConversationItem;
@@ -38,6 +38,22 @@ export function ConversationTimelineItem({
           ) : item.toolStatus === "error" ? (
             <XCircle className="ml-auto h-3 w-3 shrink-0 text-red-500" />
           ) : null}
+        </div>
+      ) : item.type === "presentation" ? (
+        // spec/conventions/conversation-thread.md §9.1 — presentation_user
+        // turn 은 timeline 에서도 🧩 + nodeLabel 로 격하 표시.
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px]">🧩</span>
+          <span className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">
+            {item.presentation?.nodeLabel ?? "Presentation"}
+          </span>
+        </div>
+      ) : item.type === "system" ? (
+        <div className="flex items-center gap-1.5">
+          <Info size={10} className="text-[hsl(var(--muted-foreground))]" />
+          <span className="truncate text-[11px] italic text-[hsl(var(--muted-foreground))]">
+            {item.content || "System note"}
+          </span>
         </div>
       ) : (
         <div className="flex gap-1.5">

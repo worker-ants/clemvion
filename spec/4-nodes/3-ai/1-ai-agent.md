@@ -567,7 +567,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 | `output.result.message` | string | handler return | 현재 턴의 assistant 응답 (waiting 시점) — 첫 진입 시 `""` |
 | `output.result.turnCount` | number | handler return | 누적 turn 수 (첫 진입 시 `0`) |
 | `output.result.maxTurns` | number | handler return | config 의 `maxTurns` 값 echo |
-| `meta.interactionType` | `"ai_conversation"` | handler return | run-results UI 의 conversation Preview 탭 식별자 (Principle 1.1.4 의 노드 판별자가 아니라 인터랙션 타입 라벨) |
+| `meta.interactionType` | `"ai_conversation"` | handler return | run-results UI 의 conversation Preview 탭 식별자 (Principle 1.1.4 의 노드 판별자가 아니라 인터랙션 타입 라벨). 탭 렌더 규칙은 [Spec Conversation Thread §9](../../conventions/conversation-thread.md#9-미리보기-ui-렌더-규칙) 의 강제 매핑표를 따른다 — 1차 소스는 emit messages 가 아닌 `conversationThread` snapshot |
 | `meta.durationMs` / 토큰 / `turnDebug` | — | (§7.1 과 동일 위치) | 진행 중 누적치를 노출해 References / LLM Usage 탭이 동작 |
 | `status` | `"waiting_for_input"` | handler return | 엔진이 실행을 일시 정지 |
 | `_resumeState` | object (top-level) | handler return | 다음 턴 처리에 필요한 internal state. expression resolver 에서는 비노출 (Principle 4.2). credential / 내부 상태 보호 — DB 저장 시 strip |

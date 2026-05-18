@@ -144,6 +144,7 @@ Text Classifier 는 분류 노드 (단계 1개). single/multi label × 정상/fa
 - LLM 카테고리 통일 wrapper (`output.result.*`) 는 ai_agent / information_extractor 와 정합 — 유지.
 - `output.originalInput` 의 위치 분기 (정상=안, 에러=밖) 는 spec 작성 시 `result` wrapper 가 없는 케이스 (에러) 를 구하기 위한 임시 해결로 보임. 통일 권장.
 - `evidence` cap (20 항목 × 200자, DoS 방지) 은 spec §4 마지막 줄 명시 — 보안 메트릭으로서 합리적.
+- (2026-05-18) ConversationThread v2 연동 (conversation-thread §2.3 / §7 v2 로드맵) 도입 시 final-assistant push 인터페이스 (single-label: `output.result.category`, multi-label: `categories.map(c => c.name).join(', ')`, §1.4 v2 표기 행) 와 충돌하지 않도록 output 재설계 — `output.result.{category|categories}` 단일 SoT 유지가 v2 push hook 의 안전한 진입점.
 
 ## 구현 분석 (2026-05-16)
 

@@ -327,3 +327,217 @@ describe("summarizeToolResult", () => {
     expect(summarizeToolResult(false)).toBe("false");
   });
 });
+
+// spec/conventions/conversation-thread.md §9 — source 별 시각 분기 렌더링
+describe("ConversationInspector SummaryView — source 별 시각 분기 (§9.1)", () => {
+  let baseProps: ReturnType<typeof makeBaseProps>;
+  beforeEach(() => {
+    baseProps = makeBaseProps();
+  });
+
+  it("presentation_user (button_click) 는 회색 시스템 카드 + nodeLabel chip + buttonLabel 본문으로 렌더", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "clicked: AI와 대화하기",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "Template",
+          nodeType: "template",
+          interactionType: "button_click",
+          data: { buttonId: "open_chat", buttonLabel: "AI와 대화하기" },
+        },
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+
+    // 시각 신호 ① 아이콘 (🧩) + ③ chip (nodeLabel) + 인터랙션 라벨
+    expect(screen.getByText("🧩")).toBeInTheDocument();
+    expect(screen.getByText("Template")).toBeInTheDocument();
+    // 인터랙션 라벨 (i18n KO 기본 — "버튼 클릭")
+    expect(screen.getByText(/button clicked|버튼 클릭/i)).toBeInTheDocument();
+
+    // 본문은 buttonLabel ("AI와 대화하기") — `clicked:` 동사 prefix 는
+    // 헤더로 흡수되어 본문에 중복 노출되지 않아야 한다.
+    expect(screen.getByText("AI와 대화하기")).toBeInTheDocument();
+    expect(screen.queryByText(/^clicked:/)).not.toBeInTheDocument();
+  });
+
+  it("presentation_user (form_submitted) 는 data 의 key-value 를 표로 표시", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "name=Alice, age=30",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "Form1",
+          nodeType: "form",
+          interactionType: "form_submitted",
+          data: { name: "Alice", age: 30 },
+        },
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+
+    expect(screen.getByText("Form1")).toBeInTheDocument();
+    expect(screen.getByText(/form submitted|폼 제출/i)).toBeInTheDocument();
+    expect(screen.getByText("name")).toBeInTheDocument();
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("age")).toBeInTheDocument();
+    expect(screen.getByText("30")).toBeInTheDocument();
+  });
+
+  it("presentation_user (button_continue) 는 URL 을 본문에 표시", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "continued: https://example.com",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "Link",
+          nodeType: "template",
+          interactionType: "button_continue",
+          data: {
+            buttonId: "go",
+            buttonLabel: "Open",
+            url: "https://example.com",
+          },
+        },
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+    expect(screen.getByText(/link continue|링크 이동/i)).toBeInTheDocument();
+    expect(screen.getByText("https://example.com")).toBeInTheDocument();
+  });
+
+  it("system 아이템은 ℹ️ system note 라인으로 렌더 (v1 자동 push 없음, UI 형식만 미리 구현)", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "system",
+        content: "안내 메시지",
+        turnIndex: 0,
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+    expect(screen.getByText(/system note|시스템 알림/i)).toBeInTheDocument();
+    expect(screen.getByText(/안내 메시지/)).toBeInTheDocument();
+  });
+
+  it("form_submitted with empty data shows '(no fields)' placeholder", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "EmptyForm",
+          nodeType: "form",
+          interactionType: "form_submitted",
+          data: {},
+        },
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+    expect(screen.getByText(/no fields/i)).toBeInTheDocument();
+  });
+
+  it("button_continue with missing url renders empty body (no crash)", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "Link",
+          nodeType: "template",
+          interactionType: "button_continue",
+          data: { buttonId: "go", buttonLabel: "Open" },
+        },
+      }),
+    ];
+    expect(() =>
+      render(<ConversationInspector {...baseProps} conversationMessages={items} />),
+    ).not.toThrow();
+    expect(screen.getByText(/link continue|링크 이동/i)).toBeInTheDocument();
+  });
+
+  it("form_submitted with nested object value JSON.stringify-s the cell", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "Form",
+          nodeType: "form",
+          interactionType: "form_submitted",
+          data: { items: [1, 2, 3] },
+        },
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+    expect(screen.getByText("[1,2,3]")).toBeInTheDocument();
+  });
+
+  it("presentation / system items render without a timestamp (undefined) without crash", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "T",
+          nodeType: "template",
+          interactionType: "button_click",
+          data: { buttonId: "x", buttonLabel: "X" },
+        },
+      }),
+      makeItem({ type: "system", content: "note", turnIndex: 0 }),
+    ];
+    expect(() =>
+      render(<ConversationInspector {...baseProps} conversationMessages={items} />),
+    ).not.toThrow();
+  });
+
+  it("strips [user-input]…[/user-input] markers from user message rendering (§9.5 compat through SummaryView)", () => {
+    // Defense-in-depth: even if a legacy persisted message reaches the
+    // renderer with markers intact, the SummaryView's history rebuild path
+    // (parseHistoryMessages mirror) calls stripInlineMarkers so the visible
+    // body stays clean.
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "user",
+        content: "안녕하세요",
+        turnIndex: 1,
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+    // direct content (converter already stripped any markers before this).
+    expect(screen.getByText("안녕하세요")).toBeInTheDocument();
+  });
+
+  it("진짜 ai_user 메시지는 chat bubble (👤 User) 로 유지되어 presentation 카드와 시각적으로 구분", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "clicked: AI와 대화하기",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "Template",
+          nodeType: "template",
+          interactionType: "button_click",
+          data: { buttonId: "chat", buttonLabel: "AI와 대화하기" },
+        },
+      }),
+      makeItem({ type: "user", content: "어떤 상품이 있는지 알려줘", turnIndex: 1 }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+
+    // 진짜 user 메시지는 여전히 👤 User 헤더
+    expect(screen.getByText("👤 User")).toBeInTheDocument();
+    expect(screen.getByText("어떤 상품이 있는지 알려줘")).toBeInTheDocument();
+    // presentation 카드는 별도 chip 으로 격하 표시
+    expect(screen.getByText("🧩")).toBeInTheDocument();
+    expect(screen.getByText("Template")).toBeInTheDocument();
+  });
+});
