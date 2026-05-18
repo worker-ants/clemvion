@@ -18,6 +18,8 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | includeConfidence | Boolean | | `false` | 신뢰도 점수 포함 여부 |
 | includeEvidence | Boolean | | `false` | 분류 근거(입력에서 발췌한 단어/문장) 포함 여부 |
 | multiLabel | Boolean | | `false` | Multi-label 분류 모드 |
+| includeSystemContext | Boolean | | `true` | systemPrompt 앞에 시각·timezone prefix 자동 prepend. [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) |
+| systemContextSections | String[] | | `['time', 'timezone']` | prefix 섹션. [공통 §11.1](./0-common.md#111-설정-필드-3-노드-공통) |
 
 > `llmConfigId` 와 `model` 은 schema 상 optional 이지만, 둘 다 비어 있으면 `text_classifier:no-llm-provider` warningRule 이 발화하여 검증 실패한다.
 
@@ -94,6 +96,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 
 ## 4. 실행 로직
 
+0.5. **System Context Prefix 빌드** ([공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix)) — `includeSystemContext !== false` (default `true`) 면 `systemContextSections` 에 따라 prefix 를 생성해 다음 단계의 LLM 시스템 프롬프트 앞에 prepend.
 1. `categories` 배열로 LLM 시스템 프롬프트와 JSON Schema 를 구성한다 (모드별 분기).
    - **Single-label**: `enum = [...categoryNames, '__none__']` — LLM 이 매칭 없음을 명시적으로 표현 가능
    - **Multi-label**: `categories: { type: 'array', items: { name: enum, … } }` — 매칭 없음은 빈 배열로 표현
@@ -344,3 +347,9 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 ## 7. 캔버스 요약
 
 [공통 §8](./0-common.md#8-캔버스-요약) — `Text Classifier` 행 인용. 포맷: `{model} · {N} categories` (예: `gpt-4o-mini · 3 categories`).
+
+## 8. CHANGELOG
+
+| 일자 | 변경 |
+|------|------|
+| 2026-05-18 (system-context) | §1 config 표에 `includeSystemContext` / `systemContextSections` 추가 + §4 실행 로직 0.5 단계 추가. 설계·결정 근거는 [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) 및 [공통 §Rationale](./0-common.md#rationale). [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 와 한 묶음 결정. consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO). |
