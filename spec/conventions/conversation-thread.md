@@ -183,6 +183,8 @@ race-free.
 
 주입 위치는 `processMultiTurnMessageInner` 의 매 turn `llmService.chat` 직전 (single-turn 은 첫 chat 직전). messages 배열을 매 turn `[system, ...injectedThread, ...selfHistory]` 로 재빌드 — `injectedThread` 에서 자기 노드가 발생시킨 turn 은 `getThreadExcludingNode` 로 제외해 중복 방지.
 
+> **systemPrompt build ordering** (`system_text` 모드 시 prefix→suffix 순): System Context Prefix → 사용자 systemPrompt → KB/condition suffix → thread injection. **ordering 의 단일 SoT 는 [Spec AI 공통 §11.4](../4-nodes/3-ai/0-common.md#114-주입-위치-및-ordering)** — 본 절은 thread injection 단계만 다루며 ordering 재정의는 §11.4 만 참조. `messages` 모드는 thread 가 systemPrompt 본문이 아닌 messages 배열 prepend 이므로 본 ordering 의 thread 단계가 적용되지 않는다.
+
 ### 5.1 messages 모드 매핑
 
 | turn.source | role | content prefix |
