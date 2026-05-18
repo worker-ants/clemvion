@@ -73,11 +73,11 @@ owner: TBD
 - [ ] `AuthModule` 이 `WebAuthnModule` 을 import 하는 형태로 경계 분리
 - [ ] 단방향 의존성 유지 (`AuthService` ↔ `WebAuthnService` 양방향 호출 제거 검토)
 
-### 9. `LoginChallengeDto` union 분리
+### 9. `LoginChallengeDto` union 분리 — **완료**
 
-- [ ] `AccessTokenResponseDto` / `TwoFactorChallengeResponseDto` 분리
-- [ ] Swagger `oneOf` 로 응답 스키마 표기
-- [ ] 클라이언트 타입 가드 패턴 정리
+- [x] DTO 분리 — 기존 `AccessTokenDto` / `LoginChallengeDto` 가 이미 분리되어 있어 신설 불요. 개명(`*ResponseDto`)은 호출처 churn 가중 → 보류
+- [x] Swagger `oneOf` — `/auth/login` 에 `ApiOkWrappedOneOfResponse([AccessTokenDto, LoginChallengeDto])` 적용
+- [x] 클라이언트 타입 가드 — `AccessTokenResponse` / `TwoFactorChallengeResponse` interface + `isTwoFactorChallenge` / `isAccessTokenResponse` 헬퍼 추가, `login-form.tsx` 가 헬퍼 사용
 
 ### 10. V058 마이그레이션 NOT VALID 2-step 분리
 
