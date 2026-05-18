@@ -9,6 +9,11 @@
  * Keep entries grouped by category — labels / hints / placeholders / itemLabels
  * / groups / option labels — to mirror the auto-form rendering code that calls
  * `translateBackendLabel`.
+ *
+ * i18n Principle 3 — synchronization on **both** add and remove. When a backend
+ * label / warningRule message is removed (e.g. dead-rule deletion), its
+ * corresponding entry in `LABEL_KO` / `WARNING_KO` etc. MUST be removed in the
+ * same commit. The i18n guard CI check verifies both directions.
  */
 
 import type { Locale } from "./types";

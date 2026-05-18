@@ -204,3 +204,14 @@ Loop 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 - **Backend handler.validate** — `validateLoopConfig` 가 명시적 0/음수/non-numeric 만 reject. 빈 config 는 zod default 가 채울 수 있으므로 통과
 
 **dead warningRule 제거**: `loop:no-count` (`when: '!count'`) 는 `default('1')` 로 인해 발화 경로가 없다. `warningRules: []` 로 두고 코드 주석에 "intentionally empty" 명시 — 향후 유지보수자가 dead rule 을 재현·복원하지 않도록.
+
+### 8.2 `validateLoopConfig` cross-field 검증의 numeric-only 가드
+
+`validateLoopConfig` 의 "`count > maxIterations`" cross-field 비교는 `typeof count === 'number'` 일 때만 발화한다. 사용자 입력 raw 가 숫자 문자열(`'200'`) 인 경우는 schema 단계의 cross-field 검증을 **의도적으로 건너뛴다**.
+
+근거:
+- 사용자 입력 raw string 은 핸들러가 **echo** 한다 (Principle 7) — 표현식 `{{ ... }}` 보존을 위해 string ↔ number 변환을 schema 단에서 강제하지 않는다.
+- 문자열 → 숫자 강제는 engine 의 `coerceContainerNumber` (execution-engine.service §runContainerInner) 에서 일어나며, 그 단계에서 `MAX_ITERATIONS_EXCEEDED` 가 cross-field 위반을 잡는다 (§6 표).
+- schema 단에서 문자열을 미리 파싱·재해석하면 "raw string ↔ engine 평가값" 두 진실이 생기는데, raw string 보존이 더 단일 진실에 가깝다.
+
+결과: `validateLoopConfig({ count: '200', maxIterations: 100 })` 는 schema 단계에서 통과되고, runtime 에서 `MAX_ITERATIONS_EXCEEDED` 로 차단된다 — 두 단계 모두 안전 net 이지만 책임이 분리되어 있다.

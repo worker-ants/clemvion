@@ -84,7 +84,17 @@ export const loopNodePorts: NodePorts = {
  * AND `{{ ... }}` expressions, and the cross-field rule "count must be ≤
  * maxIterations" needs both to parse cleanly. The mini-DSL can't express the
  * "looks like an expression" carve-out, so the parsing logic stays here.
- * Single-field "is count set?" check lives in `warningRules` below.
+ *
+ * "Is count set?" check is intentionally absent — zod `default('1')` on the
+ * `count` field fills empty/undefined values at parse time ("최소 반복 1회"
+ * policy, spec/4-nodes/1-logic/3-loop.md §8). Empty input that bypasses
+ * schema parsing is the engine's runtime safety net (INVALID_CONTAINER_PARAM
+ * in coerceContainerNumber), not this validator's concern.
+ *
+ * Cross-field "count > maxIterations" comparison is intentionally gated on
+ * `typeof count === 'number'` — user-entered numeric strings (`'200'`) are
+ * preserved as raw and only coerced at engine evaluation time. This keeps the
+ * schema layer free of premature string-to-number conversion semantics.
  */
 function loopParseNumeric(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -149,11 +159,12 @@ export const loopNodeMetadata: NodeComponentMetadata = {
   isContainer: true,
   executionMetadata: { kind: 'container' },
   // SSOT for warnings (frontend canvas + backend handler.validate).
-  // "count missing" warningRule 은 의도적으로 두지 않음 — `count` zod
-  // schema 가 `default('1')` 이라 빈 값 발생 경로가 닫혀 있어 발화 불가.
-  // 정책 배경은 spec/4-nodes/1-logic/3-loop.md §8 Rationale "최소 반복 1회".
-  // 숫자 파싱 / "count ≤ maxIterations" 등 cross-field 검증은
-  // `validateConfig` 에 둠 (mini-DSL 표현력 한계).
+  // `warningRules: []` — **intentionally empty**. "count missing" 같은 빈 값
+  // 발화 rule 을 두지 않는 이유는 `count` zod schema 가 `default('1')` 이라
+  // 빈 값 발생 경로가 storage 단계에서 닫혀 있기 때문이며, 결과적으로 어떤
+  // warningRule 도 발화 경로가 없다. 정책 배경: spec/4-nodes/1-logic/3-loop.md
+  // §8 Rationale "최소 반복 1회". 숫자 파싱 / "count ≤ maxIterations" 등
+  // cross-field 검증은 `validateConfig` 에 둠 (mini-DSL 표현력 한계).
   warningRules: [],
   validateConfig: validateLoopConfig,
 };
