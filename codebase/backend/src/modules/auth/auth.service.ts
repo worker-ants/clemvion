@@ -22,6 +22,7 @@ import { validatePasswordStrength } from '../../common/utils/password.util';
 import { LoginHistoryService } from './login-history.service';
 import { deriveDeviceLabel } from './utils/device-label';
 import type { AuthContext } from './types/auth-context';
+import type { WebAuthnConfig } from '../../common/config/webauthn.config';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -43,6 +44,14 @@ export class AuthService {
     private readonly dataSource: DataSource,
     private readonly loginHistory: LoginHistoryService,
   ) {}
+
+  /**
+   * WebAuthn 기능 활성 여부 — `webauthn.config.ts` 의 enabled 플래그.
+   * spec/5-system/1-auth.md §1.4.3 — RP_ID/ORIGIN 미설정 시 false.
+   */
+  private isWebauthnEnabled(): boolean {
+    return this.configService.get<WebAuthnConfig>('webauthn')?.enabled === true;
+  }
 
   // ========== REGISTER ==========
   async register(
@@ -317,9 +326,13 @@ export class AuthService {
     // 2FA 활성 사용자: 5분 만료 challenge token 발급. spec/5-system/1-auth.md §1.4.2 —
     //   WebAuthn credential ≥ 1 → methods=['webauthn'] (TOTP fallback 자동 금지)
     //   else two_factor_enabled=true → methods=['totp']
-    const webauthnCount = await this.webauthnCredentialRepository.count({
-      where: { userId: user.id },
-    });
+    // WebAuthn 기능이 서버 env 미설정으로 비활성이면 (§1.4.3) credential 보유와 무관하게
+    // 0 으로 취급해 TOTP/일반 분기로 폴백한다 — 운영자 미설정에 사용자가 락아웃되지 않도록.
+    const webauthnCount = this.isWebauthnEnabled()
+      ? await this.webauthnCredentialRepository.count({
+          where: { userId: user.id },
+        })
+      : 0;
     const hasTotp = user.twoFactorEnabled;
     if (webauthnCount > 0 || hasTotp) {
       const methods: Array<'webauthn' | 'totp'> =
@@ -393,9 +406,13 @@ export class AuthService {
     }
     // spec/5-system/1-auth.md Rationale 1.4.D — WebAuthn credential 보유 사용자는
     // TOTP 자동 fallback 차단. 강제 우회 시도를 API 레이어에서 거부.
-    const webauthnCount = await this.webauthnCredentialRepository.count({
-      where: { userId: user.id },
-    });
+    // 단, WebAuthn 기능이 서버 env 미설정으로 비활성이면 (§1.4.3) 백스탑을 풀어
+    // TOTP 경로로 빠질 수 있도록 한다 — 사용자 락아웃 방지.
+    const webauthnCount = this.isWebauthnEnabled()
+      ? await this.webauthnCredentialRepository.count({
+          where: { userId: user.id },
+        })
+      : 0;
     if (webauthnCount > 0) {
       throw new UnauthorizedException({
         code: 'WEBAUTHN_REQUIRED',

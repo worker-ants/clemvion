@@ -54,6 +54,7 @@ describe('AuthController', () => {
     } as unknown as jest.Mocked<UsersService>;
 
     webauthnService = {
+      isEnabled: jest.fn().mockReturnValue(true),
       generateRegistrationOptionsFor: jest.fn(),
       verifyRegistration: jest.fn(),
       generateAuthenticationOptionsForUser: jest.fn(),
