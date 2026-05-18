@@ -46,9 +46,10 @@ owner: TBD
 
 ### 5. 기존 컨트롤러 응답 wrap 일관성 정리
 
-- [ ] `auth.controller.ts forgotPassword()` — `return { data: ... }` wrap 적용 + 호출 e2e 검증
-- [ ] `auth.controller.ts checkEmail()` — 동일
-- [ ] Swagger 선언과 실제 응답 일치 확인
+- [x] `auth.controller.ts forgotPassword()` — `return { data: ... }` wrap 적용
+- [x] `auth.controller.ts checkEmail()` — 동일
+- [x] Swagger 선언과 실제 응답 일치 확인 (`@ApiOkWrappedResponse` 이미 wrap 선언)
+- [x] 프론트엔드 `lib/api/auth.ts` 타입 갱신 (`forgotPassword`·`resetPassword`·`checkEmail`)
 
 본 PR scope 외 기존 코드 버그 (ai-review C-3/C-4).
 
