@@ -348,8 +348,17 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 
 [공통 §8](./0-common.md#8-캔버스-요약) — `Text Classifier` 행 인용. 포맷: `{model} · {N} categories` (예: `gpt-4o-mini · 3 categories`).
 
-## 8. CHANGELOG
+## 8. Rationale
+
+설계 결정의 SoT 는 다음 참조 (본 노드 단독 결정 없음 — 공통 규약을 그대로 따른다):
+
+- AI 카테고리 공통 규약: [공통 0-common.md](./0-common.md)
+- 응답 wrapper / 토큰 회계 / Conversation Thread / System Context Prefix: [공통 §5](./0-common.md#5-응답-형식-규약-principle-11), [§6](./0-common.md#6-토큰-회계-meta), [§10](./0-common.md#10-conversation-context-자동-컨텍스트-주입), [§11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix)
+
+`includeSystemContext` / `systemContextSections` config echo 는 default 값과 일치하면 생략한다 ([공통 §11.7](./0-common.md#117-config-echo)).
+
+## 9. CHANGELOG
 
 | 일자 | 변경 |
 |------|------|
-| 2026-05-18 (system-context) | §1 config 표에 `includeSystemContext` / `systemContextSections` 추가 + §4 실행 로직 0.5 단계 추가. 설계·결정 근거는 [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) 및 [공통 §Rationale](./0-common.md#rationale). [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 와 한 묶음 결정. consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO). |
+| 2026-05-18 (system-context) | §1 config 표에 `includeSystemContext` / `systemContextSections` 추가 + §4 실행 로직 0.5 단계 추가 + §8 Rationale stub 신설. 설계·결정 근거는 [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) 및 [공통 §Rationale](./0-common.md#rationale). [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 와 한 묶음 결정. consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO). |
