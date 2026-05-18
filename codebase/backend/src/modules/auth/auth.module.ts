@@ -8,9 +8,11 @@ import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { TotpService } from './totp.service';
+import { WebAuthnService } from './webauthn.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuthOAuthState } from './entities/auth-oauth-state.entity';
 import { LoginHistory } from './entities/login-history.entity';
+import { WebAuthnCredential } from './entities/webauthn-credential.entity';
 import { LoginHistoryService } from './login-history.service';
 import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
@@ -32,7 +34,12 @@ import { MailModule } from '../mail/mail.module';
         },
       }),
     }),
-    TypeOrmModule.forFeature([RefreshToken, AuthOAuthState, LoginHistory]),
+    TypeOrmModule.forFeature([
+      RefreshToken,
+      AuthOAuthState,
+      LoginHistory,
+      WebAuthnCredential,
+    ]),
     UsersModule,
     WorkspacesModule,
     MailModule,
@@ -43,10 +50,11 @@ import { MailModule } from '../mail/mail.module';
     AuthOauthService,
     JwtStrategy,
     TotpService,
+    WebAuthnService,
     LoginHistoryService,
     SessionsService,
     LoginHistoryPrunerService,
   ],
-  exports: [AuthService, TotpService, LoginHistoryService],
+  exports: [AuthService, TotpService, WebAuthnService, LoginHistoryService],
 })
 export class AuthModule {}

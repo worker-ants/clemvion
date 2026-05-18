@@ -47,6 +47,7 @@
     "@opentelemetry/resources": "^2.0.0",
     "@opentelemetry/sdk-node": "^0.218.0",
     "@opentelemetry/semantic-conventions": "^1.30.0",
+    "@simplewebauthn/server": "^13.3.0",
     "@workflow/expression-engine": "file:../packages/expression-engine",
     "@workflow/node-summary": "file:../packages/node-summary",
     "bcrypt": "^6.0.0",

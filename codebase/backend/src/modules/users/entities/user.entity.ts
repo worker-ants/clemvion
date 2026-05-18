@@ -36,8 +36,8 @@ export class User {
   twoFactorSecret: string;
 
   /**
-   * 2FA 복구 코드(SHA-256 해시 배열). 사용 시 해당 항목 제거.
-   * `totp_enabled = true`인 사용자에게 활성화 시점에 10개를 일회성으로 발급한다.
+   * TOTP 복구 코드(SHA-256 해시 배열). 사용 시 해당 항목 제거.
+   * `two_factor_enabled = true` 인 사용자에게 활성화 시점에 10개를 일회성으로 발급한다.
    */
   @Column({
     name: 'totp_recovery_codes',
@@ -46,6 +46,19 @@ export class User {
     nullable: true,
   })
   totpRecoveryCodes: string[] | null;
+
+  /**
+   * WebAuthn 복구 코드(SHA-256 해시 배열). 사용 시 해당 항목 제거.
+   * 첫 WebAuthn credential 등록 시점에 10개 발급. 모든 credential 삭제 시
+   * `WebAuthnService.deleteCredential` 이 NULL 화 (DB 트리거 아님 — spec/5-system/1-auth.md Rationale 1.4.B).
+   */
+  @Column({
+    name: 'webauthn_recovery_codes',
+    type: 'text',
+    array: true,
+    nullable: true,
+  })
+  webauthnRecoveryCodes: string[] | null;
 
   @Column({ name: 'email_verified', default: false })
   emailVerified: boolean;

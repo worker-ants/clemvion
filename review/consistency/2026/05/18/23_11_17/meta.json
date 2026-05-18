@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-18T23:11:17.120927",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=codebase/backend/src/modules/auth)",
+  "target_path": "codebase/backend/src/modules/auth",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

@@ -14,6 +14,7 @@ import {
   jwtConfig,
   mailConfig,
   llmConfig,
+  webauthnConfig,
 } from './common/config';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -76,6 +77,7 @@ import { AuditLog } from './modules/audit-logs/entities/audit-log.entity';
 import { RefreshToken } from './modules/auth/entities/refresh-token.entity';
 import { AuthOAuthState } from './modules/auth/entities/auth-oauth-state.entity';
 import { LoginHistory } from './modules/auth/entities/login-history.entity';
+import { WebAuthnCredential } from './modules/auth/entities/webauthn-credential.entity';
 import { LlmConfig } from './modules/llm-config/entities/llm-config.entity';
 import { LlmUsageLog } from './modules/llm/entities/llm-usage-log.entity';
 import { KnowledgeBase } from './modules/knowledge-base/entities/knowledge-base.entity';
@@ -120,6 +122,7 @@ export const ROOT_ENTITIES = [
   RefreshToken,
   AuthOAuthState,
   LoginHistory,
+  WebAuthnCredential,
   LlmConfig,
   LlmUsageLog,
   KnowledgeBase,
@@ -146,6 +149,7 @@ export const ROOT_ENTITIES = [
         jwtConfig,
         mailConfig,
         llmConfig,
+        webauthnConfig,
       ],
       envFilePath: '.env',
     }),

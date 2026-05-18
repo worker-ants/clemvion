@@ -5,3 +5,5 @@ export { s3Config } from './s3.config';
 export { jwtConfig } from './jwt.config';
 export { mailConfig } from './mail.config';
 export { llmConfig } from './llm.config';
+export { webauthnConfig } from './webauthn.config';
+export type { WebAuthnConfig } from './webauthn.config';
