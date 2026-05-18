@@ -123,7 +123,7 @@ describe('LoginHistoryService', () => {
         makeRow({ id: '1', createdAt: new Date('2026-05-12T00:00:00Z') }),
       ]);
       const page = await service.findForUser({ userId: 'u', limit: 10 });
-      expect(page.data).toHaveLength(1);
+      expect(page.items).toHaveLength(1);
       expect(page.nextCursor).toBeNull();
     });
 
@@ -135,7 +135,7 @@ describe('LoginHistoryService', () => {
       ];
       selectQb.getMany.mockResolvedValue(rows);
       const page = await service.findForUser({ userId: 'u', limit: 2 });
-      expect(page.data).toHaveLength(2);
+      expect(page.items).toHaveLength(2);
       expect(page.nextCursor).toBe(
         `${rows[1].createdAt.toISOString()}|${rows[1].id}`,
       );

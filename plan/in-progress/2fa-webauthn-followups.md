@@ -53,12 +53,12 @@ owner: TBD
 
 본 PR scope 외 기존 코드 버그 (ai-review C-3/C-4).
 
-### 6. Session/LoginHistory DTO 이중 중첩 해소
+### 6. Session/LoginHistory DTO 이중 중첩 해소 — **완료**
 
-- [ ] `SessionListDto.data` → `items` 개명
-- [ ] `LoginHistoryPageDto.data` → `items` 개명
-- [ ] 프론트엔드 호출처 갱신
-- [ ] e2e/spec 검증
+- [x] `SessionListDto.data` → `items` 개명 + 컨트롤러가 `{ data: { items } }` nested 형태 반환 (이전엔 flat `{ data: [...] }`)
+- [x] `LoginHistoryPageDto.data` → `items` 개명 + 서비스 반환 shape 갱신
+- [x] 프론트엔드 호출처 갱신 (`lib/api/sessions.ts`, `components/login-history-list.tsx`)
+- [x] e2e/spec 검증 (`session-revocation.e2e-spec` 의 `body.data.items` 갱신, 단위 테스트 통과)
 
 ### 7. WebAuthn verify 트랜잭션 + pessimistic lock 강화
 

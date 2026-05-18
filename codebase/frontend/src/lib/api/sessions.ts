@@ -28,8 +28,12 @@ export interface LoginHistoryItemDto {
 }
 
 export interface LoginHistoryPageDto {
-  data: LoginHistoryItemDto[];
+  items: LoginHistoryItemDto[];
   nextCursor: string | null;
+}
+
+export interface SessionListDto {
+  items: SessionDto[];
 }
 
 export interface RevokeSessionPayload {
@@ -44,10 +48,10 @@ export interface RevokeSessionPayload {
  */
 export const sessionsApi = {
   listSessions: async (): Promise<SessionDto[]> => {
-    const res = await apiClient.get<{ data: SessionDto[] }>(
+    const res = await apiClient.get<{ data: SessionListDto }>(
       "/users/me/sessions",
     );
-    return res.data.data;
+    return res.data.data.items;
   },
 
   revokeSession: async (
@@ -56,21 +60,21 @@ export const sessionsApi = {
   ): Promise<SessionDto[]> => {
     // POST 사용 — 일부 CDN/프록시가 DELETE 의 request body 를 제거할 수 있어
     // 자격증명을 안전하게 전달할 수 없다.
-    const res = await apiClient.post<{ data: SessionDto[] }>(
+    const res = await apiClient.post<{ data: SessionListDto }>(
       `/users/me/sessions/${encodeURIComponent(familyId)}/revoke`,
       payload,
     );
-    return res.data.data;
+    return res.data.data.items;
   },
 
   revokeOtherSessions: async (
     payload: RevokeSessionPayload,
   ): Promise<SessionDto[]> => {
-    const res = await apiClient.post<{ data: SessionDto[] }>(
+    const res = await apiClient.post<{ data: SessionListDto }>(
       "/users/me/sessions/revoke-others",
       payload,
     );
-    return res.data.data;
+    return res.data.data.items;
   },
 
   getLoginHistory: async (params?: {
