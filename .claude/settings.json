@@ -14,6 +14,15 @@
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_default_branch_edit.py\""
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_default_branch_bash.py\""
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
