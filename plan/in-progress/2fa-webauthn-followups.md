@@ -68,11 +68,12 @@ owner: TBD
 - [x] LoginHistory 기록은 트랜잭션 *밖* — audit 가 보안 핵심 경로 commit 을 막지 않도록
 - [x] spec/5-system/1-auth.md §1.4.4 동시성 보호 절 추가
 
-### 8. AuthModule 분리 (WebAuthnModule 서브모듈)
+### 8. AuthModule 분리 (WebAuthnModule 서브모듈) — **부분 완료** (Phase A)
 
-- [ ] `codebase/backend/src/modules/auth/webauthn/` 으로 entity·service·controller·DTO·tests 이동
-- [ ] `AuthModule` 이 `WebAuthnModule` 을 import 하는 형태로 경계 분리
-- [ ] 단방향 의존성 유지 (`AuthService` ↔ `WebAuthnService` 양방향 호출 제거 검토)
+- [x] `codebase/backend/src/modules/auth/webauthn/` 로 entity·service·DTO·tests 이동
+- [x] `AuthModule` 이 `WebAuthnModule` 을 import 하는 형태로 경계 분리
+- [x] 단방향 의존성 유지 — `AuthService` 가 `WebAuthnService.countCredentials()` 사용, 역방향 없음
+- [ ] (Phase B follow-up) WebAuthn HTTP 엔드포인트 (`/auth/2fa/webauthn/...`) 를 `WebAuthnController` 로 분리 — AuthController 비대화 해소
 
 ### 9. `LoginChallengeDto` union 분리 — **완료**
 
