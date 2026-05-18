@@ -1,6 +1,23 @@
+import { z } from 'zod';
 import { evaluateWarnings } from '@workflow/node-summary';
-import { formNodeMetadata, optionSchema } from './form.schema';
+import {
+  formNodeConfigSchema,
+  formNodeMetadata,
+  optionSchema,
+} from './form.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+
+describe('formNodeConfigSchema ui.required', () => {
+  // warningRules SSOT 와 frontend asterisk 표시가 어긋나지 않도록 잠금.
+  type Props = Record<string, { ui?: { required?: boolean } }>;
+  const properties = (
+    z.toJSONSchema(formNodeConfigSchema) as unknown as { properties?: Props }
+  ).properties;
+
+  it('marks fields as required (mirrors form:no-fields)', () => {
+    expect(properties?.fields?.ui?.required).toBe(true);
+  });
+});
 
 describe('formNodeMetadata.warningRules', () => {
   const firedIds = (config: unknown) =>
