@@ -16,6 +16,7 @@ dist/
 # Claude CLI runtime artifacts
 .claude/scheduled_tasks.lock
 .claude/worktrees/
+.claude/state/
 
 # Python bytecode (orchestrators in .claude/skills/**/hooks/)
 __pycache__/
