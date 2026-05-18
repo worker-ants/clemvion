@@ -182,6 +182,11 @@ export const editor = {
     composerWaitingPlaceholder: "AI 응답을 기다리는 중...",
     composerPlaceholder: "메시지를 입력하세요...",
     endConversation: "대화 종료",
+    // Source-별 카드 라벨 (spec/conventions/conversation-thread.md §9.1)
+    cardButtonClicked: "버튼 클릭",
+    cardFormSubmitted: "폼 제출",
+    cardLinkContinue: "링크 이동",
+    cardSystemNote: "시스템 알림",
   },
   expression: {
     insertVariable: "변수 삽입",

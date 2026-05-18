@@ -18,7 +18,9 @@ import {
 import {
   messagesToConversationItems,
   toolStatusMapFromItems,
+  threadTurnsToConversationItems,
   type RawMessage,
+  type ConversationTurn,
 } from "@/lib/conversation/conversation-utils";
 import { tryParseJson } from "@/lib/utils/parse-json";
 import { useT } from "@/lib/i18n";
@@ -150,6 +152,16 @@ export function useExecutionEvents({
         interactionType?: "form" | "buttons" | "ai_conversation";
         nodeOutput?: unknown;
         buttonConfig?: unknown;
+        // spec/5-system/6-websocket-protocol.md §4.4.5 — backend 가 항상
+        // 동봉하는 ConversationThread snapshot. spec/conventions/conversation
+        // -thread.md §9.3 에 의해 conversation Preview 의 1차 데이터 소스.
+        // emit messages (`convConfig.messages`) 는 LLM debug 패널 전용.
+        conversationThread?: {
+          id?: string;
+          nextSeq?: number;
+          turns?: ConversationTurn[];
+          totalChars?: number;
+        };
       };
       if (!payload.waitingNodeId) return;
 
@@ -226,11 +238,24 @@ export function useExecutionEvents({
         } | undefined;
         pauseForConversation(payload.waitingNodeId, convConfig ?? null);
 
-        // Seed conversationMessages from the snapshot using the shared
-        // converter so user / assistant / tool items all flow through one
-        // path. Skip when the store already has messages (re-emit on
-        // reconnect would otherwise duplicate).
-        if (convConfig?.messages) {
+        // spec/conventions/conversation-thread.md §9.3 — conversation Preview
+        // 의 1차 데이터 소스는 `conversationThread.turns` snapshot. backend 가
+        // 항상 동봉 (§4.4.5). source/nodeLabel/data 메타가 살아있어 raw 텍스트
+        // 파싱 없이 source 별 시각 분기가 자연스럽다. emit messages
+        // (`convConfig.messages`) 는 LLM debug 패널 전용으로 격리 (§9.4).
+        //
+        // Fallback: thread snapshot 이 비어있거나 옛 backend 가 동봉하지 않는
+        // 경우 (백워드 호환), emit messages → ConversationItem 변환을 1회 사용.
+        const threadTurns = payload.conversationThread?.turns;
+        if (threadTurns && threadTurns.length > 0) {
+          const items = threadTurnsToConversationItems(threadTurns);
+          if (items.length > 0) {
+            setConversationMessages(items);
+          }
+        } else if (convConfig?.messages) {
+          // Legacy / fallback path — same behaviour as before this change.
+          // Skip when the store already has messages (re-emit on reconnect
+          // would otherwise duplicate).
           const { conversationMessages } = useExecutionStore.getState();
           if (conversationMessages.length === 0) {
             const turnDebug = (payload as Record<string, unknown>).turnDebug as

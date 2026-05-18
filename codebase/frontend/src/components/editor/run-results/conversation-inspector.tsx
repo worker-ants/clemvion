@@ -2,7 +2,17 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Send, Square, Wrench, ChevronRight, ChevronDown, CheckCircle, XCircle } from "lucide-react";
+import {
+  Loader2,
+  Send,
+  Square,
+  Wrench,
+  ChevronRight,
+  ChevronDown,
+  CheckCircle,
+  XCircle,
+  Info,
+} from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
 import type { NodeResult } from "@/lib/stores/execution-store";
@@ -12,6 +22,7 @@ import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-r
 import { tryParseJson } from "@/lib/utils/parse-json";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
+import { stripInlineMarkers } from "@/lib/conversation/conversation-utils";
 
 /** Chip 한 줄에 inline 으로 보일 최대 문서명 개수 (나머지는 `+N` 으로 축약). */
 const MAX_VISIBLE_DOC_NAMES = 2;
@@ -287,6 +298,12 @@ function SelectedItemDetail({
   if (item.type === "user") {
     return <UserDetail item={item} />;
   }
+  if (item.type === "presentation") {
+    return <PresentationDetail item={item} />;
+  }
+  if (item.type === "system") {
+    return <SystemDetail item={item} />;
+  }
 
   const hasToolCalls = !!item.assistantToolCalls?.length;
   const turnSources = turnRefIndex?.get(item.turnIndex) ?? [];
@@ -382,6 +399,66 @@ function ToolDetail({ item }: { item: ConversationItem }) {
   );
 }
 
+/**
+ * Body of a `presentation_user` card (spec/conventions/conversation-thread.md
+ * §9.1). Uses structured `interaction.data` (1급 필드, node-output §4.5) to
+ * compose the body without parsing `content` — so the visible string is the
+ * clean label/URL/form-fields and never a verb prefix like `clicked:`.
+ *
+ *   - `button_click` → buttonLabel (fallback buttonId)
+ *   - `button_continue` → URL
+ *   - `form_submitted` → key-value rows (data is itself the flat field map)
+ */
+function PresentationCardBody({ item }: { item: ConversationItem }) {
+  const p = item.presentation;
+  if (!p) {
+    return (
+      <div className="whitespace-pre-wrap text-xs text-[hsl(var(--foreground))]">
+        {item.content || ""}
+      </div>
+    );
+  }
+  const data = p.data ?? {};
+  if (p.interactionType === "button_click") {
+    const label =
+      (data.buttonLabel as string | undefined) ??
+      (data.buttonId as string | undefined) ??
+      "";
+    return (
+      <div className="text-xs text-[hsl(var(--foreground))]">{label}</div>
+    );
+  }
+  if (p.interactionType === "button_continue") {
+    const url = (data.url as string | undefined) ?? "";
+    return (
+      <div className="break-all font-mono text-[11px] text-[hsl(var(--foreground))]">
+        {url}
+      </div>
+    );
+  }
+  // form_submitted — flat key-value map (node-output §4.5 form_submitted shape).
+  const entries = Object.entries(data);
+  if (entries.length === 0) {
+    return (
+      <div className="text-xs italic text-[hsl(var(--muted-foreground))]">
+        (no fields)
+      </div>
+    );
+  }
+  return (
+    <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5 text-xs">
+      {entries.map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt className="text-[hsl(var(--muted-foreground))]">{k}</dt>
+          <dd className="break-all text-[hsl(var(--foreground))]">
+            {typeof v === "object" ? JSON.stringify(v) : String(v ?? "")}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function RagDetail({ item }: { item: ConversationItem }) {
   // content 첫 줄에서 chunk 개수 힌트, [Source: …] 패턴 빈도로 대략 회수 chunk 수 표시.
   const sourceCount = (item.content.match(/\[Source: /g) ?? []).length;
@@ -400,6 +477,57 @@ function RagDetail({ item }: { item: ConversationItem }) {
       <p className="text-[10px] italic text-[hsl(var(--muted-foreground))]">
         지식베이스에서 검색한 청크가 시스템 메시지로 LLM 에 주입되었습니다.
       </p>
+    </div>
+  );
+}
+
+function PresentationDetail({ item }: { item: ConversationItem }) {
+  const t = useT();
+  const p = item.presentation;
+  const interactionLabelKey =
+    p?.interactionType === "form_submitted"
+      ? "editor.conversation.cardFormSubmitted"
+      : p?.interactionType === "button_continue"
+        ? "editor.conversation.cardLinkContinue"
+        : "editor.conversation.cardButtonClicked";
+  return (
+    <div className="flex flex-col gap-3 p-3">
+      <div className="flex items-center gap-2">
+        <span>🧩</span>
+        <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+          {p?.nodeLabel ?? "Presentation"} · {t(interactionLabelKey)}
+        </span>
+        {item.timestamp && (
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            {formatDate(item.timestamp, "datetime")}
+          </span>
+        )}
+      </div>
+      <PresentationCardBody item={item} />
+    </div>
+  );
+}
+
+function SystemDetail({ item }: { item: ConversationItem }) {
+  const t = useT();
+  return (
+    <div className="flex flex-col gap-3 p-3">
+      <div className="flex items-center gap-2">
+        <Info size={14} className="text-[hsl(var(--muted-foreground))]" />
+        <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+          {t("editor.conversation.cardSystemNote")}
+        </span>
+        {item.timestamp && (
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            {formatDate(item.timestamp, "datetime")}
+          </span>
+        )}
+      </div>
+      {item.content && (
+        <div className="whitespace-pre-wrap text-xs italic text-[hsl(var(--foreground))]">
+          {item.content}
+        </div>
+      )}
     </div>
   );
 }
@@ -479,7 +607,7 @@ function SummaryView({
         turnCounter++;
         out.push({
           type: "user",
-          content: m.content,
+          content: stripInlineMarkers(m.content),
           turnIndex: turnCounter,
         });
       } else if (m.role === "assistant") {
@@ -490,7 +618,7 @@ function SummaryView({
         }
         out.push({
           type: "assistant",
-          content: m.content,
+          content: stripInlineMarkers(m.content),
           turnIndex: turnCounter,
           assistantToolCalls: m.toolCalls?.length
             ? m.toolCalls.map((tc) => ({
@@ -565,6 +693,59 @@ function SummaryView({
             const isAssistant = item.type === "assistant";
             const isRag = (item.type as string) === "rag";
             const isTool = item.type === "tool";
+            const isPresentation = item.type === "presentation";
+            const isSystem = item.type === "system";
+            // spec/conventions/conversation-thread.md §9.1 — `presentation_user`
+            // turn 은 chat bubble 이 아닌 회색 시스템 카드로 렌더. 3중 신호
+            // (아이콘 🧩 + full-width 카드 컨테이너 + nodeLabel chip) 동시 적용.
+            if (isPresentation) {
+              const p = item.presentation;
+              const interactionLabelKey =
+                p?.interactionType === "form_submitted"
+                  ? "editor.conversation.cardFormSubmitted"
+                  : p?.interactionType === "button_continue"
+                    ? "editor.conversation.cardLinkContinue"
+                    : "editor.conversation.cardButtonClicked";
+              return (
+                <div
+                  key={`${item.type}-${i}`}
+                  role={isClickable ? "button" : undefined}
+                  tabIndex={isClickable ? 0 : undefined}
+                  onClick={handleClick}
+                  onKeyDown={handleKeyDown}
+                  className={cn(
+                    "rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-xs text-left",
+                    isClickable &&
+                      "cursor-pointer transition-shadow hover:ring-1 hover:ring-[hsl(var(--primary))/0.3] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
+                  )}
+                >
+                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+                    <span aria-hidden>🧩</span>
+                    <span className="rounded bg-[hsl(var(--background))] px-1.5 py-0.5 font-mono">
+                      {p?.nodeLabel ?? "Presentation"}
+                    </span>
+                    <span>· {t(interactionLabelKey)}</span>
+                  </div>
+                  <PresentationCardBody item={item} />
+                </div>
+              );
+            }
+            // §9.1 system note — v1 자동 push 없음이라 실제 호출은 드물지만,
+            // 향후 수동 push 또는 v2 자동 push 도입 시점에 별도 PR 없이 보이도록
+            // UI 형식은 미리 구현 (spec §9.1 의 "UI 는 본 행 형식을 미리 구현해
+            // 두기만 한다" 명시).
+            if (isSystem) {
+              return (
+                <div
+                  key={`${item.type}-${i}`}
+                  className="mx-auto flex max-w-full items-center justify-center gap-1.5 py-1 text-[10px] italic text-[hsl(var(--muted-foreground))]"
+                >
+                  <Info size={10} aria-hidden />
+                  <span className="font-medium">{t("editor.conversation.cardSystemNote")}</span>
+                  {item.content && <span>· {item.content}</span>}
+                </div>
+              );
+            }
             // Tool 은 시스템 이벤트로 buble 이 아닌 컴팩트 한 줄로 분리.
             if (isTool) {
               const summary = summarizeToolResult(item.toolResult);

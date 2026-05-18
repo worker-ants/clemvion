@@ -184,6 +184,11 @@ export const editor: Dict["editor"] = {
     composerWaitingPlaceholder: "Waiting for AI response...",
     composerPlaceholder: "Type a message...",
     endConversation: "End conversation",
+    // Source-specific card labels (spec/conventions/conversation-thread.md §9.1)
+    cardButtonClicked: "button clicked",
+    cardFormSubmitted: "form submitted",
+    cardLinkContinue: "link continue",
+    cardSystemNote: "System note",
   },
   expression: {
     insertVariable: "Insert variable",
