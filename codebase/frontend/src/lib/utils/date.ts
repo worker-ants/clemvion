@@ -55,12 +55,21 @@ export function formatDuration(ms: number, locale?: Locale): string {
   return translate(loc, "time.minutesSeconds", { minutes, seconds });
 }
 
-export type DateFormat = "iso" | "date" | "datetime" | "time" | "month-year";
+export type DateFormat =
+  | "iso"
+  | "date"
+  | "datetime"
+  | "datetime-tz"
+  | "time"
+  | "month-year";
 
 /**
  * Format a date with the user's locale. `format` accepts:
  *   - `"iso"` — ISO 8601 string (locale-agnostic, UTC).
  *   - `"datetime"` — short month + year + hour:minute (client TZ).
+ *   - `"datetime-tz"` — `"datetime"` plus the client's timezone short name
+ *     (e.g. `"KST"`, `"GMT+9"`, `"PST"`). Use when the timestamp must be
+ *     unambiguous across timezones (notifications, audit rows, etc.).
  *   - `"time"` — hour:minute only (client TZ).
  *   - `"date"` / undefined — short month + year (default, client TZ).
  *
@@ -92,6 +101,17 @@ export function formatDate(date: string | Date, format?: DateFormat, locale?: Lo
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+    });
+  }
+
+  if (format === "datetime-tz") {
+    return d.toLocaleString(intlLocale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZoneName: "short",
     });
   }
 
