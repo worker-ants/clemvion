@@ -51,10 +51,20 @@ export const webauthnConfig = registerAs<WebAuthnConfig>('webauthn', () => {
   const rpName = process.env.WEBAUTHN_RP_NAME || 'Clemvion';
 
   if (originsFallback || rpIDFallback) {
-    logger.warn(
+    const message =
       `WebAuthn config falling back to FRONTEND_URL (originsFallback=${originsFallback}, rpIDFallback=${rpIDFallback}). ` +
-        `Set WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN for production deployments — rpID/origin mismatch breaks registration & authentication.`,
-    );
+      `Set WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN — rpID/origin mismatch breaks registration & authentication.`;
+    // production 에서 미설정은 보안상 fatal — 운영자가 의식적으로 폴백을 허용하려면
+    // WEBAUTHN_ALLOW_FALLBACK=1 (단발성 escape hatch).
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.WEBAUTHN_ALLOW_FALLBACK !== '1'
+    ) {
+      throw new Error(
+        `${message} Set WEBAUTHN_ALLOW_FALLBACK=1 to opt out (not recommended).`,
+      );
+    }
+    logger.warn(message);
   }
 
   return { rpID, rpName, origins };

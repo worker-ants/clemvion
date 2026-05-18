@@ -12,6 +12,7 @@ import {
 import { createHash } from 'crypto';
 import { WebAuthnService } from './webauthn.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { LoginHistoryService } from './login-history.service';
 
@@ -37,6 +38,7 @@ const mockedVerifyAuthResp = verifyAuthenticationResponse as jest.Mock;
 describe('WebAuthnService', () => {
   let service: WebAuthnService;
   let credentialRepo: jest.Mocked<any>;
+  let refreshTokenRepo: jest.Mocked<any>;
   let usersService: jest.Mocked<any>;
   let jwtService: jest.Mocked<JwtService>;
   let loginHistory: jest.Mocked<LoginHistoryService>;
@@ -62,6 +64,10 @@ describe('WebAuthnService', () => {
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
+    refreshTokenRepo = {
+      update: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
+
     usersService = {
       findById: jest.fn().mockResolvedValue(mockUser),
       update: jest.fn().mockResolvedValue(undefined),
@@ -84,6 +90,7 @@ describe('WebAuthnService', () => {
       providers: [
         WebAuthnService,
         { provide: getRepositoryToken(WebAuthnCredential), useValue: credentialRepo },
+        { provide: getRepositoryToken(RefreshToken), useValue: refreshTokenRepo },
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: jwtService },
         {
@@ -295,7 +302,7 @@ describe('WebAuthnService', () => {
       );
     });
 
-    it('deletes credential + records WEBAUTHN_COUNTER_REGRESSION on counter regression', async () => {
+    it('deletes credential + revokes all active refresh tokens + records WEBAUTHN_COUNTER_REGRESSION on counter regression', async () => {
       mockedVerifyAuthResp.mockRejectedValue(
         new Error('Response counter value 0 is less than or equal to current counter 5'),
       );
@@ -305,6 +312,11 @@ describe('WebAuthnService', () => {
         response: expect.objectContaining({ code: 'WEBAUTHN_COUNTER_REGRESSION' }),
       });
       expect(credentialRepo.delete).toHaveBeenCalledWith({ id: credentialRow.id });
+      // 클론 공격 시 기존 활성 세션 즉시 revoke (review C-3)
+      expect(refreshTokenRepo.update).toHaveBeenCalledWith(
+        { userId, isRevoked: false },
+        { isRevoked: true },
+      );
       expect(loginHistory.record).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'webauthn_failed',
