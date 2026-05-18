@@ -22,7 +22,9 @@ describe('System Context Prefix', () => {
     });
 
     it('renders Z for UTC', () => {
-      expect(formatIsoWithTimezone(fixedNow, 'UTC')).toBe('2026-05-18T03:45:12Z');
+      expect(formatIsoWithTimezone(fixedNow, 'UTC')).toBe(
+        '2026-05-18T03:45:12Z',
+      );
     });
 
     it('handles negative offsets', () => {
@@ -66,7 +68,9 @@ describe('System Context Prefix', () => {
       const original = process.env.TZ;
       process.env.TZ = 'America/New_York';
       try {
-        expect(resolveSystemContextTimezone(undefined)).toBe('America/New_York');
+        expect(resolveSystemContextTimezone(undefined)).toBe(
+          'America/New_York',
+        );
         expect(resolveSystemContextTimezone('')).toBe('America/New_York');
       } finally {
         process.env.TZ = original;

@@ -15,10 +15,8 @@ import type { ExecutionContext } from '../../core/node-handler.interface.js';
 export type SystemContextSection = 'time' | 'timezone' | 'workspace' | 'node';
 
 export const SYSTEM_CONTEXT_DEFAULT_INCLUDE = true;
-export const SYSTEM_CONTEXT_DEFAULT_SECTIONS: readonly SystemContextSection[] = [
-  'time',
-  'timezone',
-];
+export const SYSTEM_CONTEXT_DEFAULT_SECTIONS: readonly SystemContextSection[] =
+  ['time', 'timezone'];
 
 const ALL_SECTIONS: readonly SystemContextSection[] = [
   'time',
@@ -109,9 +107,7 @@ function renderSection(
       const name = args.workspace?.name ?? '';
       if (!id && !name) return '';
       const label = name || '(unnamed)';
-      return id
-        ? `- Workspace: ${label} (id: ${id})`
-        : `- Workspace: ${label}`;
+      return id ? `- Workspace: ${label} (id: ${id})` : `- Workspace: ${label}`;
     }
     case 'node': {
       const id = args.node?.id ?? '';
@@ -159,16 +155,14 @@ export function formatUtcOffsetLabel(date: Date, timezone: string): string {
 function getPartsInTimezone(
   date: Date,
   timezone: string,
-):
-  | {
-      year: string;
-      month: string;
-      day: string;
-      hour: string;
-      minute: string;
-      second: string;
-    }
-  | null {
+): {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+  second: string;
+} | null {
   try {
     const fmt = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
@@ -247,7 +241,8 @@ export function normalizeSystemContextConfig(config: Record<string, unknown>): {
       : Boolean(includeRaw);
   if (!enabled) return { enabled: false, sections: [] };
   const sectionsRaw = config['systemContextSections'];
-  let sections: readonly SystemContextSection[] = SYSTEM_CONTEXT_DEFAULT_SECTIONS;
+  let sections: readonly SystemContextSection[] =
+    SYSTEM_CONTEXT_DEFAULT_SECTIONS;
   if (Array.isArray(sectionsRaw)) {
     sections = sectionsRaw.filter((v): v is SystemContextSection =>
       ALL_SECTIONS.includes(v as SystemContextSection),
@@ -269,10 +264,10 @@ export function buildSystemContextPrefixFromContext(args: {
 }): string {
   const { enabled, sections } = normalizeSystemContextConfig(args.config);
   if (!enabled) return '';
-  const variables = args.context.variables as Record<string, unknown>;
+  const variables = args.context.variables;
   const workspaceTimezone =
     typeof variables['__workspaceTimezone'] === 'string'
-      ? (variables['__workspaceTimezone'] as string)
+      ? variables['__workspaceTimezone']
       : undefined;
   const timezone = resolveSystemContextTimezone(workspaceTimezone);
   return buildSystemContextPrefix({
@@ -281,7 +276,7 @@ export function buildSystemContextPrefixFromContext(args: {
     workspace: {
       id:
         typeof variables['__workspaceId'] === 'string'
-          ? (variables['__workspaceId'] as string)
+          ? variables['__workspaceId']
           : undefined,
     },
     node: {

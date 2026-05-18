@@ -1280,10 +1280,7 @@ export class ExecutionEngineService
         where: { id: workflowId },
         relations: ['workspace'],
       });
-      const workspaceTimezone =
-        (workflow?.workspace?.settings as Record<string, unknown> | undefined)?.[
-          'timezone'
-        ];
+      const workspaceTimezone = workflow?.workspace?.settings?.['timezone'];
       const context = this.contextService.createContext(
         executionId,
         workflowId,

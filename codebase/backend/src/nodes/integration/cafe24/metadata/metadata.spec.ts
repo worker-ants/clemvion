@@ -84,7 +84,8 @@ describe('Cafe24 metadata', () => {
     // 포함해야 한다. 단순 `'ISO8601 date'` 만 적는 것은 금지 (KST/UTC 모호성으로
     // AI Agent 가 9시간 어긋난 인자를 생성할 회귀 차단).
     it('date/time field descriptions declare KST or YYYY-MM-DD format (spec §5.2)', () => {
-      const dateNamePattern = /(date|time|since|until|created|updated|expired)/i;
+      const dateNamePattern =
+        /(date|time|since|until|created|updated|expired)/i;
       const violations: string[] = [];
       for (const { resource, operation } of listAllCafe24Operations()) {
         for (const [name, spec] of Object.entries(operation.fields)) {
