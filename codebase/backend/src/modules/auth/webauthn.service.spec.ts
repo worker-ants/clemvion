@@ -7,6 +7,7 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
@@ -99,6 +100,7 @@ describe('WebAuthnService', () => {
             get: jest.fn().mockImplementation((key: string) => {
               if (key === 'webauthn') {
                 return {
+                  enabled: true,
                   rpID: 'localhost',
                   rpName: 'Clemvion',
                   origins: ['http://localhost:3012'],
@@ -450,6 +452,54 @@ describe('WebAuthnService', () => {
       await expect(
         service.regenerateRecoveryCodes(userId),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('when feature disabled (env not configured)', () => {
+    beforeEach(() => {
+      (
+        jest.mocked(
+          (
+            service as unknown as {
+              configService: { get: jest.Mock };
+            }
+          ).configService.get,
+        ) as jest.Mock
+      ).mockImplementation((key: string) => {
+        if (key === 'webauthn') {
+          return { enabled: false, rpID: '', rpName: 'Clemvion', origins: [] };
+        }
+        return undefined;
+      });
+    });
+
+    it('isEnabled() returns false', () => {
+      expect(service.isEnabled()).toBe(false);
+    });
+
+    it('listCredentials returns empty array without DB hit', async () => {
+      const result = await service.listCredentials(userId);
+      expect(result).toEqual([]);
+      expect(credentialRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('countCredentials returns 0 without DB hit', async () => {
+      const result = await service.countCredentials(userId);
+      expect(result).toBe(0);
+      expect(credentialRepo.count).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['generateRegistrationOptionsFor', () => service.generateRegistrationOptionsFor(userId)],
+      ['verifyRegistration', () => service.verifyRegistration(userId, 'token', {} as never)],
+      ['generateAuthenticationOptionsForUser', () => service.generateAuthenticationOptionsForUser(userId)],
+      ['verifyAuthentication', () => service.verifyAuthentication(userId, 'token', {} as never)],
+      ['verifyRecoveryCode', () => service.verifyRecoveryCode(userId, 'code')],
+      ['renameCredential', () => service.renameCredential(userId, 'cred-1', 'name')],
+      ['deleteCredential', () => service.deleteCredential(userId, 'cred-1')],
+      ['regenerateRecoveryCodes', () => service.regenerateRecoveryCodes(userId)],
+    ])('%s throws ServiceUnavailable (WEBAUTHN_DISABLED)', async (_name, fn) => {
+      await expect(fn()).rejects.toThrow(ServiceUnavailableException);
     });
   });
 });

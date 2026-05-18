@@ -71,15 +71,29 @@ TOTP/WebAuthn 두 풀을 분리하는 이유는 한쪽을 비활성화해도 다
 - WebAuthn 실패 시 사용자는 동일 화면의 **"복구 코드 사용"** 링크로 WebAuthn 전용 복구 코드 입력 필드를 노출할 수 있다 (TOTP 화면으로 자동 전환되지 않음).
 - `requiresTotp` 는 기존 클라이언트 호환을 위한 **deprecated** 필드다. 도입 이유: WebAuthn 추가 이전 클라이언트(릴리스 < 2026-05-18) 가 본 응답을 분해할 수 있도록 한동안 함께 내려준다. **제거 조건**: (1) 두 마이너 버전 후 (예: 본 변경이 v0.7 이면 v0.9 에서 제거), (2) `methods` 만 보는 새 프론트엔드가 동일 PR 에서 함께 배포되어 backward-only 사용처가 사라진 것이 확인된 후 — 둘 중 늦은 시점. 새 클라이언트는 `requires2fa` + `methods` 만 본다. 두 필드 충돌 시 `requires2fa` 가 우선한다.
 
-#### 1.4.3 WebAuthn 환경변수
+#### 1.4.3 WebAuthn 환경변수 (옵션 기능)
 
-셀프 호스팅 운영에서 도메인이 SaaS 와 다르므로 다음 환경변수로 분리한다 (모두 누락 시 `FRONTEND_URL` 의 hostname 으로 best-effort 폴백 + warn 로그). 실제 적용은 `codebase/backend/src/common/config/webauthn.config.ts` 에서 `registerAs('webauthn', ...)` 로 등록.
+WebAuthn 은 **셀프 호스팅 도메인이 SaaS 와 다르다** 는 전제 때문에 운영자가 명시적으로 env 를 설정해야 활성화되는 옵션 기능이다. 두 핵심 환경변수가 모두 설정되어 있을 때만 기능이 켜지며, 누락 시 자동 폴백하지 않는다 (운영 도메인과 어긋난 rpID 로 등록되면 이후 인증이 모두 실패해 사용자가 락아웃됨).
+
+실제 적용은 `codebase/backend/src/common/config/webauthn.config.ts` 에서 `registerAs('webauthn', ...)` 로 등록.
 
 | 변수 | 용도 | 예 |
 |------|------|----|
 | `WEBAUTHN_RP_ID` | Relying Party ID (호스트명, 포트·스킴 없음) | `clemvion.example.com` |
-| `WEBAUTHN_RP_NAME` | 사용자 다이얼로그에 표시될 이름 | `Clemvion` |
+| `WEBAUTHN_RP_NAME` | 사용자 다이얼로그에 표시될 이름 (선택, 기본 `Clemvion`) | `Clemvion` |
 | `WEBAUTHN_ORIGIN` | 콤마 구분 허용 origin 목록. 같은 RP 의 multi-origin 지원 | `https://clemvion.example.com,https://app.clemvion.example.com` |
+| `WEBAUTHN_ALLOW_FALLBACK` | (선택) `1` 설정 시 `WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN` 미설정 상태에서도 `FRONTEND_URL` 로 폴백해 기능을 켠다. **개발·로컬·시연 한정**, 운영 사용 금지 | `0` (default) |
+
+**활성/비활성 시 동작**
+
+| 상태 | 조건 | 동작 |
+|------|------|------|
+| 활성 (enabled=true) | 두 환경변수 모두 설정 **또는** `WEBAUTHN_ALLOW_FALLBACK=1` | 모든 WebAuthn 엔드포인트 정상 동작. `/auth/login` 응답이 §1.4.2 표에 따라 `methods=['webauthn']` 분기 가능 |
+| 비활성 (enabled=false) | 환경변수 미설정 + 폴백 미허용 | 부팅은 정상 (warn 로그). WebAuthn 엔드포인트는 모두 `503 WEBAUTHN_DISABLED` 반환. `/auth/login` 은 credential 보유와 무관하게 `webauthnCount=0` 으로 취급 → `methods=['totp']` 또는 즉시 로그인. 프론트엔드는 `GET /auth/2fa/webauthn/availability` 응답에 따라 Passkey UI 를 숨긴다 |
+
+**`/auth/2fa/webauthn/availability`** — Public GET. 응답 `{ data: { enabled: boolean } }`. 인증 불요. 프론트엔드가 보안 페이지 진입 시 호출해 Passkey 카드 노출 여부를 결정한다.
+
+운영자가 미설정 상태에서 사용자가 이미 WebAuthn credential 을 보유 중인 경우: DB row 는 보존되며 운영자가 env 를 다시 설정하면 그대로 재사용 가능하다. 비활성 동안 사용자는 TOTP 또는 일반 로그인으로 진입하므로 락아웃되지 않는다 (Rationale 1.4.F).
 
 #### 1.4.4 WebAuthn 흐름
 
@@ -322,7 +336,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | POST | /api/auth/2fa/setup | TOTP 설정 시작 (인증 필수) — secret 발급 + QR data URL 반환 |
 | POST | /api/auth/2fa/verify | TOTP 활성화 verify (인증 필수) — 활성화 + TOTP 복구 코드 10개 일회성 반환 |
 | POST | /api/auth/2fa/disable | TOTP 비활성 (인증 + 비밀번호 재확인) |
-| POST | /api/auth/2fa/webauthn/register/options | WebAuthn 등록 options 발급. **인증 필수** (JWT). 응답에 `optionsToken` JWT (`kind=webauthn_register`, exp 5분) 동봉 |
+| GET | /api/auth/2fa/webauthn/availability | WebAuthn 기능 활성 여부 조회. **인증 불요** (`@Public`). 응답: `{ enabled: boolean }`. 프론트엔드가 Passkey UI 노출 여부 결정용. spec §1.4.3 |
+| POST | /api/auth/2fa/webauthn/register/options | WebAuthn 등록 options 발급. **인증 필수** (JWT). 응답에 `optionsToken` JWT (`kind=webauthn_register`, exp 5분) 동봉. 기능 비활성 시 503 `WEBAUTHN_DISABLED` |
 | POST | /api/auth/2fa/webauthn/register/verify | WebAuthn 등록 verify. **인증 필수** (JWT). credential 저장 + 첫 등록 시 복구 코드 10개 평문 반환 (이후 SHA-256 해시만 보관). 실패: 400 `WEBAUTHN_VERIFY_FAILED`, optionsToken 무효 시 400 `INVALID_OPTIONS_TOKEN` |
 | POST | /api/auth/2fa/webauthn/authenticate/options | WebAuthn 로그인 2FA options. **인증 불요** (`@Public`) — 본문의 `challengeToken` (mfa_challenge JWT) 으로 userId 식별. 응답에 `optionsToken` JWT (`kind=webauthn_auth`). 검증 실패: 401 `CHALLENGE_INVALID` |
 | POST | /api/auth/2fa/webauthn/authenticate/verify | WebAuthn 로그인 2FA verify. **인증 불요** (`@Public`) — `challengeToken` + `optionsToken` 동시 검증. 성공 시 access/refresh 발급. 실패: 401 `WEBAUTHN_INVALID`, counter 역행 시 401 + 해당 credential row 삭제 + LoginHistory `webauthn_failed`(`WEBAUTHN_COUNTER_REGRESSION`) |
@@ -436,3 +451,20 @@ WebAuthn 등록 사용자에게 로그인 화면이 TOTP 입력란을 함께 노
 - 보안: WebAuthn 은 phishing-resistant, TOTP 는 사용자가 코드를 입력하는 시점에 phishing 에 취약. 사용자가 강한 인증 수단을 등록했는데 약한 수단으로 자동 우회 가능하면 등록한 의미가 약해진다.
 - 사용자가 의도적으로 TOTP 로 전환하길 원하면 보안 설정에서 WebAuthn credential 을 모두 삭제 (혹은 webauthn 복구 코드 사용) 한 뒤 재로그인 가능. 의식적인 다운그레이드만 허용한다.
 - 분실 시 잠김 위협은 별도 복구 코드 (§1.4.1) 로 완화. 복구 코드 분실까지 가정한 계정 복구는 본 spec 범위 밖 (관리자 개입 경로).
+
+### 1.4.F — WebAuthn 환경변수 미설정 시 부팅 거부 vs 기능 비활성
+
+본 PR 직후 운영 인스턴스에서 `WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN` 미설정 상태로 NestJS bootstrap 이 throw → 컨테이너 crashloop 발생. 운영자가 WebAuthn 을 사용할 의향이 없거나 아직 도메인이 정해지지 않은 셀프 호스팅 단계에서 앱 전체가 죽는 trade-off 가 부적절하다는 판단으로, 정책을 두 가지 후보 중 선택:
+
+| 후보 | 동작 | 채택 여부 |
+|------|------|-----------|
+| A. 부팅 거부 (이전) | env 미설정 + `WEBAUTHN_ALLOW_FALLBACK!=1` → throw | **기각** — 운영자가 WebAuthn 을 안 쓰는 경우에도 앱 자체가 안 뜸. 일반 로그인·TOTP 까지 동반 마비. |
+| B. 기능 비활성 (현재) | env 미설정 → `enabled=false`. WebAuthn 엔드포인트만 503, 나머지 정상 | **채택** — 옵션 기능답게 옵션. 운영자가 의식적으로 켜야 켜진다. |
+
+채택 이유:
+
+- WebAuthn 은 **부가 인증 수단**이지 인증의 핵심 경로가 아니다. 부재 시 일반 로그인 + TOTP 가 정상 동작해야 한다.
+- 운영자가 모든 env 를 한 번에 설정하지 않는 셀프 호스팅 점진 도입 시나리오를 차단하지 말아야 한다.
+- 잘못된 폴백(localhost 등) 으로 등록·인증 데이터가 누적되면 향후 도메인 결정 시점에 모두 무효화되므로, 자동 폴백보다는 명시적 활성화가 안전.
+- 사용자 락아웃 우려: WebAuthn-only 사용자가 env 비활성 시점에 접근 불가가 되는 가능성은 있으나, 운영자가 WebAuthn 을 한 번이라도 활성화했다면 env 를 그대로 두는 게 정상 운영. 운영자 실수로 env 가 꺼지면 사용자는 webauthn 복구 코드 → TOTP 등록 우회 경로가 없고 관리자 개입 필요. 본 케이스는 §1.4.D 와 같은 운영 권고 사항 (env 변경 전 사용자 공지).
+- 폴백이 필요한 dev/local/시연 한정으로는 `WEBAUTHN_ALLOW_FALLBACK=1` escape hatch 를 유지한다.
