@@ -120,12 +120,14 @@ describe('SendEmailHandler', () => {
       );
     });
 
-    it('rejects cc when raw is a string (array-only)', () => {
+    it('rejects cc when raw is a string (array-only) + 에러 메시지에 cc 포함', () => {
       // 종전 sum-type 에서는 통과. 이제 일관되게 reject.
-      expect(handler.validate({ ...baseConfig, cc: '' }).valid).toBe(false);
-      expect(handler.validate({ ...baseConfig, cc: 'c@x.com' }).valid).toBe(
-        false,
-      );
+      const emptyResult = handler.validate({ ...baseConfig, cc: '' });
+      expect(emptyResult.valid).toBe(false);
+      expect(emptyResult.errors.join(' ')).toContain('cc');
+      const stringResult = handler.validate({ ...baseConfig, cc: 'c@x.com' });
+      expect(stringResult.valid).toBe(false);
+      expect(stringResult.errors.join(' ')).toContain('cc');
     });
 
     it('rejects invalid cc type (number)', () => {
@@ -146,12 +148,14 @@ describe('SendEmailHandler', () => {
       );
     });
 
-    it('rejects bcc when raw is a string (array-only)', () => {
+    it('rejects bcc when raw is a string (array-only) + 에러 메시지에 bcc 포함', () => {
       // 종전 sum-type 에서는 통과. 이제 일관되게 reject.
-      expect(handler.validate({ ...baseConfig, bcc: '' }).valid).toBe(false);
-      expect(handler.validate({ ...baseConfig, bcc: 'd@x.com' }).valid).toBe(
-        false,
-      );
+      const emptyResult = handler.validate({ ...baseConfig, bcc: '' });
+      expect(emptyResult.valid).toBe(false);
+      expect(emptyResult.errors.join(' ')).toContain('bcc');
+      const stringResult = handler.validate({ ...baseConfig, bcc: 'd@x.com' });
+      expect(stringResult.valid).toBe(false);
+      expect(stringResult.errors.join(' ')).toContain('bcc');
     });
 
     it('accepts a non-empty array for bcc', () => {

@@ -10,7 +10,7 @@
 
 ```json
 {
-  "config": { "integrationId": ..., "to": "{{ $input.email }}", "cc": [], "bcc": [], "subject": "Hello {{ $input.name }}", "body": "Welcome {{ $input.name }}!", "bodyType": "text", "attachments": [] },
+  "config": { "integrationId": ..., "to": ["{{ $input.email }}"], "cc": [], "bcc": [], "subject": "Hello {{ $input.name }}", "body": "Welcome {{ $input.name }}!", "bodyType": "text", "attachments": [] },
   "output": {
     "messageId": "<abc@smtp.example.com>",
     "accepted": ["alice@example.com"],

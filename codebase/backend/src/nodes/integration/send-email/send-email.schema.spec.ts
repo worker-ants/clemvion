@@ -270,6 +270,22 @@ describe('Send Email node schema', () => {
       });
       expect(errors).toContain('cc must be an array of email addresses');
     });
+
+    it('rejects bcc when set but is a string (array-only) — cc 대칭', () => {
+      const errors = validateSendEmailConfig({
+        to: ['a@example.com'],
+        bcc: 'd@x.com',
+      });
+      expect(errors).toContain('bcc must be an array of email addresses');
+    });
+
+    it('rejects bcc when set but malformed (array with non-string) — cc 대칭', () => {
+      const errors = validateSendEmailConfig({
+        to: ['a@example.com'],
+        bcc: [42 as never],
+      });
+      expect(errors).toContain('bcc must be an array of email addresses');
+    });
   });
 
   describe('evaluateMetadataBlockingErrors integration (send_email)', () => {

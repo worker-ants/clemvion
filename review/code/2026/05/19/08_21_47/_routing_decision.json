@@ -1,0 +1,82 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-19T08:32:00Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/nodes/integration/send-email"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "배열 처리 로직 단순화는 성능 영향 없음 (trim/filter 동일 수준)"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "schema.ts 의 zod + validator 두 layer 검증 체계 재구성 — array-only 정합성 확보"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 본문 변경 (§8 Rationale) + 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용 (send-email 노드 전용, 범위 의도와 일치)"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용 (런타임 검증 로직 변경, 비-배열 입력 처리 방식 변경)"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용 (normalizeRecipients 단순화, schema 주석 명확화)"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용 (test 파일 대량 수정, 새로운 검증 케이스 추가)"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경 (spec/3-send-email.md §8.1, plan 3건)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/lock 파일 변경 없음 (zod, nodemailer 버전 동일)"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB 마이그레이션·쿼리 변경 없음 (schema validation 단계만 변경, storage 형식은 여전히 array)"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/Promise/락 코드 변경 없음 (수신자 정규화는 동기 helper)"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "schema output 구조 변경 (config.to/cc/bcc: z.unknown() → z.array(z.string())) — API 응답 envelope 타입 강화 (breaking)"
+    }
+  ],
+  "selected_count": 11,
+  "skipped_count": 2,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}
