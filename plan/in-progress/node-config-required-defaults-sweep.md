@@ -81,7 +81,7 @@ owner: developer
 ai-review (`review/code/2026/05/18/23_11_13/SUMMARY.md`) 에서 식별된 별 작업들:
 
 - ~~**loop.count default 합의**~~ → 별 plan [`loop-count-policy`](./loop-count-policy.md) 로 분리 (2026-05-19 결정: ② `default('1')` 유지 + warningRule 제거 + spec Rationale 명문화).
-- **send-email.to zod ↔ validator 정준화** — zod 는 array 전용 / validator 는 string 도 허용. 단일 string `to` 로 저장된 기존 workflow 영향 (DB 조사) 후 한쪽으로 통일.
+- ~~**send-email.to zod ↔ validator 정준화**~~ → 별 plan [`send-email-to-array-only`](./send-email-to-array-only.md) 로 분리 (2026-05-19 결정: ② validator + handler 를 array-only 로 좁힘 + breaking, 스테이징 단계로 마이그레이션 skip).
 - **shared `VALID_OPS` enum 파생화** — `variable-modification.VALID_OPERATIONS`, `filter.VALID_OPS` 가 enum option 을 리터럴 중복. `Schema.options` 에서 직접 파생하도록 리팩토링.
 - **테스트 패턴 통일** — Integration/Form 의 인라인 `z.toJSONSchema` vs Logic 의 공유 spec(`logic-ui-required.spec.ts`) 혼재. 공유 `getUiMeta` 헬퍼 추출.
 - **`uiMeta` 시그니처 확장** — `ZodObject` 캐스트 강제 → `z.ZodTypeAny` 등 generic.

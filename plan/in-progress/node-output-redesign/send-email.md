@@ -142,7 +142,7 @@ Send Email 은 외부 호출 노드 (단계 1개). 정상 / runtime 에러 / DI 
 
 2. **schema ↔ spec config 정합성**: `sendEmailNodeConfigSchema` (`send-email.schema.ts:100-175`) 의 모든 필드 (integrationId/to/cc/bcc/subject/body/bodyType/attachments) + `attachmentSchema` (`:15-32`, `filename/content/contentType/encoding/cid` — **path/href 의도적 제외**). spec §1 표와 일치.
 
-3. **validate 일관성** (`send-email.handler.ts:54-73`): SSOT (`evaluateMetadataBlockingErrors` + `validateSendEmailConfig` 의 recipient sum-type) + subject/body string 가드 + `bodyType` enum 가드. spec §5.8 와 정확히 일치.
+3. **validate 일관성** (`send-email.handler.ts:54-73`): SSOT (`evaluateMetadataBlockingErrors` + `validateSendEmailConfig` 의 recipient **array-only** 강제 — 2026-05-19 정준화, spec §8.1) + subject/body string 가드 + `bodyType` enum 가드. spec §5.8 와 정확히 일치.
 
 4. **에러 컨트랙트 (Principle 3)** — **핵심**:
    - **Pre-flight throw** — `to.length === 0` (`:111-113`) 만 throw 로 남음 (spec §5.8 마지막 footnote 의 `EMAIL_NO_RECIPIENTS` 개선안 P1 후보 — runtime `port:'error'` 로 이동 권고).
@@ -158,7 +158,7 @@ Send Email 은 외부 호출 노드 (단계 1개). 정상 / runtime 에러 / DI 
    - Principle 8.2: `output.messageId/accepted/rejected/subject/body/bodyType` — spec 표 정확 일치.
 
 6. **handler 테스트 (`send-email.handler.spec.ts`, 617 줄)**:
-   - validate (`:51-147`): to 의 string/array/expression/empty array/empty string 케이스, cc/bcc 의 optional + 잘못된 타입.
+   - validate (`:51-147`): to 의 array/expression-in-array/empty array 케이스 + raw string reject 케이스 (2026-05-19 array-only 정준화), cc/bcc 의 optional (undefined / 빈 배열) + 잘못된 타입(string·number) reject.
    - DI stub (`:152-172`): `status: 'requires_integration'` 반환, `config.to` 의 raw echo 검증 (Principle 7).
    - 정상 발송 (`:209-261`): from/to/cc 정확 전달, deliveryStatus='sent', logUsage success, transporter 캐싱 + shutdown.
    - bcc / 빈 cc/bcc 회귀 (`:263-301`), HTML 분기 (`:303-319`), raw config echo (`:325-356` — `{{ $input.email }}` 등 보존), attachments 전달 (`:361-388`) + disableFileAccess/disableUrlAccess 검증, attachments path/href strip (`:407-432` 보안), 256KB cap + bodyTruncated (`:434-456`).
@@ -174,7 +174,7 @@ Send Email 은 외부 호출 노드 (단계 1개). 정상 / runtime 에러 / DI 
 8. **구현 품질**:
    - Transporter 캐시 (`:43-46, :263-292`): `integrationId + credsHash` 키로 재사용. credential 회전 시 stale close.
    - `disableFileAccess: true` + `disableUrlAccess: true` (`:161-162`) — sendMail 옵션 보안 강제. `mapAttachmentsForNodemailer` (`:350-378`) 가 allow-list (filename/content/contentType/encoding/cid) 만 통과시키고 path/href 등을 제거 — 다중 방어선.
-   - normalizeRecipients (`:305-319`): 배열 / comma-string 모두 trim+빈문자 제거. spec §4 step 2 와 정합.
+   - normalizeRecipients (`:305-319`): array-only 처리 (2026-05-19 정준화, spec §8.1) — 배열 원소 trim+빈문자 제거. 비-배열 입력은 defensive `[]` (zod + validator 가 standard path 에서 이미 reject, legacy 데이터 safety net). spec §4 step 2 와 정합.
    - `logUsage` 항상 `.catch(() => {})` (`:172, :197`) — B-5-6 의 "DB 다운 시 노드 실행 깨지 않기".
 
 ## 종합 개선안 (2026-05-16)

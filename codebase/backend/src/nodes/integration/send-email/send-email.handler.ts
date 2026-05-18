@@ -302,20 +302,21 @@ function safeMessage(err: unknown): string {
 // `isOptionalRecipientSet` / `isRecipientsLike` were removed from this file
 // when the inline validate() was replaced with the schema SSOT helper —
 // send-email.schema.ts owns the canonical implementations now.
+//
+// `to/cc/bcc` are array-only as of the 2026-05-19 정준화 (spec
+// 4-nodes/4-integration/3-send-email.md §8 Rationale). Both zod schema and
+// validateSendEmailConfig reject raw `string`, so non-array inputs cannot
+// reach this handler through the standard execution path. The defensive
+// `return []` for non-array input remains as the runtime safety net for
+// legacy data (pre-정준화 workflows) or direct handler invocation that
+// bypassed schema parsing — it produces an empty recipient list, which the
+// downstream `to.length === 0` guard converts into `EMAIL_NO_RECIPIENTS`.
 function normalizeRecipients(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .filter((v): v is string => typeof v === 'string')
-      .map((v) => v.trim())
-      .filter((v) => v.length > 0);
-  }
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map((v) => v.trim())
-      .filter((v) => v.length > 0);
-  }
-  return [];
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
 }
 
 function missingSmtpFields(creds: Partial<SmtpCredentials>): string[] {

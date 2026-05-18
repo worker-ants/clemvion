@@ -376,6 +376,11 @@ export const WARNING_KO: Record<string, string> = {
   "Template body must be entered.": "Template 본문을 입력해야 합니다.",
   "URL must be entered.": "URL 을 입력해야 합니다.",
   "X-axis field must be entered.": "X축 필드를 입력해야 합니다.",
+  // send-email validator 메시지 (2026-05-19 array-only 정준화 — spec
+  // 4-nodes/4-integration/3-send-email.md §8.1).
+  "bcc must be an array of email addresses": "BCC 는 이메일 주소 배열이어야 합니다.",
+  "cc must be an array of email addresses": "CC 는 이메일 주소 배열이어야 합니다.",
+  "to is required and must be a non-empty array of email addresses": "수신자(To) 는 최소 1명 이상의 이메일 주소 배열이어야 합니다.",
   "Y-axis field must be entered.": "Y축 필드를 입력해야 합니다.",
   "branchCount must be 2 to 16.": "branchCount 는 2 이상 16 이하여야 합니다.",
   "branchCount must be a value between 2 and 16.": "branchCount는 2 이상 16 이하의 값이어야 합니다.",
