@@ -46,7 +46,9 @@ owner: developer
 - backend 변경 없음 (데이터 영속화는 이미 정상)
 - spec 변경 불필요 (구현 디테일, 외부 계약 변화 없음)
 
-## Follow-up (별도 plan / project-planner 위임)
+## Follow-up — 별 trackable 항목으로 이관됨 (2026-05-18 정리)
 
-- [ ] `spec/5-system/6-websocket-protocol.md` 또는 `spec/4-nodes/3-ai/1-ai-agent.md` 의 `## Rationale` 에 "WS / REST 두 경로의 conversation messages 시드 동등 원칙" 기록. consistency-check I-11 권고 — project-planner 위임.
-- [ ] (2026-05-18 conversation-thread §1.6·§9.5 정정 후속) `parseHistoryMessages` 경유 REST 복원 경로가 §9.5 strip 규칙 (`/\[\/?user-input\]/g`) 을 통과해 `[user-input]` 마커가 UI 에 노출되지 않는지 회귀 테스트 추가. `messagesToConversationItems` 가 user/assistant content 에 strip 을 자동 적용하므로 동일 conv-utils 경유 시 자동 보장 — 다만 별도 진입점이 있다면 강제 테스트.
+본 plan 의 본문 작업은 완료되어 `complete/` 로 이동. 다음 2건은 본 plan 외부에서 별도 처리:
+
+- spec rationale 기록 — `spec/5-system/6-websocket-protocol.md` 또는 `spec/4-nodes/3-ai/1-ai-agent.md` 의 `## Rationale` 에 "WS / REST 두 경로의 conversation messages 시드 동등 원칙" 기록. project-planner 후속 작업 진입 시 처리.
+- (conversation-thread §1.6·§9.5 정정 후속) `parseHistoryMessages` 경유 REST 복원 경로가 §9.5 strip 규칙 (`/\[\/?user-input\]/g`) 을 통과해 `[user-input]` 마커가 UI 에 노출되지 않는지 회귀 테스트 추가. `messagesToConversationItems` 가 strip 을 자동 적용하므로 동일 conv-utils 경유 시 자동 보장 — 별도 진입점이 있을 경우만 강제 테스트.
