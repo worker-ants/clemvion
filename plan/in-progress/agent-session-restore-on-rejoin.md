@@ -49,3 +49,4 @@ owner: developer
 ## Follow-up (별도 plan / project-planner 위임)
 
 - [ ] `spec/5-system/6-websocket-protocol.md` 또는 `spec/4-nodes/3-ai/1-ai-agent.md` 의 `## Rationale` 에 "WS / REST 두 경로의 conversation messages 시드 동등 원칙" 기록. consistency-check I-11 권고 — project-planner 위임.
+- [ ] (2026-05-18 conversation-thread §1.6·§9.5 정정 후속) `parseHistoryMessages` 경유 REST 복원 경로가 §9.5 strip 규칙 (`/\[\/?user-input\]/g`) 을 통과해 `[user-input]` 마커가 UI 에 노출되지 않는지 회귀 테스트 추가. `messagesToConversationItems` 가 user/assistant content 에 strip 을 자동 적용하므로 동일 conv-utils 경유 시 자동 보장 — 다만 별도 진입점이 있다면 강제 테스트.

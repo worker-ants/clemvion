@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-18T12:04:05.086293",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-conversation-turn-render.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
