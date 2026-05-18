@@ -1,3 +1,15 @@
 {
-  "_schema": ".claude.project.json — see .claude/skills/_lib/project_config.py for the loader and default values. Every key is optional; missing keys fall back to harness defaults."
+  "_schema": ".claude.project.json — see .claude/skills/_lib/project_config.py for the loader and default values. Every key is optional; missing keys fall back to harness defaults.",
+  "corpora": {
+    "spec":             "spec",
+    "conventions":      "spec/conventions",
+    "plan_in_progress": "plan/in-progress",
+    "plan_complete":    "plan/complete"
+  },
+  "outputs": {
+    "review_code":        "review/code",
+    "review_consistency": "review/consistency",
+    "review_merge":       "review/merge"
+  },
+  "code_areas": ["codebase"]
 }
