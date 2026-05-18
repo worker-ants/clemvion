@@ -2,6 +2,32 @@
 
 본 문서는 role에 무관하게 이 프로젝트에서 항상 지켜야 하는 공통 규약을 정의한다. 역할별 세부 워크플로는 `.claude/skills/` 하위의 각 skill 문서를 따른다.
 
+## 0. 작업 시작 전 (가장 먼저 — TL;DR)
+
+**모든 작업은 `.claude/worktrees/<task>-<slug>/` 안에서 진행한다.** main 워크트리 default branch 에서는 Write/Edit/`git commit` 이 hook 으로 차단된다 (아래 §Worktree 기반 작업 정책 §Enforcement 상세).
+
+작업 시작 즉시 — Read/Grep 한 줄도 시작하기 전에 — 다음을 실행:
+
+```bash
+.claude/tools/ensure-worktree.sh <task_name>
+# 출력 마지막 줄의 `cd ...` 를 그대로 실행
+cd .claude/worktrees/<task_name>-<slug>
+```
+
+또는 native:
+
+```bash
+TASK=<task>; SLUG=$(openssl rand -hex 3)
+git worktree add ".claude/worktrees/${TASK}-${SLUG}" -b "claude/${TASK}-${SLUG}"
+cd ".claude/worktrees/${TASK}-${SLUG}"
+```
+
+**예외**: read-only Q&A 만 하는 turn (검색·설명·요약 답변, 어떤 파일도 write 하지 않음) 은 worktree 없이 진행 가능. 그 외 — spec 분석, plan 노트, 코드 변경, 테스트 작성 — 은 모두 worktree 진입 후.
+
+**자주 발생하는 오해**: Write 의 `file_path` 에 `.claude/worktrees/<name>/...` 를 적어도 가드는 우회되지 않는다. 가드는 `file_path` 가 아니라 **CWD 를** 본다. worktree 디렉토리가 실제로 존재해야 하고 CWD 도 그 안이어야 한다.
+
+> 이 §0 는 가장 자주 위반되는 규칙이라 최상단에 두었다. 상세 규칙·Enforcement·예외 시나리오는 아래 §Worktree 기반 작업 정책 참고.
+
 ## 폴더 구조
 
 `Monorepo`로 구성되어 있다.
