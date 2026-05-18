@@ -78,6 +78,46 @@ describe('Cafe24 metadata', () => {
         }
       }
     });
+
+    // spec/conventions/cafe24-api-metadata.md §5.2 — date/time 필드 description
+    // 은 KST 명시 (`(KST, UTC+9)` 또는 `(KST)`) 또는 `YYYY-MM-DD` 형식 명시를
+    // 포함해야 한다. 단순 `'ISO8601 date'` 만 적는 것은 금지 (KST/UTC 모호성으로
+    // AI Agent 가 9시간 어긋난 인자를 생성할 회귀 차단).
+    it('date/time field descriptions declare KST or YYYY-MM-DD format (spec §5.2)', () => {
+      const dateNamePattern = /(date|time|since|until|created|updated|expired)/i;
+      const violations: string[] = [];
+      for (const { resource, operation } of listAllCafe24Operations()) {
+        for (const [name, spec] of Object.entries(operation.fields)) {
+          if (spec.type !== 'string') continue;
+          if (!dateNamePattern.test(name)) continue;
+          const desc = spec.description;
+          if (!desc) continue; // description 없는 row 는 도구 description suffix 가 보강
+          // ISO 키워드를 적었다면 반드시 KST 명시 동반.
+          const mentionsIso = /ISO|iso8601/i.test(desc);
+          const mentionsKst = /KST|UTC\+9|Asia\/Seoul/i.test(desc);
+          const mentionsLegacyFormat = /YYYY-MM-DD/.test(desc);
+          if (mentionsIso && !mentionsKst) {
+            violations.push(
+              `${resource}.${operation.id}.fields.${name}: ISO 키워드 포함 시 KST/UTC+9 명시 필수 — "${desc}"`,
+            );
+          } else if (
+            !mentionsIso &&
+            !mentionsKst &&
+            !mentionsLegacyFormat &&
+            /date|time/i.test(desc)
+          ) {
+            violations.push(
+              `${resource}.${operation.id}.fields.${name}: date/time 의미를 적은 description 은 KST/UTC+9 또는 YYYY-MM-DD 형식 명시 필요 — "${desc}"`,
+            );
+          }
+        }
+      }
+      if (violations.length > 0) {
+        throw new Error(
+          `cafe24-api-metadata §5.2 violation:\n${violations.join('\n')}`,
+        );
+      }
+    });
   });
 
   describe('findCafe24Operation', () => {

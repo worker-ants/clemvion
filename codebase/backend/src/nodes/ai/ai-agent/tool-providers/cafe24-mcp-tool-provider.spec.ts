@@ -103,6 +103,29 @@ describe('Cafe24McpToolProvider', () => {
       expect(provider.matches('kb_anything')).toBe(false);
     });
 
+    it('appends KST timezone suffix to every tool description (spec §5.3)', async () => {
+      // 모든 cafe24 도구의 description 끝에 KST (UTC+9) 명시 한 줄이 자동
+      // append 되어야 한다. spec/conventions/cafe24-api-metadata.md §5.3 의
+      // CAFE24_TIMEZONE_SUFFIX 단일 정책. AI Agent 가 $now (UTC) 또는 KST/UTC
+      // 모호한 시각 문자열을 도구 인자로 넘길 때 9시간 어긋난 결과를 받는
+      // 회귀의 1차 방어선이다.
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const tools = await provider.buildTools({
+        config: {
+          mcpServers: [{ integrationId: 'abcdef1234567890' }],
+        },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+
+      expect(tools.length).toBeGreaterThan(0);
+      for (const t of tools) {
+        expect(t.description).toContain(
+          'All date/time parameters and response fields use KST (Asia/Seoul, UTC+9)',
+        );
+      }
+    });
+
     it('applies enabledTools allowlist (bare operation ids)', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       const tools = await provider.buildTools({
