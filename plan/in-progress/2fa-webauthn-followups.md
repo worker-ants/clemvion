@@ -79,10 +79,12 @@ owner: TBD
 - [ ] Swagger `oneOf` 로 응답 스키마 표기
 - [ ] 클라이언트 타입 가드 패턴 정리
 
-### 10. V058 마이그레이션 NOT VALID 2-step 분리
+### 10. V058 마이그레이션 NOT VALID 2-step 분리 — **의도적 미실행 + 컨벤션 보강으로 종결**
 
-- [ ] `chk_login_history_event` CHECK 제약 변경을 NOT VALID + VALIDATE CONSTRAINT 두 마이그레이션으로 분리
-- [ ] 현재 단일 statement 가 짧은 ACCESS EXCLUSIVE 락만 잡지만, login_history 가 대용량으로 성장하면 영향 커질 수 있음
+- [x] V058 사후 분리는 의미 없음을 확인 — 이미 production 적용 (락 이미 잡혔다 풀림). DROP→NOT VALID ADD→VALIDATE 3-step 우회는 단일 statement 보다 총 락 윈도우가 *더 길어짐*. (spec §1.4.G)
+- [x] `spec/5-system/1-auth.md` Rationale 1.4.G 추가 — 단일 statement 채택 조건·미래 분기 기준
+- [x] `codebase/backend/migrations/README.md §1` 에 "예외 인정 조건" 절 추가 (append-only + 신규 enum + DBA review)
+- [ ] (열린 follow-up) `login_history` 1M row 도달 모니터링 — 도달 시 다음 CHECK 변경부터 NOT VALID 2-step 의무화
 
 ## 수용 기준
 

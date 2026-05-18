@@ -468,3 +468,24 @@ WebAuthn 등록 사용자에게 로그인 화면이 TOTP 입력란을 함께 노
 - 잘못된 폴백(localhost 등) 으로 등록·인증 데이터가 누적되면 향후 도메인 결정 시점에 모두 무효화되므로, 자동 폴백보다는 명시적 활성화가 안전.
 - 사용자 락아웃 우려: WebAuthn-only 사용자가 env 비활성 시점에 접근 불가가 되는 가능성은 있으나, 운영자가 WebAuthn 을 한 번이라도 활성화했다면 env 를 그대로 두는 게 정상 운영. 운영자 실수로 env 가 꺼지면 사용자는 webauthn 복구 코드 → TOTP 등록 우회 경로가 없고 관리자 개입 필요. 본 케이스는 §1.4.D 와 같은 운영 권고 사항 (env 변경 전 사용자 공지).
 - 폴백이 필요한 dev/local/시연 한정으로는 `WEBAUTHN_ALLOW_FALLBACK=1` escape hatch 를 유지한다.
+
+### 1.4.G — V058 마이그레이션을 NOT VALID + VALIDATE 2-step 으로 분리하지 않은 이유
+
+V058 (`chk_login_history_event` CHECK 제약에 `webauthn_failed` 추가) 는 `DROP/ADD CONSTRAINT` 단일 statement 로 작성됐다. `codebase/backend/migrations/README.md §1` 의 기본 컨벤션은 NOT VALID + VALIDATE 2-step 이지만, 본 건은 다음 모든 조건이 충족돼 단일 statement 가 안전하다고 판단:
+
+1. **append-only 테이블** — `login_history` 는 INSERT 만 발생 (UPDATE/DELETE 없음 — 보존 기간 cron 만 DELETE). long-running write 트랜잭션이 ACCESS EXCLUSIVE 와 경합할 가능성이 낮다.
+2. **enum 확장 시나리오** — 신규 enum 값 (`webauthn_failed`) 은 기존 row 에 존재하지 않으므로 NOT VALID 의 "기존 row 검증 스킵" 이 주는 이득이 없다 (어차피 전체 검증 시 0건 위배).
+3. **테이블 크기가 아직 작음** — 본 변경 시점 production `login_history` 가 락 영향이 무시 가능한 규모. 다만 장기적으로 성장하면 다음과 같은 사후 검토를 권장:
+   - 1M row 도달 시: 다음 CHECK 변경부터 의무적으로 NOT VALID + VALIDATE 분리
+   - 보존 기간 (180일) 정책이 효과적으로 동작하는지 cron 모니터링 (`login_history_pruner_service`)
+
+본 결정의 사후 분리는 의미가 없다 — V058 는 이미 production 에 적용됐고, 락은 이미 잡혔다 풀렸다. 미래의 동일 패턴 변경에 대해서는 위 조건 점검 후 분기.
+
+별도 V059 NOT VALID/VALIDATE 마이그레이션을 추가하는 안도 검토했으나:
+- 이미 적용된 제약을 NOT VALID 로 재선언하는 것은 의미 불명 (제약명 동일 시 `ERROR: relation already exists`).
+- DROP → NOT VALID ADD → VALIDATE 의 3-step 으로 우회 가능하지만, 이는 본래의 단일 statement 보다 더 긴 락 윈도우를 만든다 (총 3개 ACCESS EXCLUSIVE 락).
+
+따라서 정책 채택:
+- V058 는 그대로 유지
+- 본 Rationale 절을 통해 "왜 컨벤션 예외" 인지를 형식화 — 추후 유사 결정이 무근거 번복이 되지 않도록
+- migrations/README.md §1 의 컨벤션 자체는 강화 대상 — `login_history` 같은 append-only 테이블도 1M row 이후에는 NOT VALID 2-step 의무화 권장
