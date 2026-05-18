@@ -29,6 +29,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/date";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSidebarStore, selectCollapsed } from "@/lib/stores/sidebar-store";
@@ -482,6 +483,13 @@ export function Sidebar() {
                         <p className="pr-12 text-xs text-[hsl(var(--muted-foreground))]">
                           {notif.message}
                         </p>
+                        <time
+                          dateTime={notif.createdAt}
+                          title={notif.createdAt}
+                          className="mt-1 block text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
+                        >
+                          {formatDate(notif.createdAt, "datetime-tz")}
+                        </time>
                       </button>
                       {/* Hover actions (spec §4.2) */}
                       <div className="absolute right-2 top-2 hidden items-center gap-1 group-hover:flex">
