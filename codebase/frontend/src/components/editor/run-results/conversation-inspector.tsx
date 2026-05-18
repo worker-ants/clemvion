@@ -23,6 +23,28 @@ import { tryParseJson } from "@/lib/utils/parse-json";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
 import { stripInlineMarkers } from "@/lib/conversation/conversation-utils";
+import type { TranslationKey } from "@/lib/i18n/core";
+
+// spec/conventions/conversation-thread.md §9.1 — `presentation_user` source
+// 의 시각 신호 ①. ConversationItem 의 카드 헤더와 SelectedItemDetail 양쪽에
+// 공유해 이모지 변경 시 한 곳만 수정한다.
+const PRESENTATION_ICON = "🧩";
+
+/**
+ * Map a `presentation_user` turn's interactionType to the i18n key for the
+ * card header verb ("button clicked" / "form submitted" / "link continue").
+ * Shared between `SummaryView` (timeline card) and `PresentationDetail`
+ * (selected-item detail) so adding a new interaction kind only requires
+ * touching this function. Returns `TranslationKey` (not generic string) so
+ * the `useT()` typed key check at call sites stays sound.
+ */
+function getInteractionLabelKey(
+  interactionType?: "button_click" | "form_submitted" | "button_continue",
+): TranslationKey {
+  if (interactionType === "form_submitted") return "editor.conversation.cardFormSubmitted";
+  if (interactionType === "button_continue") return "editor.conversation.cardLinkContinue";
+  return "editor.conversation.cardButtonClicked";
+}
 
 /** Chip 한 줄에 inline 으로 보일 최대 문서명 개수 (나머지는 `+N` 으로 축약). */
 const MAX_VISIBLE_DOC_NAMES = 2;
@@ -481,48 +503,71 @@ function RagDetail({ item }: { item: ConversationItem }) {
   );
 }
 
+/**
+ * Shared header used by detail views for `presentation_user` and `system`
+ * turns. Keeps icon + label + optional timestamp in a single row so the
+ * two detail components don't drift apart visually.
+ */
+function CardHeader({
+  icon,
+  label,
+  timestamp,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  timestamp?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {icon}
+      <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+        {label}
+      </span>
+      {timestamp && (
+        <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+          {formatDate(timestamp, "datetime")}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * SelectedItemDetail variant for a `presentation_user` turn.
+ * spec/conventions/conversation-thread.md §9.1 — full-width grey system
+ * card; chip header carries `nodeLabel + interaction verb`, body is
+ * extracted from structured `interaction.data` (node-output §4.5), never
+ * from parsing `text`.
+ */
 function PresentationDetail({ item }: { item: ConversationItem }) {
   const t = useT();
   const p = item.presentation;
-  const interactionLabelKey =
-    p?.interactionType === "form_submitted"
-      ? "editor.conversation.cardFormSubmitted"
-      : p?.interactionType === "button_continue"
-        ? "editor.conversation.cardLinkContinue"
-        : "editor.conversation.cardButtonClicked";
   return (
     <div className="flex flex-col gap-3 p-3">
-      <div className="flex items-center gap-2">
-        <span>🧩</span>
-        <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-          {p?.nodeLabel ?? "Presentation"} · {t(interactionLabelKey)}
-        </span>
-        {item.timestamp && (
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            {formatDate(item.timestamp, "datetime")}
-          </span>
-        )}
-      </div>
+      <CardHeader
+        icon={<span>{PRESENTATION_ICON}</span>}
+        label={`${p?.nodeLabel ?? "Presentation"} · ${t(getInteractionLabelKey(p?.interactionType))}`}
+        timestamp={item.timestamp}
+      />
       <PresentationCardBody item={item} />
     </div>
   );
 }
 
+/**
+ * SelectedItemDetail variant for a `system` turn. spec
+ * conversation-thread.md §9.1 reserves this row for future workflow-level
+ * manual push; v1 backend doesn't emit it but the renderer is in place.
+ */
 function SystemDetail({ item }: { item: ConversationItem }) {
   const t = useT();
   return (
     <div className="flex flex-col gap-3 p-3">
-      <div className="flex items-center gap-2">
-        <Info size={14} className="text-[hsl(var(--muted-foreground))]" />
-        <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-          {t("editor.conversation.cardSystemNote")}
-        </span>
-        {item.timestamp && (
-          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-            {formatDate(item.timestamp, "datetime")}
-          </span>
-        )}
-      </div>
+      <CardHeader
+        icon={<Info size={14} className="text-[hsl(var(--muted-foreground))]" />}
+        label={t("editor.conversation.cardSystemNote")}
+        timestamp={item.timestamp}
+      />
       {item.content && (
         <div className="whitespace-pre-wrap text-xs italic text-[hsl(var(--foreground))]">
           {item.content}
@@ -700,12 +745,6 @@ function SummaryView({
             // (아이콘 🧩 + full-width 카드 컨테이너 + nodeLabel chip) 동시 적용.
             if (isPresentation) {
               const p = item.presentation;
-              const interactionLabelKey =
-                p?.interactionType === "form_submitted"
-                  ? "editor.conversation.cardFormSubmitted"
-                  : p?.interactionType === "button_continue"
-                    ? "editor.conversation.cardLinkContinue"
-                    : "editor.conversation.cardButtonClicked";
               return (
                 <div
                   key={`${item.type}-${i}`}
@@ -720,11 +759,11 @@ function SummaryView({
                   )}
                 >
                   <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
-                    <span aria-hidden>🧩</span>
+                    <span aria-hidden>{PRESENTATION_ICON}</span>
                     <span className="rounded bg-[hsl(var(--background))] px-1.5 py-0.5 font-mono">
                       {p?.nodeLabel ?? "Presentation"}
                     </span>
-                    <span>· {t(interactionLabelKey)}</span>
+                    <span>· {t(getInteractionLabelKey(p?.interactionType))}</span>
                   </div>
                   <PresentationCardBody item={item} />
                 </div>

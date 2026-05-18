@@ -423,6 +423,99 @@ describe("ConversationInspector SummaryView — source 별 시각 분기 (§9.1)
     expect(screen.getByText(/안내 메시지/)).toBeInTheDocument();
   });
 
+  it("form_submitted with empty data shows '(no fields)' placeholder", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "EmptyForm",
+          nodeType: "form",
+          interactionType: "form_submitted",
+          data: {},
+        },
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+    expect(screen.getByText(/no fields/i)).toBeInTheDocument();
+  });
+
+  it("button_continue with missing url renders empty body (no crash)", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "Link",
+          nodeType: "template",
+          interactionType: "button_continue",
+          data: { buttonId: "go", buttonLabel: "Open" },
+        },
+      }),
+    ];
+    expect(() =>
+      render(<ConversationInspector {...baseProps} conversationMessages={items} />),
+    ).not.toThrow();
+    expect(screen.getByText(/link continue|링크 이동/i)).toBeInTheDocument();
+  });
+
+  it("form_submitted with nested object value JSON.stringify-s the cell", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "Form",
+          nodeType: "form",
+          interactionType: "form_submitted",
+          data: { items: [1, 2, 3] },
+        },
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+    expect(screen.getByText("[1,2,3]")).toBeInTheDocument();
+  });
+
+  it("presentation / system items render without a timestamp (undefined) without crash", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "presentation",
+        content: "",
+        turnIndex: 0,
+        presentation: {
+          nodeLabel: "T",
+          nodeType: "template",
+          interactionType: "button_click",
+          data: { buttonId: "x", buttonLabel: "X" },
+        },
+      }),
+      makeItem({ type: "system", content: "note", turnIndex: 0 }),
+    ];
+    expect(() =>
+      render(<ConversationInspector {...baseProps} conversationMessages={items} />),
+    ).not.toThrow();
+  });
+
+  it("strips [user-input]…[/user-input] markers from user message rendering (§9.5 compat through SummaryView)", () => {
+    // Defense-in-depth: even if a legacy persisted message reaches the
+    // renderer with markers intact, the SummaryView's history rebuild path
+    // (parseHistoryMessages mirror) calls stripInlineMarkers so the visible
+    // body stays clean.
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "user",
+        content: "안녕하세요",
+        turnIndex: 1,
+      }),
+    ];
+    render(<ConversationInspector {...baseProps} conversationMessages={items} />);
+    // direct content (converter already stripped any markers before this).
+    expect(screen.getByText("안녕하세요")).toBeInTheDocument();
+  });
+
   it("진짜 ai_user 메시지는 chat bubble (👤 User) 로 유지되어 presentation 카드와 시각적으로 구분", () => {
     const items: ConversationItem[] = [
       makeItem({
