@@ -633,6 +633,19 @@ export class IntegrationsService {
           'Credentials cannot be decrypted with the current key. Reconnect to rebuild this integration.',
       };
     }
+    // pending_install: token not yet issued — external probe is meaningless.
+    // Backend backstop for the UI's disabled Test-connection button (§4.2).
+    // service_type-agnostic: status alone gates the call.
+    // spec/2-navigation/4-integration.md §9.1 + Rationale "연결 테스트 endpoint
+    // 의 `pending_install` 가드 — 응답 형식 (2026-05-18)".
+    if (entity.status === 'pending_install') {
+      return {
+        success: false,
+        code: 'INTEGRATION_INCOMPLETE',
+        message:
+          'Integration is in pending_install state — complete the install flow before testing the connection.',
+      };
+    }
     // Entity-aware tester wins when registered (e.g. cafe24's pingConnection
     // needs the row for proactive refresh + 401 retry against the real API).
     const entityTester = this.entityTesters.get(entity.serviceType);
