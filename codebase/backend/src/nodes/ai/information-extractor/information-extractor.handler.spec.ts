@@ -197,6 +197,49 @@ describe('InformationExtractorHandler', () => {
     });
   });
 
+  describe('System Context Prefix (spec §11)', () => {
+    it('prepends "## System Context" with current time + timezone to single-turn systemPrompt by default', async () => {
+      const tzCtx: ExecutionContext = {
+        ...context,
+        variables: {
+          __workspaceId: 'ws-1',
+          __workspaceTimezone: 'Asia/Seoul',
+        },
+      };
+      await handler.execute(
+        { text: 'X' },
+        {
+          mode: 'single_turn',
+          inputField: 'X',
+          outputSchema: [{ name: 'name', type: 'string', description: '이름' }],
+        },
+        tzCtx,
+      );
+      const systemMsg = mockLlmService.chat.mock.calls[0][1].messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).toMatch(/^## System Context\n/);
+      expect(systemMsg.content).toContain('Timezone: Asia/Seoul (UTC+9)');
+    });
+
+    it('skips the prefix when includeSystemContext: false', async () => {
+      await handler.execute(
+        { text: 'X' },
+        {
+          mode: 'single_turn',
+          inputField: 'X',
+          outputSchema: [{ name: 'name', type: 'string', description: '이름' }],
+          includeSystemContext: false,
+        },
+        context,
+      );
+      const systemMsg = mockLlmService.chat.mock.calls[0][1].messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).not.toContain('## System Context');
+    });
+  });
+
   describe('execute (single_turn)', () => {
     it('extracts structured data and returns output.result.extracted', async () => {
       const rawResult = await handler.execute(

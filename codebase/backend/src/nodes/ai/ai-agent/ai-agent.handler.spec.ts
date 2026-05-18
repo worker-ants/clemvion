@@ -114,6 +114,56 @@ describe('AiAgentHandler', () => {
     });
   });
 
+  describe('System Context Prefix (spec §11)', () => {
+    it('prepends "## System Context" with current time + timezone to systemPrompt by default', async () => {
+      await handler.execute(
+        { question: 'X' },
+        {
+          systemPrompt: 'You are helpful',
+          userPrompt: 'X',
+        },
+        makeExecutionContext({
+          executionId: 'exec-1',
+          workflowId: 'wf-1',
+          variables: {
+            __workspaceId: 'ws-1',
+            __workspaceTimezone: 'Asia/Seoul',
+          },
+        }),
+      );
+      const chatCall = mockLlmService.chat.mock.calls[0];
+      const systemMsg = chatCall[1].messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).toMatch(/^## System Context\n/);
+      expect(systemMsg.content).toContain('Timezone: Asia/Seoul (UTC+9)');
+      // User systemPrompt 가 prefix 뒤에 그대로 이어진다.
+      expect(systemMsg.content).toContain('You are helpful');
+      // Prefix 가 user systemPrompt 보다 앞에 위치한다.
+      expect(systemMsg.content.indexOf('## System Context')).toBeLessThan(
+        systemMsg.content.indexOf('You are helpful'),
+      );
+    });
+
+    it('skips the prefix when includeSystemContext: false', async () => {
+      await handler.execute(
+        { question: 'X' },
+        {
+          systemPrompt: 'You are helpful',
+          userPrompt: 'X',
+          includeSystemContext: false,
+        },
+        baseContext,
+      );
+      const chatCall = mockLlmService.chat.mock.calls[0];
+      const systemMsg = chatCall[1].messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).not.toContain('## System Context');
+      expect(systemMsg.content).toBe('You are helpful');
+    });
+  });
+
   describe('execute - single_turn', () => {
     it('should call LLM and return response', async () => {
       const result = await handler.execute(

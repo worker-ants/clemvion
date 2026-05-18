@@ -1272,14 +1272,23 @@ export class ExecutionEngineService
           sortedIndexMap,
         );
 
-      // 8. Create execution context (inject workspaceId for AI handlers)
-      const workflow = await this.workflowRepository.findOneBy({
-        id: workflowId,
+      // 8. Create execution context (inject workspaceId + workspace timezone
+      // for AI handlers — spec/4-nodes/3-ai/0-common.md §11.3 SoT precedence:
+      // Workspace.settings.timezone → process.env.TZ → 'UTC'. 엔진이 한 번만
+      // 조회해 핸들러에 전달한다 (3 AI 핸들러가 각자 조회하면 N+1 발생).
+      const workflow = await this.workflowRepository.findOne({
+        where: { id: workflowId },
+        relations: ['workspace'],
       });
+      const workspaceTimezone = workflow?.workspace?.settings?.['timezone'];
       const context = this.contextService.createContext(
         executionId,
         workflowId,
-        { __workspaceId: workflow?.workspaceId ?? '' },
+        {
+          __workspaceId: workflow?.workspaceId ?? '',
+          __workspaceTimezone:
+            typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
+        },
         savedExecution.recursionDepth,
       );
 

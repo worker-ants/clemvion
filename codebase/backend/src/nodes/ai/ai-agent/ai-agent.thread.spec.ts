@@ -339,6 +339,7 @@ describe('AiAgentHandler — ConversationThread push & inject', () => {
           contextScope: 'lastN',
           contextScopeN: 2,
           contextInjectionMode: 'messages',
+          includeSystemContext: false, // §11 prefix 와 무관한 테스트
         },
         context,
       );
@@ -385,6 +386,10 @@ describe('AiAgentHandler — ConversationThread push & inject', () => {
           maxToolCalls: 10,
           contextScope: 'thread',
           contextInjectionMode: 'messages',
+          // 본 테스트는 thread injection 검증이 목적이므로 System Context
+          // Prefix (spec §11) 는 disable. 활성 상태의 prefix 검증은
+          // ai-agent.handler.spec.ts "System Context Prefix" describe 참고.
+          includeSystemContext: false,
         },
         context,
       );
@@ -408,6 +413,7 @@ describe('AiAgentHandler — ConversationThread push & inject', () => {
           responseFormat: 'text',
           maxToolCalls: 10,
           // contextScope omitted = default 'none'
+          includeSystemContext: false, // §11 prefix 와 무관한 테스트
         },
         context,
       );
