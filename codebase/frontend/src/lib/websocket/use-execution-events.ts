@@ -62,11 +62,18 @@ export function useExecutionEvents({
   // 해 새 execution 의 snapshot 을 기다린다. set-state-in-effect lint rule 충돌
   // 회피.
   const [prevExecutionId, setPrevExecutionId] = useState(executionId);
+  const cancelledRef = useRef(false);
+  // 마지막으로 적용한 `conversationThread.nextSeq`. 동일 nextSeq 재emit
+  // (WS reconnect) 만 skip 하고, message snapshot 으로 thread 가 덮어써진
+  // 뒤 새 waiting tick 이 오면 nextSeq 가 advance 했다면 재적용해 source
+  // 별 시각 분기 (spec §9.1) 를 복원한다 — store 의 item 수 비교 (기존
+  // 가드) 는 message-derived 결과가 마침 같은 길이가 되면 항상 skip 돼
+  // presentation_user 가 다시 plain user 로 박혀버리는 회귀를 만들었다.
+  const lastAppliedThreadSeqRef = useRef<number | null>(null);
   if (prevExecutionId !== executionId) {
     setPrevExecutionId(executionId);
     setSnapshotReceived(false);
   }
-  const cancelledRef = useRef(false);
 
   const {
     startExecution,
@@ -250,26 +257,25 @@ export function useExecutionEvents({
         // Fallback: thread snapshot 이 비어있거나 옛 backend 가 동봉하지 않는
         // 경우 (백워드 호환), emit messages → ConversationItem 변환을 1회 사용.
         //
-        // **Idempotency**: `EXECUTION_WAITING_FOR_INPUT` is re-emitted on
-        // WebSocket reconnect (and on every multi-turn cycle). The thread
-        // snapshot is authoritative — reapplying it would *overwrite live*
-        // turns the store already accumulated via `addConversationMessage`
-        // between snapshots. Skip when `nextSeq` matches the last applied
-        // snapshot so reapplication is a no-op.
+        // **Idempotency**: `EXECUTION_WAITING_FOR_INPUT` 는 WS reconnect 와
+        // multi-turn cycle 마다 재emit 된다. snapshot 은 authoritative 이지만
+        // 동일 `nextSeq` 가 재도착했을 때 다시 적용하면 그 사이 store 에
+        // 누적된 in-flight live turn (`addConversationMessage`) 을 잃는다.
+        // `lastAppliedThreadSeqRef` 로 마지막 적용 `nextSeq` 만 추적해
+        // 동일 revision 재emit 만 skip 한다. **주의**: 기존 가드는
+        // `conversationMessages.length` 와 비교했으나, multi-turn 완료 직후
+        // `handleAiMessage` 가 thread items 를 message snapshot 으로 덮어쓰면
+        // length 가 nextSeq 와 마침 같아져 후속 thread snapshot 이 영구
+        // skip — presentation_user / system turn 의 시각 분기 (spec §9.1)
+        // 가 plain user bubble 로 회귀하는 결과를 낳았다.
         const threadTurns = payload.conversationThread?.turns;
         if (threadTurns?.length) {
           const nextSeq = payload.conversationThread?.nextSeq ?? threadTurns.length;
-          const { conversationMessages } = useExecutionStore.getState();
-          // Seed when empty; otherwise only overwrite when the snapshot
-          // advances beyond what's already on screen. `nextSeq` equals
-          // `turns.length` (spec §1.3) so item count comparison is safe.
-          if (
-            conversationMessages.length === 0 ||
-            nextSeq > conversationMessages.length
-          ) {
+          if (lastAppliedThreadSeqRef.current !== nextSeq) {
             const items = threadTurnsToConversationItems(threadTurns);
             if (items.length > 0) {
               setConversationMessages(items);
+              lastAppliedThreadSeqRef.current = nextSeq;
             }
           }
         } else if (convConfig?.messages) {
@@ -673,6 +679,10 @@ export function useExecutionEvents({
     if (!executionId) return;
 
     cancelledRef.current = false;
+    // executionId 가 바뀐 turn 의 첫 effect 진입 시 thread snapshot 적용
+    // history 를 리셋해야 다음 execution 의 첫 waiting tick 이 반드시 적용된다.
+    // (render-time 에서 reset 하면 react-hooks/refs 룰 위반)
+    lastAppliedThreadSeqRef.current = null;
     const client = getWsClient();
 
     // Carousel disabled stuck 버그 fix — connect 시점에 stale token 으로
