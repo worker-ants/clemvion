@@ -105,12 +105,9 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
   [*] --> Unread: INSERT
-  Unread --> Read: PATCH /notifications/:id/read
-  Unread --> Read: POST /notifications/mark-all-read
-  Unread --> Dismissed: POST /notifications/:id/dismiss
-  Unread --> Dismissed: POST /notifications/dismiss-all
-  Read --> Dismissed: POST /notifications/:id/dismiss
-  Read --> Dismissed: POST /notifications/dismiss-all
+  Unread --> Read: PATCH /notifications/:id/read<br/>POST /notifications/mark-all-read
+  Unread --> Dismissed: POST /notifications/:id/dismiss<br/>POST /notifications/dismiss-all
+  Read --> Dismissed: POST /notifications/:id/dismiss<br/>POST /notifications/dismiss-all
   Dismissed --> [*]
 ```
 
