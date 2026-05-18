@@ -103,6 +103,44 @@ describe('Cafe24McpToolProvider', () => {
       expect(provider.matches('kb_anything')).toBe(false);
     });
 
+    it('appends KST timezone suffix to every tool description (spec §5.3)', async () => {
+      // 모든 cafe24 도구의 description 끝에 KST (UTC+9) 명시 한 줄이 자동
+      // append 되어야 한다. spec/conventions/cafe24-api-metadata.md §5.3 의
+      // CAFE24_TIMEZONE_SUFFIX 단일 정책. AI Agent 가 $now (UTC) 또는 KST/UTC
+      // 모호한 시각 문자열을 도구 인자로 넘길 때 9시간 어긋난 결과를 받는
+      // 회귀의 1차 방어선이다.
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const tools = await provider.buildTools({
+        config: {
+          mcpServers: [{ integrationId: 'abcdef1234567890' }],
+        },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+
+      const KST_SUFFIX =
+        'All date/time parameters and response fields use KST (Asia/Seoul, UTC+9)';
+
+      // (1) 대표 도구 (product_list — date filter 있는 케이스) 의 description 을
+      // 직접 조회해 suffix 위치·내용을 검증. tools 배열이 비어있어도 find 가
+      // undefined 를 반환하므로 가드 + 명시적 assertion 으로 false positive 차단.
+      const productList = tools.find(
+        (t) => t.name === 'mcp_abcdef1234567890__product_list',
+      );
+      expect(productList).toBeDefined();
+      expect(productList!.description).toContain(KST_SUFFIX);
+      // suffix 가 description 의 끝 부분에 위치하는지 (Cafe24 wire-format hint 뒤).
+      expect(productList!.description.lastIndexOf(KST_SUFFIX)).toBeGreaterThan(
+        productList!.description.indexOf('(Cafe24 '),
+      );
+
+      // (2) 모든 도구가 동일 suffix 포함. 길이 가드는 (1) 의 명시 검증으로 보완.
+      expect(tools.length).toBeGreaterThan(0);
+      for (const t of tools) {
+        expect(t.description).toContain(KST_SUFFIX);
+      }
+    });
+
     it('applies enabledTools allowlist (bare operation ids)', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       const tools = await provider.buildTools({

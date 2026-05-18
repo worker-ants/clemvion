@@ -67,7 +67,9 @@ const LABEL_KO: Record<string, string> = {
   "Image Field": "이미지 필드",
   "Image URL": "이미지 URL",
   "Include Confidence": "신뢰도 포함",
+  "Include System Context": "시스템 컨텍스트 포함",
   "Include Tool Calls in Thread": "스레드에 도구 호출 포함",
+  "Context Sections": "컨텍스트 섹션",
   "Injection Mode": "주입 방식",
   "Input Field": "입력 필드",
   "Input Mapping": "입력 매핑",
@@ -200,6 +202,8 @@ const HINT_KO: Record<string, string> = {
   "Number of parallel branches (2-16). branch_0 ~ branch_{N-1} output ports are generated dynamically.":
     "병렬 실행할 분기 수 (2~16). branch_0 ~ branch_{N-1} 출력 포트가 동적으로 생성됩니다.",
   "Optional field to sort by": "정렬에 사용할 선택 필드",
+  "Prepend current time + timezone to the system prompt so the LLM avoids KST/UTC drift.":
+    "시스템 프롬프트 앞에 현재 시각·타임존을 자동 prepend 합니다. LLM 의 시각 추론이 KST/UTC 9시간 어긋나는 회귀를 차단합니다.",
   "Push KB / MCP / condition tool turns to the thread (default: only the final assistant response).":
     "KB / MCP / 조건 도구 호출도 스레드에 함께 푸시합니다 (기본: 최종 어시스턴트 응답만).",
   "Safety cap on loop iterations": "루프 반복 횟수 안전 상한",
@@ -275,6 +279,7 @@ const GROUP_KO: Record<string, string> = {
   "Multi Turn Settings": "멀티턴 설정",
   "Retry Settings": "재시도 설정",
   Rows: "행",
+  "System Context": "시스템 컨텍스트",
 };
 
 const OPTION_LABEL_KO: Record<string, string> = {
@@ -306,6 +311,11 @@ const OPTION_LABEL_KO: Record<string, string> = {
   "System Text — append to system prompt":
     "시스템 텍스트 — 시스템 프롬프트에 덧붙임",
   "Thread — inject full thread": "스레드 — 전체 스레드 주입",
+  "Current time (ISO 8601 with offset)":
+    "현재 시각 (ISO 8601, 오프셋 포함)",
+  "Timezone (IANA + UTC offset)": "타임존 (IANA + UTC 오프셋)",
+  "Workspace id / name": "워크스페이스 ID / 이름",
+  "Node id / label / type": "노드 ID / 라벨 / 유형",
 };
 
 /**

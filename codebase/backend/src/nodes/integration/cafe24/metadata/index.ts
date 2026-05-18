@@ -31,6 +31,16 @@ import type { Cafe24OperationMetadata, Cafe24Resource } from './types.js';
 
 export * from './types.js';
 
+/**
+ * Cafe24 Admin API 의 모든 date/time 필드가 KST(UTC+9) 기준임을 LLM 에 알리는
+ * 도구 description suffix. `Cafe24McpToolProvider.buildTools()` 가 모든 tool 의
+ * description 끝에 자동 append.
+ *
+ * Spec: spec/conventions/cafe24-api-metadata.md §5.3 (single source of truth).
+ */
+export const CAFE24_TIMEZONE_SUFFIX =
+  'All date/time parameters and response fields use KST (Asia/Seoul, UTC+9) unless the field description states otherwise.';
+
 export const CAFE24_OPERATIONS_BY_RESOURCE: Record<
   Cafe24Resource,
   readonly Cafe24OperationMetadata[]

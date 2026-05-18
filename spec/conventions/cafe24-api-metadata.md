@@ -255,14 +255,14 @@ LLM 이 도구 호출 인자를 구성할 때 — 예를 들어 `$now` (UTC) 또
 3. `id` 는 `<resource>_<verb>` 형식 (예: `product_list`, `order_update_status`). 중복 금지 (resource 내).
 4. `scopeType` 은 read/write 결정 — scope 매핑에 사용.
 5. [`cafe24-api-catalog/<resource>.md`](./cafe24-api-catalog/_overview.md) 의 표에 해당 row 의 `status` 를 `planned → supported` 로 갱신하고 `method` / `path` / `scope` / `paginated` 컬럼을 채운다. 카탈로그에 row 자체가 없으면 새로 추가.
-   - 추가로 별도 승인 대상인 경우 [`cafe24-restricted-scopes.md`](./cafe24-restricted-scopes.md) 명단과 비교해 catalog 의 `restricted` 컬럼(`scope` / `op` / 빈칸) 과 backend 메타데이터의 `restrictedApproval` 필드를 동시 갱신한다.
+   - 추가로 별도 승인 대상인 경우 [`cafe24-restricted-scopes.md`](./cafe24-restricted-scopes.md) 명단과 비교해 catalog 의 `restricted` 컬럼(`scope` / `operation` / 빈칸) 과 backend 메타데이터의 `restrictedApproval` 필드를 동시 갱신한다.
 6. `_overview.md` §5 의 coverage matrix 카운트도 갱신.
 7. 백엔드 단위 테스트가 자동으로 검증:
    - 모든 `id` 의 unique (resource 내)
    - 모든 `path` 의 `{placeholder}` 가 `fields` 에 정의됐는지
    - `requiredFields` 가 `fields` 의 키 부분집합인지
    - **카탈로그 ↔ 메타데이터 양방향 동기** (`catalog-sync.spec.ts`)
-   - **`restricted` 컬럼 ↔ `restrictedApproval` 양방향 동기** (`catalog-sync.spec.ts`) — catalog 가 `scope` 또는 `op` 면 메타데이터에 `restrictedApproval` 존재, 그 역도 동일. `level='program'` 은 검증 대상 제외 ([_overview §4](./cafe24-api-catalog/_overview.md#4-동기-정책-sync-contract) 검증 규칙 8 참고).
+   - **`restricted` 컬럼 ↔ `restrictedApproval` 양방향 동기** (`catalog-sync.spec.ts`) — catalog 가 `scope` 또는 `operation` 면 메타데이터에 `restrictedApproval` 존재, 그 역도 동일. `level='program'` 은 검증 대상 제외 ([_overview §4](./cafe24-api-catalog/_overview.md#4-동기-정책-sync-contract) 검증 규칙 8 참고).
 8. **spec 본문 수정 불요** — `4-cafe24.md` 는 형식만 정의.
 
 ## 7. MCP Bridge 와의 매핑

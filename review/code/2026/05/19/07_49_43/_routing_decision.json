@@ -1,0 +1,83 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-19T07:49:43Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": true,
+      "reason": "executionEngine 의 workflow 조회 메서드 변경 (findOneBy → findOne with relations) — N+1 최적화 의도이지만 쿼리 성능 영향 검증 필요"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "executionEngine 에서 workspace timezone 데이터를 컨텍스트로 주입하는 새 레이어 추가 — 엔진과 AI 핸들러 간 데이터 흐름 구조 변경"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소수 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 패키지 매니페스트·lockfile 변경 + 문서 파일 변경 — dependency 영향 + README/CHANGELOG 동반 갱신 점검"
+    },
+    {
+      "name": "dependency",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 패키지 매니페스트·lockfile 변경 (package-lock.json 2건, frontend package-lock.json 1건) — dev 플래그 변경 점검"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "Workflow.findOne 메서드 호출 변경이지만 마이그레이션 또는 schema 변경 없음 — 기존 데이터 구조 활용"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await 패턴은 기존 코드와 동일하게 유지 — 새 동시성 문제 추가 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "AI 핸들러의 systemPrompt 포맷 변경(prefix 자동 추가)으로 LLM 응답 envelope 및 systemPrompt 구조가 변경됨 — 클라이언트 기대값 영향 가능"
+    }
+  ],
+  "selected_count": 12,
+  "skipped_count": 1,
+  "forced": [
+    "security",
+    "dependency",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "side_effect",
+    "testing"
+  ]
+}

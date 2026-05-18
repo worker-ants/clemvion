@@ -20,6 +20,7 @@ import {
   Cafe24TransportFailedError,
 } from '../../../integration/cafe24/cafe24-api.client.js';
 import {
+  CAFE24_TIMEZONE_SUFFIX,
   Cafe24OperationMetadata,
   Cafe24Resource,
   listAllCafe24Operations,
@@ -213,7 +214,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
         opMap.set(operation.id, { resource, operation });
         tools.push({
           name: `mcp_${sid}__${operation.id}`,
-          description: `${operation.description}\n\n(Cafe24 ${operation.method} ${operation.path} — via Internal Bridge: ${integration.name})`,
+          description: `${operation.description}\n\n(Cafe24 ${operation.method} ${operation.path} — via Internal Bridge: ${integration.name})\n\n${CAFE24_TIMEZONE_SUFFIX}`,
           parameters: this.buildJsonSchema(operation),
         });
       }
