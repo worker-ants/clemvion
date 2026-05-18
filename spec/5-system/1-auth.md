@@ -12,10 +12,29 @@
 |------|------|
 | 회원가입 | 이메일 + 비밀번호. 이메일 인증 필수 |
 | 비밀번호 정책 | 최소 8자, 대소문자 + 숫자 + 특수문자 중 3가지 이상 조합 |
-| 비밀번호 저장 | bcrypt (cost factor ≥ 12) |
+| 비밀번호 저장 | bcrypt (cost factor ≥ 12). `user.password_hash` 는 nullable — OAuth 단독 가입 사용자는 NULL |
 | 로그인 | 이메일 + 비밀번호 → JWT 발급 |
-| 비밀번호 분실 | 이메일로 재설정 링크 발송 (유효기간 30분) |
+| 비밀번호 분실 | 이메일로 재설정 링크 발송 (유효기간 30분). 모든 이메일 보유 사용자에게 발급 (§1.1.A 참고) |
 | 로그인 실패 | 5회 실패 시 10분 잠금, 이메일 알림 |
+
+#### 1.1.A 비밀번호 재설정 흐름과 가입 경로 (OAuth-only · WebAuthn 보유 사용자 포함)
+
+`/auth/forgot-password` 와 `/auth/reset-password` 는 가입 경로(이메일/비밀번호·OAuth·WebAuthn 보유)에 관계없이 동일하게 동작한다. 운영 시나리오별 결과:
+
+| 사용자 상태 | forgot-password 동작 | reset-password 동작 |
+|------------|---------------------|--------------------|
+| 이메일/비밀번호 가입 (일반) | 재설정 토큰 발급 + 메일 발송 | `password_hash` 갱신, 모든 refresh token revoke |
+| OAuth 가입 (no password) | 동일하게 토큰 발급 + 메일 — 이메일 enumeration 차단 + opt-in "비밀번호 추가" 경로로 작동 | `password_hash` 가 NULL→신규 hash 로 채워짐. 이후부터 이메일/비밀번호 로그인 가능 |
+| WebAuthn credential 보유 | 동일 | `password_hash` 만 갱신. WebAuthn credential·복구 코드는 **보존**. 다음 로그인 시 §1.4.2 에 따라 `methods=['webauthn']` 분기 (비밀번호 입력 후 WebAuthn challenge) |
+| WebAuthn credential 보유 + 복구 코드 분실 + 비밀번호 분실 | 재설정 후 비밀번호로 1단계는 통과하지만 2단계 WebAuthn 을 통과 못 하면 로그인 불가 | — (운영 권고: WebAuthn 모두 삭제해 줄 수 있는 관리자 개입 경로 또는 [credential 분실 복구]) |
+| 토큰 만료 (30분 경과) | 재요청 가능 | 400 VALIDATION_ERROR |
+| 존재하지 않는 이메일 | 응답 동일 ("If an account exists...") — enumeration 방지 | — |
+
+설계 원칙:
+
+- **응답 동일성**: forgot-password 는 사용자 존재 여부·가입 경로와 무관하게 동일 응답 (`200 { data: { message } }`). 메일 발송 실패는 swallow.
+- **WebAuthn 자동 무효화 없음**: 비밀번호 재설정으로 WebAuthn credential 을 disable 하지 않는다. 비밀번호는 1단계 인증일 뿐, 2단계 WebAuthn 의 신뢰 기반(개인 키)을 흔들 사건이 아니기 때문. 분실한 디바이스를 비활성화하고 싶으면 사용자가 WebAuthn 관리 화면(`/profile/security` Passkey 카드) 에서 명시적으로 credential 을 삭제한다 ((해당 사용자가 로그인할 수 있어야 가능하므로) credential 분실 + 복구 코드 분실 시는 관리자 개입).
+- **refresh 토큰 전체 revoke**: 비밀번호 재설정 직후 모든 활성 세션 종료 (탈취된 비밀번호 시나리오 차단). WebAuthn credential 보유 사용자는 재로그인 시 §1.4.2 의 WebAuthn challenge 를 통과해야 한다.
 
 ### 1.2 OAuth 소셜 로그인
 
