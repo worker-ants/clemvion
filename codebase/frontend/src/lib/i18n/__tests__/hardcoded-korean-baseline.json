@@ -1,0 +1,12 @@
+{
+  "_schema": "Hardcoded Korean string ratchet baseline. Per-file count of source lines containing [가-힣]. Excludes dict/, backend-labels.ts, content/, tests, fixtures, stories. Goal: monotonic decrease toward {}.",
+  "_updateCommand": "BASELINE_UPDATE=1 npm test -- hardcoded-korean-ratchet",
+  "files": {
+    "app/layout.tsx": 3,
+    "components/editor/run-results/conversation-inspector.tsx": 4,
+    "components/editor/run-results/extracted-fields-card.tsx": 2,
+    "components/editor/run-results/llm-call-trace.ts": 2,
+    "lib/docs/locale.ts": 8,
+    "lib/docs/registry.ts": 13
+  }
+}
