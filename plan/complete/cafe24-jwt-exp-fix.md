@@ -61,41 +61,41 @@ Cafe24 의 `access_token` / `refresh_token` 은 **JWT** 이므로 `exp` claim (R
 
 ### 코드
 
-- [ ] `codebase/backend/src/modules/integrations/jwt-exp.ts` 신규 — `parseJwtExp(token)` 헬퍼. JWT payload 의 `exp` claim 을 epoch ms 로 반환. 비-JWT / exp 누락 / 비-숫자 면 null. signature 검증 없음.
-- [ ] `codebase/backend/src/modules/integrations/integration-oauth.service.ts` 의 `parseTokenExpiresAt` 갱신 — cafe24 분기 precedence: **JWT exp** → 표준 `expires_in` → `expires_at` ISO (TZ designator 누락 시 `+09:00` 부여로 정규화) → 2h fallback.
-- [ ] `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` 의 `refreshAccessToken` 의 expiresAt 계산 (line 818-824) 동일 precedence 패턴 적용.
-- [ ] `codebase/backend/src/modules/integrations/cafe24-token-refresh.constants.ts` 의 `Cafe24RefreshJobData.source` 에 새 값 `'reactive_401'` 추가.
-- [ ] `codebase/backend/src/nodes/integration/cafe24/cafe24-token-refresh.processor.ts` 의 `process` 갱신 — `job.data.source === 'reactive_401'` 이면 short-circuit guard skip (항상 refresh 시도).
-- [ ] `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` 의 `performAuthRefresh` 가 `refreshViaQueue` 호출 시 source 를 `'reactive_401'` 로 전달. (`refreshTokenViaQueue` 의 public 진입은 기존 'proactive'/'background' 유지)
-- [ ] `refreshViaQueue` 가 source='reactive_401' 일 때 enqueue 옵션 `removeOnComplete: { age: 0 }` 적용 — BullMQ jobId dedup edge case 대응 (proactive 완료 job 이 60s 잔존 → 다음 reactive_401 add 가 stale completed job 으로 dedup 되어 worker 실행 누락되는 케이스 차단).
+- [x] `codebase/backend/src/modules/integrations/jwt-exp.ts` 신규 — `parseJwtExp(token)` 헬퍼. JWT payload 의 `exp` claim 을 epoch ms 로 반환. 비-JWT / exp 누락 / 비-숫자 면 null. signature 검증 없음.
+- [x] `codebase/backend/src/modules/integrations/integration-oauth.service.ts` 의 `parseTokenExpiresAt` 갱신 — cafe24 분기 precedence: **JWT exp** → 표준 `expires_in` → `expires_at` ISO (TZ designator 누락 시 `+09:00` 부여로 정규화) → 2h fallback.
+- [x] `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` 의 `refreshAccessToken` 의 expiresAt 계산 (line 818-824) 동일 precedence 패턴 적용.
+- [x] `codebase/backend/src/modules/integrations/cafe24-token-refresh.constants.ts` 의 `Cafe24RefreshJobData.source` 에 새 값 `'reactive_401'` 추가.
+- [x] `codebase/backend/src/nodes/integration/cafe24/cafe24-token-refresh.processor.ts` 의 `process` 갱신 — `job.data.source === 'reactive_401'` 이면 short-circuit guard skip (항상 refresh 시도).
+- [x] `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts` 의 `performAuthRefresh` 가 `refreshViaQueue` 호출 시 source 를 `'reactive_401'` 로 전달. (`refreshTokenViaQueue` 의 public 진입은 기존 'proactive'/'background' 유지)
+- [x] `refreshViaQueue` 가 source='reactive_401' 일 때 enqueue 옵션 `removeOnComplete: { age: 0 }` 적용 — BullMQ jobId dedup edge case 대응 (proactive 완료 job 이 60s 잔존 → 다음 reactive_401 add 가 stale completed job 으로 dedup 되어 worker 실행 누락되는 케이스 차단).
 
 ### 테스트 (TDD — 코드 전 작성)
 
-- [ ] `codebase/backend/src/modules/integrations/jwt-exp.spec.ts` 신규 — 정상 JWT(exp 있음, exp 없음) / 잘못된 segment 수 / base64 오류 / JSON 오류 / exp 비-숫자 / 빈 문자열 / null / undefined.
-- [ ] `codebase/backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts` 보강 — (a) access_token 이 JWT 일 때 응답의 `expires_at` 보다 JWT exp 가 우선 적용 (b) JWT 비정상이면 `expires_at` ISO fallback (c) TZ-less ISO 가 KST 보정으로 해석됨.
-- [ ] `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.spec.ts` 보강 — refresh 응답의 access_token 이 JWT 면 JWT exp 가 응답 body 의 `expires_at` 보다 우선 채택.
-- [ ] `codebase/backend/src/nodes/integration/cafe24/cafe24-token-refresh.processor.spec.ts` 보강 — source='reactive_401' 일 때 token 이 fresh 로 보여도 refresh 수행 / source='proactive' 일 때 종전 short-circuit 유지.
-- [ ] `cafe24-api.client.spec.ts` 통합 회귀 — stale `tokenExpiresAt` + 401 응답 → worker 가 reactive_401 로 호출되어 short-circuit 안 함 → retry 성공.
+- [x] `codebase/backend/src/modules/integrations/jwt-exp.spec.ts` 신규 — 정상 JWT(exp 있음, exp 없음) / 잘못된 segment 수 / base64 오류 / JSON 오류 / exp 비-숫자 / 빈 문자열 / null / undefined.
+- [x] `codebase/backend/src/modules/integrations/integration-oauth.service.cafe24.spec.ts` 보강 — (a) access_token 이 JWT 일 때 응답의 `expires_at` 보다 JWT exp 가 우선 적용 (b) JWT 비정상이면 `expires_at` ISO fallback (c) TZ-less ISO 가 KST 보정으로 해석됨.
+- [x] `codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.spec.ts` 보강 — refresh 응답의 access_token 이 JWT 면 JWT exp 가 응답 body 의 `expires_at` 보다 우선 채택.
+- [x] `codebase/backend/src/nodes/integration/cafe24/cafe24-token-refresh.processor.spec.ts` 보강 — source='reactive_401' 일 때 token 이 fresh 로 보여도 refresh 수행 / source='proactive' 일 때 종전 short-circuit 유지.
+- [x] `cafe24-api.client.spec.ts` 통합 회귀 — stale `tokenExpiresAt` + 401 응답 → worker 가 reactive_401 로 호출되어 short-circuit 안 함 → retry 성공.
 
 ### 문서
 
-- [ ] `plan/in-progress/spec-update-cafe24-jwt-exp.md` 신규 — spec §10.5 + Rationale 갱신 제안 (project-planner 위임).
+- [x] `plan/in-progress/spec-update-cafe24-jwt-exp.md` 신규 — spec §10.5 + Rationale 갱신 제안 (project-planner 위임).
 - [x] 본 plan (`plan/in-progress/cafe24-jwt-exp-fix.md`) 작성.
 
 ### 검증
 
-- [ ] `cd codebase/backend && npm run lint` — 변경 영역 무경고.
-- [ ] `cd codebase/backend && npm test -- jwt-exp` 통과.
-- [ ] `cd codebase/backend && npm test -- cafe24` 통과.
-- [ ] `cd codebase/backend && npm test -- integration-oauth` 통과.
-- [ ] `cd codebase/backend && npm test` (전체) 통과.
-- [ ] `cd codebase/backend && npm run build` 통과.
-- [ ] `make e2e-test` 통과.
+- [x] `cd codebase/backend && npm run lint` — 변경 영역 무경고.
+- [x] `cd codebase/backend && npm test -- jwt-exp` 통과.
+- [x] `cd codebase/backend && npm test -- cafe24` 통과.
+- [x] `cd codebase/backend && npm test -- integration-oauth` 통과.
+- [x] `cd codebase/backend && npm test` (전체) 통과.
+- [x] `cd codebase/backend && npm run build` 통과.
+- [x] `make e2e-test` 통과.
 
 ### Review
 
-- [ ] `/ai-review` 실행. Warning 이상 이슈 조치.
-- [ ] `review/code/.../RESOLUTION.md` 작성 (조치 항목 + TEST 결과 e2e 명시).
+- [x] `/ai-review` 실행. Warning 이상 이슈 조치.
+- [x] `review/code/.../RESOLUTION.md` 작성 (조치 항목 + TEST 결과 e2e 명시).
 
 ## Rationale
 

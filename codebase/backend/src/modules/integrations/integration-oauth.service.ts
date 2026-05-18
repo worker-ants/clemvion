@@ -28,6 +28,7 @@ import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import { normalizeStatusReason } from './integration-status-reason';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
 import { parseJwtExp } from './jwt-exp';
+import { normalizeCafe24IsoTimezone } from './cafe24-token-utils';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
 
@@ -1685,47 +1686,32 @@ export function parseTokenExpiresAt(
   provider: OAuthProvider,
   data: Record<string, unknown>,
 ): Date | null {
-  if (provider === 'cafe24') {
-    // 1) JWT exp 가 SoT. Cafe24 의 access_token 은 JWT 라 토큰 자체에
-    //    issuer 가 박아둔 만료 시각이 응답 표기보다 신뢰도가 높음.
-    const accessToken = readString(data, 'access_token');
-    const jwtExpMs = parseJwtExp(accessToken);
-    if (jwtExpMs !== null) return new Date(jwtExpMs);
-
-    // 2) 표준 expires_in — Cafe24 가 향후 표준 준수해도 자동 호환.
+  // 비-cafe24 provider — 표준 expires_in 만 사용 (옛 동작 유지).
+  if (provider !== 'cafe24') {
     const expiresIn = readNumber(data, 'expires_in');
-    if (expiresIn) return new Date(Date.now() + expiresIn * 1000);
-
-    // 3) Cafe24 의 expires_at ISO. TZ designator 누락 시 KST 정규화.
-    const expiresAtStr = readString(data, 'expires_at');
-    if (expiresAtStr) {
-      const normalized = hasTimezoneDesignator(expiresAtStr)
-        ? expiresAtStr
-        : `${expiresAtStr}+09:00`;
-      const parsed = Date.parse(normalized);
-      if (Number.isFinite(parsed)) return new Date(parsed);
-    }
-
-    // 4) Cafe24 default — access_token 은 발급 시점 + 2h.
-    return new Date(Date.now() + 2 * 60 * 60 * 1000);
+    return expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
   }
+
+  // 1) JWT exp 가 SoT. Cafe24 의 access_token 은 JWT 라 토큰 자체에
+  //    issuer 가 박아둔 만료 시각이 응답 표기보다 신뢰도가 높음.
+  const accessToken = readString(data, 'access_token');
+  const jwtExpMs = parseJwtExp(accessToken);
+  if (jwtExpMs !== null) return new Date(jwtExpMs);
+
+  // 2) 표준 expires_in — Cafe24 가 향후 표준 준수해도 자동 호환.
   const expiresIn = readNumber(data, 'expires_in');
   if (expiresIn) return new Date(Date.now() + expiresIn * 1000);
-  return null;
-}
 
-/**
- * ISO8601 문자열에 timezone designator (`Z` 또는 `±HH:MM` / `±HHMM`) 가
- * 포함됐는지 검사. 없으면 caller 가 KST (`+09:00`) 부여로 정규화한다.
- *
- * spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT —
- * JWT exp 격상 (2026-05-18)".
- */
-function hasTimezoneDesignator(iso: string): boolean {
-  // 끝이 Z 거나 마지막 ±HH(:)?MM 패턴 — `+09:00` / `-0500` / `Z`. 본 검사는
-  // ISO 의 다른 영역 (날짜·시간) 의 정합성은 검증하지 않는다 — Date.parse 가
-  // 별도로 NaN 으로 거부한다.
-  return /Z$|[+-]\d{2}:?\d{2}$/.test(iso);
+  // 3) Cafe24 의 expires_at ISO. TZ designator 누락 시 KST 정규화.
+  const expiresAtStr = readString(data, 'expires_at');
+  if (expiresAtStr) {
+    const normalized = normalizeCafe24IsoTimezone(expiresAtStr);
+    const parsed = Date.parse(normalized);
+    if (Number.isFinite(parsed)) return new Date(parsed);
+  }
+
+  // 4) Cafe24 default — access_token 은 발급 시점 + 2h.
+  return new Date(Date.now() + 2 * 60 * 60 * 1000);
 }
 
 function normalizeTokenResponse(

@@ -13,6 +13,7 @@ import {
 } from '../../../modules/integrations/cafe24-token-refresh.constants.js';
 import { sanitizeLastErrorMessage } from '../../../modules/integrations/integration-oauth.service.js';
 import { parseJwtExp } from '../../../modules/integrations/jwt-exp.js';
+import { normalizeCafe24IsoTimezone } from '../../../modules/integrations/cafe24-token-utils.js';
 import { IntegrationActionRequiredNotifier } from '../../../modules/integrations/integration-action-required-notifier.service.js';
 import {
   extractCafe24ScopeTokens,
@@ -838,16 +839,19 @@ export class Cafe24ApiClient {
     const jwtExpMs = parseJwtExp(accessToken);
     const expiresIn = readNumber(data, 'expires_in');
     const expiresAtStr = readString(data, 'expires_at');
+    // M-6 fix (ai-review 2026-05-18) — normalizeCafe24IsoTimezone 이중 호출
+    // 제거. expiresAtStr 가 truthy 일 때 한 번만 정규화한 뒤 그 결과를
+    // Date.parse 검사·생성 모두에 재사용.
+    const expiresAtMs = expiresAtStr
+      ? Date.parse(normalizeCafe24IsoTimezone(expiresAtStr))
+      : Number.NaN;
     const expiresAt =
       jwtExpMs !== null
         ? new Date(jwtExpMs)
         : expiresIn
           ? new Date(Date.now() + expiresIn * 1000)
-          : expiresAtStr &&
-              Number.isFinite(
-                Date.parse(normalizeCafe24IsoTimezone(expiresAtStr)),
-              )
-            ? new Date(Date.parse(normalizeCafe24IsoTimezone(expiresAtStr)))
+          : Number.isFinite(expiresAtMs)
+            ? new Date(expiresAtMs)
             : new Date(Date.now() + 2 * 60 * 60 * 1000); // Cafe24 default 2h
 
     // Atomic 4-field UPDATE — spec §10.5. credentials + tokenExpiresAt are
@@ -1427,21 +1431,6 @@ export function resolveTokenExpiry(integration: {
     if (Number.isFinite(parsed)) return parsed;
   }
   return null;
-}
-
-/**
- * Cafe24 의 `/oauth/token` 응답이 TZ designator (`Z` 또는 `±HH:MM`/`±HHMM`)
- * 없는 ISO8601 문자열을 보내는 경우 KST (`+09:00`) 부여로 정규화. 옛 코드는
- * Date.parse 가 ECMA-262 사양상 TZ-less ISO 를 *서버 local time* 으로
- * 해석해 UTC 컨테이너에서 9h skew 가 발생해 proactive refresh 와 워커
- * short-circuit 이 동시에 빗나가는 회귀가 있었다 (사용자 보고 2026-05-18).
- *
- * 본 정규화는 JWT exp 파싱이 비정상으로 null 인 경우의 fallback 안전망.
- * spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT —
- * JWT exp 격상 (2026-05-18)".
- */
-function normalizeCafe24IsoTimezone(iso: string): string {
-  return /Z$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}+09:00`;
 }
 
 function readString(obj: Record<string, unknown>, key: string): string | null {
