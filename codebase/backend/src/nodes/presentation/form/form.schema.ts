@@ -144,6 +144,14 @@ export const formNodeConfigSchema = z
           label: 'Fields',
           widget: 'field-array',
           itemLabel: 'Field',
+          // warningRule `form:no-fields` 와 정렬 — zod default([]) 는 신규
+          // 노드의 저장 관용성을 위해 유지하고 필수성은 ui.required 로
+          // 표면화 (node-component.interface.ts:222-226).
+          // NOTE: 여기 `required` 는 노드 설정 패널의 asterisk(필드 1개 이상)
+          // 의미. formFieldSchema 내부의 `required` (폼 사용자 입력 강제) 와
+          // 동명이지만 다른 layer — spec/4-nodes/6-presentation/4-form.md §1
+          // 주석 참고.
+          required: true,
         },
       }),
   })

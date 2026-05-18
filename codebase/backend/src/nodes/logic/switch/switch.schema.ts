@@ -80,6 +80,9 @@ export const switchNodeConfigSchema = z
           widget: 'expression',
           placeholder: '{{ $input.value }}',
           visibleWhen: { field: 'mode', equals: 'value' },
+          // warningRule `switch:value-mode-needs-switch-value` 와 정렬
+          // (mode 가 'value' 이거나 미설정일 때 필수).
+          requiredWhen: { field: 'mode', notEquals: 'expression' },
         },
       }),
     cases: z
@@ -90,6 +93,8 @@ export const switchNodeConfigSchema = z
           label: 'Cases',
           widget: 'field-array',
           itemLabel: 'Case',
+          // warningRule `switch:no-cases` 와 정렬.
+          required: true,
         },
       }),
     hasDefault: z
