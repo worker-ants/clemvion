@@ -485,7 +485,7 @@ export function Sidebar() {
                         </p>
                         <time
                           dateTime={notif.createdAt}
-                          title={formatDate(notif.createdAt, "iso")}
+                          title={notif.createdAt}
                           className="mt-1 block text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
                         >
                           {formatDate(notif.createdAt, "datetime-tz")}
