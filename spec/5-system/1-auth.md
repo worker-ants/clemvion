@@ -128,6 +128,8 @@ POST /api/auth/2fa/webauthn/recovery { challengeToken, code }
 
 counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다. 서비스 코드는 해당 credential row 를 즉시 삭제 (suspend 컬럼 없음 — Rationale 1.4.E) 하고 **해당 사용자의 활성 refresh token 전체를 즉시 revoke** 한다 — 클론 공격자가 기존 access/refresh 로 계속 접근하는 위협을 차단. LoginHistory 에 `webauthn_failed`(`failure_reason='WEBAUTHN_COUNTER_REGRESSION'`) 를 함께 기록한다.
 
+**동시성 보호** — `verifyAuthentication` 의 credential 조회·검증·counter 갱신·역행 시 삭제·refresh revoke 는 **단일 트랜잭션** 안에서 처리되며, credential row 는 `SELECT ... FOR UPDATE` 로 pessimistic lock 한다. 두 동시 요청이 같은 assertion 으로 들어와도 한쪽은 lock 대기 → 첫 요청이 counter 를 갱신한 뒤 두 번째 요청은 갱신된 counter 를 읽으므로 `@simplewebauthn/server` 가 `counter <= stored` 로 reject. LoginHistory 기록은 트랜잭션 *밖* 에서 호출해 audit 자체가 보안 핵심 경로(credential 삭제 + token revoke commit) 를 막지 않도록 한다.
+
 ### 1.5 초대 토큰 흐름
 
 팀 워크스페이스 Admin+ 가 **미가입자** 를 이메일로 초대하기 위한 토큰 기반 흐름. 가입 사용자 즉시 추가는 별도 API (`POST /api/workspaces/:id/members`) 를 사용한다 — 본 섹션은 미가입자 시나리오만 다룬다.

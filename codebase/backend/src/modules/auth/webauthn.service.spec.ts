@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import {
   BadRequestException,
   ConflictException,
@@ -111,6 +112,30 @@ describe('WebAuthnService', () => {
           },
         },
         { provide: LoginHistoryService, useValue: loginHistory },
+        {
+          provide: DataSource,
+          useValue: {
+            // 트랜잭션 콜백을 즉시 실행하고, manager.getRepository(Entity) 호출은
+            // beforeEach 에서 만든 동일 mock 으로 라우팅 — 락 동작 자체는 외부 통합
+            // 테스트(W-8 race) 가 별도 검증한다.
+            transaction: jest
+              .fn()
+              .mockImplementation(
+                (cb: (manager: {
+                  getRepository: (entity: unknown) => unknown;
+                }) => Promise<unknown>) =>
+                  cb({
+                    getRepository: (entity: unknown) => {
+                      if (entity === WebAuthnCredential) return credentialRepo;
+                      if (entity === RefreshToken) return refreshTokenRepo;
+                      throw new Error(
+                        `unexpected entity in mock manager.getRepository: ${String(entity)}`,
+                      );
+                    },
+                  }),
+              ),
+          },
+        },
       ],
     }).compile();
 
