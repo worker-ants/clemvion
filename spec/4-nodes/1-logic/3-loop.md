@@ -10,7 +10,7 @@
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
-| count | Expression \| Integer | ✓ | `'1'` | 반복 횟수. 정수 리터럴(`10`), 숫자 문자열(`"10"`), 또는 표현식(`{{ $input.count }}`) 허용. 표현식은 엔진 평가 시 정수로 해석되어야 한다 |
+| count | Expression \| Integer | ✓ | `'1'` | 반복 횟수. 정수 리터럴(`10`), 숫자 문자열(`"10"`), 또는 표현식(`{{ $input.count }}`) 허용. 표현식은 엔진 평가 시 정수로 해석되어야 한다. default `'1'` 은 "최소 반복 1회" 정책 — §8 Rationale 참조 |
 | maxIterations | Integer | | `1000` | 최대 반복 제한 (안전 캡). [공통 §6](./0-common.md#6-리소스-제한). `count` 가 이 값을 초과하면 `MAX_ITERATIONS_EXCEEDED` throw |
 | breakCondition | Expression? | | `undefined` | Boolean 표현식 (선택). 매 반복 종료 직후 평가되어 truthy 면 조기 종료 (§6 step 6, `meta.exitReason='break'`). `$loop.index`, `$var.*`, `$node[...].output` 등을 참조 가능. 평가 실패는 silent false (loop 진행 — `execution-engine.service.ts` 의 `buildLoopBreakConditionEvaluator` 가 `evaluate()` 호출을 try/catch 로 감쌈) |
 
@@ -167,7 +167,6 @@ Loop 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 
 | 발생 조건 | 메시지 | 시점 |
 |-----------|--------|------|
-| `count` 미설정 (빈 문자열 / undefined) | `Count 를 입력해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
 | `count` 가 표현식이 아니면서 숫자 파싱 실패 | `count must be a number or expression` | handler.validate (`validateLoopConfig`) |
 | `count` 가 0 이하 정수 | `count must be greater than 0` | handler.validate |
 | `maxIterations` 가 표현식이 아니면서 숫자 파싱 실패 | `maxIterations must be a number` | handler.validate |
@@ -183,3 +182,36 @@ Loop 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 [공통 §8](./0-common.md#8-캔버스-요약) — `Loop` 행 인용. 형식: `{count}x` (예: `10x`). breakCondition 이 설정되어 있으면 `· break condition` 추가.
 
 실행 중 컨테이너 헤더에는 현재 진행 인덱스를 표시한다 (예: `Iteration 3/10`, [공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach)).
+
+## 8. Rationale
+
+### 8.1 "최소 반복 1회" 정책 — `count` default `'1'`
+
+`count` 의 zod schema 는 `default('1')` 이며, UI 메타는 `ui.required: true` 다. 두 layer 가 결합되어 "count 가 빈 값" 상태는 발생하지 않는다 — 사용자가 폼에서 명시적으로 비워도, storage layer (zod parse) 에서 `'1'` 로 채워진다.
+
+**선택지 비교** (ai-review W-1 / consistency-check I-1 후속, 2026-05-19 결정):
+
+| 안 | 효과 | 채택 여부 |
+|---|---|---|
+| ① `default('')` 변경 | `loop:no-count` warningRule 살아남. 신규 노드 추가 시 빈 input 노출 — 의미 있는 default UX 부재 | 기각 |
+| ② **`default('1')` 유지 + warningRule 제거 + Rationale 명문화** | `'1'` = "한 번 반복" 으로 의미 있는 fallback. dead rule 제거로 SSOT 단순화 | **채택** |
+| ③ 현 상태 유지 + dead rule 인지만 spec 에 기록 | warningRule 이 SSOT 에 남아 향후 유지보수자에게 "왜 발화 안 되지?" 혼동 유발 | 기각 |
+
+**결과 동작 layer**:
+- **UI** — `ui.required: true` 가 asterisk 표시 (`visibility.ts isFieldRequired`)
+- **Storage (zod)** — `default('1')` 가 `undefined` 일 때 채움. 빈 string `''` 은 그대로 통과되지만, 일반 폼 흐름에서는 사용자가 빈 값으로 명시 저장할 경로가 거의 없음
+- **Runtime (engine)** — `coerceContainerNumber` 가 0 / `''` / `null` 등 비정상값 진입 시 `INVALID_CONTAINER_PARAM` throw — 레거시 데이터·직접 repo write 등으로 schema 우회된 경로의 safety net
+- **Backend handler.validate** — `validateLoopConfig` 가 명시적 0/음수/non-numeric 만 reject. 빈 config 는 zod default 가 채울 수 있으므로 통과
+
+**dead warningRule 제거**: `loop:no-count` (`when: '!count'`) 는 `default('1')` 로 인해 발화 경로가 없다. `warningRules: []` 로 두고 코드 주석에 "intentionally empty" 명시 — 향후 유지보수자가 dead rule 을 재현·복원하지 않도록.
+
+### 8.2 `validateLoopConfig` cross-field 검증의 numeric-only 가드
+
+`validateLoopConfig` 의 "`count > maxIterations`" cross-field 비교는 `typeof count === 'number'` 일 때만 발화한다. 사용자 입력 raw 가 숫자 문자열(`'200'`) 인 경우는 schema 단계의 cross-field 검증을 **의도적으로 건너뛴다**.
+
+근거:
+- 사용자 입력 raw string 은 핸들러가 **echo** 한다 (Principle 7) — 표현식 `{{ ... }}` 보존을 위해 string ↔ number 변환을 schema 단에서 강제하지 않는다.
+- 문자열 → 숫자 강제는 engine 의 `coerceContainerNumber` (execution-engine.service §runContainerInner) 에서 일어나며, 그 단계에서 `MAX_ITERATIONS_EXCEEDED` 가 cross-field 위반을 잡는다 (§6 표).
+- schema 단에서 문자열을 미리 파싱·재해석하면 "raw string ↔ engine 평가값" 두 진실이 생기는데, raw string 보존이 더 단일 진실에 가깝다.
+
+결과: `validateLoopConfig({ count: '200', maxIterations: 100 })` 는 schema 단계에서 통과되고, runtime 에서 `MAX_ITERATIONS_EXCEEDED` 로 차단된다 — 두 단계 모두 안전 net 이지만 책임이 분리되어 있다.

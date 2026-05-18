@@ -80,14 +80,15 @@ owner: developer
 
 ai-review (`review/code/2026/05/18/23_11_13/SUMMARY.md`) 에서 식별된 별 작업들:
 
-- **loop.count default 합의** — `default('1')` 이라 `loop:no-count` warningRule 이 dead. `default('')` 변경 시 신규 노드 UX·기존 workflow 영향 검토 필요.
+- ~~**loop.count default 합의**~~ → 별 plan [`loop-count-policy`](./loop-count-policy.md) 로 분리 (2026-05-19 결정: ② `default('1')` 유지 + warningRule 제거 + spec Rationale 명문화).
 - **send-email.to zod ↔ validator 정준화** — zod 는 array 전용 / validator 는 string 도 허용. 단일 string `to` 로 저장된 기존 workflow 영향 (DB 조사) 후 한쪽으로 통일.
 - **shared `VALID_OPS` enum 파생화** — `variable-modification.VALID_OPERATIONS`, `filter.VALID_OPS` 가 enum option 을 리터럴 중복. `Schema.options` 에서 직접 파생하도록 리팩토링.
 - **테스트 패턴 통일** — Integration/Form 의 인라인 `z.toJSONSchema` vs Logic 의 공유 spec(`logic-ui-required.spec.ts`) 혼재. 공유 `getUiMeta` 헬퍼 추출.
 - **`uiMeta` 시그니처 확장** — `ZodObject` 캐스트 강제 → `z.ZodTypeAny` 등 generic.
 - **주석 상세도 통일 + 동명 충돌 명시** — `form.fields.ui.required` vs `formFieldSchema.required` 동명 혼동(본 PR 에서 spec 단문·schema 주석으로 1차 완화), `send-email subject/body` `.default('')`+`ui.required` 조합 의도 등.
 - **spec Rationale 공식화** — 노드 schema `.optional()` / `.default()` 의 설계 원칙 (저장 관용성·마이그레이션·LLM 도구 호출 부분 인자 허용) 과 `ui.required` 의 분리 관리 방침을 `spec/4-nodes/0-overview.md` 또는 카테고리별 `0-common.md` Rationale 에 공식화. consistency-check I-5 지적사항.
-- **loop.count Rationale 명문화** — `default('1')` 로 인해 `loop:no-count` warningRule 이 dead 상태임을 `spec/4-nodes/1-logic/3-loop.md` Rationale 에 인지 명문화 또는 default('') 변경 결정. consistency-check I-1.
+- ~~**loop.count Rationale 명문화**~~ → 별 plan [`loop-count-policy`](./loop-count-policy.md) 로 통합 (consistency I-1 ↔ ai-review W-1 동일 사안).
+- **loop output.count 3중 문서 정합화** — `node-output.md §9.2`·`0-common.md §9.1/§11` 의 loop 행이 `{ iterations, count }` 로 명시하나 `3-loop.md §5.2` 는 Principle 1.1 (config↔output 직교) 사유로 `count` 제외. `node-output.md`·`0-common.md` 의 loop 행에서 `count` 제거하여 3개 문서 정합화. 2026-05-19 loop-count-policy 의 consistency-check W-1 에서 식별. 본 sweep 와 별 사안.
 - **switch mode 확장 가이드** — `switchValue.requiredWhen.notEquals` 가 mode 확장 시 의도보다 넓어질 수 있음을 `spec/4-nodes/1-logic/2-switch.md` Rationale 에 명기. consistency-check I-4.
 
 각 항목은 본 PR 머지 후 별 worktree·plan 으로 분리.

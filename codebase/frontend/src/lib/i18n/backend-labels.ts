@@ -9,6 +9,11 @@
  * Keep entries grouped by category — labels / hints / placeholders / itemLabels
  * / groups / option labels — to mirror the auto-form rendering code that calls
  * `translateBackendLabel`.
+ *
+ * i18n Principle 3 — synchronization on **both** add and remove. When a backend
+ * label / warningRule message is removed (e.g. dead-rule deletion), its
+ * corresponding entry in `LABEL_KO` / `WARNING_KO` etc. MUST be removed in the
+ * same commit. The i18n guard CI check verifies both directions.
  */
 
 import type { Locale } from "./types";
@@ -325,7 +330,6 @@ export const WARNING_KO: Record<string, string> = {
   "Body of the code to run must be entered.": "실행할 코드를 입력해야 합니다.",
   "Chart type must be selected.": "차트 타입을 선택해야 합니다.",
   "Conditions are limited to 20 entries.": "Conditions 는 최대 20개까지 추가할 수 있습니다.",
-  "Count must be entered.": "Count 를 입력해야 합니다.",
   "Database integration must be selected.": "Database integration 을 선택해야 합니다.",
   "Email integration must be selected.": "Email integration 을 선택해야 합니다.",
   "Either System Prompt or User Prompt must be entered.": "System Prompt 또는 User Prompt 중 하나는 입력해야 합니다.",
