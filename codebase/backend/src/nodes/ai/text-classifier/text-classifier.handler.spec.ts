@@ -133,6 +133,47 @@ describe('TextClassifierHandler', () => {
     });
   });
 
+  describe('System Context Prefix (spec §11)', () => {
+    it('prepends "## System Context" with current time + timezone to systemPrompt by default', async () => {
+      const ctx: ExecutionContext = {
+        ...createContext(),
+        variables: {
+          __workspaceId: 'ws-1',
+          __workspaceTimezone: 'Asia/Seoul',
+        },
+      };
+      await handler.execute(
+        {},
+        {
+          inputField: 'X',
+          categories: [{ name: 'A' }],
+        },
+        ctx,
+      );
+      const systemMsg = mockLlmService.chat.mock.calls[0][1].messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).toMatch(/^## System Context\n/);
+      expect(systemMsg.content).toContain('Timezone: Asia/Seoul (UTC+9)');
+    });
+
+    it('skips the prefix when includeSystemContext: false', async () => {
+      await handler.execute(
+        {},
+        {
+          inputField: 'X',
+          categories: [{ name: 'A' }],
+          includeSystemContext: false,
+        },
+        createContext(),
+      );
+      const systemMsg = mockLlmService.chat.mock.calls[0][1].messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).not.toContain('## System Context');
+    });
+  });
+
   describe('execute (single-label)', () => {
     const baseConfig = {
       inputField: 'I need a refund',
