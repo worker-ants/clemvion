@@ -61,7 +61,10 @@ export class ExecutionsService {
   // 종결 상태 execution detail 의 인스턴스 LRU 캐시 (W-27).
   // 삽입 순서 = LRU — Map iteration 이 삽입 순서를 보장하므로 별도 자료구조 없이
   // size 초과 시 첫 키 (가장 오래된 진입) 를 evict.
-  private readonly snapshotCache = new Map<string, ExecutionDetailWithTrigger>();
+  private readonly snapshotCache = new Map<
+    string,
+    ExecutionDetailWithTrigger
+  >();
 
   constructor(
     @InjectRepository(Execution)
@@ -73,7 +76,9 @@ export class ExecutionsService {
     private readonly executionEngineService: ExecutionEngineService,
   ) {}
 
-  private readSnapshotCache(id: string): ExecutionDetailWithTrigger | undefined {
+  private readSnapshotCache(
+    id: string,
+  ): ExecutionDetailWithTrigger | undefined {
     const cached = this.snapshotCache.get(id);
     if (cached !== undefined) {
       // LRU: 최근 사용으로 갱신.

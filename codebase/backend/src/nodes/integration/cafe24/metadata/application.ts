@@ -187,7 +187,8 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'appstore_orders_create',
     label: '앱스토어 주문 생성',
-    description: 'Create a Cafe24 appstore order. Body schema partial — refer to Cafe24 docs.',
+    description:
+      'Create a Cafe24 appstore order. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
     method: 'POST',
     path: 'appstore/orders',

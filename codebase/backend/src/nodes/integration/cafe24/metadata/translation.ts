@@ -144,7 +144,8 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'translation_themes_update',
     label: '테마 번역 수정',
-    description: 'Update a single theme translation entry (partial). Refer to Cafe24 docs for full body schema.',
+    description:
+      'Update a single theme translation entry (partial). Refer to Cafe24 docs for full body schema.',
     scopeType: 'write',
     method: 'PUT',
     path: 'translation/themes/{theme_no}',

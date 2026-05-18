@@ -142,7 +142,9 @@ describe('Cafe24McpToolProvider', () => {
         executionId: 'exec-1',
       });
       expect(tools).toEqual([]);
-      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(false);
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(
+        false,
+      );
     });
 
     it('skips integrations in error status (refresh-then-include 미적용)', async () => {
@@ -382,9 +384,7 @@ describe('Cafe24McpToolProvider', () => {
       integrationsService.getForExecution.mockResolvedValue(
         makeIntegration({ status: 'expired' }),
       );
-      apiClient.refreshTokenViaQueue.mockRejectedValue(
-        new Error('ECONNRESET'),
-      );
+      apiClient.refreshTokenViaQueue.mockRejectedValue(new Error('ECONNRESET'));
 
       const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
       const tools = await provider.buildTools({
@@ -628,7 +628,9 @@ describe('Cafe24McpToolProvider', () => {
     it('translates Cafe24TransportFailedError into CAFE24_TRANSPORT_FAILED', async () => {
       const { sid } = await setup();
       apiClient.call.mockRejectedValue(
-        new Cafe24TransportFailedError(new Error('ECONNRESET — connection reset by peer')),
+        new Cafe24TransportFailedError(
+          new Error('ECONNRESET — connection reset by peer'),
+        ),
       );
       const res = await provider.execute(
         makeCall(`mcp_${sid}__product_list`, { shop_no: 1 }),
@@ -641,7 +643,9 @@ describe('Cafe24McpToolProvider', () => {
         },
       );
       expect(res.status).toBe('error');
-      expect(JSON.parse(res.content).error.code).toBe('CAFE24_TRANSPORT_FAILED');
+      expect(JSON.parse(res.content).error.code).toBe(
+        'CAFE24_TRANSPORT_FAILED',
+      );
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'failed',
@@ -649,7 +653,6 @@ describe('Cafe24McpToolProvider', () => {
         }),
       );
     });
-
 
     it('returns CAFE24_MCP_NO_SESSION when buildTools was not called for this execution', async () => {
       const res = await provider.execute(
@@ -676,7 +679,9 @@ describe('Cafe24McpToolProvider', () => {
       expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(true);
 
       await provider.cleanup({ executionId: 'exec-1' });
-      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(false);
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(
+        false,
+      );
     });
 
     it('cleanup() without executionId is a no-op (other sessions stay alive)', async () => {
@@ -691,7 +696,9 @@ describe('Cafe24McpToolProvider', () => {
       expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(true);
       // __resetForTesting drops everything (tests can use this).
       provider.__resetForTesting();
-      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(false);
+      expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(
+        false,
+      );
     });
 
     // Regression: B-2-3 from cafe24-followup-backlog. multi-turn AI Agent

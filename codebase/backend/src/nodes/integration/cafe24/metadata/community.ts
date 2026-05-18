@@ -49,7 +49,7 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   {
     id: 'boards_settings_get',
     label: '게시판 설정 조회',
-    description: 'Retrieve a board\'s settings.',
+    description: "Retrieve a board's settings.",
     scopeType: 'read',
     method: 'GET',
     path: 'boards/{board_no}',
@@ -63,7 +63,7 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   {
     id: 'boards_settings_update',
     label: '게시판 설정 수정',
-    description: 'Update a board\'s settings (partial).',
+    description: "Update a board's settings (partial).",
     scopeType: 'write',
     method: 'PUT',
     path: 'boards/{board_no}',

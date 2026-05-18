@@ -241,7 +241,12 @@ export const productOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'POST',
     path: 'products/{product_no}/options',
-    requiredFields: ['product_no', 'option_name', 'option_type', 'option_values'],
+    requiredFields: [
+      'product_no',
+      'option_name',
+      'option_type',
+      'option_values',
+    ],
     fields: {
       product_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -307,7 +312,8 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_seo_get',
     label: '상품 SEO 설정 조회',
-    description: "Retrieve a product's SEO meta settings (title / description / keywords / URL path).",
+    description:
+      "Retrieve a product's SEO meta settings (title / description / keywords / URL path).",
     scopeType: 'read',
     method: 'GET',
     path: 'products/{product_no}/seo',
@@ -321,7 +327,8 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_seo_update',
     label: '상품 SEO 설정 수정',
-    description: "Update a product's SEO meta settings. All body fields are optional — provide only the ones to change.",
+    description:
+      "Update a product's SEO meta settings. All body fields are optional — provide only the ones to change.",
     scopeType: 'write',
     method: 'PUT',
     path: 'products/{product_no}/seo',

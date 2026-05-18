@@ -22,9 +22,9 @@ describe('IntegrationActionRequiredNotifier', () => {
 
   beforeEach(() => {
     userRepo = {
-      find: jest.fn().mockResolvedValue([
-        { id: 'user-1', notificationPreferences: {} },
-      ]),
+      find: jest
+        .fn()
+        .mockResolvedValue([{ id: 'user-1', notificationPreferences: {} }]),
     };
     workspacesService = { findAdminUserIds: jest.fn().mockResolvedValue([]) };
     notificationsService = {
@@ -83,7 +83,10 @@ describe('IntegrationActionRequiredNotifier', () => {
   });
 
   it('fans out to admin users for organization scope', async () => {
-    workspacesService.findAdminUserIds.mockResolvedValue(['admin-1', 'admin-2']);
+    workspacesService.findAdminUserIds.mockResolvedValue([
+      'admin-1',
+      'admin-2',
+    ]);
     userRepo.find.mockResolvedValue([
       { id: 'admin-1', notificationPreferences: {} },
       { id: 'admin-2', notificationPreferences: {} },
@@ -92,12 +95,10 @@ describe('IntegrationActionRequiredNotifier', () => {
       makeIntegration({ scope: 'organization', createdBy: 'someone' }),
       'auth_failed',
     );
-    const entries = notificationsService.createMany.mock
-      .calls[0][0] as Array<Record<string, unknown>>;
-    expect(entries.map((e) => e.userId).sort()).toEqual([
-      'admin-1',
-      'admin-2',
-    ]);
+    const entries = notificationsService.createMany.mock.calls[0][0] as Array<
+      Record<string, unknown>
+    >;
+    expect(entries.map((e) => e.userId).sort()).toEqual(['admin-1', 'admin-2']);
   });
 
   it('skips when hasRecentByResource returns true (24h dedup)', async () => {

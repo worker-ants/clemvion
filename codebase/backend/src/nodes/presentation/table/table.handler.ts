@@ -244,7 +244,7 @@ export class TableHandler implements NodeHandler {
           : typeof ctx.$sourceItem;
       const varKeys =
         ctx.$var && typeof ctx.$var === 'object'
-          ? Object.keys(ctx.$var as Record<string, unknown>)
+          ? Object.keys(ctx.$var)
           : typeof ctx.$var;
       logger.error(
         `safeEvaluate error: template=${template} sourceItemKeys=${JSON.stringify(sourceKeys)} varKeys=${JSON.stringify(varKeys)}`,
