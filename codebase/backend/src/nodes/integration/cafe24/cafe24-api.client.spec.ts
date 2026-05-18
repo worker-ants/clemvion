@@ -1405,6 +1405,106 @@ describe('Cafe24ApiClient', () => {
         queuedClient.call(integration, { method: 'GET', path: 'products' }),
       ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
     });
+
+    // spec/4-nodes/4-integration/4-cafe24.md §8.6 — public refresh entry.
+    // Cafe24McpToolProvider.tryRecoverExpired 가 호출하는 진입점이며,
+    // (a) 큐 바인딩 시 jobId dedup 경로, (b) 미바인딩 시 in-process refresh
+    // 폴백, (c) `source` 라벨 전달, 셋 다 검증.
+    describe('refreshTokenViaQueue (public entry for buildTools self-heal)', () => {
+      it('routes through BullMQ when queue is bound with given source label', async () => {
+        const integration = makeIntegration({
+          credentials: {
+            mall_id: 'myshop',
+            app_type: 'public',
+            access_token: 'a',
+            refresh_token: 'r-valid',
+            expires_at: expiredAt.toISOString(),
+          },
+          tokenExpiresAt: expiredAt,
+        });
+        integrationRepo.findOne.mockResolvedValue({
+          ...integration,
+          tokenExpiresAt: refreshedAt,
+          status: 'connected',
+        });
+        const waitUntilFinished = jest.fn().mockResolvedValue(undefined);
+        queue.add.mockResolvedValue({
+          id: integration.id,
+          waitUntilFinished,
+        });
+
+        await queuedClient.refreshTokenViaQueue(integration, 'background');
+
+        expect(queue.add).toHaveBeenCalledWith(
+          'refresh-cafe24-token',
+          { integrationId: integration.id, source: 'background' },
+          expect.objectContaining({
+            jobId: integration.id,
+            attempts: 1,
+          }),
+        );
+        expect(waitUntilFinished).toHaveBeenCalled();
+      });
+
+      it('falls back to in-process refreshAccessToken when queue is not bound', async () => {
+        // queue 미주입 client — call() 의 fallback 경로와 동일 wiring.
+        const noQueueRepo = { findOne: jest.fn() };
+        const noQueueClient = new Cafe24ApiClient(
+          noQueueRepo as never,
+          dataSource as never,
+          fetchMock as unknown as typeof fetch,
+          sleepMock as unknown as (ms: number) => Promise<void>,
+          // queue / queueEvents 둘 다 undefined.
+        );
+        // public app 의 refreshAccessToken 은 환경 변수 client_id/secret 을
+        // 사용 — fallback 진입 자체를 검증할 수 있도록 set 후 finally cleanup.
+        process.env.CAFE24_CLIENT_ID = 'test-client-id';
+        process.env.CAFE24_CLIENT_SECRET = 'test-client-secret';
+        try {
+          const integration = makeIntegration({
+            credentials: {
+              mall_id: 'myshop',
+              app_type: 'public',
+              access_token: 'a',
+              refresh_token: 'r-valid',
+              expires_at: expiredAt.toISOString(),
+            },
+            tokenExpiresAt: expiredAt,
+          });
+          // refreshAccessToken 의 token endpoint mock.
+          fetchMock.mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                access_token: 'new-token',
+                refresh_token: 'new-refresh',
+                expires_at: refreshedAt.toISOString(),
+              }),
+              { status: 200 },
+            ) as never,
+          );
+          // dataSource.transaction 안에서 row 를 잡고 업데이트하는 in-process
+          // refreshAccessToken 경로. transaction 콜백이 findOne 으로 row 를
+          // 재로드한 뒤 save 한다 — manager mock 을 inline 으로 wire.
+          dataSource.transaction.mockImplementation(
+            async (cb: (manager: unknown) => Promise<unknown>) =>
+              cb({
+                getRepository: () => ({
+                  findOne: jest.fn().mockResolvedValue(integration),
+                  save: jest.fn().mockResolvedValue(integration),
+                }),
+              }),
+          );
+          await expect(
+            noQueueClient.refreshTokenViaQueue(integration, 'background'),
+          ).resolves.toBeUndefined();
+          // in-process refreshAccessToken 가 token endpoint 를 호출함.
+          expect(fetchMock).toHaveBeenCalled();
+        } finally {
+          delete process.env.CAFE24_CLIENT_ID;
+          delete process.env.CAFE24_CLIENT_SECRET;
+        }
+      });
+    });
   });
 
   // 사용자 진단용 연결 테스트. spec §5.8 의 ping endpoint 를 호출해

@@ -58,7 +58,7 @@ function makeCall(name: string, args: Record<string, unknown> = {}): ToolCall {
 
 describe('Cafe24McpToolProvider', () => {
   let integrationsService: { getForExecution: Mock; logUsage: Mock };
-  let apiClient: { call: Mock };
+  let apiClient: { call: Mock; refreshTokenViaQueue: Mock };
   let provider: Cafe24McpToolProvider;
 
   beforeEach(() => {
@@ -66,7 +66,10 @@ describe('Cafe24McpToolProvider', () => {
       getForExecution: jest.fn(),
       logUsage: jest.fn().mockResolvedValue(undefined),
     };
-    apiClient = { call: jest.fn() };
+    apiClient = {
+      call: jest.fn(),
+      refreshTokenViaQueue: jest.fn().mockResolvedValue(undefined),
+    };
     provider = new Cafe24McpToolProvider(
       integrationsService as never,
       apiClient as unknown as Cafe24ApiClient,
@@ -142,16 +145,293 @@ describe('Cafe24McpToolProvider', () => {
       expect(provider.matches('mcp_abcdef1234567890__product_list')).toBe(false);
     });
 
-    it('skips integrations that are not connected', async () => {
+    it('skips integrations in error status (refresh-then-include 미적용)', async () => {
       integrationsService.getForExecution.mockResolvedValue(
-        makeIntegration({ status: 'expired' }),
+        makeIntegration({ status: 'error', statusReason: 'auth_failed' }),
       );
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
       const tools = await provider.buildTools({
         config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
         workspaceId: 'ws-1',
         executionId: 'exec-1',
+        mcpDiagnostics: summaries,
       });
       expect(tools).toEqual([]);
+      // refresh-then-include 는 error 상태에 적용 안 됨 — 외부 명시 reauth 가 정식.
+      expect(apiClient.refreshTokenViaQueue).not.toHaveBeenCalled();
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'skipped',
+          skipReason: 'error',
+        }),
+      ]);
+    });
+
+    it('skips expired + install_timeout (refresh 불가)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({
+          status: 'expired',
+          statusReason: 'install_timeout',
+          credentials: {
+            mall_id: 'myshop',
+            app_type: 'private',
+            // install_timeout 은 토큰 자체가 비어있을 수 있다.
+            scopes: [...ALL_CAFE24_SCOPES],
+          },
+        }),
+      );
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(tools).toEqual([]);
+      expect(apiClient.refreshTokenViaQueue).not.toHaveBeenCalled();
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'skipped',
+          skipReason: 'expired_install_timeout',
+        }),
+      ]);
+    });
+
+    it('skips expired + no refresh_token', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({
+          status: 'expired',
+          credentials: {
+            mall_id: 'myshop',
+            app_type: 'public',
+            access_token: 't',
+            // no refresh_token
+            scopes: [...ALL_CAFE24_SCOPES],
+          },
+        }),
+      );
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(tools).toEqual([]);
+      expect(apiClient.refreshTokenViaQueue).not.toHaveBeenCalled();
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'skipped',
+          skipReason: 'expired_no_refresh_token',
+        }),
+      ]);
+    });
+
+    // spec/4-nodes/4-integration/4-cafe24.md §8.6 — expired + refresh_token 보유
+    // 행은 1회 큐 경유 refresh 시도 후 worker 가 status='connected' 로 전이시키면
+    // fresh row 로 tool 등록 계속. 본 테스트는 정상 회복 경로.
+    it('refreshes expired+refresh_token integration and includes tools when worker flips to connected', async () => {
+      const expiredRow = makeIntegration({ status: 'expired' });
+      const freshRow = makeIntegration({ status: 'connected' });
+      integrationsService.getForExecution
+        .mockResolvedValueOnce(expiredRow) // 첫 조회
+        .mockResolvedValueOnce(freshRow); // refresh 후 재조회
+      apiClient.refreshTokenViaQueue.mockResolvedValue(undefined);
+
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+
+      expect(apiClient.refreshTokenViaQueue).toHaveBeenCalledWith(
+        expiredRow,
+        'background',
+      );
+      expect(tools.length).toBeGreaterThan(0); // 모든 op 노출
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'connected',
+          serviceType: 'cafe24',
+        }),
+      ]);
+      // 정상 회복이라 skipReason 없음.
+      expect(summaries[0].skipReason).toBeUndefined();
+    });
+
+    it('skips expired+refresh_token when refresh fails with auth_failed', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({ status: 'expired' }),
+      );
+      apiClient.refreshTokenViaQueue.mockRejectedValue(
+        new Cafe24AuthFailedError('invalid_grant', 401, undefined),
+      );
+
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(tools).toEqual([]);
+      expect(apiClient.refreshTokenViaQueue).toHaveBeenCalledTimes(1);
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'skipped',
+          skipReason: 'expired_refresh_failed',
+        }),
+      ]);
+    });
+
+    it('skips expired+refresh_token when worker did not flip status to connected', async () => {
+      const expiredRow = makeIntegration({ status: 'expired' });
+      const stillErrorRow = makeIntegration({
+        status: 'error',
+        statusReason: 'auth_failed',
+      });
+      integrationsService.getForExecution
+        .mockResolvedValueOnce(expiredRow)
+        .mockResolvedValueOnce(stillErrorRow);
+      apiClient.refreshTokenViaQueue.mockResolvedValue(undefined);
+
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(tools).toEqual([]);
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'skipped',
+          skipReason: 'expired_refresh_failed',
+        }),
+      ]);
+    });
+
+    it('skips pending_install integrations with pending_install skipReason', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({ status: 'pending_install' }),
+      );
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(tools).toEqual([]);
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'skipped',
+          skipReason: 'pending_install',
+        }),
+      ]);
+    });
+
+    it('pushes connected summary for healthy integration', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          integrationId: 'abcdef1234567890',
+          serviceType: 'cafe24',
+          status: 'connected',
+        }),
+      ]);
+      expect(summaries[0].toolCount).toBeGreaterThan(0);
+    });
+
+    it('pushes lookup_failed when re-read after successful refresh fails', async () => {
+      const expiredRow = makeIntegration({ status: 'expired' });
+      integrationsService.getForExecution
+        .mockResolvedValueOnce(expiredRow)
+        .mockRejectedValueOnce(new Error('replica lag — row gone'));
+      apiClient.refreshTokenViaQueue.mockResolvedValue(undefined);
+
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(tools).toEqual([]);
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'skipped',
+          skipReason: 'lookup_failed',
+        }),
+      ]);
+    });
+
+    // spec §8.6 — transport / Redis / 기타 non-AuthFailed 오류도 같은 reason
+    // 으로 묶는다 (사용자 입장에선 토큰 갱신 실패 = 동일). vocabulary 세분화
+    // 는 spec follow-up.
+    it('uses expired_refresh_failed for non-auth refresh errors (transport, etc.)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(
+        makeIntegration({ status: 'expired' }),
+      );
+      apiClient.refreshTokenViaQueue.mockRejectedValue(
+        new Error('ECONNRESET'),
+      );
+
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(tools).toEqual([]);
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          status: 'skipped',
+          skipReason: 'expired_refresh_failed',
+        }),
+      ]);
+    });
+
+    it('works without mcpDiagnostics array (backward compat — undefined push 무시)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        // mcpDiagnostics 미주입.
+      });
+      expect(tools.length).toBeGreaterThan(0);
+    });
+
+    it('pushes lookup_failed when integrations.getForExecution throws', async () => {
+      integrationsService.getForExecution.mockRejectedValue(
+        new Error('Integration vanished'),
+      );
+      const summaries: import('./mcp-diagnostics').McpServerSummary[] = [];
+      const tools = await provider.buildTools({
+        config: { mcpServers: [{ integrationId: 'abcdef1234567890' }] },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+        mcpDiagnostics: summaries,
+      });
+      expect(tools).toEqual([]);
+      expect(summaries).toEqual([
+        expect.objectContaining({
+          integrationId: 'abcdef1234567890',
+          status: 'skipped',
+          skipReason: 'lookup_failed',
+        }),
+      ]);
     });
 
     /**
