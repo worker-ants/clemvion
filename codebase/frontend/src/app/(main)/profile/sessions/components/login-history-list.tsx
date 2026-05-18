@@ -57,7 +57,7 @@ export function LoginHistoryList() {
     );
   }
 
-  const items = query.data?.pages.flatMap((p) => p.data) ?? [];
+  const items = query.data?.pages.flatMap((p) => p.items) ?? [];
   if (items.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-[hsl(var(--muted-foreground))]">

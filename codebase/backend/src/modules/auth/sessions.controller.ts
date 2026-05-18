@@ -65,13 +65,13 @@ export class SessionsController {
   async listSessions(
     @CurrentUser() user: JwtPayload,
     @Req() req: Express.Request,
-  ): Promise<{ data: SessionDto[] }> {
+  ): Promise<{ data: SessionListDto }> {
     const refreshToken = readRefreshTokenCookie(req);
     const sessions = await this.sessionsService.listActiveSessions(
       user.sub,
       refreshToken,
     );
-    return { data: sessions };
+    return { data: { items: sessions } };
   }
 
   @Post('sessions/:familyId/revoke')
@@ -101,7 +101,7 @@ export class SessionsController {
     @Param('familyId', new ParseUUIDPipe()) familyId: string,
     @Body() dto: RevokeSessionDto,
     @Req() req: Express.Request,
-  ): Promise<{ data: SessionDto[] }> {
+  ): Promise<{ data: SessionListDto }> {
     const refreshToken = readRefreshTokenCookie(req);
     await this.sessionsService.revokeFamily(
       user.sub,
@@ -117,7 +117,7 @@ export class SessionsController {
       user.sub,
       refreshToken,
     );
-    return { data: sessions };
+    return { data: { items: sessions } };
   }
 
   @Post('sessions/revoke-others')
@@ -140,7 +140,7 @@ export class SessionsController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: RevokeSessionDto,
     @Req() req: Express.Request,
-  ): Promise<{ data: SessionDto[] }> {
+  ): Promise<{ data: SessionListDto }> {
     const refreshToken = readRefreshTokenCookie(req);
     if (!refreshToken) {
       throw new BadRequestException({
@@ -161,7 +161,7 @@ export class SessionsController {
       user.sub,
       refreshToken,
     );
-    return { data: sessions };
+    return { data: { items: sessions } };
   }
 
   @Get('login-history')

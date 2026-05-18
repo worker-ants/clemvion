@@ -37,10 +37,16 @@ export class LoginHistoryItemDto {
   createdAt: string;
 }
 
-/** 로그인 이력 페이지 응답 (커서 기반) */
+/**
+ * 로그인 이력 페이지 응답 (커서 기반).
+ *
+ * 응답 shape 은 외부 wrapping 까지 합쳐 `{ data: { items: LoginHistoryItemDto[], nextCursor } }`.
+ * 옛 필드명 `data` (내부) → `items` 로 개명 — `res.data.data.data` 와 같은
+ * 이중 중첩 가독성 문제 해소.
+ */
 export class LoginHistoryPageDto {
   @ApiProperty({ type: [LoginHistoryItemDto] })
-  data: LoginHistoryItemDto[];
+  items: LoginHistoryItemDto[];
 
   @ApiProperty({
     nullable: true,

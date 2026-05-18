@@ -50,8 +50,14 @@ export class SessionDto {
   isCurrent: boolean;
 }
 
-/** 활성 세션 목록 응답 */
+/**
+ * 활성 세션 목록 응답.
+ *
+ * 응답 shape 은 외부 wrapping 까지 합쳐 `{ data: { items: SessionDto[] } }`.
+ * 옛 필드명 `data` → `items` 로 개명 (webauthn credential 목록·login history 와
+ * 일관된 `items` key 사용). 호출자는 `res.data.data.items` 로 접근.
+ */
 export class SessionListDto {
   @ApiProperty({ type: [SessionDto] })
-  data: SessionDto[];
+  items: SessionDto[];
 }
