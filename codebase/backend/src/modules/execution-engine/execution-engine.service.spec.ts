@@ -4502,9 +4502,10 @@ describe('ExecutionEngineService', () => {
       // Behavioural change vs. pre-fix engine: previously
       // `Number(undefined ?? 0)` silently produced 0 iterations. coerce
       // helpers now throw INVALID_CONTAINER_PARAM so misconfigured nodes
-      // surface loudly instead of finishing as no-ops. Schema-level
-      // `loop:no-count` warning catches this at design time; the throw is
-      // the runtime safety net.
+      // surface loudly instead of finishing as no-ops. zod `default('1')`
+      // catches this at storage time ("최소 반복 1회" 정책, spec
+      // 4-nodes/1-logic/3-loop.md §8); the throw is the runtime safety net
+      // for edges that bypass schema parsing (legacy data, direct repo write).
       it('throws INVALID_CONTAINER_PARAM when count is undefined (intentional loud failure)', async () => {
         mockNodeRepo.findBy.mockResolvedValue(buildLoopNodes(undefined));
         mockEdgeRepo.findBy.mockResolvedValue(loopEdges);

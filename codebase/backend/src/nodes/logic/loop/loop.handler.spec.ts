@@ -42,11 +42,10 @@ describe('LoopHandler', () => {
       });
     });
 
-    it('rejects missing count', () => {
-      const result = handler.validate({});
-      expect(result.valid).toBe(false);
-      // Schema warningRule "Count must be entered." fires.
-      expect(result.errors.some((e) => e.includes('Count'))).toBe(true);
+    it('accepts missing count — zod default("1") fills it ("최소 반복 1회" 정책, spec §8)', () => {
+      // handler.validate 는 raw config 만 본다. 빈 config 가 들어와도
+      // storage layer 에서 zod default('1') 이 적용되므로 차단할 필요 없음.
+      expect(handler.validate({})).toEqual({ valid: true, errors: [] });
     });
 
     it('rejects non-numeric string', () => {
