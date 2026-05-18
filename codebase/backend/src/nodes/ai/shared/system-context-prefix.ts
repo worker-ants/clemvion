@@ -7,12 +7,21 @@
  * systemPrompt 앞에 현재 시각·timezone 을 자동 prepend 하여 LLM 의 시각 추론
  * (예: "어제 자정", "최근 7일") 이 timezone 모호성에 빠지지 않게 한다. Cafe24
  * MCP 도구 description 의 KST suffix 와 함께 두 채널로 LLM 에 timezone 정보를
- *전달하는 한 묶음 결정 (2026-05-18).
+ * 전달하는 한 묶음 결정 (2026-05-18).
  */
 
 import type { ExecutionContext } from '../../core/node-handler.interface.js';
 
 export type SystemContextSection = 'time' | 'timezone' | 'workspace' | 'node';
+
+/**
+ * 3 AI 노드 schema 가 공유하는 §11 설정 필드. `Record<string, unknown>` 대신 본
+ * 인터페이스로 받아 호출 측 타입을 안전하게 보존한다.
+ */
+export interface SystemContextConfigFields {
+  includeSystemContext?: boolean;
+  systemContextSections?: readonly SystemContextSection[] | readonly string[];
+}
 
 export const SYSTEM_CONTEXT_DEFAULT_INCLUDE = true;
 export const SYSTEM_CONTEXT_DEFAULT_SECTIONS: readonly SystemContextSection[] =
@@ -122,6 +131,11 @@ function renderSection(
         ? `- Node: ${head} (${meta.join(', ')})`
         : `- Node: ${head}`;
     }
+    default: {
+      // exhaustive 가드 — 새 섹션 타입을 추가하면 컴파일 타임에 캐치된다.
+      const _exhaustive: never = section;
+      return _exhaustive;
+    }
   }
 }
 
@@ -230,17 +244,19 @@ function formatOffsetIsoSuffix(offsetMinutes: number): string {
  *
  * Spec: §11.1 "기존 row 해석 정책" — config 에 두 필드가 없으면 default 로 해석.
  */
-export function normalizeSystemContextConfig(config: Record<string, unknown>): {
+export function normalizeSystemContextConfig(
+  config: SystemContextConfigFields,
+): {
   enabled: boolean;
   sections: readonly SystemContextSection[];
 } {
-  const includeRaw = config['includeSystemContext'];
+  const includeRaw = config.includeSystemContext;
   const enabled =
     includeRaw === undefined
       ? SYSTEM_CONTEXT_DEFAULT_INCLUDE
       : Boolean(includeRaw);
   if (!enabled) return { enabled: false, sections: [] };
-  const sectionsRaw = config['systemContextSections'];
+  const sectionsRaw = config.systemContextSections;
   let sections: readonly SystemContextSection[] =
     SYSTEM_CONTEXT_DEFAULT_SECTIONS;
   if (Array.isArray(sectionsRaw)) {
@@ -259,7 +275,7 @@ export function normalizeSystemContextConfig(config: Record<string, unknown>): {
  */
 export function buildSystemContextPrefixFromContext(args: {
   context: ExecutionContext;
-  config: Record<string, unknown>;
+  config: SystemContextConfigFields;
   now: Date;
 }): string {
   const { enabled, sections } = normalizeSystemContextConfig(args.config);

@@ -18,9 +18,14 @@ export const customerOperations: Cafe24OperationMetadata[] = [
         type: 'string',
         location: 'query',
         description:
-          'ISO8601 datetime (KST, UTC+9) — created_after. Naive ISO 도 Cafe24 가 KST 로 해석',
+          'ISO8601 datetime (KST, UTC+9) — created_after. Cafe24 interprets naive ISO as KST.',
       },
-      until: { type: 'string', location: 'query' },
+      until: {
+        type: 'string',
+        location: 'query',
+        description:
+          'ISO8601 datetime (KST, UTC+9) — created_before. Cafe24 interprets naive ISO as KST.',
+      },
     },
     responseShape: 'list',
     paginated: true,
