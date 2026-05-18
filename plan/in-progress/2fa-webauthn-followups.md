@@ -60,13 +60,13 @@ owner: TBD
 - [x] 프론트엔드 호출처 갱신 (`lib/api/sessions.ts`, `components/login-history-list.tsx`)
 - [x] e2e/spec 검증 (`session-revocation.e2e-spec` 의 `body.data.items` 갱신, 단위 테스트 통과)
 
-### 7. WebAuthn verify 트랜잭션 + pessimistic lock 강화
+### 7. WebAuthn verify 트랜잭션 + pessimistic lock 강화 — **완료**
 
-- [ ] `WebAuthnService.verifyAuthentication` 을 `dataSource.transaction` 으로 wrap
-- [ ] credential 조회에 `lock: { mode: 'pessimistic_write' }` 적용
-- [ ] counter 갱신 + LoginHistory 기록을 트랜잭션 내부에 배치 (race condition 완화)
-
-관련: 본 PR `webauthn.service.ts:265-275` 의 race condition 코멘트.
+- [x] `WebAuthnService.verifyAuthentication` 을 `dataSource.transaction` 으로 wrap
+- [x] credential 조회에 `lock: { mode: 'pessimistic_write' }` 적용
+- [x] counter 갱신 + 역행 시 credential 삭제 + refresh revoke 를 트랜잭션 내부에 배치
+- [x] LoginHistory 기록은 트랜잭션 *밖* — audit 가 보안 핵심 경로 commit 을 막지 않도록
+- [x] spec/5-system/1-auth.md §1.4.4 동시성 보호 절 추가
 
 ### 8. AuthModule 분리 (WebAuthnModule 서브모듈)
 
