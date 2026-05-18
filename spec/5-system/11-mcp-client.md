@@ -68,6 +68,8 @@ AI Agent 노드가 외부 [Model Context Protocol (MCP)](https://modelcontextpro
 
 > Internal Bridge 도 §8.4 의 인증 실패 자동 status 전환 정책을 따른다. 단, refresh_token 을 보유한 provider (예: cafe24) 의 401 은 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 "refresh + 1회 재시도" 자가 회복 정책이 우선 적용되며, 재시도도 401 이면 그때 §8.4 와 같은 격하. 403 은 항상 §8.4 와 동일하게 즉시 격하.
 
+> **Bridge 별 description suffix**: Internal Bridge 는 자신의 service_type 에 특화된 정보를 도구 description 에 자동 append 할 수 있다 — 예: Cafe24 는 모든 도구 description 끝에 KST timezone 명시 한 줄을 부기한다 ([Cafe24 API Metadata §5.3](../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix)). 외부 HTTP transport (§2.1) 는 MCP 서버가 자체적으로 보고한 description 을 그대로 사용한다.
+
 ---
 
 ## 3. Integration 모델
