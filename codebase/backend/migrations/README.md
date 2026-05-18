@@ -48,6 +48,13 @@ docker run --rm clemvion/migrate info -url=... -user=... -password=...
 
 `ALTER TABLE ... ADD CONSTRAINT (CHECK | FOREIGN KEY)` 는 PostgreSQL 에서 기본적으로 `ACCESS EXCLUSIVE LOCK` 을 잡고 기존 행을 모두 검증합니다. 운영 트래픽이 큰 테이블에서는 수 초 ~ 수 분 동안 INSERT/UPDATE/SELECT 가 모두 멈출 수 있어 위험합니다. 신규 마이그레이션부터는 다음 두 단계 패턴을 사용하세요.
 
+> **예외 인정 조건** — 다음 *모두* 충족 시 단일 statement 도 허용:
+> - 테이블이 INSERT-only append-only (UPDATE/DELETE 거의 없음, e.g. `login_history` ≤ 1M row)
+> - 신규 enum 값을 CHECK 에 추가하는 케이스처럼 기존 row 위배가 0건임이 schema 적으로 보장
+> - 락 영향 평가 + DBA review 완료
+>
+> 위 조건이 깨지거나 의심스러우면 NOT VALID 2-step 으로 분리. Rationale 은 마이그레이션 헤더 + 관련 spec 의 Rationale 절에 함께 기록 (예: V058 → `spec/5-system/1-auth.md §1.4.G`).
+
 ```sql
 -- 1) NOT VALID 로 추가 — 신규 row 만 검증, 기존 row 는 미검증 (락 짧음)
 ALTER TABLE document
