@@ -11,7 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import {
   generateRegistrationOptions,
@@ -78,6 +78,7 @@ export class WebAuthnService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly loginHistory: LoginHistoryService,
+    private readonly dataSource: DataSource,
   ) {}
 
   private getConfig(): WebAuthnConfig {
@@ -279,6 +280,16 @@ export class WebAuthnService {
   /**
    * verify 후 counter 갱신. counter 역행 시 row 즉시 삭제 + LoginHistory `webauthn_failed`.
    * (spec Rationale 1.4.E)
+   *
+   * 동시 verify race 차단 (review W-8 → follow-up §7):
+   *   SELECT FOR UPDATE 으로 credential row 를 pessimistic lock 해서 counter read·write
+   *   를 직렬화한다. 두 동시 요청이 같은 assertion 으로 들어와도 한쪽은 lock 대기 →
+   *   첫 요청이 counter=N+1 로 갱신한 뒤 두 번째 요청은 갱신된 counter=N+1 을 읽으므로
+   *   `@simplewebauthn/server` 가 counter <= stored 로 reject 한다.
+   *
+   * audit log (`LoginHistory.record`) 는 트랜잭션 *밖* 에서 호출 — rollback 시 phantom
+   * 로그 회피 + LoginHistory 자체 swallow 로 보안 핵심 경로(credential delete + token
+   * revoke) 가 audit 실패에 막히지 않도록.
    */
   async verifyAuthentication(
     userId: string,
@@ -289,104 +300,110 @@ export class WebAuthnService {
     this.assertEnabled();
     const payload = this.verifyOptionsToken(optionsToken, 'webauthn_auth', userId);
     const { rpID, origins } = this.getConfig();
-
     const credentialId = response.id;
-    // Race condition note (review W-8 follow-up): two concurrent verifies of
-    // the same assertion could both read counter=N and write counter=N+1,
-    // masking a replay. SELECT FOR UPDATE here requires wrapping in a
-    // transaction (TypeORM throws PessimisticLockTransactionRequiredError
-    // otherwise). Tracked as follow-up — current single-statement update is
-    // still safe against the more common scenario (sequential replay) because
-    // @simplewebauthn/server rejects on counter <= stored.
-    const credential = await this.credentialRepo.findOne({
-      where: { credentialId, userId },
+
+    type Outcome =
+      | { kind: 'ok' }
+      | { kind: 'not_found' }
+      | { kind: 'invalid'; reason: string }
+      | { kind: 'counter_regression'; credentialUuid: string };
+
+    const outcome = await this.dataSource.transaction<Outcome>(async (manager) => {
+      const credRepo = manager.getRepository(WebAuthnCredential);
+      const credential = await credRepo.findOne({
+        where: { credentialId, userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!credential) return { kind: 'not_found' };
+
+      let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
+      try {
+        verification = await verifyAuthenticationResponse({
+          response,
+          expectedChallenge: payload.challenge,
+          expectedOrigin: origins,
+          expectedRPID: rpID,
+          // counter=0 인증기의 replay 방어를 강화 — UV 플래그가 매 인증마다 검증돼
+          // counter 외 추가 freshness 신호로 작용 (review W-3).
+          requireUserVerification: true,
+          credential: {
+            id: credential.credentialId,
+            publicKey: new Uint8Array(credential.publicKey),
+            counter: Number(credential.counter),
+            transports: credential.transports as AuthenticatorTransportFuture[],
+          },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const counterRegression =
+          /counter/i.test(msg) && /regress|same|less/i.test(msg);
+        if (counterRegression) {
+          // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
+          // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.
+          await credRepo.delete({ id: credential.id });
+          await manager.getRepository(RefreshToken).update(
+            { userId, isRevoked: false },
+            { isRevoked: true },
+          );
+          return { kind: 'counter_regression', credentialUuid: credential.id };
+        }
+        return { kind: 'invalid', reason: msg };
+      }
+
+      if (!verification.verified) {
+        return { kind: 'invalid', reason: 'verifyAuthenticationResponse returned verified=false' };
+      }
+
+      await credRepo.update(credential.id, {
+        counter: String(verification.authenticationInfo.newCounter),
+        lastUsedAt: new Date(),
+      });
+      return { kind: 'ok' };
     });
-    if (!credential) {
+
+    // -- transaction 종료 후 audit log + throw --
+    if (outcome.kind === 'not_found') {
       throw new UnauthorizedException({
         code: 'WEBAUTHN_CREDENTIAL_NOT_FOUND',
         message: '인증기를 찾을 수 없어요.',
       });
     }
-
-    let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
-    try {
-      verification = await verifyAuthenticationResponse({
-        response,
-        expectedChallenge: payload.challenge,
-        expectedOrigin: origins,
-        expectedRPID: rpID,
-        // counter=0 인증기의 replay 방어를 강화 — UV 플래그가 매 인증마다 검증돼
-        // counter 외 추가 freshness 신호로 작용 (review W-3).
-        requireUserVerification: true,
-        credential: {
-          id: credential.credentialId,
-          publicKey: new Uint8Array(credential.publicKey),
-          counter: Number(credential.counter),
-          transports: credential.transports as AuthenticatorTransportFuture[],
-        },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const counterRegression = /counter/i.test(msg) && /regress|same|less/i.test(msg);
-      if (counterRegression) {
-        // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
-        // (ai-review C-3): 인증기 복제 공격 시 기존 발급된 access/refresh
-        // 토큰이 그대로 살아있으면 공격자가 다음 인증 시도 없이도 접근 가능.
-        await this.credentialRepo.delete({ id: credential.id });
-        await this.refreshTokenRepo.update(
-          { userId, isRevoked: false },
-          { isRevoked: true },
-        );
-        await this.loginHistory.record({
-          userId,
-          email: (await this.usersService.findById(userId))?.email ?? 'unknown',
-          event: 'webauthn_failed',
-          ip: ctx.ip ?? null,
-          userAgent: ctx.userAgent ?? null,
-          failureReason: 'WEBAUTHN_COUNTER_REGRESSION',
-        });
-        this.logger.error(
-          `WebAuthn counter regression detected for user ${userId}, credential ${credential.id} — credential deleted, all sessions revoked`,
-        );
-        throw new UnauthorizedException({
-          code: 'WEBAUTHN_COUNTER_REGRESSION',
-          message: '인증기에서 비정상 신호가 감지돼 등록을 해제했어요. 다시 등록해 주세요.',
-        });
-      }
+    if (outcome.kind === 'counter_regression') {
+      const email = (await this.usersService.findById(userId))?.email ?? 'unknown';
       await this.loginHistory.record({
         userId,
-        email: (await this.usersService.findById(userId))?.email ?? 'unknown',
+        email,
+        event: 'webauthn_failed',
+        ip: ctx.ip ?? null,
+        userAgent: ctx.userAgent ?? null,
+        failureReason: 'WEBAUTHN_COUNTER_REGRESSION',
+      });
+      this.logger.error(
+        `WebAuthn counter regression detected for user ${userId}, credential ${outcome.credentialUuid} — credential deleted, all sessions revoked`,
+      );
+      throw new UnauthorizedException({
+        code: 'WEBAUTHN_COUNTER_REGRESSION',
+        message: '인증기에서 비정상 신호가 감지돼 등록을 해제했어요. 다시 등록해 주세요.',
+      });
+    }
+    if (outcome.kind === 'invalid') {
+      const email = (await this.usersService.findById(userId))?.email ?? 'unknown';
+      await this.loginHistory.record({
+        userId,
+        email,
         event: 'webauthn_failed',
         ip: ctx.ip ?? null,
         userAgent: ctx.userAgent ?? null,
         failureReason: 'WEBAUTHN_INVALID',
       });
-      this.logger.warn(`WebAuthn auth verify failed for user ${userId}: ${msg}`);
+      this.logger.warn(
+        `WebAuthn auth verify failed for user ${userId}: ${outcome.reason}`,
+      );
       throw new UnauthorizedException({
         code: 'WEBAUTHN_INVALID',
         message: 'WebAuthn 인증에 실패했어요.',
       });
     }
-
-    if (!verification.verified) {
-      await this.loginHistory.record({
-        userId,
-        email: (await this.usersService.findById(userId))?.email ?? 'unknown',
-        event: 'webauthn_failed',
-        ip: ctx.ip ?? null,
-        userAgent: ctx.userAgent ?? null,
-        failureReason: 'WEBAUTHN_INVALID',
-      });
-      throw new UnauthorizedException({
-        code: 'WEBAUTHN_INVALID',
-        message: 'WebAuthn 인증에 실패했어요.',
-      });
-    }
-
-    await this.credentialRepo.update(credential.id, {
-      counter: String(verification.authenticationInfo.newCounter),
-      lastUsedAt: new Date(),
-    });
     return { verified: true };
   }
 
