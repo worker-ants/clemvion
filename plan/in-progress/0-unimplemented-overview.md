@@ -1,10 +1,11 @@
-# 미구현 항목 오버뷰 (PRD/Spec 기준)
+# 미구현 항목 오버뷰 (Spec 기준)
 
 > 작성일: 2026-05-11
-> 출처: `prd/0-overview.md` §6.2~§6.3, 각 PRD/Spec 문서의 ❌·🚧 표기, 코드베이스 spot-check
-> 검증 일자 기준: 2026-05-11. 본 문서의 "현재 상태"는 본 시점의 코드/스펙 비교 결과이며, 진행 시점에 다시 확인할 것
+> 최근 갱신: 2026-05-18 (in-progress 정리에 따른 plan 목록 동기화)
+> 출처: `spec/0-overview.md` §6.2~§6.3, 각 spec 문서의 ❌·🚧 표기, 코드베이스 spot-check
+> 검증 일자 기준: 2026-05-18. 본 문서의 "현재 상태"는 본 시점의 코드/스펙 비교 결과이며, 진행 시점에 다시 확인할 것
 
-본 문서는 `prd/`와 `spec/`을 전수 정독해 식별한 **아직 구현되지 않았거나 부분 구현 상태인 항목**의 인덱스다. 각 항목은 카테고리별 plan 문서로 분리해 추적한다.
+본 문서는 `spec/`을 전수 정독해 식별한 **아직 구현되지 않았거나 부분 구현 상태인 항목**의 인덱스다. 각 항목은 카테고리별 plan 문서로 분리해 추적한다.
 
 ---
 
@@ -24,12 +25,15 @@
 
 ### 최근 완료
 
-- ✅ **`background-monitoring-api.md`** (2026-05-15, `plan/complete/background-monitoring-api.md`) — `GET /api/executions/:executionId/background-runs/:backgroundRunId` + cursor 페이지네이션 페이로드. Background 핸들러가 발급한 `meta.backgroundRunId` 키로 본문 서브그래프 실행 상태와 NodeExecution 들을 조회.
-- ✅ **`accessibility-voiceover-validation.md`** (2026-05-12, `plan/complete/accessibility-voiceover-validation.md`) — macOS VoiceOver 수동 체크리스트 완료. NF-A11Y-03 만족.
-- ✅ **`team-workspace-followups.md`** (2026-05-12, `plan/complete/team-workspace-followups.md`) — NAV-WF-07 공유 워크플로우 표시 ✅, NAV-UP-05 미가입자 초대 토큰 ✅.
-- ✅ **`prd-spec-sync.md`** (2026-05-11, `plan/complete/prd-spec-sync.md`) — Graph RAG ❌→✅, NF-OB-05 cron ✅, EH-NAV-04 ✅, Background spec 4문서 정합화, 매뉴얼 (knowledge-base.mdx 한·영) 정합화.
-- ✅ **`logic-node-followups.md`** (2026-05-11, `plan/complete/logic-node-followups.md`) — D1 If/Else `is_type`/`regex` evaluator 통합 ✅, D2 Loop breakCondition + meta.exitReason ✅, D3 Merge P2 → 별도 plan (`merge-p2-async-fanin.md`) 분리 ✅, D4 Switch `meta.value` alias 제거 + 마이그레이션 ✅, D5 Variable Modification recordValues opt-in + 마스킹 유틸 ✅, D6 보류 ✅, D7 case id reserved word 검증 ✅. spec/4-nodes/1-logic 의 P0/P1 미구현 표기 모두 정리 (Merge dormant 표기는 별도 plan 분리에 따른 의도적 잔존).
-- ✅ **`llm-provider-followups.md`** (2026-05-11, `plan/complete/llm-provider-followups.md`) — Azure OpenAI 스트리밍 ✅ / Local LLM (Ollama·vLLM) 검증 ✅. `AzureOpenAIClient`·`LocalClient` 가 `OpenAIClient.stream()` 을 상속하여 자동 지원. spec 2종(7-llm-client.md §8.2, 4-ai-assistant.md §1.2/§11/§13/§15) 🚧·❌→✅, PRD 0 §6.1, 매뉴얼 4종(llm-config.mdx 한·영 + overview.mdx 한·영) 정합화.
+- ✅ **`20260516-full-review/`** (2026-05-16~18, `plan/complete/20260516-full-review/`) — 전체 코드베이스 audit 13 reviewer × 154 issue. RESOLUTION.md 의 처리 완료 표 (Critical 7건 + Warning 15건 + 후속 ai-review F-A~F-G) 반영, 의사결정 보류 항목은 본 인덱스의 각 plan 으로 흡수.
+- ✅ **`agent-session-restore-on-rejoin.md`** (2026-05-17, `plan/complete/`) — 페이지 재진입 시 AI Agent 대화 메시지 복원 (frontend hydration 분기 보완).
+- ✅ **`ai-agent-multiturn-waiting-persist.md`** (2026-05-17, `plan/complete/`) — AI Agent multi-turn 후속 turn 의 `NodeExecution.outputData` DB 영속 보강 (REST snapshot 경로 복원 가능).
+- ✅ **`background-monitoring-api.md`** (2026-05-15, `plan/complete/background-monitoring-api.md`) — `GET /api/executions/:executionId/background-runs/:backgroundRunId` + cursor 페이지네이션 페이로드.
+- ✅ **`accessibility-voiceover-validation.md`** (2026-05-12) — macOS VoiceOver 수동 체크리스트 완료. NF-A11Y-03 만족.
+- ✅ **`team-workspace-followups.md`** (2026-05-12) — NAV-WF-07 공유 워크플로우 표시 ✅, NAV-UP-05 미가입자 초대 토큰 ✅.
+- ✅ **`prd-spec-sync.md`** (2026-05-11) — Graph RAG ❌→✅, NF-OB-05 cron ✅, EH-NAV-04 ✅, Background spec 4문서 정합화, 매뉴얼 정합화.
+- ✅ **`logic-node-followups.md`** (2026-05-11) — D1~D7 정리. Merge P2 만 별도 plan (`merge-p2-async-fanin.md`) 으로 분리.
+- ✅ **`llm-provider-followups.md`** (2026-05-11) — Azure OpenAI 스트리밍 ✅ / Local LLM (Ollama·vLLM) 검증 ✅.
 
 ---
 
@@ -95,26 +99,40 @@
 ## plan 문서 목록
 
 ```
-plan/in-progress/
-├── 0-unimplemented-overview.md        ← 본 문서 (인덱스)
-├── ai-agent-tool-connection-rewrite.md ← AI Agent 일반 도구 연결 재설계
-├── merge-p2-async-fanin.md            ← Merge timeout/partialOnTimeout — 엔진 비동기 모델 선결
-├── parallel-p2.md                     ← 중첩 Parallel·waitAll=false·errorPolicy 노출
-├── replay-rerun.md                    ← Re-run 재실행 기능 도입
-├── 2fa-webauthn.md                    ← WebAuthn 2FA 추가
-├── self-hosting-deployment.md         ← Docker Compose 풀 번들·Helm·가이드 문서
-└── marketplace-and-plugin-sdk.md      ← 마켓플레이스 전체 + 노드 플러그인 SDK
+plan/in-progress/                          # 2026-05-18 정리 후
+├── 0-unimplemented-overview.md           ← 본 문서 (인덱스)
+│
+│  ── 큰 미구현 덩어리 (Spec 기준)
+├── ai-agent-tool-connection-rewrite.md   ← AI Agent 일반 도구 연결 재설계 (디자인 결정 대기)
+├── merge-p2-async-fanin.md               ← Merge timeout/partialOnTimeout — 엔진 비동기 모델 선결
+├── parallel-p2.md                        ← 중첩 Parallel·waitAll=false·errorPolicy 노출
+├── replay-rerun.md                       ← Re-run 재실행 (PR1 ✅ spec / PR2 ⏳ 구현)
+├── 2fa-webauthn.md                       ← WebAuthn 2FA 추가
+├── self-hosting-deployment.md            ← Docker Compose 풀 번들·Helm·운영 가이드
+├── marketplace-and-plugin-sdk.md         ← 마켓플레이스 전체 + 노드 플러그인 SDK
+│
+│  ── follow-up · 정합화 묶음
+├── cafe24-backlog-residual.md            ← cafe24 누적 백로그 잔여
+├── cafe24-restricted-scopes-followups.md ← cafe24-restricted-scopes PR 후속 3건 (allowlist UI / invalid_scope / privacy_* rename) 통합
+├── cafe24-test-spec-guard-cleanup-followups.md ← cafe24-test-spec-guard PR ai-review 분리 cleanup
+├── harness-i18n-userguide-gap.md         ← i18n / 유저 가이드 누락 방지 하네스 (P0 ✅ / P1+ ⏳)
+├── notification-websocket-name-sync.md   ← Notification WebSocket 이벤트명·채널명 정합
+├── node-output-redesign/                 ← (별도 디렉토리 — 본 정리 대상 제외)
+└── spec-overview-followups-2026-05-18.md ← spec/0-overview.md 및 CLAUDE.md 정합 후속 4건 통합
 
-plan/complete/
-├── background-monitoring-api.md       ← meta.backgroundRunId 모니터링 API 완료 (2026-05-15)
-├── accessibility-voiceover-validation.md ← macOS VoiceOver 수동 검증 완료 (2026-05-12)
-├── team-workspace-followups.md        ← 공유 워크플로우 표시 + 미가입자 초대 토큰 완료 (2026-05-12)
-├── prd-spec-sync.md                   ← §E "PRD/Spec ↔ 코드 정합성 정리" 완료 (2026-05-11)
-├── llm-provider-followups.md          ← §C "LLM Provider 확장" 완료 (2026-05-11)
-└── logic-node-followups.md            ← Logic 노드 잔여 P0/P1 (D1·D2·D4·D5·D7) 완료, D3 → merge-p2-async-fanin.md 분리 (2026-05-11)
+plan/complete/  (최근만)
+├── 20260516-full-review/                 ← 전체 코드베이스 audit (2026-05-16~18)
+├── agent-session-restore-on-rejoin.md   ← AI Agent 재진입 메시지 복원 (2026-05-17)
+├── ai-agent-multiturn-waiting-persist.md ← multi-turn outputData 영속 (2026-05-17)
+├── background-monitoring-api.md         ← meta.backgroundRunId 모니터링 API (2026-05-15)
+├── accessibility-voiceover-validation.md ← macOS VoiceOver 수동 검증 (2026-05-12)
+├── team-workspace-followups.md          ← 공유 워크플로우 + 미가입자 초대 토큰 (2026-05-12)
+├── prd-spec-sync.md                     ← spec ↔ 코드 정합 정리 (2026-05-11)
+├── llm-provider-followups.md            ← LLM Provider 확장 (2026-05-11)
+└── logic-node-followups.md              ← Logic 노드 잔여 P0/P1 (2026-05-11)
 ```
 
-> 본 인덱스는 PRD/Spec 기준의 큰 미구현 덩어리만 추적한다. `plan/in-progress/` 안에는 spec 정합화·UI 후속·통합별 처리 등 좁은 범위의 plan 도 다수 존재하며, 그것들은 각자 spec/관련 영역 참조로 운영된다 (`cafe24-*`, `spec-*`, `harness-*` 등).
+> 본 인덱스는 spec 기준의 큰 미구현 덩어리를 추적하고, 그 외 follow-up 묶음 plan 도 함께 가시화한다. `node-output-redesign/` 은 별도 디렉토리이며 본 인덱스의 관리 범위 밖.
 
 각 plan 문서는 다음 구조를 따른다:
 
@@ -131,4 +149,5 @@ plan/complete/
 - `plan/complete/feature-roadmap/stages.md` Stage 1~11 (LLM 토큰 추적 / Parallel P1 / Background 평면 구현 / 팀 워크스페이스 UI / RBAC / 2FA TOTP / 조직 Integration 공유 / OTel 트레이싱 / 알림 룰 CRUD / 접근성 자동화 / 매뉴얼 검색)
 - `plan/complete/node-architecture/*` (handler colocation, schema audit, sub-workflow execution 등)
 - `plan/complete/workflow-assistant/*` (Workflow AI Assistant 본체)
-- `plan/complete/ai-knowledge-base/*` (Phase 2 KB + Graph RAG PRD 단계 — 코드 구현은 ✅, PRD 표기 갱신은 본 plan의 `prd-spec-sync.md`에서 처리)
+- `plan/complete/ai-knowledge-base/*` (Phase 2 KB + Graph RAG — 코드 ✅, 표기 정합화는 `prd-spec-sync.md` 에서 처리)
+- 전체 audit 산출물: `plan/complete/20260516-full-review/` — Critical/Warning 처리 분량은 RESOLUTION.md, 의사결정 보류 분량은 위 in-progress plan 으로 흡수
