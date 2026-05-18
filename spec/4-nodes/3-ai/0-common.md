@@ -244,6 +244,10 @@ systemPrompt 의 최종 본문은 다음 순서로 build 된다 ([Spec AI Agent 
 |------|------|
 | 2026-05-18 | §7 진단 누적 본문에 `mcpDiagnostics.serverSummaries[]` 정적 스냅샷 의미 한 줄 보강 — buildTools 단위로 결정되며 turn 단위 delta 와 무관. [Spec MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics) 의 `skipReason` vocabulary 신설과 한 세트 (cafe24-expired-self-healing). |
 | 2026-05-18 (system-context) | **§11 신설 — AI 노드 시스템 프롬프트 자동 prefix (System Context Prefix)**. 3 노드 공통 필드 `includeSystemContext` (default `true`) / `systemContextSections` (default `['time','timezone']`) 추가. systemPrompt 빌드 ordering 의 단일 SoT 를 §11.4 로 통합. 기존 §11 CHANGELOG → §12 로 번호 +1 이동. [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) (도구 description 자동 KST suffix) 와 한 묶음 결정 — 두 채널이 보완하여 LLM 의 시각 추론 회귀 (KST/UTC 9시간 어긋남) 를 차단. 본 절은 [Spec AI Agent](./1-ai-agent.md) / [Spec Information Extractor](./3-information-extractor.md) / [Spec Text Classifier](./2-text-classifier.md) §1 config 표에 두 필드를 동시에 추가하는 묶음 PR. 자세한 결정 근거는 §Rationale "시스템 컨텍스트 자동 주입 (2026-05-18 신설 — §11)". consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO). |
+| 2026-05-14 | §10 Conversation Context 공통 규약 신설. AI 카테고리 3 노드 공통 인터페이스 정의 (v1 ai_agent 만 push + 주입, text_classifier/information_extractor 는 v2 추가). 기존 §10 CHANGELOG → §11 로 번호 변경 |
+| 2026-05-10 | ai_agent §7 출력 구조 7 sub-cases (§7.1~§7.9) 로 재구성 — 옛 §7.4 condition (multi) → §7.6, 옛 §7.5/7.6/7.7 (user_ended/max_turns/error multi) → §7.7/§7.8/§7.9. waiting/resumed 명시적 sub-section (§7.4/§7.5). §9 색인 갱신 |
+| 2026-05-10 | §9 출력 구조 색인 신설. 노드 문서의 §5/§7 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). 기존 §1~§8 anchor 보존 |
+| 2026-05-09 | ai_agent multi-turn ended/condition 경로의 `config.model` echo 정책을 raw template echo 로 통일 (`spec/4-nodes/3-ai/1-ai-agent.md §7` 머리 노트 참조) |
 
 ---
 
@@ -266,7 +270,3 @@ systemPrompt 의 최종 본문은 다음 순서로 build 된다 ([Spec AI Agent 
 **기존 워크플로 점진 적용**: §11.1 의 "기존 row 해석 정책" 참고. config 부재 시 default 해석 (`true` + `['time','timezone']`) — DB 마이그레이션으로 명시 `false` 를 박지 않는다. 회귀 우려 워크플로만 사용자가 인지 후 명시적 opt-out.
 
 **근거**: 사용자 제안 (2026-05-18) — "AI 노드들의 시스템 프롬프트에 현재 시간이 제공된다면, 시스템 타임존 정보까지 포함해서 제공해야 오해를 하지 않을 것 같아". consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO).
-| 2026-05-14 | §10 Conversation Context 공통 규약 신설. AI 카테고리 3 노드 공통 인터페이스 정의 (v1 ai_agent 만 push + 주입, text_classifier/information_extractor 는 v2 추가). 기존 §10 CHANGELOG → §11 로 번호 변경 |
-| 2026-05-10 | ai_agent §7 출력 구조 7 sub-cases (§7.1~§7.9) 로 재구성 — 옛 §7.4 condition (multi) → §7.6, 옛 §7.5/7.6/7.7 (user_ended/max_turns/error multi) → §7.7/§7.8/§7.9. waiting/resumed 명시적 sub-section (§7.4/§7.5). §9 색인 갱신 |
-| 2026-05-10 | §9 출력 구조 색인 신설. 노드 문서의 §5/§7 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). 기존 §1~§8 anchor 보존 |
-| 2026-05-09 | ai_agent multi-turn ended/condition 경로의 `config.model` echo 정책을 raw template echo 로 통일 (`spec/4-nodes/3-ai/1-ai-agent.md §7` 머리 노트 참조) |
