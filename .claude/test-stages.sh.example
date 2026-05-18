@@ -1,0 +1,23 @@
+# .claude/test-stages.sh — 프로젝트별 테스트 단계 정의.
+#
+# 본 파일을 `cp .claude/test-stages.sh.example .claude/test-stages.sh` 로 복사한 뒤
+# 프로젝트에 맞게 채우세요. `.claude/tools/run-test.sh` 가 source 합니다.
+#
+# 각 함수는 직접 명령을 실행하고 exit code 를 반환합니다. stdout/stderr 는 wrapper 가
+# 잡아서 디스크에 저장하므로 자유롭게 작성하면 됩니다.
+
+cmd_lint() {
+  cd codebase/backend && npm run lint
+}
+
+cmd_unit() {
+  cd codebase/backend && npm test
+}
+
+cmd_build() {
+  cd codebase/backend && npm run build
+}
+
+cmd_e2e() {
+  make e2e-test
+}

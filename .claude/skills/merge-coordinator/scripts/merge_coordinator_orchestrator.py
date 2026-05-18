@@ -74,6 +74,73 @@ def load_config():
 
 
 # ---------------------------------------------------------------------------
+# State helpers (--summary-state / --update). Mirror code_review_orchestrator
+# so main never has to Read _retry_state.json into its context.
+# ---------------------------------------------------------------------------
+
+
+def _load_state(session_dir):
+    state_file = os.path.join(session_dir, "_retry_state.json")
+    if not os.path.isfile(state_file):
+        print(f"Error: _retry_state.json missing under {session_dir}", file=sys.stderr)
+        sys.exit(1)
+    with open(state_file, "r", encoding="utf-8") as f:
+        return state_file, json.load(f)
+
+
+def _save_state(state_file, state):
+    with open(state_file, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+
+
+def _emit_summary_state(session_dir):
+    _, state = _load_state(os.path.abspath(session_dir))
+    pending = len(state.get("agents_pending", []))
+    success = len(state.get("agents_success", []))
+    fatal = len(state.get("agents_fatal", []))
+    branches = len(state.get("branches", []))
+    base = state.get("base", "")
+    last_reset = state.get("last_reset_hint_sec")
+    last_reset_str = str(last_reset) if last_reset is not None else "null"
+    print(
+        f"pending={pending} success={success} fatal={fatal} "
+        f"branches={branches} base={base} last_reset={last_reset_str}"
+    )
+
+
+def _apply_status_update(session_dir, agent, status, reset_hint):
+    state_file, state = _load_state(os.path.abspath(session_dir))
+    for bucket in ("agents_pending", "agents_success", "agents_fatal"):
+        if agent in state.get(bucket, []):
+            state[bucket].remove(agent)
+
+    if status == "success":
+        state.setdefault("agents_success", []).append(agent)
+    elif status == "fatal":
+        state.setdefault("agents_fatal", []).append(agent)
+    else:
+        state.setdefault("agents_pending", []).append(agent)
+        if status == "rate_limit":
+            state["rate_limit_episodes"] = state.get("rate_limit_episodes", 0) + 1
+        if reset_hint is not None:
+            prev = state.get("last_reset_hint_sec") or 0
+            state["last_reset_hint_sec"] = max(prev, reset_hint)
+
+    history_entry = {"ts": datetime.utcnow().isoformat() + "Z", "status": status}
+    if reset_hint is not None:
+        history_entry["reset_hint_sec"] = reset_hint
+    state.setdefault("agent_history", {}).setdefault(agent, []).append(history_entry)
+
+    _save_state(state_file, state)
+    print(
+        f"agent={agent} status={status} "
+        f"pending={len(state.get('agents_pending', []))} "
+        f"success={len(state.get('agents_success', []))} "
+        f"fatal={len(state.get('agents_fatal', []))}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Git / gh helpers
 # ---------------------------------------------------------------------------
 
@@ -459,6 +526,16 @@ def main():
                         help="Prepare a merge-coordination session (default).")
     parser.add_argument("--resume", type=str, metavar="SESSION_DIR",
                         help="Resume an existing session: validate _retry_state.json, echo path.")
+    parser.add_argument("--summary-state", type=str, metavar="SESSION_DIR",
+                        help="Echo a one-line summary of _retry_state.json to stdout: "
+                             "pending=N success=N fatal=N branches=N base=<branch> last_reset=<sec|null>.")
+    parser.add_argument("--update", type=str, metavar="SESSION_DIR",
+                        help="Update an analyzer's status. Requires --agent --status. "
+                             "Optional --reset-hint <sec>.")
+    parser.add_argument("--agent", type=str, metavar="NAME")
+    parser.add_argument("--status", type=str, metavar="STATUS",
+                        choices=["success", "rate_limit", "network", "fatal"])
+    parser.add_argument("--reset-hint", type=int, metavar="SEC")
     parser.add_argument("--prs", type=str, default="",
                         metavar="N1,N2,...", help="Comma-separated PR numbers (gh CLI).")
     parser.add_argument("--branches", type=str, default="",
@@ -479,6 +556,18 @@ def main():
             sys.exit(1)
         debug_log(f"Resuming merge-coordinator session: {sd}")
         print(sd)
+        sys.exit(0)
+
+    if args.summary_state:
+        _emit_summary_state(args.summary_state)
+        sys.exit(0)
+
+    if args.update:
+        if not args.agent or not args.status:
+            print("Error: --update requires --agent NAME and --status STATUS",
+                  file=sys.stderr)
+            sys.exit(2)
+        _apply_status_update(args.update, args.agent, args.status, args.reset_hint)
         sys.exit(0)
 
     config = load_config()
