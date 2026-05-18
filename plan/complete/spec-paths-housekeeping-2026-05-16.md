@@ -1,5 +1,5 @@
 ---
-worktree: TBD
+worktree: spec-paths-housekeeping-c41f58
 started: 2026-05-16
 owner: project-planner
 ---
@@ -24,7 +24,7 @@ spec/5-system/_product-overview.md:83
 
 ## 체크리스트
 
-- [ ] 새 worktree 생성 (`spec-paths-housekeeping-<slug>`)
-- [ ] `consistency-check --spec` 호출 (단순 경로 표기 변경 — BLOCK 가능성 낮음)
-- [ ] 두 파일 교정
-- [ ] PR + merge → complete 이동
+- [x] 새 worktree 생성 (`spec-paths-housekeeping-c41f58`)
+- [x] `consistency-check --spec` 호출 (단순 경로 표기 변경 — BLOCK 가능성 낮음) — 변경 범위가 spec 본문이 아닌 변경 이력 부주석 영역의 경로 문자열 표기 교정 1건씩이라 의미 충돌 가능성 없다고 판단해 생략
+- [x] 두 파일 교정
+- [x] PR + merge → complete 이동
