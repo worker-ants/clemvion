@@ -17,7 +17,7 @@
 2. **`parallel-p2.md`** — 중첩 Parallel, `waitAll: false`, `errorPolicy` schema 노출. `logic-node-followups`와 별개로 진행 가능.
 2-1. **`merge-p2-async-fanin.md`** (신규) — Merge `timeout` / `partialOnTimeout` P2 활성화. `logic-node-followups` D3 의 fallback 분리 — 엔진 비동기 dispatch 모델 도입 PoC 가 선결 조건.
 3. **`replay-rerun.md`** — Re-run (재실행) 정책 도입.
-4. **`2fa-webauthn.md`** — WebAuthn 2FA.
+4. **`2fa-webauthn-followups.md`** — WebAuthn 2FA 후속 (10개 항목: requiresTotp 제거, e2e, 모듈 분리 등). 본 PR 인 `2fa-webauthn.md` 는 ✅ 완료되어 `plan/complete/` 로 이동됨.
 5. **`self-hosting-deployment.md`** — Docker Compose 셀프 호스팅 풀 번들, Helm Chart, 운영·보안 가이드.
 6. **`marketplace-and-plugin-sdk.md`** — 마켓플레이스 + 커스텀 노드 SDK (가장 큰 미구현 덩어리).
 
@@ -52,7 +52,7 @@
 | **PRD 3 §4.9 ND-PL-03 Parallel 결과 합산 / 중첩 Parallel / waitAll=false** | 🚧 P2 예정 | `parallel-p2.md` |
 | **Spec 4-nodes/1-logic/11-merge `timeout` / `partialOnTimeout`** | 🚧 P2 dormant (엔진 비동기 모델 선결) | `merge-p2-async-fanin.md` |
 | **Spec 5-system/4-execution-engine §6.3 Re-run** | 🚧 PR1 (spec) ✅ / PR2 (구현) 대기 | `replay-rerun.md` |
-| **PRD 5 NF-SC-10 2FA WebAuthn** | 🚧 TOTP만 ✅, WebAuthn 후속 | `2fa-webauthn.md` |
+| **PRD 5 NF-SC-10 2FA WebAuthn** | ✅ TOTP + WebAuthn (Passkey) 모두 ✅. 잔존 follow-up 10건 | `2fa-webauthn-followups.md` (본 작업은 `plan/complete/2fa-webauthn.md`) |
 
 > Logic 카테고리 (Loop breakCondition / If-Else `is_type`·`regex` / If-Else·Switch `meta.matchedConditions` / Variable Decl·Mod meta) 및 Background 모니터링 API, NAV-UP-05·NAV-WF-07 는 모두 ✅ 완료 — 본 표에서 제거. 상세는 위 `### 최근 완료` 또는 `plan/complete/{logic-node-followups,background-monitoring-api,team-workspace-followups}.md` 참고.
 
@@ -107,7 +107,7 @@ plan/in-progress/                          # 2026-05-18 정리 후
 ├── merge-p2-async-fanin.md               ← Merge timeout/partialOnTimeout — 엔진 비동기 모델 선결
 ├── parallel-p2.md                        ← 중첩 Parallel·waitAll=false·errorPolicy 노출
 ├── replay-rerun.md                       ← Re-run 재실행 (PR1 ✅ spec / PR2 ⏳ 구현)
-├── 2fa-webauthn.md                       ← WebAuthn 2FA 추가
+├── 2fa-webauthn-followups.md             ← WebAuthn 2FA 후속 묶음 (본 작업 `plan/complete/2fa-webauthn.md` 완료 후)
 ├── self-hosting-deployment.md            ← Docker Compose 풀 번들·Helm·운영 가이드
 ├── marketplace-and-plugin-sdk.md         ← 마켓플레이스 전체 + 노드 플러그인 SDK
 │
