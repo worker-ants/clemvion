@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 
 /**
  * Hardcoded Korean string ratchet (Principle 1).
@@ -83,6 +83,16 @@ function countKoreanCodeLines(source: string): number {
   return count;
 }
 
+/**
+ * 한 줄에서 `//` 라인 주석 이후를 제거. 문자열 리터럴 안의 `//` 는 보존.
+ *
+ * 한계 — 본 함수는 라인 단위라 다음을 정확히 처리하지 않는다:
+ * - 멀티라인 template literal `` ` ` `` 의 line 횡단 (각 라인이 새 상태에서 시작)
+ * - template literal 의 `${...}` 표현식 안의 중첩 문자열
+ *
+ * 라인 단위 ratchet 의 false-negative 한도 안에서 받아들이고, 정확도가 필요한
+ * 영역은 향후 ts-morph 기반 정적 분석으로 대체. (Critical-1 의 후속 과제)
+ */
 function stripLineComment(line: string): string {
   let inStr = false;
   let quote = "";
@@ -135,7 +145,14 @@ function loadBaseline(): Baseline {
 }
 
 function writeBaseline(counts: Record<string, number>): void {
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  // CI 환경에서 BASELINE_UPDATE=1 이 실수로 설정되면 ratchet 가드가 무력화돼
+  // 신규 위반이 그대로 통과한다. CI 에서는 명시적으로 거부.
+  if (process.env.CI) {
+    throw new Error(
+      "BASELINE_UPDATE=1 은 로컬 전용이에요. CI 환경에서는 baseline 을 갱신하지 않습니다 " +
+        "(ratchet 무력화 방지). 로컬에서 갱신한 결과를 commit 해주세요.",
+    );
+  }
   const data: Baseline = {
     _schema:
       "Hardcoded Korean string ratchet baseline. Per-file count of source " +
@@ -147,80 +164,95 @@ function writeBaseline(counts: Record<string, number>): void {
       Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)),
     ),
   };
-  fs.writeFileSync(
-    baselinePath,
-    JSON.stringify(data, null, 2) + `\n// total: ${total}\n`.replace(/^/, ""),
-    "utf8",
-  );
-  // Re-write without inline total comment (JSON safety)
   fs.writeFileSync(baselinePath, JSON.stringify(data, null, 2) + "\n", "utf8");
 }
 
-describe("hardcoded-korean ratchet (Principle 1)", () => {
-  const counts = buildCurrentCounts();
+const isUpdateMode = process.env.BASELINE_UPDATE === "1";
 
-  if (process.env.BASELINE_UPDATE === "1") {
+describe.runIf(isUpdateMode)("hardcoded-korean ratchet baseline 갱신", () => {
+  let counts: Record<string, number>;
+
+  beforeAll(() => {
+    counts = buildCurrentCounts();
     writeBaseline(counts);
-    it("BASELINE_UPDATE=1 — baseline 을 현재 카운트로 갱신했어요", () => {
-      const total = Object.values(counts).reduce((a, b) => a + b, 0);
-      console.log(
-        `[baseline updated] files: ${Object.keys(counts).length}, total lines: ${total}`,
-      );
-      expect(fs.existsSync(baselinePath)).toBe(true);
-    });
-    return;
-  }
-
-  const baseline = loadBaseline();
-
-  it("baseline 파일이 존재해요", () => {
-    expect(
-      fs.existsSync(baselinePath),
-      "BASELINE_UPDATE=1 npm test -- hardcoded-korean-ratchet 로 baseline 을 먼저 생성하세요.",
-    ).toBe(true);
   });
 
-  it("기존 파일이 baseline 이상으로 한국어 라인을 늘리지 않아요", () => {
-    const increases: string[] = [];
-    for (const [file, current] of Object.entries(counts)) {
-      const allowed = baseline.files[file] ?? 0;
-      if (current > allowed) {
-        increases.push(`  - ${file}: ${allowed} → ${current} (+${current - allowed})`);
-      }
-    }
-    expect(
-      increases,
-      `다음 파일에서 한국어 하드코딩 라인이 baseline 보다 증가했어요:\n` +
-        increases.join("\n") +
-        "\n→ dict/{ko,en}/<section>.ts 의 키로 옮긴 뒤 t() / translate() 호출로 바꿔주세요. " +
-        "정당한 사유가 있다면 `BASELINE_UPDATE=1 npm test -- hardcoded-korean-ratchet` 로 baseline 을 갱신하고 PR review 에서 사유를 명시하세요. " +
-        "(spec/conventions/i18n-userguide.md Principle 1)",
-    ).toEqual([]);
-  });
-
-  it("baseline 에 없는 신규 파일이 한국어 라인을 도입하지 않아요", () => {
-    const newViolators = Object.keys(counts)
-      .filter((f) => !(f in baseline.files))
-      .map((f) => `  - ${f}: +${counts[f]} 라인`)
-      .sort();
-    expect(
-      newViolators,
-      `baseline 에 없는 신규 파일에서 한국어 하드코딩 라인이 발견됐어요:\n` +
-        newViolators.join("\n") +
-        "\n→ 작성 시점에 dict/{ko,en}/<section>.ts 의 키로 옮겨주세요. " +
-        "(spec/conventions/i18n-userguide.md Principle 1)",
-    ).toEqual([]);
-  });
-
-  it("baseline 에 있지만 사라진 파일은 깔끔하게 제거됐어요 (info)", () => {
-    const stale = Object.keys(baseline.files).filter((f) => !(f in counts));
-    if (stale.length > 0) {
-      console.log(
-        `[ratchet] baseline 에 남아있지만 더 이상 위반이 없는 파일 ${stale.length} 건 — BASELINE_UPDATE=1 로 정리 권장:\n` +
-          stale.map((s) => `  - ${s}`).join("\n"),
-      );
-    }
-    // 본 항목은 정보성. 항상 통과.
-    expect(true).toBe(true);
+  it("BASELINE_UPDATE=1 — baseline 을 현재 카운트로 갱신했어요", () => {
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    console.log(
+      `[baseline updated] files: ${Object.keys(counts).length}, total lines: ${total}`,
+    );
+    expect(fs.existsSync(baselinePath)).toBe(true);
   });
 });
+
+describe.runIf(!isUpdateMode)(
+  "hardcoded-korean ratchet (Principle 1)",
+  () => {
+    let counts: Record<string, number>;
+    let baseline: Baseline;
+
+    // `describe` 콜백 최상단에서 동기 파일 IO 를 즉시 수행하면 수집 단계에서
+    // crash 가 일어나 vitest report 가 깨진다. `beforeAll` 안으로 옮겨 수집과
+    // 실제 IO 를 분리.
+    beforeAll(() => {
+      counts = buildCurrentCounts();
+      baseline = loadBaseline();
+    });
+
+    it("baseline 파일이 존재해요", () => {
+      expect(
+        fs.existsSync(baselinePath),
+        "BASELINE_UPDATE=1 npm test -- hardcoded-korean-ratchet 로 baseline 을 먼저 생성하세요.",
+      ).toBe(true);
+    });
+
+    it("기존 파일이 baseline 이상으로 한국어 라인을 늘리지 않아요", () => {
+      const increases: string[] = [];
+      for (const [file, current] of Object.entries(counts)) {
+        const allowed = baseline.files[file] ?? 0;
+        if (current > allowed) {
+          increases.push(
+            `  - ${file}: ${allowed} → ${current} (+${current - allowed})`,
+          );
+        }
+      }
+      expect(
+        increases,
+        `다음 파일에서 한국어 하드코딩 라인이 baseline 보다 증가했어요:\n` +
+          increases.join("\n") +
+          "\n→ dict/{ko,en}/<section>.ts 의 키로 옮긴 뒤 t() / translate() 호출로 바꿔주세요. " +
+          "정당한 사유가 있다면 `BASELINE_UPDATE=1 npm test -- hardcoded-korean-ratchet` 로 baseline 을 갱신하고 PR review 에서 사유를 명시하세요. " +
+          "(spec/conventions/i18n-userguide.md Principle 1)",
+      ).toEqual([]);
+    });
+
+    it("baseline 에 없는 신규 파일이 한국어 라인을 도입하지 않아요", () => {
+      const newViolators = Object.keys(counts)
+        .filter((f) => !(f in baseline.files))
+        .map((f) => `  - ${f}: +${counts[f]} 라인`)
+        .sort();
+      expect(
+        newViolators,
+        `baseline 에 없는 신규 파일에서 한국어 하드코딩 라인이 발견됐어요:\n` +
+          newViolators.join("\n") +
+          "\n→ 작성 시점에 dict/{ko,en}/<section>.ts 의 키로 옮겨주세요. " +
+          "(spec/conventions/i18n-userguide.md Principle 1)",
+      ).toEqual([]);
+    });
+
+    it("baseline 에 있지만 사라진 파일은 깔끔하게 제거됐어요 (info)", () => {
+      const stale = Object.keys(baseline.files).filter(
+        (f) => !(f in counts),
+      );
+      if (stale.length > 0) {
+        console.log(
+          `[ratchet] baseline 에 남아있지만 더 이상 위반이 없는 파일 ${stale.length} 건 — BASELINE_UPDATE=1 로 정리 권장:\n` +
+            stale.map((s) => `  - ${s}`).join("\n"),
+        );
+      }
+      // 본 항목은 정보성. 항상 통과.
+      expect(true).toBe(true);
+    });
+  },
+);
