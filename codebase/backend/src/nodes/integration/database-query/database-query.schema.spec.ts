@@ -1,9 +1,29 @@
+import { z } from 'zod';
 import { evaluateWarnings } from '@workflow/node-summary';
 import {
+  databaseQueryNodeConfigSchema,
   databaseQueryNodeMetadata,
   validateDatabaseQueryConfig,
 } from './database-query.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+
+describe('databaseQueryNodeConfigSchema ui.required', () => {
+  // warningRules SSOT 와 frontend asterisk 표시가 어긋나지 않도록 잠금.
+  type Props = Record<string, { ui?: { required?: boolean } }>;
+  const properties = (
+    z.toJSONSchema(databaseQueryNodeConfigSchema) as unknown as {
+      properties?: Props;
+    }
+  ).properties;
+
+  it('marks integrationId as required (mirrors database_query:no-integration)', () => {
+    expect(properties?.integrationId?.ui?.required).toBe(true);
+  });
+
+  it('marks query as required (mirrors database_query:no-query)', () => {
+    expect(properties?.query?.ui?.required).toBe(true);
+  });
+});
 
 describe('databaseQueryNodeMetadata.warningRules', () => {
   const firedIds = (config: unknown) =>

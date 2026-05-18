@@ -37,6 +37,8 @@ export const mapNodeConfigSchema = z
           widget: 'expression',
           placeholder: '$input.items',
           hint: 'Dot-path or inline expression returning an array',
+          // warningRule `map:no-input-field` 와 정렬.
+          required: true,
         },
       }),
     errorPolicy: z

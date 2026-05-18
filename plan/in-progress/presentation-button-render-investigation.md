@@ -1,0 +1,77 @@
+---
+worktree: node-config-required-defaults-sweep
+started: 2026-05-18
+owner: developer
+---
+
+# 프리젠테이션 노드 — 버튼 다수 설정 시 일부 누락 렌더링 조사
+
+## 배경
+
+사용자 보고: Carousel / Form / Table / Chart / Template 등 프리젠테이션 노드에 버튼을 다수 설정했을 때 일부 버튼만 화면에 렌더링된다. N 개 설정했는데 M (M < N) 개만 나타나는 형태.
+
+본 티켓은 [node-config-required-defaults-sweep](./node-config-required-defaults-sweep.md) sweep 과는 별개의 작업이다. sweep PR 안에서는 본 티켓의 root cause 가 아직 확정되지 않았으므로 코드 변경을 하지 않는다 — 본 문서에 분석 + 다음 검증 단계만 기록.
+
+## 조사 결과 요약 (2026-05-18)
+
+데이터 흐름:
+
+```
+[설정 UI]
+  button-list-editor.tsx        ← maxButtons=10 enforce, key={btn.id}
+        ↓ (배열 저장)
+[backend handler]
+  carousel.handler.ts:150-173   ← truncate(items) 후 globalButtons + itemButtons 머지
+                                  → allButtons + buttonItemMap 동봉
+        ↓ (response payload)
+[frontend renderer]
+  button-config.ts:58-67        ← parseButtonConfig: 각 버튼 parseButtonDef 검증
+                                  실패 버튼은 .filter(b !== null) 에서 silent drop
+  presentation-renderers.tsx:525-600
+                                ← buttonItemMap 에 속한 id 는 글로벌 바에서 제외
+  button-bar.tsx:104-138        ← flex flex-wrap, key={btn.id}
+```
+
+## 유력 원인 후보 (확률 순)
+
+| # | 후보 | 근거 파일:라인 | 메커니즘 |
+|---|---|---|---|
+| 1 | parseButtonConfig 의 URL 안전성 필터 | `frontend/.../button-config.ts:36, 58-67` | `link` 타입 버튼의 URL 이 `isSafeButtonUrl` 통과 못 하면 `parseButtonDef` 가 `null` → `.filter` 에서 조용히 제거. 상대경로·프로토콜 누락이 사용자 흔한 실수 |
+| 2 | Carousel itemButtons 4개/아이템 제약 | `backend/.../carousel/carousel.schema.ts:313-350` | spec/구현 모두 "maximum 4 buttons per item". 5개 이상 설정 시 schema reject, 일부 저장 경로에서 부분 보존 발생 가능 |
+| 3 | Output 1MB cap → tail item 잘림 | `carousel.handler.ts:156`, `truncate-output.util.ts:79-122` | items truncate 적용 후 그 item 의 itemButtons 자동 누락. 출력에 `itemsTruncated` 플래그 있음 |
+| 4 | buttonItemMap dedupe overkill (id 충돌) | `presentation-renderers.tsx:542-544` | 글로벌 버튼이 itemButton id 와 우연히 겹치면 글로벌 쪽도 같이 제거 |
+| 5 | CSS overflow | `button-bar.tsx:106` | `flex flex-wrap` 사용하므로 가능성 낮음, 부모 컨테이너 max-height 만 의심 |
+
+## 다음 검증 단계 (재현 환경에서)
+
+- [ ] **A. payload 확인** — 브라우저 DevTools 로 run-results 응답의 `buttonConfig.buttons.length` 가 사용자가 설정한 N 과 같은지 비교.
+  - 다르다 → backend/schema 단계 손실 → 후보 2/3 우선
+  - 같다 → frontend 필터 단계 → 후보 1/4 우선
+- [ ] **B. link 버튼 URL 형식 검사** — 누락된 버튼이 `link` 타입이고 URL 이 `http(s)://` 가 아닌지 확인 (상대경로, mailto, javascript, 프로토콜 누락 등).
+- [ ] **C. Carousel itemButtons 개수** — 누락 발생한 carousel 이라면 한 아이템에 5개 이상 설정한 적 있는지.
+- [ ] **D. itemsTruncated/rowsTruncated 플래그** — payload `output.itemsTruncated === true` 또는 `rowsTruncated === true` 면 cap 도달.
+- [ ] **E. button id 중복** — `allButtons` 배열에서 동일 id 가 둘 이상 있는지.
+
+위 결과로 후보 1~5 중 하나가 확정되면 본 티켓을 fix 작업으로 전환하고 별 worktree·PR 로 분리한다.
+
+## 관련 파일 색인
+
+- spec: `spec/4-nodes/6-presentation/0-common.md` §1 (ButtonDef), §1.1 (validation, max 10), §8 (output)
+- backend
+  - `codebase/backend/src/nodes/presentation/_shared/button.types.ts:1-108`
+  - `codebase/backend/src/nodes/presentation/carousel/carousel.schema.ts:313-350`
+  - `codebase/backend/src/nodes/presentation/carousel/carousel.handler.ts:150-173`
+  - `codebase/backend/src/nodes/presentation/table/table.handler.ts:179-192`
+- frontend
+  - `codebase/frontend/src/components/editor/run-results/button-config.ts:36, 58-67`
+  - `codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx:525-600`
+  - `codebase/frontend/src/components/editor/run-results/button-bar.tsx:104-138`
+  - `codebase/frontend/src/components/editor/settings-panel/node-configs/shared/button-list-editor.tsx:18-163`
+
+## 본 티켓 완료 조건
+
+- 위 검증 단계 (A~E) 중 root cause 가 확정됨
+- fix 작업이 별도 worktree·PR 로 분리되어 머지됨
+- 본 plan 의 모든 체크박스가 `[x]` 이고 fix PR 링크가 본 문서 하단에 기록됨
+
+그 시점에 `plan/complete/` 로 `git mv` 한다.

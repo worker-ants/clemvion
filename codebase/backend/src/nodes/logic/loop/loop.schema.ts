@@ -36,6 +36,8 @@ export const loopNodeConfigSchema = z
           widget: 'expression',
           placeholder: '10 or {{ $var.count }}',
           hint: 'Integer literal or expression',
+          // warningRule `loop:no-count` 와 정렬.
+          required: true,
         },
       }),
     maxIterations: z

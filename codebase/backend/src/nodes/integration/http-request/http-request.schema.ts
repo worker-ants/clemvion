@@ -102,7 +102,18 @@ export const httpRequestNodeConfigSchema = z
     url: z
       .string()
       .optional()
-      .meta({ ui: { label: 'URL', widget: 'expression', order: 2 } }),
+      .meta({
+        ui: {
+          label: 'URL',
+          widget: 'expression',
+          order: 2,
+          // warningRule `http_request:no-url` 가 강제하는 필수성을 UI 표시
+          // (asterisk) 에 반영. zod 의 .optional() 은 저장 관용성·LLM tool 호출
+          // 시 부분 인자 허용을 위해 유지 — 필수성 정의는 ui.required 가
+          // SSOT (node-component.interface.ts:222-226 참고).
+          required: true,
+        },
+      }),
     authentication: z
       .enum(['none', 'integration', 'custom'])
       .default('none')
@@ -116,6 +127,9 @@ export const httpRequestNodeConfigSchema = z
           widget: 'integration-selector',
           order: 4,
           visibleWhen: { field: 'authentication', equals: 'integration' },
+          // warningRule `http_request:integration-auth-needs-integration-id`
+          // 와 동일 조건을 UI required cue 로 표면화.
+          requiredWhen: { field: 'authentication', equals: 'integration' },
         },
         // Assistant candidate picker 의 후보 조회 범위 힌트.
         // backend 의 CandidateLookupService 가 Integration 테이블을

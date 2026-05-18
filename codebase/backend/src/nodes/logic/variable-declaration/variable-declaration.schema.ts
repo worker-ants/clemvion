@@ -60,6 +60,8 @@ export const variableDeclarationNodeConfigSchema = z
           label: 'Variables',
           widget: 'field-array',
           itemLabel: 'Variable',
+          // warningRule `variable_declaration:no-variables` 와 정렬.
+          required: true,
         },
       }),
   })
