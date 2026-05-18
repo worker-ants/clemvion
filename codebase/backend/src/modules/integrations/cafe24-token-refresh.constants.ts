@@ -56,6 +56,15 @@ export const CAFE24_MODULE_SHUTDOWN_GRACE_MS =
 
 export interface Cafe24RefreshJobData {
   integrationId: string;
-  /** 'proactive' = API 호출 직전 lazy, 'background' = 일일 스캐너. 진단용. */
-  source: 'proactive' | 'background';
+  /**
+   * 진단·라우팅 라벨.
+   * - `'proactive'` = API 호출 직전 lazy refresh (ensureFreshToken).
+   * - `'background'` = 일일 스캐너 또는 buildTools self-heal.
+   * - `'reactive_401'` (2026-05-18 신규) = `executeWithRateLimit` 의 401
+   *   empirical 자가 회복 경로. caller 가 실제 401 을 받은 강한 신호라
+   *   worker 는 short-circuit guard 를 skip 하고 항상 refresh 를 시도한다.
+   *   spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료
+   *   SoT — JWT exp 격상 (2026-05-18)" 참고.
+   */
+  source: 'proactive' | 'background' | 'reactive_401';
 }

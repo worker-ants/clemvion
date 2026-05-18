@@ -8,6 +8,7 @@ import {
   wrapInCafe24Envelope,
 } from './cafe24-api.client';
 import type { Integration } from '../../../modules/integrations/entities/integration.entity';
+import { makeFakeJwt } from '../../../modules/integrations/__test-utils__/make-fake-jwt';
 
 type Mock = jest.Mock;
 
@@ -47,6 +48,9 @@ function makeJsonResponse(
     },
   });
 }
+
+// 테스트 전용 JWT 빌더는 `modules/integrations/__test-utils__/make-fake-jwt`
+// 의 공유 helper 사용. ai-review (2026-05-18) W2 조치로 중복 제거.
 
 describe('Cafe24ApiClient', () => {
   let client: Cafe24ApiClient;
@@ -1043,6 +1047,263 @@ describe('Cafe24ApiClient', () => {
       delete process.env.CAFE24_CLIENT_SECRET;
     });
 
+    /**
+     * 회귀 보호 (2026-05-18) — refresh 응답의 access_token 이 JWT 이면 그
+     * exp claim 이 응답 body 의 `expires_at` 보다 우선 채택. ISO 의 TZ
+     * 모호성으로 인한 9h skew 차단의 핵심 회귀 케이스.
+     *
+     * spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료
+     * SoT — JWT exp 격상 (2026-05-18)".
+     */
+    it('refresh — JWT exp 가 응답 expires_at 보다 우선', async () => {
+      const within = new Date(Date.now() + 1000);
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'old',
+          expires_at: within.toISOString(),
+        },
+        tokenExpiresAt: within,
+      });
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      let savedIntegration: Integration | undefined;
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockImplementation(async (e: Integration) => {
+              savedIntegration = e;
+            }),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      try {
+        // JWT exp 는 1h 후, 응답 body 의 expires_at 은 2h 후 — JWT 가 우선
+        const jwtExpSec = Math.floor(Date.now() / 1000) + 3600;
+        const responseExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+        const jwtToken = makeFakeJwt({ exp: jwtExpSec });
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse({
+            access_token: jwtToken,
+            refresh_token: 'fresh-refresh',
+            expires_at: responseExpiresAt.toISOString(),
+          }),
+        );
+        fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+        await client.call(integration, { method: 'GET', path: 'products' });
+
+        expect(savedIntegration).toBeDefined();
+        expect(savedIntegration!.tokenExpiresAt).toBeInstanceOf(Date);
+        // 핵심 어서션 — JWT exp 가 응답 expires_at 을 누름
+        expect(savedIntegration!.tokenExpiresAt!.getTime()).toBe(
+          jwtExpSec * 1000,
+        );
+        expect(savedIntegration!.credentials.expires_at).toBe(
+          new Date(jwtExpSec * 1000).toISOString(),
+        );
+      } finally {
+        delete process.env.CAFE24_CLIENT_ID;
+        delete process.env.CAFE24_CLIENT_SECRET;
+      }
+    });
+
+    /**
+     * 회귀 보호 (2026-05-18) — refresh 응답의 expires_at 에 TZ designator
+     * 가 누락된 경우 KST (+09:00) 정규화. JWT 가 없는 비정상 (opaque) 토큰
+     * 케이스에서 fallback 안전망 동작 확인.
+     */
+    it('refresh — TZ-less ISO expires_at 은 KST(+09:00) 로 정규화 (JWT 없을 때)', async () => {
+      const within = new Date(Date.now() + 1000);
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'old',
+          expires_at: within.toISOString(),
+        },
+        tokenExpiresAt: within,
+      });
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      let savedIntegration: Integration | undefined;
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockImplementation(async (e: Integration) => {
+              savedIntegration = e;
+            }),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      try {
+        const tzLessIso = '2026-12-21T07:09:50.000';
+        const expectedUtcMs = Date.parse('2026-12-21T07:09:50.000+09:00');
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse({
+            // opaque (비-JWT) access_token
+            access_token: 'opaque-fresh-access',
+            refresh_token: 'fresh-refresh',
+            expires_at: tzLessIso,
+          }),
+        );
+        fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+        await client.call(integration, { method: 'GET', path: 'products' });
+
+        expect(savedIntegration).toBeDefined();
+        expect(savedIntegration!.tokenExpiresAt).toBeInstanceOf(Date);
+        expect(savedIntegration!.tokenExpiresAt!.getTime()).toBe(expectedUtcMs);
+      } finally {
+        delete process.env.CAFE24_CLIENT_ID;
+        delete process.env.CAFE24_CLIENT_SECRET;
+      }
+    });
+
+    /**
+     * 회귀 보호 — refresh 응답의 expires_at 이 다음 형식들일 때 모두
+     * 정확히 처리되어야 한다 (ai-review W10 조치):
+     * - `Z` suffix → UTC 그대로
+     * - `+09:00` 명시 → 그대로
+     * - `+0900` (콜론 없음) → 그대로
+     * - TZ-less → KST 부여 (위 별개 테스트 커버)
+     */
+    it.each([
+      {
+        label: 'Z suffix (UTC)',
+        iso: '2026-12-21T07:09:50.000Z',
+      },
+      {
+        label: '+09:00 명시',
+        iso: '2026-12-21T07:09:50.000+09:00',
+      },
+      {
+        label: '+0900 콜론 없음',
+        iso: '2026-12-21T07:09:50.000+0900',
+      },
+    ])('refresh — TZ designator 명시 형식 보존 ($label)', async ({ iso }) => {
+      const within = new Date(Date.now() + 1000);
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'old',
+          expires_at: within.toISOString(),
+        },
+        tokenExpiresAt: within,
+      });
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      let savedIntegration: Integration | undefined;
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockImplementation(async (e: Integration) => {
+              savedIntegration = e;
+            }),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      try {
+        const expectedMs = Date.parse(iso);
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse({
+            access_token: 'opaque-tz-test',
+            refresh_token: 'fresh-refresh',
+            expires_at: iso,
+          }),
+        );
+        fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+        await client.call(integration, { method: 'GET', path: 'products' });
+
+        expect(savedIntegration).toBeDefined();
+        // TZ designator 가 있으면 정규화 적용 안 됨 — 원본 epoch 보존
+        expect(savedIntegration!.tokenExpiresAt!.getTime()).toBe(expectedMs);
+      } finally {
+        delete process.env.CAFE24_CLIENT_ID;
+        delete process.env.CAFE24_CLIENT_SECRET;
+      }
+    });
+
+    /**
+     * 회귀 보호 — refresh 응답의 access_token / expires_in / expires_at 가
+     * 모두 비정상 (JWT 디코드 실패 + expires_in 없음 + expires_at 가 parse
+     * 불가 문자열) 일 때 2h default 로 강하 (ai-review W11 조치).
+     */
+    it('refresh — JWT/expires_in/parse 가능한 expires_at 모두 없을 때 2h default fallback', async () => {
+      const within = new Date(Date.now() + 1000);
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'old',
+          refresh_token: 'old',
+          expires_at: within.toISOString(),
+        },
+        tokenExpiresAt: within,
+      });
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      let savedIntegration: Integration | undefined;
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockImplementation(async (e: Integration) => {
+              savedIntegration = e;
+            }),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      try {
+        const before = Date.now();
+        fetchMock.mockResolvedValueOnce(
+          makeJsonResponse({
+            access_token: 'opaque-not-jwt',
+            refresh_token: 'fresh-refresh',
+            // parse 불가능한 문자열 — Date.parse → NaN
+            expires_at: 'not-a-valid-iso',
+          }),
+        );
+        fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+        await client.call(integration, { method: 'GET', path: 'products' });
+
+        expect(savedIntegration).toBeDefined();
+        const savedMs = savedIntegration!.tokenExpiresAt!.getTime();
+        // 2h ± 1s 허용 (테스트 실행 wall clock drift)
+        expect(savedMs).toBeGreaterThanOrEqual(
+          before + 2 * 60 * 60 * 1000 - 1000,
+        );
+        expect(savedMs).toBeLessThanOrEqual(
+          Date.now() + 2 * 60 * 60 * 1000 + 1000,
+        );
+      } finally {
+        delete process.env.CAFE24_CLIENT_ID;
+        delete process.env.CAFE24_CLIENT_SECRET;
+      }
+    });
+
     it('refresh 401 marks Integration as auth_failed', async () => {
       const within = new Date(Date.now() + 1000); // 1s — well within REFRESH_WINDOW_MS
       const integration = makeIntegration({
@@ -1404,6 +1665,97 @@ describe('Cafe24ApiClient', () => {
       await expect(
         queuedClient.call(integration, { method: 'GET', path: 'products' }),
       ).rejects.toBeInstanceOf(Cafe24TransportFailedError);
+    });
+
+    /**
+     * 회귀 보호 (2026-05-18) — `executeWithRateLimit` 의 401 자가 회복 경로.
+     * `performAuthRefresh` 가 `refreshViaQueue(integration, 'reactive_401')`
+     * 으로 dispatch 하며, worker 가 short-circuit 을 skip 하고 refresh 를
+     * 수행한 뒤 caller 가 새 token 으로 retry → 성공.
+     *
+     * 본 테스트는 enqueue source 와 removeOnComplete 옵션이 정확히 전달되는지
+     * + retry 가 새 token 으로 발사되는지 회귀 방지.
+     *
+     * spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료
+     * SoT — JWT exp 격상 (2026-05-18)".
+     */
+    it('401 reactive 자가 회복 — performAuthRefresh 가 reactive_401 source 로 enqueue + retry 성공', async () => {
+      const tokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: 'stale-but-db-says-fresh',
+          refresh_token: 'r-valid',
+          scopes: ['mall.read_product'],
+          // DB 가 1h 미래로 본다 (TZ 모호성 회귀 시뮬레이션).
+          expires_at: tokenExpiresAt.toISOString(),
+        },
+        tokenExpiresAt,
+      });
+
+      // worker 가 refresh 완료 후 DB row.
+      const refreshedRow = {
+        ...integration,
+        credentials: {
+          ...integration.credentials,
+          access_token: 'fresh-via-reactive',
+          refresh_token: 'fresh-refresh',
+          expires_at: refreshedAt.toISOString(),
+        },
+        tokenExpiresAt: refreshedAt,
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      };
+      integrationRepo.findOne.mockResolvedValue(refreshedRow);
+
+      queue.add.mockResolvedValue({
+        id: integration.id,
+        waitUntilFinished: jest.fn().mockResolvedValue(undefined),
+      });
+
+      // 1차 API 호출 — Cafe24 가 stale token 으로 401 ('access_token time expired').
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(
+          {
+            error: 'invalid_token',
+            error_description: 'access_token time expired',
+          },
+          { status: 401 },
+        ),
+      );
+      // 2차 API 호출 (retry) — refresh 후 새 token 으로 성공.
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      const res = await queuedClient.call(integration, {
+        method: 'GET',
+        path: 'products',
+      });
+
+      // proactive 게이트는 통과 (tokenExpiresAt 가 1h 미래라 skip)
+      // → 401 자가 회복이 reactive_401 로 enqueue.
+      expect(queue.add).toHaveBeenCalledTimes(1);
+      const addCall = queue.add.mock.calls[0];
+      expect(addCall[0]).toBe('refresh-cafe24-token');
+      expect(addCall[1]).toEqual({
+        integrationId: integration.id,
+        source: 'reactive_401',
+      });
+      // 핵심 어서션 — reactive_401 은 removeOnComplete.age=0
+      expect(addCall[2]).toMatchObject({
+        jobId: integration.id,
+        attempts: 1,
+        removeOnComplete: { age: 0 },
+      });
+
+      // retry 가 새 bearer 로 발사
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const retryInit = fetchMock.mock.calls[1][1] as RequestInit;
+      expect((retryInit.headers as Record<string, string>).Authorization).toBe(
+        'Bearer fresh-via-reactive',
+      );
+      expect(res.status).toBe(200);
     });
 
     // spec/4-nodes/4-integration/4-cafe24.md §8.6 — public refresh entry.

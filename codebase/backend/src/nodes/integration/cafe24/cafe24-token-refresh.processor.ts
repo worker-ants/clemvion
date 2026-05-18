@@ -33,9 +33,14 @@ import {
  * 1. DB 에서 통합 다시 로드 (호출자가 보낸 참조는 stale 일 수 있음 —
  *    백그라운드 스캐너는 ID 만 보낸다).
  * 2. `serviceType !== 'cafe24'` 거부 (큐가 cafe24 전용이지만 방어적 체크).
- * 3. **재확인** — 잡 enqueue 와 worker pickup 사이에 다른 경로가 이미
- *    refresh 했을 수 있다. `resolveTokenExpiry(fresh) - now > REFRESH_WINDOW_MS`
- *    이면 short-circuit (불필요한 Cafe24 호출 방지).
+ * 3. **재확인 (단 `source === 'reactive_401'` 은 예외, 2026-05-18)** —
+ *    잡 enqueue 와 worker pickup 사이에 다른 경로가 이미 refresh 했을 수
+ *    있다. `resolveTokenExpiry(fresh) - now > REFRESH_WINDOW_MS` 이면
+ *    short-circuit (불필요한 Cafe24 호출 방지). 단 `reactive_401` source
+ *    (caller 가 empirical 401 을 받은 경로) 는 *DB 의 expiresAt 신뢰 불가*
+ *    신호라 short-circuit 을 건너뛰고 항상 refresh 시도. spec/2-navigation/
+ *    4-integration.md ## Rationale "Cafe24 token 만료 SoT — JWT exp 격상
+ *    (2026-05-18)".
  * 4. `cafe24ApiClient.refreshAccessToken(fresh)` 호출. 성공 시 통합 row
  *    의 4-field atomic update; 실패 시 markAuthFailed (기존 동작).
  *
@@ -99,12 +104,27 @@ export class Cafe24TokenRefreshProcessor extends WorkerHost {
     // 재확인: enqueue 시점과 pickup 시점 사이에 다른 경로가 이미 갱신했을
     // 가능성. proactive 경로는 매 API 호출마다 enqueue 할 수 있으므로
     // 이 short-circuit 이 중요하다.
-    const expiresAtMs = resolveTokenExpiry(fresh);
-    if (expiresAtMs !== null && expiresAtMs - Date.now() > REFRESH_WINDOW_MS) {
-      this.logger.debug(
-        `Cafe24 refresh ${integrationId} no-op — token already fresh (expires ${new Date(expiresAtMs).toISOString()})`,
-      );
-      return;
+    //
+    // **단, source='reactive_401' 은 skip 한다 (2026-05-18 추가)**: 본 source
+    // 는 `Cafe24ApiClient.executeWithRateLimit` 의 401 자가 회복 경로로,
+    // *caller 가 empirical 401 을 받았다* 는 강한 신호다. DB 의
+    // `tokenExpiresAt` 가 의도와 다른 epoch (예: 옛 TZ 모호성 회귀로 9h
+    // 미래) 로 저장된 경우 short-circuit 이 잘못된 값을 신뢰해 refresh 를
+    // 건너뛰고, caller 의 retry 가 같은 stale token 으로 두 번째 401 을
+    // 받는 회귀가 있었다. reactive_401 은 그 무력화 경로를 차단.
+    // spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료
+    // SoT — JWT exp 격상 (2026-05-18)".
+    if (source !== 'reactive_401') {
+      const expiresAtMs = resolveTokenExpiry(fresh);
+      if (
+        expiresAtMs !== null &&
+        expiresAtMs - Date.now() > REFRESH_WINDOW_MS
+      ) {
+        this.logger.debug(
+          `Cafe24 refresh ${integrationId} no-op — token already fresh (expires ${new Date(expiresAtMs).toISOString()}, source=${source})`,
+        );
+        return;
+      }
     }
 
     this.logger.log(

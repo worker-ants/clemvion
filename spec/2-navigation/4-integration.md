@@ -552,7 +552,7 @@ AI Agent 노드가 활용하는 외부 [Model Context Protocol](https://modelcon
 - Google/GitHub 처럼 정적 authorize URL 이 아니라 `https://{mall_id}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=...&state=...&redirect_uri=...&scope=...` 로 mall 마다 다른 URL.
 - 토큰 교환 endpoint: `POST https://{mall_id}.cafe24api.com/api/v2/oauth/token` (Basic auth: `client_id:client_secret`).
 - Refresh: 동일 endpoint, `grant_type=refresh_token`. 자동 갱신은 §10.5 흐름 그대로.
-- **응답 shape (Cafe24 quirk)**: Cafe24 의 `/oauth/token` 응답은 OAuth 표준 `expires_in` (초) 을 돌려주지 않고 **`expires_at` (ISO8601 문자열)** 만 돌려준다. backend 의 token-exchange normalizer 는 `expires_in` 을 먼저 시도하고 cafe24 한정으로 `expires_at` 파싱, 둘 다 없으면 cafe24 documented access_token TTL 인 2h default 로 fallback ([Rationale "Cafe24 token 응답의 `expires_at` 처리"](#cafe24-token-응답의-expires_at-처리-2026-05-17)).
+- **응답 shape (Cafe24 quirk)**: Cafe24 의 `/oauth/token` 응답은 OAuth 표준 `expires_in` (초) 을 돌려주지 않고 **`expires_at` (ISO8601 문자열)** 만 돌려준다. 단 `access_token` 자체가 JWT 라 `exp` claim 으로도 만료 시각을 알 수 있다. backend 의 token-exchange normalizer 는 **JWT `exp` 우선** → 표준 `expires_in` → cafe24 의 `expires_at` ISO (TZ designator 누락 시 `+09:00` 정규화) → 2h default 의 precedence 로 채택 ([Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)"](#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18) 참고). 옛 "Cafe24 token 응답의 `expires_at` 처리 (2026-05-17)" Rationale 항은 본 격상으로 흡수.
 
 **Scope 권장 프리셋**
 
@@ -813,6 +813,7 @@ window.close();
 ### 10.5 토큰 자동 갱신
 
 - Refresh token 보유 시 (provider 가 refresh_token 발급·갱신을 보장 — 현재 `cafe24`, `google`): 노드 실행 직전 만료 확인 → 만료됐으면 갱신 후 호출. 이 자동 갱신 가능 여부는 `IntegrationDto.autoRefresh: boolean` (§9.1) 로 클라이언트에 노출되어 상태 배지·attention 술어·Reauthorize hover 안내의 분기 신호로 쓰인다.
+- **만료 시각 SoT (2026-05-18 갱신)**: Cafe24 의 `access_token` / `refresh_token` 은 JWT 이므로 **JWT `exp` claim** (RFC 7519, Unix epoch seconds — UTC absolute) 을 만료 시각의 single source of truth 로 사용한다. backend 의 token-exchange normalizer (`parseTokenExpiresAt`) 와 refresh path (`refreshAccessToken`) 는 내부적으로 `parseJwtExp(token)` 을 첫 단계로 호출해 결과를 최우선 채택하고, JWT 디코드가 비정상으로 null 인 경우에만 표준 `expires_in` → cafe24 한정 `expires_at` ISO (timezone designator 누락 시 `+09:00` KST 부여로 정규화) → 2h default 로 강하한다. ISO 의 timezone 모호성으로 `Integration.token_expires_at` 가 의도와 다른 epoch 로 저장돼 proactive refresh 와 워커 short-circuit 이 동시에 빗나가는 회귀 ([Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)"](#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18) 참고) 의 영구 차단. JWT signature 검증은 본 용도에 불필요 (만료 시각 metadata 추출 목적; 토큰 진위는 Cafe24 API 호출 시점에 검증).
 - **401 자동 회복 (`call()` 경로, 2026-05-17 추가)**: proactive 갱신이 race condition (DB `expires_at` 미동기, 다중 인스턴스, NULL legacy row 등) 으로 빗나가 만료된 access_token 으로 Cafe24 API 호출이 401 을 받으면, `refresh_token` 으로 access_token 을 갱신한 뒤 동일 요청을 **1회만** 재시도. 재시도가 2xx 면 `status='connected'` 유지 (애초에 격하 없음). 재시도도 401 이면 토큰 자체 문제로 확정해 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 `error(auth_failed)` 전이 발사. 403 은 본 자동 회복 대상 아님 (즉시 격하). 재시도 분기는 `refreshViaQueue` (`jobId = integrationId`) 를 거치므로 클러스터 전체 단일 refresh — thundering herd 사고 없음. 재시도 횟수는 정확히 1회 (429 rate limit 재시도와 별개 카운터). [§5.8 연결 테스트의 `pingConnection()`](#58-cafe24) 의 동일 패턴과 정책 통일. Rationale 의 "`call()` 의 401 자동 회복 (2026-05-17)" 참고.
 - **갱신 실패 시 (2026-05-16 갱신)**: `refresh_token` 자체가 무효 (`invalid_grant`) 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기는 폐기 — [Rationale "refresh 실패 시 status_reason 통일"](#rationale) 참고; cafe24 의 경우 본 격하 경로는 [§6.1 공통 격하 동작](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 에 명세). transport 실패가 3회 연속이면 `error(network)` 로 전이 (PR #67 V049 카운터). `integration_expired` 알림은 `expired` 전이에만 발사하며 `error(*)` 전이는 UI 배지로만 표시 (§11 참고).
 - 갱신 성공 시: `Integration.last_rotated_at` 도 함께 갱신해 백그라운드 갱신 스캐너의 cutoff 비교에 사용된다 (§11.1 `cafe24-background-refresh`).
@@ -1372,6 +1373,8 @@ Public 흐름은 begin 단계에서 Integration row 를 만들지 않으므로 V
 
 ### Cafe24 token 응답의 `expires_at` 처리 (2026-05-17)
 
+> **(2026-05-18 superseded)** 본 항의 정책은 "[Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)](#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18)" 으로 흡수·격상됨. 본 항은 역사 기록으로 보존.
+
 **문제**: 사용자 보고 — 카페24 통합이 "정상(connected)" 으로 표시되는 상태에서 AI Agent MCP 호출이 `Cafe24 authentication failed (401) for mall <mall_id> — access_token time expired. (invalid_token)` 으로 401 을 받음. proactive refresh 가 동작해야 하는 시점에 동작하지 않음. 일일 백그라운드 잡도 안 살림.
 
 **원인**: backend 의 OAuth callback `normalizeTokenResponse` 가 OAuth 표준 `expires_in` (초) 만 읽었는데, Cafe24 의 `/api/v2/oauth/token` 응답은 `expires_in` 을 돌려주지 않고 `expires_at` (ISO8601 문자열) 만 돌려준다. 결과적으로 신규 cafe24 통합의 `Integration.token_expires_at` 컬럼과 `credentials.expires_at` JSONB mirror 가 모두 NULL 로 저장됐다. 그 row 들에 대해:
@@ -1444,3 +1447,49 @@ Public 흐름은 begin 단계에서 Integration row 를 만들지 않으므로 V
 **구현 plan**: `plan/in-progress/cafe24-call-401-retry.md` (worktree `cafe24-401-refresh-a3f2c1`).
 
 **consistency-check 세션**: `review/consistency/2026/05/17/21_06_13/` (BLOCK: NO — WARNING 1 건은 §8.4 본문 + line 69 안내문을 단일 commit 으로 원자 반영하여 해소, INFO 5건은 본 spec 갱신에 함께 반영).
+
+### Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)
+
+**문제**: `plan/complete/cafe24-proactive-refresh-fix.md` + 401 자가 회복 fix 가 모두 main 에 있는데도 사용자 보고 (2026-05-18, mall `gehrig0301`) — 같은 401 (`access_token time expired`) 가 반복. 직접 추적 결과:
+
+1. `parseTokenExpiresAt` 와 `refreshAccessToken` 의 `Date.parse(expiresAtStr)` 가 TZ-less ISO 를 서버 local time 으로 해석 (ECMA-262 사양). Cafe24 가 KST 의미로 TZ-less ISO 를 보내면 UTC 컨테이너에서 `tokenExpiresAt` 가 의도 시각과 다른 epoch 로 저장됨.
+2. `Cafe24TokenRefreshProcessor.process` 의 short-circuit guard (`expiresAtMs - now > REFRESH_WINDOW_MS` → skip refresh) 가 1 의 잘못된 값을 신뢰 → L3 401 reactive 자가 회복이 enqueue 해도 worker 가 refresh 를 수행하지 않음 → caller 가 stale token 으로 retry → 두 번째 401 → `markAuthFailed`.
+
+L1~L4 4-layer 방어가 *같은 잘못된 expiry* 를 신뢰하므로 모두 무력화.
+
+**결정**: Cafe24 의 access_token / refresh_token 이 JWT 라는 사실에 근거해 **JWT `exp` claim** 을 single source of truth 로 격상. RFC 7519 정의상 Unix epoch seconds (UTC absolute) 이므로 TZ 모호성 원천 제거. 두 위치 모두 precedence 통일:
+
+- `parseTokenExpiresAt(provider='cafe24', data)` — JWT exp → `expires_in` → `expires_at` ISO (TZ-less 면 `+09:00` 부여) → 2h default
+- `Cafe24ApiClient.refreshAccessToken` 의 expiresAt 계산 — 동일 precedence
+
+추가로 워커 short-circuit 의 잘못된 신뢰 차단:
+
+- `Cafe24RefreshJobData.source` 에 `'reactive_401'` 값 추가 (의미: HTTP 401 을 empirical 하게 받아 강제 refresh 가 필요한 경로의 신호. 향후 다른 empirical 신호 경로가 생기면 `reactive_<signal>` 패턴으로 확장).
+- `Cafe24TokenRefreshProcessor.process` 가 `source === 'reactive_401'` 이면 short-circuit skip — 본 source 는 *caller 가 empirical 401 을 받았다* 는 신호라 DB 의 `expires_at` 을 신뢰하면 안 됨. 기존 short-circuit (proactive 의 thundering herd 방지) 은 그대로 유효 — proactive/background 경로의 dedup 보증은 BullMQ jobId dedup (waiting/active 상태) 으로 유지되며 본 변경은 *완료된 job* 의 잔존 동작만 영향. ([BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소 (2026-05-16)](#bullmq-cafe24-token-refresh-큐--멀티-인스턴스-race-해소-2026-05-16) 의 확장)
+- `Cafe24ApiClient.performAuthRefresh` 가 `refreshViaQueue` 호출 시 `'reactive_401'` 전달.
+- **`reactive_401` 의 `removeOnComplete: { age: 0 }` 정책**: BullMQ jobId dedup 은 `waiting/active` 뿐 아니라 `completed` 상태 job 도 dedup 대상으로 본다. proactive 가 60s 잔존 정책으로 완료 후 60s 동안 같은 jobId 의 새 add 를 기존 completed job 으로 dedup 시키면, reactive_401 이 enqueue 해도 worker 가 실행되지 않고 `waitUntilFinished` 가 즉시 resolve 되어 caller 가 stale credentials 로 retry 하는 edge case 발생. `removeOnComplete: { age: 0 }` 는 reactive_401 의 완료 job 을 즉시 제거해 같은 시점의 다음 reactive_401 add 가 새 job 으로 진입하게 한다. **cross-pod 동시성**: 두 pod 의 reactive_401 add 가 waiting/active 상태에서 만나면 BullMQ jobId dedup 이 정상 작동 (한 worker 만 실행) — refresh_token rotation race 보호 유지.
+
+**기각 대안**:
+
+- (A) `parseTokenExpiresAt` 만 TZ 보정 (워커 short-circuit 그대로) — 옛 NULL 또는 잘못된 expiry 가 DB 에 이미 저장된 row 의 자가 회복이 안 됨. 본 fix 의 reactive_401 force 가 필요.
+- (B) 워커 short-circuit 만 제거 (JWT exp 미적용) — proactive 경로가 여전히 잘못된 expiry 로 skip → 매 호출이 401 → reactive_401 → refresh 라는 우회로만 남음. 정상 상태에서도 매 호출이 한 번씩 401 을 받는 retry 비용 발생. JWT exp 가 근본 해결.
+- (C) Cafe24 에 응답 형식 정규화 요청 — 외부 의존, 시간 무한. 본 fix 가 우리 측에서 해결 가능.
+
+**Trade-off / 잔여 위험**:
+
+- JWT signature 검증 없음 — 본 용도 (만료 시각 추출) 에 불필요. Cafe24 가 token format 을 opaque 로 바꾸면 `parseJwtExp` 가 null 반환 → fallback chain 으로 정상 강하.
+- TZ 보정 fallback (`+09:00`) 은 Cafe24 본사 운영 timezone 기준 합리적 추정. Cafe24 가 향후 UTC 로 변경해도 JWT exp 가 최우선이라 영향 없음.
+- 기존 row 의 (잘못된) `tokenExpiresAt` 은 다음 reactive_401 refresh 사이클에 자동 정정.
+
+**테스트**:
+
+- `jwt-exp.spec.ts` 신규 — `parseJwtExp` 단위 (정상 / segment 오류 / base64 오류 / JSON 오류 / exp 누락 / exp 비-숫자 / null / undefined)
+- `integration-oauth.service.cafe24.spec.ts` 보강 — JWT 우선 / JWT 비정상 시 ISO fallback / TZ-less ISO 의 KST 정규화
+- `cafe24-api.client.spec.ts` 보강 — refresh 응답의 access_token JWT 우선 / stale tokenExpiresAt + 401 → reactive_401 worker 가 short-circuit 없이 refresh
+- `cafe24-token-refresh.processor.spec.ts` 보강 — source='reactive_401' 일 때 fresh token 도 refresh / 'proactive' 는 종전 short-circuit
+
+**구현 plan**: `plan/in-progress/cafe24-jwt-exp-fix.md` (worktree `cafe24-jwt-exp-fix-7a3f1c`).
+
+**consistency-check 세션**: `review/consistency/2026/05/18/19_29_07/` (BLOCK: NO — Critical 0, WARNING 5 건은 본 spec 갱신 + data-flow §2.2 + 4-cafe24 §9.6 동시 갱신으로 해소, INFO 13 건은 본 항 본문 및 옛 항 obsolete 표시로 반영).
+
+**출처**: 사용자 보고 (2026-05-18, mall `gehrig0301`). 직전 같은 mall 의 보고 (`plan/complete/cafe24-proactive-refresh-fix.md` + 후속 fix 들) 가 같은 클래스의 회귀였음을 확정.

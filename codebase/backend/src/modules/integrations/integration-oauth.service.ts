@@ -27,6 +27,8 @@ import { decryptJson } from './services/credentials-transformer';
 import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import { normalizeStatusReason } from './integration-status-reason';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
+import { parseJwtExp } from './jwt-exp';
+import { normalizeCafe24IsoTimezone } from './cafe24-token-utils';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
 
@@ -1660,19 +1662,23 @@ export class IntegrationOAuthService {
  * Resolve the access_token expiry instant from a provider's OAuth token
  * response.
  *
- * **Provider quirk (Cafe24)**: Cafe24 의 `/api/v2/oauth/token` 응답은 OAuth
- * 표준의 `expires_in` (초) 을 돌려주지 않고 `expires_at` (ISO8601 문자열) 만
- * 돌려준다 ([Cafe24 공식 docs](https://developers.cafe24.com/docs/ko/api/admin/#refresh-access-token)).
- * 옛 코드는 `expires_in` 만 읽어 cafe24 의 `tokenExpiresAt` 이 항상 null 로
- * 저장됐고 → `Cafe24ApiClient.ensureFreshToken` 의 `expiresAtMs === null`
- * 가드에 걸려 proactive refresh 가 영영 실행되지 않아, 신규 cafe24 통합이
- * Cafe24 의 2h 실 TTL 경과 후 첫 호출에서 `access_token time expired (401)`
- * 으로 좌초했다 (사용자 보고 2026-05-17).
+ * **Provider quirk (Cafe24, 2026-05-18 갱신)**: Cafe24 의 access_token /
+ * refresh_token 은 JWT 이므로 `exp` claim (RFC 7519, Unix epoch seconds —
+ * UTC absolute) 이 만료 시각의 single source of truth. 본 함수는 cafe24
+ * 분기에서 다음 precedence 로 채택한다:
  *
- * **읽기 순서**: 표준 `expires_in` → cafe24 의 `expires_at` ISO string.
- * 둘 다 없으면 cafe24 한정 2h default (Cafe24 의 documented access_token
- * 수명). 다른 provider 는 null 유지 (해당 provider 가 expires_in 을 항상
- * 돌려준다는 기존 가정 유지).
+ * 1. **JWT `exp` claim** (`parseJwtExp(access_token)`) — TZ 모호성 없음.
+ * 2. 표준 `expires_in` (초) — Cafe24 가 보내지 않지만 향후 OAuth 표준 준수
+ *    가능성 대비 backward-compatible.
+ * 3. Cafe24 의 `expires_at` ISO 문자열 — timezone designator 누락 시
+ *    `+09:00` (KST) 부여로 정규화. ECMA-262 의 "TZ-less ISO 는 local time"
+ *    해석으로 UTC 컨테이너에서 9h skew 가 발생하던 회귀 ([Rationale "Cafe24
+ *    token 만료 SoT — JWT exp 격상 (2026-05-18)"](../../../spec/2-navigation/4-integration.md#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18))
+ *    을 차단.
+ * 4. 둘 다 없으면 cafe24 documented access_token TTL 인 **2h default**.
+ *
+ * 다른 provider 는 표준 `expires_in` 만 사용 (옛 동작 유지) — 해당 provider
+ * 가 expires_in 을 항상 돌려준다는 기존 가정 유지.
  *
  * Exported for direct unit testing.
  */
@@ -1680,20 +1686,32 @@ export function parseTokenExpiresAt(
   provider: OAuthProvider,
   data: Record<string, unknown>,
 ): Date | null {
+  // 비-cafe24 provider — 표준 expires_in 만 사용 (옛 동작 유지).
+  if (provider !== 'cafe24') {
+    const expiresIn = readNumber(data, 'expires_in');
+    return expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+  }
+
+  // 1) JWT exp 가 SoT. Cafe24 의 access_token 은 JWT 라 토큰 자체에
+  //    issuer 가 박아둔 만료 시각이 응답 표기보다 신뢰도가 높음.
+  const accessToken = readString(data, 'access_token');
+  const jwtExpMs = parseJwtExp(accessToken);
+  if (jwtExpMs !== null) return new Date(jwtExpMs);
+
+  // 2) 표준 expires_in — Cafe24 가 향후 표준 준수해도 자동 호환.
   const expiresIn = readNumber(data, 'expires_in');
-  if (expiresIn) {
-    return new Date(Date.now() + expiresIn * 1000);
+  if (expiresIn) return new Date(Date.now() + expiresIn * 1000);
+
+  // 3) Cafe24 의 expires_at ISO. TZ designator 누락 시 KST 정규화.
+  const expiresAtStr = readString(data, 'expires_at');
+  if (expiresAtStr) {
+    const normalized = normalizeCafe24IsoTimezone(expiresAtStr);
+    const parsed = Date.parse(normalized);
+    if (Number.isFinite(parsed)) return new Date(parsed);
   }
-  if (provider === 'cafe24') {
-    const expiresAtStr = readString(data, 'expires_at');
-    if (expiresAtStr) {
-      const parsed = Date.parse(expiresAtStr);
-      if (Number.isFinite(parsed)) return new Date(parsed);
-    }
-    // Cafe24 default — access_token 은 발급 시점 + 2h.
-    return new Date(Date.now() + 2 * 60 * 60 * 1000);
-  }
-  return null;
+
+  // 4) Cafe24 default — access_token 은 발급 시점 + 2h.
+  return new Date(Date.now() + 2 * 60 * 60 * 1000);
 }
 
 function normalizeTokenResponse(
