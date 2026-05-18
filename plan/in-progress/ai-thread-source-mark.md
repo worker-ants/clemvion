@@ -1,8 +1,10 @@
 ---
-worktree: ai-thread-source-mark-7c4f2a
+worktree: ai-thread-source-mark-7c4f2a → conversation-turn-render-a8f3c1 (Phase 2/3 흡수, 2026-05-18)
 started: 2026-05-16
 owner: planner → developer
 ---
+
+> **Worktree 흡수 메모 (2026-05-18)**: 원래 worktree `ai-thread-source-mark-7c4f2a` 는 Phase 1 (spec) 완료 후 cleanup 됨. Phase 2 (Backend) · Phase 3 (Frontend) 의 미완료 체크박스는 `plan/in-progress/conversation-turn-render.md` 의 Phase 2 (LLM payload builder 분리) / Phase 3 (인라인 마커 제거) 가 흡수해 worktree `conversation-turn-render-a8f3c1` 에서 함께 진행한다. 본 plan 은 Phase 1 완료 기록 + Open Questions 결정 이력 보존 목적으로 in-progress 에 남겨두며, conversation-turn-render plan 의 Phase 2/3 완료 시 본 plan 의 Phase 2/3 도 동시에 `[x]` 처리하고 본 plan 을 complete 로 이동한다.
 
 # AI 대화 메시지 source 마커 도입
 
@@ -76,11 +78,11 @@ WebSocket `execution.ai_message` 와 `execution.waiting_for_input` 의 `messages
 
 ## Follow-up (별도 PR)
 
-- **UI: "injected context" chip 표시** — `ConversationItem.isInjected === true` 인 항목에 대해 ConversationInspector 가 시각적 구분(chip / 다른 배경색) 을 추가. 본 PR 은 데이터 레이어 (마커 부여 + turn 카운팅) 까지만 다룬다. ai-review SUMMARY W11.
+- **UI: "injected context" 시각 구분** — **정식 spec 화 완료 (2026-05-18)**: chip 한 가지가 아니라 ① 아이콘 ② 컨테이너 형식 (bubble vs 회색 카드) ③ chip 의 3중 신호 동시 적용으로 격상. 또한 conversation Preview 의 1차 데이터 소스를 `conversationThread` snapshot 으로 교체해 emit messages 의 `[from <nodeLabel>]` prefix raw 노출 자체를 회피. 규약: [Spec Conversation Thread §9](../../spec/conventions/conversation-thread.md#9-미리보기-ui-렌더-규칙). 구현은 `plan/in-progress/conversation-turn-render.md` 에서 진행 (worktree `conversation-turn-render-a8f3c1`).
 
 ## Open Questions
 
-- (Phase 3) injection 메시지를 UI conversation timeline 에 보여줄 것인지(현재 보여주고 있음) vs 숨길 것인지. **잠정 결정**: 보여주되 turn 카운팅에서만 제외. inspector 에서 chip 으로 구분 표시는 추후 결정.
+- (Phase 3) injection 메시지를 UI conversation timeline 에 보여줄 것인지(현재 보여주고 있음) vs 숨길 것인지. **결정 완료 (2026-05-18)**: conversation Preview 의 1차 소스를 `conversationThread` snapshot 으로 교체 — emit messages 는 LLM debug 패널 전용으로 격리. presentation_user 등은 회색 시스템 카드로 격하 표시 ([Spec Conversation Thread §9.1](../../spec/conventions/conversation-thread.md#91-source-별-시각-매핑-강제)). 구현은 `plan/in-progress/conversation-turn-render.md` 에서 진행.
 - (Phase 2) source 마커를 `output.messages` (DB 영속화) 까지 보존할 것인지. **잠정 결정**: 보존. parseHistoryMessages 도 같은 컨버터를 거치므로 일관성 확보 효과. spec §4.4.6 의 "필드 누락 시 `'live'` 로 간주" 폴백 규약이 있으므로 미보존도 동작 가능 — 영속 결정은 backend 구현 시점에 최종 확정.
 - (참고) ai-agent-tool-connection-rewrite plan 에서 `tool_call` source 신설이 결정되면 §4.4.6 매핑 표의 `ai_tool` 항목이 정확히 동작하는지 재검증 필요 (consistency SUMMARY INFO #10).
 - (참고) 향후 DB 컬럼 신설 plan (`Execution.conversation_thread jsonb`, conversation-thread §7 v2 로드맵) 작성 시 `output.messages[].source` 영속 정책을 명시 항목으로 포함 (consistency SUMMARY INFO #9).

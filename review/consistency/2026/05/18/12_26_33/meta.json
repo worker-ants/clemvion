@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-18T12:26:33.758347",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/conventions/)",
+  "target_path": "spec/conventions/",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
