@@ -8,7 +8,7 @@
 
 ### System role
 
-사용자 신원 확인과 세션 발급을 책임진다. 로컬 이메일/비밀번호, OAuth 소셜 로그인, 2FA(TOTP),
+사용자 신원 확인과 세션 발급을 책임진다. 로컬 이메일/비밀번호, OAuth 소셜 로그인, 2FA(WebAuthn 우선·TOTP fallback),
 초대 토큰 가입을 단일 진입점으로 통합한다. JWT access token + 회전 가능한 refresh token (`family_id`
 단위 세션) 모델을 사용하며, 모든 인증 이벤트는 `login_history` 에 시간순으로 기록된다.
 
@@ -49,7 +49,7 @@ sequenceDiagram
   Ctl-->>C: 200 + Set-Cookie
 ```
 
-### 1.2 로그인 (Local + TOTP)
+### 1.2 로그인 (Local + 2FA: WebAuthn 우선 / TOTP)
 
 ```mermaid
 sequenceDiagram
@@ -71,10 +71,20 @@ sequenceDiagram
     Svc->>Hist: event=login_failed reason=INVALID_PASSWORD
     Svc-->>C: 401
   end
-  alt two_factor_enabled
-    Svc-->>C: 200 { requiresTotp: true, totpToken }
-    C->>Svc: POST /api/auth/login/totp { totpToken, code }
-    Svc->>Svc: TotpService.verify
+  alt webauthn_credential count > 0 (방식: WebAuthn)
+    Svc-->>C: 200 { requires2fa: true, methods: ['webauthn'], challengeToken, requiresTotp }
+    C->>Svc: POST /api/auth/2fa/webauthn/authenticate/options { challengeToken }
+    Svc-->>C: { optionsToken, publicKey }
+    C->>Svc: POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }
+    Svc->>Svc: verifyAuthenticationResponse (counter 갱신, replay 차단)
+    alt fail
+      Svc->>Hist: event=webauthn_failed
+      Svc-->>C: 401
+    end
+  else two_factor_enabled (방식: TOTP)
+    Svc-->>C: 200 { requires2fa: true, methods: ['totp'], challengeToken, requiresTotp: true }
+    C->>Svc: POST /api/auth/login/totp { challengeToken, code }
+    Svc->>Svc: TotpService.verify (TOTP 또는 totp_recovery_codes)
     alt fail
       Svc->>Hist: event=totp_failed
       Svc-->>C: 401
@@ -85,6 +95,8 @@ sequenceDiagram
   Svc->>Hist: event=login_success
   Svc-->>C: { accessToken, refreshToken, user } + Set-Cookie
 ```
+
+응답 필드 진화: `requiresTotp` 는 deprecated 호환 필드이며 새 클라이언트는 `requires2fa` + `methods` 만 본다. 자세한 우선순위·deprecate 타임라인은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지).
 
 ### 1.3 OAuth 소셜 로그인
 
@@ -167,7 +179,9 @@ sequenceDiagram
 | `user` | 회원가입 | INSERT `email, password_hash, name, locale, theme, email_verify_token, email_verify_expires_at, created_at` | `email UNIQUE` (V001) |
 | `user` | 로그인 실패 카운트 | UPDATE `login_attempts, locked_until` | — |
 | `user` | OAuth 첫 연결 | UPDATE `oauth_provider, oauth_provider_id` | — |
-| `user` | 2FA on/off | UPDATE `two_factor_enabled, two_factor_secret, totp_recovery_codes` | — |
+| `user` | TOTP 2FA on/off | UPDATE `two_factor_enabled, two_factor_secret, totp_recovery_codes` | — |
+| `user` | WebAuthn 복구 코드 발급/소진/재발급 | UPDATE `webauthn_recovery_codes` | — |
+| `webauthn_credential` | Passkey 등록 / 이름 수정 / 삭제 / 인증 | INSERT(register/verify), UPDATE counter/last_used_at/device_name, DELETE(개별) | `credential_id UNIQUE`, `(user_id)` |
 | `refresh_token` | 로그인·refresh | INSERT `user_id, token_hash, family_id, is_revoked=false, expires_at, device_label, user_agent, ip_address` | `token_hash UNIQUE`, `(user_id, family_id) WHERE is_revoked=false` (V040 metadata) |
 | `refresh_token` | refresh 회전 | UPDATE `is_revoked=true, last_used_at, last_used_ip` (old row) + INSERT new row | — |
 | `refresh_token` | reuse 탐지 | UPDATE `is_revoked=true` for entire `family_id` | — |

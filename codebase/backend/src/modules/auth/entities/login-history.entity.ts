@@ -13,6 +13,7 @@ export type LoginHistoryEvent =
   | 'login_success'
   | 'login_failed'
   | 'totp_failed'
+  | 'webauthn_failed'
   | 'logout'
   | 'session_revoked'
   | 'token_reuse_detected';

@@ -101,7 +101,7 @@
 | 항목 | 설명 |
 |------|------|
 | 비밀번호 변경 | 전용 페이지 `/profile/change-password` — 현재 비밀번호 확인 → 새 비밀번호 입력. `/profile` 본문의 비밀번호 카드에서 [변경하기 →] 링크로 진입. 페이지 진입 자체가 의도 표명 역할 |
-| 2FA 설정 | TOTP 기반. `/profile/security` 페이지. QR 코드 표시 → 인증 앱으로 스캔 → 확인 코드 입력 |
+| 2FA 설정 | `/profile/security` 페이지. 두 섹션으로 분리 노출 — (1) **TOTP** 카드(QR 코드 표시 → 인증 앱으로 스캔 → 확인 코드 입력 + 복구 코드 발급) (2) **Passkey · 보안 키** 카드(WebAuthn credential 다중 등록 / 목록·이름 변경·삭제 + 별도 복구 코드). 두 방식 동시 등록 가능, 로그인 시 우선순위는 [인증 spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지) |
 | 활성 세션 | `/profile/sessions` 페이지. 현재 로그인된 기기/브라우저 목록(family 단위), "현재" 세션 배지 표시. 다른 세션 개별 종료 또는 일괄 종료 (비밀번호 재확인 필수). 상세: [인증 spec §2.3](../5-system/1-auth.md#23-세션-정책) |
 | 로그인 이력 | `/profile/sessions` 페이지의 이력 탭. 성공·실패·강제 종료 등 이벤트를 시간순으로 표시 (본인만 조회). 보존 180일. 상세: [인증 spec §4.3](../5-system/1-auth.md#43-로그인-이력-loginhistory) |
 
@@ -251,8 +251,9 @@
 | PATCH | /api/users/me | 프로필 수정 |
 | POST | /api/users/me/avatar | 아바타 업로드 |
 | POST | /api/users/me/change-password | 비밀번호 변경 |
-| POST | /api/users/me/enable-2fa | 2FA 활성화 시작 |
-| POST | /api/users/me/confirm-2fa | 2FA 확인 코드 검증 |
+| POST | /api/users/me/enable-2fa | 2FA TOTP 활성화 시작 (canonical: `POST /api/auth/2fa/setup` — [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트)) |
+| POST | /api/users/me/confirm-2fa | 2FA TOTP 활성화 verify (canonical: `POST /api/auth/2fa/verify`) |
+| — | /api/auth/2fa/webauthn/* | Passkey · 보안 키 등록·인증·관리. canonical 정의는 [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
 | GET | /api/users/me/sessions | 활성 세션 목록 (family 단위, isCurrent 플래그 포함) |
 | DELETE | /api/users/me/sessions/:familyId | 단일 세션 강제 종료 (family 전체 revoke, 비밀번호/TOTP 재인증) |
 | POST | /api/users/me/sessions/revoke-others | 현재 세션 제외 일괄 종료 (비밀번호/TOTP 재인증) |

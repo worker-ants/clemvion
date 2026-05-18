@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -8,6 +8,10 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
+import {
+  browserSupportsWebAuthn,
+  startAuthentication,
+} from "@simplewebauthn/browser";
 import { authApi } from "@/lib/api/auth";
 import { usersApi } from "@/lib/api/users";
 import { setAccessToken } from "@/lib/api/client";
@@ -40,7 +44,14 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
   const passwordErrorId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [twoFactorMethod, setTwoFactorMethod] = useState<"webauthn" | "totp" | null>(
+    null,
+  );
   const [totpCode, setTotpCode] = useState("");
+  const [webauthnError, setWebauthnError] = useState<string | null>(null);
+  const [showRecoveryInput, setShowRecoveryInput] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const webauthnAttemptedRef = useRef(false);
   const setAuthenticated = useAuthStore((s) => s.setAuthenticated);
 
   // defined inside component so validation messages pick up the current locale via t()
@@ -59,20 +70,23 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
 
   type LoginFormValues = z.infer<typeof loginSchema>;
 
-  async function completeLogin(accessToken: string) {
-    setAccessToken(accessToken);
-    try {
-      const userRes = await usersApi.getMe();
-      const user = userRes.data.data;
-      if (user) {
-        setAuthenticated(accessToken, user);
+  const completeLogin = useCallback(
+    async (accessToken: string) => {
+      setAccessToken(accessToken);
+      try {
+        const userRes = await usersApi.getMe();
+        const user = userRes.data.data;
+        if (user) {
+          setAuthenticated(accessToken, user);
+        }
+      } catch {
+        /* AuthProvider will restore on next page load */
       }
-    } catch {
-      /* AuthProvider will restore on next page load */
-    }
-    toast.success(t("auth.login.signedIn"));
-    router.push("/dashboard");
-  }
+      toast.success(t("auth.login.signedIn"));
+      router.push("/dashboard");
+    },
+    [router, setAuthenticated, t],
+  );
 
   async function onSubmitTotp(e: React.FormEvent) {
     e.preventDefault();
@@ -126,9 +140,21 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
         rememberMe: data.rememberMe,
       });
       const payload = response.data.data;
-      if (payload && "requiresTotp" in payload && payload.requiresTotp) {
+      if (payload && "requires2fa" in payload && payload.requires2fa) {
         setChallengeToken(payload.challengeToken);
-        toast.info(t("auth.login.totpRequired"));
+        // spec/5-system/1-auth.md §1.4.2 — WebAuthn 우선, TOTP fallback 자동 금지
+        const method = payload.methods.includes("webauthn") ? "webauthn" : "totp";
+        setTwoFactorMethod(method);
+        webauthnAttemptedRef.current = false;
+        setShowRecoveryInput(false);
+        setRecoveryCode("");
+        setTotpCode("");
+        setWebauthnError(null);
+        toast.info(
+          method === "webauthn"
+            ? t("auth.login.webauthnRequired")
+            : t("auth.login.totpRequired"),
+        );
         return;
       }
       const accessToken =
@@ -145,7 +171,177 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
     }
   }
 
-  if (challengeToken) {
+  // ===== WebAuthn helpers =====
+
+  const runWebAuthn = useCallback(async () => {
+    if (!challengeToken) return;
+    if (!browserSupportsWebAuthn()) {
+      setWebauthnError(t("auth.login.webauthnUnsupported"));
+      return;
+    }
+    setIsLoading(true);
+    setWebauthnError(null);
+    try {
+      const optionsRes = await authApi.webauthnAuthenticateOptions(challengeToken);
+      const { publicKey, optionsToken } = optionsRes.data.data;
+      // @ts-expect-error — simplewebauthn 의 PublicKeyCredentialRequestOptionsJSON 형 가져오기 생략
+      const credential = await startAuthentication({ optionsJSON: publicKey });
+      const verifyRes = await authApi.webauthnAuthenticateVerify(
+        challengeToken,
+        optionsToken,
+        credential,
+      );
+      const accessToken = verifyRes.data.data?.accessToken;
+      if (accessToken) {
+        await completeLogin(accessToken);
+      }
+    } catch (err) {
+      const error = err as AxiosError<{ message?: string }>;
+      const msg = error.response?.data?.message ?? t("auth.login.webauthnFailed");
+      setWebauthnError(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [challengeToken, completeLogin, t]);
+
+  useEffect(() => {
+    if (
+      twoFactorMethod === "webauthn" &&
+      challengeToken &&
+      !webauthnAttemptedRef.current &&
+      browserSupportsWebAuthn()
+    ) {
+      webauthnAttemptedRef.current = true;
+      void runWebAuthn();
+    }
+  }, [twoFactorMethod, challengeToken, runWebAuthn]);
+
+  async function onSubmitRecovery(e: React.FormEvent) {
+    e.preventDefault();
+    if (!challengeToken || recoveryCode.trim().length < 12) return;
+    setIsLoading(true);
+    try {
+      const response = await authApi.webauthnRecovery(
+        challengeToken,
+        recoveryCode.trim(),
+      );
+      const accessToken = response.data.data?.accessToken;
+      if (accessToken) {
+        await completeLogin(accessToken);
+      }
+    } catch (err) {
+      const error = err as AxiosError<{ message?: string }>;
+      const msg = error.response?.data?.message ?? t("auth.login.recoveryFailed");
+      toast.error(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function backToPassword() {
+    setChallengeToken(null);
+    setTwoFactorMethod(null);
+    setTotpCode("");
+    setRecoveryCode("");
+    setShowRecoveryInput(false);
+    setWebauthnError(null);
+    webauthnAttemptedRef.current = false;
+  }
+
+  if (challengeToken && twoFactorMethod === "webauthn") {
+    const browserOk = browserSupportsWebAuthn();
+    return (
+      <Card>
+        <CardHeader className="text-center">
+          <CardTitle>{t("auth.twoFactor.title")}</CardTitle>
+          <CardDescription>
+            {t("auth.login.webauthnSubtitle")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!browserOk && (
+            <p className="mb-4 text-sm text-[hsl(var(--destructive))]">
+              {t("auth.login.webauthnUnsupported")}
+            </p>
+          )}
+          {!showRecoveryInput && (
+            <div className="space-y-4">
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => {
+                  webauthnAttemptedRef.current = true;
+                  void runWebAuthn();
+                }}
+                disabled={isLoading || !browserOk}
+              >
+                {isLoading
+                  ? t("auth.login.webauthnConfirming")
+                  : t("auth.login.webauthnConfirm")}
+              </Button>
+              {webauthnError && (
+                <p
+                  role="alert"
+                  className="text-sm text-[hsl(var(--destructive))]"
+                >
+                  {webauthnError}
+                </p>
+              )}
+              <Button
+                type="button"
+                variant="link"
+                className="w-full"
+                onClick={() => setShowRecoveryInput(true)}
+              >
+                {t("auth.login.useRecoveryCode")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={backToPassword}
+              >
+                {t("auth.login.backToLogin")}
+              </Button>
+            </div>
+          )}
+          {showRecoveryInput && (
+            <form onSubmit={onSubmitRecovery} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="recovery">
+                  {t("auth.login.recoveryCodeLabel")}
+                </Label>
+                <Input
+                  id="recovery"
+                  type="text"
+                  autoComplete="one-time-code"
+                  placeholder={t("auth.login.recoveryCodePlaceholder")}
+                  value={recoveryCode}
+                  onChange={(e) => setRecoveryCode(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading
+                  ? t("auth.login.recoveryConfirming")
+                  : t("auth.login.recoveryConfirm")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => setShowRecoveryInput(false)}
+              >
+                {t("auth.login.backToWebauthn")}
+              </Button>
+            </form>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (challengeToken && twoFactorMethod === "totp") {
     return (
       <Card>
         <CardHeader className="text-center">
@@ -176,10 +372,7 @@ function LoginFormInner({ enabledProviders = [] }: LoginFormProps) {
               type="button"
               variant="ghost"
               className="w-full"
-              onClick={() => {
-                setChallengeToken(null);
-                setTotpCode("");
-              }}
+              onClick={backToPassword}
             >
               {t("auth.login.backToLogin")}
             </Button>

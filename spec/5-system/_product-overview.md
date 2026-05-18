@@ -30,7 +30,7 @@
 | NF-SC-07 | 세션 관리 — 유효 기간, 동시 세션 제한 | 필수 | ✅ |
 | NF-SC-08 | 셀프 호스팅 환경에서의 보안 가이드 제공 | 필수 | ❌ |
 | NF-SC-09 | 워크플로우 실행 샌드박싱 — 악의적 노드로부터 시스템 보호 | 필수 | ✅ |
-| NF-SC-10 | 2FA(Two-Factor Authentication) 지원 | 권장 | ✅ (TOTP + 복구 코드 10개. WebAuthn은 후속) |
+| NF-SC-10 | 2FA(Two-Factor Authentication) 지원 | 권장 | ✅ TOTP + WebAuthn (Passkey · 보안 키, 다중 등록). 각 방식 별도 복구 코드 10개. WebAuthn 우선·TOTP fallback 자동 금지 — [인증 spec §1.4](./1-auth.md#14-2fa-two-factor-authentication) |
 
 ---
 
