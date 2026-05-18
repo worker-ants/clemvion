@@ -131,7 +131,7 @@ sequenceDiagram
 
 | Job name | Scheduler id | 역할 |
 | --- | --- | --- |
-| `connected-expiry` | `connected-expiry-daily` | `status='connected' AND token_expires_at < now+Δ` 행을 refresh 시도. **(2026-05-16 갱신)** refresh 실패 시 `refresh_token invalid_grant` → `error(auth_failed)`, transport 3회 실패 → `error(network)` 로 전이 (옛 `expired(refresh_failed)` 분기 폐기 — REQ HIGH-2). refresh_token 없는 provider (예: GitHub) 는 여전히 `expired(token_expired)`. |
+| `connected-expiry` | `connected-expiry-daily` | `status NOT IN (expired, error, pending_install) AND token_expires_at < now+Δ` 행 처리. `remain ≤ 7d`/`≤ 3d` 임계는 알림만 (status 변경 없음). `remain ≤ 0d` 분기: **(2026-05-18 갱신)** `service_type='cafe24'` AND `credentials.refresh_token` 존재 행은 `cafe24-token-refresh` 큐 enqueue (jobId dedup) + 알림 — scanner 가 직접 status 변경하지 않고 worker (`Cafe24TokenRefreshProcessor`) 가 refresh 성공 시 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 로 전이. refresh_token 없는 provider 는 여전히 `status=expired, status_reason='token_expired'` + 알림. **(2026-05-16 정책 유지)** worker 의 refresh 실패 분기: `invalid_grant` → `error(auth_failed)`, transport 3회 실패 → `error(network)` — 옛 `expired(refresh_failed)` 분기 폐기 (REQ HIGH-2). |
 | `pending-install-ttl` | `pending-install-ttl-daily` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` 행을 `expired(install_timeout) + install_token=NULL` 로 전이 (Cafe24 Private 한정). TTL 기준은 V044 의 `install_token_issued_at` 으로 — 재사용 시 토큰 재발급 시점에 갱신되어 조기 만료 회귀를 막는다. NULL 인 V044 이전 행은 `created_at` fallback. |
 | `usage-log-prune` | `usage-log-prune-daily` | `integration_usage_log` 90일 보존 외 행 삭제 |
 | `cafe24-background-refresh` | `cafe24-background-refresh-daily` | **(2026-05-16 신규)** `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-10d OR last_rotated_at IS NULL)` 행을 `cafe24-token-refresh` 큐 (jobId=integrationId dedup) 로 enqueue. enqueuer 역할만 — 실제 refresh 는 큐의 worker (`Cafe24TokenRefreshProcessor`) 수행. 14일 idle cafe24 통합의 refresh_token 자동 갱신. 임계 근거: refresh_token 14일 - 4일 안전 마진. |
@@ -153,20 +153,18 @@ sequenceDiagram
   par Four parallel passes
     CE->>Q: enqueue { name: 'connected-expiry', triggeredAt }
     Q-->>Scan: connected-expiry job
-    Scan->>PG: SELECT integration WHERE token_expires_at < now+Δ AND status='connected'
+    Scan->>PG: SELECT integration WHERE token_expires_at < now+7d AND status NOT IN (expired, error, pending_install)
     loop each row
-      alt refresh_token 존재
-        Scan->>Prov: refresh token
-        alt refresh 성공
-          Scan->>PG: UPDATE integration SET credentials=ENC(new), token_expires_at, last_rotated_at
-        else invalid_grant
-          Scan->>PG: UPDATE integration SET status='error', status_reason='auth_failed'
-        else transport fail x3
-          Scan->>PG: UPDATE integration SET status='error', status_reason='network'
+      Scan->>Noti: notify integration_expired (7d/3d/0d 임계, 중복 방지 키)
+      alt remain ≤ 0d
+        alt service_type='cafe24' AND refresh_token 존재
+          Scan->>CQ: enqueue cafe24-token-refresh { integrationId, source: 'background' }
+          Note over Scan,CQ: status 변경은 worker 가 결과에 따라 수행<br/>(refresh 성공 → connected 유지 / invalid_grant → error)
+        else refresh_token 없음
+          Scan->>PG: UPDATE integration SET status='expired', status_reason='token_expired'
         end
-      else refresh_token 없음
-        Scan->>PG: UPDATE integration SET status='expired', status_reason='token_expired'
-        Scan->>Noti: notify integration_expired
+      else remain > 0d
+        Note over Scan: 알림만 (status 보존)
       end
     end
   and

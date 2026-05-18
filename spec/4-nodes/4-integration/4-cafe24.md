@@ -387,6 +387,22 @@ AI Agent config 의 `mcpServers[i].enabledTools` 는 `['product_list', 'order_li
 
 MCP 측 호출도 동일한 `IntegrationUsageLog` 에 기록된다 ([Spec MCP Client §8.3](../../5-system/11-mcp-client.md#83-integrationusagelog)). `node_execution_id` 는 호출 시점의 AI Agent NodeExecution. 통합 관리 상세 페이지의 Recent Activity 탭은 두 경로의 호출을 함께 표시한다.
 
+### 8.6 expired 통합의 buildTools 자가 회복 (2026-05-18)
+
+`Cafe24McpToolProvider.buildTools()` 는 AI Agent 노드 실행 시점에 `mcpServers[]` 의 각 cafe24 Integration 을 조회해 tool catalog 를 구성한다. **`integration.status === 'expired'` 인 행은 다음 정책으로 처리한다**:
+
+| 상태 | 처리 |
+|------|------|
+| `expired` + `status_reason='install_timeout'` | skip (refresh 불가 — install_token 자체가 NULL). `mcpDiagnostics.serverSummaries[].skipReason='expired_install_timeout'` |
+| `expired` + `credentials.refresh_token` 존재 + `status_reason !== 'install_timeout'` | **1회 `refreshViaQueue` 시도 후 성공 시 fresh row 로 tool 등록 계속**. refresh 성공은 worker 가 `status='connected'` 로 전이시키므로 본 노드 실행은 정상 catalog 받음. refresh 실패 시 worker 가 `error(auth_failed)` 전이 → skip + `skipReason='expired_refresh_failed'` |
+| `expired` + `refresh_token` 누락 | skip + `skipReason='expired_no_refresh_token'` (이상 케이스 — 사용자 reauth 필요) |
+| `error(*)` | skip + `skipReason='error'` (외부 명시 reauth 가 정식 회복 — [§6.1 공통 격하](#61-인증-실패-자동-status-전환) 및 [Spec MCP Client §8.4](../../5-system/11-mcp-client.md#84-인증-실패-자동-status-전환) 와 동일 정책) |
+| `connected` | 정상 catalog 구성 |
+
+**근거**: §11.1 `connected-expiry` scanner 의 cafe24 분기 (refresh enqueue, 2026-05-18 갱신) 가 정상 동작하면 cafe24 가 `expired` 로 격하되는 경로는 사실상 `install_timeout` 한 가지만 남는다. 그러나 (a) scanner 가 아직 도달하지 못한 race window, (b) 마이그레이션 직후의 잔여 expired row, (c) 향후 다른 expired 경로 추가에 대비해 본 buildTools 단계의 1회 자가 회복을 두 번째 방어선으로 둔다. 정상 케이스에선 추가 latency 없음 (status='connected' 우회), expired 케이스에서만 최대 1회의 refresh round-trip (큐 dedup 으로 cross-pod 단일 실행).
+
+**진단 노출**: skip 여부와 사유는 모두 AI Agent 노드의 `meta.mcpDiagnostics.serverSummaries[]` 에 노출되어 사용자가 "통합이 보이지 않는다" 원인을 즉시 식별할 수 있다 ([Spec MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics)).
+
 ---
 
 ## 9. Rationale
@@ -446,6 +462,12 @@ Private 앱 연동 흐름 요약:
 - Cafe24 leaky bucket 은 Integration 단위 quota (mall_id 기준) → 인스턴스 간 동시 호출 시 429 가 자체적으로 backoff 신호로 작동. 따라서 API 호출 자체의 cross-pod 직렬화는 불필요.
 - **(2026-05-16 갱신)** Token refresh 의 cross-pod 직렬화는 PR #56 의 BullMQ `cafe24-token-refresh` 큐 (`jobId = integrationId` dedup) 로 해소됐다. 옛 "Redis 기반 분산 mutex 도입은 별도 spec 으로" 미결 사항은 본 큐 도입으로 종결. 자세한 결정 배경은 [통합 화면 ## Rationale "BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소"](../../2-navigation/4-integration.md#rationale) 참고.
 - 즉 현재 구조: **API 호출 = 같은 pod 내 in-memory mutex** (leaky bucket 공유) + **Token refresh = BullMQ 큐 클러스터 직렬화** (refresh_token rotation race 차단) 의 2단 보호.
+- **(2026-05-18 갱신) Refresh 진입점은 셋 — 모두 동일 BullMQ 큐 경유**:
+  1. `Cafe24ApiClient.call()` proactive (`ensureFreshToken` → `refreshViaQueue`) — API 호출 직전 token expiry window 검사.
+  2. `connected-expiry` 일일 잡의 0d 분기 — `service_type='cafe24'` AND refresh_token 보유 행을 enqueue (이전 `expired` 격하 분기 폐기).
+  3. `Cafe24McpToolProvider.buildTools()` — `status='expired'` AND refresh_token 보유 AND `status_reason !== 'install_timeout'` 행에 한해 1회 큐 경유 refresh 시도 (§8.6 자가 회복). expired 가 race window 또는 잔여 데이터로 남아있는 경우의 두 번째 방어선.
+
+  세 진입점 모두 `jobId = integrationId` dedup 을 거치므로 같은 통합에 동시 요청이 와도 클러스터 전체에서 worker 가 단일 실행한다. leaky bucket 부담은 (3) 이 정상 케이스 (`connected`) 를 우회하므로 noticeable 증가 없음.
 
 ### 9.7 OAuth scope wire format — 콤마 구분 (RFC 6749 예외)
 
@@ -569,3 +591,4 @@ UI 4 화면 (통합 추가 위저드 / 통합 상세 §4.4 Scope & Permissions /
 | 2026-05-17 | §2 Operation 드롭다운에 별도 승인 ⚠ 라벨 명세 + §8.3 AI Agent allowlist UI 의 동일 ⚠ 라벨 명세 + §9.11 Rationale 신설. 메타데이터 `Cafe24OperationMetadata.restrictedApproval` 신설 ([cafe24-api-metadata 컨벤션 §2](../../conventions/cafe24-api-metadata.md#2-operation-메타데이터-형식)) + 카탈로그 `restricted` 컬럼 ([_overview §2](../../conventions/cafe24-api-catalog/_overview.md#2-표-컬럼-정의)) + SoT 컨벤션 [`cafe24-restricted-scopes.md`](../../conventions/cafe24-restricted-scopes.md) 신설과 한 세트. 사용자 보고 (2026-05-17) — 카페24 본사 승인 필요 권한이 사용자에게 식별되지 않는 UX 문제 해소. consistency-check 세션: `review/consistency/2026/05/17/12_12_46/` (BLOCK: NO). |
 | 2026-05-17 (drift fix) | §2 별도 승인 라벨 설명에 `approvalGroup` 명명 명시 (옛 `category` 충돌 회피, W-8). impl-prep consistency-check 세션: `review/consistency/2026/05/17/12_37_41/`. |
 | 2026-05-17 (401 자동 회복) | §6.1 전면 재구성 — 401 분기에 "refresh + 1회 재시도" 자가 회복 정책 도입 (옛 "401/403 모두 즉시 격하" 폐기), 403 분기는 즉시 격하 유지. §4 step 9 (호출) 에 reactive 401 회복 흐름 한 줄 보강. §6 에러 코드 표 `CAFE24_AUTH_FAILED` 행에 401 (재시도 후) / 403 (즉시) 구분 명시. [Spec 통합 §10.5](../../2-navigation/4-integration.md#105-토큰-자동-갱신) 신규 bullet 및 [Spec 통합 § Rationale "`call()` 의 401 자동 회복 (2026-05-17)"](../../2-navigation/4-integration.md#rationale) 와 한 세트. [Spec MCP Client §8.4](../../5-system/11-mcp-client.md#84-인증-실패-자동-status-전환) 도 동시 갱신 — 외부 MCP 한정 정책 + Internal Bridge (cafe24 등) 예외 명시. 사용자 보고 (2026-05-17) — access_token 만료 후 401 만 받고 토큰 갱신 없이 즉시 `error(auth_failed)` 격하되어 재인증 강제 문제 해소. 구현 plan: `plan/in-progress/cafe24-call-401-retry.md` (worktree `cafe24-401-refresh-a3f2c1`). consistency-check 세션: `review/consistency/2026/05/17/21_06_13/` (BLOCK: NO). |
+| 2026-05-18 (expired 자가 회복) | §8.6 신설 — `Cafe24McpToolProvider.buildTools()` 의 `status='expired'` 처리 정책 명세 (install_timeout skip / refresh_token 보유 1회 refresh-then-include / no_refresh_token skip / error skip). [Spec 통합 §10.5](../../2-navigation/4-integration.md#105-토큰-자동-갱신) "0d 만료 자가 회복" + [Spec 통합 §11.1](../../2-navigation/4-integration.md#111-스캐너-잡) `connected-expiry` 잡 표의 cafe24 분기 (refresh enqueue) 갱신과 한 세트. [Spec data-flow §1.4](../../data-flow/5-integration.md#14-oauth-만료-스캐너-bullmq-integration-expiry) 표·mermaid 동시 갱신. [Spec MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics) 의 `serverSummaries[].skipReason` 추가. 사용자 보고 (2026-05-18) — access_token 만료 + refresh_token 유효 상태에서 통합이 `expired` 격하되면 AI Agent 가 cafe24 tool 을 인식 못 해 자가 회복이 트리거되지 않던 회귀 해소. 구현 plan: `plan/in-progress/cafe24-expired-self-healing.md` (worktree `cafe24-expired-self-healing-e7f1a2`). |

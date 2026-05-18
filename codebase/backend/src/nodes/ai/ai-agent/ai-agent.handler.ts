@@ -18,6 +18,7 @@ import {
   AgentToolResult,
   KbSearchDiagnostic,
 } from './tool-providers/agent-tool-provider.interface';
+import type { McpServerSummary } from './tool-providers/mcp-diagnostics';
 import {
   aiAgentNodeMetadata,
   DEFAULT_CONTEXT_SCOPE_N,
@@ -832,6 +833,10 @@ export class AiAgentHandler implements NodeHandler {
     // 도 동일 키로 노출해 멀티턴 출력과 스키마 일관성을 유지한다.
     const turnRagAcc = new RagAccumulator(knowledgeBases.length);
     const ragGroup = new RagAccumulatorGroup(ragAcc, turnRagAcc);
+    // MCP build 결과 (skipReason / connected) 누적. spec §6.2 의
+    // serverSummaries[] 가 본 array 의 1:1 echo. buildTools 호출 시 ctx 로
+    // 흘러간다. 비어있으면 meta emit 시 자동 omit (buildMcpDiagnosticsMeta).
+    const mcpDiagnosticsAcc: McpServerSummary[] = [];
 
     // System prompt: KB 검색은 더 이상 prefill 하지 않는다. LLM 이 능동 호출 결정.
     let finalSystemPrompt = systemPrompt;
@@ -875,6 +880,7 @@ export class AiAgentHandler implements NodeHandler {
       config,
       workspaceId,
       context.executionId,
+      mcpDiagnosticsAcc,
     );
 
     // Per-call trace so the frontend LlmInformationTab can inspect each
@@ -951,6 +957,7 @@ export class AiAgentHandler implements NodeHandler {
             toolCalls: toolCallCount,
             ragSources: ragAcc.getSources(),
             ragDiagnostics: ragAcc.getDiagnostics(),
+            mcpServerSummaries: mcpDiagnosticsAcc,
           },
           {
             llmCalls,
@@ -1167,6 +1174,7 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: toolCallCount,
         ragSources: ragAcc.getSources(),
         ragDiagnostics: ragAcc.getDiagnostics(),
+        ...(AiAgentHandler.buildMcpDiagnosticsMeta(mcpDiagnosticsAcc) ?? {}),
         // ConversationThread injection debug echo (spec §5.3). Echo only
         // when injection actually happened so noop runs keep the meta lean.
         ...(singleTurnInjection.injection.appliedScope !== 'none'
@@ -1382,6 +1390,10 @@ export class AiAgentHandler implements NodeHandler {
     // run-results UI 가 "어느 응답이 어느 청크를 사용했는지" 를 매핑한다.
     const turnRagAcc = new RagAccumulator(knowledgeBases.length);
     const ragGroup = new RagAccumulatorGroup(ragAcc, turnRagAcc);
+    // MCP build 결과 — multi-turn 은 매 turn 마다 buildTools 재호출이므로 본
+    // accumulator 도 turn 단위. 직전 turn 의 summary 는 resumeState 에 보존
+    // 하지 않고 매 turn 새로 결정 — buildTools 가 결정론적이므로 안전.
+    const mcpDiagnosticsAcc: McpServerSummary[] = [];
 
     // Add user message
     messages.push({ role: 'user', content: userMessage });
@@ -1411,7 +1423,12 @@ export class AiAgentHandler implements NodeHandler {
       conditions,
     };
     const executionId = state.executionId as string | undefined;
-    const tools = await this.buildTools(turnConfig, workspaceId, executionId);
+    const tools = await this.buildTools(
+      turnConfig,
+      workspaceId,
+      executionId,
+      mcpDiagnosticsAcc,
+    );
 
     const turnStartedAt = Date.now();
     const toolsDef = tools.length > 0 ? tools : undefined;
@@ -1500,6 +1517,7 @@ export class AiAgentHandler implements NodeHandler {
             toolCalls: toolCallCount,
             ragSources: ragAcc.getSources(),
             ragDiagnostics: ragAcc.getDiagnostics(),
+            mcpServerSummaries: mcpDiagnosticsAcc,
           },
           { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
           condTurnDebugHistory,
@@ -1691,6 +1709,7 @@ export class AiAgentHandler implements NodeHandler {
           toolCalls: toolCallCount,
           ragSources: ragAcc.getSources(),
           ragDiagnostics: ragAcc.getDiagnostics(),
+          mcpServerSummaries: mcpDiagnosticsAcc,
         },
         { llmCalls, totalDurationMs: turnDurationMs },
         turnDebugHistory,
@@ -1802,6 +1821,7 @@ export class AiAgentHandler implements NodeHandler {
       toolCalls: number;
       ragSources: unknown[];
       ragDiagnostics?: RagDiagnostics;
+      mcpServerSummaries?: McpServerSummary[];
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -1845,6 +1865,8 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
         ragDiagnostics: metadata.ragDiagnostics,
+        ...(AiAgentHandler.buildMcpDiagnosticsMeta(metadata.mcpServerSummaries) ??
+          {}),
         turnDebug: turnDebugHistory ?? [],
       },
       port,
@@ -1894,6 +1916,7 @@ export class AiAgentHandler implements NodeHandler {
       toolCalls: number;
       ragSources: unknown[];
       ragDiagnostics?: RagDiagnostics;
+      mcpServerSummaries?: McpServerSummary[];
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -1931,6 +1954,8 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: metadata.toolCalls,
         ragSources: metadata.ragSources,
         ragDiagnostics: metadata.ragDiagnostics,
+        ...(AiAgentHandler.buildMcpDiagnosticsMeta(metadata.mcpServerSummaries) ??
+          {}),
         turnDebug: turnDebugHistory ?? [],
       },
       port: condition.id,
@@ -2055,10 +2080,25 @@ export class AiAgentHandler implements NodeHandler {
     return `\n\n[조건 안내] 대화 중 아래 조건에 해당하는 상황이 감지되면, 해당 조건 도구를 호출하세요:\n${condList}\n조건에 해당하지 않으면 대화를 계속하세요.`;
   }
 
+  /**
+   * spec/5-system/11-mcp-client.md §6.2 — buildTools 가 수집한 serverSummaries
+   * 를 meta 로 emit 할 때 쓰는 helper. 비어있으면 omit (정상 케이스에 noise
+   * 추가 안 함). 2026-05-18 시점에는 `mcpDiagnostics` 의 `serverSummaries`
+   * slice 만 채워지며 (`attempted`/`serverCount`/`toolCalls`/`resourceReads`/
+   * `promptGets`/`errors`) 는 후속 작업에서 추가 예정.
+   */
+  private static buildMcpDiagnosticsMeta(
+    summaries: McpServerSummary[] | undefined,
+  ): { mcpDiagnostics: { serverSummaries: McpServerSummary[] } } | undefined {
+    if (!summaries || summaries.length === 0) return undefined;
+    return { mcpDiagnostics: { serverSummaries: summaries } };
+  }
+
   private async buildTools(
     config: Record<string, unknown>,
     workspaceId: string,
     executionId?: string,
+    mcpDiagnostics?: McpServerSummary[],
   ): Promise<ToolDef[]> {
     // 일반 도구(`tool_*`) 입력 경로는 스키마에서 제거됨 — 재작성 시 새 디자인으로 복원.
     // 스키마 .passthrough() 로 DB 의 legacy toolNodeIds/toolOverrides 는 silently
@@ -2074,6 +2114,7 @@ export class AiAgentHandler implements NodeHandler {
           config,
           workspaceId,
           executionId,
+          mcpDiagnostics,
         });
         providerTools.push(...built);
       } catch (e) {

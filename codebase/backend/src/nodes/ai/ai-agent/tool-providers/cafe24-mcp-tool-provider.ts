@@ -10,6 +10,11 @@ import {
   ProviderCleanupCtx,
   ProviderExecCtx,
 } from './agent-tool-provider.interface.js';
+import {
+  McpServerSummary,
+  McpSkipReason,
+  pushMcpServerSummary,
+} from './mcp-diagnostics.js';
 import { IntegrationsService } from '../../../../modules/integrations/integrations.service.js';
 import { parseMcpToolName } from './mcp-tool-provider.js';
 import {
@@ -118,15 +123,68 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
         this.logger.warn(
           `Cafe24 integration ${ref.integrationId} lookup failed: ${this.errMsg(err)}`,
         );
+        pushMcpServerSummary(ctx.mcpDiagnostics, {
+          integrationId: ref.integrationId,
+          serviceType: 'cafe24',
+          status: 'skipped',
+          skipReason: 'lookup_failed',
+          toolCount: 0,
+        });
         continue;
       }
 
       // Only react to cafe24 — other service_types belong to McpToolProvider.
+      // McpToolProvider 가 본 ref 를 처리하므로 본 provider 의 summary 에는
+      // 포함하지 않는다 (다른 provider 가 자기 summary 를 push).
       if (integration.serviceType !== 'cafe24') continue;
-      if (integration.status !== 'connected') {
+
+      // spec/4-nodes/4-integration/4-cafe24.md §8.6 (2026-05-18) — `expired`
+      // 상태 분기. install_timeout 은 install_token NULL 이라 refresh 불가;
+      // refresh_token 보유 + 그 외 statusReason 은 큐 경유 refresh 1회 시도
+      // 후 worker 가 status='connected' 로 전이시키면 fresh row 로 진행.
+      // ensureFreshToken 직접 호출 금지 — BullMQ jobId dedup 우회 위험.
+      if (integration.status === 'expired') {
+        const recovered = await this.tryRecoverExpired(integration);
+        if (recovered.kind === 'recovered') {
+          integration = recovered.integration;
+        } else {
+          this.logger.warn(
+            `Cafe24 integration ${integration.id} expired (reason=${recovered.skipReason}) — skipped`,
+          );
+          pushMcpServerSummary(ctx.mcpDiagnostics, {
+            integrationId: integration.id,
+            serviceType: 'cafe24',
+            status: 'skipped',
+            skipReason: recovered.skipReason,
+            toolCount: 0,
+          });
+          continue;
+        }
+      } else if (integration.status === 'pending_install') {
+        this.logger.warn(
+          `Cafe24 integration ${integration.id} pending_install — skipped`,
+        );
+        pushMcpServerSummary(ctx.mcpDiagnostics, {
+          integrationId: integration.id,
+          serviceType: 'cafe24',
+          status: 'skipped',
+          skipReason: 'pending_install',
+          toolCount: 0,
+        });
+        continue;
+      } else if (integration.status !== 'connected') {
+        // 'error' (auth_failed / insufficient_scope / network) — 외부 명시
+        // reauth 가 정식 회복 경로 ([Spec MCP Client §8.4]).
         this.logger.warn(
           `Cafe24 integration ${integration.id} not connected (status=${integration.status}) — skipped`,
         );
+        pushMcpServerSummary(ctx.mcpDiagnostics, {
+          integrationId: integration.id,
+          serviceType: 'cafe24',
+          status: 'skipped',
+          skipReason: 'error',
+          toolCount: 0,
+        });
         continue;
       }
 
@@ -179,9 +237,95 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       state.sidToIntegration.set(sid, integration);
       state.sidToOpMap.set(sid, opMap);
       if (newForThisExecution) this.retainSid(sid);
+
+      pushMcpServerSummary(ctx.mcpDiagnostics, {
+        integrationId: integration.id,
+        serviceType: 'cafe24',
+        status: 'connected',
+        toolCount: opMap.size,
+      });
     }
 
     return tools;
+  }
+
+  /**
+   * spec/4-nodes/4-integration/4-cafe24.md §8.6 — `status='expired'` 인
+   * cafe24 통합의 buildTools 자가 회복 시도.
+   *
+   * **분기**:
+   * - `status_reason === 'install_timeout'` → refresh 불가 (install_token
+   *   자체 NULL). `skipReason='expired_install_timeout'`.
+   * - `credentials.refresh_token` 누락 → refresh 불가, 사용자 reauth 필요.
+   *   `skipReason='expired_no_refresh_token'`.
+   * - 그 외 → `Cafe24ApiClient.refreshTokenViaQueue` 1회 시도. BullMQ
+   *   `cafe24-token-refresh` 큐의 `jobId = integrationId` dedup 으로 클러스터
+   *   전체 직렬화. 성공 시 worker 가 status='connected' 로 전이시키고 본
+   *   메서드가 fresh row 를 다시 조회해 반환. 실패 (`Cafe24AuthFailedError`)
+   *   시 worker 가 이미 `error(auth_failed)` 전이를 책임지므로 추가 status
+   *   변경 없이 `skipReason='expired_refresh_failed'`.
+   *
+   * **재진입**: 본 메서드 자체는 buildTools 의 노드 실행 단위 호출 1회당 최대
+   * 1회만 호출된다 — 동일 노드의 multi-turn resume 도 새 buildTools 호출이므로
+   * 매 turn 마다 별도 회복 시도. 큐 dedup 으로 cross-pod / cross-turn 동시
+   * refresh 가 직렬화되므로 thundering herd 없음.
+   */
+  private async tryRecoverExpired(
+    integration: Integration,
+  ): Promise<
+    | { kind: 'recovered'; integration: Integration }
+    | { kind: 'skipped'; skipReason: McpSkipReason }
+  > {
+    if (integration.statusReason === 'install_timeout') {
+      return { kind: 'skipped', skipReason: 'expired_install_timeout' };
+    }
+    const creds = integration.credentials as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    const rt = creds?.refresh_token;
+    if (typeof rt !== 'string' || rt.length === 0) {
+      return { kind: 'skipped', skipReason: 'expired_no_refresh_token' };
+    }
+    try {
+      await this.cafe24ApiClient.refreshTokenViaQueue(integration, 'background');
+    } catch (err) {
+      if (err instanceof Cafe24AuthFailedError) {
+        return { kind: 'skipped', skipReason: 'expired_refresh_failed' };
+      }
+      // Transport / Redis / 기타 (Cafe24AuthFailedError 외) — 보수적으로 skip
+      // + 같은 reason 사용 (사용자 입장에선 토큰 갱신이 안 된 상태는 동일).
+      // 본 buildTools 패스 안에서는 자동 재시도하지 않음 — 다음 AI Agent 노드
+      // 실행이 새 buildTools 를 발사할 때 자연 재시도된다. spec/5-system/
+      // 11-mcp-client.md §6.2 의 `expired_refresh_failed` vocabulary 는
+      // invalid_grant 와 transport 실패를 모두 포함하는 의미로 사용 (skipReason
+      // 세분화는 spec follow-up).
+      this.logger.warn(
+        `Cafe24 integration ${integration.id} refresh attempt failed (non-auth): ${this.errMsg(err)}`,
+      );
+      return { kind: 'skipped', skipReason: 'expired_refresh_failed' };
+    }
+    // refresh 성공 — fresh row 재조회. worker 가 DB 갱신을 마쳤으므로 다음
+    // SELECT 가 새 access_token / status='connected' 을 본다.
+    let fresh: Integration;
+    try {
+      fresh = await this.integrationsService.getForExecution(
+        integration.id,
+        integration.workspaceId,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Cafe24 integration ${integration.id} re-read after refresh failed: ${this.errMsg(err)}`,
+      );
+      return { kind: 'skipped', skipReason: 'lookup_failed' };
+    }
+    if (fresh.status !== 'connected') {
+      // Worker 가 refresh 를 끝냈는데도 status 가 connected 아니면 결과적으로
+      // 회복 실패 — worker 의 status 전이 결과 (예: error(auth_failed)) 를
+      // 그대로 reflect.
+      return { kind: 'skipped', skipReason: 'expired_refresh_failed' };
+    }
+    return { kind: 'recovered', integration: fresh };
   }
 
   async execute(

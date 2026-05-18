@@ -338,8 +338,12 @@ KB 의 `ragDiagnostics` 와 동일한 패턴으로, AI Agent 의 `meta.mcpDiagno
     "toolCalls": 4,
     "resourceReads": 1,
     "promptGets": 0,
+    "serverSummaries": [
+      { "integrationId": "uuid-a", "serviceType": "cafe24", "status": "connected", "toolCount": 18 },
+      { "integrationId": "uuid-b", "serviceType": "cafe24", "status": "skipped", "skipReason": "expired_install_timeout", "toolCount": 0 }
+    ],
     "errors": [
-      { "integrationId": "uuid", "phase": "tools/list", "code": "MCP_TIMEOUT", "message": "..." }
+      { "integrationId": "uuid-c", "phase": "tools/list", "code": "MCP_TIMEOUT", "message": "..." }
     ]
   }
 }
@@ -348,11 +352,27 @@ KB 의 `ragDiagnostics` 와 동일한 패턴으로, AI Agent 의 `meta.mcpDiagno
 | 필드 | 의미 |
 |------|------|
 | `attempted` | MCP 도구가 1번 이상 호출되었거나 노출되었는지 |
-| `serverCount` | 본 노드 실행에서 성공적으로 connect 된 서버 수 |
+| `serverCount` | 본 노드 실행에서 성공적으로 connect 된 서버 수 (= `serverSummaries[]` 중 `status='connected'` 행 수) |
 | `toolCalls` / `resourceReads` / `promptGets` | 각 호출 누적 |
+| `serverSummaries[]` | (2026-05-18 신규) `mcpServers` config 에 등록된 각 Integration 의 build 결과. 사용자가 "통합이 보이지 않는다" 원인을 즉시 식별하기 위함. 필드: `integrationId`, `serviceType` (`mcp` / `cafe24` / …), `status` (`connected` / `skipped`), `skipReason` (skip 일 때만), `toolCount` (catalog 에 등록된 도구 수). |
 | `errors` | 서버별 부분 실패 기록 (전체 실패가 아닌 격리된 실패) |
 
-Multi-turn 모드에서는 KB 와 동일하게 turn 단위 delta 가 `meta.turnDebug[].mcpDiagnostics` 로도 분리되어 노출된다.
+**`skipReason` vocabulary** (2026-05-18 신규). 본 vocabulary 는 **Internal Bridge (cafe24) 경로의 buildTools 단계 skip** 을 위주로 정의된다. 외부 MCP 의 connect/initialize/tools-list 실패는 종전대로 `errors[]` 에 누적되므로 별도 skipReason 값을 도입하지 않는다 (정보 중복 회피).
+
+> **명명 규칙 분리**: `skipReason` 값은 모두 `lower_snake_case` 다. 본 필드는 에러 코드가 아닌 운영 진단용 enum 이라 [`node-output.md` Principle 3.2](../conventions/node-output.md) 의 `code` UPPER_SNAKE_CASE 규약 (예: `MCP_AUTH_FAILED`, `MCP_TIMEOUT`) 과 구분된다. `Integration.status_reason` (예: `auth_failed`, `install_timeout`) 과는 의도적으로 표기 일치 — `skipReason` 의 일부 값 (`expired_install_timeout`, `expired_refresh_failed`) 이 `status_reason` 의 의미를 그대로 캐리하기 때문.
+
+
+| 값 | 의미 | 적용 provider |
+|----|------|---------------|
+| `expired_install_timeout` | Cafe24 Private `pending_install → expired` 24h TTL 만료 — install_token NULL 이라 refresh 불가, 사용자가 삭제 후 재등록 필요 | cafe24 |
+| `expired_refresh_failed` | `expired` 상태에서 buildTools 의 1회 refresh 시도가 `invalid_grant` 로 실패 — worker 가 `error(auth_failed)` 로 전이 ([Spec Cafe24 §8.6](../4-nodes/4-integration/4-cafe24.md#86-expired-통합의-buildtools-자가-회복-2026-05-18)) | cafe24 |
+| `expired_no_refresh_token` | `expired` 상태인데 `credentials.refresh_token` 누락 — refresh 불가능, 사용자 reauth 필요 | cafe24 |
+| `error` | `status='error'` (auth_failed / insufficient_scope / network 등) — 외부 명시 reauth 가 정식 회복 (§8.4) | cafe24 / mcp |
+| `pending_install` | Cafe24 Private 초기 install 미완료 | cafe24 |
+| `lookup_failed` | Integration row 조회 실패 (삭제됨 / 권한 결여) | 공용 |
+| `not_capable` | `mcpServers` 에 등록된 Integration 의 `service_type` 이 본 provider 가 처리할 대상 아님 (provider 라우팅 정상 동작 확인용) | 공용 |
+
+Multi-turn 모드에서는 KB 와 동일하게 turn 단위 delta 가 `meta.turnDebug[].mcpDiagnostics` 로도 분리되어 노출된다. `serverSummaries[]` 자체는 build 결과의 정적 스냅샷이므로 turn 마다 재계산되지 않고 노드 실행 단위로 1회 결정된다 (multi-turn resume 시 재build → snapshot 갱신).
 
 ---
 
