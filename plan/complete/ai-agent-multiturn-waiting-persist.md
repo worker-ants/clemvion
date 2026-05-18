@@ -47,7 +47,7 @@ owner: developer
 - [x] API 문서 / 사용자 매뉴얼 영향 여부 확인 — REST `/executions/:id` 응답은 기존 `NodeExecution.outputData` 그대로 통과시키는 구조 (PROJECT.md "변경 유형 → 갱신 위치 매핑" 의 "백엔드 API 추가·변경" 미해당), 사용자 매뉴얼에 외부 노출 컨트랙트 신규 항목 없음 → 갱신 불요.
 - [x] TEST WORKFLOW — lint·unit·build·e2e
 - [x] REVIEW WORKFLOW — /ai-review, RESOLUTION.md — `review/code/2026/05/17/21_47_58/`
-- [ ] plan complete 이동 (마지막 PR 안에서)
+- [x] plan complete 이동 (2026-05-18 plan/in-progress 정리에서 처리 — 본문 모든 항목 완료, follow-up 은 모두 별 plan/위임 사안)
 
 ## Consistency-Check 결과 (review/consistency/2026/05/17/21_25_34/)
 
@@ -64,11 +64,13 @@ owner: developer
 - 트랜잭션 격리: `emitAiWaitingForInput` 가 사용한 `updateExecutionStatus` 와 동일 트랜잭션 패턴을 적용 — `Execution` 상태는 이미 WAITING_FOR_INPUT 이므로 self-transition 으로 처리 (또는 단순 `nodeExecutionRepository.save` 만 호출하고 `Execution` 은 건드리지 않음 — 결정은 구현 단계에서 기존 패턴과 정합성 우선)
 - `recoverStuckExecutions` 와의 상호작용: 기존 `_resumeState` strip 정책 유지 (WARN #6)
 
-## Follow-up
+## Follow-up — 외부 plan / 위임 사안 (본 plan 외부 trackable)
 
-- [ ] (옵션) spec/5-system/6-websocket-protocol.md §4.4.6 의 `source` 마커 영속 정책 결정과 함께, multi-turn 후속 turn 의 outputData 갱신 시점을 §4.4 또는 conversation-thread 컨벤션에 명시 — project-planner 위임 후보. 본 PR 의 scope 밖.
-- [ ] (ai-review W2) `nodeExec.outputData = …` 후 `save()` 패턴을 TypeORM `update(id, { outputData })` 단일 쿼리로 전환 — button/form/AI 첫 turn 모두 동일 패턴이라 cross-cutting refactor. 별 plan 으로 분리.
-- [ ] (ai-review W8) `codebase/frontend/src/lib/docs/__tests__/registry.test.ts` 의 `it.runIf(hasRealDocs)` 조건부 실행 — CI step 에서 `content/docs` 존재 확인 또는 skip 시 warn 로그. 별 plan.
-- [ ] (ai-review INFO 5) `catalog-sync.spec.ts` 와 `registry.test.ts` 의 `__dirname` `..` 반복 패턴을 공유 `repoRoot()` 헬퍼로 중앙화 — monorepo housekeeping.
-- [ ] (consistency WARN 1, 2, 5) Information Extractor multi-turn 의 WebSocket 커맨드 · 엔진 continuation bus 경로 spec 보강 + AI Agent §5 예약 포트 `completed` 추가 — project-planner 위임.
-- [ ] (consistency Critical) `spec/conventions/cafe24-api-catalog/_overview.md` 파일명 규약 위반 (언더스코어 prefix) — project-planner 위임. 본 PR scope 밖.
+본 plan 의 본문 작업은 완료되어 `complete/` 로 이동. 아래 항목들은 본 plan 의 scope 가 아니고 각각 별 plan / project-planner 위임으로 trackable.
+
+- (옵션) spec/5-system/6-websocket-protocol.md §4.4.6 의 `source` 마커 영속 정책 결정과 함께, multi-turn 후속 turn 의 outputData 갱신 시점을 §4.4 또는 conversation-thread 컨벤션에 명시 — project-planner 위임 후보.
+- (ai-review W2) `nodeExec.outputData = …` 후 `save()` 패턴을 TypeORM `update(id, { outputData })` 단일 쿼리로 전환 — button/form/AI 첫 turn 모두 동일 패턴이라 cross-cutting refactor. 별 plan.
+- (ai-review W8) `codebase/frontend/src/lib/docs/__tests__/registry.test.ts` 의 `it.runIf(hasRealDocs)` 조건부 실행 — CI step 에서 `content/docs` 존재 확인 또는 skip 시 warn 로그. 별 plan.
+- (ai-review INFO 5) `catalog-sync.spec.ts` 와 `registry.test.ts` 의 `__dirname` `..` 반복 패턴을 공유 `repoRoot()` 헬퍼로 중앙화 — monorepo housekeeping.
+- (consistency WARN 1, 2, 5) Information Extractor multi-turn 의 WebSocket 커맨드 · 엔진 continuation bus 경로 spec 보강 + AI Agent §5 예약 포트 `completed` 추가 — project-planner 위임.
+- (consistency Critical) `spec/conventions/cafe24-api-catalog/_overview.md` 파일명 규약 위반 (언더스코어 prefix) — project-planner 위임.

@@ -3,8 +3,9 @@
 > 기준 커밋: `bbd838ef` (main)
 > 검토 일시: 2026-05-16
 > 범위: spec/, codebase/backend/, codebase/frontend/, codebase/packages/ 전체
-> 리뷰 세션: `plan/in-progress/20260516-full-review/`
+> 리뷰 세션 (이전 경로): `plan/in-progress/20260516-full-review/` → `plan/complete/20260516-full-review/` (2026-05-18 이동)
 > 세션 메타: 13/13 reviewer 성공, 총 154 issue
+> **상태 (2026-05-18)**: `RESOLUTION.md` 의 처리 완료 표 (Critical 7건 + Warning 15건 + 후속 ai-review F-A~F-G) 반영 끝. "의사결정 보류" 표의 항목들은 각각 다음 plan 으로 흡수됨 — Re-run 은 [`replay-rerun.md`](../../in-progress/replay-rerun.md), AI Agent 도구 연결은 [`ai-agent-tool-connection-rewrite.md`](../../in-progress/ai-agent-tool-connection-rewrite.md), 마켓플레이스는 [`marketplace-and-plugin-sdk.md`](../../in-progress/marketplace-and-plugin-sdk.md), Parallel `errorPolicy` 등은 [`parallel-p2.md`](../../in-progress/parallel-p2.md), Merge dormant 는 [`merge-p2-async-fanin.md`](../../in-progress/merge-p2-async-fanin.md), 셀프 호스팅은 [`self-hosting-deployment.md`](../../in-progress/self-hosting-deployment.md), cafe24 잔여는 [`cafe24-backlog-residual.md`](../../in-progress/cafe24-backlog-residual.md). 본 디렉토리는 audit 시점 snapshot 으로 보존.
 
 ---
 
