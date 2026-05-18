@@ -140,7 +140,12 @@ describe("formatDate", () => {
     // common shape is "letters" or "GMT[+-]N" appended after the time. We
     // assert the presence of at least one such token rather than the exact
     // value to stay portable across CI environments.
-    expect(result).toMatch(/(?:GMT[+\-−]?\d{1,2}(?::\d{2})?|UTC|[A-Z]{2,5})\b/);
+    //
+    // The sign class accepts ASCII hyphen-minus (U+002D), plus, and the
+    // Unicode MINUS SIGN (U+2212) that some Intl implementations emit in
+    // "GMT−9" instead of "GMT-9". `−` escape (not the raw char) keeps
+    // the source ASCII-safe.
+    expect(result).toMatch(/(?:GMT[+\-\u2212]?\d{1,2}(?::\d{2})?|UTC|[A-Z]{2,5})\b/);
   });
 
   it("formats with time format (hour:minute, client TZ)", () => {
