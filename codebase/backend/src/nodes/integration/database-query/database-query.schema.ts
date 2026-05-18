@@ -72,6 +72,8 @@ export const databaseQueryNodeConfigSchema = z
           label: 'Integration',
           widget: 'integration-selector',
           order: 1,
+          // warningRule `database_query:no-integration` 와 정렬.
+          required: true,
         },
         // Assistant candidate picker 의 후보 조회 범위 힌트.
         // backend 의 CandidateLookupService 가 Integration 테이블을
@@ -92,6 +94,8 @@ export const databaseQueryNodeConfigSchema = z
           widget: 'code',
           language: 'sql',
           order: 3,
+          // warningRule `database_query:no-query` 와 정렬.
+          required: true,
         },
       }),
     parameters: z
