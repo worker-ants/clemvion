@@ -158,6 +158,7 @@ Information Extractor 는 ai_agent 와 매우 유사한 구조 (single/multi tur
 - `output.maxTurns` 같은 "사용자 편의 echo" 는 conventions Principle 1.1 의 핵심 위반 — 후속 노드는 `config.maxTurns` 가 raw 값으로 echo 되어 있으므로 그쪽을 사용해야 한다.
 - `output.partial` 분리는 진행 중 단계에서 부분 추출 가시화 의도 — 종결 시 `output.result.extracted` 로 통합되는 패턴이 명확하므로 유지.
 - `_resumeState` top-level 노출은 internal 컨트랙트 — autocomplete 비노출 + DB strip 으로 방어. 합리적.
+- (2026-05-18) ConversationThread v2 연동 (conversation-thread §2.3 / §7 v2 로드맵) 도입 시 final-assistant push 인터페이스 (`information_extractor` final → `JSON.stringify(extracted)` text 변환, §1.4 v2 표기 행) 와 충돌하지 않도록 output 재설계 — `output.result.extracted` 단일 SoT 유지가 v2 push hook 의 안전한 진입점.
 
 ## 구현 분석 (2026-05-16)
 

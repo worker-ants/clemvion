@@ -28,8 +28,8 @@
 | `nodeType` | String | 예: `form`, `carousel`, `ai_agent` |
 | `timestamp` | String (ISO 8601) | 서버 시각 |
 | `source` | ConversationTurnSource | §1.1 |
-| `text` | String | system_text injection 과 messages 모드의 user/assistant content. **LLM-facing 1차 텍스트** — `[from <nodeLabel>]` prefix, `[user-input]…[/user-input]` 같은 인라인 마커는 박지 않는다 (§1.5·§1.6). UI 표시는 §11 의 매핑표를 따라 `source` + `nodeLabel` + `data` 메타로 분기 — `text` 를 raw 로 직접 노출하지 않는다. 빈 문자열 가능 (구조화 데이터만 있는 경우) |
-| `data?` | Object | 구조화 원본 — `output.interaction.data` snapshot ([Spec node-output §4.5](./node-output.md#45-interactiondata-payload-규격)). `interaction.type` 별 shape 은 §4.5 의 정의를 그대로 따른다: `form_submitted` → `{ [fieldName]: value }` (data 자체가 제출된 필드 값의 flat map — wrapping 키 없음), `button_click` → `{ buttonId, buttonLabel, selectedItem? }`, `button_continue` → `{ buttonId, buttonLabel, url }`, `message_received` → `{ content, role }`. 추가 임의 inline marker (§1.6) 박지 않음 |
+| `text` | String | system_text injection 과 messages 모드의 user/assistant content. **LLM-facing 1차 텍스트** — `[from <nodeLabel>]` prefix 는 builder 단계에서 prepend 되므로 turn.text 에는 박히지 않는다 (§1.5). 사용자-출처 텍스트는 `[user-input]…[/user-input]` 마커로 wrap 되어 저장된다 — prompt injection 방어용 LLM-facing 의무 (§1.6), UI 표시 시 §9.5 의 strip 으로 제거된다. UI 는 §9 의 매핑표를 따라 `source` + `nodeLabel` + `data` 메타로 분기 — `text` 를 raw 로 직접 노출하지 않는다. 빈 문자열 가능 (구조화 데이터만 있는 경우) |
+| `data?` | Object | 구조화 원본 — `output.interaction.data` snapshot. `interaction.type` 별 shape 은 [node-output §4.5](./node-output.md#45-interactiondata-payload-규격) 의 단일 정의를 따른다 (drift 회피 위해 본 표에 재열거하지 않음). UI 와 LLM payload builder 는 raw text 파싱 없이 본 메타로 렌더 / 직렬화 — 새 inline marker 도입은 §1.6 를 먼저 개정해야 한다 |
 | `toolCalls?` | Array<{id,name,arguments}> | `source='ai_assistant'` 한정. provider 호환성을 위해 messages 모드에서 drop 가능 |
 | `toolCallId?` | String | `source='ai_tool'` 한정 |
 
@@ -44,35 +44,39 @@
 
 ### 1.4 `text` 변환 규칙
 
-`text` 는 LLM-facing 텍스트 — system_text 모드의 thread-renderer 본문과 messages 모드의 user/assistant content 로 그대로 흐른다. UI 표시는 §11 의 매핑표를 우선 적용하며, `text` 의 동사 prefix (`clicked:`, `continued:`) 는 UI 카드 헤더로 분리 표시되어 본문에는 buttonLabel / URL 만 남는다.
+`text` 는 LLM-facing 텍스트 — system_text 모드의 thread-renderer 본문과 messages 모드의 user/assistant content 로 그대로 흐른다. UI 표시는 §9.1 의 매핑표를 우선 적용하며, `text` 의 동사 prefix (`clicked:`, `continued:`) 는 UI 카드 헤더로 분리 표시되어 본문에는 buttonLabel / URL 만 남는다.
 
 | `interaction.type` | text (LLM-facing) | UI 카드 헤더 (참고) | UI 카드 본문 (참고) |
 |---|---|---|---|
 | `form_submitted` | `name=John, age=30` (key=value 리스트, 200자 cap, value 가 객체/배열이면 JSON 직렬화) | `<nodeLabel> · form submitted` | `data` 자체가 `{ [fieldName]: value }` flat map ([node-output §4.5](./node-output.md#45-interactiondata-payload-규격)) — UI 는 그 key-value 를 표로 렌더 |
 | `button_click` | `clicked: <buttonLabel>` (label 미존재 시 `<buttonId>`) | `<nodeLabel> · button clicked` | `data.buttonLabel` (없으면 `data.buttonId`) |
 | `button_continue` | `continued: <url>` (url 미존재 시 `continued`) | `<nodeLabel> · link continue` | `data.url` |
-| `message_received` (ai_user) | 메시지 본문 그대로 | (없음 — chat bubble) | `text` |
+| `message_received` (ai_user) | 메시지 본문 그대로 (marker wrap 없음 — `appendAiUserMessage` 가 `renderInteractionText` 를 거치지 않음. ai_user 는 AI Agent multi-turn 의 명시적 사용자 메시지로, presentation 노드를 거친 user-origin 데이터처럼 marker 식별이 필요하지 않다) | (없음 — chat bubble) | `text` |
 | `ai_agent` final assistant | `output.result.response` 그대로 (CONVENTIONS Principle 8.2 LLM 응답 텍스트 경로) | (없음 — chat bubble) | `text` (markdown) |
 | `text_classifier` final assistant (v2) | single-label: `output.result.category`. Multi-label: `output.result.categories.map(c => c.name).join(', ')` (categories 는 객체 배열이라 raw `.join` 불가). | `<nodeLabel> · classified` | `text` |
 | `information_extractor` final assistant (v2) | `output.result.extracted` 를 항상 `JSON.stringify` 직렬화 (`responseFormat` 필드는 `ai_agent` 전용 — extractor 는 항상 구조화 출력). | `<nodeLabel> · extracted` | `text` (JSON pretty) |
 
 ### 1.5 LLM payload prefix 컨벤션
 
-`[from <nodeLabel>] ` prefix (messages 모드, §5.1) 와 `<context source="..." node="...">…</context>` markup wrap (system_text 모드, §5.2 의 thread-renderer 헤더) 은 **LLM payload builder 의 책임**이다. `ConversationTurn.text` 와 `output.messages[].content` (DB 영속) 에는 prefix 가 포함되지 않은 raw 본문만 저장한다.
+`[from <nodeLabel>] ` prefix (messages 모드, §5.1) 와 system_text 모드의 thread-renderer 헤더 (§5.2) 는 **LLM payload builder (`mapTurnsToChatMessages`, `renderThreadAsSystemText`) 의 책임**이다. `ConversationTurn.text` 자체에는 prefix 가 박히지 않는다 — turn 은 다른 provider / formatter 로도 재사용 가능한 raw 본문을 보관한다.
 
-예외: WebSocket emit 의 `ai_message.messages[]` / `waiting_for_input.conversationConfig.messages[]` 는 LLM 으로 보낸 페이로드와 1:1 정합 필요 — prefix 가 포함된 형태로 emit 된다. 이는 `source: 'injected'` 마커 ([Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커)) 로 구분 가능하며, 미리보기 UI 는 §11.3 D4 에 따라 `conversationThread` snapshot 을 1차 소스로 사용해 prefix 노출을 회피한다.
+**영속·emit 형태**: prefix 는 한 번 prepend 된 뒤 LLM 호출 messages history 의 일부로 누적되어 `output.result.messages` 에 함께 저장되고, WebSocket `ai_message.messages[]` / `waiting_for_input.conversationConfig.messages[]` 에도 그대로 emit 된다 — LLM 이 다음 turn 에서도 attribution 을 유지하려면 prefix 가 messages history 안에 있어야 하기 때문. 이 emit 메시지에는 `source: 'injected'` 마커 ([Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커)) 가 동봉된다.
 
-### 1.6 금지된 인라인 마커
+**UI 노출 회피**: 미리보기 UI 는 §9.3 D4 에 따라 prefix 가 포함된 emit messages 가 아닌 `conversationThread` snapshot (prefix 미포함 raw turn.text) 을 1차 소스로 사용해 사용자 오인을 차단한다. emit messages 는 LLM debug 패널 (Request / Response / LLM Usage) 전용 — 거기서는 "Raw payload" 토글로 명시적으로 raw 형태를 노출한다.
 
-다음은 `ConversationTurn.text`, `output.messages[].content`, `interaction.data.*` 의 string 필드에 박는 것을 **금지**한다:
+### 1.6 LLM-facing 보안 마커
 
-| 마커 | 이유 | 대체 |
+`renderInteractionText` ([backend `thread-renderer.ts`](../../codebase/backend/src/shared/conversation-thread/thread-renderer.ts)) 는 prompt injection 방어를 위해 사용자-출처 텍스트 (form 제출값, button 라벨, URL) 를 `[user-input]…[/user-input]` 마커로 감싼다. 마커 안의 마커 토큰 재등장은 zero-width separator 로 escape 한다.
+
+| 항목 | 정책 | 비고 |
 |---|---|---|
-| `[from <nodeLabel>]` (turn.text 안) | LLM payload prefix 는 builder 책임 (§1.5) | builder 에서 prepend |
-| `[user-input]…[/user-input]` | spec 외 임의 마커 — UI raw 노출 시 사용자 오인 + 향후 파싱 부담 | `data.buttonLabel` 등 1급 필드로 격상 (§1.2, [node-output §4.5](./node-output.md#45-interactiondata-payload-규격)) |
-| `[/...]` `[#...]` 형태의 임의 BBCode 풍 inline tag | 동일 사유 | 동일 |
+| `[user-input]…[/user-input]` | **LLM-facing 의무 (presentation_user 한정)** — `renderInteractionText` 가 form/button/URL 값 등 presentation 노드 user-origin 텍스트를 wrap. ai_user 는 multi-turn 명시적 사용자 메시지로, marker wrap 적용 안 함 (§1.4 행 비고) | §5.2 sanitization 의 일부 |
+| 마커가 박힌 `turn.text` / `output.result.messages[].content` | 그대로 영속·emit | LLM history 보존이 1차 목적 (D6 단일 경로) |
+| UI 노출 | **§9.5 의 strip 정규식으로 사용자에게 노출 전에 제거** | 사용자는 marker 가 시각적으로 보이지 않는다 |
+| `[from <nodeLabel>]` 외 임의 inline marker (예: 새 BBCode 풍 `[#…]`) | 추가 도입 금지 | 새 보안 marker 가 필요하면 본 절을 개정한 뒤 도입 |
+| 라벨/이벤트/메타 (예: button 라벨, URL) | `turn.data` 의 1급 필드 ([node-output §4.5](./node-output.md#45-interactiondata-payload-규격)) 가 단일 진실 — UI 는 `data` 에서 직접 추출, marker 가 박힌 text 를 파싱하지 않음 | §9.1 카드 본문 렌더 규칙 |
 
-라벨 / 이벤트 / 메타는 항상 `turn.data` 의 1급 필드로 격상한다. consistency-checker 의 `convention-compliance` 가 본 절을 위반 검출 대상으로 한다.
+consistency-checker 의 `convention-compliance` 가 다음을 위반 검출한다: (a) backend 가 LLM-facing text 에 marker 없이 사용자-출처 데이터를 박는 경우 (방어 누락), (b) UI 가 emit messages 의 raw `content` 를 conversation Preview 에 그대로 표시하는 경우 (§1.5·§9.4 위반), (c) 본 절에 정의되지 않은 새 inline marker 를 도입하는 경우.
 
 ---
 
@@ -158,7 +162,7 @@ race-free.
 | 단계 | 저장소 | 비고 |
 |---|---|---|
 | 실행 중 | `ExecutionContext` (실행 엔진 §6.2 정책에 따라 Redis 포함 직렬화) | `ExecutionContextService.createContext` 가 빈 thread (`{ id: 'default', nextSeq: 0, turns: [], totalChars: 0 }`) 로 초기화. TTL 은 실행 타임아웃 × 2 (execution-engine §6.2) |
-| 실행 후 | NodeExecution 분산 저장 | `output.interaction` (presentation, `interaction.type` ∈ form_submitted/button_click/button_continue), `output.messages` (AI 멀티턴 누적 — waiting/resumed 시), `output.result.response` (AI 최종 응답) 가 SoT. thread 자체는 재구성 가능한 derived view |
+| 실행 후 | NodeExecution 분산 저장 | `output.interaction` (presentation, `interaction.type` ∈ form_submitted/button_click/button_continue), `output.result.messages` (AI 멀티턴 누적 — waiting/resumed 시. D6 2026-05-17 이후 단일 경로 — [AI Agent §7.4·§7.5](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)), `output.result.response` (AI 최종 응답) 가 SoT. thread 자체는 재구성 가능한 derived view |
 | WS payload | `EXECUTION_WAITING_FOR_INPUT` 의 `conversationThread` snapshot 동봉 (선택) | UI 가 라이브 thread 표시 가능 |
 
 **v1 은 신규 DB 컬럼 도입 없음.** 향후 사용자 요구 명확해지면 `Execution.conversation_thread jsonb NULL` 컬럼 마이그레이션 검토.
@@ -255,7 +259,7 @@ race-free.
 
 **`[from <nodeLabel>]` prefix 를 `turn.text` 에 박지 않는 이유**: LLM payload 표현 (prefix prepended) 과 thread 의 본문 (raw) 은 서로 다른 layer 의 표현. text 에 박으면 ① UI 가 raw 노출 시 사용자 오인 ② thread 가 다른 LLM provider / 다른 formatter 로 가야 할 때 prefix 가 박혀 있으면 후처리 strip 부담 ③ DB 영속 형태도 prefix 가 박혀 retroactive cleanup 어려움. builder 단계에서 prepend 하면 위 3가지 모두 회피.
 
-**`[user-input]…[/user-input]` 마커 폐기 이유**: spec 정의되지 않은 임의 marker 는 ① UI 가 raw 노출 시 노이즈 ② 향후 다른 노드가 다른 marker 박으면 파싱 부담 폭증 ③ 라벨이 의미상 1급 필드(`buttonLabel`)인데 inline marker 로 격하되어 표현 ④ XSS / prompt injection 표면 확장. `data.buttonLabel` 격상으로 4가지 모두 해소.
+**`[user-input]…[/user-input]` 마커 — 보안 유지 + UI strip 분리**: 본 marker 는 polyglot prompt injection 방어용 (`renderInteractionText`) — LLM 이 instruction 과 user-origin 데이터를 식별하도록 backend 가 의도적으로 박는다. 마커 자체를 폐기하면 prompt injection 표면이 확장된다. 사용자 오인 문제는 marker 폐기가 아니라 UI 표시 시점의 strip (§9.5) 으로 해결 — backend 는 LLM-facing 보안 유지, UI 는 사용자에게 노출 전 strip. 라벨/이벤트/메타 등 의미 있는 1급 데이터는 별도로 `data.buttonLabel` 격상으로 보장된다 (§1.6 표).
 
 **chip 표시 "권장 → 필수" 격상 이유** ([WebSocket §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 옛 "권장" → §9.2 의 강제 3중 신호): 사용자 오인 0% 목표는 한 신호 (chip 만) 로는 달성 불가 — 색약·다크모드·소형 화면·스크롤 상태 모두에서 안정적 구분을 위해 ① 아이콘 ② 컨테이너 형식 (bubble vs 회색 카드) ③ chip 3중을 동시 적용해야 한다. `ai-thread-source-mark` plan (2026-05-16, Phase 1 spec 완료) 이 chip 표시를 "Follow-up (별도 PR)" 으로 미뤘으나, 본 작업이 그 Follow-up 을 정식 spec 으로 흡수하며 단일 신호로는 부족하다고 판단, 강제 매핑으로 격상.
 
@@ -293,15 +297,21 @@ AI Agent 노드 run-results 패널의 conversation Preview 탭, 그리고 모든
 |---|---|---|
 | conversation Preview 탭 (`meta.interactionType: "ai_conversation"`) | `conversationThread.turns` snapshot ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) | source/nodeLabel/data 메타 직접 활용 |
 | LLM Usage / Request / Response 탭 (debug) | `ai_message.messages[]` (emit) | source 마커 (`live`/`injected`) 와 prefix 가 LLM 으로 간 형태 그대로 표시. "Raw payload" 토글로 prefix·marker 가시화 |
-| 실행 이력 (`/executions/:id`) 복원 view | NodeExecution 의 `output.messages` (DB 영속) + `output.interaction` | `output.messages[].content` 에는 prefix 미포함 (§1.5). 두 경로(`output.messages` = LLM 호출 결과 누적, `output.interaction` = presentation 인터랙션 1건) 는 §4 영속화 표에서 별도 SoT — UI 복원 시 두 경로를 합쳐 `conversationThread.turns` 와 동등한 view 를 재구성한다. debug 탭만 emit 형태 재구성 |
+| 실행 이력 (`/executions/:id`) 복원 view | NodeExecution 의 `output.result.messages` (DB 영속) + `output.interaction` | 두 경로 (`output.result.messages` = LLM 호출 결과 누적 [D6 단일 경로, §4 영속화 표 참조], `output.interaction` = presentation 인터랙션 1건) 는 별도 SoT — UI 복원 시 두 경로를 합쳐 `conversationThread.turns` 와 동등한 view 를 재구성한다. 상세 복원 규약은 [Spec Execution History §EH-DETAIL-06](../2-navigation/14-execution-history.md) 의 ConversationThread 재구성 정책에 위임. debug 탭만 emit 형태 재구성 |
 
 ### 9.4 emit messages 의 raw 노출 금지
 
 conversation Preview 탭과 모든 conversation timeline UI 는 `ai_message.messages[]` 의 `content` 를 raw 로 노출하지 않는다. raw payload 가 필요한 debug 패널 (LLM Request / Response) 만 예외이며, 해당 패널은 "Raw payload" 토글로 명시한다.
 
-### 9.5 옛 임의 inline marker 호환
+### 9.5 LLM-facing 마커의 UI strip
 
-옛 버전이 `[user-input]…[/user-input]` 같은 inline marker 를 박은 `output.messages` 가 DB 에 남아 있을 수 있다. 미리보기 렌더러는 다음 정규식으로 best-effort strip 한다: `/\[\/?user-input\]/g`. 신규 emit/저장에는 본 마커 사용 금지 (§1.6).
+backend 가 §1.6 에 따라 prompt injection 방어용으로 박는 `[user-input]…[/user-input]` 마커는 LLM 페이로드에 의도적으로 포함되며 그대로 emit·영속된다. 미리보기 렌더러는 사용자에게 노출 전에 정규식 `/\[\/?user-input\]/g` 으로 strip 한다 (label 내용은 보존). 적용 진입점:
+
+- `messagesToConversationItems` — emit messages `user`/`assistant` content
+- `threadTurnsToConversationItems` — `conversationThread.turns` 5 source 전부
+- `parseHistoryMessages` 의 history rebuild 경로 (`SummaryView` 내 useMemo)
+
+raw payload 가 필요한 경우 (LLM Request / Response / LLM Usage 탭) 만 §9.4 의 "Raw payload" 토글로 marker 포함 형태를 노출한다. 신규 inline marker 도입은 §1.6 를 먼저 개정해야 한다.
 
 ---
 
@@ -313,3 +323,5 @@ conversation Preview 탭과 모든 conversation timeline UI 는 `ai_message.mess
 | 2026-05-16 | AI Agent 의 옛 `conversationHistory` / `historyCount` schema·UI 메타 제거 (`contextScope` / `contextScopeN` 로 단일화) |
 | 2026-05-16 | §5.1 에 emit 레이어 연계 설명 신규 추가 — injection 산출 메시지가 WebSocket emit 시 `source: 'injected'` 마커를 동봉하며, 이는 [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 WebSocket 페이로드 전용 2값 표식이다 (내부 `ConversationTurnSource` 5값과 구별). 디버깅 타임라인의 turn 카운팅이 backend `turnCount` 와 일치하기 위한 전제 |
 | 2026-05-18 | §1.2 의 `text` / `data` 의미 명확화. §1.5 (LLM payload prefix 컨벤션) · §1.6 (금지된 인라인 마커) · §9 (미리보기 UI 렌더 규칙) 신규. §8.1 Rationale 추가. [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 chip "권장" 을 §9.2 의 3중 신호 정규 매핑으로 강제 격상 |
+| 2026-05-18 | (구현 단계 발견) §1.5 명확화 — `[from <nodeLabel>]` prefix 가 `output.result.messages` 와 emit messages 에 함께 영속되어 LLM history attribution 을 유지함을 명시 (기존 "prefix 미포함" 진술 정정). §1.6 재정의 — `[user-input]…[/user-input]` 마커는 prompt injection 방어용 LLM-facing 마커로 유지 (옛 "금지" 진술을 "LLM-facing 의무 + UI strip" 으로 정정). §8.1 Rationale 의 "폐기" 항목을 "보안 유지 + UI strip 분리" 로 재기술. §9.5 를 "옛 임의 marker 호환" 에서 "LLM-facing 마커의 UI strip" 로 의미 명확화 |
+| 2026-05-18 | (consistency-check 후속) §1.2 `text` 행을 §1.6 와 정합되도록 재진술 (자기 충돌 C-1 해소): "인라인 마커 박지 않는다" → "user 출처 marker 는 §1.6 의무, UI strip 으로 처리". §1.2 `data?` 행에서 node-output §4.5 shape 인라인 재열거 제거 (drift 회피, §4.5 단일 정의에 위임). §1.4 표 구조 4열 확장 (UI 카드 헤더 · 본문 컬럼 추가). §4 영속화 행의 `output.messages` 를 D6 단일 경로 `output.result.messages` 로 정정 |
