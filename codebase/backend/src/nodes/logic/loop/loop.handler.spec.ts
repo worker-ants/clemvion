@@ -42,10 +42,20 @@ describe('LoopHandler', () => {
       });
     });
 
-    it('accepts missing count — zod default("1") fills it ("최소 반복 1회" 정책, spec §8)', () => {
+    it('accepts missing count — zod default fills it (min-1-iteration policy, spec §8)', () => {
       // handler.validate 는 raw config 만 본다. 빈 config 가 들어와도
       // storage layer 에서 zod default('1') 이 적용되므로 차단할 필요 없음.
       expect(handler.validate({})).toEqual({ valid: true, errors: [] });
+    });
+
+    it('accepts explicit count: undefined (same path — storage layer fills default)', () => {
+      // I-7/I-8 후속: zod default 가 bypass 되는 직접 호출 경로에서도
+      // 빈 count 는 valid: true. runtime 무효 case 는 engine 의
+      // INVALID_CONTAINER_PARAM 가 잡는다 (spec §8 Rationale layer 표).
+      expect(handler.validate({ count: undefined })).toEqual({
+        valid: true,
+        errors: [],
+      });
     });
 
     it('rejects non-numeric string', () => {
