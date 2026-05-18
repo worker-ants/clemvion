@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { authApi } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useT } from "@/lib/i18n";
+import { PasskeyCard } from "./passkey-card";
 
 export default function SecurityPage() {
   const t = useT();
@@ -64,6 +65,8 @@ export default function SecurityPage() {
           {t("profile.security.pageDescription")}
         </p>
       </div>
+
+      <PasskeyCard />
 
       {twoFactorEnabled ? (
         <Card>
