@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { encryptJson } from './services/credentials-transformer';
+import { makeFakeJwt } from './__test-utils__/make-fake-jwt';
 
 type Mock = jest.Mock;
 
@@ -39,26 +40,8 @@ function computeTestHmac(rawQuery: string, secret: string): string {
   return createHmac('sha256', secret).update(message, 'utf8').digest('base64');
 }
 
-/**
- * 테스트 전용 JWT 빌더 — header.payload.signature 3 segment, base64url.
- * Cafe24 가 실제로 RS256 / ES256 등으로 서명하지만 본 helper 는 signature
- * 검증 없이 payload 의 `exp` claim 만 읽는 `parseJwtExp` 동작을 테스트하기
- * 위해 더미 signature 만 채운다.
- *
- * spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT —
- * JWT exp 격상 (2026-05-18)".
- */
-function makeFakeJwt(payload: Record<string, unknown>): string {
-  const b64 = (input: string): string =>
-    Buffer.from(input, 'utf8')
-      .toString('base64')
-      .replace(/=+$/, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
-  const header = b64('{"alg":"RS256","typ":"JWT"}');
-  const body = b64(JSON.stringify(payload));
-  return `${header}.${body}.sig-not-verified`;
-}
+// 테스트 전용 JWT 빌더는 `./__test-utils__/make-fake-jwt` 의 공유 helper
+// 사용. ai-review (2026-05-18) W2 조치로 중복 제거.
 
 function makeRepo(): Record<string, Mock> {
   return {

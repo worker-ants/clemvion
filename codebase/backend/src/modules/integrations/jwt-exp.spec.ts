@@ -1,4 +1,8 @@
 import { parseJwtExp } from './jwt-exp';
+import {
+  base64url,
+  makeFakeJwt as makeJwt,
+} from './__test-utils__/make-fake-jwt';
 
 /**
  * `parseJwtExp` — JWT payload 의 `exp` claim 을 epoch ms 로 추출.
@@ -11,26 +15,6 @@ import { parseJwtExp } from './jwt-exp';
  * spec/2-navigation/4-integration.md §10.5 + Rationale "Cafe24 token 만료
  * SoT — JWT exp 격상 (2026-05-18)".
  */
-
-function base64url(input: string): string {
-  return Buffer.from(input, 'utf8')
-    .toString('base64')
-    .replace(/=+$/, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-}
-
-function makeJwt(
-  payload: unknown,
-  options?: { headerSegment?: string },
-): string {
-  const header =
-    options?.headerSegment ?? base64url('{"alg":"RS256","typ":"JWT"}');
-  const payloadSeg = base64url(JSON.stringify(payload));
-  // signature segment 는 base64url 의 빈 영역 또는 더미. 본 helper 는 검증 안 함.
-  const signature = 'sig-not-verified';
-  return `${header}.${payloadSeg}.${signature}`;
-}
 
 describe('parseJwtExp', () => {
   it('정상 JWT — exp 가 있으면 epoch ms 로 반환', () => {
@@ -142,16 +126,30 @@ describe('parseJwtExp', () => {
 
   it('Cafe24-like JWT payload (additional claims) — exp 정확 추출', () => {
     // Cafe24 의 실제 access_token payload 와 유사한 shape — exp 외 여러
-    // claim 이 있어도 exp 만 정확히 추출되는지 확인.
+    // claim 이 있어도 exp 만 정확히 추출되는지 확인. mall_id 는 중립
+    // 테스트 픽스처 사용 (ai-review I2 조치 — 실 운영 mall_id 미사용).
     const expSec = 1779000000;
     const token = makeJwt({
       exp: expSec,
       iat: expSec - 7200,
       iss: 'cafe24',
-      mall_id: 'gehrig0301',
+      mall_id: 'test-mall',
       user_id: 'admin',
       scopes: ['mall.read_product'],
     });
     expect(parseJwtExp(token)).toBe(expSec * 1000);
+  });
+
+  /**
+   * 회귀 보호 — exp=1 (1970-01-01 + 1s, 양의 최소값) 은 의미 없는 값이지만
+   * 정책상 양수 finite 면 채택 (caller 가 만료된 토큰을 받아 refresh 시도).
+   * 본 helper 는 "현재시각 비교" 가 아니라 "exp 값 그대로 epoch ms 환산"
+   * 만 책임진다 — 만료 여부 판단은 caller 의 책임.
+   * spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT
+   * — JWT exp 격상 (2026-05-18)" 의 SoT 정의.
+   */
+  it('exp = 1 (1970-01-01+1s, 최소 양수) — 1000 ms 로 반환 (caller 가 만료 판단)', () => {
+    const token = makeJwt({ exp: 1 });
+    expect(parseJwtExp(token)).toBe(1000);
   });
 });

@@ -1,0 +1,82 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-18T19:56:33Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/integrations/cafe24-token-refresh.constants.ts"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "토큰 만료 시각 파싱 로직 추가이며, 새 JWT exp 파싱이 O(1) 연산 — 성능 영향 미미"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "jwt-exp.ts 신규 모듈 추가 + parseJwtExp import 여러 모듈 (integration-oauth.service, cafe24-api.client) — 모듈 경계 확장"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 본문 변경 + 소스 코드 변경 — 요구사항 일관성 검증 필요"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용 — 8개 src파일 + 10개 doc 파일 동시 변경"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용 — 토큰 갱신 로직 변경이 global refresh queue 동작에 영향"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용 — jwt-exp.ts 신규 유틸, 주석·문서화 충분"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용 — jwt-exp.spec.ts 신규, 4개 기존 spec에 회귀 테스트 추가"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일(.md) 변경 — plan/in-progress/*, spec/2-navigation/4-integration.md 등 10건"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/package-lock.json 변경 없음 — 기존 Node Buffer.from('base64url') 사용"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migrations/*.sql, prisma/schema 변경 없음 — 토큰 저장 필드명·타입 변경 무"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "refreshViaQueue 에서 'reactive_401' source 시 removeOnComplete:{age:0} 으로 변경 — BullMQ dedup/race-condition 로직 변경"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP route/GraphQL schema/swagger 응답 envelope 변경 없음 — 내부 OAuth 처리 로직만"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 4,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}

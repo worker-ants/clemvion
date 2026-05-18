@@ -33,9 +33,14 @@ import {
  * 1. DB 에서 통합 다시 로드 (호출자가 보낸 참조는 stale 일 수 있음 —
  *    백그라운드 스캐너는 ID 만 보낸다).
  * 2. `serviceType !== 'cafe24'` 거부 (큐가 cafe24 전용이지만 방어적 체크).
- * 3. **재확인** — 잡 enqueue 와 worker pickup 사이에 다른 경로가 이미
- *    refresh 했을 수 있다. `resolveTokenExpiry(fresh) - now > REFRESH_WINDOW_MS`
- *    이면 short-circuit (불필요한 Cafe24 호출 방지).
+ * 3. **재확인 (단 `source === 'reactive_401'` 은 예외, 2026-05-18)** —
+ *    잡 enqueue 와 worker pickup 사이에 다른 경로가 이미 refresh 했을 수
+ *    있다. `resolveTokenExpiry(fresh) - now > REFRESH_WINDOW_MS` 이면
+ *    short-circuit (불필요한 Cafe24 호출 방지). 단 `reactive_401` source
+ *    (caller 가 empirical 401 을 받은 경로) 는 *DB 의 expiresAt 신뢰 불가*
+ *    신호라 short-circuit 을 건너뛰고 항상 refresh 시도. spec/2-navigation/
+ *    4-integration.md ## Rationale "Cafe24 token 만료 SoT — JWT exp 격상
+ *    (2026-05-18)".
  * 4. `cafe24ApiClient.refreshAccessToken(fresh)` 호출. 성공 시 통합 row
  *    의 4-field atomic update; 실패 시 markAuthFailed (기존 동작).
  *
