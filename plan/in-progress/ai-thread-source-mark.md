@@ -32,48 +32,38 @@ WebSocket `execution.ai_message` 와 `execution.waiting_for_input` 의 `messages
 - [x] `spec/3-workflow-editor/3-execution.md` — §8.1 `execution.ai_message` 행 동기화.
 - [x] `/consistency-check --spec` → `review/consistency/2026/05/16/09_42_54/SUMMARY.md` (BLOCK: NO, WARNING 1건 → §4.4.6 명확화 문장으로 해소).
 
-### Phase 2 — Backend 구현 (developer)
+### Phase 2 — Backend 구현 (developer) → conversation-turn-render plan 으로 이관 (2026-05-18)
 
-- [ ] `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`
-  - `mapTurnsToChatMessages` 가 반환하는 메시지에 `source: 'injected'` 부여 (ChatMessage 타입 확장 필요).
-  - `processMultiTurnMessageInner` 가 push 하는 사용자/어시스턴트/툴 메시지에 `source: 'live'` 부여.
-  - `executeMultiTurn` (single-turn 의 첫 진입) 의 system message 도 emit 대상이 아니므로 마커 부여는 옵션 — 일관성을 위해 system 에도 `'live'` 부여 검토.
-- [ ] `codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts`
-  - multi-turn 모드 처리 경로에 동일 마커 부여 (스펙 일관성).
-- [ ] `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`
-  - `buildConversationConfigFromOutput` 가 `messages` 를 필터링할 때 `source` 필드를 그대로 통과시키도록 확인 (현재는 spread 이므로 자동 통과되겠지만, 타입 시그니처 보강).
-  - `handleAiMessageTurn` 의 `ai_message` emit 분기 (waiting/terminal 둘 다) 에서 `condMessages` 가 source 를 보존하도록 확인.
-- [ ] `codebase/backend/src/shared/conversation-thread/thread-renderer.ts` 등 messages 모드 매핑 코드 위치 확인 후 동일 적용.
-- [ ] Unit test:
-  - `ai-agent.handler.spec.ts`: injection 이 있는 multi-turn 케이스에서 emit 되는 messages 각 항목의 `source` 값 검증.
-  - `execution-engine.service.spec.ts`: `buildConversationConfigFromOutput` 의 source 보존 확인.
-- [ ] `/consistency-check --impl-prep` 후 구현 착수.
+> **2026-05-18 conversation-turn-render plan 으로 흡수**: 본 Phase 의 모든 backend 작업 (`mapTurnsToChatMessages` source 마커 부여, `processMultiTurnMessageInner` push 메시지에 마커, `buildConversationConfigFromOutput` 보존, information-extractor multi-turn 동일 적용, unit test) 은 `plan/in-progress/conversation-turn-render.md` 의 Phase 2 로 통합되어 worktree `conversation-turn-render-a8f3c1` 에서 진행한다. spec §1.5 정정 (2026-05-18) 후 prefix 가 `output.result.messages` 에도 영속됨이 명시 — backend 의 push/emit 경로가 spec 의도와 정합함을 conversation-turn-render Phase 2 가 검증한다.
 
-### Phase 3 — Frontend 구현 (developer)
+- [x] `mapTurnsToChatMessages` 가 source: 'injected' 마커 부여 — conversation-turn-render Phase 2 에서 진행
+- [x] `processMultiTurnMessageInner` push 메시지에 source: 'live' — conversation-turn-render Phase 2 에서 진행
+- [x] `buildConversationConfigFromOutput` source 보존 — conversation-turn-render Phase 2 에서 진행
+- [x] information-extractor multi-turn 동일 적용 — conversation-turn-render Phase 2 에서 진행
+- [x] Unit test — conversation-turn-render Phase 2 에서 진행
 
-- [ ] `codebase/frontend/src/lib/conversation/conversation-utils.ts`
-  - `RawMessage` 타입에 `source?: 'live' | 'injected'` 필드 추가.
-  - `messagesToConversationItems` 의 user 분기에서 `msg.source === 'injected'` 이면 `currentTurn++` 를 건너뛰고 별도 item 으로만 push (또는 push 자체 생략 — UI 표시 정책은 추가 결정 필요).
-- [ ] `codebase/frontend/src/lib/websocket/use-execution-events.ts`
-  - `payload.messages[]` 타입에 `source` 필드 추가.
-  - `convConfig.messages` 동일 처리.
-- [ ] `codebase/frontend/src/lib/stores/execution-store.ts`
-  - `ConversationItem` 에 `isInjected?: boolean` (또는 동등) 마커 추가 검토 — UI 가 inspector 에서 injection chip 등을 구분 표시할 수 있도록.
-- [ ] `codebase/frontend/src/components/editor/run-results/conversation-utils.ts` (`parseHistoryMessages`) — DB 에서 복원한 완료 노드의 messages 에도 source 가 들어있도록 backend 의 `output.messages` 영속화 형태도 확인 + 일관 처리.
-- [ ] Unit test:
-  - `conversation-utils.test.ts` (또는 신규): injection user 메시지가 turn 카운팅에서 제외되는지 회귀 테스트.
-  - assistant 메시지가 backend `turnCount` 와 같은 `turnIndex` 를 얻는지 검증.
+### Phase 3 — Frontend 구현 (developer) → conversation-turn-render Phase 1 에서 완료 (2026-05-18)
 
-### Phase 4 — UI 점검 & 코드 리뷰
+> **2026-05-18 conversation-turn-render Phase 1 (frontend) 가 흡수 + 격상**: spec §9 정식 규약 (3중 신호: 아이콘 + 컨테이너 + chip 동시 적용) 채택으로 Phase 3 의 "isInjected chip 만 추가" 보다 강화된 source 별 시각 분기 (presentation_user → 회색 시스템 카드, system → 가운데 라인) 가 이미 구현·테스트 완료. 본 Phase 의 모든 frontend 작업이 conversation-turn-render Phase 1 commit 들에 포함됨.
 
-- [ ] dev server 띄워 시나리오 재현 (Template → AI Agent 워크플로우) — Response/Request/LLM Usage 탭이 정상 동작 확인.
-- [ ] `/ai-review` 실행 → `review/code/<...>/SUMMARY.md` 검토.
-- [ ] CHANGELOG / README 영향 없음 확인.
+- [x] `RawMessage.source` 필드 + `ConversationItem.isInjected` — conversation-turn-render Phase 1 commit b5ddb4d 에 포함
+- [x] `messagesToConversationItems` source 처리 — 이미 적용 (turn 카운팅에서 injected user 제외)
+- [x] `payload.messages[].source` 타입 — 이미 적용
+- [x] `parseHistoryMessages` 일관 처리 — 이미 적용 + §9.5 strip 추가 적용 (spec 정정 후 의무)
+- [x] Unit test — conversation-turn-render Phase 1 의 27건 (Phase 1 자체 16건 + ai-review fix 11건) 통과
+
+### Phase 4 — UI 점검 & 코드 리뷰 → conversation-turn-render Phase 1 에서 완료 (2026-05-18)
+
+> **2026-05-18 conversation-turn-render Phase 1 의 review/code/2026/05/18/12_56_01 세션 + RESOLUTION 으로 흡수**.
+
+- [x] dev server 시나리오 재현 — e2e (playwright 37건) 통과로 갈음 (conversation-turn-render Phase 1)
+- [x] `/ai-review` 실행 — `review/code/2026/05/18/12_56_01/SUMMARY.md` + RESOLUTION 처리 완료
+- [x] CHANGELOG / README 영향 없음 확인 — RESOLUTION 의 W24 에서 "내부 미리보기 탭 한정, 사용자 노출 페이지 변경 없음" 결론
 
 ## 영향 범위 / Side Effects
 
 - WebSocket 페이로드 shape 변경 (additive — `source` 필드 추가). 기존 client 가 이 필드를 무시해도 동작에는 영향 없음.
-- `output.messages` 가 DB 에 영속화될 때 source 가 함께 저장되는지 결정 필요 — frontend 의 `parseHistoryMessages` 가 완료된 노드 복원 시에도 같은 변환을 거치므로 일관성 차원에서 영속화 권장.
+- `output.result.messages` 가 DB 에 영속화될 때 source 가 함께 저장되는지 결정 필요 — frontend 의 `parseHistoryMessages` 가 완료된 노드 복원 시에도 같은 변환을 거치므로 일관성 차원에서 영속화 권장. (옛 `output.messages` 표기는 D6 2026-05-17 로 `output.result.messages` 로 단일화됨, conversation-thread §4 영속화 표 참조.)
 - Information Extractor multi-turn 도 동일 핸들러 패턴 → 함께 갱신.
 
 ## Follow-up (별도 PR)
