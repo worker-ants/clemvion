@@ -753,6 +753,21 @@ function SummaryView({
             const isTool = item.type === "tool";
             const isPresentation = item.type === "presentation";
             const isSystem = item.type === "system";
+            // tool 호출만 있고 본문이 비어있는 intermediate assistant 는 직후의
+            // 🔧 tool row 와 의미가 완전히 중복된다 (사용자 보고 2026-05-19 —
+            // PR #208 후속). spec/conventions/conversation-thread.md §9.1 의
+            // ai_assistant 라인은 "final assistant 응답" 을 가리키고, tool 호출
+            // 라이프사이클은 §9.1 의 ai_tool 라인 (🔧 tool 카드) 만으로 표현
+            // 한다. timeline 에서 렌더만 skip — store data 는 보존되어 LLM
+            // Usage / Request / Response 디버그 탭에서 여전히 LLM 호출별
+            // payload 를 확인할 수 있다.
+            if (
+              isAssistant &&
+              !!item.assistantToolCalls?.length &&
+              isAssistantContentBlank(item.content)
+            ) {
+              return null;
+            }
             // spec/conventions/conversation-thread.md §9.1 — `presentation_user`
             // turn 은 chat bubble 이 아닌 회색 시스템 카드로 렌더. 3중 신호
             // (아이콘 🧩 + full-width 카드 컨테이너 + nodeLabel chip) 동시 적용.
