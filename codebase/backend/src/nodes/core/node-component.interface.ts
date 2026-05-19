@@ -229,11 +229,17 @@ export interface UiHint {
    * express a mode-dependent constraint — e.g. Carousel's `titleField` is
    * only required in dynamic mode. Runtime enforcement still belongs to
    * `NodeHandler.validate()`.
+   *
+   * Single shape — `{ field, equals }` where `equals` is either:
+   *  - a single value: required when `config[field] === equals`
+   *  - a readonly array (whitelist): required when `equals.includes(config[field])`
+   *
+   * 2026-05-19 정준화 (consistency I-4 후속) — `notEquals` / `oneOf` 형태는
+   * 제거됨. `notEquals` 는 향후 mode/enum 확장 시 의도와 다르게 신규 값에도
+   * 자동 적용되는 블랙리스트 위험이 있어 화이트리스트 `equals: [...]` 로
+   * 통일. `oneOf` 는 `equals: [...]` 와 의미 중복.
    */
-  requiredWhen?:
-    | { field: string; equals: unknown }
-    | { field: string; notEquals: unknown }
-    | { field: string; oneOf: unknown[] };
+  requiredWhen?: { field: string; equals: unknown | readonly unknown[] };
   /** Options for `widget: 'select'` when not derivable from z.enum. */
   options?: { value: string; label: string }[];
   /** For 'code' widget — language hint (javascript, sql, json, handlebars). */

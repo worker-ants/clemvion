@@ -47,11 +47,13 @@ describe('Logic nodes — ui.required / requiredWhen vs warningRules SSOT', () =
     expect(uiMeta(schema as ZodObject, key)?.required).toBe(true);
   });
 
-  it('switch.switchValue uses requiredWhen mode!=expression (mirrors switch:value-mode-needs-switch-value)', () => {
+  it('switch.switchValue uses requiredWhen equals whitelist [value] (mirrors switch:value-mode-needs-switch-value)', () => {
+    // 2026-05-19 정준화 (requiredwhen-dsl-whitelist): notEquals → equals whitelist.
+    // 신규 mode 추가 시 의도와 다르게 자동 적용되는 위험 회피.
     expect(uiMeta(switchNodeConfigSchema, 'switchValue')?.requiredWhen).toEqual(
       {
         field: 'mode',
-        notEquals: 'expression',
+        equals: ['value'],
       },
     );
   });

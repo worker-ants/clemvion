@@ -80,9 +80,12 @@ export const switchNodeConfigSchema = z
           widget: 'expression',
           placeholder: '{{ $input.value }}',
           visibleWhen: { field: 'mode', equals: 'value' },
-          // warningRule `switch:value-mode-needs-switch-value` 와 정렬
-          // (mode 가 'value' 이거나 미설정일 때 필수).
-          requiredWhen: { field: 'mode', notEquals: 'expression' },
+          // warningRule `switch:value-mode-needs-switch-value` 와 정렬.
+          // 화이트리스트 — mode 가 'value' 일 때 필수 (현재 'value' / 'expression'
+          // 두 mode 중 'value' 만 switchValue 입력 필요). mode 가 향후 추가될
+          // 때 신규 mode 에 자동으로 적용되지 않도록 명시적 whitelist 사용
+          // (2026-05-19 정준화, requiredwhen-dsl-whitelist).
+          requiredWhen: { field: 'mode', equals: ['value'] },
         },
       }),
     cases: z

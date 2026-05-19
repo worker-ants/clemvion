@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-19T09:26:22.550923",
+  "mode": "plan draft 검토 (--plan)",
+  "target_path": "plan/in-progress/requiredwhen-dsl-whitelist.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

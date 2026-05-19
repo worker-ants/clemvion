@@ -64,18 +64,27 @@ describe("isFieldRequired", () => {
     expect(isFieldRequired({ required: true }, "title", [], {})).toBe(true);
   });
 
-  it("applies requiredWhen equals", () => {
+  it("applies requiredWhen equals (single value)", () => {
     const ui = { requiredWhen: { field: "mode", equals: "dynamic" } } as const;
     expect(isFieldRequired(ui, "titleField", [], { mode: "dynamic" })).toBe(true);
     expect(isFieldRequired(ui, "titleField", [], { mode: "static" })).toBe(false);
   });
 
-  it("applies requiredWhen oneOf", () => {
+  // 2026-05-19 정준화: oneOf 형태 폐기 → equals: [array] 화이트리스트
+  it("applies requiredWhen equals (whitelist array)", () => {
     const ui = {
-      requiredWhen: { field: "status", oneOf: ["a", "b"] },
+      requiredWhen: { field: "status", equals: ["a", "b"] },
     } as const;
     expect(isFieldRequired(ui, "f", [], { status: "a" })).toBe(true);
+    expect(isFieldRequired(ui, "f", [], { status: "b" })).toBe(true);
     expect(isFieldRequired(ui, "f", [], { status: "c" })).toBe(false);
+  });
+
+  it("equals whitelist 가 빈 배열이면 어떤 값도 required 아님", () => {
+    const ui = {
+      requiredWhen: { field: "mode", equals: [] as readonly string[] },
+    } as const;
+    expect(isFieldRequired(ui, "f", [], { mode: "anything" })).toBe(false);
   });
 
   it("prefers explicit ui.required over requiredWhen mismatch", () => {
