@@ -14,9 +14,9 @@ import {
 import { createHash } from 'crypto';
 import { WebAuthnService } from './webauthn.service';
 import { WebAuthnCredential } from './entities/webauthn-credential.entity';
-import { RefreshToken } from './entities/refresh-token.entity';
-import { UsersService } from '../users/users.service';
-import { LoginHistoryService } from './login-history.service';
+import { RefreshToken } from '../entities/refresh-token.entity';
+import { UsersService } from '../../users/users.service';
+import { LoginHistoryService } from '../login-history.service';
 
 jest.mock('@simplewebauthn/server', () => ({
   generateRegistrationOptions: jest.fn(),
