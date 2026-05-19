@@ -2,11 +2,42 @@ import { describe, it, expect, vi } from "vitest";
 import {
   parseHistoryMessages,
   messagesToConversationItems,
+  mergeOrphanToolItems,
   threadTurnsToConversationItems,
   stripInlineMarkers,
   inferInteractionTypeFromData,
   type ConversationTurn,
 } from "../conversation-utils";
+import type { ConversationItem } from "@/lib/stores/execution-store";
+
+function tool(
+  toolCallId: string,
+  overrides: Partial<ConversationItem> = {},
+): ConversationItem {
+  return {
+    type: "tool",
+    content: "kb_search",
+    turnIndex: 1,
+    toolCallId,
+    toolStatus: "success",
+    ...overrides,
+  } as ConversationItem;
+}
+
+function assistant(
+  overrides: Partial<ConversationItem> = {},
+): ConversationItem {
+  return {
+    type: "assistant",
+    content: "답변",
+    turnIndex: 1,
+    ...overrides,
+  } as ConversationItem;
+}
+
+function user(content: string, turnIndex = 1): ConversationItem {
+  return { type: "user", content, turnIndex } as ConversationItem;
+}
 
 describe("messagesToConversationItems", () => {
   it("converts user → assistant(no tools) sequence into 2 items with shared turnIndex", () => {
@@ -766,6 +797,151 @@ describe("threadTurnsToConversationItems", () => {
       expect.anything(),
     );
     warnSpy.mockRestore();
+  });
+});
+
+// PR follow-up: includeToolTurns:false thread snapshot 적용 시 live tool 아이템이
+// 사라지는 회귀 (PR #206 후속) 차단. merge 헬퍼는 spec §1.1 의 의도된 lean
+// thread 와 UI transparency 요구 사이의 다리 역할을 한다.
+describe("mergeOrphanToolItems", () => {
+  it("includeToolTurns:false 시 누락된 tool 아이템을 final assistant 직전으로 끼워넣는다", () => {
+    const threadItems: ConversationItem[] = [
+      user("질문"),
+      assistant({ content: "최종 답변" }),
+    ];
+    const prev: ConversationItem[] = [
+      user("질문"),
+      assistant({
+        content: "",
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+      tool("call_1"),
+      assistant({ content: "최종 답변" }),
+    ];
+    const merged = mergeOrphanToolItems(threadItems, prev);
+    // intermediate assistant + tool 모두 보존돼야 한다.
+    expect(merged.map((i) => i.type)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+    ]);
+    // tool 아이템은 final assistant 바로 앞.
+    expect(merged[2].type).toBe("tool");
+    expect((merged[2] as ConversationItem).toolCallId).toBe("call_1");
+    // intermediate assistant 는 user 바로 뒤.
+    expect((merged[1] as ConversationItem).assistantToolCalls).toEqual([
+      { name: "kb_search", arguments: "{}" },
+    ]);
+  });
+
+  it("thread 가 이미 같은 toolCallId 를 들고 있으면 (includeToolTurns:true) no-op", () => {
+    const threadItems: ConversationItem[] = [
+      user("질문"),
+      assistant({
+        content: "",
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+      tool("call_1"),
+      assistant({ content: "최종" }),
+    ];
+    const prev: ConversationItem[] = [...threadItems];
+    const merged = mergeOrphanToolItems(threadItems, prev);
+    expect(merged).toHaveLength(threadItems.length);
+    expect(merged).toEqual(threadItems);
+  });
+
+  it("multi-turn: 각 turn 의 tool 은 그 turn 의 final assistant 직전에 배치된다", () => {
+    const threadItems: ConversationItem[] = [
+      user("Q1", 1),
+      assistant({ content: "A1", turnIndex: 1 }),
+      user("Q2", 2),
+      assistant({ content: "A2", turnIndex: 2 }),
+    ];
+    const prev: ConversationItem[] = [
+      user("Q1", 1),
+      tool("c1", { turnIndex: 1 }),
+      assistant({ content: "A1", turnIndex: 1 }),
+      user("Q2", 2),
+      tool("c2", { turnIndex: 2 }),
+      assistant({ content: "A2", turnIndex: 2 }),
+    ];
+    const merged = mergeOrphanToolItems(threadItems, prev);
+    expect(merged.map((i) => `${i.type}:${i.turnIndex}`)).toEqual([
+      "user:1",
+      "tool:1",
+      "assistant:1",
+      "user:2",
+      "tool:2",
+      "assistant:2",
+    ]);
+  });
+
+  it("같은 turn 에 tool 이 여러 개면 prev 의 상대 순서를 유지해 final assistant 직전에 일괄 삽입", () => {
+    const threadItems: ConversationItem[] = [
+      user("질문"),
+      assistant({ content: "최종" }),
+    ];
+    const prev: ConversationItem[] = [
+      user("질문"),
+      tool("call_A"),
+      tool("call_B"),
+      assistant({ content: "최종" }),
+    ];
+    const merged = mergeOrphanToolItems(threadItems, prev);
+    expect(
+      merged.map((i) => (i.type === "tool" ? `tool:${i.toolCallId}` : i.type)),
+    ).toEqual(["user", "tool:call_A", "tool:call_B", "assistant"]);
+  });
+
+  it("prev 가 비어있으면 thread 를 그대로 반환", () => {
+    const threadItems: ConversationItem[] = [
+      user("질문"),
+      assistant({ content: "답변" }),
+    ];
+    expect(mergeOrphanToolItems(threadItems, [])).toEqual(threadItems);
+  });
+
+  it("content 가 있는 intermediate assistant (LLM 이 thinking 텍스트 emit) 는 보수적으로 orphan 에 포함하지 않는다", () => {
+    const threadItems: ConversationItem[] = [
+      user("질문"),
+      assistant({ content: "최종" }),
+    ];
+    const prev: ConversationItem[] = [
+      user("질문"),
+      assistant({
+        content: "Let me check the products.",
+        assistantToolCalls: [{ name: "kb", arguments: "{}" }],
+      }),
+      tool("call_1"),
+      assistant({ content: "최종" }),
+    ];
+    // content 있는 assistant 는 보존되지 않고 (heuristic 한계), tool 만 보존.
+    const merged = mergeOrphanToolItems(threadItems, prev);
+    expect(merged.map((i) => i.type)).toEqual(["user", "tool", "assistant"]);
+  });
+
+  it("whitespace-only content + toolCalls 인 intermediate assistant 는 orphan 으로 보존 (PR #206 회귀 케이스)", () => {
+    const threadItems: ConversationItem[] = [
+      user("질문"),
+      assistant({ content: "최종" }),
+    ];
+    const prev: ConversationItem[] = [
+      user("질문"),
+      assistant({
+        content: " \n ",
+        assistantToolCalls: [{ name: "kb", arguments: "{}" }],
+      }),
+      tool("call_1"),
+      assistant({ content: "최종" }),
+    ];
+    const merged = mergeOrphanToolItems(threadItems, prev);
+    expect(merged.map((i) => i.type)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+      "assistant",
+    ]);
   });
 });
 

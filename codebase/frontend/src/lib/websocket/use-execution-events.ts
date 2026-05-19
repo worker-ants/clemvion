@@ -17,6 +17,7 @@ import {
 } from "./apply-execution-snapshot";
 import {
   messagesToConversationItems,
+  mergeOrphanToolItems,
   toolStatusMapFromItems,
   threadTurnsToConversationItems,
   type RawMessage,
@@ -272,9 +273,18 @@ export function useExecutionEvents({
         if (threadTurns?.length) {
           const nextSeq = payload.conversationThread?.nextSeq ?? threadTurns.length;
           if (lastAppliedThreadSeqRef.current !== nextSeq) {
-            const items = threadTurnsToConversationItems(threadTurns);
-            if (items.length > 0) {
-              setConversationMessages(items);
+            const threadItems = threadTurnsToConversationItems(threadTurns);
+            if (threadItems.length > 0) {
+              // spec/conventions/conversation-thread.md §1.1 — `includeToolTurns:
+              // false` (default) 인 워크플로의 thread snapshot 은 `ai_tool` 과
+              // tool 호출만 있는 intermediate `ai_assistant` 를 누락한다. 직전
+              // `ai_message` 가 messages-base snapshot 으로 채워둔 🔧 tool row
+              // 와 🤖+ToolCallBadge intermediate assistant row 가 그대로 사라지지
+              // 않도록 prev store 의 orphan 항목들을 같은 turn 안에서 보존한다
+              // (PR #206 이후 발견된 회귀).
+              const prev = useExecutionStore.getState().conversationMessages;
+              const merged = mergeOrphanToolItems(threadItems, prev);
+              setConversationMessages(merged);
               lastAppliedThreadSeqRef.current = nextSeq;
             }
           }
