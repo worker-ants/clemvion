@@ -158,7 +158,11 @@ export class WebAuthnService {
       },
     });
 
-    const optionsToken = this.signOptionsToken('webauthn_register', userId, options.challenge);
+    const optionsToken = this.signOptionsToken(
+      'webauthn_register',
+      userId,
+      options.challenge,
+    );
     return { publicKey: options, optionsToken };
   }
 
@@ -173,7 +177,11 @@ export class WebAuthnService {
     webauthnRecoveryCodes: string[];
   }> {
     this.assertEnabled();
-    const payload = this.verifyOptionsToken(optionsToken, 'webauthn_register', userId);
+    const payload = this.verifyOptionsToken(
+      optionsToken,
+      'webauthn_register',
+      userId,
+    );
     const { rpID, origins } = this.getConfig();
 
     let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
@@ -234,7 +242,9 @@ export class WebAuthnService {
 
     let recoveryPlain: string[] = [];
     if (isFirst) {
-      recoveryPlain = Array.from({ length: RECOVERY_CODE_COUNT }, () => generateRecoveryCode());
+      recoveryPlain = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
+        generateRecoveryCode(),
+      );
       await this.usersService.update(userId, {
         webauthnRecoveryCodes: recoveryPlain.map(hashRecoveryCode),
       });
@@ -273,7 +283,11 @@ export class WebAuthnService {
       userVerification: 'preferred',
     });
 
-    const optionsToken = this.signOptionsToken('webauthn_auth', userId, options.challenge);
+    const optionsToken = this.signOptionsToken(
+      'webauthn_auth',
+      userId,
+      options.challenge,
+    );
     return { publicKey: options, optionsToken };
   }
 
@@ -298,7 +312,11 @@ export class WebAuthnService {
     ctx: WebAuthnLoginContext = {},
   ): Promise<{ verified: boolean }> {
     this.assertEnabled();
-    const payload = this.verifyOptionsToken(optionsToken, 'webauthn_auth', userId);
+    const payload = this.verifyOptionsToken(
+      optionsToken,
+      'webauthn_auth',
+      userId,
+    );
     const { rpID, origins } = this.getConfig();
     const credentialId = response.id;
 
@@ -308,58 +326,68 @@ export class WebAuthnService {
       | { kind: 'invalid'; reason: string }
       | { kind: 'counter_regression'; credentialUuid: string };
 
-    const outcome = await this.dataSource.transaction<Outcome>(async (manager) => {
-      const credRepo = manager.getRepository(WebAuthnCredential);
-      const credential = await credRepo.findOne({
-        where: { credentialId, userId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!credential) return { kind: 'not_found' };
-
-      let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
-      try {
-        verification = await verifyAuthenticationResponse({
-          response,
-          expectedChallenge: payload.challenge,
-          expectedOrigin: origins,
-          expectedRPID: rpID,
-          // counter=0 인증기의 replay 방어를 강화 — UV 플래그가 매 인증마다 검증돼
-          // counter 외 추가 freshness 신호로 작용 (review W-3).
-          requireUserVerification: true,
-          credential: {
-            id: credential.credentialId,
-            publicKey: new Uint8Array(credential.publicKey),
-            counter: Number(credential.counter),
-            transports: credential.transports as AuthenticatorTransportFuture[],
-          },
+    const outcome = await this.dataSource.transaction<Outcome>(
+      async (manager) => {
+        const credRepo = manager.getRepository(WebAuthnCredential);
+        const credential = await credRepo.findOne({
+          where: { credentialId, userId },
+          lock: { mode: 'pessimistic_write' },
         });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const counterRegression =
-          /counter/i.test(msg) && /regress|same|less/i.test(msg);
-        if (counterRegression) {
-          // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
-          // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.
-          await credRepo.delete({ id: credential.id });
-          await manager.getRepository(RefreshToken).update(
-            { userId, isRevoked: false },
-            { isRevoked: true },
-          );
-          return { kind: 'counter_regression', credentialUuid: credential.id };
+        if (!credential) return { kind: 'not_found' };
+
+        let verification: Awaited<
+          ReturnType<typeof verifyAuthenticationResponse>
+        >;
+        try {
+          verification = await verifyAuthenticationResponse({
+            response,
+            expectedChallenge: payload.challenge,
+            expectedOrigin: origins,
+            expectedRPID: rpID,
+            // counter=0 인증기의 replay 방어를 강화 — UV 플래그가 매 인증마다 검증돼
+            // counter 외 추가 freshness 신호로 작용 (review W-3).
+            requireUserVerification: true,
+            credential: {
+              id: credential.credentialId,
+              publicKey: new Uint8Array(credential.publicKey),
+              counter: Number(credential.counter),
+              transports:
+                credential.transports as AuthenticatorTransportFuture[],
+            },
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          const counterRegression =
+            /counter/i.test(msg) && /regress|same|less/i.test(msg);
+          if (counterRegression) {
+            // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
+            // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.
+            await credRepo.delete({ id: credential.id });
+            await manager
+              .getRepository(RefreshToken)
+              .update({ userId, isRevoked: false }, { isRevoked: true });
+            return {
+              kind: 'counter_regression',
+              credentialUuid: credential.id,
+            };
+          }
+          return { kind: 'invalid', reason: msg };
         }
-        return { kind: 'invalid', reason: msg };
-      }
 
-      if (!verification.verified) {
-        return { kind: 'invalid', reason: 'verifyAuthenticationResponse returned verified=false' };
-      }
+        if (!verification.verified) {
+          return {
+            kind: 'invalid',
+            reason: 'verifyAuthenticationResponse returned verified=false',
+          };
+        }
 
-      await credRepo.update(credential.id, {
-        counter: String(verification.authenticationInfo.newCounter),
-        lastUsedAt: new Date(),
-      });
-      return { kind: 'ok' };
-    });
+        await credRepo.update(credential.id, {
+          counter: String(verification.authenticationInfo.newCounter),
+          lastUsedAt: new Date(),
+        });
+        return { kind: 'ok' };
+      },
+    );
 
     // -- transaction 종료 후 audit log + throw --
     if (outcome.kind === 'not_found') {
@@ -369,7 +397,8 @@ export class WebAuthnService {
       });
     }
     if (outcome.kind === 'counter_regression') {
-      const email = (await this.usersService.findById(userId))?.email ?? 'unknown';
+      const email =
+        (await this.usersService.findById(userId))?.email ?? 'unknown';
       await this.loginHistory.record({
         userId,
         email,
@@ -383,11 +412,13 @@ export class WebAuthnService {
       );
       throw new UnauthorizedException({
         code: 'WEBAUTHN_COUNTER_REGRESSION',
-        message: '인증기에서 비정상 신호가 감지돼 등록을 해제했어요. 다시 등록해 주세요.',
+        message:
+          '인증기에서 비정상 신호가 감지돼 등록을 해제했어요. 다시 등록해 주세요.',
       });
     }
     if (outcome.kind === 'invalid') {
-      const email = (await this.usersService.findById(userId))?.email ?? 'unknown';
+      const email =
+        (await this.usersService.findById(userId))?.email ?? 'unknown';
       await this.loginHistory.record({
         userId,
         email,
@@ -470,7 +501,10 @@ export class WebAuthnService {
   }
 
   /** 개별 삭제. 마지막 credential 이면 user.webauthn_recovery_codes 도 NULL 화. */
-  async deleteCredential(userId: string, credentialUuid: string): Promise<void> {
+  async deleteCredential(
+    userId: string,
+    credentialUuid: string,
+  ): Promise<void> {
     this.assertEnabled();
     const credential = await this.credentialRepo.findOne({
       where: { id: credentialUuid },
@@ -499,7 +533,9 @@ export class WebAuthnService {
         message: '등록된 WebAuthn 인증기가 없어요.',
       });
     }
-    const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () => generateRecoveryCode());
+    const codes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
+      generateRecoveryCode(),
+    );
     await this.usersService.update(userId, {
       webauthnRecoveryCodes: codes.map(hashRecoveryCode),
     });

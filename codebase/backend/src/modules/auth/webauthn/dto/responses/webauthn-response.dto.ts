@@ -16,7 +16,8 @@ export class WebAuthnRegisterOptionsDto {
   publicKey: Record<string, unknown>;
 
   @ApiProperty({
-    description: '서버 단명 JWT (`kind=webauthn_register`, exp 5분). verify 단계에서 동봉 필요',
+    description:
+      '서버 단명 JWT (`kind=webauthn_register`, exp 5분). verify 단계에서 동봉 필요',
   })
   optionsToken: string;
 }
