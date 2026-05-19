@@ -2342,6 +2342,217 @@ describe('ExecutionEngineService', () => {
         );
       expect(executionCompletedCalls.length).toBeGreaterThanOrEqual(1);
     });
+
+    // spec/4-nodes/3-ai/1-ai-agent.md §7.9 — multi-turn LLM 오류 (429/timeout/
+    // connection) 시 노드는 `port='error'`, `status='ended'` 로 finalize 되고
+    // `output.error.{code, message, details}` 를 운반해야 한다. 본 테스트가 없을
+    // 때의 회귀 (운영 보고 2026-05-19): processMultiTurnMessage 가 throw 하면
+    // handleAiMessageTurn 의 try/catch 부재로 finalizeAiNode 가 호출되지 않아
+    // NodeExecution 이 WAITING_FOR_INPUT 상태로 영구 잔류하고, Execution 만
+    // top-level catch 로 FAILED 가 된다. frontend 는 헤더 "실패" + 노드 "Waiting"
+    // 의 모순 상태를 본다.
+    //
+    // 시나리오:
+    //  1. AI handler 가 첫 turn 에서 `waiting_for_input` 으로 진입
+    //  2. 사용자가 ai_message 전송 → continuation handler 가 resolve
+    //  3. handler.processMultiTurnMessage 가 LLM 429 등으로 throw
+    //  4. 엔진이 handler.endMultiTurnConversation(state, 'error', errorPayload) 호출
+    //  5. NodeExecution 가 FAILED 로 finalize, EXECUTION_FAILED + NODE_FAILED emit
+    it('end-to-end: handleAiMessageTurn throw drives endMultiTurnConversation(error, payload) and finalizes node FAILED', async () => {
+      const rateLimitError = Object.assign(
+        new Error('Anthropic API returned 429 (Too Many Requests)'),
+        { code: 'LLM_RATE_LIMIT' },
+      );
+      const handler = makeAiAgentHandler(() => {
+        throw rateLimitError;
+      });
+      // endMultiTurnConversation mock 을 error endReason / errorPayload 친화적 으로 재정의.
+      handler.endMultiTurnConversation.mockImplementation(
+        (_state: unknown, endReason: string, errorPayload?: unknown) => ({
+          config: { mode: 'multi_turn' },
+          output: {
+            result: {
+              response: '',
+              messages: [],
+              turnCount: 0,
+              endReason,
+            },
+            ...(errorPayload ? { error: errorPayload } : {}),
+          },
+          meta: { interactionType: 'ai_conversation' },
+          port: 'error',
+          status: 'ended',
+        }),
+      );
+      handlerRegistry.register('ai_agent', handler);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      mockWebsocketService.emitExecutionEvent.mockClear();
+      mockWebsocketService.emitNodeEvent.mockClear();
+      mockNodeExecutionRepo.save.mockClear();
+
+      service.continueAiConversation(executionId, 'trigger error');
+      // ai-review W4 / testing-W — FAILED 경로는 nodeExecutionRepository.save →
+      // eventEmitter.emitNode → sentinel throw → runExecution catch 체인을 거치므로
+      // 깊은 마이크로태스크 플러시를 위해 flushPromises 를 2회 호출한다.
+      await flushPromises();
+      await flushPromises();
+
+      // (a) handler.endMultiTurnConversation 이 'error' endReason + errorPayload
+      //     로 1회 호출됨.
+      expect(handler.endMultiTurnConversation).toHaveBeenCalledTimes(1);
+      const endCall = handler.endMultiTurnConversation.mock.calls[0];
+      expect(endCall[1]).toBe('error');
+      const passedPayload = endCall[2] as Record<string, unknown> | undefined;
+      expect(passedPayload).toBeDefined();
+      expect(passedPayload?.code).toBe('LLM_RATE_LIMIT');
+      expect(typeof passedPayload?.message).toBe('string');
+      expect(passedPayload?.message).toContain('429');
+
+      // (b) NODE_FAILED (execution.node.failed) 1회 발사. AI_MESSAGE 양발사 금지.
+      const nodeFailedCalls =
+        mockWebsocketService.emitNodeEvent.mock.calls.filter(
+          (call: unknown[]) => call[2] === 'execution.node.failed',
+        );
+      expect(nodeFailedCalls.length).toBeGreaterThanOrEqual(1);
+      const failedNodeIds = nodeFailedCalls.map(
+        (call) => (call as unknown[])[1] as string,
+      );
+      expect(failedNodeIds).toContain('node-agent');
+
+      const aiMessageCalls =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (call: unknown[]) => call[1] === 'execution.ai_message',
+        );
+      expect(aiMessageCalls).toHaveLength(0);
+
+      // (c) NODE_COMPLETED 는 발사되지 않아야 한다 (정상 종결 분기와 분리).
+      const nodeCompletedCalls =
+        mockWebsocketService.emitNodeEvent.mock.calls.filter(
+          (call: unknown[]) =>
+            call[2] === 'execution.node.completed' && call[1] === 'node-agent',
+        );
+      expect(nodeCompletedCalls).toHaveLength(0);
+
+      // (d) NodeExecution.status === FAILED 로 save.
+      const savedAgentRows = mockNodeExecutionRepo.save.mock.calls
+        .map((call: unknown[]) => call[0] as Partial<NodeExecution>)
+        .filter((row): row is Partial<NodeExecution> => !!row)
+        .filter((row) => row.nodeId === 'node-agent');
+      expect(savedAgentRows.length).toBeGreaterThanOrEqual(1);
+      const finalStatus = savedAgentRows[savedAgentRows.length - 1].status;
+      expect(finalStatus).toBe(NodeExecutionStatus.FAILED);
+
+      // (e) EXECUTION_FAILED 가 발사.
+      const executionFailedCalls =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (call: unknown[]) => call[1] === 'execution.failed',
+        );
+      expect(executionFailedCalls.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // extractAiTurnErrorPayload — 단위 테스트 (testing-W req W_json)
+  // private static 이므로 `as unknown as` 캐스팅으로 직접 호출.
+  // ---------------------------------------------------------------------------
+  describe('extractAiTurnErrorPayload', () => {
+    type ExtractFn = (err: unknown) => {
+      code: string;
+      message: string;
+      details?: unknown;
+    };
+    const extract = (): ExtractFn =>
+      (
+        ExecutionEngineService as unknown as {
+          extractAiTurnErrorPayload: ExtractFn;
+        }
+      ).extractAiTurnErrorPayload;
+
+    it('Error 인스턴스 + 명시 code 를 올바르게 추출한다', () => {
+      const err = Object.assign(new Error('LLM rate limited'), {
+        code: 'LLM_RATE_LIMIT',
+      });
+      const result = extract()(err);
+      expect(result.code).toBe('LLM_RATE_LIMIT');
+      expect(result.message).toContain('LLM rate limited');
+      expect(result.details).toBeUndefined();
+    });
+
+    it('string throw 를 처리한다', () => {
+      const result = extract()('something went wrong');
+      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+      expect(result.message).toBe('something went wrong');
+    });
+
+    it('null/undefined throw 를 처리한다', () => {
+      expect(extract()(null).message).toBe('unknown error');
+      expect(extract()(undefined).message).toBe('unknown error');
+    });
+
+    it('number/boolean/bigint throw 를 처리한다', () => {
+      expect(extract()(429).message).toBe('429');
+      expect(extract()(true).message).toBe('true');
+    });
+
+    it('message 에 429 포함 시 code=LLM_RATE_LIMIT fallback', () => {
+      const err = new Error('API returned 429');
+      const result = extract()(err);
+      expect(result.code).toBe('LLM_RATE_LIMIT');
+    });
+
+    it('message 에 rate limit 포함 시 code=LLM_RATE_LIMIT fallback', () => {
+      const err = new Error('Rate limit exceeded');
+      const result = extract()(err);
+      expect(result.code).toBe('LLM_RATE_LIMIT');
+    });
+
+    it('명시 code 없고 rate limit 아니면 AI_AGENT_TURN_FAILED fallback', () => {
+      const err = new Error('Connection timeout');
+      const result = extract()(err);
+      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+    });
+
+    it('details 필드를 포함한 오류를 처리한다', () => {
+      const err = Object.assign(new Error('API error'), {
+        code: 'LLM_API_ERROR',
+        details: { retryAfter: 60, status: 429 },
+      });
+      const result = extract()(err);
+      expect(result.details).toEqual({ retryAfter: 60, status: 429 });
+    });
+
+    it('details 에 secret 포함 시 sanitize 가 적용된다', () => {
+      const err = Object.assign(new Error('OAuth error'), {
+        details: { message: 'Bearer abc123token invalid' },
+      });
+      const result = extract()(err);
+      expect(JSON.stringify(result.details)).not.toContain('abc123token');
+      expect(JSON.stringify(result.details)).toContain('***');
+    });
+
+    it('details 가 순환참조 객체이면 직렬화 실패 시 fallback 문자열 반환 (req W_json)', () => {
+      const circular: Record<string, unknown> = { name: 'circular' };
+      circular['self'] = circular;
+      const err = Object.assign(new Error('circular error'), {
+        details: circular,
+      });
+      // JSON.stringify(circular) throws — should NOT throw out, must return safe value
+      expect(() => extract()(err)).not.toThrow();
+      const result = extract()(err);
+      expect(result.details).toBe('[serialization error]');
+    });
+
+    it('비-Error 객체 throw 시 JSON.stringify 실패해도 throw 하지 않는다 (req W_json)', () => {
+      const nonSerializable: Record<string, unknown> = {};
+      nonSerializable['self'] = nonSerializable; // circular
+      expect(() => extract()(nonSerializable)).not.toThrow();
+      const result = extract()(nonSerializable);
+      expect(result.message).toBe('[non-serializable error object]');
+      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+    });
   });
 
   describe('Template node expression resolution', () => {
