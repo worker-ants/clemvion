@@ -104,15 +104,11 @@ export class IntegrationExpiryScannerService
     // usage_log retention prune. 모두 일일 주기로 충분 (알림 빈도·24h TTL·90d
     // retention 의 정량적 특성이 일일 cadence 와 일치).
     const dailyRepeat = { pattern: '0 0 * * *', tz: 'UTC' };
-    await this.queue.upsertJobScheduler(
-      'connected-expiry-daily',
-      dailyRepeat,
-      {
-        name: JOB_CONNECTED_EXPIRY,
-        data: { triggeredAt },
-        opts: DAILY_PASS_OPTS,
-      },
-    );
+    await this.queue.upsertJobScheduler('connected-expiry-daily', dailyRepeat, {
+      name: JOB_CONNECTED_EXPIRY,
+      data: { triggeredAt },
+      opts: DAILY_PASS_OPTS,
+    });
     await this.queue.upsertJobScheduler(
       'pending-install-ttl-daily',
       dailyRepeat,
