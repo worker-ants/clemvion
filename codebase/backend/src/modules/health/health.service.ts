@@ -13,9 +13,16 @@ export class HealthService {
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
   ) {
+    // redis.config 의 password/tls 옵션을 누락 없이 전달 — cafe24-install-nonce-cache
+    // / continuation-bus 의 동일 패턴과 일치. AUTH 운영 환경에서 /health 의 redis
+    // 체크가 ECONNREFUSED 로 false-negative unhealthy 가 되던 잠복 결함 해소.
+    const password = this.configService.get<string>('redis.password');
+    const tls = this.configService.get<boolean>('redis.tls');
     this.redis = new Redis({
       host: this.configService.get<string>('redis.host'),
       port: this.configService.get<number>('redis.port'),
+      ...(password ? { password } : {}),
+      ...(tls ? { tls: {} } : {}),
       lazyConnect: true,
     });
     this.startTime = Date.now();

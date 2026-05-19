@@ -171,14 +171,24 @@ export const ROOT_ENTITIES = [
     }),
 
     // BullMQ (Redis-backed job queue for scheduled workflow execution)
+    // redis.config 가 노출하는 password/tls 옵션을 누락 없이 전달 — 운영 Redis 에
+    // AUTH 가 도입될 때 BullMQ Queue/Worker 의 reconnect loop (일일 스케줄러 fire
+    // 실패) 회귀를 차단. cafe24-install-nonce-cache / continuation-bus 의 동일 패턴
+    // (`...(password ? { password } : {})`) 과 일치.
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          host: config.get<string>('redis.host'),
-          port: config.get<number>('redis.port'),
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const password = config.get<string>('redis.password');
+        const tls = config.get<boolean>('redis.tls');
+        return {
+          connection: {
+            host: config.get<string>('redis.host'),
+            port: config.get<number>('redis.port'),
+            ...(password ? { password } : {}),
+            ...(tls ? { tls: {} } : {}),
+          },
+        };
+      },
     }),
 
     // Rate Limiting
