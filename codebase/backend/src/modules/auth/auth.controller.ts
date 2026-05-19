@@ -417,9 +417,8 @@ export class AuthController {
       dto.challengeToken,
       'webauthn',
     );
-    const result = await this.webauthnService.generateAuthenticationOptionsForUser(
-      user.id,
-    );
+    const result =
+      await this.webauthnService.generateAuthenticationOptionsForUser(user.id);
     return {
       data: {
         publicKey: result.publicKey,
@@ -436,7 +435,9 @@ export class AuthController {
     description:
       'WebAuthn 응답을 검증하고 access/refresh 토큰을 발급합니다. counter 역행 감지 시 credential 즉시 삭제 + LoginHistory `webauthn_failed` 기록.',
   })
-  @ApiOkWrappedResponse(AccessTokenDto, { description: '2FA 통과 + 정식 토큰 발급' })
+  @ApiOkWrappedResponse(AccessTokenDto, {
+    description: '2FA 통과 + 정식 토큰 발급',
+  })
   @ApiUnauthorizedResponse({
     description: 'challengeToken/optionsToken 만료, 검증 실패, counter 역행',
   })
@@ -456,7 +457,11 @@ export class AuthController {
       dto.response as never,
       ctx,
     );
-    const tokens = await this.authService.issueTokensAfterMfa(user, rememberMe, ctx);
+    const tokens = await this.authService.issueTokensAfterMfa(
+      user,
+      rememberMe,
+      ctx,
+    );
     this.setRefreshTokenCookie(res, tokens.refreshToken, rememberMe);
     return { data: { accessToken: tokens.accessToken } };
   }
@@ -469,8 +474,12 @@ export class AuthController {
     description:
       'WebAuthn 인증이 불가한 사용자가 등록 시 발급된 복구 코드로 2FA 를 통과해 access/refresh 토큰을 발급받습니다.',
   })
-  @ApiOkWrappedResponse(AccessTokenDto, { description: '복구 코드 통과 + 정식 토큰 발급' })
-  @ApiUnauthorizedResponse({ description: 'challengeToken 만료, 복구 코드 불일치' })
+  @ApiOkWrappedResponse(AccessTokenDto, {
+    description: '복구 코드 통과 + 정식 토큰 발급',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'challengeToken 만료, 복구 코드 불일치',
+  })
   async webauthnRecovery(
     @Body() dto: WebAuthnRecoveryDto,
     @Req() req: Express.Request,
@@ -488,7 +497,11 @@ export class AuthController {
         message: '복구 코드가 올바르지 않아요.',
       });
     }
-    const tokens = await this.authService.issueTokensAfterMfa(user, rememberMe, ctx);
+    const tokens = await this.authService.issueTokensAfterMfa(
+      user,
+      rememberMe,
+      ctx,
+    );
     this.setRefreshTokenCookie(res, tokens.refreshToken, rememberMe);
     return { data: { accessToken: tokens.accessToken } };
   }
@@ -501,7 +514,9 @@ export class AuthController {
     description:
       '사용자 본인의 등록된 인증기 목록 (publicKey·counter 미노출). 인증 필수.',
   })
-  @ApiOkWrappedResponse(WebAuthnCredentialListDto, { description: 'credential 목록' })
+  @ApiOkWrappedResponse(WebAuthnCredentialListDto, {
+    description: 'credential 목록',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async webauthnList(@CurrentUser() user: JwtPayload) {
     const credentials = await this.webauthnService.listCredentials(user.sub);
@@ -520,7 +535,9 @@ export class AuthController {
     description: '사용자 본인의 인증기 device_name 을 수정합니다. 인증 필수.',
   })
   @ApiParam({ name: 'id', format: 'uuid', description: 'credential UUID' })
-  @ApiOkWrappedResponse(WebAuthnCredentialDto, { description: '갱신된 credential' })
+  @ApiOkWrappedResponse(WebAuthnCredentialDto, {
+    description: '갱신된 credential',
+  })
   @ApiBadRequestResponse({ description: '입력 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async webauthnRename(

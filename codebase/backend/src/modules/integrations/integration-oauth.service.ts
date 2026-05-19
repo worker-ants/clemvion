@@ -31,6 +31,7 @@ import { parseJwtExp } from './jwt-exp';
 import { normalizeCafe24IsoTimezone } from './cafe24-token-utils';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { isOAuthStubModeAllowed } from '../../common/utils/oauth-stub-mode';
+import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
 
 const STATE_TTL_MS = 10 * 60 * 1000;
 const PREVIEW_TTL_MS = 10 * 60 * 1000;
@@ -186,45 +187,14 @@ function readErrorMessage(err: unknown): string {
 /** Generic fallback code used when a thrown error has no NestJS response.code. */
 export const OAUTH_CALLBACK_FAILED = 'OAUTH_CALLBACK_FAILED';
 
-/** Hard cap on lastError.message length to keep the JSONB column bounded
- * and prevent ballooning from malicious / runaway provider responses. */
-export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
-
-/** Patterns we mask before persisting lastError.message — provider errors
- * occasionally echo back tokens or partial secrets, and we never want those
- * to land in the DB even briefly. The match is conservative: regex hits
- * replace the entire matched run with `***`.
- *
- * 2026-05-16 (SEC-C2) — Cafe24 가 token endpoint 에러 응답에 `client-secret`
- * (하이픈) 또는 `secret: ...` 단독 키워드를 echo 하는 사례가 운영 로그에서
- * 확인되어 패턴을 확장. 이 sanitizer 는 더 이상 OAuth 흐름 전용이 아니며
- * cafe24-api.client.ts 의 raw error 로그·throw 경로도 동일 패턴을
- * 거쳐야 한다 (export 되어 cross-module 재사용). */
-export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
-  // OAuth-style bearer tokens
-  /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
-  // Cafe24 token endpoints frequently include the secret in body / URL.
-  // 하이픈 변형 (`client-secret`) + JSON 따옴표 변형 (`"client_secret":"..."`)
-  // 까지 함께 매칭한다. value 분기 두 가지:
-  //   (a) `="abc"` / `:"abc"` — quoted (JSON or URL-encoded body)
-  //   (b) `=abc` / `:abc` — bare token (URL query or shell echo)
-  /"?\b(client[_-]secret|access[_-]token|refresh[_-]token|id[_-]token|api[_-]key|password|passwd|pwd)"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
-  // 단독 `secret` 키워드 (JSON `"secret":"..."` 또는 query `secret=...`)
-  /"?\bsecret"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
-  // Authorization header values
-  /\bAuthorization:\s*\S+/gi,
-];
-
-export function sanitizeLastErrorMessage(raw: string): string {
-  if (typeof raw !== 'string' || raw.length === 0) return raw;
-  let masked = raw;
-  for (const pattern of SECRET_LEAK_PATTERNS) {
-    masked = masked.replace(pattern, '***');
-  }
-  return masked.length > LAST_ERROR_MESSAGE_MAX_LEN
-    ? masked.slice(0, LAST_ERROR_MESSAGE_MAX_LEN) + '…'
-    : masked;
-}
+// 2026-05-19 (arch-C2) — sanitizeLastErrorMessage / SECRET_LEAK_PATTERNS /
+// LAST_ERROR_MESSAGE_MAX_LEN を shared/utils/sanitize-error-message.ts 로 이동.
+// 기존 import 경로 호환을 위해 여기서 re-export.
+export {
+  LAST_ERROR_MESSAGE_MAX_LEN,
+  SECRET_LEAK_PATTERNS,
+  sanitizeLastErrorMessage,
+} from '../../shared/utils/sanitize-error-message';
 
 interface TokenExchangeResult {
   accessToken: string;

@@ -1,0 +1,81 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-19T11:45:40Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): sanitizeLastErrorMessage 로 토큰/시크릿 노출 차단하는 에러 처리 경로"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "I/O 반복문·대용량 처리·캐시 최적화 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "ResumableNodeHandler 인터페이스 변경, 엔진 내 에러 처리 레이어 신설 (handleAiTurnError)"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec §7.9 멀티턴 오류 종결 기능 구현 — output.error.{code, message, details} 스키마 신설"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 대화 루프 종료 경로 추가 (finalStatus='FAILED'), 상태머신 전이 규칙 확장"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 상태머신 WAITING_FOR_INPUT→FAILED 전이 추가, NODE_FAILED/EXECUTION_FAILED 이벤트 신규 발사"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): handleAiTurnError 신규 메서드, extractAiTurnErrorPayload 정적 헬퍼 신설, finalizeAiNode 서명 변경"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 신규 src 코드 — end-to-end 테스트(LLM 429 시뮬), 단위 테스트(errorPayload 포워딩)"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "ResumableNodeHandler.endMultiTurnConversation 시그니처 변경 및 JSDoc 갱신 필요"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/package-lock.json 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션·스키마 변경 없음, DB 쿼리 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "waitForAiConversation 루프 내 try/catch 으로 handler throw 캡처, Promise 에러 전파 경로 분기"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "output.error 응답 envelope 신설, NODE_FAILED/EXECUTION_FAILED 웹소켓 이벤트 신규 발사, error 포트 활성화"
+    }
+  ],
+  "selected_count": 11,
+  "skipped_count": 2,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing"
+  ]
+}

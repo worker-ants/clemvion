@@ -397,7 +397,8 @@ export class AuthService {
     if (webauthnCount > 0) {
       throw new UnauthorizedException({
         code: 'WEBAUTHN_REQUIRED',
-        message: 'Passkey 로 로그인해 주세요. (WebAuthn 등록 사용자는 TOTP 우회 불가)',
+        message:
+          'Passkey 로 로그인해 주세요. (WebAuthn 등록 사용자는 TOTP 우회 불가)',
       });
     }
     const ok = await verifier(user, code);

@@ -57,9 +57,7 @@ export function validateButtons(config: Record<string, unknown>): string[] {
   const errors: string[] = [];
 
   if (rawButtons.length > MAX_BUTTONS_PER_NODE) {
-    errors.push(
-      `Maximum ${MAX_BUTTONS_PER_NODE} buttons allowed per node`,
-    );
+    errors.push(`Maximum ${MAX_BUTTONS_PER_NODE} buttons allowed per node`);
   }
 
   // Unique IDs

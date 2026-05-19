@@ -46,6 +46,8 @@ import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ALL_NODE_COMPONENTS } from '../../nodes';
 import { ExecutionContextService } from './context/execution-context.service';
+// sanitizeLastErrorMessage lives in a neutral shared layer (arch-C2).
+import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
 import {
   ErrorPolicyHandler,
   ErrorPolicyConfig,
@@ -64,6 +66,7 @@ import {
   isResumableNodeHandler,
   NodeHandler,
   NodeHandlerOutput,
+  ResumableNodeHandler,
 } from '../../nodes/core/node-handler.interface';
 import { NODE_TYPES } from '../../nodes/core/node-types.constants';
 import {
@@ -1960,6 +1963,10 @@ export class ExecutionEngineService
 
     // Conversation loop — exits when user ends OR handler returns terminal.
     let conversationEnded = false;
+    // 2026-05-19 — spec/4-nodes/3-ai/1-ai-agent.md §7.9. handleAiMessageTurn
+    // 이 turn 처리 중 handler throw 를 catch 해 `finalStatus='FAILED'` 신호로
+    // loop 를 종료시키면, finalizeAiNode 가 FAILED 분기로 진입한다.
+    let finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED';
     while (!conversationEnded) {
       // Wait for user message or end signal (no timeout — external cancel only)
       const userData = await new Promise<unknown>((resolve, reject) => {
@@ -1985,6 +1992,9 @@ export class ExecutionEngineService
         );
         resumeState = turn.resumeState;
         conversationEnded = turn.ended;
+        if (turn.finalStatus === 'FAILED') {
+          finalStatus = 'FAILED';
+        }
       }
     }
 
@@ -1994,6 +2004,7 @@ export class ExecutionEngineService
       node,
       context,
       nodeExec,
+      finalStatus,
     );
   }
 
@@ -2112,7 +2123,18 @@ export class ExecutionEngineService
     message: string,
     resumeState: Record<string, unknown>,
     nodeExec: NodeExecution | null,
-  ): Promise<{ resumeState: Record<string, unknown>; ended: boolean }> {
+  ): Promise<{
+    resumeState: Record<string, unknown>;
+    ended: boolean;
+    /**
+     * 2026-05-19 — spec/4-nodes/3-ai/1-ai-agent.md §7.9. turn 처리 중 handler
+     * 가 throw 한 경우 (LLM 429 등) 본 필드가 `'FAILED'` 로 set 된다.
+     * `waitForAiConversation` 가 이 신호를 `finalizeAiNode(.., finalStatus)` 로
+     * 전달해 NodeExecution → FAILED, Execution → FAILED 로 마무리한다.
+     * 정상 경로 (waiting → continue, ended success) 는 undefined.
+     */
+    finalStatus?: 'FAILED';
+  }> {
     // Process user message via the node's own handler (so both ai_agent
     // and information_extractor can implement conversational extraction
     // with their own domain logic).
@@ -2124,7 +2146,26 @@ export class ExecutionEngineService
           'handler does not implement ResumableNodeHandler interface',
       );
     }
-    const result = await handler.processMultiTurnMessage(message, resumeState);
+    // spec §7.9 — handler throw (LLM 429 / timeout / connection 등) 시 conversation
+    // loop 를 자연 종료시키고 `finalizeAiNode(.., 'FAILED')` 로 노드 상태를
+    // FAILED 전이한다. catch 없이 propagate 하면 `waitForAiConversation` 의
+    // while loop 가 throw 를 들고 종료해 `finalizeAiNode` 호출 자체가 누락
+    // (NodeExecution.status = WAITING_FOR_INPUT 영구 잔류) — 본 try/catch 가 그
+    // 회귀의 차단막. 운영 보고 2026-05-19 (LLM 429 시 frontend 헤더 "실패" +
+    // 노드 "Waiting" 모순 상태).
+    let result: unknown;
+    try {
+      result = await handler.processMultiTurnMessage(message, resumeState);
+    } catch (err) {
+      return this.handleAiTurnError(
+        executionId,
+        node,
+        resumeState,
+        nodeExec,
+        err,
+        handler,
+      );
+    }
     const resultObj = result as Record<string, unknown>;
 
     if (resultObj.status === 'waiting_for_input') {
@@ -2368,11 +2409,164 @@ export class ExecutionEngineService
   }
 
   /**
+   * 2026-05-19 — spec/4-nodes/3-ai/1-ai-agent.md §7.9 (Multi Turn 모드 — 오류
+   * `error` 포트). turn 처리 중 handler 가 throw 하면 (LLM 429 / timeout /
+   * connection 등) 본 helper 가 호출돼:
+   *
+   *  1. throw 된 예외에서 `{ code, message, details }` 를 추출 (message·details
+   *     는 `sanitizeLastErrorMessage` 로 token/secret echo 차단).
+   *  2. `handler.endMultiTurnConversation(state, 'error', errorPayload)` 호출 —
+   *     spec §7.9 shape (`output.error` + 부분 `output.result.*` 병존, `port=
+   *     "error"`, `status="ended"`).
+   *  3. structured / flat cache + DB outputData 갱신 (`handleAiEndConversation`
+   *     과 동일 단일 진입 패턴).
+   *
+   * conversation loop 는 `{ ended: true, finalStatus: 'FAILED' }` 를 받고 자연
+   * 종료. `waitForAiConversation` 가 `finalizeAiNode(.., 'FAILED')` 를 호출해
+   * `NodeExecution.status=FAILED` + `Execution.status=FAILED` 로 마무리하고
+   * `NODE_FAILED` + `EXECUTION_FAILED` 이벤트를 단발사한다.
+   *
+   * ConversationThread 에는 직접 mutate 하지 않는다 (spec/conventions/
+   * conversation-thread.md §3.1 의 단일 진입점 원칙 — 이전 turn 에서 push 된
+   * `ai_user` turn 은 보존되고 추가 push 없이 finalize). continuation bus 도
+   * 경유하지 않음 (오류는 엔진 내부 동기 경로).
+   */
+  private handleAiTurnError(
+    executionId: string,
+    node: Node,
+    resumeState: Record<string, unknown>,
+    nodeExec: NodeExecution | null,
+    err: unknown,
+    handler: ResumableNodeHandler,
+  ): {
+    resumeState: Record<string, unknown>;
+    ended: true;
+    finalStatus: 'FAILED';
+  } {
+    const errorPayload = ExecutionEngineService.extractAiTurnErrorPayload(err);
+    this.logger.error(
+      `AI Agent turn failed (executionId=${executionId} nodeId=${node.id}, ` +
+        `code=${errorPayload.code}): ${errorPayload.message}`,
+    );
+
+    const errorResult = handler.endMultiTurnConversation(
+      resumeState,
+      'error',
+      errorPayload,
+    );
+    const adapted = adaptHandlerReturn(errorResult);
+    this.contextService.setStructuredOutput(executionId, node.id, adapted);
+    const portRouted = this.applyPortSelection(toEngineFlatShape(adapted));
+    this.contextService.setNodeOutput(executionId, node.id, portRouted);
+
+    if (nodeExec) {
+      // WARN #6 — `_resumeState` 는 DB 영속 페이로드에서 strip. 정상 finalize
+      // (`finalizeAiNode`) 가 같은 strip 을 수행하지만, 이 시점에 cache 가
+      // 새 error shape 으로 갱신됐으므로 일관성 위해 outputData 도 동기 갱신.
+      const { _resumeState: _stripped, ...safe } = adapted as unknown as {
+        _resumeState?: unknown;
+      } & Record<string, unknown>;
+      void _stripped;
+      nodeExec.outputData = safe;
+      // status / finishedAt / durationMs 는 finalizeAiNode 의 FAILED 분기에서
+      // 일괄 처리한다 (단일 commit 지점 유지).
+    } else {
+      // req W_null — nodeExec 가 null 이면 DB 저장은 건너뛰지만 warn 을 기록해
+      // 운영 로그에서 탐지 가능하도록 한다 (finalizeAiNode FAILED 분기와 대칭).
+      this.logger.warn(
+        `handleAiTurnError: nodeExec is null for executionId=${executionId} ` +
+          `nodeId=${node.id} — DB save skipped, FAILED signal still propagated`,
+      );
+    }
+
+    return { resumeState, ended: true, finalStatus: 'FAILED' };
+  }
+
+  /**
+   * throw 된 예외에서 spec §7.9 의 `output.error` shape 으로 매핑.
+   *
+   * `code` 추출 precedence:
+   *  1. `err.code` (LlmClient 가 이미 `LLM_RATE_LIMIT` / `LLM_CONNECTION_ERROR`
+   *     / `LLM_API_ERROR` 등 UPPER_SNAKE_CASE 로 set).
+   *  2. message 가 '429' 또는 'rate limit' 포함 → `LLM_RATE_LIMIT`.
+   *  3. fallback → `AI_AGENT_TURN_FAILED`.
+   *
+   * `message` / `details` 는 `sanitizeLastErrorMessage` 로 token/secret echo 차단.
+   */
+  private static extractAiTurnErrorPayload(err: unknown): {
+    code: string;
+    message: string;
+    details?: unknown;
+  } {
+    // Error 가 아닌 throw (string / number / 비-Error 객체) 도 들어올 수 있어
+    // typeof 로 안전하게 분기. `String({})` 가 `[object Object]` 가 되는 base
+    // stringification 함정을 회피.
+    let rawMessage: string;
+    if (err instanceof Error) {
+      rawMessage = err.message;
+    } else if (typeof err === 'string') {
+      rawMessage = err;
+    } else if (err === null || err === undefined) {
+      rawMessage = 'unknown error';
+    } else if (
+      typeof err === 'number' ||
+      typeof err === 'boolean' ||
+      typeof err === 'bigint'
+    ) {
+      rawMessage = String(err);
+    } else {
+      // Circular-reference or other non-serializable objects: fall back to a
+      // safe placeholder rather than letting JSON.stringify throw and re-enter
+      // the WAITING_FOR_INPUT regression path (req W_json).
+      try {
+        rawMessage = JSON.stringify(err);
+      } catch {
+        rawMessage = '[non-serializable error object]';
+      }
+    }
+    const message = sanitizeLastErrorMessage(rawMessage);
+    const explicitCode = (err as { code?: unknown } | null | undefined)?.code;
+    let code: string;
+    if (typeof explicitCode === 'string' && explicitCode.length > 0) {
+      code = explicitCode;
+    } else if (
+      rawMessage.includes('429') ||
+      rawMessage.toLowerCase().includes('rate limit')
+    ) {
+      code = 'LLM_RATE_LIMIT';
+    } else {
+      code = 'AI_AGENT_TURN_FAILED';
+    }
+    const rawDetails = (err as { details?: unknown } | null | undefined)
+      ?.details;
+    let details: unknown;
+    if (rawDetails !== undefined) {
+      // JSON.stringify → sanitize → JSON.parse chain: strips secret tokens from
+      // nested details fields. Wrapped in try/catch because rawDetails may be
+      // non-serializable (circular refs, BigInt, etc.) — req W_json.
+      try {
+        details = JSON.parse(
+          sanitizeLastErrorMessage(JSON.stringify(rawDetails)),
+        ) as unknown;
+      } catch {
+        details = '[serialization error]';
+      }
+    }
+    return details !== undefined
+      ? { code, message, details }
+      : { code, message };
+  }
+
+  /**
    * PR-H — conversation 종료 후 NodeExecution 을 COMPLETED 로 finalize
    * + Execution 을 RUNNING 으로 atomic 전이 (WARN #4) + 클라이언트 emit
    * (`NODE_COMPLETED` + `EXECUTION_RESUMED`).
    *
    * `_resumeState` 는 DB 저장 시 strip (WARN #6 — credential / 내부 state 노출 차단).
+   *
+   * 2026-05-19 — `finalStatus` 추가 (spec §7.9). `'FAILED'` 시 NodeExecution.
+   * status=FAILED + Execution.status=FAILED + NODE_FAILED + EXECUTION_FAILED
+   * 분기로 진입. 기본값 `'COMPLETED'` 는 기존 흐름 유지.
    */
   private async finalizeAiNode(
     savedExecution: Execution,
@@ -2380,9 +2574,13 @@ export class ExecutionEngineService
     node: Node,
     context: ExecutionContext,
     nodeExec: NodeExecution | null,
+    finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED',
   ): Promise<void> {
+    const isFailed = finalStatus === 'FAILED';
     if (nodeExec) {
-      nodeExec.status = NodeExecutionStatus.COMPLETED;
+      nodeExec.status = isFailed
+        ? NodeExecutionStatus.FAILED
+        : NodeExecutionStatus.COMPLETED;
       // Persist the canonical structured cache. Terminal handler returns
       // (buildMultiTurnFinalOutput / buildConditionOutput / buildErrorOutput)
       // do not carry _resumeState, but defensively strip it in case a future
@@ -2400,6 +2598,78 @@ export class ExecutionEngineService
       nodeExec.finishedAt = new Date();
       nodeExec.durationMs =
         nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
+      if (isFailed) {
+        // spec/1-data-model.md §2.14 — NodeExecution.error 가 set 되면 상위
+        // updateExecutionStatus(FAILED) 가 Execution.error 로 자동 복사한다.
+        const errOutput = (finalOutput.output as Record<string, unknown>)
+          ?.error as Record<string, unknown> | undefined;
+        const errMessage =
+          (typeof errOutput?.message === 'string'
+            ? errOutput.message
+            : undefined) ?? 'AI Agent turn failed';
+        nodeExec.error = { message: errMessage };
+      }
+    }
+
+    if (isFailed) {
+      // 2026-05-19 — FAILED 분기에서 Execution.status 전이 + EXECUTION_FAILED
+      // 발사는 `runExecution` top-level catch 에 위임한다. 이유:
+      //  (1) main dispatch loop 가 conversation 종료 후 다음 노드 진입을 시도
+      //      하다 state 전이 충돌 (failed→completed) 을 일으키는 회귀를 차단.
+      //  (2) Execution.error 복사 (spec/1-data-model.md §2.14) 와 EXECUTION_
+      //      FAILED 페이로드를 단일 진입점으로 모음.
+      // 본 분기는 NodeExecution.status=FAILED 만 직접 save 하고 NODE_FAILED
+      // 만 발사한 뒤 sentinel error 를 throw — caller (`waitForAiConversation`)
+      // 도 그대로 propagate 해 `runExecution` catch 로 흐른다.
+      if (nodeExec) {
+        await this.nodeExecutionRepository.save(nodeExec);
+        const errOutput = nodeExec.outputData?.output as
+          | Record<string, unknown>
+          | undefined;
+        const errFromOutput = errOutput?.error as
+          | Record<string, unknown>
+          | undefined;
+        const fromOutputMessage =
+          typeof errFromOutput?.message === 'string'
+            ? errFromOutput.message
+            : undefined;
+        const fromExecError =
+          typeof nodeExec.error?.message === 'string'
+            ? nodeExec.error.message
+            : undefined;
+        const errorMessage: string =
+          fromOutputMessage ?? fromExecError ?? 'AI Agent turn failed';
+        // spec/5-system/6-websocket-protocol.md §3 — `execution.node.failed`
+        // 단일 발사. AI_MESSAGE 양발사 안 함 (정상 응답 전용 채널).
+        this.eventEmitter.emitNode(
+          executionId,
+          node.id,
+          NodeEventType.NODE_FAILED,
+          {
+            nodeExecutionId: nodeExec.id,
+            parentNodeExecutionId: context.parentNodeExecutionId,
+            status: NodeExecutionStatus.FAILED,
+            error: errorMessage,
+            duration: nodeExec.durationMs,
+            nodeType: node.type,
+            nodeLabel: node.label ?? node.type,
+            output: nodeExec.outputData,
+            input: nodeExec.inputData,
+            interactionData: nodeExec.interactionData,
+            startedAt: nodeExec.startedAt?.toISOString?.(),
+            finishedAt: nodeExec.finishedAt?.toISOString?.(),
+          },
+        );
+        throw new Error(errorMessage);
+      }
+      // req W_null — nodeExec 가 null 이면 NODE_FAILED 이벤트는 발사하지 못하지만
+      // EXECUTION_FAILED 는 sentinel throw → runExecution catch 에서 발사된다.
+      // 운영 로그로 탐지 가능하도록 warn 기록.
+      this.logger.warn(
+        `finalizeAiNode FAILED: nodeExec is null for executionId=${executionId} ` +
+          `nodeId=${node.id} — NODE_FAILED event skipped, sentinel throw propagates`,
+      );
+      throw new Error('AI Agent turn failed');
     }
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
