@@ -4,9 +4,9 @@ import {
   ConversationInspector,
   SUMMARY_STRING_MAX,
   SUMMARY_VALUE_MAX,
-  isAssistantContentBlank,
   summarizeToolResult,
 } from "../conversation-inspector";
+import { isAssistantContentBlank } from "@/lib/conversation/conversation-utils";
 import type {
   ConversationItem,
   NodeResult,

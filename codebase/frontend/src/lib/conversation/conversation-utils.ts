@@ -87,6 +87,32 @@ export function stripInlineMarkers(s: string | undefined): string {
 }
 
 /**
+ * spec/conventions/conversation-thread.md §9.8 — content blank 동치성.
+ * Assistant 메시지 본문이 시각적으로 비어있는지 판정하는 **단일 결정 함수**.
+ *
+ * LLM provider 가 tool_use 블록 사이에 빈 text 블록 (`" "`, `"\n"`) 을 같이
+ * emit 하면 `result.content` 가 truthy 공백문자가 되는데, ReactMarkdown 으로
+ * 렌더하면 사용자 눈에는 빈 버블처럼 보인다. 본 함수는 다음 4가지를 모두
+ * 동치 (blank) 로 처리해 LLM provider 마다 다른 빈 content 표현을 흡수한다:
+ *
+ *   - `null`
+ *   - `undefined`
+ *   - `""` (빈 문자열)
+ *   - `" "`, `"\n"`, `"   \t\n"` 등 whitespace-only 문자열
+ *
+ * 본 판정의 사용처 (spec §9.8):
+ *   1. 그룹 분류 (§9.6): `ai_assistant` 가 tool-call group parent 인지 결정
+ *   2. 헤더 라벨 (SelectedItemDetail): "Tool Call" vs "AI Response"
+ *   3. placeholder (timeline bubble): `(empty)` 표시 여부
+ *
+ * Spec 의 "단일 결정 함수" 요구에 따라 본 모듈에서 export 한 단일 정의만
+ * UI / 변환 함수가 import 해 사용한다 (다중 정의 금지).
+ */
+export function isAssistantContentBlank(content: unknown): boolean {
+  return typeof content !== "string" || content.trim() === "";
+}
+
+/**
  * Convert a `ConversationThread.turns` snapshot (the 1차 데이터 소스 for
  * conversation Preview per spec §9.3) into the inspector's `ConversationItem`
  * timeline shape. Each source maps to a single render kind that
