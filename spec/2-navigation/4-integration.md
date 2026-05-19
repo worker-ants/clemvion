@@ -818,7 +818,7 @@ window.close();
 - **갱신 실패 시 (2026-05-16 갱신)**: `refresh_token` 자체가 무효 (`invalid_grant`) 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기는 폐기 — [Rationale "refresh 실패 시 status_reason 통일"](#rationale) 참고; cafe24 의 경우 본 격하 경로는 [§6.1 공통 격하 동작](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 에 명세). transport 실패가 3회 연속이면 `error(network)` 로 전이 (PR #67 V049 카운터). `integration_expired` 알림은 `expired` 전이에만 발사하며 `error(*)` 전이는 UI 배지로만 표시 (§11 참고).
 - 갱신 성공 시: `Integration.last_rotated_at` 도 함께 갱신해 백그라운드 갱신 스캐너의 cutoff 비교에 사용된다 (§11.1 `cafe24-background-refresh`).
 - **원자 갱신**: 토큰 갱신 성공 시 `credentials.access_token` / `credentials.refresh_token` / `credentials.expires_at` / `Integration.token_expires_at` 4개 필드를 **동일 트랜잭션 내 원자 UPDATE**. partial write 시 다음 노드 실행이 inconsistent token state 를 사용하는 race condition 방지.
-- **Cafe24 한정**: 갱신 endpoint 도 `https://{credentials.mall_id}.cafe24api.com/api/v2/oauth/token`. `mall_id` 누락 시 `INTEGRATION_INCOMPLETE` 로 즉시 실패. **백그라운드 갱신**: 일일 `cafe24-background-refresh` 잡 (§11.1) 이 `lastRotatedAt < now - 10d OR IS NULL` 인 connected cafe24 통합을 `cafe24-token-refresh` 큐로 enqueue 해 14일 idle 통합의 refresh_token 도 자동 갱신한다. **0d 만료 자가 회복 (2026-05-18 추가)**: 백그라운드 갱신이 도달하기 전 (또는 그 외 어떤 이유로) access_token 만료가 발생해 `connected-expiry` 일일 잡의 `0d` 임계에 매칭되면, scanner 가 cafe24 행을 `expired` 로 격하하는 대신 `cafe24-token-refresh` 큐로 enqueue 한다 (§11.1 표 참조). worker 가 refresh 성공 시 `last_rotated_at`/`token_expires_at` 갱신 후 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 전이. 본 정책으로 **cafe24 의 `expired` 상태는 사실상 `install_timeout` (Cafe24 Private 24h TTL) 한 가지 경로만 남는다** — refresh_token 유효 상태에서 access_token 만 만료된 케이스가 `expired` 로 격하되어 AI Agent/노드의 자가 회복 경로를 막던 회귀 해소 (사용자 보고 2026-05-18). **멀티 인스턴스 race**: 모든 cafe24 refresh 호출은 `cafe24-token-refresh` 큐의 `jobId = integrationId` dedup 으로 클러스터 전체 직렬화된다 ([Rationale "BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소"](#rationale) 참고).
+- **Cafe24 한정**: 갱신 endpoint 도 `https://{credentials.mall_id}.cafe24api.com/api/v2/oauth/token`. `mall_id` 누락 시 `INTEGRATION_INCOMPLETE` 로 즉시 실패. **백그라운드 갱신**: 6시간 주기 `cafe24-background-refresh` 잡 (§11.1) 이 `lastRotatedAt < now - 7d OR IS NULL` 인 connected cafe24 통합을 `cafe24-token-refresh` 큐로 enqueue 해 14일 idle 통합의 refresh_token 도 자동 갱신한다 (2026-05-19 갱신 — 옛 daily / 10일 정책에서 단축). **0d 만료 자가 회복 (2026-05-18 추가)**: 백그라운드 갱신이 도달하기 전 (또는 그 외 어떤 이유로) access_token 만료가 발생해 `connected-expiry` 일일 잡의 `0d` 임계에 매칭되면, scanner 가 cafe24 행을 `expired` 로 격하하는 대신 `cafe24-token-refresh` 큐로 enqueue 한다 (§11.1 표 참조). worker 가 refresh 성공 시 `last_rotated_at`/`token_expires_at` 갱신 후 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 전이. 본 정책으로 **cafe24 의 `expired` 상태는 사실상 `install_timeout` (Cafe24 Private 24h TTL) 한 가지 경로만 남는다** — refresh_token 유효 상태에서 access_token 만 만료된 케이스가 `expired` 로 격하되어 AI Agent/노드의 자가 회복 경로를 막던 회귀 해소 (사용자 보고 2026-05-18). **멀티 인스턴스 race**: 모든 cafe24 refresh 호출은 `cafe24-token-refresh` 큐의 `jobId = integrationId` dedup 으로 클러스터 전체 직렬화된다 ([Rationale "BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소"](#rationale) 참고).
 
 ---
 
@@ -832,14 +832,17 @@ window.close();
 
 ### 11.1 스캐너 잡
 
-네 개의 일일 BullMQ 잡 (`Cron: 0 0 * * *` UTC). 각 잡은 enqueuer 역할만 하며 실제 갱신 작업은 큐의 worker 가 수행 (역할 분리).
+네 개의 독립 BullMQ 잡. 각 잡은 enqueuer 역할만 하며 실제 갱신 작업은 큐의 worker 가 수행 (역할 분리). **주기 분리 (2026-05-19 갱신)**:
+
+- `connected-expiry` / `pending-install-ttl` / `usage-log-prune` — daily `0 0 * * *` UTC. 알림 빈도·24h TTL·90d retention 의 정량적 특성이 일일 cadence 와 일치.
+- `cafe24-background-refresh` — **6h `0 */6 * * *` UTC**. refresh_token 14일 만기 사전 차단의 안전 마진 확보용 (자세한 근거는 [Rationale](#rationale) "`cafe24-background-refresh` 7일 임계 + 6h cron" 참조).
 
 | Job name | 대상 | 동작 |
 |----------|------|------|
 | `connected-expiry` | `status NOT IN (expired, error, pending_install) AND token_expires_at IS NOT NULL` | `remain ≤ 0d`: **(2026-05-18 갱신)** `service_type='cafe24'` AND `credentials.refresh_token` 존재 행은 `cafe24-token-refresh` 큐 enqueue (jobId dedup — `cafe24-background-refresh` 와 동일 경로) + 알림. refresh 실패는 worker (`Cafe24TokenRefreshProcessor`) 가 `error(auth_failed)` 로 전이시키므로 본 잡은 status 변경 안 함. 그 외 (refresh_token 없는 provider) 는 종전대로 `status=expired` + 알림. `remain ≤ 3d` / `≤ 7d` → 알림만 (중복 방지 키, status 변경 없음). |
 | `pending-install-ttl` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` (Cafe24 Private 한정) | `status='expired', status_reason='install_timeout', install_token=NULL` 으로 bulk UPDATE. **격리 수준**: PostgreSQL default READ COMMITTED + UPDATE … WHERE 의 row-level write lock 으로 충분. WHERE 절이 단일 행 단위로 매칭되고, `pending_install → expired` 전이는 idempotent (이미 expired 인 행은 WHERE 의 status 조건에서 자동 제외) 이라 동시 실행 (예: cron + 수동 호출) 시 한 cycle 의 일부 행을 두 잡이 나눠 처리하더라도 최종 상태는 동일. SERIALIZABLE / advisory lock 불필요. **알림 미발사** — 사용자가 외부 install 흐름 진행 중인 명시적 상태로 UI 배지 + 통합 상세 페이지로 통지 충분 (§11.2 + Rationale "install_timeout 알림 미발사" 참고). |
 | `usage-log-prune` | `integration_usage_log.at < now-90d` | 행 삭제 (보존 정책) |
-| `cafe24-background-refresh` | `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-10d OR last_rotated_at IS NULL)` | `cafe24-token-refresh` 큐로 enqueue (`jobId = integrationId` dedup). 실제 refresh 는 `Cafe24TokenRefreshProcessor` worker 가 수행. 10일 임계 = refresh_token 14일 - 4일 안전 마진 ([Rationale](#rationale) 참조). |
+| `cafe24-background-refresh` | `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-7d OR last_rotated_at IS NULL)` | `cafe24-token-refresh` 큐로 enqueue (`jobId = integrationId` dedup). 실제 refresh 는 `Cafe24TokenRefreshProcessor` worker 가 수행. **(2026-05-19 갱신)** 7일 임계 + 6h cron = refresh_token 14일의 50% 마진 (cron 누락 1회 흡수). scheduler ID `cafe24-background-refresh-daily` 는 historical 보존 — BullMQ idempotent upsert 활용 (ID 변경 시 옛 Redis entry 가 orphan 으로 잔존해 daily/6h 가 동시 fire 되는 회귀 위험). 자세한 근거는 [Rationale](#rationale) 참조. |
 
 `connected-expiry` 흐름 의사코드 (2026-05-18 갱신):
 
@@ -1204,22 +1207,28 @@ Cafe24 Public app 흐름은 우리 서버의 `CAFE24_CLIENT_ID` / `CAFE24_CLIENT
 - 본 큐는 **refresh 호출의 cross-pod 직렬화**만 담당. API 호출 자체 (Cafe24 leaky bucket 관리) 는 여전히 `Cafe24ApiClient` in-memory mutex 가 같은 pod 내에서만 직렬화 — Cafe24 leaky bucket 이 per-mall quota 라 cross-pod 직렬화 불필요 (per-pod backoff 신호로 충분). 자세한 분리는 §9.6 참고.
 - 큐 미바인딩 환경 (unit test) 에서는 fallback 으로 in-process `refreshAccessToken` 직접 호출. production wiring 은 항상 큐 경유.
 
-### `cafe24-background-refresh` 10일 임계 (2026-05-16)
+### `cafe24-background-refresh` 7일 임계 + 6h cron (2026-05-19 갱신)
 
 Cafe24 의 `refresh_token` 은 14일 유효이며, Cafe24 가 매 refresh 마다 새 refresh_token 을 발급 (rotation). 활성 통합 (주 1회 이상 사용) 은 매 사용 시점에 proactive refresh 가 일어나 사실상 영구 유효하다. 그러나 14일 이상 idle 인 통합은 refresh_token 까지 만료되어 사용자가 재인증해야 한다.
 
-**결정**: 일일 `cafe24-background-refresh` 잡이 `lastRotatedAt < now - 10d OR IS NULL` 인 connected cafe24 통합을 자동 refresh.
+**결정**: `cafe24-background-refresh` 잡이 6시간 주기 (`'0 */6 * * *' UTC`) 로 `lastRotatedAt < now - 7d OR IS NULL` 인 connected cafe24 통합을 자동 refresh.
 
-**임계 10일 근거**:
-- 14일 유효 - 4일 안전 마진 = 10일. 갱신 실패 / 큐 적체 / 일일 잡 한 번 누락 시에도 마감 전 재시도 여지.
-- 더 짧게 (예: 매일) 잡으면 Cafe24 leaky bucket 에 불필요한 부담. 운영 부하 vs 안전 마진 trade-off.
-- 더 길게 (예: 12일) 잡으면 안전 마진 부족.
+**임계 7일 + cron 6h 근거**:
+- 7일 cutoff = refresh_token 14일 유효기간의 **50% 마진**. cron 6h 주기로 한 번 누락 (6h) 이 마진에 거의 영향을 주지 않음.
+- 옛 정책 (10일 cutoff + 24h cron) 은 마진 3일. cron 한 번 누락 시 마진이 즉시 2일로 압박되어 BullMQ 인프라 장애 (Redis AUTH 누락 등) 가 24h 누적되면 잠재적 위험.
+- 더 짧게 (예: 1h cron) 잡으면 쿼리 비용 (idle 통합 풀스캔) 누적 + cutoff 자체가 throttle 역할이라 과도.
+- 더 길게 (예: 14일 cutoff) 잡으면 cron 한 번 누락만으로도 refresh_token 만기.
+
+**scheduler ID 보존**:
+- BullMQ scheduler ID `cafe24-background-refresh-daily` 는 historical 보존. BullMQ `upsertJobScheduler` 가 같은 ID 의 기존 entry 를 idempotent 갱신만 하므로 ID 변경 시 옛 Redis entry 가 orphan 으로 잔존해 daily/6h 가 동시 fire 되는 회귀 위험. 이름은 historical, 실제 주기는 6h.
 
 **신규 통합 NULL 처리**:
 - `integrations.service.create()` 가 cafe24 신규 통합 row 생성 시 `lastRotatedAt = new Date()` 로 명시 초기화 (PR #67 DB-1 fix).
 - 옛 row (PR #67 이전) 또는 다른 진입점에서 NULL 로 저장된 경우를 대비해 쿼리 조건이 `Or(LessThan(cutoff), IsNull())` belt-and-suspenders.
 
-**경계**: 본 잡은 enqueuer 역할이며 실제 refresh 는 `cafe24-token-refresh` 큐의 worker 가 수행 (역할 분리). proactive call 과 같은 jobId dedup 으로 충돌 없이 협력.
+**경계**: 본 잡은 enqueuer 역할이며 실제 refresh 는 `cafe24-token-refresh` 큐의 worker 가 수행 (역할 분리). proactive call 과 같은 jobId dedup 으로 충돌 없이 협력. 다른 3개 스케줄러 (`connected-expiry` / `pending-install-ttl` / `usage-log-prune`) 는 daily 00:00 UTC 유지 — 작업 성격 (알림 / 24h TTL / 90d retention) 이 일일 cadence 와 일치.
+
+**대체된 옛 결정**: 본 절은 옛 "`cafe24-background-refresh` 10일 임계 (2026-05-16)" 결정을 대체한다 (PR #212 적용 후 동기화).
 
 ### Cafe24 install_token mismatch 회복 흐름 — 보안 전제 (2026-05-16)
 
