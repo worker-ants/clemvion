@@ -35,6 +35,46 @@
 
 **Worktree 별 e2e 자동 격리**: `make e2e-*` 는 현재 worktree dir basename 으로 compose project name 을 도출 (main worktree = `clemvion-e2e`, `.claude/worktrees/<task>-<slug>/` = `clemvion-e2e-<task>-<slug>`). 컨테이너·볼륨·network 가 worktree 별로 분리되므로 여러 worktree 에서 e2e 를 **동시에** 돌려도 충돌 없음. image 자체는 worktree 간 공유되어 (각 빌드 서비스에 `image:` 명시) 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다. `COMPOSE_PROJECT=foo make e2e-test` 로 사용자 override 가능. 자세한 내용은 `docker-compose.e2e.yml` 헤더 주석과 `Makefile` 상단, 운영 정책은 [`CLAUDE.md` §Worktree 기반 작업 정책](CLAUDE.md#worktree-기반-작업-정책) 참고.
 
+## e2e 실행 원칙
+
+코드가 한 줄이라도 바뀌었으면 **e2e 수행이 default**. 면제는 §e2e 면제 화이트리스트 의 부분집합 조건만 인정한다. 자가 판단·후속 단계 떠넘기기·"변경이 작아서" 는 모두 면제 사유가 아니다.
+
+본 절은 자주 발생한 회피 패턴과 실행 사전 점검을 명시한다. 면제 대상 식별 규칙은 §e2e 면제 화이트리스트, 실제 명령은 §빌드·린트·테스트 명령, 작성 패턴은 §e2e 테스트 작성 가이드 참고.
+
+### 회피 안티패턴
+
+다음 사유는 자동(`resolution-applier`) · 수동 흐름 모두에서 회피로 분류된다. RESOLUTION.md 의 `e2e` 줄에 적어도 그 자체가 차단 신호가 된다:
+
+- **"단위·integration 으로 충분"** — e2e 는 docker compose 의 실 Postgres·Redis·MinIO·Flyway·BullMQ 회귀 안전망이다. unit 으로 절대 검출 못 함
+- **"변경이 frontend 만 / backend 만"** — cross-stack 회귀 검출 자체가 e2e 의 본 목적
+- **"사용자 가시 동작에 영향 없어 보임"** — 자가 영향 추정은 면제 사유 아님. 영향 추정은 변경자가 아닌 실 인프라가 결정
+- **"lint·unit·build 통과했으니 후속 단계(`/ai-review` 등) 가 처리할 것"** — 후속 단계도 동일 wrapper 를 호출한다. 떠넘긴다고 사라지지 않으며, 자동 흐름에서 차단되면 손실만 누적
+- **"review 반영 직후 fix 가 1~2 줄"** — 코드 변경이면 변경량 무관 재수행. 마지막 코드 commit 다음에 e2e 통과 줄이 없으면 회피로 본다
+- **"docker 가 느려서 다음 turn 에"** — 가용성을 실제 확인하지 않은 보류 금지. 미루기 전에 `docker info` 로 daemon 가용성 먼저 확인
+
+> `[skip-e2e]` 자체 발급 절대 금지. 자동 흐름은 `resolution-applier` sub-agent 가 wrapper 호출을 강제하며, 수동 흐름이라도 `.claude/skills/developer/SKILL.md §RESOLUTION.md schema` 의 e2e 줄 4형식 (통과 / 면제 (화이트리스트 인용) / 보류 (사용자 응답 인용) / 자동 흐름 환경 차단) 외 어떤 표현도 차단된다.
+
+### 실행 사전 체크리스트
+
+매 turn TEST WORKFLOW 진입 시 순서대로 자가 점검:
+
+1. `git status --short` 로 **변경 set 확인** — `.md` · `spec/` · `plan/` 만으로 보였어도 `codebase/` 가 한 줄이라도 끼었는지 재확인
+2. 변경 set 이 §e2e 면제 화이트리스트 의 **부분집합** 인가? 화이트리스트 밖이 한 줄이라도 있으면 실행
+3. `docker info` 로 daemon 가용성 확인 — 없으면 자동 흐름은 "자동 흐름 환경 차단", 수동 흐름은 사용자 보고 후 응답 인용
+4. 이전 turn 의 stale 컨테이너가 있다면 `make e2e-down` (worktree 격리되어 있으나 충돌 시 명시 정리)
+5. `.claude/tools/run-test.sh e2e` 호출 — raw `make e2e-test` 직호출 금지 (main ctx 폭주)
+6. 실패 시 wrapper stdout 의 마지막 30 줄로 원인 분석 → fix → TEST WORKFLOW **1단계부터** 재실행
+
+> "이미 통과했으니 다시 안 돌려도 된다" 는 검증 시점과 commit 시점의 불일치를 만들 뿐. **마지막 코드 commit 다음에 e2e 통과 줄이 있어야 한다.**
+
+### 자주 누락되는 turn 패턴
+
+- 한 줄짜리 핫픽스 ("typo", "변수명 한 글자") — 짧은 변경이 곧 짧은 e2e 가 아님. 실 인프라 회귀 가능성은 변경량 무관
+- "spec·plan 만 손댔다" 인데 실은 `codebase/` 한 줄이 같이 간 경우 — 1번 체크 누락
+- review 이슈 fix 완료 직후 — review 가 코드 수정을 동반했으면 다시 e2e
+- 이미 e2e 가 통과한 직후의 추가 작은 fix — fix 도 코드면 다시 e2e
+- merge·rebase 후 본인 변경이 아닌 줄이 섞여 들어왔을 때 — 변경 set 의 *전체* 가 화이트리스트 부분집합인지 재판정
+
 ## e2e 면제 화이트리스트
 
 코드 변경 (`.ts` / `.tsx` / `.sql` / 런타임 `.json` / `Dockerfile` / `Makefile` / 빌드 설정 등) 이 한 줄이라도 포함되면 **e2e 는 default 로 수행**. 변경 set 이 다음 목록의 **부분집합** 일 때에 한해 e2e 면제:
@@ -79,6 +119,42 @@
 | 실행·디버깅 흐름 변경 | `codebase/frontend/src/content/docs/05-run-and-debug/` | 동일 |
 | 환경 변수·기동 방법·런타임 변경 (제품 최종 상태) | `README.md` | 수동 |
 | spec 자체에 누락·오류가 있다고 판단됨 | `plan/in-progress/spec-update-<name>.md` 에 제안 노트 작성 후 `project-planner` 위임 | — |
+
+### 사후 보정 PR 패턴 금지 — 같은 turn 원칙
+
+문서·번역 갱신은 코드 변경과 **같은 PR · 같은 turn · 같은 단계 commit** 안에서 끝낸다. 별 commit/PR 로 분리되는 `fix(i18n):` · `fix(docs):` · `docs(user-guide):` 패턴은 다음 이유로 금지:
+
+- 코드 머지와 가이드 머지 사이에 *사용자 가시 동작은 바뀌었는데 가이드는 안 바뀐 기간* 이 생긴다
+- 코드 PR 의 reviewer 가 사용자 가시 영향까지 보지 못한 채 머지된다
+- 사후 보정 commit 이 plan·spec 추적에서 단절된다
+- git history 상 사용자 가시 변경의 정확한 commit 이 흩어진다
+
+> developer workflow 의 **§4 DOCUMENTATION** 단계는 §5–7 (테스트 선작성·구현) **직전** 에 끝낸다. 단계 종료 후의 `fix(i18n):` · `fix(docs):` 별 commit 은 *그 시점 발견 누락의 신호* 이지 정상 워크플로가 아니다.
+
+#### 자주 누락되는 항목 (git history 기반)
+
+위 표 외에도 다음 항목은 사후 보정 commit 으로 반복해 잡힌 누락 패턴이다. 코드 변경 시 표 매핑과 함께 한 번 더 자가 검토:
+
+- **i18n key parity** — dict 신규 키 `ko` / `en` 한쪽 누락. build-time 가드가 잡지만 *추가하는 같은 commit 안* 양쪽 동시 추가가 default. parity fail 로 빌드 깨고 별 commit 으로 메우는 패턴 금지
+- **backend warning/error code → ko 매핑** — 백엔드가 새 warning/error 코드를 발행하면 `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `WARNING_KO` 매핑을 같은 commit 에. 누락 시 사용자에게 영문 그대로 노출
+- **노드 schema 변경 vs 가이드 본문** — dict 키만 갱신하고 `02-nodes/<cat>.mdx` 의 FieldTable 미갱신. 가이드 본문이 spec 과 어긋남
+- **새 노드 추가** — `.mdx` (KO) 만 갱신 + `.en.mdx` 누락. EN 로케일이 KO 폴백으로 노출되어 사용자 신뢰 저하
+- **새 섹션 디렉토리** — `<NN>-<name>/` 만 만들고 `codebase/frontend/src/lib/docs/locale.ts` 의 `SECTION_LABELS_BY_LOCALE` 양쪽 로케일 등록 누락
+- **TSX 안 한국어 직접 작성** — ratchet 가드가 baseline 초과 차단하지만, *작성하는 그 순간에* dict 키 추출이 default. ratchet 가 잡은 뒤 별 commit 으로 빼는 패턴 금지
+- **인증·권한·세션 흐름 변경 vs 워크스페이스 가이드 (`07-workspace-and-team/`) 미갱신** — 흐름 변경 + 가이드 갱신 + e2e 가 한 묶음
+- **API 추가 vs swagger jsdoc 누락** — controller·DTO 의 swagger jsdoc 동반 필수. 빌드 단위 테스트가 일부만 잡음
+
+#### DOCUMENTATION 단계 종료 사전 체크리스트
+
+developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
+
+- [ ] 변경 set 의 각 파일에 대해 위 표의 "변경 유형" 매칭이 모두 식별됐는가? 회색 지대는 보수적으로 "갱신 필요" 로 분류
+- [ ] 표가 가리키는 모든 위치를 **동일 turn 안에** 갱신했는가? 한 위치라도 별 turn 으로 미루지 않았는가
+- [ ] 표의 "검증 명령" 을 실제로 실행했는가? (i18n parity / locale / backend-labels / docs registry)
+- [ ] 사용자 가시면 (UI 라벨·에러 메시지·노드 카드·가이드 본문) 이 코드 변경의 의미를 정확히 반영하는가? 단순 동기화가 아닌 *의미 갱신*
+- [ ] 본 turn 안에서 spec 자체에 변경이 필요한 것을 발견했으면 `plan/in-progress/spec-update-<name>.md` 작성 후 `project-planner` 위임 (developer 가 spec 직접 수정 금지)
+
+> 한 항목이라도 미충족이면 §5 (테스트 선작성) 로 진행하지 말고 §4 안에서 마무리. `fix(i18n):` · `fix(docs):` commit 빈도가 워크플로 건강 지표 — 본 PR/turn 안에서 0건이 default.
 
 ### 유저 가이드 파일 컨벤션
 
