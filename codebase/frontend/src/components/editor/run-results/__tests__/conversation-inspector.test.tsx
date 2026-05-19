@@ -4,6 +4,7 @@ import {
   ConversationInspector,
   SUMMARY_STRING_MAX,
   SUMMARY_VALUE_MAX,
+  isAssistantContentBlank,
   summarizeToolResult,
 } from "../conversation-inspector";
 import type {
@@ -74,6 +75,63 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
     expect(screen.getByText("kb_search")).toBeInTheDocument();
     // durationMs 노출 검증
     expect(screen.getByText("124ms")).toBeInTheDocument();
+  });
+
+  // LLM provider 가 tool_use 사이에 빈 text 블록(" "/"\n") 을 같이 emit 하면
+  // result.content 가 truthy 공백문자가 되어 SummaryView 가 MarkdownRenderer 만
+  // 그리고 ToolCallBadge 분기로 진입하지 못하는 회귀가 있었다 (b5ddb4dd 의 strip
+  // 도입 이후 marker 만 둘러쌌던 공백이 표면화). 본 케이스는 그 회귀를 차단한다.
+  it("assistant content 가 whitespace-only 면 본문은 숨기고 ToolCallBadge 만 노출한다", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "assistant",
+        content: " \n ",
+        turnIndex: 1,
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+    ];
+
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+      />,
+    );
+
+    // (empty) placeholder 는 표시되지 않아야 한다 — 도구 호출이 있으니까.
+    expect(screen.queryByText("(empty)")).toBeNull();
+    // ToolCallBadge 가 노출돼 사용자가 도구 호출 사실을 인지할 수 있어야 한다.
+    expect(screen.getByText("도구 호출")).toBeInTheDocument();
+    expect(screen.getByText("1개 도구 호출")).toBeInTheDocument();
+  });
+
+  it("assistant content + toolCalls 가 둘 다 있으면 본문과 뱃지를 동시 노출한다", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "assistant",
+        content: "도구를 호출해 답변을 만들었어요.",
+        turnIndex: 1,
+        assistantToolCalls: [
+          { name: "kb_search", arguments: "{}" },
+          { name: "mcp_query", arguments: "{}" },
+        ],
+      }),
+    ];
+
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+      />,
+    );
+
+    // SelectedItemDetail 과 동일하게 본문 + 뱃지 양쪽 모두 노출.
+    expect(
+      screen.getByText("도구를 호출해 답변을 만들었어요."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("도구 호출")).toBeInTheDocument();
+    expect(screen.getByText("2개 도구 호출")).toBeInTheDocument();
+    expect(screen.queryByText("(empty)")).toBeNull();
   });
 
   it("user/assistant/tool 가 섞여 있어도 'AI' 라벨은 assistant 에만 붙는다", () => {
@@ -539,5 +597,92 @@ describe("ConversationInspector SummaryView — source 별 시각 분기 (§9.1)
     // presentation 카드는 별도 chip 으로 격하 표시
     expect(screen.getByText("🧩")).toBeInTheDocument();
     expect(screen.getByText("Template")).toBeInTheDocument();
+  });
+});
+
+describe("isAssistantContentBlank", () => {
+  it("string 이 아니면 blank 로 본다 (null/undefined/number)", () => {
+    expect(isAssistantContentBlank(null)).toBe(true);
+    expect(isAssistantContentBlank(undefined)).toBe(true);
+    expect(isAssistantContentBlank(0)).toBe(true);
+  });
+
+  it("빈 문자열·공백문자열·줄바꿈만 있으면 blank", () => {
+    expect(isAssistantContentBlank("")).toBe(true);
+    expect(isAssistantContentBlank(" ")).toBe(true);
+    expect(isAssistantContentBlank("\n")).toBe(true);
+    expect(isAssistantContentBlank(" \t\n  ")).toBe(true);
+  });
+
+  it("실질 문자가 한 글자라도 있으면 non-blank", () => {
+    expect(isAssistantContentBlank("a")).toBe(false);
+    expect(isAssistantContentBlank(" a ")).toBe(false);
+    expect(isAssistantContentBlank("도구 호출")).toBe(false);
+  });
+});
+
+describe("ConversationInspector SelectedItemDetail — content/toolCalls 헤더 정규화", () => {
+  let baseProps: ReturnType<typeof makeBaseProps>;
+  beforeEach(() => {
+    baseProps = makeBaseProps();
+  });
+
+  it("content 가 비어있고 toolCalls 만 있으면 'Tool Call — Turn N' 라벨", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+    ];
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+        selectedItemIndex={0}
+      />,
+    );
+    expect(screen.getByText(/Tool Call — Turn 1/)).toBeInTheDocument();
+  });
+
+  it("content 가 whitespace-only 이고 toolCalls 만 있으면 'Tool Call — Turn N' 라벨 (회귀)", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "assistant",
+        content: " \n ",
+        turnIndex: 2,
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+    ];
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+        selectedItemIndex={0}
+      />,
+    );
+    // SummaryView 와 동일한 blank 기준을 따라야 한다.
+    expect(screen.getByText(/Tool Call — Turn 2/)).toBeInTheDocument();
+    expect(screen.queryByText(/AI Response — Turn 2/)).toBeNull();
+  });
+
+  it("실질 content 가 있으면 toolCalls 동반이어도 'AI Response — Turn N' 라벨", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "assistant",
+        content: "답변 본문",
+        turnIndex: 3,
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+    ];
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+        selectedItemIndex={0}
+      />,
+    );
+    expect(screen.getByText(/AI Response — Turn 3/)).toBeInTheDocument();
   });
 });

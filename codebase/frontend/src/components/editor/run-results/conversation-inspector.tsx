@@ -53,6 +53,18 @@ export const SUMMARY_STRING_MAX = 80;
 export const SUMMARY_VALUE_MAX = 40;
 
 /**
+ * Assistant 메시지 본문이 시각적으로 비어있는지 판정. LLM provider 가
+ * tool_use 블록 사이에 빈 text 블록(`" "`, `"\n"`) 을 같이 emit 하면
+ * `result.content` 가 truthy 공백문자가 되는데, ReactMarkdown 으로 렌더하면
+ * 사용자 눈에는 빈 버블처럼 보인다. 이 경우 SummaryView 와 SelectedItemDetail
+ * 양쪽이 동일하게 "본문 없음 + 도구 호출만 있음" 으로 처리해 ToolCallBadge
+ * 만 노출하도록 통일한다.
+ */
+export function isAssistantContentBlank(content: unknown): boolean {
+  return typeof content !== "string" || content.trim() === "";
+}
+
+/**
  * 한 assistant 응답에서 사용된 KB 청크 요약 chip — 클릭 시 References 탭의
  * 해당 turn 그룹으로 점프. 문서명은 dedup 후 {@link MAX_VISIBLE_DOC_NAMES} 개
  * 까지 inline, 나머지는 `+N` 으로 축약. `sources` 가 비면 미렌더 (chrome
@@ -328,18 +340,19 @@ function SelectedItemDetail({
   }
 
   const hasToolCalls = !!item.assistantToolCalls?.length;
+  const isContentBlank = isAssistantContentBlank(item.content);
   const turnSources = turnRefIndex?.get(item.turnIndex) ?? [];
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center gap-2">
         <span>🤖</span>
         <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-          {hasToolCalls && !item.content
+          {hasToolCalls && isContentBlank
             ? `Tool Call — Turn ${item.turnIndex}`
             : `AI Response — Turn ${item.turnIndex}`}
         </span>
       </div>
-      {item.content && (
+      {!isContentBlank && (
         <div className="text-sm">
           <MarkdownRenderer content={item.content} />
         </div>
@@ -825,6 +838,15 @@ function SummaryView({
             const ragSourceCount = isRag
               ? (item.content.match(/\[Source: /g) ?? []).length
               : 0;
+            // assistant 한정으로 whitespace-only content 를 비어있음으로 취급.
+            // user / rag 등 비-assistant 는 원본 content 그대로 (plain text 줄바꿈
+            // 보존이 의도). SelectedItemDetail 과 동일 기준을 SummaryView 에도
+            // 적용해 두 surface 의 시각이 어긋나지 않도록 한다.
+            const hasContent = isAssistant
+              ? !isAssistantContentBlank(item.content)
+              : !!item.content;
+            const hasAssistantToolCalls =
+              isAssistant && !!item.assistantToolCalls?.length;
             return (
               <div
                 key={`${item.type}-${item.turnIndex}-${i}`}
@@ -852,17 +874,20 @@ function SummaryView({
                       ? `🔎 KB Reference${ragSourceCount > 0 ? ` · ${ragSourceCount} chunk(s)` : ""}`
                       : "🤖 AI"}
                 </div>
-                {item.content ? (
-                  isAssistant ? (
+                {hasContent &&
+                  (isAssistant ? (
                     <MarkdownRenderer content={item.content} />
                   ) : isRag ? (
                     <RagBubbleSummary content={item.content} />
                   ) : (
                     item.content
-                  )
-                ) : item.assistantToolCalls?.length ? (
-                  <ToolCallBadge toolCalls={item.assistantToolCalls} />
-                ) : (
+                  ))}
+                {hasAssistantToolCalls && (
+                  <div className={cn(hasContent && "mt-1.5")}>
+                    <ToolCallBadge toolCalls={item.assistantToolCalls!} />
+                  </div>
+                )}
+                {!hasContent && !hasAssistantToolCalls && (
                   <span className="italic text-[hsl(var(--muted-foreground))]">
                     (empty)
                   </span>
