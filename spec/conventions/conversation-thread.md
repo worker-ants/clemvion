@@ -376,6 +376,8 @@ LLM 호출 1회 = 1 `ai_assistant` turn. 다음 조건을 모두 만족하면 **
 
 같은 turn 의 후행 `ai_tool` turn 들 (또는 store 의 `type: "tool"` 항목들) 중 아직 다른 parent 에 claim 되지 않은 것들을 `toolCalls.length` (store: `assistantToolCalls.length`) 개까지 **children** 으로 흡수한다. parent 가 enumerate 한 child 수만큼 후행 unclaimed tool 을 sequence-claim — `assistantToolCalls` 의 `id` 는 forward-compat 으로 drop 되어 있어 sequence-count 매칭이 SoT.
 
+**Grouping 의 단일 결정 함수 (SoT)**: `groupToolCallItems(items: ConversationItem[]): { claimedToolIndices: Set<number>; childrenByParent: Map<number, number[]> }` 를 `codebase/frontend/src/lib/conversation/conversation-utils.ts` 에서 export. 본 함수가 §9.6 의 분류·sequence-claim 결과를 양 surface 에 동일하게 공급한다 (Inv-5 — §9.9). 그룹 정책 변경은 본 함수의 동작을 단일하게 갱신해 모든 surface 에 자동 전파.
+
 UI 형식:
 
 | 영역 | 시각 |
@@ -385,6 +387,13 @@ UI 형식:
 | 각 child | §9.1 의 `ai_tool` 라인 형식 그대로 (🔧 + name + status badge + result preview) |
 
 content 가 blank 가 아닌 assistant (LLM 의 thinking text 등) 는 parent 로 분류하지 않고 §9.1 의 표준 `ai_assistant` chat bubble 로 렌더 + ToolCallBadge 를 본문 아래 노출. 자식 row 도 클릭 가능 — `onSelectMessage(childIndex)` 가 그대로 호출돼 SelectedItemDetail 의 ToolDetail 로 진입.
+
+**적용 surface**: 본 정책은 다음 두 timeline surface 에 **동시 적용** 의무:
+
+1. AI Agent 노드 run-results 패널의 **conversation Preview 탭** (`SummaryView` — chat bubble 형 timeline). 미니 chip 헤더 + indented children 시각 그대로.
+2. 좌측 **실행 트리 timeline** (`ResultTimeline` — Run Tree 패널의 AI Agent 노드 하위 conversation 항목들). 한 줄 컴팩트 형태에 맞춰 parent 행은 `🤖 AI · 🔧 N개 도구 호출` 한 줄로 표시, children 은 좌측 vertical line + `pl-3` indent 로 nest 한다 — chip vs full-bubble 두 형태가 한 surface 안에 섞이지 않도록 §9.2 의 시각 구분 신호 (아이콘·컨테이너·chip) 동치성을 유지.
+
+두 surface 가 다른 시각을 보이면 사용자가 "어느 쪽이 진짜 호출 결과냐" 의 혼동을 일으키므로 **`groupToolCallItems` 가 도출한 분류 결과는 동일** 해야 한다 (Inv-5). 시각 row 형식 차이 (chip vs 한 줄) 는 허용되지만 그룹 구성·자식 수·sequence-claim 결과는 동일.
 
 ### 9.7 WS 이벤트 → store 변환 계약
 
@@ -435,7 +444,7 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 
 ### 9.9 UI Invariants
 
-다음 4가지 불변량은 §9 변경 / 구현 변경 시 반드시 유지돼야 한다. `Inv-N` 레이블은 본 §9.9 스코프 한정.
+다음 5가지 불변량은 §9 변경 / 구현 변경 시 반드시 유지돼야 한다. `Inv-N` 레이블은 본 §9.9 스코프 한정.
 
 | ID | Invariant |
 | --- | --- |
@@ -443,10 +452,11 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 | Inv-2 | timeline 항목 수는 *그룹 단위* 로만 줄어든다 — parent-child 묶임은 허용. 한 번 표시된 tool row 가 부모 그룹 합쳐짐 외의 이유로 사라지지 않는다. |
 | Inv-3 | SummaryView 와 SelectedItemDetail 의 "Tool Call" vs "AI Response" 라벨 판정은 동일한 `isAssistantContentBlank` (§9.8) 에서 도출. |
 | Inv-4 | live tool row 는 thread snapshot 이 lean (`includeToolTurns: false`) 이어도 store 에 보존돼야 한다. (§9.7 의 MERGE orphan tools 책임) |
+| Inv-5 | tool-call 그룹 분류·sequence-claim 결과는 §9.6 의 단일 결정 함수 `groupToolCallItems` 에서 도출. conversation Preview (`SummaryView`) 와 실행 트리 timeline (`ResultTimeline`) 양 surface 가 동일 결과를 사용 — 행 시각 형식 (chip vs 한 줄) 의 차이는 허용하지만 그룹 구성·자식 수·claim 결과는 동일. |
 
 ### 9.10 회귀 차단 시나리오
 
-§9 본 절을 변경하거나 conversation timeline 관련 코드 (`conversation-inspector.tsx`, `conversation-utils.ts`, `use-execution-events.ts`) 를 수정하는 PR 은 다음 시나리오의 **단위 테스트 통과를 의무**로 한다. 사용자 시각 확인에 의존하지 않는다. `CT-S*` ID 는 본 §9.10 스코프 한정.
+§9 본 절을 변경하거나 conversation timeline 관련 코드 (`conversation-inspector.tsx`, `conversation-utils.ts`, `use-execution-events.ts`, `result-timeline.tsx`, `conversation-timeline-item.tsx`) 를 수정하는 PR 은 다음 시나리오의 **단위 테스트 통과를 의무**로 한다. 사용자 시각 확인에 의존하지 않는다. `CT-S*` ID 는 본 §9.10 스코프 한정. 양 surface 의 시각 일관성 시나리오 (CT-S8) 도 의무.
 
 | ID | 시나리오 | 검증 | 1차 테스트 파일 |
 | --- | --- | --- | --- |
@@ -457,6 +467,7 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 | CT-S5 | LLM 이 thinking text + tool_use 동시 emit | parent 그룹 아님 — 본문 + ToolCallBadge 동시 노출 | `conversation-inspector.test.tsx` |
 | CT-S6 | multi-turn (turn 1 tool + turn 2 tool) | turn 경계가 parent-child 매칭을 가로지르지 않음 | `conversation-inspector.test.tsx` |
 | CT-S7 | `tool_call_completed` 가 `ai_message` 보다 늦게 도착 (out-of-order) | `toolStatus` carry-over 로 success 가 pending 으로 회귀하지 않음 | `use-execution-events.test.ts` |
+| CT-S8 | conversation Preview 와 좌측 실행 트리 timeline 두 surface 가 같은 items 입력 받음 | `groupToolCallItems` 결과의 `claimedToolIndices` 와 `childrenByParent` 가 양 surface 에서 동일 (Inv-5) | `conversation-utils.test.ts` + `result-timeline.test.tsx` |
 
 본 시나리오들의 **입력 fixture** 는 `codebase/frontend/src/components/editor/run-results/__tests__/fixtures/conversation-scenarios.ts` 에 단일 export 로 둔다. 새 시나리오 발견 시 본 표 추가 + fixture 추가 + 해당 테스트 작성을 PR review 의 의무로 한다.
 
@@ -495,3 +506,4 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 | 2026-05-18 | (구현 단계 발견) §1.5 명확화 — `[from <nodeLabel>]` prefix 가 `output.result.messages` 와 emit messages 에 함께 영속되어 LLM history attribution 을 유지함을 명시 (기존 "prefix 미포함" 진술 정정). §1.6 재정의 — `[user-input]…[/user-input]` 마커는 prompt injection 방어용 LLM-facing 마커로 유지 (옛 "금지" 진술을 "LLM-facing 의무 + UI strip" 으로 정정). §8.1 Rationale 의 "폐기" 항목을 "보안 유지 + UI strip 분리" 로 재기술. §9.5 를 "옛 임의 marker 호환" 에서 "LLM-facing 마커의 UI strip" 로 의미 명확화 |
 | 2026-05-18 | (consistency-check 후속) §1.2 `text` 행을 §1.6 와 정합되도록 재진술 (자기 충돌 C-1 해소): "인라인 마커 박지 않는다" → "user 출처 marker 는 §1.6 의무, UI strip 으로 처리". §1.2 `data?` 행에서 node-output §4.5 shape 인라인 재열거 제거 (drift 회피, §4.5 단일 정의에 위임). §1.4 표 구조 4열 확장 (UI 카드 헤더 · 본문 컬럼 추가). §4 영속화 행의 `output.messages` 를 D6 단일 경로 `output.result.messages` 로 정정 |
 | 2026-05-19 | §9 확장 — §9.6 (tool-call 그룹 시각 정책), §9.7 (WS 이벤트 → store 변환 계약), §9.8 (content blank 동치성), §9.9 (UI Invariants), §9.10 (회귀 차단 시나리오), §9.11 (변환 함수 contract) 신설. §9 prologue 에 라이프사이클 다이어그램 추가. §9.1 `ai_assistant` 행에 §9.6 parent chip 분기 비고, `ai_tool` 행 status badge 표기를 `pending/success/error` 로 확장. §9.5 진입점 목록에 `mergeOrphanToolItems` 추가. 4건 UI 회귀 (PR #206/#208/#210/#214) 의 spec 결손 보강. fixture 인프라 (`__tests__/fixtures/conversation-scenarios.ts`) 와 `isAssistantContentBlank` 위치 이전을 동일 PR 에 동반 |
+| 2026-05-19 | §9.6 보강 — tool-call 그룹 분류의 단일 결정 함수 `groupToolCallItems` 명시 + 적용 surface 표 (conversation Preview + 좌측 실행 트리 timeline) 추가. §9.9 Inv-5 신설 — 두 surface 가 동일 그룹 결과 사용 강제. 좌측 timeline 의 빈 봇 행 + 후행 tool 평면 노출이 conversation Preview 와 시각 차이를 만들어 사용자 혼동 발생 (스크린샷 보고). conversation Preview 의 chip + indent tree 시각을 좌측 timeline 에 동일 정책으로 적용 |

@@ -3,6 +3,7 @@ import {
   parseHistoryMessages,
   messagesToConversationItems,
   mergeOrphanToolItems,
+  groupToolCallItems,
   threadTurnsToConversationItems,
   stripInlineMarkers,
   inferInteractionTypeFromData,
@@ -942,6 +943,103 @@ describe("mergeOrphanToolItems", () => {
       "tool",
       "assistant",
     ]);
+  });
+});
+
+// spec §9.6 + §9.9 Inv-5 — 단일 결정 함수 회귀 테스트. SummaryView 와 좌측
+// ResultTimeline 양 surface 가 동일 결과를 사용해야 함을 보장.
+describe("groupToolCallItems (§9.6 단일 결정 함수, Inv-5)", () => {
+  it("blank intermediate assistant + 후행 1 tool → parent 1개 + child 1개", () => {
+    const items: ConversationItem[] = [
+      assistant({
+        content: " \n ",
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+      tool("c1"),
+    ];
+    const { claimedToolIndices, childrenByParent } = groupToolCallItems(items);
+    expect(Array.from(claimedToolIndices)).toEqual([1]);
+    expect(childrenByParent.get(0)).toEqual([1]);
+    expect(childrenByParent.size).toBe(1);
+  });
+
+  it("intermediate 2개 + tool 3개 (사용자 보고 시나리오) — 각 parent 가 자기 toolCalls.length 만큼 sequence-claim", () => {
+    const items: ConversationItem[] = [
+      user("질문"),
+      assistant({
+        content: "",
+        assistantToolCalls: [
+          { name: "tA", arguments: "{}" },
+          { name: "tB", arguments: "{}" },
+        ],
+      }),
+      assistant({
+        content: "",
+        assistantToolCalls: [{ name: "tC", arguments: "{}" }],
+      }),
+      tool("c1"),
+      tool("c2"),
+      tool("c3"),
+      assistant({ content: "최종" }),
+    ];
+    const { claimedToolIndices, childrenByParent } = groupToolCallItems(items);
+    // tool 인덱스 3,4 → parent 1 의 child / tool 인덱스 5 → parent 2 의 child.
+    expect(childrenByParent.get(1)).toEqual([3, 4]);
+    expect(childrenByParent.get(2)).toEqual([5]);
+    expect(Array.from(claimedToolIndices).sort()).toEqual([3, 4, 5]);
+    // final assistant 는 parent 아님.
+    expect(childrenByParent.has(6)).toBe(false);
+  });
+
+  it("content 가 blank 가 아닌 intermediate 는 parent 아님 (heuristic 한계)", () => {
+    const items: ConversationItem[] = [
+      assistant({
+        content: "Let me check",
+        assistantToolCalls: [{ name: "kb", arguments: "{}" }],
+      }),
+      tool("c1"),
+    ];
+    const { claimedToolIndices, childrenByParent } = groupToolCallItems(items);
+    expect(claimedToolIndices.size).toBe(0);
+    expect(childrenByParent.size).toBe(0);
+  });
+
+  it("CT-S8 — 양 surface 가 같은 items 에서 동일 결과 (Inv-5)", () => {
+    const items: ConversationItem[] = [
+      user("질문"),
+      assistant({
+        content: "",
+        assistantToolCalls: [{ name: "kb", arguments: "{}" }],
+      }),
+      tool("c1"),
+      assistant({ content: "답변" }),
+    ];
+    // 두 surface 가 같은 입력을 두 번 호출해도 동일 결과 (deterministic).
+    const a = groupToolCallItems(items);
+    const b = groupToolCallItems(items);
+    expect(Array.from(a.claimedToolIndices)).toEqual(
+      Array.from(b.claimedToolIndices),
+    );
+    expect(Array.from(a.childrenByParent.entries())).toEqual(
+      Array.from(b.childrenByParent.entries()),
+    );
+  });
+
+  it("tool 가 부족하면 가능한 만큼만 claim", () => {
+    const items: ConversationItem[] = [
+      assistant({
+        content: "",
+        assistantToolCalls: [
+          { name: "tA", arguments: "{}" },
+          { name: "tB", arguments: "{}" },
+        ],
+      }),
+      tool("c1"),
+      // tB 짝이 되는 tool 미도착.
+    ];
+    const { childrenByParent } = groupToolCallItems(items);
+    // toolCalls.length=2 인데 tool 1개만 있어도 그만큼만 claim.
+    expect(childrenByParent.get(0)).toEqual([1]);
   });
 });
 
