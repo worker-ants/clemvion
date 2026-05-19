@@ -1442,12 +1442,18 @@ async function safeReadJson(response: Response): Promise<unknown> {
 /**
  * Resolve the access-token expiry instant from an Integration row.
  *
- * Precedence: `Integration.tokenExpiresAt` (spec §10.5 canonical column) →
- * `credentials.expires_at` (JSONB mirror). Returns null when neither is set
- * or both parse as invalid. The entity column wins when both are present
- * because the atomic 4-field UPDATE in `refreshAccessToken` writes the
- * column last and the OAuth callback path historically only wrote the
- * column — trusting the column avoids a stale-mirror trap.
+ * Precedence: JWT `exp` claim (access_token 내 — TZ-bugged stored value 를
+ * 무력화하는 ground truth) → `Integration.tokenExpiresAt` (spec §10.5
+ * canonical column) → `credentials.expires_at` (JSONB mirror).
+ * Returns null when no source is available or all parse as invalid.
+ *
+ * JWT exp 가 최우선인 이유: tokenExpiresAt / credentials.expires_at 는 저장 시
+ * TZ 모호성(구 코드 KST→UTC 9h 회귀)으로 실제 만료보다 최대 9h 늦게 기록될 수
+ * 있다. JWT exp 는 token 자체에 포함된 불변 값이므로 TZ-bugged 저장값을 무력화하는
+ * 유일한 ground truth. JWT 파싱 불가(비-JWT opaque token 등) 시에는 entity column
+ * 으로 폴백: 이는 atomic 4-field UPDATE(`refreshAccessToken`)가 column 을 마지막에
+ * 기록하고 OAuth 콜백 경로가 역사적으로 column 만 기록했기 때문에 stale-mirror trap
+ * 을 피한다.
  *
  * Exported because the BullMQ refresh worker re-evaluates expiry on job
  * pickup (race protection: a refresh that completed milliseconds before
