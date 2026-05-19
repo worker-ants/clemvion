@@ -65,14 +65,18 @@ export type UiHint = {
   required?: boolean;
   /**
    * Marks the field as required only when the rule matches the current config.
-   * Same shape as `visibleWhen`. Used for UI cues (asterisk) when zod's static
-   * `required` can't express a mode-dependent constraint — e.g. Carousel's
-   * `titleField` is only required in dynamic mode.
+   * Used for UI cues (asterisk) when zod's static `required` can't express a
+   * mode-dependent constraint — e.g. Carousel's `titleField` is only required
+   * in dynamic mode.
+   *
+   * Single shape — `{ field, equals }` where `equals` is either:
+   *  - a single value: required when `config[field] === equals`
+   *  - a readonly array (whitelist): required when `equals.includes(config[field])`
+   *
+   * 2026-05-19 정준화 — `notEquals` / `oneOf` 형태는 제거됨 (blacklist
+   * 위험 / 중복). 화이트리스트 의미가 필요하면 `equals: ['a', 'b']` 사용.
    */
-  requiredWhen?:
-    | { field: string; equals: unknown }
-    | { field: string; notEquals: unknown }
-    | { field: string; oneOf: readonly unknown[] };
+  requiredWhen?: { field: string; equals: unknown | readonly unknown[] };
   options?: { value: string; label: string }[];
   language?: string;
   /**
