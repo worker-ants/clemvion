@@ -733,7 +733,47 @@ function SummaryView({
       {/* Full conversation thread */}
       {items.length > 0 && (
         <div className="flex flex-col gap-2">
-          {items.map((item, i) => {
+          {(() => {
+            // tool-only intermediate assistant 와 그 호출 결과를 부모-자식 tree
+            // 로 묶기 위한 사전 계산. spec/conventions/conversation-thread.md
+            // §9.1 의 ai_tool 라인은 본래 ai_assistant 와 별도 row 인데, 본문이
+            // 비어있는 intermediate assistant 는 직후 tool row 들과 의미가
+            // 같아 timeline 에 두 row 가 중복으로 노출돼 왔다 (PR #206→#208→
+            // #210 의 회귀 history). 본 PR 은 사용자 요청에 따라 그 의미를
+            // "도구 호출 그룹" 단일 unit 으로 묶어 부모(🤖 + 도구 호출 헤더)
+            // 직하에 자식(🔧)을 indent 표시한다.
+            //
+            // 매칭은 toolCallId 가 아닌 "선후 sequence + 호출 개수" 로 한다 —
+            // `ConversationItem.assistantToolCalls` 는 forward-compat 을 위해
+            // id 를 의도적으로 drop 하므로 (conversation-utils.ts 의 converter
+            // 참고). 각 intermediate assistant 는 자신의 `assistantToolCalls
+            // .length` 만큼 **아직 claim 되지 않은 후행 tool 인덱스** 를
+            // 흡수한다. 사이에 user / system 등이 끼어도 skip 하면서 찾는다.
+            const claimedToolIndices = new Set<number>();
+            const childrenByParent = new Map<number, number[]>();
+            for (let i = 0; i < items.length; i++) {
+              const it = items[i];
+              if (
+                it.type !== "assistant" ||
+                !it.assistantToolCalls?.length ||
+                !isAssistantContentBlank(it.content)
+              ) {
+                continue;
+              }
+              const needed = it.assistantToolCalls.length;
+              const children: number[] = [];
+              let j = i + 1;
+              while (j < items.length && children.length < needed) {
+                const next = items[j];
+                if (next.type === "tool" && !claimedToolIndices.has(j)) {
+                  children.push(j);
+                  claimedToolIndices.add(j);
+                }
+                j++;
+              }
+              childrenByParent.set(i, children);
+            }
+            return items.map((item, i) => {
             const isClickable = !!onSelectItem;
             // ReactMarkdown 출력은 block 요소를 포함할 수 있으므로 button 안에 nest 시
             // HTML 무효 — div + role="button" 으로 keyboard 접근성 유지하며 block 요소 허용.
@@ -753,20 +793,106 @@ function SummaryView({
             const isTool = item.type === "tool";
             const isPresentation = item.type === "presentation";
             const isSystem = item.type === "system";
-            // tool 호출만 있고 본문이 비어있는 intermediate assistant 는 직후의
-            // 🔧 tool row 와 의미가 완전히 중복된다 (사용자 보고 2026-05-19 —
-            // PR #208 후속). spec/conventions/conversation-thread.md §9.1 의
-            // ai_assistant 라인은 "final assistant 응답" 을 가리키고, tool 호출
-            // 라이프사이클은 §9.1 의 ai_tool 라인 (🔧 tool 카드) 만으로 표현
-            // 한다. timeline 에서 렌더만 skip — store data 는 보존되어 LLM
-            // Usage / Request / Response 디버그 탭에서 여전히 LLM 호출별
-            // payload 를 확인할 수 있다.
-            if (
+            // 부모(intermediate assistant) 에 흡수된 tool row 는 본 위치에서
+            // 표준 렌더 대신 부모 분기 안의 tree children 으로만 보여준다.
+            if (isTool && claimedToolIndices.has(i)) return null;
+            // tool-only intermediate assistant 는 부모-자식 그룹으로 렌더 한다.
+            // 🤖 "도구 호출 N개" 헤더 + 직하 indented children (🔧 tool row).
+            // 자식 tool row 자체는 위에서 claimed 으로 처리되어 standalone 위치
+            // 에서 재렌더하지 않는다 (중복 방지). store data 는 보존되어 LLM
+            // 디버그 탭에서 intermediate LLM 호출 payload 를 그대로 확인 가능.
+            const isToolCallGroupParent =
               isAssistant &&
               !!item.assistantToolCalls?.length &&
-              isAssistantContentBlank(item.content)
-            ) {
-              return null;
+              isAssistantContentBlank(item.content);
+            if (isToolCallGroupParent) {
+              const childIndices = childrenByParent.get(i) ?? [];
+              const toolCallCount = item.assistantToolCalls!.length;
+              return (
+                <div
+                  key={`tool-call-group-${item.turnIndex}-${i}`}
+                  className="flex flex-col gap-1"
+                >
+                  <div
+                    role={isClickable ? "button" : undefined}
+                    tabIndex={isClickable ? 0 : undefined}
+                    onClick={handleClick}
+                    onKeyDown={handleKeyDown}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 self-start rounded bg-[hsl(var(--muted))] px-2 py-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))]",
+                      isClickable &&
+                        "cursor-pointer transition-colors hover:bg-[hsl(var(--accent))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
+                    )}
+                  >
+                    <span aria-hidden>🤖</span>
+                    <span>AI</span>
+                    <span>·</span>
+                    <Wrench size={10} aria-hidden />
+                    <span>
+                      {t("editor.conversation.toolsCalled", {
+                        count: toolCallCount,
+                      })}
+                    </span>
+                  </div>
+                  {childIndices.length > 0 && (
+                    <div className="ml-3 flex flex-col gap-1 border-l-2 border-[hsl(var(--border))] pl-3">
+                      {childIndices.map((ci) => {
+                        const child = items[ci];
+                        if (child.type !== "tool") return null;
+                        const summary = summarizeToolResult(child.toolResult);
+                        const handleChildClick = onSelectItem
+                          ? () => onSelectItem(ci)
+                          : undefined;
+                        const handleChildKeyDown = onSelectItem
+                          ? (e: React.KeyboardEvent) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                onSelectItem(ci);
+                              }
+                            }
+                          : undefined;
+                        return (
+                          <div
+                            key={`tool-child-${ci}`}
+                            role={onSelectItem ? "button" : undefined}
+                            tabIndex={onSelectItem ? 0 : undefined}
+                            onClick={handleChildClick}
+                            onKeyDown={handleChildKeyDown}
+                            className={cn(
+                              "flex items-center gap-2 py-1 text-[11px] text-[hsl(var(--muted-foreground))]",
+                              onSelectItem &&
+                                "cursor-pointer rounded-sm transition-colors hover:bg-[hsl(var(--accent))] focus:outline-none focus:ring-1 focus:ring-[hsl(var(--ring))]",
+                            )}
+                          >
+                            <span aria-hidden className="text-[10px]">
+                              🔧
+                            </span>
+                            <span className="truncate font-mono text-[11px] text-[hsl(var(--foreground))]">
+                              {child.content}
+                            </span>
+                            <ToolStatusIcon status={child.toolStatus} />
+                            {summary && (
+                              <span className="truncate text-[10px]">
+                                · {summary}
+                              </span>
+                            )}
+                            {child.error && (
+                              <span className="truncate text-[10px] text-red-500">
+                                · {child.error}
+                              </span>
+                            )}
+                            {child.durationMs != null && (
+                              <span className="ml-auto shrink-0 text-[10px]">
+                                {child.durationMs}ms
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
             }
             // spec/conventions/conversation-thread.md §9.1 — `presentation_user`
             // turn 은 chat bubble 이 아닌 회색 시스템 카드로 렌더. 3중 신호
@@ -924,7 +1050,8 @@ function SummaryView({
                 })()}
               </div>
             );
-          })}
+          });
+          })()}
         </div>
       )}
 
