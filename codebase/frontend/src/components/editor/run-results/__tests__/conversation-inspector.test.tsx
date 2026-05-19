@@ -77,15 +77,100 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
     expect(screen.getByText("124ms")).toBeInTheDocument();
   });
 
-  // LLM provider 가 tool_use 사이에 빈 text 블록(" "/"\n") 을 같이 emit 하면
-  // result.content 가 truthy 공백문자가 되어 SummaryView 가 MarkdownRenderer 만
-  // 그리고 ToolCallBadge 분기로 진입하지 못하는 회귀가 있었다 (b5ddb4dd 의 strip
-  // 도입 이후 marker 만 둘러쌌던 공백이 표면화). 본 케이스는 그 회귀를 차단한다.
-  it("assistant content 가 whitespace-only 면 본문은 숨기고 ToolCallBadge 만 노출한다", () => {
+  // 사용자 보고 (2026-05-19, PR #208 후속): tool 호출만 있고 본문이 비어있는
+  // intermediate assistant 는 🔧 tool row 와 의미가 완전히 중복되어 timeline 에
+  // "동일한 항목 2개" 처럼 보였다. SummaryView 는 이 경우 render 를 skip 한다
+  // — spec/conventions/conversation-thread.md §9.1 의 ai_assistant 라인은
+  // "final assistant 응답" 을 가리키고, tool 호출 라이프사이클은 ai_tool 라인
+  // (🔧 카드) 단일 표현으로 충분.
+  it("blank intermediate assistant (content 비어있고 toolCalls 만 있음) 는 timeline 에 렌더하지 않는다", () => {
     const items: ConversationItem[] = [
       makeItem({
         type: "assistant",
         content: " \n ",
+        turnIndex: 1,
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+      makeItem({
+        type: "tool",
+        content: "kb_search",
+        turnIndex: 1,
+        toolCallId: "call_1",
+        toolStatus: "success",
+      }),
+    ];
+
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+      />,
+    );
+
+    // 🤖 AI 헤더는 렌더되지 않아야 한다 (intermediate skip).
+    expect(screen.queryByText("🤖 AI")).toBeNull();
+    // ToolCallBadge 도 표시되지 않음 — 🔧 tool row 가 이미 같은 의미를 전달.
+    expect(screen.queryByText("도구 호출")).toBeNull();
+    // 🔧 tool row 는 정상 노출.
+    expect(screen.getByText("🔧")).toBeInTheDocument();
+    expect(screen.getByText("kb_search")).toBeInTheDocument();
+  });
+
+  it("동일 turn 에 intermediate assistant 가 여러 개여도 모두 skip — 사용자 보고 시나리오 (mcp 도구 순차 호출)", () => {
+    const items: ConversationItem[] = [
+      makeItem({ type: "user", content: "지금 회원 몇명이야?" }),
+      makeItem({
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        assistantToolCalls: [{ name: "mcp_customer_list", arguments: "{}" }],
+      }),
+      makeItem({
+        type: "tool",
+        content: "mcp_customer_list",
+        turnIndex: 1,
+        toolCallId: "c1",
+        toolStatus: "success",
+      }),
+      makeItem({
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        assistantToolCalls: [{ name: "mcp_customer_list", arguments: "{}" }],
+      }),
+      makeItem({
+        type: "tool",
+        content: "mcp_customer_list",
+        turnIndex: 1,
+        toolCallId: "c2",
+        toolStatus: "success",
+      }),
+      makeItem({
+        type: "assistant",
+        content: "현재 시스템의 MCP 도구로는 ...",
+        turnIndex: 1,
+      }),
+    ];
+
+    render(
+      <ConversationInspector
+        {...baseProps}
+        conversationMessages={items}
+      />,
+    );
+
+    // 🤖 AI 헤더는 final 하나뿐 (intermediate 2개 모두 skip).
+    expect(screen.getAllByText("🤖 AI")).toHaveLength(1);
+    // 🔧 tool row 는 두 개 모두 유지.
+    expect(screen.getAllByText("🔧")).toHaveLength(2);
+    expect(screen.getAllByText("mcp_customer_list")).toHaveLength(2);
+  });
+
+  it("blank intermediate assistant 가 단독으로 있는 (tool row 부재) edge case 도 skip — 정보 누락은 LLM 디버그 탭에서 확인", () => {
+    const items: ConversationItem[] = [
+      makeItem({
+        type: "assistant",
+        content: "",
         turnIndex: 1,
         assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
       }),
@@ -98,11 +183,10 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       />,
     );
 
-    // (empty) placeholder 는 표시되지 않아야 한다 — 도구 호출이 있으니까.
+    // 단독 blank intermediate assistant 는 timeline 에 어떤 흔적도 남기지 않는다.
+    expect(screen.queryByText("🤖 AI")).toBeNull();
+    expect(screen.queryByText("도구 호출")).toBeNull();
     expect(screen.queryByText("(empty)")).toBeNull();
-    // ToolCallBadge 가 노출돼 사용자가 도구 호출 사실을 인지할 수 있어야 한다.
-    expect(screen.getByText("도구 호출")).toBeInTheDocument();
-    expect(screen.getByText("1개 도구 호출")).toBeInTheDocument();
   });
 
   it("assistant content + toolCalls 가 둘 다 있으면 본문과 뱃지를 동시 노출한다", () => {
@@ -134,7 +218,7 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
     expect(screen.queryByText("(empty)")).toBeNull();
   });
 
-  it("user/assistant/tool 가 섞여 있어도 'AI' 라벨은 assistant 에만 붙는다", () => {
+  it("user / blank intermediate assistant / tool / final assistant 시퀀스에서 intermediate 는 skip 되고 final 만 🤖 AI 로 노출", () => {
     const items: ConversationItem[] = [
       makeItem({ type: "user", content: "요금제 추천해줘" }),
       makeItem({
@@ -165,9 +249,12 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       />,
     );
 
-    expect(screen.getAllByText("🤖 AI")).toHaveLength(2);
+    // intermediate (blank+toolCalls) skip — 🤖 AI 는 final 하나뿐.
+    expect(screen.getAllByText("🤖 AI")).toHaveLength(1);
     expect(screen.getAllByText("👤 User")).toHaveLength(1);
     expect(screen.getAllByText("🔧")).toHaveLength(1);
+    // final 본문은 그대로 노출.
+    expect(screen.getByText(/해피톡의 요금제/)).toBeInTheDocument();
   });
 
   it("error 상태 tool 은 에러 메시지를 표시하고 XCircle 아이콘이 보인다", () => {
