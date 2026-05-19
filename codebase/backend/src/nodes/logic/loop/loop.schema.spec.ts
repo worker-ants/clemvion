@@ -72,9 +72,9 @@ describe('validateLoopConfig (imperative)', () => {
     // 의도적: validateLoopConfig 의 `typeof count === 'number'` 가드는 사용자
     // 입력 raw string 을 schema 단에서 강제 변환·재해석하지 않기 위함.
     // 문자열 → 숫자 강제는 engine 의 coerceContainerNumber 단계에서 일어남.
-    expect(
-      validateLoopConfig({ count: '200', maxIterations: 100 }),
-    ).toEqual([]);
+    expect(validateLoopConfig({ count: '200', maxIterations: 100 })).toEqual(
+      [],
+    );
   });
 
   it('skips cross-field check when count is an expression', () => {

@@ -31,12 +31,14 @@ export class LoginChallengeDto {
   })
   methods: Array<'webauthn' | 'totp'>;
 
-  @ApiProperty({ description: 'mfa_challenge JWT (5분). 후속 verify 요청에 동봉' })
+  @ApiProperty({
+    description: 'mfa_challenge JWT (5분). 후속 verify 요청에 동봉',
+  })
   challengeToken: string;
 
   @ApiPropertyOptional({
     description:
-      'DEPRECATED — `methods` 가 \'totp\' 포함이면 true. 두 마이너 버전 후 제거 예정 (spec §1.4.2).',
+      "DEPRECATED — `methods` 가 'totp' 포함이면 true. 두 마이너 버전 후 제거 예정 (spec §1.4.2).",
     deprecated: true,
   })
   requiresTotp?: boolean;

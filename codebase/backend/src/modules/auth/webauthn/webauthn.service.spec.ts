@@ -34,7 +34,7 @@ import {
 
 const mockedGenerateRegOpts = generateRegistrationOptions as jest.Mock;
 const mockedVerifyRegResp = verifyRegistrationResponse as jest.Mock;
-const mockedGenerateAuthOpts = generateAuthenticationOptions as jest.Mock;
+const _mockedGenerateAuthOpts = generateAuthenticationOptions as jest.Mock;
 const mockedVerifyAuthResp = verifyAuthenticationResponse as jest.Mock;
 
 describe('WebAuthnService', () => {
@@ -60,7 +60,9 @@ describe('WebAuthnService', () => {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn().mockResolvedValue(null),
       count: jest.fn().mockResolvedValue(0),
-      create: jest.fn().mockImplementation((d) => ({ id: 'cred-uuid-1', ...d })),
+      create: jest
+        .fn()
+        .mockImplementation((d) => ({ id: 'cred-uuid-1', ...d })),
       save: jest.fn().mockImplementation((d) => Promise.resolve(d)),
       update: jest.fn().mockResolvedValue({}),
       delete: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -91,8 +93,14 @@ describe('WebAuthnService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WebAuthnService,
-        { provide: getRepositoryToken(WebAuthnCredential), useValue: credentialRepo },
-        { provide: getRepositoryToken(RefreshToken), useValue: refreshTokenRepo },
+        {
+          provide: getRepositoryToken(WebAuthnCredential),
+          useValue: credentialRepo,
+        },
+        {
+          provide: getRepositoryToken(RefreshToken),
+          useValue: refreshTokenRepo,
+        },
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: jwtService },
         {
@@ -121,9 +129,11 @@ describe('WebAuthnService', () => {
             transaction: jest
               .fn()
               .mockImplementation(
-                (cb: (manager: {
-                  getRepository: (entity: unknown) => unknown;
-                }) => Promise<unknown>) =>
+                (
+                  cb: (manager: {
+                    getRepository: (entity: unknown) => unknown;
+                  }) => Promise<unknown>,
+                ) =>
                   cb({
                     getRepository: (entity: unknown) => {
                       if (entity === WebAuthnCredential) return credentialRepo;
@@ -163,9 +173,9 @@ describe('WebAuthnService', () => {
 
     it('throws when user not found', async () => {
       usersService.findById.mockResolvedValue(null);
-      await expect(service.generateRegistrationOptionsFor(userId)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.generateRegistrationOptionsFor(userId),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('passes excludeCredentials of existing registrations', async () => {
@@ -331,14 +341,24 @@ describe('WebAuthnService', () => {
 
     it('deletes credential + revokes all active refresh tokens + records WEBAUTHN_COUNTER_REGRESSION on counter regression', async () => {
       mockedVerifyAuthResp.mockRejectedValue(
-        new Error('Response counter value 0 is less than or equal to current counter 5'),
+        new Error(
+          'Response counter value 0 is less than or equal to current counter 5',
+        ),
       );
       await expect(
-        service.verifyAuthentication(userId, 'opts.tok', validResponse as never),
+        service.verifyAuthentication(
+          userId,
+          'opts.tok',
+          validResponse as never,
+        ),
       ).rejects.toMatchObject({
-        response: expect.objectContaining({ code: 'WEBAUTHN_COUNTER_REGRESSION' }),
+        response: expect.objectContaining({
+          code: 'WEBAUTHN_COUNTER_REGRESSION',
+        }),
       });
-      expect(credentialRepo.delete).toHaveBeenCalledWith({ id: credentialRow.id });
+      expect(credentialRepo.delete).toHaveBeenCalledWith({
+        id: credentialRow.id,
+      });
       // 클론 공격 시 기존 활성 세션 즉시 revoke (review C-3)
       expect(refreshTokenRepo.update).toHaveBeenCalledWith(
         { userId, isRevoked: false },
@@ -355,7 +375,11 @@ describe('WebAuthnService', () => {
     it('records WEBAUTHN_INVALID on generic verify failure', async () => {
       mockedVerifyAuthResp.mockRejectedValue(new Error('signature failed'));
       await expect(
-        service.verifyAuthentication(userId, 'opts.tok', validResponse as never),
+        service.verifyAuthentication(
+          userId,
+          'opts.tok',
+          validResponse as never,
+        ),
       ).rejects.toThrow(UnauthorizedException);
       expect(loginHistory.record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -369,7 +393,11 @@ describe('WebAuthnService', () => {
     it('throws when credential not found', async () => {
       credentialRepo.findOne.mockResolvedValue(null);
       await expect(
-        service.verifyAuthentication(userId, 'opts.tok', validResponse as never),
+        service.verifyAuthentication(
+          userId,
+          'opts.tok',
+          validResponse as never,
+        ),
       ).rejects.toThrow(UnauthorizedException);
     });
   });
@@ -434,9 +462,9 @@ describe('WebAuthnService', () => {
         id: 'cred-1',
         userId: 'someone-else',
       });
-      await expect(
-        service.deleteCredential(userId, 'cred-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.deleteCredential(userId, 'cred-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -474,9 +502,9 @@ describe('WebAuthnService', () => {
 
     it('rejects when no credentials registered', async () => {
       credentialRepo.count.mockResolvedValue(0);
-      await expect(
-        service.regenerateRecoveryCodes(userId),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.regenerateRecoveryCodes(userId)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -515,16 +543,37 @@ describe('WebAuthnService', () => {
     });
 
     it.each([
-      ['generateRegistrationOptionsFor', () => service.generateRegistrationOptionsFor(userId)],
-      ['verifyRegistration', () => service.verifyRegistration(userId, 'token', {} as never)],
-      ['generateAuthenticationOptionsForUser', () => service.generateAuthenticationOptionsForUser(userId)],
-      ['verifyAuthentication', () => service.verifyAuthentication(userId, 'token', {} as never)],
+      [
+        'generateRegistrationOptionsFor',
+        () => service.generateRegistrationOptionsFor(userId),
+      ],
+      [
+        'verifyRegistration',
+        () => service.verifyRegistration(userId, 'token', {} as never),
+      ],
+      [
+        'generateAuthenticationOptionsForUser',
+        () => service.generateAuthenticationOptionsForUser(userId),
+      ],
+      [
+        'verifyAuthentication',
+        () => service.verifyAuthentication(userId, 'token', {} as never),
+      ],
       ['verifyRecoveryCode', () => service.verifyRecoveryCode(userId, 'code')],
-      ['renameCredential', () => service.renameCredential(userId, 'cred-1', 'name')],
+      [
+        'renameCredential',
+        () => service.renameCredential(userId, 'cred-1', 'name'),
+      ],
       ['deleteCredential', () => service.deleteCredential(userId, 'cred-1')],
-      ['regenerateRecoveryCodes', () => service.regenerateRecoveryCodes(userId)],
-    ])('%s throws ServiceUnavailable (WEBAUTHN_DISABLED)', async (_name, fn) => {
-      await expect(fn()).rejects.toThrow(ServiceUnavailableException);
-    });
+      [
+        'regenerateRecoveryCodes',
+        () => service.regenerateRecoveryCodes(userId),
+      ],
+    ])(
+      '%s throws ServiceUnavailable (WEBAUTHN_DISABLED)',
+      async (_name, fn) => {
+        await expect(fn()).rejects.toThrow(ServiceUnavailableException);
+      },
+    );
   });
 });

@@ -1,7 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
-  IsArray,
   IsObject,
   IsOptional,
   IsString,
@@ -23,7 +21,8 @@ export class WebAuthnRegisterVerifyDto {
   optionsToken: string;
 
   @ApiProperty({
-    description: 'navigator.credentials.create() 반환 결과 (RegistrationResponseJSON).',
+    description:
+      'navigator.credentials.create() 반환 결과 (RegistrationResponseJSON).',
     type: 'object',
     additionalProperties: true,
   })
@@ -66,7 +65,8 @@ export class WebAuthnAuthVerifyDto {
   optionsToken: string;
 
   @ApiProperty({
-    description: 'navigator.credentials.get() 반환 결과 (AuthenticationResponseJSON).',
+    description:
+      'navigator.credentials.get() 반환 결과 (AuthenticationResponseJSON).',
     type: 'object',
     additionalProperties: true,
   })
