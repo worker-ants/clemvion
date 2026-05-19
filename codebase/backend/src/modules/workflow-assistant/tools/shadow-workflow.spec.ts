@@ -1231,15 +1231,21 @@ describe('ShadowWorkflow', () => {
   // 항상 진행, result.configWarnings 필드로만 LLM 에 통지 — 다음 턴에
   // 선택적 교정하거나 실행 시점 execution-engine 이 최종 차단.
   describe('handler.validate warnings (비차단, configWarnings)', () => {
+    // production `validateButtons` (`_shared/button.types.ts`) 를 미러링하는
+    // 인라인 헬퍼. ShadowWorkflow 의 핵심은 "validator 가 error 를 반환했을 때
+    // configWarnings 로 어떻게 처리하는가" 라서 cap 값 자체는 fixture 의 부수
+    // detail. 단, cap 값과 메시지는 production SSOT 와 일치시켜야 향후 cap
+    // 변경 시 동일 PR 에서 함께 정렬 (2026-05-19 cap 10 → 5 통일, spec
+    // 4-nodes/6-presentation/0-common.md §Rationale).
     const maxButtonsValidator = (
       _type: string,
       config: Record<string, unknown>,
     ) => {
       const buttons = config.buttons as unknown[] | undefined;
-      if (buttons && buttons.length > 10) {
+      if (buttons && buttons.length > 5) {
         return {
           valid: false,
-          errors: ['Maximum 10 buttons allowed per node'],
+          errors: ['Maximum 5 buttons allowed per node'],
         };
       }
       return { valid: true, errors: [] };
@@ -1258,10 +1264,10 @@ describe('ShadowWorkflow', () => {
         name: 'add_node',
         arguments: {
           type: 'carousel',
-          label: '11버튼 캐러셀',
+          label: '6버튼 캐러셀',
           position: { x: 0, y: 0 },
           config: {
-            buttons: Array.from({ length: 11 }, (_, i) => ({
+            buttons: Array.from({ length: 6 }, (_, i) => ({
               id: `btn_${i}`,
               label: `B${i}`,
               type: 'port',
@@ -1271,7 +1277,7 @@ describe('ShadowWorkflow', () => {
       });
       expect(result.ok).toBe(true);
       expect(result.configWarnings).toEqual([
-        'Maximum 10 buttons allowed per node',
+        'Maximum 5 buttons allowed per node',
       ]);
       // 저장됨 — manual_trigger + 방금 추가한 carousel.
       expect(sw.snapshot().nodes).toHaveLength(2);
@@ -1319,7 +1325,7 @@ describe('ShadowWorkflow', () => {
       });
       expect(add.ok).toBe(true);
 
-      const invalidButtons = Array.from({ length: 11 }, (_, i) => ({
+      const invalidButtons = Array.from({ length: 6 }, (_, i) => ({
         id: `btn_${i}`,
         label: `B${i}`,
         type: 'port',
@@ -1333,11 +1339,11 @@ describe('ShadowWorkflow', () => {
       });
       expect(result.ok).toBe(true);
       expect(result.configWarnings).toEqual([
-        'Maximum 10 buttons allowed per node',
+        'Maximum 5 buttons allowed per node',
       ]);
-      // patch 는 applied — 버튼이 11 개로 반영됨.
+      // patch 는 applied — 버튼이 6 개로 반영됨.
       const after = sw.snapshot().nodes.find((n) => n.id === add.id)!;
-      expect((after.config.buttons as unknown[]).length).toBe(11);
+      expect((after.config.buttons as unknown[]).length).toBe(6);
     });
 
     it('update_node: label/position-only patch 는 validator 호출 안 함', () => {
