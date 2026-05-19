@@ -215,10 +215,7 @@ describe('Send Email node schema', () => {
   });
 
   describe('validateSendEmailConfig (imperative)', () => {
-    it('returns [] when to is a non-empty string', () => {
-      expect(validateSendEmailConfig({ to: 'a@example.com' })).toEqual([]);
-    });
-
+    // array-only 정준화 (spec §8.1) — string raw 는 zod 와 validator 양쪽에서 reject.
     it('returns [] when to is a non-empty array of strings', () => {
       expect(
         validateSendEmailConfig({ to: ['a@example.com', 'b@example.com'] }),
@@ -227,33 +224,67 @@ describe('Send Email node schema', () => {
 
     it('rejects to when missing', () => {
       expect(validateSendEmailConfig({})).toContain(
-        'to is required and must be a non-empty string or array of email addresses',
+        'to is required and must be a non-empty array of email addresses',
+      );
+    });
+
+    it('rejects to when raw is a string (array-only 정준화, spec §8.1)', () => {
+      // 종전 sum-type 에서는 통과되던 케이스. 이제 두 layer (zod + validator)
+      // 모두 array-only — string raw 는 일관되게 reject.
+      expect(validateSendEmailConfig({ to: 'a@example.com' })).toContain(
+        'to is required and must be a non-empty array of email addresses',
+      );
+      // 콤마-구분 단일 문자열도 동일하게 reject (종전엔 handler 가 split 했음)
+      expect(validateSendEmailConfig({ to: 'a@x.com, b@x.com' })).toContain(
+        'to is required and must be a non-empty array of email addresses',
       );
     });
 
     it('rejects to when array contains empty / non-string entries', () => {
       expect(validateSendEmailConfig({ to: [''] })).toContain(
-        'to is required and must be a non-empty string or array of email addresses',
+        'to is required and must be a non-empty array of email addresses',
       );
       expect(validateSendEmailConfig({ to: [123 as never] })).toContain(
-        'to is required and must be a non-empty string or array of email addresses',
+        'to is required and must be a non-empty array of email addresses',
       );
     });
 
-    it('skips cc/bcc validation when they are unset / empty', () => {
+    it('skips cc/bcc validation when they are unset / empty array', () => {
       expect(
-        validateSendEmailConfig({ to: 'a@example.com', cc: [], bcc: '' }),
+        validateSendEmailConfig({ to: ['a@example.com'], cc: [], bcc: [] }),
       ).toEqual([]);
+    });
+
+    it('rejects cc when set but is a string (array-only)', () => {
+      const errors = validateSendEmailConfig({
+        to: ['a@example.com'],
+        cc: 'b@x.com',
+      });
+      expect(errors).toContain('cc must be an array of email addresses');
     });
 
     it('rejects cc when set but malformed (array with non-string)', () => {
       const errors = validateSendEmailConfig({
-        to: 'a@example.com',
+        to: ['a@example.com'],
         cc: [123 as never],
       });
-      expect(errors).toContain(
-        'cc must be a string or array of email addresses',
-      );
+      expect(errors).toContain('cc must be an array of email addresses');
+    });
+
+    it('rejects bcc when set but is a string (array-only) — cc 대칭', () => {
+      const errors = validateSendEmailConfig({
+        to: ['a@example.com'],
+        bcc: 'd@x.com',
+      });
+      expect(errors).toContain('bcc must be an array of email addresses');
+    });
+
+    it('rejects bcc when set but malformed (array with non-string) — cc 대칭', () => {
+      const errors = validateSendEmailConfig({
+        to: ['a@example.com'],
+        bcc: [42 as never],
+      });
+      expect(errors).toContain('bcc must be an array of email addresses');
     });
   });
 

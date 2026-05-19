@@ -30,7 +30,7 @@ function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
 describe('SendEmailHandler', () => {
   const baseConfig = {
     integrationId: 'int-1',
-    to: 'recipient@example.com',
+    to: ['recipient@example.com'],
     subject: 'hi',
     body: 'hello',
   };
@@ -51,11 +51,12 @@ describe('SendEmailHandler', () => {
   describe('validate', () => {
     const handler = new SendEmailHandler();
 
-    it('accepts a comma-separated string for to', () => {
+    // array-only 정준화 (spec §8.1) — raw string 은 zod 와 validator 양쪽에서 reject.
+    it('rejects a comma-separated string for to (array-only 정준화)', () => {
       expect(
         handler.validate({ ...baseConfig, to: 'a@example.com, b@example.com' })
           .valid,
-      ).toBe(true);
+      ).toBe(false);
     });
 
     it('accepts a non-empty array for to', () => {
@@ -64,11 +65,22 @@ describe('SendEmailHandler', () => {
       ).toBe(true);
     });
 
-    it('accepts an expression template string for to', () => {
+    it('accepts an array with a single expression template element', () => {
+      // raw 가 단일 string 이 아니라 array 안에 표현식 — `to: ["{{ $input.recipients }}"]`.
+      // 표현식 평가는 runtime, validate 는 raw 형태만 본다.
+      expect(
+        handler.validate({
+          ...baseConfig,
+          to: ['{{ $input.recipients }}'],
+        }).valid,
+      ).toBe(true);
+    });
+
+    it('rejects a single expression string for to (array-only)', () => {
       expect(
         handler.validate({ ...baseConfig, to: '{{ $input.recipients }}' })
           .valid,
-      ).toBe(true);
+      ).toBe(false);
     });
 
     it('rejects missing integrationId', () => {
@@ -90,8 +102,8 @@ describe('SendEmailHandler', () => {
       expect(result.errors.join(' ')).toMatch(/to|To|수신자/);
     });
 
-    it('rejects empty string for to', () => {
-      const result = handler.validate({ ...baseConfig, to: '   ' });
+    it('rejects whitespace-only array element for to', () => {
+      const result = handler.validate({ ...baseConfig, to: ['   '] });
       expect(result.valid).toBe(false);
     });
 
@@ -100,15 +112,25 @@ describe('SendEmailHandler', () => {
       expect(result.valid).toBe(false);
     });
 
-    it('allows cc to be absent', () => {
-      expect(handler.validate({ ...baseConfig, cc: '' }).valid).toBe(true);
+    it('allows cc to be absent (undefined / empty array)', () => {
+      // array-only 정준화 (spec §8.1): absent = unset 또는 빈 배열.
       expect(handler.validate({ ...baseConfig, cc: [] }).valid).toBe(true);
       expect(handler.validate({ ...baseConfig, cc: undefined }).valid).toBe(
         true,
       );
     });
 
-    it('rejects invalid cc type', () => {
+    it('rejects cc when raw is a string (array-only) + 에러 메시지에 cc 포함', () => {
+      // 종전 sum-type 에서는 통과. 이제 일관되게 reject.
+      const emptyResult = handler.validate({ ...baseConfig, cc: '' });
+      expect(emptyResult.valid).toBe(false);
+      expect(emptyResult.errors.join(' ')).toContain('cc');
+      const stringResult = handler.validate({ ...baseConfig, cc: 'c@x.com' });
+      expect(stringResult.valid).toBe(false);
+      expect(stringResult.errors.join(' ')).toContain('cc');
+    });
+
+    it('rejects invalid cc type (number)', () => {
       const result = handler.validate({
         ...baseConfig,
         cc: 42,
@@ -117,12 +139,23 @@ describe('SendEmailHandler', () => {
       expect(result.errors.join(' ')).toContain('cc');
     });
 
-    it('allows bcc to be absent', () => {
-      expect(handler.validate({ ...baseConfig, bcc: '' }).valid).toBe(true);
+    it('allows bcc to be absent (undefined / empty array)', () => {
+      // array-only 정준화 (spec §8.1): absent 의 의미는 unset 또는 빈 배열.
+      // 종전엔 빈 string 도 absent 로 봤지만, 이제는 raw string 자체가 invalid.
       expect(handler.validate({ ...baseConfig, bcc: [] }).valid).toBe(true);
       expect(handler.validate({ ...baseConfig, bcc: undefined }).valid).toBe(
         true,
       );
+    });
+
+    it('rejects bcc when raw is a string (array-only) + 에러 메시지에 bcc 포함', () => {
+      // 종전 sum-type 에서는 통과. 이제 일관되게 reject.
+      const emptyResult = handler.validate({ ...baseConfig, bcc: '' });
+      expect(emptyResult.valid).toBe(false);
+      expect(emptyResult.errors.join(' ')).toContain('bcc');
+      const stringResult = handler.validate({ ...baseConfig, bcc: 'd@x.com' });
+      expect(stringResult.valid).toBe(false);
+      expect(stringResult.errors.join(' ')).toContain('bcc');
     });
 
     it('accepts a non-empty array for bcc', () => {
@@ -162,9 +195,9 @@ describe('SendEmailHandler', () => {
         output: { subject?: string; body?: string; bodyType?: string };
       };
       expect(out.status).toBe('requires_integration');
-      // Principle 7 — `config.to` echoes the **raw** value the user entered,
-      // not the normalised array.
-      expect(out.config.to).toBe('recipient@example.com');
+      // Principle 7 — `config.to` echoes the **raw** array the user entered.
+      // After 2026-05-19 정준화 (spec §8.1) raw is array-only.
+      expect(out.config.to).toEqual(['recipient@example.com']);
       expect(out.output.subject).toBe('hi');
       expect(out.output.body).toBe('hello');
       expect(out.output.bodyType).toBe('text');
@@ -211,8 +244,8 @@ describe('SendEmailHandler', () => {
       const handler = new SendEmailHandler(service as never);
       const sendConfig = {
         ...baseConfig,
-        to: 'a@example.com, b@example.com',
-        cc: 'c@example.com',
+        to: ['a@example.com', 'b@example.com'],
+        cc: ['c@example.com'],
       };
       const out = (await handler.execute(
         null,
@@ -240,10 +273,10 @@ describe('SendEmailHandler', () => {
       );
       expect(out.meta.deliveryStatus).toBe('sent');
       expect(out.output.messageId).toBe('msg-123');
-      // Principle 7 — config echoes the raw template (string), evaluated
-      // values are surfaced on output.*.
-      expect(out.config.to).toBe('a@example.com, b@example.com');
-      expect(out.config.cc).toBe('c@example.com');
+      // Principle 7 — config echoes the raw array (array-only 정준화),
+      // evaluated values are surfaced on output.*.
+      expect(out.config.to).toEqual(['a@example.com', 'b@example.com']);
+      expect(out.config.cc).toEqual(['c@example.com']);
       expect(out.output.subject).toBe('hi');
       expect(out.output.body).toBe('hello');
       expect(out.output.bodyType).toBe('text');
@@ -327,7 +360,7 @@ describe('SendEmailHandler', () => {
       const handler = new SendEmailHandler(service as never);
       const rawConfig = {
         integrationId: 'int-1',
-        to: '{{ $input.email }}',
+        to: ['{{ $input.email }}'],
         subject: 'Hello {{ $input.name }}',
         body: 'Welcome {{ $input.name }}!',
         bodyType: 'text',
@@ -335,7 +368,7 @@ describe('SendEmailHandler', () => {
       // What `config` arg looks like after the engine evaluates expressions.
       const evaluated = {
         ...rawConfig,
-        to: 'alice@example.com',
+        to: ['alice@example.com'],
         subject: 'Hello Alice',
         body: 'Welcome Alice!',
       };
@@ -348,7 +381,7 @@ describe('SendEmailHandler', () => {
         output: { subject: string; body: string };
       };
 
-      expect(out.config.to).toBe('{{ $input.email }}');
+      expect(out.config.to).toEqual(['{{ $input.email }}']);
       expect(out.config.subject).toBe('Hello {{ $input.name }}');
       expect(out.config.body).toBe('Welcome {{ $input.name }}!');
       expect(out.output.subject).toBe('Hello Alice');
