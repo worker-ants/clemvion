@@ -100,7 +100,8 @@ test.describe("Profile sessions page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: ACTIVE_SESSIONS }),
+        // SessionListDto: 외부 wrapper 까지 합쳐 `{ data: { items: SessionDto[] } }`
+        body: JSON.stringify({ data: { items: ACTIVE_SESSIONS } }),
       });
     });
     await page.route("**/api/users/me/login-history**", async (route) => {
@@ -126,9 +127,10 @@ test.describe("Profile sessions page", () => {
 
     let revoked = false;
     await page.route("**/api/users/me/sessions", async (route) => {
+      // SessionListDto: 외부 wrapper 까지 합쳐 `{ data: { items: SessionDto[] } }`
       const body = revoked
-        ? { data: [ACTIVE_SESSIONS[0]] }
-        : { data: ACTIVE_SESSIONS };
+        ? { data: { items: [ACTIVE_SESSIONS[0]] } }
+        : { data: { items: ACTIVE_SESSIONS } };
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -140,7 +142,7 @@ test.describe("Profile sessions page", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ data: [ACTIVE_SESSIONS[0]] }),
+        body: JSON.stringify({ data: { items: [ACTIVE_SESSIONS[0]] } }),
       });
     });
     await page.route("**/api/users/me/login-history**", async (route) => {
