@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { createTransport, type Transporter } from 'nodemailer';
 import type Mail from 'nodemailer/lib/mailer';
 import { createHash } from 'crypto';
@@ -53,7 +54,8 @@ export class SendEmailHandler
 
   validate(config: Record<string, unknown>): ValidationResult {
     // Schema SSOT (warningRules + validateConfig) covers integrationId / to /
-    // subject / body required + cc/bcc sum-type guards. Handler retains the
+    // subject / body required + cc/bcc array-only guards (2026-05-19 정준화,
+    // spec 4-nodes/4-integration/3-send-email.md §8.1). Handler retains the
     // string type guards for subject/body and the bodyType enum guard
     // because zod narrows them at parse time only.
     const errors = [...evaluateMetadataBlockingErrors(this.metadata, config)];
@@ -302,20 +304,35 @@ function safeMessage(err: unknown): string {
 // `isOptionalRecipientSet` / `isRecipientsLike` were removed from this file
 // when the inline validate() was replaced with the schema SSOT helper —
 // send-email.schema.ts owns the canonical implementations now.
+//
+// `to/cc/bcc` are array-only as of the 2026-05-19 정준화 (spec
+// 4-nodes/4-integration/3-send-email.md §8 Rationale). Both zod schema and
+// validateSendEmailConfig reject raw `string`, so non-array inputs cannot
+// reach this handler through the standard execution path. The defensive
+// `return []` for non-array input remains as the runtime safety net for
+// legacy data (pre-정준화 workflows) or direct handler invocation that
+// bypassed schema parsing — it produces an empty recipient list, which the
+// downstream `to.length === 0` guard converts into `EMAIL_NO_RECIPIENTS`.
+//
+// The `logger.warn` on the defensive branch makes the legacy / bypass path
+// observable so an empty `[]` doesn't disguise itself as "user simply
+// omitted recipients" in logs. Once production has no legacy string-shaped
+// data this branch can be tightened to throw at the engine boundary.
+const normalizeRecipientsLogger = new Logger('send-email.normalizeRecipients');
 function normalizeRecipients(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .filter((v): v is string => typeof v === 'string')
-      .map((v) => v.trim())
-      .filter((v) => v.length > 0);
+  if (!Array.isArray(value)) {
+    if (value !== undefined && value !== null) {
+      normalizeRecipientsLogger.warn(
+        `recipient field is not an array (type=${typeof value}) — defensive [] returned. ` +
+          'spec §8: raw must be string[]. Likely legacy data or schema-bypass path.',
+      );
+    }
+    return [];
   }
-  if (typeof value === 'string') {
-    return value
-      .split(',')
-      .map((v) => v.trim())
-      .filter((v) => v.length > 0);
-  }
-  return [];
+  return value
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
 }
 
 function missingSmtpFields(creds: Partial<SmtpCredentials>): string[] {

@@ -11,9 +11,9 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |------|------|------|--------|------|
 | integrationId | UUID | ✓ | — | SMTP Integration 참조 ([공통 §1](./0-common.md#1-integration-참조)). `serviceType='email'` 만 허용 |
-| to | String[] / String (표현식) | ✓ | `[]` | 수신자. 배열 또는 콤마-구분 문자열. 표현식(`{{ }}`) 지원 |
-| cc | String[] / String | | `[]` | 참조. 형식은 `to` 와 동일 |
-| bcc | String[] / String | | `[]` | 숨은 참조. 형식은 `to` 와 동일 |
+| to | String[] | ✓ | `[]` | 수신자 배열. 각 원소가 이메일 주소 또는 표현식(`{{ }}`). 콤마-구분 단일 문자열은 비허용 — §8 Rationale 참조 |
+| cc | String[] | | `[]` | 참조. 형식은 `to` 와 동일 |
+| bcc | String[] | | `[]` | 숨은 참조. 형식은 `to` 와 동일 |
 | subject | String (표현식) | ✓ | `''` | 메일 제목 |
 | body | String (표현식) | ✓ | `''` | 메일 본문. `bodyType='html'` 시 HTML 문자열 |
 | bodyType | `text` / `html` | | `text` | 본문 포맷 |
@@ -78,10 +78,10 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 ## 4. 실행 로직
 
-1. **Pre-flight 검증** (`validate()`) — `evaluateMetadataBlockingErrors` (warningRules 평가) + `validateConfig` (recipient sum-type) + `subject`/`body` 문자열 / `bodyType` enum 체크. 실패 시 throw → 노드 실행 자체가 시작되지 않음 (워크플로우 실패 처리). 이외 모든 실행 단계 실패는 §5.3 (`port:'error'`) 으로 라우팅 (D4)
-2. **수신자 정규화** — `to`/`cc`/`bcc` 각각:
+1. **Pre-flight 검증** (`validate()`) — `evaluateMetadataBlockingErrors` (warningRules 평가) + `validateConfig` (recipient array-only, §8.1) + `subject`/`body` 문자열 / `bodyType` enum 체크. 실패 시 throw → 노드 실행 자체가 시작되지 않음 (워크플로우 실패 처리). 이외 모든 실행 단계 실패는 §5.3 (`port:'error'`) 으로 라우팅 (D4)
+2. **수신자 정규화** — `to`/`cc`/`bcc` 는 array-only (§8 Rationale):
    - 배열 → 원소를 `trim()` 후 빈 문자열 제거
-   - 문자열 → 콤마 split 후 각 토큰 `trim()`
+   - 비-배열 입력 → defensive `[]` 반환 (raw 는 schema + validator 두 layer 가 이미 reject 하므로 standard path 에서는 도달 불가, legacy 데이터·직접 호출 경로의 safety net)
    - 정규화 결과가 `to.length === 0` 이면 throw `'No valid recipients after normalizing the \`to\` field'`
 3. **Body cap** — 평가된 `body` 를 `truncateBodyForOutput` (256KB) 로 제한. 초과 시 `output.bodyTruncated: true` 부여
 4. **Integration stub 분기** — `integrationsService` 가 주입되지 않은 경우(테스트/DI 미주입) `status: 'requires_integration'` 로 즉시 반환 (외부 호출 없음). §5.4
@@ -94,7 +94,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
 >
-> `config` 은 사용자가 입력한 **raw** 값을 echo (Principle 7) — `{{ }}` 보존, `to`/`cc`/`bcc` 의 string/array 원형 보존, 자격증명 echo 금지. `output.subject` / `output.body` / `output.bodyType` 는 실제 SMTP 에 전송된 평가된 값 (Principle 1). `meta` 는 실행 메트릭만 (Principle 2).
+> `config` 은 사용자가 입력한 **raw** 값을 echo (Principle 7) — `{{ }}` 보존, `to`/`cc`/`bcc` 는 array 원형 보존 (2026-05-19 정준화로 array-only — §8 Rationale), 자격증명 echo 금지. `output.subject` / `output.body` / `output.bodyType` 는 실제 SMTP 에 전송된 평가된 값 (Principle 1). `meta` 는 실행 메트릭만 (Principle 2).
 
 ### 5.1 Case: 정상 발송 (port `out`)
 
@@ -102,7 +102,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 {
   "config": {
     "integrationId": "int_smtp_1",
-    "to": "{{ $input.email }}",
+    "to": ["{{ $input.email }}"],
     "cc": [],
     "bcc": [],
     "subject": "Hello {{ $input.name }}",
@@ -126,7 +126,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.integrationId` | UUID | config echo (Principle 7) | SMTP Integration 참조. 자격증명 자체는 echo 되지 않음 |
-| `config.to` / `cc` / `bcc` | string \| string[] | config echo | 사용자가 입력한 **raw** 형태 (표현식 보존). 정규화 결과는 echo 하지 않음 |
+| `config.to` / `cc` / `bcc` | string[] | config echo | 사용자가 입력한 **raw** 배열 (표현식 보존). 정규화 결과는 echo 하지 않음. 2026-05-19 정준화로 array-only (§8 Rationale) |
 | `config.subject` / `body` | string | config echo | raw 템플릿 (`{{ }}` 보존) |
 | `config.bodyType` | `'text'` / `'html'` | config echo | 본문 포맷 |
 | `config.attachments` | Attachment[] | config echo | 사용자가 입력한 raw. `filename` / `content` / `contentType` / `encoding` / `cid` 만 nodemailer 로 전달되며, `path` / `href` 등 파일·URL 접근 옵션은 서버에서 strip + `disableFileAccess` / `disableUrlAccess` 로 차단 |
@@ -157,7 +157,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 {
   "config": {
     "integrationId": "int_smtp_1",
-    "to": "{{ $input.email }}",
+    "to": ["{{ $input.email }}"],
     "cc": [],
     "bcc": [],
     "subject": "Hello {{ $input.name }}",
@@ -275,3 +275,36 @@ D4 이전에 send-email 은 이미 catch-all 패턴을 갖춰 다른 Integration
 ## 7. 캔버스 요약
 
 [공통 §5](./0-common.md#5-캔버스-요약) — `Send Email` 행 인용 (`to: {수신자}`, 2명 초과 시 `+N`).
+
+## 8. Rationale
+
+### 8.1 `to`/`cc`/`bcc` array-only 정준화 (2026-05-19)
+
+종전: 표 상 `String[] / String` (sum type) — 사용자가 콤마-구분 단일 문자열 (`"alice@x.com, bob@y.com"`) 도 입력 가능.
+
+문제: 두 검증 layer 의 진실이 어긋남.
+
+| layer | string 입력 처리 |
+|---|---|
+| zod `sendEmailNodeConfigSchema` | `z.array(z.string())` — parse 실패 |
+| validator `validateSendEmailConfig` | `isRecipientsLike` 가 `typeof string` 도 허용 — 통과 |
+
+결과: raw `string` 이 들어오면 zod 단계에서 거부되어 normalizeRecipients 까지 도달하지 못하지만, validator 단독으로는 통과 — `add_node` tool 응답에는 valid 처럼 보이는데 storage 에는 array 로 강제 변환되어 의도와 다른 1-원소 array 가 저장될 수 있음.
+
+**선택지 비교** (ai-review W-2 / consistency-check I-2 후속, 2026-05-19 결정):
+
+| 안 | 효과 | 채택 여부 |
+|---|---|---|
+| ① zod 를 `z.union([z.string(), z.array(z.string())])` 로 완화 | validator 와 일치, 사용자 입력 호환성 유지 | 기각 (storage 에 두 형태 공존 — output echo·downstream 표현식이 모두 sum-type 을 처리해야 함) |
+| ② **validator + handler 를 array-only 로 좁힘 (breaking)** | 두 layer 정렬, storage·echo·표현식 모두 단일 array 형태 | **채택** (스테이징 단계, 단일 string 형태 워크플로 거의 없음) |
+| ③ array-only 좁힘 + frontend 자동 wrap (단일 string → `[string]`) | breaking 회피 | 기각 (frontend 가 backend semantic 보정 책임을 떠안음 — 책임 위치 모호) |
+
+**마이그레이션**: 본 정준화는 **breaking change** 이나, 현재 스테이징 단계로 production 데이터에 단일 string 형태 `to` 가 저장된 워크플로우가 무시할 수준이라는 사용자 판단으로 **별 마이그레이션 스크립트 없이** 진행.
+
+**결과 동작 layer**:
+- **frontend** — `widget: 'field-array'` 이미 array. 변경 없음
+- **storage (zod)** — `z.array(z.string())` 유지 (변경 없음). 비-array raw 입력은 parse 실패
+- **validator (`validateSendEmailConfig`)** — `string` 경로 제거, array-only. zod 와 일관
+- **handler (`normalizeRecipients`)** — string 콤마-split 경로 제거. 비-array 입력은 defensive `[]` (safety net)
+- **output echo (`sendEmailNodeOutputSchema.config.to/cc/bcc`)** — `z.unknown()` → `z.array(z.string())` (echo 의 array-only 명시)
+- **표현식** — array 원소 단위로 `{{ ... }}` 사용 (예: `["{{ $input.email }}"]`)

@@ -40,20 +40,21 @@ const attachmentSchema = z.object({
  * `output.error.{code, message, details}` envelope — body is still echoed so
  * a downstream node can branch on the failed payload.
  *
- * `to` / `cc` / `bcc` are intentionally typed as `unknown` because the raw
- * form may be either a comma-separated string template or an array of
- * email-shaped strings (the user-facing widget supports both shapes). The
- * normalised array is not echoed on `config` — `output.accepted` /
- * `output.rejected` (from nodemailer) carry the actually delivered list.
+ * `to` / `cc` / `bcc` are `string[]` — raw form is array-only since the
+ * 2026-05-19 정준화 (spec §8 Rationale). Each element may itself be a
+ * `{{ ... }}` expression that evaluates to a single address at runtime;
+ * comma-separated single strings are no longer accepted. The normalised
+ * array is not echoed on `config` — `output.accepted` / `output.rejected`
+ * (from nodemailer) carry the actually delivered list.
  */
 export const sendEmailNodeOutputSchema = z
   .object({
     config: z
       .object({
         integrationId: z.string().optional(),
-        to: z.unknown().optional(),
-        cc: z.unknown().optional(),
-        bcc: z.unknown().optional(),
+        to: z.array(z.string()).optional(),
+        cc: z.array(z.string()).optional(),
+        bcc: z.array(z.string()).optional(),
         subject: z.string().optional(),
         body: z.string().optional(),
         bodyType: z.enum(['text', 'html']).optional(),
@@ -204,29 +205,41 @@ export const sendEmailNodePorts: NodePorts = {
 };
 
 /**
- * Imperative escape hatch — recipient fields are sum types
- * (`string | string[]`) where "set" means "non-empty trimmed string OR
- * non-empty array of non-empty trimmed strings". The mini-DSL can't model
- * that AND-OR shape, so all recipient validation lives here. The bare
- * "is to empty?" canvas signal is approximated by the `length(to) == 0`
- * declarative rule below — when the user is in the typical "array widget"
- * UX, that catches the common empty case.
+ * Imperative escape hatch — recipient fields are `string[]` (array-only as
+ * of the 2026-05-19 정준화). "set" means "non-empty array of non-empty
+ * trimmed strings". The mini-DSL's `length(to) == 0` declarative rule
+ * catches the empty-array case for the canvas badge; this validator
+ * additionally rejects arrays containing empty / non-string elements and
+ * — most importantly — rejects the legacy `string` raw shape that zod
+ * already refuses to parse, so both layers agree.
+ *
+ * spec/4-nodes/4-integration/3-send-email.md §8 Rationale: the previous
+ * sum-type (`string | string[]`) caused zod ↔ validator disagreement —
+ * raw `string` failed zod parse but slipped past the validator. Aligning
+ * both layers on array-only collapses that disagreement.
  */
 function isRecipientsLike(value: unknown): boolean {
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) {
-    return (
-      value.length > 0 &&
-      value.every((v) => typeof v === 'string' && v.trim().length > 0)
-    );
-  }
-  return false;
+  if (!Array.isArray(value)) return false;
+  return (
+    value.length > 0 &&
+    value.every((v) => typeof v === 'string' && v.trim().length > 0)
+  );
 }
 
+/**
+ * cc/bcc 가 사용자가 "명시한 값" 인지 판단. 명시되었다면 추가로 array-only
+ * 형식 검증을 trigger 해야 한다. 명시되지 않았다면 (unset / 빈 배열) 검증
+ * skip — optional field 이므로 부재가 valid 상태.
+ *
+ * **주의**: 비-배열 truthy 값 (예: `string`, `number`) 도 "set" 으로 판단해
+ * `true` 를 반환한다. 이는 "사용자가 값을 넣었지만 형식이 잘못됐다" 는
+ * 의미로, 호출자(`validateSendEmailConfig`) 가 `isRecipientsLike` 로 다시
+ * 검사해 reject 메시지를 push 하는 패턴을 의도한다. 직접 호출자 외 다른
+ * 컨텍스트에서 단독 사용 시 함수명이 오해를 부를 수 있음.
+ */
 function isOptionalRecipientSet(value: unknown): boolean {
   if (value === undefined || value === null) return false;
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) return value.length > 0;
+  if (Array.isArray(value) && value.length === 0) return false;
   return true;
 }
 
@@ -236,16 +249,16 @@ export function validateSendEmailConfig(config: unknown): string[] {
 
   if (!isRecipientsLike(c.to)) {
     errors.push(
-      'to is required and must be a non-empty string or array of email addresses',
+      'to is required and must be a non-empty array of email addresses',
     );
   }
 
   if (isOptionalRecipientSet(c.cc) && !isRecipientsLike(c.cc)) {
-    errors.push('cc must be a string or array of email addresses');
+    errors.push('cc must be an array of email addresses');
   }
 
   if (isOptionalRecipientSet(c.bcc) && !isRecipientsLike(c.bcc)) {
-    errors.push('bcc must be a string or array of email addresses');
+    errors.push('bcc must be an array of email addresses');
   }
 
   return errors;
@@ -266,8 +279,9 @@ export const sendEmailNodeMetadata: NodeComponentMetadata = {
   //  - backend handler.validate's "integrationId is required" / "subject is
   //    required" / "body is required" rules.
   // `bodyType` enum is bounded by zod (`'text' | 'html'`), so no extra rule
-  // is needed there. Recipient sum-type validation (string | string[]) lives
-  // in `validateConfig` because the mini-DSL can't model that shape.
+  // is needed there. Recipient **array-only** validation (non-empty array
+  // of non-empty trimmed strings) lives in `validateConfig` because the
+  // mini-DSL can't model the per-element guard. 2026-05-19 정준화 (spec §8.1).
   warningRules: [
     {
       id: 'send_email:no-integration',
