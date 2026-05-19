@@ -1048,6 +1048,81 @@ describe('Cafe24ApiClient', () => {
     });
 
     /**
+     * 회귀 보호 (2026-05-19) — DB tokenExpiresAt 이 TZ 버그로 미래 값(+9h)
+     * 이어도, access_token JWT 의 exp 가 과거면 proactive refresh 가 발동해야
+     * 한다. resolveTokenExpiry 가 JWT exp 를 최우선으로 읽음으로써 TZ-bugged
+     * 저장값을 무력화한다.
+     *
+     * 버그 체인:
+     *   1) 구 코드 KST→UTC 회귀 → tokenExpiresAt = 실제 만료 +9h (미래)
+     *   2) resolveTokenExpiry 가 tokenExpiresAt 만 보면 fresh 로 판단 → no refresh
+     *   3) Cafe24 API 가 JWT exp 기준으로 401 반환
+     */
+    it('proactive refresh — tokenExpiresAt 이 미래(TZ 버그)이어도 JWT exp 가 과거면 refresh 발동', async () => {
+      const expiredJwt = makeFakeJwt({
+        exp: Math.floor((Date.now() - 5 * 60 * 1000) / 1000), // 5분 전 만료
+      });
+      const integration = makeIntegration({
+        credentials: {
+          mall_id: 'myshop',
+          app_type: 'public',
+          access_token: expiredJwt,
+          refresh_token: 'stale-refresh',
+          scopes: ['mall.read_product'],
+          cafe24_operator_id: 'op-1',
+          // expires_at 도 TZ-bugged 미래 값
+          expires_at: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString(),
+        },
+        // tokenExpiresAt 도 TZ-bugged 미래 값 (+9h)
+        tokenExpiresAt: new Date(Date.now() + 9 * 60 * 60 * 1000),
+      });
+      process.env.CAFE24_CLIENT_ID = 'env-id';
+      process.env.CAFE24_CLIENT_SECRET = 'env-secret';
+
+      let savedIntegration: Integration | undefined;
+      dataSource.transaction.mockImplementation(
+        async (cb: (m: { getRepository: Mock }) => Promise<void>) => {
+          const txRepo = {
+            findOne: jest.fn().mockResolvedValue(integration),
+            save: jest.fn().mockImplementation(async (e: Integration) => {
+              savedIntegration = e;
+            }),
+          };
+          await cb({ getRepository: jest.fn().mockReturnValue(txRepo) });
+        },
+      );
+
+      // 1) refresh 응답
+      const newExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000);
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({
+          access_token: 'new-access',
+          refresh_token: 'new-refresh',
+          expires_at: newExpiry.toISOString(),
+        }),
+      );
+      // 2) API 호출 성공
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ ok: true }));
+
+      const res = await client.call(integration, {
+        method: 'GET',
+        path: 'products',
+      });
+
+      // JWT exp 가 과거라 refresh 가 발동됨 (2 fetches: OAuth + API).
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        'https://myshop.cafe24api.com/api/v2/oauth/token',
+      );
+      expect(savedIntegration).toBeDefined();
+      expect(savedIntegration!.credentials.access_token).toBe('new-access');
+      expect(res.status).toBe(200);
+
+      delete process.env.CAFE24_CLIENT_ID;
+      delete process.env.CAFE24_CLIENT_SECRET;
+    });
+
+    /**
      * 회귀 보호 (2026-05-18) — refresh 응답의 access_token 이 JWT 이면 그
      * exp claim 이 응답 body 의 `expires_at` 보다 우선 채택. ISO 의 TZ
      * 모호성으로 인한 9h skew 차단의 핵심 회귀 케이스.

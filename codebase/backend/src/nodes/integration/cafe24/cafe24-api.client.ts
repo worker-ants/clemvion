@@ -1457,6 +1457,16 @@ export function resolveTokenExpiry(integration: {
   tokenExpiresAt?: Date | null;
   credentials?: Record<string, unknown> | null;
 }): number | null {
+  // JWT exp 최우선 — Cafe24 API 서버가 token 검증 시 이 claim 을 직접 사용.
+  // tokenExpiresAt / credentials.expires_at 는 저장 시 TZ 모호성(구 코드 KST→UTC
+  // 9h 회귀)으로 실제 만료보다 최대 9h 늦게 기록될 수 있다. JWT exp 는 token
+  // 자체에 포함된 불변 값이므로 TZ-bugged 저장값을 무력화하는 유일한 ground truth.
+  const creds = (integration.credentials ?? {}) as Cafe24Credentials;
+  const jwtExp = parseJwtExp(
+    typeof creds.access_token === 'string' ? creds.access_token : null,
+  );
+  if (jwtExp !== null) return jwtExp;
+
   const col = integration.tokenExpiresAt;
   if (col instanceof Date && Number.isFinite(col.getTime())) {
     return col.getTime();
@@ -1465,7 +1475,6 @@ export function resolveTokenExpiry(integration: {
     const parsed = Date.parse(col);
     if (Number.isFinite(parsed)) return parsed;
   }
-  const creds = (integration.credentials ?? {}) as Cafe24Credentials;
   if (creds.expires_at) {
     const parsed = Date.parse(creds.expires_at);
     if (Number.isFinite(parsed)) return parsed;
