@@ -80,9 +80,12 @@ export const switchNodeConfigSchema = z
           widget: 'expression',
           placeholder: '{{ $input.value }}',
           visibleWhen: { field: 'mode', equals: 'value' },
-          // warningRule `switch:value-mode-needs-switch-value` 와 정렬
-          // (mode 가 'value' 이거나 미설정일 때 필수).
-          requiredWhen: { field: 'mode', notEquals: 'expression' },
+          // warningRule `switch:value-mode-needs-switch-value` 와 정렬.
+          // 화이트리스트 — mode 가 'value' 일 때 필수 (현재 'value' / 'expression'
+          // 두 mode 중 'value' 만 switchValue 입력 필요). mode 가 향후 추가될
+          // 때 신규 mode 에 자동으로 적용되지 않도록 명시적 whitelist 사용
+          // (2026-05-19 정준화, requiredwhen-dsl-whitelist).
+          requiredWhen: { field: 'mode', equals: ['value'] },
         },
       }),
     cases: z
@@ -215,6 +218,15 @@ export const switchNodeMetadata: NodeComponentMetadata = {
       // Default mode is 'value' (zod default), so the rule must also fire
       // when `mode` is missing from a freshly-created config — using
       // `mode != expression` instead of `mode == value` covers both.
+      //
+      // **신규 mode 추가 시 동기화 필요** — 이 표현식은 블랙리스트 (`!=`)
+      // 형태로 유지된다. 반면 `switchValue.requiredWhen.equals` (line 88)
+      // 는 화이트리스트 (`['value']`). 신규 mode 추가 시:
+      //   1) `requiredWhen.equals` 배열에 신규 mode 가 switchValue 필요한지
+      //      검토 후 명시 추가 (자동 opt-out)
+      //   2) 본 `warningRule.when` 표현식도 `mode != expression && mode != <new>`
+      //      형태로 명시 갱신 (자동 발화되지 않도록)
+      // spec/4-nodes/1-logic/2-switch.md §8.2 신규 mode 추가 가이드라인 step 4.
       id: 'switch:value-mode-needs-switch-value',
       when: 'mode != expression && !switchValue',
       message: 'In Value mode, Switch Value must be entered.',

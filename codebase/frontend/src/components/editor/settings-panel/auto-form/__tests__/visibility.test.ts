@@ -64,18 +64,37 @@ describe("isFieldRequired", () => {
     expect(isFieldRequired({ required: true }, "title", [], {})).toBe(true);
   });
 
-  it("applies requiredWhen equals", () => {
+  it("applies requiredWhen equals (single value)", () => {
     const ui = { requiredWhen: { field: "mode", equals: "dynamic" } } as const;
     expect(isFieldRequired(ui, "titleField", [], { mode: "dynamic" })).toBe(true);
     expect(isFieldRequired(ui, "titleField", [], { mode: "static" })).toBe(false);
   });
 
-  it("applies requiredWhen oneOf", () => {
+  // oneOf shape is deprecated → use equals: [array] whitelist instead.
+  it("applies requiredWhen equals (whitelist array)", () => {
     const ui = {
-      requiredWhen: { field: "status", oneOf: ["a", "b"] },
+      requiredWhen: { field: "status", equals: ["a", "b"] },
     } as const;
     expect(isFieldRequired(ui, "f", [], { status: "a" })).toBe(true);
+    expect(isFieldRequired(ui, "f", [], { status: "b" })).toBe(true);
     expect(isFieldRequired(ui, "f", [], { status: "c" })).toBe(false);
+  });
+
+  it("equals whitelist with empty array never makes the field required", () => {
+    const ui = {
+      requiredWhen: { field: "mode", equals: [] as readonly string[] },
+    } as const;
+    expect(isFieldRequired(ui, "f", [], { mode: "anything" })).toBe(false);
+  });
+
+  it("requiredWhen returns false when the referenced field is missing from config", () => {
+    // 신규 노드의 비어 있는 config 가 평가될 때 잘못된 required 표시가 나오지
+    // 않도록 보장 — config[field] === undefined 는 equals (단일 값/배열 모두)
+    // 매칭에서 빠진다.
+    const single = { requiredWhen: { field: "mode", equals: "dynamic" } } as const;
+    const whitelist = { requiredWhen: { field: "mode", equals: ["a", "b"] } } as const;
+    expect(isFieldRequired(single, "f", [], {})).toBe(false);
+    expect(isFieldRequired(whitelist, "f", [], {})).toBe(false);
   });
 
   it("prefers explicit ui.required over requiredWhen mismatch", () => {
