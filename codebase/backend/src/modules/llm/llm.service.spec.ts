@@ -480,8 +480,12 @@ describe('extractRetryAfterMs', () => {
   });
 
   it('treats header name case-insensitively (Retry-After / RETRY-AFTER)', () => {
-    expect(extractRetryAfterMs({ headers: { 'Retry-After': '5' } })).toBe(5_000);
-    expect(extractRetryAfterMs({ headers: { 'RETRY-AFTER': '2' } })).toBe(2_000);
+    expect(extractRetryAfterMs({ headers: { 'Retry-After': '5' } })).toBe(
+      5_000,
+    );
+    expect(extractRetryAfterMs({ headers: { 'RETRY-AFTER': '2' } })).toBe(
+      2_000,
+    );
   });
 
   it('reads response.headers when top-level headers absent', () => {
@@ -506,7 +510,9 @@ describe('extractRetryAfterMs', () => {
   it('returns null for missing headers', () => {
     expect(extractRetryAfterMs({})).toBeNull();
     expect(extractRetryAfterMs({ headers: {} })).toBeNull();
-    expect(extractRetryAfterMs({ headers: { 'retry-after': null } })).toBeNull();
+    expect(
+      extractRetryAfterMs({ headers: { 'retry-after': null } }),
+    ).toBeNull();
   });
 
   it('returns null for non-object errors and primitives', () => {
@@ -520,9 +526,7 @@ describe('extractRetryAfterMs', () => {
     expect(
       extractRetryAfterMs({ headers: { 'retry-after': 'soon' } }),
     ).toBeNull();
-    expect(
-      extractRetryAfterMs({ headers: { 'retry-after': '' } }),
-    ).toBeNull();
+    expect(extractRetryAfterMs({ headers: { 'retry-after': '' } })).toBeNull();
   });
 
   it('returns null for negative delta-seconds (defensive)', () => {

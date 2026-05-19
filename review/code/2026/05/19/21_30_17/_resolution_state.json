@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "started_at": "2026-05-19T21:30:17Z",
+  "summary_items_total": 8,
+  "items_resolved_ids": [5, 8],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "1": "out-of-scope-separate-plan",
+    "2": "out-of-scope-separate-plan",
+    "3": "out-of-scope-separate-plan",
+    "4": "out-of-scope-separate-plan",
+    "6": "out-of-scope-separate-plan",
+    "7": "out-of-scope-no-plan-needed"
+  },
+  "commits_made": [
+    {"sha": "aa06ab9c", "summary_id": 5, "scope": "docs"},
+    {"sha": "aa06ab9c", "summary_id": 8, "scope": "test-stages"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-fix-resolve-token-expiry-rationale.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260519-214154.log"],
+  "auto_fix_iterations": {"5": 1, "8": 1},
+  "escalation_reason": "spec draft pending for spec Rationale update",
+  "last_reset_hint_sec": null
+}
