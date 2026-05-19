@@ -77,13 +77,11 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
     expect(screen.getByText("124ms")).toBeInTheDocument();
   });
 
-  // 사용자 보고 (2026-05-19, PR #208 후속): tool 호출만 있고 본문이 비어있는
-  // intermediate assistant 는 🔧 tool row 와 의미가 완전히 중복되어 timeline 에
-  // "동일한 항목 2개" 처럼 보였다. SummaryView 는 이 경우 render 를 skip 한다
-  // — spec/conventions/conversation-thread.md §9.1 의 ai_assistant 라인은
-  // "final assistant 응답" 을 가리키고, tool 호출 라이프사이클은 ai_tool 라인
-  // (🔧 카드) 단일 표현으로 충분.
-  it("blank intermediate assistant (content 비어있고 toolCalls 만 있음) 는 timeline 에 렌더하지 않는다", () => {
+  // 사용자 보고 (2026-05-19): tool 호출만 있고 본문이 비어있는 intermediate
+  // assistant 는 직후 🔧 tool row 와 의미가 완전히 중복됐었다. 사용자 요청에
+  // 따라 "🤖 AI · 도구 호출 N개" 단일 부모 헤더 + indented 자식 tool row 의
+  // tree 구조로 묶어 timeline 의 중복 표시를 해소한다.
+  it("blank intermediate assistant 는 도구 호출 부모 헤더로 묶이고 후행 tool 은 indent 자식이 된다", () => {
     const items: ConversationItem[] = [
       makeItem({
         type: "assistant",
@@ -107,47 +105,61 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       />,
     );
 
-    // 🤖 AI 헤더는 렌더되지 않아야 한다 (intermediate skip).
-    expect(screen.queryByText("🤖 AI")).toBeNull();
-    // ToolCallBadge 도 표시되지 않음 — 🔧 tool row 가 이미 같은 의미를 전달.
-    expect(screen.queryByText("도구 호출")).toBeNull();
-    // 🔧 tool row 는 정상 노출.
+    // 부모 헤더: 🤖 AI · 1개 도구 호출.
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText("1개 도구 호출")).toBeInTheDocument();
+    // 자식 🔧 tool row 는 정상 노출 (부모 안의 nested 위치).
     expect(screen.getByText("🔧")).toBeInTheDocument();
     expect(screen.getByText("kb_search")).toBeInTheDocument();
+    // 표준 assistant 헤더 ("🤖 AI") 텍스트는 등장하지 않는다 — 부모는 더
+    // 가벼운 미니 헤더 (이모지 + "AI" 별도 span) 로 렌더.
+    expect(screen.queryByText("🤖 AI")).toBeNull();
   });
 
-  it("동일 turn 에 intermediate assistant 가 여러 개여도 모두 skip — 사용자 보고 시나리오 (mcp 도구 순차 호출)", () => {
+  it("동일 turn 에 intermediate assistant 가 여러 개 (사용자 보고 시나리오) — 부모 그룹 N개 + 자식 tool 들이 각자 부모에 흡수된다", () => {
     const items: ConversationItem[] = [
-      makeItem({ type: "user", content: "지금 회원 몇명이야?" }),
+      makeItem({ type: "user", content: "어떤 상품들이 판매중이야?" }),
+      // 한 bot 이 동시에 2개 tool 호출.
       makeItem({
         type: "assistant",
         content: "",
         turnIndex: 1,
-        assistantToolCalls: [{ name: "mcp_customer_list", arguments: "{}" }],
+        assistantToolCalls: [
+          { name: "mcp_store_get", arguments: "{}" },
+          { name: "mcp_product_list", arguments: "{}" },
+        ],
+      }),
+      // 다음 bot 이 1개 tool 호출.
+      makeItem({
+        type: "assistant",
+        content: "",
+        turnIndex: 1,
+        assistantToolCalls: [{ name: "mcp_category_list", arguments: "{}" }],
       }),
       makeItem({
         type: "tool",
-        content: "mcp_customer_list",
+        content: "mcp_store_get",
         turnIndex: 1,
         toolCallId: "c1",
         toolStatus: "success",
       }),
       makeItem({
-        type: "assistant",
-        content: "",
-        turnIndex: 1,
-        assistantToolCalls: [{ name: "mcp_customer_list", arguments: "{}" }],
-      }),
-      makeItem({
         type: "tool",
-        content: "mcp_customer_list",
+        content: "mcp_product_list",
         turnIndex: 1,
         toolCallId: "c2",
         toolStatus: "success",
       }),
       makeItem({
+        type: "tool",
+        content: "mcp_category_list",
+        turnIndex: 1,
+        toolCallId: "c3",
+        toolStatus: "success",
+      }),
+      makeItem({
         type: "assistant",
-        content: "현재 시스템의 MCP 도구로는 ...",
+        content: "현재 쇼핑몰에는 ...",
         turnIndex: 1,
       }),
     ];
@@ -159,14 +171,21 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       />,
     );
 
-    // 🤖 AI 헤더는 final 하나뿐 (intermediate 2개 모두 skip).
-    expect(screen.getAllByText("🤖 AI")).toHaveLength(1);
-    // 🔧 tool row 는 두 개 모두 유지.
-    expect(screen.getAllByText("🔧")).toHaveLength(2);
-    expect(screen.getAllByText("mcp_customer_list")).toHaveLength(2);
+    // 부모 그룹: "AI" 라벨은 2개 (intermediate assistants) + 최종 답변 1개 = 3.
+    expect(screen.getAllByText("AI").length).toBeGreaterThanOrEqual(2);
+    // 자식 tool row: 모두 노출 (👏 3개), 별도 standalone 위치 중복 노출 없음.
+    expect(screen.getAllByText("🔧")).toHaveLength(3);
+    expect(screen.getByText("mcp_store_get")).toBeInTheDocument();
+    expect(screen.getByText("mcp_product_list")).toBeInTheDocument();
+    expect(screen.getByText("mcp_category_list")).toBeInTheDocument();
+    // 도구 호출 그룹 헤더의 카운트 라벨 ("2개 도구 호출" / "1개 도구 호출").
+    expect(screen.getByText("2개 도구 호출")).toBeInTheDocument();
+    expect(screen.getByText("1개 도구 호출")).toBeInTheDocument();
+    // final assistant 의 본문도 정상 노출.
+    expect(screen.getByText(/현재 쇼핑몰/)).toBeInTheDocument();
   });
 
-  it("blank intermediate assistant 가 단독으로 있는 (tool row 부재) edge case 도 skip — 정보 누락은 LLM 디버그 탭에서 확인", () => {
+  it("blank intermediate assistant 가 단독 (tool row 부재) edge case — 부모 헤더만 노출, 자식 영역은 비어있다", () => {
     const items: ConversationItem[] = [
       makeItem({
         type: "assistant",
@@ -183,10 +202,11 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       />,
     );
 
-    // 단독 blank intermediate assistant 는 timeline 에 어떤 흔적도 남기지 않는다.
-    expect(screen.queryByText("🤖 AI")).toBeNull();
-    expect(screen.queryByText("도구 호출")).toBeNull();
-    expect(screen.queryByText("(empty)")).toBeNull();
+    // 부모 헤더는 노출.
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText("1개 도구 호출")).toBeInTheDocument();
+    // 자식 tool row 는 없으므로 🔧 도 안 보인다.
+    expect(screen.queryByText("🔧")).toBeNull();
   });
 
   it("assistant content + toolCalls 가 둘 다 있으면 본문과 뱃지를 동시 노출한다", () => {
@@ -218,7 +238,7 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
     expect(screen.queryByText("(empty)")).toBeNull();
   });
 
-  it("user / blank intermediate assistant / tool / final assistant 시퀀스에서 intermediate 는 skip 되고 final 만 🤖 AI 로 노출", () => {
+  it("user / blank intermediate assistant / tool / final assistant 시퀀스에서 intermediate 는 도구 호출 그룹, final 만 표준 🤖 AI 헤더로 노출", () => {
     const items: ConversationItem[] = [
       makeItem({ type: "user", content: "요금제 추천해줘" }),
       makeItem({
@@ -249,10 +269,13 @@ describe("ConversationInspector SummaryView — tool 메시지 렌더링", () =>
       />,
     );
 
-    // intermediate (blank+toolCalls) skip — 🤖 AI 는 final 하나뿐.
+    // 표준 "🤖 AI" 헤더는 final 하나뿐 (intermediate 는 미니 헤더 사용).
     expect(screen.getAllByText("🤖 AI")).toHaveLength(1);
     expect(screen.getAllByText("👤 User")).toHaveLength(1);
+    // 🔧 tool 은 부모 그룹 안의 nested 위치에 1번 노출.
     expect(screen.getAllByText("🔧")).toHaveLength(1);
+    // 도구 호출 그룹 헤더의 카운트 라벨.
+    expect(screen.getByText("1개 도구 호출")).toBeInTheDocument();
     // final 본문은 그대로 노출.
     expect(screen.getByText(/해피톡의 요금제/)).toBeInTheDocument();
   });
