@@ -34,7 +34,12 @@ export class WebAuthnCredential {
   counter: string; // bigint comes through pg driver as string by default
 
   /** WebAuthn transport hints (usb / nfc / ble / internal / hybrid). */
-  @Column({ name: 'transports', type: 'text', array: true, default: () => "'{}'" })
+  @Column({
+    name: 'transports',
+    type: 'text',
+    array: true,
+    default: () => "'{}'",
+  })
   transports: string[];
 
   /** 인증기 모델 식별자 (선택). */
