@@ -550,6 +550,9 @@ export class Cafe24ApiClient {
    */
   private async ensureFreshToken(integration: Integration): Promise<void> {
     const expiresAtMs = resolveTokenExpiry(integration);
+    const mallId =
+      (integration.credentials as Cafe24Credentials | null | undefined)
+        ?.mall_id ?? 'unknown';
     // 옛 코드는 `expiresAtMs === null` 일 때 silently return 했다. 그 결과,
     // OAuth callback 단계가 `expires_in` 만 읽어 cafe24 응답에서 NULL 로
     // 저장된 row 가 영영 refresh 되지 않아 2h 후 첫 호출에서 `access_token
@@ -559,8 +562,24 @@ export class Cafe24ApiClient {
     // null 을 "needs refresh" 로 해석한다. cafe24 는 항상 access_token 에
     // 만료가 있어 (Cafe24 docs) NULL 은 정상 상태가 아님.
     if (expiresAtMs !== null && expiresAtMs - Date.now() > REFRESH_WINDOW_MS) {
+      // 정상 경로 — 매 API 호출마다 발사되므로 debug 레벨로 noise 최소화.
+      // ttlSec 은 운영 디버깅 시 "이 통합의 token 잔여 시간" 확인용.
+      this.logger.debug(
+        `Cafe24 token fresh — skip refresh (integrationId=${integration.id} mall_id=${mallId} ttlSec=${Math.floor((expiresAtMs - Date.now()) / 1000)})`,
+      );
       return;
     }
+
+    // Refresh trigger — 발사 빈도가 낮고 (access_token 2h 마다 1회 정도)
+    // 운영 인사이트 가치가 높아 info(log) 레벨. ttlSec=null 은 OAuth callback
+    // 잔재 케이스 (위 주석 참고).
+    const ttlLabel =
+      expiresAtMs === null
+        ? 'null'
+        : `${Math.floor((expiresAtMs - Date.now()) / 1000)}`;
+    this.logger.log(
+      `Cafe24 token expiring or null — proactive refresh (integrationId=${integration.id} mall_id=${mallId} ttlSec=${ttlLabel} source=proactive)`,
+    );
 
     if (this.refreshQueue && this.refreshQueueEvents) {
       await this.refreshViaQueue(integration, 'proactive');
@@ -764,6 +783,13 @@ export class Cafe24ApiClient {
       );
     }
 
+    // refresh 시작 로그 — 큐 worker 경로와 in-process fallback 둘 다 동일하게
+    // 통과하므로 caller stack 으로 분기 구분. `app_type` 은 private/public 분기
+    // 진단 (private 의 경우 client_id/secret 가 credentials 에 직접 저장됨).
+    this.logger.log(
+      `Cafe24 token refresh starting (integrationId=${integration.id} mall_id=${creds.mall_id} app_type=${creds.app_type ?? 'unknown'})`,
+    );
+
     const { clientId, clientSecret } = this.resolveClientCredentials(creds);
     const tokenUrl = `https://${creds.mall_id}.cafe24api.com/api/v2/oauth/token`;
     const form = new URLSearchParams({
@@ -806,7 +832,7 @@ export class Cafe24ApiClient {
           : JSON.stringify(body).slice(0, 500),
       );
       this.logger.warn(
-        `Cafe24 token refresh ${response.status} mall=${creds.mall_id}: ${bodyForLog}`,
+        `Cafe24 token refresh ${response.status} (integrationId=${integration.id} mall_id=${creds.mall_id}): ${bodyForLog}`,
       );
       await this.markAuthFailed(integration);
       throw new Cafe24AuthFailedError(response.status, creds.mall_id, body);
@@ -892,6 +918,14 @@ export class Cafe24ApiClient {
       integration.status = 'connected';
       integration.statusReason = null;
     });
+
+    // refresh 성공 로그 — newExpiresAt 동봉으로 다음 refresh 시점 예측 가능
+    // (운영 모니터링: 갱신 주기가 의도대로인지 추적). refreshTokenRotated
+    // 라벨은 Cafe24 가 새 refresh_token 을 발급했는지 (rotation) 가시화 —
+    // 일반적으로 매 refresh 마다 새 토큰 발급되어야 한다 (Cafe24 docs).
+    this.logger.log(
+      `Cafe24 token refresh succeeded (integrationId=${integration.id} mall_id=${creds.mall_id} newExpiresAt=${expiresAt.toISOString()} refreshTokenRotated=${refreshToken !== null && refreshToken !== creds.refresh_token})`,
+    );
   }
 
   private resolveClientCredentials(creds: Cafe24Credentials): {
@@ -1215,6 +1249,12 @@ export class Cafe24ApiClient {
       // (refreshAccessToken / refreshViaQueue) 가 이미 markAuthFailed +
       // Cafe24AuthFailedError throw 하므로 자동 propagate.
       if (response.status === 401 && !triedAuthRetry) {
+        // 401 자가 회복 진입 로그 — 운영에서 "프로액티브 갱신이 빗나갔는데
+        // reactive 401 으로 회복되는 케이스" 의 빈도/시점을 추적. retryCount
+        // 는 attempt (rate-limit retry) 가 아닌 reactive retry 의 의미상 1.
+        this.logger.log(
+          `Cafe24 401 detected — performAuthRefresh + retry (integrationId=${integration.id} mall_id=${mallId} ${opts.method} ${opts.path} source=reactive_401)`,
+        );
         await this.performAuthRefresh(integration);
         // performAuthRefresh contract 상 새 토큰이 integration.credentials
         // 에 mutate 되어 있음 (refreshAccessToken / refreshViaQueue 둘 다).
