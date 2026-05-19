@@ -675,3 +675,63 @@ export function mergeOrphanToolItems(
   }
   return result;
 }
+
+/**
+ * spec/conventions/conversation-thread.md §9.6 — tool-call 그룹 분류의
+ * **단일 결정 함수** (SoT). conversation Preview (`SummaryView`) 와 좌측
+ * 실행 트리 timeline (`ResultTimeline`) 양 surface 가 동일 결과를 사용해
+ * 시각 일관성을 유지한다 (Inv-5, §9.9).
+ *
+ * 본 함수는 `items` 를 순회하며 다음을 도출:
+ *
+ *   1. 각 **blank intermediate assistant** (parent 분류 조건 — §9.6 의 세
+ *      조건) 가 자신의 `assistantToolCalls.length` 만큼 후행 unclaimed
+ *      tool 인덱스를 sequence-claim.
+ *   2. `claimedToolIndices`: 자식으로 흡수된 tool 인덱스 집합 — 표준 위치
+ *      에서 standalone 렌더를 skip 해야 하는 대상.
+ *   3. `childrenByParent`: parent 인덱스 → 자식 tool 인덱스 배열 — parent
+ *      렌더 시 nested children 영역에서 표시할 tool 인덱스 순서.
+ *
+ * 매칭은 sequence-count 기반 — `ConversationItem.assistantToolCalls` 의
+ * `id` 가 converter 에서 drop 되므로 (forward-compat) toolCallId 직접 매칭
+ * 불가. 사이에 다른 assistant / user / tool 이 끼어도 unclaimed tool 을
+ * 만나면 claim 한다.
+ *
+ * 적용 예 (spec §9.6 의 "적용 surface" 표):
+ *
+ *   - SummaryView: chip 형 parent + indented children container (full chat bubble)
+ *   - ResultTimeline: 한 줄 parent row + 좌측 vertical line + indented child rows
+ *
+ * 두 surface 가 시각 form 은 달라도 본 함수의 결과 (그룹 구성·자식 수·
+ * claim 결과) 는 동일하다 — Inv-5.
+ */
+export function groupToolCallItems(items: ConversationItem[]): {
+  claimedToolIndices: Set<number>;
+  childrenByParent: Map<number, number[]>;
+} {
+  const claimedToolIndices = new Set<number>();
+  const childrenByParent = new Map<number, number[]>();
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (
+      it.type !== "assistant" ||
+      !it.assistantToolCalls?.length ||
+      !isAssistantContentBlank(it.content)
+    ) {
+      continue;
+    }
+    const needed = it.assistantToolCalls.length;
+    const children: number[] = [];
+    let j = i + 1;
+    while (j < items.length && children.length < needed) {
+      const next = items[j];
+      if (next.type === "tool" && !claimedToolIndices.has(j)) {
+        children.push(j);
+        claimedToolIndices.add(j);
+      }
+      j++;
+    }
+    childrenByParent.set(i, children);
+  }
+  return { claimedToolIndices, childrenByParent };
+}
