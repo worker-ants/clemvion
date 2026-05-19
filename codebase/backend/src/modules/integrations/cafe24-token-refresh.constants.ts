@@ -30,10 +30,13 @@ export const CAFE24_REFRESH_JOB = 'refresh-cafe24-token';
  * lastRotatedAt 이 N 일 이상 경과한 통합을 미리 갱신해 14 - N 일의 안전
  * 마진을 확보한다.
  *
- * N=10 → 4 일 마진. 사용자가 통합을 만들고 무한 idle 해도 자동으로 살아
- * 있는 상태가 유지된다.
+ * N=7 → 7 일 마진 (= 14일 만기의 50%). 2026-05-19 갱신 — 옛 10일 cutoff +
+ * 24h cron 조합은 4일 마진이라 cron 한 번이 누락되면 마진이 즉시 3일로
+ * 압박됐다. 6h cron (`integration-expiry-scanner.service.ts`) + 7일 cutoff
+ * 조합은 누락 1회 (= 6h) 가 마진에 거의 영향을 주지 않고, 사용자가 통합을
+ * 만들고 무한 idle 해도 자동으로 살아있는 상태가 유지된다.
  */
-export const REFRESH_PROACTIVE_THRESHOLD_DAYS = 10;
+export const REFRESH_PROACTIVE_THRESHOLD_DAYS = 7;
 
 /**
  * Cafe24ApiClient 가 enqueue 후 worker 가 잡을 완료할 때까지 기다리는

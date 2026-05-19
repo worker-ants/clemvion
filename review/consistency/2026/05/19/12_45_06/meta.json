@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-19T12:45:06.203926",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=Cafe24 background refresh cron 주기 단축 (24h → 6h) + cutoff 마진 격상 (REFRESH_PROACTIVE_THRESHOLD_DAYS 10일 → 7일). 변경 대상: codebase/backend/src/modules/integrations/cafe24-token-refresh.constants.ts (상수 값), codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts (cafe24 만 별도 repeat 객체로 분리, 다른 3개 스케줄러는 daily 유지). 신규 spec / 식별자 없음. scheduler ID 'cafe24-background-refresh-daily' 는 BullMQ idempotent upsert 위해 보존 (orphan 회피). worktree: cafe24-bg-refresh-tuning-fb72d5. plan: plan/in-progress/cafe24-bg-refresh-tuning.md.)",
+  "target_path": "Cafe24 background refresh cron 주기 단축 (24h → 6h) + cutoff 마진 격상 (REFRESH_PROACTIVE_THRESHOLD_DAYS 10일 → 7일). 변경 대상: codebase/backend/src/modules/integrations/cafe24-token-refresh.constants.ts (상수 값), codebase/backend/src/modules/integrations/integration-expiry-scanner.service.ts (cafe24 만 별도 repeat 객체로 분리, 다른 3개 스케줄러는 daily 유지). 신규 spec / 식별자 없음. scheduler ID 'cafe24-background-refresh-daily' 는 BullMQ idempotent upsert 위해 보존 (orphan 회피). worktree: cafe24-bg-refresh-tuning-fb72d5. plan: plan/in-progress/cafe24-bg-refresh-tuning.md.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
