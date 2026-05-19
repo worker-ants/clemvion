@@ -1,0 +1,204 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_routing_decision.json",
+  "routing_status": "done",
+  "routing_skip_reason": null,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "security": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts, codebase/backend/src/modules/execution-engine/execution-engine.service.ts, codebase/backend/src/modules/execution-engine/state/state-machine.ts (외 3건)"
+    ],
+    "requirement": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts, codebase/backend/src/modules/execution-engine/execution-engine.service.ts, codebase/backend/src/modules/execution-engine/state/state-machine.ts (외 3건)"
+    ],
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts, codebase/backend/src/modules/execution-engine/execution-engine.service.ts, codebase/backend/src/modules/execution-engine/state/state-machine.ts (외 3건)"
+    ],
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts, codebase/backend/src/modules/execution-engine/execution-engine.service.ts, codebase/backend/src/modules/execution-engine/state/state-machine.ts (외 3건)"
+    ],
+    "maintainability": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts, codebase/backend/src/modules/execution-engine/execution-engine.service.ts, codebase/backend/src/modules/execution-engine/state/state-machine.ts (외 3건)"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts, codebase/backend/src/modules/execution-engine/execution-engine.service.ts, codebase/backend/src/modules/execution-engine/state/state-machine.ts (외 3건)"
+    ]
+  },
+  "agents_skipped": [
+    "performance",
+    "dependency",
+    "database"
+  ],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/security.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/performance.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/architecture.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/documentation.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/dependency.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/database.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/concurrency.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/ai-agent-turn-fail-finalize-a22724/review/code/2026/05/19/11_45_40/api_contract.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "security",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "concurrency",
+    "api_contract"
+  ],
+  "agents_fatal": [],
+  "agent_history": {
+    "security": [
+      {
+        "ts": "2026-05-19T02:53:19.089981Z",
+        "status": "success"
+      }
+    ],
+    "architecture": [
+      {
+        "ts": "2026-05-19T02:53:19.125246Z",
+        "status": "success"
+      }
+    ],
+    "requirement": [
+      {
+        "ts": "2026-05-19T02:53:19.158465Z",
+        "status": "success"
+      }
+    ],
+    "scope": [
+      {
+        "ts": "2026-05-19T02:53:19.189172Z",
+        "status": "success"
+      }
+    ],
+    "side_effect": [
+      {
+        "ts": "2026-05-19T02:53:19.220270Z",
+        "status": "success"
+      }
+    ],
+    "maintainability": [
+      {
+        "ts": "2026-05-19T02:53:19.251471Z",
+        "status": "success"
+      }
+    ],
+    "testing": [
+      {
+        "ts": "2026-05-19T02:53:19.288884Z",
+        "status": "success"
+      }
+    ],
+    "documentation": [
+      {
+        "ts": "2026-05-19T02:53:19.321421Z",
+        "status": "success"
+      }
+    ],
+    "concurrency": [
+      {
+        "ts": "2026-05-19T02:53:19.353318Z",
+        "status": "success"
+      }
+    ],
+    "api_contract": [
+      {
+        "ts": "2026-05-19T02:53:19.384552Z",
+        "status": "success"
+      }
+    ]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

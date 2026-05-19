@@ -2317,6 +2317,121 @@ describe('AiAgentHandler', () => {
       >;
       expect(res.endReason).toBe('condition');
     });
+
+    it('attaches output.error when errorPayload is provided with endReason=error (spec §7.9)', () => {
+      // spec/4-nodes/3-ai/1-ai-agent.md §7.9 — multi-turn LLM 오류 종결 shape:
+      // `output.error.{code, message, details}` + 부분 `output.result.*` 가
+      // 병존한다. Engine 의 `handleAiTurnError` 가 LLM throw 의 sanitized
+      // 결과를 본 빌더로 전달해야 한다. 본 테스트는 빌더가 단일 책임으로
+      // 두 필드를 동시에 set 한다는 것을 보장한다.
+      const result = handler.buildMultiTurnFinalOutput(
+        [
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'partial response' },
+        ],
+        'partial response',
+        2,
+        'error',
+        {
+          model: 'gpt-4o',
+          totalInputTokens: 120,
+          totalOutputTokens: 30,
+          toolCalls: 1,
+          ragSources: [],
+        },
+        undefined,
+        undefined,
+        undefined,
+        {
+          code: 'LLM_RATE_LIMIT',
+          message: 'Anthropic API returned 429 (Too Many Requests)',
+          details: { provider: 'anthropic', statusCode: 429 },
+        },
+      );
+      const r = result as unknown as Record<string, unknown>;
+      expect(r.port).toBe('error');
+      expect(r.status).toBe('ended');
+      const output = r.output as Record<string, unknown>;
+      const err = output.error as Record<string, unknown>;
+      expect(err.code).toBe('LLM_RATE_LIMIT');
+      expect(err.message).toBe(
+        'Anthropic API returned 429 (Too Many Requests)',
+      );
+      const details = err.details as Record<string, unknown>;
+      expect(details.statusCode).toBe(429);
+      // 부분 결과 보존 — spec §7.9 의 "부분 결과 + output.error 병존" 요건.
+      const res = output.result as Record<string, unknown>;
+      expect(res.endReason).toBe('error');
+      expect(res.turnCount).toBe(2);
+      expect(res.response).toBe('partial response');
+      expect((res.messages as unknown[]).length).toBe(2);
+    });
+
+    it('does not attach output.error when errorPayload is absent (non-error endReason)', () => {
+      // 정상 종결 (`user_ended` / `max_turns`) 에는 errorPayload 가 비어야
+      // 하며 `output.error` 키가 존재해서는 안 된다. 옛 코드의 회귀 (errorPayload
+      // 누락 시 빈 객체라도 output.error 가 set 되는 버그) 방지.
+      const result = handler.buildMultiTurnFinalOutput(
+        [],
+        '',
+        1,
+        'user_ended',
+        {
+          model: 'gpt-4o',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+          toolCalls: 0,
+          ragSources: [],
+        },
+      );
+      const r = result as unknown as Record<string, unknown>;
+      const output = r.output as Record<string, unknown>;
+      expect(output.error).toBeUndefined();
+    });
+  });
+
+  describe('endMultiTurnConversation — error endReason (spec §7.9)', () => {
+    it('forwards errorPayload to buildMultiTurnFinalOutput so output.error is populated', () => {
+      // Engine 의 `handleAiTurnError` 가 LLM throw 시 본 entry 로 호출하는
+      // 경로. errorPayload 가 누락 없이 빌더로 전달되어 spec §7.9 shape 가
+      // 만들어지는지 검증.
+      const state = {
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'cause 429' },
+        ],
+        turnCount: 1,
+        model: 'gpt-4o',
+        totalInputTokens: 50,
+        totalOutputTokens: 0,
+        totalThinkingTokens: 0,
+        toolCalls: 0,
+        ragSources: [],
+        ragLastDiagnostics: undefined,
+        turnDebugHistory: [],
+        rawConfig: {
+          mode: 'multi_turn',
+          model: 'gpt-4o',
+          systemPrompt: 'You are helpful',
+          maxTurns: 20,
+        },
+      };
+      const result = handler.endMultiTurnConversation(state, 'error', {
+        code: 'LLM_RATE_LIMIT',
+        message: 'rate limited',
+        details: { statusCode: 429 },
+      });
+      const r = result as Record<string, unknown>;
+      expect(r.port).toBe('error');
+      expect(r.status).toBe('ended');
+      const output = r.output as Record<string, unknown>;
+      const err = output.error as Record<string, unknown>;
+      expect(err.code).toBe('LLM_RATE_LIMIT');
+      expect(err.message).toBe('rate limited');
+      const res = output.result as Record<string, unknown>;
+      expect(res.endReason).toBe('error');
+      expect(res.turnCount).toBe(1);
+    });
   });
 
   describe('tool call telemetry — WS emit + turnDebug.toolCalls', () => {

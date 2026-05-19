@@ -1802,10 +1802,16 @@ export class AiAgentHandler implements NodeHandler {
    * Engine-facing entry point used when the user ends a conversation or the
    * per-turn timer fires. Unpacks the accumulated multi-turn state and
    * delegates to the in-handler {@link buildMultiTurnFinalOutput}.
+   *
+   * `errorPayload` (2026-05-19): spec/4-nodes/3-ai/1-ai-agent.md §7.9 의
+   * multi-turn 오류 종결 경로에서 엔진의 `handleAiTurnError` 가 LLM throw 의
+   * sanitized 결과 (`code` / `message` / `details`) 를 본 entry 로 전달한다.
+   * 그 외 정상 종결 (`user_ended` / `max_turns` / `condition`) 에서는 undefined.
    */
   endMultiTurnConversation(
     state: Record<string, unknown>,
     endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+    errorPayload?: { code: string; message: string; details?: unknown },
   ): unknown {
     const messages = (state.messages as ChatMessage[]) ?? [];
     const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
@@ -1827,6 +1833,7 @@ export class AiAgentHandler implements NodeHandler {
       undefined,
       (state.turnDebugHistory as unknown[]) ?? [],
       state.rawConfig as Record<string, unknown> | undefined,
+      errorPayload,
     );
   }
 
@@ -1851,6 +1858,7 @@ export class AiAgentHandler implements NodeHandler {
     },
     turnDebugHistory?: unknown[],
     rawConfig?: Record<string, unknown>,
+    errorPayload?: { code: string; message: string; details?: unknown },
   ): NodeHandlerOutput {
     // CONVENTIONS §8 — wrap conversation result under `output.result.*`.
     // Tokens + tool-call counts go to `meta.*` (Principle 2). The legacy
@@ -1866,16 +1874,25 @@ export class AiAgentHandler implements NodeHandler {
     //     fall back to `error` (defensive — there is no generic `out` port
     //     in multi-turn mode).
     const port = AiAgentHandler.multiTurnPortForEndReason(endReason);
+    // spec §7.9 (2026-05-19) — multi-turn 오류 종결 시 `output.error.{code,
+    // message, details}` 와 부분 `output.result.*` 가 병존한다. caller (엔진
+    // `handleAiTurnError`) 가 sanitized errorPayload 를 전달하면 함께 set.
+    // 정상 종결 (user_ended / max_turns / condition) 에서는 errorPayload 가
+    // undefined 이라 `output.error` 키 자체가 생기지 않는다 (회귀 가드).
+    const output: Record<string, unknown> = {
+      result: {
+        response: lastResponse,
+        messages,
+        turnCount,
+        endReason,
+      },
+    };
+    if (errorPayload) {
+      output.error = errorPayload;
+    }
     return {
       config: this.buildMultiTurnConfigEcho(rawConfig, metadata.model),
-      output: {
-        result: {
-          response: lastResponse,
-          messages,
-          turnCount,
-          endReason,
-        },
-      },
+      output,
       meta: {
         durationMs: turnDebug?.totalDurationMs ?? 0,
         model: metadata.model,

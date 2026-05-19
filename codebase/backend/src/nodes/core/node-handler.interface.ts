@@ -234,10 +234,20 @@ export interface ResumableNodeHandler extends NodeHandler {
     state: Record<string, unknown>,
   ): Promise<unknown>;
 
-  /** 사용자가 명시적으로 대화 종료 / max_turns 도달 / error 시 호출. 종료 결과 반환. */
+  /**
+   * 사용자가 명시적으로 대화 종료 / max_turns 도달 / error 시 호출. 종료 결과 반환.
+   *
+   * `errorPayload` (2026-05-19) — spec/4-nodes/3-ai/1-ai-agent.md §7.9. engine 의
+   * `handleAiTurnError` 가 turn 처리 중 throw 된 예외에서 추출한 sanitized
+   * 결과 (`code` / `message` / `details`) 를 전달한다. 핸들러는 그 값을
+   * `output.error` 에 그대로 set 해야 spec §7.9 shape (`output.error` + 부분
+   * `output.result.*` 병존) 가 성립. 정상 종결 (`user_ended` / `max_turns` /
+   * `condition`) 에서는 caller 가 undefined 를 전달.
+   */
   endMultiTurnConversation(
     state: Record<string, unknown>,
     endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
+    errorPayload?: { code: string; message: string; details?: unknown },
   ): unknown;
 }
 
