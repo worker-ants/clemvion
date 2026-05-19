@@ -48,7 +48,7 @@ owner: developer
 | variable-declaration | `variables` | `ui.required: true` |
 | variable-modification | `modifications` | `ui.required: true` |
 | loop | `count` | `ui.required: true` |
-| switch | `switchValue` | `ui.requiredWhen: { field: 'mode', notEquals: 'expression' }` |
+| switch | `switchValue` | `ui.requiredWhen: { field: 'mode', equals: ['value'] }` (2026-05-19 정준화 — 종전 `notEquals: 'expression'` 에서 화이트리스트로 마이그레이션, 별 plan [`requiredwhen-dsl-whitelist`](./requiredwhen-dsl-whitelist.md)) |
 | switch | `cases` | `ui.required: true` |
 | foreach | `arrayField` | `ui.required: true` |
 | map | `inputField` | `ui.required: true` |

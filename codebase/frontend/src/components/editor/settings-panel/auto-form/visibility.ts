@@ -3,6 +3,19 @@ import type { UiHint } from "@/lib/node-definitions";
 type VisibleRule = NonNullable<UiHint["visibleWhen"]>;
 type RequiredRule = NonNullable<UiHint["requiredWhen"]>;
 
+/**
+ * Evaluate a `visibleWhen` rule.
+ *
+ * The `equals` branch performs strict equality only — array whitelist semantic
+ * belongs to `oneOf`. Passing an array to `equals` will silently evaluate to
+ * `false` (a value never `===` an array reference). If you need a whitelist,
+ * use `{ field, oneOf: [...] }`.
+ *
+ * `requiredWhen` uses the single-shape `{ field, equals }` where `equals`
+ * accepts both a single value AND a readonly array — see {@link matchesRequired}.
+ * The two DSLs are intentionally asymmetric until `visibleWhen` is unified
+ * (tracked as separate follow-up).
+ */
 function matchesVisible(rule: VisibleRule, config: Record<string, unknown>): boolean {
   const value = config[rule.field];
   if ("equals" in rule) return value === rule.equals;
@@ -11,9 +24,16 @@ function matchesVisible(rule: VisibleRule, config: Record<string, unknown>): boo
   return true;
 }
 
+/**
+ * Evaluate a `requiredWhen` rule.
+ *
+ * Single shape — `{ field, equals }` where `equals` is either:
+ *  - a single value: required when `config[field] === equals`
+ *  - a readonly array (whitelist): required when `equals.includes(config[field])`
+ *
+ * See spec/4-nodes/1-logic/2-switch.md §8 Rationale for the rationale.
+ */
 function matchesRequired(rule: RequiredRule, config: Record<string, unknown>): boolean {
-  // `equals` 는 단일 값 또는 화이트리스트 array — array.isArray 분기.
-  // 2026-05-19 정준화 (requiredwhen-dsl-whitelist): notEquals/oneOf 제거됨.
   const value = config[rule.field];
   if (Array.isArray(rule.equals)) return rule.equals.includes(value);
   return value === rule.equals;
@@ -42,8 +62,9 @@ export function isFieldVisible(
  * latter covers mode-dependent constraints (e.g. Carousel titleField only in
  * dynamic mode) that JSON Schema's static `required` can't express.
  *
- * 2026-05-19 정준화 — `requiredWhen` 은 단일 shape `{ field, equals }` 만
- * 지원. `equals` 가 array 면 화이트리스트로 동작 (`oneOf` 의미).
+ * `requiredWhen` is single-shape `{ field, equals }` — single value (`===`)
+ * or readonly array (whitelist `.includes()`). See spec
+ * `4-nodes/1-logic/2-switch.md §8` for the whitelist-only rationale.
  */
 export function isFieldRequired(
   ui: UiHint | undefined,
