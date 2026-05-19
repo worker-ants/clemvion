@@ -52,10 +52,10 @@ switchValue: { requiredWhen: { field: 'mode', notEquals: 'expression' } }
   - `spec/4-nodes/1-logic/2-switch.md` §1 표의 switchValue 행에 새 DSL 명시 + §8 Rationale 참조
   - **§8 Rationale 신설** — DSL 정준화 결정 + 3개 선택지 비교 + §8.2 신규 mode 추가 가이드라인 (consistency I-4 해소)
 - [x] 본 sweep plan `node-config-required-defaults-sweep.md` 후속 follow-up "switch mode 확장 가이드" → "requiredwhen-dsl-whitelist 로 분리 + 해소" 마킹
-- [ ] consistency-check 통과
-- [ ] tests + lint + typecheck (backend 89 pass, frontend 13 pass)
-- [ ] /ai-review
-- [ ] PR + merge
+- [x] consistency-check BLOCK NO (09_26_22 — WARNING 3 모두 fix)
+- [x] tests + lint + typecheck (backend 89 pass, frontend 14 pass — +1 신규 케이스)
+- [x] /ai-review (LOW, Critical 0, WARNING 6 모두 fix — review/code/2026/05/19/09_38_26)
+- [ ] PR merge (#204)
 - [ ] `git mv plan/in-progress/requiredwhen-dsl-whitelist.md plan/complete/` (동일 PR chore commit)
 
 ## 관련 문서
@@ -63,3 +63,6 @@ switchValue: { requiredWhen: { field: 'mode', notEquals: 'expression' } }
 - 원 sweep plan: [`node-config-required-defaults-sweep`](./node-config-required-defaults-sweep.md)
 - 병행 PR: A `loop-count-policy` (#192), B `send-email-to-array-only` (#199), C `button-cap-spec-validator` (#203)
 - ai-review/consistency 원 지적: `review/consistency/2026/05/18/23_26_44/SUMMARY.md` I-4 + `review/code/2026/05/18/23_11_13/SUMMARY.md` W-3 (switch requiredWhen mode 확장)
+- 정준화 결정 spec: `spec/4-nodes/1-logic/2-switch.md` §8 Rationale (8.1 화이트리스트 정책 + 8.2 신규 mode 추가 가이드라인)
+- 본 PR consistency-check 산출물: `review/consistency/2026/05/19/09_26_22/SUMMARY.md`
+- 본 PR ai-review 산출물: `review/code/2026/05/19/09_38_26/SUMMARY.md`
