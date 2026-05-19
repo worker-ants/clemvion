@@ -4,7 +4,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
 import { TotpService } from './totp.service';
-import { WebAuthnService } from './webauthn.service';
+import { WebAuthnService } from './webauthn/webauthn.service';
 import { UsersService } from '../users/users.service';
 
 describe('AuthController', () => {

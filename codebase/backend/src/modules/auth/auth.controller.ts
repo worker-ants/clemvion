@@ -61,7 +61,7 @@ import {
   WebAuthnRegenerateRecoveryDto,
   WebAuthnRegisterVerifyDto,
   WebAuthnRenameDto,
-} from './dto/webauthn.dto';
+} from './webauthn/dto/webauthn.dto';
 import {
   WebAuthnAuthOptionsResultDto,
   WebAuthnCredentialDto,
@@ -69,8 +69,8 @@ import {
   WebAuthnRecoveryCodesDto,
   WebAuthnRegisterOptionsDto,
   WebAuthnRegisterVerifyResultDto,
-} from './dto/responses/webauthn-response.dto';
-import { WebAuthnService } from './webauthn.service';
+} from './webauthn/dto/responses/webauthn-response.dto';
+import { WebAuthnService } from './webauthn/webauthn.service';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';

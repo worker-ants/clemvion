@@ -11,7 +11,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { RefreshToken } from './entities/refresh-token.entity';
-import { WebAuthnCredential } from './entities/webauthn-credential.entity';
+import { WebAuthnService } from './webauthn/webauthn.service';
 import { UsersService } from '../users/users.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
@@ -123,10 +123,10 @@ describe('AuthService', () => {
           useValue: mockRefreshTokenRepo,
         },
         {
-          provide: getRepositoryToken(WebAuthnCredential),
+          provide: WebAuthnService,
           useValue: {
-            count: jest.fn().mockResolvedValue(0),
-            find: jest.fn().mockResolvedValue([]),
+            countCredentials: jest.fn().mockResolvedValue(0),
+            isEnabled: jest.fn().mockReturnValue(false),
           },
         },
         {
