@@ -164,4 +164,64 @@ describe("ResultTimeline", () => {
 
     expect(onSelect).toHaveBeenCalledWith("first");
   });
+
+  // spec/conventions/conversation-thread.md §9.6 "적용 surface" + Inv-5 (§9.9):
+  // 좌측 실행 트리 timeline 도 conversation Preview 와 동일한 tool-call group
+  // 정책을 따른다. 사용자 보고 (스크린샷 2026-05-19 오후 1:55): blank intermediate
+  // assistant + 후행 tool 이 평면 노출돼 우측 Preview 와 시각 차이가 발생.
+  // 본 케이스는 그 회귀를 차단한다.
+  it("live 대화 노드 expand 시 blank intermediate assistant + tool 이 parent-child tree 로 묶인다 (Inv-5)", () => {
+    const aiAgentResult = makeResult({
+      nodeId: "ai-1",
+      nodeLabel: "AI Agent",
+      nodeType: "ai_agent",
+      nodeCategory: "ai",
+      status: "waiting_for_input",
+      outputData: {
+        interactionType: "ai_conversation",
+        conversationConfig: { turnCount: 1, maxTurns: 5 },
+      },
+    });
+    const conversationMessages = [
+      { type: "user" as const, content: "지금 진열된 상품 알려줘", turnIndex: 1 },
+      {
+        type: "assistant" as const,
+        content: "",
+        turnIndex: 1,
+        assistantToolCalls: [{ name: "mcp_product_list", arguments: "{}" }],
+      },
+      {
+        type: "tool" as const,
+        content: "mcp_product_list",
+        turnIndex: 1,
+        toolCallId: "c1",
+        toolStatus: "success" as const,
+      },
+      {
+        type: "assistant" as const,
+        content: "현재 진열되어 판매 중인 상품은 ...",
+        turnIndex: 1,
+      },
+    ];
+
+    render(
+      <ResultTimeline
+        results={[aiAgentResult]}
+        selectedId="ai-1"
+        onSelect={vi.fn()}
+        conversationMessages={conversationMessages}
+        selectedConversationItemIndex={null}
+        onSelectConversationItem={vi.fn()}
+        isLiveConversation
+      />,
+    );
+
+    // parent chip 헤더: "AI" + "1개 도구 호출" 노출. blank 봇 버블 단독 미노출.
+    expect(screen.getByText("AI")).toBeDefined();
+    expect(screen.getByText("1개 도구 호출")).toBeDefined();
+    // child tool 도 정상 표시.
+    expect(screen.getByText("mcp_product_list")).toBeDefined();
+    // final assistant 본문은 그대로 표시.
+    expect(screen.getByText(/현재 진열되어/)).toBeDefined();
+  });
 });

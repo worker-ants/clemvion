@@ -23,6 +23,7 @@ import { tryParseJson } from "@/lib/utils/parse-json";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
 import {
+  groupToolCallItems,
   isAssistantContentBlank,
   stripInlineMarkers,
 } from "@/lib/conversation/conversation-utils";
@@ -734,36 +735,12 @@ function SummaryView({
             // "도구 호출 그룹" 단일 unit 으로 묶어 부모(🤖 + 도구 호출 헤더)
             // 직하에 자식(🔧)을 indent 표시한다.
             //
-            // 매칭은 toolCallId 가 아닌 "선후 sequence + 호출 개수" 로 한다 —
-            // `ConversationItem.assistantToolCalls` 는 forward-compat 을 위해
-            // id 를 의도적으로 drop 하므로 (conversation-utils.ts 의 converter
-            // 참고). 각 intermediate assistant 는 자신의 `assistantToolCalls
-            // .length` 만큼 **아직 claim 되지 않은 후행 tool 인덱스** 를
-            // 흡수한다. 사이에 user / system 등이 끼어도 skip 하면서 찾는다.
-            const claimedToolIndices = new Set<number>();
-            const childrenByParent = new Map<number, number[]>();
-            for (let i = 0; i < items.length; i++) {
-              const it = items[i];
-              if (
-                it.type !== "assistant" ||
-                !it.assistantToolCalls?.length ||
-                !isAssistantContentBlank(it.content)
-              ) {
-                continue;
-              }
-              const needed = it.assistantToolCalls.length;
-              const children: number[] = [];
-              let j = i + 1;
-              while (j < items.length && children.length < needed) {
-                const next = items[j];
-                if (next.type === "tool" && !claimedToolIndices.has(j)) {
-                  children.push(j);
-                  claimedToolIndices.add(j);
-                }
-                j++;
-              }
-              childrenByParent.set(i, children);
-            }
+            // spec §9.6 의 단일 결정 함수 `groupToolCallItems` 가 conversation
+            // Preview 와 좌측 실행 트리 timeline 양쪽에 동일 결과를 공급한다
+            // (Inv-5, §9.9). 분류 정책 변경은 본 함수의 동작 갱신만으로 두
+            // surface 에 자동 전파된다.
+            const { claimedToolIndices, childrenByParent } =
+              groupToolCallItems(items);
             return items.map((item, i) => {
             const isClickable = !!onSelectItem;
             // ReactMarkdown 출력은 block 요소를 포함할 수 있으므로 button 안에 nest 시
