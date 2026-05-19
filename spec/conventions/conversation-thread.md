@@ -240,6 +240,7 @@ race-free.
 - **`$thread.text` lazy 평가**: 현재 `buildExpressionContext` 가 호출마다 전체 thread 를 system_text 로 즉시 렌더 (성능 hot path). 측정 결과 비용이 크면 `Object.defineProperty` lazy getter 또는 `$thread.text` 를 별도 key 로 분리해 명시 요청 시만 렌더.
 - **Service 모듈 위치 정리**: 현재 `codebase/backend/src/modules/execution-engine/conversation-thread/` 에 types/renderer/service 가 함께 있음. types/renderer 는 pure 라 향후 `src/shared/` 또는 별도 `@workflow/conversation-thread` 패키지로 분리해 nodes/ai → execution-engine 의 의존 그래프를 단순화 검토.
 - **Storage cap evict 정책**: §STORAGE_MAX_TURNS=500 은 LRU style FIFO drop. 향후 사용자 인터랙션 우선 보존 등 정책 옵션 검토.
+- **시각 회귀 인프라 (storybook / visual regression)**: §9.10 의 fixture 인프라는 unit 테스트 입력 export 만 제공. 시각 회귀를 자동화하려면 storybook 또는 playwright snapshot 통합이 필요 — 본 v2 로드맵 항목으로 별 PR 검토 (2026-05-19 Rationale 의 storybook 도입 기각 결정 후속).
 
 ---
 
@@ -267,20 +268,69 @@ race-free.
 
 **emit messages 를 conversation Preview 에서 격리한 이유** (§9.3 D4 / §9.4 D6): `ai-thread-source-mark` Open Question 의 잠정 결정은 "injection 메시지를 UI conversation timeline 에 보여주되 turn 카운팅에서만 제외" 였다. 본 작업은 이 잠정 결정을 재검토해 **conversation Preview 의 1차 소스를 `conversationThread` snapshot 으로 교체**하고 emit messages 는 LLM debug 패널 (Request/Response/LLM Usage) 전용으로 격리한다. 사유: emit messages 는 LLM 으로 간 페이로드와 1:1 정합이 목적이라 `[from <nodeLabel>]` prefix 가 박혀 있고, 이를 conversation Preview 가 그대로 표시하면 사용자 오인 + raw payload 의 strip 부담이 매 렌더마다 발생. `conversationThread` snapshot 은 source/nodeLabel/data 메타가 라이브로 살아있어 raw 파싱 없이 시각 분기가 자연스럽다.
 
+### 8.2 UI 계약 SoT 격상 (2026-05-19, §9.6 ~ §9.11)
+
+**결정**: 데이터 모델 + LLM context 정책만 spec 화되어 있던 §9 를 **UI 라이프사이클·렌더 계약 SoT** 로 확장. §9.6~§9.11 신설 (tool-call 그룹 시각 정책 / WS 이벤트 → store 변환 계약 / content blank 동치성 / UI Invariants / 회귀 차단 시나리오 / 변환 함수 contract).
+
+**배경**: 2026-05-18 ~ 19 사이 conversation Preview UI 가 4번 회귀 (PR #206 → #208 → #210 → #214). 각 회귀가 동일 영역에서 발생한 공통 원인은 spec 이 "데이터 모델 + LLM context 정책" 만 명세하고 **UI 동적 라이프사이클** 이 결여돼 있어 매 PR 마다 구현자가 추측 의사결정을 내린 것.
+
+**대안 비교**:
+
+| 대안 | 채택 여부 | 사유 |
+|---|---|---|
+| A. 회귀가 날 때마다 §9.1 표 비고만 미세 추가 | ❌ | 4번 반복으로 효과 없음. §9.1 은 정적 매핑이지 라이프사이클 계약이 아님 |
+| B. UI 영역의 별도 spec 파일 신설 (`spec/3-workflow-editor/conversation-ui.md`) | ❌ | conversation-thread 의 데이터 모델과 UI 계약이 동일 도메인 — 분리하면 cross-link 부담 증가, drift 위험 |
+| C. (채택) `conversation-thread.md` §9 를 시각 매핑 + UI 계약 양 축으로 확장 | ✅ | 단일 SoT 보존. §9.6~§9.11 이 §9.1~§9.5 와 직접 cross-link. 회귀 발생 시 §9.10 의 회귀 시나리오 표 갱신만으로 추적 가능 |
+
+**storybook 도입 기각**: §9.10 의 fixture 인프라는 unit 테스트 입력 export 만 제공한다. 시각 회귀를 자동화하려면 storybook 또는 playwright snapshot 통합이 필요하지만, 본 PR 의 범위 (spec + fixture + isAssistantContentBlank 위치 이전) 를 초과해 별 인프라 의존이 크다 — §7 v2 로드맵의 "시각 회귀 인프라" 항목으로 이관.
+
 ---
 
 ## 9. 미리보기 UI 렌더 규칙
 
 AI Agent 노드 run-results 패널의 conversation Preview 탭, 그리고 모든 노드의 conversation timeline 표시 UI 가 따르는 시각 규약. **1차 데이터 소스는 `waiting_for_input.conversationThread.turns` snapshot** ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) — emit messages (`ai_message.messages[]`) 가 아니다.
 
+본 절은 **시각 매핑** (§9.1~§9.5) 과 **UI 계약** (§9.6~§9.11) 두 축으로 구성된다. §9.1~§9.5 는 source 별 시각 표현, §9.6~§9.11 은 동적 라이프사이클·store 변환·invariants·회귀 차단 시나리오·변환 함수 contract 를 다룬다.
+
+한 multi-turn AI Agent turn 의 timeline phase 전환 (`conversationThread` 는 backend 가 선택적으로 동봉, §4.4.5):
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant FE as Frontend Store
+  participant BE as Backend
+  participant LLM
+
+  U->>BE: 사용자 메시지 전송
+  BE->>FE: ai_message (user item)
+  Note over FE: [user]
+
+  BE->>LLM: chat (turn N)
+  LLM-->>BE: content="" + toolCalls=[A,B]
+
+  loop tool execution
+    BE->>FE: tool_call_started (toolCallId)
+    Note over FE: [user] · 🔧 pending
+    BE->>FE: tool_call_completed (status/result)
+    Note over FE: [user] · 🔧 success
+  end
+
+  BE->>LLM: chat (with tool results)
+  LLM-->>BE: content="final answer"
+  BE->>FE: ai_message (full snapshot)
+  Note over FE: [user] · group(🔧 A,B) · final
+  BE->>FE: waiting_for_input (conversationThread? optional)
+  Note over FE: REPLACE thread + MERGE orphan tools
+```
+
 ### 9.1 source 별 시각 매핑 (강제)
 
 | ConversationTurnSource | UI 형식 | 헤더 | 본문 |
 |---|---|---|---|
 | `ai_user` | 👤 user chat bubble (오른쪽 정렬, 강조 배경) | — | `text` |
-| `ai_assistant` | 🤖 assistant chat bubble (왼쪽 정렬, 일반 배경) | — | `text` (markdown 렌더) |
+| `ai_assistant` | 🤖 assistant chat bubble (왼쪽 정렬, 일반 배경). 단 `toolCalls?.length ≥ 1` 이고 `isAssistantContentBlank(text)` (§9.8) 면 §9.6 의 tool-call group **parent** chip 으로 분기 | — | `text` (markdown 렌더) |
 | `presentation_user` | 🧩 회색 시스템 카드 (full-width) | `<nodeType-icon> <nodeLabel>` chip + interaction 라벨 (`button clicked` / `form submitted` / `link continue`) | `data` 메타에서 추출 (§1.4 표 참고). `text` 의 동사 prefix (`clicked:` / `continued:`) 는 헤더로 흡수되어 본문에 중복 노출 금지 |
-| `ai_tool` | 🔧 도구 호출 카드 (`mcp_*` 카드와 동일 시각) | tool name + status badge (200/4xx/5xx) | result preview (JSON / text, 토글 가능) |
+| `ai_tool` | 🔧 도구 호출 카드 (`mcp_*` 카드와 동일 시각). 부모 그룹의 child 위치 또는 standalone 위치 모두 동일 row layout — Inv-1 (§9.9) | tool name + status badge (`pending` / `success` / `error`) — 라이프사이클 phase 와 무관하게 같은 layout, status 만 변한다 | result preview (JSON / text, 토글 가능) |
 | `system` | ℹ️ 가운데정렬 system note 라인 (얇은 회색 텍스트) — **v1 자동 push 없음** (§1.1 "예약"). 수동 push 또는 v2 자동 push 도입 시 활성화. UI 는 본 행 형식을 미리 구현해 두기만 한다 | "System note" | `text` |
 
 ### 9.2 시각 구분 신호 (3중 강제)
@@ -297,7 +347,7 @@ AI Agent 노드 run-results 패널의 conversation Preview 탭, 그리고 모든
 
 | UI 용도 | 1차 소스 | 비고 |
 |---|---|---|
-| conversation Preview 탭 (`meta.interactionType: "ai_conversation"`) | `conversationThread.turns` snapshot ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) | source/nodeLabel/data 메타 직접 활용 |
+| conversation Preview 탭 (`meta.interactionType: "ai_conversation"`) | `conversationThread.turns` snapshot ([WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread)) | source/nodeLabel/data 메타 직접 활용. 적용 시점·정책의 mutation 계약은 §9.7 |
 | LLM Usage / Request / Response 탭 (debug) | `ai_message.messages[]` (emit) | source 마커 (`live`/`injected`) 와 prefix 가 LLM 으로 간 형태 그대로 표시. "Raw payload" 토글로 prefix·marker 가시화 |
 | 실행 이력 (`/executions/:id`) 복원 view | NodeExecution 의 `output.result.messages` (DB 영속) + `output.interaction` | 두 경로 (`output.result.messages` = LLM 호출 결과 누적 [D6 단일 경로, §4 영속화 표 참조], `output.interaction` = presentation 인터랙션 1건) 는 별도 SoT — UI 복원 시 두 경로를 합쳐 `conversationThread.turns` 와 동등한 view 를 재구성한다. 상세 복원 규약은 [Spec Execution History §EH-DETAIL-06](../2-navigation/14-execution-history.md) 의 ConversationThread 재구성 정책에 위임. debug 탭만 emit 형태 재구성 |
 
@@ -311,9 +361,126 @@ backend 가 §1.6 에 따라 prompt injection 방어용으로 박는 `[user-inpu
 
 - `messagesToConversationItems` — emit messages `user`/`assistant` content
 - `threadTurnsToConversationItems` — `conversationThread.turns` 5 source 전부
-- `parseHistoryMessages` 의 history rebuild 경로 (`SummaryView` 내 useMemo)
+- `parseHistoryMessages` 의 history rebuild 경로
+- `mergeOrphanToolItems` — 부모-자식 그룹 재구성 시 prev 의 strip 결과 보존 (§9.11)
 
 raw payload 가 필요한 경우 (LLM Request / Response / LLM Usage 탭) 만 §9.4 의 "Raw payload" 토글로 marker 포함 형태를 노출한다. 신규 inline marker 도입은 §1.6 를 먼저 개정해야 한다.
+
+### 9.6 tool-call 그룹 시각 정책
+
+LLM 호출 1회 = 1 `ai_assistant` turn. 다음 조건을 모두 만족하면 **tool-call group parent** 로 분류:
+
+1. `source === 'ai_assistant'` (wire) 또는 store `type === 'assistant'`
+2. `turn.toolCalls?.length >= 1` (wire) 또는 store `item.assistantToolCalls?.length >= 1`
+3. `isAssistantContentBlank(text|content)` (§9.8)
+
+같은 turn 의 후행 `ai_tool` turn 들 (또는 store 의 `type: "tool"` 항목들) 중 아직 다른 parent 에 claim 되지 않은 것들을 `toolCalls.length` (store: `assistantToolCalls.length`) 개까지 **children** 으로 흡수한다. parent 가 enumerate 한 child 수만큼 후행 unclaimed tool 을 sequence-claim — `assistantToolCalls` 의 `id` 는 forward-compat 으로 drop 되어 있어 sequence-count 매칭이 SoT.
+
+UI 형식:
+
+| 영역 | 시각 |
+| --- | --- |
+| parent | 미니 chip 헤더: `🤖 AI · 🔧 N개 도구 호출`. chat bubble (둥근 배경, 좌·우 정렬) **아님** — inline-flex chip |
+| children container | 좌측 vertical line (`border-l-2`) + `ml-3 pl-3` indent |
+| 각 child | §9.1 의 `ai_tool` 라인 형식 그대로 (🔧 + name + status badge + result preview) |
+
+content 가 blank 가 아닌 assistant (LLM 의 thinking text 등) 는 parent 로 분류하지 않고 §9.1 의 표준 `ai_assistant` chat bubble 로 렌더 + ToolCallBadge 를 본문 아래 노출. 자식 row 도 클릭 가능 — `onSelectMessage(childIndex)` 가 그대로 호출돼 SelectedItemDetail 의 ToolDetail 로 진입.
+
+### 9.7 WS 이벤트 → store 변환 계약
+
+`useExecutionStore.conversationMessages` 의 mutation 정책. 모든 이벤트는 [WebSocket §4.4](../5-system/6-websocket-protocol.md#44-실행-진행-이벤트) 의 의미를 따른다. 표의 이벤트명은 `execution.` prefix 를 생략한 형태 (정식명 `execution.tool_call_started` 등).
+
+| WS 이벤트 | store mutation | 책임 |
+| --- | --- | --- |
+| `tool_call_started` | UPSERT by `toolCallId` (status=pending) | live 표시 시작 |
+| `tool_call_completed` | UPDATE by `toolCallId` (status / result / durationMs / error) | live 상태 전이 |
+| `ai_message` | REPLACE with `messagesToConversationItems(payload.messages, …)` — 단, `toolStatus` / `durationMs` / `error` 는 prev 의 동일 `toolCallId` 항목에서 carry-over | snapshot 정합 |
+| `waiting_for_input` (interactionType=ai_conversation) | REPLACE with `threadTurnsToConversationItems(payload.conversationThread.turns)` + **MERGE orphan tools / intermediate assistants** (§9.11). `lastAppliedThreadSeqRef` 로 동일 `nextSeq` 재emit skip | lean thread 보존 |
+| `waiting_for_input` (interactionType=form / buttons) | `conversationThread` 가 동봉된 경우에만 위 ai_conversation 행과 동일 정책 — live tool row 보존 의무 동일 (Inv-4) | Form / Buttons 노드 |
+
+REPLACE 는 unconditional 배열 교체가 아니라 **carry-over policy 가 명시된 교체**다 — Inv-1, Inv-4 (§9.9) 를 깨지 않도록 prev 의 일부 상태를 보존한다.
+
+**Carry-over 필드의 스키마 귀속**: `toolStatus` / `durationMs` / `error` 는 store 내부 `ConversationItem` 의 runtime 필드 (`codebase/frontend/src/lib/stores/execution-store.ts`) 이며, ConversationTurn §1.2 wire 스키마 확장이 아니다.
+
+본 계약은 권위적 snapshot 재구성의 conversation UI 레이어 명문화이며, carry-over 항목은 live WS 이벤트 선행 도착 정보를 snapshot 빈 상태가 덮어쓰지 않기 위한 정책이다.
+
+### 9.8 content blank 동치성
+
+`isAssistantContentBlank(content: unknown): boolean` 의 **단일 결정 함수** 정의:
+
+```ts
+function isAssistantContentBlank(content: unknown): boolean {
+  return typeof content !== "string" || content.trim() === "";
+}
+```
+
+**구현 위치 의무**: `codebase/frontend/src/lib/conversation/conversation-utils.ts` 에서 export. UI 컴포넌트 (`conversation-inspector.tsx`) 와 변환 함수 (`messagesToConversationItems` / `threadTurnsToConversationItems` / `mergeOrphanToolItems`) 가 동일 함수를 import 해 사용 — 다중 정의 금지.
+
+다음 4가지를 모두 **동치** 로 처리:
+
+- `null`
+- `undefined`
+- `""` (빈 문자열)
+- `" "`, `"\n"`, `"   \t\n"` 등 whitespace-only 문자열
+
+**입력 출처**: `ConversationTurn.text` (§1.2). Anthropic 의 별도 `extended_thinking` content block 은 `turn.text` 로 합쳐지지 않으므로 본 판정 입력에 영향 없음 (extended_thinking 처리는 별 spec 항목).
+
+본 판정의 **사용처 (3곳)**:
+
+1. **그룹 분류** (§9.6): `ai_assistant` 가 parent 인지 결정
+2. **헤더 라벨** (SelectedItemDetail): `hasToolCalls && isAssistantContentBlank(content)` → "Tool Call — Turn N", else "AI Response — Turn N"
+3. **placeholder** (timeline bubble): content 와 toolCalls 모두 없을 때만 `(empty)` 노출
+
+LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, OpenAI `null`, Google `null`, 혹은 whitespace text block) UI 동작이 **동일** 해야 한다.
+
+### 9.9 UI Invariants
+
+다음 4가지 불변량은 §9 변경 / 구현 변경 시 반드시 유지돼야 한다. `Inv-N` 레이블은 본 §9.9 스코프 한정.
+
+| ID | Invariant |
+| --- | --- |
+| Inv-1 | tool row 의 시각 (🔧 + name + status badge + result preview) 은 라이프사이클 phase (pending / success / error) 와 무관하게 같은 layout 을 유지. status 만 변한다. |
+| Inv-2 | timeline 항목 수는 *그룹 단위* 로만 줄어든다 — parent-child 묶임은 허용. 한 번 표시된 tool row 가 부모 그룹 합쳐짐 외의 이유로 사라지지 않는다. |
+| Inv-3 | SummaryView 와 SelectedItemDetail 의 "Tool Call" vs "AI Response" 라벨 판정은 동일한 `isAssistantContentBlank` (§9.8) 에서 도출. |
+| Inv-4 | live tool row 는 thread snapshot 이 lean (`includeToolTurns: false`) 이어도 store 에 보존돼야 한다. (§9.7 의 MERGE orphan tools 책임) |
+
+### 9.10 회귀 차단 시나리오
+
+§9 본 절을 변경하거나 conversation timeline 관련 코드 (`conversation-inspector.tsx`, `conversation-utils.ts`, `use-execution-events.ts`) 를 수정하는 PR 은 다음 시나리오의 **단위 테스트 통과를 의무**로 한다. 사용자 시각 확인에 의존하지 않는다. `CT-S*` ID 는 본 §9.10 스코프 한정.
+
+| ID | 시나리오 | 검증 | 1차 테스트 파일 |
+| --- | --- | --- | --- |
+| CT-S1 | LLM 이 whitespace content + tool_use 동시 emit (Anthropic 의 빈 text block) | content blank 동치, parent 그룹으로 분류 | `conversation-utils.test.ts` |
+| CT-S2 | `includeToolTurns: false` + 1 tool 호출 | thread lean snapshot 적용 후에도 🔧 tool row 보존 | `use-execution-events.test.ts` |
+| CT-S3 | `includeToolTurns: false` + 한 turn 안 2 LLM call × N tools | 각 parent 가 자기 tools 만 흡수, 중복 그룹 없음 | `conversation-inspector.test.tsx` |
+| CT-S4 | `includeToolTurns: true` | thread 가 이미 enumerate 한 tool/intermediate 가 중복 추가되지 않음 (`mergeOrphanToolItems` no-op) | `conversation-utils.test.ts` |
+| CT-S5 | LLM 이 thinking text + tool_use 동시 emit | parent 그룹 아님 — 본문 + ToolCallBadge 동시 노출 | `conversation-inspector.test.tsx` |
+| CT-S6 | multi-turn (turn 1 tool + turn 2 tool) | turn 경계가 parent-child 매칭을 가로지르지 않음 | `conversation-inspector.test.tsx` |
+| CT-S7 | `tool_call_completed` 가 `ai_message` 보다 늦게 도착 (out-of-order) | `toolStatus` carry-over 로 success 가 pending 으로 회귀하지 않음 | `use-execution-events.test.ts` |
+
+본 시나리오들의 **입력 fixture** 는 `codebase/frontend/src/components/editor/run-results/__tests__/fixtures/conversation-scenarios.ts` 에 단일 export 로 둔다. 새 시나리오 발견 시 본 표 추가 + fixture 추가 + 해당 테스트 작성을 PR review 의 의무로 한다.
+
+### 9.11 변환 함수 contract
+
+두 1차 변환 함수는 **같은 turn 의 ConversationItem 다중집합으로서 동치** 여야 한다:
+
+```
+threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
+```
+
+- 양변의 차이는 **lean thread 의 `includeToolTurns: false` 케이스에 한정** — thread 는 `ai_tool` + intermediate `ai_assistant` 를 누락할 수 있다. messages 는 항상 full.
+- 이 누락은 `mergeOrphanToolItems(threadItems, prev)` 가 보전한다. prev 는 직전 `ai_message` 가 채워둔 messages-base snapshot.
+- 두 함수의 **공통 invariant**: 같은 turn 내 항목들의 부분 순서 (user → intermediate assistants → tools → final assistant) 는 보존된다.
+
+세 변환 path 의 책임:
+
+| 함수 | 입력 | 사용처 |
+| --- | --- | --- |
+| `messagesToConversationItems(messages, opts)` | `ai_message.messages[]` (full chat history) | `handleAiMessage` (live), `parseHistoryMessages` (history rebuild) |
+| `threadTurnsToConversationItems(turns)` | `conversationThread.turns` snapshot | `handleWaitingForInput` (live 1차 source), `parseHistoryMessages` (history view 의 thread 재구성 시) |
+| `mergeOrphanToolItems(threadItems, prev)` | (threadItems, store prev) → merged items | `handleWaitingForInput` 내부 — REPLACE 직전 |
+
+신규 변환 path 도입 시 본 contract 표 갱신 + §9.11 의 등가성 정의 만족 여부 검토 의무.
 
 ---
 
@@ -327,3 +494,4 @@ raw payload 가 필요한 경우 (LLM Request / Response / LLM Usage 탭) 만 §
 | 2026-05-18 | §1.2 의 `text` / `data` 의미 명확화. §1.5 (LLM payload prefix 컨벤션) · §1.6 (금지된 인라인 마커) · §9 (미리보기 UI 렌더 규칙) 신규. §8.1 Rationale 추가. [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 chip "권장" 을 §9.2 의 3중 신호 정규 매핑으로 강제 격상 |
 | 2026-05-18 | (구현 단계 발견) §1.5 명확화 — `[from <nodeLabel>]` prefix 가 `output.result.messages` 와 emit messages 에 함께 영속되어 LLM history attribution 을 유지함을 명시 (기존 "prefix 미포함" 진술 정정). §1.6 재정의 — `[user-input]…[/user-input]` 마커는 prompt injection 방어용 LLM-facing 마커로 유지 (옛 "금지" 진술을 "LLM-facing 의무 + UI strip" 으로 정정). §8.1 Rationale 의 "폐기" 항목을 "보안 유지 + UI strip 분리" 로 재기술. §9.5 를 "옛 임의 marker 호환" 에서 "LLM-facing 마커의 UI strip" 로 의미 명확화 |
 | 2026-05-18 | (consistency-check 후속) §1.2 `text` 행을 §1.6 와 정합되도록 재진술 (자기 충돌 C-1 해소): "인라인 마커 박지 않는다" → "user 출처 marker 는 §1.6 의무, UI strip 으로 처리". §1.2 `data?` 행에서 node-output §4.5 shape 인라인 재열거 제거 (drift 회피, §4.5 단일 정의에 위임). §1.4 표 구조 4열 확장 (UI 카드 헤더 · 본문 컬럼 추가). §4 영속화 행의 `output.messages` 를 D6 단일 경로 `output.result.messages` 로 정정 |
+| 2026-05-19 | §9 확장 — §9.6 (tool-call 그룹 시각 정책), §9.7 (WS 이벤트 → store 변환 계약), §9.8 (content blank 동치성), §9.9 (UI Invariants), §9.10 (회귀 차단 시나리오), §9.11 (변환 함수 contract) 신설. §9 prologue 에 라이프사이클 다이어그램 추가. §9.1 `ai_assistant` 행에 §9.6 parent chip 분기 비고, `ai_tool` 행 status badge 표기를 `pending/success/error` 로 확장. §9.5 진입점 목록에 `mergeOrphanToolItems` 추가. 4건 UI 회귀 (PR #206/#208/#210/#214) 의 spec 결손 보강. fixture 인프라 (`__tests__/fixtures/conversation-scenarios.ts`) 와 `isAssistantContentBlank` 위치 이전을 동일 PR 에 동반 |

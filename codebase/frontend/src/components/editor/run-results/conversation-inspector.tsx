@@ -22,7 +22,10 @@ import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-r
 import { tryParseJson } from "@/lib/utils/parse-json";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
-import { stripInlineMarkers } from "@/lib/conversation/conversation-utils";
+import {
+  isAssistantContentBlank,
+  stripInlineMarkers,
+} from "@/lib/conversation/conversation-utils";
 import type { TranslationKey } from "@/lib/i18n/core";
 
 // spec/conventions/conversation-thread.md §9.1 — `presentation_user` source
@@ -51,18 +54,6 @@ const MAX_VISIBLE_DOC_NAMES = 2;
 /** Tool 결과 요약: 문자열·객체값 truncate 임계값 (테스트와 공유) */
 export const SUMMARY_STRING_MAX = 80;
 export const SUMMARY_VALUE_MAX = 40;
-
-/**
- * Assistant 메시지 본문이 시각적으로 비어있는지 판정. LLM provider 가
- * tool_use 블록 사이에 빈 text 블록(`" "`, `"\n"`) 을 같이 emit 하면
- * `result.content` 가 truthy 공백문자가 되는데, ReactMarkdown 으로 렌더하면
- * 사용자 눈에는 빈 버블처럼 보인다. 이 경우 SummaryView 와 SelectedItemDetail
- * 양쪽이 동일하게 "본문 없음 + 도구 호출만 있음" 으로 처리해 ToolCallBadge
- * 만 노출하도록 통일한다.
- */
-export function isAssistantContentBlank(content: unknown): boolean {
-  return typeof content !== "string" || content.trim() === "";
-}
 
 /**
  * 한 assistant 응답에서 사용된 KB 청크 요약 chip — 클릭 시 References 탭의
