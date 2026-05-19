@@ -299,13 +299,76 @@ export class LlmService {
         if (!isRateLimit || attempt === maxRetries) {
           throw lastError;
         }
-        const delay = Math.pow(2, attempt) * 1000;
+        // 2026-05-19 — RFC 7231 Retry-After 헤더가 있으면 provider 가 알려준
+        // 최소 대기 시간을 신뢰. 그보다 짧게 retry 하면 같은 429 가 반복되어
+        // retry 예산만 소모. 상한 60s 는 그 turn 자체가 stuck 되는 것을 막는
+        // 합리적 fallback — 일반적 rate-limit window (1분) 의 경계.
+        const MAX_BACKOFF_MS = 60_000;
+        const retryAfterMs = extractRetryAfterMs(error);
+        const exponentialMs = Math.pow(2, attempt) * 1000;
+        const delay =
+          retryAfterMs !== null
+            ? Math.min(retryAfterMs, MAX_BACKOFF_MS)
+            : exponentialMs;
+        const source = retryAfterMs !== null ? 'Retry-After' : 'exponential';
         this.logger.warn(
-          `Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`,
+          `Rate limited, retrying in ${delay}ms (${source}, attempt ${attempt + 1}/${maxRetries})`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
     throw lastError || new Error('Max retries exceeded');
   }
+}
+
+/**
+ * Provider SDK 가 throw 한 에러에서 RFC 7231 Retry-After 헤더를 추출해 ms 로
+ * 정규화. Anthropic / OpenAI SDK 의 APIError 류는 `headers` 또는
+ * `response.headers` 에서 헤더를 노출한다.
+ *
+ * RFC 7231 §7.1.3:
+ *  - delta-seconds: `30`
+ *  - HTTP-date: `Mon, 11 Jun 2025 00:00:00 GMT`
+ *
+ * 양쪽 모두 ms 로 변환. 음수·NaN·parse 실패·헤더 누락 시 null (caller 가
+ * exponential fallback 사용).
+ *
+ * `export` 된 이유: spec 에서 직접 단위 테스트 (delta-seconds / HTTP-date /
+ * fallback / 대소문자) 를 작성하기 위함. 그 외 호출자 없음.
+ */
+export function extractRetryAfterMs(err: unknown): number | null {
+  if (!err || typeof err !== 'object') return null;
+  const errObj = err as {
+    headers?: unknown;
+    response?: { headers?: unknown } | null;
+  };
+  const rawHeaders =
+    errObj.headers ??
+    (errObj.response && typeof errObj.response === 'object'
+      ? errObj.response.headers
+      : undefined);
+  if (!rawHeaders || typeof rawHeaders !== 'object') return null;
+  const headers = rawHeaders as Record<string, unknown>;
+  const rawValue =
+    headers['retry-after'] ?? headers['Retry-After'] ?? headers['RETRY-AFTER'];
+  if (rawValue === undefined || rawValue === null) return null;
+  const str = String(rawValue).trim();
+  if (str.length === 0) return null;
+  // delta-seconds 우선 시도 (간단한 형식, parseFloat 가 ISO 날짜의 첫 숫자를
+  // 잘못 잡지 않도록 Number() 로 strict 변환).
+  const seconds = Number(str);
+  if (Number.isFinite(seconds)) {
+    // 음수 delta-seconds 는 RFC 7231 위반 — fallback 사용. 일부 JS 엔진의
+    // `Date.parse('-5')` 가 비표준 결과를 반환할 수 있어 여기서 explicit
+    // reject 로 차단.
+    if (seconds < 0) return null;
+    return Math.floor(seconds * 1000);
+  }
+  // HTTP-date format — Date.parse 로 epoch ms 환산 후 now 와 차이를 계산.
+  const dateMs = Date.parse(str);
+  if (Number.isFinite(dateMs)) {
+    const delta = dateMs - Date.now();
+    return delta > 0 ? delta : 0;
+  }
+  return null;
 }
