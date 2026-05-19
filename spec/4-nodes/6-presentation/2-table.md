@@ -350,7 +350,7 @@ Table 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는
 | `columns` 가 array 아님 | `columns must be an array` | handler.validate | `validateTableConfig` |
 | static 모드에서 `rows` 가 array 아님 | `rows must be an array in static mode` | handler.validate | `validateTableConfig` |
 | `sortBy` 가 `columns[*].field` 와 mismatch | `sortBy "<value>" must match one of the defined column fields` | handler.validate | `validateTableConfig` |
-| 버튼 라벨 누락 / link URL 누락 / port + URL 충돌 / 버튼 ID 중복 / 10개 초과 | (공통 §1.1 메시지) | handler.validate | `validateButtons` ([공통 §1.1](./0-common.md#11-유효성-검증)) |
+| 버튼 라벨 누락 / link URL 누락 / port + URL 충돌 / 버튼 ID 중복 / 5개 초과 | (공통 §1.1 메시지) | handler.validate | `validateButtons` ([공통 §1.1](./0-common.md#11-유효성-검증)) |
 
 > per-row expression 평가 실패는 throw 하지 않고 해당 셀을 `null` 로 남긴다 (`safeEvaluate`) — runtime 비즈니스 실패로 분류 (Principle 3.1 의 "예상 가능한 비즈니스 실패").
 

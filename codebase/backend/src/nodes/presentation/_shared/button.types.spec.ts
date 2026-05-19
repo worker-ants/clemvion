@@ -102,14 +102,25 @@ describe('button.types', () => {
       expect(errors.some((e) => e.includes('url is not allowed'))).toBe(true);
     });
 
-    it('should fail when more than 10 buttons', () => {
-      const buttons = Array.from({ length: 11 }, (_, i) => ({
+    // cap 5 — 2026-05-19 정준화 (spec/4-nodes/6-presentation/0-common.md §Rationale).
+    it('passes with exactly 5 buttons (cap)', () => {
+      const buttons = Array.from({ length: 5 }, (_, i) => ({
         id: `btn-${i}`,
         label: `Button ${i}`,
         type: 'port' as const,
       }));
       const errors = validateButtons({ buttons });
-      expect(errors.some((e) => e.includes('Maximum 10'))).toBe(true);
+      expect(errors.some((e) => e.includes('Maximum'))).toBe(false);
+    });
+
+    it('should fail when more than 5 buttons (cap exceeded)', () => {
+      const buttons = Array.from({ length: 6 }, (_, i) => ({
+        id: `btn-${i}`,
+        label: `Button ${i}`,
+        type: 'port' as const,
+      }));
+      const errors = validateButtons({ buttons });
+      expect(errors.some((e) => e.includes('Maximum 5'))).toBe(true);
     });
 
     it('should fail for duplicate IDs', () => {

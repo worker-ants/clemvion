@@ -3,7 +3,7 @@ import {
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
-import { validateButtons } from '../_shared/button.types';
+import { MAX_BUTTONS_PER_NODE, validateButtons } from '../_shared/button.types';
 
 const buttonDefSchema = z
   .object({
@@ -315,8 +315,12 @@ function validateCarouselItemButtons(
   prefix: string,
 ): string[] {
   const errors: string[] = [];
-  if (buttons.length > 4) {
-    errors.push(`${prefix}: maximum 4 buttons per item`);
+  // Per-item cap mirrors the per-node global cap (5) — see
+  // `MAX_BUTTONS_PER_NODE` and spec/4-nodes/6-presentation/0-common.md §1.1.
+  // Carousel can therefore surface up to 10 buttons on a single item
+  // (global 5 + item 5) as documented in the spec Rationale.
+  if (buttons.length > MAX_BUTTONS_PER_NODE) {
+    errors.push(`${prefix}: maximum ${MAX_BUTTONS_PER_NODE} buttons per item`);
   }
   const ids = new Set<string>();
   for (let j = 0; j < buttons.length; j++) {

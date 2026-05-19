@@ -34,6 +34,17 @@ export interface ButtonValidationResult {
 }
 
 /**
+ * Per-node global button cap. Mirror points:
+ *  - spec/4-nodes/6-presentation/0-common.md §1.1 "최대 버튼 수"
+ *  - frontend `button-list-editor.tsx` `maxButtons` default
+ *  - carousel `validateCarouselItemButtons` per-item cap (same value)
+ *
+ * Carousel ⇒ a single item can display global 5 + itemButtons 5 = 10 buttons
+ * (사용자 가시 모델). spec/4-nodes/6-presentation/0-common.md §Rationale.
+ */
+export const MAX_BUTTONS_PER_NODE = 5;
+
+/**
  * Validate button configuration according to spec §1.6 and §1.7.
  * Returns errors array (empty = valid).
  */
@@ -45,9 +56,10 @@ export function validateButtons(config: Record<string, unknown>): string[] {
 
   const errors: string[] = [];
 
-  // Max 10 buttons
-  if (rawButtons.length > 10) {
-    errors.push('Maximum 10 buttons allowed per node');
+  if (rawButtons.length > MAX_BUTTONS_PER_NODE) {
+    errors.push(
+      `Maximum ${MAX_BUTTONS_PER_NODE} buttons allowed per node`,
+    );
   }
 
   // Unique IDs
