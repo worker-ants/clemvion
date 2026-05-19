@@ -2031,6 +2031,73 @@ describe("useExecutionEvents", () => {
       expect(restored[2].type).toBe("assistant");
     });
 
+    it("includeToolTurns:false 시 직전 ai_message 가 만든 🔧 tool row 가 thread 적용 후에도 보존된다 (PR #206 회귀)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const handler = getWaitingHandler();
+
+      // Setup: 직전 ai_message 가 store 에 user / intermediate assistant / tool /
+      // final assistant 를 채워둔 상태 — `setConversationMessages` 로 시뮬레이션.
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "질문", turnIndex: 1 },
+        {
+          type: "assistant",
+          content: "",
+          turnIndex: 1,
+          assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+        },
+        {
+          type: "tool",
+          content: "kb_search",
+          turnIndex: 1,
+          toolCallId: "call_1",
+          toolStatus: "success",
+        },
+        { type: "assistant", content: "최종 답변", turnIndex: 1 },
+      ]);
+
+      // 그 후 waiting_for_input 이 lean thread (includeToolTurns:false) 로 도착.
+      handler({
+        waitingNodeId: "ai-1",
+        waitingNodeType: "ai_agent",
+        interactionType: "ai_conversation",
+        nodeOutput: { conversationConfig: { messages: [], turnCount: 1, maxTurns: 5 } },
+        conversationThread: {
+          id: "default",
+          nextSeq: 2,
+          turns: [
+            {
+              seq: 0,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_user",
+              text: "질문",
+            },
+            {
+              seq: 1,
+              nodeId: "ai-1",
+              nodeLabel: "AI Agent",
+              nodeType: "ai_agent",
+              source: "ai_assistant",
+              text: "최종 답변",
+            },
+          ],
+        },
+      });
+
+      const msgs = useExecutionStore.getState().conversationMessages;
+      // tool row + intermediate assistant 가 thread items 사이에 보존돼야 한다.
+      expect(msgs.map((i) => i.type)).toEqual([
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+      ]);
+      expect(msgs[2].toolCallId).toBe("call_1");
+      expect(msgs[2].toolStatus).toBe("success");
+    });
+
     it("thread snapshot 부재 시 emit messages fallback (backward compat)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
