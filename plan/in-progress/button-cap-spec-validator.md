@@ -51,6 +51,7 @@ owner: developer
 - [x] tests:
   - `button.types.spec.ts`: "should fail when more than 10" → "passes with exactly 5" + "should fail when more than 5"
   - `carousel.schema.spec.ts`: "caps per-item buttons at 4" → "allows exactly 5" + "caps per-item buttons at 5"
+  - `shadow-workflow.spec.ts:1234`: maxButtonsValidator 인라인 헬퍼 cap 10 → 5 + 메시지 동기화 + 테스트 fixture (11→6) 갱신 (ai-review C-4)
 - [x] `presentation-button-render-investigation.md`:
   - 후보 2 root cause 확정 기록 + frontmatter worktree 본 PR 로 이전
   - 후보 1/3/4/5 는 본 PR 범위 외로 명시
@@ -59,12 +60,12 @@ owner: developer
   - `spec/4-nodes/6-presentation/1-carousel.md` L22·24·35·417·432 모두 cap 5 로 정합화 + 경계 조건 ≥6
   - `spec/4-nodes/6-presentation/2-table.md` L353 "10개 초과" → "5개 초과"
   - `spec/4-nodes/_product-overview.md` ND-CL-08 "최대 4개" → "최대 5개"
-- [ ] consistency-check 재실행 (필수)
-- [ ] tests + lint + typecheck (237 presentation tests pass, +4 새 케이스 포함)
-- [ ] /ai-review
-- [ ] PR + merge
-- [ ] `git mv plan/in-progress/button-cap-spec-validator.md plan/complete/` (동일 PR chore commit, 본 plan 미해결 항목 0건 확인 후)
-- [ ] `git mv plan/in-progress/presentation-button-render-investigation.md plan/complete/` (동일 PR chore commit, investigation plan 미해결 항목 0건 확인 후 — B/D/E 는 본 PR 안에서 scope-out 처리됨)
+- [x] consistency-check 재실행 (08_55_14 BLOCK NO)
+- [x] tests + lint + typecheck (318 tests pass: presentation 237 + shadow-workflow 81)
+- [x] /ai-review (HIGH 발견 4 Critical 중 1건만 본 PR 사안 — C-4 즉시 fix; 나머지 NOT APPLICABLE diff range artifact)
+- [ ] PR merge (#203)
+- [ ] `git mv plan/in-progress/button-cap-spec-validator.md plan/complete/` (동일 PR chore commit, 사용자 merge 시점)
+- [ ] `git mv plan/in-progress/presentation-button-render-investigation.md plan/complete/` (동일 PR chore commit, 사용자 merge 시점)
 
 ## 관련 문서
 
