@@ -100,25 +100,47 @@ export class IntegrationExpiryScannerService
       );
     }
     const triggeredAt = new Date().toISOString();
-    const repeat = { pattern: '0 0 * * *', tz: 'UTC' };
-    await this.queue.upsertJobScheduler('connected-expiry-daily', repeat, {
-      name: JOB_CONNECTED_EXPIRY,
-      data: { triggeredAt },
-      opts: DAILY_PASS_OPTS,
-    });
-    await this.queue.upsertJobScheduler('pending-install-ttl-daily', repeat, {
-      name: JOB_PENDING_INSTALL_TTL,
-      data: { triggeredAt },
-      opts: DAILY_PASS_OPTS,
-    });
-    await this.queue.upsertJobScheduler('usage-log-prune-daily', repeat, {
+    // Daily 00:00 UTC — connected-expiry 알림, pending_install TTL sweep,
+    // usage_log retention prune. 모두 일일 주기로 충분 (알림 빈도·24h TTL·90d
+    // retention 의 정량적 특성이 일일 cadence 와 일치).
+    const dailyRepeat = { pattern: '0 0 * * *', tz: 'UTC' };
+    await this.queue.upsertJobScheduler(
+      'connected-expiry-daily',
+      dailyRepeat,
+      {
+        name: JOB_CONNECTED_EXPIRY,
+        data: { triggeredAt },
+        opts: DAILY_PASS_OPTS,
+      },
+    );
+    await this.queue.upsertJobScheduler(
+      'pending-install-ttl-daily',
+      dailyRepeat,
+      {
+        name: JOB_PENDING_INSTALL_TTL,
+        data: { triggeredAt },
+        opts: DAILY_PASS_OPTS,
+      },
+    );
+    await this.queue.upsertJobScheduler('usage-log-prune-daily', dailyRepeat, {
       name: JOB_USAGE_LOG_PRUNE,
       data: { triggeredAt },
       opts: DAILY_PASS_OPTS,
     });
+    // cafe24-background-refresh — 2026-05-19 갱신: 6h 주기로 단축 +
+    // REFRESH_PROACTIVE_THRESHOLD_DAYS 7일 (cafe24-token-refresh.constants.ts)
+    // 와 짝을 이룬다. 옛 정책 (24h cron + 10일 cutoff = 4일 마진) 은 cron
+    // 한 번이 누락되면 마진이 3일로 압박돼 14일 refresh_token 만기를 충분히
+    // 사전 차단하지 못했다. 6h cron + 7일 cutoff = 마진 7일 (= 만기의 50%) 로
+    // cron 누락 1회 (6h) 가 마진에 거의 영향을 주지 않는다.
+    //
+    // scheduler ID `cafe24-background-refresh-daily` 는 BullMQ idempotent
+    // upsert 활용을 위해 의도적으로 보존 (ID 변경 시 옛 Redis entry 가 orphan
+    // 으로 잔존해 daily/6h 가 동시 fire 되는 회귀 위험). 이름은 historical.
+    const cafe24Repeat = { pattern: '0 */6 * * *', tz: 'UTC' };
     await this.queue.upsertJobScheduler(
       'cafe24-background-refresh-daily',
-      repeat,
+      cafe24Repeat,
       {
         name: JOB_CAFE24_BACKGROUND_REFRESH,
         data: { triggeredAt },
@@ -126,7 +148,7 @@ export class IntegrationExpiryScannerService
       },
     );
     this.logger.log(
-      'Registered integration expiry schedulers: connected-expiry, pending-install-ttl, usage-log-prune, cafe24-background-refresh (daily 00:00 UTC)',
+      'Registered integration expiry schedulers: connected-expiry (daily 00:00 UTC), pending-install-ttl (daily 00:00 UTC), usage-log-prune (daily 00:00 UTC), cafe24-background-refresh (every 6h UTC)',
     );
   }
 
