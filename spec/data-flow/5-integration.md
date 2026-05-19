@@ -127,21 +127,25 @@ sequenceDiagram
 
 ### 1.4 OAuth 만료 스캐너 (BullMQ `integration-expiry`)
 
-`integration-expiry` 큐 위에 **네 개의 독립 BullMQ 스케줄러**가 매일 00:00 UTC 에 각자 job 을 enqueue 한다 (2026-05-16 갱신 — 옛 3개에서 `cafe24-background-refresh` 추가). 각 job 은 자체 retry 정책 (`attempts: 3`, exponential backoff 60s)으로 BullMQ 가 재시도하며, 실패는 큐 메트릭에 그대로 노출된다.
+`integration-expiry` 큐 위에 **네 개의 독립 BullMQ 스케줄러**가 각자 job 을 enqueue 한다 (2026-05-16 신설, 2026-05-19 cafe24 주기 분리). 각 job 은 자체 retry 정책 (`attempts: 3`, exponential backoff 60s)으로 BullMQ 가 재시도하며, 실패는 큐 메트릭에 그대로 노출된다.
+
+**주기 분리 (2026-05-19 갱신)**:
+- `connected-expiry` / `pending-install-ttl` / `usage-log-prune` — **daily** `0 0 * * *` UTC. 알림 빈도·24h TTL·90d retention 의 정량적 특성이 일일 cadence 와 일치.
+- `cafe24-background-refresh` — **6h** `0 */6 * * *` UTC. refresh_token 14일 만기 사전 차단의 안전 마진 확보용 (`lastRotatedAt < now-7d` cutoff 와 짝). 자세한 근거는 [navigation §11.1 Rationale](../2-navigation/4-integration.md#cafe24-background-refresh-7일-임계--6h-cron-2026-05-19-갱신) 참조.
 
 | Job name | Scheduler id | 역할 |
 | --- | --- | --- |
 | `connected-expiry` | `connected-expiry-daily` | `status NOT IN (expired, error, pending_install) AND token_expires_at < now+Δ` 행 처리. `remain ≤ 7d`/`≤ 3d` 임계는 알림만 (status 변경 없음). `remain ≤ 0d` 분기: **(2026-05-18 갱신)** `service_type='cafe24'` AND `credentials.refresh_token` 존재 행은 `cafe24-token-refresh` 큐 enqueue (jobId dedup) + 알림 — scanner 가 직접 status 변경하지 않고 worker (`Cafe24TokenRefreshProcessor`) 가 refresh 성공 시 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 로 전이. refresh_token 없는 provider 는 여전히 `status=expired, status_reason='token_expired'` + 알림. **(2026-05-16 정책 유지)** worker 의 refresh 실패 분기: `invalid_grant` → `error(auth_failed)`, transport 3회 실패 → `error(network)` — 옛 `expired(refresh_failed)` 분기 폐기 (REQ HIGH-2). |
 | `pending-install-ttl` | `pending-install-ttl-daily` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` 행을 `expired(install_timeout) + install_token=NULL` 로 전이 (Cafe24 Private 한정). TTL 기준은 V044 의 `install_token_issued_at` 으로 — 재사용 시 토큰 재발급 시점에 갱신되어 조기 만료 회귀를 막는다. NULL 인 V044 이전 행은 `created_at` fallback. |
 | `usage-log-prune` | `usage-log-prune-daily` | `integration_usage_log` 90일 보존 외 행 삭제 |
-| `cafe24-background-refresh` | `cafe24-background-refresh-daily` | **(2026-05-16 신규)** `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-10d OR last_rotated_at IS NULL)` 행을 `cafe24-token-refresh` 큐 (jobId=integrationId dedup) 로 enqueue. enqueuer 역할만 — 실제 refresh 는 큐의 worker (`Cafe24TokenRefreshProcessor`) 수행. 14일 idle cafe24 통합의 refresh_token 자동 갱신. 임계 근거: refresh_token 14일 - 4일 안전 마진. |
+| `cafe24-background-refresh` | `cafe24-background-refresh-daily` (ID historical, 실제 주기 6h) | **(2026-05-19 갱신)** `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-7d OR last_rotated_at IS NULL)` 행을 `cafe24-token-refresh` 큐 (jobId=integrationId dedup) 로 enqueue. enqueuer 역할만 — 실제 refresh 는 큐의 worker (`Cafe24TokenRefreshProcessor`) 수행. 14일 idle cafe24 통합의 refresh_token 자동 갱신. 임계 근거: refresh_token 14일의 50% 마진 (cron 6h 와 짝). scheduler ID 는 BullMQ idempotent upsert 활용을 위해 historical 보존 (옛 daily 시절 명명). |
 
 ```mermaid
 sequenceDiagram
   participant CE as connected-expiry-daily (cron)
   participant PT as pending-install-ttl-daily (cron)
   participant UP as usage-log-prune-daily (cron)
-  participant CR as cafe24-background-refresh-daily (cron)
+  participant CR as cafe24-background-refresh (6h cron, ID historical)
   participant Q as integration-expiry queue
   participant CQ as cafe24-token-refresh queue
   participant Scan as IntegrationExpiryScanner
@@ -178,7 +182,7 @@ sequenceDiagram
   and
     CR->>Q: enqueue { name: 'cafe24-background-refresh', triggeredAt }
     Q-->>Scan: cafe24-background-refresh job
-    Scan->>PG: SELECT integration WHERE service_type='cafe24' AND status='connected' AND (last_rotated_at < now-10d OR last_rotated_at IS NULL)
+    Scan->>PG: SELECT integration WHERE service_type='cafe24' AND status='connected' AND (last_rotated_at < now-7d OR last_rotated_at IS NULL)
     loop each row
       Scan->>CQ: enqueue { name: 'refresh-cafe24-token', jobId: integrationId, source: 'background' }
     end
@@ -212,7 +216,7 @@ sequenceDiagram
 
 | 큐 | producer | consumer | payload | dedup |
 | --- | --- | --- | --- | --- |
-| `integration-expiry` | `IntegrationExpiryScanner` 의 4개 일일 스케줄러 (`connected-expiry-daily` / `pending-install-ttl-daily` / `usage-log-prune-daily` / `cafe24-background-refresh-daily`) | 동일 module 내 processor — `job.name` 으로 분기 | `{ triggeredAt: ISO }` (per-job 단일 data shape) | — |
+| `integration-expiry` | `IntegrationExpiryScanner` 의 4개 스케줄러 — daily 3개 (`connected-expiry-daily` / `pending-install-ttl-daily` / `usage-log-prune-daily`) + 6h 1개 (`cafe24-background-refresh-daily` — ID historical, 실제 주기 6h, 2026-05-19 갱신) | 동일 module 내 processor — `job.name` 으로 분기 | `{ triggeredAt: ISO }` (per-job 단일 data shape) | — |
 | `cafe24-token-refresh` (2026-05-16 신규, 2026-05-18 갱신) | `Cafe24ApiClient` proactive (API 호출 직전) + `cafe24-background-refresh` 잡 (일일 idle 스캐너) + `Cafe24ApiClient.performAuthRefresh` (401 reactive 자가 회복 경로) | `Cafe24TokenRefreshProcessor` worker (`Cafe24Module` 소속) | `{ integrationId: UUID, source: 'background' \| 'proactive' \| 'reactive_401' }` (2026-05-18: `reactive_401` 추가 — `executeWithRateLimit` 의 401 자가 회복 경로가 사용, [Rationale](../2-navigation/4-integration.md#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18) 참고) | `jobId = integrationId` — 클러스터 전체에서 같은 통합의 refresh 가 단일 worker 실행으로 모임. 보존: `removeOnComplete: { age: 60 } (proactive / background)` · `{ age: 0 } (reactive_401 — completed 잔존이 stale dedup 시키는 edge case 차단)`, `removeOnFail: { age: 300 }`. `attempts: 1` (refresh 실패는 거의 terminal — invalid_grant). `reactive_401` 은 worker 의 short-circuit guard 도 skip (empirical 401 = DB expiresAt 신뢰 불가 신호). |
 
 ### 2.3 외부

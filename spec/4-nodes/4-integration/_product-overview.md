@@ -45,7 +45,7 @@
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | INT-ST-01 | 연동 상태 Enum: `connected` / `expired` / `error(<reason>)`. `<reason>`은 `insufficient_scope`, `auth_failed`, `network`, `unknown` 등 머신 판독 가능 값 | 필수 |
-| INT-ST-02 | 매일 00:00(워크스페이스 타임존) 만료 스캐너 Cron 실행 — 임계치 7일/3일/당일에 상태·알림 생성 | 필수 |
+| INT-ST-02 | 만료 스캐너 Cron — 4개 독립 BullMQ 잡. `connected-expiry` / `pending-install-ttl` / `usage-log-prune` 은 daily 00:00 UTC (임계치 7일/3일/당일에 상태·알림 생성, 24h TTL sweep, 90d retention prune). `cafe24-background-refresh` 는 6h `0 */6 * * *` UTC — refresh_token 14일 만기 사전 차단용 (cafe24 한정, `lastRotatedAt < now-7d OR IS NULL` 대상). 자세한 분기는 [통합 §11.1](../../2-navigation/4-integration.md#111-스캐너-잡) | 필수 |
 | INT-ST-03 | 사이드바 Integration 메뉴에 주의 필요(만료 임박/에러) 개수 배지 표시, 목록 카드와 상세 헤더에 상태 배지 노출 | 필수 |
 | INT-ST-04 | 인앱 알림(종 드롭다운)에 만료 임박·재인증 실패 이벤트 표시. 사용자별 이메일 알림 토글을 옵션으로 제공 | 필수 |
 

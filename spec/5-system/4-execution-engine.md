@@ -38,9 +38,10 @@ pending → running ──┤                     └─ cancelled
 | running | cancelled | 사용자 취소 |
 | running | waiting_for_input | Form 노드 도달, 버튼이 설정된 Presentation 노드 도달, 또는 AI Agent Multi Turn 대화 턴 대기 |
 | waiting_for_input | running | 사용자 폼 제출, 버튼 클릭, 또는 AI 대화 메시지 수신/대화 종료 (실행 재개) |
+| waiting_for_input | failed | AI Agent multi-turn turn 처리 중 LLM throw (429/timeout/connection) — `handleAiTurnError` 가 [§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) shape (`port='error', status='ended'`) 으로 finalize (2026-05-19 추가) |
 | waiting_for_input | cancelled | 사용자 취소 또는 타임아웃 |
 
-> **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다.
+> **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다. `waiting_for_input → failed` 전이도 동일한 원자성 — `NodeExecution.status=FAILED` save + `Execution.status=FAILED` 가 단일 트랜잭션으로 묶이고, WS 이벤트 순서는 `NODE_FAILED` → `EXECUTION_FAILED` (2026-05-19 추가).
 
 ### 1.3 블로킹/재개 컨트랙트 (NodeHandlerOutput `status`)
 
@@ -108,14 +109,16 @@ pending → running ──┤
                     │
                     ├─ skipped
                     │
-                    └─ waiting_for_input → completed (폼 제출, 버튼 클릭, 또는 AI 대화 종료 시)
+                    └─ waiting_for_input ──┬─ completed (폼 제출, 버튼 클릭, AI 대화 정상 종료)
+                                           │
+                                           └─ failed   (AI Agent multi-turn turn 처리 중 LLM throw — 2026-05-19 추가)
 ```
 
 | 상태 | 설명 |
 |------|------|
 | `pending` | 실행 대기 (선행 노드 완료 대기) |
 | `running` | 실행 중 |
-| `waiting_for_input` | 사용자 입력 대기 중 — Form 노드, 버튼이 설정된 Presentation 노드, 또는 AI Agent Multi Turn 대화 입력 대기 |
+| `waiting_for_input` | 사용자 입력 대기 중 — Form 노드, 버튼이 설정된 Presentation 노드, 또는 AI Agent Multi Turn 대화 입력 대기. turn 처리 중 LLM throw (429/timeout/connection) 시 `failed` 로 전이 (구현: `handleAiTurnError` — spec/4-nodes/3-ai/1-ai-agent.md §7.9 shape 으로 finalize) |
 | `completed` | 정상 완료 |
 | `failed` | 실행 실패 |
 | `skipped` | 건너뜀 (노드 비활성, Skip Node 정책, 조건 분기 미선택) |
@@ -893,6 +896,18 @@ engine.runNode
 Engine raw config exposure 결정의 배경·근거. memory/ 에 남아있던 작업 메모를 inline 흡수한 것이며, 폐기된 대안과 1회성 분석 자료는 `plan/complete/archive/from-memory/` 를 참조.
 
 _원본 메모: memory/engine-raw-config-decision.md_
+
+### `waiting_for_input → failed` 전이 추가 (2026-05-19)
+
+옛 정책은 `waiting_for_input` 종료를 `running` 또는 `cancelled` 로만 정의했다. AI Agent multi-turn 의 turn 처리가 LLM throw (429 / timeout / connection) 로 종결될 때, 엔진의 `handleAiTurnError` → `finalizeAiNode('FAILED')` 가 직접 Execution 을 `failed` 로 전이시켜야 spec [§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) 의 `port='error', status='ended'` shape 으로 정상 finalize 된다.
+
+**배경 회귀**: 본 전이 누락 시 `handleAiMessageTurn` 의 throw 가 `waitForAiConversation` 의 while loop 를 빠져나가지 못해 `finalizeAiNode` 호출 자체가 누락 — NodeExecution.status 는 WAITING_FOR_INPUT 으로 영구 잔류하고 Execution 만 `runExecution` top-level catch 로 FAILED 가 된다. 결과적으로 frontend 가 헤더 "실패" + 노드 "Waiting" 의 모순 상태를 표시 (운영 보고 2026-05-19, PR #209 로 해소).
+
+**대안 검토**:
+- (기각) `running → failed` 만 허용하고 WFI 에서 throw 시 먼저 `WFI → running` 후 `running → failed` 의 두 단계 전이. 두 트랜잭션 분리로 단일 원자성이 깨져 더 복잡.
+- (채택) 직접 `WFI → failed` 단일 전이 + NodeExecution.status=FAILED save + `NODE_FAILED` → `EXECUTION_FAILED` WS 이벤트 순서. 단일 트랜잭션 commit 으로 §1.1 의 기존 원자성 정책과 동일.
+
+**Refs**: PR #209 (`ai-agent-turn-fail-finalize`), `state-machine.ts` `ALLOWED_TRANSITIONS`.
 
 ### Engine Raw Config Exposure — 완료 메모
 
