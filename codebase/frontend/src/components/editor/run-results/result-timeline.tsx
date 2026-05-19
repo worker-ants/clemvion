@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronDown,
   Workflow,
+  Wrench,
 } from "lucide-react";
 import { getCategoryColor } from "@/lib/node-definitions";
 import type {
@@ -18,6 +19,8 @@ import type {
 } from "@/lib/stores/execution-store";
 import { ConversationTimelineItem } from "./conversation-timeline-item";
 import { parseHistoryMessages } from "./conversation-utils";
+import { groupToolCallItems } from "@/lib/conversation/conversation-utils";
+import { cn } from "@/lib/utils/cn";
 import { formatDuration } from "./utils";
 import { isConversationOutput } from "./output-shape";
 import {
@@ -229,19 +232,89 @@ function TimelineRow({
         <StatusIcon status={result.status} />
       </button>
 
-      {/* Multi-turn conversation items (only for AI agent rows, not card headers). */}
+      {/* Multi-turn conversation items (only for AI agent rows, not card headers).
+          spec/conventions/conversation-thread.md §9.6 "적용 surface" 표의
+          2번째 행 — `ResultTimeline` 도 conversation Preview 와 동일한
+          `groupToolCallItems` 결과를 사용해 blank intermediate assistant 를
+          `🤖 AI · 🔧 N개 도구 호출` 한 줄 parent row 로 표시하고, 후행 tool
+          row 들을 indented children 으로 nest 한다 (Inv-5). */}
       {!isCardHeader && isExpanded && items.length > 0 && (
         <div className="border-l-2 border-[hsl(var(--border))] ml-5 mb-1">
-          {items.map((item, idx) => (
-            <ConversationTimelineItem
-              key={`${rowId}-conv-${idx}`}
-              item={item}
-              isSelected={
-                isSelected && ctx.selectedConversationItemIndex === idx
+          {(() => {
+            const { claimedToolIndices, childrenByParent } =
+              groupToolCallItems(items);
+            return items.map((item, idx) => {
+              if (item.type === "tool" && claimedToolIndices.has(idx)) {
+                return null;
               }
-              onClick={() => ctx.handleConversationItemClick(rowId, idx)}
-            />
-          ))}
+              const childIndices = childrenByParent.get(idx);
+              const isParent =
+                childIndices !== undefined && item.type === "assistant";
+              if (isParent) {
+                const toolCallCount =
+                  item.assistantToolCalls?.length ?? childIndices.length;
+                const parentSelected =
+                  isSelected && ctx.selectedConversationItemIndex === idx;
+                return (
+                  <div key={`${rowId}-conv-${idx}-group`}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        ctx.handleConversationItemClick(rowId, idx)
+                      }
+                      className={cn(
+                        "flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-xs",
+                        "hover:bg-[hsl(var(--accent))]",
+                        parentSelected && "bg-[hsl(var(--accent))]",
+                      )}
+                    >
+                      <span className="shrink-0 text-[10px]">🤖</span>
+                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        AI
+                      </span>
+                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        ·
+                      </span>
+                      <Wrench
+                        size={10}
+                        className="text-[hsl(var(--muted-foreground))]"
+                      />
+                      <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                        {toolCallCount}개 도구 호출
+                      </span>
+                    </button>
+                    {childIndices.length > 0 && (
+                      <div className="ml-3 border-l border-[hsl(var(--border))] pl-2">
+                        {childIndices.map((ci) => (
+                          <ConversationTimelineItem
+                            key={`${rowId}-conv-${ci}`}
+                            item={items[ci]}
+                            isSelected={
+                              isSelected &&
+                              ctx.selectedConversationItemIndex === ci
+                            }
+                            onClick={() =>
+                              ctx.handleConversationItemClick(rowId, ci)
+                            }
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <ConversationTimelineItem
+                  key={`${rowId}-conv-${idx}`}
+                  item={item}
+                  isSelected={
+                    isSelected && ctx.selectedConversationItemIndex === idx
+                  }
+                  onClick={() => ctx.handleConversationItemClick(rowId, idx)}
+                />
+              );
+            });
+          })()}
         </div>
       )}
     </>
