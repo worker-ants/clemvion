@@ -14,11 +14,19 @@ export interface ButtonDef {
   style?: "primary" | "secondary" | "outline" | "danger";
 }
 
-/** Reusable button list editor with manual up/down reordering. */
+/**
+ * Reusable button list editor with manual up/down reordering.
+ *
+ * `maxButtons` default 5 mirrors backend `MAX_BUTTONS_PER_NODE` and
+ * spec/4-nodes/6-presentation/0-common.md §1.1 "최대 버튼 수: 노드당 5개".
+ * Override per-call only when the surrounding context provides additional
+ * capacity (e.g., carousel itemButtons UI also stays at 5; only the visual
+ * presentation combines global+item = 10 for a single item).
+ */
 export function ButtonListEditor({
   buttons,
   onChange,
-  maxButtons = 10,
+  maxButtons = 5,
 }: {
   buttons: ButtonDef[];
   onChange: (buttons: ButtonDef[]) => void;

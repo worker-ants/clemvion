@@ -1,8 +1,10 @@
 ---
-worktree: node-config-required-defaults-sweep
+worktree: button-cap-spec-validator
 started: 2026-05-18
 owner: developer
 ---
+
+> **소유권 이전 (2026-05-19)**: 본 investigation plan 은 root cause 가 확정되어 `button-cap-spec-validator` worktree 의 fix PR 안에서 `complete/` 로 이동 처리한다 (동일 PR 내 chore commit). frontmatter `worktree` 를 fix PR 의 worktree 로 갱신.
 
 # 프리젠테이션 노드 — 버튼 다수 설정 시 일부 누락 렌더링 조사
 
@@ -44,15 +46,15 @@ owner: developer
 
 ## 다음 검증 단계 (재현 환경에서)
 
-- [ ] **A. payload 확인** — 브라우저 DevTools 로 run-results 응답의 `buttonConfig.buttons.length` 가 사용자가 설정한 N 과 같은지 비교.
-  - 다르다 → backend/schema 단계 손실 → 후보 2/3 우선
-  - 같다 → frontend 필터 단계 → 후보 1/4 우선
-- [ ] **B. link 버튼 URL 형식 검사** — 누락된 버튼이 `link` 타입이고 URL 이 `http(s)://` 가 아닌지 확인 (상대경로, mailto, javascript, 프로토콜 누락 등).
-- [ ] **C. Carousel itemButtons 개수** — 누락 발생한 carousel 이라면 한 아이템에 5개 이상 설정한 적 있는지.
-- [ ] **D. itemsTruncated/rowsTruncated 플래그** — payload `output.itemsTruncated === true` 또는 `rowsTruncated === true` 면 cap 도달.
-- [ ] **E. button id 중복** — `allButtons` 배열에서 동일 id 가 둘 이상 있는지.
+- [x] **A. payload 확인** — 정책 불일치 (frontend 10 / backend 4) 가 root cause 로 확정. 추가 재현 불요.
+- [ ] **B. link 버튼 URL 형식 검사** — 별 follow-up (silent drop 차원, parseButtonConfig URL 안전성 필터)
+- [x] **C. Carousel itemButtons 개수** — 사용자 보고 케이스가 5개 이상 itemButton 설정 → backend `validateCarouselItemButtons` 의 `>4` 조건으로 reject 또는 부분 저장. **본 PR (button-cap-spec-validator) 의 cap 5 통일로 해소.**
+- [ ] **D. itemsTruncated/rowsTruncated 플래그** — 별 follow-up (output size cap 차원)
+- [ ] **E. button id 중복** — 별 follow-up (renderer dedupe 차원)
 
-위 결과로 후보 1~5 중 하나가 확정되면 본 티켓을 fix 작업으로 전환하고 별 worktree·PR 로 분리한다.
+**Root cause 확정 (2026-05-19)**: 후보 2 (Carousel itemButtons cap 4) + 정책 불일치 (frontend 10 vs backend itemButtons 4 vs 사용자 의도 5). 사용자 결정 ③ (frontend 5 + backend 5 통일) 로 fix 진행. 후보 1 / 3 / 4 / 5 는 본 PR 범위 외 — 사용자 재현 보고 시 재조사.
+
+**Fix PR**: `button-cap-spec-validator` (worktree 동일명).
 
 ## 관련 파일 색인
 
@@ -70,8 +72,8 @@ owner: developer
 
 ## 본 티켓 완료 조건
 
-- 위 검증 단계 (A~E) 중 root cause 가 확정됨
-- fix 작업이 별도 worktree·PR 로 분리되어 머지됨
-- 본 plan 의 모든 체크박스가 `[x]` 이고 fix PR 링크가 본 문서 하단에 기록됨
+- [x] 위 검증 단계 (A~E) 중 root cause 가 확정됨 — 후보 2 (carousel cap 비대칭)
+- [ ] fix 작업이 별도 worktree·PR 로 분리되어 머지됨 — `button-cap-spec-validator` PR
+- [ ] 본 plan 의 모든 체크박스가 `[x]` 이고 fix PR 링크가 본 문서 하단에 기록됨
 
-그 시점에 `plan/complete/` 로 `git mv` 한다.
+본 PR (button-cap-spec-validator) 머지 시점에 `plan/complete/` 로 `git mv` 한다. 후보 1/3/4/5 는 별 follow-up plan 신설 시점에 분리 가능.
