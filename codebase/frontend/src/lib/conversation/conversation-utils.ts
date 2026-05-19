@@ -535,3 +535,117 @@ export function parseHistoryMessages(
     metaModel,
   });
 }
+
+/**
+ * `waiting_for_input.conversationThread.turns` snapshot 을 store 에 적용할 때
+ * 사라지는 **live timeline 항목** 을 보존한다. spec/conventions/conversation-
+ * thread.md §1.1 — `includeToolTurns: false` (default) 이면 `ai_tool` 턴과
+ * tool 호출만 있는 intermediate `ai_assistant` 턴이 thread 에 push 되지 않는다.
+ * thread 가 LLM context 효율을 위해 lean 한 것은 의도된 설계이지만, 이를
+ * 그대로 UI timeline 의 1차 소스로 쓰면 직전 `ai_message` snapshot 으로 그렸던
+ * 🔧 tool row 와 🤖 + ToolCallBadge intermediate assistant row 가 통째로
+ * 사라져 사용자가 도구 호출 사실을 잃는다 (PR #206 이후 발견된 회귀).
+ *
+ * 본 헬퍼는 thread 기반 신규 items 에서 누락된 다음 두 종류의 prev 항목을
+ * 같은 turnIndex 의 **다음** thread item 직전 자리에 끼워넣는다:
+ *
+ *   1. `type: "tool"` 이고 `toolCallId` 가 thread items 의 동일 id 와
+ *      겹치지 않는 항목 (실행 시간 동안 `tool_call_started`/`_completed` 가
+ *      `upsertToolItem` 으로 store 에 누적시킨 row).
+ *   2. `type: "assistant"` + `assistantToolCalls?.length > 0` 이고 그 안의
+ *      어느 toolCall id 도 thread items 의 tool/assistant 에 등장하지 않는
+ *      항목 (intermediate "🤖 + ToolCallBadge" row).
+ *
+ * 삽입 위치는 동일 `turnIndex` 의 첫 thread item 직전 (해당 turn 의 어떤
+ * 항목도 없다면 배열 끝). orphan 들 간 상대 순서는 prev 의 순서를 유지한다.
+ *
+ * 비고: 신규 thread items 가 같은 toolCallId 를 이미 가지고 있으면
+ * (`includeToolTurns: true` 인 워크플로) merge 는 no-op 으로 작동한다.
+ */
+export function mergeOrphanToolItems(
+  threadItems: ConversationItem[],
+  prev: ConversationItem[],
+): ConversationItem[] {
+  if (prev.length === 0) return threadItems;
+
+  // Collect dedup keys from `threadItems`:
+  //   - `knownToolCallIds`: toolCallIds appearing on thread tool items or on
+  //     thread assistantToolCalls[].id (id is dropped by the converter for
+  //     forward-compat, so this set is usually populated only from tool items).
+  //   - `turnsWithIntermediateAssistant`: turnIndexes where the thread
+  //     already carries an assistant with toolCalls. With `includeToolTurns:
+  //     true` (spec §1.1) thread enumerates all intermediate assistants
+  //     itself; merging the same turn's prev intermediate assistant would
+  //     double-render the row.
+  const knownToolCallIds = new Set<string>();
+  const turnsWithIntermediateAssistant = new Set<number>();
+  for (const it of threadItems) {
+    if (it.type === "tool" && it.toolCallId) {
+      knownToolCallIds.add(it.toolCallId);
+      continue;
+    }
+    if (it.type === "assistant" && it.assistantToolCalls?.length) {
+      turnsWithIntermediateAssistant.add(it.turnIndex);
+      for (const tc of it.assistantToolCalls) {
+        const id = (tc as { id?: string }).id;
+        if (id) knownToolCallIds.add(id);
+      }
+    }
+  }
+
+  // Find orphans in `prev` (relative order preserved by filter).
+  const orphans: ConversationItem[] = [];
+  for (const it of prev) {
+    if (it.type === "tool") {
+      if (it.toolCallId && !knownToolCallIds.has(it.toolCallId)) {
+        orphans.push(it);
+      }
+      continue;
+    }
+    if (it.type === "assistant" && it.assistantToolCalls?.length) {
+      // intermediate assistant: skip when the thread itself already enumerates
+      // intermediate assistants at this turnIndex (includeToolTurns: true).
+      if (turnsWithIntermediateAssistant.has(it.turnIndex)) continue;
+      // Heuristic: treat blank/whitespace content as the canonical
+      // "tool-call only" shape. The converter drops `id` from
+      // `assistantToolCalls`, so a precise toolCallId match isn't possible —
+      // covering the common LLM provider behaviour (no/blank text alongside
+      // tool_use) is acceptable; explicit thinking text alongside tools is
+      // rare and stays on the messages-snapshot view in the debug tabs.
+      const blank =
+        typeof it.content !== "string" || it.content.trim() === "";
+      if (blank) orphans.push(it);
+    }
+  }
+  if (orphans.length === 0) return threadItems;
+
+  // Insertion policy: place each orphan **right before** the first thread
+  // assistant of the same `turnIndex` that looks like a "final" answer
+  // (content-bearing, no toolCalls). If the turn has no final assistant yet
+  // (still mid-execution), append after the last item with the same
+  // turnIndex so multi-turn ordering stays stable.
+  const isFinalAssistant = (it: ConversationItem) =>
+    it.type === "assistant" &&
+    (!it.assistantToolCalls || it.assistantToolCalls.length === 0) &&
+    typeof it.content === "string" &&
+    it.content.trim() !== "";
+  const result: ConversationItem[] = [...threadItems];
+  for (const orphan of orphans) {
+    let insertAt = result.length;
+    let lastSameTurnIdx = -1;
+    for (let i = 0; i < result.length; i++) {
+      const it = result[i];
+      if (it.turnIndex !== orphan.turnIndex) continue;
+      lastSameTurnIdx = i;
+      if (isFinalAssistant(it)) {
+        insertAt = i;
+        break;
+      }
+    }
+    if (insertAt === result.length && lastSameTurnIdx >= 0) {
+      insertAt = lastSameTurnIdx + 1;
+    }
+    result.splice(insertAt, 0, orphan);
+  }
+  return result;
+}
