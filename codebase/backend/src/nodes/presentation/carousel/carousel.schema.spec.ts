@@ -194,8 +194,24 @@ describe('validateCarouselConfig (imperative)', () => {
     );
   });
 
-  it('caps per-item buttons at 4 in static mode', () => {
-    const tooMany = Array.from({ length: 5 }, (_, i) => ({
+  // cap 5 — 2026-05-19 정준화 (spec/4-nodes/6-presentation/0-common.md §Rationale).
+  it('allows exactly 5 per-item buttons in static mode', () => {
+    const fiveButtons = Array.from({ length: 5 }, (_, i) => ({
+      id: `b${i}`,
+      label: `B${i}`,
+      type: 'port',
+    }));
+    const errors = validateCarouselConfig({
+      mode: 'static',
+      items: [{ title: 'Slide', buttons: fiveButtons }],
+    });
+    expect(
+      errors.some((e) => e.includes('maximum') && e.includes('per item')),
+    ).toBe(false);
+  });
+
+  it('caps per-item buttons at 5 in static mode', () => {
+    const tooMany = Array.from({ length: 6 }, (_, i) => ({
       id: `b${i}`,
       label: `B${i}`,
       type: 'port',
@@ -204,7 +220,7 @@ describe('validateCarouselConfig (imperative)', () => {
       mode: 'static',
       items: [{ title: 'Slide', buttons: tooMany }],
     });
-    expect(errors).toContain('items[0]: maximum 4 buttons per item');
+    expect(errors).toContain('items[0]: maximum 5 buttons per item');
   });
 
   it('rejects reserved separator "__item_" in per-item button id', () => {
