@@ -2,6 +2,7 @@ import { Cafe24TokenRefreshProcessor } from './cafe24-token-refresh.processor';
 import type { Integration } from '../../../modules/integrations/entities/integration.entity';
 import type { Job } from 'bullmq';
 import type { Cafe24RefreshJobData } from '../../../modules/integrations/cafe24-token-refresh.constants';
+import { makeFakeJwt } from '../../../modules/integrations/__test-utils__/make-fake-jwt';
 
 describe('Cafe24TokenRefreshProcessor', () => {
   // W-40 — fake timer 로 wall clock 고정. processor 내부 `Date.now()` 와
@@ -112,6 +113,29 @@ describe('Cafe24TokenRefreshProcessor', () => {
       expect(cafe24ApiClient.refreshAccessToken).not.toHaveBeenCalled();
     },
   );
+
+  // 2026-05-19 — resolveTokenExpiry 가 JWT exp 를 최우선으로 쓰므로,
+  // tokenExpiresAt 이 TZ 버그로 미래 값(+9h)이어도 JWT exp 가 과거면
+  // proactive short-circuit 이 발동하지 않아야 한다.
+  it('proactive source — tokenExpiresAt 이 미래(TZ 버그)이어도 JWT exp 가 과거면 short-circuit 없이 refresh', async () => {
+    const expiredJwt = makeFakeJwt({
+      exp: Math.floor((NOW_MS - 5 * 60 * 1000) / 1000), // 5분 전 만료
+    });
+    integrationRepository.findOne.mockResolvedValue(
+      makeIntegration({
+        tokenExpiresAt: new Date(NOW_MS + 9 * 60 * 60 * 1000), // +9h (TZ 버그 잔존값)
+        credentials: {
+          mall_id: 'shop',
+          refresh_token: 'r',
+          access_token: expiredJwt,
+        },
+      }),
+    );
+    await processor.process(
+      makeJob({ integrationId: 'int-1', source: 'proactive' }),
+    );
+    expect(cafe24ApiClient.refreshAccessToken).toHaveBeenCalledTimes(1);
+  });
 
   // 2026-05-18 — source='reactive_401' 은 short-circuit guard 를 skip 하고
   // 항상 refresh 를 시도해야 한다. caller (executeWithRateLimit 의 401 자가
