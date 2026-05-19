@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-19T13:31:08.126141",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=Cafe24 API 호출 시 access_token 유효시간 확인·갱신 로그 보강 — ensureFreshToken / refreshAccessToken / executeWithRateLimit 401 자가회복 경로에 운영 진단용 log/debug 추가. token / refresh_token 값은 노출하지 않고 integrationId / mall_id / ttlSec / source 라벨만 포함. 변경 대상: codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts. 신규 spec / 식별자 없음. 기존 sanitize 패턴 유지. worktree: cafe24-token-lifecycle-logs-196308. plan: plan/in-progress/cafe24-token-lifecycle-logs.md.)",
+  "target_path": "Cafe24 API 호출 시 access_token 유효시간 확인·갱신 로그 보강 — ensureFreshToken / refreshAccessToken / executeWithRateLimit 401 자가회복 경로에 운영 진단용 log/debug 추가. token / refresh_token 값은 노출하지 않고 integrationId / mall_id / ttlSec / source 라벨만 포함. 변경 대상: codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts. 신규 spec / 식별자 없음. 기존 sanitize 패턴 유지. worktree: cafe24-token-lifecycle-logs-196308. plan: plan/in-progress/cafe24-token-lifecycle-logs.md.",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
