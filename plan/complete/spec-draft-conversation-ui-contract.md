@@ -235,11 +235,11 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 
 ## 7. 후속 정리 (별 작업)
 
-| 항목 | 작업 |
-| --- | --- |
-| W-3 | `plan/in-progress/ai-agent-tool-connection-rewrite.md` 의 stale worktree 참조 (`conversation-thread-e509c5`) 갱신/삭제 |
-| W-4 | PR #214 머지 후 §9.10 표의 CT-S1 ~ CT-S7 중 이미 구현된 케이스 "기존 테스트로 충족" 표시 |
-| (W-1 follow-up) | 본 PR 머지 후 `spec/3-workflow-editor/3-execution.md §10.8` 에 §9.7 cross-ref 보강 |
+| 항목 | 작업 | 상태 |
+| --- | --- | --- |
+| W-3 | `plan/in-progress/ai-agent-tool-connection-rewrite.md` 의 stale worktree 참조 (`conversation-thread-e509c5`) 갱신/삭제 | ✅ 2026-05-20 — "(해소됨, 2026-05)" 마커로 갱신, worktree 참조 제거 |
+| W-4 | PR #214 머지 후 §9.10 표의 CT-S1 ~ CT-S7 중 이미 구현된 케이스 "기존 테스트로 충족" 표시 | ✅ 2026-05-20 — §9.10 에 "구현 상태" 표 추가 (CT-S1 ~ CT-S8 모두 충족, 1차 매핑 명시) |
+| (W-1 follow-up) | 본 PR 머지 후 `spec/3-workflow-editor/3-execution.md §10.8` 에 §9.7 cross-ref 보강 | ✅ 2026-05-20 — §10.8 라이프사이클 표 다음에 §9.7 cross-ref paragraph 추가 |
 
 ## Rationale
 
