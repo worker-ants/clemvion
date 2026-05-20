@@ -55,8 +55,8 @@ switchValue: { requiredWhen: { field: 'mode', notEquals: 'expression' } }
 - [x] consistency-check BLOCK NO (09_26_22 — WARNING 3 모두 fix)
 - [x] tests + lint + typecheck (backend 89 pass, frontend 14 pass — +1 신규 케이스)
 - [x] /ai-review (LOW, Critical 0, WARNING 6 모두 fix — review/code/2026/05/19/09_38_26)
-- [ ] PR merge (#204)
-- [ ] `git mv plan/in-progress/requiredwhen-dsl-whitelist.md plan/complete/` (동일 PR chore commit)
+- [x] PR merge (#204, 2026-05-21)
+- [x] `git mv plan/in-progress/requiredwhen-dsl-whitelist.md plan/complete/` (PR #204 가 이미 merge 되어 별도 chore commit 으로 처리)
 
 ## 관련 문서
 
