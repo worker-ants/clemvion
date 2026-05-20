@@ -17,23 +17,23 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `order_count` | 주문 개수 조회 | Retrieve a count of orders | GET | `orders/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-orders) |
 | `order_status_update_multiple` | 주문 상태 일괄 변경 | Update status for multiple orders | PUT | `orders/status` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-status-for-multiple-orders) |
 | `order_status_update` | 주문 상태 변경 | Update an order status | PUT | `orders/{order_id}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-status) |
-| `order_autocalculation_delete` | 주문 자동 계산 해제 | Remove auto calculation setting of an order | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#remove-auto-calculation-setting-of-an-order) |
-| `order_buyer_get` | 주문자 정보 조회 | Retrieve customer details of an order | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-customer-details-of-an-order) |
-| `order_buyer_history_list` | 주문자 정보 변경 이력 | Retrieve a list of customer history of an order | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-customer-history-of-an-order) |
-| `order_cancellation_create` | 주문 취소 생성 | Create an order cancellation | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-cancellation) |
-| `order_cancellation_update` | 주문 취소 상세 변경 | Change cancellation details | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#change-cancellation-details) |
-| `order_completions_complete` | PG 결제 후 주문 완료 | Complete an order after PG payment | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#complete-an-order-after-pg-payment) |
-| `order_exchange_create` | 주문 교환 생성 | Create an order exchange | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-exchange) |
-| `order_exchange_update` | 주문 교환 수정 | Update an order exchange | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-exchange) |
-| `order_exchangerequests_reject` | 교환 요청 반려 | Reject an exchange request | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#reject-an-exchange-request) |
-| `order_items_create` | 주문 상품 추가 | Create an order item | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-item) |
-| `order_items_update` | 주문 상품 수정 | Update an order item | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-item) |
-| `order_items_labels_get` | 주문 상품 라벨 조회 | Retrieve an order label | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-order-label) |
-| `order_items_labels_create` | 주문 상품 라벨 생성 | Create an order label | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-label) |
-| `order_items_labels_update` | 주문 상품 라벨 수정 | Update an order label | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-label) |
-| `order_items_labels_delete` | 주문 상품 라벨 삭제 | Delete an order label | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-an-order-label) |
-| `order_items_options_create` | 주문 상품 옵션 생성 | Create order item options | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-order-item-options) |
-| `order_items_options_update` | 주문 상품 옵션 수정 | Edit order item options | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#edit-order-item-options) |
+| `order_autocalculation_delete` | 주문 자동 계산 해제 | Remove auto calculation setting of an order | DELETE | `orders/{order_id}/autocalculation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#remove-auto-calculation-setting-of-an-order) |
+| `order_buyer_get` | 주문자 정보 조회 | Retrieve customer details of an order | GET | `orders/{order_id}/buyer` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-customer-details-of-an-order) |
+| `order_buyer_history_list` | 주문자 정보 변경 이력 | Retrieve a list of customer history of an order | GET | `orders/{order_id}/buyer/history` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-customer-history-of-an-order) |
+| `order_cancellation_create` | 주문 취소 생성 | Create an order cancellation | POST | `orders/{order_id}/cancellation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-cancellation) |
+| `order_cancellation_update` | 주문 취소 상세 변경 | Change cancellation details | PUT | `orders/{order_id}/cancellation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#change-cancellation-details) |
+| `order_completions_complete` | PG 결제 후 주문 완료 | Complete an order after PG payment | POST | `orders/{order_id}/completions` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#complete-an-order-after-pg-payment) |
+| `order_exchange_create` | 주문 교환 생성 | Create an order exchange | POST | `orders/{order_id}/exchange` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-exchange) |
+| `order_exchange_update` | 주문 교환 수정 | Update an order exchange | PUT | `orders/{order_id}/exchange` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-exchange) |
+| `order_exchangerequests_reject` | 교환 요청 반려 | Reject an exchange request | PUT | `orders/{order_id}/exchangerequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#reject-an-exchange-request) |
+| `order_items_create` | 주문 상품 추가 | Create an order item | POST | `orders/{order_id}/items` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-item) |
+| `order_items_update` | 주문 상품 수정 | Update an order item | PUT | `orders/{order_id}/items` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-item) |
+| `order_items_labels_get` | 주문 상품 라벨 조회 | Retrieve an order label | GET | `orders/{order_id}/items/labels` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-order-label) |
+| `order_items_labels_create` | 주문 상품 라벨 생성 | Create an order label | POST | `orders/{order_id}/items/labels` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-label) |
+| `order_items_labels_update` | 주문 상품 라벨 수정 | Update an order label | PUT | `orders/{order_id}/items/labels` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-label) |
+| `order_items_labels_delete` | 주문 상품 라벨 삭제 | Delete an order label | DELETE | `orders/{order_id}/items/labels` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-an-order-label) |
+| `order_items_options_create` | 주문 상품 옵션 생성 | Create order item options | POST | `orders/{order_id}/items/options` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-order-item-options) |
+| `order_items_options_update` | 주문 상품 옵션 수정 | Edit order item options | PUT | `orders/{order_id}/items/options` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#edit-order-item-options) |
 | `order_memos_list` | 주문 메모 목록 | Retrieve a list of order memos | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-order-memos) |
 | `order_memos_update` | 주문 메모 수정 | Update an order memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-memo) |
 | `order_memos_delete` | 주문 메모 삭제 | Delete an order memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-an-order-memo) |
