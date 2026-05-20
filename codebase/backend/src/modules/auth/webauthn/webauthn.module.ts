@@ -13,12 +13,14 @@ import { UsersModule } from '../../users/users.module';
 /**
  * WebAuthn (Passkey · 보안 키) 서브모듈.
  *
- * spec/5-system/1-auth.md §1.4 / Rationale 1.4.H — WebAuthn 도메인 (entity·service)
- * 을 AuthModule 본체에서 분리해 단방향 의존성으로 정리. AuthModule 은 본 모듈을 import
- * 해서 `WebAuthnService` 를 주입받고, login 분기에서 `countCredentials()` 등을 사용.
+ * spec/5-system/1-auth.md §1.4 / Rationale 1.4.H — WebAuthn 도메인 (entity·service·DTO·
+ * controller) 을 AuthModule 본체에서 분리해 단방향 의존성으로 정리. AuthModule 은 본
+ * 모듈을 import 해서 `WebAuthnService` 를 주입받고, login 분기에서
+ * `countCredentials()` 등을 사용.
  *
- * 컨트롤러 분리(WebAuthn 엔드포인트를 `WebAuthnController` 로) 는 다음 PR — 현재는
- * `AuthController` 에 그대로 두고, 서비스만 본 모듈로 export.
+ * `WebAuthnController` 는 `AuthService.consumeChallengeToken`·`issueTokensAfterMfa`
+ * 를 사용해야 하므로 AuthModule 의 controllers 배열에 등록한다 — 순환 의존성을 피하기
+ * 위해 controller host 는 AuthModule, service/entity/DTO 만 본 모듈에 둔다.
  *
  * LoginHistoryService 는 AuthModule 과 WebAuthnModule 양쪽에 provider 로 둔다 —
  * 두 모듈이 각각 자기 인스턴스를 갖지만 INSERT-only audit log 이므로 동작 동등.

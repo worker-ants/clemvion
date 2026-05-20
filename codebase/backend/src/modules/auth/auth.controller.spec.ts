@@ -4,7 +4,6 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
 import { TotpService } from './totp.service';
-import { WebAuthnService } from './webauthn/webauthn.service';
 import { UsersService } from '../users/users.service';
 
 describe('AuthController', () => {
@@ -13,7 +12,6 @@ describe('AuthController', () => {
   let oauthService: jest.Mocked<AuthOauthService>;
   let totpService: jest.Mocked<TotpService>;
   let usersService: jest.Mocked<UsersService>;
-  let webauthnService: jest.Mocked<WebAuthnService>;
 
   const mockRes = {
     cookie: jest.fn(),
@@ -53,27 +51,12 @@ describe('AuthController', () => {
       findById: jest.fn(),
     } as unknown as jest.Mocked<UsersService>;
 
-    webauthnService = {
-      isEnabled: jest.fn().mockReturnValue(true),
-      generateRegistrationOptionsFor: jest.fn(),
-      verifyRegistration: jest.fn(),
-      generateAuthenticationOptionsForUser: jest.fn(),
-      verifyAuthentication: jest.fn(),
-      verifyRecoveryCode: jest.fn(),
-      listCredentials: jest.fn(),
-      countCredentials: jest.fn(),
-      renameCredential: jest.fn(),
-      deleteCredential: jest.fn(),
-      regenerateRecoveryCodes: jest.fn(),
-    } as unknown as jest.Mocked<WebAuthnService>;
-
     controller = new AuthController(
       authService,
       mockConfigService,
       oauthService,
       totpService,
       usersService,
-      webauthnService,
     );
   });
 
