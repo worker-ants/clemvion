@@ -53,19 +53,19 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `product_memos_delete` | 상품 메모 삭제 | Delete a product memo | DELETE | `products/{product_no}/memos/{memo_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-memo) |
 | `product_seo_get` | 상품 SEO 조회 | Retrieve a product's SEO settings | GET | `products/{product_no}/seo` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-s-seo-settings) |
 | `product_seo_update` | 상품 SEO 수정 | Update product SEO settings | PUT | `products/{product_no}/seo` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-seo-settings) |
-| `product_tags_list` | 상품 태그 목록 | Retrieve a list of a product's product tags | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-a-product-s-product-tags) |
-| `product_tags_count` | 상품 태그 개수 | Retrieve a count of a product's product tags | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-a-product-s-product-tags) |
-| `product_tags_create` | 상품 태그 생성 | Create product tags | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-product-tags) |
-| `product_tags_delete` | 상품 태그 삭제 | Delete a product tag | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-tag) |
-| `bundleproducts_list` | 묶음 상품 목록 | Retrieve a list of bundles | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-bundles) |
-| `bundleproducts_get` | 묶음 상품 단건 조회 | Retrieve a bundle | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-bundle) |
-| `bundleproducts_create` | 묶음 상품 생성 | Create a bundle | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-bundle) |
-| `bundleproducts_update` | 묶음 상품 수정 | Update a bundle | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-bundle) |
-| `bundleproducts_delete` | 묶음 상품 삭제 | Delete a bundle | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-bundle) |
-| `categories_products_count` | 카테고리 내 상품 개수 | Retrieve a count of products by category | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-products-by-category) |
-| `categories_products_add` | 카테고리에 상품 추가 | Add products to a category | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#add-products-to-a-category) |
-| `categories_products_update` | 카테고리 상품 수정 | Update a product in product category | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-product-in-product-category) |
-| `categories_products_delete` | 카테고리 상품 삭제 | Delete a product by category | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-by-category) |
+| `product_tags_list` | 상품 태그 목록 | Retrieve a list of a product's product tags | GET | `products/{product_no}/tags` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-a-product-s-product-tags) |
+| `product_tags_count` | 상품 태그 개수 | Retrieve a count of a product's product tags | GET | `products/{product_no}/tags/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-a-product-s-product-tags) |
+| `product_tags_create` | 상품 태그 생성 | Create product tags | POST | `products/{product_no}/tags` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-product-tags) |
+| `product_tags_delete` | 상품 태그 삭제 | Delete a product tag | DELETE | `products/{product_no}/tags/{tag_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-tag) |
+| `bundleproducts_list` | 묶음 상품 목록 | Retrieve a list of bundles | GET | `bundleproducts` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-bundles) |
+| `bundleproducts_get` | 묶음 상품 단건 조회 | Retrieve a bundle | GET | `bundleproducts/{product_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-bundle) |
+| `bundleproducts_create` | 묶음 상품 생성 | Create a bundle | POST | `bundleproducts` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-bundle) |
+| `bundleproducts_update` | 묶음 상품 수정 | Update a bundle | PUT | `bundleproducts/{product_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-bundle) |
+| `bundleproducts_delete` | 묶음 상품 삭제 | Delete a bundle | DELETE | `bundleproducts/{product_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-bundle) |
+| `categories_products_count` | 카테고리 내 상품 개수 | Retrieve a count of products by category | GET | `categories/{category_no}/products/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-products-by-category) |
+| `categories_products_add` | 카테고리에 상품 추가 | Add products to a category | POST | `categories/{category_no}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#add-products-to-a-category) |
+| `categories_products_update` | 카테고리 상품 수정 | Update a product in product category | PUT | `categories/{category_no}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-product-in-product-category) |
+| `categories_products_delete` | 카테고리 상품 삭제 | Delete a product by category | DELETE | `categories/{category_no}/products` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-by-category) |
 | `mains_products_list` | 메인 카테고리 상품 목록 | Retrieve a list of products in main category | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-products-in-main-category) |
 | `mains_products_count` | 메인 카테고리 상품 개수 | Retrieve a count of products in main category | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-products-in-main-category) |
 | `mains_products_set` | 메인 카테고리 상품 설정 | Set main category products | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#set-main-category-products) |
