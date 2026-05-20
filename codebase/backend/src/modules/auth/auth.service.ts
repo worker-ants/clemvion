@@ -229,7 +229,6 @@ export class AuthService {
         requires2fa: true;
         methods: Array<'webauthn' | 'totp'>;
         challengeToken: string;
-        requiresTotp?: boolean;
       }
   > {
     const user = await this.usersService.findByEmail(dto.email);
@@ -336,9 +335,6 @@ export class AuthService {
         requires2fa: true,
         methods,
         challengeToken,
-        // backward-compat: methods=='totp' 인 경우만 true. WebAuthn-only 사용자에게는 false
-        // (deprecated — spec/5-system/1-auth.md §1.4.2, 두 마이너 버전 후 제거)
-        requiresTotp: methods.includes('totp'),
       };
     }
 
