@@ -53,15 +53,17 @@ ai-review W-2 / consistency-check I-2 지적사항. node-config-required-default
   - **§8 Rationale 신설** — array-only 정준화 결정 + 3개 선택지 비교 + breaking + 스테이징 마이그레이션 skip 근거 + 6 layer 동작 명시
 - [x] `frontend backend-labels.ts` — 초기 판단 ("ko 매핑 없어 동기화 불필요") 이후 consistency-check I-2 지적으로 validator 에러 3종 ko 매핑 추가 완료 (i18n Principle 3 양방향 가드 통과)
 - [x] 본 sweep plan `node-config-required-defaults-sweep.md` 후속 follow-up 섹션에서 B 항목을 "→ send-email-to-array-only 로 분리" 로 마킹
-- [ ] consistency-check 통과
-- [ ] tests + lint + typecheck (현 시점: 66 tests pass, lint clean)
-- [ ] /ai-review
-- [ ] PR + merge
-- [ ] `git mv plan/in-progress/send-email-to-array-only.md plan/complete/`
+- [x] consistency-check 통과 — `review/consistency/2026/05/19/08_11_41/SUMMARY.md` (BLOCK: NO, 5 checker 전원 LOW, W-1/W-2/I-1/I-2/I-4 본 PR 안에서 FIXED)
+- [x] tests + lint + typecheck (PR #199 CI green)
+- [x] /ai-review — `review/code/2026/05/19/08_21_47/SUMMARY.md` (Critical 0, W-1~W-9 FIXED, follow-up commit `ad602b06`)
+- [x] PR + merge — PR #199 (2026-05-19 머지)
+- [x] `git mv plan/in-progress/send-email-to-array-only.md plan/complete/`
 
 ## 관련 문서
 
 - 원 sweep plan: [`node-config-required-defaults-sweep`](./node-config-required-defaults-sweep.md)
 - 관련 plan (병행 진행): [`loop-count-policy`](./loop-count-policy.md) (PR #192, 머지 대기)
-- ai-review 산출물: `review/code/2026/05/18/23_11_13/SUMMARY.md` W-2
-- consistency-check 산출물: `review/consistency/2026/05/18/23_26_44/SUMMARY.md` I-2
+- ai-review 산출물 (초기 sweep): `review/code/2026/05/18/23_11_13/SUMMARY.md` W-2
+- consistency-check 산출물 (초기 sweep): `review/consistency/2026/05/18/23_26_44/SUMMARY.md` I-2
+- 본 PR consistency-check: `review/consistency/2026/05/19/08_11_41/SUMMARY.md`
+- 본 PR ai-review: `review/code/2026/05/19/08_21_47/SUMMARY.md`
