@@ -23,29 +23,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   readonly Cafe24PlannedOperationEntry[]
 > = {
   store: [
-    { id: 'orders_setting_get', label: '주문 설정 조회' },
-    { id: 'orders_setting_update', label: '주문 설정 수정' },
-    { id: 'orders_status_get', label: '주문 상태 표기 조회' },
-    { id: 'orders_status_update', label: '주문 상태 표기 수정' },
-    { id: 'payment_setting_get', label: '결제 설정 조회' },
-    { id: 'payment_setting_update', label: '결제 설정 수정' },
-    {
-      id: 'paymentgateway_paymentmethods_create',
-      label: '결제대행사 결제수단 생성',
-    },
-    {
-      id: 'paymentgateway_paymentmethods_update',
-      label: '결제대행사 결제수단 수정',
-    },
-    {
-      id: 'paymentgateway_paymentmethods_delete',
-      label: '결제대행사 결제수단 삭제',
-    },
-    {
-      id: 'paymentmethods_paymentproviders_update_display',
-      label: '결제수단 노출 상태 수정',
-    },
-    { id: 'paymentservices_get', label: 'PG 설정 목록 조회' },
     { id: 'points_setting_get', label: '적립금 설정 조회' },
     { id: 'points_setting_update', label: '적립금 설정 수정' },
     { id: 'policy_get', label: '상점 프로필 조회' },
