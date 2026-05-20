@@ -31,10 +31,7 @@ export interface LoginData {
  *   methods 가 'webauthn' 포함 → WebAuthn 화면만 노출 (TOTP 입력란 비노출)
  *   methods 가 'totp' 만        → TOTP 입력 화면
  *
- * `requiresTotp` 는 deprecated backward-compat 필드. 두 마이너 버전 후 제거 예정.
- * 새 클라이언트는 `requires2fa` + `methods` 만 사용. 두 필드 충돌 시 `requires2fa` 우선.
- *
- * Swagger 측은 `oneOf: [AccessTokenDto, LoginChallengeDto]` 로 분리 표기 (백엔드 §9 follow-up).
+ * Swagger 측은 `oneOf: [AccessTokenDto, LoginChallengeDto]` 로 분리 표기.
  */
 export interface AccessTokenResponse {
   accessToken: string;
@@ -44,8 +41,6 @@ export interface TwoFactorChallengeResponse {
   requires2fa: true;
   methods: Array<"webauthn" | "totp">;
   challengeToken: string;
-  /** @deprecated — `methods` 에 'totp' 포함 시 true. 두 마이너 버전 후 제거. */
-  requiresTotp?: boolean;
 }
 
 export type LoginResponseData =

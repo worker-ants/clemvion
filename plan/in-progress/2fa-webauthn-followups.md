@@ -15,15 +15,14 @@ owner: TBD
 
 ## 작업 항목
 
-### 1. `requiresTotp` deprecated 필드 제거
+### 1. `requiresTotp` deprecated 필드 제거 — **완료**
 
-- [ ] 2 마이너 버전 경과 확인
-- [ ] `methods` 만 보는 신규 프론트엔드가 동일 배포에 포함되어 있는지 확인
-- [ ] `LoginChallengeDto.requiresTotp` 제거, `auth.service.ts login()` 에서 미발급
-- [ ] 클라이언트(`lib/api/auth.ts`) 의 deprecated 필드 분기 제거
-- [ ] spec/5-system/1-auth.md §1.4.2 의 deprecate 안내 삭제
-
-관련: `spec/5-system/1-auth.md §1.4.2` (제거 조건 두 항목)
+- [x] 2 마이너 버전 경과 확인 — 2fa-webauthn 본 PR (2026-05-18) 이후 두 마이너 경과
+- [x] `methods` 만 보는 신규 프론트엔드가 동일 배포에 포함되어 있는지 확인 — `lib/api/auth.ts` 의 `isTwoFactorChallenge()` 가 이미 `requires2fa` + `methods` 만으로 분기 (plan §9 에서 도입)
+- [x] `LoginChallengeDto.requiresTotp` 제거, `auth.service.ts login()` 에서 미발급
+- [x] 클라이언트(`lib/api/auth.ts`) 의 deprecated 필드 제거 + e2e mock 데이터 정리
+- [x] spec/5-system/1-auth.md §1.4.2 표·deprecate 안내 단락 삭제, §5 API 표·`spec/2-navigation/10-auth-flow.md` §3.2·`spec/data-flow/2-auth.md` sequence diagram 동기화
+- [x] spec Rationale 1.4.I 추가 — 제거 종결 결정 기록
 
 ### 2. 백엔드 WebAuthn e2e (`webauthn-2fa.e2e-spec.ts`)
 

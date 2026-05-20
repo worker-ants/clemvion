@@ -72,7 +72,7 @@ sequenceDiagram
     Svc-->>C: 401
   end
   alt webauthn_credential count > 0 (방식: WebAuthn)
-    Svc-->>C: 200 { requires2fa: true, methods: ['webauthn'], challengeToken, requiresTotp }
+    Svc-->>C: 200 { requires2fa: true, methods: ['webauthn'], challengeToken }
     C->>Svc: POST /api/auth/2fa/webauthn/authenticate/options { challengeToken }
     Svc-->>C: { optionsToken, publicKey }
     C->>Svc: POST /api/auth/2fa/webauthn/authenticate/verify { challengeToken, optionsToken, response }
@@ -82,7 +82,7 @@ sequenceDiagram
       Svc-->>C: 401
     end
   else two_factor_enabled (방식: TOTP)
-    Svc-->>C: 200 { requires2fa: true, methods: ['totp'], challengeToken, requiresTotp: true }
+    Svc-->>C: 200 { requires2fa: true, methods: ['totp'], challengeToken }
     C->>Svc: POST /api/auth/login/totp { challengeToken, code }
     Svc->>Svc: TotpService.verify (TOTP 또는 totp_recovery_codes)
     alt fail
@@ -96,7 +96,7 @@ sequenceDiagram
   Svc-->>C: { accessToken, refreshToken, user } + Set-Cookie
 ```
 
-응답 필드 진화: `requiresTotp` 는 deprecated 호환 필드이며 새 클라이언트는 `requires2fa` + `methods` 만 본다. 자세한 우선순위·deprecate 타임라인은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지).
+응답 필드: 클라이언트는 `requires2fa` + `methods` 만 본다 — `requires2fa=true` 이면 challenge 단계, `methods[0]` 으로 WebAuthn / TOTP 화면을 분기. 상세 분기 규칙은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지).
 
 ### 1.3 OAuth 소셜 로그인
 
