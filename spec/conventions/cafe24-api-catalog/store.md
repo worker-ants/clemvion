@@ -6,12 +6,6 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 
 > **일부 operation 별도 승인 필요** — `mall.read_store` / `mall.write_store` 자체는 일반 사용 가능하지만, 안의 일부 operation (Activitylogs, Menus, Naverpay/Kakaopay setting, Paymentgateway 관련, Financials paymentgateway) 은 카페24 본사가 별도 승인한 클라이언트만 사용할 수 있다. 해당 row 만 `restricted: operation` 으로 표기되며, 대응 backend 메타데이터의 `restrictedApproval.level='operation'` + `approvalGroup` 이 `activitylogs` / `menus` / `naverpay_setting` / `kakaopay_setting` / `pg_settings` 중 하나로 채워진다. 자매 일반 operation 의 `restricted` 컬럼은 빈칸 유지. 명단 SoT: [`cafe24-restricted-scopes.md §2`](../cafe24-restricted-scopes.md#2-operation-단위-별도-승인-store-scope-안의-일부).
 
-## Rationale
-
-설계 근거 (컬럼 정의·동기 정책·status enum) 는 [`_overview.md`](./_overview.md) 의 §2·§4·§7. 별도 승인 라벨링의 의사결정 배경은 [`cafe24-restricted-scopes.md ## Rationale`](../cafe24-restricted-scopes.md#rationale).
->
-> ※ `paymentmethods_list` / `paymentmethods_paymentproviders_list` / `paymentmethods_paymentproviders_update_display` 는 사용자 자료에 명시되지 않아 빈칸 유지. 공식 문서 재검증 후 별도 승인 대상으로 확인되면 동시 갱신.
-
 ## 표
 
 | id | 라벨 (한) | English title | method | path | scope | restricted | paginated | status | docs |
@@ -122,3 +116,9 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `taxmanager_get` | 세금 매니저 활성화 정보 | Retrieve activation information for tax manager | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-activation-information-for-tax-manager) |
 | `users_list` | 운영자 사용자 목록 | Retrieve a list of admin users | ? | ? | ? |  | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-admin-users) |
 | `users_get` | 운영자 사용자 상세 | Retrieve admin user details | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-admin-user-details) |
+
+## Rationale
+
+설계 근거 (컬럼 정의·동기 정책·status enum) 는 [`_overview.md`](./_overview.md) 의 §2·§4·§7. 별도 승인 라벨링의 의사결정 배경은 [`cafe24-restricted-scopes.md ## Rationale`](../cafe24-restricted-scopes.md#rationale).
+
+> ※ `paymentmethods_list` / `paymentmethods_paymentproviders_list` / `paymentmethods_paymentproviders_update_display` 는 사용자 자료에 명시되지 않아 빈칸 유지. 공식 문서 재검증 후 별도 승인 대상으로 확인되면 동시 갱신.

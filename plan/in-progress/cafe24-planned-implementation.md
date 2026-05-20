@@ -87,16 +87,17 @@ spec: spec/conventions/cafe24-api-catalog/{store,product,order}.md
 본 plan 의 메모리 노트 (Plan must include spec updates) 에 따라 spec 갱신을
 정식 phase 로 포함 — "외부 위임 한 줄" 처리 금지.
 
-- [ ] **C-1 fix**: `spec/conventions/cafe24-restricted-scopes.md` 32행
+- [x] **C-1 fix**: `spec/conventions/cafe24-restricted-scopes.md` 32행
   `restricted: op` → `restricted: operation`. drift-fix (2026-05-17 CHANGELOG
-  의 토큰 통일 후속). developer 권한 안 — 단순 토큰 정정.
-- [ ] **C-2 fix**: `spec/conventions/cafe24-api-catalog/store.md` 의
+  의 토큰 통일 후속). 단순 토큰 정정.
+- [x] **C-2 fix**: `spec/conventions/cafe24-api-catalog/store.md` 의
   `## Rationale` 블록 (Rationale 본문 + `> ※ paymentmethods...` 주석) 을
   `## 표` 섹션 뒤로 이동. CLAUDE.md "Rationale 은 문서 끝" 규약 정합. I-4 동시 해소.
-- [ ] **C-3 분리**: 본 plan §비-Scope 에 명시 (privacy_* 6 row 제외) — 별도 후속.
-- [ ] consistency-check 재실행 → BLOCK: NO 확인 (`/loop /consistency-check`
-  필요 없음, 빠른 재검증).
-- [ ] commit `docs(cafe24-catalog): consistency BLOCK 해소 (op→operation, store.md Rationale 이동)`
+- [x] **C-3 분리**: 본 plan §비-Scope 에 명시 (privacy_* 6 row 제외) — 별도 후속.
+- [x] text-level 재검증 (grep) — `restricted: op` 단독 토큰 잔존 0건,
+  store.md `## Rationale` 가 파일 끝 (line 120) 에 위치 확인. catalog-sync.spec
+  의 jest 실행은 backend node_modules 미설치로 Phase 1 진입 시 환경 setup 과 함께 수행.
+- [x] commit (단일 commit, 아래 phase 1 진입 전 마무리)
 
 ### Phase 1 — store resource (98 planned, privacy_* 6 row 제외 → 92 row)
 
