@@ -83,13 +83,19 @@ describe('Cafe24TokenRefreshProcessor', () => {
   // no-op job 이 60s 잔존하며 후속 add() 가 dedup → refresh 무한 회귀
   // (운영 보고 2026-05-20, mall=gehrig0301). JWT exp null 시 항상 refresh
   // 시도하여 회귀 영구 차단.
+  //
+  // NOTE: it.each 배열은 describe 평가 시점(fake timer 적용 전)에 즉시 평가된다.
+  // `makeFakeJwt({ iat: 1700000000 })` 는 `exp` 키 없이 `JSON.stringify` 하므로
+  // 실제 payload 에 `exp` 가 포함되지 않음이 보장된다 — `parseJwtExp` 가 null
+  // 을 반환하는 것이 테스트 의도. 시간 의존 fixture 는 beforeEach 또는 테스트
+  // 본문 내에서 생성하는 패턴을 유지할 것.
   it.each([
     ['opaque (비-JWT)', 'opaque-access-token-no-jwt-structure'],
     ['손상된 JWT segments', 'a.b'],
     ['payload exp 누락', makeFakeJwt({ iat: 1700000000 })],
   ])(
     'JWT exp parse 실패 (%s) — tokenExpiresAt 미래여도 short-circuit 발사 금지',
-    async (_label, accessToken) => {
+    async (_, accessToken) => {
       integrationRepository.findOne.mockResolvedValue(
         makeIntegration({
           tokenExpiresAt: new Date(NOW_MS + 9 * 60 * 60 * 1000), // +9h TZ-bug

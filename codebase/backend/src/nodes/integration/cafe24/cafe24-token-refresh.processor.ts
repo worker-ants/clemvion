@@ -35,11 +35,13 @@ import {
  *    short-circuit 판정은 **JWT `exp` claim 만** 신뢰한다 (`parseJwtExp(access_token)`).
  *    JWT exp 가 future 이면 token 이 실제로 유효함을 Cafe24 token endpoint 가
  *    서명으로 보장하는 sole source of truth. JWT exp 가 null (parse 실패 / 비-JWT
- *    / payload exp 비-숫자) 이면 short-circuit 발사 금지 — TZ-bugged
- *    `tokenExpiresAt` 폴백을 worker 가 신뢰하면 refresh 가 영원히 우회되는
- *    회귀가 있었다 (운영 보고 2026-05-20, mall=gehrig0301). `reactive_401`
- *    source (caller 가 empirical 401 을 받은 경로) 는 *어떤 expiry 정보든
- *    신뢰 불가* 신호라 short-circuit 자체를 건너뛰고 항상 refresh.
+ *    / payload exp 비-숫자) 이면 short-circuit 발사 금지 — 이전 구현인
+ *    `resolveTokenExpiry` 폴백 chain (tokenExpiresAt → credentials.expires_at)
+ *    은 TZ 모호성으로 misFuture 값을 반환해 short-circuit 이 부당 발사되는
+ *    회귀가 있었다 (운영 보고 2026-05-20, mall=gehrig0301). JWT exp null 이면
+ *    신뢰 불가 → 항상 refresh. `reactive_401` source (caller 가 empirical 401
+ *    을 받은 경로) 는 *어떤 expiry 정보든 신뢰 불가* 신호라 short-circuit 자체를
+ *    건너뛰고 항상 refresh.
  *    spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT
  *    — JWT exp 격상 (2026-05-18)" 의 후속 보강.
  * 4. `cafe24ApiClient.refreshAccessToken(fresh)` 호출. 성공 시 통합 row

@@ -1824,10 +1824,11 @@ describe('Cafe24ApiClient', () => {
         attempts: 1,
         removeOnComplete: { age: 60 },
       });
-      expect((addCall[2] as { jobId: string }).jobId).toMatch(
+      const reactiveJobId = (addCall[2] as { jobId: string }).jobId;
+      expect(reactiveJobId).toMatch(
         new RegExp(`^${integration.id}#reactive-\\d+-[a-z0-9]+$`),
       );
-      expect((addCall[2] as { jobId: string }).jobId).not.toBe(integration.id);
+      expect(reactiveJobId).not.toBe(integration.id);
 
       // retry 가 새 bearer 로 발사
       expect(fetchMock).toHaveBeenCalledTimes(2);

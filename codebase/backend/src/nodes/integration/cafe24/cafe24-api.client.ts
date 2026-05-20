@@ -49,7 +49,8 @@ export const CAFE24_SLEEP_IMPL = 'CAFE24_SLEEP_IMPL';
  *   required for rate limits). Refresh operations, by contrast, MUST be
  *   serialized cluster-wide because Cafe24 invalidates the previous
  *   refresh_token on every rotation — see `refreshViaQueue` (BullMQ
- *   `jobId = integrationId` dedup, spec §9.6 resolution).
+ *   `jobId = integrationId` dedup for proactive/background; unique jobId
+ *   + DB pessimistic_write lock for reactive_401, spec §9.6 resolution).
  * - Translate 401/403 into an atomic Integration.status transition to
  *   `error(auth_failed)` (spec §6.1).
  */
@@ -591,13 +592,20 @@ export class Cafe24ApiClient {
   /**
    * Cross-instance-safe refresh path.
    *
-   * Enqueues a refresh job with `jobId = integration.id`. BullMQ rejects
-   * duplicate jobIds while the existing job is in waiting/active state and
-   * returns the existing job reference instead, so concurrent callers
-   * (within the same pod or across pods) all wait on the same worker
-   * execution. After the worker completes, we re-read the integration row
-   * from the DB and mutate the caller's reference so the subsequent
-   * `executeWithRateLimit` sees the refreshed bearer.
+   * **proactive/background**: Enqueues with `jobId = integration.id`. BullMQ
+   * rejects duplicate jobIds while the existing job is in waiting/active state
+   * and returns the existing job reference instead, so concurrent callers
+   * (within the same pod or across pods) all wait on the same worker execution.
+   *
+   * **reactive_401**: Enqueues with a unique jobId
+   * (`${integrationId}#reactive-${Date.now()}-${rand}`) to bypass BullMQ dedup
+   * entirely — a completed proactive job with the same integration.id would
+   * otherwise be returned as-is and skip the worker. Cross-pod serialization
+   * falls back to the pessimistic_write row lock inside `refreshAccessToken`.
+   *
+   * After the worker completes, we re-read the integration row from the DB and
+   * mutate the caller's reference so the subsequent `executeWithRateLimit` sees
+   * the refreshed bearer.
    *
    * **Side-effect contract** (caller invariant): on successful return, the
    * caller's `integration.credentials.access_token` IS guaranteed to be
@@ -906,6 +914,16 @@ export class Cafe24ApiClient {
     // pod 에서 BullMQ dedup 우회로 도달하더라도 PostgreSQL row lock 이
     // serialize. lock 이 잠시 대기하므로 latency 영향은 작고, 잘못된 토큰
     // 덮어쓰기 위험을 0 으로 만든다.
+    //
+    // **cross-pod race 경계 (reactive_401 특수 케이스)**: pessimistic_write lock
+    // 은 DB write 를 직렬화하지만 `/oauth/token` HTTP 호출은 lock 범위 밖에서
+    // 이미 발사된다. 두 pod 이 동시에 reactive_401 을 처리하면 양쪽 모두
+    // Cafe24 에 HTTP 요청을 보낼 수 있고, 첫 번째 worker 가 rotate 한 후
+    // 두 번째 worker 는 stale refresh_token 으로 `invalid_grant` 를 받아
+    // `markAuthFailed` 를 발사한다. 이는 의도된 trade-off — reactive_401 이
+    // "refresh 가 영원히 안 되는" 회귀보다 "cross-pod 동시 401 시 reauth
+    // 필요"가 훨씬 더 작은 비용이다. proactive/background 는 BullMQ
+    // `jobId = integrationId` dedup 이 이 HTTP 이중 발사를 원천 차단한다.
     await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Integration);
       const fresh = await repo.findOne({
