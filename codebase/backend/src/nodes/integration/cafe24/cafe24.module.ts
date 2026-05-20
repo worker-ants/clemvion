@@ -25,16 +25,27 @@ import { IntegrationsService } from '../../../modules/integrations/integrations.
  * QueueEvents provider — Cafe24ApiClient 가 `waitUntilFinished` 로 worker
  * 완료를 대기하는 데 사용. 모듈 lifecycle 에 묶어 onApplicationShutdown 에서
  * 명시 close 한다 (Redis 커넥션 leak 방지).
+ *
+ * `redis.password` / `redis.tls` 는 운영 Redis 가 AUTH 도입할 때 다른 4개
+ * 소비자 (`app.module.ts` BullModule, `health.service.ts`, `continuation-bus
+ * .service.ts`, `cafe24-install-nonce-cache.service.ts`) 와 동일 spread
+ * 패턴으로 전달. 옵션 누락 시 본 QueueEvents 가 NOAUTH 로 끊겨 `waitUntilFinished`
+ * 가 30s timeout 으로 빠지는 회귀 차단. `redis-bullmq-env-hardening` PR 누락분.
  */
 const cafe24RefreshQueueEventsProvider: Provider = {
   provide: CAFE24_REFRESH_QUEUE_EVENTS,
-  useFactory: (config: ConfigService) =>
-    new QueueEvents(CAFE24_REFRESH_QUEUE, {
+  useFactory: (config: ConfigService) => {
+    const password = config.get<string>('redis.password');
+    const tls = config.get<boolean>('redis.tls');
+    return new QueueEvents(CAFE24_REFRESH_QUEUE, {
       connection: {
         host: config.get<string>('redis.host'),
         port: config.get<number>('redis.port'),
+        ...(password ? { password } : {}),
+        ...(tls ? { tls: {} } : {}),
       },
-    }),
+    });
+  },
   inject: [ConfigService],
 };
 
