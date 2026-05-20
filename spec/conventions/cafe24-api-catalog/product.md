@@ -40,17 +40,17 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `product_decorationimages_set` | 상품 꾸미기 이미지 설정 | Set decoration images for a product | POST | `products/{product_no}/decorationimages` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#set-decoration-images-for-a-product) |
 | `product_decorationimages_update` | 상품 꾸미기 이미지 수정 | Update product decoration images | PUT | `products/{product_no}/decorationimages` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-decoration-images) |
 | `product_decorationimages_delete` | 상품 꾸미기 이미지 삭제 | Remove a product decoration image | DELETE | `products/{product_no}/decorationimages` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#remove-a-product-decoration-image) |
-| `product_discountprice_get` | 상품 할인가 조회 | Retrieve a product discounted price | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-discounted-price) |
-| `product_hits_count` | 상품 조회수 카운트 | Retrieve a count of product views | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-product-views) |
-| `product_icons_list` | 상품 아이콘 목록 | Retrieve a list of product icons | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-product-icons) |
-| `product_icons_set` | 상품 아이콘 설정 | Set icons for a product | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#set-icons-for-a-product) |
-| `product_icons_update` | 상품 아이콘 수정 | Update product icons | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-icons) |
-| `product_icons_delete` | 상품 아이콘 삭제 | Remove a product icon | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#remove-a-product-icon) |
-| `product_memos_list` | 상품 메모 목록 | Retrieve a list of product memos | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-product-memos) |
-| `product_memos_get` | 상품 메모 단건 조회 | Retrieve a product memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-memo) |
-| `product_memos_create` | 상품 메모 생성 | Create a product memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-product-memo) |
-| `product_memos_update` | 상품 메모 수정 | Update a product memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-product-memo) |
-| `product_memos_delete` | 상품 메모 삭제 | Delete a product memo | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-memo) |
+| `product_discountprice_get` | 상품 할인가 조회 | Retrieve a product discounted price | GET | `products/{product_no}/discountprice` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-discounted-price) |
+| `product_hits_count` | 상품 조회수 카운트 | Retrieve a count of product views | GET | `products/{product_no}/hits` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-product-views) |
+| `product_icons_list` | 상품 아이콘 목록 | Retrieve a list of product icons | GET | `products/{product_no}/icons` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-product-icons) |
+| `product_icons_set` | 상품 아이콘 설정 | Set icons for a product | POST | `products/{product_no}/icons` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#set-icons-for-a-product) |
+| `product_icons_update` | 상품 아이콘 수정 | Update product icons | PUT | `products/{product_no}/icons` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-icons) |
+| `product_icons_delete` | 상품 아이콘 삭제 | Remove a product icon | DELETE | `products/{product_no}/icons/{icon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#remove-a-product-icon) |
+| `product_memos_list` | 상품 메모 목록 | Retrieve a list of product memos | GET | `products/{product_no}/memos` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-product-memos) |
+| `product_memos_get` | 상품 메모 단건 조회 | Retrieve a product memo | GET | `products/{product_no}/memos/{memo_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-memo) |
+| `product_memos_create` | 상품 메모 생성 | Create a product memo | POST | `products/{product_no}/memos` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-product-memo) |
+| `product_memos_update` | 상품 메모 수정 | Update a product memo | PUT | `products/{product_no}/memos/{memo_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-product-memo) |
+| `product_memos_delete` | 상품 메모 삭제 | Delete a product memo | DELETE | `products/{product_no}/memos/{memo_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-product-memo) |
 | `product_seo_get` | 상품 SEO 조회 | Retrieve a product's SEO settings | GET | `products/{product_no}/seo` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-product-s-seo-settings) |
 | `product_seo_update` | 상품 SEO 수정 | Update product SEO settings | PUT | `products/{product_no}/seo` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-seo-settings) |
 | `product_tags_list` | 상품 태그 목록 | Retrieve a list of a product's product tags | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-a-product-s-product-tags) |
