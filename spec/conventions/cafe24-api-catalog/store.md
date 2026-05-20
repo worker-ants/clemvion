@@ -104,18 +104,18 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `socials_naverlogin_get` | 네이버 로그인 상세 | Naver login details | GET | `socials/naverlogin` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#naver-login-details) |
 | `socials_naverlogin_update` | 네이버 로그인 수정 | Update Naver login settings | PUT | `socials/naverlogin` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-naver-login-settings) |
 | `socials_navershopping_get` | 네이버 쇼핑 설정 | Naver shopping settings | GET | `socials/navershopping` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#naver-shopping-settings) |
-| `store_accounts_list` | 상점 계좌 목록 | Retrieve a list of store bank accounts | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-store-bank-accounts) |
-| `store_dropshipping_get` | 위탁배송 설정 조회 | Retrieve dropshipping settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-dropshipping-settings) |
-| `store_dropshipping_manage` | 위탁배송 설정 관리 | Manage dropshipping settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#manage-dropshipping-settings) |
-| `store_setting_get` | 상점 보안 설정 조회 | Retrieve store security settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-store-security-settings) |
-| `store_setting_update` | 상점 보안 설정 수정 | Edit store security settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#edit-store-security-settings) |
-| `subscription_shipments_setting_list` | 정기배송 상품 목록 | Retrieve a list of subscription products | ? | ? | ? |  | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-subscription-products) |
-| `subscription_shipments_setting_create_rule` | 정기배송 결제 규칙 생성 | Create a subscription payment rule | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-subscription-payment-rule) |
-| `subscription_shipments_setting_update` | 정기배송 상품 수정 | Update subscription products | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-subscription-products) |
-| `subscription_shipments_setting_delete` | 정기배송 상품 삭제 | Delete subscription products | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-subscription-products) |
-| `taxmanager_get` | 세금 매니저 활성화 정보 | Retrieve activation information for tax manager | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-activation-information-for-tax-manager) |
-| `users_list` | 운영자 사용자 목록 | Retrieve a list of admin users | ? | ? | ? |  | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-admin-users) |
-| `users_get` | 운영자 사용자 상세 | Retrieve admin user details | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-admin-user-details) |
+| `store_accounts_list` | 상점 계좌 목록 | Retrieve a list of store bank accounts | GET | `store/accounts` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-store-bank-accounts) |
+| `store_dropshipping_get` | 위탁배송 설정 조회 | Retrieve dropshipping settings | GET | `store/dropshipping` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-dropshipping-settings) |
+| `store_dropshipping_manage` | 위탁배송 설정 관리 | Manage dropshipping settings | PUT | `store/dropshipping` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#manage-dropshipping-settings) |
+| `store_setting_get` | 상점 보안 설정 조회 | Retrieve store security settings | GET | `store/setting` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-store-security-settings) |
+| `store_setting_update` | 상점 보안 설정 수정 | Edit store security settings | PUT | `store/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#edit-store-security-settings) |
+| `subscription_shipments_setting_list` | 정기배송 상품 목록 | Retrieve a list of subscription products | GET | `subscription/shipments/setting` | read |  | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-subscription-products) |
+| `subscription_shipments_setting_create_rule` | 정기배송 결제 규칙 생성 | Create a subscription payment rule | POST | `subscription/shipments/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-subscription-payment-rule) |
+| `subscription_shipments_setting_update` | 정기배송 상품 수정 | Update subscription products | PUT | `subscription/shipments/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-subscription-products) |
+| `subscription_shipments_setting_delete` | 정기배송 상품 삭제 | Delete subscription products | DELETE | `subscription/shipments/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-subscription-products) |
+| `taxmanager_get` | 세금 매니저 활성화 정보 | Retrieve activation information for tax manager | GET | `taxmanager` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-activation-information-for-tax-manager) |
+| `users_list` | 운영자 사용자 목록 | Retrieve a list of admin users | GET | `users` | read |  | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-admin-users) |
+| `users_get` | 운영자 사용자 상세 | Retrieve admin user details | GET | `users/{user_id}` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-admin-user-details) |
 
 ## Rationale
 

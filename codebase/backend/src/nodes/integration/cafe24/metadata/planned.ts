@@ -29,31 +29,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'privacy_join_update', label: '회원가입 개인정보 정책 수정' },
     { id: 'privacy_orders_get', label: '주문 개인정보 정책 조회' },
     { id: 'privacy_orders_update', label: '주문 개인정보 정책 수정' },
-    { id: 'store_accounts_list', label: '상점 계좌 목록' },
-    { id: 'store_dropshipping_get', label: '위탁배송 설정 조회' },
-    { id: 'store_dropshipping_manage', label: '위탁배송 설정 관리' },
-    { id: 'store_setting_get', label: '상점 보안 설정 조회' },
-    { id: 'store_setting_update', label: '상점 보안 설정 수정' },
-    {
-      id: 'subscription_shipments_setting_list',
-      label: '정기배송 상품 목록',
-      paginated: true,
-    },
-    {
-      id: 'subscription_shipments_setting_create_rule',
-      label: '정기배송 결제 규칙 생성',
-    },
-    {
-      id: 'subscription_shipments_setting_update',
-      label: '정기배송 상품 수정',
-    },
-    {
-      id: 'subscription_shipments_setting_delete',
-      label: '정기배송 상품 삭제',
-    },
-    { id: 'taxmanager_get', label: '세금 매니저 활성화 정보' },
-    { id: 'users_list', label: '운영자 사용자 목록', paginated: true },
-    { id: 'users_get', label: '운영자 사용자 상세' },
   ],
   product: [
     { id: 'product_variants_get', label: '상품 품목 단건 조회' },

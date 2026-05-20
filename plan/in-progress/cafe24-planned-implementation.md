@@ -259,4 +259,19 @@ phase 안 sub-batch 사이는 skip (동일 spec 영역, 동일 정책).
 - I-1 (paginated 미검증): 각 batch 진행 중 cafe24 docs 확인 시 paginated 도
   실측 갱신.
 
-(Phase 1 진입 후 추가 결정 사항 누적 기록)
+### 2026-05-21 — Phase 1 종료 (store resource)
+
+- store 92 row (privacy_* 6 제외) supported 승격 완료. 10 batch (1-A ~ 1-J).
+- 각 batch 종료 시 catalog-sync (16) + metadata (~16) + public-meta + restricted-approval
+  + cafe24-related 5 suite 73 tests 통과 확인.
+- backend build (nest build) 통과.
+- **lint pre-existing 22 problem (3 errors, 19 warnings)** — 모두 본 PR 변경
+  파일과 무관 (sessions.controller / executions.service / llm.service /
+  node-component.interface / migrate-node-output-refs). `git diff origin/main`
+  로 sessions.controller.ts 가 동일 (변경 없음) 확인. 본 PR 의 store.ts /
+  planned.ts / catalog md 변경 자체는 lint clean. 별도 후속 plan
+  `spec-update-cafe24-catalog-drift.md` 와 함께 묶거나 본 PR 안 별 commit 으로
+  pre-existing fix 검토 — 단 본 plan §Scope 밖이므로 우선 진행 후 처리.
+- e2e 는 D-3 결정 (phase 종료 시 1회) 에 따라 Phase 4 종료 시점에 1회로 묶음.
+  Phase 1 만 e2e 돌리면 같은 인프라를 phase 마다 setup 하는 비용이 누적되므로
+  Phase 2/3/4 종료 후 누적 변경 전체에 대해 1회 수행하는 것이 효율적.
