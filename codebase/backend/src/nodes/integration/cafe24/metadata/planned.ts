@@ -23,18 +23,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   readonly Cafe24PlannedOperationEntry[]
 > = {
   store: [
-    { id: 'images_setting_get', label: '상품 이미지 크기 설정 조회' },
-    { id: 'images_setting_update', label: '상품 이미지 크기 설정 수정' },
-    { id: 'information_get', label: '상점 정책 조회' },
-    { id: 'information_update', label: '상점 정책 수정' },
-    {
-      id: 'kakaoalimtalk_profile_get',
-      label: '카카오 채널 발신자 프로필 키 조회',
-    },
-    { id: 'kakaoalimtalk_setting_get', label: '카카오 알림톡 설정 조회' },
-    { id: 'kakaoalimtalk_setting_update', label: '카카오 알림톡 설정 수정' },
-    { id: 'kakaopay_setting_get', label: '카카오페이 주문 설정 조회' },
-    { id: 'kakaopay_setting_update', label: '카카오페이 주문 설정 수정' },
     { id: 'mains_properties_setting_get', label: '메인 진열 추가 설정 조회' },
     {
       id: 'mains_properties_setting_update',
