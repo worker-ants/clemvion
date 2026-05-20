@@ -71,10 +71,10 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `paymentmethods_paymentproviders_list` | 결제수단별 제공사 목록 | Retrieve a list of providers by payment method | GET | `paymentmethods/paymentproviders` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-providers-by-payment-method) |
 | `paymentmethods_paymentproviders_update_display` | 결제수단 노출 상태 수정 | Update the display status of a payment method | PUT | `paymentmethods/paymentproviders/{payment_method_id}` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-the-display-status-of-a-payment-method) |
 | `paymentservices_get` | PG 설정 목록 조회 | Retrieve a list of PG settings | GET | `paymentservices` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-pg-settings) |
-| `points_setting_get` | 적립금 설정 조회 | Retrieve points settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-points-settings) |
-| `points_setting_update` | 적립금 설정 수정 | Update points settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-points-settings) |
-| `policy_get` | 상점 프로필 조회 | Retrieve a store profile | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-store-profile) |
-| `policy_update` | 상점 프로필 수정 | Update a store profile | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-store-profile) |
+| `points_setting_get` | 적립금 설정 조회 | Retrieve points settings | GET | `points/setting` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-points-settings) |
+| `points_setting_update` | 적립금 설정 수정 | Update points settings | PUT | `points/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-points-settings) |
+| `policy_get` | 상점 프로필 조회 | Retrieve a store profile | GET | `policy` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-store-profile) |
+| `policy_update` | 상점 프로필 수정 | Update a store profile | PUT | `policy` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-store-profile) |
 | `privacy_boards_get` | 게시판 개인정보 정책 조회 | Retrieve privacy policy for posting on board | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-privacy-policy-for-posting-on-board) |
 | `privacy_boards_update` | 게시판 개인정보 정책 수정 | Update privacy policy for posting on board | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-privacy-policy-for-posting-on-board) |
 | `privacy_join_get` | 회원가입 개인정보 정책 조회 | Retrieve privacy policy for signup | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-privacy-policy-for-signup) |

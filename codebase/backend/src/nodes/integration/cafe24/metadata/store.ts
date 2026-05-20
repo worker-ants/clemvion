@@ -870,4 +870,57 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
   },
+  // Batch 1-G — points·policy (privacy_* 6건은 본 PR §비-Scope, follow-up)
+  {
+    id: 'points_setting_get',
+    label: '적립금 설정 조회',
+    description: 'Retrieve mileage (points) settings.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'points/setting',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'points_setting_update',
+    label: '적립금 설정 수정',
+    description: 'Update mileage (points) settings.',
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'points/setting',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'policy_get',
+    label: '상점 프로필 조회',
+    description: 'Retrieve store profile (business policy/contact).',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'policy',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'policy_update',
+    label: '상점 프로필 수정',
+    description: 'Update store profile (business policy/contact).',
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'policy',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+    },
+    responseShape: 'single',
+  },
 ];

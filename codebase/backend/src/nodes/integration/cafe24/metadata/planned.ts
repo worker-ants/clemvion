@@ -23,10 +23,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   readonly Cafe24PlannedOperationEntry[]
 > = {
   store: [
-    { id: 'points_setting_get', label: '적립금 설정 조회' },
-    { id: 'points_setting_update', label: '적립금 설정 수정' },
-    { id: 'policy_get', label: '상점 프로필 조회' },
-    { id: 'policy_update', label: '상점 프로필 수정' },
     { id: 'privacy_boards_get', label: '게시판 개인정보 정책 조회' },
     { id: 'privacy_boards_update', label: '게시판 개인정보 정책 수정' },
     { id: 'privacy_join_get', label: '회원가입 개인정보 정책 조회' },
