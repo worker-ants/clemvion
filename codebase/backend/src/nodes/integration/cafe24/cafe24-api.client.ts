@@ -616,31 +616,47 @@ export class Cafe24ApiClient {
   ): Promise<void> {
     const queue = this.refreshQueue!;
     const events = this.refreshQueueEvents!;
-    // 2026-05-18 — source='reactive_401' 은 completed job 의 잔존 dedup 을
-    // 차단하기 위해 `removeOnComplete: { age: 0 }`. proactive 가 직전에
-    // completed 상태로 남아있고 (60s 잔존), reactive_401 이 같은 jobId 로
-    // add 하면 BullMQ 가 그 completed job 으로 dedup 시켜 worker 가 다시
-    // 안 도는 edge case — caller 가 empirical 401 을 받았는데도 실효적
-    // refresh 가 일어나지 않는 회귀의 마지막 차단막. waiting/active 상태
-    // dedup (cross-pod race 보호) 은 그대로 유지된다.
-    // spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료
-    // SoT — JWT exp 격상 (2026-05-18)".
-    const removeOnComplete =
-      source === 'reactive_401' ? { age: 0 } : { age: 60 };
+    // 2026-05-21 — reactive_401 만 jobId 를 unique 화하여 BullMQ 의 completed/failed
+    // job dedup 자체를 우회한다. 옛 fix (`removeOnComplete: { age: 0 }`) 는 신규
+    // job 이 생성될 때만 적용되는 옵션이라, 같은 jobId 의 기존 completed job 이
+    // Redis 에 있으면 `Queue.add()` 가 그 기존 job 참조를 그대로 반환하여 worker
+    // 가 새로 돌지 않는 회귀가 있었다 (검증: `bullmq/dist/cjs/commands/
+    // addStandardJob-9.lua:22-27` — `EXISTS jobIdKey → handleDuplicatedJob`,
+    // 신규 options 적용 없음). caller 가 empirical 401 을 받았다는 강한 신호인
+    // reactive_401 경로는 worker 가 반드시 새로 돌아야 하므로 jobId 자체를
+    // unique 하게 만들어 dedup 우회.
+    //
+    // **cross-pod serialization trade-off**: unique jobId 채택 시 두 pod 가 동시에
+    // empirical 401 을 받으면 worker 가 둘 다 돈다. 그러나 (a) caller-side `withIntegrationLock`
+    // 이 in-process 직렬화하고, (b) `refreshAccessToken` 의 `dataSource.transaction`
+    // 안 pessimistic_write row lock 이 PostgreSQL 레벨에서 직렬화하며, (c) proactive
+    // 가 정상 작동하면 reactive_401 발생 자체가 매우 드물어 cross-pod 동시 401 은
+    // 사실상 발생하지 않는다. 동시 401 이 발생하더라도 한 pod 의 refresh 만 성공
+    // 하고 다른 pod 은 invalid_grant 격하 → 사용자 reauth 로 회복 가능한 fail-safe
+    // 결과. "dedup 회귀로 refresh 가 영원히 안 되는" 위험보다 훨씬 작은 비용.
+    //
+    // proactive / background 는 기존 `jobId = integrationId` dedup 유지 — proactive
+    // 는 정상 path 마다 발사되므로 dedup 이 thundering herd / refresh_token race 의
+    // 핵심 보호막이고, jobId 충돌이 회귀 위험이 아니라 의도된 직렬화 메커니즘.
+    // spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT — JWT
+    // exp 격상 (2026-05-18)" 의 후속 보강.
+    const jobId =
+      source === 'reactive_401'
+        ? `${integration.id}#reactive-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        : integration.id;
     const job = await queue.add(
       CAFE24_REFRESH_JOB,
       { integrationId: integration.id, source },
       {
-        // jobId dedup across the cluster — same id, same job reference.
-        jobId: integration.id,
+        jobId,
         // attempts:1 because refresh failures (invalid_grant) are terminal
         // — retrying replays the same 401 and just floods the alert path.
         attempts: 1,
         // Keep completed jobs briefly so concurrent `add()` from a slow
         // caller still resolves to a real job reference; the next refresh
         // round (≥1h later in normal use) will not collide. reactive_401
-        // 은 stale dedup 차단을 위해 즉시 제거 (위 주석 참고).
-        removeOnComplete,
+        // 도 unique jobId 라 같은 retention 으로 통일.
+        removeOnComplete: { age: 60 },
         removeOnFail: { age: 300 },
       },
     );
@@ -717,12 +733,15 @@ export class Cafe24ApiClient {
    * refresh+1회 retry 정책을 공유하기 위한 단일 진입점.
    *
    * 동작:
-   * - BullMQ refresh 큐가 바인딩되어 있으면 `refreshViaQueue('reactive_401')` —
-   *   `jobId = integrationId` dedup 으로 클러스터 전체 직렬화 (thundering
-   *   herd 방지, refresh_token rotation race 보호). source `'reactive_401'`
-   *   은 worker 의 short-circuit guard 를 skip 시켜 DB 의 잘못된 `expiresAt`
-   *   에 의한 refresh 무력화 회귀를 차단한다 (caller 가 empirical 401 을
-   *   받은 강한 신호이므로 DB 신뢰 불가). spec/2-navigation/4-integration.md
+   * - BullMQ refresh 큐가 바인딩되어 있으면 `refreshViaQueue('reactive_401')`.
+   *   2026-05-21 갱신 — reactive_401 은 `jobId` 자체를 `${integrationId}#reactive-...`
+   *   로 unique 화하여 BullMQ 의 completed/failed job dedup 을 우회. caller 가
+   *   empirical 401 을 받았다는 강한 신호이므로 worker 가 반드시 새로 돌아야
+   *   하며, 같은 `integrationId` 의 기존 completed proactive/background job 이
+   *   Redis 에 잔존해 worker 호출을 무력화하는 회귀를 차단. cross-pod 직렬화는
+   *   `refreshAccessToken` 의 row-level pessimistic_write lock 으로 폴백 보호.
+   *   source `'reactive_401'` 은 worker 의 short-circuit guard 도 skip 시킨다
+   *   (`Cafe24TokenRefreshProcessor.process`). spec/2-navigation/4-integration.md
    *   ## Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)".
    * - 큐 미바인딩 (테스트 환경) 시 in-process `refreshAccessToken`. 프로덕션
    *   환경은 항상 큐 바인딩 — DI 미주입은 deployment 오류로 간주.

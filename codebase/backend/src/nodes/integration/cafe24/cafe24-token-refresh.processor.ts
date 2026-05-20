@@ -4,11 +4,8 @@ import { Job } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Integration } from '../../../modules/integrations/entities/integration.entity';
-import {
-  Cafe24ApiClient,
-  REFRESH_WINDOW_MS,
-  resolveTokenExpiry,
-} from './cafe24-api.client';
+import { Cafe24ApiClient, REFRESH_WINDOW_MS } from './cafe24-api.client';
+import { parseJwtExp } from '../../../modules/integrations/jwt-exp';
 import {
   CAFE24_REFRESH_QUEUE,
   Cafe24RefreshJobData,
@@ -33,14 +30,18 @@ import {
  * 1. DB 에서 통합 다시 로드 (호출자가 보낸 참조는 stale 일 수 있음 —
  *    백그라운드 스캐너는 ID 만 보낸다).
  * 2. `serviceType !== 'cafe24'` 거부 (큐가 cafe24 전용이지만 방어적 체크).
- * 3. **재확인 (단 `source === 'reactive_401'` 은 예외, 2026-05-18)** —
- *    잡 enqueue 와 worker pickup 사이에 다른 경로가 이미 refresh 했을 수
- *    있다. `resolveTokenExpiry(fresh) - now > REFRESH_WINDOW_MS` 이면
- *    short-circuit (불필요한 Cafe24 호출 방지). 단 `reactive_401` source
- *    (caller 가 empirical 401 을 받은 경로) 는 *DB 의 expiresAt 신뢰 불가*
- *    신호라 short-circuit 을 건너뛰고 항상 refresh 시도. spec/2-navigation/
- *    4-integration.md ## Rationale "Cafe24 token 만료 SoT — JWT exp 격상
- *    (2026-05-18)".
+ * 3. **재확인 (단 `source === 'reactive_401'` 은 예외)** — 잡 enqueue 와 worker
+ *    pickup 사이에 다른 경로가 이미 refresh 했을 가능성. 2026-05-21 갱신:
+ *    short-circuit 판정은 **JWT `exp` claim 만** 신뢰한다 (`parseJwtExp(access_token)`).
+ *    JWT exp 가 future 이면 token 이 실제로 유효함을 Cafe24 token endpoint 가
+ *    서명으로 보장하는 sole source of truth. JWT exp 가 null (parse 실패 / 비-JWT
+ *    / payload exp 비-숫자) 이면 short-circuit 발사 금지 — TZ-bugged
+ *    `tokenExpiresAt` 폴백을 worker 가 신뢰하면 refresh 가 영원히 우회되는
+ *    회귀가 있었다 (운영 보고 2026-05-20, mall=gehrig0301). `reactive_401`
+ *    source (caller 가 empirical 401 을 받은 경로) 는 *어떤 expiry 정보든
+ *    신뢰 불가* 신호라 short-circuit 자체를 건너뛰고 항상 refresh.
+ *    spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료 SoT
+ *    — JWT exp 격상 (2026-05-18)" 의 후속 보강.
  * 4. `cafe24ApiClient.refreshAccessToken(fresh)` 호출. 성공 시 통합 row
  *    의 4-field atomic update; 실패 시 markAuthFailed (기존 동작).
  *
@@ -105,23 +106,26 @@ export class Cafe24TokenRefreshProcessor extends WorkerHost {
     // 가능성. proactive 경로는 매 API 호출마다 enqueue 할 수 있으므로
     // 이 short-circuit 이 중요하다.
     //
-    // **단, source='reactive_401' 은 skip 한다 (2026-05-18 추가)**: 본 source
-    // 는 `Cafe24ApiClient.executeWithRateLimit` 의 401 자가 회복 경로로,
-    // *caller 가 empirical 401 을 받았다* 는 강한 신호다. DB 의
-    // `tokenExpiresAt` 가 의도와 다른 epoch (예: 옛 TZ 모호성 회귀로 9h
-    // 미래) 로 저장된 경우 short-circuit 이 잘못된 값을 신뢰해 refresh 를
-    // 건너뛰고, caller 의 retry 가 같은 stale token 으로 두 번째 401 을
-    // 받는 회귀가 있었다. reactive_401 은 그 무력화 경로를 차단.
-    // spec/2-navigation/4-integration.md ## Rationale "Cafe24 token 만료
-    // SoT — JWT exp 격상 (2026-05-18)".
+    // **2026-05-21 — short-circuit 은 JWT exp 만 신뢰한다**: 옛 코드는
+    // `resolveTokenExpiry` 의 폴백 chain (JWT exp → tokenExpiresAt →
+    // credentials.expires_at) 결과를 그대로 사용. JWT exp parse 가 실패하면
+    // (비-JWT, payload exp 비-숫자 등) TZ-bugged `tokenExpiresAt` 미래 값으로
+    // short-circuit 이 발사 → worker no-op 완료 → 같은 잡이 60s 잔존해
+    // 후속 add() 가 dedup 되는 무한 회귀 (운영 보고 2026-05-20, mall=gehrig0301).
+    // JWT exp 가 null 이면 신뢰 불가 → short-circuit 발사 금지, 항상 refresh.
+    //
+    // **source='reactive_401' 은 skip 한다**: 본 source 는 caller 가 empirical
+    // 401 을 받았다는 강한 신호다. JWT exp 가 future 로 보여도 Cafe24 가 이미
+    // 거부한 토큰이므로 신뢰 불가. spec/2-navigation/4-integration.md
+    // ## Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)".
     if (source !== 'reactive_401') {
-      const expiresAtMs = resolveTokenExpiry(fresh);
-      if (
-        expiresAtMs !== null &&
-        expiresAtMs - Date.now() > REFRESH_WINDOW_MS
-      ) {
+      const creds = (fresh.credentials ?? {}) as { access_token?: unknown };
+      const accessToken =
+        typeof creds.access_token === 'string' ? creds.access_token : null;
+      const jwtExpMs = parseJwtExp(accessToken);
+      if (jwtExpMs !== null && jwtExpMs - Date.now() > REFRESH_WINDOW_MS) {
         this.logger.debug(
-          `Cafe24 refresh ${integrationId} no-op — token already fresh (expires ${new Date(expiresAtMs).toISOString()}, source=${source})`,
+          `Cafe24 refresh ${integrationId} no-op — JWT exp future (expires ${new Date(jwtExpMs).toISOString()}, source=${source})`,
         );
         return;
       }
