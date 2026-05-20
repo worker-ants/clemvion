@@ -23,20 +23,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   readonly Cafe24PlannedOperationEntry[]
 > = {
   store: [
-    {
-      id: 'categories_properties_setting_get',
-      label: '카테고리 진열 추가 설정 조회',
-    },
-    {
-      id: 'categories_properties_setting_update',
-      label: '카테고리 진열 추가 설정 수정',
-    },
-    { id: 'coupons_setting_get', label: '쿠폰 설정 조회' },
-    { id: 'coupons_setting_update', label: '쿠폰 설정 수정' },
-    { id: 'currency_get', label: '통화 설정 조회' },
-    { id: 'currency_update', label: '통화 수정' },
-    { id: 'customers_setting_get', label: '회원 관련 설정 조회' },
-    { id: 'customers_setting_update', label: '회원 관련 설정 수정' },
     { id: 'images_setting_get', label: '상품 이미지 크기 설정 조회' },
     { id: 'images_setting_update', label: '상품 이미지 크기 설정 수정' },
     { id: 'information_get', label: '상점 정책 조회' },
