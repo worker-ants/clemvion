@@ -9,6 +9,7 @@ import { AuthOauthService } from './auth-oauth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { TotpService } from './totp.service';
 import { WebAuthnModule } from './webauthn/webauthn.module';
+import { WebAuthnController } from './webauthn/webauthn.controller';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { AuthOAuthState } from './entities/auth-oauth-state.entity';
 import { LoginHistory } from './entities/login-history.entity';
@@ -41,7 +42,7 @@ import { MailModule } from '../mail/mail.module';
     // WebAuthnService.countCredentials() 등으로 호출 (단방향). spec §1.4.H.
     WebAuthnModule,
   ],
-  controllers: [AuthController, SessionsController],
+  controllers: [AuthController, SessionsController, WebAuthnController],
   providers: [
     AuthService,
     AuthOauthService,

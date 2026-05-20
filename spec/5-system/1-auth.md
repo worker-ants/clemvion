@@ -513,7 +513,7 @@ V058 (`chk_login_history_event` CHECK 제약에 `webauthn_failed` 추가) 는 `D
 
 ### 1.4.H — WebAuthn 도메인 모듈 분리
 
-WebAuthn 관련 entity·service·DTO·tests 를 `codebase/backend/src/modules/auth/webauthn/` 서브폴더로 이동하고 `WebAuthnModule` 을 신설한다. AuthModule 은 WebAuthnModule 을 import 해 WebAuthnService 를 주입받는다 — 단방향 의존성 (`AuthModule → WebAuthnModule`).
+WebAuthn 관련 entity·service·DTO·controller·tests 를 `codebase/backend/src/modules/auth/webauthn/` 서브폴더로 이동하고 `WebAuthnModule` 을 신설한다. AuthModule 은 WebAuthnModule 을 import 해 WebAuthnService 를 주입받는다 — 단방향 의존성 (`AuthModule → WebAuthnModule`).
 
 | 위치 (이전 → 변경) | 분류 |
 |--------|------|
@@ -522,15 +522,18 @@ WebAuthn 관련 entity·service·DTO·tests 를 `codebase/backend/src/modules/au
 | `auth/dto/webauthn.dto.ts` → `auth/webauthn/dto/webauthn.dto.ts` | request DTO |
 | `auth/dto/responses/webauthn-response.dto.ts` → `auth/webauthn/dto/responses/webauthn-response.dto.ts` | response DTO |
 | (신규) `auth/webauthn/webauthn.module.ts` | NestJS module |
+| (신규) `auth/webauthn/webauthn.controller.ts` | HTTP controller — `/auth/2fa/webauthn/...` |
 
 AuthService 는 `webauthnCredentialRepository` 직접 주입 대신 `WebAuthnService.countCredentials()` 를 사용한다. `countCredentials()` 가 기능 비활성(§1.4.3) 시 0 을 반환하므로 AuthService 는 enabled 분기 로직을 보유할 필요 없음.
 
 LoginHistoryService 는 AuthModule 과 WebAuthnModule 양쪽에 provider 로 둔다 — 두 인스턴스가 같은 DB 테이블에 INSERT 만 하므로 동작 동등. LoginHistoryModule 로의 추가 분리는 별 follow-up.
 
-WebAuthn HTTP 엔드포인트(`/auth/2fa/webauthn/...`) 의 `WebAuthnController` 분리는 본 PR scope 외 — 컨트롤러는 여전히 `AuthController` 에 두고, 다음 PR 에서 분리.
+**컨트롤러 host 위치 — AuthModule** — `WebAuthnController` 파일은 `webauthn/` 폴더에 두지만 **module 등록은 AuthModule 의 `controllers` 배열**에 한다. `WebAuthnController` 가 challenge 토큰 소비·MFA 후 토큰 발급에 `AuthService` 를 사용해야 하는데, 만약 controller 를 `WebAuthnModule` 에 등록하면 `WebAuthnModule → AuthModule` 의존성이 생겨 단방향 원칙이 깨진다. 의존 그래프를 한 방향으로 유지하기 위해 controller host 는 AuthModule, service/entity/DTO 만 WebAuthnModule.
+
+`setRefreshTokenCookie` / `clearRefreshTokenCookie` 는 두 controller 모두 사용하므로 `auth/utils/refresh-cookie.ts` 의 모듈 단위 함수로 추출 — controller 인스턴스의 private 메서드가 아닌 stateless helper.
 
 **채택 이유**
 
-- AuthModule 비대화 — login·register·OAuth·session·TOTP 외에 WebAuthn 까지 한 곳에 있어 응집도 낮음. 모듈 분리로 도메인 경계 명시.
+- AuthModule 비대화 — login·register·OAuth·session·TOTP 외에 WebAuthn 까지 한 곳에 있어 응집도 낮음. 도메인 모듈 + 컨트롤러 분리로 도메인 경계 명시.
 - 단방향 의존성으로 순환 위험 차단. AuthService 는 WebAuthnService 를 알지만 역방향 의존성 없음.
 - ai-review C-8 follow-up.
