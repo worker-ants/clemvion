@@ -471,6 +471,21 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 
 본 시나리오들의 **입력 fixture** 는 `codebase/frontend/src/components/editor/run-results/__tests__/fixtures/conversation-scenarios.ts` 에 단일 export 로 둔다. 새 시나리오 발견 시 본 표 추가 + fixture 추가 + 해당 테스트 작성을 PR review 의 의무로 한다.
 
+**구현 상태** (2026-05-20, PR #214 머지 후): CT-S1 ~ CT-S8 모두 기존 단위 테스트로 충족된다. 1차 매핑:
+
+| ID | 충족 테스트 |
+| --- | --- |
+| CT-S1 | `conversation-utils.test.ts` (`mergeOrphanToolItems` whitespace 회귀 케이스 + `groupToolCallItems` describe), `conversation-inspector.test.tsx` ("blank intermediate assistant 는 도구 호출 부모 헤더로 묶이고…") |
+| CT-S2 | `conversation-utils.test.ts` (`mergeOrphanToolItems` "includeToolTurns:false 시 누락된 tool 아이템을…") |
+| CT-S3 | `conversation-utils.test.ts` (`mergeOrphanToolItems` "같은 turn 에 tool 이 여러 개면…"), `conversation-inspector.test.tsx` ("동일 turn 에 intermediate assistant 가 여러 개…") |
+| CT-S4 | `conversation-utils.test.ts` (`mergeOrphanToolItems` "thread 가 이미 같은 toolCallId 를 들고 있으면 (includeToolTurns:true) no-op") |
+| CT-S5 | `conversation-utils.test.ts` (`mergeOrphanToolItems` "content 가 있는 intermediate assistant…"), `conversation-inspector.test.tsx` ("assistant content + toolCalls 가 둘 다 있으면…") |
+| CT-S6 | `conversation-utils.test.ts` (`mergeOrphanToolItems` "multi-turn: 각 turn 의 tool 은 그 turn 의 final assistant 직전에…") |
+| CT-S7 | `use-execution-events.test.ts` ("ai_message snapshot preserves toolStatus from prior tool_call_completed events" + "tool_call_completed creates a synthetic item when no started arrived first (out-of-order)") |
+| CT-S8 | `conversation-utils.test.ts` (`groupToolCallItems` "CT-S8 — 양 surface 가 같은 items 에서 동일 결과"), `result-timeline.test.tsx` ("live 대화 노드 expand 시 blank intermediate assistant + tool 이 parent-child tree 로 묶인다 (Inv-5)") |
+
+새 시나리오 추가 시 본 표에 충족 테스트도 함께 갱신 의무.
+
 ### 9.11 변환 함수 contract
 
 두 1차 변환 함수는 **같은 turn 의 ConversationItem 다중집합으로서 동치** 여야 한다:
@@ -507,3 +522,4 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 | 2026-05-18 | (consistency-check 후속) §1.2 `text` 행을 §1.6 와 정합되도록 재진술 (자기 충돌 C-1 해소): "인라인 마커 박지 않는다" → "user 출처 marker 는 §1.6 의무, UI strip 으로 처리". §1.2 `data?` 행에서 node-output §4.5 shape 인라인 재열거 제거 (drift 회피, §4.5 단일 정의에 위임). §1.4 표 구조 4열 확장 (UI 카드 헤더 · 본문 컬럼 추가). §4 영속화 행의 `output.messages` 를 D6 단일 경로 `output.result.messages` 로 정정 |
 | 2026-05-19 | §9 확장 — §9.6 (tool-call 그룹 시각 정책), §9.7 (WS 이벤트 → store 변환 계약), §9.8 (content blank 동치성), §9.9 (UI Invariants), §9.10 (회귀 차단 시나리오), §9.11 (변환 함수 contract) 신설. §9 prologue 에 라이프사이클 다이어그램 추가. §9.1 `ai_assistant` 행에 §9.6 parent chip 분기 비고, `ai_tool` 행 status badge 표기를 `pending/success/error` 로 확장. §9.5 진입점 목록에 `mergeOrphanToolItems` 추가. 4건 UI 회귀 (PR #206/#208/#210/#214) 의 spec 결손 보강. fixture 인프라 (`__tests__/fixtures/conversation-scenarios.ts`) 와 `isAssistantContentBlank` 위치 이전을 동일 PR 에 동반 |
 | 2026-05-19 | §9.6 보강 — tool-call 그룹 분류의 단일 결정 함수 `groupToolCallItems` 명시 + 적용 surface 표 (conversation Preview + 좌측 실행 트리 timeline) 추가. §9.9 Inv-5 신설 — 두 surface 가 동일 그룹 결과 사용 강제. 좌측 timeline 의 빈 봇 행 + 후행 tool 평면 노출이 conversation Preview 와 시각 차이를 만들어 사용자 혼동 발생 (스크린샷 보고). conversation Preview 의 chip + indent tree 시각을 좌측 timeline 에 동일 정책으로 적용 |
+| 2026-05-20 | §9.10 충족 상태 표 추가 (PR #214 머지 후 후속 정리, plan W-4) — CT-S1 ~ CT-S8 의 1차 매핑 테스트 파일·describe·it 명시. 표 변경 없음, 부가 정보. |
