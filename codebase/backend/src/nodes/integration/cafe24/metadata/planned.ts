@@ -23,15 +23,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   readonly Cafe24PlannedOperationEntry[]
 > = {
   store: [
-    { id: 'automessages_arguments_get', label: '자동 메시지 변수 목록' },
-    { id: 'automessages_setting_get', label: '자동 메시지 설정 조회' },
-    { id: 'automessages_setting_update', label: '자동 메시지 설정 수정' },
-    { id: 'benefits_setting_get', label: '혜택 설정 조회' },
-    { id: 'benefits_setting_update', label: '혜택 설정 수정' },
-    { id: 'boards_setting_get', label: '게시판 설정 조회 (store)' },
-    { id: 'boards_setting_update', label: '게시판 설정 수정 (store)' },
-    { id: 'carts_setting_get', label: '장바구니 설정 조회' },
-    { id: 'carts_setting_update', label: '장바구니 설정 수정' },
     {
       id: 'categories_properties_setting_get',
       label: '카테고리 진열 추가 설정 조회',
