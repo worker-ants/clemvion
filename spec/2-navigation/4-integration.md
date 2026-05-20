@@ -814,11 +814,14 @@ window.close();
 
 - Refresh token 보유 시 (provider 가 refresh_token 발급·갱신을 보장 — 현재 `cafe24`, `google`): 노드 실행 직전 만료 확인 → 만료됐으면 갱신 후 호출. 이 자동 갱신 가능 여부는 `IntegrationDto.autoRefresh: boolean` (§9.1) 로 클라이언트에 노출되어 상태 배지·attention 술어·Reauthorize hover 안내의 분기 신호로 쓰인다.
 - **만료 시각 SoT (2026-05-18 갱신)**: Cafe24 의 `access_token` / `refresh_token` 은 JWT 이므로 **JWT `exp` claim** (RFC 7519, Unix epoch seconds — UTC absolute) 을 만료 시각의 single source of truth 로 사용한다. backend 의 token-exchange normalizer (`parseTokenExpiresAt`) 와 refresh path (`refreshAccessToken`) 는 내부적으로 `parseJwtExp(token)` 을 첫 단계로 호출해 결과를 최우선 채택하고, JWT 디코드가 비정상으로 null 인 경우에만 표준 `expires_in` → cafe24 한정 `expires_at` ISO (timezone designator 누락 시 `+09:00` KST 부여로 정규화) → 2h default 로 강하한다. ISO 의 timezone 모호성으로 `Integration.token_expires_at` 가 의도와 다른 epoch 로 저장돼 proactive refresh 와 워커 short-circuit 이 동시에 빗나가는 회귀 ([Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)"](#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18) 참고) 의 영구 차단. JWT signature 검증은 본 용도에 불필요 (만료 시각 metadata 추출 목적; 토큰 진위는 Cafe24 API 호출 시점에 검증).
-- **401 자동 회복 (`call()` 경로, 2026-05-17 추가)**: proactive 갱신이 race condition (DB `expires_at` 미동기, 다중 인스턴스, NULL legacy row 등) 으로 빗나가 만료된 access_token 으로 Cafe24 API 호출이 401 을 받으면, `refresh_token` 으로 access_token 을 갱신한 뒤 동일 요청을 **1회만** 재시도. 재시도가 2xx 면 `status='connected'` 유지 (애초에 격하 없음). 재시도도 401 이면 토큰 자체 문제로 확정해 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 `error(auth_failed)` 전이 발사. 403 은 본 자동 회복 대상 아님 (즉시 격하). 재시도 분기는 `refreshViaQueue` (`jobId = integrationId`) 를 거치므로 클러스터 전체 단일 refresh — thundering herd 사고 없음. 재시도 횟수는 정확히 1회 (429 rate limit 재시도와 별개 카운터). [§5.8 연결 테스트의 `pingConnection()`](#58-cafe24) 의 동일 패턴과 정책 통일. Rationale 의 "`call()` 의 401 자동 회복 (2026-05-17)" 참고.
+- **401 자동 회복 (`call()` 경로, 2026-05-17 추가, 2026-05-21 갱신)**: proactive 갱신이 race condition (DB `expires_at` 미동기, 다중 인스턴스, NULL legacy row 등) 으로 빗나가 만료된 access_token 으로 Cafe24 API 호출이 401 을 받으면, `refresh_token` 으로 access_token 을 갱신한 뒤 동일 요청을 **1회만** 재시도. 재시도가 2xx 면 `status='connected'` 유지 (애초에 격하 없음). 재시도도 401 이면 토큰 자체 문제로 확정해 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 `error(auth_failed)` 전이 발사. 403 은 본 자동 회복 대상 아님 (즉시 격하). 재시도 분기는 `refreshViaQueue` (`source='reactive_401'`) 를 거치며, cross-pod 직렬화는 `refreshAccessToken` 내부의 PostgreSQL `pessimistic_write` row lock 으로 보장된다. proactive/background 경로와 달리 BullMQ `jobId = integrationId` dedup 을 사용하지 않음 (2026-05-21 갱신 — `jobId unique 화` 전략, [Rationale "reactive_401 jobId unique 화 — dedup 완전 우회 (2026-05-21)"](#reactive_401-jobid-unique-화--dedup-완전-우회-2026-05-21) 참조). 재시도 횟수는 정확히 1회 (429 rate limit 재시도와 별개 카운터). [§5.8 연결 테스트의 `pingConnection()`](#58-cafe24) 의 동일 패턴과 정책 통일. Rationale 의 "`call()` 의 401 자동 회복 (2026-05-17)" 참고.
 - **갱신 실패 시 (2026-05-16 갱신)**: `refresh_token` 자체가 무효 (`invalid_grant`) 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기는 폐기 — [Rationale "refresh 실패 시 status_reason 통일"](#rationale) 참고; cafe24 의 경우 본 격하 경로는 [§6.1 공통 격하 동작](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 에 명세). transport 실패가 3회 연속이면 `error(network)` 로 전이 (PR #67 V049 카운터). `integration_expired` 알림은 `expired` 전이에만 발사하며 `error(*)` 전이는 UI 배지로만 표시 (§11 참고).
 - 갱신 성공 시: `Integration.last_rotated_at` 도 함께 갱신해 백그라운드 갱신 스캐너의 cutoff 비교에 사용된다 (§11.1 `cafe24-background-refresh`).
 - **원자 갱신**: 토큰 갱신 성공 시 `credentials.access_token` / `credentials.refresh_token` / `credentials.expires_at` / `Integration.token_expires_at` 4개 필드를 **동일 트랜잭션 내 원자 UPDATE**. partial write 시 다음 노드 실행이 inconsistent token state 를 사용하는 race condition 방지.
-- **Cafe24 한정**: 갱신 endpoint 도 `https://{credentials.mall_id}.cafe24api.com/api/v2/oauth/token`. `mall_id` 누락 시 `INTEGRATION_INCOMPLETE` 로 즉시 실패. **백그라운드 갱신**: 6시간 주기 `cafe24-background-refresh` 잡 (§11.1) 이 `lastRotatedAt < now - 7d OR IS NULL` 인 connected cafe24 통합을 `cafe24-token-refresh` 큐로 enqueue 해 14일 idle 통합의 refresh_token 도 자동 갱신한다 (2026-05-19 갱신 — 옛 daily / 10일 정책에서 단축). **0d 만료 자가 회복 (2026-05-18 추가)**: 백그라운드 갱신이 도달하기 전 (또는 그 외 어떤 이유로) access_token 만료가 발생해 `connected-expiry` 일일 잡의 `0d` 임계에 매칭되면, scanner 가 cafe24 행을 `expired` 로 격하하는 대신 `cafe24-token-refresh` 큐로 enqueue 한다 (§11.1 표 참조). worker 가 refresh 성공 시 `last_rotated_at`/`token_expires_at` 갱신 후 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 전이. 본 정책으로 **cafe24 의 `expired` 상태는 사실상 `install_timeout` (Cafe24 Private 24h TTL) 한 가지 경로만 남는다** — refresh_token 유효 상태에서 access_token 만 만료된 케이스가 `expired` 로 격하되어 AI Agent/노드의 자가 회복 경로를 막던 회귀 해소 (사용자 보고 2026-05-18). **멀티 인스턴스 race**: 모든 cafe24 refresh 호출은 `cafe24-token-refresh` 큐의 `jobId = integrationId` dedup 으로 클러스터 전체 직렬화된다 ([Rationale "BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소"](#rationale) 참고).
+- **Cafe24 한정**: 갱신 endpoint 도 `https://{credentials.mall_id}.cafe24api.com/api/v2/oauth/token`. `mall_id` 누락 시 `INTEGRATION_INCOMPLETE` 로 즉시 실패. **백그라운드 갱신**: 6시간 주기 `cafe24-background-refresh` 잡 (§11.1) 이 `lastRotatedAt < now - 7d OR IS NULL` 인 connected cafe24 통합을 `cafe24-token-refresh` 큐로 enqueue 해 14일 idle 통합의 refresh_token 도 자동 갱신한다 (2026-05-19 갱신 — 옛 daily / 10일 정책에서 단축). **0d 만료 자가 회복 (2026-05-18 추가)**: 백그라운드 갱신이 도달하기 전 (또는 그 외 어떤 이유로) access_token 만료가 발생해 `connected-expiry` 일일 잡의 `0d` 임계에 매칭되면, scanner 가 cafe24 행을 `expired` 로 격하하는 대신 `cafe24-token-refresh` 큐로 enqueue 한다 (§11.1 표 참조). worker 가 refresh 성공 시 `last_rotated_at`/`token_expires_at` 갱신 후 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 전이. 본 정책으로 **cafe24 의 `expired` 상태는 사실상 `install_timeout` (Cafe24 Private 24h TTL) 한 가지 경로만 남는다** — refresh_token 유효 상태에서 access_token 만 만료된 케이스가 `expired` 로 격하되어 AI Agent/노드의 자가 회복 경로를 막던 회귀 해소 (사용자 보고 2026-05-18). **멀티 인스턴스 race (2026-05-21 갱신)**: cafe24 refresh 호출의 직렬화 메커니즘은 source 에 따라 다르다.
+- `proactive` / `background`: `cafe24-token-refresh` 큐의 `jobId = integrationId` dedup 으로 클러스터 전체 직렬화 — thundering herd / refresh_token rotation race 보호.
+- `reactive_401` (2026-05-21 갱신): BullMQ dedup 을 우회하는 unique jobId (`${integrationId}#reactive-${Date.now()}-${rand6}`) 사용. cross-pod 직렬화는 `refreshAccessToken` 의 `pessimistic_write` row lock 으로 폴백 보호. 완료된 proactive job 으로의 dedup 회귀를 영구 차단 ([Rationale "reactive_401 jobId unique 화 — dedup 완전 우회 (2026-05-21)"](#reactive_401-jobid-unique-화--dedup-완전-우회-2026-05-21) 참고).
+참고: [Rationale "BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소"](#rationale).
 
 ---
 
@@ -1189,12 +1192,12 @@ Cafe24 Public app 흐름은 우리 서버의 `CAFE24_CLIENT_ID` / `CAFE24_CLIENT
 
 ### BullMQ `cafe24-token-refresh` 큐 — 멀티 인스턴스 race 해소 (2026-05-16)
 
-[`spec/4-nodes/4-integration/4-cafe24.md` §9.6](../4-nodes/4-integration/4-cafe24.md#96-rate-limit-의-범위-한정) 가 "Redis 기반 분산 mutex 도입은 별도 spec 으로" 라는 미결로 남겼던 cross-pod refresh race 가 PR #56 의 BullMQ 큐 도입으로 해소됐다. 새 큐 `cafe24-token-refresh` 가 모든 cafe24 refresh 호출을 `jobId = integrationId` dedup 으로 클러스터 전체에서 직렬화한다.
+[`spec/4-nodes/4-integration/4-cafe24.md` §9.6](../4-nodes/4-integration/4-cafe24.md#96-rate-limit-의-범위-한정) 가 "Redis 기반 분산 mutex 도입은 별도 spec 으로" 라는 미결로 남겼던 cross-pod refresh race 가 PR #56 의 BullMQ 큐 도입으로 해소됐다. 새 큐 `cafe24-token-refresh` 가 `proactive` / `background` source 의 cafe24 refresh 호출을 `jobId = integrationId` dedup 으로 클러스터 전체에서 직렬화한다 (`reactive_401` source 는 2026-05-21 갱신으로 unique jobId + PostgreSQL row lock 폴백을 사용하므로 본 항의 dedup 보장 대상이 아니다 — [Rationale "reactive_401 jobId unique 화 — dedup 완전 우회 (2026-05-21)"](#reactive_401-jobid-unique-화--dedup-완전-우회-2026-05-21) 참고).
 
 **문제 정의 (옛 미결)**: 두 backend pod 이 같은 통합에 대해 동시에 refresh 를 시도하면 둘 다 Cafe24 `/oauth/token` 에 같은 old refresh_token 으로 요청을 보내 last-write-wins 로 한쪽 토큰이 orphan 되거나, Cafe24 의 rotation 정책에 따라 한쪽이 `invalid_grant` 401 을 받고 잘못 `error(auth_failed)` 격하될 수 있었다.
 
 **채택 — BullMQ `jobId` dedup**:
-- 같은 통합에 대한 동시 enqueue 가 `Queue.add({ jobId: integrationId })` 의 dedup 로 단일 worker 실행으로 모임. 모든 호출자가 `waitUntilFinished` 로 동일 worker 결과 공유.
+- `proactive`/`background` source 의 동시 enqueue 가 `Queue.add({ jobId: integrationId })` 의 dedup 로 단일 worker 실행으로 모임. 모든 호출자가 `waitUntilFinished` 로 동일 worker 결과 공유. (2026-05-21 갱신: `reactive_401` 은 이 invariant 의 대상이 아니며 unique jobId + DB lock 폴백을 사용 — [Rationale "reactive_401 jobId unique 화"](#reactive_401-jobid-unique-화--dedup-완전-우회-2026-05-21) 참고)
 - Worker (`Cafe24TokenRefreshProcessor`) 는 DB 재로드 + 재확인 short-circuit 후 `refreshAccessToken` 호출 → atomic 4-field UPDATE.
 - proactive (API 호출 직전) + background (일일 스캐너) 양쪽 진입점이 동일 큐를 사용.
 
@@ -1470,13 +1473,14 @@ L1~L4 4-layer 방어가 *같은 잘못된 expiry* 를 신뢰하므로 모두 무
 
 - `parseTokenExpiresAt(provider='cafe24', data)` — JWT exp → `expires_in` → `expires_at` ISO (TZ-less 면 `+09:00` 부여) → 2h default
 - `Cafe24ApiClient.refreshAccessToken` 의 expiresAt 계산 — 동일 precedence
+- `resolveTokenExpiry` (proactive refresh 경로 / BullMQ worker short-circuit 판정) — JWT exp → `Integration.tokenExpiresAt` → `credentials.expires_at` **(2026-05-19 보강)**: TZ-bugged `tokenExpiresAt` 가 proactive refresh 경로에서도 무력화됨. 이로써 L3 reactive_401 이 아닌 L1/L2 proactive 경로에서도 JWT exp 가 ground truth 로 작동.
 
 추가로 워커 short-circuit 의 잘못된 신뢰 차단:
 
 - `Cafe24RefreshJobData.source` 에 `'reactive_401'` 값 추가 (의미: HTTP 401 을 empirical 하게 받아 강제 refresh 가 필요한 경로의 신호. 향후 다른 empirical 신호 경로가 생기면 `reactive_<signal>` 패턴으로 확장).
 - `Cafe24TokenRefreshProcessor.process` 가 `source === 'reactive_401'` 이면 short-circuit skip — 본 source 는 *caller 가 empirical 401 을 받았다* 는 신호라 DB 의 `expires_at` 을 신뢰하면 안 됨. 기존 short-circuit (proactive 의 thundering herd 방지) 은 그대로 유효 — proactive/background 경로의 dedup 보증은 BullMQ jobId dedup (waiting/active 상태) 으로 유지되며 본 변경은 *완료된 job* 의 잔존 동작만 영향. ([BullMQ cafe24-token-refresh 큐 — 멀티 인스턴스 race 해소 (2026-05-16)](#bullmq-cafe24-token-refresh-큐--멀티-인스턴스-race-해소-2026-05-16) 의 확장)
 - `Cafe24ApiClient.performAuthRefresh` 가 `refreshViaQueue` 호출 시 `'reactive_401'` 전달.
-- **`reactive_401` 의 `removeOnComplete: { age: 0 }` 정책**: BullMQ jobId dedup 은 `waiting/active` 뿐 아니라 `completed` 상태 job 도 dedup 대상으로 본다. proactive 가 60s 잔존 정책으로 완료 후 60s 동안 같은 jobId 의 새 add 를 기존 completed job 으로 dedup 시키면, reactive_401 이 enqueue 해도 worker 가 실행되지 않고 `waitUntilFinished` 가 즉시 resolve 되어 caller 가 stale credentials 로 retry 하는 edge case 발생. `removeOnComplete: { age: 0 }` 는 reactive_401 의 완료 job 을 즉시 제거해 같은 시점의 다음 reactive_401 add 가 새 job 으로 진입하게 한다. **cross-pod 동시성**: 두 pod 의 reactive_401 add 가 waiting/active 상태에서 만나면 BullMQ jobId dedup 이 정상 작동 (한 worker 만 실행) — refresh_token rotation race 보호 유지.
+- **`reactive_401` 의 `removeOnComplete: { age: 0 }` 정책 (2026-05-18 채택, 2026-05-21 폐기)**: BullMQ jobId dedup 은 `waiting/active` 뿐 아니라 `completed` 상태 job 도 dedup 대상으로 본다. proactive 가 60s 잔존 정책으로 완료 후 60s 동안 같은 jobId 의 새 add 를 기존 completed job 으로 dedup 시키면, reactive_401 이 enqueue 해도 worker 가 실행되지 않고 `waitUntilFinished` 가 즉시 resolve 되어 caller 가 stale credentials 로 retry 하는 edge case 발생. 본래 의도는 `removeOnComplete: { age: 0 }` 가 reactive_401 완료 job 을 즉시 제거해 다음 reactive_401 add 가 새 job 으로 진입하도록 만들려는 것이었다. **(2026-05-21 폐기 사유)**: BullMQ `addStandardJob-9.lua:22-27` 분석 결과, `removeOnComplete` 옵션은 *신규 생성된 job* 의 완료 retention 만 제어하며 기존 completed job 으로의 dedup 자체는 차단하지 못한다 (`EXISTS jobIdKey → handleDuplicatedJob` 분기는 신규 add 의 options 를 적용하지 않는다). 운영 보고 (2026-05-20 `mall=gehrig0301`) 에서 본 해법이 무력화된 사례 확인 — 후속 정책은 [Rationale "reactive_401 jobId unique 화 — dedup 완전 우회 (2026-05-21)"](#reactive_401-jobid-unique-화--dedup-완전-우회-2026-05-21) 참고.
 
 **기각 대안**:
 
@@ -1496,9 +1500,70 @@ L1~L4 4-layer 방어가 *같은 잘못된 expiry* 를 신뢰하므로 모두 무
 - `integration-oauth.service.cafe24.spec.ts` 보강 — JWT 우선 / JWT 비정상 시 ISO fallback / TZ-less ISO 의 KST 정규화
 - `cafe24-api.client.spec.ts` 보강 — refresh 응답의 access_token JWT 우선 / stale tokenExpiresAt + 401 → reactive_401 worker 가 short-circuit 없이 refresh
 - `cafe24-token-refresh.processor.spec.ts` 보강 — source='reactive_401' 일 때 fresh token 도 refresh / 'proactive' 는 종전 short-circuit
+- `cafe24-token-refresh.processor.spec.ts` 추가 (2026-05-19) — TZ-bugged `tokenExpiresAt` + `credentials.expires_at` 이 양쪽 미래 값이어도 JWT exp 과거면 proactive/background source 에서 refresh 발동 (resolveTokenExpiry 의 JWT exp 최우선)
+- `cafe24-token-refresh.processor.spec.ts` 보강 (2026-05-21) — JWT exp parse 실패 3 케이스 (opaque token / 손상 segments / payload exp 누락) 에서 tokenExpiresAt 미래여도 short-circuit 금지 (worker 가 `parseJwtExp` 단독 신뢰)
+- `cafe24-api.client.spec.ts` 보강 (2026-05-21) — reactive_401 의 jobId 가 `${integrationId}#reactive-\d+-[a-z0-9]+$` 형식이며 `integrationId` 와 다름을 어서션
 
 **구현 plan**: `plan/in-progress/cafe24-jwt-exp-fix.md` (worktree `cafe24-jwt-exp-fix-7a3f1c`).
 
 **consistency-check 세션**: `review/consistency/2026/05/18/19_29_07/` (BLOCK: NO — Critical 0, WARNING 5 건은 본 spec 갱신 + data-flow §2.2 + 4-cafe24 §9.6 동시 갱신으로 해소, INFO 13 건은 본 항 본문 및 옛 항 obsolete 표시로 반영).
 
 **출처**: 사용자 보고 (2026-05-18, mall `gehrig0301`). 직전 같은 mall 의 보고 (`plan/complete/cafe24-proactive-refresh-fix.md` + 후속 fix 들) 가 같은 클래스의 회귀였음을 확정.
+
+### reactive_401 jobId unique 화 — dedup 완전 우회 (2026-05-21)
+
+[Rationale "Cafe24 token 만료 SoT — JWT exp 격상 (2026-05-18)"](#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18) 의 후속 보강. 운영 보고 (2026-05-20 mall `gehrig0301`) 에서 동일 회귀가 재발한 사례 분석 결과 두 가지 잔여 결함을 확정:
+
+**A. `removeOnComplete: { age: 0 }` 가 dedup 을 차단하지 못함**:
+
+BullMQ `addStandardJob-9.lua:22-27` 의 dedup 분기:
+
+```lua
+jobId = args[2]
+jobIdKey = args[1] .. jobId
+if rcall("EXISTS", jobIdKey) == 1 then
+    return handleDuplicatedJob(...)  -- 기존 job 그대로 반환, 신규 옵션 무시
+end
+```
+
+같은 `jobId` 의 job 이 `waiting`/`active`/`completed`/`failed` 어떤 상태든 Redis 에 존재하면 `Queue.add()` 는 기존 job 참조를 반환하며 **신규 add 의 options 를 적용하지 않는다**. 따라서 옛 fix (`removeOnComplete: { age: 0 }` — reactive_401 완료 직후 자동 제거) 는 *이미 생성된 reactive_401 job 의 완료 이후 retention* 만 통제했고, proactive 가 `removeOnComplete: { age: 60 }` 로 완료 후 60s 잔존하는 동안 같은 `integrationId` 의 reactive_401 add 가 기존 proactive completed job 으로 dedup 되는 edge case 를 차단하지 못했다.
+
+`Job.waitUntilFinished` 가 `scripts.isFinished(jobId)` 를 즉시 폴링해 completed 면 바로 resolve 하므로 worker 가 새로 실행되지 않고 caller 는 stale credentials 로 retry → 두 번째 401 → `markAuthFailed` 회귀.
+
+**B. worker short-circuit 이 `resolveTokenExpiry` 의 폴백 chain 까지 신뢰**:
+
+`Cafe24TokenRefreshProcessor.process()` 의 short-circuit 은 `resolveTokenExpiry(fresh)` 를 사용. 본 함수의 폴백 chain (JWT exp → `tokenExpiresAt` → `credentials.expires_at`) 은 JWT exp parse 실패 케이스 (`parseJwtExp` 가 비-JWT / payload exp 비-숫자 등으로 null 반환) 에서 TZ-bugged `tokenExpiresAt` 미래 값으로 강하한다. 이 미래 값을 worker 가 신뢰해 short-circuit 발사 → no-op 완료 → (A) 와 결합하여 후속 add() 가 dedup → refresh 무한 회귀.
+
+**결정**:
+
+1. **`reactive_401` jobId unique 화**: `${integrationId}#reactive-${Date.now()}-${rand6}` 형태로 BullMQ dedup 자체를 우회. cross-pod 직렬화는 `refreshAccessToken` 의 `dataSource.transaction({ lock: 'pessimistic_write' })` row lock 으로 폴백 보호. `proactive`/`background` 는 기존 `jobId = integrationId` dedup 유지 (thundering herd / refresh_token rotation race 보호).
+
+2. **worker short-circuit 은 `parseJwtExp(access_token)` 만 신뢰**: JWT exp 가 null 이거나 과거면 short-circuit 발사 금지 → 항상 `refreshAccessToken` 시도. `tokenExpiresAt` / `credentials.expires_at` 폴백을 short-circuit 판정에서 제거 (caller-side `ensureFreshToken` 의 게이트는 `resolveTokenExpiry` 그대로 사용 — false positive 비용은 enqueue 한 번뿐이고 worker 가 JWT exp 로 재판정하므로 안전).
+
+**기존 invariant 의 명시적 해제 범위 (Rationale Continuity)**:
+
+- `withIntegrationLock` (in-memory mutex) 의 역할: 본 결정에서 reactive_401 의 동일 pod 내 in-process 직렬화 보조 수단으로 재등장. [Rationale "BullMQ cafe24-token-refresh 큐"](#bullmq-cafe24-token-refresh-큐--멀티-인스턴스-race-해소-2026-05-16) 의 "기각된 대안 — In-memory mutex (`withIntegrationLock`) 유지만" 과 역할이 다르다. 그 기각은 *cross-pod race 미해소* 사유였고, 본 결정은 in-process 직렬화 + PostgreSQL row lock cross-pod 직렬화 *조합* 으로 reactive_401 의 직렬화 보장을 BullMQ 큐가 아닌 DB 레벨로 이동시킨 것. 기각 대안이 부활한 것이 아니라 *역할 분담* 의 재구성.
+
+- `waitUntilFinished` 단일 worker 결과 공유 invariant (위 본문 채택 본문 참조): `reactive_401` source 에 한해 본 invariant 의 보장을 명시적으로 해제한다. 두 pod 의 reactive_401 worker 가 모두 실행되어 각자 Cafe24 `/oauth/token` 을 호출할 수 있으며, 한 pod 의 refresh 만 DB 에 반영되고 (PostgreSQL `pessimistic_write` row lock) 다른 pod 은 `invalid_grant` 격하 → `markAuthFailed` 까지 가는 fail-safe 결과를 감수한다. `proactive` / `background` source 는 invariant 유지.
+
+- 본 결정으로 폐기되는 옛 항: 위 본문 "옛 fix (`removeOnComplete: { age: 0 }`)" 는 `2026-05-21 폐기` 처리, 본 새 Rationale 이 후속 정책. 동일 항의 운영 사실 기록 (`spec/4-nodes/4-integration/4-cafe24.md` §9.6 line 479, `spec/data-flow/5-integration.md` §2.2 line 220) 도 본 결정에 맞춰 동시 갱신했다.
+
+**기각된 대안**:
+
+- `removeOnComplete: { age: 0 }` 유지 — BullMQ Lua script 분석으로 근본 차단이 불가함을 확인 (운영 보고 2026-05-20 에서 실제 무력화 사례 관측). 폐기.
+- `Queue.removeJob(jobId)` 를 add 직전에 호출 — active 상태 job 도 삭제 가능해 in-flight refresh 를 중단시키는 부작용. unsafe.
+- reactive_401 도 큐 우회하고 in-process `refreshAccessToken` 직접 호출 — 큐 일관성 (BullMQ retention/관측성) 손실. unique jobId 가 일관성 보존하면서 dedup 만 우회하는 더 좋은 절충점.
+
+**Trade-off / 잔여 위험**:
+
+- cross-pod 동시 reactive_401 빈도: proactive 가 정상 작동하면 reactive_401 발생 자체가 매우 드물어 cross-pod 동시 401 은 사실상 발생하지 않는다 (caller-side 401 자가 회복은 단일 호출 단위로 발사되고 1초 이내 완결). 발생하더라도 fail-safe.
+- worker short-circuit 폴백 제거의 비용: JWT exp null 케이스에서 worker 가 Cafe24 `/oauth/token` 을 매번 호출. 그러나 BG cron 의 `lastRotatedAt < cutoff` 게이트 + caller-side `ensureFreshToken` 의 `REFRESH_WINDOW_MS` 게이트가 엔트리 throttle 역할을 하므로 호출 증가는 미미. 안전성 (refresh 회귀 영구 차단) 이 비용보다 큼.
+- BG cron / proactive 가 잔존 TZ-bugged `tokenExpiresAt` row 를 자동 회복: worker 가 JWT exp 만 신뢰하므로 access_token 이 JWT 인 경우 정상 회복. JWT 가 아닌 access_token 케이스 (Cafe24 가 향후 opaque token 도입) 는 worker 가 항상 refresh 시도하는 경로로 폴백 — 잘못된 fresh 상태 신뢰 없음.
+
+**테스트** (위 §테스트 목록 참조 — 2026-05-21 항목).
+
+**구현 plan**: `plan/in-progress/fix-cafe24-refresh-dedup-and-shortcircuit.md` (worktree `fix-cafe24-refresh-dedup-and-shortcircuit-ec6632`).
+
+**consistency-check 세션**: `review/consistency/2026/05/21/07_55_15/` (초기 BLOCK: YES — Critical 8 건은 본 spec 갱신 + `spec/4-nodes/4-integration/4-cafe24.md` §6.1·§9.6 동시 갱신 + `spec/data-flow/5-integration.md` §2.2 동시 갱신으로 해소; Rationale 의 invariant 해제 범위 명시화로 Rationale-continuity Critical 해소).
+
+**출처**: 사용자 보고 (2026-05-20, mall `gehrig0301`). 직전 2026-05-18 fix 의 잔여 결함을 BullMQ Lua script 정적 분석으로 확정.
