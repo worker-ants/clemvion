@@ -162,7 +162,7 @@
 6. 5회 실패 → 계정 10분 잠금 + "Account locked. Try again in 10 minutes."
 ```
 
-응답의 `requiresTotp` 는 deprecated 호환 필드이며 두 필드 충돌 시 `requires2fa` 가 우선한다. 자세한 deprecate 타임라인은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지) 를 따른다.
+클라이언트는 `requires2fa` + `methods` 만 본다 — `requires2fa=true` 이면 challenge 단계, `methods[0]` 으로 WebAuthn / TOTP 화면을 분기. 상세 분기 규칙은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지) 참고.
 
 ### 3.3 "Remember me" 동작
 

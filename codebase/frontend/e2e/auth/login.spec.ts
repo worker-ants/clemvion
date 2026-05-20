@@ -96,14 +96,12 @@ test.describe("Login form (mock-based)", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        // spec/5-system/1-auth.md §1.4.2 — 새 클라이언트는 requires2fa + methods 로 분기.
-        // requiresTotp 는 deprecated 호환 필드 (frontend isTwoFactorChallenge 는 미사용).
+        // spec/5-system/1-auth.md §1.4.2 — 클라이언트는 requires2fa + methods 로 분기.
         body: JSON.stringify({
           data: {
             requires2fa: true,
             methods: ["totp"],
             challengeToken: "challenge-token-abc",
-            requiresTotp: true,
           },
         }),
       });

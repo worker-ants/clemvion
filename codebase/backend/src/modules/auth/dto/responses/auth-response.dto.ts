@@ -14,9 +14,6 @@ export class AccessTokenDto {
  *
  *   methods ⊇ ['webauthn']  → 사용자에게 WebAuthn 화면만 노출
  *   methods === ['totp']    → 사용자에게 TOTP 입력 화면 노출
- *
- * `requiresTotp` 는 deprecated backward-compat 필드 (`methods` 에 'totp' 포함이면 true).
- * 새 클라이언트는 `requires2fa` + `methods` 만 본다. 두 필드 충돌 시 `requires2fa` 우선.
  */
 export class LoginChallengeDto {
   @ApiProperty({ example: true, description: '2FA 통과가 필요' })
@@ -35,13 +32,6 @@ export class LoginChallengeDto {
     description: 'mfa_challenge JWT (5분). 후속 verify 요청에 동봉',
   })
   challengeToken: string;
-
-  @ApiPropertyOptional({
-    description:
-      "DEPRECATED — `methods` 가 'totp' 포함이면 true. 두 마이너 버전 후 제거 예정 (spec §1.4.2).",
-    deprecated: true,
-  })
-  requiresTotp?: boolean;
 }
 
 /** TOTP setup 결과 */

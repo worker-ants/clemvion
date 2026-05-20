@@ -80,15 +80,15 @@ TOTP/WebAuthn 두 풀을 분리하는 이유는 한쪽을 비활성화해도 다
 
 | 사용자 상태 | 응답 | 로그인 2단계 화면 |
 |-------------|------|------------------|
-| WebAuthn credential ≥ 1 | `{ requires2fa: true, methods: ['webauthn'], challengeToken, requiresTotp: <true if TOTP active else false> }` | WebAuthn 인증 화면. TOTP 코드 입력란은 숨김 |
-| WebAuthn credential = 0 AND `two_factor_enabled = true` | `{ requires2fa: true, methods: ['totp'], challengeToken, requiresTotp: true }` | TOTP 입력 화면 (기존과 동일) |
+| WebAuthn credential ≥ 1 | `{ requires2fa: true, methods: ['webauthn'], challengeToken }` | WebAuthn 인증 화면. TOTP 코드 입력란은 숨김 |
+| WebAuthn credential = 0 AND `two_factor_enabled = true` | `{ requires2fa: true, methods: ['totp'], challengeToken }` | TOTP 입력 화면 (기존과 동일) |
 | 둘 다 없음 | `{ accessToken }` (즉시 로그인) | — |
 
 규칙:
 
 - **WebAuthn 이 1개라도 등록된 사용자에게는 로그인 화면에서 TOTP 입력을 제공하지 않는다.** 사용자가 TOTP 로 우회하길 원하면 보안 설정에서 WebAuthn credential 을 먼저 모두 삭제해야 한다 (Rationale 1.4.D — fallback 채널을 자동으로 노출하면 약한 인증 수단이 강한 인증 수단을 우회하는 위협이 있음).
 - WebAuthn 실패 시 사용자는 동일 화면의 **"복구 코드 사용"** 링크로 WebAuthn 전용 복구 코드 입력 필드를 노출할 수 있다 (TOTP 화면으로 자동 전환되지 않음).
-- `requiresTotp` 는 기존 클라이언트 호환을 위한 **deprecated** 필드다. 도입 이유: WebAuthn 추가 이전 클라이언트(릴리스 < 2026-05-18) 가 본 응답을 분해할 수 있도록 한동안 함께 내려준다. **제거 조건**: (1) 두 마이너 버전 후 (예: 본 변경이 v0.7 이면 v0.9 에서 제거), (2) `methods` 만 보는 새 프론트엔드가 동일 PR 에서 함께 배포되어 backward-only 사용처가 사라진 것이 확인된 후 — 둘 중 늦은 시점. 새 클라이언트는 `requires2fa` + `methods` 만 본다. 두 필드 충돌 시 `requires2fa` 가 우선한다.
+- 클라이언트는 `requires2fa` + `methods` 만 본다 — `requires2fa=true` 이면 challenge 단계, `methods[0]` 으로 화면을 분기.
 
 #### 1.4.3 WebAuthn 환경변수 (옵션 기능)
 
@@ -352,7 +352,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | POST | /api/auth/register | 회원가입 |
-| POST | /api/auth/login | 로그인 (비밀번호 검증 — 2FA 활성 사용자는 `{ requires2fa, methods, challengeToken, requiresTotp? }` 응답) |
+| POST | /api/auth/login | 로그인 (비밀번호 검증 — 2FA 활성 사용자는 `{ requires2fa, methods, challengeToken }` 응답) |
 | POST | /api/auth/login/totp | 로그인 2FA TOTP 검증 (`challengeToken` + 6자리 code 또는 복구 코드). 성공 시 access/refresh 발급 |
 | POST | /api/auth/2fa/setup | TOTP 설정 시작 (인증 필수) — secret 발급 + QR data URL 반환 |
 | POST | /api/auth/2fa/verify | TOTP 활성화 verify (인증 필수) — 활성화 + TOTP 복구 코드 10개 일회성 반환 |
@@ -534,3 +534,19 @@ WebAuthn HTTP 엔드포인트(`/auth/2fa/webauthn/...`) 의 `WebAuthnController`
 - AuthModule 비대화 — login·register·OAuth·session·TOTP 외에 WebAuthn 까지 한 곳에 있어 응집도 낮음. 모듈 분리로 도메인 경계 명시.
 - 단방향 의존성으로 순환 위험 차단. AuthService 는 WebAuthnService 를 알지만 역방향 의존성 없음.
 - ai-review C-8 follow-up.
+
+### 1.4.I — `requiresTotp` deprecated 필드 제거 종결
+
+`/auth/login` 의 2FA challenge 응답에서 `requiresTotp?: boolean` 필드를 완전히 제거한다 (backend `LoginChallengeDto` · `AuthService.login()` · frontend `TwoFactorChallengeResponse` 동시).
+
+**제거 가능한 시점이 된 근거**
+
+- 2fa-webauthn 본 PR (2026-05-18) 도입 이후 두 마이너 버전 경과 — `requiresTotp` 는 호환 bridge 로서의 역할을 마침.
+- 신규 프론트엔드가 동일 배포에 포함되어 있음 — `lib/api/auth.ts` 의 `TwoFactorChallengeResponse` / `isTwoFactorChallenge()` 가 이미 `requires2fa` + `methods` 만으로 분기. 외부 클라이언트는 본 API 를 사용하지 않음.
+- spec §1.4.2 에 명시했던 두 제거 조건 ((1) 두 마이너 버전 경과, (2) `methods` 기반 신규 프론트엔드 배포) 모두 충족.
+
+**채택 이유**
+
+- 같은 의미를 두 필드로 중복 표현하는 비용 — Swagger 문서·클라이언트 타입·DTO·테스트 mock 모두에서 노이즈 발생.
+- "두 필드 충돌 시 `requires2fa` 우선" 같은 정합성 규칙을 유지보수해야 하는 부담 제거.
+- plan/in-progress/2fa-webauthn-followups.md §1 follow-up 종결.

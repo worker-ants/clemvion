@@ -220,7 +220,6 @@ export class AuthController {
           requires2fa: result.requires2fa,
           methods: result.methods,
           challengeToken: result.challengeToken,
-          requiresTotp: result.requiresTotp,
         },
       };
     }
