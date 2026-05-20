@@ -31,26 +31,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'privacy_orders_update', label: '주문 개인정보 정책 수정' },
   ],
   product: [
-    { id: 'product_approve_get', label: '상품 승인 상태 조회' },
-    { id: 'product_approve_create', label: '상품 승인 요청' },
-    { id: 'product_approve_update', label: '상품 승인 상태 변경' },
-    { id: 'product_customproperties_get', label: '상품 사용자 정의 속성 조회' },
-    {
-      id: 'product_customproperties_update',
-      label: '상품 사용자 정의 속성 수정',
-    },
-    {
-      id: 'product_customproperties_delete',
-      label: '상품 사용자 정의 속성 삭제',
-    },
-    {
-      id: 'product_decorationimages_list',
-      label: '상품 꾸미기 이미지 목록',
-      paginated: true,
-    },
-    { id: 'product_decorationimages_set', label: '상품 꾸미기 이미지 설정' },
-    { id: 'product_decorationimages_update', label: '상품 꾸미기 이미지 수정' },
-    { id: 'product_decorationimages_delete', label: '상품 꾸미기 이미지 삭제' },
     { id: 'product_discountprice_get', label: '상품 할인가 조회' },
     { id: 'product_hits_count', label: '상품 조회수 카운트' },
     { id: 'product_icons_list', label: '상품 아이콘 목록', paginated: true },
