@@ -30,6 +30,9 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'privacy_orders_get', label: '주문 개인정보 정책 조회' },
     { id: 'privacy_orders_update', label: '주문 개인정보 정책 수정' },
   ],
+  // product / order: all rows fully implemented as supported (2026-05-21).
+  // store still has 6 privacy_* rows pending — see
+  // `plan/in-progress/cafe24-restricted-scopes-followups.md §3`.
   product: [],
   order: [],
   customer: [],

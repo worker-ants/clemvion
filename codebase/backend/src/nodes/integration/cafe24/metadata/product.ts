@@ -447,7 +447,8 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_additionalimages_delete',
     label: '추가 이미지 삭제',
-    description: 'Delete additional product images.',
+    description:
+      'Delete all additional product images for a product (collection-level DELETE — individual image_no selector is not supported by the Cafe24 endpoint).',
     scopeType: 'write',
     method: 'DELETE',
     path: 'products/{product_no}/additionalimages',
@@ -696,7 +697,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['product_no', 'icon_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
-      icon_no: { type: 'string', location: 'path' },
+      icon_no: { type: 'number', location: 'path' },
     },
     responseShape: 'empty',
   },
@@ -726,7 +727,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['product_no', 'memo_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
-      memo_no: { type: 'string', location: 'path' },
+      memo_no: { type: 'number', location: 'path' },
     },
     responseShape: 'single',
   },
@@ -753,7 +754,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['product_no', 'memo_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
-      memo_no: { type: 'string', location: 'path' },
+      memo_no: { type: 'number', location: 'path' },
     },
     responseShape: 'single',
   },
@@ -767,7 +768,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['product_no', 'memo_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
-      memo_no: { type: 'string', location: 'path' },
+      memo_no: { type: 'number', location: 'path' },
     },
     responseShape: 'empty',
   },
@@ -824,7 +825,7 @@ export const productOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['product_no', 'tag_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
-      tag_no: { type: 'string', location: 'path' },
+      tag_no: { type: 'number', location: 'path' },
     },
     responseShape: 'empty',
   },

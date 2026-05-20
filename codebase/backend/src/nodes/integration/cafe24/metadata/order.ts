@@ -896,8 +896,9 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_memos_list',
-    label: '관리자 메모 목록',
-    description: 'List admin memos across orders.',
+    label: '관리자 메모 목록 (전체 주문)',
+    description:
+      'List admin memos across all orders (no order_id filter). Distinct from `order_memos_list` which lists memos for a single order.',
     scopeType: 'read',
     method: 'GET',
     path: 'orders/memos',
