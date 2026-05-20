@@ -75,24 +75,24 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `orders_saleschannels_create` | 판매 채널 생성 | Create a sales channel | POST | `orders/saleschannels` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-sales-channel) |
 | `orders_saleschannels_update` | 판매 채널 수정 | Update a sales channel | PUT | `orders/saleschannels/{channel_id}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-sales-channel) |
 | `orders_saleschannels_delete` | 판매 채널 삭제 | Delete a sales channel | DELETE | `orders/saleschannels/{channel_id}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-sales-channel) |
-| `payments_status_update_multiple` | 결제 상태 일괄 변경 | Update payment status for multiple orders | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-payment-status-for-multiple-orders) |
+| `payments_status_update_multiple` | 결제 상태 일괄 변경 | Update payment status for multiple orders | PUT | `payments` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-payment-status-for-multiple-orders) |
 | `refunds_list` | 환불 목록 | Retrieve a list of refunds | GET | `refunds` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-refunds) |
 | `refunds_get` | 환불 단건 조회 | Retrieve a refund | GET | `refunds/{refund_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-refund) |
-| `reservations_get` | 예약 상품 조회 | Retrieve a booked item | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-booked-item) |
+| `reservations_get` | 예약 상품 조회 | Retrieve a booked item | GET | `reservations/{reservation_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-booked-item) |
 | `return_get` | 반품 조회 | Retrieve a return | GET | `return/{return_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-return) |
 | `return_create_multiple` | 반품 일괄 생성 | Create multiple order returns | POST | `return` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-multiple-order-returns) |
-| `return_update` | 반품 수정 | Update a return | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-return) |
-| `returnrequests_create` | 반품 요청 생성 | Create a return request for multiple items | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-return-request-for-multiple-items) |
-| `returnrequests_reject` | 반품 요청 거부 | Reject a return request for multiple items | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#reject-a-return-request-for-multiple-items) |
+| `return_update` | 반품 수정 | Update a return | PUT | `return` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-return) |
+| `returnrequests_create` | 반품 요청 생성 | Create a return request for multiple items | POST | `returnrequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-return-request-for-multiple-items) |
+| `returnrequests_reject` | 반품 요청 거부 | Reject a return request for multiple items | PUT | `returnrequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#reject-a-return-request-for-multiple-items) |
 | `cancellation_get` | 취소 조회 | Retrieve an order cancellation | GET | `cancellation/{cancellation_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-order-cancellation) |
 | `cancellation_create_multiple` | 취소 일괄 생성 | Create multiple order cancellations | POST | `cancellation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-multiple-order-cancellations) |
-| `cancellation_update_bulk` | 취소 상세 일괄 변경 | Change cancellation details in bulk | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#change-cancellation-details-in-bulk) |
-| `cancellationrequests_create` | 취소 요청 생성 | Create a cancellation request for multiple items | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-cancellation-request-for-multiple-items) |
-| `cancellationrequests_reject` | 취소 요청 거부 | Reject a cancellation request for multiple items | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#reject-a-cancellation-request-for-multiple-items) |
-| `cashreceipt_list` | 현금영수증 목록 | Retrieve a list of cash receipts | ? | ? | ? | ✓ | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-cash-receipts) |
-| `cashreceipt_create` | 현금영수증 발행 | Create a cash receipt | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-cash-receipt) |
-| `cashreceipt_update` | 현금영수증 수정 | Update a cash receipt | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-cash-receipt) |
-| `cashreceipt_cancel` | 현금영수증 취소 | Update a cash receipt cancellation | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-cash-receipt-cancellation) |
+| `cancellation_update_bulk` | 취소 상세 일괄 변경 | Change cancellation details in bulk | PUT | `cancellation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#change-cancellation-details-in-bulk) |
+| `cancellationrequests_create` | 취소 요청 생성 | Create a cancellation request for multiple items | POST | `cancellationrequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-cancellation-request-for-multiple-items) |
+| `cancellationrequests_reject` | 취소 요청 거부 | Reject a cancellation request for multiple items | PUT | `cancellationrequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#reject-a-cancellation-request-for-multiple-items) |
+| `cashreceipt_list` | 현금영수증 목록 | Retrieve a list of cash receipts | GET | `cashreceipt` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-cash-receipts) |
+| `cashreceipt_create` | 현금영수증 발행 | Create a cash receipt | POST | `cashreceipt` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-cash-receipt) |
+| `cashreceipt_update` | 현금영수증 수정 | Update a cash receipt | PUT | `cashreceipt/{receipt_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-cash-receipt) |
+| `cashreceipt_cancel` | 현금영수증 취소 | Update a cash receipt cancellation | PUT | `cashreceipt/cancellation/{receipt_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-cash-receipt-cancellation) |
 | `collectrequests_update` | 수거 요청 수정 | Update a collection request | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-collection-request) |
 | `control` | 주문 컨트롤 | Order control | ? | ? | ? |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#order-control) |
 | `exchange_get` | 교환 조회 | Retrieve an exchange | GET | `orders/exchange/{order_id}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-exchange) |
