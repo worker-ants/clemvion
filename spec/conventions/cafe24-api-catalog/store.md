@@ -92,18 +92,18 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `redirects_delete` | 리다이렉트 삭제 | Delete a redirect | DELETE | `redirects/{redirect_no}` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-redirect) |
 | `restocknotification_setting_get` | 재입고 알림 설정 조회 | Retrieve restocknotification settings | GET | `restocknotification/setting` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-restocknotification-settings) |
 | `restocknotification_setting_update` | 재입고 알림 설정 수정 | Update restocknotification settings | PUT | `restocknotification/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#updated-restocknotification-settings) |
-| `seo_setting_get` | SEO 설정 조회 | Retrieve SEO settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-seo-settings) |
-| `seo_setting_update` | SEO 설정 수정 | Update store SEO settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-store-seo-settings) |
-| `shippingmanager_get` | 배송 매니저 활성화 정보 | Retrieve activation information for shipping manager | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-activation-information-for-shipping-manager) |
-| `sms_setting_get` | SMS 설정 조회 | Retrieve SMS settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-sms-settings) |
-| `sms_setting_update` | SMS 설정 수정 | Update SMS settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-sms-settings) |
-| `socials_apple_get` | Apple 로그인 연동 상세 | Apple login sync details | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#apple-login-sync-details) |
-| `socials_apple_settings_get` | Apple 로그인 연동 설정 | Apple login sync settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#apple-login-sync-settings) |
-| `socials_kakaosync_get` | 카카오 싱크 상세 | Kakao sync details | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#kakao-sync-details) |
-| `socials_kakaosync_update` | 카카오 싱크 수정 | Kakao sync updates | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#kakao-sync-updates) |
-| `socials_naverlogin_get` | 네이버 로그인 상세 | Naver login details | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#naver-login-details) |
-| `socials_naverlogin_update` | 네이버 로그인 수정 | Update Naver login settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-naver-login-settings) |
-| `socials_navershopping_get` | 네이버 쇼핑 설정 | Naver shopping settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#naver-shopping-settings) |
+| `seo_setting_get` | SEO 설정 조회 | Retrieve SEO settings | GET | `seo/setting` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-seo-settings) |
+| `seo_setting_update` | SEO 설정 수정 | Update store SEO settings | PUT | `seo/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-store-seo-settings) |
+| `shippingmanager_get` | 배송 매니저 활성화 정보 | Retrieve activation information for shipping manager | GET | `shippingmanager` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-activation-information-for-shipping-manager) |
+| `sms_setting_get` | SMS 설정 조회 | Retrieve SMS settings | GET | `sms/setting` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-sms-settings) |
+| `sms_setting_update` | SMS 설정 수정 | Update SMS settings | PUT | `sms/setting` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-sms-settings) |
+| `socials_apple_get` | Apple 로그인 연동 상세 | Apple login sync details | GET | `socials/apple` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#apple-login-sync-details) |
+| `socials_apple_settings_get` | Apple 로그인 연동 설정 | Apple login sync settings | GET | `socials/apple/settings` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#apple-login-sync-settings) |
+| `socials_kakaosync_get` | 카카오 싱크 상세 | Kakao sync details | GET | `socials/kakaosync` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#kakao-sync-details) |
+| `socials_kakaosync_update` | 카카오 싱크 수정 | Kakao sync updates | PUT | `socials/kakaosync` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#kakao-sync-updates) |
+| `socials_naverlogin_get` | 네이버 로그인 상세 | Naver login details | GET | `socials/naverlogin` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#naver-login-details) |
+| `socials_naverlogin_update` | 네이버 로그인 수정 | Update Naver login settings | PUT | `socials/naverlogin` | write |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-naver-login-settings) |
+| `socials_navershopping_get` | 네이버 쇼핑 설정 | Naver shopping settings | GET | `socials/navershopping` | read |  |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#naver-shopping-settings) |
 | `store_accounts_list` | 상점 계좌 목록 | Retrieve a list of store bank accounts | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-store-bank-accounts) |
 | `store_dropshipping_get` | 위탁배송 설정 조회 | Retrieve dropshipping settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-dropshipping-settings) |
 | `store_dropshipping_manage` | 위탁배송 설정 관리 | Manage dropshipping settings | ? | ? | ? |  |  | planned | [↗](https://developers.cafe24.com/docs/ko/api/admin/#manage-dropshipping-settings) |
