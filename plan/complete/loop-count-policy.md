@@ -41,8 +41,8 @@ ai-review W-1 / consistency-check I-1 지적사항. node-config-required-default
 - [x] consistency-check 통과 (BLOCK: NO, WARNING 2건은 본 PR scope 외 또는 frontmatter ↔ 디렉토리 일치로 동작상 OK)
 - [x] tests + lint + typecheck (loop 관련 21 tests pass, 변경분 lint clean, 변경 파일 type-clean. pre-existing typecheck errors 는 본 PR 범위 외)
 - [x] /ai-review (LOW 위험도, Critical 0, WARNING 4 / INFO 9 → 6 즉시 fix, 3 추적/scope 외; RESOLUTION.md)
-- [ ] PR merge (#192)
-- [ ] `git mv plan/in-progress/loop-count-policy.md plan/complete/`
+- [x] PR merge (#192, 2026-05-18 머지 완료, merge commit 7088b335)
+- [x] `git mv plan/in-progress/loop-count-policy.md plan/complete/`
 
 ## 후속 (별 plan/PR)
 
