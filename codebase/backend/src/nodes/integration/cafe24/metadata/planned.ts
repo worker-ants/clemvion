@@ -30,20 +30,7 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'privacy_orders_get', label: '주문 개인정보 정책 조회' },
     { id: 'privacy_orders_update', label: '주문 개인정보 정책 수정' },
   ],
-  product: [
-    {
-      id: 'mains_products_list',
-      label: '메인 카테고리 상품 목록',
-      paginated: true,
-    },
-    { id: 'mains_products_count', label: '메인 카테고리 상품 개수' },
-    { id: 'mains_products_set', label: '메인 카테고리 상품 설정' },
-    {
-      id: 'mains_products_update_sorting',
-      label: '메인 카테고리 상품 정렬 수정',
-    },
-    { id: 'mains_products_delete', label: '메인 카테고리 상품 삭제' },
-  ],
+  product: [],
   order: [
     { id: 'order_autocalculation_delete', label: '주문 자동 계산 해제' },
     { id: 'order_buyer_get', label: '주문자 정보 조회' },
