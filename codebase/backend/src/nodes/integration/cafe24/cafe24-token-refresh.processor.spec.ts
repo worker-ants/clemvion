@@ -54,10 +54,20 @@ describe('Cafe24TokenRefreshProcessor', () => {
     expect(cafe24ApiClient.refreshAccessToken).toHaveBeenCalledTimes(1);
   });
 
-  it('short-circuits when token is already fresh (race protection)', async () => {
+  it('short-circuits when JWT exp is future (race protection)', async () => {
+    // 2026-05-21 — short-circuit 은 JWT exp 만 신뢰. tokenExpiresAt 만 미래로
+    // 채우면 short-circuit 발사 안 됨 (다음 테스트가 그 invariant 를 검증).
+    const freshJwt = makeFakeJwt({
+      exp: Math.floor((NOW_MS + 60 * 60 * 1000) / 1000), // 1h future
+    });
     integrationRepository.findOne.mockResolvedValue(
       makeIntegration({
-        tokenExpiresAt: new Date(NOW_MS + 60 * 60 * 1000), // 1h future
+        tokenExpiresAt: new Date(NOW_MS + 60 * 60 * 1000),
+        credentials: {
+          mall_id: 'shop',
+          refresh_token: 'r',
+          access_token: freshJwt,
+        },
       }),
     );
     await processor.process(
@@ -65,6 +75,43 @@ describe('Cafe24TokenRefreshProcessor', () => {
     );
     expect(cafe24ApiClient.refreshAccessToken).not.toHaveBeenCalled();
   });
+
+  // 2026-05-21 — JWT exp parse 가 실패하는 케이스 (비-JWT opaque token,
+  // payload exp 비-숫자, base64 손상 등) 에서는 short-circuit 발사 금지.
+  // 옛 코드는 `resolveTokenExpiry` 의 폴백 chain (tokenExpiresAt → expires_at)
+  // 으로 강하해 TZ-bugged 미래 값으로 short-circuit 이 발동했고, 그 completed
+  // no-op job 이 60s 잔존하며 후속 add() 가 dedup → refresh 무한 회귀
+  // (운영 보고 2026-05-20, mall=gehrig0301). JWT exp null 시 항상 refresh
+  // 시도하여 회귀 영구 차단.
+  //
+  // NOTE: it.each 배열은 describe 평가 시점(fake timer 적용 전)에 즉시 평가된다.
+  // `makeFakeJwt({ iat: 1700000000 })` 는 `exp` 키 없이 `JSON.stringify` 하므로
+  // 실제 payload 에 `exp` 가 포함되지 않음이 보장된다 — `parseJwtExp` 가 null
+  // 을 반환하는 것이 테스트 의도. 시간 의존 fixture 는 beforeEach 또는 테스트
+  // 본문 내에서 생성하는 패턴을 유지할 것.
+  it.each([
+    ['opaque (비-JWT)', 'opaque-access-token-no-jwt-structure'],
+    ['손상된 JWT segments', 'a.b'],
+    ['payload exp 누락', makeFakeJwt({ iat: 1700000000 })],
+  ])(
+    'JWT exp parse 실패 (%s) — tokenExpiresAt 미래여도 short-circuit 발사 금지',
+    async (_, accessToken) => {
+      integrationRepository.findOne.mockResolvedValue(
+        makeIntegration({
+          tokenExpiresAt: new Date(NOW_MS + 9 * 60 * 60 * 1000), // +9h TZ-bug
+          credentials: {
+            mall_id: 'shop',
+            refresh_token: 'r',
+            access_token: accessToken,
+          },
+        }),
+      );
+      await processor.process(
+        makeJob({ integrationId: 'int-1', source: 'proactive' }),
+      );
+      expect(cafe24ApiClient.refreshAccessToken).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('skips silently when integration is missing (deleted between enqueue and pickup)', async () => {
     integrationRepository.findOne.mockResolvedValue(null);

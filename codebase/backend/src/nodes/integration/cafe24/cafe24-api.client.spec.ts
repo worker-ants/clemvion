@@ -1817,12 +1817,18 @@ describe('Cafe24ApiClient', () => {
         integrationId: integration.id,
         source: 'reactive_401',
       });
-      // 핵심 어서션 — reactive_401 은 removeOnComplete.age=0
+      // 핵심 어서션 (2026-05-21 갱신) — reactive_401 은 jobId 자체를 unique
+      // 화해서 completed job dedup 을 우회한다. integration.id 그대로면 옛
+      // 회귀 (proactive 의 completed-no-op job 으로 dedup) 가 재발한다.
       expect(addCall[2]).toMatchObject({
-        jobId: integration.id,
         attempts: 1,
-        removeOnComplete: { age: 0 },
+        removeOnComplete: { age: 60 },
       });
+      const reactiveJobId = (addCall[2] as { jobId: string }).jobId;
+      expect(reactiveJobId).toMatch(
+        new RegExp(`^${integration.id}#reactive-\\d+-[a-z0-9]+$`),
+      );
+      expect(reactiveJobId).not.toBe(integration.id);
 
       // retry 가 새 bearer 로 발사
       expect(fetchMock).toHaveBeenCalledTimes(2);
