@@ -23,9 +23,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   readonly Cafe24PlannedOperationEntry[]
 > = {
   store: [
-    { id: 'shops_get', label: '멀티쇼핑몰 단건 조회' },
-    { id: 'activitylogs_list', label: '액션 로그 목록', paginated: true },
-    { id: 'activitylogs_get', label: '액션 로그 단건 조회' },
     { id: 'automessages_arguments_get', label: '자동 메시지 변수 목록' },
     { id: 'automessages_setting_get', label: '자동 메시지 설정 조회' },
     { id: 'automessages_setting_update', label: '자동 메시지 설정 수정' },
@@ -49,9 +46,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
     { id: 'currency_update', label: '통화 수정' },
     { id: 'customers_setting_get', label: '회원 관련 설정 조회' },
     { id: 'customers_setting_update', label: '회원 관련 설정 수정' },
-    { id: 'dashboard_get', label: '대시보드 조회' },
-    { id: 'financials_paymentgateway_get', label: '결제대행사 계약 정보 조회' },
-    { id: 'financials_store_get', label: '상점 거래 정보 조회' },
     { id: 'images_setting_get', label: '상품 이미지 크기 설정 조회' },
     { id: 'images_setting_update', label: '상품 이미지 크기 설정 수정' },
     { id: 'information_get', label: '상점 정책 조회' },
@@ -69,7 +63,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
       id: 'mains_properties_setting_update',
       label: '메인 진열 추가 설정 수정',
     },
-    { id: 'menus_get', label: '메뉴 조회' },
     { id: 'mobile_setting_get', label: '모바일 설정 조회' },
     { id: 'mobile_setting_update', label: '모바일 설정 수정' },
     { id: 'naverpay_setting_get', label: '네이버페이 설정 조회' },
