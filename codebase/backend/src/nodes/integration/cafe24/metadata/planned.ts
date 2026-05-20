@@ -23,18 +23,6 @@ export const CAFE24_PLANNED_BY_RESOURCE: Record<
   readonly Cafe24PlannedOperationEntry[]
 > = {
   store: [
-    { id: 'mains_properties_setting_get', label: '메인 진열 추가 설정 조회' },
-    {
-      id: 'mains_properties_setting_update',
-      label: '메인 진열 추가 설정 수정',
-    },
-    { id: 'mobile_setting_get', label: '모바일 설정 조회' },
-    { id: 'mobile_setting_update', label: '모바일 설정 수정' },
-    { id: 'naverpay_setting_get', label: '네이버페이 설정 조회' },
-    { id: 'naverpay_setting_create', label: '네이버페이 설정 생성' },
-    { id: 'naverpay_setting_update', label: '네이버페이 설정 수정' },
-    { id: 'orderform_setting_get', label: '주문서 양식 설정 조회' },
-    { id: 'orderform_setting_update', label: '주문서 양식 설정 수정' },
     { id: 'orders_setting_get', label: '주문 설정 조회' },
     { id: 'orders_setting_update', label: '주문 설정 수정' },
     { id: 'orders_status_get', label: '주문 상태 표기 조회' },
