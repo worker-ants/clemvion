@@ -75,19 +75,19 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 5. **`scope` 일치**: `supported` row 의 `scope` 가 메타데이터 `scopeType` 과 일치.
 6. **id 의 resource 내 unique**: 한 카탈로그 파일 안에 같은 `id` 가 두 번 나오면 fail.
 7. **status 가 enum 중 하나**: `supported` / `planned` / `deprecated` 외의 값이 있으면 fail.
-8. **`restricted` 컬럼 ↔ 메타데이터 `restrictedApproval` 동기**: catalog row 의 `restricted` 컬럼이 `scope` 또는 `operation` 이면 그 row 에 대응하는 backend 메타데이터에 `restrictedApproval` 필드가 존재해야 하고, 그 역도 동일. 컬럼 값과 메타데이터 `level` 은 동일 토큰 (`'scope'` ↔ `'scope'`, `'operation'` ↔ `'operation'`). `restrictedApproval.approvalGroup` 필드 (UI 메시지·tooltip 묶음 식별자) 는 catalog 컬럼으로 노출하지 않으므로 본 검증 대상이 아니다 — 정의는 [`cafe24-api-metadata.md §2`](../cafe24-api-metadata.md#2-operation-메타데이터-형식) 참고. **`level='program'` 인 메타데이터 row 는 catalog 화 대상이 아닌 별도 트랙 (Analytics 등) 이므로 본 검증에서 제외**된다 — catalog 에 대응 row 가 없는 것이 정상. SoT 명단의 진위 검증은 [`cafe24-restricted-scopes.md`](../cafe24-restricted-scopes.md) §5 절차에서 별도로 다룬다.
+8. **`restricted` 컬럼 ↔ 메타데이터 `restrictedApproval` 동기**: catalog row 의 `restricted` 컬럼이 `scope` 또는 `operation` 이면 그 row 에 대응하는 backend 메타데이터에 `restrictedApproval` 필드가 존재해야 하고, 그 역도 동일. 컬럼 값과 메타데이터 `level` 은 동일 토큰 (`'scope'` ↔ `'scope'`, `'operation'` ↔ `'operation'`). `restrictedApproval.approvalGroup` 필드 (UI 메시지·tooltip 묶음 식별자) 는 catalog 컬럼으로 노출하지 않으므로 본 검증 대상이 아니다 — 정의는 [`cafe24-api-metadata.md §2`](../cafe24-api-metadata.md#2-operation-메타데이터-형식) 참고. **`level='program'` 인 메타데이터 row 는 catalog 화 대상이 아닌 별도 트랙 (Analytics 등) 이므로 본 검증에서 제외**된다 — catalog 에 대응 row 가 없는 것이 정상. SoT 명단의 진위 검증은 [`cafe24-restricted-scopes.md`](../cafe24-restricted-scopes.md) §5 절차에서 별도로 다룬다. **`status: planned` 행은 backend 메타데이터 row 가 아직 없으므로 본 검증 대상에서 제외**된다 — `planned` 행의 `restricted` 컬럼은 구현 예정 메모용이며 `planned → supported` 승격 시 메타데이터와 함께 동기 검증 대상이 된다.
 
 테스트는 카탈로그 MD 의 표를 파싱한다 — MD 표 구문이 깨지면 곧장 fail. 따라서 본 카탈로그는 **사람이 직접 손으로 수정하는 SoT** 이며, 코드 변경 시점에 반드시 카탈로그 동기 갱신을 함께 commit 해야 한다(`spec/conventions/cafe24-api-metadata.md` §5 의 신규 endpoint 추가 절차에 인용).
 
 ## 5. Coverage Matrix
 
-2026-05-17 기준. 본 매트릭스는 카탈로그 row 수 + 메타데이터 row 수의 한 화면 요약이다 — 위 동기 테스트와 별개의 휴먼 가독성 보조 정보다. row 추가/삭제 시 본 표도 손으로 갱신한다.
+2026-05-21 기준. 본 매트릭스는 카탈로그 row 수 + 메타데이터 row 수의 한 화면 요약이다 — 위 동기 테스트와 별개의 휴먼 가독성 보조 정보다. row 추가/삭제 시 본 표도 손으로 갱신한다.
 
 | Resource | Supported | Planned | Cafe24 docs sub-resource 수 |
 |----------|-----------|---------|---|
-| [store](./store.md) | 8 | 50+ | 50+ |
-| [product](./product.md) | 14 | 25+ | 28 |
-| [order](./order.md) | 17 | 30+ | 47 |
+| [store](./store.md) | 100 | 6 | 50+ |
+| [product](./product.md) | 63 | 0 | 28 |
+| [order](./order.md) | 106 | 0 | 47 |
 | [customer](./customer.md) | 24 | 0 | 12 |
 | [community](./community.md) | 24 | 0 | 9 |
 | [design](./design.md) | 9 | 0 | 3 |
@@ -103,7 +103,9 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | [mileage](./mileage.md) | 8 | 0 | 5 |
 | [notification](./notification.md) | 12 | 0 | 7 |
 | [translation](./translation.md) | 9 | 0 | 4 |
-| **합계** | **264** | **~109** | **~250** |
+| **합계** | **494** | **6** | **~250** |
+
+> 잔존 planned 6건은 모두 `store.md` 의 `privacy_*` row (privacy_boards/join/orders × get/update). id prefix 결정 (`plan/in-progress/cafe24-restricted-scopes-followups.md §3`) 후 별 PR 로 처리.
 
 > "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 endpoint 합계는 ~500.
 
@@ -155,3 +157,4 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | 2026-05-16 (coverage Phase 8j) | Community resource 완성 — boards_comments_bulk + boards_seo get/update 2건 + commenttemplates get/update/delete 3건 + financials_monthlyreviews_count + urgentinquiry get/reply CRUD 4건 = 11건. community supported 13 → 24, planned 11 → 0, 합계 253 → 264. community 열다섯 번째 0-planned resource. 본 사이클 (Phase 8 a~j) 종료. |
 | 2026-05-17 | §2 에 `restricted` 컬럼 추가 + §4 검증 규칙 8 신설 — 카페24 별도 승인 대상 식별. SoT 는 [`cafe24-restricted-scopes.md`](../cafe24-restricted-scopes.md). 영향 카탈로그 (mileage / notification / privacy / store) 표 헤더·row 동시 갱신. 사용자 보고 (질문에서 제공한 3종 표) 후속. consistency-check 세션: `review/consistency/2026/05/17/12_12_46/` (BLOCK: NO). |
 | 2026-05-17 (drift fix) | §2 컬럼 정의 순서를 실제 파일 헤더 (`scope→restricted→paginated→status→docs`) 기준으로 정정 (C-1) + `restricted` 값 `op` → `operation` 으로 토큰 통일 (메타데이터 `level` 과 일치, W-9) + §4 검증 규칙 8 에 `approvalGroup` 비검증 명시 (W-8 재명명) + Coverage Matrix 기준일 갱신 (W-4). impl-prep consistency-check 세션: `review/consistency/2026/05/17/12_37_41/`. |
+| 2026-05-21 (planned bulk) | **Planned operation 전수 구현** — 사용자 요청 "미구현 상태의 항목을 모두 구현". store / product / order 3 resource 의 planned 236건 중 230건을 `planned → supported` 로 승격 (Phase 1 store 92 / Phase 2 product 49 / Phase 3 order 89 = 230). 잔존 6건은 store 의 `privacy_*` row (id prefix 결정 미해소, `cafe24-restricted-scopes-followups.md §3` 후속). Phase 0.5 drift fix 2건 동반 (C-1 restricted-scopes.md `op`→`operation`, C-2 store.md `## Rationale` 위치 정정). §4 검증 규칙 8 에 `planned` 행 예외 명시 (W-1). 합계 supported 264 → 494, planned ~109 → 6. plan: `plan/in-progress/cafe24-planned-implementation.md`. 22 batch commit (1-A ~ 1-J / 2-A ~ 2-E / 3-A ~ 3-G). consistency-check 세션: `review/consistency/2026/05/21/07_31_53/`. |
