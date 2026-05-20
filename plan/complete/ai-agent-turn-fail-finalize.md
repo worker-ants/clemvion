@@ -35,64 +35,64 @@ owner: developer
 
 ### 후속 (별개 PR — 본 plan 범위 외)
 
-- [ ] `spec/5-system/4-execution-engine.md §1.2` 상태머신 다이어그램에 `waiting_for_input → failed` 전이 명시 (project-planner 위임).
-- [ ] single-turn (spec §7.3) 의 LLM 에러 라우팅은 `node-output-redesign` P0 잔여 범위로 별도 PR.
-- [ ] 본 plan 완료 후 `plan/in-progress/node-output-redesign/ai-agent.md` 의 multi-turn CRITICAL 체크박스 `[x]` 갱신 (별도 chore commit).
+- [x] `spec/5-system/4-execution-engine.md §1.2` 상태머신 다이어그램에 `waiting_for_input → failed` 전이 명시 (project-planner 위임). → PR #216 (commit `c3d8e6fd`) 로 완료.
+- [ ] single-turn (spec §7.3) 의 LLM 에러 라우팅은 `node-output-redesign` P0 잔여 범위로 별도 PR. (본 plan 범위 외 — `plan/in-progress/node-output-redesign/ai-agent.md` §10 P0 #208 의 single-turn 부분으로 잔존.)
+- [x] 본 plan 완료 후 `plan/in-progress/node-output-redesign/ai-agent.md` 의 multi-turn CRITICAL 체크박스 `[x]` 갱신 (별도 chore commit). → 본 plan 종료와 함께 처리 (208번 항목에 multi-turn 부분 완료 인라인 노트 추가).
 
 ## 변경 범위
 
 ### 1) `codebase/backend/src/modules/execution-engine/execution-engine.service.ts`
 
-- [ ] `handleAiMessageTurn` (`:2109`) 의 `handler.processMultiTurnMessage(...)` 호출을 try/catch 로 감싼다.
-  - catch 시 `await this.handleAiTurnError(executionId, node, resumeState, nodeExec, err)` 호출.
-  - 반환: `{ resumeState, ended: true }` → conversation loop 자연 종료.
-- [ ] 신규 `private async handleAiTurnError(executionId, node, resumeState, nodeExec, err): Promise<void>`:
-  - `handler.endMultiTurnConversation(resumeState, 'error', { code, message, details })` 호출 (handler 시그니처 확장).
-  - 결과 normalize → `setStructuredOutput` / `setNodeOutput` (`handleAiEndConversation` 과 동일 패턴).
-  - DB outputData persist (NodeExecution.outputData = adapted result).
-  - `eventEmitter.emitExecution(execution.node.failed, { executionId, nodeId, nodeExecutionId, nodeName, error })` 단발사.
-- [ ] `waitForAiConversation` (`:1963-1989`) — catch 처리 위치는 두 가지 선택지 중 **handleAiMessageTurn 내부** 안에 try/catch (engine 의 다른 turn handler 와 일관). conversation loop 는 그대로 try/catch 없이 유지.
-- [ ] `finalizeAiNode` (`:2377`) 시그니처에 `finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED'` 추가. FAILED 시:
-  - `nodeExec.status = NodeExecutionStatus.FAILED`
-  - `updateExecutionStatus(savedExecution, ExecutionStatus.FAILED, nodeExec)` 또는 정상 RUNNING 전이 분기로 분리 (기존 RUNNING 전이는 conversation 종료 후 다음 노드 실행 재개용이므로 FAILED 와 충돌하지 않게 명확히 분기).
-  - `execution.node.completed` 대신 `execution.node.failed` 발사 (handleAiTurnError 에서 이미 발사했다면 중복 방지 — `handleAiTurnError` 가 이벤트를 발사하고 `finalizeAiNode` 는 상태 전이만 담당하는 분리가 더 명확).
-- [ ] handleAiMessageTurn 의 반환에 `endedWithError?: boolean` 또는 별도 분기 신호 추가 → conversation loop 종료 후 `finalizeAiNode(.., finalStatus)` 가 정확한 분기로 호출되도록.
+- [x] `handleAiMessageTurn` 의 `handler.processMultiTurnMessage(...)` 호출을 try/catch 로 감싼다.
+  - catch 시 `await this.handleAiTurnError(...)` 호출.
+  - 반환: `{ resumeState, ended: true, finalStatus: 'FAILED' }` → conversation loop 자연 종료.
+- [x] 신규 `private async handleAiTurnError(executionId, node, resumeState, nodeExec, err)`:
+  - sanitized `errorPayload` 생성 → `handler.endMultiTurnConversation(state, 'error', errorPayload)` 호출.
+  - cache / DB outputData 갱신 (`setStructuredOutput` / `setNodeOutput` + NodeExecution.outputData).
+- [x] catch 처리 위치는 `handleAiMessageTurn` 내부 try/catch (engine 의 다른 turn handler 와 일관). conversation loop 는 try/catch 없이 유지.
+- [x] `finalizeAiNode` 시그니처에 `finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED'` 추가. FAILED 시:
+  - `nodeExec.status = NodeExecutionStatus.FAILED` save
+  - `NODE_FAILED` emit 후 sentinel throw → Execution.status 전이 + `EXECUTION_FAILED` 발사는 `runExecution` top-level catch 가 단일 진입점으로 담당.
+- [x] handleAiMessageTurn 의 반환에 `finalStatus: 'COMPLETED' | 'FAILED'` 신호 추가 → conversation loop 종료 후 `finalizeAiNode(.., finalStatus)` 가 정확한 분기로 호출.
+
+(구현 commit: `50b3f83b` + ai-review 후속 `82383739`, PR #209.)
 
 ### 2) `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`
 
-- [ ] `endMultiTurnConversation` (`:1806`) 시그니처 확장:
-  ```ts
-  endMultiTurnConversation(
-    state: Record<string, unknown>,
-    endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
-    errorPayload?: { code: string; message: string; details?: unknown },
-  ): unknown
-  ```
-  - errorPayload 가 있으면 `buildMultiTurnFinalOutput` 으로 전달.
-- [ ] `buildMultiTurnFinalOutput` (`:1833`) 시그니처 확장 — 마지막 인자로 `errorPayload?: { code, message, details? }` 추가.
-  - `endReason === 'error' && errorPayload` 시 `output.error = errorPayload` 도 함께 set.
-  - `output.result.*` (response / messages / turnCount / endReason) 는 그대로 유지.
-  - `port='error'`, `status='ended'`.
-- [ ] `output.error.message` / `output.error.details` 에 sanitize 적용 (`sanitizeLastErrorMessage` 재사용 — token/secret echo 차단).
-- [ ] `meta.lastError` 는 별도 신설하지 않음 (spec §7.9 가 `output.error` 만 명시).
+- [x] `endMultiTurnConversation` 시그니처 확장 — `errorPayload?: { code, message, details? }` optional 인자 추가, `buildMultiTurnFinalOutput` 으로 전달.
+- [x] `buildMultiTurnFinalOutput` 시그니처 확장 — 마지막 인자로 `errorPayload?: { code, message, details? }`. `errorPayload` set 시 `output.error = errorPayload` 도 함께 emit, `output.result.*` 부분 결과 유지, `port='error'`·`status='ended'`.
+- [x] `output.error.message` / `output.error.details` 에 sanitize 적용 (engine 측 `extractAiTurnErrorPayload` 에서 sanitize 수행 — token/secret echo 차단).
+- [x] `meta.lastError` 는 신설하지 않음 (spec §7.9 가 `output.error` 만 명시).
+
+(구현 commit: `50b3f83b`.)
 
 ### 3) 테스트
 
-- [ ] `ai-agent.handler.spec.ts` — `endMultiTurnConversation(state, 'error', { code: 'LLM_RATE_LIMIT', message: '...' })` 가:
-  - `output.error.code === 'LLM_RATE_LIMIT'`, `output.error.message` 가 sanitize 된 문자열
+- [x] `ai-agent.handler.spec.ts` — `endMultiTurnConversation(state, 'error', errorPayload)` 검증:
+  - `output.error.code === 'LLM_RATE_LIMIT'`, sanitize 된 `message`
   - `output.result.endReason === 'error'`
   - `output.result.messages` / `output.result.turnCount` 부분 결과 보존
   - `port === 'error'`, `status === 'ended'`
-- [ ] `execution-engine.service.spec.ts` — `handleAiMessageTurn` 가 handler throw 시:
+- [x] `execution-engine.service.spec.ts` — `handleAiMessageTurn` handler throw 시:
   - `handleAiTurnError` 호출 (spy)
   - `eventEmitter.emitExecution` 가 `NODE_FAILED` 1회 발사 (`AI_MESSAGE` 발사 안 함)
-  - 반환 `{ resumeState, ended: true }`
+  - 반환 `{ resumeState, ended: true, finalStatus: 'FAILED' }`
   - conversation loop 가 다음 turn 진입 안 함
-- [ ] `execution-engine.service.spec.ts` — `finalizeAiNode(.., 'FAILED')` 가:
-  - `NodeExecution.status === FAILED` 로 save
-  - `Execution.status === FAILED` 로 전이
+- [x] `execution-engine.service.spec.ts` — `finalizeAiNode(.., 'FAILED')`:
+  - `NodeExecution.status === FAILED` save
+  - sentinel throw 후 `runExecution` top-level catch 가 `Execution.status === FAILED` 로 전이
   - 정상 분기 (`finalStatus = 'COMPLETED'`) 회귀 미발생 확인
+
+(구현 commit: `50b3f83b` + `82383739`.)
 
 ## 미해결 결정사항
 
 없음. 모든 결정이 위 "채택 결정" 절에 기록됨.
+
+## 완료 (2026-05-21)
+
+본 plan 의 모든 본문 항목 + 후속 §1 항목 완료. 후속 §2 (single-turn LLM 에러 라우팅) 는 본 plan 범위 외로 `node-output-redesign/ai-agent.md` §10 P0 #208 에 잔존.
+
+- PR #209 (`50b3f83b`): 본 plan §1/§2/§3 일괄 반영.
+- ai-review 후속 (`82383739`): `82383739` 가 본 plan §1 후속 코드 정리.
+- PR #216 (`c3d8e6fd`): 후속 §1 — spec §1.2 상태머신 `waiting_for_input → failed` 전이 명시.
