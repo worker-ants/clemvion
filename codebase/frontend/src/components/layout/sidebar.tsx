@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -43,6 +43,7 @@ import { useT, type TranslationKey } from "@/lib/i18n";
 import { notificationHref } from "@/lib/notifications/href";
 import {
   filterNotifications,
+  FILTER_CHIPS,
   type NotificationFilter,
 } from "@/lib/notifications/filter";
 
@@ -254,6 +255,13 @@ export function Sidebar() {
     notifFilter,
   );
 
+  // popover 닫힐 때 필터를 "all" 로 리셋 — 재진입 시 이전 필터 상태 잔존 방지.
+  useEffect(() => {
+    if (!notifOpen) {
+      setNotifFilter("all");
+    }
+  }, [notifOpen]);
+
   function handleNotifClick(notif: {
     id: string;
     isRead: boolean;
@@ -267,6 +275,23 @@ export function Sidebar() {
     const href = notificationHref(notif);
     if (href) {
       setNotifOpen(false);
+      router.push(href);
+    }
+  }
+
+  /** CTA 버튼(Reconnect 등) 전용 핸들러 — 항상 popover 를 닫고 deep-link 이동.
+   * `handleNotifClick` 과 달리 href 유무에 관계없이 popover 닫힘을 보장한다. */
+  function handleCtaClick(
+    notif: Parameters<typeof handleNotifClick>[0],
+    e: MouseEvent,
+  ) {
+    e.stopPropagation();
+    if (!notif.isRead) {
+      markReadMutation.mutate(notif.id);
+    }
+    const href = notificationHref(notif);
+    setNotifOpen(false);
+    if (href) {
       router.push(href);
     }
   }
@@ -445,16 +470,7 @@ export function Sidebar() {
                   aria-label={t("sidebar.notificationFilter.aria")}
                   className="flex items-center gap-1 border-b border-[hsl(var(--border))] px-3 py-1.5"
                 >
-                  {(
-                    [
-                      ["all", "sidebar.notificationFilter.all"],
-                      ["general", "sidebar.notificationFilter.general"],
-                      [
-                        "integration-action-required",
-                        "sidebar.notificationFilter.integrationActionRequired",
-                      ],
-                    ] as const
-                  ).map(([value, key]) => {
+                  {FILTER_CHIPS.map(([value, key]) => {
                     const isActive = notifFilter === value;
                     return (
                       <button
@@ -530,10 +546,7 @@ export function Sidebar() {
                         {notif.type === "integration_action_required" && (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleNotifClick(notif);
-                            }}
+                            onClick={(e) => handleCtaClick(notif, e)}
                             className="mt-1.5 inline-flex items-center rounded-md border border-[hsl(var(--primary))] bg-[hsl(var(--primary))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--primary-foreground))] transition-colors hover:bg-[hsl(var(--primary))/0.9]"
                           >
                             {t("sidebar.notificationCta.reconnect")}

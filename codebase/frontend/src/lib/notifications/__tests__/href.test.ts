@@ -70,11 +70,14 @@ describe("notificationHref", () => {
       expect(notificationHref(notif({ type, resourceId }))).toBe(expected);
     });
 
-    it("falls back to /workflows when resourceId missing", () => {
-      expect(
-        notificationHref(notif({ type: "execution_failed", resourceId: null })),
-      ).toBe("/workflows");
-    });
+    it.each(["execution_failed", "background_failed", "schedule_failed"])(
+      "falls back to /workflows when resourceId missing (%s)",
+      (type) => {
+        expect(
+          notificationHref(notif({ type, resourceId: null })),
+        ).toBe("/workflows");
+      },
+    );
   });
 
   describe("team_invite", () => {
@@ -92,6 +95,69 @@ describe("notificationHref", () => {
       expect(
         notificationHref(notif({ type: "marketplace_update" })),
       ).toBeNull();
+    });
+  });
+
+  describe("resourceId SAFE_ID validation", () => {
+    it("falls back to list when resourceId is empty string", () => {
+      expect(
+        notificationHref(
+          notif({ type: "integration_action_required", resourceId: "" }),
+        ),
+      ).toBe("/integrations");
+    });
+
+    it("falls back to list when resourceId contains path traversal (..)", () => {
+      expect(
+        notificationHref(
+          notif({
+            type: "integration_action_required",
+            resourceId: "../../etc/passwd",
+          }),
+        ),
+      ).toBe("/integrations");
+    });
+
+    it("falls back to list when resourceId contains protocol-relative URL", () => {
+      expect(
+        notificationHref(
+          notif({
+            type: "integration_action_required",
+            resourceId: "//evil.com",
+          }),
+        ),
+      ).toBe("/integrations");
+    });
+
+    it("accepts valid UUID-like resourceId", () => {
+      expect(
+        notificationHref(
+          notif({
+            type: "integration_action_required",
+            resourceId: "550e8400-e29b-41d4-a716-446655440000",
+          }),
+        ),
+      ).toBe("/integrations/550e8400-e29b-41d4-a716-446655440000");
+    });
+
+    it("accepts alphanumeric + hyphen + underscore resourceId", () => {
+      expect(
+        notificationHref(
+          notif({
+            type: "execution_failed",
+            resourceId: "workflow_abc-123",
+          }),
+        ),
+      ).toBe("/workflows/workflow_abc-123");
+    });
+
+    it("falls back when resourceId exceeds 128 chars", () => {
+      const longId = "a".repeat(129);
+      expect(
+        notificationHref(
+          notif({ type: "integration_action_required", resourceId: longId }),
+        ),
+      ).toBe("/integrations");
     });
   });
 });

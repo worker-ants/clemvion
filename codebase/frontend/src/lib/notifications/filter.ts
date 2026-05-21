@@ -5,15 +5,26 @@
  * `?type=...` 필터는 별 plan (notification 수가 늘어나면 도입). 옵션 union 은
  * 칩 UI / i18n / 분기 모두에서 공유하므로 한 곳에 모은다.
  */
+export type { NotificationLite } from "./types";
+
 export type NotificationFilter =
   | "all"
   | "general"
   | "integration-action-required";
 
-export interface NotificationLite {
-  id: string;
-  type?: string;
-}
+/**
+ * 필터 칩 value → i18n 키 매핑 상수.
+ * sidebar.tsx 의 JSX 인라인 리터럴 대신 이 상수를 import 해 렌더링한다.
+ * NotificationFilter 에 새 값이 추가되면 이 배열도 함께 수정한다.
+ */
+export const FILTER_CHIPS = [
+  ["all", "sidebar.notificationFilter.all"],
+  ["general", "sidebar.notificationFilter.general"],
+  [
+    "integration-action-required",
+    "sidebar.notificationFilter.integrationActionRequired",
+  ],
+] as const satisfies ReadonlyArray<[NotificationFilter, string]>;
 
 export function filterNotifications<T extends NotificationLite>(
   list: T[],
