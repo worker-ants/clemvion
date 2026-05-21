@@ -312,3 +312,156 @@ describe('TriggersService.findOneDetail (helper)', () => {
     expect(true).toBe(true);
   });
 });
+
+describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.3]', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: {
+            findOne: jest.fn(),
+            save: jest.fn((t: Trigger) => Promise.resolve(t)),
+            createQueryBuilder: jest.fn(),
+          },
+        },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        { provide: getRepositoryToken(Schedule), useValue: {} },
+      ],
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+  });
+
+  function makeTrigger(config: Record<string, unknown>): Trigger {
+    return {
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      config,
+      notificationSecretV2: null,
+      notificationRotatedAt: null,
+    } as unknown as Trigger;
+  }
+
+  it('rotateNotificationSecret — 새 wsk_* secret 발급 + v2 컬럼 저장', async () => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        notification: {
+          url: 'https://x.com/cb',
+          events: ['execution.completed'],
+        },
+      }),
+    );
+    const result = await service.rotateNotificationSecret('t1', 'ws');
+    expect(result.secret).toMatch(/^wsk_[a-f0-9]{64}$/);
+    expect(typeof result.rotatedAt).toBe('string');
+    expect(triggerRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notificationSecretV2: result.secret,
+        notificationRotatedAt: expect.any(Date),
+      }),
+    );
+  });
+
+  it('rotateNotificationSecret — notification 미설정 시 NOTIFICATION_NOT_CONFIGURED', async () => {
+    triggerRepo.findOne.mockResolvedValue(makeTrigger({}));
+    await expect(
+      service.rotateNotificationSecret('t1', 'ws'),
+    ).rejects.toMatchObject({
+      response: { code: 'NOTIFICATION_NOT_CONFIGURED' },
+    });
+  });
+
+  it('revokePerTriggerToken — 새 itk_* + config.interaction.triggerToken 교체', async () => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        interaction: {
+          enabled: true,
+          tokenStrategy: 'per_trigger',
+          triggerToken: 'itk_old',
+        },
+      }),
+    );
+    const result = await service.revokePerTriggerToken('t1', 'ws');
+    expect(result.token).toMatch(/^itk_[a-f0-9]{64}$/);
+    expect(triggerRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          interaction: expect.objectContaining({ triggerToken: result.token }),
+        }),
+      }),
+    );
+  });
+
+  it('revokePerTriggerToken — per_execution 전략이면 NOT_PER_TRIGGER_STRATEGY', async () => {
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        interaction: { enabled: true, tokenStrategy: 'per_execution' },
+      }),
+    );
+    await expect(
+      service.revokePerTriggerToken('t1', 'ws'),
+    ).rejects.toMatchObject({
+      response: { code: 'NOT_PER_TRIGGER_STRATEGY' },
+    });
+  });
+
+  it('revokePerTriggerToken — interaction 미설정 시 NOT_PER_TRIGGER_STRATEGY', async () => {
+    triggerRepo.findOne.mockResolvedValue(makeTrigger({}));
+    await expect(
+      service.revokePerTriggerToken('t1', 'ws'),
+    ).rejects.toMatchObject({
+      response: { code: 'NOT_PER_TRIGGER_STRATEGY' },
+    });
+  });
+
+  describe('promoteRotatedNotificationSecrets — grace 24h 종료 cron', () => {
+    function mockQueryBuilder(triggers: Trigger[]): void {
+      const qb = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(triggers),
+      };
+      (triggerRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+    }
+
+    it('grace 경과 trigger 의 v2 → primary 승격', async () => {
+      const old = makeTrigger({
+        notification: {
+          url: 'https://x.com/cb',
+          events: ['execution.completed'],
+          signing: { algorithm: 'hmac-sha256', secret: 'wsk_old' },
+        },
+      });
+      old.notificationSecretV2 = 'wsk_new';
+      old.notificationRotatedAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+      mockQueryBuilder([old]);
+      const result = await service.promoteRotatedNotificationSecrets();
+      expect(result.promoted).toBe(1);
+      expect(triggerRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationSecretV2: null,
+          notificationRotatedAt: null,
+          config: expect.objectContaining({
+            notification: expect.objectContaining({
+              signing: expect.objectContaining({ secret: 'wsk_new' }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('대상 0건 → no-op', async () => {
+      mockQueryBuilder([]);
+      const result = await service.promoteRotatedNotificationSecrets();
+      expect(result.promoted).toBe(0);
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+    });
+  });
+});

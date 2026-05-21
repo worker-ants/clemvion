@@ -156,4 +156,55 @@ export class TriggersController {
   ) {
     await this.triggersService.remove(id, workspaceId);
   }
+
+  // ============================================================
+  // External Interaction API — Secret rotation / itk_* revoke
+  // [Spec EIA §3.1 EIA-NX-12 / §3.3 EIA-AU-07]
+  // ============================================================
+
+  @Post(':id/notification/rotate-secret')
+  @Roles('editor')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Outbound notification secret 회전',
+    description:
+      '새 HMAC secret 을 발급하고 trigger 의 `notification_secret_v2` 컬럼에 저장합니다. 24h grace 동안 NotificationWebhookProcessor 가 두 secret 으로 모두 서명 (v1= 두 개 동봉) — 외부 검증자가 새 secret 으로 미배포 상태여도 기존 secret 으로 통과 가능. grace 종료 후 scheduled job 이 v2 → primary 로 승격. 응답의 `secret` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiBadRequestResponse({
+    description:
+      'NOTIFICATION_NOT_CONFIGURED — trigger 에 notification 설정 없음',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: 'Trigger 없음' })
+  async rotateNotificationSecret(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ): Promise<{ secret: string; rotatedAt: string }> {
+    return this.triggersService.rotateNotificationSecret(id, workspaceId);
+  }
+
+  @Post(':id/interaction/revoke-token')
+  @Roles('editor')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Per-trigger interaction token (itk_*) 재발급',
+    description:
+      'trigger 의 `config.interaction.tokenStrategy === "per_trigger"` 일 때만 호출 가능. 기존 itk_* 는 즉시 무효화되고 새 itk_* 가 발급됩니다. 응답의 `token` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiBadRequestResponse({
+    description:
+      'NOT_PER_TRIGGER_STRATEGY — interaction.tokenStrategy 가 per_trigger 가 아님',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
+  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiNotFoundResponse({ description: 'Trigger 없음' })
+  async revokePerTriggerToken(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ): Promise<{ token: string }> {
+    return this.triggersService.revokePerTriggerToken(id, workspaceId);
+  }
 }
