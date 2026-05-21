@@ -88,6 +88,15 @@ async function bootstrap() {
       },
       'access-token',
     )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        description:
+          'External Interaction API 전용 토큰 — `iext_<JWT>` (per_execution) 또는 `itk_<opaque>` (per_trigger). [Spec EIA §3.3 / §8.3].',
+      },
+      'interaction-token',
+    )
     .addTag('Auth', '회원가입, 로그인, 토큰 갱신 등 인증 관련 API')
     .addTag('Sessions', '활성 세션 조회·강제 종료, 로그인 이력 조회')
     .addTag('Users', '사용자 프로필')
