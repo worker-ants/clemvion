@@ -1,0 +1,83 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-21T12:23:04Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "신규 SDK 클라이언트/SSE 구독 구현이지만 성능 최적화·캐싱·쿼리 가속 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "신규 external-interaction 모듈 설계, 기존 executions와 분리 구조, facade 원칙 (R5/R10/R11)"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 신규 SDK README.md, i18n dict, plan/complete 파일 추가"
+    },
+    {
+      "name": "dependency",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 신규 @workflow/sdk package.json, tsconfig 추가"
+    },
+    {
+      "name": "database",
+      "selected": true,
+      "reason": "V059 마이그레이션 — Trigger 4컬럼 + Execution seq_counter 추가"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "SSE 스트림 구독 (RxJS Subject), async/await 이벤트 루프, WebSocket seq counter 동시성"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "새 REST endpoints (/api/external/executions/*), Swagger bearer auth 분리, 응답 DTO 래퍼"
+    }
+  ],
+  "selected_count": 12,
+  "skipped_count": 1,
+  "forced": [
+    "dependency",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

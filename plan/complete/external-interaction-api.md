@@ -245,3 +245,21 @@ owner: project-planner → developer
 - **Trigger 수정 UI (Frontend P7 확장)**: 본 PR2 의 P7 은 read-only 표시 카드. URL 입력 / events multi-select / secret rotation 버튼 / token revoke 버튼은 별도 UI PR.
 - **E2E D 시나리오 (scope_mismatch cross-stack)**: 본 PR2 e2e 에서 global JwtAuthGuard 와의 인증 순서 차이로 skip. backend bootstrap 의 APP_GUARD 등록 순서 + `@Public()` 인식 메커니즘을 e2e 환경에서 재검증 필요.
 - **Cross-plan follow-up (Plan W-1~W-3 + INFO-1·INFO-2)** — 본 plan 의 §"Follow-up" 4건은 target plan (`ai-agent-tool-connection-rewrite` / `replay-rerun` / `node-output-redesign` / `merge-p2-async-fanin` / `self-hosting-deployment`) 의 본문에 직접 체크박스를 추가해야 함. 별도 PR.
+
+### SDK (`@workflow/sdk`) follow-up — `/ai-review` 24 Warning (별도 PR)
+
+`/ai-review` 결과: `review/code/2026/05/21/12_23_04/SUMMARY.md` — Critical 0, Warning 24 (SDK 다수), Info 36. backend 핵심은 모두 통과 (lint 0 errors, 4232 unit + 97 e2e passed) 이므로 v0.1.0 publish 전 별도 PR 로 처리:
+
+- **W1** (즉시): `parseSseFrame` 다중 `data:` 라인 단순 concat — SSE RFC 위반. `data += '\n' + line.slice(5).trim()`.
+- **W2** (즉시): `subscribeToExecution` 전체 테스트 부재 — ReadableStream mock 으로 happy/close/error 3 케이스.
+- **W3** (즉시): `cancel()` `Idempotency-Key` 자동 발급.
+- **W4** (즉시): `randomUUID` 브라우저 호환 — `globalThis.crypto?.randomUUID?.()`.
+- W7~W19: SSE 자동 재연결 README / ts-jest ^30 / subscribeToExecution 책임 분리 / 이중 캐스팅 / `{data}` 래퍼 / cancel 경로 명확화 / HMAC hex 검증 / baseUrl SSRF / reader.cancel finally / README API 통일 / computeNotificationSignature README.
+- W23: i18n `notificationSecretRotate` 한국어 번역.
+- W24: NotificationDispatcher↔Processor 공유 schema (zod).
+
+### Backend 추가 spec 보강 — ai-review 2 Warning (별도 PR)
+
+- **W5**: `InteractionController` NestJS 통합 spec.
+- **W6**: `HooksService` interaction 토큰 동봉 회귀 케이스.
+- **W20**: plan §P0 노트 정확화 — 본 PR2 의 실 구현은 in-memory Map (Redis INCR 은 분산 follow-up). spec R7 보강 노트와 정합.

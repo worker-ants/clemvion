@@ -1,0 +1,74 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-21T12:21:15Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": false,
+      "reason": "인증·암호화·권한·입력 검증 등 보안 관련 코드 변경 없음 (순수 문서 추가)"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "I/O, 알고리즘, 캐싱 등 성능 관련 코드 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈 경계·레이어·인터페이스 변경 없음 (문서 섹션 추가)"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 본문 변경으로 요구사항 일관성 검증 필요"
+    },
+    {
+      "name": "scope",
+      "selected": false,
+      "reason": "변경 범위가 의도된 문서 갱신 내에 포함됨"
+    },
+    {
+      "name": "side_effect",
+      "selected": false,
+      "reason": "전역 상태·시그니처·ENV·fs/네트워크 변경 없음 (순수 문서)"
+    },
+    {
+      "name": "maintainability",
+      "selected": false,
+      "reason": "유지보수성 영향 없음 (코드 변경 아님)"
+    },
+    {
+      "name": "testing",
+      "selected": false,
+      "reason": "테스트 파일 변경 없음, src 코드 변경 없음 (문서만)"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 문서(.md) 파일 변경으로 문서화 검토 필수"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json, requirements.txt, go.mod 등 의존성 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB migration, SQL, prisma schema, repository 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await, Promise, 락/뮤텍스, 워커/큐, 이벤트 루프 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP route/controller, GraphQL schema, swagger/openapi 변경 없음 (문서만)"
+    }
+  ],
+  "selected_count": 2,
+  "skipped_count": 11,
+  "forced": ["documentation", "requirement"]
+}
