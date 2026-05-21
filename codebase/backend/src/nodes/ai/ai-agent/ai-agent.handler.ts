@@ -8,6 +8,7 @@ import {
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
+import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
 import { LlmService } from '../../../modules/llm/llm.service';
 import {
   ChatMessage,
@@ -1168,6 +1169,9 @@ export class AiAgentHandler implements NodeHandler {
           : conditions.length > 0
             ? { conditions }
             : {}),
+        // spec §11.7 — `includeSystemContext` / `systemContextSections` 가 default 와
+        // 일치하면 echo 시 생략 (사용자가 명시 opt-out / sections 변경한 경우만 노출).
+        ...pickNonDefaultSystemContext(rawConfig),
       },
       output: {
         result: {
@@ -2032,6 +2036,8 @@ export class AiAgentHandler implements NodeHandler {
     if (Array.isArray(raw.conditions) && raw.conditions.length > 0) {
       echo.conditions = raw.conditions;
     }
+    // spec §11.7 — default 일치 시 생략, 명시 변경 시 echo.
+    Object.assign(echo, pickNonDefaultSystemContext(rawConfig));
     return echo;
   }
 

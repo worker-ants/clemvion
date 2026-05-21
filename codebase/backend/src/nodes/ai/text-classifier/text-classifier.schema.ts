@@ -4,6 +4,7 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
+import { buildSystemContextSchemaFields } from '../shared/system-context-schema.js';
 
 /**
  * Single category definition for `text_classifier`.
@@ -92,36 +93,8 @@ export const textClassifierNodeConfigSchema = z
         },
       }),
     // ── System Context Prefix (spec/4-nodes/3-ai/0-common.md §11) ──
-    includeSystemContext: z
-      .boolean()
-      .default(true)
-      .meta({
-        ui: {
-          label: 'Include System Context',
-          widget: 'checkbox',
-          order: 9,
-          group: 'System Context',
-          hint: 'Prepend current time + timezone to the system prompt so the LLM avoids KST/UTC drift.',
-        },
-      }),
-    systemContextSections: z
-      .array(z.enum(['time', 'timezone', 'workspace', 'node']))
-      .default(['time', 'timezone'])
-      .meta({
-        ui: {
-          label: 'Context Sections',
-          widget: 'multiselect',
-          order: 10,
-          group: 'System Context',
-          options: [
-            { value: 'time', label: 'Current time (ISO 8601 with offset)' },
-            { value: 'timezone', label: 'Timezone (IANA + UTC offset)' },
-            { value: 'workspace', label: 'Workspace id / name' },
-            { value: 'node', label: 'Node id / label / type' },
-          ],
-          visibleWhen: { field: 'includeSystemContext', equals: true },
-        },
-      }),
+    // Fragment SoT: shared/system-context-schema.ts (3 노드 공통 helper).
+    ...buildSystemContextSchemaFields(9),
   })
   .passthrough();
 export type TextClassifierConfig = z.infer<

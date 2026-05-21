@@ -1284,11 +1284,14 @@ export class ExecutionEngineService
         relations: ['workspace'],
       });
       const workspaceTimezone = workflow?.workspace?.settings?.['timezone'];
+      const workspaceName = workflow?.workspace?.name;
       const context = this.contextService.createContext(
         executionId,
         workflowId,
         {
           __workspaceId: workflow?.workspaceId ?? '',
+          __workspaceName:
+            typeof workspaceName === 'string' ? workspaceName : '',
           __workspaceTimezone:
             typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
         },
@@ -3198,6 +3201,8 @@ export class ExecutionEngineService
         rawConfig: Object.freeze({ ...(node.config ?? {}) }),
         nodeId: node.id,
         nodeExecutionId: nodeExecution.id,
+        nodeLabel: node.label ?? '',
+        nodeType: node.type,
       };
 
       // Execute with potential retry
