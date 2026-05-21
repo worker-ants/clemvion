@@ -5,6 +5,7 @@
 본 문서는 Trigger 카테고리 노드 전체에 공통되는 규약을 정의한다. 노드별 동작·설정은 각 노드 문서를 참조한다.
 
 - [Manual Trigger](./1-manual-trigger.md)
+- Webhook 트리거의 chat channel adapter provider catalog → [`providers/_overview.md`](./providers/_overview.md) (외부 chat 플랫폼 어댑터 — Telegram 등). 트리거 노드 자체가 아니라 Webhook 트리거의 `config.chatChannel` 갈래로 동작 — [Spec Chat Channel](../../5-system/15-chat-channel.md) 참조
 
 ---
 
