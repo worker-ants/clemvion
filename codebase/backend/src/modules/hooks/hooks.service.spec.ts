@@ -10,9 +10,13 @@ import {
 } from '@nestjs/common';
 import { HooksService, WebhookInput } from './hooks.service';
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
+import { InteractionService } from '../external-interaction/interaction.service';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { ExecutionsService } from '../executions/executions.service';
+import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 
 describe('HooksService', () => {
   let service: HooksService;
@@ -48,6 +52,30 @@ describe('HooksService', () => {
             ),
           },
         },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { get: jest.fn(), has: jest.fn() },
+        },
+        {
+          provide: ChannelConversationService,
+          useValue: {
+            lookup: jest.fn().mockResolvedValue(null),
+            upsert: jest.fn().mockResolvedValue(undefined),
+            updateExecutionId: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: InteractionService,
+          useValue: { interact: jest.fn() },
+        },
+        {
+          provide: ExecutionsService,
+          useValue: {
+            stop: jest.fn(),
+            // hooks.service 가 ['executionRepository'] 로 indexed access — 빈 객체로 충분.
+            executionRepository: { findOne: jest.fn().mockResolvedValue(null) },
+          },
+        },
       ],
     }).compile();
 
@@ -72,6 +100,15 @@ describe('HooksService', () => {
     updatedAt: new Date(),
     workspace: undefined as never,
     workflow: undefined as never,
+    notificationHealth: 'unknown',
+    notificationLastError: null,
+    notificationSecretV2: null,
+    notificationRotatedAt: null,
+    chatChannelHealth: 'unknown',
+    chatChannelLastError: null,
+    chatChannelSetupAt: null,
+    chatChannelTokenV2: null,
+    chatChannelRotatedAt: null,
   };
 
   const input: WebhookInput = {

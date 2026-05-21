@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
@@ -16,6 +18,9 @@ import {
   validateNotificationUrl,
 } from './dto/notification-config.dto';
 import { InteractionConfigDto } from './dto/interaction-config.dto';
+import { ChatChannelConfigDto } from './dto/chat-channel-config.dto';
+import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import { ChatChannelConfig } from '../chat-channel/types';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -27,6 +32,8 @@ export type TriggerDetail = Trigger & {
 
 @Injectable()
 export class TriggersService {
+  private readonly logger = new Logger(TriggersService.name);
+
   constructor(
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
@@ -34,6 +41,8 @@ export class TriggersService {
     private readonly executionRepository: Repository<Execution>,
     @InjectRepository(Schedule)
     private readonly scheduleRepository: Repository<Schedule>,
+    private readonly channelAdapterRegistry: ChannelAdapterRegistry,
+    private readonly configService: ConfigService,
   ) {}
 
   async findAll(
@@ -99,21 +108,27 @@ export class TriggersService {
   }
 
   async create(workspaceId: string, dto: CreateTriggerDto): Promise<Trigger> {
-    // notification/interaction 은 Trigger entity 의 1급 컬럼이 아니라 `config` JSONB 안에 보관.
-    // (영속 컬럼은 health/secret rotation 추적 용도의 4개만; spec EIA §7.1 / V059).
-    const { notification, interaction, config, ...rest } = dto;
+    // notification/interaction/chatChannel 은 Trigger entity 의 1급 컬럼이 아니라 `config` JSONB.
+    // (영속 컬럼은 health/secret rotation 추적용 9개만; spec EIA §7.1 + spec CCH §4.2).
+    const { notification, interaction, chatChannel, config, ...rest } = dto;
     this.assertNotificationUrlSafe(notification);
     const mergedConfig = this.mergeExternalConfig(
       config ?? {},
       notification,
       interaction,
+      chatChannel,
     );
     const trigger = this.triggerRepository.create({
       ...rest,
       config: mergedConfig,
       workspaceId,
     });
-    return this.triggerRepository.save(trigger);
+    const saved = await this.triggerRepository.save(trigger);
+    // Chat Channel 어댑터 setup — CCH-AD-02.
+    if (chatChannel) {
+      await this.setupChatChannel(saved, chatChannel);
+    }
+    return saved;
   }
 
   async update(
@@ -122,17 +137,23 @@ export class TriggersService {
     dto: UpdateTriggerDto,
   ): Promise<Trigger> {
     const trigger = await this.findById(id, workspaceId);
-    const { notification, interaction, config, ...rest } = dto;
+    const { notification, interaction, chatChannel, config, ...rest } = dto;
     this.assertNotificationUrlSafe(notification);
-    // notification/interaction 이 명시된 경우만 config 안의 해당 키를 교체. 미명시면 기존 유지.
+    // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
     const baseConfig = config ?? trigger.config ?? {};
     const mergedConfig = this.mergeExternalConfig(
       baseConfig,
       notification,
       interaction,
+      chatChannel,
     );
     Object.assign(trigger, rest, { config: mergedConfig });
-    return this.triggerRepository.save(trigger);
+    const saved = await this.triggerRepository.save(trigger);
+    if (chatChannel) {
+      // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
+      await this.setupChatChannel(saved, chatChannel);
+    }
+    return saved;
   }
 
   /**
@@ -157,15 +178,103 @@ export class TriggersService {
     base: Record<string, unknown>,
     notification: NotificationConfigDto | undefined,
     interaction: InteractionConfigDto | undefined,
+    chatChannel?: ChatChannelConfigDto | undefined,
   ): Record<string, unknown> {
     const next: Record<string, unknown> = { ...base };
     if (notification !== undefined) next.notification = notification;
     if (interaction !== undefined) next.interaction = interaction;
+    if (chatChannel !== undefined) next.chatChannel = chatChannel;
     return next;
+  }
+
+  /**
+   * Chat Channel adapter setupChannel 호출 + 결과를 trigger.config 와 health 컬럼에 반영.
+   * Spec CCH-AD-02. best-effort — 실패 시 chat_channel_health=degraded, last_error 저장하되 trigger
+   * 자체는 비활성화 X (CCH-SE-01 / WH-MG-04).
+   */
+  private async setupChatChannel(
+    trigger: Trigger,
+    chatChannelCfg: ChatChannelConfigDto,
+  ): Promise<void> {
+    if (!this.channelAdapterRegistry.has(chatChannelCfg.provider)) {
+      this.logger.warn(
+        `TriggersService: chatChannel.provider="${chatChannelCfg.provider}" 미등록 — setupChannel skip`,
+      );
+      return;
+    }
+    if (!trigger.endpointPath) {
+      throw new BadRequestException({
+        code: 'CHAT_CHANNEL_ENDPOINT_REQUIRED',
+        message:
+          'Chat channel trigger requires endpointPath (callback URL을 만들기 위해 필요).',
+      });
+    }
+    const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);
+    const baseUrl =
+      this.configService.get<string>('app.publicBaseUrl') ??
+      this.configService.get<string>('publicBaseUrl') ??
+      'http://localhost:3000';
+    const callbackUrl = `${baseUrl.replace(/\/$/, '')}/api/hooks/${trigger.endpointPath.replace(/^\//, '')}`;
+    try {
+      const result = await adapter.setupChannel(
+        chatChannelCfg as ChatChannelConfig,
+        callbackUrl,
+      );
+      // setupChannel 결과 — secretToken / botIdentity 등을 config 에 머지.
+      const mergedChannel: ChatChannelConfig = {
+        ...(chatChannelCfg as ChatChannelConfig),
+        ...(result.configUpdates ?? {}),
+      };
+      const newConfig = {
+        ...(trigger.config ?? {}),
+        chatChannel: mergedChannel,
+      };
+      await this.triggerRepository.update(
+        { id: trigger.id },
+        {
+          config: newConfig,
+          chatChannelSetupAt: new Date(),
+          chatChannelHealth: 'healthy',
+          chatChannelLastError: null,
+        },
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `TriggersService: setupChannel 실패 (trigger=${trigger.id}, provider=${chatChannelCfg.provider}): ${message}`,
+      );
+      await this.triggerRepository.update(
+        { id: trigger.id },
+        {
+          chatChannelHealth: 'degraded',
+          chatChannelLastError: message.slice(0, 1024),
+        },
+      );
+    }
+  }
+
+  /**
+   * Chat Channel adapter teardownChannel 호출 — trigger 삭제 / chatChannel 제거 시. best-effort.
+   * Spec CCH-AD-03.
+   */
+  private async teardownChatChannel(trigger: Trigger): Promise<void> {
+    const chatChannelCfg = (trigger.config as { chatChannel?: ChatChannelConfig })
+      .chatChannel;
+    if (!chatChannelCfg) return;
+    if (!this.channelAdapterRegistry.has(chatChannelCfg.provider)) return;
+    const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);
+    try {
+      await adapter.teardownChannel(chatChannelCfg);
+    } catch (err) {
+      this.logger.warn(
+        `TriggersService: teardownChannel 실패 (best-effort, trigger=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
+    await this.teardownChatChannel(trigger);
     await this.triggerRepository.remove(trigger);
   }
 

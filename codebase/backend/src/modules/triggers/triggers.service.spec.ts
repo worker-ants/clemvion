@@ -1,11 +1,13 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { TriggersService } from './triggers.service';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
+import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 
 describe('TriggersService.findOneDetail', () => {
   let service: TriggersService;
@@ -27,6 +29,14 @@ describe('TriggersService.findOneDetail', () => {
         {
           provide: getRepositoryToken(Schedule),
           useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
         },
       ],
     }).compile();
@@ -152,6 +162,14 @@ describe('TriggersService — notification/interaction config 병합 (External I
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
       ],
     }).compile();
 
@@ -331,6 +349,14 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
       ],
     }).compile();
     service = moduleRef.get(TriggersService);
