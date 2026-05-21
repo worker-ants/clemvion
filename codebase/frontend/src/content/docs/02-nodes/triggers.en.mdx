@@ -71,6 +71,230 @@ All three paths deliver the same `{ parameters, ... }` shape to the execution en
 Webhook and schedule settings live under the Triggers/Schedules menus in the sidebar. Define the parameter schema on the Manual Trigger first, and all three trigger paths will follow that same contract.
 </Callout>
 
+## Webhook triggers in detail
+
+Creating a webhook trigger mints a unique endpoint under your workspace domain. Any external service (GitHub, Stripe, your own backend, etc.) that POSTs to this URL starts the workflow.
+
+### URL and method
+
+```
+POST {base_url}/api/hooks/{endpoint_path}
+```
+
+- `endpoint_path` is generated as a UUID at trigger-creation time (brute-force resistant). Copy the full URL with the 📋 button on the trigger list.
+- Only `POST` is accepted. `Content-Type` must be `application/json` or `application/x-www-form-urlencoded`.
+- Maximum body size is 1MB. Larger payloads get `413 Payload Too Large`.
+
+### Authentication options
+
+Pick one of three auth methods on the trigger detail panel. Every failure returns the same generic `401 Unauthorized` — the algorithm or reason is not echoed back, to prevent information leakage.
+
+<FieldTable rows={[
+  { name: "None (public)", required: false, type: "No verification", description: "Anyone can call it. The UUID in the URL is effectively the secret. Not recommended for workflows that touch sensitive data.", default: "-" },
+  { name: "HMAC signature", required: false, type: "Secret-based", description: "Senders include a header such as `X-Hub-Signature-256: sha256=<hex>`. Allowed algorithms are `sha256` and `sha512` only. Same model as GitHub Webhook.", default: "-" },
+  { name: "Bearer Token", required: false, type: "Token compare", description: "Senders include `Authorization: Bearer <token>`. The request is accepted only when the token matches the value stored on the trigger.", default: "-" }
+]} />
+
+<Callout type="warn">
+HMAC verification reads the **raw bytes** of the request body. If a relay middlebox rewrites the body, the signature will break. Make sure the sender ships the original payload as-is.
+</Callout>
+
+### Response codes
+
+| Status | Meaning |
+|--------|---------|
+| `202 Accepted` | Received. The response body carries an `executionId` — the actual run happens asynchronously. |
+| `400 Bad Request` | Body parse failure, or a missing `required` parameter / coercion failure. The body lists the offending fields. **No execution is created.** |
+| `401 Unauthorized` | Authentication failed. |
+| `404 Not Found` | No trigger exists for that `endpoint_path`. |
+| `410 Gone` | The trigger is inactive. Re-enable it on the trigger detail panel before retrying. |
+| `413 Payload Too Large` | Body exceeded the 1MB limit. |
+| `429 Too Many Requests` | Exceeded the 60 req/min per-trigger rate limit. |
+
+### Accessing the webhook payload inside the workflow
+
+Webhook-driven executions populate the Manual Trigger's `output` with the transport context too.
+
+<Example title="Referencing the webhook payload">
+```ts
+// $params is parsed/validated by the Manual Trigger's parameter schema
+{{ $params.orderId }}                           // = body.orderId coerced to string
+
+// Raw transport is on the Manual Trigger node's output.request
+{{ $node["Manual Trigger"].output.request.method }}                  // "POST"
+{{ $node["Manual Trigger"].output.request.headers["x-event-type"] }} // headers are lower-cased
+{{ $node["Manual Trigger"].output.request.query.source }}
+{{ $node["Manual Trigger"].output.request.body.raw }}                // parsed body
+
+// Branch on trigger source
+{{ $node["Manual Trigger"].meta.source }}        // "manual" | "webhook" | "schedule"
+```
+</Example>
+
+<Callout type="note">
+`output.request` is absent for Manual and Schedule executions — only the webhook adapter populates it. If you reuse the same workflow across trigger types, branch on `meta.source` or use optional chaining like `output.request?.method`.
+</Callout>
+
+## External interaction channels (webhook + Form / AI conversation)
+
+When a webhook-started execution reaches a node that **needs a human response** (Form nodes, Presentation buttons, AI Agent / Information Extractor in Multi Turn mode), the external caller has to know about it and supply an answer for the workflow to move on. Two optional channels make this possible. Both are opt-in; simple fire-and-forget automations need neither.
+
+### At a glance
+
+<FieldTable rows={[
+  { name: "Notification (outbound)", required: false, type: "Server → external URL", description: "Whenever the workflow hits a notable state (waiting_for_input, completed, failed, cancelled, AI message), our server POSTs a notification to a URL you register. Payloads are HMAC-SHA256 signed.", default: "Disabled" },
+  { name: "Inbound REST + SSE", required: false, type: "External → server", description: "The caller submits form data / button clicks / conversation messages via REST, and watches live progress through a Server-Sent Events stream.", default: "Disabled" }
+]} />
+
+Both channels reuse the same command and event paths the internal editor WebSocket already uses, so the live debugger and external callers behave identically.
+
+### Adding the options to a trigger payload
+
+Add either or both option blocks when creating or updating a webhook trigger.
+
+<Example title="Trigger create with external interaction enabled">
+```jsonc
+POST /api/triggers
+{
+  "type": "webhook",
+  "workflowId": "uuid",
+  "endpointPath": "uuid-or-slug",
+  "authType": "bearer",
+
+  // Outbound: our server → external URL
+  "notification": {
+    "url": "https://customer.example/webhook/wf-callback",
+    "events": [
+      "execution.waiting_for_input",
+      "execution.completed",
+      "execution.failed",
+      "execution.cancelled"
+      // "execution.ai_message"  // optional: emits per assistant message in AI Multi Turn (noisy)
+    ],
+    "signing": { "algorithm": "hmac-sha256" },
+    "retry":   { "maxAttempts": 5, "backoff": "exponential" }
+  },
+
+  // Inbound: external → our server
+  "interaction": {
+    "enabled": true,
+    "tokenStrategy": "per_execution"   // "per_execution" (default) | "per_trigger"
+  }
+}
+```
+</Example>
+
+The response returns `notification.secret` (`wsk_*`) and, for `tokenStrategy="per_trigger"`, `interaction.triggerToken` (`itk_*`) **in plaintext exactly once** at creation. They are masked in every subsequent read, so store them safely right away.
+
+### How outbound Notification works
+
+- We POST to the registered URL each time the workflow enters a state listed in the trigger's `events` whitelist.
+- Signing is Stripe-style — `X-Clemvion-Signature: t=<unix>,v1=<hex>` header. Verifiers should require `timestamp ± 5 minutes` and use timing-safe comparison.
+- Retries for the same event keep the same `X-Clemvion-Delivery: <uuid>` header. Dedupe on this UUID (delivery is at-least-once).
+- The payload's `seq` is a monotonic counter inside the execution and shares the same value with the SSE stream's `id` field — so you can subscribe to both channels and still order + dedupe correctly.
+- 2xx is the only success. Anything else / timeout (10s) → exponential backoff (default 5 attempts: 1s · 4s · 16s · 64s · 256s).
+- After the final retry fails, the trigger's `notificationHealth` flips to `degraded` and the trigger detail panel shows the state. **The trigger itself is not auto-disabled** — workflow execution keeps accepting webhooks. You toggle it off explicitly if that's what you want.
+- URLs must be `https://` (dev exception with `ALLOW_HTTP_HOOKS=1`). Private IPs, metadata IPs, and loopback are blocked as SSRF protection.
+
+<Callout type="note">
+If a secret is suspected leaked, rotate it via `POST /api/triggers/:id/notification/rotate-secret`. The old and new secrets both work for 24 hours, giving the external system a grace window to switch over.
+</Callout>
+
+### The webhook response changes (when interaction is enabled)
+
+With `interaction.enabled = true` + `tokenStrategy = "per_execution"`, the webhook's immediate response body is extended.
+
+<Example title="Extended 202 response">
+```jsonc
+{
+  "executionId": "uuid",
+  "status":      "pending",
+  "message":     "Webhook received, workflow execution started",
+
+  "interaction": {
+    "token":     "iext_<short-lived-jwt>",
+    "expiresAt": "ISO8601",
+    "endpoints": {
+      "stream":  "/api/external/executions/{id}/stream",
+      "submit":  "/api/external/executions/{id}/interact",
+      "status":  "/api/external/executions/{id}",
+      "cancel":  "/api/external/executions/{id}/cancel",
+      "refresh": "/api/external/executions/{id}/refresh-token"
+    }
+  }
+}
+```
+</Example>
+
+With this token in hand, the caller can open the SSE stream or send interaction commands immediately. If you chose `per_trigger`, no token is included in the response — the assumption is that the caller already holds the `itk_*` minted at trigger creation.
+
+### Inbound commands
+
+```
+POST /api/external/executions/{executionId}/interact
+Authorization: Bearer <iext_jwt | itk_token>
+Content-Type:  application/json
+Idempotency-Key: <client-uuid>   // recommended
+```
+
+Five supported `command` values:
+
+<FieldTable rows={[
+  { name: "submit_form", required: false, type: "Form node", description: "Body: `nodeId` and `data: { [field]: value }`. Validation failures come back as `400 VALIDATION_FAILED` + `details.fieldErrors`, and the execution stays in `waiting_for_input` so the user can resubmit.", default: "-" },
+  { name: "click_button", required: false, type: "Carousel / Table / Chart / Template (button)", description: "Body: `nodeId`, `buttonId`. Acts as if that button was pressed.", default: "-" },
+  { name: "submit_message", required: false, type: "AI Agent · Information Extractor (Multi Turn)", description: "Body: `nodeId`, `message`. Sends a user message and waits for the next assistant reply.", default: "-" },
+  { name: "end_conversation", required: false, type: "AI Agent · Information Extractor (Multi Turn)", description: "Body: `nodeId`, `reason?`. Explicitly closes the conversation so the workflow can proceed.", default: "-" },
+  { name: "cancel", required: false, type: "Whole execution", description: "Body: `reason?`. Cancels the entire run. `POST /api/external/executions/:id/cancel` is a convenience alias with the same semantics.", default: "-" }
+]} />
+
+<Callout type="warn">
+Always include `Idempotency-Key`. Same key + same body returns the cached response for 24 hours; same key + different body returns `409 Conflict`. Two near-simultaneous commands against the same node of the same execution are serialized — the later one gets `409 STATE_MISMATCH` (deliberate, not a race).
+</Callout>
+
+Key error responses:
+
+| Status | Code | Meaning |
+|--------|------|---------|
+| `400 Bad Request` | `VALIDATION_FAILED` | Form field validation failed. Execution stays `waiting_for_input` → resubmit allowed |
+| `400 Bad Request` | `INVALID_COMMAND` | Unsupported command or missing required field |
+| `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | Response header `X-Refresh-Token-Url` points to the refresh endpoint |
+| `409 Conflict` | `STATE_MISMATCH` | Command does not match current node / execution state |
+| `410 Gone` | `EXECUTION_TERMINATED` | Execution already finished |
+| `429 Too Many Requests` | `RATE_LIMITED` | More than 60 inbound commands per minute per execution |
+
+### Inbound event stream (SSE)
+
+```
+GET /api/external/executions/{executionId}/stream
+Authorization: Bearer <iext_jwt | itk_token>
+Accept:        text/event-stream
+Last-Event-Id: 42         # on reconnect
+```
+
+- `event:` names mirror the internal WebSocket events — `execution.started`, `execution.node.started/completed/failed/skipped`, `execution.waiting_for_input`, `execution.ai_message`, `execution.tool_call_started/completed`, `execution.completed/failed/cancelled`, etc.
+- `id:` is the execution's monotonic `seq`. After a disconnect, reconnect with `Last-Event-Id` and the server replays missed events from a 5-minute buffer.
+- A `: heartbeat` comment line is sent every 15 seconds to keep intermediate proxies from idle-closing the connection.
+- After a terminal event (`execution.completed` / `execution.failed` / `execution.cancelled`) the server closes the stream.
+- If the 5-minute buffer has expired, the server emits `execution.replay_unavailable` once — at that point, fall back to `GET /api/external/executions/:id` for the current state.
+- Concurrent SSE connections per execution are capped at 3 by default.
+
+Browser `EventSource` cannot send custom headers, so SSE additionally accepts a `?token=<jwt>` query parameter. Every other endpoint requires the `Authorization: Bearer` header.
+
+### Two token strategies compared
+
+<FieldTable rows={[
+  { name: "per_execution (default)", required: false, type: "Short-lived JWT (`iext_*`)", description: "Issued per execution. Default TTL is 1h, refreshable via `POST /api/external/executions/:id/refresh-token` within 30min of expiry. Invalidated the moment the execution terminates. Safest default.", default: "Default" },
+  { name: "per_trigger", required: false, type: "Long-lived token (`itk_*`)", description: "Same token reused across every execution the trigger spawns. Convenient for bots that juggle many concurrent runs (Telegram, Slack, etc.). Auto-invalidated when the trigger is deleted; rotate manually with `POST /api/triggers/:id/interaction/revoke-token`.", default: "Optional" }
+]} />
+
+<Callout type="warn">
+Prefer `per_execution` when you can — a leak is limited to one execution within the TTL. With `per_trigger`, a leaked token works against every future execution, so rotate immediately.
+</Callout>
+
+### No interaction? Nothing changes
+
+If neither `notification` nor `interaction` is configured, the trigger behaves exactly as before — webhook in, execution starts, results visible on the trigger call history or the workflow's execution history.
+
 ## Canvas summary
 
 Manual Trigger shows the parameter count in its summary. When empty, it displays `(none)`.
