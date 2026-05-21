@@ -875,7 +875,7 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
   },
-  // Batch 1-G — points·policy (privacy_* 6건은 본 PR §비-Scope, follow-up)
+  // Batch 1-G — points·policy
   {
     id: 'points_setting_get',
     label: '적립금 설정 조회',
@@ -922,6 +922,90 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     scopeType: 'write',
     method: 'PUT',
     path: 'policy',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  // privacy_* — store-scoped privacy policy settings (boards / signup / checkout).
+  // Uses `mall.{read,write}_store`; no restrictedApproval (separate from the
+  // `privacy` resource which uses `mall.{read,write}_privacy`). Body fields
+  // beyond `shop_no` follow the same minimal pattern as `policy_update` /
+  // `points_setting_update`; per-field declarations can be added incrementally
+  // once their Cafe24 docs anchors are verified.
+  {
+    id: 'privacy_boards_get',
+    label: '게시판 개인정보 정책 조회',
+    description: 'Retrieve the privacy policy shown when posting on a board.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'privacy/boards',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'privacy_boards_update',
+    label: '게시판 개인정보 정책 수정',
+    description: 'Update the privacy policy shown when posting on a board.',
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'privacy/boards',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'privacy_join_get',
+    label: '회원가입 개인정보 정책 조회',
+    description: 'Retrieve the privacy policy shown during member signup.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'privacy/join',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'privacy_join_update',
+    label: '회원가입 개인정보 정책 수정',
+    description: 'Update the privacy policy shown during member signup.',
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'privacy/join',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'body', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'privacy_orders_get',
+    label: '주문 개인정보 정책 조회',
+    description: 'Retrieve the privacy policy shown during checkout.',
+    scopeType: 'read',
+    method: 'GET',
+    path: 'privacy/orders',
+    requiredFields: [],
+    fields: {
+      shop_no: { type: 'number', location: 'query', default: 1 },
+    },
+    responseShape: 'single',
+  },
+  {
+    id: 'privacy_orders_update',
+    label: '주문 개인정보 정책 수정',
+    description: 'Update the privacy policy shown during checkout.',
+    scopeType: 'write',
+    method: 'PUT',
+    path: 'privacy/orders',
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },

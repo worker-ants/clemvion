@@ -85,7 +85,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 
 | Resource | Supported | Planned | Cafe24 docs sub-resource 수 |
 |----------|-----------|---------|---|
-| [store](./store.md) | 100 | 6 | 50+ |
+| [store](./store.md) | 106 | 0 | 50+ |
 | [product](./product.md) | 63 | 0 | 28 |
 | [order](./order.md) | 106 | 0 | 47 |
 | [customer](./customer.md) | 24 | 0 | 12 |
@@ -103,9 +103,9 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | [mileage](./mileage.md) | 8 | 0 | 5 |
 | [notification](./notification.md) | 12 | 0 | 7 |
 | [translation](./translation.md) | 9 | 0 | 4 |
-| **합계** | **494** | **6** | **~250** |
+| **합계** | **500** | **0** | **~250** |
 
-> 잔존 planned 6건은 모두 `store.md` 의 `privacy_*` row (privacy_boards/join/orders × get/update). id prefix 결정 (`plan/in-progress/cafe24-restricted-scopes-followups.md §3`) 후 별 PR 로 처리.
+> 18 resource 전부 0-planned. `store.md` 의 `privacy_*` id 명명 우려 (별 `privacy` resource 와 prefix 충돌) 는 `plan/in-progress/cafe24-restricted-scopes-followups.md §3` 별 트랙으로 follow-up 가능.
 
 > "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 endpoint 합계는 ~500.
 
@@ -157,4 +157,5 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | 2026-05-16 (coverage Phase 8j) | Community resource 완성 — boards_comments_bulk + boards_seo get/update 2건 + commenttemplates get/update/delete 3건 + financials_monthlyreviews_count + urgentinquiry get/reply CRUD 4건 = 11건. community supported 13 → 24, planned 11 → 0, 합계 253 → 264. community 열다섯 번째 0-planned resource. 본 사이클 (Phase 8 a~j) 종료. |
 | 2026-05-17 | §2 에 `restricted` 컬럼 추가 + §4 검증 규칙 8 신설 — 카페24 별도 승인 대상 식별. SoT 는 [`cafe24-restricted-scopes.md`](../cafe24-restricted-scopes.md). 영향 카탈로그 (mileage / notification / privacy / store) 표 헤더·row 동시 갱신. 사용자 보고 (질문에서 제공한 3종 표) 후속. consistency-check 세션: `review/consistency/2026/05/17/12_12_46/` (BLOCK: NO). |
 | 2026-05-17 (drift fix) | §2 컬럼 정의 순서를 실제 파일 헤더 (`scope→restricted→paginated→status→docs`) 기준으로 정정 (C-1) + `restricted` 값 `op` → `operation` 으로 토큰 통일 (메타데이터 `level` 과 일치, W-9) + §4 검증 규칙 8 에 `approvalGroup` 비검증 명시 (W-8 재명명) + Coverage Matrix 기준일 갱신 (W-4). impl-prep consistency-check 세션: `review/consistency/2026/05/17/12_37_41/`. |
+| 2026-05-21 (coverage 완료) | Store resource — 마지막 6 planned (`privacy_boards_get/update`, `privacy_join_get/update`, `privacy_orders_get/update`) 를 planned → supported 로 승격. 경로는 `privacy/{boards,join,orders}` (GET/PUT, scope `mall.{read,write}_store`). store supported 100 → 106, planned 6 → 0, 합계 494 → 500. **18 resource 전부 0-planned 도달**. backend metadata (`store.ts`) + planned mirror (`planned.ts`) + 카탈로그 (`store.md`) 동시 갱신. body field 는 `policy_update`/`points_setting_update` 와 동일하게 `shop_no` 만 선언 (settings-style update 의 최소 패턴). |
 | 2026-05-21 (planned bulk) | **Planned operation 전수 구현** — 사용자 요청 "미구현 상태의 항목을 모두 구현". store / product / order 3 resource 의 planned 236건 중 230건을 `planned → supported` 로 승격 (Phase 1 store 92 / Phase 2 product 49 / Phase 3 order 89 = 230). 잔존 6건은 store 의 `privacy_*` row (id prefix 결정 미해소, `cafe24-restricted-scopes-followups.md §3` 후속). Phase 0.5 drift fix 2건 동반 (C-1 restricted-scopes.md `op`→`operation`, C-2 store.md `## Rationale` 위치 정정). §4 검증 규칙 8 에 `planned` 행 예외 명시 (W-1). 합계 supported 264 → 494, planned ~109 → 6. plan: `plan/in-progress/cafe24-planned-implementation.md`. 22 batch commit (1-A ~ 1-J / 2-A ~ 2-E / 3-A ~ 3-G). consistency-check 세션: `review/consistency/2026/05/21/07_31_53/`. |
