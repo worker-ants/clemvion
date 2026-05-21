@@ -42,6 +42,7 @@ P2 의미 있는 활성화는 다음 중 하나가 선결되어야 한다:
 - [ ] 기존 컨테이너 실행 경로 (`runContainer`, `runParallel`, `runForeach`) 와의 양립성 검증
 - [ ] Background 노드와의 상호작용 케이스 도출
 - [ ] 기존 단위/통합 테스트 회귀 영향 추정
+- [ ] (EIA cross-ref) [Spec External Interaction API §R7](../../spec/5-system/14-external-interaction-api.md) 의 monotonic seq 보장 검증 — 비동기 dispatch 후에도 `WebsocketService.emitExecutionEvent` 의 in-memory seq counter (PR2 P0 도입) 가 같은 execution 내 단조 증가하는지 PoC 안에 포함. 분산/병렬 환경에서 race 가 발견되면 EIA §R7 보강 노트의 "Redis INCR 또는 DB row-level lock" 으로 강화 follow-up.
 
 → 결과에 따라 §2 진행 여부 / 범위 결정.
 
