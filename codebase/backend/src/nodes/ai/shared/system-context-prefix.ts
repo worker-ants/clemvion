@@ -68,11 +68,24 @@ export function resolveSystemContextTimezone(
   return 'UTC';
 }
 
+// ai-review I4 / I5 — Intl.DateTimeFormat 인스턴스 생성은 V8 에서 µs 단위
+// 비용이 있고, 본 prefix 가 모든 AI 노드 실행마다 호출되어 멀티테넌트 고부하
+// 환경에서 hot path 가 된다. timezone 은 워크스페이스 단위로 사실상 고정되므로
+// IANA name 키 캐싱으로 인스턴스 재사용. negative result (invalid name) 도
+// 같이 캐싱해 fallback 경로의 try/catch 비용도 1회로 한정.
+const validTimezoneCache = new Map<string, boolean>();
+const partsFormatterByTz = new Map<string, Intl.DateTimeFormat>();
+const offsetFormatterByTz = new Map<string, Intl.DateTimeFormat>();
+
 function isValidIanaTimezone(name: string): boolean {
+  const cached = validTimezoneCache.get(name);
+  if (cached !== undefined) return cached;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: name });
+    validTimezoneCache.set(name, true);
     return true;
   } catch {
+    validTimezoneCache.set(name, false);
     return false;
   }
 }
@@ -178,16 +191,20 @@ function getPartsInTimezone(
   second: string;
 } | null {
   try {
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
+    let fmt = partsFormatterByTz.get(timezone);
+    if (!fmt) {
+      fmt = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      });
+      partsFormatterByTz.set(timezone, fmt);
+    }
     const parts = fmt.formatToParts(date);
     const get = (type: Intl.DateTimeFormatPartTypes) =>
       parts.find((p) => p.type === type)?.value ?? '';
@@ -207,10 +224,14 @@ function getPartsInTimezone(
 
 function computeOffsetMinutes(date: Date, timezone: string): number {
   try {
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      timeZone: timezone,
-      timeZoneName: 'longOffset',
-    });
+    let fmt = offsetFormatterByTz.get(timezone);
+    if (!fmt) {
+      fmt = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        timeZoneName: 'longOffset',
+      });
+      offsetFormatterByTz.set(timezone, fmt);
+    }
     const parts = fmt.formatToParts(date);
     const offsetPart = parts.find((p) => p.type === 'timeZoneName')?.value;
     if (!offsetPart) return 0;
@@ -294,9 +315,20 @@ export function buildSystemContextPrefixFromContext(args: {
         typeof variables['__workspaceId'] === 'string'
           ? variables['__workspaceId']
           : undefined,
+      // 엔진의 createContext 단계에서 `Workspace.name` 을 `__workspaceName`
+      // 으로 주입 (engine line 1287, spec/4-nodes/3-ai/0-common.md §11).
+      // 부재 시 renderSection 이 '(unnamed)' 로 폴백.
+      name:
+        typeof variables['__workspaceName'] === 'string'
+          ? variables['__workspaceName']
+          : undefined,
     },
     node: {
       id: args.context.nodeId,
+      // 엔진 executeNode 가 dispatch 직전 nodeContext 에 주입한다.
+      // 부재 시 renderSection 이 '(unlabeled)' 로 폴백.
+      label: args.context.nodeLabel,
+      type: args.context.nodeType,
     },
     sections,
   });

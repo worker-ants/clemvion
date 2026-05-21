@@ -1341,6 +1341,56 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  describe('runExecution — workspace timezone injection', () => {
+    // spec/4-nodes/3-ai/0-common.md §11.3 — runExecution 의 createContext 단계가
+    // workflow.workspace.settings.timezone 을 IANA name 그대로 `__workspaceTimezone`
+    // 변수로 주입한다. 3 AI 핸들러는 이 값을 resolveSystemContextTimezone 으로
+    // 받아 LLM prefix 를 생성하므로 엔진 레벨에서 실제 주입이 깨지면 prefix 가
+    // process.env.TZ 또는 UTC 로 silent fallback 한다. 본 케이스는 그 회귀 가드.
+    it('Asia/Seoul workspace → __workspaceTimezone === "Asia/Seoul" on handler context', async () => {
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', settings: { timezone: 'Asia/Seoul' } },
+      });
+      const seenContexts: ExecutionContext[] = [];
+      (mockHandler.execute as jest.Mock).mockImplementation(
+        async (input: unknown, _config: unknown, context: ExecutionContext) => {
+          seenContexts.push(context);
+          return mockOutput({ processed: true, input });
+        },
+      );
+
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      expect(seenContexts.length).toBeGreaterThan(0);
+      for (const ctx of seenContexts) {
+        expect(ctx.variables['__workspaceTimezone']).toBe('Asia/Seoul');
+        expect(ctx.variables['__workspaceId']).toBe('ws-1');
+      }
+    });
+
+    it('workspace.settings 가 비어있으면 __workspaceTimezone === "" (handler 가 process.env.TZ → UTC 로 fall through)', async () => {
+      // beforeEach default — mockWorkflowRepo.findOne 은 workspace.settings: {} 반환.
+      const seenContexts: ExecutionContext[] = [];
+      (mockHandler.execute as jest.Mock).mockImplementation(
+        async (input: unknown, _config: unknown, context: ExecutionContext) => {
+          seenContexts.push(context);
+          return mockOutput({ processed: true, input });
+        },
+      );
+
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      expect(seenContexts.length).toBeGreaterThan(0);
+      for (const ctx of seenContexts) {
+        expect(ctx.variables['__workspaceTimezone']).toBe('');
+      }
+    });
+  });
+
   it('should execute all nodes in background after returning', async () => {
     await service.execute(workflowId, { data: 'test' });
 

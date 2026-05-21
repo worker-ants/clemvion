@@ -238,6 +238,84 @@ describe('InformationExtractorHandler', () => {
       );
       expect(systemMsg.content).not.toContain('## System Context');
     });
+
+    // ai-review I15 — multi-turn 첫 진입 (executeMultiTurn) 의 systemPrompt 빌드
+    // 단계에도 prefix 가 prepend 되는지 검증. resume turn 은 `_resumeState.messages`
+    // 영속으로 자연 frozen 이므로 첫 진입만 가드해도 회귀 안전망 성립.
+    it('prepends the prefix to multi-turn systemPrompt on first execute() entry', async () => {
+      const tzCtx: ExecutionContext = {
+        ...context,
+        variables: {
+          __workspaceId: 'ws-1',
+          __workspaceTimezone: 'Asia/Seoul',
+        },
+      };
+      mockLlmService.chat.mockResolvedValue(
+        finalizeCall({ senderName: 'John', orderNumber: 'ORD-123' }),
+      );
+
+      await handler.execute(
+        {},
+        {
+          mode: 'multi_turn',
+          inputField: 'John 주문 ORD-123',
+          outputSchema: [
+            {
+              name: 'senderName',
+              type: 'string',
+              description: 'Sender name',
+              required: true,
+            },
+            {
+              name: 'orderNumber',
+              type: 'string',
+              description: 'Order number',
+              required: true,
+            },
+          ],
+        },
+        tzCtx,
+      );
+
+      const systemMsg = mockLlmService.chat.mock.calls[0][1].messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).toMatch(/^## System Context\n/);
+      expect(systemMsg.content).toContain('Timezone: Asia/Seoul (UTC+9)');
+    });
+
+    it('skips the prefix in multi-turn first entry when includeSystemContext: false', async () => {
+      mockLlmService.chat.mockResolvedValue(
+        finalizeCall({ senderName: 'John', orderNumber: 'ORD-123' }),
+      );
+      await handler.execute(
+        {},
+        {
+          mode: 'multi_turn',
+          inputField: 'John 주문 ORD-123',
+          outputSchema: [
+            {
+              name: 'senderName',
+              type: 'string',
+              description: 'Sender name',
+              required: true,
+            },
+            {
+              name: 'orderNumber',
+              type: 'string',
+              description: 'Order number',
+              required: true,
+            },
+          ],
+          includeSystemContext: false,
+        },
+        context,
+      );
+      const systemMsg = mockLlmService.chat.mock.calls[0][1].messages.find(
+        (m: { role: string }) => m.role === 'system',
+      );
+      expect(systemMsg.content).not.toContain('## System Context');
+    });
   });
 
   describe('execute (single_turn)', () => {

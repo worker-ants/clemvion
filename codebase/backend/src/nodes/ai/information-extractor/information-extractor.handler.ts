@@ -16,6 +16,7 @@ import {
 import { Logger } from '@nestjs/common';
 import { informationExtractorNodeMetadata } from './information-extractor.schema';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
+import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
 
 interface OutputField {
   name: string;
@@ -230,6 +231,8 @@ export class InformationExtractorHandler implements NodeHandler {
       instructions: rawConfig.instructions ?? instructions,
       examples: rawConfig.examples ?? examples,
       inputField: rawConfig.inputField ?? inputField,
+      // spec §11.7 — default 일치 시 생략, 명시 변경 시 echo.
+      ...pickNonDefaultSystemContext(rawConfig),
     };
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -913,6 +916,8 @@ export class InformationExtractorHandler implements NodeHandler {
       maxTurns: raw.maxTurns ?? state.maxTurns,
       maxCollectionRetries:
         raw.maxCollectionRetries ?? state.maxCollectionRetries,
+      // spec §11.7 — default 일치 시 생략, 명시 변경 시 echo.
+      ...pickNonDefaultSystemContext(state.rawConfig),
     });
   }
 
