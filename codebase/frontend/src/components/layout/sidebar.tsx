@@ -40,6 +40,11 @@ import { apiClient } from "@/lib/api/client";
 import { CreateTeamWorkspaceDialog } from "@/components/workspace/create-team-workspace-dialog";
 import { Logo, LogoMark } from "@/components/ui/logo";
 import { useT, type TranslationKey } from "@/lib/i18n";
+import { notificationHref } from "@/lib/notifications/href";
+import {
+  filterNotifications,
+  type NotificationFilter,
+} from "@/lib/notifications/filter";
 
 import type {
   WorkspaceRole,
@@ -239,30 +244,15 @@ export function Sidebar() {
     onSuccess: invalidateNotifs,
   });
 
-  // 알림 타입별 deep link — spec §11.2 의 type 분류와 frontend 라우트 매핑.
-  // 라우트 존재 여부 확인이 어려운 type 은 null 반환 — 클릭 시 읽음 처리만 일어나고
-  // 라우팅은 일어나지 않는다.
-  function notificationHref(notif: {
-    type?: string;
-    resourceType?: string | null;
-    resourceId?: string | null;
-  }): string | null {
-    const { type, resourceId } = notif;
-    if (!type) return null;
-    switch (type) {
-      case "integration_expired":
-      case "integration_action_required":
-        return "/integration";
-      case "execution_failed":
-      case "background_failed":
-      case "schedule_failed":
-        return resourceId ? `/workflows/${resourceId}` : "/workflows";
-      case "team_invite":
-        return "/profile";
-      default:
-        return null;
-    }
-  }
+  // 알림 타입 필터 (popover 상단 칩 3-옵션). 클라이언트 사이드 필터링 —
+  // 목록 10개 limit 안에서 동작. server-side `?type=...` 는 별 plan.
+  // 라우팅 helper(`notificationHref`) 는 `@/lib/notifications/href` 에 추출됨
+  // 단위 테스트로 lock 됨 (옛 인라인 함수의 `/integration` 단수 버그 회귀 방지).
+  const [notifFilter, setNotifFilter] = useState<NotificationFilter>("all");
+  const visibleNotifications = filterNotifications(
+    notifListQuery.data ?? [],
+    notifFilter,
+  );
 
   function handleNotifClick(notif: {
     id: string;
@@ -447,12 +437,53 @@ export function Sidebar() {
                   </div>
                 )}
               </div>
-              {!notifListQuery.data?.length ? (
+              {/* Type 필터 칩 — spec/2-navigation/4-integration.md §11.2 의
+                  `integration_action_required` 분리 표시 (A-1 follow-up). */}
+              {(notifListQuery.data?.length ?? 0) > 0 && (
+                <div
+                  role="tablist"
+                  aria-label={t("sidebar.notificationFilter.aria")}
+                  className="flex items-center gap-1 border-b border-[hsl(var(--border))] px-3 py-1.5"
+                >
+                  {(
+                    [
+                      ["all", "sidebar.notificationFilter.all"],
+                      ["general", "sidebar.notificationFilter.general"],
+                      [
+                        "integration-action-required",
+                        "sidebar.notificationFilter.integrationActionRequired",
+                      ],
+                    ] as const
+                  ).map(([value, key]) => {
+                    const isActive = notifFilter === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => setNotifFilter(value)}
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                          isActive
+                            ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                            : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
+                        )}
+                      >
+                        {t(key)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {!visibleNotifications.length ? (
                 <div className="px-3 py-4 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                  {t("sidebar.noNotifications")}
+                  {(notifListQuery.data?.length ?? 0) > 0
+                    ? t("sidebar.noNotificationsForFilter")
+                    : t("sidebar.noNotifications")}
                 </div>
               ) : (
-                notifListQuery.data.map((notif) => {
+                visibleNotifications.map((notif) => {
                   const isUnread = !notif.isRead;
                   return (
                     <div
@@ -472,25 +503,43 @@ export function Sidebar() {
                             : "bg-transparent",
                         )}
                       />
-                      <button
-                        type="button"
-                        onClick={() => handleNotifClick(notif)}
-                        className="flex-1 cursor-pointer text-left"
-                      >
-                        <p className="pr-12 text-sm font-medium">
-                          {notif.title}
-                        </p>
-                        <p className="pr-12 text-xs text-[hsl(var(--muted-foreground))]">
-                          {notif.message}
-                        </p>
-                        <time
-                          dateTime={notif.createdAt}
-                          title={notif.createdAt}
-                          className="mt-1 block text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
+                      <div className="flex-1">
+                        <button
+                          type="button"
+                          onClick={() => handleNotifClick(notif)}
+                          className="block w-full cursor-pointer text-left"
                         >
-                          {formatDate(notif.createdAt, "datetime-tz")}
-                        </time>
-                      </button>
+                          <p className="pr-12 text-sm font-medium">
+                            {notif.title}
+                          </p>
+                          <p className="pr-12 text-xs text-[hsl(var(--muted-foreground))]">
+                            {notif.message}
+                          </p>
+                          <time
+                            dateTime={notif.createdAt}
+                            title={notif.createdAt}
+                            className="mt-1 block text-[10px] uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
+                          >
+                            {formatDate(notif.createdAt, "datetime-tz")}
+                          </time>
+                        </button>
+                        {/* Type-specific inline CTA — `integration_action_required`
+                            는 사용자 즉시 액션이 필요한 능동 알림이라 hover 가
+                            아닌 상시 노출 (spec §11.2 active 분류). 클릭 시
+                            popover 닫고 deep-link 로 이동. */}
+                        {notif.type === "integration_action_required" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNotifClick(notif);
+                            }}
+                            className="mt-1.5 inline-flex items-center rounded-md border border-[hsl(var(--primary))] bg-[hsl(var(--primary))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--primary-foreground))] transition-colors hover:bg-[hsl(var(--primary))/0.9]"
+                          >
+                            {t("sidebar.notificationCta.reconnect")}
+                          </button>
+                        )}
+                      </div>
                       {/* Hover actions (spec §4.2) */}
                       <div className="absolute right-2 top-2 hidden items-center gap-1 group-hover:flex">
                         {isUnread && (
