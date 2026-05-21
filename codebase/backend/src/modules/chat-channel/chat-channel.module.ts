@@ -6,6 +6,7 @@ import { WebsocketModule } from '../websocket/websocket.module';
 import { ChannelAdapterRegistry } from './channel-adapter.registry';
 import { ChannelConversationService } from './channel-conversation.service';
 import { ChatChannelDispatcher } from './chat-channel.dispatcher';
+import { ChatChannelController } from './chat-channel.controller';
 import { TelegramAdapter } from './providers/telegram/telegram.adapter';
 import { TelegramClient } from './providers/telegram/telegram-client';
 
@@ -26,6 +27,7 @@ import { TelegramClient } from './providers/telegram/telegram-client';
     TypeOrmModule.forFeature([Trigger]),
     WebsocketModule,
   ],
+  controllers: [ChatChannelController],
   providers: [
     ChannelAdapterRegistry,
     ChannelConversationService,

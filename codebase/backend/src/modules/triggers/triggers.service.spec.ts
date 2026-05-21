@@ -88,7 +88,7 @@ describe('TriggersService.findOneDetail', () => {
     } as unknown as Trigger);
     scheduleRepo.findOne.mockResolvedValue(null);
 
-    const result = (await service.findOneDetail('t1', 'ws')) as Record<
+    const result = (await service.findOneDetail('t1', 'ws')) as unknown as Record<
       string,
       unknown
     >;

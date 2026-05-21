@@ -208,8 +208,29 @@ export class HooksService {
 
     const update = await adapter.parseUpdate(input.body, config);
     if (!update) {
-      // 무시 대상 (group/bot/unsupported) — 호출자가 안내 발송할 책임은 별도 (PR-E).
-      // 본 phase 는 단순히 202 ignored 반환.
+      // 무시 대상 (group/bot/unsupported) — parseUpdate 의 pure 계약 (I-6) 에 따라 호출자가 안내 발송.
+      // raw body 의 chat 정보가 있으면 안내 sendMessage. 봇 메시지나 chat 정보 없으면 silent skip.
+      await this.maybeNotifyIgnored(input.body, config, adapter);
+      return { executionId: 'ignored' };
+    }
+
+    // /help 명령 — v1 정적 안내 (Spec providers/telegram §7).
+    if (
+      update.command.kind === 'text_message' &&
+      update.command.text.trim() === '/help'
+    ) {
+      await adapter.sendMessage(
+        {
+          conversationKey: update.conversationKey,
+          body: {
+            kind: 'text',
+            text:
+              (config.languageHints?.help ??
+                '/start \\- 새 대화 시작\n/cancel \\- 진행 중인 대화 취소\n/help \\- 도움말'),
+          },
+        },
+        config,
+      );
       return { executionId: 'ignored' };
     }
 
@@ -343,6 +364,44 @@ export class HooksService {
       );
     }
     // file_upload / contact_share — Phase 4 (Form) 에서 처리.
+  }
+
+  /**
+   * Spec I-6 — `parseUpdate` 가 null 반환 (group/bot/unsupported) 시 호출자가 안내 sendMessage 발송.
+   * 봇 자기 메시지 (`from.is_bot=true`) 는 silent skip. 그 외 (group, unsupported) 는 안내 발송 후 무시.
+   */
+  private async maybeNotifyIgnored(
+    rawBody: unknown,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    if (!rawBody || typeof rawBody !== 'object') return;
+    const message = (rawBody as { message?: unknown }).message;
+    if (!message || typeof message !== 'object') return;
+    const chat = (message as { chat?: { id?: number; type?: string } }).chat;
+    const from = (message as { from?: { is_bot?: boolean } }).from;
+    if (!chat?.id) return;
+    if (from?.is_bot === true) return; // 봇 메시지 — silent
+    const chatType = chat.type ?? '';
+    const isGroup = ['group', 'supergroup', 'channel'].includes(chatType);
+    const announcement = isGroup
+      ? config.languageHints?.groupChatRefusal ??
+        '이 봇은 1:1 대화만 지원합니다\\.'
+      : config.languageHints?.unsupportedMessageKind ??
+        '지원하지 않는 메시지 형식입니다\\.';
+    try {
+      await adapter.sendMessage(
+        {
+          conversationKey: String(chat.id),
+          body: { kind: 'text', text: announcement },
+        },
+        config,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `maybeNotifyIgnored sendMessage 실패 (chatId=${chat.id}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   /**

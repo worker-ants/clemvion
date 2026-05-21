@@ -130,27 +130,74 @@ describe('renderTelegramMessages', () => {
     });
   });
 
-  it('waiting_for_input(buttons) → v1 fallback text', () => {
+  it('waiting_for_input(buttons) → buttons body (Phase 3 PR-B)', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.waiting_for_input',
       node: { id: 'n2', type: 'button', interactionType: 'buttons' },
       interaction: {},
-      context: {},
+      context: {
+        buttonConfig: {
+          prompt: '선택해주세요',
+          buttons: [
+            { id: 'b1', label: 'Yes', type: 'callback' },
+            { id: 'b2', label: 'No', type: 'callback' },
+          ],
+        },
+      },
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
-    expect(m[0].body.kind).toBe('text');
+    expect(m).toHaveLength(1);
+    expect(m[0].body.kind).toBe('buttons');
+    if (m[0].body.kind === 'buttons') {
+      expect(m[0].body.buttons.map((b) => b.id)).toEqual(['b1', 'b2']);
+    }
   });
 
-  it('waiting_for_input(form) → v1 fallback text', () => {
+  it('waiting_for_input(form) → form_prompt body 첫 필드 (Phase 4 PR-C)', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.waiting_for_input',
       node: { id: 'n3', type: 'form', interactionType: 'form' },
       interaction: {},
-      context: {},
+      context: {
+        formConfig: {
+          fields: [
+            { name: 'email', label: '이메일', type: 'email', required: true },
+            { name: 'age', label: '나이', type: 'number' },
+          ],
+        },
+      },
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
-    expect(m[0].body.kind).toBe('text');
+    expect(m).toHaveLength(1);
+    expect(m[0].body.kind).toBe('form_prompt');
+    if (m[0].body.kind === 'form_prompt') {
+      expect(m[0].body.fieldName).toBe('email');
+      expect(m[0].body.label).toMatch(/이메일/);
+      expect(m[0].body.hint).toBe('email');
+    }
+  });
+
+  it('waiting_for_input(form) — currentFieldIdx 지정 시 해당 필드', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.waiting_for_input',
+      node: { id: 'n4', type: 'form', interactionType: 'form' },
+      interaction: { currentFieldIdx: 1 },
+      context: {
+        formConfig: {
+          fields: [
+            { name: 'first', label: 'First' },
+            { name: 'second', label: 'Second' },
+          ],
+        },
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m[0].body.kind).toBe('form_prompt');
+    if (m[0].body.kind === 'form_prompt') {
+      expect(m[0].body.fieldName).toBe('second');
+    }
   });
 });
