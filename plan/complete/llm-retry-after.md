@@ -60,4 +60,6 @@ ai-agent-turn-fail-finalize PR (#209) 후속 plan §"본 PR 범위 외" 항목.
 
 ## 후속 (별도 PR — 본 plan 범위 외)
 
-없음. 본 plan 으로 ai-agent-turn-fail-finalize PR #209 의 후속 4건 모두 처리 완료.
+- [`plan/in-progress/llm-retry-after-test-coverage.md`](llm-retry-after-test-coverage.md) — ai-review 00_21_19 의 deferred 5건 (W2~W5, W8 — 경계값·문자열 분기·종단 경로·외부 클릭 회귀·픽스처 추출).
+
+ai-agent-turn-fail-finalize PR #209 의 후속 4건은 본 plan 으로 모두 처리 완료.
