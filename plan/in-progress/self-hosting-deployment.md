@@ -64,7 +64,7 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 
 - [ ] `docs/self-hosting/` 디렉터리 신설 (또는 `codebase/frontend/src/content/docs/` 매뉴얼 영역)
   - `installation.md` — Docker Compose / K8s 설치 순서
-  - `security.md` — 시크릿 관리 / TLS / Reverse proxy 설정 / 데이터베이스 암호화 / 백업
+  - `security.md` — 시크릿 관리 / TLS / Reverse proxy 설정 / 데이터베이스 암호화 / 백업 / **(EIA cross-ref)** Outbound notification webhook URL 의 SSRF allowlist 설정 ([Spec External Interaction API §8.1](../../spec/5-system/14-external-interaction-api.md) + `workspace_settings.notification_url_allow_pattern`). 셀프호스팅 환경에서 사설 IP/메타데이터 IP 차단 기본값 + 사용자 allowlist 설정 가이드 포함.
   - `upgrade.md` — 버전 업그레이드 절차 (마이그레이션 호환성 / 롤백)
   - `monitoring.md` — Prometheus / Grafana 연동 (NF-OB-02 와 연계)
   - `backup-restore.md` — DB 덤프 / MinIO 버킷 백업 / 복원 (NF-AV-05)

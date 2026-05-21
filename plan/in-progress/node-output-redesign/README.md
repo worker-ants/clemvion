@@ -348,6 +348,7 @@ D1 → D2 → D3 → D4 → D5 → D6 알파벳·숫자 순서로 각 D 별 work
 D 결정이 다루지 못한 **노드별 구현 갭** 처리. §"진행 상태 요약" Phase 2 표 + §"요약 — §B 구현 분석" 의 남은 항목을 우선순위 순으로 단일 노드 / 단일 PR 로 분할한다.
 
 - **P0** — ai-agent `buildErrorOutput` + `port:'error'` 추가 (`llmService.chat` throw 가 엔진 FAILED 로 전파되는 비대칭). 별도 plan + worktree 필요.
+  - (EIA cross-ref) 본 P0 가 ai-agent `output.error` shape 을 신설할 경우 [Spec External Interaction API §6.3](../../../spec/5-system/14-external-interaction-api.md) 의 `execution.failed` payload `error` 필드 매핑에 영향. 착수 전 EIA §6.3 호환성 확인 후 SSE payload spec 동기화 필요.
 - **P1** — information-extractor ConversationThread v2 multi-turn push (ai-agent 와 패턴 정합), Code 노드 sandbox API (`$node` / `$helpers` 주입 + `timeout` schema).
 - **P2** — Parallel `meta.durationMs` / `meta.branches` 보강, ForEach `collectResults` dead field 제거, Chart `chartOutputSchema` dead schema 제거, Cafe24 §1 pagination `cursor?: string` spec 정정.
 - **P3** — HTTP transport-failed envelope 의 `output.response: { error }` legacy 잔재 제거, Workflow async `output.workflowId` / `output.status: 'started'` 중복 제거, Merge `meta.strategy` / `meta.outputFormat` config 중복 제거.

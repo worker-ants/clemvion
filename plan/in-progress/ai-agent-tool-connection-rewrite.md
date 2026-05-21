@@ -57,6 +57,7 @@ config 스키마에서 `toolNodeIds` / `toolOverrides` 필드와, 캔버스의 A
   - 도구 호출 결과의 `output.result.*` 위치
 - [ ] `spec/3-workflow-editor/0-canvas.md` Tool Area 시각·인터랙션 재작성 (만약 결정 (a)면)
 - [ ] `spec/3-workflow-editor/4-ai-assistant.md` — Workflow AI Assistant가 새 도구 연결 모델을 인식·편집할 수 있는지 정합화 (특히 `add_node` / `update_node` 응답의 dynamic-ports 모델)
+- [ ] (EIA cross-ref) [Spec External Interaction API §5.2](../../spec/5-system/14-external-interaction-api.md) 의 SSE `execution.tool_call_started/completed` payload `name` 필드 namespace 재검토 — 본 plan 의 도구 이름 규칙 (`tool_*` 접두사 부활 여부) 결정 후 SSE payload spec 동기화. 본 cross-ref 는 EIA plan §"완료 후 잔여" → SDK follow-up §W-1 참조.
 
 ### 4. 백엔드 구현 (TDD)
 
