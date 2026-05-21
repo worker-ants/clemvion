@@ -48,10 +48,14 @@ Chat Channel을 통해 아래 인터랙션 노드 유형을 사용할 수 있어
 | **AI Multi Turn** | 봇과 자유 텍스트 대화 |
 | **Button Presentation** | 인라인 키보드 버튼으로 선택 |
 | **Form** | 필드별 순차 텍스트 입력 (연락처 공유, 파일 업로드 포함) |
-| **Chart** | PNG 이미지로 차트 전송 |
+| **Chart** | monospace 미니 막대 그래프 텍스트 (라벨·값 정렬, 첫 시리즈 표시) |
+| **Table** | monospace MarkdownV2 표 (열 너비 자동 정렬, 최대 20행 — 초과 시 "외 N행" 안내) |
+| **Carousel** | 카드별 sequential 메시지 (제목·설명·이미지 URL, 최대 10장) |
 
 <Callout type="note">
-Carousel, Table은 현재 미지원이에요 (후속 PR에서 추가 예정).
+시각형 노드(Chart, Table, Carousel)는 현재 **MarkdownV2 텍스트 표현**으로 동작해요. 향후 별도 PR에서 SSR PNG 이미지 발송으로 격상될 예정이에요 (의존성 추가 검토 중 — 별 plan `chat-channel-visual-ssr-png` 추적).
+
+`uiMapping.visualNode: 'text_only'` 로 설정하면 시각형 메시지 발송 자체를 끄고 버튼만 보낼 수 있어요.
 </Callout>
 
 ## 4. 봇 명령어

@@ -149,21 +149,32 @@ function renderButtons(
     '선택해주세요.';
   const out: ChannelMessage[] = [];
 
-  // 시각형 노드 출력이 있으면 먼저 image 첨부 (Phase 5/PR-D 에서 buffer 채움 — v1 PR-B 는 text-only).
-  const visualKind = buttonConfig?.nodeOutput?.nodeType;
+  // 시각형 노드 출력이 있으면 시각 ChannelMessage 시퀀스를 먼저 발송 (텔레그램 §5.4 / CCH-MP-04 v1).
+  // visualNode='text_only' 또는 미인식 nodeType 은 title 만 caption 으로.
+  const nodeOutput = buttonConfig?.nodeOutput as
+    | { nodeType?: string; payload?: unknown; title?: string }
+    | undefined;
+  const visualKind = nodeOutput?.nodeType;
   if (
     config.uiMapping?.visualNode !== 'text_only' &&
-    typeof visualKind === 'string' &&
-    (visualKind === 'chart' ||
-      visualKind === 'carousel' ||
-      visualKind === 'table')
+    typeof visualKind === 'string'
   ) {
-    // Phase 5 (PR-D) 에서 채움. 본 commit (Phase 3/PR-B) 은 caption 으로 text 안내만.
-    const title =
-      (typeof buttonConfig?.nodeOutput?.title === 'string'
-        ? buttonConfig.nodeOutput.title
-        : null) ?? `[${visualKind}]`;
-    out.push(...renderText(title));
+    if (visualKind === 'chart') {
+      out.push(...renderChartFallback(nodeOutput, config));
+    } else if (visualKind === 'table') {
+      out.push(...renderTableFallback(nodeOutput, config));
+    } else if (visualKind === 'carousel') {
+      out.push(...renderCarouselFallback(nodeOutput, config));
+    } else if (
+      visualKind === 'template' &&
+      typeof (nodeOutput as { rendered?: unknown }).rendered === 'string'
+    ) {
+      // template plain text fallback — HTML 은 noop (SSR PNG v2 영역).
+      out.push(...renderText((nodeOutput as { rendered: string }).rendered));
+    } else if (typeof nodeOutput?.title === 'string' && nodeOutput.title) {
+      // 미인식 visualKind — title 만 안내.
+      out.push(...renderText(nodeOutput.title));
+    }
   }
 
   out.push({
@@ -307,4 +318,328 @@ function splitByLimit(text: string, limit: number): string[] {
     cursor = cut;
   }
   return chunks;
+}
+
+// ----------------------------------------------------------------------------
+// Visual fallback renderers (CCH-MP-04 v1 — MarkdownV2 텍스트/monospace 표현)
+// ----------------------------------------------------------------------------
+
+const TABLE_ROW_CAP = 20;
+const TABLE_CELL_MAX_WIDTH = 16;
+const CAROUSEL_CARD_CAP = 10;
+const CHART_BAR_WIDTH = 24;
+
+/** MarkdownV2 monospace code block 으로 감싼다. ``` 자체는 escape 미적용. */
+function wrapMonospace(text: string): string {
+  return '```\n' + text + '\n```';
+}
+
+/** 텍스트를 cell width 에 맞춰 padEnd (다국어 문자도 대략 정렬 — surrogate 무시). */
+function padCell(value: string, width: number): string {
+  if (value.length >= width) return value;
+  return value + ' '.repeat(width - value.length);
+}
+
+/** 너무 긴 cell 값 truncate. */
+function truncateCell(value: string, maxWidth: number): string {
+  if (value.length <= maxWidth) return value;
+  return value.slice(0, maxWidth - 1) + '…';
+}
+
+/**
+ * Chart fallback — `nodeOutput.payload.{title, series, labels}` 에서 단일 series 의
+ * monospace mini bar chart 생성. 다중 series 는 first series 만 사용 (안내 footer).
+ *
+ * payload shape (chart node 가 emit 하는 형식, [Spec Chart](../../6-presentation/3-chart.md)):
+ *   { title?: string, labels?: string[], series?: Array<{ name?: string, data?: number[] }> }
+ */
+function renderChartFallback(
+  nodeOutput: { title?: string; payload?: unknown } | undefined,
+  _config: ChatChannelConfig,
+): ChannelMessage[] {
+  const payload = (nodeOutput?.payload ?? {}) as {
+    title?: string;
+    labels?: unknown;
+    series?: unknown;
+  };
+  const title = (
+    typeof nodeOutput?.title === 'string' && nodeOutput.title
+      ? nodeOutput.title
+      : typeof payload.title === 'string' && payload.title
+        ? payload.title
+        : '차트'
+  ).trim();
+  const labels: string[] = Array.isArray(payload.labels)
+    ? payload.labels.map((l) => String(l ?? ''))
+    : [];
+  const seriesArr: Array<{ name?: unknown; data?: unknown }> = Array.isArray(
+    payload.series,
+  )
+    ? (payload.series as Array<{ name?: unknown; data?: unknown }>)
+    : [];
+  const firstSeries = seriesArr[0];
+  const data: number[] = Array.isArray(firstSeries?.data)
+    ? firstSeries.data
+        .map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN))
+        .filter((v): v is number => !Number.isNaN(v))
+    : [];
+
+  if (data.length === 0) {
+    // 데이터 없음 — title 만 안내.
+    return renderText(`📊 ${title}`);
+  }
+
+  const max = data.reduce((m, v) => (v > m ? v : m), 0);
+  const labelWidth = Math.min(
+    labels.reduce((w, l) => Math.max(w, l.length), 0) || 6,
+    12,
+  );
+  const valueWidth = data.reduce((w, v) => {
+    const s = formatChartValue(v);
+    return s.length > w ? s.length : w;
+  }, 0);
+
+  const lines: string[] = [];
+  for (let i = 0; i < data.length; i += 1) {
+    const label = padCell(
+      truncateCell(labels[i] ?? `#${i + 1}`, labelWidth),
+      labelWidth,
+    );
+    const value = data[i];
+    const barLen =
+      max > 0 ? Math.max(1, Math.round((value / max) * CHART_BAR_WIDTH)) : 0;
+    const bar = '█'.repeat(barLen);
+    const valueStr = padCell(formatChartValue(value), valueWidth);
+    lines.push(`${label} ${bar} ${valueStr}`);
+  }
+
+  const firstName =
+    typeof firstSeries?.name === 'string' && firstSeries.name
+      ? firstSeries.name
+      : 'series 1';
+  const seriesNote =
+    seriesArr.length > 1
+      ? `\n(전체 ${seriesArr.length}개 시리즈 중 "${firstName}" 만 표시)`
+      : '';
+
+  const body = `📊 ${title}\n\n${wrapMonospace(lines.join('\n'))}${seriesNote}`;
+  // body 에 wrapMonospace 가 있으므로 일반 renderText (escape 적용) 사용 불가 — 직접 chunk.
+  return chunkRichText(body);
+}
+
+function formatChartValue(v: number): string {
+  if (Number.isInteger(v)) return String(v);
+  return v.toFixed(2).replace(/\.?0+$/, '');
+}
+
+/**
+ * Table fallback — `nodeOutput.payload.{rows, columns}` 에서 monospace MarkdownV2 표 생성.
+ * row cap 20, cell max width 16, column width 자동 정렬, header separator 추가.
+ *
+ * payload shape (table node 가 emit, [Spec Table](../../6-presentation/2-table.md)):
+ *   { rows: Array<Record<string, unknown>>, columns: Array<{ key: string, label?: string }>,
+ *     rowsTruncated?: boolean, rowsTotalCount?: number, title?: string }
+ */
+function renderTableFallback(
+  nodeOutput: { title?: string; payload?: unknown } | undefined,
+  _config: ChatChannelConfig,
+): ChannelMessage[] {
+  const payload = (nodeOutput?.payload ?? {}) as {
+    title?: string;
+    rows?: unknown;
+    columns?: unknown;
+    rowsTruncated?: unknown;
+    rowsTotalCount?: unknown;
+  };
+  const title = (
+    typeof nodeOutput?.title === 'string' && nodeOutput.title
+      ? nodeOutput.title
+      : typeof payload.title === 'string' && payload.title
+        ? payload.title
+        : '표'
+  ).trim();
+  const rawRows: Array<Record<string, unknown>> = Array.isArray(payload.rows)
+    ? (payload.rows as Array<Record<string, unknown>>)
+    : [];
+  const rawColumns: Array<{ key?: unknown; label?: unknown }> = Array.isArray(
+    payload.columns,
+  )
+    ? (payload.columns as Array<{ key?: unknown; label?: unknown }>)
+    : [];
+  const columns = rawColumns
+    .filter(
+      (c): c is { key: string; label?: unknown } =>
+        typeof c?.key === 'string' && c.key.length > 0,
+    )
+    .map((c) => ({
+      key: c.key,
+      label: typeof c.label === 'string' && c.label ? c.label : c.key,
+    }));
+
+  if (columns.length === 0) {
+    return renderText(`📋 ${title}\n(열 정보가 없습니다.)`);
+  }
+
+  const cappedRows = rawRows.slice(0, TABLE_ROW_CAP);
+  const remaining = rawRows.length - cappedRows.length;
+  const truncatedFlag =
+    payload.rowsTruncated === true ||
+    (typeof payload.rowsTotalCount === 'number' &&
+      payload.rowsTotalCount > rawRows.length);
+  const totalCount =
+    typeof payload.rowsTotalCount === 'number'
+      ? payload.rowsTotalCount
+      : rawRows.length;
+
+  // column 별 width 계산 — max(label, cell 값들) cap to TABLE_CELL_MAX_WIDTH.
+  const widths: number[] = columns.map((col) => {
+    let w = truncateCell(col.label, TABLE_CELL_MAX_WIDTH).length;
+    for (const row of cappedRows) {
+      const cell = formatTableCell(row[col.key]);
+      const truncated = truncateCell(cell, TABLE_CELL_MAX_WIDTH);
+      if (truncated.length > w) w = truncated.length;
+    }
+    return w;
+  });
+
+  const headerLine = columns
+    .map((col, i) =>
+      padCell(truncateCell(col.label, TABLE_CELL_MAX_WIDTH), widths[i]),
+    )
+    .join(' │ ');
+  const separator = widths.map((w) => '─'.repeat(w)).join('─┼─');
+  const dataLines = cappedRows.map((row) =>
+    columns
+      .map((col, i) => {
+        const cell = formatTableCell(row[col.key]);
+        return padCell(truncateCell(cell, TABLE_CELL_MAX_WIDTH), widths[i]);
+      })
+      .join(' │ '),
+  );
+
+  const footer =
+    remaining > 0
+      ? `\n(외 ${remaining}행 — 전체 ${totalCount}행)`
+      : truncatedFlag
+        ? `\n(상위 ${cappedRows.length}행 표시 — 전체 ${totalCount}행)`
+        : '';
+
+  const body = `📋 ${title}\n\n${wrapMonospace([headerLine, separator, ...dataLines].join('\n'))}${footer}`;
+  return chunkRichText(body);
+}
+
+function formatTableCell(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean')
+    return String(value);
+  try {
+    return JSON.stringify(value) ?? '';
+  } catch {
+    return '[object]';
+  }
+}
+
+/**
+ * Carousel fallback — `nodeOutput.payload.items[]` 의 카드들을 sequential ChannelMessage 로.
+ * 각 카드: imageUrl 있으면 image, 없으면 text. global buttons 는 마지막 카드 후 별 메시지.
+ * 카드 cap 10장 — 초과 시 마지막에 "외 N장" 안내.
+ *
+ * payload shape (carousel node 가 emit, [Spec Carousel](../../6-presentation/1-carousel.md)):
+ *   { items: Array<{ title?: string, description?: string, imageUrl?: string, buttons?: ChannelButton[] }>,
+ *     title?: string }
+ *
+ * 텔레그램 sendPhoto 는 image bytes (Buffer) 만 받으므로 imageUrl 은 v1 에서 fetch 하지 않고
+ * 텍스트로 URL 표시. v2 에서 fetch + Buffer 변환 추가 가능.
+ */
+function renderCarouselFallback(
+  nodeOutput: { title?: string; payload?: unknown } | undefined,
+  _config: ChatChannelConfig,
+): ChannelMessage[] {
+  const payload = (nodeOutput?.payload ?? {}) as {
+    title?: string;
+    items?: unknown;
+  };
+  const title = (
+    typeof nodeOutput?.title === 'string' && nodeOutput.title
+      ? nodeOutput.title
+      : typeof payload.title === 'string' && payload.title
+        ? payload.title
+        : ''
+  ).trim();
+  const items: Array<{
+    title?: unknown;
+    description?: unknown;
+    imageUrl?: unknown;
+    buttons?: unknown;
+  }> = Array.isArray(payload.items)
+    ? (payload.items as Array<{
+        title?: unknown;
+        description?: unknown;
+        imageUrl?: unknown;
+        buttons?: unknown;
+      }>)
+    : [];
+
+  const out: ChannelMessage[] = [];
+
+  if (title) {
+    out.push(...renderText(`🎴 ${title}`));
+  }
+
+  if (items.length === 0) {
+    out.push(...renderText('(카드가 없습니다.)'));
+    return out;
+  }
+
+  const capped = items.slice(0, CAROUSEL_CARD_CAP);
+  const remaining = items.length - capped.length;
+
+  for (let i = 0; i < capped.length; i += 1) {
+    const item = capped[i];
+    const cardTitle =
+      typeof item.title === 'string' && item.title
+        ? item.title
+        : `카드 ${i + 1}`;
+    const cardDesc =
+      typeof item.description === 'string' && item.description
+        ? item.description
+        : '';
+    const cardImage =
+      typeof item.imageUrl === 'string' && item.imageUrl ? item.imageUrl : '';
+
+    const bodyText = [
+      `*${escapeMarkdownV2(cardTitle)}*`,
+      cardDesc ? escapeMarkdownV2(cardDesc) : '',
+      cardImage ? `🖼 ${escapeMarkdownV2(cardImage)}` : '',
+    ]
+      .filter((s) => s.length > 0)
+      .join('\n');
+
+    out.push({
+      conversationKey: '',
+      body: { kind: 'text' as const, text: bodyText },
+    });
+  }
+
+  if (remaining > 0) {
+    out.push(...renderText(`(외 ${remaining}장 — 전체 ${items.length}장)`));
+  }
+  return out;
+}
+
+/**
+ * monospace code block 등 이미 MarkdownV2 형식이 부분적으로 들어간 텍스트의 chunking.
+ * `renderText` 와 달리 escape 미적용 (호출자가 책임). chunked 플래그 동일.
+ */
+function chunkRichText(text: string): ChannelMessage[] {
+  const chunks = splitByLimit(text, TELEGRAM_MESSAGE_LIMIT);
+  return chunks.map((t) => ({
+    conversationKey: '',
+    body: {
+      kind: 'text' as const,
+      text: t,
+      chunked: chunks.length > 1,
+    },
+  }));
 }
