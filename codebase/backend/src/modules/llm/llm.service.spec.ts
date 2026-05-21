@@ -469,18 +469,40 @@ describe('LlmService', () => {
       expect(result.content).toBe('success');
     }, 30000);
 
-    // plan/llm-retry-after.md §2 — withRetry 통합 시나리오 3건. setTimeout
-    // 인자값을 검증해 실제 backoff 결정 분기 (Retry-After / exponential / cap)
-    // 가 의도대로 동작함을 확인. fake timer 로 실제 대기 없이 즉시 진행.
+    // plan/llm-retry-after.md §2 + llm-retry-after-test-coverage §1 — withRetry
+    // 통합 시나리오. setTimeout 인자값을 검증해 실제 backoff 결정 분기
+    // (Retry-After / exponential / cap / 종단 / non-rate-limit) 가 의도대로
+    // 동작함을 확인. fake timer 로 실제 대기 없이 즉시 진행.
     describe('Retry-After header behavior', () => {
-      const config = {
+      // 공통 fixture — 매 테스트에서 동일한 객체를 참조하지만 mutation 하지 않으므로
+      // describe 스코프 상수로 안전. RateLimit / success 응답 객체는 매 테스트마다
+      // 새로 생성해 오염 위험을 차단.
+      const retryConfig = {
         provider: 'openai',
         defaultModel: 'gpt-4o',
         apiKey: 'encrypted',
       } as any;
-      const params = {
+      const retryParams = {
         model: 'gpt-4o',
         messages: [{ role: 'user' as const, content: 'test' }],
+      };
+
+      const makeSuccessResponse = () => ({
+        content: 'ok',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+
+      const makeRateLimitError = (
+        headers?: Record<string, unknown>,
+        message = '429 Too Many Requests',
+      ) => {
+        const err = new Error(message) as Error & {
+          headers?: Record<string, unknown>;
+        };
+        if (headers) err.headers = headers;
+        return err;
       };
 
       beforeEach(() => {
@@ -488,15 +510,9 @@ describe('LlmService', () => {
       });
       afterEach(() => {
         jest.useRealTimers();
+        // setTimeout spy 등 module-level spy 누출 방지.
+        jest.restoreAllMocks();
       });
-
-      const makeRateLimitError = (headers?: Record<string, unknown>) => {
-        const err = new Error('429 Too Many Requests') as Error & {
-          headers?: Record<string, unknown>;
-        };
-        if (headers) err.headers = headers;
-        return err;
-      };
 
       it('honors Retry-After=2 (delta-seconds) → 2000ms backoff', async () => {
         const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
@@ -506,15 +522,10 @@ describe('LlmService', () => {
           if (callCount === 1) {
             throw makeRateLimitError({ 'retry-after': '2' });
           }
-          return {
-            content: 'ok',
-            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-            model: 'gpt-4o',
-            finishReason: 'stop',
-          };
+          return makeSuccessResponse();
         });
 
-        const promise = service.chat(config, params);
+        const promise = service.chat(retryConfig, retryParams);
         await jest.advanceTimersByTimeAsync(2_000);
         const result = await promise;
 
@@ -538,15 +549,10 @@ describe('LlmService', () => {
           if (callCount === 1) {
             throw makeRateLimitError(); // no headers
           }
-          return {
-            content: 'ok',
-            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-            model: 'gpt-4o',
-            finishReason: 'stop',
-          };
+          return makeSuccessResponse();
         });
 
-        const promise = service.chat(config, params);
+        const promise = service.chat(retryConfig, retryParams);
         await jest.advanceTimersByTimeAsync(1_000);
         const result = await promise;
 
@@ -568,15 +574,10 @@ describe('LlmService', () => {
             // 100 seconds — 상한 60s 적용되어 60_000ms 로 capped 되어야 함.
             throw makeRateLimitError({ 'retry-after': '100' });
           }
-          return {
-            content: 'ok',
-            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-            model: 'gpt-4o',
-            finishReason: 'stop',
-          };
+          return makeSuccessResponse();
         });
 
-        const promise = service.chat(config, params);
+        const promise = service.chat(retryConfig, retryParams);
         await jest.advanceTimersByTimeAsync(60_000);
         const result = await promise;
 
@@ -587,6 +588,122 @@ describe('LlmService', () => {
           expect.any(Function),
           60_000,
         );
+      });
+
+      // ── W2: cap 경계값 ──────────────────────────────────────────────────
+      // cap 은 strict less-than 이 아닌 Math.min — 정확히 60s 도 60_000ms 로 통과,
+      // 60s 미만은 그대로 통과. 회귀 시 cap 분기 오류를 즉시 검출.
+      it('does not cap when Retry-After is below the limit (59s → 59_000ms)', async () => {
+        const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+        let callCount = 0;
+        mockClient.chat.mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            throw makeRateLimitError({ 'retry-after': '59' });
+          }
+          return makeSuccessResponse();
+        });
+
+        const promise = service.chat(retryConfig, retryParams);
+        await jest.advanceTimersByTimeAsync(59_000);
+        const result = await promise;
+
+        expect(callCount).toBe(2);
+        expect(result.content).toBe('ok');
+        expect(setTimeoutSpy).toHaveBeenNthCalledWith(
+          1,
+          expect.any(Function),
+          59_000,
+        );
+      });
+
+      it('uses exactly 60_000ms when Retry-After equals the cap (60s)', async () => {
+        const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+        let callCount = 0;
+        mockClient.chat.mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            throw makeRateLimitError({ 'retry-after': '60' });
+          }
+          return makeSuccessResponse();
+        });
+
+        const promise = service.chat(retryConfig, retryParams);
+        await jest.advanceTimersByTimeAsync(60_000);
+        const result = await promise;
+
+        expect(callCount).toBe(2);
+        expect(result.content).toBe('ok');
+        expect(setTimeoutSpy).toHaveBeenNthCalledWith(
+          1,
+          expect.any(Function),
+          60_000,
+        );
+      });
+
+      // ── W3: rate-limit 판정 분기 — 메시지 substring ────────────────────
+      // withRetry 는 `.includes('429') || .toLowerCase().includes('rate limit')`.
+      // 429 코드 없이 메시지에 "rate limit" 만 있어도 retry 가 동작해야 함.
+      it('retries on rate-limit message even without 429 status code', async () => {
+        const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+        let callCount = 0;
+        mockClient.chat.mockImplementation(() => {
+          callCount++;
+          if (callCount === 1) {
+            throw makeRateLimitError(undefined, 'Rate Limit Exceeded');
+          }
+          return makeSuccessResponse();
+        });
+
+        const promise = service.chat(retryConfig, retryParams);
+        await jest.advanceTimersByTimeAsync(1_000);
+        const result = await promise;
+
+        expect(callCount).toBe(2);
+        expect(result.content).toBe('ok');
+        // 429 코드 없으므로 헤더도 없는 케이스 — exponential fallback (1_000ms).
+        expect(setTimeoutSpy).toHaveBeenNthCalledWith(
+          1,
+          expect.any(Function),
+          1_000,
+        );
+      });
+
+      // ── W4: 종단 경로 — 소진 / non-rate-limit ──────────────────────────
+      // maxRetries=3 (default) → 1차 + 3회 retry = 총 4회 호출 후 throw.
+      it('throws after exhausting maxRetries (3 retries → 4 total calls)', async () => {
+        let callCount = 0;
+        mockClient.chat.mockImplementation(() => {
+          callCount++;
+          throw makeRateLimitError({ 'retry-after': '0' });
+        });
+
+        const promise = service.chat(retryConfig, retryParams).catch((e) => e);
+        // retry 3회 × Retry-After=0 → 각 0ms backoff. runAllTimersAsync 가 큐에
+        // 들어가는 setTimeout(0) 들을 모두 소진할 때까지 반복 실행.
+        await jest.runAllTimersAsync();
+        const err = await promise;
+
+        expect(callCount).toBe(4);
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).message).toContain('429');
+      });
+
+      it('throws non-rate-limit errors immediately without retry', async () => {
+        const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+        let callCount = 0;
+        mockClient.chat.mockImplementation(() => {
+          callCount++;
+          throw new Error('500 Internal Server Error');
+        });
+
+        await expect(service.chat(retryConfig, retryParams)).rejects.toThrow(
+          /500/,
+        );
+
+        expect(callCount).toBe(1);
+        // backoff setTimeout 이 호출되지 않아야 함 (즉시 throw).
+        expect(setTimeoutSpy).not.toHaveBeenCalled();
       });
     });
   });
