@@ -1,6 +1,6 @@
 # Spec: 실행 엔진 상세
 
-> 관련 문서: [Spec 아키텍처 개요](../0-overview.md) · [Spec 에러 처리](./3-error-handling.md) · [Spec 실행/디버깅](../3-workflow-editor/3-execution.md) · [데이터 모델 - Execution](../1-data-model.md#213-execution)
+> 관련 문서: [Spec 아키텍처 개요](../0-overview.md) · [Spec 에러 처리](./3-error-handling.md) · [Spec 실행/디버깅](../3-workflow-editor/3-execution.md) · [데이터 모델 - Execution](../1-data-model.md#213-execution) · [Spec External Interaction API](./14-external-interaction-api.md)
 
 ---
 
@@ -350,6 +350,8 @@ $loop.count = 10              $item.index = 1
 - **테스트 격리** — Spec 테스트에서는 `Partial<WebsocketService>` mock 으로 충분. 추상화 인터페이스를 위한 별도 noop 구현체 불필요.
 
 > 향후 외부 sink (Webhook 콜백, 텔레메트리 export 등) 가 실제로 추가될 때 본 결정을 재검토한다.
+
+**재검토 완료 (2026-05-21)**: [Spec External Interaction API](./14-external-interaction-api.md) 의 Outbound Notification Webhook 과 외부 SSE 어댑터가 도입되면서 위 재검토 트리거가 발동. 결론은 [Spec EIA §R10](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장-2026-05-21) — **엔진 레벨 단일 sink 정책은 유지**. NotificationDispatcher / SSE 어댑터는 모두 엔진 외부 facade 레이어에 위치시켜 엔진 코드가 외부 sink 종류를 알 필요가 없도록 분리한다.
 
 ---
 

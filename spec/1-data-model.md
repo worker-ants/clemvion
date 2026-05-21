@@ -201,10 +201,14 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | type | Enum | webhook / schedule / manual |
 | name | String | 트리거 이름 |
 | is_active | Boolean | 활성 상태 |
-| config | JSONB | 트리거별 설정 |
+| config | JSONB | 트리거별 설정. `notification` / `interaction` 서브 필드는 [Spec External Interaction API §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) 참조 |
 | endpoint_path | String? | Webhook URL 경로 (type=webhook) |
 | auth_config_id | UUID? | FK → AuthConfig (Webhook 인증) |
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
+| notification_health | Enum | unknown / healthy / degraded. Outbound notification 발송 건강도. default=`unknown`. [Spec EIA §3.1 EIA-NX-07](./5-system/14-external-interaction-api.md#31-outbound-notification-notification-webhook) |
+| notification_last_error | Text? | Outbound notification 최종 실패 시 마지막 에러 메시지 (truncate 가능) |
+| notification_secret_v2 | Text? | Secret rotation 기간 (24h grace) 동안 사용되는 신규 secret (NOT NULL 이면 `config.notification.signing.secret` 와 둘 다 검증) |
+| notification_rotated_at | Timestamp? | Secret rotation 시작 시각 (grace 종료 판정용) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 

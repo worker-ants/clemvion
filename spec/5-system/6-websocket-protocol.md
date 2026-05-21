@@ -1,6 +1,6 @@
 # Spec: WebSocket 프로토콜
 
-> 관련 문서: [Spec API 규칙 §10](./2-api-convention.md#10-websocket) · [Spec 실행/디버깅 §8](../3-workflow-editor/3-execution.md#8-실행-엔진-통신) · [Spec 실행 엔진](./4-execution-engine.md)
+> 관련 문서: [Spec API 규칙 §10](./2-api-convention.md#10-websocket) · [Spec 실행/디버깅 §8](../3-workflow-editor/3-execution.md#8-실행-엔진-통신) · [Spec 실행 엔진](./4-execution-engine.md) · [Spec External Interaction API](./14-external-interaction-api.md)
 
 ---
 
@@ -91,7 +91,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | 추가 필드 | 설명 |
 |-----------|------|
 | `timestamp` | 서버 이벤트 발생 시각 (ISO 8601) |
-| `seq` | 채널 내 순서 번호 (재연결 시 놓친 이벤트 감지용) |
+| `seq` | 채널 내 순서 번호 (재연결 시 놓친 이벤트 감지용). `execution:{executionId}` 채널의 경우 = "execution 내 monotonic counter", 외부 SSE 의 `id:` / Outbound Notification 의 `seq` 와 동일 값 공유 — [Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification-2026-05-21) |
 
 ---
 
@@ -565,6 +565,52 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `auth.token_expired` | `{ message }` | 토큰 만료 알림 |
 | `system.maintenance` | `{ message, scheduledAt }` | 예정된 유지보수 알림 |
 | `error` | `{ code, message }` | 프로토콜 레벨 에러 |
+
+### 4.6 외부 표면 매핑 (External Interaction API)
+
+[Spec External Interaction API](./14-external-interaction-api.md) 는 외부 호출자가 WebSocket 대신 REST + SSE + Outbound Notification 으로 동일한 명령·이벤트를 주고받을 수 있게 한다. 두 표면의 의미가 분기되지 않도록 본 §4.6 의 매핑 표가 권위적이며, 외부 spec 의 §11 표는 이 표와 정합해야 한다.
+
+**Client → Server 명령 매핑:**
+
+| 내부 WS 명령 (Client → Server) | 외부 REST 명령 (`POST /api/executions/:id/interact` 의 `body.command`) | 비고 |
+|---|---|---|
+| `execution.submit_form` | `submit_form` | body 의 `formData` 가 외부에선 `data` |
+| `execution.click_button` | `click_button` | 동일 페이로드 |
+| `execution.submit_message` | `submit_message` | 동일 페이로드 |
+| `execution.end_conversation` | `end_conversation` | 동일 페이로드 |
+| `execution.stop` | `cancel` (또는 `POST /api/executions/:id/cancel` alias) | force 옵션은 외부에서 미지원 |
+| `execution.start` | (외부 미지원) | 외부는 webhook 트리거로 실행 시작 |
+| `execution.continue` / `execution.step` | (외부 미지원) | 디버깅 전용, UI/내부 한정 |
+| `auth.refresh` | (해당 없음) | 외부는 단명 `iext_*` 갱신 전용 엔드포인트 (`/refresh-token`) 사용 |
+| `subscribe` / `unsubscribe` | (해당 없음) | 외부는 execution 토큰 자체가 implicit 구독 |
+
+**Server → Client 이벤트 매핑:**
+
+| 내부 WS 이벤트 (Server → Client) | SSE event 이름 (`/api/executions/:id/stream`) | Outbound Notification `type` |
+|---|---|---|
+| `execution.started` | `execution.started` | — (외부 구독 불가, 노이즈) |
+| `execution.node.started` | `execution.node.started` | — |
+| `execution.node.completed` | `execution.node.completed` | — |
+| `execution.node.failed` | `execution.node.failed` | — |
+| `execution.node.skipped` | `execution.node.skipped` | — |
+| `execution.paused` | `execution.paused` | — (디버깅 전용) |
+| `execution.waiting_for_input` | `execution.waiting_for_input` | `execution.waiting_for_input` |
+| `execution.resumed` (transient) | `execution.resumed` | — (transient, notification 미발송) |
+| `execution.ai_message` | `execution.ai_message` | `execution.ai_message` (옵션 구독) |
+| `execution.tool_call_started` | `execution.tool_call_started` | — |
+| `execution.tool_call_completed` | `execution.tool_call_completed` | — |
+| `execution.completed` | `execution.completed` | `execution.completed` |
+| `execution.failed` | `execution.failed` | `execution.failed` |
+| `execution.cancelled` | `execution.cancelled` | `execution.cancelled` |
+| `replay.unavailable` | `execution.replay_unavailable` | — |
+
+**핵심 규약:**
+- **`seq` 동일 공유**: SSE 의 `id:` 필드와 Outbound Notification 페이로드의 `seq` 는 본 spec §2.2 의 monotonic counter 와 같은 값을 사용한다 ([Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification-2026-05-21)).
+- **5분 버퍼 공유**: §6.2 의 재연결 이벤트 버퍼를 SSE 어댑터도 동일하게 사용한다. 외부 클라이언트의 `Last-Event-Id` 는 본 spec 의 `lastSeq` 와 동일 의미.
+- **transaction-after emit**: 본 spec §4.1 의 트랜잭션 commit 후 emit 규약은 SSE / Notification 에도 그대로 적용된다 ([Spec EIA §9.3](./14-external-interaction-api.md#93-트랜잭션과-발송-순서-eia-rl-04)).
+- **단일 구현 경로**: 외부 표면은 내부 WebSocket 의 명령/이벤트 처리 경로를 facade 로 감싼 형태로만 구현해야 한다. 두 표면이 분기되면 §R5 가 경고하는 maintenance 부담이 발생.
+
+> 외부 WebSocket 채널 신설은 v1 에서 보류. 보류 사유와 재논의 트리거는 [Spec EIA §R5](./14-external-interaction-api.md#r5-외부-websocket-채널-신설--보류-2026-05-21) 참조.
 
 ---
 
