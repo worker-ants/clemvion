@@ -164,11 +164,10 @@ describe('External Interaction API (e2e)', () => {
     );
   });
 
-  // D 시나리오 (cross-execution token reject) 는 e2e 환경에서 global JwtAuthGuard 가 잡아
-  // AUTH_REQUIRED 가 되는 환경 차이가 있음 (배포 환경의 APP_GUARD 등록 순서). 동일 invariant 는
-  // interaction.guard.spec.ts 의 "scope mismatch" 단위 테스트가 이미 검증 (TOKEN_SCOPE_MISMATCH
-  // 매핑). 본 e2e 는 cross-stack 정합성 검증 목적이므로 D 는 skip.
-  it.skip('D. 같은 trigger 의 다른 execution 토큰으로 호출 시 TOKEN_SCOPE_MISMATCH', async () => {
+  // D 시나리오 — InteractionGuard 의 nested `{ error: { code, message } }` throw shape 이
+  // GlobalExceptionFilter 의 fallback path 에서 잡혀 default `AUTH_REQUIRED` 로 응답되던 회귀를
+  // filter 에 nested 인식을 추가해 해소 (`common/filters/http-exception.filter.ts`).
+  it('D. 같은 trigger 의 다른 execution 토큰으로 호출 시 TOKEN_SCOPE_MISMATCH', async () => {
     const setup = await createTriggerWithInteraction(db, {
       interactionEnabled: true,
     });
