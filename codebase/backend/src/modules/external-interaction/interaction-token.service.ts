@@ -6,6 +6,8 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import Redis from 'ioredis';
 import { randomBytes, createHash, timingSafeEqual } from 'crypto';
 import {
@@ -14,6 +16,7 @@ import {
   sign,
   verify,
 } from 'jsonwebtoken';
+import { ExecutionToken } from './entities/execution-token.entity';
 
 /**
  * [Spec EIA §3.3 / §R4] — 인터랙션 토큰 두 family.
@@ -72,6 +75,14 @@ export class InteractionTokenService implements OnModuleDestroy {
   constructor(
     @Optional() configService?: ConfigService,
     @Optional() @Inject('INTERACTION_TOKEN_REDIS') injectedRedis?: Redis,
+    /**
+     * [Spec EIA §3.3 EIA-AU-04] — 발급된 iext jti 의 영속 추적. 미주입 (테스트 / 옛 모듈 설정) 시
+     * tracking 비활성으로 fallback — Redis blacklist 만 기능, terminal 시 즉시 revoke 불가능
+     * (exp 자연 무효화로만 보호).
+     */
+    @Optional()
+    @InjectRepository(ExecutionToken)
+    private readonly executionTokenRepository?: Repository<ExecutionToken>,
   ) {
     if (injectedRedis) {
       // 테스트가 mock redis 주입 — 별도 connection 생성 안 함.
@@ -142,10 +153,10 @@ export class InteractionTokenService implements OnModuleDestroy {
   /**
    * 신규 per-execution JWT 발급. terminal 이벤트 발생 전까지 `verifyPerExecution` 에서 valid.
    */
-  issuePerExecution(
+  async issuePerExecution(
     executionId: string,
     opts?: { ttlSec?: number },
-  ): IssuePerExecutionResult {
+  ): Promise<IssuePerExecutionResult> {
     if (!executionId) throw new Error('executionId is required');
     const ttl = opts?.ttlSec ?? IEXT_DEFAULT_TTL_SEC;
     const jti = randomBytes(16).toString('hex');
@@ -158,11 +169,26 @@ export class InteractionTokenService implements OnModuleDestroy {
         expiresIn: ttl,
       },
     );
-    return {
+    const result: IssuePerExecutionResult = {
       token: `${IEXT_PREFIX}${jwt}`,
       expiresAt: new Date(expSec * 1000).toISOString(),
       jti,
     };
+    // [Spec EIA §3.3 EIA-AU-04] jti 영속 추적 — Repository 미주입 시 fail-open (옛 모듈 설정 호환).
+    if (this.executionTokenRepository) {
+      try {
+        await this.executionTokenRepository.insert({
+          jti,
+          executionId,
+          expAt: new Date(expSec * 1000),
+        });
+      } catch (err) {
+        this.logger.warn(
+          `InteractionTokenService: execution_token INSERT 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    return result;
   }
 
   /**
@@ -278,9 +304,54 @@ export class InteractionTokenService implements OnModuleDestroy {
     if (remainingSec > IEXT_REFRESH_WINDOW_SEC) {
       return { valid: false, reason: 'not_in_window' };
     }
-    // 기존 jti blacklist + 신규 발급
+    // 기존 jti blacklist + 신규 발급. ExecutionToken row 도 삭제해 향후 revokeAllForExecution 시
+    // 이미 blacklist 된 jti 재처리 회피.
     await this.revokePerExecution(decoded.jti, Math.max(1, remainingSec));
+    if (this.executionTokenRepository) {
+      try {
+        await this.executionTokenRepository.delete({ jti: decoded.jti });
+      } catch (err) {
+        this.logger.warn(
+          `InteractionTokenService: execution_token DELETE 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
     return this.issuePerExecution(decoded.sub);
+  }
+
+  /**
+   * [Spec EIA §3.3 EIA-AU-04] terminal event 발송 시 호출 — 해당 execution 의 모든 jti 를
+   * Redis blacklist 에 즉시 등록. 등록 후 ExecutionToken row 도 삭제 (재처리 회피).
+   *
+   * Repository 미주입 또는 jti 0건 시 no-op. Redis 미가용 시 fail-open (warn 로그만).
+   */
+  async revokeAllForExecution(
+    executionId: string,
+  ): Promise<{ revoked: number }> {
+    if (!this.executionTokenRepository) {
+      return { revoked: 0 };
+    }
+    const tokens = await this.executionTokenRepository.find({
+      where: { executionId },
+      select: ['jti', 'expAt'],
+    });
+    const nowSec = Math.floor(Date.now() / 1000);
+    let revoked = 0;
+    for (const token of tokens) {
+      const expSec = Math.floor(token.expAt.getTime() / 1000);
+      const ttl = expSec - nowSec;
+      if (ttl <= 0) continue; // 이미 자연 만료 — Redis 등재 불필요
+      await this.revokePerExecution(token.jti, ttl);
+      revoked++;
+    }
+    try {
+      await this.executionTokenRepository.delete({ executionId });
+    } catch (err) {
+      this.logger.warn(
+        `InteractionTokenService: execution_token bulk DELETE 실패: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return { revoked };
   }
 
   // ===========================================================

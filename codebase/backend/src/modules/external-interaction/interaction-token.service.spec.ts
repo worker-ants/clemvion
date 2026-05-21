@@ -40,9 +40,9 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
     service = makeService(redis);
   });
 
-  it('issuePerExecution — iext_ prefix + valid JWT + expiresAt 1h default', () => {
+  it('issuePerExecution — iext_ prefix + valid JWT + expiresAt 1h default', async () => {
     const before = Date.now();
-    const result = service.issuePerExecution('exec-1');
+    const result = await service.issuePerExecution('exec-1');
     const after = Date.now();
     expect(result.token).toMatch(new RegExp(`^${IEXT_PREFIX}`));
     expect(result.jti).toMatch(/^[a-f0-9]{32}$/);
@@ -51,19 +51,19 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
     expect(expMs - after).toBeLessThanOrEqual(60 * 60 * 1000 + 1000);
   });
 
-  it('issuePerExecution — ttlSec 옵션으로 짧은 토큰 발급', () => {
-    const result = service.issuePerExecution('exec-1', { ttlSec: 60 });
+  it('issuePerExecution — ttlSec 옵션으로 짧은 토큰 발급', async () => {
+    const result = await service.issuePerExecution('exec-1', { ttlSec: 60 });
     const expMs = Date.parse(result.expiresAt);
     expect(expMs - Date.now()).toBeLessThanOrEqual(61 * 1000);
   });
 
-  it('issuePerExecution — executionId 누락 시 throw', () => {
-    expect(() => service.issuePerExecution('')).toThrow();
+  it('issuePerExecution — executionId 누락 시 reject', async () => {
+    await expect(service.issuePerExecution('')).rejects.toThrow();
   });
 
   it('verifyPerExecution — 발급한 토큰을 자기 호출에서 valid 로 검증', async () => {
     redis.get.mockResolvedValue(null);
-    const { token, jti } = service.issuePerExecution('exec-A');
+    const { token, jti } = await service.issuePerExecution('exec-A');
     const v = await service.verifyPerExecution(token);
     expect(v.valid).toBe(true);
     expect(v.executionId).toBe('exec-A');
@@ -72,7 +72,7 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
 
   it('verifyPerExecution — expectedExecutionId 매칭 검증', async () => {
     redis.get.mockResolvedValue(null);
-    const { token } = service.issuePerExecution('exec-A');
+    const { token } = await service.issuePerExecution('exec-A');
     const ok = await service.verifyPerExecution(token, 'exec-A');
     expect(ok.valid).toBe(true);
     const mismatch = await service.verifyPerExecution(token, 'exec-OTHER');
@@ -110,7 +110,7 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
 
   it('verifyPerExecution — Redis 에 jti blacklist 등재되어 있으면 blacklisted', async () => {
     redis.get.mockResolvedValue('1');
-    const { token } = service.issuePerExecution('exec-A');
+    const { token } = await service.issuePerExecution('exec-A');
     const v = await service.verifyPerExecution(token);
     expect(v.valid).toBe(false);
     expect(v.reason).toBe('blacklisted');
@@ -121,14 +121,14 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
 
   it('verifyPerExecution — Redis 없으면 fail-open (blacklist 검사 skip)', async () => {
     const noRedis = makeService(undefined);
-    const { token } = noRedis.issuePerExecution('exec-A');
+    const { token } = await noRedis.issuePerExecution('exec-A');
     const v = await noRedis.verifyPerExecution(token);
     expect(v.valid).toBe(true);
   });
 
   it('verifyPerExecution — Redis 가 throw 해도 fail-open (시스템 가용성 우선)', async () => {
     redis.get.mockRejectedValue(new Error('ECONNREFUSED'));
-    const { token } = service.issuePerExecution('exec-A');
+    const { token } = await service.issuePerExecution('exec-A');
     const v = await service.verifyPerExecution(token);
     expect(v.valid).toBe(true);
   });
@@ -167,7 +167,7 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
       redis.get.mockResolvedValue(null);
       redis.set.mockResolvedValue('OK');
       // 만료까지 600초 남은 토큰
-      const { token: oldToken, jti: oldJti } = service.issuePerExecution(
+      const { token: oldToken, jti: oldJti } = await service.issuePerExecution(
         'exec-A',
         { ttlSec: 600 },
       );
@@ -189,7 +189,9 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
     it('만료 30분 초과 토큰 → not_in_window 거부', async () => {
       redis.get.mockResolvedValue(null);
       // 50분 남은 토큰
-      const { token } = service.issuePerExecution('exec-A', { ttlSec: 3000 });
+      const { token } = await service.issuePerExecution('exec-A', {
+        ttlSec: 3000,
+      });
       const result = await service.refreshPerExecution(token);
       expect(result).toMatchObject({ valid: false, reason: 'not_in_window' });
     });
@@ -202,9 +204,141 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
 
     it('blacklisted 토큰 → blacklisted', async () => {
       redis.get.mockResolvedValue('1');
-      const { token } = service.issuePerExecution('exec-A', { ttlSec: 600 });
+      const { token } = await service.issuePerExecution('exec-A', {
+        ttlSec: 600,
+      });
       const result = await service.refreshPerExecution(token);
       expect(result).toMatchObject({ valid: false, reason: 'blacklisted' });
+    });
+  });
+
+  describe('revokeAllForExecution — JTI tracking [Spec EIA §3.3 EIA-AU-04]', () => {
+    function makeServiceWithRepo(repo: {
+      find: Mock;
+      insert: Mock;
+      delete: Mock;
+    }) {
+      const config = {
+        get: jest.fn((key: string) => {
+          if (key === 'interaction.jwtSecret') return TEST_SECRET;
+          if (key === 'redis.host') return undefined;
+          return undefined;
+        }),
+      };
+      return new InteractionTokenService(
+        config as never,
+        redis as never,
+        repo as never,
+      );
+    }
+
+    it('Repository 미주입 → no-op + revoked:0', async () => {
+      const result = await service.revokeAllForExecution('exec-1');
+      expect(result.revoked).toBe(0);
+    });
+
+    it('jti 없으면 revoked:0', async () => {
+      const repo = {
+        find: jest.fn().mockResolvedValue([]),
+        insert: jest.fn(),
+        delete: jest.fn().mockResolvedValue({ affected: 0 }),
+      };
+      const svc = makeServiceWithRepo(repo);
+      const result = await svc.revokeAllForExecution('exec-1');
+      expect(result.revoked).toBe(0);
+      // 빈 list 라도 cleanup delete 는 호출 (idempotent)
+      expect(repo.delete).toHaveBeenCalledWith({ executionId: 'exec-1' });
+    });
+
+    it('만료된 jti 는 Redis 등재 skip — ttl > 0 인 것만 blacklist', async () => {
+      redis.set.mockResolvedValue('OK');
+      const now = Date.now();
+      const repo = {
+        find: jest.fn().mockResolvedValue([
+          { jti: 'expired-jti', expAt: new Date(now - 1000) }, // 이미 만료
+          { jti: 'alive-jti', expAt: new Date(now + 60_000) }, // 60s 남음
+        ]),
+        insert: jest.fn(),
+        delete: jest.fn().mockResolvedValue({ affected: 2 }),
+      };
+      const svc = makeServiceWithRepo(repo);
+      const result = await svc.revokeAllForExecution('exec-1');
+      expect(result.revoked).toBe(1);
+      expect(redis.set).toHaveBeenCalledTimes(1);
+      expect(redis.set).toHaveBeenCalledWith(
+        'iext:blacklist:alive-jti',
+        '1',
+        'EX',
+        expect.any(Number),
+      );
+      expect(repo.delete).toHaveBeenCalledWith({ executionId: 'exec-1' });
+    });
+
+    it('Repository delete throw 해도 fail-open (warn 만)', async () => {
+      redis.set.mockResolvedValue('OK');
+      const repo = {
+        find: jest
+          .fn()
+          .mockResolvedValue([
+            { jti: 'j1', expAt: new Date(Date.now() + 60_000) },
+          ]),
+        insert: jest.fn(),
+        delete: jest.fn().mockRejectedValue(new Error('db down')),
+      };
+      const svc = makeServiceWithRepo(repo);
+      // throw 가 아니라 정상 return (revoked 는 1)
+      const result = await svc.revokeAllForExecution('exec-1');
+      expect(result.revoked).toBe(1);
+    });
+  });
+
+  describe('issuePerExecution — execution_token INSERT [JTI tracking]', () => {
+    it('Repository 주입 시 INSERT 호출 (jti + executionId + expAt)', async () => {
+      const repo = {
+        find: jest.fn(),
+        insert: jest.fn().mockResolvedValue({ identifiers: [] }),
+        delete: jest.fn(),
+      };
+      const config = {
+        get: jest.fn((key: string) => {
+          if (key === 'interaction.jwtSecret') return TEST_SECRET;
+          if (key === 'redis.host') return undefined;
+          return undefined;
+        }),
+      };
+      const svc = new InteractionTokenService(
+        config as never,
+        redis as never,
+        repo as never,
+      );
+      const result = await svc.issuePerExecution('exec-X', { ttlSec: 60 });
+      expect(repo.insert).toHaveBeenCalledWith({
+        jti: result.jti,
+        executionId: 'exec-X',
+        expAt: expect.any(Date),
+      });
+    });
+
+    it('Repository insert throw → fail-open (warn, 토큰은 정상 반환)', async () => {
+      const repo = {
+        find: jest.fn(),
+        insert: jest.fn().mockRejectedValue(new Error('db locked')),
+        delete: jest.fn(),
+      };
+      const config = {
+        get: jest.fn((key: string) => {
+          if (key === 'interaction.jwtSecret') return TEST_SECRET;
+          if (key === 'redis.host') return undefined;
+          return undefined;
+        }),
+      };
+      const svc = new InteractionTokenService(
+        config as never,
+        redis as never,
+        repo as never,
+      );
+      const result = await svc.issuePerExecution('exec-X');
+      expect(result.token).toMatch(new RegExp(`^${IEXT_PREFIX}`));
     });
   });
 });
