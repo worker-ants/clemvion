@@ -129,6 +129,28 @@ export interface IntegrationMeta {
   appType: 'public' | 'private' | null;
 }
 
+/**
+ * Build the safe-to-expose meta hints. Currently only cafe24 emits anything
+ * (`appType`) — extracted so FE can decide flow gating (e.g. Reauthorize
+ * button visibility) without ever touching the encrypted credentials blob.
+ * `credsUnreadable` lets the caller skip a duplicate
+ * `isUnreadableCredentials` call when it already has the result.
+ *
+ * Pure helper (no class state) — directly unit-testable.
+ */
+export function buildIntegrationMeta(
+  entity: Pick<Integration, 'serviceType' | 'credentials'>,
+  credsUnreadable: boolean = isUnreadableCredentials(entity.credentials),
+): IntegrationMeta {
+  if (entity.serviceType === 'cafe24' && !credsUnreadable) {
+    const appType = entity.credentials?.app_type;
+    if (appType === 'public' || appType === 'private') {
+      return { appType };
+    }
+  }
+  return { appType: null };
+}
+
 export type PublicIntegration = Omit<
   Integration,
   'credentials' | 'installToken' | 'installTokenIssuedAt'
@@ -1036,7 +1058,7 @@ export class IntegrationsService {
   private toPublic(entity: Integration): PublicIntegration {
     const credsUnreadable = isUnreadableCredentials(entity.credentials);
     const lastErrorUnreadable = isUnreadableCredentials(entity.lastError);
-    const meta = this.buildIntegrationMeta(entity, credsUnreadable);
+    const meta = buildIntegrationMeta(entity, credsUnreadable);
     // `installToken` / `installTokenIssuedAt` 는 PublicIntegration 응답에서
     // 제외 — App URL path segment 안에 이미 포함되어 별도 필드 노출은 식별자
     // 분산을 유발한다. spec/2-navigation/4-integration.md Rationale "Cafe24
@@ -1106,26 +1128,6 @@ export class IntegrationsService {
       return null;
     }
     return buildCafe24InstallUrl(getAppBaseUrl(), entity.installToken);
-  }
-
-  /**
-   * Build the safe-to-expose meta hints. Currently only cafe24 emits anything
-   * (`appType`) — extracted so FE can decide flow gating (e.g. Reauthorize
-   * button visibility) without ever touching the encrypted credentials blob.
-   * `credsUnreadable` lets the caller skip a duplicate
-   * `isUnreadableCredentials` call when it already has the result.
-   */
-  private buildIntegrationMeta(
-    entity: Integration,
-    credsUnreadable: boolean = isUnreadableCredentials(entity.credentials),
-  ): IntegrationMeta {
-    if (entity.serviceType === 'cafe24' && !credsUnreadable) {
-      const appType = entity.credentials?.app_type;
-      if (appType === 'public' || appType === 'private') {
-        return { appType };
-      }
-    }
-    return { appType: null };
   }
 
   private validateServiceAndAuth(serviceType: string, authType: string): void {
