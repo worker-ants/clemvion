@@ -3,9 +3,9 @@ title: "트리거 노드"
 title_en: "Trigger nodes"
 section: "02-nodes"
 order: 2
-summary: "워크플로우의 시작점인 Manual Trigger를 설명하고, 웹훅·스케줄이 같은 파라미터 스키마를 공유하는 이유를 짚어요."
-summary_en: "Explains the Manual Trigger that starts workflows, and why webhooks and schedules share the same parameter schema."
-spec: ["spec/4-nodes/7-trigger/0-common.md"]
+summary: "워크플로우의 시작점인 Manual Trigger를 설명하고, 웹훅·스케줄이 같은 파라미터 스키마를 공유하는 이유, 그리고 외부 시스템이 웹훅으로 시작한 실행과 인터랙션을 주고받는 방법을 짚어요."
+summary_en: "Explains the Manual Trigger that starts workflows, why webhooks and schedules share the same parameter schema, and how external systems can interact with executions that webhooks start."
+spec: ["spec/4-nodes/7-trigger/0-common.md", "spec/5-system/12-webhook.md", "spec/5-system/14-external-interaction-api.md"]
 code: ["codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts"]
 ---
 
@@ -81,6 +81,230 @@ Manual Trigger는 입력 포트가 없고, 출력 포트 `out` 1개를 포함해
 <Callout type="note">
 웹훅과 스케줄 설정은 사이드바의 Triggers/Schedules 메뉴에서 관리해요. 캔버스의 Manual Trigger에 파라미터 스키마를 먼저 잘 정의해 두면, 세 트리거 모두가 같은 계약을 따라 동작해요.
 </Callout>
+
+## Webhook 트리거 자세히
+
+웹훅 트리거를 만들면 워크스페이스 도메인 아래에 고유 엔드포인트가 발급돼요. 외부 서비스(GitHub, Stripe, 자체 백엔드 등)가 이 URL로 HTTP POST를 보내면 해당 워크플로우가 실행돼요.
+
+### URL과 메서드
+
+```
+POST {base_url}/api/hooks/{endpoint_path}
+```
+
+- `endpoint_path`는 트리거 생성 시 UUID로 자동 발급돼요 (브루트포스 방지). 트리거 목록 화면에서 📋 버튼으로 전체 URL을 복사할 수 있어요.
+- 메서드는 `POST`만 받아요. `Content-Type`은 `application/json` 또는 `application/x-www-form-urlencoded`.
+- 본문 최대 크기는 1MB예요. 초과 시 `413 Payload Too Large`.
+
+### 인증 옵션
+
+트리거 상세에서 인증 방식을 셋 중 하나로 설정해요. 검증 실패는 모두 동일한 `401 Unauthorized` 메시지로만 응답해요 (알고리즘이 무엇이었는지는 응답에 노출되지 않아요 — 정보 유출 방지).
+
+<FieldTable rows={[
+  { name: "None (공개)", required: false, type: "검증 없음", description: "누구나 호출할 수 있어요. URL의 UUID 자체가 사실상 비밀이에요. 외부 노출이 우려되는 워크플로우에는 권장하지 않아요.", default: "-" },
+  { name: "HMAC 서명", required: false, type: "Secret 기반", description: "요청 헤더에 `X-Hub-Signature-256: sha256=<hex>` 같은 서명을 동봉해요. 알고리즘은 `sha256` 또는 `sha512`만 허용해요. GitHub Webhook과 동일한 방식이에요.", default: "-" },
+  { name: "Bearer Token", required: false, type: "토큰 비교", description: "요청 헤더에 `Authorization: Bearer <token>`을 동봉하고, 트리거에 저장된 값과 동일할 때만 통과해요.", default: "-" }
+]} />
+
+<Callout type="warn">
+HMAC을 쓰면 서버가 본문 원본 바이트로 서명을 검증해요. 외부 시스템이 본문을 자동으로 재가공해서 보내면 서명이 깨질 수 있어요. 발신 측에서 원문을 그대로 송신하도록 확인하세요.
+</Callout>
+
+### 응답 코드
+
+| 상태 | 의미 |
+|------|------|
+| `202 Accepted` | 수신 성공. 응답 본문에 `executionId`가 들어 있어요 — 실제 실행은 비동기로 진행돼요. |
+| `400 Bad Request` | 본문 파싱 실패, 또는 `required` 파라미터 누락·타입 변환 실패. 응답 본문에 누락 필드 목록이 들어 있어요. **Execution은 생성되지 않아요**. |
+| `401 Unauthorized` | 인증 실패. |
+| `404 Not Found` | 해당 `endpoint_path`의 트리거가 존재하지 않아요. |
+| `410 Gone` | 트리거가 비활성 상태예요. 트리거 상세에서 다시 활성화해야 받을 수 있어요. |
+| `413 Payload Too Large` | 본문 크기 1MB 초과. |
+| `429 Too Many Requests` | 분당 60건 rate limit 초과. |
+
+### 워크플로우 안에서 웹훅 페이로드 접근
+
+웹훅으로 들어온 실행은 Manual Trigger의 `output`에 transport 컨텍스트가 함께 채워져요.
+
+<Example title="웹훅 페이로드 참조">
+```ts
+// $params 는 Manual Trigger 의 parameters 스키마로 추출·검증된 값
+{{ $params.orderId }}                           // = body.orderId 가 string 으로 강제됨
+
+// 원본 transport 는 Manual Trigger 노드의 output.request 에서 직접 접근
+{{ $node["Manual Trigger"].output.request.method }}                // "POST"
+{{ $node["Manual Trigger"].output.request.headers["x-event-type"] }} // 헤더 키는 소문자
+{{ $node["Manual Trigger"].output.request.query.source }}
+{{ $node["Manual Trigger"].output.request.body.raw }}              // 파싱된 원본 본문
+
+// 실행 출처 분기
+{{ $node["Manual Trigger"].meta.source }}        // "manual" | "webhook" | "schedule"
+```
+</Example>
+
+<Callout type="note">
+Manual / Schedule 어댑터로 실행된 경우에는 `output.request`가 아예 존재하지 않아요. 같은 워크플로우를 여러 트리거로 재사용한다면 `meta.source`로 분기하거나, `output.request?.method`처럼 옵셔널 체이닝을 써요.
+</Callout>
+
+## 외부 인터랙션 채널 (웹훅 + Form/AI 대화)
+
+웹훅으로 시작된 실행이 도중에 **사람의 응답이 필요한 노드** (Form 노드, Presentation 버튼, AI Agent · Information Extractor의 Multi Turn) 에 도달하면, 외부 호출자가 그 사실을 알고 응답까지 보내야 워크플로우가 다시 진행돼요. 이를 위해 두 가지 채널을 옵션으로 켤 수 있어요. 둘 다 **선택 사항**이고, 인터랙션이 없는 단순 자동화는 따로 설정하지 않아도 돼요.
+
+### 한눈에 보기
+
+<FieldTable rows={[
+  { name: "Notification (outbound)", required: false, type: "서버 → 외부 URL", description: "워크플로우가 사용자 입력 대기·종료·실패 등 주요 상태에 도달하면, 미리 등록한 외부 URL로 우리 서버가 HTTP POST로 알려요. 페이로드는 HMAC-SHA256으로 서명돼요.", default: "비활성" },
+  { name: "Inbound REST + SSE", required: false, type: "외부 → 서버", description: "외부 시스템이 Form 제출·버튼 클릭·메시지 전송 같은 인터랙션 명령을 REST로 보내고, 실시간 진행 상황은 SSE 스트림으로 받아요.", default: "비활성" }
+]} />
+
+두 채널은 [Spec WebSocket 프로토콜](#)이 이미 사용하는 같은 명령·이벤트 경로를 재사용해요. 에디터의 실시간 디버거와 외부 호출자가 같은 의미로 동작한다는 뜻이에요.
+
+### 트리거 생성 페이로드에 추가하기
+
+웹훅 트리거를 만들거나 수정할 때 두 옵션 필드를 추가해요.
+
+<Example title="외부 인터랙션 옵션을 켠 트리거 생성">
+```jsonc
+POST /api/triggers
+{
+  "type": "webhook",
+  "workflowId": "uuid",
+  "endpointPath": "uuid-or-slug",
+  "authType": "bearer",
+
+  // Outbound: 우리 서버 → 외부 URL 로 이벤트 push
+  "notification": {
+    "url": "https://customer.example/webhook/wf-callback",
+    "events": [
+      "execution.waiting_for_input",
+      "execution.completed",
+      "execution.failed",
+      "execution.cancelled"
+      // "execution.ai_message"  // 옵션: AI Multi Turn 의 어시스턴트 메시지마다 발송 (노이즈 큼)
+    ],
+    "signing": { "algorithm": "hmac-sha256" },
+    "retry":   { "maxAttempts": 5, "backoff": "exponential" }
+  },
+
+  // Inbound: 외부 → 우리 서버 로 인터랙션 명령
+  "interaction": {
+    "enabled": true,
+    "tokenStrategy": "per_execution"   // "per_execution" (기본) | "per_trigger"
+  }
+}
+```
+</Example>
+
+응답에서 `notification.secret`(`wsk_*`)과, `tokenStrategy="per_trigger"`인 경우의 `interaction.triggerToken`(`itk_*`)은 **생성 시점에 단 한 번만 평문으로 노출**돼요. 이후 모든 조회 응답에서는 마스킹되니, 그 자리에서 안전하게 저장하세요.
+
+### Outbound Notification 동작
+
+- 워크플로우가 트리거의 `events` 화이트리스트에 포함된 상태로 진입할 때마다 등록 URL로 POST를 보내요.
+- 서명은 Stripe-style이에요 — `X-Clemvion-Signature: t=<unix>,v1=<hex>` 형태로 헤더에 동봉돼요. 검증 측은 `timestamp ± 5분` 이내, timing-safe 비교를 권장해요.
+- 같은 이벤트의 재시도는 동일한 `X-Clemvion-Delivery: <uuid>` 헤더를 유지해요. 클라이언트는 이 UUID로 dedup하면 돼요 (at-least-once 보장).
+- 페이로드의 `seq`는 execution 안에서 단조 증가하는 카운터예요. SSE 스트림의 이벤트 `id`와 같은 값을 공유해요 — 두 채널을 동시에 구독해도 정렬·dedup 가능.
+- 전송은 2xx만 성공으로 봐요. 그 외 / 타임아웃 (10초) → 지수 백오프 (기본 5회: 1s · 4s · 16s · 64s · 256s) 재시도.
+- 최종 실패 시 트리거의 `notificationHealth` 가 `degraded`로 바뀌고 트리거 상세 화면에 표시돼요. **트리거 본체는 자동으로 비활성화되지 않아요** — 워크플로우 실행은 계속 받아요. 사용자가 직접 비활성화 토글을 눌러야 멈춰요.
+- URL은 `https://`만 허용해요 (개발 환경에서 `ALLOW_HTTP_HOOKS=1`일 때만 예외). 사설 IP·메타데이터 IP·loopback은 SSRF 방지로 차단돼요.
+
+<Callout type="note">
+시크릿이 유출됐다고 의심되면 `POST /api/triggers/:id/notification/rotate-secret`으로 회전할 수 있어요. 새 시크릿이 만들어진 뒤 24시간 동안은 old/new 둘 다 유효 — 외부 시스템이 새 시크릿으로 전환할 여유 시간이에요.
+</Callout>
+
+### Webhook 호출 응답이 바뀌어요 (interaction 활성화 시)
+
+`interaction.enabled = true` + `tokenStrategy = "per_execution"`인 트리거는 웹훅 호출에 즉시 응답하는 본문이 확장돼요.
+
+<Example title="확장된 202 응답">
+```jsonc
+{
+  "executionId": "uuid",
+  "status":      "pending",
+  "message":     "Webhook received, workflow execution started",
+
+  "interaction": {
+    "token":     "iext_<short-lived-jwt>",
+    "expiresAt": "ISO8601",
+    "endpoints": {
+      "stream":  "/api/external/executions/{id}/stream",
+      "submit":  "/api/external/executions/{id}/interact",
+      "status":  "/api/external/executions/{id}",
+      "cancel":  "/api/external/executions/{id}/cancel",
+      "refresh": "/api/external/executions/{id}/refresh-token"
+    }
+  }
+}
+```
+</Example>
+
+외부 시스템은 이 token으로 곧장 SSE 스트림을 열거나 인터랙션 명령을 보낼 수 있어요. `per_trigger` 전략을 골랐다면 token이 응답에 동봉되지 않아요 — 트리거 생성 시 받은 `itk_*`를 호출자가 이미 갖고 있다는 전제예요.
+
+### Inbound 명령
+
+```
+POST /api/external/executions/{executionId}/interact
+Authorization: Bearer <iext_jwt | itk_token>
+Content-Type:  application/json
+Idempotency-Key: <client-uuid>   // 권장
+```
+
+지원하는 `command` 5종이에요.
+
+<FieldTable rows={[
+  { name: "submit_form", required: false, type: "Form 노드", description: "`nodeId` 와 `data: { [field]: value }` 동봉. 검증 실패는 `400 VALIDATION_FAILED` + `details.fieldErrors` 로 돌아오며 실행 상태는 그대로 유지돼서 재제출이 가능해요.", default: "-" },
+  { name: "click_button", required: false, type: "Carousel / Table / Chart / Template (버튼)", description: "`nodeId`, `buttonId` 동봉. 특정 버튼이 눌린 효과를 줘요.", default: "-" },
+  { name: "submit_message", required: false, type: "AI Agent · Information Extractor (Multi Turn)", description: "`nodeId`, `message` 동봉. 사용자 메시지를 보내고 다음 어시스턴트 응답을 기다려요.", default: "-" },
+  { name: "end_conversation", required: false, type: "AI Agent · Information Extractor (Multi Turn)", description: "`nodeId`, `reason?` 동봉. 대화 세션을 명시 종료해 워크플로우를 다음 단계로 진행시켜요.", default: "-" },
+  { name: "cancel", required: false, type: "전체 execution", description: "`reason?` 동봉. 실행 전체를 취소해요. 편의 alias로 `POST /api/external/executions/:id/cancel` 도 동일 동작이에요.", default: "-" }
+]} />
+
+<Callout type="warn">
+`Idempotency-Key`를 항상 동봉하세요. 동일 키 + 동일 body면 24시간 캐시된 응답을 그대로 받아요. 동일 키 + 다른 body면 `409 Conflict`. 같은 execution의 같은 노드에 두 명령이 거의 동시에 들어오면 뒤늦은 쪽은 `409 STATE_MISMATCH`로 거절돼요 (의도적 직렬화).
+</Callout>
+
+주요 에러 응답:
+
+| 상태 | 코드 | 의미 |
+|------|------|------|
+| `400 Bad Request` | `VALIDATION_FAILED` | Form 필드 검증 실패. 실행 상태 유지 → 재제출 가능 |
+| `400 Bad Request` | `INVALID_COMMAND` | 미지원 command 또는 필수 필드 누락 |
+| `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 응답 헤더 `X-Refresh-Token-Url` 로 갱신 경로 안내 |
+| `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 |
+| `410 Gone` | `EXECUTION_TERMINATED` | 이미 종료된 execution |
+| `429 Too Many Requests` | `RATE_LIMITED` | execution 당 분당 60건 초과 |
+
+### Inbound 이벤트 스트림 (SSE)
+
+```
+GET /api/external/executions/{executionId}/stream
+Authorization: Bearer <iext_jwt | itk_token>
+Accept:        text/event-stream
+Last-Event-Id: 42         # 재연결 시
+```
+
+- `event:` 이름은 내부 WebSocket 이벤트와 정합해요 — `execution.started`, `execution.node.started/completed/failed/skipped`, `execution.waiting_for_input`, `execution.ai_message`, `execution.tool_call_started/completed`, `execution.completed/failed/cancelled` 등.
+- `id:` 필드는 execution 안의 monotonic `seq` 예요. 끊겼다 재연결하면 `Last-Event-Id` 헤더로 5분 버퍼 안의 누락 이벤트를 받을 수 있어요.
+- 15초마다 `: heartbeat` comment 라인을 보내요 — 중간 프록시의 idle timeout을 우회하려는 목적이에요.
+- terminal 이벤트(`execution.completed` / `execution.failed` / `execution.cancelled`) 발송 후 서버가 자동으로 연결을 끊어요.
+- 5분 버퍼가 만료된 경우 `execution.replay_unavailable` 이 한 번 발송돼요 — 그때는 `GET /api/external/executions/:id` 로 현재 상태를 다시 조회하세요.
+- execution 당 동시 SSE 연결은 기본 3개로 제한돼요.
+
+브라우저 EventSource API는 `Authorization` 헤더를 보낼 수 없으므로, SSE에 한해 `?token=<jwt>` 쿼리 파라미터도 받아요 (다른 endpoint는 항상 Bearer 헤더).
+
+### 토큰 두 전략 비교
+
+<FieldTable rows={[
+  { name: "per_execution (기본)", required: false, type: "단명 JWT (`iext_*`)", description: "execution 1건 단위로 발급돼요. 기본 TTL 1시간, 만료 30분 전부터 `POST /api/external/executions/:id/refresh-token` 으로 갱신 가능. execution 이 종료되면 즉시 무효화돼요. 가장 안전한 기본값이에요.", default: "기본" },
+  { name: "per_trigger", required: false, type: "영구 토큰 (`itk_*`)", description: "트리거가 만드는 모든 execution 에 같은 토큰을 사용해요. 다수의 동시 execution 을 다루는 봇(Telegram, Slack 등) 에 편해요. 트리거 삭제 시 자동 무효화되고, `POST /api/triggers/:id/interaction/revoke-token` 으로 수동 회전도 가능해요.", default: "선택" }
+]} />
+
+<Callout type="warn">
+가능하면 `per_execution`을 쓰세요. 토큰이 유출되더라도 영향 범위가 execution 1건 + 만료 시간으로 제한돼요. `per_trigger`는 한 토큰이 모든 실행에 통하므로 유출 시 즉시 회전이 필요해요.
+</Callout>
+
+### 인터랙션 없는 자동화는 그대로
+
+`notification`도 `interaction`도 켜지 않은 트리거는 기존 동작 그대로예요 — 웹훅이 들어오면 즉시 실행이 시작되고, 결과는 트리거 화면의 호출 이력 또는 워크플로우의 실행 내역에서 확인하면 돼요.
 
 ## 캔버스 요약
 
