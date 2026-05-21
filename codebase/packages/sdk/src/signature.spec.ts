@@ -83,4 +83,37 @@ describe('SDK signature', () => {
       }),
     ).toEqual({ valid: true });
   });
+
+  describe('hex 입력 엄격 검증 [ai-review W14]', () => {
+    it('invalid — v1= 에 non-hex 문자 포함', () => {
+      const header = `t=${TS},v1=ZZZZ${'a'.repeat(60)}`; // Z 는 hex 아님
+      expect(
+        verifyNotificationSignature(header, RAW, SECRET, 'hmac-sha256', {
+          nowSec: TS,
+        }),
+      ).toMatchObject({ valid: false, reason: 'malformed' });
+    });
+
+    it('invalid — v1= 홀수 길이 (`0x` 1바이트 미달)', () => {
+      const header = `t=${TS},v1=abc`;
+      expect(
+        verifyNotificationSignature(header, RAW, SECRET, 'hmac-sha256', {
+          nowSec: TS,
+        }),
+      ).toMatchObject({ valid: false, reason: 'malformed' });
+    });
+
+    it('valid — uppercase hex 도 허용', () => {
+      const hex = createHmac('sha256', SECRET)
+        .update(`${TS}.${RAW}`)
+        .digest('hex')
+        .toUpperCase();
+      const header = `t=${TS},v1=${hex}`;
+      expect(
+        verifyNotificationSignature(header, RAW, SECRET, 'hmac-sha256', {
+          nowSec: TS,
+        }),
+      ).toEqual({ valid: true });
+    });
+  });
 });
