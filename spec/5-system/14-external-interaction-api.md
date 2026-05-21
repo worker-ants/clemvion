@@ -652,7 +652,7 @@ codebase/backend/src/modules/
     external-interaction.module.ts
     interaction.controller.ts          # POST /api/external/executions/:id/interact, /cancel, /refresh-token
     interaction-stream.controller.ts   # GET /api/external/executions/:id/stream  (SSE)
-    # 모듈 prefix: @Controller('api/external/executions') — 기존 /api/executions/* 컨트롤러와 분리
+    # 모듈 prefix: @Controller('external/executions') — global prefix(`api`) 와 합쳐 실 경로 `/api/external/executions/...`. 기존 `/api/executions/*` 컨트롤러와 분리
     interaction.service.ts             # 토큰 검증 + 명령 dispatch (내부 WS 명령 경로로 forwarding)
     interaction-token.service.ts       # iext_*, itk_* 발급/검증/blacklist
     notification-dispatcher.service.ts # outbound webhook 발송 + 재시도
@@ -815,6 +815,8 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 - 동일 클라이언트가 SSE + notification 둘 다 구독하더라도 dedup 가능
 - 디버깅 시 backend 로그·DB 의 emit 순서와 클라이언트가 본 순서를 1:1 대응할 수 있음
 - 신규 counter 도입 시 두 채널 간 정합성 검증이 별도 필요해짐 → 비용 크고 이득 없음
+
+**구현 상태 (2026-05-22 추가)**: WS spec §2.2 가 `seq` 필드를 정의했지만 backend (`WebsocketService.emitExecutionEvent` / `Execution` 엔티티) 에는 **아직 미구현** 상태였음 (impl-prep 단계 검토에서 발견). 본 spec 의 외부 표면 (SSE / Notification) 은 seq 가 필수 전제이므로, **PR2 의 phase P0 에서 seq counter 를 함께 신설**한다 (execution 별 atomic INCR, Redis `INCR exec:seq:<id>` 또는 DB row-level lock 으로 발급). 같은 counter 가 WS event envelope · SSE `id:` · Notification `seq` 세 곳 모두에 동봉된다.
 
 ### R8. Idempotency-Key 와 `submit_form` 검증 실패의 관계 (2026-05-21)
 
