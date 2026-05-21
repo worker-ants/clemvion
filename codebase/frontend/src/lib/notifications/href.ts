@@ -9,7 +9,8 @@
  * spec/data-flow/8-notifications.md §1.1 의 type 분류와
  * spec/2-navigation/_layout.md §3.1 알림 팝오버 라우팅 정책을 따른다.
  */
-export type { NotificationLite } from "./types";
+import type { NotificationLite } from "./types";
+export type { NotificationLite };
 
 /**
  * 허용 resourceId 패턴 — 영문자·숫자·하이픈·언더스코어만 허용 (최대 128자).
