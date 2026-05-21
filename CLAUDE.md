@@ -32,6 +32,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 
 | 저장할 내용 | 위치 |
 | --- | --- |
+| 제품 전체 개요·시스템 아키텍처·cross-cutting 진입 | `spec/0-overview.md` (루트, `0-` prefix). 영역 폴더 위에서 cross-cutting 으로 참조되는 루트 레벨 진입 문서. 같은 패턴: `spec/1-data-model.md` (데이터 모델), `spec/6-brand.md` (브랜드 가이드) |
 | 제품 정의·요구사항 | `spec/<영역>/_product-overview.md` 또는 진입 문서의 `## Overview` |
 | 기술 명세 | `spec/<영역>/*.md` 본문 |
 | 결정의 배경·근거 | 해당 spec 문서 끝의 `## Rationale` |

@@ -79,6 +79,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **AI 플랫폼** | LLM Config(프로바이더·모델·API Key — v1 의 5개 provider OpenAI/Anthropic/Google/Azure OpenAI/Local Ollama·vLLM 모두 스트리밍 ✅), Knowledge Base(문서 업로드·임베딩·RAG 검색), **Graph RAG**(KB 모드 선택 + entity/relation 자동 추출 + Hybrid 검색 + Entity/Relation 목록·삭제 + 3D 그래프 시각화 — 상세: [PRD 9](./5-system/10-graph-rag.md)) |
 | **Workflow AI Assistant** | 에디터 내 채팅형 AI로 자연어 요청 → 노드·엣지 자동 구성. Clarify → Plan → Execute 3단계 대화 루프, SSE 스트리밍, 세션 영속. 상세: [PRD 2 §10](./3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-), [PRD 6 §3.6](./4-nodes/3-ai/_product-overview.md#36-workflow-ai-assistant). |
 | **팀 워크스페이스·RBAC** | 데이터 모델(`Workspace.type = personal \| team`, `WorkspaceMember.role`) + 백엔드 모듈(`codebase/backend/src/modules/workspaces`) + 프런트엔드 UI(워크스페이스 전환, 멤버 초대·역할·소유권 이전). 회원가입 시 개인 워크스페이스가 자동 생성되고 `X-Workspace-Id`는 서버가 자동 매핑한다. |
+| **Cafe24 통합** | 워크플로 `cafe24` 단일 노드 (18 카테고리 메타데이터 기반 Resource × Operation) + AI Agent Internal MCP Bridge 양방향 노출 + Public/Private 앱 OAuth + Cafe24 Developers "테스트 실행" / "앱으로 가기" App URL 흐름 + leaky-bucket rate limit + BullMQ 기반 cross-pod refresh 직렬화 + 7일 임계 + 6h cron 백그라운드 갱신 (refresh_token 14일 만료 전 자동 갱신, 2026-05-19 정책) — 모두 구현 완료 (PR #20-#67, #212). spec: [Cafe24 노드](./4-nodes/4-integration/4-cafe24.md), [통합 §5.8](./2-navigation/4-integration.md#58-cafe24). 다른 first-party 이커머스(Shopify·Naver Smartstore)로의 Internal MCP Bridge 패턴 확장은 §6.3 참조. |
 | **시스템** | 인증/인가(개인·팀 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀, 분산 continuation bus), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
 
 #### 6.2 백엔드만 존재 / 부분 구현 (🚧)
@@ -87,7 +88,6 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 |------|------|
 | **Parallel 노드 (P1)** | `PARALLEL_ENGINE=v1` 환경변수로 활성화하면 `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다(off 시 기존 순차 동작). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge·중첩 Parallel은 금지. Merge `wait_all` 조합으로 결과 합산 가능. P2에서 중첩 Parallel과 waitAll=false를 추가할 예정이다. |
 | **조직 레벨 Integration 공유** | 팀 워크스페이스 단위 Integration 공유는 후속 단계에서 도입 예정이다. |
-| **Cafe24 통합** | 워크플로 `cafe24` 단일 노드 (18 카테고리 메타데이터 기반 Resource × Operation) + AI Agent Internal MCP Bridge 양방향 노출 + Public/Private 앱 OAuth + Cafe24 Developers "테스트 실행" / "앱으로 가기" App URL 흐름 + leaky-bucket rate limit + BullMQ 기반 cross-pod refresh 직렬화 + 7일 임계 + 6h cron 백그라운드 갱신 (refresh_token 14일 만료 전 자동 갱신, 2026-05-19 정책) — 모두 구현 완료 (PR #20-#67, #212). spec: [Cafe24 노드](./4-nodes/4-integration/4-cafe24.md), [통합 §5.8](./2-navigation/4-integration.md#58-cafe24). 남은 작업: Internal MCP Bridge 패턴을 Shopify·Naver Smartstore 등 first-party 이커머스로 확장 (§6.3). |
 
 #### 6.3 로드맵 / 미구현 (❌)
 
@@ -98,7 +98,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
-| **Internal MCP Bridge 패턴 확장** | Cafe24 (구현 완료, §6.2) 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge-in-process) 패턴으로 추가. |
+| **Internal MCP Bridge 패턴 확장** | Cafe24 (구현 완료, §6.1) 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge-in-process) 패턴으로 추가. |
 
 ---
 
@@ -142,6 +142,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 데이터 흐름 | `spec/data-flow/` | `0-overview.md` + 도메인별 흐름·schema 매핑 (`1-audit` ~ `12-workspace`, 알파벳 순 숫자 prefix) |
 
 문서 컨벤션:
+- **`spec/0-overview.md` / `spec/1-data-model.md` / `spec/6-brand.md` (루트 레벨)** — `spec/` 루트에 위치하는 cross-cutting 진입 문서. `0-`/`1-`/`6-` 등 정수 prefix 로 정렬하며 영역 폴더 위에서 직접 참조한다. 본 패턴은 영역 폴더 안의 `0-overview.md` 와 prefix 형태는 같지만 위치(루트 vs 영역) 가 다르다. 본문 끝에 `## Rationale` 섹션을 둘 수 있다.
 - **`_product-overview.md`** — 다중 spec 파일을 가진 영역의 제품 정의(옛 PRD). 영역의 사용자 가치·요구사항·요구사항 ID.
 - **`_layout.md`** — 영역 공통 레이아웃 (현재는 `2-navigation/` 만 사용).
 - **`0-overview.md` / `0-common.md`** — 영역·카테고리 내부의 기술 아키텍처·공통 규약.
@@ -278,7 +279,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | Knowledge Base 원본 문서 | `kb/{kbId}/{documentId}/{sanitizedFilename}` | 구현됨 | `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:723` |
 | Form 노드 업로드 / Avatar | `{workspaceId}/forms/...`, `{workspaceId}/avatars/...` | 계획 (코드 미구현) | — |
 
-> KB 원본 키는 `workspaceId` 를 prefix 로 두지 않는다. `kbId` 자체가 workspace 에 종속되므로 (KB 메타데이터의 FK) 키 공간이 겹치지 않으며, 키 길이가 짧아 S3 list/delete 비용이 낮다. 버킷 이름은 `S3_BUCKET` 환경변수 (기본 `workflow-storage`, `codebase/backend/.env.example:55`) 로 지정한다.
+> KB 원본 키는 `workspaceId` 를 prefix 로 두지 않는다 (`kb/...` 로 시작). 버킷 이름은 `S3_BUCKET` 환경변수 (기본 `workflow-storage`, `codebase/backend/.env.example:55`) 로 지정한다. 키 설계 근거·기각된 대안은 [Rationale § S3 객체 키 prefix 설계](#s3-객체-키-prefix-설계--kb-원본-키에서-workspaceid-제외-27) 참조.
 
 ### 2.8 DB 마이그레이션 (Flyway)
 
@@ -317,7 +318,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
   - **톤 매핑**: info(파랑) · warning(amber) · error(red) 3단계. **긴급도** 의미로 사용 — Badge 의 색(리소스 상태) 과 직교한다. 의미가 다른 두 alert 가 한 화면에 공존하면 톤으로 즉시 구분된다. 단순 상태 표시는 Badge 의 영역이며, Inline Alert 는 "사용자가 다음에 무엇을 해야 하는가" 가 본문일 때 쓴다.
   - **Toast 와의 역할 분리**: alert = 안내 본문, toast = 도착 신호. 응답이 왔다는 사실은 toast 가 1회 알리고, "무엇을 해야 하는가" 는 alert 가 계속 표시한다. 둘은 보완적이며 서로를 대체하지 않는다 — 외부 작업 안내를 toast 만으로 처리하면 사용자가 다른 화면으로 넘어간 순간 사라져 컨텍스트가 끊긴다.
   - **생존 주기**: 다음 관련 mutate 가 시작되기 **직전** (`useMutation` 의 `onMutate`) 에 비워, 옛 안내가 새 요청과 섞이지 않게 한다. 사용자가 명시적으로 닫는 X 버튼은 두지 않는다 — 외부 작업이 끝나 자동 갱신되거나, 다음 시도가 시작될 때 reset 된다. 사용자 dismiss 가 안전한 케이스(예: 단순 정보 안내, mutate 와 연결되지 않은 경고)에 한해 X 버튼을 허용한다.
-  - **위치**: 사용처가 navigation 외부(향후 webhook signing key 회전, notification preference 변경 등) 로 확장될 가능성이 있어 영역별 `_layout.md` 가 아닌 `0-overview.md` 의 cross-cutting 자리에 둔다.
+  - **위치**: 영역별 `_layout.md` 가 아닌 `0-overview.md` 의 cross-cutting 자리에 둔다. 근거·기각된 대안은 [Rationale § Inline Alert 의 위치](#inline-alert-의-위치를-0-overviewmd-cross-cutting-자리로-34) 참조.
   - **현재 사용처**: Cafe24 Public 신규 등록 폼의 별도 승인 필요 권한 경고 (warning, 영구 — [§3.2 of 4-integration](./2-navigation/4-integration.md#32-step-2-인증-정보-입력) · [cafe24-restricted-scopes §4.2](./conventions/cafe24-restricted-scopes.md#42-차단-정책)), Scope & Permissions 탭의 Cafe24 Private 권한 추가 응답 안내 (warning — [§4.4 of 4-integration](./2-navigation/4-integration.md#44-scope--permissions-탭-oauth-한정)).
 - **Skeleton**: 로딩 중 UI 플레이스홀더
 - **에러 페이지·빈 상태**: 본 카탈로그의 대상은 in-page 신호(Badge/Toast/Alert/Skeleton). page-level 의 에러 페이지·빈 상태 패턴은 [`spec/2-navigation/11-error-empty-states.md`](./2-navigation/11-error-empty-states.md) 의 canonical 정의를 따른다.
@@ -359,3 +360,45 @@ docs-consolidation(2026-05-12) 으로 PRD/Spec 가 통합되었다. 옛 PRD 의 
 | 업데이트 | 자동 롤링 업데이트 | 수동 버전 업그레이드 |
 | 마켓플레이스 | 중앙 마켓플레이스 접근 | 프록시 또는 오프라인 패키지 |
 | 모니터링 | 내장 대시보드 + 관리형 알림 | Prometheus/Grafana 연동 가이드 |
+
+---
+
+## Rationale
+
+본 절은 본문에 inline 으로 산재된 결정 근거를 한 곳에 모은다. 본문은 latest-only 사실을 기술하고, "왜 이 선택인가 / 어떤 대안을 기각했는가" 는 본 절을 참조한다. 새로 본 문서를 읽는 사람이 "현재 어떻게 동작하는가" 와 "왜 그렇게 결정됐는가" 를 섞지 않도록 분리한다.
+
+### S3 객체 키 prefix 설계 — KB 원본 키에서 workspaceId 제외 (§2.7)
+
+- **배경**: 멀티 테넌트 환경에서 S3 키를 `{workspaceId}/...` 로 prefix 하는 것이 일반적 패턴이다 (논리적 격리 + bucket policy 단위 권한 제어). Form/Avatar 영역은 §2.7 의 키 구조와 같이 이 패턴을 따른다.
+- **채택**: Knowledge Base 원본 문서 키만 `kb/{kbId}/{documentId}/...` 로 두고 workspaceId 를 prefix 에서 제외한다.
+- **기각된 대안**: `{workspaceId}/kb/{kbId}/{documentId}/...` 패턴 — Form/Avatar 와 일관성은 좋지만 키 길이가 늘어나고 KB list/delete API 호출 시 prefix scan 비용이 증가한다.
+- **trade-off**: `kbId` 자체가 KB 메타데이터의 FK 로 workspace 에 종속되므로 워크스페이스 격리는 application layer 에서 보장 (`kbId → workspaceId` 조회 후 권한 체크). 키 공간이 겹칠 위험은 없지만, 만약 향후 bucket policy 만으로 workspace 격리를 강제해야 하는 요구가 생기면 prefix 재설계 비용이 발생한다. 현 시점에서 그 요구는 없다.
+
+### DB 마이그레이션 도구로 Flyway 채택 (§2.8)
+
+- **배경**: Backend 가 NestJS + Prisma 를 사용하므로 `prisma migrate` 를 그대로 쓰는 것이 가장 자연스러운 선택지였다.
+- **채택**: SQL 기반 Flyway (`V<NNN>__<descriptor>.sql`) 를 별도 도구로 도입.
+- **기각된 대안**: `prisma migrate dev/deploy` — Prisma schema → migration 생성·적용을 한 흐름으로 묶어주지만, (a) generated SQL 의 가독성·리뷰성이 낮고, (b) `ALTER` 의 락 거동·트랜잭션 모드를 세밀하게 제어하기 어렵고, (c) extension·partial index·CHECK 제약·`NOT VALID` 패턴 등 Postgres 고유 기능을 표현하기 어렵다. 운영 DB 에 적용되는 SQL 을 PR 에서 그대로 리뷰하기 어려운 점이 가장 큰 결정 요인.
+- **trade-off**: Prisma client 의 schema 와 Flyway SQL 의 schema 가 이중으로 존재 — drift 위험. `codebase/backend/src/migrations.spec.ts` 가 CI 마다 schema_history vs 파일 정합성을 검증해 silent skip 을 차단하지만, schema 정의 자체의 이중 source 는 받아들인 비용이다. 상세 운영 규약: [Flyway 마이그레이션 운영 규약](./conventions/migrations.md).
+
+### 실행 엔진: Redis 큐 + 분산 워커 풀 (§2.4)
+
+- **배경**: 워크플로우 실행은 (a) 노드별 외부 API 호출로 인한 가변적 latency, (b) Background / Parallel 등 동시 실행, (c) Form 등 사람-개입 노드의 장기 대기, (d) 셀프 호스팅 단일 노드부터 SaaS 멀티 노드까지 수평 확장이 동시에 필요하다.
+- **채택**: Redis 기반 BullMQ 큐 + N 개 워커 인스턴스. Execution = 큐 작업, NodeExecution = 워커가 핸들러 호출, Background/sub-workflow 는 별도 BullMQ 큐 (`background-execution`) 로 분리.
+- **기각된 대안**: ① in-process 단일 프로세스 실행 — 셀프 호스팅 1 인스턴스 환경에선 충분하지만 SaaS 수평 확장이 불가, Form 등 장기 대기로 process 가 점유됨. ② Postgres `LISTEN/NOTIFY` 기반 자체 큐 — Redis 의존성을 줄이지만 retry / DLQ / rate limit / cross-pod refresh 직렬화 등 BullMQ 가 제공하는 기능을 다시 구현해야 함.
+- **trade-off**: Redis 가 추가 의존성이 되어 셀프 호스팅 설치 부담이 늘었지만 (Docker Compose 에 포함), continuation bus·BullMQ 기반 cron·Cafe24 cross-pod refresh 직렬화 등 다른 시스템도 같은 Redis 를 재사용해 net 부담이 낮다. 큐 작업 직렬화의 trade-off (snapshot 격리 등) 는 [Spec 실행 엔진 §3](./5-system/4-execution-engine.md) 와 [Conversation Thread §3.2](./conventions/conversation-thread.md#32-background-격리-근거) 참조.
+
+### Inline Alert 의 위치를 `0-overview.md` cross-cutting 자리로 (§3.4)
+
+- **배경**: navigation 영역 (Integration·Knowledge Base 등) 에서 Inline Alert 패턴이 처음 도입됐다. 영역별 `_layout.md` 에 적기 자연스러워 보였다.
+- **채택**: 영역별 layout 대신 본 `0-overview.md §3.4` 의 cross-cutting 자리에 둔다.
+- **기각된 대안**: `spec/2-navigation/_layout.md` 안에 두기 — 첫 사용처 (Cafe24 Public 등록 폼) 와 거리가 가까워 자연스럽다.
+- **trade-off**: cross-cutting 자리로 옮기면서 첫 사용처와의 물리적 거리가 멀어졌지만, 향후 webhook signing key 회전·notification preference 변경 등 navigation 외부로 사용처가 확장될 가능성을 고려할 때 영역 종속이 더 큰 비용으로 판단됐다.
+
+### Cafe24 통합을 §6.1 (완료) 분류로 (§6)
+
+- **배경**: 본 절은 §6 분류 자체의 메타 결정. Cafe24 통합은 노드·OAuth·rate limit·cron 갱신까지 모두 구현 완료 (PR #20~#67, #212) 됐지만 한 시점에 §6.2 (백엔드만 존재 / 부분 구현 🚧) 로 분류되어 있어 본문 ("모두 구현 완료") 과 분류가 모순.
+- **채택**: Cafe24 항목을 §6.1 (구현 완료 ✅) 로 이동. 미래 확장 (Internal MCP Bridge 패턴을 Shopify·Naver Smartstore 등으로) 은 §6.3 의 별도 행으로 유지.
+- **기각된 대안**: §6.2 안에 둔 채 "구현 완료 — 남은 확장은 §6.3" 으로 본문 수정. 분류 컬럼과 본문이 모순되지 않게 되지만 reader 가 §6.2 컬럼 제목 ("부분 구현 🚧") 만 보고 오해할 여지가 남는다.
+- **trade-off**: §6 의 분류는 "구현 상태" 와 "확장 계획" 두 축이 섞이기 쉽다. 같은 영역이 §6.1 (완료) 과 §6.3 (확장 로드맵) 에 동시 등장하는 패턴을 명시적으로 허용해 두 축을 분리한다.
+
