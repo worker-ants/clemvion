@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomBytes } from 'crypto';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
@@ -166,6 +167,130 @@ export class TriggersService {
   async remove(id: string, workspaceId: string): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
     await this.triggerRepository.remove(trigger);
+  }
+
+  /**
+   * [Spec EIA §3.1 EIA-NX-12 / plan/in-progress/eia-secret-rotation-revoke-api.md]
+   * Outbound notification 의 HMAC secret 을 회전.
+   *
+   * 동작:
+   * 1. 새 32-byte hex secret 생성 (`wsk_<hex>`).
+   * 2. 기존 `config.notification.signing.secret` 은 그대로 두고, `trigger.notification_secret_v2`
+   *    컬럼에 새 secret 저장 + `notification_rotated_at = NOW()`.
+   * 3. 24h grace 동안 NotificationWebhookProcessor 가 두 secret 으로 모두 서명 (v1= 두 개 동봉).
+   *    24h 경과 후 별도 cron 이 v2 → config.signing.secret 으로 승격 + v2/rotated_at 컬리어.
+   * 4. 응답에 새 secret 평문 1회 반환 (이후 마스킹) — 호출자가 외부 검증자 측에 배포.
+   *
+   * 요구 권한: trigger 소유 workspace 의 Editor+.
+   */
+  async rotateNotificationSecret(
+    id: string,
+    workspaceId: string,
+  ): Promise<{ secret: string; rotatedAt: string }> {
+    const trigger = await this.findById(id, workspaceId);
+    const notificationCfg = (trigger.config as { notification?: unknown })
+      .notification;
+    if (
+      !notificationCfg ||
+      typeof notificationCfg !== 'object' ||
+      typeof (notificationCfg as { url?: unknown }).url !== 'string'
+    ) {
+      throw new BadRequestException({
+        code: 'NOTIFICATION_NOT_CONFIGURED',
+        message:
+          'Trigger 에 notification 설정이 없어 secret rotation 을 수행할 수 없습니다.',
+      });
+    }
+    const newSecret = `wsk_${randomBytes(32).toString('hex')}`;
+    trigger.notificationSecretV2 = newSecret;
+    trigger.notificationRotatedAt = new Date();
+    await this.triggerRepository.save(trigger);
+    return {
+      secret: newSecret,
+      rotatedAt: trigger.notificationRotatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * [Spec EIA §3.3 EIA-AU-07 / plan]
+   * per_trigger 토큰 (`itk_*`) 재발급. 이전 토큰은 즉시 무효화.
+   *
+   * 응답에 새 토큰 평문 1회 반환. 호출자가 외부 시스템에 배포.
+   *
+   * trigger 의 interaction.tokenStrategy 가 'per_trigger' 가 아니면 400.
+   */
+  async revokePerTriggerToken(
+    id: string,
+    workspaceId: string,
+  ): Promise<{ token: string }> {
+    const trigger = await this.findById(id, workspaceId);
+    const interactionCfg = (trigger.config as { interaction?: unknown })
+      .interaction;
+    if (
+      !interactionCfg ||
+      typeof interactionCfg !== 'object' ||
+      (interactionCfg as { tokenStrategy?: unknown }).tokenStrategy !==
+        'per_trigger'
+    ) {
+      throw new BadRequestException({
+        code: 'NOT_PER_TRIGGER_STRATEGY',
+        message:
+          'Trigger 의 interaction.tokenStrategy 가 "per_trigger" 가 아닙니다.',
+      });
+    }
+    const newToken = `itk_${randomBytes(32).toString('hex')}`;
+    const updated = {
+      ...(interactionCfg as Record<string, unknown>),
+      triggerToken: newToken,
+    };
+    trigger.config = { ...trigger.config, interaction: updated };
+    await this.triggerRepository.save(trigger);
+    return { token: newToken };
+  }
+
+  /**
+   * 24h grace 가 경과한 trigger 의 notification_secret_v2 → config.notification.signing.secret
+   * 승격. 별도 scheduled job 이 호출. ($ trigger 단위 idempotent — v2 가 null 이면 no-op)
+   */
+  async promoteRotatedNotificationSecrets(
+    nowMs: number = Date.now(),
+  ): Promise<{ promoted: number }> {
+    const graceMs = 24 * 60 * 60 * 1000;
+    const candidates = await this.triggerRepository
+      .createQueryBuilder('t')
+      .where('t.notification_secret_v2 IS NOT NULL')
+      .andWhere('t.notification_rotated_at <= :cutoff', {
+        cutoff: new Date(nowMs - graceMs),
+      })
+      .getMany();
+    let promoted = 0;
+    for (const trigger of candidates) {
+      const secretV2 = trigger.notificationSecretV2;
+      if (!secretV2) continue;
+      const notificationCfg = (trigger.config as { notification?: unknown })
+        .notification;
+      if (!notificationCfg || typeof notificationCfg !== 'object') continue;
+      const signing = (notificationCfg as { signing?: unknown }).signing;
+      const updatedSigning = {
+        ...(typeof signing === 'object' && signing !== null
+          ? (signing as Record<string, unknown>)
+          : {}),
+        secret: secretV2,
+      };
+      const updatedNotification = {
+        ...(notificationCfg as Record<string, unknown>),
+        signing: updatedSigning,
+      };
+      trigger.config = {
+        ...trigger.config,
+        notification: updatedNotification,
+      };
+      trigger.notificationSecretV2 = null;
+      trigger.notificationRotatedAt = null;
+      await this.triggerRepository.save(trigger);
+      promoted++;
+    }
+    return { promoted };
   }
 
   async getHistory(
