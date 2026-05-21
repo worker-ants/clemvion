@@ -131,7 +131,7 @@ export class HooksService {
     // 7. External Interaction API — interaction.enabled=true 일 때 interaction token + endpoints
     //    동봉 ([Spec EIA §4.1] / WH-RS-04). per_execution 전략이면 단명 JWT 발급, per_trigger
     //    전략이면 응답에 token 미동봉 (호출자가 이미 itk_* 보유).
-    const interaction = this.buildInteractionResponse(
+    const interaction = await this.buildInteractionResponse(
       trigger.config,
       executionId,
     );
@@ -141,10 +141,10 @@ export class HooksService {
       : { executionId };
   }
 
-  private buildInteractionResponse(
+  private async buildInteractionResponse(
     config: Record<string, unknown>,
     executionId: string,
-  ): {
+  ): Promise<{
     token?: string;
     expiresAt?: string;
     endpoints: {
@@ -154,7 +154,7 @@ export class HooksService {
       cancel: string;
       refresh: string;
     };
-  } | null {
+  } | null> {
     const interactionCfg = (config as { interaction?: unknown }).interaction;
     if (!interactionCfg || typeof interactionCfg !== 'object') return null;
     const enabled = (interactionCfg as { enabled?: unknown }).enabled === true;
@@ -170,7 +170,7 @@ export class HooksService {
       refresh: `/api/external/executions/${executionId}/refresh-token`,
     };
     if (strategy === 'per_execution') {
-      const issued = this.tokenService.issuePerExecution(executionId);
+      const issued = await this.tokenService.issuePerExecution(executionId);
       return {
         token: issued.token,
         expiresAt: issued.expiresAt,

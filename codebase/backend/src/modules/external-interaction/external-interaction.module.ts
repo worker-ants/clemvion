@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
+import { ExecutionToken } from './entities/execution-token.entity';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { ExecutionsModule } from '../executions/executions.module';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
@@ -35,7 +36,7 @@ import { NOTIFICATION_WEBHOOK_QUEUE } from './notification-dispatcher.types';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Trigger, Execution]),
+    TypeOrmModule.forFeature([Trigger, Execution, ExecutionToken]),
     BullModule.registerQueue({ name: NOTIFICATION_WEBHOOK_QUEUE }),
     WebsocketModule,
     forwardRef(() => ExecutionsModule),

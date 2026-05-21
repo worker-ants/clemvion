@@ -114,8 +114,17 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
         timestamp: new Date().toISOString(),
       },
     });
-    // v1: terminal event 의 jti blacklist 는 jti 추적 인프라 부재로 skip — exp 가 지나면 자연 무효화.
-    void TERMINAL_EVENTS;
-    void this.tokenService;
+    // [Spec EIA §3.3 EIA-AU-04] terminal event 발송 후 해당 execution 의 iext jti 를 즉시 blacklist.
+    // V060 의 execution_token 테이블 + revokeAllForExecution 으로 v1 의 "exp 자연 무효화" 잔여
+    // 위험 해소. Repository 미주입이거나 0건이면 no-op.
+    if (TERMINAL_EVENTS.has(event.eventType)) {
+      try {
+        await this.tokenService.revokeAllForExecution(event.executionId);
+      } catch (err) {
+        this.logger.warn(
+          `NotificationFanout: revokeAllForExecution 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
   }
 }
