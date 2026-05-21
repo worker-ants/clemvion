@@ -67,8 +67,8 @@ owner: project-planner → developer
 
 | Phase | 범위 | 의존 |
 |-------|------|------|
-| **P0** | (impl-prep C2 해소) `Execution.seq_counter` 컬럼 + `WebsocketService.emitExecutionEvent` 가 execution 별 atomic INCR (Redis `INCR exec:seq:<id>`) 로 seq 발급 + WS event envelope 의 `seq` 필드에 동봉. V059 마이그레이션에 본 컬럼 포함. WS spec §2.2 정의의 backend 구현 | — |
-| **P1** | Migration V059 (Trigger 4컬럼 + Execution.seq_counter, P0 와 동일 마이그레이션 build) + Trigger entity 확장 + Create/Update DTO 에 notification/interaction sub-DTO + SSRF validator | P0 |
+| **P0** | (impl-prep C2 해소) `WebsocketService.emitExecutionEvent` 의 execution 별 monotonic seq counter — v1 은 **in-memory `Map<executionId, number>`** (single-instance 환경 가정). WS event envelope 의 `seq` 필드 동봉. WS spec §2.2 정의의 backend 구현. spec R7 보강 노트의 "Redis INCR 또는 DB row-level lock" 강화는 분산 환경 follow-up — `merge-p2-async-fanin` plan §1 PoC 에서 race 발견 시 진행. Execution.seq_counter 컬럼은 본 PR 에서 만들지 않음 (in-memory 로 충분) | — |
+| **P1** | Migration V059 (Trigger 4컬럼만, Execution.seq_counter 컬럼 미생성 — P0 in-memory 채택) + Trigger entity 확장 + Create/Update DTO 에 notification/interaction sub-DTO + SSRF validator | — |
 | **P2** | InteractionTokenService (iext / itk 발급·검증·blacklist·refresh) + Redis 의존성 + 단위 테스트 | P1 |
 | **P3** | NotificationDispatcher (BullMQ 큐 `notification-webhook` 케밥-케이스, HMAC 서명, 재시도, SSRF, stale 차단, secret rotation grace) + 단위 테스트. R10 단일 sink — ExecutionEngine 에 직접 inject 금지 (after-commit hook 으로만 트리거) | P1 |
 | **P4** | Inbound REST controller `@Controller('external/executions')` (global prefix `api` 와 합쳐 `/api/external/executions/*`) — `/interact` 5 commands, `/cancel`, `/refresh-token`, GET status + Idempotency middleware (400 VALIDATION_FAILED 캐시 제외 R8) + InteractionGuard + Swagger `@ApiTags('External Interaction')` + `@ApiBearerAuth('interaction-token')` + ApiAcceptedWrappedResponse 사용 + CORS + 에러 응답 body shape `{ "error": { "code", "message", "details": [{field, message}] } }` (api-convention §5.3 정합) | P2 |

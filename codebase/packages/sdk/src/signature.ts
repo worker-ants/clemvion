@@ -47,6 +47,11 @@ export function verifyNotificationSignature(
       }
       timestamp = Math.floor(n);
     } else if (key === 'v1') {
+      // [ai-review W14] hex 입력 유효성 — Buffer.from(value, 'hex') 는 invalid char 를 silent
+      // 무시해 부분 hex 가 통과할 수 있다. 엄격한 hex 검증으로 차단.
+      if (!/^[0-9a-fA-F]+$/.test(value) || value.length % 2 !== 0) {
+        return { valid: false, reason: 'malformed' };
+      }
       hexes.push(value);
     }
   }
