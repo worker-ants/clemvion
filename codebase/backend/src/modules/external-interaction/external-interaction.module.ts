@@ -53,6 +53,10 @@ import { NOTIFICATION_WEBHOOK_QUEUE } from './notification-dispatcher.types';
     IdempotencyInterceptor,
     InteractionService,
   ],
-  exports: [InteractionTokenService, NotificationDispatcher, InteractionService],
+  exports: [
+    InteractionTokenService,
+    NotificationDispatcher,
+    InteractionService,
+  ],
 })
 export class ExternalInteractionModule {}
