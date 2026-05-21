@@ -57,7 +57,7 @@
 | EIA-IN-03 | `GET /api/external/executions/:executionId/stream` 는 Server-Sent Events 스트림. terminal 이벤트(`completed`/`failed`/`cancelled`) 발송 후 자동 종료 | 필수 |
 | EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / seq / updatedAt) | 필수 |
 | EIA-IN-05 | `POST /api/external/executions/:executionId/cancel` 는 명시적 취소 — `interact` 의 `command:"cancel"` 과 동치 (편의 alias) | 권장 |
-| EIA-IN-06 | 모든 inbound 요청은 §4 의 interaction token 으로 인증. **단 §3.3 EIA-AU-08 의 in-process trusted caller 는 제외** — HTTP 표면을 거치지 않는 in-process 호출에 한정 | 필수 |
+| EIA-IN-06 | 모든 inbound 요청은 §4 의 interaction token 으로 인증. **단 §3.3 EIA-AU-08 + §3.3.1 Implementation Note 의 in-process trusted caller 는 제외** — HTTP 표면을 거치지 않는 in-process 호출에 한정. HTTP guard 의 ctx 합성 시 `scope` 필드 set 금지 invariant 는 §3.3.1 참조 | 필수 |
 | EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 | 필수 |
 | EIA-IN-08 | SSE 는 15초마다 `: heartbeat` comment 라인 전송 — proxy idle timeout 회피 | 필수 |
 | EIA-IN-09 | execution 당 동시 SSE 연결 수 제한: 기본 3 (multi-tab 허용, 무제한 fan-out 차단) | 권장 |
@@ -77,7 +77,46 @@
 | EIA-AU-05 | `per_execution` 토큰은 만료 30분 이내 + execution 이 still alive 일 때 `POST /api/external/executions/:id/refresh-token` 으로 갱신 가능 | 권장 |
 | EIA-AU-06 | 토큰 무효/만료 시 `401` + 응답 헤더 `X-Refresh-Token-Url` 로 갱신 경로 안내 | 권장 |
 | EIA-AU-07 | Per-trigger 토큰은 trigger 삭제 시 자동 invalidate. `POST /api/triggers/:id/interaction/revoke-token` 으로 수동 invalidate 가능 | 필수 |
-| EIA-AU-08 | **In-process trusted caller 예외** — 서버 process 내부의 신뢰 caller (예: [Spec Chat Channel](./15-chat-channel.md) 어댑터) 는 토큰 발급/검증을 우회할 수 있다. 우회는 `InteractionService.interact()` ([코드 SoT](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)) 의 **in-process 직접 호출** 경로에 한정되며, HTTP 표면을 거치지 않는다. 외부 HTTP 호출은 EIA-IN-06 의 `interaction token` 인증을 그대로 따른다. 구현은 `InteractionRequestContext.scope: 'in_process_trusted'` 플래그로 분기하되, 외부 HTTP guard 는 ctx 합성 시 이 플래그를 절대 set 하지 않는다 | 필수 |
+| EIA-AU-08 | **In-process trusted caller 예외** — 서버 process 내부의 신뢰 caller (예: [Spec Chat Channel](./15-chat-channel.md) 어댑터) 는 토큰 발급/검증을 우회할 수 있다. 우회는 `InteractionService.interact()` ([코드 SoT](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)) 의 **in-process 직접 호출** 경로에 한정되며, HTTP 표면을 거치지 않는다. 외부 HTTP 호출은 EIA-IN-06 의 `interaction token` 인증을 그대로 따른다. 구현은 `InteractionRequestContext.scope: 'in_process_trusted'` 플래그로 분기하되, 외부 HTTP guard 는 ctx 합성 시 이 플래그를 절대 set 하지 않는다 (구체 구현 제약은 §3.3.1 EIA-AU-08 Implementation Note 참조) | 필수 |
+
+#### 3.3.1 Implementation Note — in-process trusted caller 오염 방지 (EIA-AU-08)
+
+`InteractionRequestContext.scope: 'in_process_trusted'` 는 token 검증을 완전히 우회하는 강력한 플래그이므로, 외부 HTTP 입력 경로에서 이 플래그가 set 될 가능성을 **구조적으로 차단** 해야 한다. 본 절은 `InteractionGuard` / DTO / 타입 분리 차원의 의무 구현 제약을 정의한다.
+
+**Guard / DTO 의무 제약**:
+
+1. `InteractionGuard` (HTTP 진입점) 가 합성하는 `InteractionRequestContext` 코드 경로는 절대 `scope` 필드를 set 하지 않는다 — HTTP 요청에서 합성되는 ctx 는 `scope === undefined` 가 invariant.
+2. HTTP request body / header / query / params 의 역직렬화 시 `scope` 필드는 반드시 strip — DTO 는 `class-transformer` 의 `@Exclude({ toClassOnly: true })` 또는 `excludeExtraneousValues: true` + `@Expose()` 화이트리스트로 외부 입력 차단.
+3. `scope: 'in_process_trusted'` 는 서버 내부 모듈 (`ChatChannelDispatcher`, `HooksService` 의 chat-channel forwarding 등) 이 ctx 를 직접 생성해 `InteractionService.interact()` 를 호출할 때만 set 가능. 호출 위치는 `grep -r "scope: 'in_process_trusted'" codebase/backend/src/` 결과가 항상 가시화되어야 한다 (audit 가능성).
+
+**타입 분리 권고 (v2 이후)**:
+
+현재 `InteractionRequestContext.scope?: InteractionScope` optional 필드 단일 타입은 위 invariant 를 컴파일러로 강제하지 못한다. v2 에서는 다음 분리를 권고:
+
+```typescript
+// HTTP guard 가 생성하는 ctx (scope 필드 없음)
+interface ExternalInteractionRequestContext {
+  executionId: string;
+  tokenFamily: 'iext' | 'itk';  // 필수
+  triggerId?: string | null;
+}
+
+// 서버 내부 모듈만 생성 가능 — scope: 'in_process_trusted' 필수
+interface InternalInteractionRequestContext {
+  executionId: string;
+  triggerId?: string | null;
+  scope: 'in_process_trusted';  // 필수, literal type
+  // tokenFamily 없음 — in-process 우회는 token 자체가 없음
+}
+
+type InteractionRequestContext =
+  | ExternalInteractionRequestContext
+  | InternalInteractionRequestContext;
+```
+
+위 union 분리 시 `InteractionGuard` 는 첫 타입만 반환하고, `InteractionService.interact()` 의 token 검증 분기는 type narrowing 으로 `scope === 'in_process_trusted'` 일 때만 skip 한다 — 컴파일러가 invariant 를 강제.
+
+후속 추적: 타입 분리 리팩토링은 별 plan `spec-fix-eia-au-08-type-split` 로 신설 (v2 일정과 묶음).
 
 ### 3.4 신뢰성·일관성
 

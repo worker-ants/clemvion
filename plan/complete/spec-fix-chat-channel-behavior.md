@@ -1,8 +1,12 @@
 ---
-worktree: chat-channel-telegram-0c106c
+worktree: chat-channel-spec-fix-5fc137
 started: 2026-05-22
-owner: resolution-applier
+completed: 2026-05-22
+owner: project-planner
 ---
+
+> 구현 결과: spec/5-system/15-chat-channel.md (CCH-CV-03 행에 (a) waiting_for_input / (b) running·pending / (c) terminal 3분기 명시 + Rationale R9 — 큐 미적재 정당화), spec/conventions/chat-channel-adapter.md (§1.1 parseUpdate null 단일 의미 명확화 + 안내 발송 책임 호출자 이동, §4 Form step 3 dispatcher 책임 명확화), spec/4-nodes/7-trigger/providers/telegram.md (§5.3 phone 행 v1 stub 명확화) 반영. 후속 plan `spec-fix-form-phone-validation` 추적.
+
 
 # Spec Fix Draft — Chat Channel 동작 명세 보완
 

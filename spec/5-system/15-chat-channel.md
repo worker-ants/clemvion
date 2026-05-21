@@ -39,7 +39,7 @@
 |----|---------|---------|
 | CCH-CV-01 | 채널의 `(provider, conversationKey)` ↔ 워크스페이스 conversation thread 1:1 매핑 (텔레그램: `(bot_id, chat_id)`) | 필수 |
 | CCH-CV-02 | 첫 메시지 또는 `/start` 명령 도착 시 conversation thread 자동 생성 + 워크플로우 신규 execution 시작 | 필수 |
-| CCH-CV-03 | 같은 conversation 의 두 번째 이후 메시지는 **활성 execution 이 `waiting_for_input` 상태이면** 인터랙션 명령으로 forwarding, **종료된 execution 이면** 새 execution 시작 | 필수 |
+| CCH-CV-03 | 같은 conversation 의 두 번째 이후 메시지는 execution 상태별 분기 처리: (a) `waiting_for_input` → 인터랙션 명령으로 forwarding, (b) `running`/`pending` (waiting_for_input 미도달) → 채널에 `languageHints.executionStillRunning` 안내 메시지 발송 + update 무시 (대기 큐 미적재, 202 ack — 정당화는 Rationale R9), (c) `completed`/`failed`/`cancelled` 또는 conversation 없음 → 새 execution 시작. `running` 케이스의 안내 default 문구 = "워크플로우가 처리 중입니다. 잠시만 기다려 주세요." | 필수 |
 | CCH-CV-04 | conversation thread metadata 가 아니라 §3.4.3 의 Redis `ChannelConversation` 레코드에 `channelUserKey` (텔레그램: `user_id`) 저장 — multi-user 확장 대비. [Conversation Thread spec](../conventions/conversation-thread.md) 자료구조는 변경하지 않음 | 권장 |
 | CCH-CV-05 | v1 은 single-user DM 만 지원. group/supergroup/channel update 는 어댑터가 거부 (`languageHints.groupChatRefusal` 안내 후 무시) | 필수 |
 
@@ -59,7 +59,7 @@
 |----|---------|---------|
 | CCH-SE-01 | 어댑터의 외부 API 호출 (sendMessage 등) 에 5초 타임아웃 + 3회 지수 백오프 재시도. 최종 실패 시 trigger 의 `chat_channel_health` 를 `degraded` 로 갱신 ([§3.4.2](#342-trigger-테이블-신규-컬럼)). 자동 비활성화 금지 ([WH-MG-04 / EIA-NX-07](./12-webhook.md#34-관리) 와 동일 정책) | 필수 |
 | CCH-SE-02 | 인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id` 기반). 동일 `update_id` 30초 안 재도착은 무시 | 필수 |
-| CCH-SE-03 | 어댑터의 외부 API secret (텔레그램 bot token) 은 trigger config 의 별도 secret store reference 에 보관. config JSONB 평문 금지 — [EIA-AU-01](./14-external-interaction-api.md#33-인증) 의 `wsk_*` 보관 정책과 동일 | 필수 |
+| CCH-SE-03 | 어댑터의 외부 API secret (텔레그램 bot token) 은 trigger config 의 별도 secret store reference 에 보관. config JSONB 평문 금지 — [EIA-AU-01](./14-external-interaction-api.md#33-인증) 의 `wsk_*` 보관 정책과 동일. **v1 구현 단계 한정 예외**: `notification.signing.secret` 와 동일하게 `config.chatChannel.botToken` plaintext stub 으로 출발 (§4.1 주석 참조). v2 secret store 분리는 별 plan `spec-update-chat-channel-bot-token-stub` 에서 추적 | 필수 (v2; v1 은 §4.1 plaintext stub) |
 | CCH-SE-04 | Bot token rotation API (`POST /api/triggers/:id/chat-channel/rotate-bot-token`) — old token 은 24h grace 동안 병행 받음 (텔레그램의 경우 setWebhook 재호출). 동사를 `rotate-bot-token` 으로 한 이유는 EIA 의 `rotate-secret` (HMAC signing secret) 과 자원 의미가 다르기 때문 (외부 provider bot token vs HMAC secret) — URL 만으로 의도 구별 가능 | 권장 |
 
 #### 3.5 비기능 요구사항
@@ -150,7 +150,7 @@
 {
   "chatChannel": {
     "provider": "telegram",                    // 어댑터 식별자 (v1: "telegram")
-    "botTokenRef": "secret://triggers/:id/bot-token",  // secret store reference (CCH-SE-03). v1 stub: notification.signing.secret 와 동일 plaintext 보관
+    "botTokenRef": "secret://triggers/:id/bot-token",  // secret store reference (CCH-SE-03). v1 stub: notification.signing.secret 와 동일 plaintext 보관 — 실제 구현 단계에서는 `config.chatChannel.botToken` 평문 필드로 stub. secret store 경로 분리는 별 plan `spec-update-chat-channel-bot-token-stub` 추적
     "secretToken": "AbCd…",                     // Telegram setWebhook 의 secret_token (server-issued 32 chars). HMAC 미지원 provider 의 webhook 인증 — provider 별 unused
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
@@ -229,6 +229,41 @@ TTL: 7일 (사용자 이탈 시 자동 만료)
 ### 5.3 EIA §R5 (외부 WebSocket 보류) 와의 관계
 
 EIA §R5 의 "외부 WebSocket 보류" 결정은 **외부 표면** 의 채널 다양화 결정. Chat Channel 어댑터는 외부 표면을 추가하지 않으므로 §R5 의 재논의 트리거 조건과 무관 (어댑터는 in-process subscriber).
+
+### 5.4 Bot Token Rotation API 응답 계약
+
+[CCH-SE-04](#34-신뢰성--보안) 의 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 의 응답 형식.
+
+**요청** (body):
+```jsonc
+{
+  "newBotToken": "<bot-father-issued-token>"   // 필수 — 신규 Bot Father 토큰
+}
+```
+
+**성공 응답 (200 OK)** — [API Convention §5.1](./2-api-convention.md) 의 `{ data }` 래퍼 + `TransformInterceptor` 적용:
+```jsonc
+{
+  "data": {
+    "triggerId": "<trigger-id>",
+    "rotatedAt": "<ISO8601>",
+    "chatChannelHealth": "healthy",            // setupChannel 재호출 결과
+    "botIdentity": { "botId": 123456789, "username": "myworkflow_bot" }  // getMe 캐시 갱신 결과
+  }
+}
+```
+
+**실패 응답** — [API Convention §5.3](./2-api-convention.md) 의 `{ error: { code, message, details? } }` 표준 에러 envelope 적용:
+
+| HTTP | error.code | 사유 |
+|---|---|---|
+| 404 | `TRIGGER_NOT_FOUND` | trigger 미존재 또는 워크스페이스 권한 없음 |
+| 400 | `CHAT_CHANNEL_NOT_CONFIGURED` | `config.chatChannel` 미설정 트리거 |
+| 400 | `CHAT_CHANNEL_PROVIDER_UNKNOWN` | registry 에 미등록 provider |
+| 400 | `BOT_TOKEN_INVALID` | 신규 토큰 형식 위반 또는 `getMe` 401/403 |
+| 502 | `CHAT_CHANNEL_SETUP_FAILED` | Telegram `setWebhook` API 호출 실패 (재시도 후에도 실패) |
+
+24h grace 동안 old token 병행 수신은 [CCH-SE-04](#34-신뢰성--보안) 규약에 따라 `chat_channel_token_v2` 컬럼 (§4.2) + setWebhook 재호출 (텔레그램 특성) 으로 구현한다.
 
 ---
 
@@ -347,6 +382,35 @@ providers 서브디렉토리에는 v1 단계에서 `_overview.md` 1개 + `telegr
 ### R7. `rotate-bot-token` 동사 (2026-05-21)
 
 EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbound-notification-notification-webhook) (HMAC signing secret rotation) 와 다른 자원이므로 `rotate-secret` 동사 재사용은 의미 혼동을 유발한다. `rotate-bot-token` 으로 명시화하면 URL 만으로 어떤 자원의 rotation 인지 즉시 식별 가능. [`spec/5-system/2-api-convention.md`](./2-api-convention.md) 의 RPC 스타일 (`/notification/rotate-secret`, `/interaction/revoke-token`) 과 동일 패턴 (`/<resource>/<verb>-<noun>`).
+
+### R8. NotificationDispatcher 분리 — provider 증가 시점에 재검토 (2026-05-22)
+
+현재 v1 설계에서 `NotificationDispatcher` 는 세 가지 fan-out 갈래를 단일 클래스에 담는다:
+
+1. **외부 HTTP POST** (`EIA-NX-*`) — `notification.url` 등록 trigger 에 대한 outbound webhook
+2. **Redis pub/sub** — 다중 인스턴스 환경의 SSE 어댑터 fan-out
+3. **In-process EventEmitter** — Chat Channel 어댑터 in-process subscriber (CCH-AD-05)
+
+이 단일 클래스 구조는 v1 의 단순함을 우선한 의도된 결정 (R4 NotificationDispatcher subscription 메커니즘). 하지만 (a) Chat Channel provider 가 2개 이상으로 늘어나거나 (b) 새 in-process subscriber 유형이 추가될 때는 `ChannelDispatcher` (EventEmitter 전담 in-process bus) 를 `NotificationDispatcher` 에서 분리하는 리팩토링이 권장된다 — 단일 책임 원칙 + 테스트 격리.
+
+**리스너 dedup / 라이프사이클 정책** (v1 부터 의무):
+
+- `setupChannel()` 호출 시 동일 `triggerId` 의 기존 in-process listener 가 있으면 제거 후 새 listener 등록 — `setupChannel` 의 멱등성 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-6함수-책임--부작용--멱등성)) 보장.
+- `teardownChannel()` 호출 시 해당 `triggerId` 의 listener 를 반드시 해제 — 누락 시 비활성화된 trigger 에 메시지 중복 발송 위험.
+- listener 등록은 항상 `(triggerId, provider)` 단위 키. 같은 trigger 가 provider 를 바꾸는 경우는 v1 미지원 (재생성으로 처리) — listener key 충돌 가능성 차단.
+
+후속 추적: 위 분리 리팩토링은 두 번째 provider 가 도입될 때 `chat-channel-dispatcher-split` plan 으로 신설.
+
+### R9. CCH-CV-03 `running` 케이스의 큐잉 vs 즉시 안내 (2026-05-22)
+
+대안:
+1. **(채택) 즉시 안내 + update 무시 (큐 미적재)**: `running` / `pending` 구간이 일반적으로 짧고 (수 초 ~ 수십 초), 사용자가 다음 입력 시점은 대개 `waiting_for_input` 도달 후이다. 사용자 메시지를 큐에 적재했다가 `waiting_for_input` 도달 시 재발사하면 (a) execution 의 input 시퀀스 가정과 충돌 가능 (워크플로우 노드가 그 입력을 기대하지 않은 시점에 입력 사건 발생), (b) 사용자가 같은 메시지를 두 번 보낸 경우 dedup 책임 모호.
+2. **(기각) Redis 큐에 임시 적재 → `waiting_for_input` 도달 시 자동 재발사**: 위 (a)/(b) 이슈 + 큐 TTL / 폐기 정책 / 순서 정렬 등 추가 메커니즘 필요. v1 의 단순성과 어긋남.
+3. **(기각) `waiting_for_input` 도달까지 HTTP 연결 보류**: WH-NF-01 의 200ms 응답 시한과 정면 충돌. 텔레그램이 webhook 응답 지연 시 retry 폭주.
+
+근거: v1 단순성 + 사용자 mental model ("처리 중에 보낸 메시지는 다시 보내야 함" 이 봇 UX 의 일반적 기대). [CCH-NF-03](#35-비기능-요구사항) 의 rate-limit 큐 정책은 **다른 트리거 조건** (`분당 60건 초과 시 적재`) 으로, 본 케이스 (`execution running 중 사용자 메시지 도착`) 와 정책 방향이 다른 것은 정당하다 (전자는 외부 사용자 폭주 방어, 후자는 execution life-cycle 정합).
+
+후속 단순화 (v2): `waiting_for_input` 직전 노드가 LLM 호출 등 긴 latency 인 경우 사용자가 답답함을 느낄 수 있음 — `sendChatAction(typing)` 주기적 발송 정책을 별 plan 으로 검토.
 
 ### R-K. `chat_channel_token_v2` 컬럼 명명의 semantic 비대칭 (2026-05-21)
 

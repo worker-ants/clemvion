@@ -1,8 +1,12 @@
 ---
-worktree: chat-channel-telegram-0c106c
+worktree: chat-channel-spec-fix-5fc137
 started: 2026-05-22
-owner: resolution-applier
+completed: 2026-05-22
+owner: project-planner
 ---
+
+> 구현 결과: spec/5-system/15-chat-channel.md (CCH-SE-03 v1 plaintext stub 예외 명문화, §4.1 botTokenRef 주석), spec/conventions/chat-channel-adapter.md (§2.3 secretToken 주석 v1 stub 명확화), spec/5-system/14-external-interaction-api.md (EIA-AU-08 행 보강, §3.3.1 Implementation Note 신설 — Guard/DTO 의무 제약 + v2 union 타입 분리 권고) 반영. 후속 plan `spec-update-chat-channel-bot-token-stub`, `spec-fix-eia-au-08-type-split` 추적.
+
 
 # Spec Fix Draft — Chat Channel 보안 관련 spec 정합
 
