@@ -39,9 +39,22 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
       if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const resp = exceptionResponse as Record<string, unknown>;
-        code = (resp.code as string) || this.getCodeFromStatus(status);
-        message = (resp.message as string) || exception.message;
-        details = resp.details;
+        // Nested `{ error: { code, message, details } }` 형태도 인식 — `interaction` 모듈처럼
+        // API 컨벤션 §5.3 의 nested error shape 으로 throw 하는 코드를 정상 처리한다
+        // (e2e D 시나리오 회귀 fix — PR2 ai-review follow-up).
+        const nested =
+          typeof resp.error === 'object' && resp.error !== null
+            ? (resp.error as Record<string, unknown>)
+            : null;
+        code =
+          (resp.code as string) ||
+          (nested?.code as string) ||
+          this.getCodeFromStatus(status);
+        message =
+          (resp.message as string) ||
+          (nested?.message as string) ||
+          exception.message;
+        details = resp.details ?? nested?.details;
       } else {
         code = this.getCodeFromStatus(status);
         message = exception.message;
