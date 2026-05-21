@@ -1058,7 +1058,7 @@ export class IntegrationsService {
   private toPublic(entity: Integration): PublicIntegration {
     const credsUnreadable = isUnreadableCredentials(entity.credentials);
     const lastErrorUnreadable = isUnreadableCredentials(entity.lastError);
-    const meta = this.buildIntegrationMeta(entity, credsUnreadable);
+    const meta = buildIntegrationMeta(entity, credsUnreadable);
     // `installToken` / `installTokenIssuedAt` 는 PublicIntegration 응답에서
     // 제외 — App URL path segment 안에 이미 포함되어 별도 필드 노출은 식별자
     // 분산을 유발한다. spec/2-navigation/4-integration.md Rationale "Cafe24
@@ -1128,17 +1128,6 @@ export class IntegrationsService {
       return null;
     }
     return buildCafe24InstallUrl(getAppBaseUrl(), entity.installToken);
-  }
-
-  /**
-   * Instance shim — delegates to the exported `buildIntegrationMeta` so the
-   * pure derivation stays directly unit-testable without DB / repo setup.
-   */
-  private buildIntegrationMeta(
-    entity: Integration,
-    credsUnreadable: boolean = isUnreadableCredentials(entity.credentials),
-  ): IntegrationMeta {
-    return buildIntegrationMeta(entity, credsUnreadable);
   }
 
   private validateServiceAndAuth(serviceType: string, authType: string): void {

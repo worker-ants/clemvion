@@ -2231,8 +2231,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
      */
     it('reauthorize on connected row — fetch invalid_grant → row demoted to error(auth_failed) chain', async () => {
       delete process.env.OAUTH_STUB_MODE;
-      const originalFetch = global.fetch;
-      const fetchMock = jest.fn().mockResolvedValue({
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: false,
         status: 400,
         json: async () => ({
@@ -2241,8 +2240,7 @@ describe('IntegrationOAuthService — Cafe24', () => {
         }),
         text: async () =>
           '{"error":"invalid_grant","error_description":"authorization code expired"}',
-      });
-      (global as { fetch: jest.Mock }).fetch = fetchMock;
+      } as Response);
 
       const connectedRow = {
         id: 'int-invalid-grant',
@@ -2310,8 +2308,9 @@ describe('IntegrationOAuthService — Cafe24', () => {
         // lastError.message 가 sanitize 를 거쳐 secret 누수가 없어야 한다.
         expect(saved.lastError.message).not.toMatch(/priv-secret|priv-cid/);
       } finally {
-        global.fetch = originalFetch;
-        process.env.OAUTH_STUB_MODE = 'true';
+        fetchSpy.mockRestore();
+        // process.env.OAUTH_STUB_MODE 복원은 afterEach 의 delete 에 위임.
+        // finally 내 재설정은 afterEach 와 이중 관리로 의도를 혼란시키므로 제거.
       }
     });
   });
