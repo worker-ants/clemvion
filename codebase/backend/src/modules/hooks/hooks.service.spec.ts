@@ -10,9 +10,14 @@ import {
 } from '@nestjs/common';
 import { HooksService, WebhookInput } from './hooks.service';
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
+import { InteractionService } from '../external-interaction/interaction.service';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { ExecutionsService } from '../executions/executions.service';
+import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
+import { ChatChannelAdapter } from '../chat-channel/types';
 
 describe('HooksService', () => {
   let service: HooksService;
@@ -20,8 +25,10 @@ describe('HooksService', () => {
   let nodeRepo: jest.Mocked<Repository<Node>>;
   let engine: jest.Mocked<ExecutionEngineService>;
 
+  let moduleRef: any;
+
   beforeEach(async () => {
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       providers: [
         HooksService,
         {
@@ -48,6 +55,30 @@ describe('HooksService', () => {
             ),
           },
         },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { get: jest.fn(), has: jest.fn() },
+        },
+        {
+          provide: ChannelConversationService,
+          useValue: {
+            lookup: jest.fn().mockResolvedValue(null),
+            upsert: jest.fn().mockResolvedValue(undefined),
+            updateExecutionId: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: InteractionService,
+          useValue: { interact: jest.fn() },
+        },
+        {
+          provide: ExecutionsService,
+          useValue: {
+            stop: jest.fn(),
+            // hooks.service 가 ['executionRepository'] 로 indexed access — 빈 객체로 충분.
+            executionRepository: { findOne: jest.fn().mockResolvedValue(null) },
+          },
+        },
       ],
     }).compile();
 
@@ -72,6 +103,15 @@ describe('HooksService', () => {
     updatedAt: new Date(),
     workspace: undefined as never,
     workflow: undefined as never,
+    notificationHealth: 'unknown',
+    notificationLastError: null,
+    notificationSecretV2: null,
+    notificationRotatedAt: null,
+    chatChannelHealth: 'unknown',
+    chatChannelLastError: null,
+    chatChannelSetupAt: null,
+    chatChannelTokenV2: null,
+    chatChannelRotatedAt: null,
   };
 
   const input: WebhookInput = {
@@ -466,6 +506,183 @@ describe('HooksService', () => {
       triggerRepo.findOne.mockResolvedValue(activeTrigger);
       const res = await service.handleWebhook('abc', input);
       expect(res).toEqual({ executionId: 'exec-eia-1' });
+    });
+  });
+
+  /**
+   * [ai-review W2] Chat Channel 분기 — HooksService.handleChatChannelWebhook 통합 테스트.
+   * Spec §3.1 / CCH-AD-04 / 12-webhook.md §7 처리 흐름 Chat Channel 분기.
+   */
+  describe('Chat Channel 분기', () => {
+    const SECRET_TOKEN = 'secret-token-abc';
+    /** 헤더에 올바른 secretToken 을 포함한 입력 */
+    const chatInput: WebhookInput = {
+      ...input,
+      headers: { 'x-telegram-bot-api-secret-token': SECRET_TOKEN },
+    };
+    const chatChannelTrigger: Trigger = {
+      ...activeTrigger,
+      config: {
+        chatChannel: {
+          provider: 'telegram',
+          botToken: 'tok',
+          secretToken: SECRET_TOKEN,
+        },
+      },
+    } as unknown as Trigger;
+
+    let adapterRegistry: jest.Mocked<ChannelAdapterRegistry>;
+    let conversationService: jest.Mocked<ChannelConversationService>;
+    let interactionService: jest.Mocked<{
+      interact: jest.MockedFunction<() => Promise<void>>;
+    }>;
+    let mockAdapter: {
+      provider: string;
+      parseUpdate: jest.MockedFunction<() => Promise<unknown>>;
+      setupChannel: jest.MockedFunction<() => Promise<unknown>>;
+      teardownChannel: jest.MockedFunction<() => Promise<void>>;
+      renderNode: jest.MockedFunction<() => Promise<unknown[]>>;
+      sendMessage: jest.MockedFunction<() => Promise<unknown>>;
+      ackInteraction: jest.MockedFunction<() => Promise<void>>;
+    };
+
+    beforeEach(() => {
+      adapterRegistry = moduleRef.get(
+        ChannelAdapterRegistry,
+      ) as jest.Mocked<ChannelAdapterRegistry>;
+      conversationService = moduleRef.get(
+        ChannelConversationService,
+      ) as jest.Mocked<ChannelConversationService>;
+      interactionService = moduleRef.get(InteractionService) as jest.Mocked<
+        typeof interactionService
+      >;
+
+      mockAdapter = {
+        provider: 'telegram',
+        parseUpdate: jest.fn(),
+        setupChannel: jest.fn(),
+        teardownChannel: jest.fn(),
+        renderNode: jest.fn(),
+        sendMessage: jest.fn().mockResolvedValue({
+          externalMsgId: 'msg-1',
+          sentAt: new Date().toISOString(),
+        }),
+        ackInteraction: jest.fn().mockResolvedValue(undefined),
+      };
+      adapterRegistry.get.mockReturnValue(
+        mockAdapter as unknown as ChatChannelAdapter,
+      );
+    });
+
+    it('parseUpdate 가 null 반환 시 { executionId: "ignored" } 반환 (CCH-AD-04 무시 경로)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(res).toMatchObject({ executionId: 'ignored' });
+      expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    it('parseUpdate 성공 + conversation 없음 → 새 execution 시작 (CCH-CV-03 신규 경로)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'hello' },
+        idempotencyKey: '1001',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      conversationService.lookup.mockResolvedValue(null);
+      engine.execute.mockResolvedValue('exec-cc-1');
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(engine.execute).toHaveBeenCalledWith(
+        chatChannelTrigger.workflowId,
+        expect.objectContaining({
+          __triggerSource: 'webhook',
+          chatChannel: expect.objectContaining({
+            provider: 'telegram',
+            conversationKey: 'chat-123',
+          }),
+        }),
+        { triggerId: chatChannelTrigger.id },
+      );
+      expect(conversationService.upsert).toHaveBeenCalledWith(
+        chatChannelTrigger.id,
+        'chat-123',
+        expect.objectContaining({ executionId: 'exec-cc-1' }),
+      );
+      expect(res).toMatchObject({ executionId: 'exec-cc-1' });
+    });
+
+    it('parseUpdate 성공 + 활성 execution 있음 → InteractionService.interact() in-process 호출 (CCH-CV-03 forwarding 경로)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: { kind: 'text_message', text: 'my answer' },
+        idempotencyKey: '1002',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      });
+      // isActiveExecution — ExecutionsService.executionRepository.findOne 으로 활성 체크.
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+
+      await service.handleWebhook('abc', chatInput);
+
+      expect(interactionService.interact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionId: 'exec-active',
+          scope: 'in_process_trusted',
+        }),
+        expect.objectContaining({
+          command: 'submit_message',
+          message: 'my answer',
+        }),
+      );
+      expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    it('X-Telegram-Bot-Api-Secret-Token 불일치 시 401 반환', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+
+      await expect(
+        service.handleWebhook('abc', {
+          ...input,
+          headers: { 'x-telegram-bot-api-secret-token': 'wrong-token' },
+        }),
+      ).rejects.toMatchObject({ status: 401 });
+    });
+
+    it('secretToken 미설정 시 헤더 검증 미수행 (다른 provider 또는 미설정 telegram)', async () => {
+      const noSecretTrigger: Trigger = {
+        ...chatChannelTrigger,
+        config: { chatChannel: { provider: 'telegram', botToken: 'tok' } },
+      } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(noSecretTrigger);
+      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+      mockAdapter.parseUpdate.mockResolvedValue(null);
+
+      const res = await service.handleWebhook('abc', input);
+      expect(res).toMatchObject({ executionId: 'ignored' });
     });
   });
 });

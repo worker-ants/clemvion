@@ -1,0 +1,98 @@
+---
+title: "Telegram integration"
+title_en: "Telegram integration"
+section: "06-integrations-and-config"
+order: 6
+summary: "Connect a Telegram bot as a Chat Channel on a Webhook trigger to enable real-time conversational interactions with your workflow."
+summary_en: "Connect a Telegram bot as a Chat Channel on a Webhook trigger to enable real-time conversational interactions with your workflow."
+spec: ["spec/4-nodes/7-trigger/providers/telegram.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md"]
+code: ["codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.ts", "codebase/backend/src/modules/chat-channel/providers/telegram/telegram-update.parser.ts", "codebase/backend/src/modules/chat-channel/providers/telegram/telegram-message.renderer.ts"]
+---
+
+Connect a Telegram bot as your workflow's conversational interface. Users send messages to the bot to start a workflow or provide input to a running execution.
+
+## 1. Create a Telegram bot
+
+1. Open Telegram and search for [@BotFather](https://t.me/botfather).
+2. Send `/newbot` and follow the prompts to choose a name and username.
+3. BotFather gives you an **API Token** (format: `123456789:ABCdef…`). Keep it safe.
+
+<Callout type="warn">
+The Bot API Token grants full control over your bot account. Never embed it directly in code or public repositories.
+</Callout>
+
+## 2. Add a Chat Channel to a Webhook trigger
+
+Include `chatChannel` in the trigger config when creating it:
+
+```json
+{
+  "type": "webhook",
+  "config": {
+    "chatChannel": {
+      "provider": "telegram",
+      "botToken": "<your BotFather token>"
+    }
+  }
+}
+```
+
+When the trigger activates, `setWebhook` is called automatically — no manual webhook configuration in BotFather is needed.
+
+## 3. Supported interaction nodes
+
+| Node type | Telegram representation |
+|---|---|
+| **AI Multi Turn** | Free-form text conversation |
+| **Button Presentation** | Inline keyboard buttons |
+| **Form** | Sequential field-by-field text input (contact share, file upload included) |
+| **Chart** | Chart delivered as a PNG image |
+
+<Callout type="info">
+Carousel and Table are not supported yet — they will be added in a future release.
+</Callout>
+
+## 4. Bot commands
+
+| Command | Behavior |
+|---|---|
+| `/start` | Start a new execution. Cancels any running one first. |
+| `/cancel` | Cancel the current execution |
+| `/help` | Display help text |
+
+## 5. Health monitoring
+
+Check `chatChannelHealth` on the trigger detail view:
+
+| Value | Meaning |
+|---|---|
+| `unknown` | `setupChannel` not yet called or pending |
+| `ok` | Bot connected normally |
+| `degraded` | Recent consecutive `sendMessage` failures — bot unstable |
+| `error` | `setupChannel` failed |
+
+The last error message is available in `chat_channel_last_error`.
+
+## 6. Rotating the bot token
+
+If a token may be compromised, rotate it immediately:
+
+```http
+POST /api/triggers/:id/chat-channel/rotate-bot-token
+Authorization: Bearer <your-token>
+```
+
+The old webhook is removed and a new one is registered with the new token.
+
+## 7. Limitations
+
+- **1:1 (private) chats only** — messages in group chats are silently ignored.
+- **Bot messages are ignored** — messages with `from.is_bot=true` are dropped to prevent bot loops.
+- **60 requests/minute per conversation** — requests above the cap are ignored (CCH-NF-03).
+- **v1 implementation** — the bot token is currently stored as plaintext in the trigger config. Migration to a Secret Store is planned (CCH-SE-03 follow-up).
+
+## Rationale
+
+### Why a Webhook trigger branch, not a separate trigger type
+
+Instead of creating a dedicated trigger type, the Telegram Chat Channel is a branch of the existing Webhook trigger's `config.chatChannel`. This reuses the existing Webhook entry point with minimal new surface area, and other providers (Slack, KakaoTalk) can follow the same pattern.

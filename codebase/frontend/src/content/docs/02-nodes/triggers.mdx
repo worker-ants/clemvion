@@ -306,6 +306,71 @@ Last-Event-Id: 42         # 재연결 시
 
 `notification`도 `interaction`도 켜지 않은 트리거는 기존 동작 그대로예요 — 웹훅이 들어오면 즉시 실행이 시작되고, 결과는 트리거 화면의 호출 이력 또는 워크플로우의 실행 내역에서 확인하면 돼요.
 
+## Chat Channel 연결 (Telegram 봇)
+
+Webhook 트리거에 `config.chatChannel`을 설정하면 **텔레그램 봇**이 워크플로우의 대화 인터페이스가 돼요. Telegram 사용자가 보내는 메시지가 워크플로우를 시작하거나, 실행 중인 워크플로우의 입력 대기(`waiting_for_input`)를 채워요.
+
+### 설정 방법
+
+1. [Telegram BotFather](https://t.me/botfather)에서 `/newbot` 명령으로 봇을 만들고 **API Token**을 받아 두세요.
+2. 트리거 생성 시 `config.chatChannel`에 아래 값을 설정하세요:
+
+```json
+{
+  "type": "webhook",
+  "config": {
+    "chatChannel": {
+      "provider": "telegram",
+      "botToken": "<BotFather에서 받은 token>"
+    }
+  }
+}
+```
+
+3. 트리거가 활성화되면 자동으로 `setWebhook`이 호출돼 봇이 워크플로우 엔드포인트로 연결돼요.
+
+### 상태 확인
+
+트리거 상세 화면의 `chatChannelHealth` 필드로 연결 상태를 확인해요:
+
+| 값 | 의미 |
+|---|---|
+| `unknown` | 아직 `setupChannel`이 호출되지 않았거나 확인 전 |
+| `ok` | 봇 연결 정상 |
+| `degraded` | 최근 `sendMessage` 연속 실패 — 봇 응답 불안정 |
+| `error` | `setupChannel` 실패 |
+
+### Bot Token 회전
+
+토큰이 유출됐다고 의심될 때 `POST /api/triggers/:id/chat-channel/rotate-bot-token`으로 토큰을 교체해요. 기존 Webhook이 해제되고 새 token으로 재등록돼요.
+
+### 지원하는 인터랙션 노드
+
+Chat Channel을 통해 아래 노드 유형이 동작해요:
+
+- **AI Multi Turn** — 봇과 자유 대화
+- **Button Presentation** — 인라인 키보드 버튼으로 선택
+- **Form** — 필드 단위 순차 입력
+- **Chart** — PNG 이미지로 차트 전송
+
+### 명령어
+
+| 명령 | 동작 |
+|---|---|
+| `/start` | 새 대화(execution) 시작. 진행 중인 대화가 있으면 취소 후 재시작 |
+| `/cancel` | 진행 중인 대화 취소 |
+| `/help` | 도움말 표시 |
+
+<Callout type="info">
+그룹 채팅은 지원하지 않아요. 봇은 1:1(private) 대화에서만 동작해요.
+</Callout>
+
+<Callout type="warn">
+신규 error code — Chat Channel API가 반환할 수 있는 코드: `INVALID_BOT_TOKEN`, `WORKSPACE_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`. 현재 `ERROR_KO` 테이블에 미등록으로 영문 그대로 노출돼요 — 향후 `backend-labels.ts` 갱신 시 흡수 예정이에요.
+</Callout>
+
+자세한 설정과 Telegram 봇 생성 단계별 안내는 [Telegram 통합 가이드](/docs/06-integrations-and-config/telegram)를 참고해요.
+
 ## 캔버스 요약
 
 Manual Trigger는 파라미터 개수를 요약에 표시해요. 없으면 `(none)`으로 표시돼요.

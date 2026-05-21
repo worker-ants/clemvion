@@ -11,6 +11,7 @@ import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { NotificationConfigDto } from './notification-config.dto';
 import { InteractionConfigDto } from './interaction-config.dto';
+import { ChatChannelConfigDto } from './chat-channel-config.dto';
 
 export class UpdateTriggerDto {
   /** 트리거 이름 */
@@ -84,4 +85,12 @@ export class UpdateTriggerDto {
   @ValidateNested()
   @Type(() => InteractionConfigDto)
   interaction?: InteractionConfigDto;
+
+  /** Chat Channel 어댑터 설정. [Spec Chat Channel §4.1]. 부분 갱신 — 전체 객체 다시 send. */
+  @ApiPropertyOptional({ type: () => ChatChannelConfigDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => ChatChannelConfigDto)
+  chatChannel?: ChatChannelConfigDto;
 }

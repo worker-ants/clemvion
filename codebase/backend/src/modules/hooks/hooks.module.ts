@@ -6,12 +6,16 @@ import { HooksController } from './hooks.controller';
 import { HooksService } from './hooks.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { ExternalInteractionModule } from '../external-interaction/external-interaction.module';
+import { ExecutionsModule } from '../executions/executions.module';
+import { ChatChannelModule } from '../chat-channel/chat-channel.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Trigger, Node]),
     ExecutionEngineModule,
     forwardRef(() => ExternalInteractionModule),
+    forwardRef(() => ExecutionsModule),
+    ChatChannelModule,
   ],
   controllers: [HooksController],
   providers: [HooksService],
