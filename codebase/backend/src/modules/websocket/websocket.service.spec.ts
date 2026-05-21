@@ -1,4 +1,9 @@
-import { BackgroundRunEventType, WebsocketService } from './websocket.service';
+import {
+  BackgroundRunEventType,
+  ExecutionEventType,
+  NodeEventType,
+  WebsocketService,
+} from './websocket.service';
 
 describe('WebsocketService', () => {
   let service: WebsocketService;
@@ -136,6 +141,108 @@ describe('WebsocketService', () => {
       const serialized = JSON.stringify(payload);
       expect(serialized).not.toContain('should-not-leak');
       expect(serialized).toContain('[REDACTED_DEPTH]');
+    });
+  });
+
+  describe('seq counter — execution 채널 monotonic 보장', () => {
+    // WS spec §2.2 + EIA spec §R7: execution:{id} 채널의 모든 이벤트는 execution 별
+    // monotonic seq 를 동봉해야 한다 (외부 SSE 의 `id:` 와 Notification `seq` 가
+    // 같은 값을 공유). 본 PR2 의 phase P0 가 그 backend 구현을 담당.
+
+    it('emitExecutionEvent 가 첫 호출 시 seq=1 부터 시작', () => {
+      service.emitExecutionEvent(
+        'exec-1',
+        ExecutionEventType.EXECUTION_STARTED,
+        { workflowId: 'wf-1' },
+      );
+      const payload = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(payload.seq).toBe(1);
+    });
+
+    it('같은 execution 내 다중 emit 은 seq 가 1,2,3... 단조 증가', () => {
+      service.emitExecutionEvent(
+        'exec-A',
+        ExecutionEventType.EXECUTION_STARTED,
+        {},
+      );
+      service.emitNodeEvent('exec-A', 'node-1', NodeEventType.NODE_STARTED, {});
+      service.emitExecutionEvent('exec-A', ExecutionEventType.AI_MESSAGE, {
+        message: 'hi',
+      });
+      service.emitNodeEvent(
+        'exec-A',
+        'node-1',
+        NodeEventType.NODE_COMPLETED,
+        {},
+      );
+
+      const seqs = gateway.broadcastToChannel.mock.calls.map(
+        (c) => (c[2] as { seq: number }).seq,
+      );
+      expect(seqs).toEqual([1, 2, 3, 4]);
+    });
+
+    it('서로 다른 execution 은 독립된 seq counter 를 사용', () => {
+      service.emitExecutionEvent(
+        'exec-X',
+        ExecutionEventType.EXECUTION_STARTED,
+        {},
+      );
+      service.emitExecutionEvent(
+        'exec-Y',
+        ExecutionEventType.EXECUTION_STARTED,
+        {},
+      );
+      service.emitExecutionEvent('exec-X', ExecutionEventType.AI_MESSAGE, {});
+      service.emitExecutionEvent('exec-Y', ExecutionEventType.AI_MESSAGE, {});
+
+      const calls = gateway.broadcastToChannel.mock.calls;
+      // call[0] = exec-X seq 1, call[1] = exec-Y seq 1, call[2] = exec-X seq 2, call[3] = exec-Y seq 2
+      expect((calls[0][2] as { seq: number }).seq).toBe(1);
+      expect((calls[1][2] as { seq: number }).seq).toBe(1);
+      expect((calls[2][2] as { seq: number }).seq).toBe(2);
+      expect((calls[3][2] as { seq: number }).seq).toBe(2);
+    });
+
+    it('execution.completed / failed / cancelled 발송 후 counter 가 해제됨 (메모리 누수 방지)', () => {
+      service.emitExecutionEvent(
+        'exec-done',
+        ExecutionEventType.EXECUTION_STARTED,
+        {},
+      );
+      service.emitExecutionEvent(
+        'exec-done',
+        ExecutionEventType.EXECUTION_COMPLETED,
+        {},
+      );
+      // 같은 execution id 를 새 실행이 재사용하더라도 (e.g. test fixture) 다시 1 부터.
+      service.emitExecutionEvent(
+        'exec-done',
+        ExecutionEventType.EXECUTION_STARTED,
+        {},
+      );
+      const seqs = gateway.broadcastToChannel.mock.calls.map(
+        (c) => (c[2] as { seq: number }).seq,
+      );
+      expect(seqs).toEqual([1, 2, 1]);
+    });
+
+    it('emitKbEvent / emitBackgroundRunEvent 는 seq 를 동봉하지 않음 (execution 채널 한정)', () => {
+      service.emitKbEvent('doc-1', 'document:embedding_started', {
+        knowledgeBaseId: 'kb-1',
+      });
+      service.emitBackgroundRunEvent(
+        'bg-1',
+        BackgroundRunEventType.BACKGROUND_RUN_STARTED,
+        {},
+      );
+      for (const call of gateway.broadcastToChannel.mock.calls) {
+        const payload = call[2] as Record<string, unknown>;
+        expect(payload).not.toHaveProperty('seq');
+      }
     });
   });
 });

@@ -352,6 +352,9 @@ export function extractRetryAfterMs(err: unknown): number | null {
   const rawValue =
     headers['retry-after'] ?? headers['Retry-After'] ?? headers['RETRY-AFTER'];
   if (rawValue === undefined || rawValue === null) return null;
+  // 헤더 값은 보통 string 이지만 일부 클라이언트가 number / array 로 wrap 해서 반환할 수 있다.
+  // string / number 가 아니면 의미 있는 변환이 불가능하므로 null.
+  if (typeof rawValue !== 'string' && typeof rawValue !== 'number') return null;
   const str = String(rawValue).trim();
   if (str.length === 0) return null;
   // delta-seconds 우선 시도 (간단한 형식, parseFloat 가 ISO 날짜의 첫 숫자를
