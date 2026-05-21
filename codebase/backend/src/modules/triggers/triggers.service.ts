@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from './entities/trigger.entity';
@@ -6,6 +10,11 @@ import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
+import {
+  NotificationConfigDto,
+  validateNotificationUrl,
+} from './dto/notification-config.dto';
+import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -89,8 +98,18 @@ export class TriggersService {
   }
 
   async create(workspaceId: string, dto: CreateTriggerDto): Promise<Trigger> {
+    // notification/interaction 은 Trigger entity 의 1급 컬럼이 아니라 `config` JSONB 안에 보관.
+    // (영속 컬럼은 health/secret rotation 추적 용도의 4개만; spec EIA §7.1 / V059).
+    const { notification, interaction, config, ...rest } = dto;
+    this.assertNotificationUrlSafe(notification);
+    const mergedConfig = this.mergeExternalConfig(
+      config ?? {},
+      notification,
+      interaction,
+    );
     const trigger = this.triggerRepository.create({
-      ...dto,
+      ...rest,
+      config: mergedConfig,
       workspaceId,
     });
     return this.triggerRepository.save(trigger);
@@ -102,8 +121,46 @@ export class TriggersService {
     dto: UpdateTriggerDto,
   ): Promise<Trigger> {
     const trigger = await this.findById(id, workspaceId);
-    Object.assign(trigger, dto);
+    const { notification, interaction, config, ...rest } = dto;
+    this.assertNotificationUrlSafe(notification);
+    // notification/interaction 이 명시된 경우만 config 안의 해당 키를 교체. 미명시면 기존 유지.
+    const baseConfig = config ?? trigger.config ?? {};
+    const mergedConfig = this.mergeExternalConfig(
+      baseConfig,
+      notification,
+      interaction,
+    );
+    Object.assign(trigger, rest, { config: mergedConfig });
     return this.triggerRepository.save(trigger);
+  }
+
+  /**
+   * notification.url 이 있으면 SSRF safety 를 register-time 에 검증한다. literal IP 사설 대역,
+   * loopback, metadata IP 는 거부. 발송 시점의 post-resolve 검증은 NotificationDispatcher 가
+   * 추가로 수행 (Spec EIA §8.1).
+   */
+  private assertNotificationUrlSafe(
+    notification: NotificationConfigDto | undefined,
+  ): void {
+    if (!notification?.url) return;
+    const check = validateNotificationUrl(notification.url);
+    if (!check.ok) {
+      throw new BadRequestException({
+        code: 'INVALID_NOTIFICATION_URL',
+        message: check.reason ?? 'Notification URL is not allowed',
+      });
+    }
+  }
+
+  private mergeExternalConfig(
+    base: Record<string, unknown>,
+    notification: NotificationConfigDto | undefined,
+    interaction: InteractionConfigDto | undefined,
+  ): Record<string, unknown> {
+    const next: Record<string, unknown> = { ...base };
+    if (notification !== undefined) next.notification = notification;
+    if (interaction !== undefined) next.interaction = interaction;
+    return next;
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {

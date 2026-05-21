@@ -5,9 +5,12 @@ import {
   IsObject,
   IsUUID,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { NotificationConfigDto } from './notification-config.dto';
+import { InteractionConfigDto } from './interaction-config.dto';
 
 export class UpdateTriggerDto {
   /** 트리거 이름 */
@@ -63,4 +66,22 @@ export class UpdateTriggerDto {
   @IsUUID()
   @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
   authConfigId?: string | null;
+
+  /**
+   * Outbound notification webhook 설정. [Spec EIA §4]. 부분 갱신 — 전체 객체를 다시 보내야 한다.
+   */
+  @ApiPropertyOptional({ type: () => NotificationConfigDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => NotificationConfigDto)
+  notification?: NotificationConfigDto;
+
+  /** Inbound interaction 채널 설정. [Spec EIA §4]. */
+  @ApiPropertyOptional({ type: () => InteractionConfigDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => InteractionConfigDto)
+  interaction?: InteractionConfigDto;
 }
