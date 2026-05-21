@@ -380,4 +380,90 @@ describe('HooksService', () => {
       { triggerId: 't1' },
     );
   });
+
+  /**
+   * [ai-review W6] External Interaction API 의 응답 확장 회귀 — trigger.config.interaction.enabled=true
+   * 일 때 webhook 응답에 `status: 'pending'` + `interaction.{token, expiresAt, endpoints}` 동봉.
+   *
+   * per_execution / per_trigger 두 전략 모두 검증.
+   */
+  describe('External Interaction API — 응답 확장 (W6)', () => {
+    const triggerWithInteraction = (
+      tokenStrategy: 'per_execution' | 'per_trigger',
+    ): Trigger =>
+      ({
+        ...activeTrigger,
+        config: {
+          authType: 'none',
+          interaction: { enabled: true, tokenStrategy },
+        },
+      }) as Trigger;
+
+    beforeEach(() => {
+      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockResolvedValue('exec-eia-1');
+    });
+
+    it('per_execution — interaction.token + expiresAt + endpoints 5종 동봉', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        triggerWithInteraction('per_execution'),
+      );
+      const res = await service.handleWebhook('abc', input);
+      expect(res).toMatchObject({
+        executionId: 'exec-eia-1',
+        status: 'pending',
+        interaction: {
+          token: 'iext_test',
+          expiresAt: '2099-01-01T00:00:00Z',
+          endpoints: {
+            stream: '/api/external/executions/exec-eia-1/stream',
+            submit: '/api/external/executions/exec-eia-1/interact',
+            status: '/api/external/executions/exec-eia-1',
+            cancel: '/api/external/executions/exec-eia-1/cancel',
+            refresh: '/api/external/executions/exec-eia-1/refresh-token',
+          },
+        },
+      });
+    });
+
+    it('per_trigger — interaction.endpoints 만 동봉 (token 미동봉, 호출자가 itk_* 보유)', async () => {
+      triggerRepo.findOne.mockResolvedValue(
+        triggerWithInteraction('per_trigger'),
+      );
+      const res = await service.handleWebhook('abc', input);
+      expect(res).toMatchObject({
+        executionId: 'exec-eia-1',
+        status: 'pending',
+        interaction: expect.objectContaining({
+          endpoints: expect.objectContaining({
+            stream: '/api/external/executions/exec-eia-1/stream',
+          }),
+        }),
+      });
+      const r = res as { interaction?: { token?: string } };
+      expect(r.interaction?.token).toBeUndefined();
+    });
+
+    it('interaction.enabled=false — 응답에 interaction 미동봉 (하위 호환)', async () => {
+      triggerRepo.findOne.mockResolvedValue({
+        ...activeTrigger,
+        config: { authType: 'none', interaction: { enabled: false } },
+      } as Trigger);
+      const res = await service.handleWebhook('abc', input);
+      expect(res).toEqual({ executionId: 'exec-eia-1' });
+    });
+
+    it('interaction 자체 미설정 — 응답에 interaction 미동봉', async () => {
+      triggerRepo.findOne.mockResolvedValue(activeTrigger);
+      const res = await service.handleWebhook('abc', input);
+      expect(res).toEqual({ executionId: 'exec-eia-1' });
+    });
+  });
 });
