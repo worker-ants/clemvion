@@ -1,5 +1,21 @@
 import { Injectable } from '@nestjs/common';
+import { Observable, Subject } from 'rxjs';
 import { WebsocketGateway } from './websocket.gateway';
+
+/**
+ * 외부 SSE 어댑터 (P5) 및 NotificationDispatcher (P6) 가 구독하는 fan-out stream payload.
+ *
+ * [Spec EIA §R10] — ExecutionEngine 단일 sink 정책 유지. emit 호출 측은 여전히
+ * WebsocketService.emitExecutionEvent / emitNodeEvent 하나만. 본 service 가 facade 로
+ * fan-out (socket.io + RxJS subject) 수행.
+ */
+export interface ExecutionChannelEvent {
+  executionId: string;
+  eventType: string;
+  seq: number;
+  /** 직렬화된 payload (socket.io 와 동일 — 클라이언트가 받는 그대로). */
+  payload: Record<string, unknown>;
+}
 
 export enum ExecutionEventType {
   EXECUTION_STARTED = 'execution.started',
@@ -199,6 +215,16 @@ export class WebsocketService {
    */
   private readonly seqCounters = new Map<string, number>();
 
+  /**
+   * 외부 fan-out subject — execution: 채널 이벤트만 발행. SseAdapter / NotificationDispatcher 가
+   * 본 stream 을 구독 (R10 facade 레이어).
+   */
+  private readonly executionEventSubject = new Subject<ExecutionChannelEvent>();
+
+  /** Observable form — listener 가 subscribe(). */
+  readonly executionEvents$: Observable<ExecutionChannelEvent> =
+    this.executionEventSubject.asObservable();
+
   constructor(private readonly gateway: WebsocketGateway) {}
 
   /**
@@ -227,13 +253,21 @@ export class WebsocketService {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
     const seq = this.nextSeq(executionId);
-    this.gateway.broadcastToChannel(channel, eventType, {
+    const envelope: Record<string, unknown> = {
       executionId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
         ? sanitizedPayload
         : { data: sanitizedPayload }) as Record<string, unknown>),
       seq,
       timestamp: new Date().toISOString(),
+    };
+    this.gateway.broadcastToChannel(channel, eventType, envelope);
+    // 외부 fan-out (R10 facade): SseAdapter / NotificationDispatcher 가 본 stream 을 구독.
+    this.executionEventSubject.next({
+      executionId,
+      eventType,
+      seq,
+      payload: envelope,
     });
     if (TERMINAL_EXECUTION_EVENTS.has(eventType)) {
       this.releaseSeqCounter(executionId);
@@ -269,7 +303,7 @@ export class WebsocketService {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
     const seq = this.nextSeq(executionId);
-    this.gateway.broadcastToChannel(channel, eventType, {
+    const envelope: Record<string, unknown> = {
       executionId,
       nodeId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
@@ -277,6 +311,13 @@ export class WebsocketService {
         : { data: sanitizedPayload }) as Record<string, unknown>),
       seq,
       timestamp: new Date().toISOString(),
+    };
+    this.gateway.broadcastToChannel(channel, eventType, envelope);
+    this.executionEventSubject.next({
+      executionId,
+      eventType,
+      seq,
+      payload: envelope,
     });
   }
 
