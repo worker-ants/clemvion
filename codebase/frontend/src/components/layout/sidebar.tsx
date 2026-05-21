@@ -268,12 +268,12 @@ export function Sidebar() {
     setNotifOpen(false);
     setNotifFilter("all");
   }, []);
+  // W6: updater 함수 내에서 별도 setState 호출은 React Concurrent Mode 에서
+  // 이중 호출 위험이 있으므로 분리. notifOpen 을 deps 에 추가.
   const toggleNotif = useCallback(() => {
-    setNotifOpen((prev) => {
-      if (prev) setNotifFilter("all");
-      return !prev;
-    });
-  }, []);
+    if (notifOpen) setNotifFilter("all");
+    setNotifOpen((prev) => !prev);
+  }, [notifOpen]);
 
   function handleNotifClick(notif: {
     id: string;
@@ -331,7 +331,9 @@ export function Sidebar() {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [userMenuOpen, notifOpen, workspaceMenuOpen]);
+  // W7: closeNotif 는 useCallback([], []) 으로 stable 하지만 exhaustive-deps
+  // 규칙 준수를 위해 명시적으로 포함.
+  }, [userMenuOpen, notifOpen, workspaceMenuOpen, closeNotif]);
 
   // Close mobile sidebar on navigation
   const [lastPathname, setLastPathname] = useState(pathname);

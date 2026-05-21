@@ -521,7 +521,13 @@ describe('LlmService', () => {
         expect(callCount).toBe(2);
         expect(result.content).toBe('ok');
         // exponential fallback 이었다면 2^0 * 1000 = 1000ms 였을 것.
-        expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 2_000);
+        // NthCalledWith(1, ...) 으로 첫 번째 호출임을 명시해 향후 내부 추가
+        // setTimeout 이 생겨도 오탐(false pass)이 발생하지 않도록 강건화.
+        expect(setTimeoutSpy).toHaveBeenNthCalledWith(
+          1,
+          expect.any(Function),
+          2_000,
+        );
       });
 
       it('falls back to exponential (1000ms on first retry) when Retry-After absent', async () => {
@@ -546,7 +552,11 @@ describe('LlmService', () => {
 
         expect(callCount).toBe(2);
         expect(result.content).toBe('ok');
-        expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1_000);
+        expect(setTimeoutSpy).toHaveBeenNthCalledWith(
+          1,
+          expect.any(Function),
+          1_000,
+        );
       });
 
       it('caps Retry-After at 60_000ms when provider asks for ≥60s', async () => {
@@ -572,7 +582,8 @@ describe('LlmService', () => {
 
         expect(callCount).toBe(2);
         expect(result.content).toBe('ok');
-        expect(setTimeoutSpy).toHaveBeenCalledWith(
+        expect(setTimeoutSpy).toHaveBeenNthCalledWith(
+          1,
           expect.any(Function),
           60_000,
         );
