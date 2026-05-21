@@ -1,9 +1,14 @@
 ---
-status: backlog
+status: complete
 created: 2026-05-22
+completed: 2026-05-22
 owner: project-planner
 priority: post-v1
+worktree: chat-channel-spec-fix-5fc137
 ---
+
+> 처리 결과 (spec 차원 정밀화 + 인프라 plan 분리): CCH-SE-03 본문에 v2 deadline 명시 — secret store 인프라 도입 직후 마이그레이션 의무, botToken 우선·secretToken 후속. §4.1 botTokenRef 주석 + chat-channel-adapter.md §2.3 secretToken 주석에 신 plan `chat-channel-secret-store-infra` 참조로 갱신. secret store 인프라 자체 결정 (AWS Secrets Manager / Vault / pgcrypto 등) 은 사용자 escalate 사항으로 신규 plan `chat-channel-secret-store-infra` 신설 — 본 plan 의 phase 2~3 작업은 인프라 결정 후 신 plan 으로 흡수.
+
 
 # Plan — Chat Channel bot token v2: secret store reference 분리
 

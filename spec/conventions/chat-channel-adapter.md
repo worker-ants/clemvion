@@ -140,9 +140,9 @@ interface ChatChannelConfig {
    * Telegram: setupChannel 시 어댑터가 randomBytes 로 발급해 `setWebhook.secret_token`
    * 파라미터로 등록 → Telegram 이 `X-Telegram-Bot-Api-Secret-Token` 헤더로 모든 update 에
    * 동봉 → 어댑터가 검증.
-   * v1 stub: 서버 자체 생성 값으로 DB(JSONB)에 평문 보관. secret store 연동 (예: AWS
-   * Secrets Manager) 은 별 plan `spec-update-chat-channel-bot-token-stub` 추적
-   * (botTokenRef 와 동일 마이그레이션 경로).
+   * v1 stub: 서버 자체 생성 값으로 DB(JSONB)에 평문 보관. secret store 인프라 도입은
+   * 별 plan `chat-channel-secret-store-infra`; 도입 직후 botTokenRef 와 동일 마이그레이션
+   * 경로 (botToken 우선, 본 필드 후속).
    * 다른 provider 는 unused (HMAC 지원 시 webhook.md HMAC 경로 사용).
    */
   secretToken?: string;

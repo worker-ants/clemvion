@@ -59,7 +59,7 @@
 |----|---------|---------|
 | CCH-SE-01 | 어댑터의 외부 API 호출 (sendMessage 등) 에 5초 타임아웃 + 3회 지수 백오프 재시도. 최종 실패 시 trigger 의 `chat_channel_health` 를 `degraded` 로 갱신 ([§3.4.2](#342-trigger-테이블-신규-컬럼)). 자동 비활성화 금지 ([WH-MG-04 / EIA-NX-07](./12-webhook.md#34-관리) 와 동일 정책) | 필수 |
 | CCH-SE-02 | 인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id` 기반). 동일 `update_id` 30초 안 재도착은 무시 | 필수 |
-| CCH-SE-03 | 어댑터의 외부 API secret (텔레그램 bot token) 은 trigger config 의 별도 secret store reference 에 보관. config JSONB 평문 금지 — [EIA-AU-01](./14-external-interaction-api.md#33-인증) 의 `wsk_*` 보관 정책과 동일. **v1 구현 단계 한정 예외**: `notification.signing.secret` 와 동일하게 `config.chatChannel.botToken` plaintext stub 으로 출발 (§4.1 주석 참조). v2 secret store 분리는 별 plan `spec-update-chat-channel-bot-token-stub` 에서 추적 | 필수 (v2; v1 은 §4.1 plaintext stub) |
+| CCH-SE-03 | 어댑터의 외부 API secret (텔레그램 bot token) 은 trigger config 의 별도 secret store reference 에 보관. config JSONB 평문 금지 — [EIA-AU-01](./14-external-interaction-api.md#33-인증) 의 `wsk_*` 보관 정책과 동일. **v1 구현 단계 한정 예외**: `notification.signing.secret` 와 동일하게 `config.chatChannel.botToken` / `config.chatChannel.secretToken` plaintext stub 으로 출발 (§4.1 주석 참조). **v2 deadline**: secret store 인프라 도입 (별 plan `chat-channel-secret-store-infra`) 직후 마이그레이션 의무 — 두 자격증명 모두 `secret://triggers/:id/{bot-token,webhook-secret}` 경로로 이전. 외부 provider 의 전권한 토큰인 `botToken` 마이그레이션을 우선 (`secretToken` 후속) | 필수 (v2; v1 plaintext stub 일시 허용) |
 | CCH-SE-04 | Bot token rotation API (`POST /api/triggers/:id/chat-channel/rotate-bot-token`) — old token 은 24h grace 동안 병행 받음 (텔레그램의 경우 setWebhook 재호출). 동사를 `rotate-bot-token` 으로 한 이유는 EIA 의 `rotate-secret` (HMAC signing secret) 과 자원 의미가 다르기 때문 (외부 provider bot token vs HMAC secret) — URL 만으로 의도 구별 가능 | 권장 |
 
 #### 3.5 비기능 요구사항
@@ -150,7 +150,7 @@
 {
   "chatChannel": {
     "provider": "telegram",                    // 어댑터 식별자 (v1: "telegram")
-    "botTokenRef": "secret://triggers/:id/bot-token",  // secret store reference (CCH-SE-03). v1 stub: notification.signing.secret 와 동일 plaintext 보관 — 실제 구현 단계에서는 `config.chatChannel.botToken` 평문 필드로 stub. secret store 경로 분리는 별 plan `spec-update-chat-channel-bot-token-stub` 추적
+    "botTokenRef": "secret://triggers/:id/bot-token",  // secret store reference (CCH-SE-03). v1 stub: notification.signing.secret 와 동일 plaintext 보관 — 실제 구현 단계에서는 `config.chatChannel.botToken` 평문 필드로 stub. secret store 인프라 도입은 별 plan `chat-channel-secret-store-infra`; 도입 직후 마이그레이션 의무 (botToken 우선, secretToken 후속)
     "secretToken": "AbCd…",                     // Telegram setWebhook 의 secret_token (server-issued 32 chars). HMAC 미지원 provider 의 webhook 인증 — provider 별 unused
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
@@ -393,13 +393,15 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 
 이 단일 클래스 구조는 v1 의 단순함을 우선한 의도된 결정 (R4 NotificationDispatcher subscription 메커니즘). 하지만 (a) Chat Channel provider 가 2개 이상으로 늘어나거나 (b) 새 in-process subscriber 유형이 추가될 때는 `ChannelDispatcher` (EventEmitter 전담 in-process bus) 를 `NotificationDispatcher` 에서 분리하는 리팩토링이 권장된다 — 단일 책임 원칙 + 테스트 격리.
 
-**리스너 dedup / 라이프사이클 정책** (v1 부터 의무):
+**리스너 dedup / 라이프사이클 정책 — v1 vs v2 적용 시점**:
 
-- `setupChannel()` 호출 시 동일 `triggerId` 의 기존 in-process listener 가 있으면 제거 후 새 listener 등록 — `setupChannel` 의 멱등성 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-6함수-책임--부작용--멱등성)) 보장.
-- `teardownChannel()` 호출 시 해당 `triggerId` 의 listener 를 반드시 해제 — 누락 시 비활성화된 trigger 에 메시지 중복 발송 위험.
-- listener 등록은 항상 `(triggerId, provider)` 단위 키. 같은 trigger 가 provider 를 바꾸는 경우는 v1 미지원 (재생성으로 처리) — listener key 충돌 가능성 차단.
+- **v1 (현 구조)**: `ChatChannelDispatcher` 가 `WebsocketService.executionEvents$` Subject 를 모듈 단위 1회만 subscribe (`onModuleInit`) → 모듈 종료 시 unsubscribe (`onModuleDestroy`). 모든 trigger event 가 동일 listener 로 들어와 dispatcher 내부에서 `trigger.config.chatChannel` 분기 처리. **per-trigger listener 가 없으므로 dedup 자체가 무의미** — 정책은 향후 분리 시점에 적용.
+- **v2 (provider ≥ 2 분리 후)**:
+  - `setupChannel()` 호출 시 동일 `triggerId` 의 기존 in-process listener 가 있으면 제거 후 새 listener 등록 — `setupChannel` 의 멱등성 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-6함수-책임--부작용--멱등성)) 보장.
+  - `teardownChannel()` 호출 시 해당 `triggerId` 의 listener 를 반드시 해제 — 누락 시 비활성화된 trigger 에 메시지 중복 발송 위험.
+  - listener 등록은 항상 `(triggerId, provider)` 단위 키. 같은 trigger 가 provider 를 바꾸는 경우는 미지원 (재생성으로 처리) — listener key 충돌 가능성 차단.
 
-후속 추적: 위 분리 리팩토링은 두 번째 provider 가 도입될 때 `chat-channel-dispatcher-split` plan 으로 신설.
+후속 추적: 위 분리 리팩토링은 두 번째 provider (Slack / KakaoTalk 등) 도입 결정 시 `chat-channel-dispatcher-split` plan 으로 진입. plan 자체는 본 PR 에서 stub 신설 완료, **trigger 조건 미충족 상태** 로 보류.
 
 ### R9. CCH-CV-03 `running` 케이스의 큐잉 vs 즉시 안내 (2026-05-22)
 

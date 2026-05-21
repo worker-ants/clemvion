@@ -24,29 +24,54 @@ export const REFRESH_TOKEN_URL_HEADER = 'X-Refresh-Token-Url';
  * Express request 에 동봉되는 인증 컨텍스트.
  * Controller / Service 가 `req.interaction` 으로 접근.
  *
- * `scope` 는 caller 신뢰 영역 식별 ([Spec EIA §3.3 EIA-AU-08] — In-process trusted caller 예외):
- * - 'http_external' (default — 외부 HTTP 호출 — Guard 가 합성)
- * - 'in_process_trusted' (Chat Channel 어댑터 등 같은 process 안의 trusted caller — Guard 우회)
+ * [Spec EIA §3.3 EIA-AU-08 + §3.3.1 EIA-AU-09] — In-process trusted caller 예외.
+ * 두 ctx 타입을 union 으로 분리해 컴파일러가 invariant 를 강제한다:
  *
- * **불변식**: 외부 HTTP Guard (`InteractionGuard.canActivate`) 는 `scope` 를 set 하지 않는다 — 항상
- * 'http_external' 로 간주. `scope: 'in_process_trusted'` 는 in-process caller 가 직접 ctx 합성할 때만
- * 들어간다. 본 invariant 의 enforcement 는 단위 테스트 + reviewer 책임.
+ * - {@link ExternalInteractionRequestContext} — 외부 HTTP 진입점. `InteractionGuard.canActivate`
+ *   가 합성. `tokenFamily` 필수, `scope` 필드 없음 (타입 자체에 부재).
+ * - {@link InternalInteractionRequestContext} — 서버 내부 trusted caller (Chat Channel 어댑터 등).
+ *   `scope: 'in_process_trusted'` literal 필수, `tokenFamily` 없음 (토큰 자체가 없음).
+ *
+ * **불변식 (컴파일러 강제)**:
+ * - `InteractionGuard` 는 항상 `ExternalInteractionRequestContext` 만 반환 — `scope` 필드 부재.
+ * - HTTP request body / header 로 들어온 `scope` 값은 reach 할 타입 슬롯이 없어 자동 무시.
+ * - `InternalInteractionRequestContext` 는 서버 내부 모듈만 직접 합성 가능
+ *   (`grep "scope: 'in_process_trusted'"` 결과로 audit).
  */
-export type InteractionScope = 'http_external' | 'in_process_trusted';
+export type InteractionScope = 'in_process_trusted';
 
-export interface InteractionRequestContext {
+/** 외부 HTTP 진입점 (Guard 합성) — token 검증 통과 후 합성된 ctx. */
+export interface ExternalInteractionRequestContext {
   /** 검증된 execution id. `iext` 는 토큰 sub, `itk` 는 URL 파라미터 :executionId. */
   executionId: string;
   /** 토큰 family. */
   tokenFamily: 'iext' | 'itk';
   /** `itk` family 의 trigger id (`iext` 는 null). */
   triggerId?: string | null;
-  /** Caller 신뢰 영역. 미지정 시 'http_external' 로 간주 (기존 호출자 호환). */
-  scope?: InteractionScope;
+}
+
+/** 서버 내부 trusted caller (Chat Channel 어댑터 등) — token 검증 우회. */
+export interface InternalInteractionRequestContext {
+  executionId: string;
+  triggerId?: string | null;
+  /** literal type — 컴파일러가 'in_process_trusted' 외 값을 거부. */
+  scope: 'in_process_trusted';
+}
+
+export type InteractionRequestContext =
+  | ExternalInteractionRequestContext
+  | InternalInteractionRequestContext;
+
+/** Union narrowing helper. */
+export function isInternalCtx(
+  ctx: InteractionRequestContext,
+): ctx is InternalInteractionRequestContext {
+  return 'scope' in ctx && ctx.scope === 'in_process_trusted';
 }
 
 export interface RequestWithInteraction extends Request {
-  interaction?: InteractionRequestContext;
+  /** Guard 가 합성하는 ctx 는 항상 External — Internal 은 in-process 직접 호출 경로에서만 생성. */
+  interaction?: ExternalInteractionRequestContext;
 }
 
 /**

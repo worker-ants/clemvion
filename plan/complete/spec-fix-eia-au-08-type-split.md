@@ -1,9 +1,14 @@
 ---
-status: backlog
+status: complete
 created: 2026-05-22
+completed: 2026-05-22
 owner: project-planner
-priority: v2
+priority: v1.x (격상)
+worktree: chat-channel-spec-fix-5fc137
 ---
+
+> 처리 결과: 우선순위 v2 → v1.x 격상하여 즉시 반영. spec/5-system/14-external-interaction-api.md §3.3.1 의 "v2 권고" 를 EIA-AU-09 정식 요구사항으로 격상. interaction.guard.ts 에 ExternalInteractionRequestContext / InternalInteractionRequestContext discriminated union + isInternalCtx narrowing helper 도입. interaction.service.ts refreshToken ctx 타입을 External 로 좁힘. hooks.service.ts 3개 in-process 호출 위치 (text_message / button_callback / submit_form) 를 InternalInteractionRequestContext 명시 타입으로 정리 (tokenFamily 제거 — Internal 에 없음). 기존 단위 테스트 fixture (`InteractionRequestContext` with tokenFamily) 는 External union branch 로 자동 추론되어 호환.
+
 
 # Plan — EIA-AU-08 InteractionRequestContext union 타입 분리
 

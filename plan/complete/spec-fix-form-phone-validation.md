@@ -1,9 +1,14 @@
 ---
-status: backlog
+status: complete
 created: 2026-05-22
+completed: 2026-05-22
 owner: project-planner
 priority: v1.x
+worktree: chat-channel-spec-fix-5fc137
 ---
+
+> 처리 결과 (옵션 B 채택): Form spec `ValidationRule` 에 `preset: ValidationPreset?` 필드 추가 + `ValidationPreset 카탈로그` 섹션 신설 (`phone` 1종). telegram.md §5.3 phone 행 stub 해소 — `text` + `validation.preset: 'phone'` → `request_contact: true` (share_contact) 매핑. `type` Enum 무변경 (Form 노드 처리 코드 영향 최소화). 실제 백엔드 ValidationRule 처리 코드 + 어댑터 preset 처리 코드 변경은 별 follow-up 작업.
+
 
 # Plan — Form spec phone type / validation rule 정합
 

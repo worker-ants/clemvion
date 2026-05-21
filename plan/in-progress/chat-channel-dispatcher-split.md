@@ -1,9 +1,17 @@
 ---
-status: backlog
+status: backlog (trigger 조건 미충족 — 2nd provider 도입 결정 대기)
 created: 2026-05-22
 owner: project-planner
-priority: post-v1 (provider ≥ 2 도입 시 trigger)
+priority: post-v1 (provider ≥ 2 도입 시 진입)
+related_spec_pr: PR #259
 ---
+
+> 본 plan 은 spec/5-system/15-chat-channel.md Rationale R8 의 의무 정책 (listener dedup·teardown) 을 v2 구조에서 적용하기 위한 분리 리팩토링 추적용이다. 본 PR (#259) 에서는 다음 사항이 정밀화 완료:
+> - R8 본문에 **v1 vs v2 적용 시점** 명확화: v1 단일 dispatcher 구조에서는 subscription 1개라 per-trigger listener dedup 자체가 무의미. 정책은 분리 후 적용.
+> - 본 plan 의 trigger 조건 명문화: Telegram 외 두 번째 chat channel provider (Slack / KakaoTalk 등) 도입 결정 시 본 plan 으로 진입.
+>
+> 진입 전까지는 본 plan 은 backlog 상태로 유지된다.
+
 
 # Plan — NotificationDispatcher → ChannelDispatcher 분리 리팩토링
 

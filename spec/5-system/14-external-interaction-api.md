@@ -77,7 +77,7 @@
 | EIA-AU-05 | `per_execution` 토큰은 만료 30분 이내 + execution 이 still alive 일 때 `POST /api/external/executions/:id/refresh-token` 으로 갱신 가능 | 권장 |
 | EIA-AU-06 | 토큰 무효/만료 시 `401` + 응답 헤더 `X-Refresh-Token-Url` 로 갱신 경로 안내 | 권장 |
 | EIA-AU-07 | Per-trigger 토큰은 trigger 삭제 시 자동 invalidate. `POST /api/triggers/:id/interaction/revoke-token` 으로 수동 invalidate 가능 | 필수 |
-| EIA-AU-08 | **In-process trusted caller 예외** — 서버 process 내부의 신뢰 caller (예: [Spec Chat Channel](./15-chat-channel.md) 어댑터) 는 토큰 발급/검증을 우회할 수 있다. 우회는 `InteractionService.interact()` ([코드 SoT](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)) 의 **in-process 직접 호출** 경로에 한정되며, HTTP 표면을 거치지 않는다. 외부 HTTP 호출은 EIA-IN-06 의 `interaction token` 인증을 그대로 따른다. 구현은 `InteractionRequestContext.scope: 'in_process_trusted'` 플래그로 분기하되, 외부 HTTP guard 는 ctx 합성 시 이 플래그를 절대 set 하지 않는다 (구체 구현 제약은 §3.3.1 EIA-AU-08 Implementation Note 참조) | 필수 |
+| EIA-AU-08 | **In-process trusted caller 예외** — 서버 process 내부의 신뢰 caller (예: [Spec Chat Channel](./15-chat-channel.md) 어댑터) 는 토큰 발급/검증을 우회할 수 있다. 우회는 `InteractionService.interact()` ([코드 SoT](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)) 의 **in-process 직접 호출** 경로에 한정되며, HTTP 표면을 거치지 않는다. 외부 HTTP 호출은 EIA-IN-06 의 `interaction token` 인증을 그대로 따른다. 구현은 `InternalInteractionRequestContext.scope: 'in_process_trusted'` (§3.3.1 EIA-AU-09 union 타입) 로 분기 | 필수 |
 
 #### 3.3.1 Implementation Note — in-process trusted caller 오염 방지 (EIA-AU-08)
 
