@@ -18,11 +18,12 @@ owner: developer (다음 진입자)
 ### A-1 follow-up — `integration_action_required` 알림 표시 UI
 
 - **상태**: spec + 신규 notifier + Cafe24ApiClient 통합은 완료 (PR #116, 2026-05-16). 현재 frontend 는 type 을 generic 으로 렌더링.
-- [ ] **frontend 액션 UI**: 알림 표시에 type-specific 핸들링 추가
-  - 재인증 단축 링크 버튼 (Cafe24 통합으로 deep-link)
-  - 알림 메시지의 한·영 i18n 키 (`notifications.types.integration_action_required.*`)
-  - 알림 inbox 의 type 필터 옵션 추가
-- **영향 범위**: `codebase/frontend/src/components/notifications/*`, `codebase/frontend/src/lib/i18n/dict/{ko,en}.ts`
+- [x] **frontend 액션 UI**: 알림 표시에 type-specific 핸들링 추가 — **완료 (2026-05-21, worktree `integration-action-required-ui`, PR 별도)**:
+  - 재인증 단축 링크 버튼 (Cafe24 통합으로 deep-link) — `integration_action_required` 카드 우측 inline "Reconnect / 재인증" 버튼 + `notificationHref` 옛 `/integration` 단수 버그를 `/integrations/<id>` 로 정정 + SAFE_ID 화이트리스트 (`/^[a-zA-Z0-9_-]{1,128}$/`) path traversal 방어
+  - 알림 메시지의 한·영 i18n 키 — **사이드바 namespace 채택** (parent 의 `notifications.types.*` 제안 대신 `sidebar.notificationFilter.*` + `sidebar.notificationCta.*` 로 결정). backend message 의 frontend i18n 매핑 (`backend-labels.ts` 패턴) 은 cross-cutting 작업이라 별 plan 으로 분리.
+  - 알림 inbox 의 type 필터 옵션 추가 — popover 상단 칩 3-옵션 (`전체 / 일반 / 통합 액션 필요`), 클라이언트 사이드 필터링, popover 닫힘 시 자동 리셋
+  - helper 추출: `lib/notifications/{href,filter,types}.ts` 신설, 단위 테스트 18개 + 컴포넌트 테스트 5개 lock-in
+- **영향 범위**: `codebase/frontend/src/components/layout/sidebar.tsx` (algorithm 영역의 `components/notifications/*` 디렉토리는 미실재 — sidebar 내장 알림 popover 가 SoT), `codebase/frontend/src/lib/notifications/**`, `codebase/frontend/src/lib/i18n/dict/{ko,en}/sidebar.ts`
 
 ### B-5-8 alt — handleCallback / BullMQ refresh unit·integration 보강
 

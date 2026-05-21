@@ -52,22 +52,20 @@ backend 의 `composeMessage` (notifier.service.ts) 가 영어 hardcoded title/me
 
 ## 작업 항목
 
-- [ ] **consistency-check**: `/consistency-check --impl-prep spec/2-navigation/4-integration.md` + `spec/data-flow/8-notifications.md` — Critical 발견 시 차단.
-- [ ] **TDD**: `sidebar.test.tsx` 신설 또는 기존에 추가. 다음 케이스 lock-in:
-  - `notificationHref('integration_action_required', resourceId='abc')` → `/integrations/abc`
-  - `notificationHref('integration_expired', resourceId=null)` → `/integrations`
-  - `notificationHref('execution_failed', resourceId='wf-1')` → `/workflows/wf-1` (회귀 방지)
-  - `<NotificationItem type='integration_action_required'>` 가 Reconnect 버튼 렌더링
-  - `<NotificationItem type='execution_failed'>` 는 Reconnect 버튼 미렌더링
-  - 필터 칩 클릭 시 type 별로 목록 필터링
-- [ ] **구현**: 
-  - `sidebar.tsx`: `notificationHref` bug fix, CTA 버튼 추가, type 필터 칩 추가
-  - `lib/i18n/dict/ko/sidebar.ts` + `en/sidebar.ts`: 신규 키 추가
-- [ ] **TEST WORKFLOW**: lint / unit / build / e2e 모두 통과
-- [ ] **REVIEW WORKFLOW**: `/ai-review` + Critical/Warning fix
-- [ ] **parent plan A-1 체크박스 닫기**: `plan/in-progress/cafe24-backlog-residual.md` A-1 항목을 `[x]` 처리 + "i18n 키는 `sidebar` namespace 로 결정 (parent 의 `notifications.types.*` 제안 대신)" 메모 추가. consistency-check `2026/05/21/19_58_40` INFO #4, #5 반영. 본 PR 의 마지막 commit 으로 포함.
-- [ ] **spec 드리프트 follow-up 명시**: 본 PR 의 PR description 또는 별 plan 으로 다음 spec 갱신 위임 — (a) `spec/data-flow/8-notifications.md §1.1` 표에 `integration_action_required` 행 추가 + `integration_expired` 행 "향후 신설 검토" 각주 제거, (b) `spec/2-navigation/_layout.md §3.1` 팝오버 구조에 타입 필터 칩 + deep-link 라우팅 테이블 추가. consistency-check INFO #1, #2, #3 출처.
-- [ ] **plan/complete 이동**: 모든 체크박스 완료 시
+- [x] **consistency-check**: `/consistency-check --impl-prep spec/2-navigation/4-integration.md` 완료. **BLOCK: NO** (5 checker LOW/NONE, `review/consistency/2026/05/21/19_58_40/`).
+- [x] **TDD**: `lib/notifications/__tests__/{href,filter}.test.ts` 18개 + 구현 후 ai-review SUMMARY#3 으로 발견된 `components/layout/__tests__/sidebar.test.tsx` 5개 (resolution-applier commit `02c7f3ec`) — 합 23개 lock-in:
+  - `notificationHref` 모든 type 분기 + SAFE_ID 화이트리스트 (path traversal·protocol-relative·128자 초과 모두 폴백)
+  - `filterNotifications` 3-옵션 + 빈 목록·legacy type 누락 + 순서 보존
+  - `sidebar.test.tsx`: integration_action_required 카드 Reconnect 버튼 렌더 / 다른 type 미렌더 / 필터 칩 클릭 동작 / CTA 클릭 deep-link / popover 닫힘 시 filter 리셋
+- [x] **구현**: 
+  - `sidebar.tsx`: `notificationHref` bug fix, CTA 버튼 추가, type 필터 칩 추가, popover 닫힘 시 filter 리셋 useEffect
+  - `lib/notifications/{href,filter,types}.ts` helper 추출 (types.ts 는 ai-review SUMMARY#6 으로 NotificationLite 중복 해소)
+  - `lib/i18n/dict/{ko,en}/sidebar.ts`: 신규 키 추가
+- [x] **TEST WORKFLOW**: lint / unit (4265 passed) / build / e2e (98 passed, 281s) 모두 통과
+- [x] **REVIEW WORKFLOW**: `/ai-review` (`review/code/2026/05/21/20_13_47/`) — Critical 0, Warning 10건 → resolution-applier 가 자동 처리 (commit `02c7f3ec`): 코드 fix 7건 (#1·#3·#4·#6·#7·#8·#9) + won't-fix 3건 (#2 PR 범위 외 / #5 main 흐름 / #10 정당화)
+- [x] **parent plan A-1 체크박스 닫기**: 본 commit (이 PR 의 마지막 commit) 으로 처리.
+- [x] **spec 드리프트 follow-up 명시**: PR description 에 (a) `spec/data-flow/8-notifications.md §1.1` 행 추가, (b) `spec/2-navigation/_layout.md §3.1` 갱신 위임 명시. consistency-check `19_58_40` INFO #1, #2, #3 출처.
+- [x] **plan/complete 이동**: 본 commit 에 `git mv` 포함.
 
 ## Rationale
 
