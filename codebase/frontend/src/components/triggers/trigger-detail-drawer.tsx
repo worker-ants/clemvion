@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
+import { useT } from "@/lib/i18n";
 import { Loader2, Copy, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -23,8 +24,22 @@ interface TriggerDetail {
     authType?: "none" | "hmac" | "bearer";
     hmacHeader?: string;
     hmacAlgorithm?: string;
+    /** Spec EIA §4 — notification webhook 설정 (외부 인터랙션 채널 메타). */
+    notification?: {
+      url?: string;
+      events?: string[];
+      signing?: { algorithm?: string };
+      retry?: { maxAttempts?: number };
+    };
+    /** Spec EIA §4 — inbound interaction (REST + SSE) 설정. */
+    interaction?: {
+      enabled?: boolean;
+      tokenStrategy?: "per_execution" | "per_trigger";
+    };
     [key: string]: unknown;
   };
+  /** Spec EIA §7.1 — outbound notification 발송 건강도. */
+  notificationHealth?: "unknown" | "healthy" | "degraded";
   cronExpression?: string;
   timezone?: string;
   nextRunAt?: string;
@@ -133,6 +148,11 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
           {/* Webhook Details */}
           {trigger.type === "webhook" && (
             <WebhookConfigCard trigger={trigger} />
+          )}
+
+          {/* External Interaction API (Spec EIA §4) — webhook 트리거에서만 표시 */}
+          {trigger.type === "webhook" && (
+            <ExternalInteractionCard trigger={trigger} />
           )}
 
           {/* Schedule Details */}
@@ -336,6 +356,112 @@ curl -X POST ${url} \\
             </div>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Spec EIA §4 — External Interaction API 의 현재 설정을 표시하는 read-only 카드.
+ *
+ * v1 은 표시 전용 (수정 UI 는 후속 PR). 호스팅된 워크플로우가 외부 호출자에게 어떤 채널을
+ * 노출하고 있는지 한눈에 보기 위함. `notificationHealth` 배지로 발송 상태 모니터링.
+ */
+function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
+  const t = useT();
+  const notification = trigger.config?.notification;
+  const interaction = trigger.config?.interaction;
+  const hasAny = Boolean(notification?.url || interaction?.enabled);
+  const health = trigger.notificationHealth ?? "unknown";
+  const healthVariant: "success" | "outline" | "destructive" =
+    health === "healthy"
+      ? "success"
+      : health === "degraded"
+        ? "destructive"
+        : "outline";
+  const healthLabel: Record<typeof health, string> = {
+    unknown: "Unknown",
+    healthy: "Healthy",
+    degraded: "Degraded",
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">External Interaction</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!hasAny && (
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {t.triggers.externalInteraction.notConfigured}
+          </p>
+        )}
+
+        {notification?.url && (
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <dt className="font-medium">Notification (Outbound)</dt>
+              <Badge variant={healthVariant}>{healthLabel[health]}</Badge>
+            </div>
+            <dl className="space-y-1.5 pl-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-[hsl(var(--muted-foreground))]">URL</dt>
+                <dd className="font-mono break-all text-right max-w-[60%]">
+                  {notification.url}
+                </dd>
+              </div>
+              {notification.events && notification.events.length > 0 && (
+                <div className="flex items-start justify-between gap-2">
+                  <dt className="text-[hsl(var(--muted-foreground))]">Events</dt>
+                  <dd className="text-right">
+                    {notification.events.map((e) => (
+                      <Badge key={e} variant="outline" className="mr-1 mb-1 text-xs">
+                        {e}
+                      </Badge>
+                    ))}
+                  </dd>
+                </div>
+              )}
+              {notification.signing?.algorithm && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-[hsl(var(--muted-foreground))]">Algorithm</dt>
+                  <dd className="font-mono text-[hsl(var(--foreground))]">
+                    {notification.signing.algorithm}
+                  </dd>
+                </div>
+              )}
+              {notification.retry?.maxAttempts !== undefined && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-[hsl(var(--muted-foreground))]">Retry attempts</dt>
+                  <dd className="font-medium">{notification.retry.maxAttempts}</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        )}
+
+        {interaction?.enabled && (
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <dt className="font-medium">Interaction (Inbound REST + SSE)</dt>
+              <Badge variant="success">Enabled</Badge>
+            </div>
+            <dl className="space-y-1.5 pl-2 text-xs">
+              <div className="flex items-center justify-between">
+                <dt className="text-[hsl(var(--muted-foreground))]">Token strategy</dt>
+                <dd className="font-mono">
+                  {interaction.tokenStrategy ?? "per_execution"}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-[hsl(var(--muted-foreground))]">Endpoints</dt>
+                <dd className="font-mono text-right text-[10px] text-[hsl(var(--muted-foreground))]">
+                  /api/external/executions/&lcub;id&rcub;/&#123;interact,stream,cancel,refresh-token&#125;
+                </dd>
+              </div>
+            </dl>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

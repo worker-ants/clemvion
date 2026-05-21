@@ -36,3 +36,5 @@ temp/
 # <role>.md / SUMMARY.md / meta.json 에 남는다. review/ 전체의 ~70% 를 차지해
 # blob 누적이 빠르므로 git 에 두지 않는다.
 review/**/_prompts/
+_test_logs/
+codebase/packages/sdk/package-lock.json

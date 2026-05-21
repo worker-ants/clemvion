@@ -133,3 +133,182 @@ describe('TriggersService.findOneDetail', () => {
     expect(scheduleRepo.findOne).not.toHaveBeenCalled();
   });
 });
+
+describe('TriggersService — notification/interaction config 병합 (External Interaction API)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: {
+            create: jest.fn((x: Partial<Trigger>) => x as Trigger),
+            save: jest.fn((x: Trigger) => Promise.resolve(x)),
+            findOne: jest.fn(),
+          },
+        },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        { provide: getRepositoryToken(Schedule), useValue: {} },
+      ],
+    }).compile();
+
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+  });
+
+  it('create — notification/interaction 을 config JSONB 안으로 병합 (1급 컬럼 아님)', async () => {
+    const result = await service.create('ws', {
+      workflowId: 'wf-1',
+      type: 'webhook',
+      name: 'hook',
+      notification: {
+        url: 'https://customer.example.com/cb',
+        events: ['execution.completed'],
+      },
+      interaction: { enabled: true, tokenStrategy: 'per_execution' },
+    });
+
+    expect(triggerRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'ws',
+        config: expect.objectContaining({
+          notification: {
+            url: 'https://customer.example.com/cb',
+            events: ['execution.completed'],
+          },
+          interaction: { enabled: true, tokenStrategy: 'per_execution' },
+        }),
+      }),
+    );
+    // 1급 컬럼으로 들어가지 않았는지 (entity 상의 notification/interaction 프로퍼티 없음)
+    expect(result).not.toHaveProperty('notification');
+    expect(result).not.toHaveProperty('interaction');
+  });
+
+  it('create — 기존 config 와 notification/interaction 이 함께 병합', async () => {
+    await service.create('ws', {
+      workflowId: 'wf-1',
+      type: 'webhook',
+      name: 'hook',
+      config: { method: 'POST', hmacAlgorithm: 'sha256' },
+      notification: {
+        url: 'https://customer.example.com/cb',
+        events: ['execution.completed'],
+      },
+    });
+
+    expect(triggerRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          method: 'POST',
+          hmacAlgorithm: 'sha256',
+          notification: expect.any(Object),
+        }),
+      }),
+    );
+  });
+
+  it('create — notification.url 이 사설 IP 면 INVALID_NOTIFICATION_URL', async () => {
+    await expect(
+      service.create('ws', {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'hook',
+        notification: {
+          url: 'https://192.168.0.1/x',
+          events: ['execution.completed'],
+        },
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'INVALID_NOTIFICATION_URL' },
+    });
+    expect(triggerRepo.create).not.toHaveBeenCalled();
+  });
+
+  it('create — notification.url 이 https 미사용 → INVALID_NOTIFICATION_URL', async () => {
+    const orig = process.env.ALLOW_HTTP_HOOKS;
+    delete process.env.ALLOW_HTTP_HOOKS;
+    try {
+      await expect(
+        service.create('ws', {
+          workflowId: 'wf-1',
+          type: 'webhook',
+          name: 'hook',
+          notification: {
+            url: 'http://customer.example.com/cb',
+            events: ['execution.completed'],
+          },
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'INVALID_NOTIFICATION_URL' },
+      });
+    } finally {
+      if (orig !== undefined) process.env.ALLOW_HTTP_HOOKS = orig;
+    }
+  });
+
+  it('update — notification 미명시면 기존 config.notification 유지', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'old',
+      config: {
+        notification: {
+          url: 'https://old.example.com',
+          events: ['execution.failed'],
+        },
+        interaction: { enabled: true },
+      },
+    } as unknown as Trigger);
+
+    const result = await service.update('t1', 'ws', { name: 'new' });
+    expect(result.name).toBe('new');
+    expect(result.config).toEqual(
+      expect.objectContaining({
+        notification: {
+          url: 'https://old.example.com',
+          events: ['execution.failed'],
+        },
+        interaction: { enabled: true },
+      }),
+    );
+  });
+
+  it('update — notification 명시 시 기존 값 대체', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'old',
+      config: {
+        notification: {
+          url: 'https://old.example.com',
+          events: ['execution.failed'],
+        },
+      },
+    } as unknown as Trigger);
+
+    const result = await service.update('t1', 'ws', {
+      notification: {
+        url: 'https://new.example.com/cb',
+        events: ['execution.completed'],
+      },
+    });
+    expect(result.config.notification).toEqual({
+      url: 'https://new.example.com/cb',
+      events: ['execution.completed'],
+    });
+  });
+});
+
+describe('TriggersService.findOneDetail (helper)', () => {
+  // placeholder for original suite structure — 위 새 describe 들이 동일 모듈 안에 있어
+  // closing brace 정렬을 위한 빈 describe (실제 테스트 없음, lint 무시).
+  it.skip('structural anchor', () => {
+    expect(true).toBe(true);
+  });
+});

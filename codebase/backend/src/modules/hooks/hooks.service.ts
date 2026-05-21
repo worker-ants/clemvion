@@ -14,6 +14,7 @@ import { ExecutionEngineService } from '../execution-engine/execution-engine.ser
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
+import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import * as crypto from 'crypto';
 
 const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
@@ -43,13 +44,28 @@ export class HooksService {
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
     private readonly executionEngineService: ExecutionEngineService,
+    private readonly tokenService: InteractionTokenService,
   ) {}
 
   async handleWebhook(
     endpointPath: string,
     input: WebhookInput,
     rawBody?: Buffer,
-  ): Promise<{ executionId: string }> {
+  ): Promise<{
+    executionId: string;
+    status?: 'pending';
+    interaction?: {
+      token?: string;
+      expiresAt?: string;
+      endpoints: {
+        stream: string;
+        submit: string;
+        status: string;
+        cancel: string;
+        refresh: string;
+      };
+    };
+  }> {
     // 1. Find trigger by endpoint path (no workspace filter — external call)
     const trigger = await this.triggerRepository.findOne({
       where: { endpointPath, type: 'webhook' },
@@ -112,7 +128,57 @@ export class HooksService {
     trigger.lastTriggeredAt = new Date();
     await this.triggerRepository.save(trigger);
 
-    return { executionId };
+    // 7. External Interaction API — interaction.enabled=true 일 때 interaction token + endpoints
+    //    동봉 ([Spec EIA §4.1] / WH-RS-04). per_execution 전략이면 단명 JWT 발급, per_trigger
+    //    전략이면 응답에 token 미동봉 (호출자가 이미 itk_* 보유).
+    const interaction = this.buildInteractionResponse(
+      trigger.config,
+      executionId,
+    );
+
+    return interaction
+      ? { executionId, status: 'pending' as const, interaction }
+      : { executionId };
+  }
+
+  private buildInteractionResponse(
+    config: Record<string, unknown>,
+    executionId: string,
+  ): {
+    token?: string;
+    expiresAt?: string;
+    endpoints: {
+      stream: string;
+      submit: string;
+      status: string;
+      cancel: string;
+      refresh: string;
+    };
+  } | null {
+    const interactionCfg = (config as { interaction?: unknown }).interaction;
+    if (!interactionCfg || typeof interactionCfg !== 'object') return null;
+    const enabled = (interactionCfg as { enabled?: unknown }).enabled === true;
+    if (!enabled) return null;
+    const strategy =
+      (interactionCfg as { tokenStrategy?: unknown }).tokenStrategy ??
+      'per_execution';
+    const endpoints = {
+      stream: `/api/external/executions/${executionId}/stream`,
+      submit: `/api/external/executions/${executionId}/interact`,
+      status: `/api/external/executions/${executionId}`,
+      cancel: `/api/external/executions/${executionId}/cancel`,
+      refresh: `/api/external/executions/${executionId}/refresh-token`,
+    };
+    if (strategy === 'per_execution') {
+      const issued = this.tokenService.issuePerExecution(executionId);
+      return {
+        token: issued.token,
+        expiresAt: issued.expiresAt,
+        endpoints,
+      };
+    }
+    // per_trigger — token 미동봉 (호출자가 trigger 등록 시 받은 itk_* 사용)
+    return { endpoints };
   }
 
   private verifyAuth(
