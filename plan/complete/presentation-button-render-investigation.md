@@ -73,7 +73,19 @@ owner: developer
 ## 본 티켓 완료 조건
 
 - [x] 위 검증 단계 (A~E) 중 root cause 가 확정됨 — 후보 2 (carousel cap 비대칭)
-- [ ] fix 작업이 별도 worktree·PR 로 분리되어 머지됨 — `button-cap-spec-validator` PR
-- [ ] 본 plan 의 모든 체크박스가 `[x]` 이고 fix PR 링크가 본 문서 하단에 기록됨
+- [x] fix 작업이 별도 worktree·PR 로 분리되어 머지됨 — `button-cap-spec-validator` PR #203 (2026-05-19 머지, commit `061af7c8`)
+- [x] fix PR 링크가 본 문서 하단에 기록됨 (아래 §Closeout 참조). 후보 B / D / E 체크박스는 본 PR 범위 외 follow-up 으로 분리되어 본 plan close 시점에는 미체크 상태로 보존 (line 79 정책)
 
-본 PR (button-cap-spec-validator) 머지 시점에 `plan/complete/` 로 `git mv` 한다. 후보 1/3/4/5 는 별 follow-up plan 신설 시점에 분리 가능.
+## Closeout (2026-05-22)
+
+- **Fix PR**: [#203 `worktree-button-cap-spec-validator`](https://github.com/worker-ants/clemvion/pull/203) — 머지 commit `061af7c8` (2026-05-19).
+  - backend `MAX_BUTTONS_PER_NODE = 5` 단일 상수 도입 (`codebase/backend/src/nodes/presentation/_shared/button.types.ts:45`)
+  - frontend `button-list-editor.tsx` `maxButtons = 5` default
+  - carousel `validateCarouselItemButtons` cap 4 → 5
+  - spec `spec/4-nodes/6-presentation/0-common.md` §1.1 정합화
+- **잔여 후보 (본 PR 범위 외)**:
+  - B. `parseButtonConfig` URL 안전성 silent drop — 사용자 재현 보고 시 별 plan 신설
+  - D. `itemsTruncated`/`rowsTruncated` 1MB cap → tail item 누락 — 사용자 재현 보고 시 별 plan 신설
+  - E. `buttonItemMap` dedupe id 충돌 — 사용자 재현 보고 시 별 plan 신설
+
+본 PR (button-cap-spec-validator) 머지에 따라 `plan/complete/` 로 `git mv` (본 chore commit). 후보 1/3/4/5 는 별 follow-up plan 신설 시점에 분리 가능.

@@ -63,9 +63,9 @@ owner: developer
 - [x] consistency-check 재실행 (08_55_14 BLOCK NO)
 - [x] tests + lint + typecheck (318 tests pass: presentation 237 + shadow-workflow 81)
 - [x] /ai-review (HIGH 발견 4 Critical 중 1건만 본 PR 사안 — C-4 즉시 fix; 나머지 NOT APPLICABLE diff range artifact)
-- [ ] PR merge (#203)
-- [ ] `git mv plan/in-progress/button-cap-spec-validator.md plan/complete/` (동일 PR chore commit, 사용자 merge 시점)
-- [ ] `git mv plan/in-progress/presentation-button-render-investigation.md plan/complete/` (동일 PR chore commit, 사용자 merge 시점)
+- [x] PR merge (#203) — 2026-05-19, merge commit `061af7c8`
+- [x] `git mv plan/in-progress/button-cap-spec-validator.md plan/complete/` (별도 chore PR 로 분리 처리 — 2026-05-22)
+- [x] `git mv plan/in-progress/presentation-button-render-investigation.md plan/complete/` (별도 chore PR 로 분리 처리 — 2026-05-22)
 
 ## 관련 문서
 
