@@ -17,7 +17,10 @@ import {
   computeHmacSignature,
   SupportedHmacAlgorithm,
 } from './notification-signature.util';
-import { checkSsrfSafeUrl } from '../../common/utils/ssrf-safe-url.util';
+import {
+  checkResolvedHostIp,
+  checkSsrfSafeUrl,
+} from '../../common/utils/ssrf-safe-url.util';
 
 const HTTP_TIMEOUT_MS = 10_000;
 const STALE_ELIGIBLE_EVENTS = new Set<string>([
@@ -99,6 +102,28 @@ export class NotificationWebhookProcessor extends WorkerHost {
         `notification skip — ${reason} (triggerId=${triggerId})`,
       );
       return;
+    }
+
+    // DNS rebinding 방어 (옵션, [Spec EIA §8.1]) — `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1`
+    // 일 때만 발송 직전 DNS resolve → IP 가 사설 대역인지 확인. default 는 OFF (DNS 호출 비용 +
+    // latency 증가 회피). 활성 시 발송 직전마다 도메인 → IP resolve 비용 발생.
+    if (process.env.NOTIFICATION_ENFORCE_DNS_REBIND_GUARD === '1') {
+      let hostname: string;
+      try {
+        hostname = new URL(url).hostname;
+      } catch {
+        await this.markDegraded(triggerId, 'invalid URL');
+        return;
+      }
+      const dnsCheck = await checkResolvedHostIp(hostname);
+      if (!dnsCheck.ok) {
+        const reason = `DNS rebinding 차단: ${dnsCheck.reason ?? 'private resolved IP'}`;
+        await this.markDegraded(triggerId, reason);
+        this.logger.warn(
+          `notification skip — ${reason} (triggerId=${triggerId})`,
+        );
+        return;
+      }
     }
 
     // 구독 이벤트 검사
