@@ -135,6 +135,14 @@ type KeyboardHint =
 interface ChatChannelConfig {
   provider: string;
   botTokenRef: string;
+  /**
+   * Webhook 인증용 server-issued secret (provider 가 지원할 때만).
+   * Telegram: setupChannel 시 어댑터가 randomBytes 로 발급해 `setWebhook.secret_token`
+   * 파라미터로 등록 → Telegram 이 `X-Telegram-Bot-Api-Secret-Token` 헤더로 모든 update 에
+   * 동봉 → 어댑터가 검증. v1 stub: `botTokenRef` 와 동일 plaintext 보관 정책.
+   * 다른 provider 는 unused (HMAC 지원 시 webhook.md HMAC 경로 사용).
+   */
+  secretToken?: string;
   botIdentity?: { botId: number; username: string };
   uiMapping?: {
     formMode?: "multi_step";

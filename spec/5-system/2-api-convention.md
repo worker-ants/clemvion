@@ -35,6 +35,7 @@
 | 케밥 케이스 | `/api/knowledge-bases`, `/api/auth-configs` |
 | 중첩은 2단계까지 | `/api/knowledge-bases/:id/documents` |
 | 3단계 이상은 최상위로 분리 | `/api/documents/:docId` (필요 시) |
+| **예외 — RPC-style sub-channel action**: `/api/{resource}/{id}/{channel}/{action}` 형태의 동작 호출은 허용 (e.g. `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`). 자원 자체가 아닌 sub-channel 의 부작용 동작 (`rotate-*`, `revoke-*`, `disable-*` 등) 이며 URL 만으로 자원·채널·동작을 식별 가능해야 하기 때문 | (좌측 예시 참조) |
 
 ### 2.3 워크스페이스 스코핑
 

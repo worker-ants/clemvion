@@ -150,7 +150,8 @@
 {
   "chatChannel": {
     "provider": "telegram",                    // 어댑터 식별자 (v1: "telegram")
-    "botTokenRef": "secret://triggers/:id/bot-token",  // secret store reference (CCH-SE-03)
+    "botTokenRef": "secret://triggers/:id/bot-token",  // secret store reference (CCH-SE-03). v1 stub: notification.signing.secret 와 동일 plaintext 보관
+    "secretToken": "AbCd…",                     // Telegram setWebhook 의 secret_token (server-issued 32 chars). HMAC 미지원 provider 의 webhook 인증 — provider 별 unused
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
       "username": "myworkflow_bot"
@@ -217,7 +218,7 @@ TTL: 7일 (사용자 이탈 시 자동 만료)
 
 ### 5.1 인증
 
-- **Webhook 진입점**: [WH-SC-02 HMAC 서명](./12-webhook.md#42-hmac-서명) (provider 가 지원하는 경우) 또는 endpoint UUID 의 randomness 에 의존. 텔레그램은 HMAC 미지원이므로 `secret_token` 파라미터를 `setWebhook` 시 등록해 `X-Telegram-Bot-Api-Secret-Token` 헤더로 검증 (구체는 [providers/telegram §5.4](../4-nodes/7-trigger/providers/telegram.md#54-보안)).
+- **Webhook 진입점**: [WH-SC-02 HMAC 서명](./12-webhook.md#42-hmac-서명) (provider 가 지원하는 경우) 또는 endpoint UUID 의 randomness 에 의존. 텔레그램은 HMAC 미지원이므로 `secret_token` 파라미터를 `setWebhook` 시 등록해 `X-Telegram-Bot-Api-Secret-Token` 헤더로 검증 (구체는 [providers/telegram §6](../4-nodes/7-trigger/providers/telegram.md#6-보안)).
 - **EIA inbound facade**: 어댑터가 인터랙션 명령을 보낼 때 EIA 의 외부 토큰 (`iext_*` / `itk_*`) 발급을 우회하고 [`InteractionService.interact(ctx: InteractionRequestContext, dto: InteractDto)`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts) 를 직접 in-process 호출. EIA HTTP 표면은 외부 클라이언트 전용 — 어댑터는 같은 process 안의 trusted caller. 우회 자체는 [EIA §3.3 EIA-AU-08](./14-external-interaction-api.md#33-인증) 의 명시적 예외 조항에 근거.
 - **구현 단계의 접근 제어**: `InteractionRequestContext` 의 `scope: 'in_process_trusted'` 플래그가 set 된 경우만 token 검증 단계 (`tokenService.verify`) 를 skip. 외부 HTTP guard 는 ctx 합성 시 이 플래그를 절대 set 하지 않는다. 본 플래그의 추가는 [`InteractionRequestContext` 의 `tokenFamily` 확장이 아니라 별도 필드 도입] — `tokenFamily` 는 토큰 종류 식별용이고 `scope` 는 caller 의 신뢰 영역 식별용으로 직교적 의미를 가짐.
 
