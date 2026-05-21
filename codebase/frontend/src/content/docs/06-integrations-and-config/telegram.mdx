@@ -1,0 +1,100 @@
+---
+title: "Telegram 통합"
+title_en: "Telegram integration"
+section: "06-integrations-and-config"
+order: 6
+summary: "Telegram 봇을 Webhook 트리거의 Chat Channel로 연결해 워크플로우와 실시간 대화 인터랙션을 구현하는 방법을 설명해요."
+summary_en: "Connect a Telegram bot as a Chat Channel on a Webhook trigger to enable real-time conversational interactions with your workflow."
+spec: ["spec/4-nodes/7-trigger/providers/telegram.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md"]
+code: ["codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.ts", "codebase/backend/src/modules/chat-channel/providers/telegram/telegram-update.parser.ts", "codebase/backend/src/modules/chat-channel/providers/telegram/telegram-message.renderer.ts"]
+---
+
+Telegram 봇을 워크플로우의 대화 인터페이스로 연결하면, 봇에게 메시지를 보내는 것만으로 워크플로우를 시작하거나 실행 중인 워크플로우에 입력을 제공할 수 있어요.
+
+## 1. Telegram 봇 만들기
+
+1. Telegram 앱에서 [@BotFather](https://t.me/botfather)를 검색해 채팅을 시작해요.
+2. `/newbot` 명령을 입력하고 안내에 따라 봇 이름과 username을 설정해요.
+3. BotFather가 **API Token** (`123456789:ABCdef...` 형태)을 알려줘요. 이 토큰을 안전하게 보관해요.
+
+<Callout type="warn">
+Bot API Token은 봇 계정을 완전히 제어할 수 있는 자격증명이에요. 코드나 공개 저장소에 직접 넣지 마세요.
+</Callout>
+
+## 2. 워크플로우 Webhook 트리거에 Chat Channel 설정
+
+트리거 생성 시 `chatChannel` 설정을 추가해요:
+
+```json
+{
+  "type": "webhook",
+  "config": {
+    "chatChannel": {
+      "provider": "telegram",
+      "botToken": "<BotFather에서 받은 token>"
+    }
+  }
+}
+```
+
+트리거가 활성화되면 자동으로 Telegram `setWebhook` API가 호출돼 봇이 워크플로우 엔드포인트로 연결돼요. 수동으로 BotFather에서 webhook을 설정할 필요가 없어요.
+
+## 3. 지원하는 인터랙션 노드
+
+Chat Channel을 통해 아래 인터랙션 노드 유형을 사용할 수 있어요:
+
+| 노드 유형 | Telegram 표현 방식 |
+|---|---|
+| **AI Multi Turn** | 봇과 자유 텍스트 대화 |
+| **Button Presentation** | 인라인 키보드 버튼으로 선택 |
+| **Form** | 필드별 순차 텍스트 입력 (연락처 공유, 파일 업로드 포함) |
+| **Chart** | PNG 이미지로 차트 전송 |
+
+<Callout type="info">
+Carousel, Table은 현재 미지원이에요 (후속 PR에서 추가 예정).
+</Callout>
+
+## 4. 봇 명령어
+
+| 명령 | 동작 |
+|---|---|
+| `/start` | 새 대화(execution) 시작. 진행 중인 대화가 있으면 취소 후 재시작 |
+| `/cancel` | 현재 진행 중인 execution 취소 |
+| `/help` | 봇 도움말 표시 |
+
+## 5. 상태 모니터링
+
+트리거 상세 화면의 `chatChannelHealth` 필드로 연결 상태를 확인해요:
+
+| 값 | 의미 |
+|---|---|
+| `unknown` | 아직 setupChannel이 호출되지 않았거나 확인 전 |
+| `ok` | 봇 연결 정상 |
+| `degraded` | 최근 sendMessage 연속 실패 — 봇 응답 불안정 |
+| `error` | setupChannel 실패 |
+
+`chat_channel_last_error` 필드에서 마지막 오류 내용을 확인할 수 있어요.
+
+## 6. Bot Token 회전
+
+토큰이 유출됐다고 의심될 때 아래 API로 교체해요:
+
+```http
+POST /api/triggers/:id/chat-channel/rotate-bot-token
+Authorization: Bearer <your-token>
+```
+
+기존 webhook이 해제되고 새 token으로 재등록돼요.
+
+## 7. 제한 사항
+
+- **1:1(private) 대화만 지원** — 그룹 채팅에서 봇에게 메시지를 보내도 무시돼요.
+- **봇이 보낸 메시지는 무시** — 봇 간 루프 방지를 위해 `from.is_bot=true`인 메시지는 처리하지 않아요.
+- **1분당 60건 제한** — 같은 conversation에서 60건을 초과하면 초과 요청이 무시돼요 (CCH-NF-03).
+- **v1 구현** — Bot Token은 현재 내부 설정에 평문으로 저장돼요. 이후 Secret Store 연동으로 전환 예정이에요 (CCH-SE-03 follow-up).
+
+## Rationale
+
+### Webhook 트리거의 갈래로 구현한 이유
+
+Telegram Chat Channel을 별도 트리거 유형으로 만들지 않고 Webhook 트리거의 `config.chatChannel` 갈래로 배치했어요. 이렇게 하면 기존 Webhook 진입점을 재사용해 레이어 추가 없이 최소 표면으로 도입할 수 있고, 향후 Slack·카카오 등 다른 provider 추가 시에도 같은 패턴을 따를 수 있어요.
