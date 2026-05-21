@@ -51,18 +51,21 @@ owner: developer (다음 진입자)
   - `CAFE24_INSTALL_INVALID_TOKEN(404)` → `ThirdPartyOAuthController.cafe24Install` 의 `@ApiNotFoundResponse` (`third-party-oauth.controller.ts:73-76`)
   - `CAFE24_PRIVATE_APP_ALREADY_CONNECTED(409)` → `IntegrationsController.oauthBegin` 의 `@ApiConflictResponse` (`integrations.controller.ts:170-173`) — spec §9.2 "app_type 무관" 명시 + 코드 이름의 `PRIVATE` 가 historical artifact 임을 description 에 적어 클라이언트가 코드 이름이 아닌 의미로 분기하도록 안내.
 - [ ] **D-2**: `process()` 에러 격리 정책 spec 명시 (`.catch(logger.error)` BullMQ 재시도 회피) — Sentry/Datadog 연동 검토. (ai-review W7)
-- [x] **E-1**: `buildIntegrationMeta` 직접 단위 테스트 — cafe24 외 serviceType / unreadable credentials 경계. (ai-review batch 2 W14) — **완료 (2026-05-21)**. `IntegrationsService.buildIntegrationMeta` 의 derive 로직을 동명 top-level 함수 `buildIntegrationMeta(entity, credsUnreadable)` 로 추출 (인스턴스 메서드는 shim 으로 유지). `integrations.service.spec.ts` 끝에 `describe('buildIntegrationMeta (standalone)')` 신설:
+- [x] **E-1**: `buildIntegrationMeta` 직접 단위 테스트 — cafe24 외 serviceType / unreadable credentials 경계. (ai-review batch 2 W14) — **완료 (2026-05-21, PR #247)**. `IntegrationsService.buildIntegrationMeta` 의 derive 로직을 동명 top-level 함수 `buildIntegrationMeta(entity, credsUnreadable)` 로 추출 (인스턴스 메서드는 shim 으로 유지). `integrations.service.spec.ts` 끝에 `describe('buildIntegrationMeta (standalone)')` 신설:
   - cafe24 + readable: appType=private / public
   - cafe24 + 비정상 app_type (typo 'PRIVATE' / 빈문자 / 누락 / number / null) → null
   - non-cafe24 serviceType (google·slack·notion·미래 service): credentials 에 `app_type:'private'` 이 있어도 leakage 없이 null
   - credsUnreadable=true override / `__unreadable` 센티넬 자동 감지 / false override 시 정상 derive
-- [x] **E-3**: `callbackContextOf` 단독 단위 테스트 — null/primitive 등 엣지. (이전 review Info 6) — **완료 (2026-05-21)**. `callbackContextOf` 를 export 로 격상 (페어인 `attachCallbackContext` 가 이미 export). `integration-oauth.service.spec.ts` 끝에 `describe('callbackContextOf')` 신설:
+- [x] **E-3**: `callbackContextOf` 단독 단위 테스트 — null/primitive 등 엣지. (이전 review Info 6) — **완료 (2026-05-21, PR #247)**. `callbackContextOf` 를 export 로 격상 (페어인 `attachCallbackContext` 가 이미 export). `integration-oauth.service.spec.ts` 끝에 `describe('callbackContextOf')` 신설:
   - attach 한 ctx normal Error → 그 ctx 반환 / attach 없는 Error → undefined
   - null·undefined → undefined / 4종 primitive (string·number·boolean·bigint) → undefined
   - context key 없는 plain object → undefined / `context: undefined` 명시 attach → undefined surface
-- [ ] **F-2**: `spec/2-navigation/4-integration.md §6` mermaid 에 `install_token` 보존 정책 명시 (data-flow §1.2.1 에는 이미 있음). (이전 review I3)
-  > blocker 였던 cafe24-restricted-scopes PR #150 은 머지 완료 — 충돌 위험은 해소. 다만 본 항목은 `spec/` 직접 수정이라 **project-planner 위임 필요** (CLAUDE.md: `spec/` 변경 → project-planner). developer skill 권한 밖이라 본 batch 에서 처리하지 않음.
-- [ ] **F-3**: `spec/conventions/swagger.md §2-4` 실재 확인 및 cross-link 정정. (이전 review I5) — 동일 사유로 project-planner 위임 필요.
+- [x] **F-2**: `spec/2-navigation/4-integration.md §6` ASCII 상태 전이 다이어그램에 `install_token` 보존/소거 정책 가시화. (이전 review I3) — **완료 (2026-05-21, project-planner 사이클 worktree `cafe24-spec-polish-f2-f3`)**. 세 분기에 install_token 라벨 추가:
+  - `pending_install → connected` 화살표 아래 `(install_token 보존)`
+  - `install TTL 24h 만료 → expired` 라인에 `, install_token=NULL`
+  - `callback 실패 → pending_install` 자기 루프에 `status·install_token 보존` (consistency-check INFO #1 반영)
+- [x] **F-3**: `spec/conventions/swagger.md §2-4` 실재 확인 및 cross-link 정정. (이전 review I5) — **완료 (2026-05-21, 같은 project-planner 사이클)**. §2-4 ("상태 코드 응답 규칙", swagger.md line 135) 실재 확인 + 참조 측 cross-link 7건 (`§2-4` × 2, `§2-1`, `§5`, `§5-1` 등) 모두 정합 검증. 부수 발견: `spec/2-navigation/4-integration.md` line 1349 의 `swagger.md 의 의미 기반 명명 원칙` 이 swagger.md 어느 § 에도 정의되지 않은 dangling reference → self-contained 표현으로 정정 (swagger.md 신규 § 추가 안 함 — scope 확장은 별 결정).
+- [ ] **F-3 follow-up**: 에러 코드 의미 기반 명명 원칙의 정식 규약화 — `spec/conventions/error-codes.md` (또는 `naming.md`) 신설 여부 결정. 현재는 `4-integration.md` line 1349 의 self-contained 진술만 SoT. 신규 코드가 늘면 conventions 문서로 격상 검토. (consistency-check `2026/05/21/19_46_41` INFO #6 출처)
 
 ## 처리 후
 
