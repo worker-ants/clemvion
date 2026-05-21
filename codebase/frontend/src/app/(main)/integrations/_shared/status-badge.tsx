@@ -2,14 +2,8 @@ import { cn } from "@/lib/utils/cn";
 import type { IntegrationDto } from "@/lib/api/integrations";
 import {
   INSTALL_TIMEOUT_REASON,
-  isReauthorizeDisabled,
   pickErrorMessage,
 } from "@/lib/integrations/reauthorize";
-
-// Re-export so existing `import { isReauthorizeDisabled } from "../_shared/status-badge"`
-// keep working through the transition. New code should import directly from
-// `@/lib/integrations/reauthorize`.
-export { isReauthorizeDisabled };
 
 export interface StatusView {
   /** Main status label rendered next to the colored dot. */

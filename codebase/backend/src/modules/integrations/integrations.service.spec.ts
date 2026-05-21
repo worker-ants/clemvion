@@ -7,6 +7,7 @@ import {
 import {
   IntegrationsService,
   IntegrationCredentialsUnreadableError,
+  buildIntegrationMeta,
   type PublicIntegration,
 } from './integrations.service';
 import type { Integration } from './entities/integration.entity';
@@ -1473,6 +1474,115 @@ describe('IntegrationsService', () => {
       const updateCall = integrationRepo.update.mock.calls[0] as unknown[];
       const patch = updateCall[1] as { lastError?: { message?: string } };
       expect(patch.lastError?.message?.length).toBeLessThanOrEqual(2048);
+    });
+  });
+});
+
+// E-1: 순수 derive 함수 단독 단위 테스트. findById 경로의 시나리오는 위쪽
+// `meta.appType` describe 가 cover 하나, 본 블록은 DB / repo / mask 경로를
+// 떼고 cafe24 외 serviceType · unreadable credentials 경계 · 잘못된 app_type
+// 타입(숫자/빈문자/undefined) 등 부수 입력을 cover 한다.
+describe('buildIntegrationMeta (standalone)', () => {
+  const cafe24Entity = (
+    creds: Record<string, unknown>,
+  ): Pick<Integration, 'serviceType' | 'credentials'> => ({
+    serviceType: 'cafe24',
+    credentials: creds,
+  });
+
+  describe('cafe24 + readable credentials', () => {
+    it('returns appType=private', () => {
+      expect(
+        buildIntegrationMeta(
+          cafe24Entity({ app_type: 'private', mall_id: 'shop' }),
+        ),
+      ).toEqual({ appType: 'private' });
+    });
+
+    it('returns appType=public', () => {
+      expect(
+        buildIntegrationMeta(
+          cafe24Entity({ app_type: 'public', mall_id: 'shop' }),
+        ),
+      ).toEqual({ appType: 'public' });
+    });
+  });
+
+  describe('cafe24 + unexpected credentials', () => {
+    it('returns appType=null when app_type is a typo string', () => {
+      expect(
+        buildIntegrationMeta(cafe24Entity({ app_type: 'PRIVATE' })),
+      ).toEqual({ appType: null });
+    });
+
+    it('returns appType=null when app_type is an empty string', () => {
+      expect(buildIntegrationMeta(cafe24Entity({ app_type: '' }))).toEqual({
+        appType: null,
+      });
+    });
+
+    it('returns appType=null when app_type is missing', () => {
+      expect(buildIntegrationMeta(cafe24Entity({ mall_id: 'shop' }))).toEqual({
+        appType: null,
+      });
+    });
+
+    it('returns appType=null when app_type is a number', () => {
+      expect(buildIntegrationMeta(cafe24Entity({ app_type: 1 }))).toEqual({
+        appType: null,
+      });
+    });
+
+    it('returns appType=null when app_type is null', () => {
+      expect(buildIntegrationMeta(cafe24Entity({ app_type: null }))).toEqual({
+        appType: null,
+      });
+    });
+  });
+
+  describe('non-cafe24 serviceType — never leaks app_type', () => {
+    it.each([['google'], ['slack'], ['notion'], ['unknown_future_service']])(
+      'returns appType=null for %s even if credentials happen to have app_type',
+      (serviceType) => {
+        expect(
+          buildIntegrationMeta({
+            serviceType,
+            credentials: { app_type: 'private' },
+          } as Pick<Integration, 'serviceType' | 'credentials'>),
+        ).toEqual({ appType: null });
+      },
+    );
+  });
+
+  describe('credsUnreadable boundary', () => {
+    it('returns appType=null when caller signals credsUnreadable=true even with cafe24+private', () => {
+      // Caller-supplied override wins — the encrypted blob may decrypt to
+      // something later, but right now we cannot peek so meta must not leak.
+      expect(
+        buildIntegrationMeta(
+          cafe24Entity({ app_type: 'private', mall_id: 'shop' }),
+          true,
+        ),
+      ).toEqual({ appType: null });
+    });
+
+    it('auto-detects unreadable credentials via sentinel marker', () => {
+      expect(
+        buildIntegrationMeta(
+          cafe24Entity({
+            [UNREADABLE_KEY]: true,
+          } as unknown as Record<string, unknown>),
+        ),
+      ).toEqual({ appType: null });
+    });
+
+    it('does not over-treat readable creds as unreadable when override is false', () => {
+      expect(
+        buildIntegrationMeta(
+          cafe24Entity({ app_type: 'public', mall_id: 'shop' }),
+          false,
+        ),
+      ).toEqual({ appType: 'public' });
     });
   });
 });

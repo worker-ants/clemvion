@@ -129,6 +129,28 @@ export interface IntegrationMeta {
   appType: 'public' | 'private' | null;
 }
 
+/**
+ * Build the safe-to-expose meta hints. Currently only cafe24 emits anything
+ * (`appType`) — extracted so FE can decide flow gating (e.g. Reauthorize
+ * button visibility) without ever touching the encrypted credentials blob.
+ * `credsUnreadable` lets the caller skip a duplicate
+ * `isUnreadableCredentials` call when it already has the result.
+ *
+ * Pure helper (no class state) — directly unit-testable.
+ */
+export function buildIntegrationMeta(
+  entity: Pick<Integration, 'serviceType' | 'credentials'>,
+  credsUnreadable: boolean = isUnreadableCredentials(entity.credentials),
+): IntegrationMeta {
+  if (entity.serviceType === 'cafe24' && !credsUnreadable) {
+    const appType = entity.credentials?.app_type;
+    if (appType === 'public' || appType === 'private') {
+      return { appType };
+    }
+  }
+  return { appType: null };
+}
+
 export type PublicIntegration = Omit<
   Integration,
   'credentials' | 'installToken' | 'installTokenIssuedAt'
@@ -1109,23 +1131,14 @@ export class IntegrationsService {
   }
 
   /**
-   * Build the safe-to-expose meta hints. Currently only cafe24 emits anything
-   * (`appType`) — extracted so FE can decide flow gating (e.g. Reauthorize
-   * button visibility) without ever touching the encrypted credentials blob.
-   * `credsUnreadable` lets the caller skip a duplicate
-   * `isUnreadableCredentials` call when it already has the result.
+   * Instance shim — delegates to the exported `buildIntegrationMeta` so the
+   * pure derivation stays directly unit-testable without DB / repo setup.
    */
   private buildIntegrationMeta(
     entity: Integration,
     credsUnreadable: boolean = isUnreadableCredentials(entity.credentials),
   ): IntegrationMeta {
-    if (entity.serviceType === 'cafe24' && !credsUnreadable) {
-      const appType = entity.credentials?.app_type;
-      if (appType === 'public' || appType === 'private') {
-        return { appType };
-      }
-    }
-    return { appType: null };
+    return buildIntegrationMeta(entity, credsUnreadable);
   }
 
   private validateServiceAndAuth(serviceType: string, authType: string): void {

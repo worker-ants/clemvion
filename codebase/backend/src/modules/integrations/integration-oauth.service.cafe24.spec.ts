@@ -2215,5 +2215,104 @@ describe('IntegrationOAuthService — Cafe24', () => {
         process.env.OAUTH_STUB_MODE = 'true';
       }
     });
+
+    /**
+     * B-5-8 alt (b) — Cafe24 의 `/api/v2/oauth/token` 이 `{error:'invalid_grant'}`
+     * 로 거부할 때 (만료된 code · 재사용 code · 잘못된 redirect_uri 등) 전체
+     * 체인이 connected row 를 `error(auth_failed)` 로 격하시키는지 회귀 보호.
+     *
+     * chain:
+     *   1. fetch → 400 with body `{error:'invalid_grant',error_description:'...'}`
+     *   2. exchangeCodeForToken → BadRequestException(OAUTH_TOKEN_EXCHANGE_FAILED)
+     *   3. handleCallback (catch 후 attachCallbackContext) → re-throw
+     *   4. handleCallbackWithErrorCapture → markIntegrationCallbackError
+     *   5. markIntegrationCallbackError (connected + OAUTH_TOKEN_EXCHANGE_FAILED)
+     *      → status='error', statusReason='auth_failed'
+     */
+    it('reauthorize on connected row — fetch invalid_grant → row demoted to error(auth_failed) chain', async () => {
+      delete process.env.OAUTH_STUB_MODE;
+      const originalFetch = global.fetch;
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: 'invalid_grant',
+          error_description: 'authorization code expired',
+        }),
+        text: async () =>
+          '{"error":"invalid_grant","error_description":"authorization code expired"}',
+      });
+      (global as { fetch: jest.Mock }).fetch = fetchMock;
+
+      const connectedRow = {
+        id: 'int-invalid-grant',
+        workspaceId: 'ws-1',
+        status: 'connected',
+        statusReason: null,
+        credentials: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+          scopes: ['mall.read_product'],
+        },
+        lastError: null,
+        installToken: null,
+      };
+      integrationRepo.findOne = jest.fn().mockResolvedValue(connectedRow);
+
+      const stateRecord = {
+        id: 'state-invalid-grant',
+        state: 'state-token-invalid-grant',
+        workspaceId: 'ws-1',
+        userId: 'u-1',
+        provider: 'cafe24',
+        serviceType: 'cafe24',
+        mode: 'reauthorize',
+        integrationId: 'int-invalid-grant',
+        requestedScopes: ['mall.read_product'],
+        integrationName: 'priv-shop (Cafe24 Private)',
+        scope: 'personal',
+        providerMeta: {
+          mall_id: 'priv-shop',
+          app_type: 'private',
+          client_id: 'priv-cid',
+          client_secret: 'priv-secret',
+        },
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      };
+      dataSource.query.mockResolvedValueOnce([[stateRecord], 1]);
+
+      try {
+        const err = await service
+          .handleCallbackWithErrorCapture('cafe24', {
+            code: 'expired-code',
+            state: 'state-token-invalid-grant',
+          })
+          .catch((e: unknown) => e);
+
+        // Step 2 — exchange throws OAUTH_TOKEN_EXCHANGE_FAILED 가 호출자에 surface.
+        expect((err as { response?: { code?: string } }).response?.code).toBe(
+          'OAUTH_TOKEN_EXCHANGE_FAILED',
+        );
+
+        // Step 5 — connected row 가 error(auth_failed) 로 격하.
+        expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+        const saved = integrationRepo.save.mock.calls[0][0] as {
+          status: string;
+          statusReason: string;
+          lastError: { code: string; message: string };
+        };
+        expect(saved.status).toBe('error');
+        expect(saved.statusReason).toBe('auth_failed');
+        expect(saved.lastError.code).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
+        // lastError.message 가 sanitize 를 거쳐 secret 누수가 없어야 한다.
+        expect(saved.lastError.message).not.toMatch(/priv-secret|priv-cid/);
+      } finally {
+        global.fetch = originalFetch;
+        process.env.OAUTH_STUB_MODE = 'true';
+      }
+    });
   });
 });
