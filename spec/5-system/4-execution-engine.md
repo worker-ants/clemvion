@@ -270,7 +270,7 @@ $loop.count = 10              $item.index = 1
 
 ### 3.3 Background 실행
 
-> **✅ 구현 완료 (평면 구조 — PRD 3 §4.11 ND-BG-05 대안 구현)**: Background 는 컨테이너 멤버십(`container_id`) 모델을 사용하지 않는다. 대신 `background` 포트 엣지로 본문 진입점을 식별하고, 별도 BullMQ `background-execution` 큐 + 워커로 비동기 실행한다.
+> **✅ 구현 완료 (평면 구조 — PRD 3 §4.12 ND-BG-05 대안 구현)**: Background 는 컨테이너 멤버십(`container_id`) 모델을 사용하지 않는다. 대신 `background` 포트 엣지로 본문 진입점을 식별하고, 별도 BullMQ `background-execution` 큐 + 워커로 비동기 실행한다.
 
 흐름:
 
@@ -287,7 +287,7 @@ $loop.count = 10              $item.index = 1
 
 - 메인 Execution과 동일한 `execution_id`를 공유. 본문 노드의 `parentNodeExecutionId` 가 Background 노드 자신의 NodeExecution id 를 가리킨다
 - 백그라운드 실패가 메인 흐름의 Execution 상태에 영향을 주지 않음
-- conversationThread 는 enqueue 시점 snapshot 으로 격리된다 — background 안에서 발생한 turn 은 메인 thread 에 영향 없고, 그 반대도 마찬가지. PRD §4.11 ND-BG-05 격리 원칙과 일관 ([Spec Conversation Thread §3.2](../conventions/conversation-thread.md#32-background-격리-근거))
+- conversationThread 는 enqueue 시점 snapshot 으로 격리된다 — background 안에서 발생한 turn 은 메인 thread 에 영향 없고, 그 반대도 마찬가지. PRD §4.12 ND-BG-05 격리 원칙과 일관 ([Spec Conversation Thread §3.2](../conventions/conversation-thread.md#32-background-격리-근거))
 - 백그라운드 실패 시 `notifyOnError=true`이면 `notifyChannels`에 따라 알림 전송:
   - `in_app`: Notification 엔티티 생성 (`type: background_failed`, 실행 시작 사용자에게)
   - `email`: 실행 시작 사용자 이메일로 실패 알림 발송

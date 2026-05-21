@@ -133,7 +133,7 @@
 
 ## 6. 컨테이너 내부 엣지 규칙
 
-컨테이너 노드(Loop, ForEach, Map) 내부의 자식 노드 간 엣지에 적용되는 규칙. Background 는 컨테이너 박스를 렌더링하지 않고 `background` 포트 엣지로 본문을 식별하는 평면 모델을 채택했다 ([PRD 3 §4.11 ND-BG-05 대안 구현](../4-nodes/_product-overview.md#411-background)) — 본 절의 컨테이너 규칙은 Background 에 적용되지 않는다.
+컨테이너 노드(Loop, ForEach, Map) 내부의 자식 노드 간 엣지에 적용되는 규칙. Background 는 컨테이너 박스를 렌더링하지 않고 `background` 포트 엣지로 본문을 식별하는 평면 모델을 채택했다 ([PRD 3 §4.12 ND-BG-05 대안 구현](../4-nodes/_product-overview.md#412-background)) — 본 절의 컨테이너 규칙은 Background 에 적용되지 않는다.
 
 ### 6.1 진입점과 출력 수집
 

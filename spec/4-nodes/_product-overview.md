@@ -40,7 +40,7 @@
 
 ---
 
-## 4. Logic 노드 (11종)
+## 4. Logic 노드 (12종)
 
 로직 노드는 데이터 흐름의 분기, 반복, 변수 관리 등 프로그래밍적 제어를 담당한다.
 
@@ -108,7 +108,19 @@
 | ND-MP-02 | 변환 표현식 설정 (필드 매핑, 값 변환) | 필수 | ✅ |
 | ND-MP-03 | 출력 배열의 각 항목 구조 미리보기 | 권장 | ✅ |
 
-### 4.8 ForEach
+### 4.8 Filter
+
+배열 항목을 조건에 따라 `match` / `unmatched` 두 포트로 동시에 분리하는 분기 노드. Map(§4.7) 이 변환을 책임진다면 Filter 는 부분집합 분리를 책임진다. 상세: [Spec Filter 노드](./1-logic/8-filter.md). Transform 노드의 인라인 `array_filter` 연산(§8.1)과의 차이는 동 문서 머리말 참조.
+
+| ID | 요구사항 | 우선순위 | 상태 |
+|----|----------|----------|-------|
+| ND-FL-01 | 입력 배열의 각 항목을 조건으로 평가하여 매칭/비매칭으로 분리 | 필수 | ✅ |
+| ND-FL-02 | 다중 조건(ConditionGroup) + 조건 결합(AND/OR) 지원 | 필수 | ✅ |
+| ND-FL-03 | 매칭 항목은 `match` 포트, 비매칭 항목은 `unmatched` 포트로 동시 분배 | 필수 | ✅ |
+| ND-FL-04 | per-item context (`$item`, `$itemIndex`) 로 조건 표현식 평가 | 필수 | ✅ |
+| ND-FL-05 | strict 타입 비교 모드 옵션 | 권장 | ✅ |
+
+### 4.9 ForEach
 
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
@@ -118,7 +130,7 @@
 | ND-FE-04 | 에러 발생 시 처리 정책 (중단/건너뛰기/계속) | 필수 | ✅ |
 | ND-FE-05 | ForEach 노드를 컨테이너로 렌더링 — 내부에 자식 노드를 배치할 수 있는 확장 가능 그룹 박스 | 필수 | ✅ |
 
-### 4.9 Parallel
+### 4.10 Parallel
 
 > **🚧 P1 구현 완료**: `PARALLEL_ENGINE=v1` 환경변수로 활성화하면 `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 진짜 동시 실행한다(기본값 `off`이면 기존 순차 동작). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드(form/buttons/ai_conversation) 금지, back-edge 금지, 중첩 Parallel 금지(P2 예정). waitAll은 항상 true로 동작하며 false는 P2에서 지원 예정이다.
 
@@ -129,7 +141,7 @@
 | ND-PL-03 | 모든 분기 완료 후 결과 합산 또는 개별 전달 | 필수 | 🚧 (Merge `wait_all` 조합으로 우회) |
 | ND-PL-04 | 동시 실행 제한 수 설정 (리소스 관리) | 권장 | ✅ |
 
-### 4.10 Merge
+### 4.11 Merge
 
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
@@ -138,7 +150,7 @@
 | ND-MG-03 | 병합 전략 선택 (대기 후 합치기, 먼저 도착한 것만 등) | 필수 | ✅ |
 | ND-MG-04 | 병합 결과 데이터 구조 설정 (배열, 객체 등) | 필수 | ✅ |
 
-### 4.11 Background
+### 4.12 Background
 
 > **✅ 구현 완료**: 노드 정의·핸들러·BullMQ 큐(`background-execution`)·워커가 모두 `ExecutionEngineService`에 통합되었다. 핸들러 실행 직후 `scheduleBackgroundBody()`가 컨텍스트 스냅샷과 함께 본문 진입점들을 enqueue하고, 워커는 `executeBackgroundSubgraph()`를 통해 진입점에서부터 forward-reachable한 서브그래프를 격리된 컨텍스트로 실행한다. 컨테이너 멤버십(`containerId`) 모델 대신 `background` 포트 엣지로만 본문을 식별한다.
 
