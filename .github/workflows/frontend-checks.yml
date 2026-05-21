@@ -1,0 +1,71 @@
+# Frontend 단위 테스트 + production build 가드.
+#
+# 도입 배경: 2026-05 Callout MDX `type="info"` 미정의 값이 `next dev` 에서만
+# 발현되어 production prerender 단계에서 진작 잡혔어야 할 버그가 사용자 환경에서
+# runtime crash 로 드러난 사건. 본 워크플로는 PR 단계에서 `npm run build` 를
+# 실제로 돌려 `generateStaticParams` 가 만드는 모든 docs 라우트를 prerender 하고
+# vitest unit 테스트도 함께 실행해 회귀를 조기 차단한다.
+#
+# e2e.yml (docker compose) 와 분리한 이유: e2e 는 backend image 빌드부터 도는
+# 무거운 흐름이라 PR feedback loop 가 길다. 본 워크플로는 frontend 디렉터리만
+# 변할 때 빠르게 fail 하도록 분리한다.
+
+name: frontend-checks
+
+on:
+  pull_request:
+    paths:
+      - 'codebase/frontend/**'
+      - 'codebase/packages/**'
+      - '.github/workflows/frontend-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'codebase/frontend/**'
+      - 'codebase/packages/**'
+
+concurrency:
+  group: frontend-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: codebase/frontend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: codebase/frontend/package-lock.json
+
+      # 로컬 symlink 패키지 (packages/expression-engine, packages/node-summary) 가
+      # frontend dependency 로 끌어가지지만 사전 빌드가 필요하다. Dockerfile §deps 와 동일 순서.
+      - name: Build local package — expression-engine
+        working-directory: codebase/packages/expression-engine
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build local package — node-summary
+        working-directory: codebase/packages/node-summary
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Vitest (unit)
+        run: npm test
+
+      # `next build` 가 모든 docs 라우트(`/docs/<locale>/<...>`) 를
+      # `generateStaticParams` 로 prerender 한다. MDX 안의 invalid 컴포넌트 prop
+      # (e.g. `<Callout type="info">`) 은 여기서 server-side render 실패로 잡힌다.
+      - name: Next build (prerender 검증)
+        run: npm run build

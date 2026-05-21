@@ -37,7 +37,8 @@ export async function Callout({
   title?: string;
   children: React.ReactNode;
 }) {
-  const style = STYLES[type];
+  // MDX 작성자가 spec(`note | tip | warn`)에서 벗어난 값을 적어도 화면이 무너지지 않도록 fallback.
+  const style = STYLES[type] ?? STYLES.note;
   const locale = (await readLocaleCookie()) ?? DEFAULT_LOCALE;
   return (
     <aside
