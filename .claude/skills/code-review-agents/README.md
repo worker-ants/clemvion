@@ -1,12 +1,12 @@
 # Code Review Agents
 
-13개의 역할 기반 sub-agent 가 main Claude(현재 session) 의 `Agent` tool 호출로 코드 리뷰를 수행한다. 사용량 한도에 걸리면 `/loop /ai-review` 와 결합해 ScheduleWakeup 으로 무한 재시도한다.
+역할 기반 sub-agent (디폴트 14개, `.claude.project.json` 의 `agents.reviewers` 로 부분 disable 가능) 가 main Claude(현재 session) 의 `Agent` tool 호출로 코드 리뷰를 수행한다. 사용량 한도에 걸리면 `/loop /ai-review` 와 결합해 ScheduleWakeup 으로 무한 재시도한다.
 
 ## 아키텍처 한 줄 요약
 
 ```
 사용자 → /ai-review → main Claude → orchestrator(--prepare, model 호출 X)
-                                  → Agent tool × 13 (격리 컨텍스트)
+                                  → Agent tool × N (project_config 통과 후 enabled reviewer 수)
                                   → STATUS 파싱 + _retry_state.json 갱신
                                   → 모두 완료 → code-review-summary sub-agent → SUMMARY.md
                                   → 남음 + /loop → ScheduleWakeup → turn 종료
@@ -18,33 +18,50 @@
 
 `claude -p` subprocess 와 Anthropic SDK 직접 호출은 요금제 정책상 사용 불가하므로 제거되었다. 모든 model 호출은 main session 의 `Agent` tool 한 곳을 통한다.
 
-## 13개 reviewer sub-agent
+## Reviewer sub-agent (디폴트 14)
 
 `.claude/agents/<role>-reviewer.md` 에 정의. 시스템 prompt + frontmatter(name, description, tools, model).
 
-| # | sub-agent type | 핵심 관점 |
-|---|----------------|-----------|
-| 1 | `security-reviewer` | 인젝션, 하드코딩 시크릿, 인증/인가, 입력 검증, OWASP Top 10 |
-| 2 | `performance-reviewer` | 알고리즘 복잡도, N+1 쿼리, 메모리, 캐싱, 블로킹 I/O |
-| 3 | `architecture-reviewer` | SOLID, 결합도, 레이어 책임, 디자인 패턴, 순환 의존성 |
-| 4 | `requirement-reviewer` | 기능 완전성, 엣지 케이스, TODO/FIXME, 의도/구현 괴리 |
-| 5 | `scope-reviewer` | 의도 이상의 변경, 불필요한 리팩토링, 무관 수정 |
-| 6 | `side-effect-reviewer` | 의도치 않은 상태 변경, 전역 변수, 파일 부작용, 시그니처 |
-| 7 | `maintainability-reviewer` | 가독성, 네이밍, 함수 길이, 중첩, 매직 넘버, 중복 |
-| 8 | `testing-reviewer` | 테스트 존재, 커버리지 갭, 엣지 케이스, mock |
-| 9 | `documentation-reviewer` | docstring, README, API 문서, 주석 정확성 |
-| 10 | `dependency-reviewer` | 새 의존성, 버전 고정, 라이선스, 취약점 |
-| 11 | `database-reviewer` | 인덱스, N+1, 트랜잭션, 마이그레이션 안전성 |
-| 12 | `concurrency-reviewer` | 경쟁 조건, 데드락, 동기화, async/await |
-| 13 | `api-contract-reviewer` | 하위 호환성, 버전 관리, 응답/에러 형식 |
+| # | sub-agent type | 핵심 관점 | 토글 (`agents.reviewers.<key>`) |
+|---|----------------|-----------|---|
+| 1 | `security-reviewer` | 인젝션, 하드코딩 시크릿, 인증/인가, 입력 검증, OWASP Top 10 | `security` |
+| 2 | `performance-reviewer` | 알고리즘 복잡도, N+1 쿼리, 메모리, 캐싱, 블로킹 I/O | `performance` |
+| 3 | `architecture-reviewer` | SOLID, 결합도, 레이어 책임, 디자인 패턴, 순환 의존성 | `architecture` |
+| 4 | `requirement-reviewer` | 기능 완전성, 엣지 케이스, TODO/FIXME, 의도/구현 괴리, **관련 spec 본문 일치 여부** | `requirement` |
+| 5 | `scope-reviewer` | 의도 이상의 변경, 불필요한 리팩토링, 무관 수정 | `scope` |
+| 6 | `side-effect-reviewer` | 의도치 않은 상태 변경, 전역 변수, 파일 부작용, 시그니처 | `side_effect` |
+| 7 | `maintainability-reviewer` | 가독성, 네이밍, 함수 길이, 중첩, 매직 넘버, 중복 | `maintainability` |
+| 8 | `testing-reviewer` | 테스트 존재, 커버리지 갭, 엣지 케이스, mock | `testing` |
+| 9 | `documentation-reviewer` | docstring, README, API 문서, 주석 정확성 | `documentation` |
+| 10 | `dependency-reviewer` | 새 의존성, 버전 고정, 라이선스, 취약점 | `dependency` |
+| 11 | `database-reviewer` | 인덱스, N+1, 트랜잭션, 마이그레이션 안전성 | `database` |
+| 12 | `concurrency-reviewer` | 경쟁 조건, 데드락, 동기화, async/await | `concurrency` |
+| 13 | `api-contract-reviewer` | 하위 호환성, 버전 관리, 응답/에러 형식 | `api_contract` |
+| 14 | `user-guide-sync-reviewer` | PROJECT.md §변경 시 동반 갱신 매트릭스 기반 docs MDX·i18n dict·backend-labels 동반 갱신 누락 검출 | `user_guide_sync` |
 
 요약 sub-agent: `code-review-summary`.
 
-> 11-13 (database, concurrency, api-contract) 은 해당 없는 코드면 "해당 없음, 위험도 NONE" 으로 `STATUS=success ISSUES=0` 반환.
+> 11-14 (database, concurrency, api-contract, user_guide_sync) 은 해당 없는 코드면 "해당 없음, 위험도 NONE" 으로 `STATUS=success ISSUES=0` 반환.
+
+### 프로젝트별 reviewer 토글 (`agents.reviewers`)
+
+`.claude.project.json` 에서 reviewer 별 enable 토글. 디폴트는 전부 활성화 (키 누락 / `true` ⇒ enabled, 명시 `false` ⇒ disabled). 일회성 override 는 `REVIEW_AGENTS` env (project_config 보다 우선).
+
+예 — 유저 가이드 매트릭스가 없는 generic 프로젝트:
+
+```json
+{
+  "agents": {
+    "reviewers": {
+      "user_guide_sync": false
+    }
+  }
+}
+```
 
 ## Router safety policy
 
-기본 `--route=auto` 동작에서 `review-router` 가 13명 중 일부만 실행하도록 좁히지만, 아래 트리거에 매칭되는 변경은 router 가 끄지 못하도록 강제 포함된다 (`agents_forced[]`). false-negative (router 가 보안·요구사항·DB 등을 놓치는 사고) 를 차단하기 위한 안전망.
+기본 `--route=auto` 동작에서 `review-router` 가 enabled reviewer 중 일부만 실행하도록 좁히지만, 아래 트리거에 매칭되는 변경은 router 가 끄지 못하도록 강제 포함된다 (`agents_forced[]`). false-negative (router 가 보안·요구사항·DB 등을 놓치는 사고) 를 차단하기 위한 안전망.
 
 | Trigger | Forced reviewers | 근거 |
 |---|---|---|
@@ -57,7 +74,7 @@
 | `Dockerfile`, `Dockerfile.*`, `docker-compose*.{yml,yaml}` | dependency + security | base image·package install (dependency) + USER·secret·port·privileged (security) |
 | `.dockerignore` | security | 잘못된 제외 시 `.env`/`.git`/secret 이 build context 에 포함될 위험 |
 | `.env`, `.env.*`, `*.env`, `*.env.example` | security | secret / connection string / API key 누설 |
-| **위 어디에도 안 잡힘** | (강제 없음) | router 가 모두 false 로 결정 시 fatal → main 이 minimal SUMMARY 작성 후 종료 (13명 fallback 안 함) |
+| **위 어디에도 안 잡힘** | (강제 없음) | router 가 모두 false 로 결정 시 fatal → main 이 minimal SUMMARY 작성 후 종료 (전체 fallback 안 함) |
 
 소스 코드 확장자: `ts tsx js jsx mjs cjs · py pyi · java kt kts scala groovy · go rs · c cc cpp cxx h hh hpp hxx · swift m mm · rb php lua · cs fs vb · ex exs erl hrl ml mli clj cljs · dart · sh bash zsh`
 
@@ -171,7 +188,7 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 /loop /ai-review
 ```
 
-- 첫 사이클: orchestrator `--prepare` → 13개 Agent 호출 → 일부 한도 → ScheduleWakeup 으로 turn 종료. main session 은 해제되어 다른 작업 가능.
+- 첫 사이클: orchestrator `--prepare` → N개 Agent 호출 (router 통과 + project_config 통과) → 일부 한도 → ScheduleWakeup 으로 turn 종료. main session 은 해제되어 다른 작업 가능.
 - wake 시점: 동일 session_dir 의 `_retry_state.json` 으로 재진입 → pending 만 다시 호출.
 - 모두 success 가 되면 `code-review-summary` 호출 → SUMMARY.md → /loop 자연 종료.
 

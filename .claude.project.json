@@ -11,5 +11,31 @@
     "review_consistency": "review/consistency",
     "review_merge":       "review/merge"
   },
-  "code_areas": ["codebase"]
+  "code_areas": ["codebase"],
+  "_agents_doc": "agents.{reviewers,checkers} 는 ALL_AGENTS / ALL_CHECKERS 의 부분 토글. 아래 enumerate 된 키는 전체 목록이며 값은 현재 enabled 상태 (전부 true = 디폴트). 비활성하려면 해당 키를 false 로. 키 자체를 지워도 디폴트(true) 라 동일. 일회성 override: REVIEW_AGENTS / CONSISTENCY_AGENTS env (project_config 보다 우선). 각 reviewer/checker 의 관점: .claude/skills/code-review-agents/README.md §Reviewer sub-agent (14) · .claude/skills/consistency-checker/SKILL.md §5개 Checker.",
+  "agents": {
+    "reviewers": {
+      "security":         true,
+      "performance":      true,
+      "architecture":     true,
+      "requirement":      true,
+      "scope":            true,
+      "side_effect":      true,
+      "maintainability":  true,
+      "testing":          true,
+      "documentation":    true,
+      "dependency":       true,
+      "database":         true,
+      "concurrency":      true,
+      "api_contract":     true,
+      "user_guide_sync":  true
+    },
+    "checkers": {
+      "cross_spec":            true,
+      "rationale_continuity":  true,
+      "convention_compliance": true,
+      "plan_coherence":        true,
+      "naming_collision":      true
+    }
+  }
 }
