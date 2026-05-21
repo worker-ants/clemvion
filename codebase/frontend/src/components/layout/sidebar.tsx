@@ -297,7 +297,7 @@ export function Sidebar() {
   }
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
+    function handleClickOutside(e: globalThis.MouseEvent) {
       if (
         userMenuRef.current &&
         !userMenuRef.current.contains(e.target as Node)
