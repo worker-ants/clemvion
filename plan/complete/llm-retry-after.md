@@ -1,6 +1,7 @@
 ---
-worktree: llm-retry-after-5a7d63
+worktree: llm-retry-after-a24e5e
 started: 2026-05-19
+completed: 2026-05-22
 owner: developer
 ---
 
@@ -21,27 +22,27 @@ ai-agent-turn-fail-finalize PR (#209) 후속 plan §"본 PR 범위 외" 항목.
 
 ### 1) `codebase/backend/src/modules/llm/llm.service.ts`
 
-- [ ] `withRetry` 안에 신규 helper `extractRetryAfterMs(err)` 추가:
+- [x] `withRetry` 안에 신규 helper `extractRetryAfterMs(err)` 추가 (PR #213, commit 62b170c1):
   - `err.headers['retry-after']` 또는 `err.response.headers['retry-after']` 추출.
   - RFC 7231 정의: delta-seconds (`30`) 또는 HTTP-date (`Mon, 11 Jun 2025 00:00:00 GMT`).
   - 양쪽 모두 ms 로 정규화. 음수/NaN/parse 실패는 null.
-- [ ] `withRetry` backoff 결정 분기:
+- [x] `withRetry` backoff 결정 분기 (PR #213, commit 62b170c1):
   - `retryAfterMs` 가 있으면 `Math.min(retryAfterMs, MAX_BACKOFF_MS)` (상한 60s)
   - 없으면 기존 `Math.pow(2, attempt) * 1000`
-- [ ] warn 로그에 backoff 출처 (Retry-After / exponential) 명시.
+- [x] warn 로그에 backoff 출처 (Retry-After / exponential) 명시 (PR #213, commit 62b170c1).
 
 ### 2) `codebase/backend/src/modules/llm/llm.service.spec.ts` (또는 신규)
 
-- [ ] `extractRetryAfterMs` 단위 테스트:
+- [x] `extractRetryAfterMs` 단위 테스트 (PR #213, commit 62b170c1 — 9건):
   - `headers['retry-after'] = '30'` → 30_000ms
   - `headers['Retry-After'] = '30'` (대소문자 무관) → 30_000ms
   - `response.headers['retry-after']` → OK
   - HTTP-date 형식 (`new Date(Date.now() + 5_000).toUTCString()`) → ~5_000ms
   - 음수 / 잘못된 string / 누락 → null
-- [ ] `withRetry` 통합 테스트:
-  - 429 + Retry-After=2 → 2초 대기 후 retry (jest fake timer)
-  - 429 + Retry-After 없음 → 1s exponential
-  - 429 + Retry-After=100 (> 60s 상한) → 60s 로 capped
+- [x] `withRetry` 통합 테스트 (본 PR — `Retry-After header behavior` describe 블록, fake timer + setTimeout spy):
+  - 429 + Retry-After=2 → 2_000ms backoff
+  - 429 + Retry-After 없음 → 1_000ms exponential fallback
+  - 429 + Retry-After=100 (> 60s 상한) → 60_000ms 로 capped
 
 ## 결정 사항
 
@@ -49,6 +50,16 @@ ai-agent-turn-fail-finalize PR (#209) 후속 plan §"본 PR 범위 외" 항목.
 - **HTTP-date 지원**: RFC 7231 정의에 따라 지원. Anthropic / OpenAI / Google 모두 delta-seconds 만 보내는 경향이지만 정확성 위해 포함.
 - **변경 위치 — 단일 `withRetry`**: provider client 의 catch 단을 수정하지 않고 `withRetry` 안에서 error 객체의 headers 를 살피는 방식. SDK 가 throw 한 raw error 가 그대로 propagate 되어 headers 가 살아있음 (Anthropic / OpenAI SDK 의 `APIError` / `RateLimitError` 클래스가 headers / response 속성을 노출).
 
+## §ISSUE FIX 기록
+
+- **sidebar.tsx `react-hooks/set-state-in-effect` lint 수정** (본 브랜치 포함):
+  - TEST WORKFLOW 의 lint 단계가 `useEffect` 내 `setNotifFilter("all")` 호출로 인해 차단됨.
+  - §ISSUE FIX 정책에 따라 `closeNotif` / `toggleNotif` useCallback 으로 이전 처리.
+  - ai-review SUMMARY W6(toggleNotif updater 순수성), W7(exhaustive-deps) 도 동반 수정.
+  - ai-review SUMMARY W1(setTimeout spy toHaveBeenNthCalledWith 강건화) 도 동반 수정.
+
 ## 후속 (별도 PR — 본 plan 범위 외)
 
-없음. 본 plan 으로 ai-agent-turn-fail-finalize PR #209 의 후속 4건 모두 처리 완료.
+- [`plan/in-progress/llm-retry-after-test-coverage.md`](llm-retry-after-test-coverage.md) — ai-review 00_21_19 의 deferred 5건 (W2~W5, W8 — 경계값·문자열 분기·종단 경로·외부 클릭 회귀·픽스처 추출).
+
+ai-agent-turn-fail-finalize PR #209 의 후속 4건은 본 plan 으로 모두 처리 완료.

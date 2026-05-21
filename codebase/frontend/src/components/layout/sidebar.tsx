@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, type MouseEvent } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  type MouseEvent,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -255,11 +261,18 @@ export function Sidebar() {
     notifFilter,
   );
 
-  // popover 닫힐 때 필터를 "all" 로 리셋 — 재진입 시 이전 필터 상태 잔존 방지.
-  useEffect(() => {
-    if (!notifOpen) {
-      setNotifFilter("all");
-    }
+  // popover 닫힘 → 다음 진입 시 이전 필터 상태가 잔존하지 않도록 'all' 로 리셋.
+  // setState 를 useEffect 안에서 호출하면 cascading render 위험이 있어 (lint
+  // 규칙 react-hooks/set-state-in-effect) close 핸들러 측에서 동기적으로 처리.
+  const closeNotif = useCallback(() => {
+    setNotifOpen(false);
+    setNotifFilter("all");
+  }, []);
+  // W6: updater 함수 내에서 별도 setState 호출은 React Concurrent Mode 에서
+  // 이중 호출 위험이 있으므로 분리. notifOpen 을 deps 에 추가.
+  const toggleNotif = useCallback(() => {
+    if (notifOpen) setNotifFilter("all");
+    setNotifOpen((prev) => !prev);
   }, [notifOpen]);
 
   function handleNotifClick(notif: {
@@ -274,7 +287,7 @@ export function Sidebar() {
     }
     const href = notificationHref(notif);
     if (href) {
-      setNotifOpen(false);
+      closeNotif();
       router.push(href);
     }
   }
@@ -290,7 +303,7 @@ export function Sidebar() {
       markReadMutation.mutate(notif.id);
     }
     const href = notificationHref(notif);
-    setNotifOpen(false);
+    closeNotif();
     if (href) {
       router.push(href);
     }
@@ -305,7 +318,7 @@ export function Sidebar() {
         setUserMenuOpen(false);
       }
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setNotifOpen(false);
+        closeNotif();
       }
       if (
         workspaceMenuRef.current &&
@@ -318,7 +331,9 @@ export function Sidebar() {
       document.addEventListener("mousedown", handleClickOutside);
     }
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [userMenuOpen, notifOpen, workspaceMenuOpen]);
+  // W7: closeNotif 는 useCallback([], []) 으로 stable 하지만 exhaustive-deps
+  // 규칙 준수를 위해 명시적으로 포함.
+  }, [userMenuOpen, notifOpen, workspaceMenuOpen, closeNotif]);
 
   // Close mobile sidebar on navigation
   const [lastPathname, setLastPathname] = useState(pathname);
@@ -592,7 +607,7 @@ export function Sidebar() {
           )}
           <button
             type="button"
-            onClick={() => setNotifOpen(!notifOpen)}
+            onClick={toggleNotif}
             className={cn(
               "relative flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]",
               collapsed && "justify-center px-2",
