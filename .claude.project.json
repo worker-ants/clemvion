@@ -11,5 +11,10 @@
     "review_consistency": "review/consistency",
     "review_merge":       "review/merge"
   },
-  "code_areas": ["codebase"]
+  "code_areas": ["codebase"],
+  "_agents_doc": "agents.{reviewers,checkers} 는 ALL_AGENTS / ALL_CHECKERS 의 부분 토글. 디폴트는 전부 활성화 — 키 누락·true 면 enabled, 명시 false 만 disable. 예: 유저 가이드 매트릭스(PROJECT.md §변경 시 동반 갱신)가 없는 프로젝트는 reviewers.user_guide_sync=false 로 비활성. Clemvion 은 매트릭스가 있으므로 user_guide_sync 활성 유지.",
+  "agents": {
+    "reviewers": {},
+    "checkers": {}
+  }
 }

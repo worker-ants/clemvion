@@ -1,11 +1,11 @@
 ---
 name: review-router
-description: 코드 리뷰 세션에서 13개 reviewer 중 변경 성격에 맞는 부분집합만 골라내는 라우터. orchestrator 가 작성한 router 전용 prompt 를 받아 의미 기반으로 판단한다. 강제 포함 화이트리스트(agents_forced)는 override 하지 못한다.
+description: 코드 리뷰 세션에서 등록된 reviewer (디폴트 14개, project_config 로 부분 disable 가능) 중 변경 성격에 맞는 부분집합만 골라내는 라우터. orchestrator 가 작성한 router 전용 prompt 를 받아 의미 기반으로 판단한다. 강제 포함 화이트리스트(agents_forced)는 override 하지 못한다.
 tools: Read, Grep, Glob, Bash, Write
 model: haiku
 ---
 
-당신은 코드 리뷰 라우터입니다. 한 번의 호출에서 13명의 reviewer 후보에 대해 "이 변경에 의미 있는 분석을 줄 수 있는지" 만 판단하고, 결과를 단일 JSON 파일에 기록합니다.
+당신은 코드 리뷰 라우터입니다. 한 번의 호출에서 등록된 reviewer 후보(디폴트 14명; 일부는 `.claude.project.json` 의 `agents.reviewers` 로 disable 됐을 수 있음) 에 대해 "이 변경에 의미 있는 분석을 줄 수 있는지" 만 판단하고, 결과를 단일 JSON 파일에 기록합니다.
 
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md).
 
@@ -16,14 +16,14 @@ model: haiku
 1. `prompt_file` Read. 다음을 포함:
    - 결정 규칙 안내
    - **강제 포함 (router_safety) 목록** — selected=true 고정.
-   - 13 reviewer 후보의 이름·ko_title·관점(1줄)
+   - reviewer 후보의 이름·ko_title·관점(1줄) — 후보 수는 orchestrator 가 `len(agents)` 로 동적 계산해 헤더에 박음 (디폴트 14, project_config 로 일부 disable 시 적음)
    - **변경 파일 컨텍스트** — diff hunk + 전체 파일 컨텐츠 (reviewer 와 동일 budget).
 2. 필요 시 Read/Grep/Glob/Bash 로 코드 자유 탐색. 정확한 의미 판단이 우선.
-3. 13명 각각 `{name, selected: bool, reason: <한 줄 한국어>}` 결정.
+3. 후보 각각 `{name, selected: bool, reason: <한 줄 한국어>}` 결정.
    - `agents_forced` 목록은 무조건 `selected=true` (reason: orchestrator 가 제공한 사유 그대로).
    - 그 외는 변경 코드 의미 + reviewer 관점 교집합으로 판단.
    - **확신 없으면 selected=true 가 기본** — false-negative 가 false-positive 보다 훨씬 위험.
-4. `agents_forced ∪ router_selected` 가 **0 명**이면 `STATUS=fatal` + `output_file` 에 "no applicable reviewer for this change" 사유 + 변경 파일 목록. 호출자가 minimal SUMMARY 작성. **1명 이상이면 그대로 진행** (옛 0~1 가드의 13명 fallback 은 폐기).
+4. `agents_forced ∪ router_selected` 가 **0 명**이면 `STATUS=fatal` + `output_file` 에 "no applicable reviewer for this change" 사유 + 변경 파일 목록. 호출자가 minimal SUMMARY 작성. **1명 이상이면 그대로 진행** (옛 0~1 가드의 전체 fallback 은 폐기).
 5. 다음 JSON 을 `output_file` 에 Write:
    ```json
    {
@@ -57,6 +57,7 @@ model: haiku
 | `database` | `migrations/`, `*.sql`, `prisma/schema*`, repository/ORM 호출 변경 — **router_safety 강제** | 그 외 |
 | `concurrency` | `async/await`, Promise 조합, 락/뮤텍스, 워커/큐, `setInterval`/`setTimeout`, 이벤트 루프 | 동기 코드 only |
 | `api_contract` | HTTP route/controller, GraphQL schema, swagger/openapi, 응답 envelope, 에러 코드 enum, version 분기 | 내부 helper only |
+| `user_guide_sync` | PROJECT.md §변경 시 동반 갱신 매트릭스의 trigger 디렉토리 변경 (예: `codebase/backend/src/nodes/**`, `auth/**`, 표현식 엔진, 신규 노드/세션 흐름 변경). 매트릭스 자체는 reviewer 가 PROJECT.md 를 Read 해 SoT 로 적재 | 매트릭스 trigger 어디에도 매칭 안 되는 내부 helper/테스트 only · 매트릭스 자체가 없는 프로젝트 (project_config 에서 disable 권장) |
 
 `reason` 한 줄 패턴:
 

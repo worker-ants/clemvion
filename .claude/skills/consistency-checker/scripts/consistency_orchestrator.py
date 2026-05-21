@@ -5,6 +5,9 @@ Modes:
   --spec <path>        spec draft 검토
   --plan <path>        plan draft 검토
   --impl-prep <scope>  구현 착수 전 검토 (scope = spec/<area>/ 경로)
+  --impl-done <scope>  구현 완료 후 검토 — spec 영역 + 코드 diff(vs --diff-base) 를
+                       함께 묶어 5 checker 가 사후 검증. 기본 diff-base = origin/main.
+                       `--diff-base <ref>` 로 override.
 
 The orchestrator no longer calls a model. It collects context, writes
 per-checker prompt bodies plus a retry-state file, and prints the session
@@ -18,6 +21,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime
 
@@ -54,7 +58,12 @@ def load_config():
     if agents_env:
         agents = [a.strip() for a in agents_env.split(",") if a.strip()]
     else:
-        agents = list(ALL_CHECKERS)
+        # Apply project_config opt-out for checkers (symmetric with
+        # code_review_orchestrator's reviewer toggle). Missing key /
+        # true ⇒ enabled, explicit false ⇒ disabled. Env-var override
+        # above takes precedence.
+        cfg = project_config.load(os.getcwd())
+        agents = project_config.filter_enabled_agents(cfg, "checkers", list(ALL_CHECKERS))
 
     return {
         "output_dir": os.environ.get("CONSISTENCY_OUTPUT_DIR", "./review/consistency"),
@@ -177,6 +186,34 @@ def format_file_bundle(file_paths, root, label):
     return "".join(parts)
 
 
+def _collect_code_diff(diff_base, root):
+    """Return ``git diff <diff_base>...HEAD`` for the project's code areas.
+
+    Used by ``--impl-done`` to bundle the implementation diff alongside
+    the spec area files so checkers can compare both sides. Empty
+    string on any failure (missing base ref, no diff, git error).
+    """
+    cfg = project_config.load(root)
+    code_areas = cfg.get("code_areas") or []
+    cmd = ["git", "diff", f"{diff_base}...HEAD", "--"]
+    if code_areas:
+        cmd.extend(code_areas)
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30, cwd=root,
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        debug_log(f"git diff for --impl-done failed: {e}")
+        return ""
+    if proc.returncode != 0:
+        debug_log(
+            f"git diff for --impl-done returned {proc.returncode}: "
+            f"{proc.stderr.strip()[:200]}"
+        )
+        return ""
+    return proc.stdout
+
+
 RATIONALE_HEADER_RE = re.compile(r"^##\s+Rationale\b.*$", re.MULTILINE)
 
 
@@ -235,8 +272,36 @@ def collect_context(args, root):
         target_doc = format_file_bundle(scope_files, root, f"구현 대상 영역: `{target_path_rel}`")
         mode_label = f"구현 착수 전 검토 (--impl-prep, scope={target_path_rel})"
 
+    elif args.impl_done:
+        target_path_rel = args.impl_done
+        target_abs = os.path.abspath(target_path_rel)
+        scope_files = collect_markdown_files(target_abs)
+        excluded.update(scope_files)
+        spec_bundle = format_file_bundle(
+            scope_files, root, f"구현 대상 spec 영역: `{target_path_rel}`"
+        )
+        diff_base = args.diff_base or "origin/main"
+        diff_text = _collect_code_diff(diff_base, root)
+        if diff_text.strip():
+            diff_section = (
+                f"\n\n## 구현 변경 사항 (git diff {diff_base}...HEAD -- "
+                f"<code_areas>)\n\n```diff\n{diff_text}\n```\n"
+            )
+        else:
+            diff_section = (
+                f"\n\n## 구현 변경 사항 (git diff {diff_base}...HEAD -- "
+                "<code_areas>)\n\n(변경 없음 또는 git diff 실패 — base ref 가 fetch 되어 있는지 확인)\n"
+            )
+        target_doc = spec_bundle + diff_section
+        mode_label = (
+            f"구현 완료 후 검토 (--impl-done, scope={target_path_rel}, "
+            f"diff-base={diff_base})"
+        )
+
     else:
-        raise ValueError("Mode 가 지정되지 않았습니다: --spec / --plan / --impl-prep 중 하나가 필요합니다.")
+        raise ValueError(
+            "Mode 가 지정되지 않았습니다: --spec / --plan / --impl-prep / --impl-done 중 하나가 필요합니다."
+        )
 
     all_spec_files = collect_markdown_files(spec_dir, exclude_paths=excluded)
     # Conventions may live under spec_dir (default) or be relocated by
@@ -425,6 +490,12 @@ def main():
                       help="plan draft path")
     mode.add_argument("--impl-prep", type=str, dest="impl_prep", metavar="SCOPE",
                       help="pre-implementation check scope (spec/<area>/ path)")
+    mode.add_argument("--impl-done", type=str, dest="impl_done", metavar="SCOPE",
+                      help="post-implementation check scope (spec/<area>/ path). "
+                           "Bundles spec area + code diff (vs --diff-base, default origin/main).")
+    parser.add_argument("--diff-base", type=str, dest="diff_base", metavar="REF",
+                        default=None,
+                        help="git ref to diff against for --impl-done (default: origin/main).")
     parser.add_argument("--resume", type=str, metavar="SESSION_DIR",
                         help="Resume an existing session: skip prepare, validate the "
                              "_retry_state.json, echo the absolute session_dir on stdout. "
@@ -475,8 +546,11 @@ def main():
         _apply_status_update(args.update, args.agent, args.status, args.reset_hint)
         sys.exit(0)
 
-    if not (args.spec or args.plan or args.impl_prep):
-        parser.error("--spec / --plan / --impl-prep 중 하나가 필요합니다 (또는 --resume <SESSION_DIR>).")
+    if not (args.spec or args.plan or args.impl_prep or args.impl_done):
+        parser.error(
+            "--spec / --plan / --impl-prep / --impl-done 중 하나가 필요합니다 "
+            "(또는 --resume <SESSION_DIR>)."
+        )
 
     config = load_config()
     root = repo_root()

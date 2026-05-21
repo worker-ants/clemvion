@@ -19,8 +19,24 @@ Schema (every key optional; missing keys fall back to DEFAULTS below):
         "review_consistency":  "review/consistency",
         "review_merge":        "review/merge"
       },
-      "code_areas": ["codebase"]
+      "code_areas": ["codebase"],
+      "agents": {
+        "reviewers": {
+          "user_guide_sync": false   // default: true (활성화); 명시 false 면 disable
+        },
+        "checkers": {
+          "naming_collision": false  // 같은 패턴
+        }
+      }
     }
+
+The ``agents.reviewers`` and ``agents.checkers`` maps let a project
+opt-out specific reviewer/checker sub-agents when they don't apply
+(e.g. a project without a user guide matrix disables
+``user_guide_sync``). The harness ships with **all** reviewers/checkers
+enabled by default — missing key or ``true`` = enabled, explicit
+``false`` = disabled. Use ``is_agent_enabled(cfg, kind, name)`` to
+query.
 
 Unknown keys are silently preserved (forward-compatible with future
 schema additions). The result of ``load()`` always carries every
@@ -55,6 +71,15 @@ DEFAULTS: dict[str, Any] = {
         "review_merge":        "review/merge",
     },
     "code_areas": ["codebase"],
+    "agents": {
+        # Per-reviewer / per-checker enable toggles. Default behavior
+        # (missing key or ``true``) is **enabled**; only an explicit
+        # ``false`` disables an agent. The harness keeps every agent
+        # registered in ALL_AGENTS / ALL_CHECKERS; this map narrows the
+        # run-set without changing the registry.
+        "reviewers": {},
+        "checkers": {},
+    },
 }
 
 
@@ -102,6 +127,34 @@ def load(repo_root: str) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return base
     return _merge_overrides(base, user_cfg)
+
+
+def is_agent_enabled(cfg: dict[str, Any], kind: str, name: str) -> bool:
+    """Return whether a reviewer/checker is enabled per project config.
+
+    ``kind`` ∈ {"reviewers", "checkers"}. The agents toggle map lives at
+    ``cfg["agents"][kind]``. Missing key or ``true`` ⇒ enabled; explicit
+    ``false`` ⇒ disabled. Any other value (str, int, list) is treated as
+    enabled — the loader does not validate types, so be defensive.
+
+    Callers (orchestrators) iterate their registry (``ALL_AGENTS`` /
+    ``ALL_CHECKERS``) and keep only the agents this function returns
+    True for. Per-call env-var overrides (``REVIEW_AGENTS`` /
+    ``CONSISTENCY_AGENTS``) take precedence over this and are applied
+    in the orchestrator itself, not here.
+    """
+    agents_cfg = cfg.get("agents") or {}
+    kind_cfg = agents_cfg.get(kind) or {}
+    if not isinstance(kind_cfg, dict):
+        return True
+    value = kind_cfg.get(name, True)
+    # Only an explicit boolean False disables the agent.
+    return value is not False
+
+
+def filter_enabled_agents(cfg: dict[str, Any], kind: str, all_agents: list[str]) -> list[str]:
+    """Convenience: filter a registry list by ``is_agent_enabled``."""
+    return [a for a in all_agents if is_agent_enabled(cfg, kind, a)]
 
 
 def find_repo_root(start: str | None = None) -> str | None:
