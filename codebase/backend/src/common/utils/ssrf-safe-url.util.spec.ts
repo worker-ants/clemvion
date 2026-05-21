@@ -118,3 +118,42 @@ describe('isPrivateIpv4 / isPrivateIpv6 unit', () => {
     expect(isPrivateIpv6('not-ipv6')).toBe(false);
   });
 });
+
+describe('checkResolvedHostIp — DNS rebinding 방어 [Spec EIA §8.1]', () => {
+  // 본 테스트는 DNS resolve mock 없이 literal IP 경로만 검증. 실제 도메인 resolve 는 e2e 또는
+  // 통합 환경에서 검증 — unit 에서는 결정성 위해 literal 경로만.
+  const { checkResolvedHostIp } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('./ssrf-safe-url.util') as typeof import('./ssrf-safe-url.util');
+
+  it('빈 hostname → ok:false', async () => {
+    const r = await checkResolvedHostIp('');
+    expect(r.ok).toBe(false);
+  });
+
+  it('literal IPv4 public → ok:true', async () => {
+    const r = await checkResolvedHostIp('8.8.8.8');
+    expect(r.ok).toBe(true);
+  });
+
+  it('literal IPv4 private → ok:false', async () => {
+    const r = await checkResolvedHostIp('192.168.0.1');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/private/);
+  });
+
+  it('literal IPv4 metadata (169.254.169.254) → ok:false', async () => {
+    const r = await checkResolvedHostIp('169.254.169.254');
+    expect(r.ok).toBe(false);
+  });
+
+  it('literal IPv6 private (::1) → ok:false', async () => {
+    const r = await checkResolvedHostIp('::1');
+    expect(r.ok).toBe(false);
+  });
+
+  it('literal IPv6 public (2001:db8::1) → ok:true', async () => {
+    const r = await checkResolvedHostIp('2001:db8::1');
+    expect(r.ok).toBe(true);
+  });
+});

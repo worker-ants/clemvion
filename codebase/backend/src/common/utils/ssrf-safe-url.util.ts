@@ -119,3 +119,62 @@ export function checkSsrfSafeUrl(
 
   return { ok: true };
 }
+
+/**
+ * Post-resolve SSRF 검증 — URL 호스트의 DNS A/AAAA 레코드를 resolve 한 뒤 그 결과 IP 가 사설/
+ * loopback/metadata 대역인지 검사. DNS rebinding 방어용.
+ *
+ * 환경변수 `NOTIFICATION_ENFORCE_DNS_REBIND_GUARD=1` 일 때만 호출자가 사용. default 는 비활성
+ * (DNS 호출 비용 + 발송 latency 증가).
+ *
+ * [Spec EIA §8.1] — "DNS rebinding 방어: 등록 시 IP 와 실제 발송 시 IP 가 다르면 발송 거부".
+ * 본 헬퍼는 "발송 시 IP 가 사설 대역" 까지만 검증 (등록 시 IP 와의 비교는 보관 필요해 비용 큼).
+ */
+export async function checkResolvedHostIp(
+  hostname: string,
+): Promise<SsrfCheckResult> {
+  if (!hostname) return { ok: false, reason: 'hostname is empty' };
+  // literal IP 면 register-time 검증과 동일 처리
+  if (isLiteralIpv4(hostname)) {
+    return isPrivateIpv4(hostname)
+      ? { ok: false, reason: 'resolved IPv4 is private' }
+      : { ok: true };
+  }
+  if (hostname.includes(':')) {
+    return isPrivateIpv6(hostname)
+      ? { ok: false, reason: 'resolved IPv6 is private' }
+      : { ok: true };
+  }
+  // 도메인 → DNS resolve
+  let dns: typeof import('dns/promises');
+  try {
+    dns = await import('dns/promises');
+  } catch {
+    // dns 모듈 미가용 (browser bundling 등) — fail-open.
+    return { ok: true };
+  }
+  let addrs: string[] = [];
+  try {
+    const v4 = await dns.resolve4(hostname).catch(() => [] as string[]);
+    const v6 = await dns.resolve6(hostname).catch(() => [] as string[]);
+    addrs = [...v4, ...v6];
+  } catch {
+    // resolve 실패 — fail-open (NotificationDispatcher 의 fetch 가 어차피 ECONNREFUSED 처리).
+    return { ok: true };
+  }
+  for (const ip of addrs) {
+    if (isPrivateIpv4(ip)) {
+      return {
+        ok: false,
+        reason: `resolved IPv4 ${ip} falls in a private/loopback/metadata range`,
+      };
+    }
+    if (ip.includes(':') && isPrivateIpv6(ip)) {
+      return {
+        ok: false,
+        reason: `resolved IPv6 ${ip} falls in a private range`,
+      };
+    }
+  }
+  return { ok: true };
+}
