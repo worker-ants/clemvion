@@ -428,13 +428,13 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
         tokenStrategy: strategy,
       };
       await apiClient.patch(`/triggers/${trigger.id}`, patchBody);
-      toast.success(t.triggers.externalInteraction.saveSucceeded);
+      toast.success(t("triggers.externalInteraction.saveSucceeded"));
       setEditing(false);
       // 페이지 reload 대신 query invalidate 가 이상적이지만 본 PR 은 단순 reload — drawer 가 재open 시 갱신.
       window.location.reload();
     } catch (err) {
       toast.error(
-        `${t.triggers.externalInteraction.saveFailed}: ${err instanceof Error ? err.message : String(err)}`,
+        `${t("triggers.externalInteraction.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
       );
     } finally {
       setSaving(false);
@@ -442,32 +442,32 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
   }
 
   async function handleRotateSecret(): Promise<void> {
-    if (!window.confirm(t.triggers.externalInteraction.rotateConfirm)) return;
+    if (!window.confirm(t("triggers.externalInteraction.rotateConfirm"))) return;
     try {
       const res = await apiClient.post<{
         data: { secret: string; rotatedAt: string };
       }>(`/triggers/${trigger.id}/notification/rotate-secret`, {});
       setRotateResult(res.data.data.secret);
-      toast.success(t.triggers.externalInteraction.rotateSucceeded);
+      toast.success(t("triggers.externalInteraction.rotateSucceeded"));
     } catch (err) {
       toast.error(
-        `${t.triggers.externalInteraction.rotateFailed}: ${err instanceof Error ? err.message : String(err)}`,
+        `${t("triggers.externalInteraction.rotateFailed")}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
 
   async function handleRevokeToken(): Promise<void> {
-    if (!window.confirm(t.triggers.externalInteraction.revokeConfirm)) return;
+    if (!window.confirm(t("triggers.externalInteraction.revokeConfirm"))) return;
     try {
       const res = await apiClient.post<{ data: { token: string } }>(
         `/triggers/${trigger.id}/interaction/revoke-token`,
         {},
       );
       setRevokeResult(res.data.data.token);
-      toast.success(t.triggers.externalInteraction.revokeSucceeded);
+      toast.success(t("triggers.externalInteraction.revokeSucceeded"));
     } catch (err) {
       toast.error(
-        `${t.triggers.externalInteraction.revokeFailed}: ${err instanceof Error ? err.message : String(err)}`,
+        `${t("triggers.externalInteraction.revokeFailed")}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -475,9 +475,9 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
   async function copyText(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(t.triggers.externalInteraction.copied);
+      toast.success(t("triggers.externalInteraction.copied"));
     } catch {
-      toast.error(t.triggers.copyFailed);
+      toast.error(t("triggers.copyFailed"));
     }
   }
 
@@ -487,7 +487,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
         <CardTitle className="text-base">External Interaction</CardTitle>
         {!editing ? (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            {t.triggers.externalInteraction.edit}
+            {t("triggers.externalInteraction.edit")}
           </Button>
         ) : (
           <div className="flex gap-1.5">
@@ -497,12 +497,12 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
               onClick={() => setEditing(false)}
               disabled={saving}
             >
-              {t.triggers.externalInteraction.cancel}
+              {t("triggers.externalInteraction.cancel")}
             </Button>
             <Button size="sm" onClick={handleSave} disabled={saving}>
               {saving
-                ? t.triggers.externalInteraction.saving
-                : t.triggers.externalInteraction.save}
+                ? t("triggers.externalInteraction.saving")
+                : t("triggers.externalInteraction.save")}
             </Button>
           </div>
         )}
@@ -510,7 +510,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
       <CardContent className="space-y-4">
         {!hasAny && !editing && (
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {t.triggers.externalInteraction.notConfigured}
+            {t("triggers.externalInteraction.notConfigured")}
           </p>
         )}
 
@@ -579,7 +579,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
             </dl>
             {interaction.tokenStrategy === "per_trigger" && (
               <Button size="sm" variant="outline" onClick={handleRevokeToken}>
-                {t.triggers.externalInteraction.interactionRevokeToken}
+                {t("triggers.externalInteraction.interactionRevokeToken")}
               </Button>
             )}
           </div>
@@ -590,24 +590,24 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
           <div className="space-y-3 text-sm">
             <div>
               <label className="block text-xs font-medium mb-1">
-                {t.triggers.externalInteraction.notificationUrl}
+                {t("triggers.externalInteraction.notificationUrl")}
               </label>
               <input
                 type="text"
                 className="w-full px-2 py-1.5 text-xs font-mono border rounded bg-[hsl(var(--background))] border-[hsl(var(--border))]"
                 placeholder={
-                  t.triggers.externalInteraction.notificationUrlPlaceholder
+                  t("triggers.externalInteraction.notificationUrlPlaceholder")
                 }
                 value={urlValue}
                 onChange={(e) => setUrlValue(e.target.value)}
               />
               <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
-                {t.triggers.externalInteraction.notificationUrlHelp}
+                {t("triggers.externalInteraction.notificationUrlHelp")}
               </p>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">
-                {t.triggers.externalInteraction.eventChoices}
+                {t("triggers.externalInteraction.eventChoices")}
               </label>
               <div className="space-y-1">
                 {NOTIFICATION_EVENT_CHOICES.map((ev) => (
@@ -637,12 +637,12 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
                   checked={interactionEnabled}
                   onChange={(e) => setInteractionEnabled(e.target.checked)}
                 />
-                {t.triggers.externalInteraction.interactionEnabled}
+                {t("triggers.externalInteraction.interactionEnabled")}
               </label>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">
-                {t.triggers.externalInteraction.interactionTokenStrategy}
+                {t("triggers.externalInteraction.interactionTokenStrategy")}
               </label>
               <select
                 className="px-2 py-1.5 text-xs font-mono border rounded bg-[hsl(var(--background))] border-[hsl(var(--border))]"
@@ -655,11 +655,11 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
               >
                 <option value="per_execution">
                   {
-                    t.triggers.externalInteraction.tokenStrategyPerExecution
+                    t("triggers.externalInteraction.tokenStrategyPerExecution")
                   }
                 </option>
                 <option value="per_trigger">
-                  {t.triggers.externalInteraction.tokenStrategyPerTrigger}
+                  {t("triggers.externalInteraction.tokenStrategyPerTrigger")}
                 </option>
               </select>
             </div>
@@ -669,7 +669,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
         {/* Action buttons (non-editing) */}
         {!editing && notification?.url && (
           <Button size="sm" variant="outline" onClick={handleRotateSecret}>
-            {t.triggers.externalInteraction.notificationSecretRotate}
+            {t("triggers.externalInteraction.notificationSecretRotate")}
           </Button>
         )}
 
@@ -677,7 +677,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
         {rotateResult && (
           <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-xs space-y-2">
             <div className="font-medium">
-              {t.triggers.externalInteraction.rotateNewSecret}
+              {t("triggers.externalInteraction.rotateNewSecret")}
             </div>
             <div className="flex items-center gap-2">
               <code className="flex-1 font-mono break-all">{rotateResult}</code>
@@ -694,7 +694,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
               variant="outline"
               onClick={() => setRotateResult(null)}
             >
-              {t.triggers.externalInteraction.cancel}
+              {t("triggers.externalInteraction.cancel")}
             </Button>
           </div>
         )}
@@ -703,7 +703,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
         {revokeResult && (
           <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-xs space-y-2">
             <div className="font-medium">
-              {t.triggers.externalInteraction.revokeNewToken}
+              {t("triggers.externalInteraction.revokeNewToken")}
             </div>
             <div className="flex items-center gap-2">
               <code className="flex-1 font-mono break-all">{revokeResult}</code>
@@ -720,7 +720,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
               variant="outline"
               onClick={() => setRevokeResult(null)}
             >
-              {t.triggers.externalInteraction.cancel}
+              {t("triggers.externalInteraction.cancel")}
             </Button>
           </div>
         )}
