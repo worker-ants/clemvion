@@ -1,11 +1,13 @@
 ---
 name: code-review-agents
-description: 13개의 역할 기반 sub-agent(`<role>-reviewer`)를 main Claude 가 Agent tool 로 병렬 호출해 코드 리뷰를 수행합니다. 사용자가 "코드 리뷰", "ai-review", "변경사항 검토/점검", "보안/성능 리뷰" 를 요청하거나, 기능 구현·리팩토링 완료 후 품질 검증이 필요할 때 사용합니다. 사용량 한도가 걸리면 `/loop /ai-review` 와 결합해 ScheduleWakeup 으로 무한 재시도합니다.
+description: 역할 기반 sub-agent(`<role>-reviewer`, 디폴트 14개; `.claude.project.json` 의 `agents.reviewers` 로 부분 disable 가능)를 main Claude 가 Agent tool 로 병렬 호출해 코드 리뷰를 수행합니다. 사용자가 "코드 리뷰", "ai-review", "변경사항 검토/점검", "보안/성능 리뷰" 를 요청하거나, 기능 구현·리팩토링 완료 후 품질 검증이 필요할 때 사용합니다. 사용량 한도가 걸리면 `/loop /ai-review` 와 결합해 ScheduleWakeup 으로 무한 재시도합니다.
 ---
 
 # Code Review Agents
 
-13개의 전문 관점 reviewer sub-agent 가 격리 컨텍스트에서 병렬 리뷰를 수행하고, `code-review-summary` sub-agent 가 결과를 단일 SUMMARY.md 로 통합합니다. Critical/Warning 발견 시 `resolution-applier` sub-agent 가 자동으로 fix + e2e + RESOLUTION 까지 처리합니다 (사용자 결정이 필요한 순간만 main 으로 escalate).
+전문 관점 reviewer sub-agent (디폴트 14개; 프로젝트별 `agents.reviewers` 토글로 부분 disable 가능) 가 격리 컨텍스트에서 병렬 리뷰를 수행하고, `code-review-summary` sub-agent 가 결과를 단일 SUMMARY.md 로 통합합니다. Critical/Warning 발견 시 `resolution-applier` sub-agent 가 자동으로 fix + e2e + RESOLUTION 까지 처리합니다 (사용자 결정이 필요한 순간만 main 으로 escalate).
+
+> **프로젝트별 reviewer 토글**: `.claude.project.json` 의 `agents.reviewers.<name>: false` 로 특정 reviewer 비활성. 예: 유저 가이드 매트릭스(PROJECT.md §변경 시 동반 갱신) 가 없는 프로젝트는 `agents.reviewers.user_guide_sync: false`. 디폴트는 전부 활성화 — 키 누락·`true` 면 enabled. 일회성 override 는 `REVIEW_AGENTS` env (project_config 보다 우선).
 
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../../docs/subagent-call-contract.md).
 
@@ -118,31 +120,32 @@ STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS
 - wake 사이클: prompt 안의 `--resume <session_dir>` 로 orchestrator 호출 → step 2 부터. routing 이 `done` 이면 step 2.5 skip.
 - 자연 종료: pending=0 + resolution-applier ESCALATE=no → ScheduleWakeup 미호출 → /loop 종료.
 
-## 13개 reviewer 매트릭스
+## Reviewer 매트릭스 (디폴트 14)
 
-| sub-agent type | 핵심 관점 |
-|---|---|
-| `security-reviewer` | 인젝션, 시크릿, 인증/인가, OWASP Top 10 |
-| `performance-reviewer` | 알고리즘 복잡도, N+1, 메모리, 캐싱, 블로킹 I/O |
-| `architecture-reviewer` | SOLID, 결합도, 레이어 책임, 순환 의존성 |
-| `requirement-reviewer` | 기능 완전성, 엣지 케이스, 의도-구현 괴리 |
-| `scope-reviewer` | 의도 이상 변경, 불필요 리팩토링 |
-| `side-effect-reviewer` | 의도치 않은 상태 변경, 시그니처 변경 |
-| `maintainability-reviewer` | 가독성, 네이밍, 함수 길이, 중첩, 매직 넘버 |
-| `testing-reviewer` | 테스트 존재, 커버리지, 엣지 케이스 |
-| `documentation-reviewer` | docstring, README, API 문서, 주석 정확성 |
-| `dependency-reviewer` | 새 의존성, 버전 고정, 라이선스, 취약점 |
-| `database-reviewer` | 인덱스, N+1, 트랜잭션, 마이그레이션 |
-| `concurrency-reviewer` | 경쟁 조건, 데드락, async/await |
-| `api-contract-reviewer` | 하위 호환성, 응답/에러 형식 |
+| sub-agent type | 핵심 관점 | 영역 무관 시 NONE 가능 |
+|---|---|---|
+| `security-reviewer` | 인젝션, 시크릿, 인증/인가, OWASP Top 10 | |
+| `performance-reviewer` | 알고리즘 복잡도, N+1, 메모리, 캐싱, 블로킹 I/O | |
+| `architecture-reviewer` | SOLID, 결합도, 레이어 책임, 순환 의존성 | |
+| `requirement-reviewer` | 기능 완전성, 엣지 케이스, 의도-구현 괴리, **관련 spec 본문 일치 여부** | |
+| `scope-reviewer` | 의도 이상 변경, 불필요 리팩토링 | |
+| `side-effect-reviewer` | 의도치 않은 상태 변경, 시그니처 변경 | |
+| `maintainability-reviewer` | 가독성, 네이밍, 함수 길이, 중첩, 매직 넘버 | |
+| `testing-reviewer` | 테스트 존재, 커버리지, 엣지 케이스 | |
+| `documentation-reviewer` | docstring, README, API 문서, 주석 정확성 | |
+| `dependency-reviewer` | 새 의존성, 버전 고정, 라이선스, 취약점 | |
+| `database-reviewer` | 인덱스, N+1, 트랜잭션, 마이그레이션 | ✓ |
+| `concurrency-reviewer` | 경쟁 조건, 데드락, async/await | ✓ |
+| `api-contract-reviewer` | 하위 호환성, 응답/에러 형식 | ✓ |
+| `user-guide-sync-reviewer` | PROJECT.md §변경 시 동반 갱신 매트릭스 기반 docs MDX·i18n dict·backend-labels 동반 갱신 누락 검출. 매트릭스 부재 프로젝트는 `agents.reviewers.user_guide_sync: false` 권장 | ✓ |
 
-`database`, `concurrency`, `api-contract` 는 해당 없는 코드면 "해당 없음 / 위험도 NONE" 으로 success 반환.
+`database` · `concurrency` · `api-contract` · `user_guide_sync` 는 해당 없는 코드면 "해당 없음 / 위험도 NONE" 으로 success 반환.
 
 ## 환경변수
 
 | 환경변수 | 기본값 | 설명 |
 |---|---|---|
-| `REVIEW_AGENTS` | (전체 13) | 실행할 reviewer 쉼표 구분. 설정 시 router 자동 skip. |
+| `REVIEW_AGENTS` | (project_config 통과 후 전체) | 실행할 reviewer 쉼표 구분. 설정 시 router 자동 skip + project_config 토글보다 우선 (일회성 override). |
 | `REVIEW_OUTPUT_DIR` | `./review/code` | 세션 디렉토리 부모 |
 | `REVIEW_SKIP_EXTENSIONS` | (없음) | 건너뛸 확장자 |
 | `REVIEW_MAX_FILE_SIZE` | `51200` | 개별 파일 컨텐츠 상한 (자) |

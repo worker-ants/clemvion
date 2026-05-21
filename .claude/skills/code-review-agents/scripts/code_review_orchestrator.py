@@ -54,10 +54,15 @@ BINARY_EXTENSIONS = {
 }
 
 # Agent name → sub-agent definition name in .claude/agents/.
+# Order is significant: it determines the order in the router prompt's
+# "<N> reviewer 후보와 관점" block and the SUMMARY display order. Keep
+# project-specific opt-out reviewers (e.g. user_guide_sync) last so the
+# default 13 core reviewer order matches legacy docs / tests.
 ALL_AGENTS = [
     "security", "performance", "architecture", "requirement", "scope",
     "side_effect", "maintainability", "testing", "documentation",
     "dependency", "database", "concurrency", "api_contract",
+    "user_guide_sync",
 ]
 
 
@@ -104,7 +109,11 @@ def load_config(route_mode="auto"):
     if agents_explicit:
         agents = [a.strip() for a in agents_env.split(",") if a.strip()]
     else:
-        agents = list(ALL_AGENTS)
+        # Apply project_config opt-out: missing key / true ⇒ enabled,
+        # explicit false ⇒ disabled. Env-var override above takes
+        # precedence (one-off override beats persistent project policy).
+        cfg = project_config.load(os.getcwd())
+        agents = project_config.filter_enabled_agents(cfg, "reviewers", list(ALL_AGENTS))
 
     skip_ext_env = os.environ.get("REVIEW_SKIP_EXTENSIONS", "").strip()
     if skip_ext_env:
@@ -402,8 +411,10 @@ def build_router_prompt_body(
     context-saving measure, then sample 1–2 files. That approach missed
     reviewers whose relevance was only visible inside diff bodies, so
     the router now receives the same change-file payload as a reviewer
-    plus the forced list and the 13 perspectives so it can decide on
-    meaning, not filenames.
+    plus the forced list and the full perspective table (len(agents)
+    rows — dynamic to allow project_config opt-outs and future
+    additions like user_guide_sync) so it can decide on meaning, not
+    filenames.
     """
     forced_block_lines = []
     if agents_forced:
@@ -426,10 +437,11 @@ def build_router_prompt_body(
         perspective_lines.append(f"- `{name}` — {title}{scope_note}: {perspective}")
     perspective_block = "\n".join(perspective_lines)
 
+    candidate_count = len(agents)
     header = (
         "# Review Router Payload\n\n"
         "본 파일은 orchestrator 가 review-router 용으로 작성한 입력입니다. "
-        "아래 변경 코드를 보고, 13명의 reviewer 후보 중 어떤 reviewer 를 실제로 실행할지 결정하세요.\n\n"
+        f"아래 변경 코드를 보고, {candidate_count}명의 reviewer 후보 중 어떤 reviewer 를 실제로 실행할지 결정하세요.\n\n"
         "## 결정 규칙\n"
         "- 아래 **강제 포함** 목록은 router_safety 가 결정한 것으로, router 가 끄지 못합니다 (selected=true 고정).\n"
         "- 그 외 reviewer 는 변경 코드의 실제 의미를 보고 판단. **확신 없으면 selected=true** (false-negative 가 false-positive 보다 위험).\n"
@@ -437,7 +449,7 @@ def build_router_prompt_body(
         "- 변경 코드 본문을 직접 분석할 수 있도록 변경 파일 컨텍스트가 함께 전달됩니다. 추가 탐색이 필요하면 Read/Grep/Glob/Bash 를 자유롭게 사용해도 됩니다.\n\n"
         "## 강제 포함 (router 가 끄지 못함)\n\n"
         f"{forced_block}\n\n"
-        "## 13 reviewer 후보와 관점\n\n"
+        f"## {candidate_count} reviewer 후보와 관점\n\n"
         f"{perspective_block}\n\n"
         "## 변경 파일 컨텍스트\n\n"
     )

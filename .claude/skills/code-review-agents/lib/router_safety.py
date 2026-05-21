@@ -1,9 +1,10 @@
 """Router safety: forced-include rules for review-router.
 
-The router (`.claude/agents/review-router.md`) decides which of the 13
-reviewers should run for a given change set, but certain file patterns
-*must* always trigger specific reviewers regardless of the router's
-decision. This module enumerates those rules and is consumed by
+The router (`.claude/agents/review-router.md`) decides which of the
+registered reviewers (default 14; `.claude.project.json`'s
+``agents.reviewers`` map may disable some) should run for a given
+change set, but certain file patterns *must* always trigger specific
+reviewers regardless of the router's decision. This module enumerates those rules and is consumed by
 `code_review_orchestrator.py` at prepare time — the resulting list is
 written to `_retry_state.json.agents_forced[]` so the router cannot turn
 them off.
@@ -49,10 +50,15 @@ Source-code extensions counted by `_SOURCE_FORCED_REVIEWERS`:
   go rs · c cc cpp cxx h hh hpp hxx · swift m mm · rb php lua ·
   cs fs vb · ex exs erl hrl ml mli clj cljs · dart · sh bash zsh
 
-Reviewer codes (13):
+Reviewer codes (default 14; `.claude.project.json` may disable some):
   security · performance · architecture · requirement · scope ·
   side_effect · maintainability · testing · documentation · dependency ·
-  database · concurrency · api_contract
+  database · concurrency · api_contract · user_guide_sync
+
+The user_guide_sync reviewer is intentionally NOT in any _RULES entry —
+projects without a "PROJECT.md §변경 시 동반 갱신" matrix should
+disable it via ``agents.reviewers.user_guide_sync: false`` rather than
+have router_safety force it on every change.
 
 When adding/removing a rule:
   1. Update _RULES / pattern constants below.

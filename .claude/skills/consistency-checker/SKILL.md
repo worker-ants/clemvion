@@ -48,8 +48,13 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
 - `--spec <path>` — spec draft (project-planner 의 `spec/` 쓰기 직전 의무).
 - `--plan <path>` — plan draft.
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
+- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). developer 의 REVIEW WORKFLOW 에서 권장 호출.
 
 stdout 마지막 줄 = 세션 디렉토리.
+
+### Checker 프로젝트별 토글
+
+`.claude.project.json` 의 `agents.checkers.<name>: false` 로 특정 checker 비활성. 디폴트는 전부 활성화 (키 누락·`true` ⇒ enabled, 명시 `false` ⇒ disabled). 일회성 override 는 `CONSISTENCY_AGENTS` env (project_config 보다 우선). 5 checker key: `cross_spec` · `rationale_continuity` · `convention_compliance` · `plan_coherence` · `naming_collision`.
 
 ### 2. 세션 상태 한 줄 받기
 

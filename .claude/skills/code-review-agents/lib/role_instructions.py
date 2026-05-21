@@ -66,7 +66,7 @@ REVIEWER_INSTRUCTIONS = {
     },
     "requirement": {
         "ko_title": "요구사항(Requirement)",
-        "perspective": "다음 코드 변경이 의도한 기능을 충족하는지 분석한다.",
+        "perspective": "다음 코드 변경이 의도한 기능을 충족하는지, 그리고 관련 spec 본문과 line-level 로 일치하는지 분석한다.",
         "checklist": """1. **기능 완전성**: 코드가 의도한 기능을 완전히 구현하고 있는지
 2. **엣지 케이스**: 경계값, null/undefined, 빈 컬렉션, 최대/최솟값 처리
 3. **TODO/FIXME**: 미완성 작업을 시사하는 TODO, FIXME, HACK, XXX 주석 존재 여부
@@ -74,7 +74,8 @@ REVIEWER_INSTRUCTIONS = {
 5. **에러 시나리오**: 정상 흐름 외 에러 상황 동작 정의
 6. **데이터 유효성**: 입력 데이터의 유효성 검증
 7. **비즈니스 로직**: 비즈니스 규칙이 코드에 정확히 반영됐는지
-8. **반환값**: 모든 경로에서 적절한 값을 반환하는지""",
+8. **반환값**: 모든 경로에서 적절한 값을 반환하는지
+9. **관련 spec 본문 일치 여부 (spec fidelity)**: 변경 영역이 `spec/` 의 어떤 문서로 정의돼 있는지 Read/Grep 으로 식별 후, spec 본문(Overview 가 아니라 요구사항 ID·행위 명세·시퀀스·필드 정의) 과 코드 구현이 line-level 로 일치하는지 점검 — 함수 시그니처·필드명·에러 코드·기본값·검증 규칙·상태 전이가 spec 과 다르면 CRITICAL. 관련 spec 문서 자체를 찾을 수 없으면 INFO (spec 누락). spec 자체에 결함이 의심되면 발견사항으로 명시 (수정은 `project-planner` 위임 — 본 reviewer 는 spec 직접 수정 금지).""",
         "scope_optional": False,
     },
     "scope": {
@@ -192,6 +193,20 @@ REVIEWER_INSTRUCTIONS = {
 6. **URL/경로 설계**: RESTful 원칙·일관된 네이밍
 7. **페이지네이션**: 목록 API 의 페이지네이션 적절성
 8. **인증/인가**: 엔드포인트의 인증/인가 적용""",
+        "scope_optional": True,
+    },
+    "user_guide_sync": {
+        "ko_title": "유저 가이드 동반 갱신(User Guide Sync)",
+        "perspective": "다음 코드 변경이 PROJECT.md §변경 시 동반 갱신 매트릭스의 trigger 에 매칭되는데 right column 의 유저 가이드(docs MDX)·i18n dict·backend-labels 동반 갱신이 누락됐는지 분석한다. 매트릭스는 본 리뷰어 prompt 에 inline 하지 않으며, 첫 행동으로 PROJECT.md 를 Read 해 현재 매트릭스를 SoT 로 적재한다.",
+        "checklist": """1. **PROJECT.md Read (SSOT)** — `PROJECT.md` 의 §변경 시 동반 갱신 (또는 §i18n / §유저 가이드 갱신 같은 동등 표) 을 Read. 매트릭스가 부재하면 INFO 1건 + NONE 위험도로 종료
+2. **변경 파일 식별** — orchestrator 가 prompt 에 포함한 변경 file 목록 + 필요 시 `git diff --name-only HEAD` / `git diff --cached --name-only` 로 보강
+3. **trigger 매칭** — 각 변경 파일을 매트릭스 left column 패턴에 매칭. 한 파일이 여러 trigger 에 매칭 가능
+4. **동반 갱신 누락 검출** — 매칭된 trigger 의 middle column 동반 갱신 파일이 같은 변경 set 에 staged 됐는지 확인
+5. **i18n parity** — TSX 신규 한국어 리터럴은 `codebase/frontend/src/lib/i18n/dict/{ko,en}/` 양쪽 등록 필수 — 한쪽만 있으면 CRITICAL
+6. **backend warning/error code → ko 매핑** — backend warningRules / `error-codes.ts` 변경이 frontend `backend-labels.ts` 의 `WARNING_KO` / `ERROR_KO` 매핑 누락 시 CRITICAL (영문 SoT — 매핑 없으면 사용자에게 영문 그대로 노출)
+7. **신규 섹션 디렉토리 locale 등록** — `codebase/frontend/src/content/docs/<NN>-<name>/` 신규 시 `codebase/frontend/src/lib/docs/locale.ts` 의 `SECTION_LABELS_BY_LOCALE` 양쪽 로케일 등록 누락 시 CRITICAL (UI 깨짐)
+8. **docs MDX 갱신 누락** — 노드 추가/스키마 변경/통합 변경/표현식 변경/실행·디버깅 흐름 변경이 해당 docs 경로 누락 시 WARNING
+9. **영역 무관 판정** — 변경이 매트릭스 어떤 trigger 에도 매칭되지 않으면 "해당 없음" + NONE 위험도. router 가 활성화했더라도 무관 판정 가능""",
         "scope_optional": True,
     },
 }
