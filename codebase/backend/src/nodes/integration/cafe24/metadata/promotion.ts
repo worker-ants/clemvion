@@ -1,4 +1,8 @@
 import type { Cafe24OperationMetadata } from './types.js';
+import {
+  CAFE24_DATETIME_FIELD_START,
+  CAFE24_DATETIME_FIELD_END,
+} from './date-descriptions.js';
 
 export const promotionOperations: Cafe24OperationMetadata[] = [
   {
@@ -316,8 +320,16 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
         description:
           'Benefit type (e.g. period_discount, repurchase_discount, bulk_purchase_discount)',
       },
-      start_date: { type: 'string', location: 'body' },
-      end_date: { type: 'string', location: 'body' },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_START,
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_END,
+      },
       benefit_scope: {
         type: 'string',
         location: 'body',
@@ -347,8 +359,16 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'body', default: 1 },
       benefit_name: { type: 'string', location: 'body' },
       benefit_description: { type: 'string', location: 'body' },
-      start_date: { type: 'string', location: 'body' },
-      end_date: { type: 'string', location: 'body' },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_START,
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_END,
+      },
       discount_amount: { type: 'number', location: 'body' },
       discount_rate: { type: 'number', location: 'body' },
     },
@@ -391,8 +411,16 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
-      start_date: { type: 'string', location: 'body' },
-      end_date: { type: 'string', location: 'body' },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_START,
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_END,
+      },
       event_name: { type: 'string', location: 'body' },
     },
     responseShape: 'single',
@@ -482,8 +510,16 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
       },
       discount_amount: { type: 'number', location: 'body' },
       discount_rate: { type: 'number', location: 'body' },
-      start_date: { type: 'string', location: 'body' },
-      end_date: { type: 'string', location: 'body' },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_START,
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_END,
+      },
     },
     responseShape: 'single',
   },
@@ -501,8 +537,16 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
       discount_name: { type: 'string', location: 'body' },
       discount_amount: { type: 'number', location: 'body' },
       discount_rate: { type: 'number', location: 'body' },
-      start_date: { type: 'string', location: 'body' },
-      end_date: { type: 'string', location: 'body' },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_START,
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_END,
+      },
     },
     responseShape: 'single',
   },
@@ -545,8 +589,16 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
       event_name: { type: 'string', location: 'body' },
-      start_date: { type: 'string', location: 'body' },
-      end_date: { type: 'string', location: 'body' },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_START,
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_END,
+      },
     },
     responseShape: 'single',
   },
@@ -562,8 +614,16 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
       event_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
       event_name: { type: 'string', location: 'body' },
-      start_date: { type: 'string', location: 'body' },
-      end_date: { type: 'string', location: 'body' },
+      start_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_START,
+      },
+      end_date: {
+        type: 'string',
+        location: 'body',
+        description: CAFE24_DATETIME_FIELD_END,
+      },
     },
     responseShape: 'single',
   },

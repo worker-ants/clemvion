@@ -1,4 +1,8 @@
 import type { Cafe24OperationMetadata } from './types.js';
+import {
+  CAFE24_DATE_FIELD_SINCE,
+  CAFE24_DATE_FIELD_UNTIL,
+} from './date-descriptions.js';
 
 export const salesreportOperations: Cafe24OperationMetadata[] = [
   {
@@ -14,12 +18,12 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
       start_date: {
         type: 'string',
         location: 'query',
-        description: 'YYYY-MM-DD',
+        description: CAFE24_DATE_FIELD_SINCE,
       },
       end_date: {
         type: 'string',
         location: 'query',
-        description: 'YYYY-MM-DD',
+        description: CAFE24_DATE_FIELD_UNTIL,
       },
     },
     responseShape: 'list',
@@ -35,8 +39,16 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
-      start_date: { type: 'string', location: 'query' },
-      end_date: { type: 'string', location: 'query' },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_SINCE,
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UNTIL,
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -66,8 +78,16 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
-      start_date: { type: 'string', location: 'query' },
-      end_date: { type: 'string', location: 'query' },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_SINCE,
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UNTIL,
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -82,8 +102,16 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
-      start_date: { type: 'string', location: 'query' },
-      end_date: { type: 'string', location: 'query' },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_SINCE,
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UNTIL,
+      },
     },
     responseShape: 'list',
     paginated: true,

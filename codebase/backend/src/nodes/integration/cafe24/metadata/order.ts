@@ -1,4 +1,8 @@
 import type { Cafe24OperationMetadata } from './types.js';
+import {
+  CAFE24_DATE_FIELD_SINCE,
+  CAFE24_DATE_FIELD_UNTIL,
+} from './date-descriptions.js';
 
 export const orderOperations: Cafe24OperationMetadata[] = [
   {
@@ -15,12 +19,12 @@ export const orderOperations: Cafe24OperationMetadata[] = [
       start_date: {
         type: 'string',
         location: 'query',
-        description: 'YYYY-MM-DD',
+        description: CAFE24_DATE_FIELD_SINCE,
       },
       end_date: {
         type: 'string',
         location: 'query',
-        description: 'YYYY-MM-DD',
+        description: CAFE24_DATE_FIELD_UNTIL,
       },
       date_type: {
         type: 'enum',
@@ -159,12 +163,12 @@ export const orderOperations: Cafe24OperationMetadata[] = [
       order_date_from: {
         type: 'string',
         location: 'query',
-        description: 'Orders placed on/after this date (YYYY-MM-DD)',
+        description: CAFE24_DATE_FIELD_SINCE,
       },
       order_date_to: {
         type: 'string',
         location: 'query',
-        description: 'Orders placed on/before this date (YYYY-MM-DD)',
+        description: CAFE24_DATE_FIELD_UNTIL,
       },
     },
     responseShape: 'single',

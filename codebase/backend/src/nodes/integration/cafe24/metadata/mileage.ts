@@ -1,5 +1,9 @@
 import type { Cafe24OperationMetadata } from './types.js';
 import { RESTRICTED_APPROVAL } from './restricted-approval.js';
+import {
+  CAFE24_DATE_FIELD_SINCE,
+  CAFE24_DATE_FIELD_UNTIL,
+} from './date-descriptions.js';
 
 export const mileageOperations: Cafe24OperationMetadata[] = [
   {
@@ -13,8 +17,16 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
       member_id: { type: 'string', location: 'query' },
-      start_date: { type: 'string', location: 'query' },
-      end_date: { type: 'string', location: 'query' },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_SINCE,
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UNTIL,
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -110,8 +122,16 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
-      start_date: { type: 'string', location: 'query' },
-      end_date: { type: 'string', location: 'query' },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_SINCE,
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UNTIL,
+      },
     },
     responseShape: 'list',
     paginated: true,
@@ -128,8 +148,16 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
-      start_date: { type: 'string', location: 'query' },
-      end_date: { type: 'string', location: 'query' },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_SINCE,
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UNTIL,
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.mileage,
@@ -145,8 +173,16 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
     requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
-      start_date: { type: 'string', location: 'query' },
-      end_date: { type: 'string', location: 'query' },
+      start_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_SINCE,
+      },
+      end_date: {
+        type: 'string',
+        location: 'query',
+        description: CAFE24_DATE_FIELD_UNTIL,
+      },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.mileage,

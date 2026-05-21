@@ -22,8 +22,24 @@ export interface ExecutionContext {
    */
   nodeExecutionId?: string;
   /**
+   * 워크플로 작성자가 노드에 지정한 label. 엔진이 dispatch 직전 nodeId 와 함께
+   * 주입한다. AI 노드의 System Context Prefix (`node` 섹션) 가 `node.label ?? ''`
+   * 폴백을 위해 사용. 직접 unit test 하는 fixture 는 생략 허용.
+   */
+  nodeLabel?: string;
+  /**
+   * Node type 식별자 (예: `'ai_agent'`, `'text_classifier'`). 엔진이 dispatch
+   * 직전 nodeId 와 함께 주입한다. AI 노드의 System Context Prefix (`node` 섹션)
+   * 가 사용. 직접 unit test 하는 fixture 는 생략 허용.
+   */
+  nodeType?: string;
+  /**
    * 엔진이 createContext 시점에 주입하는 런타임 변수. 알려진 `__`-prefix 키:
    * - `__workspaceId: string` — 현 실행의 워크스페이스 식별자
+   * - `__workspaceName?: string` — `Workspace.name` 복제값. AI 노드의 System
+   *   Context Prefix (spec/4-nodes/3-ai/0-common.md §11) 의 `workspace` 섹션이
+   *   `(unnamed)` 폴백 대신 실제 이름을 노출할 때 사용. 빈 string 또는 부재면
+   *   `(unnamed)` 폴백.
    * - `__workspaceTimezone?: string` — `Workspace.settings.timezone` (IANA)
    *   복제값. AI 노드의 System Context Prefix (spec/4-nodes/3-ai/0-common.md §11.3)
    *   가 timezone SoT 로 사용. 빈 string 또는 부재면 `process.env.TZ` / UTC fallback.

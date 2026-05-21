@@ -204,6 +204,8 @@ const HINT_KO: Record<string, string> = {
   "Optional field to sort by": "정렬에 사용할 선택 필드",
   "Prepend current time + timezone to the system prompt so the LLM avoids KST/UTC drift.":
     "시스템 프롬프트 앞에 현재 시각·타임존을 자동 prepend 합니다. LLM 의 시각 추론이 KST/UTC 9시간 어긋나는 회귀를 차단합니다.",
+  'Selecting "Workspace" or "Node" sends internal ids and labels to the LLM provider as plain text. Use with care for confidential workspaces.':
+    '"Workspace" 또는 "Node" 섹션을 선택하면 워크스페이스 / 노드의 내부 ID·라벨이 LLM 공급자에게 평문으로 전송됩니다. 기밀 워크스페이스에서는 신중하게 사용하세요.',
   "Push KB / MCP / condition tool turns to the thread (default: only the final assistant response).":
     "KB / MCP / 조건 도구 호출도 스레드에 함께 푸시합니다 (기본: 최종 어시스턴트 응답만).",
   "Safety cap on loop iterations": "루프 반복 횟수 안전 상한",

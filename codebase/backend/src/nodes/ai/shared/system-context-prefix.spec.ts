@@ -268,5 +268,53 @@ describe('System Context Prefix', () => {
         process.env.TZ = original;
       }
     });
+
+    it('renders __workspaceName / nodeLabel / nodeType in workspace + node sections', () => {
+      const out = buildSystemContextPrefixFromContext({
+        context: makeContext({
+          variables: {
+            __workspaceId: 'ws-1',
+            __workspaceName: 'My Workspace',
+            __workspaceTimezone: 'Asia/Seoul',
+          },
+          nodeId: 'node-7',
+          nodeLabel: 'Order Classifier',
+          nodeType: 'text_classifier',
+        }),
+        config: {
+          includeSystemContext: true,
+          systemContextSections: ['workspace', 'node'],
+        },
+        now: fixedNow,
+      });
+      expect(out).toContain('- Workspace: My Workspace (id: ws-1)');
+      expect(out).toContain(
+        '- Node: Order Classifier (type: text_classifier, id: node-7)',
+      );
+      expect(out).not.toContain('(unnamed)');
+      expect(out).not.toContain('(unlabeled)');
+    });
+
+    it('falls back to (unnamed) / (unlabeled) when name / label missing', () => {
+      const out = buildSystemContextPrefixFromContext({
+        context: makeContext({
+          variables: {
+            __workspaceId: 'ws-1',
+            __workspaceTimezone: 'Asia/Seoul',
+          },
+          nodeId: 'node-7',
+          nodeType: 'text_classifier',
+        }),
+        config: {
+          includeSystemContext: true,
+          systemContextSections: ['workspace', 'node'],
+        },
+        now: fixedNow,
+      });
+      expect(out).toContain('- Workspace: (unnamed) (id: ws-1)');
+      expect(out).toContain(
+        '- Node: (unlabeled) (type: text_classifier, id: node-7)',
+      );
+    });
   });
 });

@@ -11,6 +11,7 @@ import { ChatResult } from '../../../modules/llm/interfaces/llm-client.interface
 import { truncateForErrorDetails } from '../../core/error-codes';
 import { textClassifierNodeMetadata } from './text-classifier.schema';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
+import { pickNonDefaultSystemContext } from '../shared/system-context-schema';
 
 interface Category {
   id?: string;
@@ -114,6 +115,8 @@ export class TextClassifierHandler implements NodeHandler {
       ...(rawConfig.instructions !== undefined
         ? { instructions: rawConfig.instructions }
         : {}),
+      // spec §11.7 — default 일치 시 생략, 명시 변경 시 echo.
+      ...pickNonDefaultSystemContext(rawConfig),
     };
 
     const workspaceId = (context.variables?.__workspaceId as string) || '';

@@ -4,6 +4,7 @@ import {
   NodePorts,
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
+import { buildSystemContextSchemaFields } from '../shared/system-context-schema.js';
 
 /**
  * Default for `contextScopeN` — the number of most recent ConversationThread
@@ -369,36 +370,8 @@ export const aiAgentNodeConfigSchema = z
     // SoT: spec/4-nodes/3-ai/0-common.md §11. Default true 로 시각·timezone 한 줄
     // prefix 가 systemPrompt 앞에 자동 prepend. Cafe24 MCP 도구 description 의 KST
     // suffix 와 두 채널로 LLM 시각 추론 회귀를 차단.
-    includeSystemContext: z
-      .boolean()
-      .default(true)
-      .meta({
-        ui: {
-          label: 'Include System Context',
-          widget: 'checkbox',
-          order: 42,
-          group: 'System Context',
-          hint: 'Prepend current time + timezone to the system prompt so the LLM avoids KST/UTC drift.',
-        },
-      }),
-    systemContextSections: z
-      .array(z.enum(['time', 'timezone', 'workspace', 'node']))
-      .default(['time', 'timezone'])
-      .meta({
-        ui: {
-          label: 'Context Sections',
-          widget: 'multiselect',
-          order: 43,
-          group: 'System Context',
-          options: [
-            { value: 'time', label: 'Current time (ISO 8601 with offset)' },
-            { value: 'timezone', label: 'Timezone (IANA + UTC offset)' },
-            { value: 'workspace', label: 'Workspace id / name' },
-            { value: 'node', label: 'Node id / label / type' },
-          ],
-          visibleWhen: { field: 'includeSystemContext', equals: true },
-        },
-      }),
+    // Fragment SoT: shared/system-context-schema.ts (3 노드 공통 helper).
+    ...buildSystemContextSchemaFields(42),
 
     // ── Multi Turn Settings ──
     maxTurns: z
