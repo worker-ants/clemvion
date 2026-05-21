@@ -295,6 +295,69 @@ Prefer `per_execution` when you can — a leak is limited to one execution withi
 
 If neither `notification` nor `interaction` is configured, the trigger behaves exactly as before — webhook in, execution starts, results visible on the trigger call history or the workflow's execution history.
 
+## Chat Channel (Telegram bot)
+
+Set `config.chatChannel` on a Webhook trigger to make a **Telegram bot** the conversational interface for your workflow. Messages from Telegram users start new executions or provide input to an execution waiting for user interaction (`waiting_for_input`).
+
+### Setup
+
+1. Create a bot with [Telegram BotFather](https://t.me/botfather) using `/newbot` and copy the **API Token**.
+2. Set `config.chatChannel` when creating the trigger:
+
+```json
+{
+  "type": "webhook",
+  "config": {
+    "chatChannel": {
+      "provider": "telegram",
+      "botToken": "<your BotFather token>"
+    }
+  }
+}
+```
+
+3. When the trigger is activated, `setWebhook` is called automatically to wire the bot to the workflow endpoint.
+
+### Health status
+
+Check `chatChannelHealth` on the trigger detail view:
+
+| Value | Meaning |
+|---|---|
+| `unknown` | `setupChannel` not yet called or pending |
+| `ok` | Bot connected normally |
+| `degraded` | Recent consecutive `sendMessage` failures — bot unstable |
+| `error` | `setupChannel` failed |
+
+### Rotating the bot token
+
+If a token may be compromised, call `POST /api/triggers/:id/chat-channel/rotate-bot-token`. This deregisters the existing webhook and registers a new one with the new token.
+
+### Supported interaction nodes
+
+- **AI Multi Turn** — free conversation with the bot
+- **Button Presentation** — selection via inline keyboard buttons
+- **Form** — sequential field-by-field input
+- **Chart** — chart delivered as a PNG image
+
+### Commands
+
+| Command | Behavior |
+|---|---|
+| `/start` | Start a new execution. Cancels any running one first. |
+| `/cancel` | Cancel the current execution |
+| `/help` | Show help text |
+
+<Callout type="info">
+Group chats are not supported — the bot only operates in 1:1 (private) conversations.
+</Callout>
+
+<Callout type="warn">
+New error codes from the Chat Channel API: `INVALID_BOT_TOKEN`, `WORKSPACE_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`. These are not yet mapped in `ERROR_KO` so they appear in English — a future `backend-labels.ts` update will add Korean labels.
+</Callout>
+
+For step-by-step bot creation and advanced settings, see the [Telegram integration guide](/docs/06-integrations-and-config/telegram).
+
 ## Canvas summary
 
 Manual Trigger shows the parameter count in its summary. When empty, it displays `(none)`.

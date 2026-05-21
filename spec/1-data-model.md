@@ -202,7 +202,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | type | Enum | webhook / schedule / manual |
 | name | String | 트리거 이름 |
 | is_active | Boolean | 활성 상태 |
-| config | JSONB | 트리거별 설정. `notification` / `interaction` 서브 필드는 [Spec External Interaction API §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) 참조 |
+| config | JSONB | 트리거별 설정. `notification` / `interaction` 서브 필드는 [Spec External Interaction API §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) 참조. `chatChannel` 서브 필드 (외부 chat 플랫폼 어댑터) 는 [Spec Chat Channel §4.1](./5-system/15-chat-channel.md#41-triggerconfigchatchannel) 참조 |
 | endpoint_path | String? | Webhook URL 경로 (type=webhook) |
 | auth_config_id | UUID? | FK → AuthConfig (Webhook 인증) |
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
@@ -210,6 +210,11 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | notification_last_error | Text? | Outbound notification 최종 실패 시 마지막 에러 메시지 (truncate 가능) |
 | notification_secret_v2 | Text? | Secret rotation 기간 (24h grace) 동안 사용되는 신규 secret (NOT NULL 이면 `config.notification.signing.secret` 와 둘 다 검증) |
 | notification_rotated_at | Timestamp? | Secret rotation 시작 시각 (grace 종료 판정용) |
+| chat_channel_health | Enum | unknown / healthy / degraded. Chat Channel 어댑터의 외부 채널 호출 건강도. default=`unknown`. [Spec Chat Channel §3.4 CCH-SE-01](./5-system/15-chat-channel.md#34-신뢰성--보안). `notification_health` 와 enum 값 집합이 동일 — 향후 공용 DB 타입 통합 검토 |
+| chat_channel_last_error | Text? | Chat Channel 어댑터 외부 호출 최종 실패 시 마지막 에러 메시지 (truncate 가능) |
+| chat_channel_setup_at | Timestamp? | `setupChannel()` 성공 시각. setup 미수행이면 NULL |
+| chat_channel_token_v2 | Text? | Bot token rotation grace 기간 (24h) 동안 사용되는 신규 bot token reference. **Semantic 비대칭 주의**: `notification_secret_v2` (HMAC signing secret) 와 명명 패턴은 동일하나 의미는 다름 — `chat_channel_token_v2` 는 외부 provider bot token reference (예: 텔레그램 Bot API token). [Spec Chat Channel §4.2 / §R-K](./5-system/15-chat-channel.md#42-trigger-테이블-신규-컬럼) |
+| chat_channel_rotated_at | Timestamp? | Bot token rotation 시작 시각 (grace 종료 판정용) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 

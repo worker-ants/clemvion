@@ -1,6 +1,6 @@
 # Spec: External Interaction API (트리거-원격 인터랙션 채널)
 
-> 관련 문서: [Spec Webhook 트리거](./12-webhook.md) · [Spec WebSocket 프로토콜](./6-websocket-protocol.md) · [Spec 실행 엔진](./4-execution-engine.md) · [Spec API 규칙](./2-api-convention.md) · [Spec Conversation Thread](../conventions/conversation-thread.md)
+> 관련 문서: [Spec Webhook 트리거](./12-webhook.md) · [Spec WebSocket 프로토콜](./6-websocket-protocol.md) · [Spec 실행 엔진](./4-execution-engine.md) · [Spec API 규칙](./2-api-convention.md) · [Spec Conversation Thread](../conventions/conversation-thread.md) · [Spec Chat Channel](./15-chat-channel.md)
 
 ---
 
@@ -22,7 +22,8 @@
 | 시나리오 | 사용 채널 | 설명 |
 |---------|---------|------|
 | 서버-to-서버 자동화에서 사람 결재가 필요한 경우 | Notification only | 외부 서버가 webhook 으로 워크플로우 시작 → Form 도달 시 notification 수신 → 자체 UI 로 안내 → REST 로 form 제출 |
-| 외부 챗봇(Telegram/Slack/카카오) 위에 워크플로우 얹기 | Notification + Inbound | 봇 메시지 → webhook 으로 워크플로우 시작 → AI Multi Turn 진입 시 notification 으로 어시스턴트 응답 받기 → 사용자 메시지마다 REST `submit_message` |
+| 외부 챗봇(Telegram/Slack/카카오) 위에 워크플로우 얹기 — **사용자가 직접 변환층 구현 (advanced)** | Notification + Inbound | `config.chatChannel` 미사용. 봇 메시지 → webhook 으로 워크플로우 시작 → AI Multi Turn 진입 시 notification 으로 어시스턴트 응답 받기 → 사용자 메시지마다 REST `submit_message`. 사용자가 변환층을 직접 구현해 quirky 통합·미지원 provider 도 운영 가능 |
+| 외부 챗봇 — **서버사이드 어댑터 사용 (Chat Channel via Webhook)** | Notification + Inbound (어댑터가 자동화) | Webhook 트리거 `config.chatChannel` 등록만으로 텔레그램 등과 자동 통합. 어댑터가 in-process subscriber 로 EIA outbound 를 받아 채널 메시지로 변환, in-process caller 로 EIA inbound 를 호출. 사용자 코드 0. 상세는 [Spec Chat Channel](./15-chat-channel.md) |
 | 외부 SaaS 가 내장 chat 위젯 호스팅 | Inbound only (SSE + REST) | webhook 응답으로 받은 토큰으로 SSE 스트림 열고 REST 명령 보냄. notification 미사용 |
 | 단순 fire-and-forget 자동화 (인터랙션 없음) | 둘 다 미사용 | 기존 webhook 그대로 |
 
@@ -56,7 +57,7 @@
 | EIA-IN-03 | `GET /api/external/executions/:executionId/stream` 는 Server-Sent Events 스트림. terminal 이벤트(`completed`/`failed`/`cancelled`) 발송 후 자동 종료 | 필수 |
 | EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / seq / updatedAt) | 필수 |
 | EIA-IN-05 | `POST /api/external/executions/:executionId/cancel` 는 명시적 취소 — `interact` 의 `command:"cancel"` 과 동치 (편의 alias) | 권장 |
-| EIA-IN-06 | 모든 inbound 요청은 §4 의 interaction token 으로 인증 | 필수 |
+| EIA-IN-06 | 모든 inbound 요청은 §4 의 interaction token 으로 인증. **단 §3.3 EIA-AU-08 의 in-process trusted caller 는 제외** — HTTP 표면을 거치지 않는 in-process 호출에 한정 | 필수 |
 | EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 | 필수 |
 | EIA-IN-08 | SSE 는 15초마다 `: heartbeat` comment 라인 전송 — proxy idle timeout 회피 | 필수 |
 | EIA-IN-09 | execution 당 동시 SSE 연결 수 제한: 기본 3 (multi-tab 허용, 무제한 fan-out 차단) | 권장 |
@@ -76,6 +77,7 @@
 | EIA-AU-05 | `per_execution` 토큰은 만료 30분 이내 + execution 이 still alive 일 때 `POST /api/external/executions/:id/refresh-token` 으로 갱신 가능 | 권장 |
 | EIA-AU-06 | 토큰 무효/만료 시 `401` + 응답 헤더 `X-Refresh-Token-Url` 로 갱신 경로 안내 | 권장 |
 | EIA-AU-07 | Per-trigger 토큰은 trigger 삭제 시 자동 invalidate. `POST /api/triggers/:id/interaction/revoke-token` 으로 수동 invalidate 가능 | 필수 |
+| EIA-AU-08 | **In-process trusted caller 예외** — 서버 process 내부의 신뢰 caller (예: [Spec Chat Channel](./15-chat-channel.md) 어댑터) 는 토큰 발급/검증을 우회할 수 있다. 우회는 `InteractionService.interact()` ([코드 SoT](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)) 의 **in-process 직접 호출** 경로에 한정되며, HTTP 표면을 거치지 않는다. 외부 HTTP 호출은 EIA-IN-06 의 `interaction token` 인증을 그대로 따른다. 구현은 `InteractionRequestContext.scope: 'in_process_trusted'` 플래그로 분기하되, 외부 HTTP guard 는 ctx 합성 시 이 플래그를 절대 set 하지 않는다 | 필수 |
 
 ### 3.4 신뢰성·일관성
 
@@ -778,7 +780,7 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 - TTL 짧음 (default 1h, 갱신 가능) — 만료된 토큰의 attack window 최소화
 
 `per_trigger` 가 더 편한 시나리오:
-- 다수 execution 을 동시에 다루는 봇 (Telegram bot 등) — execution 별 토큰 교환 비용 회피
+- 다수 execution 을 동시에 다루는 봇 (Telegram bot 등) — execution 별 토큰 교환 비용 회피. **단, 본 시나리오는 사용자가 직접 변환층을 구현하는 advanced 케이스 한정** (§2 사용 시나리오 표 2행). 서버사이드 어댑터 ([Spec Chat Channel](./15-chat-channel.md)) 를 사용하는 경우는 EIA-AU-08 (§3.3) 의 in-process 우회로 토큰 사이클 자체가 적용되지 않는다.
 - 별도 token store 가 필요한 client (모든 execution 의 token 을 따로 보관해야 함)
 
 → default 는 안전 쪽, 옵션으로 편의 쪽 모두 제공.
@@ -858,6 +860,10 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 - 트랜잭션 commit 후 emit 규약 (§9.3 EIA-RL-04) 이 단일 sink 정책의 timing 보장과 자연스럽게 정합
 
 **기각된 대안**: NotificationDispatcher 를 엔진 내부에 직접 호출 — 엔진이 외부 sink 종류·재시도·서명·SSRF 정책을 모두 알아야 해 단일 책임 위반. 또한 실행 엔진 §4.4 의 원래 결정 (책임 격리) 을 번복하는 것이 된다.
+
+**추가 facade 사례 — Chat Channel adapter (2026-05-21)**: [Spec Chat Channel](./15-chat-channel.md) 의 server-side 어댑터도 NotificationDispatcher 와 **동일 facade 계층** 의 추가 in-process subscriber 로 위치한다. 구체 구독 메커니즘은 **NotificationDispatcher 가 after-commit hook 위에 노출하는 in-process EventEmitter** 의 listener 로 attach. 외부 HTTP notification 와 어댑터의 채널 emit 은 같은 after-commit hook 에서 fan-out 되어 EIA-RL-04 (TX commit 후 발송) 정합. 어댑터는 엔진 내부 코드를 호출하지 않으며, 본 R10 의 **엔진 단일 sink + 외부 facade** 원칙을 깨지 않는다 — 기각된 대안 (NotificationDispatcher 를 엔진 내부에서 직접 호출) 과의 구조적 차이는 어댑터 역시 엔진 외부에서 NotificationDispatcher 가 emit 하는 결과만 받는다는 점.
+
+SSE 어댑터의 **Redis pub/sub** 구독 경로 (다중 인스턴스 환경의 외부 SSE 클라이언트가 임의 인스턴스에 접속 가능해야 함) 와 Chat Channel 어댑터의 **in-process EventEmitter** 구독 경로는 **동시 운영**된다 — 두 어댑터는 NotificationDispatcher 라는 같은 facade 계층의 별도 listener 형태로 병존한다. NotificationDispatcher 의 fan-out 책임은 (a) Redis pub/sub 발행 (외부 SSE 어댑터용) + (b) in-process EventEmitter emit (Chat Channel 어댑터용) + (c) 외부 HTTP POST (notification webhook) 의 세 갈래로 늘어난다 — 세 경로 모두 동일 `seq` 와 동일 TX commit timing 을 공유.
 
 ### R11. 외부 endpoint 경로 prefix 분리 — `/api/external/executions/*` (2026-05-21)
 

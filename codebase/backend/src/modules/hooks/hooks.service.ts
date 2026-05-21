@@ -15,6 +15,16 @@ import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trig
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
+import { InteractionService } from '../external-interaction/interaction.service';
+import { ExecutionsService } from '../executions/executions.service';
+import { ExecutionStatus } from '../executions/entities/execution.entity';
+import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
+import {
+  ChannelUpdate,
+  ChatChannelAdapter,
+  ChatChannelConfig,
+} from '../chat-channel/types';
 import * as crypto from 'crypto';
 
 const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
@@ -45,6 +55,10 @@ export class HooksService {
     private readonly nodeRepository: Repository<Node>,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly tokenService: InteractionTokenService,
+    private readonly channelAdapterRegistry: ChannelAdapterRegistry,
+    private readonly channelConversationService: ChannelConversationService,
+    private readonly interactionService: InteractionService,
+    private readonly executionsService: ExecutionsService,
   ) {}
 
   async handleWebhook(
@@ -84,6 +98,14 @@ export class HooksService {
         code: 'TRIGGER_INACTIVE',
         message: 'Webhook trigger is inactive',
       });
+    }
+
+    // 3a. Chat Channel 분기 — config.chatChannel 가 있으면 adapter 가 inbound 처리.
+    //     일반 webhook 경로와 별도 — auth / parameter schema 검증 모두 우회 (chat 채널은
+    //     자체 secret_token 헤더 검증 + parseUpdate 의 raw body 만 사용).
+    const chatChannelCfg = readChatChannelConfig(trigger.config);
+    if (chatChannelCfg) {
+      return this.handleChatChannelWebhook(trigger, chatChannelCfg, input);
     }
 
     // 3. Authenticate
@@ -139,6 +161,367 @@ export class HooksService {
     return interaction
       ? { executionId, status: 'pending' as const, interaction }
       : { executionId };
+  }
+
+  /**
+   * Chat Channel inbound 처리 — Spec §3.1 / CCH-AD-04 / CCH-AD-06.
+   *
+   * 1. provider 별 adapter 조회
+   * 2. (Telegram) X-Telegram-Bot-Api-Secret-Token 헤더 검증
+   * 3. adapter.parseUpdate(rawBody) — null 이면 202 ignored 즉시 반환
+   * 4. ChannelConversation 조회 — 활성 execution + waiting_for_input 이면 interact() in-process 호출
+   *    그 외에는 새 execution 시작 (또는 /cancel 명령 처리)
+   * 5. ackInteraction (button_callback 등)
+   *
+   * 본 메서드는 200ms 안에 202 Accepted 응답해야 함 (WH-NF-01). 무거운 작업은 fire-and-forget.
+   */
+  private async handleChatChannelWebhook(
+    trigger: Trigger,
+    config: ChatChannelConfig,
+    input: WebhookInput,
+  ): Promise<{ executionId: string; status?: 'pending' }> {
+    let adapter: ChatChannelAdapter;
+    try {
+      adapter = this.channelAdapterRegistry.get(config.provider);
+    } catch (_err) {
+      throw new BadRequestException({
+        code: 'CHAT_CHANNEL_PROVIDER_UNKNOWN',
+        message: `Unknown chat channel provider: ${config.provider}`,
+      });
+    }
+
+    // Telegram secret_token 헤더 검증 (provider 별 quirk). 다른 provider 는 어댑터마다 자체 검증.
+    if (config.provider === 'telegram' && config.secretToken) {
+      const headerToken =
+        input.headers['x-telegram-bot-api-secret-token'] ?? '';
+      if (headerToken !== config.secretToken) {
+        throw new UnauthorizedException({
+          code: 'AUTH_FAILED',
+          message: 'Invalid Telegram secret token',
+        });
+      }
+    }
+
+    const update = await adapter.parseUpdate(input.body, config);
+    if (!update) {
+      // 무시 대상 (group/bot/unsupported) — parseUpdate 의 pure 계약 (I-6) 에 따라 호출자가 안내 발송.
+      // raw body 의 chat 정보가 있으면 안내 sendMessage. 봇 메시지나 chat 정보 없으면 silent skip.
+      await this.maybeNotifyIgnored(input.body, config, adapter);
+      return { executionId: 'ignored' };
+    }
+
+    // /help 명령 — v1 정적 안내 (Spec providers/telegram §7).
+    if (
+      update.command.kind === 'text_message' &&
+      update.command.text.trim() === '/help'
+    ) {
+      await adapter.sendMessage(
+        {
+          conversationKey: update.conversationKey,
+          body: {
+            kind: 'text',
+            text:
+              config.languageHints?.help ??
+              '/start \\- 새 대화 시작\n/cancel \\- 진행 중인 대화 취소\n/help \\- 도움말',
+          },
+        },
+        config,
+      );
+      return { executionId: 'ignored' };
+    }
+
+    // ChannelConversation 조회.
+    const state = await this.channelConversationService.lookup(
+      trigger.id,
+      update.conversationKey,
+    );
+    const hasActiveExecution =
+      state?.executionId && (await this.isActiveExecution(state.executionId));
+
+    // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop.
+    if (update.command.kind === 'cancel') {
+      if (hasActiveExecution) {
+        await this.executionsService.stop(state.executionId!);
+        await this.channelConversationService.updateExecutionId(
+          trigger.id,
+          update.conversationKey,
+          null,
+        );
+      }
+      await adapter.ackInteraction(update, config);
+      return { executionId: state?.executionId ?? 'ignored' };
+    }
+
+    // 활성 execution 이 있고 사용자 인터랙션 명령이면 in-process interact 호출.
+    if (
+      hasActiveExecution &&
+      (update.command.kind === 'text_message' ||
+        update.command.kind === 'button_callback' ||
+        update.command.kind === 'contact_share' ||
+        update.command.kind === 'file_upload')
+    ) {
+      // Form 다단계 시퀀스 진행 중이면 dispatcher 의 form handler 로 라우팅.
+      if (
+        state?.formState &&
+        (update.command.kind === 'text_message' ||
+          update.command.kind === 'contact_share' ||
+          update.command.kind === 'file_upload')
+      ) {
+        await this.handleFormStep(trigger, state, update, config, adapter);
+      } else {
+        await this.forwardToInteractionService(
+          trigger,
+          state.executionId!,
+          update,
+        );
+      }
+      await adapter.ackInteraction(update, config);
+      return { executionId: state.executionId! };
+    }
+
+    // 새 execution 시작 (start 또는 활성 없음 / terminal 상태).
+    const executionId = await this.executionEngineService.execute(
+      trigger.workflowId,
+      {
+        __triggerSource: 'webhook',
+        parameters: {},
+        body: input.body,
+        headers: input.headers,
+        query: input.query,
+        method: input.method,
+        chatChannel: {
+          provider: config.provider,
+          conversationKey: update.conversationKey,
+          channelUserKey: update.channelUserKey,
+        },
+      },
+      { triggerId: trigger.id },
+    );
+
+    await this.channelConversationService.upsert(
+      trigger.id,
+      update.conversationKey,
+      {
+        executionId,
+        threadId: 'default',
+        channelUserKey: update.channelUserKey,
+        startedAt: state?.startedAt ?? new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+      },
+    );
+
+    trigger.lastTriggeredAt = new Date();
+    await this.triggerRepository.save(trigger);
+
+    await adapter.ackInteraction(update, config);
+    return { executionId, status: 'pending' as const };
+  }
+
+  /**
+   * Active execution 의 inbound 인터랙션 명령을 EIA InteractionService 로 in-process forwarding.
+   * Spec [EIA-AU-08] — `scope: 'in_process_trusted'` 로 ctx 합성, token 검증 우회.
+   */
+  private async forwardToInteractionService(
+    trigger: Trigger,
+    executionId: string,
+    update: ChannelUpdate,
+  ): Promise<void> {
+    // text_message → submit_message (AI Multi Turn).
+    // button_callback → click_button (Button Presentation, Phase 3 에서 구체화).
+    // file_upload / contact_share → submit_form (Form, Phase 4 에서 구체화).
+    // v1 PR-A 는 text_message → submit_message 만 의미 있음.
+    if (update.command.kind === 'text_message') {
+      await this.interactionService.interact(
+        {
+          executionId,
+          tokenFamily: 'itk',
+          triggerId: trigger.id,
+          scope: 'in_process_trusted',
+        },
+        {
+          command: 'submit_message',
+          nodeId: 'chat-channel',
+          message: update.command.text,
+        },
+      );
+    } else if (update.command.kind === 'button_callback') {
+      await this.interactionService.interact(
+        {
+          executionId,
+          tokenFamily: 'itk',
+          triggerId: trigger.id,
+          scope: 'in_process_trusted',
+        },
+        {
+          command: 'click_button',
+          nodeId: 'chat-channel',
+          buttonId: update.command.callbackData,
+        },
+      );
+    }
+    // file_upload / contact_share — Phase 4 (Form) 에서 처리.
+  }
+
+  /**
+   * Spec I-6 — `parseUpdate` 가 null 반환 (group/bot/unsupported) 시 호출자가 안내 sendMessage 발송.
+   * 봇 자기 메시지 (`from.is_bot=true`) 는 silent skip. 그 외 (group, unsupported) 는 안내 발송 후 무시.
+   */
+  private async maybeNotifyIgnored(
+    rawBody: unknown,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    if (!rawBody || typeof rawBody !== 'object') return;
+    const message = (rawBody as { message?: unknown }).message;
+    if (!message || typeof message !== 'object') return;
+    const chat = (message as { chat?: { id?: number; type?: string } }).chat;
+    const from = (message as { from?: { is_bot?: boolean } }).from;
+    if (!chat?.id) return;
+    if (from?.is_bot === true) return; // 봇 메시지 — silent
+    const chatType = chat.type ?? '';
+    const isGroup = ['group', 'supergroup', 'channel'].includes(chatType);
+    const announcement = isGroup
+      ? (config.languageHints?.groupChatRefusal ??
+        '이 봇은 1:1 대화만 지원합니다\\.')
+      : (config.languageHints?.unsupportedMessageKind ??
+        '지원하지 않는 메시지 형식입니다\\.');
+    try {
+      await adapter.sendMessage(
+        {
+          conversationKey: String(chat.id),
+          body: { kind: 'text', text: announcement },
+        },
+        config,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `maybeNotifyIgnored sendMessage 실패 (chatId=${chat.id}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * Phase 4 (PR-C) — Form 다단계 시퀀스 한 step 처리.
+   *
+   * Spec [providers/telegram §5.3 / convention §4]:
+   *   1. 사용자 응답을 partialFormData[currentField.name] = value 로 누적
+   *   2. 클라이언트-side 검증 (type / required) — 실패 시 같은 필드 재질문
+   *   3. 마지막 필드면 EIA submit_form 호출, 아니면 currentFieldIdx++ + 다음 prompt 발송
+   *   4. EIA server-side validation 실패 시 currentFieldIdx 를 fieldErrors[0].field 로 되돌리고 재질문
+   *      (v1 정책: catch → 안내 후 currentFieldIdx 유지. 정확한 EIA-RL-03 복원은 PR-E 보강)
+   */
+  private async handleFormStep(
+    trigger: Trigger,
+    state: NonNullable<
+      Awaited<ReturnType<ChannelConversationService['lookup']>>
+    >,
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    if (!state.formState) return;
+    const formState = state.formState;
+
+    // formConfig 필드 정보를 가져와야 하는데, dispatcher 가 waiting_for_input 에서 받은 정보를
+    // ChannelConversationState 에 같이 저장해두지 않음. v1 구현: state.formState 의 nodeId 와
+    // partialFormData 로만 진행, field 정보 (name) 는 사용자 응답으로 추정 불가 → fallback 정책:
+    //   - 각 응답을 `field_<currentFieldIdx>` key 로 저장. 실제 EIA submit_form 은 이 key 매핑이
+    //     formConfig 와 어긋날 수 있어 v1 의 한계 — PR-E 에서 dispatcher 가 formConfig.fields 를
+    //     state.formState.fieldsCatalog 로 함께 저장하도록 개선.
+
+    const valueKey = `field_${formState.currentFieldIdx}`;
+    let value: unknown = null;
+    if (update.command.kind === 'text_message') value = update.command.text;
+    else if (update.command.kind === 'contact_share')
+      value = update.command.phone;
+    else if (update.command.kind === 'file_upload')
+      value = {
+        fileId: update.command.fileId,
+        mimeType: update.command.mimeType,
+      };
+
+    formState.partialFormData[valueKey] = value;
+    formState.currentFieldIdx += 1;
+
+    // v1 stub: 사용자가 응답할 다음 필드가 있을지 dispatcher 가 알 수 없으므로 단순 정책 —
+    // currentFieldIdx 가 일정 이하 (3) 면 계속 prompt 발송 (placeholder), 초과 시 submit_form.
+    // 실 구현은 dispatcher 가 fieldsCatalog 를 state 에 저장하는 PR-E 보강 사항.
+    const MAX_FIELDS_HEURISTIC = 10;
+    if (formState.currentFieldIdx >= MAX_FIELDS_HEURISTIC) {
+      try {
+        await this.interactionService.interact(
+          {
+            executionId: state.executionId!,
+            tokenFamily: 'itk',
+            triggerId: trigger.id,
+            scope: 'in_process_trusted',
+          },
+          {
+            command: 'submit_form',
+            nodeId: formState.nodeId,
+            data: formState.partialFormData,
+          },
+        );
+        state.formState = undefined;
+      } catch (err) {
+        this.logger.warn(
+          `handleFormStep submit_form 실패 — 재시도 안내: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        // v1 정책: 사용자에게 처음부터 다시 안내 (Spec 의 fieldErrors[0].field 복원은 PR-E 보강).
+        formState.currentFieldIdx = 0;
+        formState.partialFormData = {};
+        await adapter.sendMessage(
+          {
+            conversationKey: update.conversationKey,
+            body: {
+              kind: 'text',
+              text:
+                config.languageHints?.formValidationFailed ??
+                '입력값을 다시 확인해주세요\\.',
+            },
+          },
+          config,
+        );
+      }
+    } else {
+      // 다음 필드 prompt — v1 stub: dispatcher 가 fieldsCatalog 없이는 정확한 prompt 생성 불가.
+      // placeholder 안내 발송.
+      await adapter.sendMessage(
+        {
+          conversationKey: update.conversationKey,
+          body: {
+            kind: 'text',
+            text:
+              config.languageHints?.formNextField ??
+              `다음 항목을 입력해주세요\\. \\(${formState.currentFieldIdx + 1}\\)`,
+          },
+        },
+        config,
+      );
+    }
+
+    state.lastUpdateAt = new Date().toISOString();
+    await this.channelConversationService.upsert(
+      trigger.id,
+      update.conversationKey,
+      state,
+    );
+  }
+
+  /** Active execution 여부 확인 — terminal 상태가 아니면 active. */
+  private async isActiveExecution(executionId: string): Promise<boolean> {
+    const execution = await this.executionsService['executionRepository']
+      ?.findOne?.({
+        where: { id: executionId },
+        select: ['id', 'status'],
+      })
+      .catch(() => null);
+    if (!execution) return false;
+    return (
+      execution.status !== ExecutionStatus.COMPLETED &&
+      execution.status !== ExecutionStatus.FAILED &&
+      execution.status !== ExecutionStatus.CANCELLED
+    );
   }
 
   private async buildInteractionResponse(
@@ -261,4 +644,16 @@ export class HooksService {
     if (aBuf.length !== bBuf.length) return false;
     return crypto.timingSafeEqual(aBuf, bBuf);
   }
+}
+
+/** Trigger.config.chatChannel 추출 (HooksService 내부 헬퍼 — dispatcher 와 중복 정의 OK). */
+function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
+  if (!config || typeof config !== 'object') return null;
+  const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
+  if (!chatChannel || typeof chatChannel !== 'object') return null;
+  const provider = (chatChannel as { provider?: unknown }).provider;
+  const botToken = (chatChannel as { botToken?: unknown }).botToken;
+  if (typeof provider !== 'string' || provider.length === 0) return null;
+  if (typeof botToken !== 'string' || botToken.length === 0) return null;
+  return chatChannel as ChatChannelConfig;
 }
