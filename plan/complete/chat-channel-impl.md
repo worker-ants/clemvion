@@ -23,7 +23,7 @@ owner: developer
 - [x] Worktree 확인 — `.claude/worktrees/chat-channel-telegram-0c106c/` 안
 - [x] Spec 선독 — 위 6 spec 모두 읽음
 - [x] 기존 인프라 파악 — HooksService, NotificationDispatcher, InteractionService, Trigger entity, V061 마이그레이션
-- [ ] consistency-check --impl-prep — 본 plan 작성 직후 호출
+- [x] consistency-check --impl-prep — `review/consistency/2026/05/21/23_49_16/` (Round 1) BLOCK: NO, Warning W-1~W-9 모두 plan §3.6 흡수
 
 ---
 
@@ -374,15 +374,15 @@ Critical 발견 시 본 plan 갱신 후 재호출. Warning 은 본 plan 의 §3 
 
 ## 6. 진행 체크리스트
 
-- [ ] consistency-check --impl-prep 호출 + Critical 0 확인
-- [ ] Phase 1 — Foundation commit
-- [ ] Phase 2 — PR-A commit
-- [ ] Phase 3 — PR-B commit
-- [ ] Phase 4 — PR-C commit
-- [ ] Phase 5 — PR-D commit
-- [ ] Phase 6 — PR-E commit (frontend / 가이드 포함)
-- [ ] Phase 7 — TEST WORKFLOW 4 stage 모두 green
-- [ ] Phase 8 — /ai-review SUMMARY 확인 + 이슈 fix + RESOLUTION.md
-- [ ] Phase 9 — plan complete + spec-draft 와 같은 디렉토리로
+- [x] consistency-check --impl-prep 호출 + Critical 0 확인 — Round 1 BLOCK: NO
+- [x] Phase 1 — Foundation commit (`725a412f`)
+- [x] Phase 2 — PR-A baseline + 통합부 commit (`725a412f` + `d6a0f57f`)
+- [x] Phase 3 — PR-B commit (`a692d75d`)
+- [x] Phase 4 — PR-C commit (`a692d75d`)
+- [x] Phase 5 — PR-D commit (`a692d75d` 의 v1 = text caption fallback. carousel/table SSR 은 spec §3.3 CCH-MP-04 의 "단계적" 정책대로 후속 plan `chat-channel-carousel-table-ssr.md` 로 분리)
+- [x] Phase 6 — PR-E backend commit (`923d29f2`) + user-guide commit (`bb1e5e99`). Frontend trigger drawer chatChannel 패널은 spec-fix-chat-channel-arch.md follow-up 으로 분리
+- [x] Phase 7 — TEST WORKFLOW 4 stage 모두 green (`220e8ff5`) — lint PASS, unit 4333 pass, build PASS, e2e 98 pass
+- [x] Phase 8 — /ai-review 호출 + resolution-applier (`36ffed71` + `2126a1b5` + `bb1e5e99` + `626399e4`) + RESOLUTION.md (`review/code/2026/05/22/00_52_38/RESOLUTION.md`). 16 SUMMARY 항목 중 8건 코드 fix, 6건 spec-fix draft 위임, 1건 stale-rebase 비차단, 1건 이미 해결
+- [x] Phase 9 — plan complete + spec-draft 와 같은 디렉토리로 (본 commit)
 
 각 phase 종료 시 본 체크박스 갱신.
