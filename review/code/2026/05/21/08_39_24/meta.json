@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-05-21T08:39:24.375792",
+  "files": [
+    {
+      "file_path": "_test_logs/e2e-20260521-083656.log",
+      "change_type": "Review",
+      "file_extension": "log"
+    },
+    {
+      "file_path": "_test_logs/lint-20260521-081201.log",
+      "change_type": "Review",
+      "file_extension": "log"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": []
+}

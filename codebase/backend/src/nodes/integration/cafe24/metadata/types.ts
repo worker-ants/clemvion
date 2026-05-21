@@ -73,6 +73,11 @@ export interface Cafe24RestrictedApproval {
  * `Node.category` enum (`integration` / `logic` / `ai` / ...).
  * Maps directly to Cafe24 scope strings: `mall.read_<resource>` /
  * `mall.write_<resource>`.
+ *
+ * Note: `scopeType` is decoupled from HTTP `method`. A POST/PUT can be
+ * `scopeType: 'read'` when Cafe24 requires only the read OAuth scope to
+ * call it (e.g. `orders_calculation_total` uses POST for body-based
+ * calculation but never mutates server state).
  */
 export interface Cafe24OperationMetadata {
   id: string;
