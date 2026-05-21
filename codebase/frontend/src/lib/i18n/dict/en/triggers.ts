@@ -88,5 +88,29 @@ export const triggers: Dict["triggers"] = {
     interactionRevokeToken: "Rotate per-trigger token",
     notConfigured:
       "No external interaction channel is configured. Add notification or interaction in the trigger config to see them here.",
+    edit: "Edit",
+    save: "Save",
+    cancel: "Cancel",
+    saving: "Saving...",
+    saveSucceeded: "Saved",
+    saveFailed: "Save failed",
+    notificationUrlPlaceholder: "https://your-server.example/webhook",
+    notificationUrlHelp:
+      "https:// only. Private IPs, loopback, and metadata IPs are blocked.",
+    rotateConfirm:
+      "Outbound notifications signed with the current secret will also include the new signature during a 24h grace period. Proceed?",
+    rotateSucceeded:
+      "New secret issued. Distribute to your external system immediately.",
+    rotateFailed: "Secret rotation failed",
+    rotateNewSecret: "New secret (shown once)",
+    revokeConfirm:
+      "The existing per-trigger token will be invalidated immediately. Proceed?",
+    revokeSucceeded:
+      "New token issued. Distribute to your external system immediately.",
+    revokeFailed: "Token rotation failed",
+    revokeNewToken: "New token (shown once)",
+    copy: "Copy",
+    copied: "Copied",
+    eventChoices: "Event selection",
   },
 };

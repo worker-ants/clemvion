@@ -367,6 +367,14 @@ curl -X POST ${url} \\
  * v1 은 표시 전용 (수정 UI 는 후속 PR). 호스팅된 워크플로우가 외부 호출자에게 어떤 채널을
  * 노출하고 있는지 한눈에 보기 위함. `notificationHealth` 배지로 발송 상태 모니터링.
  */
+const NOTIFICATION_EVENT_CHOICES = [
+  "execution.waiting_for_input",
+  "execution.completed",
+  "execution.failed",
+  "execution.cancelled",
+  "execution.ai_message",
+] as const;
+
 function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
   const t = useT();
   const notification = trigger.config?.notification;
@@ -385,13 +393,122 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
     degraded: "Degraded",
   };
 
+  // Edit state
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [urlValue, setUrlValue] = useState(notification?.url ?? "");
+  const [eventsValue, setEventsValue] = useState<Set<string>>(
+    new Set(notification?.events ?? []),
+  );
+  const [interactionEnabled, setInteractionEnabled] = useState(
+    interaction?.enabled ?? false,
+  );
+  const [strategy, setStrategy] = useState<"per_execution" | "per_trigger">(
+    interaction?.tokenStrategy ?? "per_execution",
+  );
+
+  // Rotate / revoke result dialogs (1회만 표시)
+  const [rotateResult, setRotateResult] = useState<string | null>(null);
+  const [revokeResult, setRevokeResult] = useState<string | null>(null);
+
+  async function handleSave(): Promise<void> {
+    setSaving(true);
+    try {
+      const patchBody: Record<string, unknown> = {};
+      if (urlValue && urlValue.length > 0) {
+        patchBody.notification = {
+          url: urlValue,
+          events: Array.from(eventsValue),
+          ...(notification?.signing ? { signing: notification.signing } : {}),
+          ...(notification?.retry ? { retry: notification.retry } : {}),
+        };
+      }
+      patchBody.interaction = {
+        enabled: interactionEnabled,
+        tokenStrategy: strategy,
+      };
+      await apiClient.patch(`/triggers/${trigger.id}`, patchBody);
+      toast.success(t.triggers.externalInteraction.saveSucceeded);
+      setEditing(false);
+      // 페이지 reload 대신 query invalidate 가 이상적이지만 본 PR 은 단순 reload — drawer 가 재open 시 갱신.
+      window.location.reload();
+    } catch (err) {
+      toast.error(
+        `${t.triggers.externalInteraction.saveFailed}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRotateSecret(): Promise<void> {
+    if (!window.confirm(t.triggers.externalInteraction.rotateConfirm)) return;
+    try {
+      const res = await apiClient.post<{
+        data: { secret: string; rotatedAt: string };
+      }>(`/triggers/${trigger.id}/notification/rotate-secret`, {});
+      setRotateResult(res.data.data.secret);
+      toast.success(t.triggers.externalInteraction.rotateSucceeded);
+    } catch (err) {
+      toast.error(
+        `${t.triggers.externalInteraction.rotateFailed}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  async function handleRevokeToken(): Promise<void> {
+    if (!window.confirm(t.triggers.externalInteraction.revokeConfirm)) return;
+    try {
+      const res = await apiClient.post<{ data: { token: string } }>(
+        `/triggers/${trigger.id}/interaction/revoke-token`,
+        {},
+      );
+      setRevokeResult(res.data.data.token);
+      toast.success(t.triggers.externalInteraction.revokeSucceeded);
+    } catch (err) {
+      toast.error(
+        `${t.triggers.externalInteraction.revokeFailed}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  async function copyText(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(t.triggers.externalInteraction.copied);
+    } catch {
+      toast.error(t.triggers.copyFailed);
+    }
+  }
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">External Interaction</CardTitle>
+        {!editing ? (
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            {t.triggers.externalInteraction.edit}
+          </Button>
+        ) : (
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditing(false)}
+              disabled={saving}
+            >
+              {t.triggers.externalInteraction.cancel}
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving
+                ? t.triggers.externalInteraction.saving
+                : t.triggers.externalInteraction.save}
+            </Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
-        {!hasAny && (
+        {!hasAny && !editing && (
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {t.triggers.externalInteraction.notConfigured}
           </p>
@@ -440,7 +557,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
           </div>
         )}
 
-        {interaction?.enabled && (
+        {interaction?.enabled && !editing && (
           <div className="space-y-2 text-sm">
             <div className="flex items-center justify-between">
               <dt className="font-medium">Interaction (Inbound REST + SSE)</dt>
@@ -460,6 +577,151 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
                 </dd>
               </div>
             </dl>
+            {interaction.tokenStrategy === "per_trigger" && (
+              <Button size="sm" variant="outline" onClick={handleRevokeToken}>
+                {t.triggers.externalInteraction.interactionRevokeToken}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Edit form */}
+        {editing && (
+          <div className="space-y-3 text-sm">
+            <div>
+              <label className="block text-xs font-medium mb-1">
+                {t.triggers.externalInteraction.notificationUrl}
+              </label>
+              <input
+                type="text"
+                className="w-full px-2 py-1.5 text-xs font-mono border rounded bg-[hsl(var(--background))] border-[hsl(var(--border))]"
+                placeholder={
+                  t.triggers.externalInteraction.notificationUrlPlaceholder
+                }
+                value={urlValue}
+                onChange={(e) => setUrlValue(e.target.value)}
+              />
+              <p className="text-[10px] text-[hsl(var(--muted-foreground))] mt-1">
+                {t.triggers.externalInteraction.notificationUrlHelp}
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">
+                {t.triggers.externalInteraction.eventChoices}
+              </label>
+              <div className="space-y-1">
+                {NOTIFICATION_EVENT_CHOICES.map((ev) => (
+                  <label
+                    key={ev}
+                    className="flex items-center gap-2 text-xs font-mono"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={eventsValue.has(ev)}
+                      onChange={(e) => {
+                        const next = new Set(eventsValue);
+                        if (e.target.checked) next.add(ev);
+                        else next.delete(ev);
+                        setEventsValue(next);
+                      }}
+                    />
+                    {ev}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-xs font-medium">
+                <input
+                  type="checkbox"
+                  checked={interactionEnabled}
+                  onChange={(e) => setInteractionEnabled(e.target.checked)}
+                />
+                {t.triggers.externalInteraction.interactionEnabled}
+              </label>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">
+                {t.triggers.externalInteraction.interactionTokenStrategy}
+              </label>
+              <select
+                className="px-2 py-1.5 text-xs font-mono border rounded bg-[hsl(var(--background))] border-[hsl(var(--border))]"
+                value={strategy}
+                onChange={(e) =>
+                  setStrategy(
+                    e.target.value as "per_execution" | "per_trigger",
+                  )
+                }
+              >
+                <option value="per_execution">
+                  {
+                    t.triggers.externalInteraction.tokenStrategyPerExecution
+                  }
+                </option>
+                <option value="per_trigger">
+                  {t.triggers.externalInteraction.tokenStrategyPerTrigger}
+                </option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons (non-editing) */}
+        {!editing && notification?.url && (
+          <Button size="sm" variant="outline" onClick={handleRotateSecret}>
+            {t.triggers.externalInteraction.notificationSecretRotate}
+          </Button>
+        )}
+
+        {/* Secret rotation result (1회 표시) */}
+        {rotateResult && (
+          <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-xs space-y-2">
+            <div className="font-medium">
+              {t.triggers.externalInteraction.rotateNewSecret}
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 font-mono break-all">{rotateResult}</code>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => void copyText(rotateResult)}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRotateResult(null)}
+            >
+              {t.triggers.externalInteraction.cancel}
+            </Button>
+          </div>
+        )}
+
+        {/* Per-trigger token revoke result */}
+        {revokeResult && (
+          <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-xs space-y-2">
+            <div className="font-medium">
+              {t.triggers.externalInteraction.revokeNewToken}
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 font-mono break-all">{revokeResult}</code>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => void copyText(revokeResult)}
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRevokeResult(null)}
+            >
+              {t.triggers.externalInteraction.cancel}
+            </Button>
           </div>
         )}
       </CardContent>
