@@ -41,8 +41,21 @@
 | maxLength | Number? | 최대 길이 (`text`, `textarea`) |
 | min | Number? | 최솟값 (`number`) |
 | max | Number? | 최댓값 (`number`) |
-| pattern | String? | 정규표현식 패턴 |
+| pattern | String? | 정규표현식 패턴 (custom) |
+| preset | ValidationPreset? | 미리 정의된 검증 카탈로그 — `pattern` 보다 우선 적용. 외부 어댑터 (Chat Channel 등) 가 UI hint 도출에 활용 |
 | message | String? | 유효성 실패 시 에러 메시지 |
+
+**ValidationPreset 카탈로그:**
+
+`pattern` 직접 작성 대신 self-documenting preset 으로 의도를 표현 — Form 노드 사용자가 정규식을 직접 적지 않아도 되고, 외부 어댑터 (예: [Telegram Chat Channel](../7-trigger/providers/telegram.md#53-form-cch-mp-03)) 가 preset 식별자로 UI hint (share_contact 키보드 등) 를 도출할 수 있다.
+
+| preset | 적용 type | 의도 | 검증 regex (서버) | UI hint (어댑터) |
+|---|---|---|---|---|
+| `phone` | `text` | 전화번호 — 국제 포맷 허용 (`+`, 숫자, 공백, `-`, `()`) | `^\+?[\d\s\-()]+$` (1자 이상) | Telegram: `request_contact: true` (share_contact 버튼). 미지원 provider: 일반 text 입력 |
+
+(v1 카탈로그 = 1종. URL / datetime 등 후속 preset 은 사용 사례 발생 시 별 plan 으로 추가.)
+
+`preset` 과 `pattern` 이 동시에 설정되면 `preset` 이 우선 적용된다. `message` 가 없으면 preset 별 default 메시지 사용 (`phone` → "전화번호 형식이 올바르지 않습니다.").
 
 **`type: 'file'` 의 `allowedMimeTypes` 기본값** (문서/이미지만 허용):
 

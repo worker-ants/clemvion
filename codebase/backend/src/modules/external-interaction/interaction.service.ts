@@ -21,7 +21,10 @@ import {
   InteractAckDto,
   RefreshTokenResponseDto,
 } from './dto/responses.dto';
-import { InteractionRequestContext } from './interaction.guard';
+import {
+  ExternalInteractionRequestContext,
+  InteractionRequestContext,
+} from './interaction.guard';
 
 const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
   ExecutionStatus.COMPLETED,
@@ -140,7 +143,7 @@ export class InteractionService {
   }
 
   async refreshToken(
-    ctx: InteractionRequestContext,
+    ctx: ExternalInteractionRequestContext,
     bearerToken: string,
   ): Promise<RefreshTokenResponseDto> {
     if (ctx.tokenFamily !== 'iext') {

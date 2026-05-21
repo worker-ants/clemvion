@@ -16,6 +16,7 @@ import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigg
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
 import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import { InteractionService } from '../external-interaction/interaction.service';
+import type { InternalInteractionRequestContext } from '../external-interaction/interaction.guard';
 import { ExecutionsService } from '../executions/executions.service';
 import { ExecutionStatus } from '../executions/entities/execution.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
@@ -331,33 +332,27 @@ export class HooksService {
     // file_upload / contact_share → submit_form (Form, Phase 4 에서 구체화).
     // v1 PR-A 는 text_message → submit_message 만 의미 있음.
     if (update.command.kind === 'text_message') {
-      await this.interactionService.interact(
-        {
-          executionId,
-          tokenFamily: 'itk',
-          triggerId: trigger.id,
-          scope: 'in_process_trusted',
-        },
-        {
-          command: 'submit_message',
-          nodeId: 'chat-channel',
-          message: update.command.text,
-        },
-      );
+      const ctx: InternalInteractionRequestContext = {
+        executionId,
+        triggerId: trigger.id,
+        scope: 'in_process_trusted',
+      };
+      await this.interactionService.interact(ctx, {
+        command: 'submit_message',
+        nodeId: 'chat-channel',
+        message: update.command.text,
+      });
     } else if (update.command.kind === 'button_callback') {
-      await this.interactionService.interact(
-        {
-          executionId,
-          tokenFamily: 'itk',
-          triggerId: trigger.id,
-          scope: 'in_process_trusted',
-        },
-        {
-          command: 'click_button',
-          nodeId: 'chat-channel',
-          buttonId: update.command.callbackData,
-        },
-      );
+      const ctx: InternalInteractionRequestContext = {
+        executionId,
+        triggerId: trigger.id,
+        scope: 'in_process_trusted',
+      };
+      await this.interactionService.interact(ctx, {
+        command: 'click_button',
+        nodeId: 'chat-channel',
+        buttonId: update.command.callbackData,
+      });
     }
     // file_upload / contact_share — Phase 4 (Form) 에서 처리.
   }
@@ -449,19 +444,16 @@ export class HooksService {
     const MAX_FIELDS_HEURISTIC = 10;
     if (formState.currentFieldIdx >= MAX_FIELDS_HEURISTIC) {
       try {
-        await this.interactionService.interact(
-          {
-            executionId: state.executionId!,
-            tokenFamily: 'itk',
-            triggerId: trigger.id,
-            scope: 'in_process_trusted',
-          },
-          {
-            command: 'submit_form',
-            nodeId: formState.nodeId,
-            data: formState.partialFormData,
-          },
-        );
+        const ctx: InternalInteractionRequestContext = {
+          executionId: state.executionId!,
+          triggerId: trigger.id,
+          scope: 'in_process_trusted',
+        };
+        await this.interactionService.interact(ctx, {
+          command: 'submit_form',
+          nodeId: formState.nodeId,
+          data: formState.partialFormData,
+        });
         state.formState = undefined;
       } catch (err) {
         this.logger.warn(

@@ -1,8 +1,12 @@
 ---
-worktree: chat-channel-telegram-0c106c
+worktree: chat-channel-spec-fix-5fc137
 started: 2026-05-22
-owner: resolution-applier
+completed: 2026-05-22
+owner: project-planner
 ---
+
+> 구현 결과: spec/5-system/15-chat-channel.md (Rationale R8 — NotificationDispatcher 분리 후속 + listener dedup/teardown 의무 정책, §5.4 Bot Token Rotation API 응답 계약 — `{ data }`/`{ error }` 표준 envelope + 200/400/404/502 코드 5종) 반영. 후속 plan `chat-channel-dispatcher-split` 추적.
+
 
 # Spec Fix Draft — Chat Channel 아키텍처 + API 계약 보완
 
