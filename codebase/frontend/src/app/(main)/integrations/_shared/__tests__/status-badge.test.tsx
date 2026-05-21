@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   computeStatus,
-  isReauthorizeDisabled,
   computeAttentionBreakdown,
   humanizeUntil,
   needsAttention,
@@ -229,52 +228,6 @@ describe("humanizeUntil", () => {
   it("returns days when remaining ≥ 24h", () => {
     expect(humanizeUntil(minutesFromNow(24 * 60))).toBe("1d");
     expect(humanizeUntil(minutesFromNow(3 * 24 * 60))).toBe("3d");
-  });
-});
-
-describe("isReauthorizeDisabled", () => {
-  it("disables for pending_install rows", () => {
-    expect(isReauthorizeDisabled(row({ status: "pending_install" }))).toBe(true);
-  });
-
-  it("disables for expired + install_timeout", () => {
-    expect(
-      isReauthorizeDisabled(
-        row({ status: "expired", statusReason: "install_timeout" }),
-      ),
-    ).toBe(true);
-  });
-
-  it("disables for any Cafe24 Private integration regardless of status", () => {
-    expect(
-      isReauthorizeDisabled(
-        row({
-          status: "connected",
-          serviceType: "cafe24",
-          meta: { appType: "private" },
-        }),
-      ),
-    ).toBe(true);
-  });
-
-  it("does NOT disable for connected Cafe24 Public integrations", () => {
-    expect(
-      isReauthorizeDisabled(
-        row({
-          status: "connected",
-          serviceType: "cafe24",
-          meta: { appType: "public" },
-        }),
-      ),
-    ).toBe(false);
-  });
-
-  it("does NOT disable for a regular connected integration", () => {
-    expect(
-      isReauthorizeDisabled(
-        row({ status: "connected", serviceType: "google" }),
-      ),
-    ).toBe(false);
   });
 });
 

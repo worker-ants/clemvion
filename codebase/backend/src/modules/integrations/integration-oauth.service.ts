@@ -161,12 +161,13 @@ export function attachCallbackContext<E extends Error>(
 }
 
 /**
- * Read the diagnostic context off a thrown error, if present. Internal —
- * the only consumer is `handleCallbackWithErrorCapture` below; callers
- * outside the service should use that wrapper instead of reaching into
- * error internals.
+ * Read the diagnostic context off a thrown error, if present. Production
+ * consumer is `handleCallbackWithErrorCapture` below; callers outside the
+ * service should use that wrapper instead of reaching into error internals.
+ * Exported (paired with `attachCallbackContext`) so the edge handling for
+ * non-object / null / primitive throws can be unit-locked.
  */
-function callbackContextOf(err: unknown): CallbackContext | undefined {
+export function callbackContextOf(err: unknown): CallbackContext | undefined {
   if (err && typeof err === 'object' && 'context' in err) {
     return (err as { context?: CallbackContext }).context;
   }

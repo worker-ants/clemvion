@@ -5,6 +5,8 @@ import {
 import {
   IntegrationOAuthService,
   LAST_ERROR_MESSAGE_MAX_LEN,
+  attachCallbackContext,
+  callbackContextOf,
   sanitizeLastErrorMessage,
 } from './integration-oauth.service';
 
@@ -850,6 +852,52 @@ describe('IntegrationOAuthService', () => {
           code: 'INTEGRATION_CREDENTIALS_INVALID',
         }),
       });
+    });
+  });
+
+  // E-3: 단독 단위 테스트 — handleCallbackWithErrorCapture 의 의존을 떼고
+  // null/primitive 등 비정상 throw 입력의 안전 분기를 잠근다.
+  describe('callbackContextOf', () => {
+    it('returns the attached context for a normal Error with attachCallbackContext', () => {
+      const ctx = {
+        integrationId: 'i-1',
+        workspaceId: 'ws-1',
+        mode: 'connect' as const,
+      };
+      const err = attachCallbackContext(new Error('boom'), ctx);
+      expect(callbackContextOf(err)).toEqual(ctx);
+    });
+
+    it('returns undefined for an Error without context attached', () => {
+      expect(callbackContextOf(new Error('boom'))).toBeUndefined();
+    });
+
+    it('returns undefined for null', () => {
+      expect(callbackContextOf(null)).toBeUndefined();
+    });
+
+    it('returns undefined for undefined', () => {
+      expect(callbackContextOf(undefined)).toBeUndefined();
+    });
+
+    it.each([
+      ['string', 'oops'],
+      ['number', 42],
+      ['boolean', true],
+      ['bigint', 1n],
+    ])('returns undefined for primitive: %s', (_label, value) => {
+      expect(callbackContextOf(value)).toBeUndefined();
+    });
+
+    it('returns undefined for a plain object without a `context` key', () => {
+      expect(callbackContextOf({ message: 'x' })).toBeUndefined();
+    });
+
+    it('returns the raw context value even when undefined was attached', () => {
+      // 'context' in err 가 true 이면 attach 자체는 일어났다는 의미라
+      // attach 한 값(undefined 포함) 을 그대로 surface 한다.
+      const err: { context?: unknown } = { context: undefined };
+      expect(callbackContextOf(err)).toBeUndefined();
     });
   });
 });
