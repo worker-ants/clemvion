@@ -20,18 +20,20 @@
 
 ## 빌드·린트·테스트 명령
 
-| 단계 | 명령 |
-|------|------|
-| lint | `cd codebase/backend && npm run lint` · `cd codebase/frontend && npm run lint` |
-| unit test (jest/vitest, in-process) | `cd codebase/backend && npm test` · `cd codebase/frontend && npm test` |
-| build | `cd codebase/backend && npm run build` · `cd codebase/frontend && npm run build` |
-| e2e (backend supertest, ~30–60s) | `make e2e-test` |
-| e2e (backend + playwright) | `make e2e-test-full` |
-| e2e 인프라 정리 (중간 종료 시) | `make e2e-down` |
-| e2e stale project 일괄 정리 (worktree 삭제 후) | `make e2e-prune` |
-| git hook 등록 (clone 후 1회) | `make setup-githooks` |
+| 단계 | wrapper 한 줄 호출 | 내부에서 실행되는 명령 (backend + frontend **양쪽 의무**) |
+|------|------|------|
+| lint | `.claude/tools/run-test.sh lint` | `cd codebase/backend && npm run lint` **그리고** `cd codebase/frontend && npm run lint` |
+| unit test (jest/vitest, in-process) | `.claude/tools/run-test.sh unit` | `cd codebase/backend && npm test` **그리고** `cd codebase/frontend && npm test` |
+| build | `.claude/tools/run-test.sh build` | `cd codebase/backend && npm run build` **그리고** `cd codebase/frontend && npm run build` |
+| e2e (backend supertest, ~30–60s) | `.claude/tools/run-test.sh e2e` | `make e2e-test` |
+| e2e (backend + playwright) | — | `make e2e-test-full` |
+| e2e 인프라 정리 (중간 종료 시) | — | `make e2e-down` |
+| e2e stale project 일괄 정리 (worktree 삭제 후) | — | `make e2e-prune` |
+| git hook 등록 (clone 후 1회) | — | `make setup-githooks` |
 
 **순서 근거**: e2e 는 `docker-compose.e2e.yml` 에서 backend 이미지를 빌드해 실행하므로, 로컬 `npm run build` 가 통과해야 e2e 도 의미가 있다. build 실패를 먼저 잡으면 docker 빌드 시간(분 단위) 낭비를 피한다.
+
+**Cross-stack 의무 — 한쪽 누락 금지**: lint / unit / build 단계의 wrapper 호출은 `.claude/test-stages.sh` 안에서 backend + frontend 를 **순차 AND** 로 실행한다 (한쪽 실패 시 즉시 단계 실패). **반드시 wrapper 를 통해 호출** — `cd codebase/backend && npm run build` 같은 단일 stack 직호출로 단계를 "통과" 처리하면 다른 한쪽 회귀 (대표 사례: PR-E3 의 trigger drawer `t.x.y` 객체 접근 → `t("x.y")` 함수 호출 타입 오류, frontend build 누락으로 main 머지 후 `0f05d3e5` 핫픽스 필요) 가 검출되지 않는다. wrapper 가 한 단계 = 양쪽 stack 묶음이라는 invariant 의 유일한 enforcer.
 
 **Worktree 별 e2e 자동 격리**: `make e2e-*` 는 현재 worktree dir basename 으로 compose project name 을 도출 (main worktree = `clemvion-e2e`, `.claude/worktrees/<task>-<slug>/` = `clemvion-e2e-<task>-<slug>`). 컨테이너·볼륨·network 가 worktree 별로 분리되므로 여러 worktree 에서 e2e 를 **동시에** 돌려도 충돌 없음. image 자체는 worktree 간 공유되어 (각 빌드 서비스에 `image:` 명시) 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다. `COMPOSE_PROJECT=foo make e2e-test` 로 사용자 override 가능. 자세한 내용은 `docker-compose.e2e.yml` 헤더 주석과 `Makefile` 상단, 운영 정책은 [`CLAUDE.md` §Worktree 기반 작업 정책](CLAUDE.md#worktree-기반-작업-정책) 참고.
 
