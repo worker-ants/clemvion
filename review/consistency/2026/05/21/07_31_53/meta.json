@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-21T07:31:53.137795",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/conventions/cafe24-api-catalog)",
+  "target_path": "spec/conventions/cafe24-api-catalog",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
