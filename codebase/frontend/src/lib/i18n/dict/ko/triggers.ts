@@ -61,4 +61,30 @@ export const triggers = {
   columnActions: "작업",
   toggleActivate: "활성화",
   toggleDeactivate: "비활성화",
+  // External Interaction API (Spec EIA §4) — trigger 상세에서 노출되는 신규 섹션.
+  externalInteraction: {
+    section: "외부 인터랙션",
+    sectionDescription:
+      "트리거가 시작한 워크플로우의 인터랙션 노드 (Form / 버튼 / AI Multi-Turn) 에 외부 시스템이 응답할 수 있게 설정합니다.",
+    notification: "Notification Webhook (Outbound)",
+    notificationDescription:
+      "워크플로우 이벤트를 외부 URL 로 push. HMAC-SHA256 서명. 5회 자동 재시도.",
+    notificationUrl: "수신 URL",
+    notificationEvents: "구독 이벤트",
+    notificationSecretRotate: "Secret rotation",
+    notificationHealth: "발송 건강도",
+    healthUnknown: "확인 안 됨",
+    healthHealthy: "정상",
+    healthDegraded: "저하됨",
+    interaction: "Inbound Interaction (REST + SSE)",
+    interactionDescription:
+      "외부 클라이언트가 REST 로 명령 (submit_form / click_button / submit_message / end_conversation / cancel) 을 제출하고 SSE 로 이벤트 스트림을 수신합니다.",
+    interactionEnabled: "활성화",
+    interactionTokenStrategy: "토큰 전략",
+    tokenStrategyPerExecution: "Per Execution (default, 단명 1h)",
+    tokenStrategyPerTrigger: "Per Trigger (영구 itk_*)",
+    interactionRevokeToken: "Per-Trigger 토큰 재발급",
+    notConfigured:
+      "외부 인터랙션 채널이 설정되어 있지 않아요. trigger config 에 notification 또는 interaction 필드를 추가하면 표시됩니다.",
+  },
 } as const;
