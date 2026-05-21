@@ -50,11 +50,11 @@ import {
 @ApiTags('External Interaction')
 @ApiBearerAuth('interaction-token')
 @Controller('external/executions')
-@Public()
 @UseGuards(InteractionGuard)
 export class InteractionController {
   constructor(private readonly interactionService: InteractionService) {}
 
+  @Public()
   @Post(':executionId/interact')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(IdempotencyInterceptor)
@@ -95,6 +95,7 @@ export class InteractionController {
     return this.interactionService.interact(ctx, dto);
   }
 
+  @Public()
   @Post(':executionId/cancel')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(IdempotencyInterceptor)
@@ -118,6 +119,7 @@ export class InteractionController {
     return this.interactionService.cancel(ctx);
   }
 
+  @Public()
   @Post(':executionId/refresh-token')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -145,6 +147,7 @@ export class InteractionController {
     return this.interactionService.refreshToken(ctx, bearer);
   }
 
+  @Public()
   @Get(':executionId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

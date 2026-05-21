@@ -47,11 +47,11 @@ const TERMINAL_EVENT_TYPES = new Set([
 @ApiTags('External Interaction')
 @ApiBearerAuth('interaction-token')
 @Controller('external/executions')
-@Public()
 @UseGuards(InteractionGuard)
 export class InteractionStreamController {
   constructor(private readonly sseAdapter: SseAdapter) {}
 
+  @Public()
   @Get(':executionId/stream')
   @ApiOperation({
     summary: '실행 이벤트 SSE 스트림',
