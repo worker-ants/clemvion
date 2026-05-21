@@ -6,9 +6,9 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "prepare": "[ -d dist ] || tsc",
+    "prepare": "node -e \"require('fs').existsSync('dist')||require('child_process').execSync('tsc',{stdio:'inherit'})\"",
     "test": "jest",
-    "lint": "eslint src/**/*.ts"
+    "lint": "eslint \"src/**/*.ts\""
   },
   "dependencies": {},
   "devDependencies": {
@@ -16,7 +16,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "jest": "^30.0.0",
-    "ts-jest": "^29.2.5"
+    "ts-jest": "^29.4.10"
   },
   "engines": {
     "node": ">=20.0.0"

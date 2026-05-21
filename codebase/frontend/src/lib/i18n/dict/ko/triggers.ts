@@ -71,7 +71,7 @@ export const triggers = {
       "워크플로우 이벤트를 외부 URL 로 push. HMAC-SHA256 서명. 5회 자동 재시도.",
     notificationUrl: "수신 URL",
     notificationEvents: "구독 이벤트",
-    notificationSecretRotate: "Secret rotation",
+    notificationSecretRotate: "시크릿 교체",
     notificationHealth: "발송 건강도",
     healthUnknown: "확인 안 됨",
     healthHealthy: "정상",
