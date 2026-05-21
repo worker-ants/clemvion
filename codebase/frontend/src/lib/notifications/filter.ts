@@ -5,7 +5,8 @@
  * `?type=...` 필터는 별 plan (notification 수가 늘어나면 도입). 옵션 union 은
  * 칩 UI / i18n / 분기 모두에서 공유하므로 한 곳에 모은다.
  */
-export type { NotificationLite } from "./types";
+import type { NotificationLite } from "./types";
+export type { NotificationLite };
 
 export type NotificationFilter =
   | "all"
