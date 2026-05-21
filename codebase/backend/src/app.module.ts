@@ -48,6 +48,7 @@ import { LlmModule } from './modules/llm/llm.module';
 import { WorkflowAssistantModule } from './modules/workflow-assistant/workflow-assistant.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { HooksModule } from './modules/hooks/hooks.module';
+import { ExternalInteractionModule } from './modules/external-interaction/external-interaction.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { AlertRule } from './modules/alerts/entities/alert-rule.entity';
 
@@ -229,6 +230,7 @@ export const ROOT_ENTITIES = [
     LlmModule,
     KnowledgeBaseModule,
     HooksModule,
+    ExternalInteractionModule,
     AlertsModule,
     WorkflowAssistantModule,
   ],

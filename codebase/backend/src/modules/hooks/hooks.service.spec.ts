@@ -9,6 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { HooksService, WebhookInput } from './hooks.service';
+import { InteractionTokenService } from '../external-interaction/interaction-token.service';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
@@ -34,6 +35,16 @@ describe('HooksService', () => {
         {
           provide: ExecutionEngineService,
           useValue: { execute: jest.fn() },
+        },
+        {
+          provide: InteractionTokenService,
+          useValue: {
+            issuePerExecution: jest.fn(() => ({
+              token: 'iext_test',
+              expiresAt: '2099-01-01T00:00:00Z',
+              jti: 'jti-test',
+            })),
+          },
         },
       ],
     }).compile();

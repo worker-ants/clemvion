@@ -6,9 +6,12 @@ import {
   IsUUID,
   IsObject,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { NotificationConfigDto } from './notification-config.dto';
+import { InteractionConfigDto } from './interaction-config.dto';
 
 export class CreateTriggerDto {
   /** 트리거가 실행할 워크플로우 UUID */
@@ -83,4 +86,24 @@ export class CreateTriggerDto {
   @IsUUID()
   @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
   authConfigId?: string | null;
+
+  /**
+   * Outbound notification webhook 설정. [Spec EIA §4].
+   * 본 DTO 의 검증은 형식만 수행하고, URL 의 SSRF safety 는 service 레이어가
+   * `validateNotificationUrl` 헬퍼로 register-time 에 추가 검증한다.
+   */
+  @ApiPropertyOptional({ type: () => NotificationConfigDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => NotificationConfigDto)
+  notification?: NotificationConfigDto;
+
+  /** Inbound interaction 채널 (REST + SSE) 설정. [Spec EIA §4]. */
+  @ApiPropertyOptional({ type: () => InteractionConfigDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => InteractionConfigDto)
+  interaction?: InteractionConfigDto;
 }

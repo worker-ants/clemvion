@@ -239,7 +239,7 @@ export interface UiHint {
    * 자동 적용되는 블랙리스트 위험이 있어 화이트리스트 `equals: [...]` 로
    * 통일. `oneOf` 는 `equals: [...]` 와 의미 중복.
    */
-  requiredWhen?: { field: string; equals: unknown | readonly unknown[] };
+  requiredWhen?: { field: string; equals: unknown };
   /** Options for `widget: 'select'` when not derivable from z.enum. */
   options?: { value: string; label: string }[];
   /** For 'code' widget — language hint (javascript, sql, json, handlebars). */

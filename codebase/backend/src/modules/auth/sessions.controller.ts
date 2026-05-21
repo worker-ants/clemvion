@@ -31,7 +31,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { SessionsService } from './sessions.service';
 import { LoginHistoryService } from './login-history.service';
 import { RevokeSessionDto } from './dto/requests/revoke-session.dto';
-import { SessionDto, SessionListDto } from './dto/responses/session.dto';
+import { SessionListDto } from './dto/responses/session.dto';
 import { LoginHistoryPageDto } from './dto/responses/login-history.dto';
 import { extractClientIp } from './utils/client-ip';
 

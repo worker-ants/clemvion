@@ -63,4 +63,30 @@ export const triggers: Dict["triggers"] = {
   columnActions: "Actions",
   toggleActivate: "Activate",
   toggleDeactivate: "Deactivate",
+  // External Interaction API (Spec EIA §4)
+  externalInteraction: {
+    section: "External Interaction",
+    sectionDescription:
+      "Allow external systems to respond to interactive nodes (Form / Buttons / AI Multi-Turn) in workflows started by this trigger.",
+    notification: "Notification Webhook (Outbound)",
+    notificationDescription:
+      "Pushes workflow events to an external URL. HMAC-SHA256 signed. 5 automatic retries.",
+    notificationUrl: "Destination URL",
+    notificationEvents: "Subscribed events",
+    notificationSecretRotate: "Rotate secret",
+    notificationHealth: "Delivery health",
+    healthUnknown: "Unknown",
+    healthHealthy: "Healthy",
+    healthDegraded: "Degraded",
+    interaction: "Inbound Interaction (REST + SSE)",
+    interactionDescription:
+      "External clients submit commands (submit_form / click_button / submit_message / end_conversation / cancel) via REST and receive an SSE event stream.",
+    interactionEnabled: "Enabled",
+    interactionTokenStrategy: "Token strategy",
+    tokenStrategyPerExecution: "Per Execution (default, short-lived 1h)",
+    tokenStrategyPerTrigger: "Per Trigger (permanent itk_*)",
+    interactionRevokeToken: "Rotate per-trigger token",
+    notConfigured:
+      "No external interaction channel is configured. Add notification or interaction in the trigger config to see them here.",
+  },
 };
