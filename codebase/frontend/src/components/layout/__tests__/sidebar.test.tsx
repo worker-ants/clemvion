@@ -299,6 +299,71 @@ describe("Sidebar — notification UI (integration_action_required)", () => {
     });
   });
 
+  it("notifFilter resets to 'all' when popover closes via outside click (mouseDown)", async () => {
+    // W5 — handleClickOutside 경로에서도 closeNotif 가 호출되어 필터가 리셋되는지
+    // 회귀 가드. 토글 버튼 경로 (아래 테스트) 와 코드 경로가 다름:
+    //  - 토글 버튼: toggleNotif (setNotifFilter 직접 호출)
+    //  - 외부 클릭: useEffect handleClickOutside → closeNotif (setNotifFilter 직접 호출)
+    await renderAndOpenNotifPopover([
+      {
+        id: "n8",
+        title: "Integration alert",
+        message: "Action needed",
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        type: "integration_action_required",
+        resourceId: "int-1",
+      },
+      {
+        id: "n9",
+        title: "Execution failed",
+        message: "Workflow error",
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        type: "execution_failed",
+      },
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText("Integration alert")).toBeInTheDocument();
+    });
+
+    // 필터를 integration-action-required 로 변경.
+    const chipButton = screen.getByRole("tab", {
+      name: "sidebar.notificationFilter.integrationActionRequired",
+    });
+    await act(async () => {
+      fireEvent.click(chipButton);
+    });
+    await waitFor(() => {
+      expect(screen.queryByText("Execution failed")).not.toBeInTheDocument();
+    });
+
+    // popover 외부 클릭 시뮬레이션 — document.body 에 mousedown 이벤트 발사.
+    // handleClickOutside 가 notifRef 밖이라고 판정해 closeNotif() 호출.
+    await act(async () => {
+      fireEvent.mouseDown(document.body);
+    });
+
+    // popover 가 닫혀 알림 항목이 사라졌는지 확인.
+    await waitFor(() => {
+      expect(screen.queryByText("Integration alert")).not.toBeInTheDocument();
+    });
+
+    // 다시 열어서 필터가 "all" 로 복귀했는지 (둘 다 보임) 확인.
+    const bellButton = screen.getByRole("button", {
+      name: /sidebar\.notifications/i,
+    });
+    await act(async () => {
+      fireEvent.click(bellButton);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Integration alert")).toBeInTheDocument();
+      expect(screen.getByText("Execution failed")).toBeInTheDocument();
+    });
+  });
+
   it("notifFilter resets to 'all' after popover is closed and reopened", async () => {
     await renderAndOpenNotifPopover([
       {

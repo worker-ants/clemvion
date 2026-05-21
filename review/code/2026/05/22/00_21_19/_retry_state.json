@@ -1,0 +1,193 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_routing_decision.json",
+  "routing_status": "done",
+  "routing_skip_reason": null,
+  "agents_forced": [
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "security": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/llm.service.spec.ts, codebase/frontend/src/components/layout/sidebar.tsx"
+    ],
+    "requirement": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/llm.service.spec.ts, codebase/frontend/src/components/layout/sidebar.tsx"
+    ],
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/llm.service.spec.ts, codebase/frontend/src/components/layout/sidebar.tsx"
+    ],
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/llm.service.spec.ts, codebase/frontend/src/components/layout/sidebar.tsx"
+    ],
+    "maintainability": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/llm.service.spec.ts, codebase/frontend/src/components/layout/sidebar.tsx"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/llm/llm.service.spec.ts, codebase/frontend/src/components/layout/sidebar.tsx"
+    ]
+  },
+  "agents_skipped": [
+    "performance",
+    "architecture",
+    "documentation",
+    "dependency",
+    "database",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/security.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/performance.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/architecture.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/documentation.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/dependency.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/database.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/concurrency.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/api_contract.md"
+    },
+    {
+      "name": "user_guide_sync",
+      "subagent_type": "user-guide-sync-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/_prompts/user_guide_sync.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/llm-retry-after-a24e5e/review/code/2026/05/22/00_21_19/user_guide_sync.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "concurrency"
+  ],
+  "agents_fatal": [],
+  "agent_history": {
+    "security": [
+      {
+        "ts": "2026-05-21T15:26:06.372320Z",
+        "status": "success"
+      }
+    ],
+    "requirement": [
+      {
+        "ts": "2026-05-21T15:26:06.400573Z",
+        "status": "success"
+      }
+    ],
+    "scope": [
+      {
+        "ts": "2026-05-21T15:26:06.427306Z",
+        "status": "success"
+      }
+    ],
+    "side_effect": [
+      {
+        "ts": "2026-05-21T15:26:06.455087Z",
+        "status": "success"
+      }
+    ],
+    "maintainability": [
+      {
+        "ts": "2026-05-21T15:26:06.483030Z",
+        "status": "success"
+      }
+    ],
+    "testing": [
+      {
+        "ts": "2026-05-21T15:26:06.511057Z",
+        "status": "success"
+      }
+    ],
+    "concurrency": [
+      {
+        "ts": "2026-05-21T15:26:06.539823Z",
+        "status": "success"
+      }
+    ]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
