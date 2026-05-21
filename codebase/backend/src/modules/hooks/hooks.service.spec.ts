@@ -39,11 +39,13 @@ describe('HooksService', () => {
         {
           provide: InteractionTokenService,
           useValue: {
-            issuePerExecution: jest.fn(() => ({
-              token: 'iext_test',
-              expiresAt: '2099-01-01T00:00:00Z',
-              jti: 'jti-test',
-            })),
+            issuePerExecution: jest.fn(() =>
+              Promise.resolve({
+                token: 'iext_test',
+                expiresAt: '2099-01-01T00:00:00Z',
+                jti: 'jti-test',
+              }),
+            ),
           },
         },
       ],
