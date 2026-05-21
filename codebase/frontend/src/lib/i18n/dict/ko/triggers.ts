@@ -86,5 +86,26 @@ export const triggers = {
     interactionRevokeToken: "Per-Trigger 토큰 재발급",
     notConfigured:
       "외부 인터랙션 채널이 설정되어 있지 않아요. trigger config 에 notification 또는 interaction 필드를 추가하면 표시됩니다.",
+    edit: "수정",
+    save: "저장",
+    cancel: "취소",
+    saving: "저장 중...",
+    saveSucceeded: "저장했어요",
+    saveFailed: "저장에 실패했어요",
+    notificationUrlPlaceholder: "https://your-server.example/webhook",
+    notificationUrlHelp:
+      "https:// 만 허용. 사설 IP·loopback·metadata IP 는 차단됩니다.",
+    rotateConfirm:
+      "현재 secret 으로 서명된 outbound notification 은 24h grace 동안 새 secret 도 함께 동봉됩니다. 진행할까요?",
+    rotateSucceeded: "새 secret 을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
+    rotateFailed: "Secret 회전에 실패했어요",
+    rotateNewSecret: "새 secret (1회만 표시)",
+    revokeConfirm: "기존 per-trigger 토큰은 즉시 무효화돼요. 진행할까요?",
+    revokeSucceeded: "새 토큰을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
+    revokeFailed: "토큰 재발급에 실패했어요",
+    revokeNewToken: "새 token (1회만 표시)",
+    copy: "복사",
+    copied: "복사했어요",
+    eventChoices: "이벤트 선택",
   },
 } as const;
