@@ -7,7 +7,7 @@
  * [Spec EIA §1~§11] — 본 SDK 는 spec 의 권위 표면을 그대로 노출. 추가 비즈니스 로직은 두지 않는다.
  */
 
-export { ClemvionClient } from './client';
+export { ClemvionClient, ClemvionApiError } from './client';
 export type {
   ClemvionClientOptions,
   TriggerWebhookResult,
@@ -16,6 +16,7 @@ export type {
   InteractAck,
   ExecutionStatus,
   RefreshTokenResult,
+  SseEvent,
   SseSubscription,
   SseEventHandler,
 } from './client';
