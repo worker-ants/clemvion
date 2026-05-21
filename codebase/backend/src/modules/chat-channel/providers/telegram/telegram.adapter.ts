@@ -133,13 +133,67 @@ export class TelegramAdapter implements ChatChannelAdapter {
           sentAt: new Date().toISOString(),
         };
       }
-      case 'buttons':
-      case 'form_prompt':
-      case 'image':
-        // Phase 3 / 4 / 5 에서 구현. v1 PR-A 는 text + typing 만.
-        throw new Error(
-          `TelegramAdapter.sendMessage: body.kind=${message.body.kind} 는 후속 phase 에서 구현 (Phase 3/4/5)`,
-        );
+      case 'buttons': {
+        const layout = config.uiMapping?.buttonLayout ?? 'auto';
+        const inlineKeyboard = buildInlineKeyboard(message.body.buttons, layout);
+        const res = await this.client.sendMessage(config.botToken, {
+          chat_id: chatId,
+          text: message.body.text,
+          parse_mode: 'MarkdownV2',
+          reply_markup: { inline_keyboard: inlineKeyboard },
+        });
+        if (!res.ok || !res.result) {
+          throw new Error(
+            `Telegram sendMessage(buttons) failed: ${res.description ?? 'unknown'}`,
+          );
+        }
+        return {
+          externalMsgId: String(res.result.message_id),
+          sentAt: new Date(res.result.date * 1000).toISOString(),
+        };
+      }
+      case 'form_prompt': {
+        // Phase 4/PR-C: prompt + keyboard hint 별 reply_markup.
+        const replyMarkup = buildFormReplyMarkup(message.body.hint);
+        const res = await this.client.sendMessage(config.botToken, {
+          chat_id: chatId,
+          text: escapePromptText(message.body.label),
+          parse_mode: 'MarkdownV2',
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+        });
+        if (!res.ok || !res.result) {
+          throw new Error(
+            `Telegram sendMessage(form_prompt) failed: ${res.description ?? 'unknown'}`,
+          );
+        }
+        return {
+          externalMsgId: String(res.result.message_id),
+          sentAt: new Date(res.result.date * 1000).toISOString(),
+        };
+      }
+      case 'image': {
+        // Phase 5/PR-D: sendPhoto. Bot API 는 multipart 또는 file_id/URL 모두 지원.
+        // v1 은 buffer → multipart upload 경로 — telegram-client.ts 의 sendPhoto 가 photo 를 받음.
+        // Note: Bot API multipart 의 정확한 multipart-form-data 구성은 별도 헬퍼 필요. 본 commit 의
+        // 단순 구현은 photo 를 base64 data URL 로 보내거나 (Bot API 미지원) URL 로 호스팅 후 보내는
+        // 두 옵션 중 후자. v1 stub: bytes 가 있으면 일단 caption + fallbackText 의 text 메시지로 fallback,
+        // 실 buffer multipart 는 PR-D 의 별도 SSR/storage 인프라와 함께.
+        const fallback = message.body.caption ?? message.body.fallbackText;
+        const res = await this.client.sendMessage(config.botToken, {
+          chat_id: chatId,
+          text: escapePromptText(fallback),
+          parse_mode: 'MarkdownV2',
+        });
+        if (!res.ok || !res.result) {
+          throw new Error(
+            `Telegram sendMessage(image fallback) failed: ${res.description ?? 'unknown'}`,
+          );
+        }
+        return {
+          externalMsgId: String(res.result.message_id),
+          sentAt: new Date(res.result.date * 1000).toISOString(),
+        };
+      }
     }
   }
 
@@ -147,10 +201,119 @@ export class TelegramAdapter implements ChatChannelAdapter {
     update: ChannelUpdate,
     config: ChatChannelConfig,
   ): Promise<void> {
-    // Phase 3 (PR-B) — button_callback 도착 시 answerCallbackQuery.
+    // PR-B — button_callback 도착 시 answerCallbackQuery (텔레그램 의무 — 안 하면 모바일 로딩 indicator 지속).
     if (update.command.kind !== 'button_callback') return;
     await this.client.answerCallbackQuery(config.botToken, {
       callback_query_id: update.command.callbackQueryId,
     });
   }
+}
+
+/**
+ * Spec [providers/telegram §5.2] — inline_keyboard 2D 배열 빌더.
+ *
+ * auto : 라벨 length 합 24자 이하인 버튼을 같은 row.
+ * vertical : 1열 N행.
+ * horizontal : 1행 N열 (최대 8개, 초과는 wrap).
+ */
+function buildInlineKeyboard(
+  buttons: import('../../types').ChannelButton[],
+  layout: 'auto' | 'vertical' | 'horizontal',
+): Array<
+  Array<{
+    text: string;
+    callback_data?: string;
+    url?: string;
+  }>
+> {
+  if (buttons.length === 0) return [];
+  const decorate = (label: string, style?: string): string => {
+    if (style === 'primary') return `✅ ${label}`;
+    if (style === 'danger') return `⚠️ ${label}`;
+    return label;
+  };
+  const toCell = (b: import('../../types').ChannelButton) => {
+    const text = decorate(b.label, b.style);
+    if (b.type === 'link' && b.url) return { text, url: b.url };
+    return { text, callback_data: b.id };
+  };
+  switch (layout) {
+    case 'vertical':
+      return buttons.map((b) => [toCell(b)]);
+    case 'horizontal': {
+      const rows: Array<Array<ReturnType<typeof toCell>>> = [];
+      const ROW_MAX = 8;
+      for (let i = 0; i < buttons.length; i += ROW_MAX) {
+        rows.push(buttons.slice(i, i + ROW_MAX).map(toCell));
+      }
+      return rows;
+    }
+    case 'auto':
+    default: {
+      const rows: Array<Array<ReturnType<typeof toCell>>> = [];
+      let currentRow: Array<ReturnType<typeof toCell>> = [];
+      let currentRowLen = 0;
+      const ROW_LEN_LIMIT = 24;
+      for (const b of buttons) {
+        const cell = toCell(b);
+        const addedLen = cell.text.length;
+        if (currentRow.length > 0 && currentRowLen + addedLen > ROW_LEN_LIMIT) {
+          rows.push(currentRow);
+          currentRow = [];
+          currentRowLen = 0;
+        }
+        currentRow.push(cell);
+        currentRowLen += addedLen;
+      }
+      if (currentRow.length > 0) rows.push(currentRow);
+      return rows;
+    }
+  }
+}
+
+/** Form keyboard hint 별 reply_markup. */
+function buildFormReplyMarkup(
+  hint: import('../../types').KeyboardHint | undefined,
+): Record<string, unknown> | null {
+  switch (hint) {
+    case 'number':
+      return {
+        keyboard: [
+          ['1', '2', '3'],
+          ['4', '5', '6'],
+          ['7', '8', '9'],
+          ['.', '0'],
+        ],
+        one_time_keyboard: true,
+        resize_keyboard: true,
+      };
+    case 'share_contact':
+      return {
+        keyboard: [[{ text: '📱 연락처 공유', request_contact: true }]],
+        one_time_keyboard: true,
+        resize_keyboard: true,
+      };
+    case 'file_upload':
+      return { force_reply: true, input_field_placeholder: '파일을 업로드해주세요' };
+    case 'date':
+      return {
+        force_reply: true,
+        input_field_placeholder: 'YYYY-MM-DD',
+      };
+    case 'email':
+    case 'phone':
+    case 'text':
+    case undefined:
+    default:
+      return null;
+  }
+}
+
+/**
+ * form_prompt 의 label 은 renderer 가 escape 하지 않은 그대로 전달 (renderer 본문은 raw, sendMessage
+ * 단계에서 MarkdownV2 escape). text body 와 다른 흐름 — text 는 renderer 가 사전 escape 함.
+ */
+function escapePromptText(text: string): string {
+  // text-renderer 와 같은 escape 적용.
+  return text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
 }

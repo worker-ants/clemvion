@@ -114,6 +114,30 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     const eiaEvent = toEiaEvent(event);
     if (!eiaEvent) return;
 
+    // Phase 4 (PR-C) — waiting_for_input(form) 도착 시 formState 초기화.
+    if (
+      eiaEvent.type === 'execution.waiting_for_input' &&
+      eiaEvent.node.interactionType === 'form'
+    ) {
+      const state = await this.conversationService.lookup(
+        trigger.id,
+        conversationKey,
+      );
+      if (state) {
+        state.formState = {
+          nodeId: eiaEvent.node.id,
+          currentFieldIdx: 0,
+          partialFormData: {},
+        };
+        state.lastUpdateAt = new Date().toISOString();
+        await this.conversationService.upsert(
+          trigger.id,
+          conversationKey,
+          state,
+        );
+      }
+    }
+
     let messages: ChannelMessage[];
     try {
       messages = await adapter.renderNode(eiaEvent, chatChannelCfg);

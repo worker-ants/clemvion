@@ -1,4 +1,5 @@
 import {
+  ChannelButton,
   ChannelMessage,
   ChatChannelConfig,
   EiaEvent,
@@ -89,12 +90,169 @@ function renderWaitingForInput(
       );
     }
     case 'buttons':
+      return renderButtons(event, config);
     case 'form':
-      // Phase 3 / 4 에서 구현. v1 PR-A 는 fallback text 안내.
-      return renderText(
-        config.languageHints?.unsupportedInteraction ??
-          '이 기능은 곧 지원될 예정입니다.',
-      );
+      return renderFormPrompt(event, config);
+  }
+}
+
+/**
+ * Spec [providers/telegram §5.2] / CCH-MP-02 — Button Presentation.
+ *
+ * `buttonConfig.buttons[]` → `body.kind='buttons'`. dispatcher 가 sendMessage 호출.
+ * nodeOutput 이 시각형 (carousel/chart/table) 이면 image 가 먼저 (Phase 5/PR-D 에서 추가).
+ */
+function renderButtons(
+  event: Extract<EiaEvent, { type: 'execution.waiting_for_input' }>,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  const buttonConfig = event.context.buttonConfig as
+    | {
+        buttons?: Array<{
+          id?: string;
+          label?: string;
+          type?: 'callback' | 'link';
+          url?: string;
+          style?: 'primary' | 'danger' | 'none';
+        }>;
+        prompt?: string;
+        nodeOutput?: { nodeType?: string; rendered?: unknown; title?: string };
+      }
+    | undefined;
+  const rawButtons = Array.isArray(buttonConfig?.buttons)
+    ? buttonConfig!.buttons
+    : [];
+  const buttons: ChannelButton[] = rawButtons
+    .filter((b): b is { id: string; label: string; type?: 'callback' | 'link'; url?: string; style?: 'primary' | 'danger' | 'none' } =>
+      typeof b?.id === 'string' && typeof b?.label === 'string',
+    )
+    .map((b) => ({
+      id: b.id,
+      label: b.label,
+      type: b.type ?? 'callback',
+      url: b.url,
+      style: b.style,
+    }));
+  const promptText =
+    (typeof buttonConfig?.prompt === 'string' && buttonConfig.prompt.length > 0
+      ? buttonConfig.prompt
+      : null) ??
+    config.languageHints?.buttonPrompt ??
+    '선택해주세요.';
+  const out: ChannelMessage[] = [];
+
+  // 시각형 노드 출력이 있으면 먼저 image 첨부 (Phase 5/PR-D 에서 buffer 채움 — v1 PR-B 는 text-only).
+  const visualKind = buttonConfig?.nodeOutput?.nodeType;
+  if (
+    config.uiMapping?.visualNode !== 'text_only' &&
+    typeof visualKind === 'string' &&
+    (visualKind === 'chart' || visualKind === 'carousel' || visualKind === 'table')
+  ) {
+    // Phase 5 (PR-D) 에서 채움. 본 commit (Phase 3/PR-B) 은 caption 으로 text 안내만.
+    const title =
+      (typeof buttonConfig?.nodeOutput?.title === 'string'
+        ? buttonConfig.nodeOutput.title
+        : null) ?? `[${visualKind}]`;
+    out.push(...renderText(title));
+  }
+
+  out.push({
+    conversationKey: '',
+    body: {
+      kind: 'buttons',
+      text: escapeMarkdownV2(promptText),
+      buttons,
+    },
+  });
+  return out;
+}
+
+/**
+ * Spec [providers/telegram §5.3] / CCH-MP-03 — Form 다단계 시퀀스.
+ *
+ * waiting_for_input(form) 도착 시 첫 prompt 만 발행. 후속 필드는 사용자 응답 도착 시 HooksService
+ * → dispatcher 가 next field prompt 를 직접 발송 (state 는 ChannelConversation.formState).
+ *
+ * v1 PR-C: currentFieldIdx 가 event.interaction.currentFieldIdx 로 들어오면 그 위치, 아니면 0.
+ */
+function renderFormPrompt(
+  event: Extract<EiaEvent, { type: 'execution.waiting_for_input' }>,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  const formConfig = event.context.formConfig as
+    | {
+        fields?: Array<{
+          name?: string;
+          label?: string;
+          description?: string;
+          type?: string;
+          required?: boolean;
+        }>;
+      }
+    | undefined;
+  const fields = Array.isArray(formConfig?.fields) ? formConfig!.fields : [];
+  if (fields.length === 0) {
+    return renderText(
+      config.languageHints?.unsupportedInteraction ?? '폼이 비어 있습니다.',
+    );
+  }
+  const currentIdx =
+    typeof (event.interaction as { currentFieldIdx?: unknown })
+      .currentFieldIdx === 'number'
+      ? ((event.interaction as { currentFieldIdx: number }).currentFieldIdx ?? 0)
+      : 0;
+  const field = fields[Math.min(currentIdx, fields.length - 1)];
+  if (!field?.name || !field?.label) {
+    return renderText(
+      config.languageHints?.unsupportedInteraction ?? '폼 필드가 잘못되었습니다.',
+    );
+  }
+  const required = field.required === true;
+  const labelLine = `${field.label}${required ? ' *' : ''}`;
+  const descLine = field.description ? `\n${field.description}` : '';
+  return [
+    {
+      conversationKey: '',
+      body: {
+        kind: 'form_prompt',
+        fieldName: field.name,
+        label: `${labelLine}${descLine}`,
+        hint: keyboardHintForFieldType(field.type),
+      },
+    },
+  ];
+}
+
+function keyboardHintForFieldType(
+  fieldType: string | undefined,
+):
+  | 'text'
+  | 'number'
+  | 'email'
+  | 'phone'
+  | 'date'
+  | 'file_upload'
+  | 'share_contact'
+  | undefined {
+  switch (fieldType) {
+    case 'number':
+      return 'number';
+    case 'email':
+      return 'email';
+    case 'phone':
+      return 'share_contact';
+    case 'date':
+      return 'date';
+    case 'file':
+      return 'file_upload';
+    case 'text':
+    case 'textarea':
+    case 'select':
+    case 'radio':
+    case 'checkbox':
+      return 'text';
+    default:
+      return undefined;
   }
 }
 

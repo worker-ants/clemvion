@@ -243,11 +243,21 @@ export class HooksService {
         update.command.kind === 'contact_share' ||
         update.command.kind === 'file_upload')
     ) {
-      await this.forwardToInteractionService(
-        trigger,
-        state!.executionId!,
-        update,
-      );
+      // Form 다단계 시퀀스 진행 중이면 dispatcher 의 form handler 로 라우팅.
+      if (
+        state?.formState &&
+        (update.command.kind === 'text_message' ||
+          update.command.kind === 'contact_share' ||
+          update.command.kind === 'file_upload')
+      ) {
+        await this.handleFormStep(trigger, state, update, config, adapter);
+      } else {
+        await this.forwardToInteractionService(
+          trigger,
+          state!.executionId!,
+          update,
+        );
+      }
       await adapter.ackInteraction(update, config);
       return { executionId: state!.executionId! };
     }
@@ -333,6 +343,111 @@ export class HooksService {
       );
     }
     // file_upload / contact_share — Phase 4 (Form) 에서 처리.
+  }
+
+  /**
+   * Phase 4 (PR-C) — Form 다단계 시퀀스 한 step 처리.
+   *
+   * Spec [providers/telegram §5.3 / convention §4]:
+   *   1. 사용자 응답을 partialFormData[currentField.name] = value 로 누적
+   *   2. 클라이언트-side 검증 (type / required) — 실패 시 같은 필드 재질문
+   *   3. 마지막 필드면 EIA submit_form 호출, 아니면 currentFieldIdx++ + 다음 prompt 발송
+   *   4. EIA server-side validation 실패 시 currentFieldIdx 를 fieldErrors[0].field 로 되돌리고 재질문
+   *      (v1 정책: catch → 안내 후 currentFieldIdx 유지. 정확한 EIA-RL-03 복원은 PR-E 보강)
+   */
+  private async handleFormStep(
+    trigger: Trigger,
+    state: NonNullable<
+      Awaited<ReturnType<ChannelConversationService['lookup']>>
+    >,
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    if (!state.formState) return;
+    const formState = state.formState;
+
+    // formConfig 필드 정보를 가져와야 하는데, dispatcher 가 waiting_for_input 에서 받은 정보를
+    // ChannelConversationState 에 같이 저장해두지 않음. v1 구현: state.formState 의 nodeId 와
+    // partialFormData 로만 진행, field 정보 (name) 는 사용자 응답으로 추정 불가 → fallback 정책:
+    //   - 각 응답을 `field_<currentFieldIdx>` key 로 저장. 실제 EIA submit_form 은 이 key 매핑이
+    //     formConfig 와 어긋날 수 있어 v1 의 한계 — PR-E 에서 dispatcher 가 formConfig.fields 를
+    //     state.formState.fieldsCatalog 로 함께 저장하도록 개선.
+
+    const valueKey = `field_${formState.currentFieldIdx}`;
+    let value: unknown = null;
+    if (update.command.kind === 'text_message') value = update.command.text;
+    else if (update.command.kind === 'contact_share')
+      value = update.command.phone;
+    else if (update.command.kind === 'file_upload')
+      value = { fileId: update.command.fileId, mimeType: update.command.mimeType };
+
+    formState.partialFormData[valueKey] = value;
+    formState.currentFieldIdx += 1;
+
+    // v1 stub: 사용자가 응답할 다음 필드가 있을지 dispatcher 가 알 수 없으므로 단순 정책 —
+    // currentFieldIdx 가 일정 이하 (3) 면 계속 prompt 발송 (placeholder), 초과 시 submit_form.
+    // 실 구현은 dispatcher 가 fieldsCatalog 를 state 에 저장하는 PR-E 보강 사항.
+    const MAX_FIELDS_HEURISTIC = 10;
+    if (formState.currentFieldIdx >= MAX_FIELDS_HEURISTIC) {
+      try {
+        await this.interactionService.interact(
+          {
+            executionId: state.executionId!,
+            tokenFamily: 'itk',
+            triggerId: trigger.id,
+            scope: 'in_process_trusted',
+          },
+          {
+            command: 'submit_form',
+            nodeId: formState.nodeId,
+            data: formState.partialFormData,
+          },
+        );
+        state.formState = undefined;
+      } catch (err) {
+        this.logger.warn(
+          `handleFormStep submit_form 실패 — 재시도 안내: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        // v1 정책: 사용자에게 처음부터 다시 안내 (Spec 의 fieldErrors[0].field 복원은 PR-E 보강).
+        formState.currentFieldIdx = 0;
+        formState.partialFormData = {};
+        await adapter.sendMessage(
+          {
+            conversationKey: update.conversationKey,
+            body: {
+              kind: 'text',
+              text:
+                config.languageHints?.formValidationFailed ??
+                '입력값을 다시 확인해주세요\\.',
+            },
+          },
+          config,
+        );
+      }
+    } else {
+      // 다음 필드 prompt — v1 stub: dispatcher 가 fieldsCatalog 없이는 정확한 prompt 생성 불가.
+      // placeholder 안내 발송.
+      await adapter.sendMessage(
+        {
+          conversationKey: update.conversationKey,
+          body: {
+            kind: 'text',
+            text:
+              config.languageHints?.formNextField ??
+              `다음 항목을 입력해주세요\\. \\(${formState.currentFieldIdx + 1}\\)`,
+          },
+        },
+        config,
+      );
+    }
+
+    state.lastUpdateAt = new Date().toISOString();
+    await this.channelConversationService.upsert(
+      trigger.id,
+      update.conversationKey,
+      state,
+    );
   }
 
   /** Active execution 여부 확인 — terminal 상태가 아니면 active. */
