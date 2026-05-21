@@ -29,6 +29,13 @@ const SECTION_OPTIONS = [
 const INCLUDE_HINT =
   'Prepend current time + timezone to the system prompt so the LLM avoids KST/UTC drift.';
 
+// L7 (ai-review I1 security) — workspace / node 섹션은 워크스페이스 이름·노드
+// 라벨·내부 ID 를 LLM 공급자에게 평문 송신한다. 사용자가 selecting 전에 인지
+// 할 수 있도록 hint 한 줄로 명시. UI 자동 폼이 multiselect 아래 readonly hint
+// 로 노출.
+const SECTIONS_HINT =
+  'Selecting "Workspace" or "Node" sends internal ids and labels to the LLM provider as plain text. Use with care for confidential workspaces.';
+
 /**
  * 3 AI 노드 schema 의 §11 fragment 를 생성한다.
  *
@@ -64,6 +71,7 @@ export function buildSystemContextSchemaFields(
           group,
           options: [...SECTION_OPTIONS],
           visibleWhen: { field: 'includeSystemContext', equals: true },
+          hint: SECTIONS_HINT,
         },
       }),
   };
