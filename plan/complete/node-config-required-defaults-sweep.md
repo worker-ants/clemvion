@@ -72,9 +72,9 @@ owner: developer
 - [x] commit 1 — Integration (http-request, database-query, send-email) + tests
 - [x] commit 2 — Logic (if-else, variable-declaration, variable-modification, loop, switch, foreach, map, filter, split) + tests
 - [x] commit 3 — Presentation Form + tests
-- [ ] PR 본문 작성 + push
-- [ ] /ai-review + /consistency-check 실행 결과 RESOLUTION.md 처리
-- [ ] PR merge 후 본 plan `git mv` to `plan/complete/`
+- [x] PR 본문 작성 + push (PR #188)
+- [x] /ai-review + /consistency-check 실행 결과 RESOLUTION.md 처리 (commits 05760cbb, 63fd34de)
+- [x] PR merge 후 본 plan `git mv` to `plan/complete/` (2026-05-22, merge commit 8697ae8e)
 
 ## 후속 follow-up (별 plan/PR)
 
