@@ -23,7 +23,17 @@ export const REFRESH_TOKEN_URL_HEADER = 'X-Refresh-Token-Url';
 /**
  * Express request 에 동봉되는 인증 컨텍스트.
  * Controller / Service 가 `req.interaction` 으로 접근.
+ *
+ * `scope` 는 caller 신뢰 영역 식별 ([Spec EIA §3.3 EIA-AU-08] — In-process trusted caller 예외):
+ * - 'http_external' (default — 외부 HTTP 호출 — Guard 가 합성)
+ * - 'in_process_trusted' (Chat Channel 어댑터 등 같은 process 안의 trusted caller — Guard 우회)
+ *
+ * **불변식**: 외부 HTTP Guard (`InteractionGuard.canActivate`) 는 `scope` 를 set 하지 않는다 — 항상
+ * 'http_external' 로 간주. `scope: 'in_process_trusted'` 는 in-process caller 가 직접 ctx 합성할 때만
+ * 들어간다. 본 invariant 의 enforcement 는 단위 테스트 + reviewer 책임.
  */
+export type InteractionScope = 'http_external' | 'in_process_trusted';
+
 export interface InteractionRequestContext {
   /** 검증된 execution id. `iext` 는 토큰 sub, `itk` 는 URL 파라미터 :executionId. */
   executionId: string;
@@ -31,6 +41,8 @@ export interface InteractionRequestContext {
   tokenFamily: 'iext' | 'itk';
   /** `itk` family 의 trigger id (`iext` 는 null). */
   triggerId?: string | null;
+  /** Caller 신뢰 영역. 미지정 시 'http_external' 로 간주 (기존 호출자 호환). */
+  scope?: InteractionScope;
 }
 
 export interface RequestWithInteraction extends Request {

@@ -19,6 +19,15 @@ import { Workflow } from '../../workflows/entities/workflow.entity';
  */
 export type TriggerNotificationHealth = 'unknown' | 'healthy' | 'degraded';
 
+/**
+ * Chat Channel 어댑터 (Telegram 등) 의 외부 채널 송수신 건강도. V062 마이그레이션이 NOT NULL
+ * DEFAULT 'unknown' 으로 초기화. setupChannel/teardownChannel/sendMessage 실패 누적 시 'degraded'.
+ *
+ * [Spec CCH-SE-01] 의 enum 강제 — DB 의 CHECK 제약과 일치. 자동 비활성화 금지 ([Spec WH-MG-04 /
+ * EIA-NX-07] 와 동일 정책).
+ */
+export type TriggerChatChannelHealth = 'unknown' | 'healthy' | 'degraded';
+
 @Entity('trigger')
 export class Trigger {
   @PrimaryGeneratedColumn('uuid')
@@ -100,6 +109,46 @@ export class Trigger {
     nullable: true,
   })
   notificationRotatedAt: Date | null;
+
+  /**
+   * Chat Channel 어댑터의 외부 채널 송수신 건강도. V062 의 CHECK 제약이 enum 강제. setupChannel/
+   * sendMessage 누적 실패 시 'degraded' — trigger 자체는 비활성화하지 않는다 ([Spec CCH-SE-01]).
+   */
+  @Column({
+    name: 'chat_channel_health',
+    type: 'varchar',
+    length: 16,
+    default: 'unknown',
+  })
+  chatChannelHealth: TriggerChatChannelHealth;
+
+  /** 최종 실패한 채널 호출의 마지막 에러 메시지. 디버깅·UI 표시용 (1KB 정도 truncate 권장). */
+  @Column({ name: 'chat_channel_last_error', type: 'text', nullable: true })
+  chatChannelLastError: string | null;
+
+  /** `setupChannel()` 가 마지막으로 성공한 시각. 외부 채널의 webhook 등록 시점. NULL 이면 등록 안 됨. */
+  @Column({
+    name: 'chat_channel_setup_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  chatChannelSetupAt: Date | null;
+
+  /**
+   * Bot token rotation 의 24h grace 기간 동안 사용되는 신규 bot token reference. 의미: 외부 provider
+   * bot token (notification_secret_v2 의 HMAC signing secret 와 다른 자원). 명명 패턴은 동일 ([Spec
+   * §R-K]). v1 은 plaintext stub (`config.chatChannel.botToken` 와 동일 보관 정책).
+   */
+  @Column({ name: 'chat_channel_token_v2', type: 'text', nullable: true })
+  chatChannelTokenV2: string | null;
+
+  /** Bot token rotation 시작 시각. grace 종료 (시작 + 24h) 판정용. */
+  @Column({
+    name: 'chat_channel_rotated_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  chatChannelRotatedAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

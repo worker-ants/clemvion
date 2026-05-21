@@ -12,6 +12,7 @@ import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { NotificationConfigDto } from './notification-config.dto';
 import { InteractionConfigDto } from './interaction-config.dto';
+import { ChatChannelConfigDto } from './chat-channel-config.dto';
 
 export class CreateTriggerDto {
   /** 트리거가 실행할 워크플로우 UUID */
@@ -106,4 +107,16 @@ export class CreateTriggerDto {
   @ValidateNested()
   @Type(() => InteractionConfigDto)
   interaction?: InteractionConfigDto;
+
+  /**
+   * Chat Channel 어댑터 설정. webhook 트리거에 외부 chat 플랫폼 (텔레그램 등) 을 부착.
+   * [Spec Chat Channel §4.1 / 15-chat-channel.md].
+   * 본 필드 미존재 시 일반 webhook 트리거 (기존 동작).
+   */
+  @ApiPropertyOptional({ type: () => ChatChannelConfigDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => ChatChannelConfigDto)
+  chatChannel?: ChatChannelConfigDto;
 }
