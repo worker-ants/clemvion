@@ -8,7 +8,9 @@ describe('parseTelegramUpdate', () => {
   });
 
   it('update_id 가 number 가 아니면 → null', () => {
-    expect(parseTelegramUpdate({ message: { chat: { id: 1, type: 'private' } } })).toBeNull();
+    expect(
+      parseTelegramUpdate({ message: { chat: { id: 1, type: 'private' } } }),
+    ).toBeNull();
   });
 
   it('text /start → command.kind=start', () => {

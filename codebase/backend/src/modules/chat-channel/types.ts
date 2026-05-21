@@ -80,7 +80,12 @@ export interface ChannelMessage {
 export type ChannelMessageBody =
   | { kind: 'text'; text: string; chunked?: boolean }
   | { kind: 'buttons'; text: string; buttons: ChannelButton[] }
-  | { kind: 'form_prompt'; fieldName: string; label: string; hint?: KeyboardHint }
+  | {
+      kind: 'form_prompt';
+      fieldName: string;
+      label: string;
+      hint?: KeyboardHint;
+    }
   | { kind: 'image'; bytes: Buffer; caption?: string; fallbackText: string }
   | { kind: 'typing' };
 
@@ -158,7 +163,12 @@ export interface EiaCompletedEvent extends EiaEventBase {
 
 export interface EiaFailedEvent extends EiaEventBase {
   type: 'execution.failed';
-  error: { code: string; message: string; nodeId?: string | null; details?: unknown };
+  error: {
+    code: string;
+    message: string;
+    nodeId?: string | null;
+    details?: unknown;
+  };
   durationMs?: number;
 }
 
@@ -184,18 +194,27 @@ export interface SendResult {
 /** Adapter interface — 모든 provider 어댑터 구현 의무. */
 export interface ChatChannelAdapter {
   readonly provider: string;
-  setupChannel(config: ChatChannelConfig, callbackUrl: string): Promise<SetupResult>;
+  setupChannel(
+    config: ChatChannelConfig,
+    callbackUrl: string,
+  ): Promise<SetupResult>;
   teardownChannel(config: ChatChannelConfig): Promise<void>;
   parseUpdate(
     raw: unknown,
     config: ChatChannelConfig,
   ): Promise<ChannelUpdate | null>;
-  renderNode(event: EiaEvent, config: ChatChannelConfig): Promise<ChannelMessage[]>;
+  renderNode(
+    event: EiaEvent,
+    config: ChatChannelConfig,
+  ): Promise<ChannelMessage[]>;
   sendMessage(
     message: ChannelMessage,
     config: ChatChannelConfig,
   ): Promise<SendResult>;
-  ackInteraction(update: ChannelUpdate, config: ChatChannelConfig): Promise<void>;
+  ackInteraction(
+    update: ChannelUpdate,
+    config: ChatChannelConfig,
+  ): Promise<void>;
 }
 
 /** Redis ChannelConversation 레코드 — Spec §4.3. */

@@ -56,9 +56,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
     }
     const me = await this.client.getMe(config.botToken);
     if (!me.ok || !me.result) {
-      throw new Error(
-        `Telegram getMe failed: ${me.description ?? 'unknown'}`,
-      );
+      throw new Error(`Telegram getMe failed: ${me.description ?? 'unknown'}`);
     }
     return {
       registeredAt: new Date().toISOString(),
@@ -82,18 +80,18 @@ export class TelegramAdapter implements ChatChannelAdapter {
     }
   }
 
-  async parseUpdate(
+  parseUpdate(
     raw: unknown,
     _config: ChatChannelConfig,
   ): Promise<ChannelUpdate | null> {
-    return parseTelegramUpdate(raw);
+    return Promise.resolve(parseTelegramUpdate(raw));
   }
 
-  async renderNode(
+  renderNode(
     event: EiaEvent,
     config: ChatChannelConfig,
   ): Promise<ChannelMessage[]> {
-    return renderTelegramMessages(event, config);
+    return Promise.resolve(renderTelegramMessages(event, config));
   }
 
   async sendMessage(
@@ -135,7 +133,10 @@ export class TelegramAdapter implements ChatChannelAdapter {
       }
       case 'buttons': {
         const layout = config.uiMapping?.buttonLayout ?? 'auto';
-        const inlineKeyboard = buildInlineKeyboard(message.body.buttons, layout);
+        const inlineKeyboard = buildInlineKeyboard(
+          message.body.buttons,
+          layout,
+        );
         const res = await this.client.sendMessage(config.botToken, {
           chat_id: chatId,
           text: message.body.text,
@@ -294,7 +295,10 @@ function buildFormReplyMarkup(
         resize_keyboard: true,
       };
     case 'file_upload':
-      return { force_reply: true, input_field_placeholder: '파일을 업로드해주세요' };
+      return {
+        force_reply: true,
+        input_field_placeholder: '파일을 업로드해주세요',
+      };
     case 'date':
       return {
         force_reply: true,
@@ -315,5 +319,5 @@ function buildFormReplyMarkup(
  */
 function escapePromptText(text: string): string {
   // text-renderer 와 같은 escape 적용.
-  return text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
+  return text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, '\\$1');
 }

@@ -105,11 +105,7 @@ export class HooksService {
     //     자체 secret_token 헤더 검증 + parseUpdate 의 raw body 만 사용).
     const chatChannelCfg = readChatChannelConfig(trigger.config);
     if (chatChannelCfg) {
-      return this.handleChatChannelWebhook(
-        trigger,
-        chatChannelCfg,
-        input,
-      );
+      return this.handleChatChannelWebhook(trigger, chatChannelCfg, input);
     }
 
     // 3. Authenticate
@@ -187,7 +183,7 @@ export class HooksService {
     let adapter: ChatChannelAdapter;
     try {
       adapter = this.channelAdapterRegistry.get(config.provider);
-    } catch (err) {
+    } catch (_err) {
       throw new BadRequestException({
         code: 'CHAT_CHANNEL_PROVIDER_UNKNOWN',
         message: `Unknown chat channel provider: ${config.provider}`,
@@ -225,8 +221,8 @@ export class HooksService {
           body: {
             kind: 'text',
             text:
-              (config.languageHints?.help ??
-                '/start \\- 새 대화 시작\n/cancel \\- 진행 중인 대화 취소\n/help \\- 도움말'),
+              config.languageHints?.help ??
+              '/start \\- 새 대화 시작\n/cancel \\- 진행 중인 대화 취소\n/help \\- 도움말',
           },
         },
         config,
@@ -245,7 +241,7 @@ export class HooksService {
     // /cancel 명령 — 활성 execution 이 있으면 취소, 없으면 noop.
     if (update.command.kind === 'cancel') {
       if (hasActiveExecution) {
-        await this.executionsService.stop(state!.executionId!);
+        await this.executionsService.stop(state.executionId!);
         await this.channelConversationService.updateExecutionId(
           trigger.id,
           update.conversationKey,
@@ -275,12 +271,12 @@ export class HooksService {
       } else {
         await this.forwardToInteractionService(
           trigger,
-          state!.executionId!,
+          state.executionId!,
           update,
         );
       }
       await adapter.ackInteraction(update, config);
-      return { executionId: state!.executionId! };
+      return { executionId: state.executionId! };
     }
 
     // 새 execution 시작 (start 또는 활성 없음 / terminal 상태).
@@ -385,10 +381,10 @@ export class HooksService {
     const chatType = chat.type ?? '';
     const isGroup = ['group', 'supergroup', 'channel'].includes(chatType);
     const announcement = isGroup
-      ? config.languageHints?.groupChatRefusal ??
-        '이 봇은 1:1 대화만 지원합니다\\.'
-      : config.languageHints?.unsupportedMessageKind ??
-        '지원하지 않는 메시지 형식입니다\\.';
+      ? (config.languageHints?.groupChatRefusal ??
+        '이 봇은 1:1 대화만 지원합니다\\.')
+      : (config.languageHints?.unsupportedMessageKind ??
+        '지원하지 않는 메시지 형식입니다\\.');
     try {
       await adapter.sendMessage(
         {
@@ -439,7 +435,10 @@ export class HooksService {
     else if (update.command.kind === 'contact_share')
       value = update.command.phone;
     else if (update.command.kind === 'file_upload')
-      value = { fileId: update.command.fileId, mimeType: update.command.mimeType };
+      value = {
+        fileId: update.command.fileId,
+        mimeType: update.command.mimeType,
+      };
 
     formState.partialFormData[valueKey] = value;
     formState.currentFieldIdx += 1;

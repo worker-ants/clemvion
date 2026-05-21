@@ -71,8 +71,9 @@ export class ChatChannelController {
         message: 'Trigger not found',
       });
     }
-    const chatChannelCfg = (trigger.config as { chatChannel?: ChatChannelConfig })
-      .chatChannel;
+    const chatChannelCfg = (
+      trigger.config as { chatChannel?: ChatChannelConfig }
+    ).chatChannel;
     if (!chatChannelCfg) {
       throw new BadRequestException({
         code: 'CHAT_CHANNEL_NOT_CONFIGURED',

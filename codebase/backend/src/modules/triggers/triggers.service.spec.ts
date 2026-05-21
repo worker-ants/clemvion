@@ -88,10 +88,10 @@ describe('TriggersService.findOneDetail', () => {
     } as unknown as Trigger);
     scheduleRepo.findOne.mockResolvedValue(null);
 
-    const result = (await service.findOneDetail('t1', 'ws')) as unknown as Record<
-      string,
-      unknown
-    >;
+    const result = (await service.findOneDetail(
+      't1',
+      'ws',
+    )) as unknown as Record<string, unknown>;
 
     expect(result.id).toBe('t1');
     expect(result.cronExpression).toBeUndefined();

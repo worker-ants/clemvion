@@ -178,7 +178,7 @@ export class TriggersService {
     base: Record<string, unknown>,
     notification: NotificationConfigDto | undefined,
     interaction: InteractionConfigDto | undefined,
-    chatChannel?: ChatChannelConfigDto | undefined,
+    chatChannel?: ChatChannelConfigDto,
   ): Record<string, unknown> {
     const next: Record<string, unknown> = { ...base };
     if (notification !== undefined) next.notification = notification;
@@ -258,8 +258,9 @@ export class TriggersService {
    * Spec CCH-AD-03.
    */
   private async teardownChatChannel(trigger: Trigger): Promise<void> {
-    const chatChannelCfg = (trigger.config as { chatChannel?: ChatChannelConfig })
-      .chatChannel;
+    const chatChannelCfg = (
+      trigger.config as { chatChannel?: ChatChannelConfig }
+    ).chatChannel;
     if (!chatChannelCfg) return;
     if (!this.channelAdapterRegistry.has(chatChannelCfg.provider)) return;
     const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);

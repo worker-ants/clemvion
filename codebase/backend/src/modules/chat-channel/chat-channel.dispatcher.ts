@@ -207,9 +207,7 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
 }
 
 /** Trigger.config 에서 chatChannel 추출 (형식 검증 최소). */
-function readChatChannelConfig(
-  config: unknown,
-): ChatChannelConfig | null {
+function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
   if (!config || typeof config !== 'object') return null;
   const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
   if (!chatChannel || typeof chatChannel !== 'object') return null;
@@ -236,7 +234,7 @@ function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
   const baseExtract = (
     field: 'triggerId' | 'workflowId',
   ): string | undefined => {
-    const v = (event.payload as Record<string, unknown>)[field];
+    const v = event.payload[field];
     return typeof v === 'string' ? v : undefined;
   };
   const triggerId = baseExtract('triggerId');
@@ -249,7 +247,7 @@ function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
     seq: event.seq,
     timestamp:
       typeof (event.payload as { timestamp?: unknown }).timestamp === 'string'
-        ? ((event.payload as { timestamp: string }).timestamp)
+        ? (event.payload as { timestamp: string }).timestamp
         : new Date().toISOString(),
   };
   switch (event.eventType) {
@@ -259,14 +257,16 @@ function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
         (event.payload as { interaction?: Record<string, unknown> })
           .interaction ?? {};
       const context =
-        (event.payload as {
-          context?: {
-            formConfig?: unknown;
-            buttonConfig?: unknown;
-            conversationConfig?: unknown;
-            conversationThread?: unknown;
-          };
-        }).context ?? {};
+        (
+          event.payload as {
+            context?: {
+              formConfig?: unknown;
+              buttonConfig?: unknown;
+              conversationConfig?: unknown;
+              conversationThread?: unknown;
+            };
+          }
+        ).context ?? {};
       if (!node || typeof node !== 'object') return null;
       return {
         ...base,

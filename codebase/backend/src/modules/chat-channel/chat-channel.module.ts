@@ -22,11 +22,7 @@ import { TelegramClient } from './providers/telegram/telegram-client';
  * `external-interaction` 과 동등한 facade 계층 — 둘 다 엔진 외부.
  */
 @Module({
-  imports: [
-    ConfigModule,
-    TypeOrmModule.forFeature([Trigger]),
-    WebsocketModule,
-  ],
+  imports: [ConfigModule, TypeOrmModule.forFeature([Trigger]), WebsocketModule],
   controllers: [ChatChannelController],
   providers: [
     ChannelAdapterRegistry,
@@ -35,10 +31,7 @@ import { TelegramClient } from './providers/telegram/telegram-client';
     TelegramClient,
     TelegramAdapter,
   ],
-  exports: [
-    ChannelAdapterRegistry,
-    ChannelConversationService,
-  ],
+  exports: [ChannelAdapterRegistry, ChannelConversationService],
 })
 export class ChatChannelModule {
   constructor(

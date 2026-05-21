@@ -61,7 +61,9 @@ export class ChatChannelBotIdentityDto {
   @IsInt()
   botId?: number;
 
-  @ApiPropertyOptional({ description: '봇의 사용자 이름 (텔레그램: username).' })
+  @ApiPropertyOptional({
+    description: '봇의 사용자 이름 (텔레그램: username).',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(64)
@@ -110,7 +112,8 @@ export class ChatChannelConfigDto {
   secretToken?: string;
 
   @ApiPropertyOptional({
-    description: 'setupChannel 결과 캐시 (read-only). 입력으로 보내도 어댑터가 덮어쓴다.',
+    description:
+      'setupChannel 결과 캐시 (read-only). 입력으로 보내도 어댑터가 덮어쓴다.',
     type: () => ChatChannelBotIdentityDto,
   })
   @IsOptional()
@@ -127,7 +130,8 @@ export class ChatChannelConfigDto {
   uiMapping?: ChatChannelUiMappingDto;
 
   @ApiPropertyOptional({
-    description: '채널당 분당 최대 inbound update (default 60). 0 또는 음수 금지.',
+    description:
+      '채널당 분당 최대 inbound update (default 60). 0 또는 음수 금지.',
     minimum: 1,
     maximum: 600,
     default: 60,

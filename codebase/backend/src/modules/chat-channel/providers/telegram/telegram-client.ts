@@ -96,7 +96,9 @@ export class TelegramClient {
     return this.call<true>(token, 'deleteWebhook', toRecord(params));
   }
 
-  async getMe(token: string): Promise<TelegramApiResponse<TelegramGetMeResult>> {
+  async getMe(
+    token: string,
+  ): Promise<TelegramApiResponse<TelegramGetMeResult>> {
     return this.call<TelegramGetMeResult>(token, 'getMe', {});
   }
 
@@ -125,11 +127,7 @@ export class TelegramClient {
     token: string,
     params: TelegramAnswerCallbackQueryParams,
   ): Promise<TelegramApiResponse<true>> {
-    return this.call<true>(
-      token,
-      'answerCallbackQuery',
-      toRecord(params),
-    );
+    return this.call<true>(token, 'answerCallbackQuery', toRecord(params));
   }
 
   /**
@@ -157,7 +155,9 @@ export class TelegramClient {
         clearTimeout(timer);
         if (!res.ok) {
           // Telegram returns JSON even on 4xx/5xx — parse for description.
-          const body = (await res.json().catch(() => ({}))) as TelegramApiResponse<T>;
+          const body = (await res
+            .json()
+            .catch(() => ({}))) as TelegramApiResponse<T>;
           if (res.status >= 400 && res.status < 500) {
             // 4xx 는 재시도 무의미 — 즉시 반환.
             return body;

@@ -12,7 +12,7 @@ const CONTINUED_SUFFIX = '\n_(continued…)_';
  * Telegram MarkdownV2 escape rule per Bot API docs.
  * Escape: `_ * [ ] ( ) ~ ` > # + - = | { } . !`
  */
-const MD_V2_ESCAPE_REGEX = /([_*\[\]()~`>#+\-=|{}.!])/g;
+const MD_V2_ESCAPE_REGEX = /([_*[\]()~`>#+\-=|{}.!])/g;
 
 export function escapeMarkdownV2(text: string): string {
   return text.replace(MD_V2_ESCAPE_REGEX, '\\$1');
@@ -79,9 +79,9 @@ function renderWaitingForInput(
 ): ChannelMessage[] {
   switch (event.node.interactionType) {
     case 'ai_conversation': {
-      const message =
-        (event.context.conversationConfig as { message?: unknown } | undefined)
-          ?.message;
+      const message = (
+        event.context.conversationConfig as { message?: unknown } | undefined
+      )?.message;
       if (typeof message === 'string' && message.length > 0) {
         return renderText(message);
       }
@@ -120,11 +120,19 @@ function renderButtons(
       }
     | undefined;
   const rawButtons = Array.isArray(buttonConfig?.buttons)
-    ? buttonConfig!.buttons
+    ? buttonConfig.buttons
     : [];
   const buttons: ChannelButton[] = rawButtons
-    .filter((b): b is { id: string; label: string; type?: 'callback' | 'link'; url?: string; style?: 'primary' | 'danger' | 'none' } =>
-      typeof b?.id === 'string' && typeof b?.label === 'string',
+    .filter(
+      (
+        b,
+      ): b is {
+        id: string;
+        label: string;
+        type?: 'callback' | 'link';
+        url?: string;
+        style?: 'primary' | 'danger' | 'none';
+      } => typeof b?.id === 'string' && typeof b?.label === 'string',
     )
     .map((b) => ({
       id: b.id,
@@ -146,7 +154,9 @@ function renderButtons(
   if (
     config.uiMapping?.visualNode !== 'text_only' &&
     typeof visualKind === 'string' &&
-    (visualKind === 'chart' || visualKind === 'carousel' || visualKind === 'table')
+    (visualKind === 'chart' ||
+      visualKind === 'carousel' ||
+      visualKind === 'table')
   ) {
     // Phase 5 (PR-D) 에서 채움. 본 commit (Phase 3/PR-B) 은 caption 으로 text 안내만.
     const title =
@@ -190,7 +200,7 @@ function renderFormPrompt(
         }>;
       }
     | undefined;
-  const fields = Array.isArray(formConfig?.fields) ? formConfig!.fields : [];
+  const fields = Array.isArray(formConfig?.fields) ? formConfig.fields : [];
   if (fields.length === 0) {
     return renderText(
       config.languageHints?.unsupportedInteraction ?? '폼이 비어 있습니다.',
@@ -199,12 +209,14 @@ function renderFormPrompt(
   const currentIdx =
     typeof (event.interaction as { currentFieldIdx?: unknown })
       .currentFieldIdx === 'number'
-      ? ((event.interaction as { currentFieldIdx: number }).currentFieldIdx ?? 0)
+      ? ((event.interaction as { currentFieldIdx: number }).currentFieldIdx ??
+        0)
       : 0;
   const field = fields[Math.min(currentIdx, fields.length - 1)];
   if (!field?.name || !field?.label) {
     return renderText(
-      config.languageHints?.unsupportedInteraction ?? '폼 필드가 잘못되었습니다.',
+      config.languageHints?.unsupportedInteraction ??
+        '폼 필드가 잘못되었습니다.',
     );
   }
   const required = field.required === true;

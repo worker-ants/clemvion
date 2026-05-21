@@ -121,8 +121,9 @@ function readCommand(message: TelegramMessageShape): ChannelCommand | null {
     return { kind: 'text_message', text };
   }
 
-  const document = (message as { document?: { file_id?: string; mime_type?: string } })
-    .document;
+  const document = (
+    message as { document?: { file_id?: string; mime_type?: string } }
+  ).document;
   if (document?.file_id) {
     return {
       kind: 'file_upload',
@@ -130,8 +131,9 @@ function readCommand(message: TelegramMessageShape): ChannelCommand | null {
       mimeType: document.mime_type ?? 'application/octet-stream',
     };
   }
-  const video = (message as { video?: { file_id?: string; mime_type?: string } })
-    .video;
+  const video = (
+    message as { video?: { file_id?: string; mime_type?: string } }
+  ).video;
   if (video?.file_id) {
     return {
       kind: 'file_upload',

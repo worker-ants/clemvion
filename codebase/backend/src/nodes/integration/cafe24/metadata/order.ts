@@ -562,7 +562,10 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     method: 'PUT',
     path: 'orders/{order_id}/memos/{memo_no}',
     requiredFields: ['order_id', 'memo_no'],
-    fields: { order_id: { type: 'string', location: 'path' }, memo_no: { type: 'string', location: 'path' } },
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      memo_no: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
@@ -573,7 +576,10 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     method: 'DELETE',
     path: 'orders/{order_id}/memos/{memo_no}',
     requiredFields: ['order_id', 'memo_no'],
-    fields: { order_id: { type: 'string', location: 'path' }, memo_no: { type: 'string', location: 'path' } },
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      memo_no: { type: 'string', location: 'path' },
+    },
     responseShape: 'empty',
   },
   {
@@ -705,7 +711,10 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     method: 'PUT',
     path: 'orders/{order_id}/shipments/{shipping_code}',
     requiredFields: ['order_id', 'shipping_code'],
-    fields: { order_id: { type: 'string', location: 'path' }, shipping_code: { type: 'string', location: 'path' } },
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      shipping_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
@@ -716,7 +725,10 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     method: 'DELETE',
     path: 'orders/{order_id}/shipments/{shipping_code}',
     requiredFields: ['order_id', 'shipping_code'],
-    fields: { order_id: { type: 'string', location: 'path' }, shipping_code: { type: 'string', location: 'path' } },
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      shipping_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'empty',
   },
   // Batch 3-C — shippingfeecancellation · shortagecancellation · benefits · calculation · coupons · dashboard · inflowgroups
@@ -1208,7 +1220,8 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'fulfillments_create',
     label: '풀필먼트 배송 생성',
-    description: 'Create shipping information for multiple orders via fulfillment.',
+    description:
+      'Create shipping information for multiple orders via fulfillment.',
     scopeType: 'write',
     method: 'POST',
     path: 'fulfillments',
