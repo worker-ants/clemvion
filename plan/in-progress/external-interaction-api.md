@@ -59,6 +59,44 @@ owner: project-planner → developer
 
 ## 작업 단위
 
+### PR2 Phase 분할안 (단일 PR 안의 작업 순서)
+
+각 phase 종료마다 단위 테스트 + 빌드 통과 → commit. e2e 와 `/ai-review` 는 마지막에 일괄 (실 인프라 부하 + ai-review 비용 절감).
+
+> impl-prep consistency check 결과: `review/consistency/2026/05/21/00_08_35-impl-prep/SUMMARY.md` 참조. Critical 2건 (C1·C2) 은 PR1 spec 정정 commit (`fa03bac2`) 으로 spec 본문 정정 + 본 plan 에 phase P0 추가로 해소.
+
+| Phase | 범위 | 의존 |
+|-------|------|------|
+| **P0** | (impl-prep C2 해소) `Execution.seq_counter` 컬럼 + `WebsocketService.emitExecutionEvent` 가 execution 별 atomic INCR (Redis `INCR exec:seq:<id>`) 로 seq 발급 + WS event envelope 의 `seq` 필드에 동봉. V059 마이그레이션에 본 컬럼 포함. WS spec §2.2 정의의 backend 구현 | — |
+| **P1** | Migration V059 (Trigger 4컬럼 + Execution.seq_counter, P0 와 동일 마이그레이션 build) + Trigger entity 확장 + Create/Update DTO 에 notification/interaction sub-DTO + SSRF validator | P0 |
+| **P2** | InteractionTokenService (iext / itk 발급·검증·blacklist·refresh) + Redis 의존성 + 단위 테스트 | P1 |
+| **P3** | NotificationDispatcher (BullMQ 큐 `notification-webhook` 케밥-케이스, HMAC 서명, 재시도, SSRF, stale 차단, secret rotation grace) + 단위 테스트. R10 단일 sink — ExecutionEngine 에 직접 inject 금지 (after-commit hook 으로만 트리거) | P1 |
+| **P4** | Inbound REST controller `@Controller('external/executions')` (global prefix `api` 와 합쳐 `/api/external/executions/*`) — `/interact` 5 commands, `/cancel`, `/refresh-token`, GET status + Idempotency middleware (400 VALIDATION_FAILED 캐시 제외 R8) + InteractionGuard + Swagger `@ApiTags('External Interaction')` + `@ApiBearerAuth('interaction-token')` + ApiAcceptedWrappedResponse 사용 + CORS + 에러 응답 body shape `{ "error": { "code", "message", "details": [{field, message}] } }` (api-convention §5.3 정합) | P2 |
+| **P5** | SSE stream controller + sse-adapter.service (Redis pub/sub → SSE, Last-Event-Id 5분 buffer, heartbeat, 동시 연결 제한). seq 는 P0 카운터 그대로 사용 (별도 신설 금지 R7) | P0·P2 |
+| **P6** | Hooks 응답 확장 (interaction 필드 동봉, JSDoc 으로 node `interaction` 과 의미 분리 명시) + ExecutionEngine after-commit hook 으로 NotificationDispatcher 트리거 + Websocket emit 직후 SSE fan-out. R10: WebsocketService.emit 의 wrapper 또는 Redis pub/sub 구독으로 facade. HooksController 의 `@Public()` 유지 + `@ApiBearerAuth` 미추가. conversationThread `source` 마커 passthrough | P2·P3·P4·P5 |
+| **P7** | Frontend Trigger 상세 드로어 notification·interaction 섹션 (i18n KO/EN 양쪽 — `dict/{ko,en}/triggers.ts` 의 `notification` / `interaction` 서브 키) + `notificationHealth` 배지 + secret rotation 버튼 + per_trigger token revoke 버튼 | — (UI 독립) |
+| **P8** | `@workflow/sdk` 패키지 (기존 패키지 scope 일관) — ClemvionClient / subscribeToExecution / interact / verifyNotificationSignature + README + 단위 테스트 | API shape 확정 (P4·P5·P6) |
+| **P9** | E2E 7개 시나리오 + 전체 TEST WORKFLOW (lint/unit/build/e2e) + `/ai-review` | 전 phase |
+| **P10** | plan §2/§3/§4/§5 모두 [x] → `git mv` complete + `chore(plan): mark ... complete` commit + Follow-up 4건 cross-plan 전파 | P9 |
+
+> Backend 의 P0~P6 는 dependency 순서가 엄격. 병렬화 가능 영역은 P4↔P5, P7↔P3, P8 (API shape 확정 후) 정도.
+
+### impl-prep WARN 해소 체크리스트 (각 phase 의 정의에 반영됨)
+
+- [ ] **C1**: spec §10 prefix 정정 — PR1 commit `fa03bac2` 로 완료
+- [ ] **C2**: P0 phase 신설 — seq counter backend 구현
+- [ ] **W-1·W-2 (R10/RL-04)**: P6 facade 메커니즘 명시 (after-commit hook)
+- [ ] **W-3**: WebhookAcceptedDto 갱신 P6 에 포함
+- [ ] **W-4**: V059 CHECK 제약 (notification_health enum)
+- [ ] **W-5·W-6·W-7**: Swagger `@ApiTags`/`@ApiBearerAuth`/ApiAcceptedWrappedResponse — P4 에 명시
+- [ ] **W-8**: 에러 응답 details Array 형태 — P4 명시
+- [ ] **W-9**: i18n dict `triggers.ts` 활용 — P7 명시
+- [ ] **W-10**: 신규 errorCode → ko 매핑 (`backend-labels.ts WARNING_KO/ERROR_KO`)
+- [ ] **W-11**: SSE/Notification 의 source 마커 passthrough — P5/P6 명시
+- [ ] **W-12**: interaction 필드명 JSDoc 명확화 — P6
+- [ ] **W-13**: Follow-up 4건 cross-plan 전파 — P10
+- [ ] **plan-coherence Critical (V059 경합)**: PR2 가 점유, `replay-rerun.md` 가 V060 으로 후행
+
 ### 1. Spec 작성 — ✅ 완료 (PR1, 본 worktree)
 
 - [x] NEW `spec/5-system/14-external-interaction-api.md` 신규 작성 (R1~R12 + §1~§12 + EIA-NX-* / EIA-IN-* / EIA-AU-* / EIA-RL-* / EIA-NF-* 요구사항)
