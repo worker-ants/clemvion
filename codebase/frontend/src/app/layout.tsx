@@ -19,30 +19,21 @@ export const metadata: Metadata = {
   /*
    * Icon + OG assets — spec/6-brand.md §8.4.1, §8.4.6.
    *
-   * Explicit declaration (instead of Next.js auto-discovery) so the
-   * 16px-optimized vector (spec §8.4.2) is registered alongside the
-   * 32px master icon.svg.
+   * `src/app/icon.png` (192×192) and `src/app/apple-icon.png` (180×180)
+   * are auto-discovered by Next.js. The explicit `icons` block below
+   * additionally registers the multi-size PNG favicons in /public so
+   * older browsers can pick the matching size.
    *
-   * favicon.ico is intentionally omitted — modern browsers prefer SVG.
-   * Regenerating a multi-size .ico requires raster tooling (sharp /
-   * ImageMagick) and is tracked as a Stage 2 follow-up
-   * (plan/in-progress/brand-refresh-impl.md §1.2).
-   *
-   * apple-icon is served as SVG (modern iOS ≥ 12 supports it). A PNG
-   * fallback is a Stage 2 follow-up under §1.3.
-   *
-   * openGraph / twitter images are intentionally NOT declared yet:
-   * most crawlers (X/Twitter, Slack, Facebook scraper) do NOT render
-   * SVG OG cards reliably. They will be added once PNG variants are
-   * generated. Until then, social previews fall back to plain title +
-   * description, which is acceptable. Tracked in §1.3.
+   * opengraph-image PNG (1200×630) is not yet generated — social
+   * previews fall back to plain title + description until then.
    */
   icons: {
     icon: [
-      { url: "/favicon-16.svg", type: "image/svg+xml", sizes: "16x16" },
-      { url: "/icon.svg", type: "image/svg+xml", sizes: "32x32" },
+      { url: "/favicon-16.png", type: "image/png", sizes: "16x16" },
+      { url: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-48.png", type: "image/png", sizes: "48x48" },
+      { url: "/favicon-64.png", type: "image/png", sizes: "64x64" },
     ],
-    apple: [{ url: "/apple-icon.svg", type: "image/svg+xml", sizes: "180x180" }],
   },
   openGraph: {
     title: "Clemvion — Agentic Workflow",

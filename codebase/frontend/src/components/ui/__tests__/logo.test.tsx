@@ -3,48 +3,46 @@ import { render, screen } from "@testing-library/react";
 import { Logo, LogoMark } from "../logo";
 
 describe("Logo", () => {
-  it("renders full logo by default with sub-copy alt", () => {
+  it("renders full logo by default with brand alt", () => {
     render(<Logo />);
     const imgs = screen.getAllByRole("img");
     expect(imgs.length).toBeGreaterThan(0);
-    // alt contains the Agentic Workflow tagline since sub-copy is always-on (spec §8.4.3)
-    expect(imgs.some((img) => img.getAttribute("alt")?.includes("Agentic Workflow"))).toBe(true);
+    expect(imgs.some((img) => img.getAttribute("alt") === "Clemvion")).toBe(true);
   });
 
-  it("renders mark variant (no sub-copy in alt)", () => {
+  it("renders mark variant with the light mark asset", () => {
     render(<Logo variant="mark" theme="light" />);
     const img = screen.getByRole("img");
-    expect(img.getAttribute("src")).toBe("/logo-mark.svg");
+    expect(img.getAttribute("src")).toBe("/logo-mark.png");
     expect(img.getAttribute("alt")).toBe("Clemvion");
   });
 
-  it("renders wordmark variant", () => {
+  it("renders wordmark variant with the light wordmark asset", () => {
     render(<Logo variant="wordmark" theme="light" />);
     const img = screen.getByRole("img");
-    expect(img.getAttribute("src")).toBe("/logo-wordmark.svg");
+    expect(img.getAttribute("src")).toBe("/logo-wordmark.jpg");
   });
 
   it("renders light theme explicitly with the light asset path", () => {
     render(<Logo variant="full" theme="light" />);
     const img = screen.getByRole("img");
-    expect(img.getAttribute("src")).toBe("/logo.svg");
+    expect(img.getAttribute("src")).toBe("/logo.jpg");
   });
 
   it("renders dark theme explicitly with the dark asset path", () => {
     render(<Logo variant="full" theme="dark" />);
     const img = screen.getByRole("img");
-    expect(img.getAttribute("src")).toBe("/logo-dark.svg");
+    expect(img.getAttribute("src")).toBe("/logo-dark.jpg");
   });
 
   it("renders both light and dark assets when theme=auto", () => {
     render(<Logo variant="full" theme="auto" />);
     const imgs = screen.getAllByRole("img", { hidden: true });
     const srcs = imgs.map((i) => i.getAttribute("src"));
-    expect(srcs).toContain("/logo.svg");
-    expect(srcs).toContain("/logo-dark.svg");
-    // Light is hidden in dark mode, dark is hidden in light mode — Tailwind `dark:` variant
-    const lightImg = imgs.find((i) => i.getAttribute("src") === "/logo.svg")!;
-    const darkImg = imgs.find((i) => i.getAttribute("src") === "/logo-dark.svg")!;
+    expect(srcs).toContain("/logo.jpg");
+    expect(srcs).toContain("/logo-dark.jpg");
+    const lightImg = imgs.find((i) => i.getAttribute("src") === "/logo.jpg")!;
+    const darkImg = imgs.find((i) => i.getAttribute("src") === "/logo-dark.jpg")!;
     expect(lightImg.className).toContain("dark:hidden");
     expect(darkImg.className).toContain("hidden");
     expect(darkImg.className).toContain("dark:block");
@@ -83,14 +81,12 @@ describe("Logo", () => {
     expect((img as HTMLElement).style.height).toBe("auto");
   });
 
-  it("renders wordmark variant with auto theme (same asset for both modes)", () => {
-    // Wordmark currently has a single tone — see logo.tsx ASSET_PATHS comment.
-    // Both auto-rendered <img>s point at the same path, but the dark wrapper
-    // still toggles via `dark:block` so future split is a trivial change.
+  it("renders both light and dark wordmark assets when theme=auto", () => {
     render(<Logo variant="wordmark" theme="auto" />);
     const imgs = screen.getAllByRole("img", { hidden: true });
-    expect(imgs).toHaveLength(2);
-    expect(imgs.every((i) => i.getAttribute("src") === "/logo-wordmark.svg")).toBe(true);
+    const srcs = imgs.map((i) => i.getAttribute("src"));
+    expect(srcs).toContain("/logo-wordmark.jpg");
+    expect(srcs).toContain("/logo-wordmark-dark.jpg");
   });
 
   it("keeps alt on both auto-rendered images so the visible one is announced", () => {
@@ -107,7 +103,7 @@ describe("LogoMark", () => {
   it("is a convenience for Logo with variant=mark", () => {
     render(<LogoMark theme="light" />);
     const img = screen.getByRole("img");
-    expect(img.getAttribute("src")).toBe("/logo-mark.svg");
+    expect(img.getAttribute("src")).toBe("/logo-mark.png");
     expect(img.getAttribute("alt")).toBe("Clemvion");
   });
 
@@ -115,11 +111,10 @@ describe("LogoMark", () => {
     render(<LogoMark theme="auto" />);
     const imgs = screen.getAllByRole("img", { hidden: true });
     const srcs = imgs.map((i) => i.getAttribute("src"));
-    expect(srcs).toContain("/logo-mark.svg");
-    expect(srcs).toContain("/logo-mark-dark.svg");
-    // Symmetry with Logo auto: hidden via Tailwind dark: variant on both.
-    const lightImg = imgs.find((i) => i.getAttribute("src") === "/logo-mark.svg")!;
-    const darkImg = imgs.find((i) => i.getAttribute("src") === "/logo-mark-dark.svg")!;
+    expect(srcs).toContain("/logo-mark.png");
+    expect(srcs).toContain("/logo-mark-dark.png");
+    const lightImg = imgs.find((i) => i.getAttribute("src") === "/logo-mark.png")!;
+    const darkImg = imgs.find((i) => i.getAttribute("src") === "/logo-mark-dark.png")!;
     expect(lightImg.className).toContain("dark:hidden");
     expect(darkImg.className).toContain("hidden");
     expect(darkImg.className).toContain("dark:block");

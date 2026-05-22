@@ -11,8 +11,8 @@ describe("AuthLayout", () => {
     );
     // The auth slot uses the dark logo variant on a dark surface for contrast.
     const img = screen.getByRole("img");
-    expect(img.getAttribute("src")).toBe("/logo-dark.svg");
-    expect(img.getAttribute("alt")).toContain("Agentic Workflow");
+    expect(img.getAttribute("src")).toBe("/logo-dark.jpg");
+    expect(img.getAttribute("alt")).toBe("Clemvion");
     expect(screen.getByTestId("auth-card")).toBeInTheDocument();
   });
 
