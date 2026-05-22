@@ -33,6 +33,7 @@ This page covers the three AI nodes: calling an LLM to generate answers, classif
   {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "How the thread is injected. `messages` prepends per-turn role messages to the LLM messages array; `system_text` renders the thread as a single text block appended to the system prompt.", default: "messages"},
   {name: "includeToolTurns", required: false, type: "boolean", description: "When true, also pushes KB/MCP/condition tool-call turns into the thread. Defaults to pushing only the final assistant response.", default: "false"},
   {name: "excludeFromConversationThread", required: false, type: "boolean", description: "When checked, skips pushing this node's user/assistant turns into the workflow thread (opt-out).", default: "false"},
+  {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "Virtual tools that let the LLM render responses as tables, charts, carousels, templates, or forms instead of plain text. Empty list disables the feature. Each entry has a required `type`, an optional `description` override, and an optional `defaults` overlay.", default: "[]"},
   {name: "maxTurns", required: false, type: "integer", description: "Max conversation turns in Multi Turn mode. `0` means unlimited.", default: "20"}
 ]} />
 
@@ -63,6 +64,43 @@ Injection mode (`contextInjectionMode`) has two flavors.
 By default the thread receives **only the final assistant response and user turns**. Turn on `includeToolTurns` to also persist KB / MCP / condition tool-call turns. Conversely, set `excludeFromConversationThread` to keep a node out of the thread entirely (handy for background classifier-style LLM calls).
 
 To reference the thread directly from expressions, use `{{ $thread.length }}`, `{{ $thread.text }}`, or `{{ $thread.turns[0].data.email }}`. See [Variables and context · $thread](/docs/04-expression-language/variables-and-context#thread-conversation-thread) for details.
+
+### Presentation Tools
+
+Setting `presentationTools` lets the LLM render responses as **tables, charts, carousels, templates, or forms** directly inside the chat UI — without connecting separate Presentation nodes to the workflow graph. The LLM decides, based on context, which rendering to use.
+
+Each registered entry exposes a virtual tool to the LLM: `render_table`, `render_chart`, `render_carousel`, `render_template`, or `render_form`.
+
+<FieldTable rows={[
+  {name: "type", required: true, type: "`table` / `chart` / `carousel` / `template` / `form`", description: "Presentation type to render. Duplicate types within the same node are not allowed.", default: "-"},
+  {name: "description", required: false, type: "string", description: "LLM-facing tool description override. Defaults to the built-in description for each type when omitted.", default: "-"},
+  {name: "defaults", required: false, type: "object", description: "Brand/style fixed values. Deep-merged with the LLM's payload, with `defaults` taking precedence. Use to lock columns, button labels, or layout so the LLM cannot override them.", default: "-"}
+]} />
+
+**Rendering behaviour:**
+
+- `render_table` / `render_chart` / `render_carousel` / `render_template` — display-only. Rendered inline in the LLM response; they do not end workflow execution.
+- `render_form` — interactive. In Multi Turn mode, presents a form to the user and waits for submission. The submitted data is forwarded to the next LLM call. In Single Turn mode the tool call is silently dropped.
+
+**Size and error handling:**
+
+- Carousel and Table follow the same 1 MB tail-truncate policy as their standalone nodes.
+- Chart and Template are silently dropped when the payload exceeds 1 MB.
+- On schema violations, the node retries once, then silently drops. The `error` port does not fire; any text response is surfaced normally.
+
+<Example title="presentationTools configuration">
+```ts
+presentationTools: [
+  { type: 'table', defaults: { columns: [{ field: 'id', label: 'ID' }] } },
+  { type: 'chart' },
+  { type: 'form', description: 'Request additional input from the user' },
+]
+```
+</Example>
+
+<Callout type="note">
+The input schema of each Presentation node (Carousel / Table / Chart / Form / Template) is reused verbatim as the JSON Schema for the corresponding `render_*` virtual tool parameter. This means the payload the LLM generates has the same structure as if you had wired the node directly into the graph. See [Presentation nodes](/docs/02-nodes/presentation) for full per-node schema details.
+</Callout>
 
 ### Example
 

@@ -5,7 +5,7 @@ section: "02-nodes"
 order: 6
 summary: "AI Agent, 텍스트 분류기, 정보 추출기로 LLM 기반 처리를 담당하는 노드들을 설명해요."
 summary_en: "LLM-powered nodes: AI Agent, Text Classifier, and Information Extractor."
-spec: ["spec/4-nodes/3-ai/0-common.md", "spec/conventions/conversation-thread.md"]
+spec: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/conventions/conversation-thread.md", "spec/4-nodes/6-presentation/0-common.md"]
 code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts", "codebase/backend/src/nodes/ai/text-classifier/text-classifier.schema.ts", "codebase/backend/src/nodes/ai/information-extractor/information-extractor.schema.ts"]
 ---
 
@@ -44,6 +44,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
   {name: "contextInjectionMode", required: false, type: "`messages` / `system_text`", description: "Thread 주입 방식이에요. `messages`는 LLM messages 배열 앞에 turn 별로 prepend하고, `system_text`는 system 프롬프트 뒤에 한 덩어리로 append해요.", default: "messages"},
   {name: "includeToolTurns", required: false, type: "boolean", description: "true면 KB/MCP/조건 도구 호출 turn까지 thread에 push해요. 기본은 최종 assistant 응답만 push해요.", default: "false"},
   {name: "excludeFromConversationThread", required: false, type: "boolean", description: "체크하면 이 노드의 user/assistant turn을 워크플로우 thread에 push하지 않아요(opt-out).", default: "false"},
+  {name: "presentationTools", required: false, type: "PresentationToolDef[]", description: "LLM이 응답을 텍스트 대신 표·차트·캐러셀·템플릿·폼으로 렌더링할 수 있게 해주는 가상 도구 목록이에요. 비어 있으면 기능이 꺼져요. 각 항목은 `type`(필수), `description`(선택), `defaults`(선택)으로 구성돼요.", default: "[]"},
   {name: "maxTurns", required: false, type: "integer", description: "Multi Turn 모드의 최대 대화 턴 수예요. `0`은 무제한이에요.", default: "20"}
 ]} />
 
@@ -74,6 +75,43 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
 기본적으로 thread 에는 **최종 assistant 응답과 사용자 turn 만** push 돼요. KB/MCP/조건 도구 호출까지 보존하고 싶으면 `includeToolTurns` 를 켜요. 반대로 특정 AI Agent 노드를 thread 에서 제외하고 싶으면 `excludeFromConversationThread` 를 켜요(예: 백그라운드 분류용 LLM 호출).
 
 표현식에서 thread 를 직접 참조하려면 `{{ $thread.length }}`, `{{ $thread.text }}`, `{{ $thread.turns[0].data.email }}` 처럼 쓸 수 있어요. 자세한 내용은 [변수와 컨텍스트 §$thread](/docs/04-expression-language/variables-and-context#thread-conversation-thread) 를 참고해요.
+
+### Presentation Tools
+
+`presentationTools` 를 설정하면 LLM 이 응답을 텍스트가 아닌 **표·차트·캐러셀·템플릿·폼** 형태로 채팅 UI 안에서 직접 렌더링할 수 있어요. 워크플로우 그래프에 별도의 Presentation 노드를 연결하지 않아도 AI 세션 내부에서 LLM 이 판단해 적절한 형태로 응답을 만들어요.
+
+등록한 각 항목은 LLM 에게 `render_table` / `render_chart` / `render_carousel` / `render_template` / `render_form` 가상 도구로 노출돼요.
+
+<FieldTable rows={[
+  {name: "type", required: true, type: "`table` / `chart` / `carousel` / `template` / `form`", description: "렌더링할 프레젠테이션 유형이에요. 한 노드 안에서 동일 `type` 중복 등록은 허용되지 않아요.", default: "-"},
+  {name: "description", required: false, type: "string", description: "LLM 에게 표시할 도구 설명이에요. 미설정 시 각 type 의 기본 설명이 사용돼요.", default: "-"},
+  {name: "defaults", required: false, type: "object", description: "brand/style 고정값이에요. LLM 이 생성한 페이로드와 deep-merge 시 `defaults` 가 우선해요. 예: columns 목록·버튼 레이블 등을 LLM 이 임의로 바꾸지 못하도록 고정할 수 있어요.", default: "-"}
+]} />
+
+**렌더링 동작:**
+
+- `render_table` / `render_chart` / `render_carousel` / `render_template` — display-only. LLM 응답에 inline 렌더되며, 워크플로우 실행을 종료시키지 않아요.
+- `render_form` — interactive. Multi Turn 모드에서 사용자에게 폼을 표시한 뒤 응답을 대기해요. 제출 데이터는 다음 LLM 호출에 전달돼요. Single Turn 모드에서는 무시(silent drop)돼요.
+
+**용량·오류 처리:**
+
+- Carousel·Table 은 기존 노드와 동일한 1 MB tail truncate 정책이 적용돼요.
+- Chart·Template 은 1 MB 초과 시 silent drop 돼요.
+- 스키마 위반 시 1회 재시도 후 silent drop 해요. `error` 포트가 발화하지 않으며, 텍스트 응답이 있으면 그대로 표시돼요.
+
+<Example title="presentationTools 설정 예시">
+```ts
+presentationTools: [
+  { type: 'table', defaults: { columns: [{ field: 'id', label: 'ID' }] } },
+  { type: 'chart' },
+  { type: 'form', description: '사용자에게 추가 입력을 요청할 때 사용해요' },
+]
+```
+</Example>
+
+<Callout type="note">
+Presentation 노드 5종 (Carousel / Table / Chart / Form / Template) 의 input schema 가 `render_*` 가상 도구의 파라미터 JSON Schema 단일 진실로 재사용돼요. 즉 LLM 이 생성하는 렌더링 페이로드는 각 Presentation 노드에 직접 연결했을 때와 동일한 구조예요. 자세한 노드별 schema 는 [프레젠테이션 노드](/docs/02-nodes/presentation)를 참고해요.
+</Callout>
 
 ### 예시
 
