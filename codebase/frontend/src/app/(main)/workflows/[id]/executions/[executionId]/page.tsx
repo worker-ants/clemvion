@@ -479,8 +479,21 @@ function NodeResultsTab({
   // Detect any conversation-shaped output (AI Agent or Information Extractor)
   // — used to render the conversation view inside the Preview tab while the
   // Output tab still shows the raw produced value.
+  //
+  // Fallback (PR #273 follow-up): isConversationOutput 가 false 반환해도
+  // nodeType ∈ {ai_agent, information_extractor} 면 conversation 으로 간주.
+  // 실행 내역 페이지에서 envelope shape 가 sparse 한 케이스에서도 Preview
+  // 탭에 ConversationInspector 가 그려지도록 보장 (사용자 보고: 실행 내역
+  // 보기 timeline 누락 회귀). isMultiTurnConversation 와 동일 정책 유지로
+  // 두 surface 의 분기 일관성 확보.
+  const selectedNodeType = selectedNode?.node?.type;
+  const looksLikeConversationNode =
+    selectedNodeType === "ai_agent" ||
+    selectedNodeType === "information_extractor";
   const isCompletedConversation =
-    !isWaitingConversation && isConversationOutput(selectedNode?.outputData);
+    !isWaitingConversation &&
+    (isConversationOutput(selectedNode?.outputData) ||
+      looksLikeConversationNode);
 
   // Preview tab should also render when the selected node is waiting for
   // input — even if outputData is null the page must show the interactive UI.
