@@ -91,7 +91,19 @@ export const triggers = {
   toggleActivate: "활성화",
   toggleDeactivate: "비활성화",
   // [Spec 2-trigger-list §2.3.1] 상세 드로어의 카드별 read↔edit 모드 — Plan B.
+  // [R-7] drawer 타이틀·카드 타이틀·라벨 i18n 키 추가.
   detail: {
+    drawerTitle: "트리거 상세",
+    notFound: "트리거를 찾을 수 없어요.",
+    sectionOverview: "개요",
+    sectionWebhook: "웹훅 설정",
+    sectionSchedule: "스케줄 설정",
+    cronExpressionLabel: "Cron 표현식",
+    timezoneLabel: "타임존",
+    nextRunLabel: "다음 실행",
+    urlLabel: "URL",
+    httpMethodLabel: "HTTP 메서드",
+    usageExampleCurl: "사용 예시 (curl)",
     edit: "수정",
     save: "저장",
     saving: "저장 중...",
@@ -158,5 +170,10 @@ export const triggers = {
     copy: "복사",
     copied: "복사했어요",
     eventChoices: "이벤트 선택",
+    // [R-7] EIA 카드 read 모드 dt 라벨 i18n 추가
+    eventsLabel: "이벤트",
+    algorithmLabel: "알고리즘",
+    retryAttemptsLabel: "재시도 횟수",
+    endpointsLabel: "엔드포인트",
   },
 } as const;
