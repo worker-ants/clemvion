@@ -57,8 +57,10 @@ export class SecretResolverService implements OnModuleInit {
     if (!isSecretRef(ref)) {
       // SS-SE-05: plaintext 를 에러 메시지·로그에 포함 금지.
       // ref 길이와 앞 8자(prefix) 만 포함 — 실제 값 미노출.
+      // (refStr: isSecretRef 가 value is string 타입가드이므로 false branch 에서 never 로 좁혀지는 것을 방지.)
+      const refStr: string = ref as unknown as string;
       throw new Error(
-        `SecretResolverService: invalid ref format — spec/conventions/secret-store.md §1 형식 위반 (input length=${ref.length}, starts_with=${JSON.stringify(ref.slice(0, 8))}).`,
+        `SecretResolverService: invalid ref format — spec/conventions/secret-store.md §1 형식 위반 (input length=${refStr.length}, starts_with=${JSON.stringify(refStr.slice(0, 8))}).`,
       );
     }
   }
