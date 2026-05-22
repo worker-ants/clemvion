@@ -53,17 +53,23 @@ const SCHEMA_BY_TYPE: Record<PresentationType, z.ZodTypeAny> = {
   form: formNodeConfigSchema,
 };
 
-/** Default LLM-facing descriptions per spec §10.2 (override via `description` config). */
+/** Default LLM-facing descriptions per spec §10.2 (override via `description` config).
+ *
+ * 각 항목은 호출에 필요한 **필수 필드** 를 명시한다 — 사용자 보고 회귀: LLM 이
+ * render_carousel 을 items 없이 호출해 frontend 가 "No items" 만 표시했다.
+ * 도구 description 은 LLM 에게 직접 노출되는 schema 보조 가이드이므로 여기서
+ * 명시적으로 알려야 한다 (system prompt 와 별도로 도구별 inline 안내).
+ */
 const DEFAULT_DESCRIPTIONS: Record<PresentationType, string> = {
   table:
-    '표 형태로 정형 데이터를 표시. rows/columns 정의 필요. 비교·집계 결과 공유에 적합.',
+    '표 형태로 정형 데이터를 표시. **rows (Array<Object>) 와 columns (Array<{field,label}>) 가 필수** — 모두 채워서 호출. 비교·집계 결과 공유에 적합.',
   chart:
-    '차트 (bar/line/area/pie/donut) 로 데이터를 시각화. 시계열·분포·비율 표현에 적합.',
+    '차트 (bar/line/area/pie/donut) 로 데이터를 시각화. **chartType + data (xAxis/yAxis/values 또는 series) 가 필수**. 시계열·분포·비율 표현에 적합.',
   carousel:
-    '카드·이미지·미니멀 레이아웃의 슬라이드 모음. 추천 항목 목록·상품 카드 등 시각 카탈로그에 적합.',
+    '카드 슬라이드 모음. **mode="static" + items (Array<{title, description?, image?, buttons?}>) 가 필수** — 한 카드라도 비우지 말 것. mode=dynamic 은 데이터 바인딩 워크플로 전용이라 LLM 직접 호출에는 사용 금지. 추천 항목·상품 카드 카탈로그에 적합.',
   template:
-    '사용자 정의 HTML/Markdown/Text 템플릿 렌더링. 정형화된 안내문·요약 카드 작성에 적합.',
-  form: '사용자에게 입력 폼을 표시하고 제출을 대기. 추가 정보 수집·승인 요청 등 사용자 응답이 필요한 경우.',
+    '사용자 정의 HTML/Markdown/Text 템플릿 렌더링. **content (HTML/Markdown 본문 문자열) 가 필수**. 정형화된 안내문·요약 카드 작성에 적합.',
+  form: '사용자에게 입력 폼을 표시하고 제출을 대기. **fields (Array<{name, type, label, ...}>) 가 필수**. 추가 정보 수집·승인 요청 등 사용자 응답이 필요한 경우.',
 };
 
 /** 1MB cap — mirrors PRESENTATION_MAX_BYTES used by presentation handlers. */
@@ -143,6 +149,76 @@ function safeJsonParse(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Semantic-level gate for render_* payloads after zod validation passes.
+ *
+ * zod schema 의 `default([])` 는 워크플로 노드 (사용자가 GUI 에서 단계적으로
+ * 채우는) 의 빈 초기 상태를 허용하지만, AI Agent 도구 호출은 한 turn 에 완성
+ * 페이로드를 보내야 한다. carousel mode=static + items=[] 같은 빈 호출이 통과
+ * 되면 frontend 가 "No items" 만 표시 → 사용자 경험 깨짐.
+ *
+ * 본 함수는 schema 통과 후 추가 도구별 의미 검증을 수행. 실패 시 schema
+ * violation 으로 LLM 에 재시도 신호 → LLM 이 완성 payload 로 재호출.
+ *
+ * SoT: spec/4-nodes/3-ai/1-ai-agent.md §4.1 "도구 호출 시 필수 필드".
+ */
+function checkRenderToolSemanticIssues(
+  type: PresentationType,
+  payload: Record<string, unknown>,
+): string[] {
+  const issues: string[] = [];
+  switch (type) {
+    case 'carousel': {
+      const mode = payload.mode as string | undefined;
+      const items = payload.items as unknown[] | undefined;
+      if (mode === 'dynamic') {
+        issues.push(
+          `carousel mode='dynamic' is reserved for workflow data binding; ` +
+            `LLM must call with mode='static' and a populated items[] array`,
+        );
+      }
+      if (!Array.isArray(items) || items.length === 0) {
+        issues.push(
+          `carousel.items must be a non-empty array of card objects ` +
+            `({title, description?, image?, buttons?})`,
+        );
+      }
+      break;
+    }
+    case 'table': {
+      const rows = payload.rows as unknown[] | undefined;
+      const columns = payload.columns as unknown[] | undefined;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        issues.push('table.rows must be a non-empty array of row objects');
+      }
+      if (!Array.isArray(columns) || columns.length === 0) {
+        issues.push(
+          'table.columns must be a non-empty array of {field,label} objects',
+        );
+      }
+      break;
+    }
+    case 'template': {
+      const content = payload.content as string | undefined;
+      if (!content || typeof content !== 'string' || content.trim() === '') {
+        issues.push('template.content must be a non-empty string');
+      }
+      break;
+    }
+    case 'form': {
+      const fields = payload.fields as unknown[] | undefined;
+      if (!Array.isArray(fields) || fields.length === 0) {
+        issues.push('form.fields must be a non-empty array of field defs');
+      }
+      break;
+    }
+    case 'chart':
+      // Chart schema already enforces chartType + data shape via zod refines.
+      break;
+  }
+  return issues;
 }
 
 /**
@@ -383,6 +459,19 @@ export class RenderToolProvider implements AgentToolProvider {
     }
 
     const validatedPayload = validateResult.data as Record<string, unknown>;
+
+    // Render-tool semantic gate (spec §4.1) — schema 의 `default([])` 는 워크플로
+    // 노드의 빈 초기 상태를 위한 것이지만, AI Agent 도구 호출에서는 빈 페이로드
+    // (items / rows / content / fields 가 empty) 가 사용자에게 "No items" 같은
+    // 빈 카드만 보이게 한다. LLM 에 schema violation 으로 재시도 신호를 보내
+    // payload 완성 후 재호출하도록 유도. carousel 은 mode=dynamic 까지 reject.
+    const semanticIssues = checkRenderToolSemanticIssues(
+      type,
+      validatedPayload,
+    );
+    if (semanticIssues.length > 0) {
+      return makeSchemaViolationResult(call, semanticIssues);
+    }
     const capped = applyOneMbCap(type, validatedPayload);
     const cappedBytes = approxByteSize(capped.payload);
 
