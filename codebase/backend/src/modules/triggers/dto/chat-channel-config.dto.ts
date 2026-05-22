@@ -82,7 +82,7 @@ export class ChatChannelConfigDto {
 
   @ApiProperty({
     description:
-      'Active bot token (텔레그램 BotFather 발급). v1 stub — config JSONB 평문 보관 (notification.signing.secret 와 동일 정책). 향후 암호화 컬럼 분리.',
+      'Active bot token (텔레그램 BotFather 발급). 입력 전용 — 서버가 secret store 에 저장 후 응답에는 포함하지 않음.',
     minLength: 1,
     maxLength: 256,
     example: '123456789:AAFakeTokenForExample',
@@ -93,13 +93,29 @@ export class ChatChannelConfigDto {
 
   @ApiPropertyOptional({
     description:
-      '미래 형태 — secret store reference (예: secret://triggers/{id}/bot-token). v1 미사용.',
+      '(응답 전용) Secret store reference — secret://triggers/{id}/bot-token. ' +
+      'setupChannel 완료 후 채워진다. 외부 입력 무시.',
     maxLength: 256,
+    readOnly: true,
+    example: 'secret://triggers/uuid/bot-token',
   })
   @IsOptional()
   @IsString()
   @MaxLength(256)
   botTokenRef?: string;
+
+  @ApiPropertyOptional({
+    description:
+      '(응답 전용) Webhook secret store reference — secret://triggers/{id}/webhook-secret. ' +
+      'setupChannel 결과 issuedSecretToken 이 저장되면 채워진다. 외부 입력 무시.',
+    maxLength: 256,
+    readOnly: true,
+    example: 'secret://triggers/uuid/webhook-secret',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  secretTokenRef?: string;
 
   @ApiPropertyOptional({
     description:

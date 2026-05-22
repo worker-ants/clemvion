@@ -565,7 +565,7 @@ ALTER TABLE trigger
   "notification": {
     "url":     "https://...",
     "events":  ["execution.waiting_for_input", "execution.completed", ...],
-    "signing": { "algorithm": "hmac-sha256", "secret": "wsk_xxx" },
+    "signing": { "algorithm": "hmac-sha256", "secretRef": "secret://triggers/{triggerId}/notification-signing" },
     "retry":   { "maxAttempts": 5, "backoff": "exponential" }
   },
   "interaction": {
@@ -576,7 +576,7 @@ ALTER TABLE trigger
 }
 ```
 
-> `config.notification.signing.secret` 과 `config.interaction.triggerToken` 은 [Spec Webhook §8](./12-webhook.md#8-보안-고려사항) 의 보안 고려사항을 따라 향후 암호화 컬럼으로 분리될 수 있다. 본 spec 은 위치만 명시하고 암호화 방식은 별도 결정.
+> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼도 동일하게 ref 만 보관 (rotation grace 기간). `config.interaction.triggerToken` 는 현재 JSONB 평문 (향후 secret store 통합 검토 — 별 plan).
 
 ### 7.2 Execution 엔티티 확장
 

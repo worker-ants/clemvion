@@ -11,6 +11,7 @@ import {
   computeHmacSignature,
   verifySignatureHeader,
 } from './notification-signature.util';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
 
 type Mock = jest.Mock;
 type RepoMocks = {
@@ -78,18 +79,34 @@ function makeTrigger(overrides: Partial<Trigger> = {}): Trigger {
   } as Trigger;
 }
 
+function makeSecretsMock(): jest.Mocked<SecretResolverService> {
+  return {
+    resolve: jest.fn(),
+    store: jest.fn(),
+    rotate: jest.fn(),
+    delete: jest.fn(),
+    deleteByPrefix: jest.fn().mockResolvedValue(0),
+    exists: jest.fn(),
+  } as unknown as jest.Mocked<SecretResolverService>;
+}
+
 describe('NotificationWebhookProcessor.process', () => {
   let processor: NotificationWebhookProcessor;
   let triggerRepo: RepoMocks;
   let executionRepo: RepoMocks;
   let fetchSpy: jest.Mock;
+  let secrets: jest.Mocked<SecretResolverService>;
 
   beforeEach(() => {
     triggerRepo = makeTriggerRepo() as unknown as RepoMocks;
     executionRepo = makeExecutionRepo() as unknown as RepoMocks;
+    secrets = makeSecretsMock();
+    // default: secrets.resolve throws (legacy plaintext fallback path used)
+    (secrets.resolve as jest.Mock).mockRejectedValue(new Error('not found'));
     processor = new NotificationWebhookProcessor(
       triggerRepo as never,
       executionRepo as never,
+      secrets as never,
     );
     fetchSpy = jest.fn();
     (globalThis as unknown as { fetch: Mock }).fetch = fetchSpy;
@@ -349,7 +366,8 @@ describe('NotificationWebhookProcessor.process', () => {
     ).toBe(true);
   });
 
-  it('Body — JSON.stringify(eventBody) 가 signature 와 정확히 정합', async () => {
+  it('Body — JSON.stringify(eventBody) 가 signature 와 정확히 정합 (legacy plaintext fallback)', async () => {
+    // 기존 테스트: config.signing.secret = plaintext SECRET → legacyPlaintext fallback 경로.
     triggerRepo.findOne.mockResolvedValue(makeTrigger());
     fetchSpy.mockResolvedValue({ status: 200, statusText: 'OK' });
     const eventBody = { foo: 1, bar: 'baz' };
@@ -370,6 +388,48 @@ describe('NotificationWebhookProcessor.process', () => {
     );
     expect(fetchOpts.headers['X-Clemvion-Signature']).toContain(
       `v1=${expectedHex}`,
+    );
+  });
+
+  it('legacy plaintext fallback 경로 — config.signing.secret 평문 사용 (SUMMARY#16)', async () => {
+    // secretRef 없음, secret = plaintext → 마이그레이션 전 호환성 경로.
+    triggerRepo.findOne.mockResolvedValue(makeTrigger()); // config.signing.secret = SECRET
+    fetchSpy.mockResolvedValue({ status: 200, statusText: 'OK' });
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    // 발송 성공 — legacyPlaintext fallback 으로 SECRET 사용.
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith('trg-1', {
+      notificationHealth: 'healthy',
+      notificationLastError: null,
+    });
+  });
+
+  it('secretRef resolve 실패 → markDegraded + skip (SUMMARY#15)', async () => {
+    const SECRET_REF = 'secret://triggers/trg-1/signing-secret';
+    triggerRepo.findOne.mockResolvedValue(
+      makeTrigger({
+        config: {
+          notification: {
+            url: SAFE_URL,
+            events: ['execution.completed'],
+            signing: { algorithm: 'hmac-sha256', secretRef: SECRET_REF },
+          },
+        },
+      }),
+    );
+    // secrets.resolve throws (secretRef 존재하지만 decryption 실패 등)
+    (secrets.resolve as jest.Mock).mockRejectedValueOnce(
+      new Error('Secret decryption failed'),
+    );
+
+    await processor.process(makeJob({ eventType: 'execution.completed' }));
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      'trg-1',
+      expect.objectContaining({ notificationHealth: 'degraded' }),
     );
   });
 });

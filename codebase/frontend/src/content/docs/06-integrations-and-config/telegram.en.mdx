@@ -93,7 +93,7 @@ The old webhook is removed and a new one is registered with the new token.
 - **1:1 (private) chats only** — messages in group chats are silently ignored.
 - **Bot messages are ignored** — messages with `from.is_bot=true` are dropped to prevent bot loops.
 - **60 requests/minute per conversation** — requests above the cap are ignored (CCH-NF-03).
-- **v1 implementation** — the bot token is currently stored as plaintext in the trigger config. Migration to a Secret Store is planned (CCH-SE-03 follow-up).
+- **Bot token storage** — the bot token and webhook secret_token are encrypted with AES-256-GCM in the secret store (CCH-SE-03). Only ciphertext lives in the DB; plaintext is transiently decrypted inside the backend process that holds the master key.
 
 ## Rationale
 

@@ -21,6 +21,8 @@ import {
   checkResolvedHostIp,
   checkSsrfSafeUrl,
 } from '../../common/utils/ssrf-safe-url.util';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { isSecretRef } from '../secret-store/secret-ref';
 
 const HTTP_TIMEOUT_MS = 10_000;
 const STALE_ELIGIBLE_EVENTS = new Set<string>([
@@ -36,7 +38,7 @@ const LAST_ERROR_MAX_LENGTH = 500;
 interface NotificationConfigRuntime {
   url?: unknown;
   events?: unknown;
-  signing?: { algorithm?: unknown; secret?: unknown };
+  signing?: { algorithm?: unknown; secret?: unknown; secretRef?: unknown };
 }
 
 function truncate(msg: string, max: number): string {
@@ -62,8 +64,44 @@ export class NotificationWebhookProcessor extends WorkerHost {
     private readonly triggerRepository: Repository<Trigger>,
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
+    private readonly secrets: SecretResolverService,
   ) {
     super();
+  }
+
+  /**
+   * `config.signing.secretRef` (secret store ref) 또는 legacy plaintext (`config.signing.secret`)
+   * 중 존재하는 쪽을 resolve 해 plaintext 를 반환.
+   *
+   * - secretRef 가 있으면 secret store 에서 복호화. 실패 시 null 반환 → 호출자가 markDegraded.
+   * - secretRef 없고 legacy plaintext 있으면 그대로 반환.
+   *   SUMMARY#6: legacy fallback 진입 시 운영자가 마이그레이션 미완료를 추적할 수 있도록 warn 로그.
+   * - 둘 다 없으면 null.
+   */
+  private async resolveSigningSecret(
+    config: NotificationConfigRuntime,
+    triggerId: string,
+  ): Promise<string | null> {
+    const secretRef = config.signing?.secretRef;
+    if (typeof secretRef === 'string' && isSecretRef(secretRef)) {
+      try {
+        return await this.secrets.resolve(secretRef);
+      } catch (err) {
+        this.logger.warn(
+          `NotificationWebhookProcessor: secretRef resolve 실패 (triggerId=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return null;
+      }
+    }
+    // legacy plaintext fallback (마이그레이션 호환성).
+    const refOrLegacy = config.signing?.secret;
+    if (typeof refOrLegacy === 'string' && refOrLegacy.length > 0) {
+      this.logger.warn(
+        `legacy plaintext signing secret detected (triggerId=${triggerId}) — migration to secret store recommended.`,
+      );
+      return refOrLegacy;
+    }
+    return null;
   }
 
   async process(job: Job<NotificationWebhookJob>): Promise<void> {
@@ -157,15 +195,17 @@ export class NotificationWebhookProcessor extends WorkerHost {
 
     // 서명
     const algorithm = this.resolveAlgorithm(config.signing?.algorithm);
-    const primarySecret =
-      typeof config.signing?.secret === 'string' ? config.signing.secret : null;
+    const primarySecret = await this.resolveSigningSecret(config, triggerId);
     const secondarySecret =
       typeof trigger.notificationSecretV2 === 'string'
         ? trigger.notificationSecretV2
         : null;
     if (!primarySecret) {
-      // secret 미설정이면 unsigned 발송하지 않는다 — 외부 시스템이 서명 검증을 신뢰할 수 없음.
-      await this.markDegraded(triggerId, 'notification secret 미설정');
+      // secret 미설정 또는 resolve 실패 — unsigned 발송하지 않는다.
+      await this.markDegraded(
+        triggerId,
+        'notification secret 미설정 또는 resolve 실패',
+      );
       return;
     }
     const rawBody = JSON.stringify(eventBody);

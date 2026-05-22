@@ -134,18 +134,16 @@ type KeyboardHint =
 ```typescript
 interface ChatChannelConfig {
   provider: string;
+  /** secret store ref (`secret://triggers/{id}/bot-token`). plaintext 는 어댑터의 side-effect 함수가 SecretResolver 로 resolve. */
   botTokenRef: string;
   /**
-   * Webhook 인증용 server-issued secret (provider 가 지원할 때만).
-   * Telegram: setupChannel 시 어댑터가 randomBytes 로 발급해 `setWebhook.secret_token`
-   * 파라미터로 등록 → Telegram 이 `X-Telegram-Bot-Api-Secret-Token` 헤더로 모든 update 에
-   * 동봉 → 어댑터가 검증.
-   * v1 stub: 서버 자체 생성 값으로 DB(JSONB)에 평문 보관. secret store 인프라 도입은
-   * 별 plan `chat-channel-secret-store-infra`; 도입 직후 botTokenRef 와 동일 마이그레이션
-   * 경로 (botToken 우선, 본 필드 후속).
-   * 다른 provider 는 unused (HMAC 지원 시 webhook.md HMAC 경로 사용).
+   * Webhook 인증용 server-issued secret 의 ref (`secret://triggers/{id}/webhook-secret`).
+   * Telegram: setupChannel 시 어댑터가 randomBytes 로 발급 → caller (TriggersService) 가
+   * SecretResolver.store 로 보관 후 ref 만 config 에 set. HooksController 가
+   * `X-Telegram-Bot-Api-Secret-Token` 헤더 검증 시 resolve.
+   * 다른 provider 는 unused (HMAC 지원 시 webhook.md HMAC 경로).
    */
-  secretToken?: string;
+  secretTokenRef?: string;
   botIdentity?: { botId: number; username: string };
   uiMapping?: {
     formMode?: "multi_step";
@@ -164,6 +162,18 @@ interface SetupResult {
   registeredAt: string;             // ISO8601
   externalHookUrl?: string;          // 어댑터별 디버깅용 (텔레그램 getWebhookInfo 결과)
   identity?: Record<string, unknown>; // botId, username 등 (config.botIdentity 에 캐시)
+  /**
+   * 어댑터가 setupChannel 동안 확정한 config 갱신분 (botIdentity 등). secretToken plaintext 는
+   * 본 필드에 흘리지 않음 — 별도 issuedSecretToken 필드로 분리.
+   */
+  configUpdates?: Partial<ChatChannelConfig>;
+  /**
+   * setupChannel 직후 1회만 노출되는 webhook secret_token plaintext (provider 별 — Telegram 만
+   * 발급). caller (TriggersService.setupChatChannel) 가 즉시 `SecretResolver.store` 로 보관 후
+   * ref 를 config 의 `secretTokenRef` 에 set 한다. plaintext 가 config 에 흘러들어가지 않도록
+   * 분리 — SS-SE-01 정책 적용.
+   */
+  issuedSecretToken?: string;
 }
 
 interface SendResult {
@@ -234,7 +244,7 @@ interface ChannelAdapterRegistry {
 
 ## 6. 보안
 
-- `botTokenRef` 등 외부 provider 자격증명은 secret store reference 만 보관 ([CCH-SE-03](../5-system/15-chat-channel.md#34-신뢰성--보안)).
+- `botTokenRef` / `secretTokenRef` 등 자격증명은 [`SecretResolver`](./secret-store.md) 가 관리하는 secret store 의 ref 만 보관 ([CCH-SE-03](../5-system/15-chat-channel.md#34-신뢰성--보안)). plaintext 는 config JSONB / 로그 / metric 에 절대 노출 금지 — `SetupResult.issuedSecretToken` 1회 노출 외에는 어떤 경로로도 plaintext 가 어댑터 밖으로 흐르지 않는다.
 - `sendMessage` 의 외부 API 호출은 provider 별 고정 URL 만 사용 (사용자 제어 URL 금지) — SSRF 차단.
 - `parseUpdate` 는 raw body 의 trust 검증 후 호출 — 진입점 핸들러가 [WH-SC-02](../5-system/12-webhook.md#42-hmac-서명) 또는 provider 별 secret token (텔레그램 `X-Telegram-Bot-Api-Secret-Token`) 검증을 선행.
 
@@ -281,3 +291,4 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 | 2026-05-21 | v1 — 6함수 인터페이스 최초 도입 (`setupChannel`, `teardownChannel`, `parseUpdate`, `renderNode`, `sendMessage`, `ackInteraction`). `ChatChannelConfig`, `ChannelUpdate`, `ChannelMessage`, `SetupResult`, `SendResult` 데이터 타입 정의. Form 다단계 시퀀스 규약 및 Adapter Registry 추가. |
 | 2026-05-22 | (a) `EiaEvent` union 의 `execution.cancelled` 주석을 `/* EIA §6.5 (cancelled) */`, `execution.ai_message` 주석을 `/* EIA §6.5 (ai_message) + WS §4.4 */` 로 구분하여 가독성 개선 (동일 §6.5 섹션 참조이나 역할 명시). (b) `parseUpdate` 의 `null` 반환 의미를 §1.1 표에 단일 의미("어댑터 해석 불가/무시")로 명확화 + 안내 메시지 발송 책임이 호출자(HooksService/Dispatcher) 임을 명시. (c) `secretToken` 주석을 v1 plaintext stub → `spec-update-chat-channel-bot-token-stub` 별 plan 추적으로 명확화. (d) §4 Form 다단계 step 3 의 "같은 필드 재질문" 을 어댑터 sendMessage 직접 호출 금지(pure 유지) + dispatcher 가 ChannelMessage 발송으로 명확화 (spec-fix-chat-channel-behavior). |
 | 2026-05-22 | §3 매핑 표의 시각형 노드 행을 v1 (MarkdownV2 fallback) / v2 (SSR PNG) 정책 분리로 명확화 — provider 별 fallback 구현은 텔레그램 §5.4 참조 (chat-channel-visual-impl). |
+| 2026-05-22 | §2.3 `ChatChannelConfig` — `botToken`/`secretToken` 평문 stub 제거, `botTokenRef`/`secretTokenRef` 단일 형태로 정리. §2.4 `SetupResult` — `configUpdates` + `issuedSecretToken` 분리 정식화 (plaintext 가 config 에 흘러들지 않도록). [secret-store.md](./secret-store.md) convention 신설에 따른 동반 갱신 (chat-channel-secret-store-pgcrypto). |

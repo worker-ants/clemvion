@@ -7,30 +7,31 @@
  *   - [spec/4-nodes/7-trigger/providers/telegram.md] — 텔레그램 구체 명세
  */
 
-/** Trigger.config.chatChannel 의 in-memory representation. */
+/**
+ * Trigger.config.chatChannel 의 in-memory representation.
+ *
+ * Breaking change (SUMMARY#26): `botToken`(plaintext) → `botTokenRef`,
+ * `secretToken` → `secretTokenRef`. 미배포 전제 — DB 에 기존 plaintext row 없음.
+ * read-path fallback 없음 (레거시 row 는 webhook 수신 시 botTokenRef=undefined → skip).
+ */
 export interface ChatChannelConfig {
   /** 어댑터 식별자 (lower-case kebab-case). v1: 'telegram'. */
   provider: string;
 
   /**
-   * Active bot token reference. v1 stub — notification.signing.secret 와 동일 정책으로
-   * `config.chatChannel.botToken` 평문 보관. 미래 형태는 spec §4.1 의 `botTokenRef`.
-   */
-  botToken: string;
-
-  /**
-   * 미래 형태 — secret store reference (`secret://triggers/{id}/bot-token`). v1 은 미사용,
-   * spec drift 방지를 위해 type 만 정의.
+   * Secret store reference — `secret://triggers/{id}/bot-token`.
+   * setupChannel 이전(최초 생성 시)에는 undefined. rotate-bot-token 엔드포인트가 채운다.
+   *
+   * @see spec/conventions/secret-store.md §1
    */
   botTokenRef?: string;
 
   /**
-   * Webhook 인증용 server-issued secret. Telegram: setupChannel 시 어댑터가 randomBytes(24) 로
-   * 발급해 `setWebhook.secret_token` 파라미터로 등록 → Telegram 이 모든 update 의
-   * `X-Telegram-Bot-Api-Secret-Token` 헤더로 동봉 → 어댑터가 검증.
-   * v1 stub: botToken 과 동일 plaintext 보관 정책.
+   * Webhook 인증용 server-issued secret 의 secret store reference.
+   * `secret://triggers/{id}/webhook-secret`. setupChannel 결과 issuedSecretToken 이
+   * 저장되면 채워진다. 미설정 시 webhook 인증 skip.
    */
-  secretToken?: string;
+  secretTokenRef?: string;
 
   /** setupChannel 결과 캐시 (read-only after creation). */
   botIdentity?: { botId: number; username: string };
@@ -182,7 +183,13 @@ export interface SetupResult {
   registeredAt: string;
   externalHookUrl?: string;
   identity?: Record<string, unknown>;
-  /** 어댑터가 setupChannel 동안 발급한 secret_token 등 — caller 가 config 에 저장. */
+  /**
+   * 어댑터가 setupChannel 동안 발급한 webhook secret 의 일회성 plaintext.
+   * caller 가 받아 secret store 에 저장 후 `secretTokenRef` 를 config 에 기록.
+   * null/undefined 이면 webhook secret 미발급 (caller 가 rotate 미호출).
+   */
+  issuedSecretToken?: string;
+  /** 어댑터가 setWebhook 결과로 갱신할 botIdentity 등 non-secret 필드. */
   configUpdates?: Partial<ChatChannelConfig>;
 }
 
