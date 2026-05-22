@@ -1039,8 +1039,22 @@ export function ResultDetail({
         })()
     : null;
 
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — `ai_form_render` 는 chat
+  // history 위에 form input 이 함께 표시되어야 한다. 이때 isWaitingConversation
+  // 과 isWaitingForm 이 동시에 true 이므로 두 preview 를 stack 한다.
+  const conversationWithFormPreview =
+    conversationPreview && formPreview ? (
+      <div className="flex flex-col gap-3">
+        {conversationPreview}
+        {formPreview}
+      </div>
+    ) : null;
   const previewContent =
-    conversationPreview ?? formPreview ?? buttonsPreview ?? undefined;
+    conversationWithFormPreview ??
+    conversationPreview ??
+    formPreview ??
+    buttonsPreview ??
+    undefined;
 
   // Preview tab is shown when there's any custom content to render in it
   // (conversation, form, buttons) or when this is a presentation node.
