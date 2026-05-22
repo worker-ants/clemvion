@@ -208,7 +208,12 @@ describe('cloneThread (Background isolation §3.2)', () => {
     const original = makeThread();
     const clone = cloneThread(original);
     expect(clone.turns).not.toBe(original.turns);
-    clone.turns.push(makeTurn({ seq: 999, text: 'leaked' }));
+    // Test scenario: assert turns array is a new wrapper — push only via cast
+    // since runtime ConversationTurn[] but type is readonly. The runtime mutation
+    // is the assertion target.
+    (clone.turns as ConversationTurn[]).push(
+      makeTurn({ seq: 999, text: 'leaked' }),
+    );
     expect(original.turns).toHaveLength(2);
     expect(original.turns.find((t) => t.text === 'leaked')).toBeUndefined();
   });

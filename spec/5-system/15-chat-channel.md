@@ -18,7 +18,7 @@
 |---|---|
 | 텔레그램 봇 위의 AI 어시스턴트 | 사용자가 `/start` → 워크플로우 시작 → AI Multi Turn 노드와 자연 대화 → 결과 안내 |
 | 텔레그램 봇 위의 결재 흐름 | 사용자가 메시지 → 워크플로우가 Form 노드로 필드별 질문 → 마지막에 결과 통보 |
-| 텔레그램 봇 위의 데이터 시각화 | 사용자 명령 → 워크플로우가 Chart 렌더 → `sendPhoto` 로 차트 전송 + 선택 버튼 |
+| 텔레그램 봇 위의 데이터 시각화 | 사용자 명령 → 워크플로우가 Chart / Table / Carousel 렌더 → v1: MarkdownV2 monospace 텍스트 표현 + 선택 버튼 (v2: SSR PNG `sendPhoto`) |
 
 ### 3. 요구사항 (CCH-* prefix)
 
@@ -50,7 +50,7 @@
 | CCH-MP-01 | [AI Multi Turn](../4-nodes/3-ai/1-ai-agent.md) 의 `execution.ai_message` → 채널 텍스트 메시지 1건 이상으로 변환 (provider 별 길이 제한 분할) | 필수 |
 | CCH-MP-02 | [Button Presentation](../4-nodes/6-presentation/0-common.md) 의 `execution.waiting_for_input` (interactionType=buttons) → 채널의 inline keyboard 로 변환. tap → `click_button` 명령 | 필수 |
 | CCH-MP-03 | [Form](../4-nodes/6-presentation/4-form.md) 의 `execution.waiting_for_input` (interactionType=form) → 다단계 prompt 시퀀스 (필드별 한 줄 질문). 검증 실패 시 그 필드만 재질문 ([EIA-RL-03](./14-external-interaction-api.md#34-신뢰성·일관성)) | 필수 |
-| CCH-MP-04 | Carousel / Chart / Table 의 `execution.waiting_for_input` → 서버사이드 이미지 렌더 + caption + 텍스트 fallback. v1 = chart only, carousel/table 은 SSR 인프라 정비 후 후속 PR. 본 요구사항은 단계적 — chart 는 PR-D 1차에 필수, carousel/table 은 후속 plan | 필수 (단계적) |
+| CCH-MP-04 | Carousel / Chart / Table 의 `execution.waiting_for_input` → 채널 메시지로 변환. **v1 정책** (MarkdownV2 텍스트/monospace 표현): chart 는 데이터로부터 monospace mini bar chart 텍스트 합성, table 은 monospace MarkdownV2 표 (column 너비 정렬 + row cap), carousel 은 카드 N장 sequential ChannelMessage (image url 있으면 `sendPhoto`, 없으면 `sendMessage`). **v2 정책** (SSR PNG, 별 plan `chat-channel-visual-ssr-png` 추적): satori/chromium 등 SSR 인프라 도입 후 `sendPhoto` 로 본격 이미지 렌더로 격상 — `output.rendered` snapshot 폐기 (D5 / 2026-05-17) 이후 어댑터가 raw 데이터로부터 직접 SSR 책임 | 필수 (v1 MarkdownV2 텍스트, v2 PNG) |
 | CCH-MP-05 | Form 필드 `type` 별 채널 keyboard hint — `number` → 숫자 키패드, `phone` → share_contact, `file` → upload prompt 등. 없는 keyboard 는 일반 text input | 권장 |
 
 #### 3.4 신뢰성 / 보안

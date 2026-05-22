@@ -196,7 +196,11 @@ describe('TelegramAdapter', () => {
   });
 
   describe('sendMessage()', () => {
-    const mockMsgResult = okResult({ message_id: 42, date: 1700000000 });
+    const mockMsgResult = okResult({
+      message_id: 42,
+      date: 1700000000,
+      chat: { id: 9999 },
+    });
 
     it('text 메시지를 MarkdownV2 로 sendMessage API 에 전달한다', async () => {
       client.sendMessage.mockResolvedValue(mockMsgResult);

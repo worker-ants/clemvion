@@ -44,7 +44,12 @@ describe('TemplateHandler - Buttons', () => {
         {},
         { template: '<p>Hello</p>', buttons },
         context,
-      )) as unknown as Record<string, unknown>;
+      )) as unknown as {
+        config?: Record<string, unknown>;
+        output: Record<string, unknown>;
+        meta: Record<string, unknown>;
+        status?: string;
+      };
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBe('waiting_for_input');
@@ -57,7 +62,12 @@ describe('TemplateHandler - Buttons', () => {
         {},
         { template: '<p>Hello</p>' },
         context,
-      )) as unknown as Record<string, unknown>;
+      )) as unknown as {
+        config?: Record<string, unknown>;
+        output: Record<string, unknown>;
+        meta: Record<string, unknown>;
+        status?: string;
+      };
 
       expect(result.output.type).toBeUndefined();
       expect(result.status).toBeUndefined();

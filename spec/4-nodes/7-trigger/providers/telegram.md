@@ -128,16 +128,16 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 
 ### 5.4 Carousel / Chart / Table (CCH-MP-04)
 
-`buttonConfig.nodeOutput` 의 nodeType 에 따라:
+`buttonConfig.nodeOutput` 의 nodeType 에 따라. **v1 = MarkdownV2 텍스트/monospace 표현** (의존성 추가 없음, 즉시 동작). v2 SSR PNG 격상은 별 plan `chat-channel-visual-ssr-png` 추적.
 
-| nodeType | 렌더 방식 | 후속 |
+| nodeType | v1 렌더 방식 (MarkdownV2 텍스트) | v2 (SSR PNG, 별 plan) |
 |---|---|---|
-| `chart` | [`output.rendered`](../../6-presentation/3-chart.md) 의 SVG → PNG 변환 (기존 chart 렌더러 재사용) → `sendPhoto` + caption (chart title) | 버튼이 있으면 그 다음 메시지로 `inline_keyboard` 발송 |
-| `carousel` | SSR (headless chromium 또는 satori) 로 카드 1~5장을 1장의 collage PNG 으로 렌더 → `sendPhoto`. 카드 수 > 5 면 첫 5 + "외 N장" caption | 동일 |
-| `table` | SSR 로 표 PNG 렌더 (rows ≤ 20 까지 1장, 초과는 첫 20 + "외 N행"). 텍스트 fallback 으로 markdown 표 1건 별도 발송 (시각 fallback) | 동일 |
-| `template` | (CCH-MP-04 범위 외 — v2 구현 대상) `output.rendered` 가 HTML 이면 SSR PNG, plain text 면 `sendMessage` (4096자 분할). v1 어댑터는 noop fallback. W-3 흡수 | 동일 |
+| `chart` | `output.payload.{title, series, labels}` → monospace mini bar chart. 각 카테고리당 최대 ~24 cell width 의 horizontal bar (값 비례). MarkdownV2 code block (` ``` `) 으로 wrap. 4096자 초과 시 분할. 라벨/값/title prefix | 동일 chart 데이터로 satori SVG → PNG `sendPhoto` |
+| `carousel` | `output.items[]` → sequential ChannelMessage 시퀀스. 각 카드 = (a) `imageUrl` 있으면 `sendPhoto` (caption=title+description), (b) 없으면 `sendMessage` (title bold + description + per-card buttons). 카드 cap 10장 — 초과 시 마지막에 "외 N장" 안내. global buttons 는 마지막 카드 후 별 message | 카드 1~5장 collage PNG `sendPhoto` (1 송신) |
+| `table` | `output.{rows, columns}` → monospace MarkdownV2 표 (column 너비 자동 정렬, 각 cell padding, header separator). row cap 20 — 초과 시 첫 20 + "외 N행". cell 값이 너무 길면 (>16 chars) ellipsis truncate. MarkdownV2 code block wrap. 4096자 초과 시 분할 | 표 PNG `sendPhoto` |
+| `template` | (CCH-MP-04 범위 외 — v2 구현 대상) `output.rendered` 가 plain text 면 `sendMessage` (4096자 분할). HTML 은 noop fallback. W-3 흡수 | 동일 (HTML → SSR PNG) |
 
-**v1 분리**: chart 는 [§11 PR-D](../../../5-system/15-chat-channel.md) 의 first 단계, carousel/table 은 SSR 인프라 정비 후 별 PR 권장. CCH-MP-04 의 "필수(단계적)" 등급은 chart 가 v1 필수, carousel/table 은 후속 plan. template 은 CCH-MP-04 미지정 — v2 별도 요구사항으로 분리.
+**버튼 처리**: 모든 시각형에 대해 `buttonConfig.buttons[]` 가 있으면 시각 message 들 **다음** 메시지로 `inline_keyboard` 발송 (텔레그램 UX 정합 — 사용자가 컨텐츠 본 후 선택).
 
 ---
 
