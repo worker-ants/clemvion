@@ -24,7 +24,7 @@ parent_consistency_check: review/consistency/2026/05/22/12_43_01/SUMMARY.md (BLO
   - `Cafe24FieldConstraint` discriminated union 신설 (kind 3종 — `oneOf` / `allOrNone` / `implies`).
   - `Cafe24OperationMetadata.constraints?: Cafe24FieldConstraint[]` 옵셔널 필드 추가.
 - **TSDoc**: spec §2 의 의미·invariant 를 한 줄씩 참조.
-- **체크박스**: `[ ]`
+- **체크박스**: `[x]` (commit d932cff9)
 
 ## §2. `metadata.spec.ts` invariant 추가
 
@@ -33,7 +33,7 @@ parent_consistency_check: review/consistency/2026/05/22/12_43_01/SUMMARY.md (BLO
   1. `constraints[*].fields` (그리고 `implies.if`, `implies.then`) 의 모든 필드명이 `fields` 키 부분집합.
   2. `oneOf.fields` / `allOrNone.fields` 길이 ≥ 2.
   3. `implies.then` 길이 ≥ 1.
-- **체크박스**: `[ ]`
+- **체크박스**: `[x]` (commit d932cff9)
 
 ## §3. 노드 핸들러 runtime 검증 — `cafe24.handler.ts execute()`
 
@@ -43,7 +43,7 @@ parent_consistency_check: review/consistency/2026/05/22/12_43_01/SUMMARY.md (BLO
   - 위반 시 `IntegrationError('CAFE24_MISSING_FIELDS', message)` throw. 메시지에 어떤 constraint kind 가 어떤 fields 에서 위반됐는지 명시 (예: `"constraint violated: oneOf [member_id, group_no, since] requires at least one of"`).
   - 헬퍼는 별도 함수로 분리 (`validateCafe24Constraints(operation, fields): string | null` — null = OK, string = violation message). 같은 헬퍼를 §4 MCP 경로도 import.
 - **테스트**: `cafe24.handler.spec.ts` 에 3종 kind × (위반/만족) 6개 케이스 추가.
-- **체크박스**: `[ ]`
+- **체크박스**: `[x]` (commit d932cff9)
 
 ## §4. MCP 경로 runtime 검증 + JSON Schema `anyOf` 변환 — `cafe24-mcp-tool-provider.ts`
 
@@ -56,7 +56,7 @@ parent_consistency_check: review/consistency/2026/05/22/12_43_01/SUMMARY.md (BLO
   - `buildJsonSchema` 가 `oneOf` 단일 / 다중 / `requiredFields` 와 결합 / `allOrNone`·`implies` 미변환 (만 description 에만) 케이스 출력 비교.
   - `buildTools` description 끝 부분에 constraint suffix · timezone suffix 가 올바른 순서로 들어가는지 확인.
   - `execute()` 가 `constraints` 위반 args 에 대해 `CAFE24_MISSING_FIELDS` 에러 envelope 반환.
-- **체크박스**: `[ ]`
+- **체크박스**: `[x]` (commit d932cff9)
 
 ---
 

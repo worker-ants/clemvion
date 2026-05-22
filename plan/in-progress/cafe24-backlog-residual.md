@@ -67,6 +67,13 @@ owner: developer (다음 진입자)
 - [x] **F-3**: `spec/conventions/swagger.md §2-4` 실재 확인 및 cross-link 정정. (이전 review I5) — **완료 (2026-05-21, 같은 project-planner 사이클)**. §2-4 ("상태 코드 응답 규칙", swagger.md line 135) 실재 확인 + 참조 측 cross-link 7건 (`§2-4` × 2, `§2-1`, `§5`, `§5-1` 등) 모두 정합 검증. 부수 발견: `spec/2-navigation/4-integration.md` line 1349 의 `swagger.md 의 의미 기반 명명 원칙` 이 swagger.md 어느 § 에도 정의되지 않은 dangling reference → self-contained 표현으로 정정 (swagger.md 신규 § 추가 안 함 — scope 확장은 별 결정).
 - [ ] **F-3 follow-up**: 에러 코드 의미 기반 명명 원칙의 정식 규약화 — `spec/conventions/error-codes.md` (또는 `naming.md`) 신설 여부 결정. 현재는 `4-integration.md` line 1349 의 self-contained 진술만 SoT. 신규 코드가 늘면 conventions 문서로 격상 검토. (consistency-check `2026/05/21/19_46_41` INFO #6 출처)
 
+### G-1 — `constraints` 18 resource docs audit (2026-05-22)
+
+- **상태**: backend infra (types · validator · handler · MCP provider · tests) 와 `customer_list` 1건 예시는 `plan/complete/cafe24-conditional-required-impl.md` 에서 완료 (commit d932cff9). 18 resource 약 500 endpoint 의 cafe24 docs 본문 박스 audit 은 미수행.
+- **출처**: 사용자 보고 (2026-05-22) `customer_list` 사례 — docs 표상 모두 optional 인데 본문 박스에 "X·Y·Z 중 한 가지는 반드시 입력" 같은 조건부 제약 명시. AND-only `requiredFields` 가 표현 불가 → AI Agent 잘못 추론.
+- **블로커**: WebFetch 가 cafe24 docs SPA 의 본문 박스 (조건 제약) 까지 렌더링 못함 (2026-05-22 본 worktree 에서 재확인). chrome extension 이 동작하는 세션이나 사용자가 endpoint 별 본문 박스 텍스트를 paste 하는 별도 트랙 필요.
+- [ ] **G-1**: chrome-equipped 세션 또는 사용자 paste 흐름으로 18 resource audit + `Cafe24OperationMetadata.constraints` row 채움. 우선순위: customer (24) → order (106) → product (63) → community → promotion → store → 나머지. resource batch 마다 commit 분리, 마지막에 단일 PR. spec/conventions/cafe24-api-metadata.md §6 step 5 "조건부 제약 확인" 절차가 audit 단계의 SoT.
+
 ## 처리 후
 
 각 항목 완료 시 본 plan 의 체크박스 갱신. 모든 항목 처리되면 `plan/complete/` 로 `git mv` (history 보존).
