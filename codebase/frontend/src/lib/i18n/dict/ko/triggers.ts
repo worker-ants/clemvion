@@ -23,7 +23,29 @@ export const triggers = {
   updateFailed: "트리거 수정에 실패했어요",
   deleted: "트리거를 삭제했어요",
   deleteFailed: "트리거 삭제에 실패했어요",
-  deleteConfirm: "이 트리거를 삭제할까요?",
+  notFoundOnDelete: "이미 삭제된 트리거예요",
+  // NOTE: `deleteConfirm` (flat key) was removed in 2026-05-22 — replaced by
+  // `triggers.delete.confirm.{webhook|schedule|manual}` for per-type messaging.
+  rowActions: {
+    viewDetails: "상세 보기",
+    viewHistory: "호출 이력",
+    editInSchedule: "스케줄 관리에서 편집",
+    delete: "삭제",
+    menuLabel: "트리거 작업",
+  },
+  delete: {
+    title: "트리거 삭제",
+    button: "삭제",
+    typeNameToConfirm: "확인을 위해 트리거 이름 '{{name}}'을(를) 입력해 주세요",
+    cascadeWarning: "연결된 스케줄도 함께 삭제됩니다",
+    confirm: {
+      webhook: "이 트리거를 삭제하면 {{url}} 로 들어오는 모든 호출이 즉시 404 가 됩니다.",
+      schedule:
+        "이 트리거를 삭제하면 연결된 스케줄도 함께 삭제됩니다 (Cron: {{cron}}). 다음 실행 예정: {{nextRunAt}}.",
+      manual:
+        "이 트리거에 연결된 워크플로 ({{workflowName}}) 는 보존되며, 트리거를 통한 외부 실행 진입점만 사라집니다.",
+    },
+  },
   activated: "트리거를 활성화했어요",
   deactivated: "트리거를 비활성화했어요",
   activateFailed: "트리거 활성화에 실패했어요",
@@ -61,6 +83,28 @@ export const triggers = {
   columnActions: "작업",
   toggleActivate: "활성화",
   toggleDeactivate: "비활성화",
+  // [Spec 2-trigger-list §2.3.1] 상세 드로어의 카드별 read↔edit 모드 — Plan B.
+  detail: {
+    edit: "수정",
+    save: "저장",
+    saving: "저장 중...",
+    cancel: "취소",
+    saved: "저장했어요",
+    saveFailed: "저장에 실패했어요",
+    nameLabel: "이름",
+    namePlaceholder: "트리거 이름",
+    endpointPathLabel: "엔드포인트 경로",
+    endpointPathHelp: "변경하면 옛 URL 로 들어오던 호출이 즉시 404 가 됩니다.",
+    endpointPathChangeWarning: "엔드포인트를 변경하면 기존 URL 이 더 이상 동작하지 않아요. 진행할까요?",
+    authTypeLabel: "인증",
+    hmacHeaderLabel: "서명 헤더",
+    hmacSecretLabel: "새 HMAC secret",
+    hmacSecretHelp: "비워두면 기존 secret 이 유지돼요. 입력 후 저장하면 백엔드가 즉시 교체합니다.",
+    bearerTokenLabel: "새 Bearer 토큰",
+    bearerTokenHelp: "비워두면 기존 토큰이 유지돼요.",
+    editInSchedule: "스케줄 관리에서 편집",
+    editInScheduleHelp: "Cron 표현식·타임존·다음 실행 시각은 Schedule 화면에서만 편집할 수 있어요.",
+  },
   // External Interaction API (Spec EIA §4) — trigger 상세에서 노출되는 신규 섹션.
   externalInteraction: {
     section: "외부 인터랙션",

@@ -143,6 +143,25 @@ export class TriggersService {
   ): Promise<Trigger> {
     const trigger = await this.findById(id, workspaceId);
     const { notification, interaction, chatChannel, config, ...rest } = dto;
+    // [Spec 2-trigger-list §3] Schedule 타입 트리거는 name·isActive 만 PATCH 허용.
+    // endpointPath / config / authConfigId / notification / interaction / chatChannel 변경은
+    // 데이터 모델 §2.9.1 (Trigger ↔ Schedule 동기화 규칙) 보호를 위해 거부.
+    if (trigger.type === 'schedule') {
+      const disallowed: string[] = [];
+      if (rest.endpointPath !== undefined) disallowed.push('endpointPath');
+      if (rest.authConfigId !== undefined) disallowed.push('authConfigId');
+      if (config !== undefined) disallowed.push('config');
+      if (notification !== undefined) disallowed.push('notification');
+      if (interaction !== undefined) disallowed.push('interaction');
+      if (chatChannel !== undefined) disallowed.push('chatChannel');
+      if (disallowed.length > 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: `Schedule 타입 트리거는 name·isActive 만 수정할 수 있어요 (거부 필드: ${disallowed.join(', ')}). cron·timezone 등 스케줄 메타는 Schedule 화면에서 편집하세요.`,
+          details: { field: 'type', disallowed },
+        });
+      }
+    }
     this.assertNotificationUrlSafe(notification);
     // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
     const baseConfig = config ?? trigger.config ?? {};

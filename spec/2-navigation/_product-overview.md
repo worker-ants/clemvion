@@ -61,6 +61,8 @@
 | NAV-TR-06 | 트리거별 최근 호출 이력 요약 | 권장 | ✅ |
 | NAV-TR-07 | Schedule 유형 트리거에 `[Schedule]` 태그, Cron 표현식, 다음 실행 시각 표시 | 필수 | ✅ |
 | NAV-TR-08 | Schedule 유형 트리거는 Trigger 화면에서 직접 생성 불가 — Schedule 화면에서만 생성 | 필수 | ✅ |
+| NAV-TR-09 | 트리거 목록 행에서 더보기(⋮) 드롭다운으로 상세 보기·활성/비활성 토글·호출 이력·삭제 액션 제공. 액션은 `editor` 이상만 노출 | 필수 | 🚧 |
+| NAV-TR-10 | 트리거 상세 드로어에서 이름·웹훅 인증(`authType` / `hmacHeader` / `hmacSecret` / `bearerToken` / `endpointPath`) 을 GUI 로 수정 가능. Schedule 트리거는 본 화면에서 cron 편집 불가 — "스케줄 관리에서 편집" 링크만 노출 | 필수 | 🚧 |
 
 ### 3.3 Schedule (스케줄)
 

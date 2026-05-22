@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "started_at": "2026-05-22T00:00:00Z",
+  "summary_items_total": 13,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 7, 9, 12],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "6": "spec",
+    "8": "separate-plan",
+    "10": "separate-plan",
+    "11": "separate-plan",
+    "13": "separate-plan"
+  },
+  "commits_made": [
+    {
+      "sha": "daedc198",
+      "summary_ids": [1, 2, 3, 4, 5, 7, 9, 12],
+      "scope": "triggers"
+    }
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-fix-trigger-schedule-interp.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260522-125023.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec",
+  "last_reset_hint_sec": null
+}

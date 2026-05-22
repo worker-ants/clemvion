@@ -1,14 +1,24 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { SlideDrawer } from "@/components/ui/slide-drawer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
-import { Loader2, Copy, ChevronDown, ChevronRight } from "lucide-react";
+import { useHasRole } from "@/components/auth/role-gate";
+import {
+  Loader2,
+  Copy,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  ExternalLink,
+} from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -64,6 +74,7 @@ interface TriggerDetailDrawerProps {
 }
 
 export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailDrawerProps) {
+  const queryClient = useQueryClient();
   const { data: trigger, isLoading: isLoadingTrigger } = useQuery<TriggerDetail>({
     queryKey: ["trigger-detail", triggerId],
     queryFn: async () => {
@@ -77,6 +88,11 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
     },
     enabled: !!triggerId && open,
   });
+
+  function invalidateAfterSave() {
+    queryClient.invalidateQueries({ queryKey: ["trigger-detail", triggerId] });
+    queryClient.invalidateQueries({ queryKey: ["triggers"] });
+  }
 
   const { data: history = [], isLoading: isLoadingHistory } = useQuery<TriggerHistoryEntry[]>({
     queryKey: ["trigger-history", triggerId],
@@ -99,97 +115,21 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
       ) : trigger ? (
         <div className="space-y-6">
           {/* Overview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <dt className="text-[hsl(var(--muted-foreground))]">Name</dt>
-                  <dd className="font-medium">{trigger.name}</dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="text-[hsl(var(--muted-foreground))]">Type</dt>
-                  <dd>
-                    <span
-                      className={cn(
-                        "inline-block rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        TYPE_BADGE_STYLES[trigger.type],
-                      )}
-                    >
-                      {trigger.type.charAt(0).toUpperCase() + trigger.type.slice(1)}
-                    </span>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="text-[hsl(var(--muted-foreground))]">Status</dt>
-                  <dd>
-                    <Badge variant={trigger.isActive ? "success" : "outline"}>
-                      {trigger.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="text-[hsl(var(--muted-foreground))]">Workflow</dt>
-                  <dd>
-                    <Link
-                      href={`/workflows/${trigger.workflowId}`}
-                      className="text-[hsl(var(--primary))] hover:underline"
-                    >
-                      {trigger.workflowName}
-                    </Link>
-                  </dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
+          <OverviewCard trigger={trigger} onSaved={invalidateAfterSave} />
 
           {/* Webhook Details */}
           {trigger.type === "webhook" && (
-            <WebhookConfigCard trigger={trigger} />
+            <WebhookConfigCard trigger={trigger} onSaved={invalidateAfterSave} />
           )}
 
           {/* External Interaction API (Spec EIA §4) — webhook 트리거에서만 표시 */}
           {trigger.type === "webhook" && (
-            <ExternalInteractionCard trigger={trigger} />
+            <ExternalInteractionCard trigger={trigger} onSaved={invalidateAfterSave} />
           )}
 
           {/* Schedule Details */}
           {trigger.type === "schedule" && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Schedule Configuration</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="space-y-3 text-sm">
-                  {trigger.cronExpression && (
-                    <div className="flex items-center justify-between">
-                      <dt className="text-[hsl(var(--muted-foreground))]">Cron Expression</dt>
-                      <dd>
-                        <code className="rounded bg-[hsl(var(--muted))] px-2 py-0.5 text-xs">
-                          {trigger.cronExpression}
-                        </code>
-                      </dd>
-                    </div>
-                  )}
-                  {trigger.timezone && (
-                    <div className="flex items-center justify-between">
-                      <dt className="text-[hsl(var(--muted-foreground))]">Timezone</dt>
-                      <dd className="font-medium">{trigger.timezone}</dd>
-                    </div>
-                  )}
-                  {trigger.nextRunAt && (
-                    <div className="flex items-center justify-between">
-                      <dt className="text-[hsl(var(--muted-foreground))]">Next Run</dt>
-                      <dd className="font-medium">
-                        {formatDate(trigger.nextRunAt, "datetime")}
-                      </dd>
-                    </div>
-                  )}
-                </dl>
-              </CardContent>
-            </Card>
+            <ScheduleConfigurationCard trigger={trigger} />
           )}
 
           {/* Recent History */}
@@ -250,17 +190,278 @@ function getWebhookUrl(endpointPath: string) {
   return `${base}/api/hooks/${endpointPath}`;
 }
 
-function WebhookConfigCard({ trigger }: { trigger: TriggerDetail }) {
+function OverviewCard({
+  trigger,
+  onSaved,
+}: {
+  trigger: TriggerDetail;
+  onSaved: () => void;
+}) {
+  const t = useT();
+  const canEdit = useHasRole("editor");
+  const [editing, setEditing] = useState(false);
+  const [nameValue, setNameValue] = useState(trigger.name);
+
+  const updateMutation = useMutation({
+    mutationFn: async (name: string) => {
+      await apiClient.patch(`/triggers/${trigger.id}`, { name });
+    },
+    onSuccess: () => {
+      toast.success(t("triggers.detail.saved"));
+      setEditing(false);
+      onSaved();
+    },
+    onError: () => {
+      toast.error(t("triggers.detail.saveFailed"));
+    },
+  });
+
+  function startEdit() {
+    setNameValue(trigger.name);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setNameValue(trigger.name);
+    setEditing(false);
+  }
+
+  const saveDisabled =
+    updateMutation.isPending ||
+    nameValue.trim().length === 0 ||
+    nameValue.trim() === trigger.name;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base">Overview</CardTitle>
+        {canEdit && !editing && (
+          <Button size="sm" variant="ghost" onClick={startEdit} aria-label={t("triggers.detail.edit")}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {editing && (
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={cancelEdit}
+              disabled={updateMutation.isPending}
+            >
+              {t("triggers.detail.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => updateMutation.mutate(nameValue.trim())}
+              disabled={saveDisabled}
+            >
+              {updateMutation.isPending ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              {updateMutation.isPending
+                ? t("triggers.detail.saving")
+                : t("triggers.detail.save")}
+            </Button>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent>
+        <dl className="space-y-3 text-sm">
+          <div className="flex items-center justify-between gap-2">
+            <dt className="text-[hsl(var(--muted-foreground))]">
+              {t("triggers.detail.nameLabel")}
+            </dt>
+            <dd className="font-medium">
+              {editing ? (
+                <Input
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  placeholder={t("triggers.detail.namePlaceholder")}
+                  className="h-8 w-56 text-right"
+                  maxLength={255}
+                />
+              ) : (
+                trigger.name
+              )}
+            </dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-[hsl(var(--muted-foreground))]">Type</dt>
+            <dd>
+              <span
+                className={cn(
+                  "inline-block rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  TYPE_BADGE_STYLES[trigger.type],
+                )}
+              >
+                {trigger.type.charAt(0).toUpperCase() + trigger.type.slice(1)}
+              </span>
+            </dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-[hsl(var(--muted-foreground))]">Status</dt>
+            <dd>
+              <Badge variant={trigger.isActive ? "success" : "outline"}>
+                {trigger.isActive ? "Active" : "Inactive"}
+              </Badge>
+            </dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-[hsl(var(--muted-foreground))]">Workflow</dt>
+            <dd>
+              <Link
+                href={`/workflows/${trigger.workflowId}`}
+                className="text-[hsl(var(--primary))] hover:underline"
+              >
+                {trigger.workflowName}
+              </Link>
+            </dd>
+          </div>
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ScheduleConfigurationCard({ trigger }: { trigger: TriggerDetail }) {
+  const t = useT();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Schedule Configuration</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <dl className="space-y-3 text-sm">
+          {trigger.cronExpression && (
+            <div className="flex items-center justify-between">
+              <dt className="text-[hsl(var(--muted-foreground))]">Cron Expression</dt>
+              <dd>
+                <code className="rounded bg-[hsl(var(--muted))] px-2 py-0.5 text-xs">
+                  {trigger.cronExpression}
+                </code>
+              </dd>
+            </div>
+          )}
+          {trigger.timezone && (
+            <div className="flex items-center justify-between">
+              <dt className="text-[hsl(var(--muted-foreground))]">Timezone</dt>
+              <dd className="font-medium">{trigger.timezone}</dd>
+            </div>
+          )}
+          {trigger.nextRunAt && (
+            <div className="flex items-center justify-between">
+              <dt className="text-[hsl(var(--muted-foreground))]">Next Run</dt>
+              <dd className="font-medium">
+                {formatDate(trigger.nextRunAt, "datetime")}
+              </dd>
+            </div>
+          )}
+        </dl>
+        <div className="border-t border-[hsl(var(--border))] pt-3 text-xs space-y-1">
+          <Link
+            href={`/schedules?triggerId=${encodeURIComponent(trigger.id)}`}
+            className="inline-flex items-center gap-1 text-[hsl(var(--primary))] hover:underline"
+          >
+            {t("triggers.detail.editInSchedule")}
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </Link>
+          <p className="text-[hsl(var(--muted-foreground))]">
+            {t("triggers.detail.editInScheduleHelp")}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WebhookConfigCard({
+  trigger,
+  onSaved,
+}: {
+  trigger: TriggerDetail;
+  onSaved: () => void;
+}) {
+  const t = useT();
+  const canEdit = useHasRole("editor");
   const [showExample, setShowExample] = useState(false);
   const url = trigger.endpointPath ? getWebhookUrl(trigger.endpointPath) : "";
   const authType = trigger.config?.authType ?? "none";
   const hmacHeader = trigger.config?.hmacHeader ?? "X-Hub-Signature-256";
+
+  // Edit state — `authType=none|hmac|bearer`, endpointPath, hmacHeader, hmacSecret, bearerToken
+  const [editing, setEditing] = useState(false);
+  const [endpointPathValue, setEndpointPathValue] = useState(
+    trigger.endpointPath ?? "",
+  );
+  const [authTypeValue, setAuthTypeValue] = useState<
+    "none" | "hmac" | "bearer"
+  >(authType);
+  const [hmacHeaderValue, setHmacHeaderValue] = useState(hmacHeader);
+  const [hmacSecretValue, setHmacSecretValue] = useState("");
+  const [bearerTokenValue, setBearerTokenValue] = useState("");
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      const body: Record<string, unknown> = {};
+      if (endpointPathValue !== (trigger.endpointPath ?? "")) {
+        body.endpointPath = endpointPathValue.trim();
+      }
+      // W10: 변경된 필드만 전송 — config 전체 spread 제거
+      const configPatch: Record<string, unknown> = {
+        authType: authTypeValue,
+      };
+      if (authTypeValue === "hmac") {
+        configPatch.hmacHeader = hmacHeaderValue.trim() || "X-Hub-Signature-256";
+        if (hmacSecretValue.trim().length > 0) {
+          configPatch.hmacSecret = hmacSecretValue.trim();
+        }
+      }
+      if (authTypeValue === "bearer") {
+        if (bearerTokenValue.trim().length > 0) {
+          configPatch.bearerToken = bearerTokenValue.trim();
+        }
+      }
+      body.config = configPatch;
+      await apiClient.patch(`/triggers/${trigger.id}`, body);
+    },
+    onSuccess: () => {
+      toast.success(t("triggers.detail.saved"));
+      setEditing(false);
+      setHmacSecretValue("");
+      setBearerTokenValue("");
+      onSaved();
+    },
+    onError: () => {
+      toast.error(t("triggers.detail.saveFailed"));
+    },
+  });
+
+  function handleSaveClick() {
+    // W7: endpointPath 변경 시 confirm 을 onClick 단계에서 처리 — mutationFn 안에서 throw 패턴 제거
+    if (
+      endpointPathValue !== (trigger.endpointPath ?? "") &&
+      !window.confirm(t("triggers.detail.endpointPathChangeWarning"))
+    ) {
+      return;
+    }
+    updateMutation.mutate();
+  }
 
   function copyText(text: string) {
     navigator.clipboard.writeText(text).then(
       () => toast.success("Copied to clipboard"),
       () => toast.error("Failed to copy"),
     );
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setEndpointPathValue(trigger.endpointPath ?? "");
+    // W14: trigger.config 를 직접 참조해 stale closure 방지
+    setAuthTypeValue(trigger.config?.authType ?? "none");
+    setHmacHeaderValue(trigger.config?.hmacHeader ?? "X-Hub-Signature-256");
+    setHmacSecretValue("");
+    setBearerTokenValue("");
   }
 
   function getCurlExample() {
@@ -287,12 +488,129 @@ curl -X POST ${url} \\
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">Webhook Configuration</CardTitle>
+        {canEdit && !editing && (
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            {t("triggers.detail.edit")}
+          </Button>
+        )}
+        {editing && (
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={cancelEdit}
+              disabled={updateMutation.isPending}
+            >
+              {t("triggers.detail.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveClick}
+              disabled={updateMutation.isPending}
+            >
+              {updateMutation.isPending ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              {updateMutation.isPending
+                ? t("triggers.detail.saving")
+                : t("triggers.detail.save")}
+            </Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
+        {editing && (
+          <div className="space-y-3 text-sm">
+            <div>
+              <Label htmlFor="webhook-edit-endpoint">
+                {t("triggers.detail.endpointPathLabel")}
+              </Label>
+              <Input
+                id="webhook-edit-endpoint"
+                value={endpointPathValue}
+                onChange={(e) => setEndpointPathValue(e.target.value)}
+                className="font-mono text-xs"
+                maxLength={255}
+              />
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("triggers.detail.endpointPathHelp")}
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="webhook-edit-auth">
+                {t("triggers.detail.authTypeLabel")}
+              </Label>
+              <select
+                id="webhook-edit-auth"
+                className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
+                value={authTypeValue}
+                onChange={(e) =>
+                  setAuthTypeValue(
+                    e.target.value as "none" | "hmac" | "bearer",
+                  )
+                }
+              >
+                <option value="none">{t("triggers.authNone")}</option>
+                <option value="hmac">{t("triggers.authHmac")}</option>
+                <option value="bearer">{t("triggers.authBearer")}</option>
+              </select>
+            </div>
+            {authTypeValue === "hmac" && (
+              <>
+                <div>
+                  <Label htmlFor="webhook-edit-hmac-header">
+                    {t("triggers.detail.hmacHeaderLabel")}
+                  </Label>
+                  <Input
+                    id="webhook-edit-hmac-header"
+                    value={hmacHeaderValue}
+                    onChange={(e) => setHmacHeaderValue(e.target.value)}
+                    placeholder="X-Hub-Signature-256"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="webhook-edit-hmac-secret">
+                    {t("triggers.detail.hmacSecretLabel")}
+                  </Label>
+                  <Input
+                    id="webhook-edit-hmac-secret"
+                    type="password"
+                    value={hmacSecretValue}
+                    onChange={(e) => setHmacSecretValue(e.target.value)}
+                    placeholder="•••••••• (leave blank to keep)"
+                    autoComplete="new-password"
+                  />
+                  <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.detail.hmacSecretHelp")}
+                  </p>
+                </div>
+              </>
+            )}
+            {authTypeValue === "bearer" && (
+              <div>
+                <Label htmlFor="webhook-edit-bearer">
+                  {t("triggers.detail.bearerTokenLabel")}
+                </Label>
+                <Input
+                  id="webhook-edit-bearer"
+                  type="password"
+                  value={bearerTokenValue}
+                  onChange={(e) => setBearerTokenValue(e.target.value)}
+                  placeholder="•••••••• (leave blank to keep)"
+                  autoComplete="new-password"
+                />
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.detail.bearerTokenHelp")}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         <dl className="space-y-3 text-sm">
-          {url && (
+          {url && !editing && (
             <div>
               <dt className="text-[hsl(var(--muted-foreground))] mb-1">URL</dt>
               <dd className="flex items-center gap-1">
@@ -375,8 +693,15 @@ const NOTIFICATION_EVENT_CHOICES = [
   "execution.ai_message",
 ] as const;
 
-function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
+function ExternalInteractionCard({
+  trigger,
+  onSaved,
+}: {
+  trigger: TriggerDetail;
+  onSaved: () => void;
+}) {
   const t = useT();
+  const canEdit = useHasRole("editor");
   const notification = trigger.config?.notification;
   const interaction = trigger.config?.interaction;
   const hasAny = Boolean(notification?.url || interaction?.enabled);
@@ -430,8 +755,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
       await apiClient.patch(`/triggers/${trigger.id}`, patchBody);
       toast.success(t("triggers.externalInteraction.saveSucceeded"));
       setEditing(false);
-      // 페이지 reload 대신 query invalidate 가 이상적이지만 본 PR 은 단순 reload — drawer 가 재open 시 갱신.
-      window.location.reload();
+      onSaved();
     } catch (err) {
       toast.error(
         `${t("triggers.externalInteraction.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
@@ -485,11 +809,11 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">External Interaction</CardTitle>
-        {!editing ? (
+        {canEdit && !editing ? (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             {t("triggers.externalInteraction.edit")}
           </Button>
-        ) : (
+        ) : editing ? (
           <div className="flex gap-1.5">
             <Button
               size="sm"
@@ -505,7 +829,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
                 : t("triggers.externalInteraction.save")}
             </Button>
           </div>
-        )}
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {!hasAny && !editing && (
