@@ -213,6 +213,7 @@ export function ConversationInspector({
               item={selectedItem}
               turnRefIndex={turnRefIndex}
               onJumpToReferences={onJumpToReferences}
+              onSendMessage={onSendMessage}
             />
           </div>
         ) : (
@@ -225,6 +226,7 @@ export function ConversationInspector({
               onSelectItem={onSelectMessage}
               turnRefIndex={turnRefIndex}
               onJumpToReferences={onJumpToReferences}
+              onSendMessage={onSendMessage}
             />
           </div>
         )}
@@ -309,10 +311,17 @@ function SelectedItemDetail({
   item,
   turnRefIndex,
   onJumpToReferences,
+  onSendMessage,
 }: {
   item: ConversationItem;
   turnRefIndex?: Map<number, RagSource[]>;
   onJumpToReferences?: (turnIndex: number) => void;
+  /**
+   * spec/4-nodes/3-ai/1-ai-agent.md §4.1 — AssistantPresentationsBlock 의
+   * 버튼 클릭이 user 메시지로 LLM 에 전달되도록 ConversationInspector 의
+   * onSendMessage 를 그대로 prop drill.
+   */
+  onSendMessage?: (message: string) => void;
 }) {
   // "rag" 타입은 store 의 ConversationItem 타입에는 없지만 SummaryView 가 system role
   // 메시지를 담아 합성한다. 런타임 분기로 처리.
@@ -355,7 +364,10 @@ function SelectedItemDetail({
         <ToolCallBadge toolCalls={item.assistantToolCalls!} />
       )}
       {presentations.length > 0 && (
-        <AssistantPresentationsBlock presentations={presentations} />
+        <AssistantPresentationsBlock
+          presentations={presentations}
+          onSendMessage={onSendMessage}
+        />
       )}
       {turnSources.length > 0 && onJumpToReferences && (
         <ReferencesChip
@@ -616,6 +628,7 @@ function SummaryView({
   onSelectItem,
   turnRefIndex,
   onJumpToReferences,
+  onSendMessage,
 }: {
   result: NodeResult;
   conversationConfig: unknown;
@@ -624,6 +637,11 @@ function SummaryView({
   onSelectItem?: (index: number) => void;
   turnRefIndex?: Map<number, RagSource[]>;
   onJumpToReferences?: (turnIndex: number) => void;
+  /**
+   * spec/4-nodes/3-ai/1-ai-agent.md §4.1 — AssistantPresentationsBlock 의
+   * 버튼 클릭이 user 메시지로 흡수되도록 prop drilled.
+   */
+  onSendMessage?: (message: string) => void;
 }) {
   const t = useT();
   const config = conversationConfig as Record<string, unknown> | null;
@@ -1002,7 +1020,10 @@ function SummaryView({
                   </div>
                 )}
                 {isAssistant && item.presentations && item.presentations.length > 0 && (
-                  <AssistantPresentationsBlock presentations={item.presentations} />
+                  <AssistantPresentationsBlock
+                    presentations={item.presentations}
+                    onSendMessage={onSendMessage}
+                  />
                 )}
                 {!hasContent && !hasAssistantToolCalls && !item.presentations?.length && (
                   <span className="italic text-[hsl(var(--muted-foreground))]">

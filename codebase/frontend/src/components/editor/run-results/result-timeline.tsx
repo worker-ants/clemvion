@@ -68,20 +68,22 @@ function statusAccentClass(status: string): string {
 
 function isMultiTurnConversation(result: NodeResult): boolean {
   if (isConversationOutput(result.outputData)) return true;
-  // Fallback: AI Agent / Information Extractor nodes with `mode === 'multi_turn'`
-  // are multi-turn even when the persisted outputData is sparse (e.g. waiting
-  // tick saved before the first assistant message). Without this, the timeline
-  // row stays un-expandable and the user can't open the conversation history
-  // after page navigation — regression reported on PR #271 follow-up.
-  if (result.nodeType !== "ai_agent" && result.nodeType !== "information_extractor") {
-    return false;
-  }
-  const raw = result.outputData as Record<string, unknown> | null | undefined;
-  const config =
-    raw && typeof raw === "object" && !Array.isArray(raw)
-      ? (raw.config as Record<string, unknown> | undefined)
-      : undefined;
-  return config?.mode === "multi_turn";
+  // Conservative fallback: any AI Agent / Information Extractor row is
+  // expandable in the timeline, even when the persisted outputData is sparse
+  // (waiting tick saved before the first assistant message, or envelope
+  // shape diverges from what isConversationOutput recognises). Expanding an
+  // empty conversation is harmless — the user just sees the AI node card
+  // with no rows beneath it, which is preferable to a non-expandable row
+  // that hides any history (regression reported on PR #272 머지 후).
+  //
+  // Single-turn AI Agent rows also flow through this fallback; their items
+  // array will be empty, so visually the row behaves like the simple
+  // non-expandable view from before. The only added affordance is the
+  // chevron icon, which is consistent for the whole AI category.
+  return (
+    result.nodeType === "ai_agent" ||
+    result.nodeType === "information_extractor"
+  );
 }
 
 function isSubWorkflowNode(result: NodeResult): boolean {
