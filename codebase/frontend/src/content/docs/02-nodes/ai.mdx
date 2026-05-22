@@ -91,7 +91,7 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
 **렌더링 동작:**
 
 - `render_table` / `render_chart` / `render_carousel` / `render_template` — display-only. LLM 응답에 inline 렌더되며, 워크플로우 실행을 종료시키지 않아요.
-- `render_form` — interactive. Multi Turn 모드에서 사용자에게 폼을 표시한 뒤 응답을 대기해요. 제출 데이터는 다음 LLM 호출에 전달돼요. Single Turn 모드에서는 무시(silent drop)돼요.
+- `render_form` — interactive. Multi Turn 모드에서 사용자에게 폼을 표시하고 제출을 대기하는 인터랙티브 흐름은 향후 릴리스에서 지원 예정이에요 (현재 미구현). 현재는 Single Turn 모드와 동일하게 silent drop 되며, 텍스트 응답만 표시돼요.
 
 **용량·오류 처리:**
 

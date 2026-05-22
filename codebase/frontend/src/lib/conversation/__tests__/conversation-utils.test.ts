@@ -670,6 +670,28 @@ describe("threadTurnsToConversationItems", () => {
     expect(items[0].presentations).toBeUndefined();
   });
 
+  it("ignores presentations on ai_user turns — spec §7.10 (only ai_assistant may carry them)", () => {
+    const turns: ConversationTurn[] = [
+      makeTurn({
+        seq: 0,
+        source: "ai_user",
+        text: "hello",
+        presentations: [
+          {
+            type: "table",
+            toolCallId: "tc_user",
+            renderedAt: "2026-05-22T00:00:00Z",
+            payload: {},
+          },
+        ],
+      }),
+    ];
+    const items = threadTurnsToConversationItems(turns);
+    // ai_user turns map to type:'user' which never carries presentations
+    expect(items[0].type).toBe("user");
+    expect((items[0] as { presentations?: unknown }).presentations).toBeUndefined();
+  });
+
   it("advances turnIndex only on ai_user — presentation and system items get turnIndex 0", () => {
     const turns: ConversationTurn[] = [
       makeTurn({

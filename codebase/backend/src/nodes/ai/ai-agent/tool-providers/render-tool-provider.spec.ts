@@ -71,6 +71,14 @@ describe('overlayDefaults', () => {
     expect(overlayDefaults('llm', 'brand')).toBe('brand');
     expect(overlayDefaults(5, 10)).toBe(10);
   });
+
+  it('returns LLM value when defaults is null (null treated as unset)', () => {
+    // PresentationToolDef.defaults is Record<string,unknown>|undefined (never null).
+    // overlayDefaults is exported and may be called externally — null should
+    // behave like undefined (no-op) so LLM payload is not destroyed.
+    expect(overlayDefaults({ a: 1 }, null)).toEqual({ a: 1 });
+    expect(overlayDefaults('text', null)).toBe('text');
+  });
 });
 
 describe('RenderToolProvider.buildTools', () => {
@@ -183,6 +191,14 @@ describe('RenderToolProvider.execute — display-only', () => {
     expect(result.presentationCall?.status).toBe('schema_violation');
   });
 
+  it('presentationSchemaViolation includes toolCallId for spec §7.10 join', async () => {
+    const result = await provider.execute(
+      { id: 'call_tc99', name: 'render_table', arguments: 'not json' },
+      { config: { presentationTools: [{ type: 'table' }] }, workspaceId: 'ws' },
+    );
+    expect(result.presentationSchemaViolation?.toolCallId).toBe('call_tc99');
+  });
+
   it('returns INVALID_PAYLOAD when the tool is not registered (hallucination)', async () => {
     const result = await provider.execute(
       {
@@ -223,6 +239,30 @@ describe('RenderToolProvider.execute — display-only', () => {
       result.presentationPayload!.payload as { rows: unknown[] }
     ).rows;
     expect(finalRows.length).toBeLessThan(2000);
+  });
+
+  it('returns schema_violation for oversized render_chart (no truncatable array)', async () => {
+    // chart has no array to tail-truncate; 1MB+ payload must be schema_violation.
+    // Build a chart payload that definitely exceeds 1MB via a large title field
+    // (chartConfigSchema uses .passthrough() so extra keys survive validation).
+    const bigTitle = 'T'.repeat(1024 * 1024 + 100); // ~1MB string
+    const result = await provider.execute(
+      {
+        id: 'call_chart_big',
+        name: 'render_chart',
+        arguments: JSON.stringify({
+          chartType: 'bar',
+          title: bigTitle,
+        }),
+      },
+      { config: { presentationTools: [{ type: 'chart' }] }, workspaceId: 'ws' },
+    );
+
+    expect(result.status).toBe('error');
+    expect(result.presentationCall?.status).toBe('schema_violation');
+    const parsed = JSON.parse(result.content) as { error: string; issues: string[] };
+    expect(parsed.error).toBe('INVALID_PAYLOAD');
+    expect(parsed.issues[0]).toMatch(/1MB cap/);
   });
 });
 

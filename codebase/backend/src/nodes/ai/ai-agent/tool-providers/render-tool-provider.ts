@@ -109,7 +109,7 @@ export function overlayDefaults(
   llmPayload: unknown,
   defaults: unknown,
 ): unknown {
-  if (defaults === undefined) return llmPayload;
+  if (defaults === undefined || defaults === null) return llmPayload;
   if (Array.isArray(defaults)) return defaults; // replace
   if (
     defaults !== null &&
@@ -274,6 +274,7 @@ export class RenderToolProvider implements AgentToolProvider {
         },
         presentationSchemaViolation: {
           toolName: call.name,
+          toolCallId: call.id,
           issues: [
             `Tool '${call.name}' is not registered in presentationTools`,
           ],
@@ -298,6 +299,7 @@ export class RenderToolProvider implements AgentToolProvider {
         },
         presentationSchemaViolation: {
           toolName: call.name,
+          toolCallId: call.id,
           issues,
           attempts: 1,
         },
@@ -318,6 +320,7 @@ export class RenderToolProvider implements AgentToolProvider {
         },
         presentationSchemaViolation: {
           toolName: call.name,
+          toolCallId: call.id,
           issues,
           attempts: 1,
         },
@@ -347,6 +350,7 @@ export class RenderToolProvider implements AgentToolProvider {
         },
         presentationSchemaViolation: {
           toolName: call.name,
+          toolCallId: call.id,
           issues,
           attempts: 1,
         },
@@ -355,14 +359,15 @@ export class RenderToolProvider implements AgentToolProvider {
 
     const validatedPayload = validateResult.data as Record<string, unknown>;
     const capped = applyOneMbCap(type, validatedPayload);
+    const cappedBytes = approxByteSize(capped.payload);
 
     // For chart/template/form, oversize is unrecoverable — return as schema violation.
     if (
-      approxByteSize(capped.payload) > PRESENTATION_MAX_BYTES &&
+      cappedBytes > PRESENTATION_MAX_BYTES &&
       (type === 'chart' || type === 'template' || type === 'form')
     ) {
       const issues = [
-        `Payload exceeds 1MB cap (${approxByteSize(capped.payload)} bytes) — no truncatable array`,
+        `Payload exceeds 1MB cap (${cappedBytes} bytes) — no truncatable array`,
       ];
       return {
         toolCallId: call.id,
@@ -375,6 +380,7 @@ export class RenderToolProvider implements AgentToolProvider {
         },
         presentationSchemaViolation: {
           toolName: call.name,
+          toolCallId: call.id,
           issues,
           attempts: 1,
         },
@@ -396,7 +402,7 @@ export class RenderToolProvider implements AgentToolProvider {
           toolName: call.name,
           toolCallId: call.id,
           status: 'form_pending',
-          bytes: approxByteSize(capped.payload),
+          bytes: cappedBytes,
         },
       };
     }
@@ -419,7 +425,7 @@ export class RenderToolProvider implements AgentToolProvider {
         toolName: call.name,
         toolCallId: call.id,
         status: 'rendered',
-        bytes: approxByteSize(capped.payload),
+        bytes: cappedBytes,
       },
     };
   }

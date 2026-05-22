@@ -135,6 +135,8 @@ export interface AgentToolResult {
    */
   presentationSchemaViolation?: {
     toolName: string;
+    /** spec §7.10 — `meta.presentationSchemaViolations[]` shape 에 포함돼 `presentationCalls[]` 와 join 가능. */
+    toolCallId: string;
     issues: string[];
     attempts: number;
   };

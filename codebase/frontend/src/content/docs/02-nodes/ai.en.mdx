@@ -80,7 +80,7 @@ Each registered entry exposes a virtual tool to the LLM: `render_table`, `render
 **Rendering behaviour:**
 
 - `render_table` / `render_chart` / `render_carousel` / `render_template` — display-only. Rendered inline in the LLM response; they do not end workflow execution.
-- `render_form` — interactive. In Multi Turn mode, presents a form to the user and waits for submission. The submitted data is forwarded to the next LLM call. In Single Turn mode the tool call is silently dropped.
+- `render_form` — interactive. The interactive flow where the LLM presents a form and waits for user submission in Multi Turn mode is planned for a future release (not yet implemented). Currently the tool call is silently dropped in both Single Turn and Multi Turn modes; any text response is surfaced normally.
 
 **Size and error handling:**
 

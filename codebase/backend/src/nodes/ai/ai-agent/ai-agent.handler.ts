@@ -726,6 +726,7 @@ export class AiAgentHandler implements NodeHandler {
     /** `meta.presentationSchemaViolations[]` (spec §4.1 silent drop trace). */
     presentationSchemaViolations?: Array<{
       toolName: string;
+      toolCallId: string;
       issues: string[];
       attempts: number;
     }>;
@@ -909,6 +910,7 @@ export class AiAgentHandler implements NodeHandler {
     }> = [];
     const presentationSchemaViolations: Array<{
       toolName: string;
+      toolCallId: string;
       issues: string[];
       attempts: number;
     }> = [];
@@ -1529,6 +1531,7 @@ export class AiAgentHandler implements NodeHandler {
     }> = [];
     const presentationSchemaViolations: Array<{
       toolName: string;
+      toolCallId: string;
       issues: string[];
       attempts: number;
     }> = [];
@@ -1729,6 +1732,7 @@ export class AiAgentHandler implements NodeHandler {
         );
         presentationSchemaViolations.push({
           toolName: 'render_form',
+          toolCallId: blockingFormRender.toolCallId,
           issues: ['render_form blocking flow pending phase 2b implementation'],
           attempts: 1,
         });
@@ -1925,6 +1929,11 @@ export class AiAgentHandler implements NodeHandler {
           message: result.content || '',
           turnCount,
           maxTurns,
+          // spec §4.1·§7.10 — execution engine 이 AI_MESSAGE WS 이벤트에
+          // presentations 를 포함시키기 위해 output 에 동봉.
+          ...(presentationPayloads.length > 0
+            ? { presentations: presentationPayloads }
+            : {}),
         },
       },
       meta: { interactionType: 'ai_conversation' },
@@ -2117,6 +2126,7 @@ export class AiAgentHandler implements NodeHandler {
       /** spec §4.1 silent-drop trace. */
       presentationSchemaViolations?: Array<{
         toolName: string;
+        toolCallId: string;
         issues: string[];
         attempts: number;
       }>;

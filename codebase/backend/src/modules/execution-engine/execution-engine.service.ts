@@ -316,6 +316,7 @@ export function buildConversationConfigFromOutput(
   turnCount: number;
   maxTurns?: number;
   messages: Array<Record<string, unknown>>;
+  presentations?: Array<Record<string, unknown>>;
   extracted?: Record<string, unknown>;
   missingFields?: string[];
   collectionRetryCount?: number;
@@ -330,6 +331,7 @@ export function buildConversationConfigFromOutput(
     turnCount: number;
     maxTurns?: number;
     messages: Array<Record<string, unknown>>;
+    presentations?: Array<Record<string, unknown>>;
     extracted?: Record<string, unknown>;
     missingFields?: string[];
     collectionRetryCount?: number;
@@ -340,6 +342,11 @@ export function buildConversationConfigFromOutput(
   };
   const maxTurns = r.maxTurns as number | undefined;
   if (maxTurns !== undefined) result.maxTurns = maxTurns;
+  // spec §4.1·§7.10 — presentations emitted by render_* tools in this turn.
+  const presentationsRaw = r.presentations;
+  if (Array.isArray(presentationsRaw) && presentationsRaw.length > 0) {
+    result.presentations = presentationsRaw as Array<Record<string, unknown>>;
+  }
   if (partial.extracted !== undefined)
     result.extracted = partial.extracted as Record<string, unknown>;
   if (partial.missingFields !== undefined)
@@ -2267,6 +2274,9 @@ export class ExecutionEngineService
           message: nextConv.message,
           turnCount: nextConv.turnCount,
           messages: nextConv.messages,
+          ...(nextConv.presentations
+            ? { presentations: nextConv.presentations }
+            : {}),
           metadata: {
             model: nextResumeState.model,
             inputTokens: nextResumeState.totalInputTokens,
@@ -2343,6 +2353,9 @@ export class ExecutionEngineService
     // Shared shape with the waiting_for_input emit above — the helper
     // reads `turnDebugHistory`; the terminal path stores the same array
     // under `meta.turnDebug`, so we adapt the key in-line.
+    const terminalPresentations = Array.isArray(newResult.presentations)
+      ? (newResult.presentations as Array<Record<string, unknown>>)
+      : undefined;
     this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.AI_MESSAGE,
@@ -2354,6 +2367,9 @@ export class ExecutionEngineService
         message: responseText,
         turnCount,
         messages: condMessages,
+        ...(terminalPresentations
+          ? { presentations: terminalPresentations }
+          : {}),
         metadata: {
           model: metaSource.model,
           inputTokens: metaSource.inputTokens as number | undefined,
