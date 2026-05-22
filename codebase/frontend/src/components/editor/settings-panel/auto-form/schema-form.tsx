@@ -52,9 +52,21 @@ type FieldGroup = {
   entries: FieldEntry[];
 };
 
-/** Group consecutive entries by `ui.group`. Ungrouped fields get `name: null`. */
+/**
+ * Group consecutive entries by `ui.group`. Ungrouped fields get `name: null`.
+ *
+ * Defense-in-depth: if a schema accidentally interleaves two non-consecutive
+ * fields of the same named group (typically a backend `order` collision —
+ * e.g. `order: 40` reused across two groups so sort separates them), merge
+ * the later occurrence into the earlier one rather than emitting two
+ * `FieldGroup` records with the same `name`. The render path uses
+ * `group.name` as a React key, so duplicate names would otherwise throw
+ * the "two children with the same key" warning. `null` (ungrouped) is kept
+ * positional — multiple null buckets are valid layout breaks.
+ */
 function groupEntries(entries: FieldEntry[]): FieldGroup[] {
   const groups: FieldGroup[] = [];
+  const groupIndexByName = new Map<string, number>();
   for (const entry of entries) {
     const groupName = entry.ui?.group ?? null;
     const collapsible = entry.ui?.collapsible ?? false;
@@ -62,8 +74,20 @@ function groupEntries(entries: FieldEntry[]): FieldGroup[] {
     if (last && last.name === groupName) {
       last.entries.push(entry);
       if (collapsible) last.collapsible = true;
-    } else {
-      groups.push({ name: groupName, collapsible, entries: [entry] });
+      continue;
+    }
+    if (groupName !== null) {
+      const earlierIdx = groupIndexByName.get(groupName);
+      if (earlierIdx !== undefined) {
+        const earlier = groups[earlierIdx];
+        earlier.entries.push(entry);
+        if (collapsible) earlier.collapsible = true;
+        continue;
+      }
+    }
+    groups.push({ name: groupName, collapsible, entries: [entry] });
+    if (groupName !== null) {
+      groupIndexByName.set(groupName, groups.length - 1);
     }
   }
   return groups;
