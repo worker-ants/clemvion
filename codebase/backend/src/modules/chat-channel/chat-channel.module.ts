@@ -9,6 +9,7 @@ import { ChatChannelDispatcher } from './chat-channel.dispatcher';
 import { ChatChannelController } from './chat-channel.controller';
 import { TelegramAdapter } from './providers/telegram/telegram.adapter';
 import { TelegramClient } from './providers/telegram/telegram-client';
+import { SecretStoreModule } from '../secret-store/secret-store.module';
 
 /**
  * Chat Channel 어댑터 모듈.
@@ -22,7 +23,7 @@ import { TelegramClient } from './providers/telegram/telegram-client';
  * `external-interaction` 과 동등한 facade 계층 — 둘 다 엔진 외부.
  */
 @Module({
-  imports: [ConfigModule, TypeOrmModule.forFeature([Trigger]), WebsocketModule],
+  imports: [ConfigModule, TypeOrmModule.forFeature([Trigger]), WebsocketModule, SecretStoreModule],
   controllers: [ChatChannelController],
   providers: [
     ChannelAdapterRegistry,
