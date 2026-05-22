@@ -61,8 +61,7 @@ const DEFAULT_DESCRIPTIONS: Record<PresentationType, string> = {
     '카드·이미지·미니멀 레이아웃의 슬라이드 모음. 추천 항목 목록·상품 카드 등 시각 카탈로그에 적합.',
   template:
     '사용자 정의 HTML/Markdown/Text 템플릿 렌더링. 정형화된 안내문·요약 카드 작성에 적합.',
-  form:
-    '사용자에게 입력 폼을 표시하고 제출을 대기. 추가 정보 수집·승인 요청 등 사용자 응답이 필요한 경우.',
+  form: '사용자에게 입력 폼을 표시하고 제출을 대기. 추가 정보 수집·승인 요청 등 사용자 응답이 필요한 경우.',
 };
 
 /** 1MB cap — mirrors PRESENTATION_MAX_BYTES used by presentation handlers. */
@@ -87,8 +86,9 @@ function typeFromToolName(name: string): PresentationType | null {
 }
 
 /** Cached per-type JSON Schema for ToolDef.parameters. */
-const jsonSchemaCache: Partial<Record<PresentationType, Record<string, unknown>>> =
-  {};
+const jsonSchemaCache: Partial<
+  Record<PresentationType, Record<string, unknown>>
+> = {};
 function getJsonSchemaFor(type: PresentationType): Record<string, unknown> {
   const cached = jsonSchemaCache[type];
   if (cached) return cached;
@@ -118,8 +118,12 @@ export function overlayDefaults(
     typeof llmPayload === 'object' &&
     !Array.isArray(llmPayload)
   ) {
-    const out: Record<string, unknown> = { ...(llmPayload as Record<string, unknown>) };
-    for (const [key, value] of Object.entries(defaults as Record<string, unknown>)) {
+    const out: Record<string, unknown> = {
+      ...(llmPayload as Record<string, unknown>),
+    };
+    for (const [key, value] of Object.entries(
+      defaults as Record<string, unknown>,
+    )) {
       out[key] = overlayDefaults(out[key], value);
     }
     return out;
@@ -128,7 +132,9 @@ export function overlayDefaults(
   return defaults;
 }
 
-function safeJsonParse(raw: string): { ok: true; value: unknown } | { ok: false; error: string } {
+function safeJsonParse(
+  raw: string,
+): { ok: true; value: unknown } | { ok: false; error: string } {
   if (!raw) return { ok: false, error: 'empty arguments' };
   try {
     return { ok: true, value: JSON.parse(raw) };
@@ -159,10 +165,16 @@ function applyOneMbCap(
   const bytes = approxByteSize(payload);
   if (bytes <= PRESENTATION_MAX_BYTES) return { payload };
 
-  if (type === 'carousel' && Array.isArray((payload as { items?: unknown[] }).items)) {
+  if (
+    type === 'carousel' &&
+    Array.isArray((payload as { items?: unknown[] }).items)
+  ) {
     const items = ((payload as { items: unknown[] }).items ?? []).slice();
     const totalCount = items.length;
-    while (items.length > 0 && approxByteSize({ ...payload, items }) > PRESENTATION_MAX_BYTES) {
+    while (
+      items.length > 0 &&
+      approxByteSize({ ...payload, items }) > PRESENTATION_MAX_BYTES
+    ) {
       items.pop();
     }
     return {
@@ -173,10 +185,16 @@ function applyOneMbCap(
       },
     };
   }
-  if (type === 'table' && Array.isArray((payload as { rows?: unknown[] }).rows)) {
+  if (
+    type === 'table' &&
+    Array.isArray((payload as { rows?: unknown[] }).rows)
+  ) {
     const rows = ((payload as { rows: unknown[] }).rows ?? []).slice();
     const totalCount = rows.length;
-    while (rows.length > 0 && approxByteSize({ ...payload, rows }) > PRESENTATION_MAX_BYTES) {
+    while (
+      rows.length > 0 &&
+      approxByteSize({ ...payload, rows }) > PRESENTATION_MAX_BYTES
+    ) {
       rows.pop();
     }
     return {
@@ -200,12 +218,17 @@ export class RenderToolProvider implements AgentToolProvider {
     return toolName.startsWith('render_');
   }
 
+  // AgentToolProvider interface forces an async return shape; this provider
+  // is intentionally synchronous (no I/O), so disable the eslint require-await
+  // rule rather than fabricate an await.
+  // eslint-disable-next-line @typescript-eslint/require-await
   async buildTools(ctx: ProviderBuildCtx): Promise<ToolDef[]> {
     const tools = (ctx.config.presentationTools as PresentationToolDef[]) || [];
     if (tools.length === 0) return [];
 
     return tools.map((def) => {
-      const description = def.description?.trim() || DEFAULT_DESCRIPTIONS[def.type];
+      const description =
+        def.description?.trim() || DEFAULT_DESCRIPTIONS[def.type];
       return {
         name: renderToolName(def.type),
         description,
@@ -214,7 +237,12 @@ export class RenderToolProvider implements AgentToolProvider {
     });
   }
 
-  async execute(call: ToolCall, ctx: ProviderExecCtx): Promise<AgentToolResult> {
+  // Same rationale as buildTools — synchronous validation/overlay/cap path.
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async execute(
+    call: ToolCall,
+    ctx: ProviderExecCtx,
+  ): Promise<AgentToolResult> {
     const type = typeFromToolName(call.name);
     if (!type) {
       return {
@@ -234,7 +262,9 @@ export class RenderToolProvider implements AgentToolProvider {
         toolCallId: call.id,
         content: JSON.stringify({
           error: 'INVALID_PAYLOAD',
-          issues: [`Tool '${call.name}' is not registered in presentationTools`],
+          issues: [
+            `Tool '${call.name}' is not registered in presentationTools`,
+          ],
         }),
         status: 'error',
         presentationCall: {
@@ -244,14 +274,17 @@ export class RenderToolProvider implements AgentToolProvider {
         },
         presentationSchemaViolation: {
           toolName: call.name,
-          issues: [`Tool '${call.name}' is not registered in presentationTools`],
+          issues: [
+            `Tool '${call.name}' is not registered in presentationTools`,
+          ],
           attempts: 1,
         },
       };
     }
 
     // Single-turn mode rejects render_form per spec §6.1.d.ii (silent drop).
-    const isSingleTurn = (ctx.config.mode as string | undefined) === 'single_turn';
+    const isSingleTurn =
+      (ctx.config.mode as string | undefined) === 'single_turn';
     if (type === 'form' && isSingleTurn) {
       const issues = ['render_form is not allowed in single_turn mode'];
       return {

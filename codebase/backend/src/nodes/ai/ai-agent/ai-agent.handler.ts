@@ -430,9 +430,7 @@ export class AiAgentHandler implements NodeHandler {
         node: nodeRef,
         content,
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
-        ...(presentations && presentations.length > 0
-          ? { presentations }
-          : {}),
+        ...(presentations && presentations.length > 0 ? { presentations } : {}),
       });
     }
   }
@@ -739,7 +737,10 @@ export class AiAgentHandler implements NodeHandler {
      * render_form calls in the same batch are silent-dropped as schema
      * violations by the caller).
      */
-    blockingFormRender?: { toolCallId: string; formConfig: Record<string, unknown> };
+    blockingFormRender?: {
+      toolCallId: string;
+      formConfig: Record<string, unknown>;
+    };
   }> {
     const safeBudget = Math.max(0, args.remainingBudget);
     const toRun = args.calls.slice(0, safeBudget);
@@ -2163,7 +2164,10 @@ export class AiAgentHandler implements NodeHandler {
           ? { presentationCalls: metadata.presentationCalls }
           : {}),
         ...(metadata.presentationSchemaViolations
-          ? { presentationSchemaViolations: metadata.presentationSchemaViolations }
+          ? {
+              presentationSchemaViolations:
+                metadata.presentationSchemaViolations,
+            }
           : {}),
         turnDebug: turnDebugHistory ?? [],
       },

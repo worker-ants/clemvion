@@ -6,7 +6,10 @@ import {
 
 const provider = new RenderToolProvider();
 
-const buildCtx = (presentationTools: unknown[], extra: Record<string, unknown> = {}) => ({
+const buildCtx = (
+  presentationTools: unknown[],
+  extra: Record<string, unknown> = {},
+) => ({
   config: { presentationTools, ...extra },
   workspaceId: 'ws-1',
   executionId: 'exec-1',
@@ -48,8 +51,15 @@ describe('overlayDefaults', () => {
   });
 
   it('deep-merges objects with defaults precedence', () => {
-    const llm = { title: 'LLM title', columns: [{ field: 'x' }], pagination: { pageSize: 50 } };
-    const defaults = { title: 'Brand title', pagination: { enabled: true, pageSize: 20 } };
+    const llm = {
+      title: 'LLM title',
+      columns: [{ field: 'x' }],
+      pagination: { pageSize: 50 },
+    };
+    const defaults = {
+      title: 'Brand title',
+      pagination: { enabled: true, pageSize: 20 },
+    };
     expect(overlayDefaults(llm, defaults)).toEqual({
       title: 'Brand title', // defaults wins
       columns: [{ field: 'x' }], // LLM survives (no default override)
@@ -73,7 +83,10 @@ describe('RenderToolProvider.buildTools', () => {
     const tools = await provider.buildTools(
       buildCtx([{ type: 'table' }, { type: 'chart' }]),
     );
-    expect(tools.map((t) => t.name).sort()).toEqual(['render_chart', 'render_table']);
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'render_chart',
+      'render_table',
+    ]);
   });
 
   it('uses description override when provided, else default copy', async () => {
@@ -151,7 +164,9 @@ describe('RenderToolProvider.execute — display-only', () => {
     );
 
     expect(result.status).toBe('success');
-    const cols = (result.presentationPayload!.payload as { columns?: unknown[] }).columns;
+    const cols = (
+      result.presentationPayload!.payload as { columns?: unknown[] }
+    ).columns;
     expect(cols).toEqual([{ field: 'id', label: 'Brand ID' }]);
   });
 
@@ -161,7 +176,9 @@ describe('RenderToolProvider.execute — display-only', () => {
       { config: { presentationTools: [{ type: 'table' }] }, workspaceId: 'ws' },
     );
     expect(result.status).toBe('error');
-    expect(JSON.parse(result.content)).toMatchObject({ error: 'INVALID_PAYLOAD' });
+    expect(JSON.parse(result.content)).toMatchObject({
+      error: 'INVALID_PAYLOAD',
+    });
     expect(result.presentationSchemaViolation).toBeDefined();
     expect(result.presentationCall?.status).toBe('schema_violation');
   });
@@ -176,7 +193,9 @@ describe('RenderToolProvider.execute — display-only', () => {
       { config: { presentationTools: [] }, workspaceId: 'ws' }, // no tools registered
     );
     expect(result.status).toBe('error');
-    expect(result.presentationSchemaViolation?.issues[0]).toContain('not registered');
+    expect(result.presentationSchemaViolation?.issues[0]).toContain(
+      'not registered',
+    );
   });
 
   it('caps oversized table.rows with tail truncation + truncation meta', async () => {
@@ -200,7 +219,9 @@ describe('RenderToolProvider.execute — display-only', () => {
     const truncation = result.presentationPayload!.truncation;
     expect(truncation?.rowsTruncated).toBe(true);
     expect(truncation?.rowsTotalCount).toBe(2000);
-    const finalRows = (result.presentationPayload!.payload as { rows: unknown[] }).rows;
+    const finalRows = (
+      result.presentationPayload!.payload as { rows: unknown[] }
+    ).rows;
     expect(finalRows.length).toBeLessThan(2000);
   });
 });
