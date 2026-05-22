@@ -135,9 +135,12 @@ export function TableContent({ data }: { data: Record<string, unknown> }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
-            {columns.map((col) => (
+            {/* Compound key — LLM-emitted render_table payloads can produce
+                duplicate / undefined col.field; idx fallback keeps React
+                keys unique. */}
+            {columns.map((col, ci) => (
               <th
-                key={col.field}
+                key={`${col.field ?? ""}-${ci}`}
                 className="px-3 py-1.5 text-left font-medium"
               >
                 {col.label}
@@ -151,8 +154,8 @@ export function TableContent({ data }: { data: Record<string, unknown> }) {
               key={i}
               className="border-b border-[hsl(var(--border))] last:border-b-0"
             >
-              {columns.map((col) => (
-                <td key={col.field} className="px-3 py-1">
+              {columns.map((col, ci) => (
+                <td key={`${col.field ?? ""}-${ci}`} className="px-3 py-1">
                   {String(
                     (row as Record<string, unknown>)[col.field] ?? "",
                   )}
@@ -221,11 +224,13 @@ export function CarouselContent({ data, config, selectedButtonId, onPortButtonCl
           )}
           {item.buttons && item.buttons.length > 0 && (
             <div className="mt-auto pt-1.5 flex flex-col gap-1">
-              {item.buttons.map((btn) => {
+              {/* Compound key — render_carousel emitted by an LLM may
+                  produce duplicate / undefined btn.id; idx fallback. */}
+              {item.buttons.map((btn, bi) => {
                 const isSelected = selectedButtonId === btn.id;
                 return (
                   <button
-                    key={btn.id}
+                    key={`${btn.id ?? ""}-${bi}`}
                     type="button"
                     disabled={!isInteractive && !isSelected}
                     className={cn(
@@ -568,11 +573,13 @@ export function PresentationContent({
         {preview}
         {buttons.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
-            {buttons.map((btn) => {
+            {/* Compound key — render_template emitted by an LLM may produce
+                duplicate / undefined btn.id; idx fallback. */}
+            {buttons.map((btn, bi) => {
               const isSelected = selectedButtonId === btn.id;
               return (
                 <button
-                  key={btn.id}
+                  key={`${btn.id ?? ""}-${bi}`}
                   type="button"
                   disabled={!isInteractive && !isSelected}
                   className={cn(

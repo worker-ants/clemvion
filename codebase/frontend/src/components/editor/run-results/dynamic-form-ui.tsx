@@ -161,8 +161,11 @@ export function DynamicFormUI({
           {description}
         </p>
       )}
-      {fields.map((field) => (
-        <div key={field.name} className="space-y-1">
+      {fields.map((field, idx) => (
+        // Compound key — LLM-emitted form payloads (ai_form_render) may
+        // produce duplicate / undefined `field.name`. Index fallback keeps
+        // React keys unique without changing the semantic field name.
+        <div key={`${field.name ?? ""}-${idx}`} className="space-y-1">
           <Label className="text-xs">
             {field.label}
             {field.required && (
