@@ -66,8 +66,13 @@ function renderField(
           required={field.required}
         >
           <option value="">Select...</option>
-          {field.options?.map((opt) => (
-            <option key={opt.value} value={opt.value}>
+          {/* Compound key (`value-idx`) — LLM-emitted `render_form` payloads
+              occasionally produce options with duplicate / empty values
+              (e.g. ai_form_render submitted by the model from a partial
+              schema). Falling back to the array index keeps React keys
+              unique while preserving the user-visible value/label. */}
+          {field.options?.map((opt, idx) => (
+            <option key={`${opt.value ?? ""}-${idx}`} value={opt.value}>
               {opt.label}
             </option>
           ))}
@@ -76,8 +81,11 @@ function renderField(
     case "radio":
       return (
         <div className="flex flex-wrap gap-3">
-          {field.options?.map((opt) => (
-            <label key={opt.value} className="flex items-center gap-1 text-xs">
+          {field.options?.map((opt, idx) => (
+            <label
+              key={`${opt.value ?? ""}-${idx}`}
+              className="flex items-center gap-1 text-xs"
+            >
               <input
                 type="radio"
                 name={field.name}
