@@ -160,7 +160,13 @@ describe('RenderToolProvider.execute — display-only', () => {
     );
 
     expect(result.status).toBe('success');
-    expect(JSON.parse(result.content)).toEqual({ ok: true });
+    // tool_result content carries a rich success payload so the LLM doesn't
+    // loop ("ok:true 받고도 사용자에게 보였는지 확신 못 해 재호출" 회귀).
+    expect(JSON.parse(result.content)).toMatchObject({
+      ok: true,
+      rendered: true,
+      type: 'table',
+    });
     expect(result.presentationPayload).toBeDefined();
     expect(result.presentationPayload!.type).toBe('table');
     expect(result.presentationPayload!.toolCallId).toBe('call_t1');

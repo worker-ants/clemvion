@@ -362,6 +362,39 @@ export class RenderToolProvider implements AgentToolProvider {
     return built;
   }
 
+  /**
+   * Per-executionId render call ledger. Tracks how many times each
+   * `render_*` type has been successfully rendered in the current execution
+   * scope, so we can stop the LLM from looping ("ok:true 받고도 사용자에게
+   * 보였는지 확신 못 해 같은 도구 재호출" 패턴 — 사용자 보고: 동일 turn
+   * 안 render_carousel 6회 호출 회귀). Cleared in {@link cleanup}.
+   *
+   * Limit is generous (4) — legitimate use cases like "render a table then
+   * a chart of the same dataset" are not blocked; the cap targets visible
+   * runaway loops only.
+   */
+  private readonly callsByExec: Map<
+    string,
+    Partial<Record<PresentationType, number>>
+  > = new Map();
+
+  private static readonly RENDER_CALL_SOFT_CAP = 4;
+
+  private bumpCallCounter(
+    executionId: string | undefined,
+    type: PresentationType,
+  ): number {
+    const key = executionId ?? '__no_exec__';
+    let bucket = this.callsByExec.get(key);
+    if (!bucket) {
+      bucket = {};
+      this.callsByExec.set(key, bucket);
+    }
+    const next = (bucket[type] ?? 0) + 1;
+    bucket[type] = next;
+    return next;
+  }
+
   matches(toolName: string): boolean {
     return toolName.startsWith(RENDER_TOOL_PREFIX);
   }
@@ -505,6 +538,16 @@ export class RenderToolProvider implements AgentToolProvider {
       };
     }
 
+    // Per-exec dedup gate — see callsByExec field doc.
+    const renderedCount = this.bumpCallCounter(ctx.executionId, type);
+    if (renderedCount > RenderToolProvider.RENDER_CALL_SOFT_CAP) {
+      return makeSchemaViolationResult(call, [
+        `render_${type} has been called ${renderedCount} times this execution; ` +
+          `the user already sees the previously rendered ${type}(s). ` +
+          `Stop calling render_${type} and respond with a closing message instead.`,
+      ]);
+    }
+
     // Display-only — push to assistant turn's presentations[].
     const payload: PresentationPayload = {
       type,
@@ -514,9 +557,30 @@ export class RenderToolProvider implements AgentToolProvider {
       ...(capped.truncation ? { truncation: capped.truncation } : {}),
     };
 
+    // Rich tool_result content — LLM 이 받는 메시지에 "사용자 화면에 무엇이
+    // 표시됐는지" 를 명시. minimal `{ok:true}` 만 받으면 LLM 이 "표시 여부
+    // 불확실 → 다시 호출" 패턴으로 무한 retry (사용자 보고 회귀). 명시적
+    // 안내로 retry 차단 + 다음 행동 (텍스트 마무리) 유도.
+    const successContent = {
+      ok: true,
+      rendered: true,
+      type,
+      message:
+        `A ${type} card has been displayed to the user inline with this turn. ` +
+        `Do NOT call render_${type} again for the same content. ` +
+        `Continue with a closing text reply (e.g. asking which option the user wants) ` +
+        `or wait for the user's next message.`,
+      ...(capped.truncation
+        ? {
+            truncation: capped.truncation,
+            note: 'Payload was truncated to fit the 1MB cap. Consider sending fewer items if completeness matters.',
+          }
+        : {}),
+    };
+
     return {
       toolCallId: call.id,
-      content: JSON.stringify({ ok: true }),
+      content: JSON.stringify(successContent),
       status: 'success',
       presentationPayload: payload,
       presentationCall: {
@@ -526,5 +590,14 @@ export class RenderToolProvider implements AgentToolProvider {
         bytes: cappedBytes,
       },
     };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async cleanup(ctx: { executionId?: string }): Promise<void> {
+    if (ctx.executionId) {
+      this.callsByExec.delete(ctx.executionId);
+      return;
+    }
+    this.callsByExec.clear();
   }
 }
