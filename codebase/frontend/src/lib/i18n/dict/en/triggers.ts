@@ -86,6 +86,31 @@ export const triggers: Dict["triggers"] = {
   columnActions: "Actions",
   toggleActivate: "Activate",
   toggleDeactivate: "Deactivate",
+  // [Spec 2-trigger-list §2.3.1] Detail drawer card edit mode — Plan B.
+  detail: {
+    edit: "Edit",
+    save: "Save",
+    saving: "Saving...",
+    cancel: "Cancel",
+    saved: "Saved",
+    saveFailed: "Save failed",
+    nameLabel: "Name",
+    namePlaceholder: "Trigger name",
+    endpointPathLabel: "Endpoint path",
+    endpointPathHelp: "Changing this returns 404 for any call to the old URL.",
+    endpointPathChangeWarning:
+      "Changing the endpoint invalidates the old URL immediately. Proceed?",
+    authTypeLabel: "Authentication",
+    hmacHeaderLabel: "Signature header",
+    hmacSecretLabel: "New HMAC secret",
+    hmacSecretHelp:
+      "Leave blank to keep the current secret. Saving replaces it immediately.",
+    bearerTokenLabel: "New Bearer token",
+    bearerTokenHelp: "Leave blank to keep the current token.",
+    editInSchedule: "Edit in Schedules",
+    editInScheduleHelp:
+      "Cron expression, timezone, and next run time can only be edited from the Schedule screen.",
+  },
   // External Interaction API (Spec EIA §4)
   externalInteraction: {
     section: "External Interaction",

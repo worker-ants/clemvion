@@ -18,20 +18,20 @@ owner: developer
 
 ### 1. Backend — `PATCH /api/triggers/:id` 확장
 
-- [ ] body 키 검증: `name`, `isActive`, `endpointPath`, `config.authType`, `config.hmacHeader`, `config.hmacSecret`, `config.bearerToken` (deep-merge)
-- [ ] Schedule 타입은 `name`, `isActive` 외 키 거부 (400 `VALIDATION_ERROR`, `details.field='type'`)
-- [ ] `(workspace_id, endpoint_path)` UNIQUE 충돌 → 409 `RESOURCE_CONFLICT` (세부 `TRIGGER_ENDPOINT_PATH_CONFLICT`)
-- [ ] write-only 필드 (`hmacSecret`, `bearerToken`) 는 응답 시 마스킹 (`…last4`)
-- [ ] audit log `trigger.update` (변경 필드 keys, 값은 마스킹)
+- [x] body 키 검증: `name`, `isActive`, `endpointPath`, `config.authType`, `config.hmacHeader`, `config.hmacSecret`, `config.bearerToken` (deep-merge) — 기존 UpdateTriggerDto + service.update 가 이미 처리
+- [x] Schedule 타입은 `name`, `isActive` 외 키 거부 (400 `VALIDATION_ERROR`, `details.field='type'`) — service.update 첫 가드 추가, service.spec 2건 신설
+- [ ] `(workspace_id, endpoint_path)` UNIQUE 충돌 → 409 `RESOURCE_CONFLICT` (세부 `TRIGGER_ENDPOINT_PATH_CONFLICT`) — **별 plan (data-model §2.8 의 UNIQUE 제약 추가가 선행 필요. spec PR 체크리스트 참조)**
+- [ ] write-only 필드 (`hmacSecret`, `bearerToken`) 응답 마스킹 — **별 plan (현재 응답 DTO 가 config 전체를 그대로 반환, 마스킹 로직 신설 필요)**
+- [x] audit log `trigger.update` — 기존 서비스가 emit (변경 없음)
 
 ### 2. Frontend — `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx`
 
-- [ ] inline `<Card> Overview` 블록을 `OverviewCard` 함수로 추출 — read ↔ edit 토글 + `name` 인풋 + Save
-- [ ] `WebhookConfigCard` (기존 함수 `trigger-detail-drawer.tsx:253`) **확장** — read ↔ edit 토글 + `endpointPath` / `authType` / `hmacHeader` / `hmacSecret` / `bearerToken` (신규 컴포넌트 생성 아님)
-- [ ] `endpointPath` 변경 시 사전 confirmation (옛 URL 즉시 무효)
-- [ ] Schedule Configuration 카드 — "스케줄 관리에서 편집" 링크 추가 (`/schedules?triggerId=…`)
-- [ ] EIA 카드와 동일 save / cancel 토글 UX (`size="sm"`, disabled 상태, `Loader2`)
-- [ ] React Query mutation `useUpdateTriggerMeta` — patch 응답으로 카드 갱신 (`window.location.reload` 금지, `queryClient.invalidateQueries`)
+- [x] inline `<Card> Overview` 블록을 `OverviewCard` 함수로 추출 — read ↔ edit 토글 + `name` 인풋 + Save (Pencil 아이콘 토글)
+- [x] `WebhookConfigCard` (기존 함수) **확장** — read ↔ edit 토글 + `endpointPath` / `authType` / `hmacHeader` / `hmacSecret` / `bearerToken`
+- [x] `endpointPath` 변경 시 `window.confirm` 으로 사전 confirmation
+- [x] `ScheduleConfigurationCard` 함수 추출 — "스케줄 관리에서 편집" 링크 (`/schedules?triggerId=<encodeURIComponent(id)>`) + ExternalLink 아이콘 + help 텍스트
+- [x] EIA 카드와 동일 save / cancel 토글 UX (`size="sm"`, disabled, `Loader2`)
+- [x] React Query `useMutation` PATCH — `onSaved` 콜백으로 부모(drawer) 에서 `["trigger-detail", id]` + `["triggers"]` invalidate (window.reload 금지)
 
 ### 3. i18n
 

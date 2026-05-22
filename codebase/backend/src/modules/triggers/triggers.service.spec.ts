@@ -296,6 +296,42 @@ describe('TriggersService — notification/interaction config 병합 (External I
     );
   });
 
+  it('update — schedule 타입은 name·isActive 외 키를 거부 (VALIDATION_ERROR)', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't-sch',
+      workspaceId: 'ws',
+      type: 'schedule',
+      name: 'daily',
+      config: {},
+    } as unknown as Trigger);
+
+    await expect(
+      service.update('t-sch', 'ws', { endpointPath: '/new-path' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'VALIDATION_ERROR',
+        details: { field: 'type' },
+      },
+    });
+  });
+
+  it('update — schedule 타입의 name 변경은 허용', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't-sch',
+      workspaceId: 'ws',
+      type: 'schedule',
+      name: 'old',
+      config: {},
+    } as unknown as Trigger);
+
+    const result = await service.update('t-sch', 'ws', {
+      name: 'renamed',
+      isActive: false,
+    });
+    expect(result.name).toBe('renamed');
+    expect(result.isActive).toBe(false);
+  });
+
   it('update — notification 명시 시 기존 값 대체', async () => {
     triggerRepo.findOne.mockResolvedValue({
       id: 't1',
