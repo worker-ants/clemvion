@@ -120,6 +120,10 @@ export function useExecutionEvents({
       resumeFromConversation();
     } else if (waitingInteractionType === "buttons") {
       resumeFromButtons();
+    } else if (waitingInteractionType === "ai_form_render") {
+      // AI Agent render_form blocking — same resume flow as a regular form
+      // (waitForAiConversation 의 form_submitted 분기가 다음 turn 을 enqueue).
+      resumeFromForm();
     } else {
       resumeFromForm();
     }
@@ -157,7 +161,11 @@ export function useExecutionEvents({
         // ISO 8601 — backend 가 NodeExecution.startedAt 을 동봉. NODE_STARTED
         // race miss 시에도 store 가 row 정렬 키를 잃지 않도록 한다.
         startedAt?: string;
-        interactionType?: "form" | "buttons" | "ai_conversation";
+        interactionType?:
+          | "form"
+          | "buttons"
+          | "ai_conversation"
+          | "ai_form_render";
         nodeOutput?: unknown;
         buttonConfig?: unknown;
         // spec/5-system/6-websocket-protocol.md §4.4.5 — backend 가 항상
@@ -238,7 +246,16 @@ export function useExecutionEvents({
         );
       }
 
-      if (interactionType === "ai_conversation") {
+      if (
+        interactionType === "ai_conversation" ||
+        interactionType === "ai_form_render"
+      ) {
+        // ai_form_render shares the conversation timeline hydration path —
+        // the form's preview rides as the last `ai_assistant` turn's
+        // `presentations[type:'form']` and AssistantPresentationsBlock
+        // renders it inline. The interactionType differentiator only steers
+        // which `execution.submit_*` command the user input box dispatches
+        // (resumeFromForm vs resumeFromConversation).
         const convConfig = nodeOutputObj?.conversationConfig as {
           message?: string;
           // RawMessage carries `source` (spec/5-system/6-websocket-protocol.md
@@ -246,8 +263,18 @@ export function useExecutionEvents({
           messages?: RawMessage[];
           turnCount?: number;
           maxTurns?: number;
+          /** ai_form_render only — backend 가 동봉. spec §6.1.d.ii. */
+          pendingFormToolCall?: {
+            toolCallId: string;
+            formConfig: Record<string, unknown>;
+          };
         } | undefined;
         pauseForConversation(payload.waitingNodeId, convConfig ?? null);
+        // Override the interactionType the store inferred from pauseFor* —
+        // ai_form_render needs `submit_form` dispatch on resume.
+        if (interactionType === "ai_form_render") {
+          useExecutionStore.setState({ waitingInteractionType: "ai_form_render" });
+        }
 
         // spec/conventions/conversation-thread.md §9.3 — conversation Preview
         // 의 1차 데이터 소스는 `conversationThread.turns` snapshot. backend 가

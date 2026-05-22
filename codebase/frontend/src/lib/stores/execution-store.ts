@@ -55,7 +55,17 @@ export interface NodeResult {
   parentNodeExecutionId?: string;
 }
 
-export type WaitingInteractionType = "form" | "buttons" | "ai_conversation";
+/**
+ * spec/5-system/6-websocket-protocol.md §4.4 의 `interactionType` 4값.
+ * `ai_form_render` 는 AI Agent multi-turn 이 `render_form` 도구를 호출해
+ * 사용자 form 제출을 대기 중일 때 emit 된다 — `submit_form` 명령으로
+ * 응답해야 한다 (spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii).
+ */
+export type WaitingInteractionType =
+  | "form"
+  | "buttons"
+  | "ai_conversation"
+  | "ai_form_render";
 
 export interface ToolCallInfo {
   name: string;
