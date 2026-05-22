@@ -115,6 +115,33 @@ describe('RenderToolProvider.buildTools', () => {
     expect(tools[0].parameters).toBeDefined();
     expect((tools[0].parameters as { type?: string }).type).toBe('object');
   });
+
+  // Regression: user adds a presentationTools row in the settings panel
+  // field-array widget but hasn't picked a `type` from the dropdown yet.
+  // The engine read config before zod re-parsed → `type: undefined` reaches
+  // buildTools and `z.toJSONSchema(undefined)` throws
+  // `Cannot use 'in' operator to search for '_idmap' in undefined`.
+  it('skips entries with missing/invalid type instead of throwing', async () => {
+    const tools = await provider.buildTools(
+      buildCtx([
+        { type: undefined } as any,
+
+        { type: '' } as any,
+
+        { type: 'bogus' } as any,
+        { type: 'table' },
+      ]),
+    );
+    // Only the valid `table` entry should produce a ToolDef.
+    expect(tools.map((t) => t.name)).toEqual(['render_table']);
+  });
+
+  it('survives null / non-object entries in presentationTools (partial config)', async () => {
+    const tools = await provider.buildTools(
+      buildCtx([null as any, undefined as any, { type: 'chart' }]),
+    );
+    expect(tools.map((t) => t.name)).toEqual(['render_chart']);
+  });
 });
 
 describe('RenderToolProvider.execute — display-only', () => {

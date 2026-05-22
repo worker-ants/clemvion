@@ -298,15 +298,31 @@ export class RenderToolProvider implements AgentToolProvider {
     const tools = (ctx.config.presentationTools as PresentationToolDef[]) || [];
     if (tools.length === 0) return [];
 
-    return tools.map((def) => {
-      const description =
-        def.description?.trim() || DEFAULT_DESCRIPTIONS[def.type];
-      return {
-        name: renderToolName(def.type),
+    // Defend against partial config that didn't go through zod parse —
+    // e.g. user opened the AI Agent settings panel, added a presentation
+    // tool row via the field-array widget, and the engine fetched config
+    // before they picked a `type` from the dropdown. Without this guard,
+    // SCHEMA_BY_TYPE[undefined] is undefined and `z.toJSONSchema(undefined)`
+    // throws `Cannot use 'in' operator to search for '_idmap' in undefined`,
+    // which surfaces as `Provider "render" buildTools failed` and prevents
+    // the whole AI Agent turn from running.
+    const out: ToolDef[] = [];
+    for (const def of tools) {
+      const type = def?.type as PresentationType | undefined;
+      if (!type || !(type in SCHEMA_BY_TYPE)) {
+        RenderToolProvider.logger.warn(
+          `Skipping presentation tool with invalid/missing type: ${JSON.stringify(def?.type)}`,
+        );
+        continue;
+      }
+      const description = def.description?.trim() || DEFAULT_DESCRIPTIONS[type];
+      out.push({
+        name: renderToolName(type),
         description,
-        parameters: this.getJsonSchemaFor(def.type),
-      };
-    });
+        parameters: this.getJsonSchemaFor(type),
+      });
+    }
+    return out;
   }
 
   // Same rationale as buildTools — synchronous validation/overlay/cap path.
