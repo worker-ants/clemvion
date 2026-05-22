@@ -190,7 +190,13 @@ const PRESENTATION_TOOLS_GUIDANCE =
   '- `render_carousel`: **mode="static"** + items (Array<{title, description?, image?, buttons?}>) 최소 1개. mode="dynamic" 호출은 reject 됩니다 (워크플로 데이터 바인딩 전용).\n' +
   '- `render_template`: content (HTML/Markdown 본문 문자열) 필수.\n' +
   '- `render_form`: fields (Array<{name, type, label, ...}>) 필수.\n' +
-  '검증 실패 시 schema violation 으로 즉시 반환되며 같은 turn 안에 재호출할 기회가 1회 주어집니다.';
+  '검증 실패 시 schema violation 으로 즉시 반환되며 같은 turn 안에 재호출할 기회가 1회 주어집니다.\n\n' +
+  '**호출 결과 해석**:\n' +
+  '- `{ok: true, rendered: true, ...}` — 도구가 사용자 화면에 카드를 정상 표시했습니다. **같은 컨텐츠로 재호출하지 마세요.** ' +
+  '바로 짧은 마무리 텍스트 응답으로 turn 을 종결하거나, 사용자의 다음 메시지를 기다리세요.\n' +
+  '- `{error: "INVALID_PAYLOAD", ...}` — 페이로드에 누락/오류가 있어 사용자에게 표시되지 않았습니다. 오류 사유를 보고 ' +
+  '같은 turn 안에서 1회 재시도 (수정된 payload 로). 두 번째 실패 후에는 텍스트로 대체 응답하세요.\n' +
+  '도구 호출 4회 초과 시 자동 차단됩니다 — 사용자에게는 이미 카드가 표시된 상태이므로 추가 호출은 무의미합니다.';
 
 /**
  * Provider 가 반환한 diagnostic delta 를 노드 단위로 누적.
