@@ -183,16 +183,19 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
+  // cafe24 docs path 의 regionalsurcharges 영역은 `{supplier_id}` placeholder
+  // 를 사용 (supplier_users 단일 ops 와 다름 — same entity 지만 다른 placeholder
+  // 이름. cafe24 API 의 inconsistency).
   {
     id: 'suppliers_users_regional_list',
     label: '사용자 지역별 배송비 목록',
     description: "Retrieve a supplier user's list of regional shipping fees.",
     scopeType: 'read',
     method: 'GET',
-    path: 'suppliers/users/{user_id}/regionalshippingfees',
-    requiredFields: ['user_id'],
+    path: 'suppliers/users/{supplier_id}/regionalsurcharges',
+    requiredFields: ['supplier_id'],
     fields: {
-      user_id: { type: 'string', location: 'path' },
+      supplier_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'list',
@@ -204,10 +207,10 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
       'Create regional shipping fee for a supplier user. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
     method: 'POST',
-    path: 'suppliers/users/{user_id}/regionalshippingfees',
-    requiredFields: ['user_id'],
+    path: 'suppliers/users/{supplier_id}/regionalsurcharges',
+    requiredFields: ['supplier_id'],
     fields: {
-      user_id: { type: 'string', location: 'path' },
+      supplier_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
@@ -215,13 +218,17 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   {
     id: 'suppliers_users_regional_delete',
     label: '사용자 지역별 배송비 삭제',
-    description: "Delete supplier user's regional shipping fee settings.",
+    description:
+      'Delete a specific regional shipping fee setting by regional_surcharge_no.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'suppliers/users/{user_id}/regionalshippingfees',
-    requiredFields: ['user_id'],
+    // cafe24 docs path: `suppliers/users/{supplier_id}/regionalsurcharges/
+    // {regional_surcharge_no}` (per-row scope).
+    path: 'suppliers/users/{supplier_id}/regionalsurcharges/{regional_surcharge_no}',
+    requiredFields: ['supplier_id', 'regional_surcharge_no'],
     fields: {
-      user_id: { type: 'string', location: 'path' },
+      supplier_id: { type: 'string', location: 'path' },
+      regional_surcharge_no: { type: 'number', location: 'path' },
     },
     responseShape: 'single',
   },
@@ -231,10 +238,11 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
     description: "Retrieve a supplier user's regional shipping fee settings.",
     scopeType: 'read',
     method: 'GET',
-    path: 'suppliers/users/{user_id}/regionalshippingfees/settings',
-    requiredFields: ['user_id'],
+    // cafe24 docs path: `setting` (singular, not `settings`).
+    path: 'suppliers/users/{supplier_id}/regionalsurcharges/setting',
+    requiredFields: ['supplier_id'],
     fields: {
-      user_id: { type: 'string', location: 'path' },
+      supplier_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -246,10 +254,10 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
       "Update a supplier user's regional shipping fee settings (partial).",
     scopeType: 'write',
     method: 'PUT',
-    path: 'suppliers/users/{user_id}/regionalshippingfees/settings',
-    requiredFields: ['user_id'],
+    path: 'suppliers/users/{supplier_id}/regionalsurcharges/setting',
+    requiredFields: ['supplier_id'],
     fields: {
-      user_id: { type: 'string', location: 'path' },
+      supplier_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
