@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Trigger } from './entities/trigger.entity';
@@ -14,9 +14,8 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
   imports: [
     TypeOrmModule.forFeature([Trigger, Execution, Schedule]),
     ConfigModule,
-    ChatChannelModule,
-    // SUMMARY#19: ChatChannelModule 은 SecretStoreModule 을 re-export 하지 않으므로
-    // TriggersService 가 SecretResolverService 를 직접 inject 하려면 직접 import 필요.
+    // ChatChannelController 가 TriggersService.rotateBotToken 을 호출하므로 양방향 의존.
+    forwardRef(() => ChatChannelModule),
     SecretStoreModule,
   ],
   controllers: [TriggersController],

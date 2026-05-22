@@ -202,7 +202,10 @@ export class NotificationWebhookProcessor extends WorkerHost {
         : null;
     if (!primarySecret) {
       // secret 미설정 또는 resolve 실패 — unsigned 발송하지 않는다.
-      await this.markDegraded(triggerId, 'notification secret 미설정 또는 resolve 실패');
+      await this.markDegraded(
+        triggerId,
+        'notification secret 미설정 또는 resolve 실패',
+      );
       return;
     }
     const rawBody = JSON.stringify(eventBody);

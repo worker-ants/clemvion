@@ -22,6 +22,7 @@ import { ChatChannelConfigDto } from './dto/chat-channel-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChatChannelConfig } from '../chat-channel/types';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { buildSecretRef } from '../secret-store/secret-ref';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -126,6 +127,8 @@ export class TriggersService {
       workspaceId,
     });
     const saved = await this.triggerRepository.save(trigger);
+    // notification.signing.secret plaintext 가 config 에 들어왔으면 secret store 로 마이그레이션.
+    await this.normalizeNotificationSecretRef(saved);
     // Chat Channel 어댑터 setup — CCH-AD-02.
     if (chatChannel) {
       await this.setupChatChannel(saved, chatChannel);
@@ -151,11 +154,54 @@ export class TriggersService {
     );
     Object.assign(trigger, rest, { config: mergedConfig });
     const saved = await this.triggerRepository.save(trigger);
+    await this.normalizeNotificationSecretRef(saved);
     if (chatChannel) {
       // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
       await this.setupChatChannel(saved, chatChannel);
     }
     return saved;
+  }
+
+  /**
+   * [Spec EIA §7.1] — notification.signing.secret plaintext 정규화.
+   *
+   * config 에 `signing.secret` plaintext 가 포함됐을 때 secret store 로 마이그레이션하고
+   * config 에는 `signing.secretRef` 만 남긴다. plaintext 가 DB JSONB / 로그에 영구 노출되지
+   * 않도록 보장 (SS-SE-01).
+   *
+   * 이미 `secretRef` 만 있는 경우 noop. signing 자체가 없는 경우도 noop.
+   */
+  private async normalizeNotificationSecretRef(
+    trigger: Trigger,
+  ): Promise<void> {
+    const notificationCfg = (trigger.config as { notification?: unknown })
+      ?.notification;
+    if (!notificationCfg || typeof notificationCfg !== 'object') return;
+    const signing = (notificationCfg as { signing?: unknown }).signing;
+    if (!signing || typeof signing !== 'object') return;
+    const plaintext = (signing as { secret?: unknown }).secret;
+    if (typeof plaintext !== 'string' || plaintext.length === 0) return;
+
+    const ref = buildSecretRef({
+      scope: 'triggers',
+      resourceId: trigger.id,
+      name: 'notification-signing',
+    });
+    await this.secrets.rotate(ref, trigger.workspaceId, plaintext);
+
+    const updatedSigning: Record<string, unknown> = {
+      ...(signing as Record<string, unknown>),
+      secretRef: ref,
+    };
+    delete updatedSigning.secret;
+    trigger.config = {
+      ...trigger.config,
+      notification: {
+        ...(notificationCfg as Record<string, unknown>),
+        signing: updatedSigning,
+      },
+    };
+    await this.triggerRepository.save(trigger);
   }
 
   /**
@@ -250,9 +296,7 @@ export class TriggersService {
         ...internalCfg,
         ...(result.configUpdates ?? {}),
         botTokenRef,
-        ...(result.issuedSecretToken
-          ? { secretTokenRef }
-          : {}),
+        ...(result.issuedSecretToken ? { secretTokenRef } : {}),
       };
       const newConfig = {
         ...(trigger.config ?? {}),
@@ -398,6 +442,131 @@ export class TriggersService {
     trigger.config = { ...trigger.config, interaction: updated };
     await this.triggerRepository.save(trigger);
     return { token: newToken };
+  }
+
+  /**
+   * [Spec CCH-SE-04] — Chat Channel bot token rotation 의 6단계 오케스트레이션.
+   *
+   * 1. 기존 botToken resolve (실패 시 skip — 최초 rotation 케이스)
+   * 2. 기존 token 이 있으면 v2 ref 에 백업 (24h grace)
+   * 3. primary botTokenRef 의 plaintext 를 새 token 으로 교체 (UPSERT)
+   * 4. 새 token 으로 adapter.setupChannel 재호출 — webhook secret_token 새로 발급
+   * 5. issuedSecretToken plaintext → secretTokenRef 에 저장
+   * 6. trigger 컬럼 갱신 (chat_channel_token_v2, chat_channel_rotated_at, health)
+   *
+   * Controller 는 input validation + workspaceId 검증 + 본 메서드 호출만 담당.
+   *
+   * @throws BadRequestException `CHAT_CHANNEL_NOT_CONFIGURED` / `CHAT_CHANNEL_PROVIDER_UNKNOWN` / `CHAT_CHANNEL_ENDPOINT_REQUIRED`
+   */
+  async rotateBotToken(
+    id: string,
+    workspaceId: string,
+    newBotToken: string,
+  ): Promise<{ rotatedAt: string }> {
+    const trigger = await this.findById(id, workspaceId);
+    const chatChannelCfg = (
+      trigger.config as { chatChannel?: ChatChannelConfig }
+    ).chatChannel;
+    if (!chatChannelCfg) {
+      throw new BadRequestException({
+        code: 'CHAT_CHANNEL_NOT_CONFIGURED',
+        message: 'Trigger has no chat channel configuration',
+      });
+    }
+    if (!this.channelAdapterRegistry.has(chatChannelCfg.provider)) {
+      throw new BadRequestException({
+        code: 'CHAT_CHANNEL_PROVIDER_UNKNOWN',
+        message: `Unknown provider: ${chatChannelCfg.provider}`,
+      });
+    }
+    if (!trigger.endpointPath) {
+      throw new BadRequestException({
+        code: 'CHAT_CHANNEL_ENDPOINT_REQUIRED',
+        message: 'Trigger endpointPath is required for rotation',
+      });
+    }
+    const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);
+
+    const botTokenRef =
+      chatChannelCfg.botTokenRef ??
+      buildSecretRef({
+        scope: 'triggers',
+        resourceId: trigger.id,
+        name: 'bot-token',
+      });
+    const v2Ref = buildSecretRef({
+      scope: 'triggers',
+      resourceId: trigger.id,
+      name: 'bot-token.v2',
+    });
+    const secretTokenRef =
+      chatChannelCfg.secretTokenRef ??
+      buildSecretRef({
+        scope: 'triggers',
+        resourceId: trigger.id,
+        name: 'webhook-secret',
+      });
+
+    // 1. 기존 botToken resolve (실패 시 skip — 최초 rotation).
+    let oldPlaintext: string | null = null;
+    try {
+      oldPlaintext = await this.secrets.resolve(botTokenRef);
+    } catch {
+      // 최초 rotation: secret store 에 아직 row 없음. v2 백업 skip.
+    }
+
+    // 2. 기존 token 이 있으면 v2Ref 에 백업.
+    let v2RefUsed: string | null = null;
+    if (oldPlaintext !== null) {
+      await this.secrets.rotate(v2Ref, trigger.workspaceId, oldPlaintext);
+      v2RefUsed = v2Ref;
+    }
+
+    // 3. primary botTokenRef 에 새 token 저장 (UPSERT).
+    await this.secrets.rotate(botTokenRef, trigger.workspaceId, newBotToken);
+
+    // 4. 새 token 으로 setupChannel 재호출 — adapter 가 resolveBotToken 으로 신 token 자동 사용.
+    const mergedConfig: ChatChannelConfig = { ...chatChannelCfg, botTokenRef };
+    const callbackUrl = this.buildCallbackUrl(trigger.endpointPath);
+    const result = await adapter.setupChannel(mergedConfig, callbackUrl);
+    const mergedChannel: ChatChannelConfig = {
+      ...mergedConfig,
+      ...(result.configUpdates ?? {}),
+      botTokenRef,
+      secretTokenRef,
+    };
+
+    // 5. issuedSecretToken plaintext → secret store.
+    if (result.issuedSecretToken) {
+      await this.secrets.rotate(
+        secretTokenRef,
+        trigger.workspaceId,
+        result.issuedSecretToken,
+      );
+    }
+
+    // 6. trigger 컬럼 갱신.
+    const rotatedAt = new Date();
+    await this.triggerRepository.update(
+      { id: trigger.id },
+      {
+        config: { ...(trigger.config ?? {}), chatChannel: mergedChannel },
+        chatChannelTokenV2: v2RefUsed,
+        chatChannelRotatedAt: rotatedAt,
+        chatChannelHealth: 'healthy',
+        chatChannelLastError: null,
+      },
+    );
+    return { rotatedAt: rotatedAt.toISOString() };
+  }
+
+  /** publicBaseUrl 결합 — setupChatChannel 과 공용 헬퍼. */
+  private buildCallbackUrl(endpointPath: string): string {
+    const baseUrl =
+      this.configService.get<string>('app.publicBaseUrl') ??
+      this.configService.get<string>('publicBaseUrl') ??
+      'http://localhost:3000';
+    return `${baseUrl.replace(/\/$/, '')}/api/hooks/${endpointPath.replace(/^\//, '')}`;
   }
 
   /**

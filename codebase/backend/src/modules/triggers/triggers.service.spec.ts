@@ -592,7 +592,7 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     }).compile();
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
-    secrets = moduleRef.get(SecretResolverService) as jest.Mocked<SecretResolverService>;
+    secrets = moduleRef.get(SecretResolverService);
   });
 
   it('setupChatChannel 성공 — secrets.rotate 2회 호출 (botToken + webhookSecret) (SUMMARY#12-a)', async () => {
@@ -642,7 +642,9 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
   });
 
   it('setupChannel throw 시 chatChannelHealth=degraded + warn 로그 (SUMMARY#12-c)', async () => {
-    mockAdapter.setupChannel.mockRejectedValueOnce(new Error('Telegram API error'));
+    mockAdapter.setupChannel.mockRejectedValueOnce(
+      new Error('Telegram API error'),
+    );
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
@@ -712,7 +714,7 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
     }).compile();
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
-    secrets = moduleRef.get(SecretResolverService) as jest.Mocked<SecretResolverService>;
+    secrets = moduleRef.get(SecretResolverService);
   });
 
   it('remove 시 deleteByPrefix 를 올바른 prefix 로 호출 (SUMMARY#13)', async () => {
@@ -722,5 +724,188 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
       'secret://triggers/trig-42/',
     );
     expect(triggerRepo.remove).toHaveBeenCalledWith(trigger);
+  });
+});
+
+/**
+ * rotateBotToken — Controller 에서 위임된 6단계 오케스트레이션 검증.
+ * 기존 chat-channel.controller.spec.ts 의 6단계 검증을 본 service 차원으로 이관.
+ */
+describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let secrets: jest.Mocked<SecretResolverService>;
+  let adapterRegistry: jest.Mocked<ChannelAdapterRegistry>;
+  let mockAdapter: { setupChannel: jest.Mock };
+
+  const WORKSPACE_ID = 'ws-1';
+  const TRIGGER_ID = 'trig-1';
+  const BOT_TOKEN_REF = 'secret://triggers/trig-1/bot-token';
+  const SECRET_TOKEN_REF = 'secret://triggers/trig-1/webhook-secret';
+  const OLD_TOKEN = '111111111:OldToken';
+  const NEW_TOKEN = '222222222:NewToken';
+  const ISSUED_SECRET = 'newWebhookSecret';
+
+  beforeEach(async () => {
+    mockAdapter = {
+      setupChannel: jest.fn().mockResolvedValue({
+        registeredAt: new Date().toISOString(),
+        configUpdates: {},
+        issuedSecretToken: ISSUED_SECRET,
+      }),
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue({
+              id: TRIGGER_ID,
+              workspaceId: WORKSPACE_ID,
+              endpointPath: 'hook-abc',
+              config: {
+                chatChannel: {
+                  provider: 'telegram',
+                  botTokenRef: BOT_TOKEN_REF,
+                  secretTokenRef: SECRET_TOKEN_REF,
+                },
+              },
+            } as unknown as Trigger),
+            update: jest.fn().mockResolvedValue(undefined),
+            save: jest.fn((t: Trigger) => Promise.resolve(t)),
+          },
+        },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: {
+            has: jest.fn().mockReturnValue(true),
+            get: jest.fn().mockReturnValue(mockAdapter),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn().mockResolvedValue(OLD_TOKEN),
+            store: jest.fn(),
+            rotate: jest.fn().mockResolvedValue(undefined),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn(),
+            exists: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    secrets = moduleRef.get(SecretResolverService);
+    adapterRegistry = moduleRef.get(ChannelAdapterRegistry);
+  });
+
+  it('정상 — old token resolve → v2 백업 → primary rotate → setupChannel → webhook secret store → trigger 갱신', async () => {
+    const result = await service.rotateBotToken(
+      TRIGGER_ID,
+      WORKSPACE_ID,
+      NEW_TOKEN,
+    );
+    expect(secrets.resolve).toHaveBeenCalledWith(BOT_TOKEN_REF);
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      'secret://triggers/trig-1/bot-token.v2',
+      WORKSPACE_ID,
+      OLD_TOKEN,
+    );
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      BOT_TOKEN_REF,
+      WORKSPACE_ID,
+      NEW_TOKEN,
+    );
+    expect(mockAdapter.setupChannel).toHaveBeenCalled();
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      SECRET_TOKEN_REF,
+      WORKSPACE_ID,
+      ISSUED_SECRET,
+    );
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: TRIGGER_ID },
+      expect.objectContaining({
+        chatChannelHealth: 'healthy',
+        chatChannelTokenV2: 'secret://triggers/trig-1/bot-token.v2',
+      }),
+    );
+    expect(result).toHaveProperty('rotatedAt');
+  });
+
+  it('첫 rotation — old token resolve 실패 시 v2 백업 skip + chatChannelTokenV2=null', async () => {
+    secrets.resolve.mockRejectedValueOnce(new Error('not found'));
+    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN);
+    // v2 ref rotate 미호출.
+    const v2Calls = secrets.rotate.mock.calls.filter(([ref]) =>
+      ref.endsWith('bot-token.v2'),
+    );
+    expect(v2Calls).toHaveLength(0);
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: TRIGGER_ID },
+      expect.objectContaining({ chatChannelTokenV2: null }),
+    );
+  });
+
+  it('issuedSecretToken 없을 때 webhook-secret ref rotate 미호출', async () => {
+    mockAdapter.setupChannel.mockResolvedValueOnce({
+      registeredAt: new Date().toISOString(),
+      configUpdates: {},
+    });
+    await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN);
+    const webhookSecretCalls = secrets.rotate.mock.calls.filter(([ref]) =>
+      ref.includes('webhook-secret'),
+    );
+    expect(webhookSecretCalls).toHaveLength(0);
+  });
+
+  it('chatChannel 미설정 시 BadRequestException', async () => {
+    triggerRepo.findOne.mockResolvedValueOnce({
+      id: TRIGGER_ID,
+      workspaceId: WORKSPACE_ID,
+      endpointPath: 'hook-abc',
+      config: {},
+    } as unknown as Trigger);
+    await expect(
+      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN),
+    ).rejects.toMatchObject({
+      response: { code: 'CHAT_CHANNEL_NOT_CONFIGURED' },
+    });
+  });
+
+  it('provider 미등록 시 BadRequestException', async () => {
+    adapterRegistry.has.mockReturnValueOnce(false);
+    await expect(
+      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN),
+    ).rejects.toMatchObject({
+      response: { code: 'CHAT_CHANNEL_PROVIDER_UNKNOWN' },
+    });
+  });
+
+  it('endpointPath 누락 시 BadRequestException', async () => {
+    triggerRepo.findOne.mockResolvedValueOnce({
+      id: TRIGGER_ID,
+      workspaceId: WORKSPACE_ID,
+      endpointPath: null,
+      config: {
+        chatChannel: {
+          provider: 'telegram',
+          botTokenRef: BOT_TOKEN_REF,
+        },
+      },
+    } as unknown as Trigger);
+    await expect(
+      service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN),
+    ).rejects.toMatchObject({
+      response: { code: 'CHAT_CHANNEL_ENDPOINT_REQUIRED' },
+    });
   });
 });
