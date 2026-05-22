@@ -34,6 +34,7 @@ import {
 import type {
   ConversationThread,
   ConversationTurnToolCall,
+  PresentationPayload,
 } from '../../../shared/conversation-thread/conversation-thread.types';
 import type {
   NodeRef,
@@ -416,6 +417,7 @@ export class AiAgentHandler implements NodeHandler {
     source: 'ai_user' | 'ai_assistant',
     content: string,
     toolCalls?: ConversationTurnToolCall[],
+    presentations?: PresentationPayload[],
   ): void {
     if (!this.conversationThreadService || !target) return;
     if (source === 'ai_user') {
@@ -428,6 +430,9 @@ export class AiAgentHandler implements NodeHandler {
         node: nodeRef,
         content,
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(presentations && presentations.length > 0
+          ? { presentations }
+          : {}),
       });
     }
   }
@@ -708,7 +713,34 @@ export class AiAgentHandler implements NodeHandler {
     ragGroup: RagAccumulatorGroup;
     toolCallTraces: ToolCallTrace[];
     messages: ChatMessage[];
-  }): Promise<{ executedCount: number }> {
+    /**
+     * `render_*` display-only payloads — appended to the next `ai_assistant`
+     * turn's top-level `presentations[]` by the caller. spec §7.10.
+     */
+    presentationPayloads?: PresentationPayload[];
+    /** `meta.presentationCalls[]` metric accumulator (spec §7.10). */
+    presentationCalls?: Array<{
+      toolName: string;
+      toolCallId: string;
+      status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
+      bytes?: number;
+    }>;
+    /** `meta.presentationSchemaViolations[]` (spec §4.1 silent drop trace). */
+    presentationSchemaViolations?: Array<{
+      toolName: string;
+      issues: string[];
+      attempts: number;
+    }>;
+  }): Promise<{
+    executedCount: number;
+    /**
+     * `render_form` blocking signal — handler enters waiting_for_input flow
+     * (spec §6.1.d.ii). At most one per batch (the first tool_use wins; later
+     * render_form calls in the same batch are silent-dropped as schema
+     * violations by the caller).
+     */
+    blockingFormRender?: { toolCallId: string; formConfig: Record<string, unknown> };
+  }> {
     const safeBudget = Math.max(0, args.remainingBudget);
     const toRun = args.calls.slice(0, safeBudget);
     const truncated = args.calls.slice(safeBudget);
@@ -729,10 +761,33 @@ export class AiAgentHandler implements NodeHandler {
       ),
     );
 
+    let blockingFormRender:
+      | { toolCallId: string; formConfig: Record<string, unknown> }
+      | undefined;
+
     for (const { result: execResult, trace } of batchResults) {
       args.toolCallTraces.push(trace);
       args.ragGroup.pushSources(execResult.ragSourcesDelta);
       args.ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
+      // render_* (display-only) — push payload to ai_assistant turn buffer.
+      if (execResult.presentationPayload && args.presentationPayloads) {
+        args.presentationPayloads.push(execResult.presentationPayload);
+      }
+      if (execResult.presentationCall && args.presentationCalls) {
+        args.presentationCalls.push(execResult.presentationCall);
+      }
+      if (
+        execResult.presentationSchemaViolation &&
+        args.presentationSchemaViolations
+      ) {
+        args.presentationSchemaViolations.push(
+          execResult.presentationSchemaViolation,
+        );
+      }
+      // render_form (interactive) — capture first blocking signal.
+      if (execResult.blockingFormRender && !blockingFormRender) {
+        blockingFormRender = execResult.blockingFormRender;
+      }
       args.messages.push({
         role: 'tool',
         content: execResult.content,
@@ -748,7 +803,10 @@ export class AiAgentHandler implements NodeHandler {
       });
     }
 
-    return { executedCount: batchResults.length };
+    return {
+      executedCount: batchResults.length,
+      ...(blockingFormRender ? { blockingFormRender } : {}),
+    };
   }
 
   validate(config: Record<string, unknown>): ValidationResult {
@@ -839,6 +897,20 @@ export class AiAgentHandler implements NodeHandler {
     // serverSummaries[] 가 본 array 의 1:1 echo. buildTools 호출 시 ctx 로
     // 흘러간다. 비어있으면 meta emit 시 자동 omit (buildMcpDiagnosticsMeta).
     const mcpDiagnosticsAcc: McpServerSummary[] = [];
+    // Render tool (`render_*`) accumulators. spec §4.1·§7.10. Single-turn
+    // 은 render_form 이 silent-drop 되므로 display-only payloads 만 의미가 있다.
+    const presentationPayloads: PresentationPayload[] = [];
+    const presentationCalls: Array<{
+      toolName: string;
+      toolCallId: string;
+      status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
+      bytes?: number;
+    }> = [];
+    const presentationSchemaViolations: Array<{
+      toolName: string;
+      issues: string[];
+      attempts: number;
+    }> = [];
 
     // System prompt: KB 검색은 더 이상 prefill 하지 않는다. LLM 이 능동 호출 결정.
     // spec/4-nodes/3-ai/0-common.md §11.4 ordering:
@@ -950,12 +1022,15 @@ export class AiAgentHandler implements NodeHandler {
         );
         messages.push({ role: 'assistant', content: result.content || '' });
         // ConversationThread push (spec §2.2 — single-turn ai_assistant on
-        // condition route).
+        // condition route). render_* display-only payloads accumulated from
+        // earlier batch iterations attach here (spec §7.10).
         this.pushAiThreadTurn(
           context,
           this.buildAiNodeRefFromContext(context, config),
           'ai_assistant',
           result.content || '',
+          undefined,
+          presentationPayloads.length > 0 ? presentationPayloads : undefined,
         );
         return this.buildConditionOutput(
           classification.matchedCondition,
@@ -971,6 +1046,12 @@ export class AiAgentHandler implements NodeHandler {
             ragSources: ragAcc.getSources(),
             ragDiagnostics: ragAcc.getDiagnostics(),
             mcpServerSummaries: mcpDiagnosticsAcc,
+            presentationCalls:
+              presentationCalls.length > 0 ? presentationCalls : undefined,
+            presentationSchemaViolations:
+              presentationSchemaViolations.length > 0
+                ? presentationSchemaViolations
+                : undefined,
           },
           {
             llmCalls,
@@ -1027,6 +1108,9 @@ export class AiAgentHandler implements NodeHandler {
           ragGroup,
           toolCallTraces,
           messages,
+          presentationPayloads,
+          presentationCalls,
+          presentationSchemaViolations,
         });
       toolCallCount += providerExecuted;
 
@@ -1139,7 +1223,8 @@ export class AiAgentHandler implements NodeHandler {
     const singleTurnDurationMs = Date.now() - singleTurnStartedAt;
     // ConversationThread push (spec §2.2 — single-turn final ai_assistant,
     // 1회). Stringify JSON-mode responses so the thread always carries a
-    // displayable text payload.
+    // displayable text payload. render_* display-only payloads (spec §7.10)
+    // attach to this turn's top-level `presentations[]` field.
     {
       const finalText =
         typeof response === 'string'
@@ -1152,6 +1237,8 @@ export class AiAgentHandler implements NodeHandler {
         this.buildAiNodeRefFromContext(context, config),
         'ai_assistant',
         finalText,
+        undefined,
+        presentationPayloads.length > 0 ? presentationPayloads : undefined,
       );
     }
     return {
@@ -1191,6 +1278,11 @@ export class AiAgentHandler implements NodeHandler {
         ragSources: ragAcc.getSources(),
         ragDiagnostics: ragAcc.getDiagnostics(),
         ...(AiAgentHandler.buildMcpDiagnosticsMeta(mcpDiagnosticsAcc) ?? {}),
+        // Render tool (`render_*`) trace + schema violations (spec §7.10, §4.1).
+        ...(presentationCalls.length > 0 ? { presentationCalls } : {}),
+        ...(presentationSchemaViolations.length > 0
+          ? { presentationSchemaViolations }
+          : {}),
         // ConversationThread injection debug echo (spec §5.3). Echo only
         // when injection actually happened so noop runs keep the meta lean.
         ...(singleTurnInjection.injection.appliedScope !== 'none'
@@ -1301,6 +1393,10 @@ export class AiAgentHandler implements NodeHandler {
       // re-materializes MCP sessions deterministically from the saved config.
       mcpServers: (config.mcpServers as unknown[]) || [],
       conditions,
+      // Persist presentationTools so each resume turn rebuilds the same
+      // `render_*` ToolDefs (spec §4.1 — RenderToolProvider reads
+      // ctx.config.presentationTools).
+      presentationTools: (config.presentationTools as unknown[]) || [],
       workspaceId,
       executionId: context.executionId,
       nodeId: context.nodeId,
@@ -1420,6 +1516,21 @@ export class AiAgentHandler implements NodeHandler {
     // accumulator 도 turn 단위. 직전 turn 의 summary 는 resumeState 에 보존
     // 하지 않고 매 turn 새로 결정 — buildTools 가 결정론적이므로 안전.
     const mcpDiagnosticsAcc: McpServerSummary[] = [];
+    // Render tool (`render_*`) accumulators — turn-scoped. ai_assistant turn
+    // push 시 본 buffer 가 부착된다 (spec §7.10). blockingFormRender 는 phase
+    // 2b 에서 본 turn 의 waiting_for_input 진입 신호로 사용.
+    const presentationPayloads: PresentationPayload[] = [];
+    const presentationCalls: Array<{
+      toolName: string;
+      toolCallId: string;
+      status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
+      bytes?: number;
+    }> = [];
+    const presentationSchemaViolations: Array<{
+      toolName: string;
+      issues: string[];
+      attempts: number;
+    }> = [];
 
     // Add user message
     messages.push({ role: 'user', content: userMessage });
@@ -1442,11 +1553,16 @@ export class AiAgentHandler implements NodeHandler {
     // multi-turn resume 시 buildTools 에 전달할 config 은 turn-1 에서 수집한 state 를 사용.
     // 도구 연결(`toolNodeIds` / `toolOverrides`)은 스키마 제거 — 재작성 시 신규 필드로 복원.
     const turnConfig: Record<string, unknown> = {
+      mode: 'multi_turn',
       knowledgeBases,
       ragTopK: state.ragTopK,
       ragThreshold: state.ragThreshold,
       mcpServers: state.mcpServers,
       conditions,
+      // Presentation tools (`render_*`) — spec §4.1. multi-turn state snapshot
+      // preserves the original rawConfig array so resume turns can still build
+      // the same render_* ToolDefs (RenderToolProvider reads ctx.config).
+      presentationTools: state.presentationTools ?? [],
     };
     const executionId = state.executionId as string | undefined;
     const tools = await this.buildTools(
@@ -1503,12 +1619,15 @@ export class AiAgentHandler implements NodeHandler {
         );
         messages.push({ role: 'assistant', content: result.content || '' });
         // ConversationThread push (spec §2.2 — multi-turn ai_assistant on
-        // condition route).
+        // condition route). render_* display-only payloads accumulated from
+        // earlier batch iterations attach here (spec §7.10).
         this.pushAiThreadTurn(
           this.threadHolderFromState(state),
           this.buildAiNodeRefFromState(state),
           'ai_assistant',
           result.content || '',
+          undefined,
+          presentationPayloads.length > 0 ? presentationPayloads : undefined,
         );
 
         totalInputTokens += result.usage?.inputTokens ?? 0;
@@ -1544,6 +1663,12 @@ export class AiAgentHandler implements NodeHandler {
             ragSources: ragAcc.getSources(),
             ragDiagnostics: ragAcc.getDiagnostics(),
             mcpServerSummaries: mcpDiagnosticsAcc,
+            presentationCalls:
+              presentationCalls.length > 0 ? presentationCalls : undefined,
+            presentationSchemaViolations:
+              presentationSchemaViolations.length > 0
+                ? presentationSchemaViolations
+                : undefined,
           },
           { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
           condTurnDebugHistory,
@@ -1575,7 +1700,7 @@ export class AiAgentHandler implements NodeHandler {
       // single-turn 과 동일하게 단일 진입점을 사용. resume state 는 새 turn 의
       // nodeId/nodeExecutionId 를 운반하지 않으므로 ?? '' fallback 만 다르다.
       // (usage logs / WS 이벤트는 원래 waiting NodeExecution 에 귀속)
-      const { executedCount: providerExecuted } =
+      const { executedCount: providerExecuted, blockingFormRender } =
         await this.executeProviderToolBatch({
           calls: classification.providerToolCalls,
           remainingBudget: maxToolCalls - toolCallCount,
@@ -1589,8 +1714,24 @@ export class AiAgentHandler implements NodeHandler {
           ragGroup,
           toolCallTraces,
           messages,
+          presentationPayloads,
+          presentationCalls,
+          presentationSchemaViolations,
         });
       toolCallCount += providerExecuted;
+      if (blockingFormRender) {
+        // render_form blocking signal — phase 2b for full implementation.
+        // For now, record the violation so user-visible behavior is still
+        // consistent (text response only, schema violation surfaced via meta).
+        AiAgentHandler.logger.warn(
+          `render_form blocking flow not yet implemented (phase 2b) — toolCallId=${blockingFormRender.toolCallId}`,
+        );
+        presentationSchemaViolations.push({
+          toolName: 'render_form',
+          issues: ['render_form blocking flow pending phase 2b implementation'],
+          attempts: 1,
+        });
+      }
 
       for (const tc of classification.conditionToolCalls) {
         toolCallCount++;
@@ -1692,11 +1833,15 @@ export class AiAgentHandler implements NodeHandler {
     // ConversationThread push (spec §2.2 — multi-turn final assistant per
     // turn). The thread accumulates one assistant turn per LLM round-trip;
     // downstream AI Agent nodes with `contextScope` see the running history.
+    // render_* display-only payloads emitted during this turn attach to the
+    // turn's top-level `presentations[]` (spec §7.10).
     this.pushAiThreadTurn(
       this.threadHolderFromState(state),
       this.buildAiNodeRefFromState(state),
       'ai_assistant',
       result.content || '',
+      undefined,
+      presentationPayloads.length > 0 ? presentationPayloads : undefined,
     );
 
     totalInputTokens += result.usage?.inputTokens ?? 0;
@@ -1961,6 +2106,19 @@ export class AiAgentHandler implements NodeHandler {
       ragSources: unknown[];
       ragDiagnostics?: RagDiagnostics;
       mcpServerSummaries?: McpServerSummary[];
+      /** spec §7.10 — render_* metric trace. */
+      presentationCalls?: Array<{
+        toolName: string;
+        toolCallId: string;
+        status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
+        bytes?: number;
+      }>;
+      /** spec §4.1 silent-drop trace. */
+      presentationSchemaViolations?: Array<{
+        toolName: string;
+        issues: string[];
+        attempts: number;
+      }>;
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -2001,6 +2159,12 @@ export class AiAgentHandler implements NodeHandler {
         ...(AiAgentHandler.buildMcpDiagnosticsMeta(
           metadata.mcpServerSummaries,
         ) ?? {}),
+        ...(metadata.presentationCalls
+          ? { presentationCalls: metadata.presentationCalls }
+          : {}),
+        ...(metadata.presentationSchemaViolations
+          ? { presentationSchemaViolations: metadata.presentationSchemaViolations }
+          : {}),
         turnDebug: turnDebugHistory ?? [],
       },
       port: condition.id,
