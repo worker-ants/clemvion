@@ -44,12 +44,19 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'paymentmethods_paymentproviders_list',
     label: '결제수단별 제공사 목록',
-    description: 'List the providers (PG) registered per payment method.',
+    description: 'List the providers (PG) registered for a payment method.',
     scopeType: 'read',
     method: 'GET',
-    path: 'paymentmethods/paymentproviders',
-    requiredFields: [],
+    // cafe24 docs path: `paymentmethods/{code}/paymentproviders` (per
+    // payment-method scope, not a top-level list).
+    path: 'paymentmethods/{code}/paymentproviders',
+    requiredFields: ['code'],
     fields: {
+      code: {
+        type: 'string',
+        location: 'path',
+        description: 'Payment method code.',
+      },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'list',
@@ -58,12 +65,15 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     id: 'paymentgateway_paymentmethods_list',
     label: '결제대행사 결제수단 목록',
     description:
-      'List the payment methods attached to the registered payment gateways.',
+      'List the payment methods attached to a registered payment gateway.',
     scopeType: 'read',
     method: 'GET',
-    path: 'paymentgateway/paymentmethods',
-    requiredFields: [],
+    // cafe24 docs path: `paymentgateway/{client_id}/paymentmethods` (gateway-
+    // scoped, not a top-level list).
+    path: 'paymentgateway/{client_id}/paymentmethods',
+    requiredFields: ['client_id'],
     fields: {
+      client_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'list',
@@ -96,13 +106,13 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'paymentgateway_update',
     label: '결제대행사 수정',
-    description: 'Update an existing payment gateway by paymentgateway_id.',
+    description: 'Update an existing payment gateway by client_id.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'paymentgateway/{paymentgateway_id}',
-    requiredFields: ['paymentgateway_id'],
+    path: 'paymentgateway/{client_id}',
+    requiredFields: ['client_id'],
     fields: {
-      paymentgateway_id: { type: 'string', location: 'path' },
+      client_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
       pg_name: { type: 'string', location: 'body' },
       use_yn: { type: 'enum', location: 'body', enum: ['T', 'F'] },
@@ -114,13 +124,13 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'paymentgateway_delete',
     label: '결제대행사 삭제',
-    description: 'Remove a registered payment gateway by paymentgateway_id.',
+    description: 'Remove a registered payment gateway by client_id.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'paymentgateway/{paymentgateway_id}',
-    requiredFields: ['paymentgateway_id'],
+    path: 'paymentgateway/{client_id}',
+    requiredFields: ['client_id'],
     fields: {
-      paymentgateway_id: { type: 'string', location: 'path' },
+      client_id: { type: 'string', location: 'path' },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
@@ -806,10 +816,10 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       'Create a payment method for an existing payment gateway. Requires Cafe24 partner approval.',
     scopeType: 'write',
     method: 'POST',
-    path: 'paymentgateway/{paymentgateway_id}/paymentmethods',
-    requiredFields: ['paymentgateway_id'],
+    path: 'paymentgateway/{client_id}/paymentmethods',
+    requiredFields: ['client_id'],
     fields: {
-      paymentgateway_id: { type: 'string', location: 'path' },
+      client_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
@@ -822,11 +832,11 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       'Update a specific payment method of a payment gateway. Requires Cafe24 partner approval.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'paymentgateway/{paymentgateway_id}/paymentmethods/{paymentmethod_id}',
-    requiredFields: ['paymentgateway_id', 'paymentmethod_id'],
+    path: 'paymentgateway/{client_id}/paymentmethods/{payment_method_code}',
+    requiredFields: ['client_id', 'payment_method_code'],
     fields: {
-      paymentgateway_id: { type: 'string', location: 'path' },
-      paymentmethod_id: { type: 'string', location: 'path' },
+      client_id: { type: 'string', location: 'path' },
+      payment_method_code: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
@@ -839,11 +849,11 @@ export const storeOperations: Cafe24OperationMetadata[] = [
       'Delete a specific payment method of a payment gateway. Requires Cafe24 partner approval.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'paymentgateway/{paymentgateway_id}/paymentmethods/{paymentmethod_id}',
-    requiredFields: ['paymentgateway_id', 'paymentmethod_id'],
+    path: 'paymentgateway/{client_id}/paymentmethods/{payment_method_code}',
+    requiredFields: ['client_id', 'payment_method_code'],
     fields: {
-      paymentgateway_id: { type: 'string', location: 'path' },
-      paymentmethod_id: { type: 'string', location: 'path' },
+      client_id: { type: 'string', location: 'path' },
+      payment_method_code: { type: 'string', location: 'path' },
     },
     responseShape: 'single',
     restrictedApproval: RESTRICTED_APPROVAL.store_pg_settings,
@@ -851,13 +861,26 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'paymentmethods_paymentproviders_update_display',
     label: '결제수단 노출 상태 수정',
-    description: 'Update the display (visibility) status of a payment method.',
+    description:
+      'Update the display (visibility) status of a payment method by provider.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'paymentmethods/paymentproviders/{payment_method_id}',
-    requiredFields: ['payment_method_id'],
+    // cafe24 docs path: `paymentmethods/{code}/paymentproviders/{name}`
+    // (per payment-method + provider — pre-2026-05-22 seed flattened both
+    // into a single `{payment_method_id}` placeholder).
+    path: 'paymentmethods/{code}/paymentproviders/{name}',
+    requiredFields: ['code', 'name'],
     fields: {
-      payment_method_id: { type: 'string', location: 'path' },
+      code: {
+        type: 'string',
+        location: 'path',
+        description: 'Payment method code.',
+      },
+      name: {
+        type: 'string',
+        location: 'path',
+        description: 'Payment provider name.',
+      },
       shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
@@ -1116,10 +1139,11 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     description: 'Update an existing URL redirect.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'redirects/{redirect_no}',
-    requiredFields: ['redirect_no'],
+    // cafe24 docs path placeholder: `{id}` (not `{redirect_no}`).
+    path: 'redirects/{id}',
+    requiredFields: ['id'],
     fields: {
-      redirect_no: { type: 'string', location: 'path' },
+      id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
@@ -1127,13 +1151,13 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'redirects_delete',
     label: '리다이렉트 삭제',
-    description: 'Delete a URL redirect by redirect_no.',
+    description: 'Delete a URL redirect by id.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'redirects/{redirect_no}',
-    requiredFields: ['redirect_no'],
+    path: 'redirects/{id}',
+    requiredFields: ['id'],
     fields: {
-      redirect_no: { type: 'string', location: 'path' },
+      id: { type: 'string', location: 'path' },
     },
     responseShape: 'empty',
   },
@@ -1241,10 +1265,15 @@ export const storeOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
+  // ⚠ socials_apple_settings_get — cafe24 admin docs (Latest 2026-03-01) 는
+  // `GET socials/apple/settings` 를 노출하지 않는다 (`socials/apple` 의 GET/PUT
+  // 만 문서화). 본 row 는 Phase 7d/8 seed 였고 cafe24 wire 상 실제 동작 여부
+  // 미확인. 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'socials_apple_settings_get',
     label: 'Apple 로그인 연동 설정',
-    description: 'Retrieve Apple login integration settings.',
+    description:
+      'Retrieve Apple login integration settings. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
     method: 'GET',
     path: 'socials/apple/settings',
@@ -1417,12 +1446,15 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'subscription_shipments_setting_update',
     label: '정기배송 상품 수정',
-    description: 'Update subscription shipping products.',
+    description: 'Update a subscription shipping product by subscription_no.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'subscription/shipments/setting',
-    requiredFields: [],
+    // cafe24 docs path: `subscription/shipments/setting/{subscription_no}`
+    // (per-subscription scope).
+    path: 'subscription/shipments/setting/{subscription_no}',
+    requiredFields: ['subscription_no'],
     fields: {
+      subscription_no: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
@@ -1430,12 +1462,14 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'subscription_shipments_setting_delete',
     label: '정기배송 상품 삭제',
-    description: 'Delete subscription shipping products.',
+    description: 'Delete a subscription shipping product by subscription_no.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'subscription/shipments/setting',
-    requiredFields: [],
+    // cafe24 docs path: `subscription/shipments/setting/{subscription_no}`.
+    path: 'subscription/shipments/setting/{subscription_no}',
+    requiredFields: ['subscription_no'],
     fields: {
+      subscription_no: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'empty',

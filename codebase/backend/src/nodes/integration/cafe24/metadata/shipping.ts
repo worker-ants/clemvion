@@ -133,7 +133,8 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
       'List countries with applicable additional handling fees for international shipping.',
     scopeType: 'read',
     method: 'GET',
-    path: 'shipping/additionalfees/countries',
+    // cafe24 docs path: `shipping/additionalfees` (no `/countries` suffix).
+    path: 'shipping/additionalfees',
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -157,13 +158,13 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   {
     id: 'shippingorigins_get',
     label: '출고지 단건 조회',
-    description: 'Retrieve a shipping origin by origin_no.',
+    description: 'Retrieve a shipping origin by origin_code.',
     scopeType: 'read',
     method: 'GET',
-    path: 'shippingorigins/{origin_no}',
-    requiredFields: ['origin_no'],
+    path: 'shippingorigins/{origin_code}',
+    requiredFields: ['origin_code'],
     fields: {
-      origin_no: { type: 'number', location: 'path' },
+      origin_code: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -189,13 +190,13 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   {
     id: 'shippingorigins_update',
     label: '출고지 수정',
-    description: 'Update a shipping origin by origin_no (partial).',
+    description: 'Update a shipping origin by origin_code (partial).',
     scopeType: 'write',
     method: 'PUT',
-    path: 'shippingorigins/{origin_no}',
-    requiredFields: ['origin_no'],
+    path: 'shippingorigins/{origin_code}',
+    requiredFields: ['origin_code'],
     fields: {
-      origin_no: { type: 'number', location: 'path' },
+      origin_code: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
       origin_name: { type: 'string', location: 'body' },
       zipcode: { type: 'string', location: 'body' },
@@ -208,13 +209,13 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   {
     id: 'shippingorigins_delete',
     label: '출고지 삭제',
-    description: 'Delete a shipping origin by origin_no.',
+    description: 'Delete a shipping origin by origin_code.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'shippingorigins/{origin_no}',
-    requiredFields: ['origin_no'],
+    path: 'shippingorigins/{origin_code}',
+    requiredFields: ['origin_code'],
     fields: {
-      origin_no: { type: 'number', location: 'path' },
+      origin_code: { type: 'number', location: 'path' },
     },
     responseShape: 'single',
   },

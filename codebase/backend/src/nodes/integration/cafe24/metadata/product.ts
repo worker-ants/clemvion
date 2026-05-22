@@ -52,6 +52,11 @@ export const productOperations: Cafe24OperationMetadata[] = [
         description: 'Filter by product name (partial match)',
       },
     },
+    // cafe24 docs (Retrieve a list of products): "검색 시작일과 같이
+    // 사용해야함" — since/until must be supplied together. Field names
+    // differ from docs (`created_start_date`/`created_end_date`) but the
+    // semantics align. Renaming to match docs is queued in G-1-remaining-16.
+    constraints: [{ kind: 'allOrNone', fields: ['since', 'until'] }],
     responseShape: 'list',
     paginated: true,
   },
@@ -220,6 +225,9 @@ export const productOperations: Cafe24OperationMetadata[] = [
           'ISO8601 datetime (KST, UTC+9) — created_before. Cafe24 interprets naive ISO as KST.',
       },
     },
+    // Mirrors `product_list` — docs requires the since/until pair to be
+    // supplied together.
+    constraints: [{ kind: 'allOrNone', fields: ['since', 'until'] }],
     responseShape: 'single',
   },
   {
@@ -302,14 +310,17 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_options_delete',
     label: '상품 옵션 삭제',
-    description: 'Delete a specific product option by `option_no` (path).',
+    description:
+      'Delete the entire option configuration from a product (cafe24 docs `delete-a-product-option`: removes all options).',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'products/{product_no}/options/{option_no}',
-    requiredFields: ['product_no', 'option_no'],
+    // cafe24 docs path: `products/{product_no}/options` (no `{option_no}` —
+    // the operation removes the product's option set wholesale).
+    path: 'products/{product_no}/options',
+    requiredFields: ['product_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
-      option_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
   },
@@ -474,12 +485,15 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_images_delete',
     label: '상품 이미지 삭제',
-    description: 'Delete product image files.',
+    description: "Delete a product's image files (per-product scope).",
     scopeType: 'write',
     method: 'DELETE',
-    path: 'products/images',
-    requiredFields: [],
+    // cafe24 docs path: `products/{product_no}/images` (member-scoped — old
+    // seed had unmember-scoped `products/images` which docs has no match).
+    path: 'products/{product_no}/images',
+    requiredFields: ['product_no'],
     fields: {
+      product_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'empty',
@@ -540,26 +554,36 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_customproperties_update',
     label: '상품 사용자 정의 속성 수정',
-    description: 'Update user-defined custom properties for a product.',
+    description:
+      'Update a specific user-defined custom property for a product.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'products/{product_no}/customproperties',
-    requiredFields: ['product_no'],
+    // cafe24 docs path: `products/{product_no}/customproperties/{property_no}`
+    // (property_no is required path arg — pre-2026-05-22 seed had missing
+    // path placeholder, would target the collection endpoint which docs
+    // does not define).
+    path: 'products/{product_no}/customproperties/{property_no}',
+    requiredFields: ['product_no', 'property_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
+      property_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
   },
   {
     id: 'product_customproperties_delete',
     label: '상품 사용자 정의 속성 삭제',
-    description: 'Delete user-defined custom properties for a product.',
+    description:
+      'Delete a specific user-defined custom property for a product.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'products/{product_no}/customproperties',
-    requiredFields: ['product_no'],
+    path: 'products/{product_no}/customproperties/{property_no}',
+    requiredFields: ['product_no', 'property_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
+      property_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'empty',
   },
@@ -608,13 +632,22 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_decorationimages_delete',
     label: '상품 꾸미기 이미지 삭제',
-    description: 'Delete a decoration image of a product.',
+    description:
+      'Delete a specific decoration image (by code) attached to a product.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'products/{product_no}/decorationimages',
-    requiredFields: ['product_no'],
+    // cafe24 docs path: `products/{product_no}/decorationimages/{code}`
+    // (code path placeholder added — pre-2026-05-22 seed missed it).
+    path: 'products/{product_no}/decorationimages/{code}',
+    requiredFields: ['product_no', 'code'],
     fields: {
       product_no: { type: 'number', location: 'path' },
+      code: {
+        type: 'string',
+        location: 'path',
+        description: 'Decoration image code.',
+      },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'empty',
   },
@@ -638,10 +671,13 @@ export const productOperations: Cafe24OperationMetadata[] = [
     description: 'Retrieve view-count statistics for a product.',
     scopeType: 'read',
     method: 'GET',
-    path: 'products/{product_no}/hits',
+    // cafe24 docs path: `products/{product_no}/hits/count` (with `/count`
+    // suffix — pre-2026-05-22 seed missed it).
+    path: 'products/{product_no}/hits/count',
     requiredFields: ['product_no'],
     fields: {
       product_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
   },
@@ -690,14 +726,22 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_icons_delete',
     label: '상품 아이콘 삭제',
-    description: 'Delete an icon of a product by icon_no.',
+    description: 'Delete an icon of a product by code.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'products/{product_no}/icons/{icon_no}',
-    requiredFields: ['product_no', 'icon_no'],
+    // cafe24 docs path: `products/{product_no}/icons/{code}` (path
+    // placeholder is `{code}` not `{icon_no}` — pre-2026-05-22 seed had
+    // wrong placeholder name).
+    path: 'products/{product_no}/icons/{code}',
+    requiredFields: ['product_no', 'code'],
     fields: {
       product_no: { type: 'number', location: 'path' },
-      icon_no: { type: 'number', location: 'path' },
+      code: {
+        type: 'string',
+        location: 'path',
+        description: 'Icon code identifier.',
+      },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'empty',
   },
@@ -818,14 +862,22 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_tags_delete',
     label: '상품 태그 삭제',
-    description: 'Delete a product tag by tag_no.',
+    description: 'Delete a product tag by tag value.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'products/{product_no}/tags/{tag_no}',
-    requiredFields: ['product_no', 'tag_no'],
+    // cafe24 docs path: `products/{product_no}/tags/{tag}` (path placeholder
+    // `{tag}` is the tag string value — pre-2026-05-22 seed had wrong
+    // `{tag_no}` placeholder name).
+    path: 'products/{product_no}/tags/{tag}',
+    requiredFields: ['product_no', 'tag'],
     fields: {
       product_no: { type: 'number', location: 'path' },
-      tag_no: { type: 'number', location: 'path' },
+      tag: {
+        type: 'string',
+        location: 'path',
+        description: 'Tag string value.',
+      },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'empty',
   },
@@ -936,27 +988,38 @@ export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'categories_products_delete',
     label: '카테고리 상품 삭제',
-    description: 'Delete products from a category.',
+    description: 'Delete a specific product from a category.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'categories/{category_no}/products',
-    requiredFields: ['category_no'],
+    // cafe24 docs path: `categories/{category_no}/products/{product_no}`
+    // (per-product scope — pre-2026-05-22 seed missed `{product_no}`).
+    path: 'categories/{category_no}/products/{product_no}',
+    requiredFields: ['category_no', 'product_no'],
     fields: {
       category_no: { type: 'number', location: 'path' },
+      product_no: { type: 'number', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'empty',
   },
-  // Batch 2-E — mains_products (5)
+  // Batch 2-E — mains_products (5). cafe24 docs path uses placeholder
+  // `{display_group}` (not `{main_code}` — pre-2026-05-22 seed had wrong
+  // placeholder name across all 5 mains_products operations). Also
+  // `mains_products_update_sorting` is `PUT mains/{display_group}/products`
+  // (no `/sorting` suffix — docs op is `update-fixed-sorting-of-products-
+  // in-main-category` mapped to the same path as the set/delete ops with
+  // PUT method).
   {
     id: 'mains_products_list',
     label: '메인 카테고리 상품 목록',
     description: 'List products attached to a main display category.',
     scopeType: 'read',
     method: 'GET',
-    path: 'mains/{main_code}/products',
-    requiredFields: ['main_code'],
+    path: 'mains/{display_group}/products',
+    requiredFields: ['display_group'],
     fields: {
-      main_code: { type: 'string', location: 'path' },
+      display_group: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
       offset: { type: 'number', location: 'query', default: 0 },
       limit: { type: 'number', location: 'query', default: 10 },
     },
@@ -969,10 +1032,11 @@ export const productOperations: Cafe24OperationMetadata[] = [
     description: 'Count products attached to a main display category.',
     scopeType: 'read',
     method: 'GET',
-    path: 'mains/{main_code}/products/count',
-    requiredFields: ['main_code'],
+    path: 'mains/{display_group}/products/count',
+    requiredFields: ['display_group'],
     fields: {
-      main_code: { type: 'string', location: 'path' },
+      display_group: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
   },
@@ -982,10 +1046,11 @@ export const productOperations: Cafe24OperationMetadata[] = [
     description: 'Set products attached to a main display category.',
     scopeType: 'write',
     method: 'POST',
-    path: 'mains/{main_code}/products',
-    requiredFields: ['main_code'],
+    path: 'mains/{display_group}/products',
+    requiredFields: ['display_group'],
     fields: {
-      main_code: { type: 'string', location: 'path' },
+      display_group: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
   },
@@ -995,10 +1060,11 @@ export const productOperations: Cafe24OperationMetadata[] = [
     description: 'Update fixed sorting of products in a main display category.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'mains/{main_code}/products/sorting',
-    requiredFields: ['main_code'],
+    path: 'mains/{display_group}/products',
+    requiredFields: ['display_group'],
     fields: {
-      main_code: { type: 'string', location: 'path' },
+      display_group: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'body', default: 1 },
     },
     responseShape: 'single',
   },
@@ -1008,10 +1074,11 @@ export const productOperations: Cafe24OperationMetadata[] = [
     description: 'Delete products from a main display category.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'mains/{main_code}/products',
-    requiredFields: ['main_code'],
+    path: 'mains/{display_group}/products',
+    requiredFields: ['display_group'],
     fields: {
-      main_code: { type: 'string', location: 'path' },
+      display_group: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'empty',
   },

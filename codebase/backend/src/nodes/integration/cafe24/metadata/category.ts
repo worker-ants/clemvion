@@ -218,10 +218,16 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
+  // ⚠ mains_update / mains_delete — cafe24 admin docs (Latest 2026-03-01)
+  // 는 `PUT/DELETE mains/{main_code}` 자체를 노출하지 않는다 (mains/
+  // {display_group}/products 와 mains/properties 영역만 문서화). 본 row 들
+  // 은 seed 이며 cafe24 wire 상 실제 동작 여부 미확인. 운영 검증 / 제거
+  // 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'mains_update',
     label: '메인 카테고리 수정',
-    description: 'Update a main category.',
+    description:
+      'Update a main category. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
     method: 'PUT',
     path: 'mains/{main_code}',
@@ -236,7 +242,8 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   {
     id: 'mains_delete',
     label: '메인 카테고리 삭제',
-    description: 'Delete a main category.',
+    description:
+      'Delete a main category. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
     method: 'DELETE',
     path: 'mains/{main_code}',
@@ -264,13 +271,15 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   {
     id: 'autodisplay_update',
     label: '자동 진열 수정',
-    description: 'Update an auto-layout rule by category_no.',
+    description: 'Update an auto-layout rule by display_no.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'autodisplay/{category_no}',
-    requiredFields: ['category_no'],
+    // cafe24 docs placeholder: `{display_no}` (auto-layout rule id, not the
+    // target category number — pre-2026-05-22 seed conflated these).
+    path: 'autodisplay/{display_no}',
+    requiredFields: ['display_no'],
     fields: {
-      category_no: { type: 'number', location: 'path' },
+      display_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
       sort_type: { type: 'string', location: 'body' },
     },
@@ -279,13 +288,13 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   {
     id: 'autodisplay_delete',
     label: '자동 진열 삭제',
-    description: 'Delete an auto-layout rule by category_no.',
+    description: 'Delete an auto-layout rule by display_no.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'autodisplay/{category_no}',
-    requiredFields: ['category_no'],
+    path: 'autodisplay/{display_no}',
+    requiredFields: ['display_no'],
     fields: {
-      category_no: { type: 'number', location: 'path' },
+      display_no: { type: 'number', location: 'path' },
     },
     responseShape: 'single',
   },
