@@ -15,6 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+/** API 호출 시 가져올 최대 이력 건수. 테스트와 단일 진실 유지를 위해 상수로 추출. */
+const HISTORY_LIMIT = 10;
+
 interface TriggerHistoryEntry {
   id: string;
   startedAt: string;
@@ -26,7 +29,9 @@ interface Props {
   triggerId: string | null;
   /** 다이얼로그 타이틀에 표시할 트리거 이름. 빈 문자열 fallback. */
   triggerName?: string;
+  /** true 이면 Dialog 를 마운트·표시한다. false 이면 쿼리도 비활성화된다 (enabled: !!triggerId && open). */
   open: boolean;
+  /** Dialog 닫기 요청 시 부모가 historyTarget 을 null 로 되돌리는 핸들러. */
   onClose: () => void;
   /**
    * "전체 상세 보기" 버튼 — 부모(page.tsx)가 dialog 를 닫고 detail drawer 를 여는
@@ -60,7 +65,7 @@ export function TriggerHistoryDialog({
     queryKey: ["trigger-history-dialog", triggerId],
     queryFn: async () => {
       const res = await apiClient.get(`/triggers/${triggerId}/history`, {
-        params: { limit: 10 },
+        params: { limit: HISTORY_LIMIT },
       });
       const data = res.data.data ?? res.data;
       return Array.isArray(data) ? data : (data.items ?? []);

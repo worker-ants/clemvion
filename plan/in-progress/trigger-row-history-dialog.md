@@ -13,15 +13,15 @@ owner: developer
 
 ### 1. Frontend
 
-- [ ] 신규 `codebase/frontend/src/components/triggers/trigger-history-dialog.tsx`
+- [x] 신규 `codebase/frontend/src/components/triggers/trigger-history-dialog.tsx`
   - props: `triggerId: string | null`, `triggerName?: string`, `open: boolean`, `onClose: () => void`, `onOpenFullDetail?: () => void`
   - `useQuery` 로 `GET /api/triggers/:id/history?limit=10` 호출 (drawer 의 history 조회와 동일 endpoint, 별도 queryKey `["trigger-history-dialog", triggerId]` 로 캐시 분리)
   - 본문: Recent Calls 목록만 표시 (시각·상태 Badge). drawer 의 Recent Calls 카드와 동일 시각 패턴 재사용
   - 푸터: "Close" + "전체 상세 보기" 버튼 (`onOpenFullDetail` 이 있으면 노출 — 클릭 시 dialog 닫고 drawer 오픈)
-- [ ] `codebase/frontend/src/app/(main)/triggers/page.tsx`
-  - 신규 state: `historyTrigger: { id: string; name: string } | null`
-  - viewHistory 항목의 `onSelect` 를 `setSelectedTriggerId` 에서 `setHistoryTrigger({id, name})` 으로 분리
-  - "전체 상세 보기" 콜백: `setHistoryTrigger(null); setSelectedTriggerId(trigger.id);` (dialog → drawer 이행)
+- [x] `codebase/frontend/src/app/(main)/triggers/page.tsx`
+  - 신규 state: `historyTarget: { id: string; name: string } | null` (구현 변수명 반영 — plan 초안의 `historyTrigger` 표기를 정정)
+  - viewHistory 항목의 `onSelect` 를 `setSelectedTriggerId` 에서 `setHistoryTarget({id, name})` 으로 분리
+  - "전체 상세 보기" 콜백: `setHistoryTarget(null); setSelectedTriggerId(trigger.id);` (dialog → drawer 이행)
   - `<TriggerHistoryDialog>` 마운트
 
 ### 2. i18n (KO/EN parity 의무)

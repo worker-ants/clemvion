@@ -32,6 +32,13 @@ vi.mock("@/components/triggers/trigger-detail-drawer", () => ({
   TriggerDetailDrawer: () => null,
 }));
 
+// INFO-14: TriggerHistoryDialog mock — 페이지 테스트 격리성 확보.
+// 이 mock 이 없으면 실제 컴포넌트가 렌더링되어 /triggers/:id/history API mock 이
+// 설정되지 않은 상태에서 react-query 가 요청을 시도할 수 있다.
+vi.mock("@/components/triggers/trigger-history-dialog", () => ({
+  TriggerHistoryDialog: () => null,
+}));
+
 import TriggersPage from "../page";
 
 function createWrapper() {

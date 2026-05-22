@@ -150,4 +150,42 @@ describe("TriggerHistoryDialog", () => {
     renderDialog();
     expect(document.querySelector(".animate-spin")).toBeInTheDocument();
   });
+
+  // W-1: isError 분기 검증
+  it("API 오류 시 loadFailed 메시지를 노출한다", async () => {
+    apiGetMock.mockRejectedValueOnce(new Error("network error"));
+    renderDialog();
+    await waitFor(() => {
+      expect(screen.getByText(/failed to load history/i)).toBeInTheDocument();
+    });
+  });
+
+  // W-2: onClose 콜백 호출 검증
+  // Dialog 내부에 X 아이콘 버튼의 sr-only "Close" span 과 푸터 Close 버튼이 공존한다.
+  // getAllByRole("button") 중 텍스트 콘텐츠가 정확히 "Close" 인 버튼을 필터링한다.
+  it("'Close' 버튼 클릭 시 onClose 가 호출된다", async () => {
+    apiGetMock.mockResolvedValueOnce({ data: { data: [] } });
+    const onClose = vi.fn();
+    renderDialog({ onClose });
+    // 푸터 Close 버튼: textContent 가 "Close" 이고 sr-only span 이 없는 버튼
+    await waitFor(() => {
+      const buttons = screen.getAllByRole("button");
+      const footerClose = buttons.find(
+        (btn) => btn.textContent?.trim() === "Close",
+      );
+      expect(footerClose).toBeDefined();
+    });
+    const buttons = screen.getAllByRole("button");
+    const footerClose = buttons.find(
+      (btn) => btn.textContent?.trim() === "Close",
+    )!;
+    fireEvent.click(footerClose);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // W-3: open=false 시 쿼리 비활성화 검증
+  it("open=false 이면 API 를 호출하지 않는다", () => {
+    renderDialog({ open: false });
+    expect(apiGetMock).not.toHaveBeenCalled();
+  });
 });
