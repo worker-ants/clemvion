@@ -43,8 +43,10 @@ const LABEL_KO: Record<string, string> = {
   "Data Source": "데이터 소스",
   "Default Sort Column": "기본 정렬 열",
   "Default Value": "기본값",
+  "Defaults overlay": "기본값 덮어쓰기",
   Description: "설명",
   "Description Field": "설명 필드",
+  "Description override": "설명 재정의",
   "Enable Built-in Helpers": "기본 헬퍼 사용",
   "Enable Pagination": "페이지네이션 사용",
   "Enabled Tools": "활성 도구",
@@ -111,6 +113,7 @@ const LABEL_KO: Record<string, string> = {
   "Page Size": "페이지 크기",
   Pagination: "페이지네이션",
   Parameters: "매개변수",
+  "Presentation Tools": "프레젠테이션 도구",
   "Partial on Timeout": "타임아웃 시 부분 병합",
   Prompt: "프롬프트",
   "Query Params": "쿼리 매개변수",
@@ -153,6 +156,12 @@ const LABEL_KO: Record<string, string> = {
 
 const HINT_KO: Record<string, string> = {
   "0 = deterministic, 2 = creative": "0 = 결정적, 2 = 창의적",
+  "Brand/style fixed values that override LLM payload on deep-merge":
+    "brand/style 고정값. LLM 페이로드와 deep-merge 시 이 값이 우선 적용돼요.",
+  "Let the LLM render tables / charts / carousels / templates / forms in chat by calling render_* tools.":
+    "LLM 이 채팅 안에서 render_* 도구를 호출해 표·차트·캐러셀·템플릿·폼을 직접 렌더하도록 허용해요.",
+  "Override the default LLM-facing description for this tool":
+    "LLM 에게 표시할 도구 설명을 재정의해요. 미설정 시 type 별 기본 설명을 사용해요.",
   "0 = no timeout (wait indefinitely)": "0 = 타임아웃 없음 (무한 대기)",
   "0 = unlimited": "0 = 무제한",
   "1-16 parallel branches": "1~16개의 병렬 분기",
@@ -279,6 +288,7 @@ const GROUP_KO: Record<string, string> = {
   "Knowledge Base (RAG)": "지식 베이스 (RAG)",
   "MCP Servers": "MCP 서버",
   "Multi Turn Settings": "멀티턴 설정",
+  "Presentation Tools": "프레젠테이션 도구",
   "Retry Settings": "재시도 설정",
   Rows: "행",
   "System Context": "시스템 컨텍스트",

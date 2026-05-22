@@ -172,6 +172,20 @@ const KB_TOOL_GUIDANCE =
   'KB 가 필요 없는 small-talk 등에는 호출하지 마세요.';
 
 /**
+ * `presentationTools` 가 설정됐을 때 systemPrompt 끝에 자동 prepend 되는
+ * 안내문. LLM 이 표·차트·캐러셀·템플릿·폼 페이로드를 **응답 본문에 JSON
+ * 문자열로 작성** 하는 회귀를 차단한다 (실 사용자 보고 케이스: 마지막 메시지
+ * 본문에 `{"mode":"static","items":[...]}` 가 그대로 표시됨). 도구를 직접
+ * 호출하라는 명시적 지시로 모델이 tool_use 블록을 emit 하도록 유도한다.
+ */
+const PRESENTATION_TOOLS_GUIDANCE =
+  '\n\n[Presentation Tools] 사용자에게 표·차트·캐러셀·템플릿·폼을 보여줘야 하면 ' +
+  '**반드시** 등록된 `render_*` 도구 호출(tool_use)을 emit 하세요. ' +
+  '응답 본문에 JSON 형식 페이로드를 직접 작성하지 마세요 — 사용자 화면에 raw JSON 텍스트가 그대로 노출됩니다. ' +
+  '도구 호출은 응답 텍스트와 함께 한 turn 안에 보낼 수 있습니다. ' +
+  '예: 표를 보여줄 때는 `render_table` 도구 호출 + 짧은 안내 텍스트.';
+
+/**
  * Provider 가 반환한 diagnostic delta 를 노드 단위로 누적.
  * `meta.ragDiagnostics` / `meta.ragSources` 의 값을 한곳에서 만들기 위한 헬퍼.
  */
@@ -955,6 +969,12 @@ export class AiAgentHandler implements NodeHandler {
     if (conditions.length > 0) {
       finalSystemPrompt += this.buildConditionSystemPromptSuffix(conditions);
     }
+    if (
+      Array.isArray(config.presentationTools) &&
+      config.presentationTools.length > 0
+    ) {
+      finalSystemPrompt += PRESENTATION_TOOLS_GUIDANCE;
+    }
 
     // Build messages
     let messages: ChatMessage[] = [];
@@ -1075,6 +1095,10 @@ export class AiAgentHandler implements NodeHandler {
             presentationSchemaViolations:
               presentationSchemaViolations.length > 0
                 ? presentationSchemaViolations
+                : undefined,
+            allPresentations:
+              presentationPayloads.length > 0
+                ? presentationPayloads
                 : undefined,
           },
           {
@@ -1290,6 +1314,15 @@ export class AiAgentHandler implements NodeHandler {
           response,
           endReason: 'out' as const,
           turnCount: 1,
+          // spec §7.10 — ConversationTurn 의 top-level `presentations[]` 가
+          // 단일 진실이나, 실행 내역 (execution history) 페이지가 NodeExecution.
+          // outputData 만 fetch 하므로 영속화된 thread snapshot 이 없다. 그래서
+          // output.result.presentations[] 로 동일 payload 를 echo — frontend
+          // parseHistoryMessages 가 마지막 assistant ConversationItem 에 부여해
+          // chat preview 와 동일하게 inline 렌더한다.
+          ...(presentationPayloads.length > 0
+            ? { presentations: presentationPayloads }
+            : {}),
         },
       },
       meta: {
@@ -1381,6 +1414,12 @@ export class AiAgentHandler implements NodeHandler {
     }
     if (conditions.length > 0) {
       finalSystemPrompt += this.buildConditionSystemPromptSuffix(conditions);
+    }
+    if (
+      Array.isArray(config.presentationTools) &&
+      config.presentationTools.length > 0
+    ) {
+      finalSystemPrompt += PRESENTATION_TOOLS_GUIDANCE;
     }
 
     let messages: ChatMessage[] = [];
@@ -1753,6 +1792,12 @@ export class AiAgentHandler implements NodeHandler {
               presentationSchemaViolations.length > 0
                 ? presentationSchemaViolations
                 : undefined,
+            allPresentations: [
+              ...((state.allPresentations as
+                | PresentationPayload[]
+                | undefined) ?? []),
+              ...presentationPayloads,
+            ],
           },
           { llmCalls, totalDurationMs: Date.now() - turnStartedAt },
           condTurnDebugHistory,
@@ -1964,6 +2009,11 @@ export class AiAgentHandler implements NodeHandler {
           ragSources: ragAcc.getSources(),
           ragDiagnostics: ragAcc.getDiagnostics(),
           mcpServerSummaries: mcpDiagnosticsAcc,
+          allPresentations: [
+            ...((state.allPresentations as PresentationPayload[] | undefined) ??
+              []),
+            ...presentationPayloads,
+          ],
         },
         { llmCalls, totalDurationMs: turnDurationMs },
         turnDebugHistory,
@@ -2041,6 +2091,14 @@ export class AiAgentHandler implements NodeHandler {
         // spec §7.4 — pendingFormToolCall set when render_form triggered
         // blocking. Resumed turn re-attaches submission to this toolCallId.
         ...(pendingFormBlock ? { pendingFormToolCall: pendingFormBlock } : {}),
+        // Accumulate render_* payloads across turns so execution-history
+        // (NodeExecution.outputData) can echo them even after multi-turn
+        // resumes that overwrite the assistant turn buffer.
+        allPresentations: [
+          ...((state.allPresentations as PresentationPayload[] | undefined) ??
+            []),
+          ...presentationPayloads,
+        ],
       },
     };
     // Attach form preview into the resumed output.interaction shape so the
@@ -2095,6 +2153,8 @@ export class AiAgentHandler implements NodeHandler {
         toolCalls: (state.toolCalls as number) ?? 0,
         ragSources: (state.ragSources as unknown[]) ?? [],
         ragDiagnostics: state.ragLastDiagnostics as RagDiagnostics | undefined,
+        allPresentations:
+          (state.allPresentations as PresentationPayload[] | undefined) ?? [],
       },
       undefined,
       (state.turnDebugHistory as unknown[]) ?? [],
@@ -2117,6 +2177,12 @@ export class AiAgentHandler implements NodeHandler {
       ragSources: unknown[];
       ragDiagnostics?: RagDiagnostics;
       mcpServerSummaries?: McpServerSummary[];
+      /**
+       * spec §7.10 echo — accumulated render_* payloads across all turns of
+       * this multi-turn execution. Used by the execution history page that
+       * only fetches NodeExecution.outputData (no live thread snapshot).
+       */
+      allPresentations?: PresentationPayload[];
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -2151,6 +2217,11 @@ export class AiAgentHandler implements NodeHandler {
         messages,
         turnCount,
         endReason,
+        // spec §7.10 echo — execution history page (NodeExecution.outputData)
+        // 가 thread snapshot 을 별도로 fetch 하지 않으므로 여기 echo 한다.
+        ...(metadata.allPresentations && metadata.allPresentations.length > 0
+          ? { presentations: metadata.allPresentations }
+          : {}),
       },
     };
     if (errorPayload) {
@@ -2227,6 +2298,8 @@ export class AiAgentHandler implements NodeHandler {
       presentationCalls?: PresentationCallTrace[];
       /** spec §4.1 silent-drop trace. */
       presentationSchemaViolations?: PresentationSchemaViolation[];
+      /** spec §7.10 echo — accumulated render_* payloads for execution-history view. */
+      allPresentations?: PresentationPayload[];
     },
     turnDebug?: {
       llmCalls?: unknown[];
@@ -2251,6 +2324,9 @@ export class AiAgentHandler implements NodeHandler {
             label: condition.label,
             reason,
           },
+          ...(metadata.allPresentations && metadata.allPresentations.length > 0
+            ? { presentations: metadata.allPresentations }
+            : {}),
         },
       },
       meta: {
