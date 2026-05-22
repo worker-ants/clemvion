@@ -26,7 +26,7 @@ import {
   ChatChannelAdapter,
   ChatChannelConfig,
 } from '../chat-channel/types';
-import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import * as crypto from 'crypto';
 
 const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
@@ -61,7 +61,7 @@ export class HooksService {
     private readonly channelConversationService: ChannelConversationService,
     private readonly interactionService: InteractionService,
     private readonly executionsService: ExecutionsService,
-    private readonly secrets: SecretResolverService,
+    private readonly chatChannelInboundAuthenticator: ChatChannelInboundAuthenticator,
   ) {}
 
   async handleWebhook(
@@ -193,26 +193,12 @@ export class HooksService {
       });
     }
 
-    // Telegram secret_token 헤더 검증 (provider 별 quirk). 다른 provider 는 어댑터마다 자체 검증.
-    if (config.provider === 'telegram' && config.secretTokenRef) {
-      const headerToken =
-        input.headers['x-telegram-bot-api-secret-token'] ?? '';
-      let storedToken: string;
-      try {
-        storedToken = await this.secrets.resolve(config.secretTokenRef);
-      } catch {
-        throw new UnauthorizedException({
-          code: 'AUTH_FAILED',
-          message: 'Invalid Telegram secret token',
-        });
-      }
-      if (headerToken !== storedToken) {
-        throw new UnauthorizedException({
-          code: 'AUTH_FAILED',
-          message: 'Invalid Telegram secret token',
-        });
-      }
-    }
+    // Provider 별 inbound 인증 (Guard 패턴) — 단일 책임 분리.
+    await this.chatChannelInboundAuthenticator.verify(
+      trigger.id,
+      config,
+      input.headers,
+    );
 
     const update = await adapter.parseUpdate(input.body, config);
     if (!update) {

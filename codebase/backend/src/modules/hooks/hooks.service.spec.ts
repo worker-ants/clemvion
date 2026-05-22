@@ -18,7 +18,8 @@ import { ExecutionsService } from '../executions/executions.service';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
-import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
+import { UnauthorizedException } from '@nestjs/common';
 
 describe('HooksService', () => {
   let service: HooksService;
@@ -81,15 +82,8 @@ describe('HooksService', () => {
           },
         },
         {
-          provide: SecretResolverService,
-          useValue: {
-            resolve: jest.fn(),
-            store: jest.fn(),
-            rotate: jest.fn(),
-            delete: jest.fn(),
-            deleteByPrefix: jest.fn(),
-            exists: jest.fn(),
-          },
+          provide: ChatChannelInboundAuthenticator,
+          useValue: { verify: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -544,7 +538,7 @@ describe('HooksService', () => {
       },
     } as unknown as Trigger;
 
-    let secrets: jest.Mocked<SecretResolverService>;
+    let authenticator: jest.Mocked<ChatChannelInboundAuthenticator>;
 
     let adapterRegistry: jest.Mocked<ChannelAdapterRegistry>;
     let conversationService: jest.Mocked<ChannelConversationService>;
@@ -571,12 +565,11 @@ describe('HooksService', () => {
       interactionService = moduleRef.get(InteractionService) as jest.Mocked<
         typeof interactionService
       >;
-      secrets = moduleRef.get(
-        SecretResolverService,
-      ) as jest.Mocked<SecretResolverService>;
-
-      // default: secrets.resolve returns SECRET_TOKEN for SECRET_TOKEN_REF
-      (secrets.resolve as jest.Mock).mockResolvedValue(SECRET_TOKEN);
+      authenticator = moduleRef.get(
+        ChatChannelInboundAuthenticator,
+      ) as jest.Mocked<ChatChannelInboundAuthenticator>;
+      // default: authenticator.verify resolves (인증 통과). 거부 케이스 테스트에서 override.
+      authenticator.verify.mockResolvedValue(undefined);
 
       mockAdapter = {
         provider: 'telegram',
@@ -682,10 +675,14 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
-    it('X-Telegram-Bot-Api-Secret-Token 불일치 시 401 반환', async () => {
+    it('Authenticator 가 401 throw 시 HooksService 도 전파', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
-      // secrets.resolve returns SECRET_TOKEN but header has wrong-token
-      (secrets.resolve as jest.Mock).mockResolvedValue(SECRET_TOKEN);
+      authenticator.verify.mockRejectedValueOnce(
+        new UnauthorizedException({
+          code: 'AUTH_FAILED',
+          message: 'Invalid Telegram secret token',
+        }),
+      );
 
       await expect(
         service.handleWebhook('abc', {
@@ -693,31 +690,20 @@ describe('HooksService', () => {
           headers: { 'x-telegram-bot-api-secret-token': 'wrong-token' },
         }),
       ).rejects.toMatchObject({ status: 401 });
+      // adapter 호출 자체가 차단됨.
+      expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
     });
 
-    it('secretTokenRef resolve 실패 시 401 반환 (SUMMARY#14)', async () => {
+    it('Authenticator 가 통과시 정상 흐름 진행 — verify 호출 검증', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
-      (secrets.resolve as jest.Mock).mockRejectedValueOnce(
-        new Error('secret not found'),
-      );
-
-      await expect(
-        service.handleWebhook('abc', chatInput),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(engine.execute).not.toHaveBeenCalled();
-    });
-
-    it('secretTokenRef 미설정 시 헤더 검증 미수행 (다른 provider 또는 미설정 telegram)', async () => {
-      const noSecretTrigger: Trigger = {
-        ...chatChannelTrigger,
-        config: { chatChannel: { provider: 'telegram', botTokenRef: 'secret://triggers/t1/bot-token' } },
-      } as unknown as Trigger;
-      triggerRepo.findOne.mockResolvedValue(noSecretTrigger);
-      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
       mockAdapter.parseUpdate.mockResolvedValue(null);
-
-      const res = await service.handleWebhook('abc', input);
-      expect(res).toMatchObject({ executionId: 'ignored' });
+      await service.handleWebhook('abc', chatInput);
+      // HooksService 가 authenticator.verify 를 trigger.id, config, headers 와 호출.
+      expect(authenticator.verify).toHaveBeenCalledWith(
+        chatChannelTrigger.id,
+        expect.objectContaining({ provider: 'telegram' }),
+        chatInput.headers,
+      );
     });
   });
 });
