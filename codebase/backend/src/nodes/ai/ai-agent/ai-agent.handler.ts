@@ -182,8 +182,15 @@ const PRESENTATION_TOOLS_GUIDANCE =
   '\n\n[Presentation Tools] 사용자에게 표·차트·캐러셀·템플릿·폼을 보여줘야 하면 ' +
   '**반드시** 등록된 `render_*` 도구 호출(tool_use)을 emit 하세요. ' +
   '응답 본문에 JSON 형식 페이로드를 직접 작성하지 마세요 — 사용자 화면에 raw JSON 텍스트가 그대로 노출됩니다. ' +
-  '도구 호출은 응답 텍스트와 함께 한 turn 안에 보낼 수 있습니다. ' +
-  '예: 표를 보여줄 때는 `render_table` 도구 호출 + 짧은 안내 텍스트.';
+  '도구 호출은 응답 텍스트와 함께 한 turn 안에 보낼 수 있습니다.\n\n' +
+  '**한 turn 안에서 페이로드를 완성** 해서 호출하세요. 빈 배열·빈 문자열·default 값에 의존한 partial 호출은 ' +
+  '"No items" 같은 빈 카드만 사용자에게 보입니다. 도구별 필수 필드:\n' +
+  '- `render_table`: rows (Array<Object>) + columns (Array<{field,label}>) 둘 다 채워서.\n' +
+  '- `render_chart`: chartType + data (xAxis/yAxis/values 또는 series) 필수.\n' +
+  '- `render_carousel`: **mode="static"** + items (Array<{title, description?, image?, buttons?}>) 최소 1개. mode="dynamic" 호출은 reject 됩니다 (워크플로 데이터 바인딩 전용).\n' +
+  '- `render_template`: content (HTML/Markdown 본문 문자열) 필수.\n' +
+  '- `render_form`: fields (Array<{name, type, label, ...}>) 필수.\n' +
+  '검증 실패 시 schema violation 으로 즉시 반환되며 같은 turn 안에 재호출할 기회가 1회 주어집니다.';
 
 /**
  * Provider 가 반환한 diagnostic delta 를 노드 단위로 누적.

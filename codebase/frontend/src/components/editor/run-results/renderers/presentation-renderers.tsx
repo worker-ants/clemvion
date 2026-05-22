@@ -190,9 +190,21 @@ export function CarouselContent({ data, config, selectedButtonId, onPortButtonCl
     | undefined;
 
   if (!items || items.length === 0) {
+    // Diagnostic hint — AI Agent render_carousel may emit an empty payload
+    // when the LLM forgets to populate items. Backend already rejects this
+    // as a schema violation (render-tool-provider.ts), but legacy persisted
+    // payloads or non-AI-agent surfaces (presentation node mode=dynamic
+    // running on empty input) still land here; surface enough info to help
+    // the user identify which case.
+    const mode = (data.mode ?? config?.mode) as string | undefined;
     return (
       <div className="rounded border border-dashed border-[hsl(var(--border))] p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">
         No items
+        {mode && (
+          <span className="ml-1 text-[10px]">
+            (mode: <code>{String(mode)}</code>)
+          </span>
+        )}
       </div>
     );
   }
