@@ -1,0 +1,27 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25",
+  "summary_subagent_type": "consistency-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/SUMMARY.md",
+  "subagent_invocations": [
+    {"name": "cross_spec", "subagent_type": "cross-spec-checker", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/_prompts/cross_spec.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/cross_spec.md"},
+    {"name": "rationale_continuity", "subagent_type": "rationale-continuity-checker", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/_prompts/rationale_continuity.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/rationale_continuity.md"},
+    {"name": "convention_compliance", "subagent_type": "convention-compliance-checker", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/_prompts/convention_compliance.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/convention_compliance.md"},
+    {"name": "plan_coherence", "subagent_type": "plan-coherence-checker", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/_prompts/plan_coherence.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/plan_coherence.md"},
+    {"name": "naming_collision", "subagent_type": "naming-collision-checker", "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/_prompts/naming_collision.md", "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/triggers-edit-delete-suite-a1548c/review/consistency/2026/05/22/11_59_25/naming_collision.md"}
+  ],
+  "agents_pending": [],
+  "agents_success": ["cross_spec", "rationale_continuity", "convention_compliance", "plan_coherence", "naming_collision"],
+  "agents_fatal": [],
+  "agent_history": {
+    "cross_spec": [{"status": "success", "at": "2026-05-22T11:59:25Z"}],
+    "rationale_continuity": [{"status": "success", "at": "2026-05-22T11:59:25Z"}],
+    "convention_compliance": [{"status": "success", "at": "2026-05-22T11:59:25Z"}],
+    "plan_coherence": [{"status": "success", "at": "2026-05-22T11:59:25Z"}],
+    "naming_collision": [{"status": "success", "at": "2026-05-22T11:59:25Z"}]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
