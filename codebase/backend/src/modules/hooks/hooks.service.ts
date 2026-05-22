@@ -26,6 +26,7 @@ import {
   ChatChannelAdapter,
   ChatChannelConfig,
 } from '../chat-channel/types';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import * as crypto from 'crypto';
 
 const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
@@ -60,6 +61,7 @@ export class HooksService {
     private readonly channelConversationService: ChannelConversationService,
     private readonly interactionService: InteractionService,
     private readonly executionsService: ExecutionsService,
+    private readonly secrets: SecretResolverService,
   ) {}
 
   async handleWebhook(
@@ -192,10 +194,19 @@ export class HooksService {
     }
 
     // Telegram secret_token 헤더 검증 (provider 별 quirk). 다른 provider 는 어댑터마다 자체 검증.
-    if (config.provider === 'telegram' && config.secretToken) {
+    if (config.provider === 'telegram' && config.secretTokenRef) {
       const headerToken =
         input.headers['x-telegram-bot-api-secret-token'] ?? '';
-      if (headerToken !== config.secretToken) {
+      let storedToken: string;
+      try {
+        storedToken = await this.secrets.resolve(config.secretTokenRef);
+      } catch {
+        throw new UnauthorizedException({
+          code: 'AUTH_FAILED',
+          message: 'Invalid Telegram secret token',
+        });
+      }
+      if (headerToken !== storedToken) {
         throw new UnauthorizedException({
           code: 'AUTH_FAILED',
           message: 'Invalid Telegram secret token',
@@ -644,8 +655,6 @@ function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
   const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
   if (!chatChannel || typeof chatChannel !== 'object') return null;
   const provider = (chatChannel as { provider?: unknown }).provider;
-  const botToken = (chatChannel as { botToken?: unknown }).botToken;
   if (typeof provider !== 'string' || provider.length === 0) return null;
-  if (typeof botToken !== 'string' || botToken.length === 0) return null;
   return chatChannel as ChatChannelConfig;
 }
