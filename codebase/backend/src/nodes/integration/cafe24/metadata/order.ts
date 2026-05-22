@@ -201,7 +201,10 @@ export const orderOperations: Cafe24OperationMetadata[] = [
       'Update the status of multiple orders at once. Returns HTTP 207 (Multi-Status) when individual orders have differing outcomes.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/status',
+    // cafe24 docs path: `orders` (no `/status` suffix — anchor
+    // `update-status-for-multiple-orders`. The status field is in the body,
+    // path is just `orders`).
+    path: 'orders',
     requiredFields: ['order_id', 'status'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -240,13 +243,14 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'refunds_get',
     label: '환불 단건 조회',
-    description: 'Retrieve a single refund by refund_no.',
+    description: 'Retrieve a single refund by refund_code.',
     scopeType: 'read',
     method: 'GET',
-    path: 'refunds/{refund_no}',
-    requiredFields: ['refund_no'],
+    // cafe24 docs placeholder: `{refund_code}` (not `{refund_no}` — fix).
+    path: 'refunds/{refund_code}',
+    requiredFields: ['refund_code'],
     fields: {
-      refund_no: { type: 'string', location: 'path' },
+      refund_code: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -254,13 +258,14 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'cancellation_get',
     label: '취소 조회',
-    description: 'Retrieve an order cancellation by cancellation_no.',
+    description: 'Retrieve an order cancellation by claim_code.',
     scopeType: 'read',
     method: 'GET',
-    path: 'cancellation/{cancellation_no}',
-    requiredFields: ['cancellation_no'],
+    // cafe24 docs placeholder: `{claim_code}` (not `{cancellation_no}` — fix).
+    path: 'cancellation/{claim_code}',
+    requiredFields: ['claim_code'],
     fields: {
-      cancellation_no: { type: 'string', location: 'path' },
+      claim_code: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -288,14 +293,15 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'exchange_get',
     label: '교환 조회',
-    description:
-      'Retrieve exchange details for an order. Path placeholder reuses the codebase-wide `order_id` (Cafe24 docs label this `order_no`).',
+    description: 'Retrieve an exchange by claim_code.',
     scopeType: 'read',
     method: 'GET',
-    path: 'orders/exchange/{order_id}',
-    requiredFields: ['order_id'],
+    // cafe24 docs path: `exchange/{claim_code}` (not `orders/exchange/{order_id}`
+    // — exchange is a top-level resource keyed by claim_code).
+    path: 'exchange/{claim_code}',
+    requiredFields: ['claim_code'],
     fields: {
-      order_id: { type: 'string', location: 'path' },
+      claim_code: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -307,7 +313,8 @@ export const orderOperations: Cafe24OperationMetadata[] = [
       'Bulk-create exchanges. Pass `requests` as an array — each entry typically carries order_id, exchange_item_no, product_no, variant_code, exchange_reason, exchange_quantity, shipping fees.',
     scopeType: 'write',
     method: 'POST',
-    path: 'orders/exchanges',
+    // cafe24 docs path: `exchange` (not `orders/exchanges`).
+    path: 'exchange',
     requiredFields: ['requests'],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
@@ -323,13 +330,14 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'return_get',
     label: '반품 조회',
-    description: 'Retrieve a return by return_no.',
+    description: 'Retrieve a return by claim_code.',
     scopeType: 'read',
     method: 'GET',
-    path: 'return/{return_no}',
-    requiredFields: ['return_no'],
+    // cafe24 docs placeholder: `{claim_code}` (not `{return_no}`).
+    path: 'return/{claim_code}',
+    requiredFields: ['claim_code'],
     fields: {
-      return_no: { type: 'string', location: 'path' },
+      claim_code: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -405,9 +413,14 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     description: 'Update cancellation details of an order.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/{order_id}/cancellation',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    // cafe24 docs path: `orders/{order_id}/cancellation/{claim_code}`
+    // (claim_code path placeholder added).
+    path: 'orders/{order_id}/cancellation/{claim_code}',
+    requiredFields: ['order_id', 'claim_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      claim_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
@@ -438,9 +451,13 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     description: 'Update an exchange of an order.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/{order_id}/exchange',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    // cafe24 docs path: `orders/{order_id}/exchange/{claim_code}`.
+    path: 'orders/{order_id}/exchange/{claim_code}',
+    requiredFields: ['order_id', 'claim_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      claim_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
@@ -471,75 +488,100 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     description: 'Update an order item.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/{order_id}/items',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    // cafe24 docs path: `orders/{order_id}/items/{order_item_code}`
+    // (per-item scope — order_item_code path placeholder added).
+    path: 'orders/{order_id}/items/{order_item_code}',
+    requiredFields: ['order_id', 'order_item_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      order_item_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
+  // cafe24 docs labels endpoints are item-scoped (`items/{order_item_code}/labels`).
   {
     id: 'order_items_labels_get',
     label: '주문 상품 라벨 조회',
-    description: 'Retrieve labels attached to order items.',
+    description: 'Retrieve labels attached to an order item.',
     scopeType: 'read',
     method: 'GET',
-    path: 'orders/{order_id}/items/labels',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    path: 'orders/{order_id}/items/{order_item_code}/labels',
+    requiredFields: ['order_id', 'order_item_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      order_item_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
     id: 'order_items_labels_create',
     label: '주문 상품 라벨 생성',
-    description: 'Create labels for order items.',
+    description: 'Create labels for an order item.',
     scopeType: 'write',
     method: 'POST',
-    path: 'orders/{order_id}/items/labels',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    path: 'orders/{order_id}/items/{order_item_code}/labels',
+    requiredFields: ['order_id', 'order_item_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      order_item_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
     id: 'order_items_labels_update',
     label: '주문 상품 라벨 수정',
-    description: 'Update labels for order items.',
+    description: 'Update labels for an order item.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/{order_id}/items/labels',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    path: 'orders/{order_id}/items/{order_item_code}/labels',
+    requiredFields: ['order_id', 'order_item_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      order_item_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
     id: 'order_items_labels_delete',
     label: '주문 상품 라벨 삭제',
-    description: 'Delete labels for order items.',
+    description: 'Delete labels for an order item.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'orders/{order_id}/items/labels',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    path: 'orders/{order_id}/items/{order_item_code}/labels',
+    requiredFields: ['order_id', 'order_item_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      order_item_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'empty',
   },
+  // cafe24 docs options endpoints are item-scoped (`items/{order_item_code}/options`).
   {
     id: 'order_items_options_create',
     label: '주문 상품 옵션 생성',
-    description: 'Create options for order items.',
+    description: 'Create options for an order item.',
     scopeType: 'write',
     method: 'POST',
-    path: 'orders/{order_id}/items/options',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    path: 'orders/{order_id}/items/{order_item_code}/options',
+    requiredFields: ['order_id', 'order_item_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      order_item_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
     id: 'order_items_options_update',
     label: '주문 상품 옵션 수정',
-    description: 'Update options for order items.',
+    description: 'Update options for an order item.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/{order_id}/items/options',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    path: 'orders/{order_id}/items/{order_item_code}/options',
+    requiredFields: ['order_id', 'order_item_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      order_item_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   // Batch 3-B — memos · payments · paymenttimeline · receivers · refunds · return · shipments
@@ -599,7 +641,9 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     description: 'Retrieve the payment-history timeline of an order.',
     scopeType: 'read',
     method: 'GET',
-    path: 'orders/{order_id}/paymenttimeline/history',
+    // cafe24 docs path: `orders/{order_id}/paymenttimeline` (no `/history`
+    // suffix — anchor `retrieve-payment-history-of-an-order`).
+    path: 'orders/{order_id}/paymenttimeline',
     requiredFields: ['order_id'],
     fields: { order_id: { type: 'string', location: 'path' } },
     responseShape: 'list',
@@ -607,12 +651,17 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'order_paymenttimeline_details',
     label: '결제 상세 조회',
-    description: 'Retrieve payment-detail breakdown of an order.',
+    description: 'Retrieve payment-detail breakdown of an order by payment_no.',
     scopeType: 'read',
     method: 'GET',
-    path: 'orders/{order_id}/paymenttimeline/details',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    // cafe24 docs path: `orders/{order_id}/paymenttimeline/{payment_no}`
+    // (not `/details` — anchor `retrieve-payment-details-of-an-order`).
+    path: 'orders/{order_id}/paymenttimeline/{payment_no}',
+    requiredFields: ['order_id', 'payment_no'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      payment_no: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
@@ -640,12 +689,19 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'order_receivers_change_shipping',
     label: '받는 사람 배송지 변경',
-    description: 'Change shipping information of recipients for an order.',
+    description:
+      'Change shipping information for a specific recipient (shipping_code) of an order.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/{order_id}/receivers/changeshipping',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    // cafe24 docs path: `orders/{order_id}/receivers/{shipping_code}`
+    // (per-recipient scope, not `/changeshipping` suffix — anchor
+    // `change-shipping-information`).
+    path: 'orders/{order_id}/receivers/{shipping_code}',
+    requiredFields: ['order_id', 'shipping_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      shipping_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
@@ -662,12 +718,16 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'order_refunds_update',
     label: '주문 환불 수정',
-    description: 'Update an order refund.',
+    description: 'Update an order refund by refund_code.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/{order_id}/refunds',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    // cafe24 docs path: `orders/{order_id}/refunds/{refund_code}`.
+    path: 'orders/{order_id}/refunds/{refund_code}',
+    requiredFields: ['order_id', 'refund_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      refund_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
@@ -684,12 +744,16 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'order_return_update',
     label: '주문 반품 수정',
-    description: 'Update a return of an order.',
+    description: 'Update a return of an order by claim_code.',
     scopeType: 'write',
     method: 'PUT',
-    path: 'orders/{order_id}/return',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    // cafe24 docs path: `orders/{order_id}/return/{claim_code}`.
+    path: 'orders/{order_id}/return/{claim_code}',
+    requiredFields: ['order_id', 'claim_code'],
+    fields: {
+      order_id: { type: 'string', location: 'path' },
+      claim_code: { type: 'string', location: 'path' },
+    },
     responseShape: 'single',
   },
   {
