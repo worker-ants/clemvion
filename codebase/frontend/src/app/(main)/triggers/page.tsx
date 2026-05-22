@@ -505,6 +505,9 @@ export default function TriggersPage() {
                         >
                           {t("triggers.rowActions.viewDetails")}
                         </DropdownMenuItem>
+                        {/* TODO: viewHistory should scroll to Recent Calls section.
+                            v1 is not implemented — both items open the drawer at default position.
+                            Plan B (trigger-detail-edit-meta.md) will add anchor scroll support. */}
                         <DropdownMenuItem
                           onSelect={() => setSelectedTriggerId(trigger.id)}
                         >

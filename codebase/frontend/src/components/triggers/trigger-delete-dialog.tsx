@@ -48,6 +48,12 @@ function isAxiosLikeStatus(err: unknown, status: number): boolean {
  * 사용자가 트리거 이름을 정확히 입력해야만 삭제 버튼이 활성화된다.
  *
  * 외부에서 `trigger` 가 바뀌면 key 가 변하면서 내부 state (confirm input) 가 초기화된다.
+ *
+ * **캐시 무효화 책임**: 이 컴포넌트는 삭제 성공/404 동시 삭제 시 `queryClient.invalidateQueries(["triggers"])`
+ * 를 직접 호출한다. 현재 `page.tsx` 단독 사용처에서는 문제없으나, 다른 화면에서 재사용할 경우
+ * `["triggers"]` prefix 가 의도치 않은 refetch 를 유발할 수 있다.
+ * 재사용 시에는 `onDeleted?: () => void` prop 패턴으로 무효화 책임을 호출자에게 위임하는
+ * 리팩터링을 고려한다.
  */
 export function TriggerDeleteDialog(props: Props) {
   return <DialogInner key={props.trigger?.id ?? "__none__"} {...props} />;
@@ -97,7 +103,7 @@ function DialogInner({ trigger, open, onClose }: Props) {
             workflowName: trigger.workflowName ?? "—",
           });
 
-  const isConfirmMatch = confirmText.trim() === trigger.name;
+  const isConfirmMatch = confirmText.trim() === trigger.name.trim();
   const disabled = !isConfirmMatch || deleteMutation.isPending;
 
   return (

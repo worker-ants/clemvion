@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { PointerEventsCheckLevel } from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import {
@@ -161,5 +163,25 @@ describe("TriggersPage — RBAC", () => {
     expect(
       screen.getByRole("button", { name: /trigger actions/i }),
     ).toBeInTheDocument();
+  });
+
+  // W4: viewer 가 ⋮ 메뉴를 열었을 때 "Delete"·"Activate/Deactivate" 항목이 숨겨진다
+  it("Viewer: ⋮ 메뉴 열면 Delete·Activate 항목이 없다 (canEdit 가드)", async () => {
+    setRole("viewer");
+    mockTriggersResponse(row());
+    await renderPage();
+    await screen.findByText("Hook A");
+
+    // Radix DropdownMenu 는 포인터 이벤트 기반이므로 PointerEventsCheckLevel.Never 사용
+    const user = userEvent.setup({
+      pointerEventsCheck: PointerEventsCheckLevel.Never,
+    });
+    const menuButton = screen.getByRole("button", { name: /trigger actions/i });
+    await user.click(menuButton);
+
+    // canEdit 가드 항목은 viewer 에게 렌더링되지 않아야 함
+    expect(screen.queryByText(/^delete$/i)).toBeNull();
+    expect(screen.queryByText(/activate/i)).toBeNull();
+    expect(screen.queryByText(/deactivate/i)).toBeNull();
   });
 });

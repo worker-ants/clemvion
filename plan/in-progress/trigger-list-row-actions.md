@@ -24,9 +24,11 @@ owner: developer
 - [x] 항목:
   1. ✅ 상세 보기 → `setSelectedTriggerId(id)`
   2. ✅ 활성/비활성 토글 (`editor`+) → 기존 `toggleMutation`
-  3. ✅ 호출 이력 → 드로어 오픈 (v1 은 anchor 스크롤 미구현 — Recent Calls 가 항상 드로어 하단에 존재)
+  3. ✅ 호출 이력 → 드로어 오픈 (v1 은 anchor 스크롤 미구현 — Recent Calls 가 항상 드로어 하단에 존재). 상세 보기와 동일 동작으로 임시 구현.
   4. ✅ 스케줄 관리에서 편집 (schedule 타입만, `editor`+) → `Link href="/schedules?triggerId=…"`
   5. ✅ 삭제 (`editor`+) → `TriggerDeleteDialog` 오픈
+
+> **spec §2.1 gap 명시**: spec 은 더보기 메뉴 4개 항목("수정·토글·호출이력·삭제")을 정의하나 Plan A 에서 "수정(edit)" 항목은 의도적으로 제외. **수정 항목은 Plan B `trigger-detail-edit-meta.md` (drawer 내 편집 UX) 에서 처리**. "상세 보기"(viewDetails)는 spec 의 "수정" 진입점 역할을 임시 수행하며, Plan B 완료 후 메뉴 항목 통합 또는 명칭 정비 필요.
 - [x] 신규 컴포넌트 `codebase/frontend/src/components/triggers/trigger-delete-dialog.tsx`:
   - ✅ type 별 본문 텍스트 분기 (`triggers.delete.confirm.webhook|schedule|manual`)
   - ✅ 이름 입력 confirm — input 값이 정확히 일치할 때만 "Delete" 버튼 활성
