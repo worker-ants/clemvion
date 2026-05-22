@@ -160,12 +160,47 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 
 ### 유저 가이드 파일 컨벤션
 
-자세한 규약: [`codebase/frontend/src/content/docs/_i18n-conventions.md`](codebase/frontend/src/content/docs/_i18n-conventions.md)
+#### SoT 문서 인덱스 (user-guide-writer 가 매 호출 적재)
+
+`codebase/frontend/src/content/docs/**/*.{mdx,en.mdx}` 의 신규 작성·기존 갱신은 [`user-guide-writer`](.claude/agents/user-guide-writer.md) sub-agent 가 담당한다. 본 sub-agent 의 **첫 행동** 은 아래 5문서를 Read 하여 컨벤션을 컨텍스트에 적재하는 것이다. 컨벤션을 agent 정의에 inline 하지 않는 이유: 살아있는 문서로 자주 갱신되므로 agent 정의에 박으면 stale 된다.
+
+| 문서 | 역할 |
+|---|---|
+| `PROJECT.md` (본 절) | SoT 문서 인덱스 + 자주 누락 패턴 + 동반 갱신 매트릭스 (§변경 유형 → 갱신 위치 매핑) |
+| [`spec/2-navigation/13-user-guide.md`](spec/2-navigation/13-user-guide.md) | IA · 라우트 · 프론트매터 스키마 · 섹션 순서 · 딥링크 규약 · 공용 MDX 컴포넌트 · 품질 체크 |
+| [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) | i18n 7 Principle (TSX 하드코딩 금지·ko/en parity·backend-labels 매핑·노드 MDX 의무·sibling 규약·글로서리·page stale) |
+| [`codebase/frontend/src/content/docs/_i18n-conventions.md`](codebase/frontend/src/content/docs/_i18n-conventions.md) | 파일 구조 · 프론트매터 필드 · 내부 docs 링크 규약 · 섹션 레이블 번역 |
+| [`codebase/frontend/src/content/docs/_glossary.md`](codebase/frontend/src/content/docs/_glossary.md) | 해요체 · 용어 표기 · 문장 스타일 · 금지어·지양어 |
+
+#### 파일 구조 요약
 
 - 한국어 canonical: `<slug>.mdx` — frontmatter 는 여기에만
 - 영어 번역: `<slug>.en.mdx` — frontmatter 없이 본문만. 없으면 EN 로케일은 KO + 안내 배너로 폴백 (의도된 동작)
-- 문체·금지어: [`codebase/frontend/src/content/docs/_glossary.md`](codebase/frontend/src/content/docs/_glossary.md)
-- 정식 사용자 가이드 spec: [`spec/2-navigation/13-user-guide.md`](spec/2-navigation/13-user-guide.md) (IA · frontmatter · 작성 정책 · 품질 체크)
+
+#### 자주 누락되는 작성 패턴 (사후 보정 PR 회수 이력 기반)
+
+`fix(docs):` · `docs(user-guide):` 패턴으로 사후 보정됐던 사례를 작성 시점에 차단:
+
+- **in-app 라우트 코드스팬 미링크화** — `/profile/security`·`/integrations`·`/llm-configs`·`/knowledge-bases`·`/login` 같은 클릭 가능한 인앱 라우트가 백틱 코드스팬으로만 노출. `[서술형 텍스트](/<route>)` 로 작성. (PR #262 회수 패턴)
+- **의도된 코드스팬과 라우트 링크 구분 누락** — 다음은 코드스팬으로 유지: 봇 명령(`/start`·`/cancel`·`/help`·`/newbot`), 외부 API endpoint(`/v1/chat/completions`·`/oauth/authorize`), HTTP 노드 상대경로 예시(`/users/123`), placeholder 포함 경로(`/integrations/new?service=...`)
+- **외부 URL 의 bare 노출** — `https://...` 가 백틱·markdown link·autolink 어느 형태도 없이 plain text 로 노출. 반드시 `[서비스명](https://...)` 으로 wrap. 예시 URL(`https://example.com`·`https://api.example.com/...`) 은 코드스팬으로
+- **Callout off-spec type** — `<Callout type="...">` 의 `type` 은 `note|tip|warn` 세 값만. `info` 같은 spec 밖 값은 런타임 fallback 발동 (commit `5d981a23` 회수 패턴). spec: `spec/2-navigation/13-user-guide.md §8`
+- **KO/EN sibling 한쪽만 갱신** — `.mdx` 갱신 시 `.en.mdx` 동시 갱신 default. 한쪽 누락은 사후 보정 패턴. (단 `.en.mdx` 신규 생성 누락은 위반 아님 — `spec/conventions/i18n-userguide.md §Rationale`)
+- **frontmatter `spec:` / `code:` 경로 stale** — `registry.test.ts` 가 hard fail 가드. 작성 시점에 Glob 으로 실존 검증
+- **내부 `/docs/<section>/<slug>` 링크 slug 미실존** — 다른 `.mdx` 의 path 와 매치 필요. 로케일 프리픽스 없이 작성 (`mdx-components.tsx` 의 DocsLink 가 주입)
+
+#### user-guide-writer 자가 검증 체크리스트 (배포 전)
+
+`spec/2-navigation/13-user-guide.md §12` 의 6항목 + 본 절의 자주 누락 패턴을 합한 8항목 자가 점검:
+
+- [ ] 프론트매터의 `spec:` / `code:` 경로가 실제로 존재하는가 (Glob)
+- [ ] `_glossary.md §5` 금지어가 본문에 등장하지 않는가
+- [ ] 내부 `/docs/<section>/<slug>` 링크의 slug 가 실존하는가
+- [ ] in-app 라우트가 코드스팬 대신 링크로 작성됐는가 (의도된 코드스팬 예외 처리됨)
+- [ ] 3층 구조(도입 → 상세 → 팁/참고) 가 갖춰졌는가
+- [ ] 해요체로 통일됐는가 (`~합니다` / `~한다` 어미가 본문에 없는가)
+- [ ] KO/EN 변경 set 의 파일 쌍 대응이 맞는가
+- [ ] Callout `type` ∈ `{note, tip, warn}` 인가
 
 ### i18n dict 파일 컨벤션
 

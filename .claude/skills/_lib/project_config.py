@@ -26,17 +26,28 @@ Schema (every key optional; missing keys fall back to DEFAULTS below):
         },
         "checkers": {
           "naming_collision": false  // 같은 패턴
+        },
+        "writers": {
+          "user_guide": false        // 같은 패턴 — 호출자가 위임 직전 게이팅
         }
       }
     }
 
-The ``agents.reviewers`` and ``agents.checkers`` maps let a project
-opt-out specific reviewer/checker sub-agents when they don't apply
+The ``agents.reviewers``, ``agents.checkers``, and ``agents.writers``
+maps let a project opt-out specific sub-agents when they don't apply
 (e.g. a project without a user guide matrix disables
-``user_guide_sync``). The harness ships with **all** reviewers/checkers
-enabled by default — missing key or ``true`` = enabled, explicit
+``user_guide_sync`` / ``user_guide``). The harness ships with **all**
+agents enabled by default — missing key or ``true`` = enabled, explicit
 ``false`` = disabled. Use ``is_agent_enabled(cfg, kind, name)`` to
-query.
+query, with ``kind`` ∈ {``"reviewers"``, ``"checkers"``, ``"writers"``}.
+
+Reviewers/checkers are gated by their orchestrators
+(``code-review-agents`` / ``consistency-checker`` skills) which iterate
+the registry and skip disabled entries. Writers are standalone
+sub-agents invoked on-demand by other skills (e.g. ``developer`` §4
+DOCUMENTATION delegates to ``user-guide-writer``); the caller must call
+``is_agent_enabled(cfg, "writers", "<name>")`` before delegation and
+fall back to inline work when the writer is disabled.
 
 Unknown keys are silently preserved (forward-compatible with future
 schema additions). The result of ``load()`` always carries every
@@ -72,13 +83,15 @@ DEFAULTS: dict[str, Any] = {
     },
     "code_areas": ["codebase"],
     "agents": {
-        # Per-reviewer / per-checker enable toggles. Default behavior
-        # (missing key or ``true``) is **enabled**; only an explicit
-        # ``false`` disables an agent. The harness keeps every agent
-        # registered in ALL_AGENTS / ALL_CHECKERS; this map narrows the
-        # run-set without changing the registry.
+        # Per-reviewer / per-checker / per-writer enable toggles.
+        # Default behavior (missing key or ``true``) is **enabled**;
+        # only an explicit ``false`` disables an agent. The harness
+        # keeps every agent registered in ALL_AGENTS / ALL_CHECKERS /
+        # ALL_WRITERS; this map narrows the run-set without changing
+        # the registry.
         "reviewers": {},
         "checkers": {},
+        "writers": {},
     },
 }
 
@@ -130,18 +143,21 @@ def load(repo_root: str) -> dict[str, Any]:
 
 
 def is_agent_enabled(cfg: dict[str, Any], kind: str, name: str) -> bool:
-    """Return whether a reviewer/checker is enabled per project config.
+    """Return whether a reviewer/checker/writer is enabled per project config.
 
-    ``kind`` ∈ {"reviewers", "checkers"}. The agents toggle map lives at
-    ``cfg["agents"][kind]``. Missing key or ``true`` ⇒ enabled; explicit
-    ``false`` ⇒ disabled. Any other value (str, int, list) is treated as
-    enabled — the loader does not validate types, so be defensive.
+    ``kind`` ∈ {"reviewers", "checkers", "writers"}. The agents toggle
+    map lives at ``cfg["agents"][kind]``. Missing key or ``true`` ⇒
+    enabled; explicit ``false`` ⇒ disabled. Any other value (str, int,
+    list) is treated as enabled — the loader does not validate types,
+    so be defensive.
 
-    Callers (orchestrators) iterate their registry (``ALL_AGENTS`` /
-    ``ALL_CHECKERS``) and keep only the agents this function returns
+    Callers iterate their registry (``ALL_AGENTS`` / ``ALL_CHECKERS`` /
+    ``ALL_WRITERS``) and keep only the agents this function returns
     True for. Per-call env-var overrides (``REVIEW_AGENTS`` /
     ``CONSISTENCY_AGENTS``) take precedence over this and are applied
-    in the orchestrator itself, not here.
+    in the orchestrator itself, not here. ``writers`` have no
+    aggregate orchestrator — each caller (e.g. ``developer`` skill §4
+    DOCUMENTATION) calls this directly before delegation.
     """
     agents_cfg = cfg.get("agents") or {}
     kind_cfg = agents_cfg.get(kind) or {}
