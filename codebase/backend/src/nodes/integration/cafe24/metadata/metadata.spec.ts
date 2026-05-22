@@ -65,6 +65,58 @@ describe('Cafe24 metadata', () => {
       }
     });
 
+    // spec/conventions/cafe24-api-metadata.md §2 — Cafe24FieldConstraint invariant:
+    // (1) all referenced field names must be keys of `fields`,
+    // (2) oneOf/allOrNone length >= 2, implies.then length >= 1.
+    it('constraints reference only declared fields and satisfy length invariants', () => {
+      const violations: string[] = [];
+      for (const { resource, operation } of listAllCafe24Operations()) {
+        if (!operation.constraints || operation.constraints.length === 0)
+          continue;
+        const fieldNames = new Set(Object.keys(operation.fields));
+        const label = `${resource}.${operation.id}`;
+        for (const [idx, c] of operation.constraints.entries()) {
+          if (c.kind === 'oneOf' || c.kind === 'allOrNone') {
+            if (c.fields.length < 2) {
+              violations.push(
+                `${label}.constraints[${idx}].fields: kind="${c.kind}" requires length >= 2 (got ${c.fields.length})`,
+              );
+            }
+            for (const f of c.fields) {
+              if (!fieldNames.has(f)) {
+                violations.push(
+                  `${label}.constraints[${idx}].fields includes "${f}" not in fields`,
+                );
+              }
+            }
+          } else if (c.kind === 'implies') {
+            if (!fieldNames.has(c.if)) {
+              violations.push(
+                `${label}.constraints[${idx}].if = "${c.if}" not in fields`,
+              );
+            }
+            if (c.then.length < 1) {
+              violations.push(
+                `${label}.constraints[${idx}].then: implies requires length >= 1`,
+              );
+            }
+            for (const f of c.then) {
+              if (!fieldNames.has(f)) {
+                violations.push(
+                  `${label}.constraints[${idx}].then includes "${f}" not in fields`,
+                );
+              }
+            }
+          }
+        }
+      }
+      if (violations.length > 0) {
+        throw new Error(
+          `cafe24-api-metadata §2 constraints invariant violation:\n${violations.join('\n')}`,
+        );
+      }
+    });
+
     it('enum fields declare an enum array', () => {
       for (const { resource, operation } of listAllCafe24Operations()) {
         for (const [name, spec] of Object.entries(operation.fields)) {

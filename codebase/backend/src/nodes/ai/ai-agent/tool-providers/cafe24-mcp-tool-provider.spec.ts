@@ -141,6 +141,79 @@ describe('Cafe24McpToolProvider', () => {
       }
     });
 
+    // spec/conventions/cafe24-api-metadata.md §2 "constraints 의 의미" — operations
+    // with `constraints: [{kind:'oneOf', ...}]` get a constraint suffix line
+    // inserted before CAFE24_TIMEZONE_SUFFIX, and the JSON Schema gains
+    // `allOf: [{required: ...}, {anyOf: [{required:[a]}, ...]}]`. customer_list
+    // is the canonical example (oneOf: [member_id, group_no, since]).
+    it('emits constraint suffix in description and anyOf in JSON Schema for oneOf constraints (customer_list)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const tools = await provider.buildTools({
+        config: {
+          mcpServers: [{ integrationId: 'abcdef1234567890' }],
+        },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+
+      const customerList = tools.find(
+        (t) => t.name === 'mcp_abcdef1234567890__customer_list',
+      );
+      expect(customerList).toBeDefined();
+
+      // (1) description suffix — exact wording from spec §2 table.
+      expect(customerList!.description).toContain(
+        'Constraint: at least one of member_id, group_no, since must be provided.',
+      );
+      // suffix sits between the (Cafe24 ...) line and the timezone suffix.
+      const desc = customerList!.description;
+      const cafe24Pos = desc.indexOf('(Cafe24 ');
+      const constraintPos = desc.indexOf('Constraint:');
+      const tzPos = desc.indexOf('All date/time parameters');
+      expect(cafe24Pos).toBeGreaterThanOrEqual(0);
+      expect(constraintPos).toBeGreaterThan(cafe24Pos);
+      expect(tzPos).toBeGreaterThan(constraintPos);
+
+      // (2) JSON Schema — required + allOf(anyOf) combination. The plain
+      // `required` is replaced by `allOf` whenever oneOf constraint exists.
+      const schema = customerList!.parameters as Record<string, unknown>;
+      expect(schema.required).toBeUndefined();
+      expect(Array.isArray(schema.allOf)).toBe(true);
+      const allOf = schema.allOf as Array<Record<string, unknown>>;
+      expect(allOf).toEqual(
+        expect.arrayContaining([
+          { required: ['shop_no'] },
+          {
+            anyOf: [
+              { required: ['member_id'] },
+              { required: ['group_no'] },
+              { required: ['since'] },
+            ],
+          },
+        ]),
+      );
+    });
+
+    it('operations without constraints emit plain required (no allOf wrapping)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const tools = await provider.buildTools({
+        config: {
+          mcpServers: [{ integrationId: 'abcdef1234567890' }],
+        },
+        workspaceId: 'ws-1',
+        executionId: 'exec-1',
+      });
+      const productList = tools.find(
+        (t) => t.name === 'mcp_abcdef1234567890__product_list',
+      );
+      expect(productList).toBeDefined();
+      const schema = productList!.parameters as Record<string, unknown>;
+      expect(schema.required).toEqual(['shop_no']);
+      expect(schema.allOf).toBeUndefined();
+      // And no Constraint: suffix line.
+      expect(productList!.description).not.toContain('Constraint:');
+    });
+
     it('applies enabledTools allowlist (bare operation ids)', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       const tools = await provider.buildTools({
@@ -616,6 +689,47 @@ describe('Cafe24McpToolProvider', () => {
         }),
       );
       expect(apiClient.call).not.toHaveBeenCalled();
+    });
+
+    // spec §2 "constraints 의 의미" — handler + MCP both throw the same code
+    // for OR-constraint violations so client/UI does not need a new branch.
+    it('returns CAFE24_MISSING_FIELDS when oneOf constraint violated (customer_list)', async () => {
+      const { sid } = await setup();
+      const res = await provider.execute(
+        makeCall(`mcp_${sid}__customer_list`, { shop_no: 1 }),
+        // shop_no satisfies requiredFields but none of member_id/group_no/since
+        // → oneOf constraint violation.
+        {
+          config: {},
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+        },
+      );
+      expect(res.status).toBe('error');
+      const body = JSON.parse(res.content) as {
+        error: { code: string; message?: string };
+      };
+      expect(body.error.code).toBe('CAFE24_MISSING_FIELDS');
+      expect(body.error.message ?? '').toContain('oneOf');
+      expect(apiClient.call).not.toHaveBeenCalled();
+    });
+
+    it('passes constraint check when oneOf satisfied (customer_list)', async () => {
+      const { sid } = await setup();
+      apiClient.call.mockResolvedValue({
+        status: 200,
+        headers: {},
+        body: { customers: [] },
+      });
+      const res = await provider.execute(
+        makeCall(`mcp_${sid}__customer_list`, {
+          shop_no: 1,
+          member_id: 'alice',
+        }),
+        { config: {}, workspaceId: 'ws-1', executionId: 'exec-1' },
+      );
+      expect(res.status).toBe('success');
+      expect(apiClient.call).toHaveBeenCalled();
     });
 
     it('translates Cafe24AuthFailedError into CAFE24_AUTH_FAILED', async () => {

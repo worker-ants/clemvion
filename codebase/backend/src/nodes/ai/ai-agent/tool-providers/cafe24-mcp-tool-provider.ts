@@ -21,10 +21,12 @@ import {
 } from '../../../integration/cafe24/cafe24-api.client.js';
 import {
   CAFE24_TIMEZONE_SUFFIX,
+  Cafe24FieldConstraint,
   Cafe24OperationMetadata,
   Cafe24Resource,
   listAllCafe24Operations,
   scopeForOperation,
+  validateCafe24Constraints,
 } from '../../../integration/cafe24/metadata/index.js';
 import { Integration } from '../../../../modules/integrations/entities/integration.entity.js';
 
@@ -214,7 +216,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
         opMap.set(operation.id, { resource, operation });
         tools.push({
           name: `mcp_${sid}__${operation.id}`,
-          description: `${operation.description}\n\n(Cafe24 ${operation.method} ${operation.path} — via Internal Bridge: ${integration.name})\n\n${CAFE24_TIMEZONE_SUFFIX}`,
+          description: buildToolDescription(operation, integration.name),
           parameters: this.buildJsonSchema(operation),
         });
       }
@@ -420,6 +422,24 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
         }),
         status: 'error',
         error: `Missing required fields: ${missing.join(', ')}`,
+      };
+    }
+
+    // Conditional constraints check (spec §2 "constraints 의 의미"). Reuses
+    // CAFE24_MISSING_FIELDS so client/UI does not need to learn a new code;
+    // the human-readable message identifies which kind / fields were violated.
+    const constraintViolation = validateCafe24Constraints(operation, args);
+    if (constraintViolation) {
+      return {
+        toolCallId: call.id,
+        content: JSON.stringify({
+          error: {
+            code: 'CAFE24_MISSING_FIELDS',
+            message: constraintViolation,
+          },
+        }),
+        status: 'error',
+        error: constraintViolation,
       };
     }
 
@@ -638,13 +658,41 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       if (spec.default !== undefined) prop.default = spec.default;
       properties[name] = prop;
     }
-    const required =
-      op.requiredFields.length > 0 ? op.requiredFields : undefined;
     const schema: Record<string, unknown> = {
       type: 'object',
       properties,
     };
-    if (required) schema.required = required;
+
+    // Compose `required` + `oneOf` constraints (spec §2 "MCP/JSON Schema 매핑").
+    // - No oneOf constraint: emit plain top-level `required`.
+    // - Has oneOf constraint(s): wrap in `allOf` so the AND of requiredFields
+    //   plus the AND of each oneOf (each itself an `anyOf` of single-field
+    //   `required` clauses) compose cleanly. JSON Schema's own `oneOf` means
+    //   "exactly one" — we deliberately use `anyOf` for at-least-one.
+    // - `allOrNone` / `implies` kinds intentionally do NOT translate to JSON
+    //   Schema; their `not` encodings trip LLM tool-call validators. They
+    //   are enforced via description suffix + runtime `validateCafe24Constraints`.
+    const oneOfConstraints = (op.constraints ?? []).filter(
+      (c): c is Extract<Cafe24FieldConstraint, { kind: 'oneOf' }> =>
+        c.kind === 'oneOf',
+    );
+    const requiredClause =
+      op.requiredFields.length > 0
+        ? { required: [...op.requiredFields] }
+        : null;
+
+    if (oneOfConstraints.length === 0) {
+      if (requiredClause) schema.required = requiredClause.required;
+    } else {
+      const anyOfClauses = oneOfConstraints.map((c) => ({
+        anyOf: c.fields.map((f) => ({ required: [f] })),
+      }));
+      const allOf = requiredClause
+        ? [requiredClause, ...anyOfClauses]
+        : anyOfClauses;
+      schema.allOf = allOf;
+    }
+
     return schema;
   }
 
@@ -700,6 +748,43 @@ function extractGrantedScopes(integration: Integration): Set<string> {
   return new Set(
     scopes.filter((s): s is string => typeof s === 'string' && s.length > 0),
   );
+}
+
+/**
+ * Build the LLM-readable MCP tool description for a cafe24 operation.
+ * Order (spec §2 "MCP/JSON Schema 매핑" + §5.3):
+ *   base description → "(Cafe24 METHOD path — via Internal Bridge: name)"
+ *   → constraint suffix lines (0..N, one per Cafe24FieldConstraint)
+ *   → CAFE24_TIMEZONE_SUFFIX (last line).
+ * Sections separated by a blank line.
+ */
+export function buildToolDescription(
+  op: Cafe24OperationMetadata,
+  integrationName: string,
+): string {
+  const constraintLines = (op.constraints ?? []).map(constraintToSuffixLine);
+  const parts = [
+    op.description,
+    `(Cafe24 ${op.method} ${op.path} — via Internal Bridge: ${integrationName})`,
+    ...constraintLines,
+    CAFE24_TIMEZONE_SUFFIX,
+  ];
+  return parts.join('\n\n');
+}
+
+/**
+ * Format a single Cafe24FieldConstraint as a one-line LLM suffix per
+ * spec §2 "MCP/JSON Schema 매핑" table.
+ */
+export function constraintToSuffixLine(c: Cafe24FieldConstraint): string {
+  if (c.kind === 'oneOf') {
+    return `Constraint: at least one of ${c.fields.join(', ')} must be provided.`;
+  }
+  if (c.kind === 'allOrNone') {
+    return `Constraint: ${c.fields.join(', ')} must be provided together (all or none).`;
+  }
+  // implies
+  return `Constraint: when ${c.if} is provided, ${c.then.join(', ')} are also required.`;
 }
 
 /**

@@ -27,6 +27,12 @@ export const customerOperations: Cafe24OperationMetadata[] = [
           'ISO8601 datetime (KST, UTC+9) — created_before. Cafe24 interprets naive ISO as KST.',
       },
     },
+    // cafe24 docs 본문 박스: "회원 ID · 가입 시작/종료일 · 회원 등급 번호 중
+    // 한 가지는 반드시 입력하셔야 합니다" — requiredFields (AND) 로 표현 불가한
+    // OR 제약. spec/conventions/cafe24-api-metadata.md §2 "constraints 의 의미".
+    constraints: [
+      { kind: 'oneOf', fields: ['member_id', 'group_no', 'since'] },
+    ],
     responseShape: 'list',
     paginated: true,
   },
