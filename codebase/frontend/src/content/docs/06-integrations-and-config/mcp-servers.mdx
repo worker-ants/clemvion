@@ -23,10 +23,10 @@ MCP는 LLM이 외부 시스템의 **도구(tools)** · **리소스(resources)** 
 
 ## MCP 서버 등록
 
-MCP 서버는 다른 통합과 동일하게 `/integrations` 에서 등록해요. service type만 `MCP Server` 로 고르면 돼요.
+MCP 서버는 다른 통합과 동일하게 [통합 관리](/integrations) 에서 등록해요. service type만 `MCP Server` 로 고르면 돼요.
 
 <Steps>
-  <Step>`/integrations` 우측 상단의 `[+ Add Integration]` 을 누르고 service-picker에서 **MCP Server** 를 선택해요.</Step>
+  <Step>[통합 관리](/integrations) 우측 상단의 `[+ Add Integration]` 을 누르고 service-picker에서 **MCP Server** 를 선택해요.</Step>
   <Step>Step 2에서 별칭(`name`)과 워크스페이스 범위를 정해요. 팀 워크스페이스의 Organization 범위는 Admin만 선택할 수 있어요.</Step>
   <Step>Step 3에서 인증 방식을 골라 자격 증명을 입력해요. `Bearer Token` / `API Key` / `None` 중 하나예요.</Step>
   <Step>저장 직전 자동으로 `POST /api/integrations/preview-test` 가 실행돼요. 서버에 연결해 `tools/list` 응답과 `serverInfo`(이름·버전·capabilities)를 받아 보여줘요. 통과해야 `[Save integration]` 이 활성화돼요.</Step>
