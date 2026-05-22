@@ -30,6 +30,10 @@ import { translationOperations } from './translation.js';
 import type { Cafe24OperationMetadata, Cafe24Resource } from './types.js';
 
 export * from './types.js';
+export {
+  CAFE24_MISSING_FIELDS_CODE,
+  validateCafe24Constraints,
+} from './constraint-validator.js';
 
 /**
  * Cafe24 Admin API 의 모든 date/time 필드가 KST(UTC+9) 기준임을 LLM 에 알리는

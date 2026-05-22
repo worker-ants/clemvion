@@ -85,7 +85,7 @@
 2. **Config echo 빌드** (Principle 7): `context.rawConfig` 를 그대로 spread — `resource`, `operation`, `fields`, `pagination` 의 `{{ }}` 표현식 보존. **자격증명은 echo 금지** — `integrationId` 만 echo.
 3. **Integration 자격증명 해석**: `IntegrationsService.getForExecution(integrationId, workspaceId)` → `serviceType='cafe24'` 검증, `status='connected'` 검증. 실패 시 `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` 코드로 §5.3 라우팅 ([공통 §4.2](./0-common.md#42-공통-에러-코드), D4).
 4. **credentials 충족 검증** (공통 §4.2 `INTEGRATION_INCOMPLETE`): `mall_id`, `app_type`, `access_token`, `refresh_token` 누락 시 catch 후 §5.3 라우팅. `app_type='private'` 인데 `client_id`/`client_secret` 누락 시 동일 (D4).
-5. **Required fields 검증**: 메타데이터의 `requiredFields` 에 명시된 키가 `config.fields` 에 모두 존재하는지 검증. 누락 시 catch 후 §5.3 (`output.error.code = 'CAFE24_MISSING_FIELDS'`, `details` 에 어느 필드인지 명시) 라우팅 (D4).
+5. **Required fields + conditional constraints 검증**: 메타데이터의 `requiredFields` (AND 시맨틱 — 모두 필수) 가 `config.fields` 에 모두 존재하는지 + 메타데이터의 `constraints?` (kind 3종: `oneOf` (at-least-one-of) / `allOrNone` / `implies`, [Cafe24 API Metadata §2](../../conventions/cafe24-api-metadata.md#2-operation-메타데이터-형식)) 가 만족되는지 검증. 누락 또는 위반 시 catch 후 §5.3 (`output.error.code = 'CAFE24_MISSING_FIELDS'`, `details` 에 어느 필드 또는 어느 constraint kind 가 위반됐는지 명시) 라우팅 (D4, 2026-05-22 constraints 추가).
 6. **토큰 만료 확인 및 갱신**: `Integration.token_expires_at` 가 만료됐거나 60초 내 만료 예정이면 자동 갱신 ([§통합 §10.5 토큰 자동 갱신](../../2-navigation/4-integration.md#105-토큰-자동-갱신)). 갱신 실패 시: `refresh_token invalid_grant` 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기 폐기 — 2026-05-16, [통합 §6 / Rationale "refresh 실패 시 status_reason 통일"](../../2-navigation/4-integration.md#rationale)), transport 3회 연속 실패면 `error(network)` 로 전이. throw `INTEGRATION_NOT_CONNECTED` 는 동일. cafe24 refresh 호출의 cross-pod 직렬화는 source 에 따라 다르다 — `proactive`/`background` 은 `cafe24-token-refresh` BullMQ 큐의 `jobId = integrationId` dedup 으로, `reactive_401` 은 unique jobId + `refreshAccessToken` 의 PostgreSQL row-level `pessimistic_write` lock 폴백 (§9.6 참고).
 7. **URL 구성**: `https://{credentials.mall_id}.cafe24api.com/api/v2/admin/{operation.path}` — `{path}` 는 메타데이터에 정의된 path template (예: `products/{product_no}`). path parameter 는 `fields` 에서 채움.
 8. **Query / Body 구성**: 메타데이터의 `fields[*].location` (path / query / body) 에 따라 분배. `pagination.{limit, offset}` 는 항상 query. body 의 envelope 직렬화는 step 9 의 wrapper 가 단일 책임으로 담당한다 (§4.2 참고).
@@ -302,7 +302,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 - **`handler.validate()` 실패** (config 형식 자체가 잘못된 경우): 여전히 사전 검증 단계에서 노드 실행 자체가 시작되지 않는다. warningRule + `evaluateMetadataBlockingErrors` 가 throw 하며 엔진이 워크플로우를 실패 처리. 예: `Integration 을 선택해야 합니다.`, `resource must be one of: store, product, order, ... (18 categories)`.
 - **`execute()` 안의 모든 IntegrationError**: §5.3 (`port: 'error'` + `output.error.*`) 으로 라우팅된다. 다음 코드들이 해당:
   - `CAFE24_UNKNOWN_OPERATION` — `operation` 이 메타데이터에 미존재
-  - `CAFE24_MISSING_FIELDS` — operation 의 `requiredFields` 중 일부 누락 (`details` 에 어느 필드인지 명시)
+  - `CAFE24_MISSING_FIELDS` — operation 의 `requiredFields` 중 일부 누락 또는 `constraints?` 위반 (`details` 에 어느 필드 또는 어느 constraint kind 가 위반됐는지 명시; 2026-05-22 부터 constraints 도 포함)
   - `CAFE24_INVALID_MALL_ID` — `mall_id` 형식 위반 (소문자 영숫자·하이픈, 3~50자 외)
   - `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` ([공통 §4.2](./0-common.md#42-공통-에러-코드))
   - `INTEGRATION_SERVICE_UNAVAILABLE` — `__workspaceId` 컨텍스트 누락 / `Cafe24ApiClient` 미주입
@@ -323,7 +323,7 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 | `CAFE24_5XX` | `500 ≤ statusCode < 600` | 서버 body 보존 | 응답 status |
 | `CAFE24_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout) | 미정의 | `0` |
 | `CAFE24_UNKNOWN_OPERATION` (D4) | `operation` 이 메타데이터에 미존재. 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
-| `CAFE24_MISSING_FIELDS` (D4) | operation 의 `requiredFields` 중 일부 누락. 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
+| `CAFE24_MISSING_FIELDS` (D4) | operation 의 `requiredFields` 중 일부 누락 또는 `constraints?` (kind: `oneOf` / `allOrNone` / `implies`, [Cafe24 API Metadata §2](../../conventions/cafe24-api-metadata.md#2-operation-메타데이터-형식)) 위반. 두 사유 모두 동일 코드 재사용 (2026-05-22). 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
 | `CAFE24_INVALID_MALL_ID` (D4) | `mall_id` 형식 위반. 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
 | `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. 종전 throw 였으나 D4 이후 본 경로 | — | `0` |
 | `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | `__workspaceId` 컨텍스트 누락 / `Cafe24ApiClient` 미주입 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 | — | `0` |

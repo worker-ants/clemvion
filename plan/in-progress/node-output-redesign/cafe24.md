@@ -65,7 +65,7 @@ Cafe24 는 외부 API 호출 노드 (단계 1개). HTTP Request 와 같은 `succ
 
 3. **`Integration.status` 자동 전이 (401/403)** — §6.1 명시. handler 실행 부작용으로 외부 상태(`Integration.status='error'`) 가 atomic UPDATE. 노드 output 컨트랙트 자체는 `port:'error'` + `output.error.code = 'CAFE24_AUTH_FAILED'` 단일 — 외부 부작용은 spec 본문(`§6.1`) 에 명시되며 output 5필드 invariant 와 직교.
 
-4. **Pre-flight throw 코드 (`CAFE24_UNKNOWN_OPERATION` / `CAFE24_MISSING_FIELDS` / `CAFE24_INVALID_MALL_ID`)** — output 에 노출되지 않고 노드 실행 실패로 분기. Principle 3.1 정합. `IntegrationUsageLog.error.code` 에만 기록 (§6 마지막 줄).
+4. **Pre-flight throw 코드 (`CAFE24_UNKNOWN_OPERATION` / `CAFE24_MISSING_FIELDS` / `CAFE24_INVALID_MALL_ID`)** — output 에 노출되지 않고 노드 실행 실패로 분기. Principle 3.1 정합. `IntegrationUsageLog.error.code` 에만 기록 (§6 마지막 줄). **(2026-05-22 추가)** `CAFE24_MISSING_FIELDS` 는 `requiredFields` 누락 외에도 `constraints?` (kind: `oneOf` / `allOrNone` / `implies`, [Cafe24 API Metadata §2](../../../spec/conventions/cafe24-api-metadata.md#2-operation-메타데이터-형식)) 위반 시에도 동일 코드 재사용. client/UI 분기 추가 없이 message·details 에 어떤 constraint kind 가 어떤 fields 에서 위반됐는지 명시.
 
 5. **MCP Bridge 와 메타데이터 공유** — `Cafe24McpBridge` 가 같은 operation 메타데이터 테이블을 사용해 `tools/list` 응답을 생성. 본 노드의 `config.operation` ↔ MCP 도구의 `tool name` 가 1:1 매핑. spec 본문 §10·§11 명시. output 컨트랙트 자체에는 영향 없음 (LLM 이 MCP 호출하면 별도 AI Agent 노드 컨텍스트에서 처리).
 

@@ -154,6 +154,50 @@ describe('Cafe24Handler', () => {
       expectErrorOutput(result, 'CAFE24_MISSING_FIELDS');
     });
 
+    // spec/conventions/cafe24-api-metadata.md §2 "constraints 의 의미" — constraints
+    // violation routes through the same CAFE24_MISSING_FIELDS code (no new code).
+    // customer_list declares `oneOf: [member_id, group_no, since]`.
+    it('CAFE24_MISSING_FIELDS when constraints oneOf is violated (customer_list)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'customer',
+          operation: 'customer_list',
+          fields: { shop_no: 1 }, // shop_no satisfies requiredFields,
+          //                          but neither cellphone nor member_id provided
+        },
+        makeContext(),
+      );
+      expectErrorOutput(result, 'CAFE24_MISSING_FIELDS');
+      const out = result.output as { error: { message: string } };
+      expect(out.error.message).toContain('oneOf');
+      expect(out.error.message).toMatch(/cellphone|member_id/);
+    });
+
+    it('constraints oneOf satisfied — proceeds past validation (customer_list)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({
+        status: 200,
+        headers: {},
+        body: { customers: [] },
+      });
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'customer',
+          operation: 'customer_list',
+          fields: { shop_no: 1, member_id: 'alice' },
+        },
+        makeContext(),
+      );
+      // No CAFE24_MISSING_FIELDS — success path because oneOf satisfied.
+      const out = result as { port?: string };
+      expect(out.port).toBe('success');
+    });
+
     it('INTEGRATION_TYPE_MISMATCH when integration serviceType is not cafe24', async () => {
       integrationsService.getForExecution.mockResolvedValue(
         makeIntegration({ serviceType: 'mcp' }),

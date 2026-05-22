@@ -67,6 +67,36 @@ owner: developer (다음 진입자)
 - [x] **F-3**: `spec/conventions/swagger.md §2-4` 실재 확인 및 cross-link 정정. (이전 review I5) — **완료 (2026-05-21, 같은 project-planner 사이클)**. §2-4 ("상태 코드 응답 규칙", swagger.md line 135) 실재 확인 + 참조 측 cross-link 7건 (`§2-4` × 2, `§2-1`, `§5`, `§5-1` 등) 모두 정합 검증. 부수 발견: `spec/2-navigation/4-integration.md` line 1349 의 `swagger.md 의 의미 기반 명명 원칙` 이 swagger.md 어느 § 에도 정의되지 않은 dangling reference → self-contained 표현으로 정정 (swagger.md 신규 § 추가 안 함 — scope 확장은 별 결정).
 - [ ] **F-3 follow-up**: 에러 코드 의미 기반 명명 원칙의 정식 규약화 — `spec/conventions/error-codes.md` (또는 `naming.md`) 신설 여부 결정. 현재는 `4-integration.md` line 1349 의 self-contained 진술만 SoT. 신규 코드가 늘면 conventions 문서로 격상 검토. (consistency-check `2026/05/21/19_46_41` INFO #6 출처)
 
+### G-1 — `constraints` 18 resource docs audit (2026-05-22)
+
+- **상태**: backend infra (types · validator · handler · MCP provider · tests) 와 `customer_list` 1건 예시는 `plan/complete/cafe24-conditional-required-impl.md` 에서 완료 (commit d932cff9). 18 resource 약 500 endpoint 의 cafe24 docs 본문 박스 audit 은 미수행.
+- **출처**: 사용자 보고 (2026-05-22) `customer_list` 사례 — docs 표상 모두 optional 인데 본문 박스에 "X·Y·Z 중 한 가지는 반드시 입력" 같은 조건부 제약 명시. AND-only `requiredFields` 가 표현 불가 → AI Agent 잘못 추론.
+- **블로커 (해소)**: chrome-equipped 세션 (2026-05-22 ~) — chrome MCP 를 통해 cafe24 docs SPA 의 모든 section 본문 박스를 SoT 로 직접 추출 가능. WebFetch 의 SPA truncation 우회됨.
+- [x] **G-1-customer**: customer resource 24 endpoint 전수 audit + field gap 정렬 완료 (commit 8a4e926f). customer_list `group_no/since/until` 제거, customer_group_update path/method 정정 (POST customergroups/{group_no}/customers), customer_autoupdate_get path 정정 (member-scoped), customer_memos_create/update field rename + 추가, customer_delete + customers_properties_view/edit + social_list + customergroups_list/count field 추가. customer_get/customer_update 는 docs 부재 — backwards-compat 위해 row 유지 + JSDoc 경고. (cafe24 docs Latest 2026-03-01 기준)
+- [x] **G-1-privacy**: privacy resource path 정정 + customersprivacy_list 22 field 보강 완료 (commit 38c5f660). pre-2026-05-22 seed 가 `privacy/customers/*` 로 wrong path (실제 docs path: `customersprivacy/*` concatenated) — 4 operation 모두 정정 (get/list/count/update). customers_privacy_list 에 `start_date+end_date` `search_field+keyword` allOrNone constraint 추가.
+- [x] **G-1-product**: product resource path/method 12건 정정 완료 (commit 5dfca92f). product_options_delete · product_images_delete · product_customproperties_update/delete · product_decorationimages_delete · product_hits_count · product_icons_delete · product_tags_delete · categories_products_delete · mains_products_*(5건). + product_list/count 에 `allOrNone [since, until]` constraint 추가 (commit 4ae303f4).
+- [x] **G-1-order**: order resource path/method 19건 정정 완료 (commit 63f4d0f3). order_status_update_multiple/order_cancellation_update/order_exchange_update/order_items_update/order_items_labels_*(4)/order_items_options_*(2)/order_paymenttimeline_history/details/order_receivers_change_shipping/order_refunds_update/order_return_update + refunds_get/cancellation_get/exchange_get/exchange_create_multiple/return_get placeholder rename + path fix.
+- [x] **G-1-community/promotion/application**: 핵심 placeholder rename 13건 완료 (commit 939e0d36). commenttemplates_get/update/delete (template_no→comment_no), urgentinquiry_reply_*(3건, inquiry_no→article_no), coupon_issues_list (coupons/issues→coupons/{coupon_no}/issues), serialcoupons_delete (path 정리), discountcodes_*(3건, discount_code→discount_code_no), scripttags_*(3건, tag_no→script_no), recipes_delete (recipe_no→recipe_code, type fix), webhooks_update (webhooks→webhooks/setting).
+- [x] **G-1-category/design/shipping**: placeholder rename 10건 완료 (commit 7d05ce48). autodisplay_update/delete (category_no→display_no), themes_get/theme_pages_*(5건, theme_no→skin_no, page_path 위치 body/query), shippingorigins_*(3건, origin_no→origin_code), shipping_additionalfees_countries (path /countries 제거).
+- [x] **G-1-store**: store resource 13건 정정 완료 (commit 6e7f2cec). paymentgateway_*(5건, paymentgateway_id→client_id, paymentmethod_id→payment_method_code, paymentmethods list 의 gateway-scoped path), paymentmethods_paymentproviders_list/update_display (per-method scope, {code}/{name} placeholders), redirects_update/delete (redirect_no→id), subscription_shipments_setting_update/delete (subscription_no 추가). socials_apple_settings_get docs 부재 JSDoc.
+- [x] **G-1-supply**: 5건 정정 완료 (commit adaf9761). regionalshippingfees→regionalsurcharges, user_id→supplier_id (regional 영역만), settings→setting, regional_delete 에 {regional_surcharge_no} 추가.
+- [x] **G-1-impliesValue**: `Cafe24FieldConstraint.impliesValue` kind 신설 완료 (commit 3de1e177). value-aware implication 표현 (예: refund_method='T' 시 bank fields 필수). validator + MCP description suffix + 6 unit tests + spec 문서화. 실제 metadata 적용은 follow-up PR (해당 ops 의 field-set 확장 선행 필요).
+- [x] **G-1-batch12**: order placeholder/path 12건 + docs 부재 ops JSDoc 7건 완료 (commit 8b2b927b). cashreceipt_update/cancel placeholder + path 재구조, collectrequests_update / orderform_properties_update/delete / orders_inflowgroups_update/delete / orders_saleschannels_update/delete placeholder rename. orders_inflows_*(4건) path 전체 재구조 (group-scoped). orders_migrations_delete + order_id, reservations_get path placeholder 제거, exchangerequests_reject_multiple path 정리, promotion serialcoupons_generate path 변경. docs 부재 7건 JSDoc ⚠ 마크 (coupon_get/delete, applications_list, webhooks_list, mains_update/delete).
+- [ ] **G-1-remaining**: 본 PR 에서 다루지 못한 잔여 항목 — 별 PR 로 분리:
+  - **store 의 field-set 확장**: store resource 106 endpoint 의 docs field 와의 비교 audit 미수행. 본 PR 은 path/method 만 정렬.
+  - **field-set 확장 (모든 resource)**: docs 에 있는 field 들 중 우리 metadata 에 누락된 것 추가. 예: product_list docs 는 ~50 field 인데 우리 8 field. 모든 resource 에 적용 시 수천 줄 변경.
+  - **impliesValue 의 metadata 적용**: spec 인프라는 본 PR 에서 완료. 실제 ops 에 적용은 trigger field (refund_method, material_composite 등) 가 metadata 에 추가된 후. order cancellation/return/exchange + products create/update + bundleproducts create/update.
+  - **constraint-only sweep — 미적용 date-pair**: order_count (start_date/end_date), boards_articles_list, coupon_list/coupon_count (created_start_date/created_end_date), scripttags_list/count, salesreport_volume — 다수가 우리 metadata 에 date 필드 부재로 field-set 확장이 선행돼야 추가 가능.
+  - **잔존 docs 부재 ops (G-2)**: customer_get/customer_update, coupon_get/coupon_delete, applications_list, webhooks_list, mains_update/delete, socials_apple_settings_get — JSDoc 으로 표시 완료. production 검증 후 제거 결정 필요.
+- **G-2** follow-up: 다음 ops 의 docs 부재 처리 결정 — production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요청. 영향 ops:
+  - customer: customer_get, customer_update
+  - promotion: coupon_get, coupon_delete
+  - application: applications_list, webhooks_list
+  - category: mains_update, mains_delete
+  - store: socials_apple_settings_get
+  
+  모두 JSDoc ⚠ 마크 + 본 G-2 ref. 운영 검증 후 단계적 제거.
+
 ## 처리 후
 
 각 항목 완료 시 본 plan 의 체크박스 갱신. 모든 항목 처리되면 `plan/complete/` 로 `git mv` (history 보존).

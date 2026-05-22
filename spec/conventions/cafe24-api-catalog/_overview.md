@@ -79,6 +79,8 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 
 테스트는 카탈로그 MD 의 표를 파싱한다 — MD 표 구문이 깨지면 곧장 fail. 따라서 본 카탈로그는 **사람이 직접 손으로 수정하는 SoT** 이며, 코드 변경 시점에 반드시 카탈로그 동기 갱신을 함께 commit 해야 한다(`spec/conventions/cafe24-api-metadata.md` §5 의 신규 endpoint 추가 절차에 인용).
 
+> **참고 — `constraints` invariant 는 본 catalog-sync 와 별개 파일에서 수행**: backend 메타데이터의 `constraints?` ([Cafe24 API Metadata §2](../cafe24-api-metadata.md#2-operation-메타데이터-형식)) 필드명 부분집합 검증·길이 invariant 는 `metadata.spec.ts` 가 담당한다 — `catalog-sync.spec.ts` 의 검증 대상이 아니다. `constraints` 자체는 backend 메타데이터 row 가 단일 SoT 이며 catalog 컬럼으로 노출하지 않는다 (`restrictedApproval.approvalGroup` 과 동일 패턴, 2026-05-22 결정).
+
 ## 5. Coverage Matrix
 
 2026-05-21 기준. 본 매트릭스는 카탈로그 row 수 + 메타데이터 row 수의 한 화면 요약이다 — 위 동기 테스트와 별개의 휴먼 가독성 보조 정보다. row 추가/삭제 시 본 표도 손으로 갱신한다.

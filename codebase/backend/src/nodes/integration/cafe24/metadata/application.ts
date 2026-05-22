@@ -13,10 +13,15 @@ import {
 } from './date-descriptions.js';
 
 export const applicationOperations: Cafe24OperationMetadata[] = [
+  // ⚠ applications_list — cafe24 admin docs (Latest 2026-03-01) 는
+  // `GET applications` 를 노출하지 않는다. 본 row 는 seed 이며 cafe24 wire
+  // 상 실제 동작 여부 미확인. 운영 검증 / 제거 결정은
+  // `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'applications_list',
     label: '설치된 앱 목록 조회',
-    description: 'List apps installed in the mall.',
+    description:
+      'List apps installed in the mall. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
     method: 'GET',
     path: 'applications',
@@ -40,10 +45,15 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
   },
+  // ⚠ webhooks_list — cafe24 admin docs (Latest 2026-03-01) 는 `GET
+  // webhooks` 를 노출하지 않는다 (webhooks/setting GET/PUT 와 webhooks/logs
+  // 만 문서화). 본 row 는 seed 이며 cafe24 wire 상 실제 동작 여부 미확인.
+  // 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'webhooks_list',
     label: 'Webhook 설정 조회',
-    description: 'List webhook subscriptions configured for the app.',
+    description:
+      'List webhook subscriptions configured for the app. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
     method: 'GET',
     path: 'webhooks',
@@ -83,13 +93,13 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'scripttags_get',
     label: '스크립트태그 단건 조회',
-    description: 'Retrieve a script tag by tag_no.',
+    description: 'Retrieve a script tag by script_no.',
     scopeType: 'read',
     method: 'GET',
-    path: 'scripttags/{tag_no}',
-    requiredFields: ['tag_no'],
+    path: 'scripttags/{script_no}',
+    requiredFields: ['script_no'],
     fields: {
-      tag_no: { type: 'number', location: 'path' },
+      script_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -118,13 +128,13 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'scripttags_update',
     label: '스크립트태그 수정',
-    description: 'Update a script tag by tag_no (partial).',
+    description: 'Update a script tag by script_no (partial).',
     scopeType: 'write',
     method: 'PUT',
-    path: 'scripttags/{tag_no}',
-    requiredFields: ['tag_no'],
+    path: 'scripttags/{script_no}',
+    requiredFields: ['script_no'],
     fields: {
-      tag_no: { type: 'number', location: 'path' },
+      script_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
       src: { type: 'string', location: 'body' },
       display_location: { type: 'string', location: 'body' },
@@ -135,23 +145,25 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'scripttags_delete',
     label: '스크립트태그 삭제',
-    description: 'Delete a script tag by tag_no.',
+    description: 'Delete a script tag by script_no.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'scripttags/{tag_no}',
-    requiredFields: ['tag_no'],
+    path: 'scripttags/{script_no}',
+    requiredFields: ['script_no'],
     fields: {
-      tag_no: { type: 'number', location: 'path' },
+      script_no: { type: 'number', location: 'path' },
     },
     responseShape: 'single',
   },
   {
     id: 'webhooks_update',
     label: 'Webhook 설정 수정',
-    description: 'Update webhook subscriptions (partial).',
+    description: 'Edit webhook settings (partial).',
     scopeType: 'write',
     method: 'PUT',
-    path: 'webhooks',
+    // cafe24 docs path: `webhooks/setting` (settings endpoint — not bare
+    // `webhooks` which docs does not define).
+    path: 'webhooks/setting',
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'body', default: 1 },
@@ -312,13 +324,13 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'recipes_delete',
     label: '레시피 삭제',
-    description: 'Delete a recipe by recipe_no.',
+    description: 'Delete a recipe by recipe_code.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'recipes/{recipe_no}',
-    requiredFields: ['recipe_no'],
+    path: 'recipes/{recipe_code}',
+    requiredFields: ['recipe_code'],
     fields: {
-      recipe_no: { type: 'number', location: 'path' },
+      recipe_code: { type: 'string', location: 'path' },
     },
     responseShape: 'single',
   },

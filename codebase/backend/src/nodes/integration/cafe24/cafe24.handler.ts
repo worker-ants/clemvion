@@ -25,6 +25,7 @@ import {
   Cafe24OperationMetadata,
   Cafe24Resource,
   findCafe24Operation,
+  validateCafe24Constraints,
 } from './metadata/index.js';
 
 const MALL_ID_PATTERN = /^[a-z0-9-]{3,50}$/;
@@ -164,6 +165,17 @@ export class Cafe24Handler
         throw new IntegrationError(
           'CAFE24_MISSING_FIELDS',
           `missing required fields [${missing.join(', ')}] for ${resource}.${operationId}`,
+        );
+      }
+
+      // 2b. Conditional constraints check (spec §2 "constraints 의 의미").
+      // Reuses CAFE24_MISSING_FIELDS — client/UI does not learn a new code,
+      // and the message identifies which kind / fields were violated.
+      const constraintViolation = validateCafe24Constraints(operation, fields);
+      if (constraintViolation) {
+        throw new IntegrationError(
+          'CAFE24_MISSING_FIELDS',
+          `${constraintViolation} (for ${resource}.${operationId})`,
         );
       }
 

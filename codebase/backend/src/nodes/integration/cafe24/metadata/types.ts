@@ -50,6 +50,47 @@ export type Cafe24ApprovalGroup =
   // populated when Analytics support ships. See cafe24-restricted-scopes.md §3.
   | 'analytics';
 
+/**
+ * Conditional input constraint — captures the Cafe24 docs natural-language
+ * notes like "회원 ID · 가입 시작/종료일 · 회원 등급 번호 중 한 가지는 반드시
+ * 입력" that the `requiredFields: string[]` AND-semantic cannot express.
+ *
+ * Spec: `spec/conventions/cafe24-api-metadata.md` §2 "constraints 의 의미".
+ *
+ * Three kinds:
+ * - `oneOf`     — at-least-one-of (NOT JSON Schema's exactly-one). MCP schema
+ *                 converts to `anyOf: [{required:[a]}, …]`.
+ * - `allOrNone` — listed fields must all be present together or all absent.
+ *                 Description suffix + runtime guard only (no JSON Schema —
+ *                 LLM tool-call validators do not handle `not` consistently).
+ * - `implies`   — when `if` is present, every field in `then` is required.
+ *                 Description suffix + runtime guard only.
+ *
+ * Invariants enforced by `metadata.spec.ts`:
+ * 1. All field names referenced (in `fields`, `if`, `then`) must be keys of
+ *    the operation's `fields` map.
+ * 2. `oneOf.fields` and `allOrNone.fields` have length >= 2.
+ * 3. `implies.then` has length >= 1 (tuple-encoded).
+ */
+export type Cafe24FieldConstraint =
+  | { kind: 'oneOf'; fields: string[] }
+  | { kind: 'allOrNone'; fields: string[] }
+  | { kind: 'implies'; if: string; then: [string, ...string[]] }
+  /**
+   * Value-aware implication: when the input value of `if` field equals
+   * `value`, then `then` fields are required. Encodes cafe24 docs patterns
+   * like "refund_method=T (cash) requires refund_bank_*" and
+   * "material_composite=T requires material+content_rate". The value
+   * comparison is strict-equal on string/number/boolean — Cafe24 enum
+   * fields use string tokens (`T`/`F`/etc) so this is sufficient.
+   */
+  | {
+      kind: 'impliesValue';
+      if: string;
+      value: string | number | boolean;
+      then: [string, ...string[]];
+    };
+
 export interface Cafe24RestrictedApproval {
   /**
    * `scope`: the entire OAuth scope requires Cafe24 partner approval — all
@@ -96,6 +137,21 @@ export interface Cafe24OperationMetadata {
    * scope checkboxes. SoT: `spec/conventions/cafe24-restricted-scopes.md`.
    */
   restrictedApproval?: Cafe24RestrictedApproval;
+
+  /**
+   * Conditional input constraints — Cafe24 docs natural-language requirements
+   * the AND-only `requiredFields` cannot express. See `Cafe24FieldConstraint`
+   * for the three kinds (`oneOf` / `allOrNone` / `implies`).
+   *
+   * Surfaced on three channels by `Cafe24McpBridge` / `cafe24.handler.ts`:
+   * 1. MCP tool description auto-suffix (LLM-readable, all kinds).
+   * 2. Handler + MCP `execute()` runtime validation throwing
+   *    `IntegrationError('CAFE24_MISSING_FIELDS', …)` (all kinds).
+   * 3. JSON Schema `anyOf` (only for `oneOf` kind).
+   *
+   * Spec: `spec/conventions/cafe24-api-metadata.md` §2 "constraints 의 의미".
+   */
+  constraints?: Cafe24FieldConstraint[];
 }
 
 export type Cafe24Resource =
