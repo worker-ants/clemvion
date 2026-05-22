@@ -595,11 +595,32 @@ export function parseHistoryMessages(
     (wrapper?.metadata as Record<string, unknown> | undefined);
   const metaModel = (meta?.model as string | undefined) ?? undefined;
 
-  return messagesToConversationItems(messages, {
+  const items = messagesToConversationItems(messages, {
     debugByTurn,
     toolStatusByCallId,
     metaModel,
   });
+
+  // spec §7.10 — backend echoes accumulated render_* payloads on the final
+  // multi-turn output (also single-turn `out`) under `output.result.presentations`.
+  // The execution-history page only reads NodeExecution.outputData (no live
+  // thread snapshot), so we re-attach the payloads to the **last assistant**
+  // ConversationItem here. That makes AssistantPresentationsBlock render the
+  // same inline preview the chat surface shows. When backend emits 0 payloads
+  // the array is omitted from output → no-op.
+  const presentations = resultNode?.presentations as
+    | PresentationPayload[]
+    | undefined;
+  if (presentations && presentations.length > 0) {
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].type === "assistant") {
+        items[i] = { ...items[i], presentations };
+        break;
+      }
+    }
+  }
+
+  return items;
 }
 
 /**

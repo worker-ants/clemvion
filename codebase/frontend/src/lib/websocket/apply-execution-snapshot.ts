@@ -158,7 +158,7 @@ export function applyExecutionSnapshot(
     }
     // Execution already resumed before we joined — reconcile local state.
     const { waitingInteractionType: wit } = useExecutionStore.getState();
-    if (wit === "ai_conversation") {
+    if (wit === "ai_conversation" || wit === "ai_form_render") {
       resumeFromConversation();
     } else if (wit === "buttons") {
       resumeFromButtons();
@@ -235,7 +235,10 @@ export function applyExecutionSnapshot(
         (raw.type === "form" ? "form" : undefined) ??
         inferInteractionTypeFromNodeType(fallbackNodeType);
 
-      if (interactionType === "ai_conversation") {
+      if (
+        interactionType === "ai_conversation" ||
+        interactionType === "ai_form_render"
+      ) {
         // D6 (2026-05-17) — multi-turn 대화 상태(`message` / `turnCount` /
         // `maxTurns` / `messages`)는 structured envelope 의 `output.result.*`
         // 에 있고, handler config (model, systemPrompt, mode, ...) 는
@@ -243,10 +246,21 @@ export function applyExecutionSnapshot(
         // `maxTurns` 를 읽으므로 두 위치를 병합해서 넘긴다 — 그렇지 않으면
         // `config.turnCount` 가 항상 undefined 라 카운터가 깨진다 (legacy
         // shape 의 `conversationConfig` 한 객체에 모여있던 필드들과 동등).
+        // ai_form_render 는 동일 conversation snapshot 위에 form input
+        // overlay 만 추가되는 형태라 같은 hydration 경로를 공유한다.
         const convConfig = isStructured
           ? buildConvConfigFromStructured(raw)
           : (raw.conversationConfig as Record<string, unknown> | undefined);
         pauseForConversation(waitingNode.nodeId, convConfig ?? null);
+        if (interactionType === "ai_form_render") {
+          // pauseForConversation 이 store 의 waitingInteractionType 을
+          // 'ai_conversation' 으로 set 하므로, form-render 케이스에서는
+          // 정확한 값으로 override 한다. submitForm dispatch 분기 (use-
+          // execution-events.handleExecutionResumed) 가 이 값으로 분기.
+          useExecutionStore.setState({
+            waitingInteractionType: "ai_form_render",
+          });
+        }
 
         // 페이지 재진입 hydration — store.conversationMessages 가 비어있고
         // outputData 에 메시지가 영속되어 있으면 시드한다. WS 경로
@@ -287,7 +301,14 @@ function maybeSeedAiConversationMessages(
   if (!waitingNode?.outputData) return;
   const { waitingInteractionType, conversationMessages, setConversationMessages } =
     useExecutionStore.getState();
-  if (waitingInteractionType !== "ai_conversation") return;
+  // ai_conversation (chat) 와 ai_form_render (chat + form input overlay) 둘 다
+  // multi-turn timeline 을 가진다 — 둘 다 seed 대상.
+  if (
+    waitingInteractionType !== "ai_conversation" &&
+    waitingInteractionType !== "ai_form_render"
+  ) {
+    return;
+  }
   if (conversationMessages.length > 0) return;
   const items = parseHistoryMessages(waitingNode.outputData);
   if (items.length > 0) {
