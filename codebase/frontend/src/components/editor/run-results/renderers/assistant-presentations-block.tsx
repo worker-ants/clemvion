@@ -132,8 +132,26 @@ export function AssistantPresentationsBlock({
     }
   };
 
+  // SummaryView (conversation-inspector.tsx) wraps each assistant message row
+  // in an outer `<div role="button" onClick={...}>` that selects the turn.
+  // Inner buttons inside the rendered presentation (carousel "주문하기",
+  // template buttons, form submit, etc.) bubble their click event up to that
+  // outer handler — turn selection fires, the inner onClick effect (sendMessage
+  // dispatch) is overshadowed because the UI swaps to SelectedItemDetail.
+  //
+  // Containment fix: every click/keydown originating inside this block is
+  // stopped at the outermost wrapper so it never reaches the parent row's
+  // selection handler. Inner interactive elements still receive their own
+  // event (stopPropagation does not cancel the target's handler) so buttons,
+  // links, and form fields all keep their semantics. The outer wrapper has
+  // no onClick of its own — propagation stop is the only behaviour.
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
   return (
-    <div className="mt-3 flex flex-col gap-3">
+    <div
+      className="mt-3 flex flex-col gap-3"
+      onClick={stop}
+      onKeyDown={stop}
+    >
       {presentations.map((p, idx) => (
         <div
           key={`${p.toolCallId || p.type}-${idx}`}

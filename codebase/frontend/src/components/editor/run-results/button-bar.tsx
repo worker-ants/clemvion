@@ -104,9 +104,13 @@ export function ButtonBar({
   return (
     <div className="mt-3 space-y-2">
       <div className="flex flex-wrap gap-2">
-        {buttons.map((btn) => (
+        {/* Compound key — Presentation node ButtonBar is normally validated
+            by backend zod, but defense-in-depth: a render_* tool wrapped by
+            an LLM could feed duplicate / undefined btn.id into the same
+            renderer. idx fallback ensures React key uniqueness. */}
+        {buttons.map((btn, bi) => (
           <Button
-            key={btn.id}
+            key={`${btn.id ?? ""}-${bi}`}
             variant="ghost"
             size="sm"
             disabled={disabled || (btn.type === "link" && (!btn.url || !isSafeUrl(btn.url)))}
