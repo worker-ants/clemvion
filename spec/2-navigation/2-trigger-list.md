@@ -87,7 +87,6 @@
 | Schedule Configuration | `nextRunAt` | read-only (시스템 계산) | sweep 시점에 갱신 |
 | External Interaction (Notification) | `url` / `events` / `signing` / `retry` | edit | [Spec EIA §4](../5-system/14-external-interaction-api.md#4-trigger-config) 참조 — 별 plan `eia-trigger-edit-ui` 가 구현 |
 | External Interaction (Interaction) | `enabled` / `tokenStrategy` | edit | 동상 |
-| Recent Calls | (목록) | read-only | 클릭 시 실행 상세로 이동 |
 | Auth Config (외부 `auth_config` 연결) | `authConfigId` | edit (v1.1 후속) | v1 은 Webhook Configuration 의 인라인 `authType` 으로 충분. 외부 `auth_config` 엔티티와의 매핑은 [Authentication 메뉴](../5-system/1-auth.md) 에서. v1 표시 전용 |
 
 권한 게이트: 각 edit 토글은 `editor` 이상에서만 노출. `viewer` 는 모든 카드가 read 모드로 보임. `admin`/`owner` 는 동작은 동일 (audit log 의 actor 식별만 다름).

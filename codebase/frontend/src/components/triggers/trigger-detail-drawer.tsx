@@ -613,7 +613,7 @@ curl -X POST ${url} \\
             </dt>
             <dd>
               <Badge variant="outline">
-                {authType === "hmac" ? "HMAC Signature" : authType === "bearer" ? "Bearer Token" : "None (Public)"}
+                {authType === "hmac" ? t("triggers.authHmac") : authType === "bearer" ? t("triggers.authBearer") : t("triggers.authNone")}
               </Badge>
             </dd>
           </div>
@@ -661,7 +661,7 @@ curl -X POST ${url} \\
 /**
  * Spec EIA §4 — External Interaction API 의 현재 설정을 표시하는 read-only 카드.
  *
- * v1 은 표시 전용 (수정 UI 는 후속 PR). 호스팅된 워크플로우가 외부 호출자에게 어떤 채널을
+ * 편집·rotate·revoke 지원 (PR #265). 호스팅된 워크플로우가 외부 호출자에게 어떤 채널을
  * 노출하고 있는지 한눈에 보기 위함. `notificationHealth` 배지로 발송 상태 모니터링.
  */
 const NOTIFICATION_EVENT_CHOICES = [
@@ -878,7 +878,7 @@ function ExternalInteractionCard({
               <dt className="font-medium">
                 {t("triggers.externalInteraction.interaction")}
               </dt>
-              <Badge variant="success">Enabled</Badge>
+              <Badge variant="success">{t("triggers.externalInteraction.interactionEnabled")}</Badge>
             </div>
             <dl className="space-y-1.5 pl-2 text-xs">
               <div className="flex items-center justify-between">
@@ -886,7 +886,9 @@ function ExternalInteractionCard({
                   {t("triggers.externalInteraction.interactionTokenStrategy")}
                 </dt>
                 <dd className="font-mono">
-                  {interaction.tokenStrategy ?? "per_execution"}
+                  {interaction.tokenStrategy === "per_trigger"
+                    ? t("triggers.externalInteraction.tokenStrategyPerTrigger")
+                    : t("triggers.externalInteraction.tokenStrategyPerExecution")}
                 </dd>
               </div>
               <div className="flex items-center justify-between">
