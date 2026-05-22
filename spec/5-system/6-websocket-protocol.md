@@ -179,7 +179,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패 |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeName, reason }` | 노드 건너뜀 |
 | `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig?, conversationThread? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. `conversationThread` 가 동봉되면 UI 가 라이브 thread 패널을 갱신할 수 있다 (선택, §4.4.5). 아래 §4.4 참조 |
-| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷이며, 각 항목은 `source: 'live' \| 'injected'` 마커를 동봉한다 (§4.4.6). 상세 필드 정의는 §4.4 참조 |
+| `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs?, presentations? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷이며, 각 항목은 `source: 'live' \| 'injected'` 마커를 동봉한다 (§4.4.6). `presentations` 는 AI Agent 의 `render_*` 표현 도구 출력 (§4.4 표 / [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)). 상세 필드 정의는 §4.4 참조 |
 | `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI Agent 가 provider tool(KB/MCP 등)을 실행하기 시작했음을 알림. 디버깅 타임라인이 즉시 pending 상태의 tool 항목을 표시할 수 있도록 turn 종료 전에 발송 |
 | `execution.tool_call_completed` | `{ executionId, nodeId, turnIndex, toolCallId, content, status, error?, durationMs }` | provider tool 실행이 끝났음을 알림. `status` 는 `'success' \| 'error'`. provider 가 throw 한 경우 핸들러가 캐치해 `status: 'error'` 와 `error` 메시지를 채우고 LLM 에는 에러 content 를 그대로 넘겨 다음 턴에서 회복할 기회를 준다 |
 
@@ -191,7 +191,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.stop` | `{ executionId, force? }` | 실행 중단 요청 |
 | `execution.continue` | `{ executionId }` | 브레이크포인트 후 계속 |
 | `execution.step` | `{ executionId }` | 한 노드만 실행 후 다시 정지 |
-| `execution.submit_form` | `{ executionId, nodeId, formData }` | Form 노드에 사용자 입력 제출 |
+| `execution.submit_form` | `{ executionId, nodeId, formData, toolCallId? }` | Form 노드에 사용자 입력 제출. `toolCallId` 는 AI Agent 의 `render_form` 도구 응답 시에만 동봉 — `interactionType: 'ai_form_render'` 의 `conversationConfig.pendingFormToolCall.toolCallId` 와 일치해야 한다 ([Spec AI Agent §6.2 step 2](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). 미일치 시 reject |
 | `execution.click_button` | `{ executionId, nodeId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션) |
 | `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송 |
 | `execution.end_conversation` | `{ executionId, nodeId }` | AI Agent Multi Turn 대화 종료 요청 |
@@ -282,11 +282,11 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 | 필드 | 설명 |
 |------|------|
-| `interactionType` | `form`: Form 노드, `buttons`: 버튼이 설정된 Presentation 노드, `ai_conversation`: AI Agent Multi Turn 대화 |
-| `formConfig` | `interactionType = form` 시 존재. Form 노드의 폼 설정 |
+| `interactionType` | `form`: Form 노드, `buttons`: 버튼이 설정된 Presentation 노드, `ai_conversation`: AI Agent Multi Turn 일반 대화, `ai_form_render`: AI Agent 가 `render_form` 도구 호출로 사용자 form 제출 대기 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) |
+| `formConfig` | `interactionType = form` 또는 `ai_form_render` 시 존재. Form 노드의 폼 설정 (`ai_form_render` 의 경우 LLM 페이로드 ∪ `presentationTools[*].defaults` overlay 결과) |
 | `buttonConfig` | `interactionType = buttons` 시 존재. 버튼 정의 + 타임아웃 + 노드 렌더링 출력 |
 | `buttonConfig.nodeOutput` | 노드의 렌더링 결과 (클라이언트가 콘텐츠 + 버튼을 함께 표시) |
-| `conversationConfig` | `interactionType = ai_conversation` 시 존재. AI Agent Multi Turn 대화 설정 |
+| `conversationConfig` | `interactionType ∈ {ai_conversation, ai_form_render}` 시 존재. AI Agent Multi Turn 대화 설정. `ai_form_render` 시 추가로 `conversationConfig.pendingFormToolCall: { toolCallId }` 동봉 — 클라이언트가 `execution.submit_form` 의 `toolCallId` 매칭 근거로 사용 |
 
 **AI Agent Multi Turn 노드 (`interactionType: "ai_conversation"`):**
 
@@ -351,6 +351,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `llmCalls[].responsePayload` | unknown? | LLM provider 가 반환한 raw 응답 (content, model, usage, stopReason 등) |
 | `llmCalls[].durationMs` | number? | **단일 LLM 요청** 소요시간 |
 | `durationMs` | number? | **턴 전체** 소요시간 (모든 LLM 호출 + tool 실행 합) |
+| `presentations` | PresentationPayload[]? | AI Agent 가 `render_*` 표현 도구 ([Spec AI Agent §4.1](../4-nodes/3-ai/1-ai-agent.md#41-presentation-tool-family-render_)) 를 호출한 turn 에서만 동봉. `ai_assistant` ConversationTurn 의 top-level `presentations[]` snapshot. type 정의의 단일 진실은 [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반). 클라이언트가 chat UI 에서 텍스트와 함께 inline 렌더 |
 
 ```json
 {

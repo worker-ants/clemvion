@@ -122,7 +122,7 @@ function normalizeColumns(raw: unknown, firstRow: unknown): ColumnDef[] {
   return [];
 }
 
-function TableContent({ data }: { data: Record<string, unknown> }) {
+export function TableContent({ data }: { data: Record<string, unknown> }) {
   const rows = data.rows as unknown[] | undefined;
   if (!rows || !Array.isArray(rows)) {
     return <JsonContent data={data} />;
@@ -174,7 +174,7 @@ interface CarouselContentProps {
   onLinkButtonClick?: (url: string) => void;
 }
 
-function CarouselContent({ data, config, selectedButtonId, onPortButtonClick, onLinkButtonClick }: CarouselContentProps) {
+export function CarouselContent({ data, config, selectedButtonId, onPortButtonClick, onLinkButtonClick }: CarouselContentProps) {
   // dynamic 모드: backend 가 `output.items` 채움.
   // static 모드: backend 가 `output: {}` 반환 — 슬라이드 정의는 `config.items` (Principle 1.1 직교).
   const items = ((data.items as
@@ -257,7 +257,7 @@ function CarouselContent({ data, config, selectedButtonId, onPortButtonClick, on
   );
 }
 
-function ChartContent({
+export function ChartContent({
   data,
   config,
 }: {
@@ -355,7 +355,7 @@ function ChartContent({
  * Returns `null` when `rendered` is missing so the parent's Output Data
  * section surfaces the raw payload while the button bar still appears.
  */
-function TemplateContent({
+export function TemplateContent({
   data,
   config,
 }: {
@@ -398,7 +398,7 @@ function TemplateContent({
   );
 }
 
-function FormSubmittedContent({ data }: { data: Record<string, unknown> }) {
+export function FormSubmittedContent({ data }: { data: Record<string, unknown> }) {
   // Form submission payload lives at `output.interaction.data` per
   // CONVENTIONS §4.5 (Stage 3 of the node-specs-improvement rollout,
   // completed). Legacy executions may still carry `submittedData`

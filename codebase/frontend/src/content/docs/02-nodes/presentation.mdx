@@ -290,6 +290,22 @@ Form 실행은 **폼 제출 시까지 무제한 대기**해요. 실행 상태가
 HTML 출력은 실행 결과 뷰어에서 **샌드박스 iframe**으로 렌더링돼요. 외부 스크립트 실행은 차단되니, 동적 동작이 필요하면 Template 바깥에서 처리해요.
 </Callout>
 
+## AI 도구 모드 (Presentation Tools)
+
+이 카테고리의 노드 5종 (Carousel / Table / Chart / Form / Template) 의 input schema 는 AI Agent 의 `presentationTools` 설정에서 LLM tool parameters JSON Schema 의 단일 진실로 재사용돼요.
+
+즉, 워크플로우 그래프에 Presentation 노드를 직접 연결하지 않아도, AI Agent 가 `presentationTools` 를 등록하면 LLM 이 판단에 따라 채팅 UI 안에서 동일한 렌더링을 직접 만들 수 있어요.
+
+**동작 요약:**
+
+- `render_table` / `render_chart` / `render_carousel` / `render_template` — display-only. 워크플로우 실행을 종료하지 않고 LLM 응답에 inline 렌더돼요.
+- `render_form` — interactive. Multi Turn 모드에서 사용자에게 폼을 표시하고 응답을 대기해요. Single Turn 모드에서는 무시돼요.
+- `defaults` overlay: AI Agent 설정의 `defaults` 필드로 columns·buttons·layout 등 brand/style 고정값을 지정하면, LLM 이 생성한 페이로드와 deep-merge 시 `defaults` 가 우선해요.
+- 1 MB cap: Carousel·Table 은 tail truncate, Chart·Template 은 초과 시 silent drop 이에요.
+- schema 위반: 1회 재시도 후 silent drop. `error` 포트는 발화하지 않아요.
+
+자세한 동작 (defaults overlay, 1 MB cap, schema 위반 폴백) 은 [AI 노드 §Presentation Tools](/docs/02-nodes/ai#presentation-tools) 를 참고해요.
+
 ## 캔버스 요약
 
 - Carousel: `{layout} · {titleField}` 또는 `{layout} · {N} buttons`

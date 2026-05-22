@@ -527,7 +527,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 `execution.cancelled` 는 §6.3 의 `result` 자리에 `cancelledBy: "user" | "system" | "timeout"` 만 채운 변형.
 
-`execution.ai_message` 는 [Spec WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 `execution.ai_message` payload 를 그대로 포함하며, 본 spec 의 표준 envelope (`triggerId` / `workflowId` / `timestamp` / `seq`) 만 추가로 wrap 한다.
+`execution.ai_message` 는 [Spec WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 `execution.ai_message` payload 를 그대로 포함하며, 본 spec 의 표준 envelope (`triggerId` / `workflowId` / `timestamp` / `seq`) 만 추가로 wrap 한다. WS payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)) 도 그대로 전달된다 — 외부 클라이언트 (SDK) 는 본 필드 존재 시 chat UI 에서 텍스트와 함께 inline 렌더 가능.
 
 ### 6.6 재시도
 

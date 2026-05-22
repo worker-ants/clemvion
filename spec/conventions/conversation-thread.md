@@ -32,6 +32,7 @@
 | `data?` | Object | 구조화 원본 — `output.interaction.data` snapshot. `interaction.type` 별 shape 은 [node-output §4.5](./node-output.md#45-interactiondata-payload-규격) 의 단일 정의를 따른다 (drift 회피 위해 본 표에 재열거하지 않음). UI 와 LLM payload builder 는 raw text 파싱 없이 본 메타로 렌더 / 직렬화 — 새 inline marker 도입은 §1.6 를 먼저 개정해야 한다 |
 | `toolCalls?` | Array<{id,name,arguments}> | `source='ai_assistant'` 한정. provider 호환성을 위해 messages 모드에서 drop 가능 |
 | `toolCallId?` | String | `source='ai_tool'` 한정 |
+| `presentations?` | PresentationPayload[] | `source='ai_assistant'` 한정. AI Agent 가 `render_*` tool family ([Spec AI Agent §4.1](../4-nodes/3-ai/1-ai-agent.md#41-presentation-tool-family-render_)) 로 emit 한 표·차트·캐러셀·템플릿·폼 페이로드. **top-level 독립 필드 — `data?` 와 별개** (`data?` 는 `output.interaction.data` 스냅샷 단일 진실이라 다른 의미의 데이터를 박지 않는다). type 정의 (`PresentationPayload`) 의 단일 진실은 [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) |
 
 ### 1.3 ConversationThread
 

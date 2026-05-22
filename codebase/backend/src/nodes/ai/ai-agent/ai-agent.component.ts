@@ -3,6 +3,7 @@ import { NodeComponent } from '../../core/node-component.interface';
 import { KbToolProvider } from './tool-providers/kb-tool-provider';
 import { McpToolProvider } from './tool-providers/mcp-tool-provider';
 import { Cafe24McpToolProvider } from './tool-providers/cafe24-mcp-tool-provider';
+import { RenderToolProvider } from './tool-providers/render-tool-provider';
 import type { AgentToolProvider } from './tool-providers/agent-tool-provider.interface';
 import {
   aiAgentNodeConfigSchema,
@@ -36,6 +37,11 @@ export const aiAgentNodeComponent: NodeComponent = {
     providers.push(
       new McpToolProvider(deps.mcpClientService, deps.integrationsService),
     );
+    // Presentation tool family (`render_*`) — spec/4-nodes/3-ai/1-ai-agent.md §4.1.
+    // Empty `presentationTools` config keeps the provider quiescent (no tools
+    // exposed). Ordering: place after KB/MCP so render_* tool name lookup is
+    // independent — matches() prefix sets don't overlap.
+    providers.push(new RenderToolProvider());
     return new AiAgentHandler(
       deps.llmService,
       providers,

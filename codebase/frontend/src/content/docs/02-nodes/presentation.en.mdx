@@ -279,6 +279,22 @@ Form runs wait **indefinitely until submission**. The run state flips to `waitin
 HTML output is rendered inside a **sandboxed iframe** in the run-results viewer. External script execution is blocked — handle dynamic behavior outside the template when needed.
 </Callout>
 
+## AI tool mode (Presentation Tools)
+
+The input schema of all five nodes in this category (Carousel / Table / Chart / Form / Template) is reused verbatim as the JSON Schema for the corresponding `render_*` virtual tool parameters in the AI Agent's `presentationTools` setting.
+
+In other words, you do not need to wire Presentation nodes into the workflow graph at all. When `presentationTools` is configured on an AI Agent node, the LLM can produce the same rendering directly inside the chat UI, based on its own judgment.
+
+**Behaviour summary:**
+
+- `render_table` / `render_chart` / `render_carousel` / `render_template` — display-only. Rendered inline in the LLM response without ending workflow execution.
+- `render_form` — interactive. In Multi Turn mode, presents a form to the user and waits for submission. Silently dropped in Single Turn mode.
+- `defaults` overlay: the `defaults` field in the AI Agent `presentationTools` config pins brand/style values (columns, buttons, layout, etc.). On deep-merge, `defaults` takes precedence over what the LLM generates.
+- 1 MB cap: Carousel and Table use tail truncation; Chart and Template are silently dropped when the cap is exceeded.
+- Schema violations: retried once, then silently dropped. The `error` port does not fire.
+
+For full details (defaults overlay, 1 MB cap, schema violation fallback), see [AI nodes § Presentation Tools](/docs/02-nodes/ai#presentation-tools).
+
 ## Canvas summary
 
 - Carousel: `{layout} · {titleField}` or `{layout} · {N} buttons`

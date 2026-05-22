@@ -201,7 +201,7 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 
 | `interaction.type` | `data` shape | 적용 노드 |
 | --- | --- | --- |
-| `form_submitted` | `{ [fieldName]: value }` (제출된 필드 값) | `form` |
+| `form_submitted` | `{ [fieldName]: value, via?: 'ai_render' }` (제출된 필드 값. `via: 'ai_render'` sentinel 은 AI Agent 의 `render_form` 도구 응답일 때만 박힘 — [Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) | `form`, `ai_agent` (`render_form`) |
 | `button_click` | `{ buttonId, buttonLabel, selectedItem? }` | `carousel`, `table`, `chart`, `template` |
 | `button_continue` | `{ buttonId, buttonLabel, url }` | link 타입 버튼의 Continue 포트 (presentation 노드) |
 | `message_received` | `{ content, role: "user" }` | `ai_agent`, `information_extractor` multi-turn |

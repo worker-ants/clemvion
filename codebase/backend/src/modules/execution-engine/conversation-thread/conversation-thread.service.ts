@@ -5,6 +5,7 @@ import {
   ConversationTurnSource,
   ConversationTurnToolCall,
   MutableConversationThread,
+  PresentationPayload,
 } from '../../../shared/conversation-thread/conversation-thread.types';
 import { renderInteractionText } from '../../../shared/conversation-thread/thread-renderer';
 
@@ -50,6 +51,11 @@ interface AppendBaseArgs {
   data?: Record<string, unknown>;
   toolCalls?: ConversationTurnToolCall[];
   toolCallId?: string;
+  /**
+   * `source === 'ai_assistant'` 한정 — AI Agent 가 `render_*` tool family 로
+   * emit 한 presentation 페이로드. spec §7.10. top-level 독립 필드.
+   */
+  presentations?: PresentationPayload[];
 }
 
 /**
@@ -105,6 +111,11 @@ export class ConversationThreadService {
       content: string;
       toolCalls?: ConversationTurnToolCall[];
       timestamp?: string;
+      /**
+       * AI Agent 가 `render_*` 표현 도구로 emit 한 페이로드. 본 turn 의
+       * top-level `presentations[]` 에 부착된다 (spec §7.10).
+       */
+      presentations?: PresentationPayload[];
     },
   ): void {
     this.appendInternal(context, {
@@ -113,6 +124,10 @@ export class ConversationThreadService {
       text: args.content,
       timestamp: args.timestamp,
       toolCalls: args.toolCalls,
+      presentations:
+        args.presentations && args.presentations.length > 0
+          ? args.presentations
+          : undefined,
     });
   }
 
@@ -185,6 +200,9 @@ export class ConversationThreadService {
       ...(args.data !== undefined ? { data: args.data } : {}),
       ...(args.toolCalls !== undefined ? { toolCalls: args.toolCalls } : {}),
       ...(args.toolCallId !== undefined ? { toolCallId: args.toolCallId } : {}),
+      ...(args.presentations !== undefined
+        ? { presentations: args.presentations }
+        : {}),
     }) as ConversationTurn;
     thread.turns.push(turn);
     thread.nextSeq = seq + 1;

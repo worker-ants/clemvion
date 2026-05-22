@@ -55,12 +55,24 @@ export interface NodeResult {
   parentNodeExecutionId?: string;
 }
 
-export type WaitingInteractionType = "form" | "buttons" | "ai_conversation";
+/**
+ * spec/5-system/6-websocket-protocol.md §4.4 의 `interactionType` 4값.
+ * `ai_form_render` 는 AI Agent multi-turn 이 `render_form` 도구를 호출해
+ * 사용자 form 제출을 대기 중일 때 emit 된다 — `submit_form` 명령으로
+ * 응답해야 한다 (spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii).
+ */
+export type WaitingInteractionType =
+  | "form"
+  | "buttons"
+  | "ai_conversation"
+  | "ai_form_render";
 
 export interface ToolCallInfo {
   name: string;
   arguments?: string;
 }
+
+import type { PresentationPayload } from "@/lib/conversation/conversation-utils";
 
 /**
  * Discriminator for a conversation timeline item. Mirrors
@@ -97,6 +109,12 @@ export interface ConversationItem {
   };
   /** Tool calls made by the assistant in this message (function calling) */
   assistantToolCalls?: ToolCallInfo[];
+  /**
+   * `type === 'assistant'` 한정 — AI Agent 가 `render_*` 도구
+   * (spec/4-nodes/3-ai/1-ai-agent.md §4.1) 로 emit 한 페이로드. chat UI 가
+   * `content` (텍스트 응답) 아래에 inline 으로 렌더한다.
+   */
+  presentations?: PresentationPayload[];
   toolArgs?: unknown;
   toolResult?: unknown;
   /**
