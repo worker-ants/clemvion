@@ -153,7 +153,7 @@ describe('Cafe24McpToolProvider', () => {
     // with `constraints: [{kind:'oneOf', ...}]` get a constraint suffix line
     // inserted before CAFE24_TIMEZONE_SUFFIX, and the JSON Schema gains
     // `allOf: [{required: ...}, {anyOf: [{required:[a]}, ...]}]`. customer_list
-    // is the canonical example (oneOf: [member_id, group_no, since]).
+    // is the canonical example (oneOf: [cellphone, member_id]).
     it('emits constraint suffix in description and anyOf in JSON Schema for oneOf constraints (customer_list)', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       const tools = await provider.buildTools({
@@ -171,7 +171,7 @@ describe('Cafe24McpToolProvider', () => {
 
       // (1) description suffix — exact wording from spec §2 table.
       expect(customerList!.description).toContain(
-        'Constraint: at least one of member_id, group_no, since must be provided.',
+        'Constraint: at least one of cellphone, member_id must be provided.',
       );
       // suffix sits between the (Cafe24 ...) line and the timezone suffix.
       const desc = customerList!.description;
@@ -192,11 +192,7 @@ describe('Cafe24McpToolProvider', () => {
         expect.arrayContaining([
           { required: ['shop_no'] },
           {
-            anyOf: [
-              { required: ['member_id'] },
-              { required: ['group_no'] },
-              { required: ['since'] },
-            ],
+            anyOf: [{ required: ['cellphone'] }, { required: ['member_id'] }],
           },
         ]),
       );

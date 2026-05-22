@@ -14,6 +14,7 @@ export const customerOperations: Cafe24OperationMetadata[] = [
       shop_no: { type: 'number', location: 'query', default: 1 },
       group_no: { type: 'number', location: 'query' },
       member_id: { type: 'string', location: 'query' },
+      cellphone: { type: 'string', location: 'query' },
       since: {
         type: 'string',
         location: 'query',
@@ -27,12 +28,17 @@ export const customerOperations: Cafe24OperationMetadata[] = [
           'ISO8601 datetime (KST, UTC+9) — created_before. Cafe24 interprets naive ISO as KST.',
       },
     },
-    // cafe24 docs 본문 박스: "회원 ID · 가입 시작/종료일 · 회원 등급 번호 중
-    // 한 가지는 반드시 입력하셔야 합니다" — requiredFields (AND) 로 표현 불가한
-    // OR 제약. spec/conventions/cafe24-api-metadata.md §2 "constraints 의 의미".
-    constraints: [
-      { kind: 'oneOf', fields: ['member_id', 'group_no', 'since'] },
-    ],
+    // cafe24 docs 본문 박스 ("Retrieve a list of customers"): "회원 아이디 ·
+    // 휴대전화 중 한 가지는 반드시 입력하셔야 합니다" — requiredFields (AND)
+    // 로는 표현 불가한 OR 제약. spec/conventions/cafe24-api-metadata.md §2
+    // "constraints 의 의미" 참고. (2026-05-22 사용자 docs 직접 확인 결과 —
+    // member_group_no/since 는 mandatory-one 박스에 포함되지 않음.)
+    //
+    // 참고 — 현 metadata 의 query 필드 집합은 cafe24 docs 와 부분 일치 (email/
+    // name/phone/created_start_date 등 누락). 본 PR 은 conditional-required
+    // 인프라 + 한 row 만 다루고, 필드 자체 확장은 `cafe24-backlog-residual.md
+    // §G-1` audit 트랙에서 처리.
+    constraints: [{ kind: 'oneOf', fields: ['cellphone', 'member_id'] }],
     responseShape: 'list',
     paginated: true,
   },

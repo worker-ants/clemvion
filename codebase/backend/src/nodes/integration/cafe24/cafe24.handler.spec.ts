@@ -166,14 +166,14 @@ describe('Cafe24Handler', () => {
           resource: 'customer',
           operation: 'customer_list',
           fields: { shop_no: 1 }, // shop_no satisfies requiredFields,
-          //                          but none of member_id/group_no/since provided
+          //                          but neither cellphone nor member_id provided
         },
         makeContext(),
       );
       expectErrorOutput(result, 'CAFE24_MISSING_FIELDS');
       const out = result.output as { error: { message: string } };
       expect(out.error.message).toContain('oneOf');
-      expect(out.error.message).toMatch(/member_id|group_no|since/);
+      expect(out.error.message).toMatch(/cellphone|member_id/);
     });
 
     it('constraints oneOf satisfied — proceeds past validation (customer_list)', async () => {
