@@ -71,8 +71,16 @@ owner: developer (다음 진입자)
 
 - **상태**: backend infra (types · validator · handler · MCP provider · tests) 와 `customer_list` 1건 예시는 `plan/complete/cafe24-conditional-required-impl.md` 에서 완료 (commit d932cff9). 18 resource 약 500 endpoint 의 cafe24 docs 본문 박스 audit 은 미수행.
 - **출처**: 사용자 보고 (2026-05-22) `customer_list` 사례 — docs 표상 모두 optional 인데 본문 박스에 "X·Y·Z 중 한 가지는 반드시 입력" 같은 조건부 제약 명시. AND-only `requiredFields` 가 표현 불가 → AI Agent 잘못 추론.
-- **블로커**: WebFetch 가 cafe24 docs SPA 의 본문 박스 (조건 제약) 까지 렌더링 못함 (2026-05-22 본 worktree 에서 재확인). chrome extension 이 동작하는 세션이나 사용자가 endpoint 별 본문 박스 텍스트를 paste 하는 별도 트랙 필요.
-- [ ] **G-1**: chrome-equipped 세션 또는 사용자 paste 흐름으로 18 resource audit + `Cafe24OperationMetadata.constraints` row 채움. 우선순위: customer (24) → order (106) → product (63) → community → promotion → store → 나머지. resource batch 마다 commit 분리, 마지막에 단일 PR. spec/conventions/cafe24-api-metadata.md §6 step 5 "조건부 제약 확인" 절차가 audit 단계의 SoT.
+- **블로커 (해소)**: chrome-equipped 세션 (2026-05-22 ~) — chrome MCP 를 통해 cafe24 docs SPA 의 모든 section 본문 박스를 SoT 로 직접 추출 가능. WebFetch 의 SPA truncation 우회됨.
+- [x] **G-1-customer**: customer resource 24 endpoint 전수 audit + field gap 정렬 완료 (commit 8a4e926f). customer_list `group_no/since/until` 제거, customer_group_update path/method 정정 (POST customergroups/{group_no}/customers), customer_autoupdate_get path 정정 (member-scoped), customer_memos_create/update field rename + 추가, customer_delete + customers_properties_view/edit + social_list + customergroups_list/count field 추가. customer_get/customer_update 는 docs 부재 — backwards-compat 위해 row 유지 + JSDoc 경고. (cafe24 docs Latest 2026-03-01 기준)
+- [x] **G-1-privacy**: privacy resource path 정정 + customersprivacy_list 22 field 보강 완료 (commit 38c5f660). pre-2026-05-22 seed 가 `privacy/customers/*` 로 wrong path (실제 docs path: `customersprivacy/*` concatenated) — 4 operation 모두 정정 (get/list/count/update). customers_privacy_list 에 `start_date+end_date` `search_field+keyword` allOrNone constraint 추가.
+- [ ] **G-1-remaining-16**: 나머지 16 resource (order/product/community/promotion/application/category/salesreport/store/design/collection/supply/shipping/personal/mileage/notification/translation) 의 full field-set audit + path/method fix. cafe24 docs Latest 2026-03-01 와 현 metadata 의 field gap 이 큼 — 예: product_list docs 는 ~50 field (현 8 field), order_list/order_count 추정 유사 규모. 변경 면이 커서 별 PR 권장 (이 PR 의 G-1-customer/privacy 패턴 답습).
+- [ ] **G-1-constraints-only-sweep**: 위 16 resource 의 constraint-only sweep 도 같은 G-1-remaining-16 PR 에 포함. chrome MCP scan 결과 다음 endpoint 가 date-pair / refund-implies / composite-material 조건부 제약 보유:
+  - **allOrNone (date pair)**: product_list/product_count (start_date/end_date), order_list/order_count (start_date/end_date), boards_articles_list, coupon_list/coupon_count (created_start_date/created_end_date), scripttags_list/scripttags_count (created_start_date/created_end_date + updated_start_date/updated_end_date), salesreport_volume (start_date+end_date, end_date required)
+  - **implies (value-aware, runtime-only)**: order cancellation/return/exchange 의 `refund_method=T (현금)` 일 때 `refund_bank_name`/`refund_bank_account_no`/`refund_bank_account_holder` 필수 — 현 `implies` kind 가 "field 가 제공되면" 만 지원 (value-aware 미지원). spec 보강 또는 description-only 노출 결정 필요.
+  - **implies (composite material)**: products_create/products_update/bundleproducts_create/bundleproducts_update — `material_composite=T` 시 `material`+`content_rate` 필수. 같은 value-aware 한계.
+  - **etc**: categories create/update 의 "표시안함" 경고 (informational, constraint 아님).
+- **G-2** follow-up: customer_get / customer_update 의 docs 부재 처리 결정 — production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요청. customer.ts JSDoc 의 ⚠ 마크 + 본 G-2 ref.
 
 ## 처리 후
 

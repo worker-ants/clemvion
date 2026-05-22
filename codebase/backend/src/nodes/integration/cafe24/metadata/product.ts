@@ -52,6 +52,11 @@ export const productOperations: Cafe24OperationMetadata[] = [
         description: 'Filter by product name (partial match)',
       },
     },
+    // cafe24 docs (Retrieve a list of products): "검색 시작일과 같이
+    // 사용해야함" — since/until must be supplied together. Field names
+    // differ from docs (`created_start_date`/`created_end_date`) but the
+    // semantics align. Renaming to match docs is queued in G-1-remaining-16.
+    constraints: [{ kind: 'allOrNone', fields: ['since', 'until'] }],
     responseShape: 'list',
     paginated: true,
   },
@@ -220,6 +225,9 @@ export const productOperations: Cafe24OperationMetadata[] = [
           'ISO8601 datetime (KST, UTC+9) — created_before. Cafe24 interprets naive ISO as KST.',
       },
     },
+    // Mirrors `product_list` — docs requires the since/until pair to be
+    // supplied together.
+    constraints: [{ kind: 'allOrNone', fields: ['since', 'until'] }],
     responseShape: 'single',
   },
   {

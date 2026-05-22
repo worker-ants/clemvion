@@ -207,15 +207,20 @@ describe('Cafe24McpToolProvider', () => {
         workspaceId: 'ws-1',
         executionId: 'exec-1',
       });
-      const productList = tools.find(
-        (t) => t.name === 'mcp_abcdef1234567890__product_list',
+      // product_get has no `constraints` — a stable witness that
+      // unconstrained operations skip the allOf wrapper and the Constraint:
+      // suffix. (product_list now carries an `allOrNone [since, until]`
+      // constraint per the G-1 audit, so it is no longer a constraint-free
+      // operation.)
+      const productGet = tools.find(
+        (t) => t.name === 'mcp_abcdef1234567890__product_get',
       );
-      expect(productList).toBeDefined();
-      const schema = productList!.parameters;
-      expect(schema.required).toEqual(['shop_no']);
+      expect(productGet).toBeDefined();
+      const schema = productGet!.parameters;
+      expect(schema.required).toEqual(['product_no']);
       expect(schema.allOf).toBeUndefined();
       // And no Constraint: suffix line.
-      expect(productList!.description).not.toContain('Constraint:');
+      expect(productGet!.description).not.toContain('Constraint:');
     });
 
     it('applies enabledTools allowlist (bare operation ids)', async () => {
