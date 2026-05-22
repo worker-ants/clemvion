@@ -103,11 +103,15 @@ export class TriggersController {
   @ApiOperation({
     summary: '트리거 수정',
     description:
-      '트리거의 이름·활성 상태·설정·엔드포인트 경로·인증 설정을 수정합니다.',
+      '트리거의 이름·활성 상태·설정·엔드포인트 경로·인증 설정을 수정합니다. ' +
+      'schedule 타입 트리거는 name·isActive 만 수정할 수 있으며, 그 외 필드(endpointPath, config, authConfigId, notification, interaction, chatChannel)를 포함하면 400 VALIDATION_ERROR 를 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(TriggerDto, { description: '수정된 트리거 정보' })
-  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiBadRequestResponse({
+    description:
+      '입력값 검증 실패. schedule 타입에 허용되지 않는 필드가 포함된 경우 code=VALIDATION_ERROR, details.field="type", details.disallowed=[...] 를 반환합니다.',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })

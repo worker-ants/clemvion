@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-22T13:02:06Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "반복문 I/O, 대용량 처리, 캐시/메모/정렬·검색·집계 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "기존 컴포넌트 리팩터링, 새 레이어/DI/인터페이스 신설 없음"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): plan/in-progress/trigger-detail-edit-meta.md 문서 파일 변경"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/lock/requirements/Pipfile/go.mod 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션·SQL·schema 변경 없음, 검증 로직만 추가"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await, Promise, 락/뮤텍스, 워커/큐 변경 없음 (React hooks 만 사용)"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "PATCH /triggers/:id 응답 변경 — schedule 타입 validation guard 추가, VALIDATION_ERROR 응답 신설"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": true,
+      "reason": "trigger-detail-drawer 컴포넌트 신규 edit mode + i18n 22개 키 추가 — PROJECT.md 매트릭스 점검 필요"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

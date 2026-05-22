@@ -1,0 +1,15 @@
+2026-05-22T00:00:00Z item=SUMMARY#1 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z item=SUMMARY#2 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z item=SUMMARY#3 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z item=SUMMARY#4 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z item=SUMMARY#5 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z item=SUMMARY#6 type=spec action=draft path=plan/in-progress/spec-fix-trigger-schedule-interp.md
+2026-05-22T00:00:00Z item=SUMMARY#7 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z item=SUMMARY#8 type=separate-plan action=skip reason=existing-pattern-large-refactor
+2026-05-22T00:00:00Z item=SUMMARY#9 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z item=SUMMARY#10 type=separate-plan action=skip reason=large-refactor
+2026-05-22T00:00:00Z item=SUMMARY#11 type=separate-plan action=skip reason=large-refactor
+2026-05-22T00:00:00Z item=SUMMARY#12 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z item=SUMMARY#13 type=separate-plan action=skip reason=docs-convention-followup
+2026-05-22T00:00:00Z security-INFO-1 type=code action=fix commit=daedc198
+2026-05-22T00:00:00Z e2e attempt=1 status=pass duration=65s
