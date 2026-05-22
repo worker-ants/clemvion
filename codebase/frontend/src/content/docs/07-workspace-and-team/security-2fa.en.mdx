@@ -12,7 +12,7 @@ code: [
 ]
 ---
 
-You can enable **TOTP** (authenticator apps) and **Passkey · security keys** as two independent second factors from `/profile/security`. Each method has its own pool of 10 recovery codes, and which one is used during sign-in follows a fixed priority.
+You can enable **TOTP** (authenticator apps) and **Passkey · security keys** as two independent second factors from [Profile → Security](/profile/security). Each method has its own pool of 10 recovery codes, and which one is used during sign-in follows a fixed priority.
 
 ## Comparison
 
@@ -28,7 +28,7 @@ You can enable **TOTP** (authenticator apps) and **Passkey · security keys** as
 
 ## Registering a Passkey
 
-1. Open `/profile/security` → in the **Passkey · Security Key** card, optionally enter a device name and click **Register Passkey**.
+1. Open [Profile → Security](/profile/security) → in the **Passkey · Security Key** card, optionally enter a device name and click **Register Passkey**.
 2. Your browser prompts you to pick an authenticator — built-in passkey, security key, or a passkey on another device.
 3. Unlock the authenticator (fingerprint · Face ID · PIN) and registration completes.
 4. **For your first Passkey** the screen shows a yellow box containing **10 WebAuthn recovery codes — one time only**. Save them somewhere safe (password manager).
@@ -43,13 +43,13 @@ You can enable **TOTP** (authenticator apps) and **Passkey · security keys** as
 
 ## Sign-in priority
 
-After `/auth/login` succeeds, the 2FA screen follows this priority:
+After [Login](/login) succeeds, the 2FA screen follows this priority:
 
 1. **If you have at least one Passkey registered**, only the Passkey screen is shown. TOTP input is hidden.
 2. **Otherwise, if TOTP is enabled**, the existing TOTP screen is shown.
 3. **If neither is set up**, the 2FA step is skipped entirely.
 
-> To fall back to TOTP, delete every Passkey from `/profile/security` first. Automatic downgrade from a phishing-resistant factor (Passkey) to a weaker factor (TOTP) is intentionally blocked.
+> To fall back to TOTP, delete every Passkey from [Profile → Security](/profile/security) first. Automatic downgrade from a phishing-resistant factor (Passkey) to a weaker factor (TOTP) is intentionally blocked.
 
 ### When Passkey fails
 

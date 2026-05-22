@@ -12,10 +12,10 @@ Good fits:
 
 ## Registering an MCP server
 
-MCP servers are registered the same way as other integrations under `/integrations`. Just pick `MCP Server` as the service type.
+MCP servers are registered the same way as other integrations under [Integrations](/integrations). Just pick `MCP Server` as the service type.
 
 <Steps>
-  <Step>Click `[+ Add Integration]` in the top-right of `/integrations` and choose **MCP Server** in the service picker.</Step>
+  <Step>Click `[+ Add Integration]` in the top-right of [Integrations](/integrations) and choose **MCP Server** in the service picker.</Step>
   <Step>In Step 2, set the alias (`name`) and workspace scope. In a team workspace, only admins can pick Organization scope.</Step>
   <Step>In Step 3, choose an auth method and enter credentials — one of `Bearer Token`, `API Key`, or `None`.</Step>
   <Step>Right before save, `POST /api/integrations/preview-test` runs automatically. It connects to the server and shows the `tools/list` response and `serverInfo` (name, version, capabilities). `[Save integration]` activates only when the test passes.</Step>
