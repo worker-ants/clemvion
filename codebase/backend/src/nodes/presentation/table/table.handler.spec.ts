@@ -147,7 +147,10 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       expect(result.output.type).toBeUndefined();
       const rows = result.output.rows as Array<Record<string, unknown>>;
@@ -161,7 +164,10 @@ describe('TableHandler', () => {
         { name: 'Single' },
         { columns: [{ field: 'name', label: 'Name' }] },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(1);
@@ -185,7 +191,10 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
@@ -202,7 +211,10 @@ describe('TableHandler', () => {
           columns: [{ field: 'name', label: 'Name' }],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(1);
@@ -218,7 +230,10 @@ describe('TableHandler', () => {
           columns: [{ field: 'name', label: 'Name' }],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ name: 'Fallback' });
@@ -242,7 +257,10 @@ describe('TableHandler', () => {
           sortOrder: 'asc',
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0].score).toBe(70);
@@ -267,7 +285,10 @@ describe('TableHandler', () => {
           sortOrder: 'desc',
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0].score).toBe(30);
@@ -284,7 +305,10 @@ describe('TableHandler', () => {
           pageSize: 3,
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(3);
@@ -302,7 +326,10 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ name: 'Alice', email: null });
@@ -324,7 +351,10 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       expect(result.output.type).toBeUndefined();
       const rows = result.output.rows as Array<Record<string, unknown>>;
@@ -341,7 +371,10 @@ describe('TableHandler', () => {
           columns: [{ field: 'col0', label: 'Item' }],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(0);
@@ -365,7 +398,10 @@ describe('TableHandler', () => {
           sortOrder: 'asc',
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0].col1).toBe(70);
@@ -382,7 +418,10 @@ describe('TableHandler', () => {
           pageSize: 2,
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
@@ -397,7 +436,10 @@ describe('TableHandler', () => {
           rows: [{ col0: 'Static Value' }],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(1);
@@ -410,7 +452,10 @@ describe('TableHandler', () => {
         [{ name: 'Test' }],
         { columns: [{ field: 'name', label: 'Name' }] },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       expect(result.output.type).toBeUndefined();
       const rows = result.output.rows as Array<Record<string, unknown>>;
@@ -426,7 +471,10 @@ describe('TableHandler', () => {
         [{ name: 'Alice' }],
         { columns: [{ field: 'name', label: 'Name' }] },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       expect(result.output.rendered).toBeUndefined();
       const rows = result.output.rows as Array<Record<string, unknown>>;
@@ -452,7 +500,10 @@ describe('TableHandler', () => {
           sortOrder: 'asc',
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(3);
@@ -471,7 +522,10 @@ describe('TableHandler', () => {
           rows: [{ col0: 'valid' }, 'invalid', null, { col0: 'also valid' }],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows).toHaveLength(2);
@@ -493,7 +547,10 @@ describe('TableHandler', () => {
         [{ n: 1 }, { n: 2 }],
         { columns: [{ field: 'n', label: 'N' }] },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       expect(result.output.totalRows).toBe(2);
     });
@@ -513,7 +570,10 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ name: 'Alice', 'address.city': 'Seoul' });
@@ -527,7 +587,10 @@ describe('TableHandler', () => {
           columns: [{ field: 'address.city', label: 'City' }],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ 'address.city': null });
@@ -550,7 +613,10 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $sourceItem.first + " " + $sourceItem.last }}']).toBe(
@@ -572,7 +638,10 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $sourceItemIndex + 1 }}']).toBe(1);
@@ -587,7 +656,10 @@ describe('TableHandler', () => {
           columns: [{ field: '{{ $dataSource.length }}', label: 'Total' }],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $dataSource.length }}']).toBe(3);
@@ -609,7 +681,10 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $sourceItem.id }}']).toBe(1);
@@ -634,7 +709,10 @@ describe('TableHandler', () => {
           ],
         },
         ctxWithExpr,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $var.prefix + ": " + $sourceItem.name }}']).toBe(
@@ -660,7 +738,10 @@ describe('TableHandler', () => {
           ],
         },
         ctxWithExpr,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]['{{ $sourceItem.value * $var.a }}']).toBe(20);
@@ -676,7 +757,10 @@ describe('TableHandler', () => {
           rows: [{ col0: 'plain value' }],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
       const rows = result.output.rows as Array<Record<string, unknown>>;
       expect(rows[0]).toEqual({ col0: 'plain value' });
@@ -700,10 +784,13 @@ describe('TableHandler', () => {
           ...context,
           rawConfig: Object.freeze({ mode: 'dynamic', columns: rawColumns }),
         },
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
-      const cfg = result.config as Record<string, unknown>;
-      const out = result.output as Record<string, unknown>;
+      const cfg = result.config;
+      const out = result.output;
       // config.columns keeps the raw label template
       expect(cfg.columns).toEqual(rawColumns);
       // output.columns surfaces the resolved (label-evaluated) columns. Since
@@ -729,9 +816,12 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
-      const out = result.output as Record<string, unknown>;
+      const out = result.output;
       expect((out.rows as unknown[]).length).toBe(2);
       expect(out.rowsTruncated).toBeUndefined();
       expect(out.rowsTotalCount).toBeUndefined();
@@ -756,9 +846,12 @@ describe('TableHandler', () => {
           ],
         },
         context,
-      )) as unknown as { config: Record<string, unknown>; output: Record<string, unknown> };
+      )) as unknown as {
+        config: Record<string, unknown>;
+        output: Record<string, unknown>;
+      };
 
-      const out = result.output as Record<string, unknown>;
+      const out = result.output;
       expect(out.rowsTruncated).toBe(true);
       expect(out.rowsTotalCount).toBe(6);
       // totalRows reflects the full dataset size (pre-cap) so observers see
