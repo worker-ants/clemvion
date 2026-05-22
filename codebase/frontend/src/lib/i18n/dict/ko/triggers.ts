@@ -33,6 +33,13 @@ export const triggers = {
     delete: "삭제",
     menuLabel: "트리거 작업",
   },
+  history: {
+    title: "호출 이력 — {{name}}",
+    empty: "최근 호출 이력이 없어요",
+    loadFailed: "호출 이력을 불러올 수 없어요",
+    viewFullDetail: "전체 상세 보기",
+    close: "닫기",
+  },
   delete: {
     title: "트리거 삭제",
     button: "삭제",

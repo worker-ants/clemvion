@@ -35,6 +35,13 @@ export const triggers: Dict["triggers"] = {
     delete: "Delete",
     menuLabel: "Trigger actions",
   },
+  history: {
+    title: "Recent calls — {{name}}",
+    empty: "No recent calls.",
+    loadFailed: "Failed to load history.",
+    viewFullDetail: "View full detail",
+    close: "Close",
+  },
   delete: {
     title: "Delete trigger",
     button: "Delete",
