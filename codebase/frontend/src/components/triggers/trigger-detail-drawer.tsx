@@ -55,12 +55,6 @@ interface TriggerDetail {
   nextRunAt?: string;
 }
 
-interface TriggerHistoryEntry {
-  id: string;
-  startedAt: string;
-  status: string;
-}
-
 const TYPE_BADGE_STYLES: Record<string, string> = {
   webhook: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   schedule: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
@@ -74,6 +68,7 @@ interface TriggerDetailDrawerProps {
 }
 
 export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailDrawerProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const { data: trigger, isLoading: isLoadingTrigger } = useQuery<TriggerDetail>({
     queryKey: ["trigger-detail", triggerId],
@@ -94,20 +89,8 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
     queryClient.invalidateQueries({ queryKey: ["triggers"] });
   }
 
-  const { data: history = [], isLoading: isLoadingHistory } = useQuery<TriggerHistoryEntry[]>({
-    queryKey: ["trigger-history", triggerId],
-    queryFn: async () => {
-      const res = await apiClient.get(`/triggers/${triggerId}/history`, {
-        params: { limit: "10" },
-      });
-      const responseData = res.data.data ?? res.data;
-      return Array.isArray(responseData) ? responseData : responseData.items ?? [];
-    },
-    enabled: !!triggerId && open,
-  });
-
   return (
-    <SlideDrawer open={open} onClose={onClose} title="Trigger Details">
+    <SlideDrawer open={open} onClose={onClose} title={t("triggers.detail.drawerTitle")}>
       {isLoadingTrigger ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" />
@@ -132,51 +115,15 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
             <ScheduleConfigurationCard trigger={trigger} />
           )}
 
-          {/* Recent History */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recent Calls</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoadingHistory ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
-                </div>
-              ) : history.length === 0 ? (
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  No recent calls found.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {history.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex items-center justify-between rounded-md border border-[hsl(var(--border))] px-3 py-2 text-sm"
-                    >
-                      <span className="text-[hsl(var(--muted-foreground))]">
-                        {formatDate(entry.startedAt, "datetime")}
-                      </span>
-                      <Badge
-                        variant={
-                          entry.status === "success"
-                            ? "success"
-                            : entry.status === "error" || entry.status === "failed"
-                              ? "destructive"
-                              : "outline"
-                        }
-                      >
-                        {entry.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/*
+            Recent Calls 카드는 [Spec §2.1 + Rationale R-7] 에 따라 본 drawer 에서
+            제거됨. ⋮ 메뉴 → "호출 이력" (별도 Dialog) 가 동일 데이터를 더 가벼운
+            modal 로 노출한다.
+          */}
         </div>
       ) : (
         <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          Trigger not found.
+          {t("triggers.detail.notFound")}
         </p>
       )}
     </SlideDrawer>
@@ -234,7 +181,9 @@ function OverviewCard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Overview</CardTitle>
+        <CardTitle className="text-base">
+          {t("triggers.detail.sectionOverview")}
+        </CardTitle>
         {canEdit && !editing && (
           <Button size="sm" variant="ghost" onClick={startEdit} aria-label={t("triggers.detail.edit")}>
             <Pencil className="h-3.5 w-3.5" />
@@ -286,7 +235,9 @@ function OverviewCard({
             </dd>
           </div>
           <div className="flex items-center justify-between">
-            <dt className="text-[hsl(var(--muted-foreground))]">Type</dt>
+            <dt className="text-[hsl(var(--muted-foreground))]">
+              {t("triggers.type")}
+            </dt>
             <dd>
               <span
                 className={cn(
@@ -294,20 +245,30 @@ function OverviewCard({
                   TYPE_BADGE_STYLES[trigger.type],
                 )}
               >
-                {trigger.type.charAt(0).toUpperCase() + trigger.type.slice(1)}
+                {trigger.type === "webhook"
+                  ? t("triggers.typeWebhook")
+                  : trigger.type === "schedule"
+                    ? t("triggers.typeSchedule")
+                    : t("triggers.typeManual")}
               </span>
             </dd>
           </div>
           <div className="flex items-center justify-between">
-            <dt className="text-[hsl(var(--muted-foreground))]">Status</dt>
+            <dt className="text-[hsl(var(--muted-foreground))]">
+              {t("triggers.status")}
+            </dt>
             <dd>
               <Badge variant={trigger.isActive ? "success" : "outline"}>
-                {trigger.isActive ? "Active" : "Inactive"}
+                {trigger.isActive
+                  ? t("triggers.statusActive")
+                  : t("triggers.statusInactive")}
               </Badge>
             </dd>
           </div>
           <div className="flex items-center justify-between">
-            <dt className="text-[hsl(var(--muted-foreground))]">Workflow</dt>
+            <dt className="text-[hsl(var(--muted-foreground))]">
+              {t("triggers.workflow")}
+            </dt>
             <dd>
               <Link
                 href={`/workflows/${trigger.workflowId}`}
@@ -328,13 +289,17 @@ function ScheduleConfigurationCard({ trigger }: { trigger: TriggerDetail }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Schedule Configuration</CardTitle>
+        <CardTitle className="text-base">
+          {t("triggers.detail.sectionSchedule")}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <dl className="space-y-3 text-sm">
           {trigger.cronExpression && (
             <div className="flex items-center justify-between">
-              <dt className="text-[hsl(var(--muted-foreground))]">Cron Expression</dt>
+              <dt className="text-[hsl(var(--muted-foreground))]">
+                {t("triggers.detail.cronExpressionLabel")}
+              </dt>
               <dd>
                 <code className="rounded bg-[hsl(var(--muted))] px-2 py-0.5 text-xs">
                   {trigger.cronExpression}
@@ -344,13 +309,17 @@ function ScheduleConfigurationCard({ trigger }: { trigger: TriggerDetail }) {
           )}
           {trigger.timezone && (
             <div className="flex items-center justify-between">
-              <dt className="text-[hsl(var(--muted-foreground))]">Timezone</dt>
+              <dt className="text-[hsl(var(--muted-foreground))]">
+                {t("triggers.detail.timezoneLabel")}
+              </dt>
               <dd className="font-medium">{trigger.timezone}</dd>
             </div>
           )}
           {trigger.nextRunAt && (
             <div className="flex items-center justify-between">
-              <dt className="text-[hsl(var(--muted-foreground))]">Next Run</dt>
+              <dt className="text-[hsl(var(--muted-foreground))]">
+                {t("triggers.detail.nextRunLabel")}
+              </dt>
               <dd className="font-medium">
                 {formatDate(trigger.nextRunAt, "datetime")}
               </dd>
@@ -449,8 +418,8 @@ function WebhookConfigCard({
 
   function copyText(text: string) {
     navigator.clipboard.writeText(text).then(
-      () => toast.success("Copied to clipboard"),
-      () => toast.error("Failed to copy"),
+      () => toast.success(t("triggers.copied")),
+      () => toast.error(t("triggers.copyFailed")),
     );
   }
 
@@ -489,7 +458,9 @@ curl -X POST ${url} \\
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">Webhook Configuration</CardTitle>
+        <CardTitle className="text-base">
+          {t("triggers.detail.sectionWebhook")}
+        </CardTitle>
         {canEdit && !editing && (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             {t("triggers.detail.edit")}
@@ -612,7 +583,9 @@ curl -X POST ${url} \\
         <dl className="space-y-3 text-sm">
           {url && !editing && (
             <div>
-              <dt className="text-[hsl(var(--muted-foreground))] mb-1">URL</dt>
+              <dt className="text-[hsl(var(--muted-foreground))] mb-1">
+                {t("triggers.detail.urlLabel")}
+              </dt>
               <dd className="flex items-center gap-1">
                 <code className="block flex-1 break-all rounded bg-[hsl(var(--muted))] px-2 py-1.5 text-xs">
                   {url}
@@ -629,11 +602,15 @@ curl -X POST ${url} \\
             </div>
           )}
           <div className="flex items-center justify-between">
-            <dt className="text-[hsl(var(--muted-foreground))]">HTTP Method</dt>
+            <dt className="text-[hsl(var(--muted-foreground))]">
+              {t("triggers.detail.httpMethodLabel")}
+            </dt>
             <dd><Badge variant="outline">POST</Badge></dd>
           </div>
           <div className="flex items-center justify-between">
-            <dt className="text-[hsl(var(--muted-foreground))]">Authentication</dt>
+            <dt className="text-[hsl(var(--muted-foreground))]">
+              {t("triggers.authenticationLabel")}
+            </dt>
             <dd>
               <Badge variant="outline">
                 {authType === "hmac" ? "HMAC Signature" : authType === "bearer" ? "Bearer Token" : "None (Public)"}
@@ -642,7 +619,9 @@ curl -X POST ${url} \\
           </div>
           {authType === "hmac" && (
             <div className="flex items-center justify-between">
-              <dt className="text-[hsl(var(--muted-foreground))]">Signature Header</dt>
+              <dt className="text-[hsl(var(--muted-foreground))]">
+                {t("triggers.signatureHeader")}
+              </dt>
               <dd className="font-medium">{hmacHeader}</dd>
             </div>
           )}
@@ -656,7 +635,7 @@ curl -X POST ${url} \\
             onClick={() => setShowExample(!showExample)}
           >
             {showExample ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            Usage Example (curl)
+            {t("triggers.detail.usageExampleCurl")}
           </button>
           {showExample && (
             <div className="mt-2 relative">
@@ -713,9 +692,9 @@ function ExternalInteractionCard({
         ? "destructive"
         : "outline";
   const healthLabel: Record<typeof health, string> = {
-    unknown: "Unknown",
-    healthy: "Healthy",
-    degraded: "Degraded",
+    unknown: t("triggers.externalInteraction.healthUnknown"),
+    healthy: t("triggers.externalInteraction.healthHealthy"),
+    degraded: t("triggers.externalInteraction.healthDegraded"),
   };
 
   // Edit state
@@ -808,7 +787,9 @@ function ExternalInteractionCard({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="text-base">External Interaction</CardTitle>
+        <CardTitle className="text-base">
+          {t("triggers.externalInteraction.section")}
+        </CardTitle>
         {canEdit && !editing ? (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             {t("triggers.externalInteraction.edit")}
@@ -841,19 +822,25 @@ function ExternalInteractionCard({
         {notification?.url && (
           <div className="space-y-2 text-sm">
             <div className="flex items-center justify-between">
-              <dt className="font-medium">Notification (Outbound)</dt>
+              <dt className="font-medium">
+                {t("triggers.externalInteraction.notification")}
+              </dt>
               <Badge variant={healthVariant}>{healthLabel[health]}</Badge>
             </div>
             <dl className="space-y-1.5 pl-2 text-xs">
               <div className="flex items-center justify-between gap-2">
-                <dt className="text-[hsl(var(--muted-foreground))]">URL</dt>
+                <dt className="text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.detail.urlLabel")}
+                </dt>
                 <dd className="font-mono break-all text-right max-w-[60%]">
                   {notification.url}
                 </dd>
               </div>
               {notification.events && notification.events.length > 0 && (
                 <div className="flex items-start justify-between gap-2">
-                  <dt className="text-[hsl(var(--muted-foreground))]">Events</dt>
+                  <dt className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.externalInteraction.eventsLabel")}
+                  </dt>
                   <dd className="text-right">
                     {notification.events.map((e) => (
                       <Badge key={e} variant="outline" className="mr-1 mb-1 text-xs">
@@ -865,7 +852,9 @@ function ExternalInteractionCard({
               )}
               {notification.signing?.algorithm && (
                 <div className="flex items-center justify-between">
-                  <dt className="text-[hsl(var(--muted-foreground))]">Algorithm</dt>
+                  <dt className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.externalInteraction.algorithmLabel")}
+                  </dt>
                   <dd className="font-mono text-[hsl(var(--foreground))]">
                     {notification.signing.algorithm}
                   </dd>
@@ -873,7 +862,9 @@ function ExternalInteractionCard({
               )}
               {notification.retry?.maxAttempts !== undefined && (
                 <div className="flex items-center justify-between">
-                  <dt className="text-[hsl(var(--muted-foreground))]">Retry attempts</dt>
+                  <dt className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.externalInteraction.retryAttemptsLabel")}
+                  </dt>
                   <dd className="font-medium">{notification.retry.maxAttempts}</dd>
                 </div>
               )}
@@ -884,18 +875,24 @@ function ExternalInteractionCard({
         {interaction?.enabled && !editing && (
           <div className="space-y-2 text-sm">
             <div className="flex items-center justify-between">
-              <dt className="font-medium">Interaction (Inbound REST + SSE)</dt>
+              <dt className="font-medium">
+                {t("triggers.externalInteraction.interaction")}
+              </dt>
               <Badge variant="success">Enabled</Badge>
             </div>
             <dl className="space-y-1.5 pl-2 text-xs">
               <div className="flex items-center justify-between">
-                <dt className="text-[hsl(var(--muted-foreground))]">Token strategy</dt>
+                <dt className="text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.externalInteraction.interactionTokenStrategy")}
+                </dt>
                 <dd className="font-mono">
                   {interaction.tokenStrategy ?? "per_execution"}
                 </dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-[hsl(var(--muted-foreground))]">Endpoints</dt>
+                <dt className="text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.externalInteraction.endpointsLabel")}
+                </dt>
                 <dd className="font-mono text-right text-[10px] text-[hsl(var(--muted-foreground))]">
                   /api/external/executions/&lcub;id&rcub;/&#123;interact,stream,cancel,refresh-token&#125;
                 </dd>

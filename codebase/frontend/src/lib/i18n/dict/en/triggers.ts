@@ -94,7 +94,19 @@ export const triggers: Dict["triggers"] = {
   toggleActivate: "Activate",
   toggleDeactivate: "Deactivate",
   // [Spec 2-trigger-list §2.3.1] Detail drawer card edit mode — Plan B.
+  // [R-7] drawer title / card titles / labels i18n keys.
   detail: {
+    drawerTitle: "Trigger Details",
+    notFound: "Trigger not found.",
+    sectionOverview: "Overview",
+    sectionWebhook: "Webhook Configuration",
+    sectionSchedule: "Schedule Configuration",
+    cronExpressionLabel: "Cron Expression",
+    timezoneLabel: "Timezone",
+    nextRunLabel: "Next Run",
+    urlLabel: "URL",
+    httpMethodLabel: "HTTP Method",
+    usageExampleCurl: "Usage Example (curl)",
     edit: "Edit",
     save: "Save",
     saving: "Saving...",
@@ -167,5 +179,10 @@ export const triggers: Dict["triggers"] = {
     copy: "Copy",
     copied: "Copied",
     eventChoices: "Event selection",
+    // [R-7] EIA card read-mode dt labels i18n
+    eventsLabel: "Events",
+    algorithmLabel: "Algorithm",
+    retryAttemptsLabel: "Retry attempts",
+    endpointsLabel: "Endpoints",
   },
 };
