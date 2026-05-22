@@ -67,6 +67,12 @@ const DEFAULT_DESCRIPTIONS: Record<PresentationType, string> = {
 /** 1MB cap — mirrors PRESENTATION_MAX_BYTES used by presentation handlers. */
 const PRESENTATION_MAX_BYTES = 1024 * 1024;
 
+/**
+ * Single source for the `render_` prefix string. Used by `renderToolName`,
+ * `typeFromToolName`, and `matches` to keep the three call sites in sync.
+ */
+const RENDER_TOOL_PREFIX = 'render_';
+
 interface PresentationToolDef {
   type: PresentationType;
   description?: string;
@@ -75,13 +81,13 @@ interface PresentationToolDef {
 
 /** `render_<type>` (e.g. `render_table`). type 단어 그대로 — sanitize 불필요. */
 export function renderToolName(type: PresentationType): string {
-  return `render_${type}`;
+  return `${RENDER_TOOL_PREFIX}${type}`;
 }
 
 /** Extract presentation type from a `render_<type>` tool name. */
 function typeFromToolName(name: string): PresentationType | null {
-  if (!name.startsWith('render_')) return null;
-  const suffix = name.slice('render_'.length) as PresentationType;
+  if (!name.startsWith(RENDER_TOOL_PREFIX)) return null;
+  const suffix = name.slice(RENDER_TOOL_PREFIX.length) as PresentationType;
   return SCHEMA_BY_TYPE[suffix] ? suffix : null;
 }
 
@@ -152,8 +158,40 @@ function approxByteSize(value: unknown): number {
 }
 
 /**
+ * 가장 큰 length k ≤ totalCount 중 `payloadWithLength(k)` 의 byte 가 cap
+ * 이하가 되는 값을 이진 탐색으로 찾는다. tail-pop 의 O(n) JSON.stringify 호출을
+ * O(log n) 로 줄인다 (ai-review SUMMARY #7 — performance).
+ *
+ * Invariant: `payloadWithLength(0)` 은 항상 cap 이하라고 가정 (배열만 비우면
+ * 본문 metadata 만 남음). 그래서 lo=0 으로 시작해도 안전.
+ */
+function binarySearchFittingLength(
+  totalCount: number,
+  payloadWithLength: (k: number) => Record<string, unknown>,
+  cap: number,
+): number {
+  let lo = 0;
+  let hi = totalCount;
+  let best = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    const bytes = approxByteSize(payloadWithLength(mid));
+    if (bytes <= cap) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+/**
  * Apply 1MB tail-truncate for `carousel.items` / `table.rows`. Returns updated
  * payload + truncation metadata (only set when truncation happened).
+ *
+ * 이진 탐색으로 fitting length 를 찾으므로, 2,000행짜리 payload 라도
+ * `JSON.stringify` 호출은 O(log n) = ~11회로 끝난다 (ai-review SUMMARY #7).
  */
 function applyOneMbCap(
   type: PresentationType,
@@ -165,49 +203,43 @@ function applyOneMbCap(
   const bytes = approxByteSize(payload);
   if (bytes <= PRESENTATION_MAX_BYTES) return { payload };
 
-  if (
-    type === 'carousel' &&
-    Array.isArray((payload as { items?: unknown[] }).items)
-  ) {
-    const items = ((payload as { items: unknown[] }).items ?? []).slice();
-    const totalCount = items.length;
-    while (
-      items.length > 0 &&
-      approxByteSize({ ...payload, items }) > PRESENTATION_MAX_BYTES
-    ) {
-      items.pop();
-    }
+  const arrayKey: 'items' | 'rows' | null =
+    type === 'carousel' ? 'items' : type === 'table' ? 'rows' : null;
+
+  if (!arrayKey) {
+    // chart / template / form — no array element to truncate. Caller treats
+    // this as a schema violation (oversized single payload).
+    return { payload };
+  }
+
+  const rawArray = payload[arrayKey];
+  if (!Array.isArray(rawArray)) return { payload };
+
+  const totalCount = rawArray.length;
+  const fittingLength = binarySearchFittingLength(
+    totalCount,
+    (k) => ({ ...payload, [arrayKey]: rawArray.slice(0, k) }),
+    PRESENTATION_MAX_BYTES,
+  );
+  const truncated = rawArray.slice(0, fittingLength);
+  const wasTruncated = truncated.length < totalCount;
+
+  if (arrayKey === 'items') {
     return {
-      payload: { ...payload, items },
+      payload: { ...payload, items: truncated },
       truncation: {
-        itemsTruncated: items.length < totalCount,
+        itemsTruncated: wasTruncated,
         itemsTotalCount: totalCount,
       },
     };
   }
-  if (
-    type === 'table' &&
-    Array.isArray((payload as { rows?: unknown[] }).rows)
-  ) {
-    const rows = ((payload as { rows: unknown[] }).rows ?? []).slice();
-    const totalCount = rows.length;
-    while (
-      rows.length > 0 &&
-      approxByteSize({ ...payload, rows }) > PRESENTATION_MAX_BYTES
-    ) {
-      rows.pop();
-    }
-    return {
-      payload: { ...payload, rows },
-      truncation: {
-        rowsTruncated: rows.length < totalCount,
-        rowsTotalCount: totalCount,
-      },
-    };
-  }
-  // chart / template / form — no array element to truncate. Caller should
-  // treat this as a schema violation (oversized single payload).
-  return { payload };
+  return {
+    payload: { ...payload, rows: truncated },
+    truncation: {
+      rowsTruncated: wasTruncated,
+      rowsTotalCount: totalCount,
+    },
+  };
 }
 
 export class RenderToolProvider implements AgentToolProvider {
@@ -215,7 +247,7 @@ export class RenderToolProvider implements AgentToolProvider {
   private static readonly logger = new Logger('RenderToolProvider');
 
   matches(toolName: string): boolean {
-    return toolName.startsWith('render_');
+    return toolName.startsWith(RENDER_TOOL_PREFIX);
   }
 
   // AgentToolProvider interface forces an async return shape; this provider

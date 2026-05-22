@@ -401,6 +401,28 @@ describe('validateAiAgentConfig (imperative)', () => {
       "presentationTools: duplicate type 'table' — each presentation tool type may be registered at most once",
     );
   });
+
+  // ai-review SUMMARY #6 — defaults 자체의 바이트 크기 상한 검증 (256KB).
+  it('rejects presentationTool defaults > 256KB (PRESENTATION_DEFAULTS_MAX_BYTES)', () => {
+    // 빅 string 으로 300KB 짜리 defaults 만들기.
+    const big = 'A'.repeat(300 * 1024);
+    const errors = validateAiAgentConfig({
+      presentationTools: [{ type: 'table', defaults: { padding: big } }],
+    });
+    expect(
+      errors.some((e) =>
+        e.startsWith('presentationTools[0]: defaults must be ≤'),
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts presentationTool defaults under 256KB cap', () => {
+    const small = 'B'.repeat(1024); // 1KB
+    const errors = validateAiAgentConfig({
+      presentationTools: [{ type: 'table', defaults: { padding: small } }],
+    });
+    expect(errors.some((e) => e.startsWith('presentationTools['))).toBe(false);
+  });
 });
 
 describe('evaluateMetadataBlockingErrors integration (ai_agent)', () => {

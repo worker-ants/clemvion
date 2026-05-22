@@ -32,13 +32,20 @@ export type ConversationTurnSource =
  * node-output §4.5). `data?` carries form/button interaction payloads, while
  * `presentations` carries LLM-emitted render outputs — separate semantics,
  * separate fields to prevent drift.
+ *
+ * **단일 진실 (backend)**: `PRESENTATION_TYPES` 상수는 본 모듈이 export 하고
+ * `ai-agent.schema.ts` 의 zod enum 등 backend 의 모든 사용처가 이 상수를
+ * 재참조한다. drift 방지 — 신규 type 추가 시 본 줄만 수정하면 backend 전체에
+ * 자동 전파된다.
  */
-export type PresentationType =
-  | 'table'
-  | 'chart'
-  | 'carousel'
-  | 'template'
-  | 'form';
+export const PRESENTATION_TYPES = [
+  'table',
+  'chart',
+  'carousel',
+  'template',
+  'form',
+] as const;
+export type PresentationType = (typeof PRESENTATION_TYPES)[number];
 
 export interface PresentationPayloadTruncation {
   itemsTruncated?: boolean;

@@ -19,6 +19,8 @@ import {
   AgentToolProvider,
   AgentToolResult,
   KbSearchDiagnostic,
+  PresentationCallTrace,
+  PresentationSchemaViolation,
 } from './tool-providers/agent-tool-provider.interface';
 import type { McpServerSummary } from './tool-providers/mcp-diagnostics';
 import {
@@ -717,19 +719,9 @@ export class AiAgentHandler implements NodeHandler {
      */
     presentationPayloads?: PresentationPayload[];
     /** `meta.presentationCalls[]` metric accumulator (spec §7.10). */
-    presentationCalls?: Array<{
-      toolName: string;
-      toolCallId: string;
-      status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
-      bytes?: number;
-    }>;
+    presentationCalls?: PresentationCallTrace[];
     /** `meta.presentationSchemaViolations[]` (spec §4.1 silent drop trace). */
-    presentationSchemaViolations?: Array<{
-      toolName: string;
-      toolCallId: string;
-      issues: string[];
-      attempts: number;
-    }>;
+    presentationSchemaViolations?: PresentationSchemaViolation[];
   }): Promise<{
     executedCount: number;
     /**
@@ -902,18 +894,8 @@ export class AiAgentHandler implements NodeHandler {
     // Render tool (`render_*`) accumulators. spec §4.1·§7.10. Single-turn
     // 은 render_form 이 silent-drop 되므로 display-only payloads 만 의미가 있다.
     const presentationPayloads: PresentationPayload[] = [];
-    const presentationCalls: Array<{
-      toolName: string;
-      toolCallId: string;
-      status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
-      bytes?: number;
-    }> = [];
-    const presentationSchemaViolations: Array<{
-      toolName: string;
-      toolCallId: string;
-      issues: string[];
-      attempts: number;
-    }> = [];
+    const presentationCalls: PresentationCallTrace[] = [];
+    const presentationSchemaViolations: PresentationSchemaViolation[] = [];
 
     // System prompt: KB 검색은 더 이상 prefill 하지 않는다. LLM 이 능동 호출 결정.
     // spec/4-nodes/3-ai/0-common.md §11.4 ordering:
@@ -1523,18 +1505,8 @@ export class AiAgentHandler implements NodeHandler {
     // push 시 본 buffer 가 부착된다 (spec §7.10). blockingFormRender 는 phase
     // 2b 에서 본 turn 의 waiting_for_input 진입 신호로 사용.
     const presentationPayloads: PresentationPayload[] = [];
-    const presentationCalls: Array<{
-      toolName: string;
-      toolCallId: string;
-      status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
-      bytes?: number;
-    }> = [];
-    const presentationSchemaViolations: Array<{
-      toolName: string;
-      toolCallId: string;
-      issues: string[];
-      attempts: number;
-    }> = [];
+    const presentationCalls: PresentationCallTrace[] = [];
+    const presentationSchemaViolations: PresentationSchemaViolation[] = [];
 
     // Add user message
     messages.push({ role: 'user', content: userMessage });
@@ -2117,19 +2089,9 @@ export class AiAgentHandler implements NodeHandler {
       ragDiagnostics?: RagDiagnostics;
       mcpServerSummaries?: McpServerSummary[];
       /** spec §7.10 — render_* metric trace. */
-      presentationCalls?: Array<{
-        toolName: string;
-        toolCallId: string;
-        status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
-        bytes?: number;
-      }>;
+      presentationCalls?: PresentationCallTrace[];
       /** spec §4.1 silent-drop trace. */
-      presentationSchemaViolations?: Array<{
-        toolName: string;
-        toolCallId: string;
-        issues: string[];
-        attempts: number;
-      }>;
+      presentationSchemaViolations?: PresentationSchemaViolation[];
     },
     turnDebug?: {
       llmCalls?: unknown[];

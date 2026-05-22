@@ -123,33 +123,53 @@ export interface AgentToolResult {
    * 전환하고, 사용자 제출 시 `tool_result` content 에 제출 데이터를 채워 LLM 을
    * 재호출한다. SoT: spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii / §6.2 step 2.
    */
-  blockingFormRender?: {
-    toolCallId: string;
-    /** Defaults overlay 적용 완료한 form 노드 config (`fields`/`title`/...). */
-    formConfig: Record<string, unknown>;
-  };
+  blockingFormRender?: BlockingFormRenderSignal;
   /**
    * Schema 위반·1MB cap 초과 등으로 silent drop 된 시도 trace —
    * `meta.presentationSchemaViolations[]` 에 누적된다.
    * SoT: spec/4-nodes/3-ai/1-ai-agent.md §4.1 "Schema 위반 처리".
    */
-  presentationSchemaViolation?: {
-    toolName: string;
-    /** spec §7.10 — `meta.presentationSchemaViolations[]` shape 에 포함돼 `presentationCalls[]` 와 join 가능. */
-    toolCallId: string;
-    issues: string[];
-    attempts: number;
-  };
+  presentationSchemaViolation?: PresentationSchemaViolation;
   /**
    * `render_*` 호출의 메타 trace — `meta.presentationCalls[]` 에 push.
    * `presentationPayload` 또는 `presentationSchemaViolation` 가 set 일 때 함께 set.
    */
-  presentationCall?: {
-    toolName: string;
-    toolCallId: string;
-    status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
-    bytes?: number;
-  };
+  presentationCall?: PresentationCallTrace;
+}
+
+/**
+ * `render_form` blocking signal — handler 가 multi-turn waiting_for_input
+ * (interactionType: 'ai_form_render') 으로 진입할 때 _resumeState 에 저장.
+ * SoT: spec/4-nodes/3-ai/1-ai-agent.md §7.4 (`_resumeState.pendingFormToolCall`).
+ */
+export interface BlockingFormRenderSignal {
+  toolCallId: string;
+  /** Defaults overlay 적용 완료한 form 노드 config (`fields`/`title`/...). */
+  formConfig: Record<string, unknown>;
+}
+
+/**
+ * `meta.presentationSchemaViolations[]` 원소 — silent drop 된 render_* 시도의
+ * 진단 정보. `presentationCalls[]` 의 `status: 'schema_violation'` 항목과
+ * `toolCallId` 로 join 가능. SoT: spec/4-nodes/3-ai/1-ai-agent.md §7.10.
+ */
+export interface PresentationSchemaViolation {
+  toolName: string;
+  toolCallId: string;
+  issues: string[];
+  attempts: number;
+}
+
+/**
+ * `meta.presentationCalls[]` 원소 — render_* 호출의 metric trace.
+ * `presentationPayload` (display-only) 또는 `blockingFormRender` (form_pending)
+ * 또는 `presentationSchemaViolation` (schema_violation) 가 set 일 때 함께 set.
+ */
+export interface PresentationCallTrace {
+  toolName: string;
+  toolCallId: string;
+  status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
+  bytes?: number;
 }
 
 export interface KbSearchDiagnostic {

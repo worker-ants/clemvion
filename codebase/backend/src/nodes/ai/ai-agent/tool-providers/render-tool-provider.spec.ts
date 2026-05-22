@@ -214,6 +214,41 @@ describe('RenderToolProvider.execute — display-only', () => {
     );
   });
 
+  // ai-review SUMMARY #7 — applyOneMbCap 이 이진 탐색으로 동작하는지 검증.
+  it('caps oversized carousel.items via binary-search truncation', async () => {
+    const bigItem = {
+      title: 'Item',
+      description: 'X'.repeat(1024),
+    }; // ~1KB
+    const items = Array.from({ length: 2000 }, () => bigItem); // ~2MB
+
+    const result = await provider.execute(
+      {
+        id: 'call_big_c',
+        name: 'render_carousel',
+        arguments: JSON.stringify({
+          mode: 'static',
+          layout: 'card',
+          items,
+        }),
+      },
+      {
+        config: { presentationTools: [{ type: 'carousel' }] },
+        workspaceId: 'ws',
+      },
+    );
+
+    expect(result.status).toBe('success');
+    const truncation = result.presentationPayload!.truncation;
+    expect(truncation?.itemsTruncated).toBe(true);
+    expect(truncation?.itemsTotalCount).toBe(2000);
+    const finalItems = (
+      result.presentationPayload!.payload as { items: unknown[] }
+    ).items;
+    expect(finalItems.length).toBeLessThan(2000);
+    expect(finalItems.length).toBeGreaterThan(0);
+  });
+
   it('caps oversized table.rows with tail truncation + truncation meta', async () => {
     const bigRow = { id: 'x', payload: 'A'.repeat(1024) }; // ~1KB
     const rows = Array.from({ length: 2000 }, () => bigRow); // ~2MB
@@ -260,7 +295,10 @@ describe('RenderToolProvider.execute — display-only', () => {
 
     expect(result.status).toBe('error');
     expect(result.presentationCall?.status).toBe('schema_violation');
-    const parsed = JSON.parse(result.content) as { error: string; issues: string[] };
+    const parsed = JSON.parse(result.content) as {
+      error: string;
+      issues: string[];
+    };
     expect(parsed.error).toBe('INVALID_PAYLOAD');
     expect(parsed.issues[0]).toMatch(/1MB cap/);
   });

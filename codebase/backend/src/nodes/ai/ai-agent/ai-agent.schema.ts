@@ -5,6 +5,7 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 import { buildSystemContextSchemaFields } from '../shared/system-context-schema.js';
+import { PRESENTATION_TYPES } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Default for `contextScopeN` — the number of most recent ConversationThread
@@ -65,18 +66,12 @@ const mcpServerRefSchema = z.object({
  * SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§4.1, spec/4-nodes/6-presentation/0-common.md §10.
  *
  * 비어 있으면 OFF (기본). 한 노드 안에서 `type` 중복 금지 — validateAiAgentConfig 가 검증.
+ *
+ * type enum 의 단일 진실은 `shared/conversation-thread/conversation-thread.types.ts`
+ * 의 `PRESENTATION_TYPES` 상수. 신규 type 추가 시 본 파일 수정 불필요.
  */
-export const PRESENTATION_TOOL_TYPES = [
-  'table',
-  'chart',
-  'carousel',
-  'template',
-  'form',
-] as const;
-export type PresentationToolType = (typeof PRESENTATION_TOOL_TYPES)[number];
-
 const presentationToolDefSchema = z.object({
-  type: z.enum(PRESENTATION_TOOL_TYPES).meta({
+  type: z.enum(PRESENTATION_TYPES).meta({
     ui: { label: 'Type', widget: 'select' },
   }),
   description: z
@@ -559,6 +554,14 @@ const RESERVED_PORT_IDS = new Set([
   'user_ended',
   'max_turns',
 ]);
+/**
+ * Per-tool `defaults` overlay 의 바이트 cap (ai-review SUMMARY #6 — security).
+ * 최종 merged payload 의 1MB cap (`PRESENTATION_MAX_BYTES`) 와는 별개의
+ * 사용자-config 차원 사전 게이트. brand/style 고정값은 일반적으로 수 KB 를
+ * 넘지 않으므로 256KB 면 충분히 여유 있다.
+ */
+export const PRESENTATION_DEFAULTS_MAX_BYTES = 256 * 1024;
+
 export function validateAiAgentConfig(config: unknown): string[] {
   const c = (config ?? {}) as Record<string, unknown>;
   const errors: string[] = [];
@@ -602,7 +605,8 @@ export function validateAiAgentConfig(config: unknown): string[] {
   const presentationTools = c.presentationTools;
   if (Array.isArray(presentationTools)) {
     const seen = new Set<string>();
-    for (const tool of presentationTools) {
+    for (let i = 0; i < presentationTools.length; i++) {
+      const tool = presentationTools[i];
       const t = (tool ?? {}) as Record<string, unknown>;
       const type = typeof t.type === 'string' ? t.type : '';
       if (!type) continue; // zod-level error path
@@ -612,6 +616,24 @@ export function validateAiAgentConfig(config: unknown): string[] {
         );
       }
       seen.add(type);
+
+      // ai-review SUMMARY #6 — defaults 자체의 바이트 크기 상한. 1MB cap 은
+      // 최종 merged payload 에만 적용되므로 defaults 자체가 거대해질 수 있다.
+      // 비합리적 크기 (>256KB) 를 schema 단계에서 사전 차단.
+      if (t.defaults !== undefined && t.defaults !== null) {
+        try {
+          const bytes = Buffer.byteLength(JSON.stringify(t.defaults));
+          if (bytes > PRESENTATION_DEFAULTS_MAX_BYTES) {
+            errors.push(
+              `presentationTools[${i}]: defaults must be ≤ ${PRESENTATION_DEFAULTS_MAX_BYTES} bytes (got ${bytes})`,
+            );
+          }
+        } catch {
+          errors.push(
+            `presentationTools[${i}]: defaults must be JSON-serialisable`,
+          );
+        }
+      }
     }
   }
 
