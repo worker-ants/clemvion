@@ -218,10 +218,16 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'single',
   },
+  // ⚠ mains_update / mains_delete — cafe24 admin docs (Latest 2026-03-01)
+  // 는 `PUT/DELETE mains/{main_code}` 자체를 노출하지 않는다 (mains/
+  // {display_group}/products 와 mains/properties 영역만 문서화). 본 row 들
+  // 은 seed 이며 cafe24 wire 상 실제 동작 여부 미확인. 운영 검증 / 제거
+  // 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'mains_update',
     label: '메인 카테고리 수정',
-    description: 'Update a main category.',
+    description:
+      'Update a main category. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
     method: 'PUT',
     path: 'mains/{main_code}',
@@ -236,7 +242,8 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   {
     id: 'mains_delete',
     label: '메인 카테고리 삭제',
-    description: 'Delete a main category.',
+    description:
+      'Delete a main category. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
     method: 'DELETE',
     path: 'mains/{main_code}',

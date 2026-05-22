@@ -13,10 +13,15 @@ import {
 } from './date-descriptions.js';
 
 export const applicationOperations: Cafe24OperationMetadata[] = [
+  // ⚠ applications_list — cafe24 admin docs (Latest 2026-03-01) 는
+  // `GET applications` 를 노출하지 않는다. 본 row 는 seed 이며 cafe24 wire
+  // 상 실제 동작 여부 미확인. 운영 검증 / 제거 결정은
+  // `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'applications_list',
     label: '설치된 앱 목록 조회',
-    description: 'List apps installed in the mall.',
+    description:
+      'List apps installed in the mall. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
     method: 'GET',
     path: 'applications',
@@ -40,10 +45,15 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
     },
     responseShape: 'list',
   },
+  // ⚠ webhooks_list — cafe24 admin docs (Latest 2026-03-01) 는 `GET
+  // webhooks` 를 노출하지 않는다 (webhooks/setting GET/PUT 와 webhooks/logs
+  // 만 문서화). 본 row 는 seed 이며 cafe24 wire 상 실제 동작 여부 미확인.
+  // 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'webhooks_list',
     label: 'Webhook 설정 조회',
-    description: 'List webhook subscriptions configured for the app.',
+    description:
+      'List webhook subscriptions configured for the app. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
     method: 'GET',
     path: 'webhooks',

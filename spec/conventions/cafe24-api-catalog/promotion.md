@@ -39,7 +39,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `discountcodes_update` | 할인 코드 수정 | Update a discount code | PUT | `discountcodes/{discount_code_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-discount-code) |
 | `discountcodes_delete` | 할인 코드 삭제 | Delete a discount code | DELETE | `discountcodes/{discount_code_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-discount-code) |
 | `serialcoupons_list` | 시리얼 쿠폰 코드 조회 | Retrieve coupon codes | GET | `serialcoupons` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-coupon-codes) |
-| `serialcoupons_generate` | 시리얼 쿠폰 코드 생성 | Generate coupon code | POST | `serialcoupons/{coupon_no}/generate` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#generate-coupon-code) |
+| `serialcoupons_generate` | 시리얼 쿠폰 코드 생성 | Generate coupon code | POST | `serialcoupons` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#generate-coupon-code) |
 | `serialcoupons_delete` | 시리얼 쿠폰 코드 삭제 | Delete coupon code | DELETE | `serialcoupons/{coupon_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-coupon-code) |
 | `serialcoupons_issues_get` | 시리얼 쿠폰 발급 코드 조회 | Retrieve a code of coupon codes | GET | `serialcoupons/{coupon_no}/issues` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-code-of-coupon-codes) |
 | `serialcoupons_issues_register` | 시리얼 쿠폰 발급 코드 등록 | Register a code of coupon codes | POST | `serialcoupons/{coupon_no}/issues` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#register-a-code-of-coupon-codes) |

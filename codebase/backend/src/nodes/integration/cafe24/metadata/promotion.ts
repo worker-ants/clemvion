@@ -27,10 +27,15 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
     paginated: true,
   },
+  // ⚠ coupon_get / coupon_delete — cafe24 admin docs (Latest 2026-03-01)
+  // 는 `GET/DELETE coupons/{coupon_no}` 를 노출하지 않는다 (PUT 만 — 즉
+  // `coupon_manage`). 본 row 들은 seed 이며 cafe24 wire 상 실제 동작 여부
+  // 미확인. 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'coupon_get',
     label: '쿠폰 단건 조회',
-    description: 'Get a single coupon by coupon_no.',
+    description:
+      'Get a single coupon by coupon_no. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
     method: 'GET',
     path: 'coupons/{coupon_no}',
@@ -93,7 +98,8 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'coupon_delete',
     label: '쿠폰 삭제',
-    description: 'Delete a coupon by coupon_no.',
+    description:
+      'Delete a coupon by coupon_no. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
     method: 'DELETE',
     path: 'coupons/{coupon_no}',
@@ -200,13 +206,15 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
     id: 'serialcoupons_generate',
     label: '시리얼 쿠폰 코드 생성',
     description:
-      'Generate a batch of serial coupon codes. `quantity` is required; optional prefix/suffix decorate the generated codes.',
+      'Generate a batch of serial coupon codes. `coupon_no` + `quantity` in body.',
     scopeType: 'write',
     method: 'POST',
-    path: 'serialcoupons/{coupon_no}/generate',
+    // cafe24 docs path: `serialcoupons` (POST — coupon_no goes in body, not
+    // path. anchor `generate-coupon-code`).
+    path: 'serialcoupons',
     requiredFields: ['coupon_no', 'quantity'],
     fields: {
-      coupon_no: { type: 'number', location: 'path' },
+      coupon_no: { type: 'number', location: 'body' },
       quantity: { type: 'number', location: 'body' },
       prefix: { type: 'string', location: 'body' },
       suffix: { type: 'string', location: 'body' },
