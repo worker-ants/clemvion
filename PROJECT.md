@@ -116,6 +116,9 @@
 | 백엔드 API 추가·변경 | (a) controller·DTO 의 swagger jsdoc<br>(b) API 노출 변경이 사용자 안내에 영향 → 관련 user-guide 페이지 | swagger 단위 테스트 / 빌드 |
 | 신규 warningCode 발행 (backend warningRules) | `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `WARNING_KO` 에 한국어 매핑 등록. 영문 SoT 원칙 — 백엔드는 영문 코드/메시지, frontend 가 매핑 | `cd codebase/frontend && npm test -- backend-labels` |
 | 신규 errorCode 발행 (`codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 추가) | 현재 `backend-labels.ts` 에 `ERROR_KO` 매핑 테이블이 없어 영문 message 가 그대로 노출됨. 후속 plan 에서 `ERROR_KO` 신설 검토 — 그 전까지는 errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 | — (후속 가드 미도입) |
+| **신규 cross-cutting enum 값 추가** (`WaitingInteractionType` / `ConversationTurnSource` / `PresentationType` 등) | (a) `spec/conventions/interaction-type-registry.md` 의 매트릭스에 행 추가<br>(b) 매트릭스가 가리키는 모든 코드 분기 위치를 동시 갱신 (TS `assertNever` 패턴 사용)<br>(c) AST 가드 (`interaction-type-exhaustiveness.test.ts`) 통과 | `cd codebase/frontend && npm test -- interaction-type-exhaustiveness` |
+| **신규 backend zod `ui.label` / `hint` / `group` / `itemLabel` 값** | `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `LABEL_KO` / `HINT_KO` / `GROUP_KO` / `ITEM_LABEL_KO` / `OPTION_LABEL_KO` 중 적절한 매핑에 동일 PR 안에서 한국어 등록. SoT: `spec/conventions/i18n-userguide.md §Principle 3-B` | `cd codebase/frontend && npm test -- ui-label-parity` |
+| **신규 handler output field** (`output.result.*` 의 신규 키) | (a) `spec/conventions/data-hydration-surfaces.md` §1 매트릭스에 행 추가<br>(b) 표가 가리키는 모든 frontend hydration 함수 (parseHistoryMessages / threadTurnsToConversationItems / applyExecutionSnapshot 등) 에 처리 추가<br>(c) backend handler 의 모든 종결 분기 (single-turn out / multi-turn user_ended / max_turns / condition / error) 에 동일 field 동시 echo | `cd codebase/frontend && npm test -- hydration-coverage` |
 | 인증·권한·세션 흐름 변경 | `codebase/frontend/src/content/docs/07-workspace-and-team/` 의 관련 페이지 + e2e | `make e2e-test` |
 | 표현식 언어 변경 | `codebase/frontend/src/content/docs/04-expression-language/{basics,variables-and-context,cheatsheet}.mdx` + `.en.mdx` | 수동 (registry 테스트로 frontmatter 검증) |
 | 실행·디버깅 흐름 변경 | `codebase/frontend/src/content/docs/05-run-and-debug/` | 동일 |
@@ -140,6 +143,9 @@
 - **i18n key parity** — dict 신규 키 `ko` / `en` 한쪽 누락. build-time 가드가 잡지만 *추가하는 같은 commit 안* 양쪽 동시 추가가 default. parity fail 로 빌드 깨고 별 commit 으로 메우는 패턴 금지
 - **backend warning/error code → ko 매핑** — 백엔드가 새 warning/error 코드를 발행하면 `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `WARNING_KO` 매핑을 같은 commit 에. 누락 시 사용자에게 영문 그대로 노출
 - **노드 schema 변경 vs 가이드 본문** — dict 키만 갱신하고 `02-nodes/<cat>.mdx` 의 FieldTable 미갱신. 가이드 본문이 spec 과 어긋남
+- **cross-cutting enum 값 추가 vs N개 분기 위치** (PR #269 → #270 → #271 회귀 시리즈의 공통 원인) — 새 enum 값을 한 곳에 추가하고 N개 처리 분기 (`use-execution-events` / `apply-execution-snapshot` / drawer / page.tsx / SchemaForm 의 isXxx flag) 중 일부를 빠뜨림. `assertNever` exhaustive switch + `interaction-type-exhaustiveness.test.ts` AST 가드가 동시 동작해야 차단됨. SoT: `spec/conventions/interaction-type-registry.md`
+- **새 backend ui.label/hint/group 영문 노출** — backend 의 `ui.*` 값을 추가하고 frontend `backend-labels.ts` 매핑을 빠뜨림. ui-label-parity.test.ts 가드가 차단. SoT: `spec/conventions/i18n-userguide.md §Principle 3-B`
+- **handler output 신규 field 가 실행 내역 surface 에서 안 보임** — backend 가 thread snapshot 에만 push 하고 `output.result.*` echo 를 빠뜨려 NodeExecution.outputData 만 읽는 실행 내역 페이지에서 누락. hydration-coverage.test.ts 가드. SoT: `spec/conventions/data-hydration-surfaces.md`
 - **새 노드 추가** — `.mdx` (KO) 만 갱신 + `.en.mdx` 누락. EN 로케일이 KO 폴백으로 노출되어 사용자 신뢰 저하
 - **새 섹션 디렉토리** — `<NN>-<name>/` 만 만들고 `codebase/frontend/src/lib/docs/locale.ts` 의 `SECTION_LABELS_BY_LOCALE` 양쪽 로케일 등록 누락
 - **TSX 안 한국어 직접 작성** — ratchet 가드가 baseline 초과 차단하지만, *작성하는 그 순간에* dict 키 추출이 default. ratchet 가 잡은 뒤 별 commit 으로 빼는 패턴 금지

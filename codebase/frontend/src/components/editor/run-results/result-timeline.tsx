@@ -67,7 +67,21 @@ function statusAccentClass(status: string): string {
 }
 
 function isMultiTurnConversation(result: NodeResult): boolean {
-  return isConversationOutput(result.outputData);
+  if (isConversationOutput(result.outputData)) return true;
+  // Fallback: AI Agent / Information Extractor nodes with `mode === 'multi_turn'`
+  // are multi-turn even when the persisted outputData is sparse (e.g. waiting
+  // tick saved before the first assistant message). Without this, the timeline
+  // row stays un-expandable and the user can't open the conversation history
+  // after page navigation — regression reported on PR #271 follow-up.
+  if (result.nodeType !== "ai_agent" && result.nodeType !== "information_extractor") {
+    return false;
+  }
+  const raw = result.outputData as Record<string, unknown> | null | undefined;
+  const config =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw.config as Record<string, unknown> | undefined)
+      : undefined;
+  return config?.mode === "multi_turn";
 }
 
 function isSubWorkflowNode(result: NodeResult): boolean {
