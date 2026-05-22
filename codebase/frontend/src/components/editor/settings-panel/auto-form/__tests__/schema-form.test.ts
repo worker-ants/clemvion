@@ -34,14 +34,33 @@ describe("groupEntries", () => {
     expect(groups[1].entries.map((e) => e.key)).toEqual(["c"]);
   });
 
-  it("re-opens a group when interrupted by another", () => {
+  // Backend `order` collisions can split a named group into two slices.
+  // groupEntries merges the later slice back into the earlier group so the
+  // render path doesn't emit two FieldGroup records with the same React key
+  // (regression guard — caught the AI Agent panel duplicate "Conversation
+  // Context" key after `presentationTools` + `maxTurns` order collision).
+  it("merges later occurrence of a named group into the earlier slice", () => {
     const groups = groupEntries([
       entry("a", { group: "X" }),
       entry("b", { group: "Y" }),
       entry("c", { group: "X" }),
     ]);
+    expect(groups).toHaveLength(2);
+    expect(groups.map((g) => g.name)).toEqual(["X", "Y"]);
+    expect(groups[0].entries.map((e) => e.key)).toEqual(["a", "c"]);
+    expect(groups[1].entries.map((e) => e.key)).toEqual(["b"]);
+  });
+
+  it("keeps ungrouped (null) buckets positional even when split", () => {
+    // null is a layout break, not a name — multiple null buckets are
+    // intentional and must not be merged into one.
+    const groups = groupEntries([
+      entry("a"),
+      entry("b", { group: "X" }),
+      entry("c"),
+    ]);
     expect(groups).toHaveLength(3);
-    expect(groups.map((g) => g.name)).toEqual(["X", "Y", "X"]);
+    expect(groups.map((g) => g.name)).toEqual([null, "X", null]);
   });
 
   it("propagates `collapsible` to the group when any entry requests it", () => {

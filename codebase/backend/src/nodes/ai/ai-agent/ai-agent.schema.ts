@@ -441,7 +441,11 @@ export const aiAgentNodeConfigSchema = z
           label: 'Max Turns',
           widget: 'number',
           hint: '0 = unlimited',
-          order: 40,
+          // order 50 — Conversation Context (37-41) + System Context (42-43)
+          // 다음. order 40 으로 두면 frontend SchemaForm.groupEntries (연속
+          // 항목만 묶는다) 가 Conversation Context 그룹을 maxTurns 앞뒤로
+          // 쪼개 같은 React key ('Conversation Context') 가 두 번 생긴다.
+          order: 50,
           group: 'Multi Turn Settings',
           visibleWhen: { field: 'mode', equals: 'multi_turn' },
         },
