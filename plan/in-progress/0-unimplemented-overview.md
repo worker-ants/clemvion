@@ -113,6 +113,7 @@ plan/in-progress/                          # 2026-05-18 정리 후
 │
 │  ── follow-up · 정합화 묶음
 ├── cafe24-backlog-residual.md            ← cafe24 누적 백로그 잔여
+├── cafe24-conditional-required-impl.md   ← Cafe24OperationMetadata.constraints? backend 구현 4종 (2026-05-22)
 ├── cafe24-restricted-scopes-followups.md ← cafe24-restricted-scopes PR 후속 3건 (allowlist UI / invalid_scope / privacy_* rename) 통합
 ├── cafe24-test-spec-guard-cleanup-followups.md ← cafe24-test-spec-guard PR ai-review 분리 cleanup
 ├── harness-i18n-userguide-gap.md         ← i18n / 유저 가이드 누락 방지 하네스 (P0 ✅ / P1+ ⏳)

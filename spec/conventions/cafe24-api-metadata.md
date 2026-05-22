@@ -92,7 +92,7 @@ interface Cafe24OperationMetadata {
 type Cafe24FieldConstraint =
   | { kind: 'oneOf';      fields: string[] }                  // 최소 1개 (at-least-one-of). length >= 2
   | { kind: 'allOrNone';  fields: string[] }                  // 함께 있거나 함께 없거나. length >= 2
-  | { kind: 'implies';    if: string; then: string[] };       // if 가 있으면 then 도 필수. then length >= 1
+  | { kind: 'implies';    if: string; then: [string, ...string[]] };  // if 가 있으면 then 도 필수. then length >= 1 (tuple)
 ```
 
 > **이름 주의** — 본 컨벤션의 `kind: 'oneOf'` (필드 존재 at-least-one) 는 다음 두 가지와 의미가 다르다:
@@ -119,7 +119,7 @@ type Cafe24FieldConstraint =
 
 **`constraints` 의 의미**
 
-본 필드는 Cafe24 공식 docs 가 표 파라미터로는 모두 optional 로 적었지만 본문 박스에 자연어로 명시한 조건부 제약 — 예: `customer_list` 의 "회원 ID · 가입 시작/종료일 · 회원 등급 번호 중 한 가지는 반드시 입력" — 을 구조화한다. `requiredFields` 는 AND 시맨틱(모두 필수) 만 표현 가능하므로 OR / 짝 / 함의 형태의 제약을 누락하면 AI Agent (MCP 도구) 가 잘못된 인자를 추론해 호출 실패가 발생한다. 본 필드는 **두 채널** 로 노출하여 회귀를 방어한다 — (1) MCP 도구 description 자동 suffix (LLM 가독), (2) `cafe24.handler.ts execute()` 와 `Cafe24McpToolProvider.execute()` 의 runtime 검증 (2차 가드). 일부 kind 는 (3) JSON Schema 변환도 추가한다.
+본 필드는 Cafe24 공식 docs 가 표 파라미터로는 모두 optional 로 적었지만 본문 박스에 자연어로 명시한 조건부 제약 — 예: `customer_list` 의 "회원 ID · 가입 시작/종료일 · 회원 등급 번호 중 한 가지는 반드시 입력" — 을 구조화한다. `requiredFields` 는 AND 시맨틱(모두 필수) 만 표현 가능하므로 OR / 짝 / 함의 형태의 제약을 누락하면 AI Agent (MCP 도구) 가 잘못된 인자를 추론해 호출 실패가 발생한다. 본 필드는 **두 의무 채널 + 선택적 schema 변환** 으로 노출하여 회귀를 방어한다 — (1) MCP 도구 description 자동 suffix (LLM 가독, 모든 kind 적용), (2) `cafe24.handler.ts execute()` 와 `Cafe24McpBridge.execute()` 의 runtime 검증 (2차 가드, 모든 kind 적용), (3) JSON Schema 변환 (`oneOf` kind 한정).
 
 | kind | 의미 | 위반 예시 |
 |---|---|---|
@@ -147,7 +147,7 @@ type Cafe24FieldConstraint =
 - `oneOf` 가 여러 개면 JSON Schema 의 `allOf` 안에 각 `anyOf` 가 차례로 들어간다 (AND of OR-clauses).
 - description suffix 의 필드 이름은 `, ` 로 join (예: `member_id, group_no, since`). `oneOf` / `allOrNone` 모두 동일 포매팅.
 
-**노드 핸들러 / MCP execute 시 runtime 검증** — `cafe24.handler.ts execute()` 와 `Cafe24McpToolProvider.execute()` 양쪽 모두 기존 `requiredFields` 누락 검사 직후 `constraints` 검증을 수행하고, 위반 시 `IntegrationError('CAFE24_MISSING_FIELDS', ...)` 를 던진다. 기존 에러 코드를 **재사용** 해 client/UI 분기 추가를 피한다 — 메시지에 어떤 constraint kind 가 어떤 fields 에서 위반됐는지 명시 (예: `"constraint violated: oneOf [member_id, group_no, since] requires at least one of"`).
+**노드 핸들러 / MCP execute 시 runtime 검증** — `cafe24.handler.ts execute()` 와 `Cafe24McpBridge.execute()` 양쪽 모두 기존 `requiredFields` 누락 검사 직후 `constraints` 검증을 수행하고, 위반 시 `IntegrationError('CAFE24_MISSING_FIELDS', ...)` 를 던진다. 기존 에러 코드를 **재사용** 해 client/UI 분기 추가를 피한다 — 메시지에 어떤 constraint kind 가 어떤 fields 에서 위반됐는지 명시 (예: `"constraint violated: oneOf [member_id, group_no, since] requires at least one of"`).
 
 **예시 — `customer_list` (보강안)**:
 
@@ -163,7 +163,7 @@ type Cafe24FieldConstraint =
 }
 ```
 
-생성되는 MCP tool description (`Cafe24McpToolProvider.buildTools` 출력 예):
+생성되는 MCP tool description (`Cafe24McpBridge.buildTools` 출력 예):
 
 ```
 List members (customers) with filters by group, signup date, etc.
@@ -347,17 +347,17 @@ LLM 이 도구 호출 인자를 구성할 때 — 예를 들어 `$now` (UTC) 또
 2. 해당 resource 의 metadata 파일(`codebase/backend/src/nodes/integration/cafe24/metadata/<resource>.ts`) 에 §2 형식으로 row 1 추가.
 3. `id` 는 `<resource>_<verb>` 형식 (예: `product_list`, `order_update_status`). 중복 금지 (resource 내).
 4. `scopeType` 은 read/write 결정 — scope 매핑에 사용.
-5. [`cafe24-api-catalog/<resource>.md`](./cafe24-api-catalog/_overview.md) 의 표에 해당 row 의 `status` 를 `planned → supported` 로 갱신하고 `method` / `path` / `scope` / `paginated` 컬럼을 채운다. 카탈로그에 row 자체가 없으면 새로 추가.
+5. **조건부 제약 확인** — cafe24 공식 docs 의 endpoint 페이지에서 표 외 본문 박스에 "X·Y·Z 중 한 가지는 반드시 입력" / "A 와 B 는 함께 입력" / "A 가 있으면 B 도 필요" 같은 자연어 제약이 있는지 확인. 있으면 §2 의 `constraints?` 에 `oneOf` / `allOrNone` / `implies` row 로 등재.
+6. [`cafe24-api-catalog/<resource>.md`](./cafe24-api-catalog/_overview.md) 의 표에 해당 row 의 `status` 를 `planned → supported` 로 갱신하고 `method` / `path` / `scope` / `paginated` 컬럼을 채운다. 카탈로그에 row 자체가 없으면 새로 추가.
    - 추가로 별도 승인 대상인 경우 [`cafe24-restricted-scopes.md`](./cafe24-restricted-scopes.md) 명단과 비교해 catalog 의 `restricted` 컬럼(`scope` / `operation` / 빈칸) 과 backend 메타데이터의 `restrictedApproval` 필드를 동시 갱신한다.
-6. `_overview.md` §5 의 coverage matrix 카운트도 갱신.
-7. 백엔드 단위 테스트가 자동으로 검증:
-   - 모든 `id` 의 unique (resource 내)
-   - 모든 `path` 의 `{placeholder}` 가 `fields` 에 정의됐는지
-   - `requiredFields` 가 `fields` 의 키 부분집합인지
-   - `constraints[*]` 가 참조하는 모든 필드명이 `fields` 키 부분집합인지 (§2 의 `constraints` invariant 참고)
-   - **카탈로그 ↔ 메타데이터 양방향 동기** (`catalog-sync.spec.ts`)
-   - **`restricted` 컬럼 ↔ `restrictedApproval` 양방향 동기** (`catalog-sync.spec.ts`) — catalog 가 `scope` 또는 `operation` 면 메타데이터에 `restrictedApproval` 존재, 그 역도 동일. `level='program'` 은 검증 대상 제외 ([_overview §4](./cafe24-api-catalog/_overview.md#4-동기-정책-sync-contract) 검증 규칙 8 참고).
-8. **조건부 제약 확인** — cafe24 공식 docs 의 endpoint 페이지에서 표 외 본문 박스에 "X·Y·Z 중 한 가지는 반드시 입력" / "A 와 B 는 함께 입력" / "A 가 있으면 B 도 필요" 같은 자연어 제약이 있는지 확인. 있으면 §2 의 `constraints?` 에 `oneOf` / `allOrNone` / `implies` row 로 등재.
+7. `_overview.md` §5 의 coverage matrix 카운트도 갱신.
+8. 백엔드 단위 테스트가 자동으로 검증:
+   - 모든 `id` 의 unique (resource 내) — `metadata.spec.ts`
+   - 모든 `path` 의 `{placeholder}` 가 `fields` 에 정의됐는지 — `metadata.spec.ts`
+   - `requiredFields` 가 `fields` 의 키 부분집합인지 — `metadata.spec.ts`
+   - `constraints[*]` 가 참조하는 모든 필드명이 `fields` 키 부분집합 + kind 별 길이 invariant — `metadata.spec.ts` (§2 의 `constraints` invariant 참고)
+   - **카탈로그 ↔ 메타데이터 양방향 동기** — `catalog-sync.spec.ts`
+   - **`restricted` 컬럼 ↔ `restrictedApproval` 양방향 동기** — `catalog-sync.spec.ts`. catalog 가 `scope` 또는 `operation` 면 메타데이터에 `restrictedApproval` 존재, 그 역도 동일. `level='program'` 은 검증 대상 제외 ([_overview §4](./cafe24-api-catalog/_overview.md#4-동기-정책-sync-contract) 검증 규칙 8 참고).
 9. **spec 본문 수정 불요** — `4-cafe24.md` 는 형식만 정의.
 
 ## 7. MCP Bridge 와의 매핑
