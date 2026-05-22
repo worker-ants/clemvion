@@ -51,6 +51,20 @@ const label = "에러가 발생했어요";            // ❌ (UI 노출 string)
 
 **자동 가드 (P1-B)**: backend `*.schema.ts` 의 정적 추출(`warningRules[].message` · `NodeMetadata.label` · `NodeMetadata.description`) 결과와 `WARNING_KO` · `NODE_LABEL_KO` · `NODE_DESCRIPTION_KO` 키 집합의 차집합을 검증. 누락 시 fail. 정적 파싱이라 동적 message (`\`${...}\``) · imperative `validateConfig` 반환 · import 해온 상수는 미커버 — 향후 ts-morph 기반 정적 분석으로 보강.
 
+### Principle 3-B — backend zod `ui.label` / `hint` / `group` / `itemLabel` 매핑 의무 (2026-05-22)
+
+backend 의 `*ConfigSchema` 가 `z.toJSONSchema` 로 노출하는 `ui.*` 메타데이터는 그 자체가 사용자 가시 영문 문자열이다. PR #271 의 이슈 #2 (AI Agent 의 `Presentation Tools` 그룹 / `Description override` / `Defaults overlay` 라벨이 한글로 번역 안 됨) 와 같은 회귀를 차단하기 위해, 다음 4종 ui 키도 동일 매핑 의무를 적용한다.
+
+| Backend ui 키 (영문 SoT) | Frontend `backend-labels.ts` 매핑 테이블 |
+|---|---|
+| `ui.label` | `LABEL_KO` |
+| `ui.hint` | `HINT_KO` |
+| `ui.group` | `GROUP_KO` |
+| `ui.itemLabel` (field-array) | `ITEM_LABEL_KO` |
+| `ui.options[].label` (select widget) | `OPTION_LABEL_KO` |
+
+**자동 가드 (P3-B-1)**: `codebase/frontend/src/lib/i18n/__tests__/ui-label-parity.test.ts` 가 backend 의 모든 `*ConfigSchema` 를 `z.toJSONSchema` 로 dump 해 ui.* 값을 추출하고, 위 5 매핑 테이블에 존재하는지 검증. 누락 = build hard fail. spec/conventions/interaction-type-registry.md 와 동일한 "N 개 갱신 위치 동시 변경" 원칙을 적용한다.
+
 ### errorCode 의 처리 (현재 갭)
 
 `codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum (UPPER_SNAKE_CASE — `HTTP_TIMEOUT`, `DB_QUERY_FAILED` 등) 이 발행하는 영문 `message` 는 현재 `backend-labels.ts` 의 매핑 대상이 아니다 (`ERROR_KO` 미존재). 따라서 errorCode 의 사용자 가시 message 는 ko 로케일에서도 영문이 그대로 노출된다.

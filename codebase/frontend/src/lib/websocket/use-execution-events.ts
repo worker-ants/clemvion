@@ -24,6 +24,7 @@ import {
   type ConversationTurn,
 } from "@/lib/conversation/conversation-utils";
 import { tryParseJson } from "@/lib/utils/parse-json";
+import { assertNever } from "@/lib/utils/exhaustive";
 import { useT } from "@/lib/i18n";
 
 interface UseExecutionEventsOptions {
@@ -116,16 +117,34 @@ export function useExecutionEvents({
 
   const handleExecutionResumed = useCallback(() => {
     const { waitingInteractionType } = useExecutionStore.getState();
-    if (waitingInteractionType === "ai_conversation") {
-      resumeFromConversation();
-    } else if (waitingInteractionType === "buttons") {
-      resumeFromButtons();
-    } else if (waitingInteractionType === "ai_form_render") {
-      // AI Agent render_form blocking — same resume flow as a regular form
-      // (waitForAiConversation 의 form_submitted 분기가 다음 turn 을 enqueue).
-      resumeFromForm();
-    } else {
-      resumeFromForm();
+    // Exhaustive switch on WaitingInteractionType — adding a new value to
+    // execution-store without handling it here triggers a TS compile error
+    // (assertNever sentinel). spec/conventions/interaction-type-registry.md §1.2.
+    switch (waitingInteractionType) {
+      case "ai_conversation":
+        resumeFromConversation();
+        return;
+      case "buttons":
+        resumeFromButtons();
+        return;
+      case "form":
+        resumeFromForm();
+        return;
+      case "ai_form_render":
+        // render_form blocking shares the form-submit dispatch path —
+        // waitForAiConversation 의 form_submitted 분기가 다음 turn 을 enqueue.
+        resumeFromForm();
+        return;
+      case null:
+        // Reconnect race: snapshot hydration may not yet have set the type.
+        // Default to form path which is the most permissive (re-emit safe).
+        resumeFromForm();
+        return;
+      default:
+        assertNever(
+          waitingInteractionType,
+          "WaitingInteractionType@handleExecutionResumed",
+        );
     }
   }, [resumeFromForm, resumeFromButtons, resumeFromConversation]);
 

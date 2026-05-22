@@ -95,6 +95,19 @@ export function unwrapNodeOutput(raw: unknown): UnwrappedNodeOutput {
  *     `conversationConfig`) — for in-flight rows persisted before the
  *     canonical-shape migration.
  */
+/**
+ * Multi-turn marker values recognised in either top-level (legacy) or
+ * `meta.interactionType` (canonical) positions.
+ *
+ * Keep in sync with `spec/conventions/interaction-type-registry.md` —
+ * adding a new value here without updating the registry is rejected by
+ * the AST guard in `lib/__tests__/interaction-type-exhaustiveness.test.ts`.
+ */
+const MULTI_TURN_INTERACTION_TYPES: ReadonlySet<string> = new Set([
+  "ai_conversation",
+  "ai_form_render",
+]);
+
 export function isConversationOutput(outputData: unknown): boolean {
   if (!outputData || typeof outputData !== "object" || Array.isArray(outputData))
     return false;
@@ -103,7 +116,8 @@ export function isConversationOutput(outputData: unknown): boolean {
   // Legacy waiting shape: top-level `interactionType` / `conversationConfig`.
   // Also covers legacy flat-completed payloads that put `messages` at the top.
   if (
-    raw.interactionType === "ai_conversation" ||
+    (typeof raw.interactionType === "string" &&
+      MULTI_TURN_INTERACTION_TYPES.has(raw.interactionType)) ||
     raw.conversationConfig != null
   ) {
     return true;
@@ -120,8 +134,18 @@ export function isConversationOutput(outputData: unknown): boolean {
   const result = output.result as Record<string, unknown> | undefined;
   const hasResultMessages = !!result && Array.isArray(result.messages);
   const hasLegacyMessages = Array.isArray(output.messages);
-  const outputInteraction = output.interactionType === "ai_conversation";
-  const metaInteraction = unwrapped.meta?.interactionType === "ai_conversation";
+  const outputInteractionType =
+    typeof output.interactionType === "string" ? output.interactionType : null;
+  const outputInteraction =
+    outputInteractionType !== null &&
+    MULTI_TURN_INTERACTION_TYPES.has(outputInteractionType);
+  const metaInteractionType =
+    typeof unwrapped.meta?.interactionType === "string"
+      ? unwrapped.meta.interactionType
+      : null;
+  const metaInteraction =
+    metaInteractionType !== null &&
+    MULTI_TURN_INTERACTION_TYPES.has(metaInteractionType);
   const hasConvConfig = !!output.conversationConfig;
   const endReason =
     (result?.endReason as string | undefined) ??
