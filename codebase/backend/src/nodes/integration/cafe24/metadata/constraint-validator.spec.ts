@@ -115,6 +115,86 @@ describe('validateCafe24Constraints', () => {
     });
   });
 
+  describe('impliesValue', () => {
+    const o = op(
+      ['refund_method', 'bank_name', 'account_no'],
+      [
+        {
+          kind: 'impliesValue',
+          if: 'refund_method',
+          value: 'T',
+          then: ['bank_name', 'account_no'],
+        },
+      ],
+    );
+
+    it('passes when "if" is absent (no obligation)', () => {
+      expect(validateCafe24Constraints(o, {})).toBeNull();
+      expect(validateCafe24Constraints(o, { bank_name: 'x' })).toBeNull();
+    });
+
+    it('passes when "if" is present but value differs (e.g. F vs T)', () => {
+      expect(validateCafe24Constraints(o, { refund_method: 'F' })).toBeNull();
+      expect(
+        validateCafe24Constraints(o, { refund_method: 'OTHER' }),
+      ).toBeNull();
+    });
+
+    it('passes when value matches and all "then" fields present', () => {
+      expect(
+        validateCafe24Constraints(o, {
+          refund_method: 'T',
+          bank_name: 'X',
+          account_no: '123',
+        }),
+      ).toBeNull();
+    });
+
+    it('fails when value matches but some "then" fields absent', () => {
+      const msg = validateCafe24Constraints(o, { refund_method: 'T' });
+      expect(msg).toContain('impliesValue');
+      expect(msg).toContain('refund_method');
+      expect(msg).toContain('"T"');
+      expect(
+        validateCafe24Constraints(o, {
+          refund_method: 'T',
+          bank_name: 'X',
+        }),
+      ).toContain('impliesValue');
+    });
+
+    it('uses strict equality (numeric 1 !== string "1")', () => {
+      const numericOp = op(
+        ['flag', 'then1'],
+        [{ kind: 'impliesValue', if: 'flag', value: 1, then: ['then1'] }],
+      );
+      // String '1' should NOT trigger (strict equality)
+      expect(validateCafe24Constraints(numericOp, { flag: '1' })).toBeNull();
+      // Numeric 1 triggers and fails
+      expect(validateCafe24Constraints(numericOp, { flag: 1 })).toContain(
+        'impliesValue',
+      );
+    });
+
+    it('handles boolean values', () => {
+      const boolOp = op(
+        ['flag', 'then1'],
+        [
+          {
+            kind: 'impliesValue',
+            if: 'flag',
+            value: true,
+            then: ['then1'],
+          },
+        ],
+      );
+      expect(validateCafe24Constraints(boolOp, { flag: true })).toContain(
+        'impliesValue',
+      );
+      expect(validateCafe24Constraints(boolOp, { flag: false })).toBeNull();
+    });
+  });
+
   describe('multiple constraints', () => {
     it('returns first violation only', () => {
       const o = op(

@@ -89,7 +89,7 @@ describe('Cafe24 metadata', () => {
                 );
               }
             }
-          } else if (c.kind === 'implies') {
+          } else if (c.kind === 'implies' || c.kind === 'impliesValue') {
             if (!fieldNames.has(c.if)) {
               violations.push(
                 `${label}.constraints[${idx}].if = "${c.if}" not in fields`,
@@ -97,13 +97,28 @@ describe('Cafe24 metadata', () => {
             }
             if (c.then.length < 1) {
               violations.push(
-                `${label}.constraints[${idx}].then: implies requires length >= 1`,
+                `${label}.constraints[${idx}].then: ${c.kind} requires length >= 1`,
               );
             }
             for (const f of c.then) {
               if (!fieldNames.has(f)) {
                 violations.push(
                   `${label}.constraints[${idx}].then includes "${f}" not in fields`,
+                );
+              }
+            }
+            if (c.kind === 'impliesValue') {
+              // Value must be a scalar (string/number/boolean) — already
+              // enforced by the type, but assert in case metadata is
+              // constructed dynamically. Also assert against null/undefined.
+              const v: unknown = c.value;
+              if (
+                typeof v !== 'string' &&
+                typeof v !== 'number' &&
+                typeof v !== 'boolean'
+              ) {
+                violations.push(
+                  `${label}.constraints[${idx}].value: impliesValue requires a scalar string/number/boolean (got ${typeof v})`,
                 );
               }
             }

@@ -75,7 +75,21 @@ export type Cafe24ApprovalGroup =
 export type Cafe24FieldConstraint =
   | { kind: 'oneOf'; fields: string[] }
   | { kind: 'allOrNone'; fields: string[] }
-  | { kind: 'implies'; if: string; then: [string, ...string[]] };
+  | { kind: 'implies'; if: string; then: [string, ...string[]] }
+  /**
+   * Value-aware implication: when the input value of `if` field equals
+   * `value`, then `then` fields are required. Encodes cafe24 docs patterns
+   * like "refund_method=T (cash) requires refund_bank_*" and
+   * "material_composite=T requires material+content_rate". The value
+   * comparison is strict-equal on string/number/boolean — Cafe24 enum
+   * fields use string tokens (`T`/`F`/etc) so this is sufficient.
+   */
+  | {
+      kind: 'impliesValue';
+      if: string;
+      value: string | number | boolean;
+      then: [string, ...string[]];
+    };
 
 export interface Cafe24RestrictedApproval {
   /**

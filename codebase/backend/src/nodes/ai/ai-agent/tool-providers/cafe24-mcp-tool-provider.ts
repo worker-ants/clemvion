@@ -783,8 +783,11 @@ export function constraintToSuffixLine(c: Cafe24FieldConstraint): string {
   if (c.kind === 'allOrNone') {
     return `Constraint: ${c.fields.join(', ')} must be provided together (all or none).`;
   }
-  // implies
-  return `Constraint: when ${c.if} is provided, ${c.then.join(', ')} are also required.`;
+  if (c.kind === 'implies') {
+    return `Constraint: when ${c.if} is provided, ${c.then.join(', ')} are also required.`;
+  }
+  // impliesValue
+  return `Constraint: when ${c.if}="${String(c.value)}", ${c.then.join(', ')} are also required.`;
 }
 
 /**

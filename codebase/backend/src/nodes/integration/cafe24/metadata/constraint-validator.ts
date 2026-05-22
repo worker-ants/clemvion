@@ -90,7 +90,20 @@ function checkOne(
     }
     return null;
   }
-  // Exhaustive check — adding a fourth `kind` to `Cafe24FieldConstraint`
+  if (c.kind === 'impliesValue') {
+    // Trigger only when the field is BOTH present AND equals the expected
+    // value. `==` would coerce; cafe24 enum tokens are strings so strict
+    // equality is correct. Absent `if` → no obligation (same shape as
+    // plain `implies`).
+    if (!isAbsent(fields[c.if]) && fields[c.if] === c.value) {
+      const missing = c.then.filter((f) => isAbsent(fields[f]));
+      if (missing.length > 0) {
+        return `constraint violated: impliesValue — when "${c.if}"="${String(c.value)}", [${c.then.join(', ')}] are required (missing: [${missing.join(', ')}])`;
+      }
+    }
+    return null;
+  }
+  // Exhaustive check — adding a fifth `kind` to `Cafe24FieldConstraint`
   // makes this branch reachable with a TypeScript compile error pointing
   // back here, plus a runtime fallback if the type narrowing is bypassed.
   const _exhaustive: never = c;
