@@ -124,10 +124,12 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
       'List the issuance records of a coupon (who received it, when).',
     scopeType: 'read',
     method: 'GET',
-    path: 'coupons/issues',
+    // cafe24 docs path: `coupons/{coupon_no}/issues` (coupon-scoped, not
+    // `coupons/issues` with query param).
+    path: 'coupons/{coupon_no}/issues',
     requiredFields: ['coupon_no'],
     fields: {
-      coupon_no: { type: 'number', location: 'query' },
+      coupon_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'list',
@@ -214,14 +216,17 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'serialcoupons_delete',
     label: '시리얼 쿠폰 코드 삭제',
-    description: 'Delete a specific serial coupon code by code value.',
+    description:
+      'Delete serial coupon codes for a coupon. (Specific code filtering via query/body per cafe24 docs.)',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'serialcoupons/{coupon_no}/{code}',
-    requiredFields: ['coupon_no', 'code'],
+    // cafe24 docs path: `serialcoupons/{coupon_no}` (no `/{code}` path
+    // segment — specific-code targeting goes through body/query).
+    path: 'serialcoupons/{coupon_no}',
+    requiredFields: ['coupon_no'],
     fields: {
       coupon_no: { type: 'number', location: 'path' },
-      code: { type: 'string', location: 'path' },
+      shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
   },
@@ -479,13 +484,13 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'discountcodes_get',
     label: '할인 코드 단건 조회',
-    description: 'Retrieve a discount code by discount_code.',
+    description: 'Retrieve a discount code by discount_code_no.',
     scopeType: 'read',
     method: 'GET',
-    path: 'discountcodes/{discount_code}',
-    requiredFields: ['discount_code'],
+    path: 'discountcodes/{discount_code_no}',
+    requiredFields: ['discount_code_no'],
     fields: {
-      discount_code: { type: 'string', location: 'path' },
+      discount_code_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',
@@ -526,13 +531,13 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'discountcodes_update',
     label: '할인 코드 수정',
-    description: 'Update a discount code by discount_code (partial).',
+    description: 'Update a discount code by discount_code_no (partial).',
     scopeType: 'write',
     method: 'PUT',
-    path: 'discountcodes/{discount_code}',
-    requiredFields: ['discount_code'],
+    path: 'discountcodes/{discount_code_no}',
+    requiredFields: ['discount_code_no'],
     fields: {
-      discount_code: { type: 'string', location: 'path' },
+      discount_code_no: { type: 'number', location: 'path' },
       shop_no: { type: 'number', location: 'body', default: 1 },
       discount_name: { type: 'string', location: 'body' },
       discount_amount: { type: 'number', location: 'body' },
@@ -553,13 +558,13 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'discountcodes_delete',
     label: '할인 코드 삭제',
-    description: 'Delete a discount code by discount_code.',
+    description: 'Delete a discount code by discount_code_no.',
     scopeType: 'write',
     method: 'DELETE',
-    path: 'discountcodes/{discount_code}',
-    requiredFields: ['discount_code'],
+    path: 'discountcodes/{discount_code_no}',
+    requiredFields: ['discount_code_no'],
     fields: {
-      discount_code: { type: 'string', location: 'path' },
+      discount_code_no: { type: 'number', location: 'path' },
     },
     responseShape: 'single',
   },
