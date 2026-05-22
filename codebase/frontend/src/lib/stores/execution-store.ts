@@ -62,15 +62,6 @@ export interface ToolCallInfo {
   arguments?: string;
 }
 
-/**
- * Re-exported from `@/lib/conversation/conversation-utils` so legacy imports
- * resolve here. Single SoT lives in conversation-utils.ts.
- */
-export type {
-  PresentationType,
-  PresentationPayload,
-  PresentationPayloadTruncation,
-} from "@/lib/conversation/conversation-utils";
 import type { PresentationPayload } from "@/lib/conversation/conversation-utils";
 
 /**

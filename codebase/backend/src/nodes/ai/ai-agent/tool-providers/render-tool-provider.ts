@@ -4,11 +4,13 @@ import {
   ToolCall,
   ToolDef,
 } from '../../../../modules/llm/interfaces/llm-client.interface';
-import { tableNodeConfigSchema } from '../../../presentation/table/table.schema';
-import { chartConfigSchema } from '../../../presentation/chart/chart.schema';
-import { carouselNodeConfigSchema } from '../../../presentation/carousel/carousel.schema';
-import { templateNodeConfigSchema } from '../../../presentation/template/template.schema';
-import { formNodeConfigSchema } from '../../../presentation/form/form.schema';
+import {
+  tableNodeConfigSchema,
+  chartConfigSchema,
+  carouselNodeConfigSchema,
+  templateNodeConfigSchema,
+  formNodeConfigSchema,
+} from '../../../presentation/_shared/schemas';
 import type {
   PresentationPayload,
   PresentationType,
@@ -91,16 +93,10 @@ function typeFromToolName(name: string): PresentationType | null {
   return SCHEMA_BY_TYPE[suffix] ? suffix : null;
 }
 
-/** Cached per-type JSON Schema for ToolDef.parameters. */
-const jsonSchemaCache: Partial<
-  Record<PresentationType, Record<string, unknown>>
-> = {};
-function getJsonSchemaFor(type: PresentationType): Record<string, unknown> {
-  const cached = jsonSchemaCache[type];
-  if (cached) return cached;
-  const built = z.toJSONSchema(SCHEMA_BY_TYPE[type]) as Record<string, unknown>;
-  jsonSchemaCache[type] = built;
-  return built;
+/** Compute the JSON Schema for a presentation type. Pure — no caching here.
+ *  Caching is per-instance on RenderToolProvider (see `jsonSchemaCache` field). */
+function buildJsonSchemaFor(type: PresentationType): Record<string, unknown> {
+  return z.toJSONSchema(SCHEMA_BY_TYPE[type]) as Record<string, unknown>;
 }
 
 /**
@@ -147,6 +143,34 @@ function safeJsonParse(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Build a uniform `AgentToolResult` for schema-violation / hallucination /
+ * single-turn render_form drop branches — these 5 paths share the same shape
+ * (tool_result error content + presentationCall + presentationSchemaViolation).
+ * Centralised here so the `execute` method stays narrow.
+ */
+function makeSchemaViolationResult(
+  call: ToolCall,
+  issues: string[],
+): AgentToolResult {
+  return {
+    toolCallId: call.id,
+    content: JSON.stringify({ error: 'INVALID_PAYLOAD', issues }),
+    status: 'error',
+    presentationCall: {
+      toolName: call.name,
+      toolCallId: call.id,
+      status: 'schema_violation',
+    },
+    presentationSchemaViolation: {
+      toolName: call.name,
+      toolCallId: call.id,
+      issues,
+      attempts: 1,
+    },
+  };
 }
 
 function approxByteSize(value: unknown): number {
@@ -246,6 +270,22 @@ export class RenderToolProvider implements AgentToolProvider {
   readonly key = 'render';
   private static readonly logger = new Logger('RenderToolProvider');
 
+  /**
+   * Per-instance JSON Schema cache. Module-level cache previously caused test
+   * isolation concerns and was visible mutable state outside the class.
+   */
+  private readonly jsonSchemaCache: Partial<
+    Record<PresentationType, Record<string, unknown>>
+  > = {};
+
+  private getJsonSchemaFor(type: PresentationType): Record<string, unknown> {
+    const cached = this.jsonSchemaCache[type];
+    if (cached) return cached;
+    const built = buildJsonSchemaFor(type);
+    this.jsonSchemaCache[type] = built;
+    return built;
+  }
+
   matches(toolName: string): boolean {
     return toolName.startsWith(RENDER_TOOL_PREFIX);
   }
@@ -264,7 +304,7 @@ export class RenderToolProvider implements AgentToolProvider {
       return {
         name: renderToolName(def.type),
         description,
-        parameters: getJsonSchemaFor(def.type),
+        parameters: this.getJsonSchemaFor(def.type),
       };
     });
   }
@@ -290,73 +330,25 @@ export class RenderToolProvider implements AgentToolProvider {
     if (!toolDef) {
       // LLM hallucinated a tool that wasn't registered — treat as schema violation
       // so handler escalates to silent drop after retry budget.
-      return {
-        toolCallId: call.id,
-        content: JSON.stringify({
-          error: 'INVALID_PAYLOAD',
-          issues: [
-            `Tool '${call.name}' is not registered in presentationTools`,
-          ],
-        }),
-        status: 'error',
-        presentationCall: {
-          toolName: call.name,
-          toolCallId: call.id,
-          status: 'schema_violation',
-        },
-        presentationSchemaViolation: {
-          toolName: call.name,
-          toolCallId: call.id,
-          issues: [
-            `Tool '${call.name}' is not registered in presentationTools`,
-          ],
-          attempts: 1,
-        },
-      };
+      return makeSchemaViolationResult(call, [
+        `Tool '${call.name}' is not registered in presentationTools`,
+      ]);
     }
 
     // Single-turn mode rejects render_form per spec §6.1.d.ii (silent drop).
     const isSingleTurn =
       (ctx.config.mode as string | undefined) === 'single_turn';
     if (type === 'form' && isSingleTurn) {
-      const issues = ['render_form is not allowed in single_turn mode'];
-      return {
-        toolCallId: call.id,
-        content: JSON.stringify({ error: 'INVALID_PAYLOAD', issues }),
-        status: 'error',
-        presentationCall: {
-          toolName: call.name,
-          toolCallId: call.id,
-          status: 'schema_violation',
-        },
-        presentationSchemaViolation: {
-          toolName: call.name,
-          toolCallId: call.id,
-          issues,
-          attempts: 1,
-        },
-      };
+      return makeSchemaViolationResult(call, [
+        'render_form is not allowed in single_turn mode',
+      ]);
     }
 
     const parsed = safeJsonParse(call.arguments);
     if (!parsed.ok) {
-      const issues = [`Invalid JSON arguments: ${parsed.error}`];
-      return {
-        toolCallId: call.id,
-        content: JSON.stringify({ error: 'INVALID_PAYLOAD', issues }),
-        status: 'error',
-        presentationCall: {
-          toolName: call.name,
-          toolCallId: call.id,
-          status: 'schema_violation',
-        },
-        presentationSchemaViolation: {
-          toolName: call.name,
-          toolCallId: call.id,
-          issues,
-          attempts: 1,
-        },
-      };
+      return makeSchemaViolationResult(call, [
+        `Invalid JSON arguments: ${parsed.error}`,
+      ]);
     }
 
     // Defaults overlay first — LLM payload ∪ defaults with defaults winning.
@@ -371,22 +363,7 @@ export class RenderToolProvider implements AgentToolProvider {
       const issues = validateResult.error.issues.map(
         (i) => `${i.path.join('.') || '(root)'}: ${i.message}`,
       );
-      return {
-        toolCallId: call.id,
-        content: JSON.stringify({ error: 'INVALID_PAYLOAD', issues }),
-        status: 'error',
-        presentationCall: {
-          toolName: call.name,
-          toolCallId: call.id,
-          status: 'schema_violation',
-        },
-        presentationSchemaViolation: {
-          toolName: call.name,
-          toolCallId: call.id,
-          issues,
-          attempts: 1,
-        },
-      };
+      return makeSchemaViolationResult(call, issues);
     }
 
     const validatedPayload = validateResult.data as Record<string, unknown>;
@@ -398,25 +375,9 @@ export class RenderToolProvider implements AgentToolProvider {
       cappedBytes > PRESENTATION_MAX_BYTES &&
       (type === 'chart' || type === 'template' || type === 'form')
     ) {
-      const issues = [
+      return makeSchemaViolationResult(call, [
         `Payload exceeds 1MB cap (${cappedBytes} bytes) — no truncatable array`,
-      ];
-      return {
-        toolCallId: call.id,
-        content: JSON.stringify({ error: 'INVALID_PAYLOAD', issues }),
-        status: 'error',
-        presentationCall: {
-          toolName: call.name,
-          toolCallId: call.id,
-          status: 'schema_violation',
-        },
-        presentationSchemaViolation: {
-          toolName: call.name,
-          toolCallId: call.id,
-          issues,
-          attempts: 1,
-        },
-      };
+      ]);
     }
 
     if (type === 'form') {

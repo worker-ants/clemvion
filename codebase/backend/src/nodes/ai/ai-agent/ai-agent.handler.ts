@@ -722,6 +722,15 @@ export class AiAgentHandler implements NodeHandler {
     presentationCalls?: PresentationCallTrace[];
     /** `meta.presentationSchemaViolations[]` (spec §4.1 silent drop trace). */
     presentationSchemaViolations?: PresentationSchemaViolation[];
+    /**
+     * Per-`toolName` schema violation counter spanning the AI Agent execution
+     * (single-turn loop / multi-turn all turns). spec §4.1: 1회 재시도 후에도
+     * schema 위반이면 silent drop. counter 가 2 이상이 되면 본 batch 가
+     * `presentationCalls[].status = 'dropped'` 로 강등하고 tool_result 를
+     * `{ok:true, dropped:true}` 로 회신해 LLM 의 다음 turn 에서 재시도를
+     *유도하지 않는다.
+     */
+    presentationViolationCounters?: Map<string, number>;
   }): Promise<{
     executedCount: number;
     /**
@@ -763,6 +772,33 @@ export class AiAgentHandler implements NodeHandler {
       args.toolCallTraces.push(trace);
       args.ragGroup.pushSources(execResult.ragSourcesDelta);
       args.ragGroup.pushDiagnostic(execResult.ragDiagnosticsDelta);
+
+      // render_* schema-violation retry gate (spec §4.1 — 1회 재시도 후 drop).
+      // The counter spans the whole AI Agent execution (caller maintains the
+      // Map across turns). On the 2nd+ violation for the same `toolName` we
+      // (a) demote the trace status to `'dropped'`, (b) skip the LLM-visible
+      // error content so the model isn't tempted to keep retrying.
+      let toolResultContent = execResult.content;
+      const violation = execResult.presentationSchemaViolation;
+      if (violation && args.presentationViolationCounters) {
+        const prev =
+          args.presentationViolationCounters.get(violation.toolName) ?? 0;
+        const next = prev + 1;
+        args.presentationViolationCounters.set(violation.toolName, next);
+        if (next > 1) {
+          // Silent drop — keep tool_result well-formed so Anthropic's
+          // tool_use ↔ tool_result pairing requirement holds, but signal
+          // dropped status so the LLM stops retrying.
+          toolResultContent = JSON.stringify({ ok: true, dropped: true });
+          if (execResult.presentationCall) {
+            execResult.presentationCall.status = 'dropped';
+          }
+          // Mark attempts on the recorded violation so downstream can see
+          // how many retries the model burned.
+          violation.attempts = next;
+        }
+      }
+
       // render_* (display-only) — push payload to ai_assistant turn buffer.
       if (execResult.presentationPayload && args.presentationPayloads) {
         args.presentationPayloads.push(execResult.presentationPayload);
@@ -784,7 +820,7 @@ export class AiAgentHandler implements NodeHandler {
       }
       args.messages.push({
         role: 'tool',
-        content: execResult.content,
+        content: toolResultContent,
         toolCallId: execResult.toolCallId,
       });
     }
@@ -896,6 +932,9 @@ export class AiAgentHandler implements NodeHandler {
     const presentationPayloads: PresentationPayload[] = [];
     const presentationCalls: PresentationCallTrace[] = [];
     const presentationSchemaViolations: PresentationSchemaViolation[] = [];
+    // Per-toolName retry counter for spec §4.1 schema-violation gate.
+    // Spans the single-turn tool loop; multi-turn has its own counter.
+    const presentationViolationCounters = new Map<string, number>();
 
     // System prompt: KB 검색은 더 이상 prefill 하지 않는다. LLM 이 능동 호출 결정.
     // spec/4-nodes/3-ai/0-common.md §11.4 ordering:
@@ -1096,6 +1135,7 @@ export class AiAgentHandler implements NodeHandler {
           presentationPayloads,
           presentationCalls,
           presentationSchemaViolations,
+          presentationViolationCounters,
         });
       toolCallCount += providerExecuted;
 
@@ -1502,21 +1542,85 @@ export class AiAgentHandler implements NodeHandler {
     // 하지 않고 매 turn 새로 결정 — buildTools 가 결정론적이므로 안전.
     const mcpDiagnosticsAcc: McpServerSummary[] = [];
     // Render tool (`render_*`) accumulators — turn-scoped. ai_assistant turn
-    // push 시 본 buffer 가 부착된다 (spec §7.10). blockingFormRender 는 phase
-    // 2b 에서 본 turn 의 waiting_for_input 진입 신호로 사용.
+    // push 시 본 buffer 가 부착된다 (spec §7.10).
     const presentationPayloads: PresentationPayload[] = [];
     const presentationCalls: PresentationCallTrace[] = [];
     const presentationSchemaViolations: PresentationSchemaViolation[] = [];
+    // Per-toolName retry counter for spec §4.1 schema-violation gate, within
+    // this LLM turn's tool-call loop.
+    const presentationViolationCounters = new Map<string, number>();
 
-    // Add user message
-    messages.push({ role: 'user', content: userMessage });
-    // ConversationThread push (spec §2.2 — multi-turn ai_user)
-    this.pushAiThreadTurn(
-      this.threadHolderFromState(state),
-      this.buildAiNodeRefFromState(state),
-      'ai_user',
-      userMessage,
-    );
+    // render_form blocking resume (spec §6.2 step 2):
+    // If a previous turn entered `interactionType: 'ai_form_render'` and saved
+    // `_resumeState.pendingFormToolCall`, the incoming `userMessage` carries
+    // JSON-serialised form submission data. Splice it into the prior turn's
+    // tool_result stub (matching `toolCallId`) instead of appending as a new
+    // `ai_user` chat message — the LLM sees the form data as the result of
+    // its own `render_form` tool_use, and pushes a `presentation_user` turn
+    // with `data.via: 'ai_render'` sentinel for UI source discrimination.
+    const pendingFormToolCall = state.pendingFormToolCall as
+      | { toolCallId: string; formConfig: Record<string, unknown> }
+      | undefined;
+    if (pendingFormToolCall) {
+      let formData: Record<string, unknown> = {};
+      try {
+        const parsed = JSON.parse(userMessage) as Record<string, unknown>;
+        if (parsed && typeof parsed === 'object') formData = parsed;
+      } catch {
+        // userMessage was plain text — keep it as a single `__raw__` field
+        // so the LLM still receives the input rather than an empty object.
+        formData = { __raw__: userMessage };
+      }
+      const stubIndex = messages.findIndex(
+        (m) =>
+          m.role === 'tool' && m.toolCallId === pendingFormToolCall.toolCallId,
+      );
+      const newToolResult: ChatMessage = {
+        role: 'tool',
+        toolCallId: pendingFormToolCall.toolCallId,
+        content: JSON.stringify({ type: 'form_submitted', data: formData }),
+      };
+      if (stubIndex >= 0) {
+        messages[stubIndex] = newToolResult;
+      } else {
+        messages.push(newToolResult);
+      }
+      // ConversationThread push — presentation_user with ai_render sentinel.
+      const formHolder = this.threadHolderFromState(state);
+      if (this.conversationThreadService && formHolder) {
+        this.conversationThreadService.appendPresentationInteraction(
+          formHolder,
+          {
+            node: this.buildAiNodeRefFromState(state),
+            interaction: {
+              type: 'form_submitted',
+              data: { ...formData, via: 'ai_render' },
+              receivedAt: new Date().toISOString(),
+            },
+          },
+        );
+      }
+      // Clear pendingFormToolCall so subsequent turns return to normal chat
+      // flow unless the LLM re-emits render_form.
+      delete state.pendingFormToolCall;
+    } else {
+      // Add user message (normal chat path).
+      messages.push({ role: 'user', content: userMessage });
+      // ConversationThread push (spec §2.2 — multi-turn ai_user)
+      this.pushAiThreadTurn(
+        this.threadHolderFromState(state),
+        this.buildAiNodeRefFromState(state),
+        'ai_user',
+        userMessage,
+      );
+    }
+
+    // Capture render_form blocking signal across the tool loop. Set when a
+    // batch processes a `render_form` tool_use; checked after each batch to
+    // break the loop and enter waiting_for_input (spec §6.1.d.ii / §6.2).
+    let pendingFormBlock:
+      | { toolCallId: string; formConfig: Record<string, unknown> }
+      | undefined;
 
     const llmConfigId = state.llmConfigId as string | undefined;
     const llmConfig = await this.llmService.resolveConfig(
@@ -1577,7 +1681,11 @@ export class AiAgentHandler implements NodeHandler {
       durationMs: Date.now() - callStart,
     });
 
-    while (result.toolCalls?.length && toolCallCount < maxToolCalls) {
+    while (
+      result.toolCalls?.length &&
+      toolCallCount < maxToolCalls &&
+      !pendingFormBlock
+    ) {
       const classification = this.classifyToolCalls(
         result.toolCalls,
         conditions,
@@ -1693,21 +1801,15 @@ export class AiAgentHandler implements NodeHandler {
           presentationPayloads,
           presentationCalls,
           presentationSchemaViolations,
+          presentationViolationCounters,
         });
       toolCallCount += providerExecuted;
-      if (blockingFormRender) {
-        // render_form blocking signal — phase 2b for full implementation.
-        // For now, record the violation so user-visible behavior is still
-        // consistent (text response only, schema violation surfaced via meta).
-        AiAgentHandler.logger.warn(
-          `render_form blocking flow not yet implemented (phase 2b) — toolCallId=${blockingFormRender.toolCallId}`,
-        );
-        presentationSchemaViolations.push({
-          toolName: 'render_form',
-          toolCallId: blockingFormRender.toolCallId,
-          issues: ['render_form blocking flow pending phase 2b implementation'],
-          attempts: 1,
-        });
+      // render_form interactive: enter waiting_for_input flow (spec §6.1.d.ii).
+      // Capture the first signal and break the tool loop — the assistant's
+      // tool_use message + the provider's stub tool_result are already in
+      // `messages`, so the LLM context is well-formed for the resume turn.
+      if (blockingFormRender && !pendingFormBlock) {
+        pendingFormBlock = blockingFormRender;
       }
 
       for (const tc of classification.conditionToolCalls) {
@@ -1782,6 +1884,10 @@ export class AiAgentHandler implements NodeHandler {
           );
         }
       }
+
+      // Skip the next LLM call when render_form blocking was triggered —
+      // the user must submit the form before LLM gets the next turn.
+      if (pendingFormBlock) break;
 
       const loopReq = {
         model,
@@ -1908,7 +2014,15 @@ export class AiAgentHandler implements NodeHandler {
             : {}),
         },
       },
-      meta: { interactionType: 'ai_conversation' },
+      meta: {
+        // render_form blocking is the same WAITING_FOR_INPUT state machine
+        // wise — only the interactionType discriminates so the frontend
+        // dispatches `execution.submit_form` instead of `submit_message`.
+        // spec/5-system/6-websocket-protocol.md §4.4.
+        interactionType: pendingFormBlock
+          ? 'ai_form_render'
+          : 'ai_conversation',
+      },
       status: 'waiting_for_input',
       _resumeState: {
         ...state,
@@ -1924,8 +2038,29 @@ export class AiAgentHandler implements NodeHandler {
         lastTurnResponse: result,
         lastTurnDurationMs: turnDurationMs,
         turnDebugHistory,
+        // spec §7.4 — pendingFormToolCall set when render_form triggered
+        // blocking. Resumed turn re-attaches submission to this toolCallId.
+        ...(pendingFormBlock ? { pendingFormToolCall: pendingFormBlock } : {}),
       },
     };
+    // Attach form preview into the resumed output.interaction shape so the
+    // frontend can render the form fields immediately (without waiting for
+    // the next ai_message). Mirrors presentation Form node's blocking flow.
+    if (pendingFormBlock) {
+      const interactionWrapper = waitingResult.output as
+        | Record<string, unknown>
+        | undefined;
+      if (interactionWrapper) {
+        interactionWrapper.interaction = {
+          type: 'ai_form_render',
+          data: {
+            toolCallId: pendingFormBlock.toolCallId,
+            formConfig: pendingFormBlock.formConfig,
+          },
+          receivedAt: new Date().toISOString(),
+        };
+      }
+    }
     return waitingResult;
   }
 
