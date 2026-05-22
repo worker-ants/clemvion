@@ -19,6 +19,7 @@ import type { NodeResult } from "@/lib/stores/execution-store";
 import type { RagSource } from "./output-shape";
 import { resolveResultField } from "./resolve-result-field";
 import { MarkdownRenderer } from "@/components/editor/assistant-panel/markdown-renderer";
+import { AssistantPresentationsBlock } from "./renderers/assistant-presentations-block";
 import { tryParseJson } from "@/lib/utils/parse-json";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
@@ -334,6 +335,7 @@ function SelectedItemDetail({
   const hasToolCalls = !!item.assistantToolCalls?.length;
   const isContentBlank = isAssistantContentBlank(item.content);
   const turnSources = turnRefIndex?.get(item.turnIndex) ?? [];
+  const presentations = item.presentations ?? [];
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="flex items-center gap-2">
@@ -351,6 +353,9 @@ function SelectedItemDetail({
       )}
       {hasToolCalls && (
         <ToolCallBadge toolCalls={item.assistantToolCalls!} />
+      )}
+      {presentations.length > 0 && (
+        <AssistantPresentationsBlock presentations={presentations} />
       )}
       {turnSources.length > 0 && onJumpToReferences && (
         <ReferencesChip
@@ -996,7 +1001,10 @@ function SummaryView({
                     <ToolCallBadge toolCalls={item.assistantToolCalls!} />
                   </div>
                 )}
-                {!hasContent && !hasAssistantToolCalls && (
+                {isAssistant && item.presentations && item.presentations.length > 0 && (
+                  <AssistantPresentationsBlock presentations={item.presentations} />
+                )}
+                {!hasContent && !hasAssistantToolCalls && !item.presentations?.length && (
                   <span className="italic text-[hsl(var(--muted-foreground))]">
                     (empty)
                   </span>

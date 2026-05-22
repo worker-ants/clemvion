@@ -37,6 +37,38 @@ export interface ConversationTurn {
    * how backend reports this field stay non-breaking.
    */
   interactionType?: "button_click" | "form_submitted" | "button_continue";
+  /**
+   * `source === 'ai_assistant'` 한정. AI Agent 가 `render_*` 표현 도구
+   * (spec/4-nodes/3-ai/1-ai-agent.md §4.1) 로 emit 한 표·차트·캐러셀·템플릿·폼
+   * 페이로드. top-level 독립 필드 (`data?` 와 별개).
+   */
+  presentations?: PresentationPayload[];
+}
+
+/**
+ * spec/4-nodes/3-ai/1-ai-agent.md §7.10 — single source of truth for the
+ * payload shape emitted by the `render_*` tool family.
+ */
+export type PresentationType =
+  | "table"
+  | "chart"
+  | "carousel"
+  | "template"
+  | "form";
+
+export interface PresentationPayloadTruncation {
+  itemsTruncated?: boolean;
+  rowsTruncated?: boolean;
+  itemsTotalCount?: number;
+  rowsTotalCount?: number;
+}
+
+export interface PresentationPayload {
+  type: PresentationType;
+  toolCallId: string;
+  renderedAt: string;
+  payload: Record<string, unknown>;
+  truncation?: PresentationPayloadTruncation;
 }
 
 /**
@@ -166,6 +198,14 @@ export function threadTurnsToConversationItems(
                 arguments: tc.arguments,
               }))
             : undefined,
+          // spec/4-nodes/3-ai/1-ai-agent.md §7.10 — render_* display-only
+          // payloads ride along with the assistant turn so the chat UI can
+          // inline-render tables/charts/carousels/templates next to the
+          // assistant's text response.
+          presentations:
+            turn.presentations && turn.presentations.length > 0
+              ? turn.presentations
+              : undefined,
           timestamp: turn.timestamp,
         });
         break;

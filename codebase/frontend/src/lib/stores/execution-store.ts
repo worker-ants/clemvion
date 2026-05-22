@@ -63,6 +63,17 @@ export interface ToolCallInfo {
 }
 
 /**
+ * Re-exported from `@/lib/conversation/conversation-utils` so legacy imports
+ * resolve here. Single SoT lives in conversation-utils.ts.
+ */
+export type {
+  PresentationType,
+  PresentationPayload,
+  PresentationPayloadTruncation,
+} from "@/lib/conversation/conversation-utils";
+import type { PresentationPayload } from "@/lib/conversation/conversation-utils";
+
+/**
  * Discriminator for a conversation timeline item. Mirrors
  * `ConversationTurnSource` (spec/conventions/conversation-thread.md §1.1) but
  * folded into the existing 3 `user`/`assistant`/`tool` ConversationItem shapes
@@ -97,6 +108,12 @@ export interface ConversationItem {
   };
   /** Tool calls made by the assistant in this message (function calling) */
   assistantToolCalls?: ToolCallInfo[];
+  /**
+   * `type === 'assistant'` 한정 — AI Agent 가 `render_*` 도구
+   * (spec/4-nodes/3-ai/1-ai-agent.md §4.1) 로 emit 한 페이로드. chat UI 가
+   * `content` (텍스트 응답) 아래에 inline 으로 렌더한다.
+   */
+  presentations?: PresentationPayload[];
   toolArgs?: unknown;
   toolResult?: unknown;
   /**
