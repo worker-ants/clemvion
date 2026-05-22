@@ -57,10 +57,24 @@ interface SecretResolver {
 
 | 시점 | 의무 호출 |
 |---|---|
-| Trigger 생성 (notification / chatChannel 설정 포함) | `store(ref, workspaceId, plaintext)` — config 에는 ref 만 저장 |
-| Trigger 삭제 | 해당 trigger 의 모든 ref 를 `delete()` (cascade 차원 — DB FK 가 없으므로 application 책임) |
+| Trigger 생성 (notification / chatChannel 설정 포함) | `store(ref, workspaceId, plaintext)` — config 에는 ref 만 저장. `rotate()` 도 멱등성(UPSERT) 을 보장하므로 setup 경로의 재시도 안전성을 위해 `rotate()` 사용 허용 |
+| Trigger 삭제 | 해당 trigger 의 모든 ref 를 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제 (cascade 차원 — DB FK 가 없으므로 application 책임). 개별 `delete()` 보다 prefix 패턴 권장 |
 | 외부 API 호출 직전 (sendMessage, HMAC 서명 등) | `resolve(ref)` — 매 호출 마다 fetch (캐싱은 SecretResolver 내부 결정) |
 | Secret rotation API | `rotate(refV2, workspaceId, newPlaintext)` |
+
+### 2.1.1 DIP 인터페이스 — v1 면제 (2026-05-22)
+
+소비자 모듈은 구체 클래스(`SecretResolverService`) 가 아닌 추상 인터페이스에 의존해야 한다는 것이 일반 원칙이나, **v1 구현에서는 NestJS DI 편의상 구체 클래스를 직접 inject 하는 것이 허용된다**.
+
+**v1 면제 사유**:
+- 단일 구현체 (`SecretResolverService`) 만 존재 — 교체 가능성 없음
+- NestJS DI 에서 abstract class 사용 시 추가 injection token 설정 필요
+- `deleteByPrefix` 포함 전체 메서드 시그니처 안정화 전
+
+**v2 행동 항목** (복수 backend 도입 시 trigger):
+- `ISecretResolver` abstract class 또는 interface 추출
+- 5개 소비자 모듈 (triggers / hooks / chat-channel / external-interaction / app) 의 injection token 교체
+- 테스트 mock 도 인터페이스 기반으로 교체
 
 ### 2.2 부작용 / 멱등성
 
@@ -162,10 +176,17 @@ async createTrigger(dto: CreateTriggerDto, workspaceId: string) {
     await this.repo.save(trigger);
   }
   if (dto.chatChannel?.botToken) {
-    const ref = `secret://triggers/${trigger.id}/bot-token`;
-    await this.secrets.store(ref, workspaceId, dto.chatChannel.botToken);
-    trigger.config.chatChannel = { ...dto.chatChannel, botTokenRef: ref };
-    delete (trigger.config.chatChannel as any).botToken;
+    const ref = buildSecretRef({ scope: 'triggers', resourceId: trigger.id, name: 'bot-token' });
+    // setup 경로는 재시도 안전성을 위해 rotate() (UPSERT) 사용 — §2.1 의 허용 규약.
+    await this.secrets.rotate(ref, workspaceId, dto.chatChannel.botToken);
+    // DTO 의 botToken plaintext 는 config 에 흘리지 않음 — botTokenRef 만 보관.
+    trigger.config.chatChannel = {
+      provider: dto.chatChannel.provider,
+      botTokenRef: ref,
+      uiMapping: dto.chatChannel.uiMapping,
+      rateLimitPerMinute: dto.chatChannel.rateLimitPerMinute,
+      languageHints: dto.chatChannel.languageHints,
+    };
     await this.repo.save(trigger);
   }
 }
@@ -180,13 +201,23 @@ async sendMessage(message: ChannelMessage, config: ChatChannelConfig) {
 }
 ```
 
-### 5.3 Rotation 시
+### 5.3 Trigger 삭제 시 — prefix 일괄 삭제
+
+```typescript
+async removeTrigger(triggerId: string) {
+  // 개별 ref delete 보다 prefix 패턴 권장 — 추가 secret (예: future 'mcp-token') 도 자동 정리.
+  await this.secrets.deleteByPrefix(`secret://triggers/${triggerId}/`);
+  await this.repo.delete(triggerId);
+}
+```
+
+### 5.4 Rotation 시
 
 ```typescript
 async rotateBotToken(triggerId: string, newToken: string, workspaceId: string) {
-  const refV2 = `secret://triggers/${triggerId}/bot-token.v2`;
+  const refV2 = buildSecretRef({ scope: 'triggers', resourceId: triggerId, name: 'bot-token.v2' });
   await this.secrets.rotate(refV2, workspaceId, newToken);  // grace 기간 신규 token
-  // 24h 후 cron 이 v2 → primary 승격
+  // 24h 후 cron 이 v2 → primary 승격 + v2 row 삭제. 구현: ChatChannelTokenRotatorService.
 }
 ```
 
