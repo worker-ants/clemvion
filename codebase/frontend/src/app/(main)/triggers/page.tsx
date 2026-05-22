@@ -16,6 +16,7 @@ import {
   TriggerDeleteDialog,
   type TriggerDeleteTarget,
 } from "@/components/triggers/trigger-delete-dialog";
+import { TriggerHistoryDialog } from "@/components/triggers/trigger-history-dialog";
 import { Pagination } from "@/components/ui/pagination";
 import {
   DropdownMenu,
@@ -88,6 +89,11 @@ export default function TriggersPage() {
   const [deleteTarget, setDeleteTarget] = useState<TriggerDeleteTarget | null>(
     null,
   );
+  // [Spec §2.1 + Rationale R-6] 호출 이력 전용 modal — detail drawer 와 분리.
+  const [historyTarget, setHistoryTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const canEdit = useHasRole("editor");
   const queryClient = useQueryClient();
 
@@ -505,11 +511,13 @@ export default function TriggersPage() {
                         >
                           {t("triggers.rowActions.viewDetails")}
                         </DropdownMenuItem>
-                        {/* TODO: viewHistory should scroll to Recent Calls section.
-                            v1 is not implemented — both items open the drawer at default position.
-                            Plan B (trigger-detail-edit-meta.md) will add anchor scroll support. */}
                         <DropdownMenuItem
-                          onSelect={() => setSelectedTriggerId(trigger.id)}
+                          onSelect={() =>
+                            setHistoryTarget({
+                              id: trigger.id,
+                              name: trigger.name,
+                            })
+                          }
                         >
                           {t("triggers.rowActions.viewHistory")}
                         </DropdownMenuItem>
@@ -587,6 +595,22 @@ export default function TriggersPage() {
         trigger={deleteTarget}
         open={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
+      />
+
+      <TriggerHistoryDialog
+        triggerId={historyTarget?.id ?? null}
+        triggerName={historyTarget?.name}
+        open={historyTarget !== null}
+        onClose={() => setHistoryTarget(null)}
+        onOpenFullDetail={
+          historyTarget
+            ? () => {
+                const id = historyTarget.id;
+                setHistoryTarget(null);
+                setSelectedTriggerId(id);
+              }
+            : undefined
+        }
       />
     </div>
   );
