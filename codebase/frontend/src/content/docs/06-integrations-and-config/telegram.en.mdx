@@ -46,10 +46,14 @@ When the trigger activates, `setWebhook` is called automatically — no manual w
 | **AI Multi Turn** | Free-form text conversation |
 | **Button Presentation** | Inline keyboard buttons |
 | **Form** | Sequential field-by-field text input (contact share, file upload included) |
-| **Chart** | Chart delivered as a PNG image |
+| **Chart** | Monospace mini bar chart text (labels + values aligned, first series shown) |
+| **Table** | Monospace MarkdownV2 table (auto column widths, first 20 rows — `"+N more rows"` appended if exceeded) |
+| **Carousel** | Sequential per-card messages (title + description + image URL, up to 10 cards) |
 
 <Callout type="note">
-Carousel and Table are not supported yet — they will be added in a future release.
+Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in Telegram. A future PR will upgrade them to SSR PNG image delivery (dependency decision pending — tracked in plan `chat-channel-visual-ssr-png`).
+
+Set `uiMapping.visualNode: 'text_only'` to suppress visual message rendering entirely and send only the buttons.
 </Callout>
 
 ## 4. Bot commands
