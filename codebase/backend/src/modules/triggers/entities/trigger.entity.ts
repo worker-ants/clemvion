@@ -135,9 +135,10 @@ export class Trigger {
   chatChannelSetupAt: Date | null;
 
   /**
-   * Bot token rotation 의 24h grace 기간 동안 사용되는 신규 bot token reference. 의미: 외부 provider
-   * bot token (notification_secret_v2 의 HMAC signing secret 와 다른 자원). 명명 패턴은 동일 ([Spec
-   * §R-K]). v1 은 plaintext stub (`config.chatChannel.botToken` 와 동일 보관 정책).
+   * Bot token rotation 의 24h grace 기간 동안의 신규 bot token ref.
+   * 보관 내용: secret store ref (`secret://triggers/{id}/bot-token.v2`) — plaintext 아님.
+   * NULL 이면 rotation 미진행. grace 종료 후 primary 승격 + 본 컬럼 NULL 로 초기화.
+   * (notification_secret_v2 패턴과 동일. [Spec §R-K] / CCH-SE-04)
    */
   @Column({ name: 'chat_channel_token_v2', type: 'text', nullable: true })
   chatChannelTokenV2: string | null;

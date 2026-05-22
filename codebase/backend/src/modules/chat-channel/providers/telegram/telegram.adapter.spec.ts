@@ -4,6 +4,7 @@
  * [ai-review W4] TelegramAdapter (setupChannel / teardownChannel / sendMessage / ackInteraction) 미테스트.
  * Spec [providers/telegram.md §3]: Bot API 호출 매핑.
  * CCH-SE-02: secretToken 발급 및 저장 검증.
+ * Secret store 통합: botTokenRef → SecretResolverService.resolve() 경유 (SUMMARY#25).
  */
 import { TelegramAdapter } from './telegram.adapter';
 import {
@@ -11,6 +12,7 @@ import {
   TelegramApiResponse,
   TelegramGetMeResult,
 } from './telegram-client';
+import { SecretResolverService } from '../../../secret-store/secret-resolver.service';
 import { ChatChannelConfig, ChannelUpdate, ChannelMessage } from '../../types';
 
 const makeMockClient = (): jest.Mocked<TelegramClient> =>
@@ -24,9 +26,26 @@ const makeMockClient = (): jest.Mocked<TelegramClient> =>
     answerCallbackQuery: jest.fn(),
   }) as unknown as jest.Mocked<TelegramClient>;
 
+const BOT_TOKEN_PLAIN = 'test-bot-token-123';
+const BOT_TOKEN_REF = 'secret://triggers/t1/bot-token';
+
+/** SecretResolverService mock: BOT_TOKEN_REF → BOT_TOKEN_PLAIN, 그 외 throw. */
+const makeSecretsMock = (): jest.Mocked<SecretResolverService> =>
+  ({
+    resolve: jest.fn(async (ref: string) => {
+      if (ref === BOT_TOKEN_REF) return BOT_TOKEN_PLAIN;
+      throw new Error(`Unexpected resolve ref: ${ref}`);
+    }),
+    store: jest.fn().mockResolvedValue(undefined),
+    rotate: jest.fn().mockResolvedValue(undefined),
+    delete: jest.fn().mockResolvedValue(undefined),
+    deleteByPrefix: jest.fn().mockResolvedValue(0),
+    exists: jest.fn().mockResolvedValue(false),
+  }) as unknown as jest.Mocked<SecretResolverService>;
+
 const baseConfig: ChatChannelConfig = {
   provider: 'telegram',
-  botToken: 'test-bot-token-123',
+  botTokenRef: BOT_TOKEN_REF,
   botIdentity: undefined,
   uiMapping: undefined,
   rateLimitPerMinute: undefined,
@@ -47,10 +66,12 @@ const failResult = (description: string): TelegramApiResponse<never> => ({
 describe('TelegramAdapter', () => {
   let adapter: TelegramAdapter;
   let client: jest.Mocked<TelegramClient>;
+  let secrets: jest.Mocked<SecretResolverService>;
 
   beforeEach(() => {
     client = makeMockClient();
-    adapter = new TelegramAdapter(client);
+    secrets = makeSecretsMock();
+    adapter = new TelegramAdapter(client, secrets);
   });
 
   describe('provider', () => {
@@ -74,35 +95,27 @@ describe('TelegramAdapter', () => {
       );
     });
 
-    it('setWebhook 을 callbackUrl 과 함께 호출하고 SetupResult 를 반환한다', async () => {
+    it('botTokenRef 를 resolve 해 setWebhook 을 callbackUrl 과 함께 호출하고 SetupResult 를 반환한다', async () => {
       const result = await adapter.setupChannel(baseConfig, callbackUrl);
 
+      expect(secrets.resolve).toHaveBeenCalledWith(BOT_TOKEN_REF);
       expect(client.setWebhook).toHaveBeenCalledWith(
-        baseConfig.botToken,
+        BOT_TOKEN_PLAIN,
         expect.objectContaining({ url: callbackUrl }),
       );
       expect(result.registeredAt).toBeTruthy();
       expect(result.identity).toEqual({ botId: 1001, username: 'test_bot' });
     });
 
-    it('config 에 secretToken 이 없으면 랜덤 secretToken 을 발급해 setWebhook 에 전달한다 (CCH-SE-02)', async () => {
-      await adapter.setupChannel(baseConfig, callbackUrl);
+    it('매 setupChannel 마다 새 issuedSecretToken 을 발급해 setWebhook 에 전달한다 (CCH-SE-02)', async () => {
+      const result = await adapter.setupChannel(baseConfig, callbackUrl);
 
       const [, params] = client.setWebhook.mock.calls[0];
       expect(params.secret_token).toBeTruthy();
       expect(typeof params.secret_token).toBe('string');
       expect(params.secret_token!.length).toBeGreaterThan(0);
-    });
-
-    it('config 에 secretToken 이 있으면 기존 값으로 setWebhook 호출한다 (재설정 멱등성)', async () => {
-      const configWithSecret: ChatChannelConfig = {
-        ...baseConfig,
-        secretToken: 'existing-secret-abc',
-      };
-      await adapter.setupChannel(configWithSecret, callbackUrl);
-
-      const [, params] = client.setWebhook.mock.calls[0];
-      expect(params.secret_token).toBe('existing-secret-abc');
+      // SetupResult 에 issuedSecretToken 포함 (caller 가 secret store 에 저장)
+      expect(result.issuedSecretToken).toBe(params.secret_token);
     });
 
     it('setWebhook 실패 시 Error 를 throw 한다', async () => {
@@ -121,19 +134,26 @@ describe('TelegramAdapter', () => {
       ).rejects.toThrow(/getMe failed/i);
     });
 
-    it('setupChannel 반환값의 configUpdates 에 secretToken 이 포함된다', async () => {
+    it('setupChannel 반환값의 configUpdates 에 botIdentity 가 포함된다 (secretToken 은 issuedSecretToken 으로 분리)', async () => {
       const result = await adapter.setupChannel(baseConfig, callbackUrl);
-      expect(result.configUpdates?.secretToken).toBeTruthy();
+      expect(result.issuedSecretToken).toBeTruthy();
       expect(result.configUpdates?.botIdentity?.username).toBe('test_bot');
+    });
+
+    it('botTokenRef 미설정 시 NotFoundException throw', async () => {
+      const configNoRef: ChatChannelConfig = { provider: 'telegram' };
+      await expect(
+        adapter.setupChannel(configNoRef, callbackUrl),
+      ).rejects.toThrow(/botTokenRef 미설정/);
     });
   });
 
   describe('teardownChannel()', () => {
-    it('deleteWebhook 을 호출한다 (best-effort)', async () => {
+    it('deleteWebhook 을 botToken 으로 호출한다 (best-effort)', async () => {
       client.deleteWebhook.mockResolvedValue(okResult(true));
       await adapter.teardownChannel(baseConfig);
       expect(client.deleteWebhook).toHaveBeenCalledWith(
-        baseConfig.botToken,
+        BOT_TOKEN_PLAIN,
         expect.objectContaining({ drop_pending_updates: true }),
       );
     });
@@ -143,6 +163,14 @@ describe('TelegramAdapter', () => {
       await expect(
         adapter.teardownChannel(baseConfig),
       ).resolves.toBeUndefined();
+    });
+
+    it('botToken resolve 실패 시 deleteWebhook 미호출 + 예외 없이 완료 (best-effort)', async () => {
+      secrets.resolve.mockRejectedValueOnce(new Error('secret not found'));
+      await expect(
+        adapter.teardownChannel(baseConfig),
+      ).resolves.toBeUndefined();
+      expect(client.deleteWebhook).not.toHaveBeenCalled();
     });
   });
 
@@ -209,8 +237,9 @@ describe('TelegramAdapter', () => {
         body: { kind: 'text', text: 'hello world' },
       };
       const result = await adapter.sendMessage(msg, baseConfig);
+      expect(secrets.resolve).toHaveBeenCalledWith(BOT_TOKEN_REF);
       expect(client.sendMessage).toHaveBeenCalledWith(
-        baseConfig.botToken,
+        BOT_TOKEN_PLAIN,
         expect.objectContaining({
           chat_id: '9999',
           text: 'hello world',
@@ -265,8 +294,9 @@ describe('TelegramAdapter', () => {
         receivedAt: new Date().toISOString(),
       };
       await adapter.ackInteraction(update, baseConfig);
+      expect(secrets.resolve).toHaveBeenCalledWith(BOT_TOKEN_REF);
       expect(client.answerCallbackQuery).toHaveBeenCalledWith(
-        baseConfig.botToken,
+        BOT_TOKEN_PLAIN,
         expect.objectContaining({ callback_query_id: 'cq-abc' }),
       );
     });

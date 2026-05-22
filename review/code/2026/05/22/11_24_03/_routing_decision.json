@@ -1,0 +1,89 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-22T11:24:03Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): \uc18c\uc2a4 \ucf54\ub4dc \ubcc0\uacbd \uc2dc \ud56d\uc0c1 \uc801\uc6a9"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "SecretResolver \ud638\ucd9c\uc740 \ud544\uc694 \uc9c0\uc810\uc5d0\ub9cc \u2014 I/O \ub8e8\ud504\u00b7\uce90\uc2f1 \ubb38\uc81c \uc5c6\uc74c"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "SecretStoreModule \uc2e0\uaddc + ChatChannelModule/ExternalInteractionModule \uc5d0 import \u2014 \ubaa8\ub4c8 \uacbd\uacc4 \ubcc0\uacbd"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec \ubcc0\uacbd + \uc18c\uc2a4 \ucf54\ub4dc \ubcc0\uacbd \uc2dc \ud56d\uc0c1 \uc801\uc6a9"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): \uc18c\uc2a4 \ucf54\ub4dc \ubcc0\uacbd \uc2dc \ud56d\uc0c1 \uc801\uc6a9"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): ChatChannelConfig/SetupResult \uc2dc\uadf8\ub2c8\ucc98 \ubcc0\uacbd + \ubaa8\ub4c8 import \ucd94\uac00"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): \uc18c\uc2a4 \ucf54\ub4dc \ubcc0\uacbd \uc2dc \ud56d\uc0c1 \uc801\uc6a9"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): \uc2e0\uaddc src \ucf54\ub4dc + \uad11\ubc94\uc704 spec \ud30c\uc77c \ubcc0\uacbd"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): package-lock.json \ub3d9\ubc18 + spec/plan \ubb38\uc11c \ubcc0\uacbd"
+    },
+    {
+      "name": "dependency",
+      "selected": true,
+      "reason": "agents_forced (router_safety): package-lock.json \ubcc0\uacbd \u2014 chokidar/glob-parent/readdirp/uglify-js"
+    },
+    {
+      "name": "database",
+      "selected": true,
+      "reason": "agents_forced (router_safety): V063__secret_store.sql \ub9c8\uc774\uadf8\ub808\uc774\uc158 + SecretStore entity"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await \ud328\ud134 \ud45c\uc900\uc801 \u2014 \ub77d/\ubba4\ud14d\uc2a4/\uc6cc\ucee4/\ud050 \ubcc0\uacbd \uc5c6\uc74c"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP \ub77c\uc6b0\ud2b8 \ubcc0\uacbd \uc5c6\uc74c \u2014 \ub0b4\ubd80 helper \ud328\ud134\ub9cc \ubcc0\uacbd (setupChannel/teardownChannel \ubc18\ud658\uac12 \ubd84\ub9ac)"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": true,
+      "reason": "SECRET_STORE \uc2e0\uaddc \ubaa8\ub4c8 + chat-channel \uae30\ub2a5 \ud655\ub300 \u2014 PROJECT.md \ub9e4\ud2b8\ub9ad\uc2a4 \uac80\uc99d \ud544\uc694"
+    }
+  ],
+  "selected_count": 11,
+  "skipped_count": 3,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database"
+  ]
+}

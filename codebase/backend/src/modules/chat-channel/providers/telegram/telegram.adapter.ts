@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import {
   ChannelMessage,
@@ -12,6 +12,7 @@ import {
 import { TelegramClient } from './telegram-client';
 import { parseTelegramUpdate } from './telegram-update.parser';
 import { renderTelegramMessages } from './telegram-message.renderer';
+import { SecretResolverService } from '../../../secret-store/secret-resolver.service';
 
 /**
  * Telegram Chat Channel Adapter.
@@ -35,17 +36,38 @@ export class TelegramAdapter implements ChatChannelAdapter {
   readonly provider = 'telegram';
   private readonly logger = new Logger(TelegramAdapter.name);
 
-  constructor(private readonly client: TelegramClient) {}
+  constructor(
+    private readonly client: TelegramClient,
+    private readonly secrets: SecretResolverService,
+  ) {}
+
+  /**
+   * secret store 에서 bot token 를 resolve 한다.
+   *
+   * @param config ChatChannelConfig — `botTokenRef` 필드를 사용.
+   * @returns plaintext bot token.
+   * @throws NotFoundException `botTokenRef` 가 없거나 secret store 에 row 미존재 시.
+   * @throws Error('Secret decryption failed') 복호화 실패 시.
+   */
+  private async resolveBotToken(config: ChatChannelConfig): Promise<string> {
+    if (!config.botTokenRef) {
+      throw new NotFoundException(
+        'TelegramAdapter: botTokenRef 미설정 — setupChannel 이전 상태.',
+      );
+    }
+    return this.secrets.resolve(config.botTokenRef);
+  }
 
   async setupChannel(
     config: ChatChannelConfig,
     callbackUrl: string,
   ): Promise<SetupResult> {
-    const secretToken =
-      config.secretToken ?? randomBytes(24).toString('base64url');
-    const setup = await this.client.setWebhook(config.botToken, {
+    const botToken = await this.resolveBotToken(config);
+    // 매 setupChannel 마다 새 secretToken 발급 — 재사용하지 않는다.
+    const issuedSecretToken = randomBytes(24).toString('base64url');
+    const setup = await this.client.setWebhook(botToken, {
       url: callbackUrl,
-      secret_token: secretToken,
+      secret_token: issuedSecretToken,
       allowed_updates: ['message', 'callback_query'],
       drop_pending_updates: true,
     });
@@ -54,15 +76,15 @@ export class TelegramAdapter implements ChatChannelAdapter {
         `Telegram setWebhook failed: ${setup.description ?? 'unknown'}`,
       );
     }
-    const me = await this.client.getMe(config.botToken);
+    const me = await this.client.getMe(botToken);
     if (!me.ok || !me.result) {
       throw new Error(`Telegram getMe failed: ${me.description ?? 'unknown'}`);
     }
     return {
       registeredAt: new Date().toISOString(),
       identity: { botId: me.result.id, username: me.result.username },
+      issuedSecretToken,
       configUpdates: {
-        secretToken,
         botIdentity: { botId: me.result.id, username: me.result.username },
       },
     };
@@ -70,7 +92,16 @@ export class TelegramAdapter implements ChatChannelAdapter {
 
   async teardownChannel(config: ChatChannelConfig): Promise<void> {
     // best-effort — 실패해도 trigger 비활성화는 진행한다.
-    const res = await this.client.deleteWebhook(config.botToken, {
+    let botToken: string;
+    try {
+      botToken = await this.resolveBotToken(config);
+    } catch {
+      this.logger.warn(
+        `TelegramAdapter.teardownChannel: botToken resolve 실패 — deleteWebhook skip (best-effort).`,
+      );
+      return;
+    }
+    const res = await this.client.deleteWebhook(botToken, {
       drop_pending_updates: true,
     });
     if (!res.ok) {
@@ -99,9 +130,10 @@ export class TelegramAdapter implements ChatChannelAdapter {
     config: ChatChannelConfig,
   ): Promise<SendResult> {
     const chatId = message.conversationKey;
+    const botToken = await this.resolveBotToken(config);
     switch (message.body.kind) {
       case 'text': {
-        const res = await this.client.sendMessage(config.botToken, {
+        const res = await this.client.sendMessage(botToken, {
           chat_id: chatId,
           text: message.body.text,
           parse_mode: 'MarkdownV2',
@@ -117,7 +149,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
         };
       }
       case 'typing': {
-        const res = await this.client.sendChatAction(config.botToken, {
+        const res = await this.client.sendChatAction(botToken, {
           chat_id: chatId,
           action: 'typing',
         });
@@ -137,7 +169,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
           message.body.buttons,
           layout,
         );
-        const res = await this.client.sendMessage(config.botToken, {
+        const res = await this.client.sendMessage(botToken, {
           chat_id: chatId,
           text: message.body.text,
           parse_mode: 'MarkdownV2',
@@ -156,7 +188,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
       case 'form_prompt': {
         // Phase 4/PR-C: prompt + keyboard hint 별 reply_markup.
         const replyMarkup = buildFormReplyMarkup(message.body.hint);
-        const res = await this.client.sendMessage(config.botToken, {
+        const res = await this.client.sendMessage(botToken, {
           chat_id: chatId,
           text: escapePromptText(message.body.label),
           parse_mode: 'MarkdownV2',
@@ -180,7 +212,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
         // 두 옵션 중 후자. v1 stub: bytes 가 있으면 일단 caption + fallbackText 의 text 메시지로 fallback,
         // 실 buffer multipart 는 PR-D 의 별도 SSR/storage 인프라와 함께.
         const fallback = message.body.caption ?? message.body.fallbackText;
-        const res = await this.client.sendMessage(config.botToken, {
+        const res = await this.client.sendMessage(botToken, {
           chat_id: chatId,
           text: escapePromptText(fallback),
           parse_mode: 'MarkdownV2',
@@ -204,7 +236,8 @@ export class TelegramAdapter implements ChatChannelAdapter {
   ): Promise<void> {
     // PR-B — button_callback 도착 시 answerCallbackQuery (텔레그램 의무 — 안 하면 모바일 로딩 indicator 지속).
     if (update.command.kind !== 'button_callback') return;
-    await this.client.answerCallbackQuery(config.botToken, {
+    const botToken = await this.resolveBotToken(config);
+    await this.client.answerCallbackQuery(botToken, {
       callback_query_id: update.command.callbackQueryId,
     });
   }

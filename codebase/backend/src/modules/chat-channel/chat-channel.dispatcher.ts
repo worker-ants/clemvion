@@ -212,9 +212,7 @@ function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
   const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
   if (!chatChannel || typeof chatChannel !== 'object') return null;
   const provider = (chatChannel as { provider?: unknown }).provider;
-  const botToken = (chatChannel as { botToken?: unknown }).botToken;
   if (typeof provider !== 'string' || provider.length === 0) return null;
-  if (typeof botToken !== 'string' || botToken.length === 0) return null;
   return chatChannel as ChatChannelConfig;
 }
 

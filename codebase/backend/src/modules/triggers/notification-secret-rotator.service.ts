@@ -5,8 +5,8 @@ import { TriggersService } from './triggers.service';
 /**
  * [Spec EIA §3.1 EIA-NX-12 / plan/in-progress/eia-secret-rotation-revoke-api.md]
  *
- * 24h grace 가 경과한 trigger 의 `notification_secret_v2` 를 primary `config.notification.signing.secret`
- * 으로 승격. 매시간 실행 — 정확한 24h 시점이 아니어도 OK (이미 grace 내 둘 다 서명되므로 외부 검증
+ * 24h grace 가 경과한 trigger 의 `notification_secret_v2` 를 primary `config.notification.signing.secretRef`
+ * 로 승격. 매시간 실행 — 정확한 24h 시점이 아니어도 OK (이미 grace 내 둘 다 서명되므로 외부 검증
  * 측에 가시적 영향 없음).
  *
  * 스케줄: 매시간 0분. 분산 환경에서 다중 instance 가 동시 실행해도 멱등 (각 trigger 별 v2 가 null

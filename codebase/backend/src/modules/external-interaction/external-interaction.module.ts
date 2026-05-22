@@ -18,6 +18,7 @@ import { InteractionService } from './interaction.service';
 import { InteractionController } from './interaction.controller';
 import { InteractionStreamController } from './interaction-stream.controller';
 import { NOTIFICATION_WEBHOOK_QUEUE } from './notification-dispatcher.types';
+import { SecretStoreModule } from '../secret-store/secret-store.module';
 
 /**
  * [Spec EIA §10] — External Interaction API 모듈.
@@ -41,6 +42,7 @@ import { NOTIFICATION_WEBHOOK_QUEUE } from './notification-dispatcher.types';
     WebsocketModule,
     forwardRef(() => ExecutionsModule),
     forwardRef(() => ExecutionEngineModule),
+    SecretStoreModule,
   ],
   controllers: [InteractionController, InteractionStreamController],
   providers: [

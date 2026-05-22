@@ -59,8 +59,9 @@
 |----|---------|---------|
 | CCH-SE-01 | 어댑터의 외부 API 호출 (sendMessage 등) 에 5초 타임아웃 + 3회 지수 백오프 재시도. 최종 실패 시 trigger 의 `chat_channel_health` 를 `degraded` 로 갱신 ([§3.4.2](#342-trigger-테이블-신규-컬럼)). 자동 비활성화 금지 ([WH-MG-04 / EIA-NX-07](./12-webhook.md#34-관리) 와 동일 정책) | 필수 |
 | CCH-SE-02 | 인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id` 기반). 동일 `update_id` 30초 안 재도착은 무시 | 필수 |
-| CCH-SE-03 | 어댑터의 외부 API secret (텔레그램 bot token) 은 trigger config 의 별도 secret store reference 에 보관. config JSONB 평문 금지 — [EIA-AU-01](./14-external-interaction-api.md#33-인증) 의 `wsk_*` 보관 정책과 동일. **v1 구현 단계 한정 예외**: `notification.signing.secret` 와 동일하게 `config.chatChannel.botToken` / `config.chatChannel.secretToken` plaintext stub 으로 출발 (§4.1 주석 참조). **v2 deadline**: secret store 인프라 도입 (별 plan `chat-channel-secret-store-infra`) 직후 마이그레이션 의무 — 두 자격증명 모두 `secret://triggers/:id/{bot-token,webhook-secret}` 경로로 이전. 외부 provider 의 전권한 토큰인 `botToken` 마이그레이션을 우선 (`secretToken` 후속) | 필수 (v2; v1 plaintext stub 일시 허용) |
+| CCH-SE-03 | 어댑터의 외부 API secret (텔레그램 bot token) 과 webhook 인증 secret (`secret_token`) 은 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 secret store 에 backend AES-256-GCM 으로 암호화 보관 — config JSONB 평문 금지. `config.chatChannel` 에는 ref 만 ([`botTokenRef`](#41-triggerconfigchatchannel) / `secretTokenRef`) 저장. ref 형식은 [secret-store.md §1](../conventions/secret-store.md#1-uri-scheme) — `secret://triggers/{triggerId}/{bot-token,webhook-secret}`. DB 는 ciphertext (BYTEA) 만 본다 | 필수 |
 | CCH-SE-04 | Bot token rotation API (`POST /api/triggers/:id/chat-channel/rotate-bot-token`) — old token 은 24h grace 동안 병행 받음 (텔레그램의 경우 setWebhook 재호출). 동사를 `rotate-bot-token` 으로 한 이유는 EIA 의 `rotate-secret` (HMAC signing secret) 과 자원 의미가 다르기 때문 (외부 provider bot token vs HMAC secret) — URL 만으로 의도 구별 가능 | 권장 |
+| CCH-SE-04-C | `rotate-bot-token` 완료 후 `chat_channel_token_v2` 의 v2 ref 는 24h grace 경과 시 `ChatChannelTokenRotatorService` (매시간 cron — `NotificationSecretRotatorService` 와 동일 패턴) 가 다음을 수행한다: (1) v2 ref 의 secret_store row 삭제 (`secrets.delete(v2Ref)`), (2) `chat_channel_token_v2 = NULL` / `chat_channel_rotated_at = NULL` 저장. primary `botTokenRef` 의 plaintext 는 `rotate-bot-token` 시점에 이미 신 token 으로 교체되므로 v2 → primary 승격은 별도 단계가 아니다 | 필수 (v2 cron) |
 
 #### 3.5 비기능 요구사항
 
@@ -150,8 +151,8 @@
 {
   "chatChannel": {
     "provider": "telegram",                    // 어댑터 식별자 (v1: "telegram")
-    "botTokenRef": "secret://triggers/:id/bot-token",  // secret store reference (CCH-SE-03). v1 stub: notification.signing.secret 와 동일 plaintext 보관 — 실제 구현 단계에서는 `config.chatChannel.botToken` 평문 필드로 stub. secret store 인프라 도입은 별 plan `chat-channel-secret-store-infra`; 도입 직후 마이그레이션 의무 (botToken 우선, secretToken 후속)
-    "secretToken": "AbCd…",                     // Telegram setWebhook 의 secret_token (server-issued 32 chars). HMAC 미지원 provider 의 webhook 인증 — provider 별 unused
+    "botTokenRef":   "secret://triggers/{triggerId}/bot-token",     // secret store ref (CCH-SE-03 / conventions/secret-store.md)
+    "secretTokenRef": "secret://triggers/{triggerId}/webhook-secret", // Telegram setWebhook 의 secret_token ref (server-issued). HMAC 미지원 provider 의 webhook 인증 — provider 별 unused. setupChannel 이 randomBytes 로 발급해 secret store 에 저장 후 ref 만 config 에 보관
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
       "username": "myworkflow_bot"
@@ -173,7 +174,7 @@
 
 `chatChannel` 미존재 = 일반 webhook 트리거 (기존 동작 그대로). 본 필드는 [Webhook §2.2](./12-webhook.md#22-config-필드-구조) 의 `config` JSONB 안에 위치.
 
-`botTokenRef` 는 [EIA §7.1](./14-external-interaction-api.md#71-trigger-엔티티-확장) 의 `config.notification.signing.secret` 와 동일 보안 정책 — 향후 암호화 컬럼으로 분리. v1 은 JSONB 평문 금지 + secret reference 만 보관.
+`botTokenRef` / `secretTokenRef` 는 모두 [`secret-store.md`](../conventions/secret-store.md) 의 `SecretResolver` 가 resolve — config JSONB 에는 ref 만, plaintext 는 backend AES-256-GCM 으로 암호화되어 `secret_store` 테이블의 `encrypted BYTEA` 컬럼에 보관. [EIA §7.1](./14-external-interaction-api.md#71-trigger-엔티티-확장) 의 `notification.signing.secretRef` 와 동일 정책 + 동일 백엔드.
 
 ### 4.2 Trigger 테이블 신규 컬럼
 
@@ -184,7 +185,7 @@ ALTER TABLE trigger
   ADD COLUMN chat_channel_health     VARCHAR(16) NOT NULL DEFAULT 'unknown',  -- 'unknown'|'healthy'|'degraded'
   ADD COLUMN chat_channel_last_error TEXT NULL,
   ADD COLUMN chat_channel_setup_at   TIMESTAMPTZ NULL,
-  ADD COLUMN chat_channel_token_v2   TEXT NULL,   -- rotation grace 기간 (24h) 동안 사용되는 신규 bot token reference. semantic: bot token reference (외부 provider 자원) — notification_secret_v2 (HMAC signing secret) 와 의미 상이하나 컬럼 명명 패턴은 동일 유지 (Rationale §R-K)
+  ADD COLUMN chat_channel_token_v2   TEXT NULL,   -- rotation grace (24h) 동안 old bot token 백업 용 [secret store ref](../conventions/secret-store.md) (`secret://triggers/{id}/bot-token.v2`). 컬럼은 ref 만 보관 — plaintext 는 secret_store 테이블의 암호화 컬럼. 24h 후 ChatChannelTokenRotatorService (CCH-SE-04-C) 가 ref + secret_store row 정리. semantic: bot token reference — notification_secret_v2 와 의미 상이하나 명명 패턴 동일 (Rationale §R-K)
   ADD COLUMN chat_channel_rotated_at TIMESTAMPTZ NULL;
 ```
 

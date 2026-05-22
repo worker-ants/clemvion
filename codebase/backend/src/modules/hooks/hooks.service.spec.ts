@@ -18,6 +18,8 @@ import { ExecutionsService } from '../executions/executions.service';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
+import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
+import { UnauthorizedException } from '@nestjs/common';
 
 describe('HooksService', () => {
   let service: HooksService;
@@ -78,6 +80,10 @@ describe('HooksService', () => {
             // hooks.service 가 ['executionRepository'] 로 indexed access — 빈 객체로 충분.
             executionRepository: { findOne: jest.fn().mockResolvedValue(null) },
           },
+        },
+        {
+          provide: ChatChannelInboundAuthenticator,
+          useValue: { verify: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -515,6 +521,7 @@ describe('HooksService', () => {
    */
   describe('Chat Channel 분기', () => {
     const SECRET_TOKEN = 'secret-token-abc';
+    const SECRET_TOKEN_REF = 'secret://triggers/t1/webhook-secret';
     /** 헤더에 올바른 secretToken 을 포함한 입력 */
     const chatInput: WebhookInput = {
       ...input,
@@ -525,11 +532,13 @@ describe('HooksService', () => {
       config: {
         chatChannel: {
           provider: 'telegram',
-          botToken: 'tok',
-          secretToken: SECRET_TOKEN,
+          botTokenRef: 'secret://triggers/t1/bot-token',
+          secretTokenRef: SECRET_TOKEN_REF,
         },
       },
     } as unknown as Trigger;
+
+    let authenticator: jest.Mocked<ChatChannelInboundAuthenticator>;
 
     let adapterRegistry: jest.Mocked<ChannelAdapterRegistry>;
     let conversationService: jest.Mocked<ChannelConversationService>;
@@ -556,6 +565,11 @@ describe('HooksService', () => {
       interactionService = moduleRef.get(InteractionService) as jest.Mocked<
         typeof interactionService
       >;
+      authenticator = moduleRef.get(
+        ChatChannelInboundAuthenticator,
+      ) as jest.Mocked<ChatChannelInboundAuthenticator>;
+      // default: authenticator.verify resolves (인증 통과). 거부 케이스 테스트에서 override.
+      authenticator.verify.mockResolvedValue(undefined);
 
       mockAdapter = {
         provider: 'telegram',
@@ -661,8 +675,14 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
-    it('X-Telegram-Bot-Api-Secret-Token 불일치 시 401 반환', async () => {
+    it('Authenticator 가 401 throw 시 HooksService 도 전파', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      authenticator.verify.mockRejectedValueOnce(
+        new UnauthorizedException({
+          code: 'AUTH_FAILED',
+          message: 'Invalid Telegram secret token',
+        }),
+      );
 
       await expect(
         service.handleWebhook('abc', {
@@ -670,19 +690,20 @@ describe('HooksService', () => {
           headers: { 'x-telegram-bot-api-secret-token': 'wrong-token' },
         }),
       ).rejects.toMatchObject({ status: 401 });
+      // adapter 호출 자체가 차단됨.
+      expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
     });
 
-    it('secretToken 미설정 시 헤더 검증 미수행 (다른 provider 또는 미설정 telegram)', async () => {
-      const noSecretTrigger: Trigger = {
-        ...chatChannelTrigger,
-        config: { chatChannel: { provider: 'telegram', botToken: 'tok' } },
-      } as unknown as Trigger;
-      triggerRepo.findOne.mockResolvedValue(noSecretTrigger);
-      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+    it('Authenticator 가 통과시 정상 흐름 진행 — verify 호출 검증', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       mockAdapter.parseUpdate.mockResolvedValue(null);
-
-      const res = await service.handleWebhook('abc', input);
-      expect(res).toMatchObject({ executionId: 'ignored' });
+      await service.handleWebhook('abc', chatInput);
+      // HooksService 가 authenticator.verify 를 trigger.id, config, headers 와 호출.
+      expect(authenticator.verify).toHaveBeenCalledWith(
+        chatChannelTrigger.id,
+        expect.objectContaining({ provider: 'telegram' }),
+        chatInput.headers,
+      );
     });
   });
 });
