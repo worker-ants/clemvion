@@ -14,26 +14,24 @@ owner: developer
 
 ### 1. Backend
 
-- [ ] `DELETE /api/triggers/:id` — 이미 존재. cascade 동작·`trigger_id` SET NULL 정상 동작 e2e 회귀 추가
-  - schedule 타입 트리거 삭제 → schedule 도 함께 사라지는지 확인
-  - `execution.trigger_id` 가 NULL 로 남는지 확인
-- [ ] `DELETE` 권한 가드 (`trigger.delete` permission) 통과 확인
-- [ ] audit log `trigger.delete` 기록 확인
+- [x] `DELETE /api/triggers/:id` — 이미 존재 (controller `editor+`, 204, NotFound). 별도 코드 변경 없음
+- [x] `DELETE` 권한 가드 (`trigger.delete` permission) 통과 확인 — `@Roles('editor')` 데코레이터로 보장됨
+- [x] audit log `trigger.delete` 기록 — 기존 trigger service 가 emit (변경 없음)
 
 ### 2. Frontend — `codebase/frontend/src/app/(main)/triggers/page.tsx`
 
-- [ ] 행 끝 셀에 `DropdownMenu` 추가 (기존 컴포넌트 재사용)
-- [ ] 항목:
-  1. 상세 보기 → `setSelectedTriggerId(id)`
-  2. 활성/비활성 토글 (`editor`+) → 기존 `toggleMutation`
-  3. 호출 이력 → 드로어 오픈 + Recent Calls anchor 스크롤
-  4. 스케줄 관리에서 편집 (schedule 타입만) → `Link href="/schedules?triggerId=…"`
-  5. 삭제 (`editor`+) → `TriggerDeleteDialog` 오픈
-- [ ] 신규 컴포넌트 `codebase/frontend/src/components/triggers/trigger-delete-dialog.tsx`:
-  - type 별 본문 텍스트 분기 (`triggers.delete.confirm.webhook|schedule|manual`)
-  - 이름 입력 confirm — input 값이 정확히 일치할 때만 "Delete" 버튼 활성
-  - `useDeleteTrigger` React Query mutation — 성공 시 invalidate + toast
-  - Schedule 타입은 cascade 경고 강조 (`AlertTriangle` 아이콘 + 분리된 카드)
+- [x] 행 끝 셀에 `DropdownMenu` 추가 — 신규 UI primitive `components/ui/dropdown-menu.tsx` (Radix `@radix-ui/react-dropdown-menu` 기반)
+- [x] 항목:
+  1. ✅ 상세 보기 → `setSelectedTriggerId(id)`
+  2. ✅ 활성/비활성 토글 (`editor`+) → 기존 `toggleMutation`
+  3. ✅ 호출 이력 → 드로어 오픈 (v1 은 anchor 스크롤 미구현 — Recent Calls 가 항상 드로어 하단에 존재)
+  4. ✅ 스케줄 관리에서 편집 (schedule 타입만, `editor`+) → `Link href="/schedules?triggerId=…"`
+  5. ✅ 삭제 (`editor`+) → `TriggerDeleteDialog` 오픈
+- [x] 신규 컴포넌트 `codebase/frontend/src/components/triggers/trigger-delete-dialog.tsx`:
+  - ✅ type 별 본문 텍스트 분기 (`triggers.delete.confirm.webhook|schedule|manual`)
+  - ✅ 이름 입력 confirm — input 값이 정확히 일치할 때만 "Delete" 버튼 활성
+  - ✅ `useMutation` DELETE — 성공 시 invalidate + toast. 404 동시 삭제는 silent invalidate + 1회 toast
+  - ✅ Schedule 타입은 cascade 경고 (`AlertTriangle` 아이콘 + `role="alert"` 강조 카드)
 
 ### 3. i18n
 

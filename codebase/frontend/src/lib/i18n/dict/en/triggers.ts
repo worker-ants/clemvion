@@ -25,7 +25,30 @@ export const triggers: Dict["triggers"] = {
   updateFailed: "Failed to update trigger",
   deleted: "Trigger deleted",
   deleteFailed: "Failed to delete trigger",
-  deleteConfirm: "Delete this trigger?",
+  notFoundOnDelete: "This trigger was already deleted",
+  // NOTE: `deleteConfirm` (flat key) was removed in 2026-05-22 — replaced by
+  // `triggers.delete.confirm.{webhook|schedule|manual}` for per-type messaging.
+  rowActions: {
+    viewDetails: "View details",
+    viewHistory: "Recent calls",
+    editInSchedule: "Edit in Schedules",
+    delete: "Delete",
+    menuLabel: "Trigger actions",
+  },
+  delete: {
+    title: "Delete trigger",
+    button: "Delete",
+    typeNameToConfirm: "Type the trigger name '{{name}}' to confirm",
+    cascadeWarning: "The linked schedule will also be deleted",
+    confirm: {
+      webhook:
+        "Deleting this trigger will return 404 for all incoming calls to {{url}}.",
+      schedule:
+        "Deleting this trigger will also delete the linked schedule (cron {{cron}}). Next run was scheduled at {{nextRunAt}}.",
+      manual:
+        "The connected workflow ({{workflowName}}) will be preserved — only the external execution entry point disappears.",
+    },
+  },
   activated: "Trigger activated",
   deactivated: "Trigger deactivated",
   activateFailed: "Failed to update trigger",

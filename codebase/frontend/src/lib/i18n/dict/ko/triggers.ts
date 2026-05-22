@@ -23,7 +23,29 @@ export const triggers = {
   updateFailed: "트리거 수정에 실패했어요",
   deleted: "트리거를 삭제했어요",
   deleteFailed: "트리거 삭제에 실패했어요",
-  deleteConfirm: "이 트리거를 삭제할까요?",
+  notFoundOnDelete: "이미 삭제된 트리거예요",
+  // NOTE: `deleteConfirm` (flat key) was removed in 2026-05-22 — replaced by
+  // `triggers.delete.confirm.{webhook|schedule|manual}` for per-type messaging.
+  rowActions: {
+    viewDetails: "상세 보기",
+    viewHistory: "호출 이력",
+    editInSchedule: "스케줄 관리에서 편집",
+    delete: "삭제",
+    menuLabel: "트리거 작업",
+  },
+  delete: {
+    title: "트리거 삭제",
+    button: "삭제",
+    typeNameToConfirm: "확인을 위해 트리거 이름 '{{name}}'을(를) 입력해 주세요",
+    cascadeWarning: "연결된 스케줄도 함께 삭제됩니다",
+    confirm: {
+      webhook: "이 트리거를 삭제하면 {{url}} 로 들어오는 모든 호출이 즉시 404 가 됩니다.",
+      schedule:
+        "이 트리거를 삭제하면 연결된 스케줄도 함께 삭제됩니다 (Cron: {{cron}}). 다음 실행 예정: {{nextRunAt}}.",
+      manual:
+        "이 트리거에 연결된 워크플로 ({{workflowName}}) 는 보존되며, 트리거를 통한 외부 실행 진입점만 사라집니다.",
+    },
+  },
   activated: "트리거를 활성화했어요",
   deactivated: "트리거를 비활성화했어요",
   activateFailed: "트리거 활성화에 실패했어요",

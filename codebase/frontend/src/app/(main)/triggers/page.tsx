@@ -9,14 +9,25 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
 import { toast } from "sonner";
-import { Copy, Loader2, Inbox, Plus, X } from "lucide-react";
+import { Copy, Loader2, Inbox, Plus, X, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { TriggerDetailDrawer } from "@/components/triggers/trigger-detail-drawer";
+import {
+  TriggerDeleteDialog,
+  type TriggerDeleteTarget,
+} from "@/components/triggers/trigger-delete-dialog";
 import { Pagination } from "@/components/ui/pagination";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TranslationKey } from "@/lib/i18n";
-import { RoleGate } from "@/components/auth/role-gate";
+import { RoleGate, useHasRole } from "@/components/auth/role-gate";
 
 const PAGE_SIZE = 20;
 
@@ -29,6 +40,8 @@ interface Trigger {
   workflowName: string;
   endpointPath?: string;
   lastTriggeredAt?: string;
+  cronExpression?: string;
+  nextRunAt?: string;
 }
 
 interface Workflow {
@@ -72,6 +85,10 @@ export default function TriggersPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedTriggerId, setSelectedTriggerId] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<TriggerDeleteTarget | null>(
+    null,
+  );
+  const canEdit = useHasRole("editor");
   const queryClient = useQueryClient();
 
   // Form state
@@ -93,6 +110,8 @@ export default function TriggersPage() {
     workflow?: { id?: string; name?: string };
     endpointPath?: string;
     lastTriggeredAt?: string;
+    cronExpression?: string;
+    nextRunAt?: string;
   }
   const triggersQuery = useQuery<{ items: Trigger[]; totalPages: number }>({
     queryKey: ["triggers", activeTab, statusFilter, page],
@@ -118,6 +137,8 @@ export default function TriggersPage() {
         workflowName: t.workflow?.name ?? "",
         endpointPath: t.endpointPath,
         lastTriggeredAt: t.lastTriggeredAt,
+        cronExpression: t.cronExpression,
+        nextRunAt: t.nextRunAt,
       }));
       return { items, totalPages };
     },
@@ -463,23 +484,82 @@ export default function TriggersPage() {
                       ? formatDate(trigger.lastTriggeredAt, "datetime")
                       : "-"}
                   </td>
-                  <td className="px-4 py-3">
-                    <RoleGate minRole="editor">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={toggleMutation.isPending}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleMutation.mutate({
-                            id: trigger.id,
-                            isActive: !trigger.isActive,
-                          });
-                        }}
-                      >
-                        {trigger.isActive ? t("triggers.toggleDeactivate") : t("triggers.toggleActivate")}
-                      </Button>
-                    </RoleGate>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t("triggers.rowActions.menuLabel")}
+                          className="h-8 w-8"
+                        >
+                          <MoreVertical
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onSelect={() => setSelectedTriggerId(trigger.id)}
+                        >
+                          {t("triggers.rowActions.viewDetails")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => setSelectedTriggerId(trigger.id)}
+                        >
+                          {t("triggers.rowActions.viewHistory")}
+                        </DropdownMenuItem>
+                        {canEdit && trigger.type === "schedule" && (
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/schedules?triggerId=${trigger.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {t("triggers.rowActions.editInSchedule")}
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        {canEdit && (
+                          <>
+                            <DropdownMenuItem
+                              disabled={toggleMutation.isPending}
+                              onSelect={() =>
+                                toggleMutation.mutate({
+                                  id: trigger.id,
+                                  isActive: !trigger.isActive,
+                                })
+                              }
+                            >
+                              {trigger.isActive
+                                ? t("triggers.toggleDeactivate")
+                                : t("triggers.toggleActivate")}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={() =>
+                                setDeleteTarget({
+                                  id: trigger.id,
+                                  name: trigger.name,
+                                  type: trigger.type,
+                                  workflowName: trigger.workflowName,
+                                  webhookUrl:
+                                    trigger.type === "webhook" &&
+                                    trigger.endpointPath
+                                      ? getWebhookUrl(trigger.endpointPath)
+                                      : undefined,
+                                  cronExpression: trigger.cronExpression,
+                                  nextRunAt: trigger.nextRunAt,
+                                })
+                              }
+                            >
+                              {t("triggers.rowActions.delete")}
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               ))}
@@ -498,6 +578,12 @@ export default function TriggersPage() {
         triggerId={selectedTriggerId}
         open={selectedTriggerId !== null}
         onClose={() => setSelectedTriggerId(null)}
+      />
+
+      <TriggerDeleteDialog
+        trigger={deleteTarget}
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
       />
     </div>
   );

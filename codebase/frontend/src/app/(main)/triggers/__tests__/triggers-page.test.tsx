@@ -135,7 +135,7 @@ describe("TriggersPage — RBAC", () => {
     };
   }
 
-  it("Editor: Add webhook 버튼·토글 버튼 노출", async () => {
+  it("Editor: Add webhook 버튼·⋮ 메뉴 노출", async () => {
     setRole("editor");
     mockTriggersResponse(row());
     await renderPage();
@@ -143,12 +143,13 @@ describe("TriggersPage — RBAC", () => {
     expect(
       screen.getByRole("button", { name: /add webhook/i }),
     ).toBeInTheDocument();
+    // ⋮ 메뉴 trigger (한 행 → 한 trigger)
     expect(
-      screen.getByRole("button", { name: /deactivate|activate/i }),
+      screen.getByRole("button", { name: /trigger actions/i }),
     ).toBeInTheDocument();
   });
 
-  it("Viewer: Add webhook 버튼·토글 버튼 모두 비표시", async () => {
+  it("Viewer: Add webhook 비노출 (⋮ 메뉴는 read-only 항목용으로 유지)", async () => {
     setRole("viewer");
     mockTriggersResponse(row());
     await renderPage();
@@ -156,8 +157,9 @@ describe("TriggersPage — RBAC", () => {
     expect(
       screen.queryByRole("button", { name: /add webhook/i }),
     ).toBeNull();
+    // ⋮ 메뉴 trigger 는 viewer 도 노출 (상세 보기·호출 이력 진입용).
     expect(
-      screen.queryByRole("button", { name: /deactivate|activate/i }),
-    ).toBeNull();
+      screen.getByRole("button", { name: /trigger actions/i }),
+    ).toBeInTheDocument();
   });
 });
