@@ -21,6 +21,7 @@ import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { ChatChannelConfigDto } from './dto/chat-channel-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChatChannelConfig } from '../chat-channel/types';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -43,6 +44,7 @@ export class TriggersService {
     private readonly scheduleRepository: Repository<Schedule>,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
     private readonly configService: ConfigService,
+    private readonly secrets: SecretResolverService,
   ) {}
 
   async findAll(
@@ -215,15 +217,42 @@ export class TriggersService {
       this.configService.get<string>('publicBaseUrl') ??
       'http://localhost:3000';
     const callbackUrl = `${baseUrl.replace(/\/$/, '')}/api/hooks/${trigger.endpointPath.replace(/^\//, '')}`;
+
+    // secret store 에 botToken 저장 (UPSERT — 재시도 안전).
+    const botTokenRef = `secret://triggers/${trigger.id}/bot-token`;
+    await this.secrets.rotate(
+      botTokenRef,
+      trigger.workspaceId,
+      (chatChannelCfg as ChatChannelConfig & { botToken?: string }).botToken ??
+        '',
+    );
+
+    const internalCfg: ChatChannelConfig = {
+      ...(chatChannelCfg as ChatChannelConfig),
+      botTokenRef,
+    };
+
     try {
-      const result = await adapter.setupChannel(
-        chatChannelCfg as ChatChannelConfig,
-        callbackUrl,
-      );
-      // setupChannel 결과 — secretToken / botIdentity 등을 config 에 머지.
+      const result = await adapter.setupChannel(internalCfg, callbackUrl);
+
+      // issuedSecretToken → secret store 저장.
+      const secretTokenRef = `secret://triggers/${trigger.id}/webhook-secret`;
+      if (result.issuedSecretToken) {
+        await this.secrets.rotate(
+          secretTokenRef,
+          trigger.workspaceId,
+          result.issuedSecretToken,
+        );
+      }
+
+      // setupChannel 결과 — botIdentity 등을 config 에 머지.
       const mergedChannel: ChatChannelConfig = {
-        ...(chatChannelCfg as ChatChannelConfig),
+        ...internalCfg,
         ...(result.configUpdates ?? {}),
+        botTokenRef,
+        ...(result.issuedSecretToken
+          ? { secretTokenRef }
+          : {}),
       };
       const newConfig = {
         ...(trigger.config ?? {}),
@@ -240,12 +269,23 @@ export class TriggersService {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      // SUMMARY#24: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger 는
+      // degraded 로 저장되지만 secret_store row 는 남아 있음. remove() 시 deleteByPrefix 로 정리.
+      this.logger.warn(
+        `TriggersService: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger=${trigger.id} 는 degraded 상태로 저장됨.`,
+      );
       this.logger.warn(
         `TriggersService: setupChannel 실패 (trigger=${trigger.id}, provider=${chatChannelCfg.provider}): ${message}`,
       );
+      // fallbackConfig: botTokenRef 만 config 에 반영 (secretTokenRef 없음).
+      const fallbackConfig = {
+        ...(trigger.config ?? {}),
+        chatChannel: internalCfg,
+      };
       await this.triggerRepository.update(
         { id: trigger.id },
         {
+          config: fallbackConfig,
           chatChannelHealth: 'degraded',
           chatChannelLastError: message.slice(0, 1024),
         },
@@ -276,6 +316,8 @@ export class TriggersService {
   async remove(id: string, workspaceId: string): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
     await this.teardownChatChannel(trigger);
+    // SUMMARY#13: trigger 삭제 시 secret_store 의 모든 관련 row 삭제 (application-level cascade).
+    await this.secrets.deleteByPrefix(`secret://triggers/${trigger.id}/`);
     await this.triggerRepository.remove(trigger);
   }
 
@@ -285,10 +327,10 @@ export class TriggersService {
    *
    * 동작:
    * 1. 새 32-byte hex secret 생성 (`wsk_<hex>`).
-   * 2. 기존 `config.notification.signing.secret` 은 그대로 두고, `trigger.notification_secret_v2`
-   *    컬럼에 새 secret 저장 + `notification_rotated_at = NOW()`.
+   * 2. 기존 `config.notification.signing.secretRef` 는 그대로 두고, `trigger.notification_secret_v2`
+   *    컬럼에 새 secret 평문 저장 + `notification_rotated_at = NOW()`.
    * 3. 24h grace 동안 NotificationWebhookProcessor 가 두 secret 으로 모두 서명 (v1= 두 개 동봉).
-   *    24h 경과 후 별도 cron 이 v2 → config.signing.secret 으로 승격 + v2/rotated_at 컬리어.
+   *    24h 경과 후 별도 cron 이 v2 → config.signing.secretRef 로 승격 + v2/rotated_at 클리어.
    * 4. 응답에 새 secret 평문 1회 반환 (이후 마스킹) — 호출자가 외부 검증자 측에 배포.
    *
    * 요구 권한: trigger 소유 workspace 의 Editor+.
@@ -359,8 +401,9 @@ export class TriggersService {
   }
 
   /**
-   * 24h grace 가 경과한 trigger 의 notification_secret_v2 → config.notification.signing.secret
-   * 승격. 별도 scheduled job 이 호출. ($ trigger 단위 idempotent — v2 가 null 이면 no-op)
+   * 24h grace 가 경과한 trigger 의 notification_secret_v2 → config.notification.signing.secretRef
+   * 승격. 별도 scheduled job (NotificationSecretRotatorService) 이 매시간 호출.
+   * trigger 단위 idempotent — v2 가 null 이면 no-op.
    */
   async promoteRotatedNotificationSecrets(
     nowMs: number = Date.now(),

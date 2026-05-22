@@ -8,6 +8,7 @@ import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
 
 describe('TriggersService.findOneDetail', () => {
   let service: TriggersService;
@@ -37,6 +38,17 @@ describe('TriggersService.findOneDetail', () => {
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: jest.fn(),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(0),
+            exists: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -169,6 +181,17 @@ describe('TriggersService — notification/interaction config 병합 (External I
         {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: jest.fn(),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(0),
+            exists: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -357,6 +380,17 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
         },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: jest.fn(),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(0),
+            exists: jest.fn(),
+          },
+        },
       ],
     }).compile();
     service = moduleRef.get(TriggersService);
@@ -489,5 +523,204 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       expect(result.promoted).toBe(0);
       expect(triggerRepo.save).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let secrets: jest.Mocked<SecretResolverService>;
+  let mockAdapter: { setupChannel: jest.Mock };
+  let adapterRegistry: jest.Mocked<ChannelAdapterRegistry>;
+
+  const baseTrigger = {
+    id: 'trig-1',
+    workspaceId: 'ws-1',
+    type: 'webhook',
+    endpointPath: 'hook-abc',
+    config: {},
+    chatChannelHealth: 'unknown',
+    chatChannelLastError: null,
+  } as unknown as Trigger;
+
+  beforeEach(async () => {
+    mockAdapter = {
+      setupChannel: jest.fn().mockResolvedValue({
+        configUpdates: { botIdentity: { botId: 111, username: 'bot' } },
+        issuedSecretToken: 'issued-secret-xyz',
+      }),
+    };
+    adapterRegistry = {
+      has: jest.fn().mockReturnValue(true),
+      get: jest.fn().mockReturnValue(mockAdapter),
+    } as unknown as jest.Mocked<ChannelAdapterRegistry>;
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(baseTrigger),
+            update: jest.fn().mockResolvedValue(undefined),
+            save: jest.fn((t: Trigger) => Promise.resolve(t)),
+            createQueryBuilder: jest.fn(),
+          },
+        },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: adapterRegistry,
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: jest.fn().mockResolvedValue(undefined),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(0),
+            exists: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    secrets = moduleRef.get(SecretResolverService) as jest.Mocked<SecretResolverService>;
+  });
+
+  it('setupChatChannel 성공 — secrets.rotate 2회 호출 (botToken + webhookSecret) (SUMMARY#12-a)', async () => {
+    const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+    triggerRepo.findOne.mockResolvedValue(trigger);
+
+    await service.update('trig-1', 'ws-1', {
+      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+    });
+
+    // botToken 저장
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      'secret://triggers/trig-1/bot-token',
+      'ws-1',
+      '111:TestToken',
+    );
+    // issuedSecretToken 저장
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      'secret://triggers/trig-1/webhook-secret',
+      'ws-1',
+      'issued-secret-xyz',
+    );
+    // chatChannelHealth = healthy
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ chatChannelHealth: 'healthy' }),
+    );
+  });
+
+  it('issuedSecretToken 없을 때 webhookSecret rotate 미호출 (SUMMARY#12-b)', async () => {
+    mockAdapter.setupChannel.mockResolvedValueOnce({
+      configUpdates: {},
+      // issuedSecretToken 없음
+    });
+    const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+    triggerRepo.findOne.mockResolvedValue(trigger);
+
+    await service.update('trig-1', 'ws-1', {
+      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+    });
+
+    const rotateCalls = (secrets.rotate as jest.Mock).mock.calls;
+    const webhookCalls = rotateCalls.filter(([ref]) =>
+      (ref as string).includes('webhook-secret'),
+    );
+    expect(webhookCalls).toHaveLength(0);
+  });
+
+  it('setupChannel throw 시 chatChannelHealth=degraded + warn 로그 (SUMMARY#12-c)', async () => {
+    mockAdapter.setupChannel.mockRejectedValueOnce(new Error('Telegram API error'));
+    const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+    triggerRepo.findOne.mockResolvedValue(trigger);
+
+    await service.update('trig-1', 'ws-1', {
+      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+    });
+
+    // botToken 은 이미 저장됨 (setupChannel 실패 이전)
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      'secret://triggers/trig-1/bot-token',
+      'ws-1',
+      '111:TestToken',
+    );
+    // degraded 상태로 저장
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ chatChannelHealth: 'degraded' }),
+    );
+  });
+});
+
+describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let secrets: jest.Mocked<SecretResolverService>;
+
+  const trigger = {
+    id: 'trig-42',
+    workspaceId: 'ws-1',
+    config: {},
+  } as unknown as Trigger;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(trigger),
+            remove: jest.fn().mockResolvedValue(undefined),
+            update: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+        },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: jest.fn(),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(2),
+            exists: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    secrets = moduleRef.get(SecretResolverService) as jest.Mocked<SecretResolverService>;
+  });
+
+  it('remove 시 deleteByPrefix 를 올바른 prefix 로 호출 (SUMMARY#13)', async () => {
+    await service.remove('trig-42', 'ws-1');
+
+    expect(secrets.deleteByPrefix).toHaveBeenCalledWith(
+      'secret://triggers/trig-42/',
+    );
+    expect(triggerRepo.remove).toHaveBeenCalledWith(trigger);
   });
 });
