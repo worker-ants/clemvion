@@ -78,13 +78,24 @@ owner: developer (다음 진입자)
 - [x] **G-1-order**: order resource path/method 19건 정정 완료 (commit 63f4d0f3). order_status_update_multiple/order_cancellation_update/order_exchange_update/order_items_update/order_items_labels_*(4)/order_items_options_*(2)/order_paymenttimeline_history/details/order_receivers_change_shipping/order_refunds_update/order_return_update + refunds_get/cancellation_get/exchange_get/exchange_create_multiple/return_get placeholder rename + path fix.
 - [x] **G-1-community/promotion/application**: 핵심 placeholder rename 13건 완료 (commit 939e0d36). commenttemplates_get/update/delete (template_no→comment_no), urgentinquiry_reply_*(3건, inquiry_no→article_no), coupon_issues_list (coupons/issues→coupons/{coupon_no}/issues), serialcoupons_delete (path 정리), discountcodes_*(3건, discount_code→discount_code_no), scripttags_*(3건, tag_no→script_no), recipes_delete (recipe_no→recipe_code, type fix), webhooks_update (webhooks→webhooks/setting).
 - [x] **G-1-category/design/shipping**: placeholder rename 10건 완료 (commit 7d05ce48). autodisplay_update/delete (category_no→display_no), themes_get/theme_pages_*(5건, theme_no→skin_no, page_path 위치 body/query), shippingorigins_*(3건, origin_no→origin_code), shipping_additionalfees_countries (path /countries 제거).
+- [x] **G-1-store**: store resource 13건 정정 완료 (commit 6e7f2cec). paymentgateway_*(5건, paymentgateway_id→client_id, paymentmethod_id→payment_method_code, paymentmethods list 의 gateway-scoped path), paymentmethods_paymentproviders_list/update_display (per-method scope, {code}/{name} placeholders), redirects_update/delete (redirect_no→id), subscription_shipments_setting_update/delete (subscription_no 추가). socials_apple_settings_get docs 부재 JSDoc.
+- [x] **G-1-supply**: 5건 정정 완료 (commit adaf9761). regionalshippingfees→regionalsurcharges, user_id→supplier_id (regional 영역만), settings→setting, regional_delete 에 {regional_surcharge_no} 추가.
+- [x] **G-1-impliesValue**: `Cafe24FieldConstraint.impliesValue` kind 신설 완료 (commit 3de1e177). value-aware implication 표현 (예: refund_method='T' 시 bank fields 필수). validator + MCP description suffix + 6 unit tests + spec 문서화. 실제 metadata 적용은 follow-up PR (해당 ops 의 field-set 확장 선행 필요).
+- [x] **G-1-batch12**: order placeholder/path 12건 + docs 부재 ops JSDoc 7건 완료 (commit 8b2b927b). cashreceipt_update/cancel placeholder + path 재구조, collectrequests_update / orderform_properties_update/delete / orders_inflowgroups_update/delete / orders_saleschannels_update/delete placeholder rename. orders_inflows_*(4건) path 전체 재구조 (group-scoped). orders_migrations_delete + order_id, reservations_get path placeholder 제거, exchangerequests_reject_multiple path 정리, promotion serialcoupons_generate path 변경. docs 부재 7건 JSDoc ⚠ 마크 (coupon_get/delete, applications_list, webhooks_list, mains_update/delete).
 - [ ] **G-1-remaining**: 본 PR 에서 다루지 못한 잔여 항목 — 별 PR 로 분리:
-  - **store (106 endpoint)**: 가장 큰 resource. 별 PR scope.
+  - **store 의 field-set 확장**: store resource 106 endpoint 의 docs field 와의 비교 audit 미수행. 본 PR 은 path/method 만 정렬.
   - **field-set 확장 (모든 resource)**: docs 에 있는 field 들 중 우리 metadata 에 누락된 것 추가. 예: product_list docs 는 ~50 field 인데 우리 8 field. 모든 resource 에 적용 시 수천 줄 변경.
-  - **docs 부재 ops 처리**: customer_get/customer_update (G-2), promotion coupon_get/coupon_delete, order orders_inflows_*/cashreceipt_*/orders_migrations_delete/control/exchange_update_multiple/exchangerequests_*/return_update/returnrequests_*/cancellationrequests_*/labels_*, application applications_list/webhooks_list, category mains_update/delete, collection brands_get, supply complex paths (suppliers/{supplier_code}/users/* 가 실제로는 suppliers/users/*), salesreport reports/sales* (4건 docs 부재), notification sms_list, design theme_pages_get path.
-  - **constraint-only sweep — value-aware implies**: order cancellation/return/exchange 의 `refund_method=T (현금)` 일 때 bank fields 필수 + products create/update 의 `material_composite=T` 시 material+content_rate 필수. 현 `implies` kind 가 "field 가 제공되면" 만 지원 (value-aware 미지원) — spec 확장 (`{ kind: 'impliesValue', if: 'X', value: 'T', then: [...] }`) 또는 description-only 처리 결정 필요.
+  - **impliesValue 의 metadata 적용**: spec 인프라는 본 PR 에서 완료. 실제 ops 에 적용은 trigger field (refund_method, material_composite 등) 가 metadata 에 추가된 후. order cancellation/return/exchange + products create/update + bundleproducts create/update.
   - **constraint-only sweep — 미적용 date-pair**: order_count (start_date/end_date), boards_articles_list, coupon_list/coupon_count (created_start_date/created_end_date), scripttags_list/count, salesreport_volume — 다수가 우리 metadata 에 date 필드 부재로 field-set 확장이 선행돼야 추가 가능.
-- **G-2** follow-up: customer_get / customer_update 의 docs 부재 처리 결정 — production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요청. customer.ts JSDoc 의 ⚠ 마크 + 본 G-2 ref.
+  - **잔존 docs 부재 ops (G-2)**: customer_get/customer_update, coupon_get/coupon_delete, applications_list, webhooks_list, mains_update/delete, socials_apple_settings_get — JSDoc 으로 표시 완료. production 검증 후 제거 결정 필요.
+- **G-2** follow-up: 다음 ops 의 docs 부재 처리 결정 — production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요청. 영향 ops:
+  - customer: customer_get, customer_update
+  - promotion: coupon_get, coupon_delete
+  - application: applications_list, webhooks_list
+  - category: mains_update, mains_delete
+  - store: socials_apple_settings_get
+  
+  모두 JSDoc ⚠ 마크 + 본 G-2 ref. 운영 검증 후 단계적 제거.
 
 ## 처리 후
 
