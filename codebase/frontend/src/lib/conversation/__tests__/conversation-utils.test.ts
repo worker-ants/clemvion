@@ -631,6 +631,67 @@ describe("threadTurnsToConversationItems", () => {
     ]);
   });
 
+  // spec/4-nodes/3-ai/1-ai-agent.md §7.10 — `render_*` payloads ride along
+  // with the assistant turn so the chat UI can inline-render them.
+  it("picks up presentations[] on ai_assistant turns (render_* family)", () => {
+    const turns: ConversationTurn[] = [
+      makeTurn({ seq: 0, source: "ai_user", text: "hi" }),
+      makeTurn({
+        seq: 1,
+        source: "ai_assistant",
+        text: "Here is your table",
+        presentations: [
+          {
+            type: "table",
+            toolCallId: "call_t1",
+            renderedAt: "2026-05-22T00:00:00Z",
+            payload: { rows: [{ id: "1" }] },
+          },
+        ],
+      }),
+    ];
+    const items = threadTurnsToConversationItems(turns);
+    expect(items[1].type).toBe("assistant");
+    expect(items[1].presentations).toEqual([
+      {
+        type: "table",
+        toolCallId: "call_t1",
+        renderedAt: "2026-05-22T00:00:00Z",
+        payload: { rows: [{ id: "1" }] },
+      },
+    ]);
+  });
+
+  it("omits presentations field on ai_assistant turn without payloads", () => {
+    const turns: ConversationTurn[] = [
+      makeTurn({ seq: 0, source: "ai_assistant", text: "plain" }),
+    ];
+    const items = threadTurnsToConversationItems(turns);
+    expect(items[0].presentations).toBeUndefined();
+  });
+
+  it("ignores presentations on ai_user turns — spec §7.10 (only ai_assistant may carry them)", () => {
+    const turns: ConversationTurn[] = [
+      makeTurn({
+        seq: 0,
+        source: "ai_user",
+        text: "hello",
+        presentations: [
+          {
+            type: "table",
+            toolCallId: "tc_user",
+            renderedAt: "2026-05-22T00:00:00Z",
+            payload: {},
+          },
+        ],
+      }),
+    ];
+    const items = threadTurnsToConversationItems(turns);
+    // ai_user turns map to type:'user' which never carries presentations
+    expect(items[0].type).toBe("user");
+    expect((items[0] as { presentations?: unknown }).presentations).toBeUndefined();
+  });
+
   it("advances turnIndex only on ai_user — presentation and system items get turnIndex 0", () => {
     const turns: ConversationTurn[] = [
       makeTurn({

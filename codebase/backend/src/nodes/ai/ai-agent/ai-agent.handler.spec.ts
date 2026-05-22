@@ -1,6 +1,7 @@
 import { AiAgentHandler } from './ai-agent.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
 import { KbToolProvider, kbToolName } from './tool-providers/kb-tool-provider';
+import { RenderToolProvider } from './tool-providers/render-tool-provider';
 import { adaptHandlerReturn } from '../../../modules/execution-engine/handler-output.adapter';
 import { makeExecutionContext } from '../../../modules/execution-engine/__test__/make-execution-context';
 
@@ -2858,6 +2859,155 @@ describe('AiAgentHandler', () => {
       expect(completed?.payload.turnIndex).toBe(2);
       expect(started?.payload.nodeId).toBe('agent-1');
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Render tool family (`render_*`) handler-level integration coverage.
+// spec/4-nodes/3-ai/1-ai-agent.md §4.1·§6.1.d.i·§7.10·§4.1 (retry gate).
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('AiAgentHandler — render_* dispatch (spec §4.1)', () => {
+  let handler: AiAgentHandler;
+  let mockLlmService: Record<string, jest.Mock>;
+  let mockWebsocketService: { emitExecutionEvent: jest.Mock };
+
+  beforeEach(() => {
+    mockLlmService = {
+      resolveConfig: jest.fn().mockResolvedValue({
+        id: 'config-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+      }),
+      chat: jest.fn(),
+    };
+    mockWebsocketService = { emitExecutionEvent: jest.fn() };
+    handler = new AiAgentHandler(
+      mockLlmService as never,
+      [new RenderToolProvider()],
+      mockWebsocketService as never,
+    );
+  });
+
+  const ctx: ExecutionContext = makeExecutionContext({
+    executionId: 'exec-rt',
+    workflowId: 'wf-rt',
+    variables: { __workspaceId: 'ws-rt' },
+  });
+
+  it('accumulates display-only render_table payload + emits meta.presentationCalls', async () => {
+    mockLlmService.chat
+      .mockResolvedValueOnce({
+        content: null,
+        toolCalls: [
+          {
+            id: 'tc-1',
+            name: 'render_table',
+            arguments: JSON.stringify({
+              mode: 'static',
+              columns: [{ field: 'id', label: 'ID' }],
+              rows: [{ id: '1' }, { id: '2' }],
+            }),
+          },
+        ],
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      })
+      .mockResolvedValueOnce({
+        content: 'Here is the table',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+
+    const result = await handler.execute(
+      { x: 1 },
+      {
+        systemPrompt: 'sys',
+        userPrompt: 'show me a table',
+        model: 'gpt-4o',
+        includeSystemContext: false,
+        presentationTools: [{ type: 'table' }],
+      },
+      ctx,
+    );
+
+    const meta = (result as Record<string, unknown>).meta as Record<
+      string,
+      unknown
+    >;
+    expect(meta.presentationCalls).toBeDefined();
+    const calls = meta.presentationCalls as Array<{
+      toolName: string;
+      status: string;
+    }>;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      toolName: 'render_table',
+      status: 'rendered',
+    });
+    expect(meta.presentationSchemaViolations).toBeUndefined();
+  });
+
+  it('retry-gate: silently drops 2nd schema violation for the same tool (spec §4.1)', async () => {
+    // First tool_use: invalid JSON arguments → schema_violation, attempts=1.
+    // LLM retries with the same broken payload → 2nd violation → silent drop.
+    mockLlmService.chat
+      .mockResolvedValueOnce({
+        content: null,
+        toolCalls: [
+          { id: 'tc-bad-1', name: 'render_table', arguments: 'not json' },
+        ],
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      })
+      .mockResolvedValueOnce({
+        content: null,
+        toolCalls: [
+          { id: 'tc-bad-2', name: 'render_table', arguments: 'still bad' },
+        ],
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        model: 'gpt-4o',
+        finishReason: 'tool_calls',
+      })
+      .mockResolvedValueOnce({
+        content: 'fallback text',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+
+    const result = await handler.execute(
+      { x: 1 },
+      {
+        systemPrompt: 'sys',
+        userPrompt: 'try render_table twice',
+        model: 'gpt-4o',
+        includeSystemContext: false,
+        presentationTools: [{ type: 'table' }],
+      },
+      ctx,
+    );
+
+    const meta = (result as Record<string, unknown>).meta as Record<
+      string,
+      unknown
+    >;
+    const calls = meta.presentationCalls as Array<{ status: string }>;
+    const violations = meta.presentationSchemaViolations as Array<{
+      attempts: number;
+    }>;
+    expect(calls).toHaveLength(2);
+    // First call: schema_violation (still LLM-visible error).
+    expect(calls[0].status).toBe('schema_violation');
+    // Second call: demoted to 'dropped' by the retry-gate.
+    expect(calls[1].status).toBe('dropped');
+    // Both violations are surfaced in meta; the 2nd one's attempts counter
+    // reflects the cumulative retry budget consumed for this toolName.
+    expect(violations).toHaveLength(2);
+    expect(violations[1].attempts).toBe(2);
   });
 });
 

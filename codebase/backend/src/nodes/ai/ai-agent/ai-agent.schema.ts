@@ -5,6 +5,7 @@ import {
 } from '../../core/node-component.interface';
 import { AI_NO_LLM_PROVIDER_MESSAGE } from '../llm-provider-rule';
 import { buildSystemContextSchemaFields } from '../shared/system-context-schema.js';
+import { PRESENTATION_TYPES } from '../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * Default for `contextScopeN` — the number of most recent ConversationThread
@@ -58,6 +59,43 @@ const mcpServerRefSchema = z.object({
     )
     .optional(),
 });
+
+/**
+ * Presentation tool family (`render_*`) — AI Agent 가 LLM 응답 surface 를
+ * 텍스트에서 5종 (table·chart·carousel·template·form) 가상 도구로 확장.
+ * SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§4.1, spec/4-nodes/6-presentation/0-common.md §10.
+ *
+ * 비어 있으면 OFF (기본). 한 노드 안에서 `type` 중복 금지 — validateAiAgentConfig 가 검증.
+ *
+ * type enum 의 단일 진실은 `shared/conversation-thread/conversation-thread.types.ts`
+ * 의 `PRESENTATION_TYPES` 상수. 신규 type 추가 시 본 파일 수정 불필요.
+ */
+const presentationToolDefSchema = z.object({
+  type: z.enum(PRESENTATION_TYPES).meta({
+    ui: { label: 'Type', widget: 'select' },
+  }),
+  description: z
+    .string()
+    .optional()
+    .meta({
+      ui: {
+        label: 'Description override',
+        widget: 'text',
+        hint: 'Override the default LLM-facing description for this tool',
+      },
+    }),
+  defaults: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .meta({
+      ui: {
+        label: 'Defaults overlay',
+        widget: 'json',
+        hint: 'Brand/style fixed values that override LLM payload on deep-merge',
+      },
+    }),
+});
+export type PresentationToolDef = z.infer<typeof presentationToolDefSchema>;
 
 const conditionDefSchema = z.object({
   id: z.string().meta({ ui: { label: 'ID', widget: 'text', hidden: true } }),
@@ -241,6 +279,26 @@ export const aiAgentNodeConfigSchema = z
           itemLabel: 'Condition',
           order: 20,
           group: 'Conditions',
+        },
+      }),
+
+    // ── Presentation Tools (`render_*`) ──
+    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §1, §4.1
+    //      spec/4-nodes/6-presentation/0-common.md §10
+    // Empty array = OFF (default). Each tool registered exposes a `render_<type>`
+    // virtual tool to the LLM. Schema/cap/defaults overlay rules in presentation
+    // common §10. Duplicate type within a node is rejected by validateAiAgentConfig.
+    presentationTools: z
+      .array(presentationToolDefSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Presentation Tools',
+          widget: 'field-array',
+          itemLabel: 'Tool',
+          order: 25,
+          group: 'Presentation Tools',
+          hint: 'Let the LLM render tables / charts / carousels / templates / forms in chat by calling render_* tools.',
         },
       }),
 
@@ -496,6 +554,14 @@ const RESERVED_PORT_IDS = new Set([
   'user_ended',
   'max_turns',
 ]);
+/**
+ * Per-tool `defaults` overlay 의 바이트 cap (ai-review SUMMARY #6 — security).
+ * 최종 merged payload 의 1MB cap (`PRESENTATION_MAX_BYTES`) 와는 별개의
+ * 사용자-config 차원 사전 게이트. brand/style 고정값은 일반적으로 수 KB 를
+ * 넘지 않으므로 256KB 면 충분히 여유 있다.
+ */
+export const PRESENTATION_DEFAULTS_MAX_BYTES = 256 * 1024;
+
 export function validateAiAgentConfig(config: unknown): string[] {
   const c = (config ?? {}) as Record<string, unknown>;
   const errors: string[] = [];
@@ -531,6 +597,42 @@ export function validateAiAgentConfig(config: unknown): string[] {
         errors.push(`conditions[${i}]: prompt is required`);
       } else if (cond.prompt.length > 2000) {
         errors.push(`conditions[${i}]: prompt must be 2000 characters or less`);
+      }
+    }
+  }
+
+  // Presentation tools — one type per node (spec/4-nodes/3-ai/1-ai-agent.md §1).
+  const presentationTools = c.presentationTools;
+  if (Array.isArray(presentationTools)) {
+    const seen = new Set<string>();
+    for (let i = 0; i < presentationTools.length; i++) {
+      const tool = presentationTools[i];
+      const t = (tool ?? {}) as Record<string, unknown>;
+      const type = typeof t.type === 'string' ? t.type : '';
+      if (!type) continue; // zod-level error path
+      if (seen.has(type)) {
+        errors.push(
+          `presentationTools: duplicate type '${type}' — each presentation tool type may be registered at most once`,
+        );
+      }
+      seen.add(type);
+
+      // ai-review SUMMARY #6 — defaults 자체의 바이트 크기 상한. 1MB cap 은
+      // 최종 merged payload 에만 적용되므로 defaults 자체가 거대해질 수 있다.
+      // 비합리적 크기 (>256KB) 를 schema 단계에서 사전 차단.
+      if (t.defaults !== undefined && t.defaults !== null) {
+        try {
+          const bytes = Buffer.byteLength(JSON.stringify(t.defaults));
+          if (bytes > PRESENTATION_DEFAULTS_MAX_BYTES) {
+            errors.push(
+              `presentationTools[${i}]: defaults must be ≤ ${PRESENTATION_DEFAULTS_MAX_BYTES} bytes (got ${bytes})`,
+            );
+          }
+        } catch {
+          errors.push(
+            `presentationTools[${i}]: defaults must be JSON-serialisable`,
+          );
+        }
       }
     }
   }

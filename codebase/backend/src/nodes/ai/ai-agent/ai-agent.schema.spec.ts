@@ -351,6 +351,78 @@ describe('validateAiAgentConfig (imperative)', () => {
       }),
     ).toContain('conditions[0]: prompt must be 2000 characters or less');
   });
+
+  // ── presentationTools (spec/4-nodes/3-ai/1-ai-agent.md §1, §4.1) ──
+  it('defaults presentationTools to empty array (feature OFF)', () => {
+    const result = aiAgentNodeConfigSchema.parse({});
+    expect(result.presentationTools).toEqual([]);
+  });
+
+  it('accepts presentationTools with 5 types', () => {
+    const tools = [
+      { type: 'table' },
+      { type: 'chart' },
+      { type: 'carousel' },
+      { type: 'template' },
+      { type: 'form' },
+    ];
+    const result = aiAgentNodeConfigSchema.parse({ presentationTools: tools });
+    expect(result.presentationTools).toHaveLength(5);
+  });
+
+  it('accepts presentationTool with description and defaults overlay', () => {
+    const result = aiAgentNodeConfigSchema.parse({
+      presentationTools: [
+        {
+          type: 'table',
+          description: '주문 표 — 컬럼은 정의되어 있고 rows만 채워라',
+          defaults: { columns: [{ field: 'id', label: 'ID' }] },
+        },
+      ],
+    });
+    expect(result.presentationTools[0].description).toContain('주문 표');
+    expect(result.presentationTools[0].defaults).toMatchObject({
+      columns: [{ field: 'id', label: 'ID' }],
+    });
+  });
+
+  it('rejects unknown presentationTool type', () => {
+    const result = aiAgentNodeConfigSchema.safeParse({
+      presentationTools: [{ type: 'unknown' }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects duplicate presentationTool type within a node', () => {
+    const errors = validateAiAgentConfig({
+      presentationTools: [{ type: 'table' }, { type: 'table' }],
+    });
+    expect(errors).toContain(
+      "presentationTools: duplicate type 'table' — each presentation tool type may be registered at most once",
+    );
+  });
+
+  // ai-review SUMMARY #6 — defaults 자체의 바이트 크기 상한 검증 (256KB).
+  it('rejects presentationTool defaults > 256KB (PRESENTATION_DEFAULTS_MAX_BYTES)', () => {
+    // 빅 string 으로 300KB 짜리 defaults 만들기.
+    const big = 'A'.repeat(300 * 1024);
+    const errors = validateAiAgentConfig({
+      presentationTools: [{ type: 'table', defaults: { padding: big } }],
+    });
+    expect(
+      errors.some((e) =>
+        e.startsWith('presentationTools[0]: defaults must be ≤'),
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts presentationTool defaults under 256KB cap', () => {
+    const small = 'B'.repeat(1024); // 1KB
+    const errors = validateAiAgentConfig({
+      presentationTools: [{ type: 'table', defaults: { padding: small } }],
+    });
+    expect(errors.some((e) => e.startsWith('presentationTools['))).toBe(false);
+  });
 });
 
 describe('evaluateMetadataBlockingErrors integration (ai_agent)', () => {

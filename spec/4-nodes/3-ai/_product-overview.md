@@ -82,6 +82,7 @@
 | ND-AG-22 | 복수 조건 동시 호출 시 첫 번째 우선 — LLM이 여러 조건 도구를 동시에 호출한 경우, 조건 목록에서 먼저 정의된 조건을 선택한다 | 필수 |
 | ND-AG-23 | Single Turn 모드의 포트 구조 — 조건 포트 + 기본 `out` 포트 + `error` 포트. 조건 0개 시 `out` + `error` | 필수 |
 | ND-AG-24 | Multi Turn 모드의 포트 구조 — 조건 포트 + `user_ended` + `max_turns` + `error` (`out` 없음). 조건 0개 시 `out` + `error` 제공 (하위 호환). 상세: [Spec AI Agent 포트](./1-ai-agent.md#3-포트) | 필수 |
+| ND-AG-26 | Presentation Tool Family (`render_*`) — `presentationTools[]` per-node opt-in 으로 LLM 응답 surface 를 텍스트에서 5종 (table·chart·carousel·template·form) 가상 도구로 확장. display-only 4종은 round-trip 불필요, `render_form` 은 blocking 흐름. presentation 노드 input schema 단일 진실 재사용. 워크플로 그래프 분기 흉내 금지 (cond_* 와 역할 분리). schema 위반은 silent fallback (error 포트 발화 X). 상세: [Spec AI Agent §4.1·§12.4](./1-ai-agent.md#41-presentation-tool-family-render_) | 필수 |
 
 ### 3.3 Text Classifier 노드
 

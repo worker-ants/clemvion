@@ -164,6 +164,47 @@ describe('ConversationThreadService', () => {
       ]);
     });
 
+    it('attaches presentations array when provided (spec §7.10)', () => {
+      const context = makeContext();
+      const presentations = [
+        {
+          type: 'table' as const,
+          toolCallId: 'tc1',
+          renderedAt: '2026-05-22T00:00:00.000Z',
+          payload: { mode: 'static', columns: [], rows: [] },
+        },
+      ];
+      service.appendAiAssistantMessage(context, {
+        node: makeNode({ type: 'ai_agent' }),
+        content: 'here is your table',
+        presentations,
+      });
+      const turn = service.getThread(context).turns[0];
+      expect(turn.presentations).toEqual(presentations);
+    });
+
+    it('omits presentations field when empty array is provided', () => {
+      const context = makeContext();
+      service.appendAiAssistantMessage(context, {
+        node: makeNode({ type: 'ai_agent' }),
+        content: 'no table',
+        presentations: [],
+      });
+      const turn = service.getThread(context).turns[0];
+      expect(turn.presentations).toBeUndefined();
+    });
+
+    it('omits presentations field when undefined is provided', () => {
+      const context = makeContext();
+      service.appendAiAssistantMessage(context, {
+        node: makeNode({ type: 'ai_agent' }),
+        content: 'no table',
+        presentations: undefined,
+      });
+      const turn = service.getThread(context).turns[0];
+      expect(turn.presentations).toBeUndefined();
+    });
+
     it('auto-generates ISO timestamp when omitted', () => {
       const context = makeContext();
       service.appendAiUserMessage(context, {

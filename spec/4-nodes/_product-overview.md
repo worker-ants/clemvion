@@ -214,6 +214,7 @@
 | ND-AG-23 | Single Turn 모드: 조건 포트 + `out` + `error`. 조건 0개 시 `out` + `error` | 필수 | ✅ |
 | ND-AG-24 | Multi Turn 모드: 조건 포트 + `user_ended` + `max_turns` + `error`. 조건 0개 시 `out` + `error` (하위 호환) | 필수 | ✅ |
 | ND-AG-25 | 사용자 조건 포트(초록)와 시스템 포트(파랑), 에러 포트(빨강)를 색상으로 구분하고, 사용자 조건과 시스템 포트 사이에 점선 구분자를 표시 | 필수 | ✅ |
+| ND-AG-26 | Presentation Tool Family (`render_*`) — `presentationTools[]` per-node opt-in 으로 5종 (table·chart·carousel·template·form) 가상 도구를 LLM 에 노출. display-only 4종 + form blocking. presentation 노드 input schema 단일 진실 재사용. 워크플로 분기 흉내 금지. 상세: [Spec AI Agent §4.1](./3-ai/1-ai-agent.md#41-presentation-tool-family-render_) | 필수 | 🚧 |
 
 ### 6.2 Text Classifier
 

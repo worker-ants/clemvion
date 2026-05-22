@@ -124,7 +124,13 @@ const PARALLEL_BRANCH_COUNT_MAX = 16;
 const PARALLEL_MAX_CONCURRENCY_MIN = 0;
 const PARALLEL_MAX_CONCURRENCY_MAX = 16;
 
-type WaitingInteractionType = 'form' | 'buttons' | 'ai_conversation';
+type WaitingInteractionType =
+  | 'form'
+  | 'buttons'
+  | 'ai_conversation'
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — AI Agent multi-turn 이
+  // `render_form` 도구를 호출해 form 제출 대기 중일 때.
+  | 'ai_form_render';
 
 /**
  * NodeExecution.outputData (envelope `{config, output, meta?, port?, status?}`)
@@ -316,6 +322,7 @@ export function buildConversationConfigFromOutput(
   turnCount: number;
   maxTurns?: number;
   messages: Array<Record<string, unknown>>;
+  presentations?: Array<Record<string, unknown>>;
   extracted?: Record<string, unknown>;
   missingFields?: string[];
   collectionRetryCount?: number;
@@ -330,6 +337,7 @@ export function buildConversationConfigFromOutput(
     turnCount: number;
     maxTurns?: number;
     messages: Array<Record<string, unknown>>;
+    presentations?: Array<Record<string, unknown>>;
     extracted?: Record<string, unknown>;
     missingFields?: string[];
     collectionRetryCount?: number;
@@ -340,6 +348,11 @@ export function buildConversationConfigFromOutput(
   };
   const maxTurns = r.maxTurns as number | undefined;
   if (maxTurns !== undefined) result.maxTurns = maxTurns;
+  // spec §4.1·§7.10 — presentations emitted by render_* tools in this turn.
+  const presentationsRaw = r.presentations;
+  if (Array.isArray(presentationsRaw) && presentationsRaw.length > 0) {
+    result.presentations = presentationsRaw as Array<Record<string, unknown>>;
+  }
   if (partial.extracted !== undefined)
     result.extracted = partial.extracted as Record<string, unknown>;
   if (partial.missingFields !== undefined)
@@ -1015,7 +1028,10 @@ export class ExecutionEngineService
                 context,
                 graphEdges,
               );
-            } else if (interactionType === 'ai_conversation') {
+            } else if (
+              interactionType === 'ai_conversation' ||
+              interactionType === 'ai_form_render'
+            ) {
               await this.waitForAiConversation(
                 execution,
                 executionId,
@@ -1998,6 +2014,25 @@ export class ExecutionEngineService
         if (turn.finalStatus === 'FAILED') {
           finalStatus = 'FAILED';
         }
+      } else if (!('type' in action)) {
+        // `execution.submit_form` 의 continueExecution(formData) 경유 — Form 노드
+        // 가 아닌 AI Agent 의 render_form blocking (interactionType:
+        // 'ai_form_render') 응답이다. handler 의 processMultiTurnMessage 가
+        // state.pendingFormToolCall 을 기반으로 JSON-serialised form data 를
+        // tool_result 로 splice — 여기서는 JSON string 만 들고 같은 entry 를
+        // 사용한다. spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.
+        const turn = await this.handleAiMessageTurn(
+          executionId,
+          node,
+          JSON.stringify(action ?? {}),
+          resumeState,
+          nodeExec,
+        );
+        resumeState = turn.resumeState;
+        conversationEnded = turn.ended;
+        if (turn.finalStatus === 'FAILED') {
+          finalStatus = 'FAILED';
+        }
       }
     }
 
@@ -2033,6 +2068,22 @@ export class ExecutionEngineService
       | Record<string, unknown>
       | undefined;
     const structuredConfig = structured?.config ?? undefined;
+    // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — handler may set
+    // `meta.interactionType: 'ai_form_render'` when render_form blocked the
+    // first turn. Fall back to the regular chat path otherwise.
+    const structuredMeta = structured?.meta as
+      | { interactionType?: string }
+      | undefined;
+    const initialInteractionType: WaitingInteractionType =
+      structuredMeta?.interactionType === 'ai_form_render'
+        ? 'ai_form_render'
+        : 'ai_conversation';
+    const initialPendingFormToolCall =
+      initialInteractionType === 'ai_form_render'
+        ? (resumeState.pendingFormToolCall as
+            | { toolCallId: string; formConfig: Record<string, unknown> }
+            | undefined)
+        : undefined;
 
     if (nodeExec) {
       nodeExec.status = NodeExecutionStatus.WAITING_FOR_INPUT;
@@ -2047,11 +2098,10 @@ export class ExecutionEngineService
         ...(structured ?? nodeOutput),
       };
       delete persistedOutput._resumeState;
-      // meta.interactionType='ai_conversation' 명시 — snapshot reconcile 이
-      // 정확한 분기로 hydrate.
+      // meta.interactionType 명시 — snapshot reconcile 이 정확한 분기로 hydrate.
       nodeExec.outputData = withInteractionMeta(
         persistedOutput,
-        'ai_conversation',
+        initialInteractionType,
       );
     }
     // Atomic: Execution → WAITING_FOR_INPUT + NodeExecution save (WARN #4)
@@ -2079,16 +2129,21 @@ export class ExecutionEngineService
         // 명시 — frontend 의 handleWaitingForInput 가 첫 fallback 만으로 정확히
         // 분기하도록 일관화. nodeOutput.interactionType 도 backward compat 으로
         // 유지 (snapshot reconcile 의 nested 읽기 / 기존 e2e assertion 안전 보존).
-        interactionType: 'ai_conversation',
+        interactionType: initialInteractionType,
         // Live thread snapshot for UI (spec/conventions/conversation-thread.md §4
         // + spec/5-system/6-websocket-protocol.md §4.4.5).
         conversationThread: cloneThread(context.conversationThread),
         nodeOutput: {
-          interactionType: 'ai_conversation',
+          interactionType: initialInteractionType,
           ...(structuredConfig && Object.keys(structuredConfig).length > 0
             ? { config: structuredConfig }
             : {}),
-          conversationConfig: initialConv,
+          conversationConfig: {
+            ...initialConv,
+            ...(initialPendingFormToolCall
+              ? { pendingFormToolCall: initialPendingFormToolCall }
+              : {}),
+          },
           // run-results UI 의 References / LLM Usage 탭이 진행 중에도 동작하도록
           // _resumeState 의 누적치를 meta.* 로 펼쳐 노출. _resumeState 자체는
           // system prompt / llmConfigId 등 internal 필드를 포함하므로 client 에
@@ -2267,6 +2322,9 @@ export class ExecutionEngineService
           message: nextConv.message,
           turnCount: nextConv.turnCount,
           messages: nextConv.messages,
+          ...(nextConv.presentations
+            ? { presentations: nextConv.presentations }
+            : {}),
           metadata: {
             model: nextResumeState.model,
             inputTokens: nextResumeState.totalInputTokens,
@@ -2275,6 +2333,25 @@ export class ExecutionEngineService
           ...buildAiMessageDebugFromResumeState(nextResumeState),
         },
       );
+
+      // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — handler may emit
+      // `'ai_form_render'` when render_form blocked the turn. Fall back to
+      // `'ai_conversation'` for the normal multi-turn chat path.
+      const handlerMeta = adaptedNext.meta as
+        | { interactionType?: string }
+        | undefined;
+      const nextInteractionType: WaitingInteractionType =
+        handlerMeta?.interactionType === 'ai_form_render'
+          ? 'ai_form_render'
+          : 'ai_conversation';
+      // When entering ai_form_render, surface the pendingFormToolCall to the
+      // client so it can build the `submit_form` payload with matching id.
+      const pendingFormToolCall =
+        nextInteractionType === 'ai_form_render'
+          ? (nextResumeState.pendingFormToolCall as
+              | { toolCallId: string; formConfig: Record<string, unknown> }
+              | undefined)
+          : undefined;
 
       // Emit waiting_for_input again
       this.eventEmitter.emitExecution(
@@ -2291,7 +2368,7 @@ export class ExecutionEngineService
           startedAt: nodeExec?.startedAt?.toISOString?.(),
           // top-level interactionType — emitAiWaitingForInput 와 동일 shape
           // 유지 (multi-turn 후속 waiting emit). nested 도 backward compat 유지.
-          interactionType: 'ai_conversation',
+          interactionType: nextInteractionType,
           // Live thread snapshot for UI (multi-turn 후속 waiting tick — 새
           // ai_user/ai_assistant turn 이 push 된 직후 UI 가 확인할 수 있도록).
           // handleAiMessageTurn doesn't carry ExecutionContext, so we look it
@@ -2302,14 +2379,17 @@ export class ExecutionEngineService
             return t ? cloneThread(t) : undefined;
           })(),
           nodeOutput: {
-            interactionType: 'ai_conversation',
+            interactionType: nextInteractionType,
             // Pass through handler's echoed node config so the Config
             // tab can render during the waiting state. Conversation
             // handlers (AI Agent / Info Extractor multi-turn) add this.
             ...(adaptedConfig && Object.keys(adaptedConfig).length > 0
               ? { config: adaptedConfig }
               : {}),
-            conversationConfig: nextConv,
+            conversationConfig: {
+              ...nextConv,
+              ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
+            },
             // 진행 중에도 References / LLM Usage 탭이 동작하도록 누적
             // 상태를 meta.* 로 노출. (turn 단위 ragSources 는 turnDebug[]
             // 안에 들어 있어 References 탭이 메시지(턴)별로 그룹핑.)
@@ -2343,6 +2423,9 @@ export class ExecutionEngineService
     // Shared shape with the waiting_for_input emit above — the helper
     // reads `turnDebugHistory`; the terminal path stores the same array
     // under `meta.turnDebug`, so we adapt the key in-line.
+    const terminalPresentations = Array.isArray(newResult.presentations)
+      ? (newResult.presentations as Array<Record<string, unknown>>)
+      : undefined;
     this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.AI_MESSAGE,
@@ -2354,6 +2437,9 @@ export class ExecutionEngineService
         message: responseText,
         turnCount,
         messages: condMessages,
+        ...(terminalPresentations
+          ? { presentations: terminalPresentations }
+          : {}),
         metadata: {
           model: metaSource.model,
           inputTokens: metaSource.inputTokens as number | undefined,

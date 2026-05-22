@@ -262,14 +262,35 @@ export function RunResultsDrawer() {
     (selectedResult?.nodeId === waitingNodeId ||
       selectedResultNodeId === waitingNodeId);
 
-  const isWaitingForm = isSelectedWaiting && waitingInteractionType === "form";
+  // `ai_form_render` (spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii) shares both
+  // surfaces — conversation timeline hydration + form input overlay — so it
+  // counts as both `isWaitingForm` (renders DynamicFormUI) AND
+  // `isWaitingConversation` (renders chat preview). The chat history and the
+  // form input appear together inside the AI Agent's detail panel.
+  const isWaitingForm =
+    isSelectedWaiting &&
+    (waitingInteractionType === "form" ||
+      waitingInteractionType === "ai_form_render");
   const isWaitingButtons =
     isSelectedWaiting && waitingInteractionType === "buttons";
   const isWaitingConversation =
-    isSelectedWaiting && waitingInteractionType === "ai_conversation";
+    isSelectedWaiting &&
+    (waitingInteractionType === "ai_conversation" ||
+      waitingInteractionType === "ai_form_render");
   const isLiveConversation =
     status === "waiting_for_input" &&
-    waitingInteractionType === "ai_conversation";
+    (waitingInteractionType === "ai_conversation" ||
+      waitingInteractionType === "ai_form_render");
+  // For ai_form_render the form config lives nested in conversationConfig
+  // (backend bundles `pendingFormToolCall.formConfig`); fall back to the
+  // standalone form node's `waitingFormConfig` otherwise.
+  const aiFormConfig =
+    waitingInteractionType === "ai_form_render"
+      ? ((waitingConversationConfig as
+          | { pendingFormToolCall?: { formConfig?: unknown } }
+          | null)?.pendingFormToolCall?.formConfig ?? null)
+      : null;
+  const resolvedFormConfig = aiFormConfig ?? waitingFormConfig;
 
   return (
     <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))]">
@@ -380,7 +401,7 @@ export function RunResultsDrawer() {
             <ResultDetail
               result={selectedResult}
               isWaitingForm={isWaitingForm}
-              formConfig={waitingFormConfig}
+              formConfig={resolvedFormConfig}
               isWaitingButtons={isWaitingButtons}
               buttonConfig={waitingButtonConfig}
               isWaitingConversation={isWaitingConversation}

@@ -382,6 +382,14 @@ function NodeResultsTab({
   const waitingConversationConfig = useExecutionStore(
     (s) => s.waitingConversationConfig,
   );
+  // ai_form_render — backend bundles `pendingFormToolCall.formConfig` inside
+  // conversationConfig. Fall back to standalone form config otherwise.
+  const resolvedFormConfig =
+    waitingInteractionType === "ai_form_render"
+      ? ((waitingConversationConfig as
+          | { pendingFormToolCall?: { formConfig?: unknown } }
+          | null)?.pendingFormToolCall?.formConfig ?? null)
+      : waitingFormConfig;
   const conversationMessages = useExecutionStore((s) => s.conversationMessages);
   const isWaitingAiResponse = useExecutionStore((s) => s.isWaitingAiResponse);
   const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);
@@ -413,12 +421,19 @@ function NodeResultsTab({
 
   const isSelectedWaiting =
     !!waitingNodeId && selectedNodeId === waitingNodeId;
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — `ai_form_render` shares both
+  // surfaces: form input overlay AND conversation timeline. Mirrored from
+  // run-results-drawer.tsx.
   const isWaitingForm =
-    isSelectedWaiting && waitingInteractionType === "form";
+    isSelectedWaiting &&
+    (waitingInteractionType === "form" ||
+      waitingInteractionType === "ai_form_render");
   const isWaitingButtons =
     isSelectedWaiting && waitingInteractionType === "buttons";
   const isWaitingConversation =
-    isSelectedWaiting && waitingInteractionType === "ai_conversation";
+    isSelectedWaiting &&
+    (waitingInteractionType === "ai_conversation" ||
+      waitingInteractionType === "ai_form_render");
 
   const handleFormSubmit = (data: Record<string, unknown>) => {
     commands.submitForm(data);
@@ -576,9 +591,9 @@ function NodeResultsTab({
                     onSelectMessage={setSelectedMsgIndex}
                     onBackToConversation={() => setSelectedMsgIndex(null)}
                   />
-                ) : isWaitingForm && waitingFormConfig ? (
+                ) : isWaitingForm && resolvedFormConfig ? (
                   <DynamicFormUI
-                    formConfig={waitingFormConfig as Record<string, unknown>}
+                    formConfig={resolvedFormConfig as Record<string, unknown>}
                     onSubmit={handleFormSubmit}
                   />
                 ) : isWaitingButtons ? (

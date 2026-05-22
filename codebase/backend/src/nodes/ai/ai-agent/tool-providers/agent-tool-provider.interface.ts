@@ -3,6 +3,7 @@ import {
   ToolDef,
 } from '../../../../modules/llm/interfaces/llm-client.interface';
 import type { McpServerSummary } from './mcp-diagnostics';
+import type { PresentationPayload } from '../../../../shared/conversation-thread/conversation-thread.types';
 
 /**
  * AgentToolProvider — AI Agent 노드가 LLM 에 노출하는 "핸들러 내부 실행형" tool 의
@@ -110,6 +111,65 @@ export interface AgentToolResult {
   ragSourcesDelta?: unknown[];
   /** `meta.ragDiagnostics` 누적용 — kbId 단위 검색 1회 기록. */
   ragDiagnosticsDelta?: KbSearchDiagnostic;
+  /**
+   * `render_*` display-only 도구가 성공한 경우에만 set. handler 가 이 페이로드를
+   * 현재 `ai_assistant` turn 의 top-level `presentations[]` 에 push 한다.
+   * SoT: spec/4-nodes/3-ai/1-ai-agent.md §7.10.
+   */
+  presentationPayload?: PresentationPayload;
+  /**
+   * `render_form` (interactive) 도구가 호출된 경우에만 set. handler 가 이 신호를
+   * 받아 multi-turn `waiting_for_input` (interactionType: 'ai_form_render') 으로
+   * 전환하고, 사용자 제출 시 `tool_result` content 에 제출 데이터를 채워 LLM 을
+   * 재호출한다. SoT: spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii / §6.2 step 2.
+   */
+  blockingFormRender?: BlockingFormRenderSignal;
+  /**
+   * Schema 위반·1MB cap 초과 등으로 silent drop 된 시도 trace —
+   * `meta.presentationSchemaViolations[]` 에 누적된다.
+   * SoT: spec/4-nodes/3-ai/1-ai-agent.md §4.1 "Schema 위반 처리".
+   */
+  presentationSchemaViolation?: PresentationSchemaViolation;
+  /**
+   * `render_*` 호출의 메타 trace — `meta.presentationCalls[]` 에 push.
+   * `presentationPayload` 또는 `presentationSchemaViolation` 가 set 일 때 함께 set.
+   */
+  presentationCall?: PresentationCallTrace;
+}
+
+/**
+ * `render_form` blocking signal — handler 가 multi-turn waiting_for_input
+ * (interactionType: 'ai_form_render') 으로 진입할 때 _resumeState 에 저장.
+ * SoT: spec/4-nodes/3-ai/1-ai-agent.md §7.4 (`_resumeState.pendingFormToolCall`).
+ */
+export interface BlockingFormRenderSignal {
+  toolCallId: string;
+  /** Defaults overlay 적용 완료한 form 노드 config (`fields`/`title`/...). */
+  formConfig: Record<string, unknown>;
+}
+
+/**
+ * `meta.presentationSchemaViolations[]` 원소 — silent drop 된 render_* 시도의
+ * 진단 정보. `presentationCalls[]` 의 `status: 'schema_violation'` 항목과
+ * `toolCallId` 로 join 가능. SoT: spec/4-nodes/3-ai/1-ai-agent.md §7.10.
+ */
+export interface PresentationSchemaViolation {
+  toolName: string;
+  toolCallId: string;
+  issues: string[];
+  attempts: number;
+}
+
+/**
+ * `meta.presentationCalls[]` 원소 — render_* 호출의 metric trace.
+ * `presentationPayload` (display-only) 또는 `blockingFormRender` (form_pending)
+ * 또는 `presentationSchemaViolation` (schema_violation) 가 set 일 때 함께 set.
+ */
+export interface PresentationCallTrace {
+  toolName: string;
+  toolCallId: string;
+  status: 'rendered' | 'schema_violation' | 'dropped' | 'form_pending';
+  bytes?: number;
 }
 
 export interface KbSearchDiagnostic {
