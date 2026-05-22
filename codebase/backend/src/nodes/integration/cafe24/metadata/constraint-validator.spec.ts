@@ -50,6 +50,15 @@ describe('validateCafe24Constraints', () => {
         validateCafe24Constraints(o, { a: null, b: undefined, c: '' }),
       ).toContain('oneOf');
     });
+
+    // Cafe24 query parameters can legitimately use the number 0 (e.g.
+    // `display_group=0`) and boolean false — `isAbsent` only treats
+    // undefined/null/empty-string as absent, not falsy values broadly.
+    it('treats 0, false, and [] as present (NOT falsy-absent)', () => {
+      expect(validateCafe24Constraints(o, { a: 0 })).toBeNull();
+      expect(validateCafe24Constraints(o, { b: false })).toBeNull();
+      expect(validateCafe24Constraints(o, { c: [] })).toBeNull();
+    });
   });
 
   describe('allOrNone', () => {
@@ -66,7 +75,9 @@ describe('validateCafe24Constraints', () => {
 
     it('passes when none of the listed fields are present', () => {
       expect(validateCafe24Constraints(o, {})).toBeNull();
-      expect(validateCafe24Constraints(o, { since: '', until: null })).toBeNull();
+      expect(
+        validateCafe24Constraints(o, { since: '', until: null }),
+      ).toBeNull();
     });
 
     it('fails when only some listed fields are present', () => {

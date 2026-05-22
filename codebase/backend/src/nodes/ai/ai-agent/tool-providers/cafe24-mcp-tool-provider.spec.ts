@@ -1,4 +1,12 @@
-import { Cafe24McpToolProvider } from './cafe24-mcp-tool-provider';
+import {
+  Cafe24McpToolProvider,
+  buildToolDescription,
+  constraintToSuffixLine,
+} from './cafe24-mcp-tool-provider';
+import type {
+  Cafe24FieldConstraint,
+  Cafe24OperationMetadata,
+} from '../../../integration/cafe24/metadata/index';
 import {
   Cafe24ApiClient,
   Cafe24AuthFailedError,
@@ -176,7 +184,7 @@ describe('Cafe24McpToolProvider', () => {
 
       // (2) JSON Schema — required + allOf(anyOf) combination. The plain
       // `required` is replaced by `allOf` whenever oneOf constraint exists.
-      const schema = customerList!.parameters as Record<string, unknown>;
+      const schema = customerList!.parameters;
       expect(schema.required).toBeUndefined();
       expect(Array.isArray(schema.allOf)).toBe(true);
       const allOf = schema.allOf as Array<Record<string, unknown>>;
@@ -207,7 +215,7 @@ describe('Cafe24McpToolProvider', () => {
         (t) => t.name === 'mcp_abcdef1234567890__product_list',
       );
       expect(productList).toBeDefined();
-      const schema = productList!.parameters as Record<string, unknown>;
+      const schema = productList!.parameters;
       expect(schema.required).toEqual(['shop_no']);
       expect(schema.allOf).toBeUndefined();
       // And no Constraint: suffix line.
@@ -911,5 +919,147 @@ describe('Cafe24McpToolProvider', () => {
         false,
       );
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Direct unit tests for the exported description-builder helpers. These cover
+// all three Cafe24FieldConstraint kinds (`oneOf` / `allOrNone` / `implies`),
+// the section assembly order, and edge cases — independently from any
+// integration / MCP scope plumbing.
+// ---------------------------------------------------------------------------
+
+describe('constraintToSuffixLine', () => {
+  it('formats oneOf as "at least one of … must be provided."', () => {
+    const c: Cafe24FieldConstraint = {
+      kind: 'oneOf',
+      fields: ['member_id', 'group_no', 'since'],
+    };
+    expect(constraintToSuffixLine(c)).toBe(
+      'Constraint: at least one of member_id, group_no, since must be provided.',
+    );
+  });
+
+  it('formats allOrNone as "… must be provided together (all or none)."', () => {
+    const c: Cafe24FieldConstraint = {
+      kind: 'allOrNone',
+      fields: ['since', 'until'],
+    };
+    expect(constraintToSuffixLine(c)).toBe(
+      'Constraint: since, until must be provided together (all or none).',
+    );
+  });
+
+  it('formats implies as "when X is provided, [then] are also required."', () => {
+    const c: Cafe24FieldConstraint = {
+      kind: 'implies',
+      if: 'coupon_code',
+      then: ['customer_no'],
+    };
+    expect(constraintToSuffixLine(c)).toBe(
+      'Constraint: when coupon_code is provided, customer_no are also required.',
+    );
+  });
+});
+
+describe('buildToolDescription', () => {
+  function stubOp(
+    constraints?: Cafe24OperationMetadata['constraints'],
+  ): Cafe24OperationMetadata {
+    return {
+      id: 'test_op',
+      label: 'Test',
+      description: 'Stub description.',
+      scopeType: 'read',
+      method: 'GET',
+      path: 'test/path',
+      requiredFields: [],
+      fields: {},
+      constraints,
+    };
+  }
+
+  it('assembles base → (Cafe24 ...) → timezone suffix when no constraints', () => {
+    const desc = buildToolDescription(stubOp(), 'MyShop');
+    const parts = desc.split('\n\n');
+    expect(parts[0]).toBe('Stub description.');
+    expect(parts[1]).toBe(
+      '(Cafe24 GET test/path — via Internal Bridge: MyShop)',
+    );
+    expect(parts[parts.length - 1]).toMatch(
+      /All date\/time parameters and response fields use KST/,
+    );
+    // No Constraint: line between path and timezone.
+    expect(parts.length).toBe(3);
+  });
+
+  it('inserts one Constraint line per constraint between path and timezone', () => {
+    const desc = buildToolDescription(
+      stubOp([
+        { kind: 'oneOf', fields: ['a', 'b'] },
+        { kind: 'allOrNone', fields: ['c', 'd'] },
+        { kind: 'implies', if: 'e', then: ['f'] },
+      ]),
+      'MyShop',
+    );
+    const parts = desc.split('\n\n');
+    expect(parts).toHaveLength(6);
+    expect(parts[0]).toBe('Stub description.');
+    expect(parts[1]).toBe(
+      '(Cafe24 GET test/path — via Internal Bridge: MyShop)',
+    );
+    expect(parts[2]).toBe('Constraint: at least one of a, b must be provided.');
+    expect(parts[3]).toBe(
+      'Constraint: c, d must be provided together (all or none).',
+    );
+    expect(parts[4]).toBe(
+      'Constraint: when e is provided, f are also required.',
+    );
+    expect(parts[5]).toMatch(/All date\/time parameters/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildJsonSchema — `requiredFields: []` + `oneOf` branch coverage. The
+// production-path branch (with requiredFields populated) is already covered
+// by the customer_list test above; this confirms the empty-required path
+// emits `allOf: [{anyOf: ...}]` without an extra `required` clause.
+// ---------------------------------------------------------------------------
+
+describe('Cafe24McpToolProvider.buildJsonSchema (oneOf + empty requiredFields)', () => {
+  function stubOpWithOnlyOneOf(): Cafe24OperationMetadata {
+    return {
+      id: 'edge_op',
+      label: 'Edge',
+      description: 'edge case',
+      scopeType: 'read',
+      method: 'GET',
+      path: 'edge',
+      requiredFields: [],
+      fields: {
+        a: { type: 'string', location: 'query' },
+        b: { type: 'string', location: 'query' },
+      },
+      constraints: [{ kind: 'oneOf', fields: ['a', 'b'] }],
+    };
+  }
+
+  it('emits allOf with anyOf only — no required clause when requiredFields empty', () => {
+    // Reach into provider internals via the same constructor as the main
+    // describe block. We do not need a real ApiClient because buildJsonSchema
+    // is pure.
+    const provider = new Cafe24McpToolProvider(
+      null as never,
+      null as never,
+    ) as unknown as {
+      buildJsonSchema: (op: Cafe24OperationMetadata) => Record<string, unknown>;
+    };
+    const schema = provider.buildJsonSchema(stubOpWithOnlyOneOf());
+    expect(schema.required).toBeUndefined();
+    expect(Array.isArray(schema.allOf)).toBe(true);
+    const allOf = schema.allOf as Array<Record<string, unknown>>;
+    expect(allOf).toEqual([
+      { anyOf: [{ required: ['a'] }, { required: ['b'] }] },
+    ]);
   });
 });

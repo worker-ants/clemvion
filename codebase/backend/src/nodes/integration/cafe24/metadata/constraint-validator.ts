@@ -2,12 +2,12 @@
  * Conditional input constraint validator — shared between the cafe24 node
  * handler (`cafe24.handler.ts`) and the MCP tool provider
  * (`cafe24-mcp-tool-provider.ts`). Both call this immediately after the
- * `requiredFields` (AND) check; violations throw / surface as
- * `CAFE24_MISSING_FIELDS` to reuse the existing error code (avoids forcing
- * client/UI to learn a new code).
+ * `requiredFields` (AND) check; violations surface as `CAFE24_MISSING_FIELDS`
+ * to reuse the existing error code (avoids forcing client/UI to learn a new
+ * one — see `CAFE24_MISSING_FIELDS_CODE` export).
  *
  * Spec: `spec/conventions/cafe24-api-metadata.md` §2 "constraints 의 의미"
- * + §6 step 8 (runtime validation entry).
+ * + §6 step 5 (조건부 제약 확인 entry).
  */
 
 import type {
@@ -15,7 +15,21 @@ import type {
   Cafe24OperationMetadata,
 } from './types.js';
 
-/** A value is "absent" if undefined, null, or empty string — same rule as `requiredFields` check. */
+/**
+ * Shared error code constant. Handler and MCP both surface constraint
+ * violations under this code so the existing client/UI mapping ("missing
+ * required field(s)") covers both the AND-only `requiredFields` violation
+ * and the conditional `constraints?` violations.
+ */
+export const CAFE24_MISSING_FIELDS_CODE = 'CAFE24_MISSING_FIELDS' as const;
+
+/**
+ * A value is "absent" if undefined, null, or empty string — same rule as
+ * the `requiredFields` check. Note that `0`, `false`, and `[]` are
+ * intentionally **present**: cafe24 query parameters can legitimately use
+ * the number `0` (e.g. `display_group=0`) and the boolean `false`, so
+ * truthy/falsy semantics would falsely flag them as missing.
+ */
 function isAbsent(value: unknown): boolean {
   return value === undefined || value === null || value === '';
 }
@@ -41,6 +55,13 @@ export function validateCafe24Constraints(
   return null;
 }
 
+/**
+ * Validate one constraint. Returns null when satisfied or non-applicable
+ * (e.g. `implies` whose `if` field is absent — no obligation on `then`).
+ *
+ * `allOrNone` semantics: zero present **and** all-present both pass;
+ * partial presence (some fields populated, some absent) is the violation.
+ */
 function checkOne(
   c: Cafe24FieldConstraint,
   fields: Record<string, unknown>,
@@ -60,12 +81,20 @@ function checkOne(
     }
     return null;
   }
-  // implies
-  if (!isAbsent(fields[c.if])) {
-    const missing = c.then.filter((f) => isAbsent(fields[f]));
-    if (missing.length > 0) {
-      return `constraint violated: implies — when "${c.if}" is provided, [${c.then.join(', ')}] are required (missing: [${missing.join(', ')}])`;
+  if (c.kind === 'implies') {
+    if (!isAbsent(fields[c.if])) {
+      const missing = c.then.filter((f) => isAbsent(fields[f]));
+      if (missing.length > 0) {
+        return `constraint violated: implies — when "${c.if}" is provided, [${c.then.join(', ')}] are required (missing: [${missing.join(', ')}])`;
+      }
     }
+    return null;
   }
-  return null;
+  // Exhaustive check — adding a fourth `kind` to `Cafe24FieldConstraint`
+  // makes this branch reachable with a TypeScript compile error pointing
+  // back here, plus a runtime fallback if the type narrowing is bypassed.
+  const _exhaustive: never = c;
+  throw new Error(
+    `Unknown Cafe24FieldConstraint kind: ${JSON.stringify(_exhaustive)}`,
+  );
 }
