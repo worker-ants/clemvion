@@ -310,7 +310,35 @@ describe('TriggersService — notification/interaction config 병합 (External I
     ).rejects.toMatchObject({
       response: {
         code: 'VALIDATION_ERROR',
-        details: { field: 'type' },
+        details: {
+          field: 'type',
+          disallowed: expect.arrayContaining(['endpointPath']),
+        },
+      },
+    });
+  });
+
+  it('update — schedule 타입은 복수 거부 필드 조합도 disallowed 배열에 모두 포함', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't-sch',
+      workspaceId: 'ws',
+      type: 'schedule',
+      name: 'daily',
+      config: {},
+    } as unknown as Trigger);
+
+    await expect(
+      service.update('t-sch', 'ws', {
+        endpointPath: '/new-path',
+        config: { authType: 'hmac' },
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'VALIDATION_ERROR',
+        details: {
+          field: 'type',
+          disallowed: expect.arrayContaining(['endpointPath', 'config']),
+        },
       },
     });
   });
@@ -330,6 +358,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
     });
     expect(result.name).toBe('renamed');
     expect(result.isActive).toBe(false);
+    expect(triggerRepo.save).toHaveBeenCalledTimes(1);
   });
 
   it('update — notification 명시 시 기존 값 대체', async () => {

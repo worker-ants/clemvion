@@ -124,7 +124,7 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
 
           {/* External Interaction API (Spec EIA §4) — webhook 트리거에서만 표시 */}
           {trigger.type === "webhook" && (
-            <ExternalInteractionCard trigger={trigger} />
+            <ExternalInteractionCard trigger={trigger} onSaved={invalidateAfterSave} />
           )}
 
           {/* Schedule Details */}
@@ -229,7 +229,7 @@ function OverviewCard({
   const saveDisabled =
     updateMutation.isPending ||
     nameValue.trim().length === 0 ||
-    nameValue === trigger.name;
+    nameValue.trim() === trigger.name;
 
   return (
     <Card>
@@ -402,33 +402,26 @@ function WebhookConfigCard({
 
   const updateMutation = useMutation({
     mutationFn: async () => {
-      // endpointPath 변경 시 사용자 명시 확인
-      if (
-        endpointPathValue !== (trigger.endpointPath ?? "") &&
-        !window.confirm(t("triggers.detail.endpointPathChangeWarning"))
-      ) {
-        throw new Error("USER_CANCELLED");
-      }
       const body: Record<string, unknown> = {};
       if (endpointPathValue !== (trigger.endpointPath ?? "")) {
         body.endpointPath = endpointPathValue.trim();
       }
-      const nextConfig: Record<string, unknown> = {
-        ...(trigger.config ?? {}),
+      // W10: 변경된 필드만 전송 — config 전체 spread 제거
+      const configPatch: Record<string, unknown> = {
         authType: authTypeValue,
       };
       if (authTypeValue === "hmac") {
-        nextConfig.hmacHeader = hmacHeaderValue.trim() || "X-Hub-Signature-256";
+        configPatch.hmacHeader = hmacHeaderValue.trim() || "X-Hub-Signature-256";
         if (hmacSecretValue.trim().length > 0) {
-          nextConfig.hmacSecret = hmacSecretValue.trim();
+          configPatch.hmacSecret = hmacSecretValue.trim();
         }
       }
       if (authTypeValue === "bearer") {
         if (bearerTokenValue.trim().length > 0) {
-          nextConfig.bearerToken = bearerTokenValue.trim();
+          configPatch.bearerToken = bearerTokenValue.trim();
         }
       }
-      body.config = nextConfig;
+      body.config = configPatch;
       await apiClient.patch(`/triggers/${trigger.id}`, body);
     },
     onSuccess: () => {
@@ -438,11 +431,21 @@ function WebhookConfigCard({
       setBearerTokenValue("");
       onSaved();
     },
-    onError: (err) => {
-      if (err instanceof Error && err.message === "USER_CANCELLED") return;
+    onError: () => {
       toast.error(t("triggers.detail.saveFailed"));
     },
   });
+
+  function handleSaveClick() {
+    // W7: endpointPath 변경 시 confirm 을 onClick 단계에서 처리 — mutationFn 안에서 throw 패턴 제거
+    if (
+      endpointPathValue !== (trigger.endpointPath ?? "") &&
+      !window.confirm(t("triggers.detail.endpointPathChangeWarning"))
+    ) {
+      return;
+    }
+    updateMutation.mutate();
+  }
 
   function copyText(text: string) {
     navigator.clipboard.writeText(text).then(
@@ -454,8 +457,9 @@ function WebhookConfigCard({
   function cancelEdit() {
     setEditing(false);
     setEndpointPathValue(trigger.endpointPath ?? "");
-    setAuthTypeValue(authType);
-    setHmacHeaderValue(hmacHeader);
+    // W14: trigger.config 를 직접 참조해 stale closure 방지
+    setAuthTypeValue(trigger.config?.authType ?? "none");
+    setHmacHeaderValue(trigger.config?.hmacHeader ?? "X-Hub-Signature-256");
     setHmacSecretValue("");
     setBearerTokenValue("");
   }
@@ -503,7 +507,7 @@ curl -X POST ${url} \\
             </Button>
             <Button
               size="sm"
-              onClick={() => updateMutation.mutate()}
+              onClick={handleSaveClick}
               disabled={updateMutation.isPending}
             >
               {updateMutation.isPending ? (
@@ -689,8 +693,15 @@ const NOTIFICATION_EVENT_CHOICES = [
   "execution.ai_message",
 ] as const;
 
-function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
+function ExternalInteractionCard({
+  trigger,
+  onSaved,
+}: {
+  trigger: TriggerDetail;
+  onSaved: () => void;
+}) {
   const t = useT();
+  const canEdit = useHasRole("editor");
   const notification = trigger.config?.notification;
   const interaction = trigger.config?.interaction;
   const hasAny = Boolean(notification?.url || interaction?.enabled);
@@ -744,8 +755,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
       await apiClient.patch(`/triggers/${trigger.id}`, patchBody);
       toast.success(t("triggers.externalInteraction.saveSucceeded"));
       setEditing(false);
-      // 페이지 reload 대신 query invalidate 가 이상적이지만 본 PR 은 단순 reload — drawer 가 재open 시 갱신.
-      window.location.reload();
+      onSaved();
     } catch (err) {
       toast.error(
         `${t("triggers.externalInteraction.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
@@ -799,11 +809,11 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">External Interaction</CardTitle>
-        {!editing ? (
+        {canEdit && !editing ? (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             {t("triggers.externalInteraction.edit")}
           </Button>
-        ) : (
+        ) : editing ? (
           <div className="flex gap-1.5">
             <Button
               size="sm"
@@ -819,7 +829,7 @@ function ExternalInteractionCard({ trigger }: { trigger: TriggerDetail }) {
                 : t("triggers.externalInteraction.save")}
             </Button>
           </div>
-        )}
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         {!hasAny && !editing && (
