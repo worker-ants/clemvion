@@ -24,6 +24,50 @@ export type ConversationTurnSource =
   | 'system';
 
 /**
+ * Presentation payload emitted by an AI Agent `render_*` tool call.
+ * SoT: spec/4-nodes/3-ai/1-ai-agent.md §7.10 (type definition single source).
+ *
+ * Top-level `presentations[]` on a `ConversationTurn` is intentionally distinct
+ * from `data?` (which is the `output.interaction.data` snapshot per
+ * node-output §4.5). `data?` carries form/button interaction payloads, while
+ * `presentations` carries LLM-emitted render outputs — separate semantics,
+ * separate fields to prevent drift.
+ */
+export type PresentationType =
+  | 'table'
+  | 'chart'
+  | 'carousel'
+  | 'template'
+  | 'form';
+
+export interface PresentationPayloadTruncation {
+  itemsTruncated?: boolean;
+  rowsTruncated?: boolean;
+  itemsTotalCount?: number;
+  rowsTotalCount?: number;
+}
+
+export interface PresentationPayload {
+  /** Presentation node category — selects the renderer on the frontend. */
+  type: PresentationType;
+  /** Provider tool_use id — join key with `meta.presentationCalls[*].toolCallId`. */
+  toolCallId: string;
+  /** Server-side render timestamp (ISO 8601 UTC). */
+  renderedAt: string;
+  /**
+   * Final payload after `defaults` overlay — same shape as the presentation
+   * node's input schema. Frontend renders this via the shared
+   * `presentation-renderers.tsx` components.
+   */
+  payload: Record<string, unknown>;
+  /**
+   * Set only when Carousel/Table tail truncation applied (1MB cap, see
+   * presentation common §4 / §10.4).
+   */
+  truncation?: PresentationPayloadTruncation;
+}
+
+/**
  * Provider tool invocation captured on an `ai_assistant` turn (when the LLM
  * emits one or more tool_use entries). Mirrored 1:1 from the LLM provider's
  * `toolCalls` so downstream cross-provider injection can drop unsupported
@@ -70,6 +114,15 @@ export interface ConversationTurn {
   toolCalls?: ConversationTurnToolCall[];
   /** `source: 'ai_tool'` 한정 — 짝이 되는 toolCall id. */
   toolCallId?: string;
+  /**
+   * `source: 'ai_assistant'` 한정 — AI Agent 가 `render_*` tool family
+   * (spec/4-nodes/3-ai/1-ai-agent.md §4.1) 로 emit 한 표·차트·캐러셀·템플릿·폼
+   * 페이로드. **top-level 독립 필드 — `data?` 와 별개** (`data?` 는
+   * `output.interaction.data` 스냅샷 단일 진실이라 다른 의미의 데이터를
+   * 박지 않는다). 한 turn 에 텍스트 응답 (`text`) 과 함께 공존 가능.
+   * type 정의의 단일 진실은 spec §7.10.
+   */
+  presentations?: PresentationPayload[];
 }
 
 export interface ConversationThread {

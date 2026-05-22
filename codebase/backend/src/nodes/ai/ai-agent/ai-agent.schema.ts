@@ -59,6 +59,49 @@ const mcpServerRefSchema = z.object({
     .optional(),
 });
 
+/**
+ * Presentation tool family (`render_*`) — AI Agent 가 LLM 응답 surface 를
+ * 텍스트에서 5종 (table·chart·carousel·template·form) 가상 도구로 확장.
+ * SoT: spec/4-nodes/3-ai/1-ai-agent.md §1·§4.1, spec/4-nodes/6-presentation/0-common.md §10.
+ *
+ * 비어 있으면 OFF (기본). 한 노드 안에서 `type` 중복 금지 — validateAiAgentConfig 가 검증.
+ */
+export const PRESENTATION_TOOL_TYPES = [
+  'table',
+  'chart',
+  'carousel',
+  'template',
+  'form',
+] as const;
+export type PresentationToolType = (typeof PRESENTATION_TOOL_TYPES)[number];
+
+const presentationToolDefSchema = z.object({
+  type: z.enum(PRESENTATION_TOOL_TYPES).meta({
+    ui: { label: 'Type', widget: 'select' },
+  }),
+  description: z
+    .string()
+    .optional()
+    .meta({
+      ui: {
+        label: 'Description override',
+        widget: 'text',
+        hint: 'Override the default LLM-facing description for this tool',
+      },
+    }),
+  defaults: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .meta({
+      ui: {
+        label: 'Defaults overlay',
+        widget: 'json',
+        hint: 'Brand/style fixed values that override LLM payload on deep-merge',
+      },
+    }),
+});
+export type PresentationToolDef = z.infer<typeof presentationToolDefSchema>;
+
 const conditionDefSchema = z.object({
   id: z.string().meta({ ui: { label: 'ID', widget: 'text', hidden: true } }),
   label: z
@@ -241,6 +284,26 @@ export const aiAgentNodeConfigSchema = z
           itemLabel: 'Condition',
           order: 20,
           group: 'Conditions',
+        },
+      }),
+
+    // ── Presentation Tools (`render_*`) ──
+    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §1, §4.1
+    //      spec/4-nodes/6-presentation/0-common.md §10
+    // Empty array = OFF (default). Each tool registered exposes a `render_<type>`
+    // virtual tool to the LLM. Schema/cap/defaults overlay rules in presentation
+    // common §10. Duplicate type within a node is rejected by validateAiAgentConfig.
+    presentationTools: z
+      .array(presentationToolDefSchema)
+      .default([])
+      .meta({
+        ui: {
+          label: 'Presentation Tools',
+          widget: 'field-array',
+          itemLabel: 'Tool',
+          order: 25,
+          group: 'Presentation Tools',
+          hint: 'Let the LLM render tables / charts / carousels / templates / forms in chat by calling render_* tools.',
         },
       }),
 
@@ -532,6 +595,23 @@ export function validateAiAgentConfig(config: unknown): string[] {
       } else if (cond.prompt.length > 2000) {
         errors.push(`conditions[${i}]: prompt must be 2000 characters or less`);
       }
+    }
+  }
+
+  // Presentation tools — one type per node (spec/4-nodes/3-ai/1-ai-agent.md §1).
+  const presentationTools = c.presentationTools;
+  if (Array.isArray(presentationTools)) {
+    const seen = new Set<string>();
+    for (const tool of presentationTools) {
+      const t = (tool ?? {}) as Record<string, unknown>;
+      const type = typeof t.type === 'string' ? t.type : '';
+      if (!type) continue; // zod-level error path
+      if (seen.has(type)) {
+        errors.push(
+          `presentationTools: duplicate type '${type}' — each presentation tool type may be registered at most once`,
+        );
+      }
+      seen.add(type);
     }
   }
 
