@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-22T14:27:34.000000",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "단순 Dialog 렌더링, useQuery 표준 호출, 루프·대용량·캐시 최적화 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "같은 컴포넌트 계층 신규 Dialog 추가, 모듈 경계·의존성 그래프 변경 없음"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 본문 변경 + 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일(.md) 변경 — spec/2-navigation/2-trigger-list.md, plan/in-progress/trigger-row-history-dialog.md"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json 또는 lock 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migrations, SQL, prisma schema, 저장소/ORM 호출 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await 는 useQuery 표준 호출만 사용, Promise 조합·락·워커·타이머 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "기존 GET /api/triggers/:id/history 엔드포인트 재사용, HTTP route/GraphQL schema 변경 없음"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": true,
+      "reason": "i18n 5개 신규 키(triggers.history.*) KO/EN 추가, PROJECT.md 매트릭스 trigger 매칭 가능성 — 확인 필요"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

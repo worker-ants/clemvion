@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "started_at": "2026-05-22T14:30:00Z",
+  "summary_items_total": 5,
+  "items_resolved_ids": ["W-1", "W-2", "W-3", "W-4-justified", "INFO-4-5", "INFO-9", "INFO-14", "INFO-17"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "f0c515b1",
+      "summary_id": "W-1,W-2,W-3,INFO-4-5,INFO-9,INFO-14,INFO-17",
+      "scope": "triggers"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260522-144437.log"],
+  "auto_fix_iterations": {
+    "W-2": 3
+  },
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
