@@ -69,36 +69,41 @@ onClick={() => {
 
 ## TDD 체크리스트
 
-- [ ] backend: render-tool-provider.spec.ts
-  - [ ] carousel items[].buttons 에 id 누락 → 각 버튼에 unique UUID 부여
-  - [ ] carousel 글로벌 buttons / itemButtons id 누락 → UUID 부여
-  - [ ] table / chart / template buttons id 누락 → UUID 부여
-  - [ ] 사용자가 id 명시한 경우 보존
-  - [ ] 정규화는 cap 이후에 일어나 truncate 된 아이템 안의 버튼은 처리 안 함 (불필요한 work 제거)
-- [ ] frontend: presentation-renderers 테스트 보강
-  - [ ] selectedButtonId = undefined + btn.id = undefined → isSelected=false → onPortButtonClick 호출됨
-  - [ ] selectedButtonId 일치 시 isSelected=true → 클릭 무효 (기존 동작 보존)
+- [x] backend: render-tool-provider.spec.ts
+  - [x] carousel items[].buttons 에 id 누락 → 각 버튼에 unique UUID 부여
+  - [x] carousel 글로벌 buttons / itemButtons id 누락 → UUID 부여
+  - [x] table / chart / template buttons id 누락 → UUID 부여 (it.each 3-entry 분리)
+  - [x] 사용자가 id 명시한 경우 보존
+  - [x] 정규화는 cap 이후에 일어나 truncate 된 아이템 안의 버튼은 처리 안 함 (불필요한 work 제거)
+- [x] frontend: presentation-renderers 테스트 보강
+  - [x] selectedButtonId = undefined + btn.id = undefined → isSelected=false → onPortButtonClick 호출됨 (Carousel + PresentationContent 둘 다)
+  - [x] selectedButtonId 일치 시 isSelected=true → 클릭 무효 (기존 동작 보존)
 
 ## TEST WORKFLOW
 
-- [ ] lint
-- [ ] unit
-- [ ] build
-- [ ] e2e
+- [x] lint
+- [x] unit (4526)
+- [x] build
+- [x] e2e (98/98)
 
 ## REVIEW WORKFLOW
 
-- [ ] /ai-review
-- [ ] (post-impl consistency check) — spec 변경 없음, skip 가능
-- [ ] RESOLUTION.md
-- [ ] PR
+- [x] /ai-review — Critical 0, Warning 5, Info 13
+- [x] (post-impl consistency check) — spec 변경 spec §10.5 만이라 별도 호출 skip
+- [x] RESOLUTION.md — `review/code/2026/05/23/11_01_48/RESOLUTION.md`
+- [x] PR
 
 ## 완료 조건
 
-- 사용자 환경에서 render_carousel 안 버튼 클릭 → 라벨이 user 메시지로 LLM 에 흡수되어 다음 응답 진입
-- backend 가 emit 한 페이로드의 button.id 가 모두 truthy (UUID 또는 사용자 박은 값)
-- frontend 가 selectedButtonId 가 미설정인 surface 에서 click 단락 회귀 안 일으킴
+- [x] 사용자 환경에서 render_carousel 안 버튼 클릭 → 라벨이 user 메시지로 LLM 에 흡수되어 다음 응답 진입
+- [x] backend 가 emit 한 페이로드의 button.id 가 모두 truthy (UUID 또는 사용자 박은 값)
+- [x] frontend 가 selectedButtonId 가 미설정인 surface 에서 click 단락 회귀 안 일으킴
 
-## Closeout
+## Closeout (2026-05-23)
 
-(미작성 — fix PR 머지 시점에 기록)
+- spec commit: `b2d6fc56` — spec/4-nodes/6-presentation/0-common.md §10.5 step 3 신설 + §Rationale + 1-ai-agent.md §6.1.d.i cross-ref
+- fix commit: `f716fd4b` — backend `backfillButtonUuids` + frontend `isSelected` 가드 (A+C)
+- style commit: `3153e7c6` — prettier 자동 포맷
+- review fix commit: `e425c515` — ai-review W#1~W#5 + I#1/I#9/I#10/I#11 해소
+- 4-layer SSOT 정렬: spec §1·§10.5 ↔ backend `backfillButtonUuids` ↔ frontend `isButtonSelected` helper ↔ test
+- 후속 spec drift plan 2건 (`spec-drift-parallel-count.md`, `spec-drift-ws-button-config.md`) 은 본 worktree 와 무관해 in-progress 에 placeholder 로 잔존.

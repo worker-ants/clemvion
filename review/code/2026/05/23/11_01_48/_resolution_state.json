@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "started_at": "2026-05-23T11:10:00Z",
+  "summary_items_total": 5,
+  "items_resolved_ids": [1, 2, 3, 4, 5],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "e425c515",
+      "summary_id": "W#1-W#5+I#1/I#9/I#10/I#11",
+      "scope": "render-tools"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260523-111925.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
