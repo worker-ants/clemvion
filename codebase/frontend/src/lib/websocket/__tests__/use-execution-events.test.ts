@@ -1661,6 +1661,7 @@ describe("useExecutionEvents", () => {
         retryAfterSec: 30,
         nodeId: "agent-1",
         nodeLabel: "CS Bot",
+        nodeExecutionId: "11111111-1111-1111-1111-111111111111",
       });
       expect(last.content).toBe(
         "Anthropic API returned 429 (Too Many Requests)",
