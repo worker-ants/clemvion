@@ -5,6 +5,7 @@ import {
   ExecutionContext,
   ValidationResult,
   ResumableNodeHandlerOutput,
+  ResumableMessageSource,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
@@ -1553,10 +1554,15 @@ export class AiAgentHandler implements NodeHandler {
   async processMultiTurnMessage(
     userMessage: string,
     state: Record<string, unknown>,
+    options?: { source: ResumableMessageSource },
   ): Promise<unknown> {
     const stateExecutionId = state.executionId as string | undefined;
     try {
-      return await this.processMultiTurnMessageInner(userMessage, state);
+      return await this.processMultiTurnMessageInner(
+        userMessage,
+        state,
+        options,
+      );
     } finally {
       if (stateExecutionId) {
         await this.cleanupProviders(stateExecutionId);
@@ -1567,6 +1573,7 @@ export class AiAgentHandler implements NodeHandler {
   private async processMultiTurnMessageInner(
     userMessage: string,
     state: Record<string, unknown>,
+    options?: { source: ResumableMessageSource },
   ): Promise<unknown> {
     const messages = [...(state.messages as ChatMessage[])];
     const turnCount = (state.turnCount as number) + 1;
@@ -1602,18 +1609,24 @@ export class AiAgentHandler implements NodeHandler {
     // this LLM turn's tool-call loop.
     const presentationViolationCounters = new Map<string, number>();
 
-    // render_form blocking resume (spec §6.2 step 2):
-    // If a previous turn entered `interactionType: 'ai_form_render'` and saved
-    // `_resumeState.pendingFormToolCall`, the incoming `userMessage` carries
-    // JSON-serialised form submission data. Splice it into the prior turn's
-    // tool_result stub (matching `toolCallId`) instead of appending as a new
-    // `ai_user` chat message — the LLM sees the form data as the result of
-    // its own `render_form` tool_use, and pushes a `presentation_user` turn
-    // with `data.via: 'ai_render'` sentinel for UI source discrimination.
+    // render_form blocking resume (spec §6.2 step 2 + step 2.c.bypass):
+    // - `source: 'form_submitted'` + pendingFormToolCall set → form 제출 처리
+    //   (JSON parse → tool_result splice → presentation_user thread push)
+    // - `source: 'ai_message'` + pendingFormToolCall set → **form bypass** —
+    //   사용자가 form 활성 중 일반 텍스트를 보냄. cancelled tool_result
+    //   ({type:'cancelled', reason:'user_sent_message_instead'}) 로 채워
+    //   LLM 의 tool_use ↔ tool_result 매칭 요건을 충족 + pendingFormToolCall
+    //   클리어 + 정상 ai_user turn 진행.
+    // - pendingFormToolCall 없음 → 기존 fallback (JSON 형태 userMessage 라면
+    //   warn log) + 정상 ai_user turn.
+    //
+    // SoT: spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c / step 2.c.bypass.
+    const messageSource: ResumableMessageSource =
+      options?.source ?? 'ai_message';
     const pendingFormToolCall = state.pendingFormToolCall as
       | { toolCallId: string; formConfig: Record<string, unknown> }
       | undefined;
-    if (pendingFormToolCall) {
+    if (pendingFormToolCall && messageSource === 'form_submitted') {
       let formData: Record<string, unknown> = {};
       try {
         const parsed = JSON.parse(userMessage) as Record<string, unknown>;
@@ -1655,22 +1668,55 @@ export class AiAgentHandler implements NodeHandler {
       // Clear pendingFormToolCall so subsequent turns return to normal chat
       // flow unless the LLM re-emits render_form.
       delete state.pendingFormToolCall;
+    } else if (pendingFormToolCall && messageSource === 'ai_message') {
+      // spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c.bypass — 사용자가 form
+      // 활성 중 일반 채팅을 보낸 경우. render_form tool_use 의 tool_result 를
+      // cancelled 신호로 채워 Anthropic/OpenAI 의 tool_use ↔ tool_result 매칭
+      // 요건을 충족시키고, 본 user 메시지는 정상 ai_user turn 으로 진행.
+      // LLM 은 form 호출이 취소됐다는 신호를 받고 다음 reasoning 에서
+      // form 재호출 / 텍스트 응답 / 다른 도구 호출을 자율 결정.
+      const stubIndex = messages.findIndex(
+        (m) =>
+          m.role === 'tool' && m.toolCallId === pendingFormToolCall.toolCallId,
+      );
+      const cancelledToolResult: ChatMessage = {
+        role: 'tool',
+        toolCallId: pendingFormToolCall.toolCallId,
+        content: JSON.stringify({
+          type: 'cancelled',
+          reason: 'user_sent_message_instead',
+        }),
+      };
+      if (stubIndex >= 0) {
+        messages[stubIndex] = cancelledToolResult;
+      } else {
+        messages.push(cancelledToolResult);
+      }
+      delete state.pendingFormToolCall;
+      // Add user message (normal chat path) — same as the no-pending branch.
+      messages.push({ role: 'user', content: userMessage });
+      this.pushAiThreadTurn(
+        this.threadHolderFromState(state),
+        this.buildAiNodeRefFromState(state),
+        'ai_user',
+        userMessage,
+      );
     } else {
-      // I#5 (SUMMARY): pendingFormToolCall 이 없는 상태에서 form 제출 경로로
-      // 진입한 경우 (race condition / 사용자가 render_form 없는 turn 에 직접
-      // execution.submit_form 전송 등) — warn log 발행 후 plain user 메시지로 fallback.
-      // spec/4-nodes/6-presentation/0-common.md §10.9 §Rationale 마지막 단락.
+      // pendingFormToolCall 없음. source 와 무관하게 정상 ai_user turn 진행.
+      // form_submitted source 인데 pendingFormToolCall 가 누락된 케이스 (race /
+      // 사용자가 render_form 없는 turn 에 직접 execution.submit_form 전송 등)
+      // 는 spec/4-nodes/6-presentation/0-common.md §10.9 §Rationale 마지막
+      // 단락의 fallback — warn log + plain ai_user.
       if (
-        (userMessage ?? '').startsWith('{') ||
-        (userMessage ?? '').startsWith('[')
+        messageSource === 'form_submitted' &&
+        ((userMessage ?? '').startsWith('{') ||
+          (userMessage ?? '').startsWith('['))
       ) {
         AiAgentHandler.logger.warn(
           `processMultiTurnMessageInner — pendingFormToolCall 없음, JSON 형태 userMessage 를 plain ai_user 메시지로 fallback. spec §10.9 §Rationale (pendingFormToolCall 누락 fallback).`,
         );
       }
-      // Add user message (normal chat path).
       messages.push({ role: 'user', content: userMessage });
-      // ConversationThread push (spec §2.2 — multi-turn ai_user)
       this.pushAiThreadTurn(
         this.threadHolderFromState(state),
         this.buildAiNodeRefFromState(state),

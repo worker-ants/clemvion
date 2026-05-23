@@ -91,7 +91,11 @@ code: ["codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts", "codebase/ba
 **렌더링 동작:**
 
 - `render_table` / `render_chart` / `render_carousel` / `render_template` — display-only. LLM 응답에 inline 렌더되며, 워크플로우 실행을 종료시키지 않아요.
-- `render_form` — interactive. Multi Turn 모드에서 LLM 이 호출하면 워크플로우 실행이 `waiting_for_input` 상태로 일시 정지하고 사용자 폼 제출을 대기해요. 사용자가 폼을 제출하면 제출 데이터가 LLM 의 다음 turn 에 tool result 로 전달돼 대화가 이어져요. Single Turn 모드에서 호출되면 silent drop 돼요.
+- `render_form` — interactive. Multi Turn 모드에서 LLM 이 호출하면 워크플로우 실행이 `waiting_for_input` 상태로 일시 정지하고 사용자 폼 제출을 대기해요. **활성 폼은 다른 프레젠테이션 도구처럼 AI 응답 카드 안에 인라인으로 표시돼요** — 채팅 입력창 아래에 별도로 떠 있지 않아요. 사용자가 폼을 제출하면 제출 데이터가 LLM 의 다음 turn 에 tool result 로 전달돼 대화가 이어지고, 같은 카드의 폼 영역은 제출 결과 요약으로 바뀌어요. Single Turn 모드에서 호출되면 silent drop 돼요.
+
+**폼 활성 중 텍스트 메시지 (form bypass):**
+
+폼이 활성화돼 있어도 채팅 입력창은 그대로 활성 상태예요. 사용자가 폼 대신 일반 메시지를 보내면, 백엔드가 해당 `render_form` 호출의 tool result 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채워서 LLM 에게 폼이 취소됐음을 알려요. 그 다음 사용자가 보낸 텍스트는 정상 user 메시지로 다음 LLM turn 에 전달돼요. LLM 은 이 신호를 받고 다음 응답을 자율적으로 결정해요 — 폼을 다시 호출하거나, 텍스트로 응답하거나, 다른 도구를 호출할 수 있어요.
 
 **용량·오류 처리:**
 

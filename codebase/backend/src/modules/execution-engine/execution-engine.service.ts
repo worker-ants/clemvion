@@ -70,6 +70,7 @@ import {
   isResumableNodeHandler,
   NodeHandler,
   NodeHandlerOutput,
+  ResumableMessageSource,
   ResumableNodeHandler,
 } from '../../nodes/core/node-handler.interface';
 import { NODE_TYPES } from '../../nodes/core/node-types.constants';
@@ -2055,6 +2056,7 @@ export class ExecutionEngineService
           action.message as string,
           resumeState,
           nodeExec,
+          'ai_message',
         );
         resumeState = turn.resumeState;
         conversationEnded = turn.ended;
@@ -2077,6 +2079,7 @@ export class ExecutionEngineService
           JSON.stringify(formData),
           resumeState,
           nodeExec,
+          'form_submitted',
         );
         resumeState = turn.resumeState;
         conversationEnded = turn.ended;
@@ -2247,6 +2250,13 @@ export class ExecutionEngineService
     message: string,
     resumeState: Record<string, unknown>,
     nodeExec: NodeExecution | null,
+    /**
+     * 입력 origin 신호. spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c.bypass —
+     * `pendingFormToolCall` set + `source: 'ai_message'` 면 handler 가 cancelled
+     * tool_result fallback 으로 분기. dispatch 에서 `'ai_message'` /
+     * `'form_submitted'` 를 결정적으로 전달.
+     */
+    source: ResumableMessageSource = 'ai_message',
   ): Promise<{
     resumeState: Record<string, unknown>;
     ended: boolean;
@@ -2279,7 +2289,9 @@ export class ExecutionEngineService
     // 노드 "Waiting" 모순 상태).
     let result: unknown;
     try {
-      result = await handler.processMultiTurnMessage(message, resumeState);
+      result = await handler.processMultiTurnMessage(message, resumeState, {
+        source,
+      });
     } catch (err) {
       return this.handleAiTurnError(
         executionId,

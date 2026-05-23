@@ -116,6 +116,9 @@ export function RunResultsDrawer() {
   );
   const reset = useExecutionStore((s) => s.reset);
   const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);
+  const resumeFromAiRenderForm = useExecutionStore(
+    (s) => s.resumeFromAiRenderForm,
+  );
   const resumeFromButtons = useExecutionStore((s) => s.resumeFromButtons);
   const resumeFromConversation = useExecutionStore(
     (s) => s.resumeFromConversation,
@@ -262,15 +265,14 @@ export function RunResultsDrawer() {
     (selectedResult?.nodeId === waitingNodeId ||
       selectedResultNodeId === waitingNodeId);
 
-  // `ai_form_render` (spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii) shares both
-  // surfaces — conversation timeline hydration + form input overlay — so it
-  // counts as both `isWaitingForm` (renders DynamicFormUI) AND
-  // `isWaitingConversation` (renders chat preview). The chat history and the
-  // form input appear together inside the AI Agent's detail panel.
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 — `ai_form_render`
+  // 의 활성 form 의 UI 단일 진실은 assistant turn 의 timeline 인라인이다
+  // (ConversationInspector 안 AssistantPresentationsBlock 의 case "form" active
+  // 분기). 따라서 `isWaitingForm` 은 그래프 Form 노드 (`interactionType: 'form'`)
+  // 한정으로 축소 — `ai_form_render` 는 `isWaitingConversation` 만 true 이며
+  // 별도 DynamicFormUI stack 을 만들지 않는다.
   const isWaitingForm =
-    isSelectedWaiting &&
-    (waitingInteractionType === "form" ||
-      waitingInteractionType === "ai_form_render");
+    isSelectedWaiting && waitingInteractionType === "form";
   const isWaitingButtons =
     isSelectedWaiting && waitingInteractionType === "buttons";
   const isWaitingConversation =
@@ -281,16 +283,16 @@ export function RunResultsDrawer() {
     status === "waiting_for_input" &&
     (waitingInteractionType === "ai_conversation" ||
       waitingInteractionType === "ai_form_render");
-  // For ai_form_render the form config lives nested in conversationConfig
-  // (backend bundles `pendingFormToolCall.formConfig`); fall back to the
-  // standalone form node's `waitingFormConfig` otherwise.
-  const aiFormConfig =
+  // spec §6.1.d.ii — `ai_form_render` 의 pending form 식별자. assistant turn
+  // 의 `presentations[*].form` payload 중 본 toolCallId 와 일치하는 항목만
+  // interactive `DynamicFormUI` 로 렌더된다. `null` 이면 모든 form payload 가
+  // display-only `FormSubmittedContent`.
+  const pendingFormToolCallId =
     waitingInteractionType === "ai_form_render"
       ? ((waitingConversationConfig as
-          | { pendingFormToolCall?: { formConfig?: unknown } }
-          | null)?.pendingFormToolCall?.formConfig ?? null)
+          | { pendingFormToolCall?: { toolCallId?: string } | null }
+          | null)?.pendingFormToolCall?.toolCallId ?? null)
       : null;
-  const resolvedFormConfig = aiFormConfig ?? waitingFormConfig;
 
   return (
     <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))]">
@@ -401,7 +403,7 @@ export function RunResultsDrawer() {
             <ResultDetail
               result={selectedResult}
               isWaitingForm={isWaitingForm}
-              formConfig={resolvedFormConfig}
+              formConfig={waitingFormConfig}
               isWaitingButtons={isWaitingButtons}
               buttonConfig={waitingButtonConfig}
               isWaitingConversation={isWaitingConversation}
@@ -411,6 +413,8 @@ export function RunResultsDrawer() {
               isWaitingAiResponse={isWaitingAiResponse}
               executionId={executionId}
               onFormSubmit={resumeFromForm}
+              onAiRenderFormSubmit={resumeFromAiRenderForm}
+              pendingFormToolCallId={pendingFormToolCallId}
               onButtonClick={resumeFromButtons}
               onConversationEnd={resumeFromConversation}
               onSelectConversationItem={selectConversationItem}

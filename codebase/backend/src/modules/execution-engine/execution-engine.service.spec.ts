@@ -2669,10 +2669,12 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       // processMultiTurnMessage 가 첫 번째 인자로 JSON.stringify(formPayload) 를 받았는지.
-      // 호출 시그니처: processMultiTurnMessage(userMessage: string, state)
+      // 호출 시그니처: processMultiTurnMessage(userMessage: string, state, options)
+      // spec §6.2 step 2 — 'form_submitted' source 신호 전달 검증.
       expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
         JSON.stringify(formPayload),
         expect.anything(),
+        expect.objectContaining({ source: 'form_submitted' }),
       );
 
       // 이후 ai_end_conversation 으로 종료 — processReturn 이 waiting_for_input

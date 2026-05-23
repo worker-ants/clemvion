@@ -243,11 +243,30 @@ export interface NodeHandler {
  * `'processMultiTurnMessage' in handler` narrowing 가드로 일반 NodeHandler 와
  * 분기한다 (CRIT #4 — duck-typing 의존 제거).
  */
+/**
+ * 사용자 입력 origin 신호. AI Agent `render_form` 활성 중 사용자가 일반 채팅
+ * 메시지를 보내면 (form bypass), engine dispatch 가 `'ai_message'` 로 신호하여
+ * handler 가 cancelled tool_result fallback 분기를 적용할 수 있게 한다
+ * (spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c.bypass).
+ *
+ * 옵션 미전달 시 (구 호출자 / `information_extractor`) handler 는 기존 휴리스틱
+ * (`state.pendingFormToolCall` set 여부 + userMessage shape) 로 분기 — 하위 호환.
+ */
+export type ResumableMessageSource = 'ai_message' | 'form_submitted';
+
 export interface ResumableNodeHandler extends NodeHandler {
-  /** 사용자 메시지를 받아 다음 LLM turn 을 진행. waiting 또는 종료 결과 반환. */
+  /**
+   * 사용자 메시지를 받아 다음 LLM turn 을 진행. waiting 또는 종료 결과 반환.
+   *
+   * `options.source` 는 engine 의 `waitForAiConversation` dispatch 가 `'ai_message'`
+   * vs `'form_submitted'` 를 결정적으로 알려주는 신호. AI Agent handler 의
+   * form bypass 분기 (pendingFormToolCall set + `source: 'ai_message'`) 에서
+   * cancelled tool_result fallback 을 적용한다.
+   */
   processMultiTurnMessage(
     userMessage: string,
     state: Record<string, unknown>,
+    options?: { source: ResumableMessageSource },
   ): Promise<unknown>;
 
   /**

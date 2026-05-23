@@ -366,6 +366,66 @@ describe("useExecutionStore", () => {
     });
   });
 
+  // spec/conventions/conversation-thread.md §9.7.1 + §9.9 Inv-7 — AI Agent
+  // render_form 활성 form 제출 후 multi-turn 컨텍스트 보존 invariant.
+  describe("resumeFromAiRenderForm — multi-turn 컨텍스트 보존 (Inv-7)", () => {
+    it("pendingFormToolCall 만 null patch 하고 waitingNodeId / waitingInteractionType / isWaitingAiResponse 는 보존한다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      // simulate ai_form_render waiting state — pauseForConversation 후
+      // waitingInteractionType 을 ai_form_render 로 덮어쓰고 pendingFormToolCall
+      // 동봉 (engine 의 emitAiWaitingForInput 가 만드는 shape 모사).
+      useExecutionStore
+        .getState()
+        .pauseForConversation("node-ai", { message: "..." });
+      // pauseForConversation 이후 직접 store 를 ai_form_render 상태로 갱신 —
+      // 실제 흐름은 use-execution-events 가 동일 patch 를 한다.
+      useExecutionStore.setState({
+        waitingInteractionType: "ai_form_render",
+        waitingConversationConfig: {
+          message: "...",
+          pendingFormToolCall: {
+            toolCallId: "call_form_1",
+            formConfig: { fields: [] },
+          },
+        },
+        isWaitingAiResponse: true,
+      });
+
+      useExecutionStore.getState().resumeFromAiRenderForm();
+
+      const state = useExecutionStore.getState();
+      // multi-turn 컨텍스트 보존
+      expect(state.waitingNodeId).toBe("node-ai");
+      expect(state.waitingInteractionType).toBe("ai_form_render");
+      expect(state.isWaitingAiResponse).toBe(true);
+      // pendingFormToolCall 만 null
+      const conv = state.waitingConversationConfig as {
+        message?: string;
+        pendingFormToolCall: unknown;
+      };
+      expect(conv.pendingFormToolCall).toBeNull();
+      // 다른 conversationConfig 필드 보존
+      expect(conv.message).toBe("...");
+      // status 는 running
+      expect(state.status).toBe("running");
+    });
+
+    it("waitingConversationConfig 가 null 인 경우 안전하게 no-op + status running 만 적용", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      // pre-condition: waitingConversationConfig 가 null 인 (비정상이지만
+      // 방어적) 상태 — set 으로 직접 진입.
+      useExecutionStore.setState({
+        waitingConversationConfig: null,
+      });
+
+      useExecutionStore.getState().resumeFromAiRenderForm();
+
+      const state = useExecutionStore.getState();
+      expect(state.waitingConversationConfig).toBeNull();
+      expect(state.status).toBe("running");
+    });
+  });
+
   describe("selectResultNode", () => {
     it("selects and deselects a result node", () => {
       useExecutionStore.getState().selectResultNode("n1");
