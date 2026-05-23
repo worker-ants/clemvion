@@ -73,15 +73,54 @@ export function useExecutionInteractionCommands(
   const submitForm = useCallback(
     (formData: Record<string, unknown>) => {
       if (!executionId) return;
+      // 사용자 보고 (2026-05-23): "form submit 후 정상 동작 안 함" — root cause
+      // 한 갈래는 `sendMessage` 와 달리 submitForm 이 optimistic UI 를 갱신하지
+      // 않아 form 만 사라지고 0 frame visual feedback 이 없는 점. spec/4-nodes/
+      // 6-presentation/0-common.md §Rationale (form submission wire format
+      // wrap) — frontend 도 `sendMessage` 와 평행 패턴으로 (1) presentation_user
+      // 임시 turn 을 chat 에 추가 (2) AI 응답 대기 인디케이터 활성화.
+      // 백엔드의 authoritative presentation_user push 가 WS 로 도착하면
+      // setConversationMessages 가 thread snapshot 으로 덮어쓴다 (dedup
+      // 자연 발생, use-execution-events.ts §threadTurns).
+      const {
+        conversationMessages,
+        waitingNodeId,
+        nodeResults,
+      } = useExecutionStore.getState();
+      const waitingNode = waitingNodeId
+        ? nodeResults.find((n) => n.nodeId === waitingNodeId)
+        : undefined;
+      addConversationMessage({
+        type: "presentation",
+        content: "",
+        presentation: {
+          nodeLabel: waitingNode?.nodeLabel ?? "Form",
+          nodeType: waitingNode?.nodeType ?? "form",
+          interactionType: "form_submitted",
+          data: formData,
+        },
+        turnIndex:
+          conversationMessages.filter(
+            (m) => m.type === "user" || m.type === "presentation",
+          ).length + 1,
+        timestamp: new Date().toISOString(),
+      });
+      setWaitingAiResponse(true);
       emitWithAck(
         getWsClient(),
         "execution.submit_form",
         { executionId, formData },
         "execution.form_submitted",
-        (error) => toast.error(error),
+        (error) => {
+          // Server rejected. `sendMessage` 와 평행으로 spinner 만 해제 +
+          // toast. optimistic presentation_user 는 유지 (사용자가 제출한
+          // 내용 가시화 — 재시도 안내 차원). spec §Rationale.
+          setWaitingAiResponse(false);
+          toast.error(error);
+        },
       );
     },
-    [executionId],
+    [executionId, addConversationMessage, setWaitingAiResponse],
   );
 
   const clickButton = useCallback(

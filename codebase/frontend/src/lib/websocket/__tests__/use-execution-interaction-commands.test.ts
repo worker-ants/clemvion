@@ -44,6 +44,106 @@ describe("useExecutionInteractionCommands", () => {
     });
   });
 
+  // spec/4-nodes/6-presentation/0-common.md §Rationale (form submission wire
+  // format wrap) — submitForm 도 sendMessage 와 동일한 optimistic UI 패턴
+  // (presentation_user 임시 turn + AI 응답 대기 스피너). 사용자 보고
+  // "form submit 후 0 frame visual feedback" 회귀 차단.
+  it("submitForm appends presentation_user item to conversation store + sets waitingAiResponse", () => {
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.submitForm({
+        inquiryType: "주문 문의",
+        contact: "010-1234-5678",
+        message: "샘플상품 3 가격 문의합니다.",
+      });
+    });
+    const state = useExecutionStore.getState();
+    expect(state.conversationMessages).toHaveLength(1);
+    expect(state.conversationMessages[0]).toMatchObject({
+      type: "presentation",
+      presentation: {
+        interactionType: "form_submitted",
+        data: {
+          inquiryType: "주문 문의",
+          contact: "010-1234-5678",
+          message: "샘플상품 3 가격 문의합니다.",
+        },
+      },
+      turnIndex: 1,
+    });
+    expect(state.isWaitingAiResponse).toBe(true);
+  });
+
+  it("submitForm uses waitingNodeId's label/type for the optimistic item", () => {
+    useExecutionStore.getState().addNodeResult({
+      nodeId: "ai-1",
+      nodeLabel: "AI Agent",
+      nodeType: "ai_agent",
+      nodeCategory: "ai",
+      status: "waiting_for_input" as never,
+      outputData: null,
+    });
+    useExecutionStore.getState().pauseForForm("ai-1", {
+      fields: [{ name: "qty", type: "number" }],
+    });
+
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.submitForm({ qty: 3 });
+    });
+    const item = useExecutionStore.getState().conversationMessages[0];
+    expect(item.presentation?.nodeLabel).toBe("AI Agent");
+    expect(item.presentation?.nodeType).toBe("ai_agent");
+  });
+
+  it("submitForm — WS ack 실패 시 isWaitingAiResponse 해제 + toast", () => {
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.submitForm({ name: "John" });
+    });
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+
+    // once handler 호출 → 실패 응답
+    const onceCall = onceMock.mock.calls.find(
+      ([event]) => event === "execution.form_submitted",
+    );
+    expect(onceCall).toBeDefined();
+    const ackHandler = onceCall![1] as (resp: unknown) => void;
+    act(() => {
+      ackHandler({ success: false, error: "form rejected" });
+    });
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+    expect(toastErrorMock).toHaveBeenCalledWith("form rejected");
+    // optimistic presentation_user 는 유지 (재시도 안내 차원)
+    expect(
+      useExecutionStore.getState().conversationMessages,
+    ).toHaveLength(1);
+  });
+
+  it("submitForm — ack success 시 waiting 인디케이터 유지 (다음 ai_message 가 해제)", () => {
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.submitForm({ name: "John" });
+    });
+    const onceCall = onceMock.mock.calls.find(
+      ([event]) => event === "execution.form_submitted",
+    );
+    const ackHandler = onceCall![1] as (resp: unknown) => void;
+    act(() => {
+      ackHandler({ success: true });
+    });
+    expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    expect(toastErrorMock).not.toHaveBeenCalled();
+  });
+
   it("clickButton emits execution.click_button with buttonId", () => {
     const { result } = renderHook(() =>
       useExecutionInteractionCommands("exec-1"),
