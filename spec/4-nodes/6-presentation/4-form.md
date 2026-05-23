@@ -25,7 +25,7 @@
 | type | Enum | ✓ | `text` / `number` / `email` / `textarea` / `select` / `checkbox` / `radio` / `date` / `file` |
 | label | String | ✓ | 필드 라벨 |
 | required | Boolean? | | 폼 **사용자** 입력 강제 여부 (기본 `false`). `config.fields` 자체의 "1개 이상 정의" 필수성(§1·§6)과는 다른 layer — 전자는 폼 제출 검증, 후자는 노드 설정 패널의 asterisk(`config.fields.ui.required`). |
-| options | Option[]? | | `select`/`radio`/`checkbox` 용 선택지 (`{ label, value }`) |
+| options | Option[]? | | `select`/`radio`/`checkbox` 용 선택지 (`{ label, value }`). `value` 가 빈 문자열·`null`·`undefined` 인 경우는 LLM tool 모드 (`render_form`) 에 한해 backend 가 결정적 fallback `opt-{fieldIdx}-{optIdx}` (인덱스 단일 형식) 으로 backfill — [공통 §10.5 step 4](./0-common.md#105-schema-위반-처리-및-정규화) SoT. 사용자 직접 config 의 빈 value 는 frontend 입력 시점에 가드되므로 본 단계 영향권 밖. |
 | defaultValue | Any? | | 기본값 (`{{ }}` 표현식 사용 가능) |
 | validation | ValidationRule? | | 유효성 검증 규칙 |
 | allowedMimeTypes | String[]? | | `type: 'file'` 전용. 허용 MIME 타입 목록 (기본은 아래 참조) |
@@ -74,6 +74,52 @@
 ```
 
 > 실행 파일(`.exe`, `.sh`), 스크립트(`.js`, `.py`), 아카이브(`.zip`, `.tar.gz`) 는 기본 허용 목록에 포함되지 않는다. 필요 시 `allowedMimeTypes` 를 명시적으로 확장한다.
+
+### 1.5 File 타입 UI 동작
+
+`type: 'file'` 필드의 frontend 렌더와 제출 payload 형식 SoT.
+
+**UI 렌더 (`DynamicFormUI.renderField` 의 file case)**:
+
+- 입력 element: `<input type="file" accept={allowedMimeTypes.join(",")} multiple={maxFiles > 1}>`
+  - `maxFiles` 가 1 이면 단일 파일 선택, >1 이면 multiple 모드.
+  - `accept` 는 §1 의 `allowedMimeTypes` 기본값 또는 사용자 명시 값을 그대로 콤마 결합.
+- 실시간 검증 (제출 전 클라이언트 가드):
+  - `allowedMimeTypes` 미일치 시 즉시 reject + `validation.message` (없으면 기본 메시지 "허용되지 않은 파일 형식입니다.").
+  - 단일 파일 크기 > `maxFileSize` (MB) 시 즉시 reject.
+  - 합계 크기 > `maxTotalSize` (MB) 시 즉시 reject.
+  - 선택 개수 > `maxFiles` 시 즉시 reject.
+- 검증 실패 시 selection 자체를 거부 (선택된 file 이 fieldState 에 들어가지 않음) — 제출 버튼 활성 상태 그대로 유지.
+
+**제출 payload (metadata-only)**:
+
+폼 제출 시 frontend 는 file 필드의 `FileList` 를 **metadata 객체 배열** 로 변환해 `execution.submit_form` body 의 `formData[<fieldName>]` 에 담는다.
+
+```json
+{
+  "<fieldName>": [
+    { "name": "report.pdf", "size": 524288, "type": "application/pdf", "lastModified": 1716470400000 },
+    { "name": "image.png", "size": 102400, "type": "image/png", "lastModified": 1716470500000 }
+  ]
+}
+```
+
+각 metadata 객체 필드:
+
+| 필드 | 출처 | 설명 |
+|------|------|------|
+| `name` | `File.name` | 파일명 (확장자 포함) |
+| `size` | `File.size` | 바이트 단위 크기 |
+| `type` | `File.type` | MIME 타입 — `allowedMimeTypes` 검증 통과 후 값 |
+| `lastModified` | `File.lastModified` | UNIX epoch milliseconds |
+
+> file **내용 자체 (binary)** 는 본 spec 시점에서 LLM 에 전달하지 않는다. multimodal 비지원 모델 호환 + §10.4 1MB cap 보호 + 별도 binary upload 채널이 정해질 때까지 보류 — [공통 §Rationale file 타입 metadata-only (2026-05-23)](./0-common.md#file-타입-metadata-only-2026-05-23) SoT.
+
+`maxFiles == 1` 인 경우도 frontend 는 **단일 metadata 객체** 가 아니라 **길이 1 의 배열** 로 직렬화한다 — backend / LLM 측 단일 진실 (`formData[fieldName]` 은 항상 배열) 유지. 빈 선택 시 `[]` (빈 배열). field 가 `required: true` 인데 빈 배열이면 §6.2 의 "필수 필드 미입력" 검증 실패 흐름.
+
+**`output.interaction.data.<fieldName>` (resumed)**:
+
+위 metadata 객체 배열이 그대로 보존되어 `output.interaction.data.<fieldName>` 에 들어간다 — [node-output §4.5](../../conventions/node-output.md#45-interactiondata-payload-규격) 의 `form_submitted` payload `value` 슬롯 free-form 안에 정합. AI Agent `render_form` 의 tool_result content (`{type: 'form_submitted', data: { … }}`) 에도 동일하게 metadata 배열이 직렬화되어 LLM 에 회신된다.
 
 **폼 재제출 정책:**
 

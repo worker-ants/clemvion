@@ -1,6 +1,7 @@
 import {
   RenderToolProvider,
   backfillButtonUuids,
+  backfillFormOptionValues,
   overlayDefaults,
   renderToolName,
 } from './render-tool-provider';
@@ -627,6 +628,325 @@ describe('RenderToolProvider.execute — backfill integration (spec §10.5 step 
     expect(ids).toHaveLength(4);
     for (const id of ids) expect(id).toMatch(UUID_V4_RE);
     expect(new Set(ids).size).toBe(4); // all unique across items
+  });
+});
+
+describe('backfillFormOptionValues (spec §10.5 step 4)', () => {
+  it('is a no-op for non-form types', () => {
+    const payload = { mode: 'static', items: [] };
+    expect(backfillFormOptionValues('carousel', payload)).toEqual(payload);
+    expect(backfillFormOptionValues('table', payload)).toEqual(payload);
+    expect(backfillFormOptionValues('chart', payload)).toEqual(payload);
+    expect(backfillFormOptionValues('template', payload)).toEqual(payload);
+  });
+
+  it('fills missing option values with deterministic opt-{fieldIdx}-{optIdx} fallback', () => {
+    // LLM emits options without `value` → zod default fills with '' → all
+    // options collide. backfill replaces empty value with deterministic id.
+    const payload = {
+      fields: [
+        {
+          name: 'inquiryType',
+          type: 'select',
+          label: '문의 유형',
+          options: [
+            { label: '주문 문의' }, // value missing
+            { label: '교환/환불' },
+            { label: '기타' },
+          ],
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<{
+        options: Array<{ label: string; value: string }>;
+      }>;
+    };
+    expect(out.fields[0].options[0].value).toBe('opt-0-0');
+    expect(out.fields[0].options[1].value).toBe('opt-0-1');
+    expect(out.fields[0].options[2].value).toBe('opt-0-2');
+    // Original labels preserved.
+    expect(out.fields[0].options[0].label).toBe('주문 문의');
+  });
+
+  it('treats empty-string value as missing (PR root cause — zod default fills empty)', () => {
+    const payload = {
+      fields: [
+        {
+          name: 'pick',
+          type: 'select',
+          options: [
+            { label: 'A', value: '' },
+            { label: 'B', value: '' },
+          ],
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<{ options: Array<{ value: string }> }>;
+    };
+    expect(out.fields[0].options[0].value).toBe('opt-0-0');
+    expect(out.fields[0].options[1].value).toBe('opt-0-1');
+  });
+
+  it('preserves user-supplied (LLM-emitted) non-empty option values', () => {
+    const payload = {
+      fields: [
+        {
+          name: 'pick',
+          type: 'select',
+          options: [
+            { label: 'A', value: 'preset-a' },
+            { label: 'B', value: 'preset-b' },
+          ],
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<{ options: Array<{ value: string }> }>;
+    };
+    expect(out.fields[0].options[0].value).toBe('preset-a');
+    expect(out.fields[0].options[1].value).toBe('preset-b');
+  });
+
+  it('treats null / undefined option values as missing', () => {
+    const payload = {
+      fields: [
+        {
+          name: 'pick',
+          type: 'select',
+          options: [
+            { label: 'A', value: null },
+            { label: 'B', value: undefined },
+            { label: 'C' }, // value field absent
+          ],
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<{ options: Array<{ value: string }> }>;
+    };
+    expect(out.fields[0].options[0].value).toBe('opt-0-0');
+    expect(out.fields[0].options[1].value).toBe('opt-0-1');
+    expect(out.fields[0].options[2].value).toBe('opt-0-2');
+  });
+
+  it('preserves typed (number / boolean) option values — type drift handled by frontend coerce', () => {
+    const payload = {
+      fields: [
+        {
+          name: 'pick',
+          type: 'select',
+          options: [
+            { label: 'Zero', value: 0 },
+            { label: 'False', value: false },
+            { label: 'One', value: 1 },
+          ],
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<{ options: Array<{ value: unknown }> }>;
+    };
+    // Numbers / booleans are kept as-is; frontend uses String(value) coerce
+    // (spec §10.5 step 4 SSOT 4-layer alignment).
+    expect(out.fields[0].options[0].value).toBe(0);
+    expect(out.fields[0].options[1].value).toBe(false);
+    expect(out.fields[0].options[2].value).toBe(1);
+  });
+
+  it('disambiguates between fields — opt-{fieldIdx}-{optIdx} uses field index', () => {
+    const payload = {
+      fields: [
+        {
+          name: 'firstField',
+          type: 'select',
+          options: [{ label: 'A' }, { label: 'B' }],
+        },
+        {
+          name: 'secondField',
+          type: 'radio',
+          options: [{ label: 'X' }, { label: 'Y' }],
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<{ options: Array<{ value: string }> }>;
+    };
+    expect(out.fields[0].options[0].value).toBe('opt-0-0');
+    expect(out.fields[0].options[1].value).toBe('opt-0-1');
+    expect(out.fields[1].options[0].value).toBe('opt-1-0');
+    expect(out.fields[1].options[1].value).toBe('opt-1-1');
+  });
+
+  it('skips fields without options array (text / number / email / textarea / date / file / checkbox)', () => {
+    const payload = {
+      fields: [
+        { name: 'plain', type: 'text', label: 'Plain' },
+        { name: 'num', type: 'number', label: 'Num' },
+        { name: 'pick', type: 'select', options: [{ label: 'A' }] },
+        { name: 'agree', type: 'checkbox' }, // no options
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<{ options?: Array<{ value?: string }> }>;
+    };
+    expect(out.fields[0].options).toBeUndefined();
+    expect(out.fields[1].options).toBeUndefined();
+    expect(out.fields[2].options?.[0].value).toBe('opt-2-0');
+    expect(out.fields[3].options).toBeUndefined();
+  });
+
+  it('returns the original payload reference when no fields needed backfill (no-op fast path)', () => {
+    const payload = {
+      fields: [
+        {
+          name: 'pick',
+          type: 'select',
+          options: [
+            { label: 'A', value: 'a' },
+            { label: 'B', value: 'b' },
+          ],
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload);
+    expect(out).toBe(payload);
+  });
+
+  it('does not crash on missing fields array', () => {
+    expect(backfillFormOptionValues('form', { title: 'No fields' })).toEqual({
+      title: 'No fields',
+    });
+    expect(backfillFormOptionValues('form', { fields: null })).toEqual({
+      fields: null,
+    });
+  });
+
+  it('handles non-object option entries gracefully (LLM may emit primitives)', () => {
+    const payload = {
+      fields: [
+        {
+          name: 'pick',
+          type: 'select',
+          options: [
+            'string-not-object', // primitive — pass through
+            { label: 'B' }, // empty value — backfill
+            null, // null — pass through
+          ],
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<{ options: unknown[] }>;
+    };
+    expect(out.fields[0].options[0]).toBe('string-not-object');
+    expect((out.fields[0].options[1] as { value: string }).value).toBe(
+      'opt-0-1',
+    );
+    expect(out.fields[0].options[2]).toBe(null);
+  });
+
+  it('is idempotent — re-applying backfill on already-filled payload returns same reference (W#3)', () => {
+    // JSDoc states: "Side-effect-free — 적어도 하나의 옵션이 갱신될 때만 새
+    // payload 참조를 반환." Re-applying to an already-backfilled payload must
+    // return the identical reference (no-op fast path).
+    const payload = {
+      fields: [
+        {
+          name: 'pick',
+          type: 'select',
+          options: [
+            { label: 'A' }, // needs backfill
+            { label: 'B' }, // needs backfill
+          ],
+        },
+      ],
+    };
+
+    const once = backfillFormOptionValues('form', payload);
+    // first call must have changed reference
+    expect(once).not.toBe(payload);
+
+    // second call: all values are now non-empty → no-op fast path → same ref
+    const twice = backfillFormOptionValues('form', once);
+    expect(twice).toBe(once);
+  });
+
+  it('skips field entries that are primitives (non-object field in fields array) (W#4)', () => {
+    // Guard for code path: `if (field === null || typeof field !== 'object') return field`
+    const payload = {
+      fields: [
+        'primitive-field-entry', // primitive — pass through unchanged
+        42, // number — pass through
+        null, // null — pass through
+        {
+          name: 'pick',
+          type: 'select',
+          options: [{ label: 'A' }], // gets backfilled
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<unknown>;
+    };
+    expect(out.fields[0]).toBe('primitive-field-entry');
+    expect(out.fields[1]).toBe(42);
+    expect(out.fields[2]).toBe(null);
+    expect(
+      (out.fields[3] as { options: Array<{ value: string }> }).options[0].value,
+    ).toBe('opt-3-0');
+  });
+});
+
+describe('RenderToolProvider.execute — backfillFormOptionValues integration (spec §10.5 step 4)', () => {
+  it('render_form execute backfills missing option values before push to blockingFormRender', async () => {
+    const result = await provider.execute(
+      {
+        id: 'call_f_opt',
+        name: 'render_form',
+        arguments: JSON.stringify({
+          title: '상품 문의 작성',
+          fields: [
+            {
+              name: 'inquiryType',
+              type: 'select',
+              label: '문의 유형',
+              required: true,
+              options: [
+                { label: '주문 문의' },
+                { label: '교환/환불' },
+                { label: '기타' },
+              ],
+            },
+            {
+              name: 'message',
+              type: 'textarea',
+              label: '문의 내용',
+              required: true,
+            },
+          ],
+        }),
+      },
+      {
+        config: { mode: 'multi_turn', presentationTools: [{ type: 'form' }] },
+        workspaceId: 'ws',
+      },
+    );
+
+    expect(result.status).toBe('success');
+    expect(result.blockingFormRender).toBeDefined();
+    const formConfig = result.blockingFormRender!.formConfig as {
+      fields: Array<{
+        options?: Array<{ label: string; value: string }>;
+      }>;
+    };
+    expect(formConfig.fields[0].options?.[0].value).toBe('opt-0-0');
+    expect(formConfig.fields[0].options?.[1].value).toBe('opt-0-1');
+    expect(formConfig.fields[0].options?.[2].value).toBe('opt-0-2');
+    // Labels preserved verbatim.
+    expect(formConfig.fields[0].options?.[0].label).toBe('주문 문의');
+    expect(formConfig.fields[0].options?.[1].label).toBe('교환/환불');
   });
 });
 

@@ -1009,7 +1009,11 @@ export function ResultDetail({
 
   const formPreview =
     isWaitingForm && formConfig ? (
+      // spec/4-nodes/6-presentation/0-common.md §Rationale (form option/state
+      // 안정화) — `formConfig` 는 WS 이벤트마다 새 참조로 재계산되지만
+      // `key={result.nodeId}` 가 같으면 mount 유지 → 사용자 입력 보존.
       <DynamicFormUI
+        key={result.nodeId}
         formConfig={formConfig as Record<string, unknown>}
         onSubmit={handleFormSubmit}
       />
