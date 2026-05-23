@@ -79,7 +79,12 @@ export class TriggersService {
       .limit(limit)
       .getMany();
 
-    return PaginatedResponseDto.create(data, totalItems, page, limit);
+    return PaginatedResponseDto.create(
+      data.map((t) => this.sanitizeChatChannelForResponse(t)),
+      totalItems,
+      page,
+      limit,
+    );
   }
 
   async findById(id: string, workspaceId: string): Promise<Trigger> {
@@ -98,16 +103,20 @@ export class TriggersService {
 
   async findOneDetail(id: string, workspaceId: string): Promise<TriggerDetail> {
     const trigger = await this.findById(id, workspaceId);
-    if (trigger.type !== 'schedule') return trigger;
+    if (trigger.type !== 'schedule') {
+      return this.sanitizeChatChannelForResponse(trigger);
+    }
     const schedule = await this.scheduleRepository.findOne({
       where: { triggerId: id, workspaceId },
     });
-    if (!schedule) return trigger;
-    return Object.assign(trigger, {
-      cronExpression: schedule.cronExpression,
-      timezone: schedule.timezone,
-      nextRunAt: schedule.nextRunAt,
-    });
+    if (!schedule) return this.sanitizeChatChannelForResponse(trigger);
+    return this.sanitizeChatChannelForResponse(
+      Object.assign(trigger, {
+        cronExpression: schedule.cronExpression,
+        timezone: schedule.timezone,
+        nextRunAt: schedule.nextRunAt,
+      }),
+    );
   }
 
   async create(workspaceId: string, dto: CreateTriggerDto): Promise<Trigger> {
@@ -115,6 +124,7 @@ export class TriggersService {
     // (영속 컬럼은 health/secret rotation 추적용 9개만; spec EIA §7.1 + spec CCH §4.2).
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     this.assertNotificationUrlSafe(notification);
+    this.assertChatChannelInputSafe(chatChannel);
     const mergedConfig = this.mergeExternalConfig(
       config ?? {},
       notification,
@@ -133,7 +143,7 @@ export class TriggersService {
     if (chatChannel) {
       await this.setupChatChannel(saved, chatChannel);
     }
-    return saved;
+    return this.sanitizeChatChannelForResponse(saved);
   }
 
   async update(
@@ -163,6 +173,7 @@ export class TriggersService {
       }
     }
     this.assertNotificationUrlSafe(notification);
+    this.assertChatChannelInputSafe(chatChannel);
     // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
     const baseConfig = config ?? trigger.config ?? {};
     const mergedConfig = this.mergeExternalConfig(
@@ -178,7 +189,88 @@ export class TriggersService {
       // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
       await this.setupChatChannel(saved, chatChannel);
     }
-    return saved;
+    return this.sanitizeChatChannelForResponse(saved);
+  }
+
+  /**
+   * [Spec Chat Channel §5.4.1 single-path] — 외부 입력으로 들어올 수 없는 내부 필드를 차단.
+   *
+   * - `botTokenRef` — 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token`
+   *   (24h grace 적용). PATCH/POST body 직접 변경 시 grace 없는 즉시 교체가 되어 정책 일관성 깨짐.
+   * - `secretTokenRef` / `secretToken` — setupChannel 시 어댑터가 자동 발급. 외부 입력 무시.
+   *
+   * DTO 단에서도 @IsEmpty() 로 차단되지만, error envelope 형식을 spec 의 VALIDATION_ERROR 와
+   * 정합시키기 위해 service 단 추가 검증.
+   */
+  private assertChatChannelInputSafe(
+    chatChannel: ChatChannelConfigDto | undefined,
+  ): void {
+    if (!chatChannel) return;
+    const blocked = chatChannel as unknown as Record<string, unknown>;
+    if (typeof blocked.botTokenRef !== 'undefined') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          'botTokenRef 는 외부 입력이 금지된 내부 필드입니다. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용하세요.',
+        details: { field: 'botTokenRef' },
+      });
+    }
+    if (typeof blocked.secretTokenRef !== 'undefined') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'secretTokenRef 는 외부 입력이 금지된 내부 필드입니다.',
+        details: { field: 'secretTokenRef' },
+      });
+    }
+    if (typeof blocked.secretToken !== 'undefined') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          'secretToken 은 setupChannel 시 자동 발급되는 내부 필드입니다. 외부 입력은 허용되지 않습니다.',
+        details: { field: 'secretToken' },
+      });
+    }
+  }
+
+  /**
+   * [Spec Chat Channel §5.4.2] — 응답 DTO 전용 derived 필드 + 내부 ref strip.
+   *
+   * - `botTokenRef` / `secretTokenRef` / `secretToken` 응답에서 제거 (UI 에 노출 X).
+   * - `hasBotToken: boolean` derived 필드 주입 (`botTokenRef IS NOT NULL → true`).
+   *
+   * Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
+   */
+  private sanitizeChatChannelForResponse<T extends Trigger>(trigger: T): T {
+    const cfg = trigger.config as
+      | {
+          chatChannel?: Record<string, unknown>;
+          [k: string]: unknown;
+        }
+      | null
+      | undefined;
+    if (!cfg?.chatChannel) return trigger;
+    const {
+      botTokenRef,
+      secretTokenRef: _secretTokenRef,
+      secretToken: _secretToken,
+      ...rest
+    } = cfg.chatChannel;
+    const sanitizedChatChannel = {
+      ...rest,
+      hasBotToken: typeof botTokenRef === 'string' && botTokenRef.length > 0,
+    };
+    const sanitizedConfig = {
+      ...cfg,
+      chatChannel: sanitizedChatChannel,
+    };
+    // entity 의 메서드/getter 를 보존하기 위해 prototype 유지하면서 config 만 교체.
+    return Object.assign(
+      Object.create(Object.getPrototypeOf(trigger)),
+      trigger,
+      {
+        config: sanitizedConfig,
+      },
+    ) as T;
   }
 
   /**

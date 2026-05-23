@@ -150,15 +150,29 @@ function renderButtons(
   const out: ChannelMessage[] = [];
 
   // 시각형 노드 출력이 있으면 시각 ChannelMessage 시퀀스를 먼저 발송 (텔레그램 §5.4 / CCH-MP-04 v1).
-  // visualNode='text_only' 또는 미인식 nodeType 은 title 만 caption 으로.
+  // [Spec Chat Channel R-CC-11] visualNode enum 분기:
+  //   - 'text'     → 시각형 미발송 (carousel imageUrl 도 무시. legacy 'text_only' 는 DTO 단에서 normalize)
+  //   - 'photo'    → v1 단계는 SSR 인프라 미도입 → fallback to text + warning 로그 (chat_channel_health 변경 없음)
+  //   - 'auto'/미설정 → 노드별 휴리스틱 (chart/table → text, carousel → 카드별 imageUrl 분기)
   const nodeOutput = buttonConfig?.nodeOutput as
     | { nodeType?: string; payload?: unknown; title?: string }
     | undefined;
   const visualKind = nodeOutput?.nodeType;
-  if (
-    config.uiMapping?.visualNode !== 'text_only' &&
-    typeof visualKind === 'string'
-  ) {
+  // legacy 'text_only' 가 DB 에 남아있는 경우 read-time normalize (DTO normalize 와 중복 안전망).
+  const rawVisualNode = config.uiMapping?.visualNode;
+  const visualNode: 'text' | 'photo' | 'auto' =
+    rawVisualNode === 'text_only'
+      ? 'text'
+      : rawVisualNode === 'photo' || rawVisualNode === 'text'
+        ? rawVisualNode
+        : 'auto';
+  if (visualNode === 'photo') {
+    // v1 fallback — SSR PNG 인프라 도입 시 별 plan `chat-channel-visual-ssr-png` 의 SSR adapter 로 위임.
+    console.warn(
+      `[chat-channel/telegram] uiMapping.visualNode='photo' is not supported in v1 — falling back to text (nodeType=${visualKind ?? 'none'})`,
+    );
+  }
+  if (visualNode !== 'text' && typeof visualKind === 'string') {
     if (visualKind === 'chart') {
       out.push(...renderChartFallback(nodeOutput, config));
     } else if (visualKind === 'table') {
