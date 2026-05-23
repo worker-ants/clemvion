@@ -69,6 +69,8 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 - 구현 중 spec 변경 필요 시 `developer` 는 멈추고 `project-planner` 위임.
 - `project-planner` 는 `spec/` 쓰기 직전 `consistency-check --spec` 의무. `developer` 는 구현 착수 직전 `consistency-check --impl-prep` 의무. Critical 발견 시 차단.
 
+**보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 산출 `review/consistency/coverage/**`. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md).
+
 ## 외부 LLM 호출 정책
 
 `subprocess.run(["claude", "-p", ...])` 와 Anthropic SDK 직접 호출 **금지**. model 호출은 main Claude 가 `Agent` tool 로 sub-agent invoke 하는 단일 경로만 사용.
