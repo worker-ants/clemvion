@@ -1,3 +1,9 @@
+---
+id: execution-engine
+status: spec-only
+code: []
+---
+
 # Spec: 실행 엔진 상세
 
 > 관련 문서: [Spec 아키텍처 개요](../0-overview.md) · [Spec 에러 처리](./3-error-handling.md) · [Spec 실행/디버깅](../3-workflow-editor/3-execution.md) · [데이터 모델 - Execution](../1-data-model.md#213-execution) · [Spec External Interaction API](./14-external-interaction-api.md)

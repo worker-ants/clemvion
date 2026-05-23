@@ -1,3 +1,9 @@
+---
+id: expression-language
+status: spec-only
+code: []
+---
+
 # Spec: 표현식 언어 (Expression Language)
 
 > 관련 문서: [Spec 노드 공통 §3](../3-workflow-editor/1-node-common.md#3-표현식-시스템) · [PRD 워크플로우 에디터](../3-workflow-editor/_product-overview.md#5-노드-설정-패널) · [Spec 실행 엔진](./4-execution-engine.md)

@@ -1,3 +1,9 @@
+---
+id: chart
+status: spec-only
+code: []
+---
+
 # Spec: Chart
 
 > 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [CONVENTIONS](../../conventions/node-output.md)

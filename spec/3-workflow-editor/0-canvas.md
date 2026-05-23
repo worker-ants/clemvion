@@ -1,3 +1,9 @@
+---
+id: canvas
+status: spec-only
+code: []
+---
+
 # Spec: 캔버스 인터랙션 상세
 
 > 관련 문서: [PRD 워크플로우 에디터](./_product-overview.md) · [Spec 노드 공통](./1-node-common.md) · [Spec 엣지](./2-edge.md) · [Spec 실행/디버깅](./3-execution.md) · [Spec AI Assistant](./4-ai-assistant.md)

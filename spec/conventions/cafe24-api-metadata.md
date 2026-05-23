@@ -1,3 +1,9 @@
+---
+id: cafe24-api-metadata
+status: spec-only
+code: []
+---
+
 # CONVENTION: Cafe24 API Metadata
 
 > 관련 문서: [Spec Cafe24 노드](../4-nodes/4-integration/4-cafe24.md) · [Spec 통합 §5.8 Cafe24](../2-navigation/4-integration.md#58-cafe24) · [Spec MCP Client §2.3 Internal Bridge](../5-system/11-mcp-client.md#23-internal-bridge-in-process) · [Cafe24 API Catalog](./cafe24-api-catalog/_overview.md)

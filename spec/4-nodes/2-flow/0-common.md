@@ -1,3 +1,9 @@
+---
+id: common
+status: spec-only
+code: []
+---
+
 # Spec: Flow 노드 공통 규약
 
 > 관련 문서: [PRD 노드 시스템](../_product-overview.md#5-flow-노드-1종) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../conventions/node-output.md)

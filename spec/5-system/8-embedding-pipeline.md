@@ -1,3 +1,9 @@
+---
+id: embedding-pipeline
+status: spec-only
+code: []
+---
+
 # Spec: 벡터 임베딩 파이프라인
 
 > 관련 문서: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md) · [Spec LLM 클라이언트](./7-llm-client.md) · [데이터 모델 - Document](../1-data-model.md#212-document)

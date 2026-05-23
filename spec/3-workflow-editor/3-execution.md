@@ -1,3 +1,9 @@
+---
+id: execution
+status: spec-only
+code: []
+---
+
 # Spec: 워크플로우 실행/디버깅
 
 > 관련 문서: [PRD 워크플로우 에디터](./_product-overview.md#7-워크플로우-실행) · [PRD 워크플로우 에디터](./_product-overview.md#8-실행-디버깅) · [Spec 캔버스](./0-canvas.md) · [데이터 모델 - Execution](../1-data-model.md#213-execution)

@@ -1,3 +1,9 @@
+---
+id: table
+status: spec-only
+code: []
+---
+
 # Spec: Table
 
 > 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)

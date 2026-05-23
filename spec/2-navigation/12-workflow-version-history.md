@@ -1,3 +1,9 @@
+---
+id: workflow-version-history
+status: spec-only
+code: []
+---
+
 # Spec: 워크플로우 버전 이력
 
 > 관련 문서: [Spec 워크플로우 편집기](../3-workflow-editor/) · [데이터 모델 - WorkflowVersion](../1-data-model.md)

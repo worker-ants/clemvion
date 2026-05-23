@@ -1,3 +1,9 @@
+---
+id: rag-search
+status: spec-only
+code: []
+---
+
 # Spec: RAG 검색 엔진
 
 > 관련 문서: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec AI Agent](../4-nodes/3-ai/1-ai-agent.md) · [Spec 임베딩 파이프라인](./8-embedding-pipeline.md) · [Spec Graph RAG](./10-graph-rag.md) · [Spec Knowledge Base](../2-navigation/5-knowledge-base.md)

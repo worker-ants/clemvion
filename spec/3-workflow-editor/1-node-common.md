@@ -1,3 +1,9 @@
+---
+id: node-common
+status: spec-only
+code: []
+---
+
 # Spec: 노드 공통 스펙
 
 > 관련 문서: [PRD 워크플로우 에디터](./_product-overview.md#5-노드-설정-패널) · [PRD 노드 시스템](../4-nodes/_product-overview.md#2-노드-공통-요구사항) · [Spec 캔버스](./0-canvas.md) · [Spec 노드 개요](../4-nodes/0-overview.md)

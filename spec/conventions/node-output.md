@@ -1,3 +1,9 @@
+---
+id: node-output
+status: spec-only
+code: []
+---
+
 # Output 변수 일관성 규칙 (Conventions)
 
 모든 노드 개선 문서가 참조하는 **공통 규칙집**입니다. 각 노드 개선 문서는 이 Principle들 중 위반 사항을 식별하고 그에 대한 구체적인 수정안을 제시합니다.

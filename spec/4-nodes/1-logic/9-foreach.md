@@ -1,3 +1,9 @@
+---
+id: foreach
+status: spec-only
+code: []
+---
+
 # Spec: ForEach
 
 > 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Map 노드](./7-map.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)

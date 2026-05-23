@@ -1,3 +1,9 @@
+---
+id: auth
+status: spec-only
+code: []
+---
+
 # Spec: 인증/인가 시스템
 
 > 관련 문서: [PRD 비기능 요구사항](./_product-overview.md#2-보안) · [Spec 아키텍처 개요](../0-overview.md) · [Spec 사용자 프로필](../2-navigation/9-user-profile.md) · [데이터 모델 - User](../1-data-model.md#21-user)
