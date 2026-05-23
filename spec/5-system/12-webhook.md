@@ -42,7 +42,7 @@
 | WH-EP-05-1 | Manual Trigger 노드가 선언한 `parameters` 스키마에 따라 body에서 파라미터를 추출/검증하여 `$input.parameters` / `$params`로 제공 | 필수 |
 | WH-EP-05-2 | required 파라미터 누락 또는 타입 강제 변환 실패 시 `400 Bad Request`와 누락 필드 목록 반환 | 필수 |
 | WH-EP-06 | 요청 헤더 정보를 메타데이터로 전달 (`headers`, `method`, `query`) | 권장 |
-| WH-EP-07 | 비활성 트리거로의 요청은 `410 Gone` 응답 반환 | 필수 |
+| WH-EP-07 | 비활성 트리거로의 요청은 `410 Gone` 응답 반환. **예외**: `config.chatChannel` 이 설정된 트리거는 `202 Accepted + { ignored: true }` 반환 (Telegram 등 chat-channel provider 가 non-2xx 응답 시 webhook 자동 비활성화·retry 폭주를 유발하므로). 상세 — [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) | 필수 |
 
 #### 3.2 인증 및 보안
 
@@ -183,7 +183,7 @@ POST /api/hooks/:endpointPath
 | `400 Bad Request` | 요청 본문 파싱 실패 |
 | `401 Unauthorized` | 인증 검증 실패 |
 | `404 Not Found` | endpointPath에 해당하는 트리거 없음 |
-| `410 Gone` | 트리거가 비활성 상태 |
+| `410 Gone` | 트리거가 비활성 상태 (단, `config.chatChannel` 트리거는 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 적용 — 비활성도 `202 Accepted + { ignored: true }`) |
 
 ### 3.2 기존 Trigger CRUD API
 
@@ -293,7 +293,7 @@ codebase/backend/src/modules/hooks/
 2. HooksService.handleWebhook('abc-123-def', body, headers, query)
 3. TriggersService.findByEndpointPath('abc-123-def') → Trigger 엔티티
 4. Trigger 없으면 → 404 Not Found
-5. Trigger.isActive === false → 410 Gone
+5. Trigger.isActive === false → `config.chatChannel` 가 있으면 step 6 (인증) → step 7c 의 silent skip 분기로 진입 (parseUpdate 호출 전에 isActive 미통과를 인지하고 update 무시, 응답은 202 + { ignored: true }). `config.chatChannel` 가 없으면 → 410 Gone 즉시 반환. (chatChannel 트리거의 비활성 상태에서도 인증은 그대로 수행 — auth 실패 시 401 반환. 정당화: (a) 보안 — auth 실패한 요청에 silent 202 를 주면 공격자가 trigger 활성 여부를 inference 할 수 없도록 함, (b) 운영 — auth 실패는 운영자 디버깅 가시성 401 필요. 상세 [Spec Chat Channel §5.5](./15-chat-channel.md#55-inbound-http-contract) 참조.)
 6. 인증 검증:
    a. config.authType === 'none' → 통과
    b. config.authType === 'hmac' → HMAC 서명 검증
