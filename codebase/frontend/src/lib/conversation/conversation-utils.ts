@@ -670,6 +670,45 @@ export function parseHistoryMessages(
     }
   }
 
+  // spec/conventions/conversation-thread.md §9.10 CT-S9 + data-hydration-
+  // surfaces §1 — `output.error` 가 set 된 multi-turn 종결 노드의 history
+  // view 에서 thread 마지막에 `system_error` ConversationItem 을 합성. live
+  // view (use-execution-events.ts handleNodeFailed/Completed) 와 동일한
+  // marker 가 새로고침 후에도 복원되도록 한다 (OQ3 결정).
+  const errorObj =
+    wrapper && typeof wrapper === "object"
+      ? (wrapper.error as Record<string, unknown> | undefined)
+      : undefined;
+  if (
+    errorObj &&
+    typeof errorObj.code === "string" &&
+    typeof errorObj.message === "string"
+  ) {
+    const details = errorObj.details as Record<string, unknown> | undefined;
+    const retryable =
+      typeof details?.retryable === "boolean" ? details.retryable : false;
+    const retryAfterSec =
+      typeof details?.retryAfterSec === "number"
+        ? details.retryAfterSec
+        : undefined;
+    items.push({
+      type: "system_error",
+      content: errorObj.message,
+      turnIndex: 0,
+      systemError: {
+        code: errorObj.code,
+        message: errorObj.message,
+        retryable,
+        retryAfterSec,
+        // history view 는 caller-provided node context 가 없으므로 빈 문자열
+        // 로 둔다. UI 는 chip 에 `<nodeLabel> · <code>` (nodeLabel 빈 경우
+        // `<code>` 단독) 으로 fallback 렌더 — §9.1 매핑표.
+        nodeId: "",
+        nodeLabel: "",
+      },
+    });
+  }
+
   return items;
 }
 
