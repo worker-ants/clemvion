@@ -1,5 +1,5 @@
 ---
-worktree: (TBD — project-planner 가 신규 worktree 에서 spec 갱신)
+worktree: pending-assignment
 started: 2026-05-23
 owner: project-planner
 ---

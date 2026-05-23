@@ -35,7 +35,7 @@ onClick={() => {
 
 - `spec/4-nodes/3-ai/1-ai-agent.md` §4.1: render_* 버튼 클릭은 graph routing 흉내 X — **다음 LLM turn 의 user 메시지로 흡수**. 따라서 onClick 이 실제로 호출되어 `onPortButtonClick?.(btn.id)` → `AssistantPresentationsBlock.handlePortButtonClick` → `commands.sendMessage` 경로가 열려야 spec 의도가 성립한다 (consistency W5 / I9).
 - `spec/4-nodes/6-presentation/0-common.md` §1: ButtonDef.id 는 "UUID v4 자동 생성, 불변" 이 SoT. LLM 이 빠뜨리는 케이스는 backend 가 정규화해 SoT 를 채워야 함.
-- `spec/4-nodes/6-presentation/0-common.md` §10.5: 현 spec 파이프라인은 validate → defaults overlay → 1MB cap 3단계. 본 PR 에서 "단계 3.5: `button.id` 미설정 시 UUID v4 자동 보완 (`normalizeButtonIds`) — cap 이후 적용해 truncate 된 element 안의 버튼은 처리하지 않는다 (의도된 최적화)" 1행을 spec 에 동반 추가한다.
+- `spec/4-nodes/6-presentation/0-common.md` §10.5: 현 spec 파이프라인은 validate → defaults overlay → 1MB cap 3단계. 본 PR 에서 "단계 3.5: `button.id` 미설정 시 UUID v4 자동 보완 (`backfillButtonUuids`) — cap 이후 적용해 truncate 된 element 안의 버튼은 처리하지 않는다 (의도된 최적화)" 1행을 spec 에 동반 추가한다.
 
 ## 작업 범위 (A + C 동시)
 
@@ -52,7 +52,7 @@ onClick={() => {
 
 `codebase/backend/src/nodes/ai/ai-agent/tool-providers/render-tool-provider.ts`:
 
-- `normalizeButtonIds(type, payload)` helper 추가 — zod validate → defaults overlay → 1MB cap **이후** 단계에서 누락 `button.id` 를 `crypto.randomUUID()` 로 채움.
+- `backfillButtonUuids(type, payload)` helper 추가 — zod validate → defaults overlay → 1MB cap **이후** 단계에서 누락 `button.id` 를 `crypto.randomUUID()` 로 채움.
 - 처리 대상:
   - carousel: `buttons[].id` + `itemButtons[].id` + `items[].buttons[].id`
   - table / chart / template: `buttons[].id`

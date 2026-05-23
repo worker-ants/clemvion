@@ -356,6 +356,11 @@ function applyOneMbCap(
  *
  * Side-effect-free — returns a new payload reference only when at least one
  * button array was rewritten. Existing user-supplied ids are preserved.
+ *
+ * @param type - Presentation type; `'form'` returns early (no button concept).
+ * @param payload - Validated, overlaid, cap-applied payload object.
+ * @returns New payload reference with all missing `button.id` fields filled
+ *          with UUID v4. Returns the original reference unchanged for `form`.
  */
 export function backfillButtonUuids(
   type: PresentationType,
@@ -587,9 +592,9 @@ export class RenderToolProvider implements AgentToolProvider {
 
     // spec/4-nodes/6-presentation/0-common.md §10.5 step 3 — backfill missing
     // button.id with UUID v4 after cap so truncated elements (which never
-    // reach the frontend) don't allocate ids needlessly. `form` returns
-    // early below so the form branch reads `capped.payload` directly; for
-    // the display-only branch we rewrite the reference here.
+    // reach the frontend) don't allocate ids needlessly.
+    // backfillButtonUuids is a no-op for form (early-return in the helper),
+    // so normalisedPayload === capped.payload for form — no double work.
     const normalisedPayload = backfillButtonUuids(type, capped.payload);
 
     if (type === 'form') {

@@ -397,37 +397,37 @@ describe('backfillButtonUuids (spec §10.5 step 3)', () => {
     expect(out.buttons[0].id).not.toBe(out.itemButtons[0].id);
   });
 
-  it('fills missing id on table / chart / template global buttons', () => {
-    const tablePayload = {
-      mode: 'static',
-      columns: [{ field: 'id', label: 'ID' }],
-      rows: [{ id: '1' }],
-      buttons: [{ label: 'Export', type: 'port' }],
-    };
-    const tableOut = backfillButtonUuids('table', tablePayload) as {
+  it.each([
+    [
+      'table',
+      {
+        mode: 'static',
+        columns: [{ field: 'id', label: 'ID' }],
+        rows: [{ id: '1' }],
+        buttons: [{ label: 'Export', type: 'port' }],
+      },
+    ],
+    [
+      'template',
+      {
+        content: 'Hello',
+        outputFormat: 'text',
+        buttons: [{ label: 'More', type: 'port' }],
+      },
+    ],
+    [
+      'chart',
+      {
+        chartType: 'bar',
+        data: [{ x: 'a', y: 1 }],
+        buttons: [{ label: 'Drill', type: 'port' }],
+      },
+    ],
+  ] as const)('fills missing id on %s global buttons', (type, payload) => {
+    const out = backfillButtonUuids(type, payload) as {
       buttons: Array<{ id: string }>;
     };
-    expect(tableOut.buttons[0].id).toMatch(UUID_V4_RE);
-
-    const templatePayload = {
-      content: 'Hello',
-      outputFormat: 'text',
-      buttons: [{ label: 'More', type: 'port' }],
-    };
-    const templateOut = backfillButtonUuids('template', templatePayload) as {
-      buttons: Array<{ id: string }>;
-    };
-    expect(templateOut.buttons[0].id).toMatch(UUID_V4_RE);
-
-    const chartPayload = {
-      chartType: 'bar',
-      data: [{ x: 'a', y: 1 }],
-      buttons: [{ label: 'Drill', type: 'port' }],
-    };
-    const chartOut = backfillButtonUuids('chart', chartPayload) as {
-      buttons: Array<{ id: string }>;
-    };
-    expect(chartOut.buttons[0].id).toMatch(UUID_V4_RE);
+    expect(out.buttons[0].id).toMatch(UUID_V4_RE);
   });
 
   it('preserves user-supplied button.id', () => {

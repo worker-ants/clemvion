@@ -35,6 +35,16 @@ function isHttpUrl(url: unknown): url is string {
   }
 }
 
+/** Returns true only when selectedId is a non-null string that matches btnId.
+ *  Guards against `undefined === undefined → true` which would render every
+ *  button as "selected" and silently swallow its click (spec §10.5 step 3). */
+function isButtonSelected(
+  selectedId: string | undefined,
+  btnId: string | undefined,
+): boolean {
+  return selectedId != null && selectedId === btnId;
+}
+
 // W-3: `style` 속성은 DOMPurify 의 ALLOWED_ATTR 에서 제거.
 //
 // 사유: inline `style` 은 화이트리스트 CSS 속성을 따로 제한하기 어려워
@@ -172,6 +182,10 @@ export function TableContent({ data }: { data: Record<string, unknown> }) {
 interface CarouselContentProps {
   data: Record<string, unknown>;
   config?: Record<string, unknown>;
+  /** Button id of the currently selected (clicked) port button.
+   *  `undefined` when no button has been selected yet (e.g. AssistantPresentationsBlock surface).
+   *  Must not be compared with `===` directly — use isButtonSelected() to avoid
+   *  the `undefined === undefined → true` trap (spec §10.5 step 3). */
   selectedButtonId?: string;
   onPortButtonClick?: (buttonId: string) => void;
   onLinkButtonClick?: (url: string) => void;
@@ -240,14 +254,8 @@ export function CarouselContent({ data, config, selectedButtonId, onPortButtonCl
                   produce duplicate / undefined btn.id; idx fallback. */}
               {item.buttons.map((btn, bi) => {
                 // spec/4-nodes/6-presentation/0-common.md §10.5 step 3 —
-                // defense-in-depth guard. Backend backfills missing button.id
-                // with UUID v4 for new render_* payloads, but legacy persisted
-                // runs / non-AI-Agent surfaces still pass `id: undefined`.
-                // Without the `!= null` guard the comparison `undefined ===
-                // undefined` makes every button "selected" → primary styling
-                // + onClick's `if (isSelected) return;` swallows the click.
-                const isSelected =
-                  selectedButtonId != null && selectedButtonId === btn.id;
+                // defense-in-depth guard. See isButtonSelected() above.
+                const isSelected = isButtonSelected(selectedButtonId, btn.id);
                 return (
                   <button
                     key={`${btn.id ?? ""}-${bi}`}
@@ -457,6 +465,8 @@ export function FormSubmittedContent({ data }: { data: Record<string, unknown> }
 
 interface PresentationContentProps {
   result: NodeResult;
+  /** Called when the user clicks a port-type button. `buttonId` matches the
+   *  button.id field backfilled by `backfillButtonUuids` (spec §10.5 step 3). */
   onPortButtonClick?: (buttonId: string) => void;
   onLinkButtonClick?: (url: string) => void;
   /** When true, only render the visual preview without the raw Output Data JSON section */
@@ -596,11 +606,8 @@ export function PresentationContent({
             {/* Compound key — render_template emitted by an LLM may produce
                 duplicate / undefined btn.id; idx fallback. */}
             {buttons.map((btn, bi) => {
-              // See CarouselContent line 242 — same defense-in-depth guard
-              // against payloads where both selectedButtonId and btn.id are
-              // undefined (spec §10.5 step 3).
-              const isSelected =
-                selectedButtonId != null && selectedButtonId === btn.id;
+              // spec §10.5 step 3 defense-in-depth guard. See isButtonSelected().
+              const isSelected = isButtonSelected(selectedButtonId, btn.id);
               return (
                 <button
                   key={`${btn.id ?? ""}-${bi}`}

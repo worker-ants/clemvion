@@ -1,5 +1,5 @@
 ---
-worktree: (TBD)
+worktree: pending-assignment
 started: 2026-05-23
 owner: project-planner
 ---
