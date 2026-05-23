@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import {
   PresentationContent,
+  CarouselContent,
   JsonContent,
 } from "../renderers/presentation-renderers";
 import type { NodeResult } from "@/lib/stores/execution-store";
@@ -590,5 +591,156 @@ describe("PresentationContent", () => {
       expect(screen.getByText("Global")).toBeDefined();
       expect(screen.queryByText("Item only")).toBeNull();
     });
+  });
+});
+
+// spec/4-nodes/6-presentation/0-common.md §10.5 step 3 — frontend
+// defense-in-depth guard. The backend backfills missing `button.id` with
+// UUID v4 for new payloads, but legacy persisted runs / non-AI-Agent
+// surfaces can still arrive with `id: undefined`. Without the guard the
+// comparison `selectedButtonId === btn.id` short-circuits to `true` when
+// both sides are undefined, the button is rendered in primary "selected"
+// style, and the click handler's `if (isSelected) return;` early-return
+// silently swallows the click. See Rationale "`button.id` backfill 도입
+// (2026-05-23)" for the chain of events that produced the original report.
+describe("CarouselContent — isSelected guard for undefined ids (spec §10.5)", () => {
+  it("invokes onPortButtonClick when both selectedButtonId and btn.id are undefined", () => {
+    const onPortButtonClick = vi.fn();
+    render(
+      <CarouselContent
+        data={{
+          items: [
+            {
+              title: "샘플상품 3",
+              description: "가격: 10,000원",
+              buttons: [
+                { label: "문의하기", type: "port" }, // no id — LLM-emitted shape
+                { label: "주문하기", type: "port" },
+              ],
+            },
+          ],
+        }}
+        // selectedButtonId intentionally omitted (matches AssistantPresentationsBlock)
+        onPortButtonClick={onPortButtonClick}
+      />,
+    );
+
+    const orderBtn = screen.getByText("주문하기").closest("button")!;
+    // Primary "selected" classes are gated on a real id match — undefined
+    // must not flip the comparison true.
+    expect(orderBtn.className).not.toContain("bg-[hsl(var(--primary))]");
+    fireEvent.click(orderBtn);
+    expect(onPortButtonClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves selected highlighting when selectedButtonId matches a real button id (defense-in-depth keeps existing semantics)", () => {
+    const onPortButtonClick = vi.fn();
+    render(
+      <CarouselContent
+        data={{
+          items: [
+            {
+              title: "Item",
+              buttons: [
+                { id: "btn-a", label: "A", type: "port" },
+                { id: "btn-b", label: "B", type: "port" },
+              ],
+            },
+          ],
+        }}
+        selectedButtonId="btn-a"
+        onPortButtonClick={onPortButtonClick}
+      />,
+    );
+
+    const aBtn = screen.getByText("A").closest("button")!;
+    const bBtn = screen.getByText("B").closest("button")!;
+    expect(aBtn.className).toContain("bg-[hsl(var(--primary))]");
+    expect(bBtn.className).not.toContain("bg-[hsl(var(--primary))]");
+
+    // Selected button stays click-inert (existing behaviour preserved).
+    fireEvent.click(aBtn);
+    expect(onPortButtonClick).not.toHaveBeenCalled();
+    fireEvent.click(bBtn);
+    expect(onPortButtonClick).toHaveBeenCalledWith("btn-b");
+  });
+});
+
+// spec §10.5 step 3 — same guard for PresentationContent global buttons path.
+// Mirrors CarouselContent tests above to verify the fix in both render surfaces.
+describe("PresentationContent — isSelected guard for undefined ids (spec §10.5)", () => {
+  it("invokes onPortButtonClick when btn.id is undefined and selectedButtonId is not passed", () => {
+    const onPortButtonClick = vi.fn();
+    render(
+      <PresentationContent
+        result={makeResult({
+          nodeType: "template",
+          outputData: {
+            config: {
+              outputFormat: "text",
+              buttonConfig: {
+                buttons: [
+                  { label: "문의하기", type: "port" }, // no id — LLM-emitted shape
+                  { label: "주문하기", type: "port" },
+                ],
+              },
+            },
+            output: { rendered: "Hello" },
+          },
+        })}
+        onPortButtonClick={onPortButtonClick}
+      />,
+    );
+
+    const orderBtn = screen.getByText("주문하기").closest("button")!;
+    // undefined must not flip isButtonSelected to true (primary style guard).
+    expect(orderBtn.className).not.toContain("bg-[hsl(var(--primary))]");
+    fireEvent.click(orderBtn);
+    expect(onPortButtonClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves selected highlighting when selectedButtonId matches a real button id", () => {
+    const onPortButtonClick = vi.fn();
+    // PresentationContent derives selectedButtonId from the structured resume
+    // envelope: rawInput.output.interaction.buttonId. Buttons come from
+    // rawInput.config.buttonConfig (envelopeConfig path).
+    render(
+      <PresentationContent
+        result={makeResult({
+          nodeType: "template",
+          outputData: {
+            config: {
+              outputFormat: "text",
+              buttonConfig: {
+                buttons: [
+                  { id: "btn-a", label: "A", type: "port" },
+                  { id: "btn-b", label: "B", type: "port" },
+                ],
+              },
+            },
+            output: {
+              interaction: {
+                interactionType: "button_click",
+                buttonId: "btn-a",
+              },
+              previousOutput: { rendered: "Hello" },
+            },
+            status: "button_click",
+          },
+        })}
+        onPortButtonClick={onPortButtonClick}
+      />,
+    );
+
+    const aBtn = screen.getByText("A").closest("button")!;
+    const bBtn = screen.getByText("B").closest("button")!;
+    expect(aBtn.className).toContain("bg-[hsl(var(--primary))]");
+    expect(bBtn.className).not.toContain("bg-[hsl(var(--primary))]");
+
+    // Selected button stays click-inert (existing behaviour preserved).
+    fireEvent.click(aBtn);
+    expect(onPortButtonClick).not.toHaveBeenCalled();
+    fireEvent.click(bBtn);
+    expect(onPortButtonClick).toHaveBeenCalledWith("btn-b");
   });
 });
