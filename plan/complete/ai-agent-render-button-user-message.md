@@ -76,7 +76,7 @@ PR #279 (`fix(render-tools): button click + isSelected guard`) 머지 후 사용
 - [x] (A) frontend test PASS
 - [x] (8) TEST WORKFLOW — lint / unit / build / e2e
 - [x] (9) REVIEW WORKFLOW — `/ai-review` + resolution-applier (review/code/2026/05/23/12_39_18)
-- [ ] (10) PR 생성
+- [x] (10) PR 생성
 
 ## 의사결정 메모
 
@@ -87,4 +87,23 @@ PR #279 (`fix(render-tools): button click + isSelected guard`) 머지 후 사용
 
 ## Follow-up (별 plan)
 
-없음. 본 PR 안에서 spec + backend + frontend 일괄 처리.
+ai-review (`review/code/2026/05/23/12_39_18`) 의 결과로 다음 항목이 별 plan 으로 분리됨 — 본 PR 의 scope 한정 결정:
+
+- **`buttonDefSchema` 4-file DRY refactor** (W#5/W#6/W#7) — pre-existing 패턴이며 본 PR 이 신설하지 않음. `_shared/button.schema.ts` 단일 정의 + `export type ButtonDef = z.infer<typeof buttonDefSchema>` 로 interface 파생 권장.
+- **table/chart/template global 버튼 클릭 user-message 발화 경로** (INFO #3) — 현 단계 carousel 한정. 후속 task 로 추적.
+- **spec §10.8 `userMessage` 빈 문자열 처리 규칙 명문화** (INFO #4) — project-planner 위임. 현행 동작은 유지 (frontend 무시, backend Zod 허용).
+- **기타 INFO 사항** — RESOLUTION.md `## 보류·후속 항목` 참조.
+
+## Closeout (2026-05-23)
+
+본 worktree 작업 완료. commit hash:
+
+- spec: `bf22ea80` — `docs(spec): presentation §1 — ButtonDef.userMessage 옵션 필드 신설`
+- backend zod: `28ca194e` — `feat(presentation): ButtonDef.userMessage 옵션 필드 (spec §1, §10.8)`
+- frontend logic: `fbd05c12` — `feat(ai-agent): render_* 버튼 클릭 user-message 합성 — item 컨텍스트 보존 (spec §10.8)`
+- prettier style: `e4436505`
+- i18n parity: `147fa4b8` — `fix(i18n): backend ui.label 'User Message' KO 매핑`
+- ai-review fix: `117463b1` — `fix(presentation): SUMMARY#1~#4,#8~#14,#19 — security+testing+docs resolution`
+
+TEST 최종: lint PASS / unit 4541 PASS / build PASS / e2e 98/98 PASS.
+PR: (생성 직후 본 줄에 hash 또는 PR 링크 추가)
