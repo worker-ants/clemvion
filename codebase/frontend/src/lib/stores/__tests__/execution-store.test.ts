@@ -366,6 +366,63 @@ describe("useExecutionStore", () => {
     });
   });
 
+  // spec/conventions/conversation-thread.md §9.7.1 + §9.9 Inv-7 — AI Agent
+  // render_form 활성 form 제출 후 multi-turn 컨텍스트 보존 invariant.
+  describe("resumeFromAiRenderForm — multi-turn 컨텍스트 보존 (Inv-7)", () => {
+    it("pendingFormToolCall 만 null patch 하고 waitingNodeId / waitingInteractionType / isWaitingAiResponse 는 보존한다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      // simulate ai_form_render waiting state — 모든 pre-condition 을 setState 로
+      // 직접 주입해 pauseForConversation 구현 변경에 대한 간접 의존을 제거한다
+      // (W-11: waitingNodeId 도 명시적으로 set).
+      useExecutionStore.setState({
+        waitingNodeId: "node-ai",
+        waitingInteractionType: "ai_form_render",
+        waitingConversationConfig: {
+          message: "...",
+          pendingFormToolCall: {
+            toolCallId: "call_form_1",
+            formConfig: { fields: [] },
+          },
+        },
+        isWaitingAiResponse: true,
+        status: "waiting_for_input",
+      });
+
+      useExecutionStore.getState().resumeFromAiRenderForm();
+
+      const state = useExecutionStore.getState();
+      // multi-turn 컨텍스트 보존
+      expect(state.waitingNodeId).toBe("node-ai");
+      expect(state.waitingInteractionType).toBe("ai_form_render");
+      expect(state.isWaitingAiResponse).toBe(true);
+      // pendingFormToolCall 만 null
+      const conv = state.waitingConversationConfig as {
+        message?: string;
+        pendingFormToolCall: unknown;
+      };
+      expect(conv.pendingFormToolCall).toBeNull();
+      // 다른 conversationConfig 필드 보존
+      expect(conv.message).toBe("...");
+      // status 는 running
+      expect(state.status).toBe("running");
+    });
+
+    it("waitingConversationConfig 가 null 인 경우 안전하게 no-op + status running 만 적용", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      // pre-condition: waitingConversationConfig 가 null 인 (비정상이지만
+      // 방어적) 상태 — set 으로 직접 진입.
+      useExecutionStore.setState({
+        waitingConversationConfig: null,
+      });
+
+      useExecutionStore.getState().resumeFromAiRenderForm();
+
+      const state = useExecutionStore.getState();
+      expect(state.waitingConversationConfig).toBeNull();
+      expect(state.status).toBe("running");
+    });
+  });
+
   describe("selectResultNode", () => {
     it("selects and deselects a result node", () => {
       useExecutionStore.getState().selectResultNode("n1");

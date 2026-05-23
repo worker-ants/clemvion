@@ -20,6 +20,7 @@ import {
   TemplateContent,
   FormSubmittedContent,
 } from "./presentation-renderers";
+import { DynamicFormUI } from "../dynamic-form-ui";
 
 interface AssistantPresentationsBlockProps {
   presentations: PresentationPayload[];
@@ -34,6 +35,21 @@ interface AssistantPresentationsBlockProps {
    * 보이는 회귀가 발생 (PR #272 머지 후 사용자 보고).
    */
   onSendMessage?: (message: string) => void;
+  /**
+   * spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec/4-nodes/6-presentation/
+   * 0-common.md §10.6 — `render_form` 활성 form 의 UI 단일 진실.
+   * `payload.toolCallId === pendingFormToolCallId` 매칭 시 interactive
+   * `DynamicFormUI` 로, 그 외 `FormSubmittedContent` 로 렌더.
+   *
+   * store selector 로 `waitingConversationConfig.pendingFormToolCall.toolCallId`
+   * 를 가져와 SummaryView / SelectedItemDetail 양쪽에서 동일 selector 사용.
+   */
+  pendingFormToolCallId?: string | null;
+  /**
+   * Active form 제출 콜백. caller (ResultDetail / ExecutionDetailPage) 가
+   * `commands.submitForm(data)` + `resumeFromAiRenderForm()` 호출 책임.
+   */
+  onSubmitForm?: (data: Record<string, unknown>) => void;
 }
 
 /**
@@ -185,10 +201,14 @@ function PresentationItem({
   p,
   onPortButtonClick,
   onLinkButtonClick,
+  pendingFormToolCallId,
+  onSubmitForm,
 }: {
   p: PresentationPayload;
   onPortButtonClick?: (buttonId: string) => void;
   onLinkButtonClick?: (url: string) => void;
+  pendingFormToolCallId?: string | null;
+  onSubmitForm?: (data: Record<string, unknown>) => void;
 }) {
   const data = p.payload as Record<string, unknown>;
   switch (p.type) {
@@ -207,12 +227,27 @@ function PresentationItem({
       );
     case "template":
       return <TemplateContent data={data} config={data} />;
-    case "form":
-      // `render_form` blocking interactive flow renders the live form input
-      // via DynamicFormUI in result-detail.tsx; this branch is the display-
-      // only summary used when a form payload reaches the assistant turn
-      // outside the blocking flow.
+    case "form": {
+      // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — 활성 form 의 UI 단일
+      // 진실은 assistant turn 의 timeline 인라인. predicate:
+      // `pendingFormToolCallId === payload.toolCallId` 매칭 시 interactive
+      // `DynamicFormUI`, 그 외 `FormSubmittedContent` (display-only).
+      const isActive =
+        !!pendingFormToolCallId &&
+        !!p.toolCallId &&
+        p.toolCallId === pendingFormToolCallId &&
+        !!onSubmitForm;
+      if (isActive) {
+        return (
+          <DynamicFormUI
+            key={p.toolCallId}
+            formConfig={data}
+            onSubmit={onSubmitForm!}
+          />
+        );
+      }
       return <FormSubmittedContent data={data} />;
+    }
     default:
       return null;
   }
@@ -221,6 +256,8 @@ function PresentationItem({
 export function AssistantPresentationsBlock({
   presentations,
   onSendMessage,
+  pendingFormToolCallId,
+  onSubmitForm,
 }: AssistantPresentationsBlockProps) {
   if (!presentations || presentations.length === 0) return null;
 
@@ -291,6 +328,8 @@ export function AssistantPresentationsBlock({
                 : undefined
             }
             onLinkButtonClick={onSendMessage ? handleLinkButtonClick : undefined}
+            pendingFormToolCallId={pendingFormToolCallId}
+            onSubmitForm={onSubmitForm}
           />
         </div>
       ))}

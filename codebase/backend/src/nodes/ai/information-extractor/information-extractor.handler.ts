@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   ValidationResult,
   ResumableNodeHandlerOutput,
+  ResumableMessageOptions,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { LlmService } from '../../../modules/llm/llm.service';
@@ -474,6 +475,10 @@ export class InformationExtractorHandler implements NodeHandler {
   async processMultiTurnMessage(
     userMessage: string,
     stateRaw: Record<string, unknown>,
+    // information_extractor 는 render_form 을 발행하지 않으므로 source 신호를
+    // 사용하지 않는다. 인터페이스 호환을 위해 받기만 한다 (spec/4-nodes/3-ai/
+    // 1-ai-agent.md §6.2 step 2.c.bypass 는 AI Agent 한정).
+    _options?: ResumableMessageOptions,
   ): Promise<unknown> {
     const state = this.hydrateState(stateRaw);
     const llmConfig = await this.llmService.resolveConfig(

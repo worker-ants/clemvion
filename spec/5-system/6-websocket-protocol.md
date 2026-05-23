@@ -199,7 +199,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.step` | `{ executionId }` | 한 노드만 실행 후 다시 정지 |
 | `execution.submit_form` | `{ executionId, nodeId, formData, toolCallId? }` | Form 노드에 사용자 입력 제출. `toolCallId` 는 AI Agent 의 `render_form` 도구 응답 시에만 동봉 — `interactionType: 'ai_form_render'` 의 `conversationConfig.pendingFormToolCall.toolCallId` 와 일치해야 한다 ([Spec AI Agent §6.2 step 2](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). 미일치 시 reject. **외부 wire 호환**: 본 payload shape 은 internal continuation bus 의 sentinel wrap (`{type:'form_submitted', formData}`, [Presentation 공통 §10.9](../4-nodes/6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)) 과 layer 분리 — 외부 wire 는 본 표 형식 유지, internal bus 만 sentinel wrap |
 | `execution.click_button` | `{ executionId, nodeId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션) |
-| `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송 |
+| `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송. **form bypass**: `interactionType: 'ai_form_render'` 활성 중 본 명령이 수신되면 backend 가 `pendingFormToolCall.toolCallId` 매칭하는 render_form 도구의 tool_result content 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채우고 `pendingFormToolCall` 클리어 후 정상 `ai_user` turn 진행 ([Spec AI Agent §6.2 step 2.c.bypass](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)) — LLM 의 다음 reasoning 자유 보존. UI 의 MessageInput 은 항상 활성 (form 우회 허용) |
 | `execution.end_conversation` | `{ executionId, nodeId }` | AI Agent Multi Turn 대화 종료 요청 |
 | `execution.retry_last_turn` | `{ executionId, nodeExecutionId }` | AI Agent Multi Turn 의 retryable error (`output.error.details.retryable === true`) 종결 후 동일 nodeId 의 새 NodeExecution row 를 spawn 해 마지막 LLM 호출 재진입. `nodeId` 대신 `nodeExecutionId` 사용 사유: 동일 nodeId 가 여러 NodeExecution row 를 가질 수 있어 row 단위 식별 필요. 워크플로우 Re-run ([§13 replay-rerun](./13-replay-rerun.md)) 과 다름 — 동일 Execution 안 노드 단위 재시도. |
 
@@ -331,10 +331,11 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | 필드 | 설명 |
 |------|------|
 | `interactionType` | `form`: Form 노드, `buttons`: 버튼이 설정된 Presentation 노드, `ai_conversation`: AI Agent Multi Turn 일반 대화, `ai_form_render`: AI Agent 가 `render_form` 도구 호출로 사용자 form 제출 대기 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) |
-| `formConfig` | `interactionType = form` 또는 `ai_form_render` 시 존재. Form 노드의 폼 설정 (`ai_form_render` 의 경우 LLM 페이로드 ∪ `presentationTools[*].defaults` overlay 결과) |
+| `formConfig` | **`interactionType = form` 한정** top-level 필드. 그래프 Form 노드의 폼 설정. `ai_form_render` 의 경우 top-level 에는 없고 `conversationConfig.pendingFormToolCall.formConfig` 위치로 nest (아래 행) — UI 가 form payload 출처를 단일 위치에서 읽도록 SoT 정리 |
 | `buttonConfig` | `interactionType = buttons` 시 존재. 버튼 정의 + 타임아웃 + 노드 렌더링 출력 |
 | `buttonConfig.nodeOutput` | 노드의 렌더링 결과 (클라이언트가 콘텐츠 + 버튼을 함께 표시) |
-| `conversationConfig` | `interactionType ∈ {ai_conversation, ai_form_render}` 시 존재. AI Agent Multi Turn 대화 설정. `ai_form_render` 시 추가로 `conversationConfig.pendingFormToolCall: { toolCallId }` 동봉 — 클라이언트가 `execution.submit_form` 의 `toolCallId` 매칭 근거로 사용 |
+| `conversationConfig` | `interactionType ∈ {ai_conversation, ai_form_render}` 시 존재. AI Agent Multi Turn 대화 설정 |
+| `conversationConfig.pendingFormToolCall` | **`interactionType = ai_form_render` 한정**. shape `{ toolCallId: string, formConfig: object }` — `toolCallId` 는 클라이언트가 `execution.submit_form` 매칭 근거, `formConfig` 는 LLM 페이로드 ∪ `presentationTools[*].defaults` overlay 결과 (form 노드 input schema shape). UI 의 `AssistantPresentationsBlock` 이 assistant turn 의 `presentations[*]` 중 `payload.toolCallId === pendingFormToolCall.toolCallId` 인 form 페이로드를 interactive `DynamicFormUI` 로 렌더 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn) / [§7.4](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)) |
 
 **AI Agent Multi Turn 노드 (`interactionType: "ai_conversation"`):**
 
@@ -830,3 +831,13 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 이벤트 표기는 점 표기(`embedding.started`) 에서 콜론+언더스코어(`document:embedding_started`) 로 정렬 — backend type union 의 형식과 일치.
 
 `kb:graph_stats_updated` 같이 KB 단위 통계 이벤트를 도입했던 시도는 `kb-stats.helper.ts:42-46` 가 `emitExecutionEvent` 로 잘못 호출해 채널이 `execution:kb:…` 로 prefix 되어 frontend 의 `kb:` 구독에 도달하지 못하는 **dead path** 였다. spec 에서 일괄 제거. 후속 plan `plan/in-progress/kb-graph-stats-dead-path.md` 가 코드 측 결함 처리(emit 경로 수정 또는 코드 제거) 를 dev 에 위임한다.
+
+### `ai_form_render` 의 `formConfig` 위치 단일화 — `pendingFormToolCall` 안으로 nest (2026-05-23)
+
+§4.4 의 `formConfig` 필드는 본래 그래프 Form 노드 (`interactionType: 'form'`) 의 폼 설정 운반용. AI Agent multi-turn 의 `render_form` blocking flow 가 도입되면서 (PR #273-#288, [Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) `interactionType: 'ai_form_render'` 도 top-level `formConfig` 를 공유한다고 spec 상 기술돼 있었으나, backend `execution-engine.service.ts:2147-2210` 는 처음부터 **`conversationConfig.pendingFormToolCall.formConfig`** 위치로 emit 중이었음. frontend 도 같은 위치에서 읽음. spec 만 동봉 위치를 잘못 명시한 drift.
+
+2026-05-23 사용자 보고 (`render_form` UX 통합) 의 spec 단계에서 정합화: `formConfig` 는 `interactionType: 'form'` 한정 top-level 필드, `ai_form_render` 의 form payload 는 `conversationConfig.pendingFormToolCall.formConfig` 안으로 nest. UI 가 단일 위치에서 form 출처를 읽도록 SoT 단일화 — Conversation Thread §9.7 표의 `waiting_for_input (interactionType=ai_form_render)` 행과 정합.
+
+**대안 비교** — code 를 spec 에 맞춰 top-level `formConfig` 로 옮기는 안은 기각: (a) 옛 동작에 의존하는 e2e 테스트가 없는 변경이지만 `pendingFormToolCall.formConfig` nest 가 `toolCallId` 와 묶여 단일 원자 운반체로 의미가 더 명확하고, (b) backend 이미 그렇게 emit 중이라 code 변경 면적이 더 큼.
+
+**근거**: [Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합-2026-05-23). plan: [plan/in-progress/ai-presentation-form-inline.md](../../plan/in-progress/ai-presentation-form-inline.md).
