@@ -191,7 +191,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.stop` | `{ executionId, force? }` | 실행 중단 요청 |
 | `execution.continue` | `{ executionId }` | 브레이크포인트 후 계속 |
 | `execution.step` | `{ executionId }` | 한 노드만 실행 후 다시 정지 |
-| `execution.submit_form` | `{ executionId, nodeId, formData, toolCallId? }` | Form 노드에 사용자 입력 제출. `toolCallId` 는 AI Agent 의 `render_form` 도구 응답 시에만 동봉 — `interactionType: 'ai_form_render'` 의 `conversationConfig.pendingFormToolCall.toolCallId` 와 일치해야 한다 ([Spec AI Agent §6.2 step 2](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). 미일치 시 reject |
+| `execution.submit_form` | `{ executionId, nodeId, formData, toolCallId? }` | Form 노드에 사용자 입력 제출. `toolCallId` 는 AI Agent 의 `render_form` 도구 응답 시에만 동봉 — `interactionType: 'ai_form_render'` 의 `conversationConfig.pendingFormToolCall.toolCallId` 와 일치해야 한다 ([Spec AI Agent §6.2 step 2](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). 미일치 시 reject. **외부 wire 호환**: 본 payload shape 은 internal continuation bus 의 sentinel wrap (`{type:'form_submitted', formData}`, [Presentation 공통 §10.9](../4-nodes/6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)) 과 layer 분리 — 외부 wire 는 본 표 형식 유지, internal bus 만 sentinel wrap |
 | `execution.click_button` | `{ executionId, nodeId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션) |
 | `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송 |
 | `execution.end_conversation` | `{ executionId, nodeId }` | AI Agent Multi Turn 대화 종료 요청 |
