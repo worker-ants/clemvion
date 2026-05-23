@@ -768,12 +768,14 @@ describe('ExecutionEngineService', () => {
       mockBus.publish.mockClear();
     });
 
-    it('continueExecution → bus.publish({type:"continue", payload:formData})', () => {
+    it('continueExecution → bus.publish({type:"continue", payload:{type:"form_submitted",formData}}) (spec §10.9 wrap)', () => {
+      // spec/4-nodes/6-presentation/0-common.md §10.9 — wrap 책임은
+      // continueExecution. raw formData 가 아닌 sentinel 형태로 publish.
       service.continueExecution('exec-1', { name: 'Alice' });
       expect(mockBus.publish).toHaveBeenCalledWith({
         type: 'continue',
         executionId: 'exec-1',
-        payload: { name: 'Alice' },
+        payload: { type: 'form_submitted', formData: { name: 'Alice' } },
       });
     });
 
@@ -819,9 +821,11 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('등록된 continue 핸들러 — 로컬 Map 키 있으면 resolve, 없으면 silent skip', () => {
-      // onModuleInit 이 5개 핸들러를 등록했다. mockBus.on 호출 인자로부터
-      // continue 핸들러를 꺼내 직접 호출해 검증.
+    it('등록된 continue 핸들러 — msg.payload 를 그대로 resolvePending 으로 forward (spec §10.9 raw forward)', () => {
+      // spec/4-nodes/6-presentation/0-common.md §10.9 — wrap 책임은
+      // continueExecution. listener 는 msg.payload 를 re-wrap 하지 않고
+      // 그대로 resolvePending 에 forward 한다. msg.payload 는 이미
+      // continueExecution 이 `{type:'form_submitted', formData}` 로 wrap 한 상태.
       const continueCall = mockBus.on.mock.calls.find(
         (c: unknown[]) => c[0] === 'continue',
       );
@@ -843,18 +847,88 @@ describe('ExecutionEngineService', () => {
         reject: jest.fn(),
       });
 
-      handler({ type: 'continue', executionId: 'exec-1', payload: { ok: 1 } });
-      expect(resolveSpy).toHaveBeenCalledWith({ ok: 1 });
+      // payload 는 continueExecution 이 wrap 한 sentinel 형태 — listener 는 그대로 forward.
+      handler({
+        type: 'continue',
+        executionId: 'exec-1',
+        payload: { type: 'form_submitted', formData: { ok: 1 } },
+      });
+      expect(resolveSpy).toHaveBeenCalledWith({
+        type: 'form_submitted',
+        formData: { ok: 1 },
+      });
       expect(pendings.has('exec-1')).toBe(false);
 
       // 키가 없는 메시지 — silent skip.
       handler({
         type: 'continue',
         executionId: 'exec-not-here',
-        payload: undefined,
+        payload: { type: 'form_submitted', formData: {} },
       });
       // 어떤 에러도 던지지 않음. 추가 resolve 도 일어나지 않음 (resolveSpy 횟수 1).
       expect(resolveSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('continueExecution — form 필드명이 "type" 인 페이로드도 sentinel wrap 으로 정확히 라우팅 (silent drop 회귀 방지, spec §10.9)', () => {
+      // spec §10.9 — root cause regression guard. continueExecution 이 sentinel
+      // wrap 을 담당하므로 form 필드명이 `type` 이어도 dispatch 가 `form_submitted`
+      // 로 명시 매칭된다. listener 는 raw forward — 이 테스트는 e2e 에 해당하는
+      // continueExecution → (bus mock) → listener → resolvePending 흐름을 검증.
+      service.continueExecution('exec-coll', {
+        type: '주문 문의',
+        contact: '010-1234-5678',
+      });
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'continue',
+        executionId: 'exec-coll',
+        payload: {
+          type: 'form_submitted',
+          formData: { type: '주문 문의', contact: '010-1234-5678' },
+        },
+      });
+
+      // 또한 listener → resolvePending 흐름 검증 (listener raw forward).
+      const continueCall = mockBus.on.mock.calls.find(
+        (c: unknown[]) => c[0] === 'continue',
+      );
+      const handler = continueCall![1] as (msg: unknown) => void;
+      const resolveSpy = jest.fn();
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+      pendings.set('exec-coll', {
+        nodeId: 'n1',
+        resolve: resolveSpy,
+        reject: jest.fn(),
+      });
+      // listener 에 wrap 된 payload 투입 (continueExecution 이 만들었을 형태).
+      handler({
+        type: 'continue',
+        executionId: 'exec-coll',
+        payload: {
+          type: 'form_submitted',
+          formData: { type: '주문 문의', contact: '010-1234-5678' },
+        },
+      });
+      expect(resolveSpy).toHaveBeenCalledWith({
+        type: 'form_submitted',
+        formData: { type: '주문 문의', contact: '010-1234-5678' },
+      });
+    });
+
+    it('continueExecution — undefined formData 도 sentinel wrap (빈 폼 제출, TypeError 회피)', () => {
+      // 빈 form 제출 또는 formData 인자 없음 — continueExecution 이 wrap.
+      service.continueExecution('exec-empty');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'continue',
+        executionId: 'exec-empty',
+        payload: { type: 'form_submitted', formData: undefined },
+      });
     });
 
     const findHandler = (type: string): ((msg: unknown) => void) => {
@@ -863,13 +937,23 @@ describe('ExecutionEngineService', () => {
       return call![1] as (msg: unknown) => void;
     };
 
-    it('cancel 핸들러 — 로컬 Map 키 없으면 silent skip (review W12)', () => {
-      const handler = findHandler('cancel');
-      const pendings = (
-        service as unknown as {
-          pendingContinuations: Map<string, unknown>;
+    // W8 (SUMMARY) — `pendingContinuations` Map 타입 단언을 헬퍼로 추출.
+    // 3곳 이상의 중복을 줄여 타입 단언 변경 시 단일 수정점 보장.
+    const getPendings = (
+      svc: ExecutionEngineService,
+    ): Map<string, { nodeId: string; resolve: jest.Mock; reject: jest.Mock }> =>
+      (
+        svc as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
         }
       ).pendingContinuations;
+
+    it('cancel 핸들러 — 로컬 Map 키 없으면 silent skip (review W12)', () => {
+      const handler = findHandler('cancel');
+      const pendings = getPendings(service);
       pendings.clear();
 
       // 미등록 executionId — 어떤 에러도 던지지 않음.
@@ -882,14 +966,7 @@ describe('ExecutionEngineService', () => {
     it('button_click 핸들러 — payload 누락 시 buttonId: undefined 로 resolve (review I9)', () => {
       const handler = findHandler('button_click');
       const resolveSpy = jest.fn();
-      const pendings = (
-        service as unknown as {
-          pendingContinuations: Map<
-            string,
-            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
-          >;
-        }
-      ).pendingContinuations;
+      const pendings = getPendings(service);
       pendings.set('exec-btn', {
         nodeId: 'n1',
         resolve: resolveSpy,
@@ -906,14 +983,7 @@ describe('ExecutionEngineService', () => {
     it('ai_message 핸들러 — 길이 초과 메시지는 silent drop (Redis 직접 publish 우회 방지)', () => {
       const handler = findHandler('ai_message');
       const resolveSpy = jest.fn();
-      const pendings = (
-        service as unknown as {
-          pendingContinuations: Map<
-            string,
-            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
-          >;
-        }
-      ).pendingContinuations;
+      const pendings = getPendings(service);
       pendings.set('exec-ai', {
         nodeId: 'n1',
         resolve: resolveSpy,
@@ -2501,6 +2571,277 @@ describe('ExecutionEngineService', () => {
           (call: unknown[]) => call[1] === 'execution.failed',
         );
       expect(executionFailedCalls.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // W11 (SUMMARY) — waitForAiConversation form_submitted 분기 단위 테스트.
+  // W12 (SUMMARY) — unknown action.type warn+reenter 단위 테스트.
+  // ---------------------------------------------------------------------------
+  describe('waitForAiConversation dispatch — form_submitted + unknown type (W11/W12)', () => {
+    // 버스 mock 이 handlers 에 즉시 dispatch 하는 특성 활용.
+    // `form_submitted` payload 가 handler.processMultiTurnMessage 에 도달하는지,
+    // unknown type 이 warn log 를 남기고 loop 를 재진입하는지 검증.
+
+    const makeAiDispatchHandler = (
+      processReturn: () => unknown,
+    ): NodeHandler & {
+      processMultiTurnMessage: jest.Mock;
+      endMultiTurnConversation: jest.Mock;
+    } =>
+      ({
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: { mode: 'multi_turn' },
+          output: { result: { messages: [], message: '', turnCount: 0 } },
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          _resumeState: {
+            messages: [],
+            turnCount: 0,
+            turnDebugHistory: [],
+            model: 'test-model',
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+          },
+        })),
+        processMultiTurnMessage: jest.fn(async () => processReturn()),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: { mode: 'multi_turn' },
+          output: {},
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        })),
+      }) as unknown as NodeHandler & {
+        processMultiTurnMessage: jest.Mock;
+        endMultiTurnConversation: jest.Mock;
+      };
+
+    const aiDispatchNodes: Partial<Node>[] = [
+      {
+        id: 'node-agent-dispatch',
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'Agent',
+        config: { mode: 'multi_turn' },
+        isDisabled: false,
+        containerId: undefined,
+        toolOwnerId: undefined,
+      },
+    ];
+
+    beforeEach(() => {
+      mockNodeRepo.findBy.mockResolvedValue(aiDispatchNodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+    });
+
+    it('W11 — form_submitted dispatch: handleAiMessageTurn 이 JSON.stringify(formData) 인자로 호출됨', async () => {
+      // spec §10.9 + §10.9 dispatch 표 — form_submitted case 는
+      // handleAiMessageTurn(executionId, node, JSON.stringify(formData), ...) 호출.
+      const processReturn = {
+        config: { mode: 'multi_turn' },
+        output: { result: { messages: [], message: 'ok', turnCount: 1 } },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [],
+          turnCount: 1,
+          turnDebugHistory: [],
+          model: 'test-model',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+        },
+      };
+      const handler = makeAiDispatchHandler(() => processReturn);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
+
+      const execPromise = service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // form_submitted sentinel payload 로 continueExecution 호출.
+      const formPayload = { field1: 'value1', type: '주문 문의' };
+      service.continueExecution(executionId, formPayload);
+      await flushPromises();
+
+      // processMultiTurnMessage 가 첫 번째 인자로 JSON.stringify(formPayload) 를 받았는지.
+      // 호출 시그니처: processMultiTurnMessage(userMessage: string, state)
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
+        JSON.stringify(formPayload),
+        expect.anything(),
+      );
+
+      // 이후 ai_end_conversation 으로 종료 — processReturn 이 waiting_for_input
+      // 이어서 loop 이 다음 이벤트를 기다리므로 endAiConversation 후 flushPromises 필요.
+      service.endAiConversation(executionId);
+      await flushPromises();
+      await execPromise;
+    });
+
+    it('W12 — unknown action.type: logger.warn 호출 + loop 재진입 (silent drop 금지)', async () => {
+      // spec §10.9 — unknown type 은 warn log 남기고 loop 재진입.
+      // MAX_UNKNOWN_SKIPS cap 이 20이므로 1회 unknown 후 ai_end_conversation 으로 정상 종료.
+      const endReturn = {
+        config: { mode: 'multi_turn' },
+        output: {},
+        meta: {},
+        port: 'ended',
+        status: 'ended',
+      };
+      const handler = makeAiDispatchHandler(() => endReturn);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
+
+      const logger = (service as unknown as { logger: { warn: jest.Mock } })
+        .logger;
+      const warnSpy = jest.spyOn(logger, 'warn');
+
+      const execPromise = service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // unknown type 메시지 주입 — bus handler 를 통해 pendingContinuations 에 직접 주입.
+      // 버스 mock 의 publish 는 type 으로 handler 조회하므로, 직접 resolvePending 사용.
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+
+      // pending 이 있으면 unknown type 으로 resolve.
+      const pendingEntry = pendings.get(executionId);
+      if (pendingEntry) {
+        pendingEntry.resolve({ type: 'totally_unknown_type_xyz' });
+      }
+      await flushPromises();
+
+      // warn log 가 호출됐는지 — unknown type 포함.
+      const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
+      const hasUnknownWarn = warnCalls.some(
+        (msg) =>
+          msg.includes('Unknown continuation action.type') ||
+          msg.includes('totally_unknown_type_xyz'),
+      );
+      expect(hasUnknownWarn).toBe(true);
+
+      // 이후 ai_end_conversation 으로 정상 종료.
+      service.endAiConversation(executionId);
+      await execPromise;
+
+      warnSpy.mockRestore();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // W13 (SUMMARY) — Form node sentinel unwrap back-compat fallback 검증.
+  // waitForFormSubmission 이 sentinel 없는 raw 값을 받으면 warn log + 값 그대로 사용.
+  // ---------------------------------------------------------------------------
+  describe('waitForFormSubmission — back-compat fallback (W13)', () => {
+    const formNodesW13: Partial<Node>[] = [
+      {
+        id: 'node-start-w13',
+        workflowId,
+        type: 'test_node',
+        category: NodeCategory.LOGIC,
+        label: 'Start',
+        config: {},
+        isDisabled: false,
+        containerId: undefined,
+        toolOwnerId: undefined,
+      },
+      {
+        id: 'node-form-w13',
+        workflowId,
+        type: 'form',
+        category: NodeCategory.PRESENTATION,
+        label: 'Form W13',
+        config: {
+          fields: [{ name: 'approved', type: 'checkbox', label: 'Approved' }],
+          title: 'Test',
+        },
+        isDisabled: false,
+        containerId: undefined,
+        toolOwnerId: undefined,
+      },
+    ];
+    const formEdgesW13: Partial<Edge>[] = [
+      {
+        id: 'edge-w13-1',
+        workflowId,
+        sourceNodeId: 'node-start-w13',
+        sourcePort: 'out',
+        targetNodeId: 'node-form-w13',
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      },
+    ];
+
+    beforeEach(() => {
+      mockNodeRepo.findBy.mockResolvedValue(formNodesW13);
+      mockEdgeRepo.findBy.mockResolvedValue(formEdgesW13);
+      const formHandlerW13: NodeHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () =>
+          mockOutput({
+            type: 'form',
+            status: 'waiting_for_input',
+            formConfig: {
+              fields: [
+                { name: 'approved', type: 'checkbox', label: 'Approved' },
+              ],
+            },
+          }),
+        ),
+      };
+      handlerRegistry.register('form', formHandlerW13, {
+        kind: 'blocking',
+        interaction: 'form',
+      });
+    });
+
+    it('sentinel 없는 raw 값이 resolvePending 에 도달하면 warn log + raw 값 그대로 formData 로 사용', async () => {
+      // spec §10.9 back-compat: continueExecution 경로 외 직접 resolvePending 시
+      // sentinel 없이 raw 값이 들어올 수 있다. warn log 남기고 raw 값을 그대로 사용.
+      const logger = (service as unknown as { logger: { warn: jest.Mock } })
+        .logger;
+      const warnSpy = jest.spyOn(logger, 'warn');
+
+      void service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // sentinel 없이 직접 resolvePending — 비정상 경로 시뮬레이션.
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+      const raw = { approved: true };
+      const pendingEntry = pendings.get(executionId);
+      pendingEntry?.resolve(raw);
+      await flushPromises();
+
+      // warn log 가 sentinel 없는 폴백 분기임을 알리는지.
+      const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
+      const hasFallbackWarn = warnCalls.some(
+        (msg) =>
+          msg.includes('sentinel') ||
+          msg.includes('waitForFormSubmission') ||
+          msg.includes('폴백'),
+      );
+      expect(hasFallbackWarn).toBe(true);
+
+      warnSpy.mockRestore();
     });
   });
 
