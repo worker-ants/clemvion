@@ -43,7 +43,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
 | 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
 | 통합 검토 산출물 | `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
-| Spec-impl coverage standing audit 산출물 | `review/consistency/coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` (slash `/spec-coverage` 산출. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md)) |
+| Spec-impl coverage standing audit 산출물 | `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` (slash `/spec-coverage` 산출. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md)) |
 
 > PLAN 라이프사이클·이동 규칙·frontmatter 스키마: [`.claude/docs/plan-lifecycle.md`](.claude/docs/plan-lifecycle.md)
 > Spec 문서 3섹션 구성 (Overview / 본문 / Rationale): 각 SKILL.md 참고.
@@ -69,7 +69,7 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 - 구현 중 spec 변경 필요 시 `developer` 는 멈추고 `project-planner` 위임.
 - `project-planner` 는 `spec/` 쓰기 직전 `consistency-check --spec` 의무. `developer` 는 구현 착수 직전 `consistency-check --impl-prep` 의무. Critical 발견 시 차단.
 
-**보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 산출 `review/consistency/coverage/**`. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md).
+**보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 산출 `review/spec-coverage/**`. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md).
 
 ## 외부 LLM 호출 정책
 
