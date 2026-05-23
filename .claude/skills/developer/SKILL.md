@@ -1,6 +1,7 @@
 ---
 name: developer
 description: 제품의 구현(코딩·리팩토링·테스트 작성·빌드·품질 검증)을 담당하는 개발자 역할을 수행합니다. 사용자가 "구현", "기능 추가", "버그 수정", "리팩토링", "테스트 작성", "빌드", "리뷰 반영" 등을 요청할 때 사용합니다. 기획(Spec 신규 정의·대규모 개정)은 수행하지 않으며, 모든 구현은 SDD+TDD로 진행하고 TEST WORKFLOW와 REVIEW WORKFLOW를 반드시 이행합니다.
+model: opus
 ---
 
 # Developer

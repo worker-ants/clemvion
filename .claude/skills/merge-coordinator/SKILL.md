@@ -1,6 +1,7 @@
 ---
 name: merge-coordinator
 description: 다수 PR/branch 의 통합 전 충돌·정합성·side effect 를 분석하고, 사용자 confirm 을 거쳐 격리 worktree 안에서 통합을 실행한 뒤, /ai-review · /consistency-check 를 자동 chain 으로 호출하는 skill. 사용자가 "다중 PR 통합", "branch merge 검토", "rebase 충돌 분석", "/merge-coordinate" 를 요청할 때 사용합니다. 6개 sub-agent (4 analyzer + 1 summary + 1 conflict resolver) 를 main Claude 가 Agent tool 로 호출하며, conflict 발생 시 사용자 confirm 후에만 patch 를 적용합니다. 사용량 한도 시 `/loop /merge-coordinate` 와 결합해 ScheduleWakeup 으로 무한 재시도.
+model: sonnet
 ---
 
 # Merge Coordinator
