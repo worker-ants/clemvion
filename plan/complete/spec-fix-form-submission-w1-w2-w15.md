@@ -46,3 +46,16 @@ SUMMARY#W15: spec §10.9 본문 + §Rationale SSOT 4-layer 목록 중복 (`spec/
 ```
 4-layer 분리는 [§10.9 Form submission wire format](#109-form-submission-wire-format-internal-bus-sentinel) 참고.
 ```
+
+## Closeout (2026-05-23)
+
+- [x] W1 — `'button_click'` AI conversation 내 미도달 invariant 명시 (§10.9 dispatch 표 비고 + 본문 invariant 노트 추가)
+- [x] W2 — `action.formData ?? {}` fallback 명시 (§10.9 본문 단락 추가, 외부 wire 와 internal API robustness 경계 분리 명시)
+- [x] W15 — §Rationale "form submission wire format wrap" 의 4-layer SSOT 목록을 §10.9 본문 cross-ref 로 대체 (Rationale 은 결정 근거만 남음)
+- [x] §9 CHANGELOG 한 줄 추가 (2026-05-23, W1/W2/W15 후속 정합화)
+- [x] 사전 일관성 검토 (self-perform 5관점) — BLOCK: NO
+- [x] 외부 cross-ref anchor `#109-form-submission-wire-format-internal-bus-sentinel` 보존 확인 (ai-agent §6.2 step 2.c, ws-protocol §4.2 영향 없음)
+
+**미해결 follow-up**: 없음.
+
+**Cross-impact**: 없음 — §10.9 anchor 보존, dispatch 표 컬럼 구조 변경 없음, 추가된 invariant/fallback 노트는 기존 SoT 와 호환 가능한 명시 보강.

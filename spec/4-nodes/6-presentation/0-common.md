@@ -382,10 +382,14 @@ AI Agent multi-turn 의 사용자 입력 대기 루프 (`status: 'waiting_for_in
 | `'ai_end_conversation'` | 종료 | `user_ended` 포트로 라우팅 (§7.7) |
 | `'ai_message'` | AI message turn | `handleAiMessageTurn(executionId, node, action.message, ...)` |
 | `'form_submitted'` | form submit turn | `handleAiMessageTurn(executionId, node, JSON.stringify(action.formData), ...)` — handler `processMultiTurnMessage` 의 form 분기에서 [AI Agent §6.2 step 2.c](../3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn) 의 tool_result content `{type:'form_submitted', data:{…}}` JSON 채워 LLM 재호출 |
-| `'button_click'` | 버튼 클릭 | 별도 경로 ([§3](#3-blocking-mode-실행-흐름) Blocking Mode) |
+| `'button_click'` | 버튼 클릭 | 별도 경로 ([§3](#3-blocking-mode-실행-흐름) Blocking Mode). **AI conversation 대기 중 미도달 invariant** (아래) |
 | 그 외 (`!type` / 미매칭) | **warn log + loop 재진입** | silent skip 금지 — `console.warn('[waitForAiConversation] unknown action.type', { executionId, action })` 후 다음 resume 대기로 돌아간다. 무한 루프 방어는 `maxTurns` cap 이 별도 layer 에서 담당 |
 
 `!('type' in action)` 의 휴리스틱 매칭 (form 필드명이 `type` 인 경우 silent drop 의 root cause) 은 **폐기**한다.
+
+**`'form_submitted'` 케이스의 `action.formData ?? {}` fallback**: dispatch handler 는 `handleAiMessageTurn(executionId, node, JSON.stringify(action.formData ?? {}), ...)` 로 호출한다 — `action.formData` 가 `null` / `undefined` 인 경우 (예: `continueExecution(executionId, undefined)` 호출로 빈 form 제출) 빈 객체 `{}` 로 fallback 하여 `handleAiMessageTurn` 이 `JSON.stringify({})` 를 인자로 받아 정상 처리되도록 한다. 외부 wire `execution.submit_form` payload 의 `formData` 가 항상 set 되어 들어오는 normal path 와 무관하게 internal API 호출 경로의 robustness 보호.
+
+**`'button_click'` AI conversation 내 미도달 invariant**: `waitForAiConversation` loop 는 위 표의 4 케이스 중 실제로는 `ai_end_conversation` / `ai_message` / `form_submitted` 3 케이스만 수신하도록 설계됐다. `button_click` 이벤트는 `continueButtonClick → bus.publish({type:'button_click'})` 경로로 [Continuation Bus](../../5-system/4-execution-engine.md#74-분산-실행-multi-instance) 의 별도 메시지 타입으로 전달되며 (`'continue'` 메시지의 payload sentinel 이 아님), `waitForAiConversation` 이 실행 중인 경우에도 `pendingContinuations` 에 이미 등록된 resolve 가 `button_click` payload 로 호출될 수 있으나 — 현재 UI 는 AI conversation 대기 중 (`interactionType: 'ai_conversation' | 'ai_form_render'` 상태) presentation 노드 본체 버튼을 표시·라우팅하지 않으므로 본 경로로 `'button_click'` action 이 도달하지 않는 자연 invariant 가 성립한다. 위 표에 `'button_click'` 케이스가 명시된 것은 enum 의 완전성을 위함이며, 만약 향후 UI 변경으로 도달하게 되면 `else` 분기 (warn log + loop 재진입) 가 graceful degradation 으로 동작한다.
 
 **외부 wire (1) 호환 유지**:
 
@@ -405,6 +409,7 @@ WS wire `execution.submit_form` 의 payload shape `{ executionId, nodeId, formDa
 
 | 일자 | 변경 |
 |------|------|
+| 2026-05-23 | §10.9 본문 정합화 (ai-review W1/W2/W15 후속) — (W1) `'button_click'` AI conversation 내 미도달 invariant 명시 (UI 가 AI conversation 대기 중 presentation 노드 본체 버튼을 라우팅하지 않으므로 enum 4 케이스 중 `button_click` 만 자연 미도달, 위 표에 명시 + 본문 invariant 노트). (W2) `'form_submitted'` 케이스의 `action.formData ?? {}` fallback 명시 (`continueExecution(executionId, undefined)` 빈 form 제출에서도 `JSON.stringify({})` 가 정상 처리되도록 robustness 보호). (W15) §Rationale "form submission wire format wrap" 의 4-layer SSOT 목록을 §10.9 본문 cross-ref 로 대체 — 본문이 SoT, Rationale 은 결정 근거 한정. 결정 근거: [§Rationale form submission wire format wrap (2026-05-23)](#form-submission-wire-format-wrap-2026-05-23) |
 | 2026-05-23 | §10.9 신설 — Form submission wire format (internal bus sentinel). `continueExecution` 가 raw `formData` 를 그대로 publish 하던 휴리스틱 dispatch (`!('type' in action)`) 가 form 필드명이 `type` 인 페이로드를 silent drop 시키던 회귀의 root cause. `{ type: 'form_submitted', formData }` sentinel wrap 으로 명시화. 외부 WS wire (`execution.submit_form` payload shape) 와 execution-engine §7.4 bus 메시지 타입 5종 표는 변경 없음 — internal bus payload layer 한정. `waitForAiConversation` dispatch 4 케이스 명시 매칭 (`ai_end_conversation` / `ai_message` / `form_submitted` / `button_click`) + 그 외는 warn log + loop 재진입 (silent skip 금지). 결정 근거: [§Rationale form submission wire format wrap (2026-05-23)](#form-submission-wire-format-wrap-2026-05-23) |
 | 2026-05-23 | §10.5 step 4 본문 + §Rationale "form option value backfill" + [Form 4-form.md §1](./4-form.md#1-설정-config) `options[].value` 비고에서 slug variant (`opt-{fieldIdx}-{slug(label)}`) 언급 제거 — 결정적 인덱스 단일 형식 `opt-{fieldIdx}-{optIdx}` 로 정합화. ai-review (`review/code/2026/05/23/15_27_41/`) W#1 documentation drift 정정. 구현 (`backfillFormOptionValues`) 은 PR #279 부터 인덱스 단일 형식만 사용 — 다국어 label 에서 slug 가 빈 문자열로 귀결되는 결정성 문제를 회피하기 위한 의도된 단일 경로. |
 | 2026-05-23 | §10.5 에 step 4 신설 — `render_form` 한정 form `option.value` 결정적 backfill (`opt-{fieldIdx}-{optIdx}`). 기존 step 4·5 → 5·6 재번호. 함수명 `backfillFormOptionValues` 는 step 3 의 `backfillButtonUuids` 와 평행 명명. [Form 4-form.md §1](./4-form.md#1-설정-config) `options[].value` 비고에서 본 step cross-ref. 결정 근거: [§Rationale form option value backfill (2026-05-23)](#form-option-value-backfill-2026-05-23) |
@@ -616,10 +621,4 @@ WS wire `execution.submit_form` 의 payload shape `{ executionId, nodeId, formDa
 
 본 §10.9 의 dispatch 가 `'form_submitted'` 케이스로 `handleAiMessageTurn` 을 호출하면, handler 의 `processMultiTurnMessage` 가 `state.pendingFormToolCall` 매칭을 검증한다. `pendingFormToolCall` 가 누락된 경우 (예: 사용자가 `render_form` 호출 없는 turn 에 `execution.submit_form` 을 직접 보냄, 또는 race condition) 의 fallback 규약은 [AI Agent §6.2 step 2.c](../3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn) 가 SoT — form JSON 을 plain user 메시지로 thread 에 push + warn log 의무. ai-agent §7.4 invariant ("`interactionType: 'ai_form_render'` ↔ `pendingFormToolCall` set 은 1:1") 의 예외 처리.
 
-**4-layer SSOT 정렬**:
-
-- spec §10.9 (본 절 — internal bus payload sentinel SoT)
-- spec [WS §4.2](../../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server) — 외부 wire 호환 유지 (변경 없음)
-- spec [execution-engine §7.4](../../5-system/4-execution-engine.md#74-분산-실행-multi-instance) — bus 메시지 타입 5종 표 (변경 없음)
-- backend `execution-engine.service.ts` (`continueExecution` wrap · `registerContinuationHandlers` forward · `waitForAiConversation` 4 케이스 매칭)
-- backend `ai-agent.handler.processMultiTurnMessage` (pendingFormToolCall 매칭 + 누락 시 fallback — ai-agent §6.2 step 2.c)
+**4-layer SSOT 정렬**: [§10.9 Form submission wire format](#109-form-submission-wire-format-internal-bus-sentinel) 본문의 "4-layer SSOT 정렬" 단일 진실 참조 — 본 절은 결정 근거 (왜 sentinel wrap) 만 담고 정렬 자체는 §10.9 본문이 SoT.
