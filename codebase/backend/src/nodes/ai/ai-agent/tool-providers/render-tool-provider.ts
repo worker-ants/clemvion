@@ -386,23 +386,19 @@ export function backfillButtonUuids(
     if (Array.isArray((out as { items?: unknown }).items)) {
       out = {
         ...out,
-        items: ((out as { items: unknown[] }).items as unknown[]).map(
-          (item) => {
-            if (
-              item !== null &&
-              typeof item === 'object' &&
-              Array.isArray((item as Record<string, unknown>).buttons)
-            ) {
-              return {
-                ...(item as Record<string, unknown>),
-                buttons: fillButtons(
-                  (item as Record<string, unknown>).buttons,
-                ),
-              };
-            }
-            return item;
-          },
-        ),
+        items: (out as { items: unknown[] }).items.map((item) => {
+          if (
+            item !== null &&
+            typeof item === 'object' &&
+            Array.isArray((item as Record<string, unknown>).buttons)
+          ) {
+            return {
+              ...(item as Record<string, unknown>),
+              buttons: fillButtons((item as Record<string, unknown>).buttons),
+            };
+          }
+          return item;
+        }),
       };
     }
     if (Array.isArray((out as { itemButtons?: unknown }).itemButtons)) {

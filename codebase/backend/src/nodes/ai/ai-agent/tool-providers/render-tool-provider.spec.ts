@@ -463,9 +463,9 @@ describe('backfillButtonUuids (spec §10.5 step 3)', () => {
   });
 
   it('does not crash on payload without buttons arrays', () => {
-    expect(backfillButtonUuids('carousel', { mode: 'static', items: [] })).toEqual(
-      { mode: 'static', items: [] },
-    );
+    expect(
+      backfillButtonUuids('carousel', { mode: 'static', items: [] }),
+    ).toEqual({ mode: 'static', items: [] });
     expect(
       backfillButtonUuids('table', { mode: 'static', columns: [], rows: [] }),
     ).toEqual({ mode: 'static', columns: [], rows: [] });
