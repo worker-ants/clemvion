@@ -30,7 +30,7 @@
 | 1 | `developer-partial-impl-discipline.md` | D | spec PR 머지 후 (병렬 가능) |
 | 2 | `spec-frontmatter-rollout.md` | A | spec PR + `ai-presentation-tools` + `ai-agent-tool-connection-rewrite` 의존 |
 | 3 | `user-guide-reverse-coverage.md` | B | spec PR 머지 후 (병렬 가능) |
-| 4 | `plan-stale-audit.md` | C-1 | spec PR 머지 후 (병렬 가능) |
+| 4 | `plan-stale-audit.md` | C-1 | ✅ complete (2026-05-23) |
 | 5 | `spec-coverage-slash-command.md` | C-2 | 2 완료 후 (spec frontmatter 의존) |
 
 > 각 plan에는 배경 / 관련 PRD-Spec 참조 / 작업 단위 / 수용 기준이 포함된다. 본 인덱스는 plan 간 우선순위·의존 관계만 정리한다.
