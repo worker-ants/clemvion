@@ -187,6 +187,18 @@ export const editor = {
     cardFormSubmitted: "폼 제출",
     cardLinkContinue: "링크 이동",
     cardSystemNote: "시스템 알림",
+    // system_error source (§9.1 + §9.10 CT-S9/S10/S11)
+    systemErrorRetry: "다시 시도",
+    systemErrorRetryAfter: "{{seconds}}초 후 재시도 가능",
+    systemErrorRetryAfterShort: "{{seconds}}초",
+    systemErrorRetrying: "재시도 중…",
+    systemErrorNonRetryable: "재시도 불가",
+    systemErrorRetryFailed: "재시도 실패",
+    systemErrorRetryFailedNotFound:
+      "이 재시도 정보가 만료되었거나 이미 사용되었습니다.",
+    systemErrorRetryFailedNodeNotRetryable:
+      "이 오류는 재시도할 수 없습니다.",
+    systemErrorRetryFailedTooEarly: "잠시 후 다시 시도해주세요.",
   },
   expression: {
     insertVariable: "변수 삽입",

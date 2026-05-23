@@ -2862,14 +2862,17 @@ describe('ExecutionEngineService', () => {
         }
       ).extractAiTurnErrorPayload;
 
-    it('Error 인스턴스 + 명시 code 를 올바르게 추출한다', () => {
+    // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 노드는
+    // details.retryable 필수. 본 PR (2026-05-23) 의 행동 변경.
+    it('Error 인스턴스 + 명시 code 를 올바르게 추출한다 (details.retryable 보장)', () => {
       const err = Object.assign(new Error('LLM rate limited'), {
         code: 'LLM_RATE_LIMIT',
       });
       const result = extract()(err);
       expect(result.code).toBe('LLM_RATE_LIMIT');
       expect(result.message).toContain('LLM rate limited');
-      expect(result.details).toBeUndefined();
+      // Principle 3.2.1 — LLM_RATE_LIMIT 은 retryable=true
+      expect(result.details).toEqual({ retryable: true });
     });
 
     it('string throw 를 처리한다', () => {
@@ -2906,13 +2909,19 @@ describe('ExecutionEngineService', () => {
       expect(result.code).toBe('AI_AGENT_TURN_FAILED');
     });
 
-    it('details 필드를 포함한 오류를 처리한다', () => {
+    it('details 필드를 포함한 오류를 처리한다 (retryable 자동 분류)', () => {
       const err = Object.assign(new Error('API error'), {
         code: 'LLM_API_ERROR',
         details: { retryAfter: 60, status: 429 },
       });
       const result = extract()(err);
-      expect(result.details).toEqual({ retryAfter: 60, status: 429 });
+      // 기존 details 필드 보존 + Principle 3.2.1 retryable 추가.
+      // LLM_API_ERROR 는 RETRYABLE_CODES 에 없어 retryable=false (보수적 default).
+      expect(result.details).toEqual({
+        retryAfter: 60,
+        status: 429,
+        retryable: false,
+      });
     });
 
     it('details 에 secret 포함 시 sanitize 가 적용된다', () => {
@@ -2933,7 +2942,12 @@ describe('ExecutionEngineService', () => {
       // JSON.stringify(circular) throws — should NOT throw out, must return safe value
       expect(() => extract()(err)).not.toThrow();
       const result = extract()(err);
-      expect(result.details).toBe('[serialization error]');
+      // Principle 3.2.1 갱신 후 — fallback `[serialization error]` 가
+      // baseDetails 의 `details` 필드로 래핑되고 retryable 이 추가됨.
+      expect(result.details).toMatchObject({
+        details: '[serialization error]',
+        retryable: false,
+      });
     });
 
     it('비-Error 객체 throw 시 JSON.stringify 실패해도 throw 하지 않는다 (req W_json)', () => {
@@ -2943,6 +2957,59 @@ describe('ExecutionEngineService', () => {
       const result = extract()(nonSerializable);
       expect(result.message).toBe('[non-serializable error object]');
       expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+    });
+
+    // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 retryable 분류
+    describe('retryable 분류 (Principle 3.2.1)', () => {
+      it('LLM_RATE_LIMIT → retryable=true', () => {
+        const result = extract()(
+          Object.assign(new Error('429'), { code: 'LLM_RATE_LIMIT' }),
+        );
+        expect((result.details as Record<string, unknown>).retryable).toBe(
+          true,
+        );
+      });
+
+      it('LLM_CONNECTION_ERROR → retryable=true', () => {
+        const result = extract()(
+          Object.assign(new Error('ECONNRESET'), {
+            code: 'LLM_CONNECTION_ERROR',
+          }),
+        );
+        expect((result.details as Record<string, unknown>).retryable).toBe(
+          true,
+        );
+      });
+
+      it('AI_AGENT_TURN_FAILED → retryable=false (보수적 default)', () => {
+        const result = extract()(new Error('unexpected error'));
+        expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+        expect((result.details as Record<string, unknown>).retryable).toBe(
+          false,
+        );
+      });
+
+      it('LLM_RATE_LIMIT + Retry-After 헤더 → retryAfterSec 추출 (초 단위)', () => {
+        const err = Object.assign(new Error('429'), {
+          code: 'LLM_RATE_LIMIT',
+          headers: { 'retry-after': '30' }, // 초 단위 RFC delta-seconds
+        });
+        const result = extract()(err);
+        const details = result.details as Record<string, unknown>;
+        expect(details.retryable).toBe(true);
+        expect(details.retryAfterSec).toBe(30);
+      });
+
+      it('retryable=false 면 retryAfterSec 미동봉 (invariant)', () => {
+        const err = Object.assign(new Error('parse fail'), {
+          code: 'LLM_RESPONSE_INVALID',
+          headers: { 'retry-after': '30' },
+        });
+        const result = extract()(err);
+        const details = result.details as Record<string, unknown>;
+        expect(details.retryable).toBe(false);
+        expect(details.retryAfterSec).toBeUndefined();
+      });
     });
   });
 

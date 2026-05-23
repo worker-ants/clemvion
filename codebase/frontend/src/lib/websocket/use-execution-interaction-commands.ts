@@ -83,6 +83,20 @@ export interface ExecutionInteractionCommands {
   sendMessage: (nodeId: string, message: string) => void;
   /** Gracefully terminate a live AI conversation node. */
   endConversation: (nodeId: string) => void;
+  /**
+   * Re-enter a multi-turn AI Agent node that ended with retryable error by
+   * spawning a new NodeExecution row from the persisted `_retryState`.
+   *
+   * SoT: spec/5-system/6-websocket-protocol.md §4.2 +
+   * spec/conventions/conversation-thread.md §9.10 CT-S11.
+   *
+   * Distinct from workflow Re-run (§13 replay-rerun) — this stays inside
+   * the same Execution and only re-attempts the last failed LLM turn.
+   *
+   * On failure (3 error codes — RETRY_STATE_NOT_FOUND /
+   * NODE_NOT_RETRYABLE / RETRY_TOO_EARLY) shows a localized toast.
+   */
+  retryLastTurn: (nodeExecutionId: string) => void;
 }
 
 /**
@@ -228,5 +242,32 @@ export function useExecutionInteractionCommands(
     [executionId],
   );
 
-  return { submitForm, clickButton, clickContinue, sendMessage, endConversation };
+  const retryLastTurn = useCallback(
+    (nodeExecutionId: string) => {
+      if (!executionId) return;
+      // optimistic — user 가 [다시 시도] 를 누르는 순간 spinner 노출.
+      // ack 실패 시 release.
+      setWaitingAiResponse(true);
+      emitWithAck(
+        getWsClient(),
+        "execution.retry_last_turn",
+        { executionId, nodeExecutionId },
+        "execution.retry_last_turn.ack",
+        (error) => {
+          setWaitingAiResponse(false);
+          toast.error(error);
+        },
+      );
+    },
+    [executionId, setWaitingAiResponse],
+  );
+
+  return {
+    submitForm,
+    clickButton,
+    clickContinue,
+    sendMessage,
+    endConversation,
+    retryLastTurn,
+  };
 }
