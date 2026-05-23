@@ -203,7 +203,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | type | Enum | webhook / schedule / manual |
 | name | String | 트리거 이름 |
 | is_active | Boolean | 활성 상태 |
-| config | JSONB | 트리거별 설정. `notification` / `interaction` 서브 필드는 [Spec External Interaction API §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) 참조. `chatChannel` 서브 필드 (외부 chat 플랫폼 어댑터) 는 [Spec Chat Channel §4.1](./5-system/15-chat-channel.md#41-triggerconfigchatchannel) 참조 |
+| config | JSONB | 트리거별 설정. `notification` / `interaction` 서브 필드는 [Spec External Interaction API §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) 참조. `chatChannel` 서브 필드 (외부 chat 플랫폼 어댑터) 는 [Spec Chat Channel §4.1](./5-system/15-chat-channel.md#41-triggerconfigchatchannel) 참조. 응답 DTO 전용 derived 필드 `hasBotToken: boolean` (`botTokenRef IS NOT NULL → true`) — DB 컬럼 아님, SoT [Spec Chat Channel §5.4.2](./5-system/15-chat-channel.md#542-응답-dto-derived-필드--hasbottoken) |
 | endpoint_path | String? | Webhook URL 경로 (type=webhook) |
 | auth_config_id | UUID? | FK → AuthConfig (Webhook 인증) |
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |

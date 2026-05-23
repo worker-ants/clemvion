@@ -147,7 +147,12 @@ interface ChatChannelConfig {
   botIdentity?: { botId: number; username: string };
   uiMapping?: {
     formMode?: "multi_step";
-    visualNode?: "photo" | "text_only";
+    /**
+     * 시각 렌더 모드 — 동 파일 §2.2 KeyboardHint 의 'text' (입력 hint) 와 의미 다름.
+     * default 는 `auto`. v1 photo 선택 시 fallback to text + warning 로그 (Spec Chat Channel §3.3 CCH-MP-04 · providers/telegram.md §5.4).
+     * DB 에 저장된 legacy 'text_only' 값은 어댑터가 read-time 에 'text' 로 normalize (마이그레이션 완료 전 과도기 정책 — 후속 developer plan 책임).
+     */
+    visualNode?: "text" | "photo" | "auto";
     buttonLayout?: "auto" | "vertical" | "horizontal";
   };
   rateLimitPerMinute?: number;
@@ -191,7 +196,7 @@ interface SendResult {
 | EIA event type | 입력 payload | 출력 ChannelMessage 시퀀스 |
 |---|---|---|
 | `execution.waiting_for_input` (interactionType=form) | `formConfig.fields[]` | 다단계 — 첫 필드의 `form_prompt` 1건. 이후 응답마다 다음 필드 (§4) |
-| `execution.waiting_for_input` (interactionType=buttons) | `buttonConfig.buttons[]` + `buttonConfig.nodeOutput` | `buttons` 1건. node output 이 시각형 (carousel/table/chart) 이면 그 앞에 시각 ChannelMessage 시퀀스 추가 — provider 별 v1 fallback (텔레그램: [§5.4](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) MarkdownV2 텍스트/monospace) 또는 v2 SSR PNG (별 plan `chat-channel-visual-ssr-png`) |
+| `execution.waiting_for_input` (interactionType=buttons) | `buttonConfig.buttons[]` + `buttonConfig.nodeOutput` | `buttons` 1건. node output 이 시각형 (carousel/table/chart) 이면 그 앞에 시각 ChannelMessage 시퀀스 추가 — `uiMapping.visualNode` enum 분기 적용 (`text` / `photo` / `auto`, default `auto`). provider 별 v1 fallback 정책 (텔레그램: [§5.4](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) MarkdownV2 텍스트/monospace) 또는 v2 SSR PNG (별 plan `chat-channel-visual-ssr-png`). v1 에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음 — 정상 fallback) |
 | `execution.waiting_for_input` (interactionType=ai_conversation) | `conversationConfig.message` | `text` 1건 (provider 길이 제한 초과 시 chunked) |
 | `execution.ai_message` | `message` | `text` 1건 (chunked 가능) |
 | `execution.completed` | `result.outputs` | `text` 1건 — `languageHints.executionCompleted` 또는 result 의 summary |
@@ -292,3 +297,4 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 | 2026-05-22 | (a) `EiaEvent` union 의 `execution.cancelled` 주석을 `/* EIA §6.5 (cancelled) */`, `execution.ai_message` 주석을 `/* EIA §6.5 (ai_message) + WS §4.4 */` 로 구분하여 가독성 개선 (동일 §6.5 섹션 참조이나 역할 명시). (b) `parseUpdate` 의 `null` 반환 의미를 §1.1 표에 단일 의미("어댑터 해석 불가/무시")로 명확화 + 안내 메시지 발송 책임이 호출자(HooksService/Dispatcher) 임을 명시. (c) `secretToken` 주석을 v1 plaintext stub → `spec-update-chat-channel-bot-token-stub` 별 plan 추적으로 명확화. (d) §4 Form 다단계 step 3 의 "같은 필드 재질문" 을 어댑터 sendMessage 직접 호출 금지(pure 유지) + dispatcher 가 ChannelMessage 발송으로 명확화 (spec-fix-chat-channel-behavior). |
 | 2026-05-22 | §3 매핑 표의 시각형 노드 행을 v1 (MarkdownV2 fallback) / v2 (SSR PNG) 정책 분리로 명확화 — provider 별 fallback 구현은 텔레그램 §5.4 참조 (chat-channel-visual-impl). |
 | 2026-05-22 | §2.3 `ChatChannelConfig` — `botToken`/`secretToken` 평문 stub 제거, `botTokenRef`/`secretTokenRef` 단일 형태로 정리. §2.4 `SetupResult` — `configUpdates` + `issuedSecretToken` 분리 정식화 (plaintext 가 config 에 흘러들지 않도록). [secret-store.md](./secret-store.md) convention 신설에 따른 동반 갱신 (chat-channel-secret-store-pgcrypto). |
+| 2026-05-23 | §2.3 `visualNode` enum 교체 (`text_only`→`text` rename + `auto` 신설, default `auto`). §3 시각형 노드 매핑 행에 enum 분기 인용 추가. v1 photo 선택 시 fallback to text + warning 로그 정책. legacy `text_only` 값 read-time normalize 정책. `KeyboardHint` 'text' 와의 의미 구분 인라인 주석. spec-telegram-chat-channel-ui-polish. |
