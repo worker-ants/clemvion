@@ -48,6 +48,101 @@ function sanitizeUuid(v: unknown): string | undefined {
   return typeof v === "string" && UUID_REGEX.test(v) ? v : undefined;
 }
 
+/**
+ * Extract a structured `output.error` payload from a node lifecycle event,
+ * regardless of whether it arrived on the `error` (failed) or `output.error`
+ * (completed-with-error) field. Returns `null` when no structured error
+ * shape is present — including the legacy `error: string` case which we
+ * keep as a plain status update without an inline conversation marker.
+ *
+ * SoT: spec/conventions/node-output.md Principle 3.2 / 3.2.1 + Spec
+ * WebSocket Protocol §4.1 error payload shape.
+ */
+function extractNodeErrorPayload(
+  rawError: unknown,
+  rawOutput: unknown,
+): {
+  code: string;
+  message: string;
+  details?: { retryable?: boolean; retryAfterSec?: number; [k: string]: unknown };
+} | null {
+  // §4.1 갱신 — `execution.node.failed.error` 는 `output.error` 전체 구조
+  const direct =
+    rawError && typeof rawError === "object" && !Array.isArray(rawError)
+      ? (rawError as Record<string, unknown>)
+      : null;
+  // multi-turn `port: 'error'` 의 `node.completed` 분기
+  const nested =
+    rawOutput &&
+    typeof rawOutput === "object" &&
+    "error" in (rawOutput as Record<string, unknown>) &&
+    (rawOutput as Record<string, unknown>).error &&
+    typeof (rawOutput as Record<string, unknown>).error === "object"
+      ? ((rawOutput as Record<string, unknown>).error as Record<string, unknown>)
+      : null;
+  const source = direct ?? nested;
+  if (!source) return null;
+  const code = typeof source.code === "string" ? source.code : null;
+  const message = typeof source.message === "string" ? source.message : null;
+  if (!code || !message) return null;
+  const details =
+    source.details && typeof source.details === "object"
+      ? (source.details as Record<string, unknown>)
+      : undefined;
+  return { code, message, details };
+}
+
+/**
+ * Build a `system_error` ConversationItem from a node lifecycle event's
+ * error payload. Applied to the conversation thread when the host node is a
+ * multi-turn AI Agent that already accumulated turns (live conversation
+ * context — spec §9.7 WS event → store mutation contract).
+ *
+ * `retryable` defaults to `false` when the LLM provider adapter hasn't
+ * classified the error yet — the UI then suppresses the `[다시 시도]`
+ * button (CT-S10) so users don't trigger a hopeless retry.
+ */
+function makeSystemErrorItem(args: {
+  code: string;
+  message: string;
+  retryable?: boolean;
+  retryAfterSec?: number;
+  nodeId: string;
+  nodeLabel: string;
+  timestamp?: string;
+}): ConversationItem {
+  return {
+    type: "system_error",
+    content: args.message,
+    turnIndex: 0,
+    systemError: {
+      code: args.code,
+      message: args.message,
+      retryable: args.retryable ?? false,
+      retryAfterSec: args.retryAfterSec,
+      nodeId: args.nodeId,
+      nodeLabel: args.nodeLabel,
+    },
+    timestamp: args.timestamp,
+  };
+}
+
+/**
+ * Decide whether the node event's host node is currently running an AI
+ * Agent multi-turn conversation that needs an inline `system_error` item
+ * appended to the timeline (spec §9.7 contract). Heuristic:
+ *
+ * - Host node is an `ai_agent` (single-turn AI Agent never accumulates a
+ *   thread of its own so a system_error in the thread is meaningless).
+ * - The store already holds conversation messages — i.e. at least one turn
+ *   was emitted before the failure. Without prior turns there's no thread
+ *   to mark, and the standalone Error tab handles plain failures.
+ */
+function isMultiTurnAiContext(nodeType?: string): boolean {
+  if (nodeType !== "ai_agent") return false;
+  return useExecutionStore.getState().conversationMessages.length > 0;
+}
+
 export function useExecutionEvents({
   executionId,
 }: UseExecutionEventsOptions): UseExecutionEventsReturn {
@@ -647,6 +742,33 @@ export function useExecutionEvents({
           // existing 매칭 실패해도 timeline 정렬에 정확한 startedAt 사용.
           startedAt: payload.startedAt ?? existing?.startedAt,
         });
+
+        // spec/conventions/conversation-thread.md §9.7 — multi-turn AI Agent
+        // 가 `port: 'error'` 로 종결되면 `output.error` 를 운반한다 (AI Agent
+        // §7.9). 이 케이스에서 conversation thread 마지막에 system_error
+        // item 을 APPEND 해 사용자가 어디서 끊겼는지 인지할 수 있게 한다.
+        const errorPayload = extractNodeErrorPayload(undefined, payload.output);
+        if (errorPayload && isMultiTurnAiContext(payload.nodeType)) {
+          const retryable =
+            typeof errorPayload.details?.retryable === "boolean"
+              ? errorPayload.details.retryable
+              : false;
+          const retryAfterSec =
+            typeof errorPayload.details?.retryAfterSec === "number"
+              ? errorPayload.details.retryAfterSec
+              : undefined;
+          useExecutionStore.getState().addConversationMessage(
+            makeSystemErrorItem({
+              code: errorPayload.code,
+              message: errorPayload.message,
+              retryable,
+              retryAfterSec,
+              nodeId: payload.nodeId,
+              nodeLabel: payload.nodeLabel ?? payload.nodeId,
+              timestamp: payload.finishedAt ?? payload.timestamp,
+            }),
+          );
+        }
       }
     },
     [updateNodeStatus, addNodeResult],
@@ -654,11 +776,21 @@ export function useExecutionEvents({
 
   const handleNodeFailed = useCallback(
     (data: unknown) => {
+      // spec/5-system/6-websocket-protocol.md §4.1 — `error` 가 본 PR 에서
+      // output.error 전체 구조 (`{code, message, details?}`) 로 운반된다.
+      // 호환을 위해 string (옛 backend) 도 받는다 — 그 경우 시스템 에러
+      // 인라인 item 을 APPEND 하지 않고 단순 status 갱신만 수행.
       const payload = data as {
         nodeExecutionId?: string;
         parentNodeExecutionId?: string;
         nodeId?: string;
-        error?: string;
+        error?:
+          | string
+          | {
+              code: string;
+              message: string;
+              details?: Record<string, unknown>;
+            };
         nodeType?: string;
         nodeLabel?: string;
         input?: unknown;
@@ -667,9 +799,13 @@ export function useExecutionEvents({
         timestamp?: string;
       };
       if (payload.nodeId) {
+        const errorMessage =
+          typeof payload.error === "string"
+            ? payload.error
+            : payload.error?.message;
         updateNodeStatus(payload.nodeId, {
           status: "failed",
-          error: payload.error,
+          error: errorMessage,
         });
 
         const existing = useExecutionStore.getState().nodeResults.find((r) =>
@@ -688,11 +824,37 @@ export function useExecutionEvents({
           nodeType: payload.nodeType ?? "unknown",
           nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
           status: "failed",
-          error: payload.error,
+          error: errorMessage,
           outputData: null,
           inputData: payload.input ?? existing?.inputData,
           startedAt: payload.startedAt ?? existing?.startedAt,
         });
+
+        // spec/conventions/conversation-thread.md §9.7 — multi-turn AI Agent
+        // 가 retryable error 로 종결 시 (또는 일반 LLM 실패) conversation
+        // thread 마지막에 system_error item APPEND.
+        const errorPayload = extractNodeErrorPayload(payload.error, undefined);
+        if (errorPayload && isMultiTurnAiContext(payload.nodeType)) {
+          const retryable =
+            typeof errorPayload.details?.retryable === "boolean"
+              ? errorPayload.details.retryable
+              : false;
+          const retryAfterSec =
+            typeof errorPayload.details?.retryAfterSec === "number"
+              ? errorPayload.details.retryAfterSec
+              : undefined;
+          useExecutionStore.getState().addConversationMessage(
+            makeSystemErrorItem({
+              code: errorPayload.code,
+              message: errorPayload.message,
+              retryable,
+              retryAfterSec,
+              nodeId: payload.nodeId,
+              nodeLabel: payload.nodeLabel ?? payload.nodeId,
+              timestamp: payload.finishedAt ?? payload.timestamp,
+            }),
+          );
+        }
       }
     },
     [updateNodeStatus, addNodeResult],

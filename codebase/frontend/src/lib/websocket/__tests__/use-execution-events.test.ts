@@ -1606,6 +1606,165 @@ describe("useExecutionEvents", () => {
     });
   });
 
+  // spec/conventions/conversation-thread.md §9.10 CT-S9 / CT-S10 / CT-S11
+  // — node.failed / node.completed (with output.error) → system_error APPEND
+  describe("system_error inline marker (CT-S9 / CT-S10 / CT-S11)", () => {
+    function bindNodeHandlers() {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const failed = (mockClient.on as Mock).mock.calls.find(
+        (c: unknown[]) => c[0] === "execution.node.failed",
+      )?.[1] as ((data: unknown) => void) | undefined;
+      const completed = (mockClient.on as Mock).mock.calls.find(
+        (c: unknown[]) => c[0] === "execution.node.completed",
+      )?.[1] as ((data: unknown) => void) | undefined;
+      return { failed, completed };
+    }
+
+    function seedConversation() {
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "주문 상태 확인", turnIndex: 1 },
+        { type: "assistant", content: "주문번호 알려주세요", turnIndex: 1 },
+        { type: "user", content: "ORD-12345", turnIndex: 2 },
+      ]);
+    }
+
+    it("CT-S9: node.failed (retryable=true) APPENDs system_error with retry signal", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        nodeLabel: "CS Bot",
+        nodeExecutionId: "11111111-1111-1111-1111-111111111111",
+        error: {
+          code: "LLM_RATE_LIMITED",
+          message: "Anthropic API returned 429 (Too Many Requests)",
+          details: {
+            provider: "anthropic",
+            statusCode: 429,
+            retryable: true,
+            retryAfterSec: 30,
+          },
+        },
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      // 기존 3개 turn + system_error 1개
+      expect(items).toHaveLength(4);
+      const last = items[items.length - 1];
+      expect(last.type).toBe("system_error");
+      expect(last.systemError).toMatchObject({
+        code: "LLM_RATE_LIMITED",
+        retryable: true,
+        retryAfterSec: 30,
+        nodeId: "agent-1",
+        nodeLabel: "CS Bot",
+      });
+      expect(last.content).toBe(
+        "Anthropic API returned 429 (Too Many Requests)",
+      );
+    });
+
+    it("CT-S10: node.failed (retryable=false) APPENDs system_error without retry signal", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        nodeLabel: "CS Bot",
+        error: {
+          code: "LLM_CALL_FAILED",
+          message: "401 unauthorized",
+          details: { statusCode: 401, retryable: false },
+        },
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      const last = items[items.length - 1];
+      expect(last.type).toBe("system_error");
+      expect(last.systemError?.retryable).toBe(false);
+      expect(last.systemError?.retryAfterSec).toBeUndefined();
+    });
+
+    it("node.completed with output.error APPENDs system_error (multi-turn AI port=error)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { completed } = bindNodeHandlers();
+
+      completed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        nodeLabel: "CS Bot",
+        output: {
+          result: { messages: [], turnCount: 2 },
+          error: {
+            code: "LLM_RATE_LIMITED",
+            message: "Rate limited",
+            details: { retryable: true, retryAfterSec: 10 },
+          },
+        },
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      const last = items[items.length - 1];
+      expect(last.type).toBe("system_error");
+      expect(last.systemError?.code).toBe("LLM_RATE_LIMITED");
+      expect(last.systemError?.retryAfterSec).toBe(10);
+    });
+
+    it("legacy string error (no structured shape) does NOT APPEND system_error", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "Some plain string error",
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      // 기존 3개 turn 유지, system_error 미추가 — 옛 backend 호환
+      expect(items).toHaveLength(3);
+      expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    it("non-AI node failure does NOT APPEND system_error", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "http-1",
+        nodeType: "http_request",
+        error: { code: "HTTP_5XX", message: "Server error" },
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(3);
+      expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    it("AI node failure without prior conversation context does NOT APPEND (single-turn case)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      // no seedConversation — conversationMessages empty
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: { code: "LLM_RATE_LIMITED", message: "429" },
+      });
+
+      // single-turn AI 는 thread 가 없으므로 inline marker 안 함
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(0);
+    });
+  });
+
   describe("waiting_for_input — conversation seeding with tool messages", () => {
     function bindAndGetWaitingHandler() {
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
