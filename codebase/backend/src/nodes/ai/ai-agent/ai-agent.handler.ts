@@ -6,6 +6,7 @@ import {
   ValidationResult,
   ResumableNodeHandlerOutput,
   ResumableMessageSource,
+  ResumableMessageOptions,
 } from '../../core/node-handler.interface';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 import { buildSystemContextPrefixFromContext } from '../shared/system-context-prefix';
@@ -1554,7 +1555,7 @@ export class AiAgentHandler implements NodeHandler {
   async processMultiTurnMessage(
     userMessage: string,
     state: Record<string, unknown>,
-    options?: { source: ResumableMessageSource },
+    options?: ResumableMessageOptions,
   ): Promise<unknown> {
     const stateExecutionId = state.executionId as string | undefined;
     try {
@@ -1573,7 +1574,7 @@ export class AiAgentHandler implements NodeHandler {
   private async processMultiTurnMessageInner(
     userMessage: string,
     state: Record<string, unknown>,
-    options?: { source: ResumableMessageSource },
+    options?: ResumableMessageOptions,
   ): Promise<unknown> {
     const messages = [...(state.messages as ChatMessage[])];
     const turnCount = (state.turnCount as number) + 1;

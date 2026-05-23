@@ -42,7 +42,7 @@ import {
   openExternalLink,
 } from "@/components/editor/run-results/button-config";
 import type { NodeResult } from "@/lib/stores/execution-store";
-import { useExecutionStore } from "@/lib/stores/execution-store";
+import { useExecutionStore, selectPendingFormToolCallId } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import { applyExecutionSnapshot } from "@/lib/websocket/apply-execution-snapshot";
 import { useExecutionInteractionCommands } from "@/lib/websocket/use-execution-interaction-commands";
@@ -386,12 +386,7 @@ function NodeResultsTab({
   // 의 활성 form 식별자. assistant turn 의 `presentations[*].form` 중 본
   // toolCallId 와 일치하는 항목만 interactive `DynamicFormUI` 로 렌더 (별도
   // surface stack 아님 — ConversationInspector 안에서 단일).
-  const pendingFormToolCallId =
-    waitingInteractionType === "ai_form_render"
-      ? ((waitingConversationConfig as
-          | { pendingFormToolCall?: { toolCallId?: string } | null }
-          | null)?.pendingFormToolCall?.toolCallId ?? null)
-      : null;
+  const pendingFormToolCallId = useExecutionStore(selectPendingFormToolCallId);
   const conversationMessages = useExecutionStore((s) => s.conversationMessages);
   const isWaitingAiResponse = useExecutionStore((s) => s.isWaitingAiResponse);
   const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);

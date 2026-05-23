@@ -1553,6 +1553,40 @@ describe('AiAgentHandler', () => {
   // dispatch (waitForAiConversation) 의 'form_submitted' vs 'ai_message' 신호를
   // 결정적으로 전달.
   describe('render_form blocking — form bypass dispatch', () => {
+    // conversationThreadService mock — form_submitted 분기의 appendPresentationInteraction
+    // 호출 검증에 필요 (spec §6.2 step 2.c: presentation_user push + data.via: 'ai_render').
+    // appendAiUserMessage / appendAiAssistantMessage 도 포함 — LLM 응답 후 turn push 에 사용.
+    let mockConversationThreadService: {
+      appendPresentationInteraction: jest.Mock;
+      appendAiUserMessage: jest.Mock;
+      appendAiAssistantMessage: jest.Mock;
+      appendAiToolResult: jest.Mock;
+      getThreadExcludingNode: jest.Mock;
+    };
+    let handlerWithThread: AiAgentHandler;
+
+    beforeEach(() => {
+      mockConversationThreadService = {
+        appendPresentationInteraction: jest.fn(),
+        appendAiUserMessage: jest.fn(),
+        appendAiAssistantMessage: jest.fn(),
+        appendAiToolResult: jest.fn(),
+        getThreadExcludingNode: jest.fn().mockReturnValue({ turns: [] }),
+      };
+      handlerWithThread = new AiAgentHandler(
+        mockLlmService as never,
+        [kbProvider],
+        mockWebsocketService as never,
+        mockConversationThreadService as never,
+      );
+    });
+
+    const mockConversationThreadRef = {
+      turns: [],
+      nextSeq: 0,
+      totalChars: 0,
+    };
+
     const baseState = () => ({
       llmConfigId: 'config-1',
       model: 'gpt-4o',
@@ -1590,6 +1624,8 @@ describe('AiAgentHandler', () => {
         toolCallId: 'call_form_1',
         formConfig: { title: '계정 만들기', fields: [] },
       },
+      // conversationThreadRef 를 포함해야 threadHolderFromState 가 Some 반환
+      conversationThreadRef: mockConversationThreadRef,
     });
 
     it("source: 'form_submitted' + pendingFormToolCall set → tool_result splice + presentation_user thread push + pendingFormToolCall 클리어", async () => {
@@ -1601,7 +1637,7 @@ describe('AiAgentHandler', () => {
         finishReason: 'stop',
       });
 
-      const result = await handler.processMultiTurnMessage(
+      const result = await handlerWithThread.processMultiTurnMessage(
         JSON.stringify({ email: 'a@b.c', name: 'Alice' }),
         state,
         { source: 'form_submitted' },
@@ -1626,6 +1662,25 @@ describe('AiAgentHandler', () => {
       expect(parsed.type).toBe('form_submitted');
       expect(parsed.data.email).toBe('a@b.c');
       expect(parsed.data.name).toBe('Alice');
+
+      // spec §6.2 step 2.c — appendPresentationInteraction 호출 검증
+      // (presentation_user thread push + data.via: 'ai_render' sentinel).
+      expect(
+        mockConversationThreadService.appendPresentationInteraction,
+      ).toHaveBeenCalledTimes(1);
+      const appendCall = mockConversationThreadService
+        .appendPresentationInteraction.mock.calls[0][1] as {
+        node: unknown;
+        interaction: {
+          type: string;
+          data: Record<string, unknown>;
+          receivedAt: string;
+        };
+      };
+      expect(appendCall.interaction.type).toBe('form_submitted');
+      // data.via: 'ai_render' sentinel — 그래프 form 노드 출처와 구분
+      expect(appendCall.interaction.data.via).toBe('ai_render');
+      expect(appendCall.interaction.data.email).toBe('a@b.c');
 
       // pendingFormToolCall 클리어
       const newState = (result as Record<string, unknown>)
@@ -1712,6 +1767,83 @@ describe('AiAgentHandler', () => {
         (m) => m.role === 'user' && m.content === '안녕',
       );
       expect(userMsg).toBeDefined();
+    });
+
+    it("source: 'ai_message' + pendingFormToolCall set + stub 없음 → cancelled push (stubIndex < 0 fallback)", async () => {
+      // stub 이 없는 상태 (messages 에 tool role 없음) 에서 bypass 분기가
+      // messages.push(cancelledToolResult) fallback 으로 처리되는지 검증.
+      const state = baseState();
+      // pending tool_result stub 만 제거 — pendingFormToolCall 은 유지
+      state.messages = state.messages.filter(
+        (m) => !(m.role === 'tool' && m.toolCallId === 'call_form_1'),
+      );
+
+      mockLlmService.chat.mockResolvedValue({
+        content: '도와드릴게요.',
+        usage: { inputTokens: 30, outputTokens: 10, totalTokens: 40 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+
+      await handlerWithThread.processMultiTurnMessage('잠깐만요', state, {
+        source: 'ai_message',
+      });
+
+      const callArgs = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+        messages: Array<{
+          role: string;
+          toolCallId?: string;
+          content?: string;
+        }>;
+      };
+      // stub 이 없었으므로 cancelled tool_result 가 push 로 추가돼야 한다
+      const toolResultMsg = callArgs.messages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_form_1',
+      );
+      expect(toolResultMsg).toBeDefined();
+      const parsed = JSON.parse(toolResultMsg!.content as string) as {
+        type: string;
+      };
+      expect(parsed.type).toBe('cancelled');
+    });
+
+    it("source: 'form_submitted' + pendingFormToolCall set + stub 없음 → form_submitted push (stubIndex < 0 fallback)", async () => {
+      // form_submitted 분기에서도 stub 없으면 messages.push 로 처리.
+      const state = baseState();
+      state.messages = state.messages.filter(
+        (m) => !(m.role === 'tool' && m.toolCallId === 'call_form_1'),
+      );
+
+      mockLlmService.chat.mockResolvedValue({
+        content: '처리됐어요.',
+        usage: { inputTokens: 30, outputTokens: 10, totalTokens: 40 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+
+      await handlerWithThread.processMultiTurnMessage(
+        JSON.stringify({ field: 'value' }),
+        state,
+        { source: 'form_submitted' },
+      );
+
+      const callArgs = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+        messages: Array<{
+          role: string;
+          toolCallId?: string;
+          content?: string;
+        }>;
+      };
+      const toolResultMsg = callArgs.messages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_form_1',
+      );
+      expect(toolResultMsg).toBeDefined();
+      const parsed = JSON.parse(toolResultMsg!.content as string) as {
+        type: string;
+        data: Record<string, unknown>;
+      };
+      expect(parsed.type).toBe('form_submitted');
+      expect(parsed.data.field).toBe('value');
     });
 
     it('options 미전달 (구 호출자) + pendingFormToolCall 없음 → 정상 ai_user 경로 (하위 호환)', async () => {

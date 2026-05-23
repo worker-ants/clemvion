@@ -471,6 +471,10 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
   resumeFromAiRenderForm: () =>
     set((state) => {
       const conv = state.waitingConversationConfig;
+      // Shallow spread — conv 의 top-level 필드만 복사되고 중첩 객체는
+      // reference 를 공유한다. conv 하위 필드는 immutable-by-convention
+      // (Zustand 패턴) 이므로 현재는 충분; 향후 deep mutation 이 필요하면
+      // structuredClone 으로 교체.
       const nextConv =
         conv && typeof conv === "object"
           ? { ...(conv as Record<string, unknown>), pendingFormToolCall: null }
@@ -604,3 +608,28 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       ...CLEAR_CONVERSATION_SNAPSHOT,
     }),
 }));
+
+/**
+ * `waitingInteractionType === 'ai_form_render'` 인 경우 활성 form 의 toolCallId
+ * 를 반환하는 파생 selector. 단일 정의를 유지하여 shape 변경 시 한 곳만 수정하면 된다.
+ *
+ * `page.tsx` 와 `run-results-drawer.tsx` 두 곳에서 동일 로직이 중복되던 것을
+ * 통일 (spec/conventions/conversation-thread.md §9.7.1 단일 진실 원칙).
+ *
+ * 사용 예: `useExecutionStore(selectPendingFormToolCallId)`
+ */
+export function selectPendingFormToolCallId(
+  state: Pick<
+    ReturnType<typeof useExecutionStore.getState>,
+    "waitingInteractionType" | "waitingConversationConfig"
+  >,
+): string | null {
+  if (state.waitingInteractionType !== "ai_form_render") return null;
+  return (
+    (
+      state.waitingConversationConfig as
+        | { pendingFormToolCall?: { toolCallId?: string } | null }
+        | null
+    )?.pendingFormToolCall?.toolCallId ?? null
+  );
+}

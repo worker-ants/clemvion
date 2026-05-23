@@ -2684,6 +2684,48 @@ describe('ExecutionEngineService', () => {
       await execPromise;
     });
 
+    it('W10 — ai_message dispatch: processMultiTurnMessage 가 { source: "ai_message" } 로 호출됨', async () => {
+      // spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c.bypass — engine 이
+      // `continueAiConversation` 경로에서 `'ai_message'` source 를 결정적으로
+      // 전달해야 handler 의 form bypass 분기가 올바르게 작동한다.
+      const processReturn = {
+        config: { mode: 'multi_turn' },
+        output: { result: { messages: [], message: 'ok', turnCount: 1 } },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [],
+          turnCount: 1,
+          turnDebugHistory: [],
+          model: 'test-model',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+        },
+      };
+      const handler = makeAiDispatchHandler(() => processReturn);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
+
+      const execPromise = service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // continueAiConversation → bus publish ai_message → handler 호출
+      service.continueAiConversation(executionId, '안녕하세요');
+      await flushPromises();
+
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
+        '안녕하세요',
+        expect.anything(),
+        expect.objectContaining({ source: 'ai_message' }),
+      );
+
+      service.endAiConversation(executionId);
+      await flushPromises();
+      await execPromise;
+    });
+
     it('W12 — unknown action.type: logger.warn 호출 + loop 재진입 (silent drop 금지)', async () => {
       // spec §10.9 — unknown type 은 warn log 남기고 loop 재진입.
       // MAX_UNKNOWN_SKIPS cap 이 20이므로 1회 unknown 후 ai_end_conversation 으로 정상 종료.

@@ -371,15 +371,11 @@ describe("useExecutionStore", () => {
   describe("resumeFromAiRenderForm — multi-turn 컨텍스트 보존 (Inv-7)", () => {
     it("pendingFormToolCall 만 null patch 하고 waitingNodeId / waitingInteractionType / isWaitingAiResponse 는 보존한다", () => {
       useExecutionStore.getState().startExecution("exec-1");
-      // simulate ai_form_render waiting state — pauseForConversation 후
-      // waitingInteractionType 을 ai_form_render 로 덮어쓰고 pendingFormToolCall
-      // 동봉 (engine 의 emitAiWaitingForInput 가 만드는 shape 모사).
-      useExecutionStore
-        .getState()
-        .pauseForConversation("node-ai", { message: "..." });
-      // pauseForConversation 이후 직접 store 를 ai_form_render 상태로 갱신 —
-      // 실제 흐름은 use-execution-events 가 동일 patch 를 한다.
+      // simulate ai_form_render waiting state — 모든 pre-condition 을 setState 로
+      // 직접 주입해 pauseForConversation 구현 변경에 대한 간접 의존을 제거한다
+      // (W-11: waitingNodeId 도 명시적으로 set).
       useExecutionStore.setState({
+        waitingNodeId: "node-ai",
         waitingInteractionType: "ai_form_render",
         waitingConversationConfig: {
           message: "...",
@@ -389,6 +385,7 @@ describe("useExecutionStore", () => {
           },
         },
         isWaitingAiResponse: true,
+        status: "waiting_for_input",
       });
 
       useExecutionStore.getState().resumeFromAiRenderForm();

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
-import { useExecutionStore } from "@/lib/stores/execution-store";
+import { useExecutionStore, selectPendingFormToolCallId } from "@/lib/stores/execution-store";
 import {
   ChevronDown,
   ChevronUp,
@@ -123,6 +123,12 @@ export function RunResultsDrawer() {
   const resumeFromConversation = useExecutionStore(
     (s) => s.resumeFromConversation,
   );
+  // spec §6.1.d.ii — `ai_form_render` 의 pending form 식별자. assistant turn
+  // 의 `presentations[*].form` payload 중 본 toolCallId 와 일치하는 항목만
+  // interactive `DynamicFormUI` 로 렌더된다. `null` 이면 모든 form payload 가
+  // display-only `FormSubmittedContent`. 早期 return 이전에 hook 을 호출해야
+  // Rules of Hooks 를 준수한다.
+  const pendingFormToolCallId = useExecutionStore(selectPendingFormToolCallId);
 
   // Auto-selection of blocking nodes is handled directly in store actions
   // (pauseForForm, pauseForButtons, pauseForConversation set selectedResultNodeId atomically)
@@ -283,17 +289,6 @@ export function RunResultsDrawer() {
     status === "waiting_for_input" &&
     (waitingInteractionType === "ai_conversation" ||
       waitingInteractionType === "ai_form_render");
-  // spec §6.1.d.ii — `ai_form_render` 의 pending form 식별자. assistant turn
-  // 의 `presentations[*].form` payload 중 본 toolCallId 와 일치하는 항목만
-  // interactive `DynamicFormUI` 로 렌더된다. `null` 이면 모든 form payload 가
-  // display-only `FormSubmittedContent`.
-  const pendingFormToolCallId =
-    waitingInteractionType === "ai_form_render"
-      ? ((waitingConversationConfig as
-          | { pendingFormToolCall?: { toolCallId?: string } | null }
-          | null)?.pendingFormToolCall?.toolCallId ?? null)
-      : null;
-
   return (
     <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))]">
       {/* Resize handle */}
