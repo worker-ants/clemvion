@@ -350,7 +350,7 @@ sequenceDiagram
 | `presentation_user` | 🧩 회색 시스템 카드 (full-width) | `<nodeType-icon> <nodeLabel>` chip + interaction 라벨 (`button clicked` / `form submitted` / `link continue`) | `data` 메타에서 추출 (§1.4 표 참고). `text` 의 동사 prefix (`clicked:` / `continued:`) 는 헤더로 흡수되어 본문에 중복 노출 금지 |
 | `ai_tool` | 🔧 도구 호출 카드 (`mcp_*` 카드와 동일 시각). 부모 그룹의 child 위치 또는 standalone 위치 모두 동일 row layout — Inv-1 (§9.9) | tool name + status badge (`pending` / `success` / `error`) — 라이프사이클 phase 와 무관하게 같은 layout, status 만 변한다 | result preview (JSON / text, 토글 가능) |
 | `system` | ℹ️ 가운데정렬 system note 라인 (얇은 회색 텍스트) — **v1 자동 push 없음** (§1.1 "예약"). 수동 push 또는 v2 자동 push 도입 시 활성화. UI 는 본 행 형식을 미리 구현해 두기만 한다 | "System note" | `text` |
-| `system_error` | ❌ 가운데정렬 얇은 빨간 full-width 라인 (system note 와 동급 컨테이너 형식이되 빨간 강조 — chat bubble 아님). §9.2 3중 신호 (아이콘 + 컨테이너 + chip) 모두 적용. 우측 액션 영역: `data.retryable === true` 일 때 `[다시 시도]` 버튼 + `data.retryAfterSec` 카운트다운. `false` 면 액션 영역 비어있음 (Inv-6 시각 보조) | `<nodeLabel> · <code>` chip (예: `CS Bot · LLM_RATE_LIMITED`) | `data.message` (LLM provider 의 에러 텍스트). markdown 렌더 안함 — 단순 텍스트 |
+| `system_error` | ❌ 가운데정렬 얇은 빨간 full-width 라인 (system note 와 동급 컨테이너 형식이되 빨간 강조 — chat bubble 아님). §9.2 3중 신호 (아이콘 + 컨테이너 + chip) 모두 적용. 우측 액션 영역: `data.retryable === true` 일 때 `[다시 시도]` 버튼 + `data.retryAfterSec` 카운트다운. `false` 면 액션 영역 비어있음 (Inv-6 시각 보조) | `<nodeLabel> · <code>` chip (예: `CS Bot · LLM_RATE_LIMIT`) | `data.message` (LLM provider 의 에러 텍스트). markdown 렌더 안함 — 단순 텍스트 |
 
 ### 9.2 시각 구분 신호 (3중 강제)
 
