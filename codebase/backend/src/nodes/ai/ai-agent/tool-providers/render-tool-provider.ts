@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   ToolCall,
@@ -342,6 +343,76 @@ function applyOneMbCap(
   };
 }
 
+/**
+ * spec/4-nodes/6-presentation/0-common.md §10.5 step 3 — `button.id` UUID v4
+ * backfill. Apply after validate → defaults overlay → 1MB cap so the
+ * canonical "id: UUID v4 자동 생성, 불변" rule from §1 holds in LLM tool
+ * mode too (`buttonDefSchema.id` is optional, so LLM payloads almost always
+ * land here with `id: undefined`).
+ *
+ * Distinct from `normalizeNodeButtonIds()` in `nodes/core/button-slug.util.ts`
+ * (label → slug for graph node bodies); the explicit name keeps reviewers
+ * and future implementers from reaching for the wrong helper.
+ *
+ * Side-effect-free — returns a new payload reference only when at least one
+ * button array was rewritten. Existing user-supplied ids are preserved.
+ */
+export function backfillButtonUuids(
+  type: PresentationType,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  if (type === 'form') return payload;
+
+  const fillButtons = (arr: unknown): unknown => {
+    if (!Array.isArray(arr)) return arr;
+    return arr.map((b) => {
+      if (
+        b !== null &&
+        typeof b === 'object' &&
+        (b as Record<string, unknown>).id == null
+      ) {
+        return { ...(b as Record<string, unknown>), id: randomUUID() };
+      }
+      return b;
+    });
+  };
+
+  let out: Record<string, unknown> = payload;
+  if (Array.isArray((out as { buttons?: unknown }).buttons)) {
+    out = { ...out, buttons: fillButtons(out.buttons) };
+  }
+
+  if (type === 'carousel') {
+    if (Array.isArray((out as { items?: unknown }).items)) {
+      out = {
+        ...out,
+        items: ((out as { items: unknown[] }).items as unknown[]).map(
+          (item) => {
+            if (
+              item !== null &&
+              typeof item === 'object' &&
+              Array.isArray((item as Record<string, unknown>).buttons)
+            ) {
+              return {
+                ...(item as Record<string, unknown>),
+                buttons: fillButtons(
+                  (item as Record<string, unknown>).buttons,
+                ),
+              };
+            }
+            return item;
+          },
+        ),
+      };
+    }
+    if (Array.isArray((out as { itemButtons?: unknown }).itemButtons)) {
+      out = { ...out, itemButtons: fillButtons(out.itemButtons) };
+    }
+  }
+
+  return out;
+}
+
 export class RenderToolProvider implements AgentToolProvider {
   readonly key = 'render';
   private static readonly logger = new Logger('RenderToolProvider');
@@ -518,6 +589,13 @@ export class RenderToolProvider implements AgentToolProvider {
       ]);
     }
 
+    // spec/4-nodes/6-presentation/0-common.md §10.5 step 3 — backfill missing
+    // button.id with UUID v4 after cap so truncated elements (which never
+    // reach the frontend) don't allocate ids needlessly. `form` returns
+    // early below so the form branch reads `capped.payload` directly; for
+    // the display-only branch we rewrite the reference here.
+    const normalisedPayload = backfillButtonUuids(type, capped.payload);
+
     if (type === 'form') {
       // Interactive: signal handler to enter waiting_for_input.
       return {
@@ -527,7 +605,7 @@ export class RenderToolProvider implements AgentToolProvider {
         status: 'success',
         blockingFormRender: {
           toolCallId: call.id,
-          formConfig: capped.payload,
+          formConfig: normalisedPayload,
         },
         presentationCall: {
           toolName: call.name,
@@ -553,7 +631,7 @@ export class RenderToolProvider implements AgentToolProvider {
       type,
       toolCallId: call.id,
       renderedAt: new Date().toISOString(),
-      payload: capped.payload,
+      payload: normalisedPayload,
       ...(capped.truncation ? { truncation: capped.truncation } : {}),
     };
 

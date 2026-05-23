@@ -239,7 +239,15 @@ export function CarouselContent({ data, config, selectedButtonId, onPortButtonCl
               {/* Compound key — render_carousel emitted by an LLM may
                   produce duplicate / undefined btn.id; idx fallback. */}
               {item.buttons.map((btn, bi) => {
-                const isSelected = selectedButtonId === btn.id;
+                // spec/4-nodes/6-presentation/0-common.md §10.5 step 3 —
+                // defense-in-depth guard. Backend backfills missing button.id
+                // with UUID v4 for new render_* payloads, but legacy persisted
+                // runs / non-AI-Agent surfaces still pass `id: undefined`.
+                // Without the `!= null` guard the comparison `undefined ===
+                // undefined` makes every button "selected" → primary styling
+                // + onClick's `if (isSelected) return;` swallows the click.
+                const isSelected =
+                  selectedButtonId != null && selectedButtonId === btn.id;
                 return (
                   <button
                     key={`${btn.id ?? ""}-${bi}`}
@@ -588,7 +596,11 @@ export function PresentationContent({
             {/* Compound key — render_template emitted by an LLM may produce
                 duplicate / undefined btn.id; idx fallback. */}
             {buttons.map((btn, bi) => {
-              const isSelected = selectedButtonId === btn.id;
+              // See CarouselContent line 242 — same defense-in-depth guard
+              // against payloads where both selectedButtonId and btn.id are
+              // undefined (spec §10.5 step 3).
+              const isSelected =
+                selectedButtonId != null && selectedButtonId === btn.id;
               return (
                 <button
                   key={`${btn.id ?? ""}-${bi}`}

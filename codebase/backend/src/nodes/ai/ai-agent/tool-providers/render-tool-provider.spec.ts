@@ -1,8 +1,15 @@
 import {
   RenderToolProvider,
+  backfillButtonUuids,
   overlayDefaults,
   renderToolName,
 } from './render-tool-provider';
+
+// RFC 4122 v4 UUID. Used to assert backfill output without coupling to
+// crypto.randomUUID implementation details — only that the result is a
+// well-formed UUID v4 string.
+const UUID_V4_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const provider = new RenderToolProvider();
 
@@ -334,6 +341,197 @@ describe('RenderToolProvider.execute — display-only', () => {
     };
     expect(parsed.error).toBe('INVALID_PAYLOAD');
     expect(parsed.issues[0]).toMatch(/1MB cap/);
+  });
+});
+
+// spec/4-nodes/6-presentation/0-common.md §10.5 step 3 — button.id UUID v4
+// backfill. Backend SoT for the "id: 자동 생성, 불변" 원칙 (§1) in LLM tool
+// mode. Frontend defense-in-depth (`selectedButtonId != null` 가드) handles
+// the legacy / non-AI-Agent surfaces; backend backfill is the canonical fix
+// so that downstream consumers (thread query, future surfaces) see canonical
+// button.id even on LLM-emitted payloads.
+describe('backfillButtonUuids (spec §10.5 step 3)', () => {
+  it('fills missing id on carousel items[].buttons with unique UUID v4', () => {
+    const payload = {
+      mode: 'static',
+      items: [
+        {
+          title: 'Item A',
+          buttons: [
+            { label: 'Inquire', type: 'port' },
+            { label: 'Order', type: 'port' },
+          ],
+        },
+        {
+          title: 'Item B',
+          buttons: [{ label: 'Inquire', type: 'port' }],
+        },
+      ],
+    };
+
+    const out = backfillButtonUuids('carousel', payload) as {
+      items: Array<{ buttons: Array<{ id: string }> }>;
+    };
+
+    const ids = out.items.flatMap((it) => it.buttons.map((b) => b.id));
+    expect(ids).toHaveLength(3);
+    for (const id of ids) expect(id).toMatch(UUID_V4_RE);
+    expect(new Set(ids).size).toBe(3); // all unique
+  });
+
+  it('fills missing id on carousel global buttons + itemButtons', () => {
+    const payload = {
+      mode: 'static',
+      items: [{ title: 'A' }],
+      buttons: [{ label: 'Approve', type: 'port' }],
+      itemButtons: [{ label: 'Select', type: 'port' }],
+    };
+
+    const out = backfillButtonUuids('carousel', payload) as {
+      buttons: Array<{ id: string }>;
+      itemButtons: Array<{ id: string }>;
+    };
+
+    expect(out.buttons[0].id).toMatch(UUID_V4_RE);
+    expect(out.itemButtons[0].id).toMatch(UUID_V4_RE);
+    expect(out.buttons[0].id).not.toBe(out.itemButtons[0].id);
+  });
+
+  it('fills missing id on table / chart / template global buttons', () => {
+    const tablePayload = {
+      mode: 'static',
+      columns: [{ field: 'id', label: 'ID' }],
+      rows: [{ id: '1' }],
+      buttons: [{ label: 'Export', type: 'port' }],
+    };
+    const tableOut = backfillButtonUuids('table', tablePayload) as {
+      buttons: Array<{ id: string }>;
+    };
+    expect(tableOut.buttons[0].id).toMatch(UUID_V4_RE);
+
+    const templatePayload = {
+      content: 'Hello',
+      outputFormat: 'text',
+      buttons: [{ label: 'More', type: 'port' }],
+    };
+    const templateOut = backfillButtonUuids('template', templatePayload) as {
+      buttons: Array<{ id: string }>;
+    };
+    expect(templateOut.buttons[0].id).toMatch(UUID_V4_RE);
+
+    const chartPayload = {
+      chartType: 'bar',
+      data: [{ x: 'a', y: 1 }],
+      buttons: [{ label: 'Drill', type: 'port' }],
+    };
+    const chartOut = backfillButtonUuids('chart', chartPayload) as {
+      buttons: Array<{ id: string }>;
+    };
+    expect(chartOut.buttons[0].id).toMatch(UUID_V4_RE);
+  });
+
+  it('preserves user-supplied button.id', () => {
+    const preset = '11111111-2222-4333-8444-555555555555';
+    const payload = {
+      mode: 'static',
+      items: [
+        {
+          title: 'Item A',
+          buttons: [
+            { id: preset, label: 'Keep me', type: 'port' },
+            { label: 'Backfill me', type: 'port' },
+          ],
+        },
+      ],
+    };
+
+    const out = backfillButtonUuids('carousel', payload) as {
+      items: Array<{ buttons: Array<{ id: string }> }>;
+    };
+
+    expect(out.items[0].buttons[0].id).toBe(preset);
+    expect(out.items[0].buttons[1].id).toMatch(UUID_V4_RE);
+    expect(out.items[0].buttons[1].id).not.toBe(preset);
+  });
+
+  it('is a no-op for form payloads (no button concept)', () => {
+    const payload = {
+      fields: [{ name: 'email', type: 'email', label: 'Email' }],
+    };
+    const out = backfillButtonUuids('form', payload);
+    expect(out).toEqual(payload);
+  });
+
+  it('does not crash on payload without buttons arrays', () => {
+    expect(backfillButtonUuids('carousel', { mode: 'static', items: [] })).toEqual(
+      { mode: 'static', items: [] },
+    );
+    expect(
+      backfillButtonUuids('table', { mode: 'static', columns: [], rows: [] }),
+    ).toEqual({ mode: 'static', columns: [], rows: [] });
+  });
+
+  it('handles items with missing/non-array buttons field gracefully', () => {
+    const payload = {
+      mode: 'static',
+      items: [
+        { title: 'A' }, // no buttons key
+        { title: 'B', buttons: undefined as unknown as unknown[] },
+        { title: 'C', buttons: [{ label: 'Go', type: 'port' }] },
+      ],
+    };
+    const out = backfillButtonUuids('carousel', payload) as {
+      items: Array<{ buttons?: Array<{ id?: string }> }>;
+    };
+    expect(out.items[0].buttons).toBeUndefined();
+    expect(out.items[1].buttons).toBeUndefined();
+    expect(out.items[2].buttons![0].id).toMatch(UUID_V4_RE);
+  });
+});
+
+describe('RenderToolProvider.execute — backfill integration (spec §10.5 step 3)', () => {
+  it('emits carousel payload with UUID v4 ids on per-item buttons that LLM left blank', async () => {
+    const result = await provider.execute(
+      {
+        id: 'call_c_bf',
+        name: 'render_carousel',
+        arguments: JSON.stringify({
+          mode: 'static',
+          layout: 'card',
+          items: [
+            {
+              title: '샘플상품 3',
+              description: '가격: 10,000원',
+              buttons: [
+                { label: '문의하기', type: 'port' },
+                { label: '주문하기', type: 'port' },
+              ],
+            },
+            {
+              title: '샘플상품 1',
+              description: '가격: 5,000원',
+              buttons: [
+                { label: '문의하기', type: 'port' },
+                { label: '주문하기', type: 'port' },
+              ],
+            },
+          ],
+        }),
+      },
+      {
+        config: { presentationTools: [{ type: 'carousel' }] },
+        workspaceId: 'ws',
+      },
+    );
+
+    expect(result.status).toBe('success');
+    const payload = result.presentationPayload!.payload as {
+      items: Array<{ buttons: Array<{ id: string }> }>;
+    };
+    const ids = payload.items.flatMap((it) => it.buttons.map((b) => b.id));
+    expect(ids).toHaveLength(4);
+    for (const id of ids) expect(id).toMatch(UUID_V4_RE);
+    expect(new Set(ids).size).toBe(4); // all unique across items
   });
 });
 
