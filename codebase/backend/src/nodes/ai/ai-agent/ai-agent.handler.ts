@@ -1664,7 +1664,7 @@ export class AiAgentHandler implements NodeHandler {
         (userMessage ?? '').startsWith('{') ||
         (userMessage ?? '').startsWith('[')
       ) {
-        this.logger?.warn?.(
+        AiAgentHandler.logger.warn(
           `processMultiTurnMessageInner — pendingFormToolCall 없음, JSON 형태 userMessage 를 plain ai_user 메시지로 fallback. spec §10.9 §Rationale (pendingFormToolCall 누락 fallback).`,
         );
       }
