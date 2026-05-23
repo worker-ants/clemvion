@@ -1,3 +1,9 @@
+---
+id: marketplace
+status: spec-only
+code: []
+---
+
 # Spec: 마켓플레이스 화면
 
 > 관련 문서: [PRD 내비게이션](./_product-overview.md#39-marketplace-마켓플레이스) · [PRD 통합/연동](../4-nodes/4-integration/_product-overview.md#4-marketplace-마켓플레이스) · [Spec 레이아웃](./_layout.md)

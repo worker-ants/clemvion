@@ -1,3 +1,9 @@
+---
+id: migrations
+status: spec-only
+code: []
+---
+
 # Flyway 마이그레이션 운영 규약
 
 ## Overview

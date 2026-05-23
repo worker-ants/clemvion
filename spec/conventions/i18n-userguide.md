@@ -1,3 +1,9 @@
+---
+id: i18n-userguide
+status: spec-only
+code: []
+---
+
 # i18n / 유저 가이드 정식 규약 (Conventions)
 
 UI 다국어 문자열·백엔드 발행 라벨·사용자 가이드(`/docs`) MDX 의 갱신 누락을 차단하기 위한 **정식 규약**. 모든 신규·변경 코드가 본 규약을 위반하지 않아야 한다. `convention-compliance-checker` 가 본 문서를 자동 inheritance 하여 spec 작성·구현 착수 직전 위반을 검출한다.

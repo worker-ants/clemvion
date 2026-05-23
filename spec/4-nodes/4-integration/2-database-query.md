@@ -1,3 +1,9 @@
+---
+id: database-query
+status: spec-only
+code: []
+---
+
 # Spec: Database Query
 
 > 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [CONVENTIONS](../../conventions/node-output.md)

@@ -1,3 +1,13 @@
+---
+id: spec-impl-evidence
+status: implemented
+code:
+  - codebase/frontend/src/lib/docs/__tests__/spec-frontmatter.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-code-paths.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-status-lifecycle.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-pending-plan-existence.test.ts
+---
+
 # Convention: Spec-Impl Evidence (frontmatter)
 
 > 관련 문서: [PROJECT.md §변경 유형 갱신 매핑](../../PROJECT.md#변경-유형--갱신-위치-매핑) · [user-guide-evidence](./user-guide-evidence.md) · [plan-lifecycle](../../.claude/docs/plan-lifecycle.md)
@@ -21,7 +31,7 @@
 다음 경로의 spec 파일에 frontmatter 의무 (대상 = inclusive list):
 
 - `spec/2-navigation/**.md`
-- `spec/3-canvas/**.md`
+- `spec/3-workflow-editor/**.md`
 - `spec/4-nodes/**.md`
 - `spec/5-system/**.md`
 - `spec/conventions/**.md`
@@ -29,8 +39,7 @@
 **제외**:
 - `spec/0-overview.md` (cross-cutting 진입 문서)
 - `spec/1-data-model.md` · `spec/6-brand.md` (단순 overview 성격)
-- `spec/_*.md` (밑줄 prefix — leaf 가 아닌 layout/index 성격)
-- 본 컨벤션 자기 자신 (`spec/conventions/spec-impl-evidence.md`)
+- `spec/_*.md` 및 `spec/<영역>/_*.md` (밑줄 prefix — leaf 가 아닌 layout/index 성격, 예: `_layout.md`, `_product-overview.md`, `_overview.md`)
 
 ## 2. Frontmatter 스키마
 

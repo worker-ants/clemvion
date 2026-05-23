@@ -1,3 +1,9 @@
+---
+id: order
+status: spec-only
+code: []
+---
+
 # Cafe24 API Catalog — Order (주문)
 
 > 카탈로그 형식·동기 정책: [`_overview.md`](./_overview.md).

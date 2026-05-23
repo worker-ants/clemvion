@@ -1,3 +1,9 @@
+---
+id: form
+status: spec-only
+code: []
+---
+
 # Spec: Form (Human-in-the-loop)
 
 > 관련 문서: [Presentation 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../conventions/node-output.md)

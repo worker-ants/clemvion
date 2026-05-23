@@ -1,3 +1,9 @@
+---
+id: common
+status: spec-only
+code: []
+---
+
 # Spec: Logic 노드 공통 규약
 
 > 관련 문서: [PRD 노드 시스템](../_product-overview.md#4-logic-노드-12종) · [Spec 노드 개요](../0-overview.md) · [Spec 노드 공통](../../3-workflow-editor/1-node-common.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md)

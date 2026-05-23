@@ -1,3 +1,9 @@
+---
+id: api-convention
+status: spec-only
+code: []
+---
+
 # Spec: API 설계 규칙
 
 > 관련 문서: [PRD 비기능 요구사항](./_product-overview.md) · [Spec 아키텍처 개요](../0-overview.md) · [Spec 에러 처리](./3-error-handling.md)

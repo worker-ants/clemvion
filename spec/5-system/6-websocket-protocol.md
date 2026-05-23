@@ -1,3 +1,9 @@
+---
+id: websocket-protocol
+status: spec-only
+code: []
+---
+
 # Spec: WebSocket 프로토콜
 
 > 관련 문서: [Spec API 규칙 §10](./2-api-convention.md#10-websocket) · [Spec 실행/디버깅 §8](../3-workflow-editor/3-execution.md#8-실행-엔진-통신) · [Spec 실행 엔진](./4-execution-engine.md) · [Spec External Interaction API](./14-external-interaction-api.md)

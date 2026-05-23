@@ -1,3 +1,9 @@
+---
+id: translation
+status: spec-only
+code: []
+---
+
 # Cafe24 API Catalog — Translation (번역)
 
 > 카탈로그 형식·동기 정책: [`_overview.md`](./_overview.md).

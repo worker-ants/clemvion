@@ -1,3 +1,9 @@
+---
+id: split
+status: spec-only
+code: []
+---
+
 # Spec: Split
 
 > 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [ForEach 노드](./9-foreach.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)
