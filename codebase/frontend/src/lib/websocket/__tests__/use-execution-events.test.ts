@@ -1578,7 +1578,7 @@ describe("useExecutionEvents", () => {
       expect(item?.toolStatus).toBe("success");
     });
 
-    it("execution.failed flips dangling pending tool items to error", () => {
+    it("execution.failed flips dangling pending tool items to error (Inv-6 — conversation preserved)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       const { toolStarted } = bind();
       toolStarted!({
@@ -1594,13 +1594,15 @@ describe("useExecutionEvents", () => {
       )?.[1] as ((data: unknown) => void) | undefined;
       failed?.({ error: "backend crashed" });
 
-      // failExecution clears conversationMessages via CLEAR_WAITING, so
-      // the assertion that matters is "no infinite spinner survives" —
-      // i.e. the store no longer holds a pending item for this id.
-      const lingering = useExecutionStore
+      // spec/conventions/conversation-thread.md §9.7.1 + §9.9 Inv-6 — 노드/실행
+      // 실패 시 store conversationMessages 는 비워지지 않는다. dangling pending
+      // tool 은 flushPendingToolItemsAsError 가 error 상태로 flip 시켜 보존됨.
+      const item = useExecutionStore
         .getState()
         .conversationMessages.find((i) => i.toolCallId === "call_dangling");
-      expect(lingering).toBeUndefined();
+      expect(item).toBeDefined();
+      expect(item?.toolStatus).toBe("error");
+      expect(item?.error).toBe("backend crashed");
     });
   });
 

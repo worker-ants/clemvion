@@ -16,7 +16,27 @@ export type ConversationTurnSource =
   | "ai_assistant"
   | "ai_tool"
   | "presentation_user"
-  | "system";
+  | "system"
+  | "system_error";
+
+/**
+ * `data` payload shape for `source: 'system_error'` turns — the inline error
+ * marker that appears in the conversation thread when an AI Agent multi-turn
+ * node ends with `output.error` set.
+ *
+ * SoT: spec/conventions/conversation-thread.md §1.2 `data?` 행 비고.
+ * `code` / `message` / `retryable` / `retryAfterSec` mirror
+ * `output.error.{code, message, details.retryable, details.retryAfterSec}`
+ * (the host node's `output.error` is the single source of truth).
+ */
+export interface SystemErrorTurnData {
+  code: string;
+  message: string;
+  retryable: boolean;
+  retryAfterSec?: number;
+  nodeId: string;
+  nodeLabel: string;
+}
 
 export interface ConversationTurn {
   seq: number;
@@ -250,6 +270,36 @@ export function threadTurnsToConversationItems(
           type: "system",
           content: stripInlineMarkers(turn.text),
           turnIndex: 0,
+          timestamp: turn.timestamp,
+        });
+        break;
+      }
+      case "system_error": {
+        // spec/conventions/conversation-thread.md §9.1 + §9.6 — inline error
+        // turn rendered as ❌ centered red line with retry action. Not absorbed
+        // into tool-call groups (§9.6 rule: system_error stays unclaim).
+        // §9.8 isAssistantContentBlank evaluation does not apply.
+        const errorData = turn.data as Partial<SystemErrorTurnData> | undefined;
+        items.push({
+          type: "system_error",
+          content: errorData?.message ?? turn.text ?? "",
+          turnIndex: 0,
+          systemError: errorData
+            ? {
+                code: errorData.code ?? "UNKNOWN_ERROR",
+                message: errorData.message ?? turn.text ?? "",
+                retryable: errorData.retryable ?? false,
+                retryAfterSec: errorData.retryAfterSec,
+                nodeId: errorData.nodeId ?? turn.nodeId,
+                nodeLabel: errorData.nodeLabel ?? turn.nodeLabel,
+              }
+            : {
+                code: "UNKNOWN_ERROR",
+                message: turn.text ?? "",
+                retryable: false,
+                nodeId: turn.nodeId,
+                nodeLabel: turn.nodeLabel,
+              },
           timestamp: turn.timestamp,
         });
         break;

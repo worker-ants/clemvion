@@ -72,7 +72,10 @@ export interface ToolCallInfo {
   arguments?: string;
 }
 
-import type { PresentationPayload } from "@/lib/conversation/conversation-utils";
+import type {
+  PresentationPayload,
+  SystemErrorTurnData,
+} from "@/lib/conversation/conversation-utils";
 
 /**
  * Discriminator for a conversation timeline item. Mirrors
@@ -93,8 +96,25 @@ import type { PresentationPayload } from "@/lib/conversation/conversation-utils"
  *   push for it (see spec conversation-thread §1.1 "예약, v1 자동 누적 없음").
  */
 export interface ConversationItem {
-  type: "user" | "assistant" | "tool" | "presentation" | "system";
+  type:
+    | "user"
+    | "assistant"
+    | "tool"
+    | "presentation"
+    | "system"
+    | "system_error";
   content: string;
+  /**
+   * Structured payload for `type: "system_error"` items — the inline error
+   * marker that appears in the conversation thread when an AI Agent multi-turn
+   * node ends with `output.error` set.
+   *
+   * SoT: spec/conventions/conversation-thread.md §1.2 `data?` 행 비고 +
+   * §9.1 매핑표. `code` / `message` / `retryable` / `retryAfterSec` 는
+   * `output.error.{code, message, details.retryable, details.retryAfterSec}`
+   * 의 1:1 snapshot.
+   */
+  systemError?: SystemErrorTurnData;
   /**
    * Structured metadata for `type: "presentation"` items, snapshotted from
    * `ConversationTurn.{nodeLabel, nodeType, data}` and the originating
