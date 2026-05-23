@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { WaitingInteractionType } from "@/lib/stores/execution-store";
+import type { ConversationTurnSource } from "@/lib/conversation/conversation-utils";
 
 /**
  * AST/grep guard for `WaitingInteractionType` exhaustiveness.
@@ -74,6 +75,57 @@ describe("WaitingInteractionType exhaustiveness across registry sites", () => {
           .join("\n")}\n` +
           `\nUpdate the missing sites or remove the unused enum value.\n` +
           `SoT: spec/conventions/interaction-type-registry.md §1.2`,
+      );
+    }
+  });
+});
+
+/**
+ * AST/grep guard for `ConversationTurnSource` exhaustiveness.
+ *
+ * spec/conventions/interaction-type-registry.md §2.1 — registry lists every
+ * code site that switches on this enum. Adding a new value must update all
+ * those sites in the same PR.
+ */
+
+// SoT: spec/conventions/interaction-type-registry.md §2.1 column "UI 분기 위치"
+// (AST 가드 대상 코드 파일만 — spec §9.1 매핑표는 cross-ref 로 비대상)
+const SOURCE_REGISTRY_SITES = [
+  "codebase/frontend/src/lib/conversation/conversation-utils.ts",
+];
+
+const SOURCE_ENUM_VALUES = [
+  "ai_user",
+  "ai_assistant",
+  "ai_tool",
+  "presentation_user",
+  "system",
+  "system_error",
+] as const;
+
+const _sourceTypecheck: ReadonlyArray<ConversationTurnSource> =
+  SOURCE_ENUM_VALUES;
+void _sourceTypecheck;
+
+describe("ConversationTurnSource exhaustiveness across registry sites", () => {
+  it("every source value appears as a string literal in every registry site", () => {
+    const missing: Array<{ site: string; value: string }> = [];
+    for (const site of SOURCE_REGISTRY_SITES) {
+      const src = readRepoFile(site);
+      for (const value of SOURCE_ENUM_VALUES) {
+        const pattern = new RegExp(`['"\`]${value}['"\`]`);
+        if (!pattern.test(src)) {
+          missing.push({ site, value });
+        }
+      }
+    }
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing ConversationTurnSource branches:\n${missing
+          .map((m) => `  - ${m.site}: '${m.value}'`)
+          .join("\n")}\n` +
+          `\nUpdate the missing sites or remove the unused enum value.\n` +
+          `SoT: spec/conventions/interaction-type-registry.md §2.1`,
       );
     }
   });

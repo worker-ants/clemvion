@@ -58,6 +58,17 @@ const COVERAGE_MATRIX: CoverageRow[] = [
       "codebase/frontend/src/components/editor/run-results/result-timeline.tsx",
     ],
   },
+  {
+    // `output.error` is surfaced by parseHistoryMessages (conversation-utils.ts)
+    // which synthesises a `system_error` ConversationItem for the history view.
+    // Live view is covered by use-execution-events.ts (node.failed / node.completed).
+    // SoT: spec/conventions/data-hydration-surfaces.md §1 +
+    //      spec/conventions/conversation-thread.md §9.10 CT-S9.
+    field: "error",
+    sites: [
+      "codebase/frontend/src/lib/conversation/conversation-utils.ts",
+    ],
+  },
 ];
 
 describe("output.result.* hydration coverage", () => {

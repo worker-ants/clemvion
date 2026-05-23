@@ -53,7 +53,7 @@
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
 | EIA-IN-01 | `POST /api/external/executions/:executionId/interact` 로 인터랙션 명령을 제출한다 | 필수 |
-| EIA-IN-02 | 지원 명령: `submit_form`, `click_button`, `submit_message`, `end_conversation`, `cancel` — 모두 WebSocket §4.2 의 동일명 명령과 의미 동일 | 필수 |
+| EIA-IN-02 | 지원 명령: `submit_form`, `click_button`, `submit_message`, `end_conversation`, `cancel` — 모두 WebSocket §4.2 의 동일명 명령과 의미 동일. **`retry_last_turn` 미포함** — 1차 PR (2026-05-23) 은 내부 UI 한정. 외부 노출 시 `per_execution` 토큰 권한 매트릭스 + Notification 흐름과의 정합 + retry 횟수 제한 정책이 별도 결정 필요 (별 PR) | 필수 |
 | EIA-IN-03 | `GET /api/external/executions/:executionId/stream` 는 Server-Sent Events 스트림. terminal 이벤트(`completed`/`failed`/`cancelled`) 발송 후 자동 종료 | 필수 |
 | EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / seq / updatedAt) | 필수 |
 | EIA-IN-05 | `POST /api/external/executions/:executionId/cancel` 는 명시적 취소 — `interact` 의 `command:"cancel"` 과 동치 (편의 alias) | 권장 |

@@ -72,7 +72,10 @@ export interface ToolCallInfo {
   arguments?: string;
 }
 
-import type { PresentationPayload } from "@/lib/conversation/conversation-utils";
+import type {
+  PresentationPayload,
+  SystemErrorTurnData,
+} from "@/lib/conversation/conversation-utils";
 
 /**
  * Discriminator for a conversation timeline item. Mirrors
@@ -93,8 +96,25 @@ import type { PresentationPayload } from "@/lib/conversation/conversation-utils"
  *   push for it (see spec conversation-thread §1.1 "예약, v1 자동 누적 없음").
  */
 export interface ConversationItem {
-  type: "user" | "assistant" | "tool" | "presentation" | "system";
+  type:
+    | "user"
+    | "assistant"
+    | "tool"
+    | "presentation"
+    | "system"
+    | "system_error";
   content: string;
+  /**
+   * Structured payload for `type: "system_error"` items — the inline error
+   * marker that appears in the conversation thread when an AI Agent multi-turn
+   * node ends with `output.error` set.
+   *
+   * SoT: spec/conventions/conversation-thread.md §1.2 `data?` 행 비고 +
+   * §9.1 매핑표. `code` / `message` / `retryable` / `retryAfterSec` 는
+   * `output.error.{code, message, details.retryable, details.retryAfterSec}`
+   * 의 1:1 snapshot.
+   */
+  systemError?: SystemErrorTurnData;
   /**
    * Structured metadata for `type: "presentation"` items, snapshotted from
    * `ConversationTurn.{nodeLabel, nodeType, data}` and the originating
@@ -262,15 +282,32 @@ function sortByStartedAt(results: NodeResult[]): NodeResult[] {
   });
 }
 
-const CLEAR_WAITING = {
+/**
+ * Lifecycle 별 store reset 정책 — SoT:
+ * spec/conventions/conversation-thread.md §9.7.1 + §9.9 Inv-6.
+ *
+ * `CLEAR_WAITING` 단일 묶음을 두 개로 분리:
+ * - `CLEAR_INPUT_AFFORDANCE`: 입력 대기 UI 상태만 (waitingNodeId 등)
+ * - `CLEAR_CONVERSATION_SNAPSHOT`: conversationMessages 만
+ *
+ * `completeExecution` / `failExecution` / `resumeFrom*` 은 INPUT_AFFORDANCE
+ * 만 적용해 대화를 보존한다 (Inv-6). `startExecution` 만 두 묶음 모두 적용.
+ *
+ * 2026-05-23 사용자 보고 — Gemini 429 quota 시 multi-turn 대화 전체 소실
+ * 회귀 차단.
+ */
+const CLEAR_INPUT_AFFORDANCE = {
   waitingNodeId: null,
   waitingFormConfig: null,
   waitingInteractionType: null as WaitingInteractionType | null,
   waitingButtonConfig: null,
   waitingConversationConfig: null,
-  conversationMessages: [] as ConversationItem[],
   isWaitingAiResponse: false,
   selectedConversationItemIndex: null,
+};
+
+const CLEAR_CONVERSATION_SNAPSHOT = {
+  conversationMessages: [] as ConversationItem[],
 };
 
 export const useExecutionStore = create<ExecutionState>((set) => ({
@@ -297,7 +334,9 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       nodeResults: [],
       startedAt: new Date().toISOString(),
       selectedResultNodeId: null,
-      ...CLEAR_WAITING,
+      // §9.7.1 — startExecution 만 두 묶음 모두 클리어
+      ...CLEAR_INPUT_AFFORDANCE,
+      ...CLEAR_CONVERSATION_SNAPSHOT,
     }),
 
   updateNodeStatus: (nodeId: string, info: NodeStatusInfo) =>
@@ -367,8 +406,12 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       return { nodeResults: sortByStartedAt(appended) };
     }),
 
-  completeExecution: () => set({ status: "completed", ...CLEAR_WAITING }),
+  // §9.7.1 — completeExecution 은 입력 affordance 만 클리어, conversation 은 보존
+  completeExecution: () =>
+    set({ status: "completed", ...CLEAR_INPUT_AFFORDANCE }),
 
+  // §9.7.1 + §9.9 Inv-6 — failExecution 은 입력 affordance 만 클리어, conversation 은 보존
+  // (2026-05-23 사용자 보고 — Gemini 429 quota 시 대화 전체 소실 회귀 차단)
   failExecution: (error?: string) =>
     set((state) => {
       if (error && state.executionId) {
@@ -380,10 +423,13 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
         return {
           status: "failed" as ExecutionStatus,
           nodeStatuses: updated,
-          ...CLEAR_WAITING,
+          ...CLEAR_INPUT_AFFORDANCE,
         };
       }
-      return { status: "failed" as ExecutionStatus, ...CLEAR_WAITING };
+      return {
+        status: "failed" as ExecutionStatus,
+        ...CLEAR_INPUT_AFFORDANCE,
+      };
     }),
 
   pauseForForm: (nodeId: string, formConfig: unknown) =>
@@ -400,7 +446,7 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       selectedResultNodeId: latestResultIdForNode(state.nodeResults, nodeId),
     })),
 
-  resumeFromForm: () => set({ status: "running", ...CLEAR_WAITING }),
+  resumeFromForm: () => set({ status: "running", ...CLEAR_INPUT_AFFORDANCE }),
 
   pauseForButtons: (nodeId: string, buttonConfig: unknown) =>
     set((state) => ({
@@ -413,7 +459,8 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       selectedResultNodeId: latestResultIdForNode(state.nodeResults, nodeId),
     })),
 
-  resumeFromButtons: () => set({ status: "running", ...CLEAR_WAITING }),
+  resumeFromButtons: () =>
+    set({ status: "running", ...CLEAR_INPUT_AFFORDANCE }),
 
   pauseForConversation: (nodeId: string, config: unknown) =>
     set((state) => ({
@@ -427,7 +474,8 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       selectedResultNodeId: latestResultIdForNode(state.nodeResults, nodeId),
     })),
 
-  resumeFromConversation: () => set({ status: "running", ...CLEAR_WAITING }),
+  resumeFromConversation: () =>
+    set({ status: "running", ...CLEAR_INPUT_AFFORDANCE }),
 
   addConversationMessage: (item: ConversationItem) =>
     set((state) => ({
@@ -518,6 +566,8 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       nodeResults: [],
       startedAt: null,
       selectedResultNodeId: null,
-      ...CLEAR_WAITING,
+      // reset 은 idle 복귀 — 두 묶음 모두 클리어 (startExecution 과 동일 정책)
+      ...CLEAR_INPUT_AFFORDANCE,
+      ...CLEAR_CONVERSATION_SNAPSHOT,
     }),
 }));

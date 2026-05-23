@@ -66,6 +66,18 @@ describe("useExecutionStore", () => {
       useExecutionStore.getState().startExecution("exec-2");
       expect(useExecutionStore.getState().nodeResults).toEqual([]);
     });
+
+    // spec/conventions/conversation-thread.md §9.7.1 — startExecution 은 conversation
+    // snapshot 묶음까지 클리어한다 (completeExecution / failExecution 과 다른 정책)
+    it("clears conversationMessages on new execution (only lifecycle that resets it)", () => {
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "previous run", turnIndex: 1 },
+      ]);
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+
+      useExecutionStore.getState().startExecution("exec-2");
+      expect(useExecutionStore.getState().conversationMessages).toEqual([]);
+    });
   });
 
   describe("updateNodeStatus", () => {
@@ -257,6 +269,24 @@ describe("useExecutionStore", () => {
       expect(state.waitingNodeId).toBeNull();
       expect(state.waitingFormConfig).toBeNull();
     });
+
+    // spec/conventions/conversation-thread.md §9.7.1 store reset 정책 + Inv-6
+    it("preserves conversationMessages when execution completes", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      useExecutionStore.getState().pauseForConversation("ai-node", {});
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "hi", turnIndex: 1 },
+        { type: "assistant", content: "hello", turnIndex: 1 },
+      ]);
+      useExecutionStore.getState().completeExecution();
+
+      const state = useExecutionStore.getState();
+      expect(state.status).toBe("completed");
+      expect(state.waitingNodeId).toBeNull();
+      // conversation snapshot 은 보존된다 (§9.7.1 store reset 정책)
+      expect(state.conversationMessages).toHaveLength(2);
+      expect(state.conversationMessages[0].content).toBe("hi");
+    });
   });
 
   describe("failExecution", () => {
@@ -286,6 +316,26 @@ describe("useExecutionStore", () => {
       const state = useExecutionStore.getState();
       expect(state.waitingNodeId).toBeNull();
       expect(state.waitingFormConfig).toBeNull();
+    });
+
+    // spec/conventions/conversation-thread.md §9.7.1 + §9.9 Inv-6
+    // 사용자 보고 (2026-05-23) — Gemini 429 quota 시 multi-turn 대화 전체 소실 회귀 방어
+    it("preserves conversationMessages when execution fails (Inv-6)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      useExecutionStore.getState().pauseForConversation("ai-node", {});
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "환불 문의입니다", turnIndex: 1 },
+        { type: "assistant", content: "주문번호를 알려주세요", turnIndex: 1 },
+        { type: "user", content: "ORD-12345", turnIndex: 2 },
+      ]);
+      useExecutionStore.getState().failExecution("Gemini 429 quota");
+
+      const state = useExecutionStore.getState();
+      expect(state.status).toBe("failed");
+      expect(state.waitingNodeId).toBeNull();
+      // conversation snapshot 은 보존된다 (Inv-6: 노드/실행 실패 시 store 비워지지 않음)
+      expect(state.conversationMessages).toHaveLength(3);
+      expect(state.conversationMessages[2].content).toBe("ORD-12345");
     });
   });
 

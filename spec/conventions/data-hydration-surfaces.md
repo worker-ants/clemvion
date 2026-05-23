@@ -19,6 +19,7 @@ handler 의 output field 가 frontend 의 **여러 surface (live / waiting / exe
 | `output.result.turnCount` / `maxTurns` | 동일 | (a)~(c) + `SummaryView` 의 turn counter · `ResultTimeline` 의 "Turn N/M" 표기 |
 | `output.result.presentations` | spec §7.10 echo — single-turn `out` / multi-turn final / condition route (`buildMultiTurnFinalOutput` / `buildConditionOutput` 의 `metadata.allPresentations`) | (a) `parseHistoryMessages` 의 last-assistant attach (b) `threadTurnsToConversationItems` 의 turn-level presentations 부착 (c) `AssistantPresentationsBlock` 렌더 (d) `applyExecutionSnapshot` 의 conversation seed 경로 |
 | `output.interaction` (resumed) | multi-turn `resumed` transient · `ai_form_render` waiting | (a) `pauseForConversation` 의 convConfig 부착 (b) WS handleAiMessage |
+| `output.error` (multi-turn error 종결) | multi-turn `port: 'error'` — `buildMultiTurnFinalOutput` 의 `errorPayload` 경로 (single source — `codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts`). `details.retryable` / `retryAfterSec` 표준 필드는 [CONVENTIONS Principle 3.2.1](./node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수) | (a) `parseHistoryMessages` 가 `output.error` 가 set 된 multi-turn 종결 노드의 thread 마지막에 `system_error` ConversationItem 합성 (b) `threadTurnsToConversationItems` 의 `system_error` source 매핑 (`[Conversation Thread §9.1]`) (c) `applyExecutionSnapshot` 의 ended 분기 (d) WS `execution.node.failed` / `node.completed` (with error) → `useExecutionStore` APPEND ([Conversation Thread §9.7](./conversation-thread.md#97-ws-이벤트--store-변환-계약)) |
 | `meta.interactionType` | 모든 multi-turn waiting | (a) `isConversationOutput` (b) `inferInteractionTypeFromNodeType` fallback (c) `applyExecutionSnapshot` 의 interactionType 분기 |
 | `meta.presentationCalls` / `meta.presentationSchemaViolations` | spec §4.1·§7.10 — render_* trace | 디버그 패널 한정 (Conversation Inspector tool 항목) |
 
@@ -52,7 +53,7 @@ handler 의 output field 가 frontend 의 **여러 surface (live / waiting / exe
 
 | Trigger | 함수 |
 |---|---|
-| NodeExecution.outputData (REST fetch, no live thread) | `parseHistoryMessages` → `messagesToConversationItems` + last-assistant presentations attach |
+| NodeExecution.outputData (REST fetch, no live thread) | `parseHistoryMessages` → `messagesToConversationItems` + last-assistant presentations attach. **`output.error` set + multi-turn**: 마지막에 `system_error` ConversationItem 합성 ([Conversation Thread §9.1 / §9.10 CT-S9](./conversation-thread.md#910-회귀-차단-시나리오)) |
 
 ### 2.4 Replay (예정 — v2)
 

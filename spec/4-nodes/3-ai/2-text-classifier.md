@@ -307,7 +307,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `output.error.code` | String | handler return | `UPPER_SNAKE_CASE`. 본 노드의 예약어: `LLM_CALL_FAILED` (네트워크/타임아웃/5xx), `LLM_RATE_LIMITED` (429), `LLM_RESPONSE_INVALID` (JSON 파싱 + substring fallback 모두 실패 — 현재 핸들러는 substring fallback 으로 회복하므로 이 코드는 reserved) |
+| `output.error.code` | String | handler return | `UPPER_SNAKE_CASE`. 본 노드의 예약어: `LLM_CALL_FAILED` (네트워크/타임아웃/5xx), `LLM_RATE_LIMIT` (429), `LLM_RESPONSE_INVALID` (JSON 파싱 + substring fallback 모두 실패 — 현재 핸들러는 substring fallback 으로 회복하므로 이 코드는 reserved) |
 | `output.error.message` | String | handler return | 사람이 읽는 메시지 (provider 원문 보존, 국제화 없음). 다운스트림에서 사용자에게 노출 시 sanitize 책임은 호출자 |
 | `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (에러 envelope 의 PII / 대용량 방지). D6 통일 — 정상은 `output.result.originalInput` (full), 에러는 본 필드 (truncated) 단일 경로 |
 | `meta.durationMs` | number | handler return | `execute()` 진입부터 catch 블록 진입 직전까지의 소요 시간 (ms). 성공 경로와 동일 측정 기준 (Principle 2) |
@@ -330,7 +330,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | 코드 | 의미 | 발생 조건 | 시점 |
 |------|------|-----------|------|
 | `LLM_CALL_FAILED` | LLM provider 호출 실패 | 네트워크 / 타임아웃 / 5xx / SDK throw | runtime (`error` 포트) |
-| `LLM_RATE_LIMITED` | provider 429 | rate limit (현재 핸들러는 `LLM_CALL_FAILED` 로 통합 — reserved) | runtime |
+| `LLM_RATE_LIMIT` | provider 429 | rate limit (현재 핸들러는 `LLM_CALL_FAILED` 로 통합 — reserved) | runtime |
 | `LLM_RESPONSE_INVALID` | 응답 형식 오류 | JSON 파싱 실패 + substring fallback 도 실패 (현재 핸들러는 fallback 으로 회복하므로 미발화 — reserved) | runtime |
 
 **Pre-flight 검증** (CONVENTIONS Principle 3.1, schema warningRules + `validateTextClassifierConfig`):

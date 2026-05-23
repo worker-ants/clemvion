@@ -353,4 +353,73 @@ describe("useExecutionInteractionCommands", () => {
     });
     expect(emitMock).not.toHaveBeenCalled();
   });
+
+  // CT-S11 — SUMMARY#6: retryLastTurn WS command tests
+  describe("retryLastTurn", () => {
+    it("emits execution.retry_last_turn with executionId and nodeExecutionId", () => {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      act(() => {
+        result.current.retryLastTurn("node-exec-123");
+      });
+      expect(emitMock).toHaveBeenCalledWith("execution.retry_last_turn", {
+        executionId: "exec-1",
+        nodeExecutionId: "node-exec-123",
+      });
+    });
+
+    it("sets isWaitingAiResponse=true optimistically and releases on ack failure with 3 error codes", () => {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands("exec-1"),
+      );
+      const errorCodes = [
+        "RETRY_STATE_NOT_FOUND",
+        "NODE_NOT_RETRYABLE",
+        "RETRY_TOO_EARLY",
+      ] as const;
+
+      for (const code of errorCodes) {
+        emitMock.mockReset();
+        onceMock.mockReset();
+        toastErrorMock.mockReset();
+        useExecutionStore.getState().reset();
+
+        act(() => {
+          result.current.retryLastTurn("node-exec-abc");
+        });
+
+        expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+        expect(onceMock).toHaveBeenCalledWith(
+          "execution.retry_last_turn.ack",
+          expect.any(Function),
+        );
+
+        const ackHandler = onceMock.mock.calls[0][1] as (
+          ...args: unknown[]
+        ) => void;
+
+        act(() => {
+          ackHandler({
+            success: false,
+            error: code,
+          });
+        });
+
+        expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+        expect(toastErrorMock).toHaveBeenCalledWith(code);
+      }
+    });
+
+    it("no-ops when executionId is null", () => {
+      const { result } = renderHook(() =>
+        useExecutionInteractionCommands(null),
+      );
+      act(() => {
+        result.current.retryLastTurn("node-exec-xyz");
+      });
+      expect(emitMock).not.toHaveBeenCalled();
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(false);
+    });
+  });
 });

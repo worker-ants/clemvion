@@ -39,7 +39,7 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 
 ## 2. ConversationTurnSource
 
-`source` enum — [`spec/conventions/conversation-thread.md` §1.1](./conversation-thread.md#11-conversationturnsource) 단일 진실. 값 5개 (`presentation_user`, `ai_user`, `ai_assistant`, `ai_tool`, `system`).
+`source` enum — [`spec/conventions/conversation-thread.md` §1.1](./conversation-thread.md#11-conversationturnsource) 단일 진실. 값 6개 (`presentation_user`, `ai_user`, `ai_assistant`, `ai_tool`, `system`, `system_error`).
 
 ### 2.1 처리 분기 매트릭스
 
@@ -50,8 +50,9 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 | `ai_assistant` | 동일 함수 · 🤖 assistant bubble (presentations 부착 분기 포함) |
 | `ai_tool` | 동일 함수 · 🔧 tool row |
 | `system` | 동일 함수 · ℹ️ system note (v1 자동 push 없음 — 미리 분기 구현) |
+| `system_error` | **AST 가드 대상 코드 파일**: `threadTurnsToConversationItems` switch (`codebase/frontend/src/lib/conversation/conversation-utils.ts`), `ConversationTimelineItem` 렌더 분기 (`codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx` + `result-timeline.tsx`). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — ❌ 빨간 라인 + `<nodeLabel> · <code>` chip + `data.message` 본문 + `data.retryable === true` 시 `[다시 시도]` 버튼. |
 
-`threadTurnsToConversationItems` 의 switch 는 이미 exhaustive `default: never` 패턴 적용됨 (`const _exhaustive: never = turn.source`).
+`threadTurnsToConversationItems` 의 switch 는 이미 exhaustive `default: never` 패턴 적용됨 (`const _exhaustive: never = turn.source`). `system_error` 추가 시 새 case 명시 의무.
 
 ---
 

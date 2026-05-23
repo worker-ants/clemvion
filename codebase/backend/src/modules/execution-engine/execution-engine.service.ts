@@ -48,6 +48,10 @@ import { ALL_NODE_COMPONENTS } from '../../nodes';
 import { ExecutionContextService } from './context/execution-context.service';
 // sanitizeLastErrorMessage lives in a neutral shared layer (arch-C2).
 import { sanitizeLastErrorMessage } from '../../shared/utils/sanitize-error-message';
+// extractRetryAfterMs: RFC 7231 Retry-After 헤더 추출 (provider 별 SDK 에러
+// 객체 공통). spec/conventions/node-output.md Principle 3.2.1 의
+// `details.retryAfterSec` 변환 시 사용 (ms → 초 정수).
+import { extractRetryAfterMs } from '../llm/llm.service';
 import {
   ErrorPolicyHandler,
   ErrorPolicyConfig,
@@ -2690,22 +2694,49 @@ export class ExecutionEngineService
     }
     const rawDetails = (err as { details?: unknown } | null | undefined)
       ?.details;
-    let details: unknown;
+    let baseDetails: Record<string, unknown> | undefined;
     if (rawDetails !== undefined) {
       // JSON.stringify → sanitize → JSON.parse chain: strips secret tokens from
       // nested details fields. Wrapped in try/catch because rawDetails may be
       // non-serializable (circular refs, BigInt, etc.) — req W_json.
       try {
-        details = JSON.parse(
+        const parsed = JSON.parse(
           sanitizeLastErrorMessage(JSON.stringify(rawDetails)),
         ) as unknown;
+        baseDetails =
+          parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : { details: parsed };
       } catch {
-        details = '[serialization error]';
+        baseDetails = { details: '[serialization error]' };
       }
     }
-    return details !== undefined
-      ? { code, message, details }
-      : { code, message };
+
+    // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 노드는
+    // `details.retryable` 필수. 분류 규칙 (spec/4-nodes/3-ai/1-ai-agent.md §10):
+    // - LLM_RATE_LIMIT (429) / LLM_CONNECTION_ERROR (5xx/network) → retryable
+    // - LLM_RESPONSE_INVALID (JSON parse) / 인증 실패 → non-retryable
+    // - AI_AGENT_TURN_FAILED (fallback) → non-retryable (안전 default)
+    const RETRYABLE_CODES = new Set(['LLM_RATE_LIMIT', 'LLM_CONNECTION_ERROR']);
+    const retryable = RETRYABLE_CODES.has(code);
+
+    // Retry-After 헤더 → retryAfterSec. ms → s 정수 변환. invariant: retryable
+    // === true 일 때만 set (Principle 3.2.1).
+    let retryAfterSec: number | undefined;
+    if (retryable) {
+      const retryAfterMs = extractRetryAfterMs(err);
+      if (retryAfterMs !== null && retryAfterMs > 0) {
+        retryAfterSec = Math.ceil(retryAfterMs / 1000);
+      }
+    }
+
+    const mergedDetails: Record<string, unknown> = {
+      ...(baseDetails ?? {}),
+      retryable,
+      ...(retryAfterSec !== undefined ? { retryAfterSec } : {}),
+    };
+
+    return { code, message, details: mergedDetails };
   }
 
   /**

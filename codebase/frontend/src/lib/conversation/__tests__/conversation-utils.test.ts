@@ -1129,3 +1129,160 @@ describe("inferInteractionTypeFromData (§9.1 data shape rules)", () => {
     expect(inferInteractionTypeFromData(undefined)).toBe("form_submitted");
   });
 });
+
+// spec/conventions/conversation-thread.md §1.1 + §9.1 + §9.10 CT-S9
+describe("system_error source — threadTurnsToConversationItems + parseHistoryMessages", () => {
+  it("threadTurnsToConversationItems maps system_error turn to ConversationItem with structured systemError payload", () => {
+    const turns = [
+      {
+        seq: 0,
+        nodeId: "agent-1",
+        nodeLabel: "CS Bot",
+        nodeType: "ai_agent",
+        source: "ai_user" as const,
+        text: "주문 확인",
+      },
+      {
+        seq: 1,
+        nodeId: "agent-1",
+        nodeLabel: "CS Bot",
+        nodeType: "ai_agent",
+        source: "system_error" as const,
+        text: "Anthropic 429",
+        data: {
+          code: "LLM_RATE_LIMITED",
+          message: "Anthropic 429",
+          retryable: true,
+          retryAfterSec: 30,
+          nodeId: "agent-1",
+          nodeLabel: "CS Bot",
+        },
+      },
+    ];
+    const items = threadTurnsToConversationItems(turns);
+    expect(items).toHaveLength(2);
+    expect(items[1].type).toBe("system_error");
+    expect(items[1].systemError).toMatchObject({
+      code: "LLM_RATE_LIMITED",
+      retryable: true,
+      retryAfterSec: 30,
+      nodeId: "agent-1",
+      nodeLabel: "CS Bot",
+    });
+  });
+
+  it("threadTurnsToConversationItems falls back on missing data fields gracefully", () => {
+    const turns = [
+      {
+        seq: 0,
+        nodeId: "agent-1",
+        nodeLabel: "CS Bot",
+        nodeType: "ai_agent",
+        source: "system_error" as const,
+        text: "fallback message",
+        // data 누락 — fallback shape
+      },
+    ];
+    const items = threadTurnsToConversationItems(turns);
+    expect(items[0].type).toBe("system_error");
+    expect(items[0].systemError).toMatchObject({
+      code: "UNKNOWN_ERROR",
+      message: "fallback message",
+      retryable: false,
+      nodeId: "agent-1",
+      nodeLabel: "CS Bot",
+    });
+  });
+
+  // CT-S9 (history view branch — OQ3 decision)
+  it("parseHistoryMessages synthesizes system_error at the end when output.error is set", () => {
+    const outputData = {
+      config: {},
+      output: {
+        result: {
+          messages: [
+            { role: "user", content: "환불" },
+            { role: "assistant", content: "" },
+          ],
+          turnCount: 1,
+        },
+        error: {
+          code: "LLM_RATE_LIMITED",
+          message: "Rate limited (after 1 turn)",
+          details: { retryable: true, retryAfterSec: 60 },
+        },
+      },
+      meta: { interactionType: "ai_conversation" },
+    };
+    const items = parseHistoryMessages(outputData);
+    expect(items.length).toBeGreaterThan(0);
+    const last = items[items.length - 1];
+    expect(last.type).toBe("system_error");
+    expect(last.systemError?.code).toBe("LLM_RATE_LIMITED");
+    expect(last.systemError?.retryable).toBe(true);
+    expect(last.systemError?.retryAfterSec).toBe(60);
+  });
+
+  // CT-S10 — non-retryable, no retry signal
+  it("parseHistoryMessages synthesizes system_error with retryable=false when details.retryable is false", () => {
+    const outputData = {
+      config: {},
+      output: {
+        result: { messages: [{ role: "user", content: "x" }], turnCount: 1 },
+        error: {
+          code: "LLM_CALL_FAILED",
+          message: "401 unauthorized",
+          details: { retryable: false },
+        },
+      },
+    };
+    const items = parseHistoryMessages(outputData);
+    const last = items[items.length - 1];
+    expect(last.type).toBe("system_error");
+    expect(last.systemError?.retryable).toBe(false);
+    expect(last.systemError?.retryAfterSec).toBeUndefined();
+  });
+
+  it("parseHistoryMessages does NOT synthesize system_error when output.error is absent", () => {
+    const outputData = {
+      config: {},
+      output: {
+        result: { messages: [{ role: "user", content: "x" }], turnCount: 1 },
+      },
+    };
+    const items = parseHistoryMessages(outputData);
+    expect(items.every((i) => i.type !== "system_error")).toBe(true);
+  });
+
+  // §9.6 (Inv-5 보조): system_error 는 tool-call group 분류 대상 외
+  it("groupToolCallItems does not absorb system_error into parent/child grouping", () => {
+    const items: ConversationItem[] = [
+      user("question"),
+      assistant({
+        content: "",
+        assistantToolCalls: [{ name: "kb_search", arguments: "{}" }],
+      }),
+      tool("c1"),
+      // system_error 는 후행 위치 — parent 의 child 로 흡수되지 않음
+      {
+        type: "system_error",
+        content: "error",
+        turnIndex: 0,
+        systemError: {
+          code: "LLM_RATE_LIMITED",
+          message: "error",
+          retryable: true,
+          nodeId: "n",
+          nodeLabel: "L",
+        },
+      },
+    ];
+    const { claimedToolIndices, childrenByParent } = groupToolCallItems(items);
+    // index 2 (tool) 만 claim, index 3 (system_error) 은 unclaim
+    expect(Array.from(claimedToolIndices)).toEqual([2]);
+    // system_error index 가 childrenByParent 의 어느 array 에도 등장하지 않음
+    for (const [, children] of childrenByParent) {
+      expect(children.includes(3)).toBe(false);
+    }
+  });
+});

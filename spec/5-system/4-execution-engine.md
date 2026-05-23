@@ -79,12 +79,20 @@ pending → running ──┤                     └─ cancelled
  output: { result: {...} } 또는 { error: {...} }
 ```
 
-**재개 state 직렬화 필드** (`NodeHandlerOutput.output._resumeState`):
+**재개 state 직렬화 필드** (`NodeHandlerOutput` top-level — `_resumeState`):
 
-- AI 계열(ai_agent / information_extractor) multi-turn 핸들러가 다음 턴을 처리하기 위해 보관하는 내부 상태.
+- AI 계열(ai_agent / information_extractor) multi-turn 핸들러가 다음 턴을 처리하기 위해 보관하는 내부 상태. CONVENTIONS Principle 0 의 5필드 외 허용 예외.
 - 실행 엔진은 `_resumeState` 를 우선 읽고, 없으면 레거시 `_multiTurnState` 로 fall-back 한다 (Stage 2 rename, Stage 5 에서 legacy 키 제거 예정).
 - expression resolver 는 이 필드를 expose 하지 않는다 (internal-only).
-- 최종 출력 저장 시 엔진이 `_resumeState` / `_multiTurnState` 양쪽 모두를 제거한다.
+- 최종 출력 저장 시 엔진(`stripControlFields()`)이 `_resumeState` / `_multiTurnState` 양쪽 모두를 제거한다.
+
+**보존 예외 — `_retryState`** (retryable error 종결 시):
+
+- AI Agent multi-turn 이 retryable error (HTTP 429 / 5xx / network timeout — `output.error.details.retryable === true`) 로 종결될 때, `buildMultiTurnFinalOutput` 이 `_resumeState` snapshot 을 `_retryState` 로 운반한다 (top-level, Principle 0 예외).
+- **`stripControlFields()` 는 `_retryState` 를 보존** — `NodeExecution.outputData._retryState` 로 DB 영속.
+- `_retryState` shape: `_resumeState` 의 부분집합 + `expiresAt: ISO 8601` (TTL — 기본 60분). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` boundary strip). expression resolver / autocomplete 비노출.
+- 소비: WS 명령 `execution.retry_last_turn` ([Spec WebSocket §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)) 이 `nodeExecutionId` 로 `_retryState` 를 lookup → `expiresAt` 검증 → 새 NodeExecution row spawn → multi-turn loop 재진입. TTL 만료 또는 한 번 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 응답.
+- 상세 SoT: [CONVENTIONS node-output Principle 4.2.1](../conventions/node-output.md#421-보존-예외--_retrystate), [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트).
 
 **`interaction.data` payload 규격** (CONVENTIONS §4.5):
 

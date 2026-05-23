@@ -2,7 +2,14 @@
 
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem } from "@/lib/stores/execution-store";
-import { CheckCircle, Loader2, XCircle, Wrench, Info } from "lucide-react";
+import {
+  CheckCircle,
+  Loader2,
+  XCircle,
+  Wrench,
+  Info,
+  AlertCircle,
+} from "lucide-react";
 
 interface ConversationTimelineItemProps {
   item: ConversationItem;
@@ -53,6 +60,20 @@ export function ConversationTimelineItem({
           <Info size={10} className="text-[hsl(var(--muted-foreground))]" />
           <span className="truncate text-[11px] italic text-[hsl(var(--muted-foreground))]">
             {item.content || "System note"}
+          </span>
+        </div>
+      ) : item.type === "system_error" ? (
+        // spec/conventions/conversation-thread.md §9.1 — ❌ system_error 행.
+        // 좌측 timeline 은 chip vs full-bubble 두 형태 중 한 줄 컴팩트
+        // (Inv-5 — surface 별 시각 형식 차이 허용). 우측 retry 버튼은 본
+        // surface 에 노출하지 않고 인스펙터의 SystemErrorRow 에만 둠.
+        <div className="flex items-center gap-1.5">
+          <AlertCircle size={10} className="text-red-500" />
+          <span className="truncate font-mono text-[10px] text-red-700 dark:text-red-400">
+            {item.systemError?.code ?? "ERROR"}
+          </span>
+          <span className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">
+            {item.content}
           </span>
         </div>
       ) : (
