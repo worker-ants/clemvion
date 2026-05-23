@@ -50,3 +50,41 @@ commit 전 확인:
 - [ ] commit 메시지가 `chore(plan): mark <name> complete` 형식인가
 
 한 항목이라도 `[ ]` 이면 이동 skip — 이번 PR 은 plan 의 일부만 처리한 것이고 plan 은 `in-progress/` 에 남는다.
+
+## 6. Audit 도구 (운영 보조)
+
+> 본 절은 stale plan 탐지 및 spec-impl 갭 발견을 위한 운영 도구 참조. 규약 변경 아님 — `plan/in-progress/` 폴더 자체의 라이프사이클은 §1-§5 그대로.
+
+### 6.1 `plan-stale-audit.sh` — stale in-progress plan 검출
+
+구현 위치: `.claude/tools/plan-stale-audit.sh` (구현은 후속 plan `plan-stale-audit.md`).
+
+```bash
+.claude/tools/plan-stale-audit.sh
+```
+
+산출 — stdout 표:
+- 30일 이상 갱신 없는 `plan/in-progress/*.md` 목록
+- 각 plan 의 checkbox 진행률 (예: `7/12 done`) + 마지막 commit 일자
+- 어느 spec frontmatter `pending_plans:` 에 등록됐는지 cross-link ([`spec/conventions/spec-impl-evidence.md`](../../spec/conventions/spec-impl-evidence.md) §2 참조)
+
+**fail 안 함** — 정보 출력만. 사용자가 수동 grooming (`complete/` 이동, 추가 작업 picking, 또는 `archived` 격하 결정).
+
+### 6.2 `/spec-coverage` — spec-impl 갭 standing audit
+
+신규 slash command (구현은 후속 plan `spec-coverage-slash-command.md`):
+
+```bash
+/spec-coverage
+```
+
+산출 위치: `review/consistency/coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` ([`CLAUDE.md §정보 저장 위치`](../../CLAUDE.md) 참조).
+
+sub-agent (`spec-impl-coverage-auditor`) 가 `spec/**` walk:
+1. spec 본문 UI 키워드 (page, dialog, card, button, drawer, modal) 등장 + frontmatter `code:` 에 frontend 경로 매칭 없음 → 후보
+2. spec API endpoint 명세 (`POST /api/...`) + backend controller route 매칭 없음 → 후보
+3. spec e2e 약속 시나리오 + e2e spec 파일 매칭 없음 → 후보
+
+confidence (high/medium/low) 분류한 SUMMARY.md 산출.
+
+**CI 차단 아님** — NLP 휴리스틱 기반 false-positive 부담 > 검출 가치. 보고만 산출, 사용자가 picking 해 후속 plan 으로 이동.

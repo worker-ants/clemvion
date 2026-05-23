@@ -114,6 +114,7 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 | `<FieldTable>` | 필드 표. 컬럼: 이름·필수·타입·설명·기본값 |
 | `<Callout type="note\|tip\|warn">` | 강조 박스 |
 | `<Example>` | 코드/표현식 예제. 언어 태그 필수 |
+| `<ImplAnchor>` | reverse-evidence 가드용 — 가이드 본문이 약속한 UI/API surface 가 코드에 존재함을 build-time 으로 검증. props: `kind` ∈ `{ui-entry, component, api-endpoint, e2e-scenario}` · `file` (레포 루트 기준 상대경로) · `symbol` (grep 대상) · `describes`. 사용자 view 에서 hidden 렌더. SoT: [`spec/conventions/user-guide-evidence.md`](../conventions/user-guide-evidence.md). 가드: `impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts` |
 
 ## 9. 네비게이션 생성
 

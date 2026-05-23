@@ -123,6 +123,8 @@
 | 표현식 언어 변경 | `codebase/frontend/src/content/docs/04-expression-language/{basics,variables-and-context,cheatsheet}.mdx` + `.en.mdx` | 수동 (registry 테스트로 frontmatter 검증) |
 | 실행·디버깅 흐름 변경 | `codebase/frontend/src/content/docs/05-run-and-debug/` | 동일 |
 | 환경 변수·기동 방법·런타임 변경 (제품 최종 상태) | `README.md` | 수동 |
+| **spec 신규/대규모 변경** (`spec/{2,3,4,5}-**.md`, `spec/conventions/**.md`) | (a) frontmatter `code:` / `status:` / `pending_plans:` 정합 갱신<br>(b) `status: partial` 이면 `pending_plans:` 의 plan 신설<br>(c) `status: implemented` 이면 `code:` 글로브 ≥1 매치 보장. SoT: `spec/conventions/spec-impl-evidence.md` | `cd codebase/frontend && npm test -- spec-frontmatter spec-code-paths spec-pending-plan-existence` |
+| **user-guide GUI 흐름 절 신규/변경** (`02-nodes/**.mdx`, `06-integrations-and-config/**.mdx` 의 GUI 안내 절) | `<ImplAnchor kind="ui-entry">` 동반 작성 — `file`/`symbol` 실존 의무. SoT: `spec/conventions/user-guide-evidence.md` | `cd codebase/frontend && npm test -- impl-anchor-existence integrations-coverage triggers-coverage` |
 | spec 자체에 누락·오류가 있다고 판단됨 | `plan/in-progress/spec-update-<name>.md` 에 제안 노트 작성 후 `project-planner` 위임 | — |
 
 ### 사후 보정 PR 패턴 금지 — 같은 turn 원칙
@@ -151,6 +153,8 @@
 - **TSX 안 한국어 직접 작성** — ratchet 가드가 baseline 초과 차단하지만, *작성하는 그 순간에* dict 키 추출이 default. ratchet 가 잡은 뒤 별 commit 으로 빼는 패턴 금지
 - **인증·권한·세션 흐름 변경 vs 워크스페이스 가이드 (`07-workspace-and-team/`) 미갱신** — 흐름 변경 + 가이드 갱신 + e2e 가 한 묶음
 - **API 추가 vs swagger jsdoc 누락** — controller·DTO 의 swagger jsdoc 동반 필수. 빌드 단위 테스트가 일부만 잡음
+- **spec frontmatter `code:` 글로브 stale** — backend 경로만 명시하고 frontend 경로 누락. 텔레그램 chat-channel UI 영구 누락 사례(2026-05-23 발견) 의 재현 패턴. `spec-code-paths.test.ts` 가드가 `partial`/`implemented` 시점에 차단. SoT: `spec/conventions/spec-impl-evidence.md`
+- **`status: partial` 의 `pending_plans:` 미작성** — 미구현 surface 가 어떤 plan 에도 책임지지 않은 채 영구 누락. spec-pending-plan-existence.test.ts 가 plan 실존 강제. 본 PR 머지 전 후속 plan 신설 의무 (developer/SKILL.md §4 partial-implementation 분리)
 
 #### DOCUMENTATION 단계 종료 사전 체크리스트
 
@@ -161,6 +165,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] 표의 "검증 명령" 을 실제로 실행했는가? (i18n parity / locale / backend-labels / docs registry)
 - [ ] 사용자 가시면 (UI 라벨·에러 메시지·노드 카드·가이드 본문) 이 코드 변경의 의미를 정확히 반영하는가? 단순 동기화가 아닌 *의미 갱신*
 - [ ] 본 turn 안에서 spec 자체에 변경이 필요한 것을 발견했으면 `plan/in-progress/spec-update-<name>.md` 작성 후 `project-planner` 위임 (developer 가 spec 직접 수정 금지)
+- [ ] **partial-implementation 분리** — 본 PR 이 구현하는 spec 섹션의 *나머지 surface* 가 있다면 (Phase 분리, 후속 UI, 미구현 enum 값) `plan/in-progress/<spec-name>-followup-<surface>.md` 가 신설/갱신됐는가? 본 spec 의 frontmatter `pending_plans:` 가 해당 plan 을 가리키는가? spec `status:` 가 `partial` 로 정확히 설정됐는가? (SoT: `spec/conventions/spec-impl-evidence.md`)
 
 > 한 항목이라도 미충족이면 §5 (테스트 선작성) 로 진행하지 말고 §4 안에서 마무리. `fix(i18n):` · `fix(docs):` commit 빈도가 워크플로 건강 지표 — 본 PR/turn 안에서 0건이 default.
 
@@ -177,6 +182,8 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 | [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) | i18n 7 Principle (TSX 하드코딩 금지·ko/en parity·backend-labels 매핑·노드 MDX 의무·sibling 규약·글로서리·page stale) |
 | [`codebase/frontend/src/content/docs/_i18n-conventions.md`](codebase/frontend/src/content/docs/_i18n-conventions.md) | 파일 구조 · 프론트매터 필드 · 내부 docs 링크 규약 · 섹션 레이블 번역 |
 | [`codebase/frontend/src/content/docs/_glossary.md`](codebase/frontend/src/content/docs/_glossary.md) | 해요체 · 용어 표기 · 문장 스타일 · 금지어·지양어 |
+| [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) | spec frontmatter (`status` 5값·`code:` 글로브·`pending_plans:`) 와 4개 build-time 가드 SoT |
+| [`spec/conventions/user-guide-evidence.md`](spec/conventions/user-guide-evidence.md) | `<ImplAnchor>` MDX 컴포넌트 + 3개 reverse-coverage 가드 (`impl-anchor-existence` / `integrations-coverage` / `triggers-coverage`) SoT. `user-guide-writer` 가 GUI 흐름 절 작성 시 동반 의무 |
 
 #### 파일 구조 요약
 
@@ -207,6 +214,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] 해요체로 통일됐는가 (`~합니다` / `~한다` 어미가 본문에 없는가)
 - [ ] KO/EN 변경 set 의 파일 쌍 대응이 맞는가
 - [ ] Callout `type` ∈ `{note, tip, warn}` 인가
+- [ ] **GUI 흐름 절 (예: "1. 좌측 메뉴 → Triggers 클릭")** 에 `<ImplAnchor kind="ui-entry">` 가 동반 작성됐는가? `file`/`symbol` 이 코드에 실존하는가? (SoT: [`spec/conventions/user-guide-evidence.md`](../../spec/conventions/user-guide-evidence.md). 가드: `impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts`)
 
 ### i18n dict 파일 컨벤션
 
@@ -225,8 +233,15 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/locale.test.ts` — 모든 (숨김 아닌) 섹션이 `SECTION_LABELS_BY_LOCALE` 양쪽 로케일 등록 검증
 - `codebase/frontend/src/lib/docs/__tests__/nodes-coverage.test.ts` — backend 의 모든 노드가 `02-nodes/<cat>.mdx` 본문 안에 카드/항목으로 등장하는지 검증
 - `codebase/frontend/src/lib/docs/__tests__/registry.test.ts` — MDX frontmatter 의 `spec:`/`code:` 경로 실존 검증
+- `codebase/frontend/src/lib/docs/__tests__/spec-frontmatter.test.ts` — `spec/{2,3,4,5}-**.md` + `spec/conventions/**.md` 의 frontmatter 의무 (id/status) 존재 검증. SoT: `spec/conventions/spec-impl-evidence.md §4`
+- `codebase/frontend/src/lib/docs/__tests__/spec-code-paths.test.ts` — `status ∈ {partial, implemented}` spec 의 `code:` 글로브 ≥1 매치 강제
+- `codebase/frontend/src/lib/docs/__tests__/spec-status-lifecycle.test.ts` — `spec-only` 90일 TTL / `partial` 의 `pending_plans:` 미작성 / pending_plans 모두 complete 인데 status 미승격 / `backlog` 의 `spec/0-overview.md §6.3` 매칭 누락 차단
+- `codebase/frontend/src/lib/docs/__tests__/spec-pending-plan-existence.test.ts` — spec frontmatter `pending_plans:` path 가 `plan/in-progress/` 실존 검증 (spec → plan 역방향 링크 가드)
+- `codebase/frontend/src/lib/docs/__tests__/impl-anchor-existence.test.ts` — 모든 `<ImplAnchor>` 의 `file` 실존 + `symbol` grep ≥1 매치. SoT: `spec/conventions/user-guide-evidence.md §2`
+- `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts` — `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
+- `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts` — `02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 
-이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
+이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) · [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) · [`spec/conventions/user-guide-evidence.md`](spec/conventions/user-guide-evidence.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
 
 ## e2e 테스트 작성 가이드
 
