@@ -1,5 +1,7 @@
+import { z } from 'zod';
 import { evaluateWarnings } from '@workflow/node-summary';
 import {
+  templateNodeConfigSchema,
   templateNodeMetadata,
   validateTemplateConfig,
 } from './template.schema';
@@ -63,5 +65,41 @@ describe('evaluateMetadataBlockingErrors integration (template)', () => {
         template: 'Hello',
       }),
     ).toEqual([]);
+  });
+});
+
+/**
+ * buttonDefSchema.userMessage — 검증 스위트
+ *
+ * SoT: spec/4-nodes/6-presentation/0-common.md §1 (ButtonDef 필드 정의),
+ *      §10.8 (AI Agent render_* tool 모드 user-message 합성 우선순위).
+ * `userMessage` 필드는 LLM 이 명시하는 chat 발화 텍스트 override.
+ * 미설정 시 frontend 가 label 기반 합성. type="link" 에서는 클릭 시 무시.
+ */
+describe('buttonDefSchema — userMessage (spec/4-nodes/6-presentation/0-common.md §1, §10.8)', () => {
+  it('preserves userMessage on global buttons and exposes it in JSON Schema', () => {
+    const result = templateNodeConfigSchema.parse({
+      template: 'Hello {{ name }}',
+      buttons: [
+        {
+          id: 'a',
+          label: 'Reply',
+          type: 'port',
+          userMessage: 'Yes, hello',
+        },
+      ],
+    });
+    expect(result.buttons[0].userMessage).toBe('Yes, hello');
+
+    const jsonSchema = z.toJSONSchema(templateNodeConfigSchema) as unknown as {
+      properties?: {
+        buttons?: {
+          items?: { properties?: Record<string, { type?: string }> };
+        };
+      };
+    };
+    expect(
+      jsonSchema.properties?.buttons?.items?.properties?.userMessage,
+    ).toBeDefined();
   });
 });

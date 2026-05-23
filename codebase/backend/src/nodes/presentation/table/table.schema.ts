@@ -5,6 +5,7 @@ import {
 } from '../../core/node-component.interface';
 import { validateButtons } from '../_shared/button.types';
 
+// Mirror: ButtonDef in _shared/button.types.ts — keep fields in sync.
 const buttonDefSchema = z
   .object({
     id: z.string().optional(),
@@ -30,6 +31,20 @@ const buttonDefSchema = z
       .enum(['primary', 'secondary', 'outline', 'danger'])
       .default('secondary')
       .meta({ ui: { label: 'Style', widget: 'select' } }),
+    userMessage: z
+      .string()
+      .max(500)
+      .optional()
+      .meta({
+        ui: {
+          label: 'User Message',
+          widget: 'expression',
+          placeholder: '클릭 시 chat 발화 텍스트 (생략 시 자동 합성: label)',
+          visibleWhen: { field: 'type', equals: 'port' },
+        },
+        description:
+          'AI Agent render_* tool 모드에서 type="port" 버튼 클릭 시 chat 에 발화될 user message. 미설정 시 frontend 가 자동 합성 (label). type="link" 에서는 무시.',
+      }),
   })
   .passthrough();
 
