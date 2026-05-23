@@ -414,6 +414,72 @@ export function backfillButtonUuids(
   return out;
 }
 
+/**
+ * spec/4-nodes/6-presentation/0-common.md §10.5 step 4 — `render_form` 도구의
+ * `fields[].options[].value` 가 빈 문자열·null·undefined 일 때 결정적 fallback
+ * (`opt-{fieldIdx}-{optIdx}`) 으로 채운다. 다음 문제를 차단:
+ *
+ * 1. **placeholder collision** — frontend `<option value="">Select...</option>`
+ *    placeholder 와 LLM 이 emit 한 빈-value 옵션이 DOM 상 동일 → 클릭해도
+ *    시각적으로 placeholder 가 유지됨 (사용자 보고: "select 선택 후 초기값으로
+ *    돌아감", 2026-05-23).
+ * 2. **option 간 충돌** — 모든 옵션의 value 가 동일 (`""`) 이면 어느 옵션을
+ *    골랐는지 frontend·LLM 모두 식별 불가.
+ *
+ * UUID 가 아닌 결정적 값 (`opt-{fieldIdx}-{optIdx}`) 인 이유는 LLM 이 다음 turn
+ * 에서 submitted value 를 보고 원래 option 정의 배열의 어느 인덱스인지 의미
+ * 기반으로 매핑할 수 있어야 하기 때문 (§Rationale "form option value backfill").
+ * `backfillButtonUuids` (UUID v4) 와 평행하지만 형식이 다른 결정의 근거.
+ *
+ * Side-effect-free — 적어도 하나의 옵션이 갱신될 때만 새 payload 참조를 반환.
+ * LLM 이 제공한 non-empty value (string / number / boolean / object) 는 그대로
+ * 보존 — type drift 정합화는 frontend 가 `String(value) === String(opt.value)`
+ * coerce 로 처리 (4-layer SSOT alignment, §Rationale).
+ *
+ * @param type - Presentation type; `'form'` 외에는 early-return.
+ * @param payload - Validated, overlaid, cap-applied payload object.
+ * @returns 새 payload 참조 — 적어도 하나의 옵션이 갱신되면. 아니면 원본 그대로.
+ */
+export function backfillFormOptionValues(
+  type: PresentationType,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  if (type !== 'form') return payload;
+
+  const fields = (payload as { fields?: unknown }).fields;
+  if (!Array.isArray(fields)) return payload;
+
+  let anyChanged = false;
+  const newFields = fields.map((field, fieldIdx) => {
+    if (field === null || typeof field !== 'object') return field;
+    const f = field as Record<string, unknown>;
+    const options = f.options;
+    if (!Array.isArray(options)) return field;
+
+    let optsChanged = false;
+    const newOptions = options.map((opt, optIdx) => {
+      if (opt === null || typeof opt !== 'object') return opt;
+      const o = opt as Record<string, unknown>;
+      const v = o.value;
+      // Empty string / null / undefined → backfill needed.
+      // Non-empty string / number / boolean / object → keep as-is.
+      const needsBackfill =
+        v === undefined ||
+        v === null ||
+        (typeof v === 'string' && v.length === 0);
+      if (!needsBackfill) return opt;
+      optsChanged = true;
+      return { ...o, value: `opt-${fieldIdx}-${optIdx}` };
+    });
+
+    if (!optsChanged) return field;
+    anyChanged = true;
+    return { ...f, options: newOptions };
+  });
+
+  return anyChanged ? { ...payload, fields: newFields } : payload;
+}
+
 export class RenderToolProvider implements AgentToolProvider {
   readonly key = 'render';
   private static readonly logger = new Logger('RenderToolProvider');
@@ -590,12 +656,17 @@ export class RenderToolProvider implements AgentToolProvider {
       ]);
     }
 
-    // spec/4-nodes/6-presentation/0-common.md §10.5 step 3 — backfill missing
-    // button.id with UUID v4 after cap so truncated elements (which never
-    // reach the frontend) don't allocate ids needlessly.
-    // backfillButtonUuids is a no-op for form (early-return in the helper),
-    // so normalisedPayload === capped.payload for form — no double work.
-    const normalisedPayload = backfillButtonUuids(type, capped.payload);
+    // spec/4-nodes/6-presentation/0-common.md §10.5 step 3 + step 4 — after
+    // cap, backfill the LLM-emitted payload's silent-collision fields:
+    //   step 3: button.id (UUID v4) — display-only types, no-op for form
+    //   step 4: form fields[].options[].value (deterministic opt-{f}-{o}) —
+    //           form only, no-op for others
+    // Both helpers are type-guarded early-return for the opposite kind, so
+    // composing them is order-insensitive and idempotent.
+    const normalisedPayload = backfillFormOptionValues(
+      type,
+      backfillButtonUuids(type, capped.payload),
+    );
 
     if (type === 'form') {
       // Interactive: signal handler to enter waiting_for_input.
