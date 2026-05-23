@@ -479,8 +479,26 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
         conv && typeof conv === "object"
           ? { ...(conv as Record<string, unknown>), pendingFormToolCall: null }
           : conv;
+      // spec/conventions/conversation-thread.md §9.7.1 — "render_form 제출은
+      // multi-turn AI 대화 한복판의 form 입력 1건 완료이지 `waiting_for_input`
+      // 해제 자체가 아니다". 따라서 `status` 는 `waiting_for_input` 유지 —
+      // backend 가 form 제출 후 곧 다음 turn 의 새 waiting 으로 emit 한다.
+      //
+      // 옛 `status: 'running'` 설정 시 회귀 (2026-05-23 사용자 보고):
+      // REST 폴링 (executionsApi.getById, 2s) 이 backend 의 transient phase
+      // (`execution.status='running' + nodeExec='running'`) 를 잡으면
+      // `applyExecutionSnapshot:144-167` 의 `running && prevStatus='waiting_for_input'
+      // && !hasWaitingNode` 분기가 발화해 `resumeFromConversation()` 호출 →
+      // `CLEAR_INPUT_AFFORDANCE` 가 `waitingNodeId / waitingInteractionType /
+      // waitingConversationConfig / isWaitingAiResponse` 전부 wipe → timeline
+      // 이 일시적으로 빈 채로 보였다 AI 응답 도착 시 다시 채워짐.
+      //
+      // status 를 'waiting_for_input' 으로 유지하면 위 분기 entry 조건 자체가
+      // 깨지고 (`prevStatus === 'waiting_for_input'` 이지만 `execution.status`
+      // 도 running phase 일 때 line 124-130 의 `reconcileToWaiting` 가 true
+      // 가 되어 effectiveExecutionStatus='waiting_for_input' 분기 — same-node
+      // early return — 으로 흐르며 store wipe 가 발생하지 않는다).
       return {
-        status: "running",
         waitingConversationConfig: nextConv,
       };
     }),
