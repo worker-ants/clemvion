@@ -13,6 +13,23 @@ import { useExecutionStore } from "../stores/execution-store";
  */
 export const CONTINUE_BUTTON_ID = "__continue__";
 
+/**
+ * W10 (SUMMARY) — `sendMessage` 는 `user` 타입만, `submitForm` 은 `user` 와
+ * `presentation` 타입 모두를 turnIndex 기준으로 계산. 두 함수의 비대칭 필터를
+ * 명시하는 헬퍼. sendMessage 는 `isUserInitiatedTurn(m)` 으로, submitForm 은
+ * 해당 함수 내부에 이미 인라인으로 처리돼 있다 — 그 의도를 타입 레벨에서 표현.
+ *
+ * Note: `sendMessage` 와 `submitForm` 의 turnIndex 필터가 의도적으로 다른 이유:
+ * - `sendMessage`: AI 대화의 user 메시지 순번 → user 타입만 카운트.
+ * - `submitForm`: presentation_user turn 을 추가하므로 user + presentation 모두
+ *   카운트해야 correct turnIndex 를 부여할 수 있다.
+ */
+function isUserInitiatedTurn(
+  m: { type: string },
+): m is { type: "user" } {
+  return m.type === "user";
+}
+
 interface InteractionAck {
   success: boolean;
   error?: string;
@@ -45,7 +62,18 @@ function emitWithAck(
 }
 
 export interface ExecutionInteractionCommands {
-  /** Submit a form waiting node's filled values and resume the execution. */
+  /**
+   * Submit a form waiting node's filled values and resume the execution.
+   *
+   * Side effects (optimistic UI):
+   * 1. `addConversationMessage` — presentation_user turn (interactionType:
+   *    'form_submitted') 을 chat thread 에 즉시 추가. WS 응답의 authoritative
+   *    snapshot 이 도착하면 setConversationMessages 가 덮어씀 (dedup 자연 처리).
+   * 2. `setWaitingAiResponse(true)` — AI 응답 인디케이터 활성. ack 실패 시
+   *    `setWaitingAiResponse(false)` 로 해제 (spinner 만 해제, optimistic turn 유지).
+   * 3. WS emit `execution.submit_form` → ack event `execution.form_submitted`.
+   *    ack 실패 시 `toast.error(error)` 표시.
+   */
   submitForm: (formData: Record<string, unknown>) => void;
   /** Click a specific port-type button in a waiting buttons node. */
   clickButton: (buttonId: string) => void;
@@ -73,15 +101,61 @@ export function useExecutionInteractionCommands(
   const submitForm = useCallback(
     (formData: Record<string, unknown>) => {
       if (!executionId) return;
+      // 사용자 보고 (2026-05-23): "form submit 후 정상 동작 안 함" — root cause
+      // 한 갈래는 `sendMessage` 와 달리 submitForm 이 optimistic UI 를 갱신하지
+      // 않아 form 만 사라지고 0 frame visual feedback 이 없는 점. spec/4-nodes/
+      // 6-presentation/0-common.md §Rationale (form submission wire format
+      // wrap) — frontend 도 `sendMessage` 와 평행 패턴으로 (1) presentation_user
+      // 임시 turn 을 chat 에 추가 (2) AI 응답 대기 인디케이터 활성화.
+      // 백엔드의 authoritative presentation_user push 가 WS 로 도착하면
+      // setConversationMessages 가 thread snapshot 으로 덮어쓴다 (dedup
+      // 자연 발생, use-execution-events.ts §threadTurns).
+      // W9 (SUMMARY): sendMessage 는 `const { conversationMessages }` 만 구조
+      // 분해하지만, submitForm 은 waitingNodeId + nodeResults 도 필요 (form 노드
+      // 메타를 presentation turn 에 채우기 위해). 의도적 패턴 차이 — 불일치 아님.
+      const {
+        conversationMessages,
+        waitingNodeId,
+        nodeResults,
+      } = useExecutionStore.getState();
+      const waitingNode = waitingNodeId
+        ? nodeResults.find((n) => n.nodeId === waitingNodeId)
+        : undefined;
+      addConversationMessage({
+        type: "presentation",
+        content: "",
+        presentation: {
+          nodeLabel: waitingNode?.nodeLabel ?? "Form",
+          nodeType: waitingNode?.nodeType ?? "form",
+          interactionType: "form_submitted",
+          data: formData,
+        },
+        // W4 (SUMMARY): turnIndex 는 getState() 호출 시점의 스냅샷. 연속
+        // submitForm 호출 시 stale 할 수 있으나 sendMessage 와 동일 패턴으로
+        // 의도된 동작 — WS 응답(setConversationMessages)이 authoritative thread
+        // snapshot 으로 덮어쓰므로 optimistic 순번의 정확성은 낮은 우선순위.
+        turnIndex:
+          conversationMessages.filter(
+            (m) => m.type === "user" || m.type === "presentation",
+          ).length + 1,
+        timestamp: new Date().toISOString(),
+      });
+      setWaitingAiResponse(true);
       emitWithAck(
         getWsClient(),
         "execution.submit_form",
         { executionId, formData },
         "execution.form_submitted",
-        (error) => toast.error(error),
+        (error) => {
+          // Server rejected. `sendMessage` 와 평행으로 spinner 만 해제 +
+          // toast. optimistic presentation_user 는 유지 (사용자가 제출한
+          // 내용 가시화 — 재시도 안내 차원). spec §Rationale.
+          setWaitingAiResponse(false);
+          toast.error(error);
+        },
       );
     },
-    [executionId],
+    [executionId, addConversationMessage, setWaitingAiResponse],
   );
 
   const clickButton = useCallback(
@@ -116,8 +190,10 @@ export function useExecutionInteractionCommands(
       addConversationMessage({
         type: "user",
         content: message,
+        // W10: user 타입만 카운트 (isUserInitiatedTurn). submitForm 의
+        // user|presentation 필터와 의도적 비대칭 — 주석 참고.
         turnIndex:
-          conversationMessages.filter((m) => m.type === "user").length + 1,
+          conversationMessages.filter(isUserInitiatedTurn).length + 1,
         timestamp: new Date().toISOString(),
       });
       setWaitingAiResponse(true);

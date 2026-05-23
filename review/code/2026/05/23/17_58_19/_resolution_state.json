@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "started_at": "2026-05-23T10:00:00Z",
+  "summary_items_total": 16,
+  "items_resolved_ids": ["C1", "W4", "W5", "W6", "W7", "W8", "W9", "W10", "W11", "W12", "W13", "W14", "I1", "I5", "I7", "I8", "I9", "I10"],
+  "items_pending_ids": ["W3"],
+  "items_escalated_ids": {
+    "W1": "spec",
+    "W2": "spec",
+    "W15": "spec"
+  },
+  "commits_made": [
+    {"sha": "a67de956", "summary_id": "C1/W4..W14/I1/I7..I10", "scope": "execution-engine"},
+    {"sha": "323876aa", "summary_id": "I5", "scope": "ai-agent"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-fix-form-submission-w1-w2-w15.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260523-182423.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec items W1/W2/W15 require project-planner",
+  "last_reset_hint_sec": null
+}
