@@ -24,52 +24,149 @@ import {
 interface AssistantPresentationsBlockProps {
   presentations: PresentationPayload[];
   /**
-   * spec/4-nodes/3-ai/1-ai-agent.md §4.1 — "presentationTools[].defaults 에
-   * buttons 를 넣더라도 클릭은 다음 LLM turn 의 user 메시지로 흡수" 원칙.
-   * presentation 노드의 graph-port 분기와 달리 AI Agent 안의 render_* 도구는
-   * 버튼 클릭 시 그 라벨을 다음 user message 로 LLM 에 전달한다 (form 흐름
-   * 과 동일). 미지정 시 버튼 자체가 disabled 처럼 보이는 회귀가 발생 (PR #272
-   * 머지 후 사용자 보고).
+   * spec/4-nodes/3-ai/1-ai-agent.md §4.1 + spec/4-nodes/6-presentation/0-common.md
+   * §10.8 — "presentationTools[].defaults 에 buttons 를 넣더라도 클릭은 다음
+   * LLM turn 의 user 메시지로 흡수" 원칙. presentation 노드의 graph-port 분기와
+   * 달리 AI Agent 안의 render_* 도구는 버튼 클릭 시 합성된 user message 를 다음
+   * turn 으로 LLM 에 전달한다 (form 흐름과 동일). 합성 우선순위:
+   * `button.userMessage` (LLM-author) → `"{item.title} → {label}"` (per-item) →
+   * `"{label}"` (global) → `buttonId` (fallback). 미지정 시 버튼이 disabled 처럼
+   * 보이는 회귀가 발생 (PR #272 머지 후 사용자 보고).
    */
   onSendMessage?: (message: string) => void;
 }
 
-function findButtonLabel(
+/**
+ * @internal
+ *
+ * 클릭된 버튼 정의 + (per-item 인 경우) 부모 아이템을 함께 해석한다.
+ *
+ * spec/4-nodes/6-presentation/0-common.md §10.8 — user-message 합성 SoT.
+ *
+ * 검색 우선순위 (specific → general):
+ *   1. `items[].buttons` (static 모드 per-item 버튼) — 가장 구체적인 정의 위치.
+ *      spec §3 step 1 에 따라 같은 button id 가 `buttonConfig.buttons` 에도 합쳐져
+ *      들어가지만, 부모 item 컨텍스트는 본 경로에서만 얻을 수 있으므로 먼저 검색.
+ *   2. `config.itemButtons` definitions (dynamic 모드) + buttonId 의 `__item_{idx}`
+ *      suffix → `items[idx]` 부모 매핑.
+ *   3. `config.buttonConfig.buttons` / `data.buttons` (global 버튼 — 부모 item 없음).
+ *      dynamic 모드의 synthesized runtime button (`{base}__item_{idx}`) 도 본 경로
+ *      에서 매칭되며, 이 경우 suffix 로 부모 아이템 보충.
+ *
+ * `userMessage` 옵션 필드도 함께 보존된다 (spec §1).
+ *
+ * (`findButtonLabel` 의 후속 — label 만 반환하던 helper 를 user-message 합성
+ *  단계가 필요로 하는 `{button, item?}` 구조로 확장.)
+ */
+export function findButtonContext(
   data: Record<string, unknown>,
   buttonId: string,
-): string | undefined {
-  // Resolve a clicked button's user-visible label from the rendered payload.
-  // CarouselContent / TemplateContent / TableContent / ChartContent all carry
-  // their button definitions inside `config.buttonConfig.buttons` (canonical
-  // location after the resume-flow refactor). Per-item carousel buttons live
-  // in items[].buttons. Fall back to the buttonId itself if nothing matches.
+):
+  | {
+      button: {
+        id?: string;
+        label?: string;
+        type?: string;
+        userMessage?: string;
+      };
+      item?: Record<string, unknown>;
+    }
+  | undefined {
   const cfg = (data?.config as Record<string, unknown> | undefined) ?? data;
   const btnConfig = cfg?.buttonConfig as Record<string, unknown> | undefined;
-  const buttons = (btnConfig?.buttons ?? data?.buttons ?? []) as Array<{
-    id?: string;
-    label?: string;
-  }>;
-  for (const b of buttons) {
-    if (b.id === buttonId && typeof b.label === "string") return b.label;
-  }
-  // Carousel per-item buttons (id format: `${buttonId}__item_${idx}`).
   const items = (data?.items ?? []) as Array<Record<string, unknown>>;
+
+  // Dynamic per-item runtime ID 패턴: `{base}__item_{idx}` (spec §1.1 reserved
+  // separator). suffix 가 있으면 items[idx] 가 부모 아이템.
+  const dynamicMatch = buttonId.match(/__item_(\d+)$/);
+  const dynamicIdx = dynamicMatch
+    ? Number.parseInt(dynamicMatch[1], 10)
+    : null;
+  const dynamicItem =
+    dynamicIdx !== null && Number.isFinite(dynamicIdx)
+      ? items[dynamicIdx]
+      : undefined;
+
+  // 1. static 모드 per-item buttons — 부모 item 컨텍스트가 가장 풍부한 경로
   for (const item of items) {
     const itemButtons = (item.buttons ?? []) as Array<{
       id?: string;
       label?: string;
+      type?: string;
+      userMessage?: string;
     }>;
     for (const b of itemButtons) {
-      if (
-        typeof b.id === "string" &&
-        typeof b.label === "string" &&
-        (b.id === buttonId || buttonId.startsWith(`${b.id}__item_`))
-      ) {
-        return b.label;
+      if (typeof b.id === "string" && b.id === buttonId) {
+        return { button: b, item };
       }
     }
   }
+
+  // 2. dynamic mode itemButtons definitions — `__item_{idx}` suffix 로 매칭
+  const itemButtons = (cfg?.itemButtons ?? []) as Array<{
+    id?: string;
+    label?: string;
+    type?: string;
+    userMessage?: string;
+  }>;
+  for (const b of itemButtons) {
+    if (typeof b.id === "string" && buttonId.startsWith(`${b.id}__item_`)) {
+      return { button: b, item: dynamicItem };
+    }
+  }
+
+  // 3. global buttons + dynamic synthesized runtime buttons (fallback)
+  const buttons = (btnConfig?.buttons ?? data?.buttons ?? []) as Array<{
+    id?: string;
+    label?: string;
+    type?: string;
+    userMessage?: string;
+  }>;
+  for (const b of buttons) {
+    if (b.id === buttonId) {
+      return { button: b, item: dynamicItem };
+    }
+  }
+
   return undefined;
+}
+
+/**
+ * @internal
+ *
+ * 버튼 컨텍스트로부터 chat 에 발화될 user message 텍스트를 합성한다.
+ *
+ * spec/4-nodes/6-presentation/0-common.md §10.8 — 우선순위:
+ *   1. `button.userMessage` (LLM-author override). 빈 문자열은 무시.
+ *   2. per-item 버튼 → `"{item.title} → {label}"`.
+ *   3. global 버튼 → `"{label}"`.
+ *   4. 라벨 없음 / 매칭 실패 → `buttonId` 그대로.
+ *
+ * U+2192 (` → `) 구분자는 locale-agnostic — 한·영 동일 형식 (spec §Rationale).
+ */
+export function composeUserMessage(
+  ctx:
+    | {
+        button: { label?: string; userMessage?: string };
+        item?: Record<string, unknown>;
+      }
+    | undefined,
+  buttonId: string,
+): string {
+  if (!ctx) return buttonId;
+  const userMessage = ctx.button.userMessage;
+  if (typeof userMessage === "string" && userMessage.length > 0) {
+    return userMessage;
+  }
+  const label = ctx.button.label;
+  if (typeof label !== "string" || label.length === 0) {
+    return buttonId;
+  }
+  const itemTitle = (ctx.item as { title?: unknown } | undefined)?.title;
+  if (typeof itemTitle === "string" && itemTitle.length > 0) {
+    return `${itemTitle} → ${label}`;
+  }
+  return label;
 }
 
 function PresentationItem({
@@ -115,16 +212,19 @@ export function AssistantPresentationsBlock({
 }: AssistantPresentationsBlockProps) {
   if (!presentations || presentations.length === 0) return null;
 
-  // spec §4.1 — port-style buttons dispatch the button label as a user
+  // spec §4.1 / §10.8 — port-style buttons dispatch a synthesized user
   // message to the LLM rather than routing to a graph port (since AI Agent
   // tool family is "expression-only" and never routes to workflow edges).
+  // 우선순위: button.userMessage (LLM-author) → "{item.title} → {label}"
+  // (per-item) → label (global) → buttonId (fallback). 합성 로직은
+  // composeUserMessage 헬퍼가 SoT.
   const handlePortButtonClick = (
     payload: Record<string, unknown>,
     buttonId: string,
   ) => {
     if (!onSendMessage) return;
-    const label = findButtonLabel(payload, buttonId) ?? buttonId;
-    onSendMessage(label);
+    const ctx = findButtonContext(payload, buttonId);
+    onSendMessage(composeUserMessage(ctx, buttonId));
   };
   const handleLinkButtonClick = (url: string) => {
     if (typeof window !== "undefined" && url) {
