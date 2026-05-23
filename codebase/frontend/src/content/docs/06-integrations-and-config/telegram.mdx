@@ -23,21 +23,33 @@ Bot API Token은 봇 계정을 완전히 제어할 수 있는 자격증명이에
 
 ## 2. 워크플로우 Webhook 트리거에 Chat Channel 설정
 
-트리거 생성 시 `chatChannel` 설정을 추가해요:
+<Callout type="warn">
+**현재는 GUI 입력 폼이 제공되지 않아요.** 트리거 생성·편집 화면에 Chat Channel 카드는 표시되지만 입력 필드 UI 는 후속 PR 에서 추가될 예정이라, 지금은 아래 API 호출로만 등록할 수 있어요. spec SoT 는 [`spec/5-system/15-chat-channel.md`](https://github.com/worker-ants/clemvion/blob/main/spec/5-system/15-chat-channel.md) — UI 가 들어오면 본 가이드도 GUI 단계 안내로 격상됩니다.
+</Callout>
 
-```json
-{
-  "type": "webhook",
-  "config": {
-    "chatChannel": {
-      "provider": "telegram",
-      "botToken": "<BotFather에서 받은 token>"
+트리거 생성 API 본문에 `chatChannel` 을 포함해 호출해요:
+
+```bash
+curl -X POST https://<your-host>/api/triggers \
+  -H 'Authorization: Bearer <your-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "webhook",
+    "name": "telegram-bot",
+    "workflowId": "<workflow-id>",
+    "config": {
+      "chatChannel": {
+        "provider": "telegram",
+        "botToken": "<BotFather에서 받은 token>"
+      }
     }
-  }
-}
+  }'
 ```
 
-트리거가 활성화되면 자동으로 Telegram `setWebhook` API가 호출돼 봇이 워크플로우 엔드포인트로 연결돼요. 수동으로 BotFather에서 webhook을 설정할 필요가 없어요.
+트리거가 활성화되면 자동으로 Telegram `setWebhook` API 가 호출돼 봇이 워크플로우 엔드포인트로 연결돼요. 수동으로 BotFather 에서 webhook 을 설정할 필요가 없어요.
+
+- `botToken` 은 응답에 절대 노출되지 않아요 — secret store 에 AES-256-GCM 으로 암호화 보관되고, 응답에는 `hasBotToken: true` 만 포함돼요.
+- `botToken` 형식: `^\d{6,}:[A-Za-z0-9_-]{30,}$` (BotFather 발급 표준). 위반 시 400 `BOT_TOKEN_INVALID`.
 
 ## 3. 지원하는 인터랙션 노드
 
@@ -53,9 +65,17 @@ Chat Channel을 통해 아래 인터랙션 노드 유형을 사용할 수 있어
 | **Carousel** | 카드별 sequential 메시지 (제목·설명·이미지 URL, 최대 10장) |
 
 <Callout type="note">
-시각형 노드(Chart, Table, Carousel)는 현재 **MarkdownV2 텍스트 표현**으로 동작해요. 향후 별도 PR에서 SSR PNG 이미지 발송으로 격상될 예정이에요 (의존성 추가 검토 중 — 별 plan `chat-channel-visual-ssr-png` 추적).
+시각형 노드(Chart, Table, Carousel)는 현재 **MarkdownV2 텍스트 표현**으로 동작해요. 향후 별도 PR 에서 SSR PNG 이미지 발송으로 격상될 예정이에요 (별 plan `chat-channel-visual-ssr-png` 추적).
 
-`uiMapping.visualNode: 'text_only'` 로 설정하면 시각형 메시지 발송 자체를 끄고 버튼만 보낼 수 있어요.
+`uiMapping.visualNode` 옵션 (default `"auto"`):
+
+| 값 | 동작 |
+|---|---|
+| `"auto"` (default) | 노드별 자동 선택 — chart/table 은 텍스트, carousel 은 카드별 `imageUrl` 있으면 `sendPhoto` else 텍스트 |
+| `"text"` | 모든 시각형을 텍스트만 발송 (carousel `imageUrl` 도 무시) |
+| `"photo"` | v2 SSR 인프라 도입 후 PNG 이미지 발송. v1 단계에서는 `text` 와 동일하게 동작 (fallback) — 정상 동작이며 health 변경 없음 |
+
+> 구 enum 값 `"text_only"` 은 폐기됐어요. DB 에 남아있는 값은 어댑터가 자동으로 `"text"` 로 변환하므로 기존 트리거는 그대로 동작해요.
 </Callout>
 
 ## 4. 봇 명령어
@@ -72,30 +92,33 @@ Chat Channel을 통해 아래 인터랙션 노드 유형을 사용할 수 있어
 
 | 값 | 의미 |
 |---|---|
-| `unknown` | 아직 setupChannel이 호출되지 않았거나 확인 전 |
-| `ok` | 봇 연결 정상 |
-| `degraded` | 최근 sendMessage 연속 실패 — 봇 응답 불안정 |
-| `error` | setupChannel 실패 |
+| `unknown` | 아직 `setupChannel` 이 호출되지 않았거나 확인 전 |
+| `healthy` | 봇 연결 정상 |
+| `degraded` | `setupChannel` / `rotate-bot-token` 실패 또는 sendMessage 연속 실패. **자동 비활성화는 하지 않아요** (CCH-SE-01) — 사용자가 명시적으로 활성/비활성 토글해야 해요 |
 
-`chat_channel_last_error` 필드에서 마지막 오류 내용을 확인할 수 있어요.
+`chatChannelLastError` 필드에서 마지막 오류 내용을 확인할 수 있어요.
 
-## 6. Bot Token 회전
+## 6. Bot Token 회전 (single-path)
 
-토큰이 유출됐다고 의심될 때 아래 API로 교체해요:
+토큰 변경은 **항상 아래 rotate API 만** 사용해요. PATCH 본문으로 `config.chatChannel.botTokenRef` 를 직접 변경하면 400 `VALIDATION_ERROR` 가 돌아와요 (`details.field='botTokenRef'`).
 
-```http
-POST /api/triggers/:id/chat-channel/rotate-bot-token
-Authorization: Bearer <your-token>
+```bash
+curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \
+  -H 'Authorization: Bearer <your-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{ "newBotToken": "<신규 BotFather token>" }'
 ```
 
-기존 webhook이 해제되고 새 token으로 재등록돼요.
+- 기존 token 은 **24시간 동안 grace 기간** 으로 같이 받아요 (그 사이 진행 중인 update 는 유실 없이 처리). 24시간 후 자동 정리.
+- 응답: `{ data: { triggerId, rotatedAt, chatChannelHealth, botIdentity } }`
+- 에러: 400 `BOT_TOKEN_INVALID`, 404 `TRIGGER_NOT_FOUND`, 502 `CHAT_CHANNEL_SETUP_FAILED` 등 ([Spec Chat Channel §5.4](https://github.com/worker-ants/clemvion/blob/main/spec/5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약))
 
 ## 7. 제한 사항
 
-- **1:1(private) 대화만 지원** — 그룹 채팅에서 봇에게 메시지를 보내도 무시돼요.
-- **봇이 보낸 메시지는 무시** — 봇 간 루프 방지를 위해 `from.is_bot=true`인 메시지는 처리하지 않아요.
-- **1분당 60건 제한** — 같은 conversation에서 60건을 초과하면 초과 요청이 무시돼요 (CCH-NF-03).
-- **v1 구현** — Bot Token은 현재 내부 설정에 평문으로 저장돼요. 이후 Secret Store 연동으로 전환 예정이에요 (CCH-SE-03 follow-up).
+- **1:1(private) 대화만 지원** — 그룹 채팅에서 봇에게 메시지를 보내도 무시돼요. 봇은 안내 메시지(`languageHints.groupChatRefusal`) 만 발송해요.
+- **봇이 보낸 메시지는 무시** — 봇 간 루프 방지를 위해 `from.is_bot=true` 인 메시지는 처리하지 않아요.
+- **1분당 60건 제한** — 같은 conversation 에서 60건을 초과하면 초과 요청이 무시돼요 (CCH-NF-03).
+- **Bot Token 보관** — Bot Token 과 webhook `secret_token` 은 secret store 에 AES-256-GCM 으로 암호화 저장돼요 (CCH-SE-03). DB 에는 ciphertext 만 보관되고, plaintext 는 master key 를 보유한 backend 프로세스 안에서만 일시적으로 복호화돼요. API 응답에는 평문 token 이 절대 노출되지 않고, `hasBotToken: boolean` derived 필드만 포함돼요.
 
 ## Rationale
 
