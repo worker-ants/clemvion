@@ -611,8 +611,12 @@ function NodeResultsTab({
                   // 새 객체 참조로 재계산되지만 `key={waitingNodeId}` 가 같으면
                   // 컴포넌트 mount 유지 → 입력 보존. waitingNodeId 가 바뀔 때만
                   // (다른 노드가 새로 waiting 상태로 전환) 의도된 remount.
+                  // `isWaitingForm` 이 true 일 때 `waitingNodeId` 는 반드시 non-null
+                  // (useExecutionStore 가 setWaitingNodeId 와 쌍으로 관리).
+                  // fallback `"no-waiting-node"` 는 방어적 값 — 정상 흐름에서는
+                  // 도달하지 않는다 (W#2 guard).
                   <DynamicFormUI
-                    key={waitingNodeId ?? "form"}
+                    key={waitingNodeId ?? "no-waiting-node"}
                     formConfig={resolvedFormConfig as Record<string, unknown>}
                     onSubmit={handleFormSubmit}
                   />

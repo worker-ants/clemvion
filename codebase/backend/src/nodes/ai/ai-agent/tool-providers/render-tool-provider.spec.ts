@@ -846,6 +846,57 @@ describe('backfillFormOptionValues (spec §10.5 step 4)', () => {
     );
     expect(out.fields[0].options[2]).toBe(null);
   });
+
+  it('is idempotent — re-applying backfill on already-filled payload returns same reference (W#3)', () => {
+    // JSDoc states: "Side-effect-free — 적어도 하나의 옵션이 갱신될 때만 새
+    // payload 참조를 반환." Re-applying to an already-backfilled payload must
+    // return the identical reference (no-op fast path).
+    const payload = {
+      fields: [
+        {
+          name: 'pick',
+          type: 'select',
+          options: [
+            { label: 'A' }, // needs backfill
+            { label: 'B' }, // needs backfill
+          ],
+        },
+      ],
+    };
+
+    const once = backfillFormOptionValues('form', payload);
+    // first call must have changed reference
+    expect(once).not.toBe(payload);
+
+    // second call: all values are now non-empty → no-op fast path → same ref
+    const twice = backfillFormOptionValues('form', once);
+    expect(twice).toBe(once);
+  });
+
+  it('skips field entries that are primitives (non-object field in fields array) (W#4)', () => {
+    // Guard for code path: `if (field === null || typeof field !== 'object') return field`
+    const payload = {
+      fields: [
+        'primitive-field-entry', // primitive — pass through unchanged
+        42, // number — pass through
+        null, // null — pass through
+        {
+          name: 'pick',
+          type: 'select',
+          options: [{ label: 'A' }], // gets backfilled
+        },
+      ],
+    };
+    const out = backfillFormOptionValues('form', payload) as {
+      fields: Array<unknown>;
+    };
+    expect(out.fields[0]).toBe('primitive-field-entry');
+    expect(out.fields[1]).toBe(42);
+    expect(out.fields[2]).toBe(null);
+    expect(
+      (out.fields[3] as { options: Array<{ value: string }> }).options[0].value,
+    ).toBe('opt-3-0');
+  });
 });
 
 describe('RenderToolProvider.execute — backfillFormOptionValues integration (spec §10.5 step 4)', () => {

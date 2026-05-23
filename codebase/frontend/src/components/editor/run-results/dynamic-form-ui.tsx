@@ -35,8 +35,23 @@ function toFileMetadata(file: File): FilePickMetadata {
   };
 }
 
+/**
+ * Sanitize `field.name` (LLM-emitted) before embedding in a DOM id.
+ * CSS selector special chars (`.`, `[`, `#`, space, …) are replaced with `_`
+ * so the id remains a safe CSS selector fragment (I#3).
+ */
 function fieldInputId(field: FormField, idx: number): string {
-  return `dyn-form-${field.name || "field"}-${idx}`;
+  const safe = (field.name || "field").replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `dyn-form-${safe}-${idx}`;
+}
+
+/**
+ * Normalise an option value to a string for use in `<option value>` / radio
+ * `value` / `checked` comparison. Centralises the `String(v ?? "")` coerce
+ * that was previously duplicated across select and radio (W#7).
+ */
+function normalizeOptionValue(v: unknown): string {
+  return String(v ?? "");
 }
 
 function renderField(
@@ -102,7 +117,7 @@ function renderField(
         <select
           id={id}
           className="w-full rounded border border-[hsl(var(--border))] bg-transparent px-2 py-1 text-xs h-7"
-          value={String(value ?? "")}
+          value={normalizeOptionValue(value)}
           onChange={(e) => onChange(e.target.value)}
           required={field.required}
         >
@@ -118,8 +133,8 @@ function renderField(
               is defense-in-depth for stale payloads or thread replay. */}
           {field.options?.map((opt, optIdx) => (
             <option
-              key={`${String(opt.value ?? "")}-${optIdx}`}
-              value={String(opt.value ?? "")}
+              key={`${normalizeOptionValue(opt.value)}-${optIdx}`}
+              value={normalizeOptionValue(opt.value)}
             >
               {opt.label}
             </option>
@@ -131,18 +146,18 @@ function renderField(
         <div className="flex flex-wrap gap-3" id={id}>
           {field.options?.map((opt, optIdx) => (
             <label
-              key={`${String(opt.value ?? "")}-${optIdx}`}
+              key={`${normalizeOptionValue(opt.value)}-${optIdx}`}
               className="flex items-center gap-1 text-xs"
             >
               <input
                 type="radio"
                 name={field.name}
-                value={String(opt.value ?? "")}
+                value={normalizeOptionValue(opt.value)}
                 // spec §10.5 step 4 SSOT 4-layer alignment — backend may emit
-                // option.value as number / boolean / object. `String(...)`
-                // coerce normalises both sides for the equality check so
-                // user selection persists across type drift.
-                checked={String(value ?? "") === String(opt.value ?? "")}
+                // option.value as number / boolean / object. normalizeOptionValue
+                // coerces both sides for the equality check so user selection
+                // persists across type drift.
+                checked={normalizeOptionValue(value) === normalizeOptionValue(opt.value)}
                 onChange={() => onChange(opt.value)}
                 required={field.required}
               />
@@ -181,11 +196,7 @@ function renderField(
               onChange([]);
               return;
             }
-            const arr: FilePickMetadata[] = [];
-            for (let i = 0; i < fileList.length; i++) {
-              arr.push(toFileMetadata(fileList[i]));
-            }
-            onChange(arr);
+            onChange(Array.from(fileList).map(toFileMetadata));
           }}
         />
       );

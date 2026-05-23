@@ -3,9 +3,17 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { DynamicFormUI } from "../dynamic-form-ui";
 
 /**
- * spec/4-nodes/6-presentation/0-common.md §10.5 step 4 (form option backfill SoT
- * lives in backend) and §10.6 (DynamicFormUI 합성 우선순위) — frontend 측 행동
- * 검증.
+ * DynamicFormUI 컴포넌트 통합 테스트.
+ *
+ * 검증 범위:
+ *  - select / radio / number / file / checkbox / textarea / date / text 전체 필드 타입
+ *  - spec §10.5 step 4 (form option backfill): backend SoT 적용 후 frontend 정상 동작
+ *  - spec §1.5 (file 필드 metadata-only): FileList → FilePickMetadata[] 직렬화
+ *  - number 필드 empty-input 보존 (NaN/0 강제 회귀 차단)
+ *  - radio numeric option value String coerce 비교
+ *  - defaultValue 초기화 매트릭스 (8개 필드 타입 전체)
+ *  - rerender 시 key prop 에 의한 state 보존/리셋 동작
+ *  - 다중 파일(maxFiles > 1) submit metadata 배열 수집
  *
  * 사용자 보고 (2026-05-23): "select 항목을 선택할 수 없고, 선택 후에도 초기값으로
  * 적용돼." root cause 는 backend optionSchema.value 가 빈 문자열로 collision
@@ -205,7 +213,7 @@ describe("DynamicFormUI — file 케이스 (spec 4-form §1.5 metadata-only)", (
     });
   });
 
-  it("file 필드 maxFiles > 1 일 때 multiple 속성 적용 + 다중 파일 metadata 배열", () => {
+  it("file 필드 maxFiles > 1 일 때 multiple 속성 적용 + 다중 파일 submit metadata 배열 (W#6)", () => {
     const onSubmit = vi.fn();
     render(
       <DynamicFormUI
@@ -226,6 +234,28 @@ describe("DynamicFormUI — file 케이스 (spec 4-form §1.5 metadata-only)", (
     const fileInput = screen.getByLabelText("문서") as HTMLInputElement;
     expect(fileInput.multiple).toBe(true);
     expect(fileInput.accept).toBe("application/pdf");
+
+    // W#6: 2개 파일 선택 → submit → length=2 검증
+    const file1 = new File(["a"], "report1.pdf", {
+      type: "application/pdf",
+      lastModified: 1700000001000,
+    });
+    const file2 = new File(["bb"], "report2.pdf", {
+      type: "application/pdf",
+      lastModified: 1700000002000,
+    });
+    Object.defineProperty(fileInput, "files", { value: [file1, file2] });
+    fireEvent.change(fileInput);
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    const submitted = onSubmit.mock.calls[0][0] as {
+      docs: Array<{ name: string; size: number }>;
+    };
+    expect(submitted.docs).toHaveLength(2);
+    expect(submitted.docs[0].name).toBe("report1.pdf");
+    expect(submitted.docs[1].name).toBe("report2.pdf");
+    expect(submitted.docs[0].size).toBe(1); // 'a' = 1 byte
+    expect(submitted.docs[1].size).toBe(2); // 'bb' = 2 bytes
   });
 
   it("file 필드 미선택 시 빈 배열로 제출 (단일 진실: 항상 배열)", () => {
@@ -305,5 +335,58 @@ describe("DynamicFormUI — defaultValue / 전체 필드 매트릭스", () => {
     expect(
       (screen.getByRole("checkbox") as HTMLInputElement).checked,
     ).toBe(true);
+  });
+});
+
+describe("DynamicFormUI — key prop state 보존/리셋 (W#5)", () => {
+  it("같은 key 로 rerender 시 사용자 입력 보존 (mount 유지)", () => {
+    // 본 변경의 핵심 가드 — `key={waitingNodeId}` 가 같으면 컴포넌트가
+    // unmount/remount 되지 않아 useState 값이 유지된다.
+    const formConfig = {
+      fields: [{ name: "name", type: "text", label: "Name" }],
+    };
+    const onSubmit = vi.fn();
+
+    const { rerender } = render(
+      <DynamicFormUI key="node-1" formConfig={formConfig} onSubmit={onSubmit} />,
+    );
+
+    // 사용자 입력
+    const input = screen.getByLabelText("Name") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Alice" } });
+    expect(input.value).toBe("Alice");
+
+    // 같은 key 로 rerender (resolvedFormConfig 참조 변경 시뮬레이션)
+    rerender(
+      <DynamicFormUI key="node-1" formConfig={{ ...formConfig }} onSubmit={onSubmit} />,
+    );
+
+    // 입력 보존 — mount 유지이므로 state 유지
+    expect((screen.getByLabelText("Name") as HTMLInputElement).value).toBe("Alice");
+  });
+
+  it("다른 key 로 rerender 시 state 리셋 (의도된 remount)", () => {
+    // key 가 바뀌면 React 가 컴포넌트를 unmount → remount → state 초기화.
+    // 다른 노드가 waiting 상태로 전환될 때 이전 입력이 남지 않아야 한다.
+    const formConfig = {
+      fields: [{ name: "comment", type: "text", label: "Comment" }],
+    };
+    const onSubmit = vi.fn();
+
+    const { rerender } = render(
+      <DynamicFormUI key="node-1" formConfig={formConfig} onSubmit={onSubmit} />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Comment"), {
+      target: { value: "Old input" },
+    });
+
+    // 다른 key (다른 노드 전환 시뮬레이션)
+    rerender(
+      <DynamicFormUI key="node-2" formConfig={formConfig} onSubmit={onSubmit} />,
+    );
+
+    // 리셋 — 새 mount 이므로 initialValueFor 결과 (빈 문자열)
+    expect((screen.getByLabelText("Comment") as HTMLInputElement).value).toBe("");
   });
 });
