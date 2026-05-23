@@ -23,21 +23,33 @@ The Bot API Token grants full control over your bot account. Never embed it dire
 
 ## 2. Add a Chat Channel to a Webhook trigger
 
-Include `chatChannel` in the trigger config when creating it:
+<Callout type="warn">
+**No GUI form is available yet.** The trigger create/edit screens will show a Chat Channel card but input fields are coming in a follow-up PR. For now, the API is the only registration path. The spec SoT is [`spec/5-system/15-chat-channel.md`](https://github.com/worker-ants/clemvion/blob/main/spec/5-system/15-chat-channel.md) — this guide will be upgraded to a GUI walkthrough once the UI lands.
+</Callout>
 
-```json
-{
-  "type": "webhook",
-  "config": {
-    "chatChannel": {
-      "provider": "telegram",
-      "botToken": "<your BotFather token>"
+Send `chatChannel` in the trigger create body:
+
+```bash
+curl -X POST https://<your-host>/api/triggers \
+  -H 'Authorization: Bearer <your-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "type": "webhook",
+    "name": "telegram-bot",
+    "workflowId": "<workflow-id>",
+    "config": {
+      "chatChannel": {
+        "provider": "telegram",
+        "botToken": "<your BotFather token>"
+      }
     }
-  }
-}
+  }'
 ```
 
 When the trigger activates, `setWebhook` is called automatically — no manual webhook configuration in BotFather is needed.
+
+- `botToken` is never returned in responses — it is stored AES-256-GCM-encrypted in the secret store, and responses only expose `hasBotToken: true`.
+- `botToken` format: `^\d{6,}:[A-Za-z0-9_-]{30,}$` (BotFather standard). Violations return 400 `BOT_TOKEN_INVALID`.
 
 ## 3. Supported interaction nodes
 
@@ -51,9 +63,17 @@ When the trigger activates, `setWebhook` is called automatically — no manual w
 | **Carousel** | Sequential per-card messages (title + description + image URL, up to 10 cards) |
 
 <Callout type="note">
-Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in Telegram. A future PR will upgrade them to SSR PNG image delivery (dependency decision pending — tracked in plan `chat-channel-visual-ssr-png`).
+Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in Telegram. A future PR will upgrade them to SSR PNG image delivery (tracked in plan `chat-channel-visual-ssr-png`).
 
-Set `uiMapping.visualNode: 'text_only'` to suppress visual message rendering entirely and send only the buttons.
+`uiMapping.visualNode` options (default `"auto"`):
+
+| Value | Behavior |
+|---|---|
+| `"auto"` (default) | Per-node smart choice — chart/table render as text; carousel sends `sendPhoto` per card when `imageUrl` is set, otherwise text |
+| `"text"` | Force text-only for all visual nodes (carousel `imageUrl` is ignored) |
+| `"photo"` | After v2 SSR infrastructure lands, sends PNG images. On v1 it falls back to `text` behavior (this is normal and does not affect health) |
+
+> The legacy enum value `"text_only"` is deprecated. Existing values in the DB are read-time normalized to `"text"` by the adapter, so older triggers keep working.
 </Callout>
 
 ## 4. Bot commands
@@ -71,22 +91,25 @@ Check `chatChannelHealth` on the trigger detail view:
 | Value | Meaning |
 |---|---|
 | `unknown` | `setupChannel` not yet called or pending |
-| `ok` | Bot connected normally |
-| `degraded` | Recent consecutive `sendMessage` failures — bot unstable |
-| `error` | `setupChannel` failed |
+| `healthy` | Bot connected normally |
+| `degraded` | `setupChannel` / `rotate-bot-token` failed or recent consecutive `sendMessage` failures. **The trigger is not auto-disabled** (CCH-SE-01) — only an explicit user toggle changes activation |
 
-The last error message is available in `chat_channel_last_error`.
+The last error message is available in `chatChannelLastError`.
 
-## 6. Rotating the bot token
+## 6. Rotating the bot token (single-path)
 
-If a token may be compromised, rotate it immediately:
+Token changes go through the rotate API only. PATCHing `config.chatChannel.botTokenRef` directly returns 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`).
 
-```http
-POST /api/triggers/:id/chat-channel/rotate-bot-token
-Authorization: Bearer <your-token>
+```bash
+curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \
+  -H 'Authorization: Bearer <your-token>' \
+  -H 'Content-Type: application/json' \
+  -d '{ "newBotToken": "<new BotFather token>" }'
 ```
 
-The old webhook is removed and a new one is registered with the new token.
+- The old token is honored for a **24-hour grace window** alongside the new one, so in-flight updates are not lost. After 24h the old token is cleaned up automatically.
+- Response: `{ data: { triggerId, rotatedAt, chatChannelHealth, botIdentity } }`
+- Errors: 400 `BOT_TOKEN_INVALID`, 404 `TRIGGER_NOT_FOUND`, 502 `CHAT_CHANNEL_SETUP_FAILED`, etc. ([Spec Chat Channel §5.4](https://github.com/worker-ants/clemvion/blob/main/spec/5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약))
 
 ## 7. Limitations
 
