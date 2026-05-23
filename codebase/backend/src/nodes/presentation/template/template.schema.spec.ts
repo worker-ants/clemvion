@@ -85,7 +85,9 @@ describe('buttonDefSchema — userMessage (spec/4-nodes/6-presentation/0-common.
 
     const jsonSchema = z.toJSONSchema(templateNodeConfigSchema) as unknown as {
       properties?: {
-        buttons?: { items?: { properties?: Record<string, { type?: string }> } };
+        buttons?: {
+          items?: { properties?: Record<string, { type?: string }> };
+        };
       };
     };
     expect(
