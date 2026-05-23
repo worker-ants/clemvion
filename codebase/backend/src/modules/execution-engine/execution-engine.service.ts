@@ -535,7 +535,16 @@ export class ExecutionEngineService
    */
   private registerContinuationHandlers(): void {
     this.continuationBus.on('continue', (msg) => {
-      this.resolvePending(msg.executionId, msg.payload);
+      // spec/4-nodes/6-presentation/0-common.md §10.9 — form submission
+      // wire format sentinel wrap. `ai_message` / `button_click` /
+      // `ai_end_conversation` 핸들러와 평행 구조로 `{type:'form_submitted',
+      // formData}` 형식으로 감싼다. form 필드명이 `type` 인 페이로드 (예:
+      // `{type:'주문 문의', ...}`) 가 dispatch 의 `'type' in action` 휴리스틱
+      // 으로 silent drop 됐던 회귀 차단.
+      this.resolvePending(msg.executionId, {
+        type: 'form_submitted',
+        formData: msg.payload,
+      });
     });
 
     this.continuationBus.on('cancel', (msg) => {
@@ -1733,13 +1742,23 @@ export class ExecutionEngineService
     );
 
     // Await user submission indefinitely; external cancel is the only exit.
-    const formData = await new Promise<unknown>((resolve, reject) => {
+    // spec §10.9 — `'continue'` listener wraps payload as
+    // `{type:'form_submitted', formData}` sentinel. Unwrap here so the rest
+    // of the function continues to see raw formData (back-compat with the
+    // pre-wrap signature).
+    const submitted = await new Promise<unknown>((resolve, reject) => {
       this.pendingContinuations.set(executionId, {
         nodeId: node.id,
         resolve,
         reject,
       });
     });
+    const formData =
+      submitted !== null &&
+      typeof submitted === 'object' &&
+      (submitted as { type?: string }).type === 'form_submitted'
+        ? (submitted as { formData?: unknown }).formData
+        : submitted;
 
     // Merge submitted form data into the structured NodeHandlerOutput.
     // The form handler stored `{ config, output: {}, status:
@@ -2014,17 +2033,20 @@ export class ExecutionEngineService
         if (turn.finalStatus === 'FAILED') {
           finalStatus = 'FAILED';
         }
-      } else if (!('type' in action)) {
-        // `execution.submit_form` 의 continueExecution(formData) 경유 — Form 노드
-        // 가 아닌 AI Agent 의 render_form blocking (interactionType:
-        // 'ai_form_render') 응답이다. handler 의 processMultiTurnMessage 가
-        // state.pendingFormToolCall 을 기반으로 JSON-serialised form data 를
-        // tool_result 로 splice — 여기서는 JSON string 만 들고 같은 entry 를
-        // 사용한다. spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.
+      } else if (action.type === 'form_submitted') {
+        // spec/4-nodes/6-presentation/0-common.md §10.9 — `'continue'` bus
+        // listener wraps `execution.submit_form` payload as
+        // `{type:'form_submitted', formData}`. Form 필드명이 `type` 인
+        // 페이로드도 정확히 라우팅되도록 명시 매칭 (silent-drop 회귀 차단).
+        // AI Agent 의 render_form blocking (interactionType:'ai_form_render')
+        // 응답 경로 — handler.processMultiTurnMessage 가 state.pendingFormToolCall
+        // 을 기반으로 JSON-serialised form data 를 tool_result 로 splice.
+        // spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.
+        const formData = action.formData ?? {};
         const turn = await this.handleAiMessageTurn(
           executionId,
           node,
-          JSON.stringify(action ?? {}),
+          JSON.stringify(formData),
           resumeState,
           nodeExec,
         );
@@ -2033,6 +2055,13 @@ export class ExecutionEngineService
         if (turn.finalStatus === 'FAILED') {
           finalStatus = 'FAILED';
         }
+      } else {
+        // spec §10.9 — 알 수 없는 action.type 은 silent skip 회피. warn log
+        // 남기고 loop 재진입 (다음 이벤트 대기). 새 action type 추가 시 dispatch
+        // 분기 누락이 silent failure 가 되지 않게 가드.
+        this.logger.warn(
+          `Unknown continuation action.type=${String(action.type)} for execution=${executionId} — loop re-entering`,
+        );
       }
     }
 

@@ -819,9 +819,11 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('등록된 continue 핸들러 — 로컬 Map 키 있으면 resolve, 없으면 silent skip', () => {
-      // onModuleInit 이 5개 핸들러를 등록했다. mockBus.on 호출 인자로부터
-      // continue 핸들러를 꺼내 직접 호출해 검증.
+    it('등록된 continue 핸들러 — form_submitted sentinel 로 wrap 해 resolve (spec §10.9)', () => {
+      // spec/4-nodes/6-presentation/0-common.md §10.9 — `'continue'` bus
+      // message 는 `{type:'form_submitted', formData}` sentinel 로 wrap 되어
+      // resolvePending 에 전달된다. Form 필드명이 `type` 인 페이로드도 정확히
+      // dispatch 되도록 (`'type' in action` 휴리스틱 제거).
       const continueCall = mockBus.on.mock.calls.find(
         (c: unknown[]) => c[0] === 'continue',
       );
@@ -844,7 +846,10 @@ describe('ExecutionEngineService', () => {
       });
 
       handler({ type: 'continue', executionId: 'exec-1', payload: { ok: 1 } });
-      expect(resolveSpy).toHaveBeenCalledWith({ ok: 1 });
+      expect(resolveSpy).toHaveBeenCalledWith({
+        type: 'form_submitted',
+        formData: { ok: 1 },
+      });
       expect(pendings.has('exec-1')).toBe(false);
 
       // 키가 없는 메시지 — silent skip.
@@ -855,6 +860,80 @@ describe('ExecutionEngineService', () => {
       });
       // 어떤 에러도 던지지 않음. 추가 resolve 도 일어나지 않음 (resolveSpy 횟수 1).
       expect(resolveSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('continue 핸들러 — form 필드명이 "type" 인 페이로드도 정확히 wrap (silent drop 회귀 방지)', () => {
+      // spec §10.9 — root cause regression guard. raw formData 가 `'type' in
+      // action` 휴리스틱으로 dispatch 됐을 때, formData 의 `type` 필드 (예:
+      // `{type: '주문 문의'}`) 가 `action.type === 'ai_message'` 등 어느 분기도
+      // 못 맞춰 silent drop 됐다. sentinel wrap 으로 형식이 명시화되면 form
+      // 필드 이름과 무관하게 정상 라우팅된다.
+      const continueCall = mockBus.on.mock.calls.find(
+        (c: unknown[]) => c[0] === 'continue',
+      );
+      const handler = continueCall![1] as (msg: unknown) => void;
+
+      const resolveSpy = jest.fn();
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+      pendings.set('exec-coll', {
+        nodeId: 'n1',
+        resolve: resolveSpy,
+        reject: jest.fn(),
+      });
+
+      // formData 의 필드명이 `type` 인 케이스 — 사용자 보고 사례
+      // (예: `{type: '주문 문의', contact: '010-...'}`).
+      handler({
+        type: 'continue',
+        executionId: 'exec-coll',
+        payload: { type: '주문 문의', contact: '010-1234-5678' },
+      });
+
+      expect(resolveSpy).toHaveBeenCalledWith({
+        type: 'form_submitted',
+        formData: { type: '주문 문의', contact: '010-1234-5678' },
+      });
+    });
+
+    it('continue 핸들러 — null / undefined payload 도 wrap (TypeError 회피)', () => {
+      // 빈 form 제출 또는 payload 누락 — sentinel wrap 으로 정상 행동.
+      const continueCall = mockBus.on.mock.calls.find(
+        (c: unknown[]) => c[0] === 'continue',
+      );
+      const handler = continueCall![1] as (msg: unknown) => void;
+
+      const resolveSpy = jest.fn();
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+      pendings.set('exec-empty', {
+        nodeId: 'n1',
+        resolve: resolveSpy,
+        reject: jest.fn(),
+      });
+
+      handler({
+        type: 'continue',
+        executionId: 'exec-empty',
+        payload: undefined,
+      });
+
+      expect(resolveSpy).toHaveBeenCalledWith({
+        type: 'form_submitted',
+        formData: undefined,
+      });
     });
 
     const findHandler = (type: string): ((msg: unknown) => void) => {
