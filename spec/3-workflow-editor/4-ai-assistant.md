@@ -1,3 +1,9 @@
+---
+id: ai-assistant
+status: spec-only
+code: []
+---
+
 # Spec: Workflow AI Assistant
 
 > 관련 문서: [PRD 워크플로우 에디터 §10](./_product-overview.md#10-ai-assistant-ed-ai-) · [PRD AI 플랫폼 §3.6](../4-nodes/3-ai/_product-overview.md) · [Spec 캔버스 §1 레이아웃](./0-canvas.md) · [Spec 노드 공통](./1-node-common.md) · [Spec 실행/디버깅](./3-execution.md) · [Spec LLM 클라이언트](../5-system/7-llm-client.md) · [Spec 데이터 모델 §2.20·§2.22](../1-data-model.md#220-assistantsession) · [Spec WebSocket](../5-system/6-websocket-protocol.md)

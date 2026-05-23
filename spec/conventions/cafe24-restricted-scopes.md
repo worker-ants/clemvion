@@ -1,3 +1,9 @@
+---
+id: cafe24-restricted-scopes
+status: spec-only
+code: []
+---
+
 # CONVENTION: Cafe24 별도 승인이 필요한 Scope · Operation
 
 > 관련 문서: [Cafe24 API Metadata 컨벤션](./cafe24-api-metadata.md) · [Cafe24 API Catalog](./cafe24-api-catalog/_overview.md) · [Spec 통합 화면 §5.8 Cafe24](../2-navigation/4-integration.md#58-cafe24) · [Spec Cafe24 노드](../4-nodes/4-integration/4-cafe24.md) · [Spec Integration 데이터 모델](../1-data-model.md#210-integration)

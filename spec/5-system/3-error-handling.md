@@ -1,3 +1,9 @@
+---
+id: error-handling
+status: spec-only
+code: []
+---
+
 # Spec: 에러 처리 정책
 
 > 관련 문서: [PRD 비기능 요구사항](./_product-overview.md) · [Spec API 규칙](./2-api-convention.md) · [Spec 실행/디버깅](../3-workflow-editor/3-execution.md) · [Spec 노드 공통](../3-workflow-editor/1-node-common.md)

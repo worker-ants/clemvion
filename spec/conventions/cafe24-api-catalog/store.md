@@ -1,3 +1,9 @@
+---
+id: store
+status: spec-only
+code: []
+---
+
 # Cafe24 API Catalog — Store (상점)
 
 > 카탈로그 형식·동기 정책: [`_overview.md`](./_overview.md). Store 는 sub-resource 가 50+ 개로 가장 크다 — 상점 설정·결제·정책 등 다수.

@@ -1,3 +1,9 @@
+---
+id: interaction-type-registry
+status: spec-only
+code: []
+---
+
 # Interaction Type Registry
 
 > 관련 문서: [Spec WebSocket Protocol §4.4](../5-system/6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) · [Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md) · [Spec Conversation Thread §1.1](./conversation-thread.md)

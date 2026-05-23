@@ -1,3 +1,9 @@
+---
+id: information-extractor
+status: spec-only
+code: []
+---
+
 # Spec: Information Extractor
 
 > 관련 문서: [AI 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec LLM Config](../../2-navigation/6-config.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)

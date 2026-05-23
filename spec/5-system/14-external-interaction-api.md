@@ -1,3 +1,9 @@
+---
+id: external-interaction-api
+status: spec-only
+code: []
+---
+
 # Spec: External Interaction API (트리거-원격 인터랙션 채널)
 
 > 관련 문서: [Spec Webhook 트리거](./12-webhook.md) · [Spec WebSocket 프로토콜](./6-websocket-protocol.md) · [Spec 실행 엔진](./4-execution-engine.md) · [Spec API 규칙](./2-api-convention.md) · [Spec Conversation Thread](../conventions/conversation-thread.md) · [Spec Chat Channel](./15-chat-channel.md)

@@ -1,3 +1,9 @@
+---
+id: design
+status: spec-only
+code: []
+---
+
 # Cafe24 API Catalog — Design (디자인)
 
 > 카탈로그 형식·동기 정책: [`_overview.md`](./_overview.md). 본 파일은 `design` resource 의 모든 operation enumeration.

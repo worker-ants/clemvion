@@ -28,9 +28,9 @@
 | 순서 | plan | 결정 | 상태 | 의존 |
 |---|---|---|---|---|
 | 1 | `developer-partial-impl-discipline.md` | D | ✅ complete (2026-05-23) | — |
-| 2 | `spec-frontmatter-rollout.md` | A | 진행 가능 | spec PR + `ai-presentation-tools` + `ai-agent-tool-connection-rewrite` 의존 |
-| 3 | `user-guide-reverse-coverage.md` | B | 진행 가능 | spec PR 머지 후 (병렬 가능) |
-| 4 | `plan-stale-audit.md` | C-1 | 진행 가능 | spec PR 머지 후 (병렬 가능) |
+| 2 | `spec-frontmatter-rollout.md` | A | ✅ complete (2026-05-23) | — |
+| 3 | `user-guide-reverse-coverage.md` | B | ✅ complete (2026-05-23) | — |
+| 4 | `plan-stale-audit.md` | C-1 | ✅ complete (2026-05-23) | — |
 | 5 | `spec-coverage-slash-command.md` | C-2 | plan 2 의존 | 2 완료 후 (spec frontmatter 의존) |
 | **신규** | `plan-coherence-stale-worktree-fix.md` | 결정 ④ | ✅ complete (2026-05-23) | PR #287 후속 별 PR |
 

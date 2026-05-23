@@ -1,3 +1,9 @@
+---
+id: community
+status: spec-only
+code: []
+---
+
 # Cafe24 API Catalog — Community (게시판)
 
 > 카탈로그 형식·동기 정책: [`_overview.md`](./_overview.md).

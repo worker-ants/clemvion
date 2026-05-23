@@ -1,3 +1,9 @@
+---
+id: swagger
+status: spec-only
+code: []
+---
+
 # Swagger 문서화 일관된 패턴 가이드
 
 본 프로젝트는 `@nestjs/swagger` CLI 플러그인을 **이미 활성화**했습니다 (`codebase/backend/nest-cli.json`).

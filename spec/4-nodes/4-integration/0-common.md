@@ -1,3 +1,9 @@
+---
+id: common
+status: spec-only
+code: []
+---
+
 # Spec: Integration 노드 공통 규약
 
 > 관련 문서: [PRD Integration 노드](../_product-overview.md#7-integration-노드-3종) · [PRD 통합/연동](./_product-overview.md) · [Spec 노드 개요](../0-overview.md) · [Spec 노드 공통](../../3-workflow-editor/1-node-common.md) · [Spec 데이터 모델](../../1-data-model.md) · [Spec 실행 엔진 §10 Integration Handler 계약](../../5-system/4-execution-engine.md#10-integration-handler-계약)

@@ -1,3 +1,9 @@
+---
+id: manual-trigger
+status: spec-only
+code: []
+---
+
 # Spec: Manual Trigger
 
 > 관련 문서: [Trigger 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [PRD 노드 시스템](../_product-overview.md#3-trigger-노드-1종) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [CONVENTIONS](../../conventions/node-output.md)

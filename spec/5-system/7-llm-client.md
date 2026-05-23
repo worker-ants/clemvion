@@ -1,3 +1,9 @@
+---
+id: llm-client
+status: spec-only
+code: []
+---
+
 # Spec: LLM 클라이언트 추상화 계층
 
 > 관련 문서: [PRD AI & 지식 저장소](../4-nodes/3-ai/_product-overview.md) · [Spec LLM Config UI](../2-navigation/6-config.md) · [데이터 모델 - LLMConfig](../1-data-model.md#216-llmconfig) · [Spec AI 노드](../4-nodes/3-ai/0-common.md)
