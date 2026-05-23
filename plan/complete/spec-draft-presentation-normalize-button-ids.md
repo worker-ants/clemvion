@@ -16,9 +16,11 @@ owner: project-planner
 
 | 파일 | §섹션 | 변경 |
 |------|-------|------|
-| `spec/4-nodes/6-presentation/0-common.md` | §10.5 (Schema 위반 처리) | 기존 3-step (validate → 위반 회신 → 재시도) 파이프라인 사이에 "validate 통과 후 누락 `button.id` 를 UUID v4 로 자동 보완" 단계 1행 추가 |
-
-다른 파일 동반 갱신 없음 — `§1 ButtonDef.id "자동 생성"` 의 원칙을 LLM tool 모드에서도 일관 적용한다는 직접 cross-ref.
+| `spec/4-nodes/6-presentation/0-common.md` | §10.5 (Schema 위반 처리) | 기존 4-step (validate → 위반 회신 → 재시도/silent drop → 텍스트 fallback) 파이프라인 사이에 "validate 통과 후 누락 `button.id` 를 UUID v4 로 backfill" 단계 1행 추가 (5-step 으로 재번호) |
+| `spec/4-nodes/6-presentation/0-common.md` | §10.4 cross-ref | "§10.5 의 schema 위반 흐름을 따른다" 문구를 신규 제목 "Schema 위반 처리 및 정규화" 에 맞춰 갱신 |
+| `spec/4-nodes/6-presentation/0-common.md` | §9 CHANGELOG | 2026-05-23 항목 신설 |
+| `spec/4-nodes/6-presentation/0-common.md` | §Rationale | "`button.id` backfill 도입 (2026-05-23)" 항목 신설 + 선택지 비교 + 4-layer SSOT |
+| `spec/4-nodes/3-ai/1-ai-agent.md` | §6.1.d.i | 파이프라인 chain 에 "누락 `button.id` 를 UUID v4 로 backfill" 단계 cross-ref 1행 + "§4.1 Schema 위반 처리" 참조명을 신규 제목으로 갱신 |
 
 ## 본문 (draft)
 
@@ -82,5 +84,19 @@ owner: project-planner
 
 ## 적용 후 후속
 
-- 본 draft 의 적용은 `project-planner` 가 처리.
-- 적용 후 발신자 (`developer`) 가 backend `render-tool-provider.ts` 의 normalize 단계 구현 + frontend 가드를 TDD 로 진행.
+- [x] 본 draft 의 spec 적용 — `project-planner` 처리 완료 (`b2d6fc56`).
+- [x] 발신자 (`developer`) 가 backend `render-tool-provider.ts` 의 `backfillButtonUuids` helper 구현 + frontend `isButtonSelected` 가드를 TDD 로 완료 (`f716fd4b`).
+- [x] /ai-review Critical 0 / Warning 5 / Info 13 — 자동 처리 (`e425c515`).
+- [x] TEST WORKFLOW lint / unit (4526) / build / e2e (98) PASS.
+- [x] PR #279 생성.
+
+## Closeout (2026-05-23)
+
+본 spec draft 는 `render-presentation-button-click-fix-683f3a` 워크트리 안에서 함께 처리되어 spec 갱신 → 구현 → 리뷰 → PR 까지 한 PR 안에 들어갔다.
+
+- **spec 적용 commit**: `b2d6fc56` (`docs(spec): presentation §10.5 — button.id UUID v4 backfill 단계 신설`).
+- **사전 consistency**: `--spec` BLOCK: NO. Warning 6건 모두 본 draft 와 spec 본문에 반영 (사전 일관성 검토 결과 §참조).
+- **함수명 확정**: spec Rationale 권고 + 검토 W5 의 `normalizeNodeButtonIds` (label→slug) 와의 의미 구분 → `backfillButtonUuids` 로 채택. 구현·테스트·spec 모두 동일 명명.
+- **PR**: [#279](https://github.com/worker-ants/clemvion/pull/279) — `fix(render-tools): render_* 페이로드 버튼 무반응 — backend backfill + frontend isSelected 가드 (A+C)`.
+
+본 plan 은 `plan/complete/` 로 이동.
