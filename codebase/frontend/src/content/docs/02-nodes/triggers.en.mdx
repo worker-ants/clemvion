@@ -301,22 +301,30 @@ Set `config.chatChannel` on a Webhook trigger to make a **Telegram bot** the con
 
 ### Setup
 
-1. Create a bot with [Telegram BotFather](https://t.me/botfather) using `/newbot` and copy the **API Token**.
-2. Set `config.chatChannel` when creating the trigger:
+<Callout type="warn">
+**No GUI form is available yet.** The trigger create/edit screens reserve a Chat Channel card but input fields are coming in a follow-up PR. For now, the API is the only registration path.
+</Callout>
 
-```json
-{
-  "type": "webhook",
-  "config": {
-    "chatChannel": {
-      "provider": "telegram",
-      "botToken": "<your BotFather token>"
+1. Create a bot with [Telegram BotFather](https://t.me/botfather) using `/newbot` and copy the **API Token**.
+2. Send `config.chatChannel` in the trigger create body:
+
+```bash
+curl -X POST https://<your-host>/api/triggers \
+  -H 'Authorization: Bearer <your-token>' \
+  -d '{
+    "type": "webhook",
+    "name": "telegram-bot",
+    "workflowId": "<workflow-id>",
+    "config": {
+      "chatChannel": {
+        "provider": "telegram",
+        "botToken": "<your BotFather token>"
+      }
     }
-  }
-}
+  }'
 ```
 
-3. When the trigger is activated, `setWebhook` is called automatically to wire the bot to the workflow endpoint.
+3. When the trigger is activated, `setWebhook` is called automatically to wire the bot to the workflow endpoint. `botToken` is never returned in responses — it lives AES-256-GCM-encrypted in the secret store. Responses include `hasBotToken: true` only.
 
 ### Health status
 
@@ -325,20 +333,27 @@ Check `chatChannelHealth` on the trigger detail view:
 | Value | Meaning |
 |---|---|
 | `unknown` | `setupChannel` not yet called or pending |
-| `ok` | Bot connected normally |
-| `degraded` | Recent consecutive `sendMessage` failures — bot unstable |
-| `error` | `setupChannel` failed |
+| `healthy` | Bot connected normally |
+| `degraded` | `setupChannel` / rotate / sendMessage failure. **Not auto-disabled** (CCH-SE-01) |
 
-### Rotating the bot token
+### Rotating the bot token (single-path)
 
-If a token may be compromised, call `POST /api/triggers/:id/chat-channel/rotate-bot-token`. This deregisters the existing webhook and registers a new one with the new token.
+Token changes go through the rotate API only. PATCHing `config.chatChannel.botTokenRef` directly returns 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`).
+
+```bash
+curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \
+  -H 'Authorization: Bearer <your-token>' \
+  -d '{ "newBotToken": "<new token>" }'
+```
+
+The old token is honored for a **24-hour grace window** alongside the new one, so in-flight updates are not lost. Full response / error format — see [Telegram integration guide §6](/docs/06-integrations-and-config/telegram).
 
 ### Supported interaction nodes
 
 - **AI Multi Turn** — free conversation with the bot
 - **Button Presentation** — selection via inline keyboard buttons
 - **Form** — sequential field-by-field input
-- **Chart** — chart delivered as a PNG image
+- **Chart / Table / Carousel** — v1: monospace MarkdownV2 text fallback (works today). v2: SSR PNG upgrade (after plan `chat-channel-visual-ssr-png` lands). `uiMapping.visualNode` enum (`"text"` / `"photo"` / `"auto"`, default `"auto"`) controls behavior — full matrix in [Telegram integration guide §3](/docs/06-integrations-and-config/telegram).
 
 ### Commands
 
