@@ -4,6 +4,15 @@ export interface ButtonDef {
   type: 'link' | 'port';
   url?: string;
   style?: 'primary' | 'secondary' | 'outline' | 'danger';
+  /**
+   * AI Agent `render_*` tool 모드에서 LLM 이 명시할 수 있는 user-message 텍스트
+   * — `type: "port"` 버튼 클릭 시 chat 으로 발화되는 텍스트의 LLM-author override.
+   * 미설정 시 frontend 가 fallback 합성 (per-item: `"{item.title} → {label}"`,
+   * global: `"{label}"`). `type: "link"` 에서는 무시 (외부 URL 이동이 우선).
+   * presentation 노드 본체의 그래프-port 라우팅 흐름에서도 무시. SoT:
+   * `spec/4-nodes/6-presentation/0-common.md §1 ButtonDef`, §10.8.
+   */
+  userMessage?: string;
 }
 
 export interface ButtonConfig {

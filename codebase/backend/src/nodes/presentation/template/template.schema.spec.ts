@@ -1,5 +1,7 @@
+import { z } from 'zod';
 import { evaluateWarnings } from '@workflow/node-summary';
 import {
+  templateNodeConfigSchema,
   templateNodeMetadata,
   validateTemplateConfig,
 } from './template.schema';
@@ -63,5 +65,31 @@ describe('evaluateMetadataBlockingErrors integration (template)', () => {
         template: 'Hello',
       }),
     ).toEqual([]);
+  });
+});
+
+describe('buttonDefSchema — userMessage (spec/4-nodes/6-presentation/0-common.md §1, §10.8)', () => {
+  it('preserves userMessage on global buttons and exposes it in JSON Schema', () => {
+    const result = templateNodeConfigSchema.parse({
+      template: 'Hello {{ name }}',
+      buttons: [
+        {
+          id: 'a',
+          label: 'Reply',
+          type: 'port',
+          userMessage: 'Yes, hello',
+        },
+      ],
+    });
+    expect(result.buttons[0].userMessage).toBe('Yes, hello');
+
+    const jsonSchema = z.toJSONSchema(templateNodeConfigSchema) as unknown as {
+      properties?: {
+        buttons?: { items?: { properties?: Record<string, { type?: string }> } };
+      };
+    };
+    expect(
+      jsonSchema.properties?.buttons?.items?.properties?.userMessage,
+    ).toBeDefined();
   });
 });

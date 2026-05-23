@@ -1,5 +1,10 @@
+import { z } from 'zod';
 import { evaluateWarnings } from '@workflow/node-summary';
-import { chartMetadata, validateChartConfig } from './chart.schema';
+import {
+  chartConfigSchema,
+  chartMetadata,
+  validateChartConfig,
+} from './chart.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
 
 describe('chartMetadata.warningRules', () => {
@@ -109,5 +114,33 @@ describe('evaluateMetadataBlockingErrors integration (chart)', () => {
         'Y-axis field must be entered.',
       ]),
     );
+  });
+});
+
+describe('buttonDefSchema — userMessage (spec/4-nodes/6-presentation/0-common.md §1, §10.8)', () => {
+  it('preserves userMessage on global buttons and exposes it in JSON Schema', () => {
+    const result = chartConfigSchema.parse({
+      chartType: 'bar',
+      xAxis: { field: 'x' },
+      yAxis: { field: 'y' },
+      buttons: [
+        {
+          id: 'a',
+          label: 'Drill',
+          type: 'port',
+          userMessage: 'Drill into A',
+        },
+      ],
+    });
+    expect(result.buttons[0].userMessage).toBe('Drill into A');
+
+    const jsonSchema = z.toJSONSchema(chartConfigSchema) as unknown as {
+      properties?: {
+        buttons?: { items?: { properties?: Record<string, { type?: string }> } };
+      };
+    };
+    expect(
+      jsonSchema.properties?.buttons?.items?.properties?.userMessage,
+    ).toBeDefined();
   });
 });
