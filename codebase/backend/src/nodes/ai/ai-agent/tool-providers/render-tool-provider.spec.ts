@@ -974,6 +974,20 @@ describe('RenderToolProvider.execute — render_form interactive', () => {
       title: 'Please provide your email',
     });
     expect(result.presentationCall?.status).toBe('form_pending');
+    // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + §12.5 — active form 의 UI
+    // 단일 진실은 assistant turn 의 `presentations[*].form` payload. 본
+    // payload 가 ai-agent.handler 의 `presentationPayloads` 누적기로 push 되어
+    // turn 끝의 `pushAiThreadTurn` 가 assistant turn 의 top-level
+    // `presentations[]` 에 부착할 수 있어야 한다. frontend 의
+    // `AssistantPresentationsBlock` 이 timeline 인라인으로 form 을 렌더하는
+    // root identifier 가 본 payload 의 `toolCallId`.
+    expect(result.presentationPayload).toBeDefined();
+    expect(result.presentationPayload!.type).toBe('form');
+    expect(result.presentationPayload!.toolCallId).toBe('call_f1');
+    expect(result.presentationPayload!.payload).toMatchObject({
+      title: 'Please provide your email',
+      fields: [{ name: 'email', type: 'email', label: 'Email' }],
+    });
   });
 
   it('silent-drops render_form in single_turn mode (spec §6.1.d.ii)', async () => {

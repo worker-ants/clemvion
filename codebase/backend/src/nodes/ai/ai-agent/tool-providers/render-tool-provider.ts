@@ -670,6 +670,21 @@ export class RenderToolProvider implements AgentToolProvider {
 
     if (type === 'form') {
       // Interactive: signal handler to enter waiting_for_input.
+      // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + §12.5 — form payload 도
+      // ai_assistant ConversationTurn 의 top-level `presentations[]` 에 push
+      // 한다. frontend 의 `AssistantPresentationsBlock` 이 timeline 인라인으로
+      // 활성 form 을 렌더하려면 (active vs submitted predicate 가 toolCallId
+      // 매칭으로 분기) payload 본문이 thread snapshot 에 들어와야 한다.
+      // `blockingFormRender` 는 별도 신호 — waiting_for_input 진입 + UI 가
+      // 어떤 toolCallId 가 pending 인지 식별하는 root identifier (frontend 의
+      // `selectPendingFormToolCallId` selector).
+      const payload: PresentationPayload = {
+        type,
+        toolCallId: call.id,
+        renderedAt: new Date().toISOString(),
+        payload: normalisedPayload,
+        ...(capped.truncation ? { truncation: capped.truncation } : {}),
+      };
       return {
         toolCallId: call.id,
         // Stub content — handler replaces this when user submits the form.
@@ -679,6 +694,7 @@ export class RenderToolProvider implements AgentToolProvider {
           toolCallId: call.id,
           formConfig: normalisedPayload,
         },
+        presentationPayload: payload,
         presentationCall: {
           toolName: call.name,
           toolCallId: call.id,
