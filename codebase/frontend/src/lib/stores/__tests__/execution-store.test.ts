@@ -403,14 +403,18 @@ describe("useExecutionStore", () => {
       expect(conv.pendingFormToolCall).toBeNull();
       // 다른 conversationConfig 필드 보존
       expect(conv.message).toBe("...");
-      // status 는 running
-      expect(state.status).toBe("running");
+      // spec/conventions/conversation-thread.md §9.7.1 — status 는
+      // 'waiting_for_input' 유지 (multi-turn 대화 한복판, AI 응답 대기 중).
+      // 옛 'running' 변경은 REST 폴링의 transient phase 가 store wipe 를
+      // 트리거하던 회귀의 root cause (2026-05-23 사용자 보고).
+      expect(state.status).toBe("waiting_for_input");
     });
 
-    it("waitingConversationConfig 가 null 인 경우 안전하게 no-op + status running 만 적용", () => {
+    it("waitingConversationConfig 가 null 인 경우 안전하게 no-op (status 변경 없음)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       // pre-condition: waitingConversationConfig 가 null 인 (비정상이지만
-      // 방어적) 상태 — set 으로 직접 진입.
+      // 방어적) 상태 — set 으로 직접 진입. status 는 startExecution 의
+      // 'running' 으로 들어옴.
       useExecutionStore.setState({
         waitingConversationConfig: null,
       });
@@ -419,6 +423,8 @@ describe("useExecutionStore", () => {
 
       const state = useExecutionStore.getState();
       expect(state.waitingConversationConfig).toBeNull();
+      // status 는 startExecution 이 set 한 'running' 그대로 — action 이
+      // status 를 건드리지 않는다 (spec §9.7.1).
       expect(state.status).toBe("running");
     });
   });

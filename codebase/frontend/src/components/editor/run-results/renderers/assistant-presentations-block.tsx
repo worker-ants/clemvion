@@ -18,7 +18,6 @@ import {
   CarouselContent,
   ChartContent,
   TemplateContent,
-  FormSubmittedContent,
 } from "./presentation-renderers";
 import { DynamicFormUI } from "../dynamic-form-ui";
 
@@ -229,9 +228,13 @@ function PresentationItem({
       return <TemplateContent data={data} config={data} />;
     case "form": {
       // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — 활성 form 의 UI 단일
-      // 진실은 assistant turn 의 timeline 인라인. predicate:
-      // `pendingFormToolCallId === payload.toolCallId` 매칭 시 interactive
-      // `DynamicFormUI`, 그 외 `FormSubmittedContent` (display-only).
+      // 진실은 assistant turn 의 timeline 인라인 (interactive `DynamicFormUI`).
+      // 제출 완료된 form payload 는 ToolCallBadge (`🔧 render_form`) 가 이미
+      // 도구 호출을 표시하고 있고, 제출된 사용자 데이터는 별도
+      // `presentation_user` turn 카드 (`<nodeLabel> · 폼 제출` + key-value)
+      // 에 그려진다. 본 분기에서 추가로 form schema raw JSON 을 dump 하면
+      // 중복·노이즈이므로 null 반환 — 사용자 보고 (2026-05-23 "도구 호출 형태로
+      // 표기").
       const isActive =
         !!pendingFormToolCallId &&
         !!p.toolCallId &&
@@ -246,7 +249,8 @@ function PresentationItem({
           />
         );
       }
-      return <FormSubmittedContent data={data} />;
+      // submitted 상태 — ToolCallBadge + presentation_user 카드가 이미 표현 담당.
+      return null;
     }
     default:
       return null;
