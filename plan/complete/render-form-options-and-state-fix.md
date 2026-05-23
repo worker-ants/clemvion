@@ -113,4 +113,4 @@ owner: developer
 - spec drift 정정: `8293e73c` — slug variant 제거 (W#1)
 
 TEST 최종: lint PASS / unit 4555 PASS / build PASS / e2e 98 PASS.
-PR: (생성 직후 본 줄에 PR 링크 추가)
+PR: https://github.com/worker-ants/clemvion/pull/285
