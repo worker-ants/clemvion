@@ -489,6 +489,101 @@ describe('backfillButtonUuids (spec §10.5 step 3)', () => {
   });
 });
 
+describe('backfillButtonUuids — userMessage preservation (spec §10.8, SUMMARY#10)', () => {
+  it('preserves userMessage field on carousel global buttons through backfill', () => {
+    const payload = {
+      mode: 'static',
+      items: [{ title: 'A' }],
+      buttons: [
+        { label: 'Approve', type: 'port', userMessage: 'Custom approve' },
+      ],
+    };
+    const out = backfillButtonUuids('carousel', payload) as {
+      buttons: Array<{ id: string; userMessage?: string }>;
+    };
+    expect(out.buttons[0].id).toMatch(UUID_V4_RE);
+    expect(out.buttons[0].userMessage).toBe('Custom approve');
+  });
+
+  it('preserves userMessage field on carousel items[].buttons through backfill', () => {
+    const payload = {
+      mode: 'static',
+      items: [
+        {
+          title: 'Sample 1',
+          buttons: [
+            { label: '문의하기', type: 'port', userMessage: 'Sample 1 문의' },
+          ],
+        },
+      ],
+    };
+    const out = backfillButtonUuids('carousel', payload) as {
+      items: Array<{ buttons: Array<{ id: string; userMessage?: string }> }>;
+    };
+    expect(out.items[0].buttons[0].id).toMatch(UUID_V4_RE);
+    expect(out.items[0].buttons[0].userMessage).toBe('Sample 1 문의');
+  });
+
+  it('backfillButtonUuids does not strip userMessage when id is already set', () => {
+    // Regression guard: backfill must not delete userMessage on buttons that
+    // already have a user-supplied id.
+    const presetId = '11111111-2222-4333-8444-666666666666';
+    const payload = {
+      mode: 'static',
+      items: [{ title: 'A' }],
+      buttons: [
+        { id: presetId, label: 'Approve', type: 'port', userMessage: 'Kept' },
+      ],
+    };
+    const out = backfillButtonUuids('carousel', payload) as {
+      buttons: Array<{ id: string; userMessage?: string }>;
+    };
+    expect(out.buttons[0].id).toBe(presetId);
+    expect(out.buttons[0].userMessage).toBe('Kept');
+  });
+});
+
+describe('RenderToolProvider.execute — userMessage preservation (SUMMARY#10)', () => {
+  it('render_carousel execute preserves button.userMessage in presentationPayload', async () => {
+    const result = await provider.execute(
+      {
+        id: 'call_um_1',
+        name: 'render_carousel',
+        arguments: JSON.stringify({
+          mode: 'static',
+          layout: 'card',
+          items: [
+            {
+              title: '샘플상품 1',
+              buttons: [
+                {
+                  label: '문의하기',
+                  type: 'port',
+                  userMessage: '샘플상품 1 에 대해 문의하고 싶습니다',
+                },
+              ],
+            },
+          ],
+        }),
+      },
+      {
+        config: { presentationTools: [{ type: 'carousel' }] },
+        workspaceId: 'ws',
+      },
+    );
+
+    expect(result.status).toBe('success');
+    const payload = result.presentationPayload!.payload as {
+      items: Array<{
+        buttons: Array<{ userMessage?: string }>;
+      }>;
+    };
+    expect(payload.items[0].buttons[0].userMessage).toBe(
+      '샘플상품 1 에 대해 문의하고 싶습니다',
+    );
+  });
+});
+
 describe('RenderToolProvider.execute — backfill integration (spec §10.5 step 3)', () => {
   it('emits carousel payload with UUID v4 ids on per-item buttons that LLM left blank', async () => {
     const result = await provider.execute(

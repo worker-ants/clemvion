@@ -64,18 +64,18 @@ PR #279 (`fix(render-tools): button click + isSelected guard`) 머지 후 사용
 
 ## TDD 체크리스트
 
-- [ ] (S) project-planner 위임 — spec §1 ButtonDef.userMessage 신설 + ai-agent §user-message 합성 규칙
-- [ ] (S) `/consistency-check --spec plan/in-progress/spec-draft-...md` BLOCK:NO 확인
-- [ ] (S) spec commit
-- [ ] (impl-prep) `/consistency-check --impl-prep spec/4-nodes/`
-- [ ] (C) backend test 선작성
-- [ ] (C) backend zod schema 갱신
-- [ ] (C) backend test PASS
-- [ ] (A) frontend test 선작성 (3 케이스)
-- [ ] (A) frontend findButtonContext + handlePortButtonClick 구현
-- [ ] (A) frontend test PASS
-- [ ] (8) TEST WORKFLOW — lint / unit / build / e2e
-- [ ] (9) REVIEW WORKFLOW — `/ai-review` + resolution-applier
+- [x] (S) project-planner 위임 — spec §1 ButtonDef.userMessage 신설 + ai-agent §user-message 합성 규칙
+- [x] (S) `/consistency-check --spec plan/in-progress/spec-draft-...md` BLOCK:NO 확인
+- [x] (S) spec commit (bf22ea80)
+- [x] (impl-prep) `/consistency-check --impl-prep spec/4-nodes/`
+- [x] (C) backend test 선작성
+- [x] (C) backend zod schema 갱신 (28ca194e)
+- [x] (C) backend test PASS
+- [x] (A) frontend test 선작성 (3 케이스)
+- [x] (A) frontend findButtonContext + handlePortButtonClick 구현 (fbd05c12)
+- [x] (A) frontend test PASS
+- [x] (8) TEST WORKFLOW — lint / unit / build / e2e
+- [x] (9) REVIEW WORKFLOW — `/ai-review` + resolution-applier (review/code/2026/05/23/12_39_18)
 - [ ] (10) PR 생성
 
 ## 의사결정 메모

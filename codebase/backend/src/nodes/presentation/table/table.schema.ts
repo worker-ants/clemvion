@@ -5,6 +5,7 @@ import {
 } from '../../core/node-component.interface';
 import { validateButtons } from '../_shared/button.types';
 
+// Mirror: ButtonDef in _shared/button.types.ts — keep fields in sync.
 const buttonDefSchema = z
   .object({
     id: z.string().optional(),
@@ -32,6 +33,7 @@ const buttonDefSchema = z
       .meta({ ui: { label: 'Style', widget: 'select' } }),
     userMessage: z
       .string()
+      .max(500)
       .optional()
       .meta({
         ui: {

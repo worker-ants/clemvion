@@ -5,6 +5,7 @@ import {
 } from '../../core/node-component.interface';
 import { MAX_BUTTONS_PER_NODE, validateButtons } from '../_shared/button.types';
 
+// Mirror: ButtonDef in _shared/button.types.ts — keep fields in sync.
 const buttonDefSchema = z
   .object({
     id: z.string().optional(),
@@ -30,8 +31,12 @@ const buttonDefSchema = z
       .enum(['primary', 'secondary', 'outline', 'danger'])
       .default('secondary')
       .meta({ ui: { label: 'Style', widget: 'select' } }),
+    // Note: carousel per-item buttons surface item context (`{item.title} → {label}`)
+    // in the synthesis formula, so the placeholder differs intentionally from
+    // chart/table/template which use label-only fallback. Both are correct per spec §10.8.
     userMessage: z
       .string()
+      .max(500)
       .optional()
       .meta({
         ui: {

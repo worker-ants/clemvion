@@ -110,6 +110,14 @@ export function validateButtons(config: Record<string, unknown>): string[] {
       errors.push(`buttons[${i}].url is not allowed for port type buttons`);
     }
 
+    // userMessage on link-type buttons is silently ignored at click-time (spec §1.1).
+    // Emit a non-blocking warning so LLM-authored payloads surface the mismatch.
+    if (btn.type === 'link' && btn.userMessage) {
+      errors.push(
+        `buttons[${i}].userMessage is ignored for link type buttons (link opens URL instead)`,
+      );
+    }
+
     // Style validation
     if (
       btn.style !== undefined &&

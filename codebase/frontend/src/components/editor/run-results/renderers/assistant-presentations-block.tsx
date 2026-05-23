@@ -37,7 +37,27 @@ interface AssistantPresentationsBlockProps {
 }
 
 /**
- * @internal
+ * Minimal button shape surfaced by `findButtonContext`. Carries only the fields
+ * needed for user-message synthesis — not the full Zod schema output.
+ */
+export interface ButtonDef {
+  id?: string;
+  label?: string;
+  type?: string;
+  userMessage?: string;
+}
+
+/**
+ * Return type of `findButtonContext`. Shared by `findButtonContext` and
+ * `composeUserMessage` so both helpers reference the same named shape.
+ */
+export interface ButtonContext {
+  button: ButtonDef;
+  item?: Record<string, unknown>;
+}
+
+/**
+ * @internal — exported for testing only; not part of the public API.
  *
  * 클릭된 버튼 정의 + (per-item 인 경우) 부모 아이템을 함께 해석한다.
  *
@@ -56,22 +76,12 @@ interface AssistantPresentationsBlockProps {
  * `userMessage` 옵션 필드도 함께 보존된다 (spec §1).
  *
  * (`findButtonLabel` 의 후속 — label 만 반환하던 helper 를 user-message 합성
- *  단계가 필요로 하는 `{button, item?}` 구조로 확장.)
+ *  단계가 필요로 하는 `ButtonContext` 구조로 확장.)
  */
 export function findButtonContext(
   data: Record<string, unknown>,
   buttonId: string,
-):
-  | {
-      button: {
-        id?: string;
-        label?: string;
-        type?: string;
-        userMessage?: string;
-      };
-      item?: Record<string, unknown>;
-    }
-  | undefined {
+): ButtonContext | undefined {
   const cfg = (data?.config as Record<string, unknown> | undefined) ?? data;
   const btnConfig = cfg?.buttonConfig as Record<string, unknown> | undefined;
   const items = (data?.items ?? []) as Array<Record<string, unknown>>;
@@ -83,18 +93,16 @@ export function findButtonContext(
     ? Number.parseInt(dynamicMatch[1], 10)
     : null;
   const dynamicItem =
-    dynamicIdx !== null && Number.isFinite(dynamicIdx)
+    dynamicIdx !== null &&
+    Number.isFinite(dynamicIdx) &&
+    dynamicIdx >= 0 &&
+    dynamicIdx < items.length
       ? items[dynamicIdx]
       : undefined;
 
   // 1. static 모드 per-item buttons — 부모 item 컨텍스트가 가장 풍부한 경로
   for (const item of items) {
-    const itemButtons = (item.buttons ?? []) as Array<{
-      id?: string;
-      label?: string;
-      type?: string;
-      userMessage?: string;
-    }>;
+    const itemButtons = (item.buttons ?? []) as ButtonDef[];
     for (const b of itemButtons) {
       if (typeof b.id === "string" && b.id === buttonId) {
         return { button: b, item };
@@ -103,12 +111,7 @@ export function findButtonContext(
   }
 
   // 2. dynamic mode itemButtons definitions — `__item_{idx}` suffix 로 매칭
-  const itemButtons = (cfg?.itemButtons ?? []) as Array<{
-    id?: string;
-    label?: string;
-    type?: string;
-    userMessage?: string;
-  }>;
+  const itemButtons = (cfg?.itemButtons ?? []) as ButtonDef[];
   for (const b of itemButtons) {
     if (typeof b.id === "string" && buttonId.startsWith(`${b.id}__item_`)) {
       return { button: b, item: dynamicItem };
@@ -116,12 +119,7 @@ export function findButtonContext(
   }
 
   // 3. global buttons + dynamic synthesized runtime buttons (fallback)
-  const buttons = (btnConfig?.buttons ?? data?.buttons ?? []) as Array<{
-    id?: string;
-    label?: string;
-    type?: string;
-    userMessage?: string;
-  }>;
+  const buttons = (btnConfig?.buttons ?? data?.buttons ?? []) as ButtonDef[];
   for (const b of buttons) {
     if (b.id === buttonId) {
       return { button: b, item: dynamicItem };
@@ -131,13 +129,31 @@ export function findButtonContext(
   return undefined;
 }
 
+/** Maximum character length accepted for a synthesized user message (mirrors backend .max(500)). */
+const USER_MESSAGE_MAX_LEN = 500;
+
 /**
- * @internal
+ * Sanitize a candidate user-message string: strip leading/trailing whitespace,
+ * enforce max length, and reject dangerous URI schemes (`javascript:`, `data:`,
+ * `vbscript:`). Returns `null` when the value should be treated as absent.
+ * Pure plain-text channel — chat renders the string verbatim, no HTML parsing.
+ */
+function sanitizeUserMessage(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  if (/^(javascript|data|vbscript):/i.test(trimmed)) return null;
+  return trimmed.length > USER_MESSAGE_MAX_LEN
+    ? trimmed.slice(0, USER_MESSAGE_MAX_LEN)
+    : trimmed;
+}
+
+/**
+ * @internal — exported for testing only; not part of the public API.
  *
  * 버튼 컨텍스트로부터 chat 에 발화될 user message 텍스트를 합성한다.
  *
  * spec/4-nodes/6-presentation/0-common.md §10.8 — 우선순위:
- *   1. `button.userMessage` (LLM-author override). 빈 문자열은 무시.
+ *   1. `button.userMessage` (LLM-author override). 빈 문자열·위험 스킴 무시.
  *   2. per-item 버튼 → `"{item.title} → {label}"`.
  *   3. global 버튼 → `"{label}"`.
  *   4. 라벨 없음 / 매칭 실패 → `buttonId` 그대로.
@@ -145,18 +161,14 @@ export function findButtonContext(
  * U+2192 (` → `) 구분자는 locale-agnostic — 한·영 동일 형식 (spec §Rationale).
  */
 export function composeUserMessage(
-  ctx:
-    | {
-        button: { label?: string; userMessage?: string };
-        item?: Record<string, unknown>;
-      }
-    | undefined,
+  ctx: ButtonContext | undefined,
   buttonId: string,
 ): string {
   if (!ctx) return buttonId;
-  const userMessage = ctx.button.userMessage;
-  if (typeof userMessage === "string" && userMessage.length > 0) {
-    return userMessage;
+  const rawUserMessage = ctx.button.userMessage;
+  if (typeof rawUserMessage === "string" && rawUserMessage.length > 0) {
+    const sanitized = sanitizeUserMessage(rawUserMessage);
+    if (sanitized !== null) return sanitized;
   }
   const label = ctx.button.label;
   if (typeof label !== "string" || label.length === 0) {

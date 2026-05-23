@@ -154,5 +154,42 @@ describe('button.types', () => {
       });
       expect(errors).toEqual([]);
     });
+
+    // SUMMARY#11 — userMessage + validateButtons integration
+    it('passes for port button with userMessage set (spec §1, §10.8)', () => {
+      // type="port" + userMessage is the primary AI Agent use-case.
+      // validateButtons must not reject this combination.
+      const errors = validateButtons({
+        buttons: [
+          {
+            id: 'btn-1',
+            label: 'Inquire',
+            type: 'port',
+            userMessage: 'I want to inquire about this item',
+          },
+        ],
+      });
+      expect(errors).toEqual([]);
+    });
+
+    it('returns advisory warning for link button with userMessage (spec §1.1)', () => {
+      // type="link" + userMessage: the message is ignored at click-time (external
+      // URL takes priority). validateButtons surfaces an advisory message so
+      // LLM-authored payloads can surface the mismatch to the canvas user.
+      const errors = validateButtons({
+        buttons: [
+          {
+            id: 'btn-1',
+            label: 'Open',
+            type: 'link',
+            url: 'https://example.com',
+            userMessage: 'This is ignored for link type',
+          },
+        ],
+      });
+      expect(
+        errors.some((e) => e.includes('ignored') && e.includes('link')),
+      ).toBe(true);
+    });
   });
 });

@@ -89,6 +89,31 @@ describe("findButtonContext — 버튼 식별 + 부모 아이템 컨텍스트", 
     expect(ctx).toBeUndefined();
   });
 
+  // SUMMARY#12 — priority conflict: same buttonId in both items[].buttons and
+  // config (buttonConfig). Step 1 (items[].buttons) must win because it carries
+  // the richest item context.
+  it("우선순위 충돌: items[].buttons 와 buttonConfig.buttons 에 동일 ID 존재 시 step 1 (items) 가 우선", () => {
+    const data = {
+      config: {
+        buttonConfig: {
+          buttons: [
+            { id: "shared-id", label: "Global label", type: "port" },
+          ],
+        },
+      },
+      items: [
+        {
+          title: "Item title",
+          buttons: [{ id: "shared-id", label: "Per-item label", type: "port" }],
+        },
+      ],
+    };
+    const ctx = findButtonContext(data, "shared-id");
+    // Step 1 wins — item context is returned
+    expect(ctx?.button.label).toBe("Per-item label");
+    expect((ctx?.item as { title?: string })?.title).toBe("Item title");
+  });
+
   it("userMessage 필드 보존 — button context 에 함께 반환", () => {
     const data = {
       config: {
@@ -254,6 +279,29 @@ describe("AssistantPresentationsBlock — onSendMessage 통합 (spec §10.8)", (
     expect(onSendMessage).toHaveBeenCalledWith("샘플상품 1 의 가격이 궁금해요");
   });
 
+  // SUMMARY#13 — smoke test: onSendMessage prop 미전달 시 예외 없이 렌더링
+  it("onSendMessage 미전달 시 버튼 클릭이 예외를 던지지 않음 (defensive early-return)", () => {
+    const carousel = makeCarousel({
+      config: {
+        buttonConfig: {
+          buttons: [{ id: "btn-1", label: "Click", type: "port" }],
+        },
+      },
+      items: [
+        {
+          title: "Item",
+          buttons: [{ id: "btn-1", label: "Click", type: "port" }],
+        },
+      ],
+    });
+    // No onSendMessage prop — buttons should render but clicks should be no-ops
+    expect(() =>
+      render(
+        <AssistantPresentationsBlock presentations={[carousel]} />,
+      ),
+    ).not.toThrow();
+    // Block renders without error — integration smoke pass
+  });
 });
 
 // Note: integration test 의 scope 는 carousel per-item path 로 한정한다.

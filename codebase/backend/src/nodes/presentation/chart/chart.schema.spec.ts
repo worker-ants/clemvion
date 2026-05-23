@@ -117,6 +117,14 @@ describe('evaluateMetadataBlockingErrors integration (chart)', () => {
   });
 });
 
+/**
+ * buttonDefSchema.userMessage — 검증 스위트
+ *
+ * SoT: spec/4-nodes/6-presentation/0-common.md §1 (ButtonDef 필드 정의),
+ *      §10.8 (AI Agent render_* tool 모드 user-message 합성 우선순위).
+ * `userMessage` 필드는 LLM 이 명시하는 chat 발화 텍스트 override.
+ * 미설정 시 frontend 가 label 기반 합성. type="link" 에서는 클릭 시 무시.
+ */
 describe('buttonDefSchema — userMessage (spec/4-nodes/6-presentation/0-common.md §1, §10.8)', () => {
   it('preserves userMessage on global buttons and exposes it in JSON Schema', () => {
     const result = chartConfigSchema.parse({
