@@ -43,6 +43,9 @@ interface Trigger {
   lastTriggeredAt?: string;
   cronExpression?: string;
   nextRunAt?: string;
+  /** Spec Chat Channel + 2-trigger-list §2.1 — 행 표시용 chat channel 메타. */
+  chatChannelProvider?: string;
+  chatChannelHealth?: "unknown" | "healthy" | "degraded";
 }
 
 interface Workflow {
@@ -104,6 +107,9 @@ export default function TriggersPage() {
   const [formSecret, setFormSecret] = useState("");
   const [formHmacHeader, setFormHmacHeader] = useState("X-Hub-Signature-256");
   const [formBearerToken, setFormBearerToken] = useState("");
+  // [Spec Chat Channel §4.1 / 2-trigger-list §2.3.1 R-8] — 생성 dialog 의 Chat Channel 섹션
+  const [formChatChannelEnabled, setFormChatChannelEnabled] = useState(false);
+  const [formChatChannelBotToken, setFormChatChannelBotToken] = useState("");
 
   const { page, setPage } = usePageParam();
   // Raw row shape from /triggers — only the fields we map
@@ -118,6 +124,8 @@ export default function TriggersPage() {
     lastTriggeredAt?: string;
     cronExpression?: string;
     nextRunAt?: string;
+    config?: { chatChannel?: { provider?: string } };
+    chatChannelHealth?: "unknown" | "healthy" | "degraded";
   }
   const triggersQuery = useQuery<{ items: Trigger[]; totalPages: number }>({
     queryKey: ["triggers", activeTab, statusFilter, page],
@@ -145,6 +153,8 @@ export default function TriggersPage() {
         lastTriggeredAt: t.lastTriggeredAt,
         cronExpression: t.cronExpression,
         nextRunAt: t.nextRunAt,
+        chatChannelProvider: t.config?.chatChannel?.provider,
+        chatChannelHealth: t.chatChannelHealth,
       }));
       return { items, totalPages };
     },
@@ -187,6 +197,14 @@ export default function TriggersPage() {
       if (formAuthType === "bearer") {
         config.bearerToken = formBearerToken;
       }
+      // Chat Channel 토글이 켜져 있으면 chatChannel 필드 부착. backend setupChannel 자동 호출.
+      if (formChatChannelEnabled && formChatChannelBotToken.trim().length > 0) {
+        config.chatChannel = {
+          provider: "telegram",
+          botToken: formChatChannelBotToken.trim(),
+          uiMapping: { formMode: "multi_step", visualNode: "auto", buttonLayout: "auto" },
+        };
+      }
       await apiClient.post("/triggers", {
         workflowId: formWorkflowId,
         type: "webhook",
@@ -212,6 +230,8 @@ export default function TriggersPage() {
     setFormSecret("");
     setFormHmacHeader("X-Hub-Signature-256");
     setFormBearerToken("");
+    setFormChatChannelEnabled(false);
+    setFormChatChannelBotToken("");
     setShowDialog(false);
   }
 
@@ -338,6 +358,45 @@ export default function TriggersPage() {
                   />
                 </div>
               )}
+
+              {/* Chat Channel — Spec Chat Channel §4.1 / 2-trigger-list R-8 */}
+              <div className="border-t border-[hsl(var(--border))] pt-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={formChatChannelEnabled}
+                    onChange={(e) => setFormChatChannelEnabled(e.target.checked)}
+                  />
+                  {t("triggers.chatChannel.addChatChannelToggle")}
+                </label>
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.chatChannel.addChatChannelHelp")}
+                </p>
+                {formChatChannelEnabled ? (
+                  <div className="mt-3 space-y-2">
+                    <Label htmlFor="webhook-chat-channel-token">
+                      {t("triggers.chatChannel.botTokenInputLabel")}
+                    </Label>
+                    <Input
+                      id="webhook-chat-channel-token"
+                      type="password"
+                      autoComplete="off"
+                      value={formChatChannelBotToken}
+                      onChange={(e) =>
+                        setFormChatChannelBotToken(e.target.value)
+                      }
+                      placeholder={t(
+                        "triggers.chatChannel.botTokenInputPlaceholder",
+                      )}
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                      {t("triggers.chatChannel.botTokenFormatHelp")}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={resetForm}>
                   {t("common.cancel")}
@@ -441,18 +500,48 @@ export default function TriggersPage() {
                   </td>
                   <td className="px-4 py-3 font-medium">{trigger.name}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "inline-block rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        TYPE_BADGE_STYLES[trigger.type],
-                      )}
-                    >
-                      {trigger.type === "webhook"
-                        ? t("triggers.typeWebhook")
-                        : trigger.type === "schedule"
-                          ? t("triggers.typeSchedule")
-                          : t("triggers.typeManual")}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={cn(
+                          "inline-block rounded-full px-2.5 py-0.5 text-xs font-medium",
+                          TYPE_BADGE_STYLES[trigger.type],
+                        )}
+                      >
+                        {trigger.type === "webhook"
+                          ? t("triggers.typeWebhook")
+                          : trigger.type === "schedule"
+                            ? t("triggers.typeSchedule")
+                            : t("triggers.typeManual")}
+                      </span>
+                      {/* Chat Channel chip + health badge — Spec 2-trigger-list §2.1 + R-8 */}
+                      {trigger.type === "webhook" && trigger.chatChannelProvider ? (
+                        <>
+                          <span
+                            className="inline-block rounded-full bg-cyan-100 px-2.5 py-0.5 text-xs font-medium text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
+                            title={t("triggers.chatChannel.section")}
+                          >
+                            {t("triggers.chatChannel.rowChip")}·{trigger.chatChannelProvider}
+                          </span>
+                          <span
+                            className={cn(
+                              "inline-block rounded-full px-2 py-0.5 text-xs font-medium",
+                              trigger.chatChannelHealth === "healthy"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : trigger.chatChannelHealth === "degraded"
+                                  ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                  : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+                            )}
+                            title={t("triggers.chatChannel.health")}
+                          >
+                            {trigger.chatChannelHealth === "healthy"
+                              ? t("triggers.chatChannel.healthHealthy")
+                              : trigger.chatChannelHealth === "degraded"
+                                ? t("triggers.chatChannel.healthDegraded")
+                                : t("triggers.chatChannel.healthUnknown")}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <Link

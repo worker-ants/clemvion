@@ -22,6 +22,22 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 
+/** Spec Chat Channel §4.1 + §5.4.2 — config.chatChannel (응답 sanitize 후 형태). */
+interface ChatChannelConfigView {
+  provider?: string;
+  /** Spec §5.4.2 — derived 필드 (`botTokenRef IS NOT NULL → true`). */
+  hasBotToken?: boolean;
+  botIdentity?: { botId?: number; username?: string };
+  uiMapping?: {
+    formMode?: "multi_step";
+    /** Spec R-CC-11 — text/photo/auto, default auto. legacy text_only 는 backend normalize. */
+    visualNode?: "text" | "photo" | "auto";
+    buttonLayout?: "auto" | "vertical" | "horizontal";
+  };
+  rateLimitPerMinute?: number;
+  languageHints?: Record<string, string>;
+}
+
 interface TriggerDetail {
   id: string;
   name: string;
@@ -46,10 +62,17 @@ interface TriggerDetail {
       enabled?: boolean;
       tokenStrategy?: "per_execution" | "per_trigger";
     };
+    /** Spec Chat Channel §4.1 — chatChannel adapter 설정 (sanitize 후). */
+    chatChannel?: ChatChannelConfigView;
     [key: string]: unknown;
   };
   /** Spec EIA §7.1 — outbound notification 발송 건강도. */
   notificationHealth?: "unknown" | "healthy" | "degraded";
+  /** Spec Chat Channel §3.4 CCH-SE-01 — chat channel 외부 호출 건강도. */
+  chatChannelHealth?: "unknown" | "healthy" | "degraded";
+  chatChannelLastError?: string | null;
+  chatChannelSetupAt?: string | null;
+  chatChannelRotatedAt?: string | null;
   cronExpression?: string;
   timezone?: string;
   nextRunAt?: string;
@@ -108,6 +131,11 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
           {/* External Interaction API (Spec EIA §4) — webhook 트리거에서만 표시 */}
           {trigger.type === "webhook" && (
             <ExternalInteractionCard trigger={trigger} onSaved={invalidateAfterSave} />
+          )}
+
+          {/* Chat Channel (Spec Chat Channel §4.1 / 2-trigger-list R-8) — webhook 트리거에서만 표시 */}
+          {trigger.type === "webhook" && (
+            <ChatChannelCard trigger={trigger} onSaved={invalidateAfterSave} />
           )}
 
           {/* Schedule Details */}
@@ -1047,6 +1075,475 @@ function ExternalInteractionCard({
             </Button>
           </div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Chat Channel 카드 (Spec 2-trigger-list §2.3.1 + Rationale R-8).
+ *
+ * - read 모드: provider · bot identity · uiMapping · rateLimit · languageHints · health 그룹
+ * - edit 모드: uiMapping / rateLimitPerMinute / languageHints 만 편집 (provider/botToken 은 별 경로)
+ * - rotate Bot Token: spec §5.4.1 single-path — POST /chat-channel/rotate-bot-token
+ *
+ * 내부 ref (botTokenRef/secretTokenRef) 는 backend 가 응답에서 strip (CCH-SE-03 UI 차원).
+ * hasBotToken derived 필드로 등록 여부만 노출 (spec §5.4.2).
+ */
+function ChatChannelCard({
+  trigger,
+  onSaved,
+}: {
+  trigger: TriggerDetail;
+  onSaved: () => void;
+}) {
+  const t = useT();
+  const canEdit = useHasRole("editor");
+  const chatChannel = trigger.config?.chatChannel;
+  const hasChatChannel = Boolean(chatChannel?.provider);
+  const health = trigger.chatChannelHealth ?? "unknown";
+  const healthVariant: "success" | "outline" | "destructive" =
+    health === "healthy"
+      ? "success"
+      : health === "degraded"
+        ? "destructive"
+        : "outline";
+  const healthLabel: Record<typeof health, string> = {
+    unknown: t("triggers.chatChannel.healthUnknown"),
+    healthy: t("triggers.chatChannel.healthHealthy"),
+    degraded: t("triggers.chatChannel.healthDegraded"),
+  };
+
+  // Edit state
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [visualNode, setVisualNode] = useState<"text" | "photo" | "auto">(
+    chatChannel?.uiMapping?.visualNode ?? "auto",
+  );
+  const [buttonLayout, setButtonLayout] = useState<
+    "auto" | "vertical" | "horizontal"
+  >(chatChannel?.uiMapping?.buttonLayout ?? "auto");
+  const [rateLimitPerMinute, setRateLimitPerMinute] = useState(
+    String(chatChannel?.rateLimitPerMinute ?? 60),
+  );
+  const [languageHintsJson, setLanguageHintsJson] = useState(
+    chatChannel?.languageHints
+      ? JSON.stringify(chatChannel.languageHints, null, 2)
+      : "",
+  );
+
+  // Rotate Bot Token modal
+  const [rotateOpen, setRotateOpen] = useState(false);
+  const [rotateValue, setRotateValue] = useState("");
+  const [rotating, setRotating] = useState(false);
+
+  // PROVIDER LABEL — extensible when more providers land
+  function providerLabel(p?: string): string {
+    if (p === "telegram") return t("triggers.chatChannel.providerTelegram");
+    return p ?? "-";
+  }
+
+  function visualNodeLabel(v?: string): string {
+    if (v === "text") return t("triggers.chatChannel.visualNodeText");
+    if (v === "photo") return t("triggers.chatChannel.visualNodePhoto");
+    return t("triggers.chatChannel.visualNodeAuto");
+  }
+
+  async function handleSave(): Promise<void> {
+    setSaving(true);
+    try {
+      // languageHints JSON 검증
+      let parsedHints: Record<string, string> | undefined;
+      if (languageHintsJson.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(languageHintsJson) as unknown;
+          if (
+            typeof parsed !== "object" ||
+            parsed === null ||
+            Array.isArray(parsed)
+          ) {
+            throw new Error("languageHints must be a flat object");
+          }
+          parsedHints = Object.fromEntries(
+            Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [
+              k,
+              String(v),
+            ]),
+          );
+        } catch (err) {
+          toast.error(
+            `${t("triggers.chatChannel.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          setSaving(false);
+          return;
+        }
+      }
+      const rateLimitParsed = Number(rateLimitPerMinute);
+      const patchChatChannel: Record<string, unknown> = {
+        provider: chatChannel?.provider ?? "telegram",
+        // botToken 은 입력 단계에서 별 path — 본 PATCH 에는 미포함 (single-path).
+        // backend 가 PATCH body 의 chatChannel 을 받으면 setupChannel 재호출하지만
+        // botToken 없으면 botTokenRef 유지 (mergeExternalConfig).
+        uiMapping: {
+          formMode: "multi_step",
+          visualNode,
+          buttonLayout,
+        },
+        rateLimitPerMinute: Number.isFinite(rateLimitParsed)
+          ? rateLimitParsed
+          : 60,
+        ...(parsedHints ? { languageHints: parsedHints } : {}),
+      };
+      // backend mergeExternalConfig 가 chatChannel 전체를 교체하므로 비편집 필드도 동봉
+      // 단 botToken 은 미포함 — single-path 정책상 PATCH 로 토큰 변경 불가
+      // botTokenRef / secretTokenRef / secretToken 도 미포함 — backend assertChatChannelInputSafe 차단
+      await apiClient.patch(`/triggers/${trigger.id}`, {
+        chatChannel: patchChatChannel,
+      });
+      toast.success(t("triggers.chatChannel.saveSucceeded"));
+      setEditing(false);
+      onSaved();
+    } catch (err) {
+      toast.error(
+        `${t("triggers.chatChannel.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRotate(): Promise<void> {
+    if (rotateValue.trim().length === 0) return;
+    setRotating(true);
+    try {
+      await apiClient.post(
+        `/triggers/${trigger.id}/chat-channel/rotate-bot-token`,
+        { newBotToken: rotateValue.trim() },
+      );
+      toast.success(t("triggers.chatChannel.rotateBotTokenSucceeded"));
+      setRotateValue("");
+      setRotateOpen(false);
+      onSaved();
+    } catch (err) {
+      toast.error(
+        `${t("triggers.chatChannel.rotateBotTokenFailed")}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      setRotating(false);
+    }
+  }
+
+  if (!hasChatChannel) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            {t("triggers.chatChannel.section")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {t("triggers.chatChannel.notConfigured")}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base">
+          {t("triggers.chatChannel.section")}
+        </CardTitle>
+        {canEdit && !editing ? (
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            {t("triggers.chatChannel.edit")}
+          </Button>
+        ) : editing ? (
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditing(false)}
+              disabled={saving}
+            >
+              {t("triggers.chatChannel.cancel")}
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving
+                ? t("triggers.chatChannel.saving")
+                : t("triggers.chatChannel.save")}
+            </Button>
+          </div>
+        ) : null}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!editing ? (
+          <>
+            {/* Provider · Bot Token · Health 그룹 */}
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-[hsl(var(--muted-foreground))]">
+                {t("triggers.chatChannel.provider")}
+              </dt>
+              <dd>{providerLabel(chatChannel?.provider)}</dd>
+              <dt className="text-[hsl(var(--muted-foreground))]">
+                {t("triggers.chatChannel.botToken")}
+              </dt>
+              <dd className="flex items-center gap-2">
+                <span>
+                  {chatChannel?.hasBotToken
+                    ? t("triggers.chatChannel.botTokenRegistered")
+                    : t("triggers.chatChannel.botTokenMissing")}
+                </span>
+                {canEdit && chatChannel?.hasBotToken ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRotateOpen(true)}
+                  >
+                    {t("triggers.chatChannel.rotateBotToken")}
+                  </Button>
+                ) : null}
+              </dd>
+              {chatChannel?.botIdentity?.username || chatChannel?.botIdentity?.botId ? (
+                <>
+                  <dt className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.chatChannel.botIdentity")}
+                  </dt>
+                  <dd>
+                    {chatChannel.botIdentity.username
+                      ? `@${chatChannel.botIdentity.username}`
+                      : ""}
+                    {chatChannel.botIdentity.botId
+                      ? ` (id=${chatChannel.botIdentity.botId})`
+                      : ""}
+                  </dd>
+                </>
+              ) : (
+                <>
+                  <dt className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.chatChannel.botIdentity")}
+                  </dt>
+                  <dd className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.chatChannel.botIdentityNotResolved")}
+                  </dd>
+                </>
+              )}
+              <dt className="text-[hsl(var(--muted-foreground))]">
+                {t("triggers.chatChannel.health")}
+              </dt>
+              <dd className="flex items-center gap-2">
+                <Badge variant={healthVariant}>{healthLabel[health]}</Badge>
+                {health === "degraded" ? (
+                  <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.chatChannel.healthDegradedHelp")}
+                  </span>
+                ) : null}
+              </dd>
+              {trigger.chatChannelLastError ? (
+                <>
+                  <dt className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.chatChannel.lastError")}
+                  </dt>
+                  <dd className="font-mono text-xs">
+                    {trigger.chatChannelLastError}
+                  </dd>
+                </>
+              ) : null}
+              {trigger.chatChannelSetupAt ? (
+                <>
+                  <dt className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.chatChannel.setupAt")}
+                  </dt>
+                  <dd className="text-xs">
+                    {formatDate(trigger.chatChannelSetupAt, "datetime")}
+                  </dd>
+                </>
+              ) : null}
+              {trigger.chatChannelRotatedAt ? (
+                <>
+                  <dt className="text-[hsl(var(--muted-foreground))]">
+                    {t("triggers.chatChannel.rotatedAt")}
+                  </dt>
+                  <dd className="text-xs">
+                    {formatDate(trigger.chatChannelRotatedAt, "datetime")}
+                  </dd>
+                </>
+              ) : null}
+            </dl>
+
+            {/* UI Mapping 그룹 */}
+            <div className="border-t border-[hsl(var(--border))] pt-3">
+              <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+                <dt className="text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.chatChannel.uiMappingFormMode")}
+                </dt>
+                <dd>{chatChannel?.uiMapping?.formMode ?? "multi_step"}</dd>
+                <dt className="text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.chatChannel.uiMappingVisualNode")}
+                </dt>
+                <dd>{visualNodeLabel(chatChannel?.uiMapping?.visualNode)}</dd>
+                <dt className="text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.chatChannel.uiMappingButtonLayout")}
+                </dt>
+                <dd>{chatChannel?.uiMapping?.buttonLayout ?? "auto"}</dd>
+                <dt className="text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.chatChannel.rateLimitPerMinute")}
+                </dt>
+                <dd>{chatChannel?.rateLimitPerMinute ?? 60}</dd>
+              </dl>
+            </div>
+
+            {/* languageHints */}
+            {chatChannel?.languageHints &&
+            Object.keys(chatChannel.languageHints).length > 0 ? (
+              <div className="border-t border-[hsl(var(--border))] pt-3">
+                <p className="mb-1.5 text-xs text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.chatChannel.languageHints")}
+                </p>
+                <pre className="overflow-x-auto rounded bg-[hsl(var(--muted))] p-2 text-xs">
+                  {JSON.stringify(chatChannel.languageHints, null, 2)}
+                </pre>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          /* EDIT MODE */
+          <div className="space-y-3 text-sm">
+            <div>
+              <Label htmlFor="cc-visualNode">
+                {t("triggers.chatChannel.uiMappingVisualNode")}
+              </Label>
+              <select
+                id="cc-visualNode"
+                className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent px-2 py-1.5 text-sm"
+                value={visualNode}
+                onChange={(e) =>
+                  setVisualNode(e.target.value as "text" | "photo" | "auto")
+                }
+              >
+                <option value="auto">
+                  {t("triggers.chatChannel.visualNodeAuto")}
+                </option>
+                <option value="text">
+                  {t("triggers.chatChannel.visualNodeText")}
+                </option>
+                <option value="photo">
+                  {t("triggers.chatChannel.visualNodePhoto")}
+                </option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="cc-buttonLayout">
+                {t("triggers.chatChannel.uiMappingButtonLayout")}
+              </Label>
+              <select
+                id="cc-buttonLayout"
+                className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent px-2 py-1.5 text-sm"
+                value={buttonLayout}
+                onChange={(e) =>
+                  setButtonLayout(
+                    e.target.value as "auto" | "vertical" | "horizontal",
+                  )
+                }
+              >
+                <option value="auto">
+                  {t("triggers.chatChannel.buttonLayoutAuto")}
+                </option>
+                <option value="vertical">
+                  {t("triggers.chatChannel.buttonLayoutVertical")}
+                </option>
+                <option value="horizontal">
+                  {t("triggers.chatChannel.buttonLayoutHorizontal")}
+                </option>
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="cc-rateLimit">
+                {t("triggers.chatChannel.rateLimitPerMinute")}
+              </Label>
+              <Input
+                id="cc-rateLimit"
+                type="number"
+                min={1}
+                max={600}
+                value={rateLimitPerMinute}
+                onChange={(e) => setRateLimitPerMinute(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cc-languageHints">
+                {t("triggers.chatChannel.languageHints")}
+              </Label>
+              <textarea
+                id="cc-languageHints"
+                rows={6}
+                className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent p-2 font-mono text-xs"
+                placeholder={`{\n  "groupChatRefusal": "...",\n  "executionStarted": "...",\n  "executionCompleted": "...",\n  "executionStillRunning": "...",\n  "help": "..."\n}`}
+                value={languageHintsJson}
+                onChange={(e) => setLanguageHintsJson(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("triggers.chatChannel.languageHintsHelp")}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Rotate Bot Token modal — single-path via rotate API */}
+        {rotateOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="w-full max-w-md rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-5">
+              <h3 className="mb-2 text-base font-semibold">
+                {t("triggers.chatChannel.rotateBotTokenDialogTitle")}
+              </h3>
+              <p className="mb-2 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("triggers.chatChannel.rotateBotTokenDescription")}
+              </p>
+              <p className="mb-3 text-sm">
+                {t("triggers.chatChannel.rotateBotTokenConfirm")}
+              </p>
+              <Label htmlFor="cc-rotate-input">
+                {t("triggers.chatChannel.botTokenInputLabel")}
+              </Label>
+              <Input
+                id="cc-rotate-input"
+                placeholder={t("triggers.chatChannel.botTokenInputPlaceholder")}
+                value={rotateValue}
+                onChange={(e) => setRotateValue(e.target.value)}
+                className="mt-1 font-mono"
+                autoFocus
+              />
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("triggers.chatChannel.botTokenFormatHelp")}
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setRotateOpen(false);
+                    setRotateValue("");
+                  }}
+                  disabled={rotating}
+                >
+                  {t("triggers.chatChannel.cancel")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleRotate}
+                  disabled={rotating || rotateValue.trim().length === 0}
+                >
+                  {rotating
+                    ? t("triggers.chatChannel.saving")
+                    : t("triggers.chatChannel.rotateBotTokenDialogConfirm")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
