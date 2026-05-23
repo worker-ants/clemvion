@@ -23,11 +23,19 @@ Bot API Token은 봇 계정을 완전히 제어할 수 있는 자격증명이에
 
 ## 2. 워크플로우 Webhook 트리거에 Chat Channel 설정
 
-<Callout type="warn">
-**현재는 GUI 입력 폼이 제공되지 않아요.** 트리거 생성·편집 화면에 Chat Channel 카드는 표시되지만 입력 필드 UI 는 후속 PR 에서 추가될 예정이라, 지금은 아래 API 호출로만 등록할 수 있어요. spec SoT 는 [`spec/5-system/15-chat-channel.md`](https://github.com/worker-ants/clemvion/blob/main/spec/5-system/15-chat-channel.md) — UI 가 들어오면 본 가이드도 GUI 단계 안내로 격상됩니다.
-</Callout>
+**GUI 등록 흐름 (권장)**:
 
-트리거 생성 API 본문에 `chatChannel` 을 포함해 호출해요:
+1. 좌측 메뉴 → **Triggers** → 우측 상단 **"+ Webhook 트리거 추가"** 클릭
+2. 트리거 이름·연결할 워크플로우·인증 방식 입력
+3. 폼 하단의 **"Chat Channel 연결 (Telegram 봇)"** 체크박스를 켜기
+4. 등장하는 **"신규 Bot Token"** 필드에 BotFather 가 발급한 token 입력 (`123456789:ABC...`)
+5. **만들기** 클릭 → 트리거 생성과 동시에 `setWebhook` 자동 호출 → Telegram 봇과 워크플로우 즉시 연결
+
+트리거 상세 drawer 의 **"Chat Channel"** 카드에서 health / UI 매핑 / 안내 메시지 i18n 을 확인·편집할 수 있고, **"Bot Token 재발급"** 버튼으로 토큰 회전도 GUI 에서 처리합니다.
+
+**API 등록 흐름 (자동화 / CI 용)**:
+
+GUI 없이 API 로 등록하려면 트리거 생성 본문에 `chatChannel` 을 포함하세요:
 
 ```bash
 curl -X POST https://<your-host>/api/triggers \

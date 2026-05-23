@@ -8,8 +8,9 @@ import {
   Min,
   ValidateNested,
   MaxLength,
+  IsEmpty,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -37,13 +38,20 @@ export class ChatChannelUiMappingDto {
   formMode?: 'multi_step';
 
   @ApiPropertyOptional({
-    description: '시각형 노드 (Carousel/Chart/Table) 의 채널 표현 방식.',
-    enum: ['photo', 'text_only'],
-    default: 'photo',
+    description:
+      '시각형 노드 (Carousel/Chart/Table) 의 채널 표현 방식. ' +
+      'text=텍스트 전용 (carousel imageUrl 무시), ' +
+      'photo=v2 SSR PNG (v1 단계에서는 fallback to text + warning 로그), ' +
+      'auto=노드별 자동 (chart/table→text, carousel imageUrl 있으면 sendPhoto). ' +
+      'legacy "text_only" 입력은 read-time 에 "text" 로 normalize. ' +
+      '상세 spec/conventions/chat-channel-adapter.md §2.3.',
+    enum: ['text', 'photo', 'auto'],
+    default: 'auto',
   })
   @IsOptional()
-  @IsIn(['photo', 'text_only'])
-  visualNode?: 'photo' | 'text_only';
+  @Transform(({ value }) => (value === 'text_only' ? 'text' : value))
+  @IsIn(['text', 'photo', 'auto'])
+  visualNode?: 'text' | 'photo' | 'auto';
 
   @ApiPropertyOptional({
     description: 'Button 노드의 inline keyboard layout.',
@@ -91,40 +99,59 @@ export class ChatChannelConfigDto {
   @MaxLength(256)
   botToken: string;
 
+  /**
+   * 외부 입력 금지 — [Spec Chat Channel §5.4.1 single-path](../../../spec/5-system/15-chat-channel.md#541-bot-token-변경-single-path-정책).
+   * 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 로만 가능.
+   * PATCH body 또는 POST body 에 본 필드가 포함되면 400 VALIDATION_ERROR (details.field='botTokenRef').
+   * 응답에는 strip — 사용자에게 노출되지 않고 `hasBotToken: boolean` derived 필드로만 존재 여부 알림.
+   */
   @ApiPropertyOptional({
     description:
-      '(응답 전용) Secret store reference — secret://triggers/{id}/bot-token. ' +
-      'setupChannel 완료 후 채워진다. 외부 입력 무시.',
+      '(내부 식별자 — 외부 입력 금지) Secret store reference. ' +
+      '응답에서 strip 되며 hasBotToken derived 필드로 존재 여부만 노출. ' +
+      'Spec Chat Channel §5.4.1 single-path 정책.',
     maxLength: 256,
     readOnly: true,
-    example: 'secret://triggers/uuid/bot-token',
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(256)
+  @IsEmpty({
+    message:
+      'botTokenRef 는 외부 입력이 금지된 내부 필드입니다. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용하세요.',
+  })
   botTokenRef?: string;
 
+  /**
+   * 외부 입력 금지 — setupChannel 결과 issuedSecretToken 이 저장되면 채워진다.
+   * 응답에서 strip — 사용자에게 노출 금지.
+   */
   @ApiPropertyOptional({
     description:
-      '(응답 전용) Webhook secret store reference — secret://triggers/{id}/webhook-secret. ' +
-      'setupChannel 결과 issuedSecretToken 이 저장되면 채워진다. 외부 입력 무시.',
+      '(내부 식별자 — 외부 입력 금지) Webhook secret store reference. ' +
+      '응답에서 strip.',
     maxLength: 256,
     readOnly: true,
-    example: 'secret://triggers/uuid/webhook-secret',
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(256)
+  @IsEmpty({
+    message: 'secretTokenRef 는 외부 입력이 금지된 내부 필드입니다.',
+  })
   secretTokenRef?: string;
 
+  /**
+   * 외부 입력 금지 — setupChannel 시 어댑터가 발급. 본 필드가 입력으로 들어오면 무시되지 않고
+   * 400 VALIDATION_ERROR 반환 (silent 무시 시 사용자가 secret 을 직접 제어한다고 오해).
+   */
   @ApiPropertyOptional({
     description:
-      'Webhook 인증용 server-issued secret. setupChannel 시 어댑터가 발급. 외부 입력 금지 — 본 필드가 입력으로 들어와도 어댑터가 setupChannel 결과로 덮어쓴다.',
+      '(내부 발급 — 외부 입력 금지) Webhook 인증용 server-issued secret.',
     maxLength: 128,
+    readOnly: true,
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(128)
+  @IsEmpty({
+    message:
+      'secretToken 은 setupChannel 시 자동 발급되는 내부 필드입니다. 외부 입력은 허용되지 않습니다.',
+  })
   secretToken?: string;
 
   @ApiPropertyOptional({
