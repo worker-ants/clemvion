@@ -344,7 +344,7 @@ describe("AssistantPresentationsBlock — render_form active vs submitted 분기
     expect(screen.getByRole("button", { name: /Submit/i })).toBeTruthy();
   });
 
-  it("payload.toolCallId 가 pendingFormToolCallId 와 불일치 → FormSubmittedContent (display-only)", () => {
+  it("payload.toolCallId 가 pendingFormToolCallId 와 불일치 → null (ToolCallBadge + presentation_user 가 표현 담당)", () => {
     render(
       <AssistantPresentationsBlock
         presentations={[makeFormPayload("call_form_1")]}
@@ -352,11 +352,14 @@ describe("AssistantPresentationsBlock — render_form active vs submitted 분기
         onSubmitForm={vi.fn()}
       />,
     );
-    // 입력 필드 없음 (FormSubmittedContent 는 form input 미렌더)
+    // 입력 필드 없음 — interactive form 회피
     expect(screen.queryByLabelText(/승인 여부/)).toBeNull();
+    // form schema JSON 의 raw dump 도 없어야 한다 (RENDER_FORM 헤더 노출 금지)
+    // — 이미지 #2 / #3 회귀 차단. payload 의 title 문자열이 화면에 노출되면 fail.
+    expect(screen.queryByText("Approval Request")).toBeNull();
   });
 
-  it("pendingFormToolCallId 가 null → 모든 form payload 가 FormSubmittedContent", () => {
+  it("pendingFormToolCallId 가 null → 모든 form payload null (raw schema 노출 금지)", () => {
     render(
       <AssistantPresentationsBlock
         presentations={[makeFormPayload("call_form_1")]}
@@ -365,9 +368,10 @@ describe("AssistantPresentationsBlock — render_form active vs submitted 분기
       />,
     );
     expect(screen.queryByLabelText(/승인 여부/)).toBeNull();
+    expect(screen.queryByText("Approval Request")).toBeNull();
   });
 
-  it("onSubmitForm 미전달 → active 케이스라도 FormSubmittedContent 로 fallback (defensive)", () => {
+  it("onSubmitForm 미전달 → active 케이스라도 null fallback (defensive)", () => {
     render(
       <AssistantPresentationsBlock
         presentations={[makeFormPayload("call_form_1")]}
@@ -377,5 +381,6 @@ describe("AssistantPresentationsBlock — render_form active vs submitted 분기
     // onSubmitForm 가 없으면 interactive 진입 자체를 회피 — submit 후 상태 흐름이
     // 망가지는 것을 차단. predicate `isActive` 의 마지막 조건 검증.
     expect(screen.queryByLabelText(/승인 여부/)).toBeNull();
+    expect(screen.queryByText("Approval Request")).toBeNull();
   });
 });
