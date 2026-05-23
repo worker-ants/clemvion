@@ -65,11 +65,13 @@ def _subagent_type(name):
 
 
 def load_config():
+    cfg = project_config.load(os.getcwd())
     return {
         "output_dir": os.environ.get("MERGE_OUTPUT_DIR", "./review/merge"),
         "base_hint": os.environ.get("MERGE_BASE_HINT", ""),
         "auto_apply_patch": os.environ.get("MERGE_AUTO_APPLY_PATCH", "0") == "1",
         "max_prompt_size": int(os.environ.get("MERGE_MAX_PROMPT_SIZE", "131072")),
+        "agent_models": project_config.get_all_agent_models(cfg),
     }
 
 
@@ -410,6 +412,7 @@ def prepare_session(branches_info, base, config):
     prompts_dir = os.path.join(session_dir, "_prompts")
     os.makedirs(prompts_dir, exist_ok=True)
 
+    agent_models = config.get("agent_models", {})
     invocations = []
     for analyzer in ANALYZERS:
         body = build_analyzer_prompt(
@@ -420,16 +423,23 @@ def prepare_session(branches_info, base, config):
         output_path = os.path.join(session_dir, f"{analyzer}.md")
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(body)
-        invocations.append({
+        slug = _subagent_type(analyzer)
+        inv = {
             "name": analyzer,
-            "subagent_type": _subagent_type(analyzer),
+            "subagent_type": slug,
             "prompt_file": os.path.abspath(prompt_path),
             "output_file": os.path.abspath(output_path),
-        })
+        }
+        if slug in agent_models:
+            inv["model"] = agent_models[slug]
+        invocations.append(inv)
 
+    summary_slug = _subagent_type(SUMMARY_AGENT)
     retry_state = {
         "session_dir": os.path.abspath(session_dir),
-        "summary_subagent_type": _subagent_type(SUMMARY_AGENT),
+        "summary_subagent_type": summary_slug,
+        **({} if summary_slug not in agent_models
+           else {"summary_model": agent_models[summary_slug]}),
         "summary_output_file": os.path.abspath(os.path.join(session_dir, "SUMMARY.md")),
         "subagent_invocations": invocations,
         "agents_pending": [inv["name"] for inv in invocations],

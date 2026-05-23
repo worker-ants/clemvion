@@ -66,7 +66,10 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
 
 ### 3. 병렬 sub-agent 호출
 
-`agents_pending` 의 각 checker 에 대해 **한 응답 안에서** 여러 `Agent` 호출. prompt: `prompt_file=<...>\noutput_file=<...>` (orchestrator 가 만든 경로).
+`agents_pending` 의 각 checker 에 대해 **한 응답 안에서** 여러 `Agent` 호출. 각 호출:
+- `subagent_type` = invocation 의 `subagent_type` 값
+- `prompt` = `prompt_file=<...>\noutput_file=<...>` (orchestrator 가 만든 경로)
+- `model` = invocation 에 `model` 키가 있으면 그 값, 없으면 생략 (agent frontmatter 적용)
 
 ### 4. STATUS 파싱·상태 갱신
 
@@ -78,7 +81,7 @@ JSON 직접 Read/Write 안 함. fallback 분류 규약은 call-contract.
 
 ### 5. 수렴 분기
 
-- **모두 완료**: `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")`. summary 가 SUMMARY.md Write 후 main 은 상단 30줄 Read 해 `BLOCK: YES` 검출.
+- **모두 완료**: `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")`. 상태 파일에 `summary_model` 키가 있으면 `model=<summary_model>` 도 함께 전달. summary 가 SUMMARY.md Write 후 main 은 상단 30줄 Read 해 `BLOCK: YES` 검출.
 - **남고 `loop_mode=true`**: ScheduleWakeup → turn 종료.
 - **남고 `loop_mode=false`**: partial summary + `/loop /consistency-check` 안내.
 

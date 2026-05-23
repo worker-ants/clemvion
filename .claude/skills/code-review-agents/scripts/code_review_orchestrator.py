@@ -106,13 +106,14 @@ def should_skip_binary(file_path):
 def load_config(route_mode="auto"):
     agents_env = os.environ.get("REVIEW_AGENTS", "").strip()
     agents_explicit = bool(agents_env)
+    # Always load project config — needed for both agent toggles and model overrides.
+    cfg = project_config.load(os.getcwd())
     if agents_explicit:
         agents = [a.strip() for a in agents_env.split(",") if a.strip()]
     else:
         # Apply project_config opt-out: missing key / true ⇒ enabled,
         # explicit false ⇒ disabled. Env-var override above takes
         # precedence (one-off override beats persistent project policy).
-        cfg = project_config.load(os.getcwd())
         agents = project_config.filter_enabled_agents(cfg, "reviewers", list(ALL_AGENTS))
 
     skip_ext_env = os.environ.get("REVIEW_SKIP_EXTENSIONS", "").strip()
@@ -130,6 +131,7 @@ def load_config(route_mode="auto"):
         "max_prompt_size": int(os.environ.get("REVIEW_MAX_PROMPT_SIZE", "131072")),
         "batch_size": int(os.environ.get("REVIEW_BATCH_SIZE", "50")),
         "skip_extensions": skip_extensions,
+        "agent_models": project_config.get_all_agent_models(cfg),
     }
 
 
@@ -628,6 +630,7 @@ def prepare_session(change_infos, config):
     prompts_dir = os.path.join(session_dir, "_prompts")
     os.makedirs(prompts_dir, exist_ok=True)
 
+    agent_models = config.get("agent_models", {})
     invocations = []
     for agent in config["agents"]:
         body = build_agent_prompt_body(
@@ -638,12 +641,16 @@ def prepare_session(change_infos, config):
         output_path = os.path.join(session_dir, f"{agent}.md")
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(body)
-        invocations.append({
+        slug = _subagent_type(agent)
+        inv = {
             "name": agent,
-            "subagent_type": _subagent_type(agent),
+            "subagent_type": slug,
             "prompt_file": os.path.abspath(prompt_path),
             "output_file": os.path.abspath(output_path),
-        })
+        }
+        if slug in agent_models:
+            inv["model"] = agent_models[slug]
+        invocations.append(inv)
 
     # Router safety: compute agents the router cannot drop.
     forced_agents, forced_reasons = compute_forced_agents(
@@ -686,8 +693,12 @@ def prepare_session(change_infos, config):
     retry_state = {
         "session_dir": os.path.abspath(session_dir),
         "summary_subagent_type": "code-review-summary",
+        **({} if "code-review-summary" not in agent_models
+           else {"summary_model": agent_models["code-review-summary"]}),
         "summary_output_file": os.path.abspath(os.path.join(session_dir, "SUMMARY.md")),
         "router_subagent_type": "review-router",
+        **({} if "review-router" not in agent_models
+           else {"router_model": agent_models["review-router"]}),
         "router_prompt_file": router_prompt_file,
         "router_output_file": router_output_file,
         "routing_status": routing_status,

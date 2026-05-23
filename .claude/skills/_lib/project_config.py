@@ -22,13 +22,16 @@ Schema (every key optional; missing keys fall back to DEFAULTS below):
       "code_areas": ["codebase"],
       "agents": {
         "reviewers": {
-          "user_guide_sync": false   // default: true (활성화); 명시 false 면 disable
+          "user_guide_sync": false
         },
         "checkers": {
-          "naming_collision": false  // 같은 패턴
+          "naming_collision": false
         },
         "writers": {
-          "user_guide": false        // 같은 패턴 — 호출자가 위임 직전 게이팅
+          "user_guide": false
+        },
+        "models": {
+          "<subagent-slug>": "opus" | "sonnet" | "haiku"
         }
       }
     }
@@ -40,6 +43,14 @@ maps let a project opt-out specific sub-agents when they don't apply
 agents enabled by default — missing key or ``true`` = enabled, explicit
 ``false`` = disabled. Use ``is_agent_enabled(cfg, kind, name)`` to
 query, with ``kind`` ∈ {``"reviewers"``, ``"checkers"``, ``"writers"``}.
+
+The ``agents.models`` map overrides the model used for individual
+sub-agents. Keys are the kebab-case slug that matches the agent's
+``.claude/agents/<slug>.md`` filename (e.g. ``"security-reviewer"``,
+``"review-router"``). Values must be one of ``{"opus","sonnet","haiku"}``
+— invalid values are silently ignored and the agent's own ``model:``
+frontmatter applies. Absent key → frontmatter model. Use
+``get_agent_model(cfg, subagent_type)`` to query.
 
 Reviewers/checkers are gated by their orchestrators
 (``code-review-agents`` / ``consistency-checker`` skills) which iterate
@@ -85,13 +96,13 @@ DEFAULTS: dict[str, Any] = {
     "agents": {
         # Per-reviewer / per-checker / per-writer enable toggles.
         # Default behavior (missing key or ``true``) is **enabled**;
-        # only an explicit ``false`` disables an agent. The harness
-        # keeps every agent registered in ALL_AGENTS / ALL_CHECKERS /
-        # ALL_WRITERS; this map narrows the run-set without changing
-        # the registry.
+        # only an explicit ``false`` disables an agent.
         "reviewers": {},
         "checkers": {},
         "writers": {},
+        # Per-agent model overrides. Keys are kebab-case subagent-type slugs;
+        # values are "opus" | "sonnet" | "haiku". Absent key → frontmatter.
+        "models": {},
     },
 }
 
@@ -101,7 +112,8 @@ def _clone_defaults() -> dict[str, Any]:
     out: dict[str, Any] = {}
     for k, v in DEFAULTS.items():
         if isinstance(v, dict):
-            out[k] = dict(v)
+            # Two-level deep copy covers nested dicts like agents.{reviewers,models}.
+            out[k] = {ik: dict(iv) if isinstance(iv, dict) else iv for ik, iv in v.items()}
         elif isinstance(v, list):
             out[k] = list(v)
         else:
@@ -171,6 +183,34 @@ def is_agent_enabled(cfg: dict[str, Any], kind: str, name: str) -> bool:
 def filter_enabled_agents(cfg: dict[str, Any], kind: str, all_agents: list[str]) -> list[str]:
     """Convenience: filter a registry list by ``is_agent_enabled``."""
     return [a for a in all_agents if is_agent_enabled(cfg, kind, a)]
+
+
+_VALID_MODELS: frozenset[str] = frozenset({"opus", "sonnet", "haiku"})
+
+
+def get_agent_model(cfg: dict[str, Any], subagent_type: str) -> str | None:
+    """Return the configured model override for a sub-agent, or None.
+
+    ``subagent_type`` is the kebab-case slug matching the agent definition
+    filename (e.g. ``"security-reviewer"``, ``"review-router"``). Returns
+    ``None`` when no override is configured or the value is not a valid
+    model alias — in either case the agent's own ``model:`` frontmatter
+    applies.
+    """
+    models = (cfg.get("agents") or {}).get("models") or {}
+    value = models.get(subagent_type)
+    if isinstance(value, str) and value in _VALID_MODELS:
+        return value
+    return None
+
+
+def get_all_agent_models(cfg: dict[str, Any]) -> dict[str, str]:
+    """Return the full validated models override map from config.
+
+    Only entries whose value is a valid model alias are included.
+    """
+    models = (cfg.get("agents") or {}).get("models") or {}
+    return {k: v for k, v in models.items() if isinstance(v, str) and v in _VALID_MODELS}
 
 
 def find_repo_root(start: str | None = None) -> str | None:

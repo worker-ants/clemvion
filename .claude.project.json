@@ -13,6 +13,7 @@
   },
   "code_areas": ["codebase"],
   "_agents_doc": "agents.{reviewers,checkers,writers} 는 ALL_AGENTS / ALL_CHECKERS / ALL_WRITERS 의 부분 토글. 아래 enumerate 된 키는 전체 목록이며 값은 현재 enabled 상태 (전부 true = 디폴트). 비활성하려면 해당 키를 false 로. 키 자체를 지워도 디폴트(true) 라 동일. 일회성 override: REVIEW_AGENTS / CONSISTENCY_AGENTS env (project_config 보다 우선). 각 reviewer/checker 의 관점: .claude/skills/code-review-agents/README.md §Reviewer sub-agent (14) · .claude/skills/consistency-checker/SKILL.md §5개 Checker. writers 는 호출자(예: developer skill §4 DOCUMENTATION) 가 위임 직전 is_agent_enabled 로 게이팅.",
+  "_agents_models_doc": "agents.models — sub-agent 별 모델 오버라이드. 키: .claude/agents/<slug>.md 파일명과 동일한 kebab-case slug. 값: 'opus' | 'sonnet' | 'haiku'. 미설정(키 없음) 시 각 .md 의 model: frontmatter 그대로 사용. 허용값 외 문자열은 무시(frontmatter 적용). Skills 는 메인 세션 컨텍스트에서 실행되므로 이 필드로 제어 불가.",
   "agents": {
     "reviewers": {
       "security":         true,
@@ -39,6 +40,13 @@
     },
     "writers": {
       "user_guide": true
+    },
+    "models": {
+      "_comment": "예시: 아래 주석을 해제해 각 에이전트의 모델을 변경하세요",
+      "_reviewers": "security-reviewer / performance-reviewer / architecture-reviewer / requirement-reviewer / scope-reviewer / side-effect-reviewer / maintainability-reviewer / testing-reviewer / documentation-reviewer / dependency-reviewer / database-reviewer / concurrency-reviewer / api-contract-reviewer / user-guide-sync-reviewer",
+      "_checkers":  "cross-spec-checker / rationale-continuity-checker / convention-compliance-checker / plan-coherence-checker / naming-collision-checker",
+      "_writers":   "user-guide-writer",
+      "_orchestration": "review-router / code-review-summary / consistency-summary / integration-risk-summary / resolution-applier / merge-conflict-resolver / merge-conflict-analyzer / semantic-conflict-analyzer / integration-order-planner / cross-branch-spec-analyzer"
     }
   }
 }

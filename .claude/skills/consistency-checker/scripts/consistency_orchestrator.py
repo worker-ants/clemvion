@@ -55,20 +55,20 @@ def _subagent_type(checker_name):
 
 def load_config():
     agents_env = os.environ.get("CONSISTENCY_AGENTS", "").strip()
+    # Always load project config — needed for both checker toggles and model overrides.
+    cfg = project_config.load(os.getcwd())
     if agents_env:
         agents = [a.strip() for a in agents_env.split(",") if a.strip()]
     else:
-        # Apply project_config opt-out for checkers (symmetric with
-        # code_review_orchestrator's reviewer toggle). Missing key /
-        # true ⇒ enabled, explicit false ⇒ disabled. Env-var override
-        # above takes precedence.
-        cfg = project_config.load(os.getcwd())
+        # Apply project_config opt-out for checkers. Missing key / true ⇒
+        # enabled, explicit false ⇒ disabled. Env-var override takes precedence.
         agents = project_config.filter_enabled_agents(cfg, "checkers", list(ALL_CHECKERS))
 
     return {
         "output_dir": os.environ.get("CONSISTENCY_OUTPUT_DIR", "./review/consistency"),
         "agents": agents,
         "max_context_size": int(os.environ.get("CONSISTENCY_MAX_CONTEXT_SIZE", "262144")),
+        "agent_models": project_config.get_all_agent_models(cfg),
     }
 
 
@@ -428,6 +428,7 @@ def prepare_session(context, config):
 
     substitutions = budget_substitutions(context, config["max_context_size"])
 
+    agent_models = config.get("agent_models", {})
     invocations = []
     for checker in config["agents"]:
         prompt_path = os.path.join(prompts_dir, f"{checker}.md")
@@ -435,16 +436,22 @@ def prepare_session(context, config):
         body = build_checker_prompt_body(checker, substitutions)
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(body)
-        invocations.append({
+        slug = _subagent_type(checker)
+        inv = {
             "name": checker,
-            "subagent_type": _subagent_type(checker),
+            "subagent_type": slug,
             "prompt_file": os.path.abspath(prompt_path),
             "output_file": os.path.abspath(output_path),
-        })
+        }
+        if slug in agent_models:
+            inv["model"] = agent_models[slug]
+        invocations.append(inv)
 
     retry_state = {
         "session_dir": os.path.abspath(session_dir),
         "summary_subagent_type": "consistency-summary",
+        **({} if "consistency-summary" not in agent_models
+           else {"summary_model": agent_models["consistency-summary"]}),
         "summary_output_file": os.path.abspath(os.path.join(session_dir, "SUMMARY.md")),
         "subagent_invocations": invocations,
         "agents_pending": [inv["name"] for inv in invocations],

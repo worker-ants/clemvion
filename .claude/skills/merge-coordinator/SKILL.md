@@ -57,7 +57,10 @@ python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.
 
 #### 3. 병렬 analyzer 호출
 
-`agents_pending` 의 4 analyzer 에 대해 **한 응답 안에서** 동시 `Agent` 호출. prompt: `prompt_file=<...>\noutput_file=<...>`.
+`agents_pending` 의 4 analyzer 에 대해 **한 응답 안에서** 동시 `Agent` 호출. 각 호출:
+- `subagent_type` = invocation 의 `subagent_type` 값
+- `prompt` = `prompt_file=<...>\noutput_file=<...>` (orchestrator 가 만든 경로)
+- `model` = invocation 에 `model` 키가 있으면 그 값, 없으면 생략 (agent frontmatter 적용)
 
 #### 4. STATUS 파싱·상태 갱신
 
@@ -67,7 +70,7 @@ python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.
 
 #### 5. 수렴 — Summary
 
-모두 완료되면 `Agent(subagent_type="integration-risk-summary", prompt="session_dir=<session_dir>")`. SUMMARY.md 가 작성되면 main 은 상단 30줄 Read → `BLOCK: YES` 또는 `BLOCK: NO`.
+모두 완료되면 `Agent(subagent_type="integration-risk-summary", prompt="session_dir=<session_dir>")`. 상태 파일에 `summary_model` 키가 있으면 `model=<summary_model>` 도 함께 전달. SUMMARY.md 가 작성되면 main 은 상단 30줄 Read → `BLOCK: YES` 또는 `BLOCK: NO`.
 
 ### Phase 2 — 사용자 confirm
 
