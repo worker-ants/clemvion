@@ -39,7 +39,7 @@ model: opus
 1. **스펙 분석** — `spec/` 의 관련 문서 + `plan/in-progress/` 이전 컨텍스트.
 2. **모호성 해소** — 공백·충돌은 사용자와 정의. 스펙 정의 필요 시 `project-planner` 위임.
 3. **사전 일관성 검토** — `/consistency-check --impl-prep <spec/영역>`. Critical → 즉시 중단. Warning → `plan/in-progress/<task>.md` 기록 + 진행.
-4. **DOCUMENTATION 업데이트** — `PROJECT.md §변경 유형 → 갱신 위치 매핑` white list 누락 없이 갱신. 매핑 검증 명령 통과해야 5단계. **사용자 가이드 신규 작성·기존 갱신은 [`user-guide-writer`](../../agents/user-guide-writer.md) sub-agent 위임** — 본 sub-agent 가 `PROJECT.md §유저 가이드 파일 컨벤션` 의 SoT 인덱스를 적재해 컨벤션을 일관 적용. 위임 직전 `is_agent_enabled(cfg, "writers", "user_guide")` (`.claude.project.json` 의 `agents.writers.user_guide`) 로 게이팅 — disable 된 프로젝트는 본 단계 안에서 직접 작성. PROJECT.md 매트릭스에 명시된 동반 갱신은 호출자(본 단계) 가 받아 처리.
+4. **DOCUMENTATION 업데이트** — `PROJECT.md §변경 유형 → 갱신 위치 매핑` white list 누락 없이 갱신. 매핑 검증 명령 통과해야 5단계. **사용자 가이드 신규 작성·기존 갱신은 [`user-guide-writer`](../../agents/user-guide-writer.md) sub-agent 위임** — 본 sub-agent 가 `PROJECT.md §유저 가이드 파일 컨벤션` 의 SoT 인덱스를 적재해 컨벤션을 일관 적용. 위임 직전 `is_agent_enabled(cfg, "writers", "user_guide")` (`.claude.project.json` 의 `agents.writers.user_guide`) 로 게이팅 — disable 된 프로젝트는 본 단계 안에서 직접 작성. PROJECT.md 매트릭스에 명시된 동반 갱신은 호출자(본 단계) 가 받아 처리. **partial-implementation 분리**: spec 의 일부만 구현하고 나머지 surface 가 남아있는 경우, 본 PR 머지 전 `plan/in-progress/<spec-name>-followup-<surface>.md` 신설 + 해당 spec frontmatter `status: partial` + `pending_plans:` 등록 의무 (SoT: [`spec/conventions/spec-impl-evidence.md`](../../../spec/conventions/spec-impl-evidence.md)). 자가 체크리스트는 `PROJECT.md §DOCUMENTATION 단계 종료 사전 체크리스트` 마지막 항목.
 5. **테스트 선작성** — TDD.
 6. **구현** — 스펙과 테스트 기준.
 7. **테스트 보강** — 누락 추가, 잘못된 테스트 수정.
