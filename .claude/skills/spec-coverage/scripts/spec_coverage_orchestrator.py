@@ -29,7 +29,7 @@ def repo_root() -> Path:
 
 def session_dir(root: Path) -> Path:
     now = datetime.now(timezone.utc)
-    base = root / "review" / "consistency" / "coverage" / now.strftime("%Y") / now.strftime("%m") / now.strftime("%d") / now.strftime("%H_%M_%S")
+    base = root / "review" / "spec-coverage" / now.strftime("%Y") / now.strftime("%m") / now.strftime("%d") / now.strftime("%H_%M_%S")
     base.mkdir(parents=True, exist_ok=True)
     return base
 
