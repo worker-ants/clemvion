@@ -1,12 +1,13 @@
 ---
-worktree: pending
-started: pending
+worktree: user-guide-reverse-coverage-53a0eb
+started: 2026-05-23
+completed: 2026-05-23
 owner: developer
 ---
 
 # User-guide reverse-evidence (`<ImplAnchor>`) + 3 가드 실행 plan
 
-> Stub. 실착수 시 worktree·started 채움.
+> ✅ 완료 (2026-05-23). Phase 1-4 모두 한 turn 안 처리. TEST WORKFLOW lint/unit(4565)/build/e2e(98) 모두 PASS.
 
 ## 배경
 
@@ -42,12 +43,12 @@ owner: developer
 
 ## 체크리스트
 
-- [ ] spec PR 머지 + main 동기 확인
-- [ ] Phase 1: `<ImplAnchor>` 컴포넌트 구현 + 단위 테스트
-- [ ] Phase 2: 3 가드 작성 + 통과
-- [ ] Phase 3: 기존 가이드 anchor 일괄 추가 (integrations + triggers 카테고리)
-- [ ] Phase 4: `i18n-userguide.md §Principle 7` 갱신
-- [ ] `user-guide-writer` sub-agent 자가 검증 체크리스트 (PROJECT.md) 통과 확인
-- [ ] TEST WORKFLOW (lint/unit/build/e2e)
-- [ ] REVIEW WORKFLOW
-- [ ] plan `complete/` 이동
+- [x] spec PR 머지 + main 동기 확인
+- [x] Phase 1: `<ImplAnchor>` 컴포넌트 구현 + 단위 테스트
+- [x] Phase 2: 3 가드 작성 + 통과
+- [x] Phase 3: 기존 가이드 anchor 일괄 추가 (integrations + triggers 카테고리)
+- [x] Phase 4: `i18n-userguide.md §Principle 7` 갱신
+- [x] `user-guide-writer` sub-agent 자가 검증 체크리스트 (PROJECT.md) 통과 확인
+- [x] TEST WORKFLOW (lint/unit/build/e2e)
+- [x] REVIEW WORKFLOW
+- [x] plan `complete/` 이동
