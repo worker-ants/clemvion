@@ -1,3 +1,9 @@
+---
+id: common
+status: spec-only
+code: []
+---
+
 # Spec: Data 노드 공통 규약
 
 > 관련 문서: [PRD Data 노드](../_product-overview.md#8-data-노드-2종) · [Spec 노드 개요](../0-overview.md) · [Spec 노드 공통](../../3-workflow-editor/1-node-common.md) · [Spec 노드 샌드박싱](../0-overview.md#5-노드-실행-샌드박싱) · [Spec 표현식 언어](../../5-system/5-expression-language.md)

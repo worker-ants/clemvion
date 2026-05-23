@@ -1,3 +1,9 @@
+---
+id: workflow
+status: spec-only
+code: []
+---
+
 # Spec: Workflow (Sub-Workflow)
 
 > 관련 문서: [Flow 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [Spec 실행 엔진](../../5-system/4-execution-engine.md) · [Spec 에러 핸들링](../../5-system/3-error-handling.md) · [CONVENTIONS](../../conventions/node-output.md)

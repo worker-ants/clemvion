@@ -1,3 +1,9 @@
+---
+id: chat-channel
+status: spec-only
+code: []
+---
+
 # Spec: Chat Channel (외부 chat 플랫폼 ↔ 워크플로우 서버사이드 어댑터)
 
 > 관련 문서: [Spec External Interaction API](./14-external-interaction-api.md) · [Spec Webhook 트리거](./12-webhook.md) · [Spec 데이터 모델](../1-data-model.md#28-trigger) · [Convention Chat Channel Adapter](../conventions/chat-channel-adapter.md) · [Spec Telegram Adapter](../4-nodes/7-trigger/providers/telegram.md) · [Spec Trigger 공통 규약](../4-nodes/7-trigger/0-common.md) · [Spec WebSocket 프로토콜](./6-websocket-protocol.md) · [Spec Conversation Thread](../conventions/conversation-thread.md)

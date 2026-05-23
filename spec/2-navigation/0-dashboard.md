@@ -1,3 +1,9 @@
+---
+id: dashboard
+status: spec-only
+code: []
+---
+
 # Spec: 대시보드
 
 > 관련 문서: [Spec 레이아웃](./_layout.md) · [Spec 인증 플로우](./10-auth-flow.md) · [PRD 내비게이션](./_product-overview.md) · [Spec 워크플로우 목록](./1-workflow-list.md) · [Spec 실행 내역](./14-execution-history.md)

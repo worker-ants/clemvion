@@ -1,3 +1,9 @@
+---
+id: secret-store
+status: spec-only
+code: []
+---
+
 # CONVENTION: Secret Store (자격증명·시크릿 보관 추상화)
 
 > 관련 문서: [Spec Chat Channel §3.4](../5-system/15-chat-channel.md#34-신뢰성--보안) · [Spec EIA §7.1](../5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) · [Spec Webhook §8](../5-system/12-webhook.md#8-보안-고려사항) · [Spec 데이터 모델](../1-data-model.md)

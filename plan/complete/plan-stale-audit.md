@@ -1,12 +1,13 @@
 ---
-worktree: pending
-started: pending
+worktree: plan-stale-audit-81be6e
+started: 2026-05-23
+completed: 2026-05-23
 owner: developer
 ---
 
 # `plan-stale-audit.sh` 도구 실행 plan
 
-> Stub. 실착수 시 worktree·started 채움.
+> ✅ 완료 (2026-05-23). PR (TBD) 안에서 도구 작성·smoke test·complete 이동 한 turn 안에 완료.
 
 ## 배경
 
@@ -28,11 +29,11 @@ owner: developer
 
 ## 체크리스트
 
-- [ ] spec PR 머지 확인
-- [ ] `.claude/tools/plan-stale-audit.sh` 작성 + chmod +x
-- [ ] 현재 `plan/in-progress/` 전수 실행해서 출력 정합성 검증
-- [ ] PROJECT.md 또는 README 에 사용법 한 줄 추가 (선택)
-- [ ] plan `complete/` 이동
+- [x] spec PR 머지 확인
+- [x] `.claude/tools/plan-stale-audit.sh` 작성 + chmod +x
+- [x] 현재 `plan/in-progress/` 전수 실행해서 출력 정합성 검증
+- [x] PROJECT.md 또는 README 에 사용법 한 줄 추가 (선택)
+- [x] plan `complete/` 이동
 
 ## 검증 명령
 

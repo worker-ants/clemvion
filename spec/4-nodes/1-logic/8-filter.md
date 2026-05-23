@@ -1,3 +1,9 @@
+---
+id: filter
+status: spec-only
+code: []
+---
+
 # Spec: Filter
 
 > 관련 문서: [Logic 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Transform 노드](../5-data/1-transform.md) · [Spec 표현식 언어](../../5-system/5-expression-language.md) · [CONVENTIONS](../../conventions/node-output.md)

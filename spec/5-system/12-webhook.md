@@ -1,3 +1,9 @@
+---
+id: webhook
+status: spec-only
+code: []
+---
+
 # Spec: Webhook 트리거 시스템
 
 > 관련 문서: [PRD Webhook](./12-webhook.md) · [Spec 트리거 목록](../2-navigation/2-trigger-list.md) · [Spec 데이터 모델](../1-data-model.md#28-trigger) · [Spec 실행 엔진](./4-execution-engine.md) · [Spec External Interaction API](./14-external-interaction-api.md) · [Spec Chat Channel](./15-chat-channel.md)

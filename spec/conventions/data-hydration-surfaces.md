@@ -1,3 +1,9 @@
+---
+id: data-hydration-surfaces
+status: spec-only
+code: []
+---
+
 # Data Hydration Surfaces
 
 > 관련 문서: [Spec Conversation Thread §9.3](./conversation-thread.md#93-데이터-소스-선택) · [Spec WebSocket Protocol §4.4](../5-system/6-websocket-protocol.md) · [Spec AI Agent §7](../4-nodes/3-ai/1-ai-agent.md#7-출력-구조)

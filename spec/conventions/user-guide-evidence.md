@@ -1,3 +1,16 @@
+---
+id: user-guide-evidence
+status: spec-only
+code: []
+---
+
+<!-- NOTE: status="spec-only" because the ImplAnchor component + 3 guards
+     live in PR #292 (plan 3) which is not yet merged into the base of this
+     PR (plan 2 / spec-frontmatter-rollout). After PR #292 merges, a follow-up
+     commit should graduate this to status="implemented" with code: pointing
+     to impl-anchor.tsx + 3 test files. -->
+
+
 # Convention: User-Guide Evidence (`<ImplAnchor>`)
 
 > 관련 문서: [spec-impl-evidence](./spec-impl-evidence.md) · [i18n-userguide](./i18n-userguide.md) · [PROJECT.md §유저 가이드 파일 컨벤션](../../PROJECT.md#유저-가이드-파일-컨벤션) · [spec/2-navigation/13-user-guide.md §공용 MDX 컴포넌트](../2-navigation/13-user-guide.md)
