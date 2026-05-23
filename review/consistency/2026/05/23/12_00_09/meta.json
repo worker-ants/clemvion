@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-23T12:00:09.365137",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/ai-agent-render-button-user-message.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
