@@ -800,6 +800,11 @@ function ConfigTabContent({
 
 interface ResultDetailProps {
   result: NodeResult | null;
+  /**
+   * spec §6.1.d.ii + spec/conventions/interaction-type-registry.md §1.2 —
+   * 그래프 Form 노드 (`interactionType: 'form'`) 한정. `ai_form_render` 는
+   * `isWaitingConversation` 으로 흡수되어 timeline 인라인 렌더.
+   */
   isWaitingForm: boolean;
   formConfig: unknown;
   isWaitingButtons: boolean;
@@ -810,7 +815,19 @@ interface ResultDetailProps {
   selectedConversationItemIndex: number | null;
   isWaitingAiResponse: boolean;
   executionId: string | null;
+  /** 그래프 Form 노드 standalone form 제출 resume — `resumeFromForm` 매핑. */
   onFormSubmit: () => void;
+  /**
+   * AI Agent `render_form` 활성 form 제출 resume — `resumeFromAiRenderForm`
+   * 매핑. spec §9.7.1 + §9.9 Inv-7 — multi-turn 컨텍스트 보존
+   * (`pendingFormToolCall` 만 nested null).
+   */
+  onAiRenderFormSubmit?: () => void;
+  /**
+   * spec §6.1.d.ii — `ai_form_render` 활성 form 의 toolCallId. assistant turn
+   * timeline 안에서 매칭 form payload 만 interactive 로 렌더.
+   */
+  pendingFormToolCallId?: string | null;
   onButtonClick: () => void;
   onConversationEnd: () => void;
   /**
@@ -835,6 +852,8 @@ export function ResultDetail({
   isWaitingAiResponse,
   executionId,
   onFormSubmit,
+  onAiRenderFormSubmit,
+  pendingFormToolCallId,
   onButtonClick,
   onConversationEnd,
   onSelectConversationItem,
@@ -857,6 +876,22 @@ export function ResultDetail({
       onFormSubmit();
     },
     [executionId, commands, onFormSubmit],
+  );
+
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 — AI Agent
+  // `render_form` 활성 form 제출 콜백. 그래프 form 노드와 달리 multi-turn
+  // 컨텍스트 (waitingNodeId / waitingInteractionType: 'ai_form_render' /
+  // 그 외 conversationConfig / isWaitingAiResponse: true) 를 보존하고
+  // `pendingFormToolCall` 만 nested null patch (`resumeFromAiRenderForm`).
+  // ConversationInspector → AssistantPresentationsBlock case "form" active
+  // 분기에서 본 콜백이 호출된다.
+  const handleAiRenderFormSubmit = useCallback(
+    (data: Record<string, unknown>) => {
+      if (!executionId) return;
+      commands.submitForm(data);
+      onAiRenderFormSubmit?.();
+    },
+    [executionId, commands, onAiRenderFormSubmit],
   );
 
   const handlePortButtonClick = useCallback(
@@ -1001,6 +1036,8 @@ export function ResultDetail({
       turnRefIndex={turnRefIndex}
       onJumpToReferences={handleJumpToReferences}
       onRetryLastTurn={handleRetryLastTurn}
+      pendingFormToolCallId={pendingFormToolCallId}
+      onSubmitForm={handleAiRenderFormSubmit}
     />
   ) : isCompletedConversation ? (
     // failed 상태의 multi-turn 종결 노드도 conversation preview 노출 — 인스펙터
@@ -1066,22 +1103,15 @@ export function ResultDetail({
         })()
     : null;
 
-  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — `ai_form_render` 는 chat
-  // history 위에 form input 이 함께 표시되어야 한다. 이때 isWaitingConversation
-  // 과 isWaitingForm 이 동시에 true 이므로 두 preview 를 stack 한다.
-  const conversationWithFormPreview =
-    conversationPreview && formPreview ? (
-      <div className="flex flex-col gap-3">
-        {conversationPreview}
-        {formPreview}
-      </div>
-    ) : null;
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 — `ai_form_render`
+  // 활성 form 은 ConversationInspector 안 timeline 아이템 (assistant turn 의
+  // `presentations[*].form` payload, AssistantPresentationsBlock case "form"
+  // active 분기) 으로 그려진다. 별도 stack 폐기 — 옛 `conversationWithFormPreview`
+  // 가 MessageInput 아래에 form 을 떠 있게 만들어 부자연스러운 UX 회귀를 냈다.
+  // 그래프 Form 노드 (`interactionType: 'form'`) 의 standalone form 은 그대로
+  // `formPreview` 경로로 단독 렌더된다 (isWaitingConversation === false).
   const previewContent =
-    conversationWithFormPreview ??
-    conversationPreview ??
-    formPreview ??
-    buttonsPreview ??
-    undefined;
+    conversationPreview ?? formPreview ?? buttonsPreview ?? undefined;
 
   // Preview tab is shown when there's any custom content to render in it
   // (conversation, form, buttons) or when this is a presentation node.

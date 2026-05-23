@@ -217,6 +217,18 @@ interface ExecutionState {
   resumeFromButtons: () => void;
   pauseForConversation: (nodeId: string, config: unknown) => void;
   resumeFromConversation: () => void;
+  /**
+   * AI Agent `render_form` 활성 form 제출 후의 별도 resume action.
+   *
+   * spec/conventions/conversation-thread.md §9.7.1 + §9.9 Inv-7 — 일반
+   * `resumeFromForm` 가 `CLEAR_INPUT_AFFORDANCE` 로 affordance 전체를
+   * 클리어해 multi-turn 컨텍스트까지 날려버려 timeline 깜빡임 회귀가 났다.
+   * 본 action 은 `waitingConversationConfig.pendingFormToolCall` 만
+   * nested null patch 로 클리어하고 `waitingNodeId` /
+   * `waitingInteractionType: 'ai_form_render'` / 그 외 conversation config /
+   * `isWaitingAiResponse: true` 는 모두 보존한다.
+   */
+  resumeFromAiRenderForm: () => void;
   addConversationMessage: (item: ConversationItem) => void;
   /**
    * Replace the entire conversation message list. Used when an authoritative
@@ -448,6 +460,31 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
 
   resumeFromForm: () => set({ status: "running", ...CLEAR_INPUT_AFFORDANCE }),
 
+  // spec/conventions/conversation-thread.md §9.7.1 + §9.9 Inv-7 — AI Agent
+  // render_form 활성 form 제출 직후 호출. multi-turn 컨텍스트 (waitingNodeId /
+  // waitingInteractionType: 'ai_form_render' / 그 외 conversation config /
+  // isWaitingAiResponse: true) 는 모두 보존하고, conversationConfig 안의
+  // `pendingFormToolCall` 만 nested null patch 로 클리어한다. 옛 `resumeFromForm`
+  // 호출이 `CLEAR_INPUT_AFFORDANCE` 로 affordance 전체를 날려 ConversationInspector
+  // 가 live → completed 분기로 떨어지면서 server-side waiting 상태에서
+  // preview = null 로 깜빡이던 회귀 차단.
+  resumeFromAiRenderForm: () =>
+    set((state) => {
+      const conv = state.waitingConversationConfig;
+      // Shallow spread — conv 의 top-level 필드만 복사되고 중첩 객체는
+      // reference 를 공유한다. conv 하위 필드는 immutable-by-convention
+      // (Zustand 패턴) 이므로 현재는 충분; 향후 deep mutation 이 필요하면
+      // structuredClone 으로 교체.
+      const nextConv =
+        conv && typeof conv === "object"
+          ? { ...(conv as Record<string, unknown>), pendingFormToolCall: null }
+          : conv;
+      return {
+        status: "running",
+        waitingConversationConfig: nextConv,
+      };
+    }),
+
   pauseForButtons: (nodeId: string, buttonConfig: unknown) =>
     set((state) => ({
       status: "waiting_for_input",
@@ -571,3 +608,28 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       ...CLEAR_CONVERSATION_SNAPSHOT,
     }),
 }));
+
+/**
+ * `waitingInteractionType === 'ai_form_render'` 인 경우 활성 form 의 toolCallId
+ * 를 반환하는 파생 selector. 단일 정의를 유지하여 shape 변경 시 한 곳만 수정하면 된다.
+ *
+ * `page.tsx` 와 `run-results-drawer.tsx` 두 곳에서 동일 로직이 중복되던 것을
+ * 통일 (spec/conventions/conversation-thread.md §9.7.1 단일 진실 원칙).
+ *
+ * 사용 예: `useExecutionStore(selectPendingFormToolCallId)`
+ */
+export function selectPendingFormToolCallId(
+  state: Pick<
+    ReturnType<typeof useExecutionStore.getState>,
+    "waitingInteractionType" | "waitingConversationConfig"
+  >,
+): string | null {
+  if (state.waitingInteractionType !== "ai_form_render") return null;
+  return (
+    (
+      state.waitingConversationConfig as
+        | { pendingFormToolCall?: { toolCallId?: string } | null }
+        | null
+    )?.pendingFormToolCall?.toolCallId ?? null
+  );
+}

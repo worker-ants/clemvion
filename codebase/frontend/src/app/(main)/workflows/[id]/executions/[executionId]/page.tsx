@@ -42,7 +42,7 @@ import {
   openExternalLink,
 } from "@/components/editor/run-results/button-config";
 import type { NodeResult } from "@/lib/stores/execution-store";
-import { useExecutionStore } from "@/lib/stores/execution-store";
+import { useExecutionStore, selectPendingFormToolCallId } from "@/lib/stores/execution-store";
 import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import { applyExecutionSnapshot } from "@/lib/websocket/apply-execution-snapshot";
 import { useExecutionInteractionCommands } from "@/lib/websocket/use-execution-interaction-commands";
@@ -382,17 +382,17 @@ function NodeResultsTab({
   const waitingConversationConfig = useExecutionStore(
     (s) => s.waitingConversationConfig,
   );
-  // ai_form_render — backend bundles `pendingFormToolCall.formConfig` inside
-  // conversationConfig. Fall back to standalone form config otherwise.
-  const resolvedFormConfig =
-    waitingInteractionType === "ai_form_render"
-      ? ((waitingConversationConfig as
-          | { pendingFormToolCall?: { formConfig?: unknown } }
-          | null)?.pendingFormToolCall?.formConfig ?? null)
-      : waitingFormConfig;
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 — `ai_form_render`
+  // 의 활성 form 식별자. assistant turn 의 `presentations[*].form` 중 본
+  // toolCallId 와 일치하는 항목만 interactive `DynamicFormUI` 로 렌더 (별도
+  // surface stack 아님 — ConversationInspector 안에서 단일).
+  const pendingFormToolCallId = useExecutionStore(selectPendingFormToolCallId);
   const conversationMessages = useExecutionStore((s) => s.conversationMessages);
   const isWaitingAiResponse = useExecutionStore((s) => s.isWaitingAiResponse);
   const resumeFromForm = useExecutionStore((s) => s.resumeFromForm);
+  const resumeFromAiRenderForm = useExecutionStore(
+    (s) => s.resumeFromAiRenderForm,
+  );
   const resumeFromButtons = useExecutionStore((s) => s.resumeFromButtons);
   const resumeFromConversation = useExecutionStore(
     (s) => s.resumeFromConversation,
@@ -421,13 +421,12 @@ function NodeResultsTab({
 
   const isSelectedWaiting =
     !!waitingNodeId && selectedNodeId === waitingNodeId;
-  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — `ai_form_render` shares both
-  // surfaces: form input overlay AND conversation timeline. Mirrored from
-  // run-results-drawer.tsx.
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 — 그래프 Form 노드
+  // (`interactionType: 'form'`) 한정으로 축소. `ai_form_render` 의 활성 form 은
+  // ConversationInspector 안 timeline 인라인 (AssistantPresentationsBlock case
+  // "form" active 분기) 으로 그려진다.
   const isWaitingForm =
-    isSelectedWaiting &&
-    (waitingInteractionType === "form" ||
-      waitingInteractionType === "ai_form_render");
+    isSelectedWaiting && waitingInteractionType === "form";
   const isWaitingButtons =
     isSelectedWaiting && waitingInteractionType === "buttons";
   const isWaitingConversation =
@@ -438,6 +437,14 @@ function NodeResultsTab({
   const handleFormSubmit = (data: Record<string, unknown>) => {
     commands.submitForm(data);
     resumeFromForm();
+  };
+
+  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — AI Agent render_form 제출.
+  // multi-turn 컨텍스트 보존 (spec §9.7.1 + Inv-7) — `pendingFormToolCall` 만
+  // nested null patch, 나머지 affordance 보존.
+  const handleAiRenderFormSubmit = (data: Record<string, unknown>) => {
+    commands.submitForm(data);
+    resumeFromAiRenderForm();
   };
 
   const handlePortButtonClick = (buttonId: string) => {
@@ -592,6 +599,13 @@ function NodeResultsTab({
             <div className="flex-1 overflow-auto p-4">
               {nodeDetailTab === "preview" && selectedNodeResult && (
                 isWaitingConversation ? (
+                  // spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii + spec §12.5 —
+                  // `ai_form_render` 의 활성 form 은 ConversationInspector 안
+                  // timeline 아이템 (assistant turn 의 `presentations[*].form`
+                  // payload, AssistantPresentationsBlock case "form" active
+                  // 분기) 으로 그려진다. pendingFormToolCallId / onSubmitForm
+                  // 을 prop drill 하여 active toolCallId 매칭 시 interactive
+                  // `DynamicFormUI` 렌더.
                   <ConversationInspector
                     result={selectedNodeResult}
                     conversationMessages={conversationMessages}
@@ -603,21 +617,18 @@ function NodeResultsTab({
                     onEndConversation={handleEndConversation}
                     onSelectMessage={setSelectedMsgIndex}
                     onBackToConversation={() => setSelectedMsgIndex(null)}
+                    pendingFormToolCallId={pendingFormToolCallId}
+                    onSubmitForm={handleAiRenderFormSubmit}
                   />
-                ) : isWaitingForm && resolvedFormConfig ? (
-                  // spec/4-nodes/6-presentation/0-common.md §Rationale (form
-                  // option/state 안정화) — DynamicFormUI 는 local useState 로
-                  // 사용자 입력을 관리한다. `resolvedFormConfig` 는 WS 이벤트마다
-                  // 새 객체 참조로 재계산되지만 `key={waitingNodeId}` 가 같으면
-                  // 컴포넌트 mount 유지 → 입력 보존. waitingNodeId 가 바뀔 때만
-                  // (다른 노드가 새로 waiting 상태로 전환) 의도된 remount.
-                  // `isWaitingForm` 이 true 일 때 `waitingNodeId` 는 반드시 non-null
-                  // (useExecutionStore 가 setWaitingNodeId 와 쌍으로 관리).
-                  // fallback `"no-waiting-node"` 는 방어적 값 — 정상 흐름에서는
-                  // 도달하지 않는다 (W#2 guard).
+                ) : isWaitingForm && waitingFormConfig ? (
+                  // 그래프 Form 노드 (`interactionType: 'form'`) 의 standalone
+                  // form. `waitingFormConfig` 는 WS 이벤트마다 새 객체 참조로
+                  // 재계산되지만 `key={waitingNodeId}` 가 같으면 mount 유지 →
+                  // 입력 보존 (spec/4-nodes/6-presentation/0-common.md
+                  // §Rationale form option/state 안정화).
                   <DynamicFormUI
                     key={waitingNodeId ?? "no-waiting-node"}
-                    formConfig={resolvedFormConfig as Record<string, unknown>}
+                    formConfig={waitingFormConfig as Record<string, unknown>}
                     onSubmit={handleFormSubmit}
                   />
                 ) : isWaitingButtons ? (

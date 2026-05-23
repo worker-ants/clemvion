@@ -236,6 +236,29 @@ export interface NodeHandler {
 }
 
 /**
+ * 사용자 입력 origin 신호. AI Agent `render_form` 활성 중 사용자가 일반 채팅
+ * 메시지를 보내면 (form bypass), engine dispatch 가 `'ai_message'` 로 신호하여
+ * handler 가 cancelled tool_result fallback 분기를 적용할 수 있게 한다
+ * (spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c.bypass).
+ *
+ * 옵션 미전달 시 (구 호출자 / `information_extractor`) handler 는 기존 휴리스틱
+ * (`state.pendingFormToolCall` set 여부 + userMessage shape) 로 분기 — 하위 호환.
+ */
+export type ResumableMessageSource = 'ai_message' | 'form_submitted';
+
+/**
+ * `processMultiTurnMessage` 의 세 번째 파라미터 타입. `source` 외 필드가 추가될
+ * 때 인터페이스·핸들러·엔진 세 곳을 한 번에 갱신할 수 있도록 named type 으로 분리.
+ *
+ * 구현체가 `options` 를 사용하지 않는 경우 파라미터명을 `_options` 로 선언해
+ * no-op 의도를 명시한다 (spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c.bypass
+ * 는 AI Agent 한정 — 다른 구현체는 의도적으로 무시).
+ */
+export interface ResumableMessageOptions {
+  source: ResumableMessageSource;
+}
+
+/**
  * Multi-turn 대화형 노드 (ai_agent, information_extractor) 가 구현해야 하는
  * 추가 메서드. 엔진의 `waitForAiConversation` 가 이 메서드들을 호출하므로
  * 핸들러는 두 메서드 모두를 반드시 구현해야 한다 (둘 다 optional 이 아님).
@@ -244,10 +267,18 @@ export interface NodeHandler {
  * 분기한다 (CRIT #4 — duck-typing 의존 제거).
  */
 export interface ResumableNodeHandler extends NodeHandler {
-  /** 사용자 메시지를 받아 다음 LLM turn 을 진행. waiting 또는 종료 결과 반환. */
+  /**
+   * 사용자 메시지를 받아 다음 LLM turn 을 진행. waiting 또는 종료 결과 반환.
+   *
+   * `options.source` 는 engine 의 `waitForAiConversation` dispatch 가 `'ai_message'`
+   * vs `'form_submitted'` 를 결정적으로 알려주는 신호. AI Agent handler 의
+   * form bypass 분기 (pendingFormToolCall set + `source: 'ai_message'`) 에서
+   * cancelled tool_result fallback 을 적용한다.
+   */
   processMultiTurnMessage(
     userMessage: string,
     state: Record<string, unknown>,
+    options?: ResumableMessageOptions,
   ): Promise<unknown>;
 
   /**

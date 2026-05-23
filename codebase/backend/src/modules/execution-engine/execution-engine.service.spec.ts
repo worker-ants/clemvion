@@ -2669,14 +2669,58 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       // processMultiTurnMessage 가 첫 번째 인자로 JSON.stringify(formPayload) 를 받았는지.
-      // 호출 시그니처: processMultiTurnMessage(userMessage: string, state)
+      // 호출 시그니처: processMultiTurnMessage(userMessage: string, state, options)
+      // spec §6.2 step 2 — 'form_submitted' source 신호 전달 검증.
       expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
         JSON.stringify(formPayload),
         expect.anything(),
+        expect.objectContaining({ source: 'form_submitted' }),
       );
 
       // 이후 ai_end_conversation 으로 종료 — processReturn 이 waiting_for_input
       // 이어서 loop 이 다음 이벤트를 기다리므로 endAiConversation 후 flushPromises 필요.
+      service.endAiConversation(executionId);
+      await flushPromises();
+      await execPromise;
+    });
+
+    it('W10 — ai_message dispatch: processMultiTurnMessage 가 { source: "ai_message" } 로 호출됨', async () => {
+      // spec/4-nodes/3-ai/1-ai-agent.md §6.2 step 2.c.bypass — engine 이
+      // `continueAiConversation` 경로에서 `'ai_message'` source 를 결정적으로
+      // 전달해야 handler 의 form bypass 분기가 올바르게 작동한다.
+      const processReturn = {
+        config: { mode: 'multi_turn' },
+        output: { result: { messages: [], message: 'ok', turnCount: 1 } },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [],
+          turnCount: 1,
+          turnDebugHistory: [],
+          model: 'test-model',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+        },
+      };
+      const handler = makeAiDispatchHandler(() => processReturn);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
+
+      const execPromise = service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // continueAiConversation → bus publish ai_message → handler 호출
+      service.continueAiConversation(executionId, '안녕하세요');
+      await flushPromises();
+
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
+        '안녕하세요',
+        expect.anything(),
+        expect.objectContaining({ source: 'ai_message' }),
+      );
+
       service.endAiConversation(executionId);
       await flushPromises();
       await execPromise;

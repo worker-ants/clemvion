@@ -311,3 +311,71 @@ describe("AssistantPresentationsBlock — onSendMessage 통합 (spec §10.8)", (
 // 경로는 carousel per-item / itemButtons 뿐. global 버튼 / dynamic runtime ID 의
 // 합성 동작은 unit-level `composeUserMessage` / `findButtonContext` 테스트가
 // 분리 검증한다 (integration 중복 회피).
+
+// spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — `render_form` 활성 form 의 timeline
+// 인라인 단일 진실. CT-S13 회귀 차단 시나리오 (conversation-thread.md §9.10).
+describe("AssistantPresentationsBlock — render_form active vs submitted 분기 (CT-S13)", () => {
+  function makeFormPayload(toolCallId: string): PresentationPayload {
+    return {
+      type: "form",
+      toolCallId,
+      payload: {
+        title: "Approval Request",
+        submitLabel: "Submit",
+        fields: [
+          { name: "approval", type: "text", label: "승인 여부", required: true },
+        ],
+      },
+    } as PresentationPayload;
+  }
+
+  it("payload.toolCallId 가 pendingFormToolCallId 와 일치 → interactive DynamicFormUI 렌더", () => {
+    const onSubmitForm = vi.fn();
+    render(
+      <AssistantPresentationsBlock
+        presentations={[makeFormPayload("call_form_1")]}
+        pendingFormToolCallId="call_form_1"
+        onSubmitForm={onSubmitForm}
+      />,
+    );
+    // DynamicFormUI 의 form 입력 필드 (label "승인 여부") 가 렌더되어야 함
+    expect(screen.getByLabelText(/승인 여부/)).toBeTruthy();
+    // submit 버튼이 존재 (DynamicFormUI 의 submitLabel "Submit")
+    expect(screen.getByRole("button", { name: /Submit/i })).toBeTruthy();
+  });
+
+  it("payload.toolCallId 가 pendingFormToolCallId 와 불일치 → FormSubmittedContent (display-only)", () => {
+    render(
+      <AssistantPresentationsBlock
+        presentations={[makeFormPayload("call_form_1")]}
+        pendingFormToolCallId="call_form_2"
+        onSubmitForm={vi.fn()}
+      />,
+    );
+    // 입력 필드 없음 (FormSubmittedContent 는 form input 미렌더)
+    expect(screen.queryByLabelText(/승인 여부/)).toBeNull();
+  });
+
+  it("pendingFormToolCallId 가 null → 모든 form payload 가 FormSubmittedContent", () => {
+    render(
+      <AssistantPresentationsBlock
+        presentations={[makeFormPayload("call_form_1")]}
+        pendingFormToolCallId={null}
+        onSubmitForm={vi.fn()}
+      />,
+    );
+    expect(screen.queryByLabelText(/승인 여부/)).toBeNull();
+  });
+
+  it("onSubmitForm 미전달 → active 케이스라도 FormSubmittedContent 로 fallback (defensive)", () => {
+    render(
+      <AssistantPresentationsBlock
+        presentations={[makeFormPayload("call_form_1")]}
+        pendingFormToolCallId="call_form_1"
+      />,
+    );
+    // onSubmitForm 가 없으면 interactive 진입 자체를 회피 — submit 후 상태 흐름이
+    // 망가지는 것을 차단. predicate `isActive` 의 마지막 조건 검증.
+    expect(screen.queryByLabelText(/승인 여부/)).toBeNull();
+  });
+});

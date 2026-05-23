@@ -180,6 +180,21 @@ interface ConversationInspectorProps {
    * retryLastTurn 을 prop drill. 미정 시 retry 버튼 자동 suppress.
    */
   onRetryLastTurn?: (nodeExecutionId: string) => void;
+  /**
+   * spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — `render_form` 활성 form 의
+   * UI 단일 진실 (assistant turn timeline 인라인). store selector
+   * `waitingConversationConfig.pendingFormToolCall.toolCallId` 를 부모
+   * (ResultDetail / ExecutionDetailPage) 가 가져와 prop drill —
+   * SummaryView / SelectedItemDetail 양쪽이 동일 selector 사용 (Inv-5 동형).
+   */
+  pendingFormToolCallId?: string | null;
+  /**
+   * Active render_form 제출 콜백. 부모가 `commands.submitForm(data)` +
+   * `resumeFromAiRenderForm()` 호출 책임. 미전달 시 active 분기 회피
+   * (FormSubmittedContent 로 fallback) — assistant-presentations-block 의
+   * defensive guard 와 평행.
+   */
+  onSubmitForm?: (data: Record<string, unknown>) => void;
 }
 
 export function ConversationInspector({
@@ -196,6 +211,8 @@ export function ConversationInspector({
   turnRefIndex,
   onJumpToReferences,
   onRetryLastTurn,
+  pendingFormToolCallId,
+  onSubmitForm,
 }: ConversationInspectorProps) {
   const t = useT();
   const selectedItem =
@@ -223,6 +240,8 @@ export function ConversationInspector({
               turnRefIndex={turnRefIndex}
               onJumpToReferences={onJumpToReferences}
               onSendMessage={onSendMessage}
+              pendingFormToolCallId={pendingFormToolCallId}
+              onSubmitForm={onSubmitForm}
             />
           </div>
         ) : (
@@ -237,6 +256,8 @@ export function ConversationInspector({
               onJumpToReferences={onJumpToReferences}
               onSendMessage={onSendMessage}
               onRetryLastTurn={onRetryLastTurn}
+              pendingFormToolCallId={pendingFormToolCallId}
+              onSubmitForm={onSubmitForm}
             />
           </div>
         )}
@@ -322,6 +343,8 @@ function SelectedItemDetail({
   turnRefIndex,
   onJumpToReferences,
   onSendMessage,
+  pendingFormToolCallId,
+  onSubmitForm,
 }: {
   item: ConversationItem;
   turnRefIndex?: Map<number, RagSource[]>;
@@ -332,6 +355,13 @@ function SelectedItemDetail({
    * onSendMessage 를 그대로 prop drill.
    */
   onSendMessage?: (message: string) => void;
+  /**
+   * spec/4-nodes/3-ai/1-ai-agent.md §6.1.d.ii — render_form active 분기용
+   * store selector 값. 본 컴포넌트는 AssistantPresentationsBlock 에 그대로
+   * pass-through.
+   */
+  pendingFormToolCallId?: string | null;
+  onSubmitForm?: (data: Record<string, unknown>) => void;
 }) {
   // "rag" 타입은 store 의 ConversationItem 타입에는 없지만 SummaryView 가 system role
   // 메시지를 담아 합성한다. 런타임 분기로 처리.
@@ -380,6 +410,8 @@ function SelectedItemDetail({
         <AssistantPresentationsBlock
           presentations={presentations}
           onSendMessage={onSendMessage}
+          pendingFormToolCallId={pendingFormToolCallId}
+          onSubmitForm={onSubmitForm}
         />
       )}
       {turnSources.length > 0 && onJumpToReferences && (
@@ -767,6 +799,8 @@ function SummaryView({
   onJumpToReferences,
   onSendMessage,
   onRetryLastTurn,
+  pendingFormToolCallId,
+  onSubmitForm,
 }: {
   result: NodeResult;
   conversationConfig: unknown;
@@ -787,6 +821,10 @@ function SummaryView({
    * SystemErrorRow 가 버튼 자동 suppress (history view 등).
    */
   onRetryLastTurn?: (nodeExecutionId: string) => void;
+  /** spec §6.1.d.ii — render_form active 분기용. assistant row 의
+   * AssistantPresentationsBlock 에 pass-through. */
+  pendingFormToolCallId?: string | null;
+  onSubmitForm?: (data: Record<string, unknown>) => void;
 }) {
   const t = useT();
   const config = conversationConfig as Record<string, unknown> | null;
@@ -1185,6 +1223,8 @@ function SummaryView({
                   <AssistantPresentationsBlock
                     presentations={item.presentations}
                     onSendMessage={onSendMessage}
+                    pendingFormToolCallId={pendingFormToolCallId}
+                    onSubmitForm={onSubmitForm}
                   />
                 )}
                 {!hasContent && !hasAssistantToolCalls && !item.presentations?.length && (
