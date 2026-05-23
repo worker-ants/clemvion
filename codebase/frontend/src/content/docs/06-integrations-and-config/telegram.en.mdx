@@ -23,11 +23,19 @@ The Bot API Token grants full control over your bot account. Never embed it dire
 
 ## 2. Add a Chat Channel to a Webhook trigger
 
-<Callout type="warn">
-**No GUI form is available yet.** The trigger create/edit screens will show a Chat Channel card but input fields are coming in a follow-up PR. For now, the API is the only registration path. The spec SoT is [`spec/5-system/15-chat-channel.md`](https://github.com/worker-ants/clemvion/blob/main/spec/5-system/15-chat-channel.md) — this guide will be upgraded to a GUI walkthrough once the UI lands.
-</Callout>
+**GUI flow (recommended)**:
 
-Send `chatChannel` in the trigger create body:
+1. Sidebar → **Triggers** → top-right **"+ Add Webhook Trigger"**
+2. Enter trigger name, target workflow, and auth type
+3. Tick the **"Connect a Chat Channel (Telegram bot)"** checkbox at the bottom
+4. Paste the BotFather token (`123456789:ABC...`) into the **"New Bot Token"** field that appears
+5. Click **Create** — the trigger is created and `setWebhook` is called automatically, linking the bot to the workflow immediately
+
+In the trigger detail drawer, the **"Chat Channel"** card lets you review/edit health, UI mapping, and language hints, plus rotate the bot token via the **"Rotate Bot Token"** button.
+
+**API flow (automation / CI)**:
+
+To register without the GUI, send `chatChannel` in the trigger create body:
 
 ```bash
 curl -X POST https://<your-host>/api/triggers \

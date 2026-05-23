@@ -301,12 +301,9 @@ Set `config.chatChannel` on a Webhook trigger to make a **Telegram bot** the con
 
 ### Setup
 
-<Callout type="warn">
-**No GUI form is available yet.** The trigger create/edit screens reserve a Chat Channel card but input fields are coming in a follow-up PR. For now, the API is the only registration path.
-</Callout>
-
 1. Create a bot with [Telegram BotFather](https://t.me/botfather) using `/newbot` and copy the **API Token**.
-2. Send `config.chatChannel` in the trigger create body:
+2. **Triggers screen → "+ Add Webhook Trigger" → toggle "Connect a Chat Channel (Telegram bot)" at the bottom → paste Bot Token → Create.** `setWebhook` is called automatically to wire the bot to the workflow endpoint.
+3. To register via API instead, send `config.chatChannel` in the trigger create body:
 
 ```bash
 curl -X POST https://<your-host>/api/triggers \
