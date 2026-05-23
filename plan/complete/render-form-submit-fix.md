@@ -107,4 +107,4 @@ PR #285 (`fix(render-form): option.value collision`) 의 후속 — submit 단�
 - spec 정합화: `2de8d113` — W1/W2/W15 invariant + fallback + SSOT 중복 제거
 
 TEST 최종: lint PASS / unit **4560** PASS / build PASS / e2e **98** PASS.
-PR: (생성 직후 본 줄에 PR 링크 추가)
+PR: https://github.com/worker-ants/clemvion/pull/288
