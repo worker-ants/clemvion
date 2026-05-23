@@ -1,12 +1,13 @@
 ---
-worktree: pending
-started: pending
+worktree: plan-coherence-stale-worktree-fix-0e2222
+started: 2026-05-23
+completed: 2026-05-23
 owner: developer
 ---
 
 # Developer §4 partial-implementation discipline 실행 plan
 
-> Stub. 실착수 시 worktree·started 채움.
+> ✅ 완료 (2026-05-23). PR #287 (`spec-harness-impl-coverage`) 안에 변경 반영 완료. 본 plan 의 완료 commit 은 PR `plan-coherence-stale-worktree-fix` (결정 ④ 후속) 에 곁들임 — plan-lifecycle.md §3 의 "plan 이동만 담은 별 PR 분리 금지" 준수.
 
 ## 배경
 
@@ -24,10 +25,10 @@ owner: developer
 
 ## 체크리스트
 
-- [ ] spec PR 머지 확인 (PR 번호 본 plan 갱신 시 기록)
-- [ ] developer/SKILL.md + PROJECT.md 의 한 줄 변경이 main 에 반영됐는지 확인
-- [ ] 사용자 가시 영향 (developer 호출 시 partial-impl 분리 의무 인지) 검증
-- [ ] plan `complete/` 이동 (`chore(plan): mark developer-partial-impl-discipline complete`)
+- [x] spec PR 머지 확인 (PR 번호 본 plan 갱신 시 기록)
+- [x] developer/SKILL.md + PROJECT.md 의 한 줄 변경이 main 에 반영됐는지 확인
+- [x] 사용자 가시 영향 (developer 호출 시 partial-impl 분리 의무 인지) 검증
+- [x] plan `complete/` 이동 (`chore(plan): mark developer-partial-impl-discipline complete`)
 
 ## 검증 명령
 
