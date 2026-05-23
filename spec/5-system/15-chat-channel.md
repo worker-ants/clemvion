@@ -32,7 +32,7 @@ code: []
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
-| CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택 (v1: `telegram`) | 필수 |
+| CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택. supported provider 는 [`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실 (v1 supported: `telegram` / v1 spec-defined: `slack`, `discord` — impl pending) | 필수 |
 | CCH-AD-02 | Trigger enable / 신규 생성 시 어댑터의 `setupChannel()` 자동 호출 (텔레그램은 `setWebhook`) | 필수 |
 | CCH-AD-03 | Trigger disable / 삭제 시 어댑터의 `teardownChannel()` 자동 호출 | 필수 |
 | CCH-AD-04 | Webhook 진입점 ([`POST /api/hooks/:endpointPath`](./12-webhook.md#31-webhook-수신-엔드포인트)) 핸들러는 `config.chatChannel` 가 있으면 raw body 를 `parseUpdate(raw)` 로 통과시켜 워크플로우 input 으로 변환. [WH-NF-01](./12-webhook.md#4-비기능-요구사항) 의 200ms 응답 시한을 깨지 않도록 `parseUpdate` 50ms (CCH-NF-01) + 트리거 조회 + `202 Accepted` 반환의 순서로 처리 | 필수 |
@@ -156,9 +156,11 @@ code: []
 ```jsonc
 {
   "chatChannel": {
-    "provider": "telegram",                    // 어댑터 식별자 (v1: "telegram")
-    "botTokenRef":   "secret://triggers/{triggerId}/bot-token",     // secret store ref (CCH-SE-03 / conventions/secret-store.md)
-    "secretTokenRef": "secret://triggers/{triggerId}/webhook-secret", // Telegram setWebhook 의 secret_token ref (server-issued). HMAC 미지원 provider 의 webhook 인증 — provider 별 unused. setupChannel 이 randomBytes 로 발급해 secret store 에 저장 후 ref 만 config 에 보관
+    "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실. 본 예시는 Telegram. Slack/Discord 는 추가 인증 필드 사용 (아래 주석)
+    "botTokenRef":   "secret://triggers/{triggerId}/bot-token",     // secret store ref (CCH-SE-03 / conventions/secret-store.md) — provider 공통
+    "secretTokenRef": "secret://triggers/{triggerId}/webhook-secret", // Telegram setWebhook 의 secret_token ref (server-issued). setupChannel 이 randomBytes 로 발급해 secret store 에 저장 후 ref 만 config 에 보관. Slack/Discord 는 unused
+    // "signingSecretRef": "secret://triggers/{triggerId}/slack-signing-secret",  // Slack 전용 — provider-issued (Slack 앱 install 시 입력). X-Slack-Signature HMAC 검증
+    // "publicKeyRef":     "secret://triggers/{triggerId}/discord-public-key",    // Discord 전용 — application ed25519 public key (X-Signature-Ed25519 검증)
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
       "username": "myworkflow_bot"
@@ -182,7 +184,7 @@ code: []
 
 `chatChannel` 미존재 = 일반 webhook 트리거 (기존 동작 그대로). 본 필드는 [Webhook §2.2](./12-webhook.md#22-config-필드-구조) 의 `config` JSONB 안에 위치.
 
-`botTokenRef` / `secretTokenRef` 는 모두 [`secret-store.md`](../conventions/secret-store.md) 의 `SecretResolver` 가 resolve — config JSONB 에는 ref 만, plaintext 는 backend AES-256-GCM 으로 암호화되어 `secret_store` 테이블의 `encrypted BYTEA` 컬럼에 보관. [EIA §7.1](./14-external-interaction-api.md#71-trigger-엔티티-확장) 의 `notification.signing.secretRef` 와 동일 정책 + 동일 백엔드.
+`botTokenRef` / `secretTokenRef` / `signingSecretRef` (Slack) / `publicKeyRef` (Discord) 는 모두 [`secret-store.md`](../conventions/secret-store.md) 의 `SecretResolver` 가 resolve — config JSONB 에는 ref 만, plaintext 는 backend AES-256-GCM 으로 암호화되어 `secret_store` 테이블의 `encrypted BYTEA` 컬럼에 보관. [EIA §7.1](./14-external-interaction-api.md#71-trigger-엔티티-확장) 의 `notification.signing.secretRef` 와 동일 정책 + 동일 백엔드. Provider 별 인증 필드의 의미·발급 주체는 [`conventions/chat-channel-adapter.md §2.3 ChatChannelConfig`](../conventions/chat-channel-adapter.md#23-chatchannelconfig) 가 단일 진실.
 
 ### 4.2 Trigger 테이블 신규 컬럼
 
@@ -310,14 +312,27 @@ PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 
 | private chat → 정상 update (새 execution 시작) | `202 Accepted` | `{ executionId }` ([12-webhook §7 step 10](./12-webhook.md#7-처리-흐름) 와 동일 형식) | execution 시작 |
 | private chat → 정상 update (기존 execution forwarding) | `202 Accepted` | `{ ignored: true }` ([12-webhook §7 step 7e](./12-webhook.md#7-처리-흐름) 와 정합) | InteractionService.interact 호출 (새 execution 미생성) |
 | group/supergroup/channel chat | `202 Accepted` | `{ ignored: true }` | `languageHints.groupChatRefusal` 안내 sendMessage 발송 |
-| `from.is_bot === true` | `202 Accepted` | `{ ignored: true }` | silent skip |
+| `from.is_bot === true` (또는 Slack `bot_id` / Discord `member.user.bot === true`) | `202 Accepted` | `{ ignored: true }` | silent skip |
 | `parseUpdate` 미지원 update type | `202 Accepted` | `{ ignored: true }` | silent skip ([12-webhook §7 step 7c](./12-webhook.md#7-처리-흐름) 와 동일) |
 | **비활성 trigger (chatChannel 경로)** | **`202 Accepted`** | **`{ ignored: true }`** | silent skip — WH-EP-07 의 예외. 일반 webhook 경로는 여전히 410 Gone |
 | 트리거 미존재 (잘못된 endpointPath) | `404 Not Found` | 표준 에러 envelope ([API Convention §5.3](./2-api-convention.md)) | — chatChannel 경로도 동일, [WH-RS-02](./12-webhook.md#3-api-명세) 와 일치. endpointPath 자체가 부재인 경우 2xx 는 stale webhook 영구 잔존을 유발 |
-| `X-Telegram-Bot-Api-Secret-Token` 누락/불일치 | `401 Unauthorized` | 표준 에러 envelope | WH-SC-04 와 일치. chatChannel 비활성 트리거도 인증은 그대로 수행 — auth 실패 시 401 (Rationale R-CC-12 (d)) |
+| Webhook 인증 실패 (Telegram `X-Telegram-Bot-Api-Secret-Token` 누락/불일치 · Slack `X-Slack-Signature` HMAC mismatch · Discord `X-Signature-Ed25519` verify 실패) | `401 Unauthorized` | 표준 에러 envelope | WH-SC-04 와 일치. chatChannel 비활성 트리거도 인증은 그대로 수행 — auth 실패 시 401 (Rationale R-CC-12 (d)) |
 | 어댑터 내부 에러 (sendMessage 실패 등) | `202 Accepted` | `{ ignored: true }` 또는 `{ executionId }` (실패 단계에 따라) | 백그라운드 처리, `chat_channel_health='degraded'` 갱신 |
+| **Slack URL Verification** (`type: "url_verification"`) | **`200 OK`** | `{ challenge: <받은 값> }` JSON | provider-specific 예외 (§5.5.1) — Slack 이 challenge 응답을 추출해야 함. [slack.md §3.1](../4-nodes/7-trigger/providers/slack.md#31-setupchannel-구체) 참조 |
+| **Slack Interactivity ack** (`payload.type ∈ {block_actions, view_submission, ...}`) | **`200 OK`** | 빈 body 또는 `{ response_action }` | provider-specific 예외 (§5.5.1) — Slack 의 3초 ack 시한, `202` 미인정 |
+| **Discord PING** (`type: 1`) | **`200 OK`** | `{ type: 1 }` JSON | provider-specific 예외 (§5.5.1) — Discord Interactions endpoint 등록 시 1회 + 주기적 발송. [discord.md §3.1](../4-nodes/7-trigger/providers/discord.md#31-setupchannel-구체) 참조 |
+| **Discord Interactivity ack** (`type ∈ {2, 3, 5}`) | **`200 OK`** | `{ type: 5 | 6 }` (DEFERRED) 또는 `{ type: 4, data: {...} }` (immediate) | provider-specific 예외 (§5.5.1) — Discord 의 3초 ack 시한 |
 
 `error envelope` 형식은 [Spec API Convention §5.3](./2-api-convention.md) (`{ error: { code, message, details? } }`) 단일 진실 참조.
+
+### 5.5.1 Provider-specific 응답 예외 정책
+
+`202 Accepted` 고정 정책의 예외 (Slack URL Verification / Slack Interactivity ack / Discord PING / Discord Interactivity ack) 는 다음 두 조건 모두 충족 시에만 허용된다:
+
+1. **Provider 가 특정 응답 형식만 success 로 인정** — Telegram 처럼 2xx 자유가 아닌 case.
+2. **Provider spec 본문에 사유와 응답 본문 형식이 명시** — `providers/<name>.md` §3.x 또는 §6 의 인라인 명시.
+
+본 정책의 신규 case 추가는 provider spec 갱신 + 본 표 동시 갱신 의무 (Convention §7 변경 관리 정신 적용).
 
 ---
 
@@ -514,3 +529,16 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 ### R-K. `chat_channel_token_v2` 컬럼 명명의 semantic 비대칭 (2026-05-21)
 
 `notification_secret_v2` 는 HMAC signing secret 의 v2 (rotation grace 기간 신규 secret), `chat_channel_token_v2` 는 외부 provider bot token reference 의 v2 (rotation grace 기간 신규 token). 두 컬럼은 의미상 직교 (signing secret vs external bot token) 하지만 **명명 패턴은 동일 유지** (`<channel>_<resource>_v2`). 명명 일관성 우선 — 의미 차이는 컬럼 description 으로 명시. 향후 공용 rotation 패턴 통합 검토 시 두 컬럼 모두 영향.
+
+### R-CC-13. Discord v1 의 CCH-MP-01 부분 유예 — Interactions Webhook only 의 결과 (2026-05-24)
+
+[CCH-MP-01](#33-노드--채널-ui-매핑) 은 "AI Multi Turn 의 `execution.ai_message` → 채널 텍스트 메시지 1건 이상으로 변환" 을 **필수** 요구사항으로 정의한다. Discord provider v1 ([`providers/discord.md` R-D-3](../4-nodes/7-trigger/providers/discord.md#r-d-3-v1--interactions-webhook-only-gateway--v2-2026-05-24)) 은 Interactions Webhook only 정책 (Gateway WebSocket 미사용) 결과 [Discord `MESSAGE_CREATE` event](https://discord.com/developers/docs/topics/gateway-events#message-create) 를 수신할 수 없다. 따라서:
+
+- **Outbound (서버 → 사용자)**: CCH-MP-01 outbound 의무 완전 충족 — `POST /channels/{id}/messages` 로 `execution.ai_message` 전송 가능 (Discord §5.1).
+- **Inbound (사용자 → 서버)**: 자유 텍스트 reply 입력 경로가 제약됨. 사용자 reply 는 **(a) `/<prefix> reply <message>` slash command text option** 또는 **(b) Modal TEXT_INPUT (`Reply` button 클릭 후)** 으로만 가능 — 일반 DM 텍스트 (`MESSAGE_CREATE`) 미수신.
+
+이는 CCH-MP-01 의 "AI Multi Turn 의 자연 대화" UX 가 Discord v1 에서 **Telegram / Slack 과 다른 입력 흐름** 으로 동작함을 의미한다. 본 spec 의 CCH-MP-01 정의 자체는 미변경 (provider 가 의무를 충족하는 방식의 차이) — Discord provider spec 의 §5.1 + R-D-3 에서 자기 부분 유예를 normative 하게 기술. 완전 자연 대화는 v2 Gateway plan ([`chat-channel-discord-gateway`](../../plan/in-progress/chat-channel-discord-gateway.md) — 후속 trigger) 진입 시 해소.
+
+대안 (기각):
+- CCH-MP-01 본문에 "Gateway 미사용 provider 는 모달/slash 입력 허용" 예외 절 추가 — provider 한계가 시스템 spec 에 누수. R-D-9 의 동일 정신 (provider 한계는 provider spec Rationale 에).
+- Discord v1 도 Gateway 도입 — R-D-3 기각 사유 (long-lived connection 관리 부담) 그대로 적용.

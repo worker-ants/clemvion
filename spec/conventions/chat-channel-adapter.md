@@ -147,9 +147,22 @@ interface ChatChannelConfig {
    * Telegram: setupChannel 시 어댑터가 randomBytes 로 발급 → caller (TriggersService) 가
    * SecretResolver.store 로 보관 후 ref 만 config 에 set. HooksController 가
    * `X-Telegram-Bot-Api-Secret-Token` 헤더 검증 시 resolve.
-   * 다른 provider 는 unused (HMAC 지원 시 webhook.md HMAC 경로).
+   * 다른 provider 는 unused (HMAC 또는 ed25519 등 provider-specific 경로는 아래 별 필드 사용).
    */
   secretTokenRef?: string;
+  /**
+   * Slack 전용 — `X-Slack-Signature` HMAC-SHA256 검증용 signing secret 의 ref
+   * (`secret://triggers/{id}/slack-signing-secret`). provider-issued (사용자가 Slack 앱 install 시
+   * 받아 입력). 다른 provider 는 unused. Slack provider 의 webhook 인증 SoT — [slack.md §6](../4-nodes/7-trigger/providers/slack.md#6-보안).
+   */
+  signingSecretRef?: string;
+  /**
+   * Discord 전용 — `X-Signature-Ed25519` 검증용 application public key 의 ref
+   * (`secret://triggers/{id}/discord-public-key`). public 정보지만 rotation·workspace 격리·audit
+   * 일관성 위해 SecretResolver 로 관리. 다른 provider 는 unused. Discord provider 의 webhook 인증
+   * SoT — [discord.md §6](../4-nodes/7-trigger/providers/discord.md#6-보안).
+   */
+  publicKeyRef?: string;
   botIdentity?: { botId: number; username: string };
   uiMapping?: {
     formMode?: "multi_step";
@@ -304,3 +317,4 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 | 2026-05-22 | §3 매핑 표의 시각형 노드 행을 v1 (MarkdownV2 fallback) / v2 (SSR PNG) 정책 분리로 명확화 — provider 별 fallback 구현은 텔레그램 §5.4 참조 (chat-channel-visual-impl). |
 | 2026-05-22 | §2.3 `ChatChannelConfig` — `botToken`/`secretToken` 평문 stub 제거, `botTokenRef`/`secretTokenRef` 단일 형태로 정리. §2.4 `SetupResult` — `configUpdates` + `issuedSecretToken` 분리 정식화 (plaintext 가 config 에 흘러들지 않도록). [secret-store.md](./secret-store.md) convention 신설에 따른 동반 갱신 (chat-channel-secret-store-pgcrypto). |
 | 2026-05-23 | §2.3 `visualNode` enum 교체 (`text_only`→`text` rename + `auto` 신설, default `auto`). §3 시각형 노드 매핑 행에 enum 분기 인용 추가. v1 photo 선택 시 fallback to text + warning 로그 정책. legacy `text_only` 값 read-time normalize 정책. `KeyboardHint` 'text' 와의 의미 구분 인라인 주석. spec-telegram-chat-channel-ui-polish. |
+| 2026-05-24 | §2.3 `ChatChannelConfig` 에 provider-specific webhook 인증 ref 2종 optional 필드 추가 — `signingSecretRef?` (Slack HMAC, provider-issued) / `publicKeyRef?` (Discord ed25519 public key). 기존 `secretTokenRef?` 주석을 "다른 provider 는 별 필드 사용" 으로 명확화. 6함수 인터페이스 / 기타 데이터 타입 변경 없음. spec-slack-discord-chat-channel. |

@@ -28,9 +28,11 @@ secret://<scope>/<resourceId>/<name>
 
 | ref | 용도 |
 |---|---|
-| `secret://triggers/{triggerId}/bot-token` | 텔레그램 봇 토큰 (현재) |
-| `secret://triggers/{triggerId}/bot-token.v2` | 텔레그램 봇 토큰 (rotation grace) |
-| `secret://triggers/{triggerId}/webhook-secret` | Telegram `setWebhook.secret_token` |
+| `secret://triggers/{triggerId}/bot-token` | Chat Channel adapter 의 봇 토큰 (provider 공통 — Telegram bot token / Slack `xoxb-*` / Discord bot token 등) |
+| `secret://triggers/{triggerId}/bot-token.v2` | 봇 토큰 (rotation grace) |
+| `secret://triggers/{triggerId}/webhook-secret` | Telegram `setWebhook.secret_token` (server-issued) |
+| `secret://triggers/{triggerId}/slack-signing-secret` | Slack `X-Slack-Signature` HMAC key (provider-issued — Slack 앱 install 시 받음) |
+| `secret://triggers/{triggerId}/discord-public-key` | Discord application ed25519 public key (`X-Signature-Ed25519` 검증) |
 | `secret://triggers/{triggerId}/notification-signing` | EIA notification HMAC signing secret |
 | `secret://triggers/{triggerId}/notification-signing.v2` | EIA HMAC signing (rotation grace) |
 
@@ -290,3 +292,4 @@ async rotateBotToken(triggerId: string, newToken: string, workspaceId: string) {
 | 날짜 | 내용 |
 |---|---|
 | 2026-05-22 | v1 — `SecretResolver` interface 신설, `secret://<scope>/<resourceId>/<name>` URI scheme 정의, **application-side AES-256-GCM** + 환경변수 마스터키 백엔드 채택 (DB 는 ciphertext 만 보관). CCH-SE-03 v1 plaintext stub 종료. EIA notification.signing.secret 도 같은 store 로 통합. |
+| 2026-05-24 | §1 예시 표에 chat channel provider 별 webhook 인증 ref 2종 추가 — `slack-signing-secret` (Slack HMAC) / `discord-public-key` (Discord ed25519). `bot-token` 의 용도 설명을 provider 공통 (Telegram/Slack/Discord) 으로 generalize. Scheme 자체 변경 없음. spec-slack-discord-chat-channel. |
