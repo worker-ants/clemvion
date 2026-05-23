@@ -535,16 +535,11 @@ export class ExecutionEngineService
    */
   private registerContinuationHandlers(): void {
     this.continuationBus.on('continue', (msg) => {
-      // spec/4-nodes/6-presentation/0-common.md §10.9 — form submission
-      // wire format sentinel wrap. `ai_message` / `button_click` /
-      // `ai_end_conversation` 핸들러와 평행 구조로 `{type:'form_submitted',
-      // formData}` 형식으로 감싼다. form 필드명이 `type` 인 페이로드 (예:
-      // `{type:'주문 문의', ...}`) 가 dispatch 의 `'type' in action` 휴리스틱
-      // 으로 silent drop 됐던 회귀 차단.
-      this.resolvePending(msg.executionId, {
-        type: 'form_submitted',
-        formData: msg.payload,
-      });
+      // spec/4-nodes/6-presentation/0-common.md §10.9 — `continueExecution`
+      // 가 이미 `{ type: 'form_submitted', formData }` sentinel 로 wrap 해서
+      // publish 했으므로, listener 는 payload 를 그대로 forward 한다.
+      // (wrap 책임: continueExecution — listener 는 unwrap/re-wrap 하지 않음.)
+      this.resolvePending(msg.executionId, msg.payload);
     });
 
     this.continuationBus.on('cancel', (msg) => {
@@ -601,6 +596,21 @@ export class ExecutionEngineService
     if (!pending) return;
     this.pendingContinuations.delete(executionId);
     pending.reject(error);
+  }
+
+  /**
+   * spec §10.9 — `continueExecution` 이 publish 하는 sentinel 형태인지 확인.
+   * `{ type: 'form_submitted', formData }` 구조를 type-safe 하게 판별.
+   * W7 (SUMMARY): sentinel 언래핑 이중 타입 단언 → 헬퍼 추출.
+   */
+  private static isFormSubmittedSentinel(
+    v: unknown,
+  ): v is { type: 'form_submitted'; formData: unknown } {
+    return (
+      v !== null &&
+      typeof v === 'object' &&
+      (v as Record<string, unknown>)['type'] === 'form_submitted'
+    );
   }
 
   /**
@@ -1753,12 +1763,17 @@ export class ExecutionEngineService
         reject,
       });
     });
-    const formData =
-      submitted !== null &&
-      typeof submitted === 'object' &&
-      (submitted as { type?: string }).type === 'form_submitted'
-        ? (submitted as { formData?: unknown }).formData
-        : submitted;
+    // spec §10.9 — sentinel unwrap. continueExecution 이 `{type:'form_submitted',
+    // formData}` 로 wrap 해 publish 했으므로 sentinel guard 로 안전하게 unwrap.
+    // back-compat: sentinel 이 아닌 값 (외부 직접 resolvePending 등) 은 그대로.
+    const formData = ExecutionEngineService.isFormSubmittedSentinel(submitted)
+      ? submitted.formData
+      : (() => {
+          this.logger.warn(
+            `waitForFormSubmission — sentinel 없는 폴백 분기 진입 execution=${executionId}. continueExecution 경로 외 직접 resolvePending 등 비정상 경로.`,
+          );
+          return submitted;
+        })();
 
     // Merge submitted form data into the structured NodeHandlerOutput.
     // The form handler stored `{ config, output: {}, status:
@@ -1895,10 +1910,15 @@ export class ExecutionEngineService
    * 측 (controller / WS gateway) 의 책임이다.
    */
   continueExecution(executionId: string, formData?: unknown): void {
+    // spec/4-nodes/6-presentation/0-common.md §10.9 — sentinel wrap 책임.
+    // raw formData 를 그대로 publish 하지 않고 `{ type: 'form_submitted',
+    // formData }` 로 wrap 한 뒤 publish. `'continue'` listener 는 payload 를
+    // 그대로 resolvePending 에 forward (unwrap/re-wrap 금지). dispatch 측
+    // (waitForAiConversation) 은 sentinel 로 명시 매칭 가능.
     void this.continuationBus.publish({
       type: 'continue',
       executionId,
-      payload: formData,
+      payload: { type: 'form_submitted', formData },
     });
   }
 
@@ -2005,6 +2025,10 @@ export class ExecutionEngineService
     // 이 turn 처리 중 handler throw 를 catch 해 `finalStatus='FAILED'` 신호로
     // loop 를 종료시키면, finalizeAiNode 가 FAILED 분기로 진입한다.
     let finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED';
+    // W6 (SUMMARY) — unknown action.type 연속 skip 상한. maxTurns cap 과 별개로
+    // 알 수 없는 타입이 계속 들어오는 비정상 상황에서 루프를 종료한다.
+    let unknownSkipCount = 0;
+    const MAX_UNKNOWN_SKIPS = 20;
     while (!conversationEnded) {
       // Wait for user message or end signal (no timeout — external cancel only)
       const userData = await new Promise<unknown>((resolve, reject) => {
@@ -2059,9 +2083,18 @@ export class ExecutionEngineService
         // spec §10.9 — 알 수 없는 action.type 은 silent skip 회피. warn log
         // 남기고 loop 재진입 (다음 이벤트 대기). 새 action type 추가 시 dispatch
         // 분기 누락이 silent failure 가 되지 않게 가드.
+        // W6 (SUMMARY) — unknown skip 최대 횟수 cap (MAX_UNKNOWN_SKIPS).
+        unknownSkipCount += 1;
         this.logger.warn(
-          `Unknown continuation action.type=${String(action.type)} for execution=${executionId} — loop re-entering`,
+          `Unknown continuation action.type=${String(action.type).slice(0, 64)} for execution=${executionId} — loop re-entering (skip=${unknownSkipCount}/${MAX_UNKNOWN_SKIPS})`,
         );
+        if (unknownSkipCount >= MAX_UNKNOWN_SKIPS) {
+          this.logger.warn(
+            `waitForAiConversation — unknown skip limit (${MAX_UNKNOWN_SKIPS}) reached for execution=${executionId}, terminating conversation loop`,
+          );
+          conversationEnded = true;
+          finalStatus = 'FAILED';
+        }
       }
     }
 

@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-23T18:00:00Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "I/O 반복·캐시·검색 변경 없음 — 로컬 메모리 값 wrapping만"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈·레이어 경계 변경 없음 — 기존 continuation 핸들러 내부 수정"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec 본문 변경 + 소스 코드 변경"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경 (plan/, review/)"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json·lock 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션·SQL·스키마 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/Promise/락/큐 코드 변경 없음 — 기존 비동기 흐름의 payload 형식 개선"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "form submission wire format sentinel wrap — 백엔드 continuation bus 핸들러 ↔ dispatch 루프 간 내부 메시지 계약 변경"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "PROJECT.md §변경 유형 매트릭스 trigger 미충족 — 신규 enum값·UI문자열·노드·API 추가 없음"
+    }
+  ],
+  "selected_count": 8,
+  "skipped_count": 6,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}

@@ -1656,6 +1656,18 @@ export class AiAgentHandler implements NodeHandler {
       // flow unless the LLM re-emits render_form.
       delete state.pendingFormToolCall;
     } else {
+      // I#5 (SUMMARY): pendingFormToolCall 이 없는 상태에서 form 제출 경로로
+      // 진입한 경우 (race condition / 사용자가 render_form 없는 turn 에 직접
+      // execution.submit_form 전송 등) — warn log 발행 후 plain user 메시지로 fallback.
+      // spec/4-nodes/6-presentation/0-common.md §10.9 §Rationale 마지막 단락.
+      if (
+        (userMessage ?? '').startsWith('{') ||
+        (userMessage ?? '').startsWith('[')
+      ) {
+        this.logger?.warn?.(
+          `processMultiTurnMessageInner — pendingFormToolCall 없음, JSON 형태 userMessage 를 plain ai_user 메시지로 fallback. spec §10.9 §Rationale (pendingFormToolCall 누락 fallback).`,
+        );
+      }
       // Add user message (normal chat path).
       messages.push({ role: 'user', content: userMessage });
       // ConversationThread push (spec §2.2 — multi-turn ai_user)

@@ -277,6 +277,69 @@ describe("useExecutionInteractionCommands", () => {
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
+  // I#7 (SUMMARY) — submitForm 중복 호출 시 once listener 등록 검증
+  it("submitForm 중복 호출 시 each call 에서 once listener 등록 (중복 submit 방어)", () => {
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.submitForm({ a: 1 });
+      result.current.submitForm({ b: 2 });
+    });
+    // 각 submitForm 마다 once listener 를 execution.form_submitted 에 등록해야 함.
+    const onceRegistrations = onceMock.mock.calls.filter(
+      ([event]) => event === "execution.form_submitted",
+    );
+    expect(onceRegistrations).toHaveLength(2);
+  });
+
+  // I#8 (SUMMARY) — presentation 혼합 시 turnIndex 검증
+  it("submitForm 과 sendMessage 혼합 시 turnIndex 가 user+presentation 기준으로 증가", () => {
+    // 순서: submitForm(1) → presentation(1), sendMessage → user(1), submitForm(2) → presentation(3)
+    // submitForm 의 turnIndex 는 conversationMessages 에서 user+presentation 을 카운트.
+    // sendMessage 의 turnIndex 는 user 만 카운트.
+    // submitForm(1) 시점: user+presentation=0 → turnIndex=1
+    // sendMessage 시점: user=0 → turnIndex=1
+    // submitForm(2) 시점: messages=[pres(1), user(1)] → user+presentation=2 → turnIndex=3
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.submitForm({ x: 1 });
+      result.current.sendMessage("node-1", "hello");
+      result.current.submitForm({ x: 2 });
+    });
+    const msgs = useExecutionStore.getState().conversationMessages;
+    const presentations = msgs.filter((m) => m.type === "presentation");
+    const users = msgs.filter((m) => m.type === "user");
+    // presentation[0]: submitForm(1) 시점 user+presentation=0 → turnIndex=1
+    expect(presentations[0].turnIndex).toBe(1);
+    // presentation[1]: submitForm(2) 시점 user+presentation=2 → turnIndex=3
+    expect(presentations[1].turnIndex).toBe(3);
+    // user[0]: sendMessage 시점 user=0 → turnIndex=1
+    expect(users[0].turnIndex).toBe(1);
+  });
+
+  // I#9 (SUMMARY) — Unknown error fallback toast 검증
+  it("submitForm ack — error 필드 없이 success:false 오면 'Unknown error' fallback toast", () => {
+    const { result } = renderHook(() =>
+      useExecutionInteractionCommands("exec-1"),
+    );
+    act(() => {
+      result.current.submitForm({ name: "John" });
+    });
+    const onceCall = onceMock.mock.calls.find(
+      ([event]) => event === "execution.form_submitted",
+    );
+    expect(onceCall).toBeDefined();
+    const ackHandler = onceCall![1] as (resp: unknown) => void;
+    act(() => {
+      // error 필드 없이 success:false — emitWithAck 의 `error ?? "Unknown error"` fallback
+      ackHandler({ success: false });
+    });
+    expect(toastErrorMock).toHaveBeenCalledWith("Unknown error");
+  });
+
   it("no-ops when executionId is null", () => {
     const { result } = renderHook(() =>
       useExecutionInteractionCommands(null),
