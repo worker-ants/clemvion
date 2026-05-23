@@ -106,4 +106,4 @@ ai-review (`review/code/2026/05/23/12_39_18`) 의 결과로 다음 항목이 별
 - ai-review fix: `117463b1` — `fix(presentation): SUMMARY#1~#4,#8~#14,#19 — security+testing+docs resolution`
 
 TEST 최종: lint PASS / unit 4541 PASS / build PASS / e2e 98/98 PASS.
-PR: (생성 직후 본 줄에 hash 또는 PR 링크 추가)
+PR: https://github.com/worker-ants/clemvion/pull/280
