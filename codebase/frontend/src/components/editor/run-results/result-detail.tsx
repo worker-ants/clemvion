@@ -892,6 +892,22 @@ export function ResultDetail({
     onConversationEnd();
   }, [executionId, result, commands, onConversationEnd]);
 
+  // spec/conventions/conversation-thread.md §9.10 CT-S11 — `system_error`
+  // 항목의 `[다시 시도]` 버튼이 execution.retry_last_turn 명령을 보낸다.
+  // node-execution-id 는 system_error item 의 systemError.nodeId 가 아닌
+  // backend 가 보낸 ConversationItem.systemError.nodeId 가 host node 의
+  // nodeId (NodeExecution 의 nodeId 가 아님). row 단위 식별은 backend 가
+  // payload 의 nodeExecutionId 에서 lookup — 본 UI 는 인자로 받은
+  // nodeExecutionId 를 그대로 송신 (SystemErrorRow 의 button click 핸들러
+  // 에서 host node 의 NodeExecution row id 를 알아내 전달).
+  const handleRetryLastTurn = useCallback(
+    (nodeExecutionId: string) => {
+      if (!executionId) return;
+      commands.retryLastTurn(nodeExecutionId);
+    },
+    [executionId, commands],
+  );
+
   // Lifted active tab + highlight — Preview chip 의 References 탭 점프와
   // 동기화하기 위해 ResultDetail 이 단일 source-of-truth 역할.
   // `scrollKey` 는 같은 turnIndex 로 재진입할 때도 effect 를 재트리거해
@@ -984,8 +1000,14 @@ export function ResultDetail({
       onBackToConversation={handleBackToConversation}
       turnRefIndex={turnRefIndex}
       onJumpToReferences={handleJumpToReferences}
+      onRetryLastTurn={handleRetryLastTurn}
     />
   ) : isCompletedConversation ? (
+    // failed 상태의 multi-turn 종결 노드도 conversation preview 노출 — 인스펙터
+    // 가 마지막 system_error item 을 표시하고 [다시 시도] 버튼이 활성화된다.
+    // history view 도 onRetryLastTurn 을 prop 으로 받지만 history 의
+    // system_error 는 nodeId 가 빈 문자열이므로 SystemErrorRow 가 자동 suppress
+    // (showRetry = retryable && !!nodeId).
     <ConversationInspector
       result={result}
       conversationMessages={historyMessages}
@@ -999,6 +1021,7 @@ export function ResultDetail({
       onBackToConversation={handleBackToConversation}
       turnRefIndex={turnRefIndex}
       onJumpToReferences={handleJumpToReferences}
+      onRetryLastTurn={handleRetryLastTurn}
     />
   ) : null;
 

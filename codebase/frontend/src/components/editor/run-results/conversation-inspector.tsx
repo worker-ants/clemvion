@@ -12,6 +12,7 @@ import {
   CheckCircle,
   XCircle,
   Info,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import type { ConversationItem, ToolCallInfo } from "@/lib/stores/execution-store";
@@ -172,6 +173,13 @@ interface ConversationInspectorProps {
    * 요청하는 콜백.
    */
   onJumpToReferences?: (turnIndex: number) => void;
+  /**
+   * spec/conventions/conversation-thread.md §9.10 CT-S11 — `system_error`
+   * 항목의 `[다시 시도]` 버튼 클릭 → execution.retry_last_turn 매핑.
+   * 부모 ResultDetail (또는 호출자) 가 useExecutionInteractionCommands 의
+   * retryLastTurn 을 prop drill. 미정 시 retry 버튼 자동 suppress.
+   */
+  onRetryLastTurn?: (nodeExecutionId: string) => void;
 }
 
 export function ConversationInspector({
@@ -187,6 +195,7 @@ export function ConversationInspector({
   onBackToConversation,
   turnRefIndex,
   onJumpToReferences,
+  onRetryLastTurn,
 }: ConversationInspectorProps) {
   const t = useT();
   const selectedItem =
@@ -227,6 +236,7 @@ export function ConversationInspector({
               turnRefIndex={turnRefIndex}
               onJumpToReferences={onJumpToReferences}
               onSendMessage={onSendMessage}
+              onRetryLastTurn={onRetryLastTurn}
             />
           </div>
         )}
@@ -339,6 +349,9 @@ function SelectedItemDetail({
   }
   if (item.type === "system") {
     return <SystemDetail item={item} />;
+  }
+  if (item.type === "system_error") {
+    return <SystemErrorDetail item={item} />;
   }
 
   const hasToolCalls = !!item.assistantToolCalls?.length;
@@ -599,6 +612,130 @@ function SystemDetail({ item }: { item: ConversationItem }) {
   );
 }
 
+/**
+ * SelectedItemDetail variant for a `system_error` turn.
+ *
+ * spec/conventions/conversation-thread.md §9.1 매핑표:
+ * - icon: ❌ / AlertCircle
+ * - 컨테이너 형식: 가운데정렬 얇은 빨간 full-width 라인 (chat bubble 아님)
+ * - chip 헤더: `<nodeLabel> · <code>` (§9.2 3중 시각 신호)
+ * - 본문: `data.message`
+ * - 우측 액션 영역: `retryable === true` 시 `[다시 시도]` 버튼 + 카운트다운
+ *
+ * 본 detail panel 은 selected 상태에서 같은 정보 + 더 자세한 메타를 표시.
+ */
+function SystemErrorDetail({ item }: { item: ConversationItem }) {
+  const t = useT();
+  const se = item.systemError;
+  if (!se) return null;
+  return (
+    <div className="flex flex-col gap-3 p-3">
+      <div className="flex items-center gap-2">
+        <AlertCircle size={14} className="text-red-500" aria-hidden />
+        <span className="text-xs font-medium text-red-600 dark:text-red-400">
+          {se.nodeLabel
+            ? `${se.nodeLabel} · ${se.code}`
+            : se.code}
+        </span>
+        {item.timestamp && (
+          <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
+            {formatDate(item.timestamp, "datetime")}
+          </span>
+        )}
+      </div>
+      <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+        <div className="whitespace-pre-wrap">{se.message}</div>
+        {!se.retryable && (
+          <div className="mt-2 text-[10px] uppercase tracking-wide text-red-700/70 dark:text-red-400/70">
+            {t("editor.conversation.systemErrorNonRetryable")}
+          </div>
+        )}
+        {se.retryable && se.retryAfterSec !== undefined && (
+          <div className="mt-2 text-[10px] text-red-700/70 dark:text-red-400/70">
+            {t("editor.conversation.systemErrorRetryAfter", {
+              seconds: se.retryAfterSec,
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Inline-row renderer for a `system_error` turn used inside SummaryView's
+ * conversation timeline. Matches §9.1 매핑표:
+ *
+ * - 컨테이너: 가운데정렬 얇은 빨간 full-width 라인
+ * - chip: `<nodeLabel> · <code>`
+ * - 본문: `data.message`
+ * - 우측: `[다시 시도]` button (retryable=true) + retryAfterSec 카운트다운
+ *
+ * `onRetry` is the parent-supplied callback that wires `execution.retry_last_turn`
+ * via `useExecutionInteractionCommands`. When undefined the retry button is
+ * suppressed (history / disconnected view).
+ */
+function SystemErrorRow({
+  item,
+  onRetry,
+  isClickable,
+  onClick,
+  onKeyDown,
+}: {
+  item: ConversationItem;
+  onRetry?: (nodeExecutionId: string) => void;
+  isClickable?: boolean;
+  onClick?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+}) {
+  const t = useT();
+  const se = item.systemError;
+  if (!se) return null;
+  // `nodeExecutionId` 가 있어야 retry_last_turn 호출 가능. live view 는 WS
+  // payload 의 nodeExecutionId 를 받고, history view 는 빈 fallback 으로 button
+  // 자동 suppress (Inv-6 fallback 정책 — §9.1).
+  const showRetry =
+    se.retryable && !!onRetry && !!se.nodeExecutionId;
+  return (
+    <div
+      role={isClickable ? "button" : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      className={cn(
+        "flex w-full items-center gap-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-200",
+        isClickable &&
+          "cursor-pointer transition-colors hover:bg-red-100 focus:outline-none focus:ring-1 focus:ring-red-300 dark:hover:bg-red-900",
+      )}
+    >
+      <AlertCircle size={12} className="shrink-0 text-red-500" aria-hidden />
+      <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-900 dark:text-red-200">
+        {se.nodeLabel ? `${se.nodeLabel} · ${se.code}` : se.code}
+      </span>
+      <span className="min-w-0 flex-1 truncate" title={se.message}>
+        {se.message}
+      </span>
+      {showRetry && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRetry!(se.nodeExecutionId!);
+          }}
+          className="shrink-0 rounded bg-red-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-1 focus:ring-red-300"
+        >
+          {se.retryAfterSec !== undefined
+            ? `${t("editor.conversation.systemErrorRetry")} · ${t(
+                "editor.conversation.systemErrorRetryAfterShort",
+                { seconds: se.retryAfterSec },
+              )}`
+            : t("editor.conversation.systemErrorRetry")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function UserDetail({ item }: { item: ConversationItem }) {
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -629,6 +766,7 @@ function SummaryView({
   turnRefIndex,
   onJumpToReferences,
   onSendMessage,
+  onRetryLastTurn,
 }: {
   result: NodeResult;
   conversationConfig: unknown;
@@ -642,6 +780,13 @@ function SummaryView({
    * 버튼 클릭이 user 메시지로 흡수되도록 prop drilled.
    */
   onSendMessage?: (message: string) => void;
+  /**
+   * spec/conventions/conversation-thread.md §9.10 CT-S11 — system_error
+   * 항목의 `[다시 시도]` 버튼이 execution.retry_last_turn 으로 매핑되도록
+   * useExecutionInteractionCommands.retryLastTurn 을 prop drill. 미정 시
+   * SystemErrorRow 가 버튼 자동 suppress (history view 등).
+   */
+  onRetryLastTurn?: (nodeExecutionId: string) => void;
 }) {
   const t = useT();
   const config = conversationConfig as Record<string, unknown> | null;
@@ -784,6 +929,7 @@ function SummaryView({
             const isTool = item.type === "tool";
             const isPresentation = item.type === "presentation";
             const isSystem = item.type === "system";
+            const isSystemError = item.type === "system_error";
             // 부모(intermediate assistant) 에 흡수된 tool row 는 본 위치에서
             // 표준 렌더 대신 부모 분기 안의 tree children 으로만 보여준다.
             if (isTool && claimedToolIndices.has(i)) return null;
@@ -928,6 +1074,22 @@ function SummaryView({
                   <span className="font-medium">{t("editor.conversation.cardSystemNote")}</span>
                   {item.content && <span>· {item.content}</span>}
                 </div>
+              );
+            }
+            // spec §9.1 system_error — ❌ 빨간 라인 + chip + [다시 시도]. 본
+            // surface 의 retry 는 부모 prop drill (`onRetryLastTurn`) — 인스펙터
+            // 의 SummaryView 가 호스트라 onRetry 가 set 안된 경우 (history view)
+            // 는 SystemErrorRow 내부에서 button 자동 suppress.
+            if (isSystemError) {
+              return (
+                <SystemErrorRow
+                  key={`${item.type}-${i}`}
+                  item={item}
+                  onRetry={onRetryLastTurn}
+                  isClickable={isClickable}
+                  onClick={handleClick}
+                  onKeyDown={handleKeyDown}
+                />
               );
             }
             // Tool 은 시스템 이벤트로 buble 이 아닌 컴팩트 한 줄로 분리.

@@ -109,6 +109,7 @@ function makeSystemErrorItem(args: {
   retryAfterSec?: number;
   nodeId: string;
   nodeLabel: string;
+  nodeExecutionId?: string;
   timestamp?: string;
 }): ConversationItem {
   return {
@@ -122,6 +123,7 @@ function makeSystemErrorItem(args: {
       retryAfterSec: args.retryAfterSec,
       nodeId: args.nodeId,
       nodeLabel: args.nodeLabel,
+      nodeExecutionId: args.nodeExecutionId,
     },
     timestamp: args.timestamp,
   };
@@ -765,6 +767,7 @@ export function useExecutionEvents({
               retryAfterSec,
               nodeId: payload.nodeId,
               nodeLabel: payload.nodeLabel ?? payload.nodeId,
+              nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
               timestamp: payload.finishedAt ?? payload.timestamp,
             }),
           );
@@ -851,6 +854,7 @@ export function useExecutionEvents({
               retryAfterSec,
               nodeId: payload.nodeId,
               nodeLabel: payload.nodeLabel ?? payload.nodeId,
+              nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
               timestamp: payload.finishedAt ?? payload.timestamp,
             }),
           );

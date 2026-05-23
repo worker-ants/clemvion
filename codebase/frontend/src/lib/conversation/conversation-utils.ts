@@ -36,6 +36,16 @@ export interface SystemErrorTurnData {
   retryAfterSec?: number;
   nodeId: string;
   nodeLabel: string;
+  /**
+   * The `NodeExecution.id` (row primary key) of the failed turn. Required
+   * by `execution.retry_last_turn` to spawn a new NodeExecution from the
+   * persisted `_retryState`. Optional in history view payloads where the
+   * row id may not be available — UI suppresses the retry button.
+   *
+   * SoT: spec/conventions/conversation-thread.md §1.2 `data?` 비고 +
+   * spec/5-system/6-websocket-protocol.md §4.2 retry_last_turn payload.
+   */
+  nodeExecutionId?: string;
 }
 
 export interface ConversationTurn {
@@ -292,6 +302,7 @@ export function threadTurnsToConversationItems(
                 retryAfterSec: errorData.retryAfterSec,
                 nodeId: errorData.nodeId ?? turn.nodeId,
                 nodeLabel: errorData.nodeLabel ?? turn.nodeLabel,
+                nodeExecutionId: errorData.nodeExecutionId,
               }
             : {
                 code: "UNKNOWN_ERROR",

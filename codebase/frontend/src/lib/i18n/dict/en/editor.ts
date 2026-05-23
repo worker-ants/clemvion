@@ -189,6 +189,17 @@ export const editor: Dict["editor"] = {
     cardFormSubmitted: "form submitted",
     cardLinkContinue: "link continue",
     cardSystemNote: "System note",
+    // system_error source (§9.1 + §9.10 CT-S9/S10/S11)
+    systemErrorRetry: "Retry",
+    systemErrorRetryAfter: "Retry available in {{seconds}}s",
+    systemErrorRetryAfterShort: "{{seconds}}s",
+    systemErrorRetrying: "Retrying…",
+    systemErrorNonRetryable: "Not retryable",
+    systemErrorRetryFailed: "Retry failed",
+    systemErrorRetryFailedNotFound:
+      "This retry attempt has expired or was already used.",
+    systemErrorRetryFailedNodeNotRetryable: "This error cannot be retried.",
+    systemErrorRetryFailedTooEarly: "Please wait before retrying.",
   },
   expression: {
     insertVariable: "Insert variable",
