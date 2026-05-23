@@ -175,8 +175,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.cancelled` | `{ executionId, cancelledBy, duration }` | 실행 취소 |
 | `execution.paused` | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지 |
 | `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeName, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
-| `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeName, output, duration }` | 노드 실행 완료 |
-| `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패 |
+| `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeName, output, duration }` | 노드 실행 완료. `output` 은 `NodeHandlerOutput` 의 `output` 필드 — `output.error` 가 set 된 경우 (예: AI Agent multi-turn 의 `port: 'error'` 종결) 도 포함 ([Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). `output.error.details.retryable` / `retryAfterSec` 표준 필드는 CONVENTIONS Principle 3.2.1 정의 |
+| `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패. `error` 는 `output.error` 전체 구조 — `{ code: string, message: string, details?: { retryable?: boolean, retryAfterSec?: number, ... 노드별 } }` ([CONVENTIONS Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)). LLM 계열 노드는 `details.retryable` 필수 |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeName, reason }` | 노드 건너뜀 |
 | `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig?, conversationThread? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. `conversationThread` 가 동봉되면 UI 가 라이브 thread 패널을 갱신할 수 있다 (선택, §4.4.5). 아래 §4.4 참조 |
 | `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs?, presentations? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷이며, 각 항목은 `source: 'live' \| 'injected'` 마커를 동봉한다 (§4.4.6). `presentations` 는 AI Agent 의 `render_*` 표현 도구 출력 (§4.4 표 / [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)). 상세 필드 정의는 §4.4 참조 |
@@ -195,6 +195,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.click_button` | `{ executionId, nodeId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션) |
 | `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송 |
 | `execution.end_conversation` | `{ executionId, nodeId }` | AI Agent Multi Turn 대화 종료 요청 |
+| `execution.retry_last_turn` | `{ executionId, nodeExecutionId }` | AI Agent Multi Turn 의 retryable error (`output.error.details.retryable === true`) 종결 후 동일 nodeId 의 새 NodeExecution row 를 spawn 해 마지막 LLM 호출 재진입. `nodeId` 대신 `nodeExecutionId` 사용 사유: 동일 nodeId 가 여러 NodeExecution row 를 가질 수 있어 row 단위 식별 필요. 워크플로우 Re-run ([§13 replay-rerun](./13-replay-rerun.md)) 과 다름 — 동일 Execution 안 노드 단위 재시도. |
 
 **실행 시작 응답:**
 
@@ -231,6 +232,47 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID |
 | `INVALID_EXECUTION_STATE` | 실행이 `waiting_for_input` 상태가 아님 |
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
+
+**`execution.retry_last_turn` ack:**
+
+기존 `execution.click_button.ack` 의 `resumed` flag 패턴 + 실패 시 `error` 객체 추가.
+
+```json
+{
+  "type": "execution.retry_last_turn.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeExecutionId": "uuid",
+    "resumed": true
+  }
+}
+```
+
+실패 응답:
+
+```json
+{
+  "type": "execution.retry_last_turn.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeExecutionId": "uuid",
+    "resumed": false,
+    "error": { "code": "RETRY_STATE_NOT_FOUND", "message": "..." }
+  }
+}
+```
+
+> `nodeId` 가 ack 에 포함되지 않는 이유: 클라이언트가 송신 시 `nodeExecutionId` 만 보내며 ack 도 동일 식별자만 echo 한다. `nodeId` 는 `nodeExecutionId` 로 backend lookup 가능하므로 redundant.
+
+**`execution.retry_last_turn` 에러 코드:**
+
+| 코드 | 설명 |
+|------|------|
+| `RETRY_STATE_NOT_FOUND` | `NodeExecution.outputData._retryState` 가 DB 에 없거나 만료됨 (`expiresAt` TTL 초과, 또는 이미 다른 retry 가 소비). 이 코드는 `_retryState` DB row 의 만료/부재를 의미하며 별도 token 필드는 payload 에 존재하지 않는다 |
+| `NODE_NOT_RETRYABLE` | 해당 노드의 `output.error.details.retryable === false` 또는 노드가 retryable error 로 종결되지 않음 (예: 정상 종결, condition 종결) |
+| `RETRY_TOO_EARLY` | `output.error.details.retryAfterSec` 카운트다운 종료 전 호출 — 서버측 enforcement. 클라이언트가 disabled 처리하면 정상적으로는 발생 안 함 |
 
 ### 4.4 사용자 입력 대기 이벤트 상세 (`execution.waiting_for_input`)
 
@@ -579,6 +621,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `execution.click_button` | `click_button` | 동일 페이로드 |
 | `execution.submit_message` | `submit_message` | 동일 페이로드 |
 | `execution.end_conversation` | `end_conversation` | 동일 페이로드 |
+| `execution.retry_last_turn` | (외부 미노출 — 향후 별 PR 에서 노출 예정) | 1차 PR (2026-05-23) 은 내부 UI 한정. 외부 노출 시 `per_execution` 토큰 권한 매트릭스 + Notification 흐름과의 정합 + retry 횟수 제한 정책이 별도 결정 필요. EIA spec [EIA-IN-02](./14-external-interaction-api.md) 와 정합. `execution.start` 의 "원칙적 배제 (webhook 대체)" 와 의미 다름 |
 | `execution.stop` | `cancel` (또는 `POST /api/executions/:id/cancel` alias) | force 옵션은 외부에서 미지원 |
 | `execution.start` | (외부 미지원) | 외부는 webhook 트리거로 실행 시작 |
 | `execution.continue` / `execution.step` | (외부 미지원) | 디버깅 전용, UI/내부 한정 |

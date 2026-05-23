@@ -72,7 +72,7 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
 | Wrapper | 용도 |
 |---------|------|
 | `output.result.*` | 성공 시 도메인 결과 (extracted, response, category, …) |
-| `output.error.{code, message, details?}` | LLM 호출 실패, JSON 파싱 실패, 재시도 소진 등 |
+| `output.error.{code, message, details?}` | LLM 호출 실패, JSON 파싱 실패, 재시도 소진 등. **LLM 계열 노드는 `details.retryable: boolean` 필수, `details.retryAfterSec?: number` 선택** — `retryable === true` 일 때만 set ([CONVENTIONS Principle 3.2.1](../../conventions/node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수)) |
 | `output.interaction.{type, data, receivedAt}` | 멀티턴 resume 직후 1회 emit (Principle 4.5) |
 
 > Multi-turn 에서 `max_retries` 등으로 종료 시 `output.error` 와 `output.result` 가 **병존** 가능 — 부분 수집 결과를 후속 노드가 활용할 수 있도록 둘 다 보존한다. `output.error` 존재 여부로 에러/정상을 판단한다.

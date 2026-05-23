@@ -17,6 +17,8 @@
 
 이 5필드의 의미는 **어떤 노드에서든 동일**해야 합니다.
 
+> **internal top-level 필드 허용 예외**: `_resumeState` (multi-turn waiting/resumed 의 internal 전달) 와 `_retryState` (retryable error 종결 시 DB 보존 — Principle 4.2 보존 예외) 는 5필드 외 top-level 위치를 갖는다. expression resolver / autocomplete 비노출, credential strip 정책은 두 필드 동일. 상세: Principle 4.2.
+
 ---
 
 ## Principle 1 — `output` 은 "비즈니스 결과물"만 담는다
@@ -102,7 +104,7 @@
     "error": {
       "code": "HTTP_5XX" | "DB_QUERY_FAILED" | "LLM_TIMEOUT" | ...,
       "message": "사람이 읽는 메시지",
-      "details": { /* optional, 노드별 */ }
+      "details": { /* §3.2.1 공통 표준 필드 + §3.2.2 노드별 필드 */ }
     }
   },
   "port": "error"
@@ -111,7 +113,25 @@
 
 - `code` 는 `UPPER_SNAKE_CASE`.
 - `message` 는 국제화 고려 없음 (로그/디버깅용 원문).
-- `details` 는 선택적, 노드별 스키마.
+- `details` 는 두 계층 — §3.2.1 공통 표준 필드 (LLM 계열 노드 한정 필수) + §3.2.2 노드별 선택 스키마.
+
+#### 3.2.1. `details` 의 공통 표준 필드 (LLM 계열 노드 한정 필수)
+
+| 필드 | 타입 | 노드별 의무 | 의미 |
+| --- | --- | --- | --- |
+| `retryable` | `boolean` | **LLM 계열 노드 (`ai_agent` / `text_classifier` / `information_extractor`) 에서 필수**. 기타 노드는 선택 (점진 채택) | 본 에러가 일시적이며 동일 호출을 다시 시도하면 성공할 가능성이 있는지 여부. `true` = HTTP 429 / 5xx / network timeout 등 transient. `false` = 인증 실패 / schema fatal / 사용자 취소 등 fundamental |
+| `retryAfterSec` | `number` | 선택 (LLM 계열 / 비-LLM 모두) | provider 가 `Retry-After` 헤더 또는 동등 신호를 제공한 경우의 권장 대기 시간 (초). **invariant**: `retryable === true` 일 때만 set 가능 — `false` 와 함께 set 시 spec 위반 (convention-compliance checker 가 발견). 본 invariant 의 SoT 는 본 §3.2.1 |
+
+> 사용자 인터랙션 측면 — `retryable=true` 인 노드는 UI 가 인라인 `[다시 시도]` 버튼 + `retryAfterSec` 카운트다운을 노출 (예: AI Agent multi-turn 의 conversation thread 안 `system_error` item — [Conversation Thread §9.1](./conversation-thread.md#91-source-별-시각-매핑-강제)).
+
+#### 3.2.2. `details` 의 노드별 선택 스키마
+
+§3.2.1 의 공통 필드 외 추가 메타는 각 노드 spec 의 `output.error.details` 표가 정의. 예:
+- AI Agent: `provider`, `statusCode` ([§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트))
+- HTTP Request: `responseHeaders`, `responseBody` 일부
+- DB Query: `pgErrorCode`, `query`
+
+비-LLM 노드는 §3.2.1 의 `retryable` / `retryAfterSec` 가 선택. 명시할 경우 본 spec 의 의미를 준수.
 
 ### 3.3. 에러 포트 보유 노드
 
@@ -161,6 +181,21 @@
 - 초안의 `output.view.type` 판별자 → **폐기** (Principle 1.1.4). 노드 타입은 워크플로우 정의에서 파악.
 - 현재 presentation 노드의 `output.type: 'carousel'|'table'|...` 판별자 → **폐기** (동일 이유).
 - 현재 presentation 노드의 `output.rendered` (HTML snapshot) → **프런트 렌더링용** 이라면 유지 가능하나, 후속 노드 로직이 참조할 런타임 값이 아니면 `meta.rendered` 로 이동 검토.
+
+#### 4.2.1. 보존 예외 — `_retryState`
+
+`_resumeState` 는 DB 영속 시 `stripControlFields()` 가 무조건 제거하지만, **`_retryState` 는 strip 예외 — retryable error 종결 시 `NodeExecution.outputData` 안에 보존**된다.
+
+| 필드 | strip 정책 | 영속 위치 |
+| --- | --- | --- |
+| `_resumeState` | 무조건 strip (DB 영속 시) | in-memory `ExecutionContext` 만 (waiting/resumed 중) |
+| `_retryState` | **retryable error 종결 시 보존** — `output.error.details.retryable === true` 일 때만 `buildMultiTurnFinalOutput` 이 운반 | `NodeExecution.outputData._retryState` (DB JSONB) |
+
+`_retryState` 포함 필드: `_resumeState` 동일 shape (messages / turnCount / model / temperature / maxTokens / knowledgeBases / RAG / MCP / pendingFormToolCall? 등) + `expiresAt: ISO 8601` (TTL — 기본 60분). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` 가 boundary 에서 strip). expression resolver / autocomplete 비노출.
+
+소비: WS 명령 `execution.retry_last_turn` ([Spec WebSocket §4.2](../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server)) 이 `nodeExecutionId` 로 `_retryState` 를 lookup → `expiresAt` 검증 → 새 NodeExecution row 를 spawn → multi-turn loop 재진입. TTL 만료 또는 한 번 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 에러 코드로 응답.
+
+상세 흐름: [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트), [Spec 실행 엔진 §1.3](../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status).
 
 ### 4.3. Waiting 상태의 `output` 내용 (노드별)
 
