@@ -30,10 +30,24 @@
 | `timestamp` | String (ISO 8601) | 서버 시각 |
 | `source` | ConversationTurnSource | §1.1 |
 | `text` | String | system_text injection 과 messages 모드의 user/assistant content. **LLM-facing 1차 텍스트** — `[from <nodeLabel>]` prefix 는 builder 단계에서 prepend 되므로 turn.text 에는 박히지 않는다 (§1.5). 사용자-출처 텍스트는 `[user-input]…[/user-input]` 마커로 wrap 되어 저장된다 — prompt injection 방어용 LLM-facing 의무 (§1.6), UI 표시 시 §9.5 의 strip 으로 제거된다. UI 는 §9 의 매핑표를 따라 `source` + `nodeLabel` + `data` 메타로 분기 — `text` 를 raw 로 직접 노출하지 않는다. 빈 문자열 가능 (구조화 데이터만 있는 경우) |
-| `data?` | Object | 구조화 원본 — `output.interaction.data` snapshot. `interaction.type` 별 shape 은 [node-output §4.5](./node-output.md#45-interactiondata-payload-규격) 의 단일 정의를 따른다 (drift 회피 위해 본 표에 재열거하지 않음). UI 와 LLM payload builder 는 raw text 파싱 없이 본 메타로 렌더 / 직렬화 — 새 inline marker 도입은 §1.6 를 먼저 개정해야 한다. **`source: 'system_error'` 한정 인라인 정의 (node-output §4.5 scope 외)**: `{ code: string, message: string, retryable: boolean, retryAfterSec?: number, nodeId: UUID, nodeLabel: string, nodeExecutionId?: UUID }`. `code` / `message` / `retryable` / `retryAfterSec` 는 호스트 노드의 `output.error.{code, message, details.retryable, details.retryAfterSec}` 와 1:1 동기 (단일 진실은 `output.error` 측). `nodeId` / `nodeLabel` 은 system_error 를 발생시킨 노드 식별자 snapshot. `nodeExecutionId` 는 `NodeExecution.id` (row PK) — `execution.retry_last_turn` 명령의 payload key. live view 의 WS payload 에는 set, history view 의 합성 (parseHistoryMessages) 에는 미동봉 (UI 가 retry 버튼 자동 suppress) |
+| `data?` | Object | 구조화 원본 — `output.interaction.data` snapshot. `interaction.type` 별 shape 은 [node-output §4.5](./node-output.md#45-interactiondata-payload-규격) 의 단일 정의를 따른다 (drift 회피 위해 본 표에 재열거하지 않음). UI 와 LLM payload builder 는 raw text 파싱 없이 본 메타로 렌더 / 직렬화 — 새 inline marker 도입은 §1.6 를 먼저 개정해야 한다. `source: 'system_error'` 한정 shape 은 → §1.2.1 |
 | `toolCalls?` | Array<{id,name,arguments}> | `source='ai_assistant'` 한정. provider 호환성을 위해 messages 모드에서 drop 가능 |
 | `toolCallId?` | String | `source='ai_tool'` 한정 |
 | `presentations?` | PresentationPayload[] | `source='ai_assistant'` 한정. AI Agent 가 `render_*` tool family ([Spec AI Agent §4.1](../4-nodes/3-ai/1-ai-agent.md#41-presentation-tool-family-render_)) 로 emit 한 표·차트·캐러셀·템플릿·폼 페이로드. **top-level 독립 필드 — `data?` 와 별개** (`data?` 는 `output.interaction.data` 스냅샷 단일 진실이라 다른 의미의 데이터를 박지 않는다). type 정의 (`PresentationPayload`) 의 단일 진실은 [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) |
+
+#### 1.2.1 `system_error` data shape
+
+`source: 'system_error'` 한정 `data?` 필드 shape (node-output §4.5 scope 외 별도 정의):
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `code` | string | `output.error.code` 와 1:1 동기 (단일 진실은 `output.error` 측) |
+| `message` | string | `output.error.message` 와 1:1 동기 |
+| `retryable` | boolean | `output.error.details.retryable` 와 1:1 동기 |
+| `retryAfterSec?` | number | `output.error.details.retryAfterSec` 와 1:1 동기. `retryable === true` 일 때만 set |
+| `nodeId` | UUID | system_error 를 발생시킨 노드 식별자 snapshot |
+| `nodeLabel` | string | 발생 노드 라벨 snapshot |
+| `nodeExecutionId?` | UUID | `NodeExecution.id` (row PK) — `execution.retry_last_turn` 명령의 payload key. live view 의 WS payload 에는 set, history view 의 합성 (`parseHistoryMessages`) 에는 미동봉 (UI 가 retry 버튼 자동 suppress) |
 
 ### 1.3 ConversationThread
 
@@ -270,22 +284,6 @@ race-free.
 
 **emit messages 를 conversation Preview 에서 격리한 이유** (§9.3 D4 / §9.4 D6): `ai-thread-source-mark` Open Question 의 잠정 결정은 "injection 메시지를 UI conversation timeline 에 보여주되 turn 카운팅에서만 제외" 였다. 본 작업은 이 잠정 결정을 재검토해 **conversation Preview 의 1차 소스를 `conversationThread` snapshot 으로 교체**하고 emit messages 는 LLM debug 패널 (Request/Response/LLM Usage) 전용으로 격리한다. 사유: emit messages 는 LLM 으로 간 페이로드와 1:1 정합이 목적이라 `[from <nodeLabel>]` prefix 가 박혀 있고, 이를 conversation Preview 가 그대로 표시하면 사용자 오인 + raw payload 의 strip 부담이 매 렌더마다 발생. `conversationThread` snapshot 은 source/nodeLabel/data 메타가 라이브로 살아있어 raw 파싱 없이 시각 분기가 자연스럽다.
 
-### 8.3 `system_error` source 신설 (2026-05-23)
-
-**결정**: 멀티턴 AI Agent (또는 추후 다른 LLM 노드) 가 `output.error` 와 함께 종결될 때 conversation thread 안에 인라인으로 표시되는 `system_error` source 를 신설. 시각·인터랙션·payload 단일 정의는 §1.1 / §1.2 / §9.1.
-
-**대안 비교**:
-
-| 대안 | 채택 여부 | 사유 |
-|---|---|---|
-| A. 기존 `system` source 를 재사용 + `data.kind: 'error' | 'note'` discriminator | ❌ | source enum 의 1:1 시각 매핑 (§9.1) 이 1:N 으로 분기 — 미리보기 매핑표가 source 단독으로 결정 가능한 단순함을 잃는다. 또한 `system_error` 는 인터랙션 (재시도 버튼) 이 있어 read-only `system` note 와 의미 부담이 다르다. |
-| B. 별도 store 필드 (예: `nodeErrors: Map<nodeId, error>`) 로 분리 + UI 가 conversation 과 합성 | ❌ | live conversation thread 의 자연 순서 (어느 user turn 직후 실패) 를 잃는다. timeline 위치가 별도 layer 에 따라 결정되면 §9.6 그룹 정책과의 상호작용도 재설계 필요. |
-| C. (채택) `ConversationTurnSource` 에 `system_error` 신규 enum 값 추가 | ✅ | source 단독 분기 SoT 유지 + thread 자연 순서 보존. `system` 행과 시각·의미·인터랙션이 모두 달라 별 source 가 정합. AST 가드 (`interaction-type-exhaustiveness.test.ts`) 가 모든 처리 분기 위치 등록을 강제. |
-
-**`startExecution` 만 conversation 을 클리어하는 이유 — Inv-6**: 이전 정책 (failExecution 시 conversation 전체 클리어) 은 사용자가 "왜 대화가 사라졌지?" 의 혼동을 일으켰다 (2026-05-23 사용자 보고 — Gemini 429 quota 에러 시 multi-turn 대화 전체 소실). conversation thread 는 사용자가 직접 발화한 user turn + LLM 응답 + tool 호출의 합성이라 노드 실패와 무관하게 가치를 갖는다. `startExecution` 만 클리어함으로써 (a) 사용자 발화 보존 (b) system_error 가 thread 의 자연 위치에서 끊김을 표시 (c) retry 시 자연스럽게 이어짐 — 3가지 효과를 한 정책으로 얻는다.
-
-**시각·인터랙션 — `system_error` 가 `system` note 와 다른 컨테이너 강조 (빨간 라인)**: §9.1 매핑표가 system note (얇은 회색 텍스트) 와 system_error (얇은 빨간 라인 + 우측 액션 영역) 를 시각으로 분리. §9.2 의 3중 신호 (아이콘 + 컨테이너 + chip) 가 동시 적용된다 — 단일 신호 (예: 색상만) 로 구분하지 않는 정책은 system_error 에도 동일하게 강제.
-
 ### 8.2 UI 계약 SoT 격상 (2026-05-19, §9.6 ~ §9.11)
 
 **결정**: 데이터 모델 + LLM context 정책만 spec 화되어 있던 §9 를 **UI 라이프사이클·렌더 계약 SoT** 로 확장. §9.6~§9.11 신설 (tool-call 그룹 시각 정책 / WS 이벤트 → store 변환 계약 / content blank 동치성 / UI Invariants / 회귀 차단 시나리오 / 변환 함수 contract).
@@ -301,6 +299,22 @@ race-free.
 | C. (채택) `conversation-thread.md` §9 를 시각 매핑 + UI 계약 양 축으로 확장 | ✅ | 단일 SoT 보존. §9.6~§9.11 이 §9.1~§9.5 와 직접 cross-link. 회귀 발생 시 §9.10 의 회귀 시나리오 표 갱신만으로 추적 가능 |
 
 **storybook 도입 기각**: §9.10 의 fixture 인프라는 unit 테스트 입력 export 만 제공한다. 시각 회귀를 자동화하려면 storybook 또는 playwright snapshot 통합이 필요하지만, 본 PR 의 범위 (spec + fixture + isAssistantContentBlank 위치 이전) 를 초과해 별 인프라 의존이 크다 — §7 v2 로드맵의 "시각 회귀 인프라" 항목으로 이관.
+
+### 8.3 `system_error` source 신설 (2026-05-23)
+
+**결정**: 멀티턴 AI Agent (또는 추후 다른 LLM 노드) 가 `output.error` 와 함께 종결될 때 conversation thread 안에 인라인으로 표시되는 `system_error` source 를 신설. 시각·인터랙션·payload 단일 정의는 §1.1 / §1.2 / §9.1.
+
+**대안 비교**:
+
+| 대안 | 채택 여부 | 사유 |
+|---|---|---|
+| A. 기존 `system` source 를 재사용 + `data.kind: 'error' | 'note'` discriminator | ❌ | source enum 의 1:1 시각 매핑 (§9.1) 이 1:N 으로 분기 — 미리보기 매핑표가 source 단독으로 결정 가능한 단순함을 잃는다. 또한 `system_error` 는 인터랙션 (재시도 버튼) 이 있어 read-only `system` note 와 의미 부담이 다르다. |
+| B. 별도 store 필드 (예: `nodeErrors: Map<nodeId, error>`) 로 분리 + UI 가 conversation 과 합성 | ❌ | live conversation thread 의 자연 순서 (어느 user turn 직후 실패) 를 잃는다. timeline 위치가 별도 layer 에 따라 결정되면 §9.6 그룹 정책과의 상호작용도 재설계 필요. |
+| C. (채택) `ConversationTurnSource` 에 `system_error` 신규 enum 값 추가 | ✅ | source 단독 분기 SoT 유지 + thread 자연 순서 보존. `system` 행과 시각·의미·인터랙션이 모두 달라 별 source 가 정합. AST 가드 (`interaction-type-exhaustiveness.test.ts`) 가 모든 처리 분기 위치 등록을 강제. |
+
+**`startExecution` 만 conversation 을 클리어하는 이유 — Inv-6**: 이전 정책 (failExecution 시 conversation 전체 클리어) 은 사용자가 "왜 대화가 사라졌지?" 의 혼동을 일으켰다 (사용자 보고 — Gemini 429 quota 에러 시 multi-turn 대화 전체 소실). conversation thread 는 사용자가 직접 발화한 user turn + LLM 응답 + tool 호출의 합성이라 노드 실패와 무관하게 가치를 갖는다. `startExecution` 만 클리어함으로써 (a) 사용자 발화 보존 (b) system_error 가 thread 의 자연 위치에서 끊김을 표시 (c) retry 시 자연스럽게 이어짐 — 3가지 효과를 한 정책으로 얻는다.
+
+**시각·인터랙션 — `system_error` 가 `system` note 와 다른 컨테이너 강조 (빨간 라인)**: §9.1 매핑표가 system note (얇은 회색 텍스트) 와 system_error (얇은 빨간 라인 + 우측 액션 영역) 를 시각으로 분리. §9.2 의 3중 신호 (아이콘 + 컨테이너 + chip) 가 동시 적용된다 — 단일 신호 (예: 색상만) 로 구분하지 않는 정책은 system_error 에도 동일하게 강제.
 
 ---
 
@@ -570,4 +584,4 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 | 2026-05-19 | §9 확장 — §9.6 (tool-call 그룹 시각 정책), §9.7 (WS 이벤트 → store 변환 계약), §9.8 (content blank 동치성), §9.9 (UI Invariants), §9.10 (회귀 차단 시나리오), §9.11 (변환 함수 contract) 신설. §9 prologue 에 라이프사이클 다이어그램 추가. §9.1 `ai_assistant` 행에 §9.6 parent chip 분기 비고, `ai_tool` 행 status badge 표기를 `pending/success/error` 로 확장. §9.5 진입점 목록에 `mergeOrphanToolItems` 추가. 4건 UI 회귀 (PR #206/#208/#210/#214) 의 spec 결손 보강. fixture 인프라 (`__tests__/fixtures/conversation-scenarios.ts`) 와 `isAssistantContentBlank` 위치 이전을 동일 PR 에 동반 |
 | 2026-05-19 | §9.6 보강 — tool-call 그룹 분류의 단일 결정 함수 `groupToolCallItems` 명시 + 적용 surface 표 (conversation Preview + 좌측 실행 트리 timeline) 추가. §9.9 Inv-5 신설 — 두 surface 가 동일 그룹 결과 사용 강제. 좌측 timeline 의 빈 봇 행 + 후행 tool 평면 노출이 conversation Preview 와 시각 차이를 만들어 사용자 혼동 발생 (스크린샷 보고). conversation Preview 의 chip + indent tree 시각을 좌측 timeline 에 동일 정책으로 적용 |
 | 2026-05-20 | §9.10 충족 상태 표 추가 (PR #214 머지 후 후속 정리, plan W-4) — CT-S1 ~ CT-S8 의 1차 매핑 테스트 파일·describe·it 명시. 표 변경 없음, 부가 정보. |
-| 2026-05-23 | §1.1 `system_error` source 신설 — multi-turn AI Agent 가 `output.error` 와 함께 종결될 때 conversation thread 안에 인라인 표시. §1.2 `data?` 비고에 system_error 한정 payload shape (`{code, message, retryable, retryAfterSec?, nodeId, nodeLabel}`) 인라인 정의. §9.1 매핑표에 `system_error` 행 (❌ 빨간 라인 + chip + `[다시 시도]` 버튼) 추가. §9.2 3중 신호에 ❌ 아이콘 등록. §9.6 그룹 정책에 system_error 가 unclaim 상태 유지 명시. §9.7.1 store reset 정책 신설 — `failExecution` / `completeExecution` 시 conversation snapshot 보존, `startExecution` 만 클리어 (Inv-6 의 단일 진실). §9.7 표에 `node.failed` / `node.completed` (with error) 두 행 APPEND 정책 추가. §9.9 Inv-6 신설 (Inv 6개로 확장). §9.10 CT-S9/S10/S11 신설 — retryable / non-retryable / retry 후 새 turn 시나리오. §8.3 Rationale 신설 — `system_error` vs `system` 재사용 결정. 사용자 보고 (2026-05-23 Gemini 429 quota 시 multi-turn 대화 전체 소실) 에서 비롯. |
+| 2026-05-23 | §1.1 `system_error` source 신설 — multi-turn AI Agent 가 `output.error` 와 함께 종결될 때 conversation thread 안에 인라인 표시. §1.2 `data?` 비고에 system_error 한정 payload shape (`{code, message, retryable, retryAfterSec?, nodeId, nodeLabel}`) 인라인 정의. §9.1 매핑표에 `system_error` 행 (❌ 빨간 라인 + chip + `[다시 시도]` 버튼) 추가. §9.2 3중 신호에 ❌ 아이콘 등록. §9.6 그룹 정책에 system_error 가 unclaim 상태 유지 명시. §9.7.1 store reset 정책 신설 — `failExecution` / `completeExecution` 시 conversation snapshot 보존, `startExecution` 만 클리어 (Inv-6 의 단일 진실). §9.7 표에 `node.failed` / `node.completed` (with error) 두 행 APPEND 정책 추가. §9.9 Inv-6 신설 (Inv 6개로 확장). §9.10 CT-S9/S10/S11 신설 — retryable / non-retryable / retry 후 새 turn 시나리오. §8.3 Rationale 신설 — `system_error` vs `system` 재사용 결정 (§8.3 Rationale 참조). |

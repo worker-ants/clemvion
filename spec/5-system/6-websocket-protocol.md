@@ -621,7 +621,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `execution.click_button` | `click_button` | 동일 페이로드 |
 | `execution.submit_message` | `submit_message` | 동일 페이로드 |
 | `execution.end_conversation` | `end_conversation` | 동일 페이로드 |
-| `execution.retry_last_turn` | (외부 미노출 — 향후 별 PR 에서 노출 예정) | 1차 PR (2026-05-23) 은 내부 UI 한정. 외부 노출 시 `per_execution` 토큰 권한 매트릭스 + Notification 흐름과의 정합 + retry 횟수 제한 정책이 별도 결정 필요. EIA spec [EIA-IN-02](./14-external-interaction-api.md) 와 정합. `execution.start` 의 "원칙적 배제 (webhook 대체)" 와 의미 다름 |
+| `execution.retry_last_turn` | (외부 미노출 — 향후 별 PR 에서 노출 예정) | 내부 UI 한정. 외부 노출 시 토큰 권한·Notification 정합·retry 횟수 제한 별도 결정 필요 (상세: §4.2 참조). |
 | `execution.stop` | `cancel` (또는 `POST /api/executions/:id/cancel` alias) | force 옵션은 외부에서 미지원 |
 | `execution.start` | (외부 미지원) | 외부는 webhook 트리거로 실행 시작 |
 | `execution.continue` / `execution.step` | (외부 미지원) | 디버깅 전용, UI/내부 한정 |

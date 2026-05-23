@@ -17,7 +17,7 @@
 
 이 5필드의 의미는 **어떤 노드에서든 동일**해야 합니다.
 
-> **internal top-level 필드 허용 예외**: `_resumeState` (multi-turn waiting/resumed 의 internal 전달) 와 `_retryState` (retryable error 종결 시 DB 보존 — Principle 4.2 보존 예외) 는 5필드 외 top-level 위치를 갖는다. expression resolver / autocomplete 비노출, credential strip 정책은 두 필드 동일. 상세: Principle 4.2.
+> **internal top-level 필드 허용 예외**: `_resumeState` (multi-turn waiting/resumed 의 internal 전달) 와 `_retryState` (retryable error 종결 시 DB 보존 — Principle 4.2.1 보존 예외) 는 5필드 외 top-level 위치를 갖는다. expression resolver / autocomplete 비노출, credential strip 정책은 두 필드 동일. 상세: Principle 4.2.1.
 
 ---
 
@@ -115,7 +115,7 @@
 - `message` 는 국제화 고려 없음 (로그/디버깅용 원문).
 - `details` 는 두 계층 — §3.2.1 공통 표준 필드 (LLM 계열 노드 한정 필수) + §3.2.2 노드별 선택 스키마.
 
-#### 3.2.1. `details` 의 공통 표준 필드 (LLM 계열 노드 한정 필수)
+#### 3.2.1 `details` 의 공통 표준 필드 (LLM 계열 노드 한정 필수)
 
 | 필드 | 타입 | 노드별 의무 | 의미 |
 | --- | --- | --- | --- |
@@ -124,7 +124,7 @@
 
 > 사용자 인터랙션 측면 — `retryable=true` 인 노드는 UI 가 인라인 `[다시 시도]` 버튼 + `retryAfterSec` 카운트다운을 노출 (예: AI Agent multi-turn 의 conversation thread 안 `system_error` item — [Conversation Thread §9.1](./conversation-thread.md#91-source-별-시각-매핑-강제)).
 
-#### 3.2.2. `details` 의 노드별 선택 스키마
+#### 3.2.2 `details` 의 노드별 선택 스키마
 
 §3.2.1 의 공통 필드 외 추가 메타는 각 노드 spec 의 `output.error.details` 표가 정의. 예:
 - AI Agent: `provider`, `statusCode` ([§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트))
