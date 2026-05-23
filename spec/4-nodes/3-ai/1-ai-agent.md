@@ -256,7 +256,7 @@ LLM 이 정의된 schema 를 어긴 페이로드를 보내면 (예: required 필
 
 **역할 분리:**
 
-`render_*` 는 표현 전담 — 워크플로 그래프 분기는 `cond_*` 가 담당한다. presentation 노드 본체의 버튼이 갖는 "버튼 클릭 → 다른 포트로 라우팅" 기능은 `render_*` 도구에는 **없다**. 사용자가 `presentationTools[].defaults` 에 `buttons` 를 넣더라도 그 클릭은 다음 LLM turn 의 user 메시지로 흡수되며 (form 흐름과 동일), AI Agent 의 출력 포트 분기에 영향 주지 않는다.
+`render_*` 는 표현 전담 — 워크플로 그래프 분기는 `cond_*` 가 담당한다. presentation 노드 본체의 버튼이 갖는 "버튼 클릭 → 다른 포트로 라우팅" 기능은 `render_*` 도구에는 **없다**. 사용자가 `presentationTools[].defaults` 에 `buttons` 를 넣더라도 그 클릭은 다음 LLM turn 의 user 메시지로 흡수되며 (form 흐름과 동일 — 발화되는 user message 합성 규칙은 [Presentation 공통 §10.8](../6-presentation/0-common.md#108-render_-클릭-user-message-합성) SoT), AI Agent 의 출력 포트 분기에 영향 주지 않는다.
 
 **기존 도구와의 공존:**
 

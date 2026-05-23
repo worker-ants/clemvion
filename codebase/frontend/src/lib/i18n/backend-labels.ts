@@ -146,6 +146,7 @@ const LABEL_KO: Record<string, string> = {
   "Tool Overrides": "도구 재정의",
   Type: "유형",
   URL: "URL",
+  "User Message": "사용자 메시지",
   "User Prompt": "사용자 프롬프트",
   Value: "값",
   Variables: "변수",

@@ -303,6 +303,119 @@ describe('validateCarouselConfig (imperative)', () => {
   });
 });
 
+/**
+ * buttonDefSchema.userMessage — 검증 스위트
+ *
+ * SoT: spec/4-nodes/6-presentation/0-common.md §1 (ButtonDef 필드 정의),
+ *      §10.8 (AI Agent render_* tool 모드 user-message 합성 우선순위).
+ * `userMessage` 필드는 LLM 이 명시하는 chat 발화 텍스트 override.
+ * 미설정 시 frontend 가 자동 합성. type="link" 에서는 클릭 시 무시.
+ * carousel 전용: per-item 합성은 `"{item.title} → {label}"`.
+ */
+describe('buttonDefSchema — userMessage (spec/4-nodes/6-presentation/0-common.md §1, §10.8)', () => {
+  it('preserves userMessage on global buttons', () => {
+    const result = carouselNodeConfigSchema.parse({
+      mode: 'static',
+      items: [{ title: 'Slide' }],
+      buttons: [
+        {
+          id: 'a',
+          label: 'Approve',
+          type: 'port',
+          userMessage: 'I approve',
+        },
+      ],
+    });
+    expect(result.buttons[0].userMessage).toBe('I approve');
+  });
+
+  it('preserves userMessage on itemButtons (dynamic mode)', () => {
+    const result = carouselNodeConfigSchema.parse({
+      mode: 'dynamic',
+      titleField: 'name',
+      itemButtons: [
+        {
+          id: 'inquire',
+          label: '문의하기',
+          type: 'port',
+          userMessage: '{{ title }} 문의',
+        },
+      ],
+    });
+    expect(result.itemButtons[0].userMessage).toBe('{{ title }} 문의');
+  });
+
+  it('preserves userMessage on per-item buttons (static items[].buttons)', () => {
+    const result = carouselNodeConfigSchema.parse({
+      mode: 'static',
+      items: [
+        {
+          title: 'Sample Product 1',
+          buttons: [
+            {
+              id: 'inq',
+              label: '문의',
+              type: 'port',
+              userMessage: 'Sample Product 1 문의',
+            },
+          ],
+        },
+      ],
+    });
+    expect(result.items[0].buttons?.[0].userMessage).toBe(
+      'Sample Product 1 문의',
+    );
+  });
+
+  it('allows missing userMessage (optional)', () => {
+    const result = carouselNodeConfigSchema.parse({
+      mode: 'static',
+      items: [{ title: 'Slide' }],
+      buttons: [{ id: 'a', label: 'A', type: 'port' }],
+    });
+    expect(result.buttons[0].userMessage).toBeUndefined();
+  });
+
+  it('exposes userMessage in JSON Schema for LLM tool param discovery (§10.8)', () => {
+    const jsonSchema = z.toJSONSchema(carouselNodeConfigSchema) as unknown as {
+      properties?: Record<
+        string,
+        {
+          items?: { properties?: Record<string, { type?: string }> };
+          type?: string;
+        }
+      >;
+    };
+    const buttonItemSchema = jsonSchema.properties?.buttons?.items?.properties;
+    expect(buttonItemSchema?.userMessage).toBeDefined();
+    expect(buttonItemSchema?.userMessage?.type).toBe('string');
+
+    const itemButtonsItemSchema =
+      jsonSchema.properties?.itemButtons?.items?.properties;
+    expect(itemButtonsItemSchema?.userMessage).toBeDefined();
+  });
+
+  it('preserves userMessage on link-typed buttons at parse-time (spec §1.1 — ignored at click-time, not at validate)', () => {
+    // Spec §1.1: link 타입에 userMessage 설정 시 무시 (warning 아님). 즉
+    // parse 는 통과하며, 무시는 클릭 시점의 frontend 책임. 본 테스트는 zod
+    // 가 link+userMessage 페이로드를 reject 하지 않음을 보장한다.
+    const result = carouselNodeConfigSchema.parse({
+      mode: 'static',
+      items: [{ title: 'Slide' }],
+      buttons: [
+        {
+          id: 'a',
+          label: 'Open',
+          type: 'link',
+          url: 'https://example.com',
+          userMessage: 'ignored at click-time',
+        },
+      ],
+    });
+    expect(result.buttons[0].userMessage).toBe('ignored at click-time');
+  });
+});
+
 describe('evaluateMetadataBlockingErrors integration (carousel)', () => {
   it('merges declarative + imperative errors as a single flat blocking list', () => {
     // Empty config → dynamic-mode rule fires (declarative) AND
