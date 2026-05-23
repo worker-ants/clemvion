@@ -68,19 +68,19 @@ owner: developer
 
 ## TDD 체크리스트
 
-- [ ] (S) project-planner 위임 — §10.5 form option value backfill + spec 변경
-- [ ] (S) `/consistency-check --spec` BLOCK:NO 확인
-- [ ] (S) spec commit
-- [ ] (impl-prep) `/consistency-check --impl-prep spec/4-nodes/`
-- [ ] (C) backend `backfillFormOptionValues` test 선작성
-- [ ] (C) backend helper + execute() 통합
-- [ ] (C) backend test PASS
-- [ ] (A) frontend test 선작성 (4-fix 모두)
-- [ ] (A) frontend DynamicFormUI 구현
-- [ ] (A) frontend test PASS
-- [ ] (8) TEST WORKFLOW — lint / unit / build / e2e
-- [ ] (9) REVIEW WORKFLOW — `/ai-review` + resolution-applier
-- [ ] (10) PR 생성
+- [x] (S) project-planner 위임 — §10.5 step 4 신설 + §1.5 신설 (commit `e402d017`)
+- [x] (S) `/consistency-check --spec` BLOCK:NO 확인
+- [x] (S) spec commit (`e402d017`)
+- [x] (impl-prep) `/consistency-check --impl-prep spec/4-nodes/` BLOCK:NO
+- [x] (C) backend `backfillFormOptionValues` test 선작성
+- [x] (C) backend helper + execute() 통합 (commit `f40d6130`)
+- [x] (C) backend test PASS (50/50)
+- [x] (A) frontend test 선작성 (4-fix 모두)
+- [x] (A) frontend DynamicFormUI 구현 (commit `145b1ced`)
+- [x] (A) frontend test PASS (9/9)
+- [x] (8) TEST WORKFLOW — lint / unit 4555 / build / e2e 98 PASS
+- [x] (9) REVIEW WORKFLOW — `/ai-review` + resolution-applier (review/code/2026/05/23/15_27_41) + spec drift fix (commit `8293e73c`)
+- [x] (10) PR 생성
 
 ## 결정 메모
 
@@ -91,4 +91,26 @@ owner: developer
 
 ## Follow-up (별 plan)
 
-없음 — 한 PR 안에서 일괄.
+본 PR 안에서 모두 일괄 처리:
+
+- ai-review 후속 spec drift (slug variant 정합화) — `plan/complete/spec-fix-form-option-backfill-slug.md` (commit `8293e73c`)
+
+향후 강화 후보 (별 task, 본 PR scope 밖):
+
+- DynamicFormUI 클라이언트 측 파일 MIME/크기/개수 검증 강화 (spec §1.5 요구)
+- file.name LLM-side sanitize (prompt injection 잠재 경로)
+- backfillFormOptionValues object-type option value 추가 가드
+
+## Closeout (2026-05-23)
+
+본 worktree 작업 완료. commit chain:
+
+- spec: `e402d017` — §10.5 step 4 + §1.5 신설
+- backend: `f40d6130` — backfillFormOptionValues + execute() 통합
+- frontend: `145b1ced` — DynamicFormUI 4-fix (state/number/coerce/file)
+- ai-review fix: `dc2d3cd8` — SUMMARY#2-#7 후속 (key fallback / 헬퍼 추출 / 테스트)
+- RESOLUTION: `eebb597c`
+- spec drift 정정: `8293e73c` — slug variant 제거 (W#1)
+
+TEST 최종: lint PASS / unit 4555 PASS / build PASS / e2e 98 PASS.
+PR: (생성 직후 본 줄에 PR 링크 추가)
