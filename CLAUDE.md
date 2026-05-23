@@ -43,6 +43,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
 | 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
 | 통합 검토 산출물 | `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
+| Spec-impl coverage standing audit 산출물 | `review/consistency/coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` (slash `/spec-coverage` 산출. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md)) |
 
 > PLAN 라이프사이클·이동 규칙·frontmatter 스키마: [`.claude/docs/plan-lifecycle.md`](.claude/docs/plan-lifecycle.md)
 > Spec 문서 3섹션 구성 (Overview / 본문 / Rationale): 각 SKILL.md 참고.

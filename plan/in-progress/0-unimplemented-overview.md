@@ -21,6 +21,18 @@
 5. **`self-hosting-deployment.md`** — Docker Compose 셀프 호스팅 풀 번들, Helm Chart, 운영·보안 가이드.
 6. **`marketplace-and-plugin-sdk.md`** — 마켓플레이스 + 커스텀 노드 SDK (가장 큰 미구현 덩어리).
 
+## 하네스·프로세스 개선 (2026-05-23 신규)
+
+`plan/in-progress/spec-harness-impl-coverage.md` (spec PR) 가 5개 결정 (A frontmatter / B reverse-evidence / C-1 plan-stale audit / C-2 /spec-coverage / D partial-impl discipline) 을 정의했고, 후속 5건 plan 으로 단계적 실행. 텔레그램 chat-channel UI 영구 누락 사례 (2026-05-23 발견) 의 재발 방지가 목적.
+
+| 순서 | plan | 결정 | 의존 |
+|---|---|---|---|
+| 1 | `developer-partial-impl-discipline.md` | D | spec PR 머지 후 (병렬 가능) |
+| 2 | `spec-frontmatter-rollout.md` | A | spec PR + `ai-presentation-tools` + `ai-agent-tool-connection-rewrite` 의존 |
+| 3 | `user-guide-reverse-coverage.md` | B | spec PR 머지 후 (병렬 가능) |
+| 4 | `plan-stale-audit.md` | C-1 | spec PR 머지 후 (병렬 가능) |
+| 5 | `spec-coverage-slash-command.md` | C-2 | 2 완료 후 (spec frontmatter 의존) |
+
 > 각 plan에는 배경 / 관련 PRD-Spec 참조 / 작업 단위 / 수용 기준이 포함된다. 본 인덱스는 plan 간 우선순위·의존 관계만 정리한다.
 
 ### 최근 완료
