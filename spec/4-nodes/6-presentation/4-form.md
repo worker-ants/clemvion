@@ -25,7 +25,7 @@
 | type | Enum | ✓ | `text` / `number` / `email` / `textarea` / `select` / `checkbox` / `radio` / `date` / `file` |
 | label | String | ✓ | 필드 라벨 |
 | required | Boolean? | | 폼 **사용자** 입력 강제 여부 (기본 `false`). `config.fields` 자체의 "1개 이상 정의" 필수성(§1·§6)과는 다른 layer — 전자는 폼 제출 검증, 후자는 노드 설정 패널의 asterisk(`config.fields.ui.required`). |
-| options | Option[]? | | `select`/`radio`/`checkbox` 용 선택지 (`{ label, value }`). `value` 가 빈 문자열·`null`·`undefined` 인 경우는 LLM tool 모드 (`render_form`) 에 한해 backend 가 결정적 fallback (`opt-{fieldIdx}-{slug(label)}` 또는 `opt-{fieldIdx}-{optIdx}`) 으로 backfill — [공통 §10.5 step 4](./0-common.md#105-schema-위반-처리-및-정규화) SoT. 사용자 직접 config 의 빈 value 는 frontend 입력 시점에 가드되므로 본 단계 영향권 밖. |
+| options | Option[]? | | `select`/`radio`/`checkbox` 용 선택지 (`{ label, value }`). `value` 가 빈 문자열·`null`·`undefined` 인 경우는 LLM tool 모드 (`render_form`) 에 한해 backend 가 결정적 fallback `opt-{fieldIdx}-{optIdx}` (인덱스 단일 형식) 으로 backfill — [공통 §10.5 step 4](./0-common.md#105-schema-위반-처리-및-정규화) SoT. 사용자 직접 config 의 빈 value 는 frontend 입력 시점에 가드되므로 본 단계 영향권 밖. |
 | defaultValue | Any? | | 기본값 (`{{ }}` 표현식 사용 가능) |
 | validation | ValidationRule? | | 유효성 검증 규칙 |
 | allowedMimeTypes | String[]? | | `type: 'file'` 전용. 허용 MIME 타입 목록 (기본은 아래 참조) |
