@@ -1,6 +1,7 @@
 ---
 name: code-review-agents
 description: 역할 기반 sub-agent(`<role>-reviewer`, 디폴트 14개; `.claude.project.json` 의 `agents.reviewers` 로 부분 disable 가능)를 main Claude 가 Agent tool 로 병렬 호출해 코드 리뷰를 수행합니다. 사용자가 "코드 리뷰", "ai-review", "변경사항 검토/점검", "보안/성능 리뷰" 를 요청하거나, 기능 구현·리팩토링 완료 후 품질 검증이 필요할 때 사용합니다. 사용량 한도가 걸리면 `/loop /ai-review` 와 결합해 ScheduleWakeup 으로 무한 재시도합니다.
+model: sonnet
 ---
 
 # Code Review Agents
