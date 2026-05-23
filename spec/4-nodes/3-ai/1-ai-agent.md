@@ -915,7 +915,11 @@ type PresentationPayload = {
     "result": {
       "response": "비교 결과 표로 정리했어요. 영업이익률이 가장 높은 분기는 Q3 입니다.",
       "endReason": "out",
-      "turnCount": 1
+      "turnCount": 1,
+      "presentations": [
+        { "type": "table", "toolCallId": "call_t1", "renderedAt": "2026-05-22T03:00:00.000Z", "payload": { "...": "(table input schema 동일 shape)" } },
+        { "type": "chart", "toolCallId": "call_c1", "renderedAt": "2026-05-22T03:00:00.500Z", "payload": { "...": "(chart input schema 동일 shape)" } }
+      ]
     }
   },
   "meta": {
@@ -933,11 +937,14 @@ type PresentationPayload = {
 | 필드 | 타입 | 위치 | 설명 |
 |---|---|---|---|
 | `output.result.response` | string | handler return | LLM 텍스트 응답. `render_*` 호출이 있어도 텍스트가 비어 있을 수 있다 (예: 차트만 emit). 빈 응답일 때 `response: ""` |
+| `output.result.presentations[]` | `PresentationPayload[]?` | handler return | **execution history page 복원용 echo** — `buildMultiTurnFinalOutput` / `buildConditionOutput` 의 `metadata.allPresentations` 가 set 일 때만 운반 (없으면 키 자체 생략). NodeExecution.outputData REST fetch 경로 (live thread snapshot 미동봉) 에서 presentations 를 복원하기 위한 echo. 페이로드 본문의 1차 SoT 는 ConversationTurn `presentations[]` — 두 위치가 동일 데이터 (`metadata.allPresentations` 가 turn-level push 의 합산) |
 | `meta.presentationCalls[]` | Array | handler accumulator | `render_*` 호출의 메타 trace. `[{ toolName, toolCallId, status: 'rendered'|'schema_violation'|'dropped'|'form_pending'|'form_submitted', bytes? }]` (Principle 2 메트릭) |
 | `meta.presentationSchemaViolations[]` | Array? | handler accumulator | §4.1 의 silent drop 케이스만 echo. `[{ toolName, toolCallId, issues, attempts }]` |
-| ConversationTurn `presentations[]` | `PresentationPayload[]` | thread accumulator (별도 단일 진실) | **top-level 독립 필드 — `data?` 가 아니다**. 실제 페이로드. type 정의는 본 §7.10 의 type block |
+| ConversationTurn `presentations[]` | `PresentationPayload[]` | thread accumulator (1차 SoT) | **top-level 독립 필드 — `data?` 가 아니다**. 실제 페이로드. type 정의는 본 §7.10 의 type block |
 
-**단일 진실:** payload 본문은 ConversationTurn 의 top-level `presentations[]` 에만 저장하고, `output.result.*` 에는 echo 하지 않는다 (Principle 1.1 직교성 — 같은 데이터를 두 위치에 두지 않음). `meta.presentationCalls[]` 는 trace/metric 만 (Principle 2).
+**단일 진실 정책 — execution history page 복원 echo**: 페이로드 본문의 1차 SoT 는 ConversationTurn 의 top-level `presentations[]`. 단, `output.result.presentations[]` 도 동일 데이터를 echo 한다 — 사유: live conversation thread snapshot 이 동봉되지 않는 REST fetch 경로 (`/executions/:id` → NodeExecution.outputData) 에서 history view 가 presentations 를 복원하려면 NodeExecution row 안에 데이터가 있어야 한다. thread snapshot 은 in-memory ExecutionContext 의 표현으로, 영속 시 NodeExecution 분산 저장 ([Conversation Thread §4 영속화](../../conventions/conversation-thread.md#4-영속화)) 으로 복원 가능하나 cross-node 조회가 N+1 이라 hydration cost 가 높다. 두 위치는 의도된 echo (Principle 1.1 직교성의 예외) — 두 위치 모두 동일 PresentationPayload 객체 배열을 가지며 drift 방지는 backend 가 한 accumulator (`metadata.allPresentations`) 에서 두 surface 로 동시 push.
+
+`meta.presentationCalls[]` 는 trace/metric 만 (Principle 2) — 본 echo 와 무관.
 
 **다운스트림 접근:**
 
