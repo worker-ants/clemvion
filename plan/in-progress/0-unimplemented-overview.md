@@ -31,7 +31,7 @@
 | 2 | `spec-frontmatter-rollout.md` | A | ✅ complete (2026-05-23) | — |
 | 3 | `user-guide-reverse-coverage.md` | B | ✅ complete (2026-05-23) | — |
 | 4 | `plan-stale-audit.md` | C-1 | ✅ complete (2026-05-23) | — |
-| 5 | `spec-coverage-slash-command.md` | C-2 | plan 2 의존 | 2 완료 후 (spec frontmatter 의존) |
+| 5 | `spec-coverage-slash-command.md` | C-2 | ✅ complete (2026-05-23) | — |
 | **신규** | `plan-coherence-stale-worktree-fix.md` | 결정 ④ | ✅ complete (2026-05-23) | PR #287 후속 별 PR |
 
 > 각 plan에는 배경 / 관련 PRD-Spec 참조 / 작업 단위 / 수용 기준이 포함된다. 본 인덱스는 plan 간 우선순위·의존 관계만 정리한다.
