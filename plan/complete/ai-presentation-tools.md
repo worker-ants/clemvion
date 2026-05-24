@@ -66,16 +66,16 @@ AI Agent 의 응답 surface 는 현재 텍스트 (`output.result.response`) + Co
   - 새 섹션 "AI tool 모드" — input schema 단일 진실 재사용, `defaults` overlay 규칙, 1MB cap 동일 적용, 다섯 도구의 종류·`render_form` interactive 차이. interactionType `ai_form_render` cross-ref (#12), `presentation_user` source 분기 (#17)
 - [x] `spec/4-nodes/_product-overview.md` §6.1 AI Agent 요구사항 표에 ND-AG-26 (presentation tool family) 추가
 - [x] `spec/4-nodes/3-ai/_product-overview.md` §3.2 동일 ND-AG-26 추가
-- [ ] `spec/conventions/conversation-thread.md` §1.2 갱신
+- [x] `spec/conventions/conversation-thread.md` §1.2 갱신
   - `ConversationTurn` 표에 top-level `presentations?: PresentationPayload[]` 행 추가 (data? 와 별개, #10)
   - 기존 §1.2 data? 행에 잘못 박혀있던 cross-ref 제거 (W-1 해소)
   - PresentationPayload 본문 정의는 ai-agent §7.10 단일 진실, 본 §1.2 는 cross-ref 만 (#14)
-- [ ] `spec/5-system/6-websocket-protocol.md` §4.4 갱신 (#11, #12)
+- [x] `spec/5-system/6-websocket-protocol.md` §4.4 갱신 (#11, #12)
   - `execution.ai_message` payload 에 `presentations?: PresentationPayload[]` 추가
   - `execution.waiting_for_input` 의 `interactionType` enum 에 `'ai_form_render'` 값 추가 + `conversationConfig.pendingFormToolCall?: {toolCallId}` 메타 (클라이언트 분기 근거)
-- [ ] `spec/5-system/14-external-interaction-api.md` §6.5 (또는 SSE payload 정의 섹션) 갱신 (#11)
+- [x] `spec/5-system/14-external-interaction-api.md` §6.5 (또는 SSE payload 정의 섹션) 갱신 (#11)
   - SSE `execution.ai_message` 페이로드에 `presentations` 추가
-- [ ] `spec/conventions/node-output.md` §4.5 갱신 (#17)
+- [x] `spec/conventions/node-output.md` §4.5 갱신 (#17)
   - `form_submitted` shape 정의에 AI `render_form` 출처 변형 명시 — `data.via?: 'ai_render'` sentinel 한 줄 추가. 출처 분기 근거
 
 ### 4.2 Consistency check (spec 단계)
@@ -84,22 +84,22 @@ main Claude 가 `/consistency-check --spec` 호출. Critical 0 확인 후 구현
 
 ### 4.3 백엔드 구현 (TDD)
 
-- [ ] `ai-agent.schema.ts` — `presentationTools` zod 정의 (5 type enum + `defaults?: Partial<Config>`)
-- [ ] `codebase/backend/src/nodes/ai/ai-agent/tool-providers/render-tool-provider.ts` 신설
+- [x] `ai-agent.schema.ts` — `presentationTools` zod 정의 (5 type enum + `defaults?: Partial<Config>`)
+- [x] `codebase/backend/src/nodes/ai/ai-agent/tool-providers/render-tool-provider.ts` 신설
   - 5 도구 ToolDef 빌드 (presentation node schema → JSON Schema 변환 유틸 `zodToToolParams`)
   - `defaults` overlay 적용 (LLM 페이로드 ∪ defaults — defaults 가 LLM 입력을 override)
-- [ ] dispatcher 분류 로직 (`ai-agent.handler.ts`):
+- [x] dispatcher 분류 로직 (`ai-agent.handler.ts`):
   - `render_*` prefix 분류 (`renderToolProvider.matches()`)
   - display-only: zod validate → 1MB cap → push to `_resumeState.presentations` accumulator → tool_result `{ok:true}` 스텁
   - render_form: presentation/form handler 재사용 → `status:'waiting_for_input'`, `interactionType:'ai_conversation'` 유지하되 `_resumeState.pendingFormToolCall: {toolCallId}` 저장 → form 제출 시 `presentation_user` source 로 thread push + tool_result content 채워 LLM 재호출
   - schema 위반 → tool_result error → 재시도 1회 → 초과 시 silent drop + `meta.presentationSchemaViolations` 누적 (turn 종료 시 텍스트만 남음)
-- [ ] ConversationTurn `data.presentations` 누적 + WS `execution.ai_message` 스냅샷 포함
+- [x] ConversationTurn `data.presentations` 누적 + WS `execution.ai_message` 스냅샷 포함
 
 ### 4.4 프론트엔드 구현 (TDD)
 
-- [ ] AI Agent 설정 패널 — `presentationTools` 다중 선택 UI (5 도구 체크박스 + 각 `defaults` JSON editor)
-- [ ] chat UI (`SummaryView` / `ResultTimeline`) — `ai_assistant` 턴 데이터에 `presentations[]` 가 있으면 기존 `presentation-renderers.tsx` 컴포넌트 inline 렌더
-- [ ] `render_form` blocking 케이스 — multi-turn waiting 형식에 form 카드 inline 렌더, 제출 시 `execution.submit_form` (기존 form 흐름 재사용)
+- [x] AI Agent 설정 패널 — `presentationTools` 다중 선택 UI (5 도구 체크박스 + 각 `defaults` JSON editor)
+- [x] chat UI (`SummaryView` / `ResultTimeline`) — `ai_assistant` 턴 데이터에 `presentations[]` 가 있으면 기존 `presentation-renderers.tsx` 컴포넌트 inline 렌더
+- [x] `render_form` blocking 케이스 — multi-turn waiting 형식에 form 카드 inline 렌더, 제출 시 `execution.submit_form` (기존 form 흐름 재사용)
 
 ### 4.5 테스트
 
@@ -137,3 +137,17 @@ main Claude 가 `/consistency-check --spec` 호출. Critical 0 확인 후 구현
 - AI Agent + `presentationTools: ['table','chart']` 로 LLM 이 텍스트 + chart 동시 응답 → chat UI 에 둘 다 표시 + downstream 노드의 `output.result.response` 는 텍스트만 운반
 - AI Agent + `presentationTools: ['form']` 로 LLM 이 form 호출 → `waiting_for_input` 진입 → 사용자 제출 → 다음 turn LLM 응답
 - schema 위반 시 1회 재시도 후 fallback, AI Agent 는 `error` 포트로 흐르지 않고 정상 turn 으로 종료
+
+## 7. 완료 노트 (2026-05-24)
+
+본 plan 의 1차 작업은 PR #271 (`feat(ai-agent): presentation tool family (render_*) — LLM 응답 surface 확장`, `bf16a3e7`, 2026-05-22 머지) 로 출시. 이후 회귀·UX·hardening 후속이 일련의 PR 로 진행되어 본 plan 의 체크리스트 surface 들이 모두 main 에 반영된 상태에서 `plan/in-progress/` 잔존만 stale 로 남아 있었음 (PR #301 작업 중 `consistency-check plan_coherence` WARNING 으로 권고됨).
+
+PR 추적:
+- PR #271 (`bf16a3e7`) — 1차 출시. spec §4.1·§4·§6.1·§6.2·§7·§10·§12 + render-tool-provider 신설 + AI Agent 설정 패널 + chat UI inline 렌더.
+- PR #273~#288 — `render_form` blocking flow 정식 구현 + multi-turn waiting + `interactionType:'ai_form_render'` + `_resumeState.pendingFormToolCall` + `presentation_user` sentinel + form `option.value` backfill + file 타입 metadata-only.
+- PR #297~#299 — `render_form` 활성 form timeline 인라인 통합 + form bypass + presentationPayload 누락 보강 + 제출된 form schema JSON dump 제거.
+- PR #301 (`341632fc`) — `render_form` submit 후 LLM 동일 form 재호출 회귀 차단 (spec §12.6 신설). consistency-check 가 본 plan stale 을 발견한 trigger.
+
+영향 받는 SoT 파일 (§5) 검증 (2026-05-24, main HEAD `341632fc`): spec/conventions/conversation-thread.md, spec/5-system/6-websocket-protocol.md, spec/5-system/14-external-interaction-api.md, spec/conventions/node-output.md, render-tool-provider.ts 모두 반영 확인.
+
+본 plan 은 본 chore PR 로 `plan/complete/` 로 이동한다 — frontmatter 의 `worktree: ai-presentation-tools-9b7c5c` 는 history 로 보존 (현재 stale 정리됨).
