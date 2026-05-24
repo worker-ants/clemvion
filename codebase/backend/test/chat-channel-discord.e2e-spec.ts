@@ -27,8 +27,8 @@ async function setupDiscordTrigger(db: Client): Promise<{
   const workspaceId = randomUUID();
   const userId = randomUUID();
   await db.query(
-    `INSERT INTO "user" (id, email, name, password_hash, role, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, 'user', NOW(), NOW())
+    `INSERT INTO "user" (id, email, name, password_hash, email_verified, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, true, NOW(), NOW())
      ON CONFLICT DO NOTHING`,
     [userId, `discord-e2e-${userId.slice(0, 8)}@e2e.local`, 'Discord E2E', 'x'],
   );
@@ -44,17 +44,17 @@ async function setupDiscordTrigger(db: Client): Promise<{
   );
   const workflowId = randomUUID();
   await db.query(
-    `INSERT INTO workflow (id, name, workspace_id, created_at, updated_at)
-     VALUES ($1, $2, $3, NOW(), NOW())`,
-    [workflowId, 'discord-e2e-wf', workspaceId],
+    `INSERT INTO workflow (id, name, workspace_id, is_active, current_version, created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, true, 1, $4, NOW(), NOW())`,
+    [workflowId, 'discord-e2e-wf', workspaceId, userId],
   );
   const triggerId = randomUUID();
   const endpointPath = `discord-e2e-${randomBytes(6).toString('hex')}`;
   await db.query(
     `INSERT INTO trigger
-       (id, workspace_id, workflow_id, type, endpoint_path, is_active, config,
+       (id, workspace_id, workflow_id, type, name, endpoint_path, is_active, config,
         chat_channel_health, created_at, updated_at)
-     VALUES ($1, $2, $3, 'webhook', $4, true, $5::jsonb, 'unknown', NOW(), NOW())`,
+     VALUES ($1, $2, $3, 'webhook', 'discord-e2e-trigger', $4, true, $5::jsonb, 'unknown', NOW(), NOW())`,
     [
       triggerId,
       workspaceId,

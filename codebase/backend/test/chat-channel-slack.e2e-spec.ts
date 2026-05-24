@@ -44,8 +44,8 @@ async function setupSlackTrigger(db: Client): Promise<{
   const workspaceId = randomUUID();
   const userId = randomUUID();
   await db.query(
-    `INSERT INTO "user" (id, email, name, password_hash, role, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, 'user', NOW(), NOW())
+    `INSERT INTO "user" (id, email, name, password_hash, email_verified, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, true, NOW(), NOW())
      ON CONFLICT DO NOTHING`,
     [userId, `slack-e2e-${userId.slice(0, 8)}@e2e.local`, 'Slack E2E', 'x'],
   );
@@ -61,9 +61,9 @@ async function setupSlackTrigger(db: Client): Promise<{
   );
   const workflowId = randomUUID();
   await db.query(
-    `INSERT INTO workflow (id, name, workspace_id, created_at, updated_at)
-     VALUES ($1, $2, $3, NOW(), NOW())`,
-    [workflowId, 'slack-e2e-wf', workspaceId],
+    `INSERT INTO workflow (id, name, workspace_id, is_active, current_version, created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, true, 1, $4, NOW(), NOW())`,
+    [workflowId, 'slack-e2e-wf', workspaceId, userId],
   );
   const triggerId = randomUUID();
   const endpointPath = `slack-e2e-${randomBytes(6).toString('hex')}`;
@@ -74,9 +74,9 @@ async function setupSlackTrigger(db: Client): Promise<{
   // 가 fail-fast 라 별도 stub 필요. 본 e2e 는 trigger row 만 setup + auth flow 만 검증).
   await db.query(
     `INSERT INTO trigger
-       (id, workspace_id, workflow_id, type, endpoint_path, is_active, config,
+       (id, workspace_id, workflow_id, type, name, endpoint_path, is_active, config,
         chat_channel_health, created_at, updated_at)
-     VALUES ($1, $2, $3, 'webhook', $4, true, $5::jsonb, 'unknown', NOW(), NOW())`,
+     VALUES ($1, $2, $3, 'webhook', 'slack-e2e-trigger', $4, true, $5::jsonb, 'unknown', NOW(), NOW())`,
     [
       triggerId,
       workspaceId,
