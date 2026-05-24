@@ -20,6 +20,7 @@ import {
 import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { ChatChannelConfigDto } from './dto/chat-channel-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { ChatChannelConfig } from '../chat-channel/types';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
@@ -60,6 +61,7 @@ export class TriggersService {
     @InjectRepository(Schedule)
     private readonly scheduleRepository: Repository<Schedule>,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
+    private readonly channelListenerRegistry: ChannelListenerRegistry,
     private readonly configService: ConfigService,
     private readonly secrets: SecretResolverService,
   ) {}
@@ -595,6 +597,12 @@ export class TriggersService {
           chatChannelLastError: null,
         },
       );
+      // [Spec R8 v1 적용 (2026-05-24)] setup success path 에서만 listener registry register.
+      // setupChannel 멱등성 — 동일 triggerId 재호출 시 entry overwrite.
+      this.channelListenerRegistry.register(
+        trigger.id,
+        chatChannelCfg.provider,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // SUMMARY#24: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger 는
@@ -644,6 +652,9 @@ export class TriggersService {
   async remove(id: string, workspaceId: string): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
     await this.teardownChatChannel(trigger);
+    // [Spec R8 v1 적용 (2026-05-24)] listener registry unregister — trigger 삭제 후 race
+    // event 가 dispatcher 에 도달했을 때 안전 가드. unregister 는 graceful (미등록 noop).
+    this.channelListenerRegistry.unregister(trigger.id);
     // SUMMARY#13: trigger 삭제 시 secret_store 의 모든 관련 row 삭제 (application-level cascade).
     await this.secrets.deleteByPrefix(`secret://triggers/${trigger.id}/`);
     await this.triggerRepository.remove(trigger);

@@ -1,9 +1,12 @@
 ---
-status: ready (trigger 조건 충족 — Slack / Discord backend (PR #300) + GUI (PR trigger-create-multi-provider-ui) 시점)
+worktree: chat-channel-dispatcher-split-impl-d7c3ea
+status: in-progress (R8 v2 per-trigger listener 정책 적용 — 2026-05-24)
 created: 2026-05-22
-owner: project-planner
+started: 2026-05-24
+owner: developer
 priority: post-v1 (provider ≥ 2 도입 시 진입)
 related_spec_pr: PR #259
+base_branch: claude/trigger-create-multi-provider-ui-plan-677f12 (PR #308 dependent)
 ---
 
 > 본 plan 은 spec/5-system/15-chat-channel.md Rationale R8 의 의무 정책 (listener dedup·teardown) 을 v2 구조에서 적용하기 위한 분리 리팩토링 추적용이다. 본 PR (#259) 에서는 다음 사항이 정밀화 완료:
@@ -59,3 +62,44 @@ related_spec_pr: PR #259
 
 - 외부 HTTP / Redis pub/sub 경로 변경
 - 다중 인스턴스 환경 cross-process pub/sub 변경
+
+---
+
+## 진입 시점 작업 분할 (2026-05-24 — chat-channel-dispatcher-split-impl-d7c3ea)
+
+### 현황 재평가 (R8 의 spec 본문 vs 실제 코드)
+
+R8 본문은 "v1 의 NotificationDispatcher 가 3 갈래 fan-out (외부 HTTP / Redis pub/sub / In-process EventEmitter) 을 단일 클래스에 담는다" 고 가정. 실제 코드 (`origin/main` 기준 + PR #308) 는 이미 분리된 상태:
+
+- `WebsocketService.executionEvents$` RxJS Subject 가 fan-out source
+- `NotificationDispatcher` — 외부 HTTP POST 전담 (별 모듈)
+- `SseAdapter` — Redis pub/sub 전담 (별 모듈)
+- `ChatChannelDispatcher` (`codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`) — in-process subscription 전담 (별 모듈)
+
+즉 R8 의 "분리 리팩토링" 은 사실상 이미 적용됨. 본 plan 의 실제 작업은 **(a) spec R8 본문을 코드 현실과 정합 갱신** + **(b) per-trigger listener dedup/teardown 정책 적용** + **(c) 본 plan 의 `Phase 1` "별 ChannelDispatcher 클래스 추출" 항목 deprecation** 임.
+
+### Phase A — spec R8 본문 정합화 (catch-up)
+
+| 항목 | 파일 | 상세 |
+|---|---|---|
+| R8 본문 갱신 | `spec/5-system/15-chat-channel.md` R8 절 | "v1 의 NotificationDispatcher 가 3 갈래 fan-out 을 단일 클래스에 담는다" → "v1 의 fan-out source 는 `WebsocketService.executionEvents$` RxJS Subject. 3 listener (NotificationDispatcher / SseAdapter / ChatChannelDispatcher) 가 별 모듈에 분리되어 있음 — 분리 리팩토링은 이미 완료된 상태." 본 plan 의 작업은 **per-trigger listener dedup/teardown 정책 적용** 으로 재정의 |
+| R8 v2 적용 시점 명확화 | 같은 절 | v1 에서도 적용 (provider ≥ 2 충족 + GUI multi-provider 도입). 단 message routing 자체는 module-level handler 안에서 일어나므로 listener key 는 **lifecycle 추적용 + handle() 안전 가드** 로 사용 (DB round-trip 절감 + active listener 미등록 trigger 의 event silent skip) |
+
+### Phase B — per-trigger listener registry 도입 (low-risk)
+
+| 항목 | 파일 | 상세 |
+|---|---|---|
+| `ChannelListenerRegistry` 신설 | `codebase/backend/src/modules/chat-channel/channel-listener.registry.ts` | `Map<triggerId, { provider: string; registeredAt: Date }>` 단순 in-memory registry. 메서드: `register(triggerId, provider)`, `unregister(triggerId)`, `has(triggerId)`, `get(triggerId)`. 멱등성 — register 가 동일 key 재등록 시 기존 entry overwrite (R8 (a) 정합) |
+| `TriggersService.setupChatChannel` 호출 흐름에 register 추가 | `codebase/backend/src/modules/triggers/triggers.service.ts` | setupChatChannel 의 try 블록 success path 에서 `channelListenerRegistry.register(trigger.id, chatChannelCfg.provider)`. 실패 path 는 등록 안 함 (degraded 상태) |
+| `TriggersService.remove` 호출 흐름에 unregister | 같은 service | trigger 삭제 시 `channelListenerRegistry.unregister(trigger.id)` (R8 (b) 정합) |
+| `ChatChannelDispatcher.handle` 에 listener check 추가 | `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts` | trigger DB 조회 전 `channelListenerRegistry.has(triggerId)` 로 사전 필터링. 미등록 trigger 의 event 는 silent skip (DB round-trip 절감 + 비활성 trigger 안전 가드). 단 hot reload / process restart 후 listener registry 가 빈 상태에서는 fallback — registry 가 비어있으면 DB 조회 기존 흐름 (graceful degradation) |
+| `ChatChannelModule.onApplicationBootstrap` 에 활성 trigger 의 listener 미리 등록 | `codebase/backend/src/modules/chat-channel/chat-channel.module.ts` | 모듈 bootstrap 시 DB 에서 `isActive=true AND config->chatChannel IS NOT NULL` 트리거 fetch → 각각 registry.register. process restart 후 registry 가 비어있는 시간 창 해소 |
+| Unit test | `channel-listener.registry.spec.ts` + 기존 dispatcher spec 확장 | register/unregister/has/get + 멱등성 + hot reload 시뮬레이션 |
+
+### Phase C — `chat-channel-dispatcher-split.md` plan 의 Phase 1 deprecation 명시
+
+본 plan 본문 (이 파일) 의 "Phase 1 — ChannelDispatcher 클래스 분리" 항목 deprecation 명시. 이미 별 모듈로 분리됨. Phase 2/3 는 본 plan 의 Phase B 작업으로 흡수됨.
+
+### Phase D — TEST + plan complete
+
+lint / unit / build / e2e 모두 통과 + `git mv plan/in-progress/ → plan/complete/`.

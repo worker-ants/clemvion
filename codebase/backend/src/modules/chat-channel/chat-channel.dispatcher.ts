@@ -12,6 +12,7 @@ import {
   WebsocketService,
 } from '../websocket/websocket.service';
 import { ChannelAdapterRegistry } from './channel-adapter.registry';
+import { ChannelListenerRegistry } from './channel-listener.registry';
 import { ChannelConversationService } from './channel-conversation.service';
 import {
   ChannelMessage,
@@ -49,6 +50,7 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly websocketService: WebsocketService,
     private readonly registry: ChannelAdapterRegistry,
+    private readonly listenerRegistry: ChannelListenerRegistry,
     private readonly conversationService: ChannelConversationService,
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
@@ -76,6 +78,14 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     const triggerId = (event.payload as { triggerId?: unknown }).triggerId;
     if (typeof triggerId !== 'string' || triggerId.length === 0) {
       // Trigger id 가 없는 execution (수동 실행 등) 은 채널 대상 아님.
+      return;
+    }
+    // [Spec R8 v1 적용 (2026-05-24)] per-trigger listener registry 사전 가드.
+    // 미등록 trigger 의 event 는 silent skip (DB round-trip 절감 + trigger 삭제 후 race
+    // event 의 비활성 trigger 메시지 발송 위험 사전 차단). registry 가 비어있는 race
+    // window (process restart 직후) 는 bulkRegister 가 onApplicationBootstrap 에서 일괄
+    // 복원하므로 의미 있는 갭이 거의 없음.
+    if (!this.listenerRegistry.has(triggerId)) {
       return;
     }
     const trigger = await this.triggerRepository.findOne({

@@ -8,6 +8,7 @@ import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 
 describe('TriggersService.findOneDetail', () => {
@@ -34,6 +35,17 @@ describe('TriggersService.findOneDetail', () => {
         {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
         },
         {
           provide: ConfigService,
@@ -177,6 +189,17 @@ describe('TriggersService — notification/interaction config 병합 (External I
         {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
+        },
+        {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
         },
         {
           provide: ConfigService,
@@ -442,6 +465,17 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
           useValue: { has: jest.fn(() => false), get: jest.fn() },
         },
         {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
+        },
+        {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
         },
@@ -637,6 +671,17 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
         {
           provide: ChannelAdapterRegistry,
           useValue: adapterRegistry,
+        },
+        {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
         },
         {
           provide: ConfigService,
@@ -949,6 +994,17 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
           useValue: { has: jest.fn(() => false), get: jest.fn() },
         },
         {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
+        },
+        {
           provide: ConfigService,
           useValue: { get: jest.fn(() => 'http://localhost:3000') },
         },
@@ -1036,6 +1092,17 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
           useValue: {
             has: jest.fn().mockReturnValue(true),
             get: jest.fn().mockReturnValue(mockAdapter),
+          },
+        },
+        {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
           },
         },
         {
