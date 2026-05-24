@@ -11,6 +11,10 @@ code: ["codebase/backend/src/modules/chat-channel/providers/discord/discord.adap
 
 Connect a Discord bot as your workflow's interface, and users can drive workflows via `/workflow start` slash commands, button clicks, and modal text inputs.
 
+<Callout type="warn">
+Discord v1 limitation (R-CC-13 / R-D-3): free-text DM messages are not supported. v1 uses Interactions Webhook only; receiving plain DM text requires a Gateway WebSocket connection, which is out of scope for v1. User reply paths: (a) `/workflow reply <message>` slash command text option, (b) the **Reply** button on AI messages opens a modal TEXT_INPUT (default UX).
+</Callout>
+
 ## 1. Create a Discord app
 
 1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**
@@ -40,13 +44,30 @@ In the **General Information** page:
 
 ## 4. Connect Discord to clemvion
 
-1. Create a **Webhook trigger**
-2. Enable **Chat Channel** → **Provider** = `Discord`
-3. **Bot Token** = `xxx.yyy.zzz`
-4. **Public Key** = the 64-char hex from Discord Portal
-5. Save → backend:
+**GUI flow (recommended)**:
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="Chat Channel section in the trigger create dialog — Discord provider with Bot Token and Application Public Key"
+/>
+
+1. Sidebar → [**Triggers**](/triggers) → top-right **"+ Add Webhook Trigger"**
+2. Enter trigger name, target workflow, and auth type
+3. Toggle **"Connect a Chat Channel (external bot)"** at the bottom of the form
+4. **Provider** dropdown = `Discord`
+5. **Bot Token** = the token from Discord Developer Portal **Bot** tab → **Reset Token**
+6. **Application Public Key** = the 64-char hex from Developer Portal **General Information**
+7. Click **Create** — the backend:
    - calls `GET /applications/@me` to cache application id/name
    - bulk-overwrites slash commands via `PUT /applications/{app_id}/commands` (`start` / `cancel` / `help` / `reply`)
+8. Copy the generated endpoint URL and paste it into **Interactions Endpoint URL** on the Discord Developer Portal **General Information** page
+   - Discord sends a PING (`type: 1`) immediately; clemvion responds automatically with `{ type: 1 }` 200 — validation passes
+
+<Callout type="note">
+Copy the endpoint URL using the 📋 button on the trigger list. Slash command availability may take up to 1 hour after bulk-overwrite due to Discord cache propagation.
+</Callout>
 
 ## 5. Usage
 

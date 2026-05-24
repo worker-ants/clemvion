@@ -295,14 +295,33 @@ Prefer `per_execution` when you can — a leak is limited to one execution withi
 
 If neither `notification` nor `interaction` is configured, the trigger behaves exactly as before — webhook in, execution starts, results visible on the trigger call history or the workflow's execution history.
 
-## Chat Channel (Telegram bot)
+## Chat Channel
 
-Set `config.chatChannel` on a Webhook trigger to make a **Telegram bot** the conversational interface for your workflow. Messages from Telegram users start new executions or provide input to an execution waiting for user interaction (`waiting_for_input`).
+Set a Chat Channel on a Webhook trigger to make an external chatbot the conversational interface for your workflow. Messages and commands from users start new executions or fill the `waiting_for_input` prompt of a running execution.
 
-### Setup
+Three providers are currently supported:
+
+| Provider | Full guide |
+|---|---|
+| Telegram | [Telegram integration guide](/docs/06-integrations-and-config/telegram) |
+| Slack | [Slack integration guide](/docs/06-integrations-and-config/slack) |
+| Discord | [Discord integration guide](/docs/06-integrations-and-config/discord) |
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="Chat Channel section in the trigger create dialog — 3 providers (telegram / slack / discord)"
+/>
+
+[**Triggers**](/triggers) screen → **"+ Add Webhook Trigger"** → toggle **"Connect a Chat Channel (external bot)"** at the bottom → select Provider → enter credentials → **Create**.
+
+Each provider's credential requirements and external portal steps are covered in its dedicated guide above.
+
+### Telegram setup
 
 1. Create a bot with [Telegram BotFather](https://t.me/botfather) using `/newbot` and copy the **API Token**.
-2. **Triggers screen → "+ Add Webhook Trigger" → toggle "Connect a Chat Channel (Telegram bot)" at the bottom → paste Bot Token → Create.** `setWebhook` is called automatically to wire the bot to the workflow endpoint.
+2. **Triggers screen → "+ Add Webhook Trigger" → toggle "Connect a Chat Channel (external bot)" → Provider = Telegram → paste Bot Token → Create.** `setWebhook` is called automatically to wire the bot to the workflow endpoint.
 3. To register via API instead, send `config.chatChannel` in the trigger create body:
 
 ```bash
@@ -368,7 +387,7 @@ Group chats are not supported — the bot only operates in 1:1 (private) convers
 New error codes from the Chat Channel API: `INVALID_BOT_TOKEN`, `WORKSPACE_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`. These are not yet mapped in `ERROR_KO` so they appear in English — a future `backend-labels.ts` update will add Korean labels.
 </Callout>
 
-For step-by-step bot creation and advanced settings, see the [Telegram integration guide](/docs/06-integrations-and-config/telegram).
+For step-by-step setup and advanced settings, see the individual integration guides: [Telegram](/docs/06-integrations-and-config/telegram) · [Slack](/docs/06-integrations-and-config/slack) · [Discord](/docs/06-integrations-and-config/discord).
 
 ## Canvas summary
 
