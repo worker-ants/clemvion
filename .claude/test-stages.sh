@@ -22,7 +22,34 @@ cmd_unit() {
 
 cmd_build() {
   (cd codebase/backend && npm run build) && \
-  (cd codebase/frontend && npm run build)
+  (cd codebase/frontend && npm run build) && \
+  _cmd_build_docker_images
+}
+
+# Dockerfile 자체의 monorepo packages COPY 누락 회귀 차단 — PR #311 hotfix 의 재발 방지.
+# In-process `npm run build` 는 local node_modules 에 file:dep 가 link 돼 있어 통과하지만,
+# docker context 안의 `npm ci` 는 packages/* 가 COPY 안 됐을 때 file:dep resolve 실패 → deploy
+# 시점에 회귀. 본 단계가 사전 차단.
+#
+# NEXT_PUBLIC_* 는 dummy build-arg (build-time baking 만 검증, deploy 는 실 값 주입).
+# tag 는 throwaway (`clemvion-build-check/*:latest`) — 외부 registry push 없음.
+_cmd_build_docker_images() {
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[build:docker] docker CLI 미설치 — Dockerfile build 검증 skip (INFRA_NOT_AVAILABLE)"
+    return 0
+  fi
+  if ! docker info >/dev/null 2>&1; then
+    echo "[build:docker] docker daemon 미가용 — Dockerfile build 검증 skip (INFRA_NOT_AVAILABLE)"
+    return 0
+  fi
+  echo "[build:docker] backend Dockerfile build 검증"
+  docker build -q -f codebase/backend/Dockerfile -t clemvion-build-check/backend:latest . && \
+  echo "[build:docker] frontend Dockerfile build 검증" && \
+  docker build -q \
+    -f codebase/frontend/Dockerfile \
+    --build-arg NEXT_PUBLIC_API_URL=http://localhost:3011/api \
+    --build-arg NEXT_PUBLIC_WS_URL=http://localhost:3011 \
+    -t clemvion-build-check/frontend:latest .
 }
 
 cmd_e2e() {
