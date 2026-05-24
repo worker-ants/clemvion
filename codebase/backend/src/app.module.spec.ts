@@ -45,6 +45,7 @@ import { GraphChunkEntity } from './modules/knowledge-base/entities/chunk-entity
 import { AlertRule } from './modules/alerts/entities/alert-rule.entity';
 import { WorkflowAssistantSession } from './modules/workflow-assistant/entities/workflow-assistant-session.entity';
 import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/workflow-assistant-message.entity';
+import { SecretStore } from './modules/secret-store/entities/secret-store.entity';
 
 const REQUIRED_ENTITIES = [
   User,
@@ -84,6 +85,7 @@ const REQUIRED_ENTITIES = [
   AlertRule,
   WorkflowAssistantSession,
   WorkflowAssistantMessage,
+  SecretStore,
 ];
 
 describe('AppModule — root entities registration guard', () => {
