@@ -32,7 +32,7 @@ code: []
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
-| CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택. supported provider 는 [`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실 (v1 supported: `telegram` / v1 spec-defined: `slack`, `discord` — impl pending) | 필수 |
+| CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택. supported provider 는 [`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실 (v1 supported: `telegram` / `slack` / `discord` — 2026-05-24 갱신, PR #300 정합) | 필수 |
 | CCH-AD-02 | Trigger enable / 신규 생성 시 어댑터의 `setupChannel()` 자동 호출 (텔레그램은 `setWebhook`) | 필수 |
 | CCH-AD-03 | Trigger disable / 삭제 시 어댑터의 `teardownChannel()` 자동 호출 | 필수 |
 | CCH-AD-04 | Webhook 진입점 ([`POST /api/hooks/:endpointPath`](./12-webhook.md#31-webhook-수신-엔드포인트)) 핸들러는 `config.chatChannel` 가 있으면 raw body 를 `parseUpdate(raw)` 로 통과시켜 워크플로우 input 으로 변환. [WH-NF-01](./12-webhook.md#4-비기능-요구사항) 의 200ms 응답 시한을 깨지 않도록 `parseUpdate` 50ms (CCH-NF-01) + 트리거 조회 + `202 Accepted` 반환의 순서로 처리 | 필수 |
@@ -540,3 +540,13 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 대안 (기각):
 - CCH-MP-01 본문에 "Gateway 미사용 provider 는 모달/slash 입력 허용" 예외 절 추가 — provider 한계가 시스템 spec 에 누수. R-D-9 의 동일 정신 (provider 한계는 provider spec Rationale 에).
 - Discord v1 도 Gateway 도입 — R-D-3 기각 사유 (long-lived connection 관리 부담) 그대로 적용.
+
+### R-CC-14. PR #300 정합 catch-up — CCH-AD-01 의 "impl pending" 문구 제거 (2026-05-24)
+
+`§3.1 CCH-AD-01` 의 "v1 supported: `telegram` / v1 spec-defined: `slack`, `discord` — impl pending" 진술이 PR #300 (`feat(chat-channel): slack + discord providers (v1 supported)`) 머지 후 stale 상태로 남아 있었다. `_overview.md §1` 은 PR #300 시점부터 셋 다 `supported (v1)` 로 표기되어 있어 두 spec 문서가 같은 사실에 대해 상반된 상태를 기술하는 spec-internal drift 가 발생했다.
+
+본 catch-up:
+- CCH-AD-01 의 "v1 supported: telegram / v1 spec-defined: slack, discord — impl pending" → "v1 supported: telegram / slack / discord — 2026-05-24 갱신, PR #300 정합"
+- 새 결정 신설·기존 결정 번복 아님. `_overview.md §1` 의 supported 선언이 단일 진실 — 본 spec 은 정합 cross-link.
+
+발견 경로: `plan/in-progress/trigger-create-multi-provider-ui.md` 의 GUI 구현 착수 직전 `/consistency-check --impl-prep` (`review/consistency/2026/05/24/18_21_47/SUMMARY.md` C-2) 가 BLOCK. 사용자 결정 (2026-05-24) 으로 본 구현 PR 안에 spec 정정 commit 을 함께 포함.
