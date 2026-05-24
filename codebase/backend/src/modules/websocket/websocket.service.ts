@@ -13,8 +13,45 @@ export interface ExecutionChannelEvent {
   executionId: string;
   eventType: string;
   seq: number;
-  /** 직렬화된 payload (socket.io 와 동일 — 클라이언트가 받는 그대로). */
+  /**
+   * Fanout envelope — internal subscriber (SseAdapter / NotificationFanout /
+   * ChatChannelDispatcher) 가 받는 payload. wire envelope (frontend 가 socket.io
+   * 로 받는 payload) 와 base shape 은 같지만, execution 의 라우팅 컨텍스트
+   * (`triggerId` / `chatChannel`) 가 등록되어 있으면 본 fanout envelope 에만
+   * 추가로 첨부된다. 자세한 분리 이유는 {@link WebsocketService#executionRouting}.
+   */
   payload: Record<string, unknown>;
+}
+
+/**
+ * `ChatChannelDispatcher` 가 outbound 발송 시 라우팅에 사용하는 conversation
+ * 식별자. 필수 두 필드는 [Spec Chat Channel §3.1 CCH-AD-05 / §4.3] 의 conversation
+ * 매핑 키 — `(provider, conversationKey)` 1:1 ChannelConversation. provider 별
+ * 추가 필드 (channelUserKey, 그 외 provider-specific) 는 index signature 로 허용 —
+ * 본 타입은 dispatcher 에 전달되는 wire shape 의 최소 contract 만 강제하고
+ * 확장 필드는 provider 책임으로 통과시킨다.
+ */
+export interface ChatChannelRoutingInfo {
+  provider: string;
+  conversationKey: string;
+  channelUserKey?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Execution 단위 outbound 라우팅 컨텍스트. ExecutionEngine 이 execute() 진입
+ * 시 등록 → 이후 emit 되는 모든 이벤트의 fanout envelope 에 자동 첨부 →
+ * `ChatChannelDispatcher` / `NotificationFanout` 가 trigger 와 conversation 을
+ * 식별 (Spec Chat Channel §3.1 CCH-AD-05 / EIA §6).
+ */
+export interface ExecutionRoutingContext {
+  /** 트리거 발화로 시작된 execution 만 set. 수동 실행은 undefined. */
+  triggerId?: string;
+  /**
+   * 트리거가 `config.chatChannel` 설정 webhook 인 경우만 set. 일반 webhook
+   * 트리거는 undefined.
+   */
+  chatChannel?: ChatChannelRoutingInfo;
 }
 
 export enum ExecutionEventType {
@@ -225,7 +262,51 @@ export class WebsocketService {
   readonly executionEvents$: Observable<ExecutionChannelEvent> =
     this.executionEventSubject.asObservable();
 
+  /**
+   * Execution 단위 라우팅 컨텍스트 — `executionId → {triggerId?, chatChannel?}`.
+   *
+   * [Spec Chat Channel §3.1 CCH-AD-05 / §3.2]: `ChatChannelDispatcher` 와
+   * `NotificationFanout` 은 `event.payload.triggerId` / `event.payload.chatChannel.conversationKey`
+   * 를 가드로 사용한다. ExecutionEngine 이 execute() 진입 시 본 Map 에 등록하면,
+   * 이후 모든 `emitExecutionEvent` / `emitNodeEvent` 가 만드는 **fanout envelope**
+   * 에만 자동 첨부된다. **wire envelope** (`gateway.broadcastToChannel`) 에는
+   * 첨부하지 않아 WS spec §4.4 의 frontend wire shape 호환성을 유지한다.
+   *
+   * Lifecycle 은 {@link seqCounters} 와 동일 — terminal event 발송 후 자동
+   * release. 명시 release 필요 시 {@link releaseExecutionRouting}.
+   */
+  private readonly executionRouting = new Map<
+    string,
+    ExecutionRoutingContext
+  >();
+
   constructor(private readonly gateway: WebsocketGateway) {}
+
+  /**
+   * Execution 시작 시 호출 — 이후 emit 되는 모든 이벤트의 fanout envelope 에
+   * `triggerId` / `chatChannel` 이 자동 첨부된다.
+   *
+   * 같은 executionId 로 재호출하면 덮어쓰기. 일반 webhook (chatChannel 미설정)
+   * 경로는 `triggerId` 만 전달해도 무관 (NotificationFanout 가드는 통과,
+   * ChatChannelDispatcher 가드는 chatChannel 까지 필요해 자체 silent skip).
+   */
+  registerExecutionRouting(
+    executionId: string,
+    context: ExecutionRoutingContext,
+  ): void {
+    if (!executionId) return;
+    this.executionRouting.set(executionId, context);
+  }
+
+  /**
+   * Routing context 명시 해제. terminal event (`COMPLETED` / `FAILED` /
+   * `CANCELLED`) 발송 시 {@link emitExecutionEvent} 가 자동 호출하므로 정상
+   * 흐름에서는 호출 불필요. 엔진이 비정상 종료 (예: workflow not found 로 emit
+   * 자체가 발생하지 않는 케이스) 등에서 누수 방지용으로 사용.
+   */
+  releaseExecutionRouting(executionId: string): void {
+    this.executionRouting.delete(executionId);
+  }
 
   /**
    * execution 채널 emit 직전에 호출. atomic INCR 후 새 seq 반환.
@@ -253,7 +334,7 @@ export class WebsocketService {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
     const seq = this.nextSeq(executionId);
-    const envelope: Record<string, unknown> = {
+    const wireEnvelope: Record<string, unknown> = {
       executionId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
         ? sanitizedPayload
@@ -261,16 +342,22 @@ export class WebsocketService {
       seq,
       timestamp: new Date().toISOString(),
     };
-    this.gateway.broadcastToChannel(channel, eventType, envelope);
-    // 외부 fan-out (R10 facade): SseAdapter / NotificationDispatcher 가 본 stream 을 구독.
+    // wire envelope (frontend socket.io) — WS spec §4.4 shape 그대로.
+    this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);
+    // fanout envelope (internal subscriber: SseAdapter / NotificationFanout /
+    // ChatChannelDispatcher) — routing context 가 등록되어 있으면 첨부.
+    // wire 와 분리한 이유: frontend wire shape 의 호환성을 유지하면서 dispatcher
+    // 가 trigger 식별에 필요한 추가 context 만 internal subscriber 에 전달.
+    const fanoutEnvelope = this.attachRoutingContext(executionId, wireEnvelope);
     this.executionEventSubject.next({
       executionId,
       eventType,
       seq,
-      payload: envelope,
+      payload: fanoutEnvelope,
     });
     if (TERMINAL_EXECUTION_EVENTS.has(eventType)) {
       this.releaseSeqCounter(executionId);
+      this.releaseExecutionRouting(executionId);
     }
   }
 
@@ -303,7 +390,7 @@ export class WebsocketService {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
     const seq = this.nextSeq(executionId);
-    const envelope: Record<string, unknown> = {
+    const wireEnvelope: Record<string, unknown> = {
       executionId,
       nodeId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
@@ -312,13 +399,38 @@ export class WebsocketService {
       seq,
       timestamp: new Date().toISOString(),
     };
-    this.gateway.broadcastToChannel(channel, eventType, envelope);
+    this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);
+    const fanoutEnvelope = this.attachRoutingContext(executionId, wireEnvelope);
     this.executionEventSubject.next({
       executionId,
       eventType,
       seq,
-      payload: envelope,
+      payload: fanoutEnvelope,
     });
+  }
+
+  /**
+   * wire envelope 에 execution routing context (`triggerId` / `chatChannel`) 를
+   * shallow-merge 한 새 fanout envelope 반환. context 미등록이면 wire envelope
+   * 동일 참조 반환 (allocation 없음). chatChannel 은 sanitize 한 사본을 첨부 —
+   * 호출자 회귀로 secret 이 섞이는 케이스의 defense-in-depth.
+   */
+  private attachRoutingContext(
+    executionId: string,
+    wireEnvelope: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const ctx = this.executionRouting.get(executionId);
+    if (!ctx) return wireEnvelope;
+    const additions: Record<string, unknown> = {};
+    if (ctx.triggerId) additions.triggerId = ctx.triggerId;
+    if (ctx.chatChannel) {
+      additions.chatChannel = sanitizePayloadForWs(ctx.chatChannel) as Record<
+        string,
+        unknown
+      >;
+    }
+    if (Object.keys(additions).length === 0) return wireEnvelope;
+    return { ...wireEnvelope, ...additions };
   }
 
   /**

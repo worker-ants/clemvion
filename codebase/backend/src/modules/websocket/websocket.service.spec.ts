@@ -1,5 +1,7 @@
+import { firstValueFrom, take, toArray } from 'rxjs';
 import {
   BackgroundRunEventType,
+  ExecutionChannelEvent,
   ExecutionEventType,
   NodeEventType,
   WebsocketService,
@@ -243,6 +245,201 @@ describe('WebsocketService', () => {
         const payload = call[2] as Record<string, unknown>;
         expect(payload).not.toHaveProperty('seq');
       }
+    });
+  });
+
+  describe('execution routing context (internal fanout envelope 첨부)', () => {
+    // Spec [chat-channel.md §3.1 CCH-AD-05]: ChatChannelDispatcher 가
+    // execution 의 trigger 와 conversationKey 를 식별할 수 있어야 outbound
+    // 발송이 가능. WebsocketService 가 (executionId → {triggerId, chatChannel})
+    // 컨텍스트를 등록받아 emit 시점에 fanout envelope (executionEvents$ Subject)
+    // 에 자동 첨부한다. wire envelope (gateway.broadcastToChannel) 에는
+    // 첨부하지 않음 — WS spec §4.4 의 frontend wire shape 보존.
+
+    async function nextFanoutEvent(
+      svc: WebsocketService,
+    ): Promise<ExecutionChannelEvent> {
+      return firstValueFrom(svc.executionEvents$.pipe(take(1)));
+    }
+
+    async function collectFanoutEvents(
+      svc: WebsocketService,
+      n: number,
+    ): Promise<ExecutionChannelEvent[]> {
+      return firstValueFrom(svc.executionEvents$.pipe(take(n), toArray()));
+    }
+
+    it('register 된 execution 의 fanout envelope 에 triggerId + chatChannel 첨부', async () => {
+      service.registerExecutionRouting('exec-1', {
+        triggerId: 'trg-A',
+        chatChannel: {
+          provider: 'telegram',
+          conversationKey: '12345',
+          channelUserKey: 'user-1',
+        },
+      });
+      const eventP = nextFanoutEvent(service);
+      service.emitExecutionEvent('exec-1', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-1',
+        message: 'hi',
+      });
+      const fanout = await eventP;
+      const payload = fanout.payload;
+      expect(payload.triggerId).toBe('trg-A');
+      expect(payload.chatChannel).toEqual({
+        provider: 'telegram',
+        conversationKey: '12345',
+        channelUserKey: 'user-1',
+      });
+    });
+
+    it('wire envelope (gateway broadcast) 에는 triggerId/chatChannel 미주입 — WS spec §4.4 wire shape 보존', () => {
+      service.registerExecutionRouting('exec-1', {
+        triggerId: 'trg-A',
+        chatChannel: { provider: 'telegram', conversationKey: '12345' },
+      });
+      service.emitExecutionEvent('exec-1', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-1',
+        message: 'hi',
+      });
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(wire).not.toHaveProperty('triggerId');
+      expect(wire).not.toHaveProperty('chatChannel');
+      // wire envelope 의 다른 field 는 그대로 유지
+      expect(wire.message).toBe('hi');
+      expect(wire.executionId).toBe('exec-1');
+    });
+
+    it('register 안 한 execution (수동 실행 등) 은 fanout envelope 에도 routing context 없음', async () => {
+      const eventP = nextFanoutEvent(service);
+      service.emitExecutionEvent('exec-manual', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-1',
+        message: 'hi',
+      });
+      const fanout = await eventP;
+      expect(fanout.payload).not.toHaveProperty('triggerId');
+      expect(fanout.payload).not.toHaveProperty('chatChannel');
+    });
+
+    it('triggerId 만 register 된 경우 (chatChannel 미설정 webhook trigger) chatChannel 미주입', async () => {
+      // 일반 webhook 트리거 — triggerId 만 알려진 케이스. NotificationFanout 은
+      // triggerId 만으로 통과하지만 ChatChannelDispatcher 는 chatChannel 까지 필요해
+      // silent skip. 두 가드 모두 의도대로 동작하려면 triggerId/chatChannel 이
+      // 독립적으로 register 가능해야 한다.
+      service.registerExecutionRouting('exec-wh', { triggerId: 'trg-webhook' });
+      const eventP = nextFanoutEvent(service);
+      service.emitExecutionEvent('exec-wh', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-1',
+        message: 'hi',
+      });
+      const fanout = await eventP;
+      expect(fanout.payload.triggerId).toBe('trg-webhook');
+      expect(fanout.payload).not.toHaveProperty('chatChannel');
+    });
+
+    it('terminal event 발송 후 routing context 자동 release — 같은 executionId 재사용 시 첨부 안 됨', async () => {
+      service.registerExecutionRouting('exec-2', {
+        triggerId: 'trg-A',
+        chatChannel: { provider: 'telegram', conversationKey: '12345' },
+      });
+      const eventsP = collectFanoutEvents(service, 3);
+      service.emitExecutionEvent('exec-2', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-1',
+        message: 'first',
+      });
+      service.emitExecutionEvent(
+        'exec-2',
+        ExecutionEventType.EXECUTION_COMPLETED,
+        { status: 'completed' },
+      );
+      // 같은 executionId 를 새 실행이 재사용했다고 가정. register 안 함.
+      service.emitExecutionEvent('exec-2', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-2',
+        message: 'reused',
+      });
+      const events = await eventsP;
+      expect(events[0].payload.triggerId).toBe('trg-A');
+      expect(events[1].payload.triggerId).toBe('trg-A');
+      // 새 실행은 register 안 했으니 routing context 없음.
+      expect(events[2].payload).not.toHaveProperty('triggerId');
+    });
+
+    it('releaseExecutionRouting 명시 호출 — terminal 이외 경로의 정리 (예: 엔진 에러로 정상 종료 안 됨)', async () => {
+      service.registerExecutionRouting('exec-3', { triggerId: 'trg-A' });
+      service.releaseExecutionRouting('exec-3');
+      const eventP = nextFanoutEvent(service);
+      service.emitExecutionEvent('exec-3', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-1',
+        message: 'hi',
+      });
+      const fanout = await eventP;
+      expect(fanout.payload).not.toHaveProperty('triggerId');
+    });
+
+    it('register 이전 emit (race) — 그 emit 은 첨부 없이 통과, 이후 register/emit 부터 첨부', async () => {
+      const eventsP = collectFanoutEvents(service, 2);
+      service.emitExecutionEvent('exec-race', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-1',
+        message: 'before-register',
+      });
+      service.registerExecutionRouting('exec-race', { triggerId: 'trg-late' });
+      service.emitExecutionEvent('exec-race', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-2',
+        message: 'after-register',
+      });
+      const events = await eventsP;
+      expect(events[0].payload).not.toHaveProperty('triggerId');
+      expect(events[1].payload.triggerId).toBe('trg-late');
+    });
+
+    it('emitNodeEvent 도 fanout envelope 에 routing context 첨부 — emitExecutionEvent 와 동일 경로 공유', async () => {
+      // `attachRoutingContext` 는 emit 메서드 양쪽에서 호출. emitNodeEvent
+      // 의 fanout 도 NotificationFanout / ChatChannelDispatcher 가 구독하는
+      // 같은 stream 으로 흘러가므로 동일하게 routing 첨부돼야 한다.
+      service.registerExecutionRouting('exec-node', {
+        triggerId: 'trg-N',
+        chatChannel: { provider: 'telegram', conversationKey: '999' },
+      });
+      const eventP = nextFanoutEvent(service);
+      service.emitNodeEvent(
+        'exec-node',
+        'node-1',
+        NodeEventType.NODE_COMPLETED,
+        { output: 'x' },
+      );
+      const fanout = await eventP;
+      expect(fanout.payload.triggerId).toBe('trg-N');
+      expect(fanout.payload.chatChannel).toEqual({
+        provider: 'telegram',
+        conversationKey: '999',
+      });
+      expect(fanout.payload.nodeId).toBe('node-1');
+    });
+
+    it('credential-shape 키가 chatChannel 안에 있으면 sanitize 가 마스킹 (defense in depth)', async () => {
+      // chatChannel 자체는 conversationKey/channelUserKey 같은 비-secret 만 담는 게
+      // 정상이지만, 호출자 회귀로 secret 이 섞일 위험에 대비해 fanout envelope 의
+      // sanitize 가 일관 적용되는지 확인.
+      service.registerExecutionRouting('exec-4', {
+        triggerId: 'trg-A',
+        chatChannel: {
+          provider: 'telegram',
+          conversationKey: '12345',
+          api_key: 'should-not-leak',
+        } as Record<string, unknown>,
+      });
+      const eventP = nextFanoutEvent(service);
+      service.emitExecutionEvent('exec-4', ExecutionEventType.AI_MESSAGE, {
+        nodeId: 'n-1',
+        message: 'hi',
+      });
+      const fanout = await eventP;
+      const chatChannel = fanout.payload.chatChannel as Record<string, unknown>;
+      expect(chatChannel.api_key).toBe('[REDACTED]');
+      expect(chatChannel.conversationKey).toBe('12345');
     });
   });
 });
