@@ -11,6 +11,16 @@ owner: project-planner
 > 는 같은 phase 의 implementation PR 이라 같은 PR 안에서 처리하거나 별 PR
 > 로 분리 모두 가능.
 
+## 진행 상태 (2026-05-25)
+
+- [x] **변경 1** — `spec/5-system/4-execution-engine.md §9.3` `task-queue` 행 삭제 + §11 토큰 제거 — commit `4dd805ed`.
+- [x] **변경 2.1** — `spec/5-system/4-execution-engine.md §7.5.1` 신설 (Publisher 측 사전 검증 + `INVALID_EXECUTION_STATE` 정의) — commit `4dd805ed`.
+- [x] **변경 2.2** — `spec/5-system/6-websocket-protocol.md §4.2` `INVALID_EXECUTION_STATE` 행 주석 + `spec/5-system/3-error-handling.md` 역방향 cross-link — commit `4dd805ed`.
+- [x] **동반 갱신 (impl-prep WARNING)** — `spec/data-flow/0-overview.md §4/§5` + `spec/data-flow/3-execution.md §1.3/§2.2/§2.3` — commit `4dd805ed`.
+- [ ] **변경 2.3** — Implementation 후행 작업 (`resolveWaitingNodeExecutionId` throw 전환) — 별 PR 권장. 본 plan 범위 외.
+
+본 plan 의 spec 작업은 완료 — `[ ]` 잔여 변경 2.3 만 별 plan 으로 이관 후 `git mv` 로 `plan/complete/` 이동 가능.
+
 ## 동기
 
 [`plan/in-progress/workflow-resumable-execution.md`](workflow-resumable-execution.md) §"Phase 2 진행 상태" 의
