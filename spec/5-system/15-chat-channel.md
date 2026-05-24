@@ -495,25 +495,33 @@ providers 서브디렉토리에는 v1 단계에서 `_overview.md` 1개 + `telegr
 
 EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbound-notification-notification-webhook) (HMAC signing secret rotation) 와 다른 자원이므로 `rotate-secret` 동사 재사용은 의미 혼동을 유발한다. `rotate-bot-token` 으로 명시화하면 URL 만으로 어떤 자원의 rotation 인지 즉시 식별 가능. [`spec/5-system/2-api-convention.md`](./2-api-convention.md) 의 RPC 스타일 (`/notification/rotate-secret`, `/interaction/revoke-token`) 과 동일 패턴 (`/<resource>/<verb>-<noun>`).
 
-### R8. NotificationDispatcher 분리 — provider 증가 시점에 재검토 (2026-05-22)
+### R8. Fan-out facade 의 분리 — 사실상 이미 완료, per-trigger listener 정책만 v1 적용 (2026-05-22, 갱신 2026-05-24)
 
-현재 v1 설계에서 `NotificationDispatcher` 는 세 가지 fan-out 갈래를 단일 클래스에 담는다:
+본 결정의 원본 (2026-05-22) 은 "v1 의 `NotificationDispatcher` 가 외부 HTTP POST / Redis pub/sub / in-process EventEmitter 3 갈래 fan-out 을 단일 클래스에 담는다" 고 가정하고, provider ≥ 2 시점에 `ChannelDispatcher` 분리를 권장했다. 2026-05-24 재평가 결과 — 실제 코드는 이미 분리되어 있어, 본 결정은 **per-trigger listener dedup/teardown 정책** 만으로 재정의된다.
 
-1. **외부 HTTP POST** (`EIA-NX-*`) — `notification.url` 등록 trigger 에 대한 outbound webhook
-2. **Redis pub/sub** — 다중 인스턴스 환경의 SSE 어댑터 fan-out
-3. **In-process EventEmitter** — Chat Channel 어댑터 in-process subscriber (CCH-AD-05)
+**실제 v1 구조 (2026-05-24 catch-up)**:
 
-이 단일 클래스 구조는 v1 의 단순함을 우선한 의도된 결정 (R4 NotificationDispatcher subscription 메커니즘). 하지만 (a) Chat Channel provider 가 2개 이상으로 늘어나거나 (b) 새 in-process subscriber 유형이 추가될 때는 `ChannelDispatcher` (EventEmitter 전담 in-process bus) 를 `NotificationDispatcher` 에서 분리하는 리팩토링이 권장된다 — 단일 책임 원칙 + 테스트 격리.
+- Fan-out source = `WebsocketService.executionEvents$` RxJS Subject — 모든 후속 listener 의 공통 진입.
+- Listener 3종은 별 모듈에 분리되어 있음:
+  1. `NotificationDispatcher` ([`codebase/backend/src/modules/external-interaction/`](../../codebase/backend/src/modules/external-interaction/)) — 외부 HTTP POST (`EIA-NX-*`)
+  2. `SseAdapter` (같은 모듈) — Redis pub/sub 으로 SSE fan-out
+  3. `ChatChannelDispatcher` ([`codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`](../../codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts)) — in-process subscription, chat-channel 전담
 
-**리스너 dedup / 라이프사이클 정책 — v1 vs v2 적용 시점**:
+즉 R8 의 "분리 리팩토링" 은 코드 구조상 이미 완료된 상태. 본 결정의 미적용 부분은 **per-trigger listener 라이프사이클 정책** 뿐이다 (chat-channel-dispatcher-split plan 의 작업 범위).
 
-- **v1 (현 구조)**: `ChatChannelDispatcher` 가 `WebsocketService.executionEvents$` Subject 를 모듈 단위 1회만 subscribe (`onModuleInit`) → 모듈 종료 시 unsubscribe (`onModuleDestroy`). 모든 trigger event 가 동일 listener 로 들어와 dispatcher 내부에서 `trigger.config.chatChannel` 분기 처리. **per-trigger listener 가 없으므로 dedup 자체가 무의미** — 정책은 향후 분리 시점에 적용.
-- **v2 (provider ≥ 2 분리 후)**:
-  - `setupChannel()` 호출 시 동일 `triggerId` 의 기존 in-process listener 가 있으면 제거 후 새 listener 등록 — `setupChannel` 의 멱등성 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-6함수-책임--부작용--멱등성)) 보장.
-  - `teardownChannel()` 호출 시 해당 `triggerId` 의 listener 를 반드시 해제 — 누락 시 비활성화된 trigger 에 메시지 중복 발송 위험.
-  - listener 등록은 항상 `(triggerId, provider)` 단위 키. 같은 trigger 가 provider 를 바꾸는 경우는 미지원 (재생성으로 처리) — listener key 충돌 가능성 차단.
+**리스너 dedup / 라이프사이클 정책 — v1 적용 (2026-05-24)**:
 
-후속 추적: 위 분리 리팩토링은 두 번째 provider (Slack / KakaoTalk 등) 도입 결정 시 `chat-channel-dispatcher-split` plan 으로 진입. plan 자체는 본 PR 에서 stub 신설 완료, **trigger 조건 미충족 상태** 로 보류.
+`ChatChannelDispatcher` 는 모듈 단위 1회 subscription (`onModuleInit`) 패턴을 유지하지만, **per-trigger listener registry** (`ChannelListenerRegistry`) 를 도입해 다음을 보장:
+
+- `setupChannel()` 호출 시 동일 `triggerId` 의 기존 entry 가 있으면 overwrite (멱등성). registry key 는 `triggerId` 단위 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-6함수-책임--부작용--멱등성) 의 setupChannel 멱등성 보장).
+- `teardownChannel()` (또는 `TriggersService.remove`) 시 해당 `triggerId` 의 entry 를 반드시 unregister — 누락 시 비활성화된 trigger 에 event 가 흘러갈 위험을 사전 차단.
+- registry entry 는 `(triggerId, provider)` value 를 가짐. 같은 trigger 가 provider 를 바꾸는 경우는 미지원 (재생성으로 처리).
+- `ChatChannelDispatcher.handle` 은 trigger DB 조회 전 `registry.has(triggerId)` 로 사전 필터링 — 미등록 trigger 의 event 는 silent skip + DB round-trip 절감.
+- **Hot reload / process restart fallback**: bootstrap (`onApplicationBootstrap`) 시 DB 에서 `isActive=true AND config.chatChannel IS NOT NULL` trigger 를 한 번에 fetch → 각 entry 를 registry 에 register. registry 가 비어 있는 race window 회피.
+
+본 정책의 실효성은 v1 단계에서 **(a) trigger 삭제 후 race event 안전 가드** + **(b) hot reload 후 listener 미등록 race 회피** + **(c) handle() 의 DB round-trip 절감** 세 가지. message routing 자체는 여전히 module-level handle() 안에서 일어남 (구조 변경 없이 invariant 강화).
+
+후속 추적: 본 정책 구현은 [`plan/complete/chat-channel-dispatcher-split.md`](../../plan/complete/chat-channel-dispatcher-split.md) (2026-05-24 완료). 추가 분리 리팩토링 (예: `WebsocketService.executionEvents$` 를 EventEmitter 기반으로 교체) 은 본 plan 범위 밖.
 
 ### R9. CCH-CV-03 `running` 케이스의 큐잉 vs 즉시 안내 (2026-05-22)
 
