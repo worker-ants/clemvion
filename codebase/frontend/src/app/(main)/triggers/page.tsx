@@ -207,9 +207,19 @@ export default function TriggersPage() {
       if (formAuthType === "bearer") {
         config.bearerToken = formBearerToken;
       }
-      // Chat Channel 토글이 켜져 있으면 chatChannel 필드 부착. backend setupChannel 자동 호출.
-      // provider-issued (slack/discord) 의 경우 inboundSigningPlaintext 도 함께 전송.
-      // SoT: spec/conventions/secret-store.md §5.5 / providers/{slack,discord}.md §6.
+      // Chat Channel 토글이 켜져 있으면 top-level `chatChannel` 필드 부착. backend
+      // CreateTriggerDto 의 chatChannel 은 top-level (config 안 아님) — setupChannel
+      // 자동 호출의 진입 조건. provider-issued (slack/discord) 의 경우
+      // inboundSigningPlaintext 도 함께 전송.
+      // SoT: spec/conventions/secret-store.md §5.5 / providers/{slack,discord}.md §6 /
+      //      codebase/backend/src/modules/triggers/dto/create-trigger.dto.ts line 121.
+      const requestBody: Record<string, unknown> = {
+        workflowId: formWorkflowId,
+        type: "webhook",
+        name: formName,
+        endpointPath: crypto.randomUUID(),
+        config,
+      };
       if (formChatChannelEnabled && formChatChannelBotToken.trim().length > 0) {
         const chatChannel: Record<string, unknown> = {
           provider: formChatChannelProvider,
@@ -220,15 +230,9 @@ export default function TriggersPage() {
           chatChannel.inboundSigningPlaintext =
             formChatChannelInboundSigningPlaintext.trim();
         }
-        config.chatChannel = chatChannel;
+        requestBody.chatChannel = chatChannel;
       }
-      await apiClient.post("/triggers", {
-        workflowId: formWorkflowId,
-        type: "webhook",
-        name: formName,
-        endpointPath: crypto.randomUUID(),
-        config,
-      });
+      await apiClient.post("/triggers", requestBody);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["triggers"] });

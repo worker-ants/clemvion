@@ -142,6 +142,13 @@ export class TriggersService {
     // Chat Channel 어댑터 setup — CCH-AD-02.
     if (chatChannel) {
       await this.setupChatChannel(saved, chatChannel);
+      // setupChatChannel 은 별도 triggerRepository.update 로 botTokenRef / inboundSigningRef /
+      // chatChannelHealth 등을 갱신. in-memory `saved` 는 그 update 를 모르므로 응답 stale
+      // 회귀 (hasBotToken=false). 재조회로 최신 상태 반영.
+      const refreshed = await this.triggerRepository.findOne({
+        where: { id: saved.id, workspaceId },
+      });
+      if (refreshed) return this.sanitizeChatChannelForResponse(refreshed);
     }
     return this.sanitizeChatChannelForResponse(saved);
   }
@@ -188,6 +195,12 @@ export class TriggersService {
     if (chatChannel) {
       // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
       await this.setupChatChannel(saved, chatChannel);
+      // setupChatChannel 은 별도 triggerRepository.update — in-memory `saved` 는 stale.
+      // 응답 hasBotToken / inboundSigningRef 가 최신 반영되도록 재조회.
+      const refreshed = await this.triggerRepository.findOne({
+        where: { id: saved.id, workspaceId },
+      });
+      if (refreshed) return this.sanitizeChatChannelForResponse(refreshed);
     }
     return this.sanitizeChatChannelForResponse(saved);
   }

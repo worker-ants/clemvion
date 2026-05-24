@@ -13,6 +13,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *   - spec/4-nodes/7-trigger/providers/_overview.md §1 (v1 supported: telegram/slack/discord)
  *   - spec/conventions/secret-store.md §5.5 (b) provider-issued plaintext 흐름
  *   - spec/4-nodes/7-trigger/providers/{slack,discord}.md §6
+ *   - codebase/backend/src/modules/triggers/dto/create-trigger.dto.ts line 121
+ *     (chatChannel 은 top-level — config 안에 nested 면 setupChatChannel 자동 호출 skip)
  *   - plan/in-progress/trigger-create-multi-provider-ui.md Commit 5
  *
  * 본 e2e 는 POST /api/triggers 의 DTO 진입 가드 + service 의 provider 분기 검증.
@@ -84,11 +86,9 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         type: 'webhook',
         name: uniqueName('hook-tg'),
         endpointPath: uniqueEndpoint('tg'),
-        config: {
-          chatChannel: {
-            provider: 'telegram',
-            botToken: '111:e2eTelegramBotToken',
-          },
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:e2eTelegramBotToken',
         },
       });
       expect(res.status).toBe(201);
@@ -115,12 +115,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         type: 'webhook',
         name: uniqueName('hook-tg-bad'),
         endpointPath: uniqueEndpoint('tg-bad'),
-        config: {
-          chatChannel: {
-            provider: 'telegram',
-            botToken: '111:bad',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET_HEX32,
-          },
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:bad',
+          inboundSigningPlaintext: SLACK_SIGNING_SECRET_HEX32,
         },
       });
       expect(res.status).toBe(400);
@@ -138,12 +136,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         type: 'webhook',
         name: uniqueName('hook-sl'),
         endpointPath: uniqueEndpoint('sl'),
-        config: {
-          chatChannel: {
-            provider: 'slack',
-            botToken: 'xoxb-e2e-slack-token',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET_HEX32,
-          },
+        chatChannel: {
+          provider: 'slack',
+          botToken: 'xoxb-e2e-slack-token',
+          inboundSigningPlaintext: SLACK_SIGNING_SECRET_HEX32,
         },
       });
       // 외부 API (auth.test) mock 없으므로 setupChannel 실패 → degraded health.
@@ -171,11 +167,9 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         type: 'webhook',
         name: uniqueName('hook-sl-miss'),
         endpointPath: uniqueEndpoint('sl-miss'),
-        config: {
-          chatChannel: {
-            provider: 'slack',
-            botToken: 'xoxb-e2e-slack-token',
-          },
+        chatChannel: {
+          provider: 'slack',
+          botToken: 'xoxb-e2e-slack-token',
         },
       });
       expect(res.status).toBe(400);
@@ -191,12 +185,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         type: 'webhook',
         name: uniqueName('hook-sl-bad'),
         endpointPath: uniqueEndpoint('sl-bad'),
-        config: {
-          chatChannel: {
-            provider: 'slack',
-            botToken: 'xoxb-e2e-slack-token',
-            inboundSigningPlaintext: 'not-hex-32-chars',
-          },
+        chatChannel: {
+          provider: 'slack',
+          botToken: 'xoxb-e2e-slack-token',
+          inboundSigningPlaintext: 'not-hex-32-chars',
         },
       });
       expect(res.status).toBe(400);
@@ -214,12 +206,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         type: 'webhook',
         name: uniqueName('hook-dc'),
         endpointPath: uniqueEndpoint('dc'),
-        config: {
-          chatChannel: {
-            provider: 'discord',
-            botToken: 'discord-e2e-bot-token',
-            inboundSigningPlaintext: DISCORD_PUBLIC_KEY_HEX64,
-          },
+        chatChannel: {
+          provider: 'discord',
+          botToken: 'discord-e2e-bot-token',
+          inboundSigningPlaintext: DISCORD_PUBLIC_KEY_HEX64,
         },
       });
       expect(res.status).toBe(201);
@@ -242,12 +232,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         type: 'webhook',
         name: uniqueName('hook-dc-bad'),
         endpointPath: uniqueEndpoint('dc-bad'),
-        config: {
-          chatChannel: {
-            provider: 'discord',
-            botToken: 'discord-e2e-bot-token',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET_HEX32, // 32 chars only
-          },
+        chatChannel: {
+          provider: 'discord',
+          botToken: 'discord-e2e-bot-token',
+          inboundSigningPlaintext: SLACK_SIGNING_SECRET_HEX32, // 32 chars only
         },
       });
       expect(res.status).toBe(400);
@@ -265,11 +253,9 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         type: 'webhook',
         name: uniqueName('hook-bad-provider'),
         endpointPath: uniqueEndpoint('bad'),
-        config: {
-          chatChannel: {
-            provider: 'whatsapp',
-            botToken: 'fake',
-          },
+        chatChannel: {
+          provider: 'whatsapp',
+          botToken: 'fake',
         },
       });
       expect(res.status).toBe(400);
