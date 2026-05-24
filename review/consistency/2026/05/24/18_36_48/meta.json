@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-24T18:36:48.106936",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/5-system)",
+  "target_path": "spec/5-system",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
