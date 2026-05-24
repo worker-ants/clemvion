@@ -612,7 +612,7 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     mockAdapter = {
       setupChannel: jest.fn().mockResolvedValue({
         configUpdates: { botIdentity: { botId: 111, username: 'bot' } },
-        issuedSecretToken: 'issued-secret-xyz',
+        issuedInboundSigning: 'issued-secret-xyz',
       }),
     };
     adapterRegistry = {
@@ -674,9 +674,9 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       'ws-1',
       '111:TestToken',
     );
-    // issuedSecretToken 저장
+    // issuedInboundSigning 저장
     expect(secrets.rotate).toHaveBeenCalledWith(
-      'secret://triggers/trig-1/webhook-secret',
+      'secret://triggers/trig-1/inbound-signing',
       'ws-1',
       'issued-secret-xyz',
     );
@@ -687,10 +687,10 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     );
   });
 
-  it('issuedSecretToken 없을 때 webhookSecret rotate 미호출 (SUMMARY#12-b)', async () => {
+  it('issuedInboundSigning 없을 때 webhookSecret rotate 미호출 (SUMMARY#12-b)', async () => {
     mockAdapter.setupChannel.mockResolvedValueOnce({
       configUpdates: {},
-      // issuedSecretToken 없음
+      // issuedInboundSigning 없음
     });
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
@@ -701,7 +701,7 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
 
     const rotateCalls = (secrets.rotate as jest.Mock).mock.calls;
     const webhookCalls = rotateCalls.filter(([ref]) =>
-      (ref as string).includes('webhook-secret'),
+      (ref as string).includes('inbound-signing'),
     );
     expect(webhookCalls).toHaveLength(0);
   });
@@ -806,7 +806,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
   const WORKSPACE_ID = 'ws-1';
   const TRIGGER_ID = 'trig-1';
   const BOT_TOKEN_REF = 'secret://triggers/trig-1/bot-token';
-  const SECRET_TOKEN_REF = 'secret://triggers/trig-1/webhook-secret';
+  const SECRET_TOKEN_REF = 'secret://triggers/trig-1/inbound-signing';
   const OLD_TOKEN = '111111111:OldToken';
   const NEW_TOKEN = '222222222:NewToken';
   const ISSUED_SECRET = 'newWebhookSecret';
@@ -816,7 +816,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       setupChannel: jest.fn().mockResolvedValue({
         registeredAt: new Date().toISOString(),
         configUpdates: {},
-        issuedSecretToken: ISSUED_SECRET,
+        issuedInboundSigning: ISSUED_SECRET,
       }),
     };
     const moduleRef = await Test.createTestingModule({
@@ -833,7 +833,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
                 chatChannel: {
                   provider: 'telegram',
                   botTokenRef: BOT_TOKEN_REF,
-                  secretTokenRef: SECRET_TOKEN_REF,
+                  inboundSigningRef: SECRET_TOKEN_REF,
                 },
               },
             } as unknown as Trigger),
@@ -920,14 +920,14 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     );
   });
 
-  it('issuedSecretToken 없을 때 webhook-secret ref rotate 미호출', async () => {
+  it('issuedInboundSigning 없을 때 inbound-signing ref rotate 미호출', async () => {
     mockAdapter.setupChannel.mockResolvedValueOnce({
       registeredAt: new Date().toISOString(),
       configUpdates: {},
     });
     await service.rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN);
     const webhookSecretCalls = secrets.rotate.mock.calls.filter(([ref]) =>
-      ref.includes('webhook-secret'),
+      ref.includes('inbound-signing'),
     );
     expect(webhookSecretCalls).toHaveLength(0);
   });

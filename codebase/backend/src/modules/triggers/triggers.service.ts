@@ -197,7 +197,7 @@ export class TriggersService {
    *
    * - `botTokenRef` — 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token`
    *   (24h grace 적용). PATCH/POST body 직접 변경 시 grace 없는 즉시 교체가 되어 정책 일관성 깨짐.
-   * - `secretTokenRef` / `secretToken` — setupChannel 시 어댑터가 자동 발급. 외부 입력 무시.
+   * - `inboundSigningRef` / `inboundSigning` — setupChannel 시 어댑터가 자동 발급. 외부 입력 무시.
    *
    * DTO 단에서도 @IsEmpty() 로 차단되지만, error envelope 형식을 spec 의 VALIDATION_ERROR 와
    * 정합시키기 위해 service 단 추가 검증.
@@ -215,19 +215,19 @@ export class TriggersService {
         details: { field: 'botTokenRef' },
       });
     }
-    if (typeof blocked.secretTokenRef !== 'undefined') {
+    if (typeof blocked.inboundSigningRef !== 'undefined') {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
-        message: 'secretTokenRef 는 외부 입력이 금지된 내부 필드입니다.',
-        details: { field: 'secretTokenRef' },
+        message: 'inboundSigningRef 는 외부 입력이 금지된 내부 필드입니다.',
+        details: { field: 'inboundSigningRef' },
       });
     }
-    if (typeof blocked.secretToken !== 'undefined') {
+    if (typeof blocked.inboundSigning !== 'undefined') {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
-          'secretToken 은 setupChannel 시 자동 발급되는 내부 필드입니다. 외부 입력은 허용되지 않습니다.',
-        details: { field: 'secretToken' },
+          'inboundSigning 은 setupChannel 시 자동 발급되는 내부 필드입니다. 외부 입력은 허용되지 않습니다.',
+        details: { field: 'inboundSigning' },
       });
     }
   }
@@ -235,7 +235,7 @@ export class TriggersService {
   /**
    * [Spec Chat Channel §5.4.2] — 응답 DTO 전용 derived 필드 + 내부 ref strip.
    *
-   * - `botTokenRef` / `secretTokenRef` / `secretToken` 응답에서 제거 (UI 에 노출 X).
+   * - `botTokenRef` / `inboundSigningRef` / `inboundSigning` 응답에서 제거 (UI 에 노출 X).
    * - `hasBotToken: boolean` derived 필드 주입 (`botTokenRef IS NOT NULL → true`).
    *
    * Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
@@ -251,8 +251,8 @@ export class TriggersService {
     if (!cfg?.chatChannel) return trigger;
     const {
       botTokenRef,
-      secretTokenRef: _secretTokenRef,
-      secretToken: _secretToken,
+      inboundSigningRef: _inboundSigningRef,
+      inboundSigning: _inboundSigning,
       ...rest
     } = cfg.chatChannel;
     const sanitizedChatChannel = {
@@ -392,13 +392,13 @@ export class TriggersService {
     try {
       const result = await adapter.setupChannel(internalCfg, callbackUrl);
 
-      // issuedSecretToken → secret store 저장.
-      const secretTokenRef = `secret://triggers/${trigger.id}/webhook-secret`;
-      if (result.issuedSecretToken) {
+      // issuedInboundSigning → secret store 저장.
+      const inboundSigningRef = `secret://triggers/${trigger.id}/inbound-signing`;
+      if (result.issuedInboundSigning) {
         await this.secrets.rotate(
-          secretTokenRef,
+          inboundSigningRef,
           trigger.workspaceId,
-          result.issuedSecretToken,
+          result.issuedInboundSigning,
         );
       }
 
@@ -407,7 +407,7 @@ export class TriggersService {
         ...internalCfg,
         ...(result.configUpdates ?? {}),
         botTokenRef,
-        ...(result.issuedSecretToken ? { secretTokenRef } : {}),
+        ...(result.issuedInboundSigning ? { inboundSigningRef } : {}),
       };
       const newConfig = {
         ...(trigger.config ?? {}),
@@ -432,7 +432,7 @@ export class TriggersService {
       this.logger.warn(
         `TriggersService: setupChannel 실패 (trigger=${trigger.id}, provider=${chatChannelCfg.provider}): ${message}`,
       );
-      // fallbackConfig: botTokenRef 만 config 에 반영 (secretTokenRef 없음).
+      // fallbackConfig: botTokenRef 만 config 에 반영 (inboundSigningRef 없음).
       const fallbackConfig = {
         ...(trigger.config ?? {}),
         chatChannel: internalCfg,
@@ -561,8 +561,8 @@ export class TriggersService {
    * 1. 기존 botToken resolve (실패 시 skip — 최초 rotation 케이스)
    * 2. 기존 token 이 있으면 v2 ref 에 백업 (24h grace)
    * 3. primary botTokenRef 의 plaintext 를 새 token 으로 교체 (UPSERT)
-   * 4. 새 token 으로 adapter.setupChannel 재호출 — webhook secret_token 새로 발급
-   * 5. issuedSecretToken plaintext → secretTokenRef 에 저장
+   * 4. 새 token 으로 adapter.setupChannel 재호출 — inbound-signing 자료 새로 발급 (Telegram: secret_token)
+   * 5. issuedInboundSigning plaintext → inboundSigningRef 에 저장
    * 6. trigger 컬럼 갱신 (chat_channel_token_v2, chat_channel_rotated_at, health)
    *
    * Controller 는 input validation + workspaceId 검증 + 본 메서드 호출만 담당.
@@ -610,12 +610,12 @@ export class TriggersService {
       resourceId: trigger.id,
       name: 'bot-token.v2',
     });
-    const secretTokenRef =
-      chatChannelCfg.secretTokenRef ??
+    const inboundSigningRef =
+      chatChannelCfg.inboundSigningRef ??
       buildSecretRef({
         scope: 'triggers',
         resourceId: trigger.id,
-        name: 'webhook-secret',
+        name: 'inbound-signing',
       });
 
     // 1. 기존 botToken resolve (실패 시 skip — 최초 rotation).
@@ -644,15 +644,15 @@ export class TriggersService {
       ...mergedConfig,
       ...(result.configUpdates ?? {}),
       botTokenRef,
-      secretTokenRef,
+      inboundSigningRef,
     };
 
-    // 5. issuedSecretToken plaintext → secret store.
-    if (result.issuedSecretToken) {
+    // 5. issuedInboundSigning plaintext → secret store.
+    if (result.issuedInboundSigning) {
       await this.secrets.rotate(
-        secretTokenRef,
+        inboundSigningRef,
         trigger.workspaceId,
-        result.issuedSecretToken,
+        result.issuedInboundSigning,
       );
     }
 
@@ -724,6 +724,95 @@ export class TriggersService {
       promoted++;
     }
     return { promoted };
+  }
+
+  /**
+   * [Spec CCH-SE-04-C] — 24h grace 가 경과한 chat channel bot token 회전 cleanup.
+   *   - `chat_channel_token_v2` ref 의 secret_store row 삭제 (`secrets.delete(v2Ref)`)
+   *   - provider 별 `auth.revoke` best-effort 호출 (Slack 만 지원, Discord/Telegram 미지원)
+   *   - `chat_channel_token_v2 = NULL` / `chat_channel_rotated_at = NULL` 갱신
+   *
+   * Idempotent — v2 가 null 이면 no-op. 매시간 cron (ChatChannelTokenRotatorService).
+   * NotificationSecretRotator 와 동일 패턴.
+   */
+  async cleanupRotatedChatChannelTokens(
+    nowMs: number = Date.now(),
+  ): Promise<{ cleaned: number }> {
+    const graceMs = 24 * 60 * 60 * 1000;
+    const candidates = await this.triggerRepository
+      .createQueryBuilder('t')
+      .where('t.chat_channel_token_v2 IS NOT NULL')
+      .andWhere('t.chat_channel_rotated_at <= :cutoff', {
+        cutoff: new Date(nowMs - graceMs),
+      })
+      .getMany();
+    let cleaned = 0;
+    for (const trigger of candidates) {
+      const v2Ref = trigger.chatChannelTokenV2;
+      if (!v2Ref) continue;
+
+      // provider 별 auth.revoke best-effort — 실패는 cleanup 진행 차단 안 함.
+      const chatChannelCfg = (
+        trigger.config as { chatChannel?: ChatChannelConfig }
+      ).chatChannel;
+      if (chatChannelCfg?.provider) {
+        await this.tryRevokeOldBotToken(chatChannelCfg, v2Ref, trigger.id);
+      }
+
+      // secret_store v2 row 삭제 (best-effort — 미존재 ref 는 noop).
+      try {
+        await this.secrets.delete(v2Ref);
+      } catch (err) {
+        this.logger.warn(
+          `ChatChannel v2 ref delete 실패 (trigger=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      // 컬럼 갱신.
+      trigger.chatChannelTokenV2 = null;
+      trigger.chatChannelRotatedAt = null;
+      await this.triggerRepository.save(trigger);
+      cleaned++;
+    }
+    return { cleaned };
+  }
+
+  /**
+   * 24h grace 종료 시점에 old bot token 을 외부 provider 측에서도 revoke (가능한 경우).
+   *   - Slack: `auth.revoke` API 호출
+   *   - Telegram: API 미지원 (bot token 은 Bot Father reset 만) — noop
+   *   - Discord: token revoke endpoint 없음 — noop
+   *
+   * 실패는 secret_store cleanup 을 차단하지 않는다 (best-effort).
+   */
+  private async tryRevokeOldBotToken(
+    config: ChatChannelConfig,
+    v2Ref: string,
+    triggerId: string,
+  ): Promise<void> {
+    if (config.provider !== 'slack') return; // Telegram / Discord 는 미지원.
+    try {
+      const oldToken = await this.secrets.resolve(v2Ref);
+      const adapter = this.channelAdapterRegistry.has(config.provider)
+        ? this.channelAdapterRegistry.get(config.provider)
+        : null;
+      // SlackAdapter 의 client 노출이 없으므로 별 SlackClient 의존 — 본 메서드는 향후
+      // adapter 에 `revokeBotToken(token)` 옵션 함수를 추가하면 더 깔끔. 현재는
+      // provider 별 분기를 service 단에 둠.
+      const slackAdapter = adapter as unknown as {
+        client?: { authRevoke?: (token: string) => Promise<{ ok: boolean }> };
+      } | null;
+      if (slackAdapter?.client?.authRevoke) {
+        await slackAdapter.client.authRevoke(oldToken);
+        this.logger.log(
+          `Slack auth.revoke 호출 — trigger=${triggerId} 의 old bot token 무효화 완료`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Slack auth.revoke best-effort 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   async getHistory(

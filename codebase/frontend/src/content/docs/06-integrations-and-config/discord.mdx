@@ -1,0 +1,85 @@
+---
+title: "Discord 통합"
+title_en: "Discord integration"
+section: "06-integrations-and-config"
+order: 8
+summary: "Discord 봇을 Webhook 트리거의 Chat Channel로 연결해 slash command / button / modal 로 워크플로우와 인터랙션하는 방법을 설명해요."
+summary_en: "Connect a Discord bot as a Chat Channel on a Webhook trigger to interact with workflows via slash commands / buttons / modals."
+spec: ["spec/4-nodes/7-trigger/providers/discord.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md"]
+code: ["codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts", "codebase/backend/src/modules/chat-channel/providers/discord/discord-update.parser.ts", "codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts"]
+---
+
+Discord 봇을 워크플로우의 인터페이스로 연결하면, slash command (`/workflow start`) 와 button / modal 기반 인터랙션으로 워크플로우를 시작·조작할 수 있어요.
+
+## 1. Discord 앱 만들기
+
+1. [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**
+2. 생성된 앱의 **General Information** 페이지에서 다음 값 확인:
+   - **Application ID** — 앱 식별자
+   - **Public Key** — Interactions Webhook 의 ed25519 서명 검증 키 (64 chars hex)
+3. **Bot** 탭 → **Reset Token** 으로 **Bot Token** 발급 (`xxx.yyy.zzz` 형식)
+
+<Callout type="warn">
+Bot Token 은 봇 계정을 완전히 제어하는 자격증명이에요. Public Key 는 공개 정보지만, 둘 다 clemvion 의 secret store 가 backend AES-256-GCM 으로 동일하게 관리해 일관성을 유지해요.
+</Callout>
+
+## 2. Interactions Endpoint URL 설정
+
+Discord Developer Portal 의 앱 **General Information** 페이지 하단:
+
+- **Interactions Endpoint URL** = `https://<your-clemvion-domain>/api/hooks/<endpointPath>`
+- 저장 시 Discord 가 즉시 PING handshake (type=1) 전송 → clemvion 이 자동으로 `{ type: 1 }` 200 응답
+- 응답 실패 시 Discord 가 "Validation Failed" 표시 → public key 또는 endpoint 도달 가능성 확인
+
+## 3. Bot 권한 + Invite
+
+1. **OAuth2 → URL Generator**
+   - **scopes**: `bot`, `applications.commands`
+   - **bot permissions**: `Send Messages`, `Read Message History`, `Use Slash Commands`
+2. 생성된 URL 로 봇을 본인 server (또는 personal DM 활성) 에 install
+
+## 4. clemvion 트리거에 Discord 연결
+
+1. clemvion 의 워크플로우 화면 → **Webhook 트리거** 생성
+2. **Chat Channel** 섹션 활성화 → **Provider** = `Discord`
+3. **Bot Token** 입력 (`xxx.yyy.zzz`)
+4. **Public Key** 입력 (Discord Portal 의 64 chars hex)
+5. 저장 → backend 가:
+   - `GET /applications/@me` 호출로 application id / name 캐시
+   - `PUT /applications/{app_id}/commands` 로 slash command 4종 (`start` / `cancel` / `help` / `reply`) bulk overwrite 등록
+
+## 5. 사용 방법
+
+### 5.1 Slash command
+
+- `/workflow start` — 새 execution 시작
+- `/workflow cancel` — 진행 중 execution 취소
+- `/workflow help` — 도움말
+- `/workflow reply <message>` — AI Multi Turn 진행 중 자유 텍스트 reply
+
+### 5.2 Button / Modal
+
+- Button Presentation 노드 → Discord Message Components (`ACTION_ROW` + `BUTTON`)
+- AI 응답 메시지 끝의 **Reply** 버튼 클릭 → modal TEXT_INPUT 으로 자유 텍스트 입력 (`/workflow reply` 의 대안)
+
+### 5.3 Form
+
+- v1 = 다단계 텍스트 시퀀스 (필드별 한 줄 질문 + button/modal 응답)
+- v2 (후속) = Discord modal (TEXT_INPUT components) native 지원
+
+## 6. v1 한계 / 알려진 사항
+
+- **자유 텍스트 DM 미지원** — v1 은 Interactions Webhook only. Discord 의 일반 `MESSAGE_CREATE` event 는 Gateway WebSocket 연결이 필요 → v1 사용자는 자유 채팅 대신 `/workflow reply` slash command 또는 modal 사용 ([R-CC-13](https://github.com) 부분 유예).
+- **DM only** — guild (server) 채널 미지원 (자동 거부). guild bot UX 는 v2 multi-user thread 와 한 묶음.
+- **자동 start 미지원** — Telegram `/start` 의 DM 첫 메시지 자동 시작과 달리, Discord 는 `/workflow start` 명시적 입력 필수.
+- **Form `file` 필드 사실상 미지원** — file upload 가 Gateway attachment 기반. workaround: 외부 storage URL 입력 (`text` + url validation).
+- **typing 은 native** — `POST /channels/{id}/typing` (10초 유지). LLM latency 가 길면 5초마다 반복 호출 (Slack 와 차이).
+
+## 7. 트러블슈팅
+
+| 증상 | 원인 / 해결 |
+|---|---|
+| Discord Portal "Interactions Endpoint URL — Validation Failed" | Public Key 불일치 또는 endpoint 가 PING 에 `{ type: 1 }` 200 응답 못 함. clemvion 의 `chat_channel_health` 확인 |
+| slash command 가 Discord 에서 안 보임 | bulk overwrite 후 캐시 반영까지 1시간 소요 가능. 또는 `applications.commands` scope 누락 |
+| `401 Unauthorized` | Bot Token 만료 — clemvion 의 **Bot Token 재발급** API 로 24h grace 회전 |
+| modal "Reply" 가 click 후 안 뜸 | 3초 ack 시한 초과 — backend latency 점검 (degraded health) |

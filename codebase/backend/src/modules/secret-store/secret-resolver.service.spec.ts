@@ -192,7 +192,7 @@ describe('SecretResolverService', () => {
       );
       svc.onModuleInit();
       await svc.store('secret://triggers/t1/bot-token', 'ws-1', 'a');
-      await svc.store('secret://triggers/t1/webhook-secret', 'ws-1', 'b');
+      await svc.store('secret://triggers/t1/inbound-signing', 'ws-1', 'b');
       await svc.store('secret://triggers/t2/bot-token', 'ws-1', 'c');
 
       const affected = await svc.deleteByPrefix('secret://triggers/t1/');
@@ -202,7 +202,7 @@ describe('SecretResolverService', () => {
         svc.resolve('secret://triggers/t1/bot-token'),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
-        svc.resolve('secret://triggers/t1/webhook-secret'),
+        svc.resolve('secret://triggers/t1/inbound-signing'),
       ).rejects.toBeInstanceOf(NotFoundException);
       // t2 의 ref 는 보존됨
       expect(await svc.resolve('secret://triggers/t2/bot-token')).toBe('c');

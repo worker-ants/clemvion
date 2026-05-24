@@ -11,11 +11,15 @@
  * Trigger.config.chatChannel 의 in-memory representation.
  *
  * Breaking change (SUMMARY#26): `botToken`(plaintext) → `botTokenRef`,
- * `secretToken` → `secretTokenRef`. 미배포 전제 — DB 에 기존 plaintext row 없음.
- * read-path fallback 없음 (레거시 row 는 webhook 수신 시 botTokenRef=undefined → skip).
+ * `secretToken` → `secretTokenRef` (2026-05-22).
+ * Breaking change (spec-chat-channel-inbound-signing-rename, 2026-05-24):
+ *   `secretTokenRef` → `inboundSigningRef`. Slack/Discord provider 와 단일 슬롯 공유 —
+ *   자원 성격·검증 알고리즘은 backend 의 provider 분기 책임.
+ * 미배포 전제 — DB 에 기존 plaintext row 없음. read-path fallback 없음
+ * (레거시 row 는 webhook 수신 시 botTokenRef=undefined → skip).
  */
 export interface ChatChannelConfig {
-  /** 어댑터 식별자 (lower-case kebab-case). v1: 'telegram'. */
+  /** 어댑터 식별자 (lower-case kebab-case). v1: 'telegram'. spec-only: 'slack' / 'discord'. */
   provider: string;
 
   /**
@@ -27,14 +31,26 @@ export interface ChatChannelConfig {
   botTokenRef?: string;
 
   /**
-   * Webhook 인증용 server-issued secret 의 secret store reference.
-   * `secret://triggers/{id}/webhook-secret`. setupChannel 결과 issuedSecretToken 이
-   * 저장되면 채워진다. 미설정 시 webhook 인증 skip.
+   * Inbound webhook 출처 검증용 자료의 secret store reference.
+   * `secret://triggers/{id}/inbound-signing`. provider 무관 단일 슬롯 — 검증 알고리즘은 backend 의
+   * provider 분기 책임:
+   *   - Telegram: shared secret (server-issued). setupChannel 의 issuedInboundSigning 이 저장되면 채워진다.
+   *     `X-Telegram-Bot-Api-Secret-Token` 헤더 동일성 검증.
+   *   - Slack: HMAC-SHA256 signing secret (provider-issued, 사용자 입력). `X-Slack-Signature` HMAC 검증.
+   *   - Discord: ed25519 application public key (provider-issued, 사용자 입력). `X-Signature-Ed25519` verify.
+   * 미설정 시 webhook 인증 skip (legacy / setupChannel 전 trigger).
+   *
+   * @see spec/conventions/chat-channel-adapter.md §2.3
+   * @see spec/conventions/secret-store.md §1
    */
-  secretTokenRef?: string;
+  inboundSigningRef?: string;
 
-  /** setupChannel 결과 캐시 (read-only after creation). */
-  botIdentity?: { botId: number; username: string };
+  /**
+   * setupChannel 결과 캐시 (read-only after creation).
+   * `teamId` 는 workspace/team 개념을 가진 provider (Slack workspace, Discord guild) 만 채움.
+   * Telegram 등 단일 namespace provider 는 비움.
+   */
+  botIdentity?: { botId: number; username: string; teamId?: string };
 
   uiMapping?: {
     formMode?: 'multi_step';
@@ -184,11 +200,12 @@ export interface SetupResult {
   externalHookUrl?: string;
   identity?: Record<string, unknown>;
   /**
-   * 어댑터가 setupChannel 동안 발급한 webhook secret 의 일회성 plaintext.
-   * caller 가 받아 secret store 에 저장 후 `secretTokenRef` 를 config 에 기록.
-   * null/undefined 이면 webhook secret 미발급 (caller 가 rotate 미호출).
+   * 어댑터가 setupChannel 동안 발급한 inbound-signing 자료의 일회성 plaintext (server-issued 한정).
+   * caller 가 받아 secret store 에 저장 후 `inboundSigningRef` 를 config 에 기록.
+   * null/undefined 이면 webhook 검증 자료 미발급 — Slack/Discord 처럼 provider-issued (사용자 입력)
+   * 인 경우 본 필드는 항상 비어 있고, 사용자 입력 plaintext 가 직접 caller 의 secret store 로 들어간다.
    */
-  issuedSecretToken?: string;
+  issuedInboundSigning?: string;
   /** 어댑터가 setWebhook 결과로 갱신할 botIdentity 등 non-secret 필드. */
   configUpdates?: Partial<ChatChannelConfig>;
 }

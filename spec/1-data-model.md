@@ -650,9 +650,9 @@ WebAuthn challenge (등록·인증 시 클라이언트에 전달하는 random no
 | updated_at | Timestamp | 마지막 rotation 시각 |
 
 용도:
-- `secret://triggers/{id}/bot-token` — 텔레그램 봇 토큰 ([Chat Channel CCH-SE-03](./5-system/15-chat-channel.md#34-신뢰성--보안))
-- `secret://triggers/{id}/bot-token.v2` — 텔레그램 봇 토큰 (24h rotation grace, [CCH-SE-04-C](./5-system/15-chat-channel.md#34-신뢰성--보안))
-- `secret://triggers/{id}/webhook-secret` — Telegram `setWebhook.secret_token`
+- `secret://triggers/{id}/bot-token` — Chat Channel adapter 봇 토큰 (provider 공통 — Telegram bot token / Slack `xoxb-*` / Discord bot token, [Chat Channel CCH-SE-03](./5-system/15-chat-channel.md#34-신뢰성--보안))
+- `secret://triggers/{id}/bot-token.v2` — 봇 토큰 (24h rotation grace, [CCH-SE-04-C](./5-system/15-chat-channel.md#34-신뢰성--보안))
+- `secret://triggers/{id}/inbound-signing` — Chat Channel inbound webhook 출처 검증용 자료 (provider 공통 슬롯). provider 별 의미: Telegram `setWebhook.secret_token` (server-issued shared secret) / Slack `X-Slack-Signature` HMAC key (provider-issued) / Discord application ed25519 public key. 검증 알고리즘 분기는 backend 의 provider 별 책임. SoT: [`conventions/chat-channel-adapter.md §2.3`](./conventions/chat-channel-adapter.md#23-chatchannelconfig)
 - `secret://triggers/{id}/notification-signing` — EIA notification HMAC signing secret ([EIA §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장))
 - `secret://triggers/{id}/notification-signing.v2` — EIA HMAC signing (24h rotation grace)
 

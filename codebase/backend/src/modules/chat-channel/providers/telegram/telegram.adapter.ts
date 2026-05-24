@@ -63,11 +63,13 @@ export class TelegramAdapter implements ChatChannelAdapter {
     callbackUrl: string,
   ): Promise<SetupResult> {
     const botToken = await this.resolveBotToken(config);
-    // 매 setupChannel 마다 새 secretToken 발급 — 재사용하지 않는다.
-    const issuedSecretToken = randomBytes(24).toString('base64url');
+    // 매 setupChannel 마다 새 inbound-signing 자료 발급 (Telegram = server-issued shared secret) — 재사용하지 않는다.
+    const issuedInboundSigning = randomBytes(24).toString('base64url');
     const setup = await this.client.setWebhook(botToken, {
       url: callbackUrl,
-      secret_token: issuedSecretToken,
+      // Telegram API 의 `secret_token` 파라미터에 우리 inbound-signing 자료를 전달.
+      // 파라미터 이름 (`secret_token`) 은 Telegram Bot API 의 외부 contract.
+      secret_token: issuedInboundSigning,
       allowed_updates: ['message', 'callback_query'],
       drop_pending_updates: true,
     });
@@ -83,7 +85,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
     return {
       registeredAt: new Date().toISOString(),
       identity: { botId: me.result.id, username: me.result.username },
-      issuedSecretToken,
+      issuedInboundSigning,
       configUpdates: {
         botIdentity: { botId: me.result.id, username: me.result.username },
       },

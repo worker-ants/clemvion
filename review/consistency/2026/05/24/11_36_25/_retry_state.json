@@ -1,0 +1,52 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25",
+  "summary_subagent_type": "consistency-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/SUMMARY.md",
+  "subagent_invocations": [
+    {
+      "name": "cross_spec",
+      "subagent_type": "cross-spec-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/_prompts/cross_spec.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/cross_spec.md"
+    },
+    {
+      "name": "rationale_continuity",
+      "subagent_type": "rationale-continuity-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/_prompts/rationale_continuity.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/rationale_continuity.md"
+    },
+    {
+      "name": "convention_compliance",
+      "subagent_type": "convention-compliance-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/_prompts/convention_compliance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/convention_compliance.md"
+    },
+    {
+      "name": "plan_coherence",
+      "subagent_type": "plan-coherence-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/_prompts/plan_coherence.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/plan_coherence.md"
+    },
+    {
+      "name": "naming_collision",
+      "subagent_type": "naming-collision-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/_prompts/naming_collision.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/spec-slack-discord-chat-channel-bb4d35/review/consistency/2026/05/24/11_36_25/naming_collision.md"
+    }
+  ],
+  "agents_pending": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

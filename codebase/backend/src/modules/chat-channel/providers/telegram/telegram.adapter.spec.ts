@@ -3,7 +3,7 @@
  *
  * [ai-review W4] TelegramAdapter (setupChannel / teardownChannel / sendMessage / ackInteraction) 미테스트.
  * Spec [providers/telegram.md §3]: Bot API 호출 매핑.
- * CCH-SE-02: secretToken 발급 및 저장 검증.
+ * CCH-SE-02: inboundSigning 발급 및 저장 검증.
  * Secret store 통합: botTokenRef → SecretResolverService.resolve() 경유 (SUMMARY#25).
  */
 import { TelegramAdapter } from './telegram.adapter';
@@ -107,15 +107,15 @@ describe('TelegramAdapter', () => {
       expect(result.identity).toEqual({ botId: 1001, username: 'test_bot' });
     });
 
-    it('매 setupChannel 마다 새 issuedSecretToken 을 발급해 setWebhook 에 전달한다 (CCH-SE-02)', async () => {
+    it('매 setupChannel 마다 새 issuedInboundSigning 을 발급해 setWebhook 에 전달한다 (CCH-SE-02)', async () => {
       const result = await adapter.setupChannel(baseConfig, callbackUrl);
 
       const [, params] = client.setWebhook.mock.calls[0];
       expect(params.secret_token).toBeTruthy();
       expect(typeof params.secret_token).toBe('string');
       expect(params.secret_token!.length).toBeGreaterThan(0);
-      // SetupResult 에 issuedSecretToken 포함 (caller 가 secret store 에 저장)
-      expect(result.issuedSecretToken).toBe(params.secret_token);
+      // SetupResult 에 issuedInboundSigning 포함 (caller 가 secret store 에 저장)
+      expect(result.issuedInboundSigning).toBe(params.secret_token);
     });
 
     it('setWebhook 실패 시 Error 를 throw 한다', async () => {
@@ -134,9 +134,9 @@ describe('TelegramAdapter', () => {
       ).rejects.toThrow(/getMe failed/i);
     });
 
-    it('setupChannel 반환값의 configUpdates 에 botIdentity 가 포함된다 (secretToken 은 issuedSecretToken 으로 분리)', async () => {
+    it('setupChannel 반환값의 configUpdates 에 botIdentity 가 포함된다 (inboundSigning 은 issuedInboundSigning 으로 분리)', async () => {
       const result = await adapter.setupChannel(baseConfig, callbackUrl);
-      expect(result.issuedSecretToken).toBeTruthy();
+      expect(result.issuedInboundSigning).toBeTruthy();
       expect(result.configUpdates?.botIdentity?.username).toBe('test_bot');
     });
 

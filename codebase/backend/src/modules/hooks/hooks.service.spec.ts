@@ -521,8 +521,8 @@ describe('HooksService', () => {
    */
   describe('Chat Channel 분기', () => {
     const SECRET_TOKEN = 'secret-token-abc';
-    const SECRET_TOKEN_REF = 'secret://triggers/t1/webhook-secret';
-    /** 헤더에 올바른 secretToken 을 포함한 입력 */
+    const SECRET_TOKEN_REF = 'secret://triggers/t1/inbound-signing';
+    /** 헤더에 올바른 inbound-signing 자료 (Telegram secret_token) 을 포함한 입력 */
     const chatInput: WebhookInput = {
       ...input,
       headers: { 'x-telegram-bot-api-secret-token': SECRET_TOKEN },
@@ -533,7 +533,7 @@ describe('HooksService', () => {
         chatChannel: {
           provider: 'telegram',
           botTokenRef: 'secret://triggers/t1/bot-token',
-          secretTokenRef: SECRET_TOKEN_REF,
+          inboundSigningRef: SECRET_TOKEN_REF,
         },
       },
     } as unknown as Trigger;
@@ -698,11 +698,13 @@ describe('HooksService', () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       mockAdapter.parseUpdate.mockResolvedValue(null);
       await service.handleWebhook('abc', chatInput);
-      // HooksService 가 authenticator.verify 를 trigger.id, config, headers 와 호출.
+      // HooksService 가 authenticator.verify 를 trigger.id, config, headers, rawBody (string) 와 호출.
+      // Slack signing 검증을 위해 4번째 param (rawBody string) 추가됨 — Telegram 은 무시.
       expect(authenticator.verify).toHaveBeenCalledWith(
         chatChannelTrigger.id,
         expect.objectContaining({ provider: 'telegram' }),
         chatInput.headers,
+        expect.any(String),
       );
     });
   });

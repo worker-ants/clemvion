@@ -121,7 +121,7 @@ export class ChatChannelConfigDto {
   botTokenRef?: string;
 
   /**
-   * 외부 입력 금지 — setupChannel 결과 issuedSecretToken 이 저장되면 채워진다.
+   * 외부 입력 금지 — setupChannel 결과 issuedInboundSigning 이 저장되면 채워진다.
    * 응답에서 strip — 사용자에게 노출 금지.
    */
   @ApiPropertyOptional({
@@ -133,9 +133,9 @@ export class ChatChannelConfigDto {
   })
   @IsOptional()
   @IsEmpty({
-    message: 'secretTokenRef 는 외부 입력이 금지된 내부 필드입니다.',
+    message: 'inboundSigningRef 는 외부 입력이 금지된 내부 필드입니다.',
   })
-  secretTokenRef?: string;
+  inboundSigningRef?: string;
 
   /**
    * 외부 입력 금지 — setupChannel 시 어댑터가 발급. 본 필드가 입력으로 들어오면 무시되지 않고
@@ -150,9 +150,9 @@ export class ChatChannelConfigDto {
   @IsOptional()
   @IsEmpty({
     message:
-      'secretToken 은 setupChannel 시 자동 발급되는 내부 필드입니다. 외부 입력은 허용되지 않습니다.',
+      'inboundSigning 은 setupChannel 시 자동 발급되는 내부 필드입니다. 외부 입력은 허용되지 않습니다.',
   })
-  secretToken?: string;
+  inboundSigning?: string;
 
   @ApiPropertyOptional({
     description:

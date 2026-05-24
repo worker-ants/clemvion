@@ -1,5 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { verifyDiscordSignature } from './providers/discord/discord-signing';
+import { verifySlackSignature } from './providers/slack/slack-signing';
 import { ChatChannelConfig } from './types';
 
 /**
@@ -11,9 +13,11 @@ import { ChatChannelConfig } from './types';
  * 호출 시점: HooksService.handleChatChannelWebhook 진입 직후, parseUpdate 이전.
  *
  * 현재 검증 정책:
- *   - Telegram: `X-Telegram-Bot-Api-Secret-Token` 헤더 ↔ `config.secretTokenRef` resolve 비교.
- *     `secretTokenRef` 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
- *   - 다른 provider: 어댑터별 자체 검증 (HMAC 등) — 본 클래스는 noop.
+ *   - Telegram: `X-Telegram-Bot-Api-Secret-Token` 헤더 ↔ `config.inboundSigningRef` resolve 비교.
+ *     `inboundSigningRef` 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
+ *   - Slack: `X-Slack-Signature` HMAC-SHA256(secret, "v0:" + ts + ":" + raw_body) + 5분 replay
+ *     window. `inboundSigningRef` 미설정 시 검증 skip (legacy — 보안 trade-off 는 운영자 책임).
+ *   - 다른 provider: 어댑터별 자체 검증 (Discord ed25519 등) — Phase 별 추가.
  */
 @Injectable()
 export class ChatChannelInboundAuthenticator {
@@ -25,19 +29,58 @@ export class ChatChannelInboundAuthenticator {
    * 검증 실패 시 `UnauthorizedException` throw. 성공 시 void.
    *
    * @param triggerId — 로그용
-   * @param config — `ChatChannelConfig` (provider, secretTokenRef 등)
+   * @param config — `ChatChannelConfig` (provider, inboundSigningRef 등)
    * @param headers — webhook request headers (lowercased key)
+   * @param rawBody — Slack signing 검증용 raw request body (string). Telegram 은 무시.
    */
   async verify(
     triggerId: string,
     config: ChatChannelConfig,
     headers: Record<string, string>,
+    rawBody = '',
   ): Promise<void> {
     if (config.provider === 'telegram') {
       await this.verifyTelegram(triggerId, config, headers);
       return;
     }
+    if (config.provider === 'slack') {
+      await this.verifySlack(triggerId, config, headers, rawBody);
+      return;
+    }
+    if (config.provider === 'discord') {
+      await this.verifyDiscord(triggerId, config, headers, rawBody);
+      return;
+    }
     // 다른 provider 는 어댑터마다 자체 검증 — 본 클래스에서는 통과.
+  }
+
+  private async verifyDiscord(
+    triggerId: string,
+    config: ChatChannelConfig,
+    headers: Record<string, string>,
+    rawBody: string,
+  ): Promise<void> {
+    if (!config.inboundSigningRef) return;
+    const signature = headers['x-signature-ed25519'] ?? '';
+    const timestamp = headers['x-signature-timestamp'] ?? '';
+    let publicKeyHex: string;
+    try {
+      publicKeyHex = await this.secrets.resolve(config.inboundSigningRef);
+    } catch (err) {
+      this.logger.warn(
+        `Discord inbound-signing resolve 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new UnauthorizedException({
+        code: 'AUTH_FAILED',
+        message: 'Invalid Discord signature',
+      });
+    }
+    if (!verifyDiscordSignature(rawBody, signature, timestamp, publicKeyHex)) {
+      throw new UnauthorizedException({
+        code: 'AUTH_FAILED',
+        message: 'Invalid Discord signature',
+      });
+    }
   }
 
   private async verifyTelegram(
@@ -45,16 +88,16 @@ export class ChatChannelInboundAuthenticator {
     config: ChatChannelConfig,
     headers: Record<string, string>,
   ): Promise<void> {
-    // secretTokenRef 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
-    if (!config.secretTokenRef) return;
+    // inboundSigningRef 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
+    if (!config.inboundSigningRef) return;
 
     const headerToken = headers['x-telegram-bot-api-secret-token'] ?? '';
     let expected: string;
     try {
-      expected = await this.secrets.resolve(config.secretTokenRef);
+      expected = await this.secrets.resolve(config.inboundSigningRef);
     } catch (err) {
       this.logger.warn(
-        `Telegram secret_token resolve 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+        `Telegram inbound-signing resolve 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
       );
       throw new UnauthorizedException({
         code: 'AUTH_FAILED',
@@ -65,6 +108,35 @@ export class ChatChannelInboundAuthenticator {
       throw new UnauthorizedException({
         code: 'AUTH_FAILED',
         message: 'Invalid Telegram secret token',
+      });
+    }
+  }
+
+  private async verifySlack(
+    triggerId: string,
+    config: ChatChannelConfig,
+    headers: Record<string, string>,
+    rawBody: string,
+  ): Promise<void> {
+    if (!config.inboundSigningRef) return;
+    const signature = headers['x-slack-signature'] ?? '';
+    const timestamp = headers['x-slack-request-timestamp'] ?? '';
+    let secret: string;
+    try {
+      secret = await this.secrets.resolve(config.inboundSigningRef);
+    } catch (err) {
+      this.logger.warn(
+        `Slack inbound-signing resolve 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new UnauthorizedException({
+        code: 'AUTH_FAILED',
+        message: 'Invalid Slack signature',
+      });
+    }
+    if (!verifySlackSignature(rawBody, signature, timestamp, secret)) {
+      throw new UnauthorizedException({
+        code: 'AUTH_FAILED',
+        message: 'Invalid Slack signature',
       });
     }
   }

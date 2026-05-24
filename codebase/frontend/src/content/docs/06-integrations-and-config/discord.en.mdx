@@ -1,0 +1,85 @@
+---
+title: "Discord integration"
+title_en: "Discord integration"
+section: "06-integrations-and-config"
+order: 8
+summary: "Connect a Discord bot as a Chat Channel on a Webhook trigger to interact with workflows via slash commands / buttons / modals."
+summary_en: "Connect a Discord bot as a Chat Channel on a Webhook trigger to interact with workflows via slash commands / buttons / modals."
+spec: ["spec/4-nodes/7-trigger/providers/discord.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md"]
+code: ["codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts", "codebase/backend/src/modules/chat-channel/providers/discord/discord-update.parser.ts", "codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts"]
+---
+
+Connect a Discord bot as your workflow's interface, and users can drive workflows via `/workflow start` slash commands, button clicks, and modal text inputs.
+
+## 1. Create a Discord app
+
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**
+2. From **General Information**, note:
+   - **Application ID**
+   - **Public Key** — 64-char hex used for ed25519 signature verification on Interactions Webhook
+3. **Bot** tab → **Reset Token** to obtain the **Bot Token** (`xxx.yyy.zzz`)
+
+<Callout type="warn">
+The Bot Token grants full control over the bot account. Public Key is public info, but clemvion's secret store manages both with backend AES-256-GCM for consistency.
+</Callout>
+
+## 2. Interactions Endpoint URL
+
+In the **General Information** page:
+
+- **Interactions Endpoint URL** = `https://<your-clemvion-domain>/api/hooks/<endpointPath>`
+- On save, Discord sends a PING (type=1). clemvion responds automatically with `{ type: 1 }` 200
+- "Validation Failed" → public key mismatch or endpoint unreachable
+
+## 3. Bot permissions + invite
+
+1. **OAuth2 → URL Generator**
+   - **scopes**: `bot`, `applications.commands`
+   - **bot permissions**: `Send Messages`, `Read Message History`, `Use Slash Commands`
+2. Use the generated URL to install the bot to your server (or DM)
+
+## 4. Connect Discord to clemvion
+
+1. Create a **Webhook trigger**
+2. Enable **Chat Channel** → **Provider** = `Discord`
+3. **Bot Token** = `xxx.yyy.zzz`
+4. **Public Key** = the 64-char hex from Discord Portal
+5. Save → backend:
+   - calls `GET /applications/@me` to cache application id/name
+   - bulk-overwrites slash commands via `PUT /applications/{app_id}/commands` (`start` / `cancel` / `help` / `reply`)
+
+## 5. Usage
+
+### 5.1 Slash commands
+
+- `/workflow start` — new execution
+- `/workflow cancel` — cancel active
+- `/workflow help` — help
+- `/workflow reply <message>` — reply during active AI Multi Turn
+
+### 5.2 Buttons / Modals
+
+- Button Presentation nodes → Discord Message Components (`ACTION_ROW` + `BUTTON`)
+- A "Reply" button under AI messages opens a TEXT_INPUT modal (alternative to slash command)
+
+### 5.3 Forms
+
+- v1 = multi-step text sequence (one question per field, answered via buttons/modal)
+- v2 (planned) = Discord modal (TEXT_INPUT components) native support
+
+## 6. v1 limitations / known gaps
+
+- **No free-text DM** — v1 is Interactions Webhook only. Discord's `MESSAGE_CREATE` requires Gateway → v1 users reply via `/workflow reply` or modal (per CCH-MP-01 partial deferral, R-CC-13).
+- **DM only** — guild (server) channels rejected. Multi-user channels bundled with v2 multi-user thread plans.
+- **No auto-start** — unlike Telegram `/start` via first DM, Discord requires explicit `/workflow start`.
+- **Form `file` field largely unsupported** — file upload needs Gateway attachment. Workaround: external storage URL (text + url validation).
+- **Native typing** — `POST /channels/{id}/typing` (10s). Long LLM latency repeats every 5s.
+
+## 7. Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Discord Portal "Validation Failed" | Public Key mismatch or endpoint can't respond `{ type: 1 }` 200. Check `chat_channel_health` |
+| Slash commands not visible | bulk-overwrite cache propagation ≤ 1h; or missing `applications.commands` scope |
+| `401 Unauthorized` | Bot Token rotated — use **Rotate Bot Token** in clemvion (24h grace) |
+| Modal "Reply" doesn't open | 3-second ack missed — backend latency (degraded health) |
