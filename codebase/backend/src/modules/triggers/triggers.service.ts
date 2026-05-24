@@ -740,7 +740,9 @@ export class TriggersService {
    *
    * Controller 는 input validation + workspaceId 검증 + 본 메서드 호출만 담당.
    *
-   * @throws BadRequestException `CHAT_CHANNEL_NOT_CONFIGURED` / `CHAT_CHANNEL_PROVIDER_UNKNOWN` / `CHAT_CHANNEL_ENDPOINT_REQUIRED`
+   * @throws BadRequestException `CHAT_CHANNEL_NOT_CONFIGURED` / `CHAT_CHANNEL_PROVIDER_UNKNOWN` /
+   *   `CHAT_CHANNEL_ENDPOINT_REQUIRED` / `BOT_TOKEN_INVALID` (setupChannel 401/403) /
+   *   `CHAT_CHANNEL_SETUP_FAILED` (기타 setupChannel 실패)
    */
   async rotateBotToken(
     id: string,
@@ -810,9 +812,16 @@ export class TriggersService {
     await this.secrets.rotate(botTokenRef, trigger.workspaceId, newBotToken);
 
     // 4. 새 token 으로 setupChannel 재호출 — adapter 가 resolveBotToken 으로 신 token 자동 사용.
+    // [Spec Chat Channel §5.4] 외부 API 401/403 (인증 실패) 은 BOT_TOKEN_INVALID 400 으로,
+    // 그 외 setupChannel 실패는 CHAT_CHANNEL_SETUP_FAILED 502 로 변환.
     const mergedConfig: ChatChannelConfig = { ...chatChannelCfg, botTokenRef };
     const callbackUrl = this.buildCallbackUrl(trigger.endpointPath);
-    const result = await adapter.setupChannel(mergedConfig, callbackUrl);
+    let result;
+    try {
+      result = await adapter.setupChannel(mergedConfig, callbackUrl);
+    } catch (err) {
+      throw this.translateSetupChannelError(err);
+    }
     const mergedChannel: ChatChannelConfig = {
       ...mergedConfig,
       ...(result.configUpdates ?? {}),
@@ -842,6 +851,34 @@ export class TriggersService {
       },
     );
     return { rotatedAt: rotatedAt.toISOString() };
+  }
+
+  /**
+   * [Spec Chat Channel §5.4 에러 표] adapter.setupChannel 의 외부 API 에러를 spec 에 정의된
+   * BadRequestException 으로 변환.
+   *
+   * - 401 / 403 (외부 provider 인증 실패) → `BOT_TOKEN_INVALID` 400
+   * - 기타 (5xx / 네트워크 등) → `CHAT_CHANNEL_SETUP_FAILED` 502
+   *
+   * adapter 가 throw 하는 Error 의 message 에 status code 가 포함됨을 가정 (provider client 들의
+   * 표준 error message 패턴: "Slack auth.test failed: 401", "Discord getApplicationMe failed:
+   * 403", "Telegram setWebhook failed: ..." 등). 정확도가 낮을 경우 default 가 SETUP_FAILED 라
+   * fail-safe.
+   */
+  private translateSetupChannelError(err: unknown): BadRequestException {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/\b(401|403)\b/.test(message)) {
+      return new BadRequestException({
+        code: 'BOT_TOKEN_INVALID',
+        message: 'Bot token is invalid (401/403 from provider).',
+        details: { reason: message.slice(0, 256) },
+      });
+    }
+    return new BadRequestException({
+      code: 'CHAT_CHANNEL_SETUP_FAILED',
+      message: 'Chat channel setup failed after rotation.',
+      details: { reason: message.slice(0, 256) },
+    });
   }
 
   /** publicBaseUrl 결합 — setupChatChannel 과 공용 헬퍼. */
