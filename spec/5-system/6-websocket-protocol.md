@@ -226,10 +226,13 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
     "executionId": "uuid",
     "nodeId": "uuid",
     "buttonId": "uuid",
-    "resumed": true
+    "resumed": true,
+    "queued": false
   }
 }
 ```
+
+`queued: boolean` 은 선택 필드 — `true` 면 continuation-queue ([Spec 실행 엔진 §7.4](./4-execution-engine.md#74-분산-실행-multi-instance)) 로 enqueue 만 됐고 실제 재개는 다른 인스턴스가 비동기로 수행 ([§7.5 rehydration](./4-execution-engine.md#75-resume-after-restart-rehydration)). `false` (또는 미동봉) 이면 in-instance fast path 로 즉시 resolve. 본 필드는 관측·디버깅 용도이며 클라이언트 routing 결정에 사용하지 않는다. 동일 의미론이 `execution.submit_form.ack` / `execution.submit_message.ack` / `execution.end_conversation.ack` 에 공통 적용된다 (각 ack 의 success payload 는 명령별 식별자만 다르고 `resumed` / `queued` 필드는 동일).
 
 **버튼 클릭 에러 코드:**
 
@@ -238,6 +241,11 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID |
 | `INVALID_EXECUTION_STATE` | 실행이 `waiting_for_input` 상태가 아님 |
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
+| `RESUME_CHECKPOINT_MISSING` | (공통) rehydration 시 `NodeExecution.outputData` 가 부재 또는 손상. Execution 은 `cancelled` 로 종결 ([§7.5](./4-execution-engine.md#75-resume-after-restart-rehydration)) |
+| `RESUME_FAILED` | (공통) continuation-queue `RESUME_BULLMQ_ATTEMPTS` 소진. Execution 은 `cancelled` 로 종결 |
+| `RESUME_INCOMPATIBLE_STATE` | (공통) `_resumeState` schema 가 deploy 후 변경되어 deserialize 실패. Execution 은 `cancelled` 로 종결 |
+
+> 위 표의 마지막 3개 코드 (`RESUME_*`) 는 `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation` 의 ack 에 공통 적용된다. **`execution.retry_last_turn` 은 적용 대상 아님** — retry_last_turn 은 동일 nodeId 의 새 NodeExecution row spawn 경로이며 rehydration 경로를 타지 않는다 (전용 코드는 `RETRY_STATE_NOT_FOUND` / `NODE_NOT_RETRYABLE` / `RETRY_TOO_EARLY` 참조).
 
 **`execution.retry_last_turn` ack:**
 

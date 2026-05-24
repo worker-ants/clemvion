@@ -20,9 +20,11 @@ owner: project-planner
 
 ### WARNING #2 — `execution.retry_last_turn` Continuation Bus 경유 여부
 
-`execution.retry_last_turn`이 Continuation Bus(`execution:continuation` 채널) 경유 여부가 미명시. 기존 명령들의 레이어 분리 패턴(WS 게이트웨이 사전 검증 → 엔진 실행)이 이 명령에도 적용되는지 불명확.
+`execution.retry_last_turn`이 Continuation Bus 경유 여부가 미명시. 기존 명령들의 레이어 분리 패턴(WS 게이트웨이 사전 검증 → 엔진 실행)이 이 명령에도 적용되는지 불명확.
 
-**제안**: Continuation Bus 경유 여부와 `FAILED` 상태 검증 주체(게이트웨이 vs 엔진)를 `spec/5-system/6-websocket-protocol.md` §4.2 에 명시. `project-planner` 위임.
+> **(2026-05-24 갱신)** Continuation Bus 의 표면이 옛 Redis pub/sub 채널 `execution:continuation` 에서 BullMQ 영속 큐 `execution-continuation` 으로 교체됨 — [`workflow-resumable-execution.md`](./workflow-resumable-execution.md) Phase 0 spec 갱신 결과. 본 WARNING #2 의 spec 작성은 BullMQ `execution-continuation` 큐 기준으로 작성해야 한다. 또한 `execution.retry_last_turn` 은 새 NodeExecution row spawn 경로이며 rehydration 경로 (`RESUME_*` 에러 코드) 와는 별개 — [`spec/5-system/4-execution-engine.md §7.5`](../../spec/5-system/4-execution-engine.md#75-resume-after-restart-rehydration) 의 적용 대상이 아님을 §4.2 작성 시 명시.
+
+**제안**: Continuation 큐 경유 여부와 `FAILED` 상태 검증 주체(게이트웨이 vs 엔진)를 `spec/5-system/6-websocket-protocol.md` §4.2 에 명시. `project-planner` 위임. 본 작업은 [`workflow-resumable-execution.md`](./workflow-resumable-execution.md) 의 Phase 0 spec 반영 이후 착수.
 
 ### WARNING #3 — `INVALID_EXECUTION_STATE` 사전 검증 요건
 

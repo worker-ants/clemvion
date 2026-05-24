@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-24T23:39:12.592995",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-workflow-resumable-execution.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
