@@ -385,18 +385,18 @@ export class WebsocketGateway
 
     try {
       // Phase 2.5 — publish 가 BullMQ enqueue 반환 (queued + jobId). spec §7.4
-      // 라우팅 원칙상 정상 enqueue 시 queued=true. jobId=null 이면 Redis
-      // 장애로 본 분기에서 success: false 응답 후 client 재시도 유도.
+      // 라우팅 원칙상 정상 enqueue 시 queued=true. queued=false 이면 enqueue
+      // 실패 — success: false ack 로 client 재시도 유도.
       const result = await this.executionEngineService.continueExecution(
         data.executionId,
         data.formData,
       );
-      if (result.jobId === null) {
+      if (!result.queued) {
         return {
           event: 'execution.form_submitted',
           data: {
             success: false,
-            error: 'Continuation enqueue failed (Redis unavailable)',
+            error: 'Continuation could not be queued. Please try again.',
           },
         };
       }
@@ -464,12 +464,12 @@ export class WebsocketGateway
         data.executionId,
         data.buttonId,
       );
-      if (result.jobId === null) {
+      if (!result.queued) {
         return {
           event: 'execution.click_button.ack',
           data: {
             success: false,
-            error: 'Continuation enqueue failed (Redis unavailable)',
+            error: 'Continuation could not be queued. Please try again.',
           },
         };
       }
@@ -538,12 +538,12 @@ export class WebsocketGateway
         data.executionId,
         data.message,
       );
-      if (result.jobId === null) {
+      if (!result.queued) {
         return {
           event: 'execution.submit_message.ack',
           data: {
             success: false,
-            error: 'Continuation enqueue failed (Redis unavailable)',
+            error: 'Continuation could not be queued. Please try again.',
           },
         };
       }
@@ -608,12 +608,12 @@ export class WebsocketGateway
       const result = await this.executionEngineService.endAiConversation(
         data.executionId,
       );
-      if (result.jobId === null) {
+      if (!result.queued) {
         return {
           event: 'execution.end_conversation.ack',
           data: {
             success: false,
-            error: 'Continuation enqueue failed (Redis unavailable)',
+            error: 'Continuation could not be queued. Please try again.',
           },
         };
       }

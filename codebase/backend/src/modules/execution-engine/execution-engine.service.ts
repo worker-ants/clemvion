@@ -229,6 +229,9 @@ class ExecutionCancelledError extends Error {
  *   spec §7.4 라우팅 원칙상 모든 정상 publish 는 이 분기.
  * - `queued: false` + `jobId: null` — enqueue 자체 실패 (Redis 장애 등). caller
  *   는 throw 또는 `success: false` ack 로 변환.
+ *
+ * **불변 조건**: `queued: false` ↔ `jobId: null` — 두 필드는 항상 쌍으로 반전.
+ * `queued` 만 확인해도 실패 여부를 판단할 수 있다. `jobId` 는 디버깅 전용.
  */
 export interface ContinuationPublishResult {
   queued: boolean;
@@ -791,9 +794,13 @@ export class ExecutionEngineService
       );
     } catch (err) {
       if (err instanceof RehydrationError) {
-        this.logger.warn(
-          `Rehydration ${err.code} — execution=${executionId} nodeExec=${nodeExecutionId}: ${err.message}`,
-        );
+        // W19: internal identifiers は structured params へ — error.message は
+        // コード分類のみ。BullMQ DLQ Board / 外部ログ集積への情報漏洩防止.
+        this.logger.warn('Rehydration failed', {
+          code: err.code,
+          executionId,
+          nodeExecutionId,
+        });
         await this.markExecutionCancelled(executionId, err.code);
         if (resolvedNodeExecutionId) {
           await this.markNodeExecutionFailed(resolvedNodeExecutionId, err.code);
@@ -803,17 +810,14 @@ export class ExecutionEngineService
       // ExecutionCancelledError 는 resumeFromCheckpoint 가 자체적으로 CANCELLED
       // 마킹 후 정상 종결하므로 여기까지 도달하지 않는다 (방어적 분기).
       if (err instanceof ExecutionCancelledError) {
-        this.logger.log(
-          `Rehydration cancelled mid-flight — execution=${executionId}`,
-        );
+        this.logger.log('Rehydration cancelled mid-flight', { executionId });
         return;
       }
-      const msg = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
-      this.logger.error(
-        `Rehydration unexpected error — execution=${executionId} nodeExec=${nodeExecutionId}: ${msg}`,
-        stack,
-      );
+      this.logger.error('Rehydration unexpected error', stack, {
+        executionId,
+        nodeExecutionId,
+      });
       await this.markExecutionCancelled(executionId, 'RESUME_FAILED');
       if (resolvedNodeExecutionId) {
         await this.markNodeExecutionFailed(
@@ -935,8 +939,8 @@ export class ExecutionEngineService
    *   - reachability 와 executedNodes 를 rehydrated state 로 seed
    *   - executeNode 우회: 기존 NodeExecution row 가 이미 WAITING_FOR_INPUT
    *     이므로 새 row 를 만들지 않고 waitForX 만 호출
-   *   - setImmediate 로 pendingContinuations 의 resolver 에 payload 를 즉시
-   *     fire (waitForX 가 등록한 직후 microtask 에 실행)
+   *   - setImmediate polling (최대 50회) 으로 pendingContinuations resolver
+   *     등록을 대기 후 payload fire (waitForX 등록 완료 tick 에 실행)
    */
   private async resumeFromCheckpoint(
     savedExecution: Execution,

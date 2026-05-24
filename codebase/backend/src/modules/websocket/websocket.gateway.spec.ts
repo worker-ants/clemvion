@@ -542,7 +542,7 @@ describe('WebsocketGateway', () => {
       });
     });
 
-    it('Phase 2.5 — publish 가 jobId=null 반환 (Redis 장애) 시 success=false + Redis error 메시지', async () => {
+    it('Phase 2.5 — publish 가 queued=false 반환 (Redis 장애) 시 success=false + user-safe error 메시지', async () => {
       const { socket } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { userId?: string; workspaceId?: string }).userId =
         'user-1';
@@ -559,7 +559,8 @@ describe('WebsocketGateway', () => {
         socket,
       );
       expect(result.data.success).toBe(false);
-      expect(result.data.error).toMatch(/enqueue failed/);
+      // W20: user-safe message — no Redis infrastructure details exposed.
+      expect(result.data.error).toMatch(/could not be queued/);
     });
   });
 

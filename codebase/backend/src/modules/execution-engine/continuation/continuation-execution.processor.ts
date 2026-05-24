@@ -78,8 +78,9 @@ export class ContinuationExecutionProcessor extends WorkerHost {
         );
         break;
       case 'cancel':
-        // applyCancellation 은 sync (rejectPending 만 호출) — await 불필요.
-        this.engine.applyCancellation(executionId);
+        // applyCancellation 은 sync (rejectPending 만 호출) — fire-and-forget.
+        // TODO: async 전환 시 `void` 제거 후 `await` 복원 필요.
+        void this.engine.applyCancellation(executionId);
         break;
       case 'button_click':
         await this.engine.applyContinuation(executionId, nodeExecutionId, {
