@@ -1,5 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { verifyDiscordSignature } from './providers/discord/discord-signing';
 import { verifySlackSignature } from './providers/slack/slack-signing';
 import { ChatChannelConfig } from './types';
 
@@ -46,7 +47,40 @@ export class ChatChannelInboundAuthenticator {
       await this.verifySlack(triggerId, config, headers, rawBody);
       return;
     }
+    if (config.provider === 'discord') {
+      await this.verifyDiscord(triggerId, config, headers, rawBody);
+      return;
+    }
     // 다른 provider 는 어댑터마다 자체 검증 — 본 클래스에서는 통과.
+  }
+
+  private async verifyDiscord(
+    triggerId: string,
+    config: ChatChannelConfig,
+    headers: Record<string, string>,
+    rawBody: string,
+  ): Promise<void> {
+    if (!config.inboundSigningRef) return;
+    const signature = headers['x-signature-ed25519'] ?? '';
+    const timestamp = headers['x-signature-timestamp'] ?? '';
+    let publicKeyHex: string;
+    try {
+      publicKeyHex = await this.secrets.resolve(config.inboundSigningRef);
+    } catch (err) {
+      this.logger.warn(
+        `Discord inbound-signing resolve 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new UnauthorizedException({
+        code: 'AUTH_FAILED',
+        message: 'Invalid Discord signature',
+      });
+    }
+    if (!verifyDiscordSignature(rawBody, signature, timestamp, publicKeyHex)) {
+      throw new UnauthorizedException({
+        code: 'AUTH_FAILED',
+        message: 'Invalid Discord signature',
+      });
+    }
   }
 
   private async verifyTelegram(

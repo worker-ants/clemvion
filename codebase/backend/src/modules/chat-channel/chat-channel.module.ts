@@ -12,6 +12,8 @@ import { TelegramAdapter } from './providers/telegram/telegram.adapter';
 import { TelegramClient } from './providers/telegram/telegram-client';
 import { SlackAdapter } from './providers/slack/slack.adapter';
 import { SlackClient } from './providers/slack/slack-client';
+import { DiscordAdapter } from './providers/discord/discord.adapter';
+import { DiscordClient } from './providers/discord/discord-client';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
 import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenticator';
 
@@ -45,6 +47,8 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
     TelegramAdapter,
     SlackClient,
     SlackAdapter,
+    DiscordClient,
+    DiscordAdapter,
   ],
   exports: [
     ChannelAdapterRegistry,
@@ -57,10 +61,11 @@ export class ChatChannelModule {
     private readonly registry: ChannelAdapterRegistry,
     private readonly telegramAdapter: TelegramAdapter,
     private readonly slackAdapter: SlackAdapter,
+    private readonly discordAdapter: DiscordAdapter,
   ) {
     // onModuleInit 대신 constructor — 어댑터 인스턴스는 NestJS DI 시점에 ready.
-    // Telegram: 완전 구현. Slack: Phase 1 stub — 6함수 호출 시 명시적 에러 (Phase 2/3 에서 채움).
     this.registry.register(this.telegramAdapter);
     this.registry.register(this.slackAdapter);
+    this.registry.register(this.discordAdapter);
   }
 }

@@ -189,7 +189,12 @@ export class HooksService {
     config: ChatChannelConfig,
     input: WebhookInput,
     rawBodyString = '',
-  ): Promise<{ executionId: string; status?: 'pending'; challenge?: string }> {
+  ): Promise<{
+    executionId: string;
+    status?: 'pending';
+    challenge?: string;
+    discordPing?: boolean;
+  }> {
     let adapter: ChatChannelAdapter;
     try {
       adapter = this.channelAdapterRegistry.get(config.provider);
@@ -215,6 +220,12 @@ export class HooksService {
       if (typeof challenge === 'string' && challenge.length > 0) {
         return { executionId: 'ignored', challenge };
       }
+    }
+
+    // Discord PING handshake (Spec providers/discord §3.1) — Interactions Endpoint URL
+    // 등록 시 1회 + 주기적. type=1 → { type: 1 } 200 응답.
+    if (config.provider === 'discord' && isDiscordPing(input.body)) {
+      return { executionId: 'ignored', discordPing: true };
     }
 
     const update = await adapter.parseUpdate(input.body, config);
@@ -669,4 +680,13 @@ function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
 function isSlackUrlVerification(body: unknown): boolean {
   if (!body || typeof body !== 'object') return false;
   return (body as { type?: unknown }).type === 'url_verification';
+}
+
+/**
+ * Discord Interactions Webhook PING (type=1) envelope 여부 — controller 가 `{ type: 1 }`
+ * 200 응답으로 handshake 처리하기 위한 분기. Spec [providers/discord §3.1].
+ */
+function isDiscordPing(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  return (body as { type?: unknown }).type === 1;
 }

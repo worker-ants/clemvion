@@ -85,6 +85,15 @@ export class HooksController {
       return;
     }
 
+    // Discord PING handshake — `{ type: 1 }` JSON + 200 OK. 동일 우회 패턴.
+    // Spec [providers/discord §3.1].
+    const discordPing = (result as unknown as { discordPing?: boolean })
+      .discordPing;
+    if (discordPing === true) {
+      res.status(HttpStatus.OK).json({ type: 1 });
+      return;
+    }
+
     return {
       ...result,
       message: 'Webhook received, workflow execution started',

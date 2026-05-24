@@ -1,7 +1,22 @@
 ---
 id: discord
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/chat-channel/providers/discord/discord.adapter.ts
+  - codebase/backend/src/modules/chat-channel/providers/discord/discord-client.ts
+  - codebase/backend/src/modules/chat-channel/providers/discord/discord-message.renderer.ts
+  - codebase/backend/src/modules/chat-channel/providers/discord/discord-signing.ts
+  - codebase/backend/src/modules/chat-channel/providers/discord/discord-update.parser.ts
+  - codebase/backend/src/modules/chat-channel/providers/discord/discord.types.ts
+  - codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts
+  - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/modules/hooks/hooks.controller.ts
+  - codebase/backend/test/chat-channel-discord.e2e-spec.ts
+  - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
+  - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
+  - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
+  - codebase/frontend/src/content/docs/06-integrations-and-config/discord.mdx
+  - codebase/frontend/src/content/docs/06-integrations-and-config/discord.en.mdx
 ---
 
 # Spec: Discord Chat Channel Adapter
