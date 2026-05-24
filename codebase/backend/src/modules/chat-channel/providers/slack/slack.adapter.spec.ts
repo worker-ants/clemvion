@@ -156,34 +156,102 @@ describe('SlackAdapter', () => {
     });
   });
 
-  describe('renderNode / sendMessage — Phase 3 placeholder', () => {
-    it('renderNode → Phase 3 미구현', async () => {
+  describe('renderNode (Phase 3) — renderer 위임', () => {
+    it('ai_message → text ChannelMessage', async () => {
       const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
-      await expect(
-        adapter.renderNode(
-          {
-            type: 'execution.ai_message',
-            executionId: 'e',
-            triggerId: 't',
-            workflowId: 'w',
-            seq: 1,
-            timestamp: '2026-05-24T00:00:00Z',
-            message: 'hi',
-            turnCount: 1,
-          },
-          SLACK_CONFIG,
-        ),
-      ).rejects.toThrow(/Phase 3/);
+      const msgs = await adapter.renderNode(
+        {
+          type: 'execution.ai_message',
+          executionId: 'e',
+          triggerId: 't',
+          workflowId: 'w',
+          seq: 1,
+          timestamp: '2026-05-24T00:00:00Z',
+          message: 'hi',
+          turnCount: 1,
+        },
+        SLACK_CONFIG,
+      );
+      expect(msgs[0].body).toEqual({ kind: 'text', text: 'hi' });
+    });
+  });
+
+  describe('sendMessage (Phase 3)', () => {
+    it('text → chat.postMessage 호출', async () => {
+      const client = makeClient();
+      const spy = jest
+        .spyOn(client, 'chatPostMessage')
+        .mockResolvedValue({ ok: true, channel: 'D1', ts: '123.456' });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      const result = await adapter.sendMessage(
+        { conversationKey: 'D1', body: { kind: 'text', text: 'hi' } },
+        SLACK_CONFIG,
+      );
+      expect(spy).toHaveBeenCalledWith(
+        'xoxb-test-token',
+        expect.objectContaining({ channel: 'D1', text: 'hi' }),
+      );
+      expect(result.externalMsgId).toBe('123.456');
     });
 
-    it('sendMessage → Phase 3 미구현', async () => {
-      const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+    it('buttons → Block Kit actions 포함', async () => {
+      const client = makeClient();
+      const spy = jest
+        .spyOn(client, 'chatPostMessage')
+        .mockResolvedValue({ ok: true, channel: 'D1', ts: '1.2' });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      await adapter.sendMessage(
+        {
+          conversationKey: 'D1',
+          body: {
+            kind: 'buttons',
+            text: '선택?',
+            buttons: [
+              { id: 'b1', label: 'OK', type: 'callback', style: 'primary' },
+            ],
+          },
+        },
+        SLACK_CONFIG,
+      );
+      const call = spy.mock.calls[0][1];
+      expect(call.text).toBe('선택?');
+      expect(Array.isArray(call.blocks)).toBe(true);
+    });
+
+    it('typing → no-op (R-S-5, Slack Web API 미지원)', async () => {
+      const client = makeClient();
+      const spy = jest.spyOn(client, 'chatPostMessage');
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      const result = await adapter.sendMessage(
+        { conversationKey: 'D1', body: { kind: 'typing' } },
+        SLACK_CONFIG,
+      );
+      expect(spy).not.toHaveBeenCalled();
+      expect(result.externalMsgId).toBe('');
+    });
+
+    it('chat.postMessage ok=false → throw', async () => {
+      const client = makeClient();
+      jest
+        .spyOn(client, 'chatPostMessage')
+        .mockResolvedValue({ ok: false, error: 'channel_not_found' });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
       await expect(
         adapter.sendMessage(
           { conversationKey: 'D1', body: { kind: 'text', text: 'hi' } },
           SLACK_CONFIG,
         ),
-      ).rejects.toThrow(/Phase 3/);
+      ).rejects.toThrow(/channel_not_found/);
+    });
+
+    it('conversationKey 누락 → throw', async () => {
+      const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+      await expect(
+        adapter.sendMessage(
+          { conversationKey: '', body: { kind: 'text', text: 'hi' } },
+          SLACK_CONFIG,
+        ),
+      ).rejects.toThrow(/conversationKey/);
     });
   });
 });

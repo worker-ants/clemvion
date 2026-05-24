@@ -10,7 +10,9 @@ import type {
   SetupResult,
 } from '../../types';
 import { SlackClient } from './slack-client';
+import { renderSlackEvent } from './slack-message.renderer';
 import { parseSlackUpdate } from './slack-update.parser';
+import type { ChannelButton } from '../../types';
 
 /**
  * Slack Chat Channel Adapter.
@@ -107,27 +109,74 @@ export class SlackAdapter implements ChatChannelAdapter {
   }
 
   /**
-   * Spec §5 인터랙션 노드 UI 매핑 — Phase 3 에서 구현.
+   * Spec §5 인터랙션 노드 UI 매핑 (Phase 3).
+   * 본 함수는 pure — ChannelMessage 합성만, sendMessage 가 실제 외부 호출.
+   * conversationKey 는 dispatcher 가 보정 (Telegram renderer 와 동일 패턴).
    */
   renderNode(
-    _event: EiaEvent,
-    _config: ChatChannelConfig,
+    event: EiaEvent,
+    config: ChatChannelConfig,
   ): Promise<ChannelMessage[]> {
-    return Promise.reject(
-      new Error('SlackAdapter.renderNode — Phase 3 미구현'),
-    );
+    return Promise.resolve(renderSlackEvent(event, config));
   }
 
   /**
-   * Spec §3 — chat.postMessage / files.uploadV2 분기. Phase 3 에서 구현.
+   * Spec §3 / §5 — ChannelMessage 를 Slack chat.postMessage 호출로 분기.
+   * typing → no-op (R-S-5). image → v1 미지원 (fallbackText 로 text 발송).
    */
-  sendMessage(
-    _message: ChannelMessage,
-    _config: ChatChannelConfig,
+  async sendMessage(
+    message: ChannelMessage,
+    config: ChatChannelConfig,
   ): Promise<SendResult> {
-    return Promise.reject(
-      new Error('SlackAdapter.sendMessage — Phase 3 미구현'),
-    );
+    if (message.body.kind === 'typing') {
+      // Slack 은 server-initiated typing indicator 미지원. silent skip + dummy SendResult.
+      return { externalMsgId: '', sentAt: new Date().toISOString() };
+    }
+    const botToken = await this.resolveBotToken(config);
+    const channel = message.conversationKey;
+    if (!channel) {
+      throw new Error('SlackAdapter.sendMessage: conversationKey 누락');
+    }
+
+    if (message.body.kind === 'text') {
+      const res = await this.client.chatPostMessage(botToken, {
+        channel,
+        text: message.body.text,
+      });
+      return wrapSendResult(res, 'chat.postMessage');
+    }
+    if (message.body.kind === 'buttons') {
+      const blocks = buildActionsBlocks(
+        message.body.text,
+        message.body.buttons,
+      );
+      const res = await this.client.chatPostMessage(botToken, {
+        channel,
+        text: message.body.text,
+        blocks,
+      });
+      return wrapSendResult(res, 'chat.postMessage(buttons)');
+    }
+    if (message.body.kind === 'form_prompt') {
+      // v1 다단계 — 단순 text prompt + hint 표기 (Block Kit input 은 v2 modal).
+      const hintNote = message.body.hint ? `\n_(${message.body.hint})_` : '';
+      const res = await this.client.chatPostMessage(botToken, {
+        channel,
+        text: `${message.body.label}${hintNote}`,
+      });
+      return wrapSendResult(res, 'chat.postMessage(form_prompt)');
+    }
+    if (message.body.kind === 'image') {
+      // v1 = files.uploadV2 미구현 — fallbackText 로 text 발송 (R-S §5.4).
+      const text = message.body.caption ?? message.body.fallbackText;
+      const res = await this.client.chatPostMessage(botToken, {
+        channel,
+        text,
+      });
+      return wrapSendResult(res, 'chat.postMessage(image fallback)');
+    }
+    // exhaustive guard.
+    return { externalMsgId: '', sentAt: new Date().toISOString() };
   }
 
   /**
@@ -153,4 +202,45 @@ function hashStringToInt(s: string): number {
     h = ((h << 5) - h + s.charCodeAt(i)) | 0;
   }
   return Math.abs(h);
+}
+
+/** Slack Block Kit actions block 으로 ChannelButton[] 변환 (Spec §5.2). */
+function buildActionsBlocks(text: string, buttons: ChannelButton[]): unknown[] {
+  return [
+    { type: 'section', text: { type: 'mrkdwn', text } },
+    {
+      type: 'actions',
+      elements: buttons.slice(0, 25).map((b) => {
+        if (b.type === 'link' && b.url) {
+          return {
+            type: 'button',
+            text: { type: 'plain_text', text: b.label },
+            url: b.url,
+          };
+        }
+        return {
+          type: 'button',
+          text: { type: 'plain_text', text: b.label },
+          value: b.id,
+          action_id: `btn_${b.id}`,
+          ...(b.style === 'primary' || b.style === 'danger'
+            ? { style: b.style }
+            : {}),
+        };
+      }),
+    },
+  ];
+}
+
+function wrapSendResult(
+  res: { ok: boolean; ts?: string; channel?: string; error?: string },
+  context: string,
+): SendResult {
+  if (!res.ok) {
+    throw new Error(`Slack ${context} failed: ${res.error ?? 'unknown'}`);
+  }
+  return {
+    externalMsgId: res.ts ?? '',
+    sentAt: new Date().toISOString(),
+  };
 }
