@@ -129,4 +129,35 @@ describe('Discord Chat Channel e2e', () => {
       .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
       .catch(() => undefined);
   });
+
+  // ai-review (PR #301 security INFO #2) 후속 — chat-channel inbound webhook 은
+  // public route 라 workspace owner 의 `emailVerified` 와 무관하게 동작한다
+  // (`jwt.strategy` 가드는 protected API 한정). 본 invariant 가 향후 회귀로
+  // 깨지면 (예: 누군가 inbound 처리에 owner.emailVerified 검사를 잘못 추가)
+  // 본 케이스가 fail 해 차단한다. 헬퍼 JSDoc 의 "ownerEmailVerified" 옵션
+  // 노트와 함께 SoT 를 이룸.
+  it('owner.emailVerified=false trigger 의 inbound (PING) → 200 + signing skip (legacy)', async () => {
+    const setup = await setupChatChannelTrigger({
+      db,
+      provider: 'discord',
+      ownerEmailVerified: false,
+    });
+    const body = JSON.stringify({
+      id: 'I-unverified-ping-1',
+      application_id: 'A',
+      type: 1,
+      token: 'tok',
+      version: 1,
+    });
+    const res = await request(BASE_URL)
+      .post(`/api/hooks/${setup.endpointPath}`)
+      .set('content-type', 'application/json')
+      .send(body);
+    // inbound 는 owner.emailVerified 와 무관 — PING handshake 정상 수행.
+    expect(res.status).toBe(200);
+    expect(res.body.type).toBe(1);
+    await db
+      .query('DELETE FROM trigger WHERE id = $1', [setup.triggerId])
+      .catch(() => undefined);
+  });
 });

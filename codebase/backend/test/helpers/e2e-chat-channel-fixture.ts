@@ -13,6 +13,12 @@ import type { Client } from 'pg';
  * - `password_hash` 는 bcrypt 로 실제 해시. round=1 은 e2e 속도 우선 (production
  *   sessions 흐름은 round 12 사용 — `auth/sessions.service.ts`). 본 헬퍼는
  *   테스트 전용으로 production 경로에서 호출 금지.
+ * - `ownerEmailVerified` (기본 `true`) 옵션은 chat-channel inbound webhook 의
+ *   인가 모델 검증용. inbound 는 public route — trigger.secret 기반 검증만
+ *   수행하므로 workspace owner 의 `emailVerified` 와 무관하게 동작한다
+ *   (jwt.strategy 가드는 protected API 한정). 이 invariant 의 회귀 차단은
+ *   `chat-channel-discord.e2e-spec.ts` 의 "owner.emailVerified=false" 케이스가
+ *   담당.
  *
  * Provider 별 기본 동작:
  * - Slack: trigger.config 에 `inboundSigningRef` set — `secret_store` row 가
@@ -23,6 +29,7 @@ import type { Client } from 'pg';
 export async function setupChatChannelTrigger(args: {
   db: Client;
   provider: 'slack' | 'discord';
+  ownerEmailVerified?: boolean;
 }): Promise<{
   workspaceId: string;
   workflowId: string;
@@ -30,7 +37,7 @@ export async function setupChatChannelTrigger(args: {
   userId: string;
   endpointPath: string;
 }> {
-  const { db, provider } = args;
+  const { db, provider, ownerEmailVerified = true } = args;
   const slug = provider;
   const workspaceId = randomUUID();
   const userId = randomUUID();
@@ -41,13 +48,14 @@ export async function setupChatChannelTrigger(args: {
 
   await db.query(
     `INSERT INTO "user" (id, email, name, password_hash, email_verified, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, true, NOW(), NOW())
+     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
      ON CONFLICT DO NOTHING`,
     [
       userId,
       `${slug}-e2e-${userId.slice(0, 8)}@e2e.local`,
       `${provider === 'slack' ? 'Slack' : 'Discord'} E2E`,
       passwordHash,
+      ownerEmailVerified,
     ],
   );
 
