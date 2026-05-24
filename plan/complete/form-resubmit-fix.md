@@ -95,12 +95,12 @@ shape SoT 유지 (기존 `{type, data}` 호환) + 가드 필드 2개 (`ok`, `mes
 3. - [x] consistency-check `--plan plan/in-progress/form-resubmit-fix.md` (`review/consistency/2026/05/24/16_37_48/`) — Critical 3건 (frontmatter) + WARNING 다수 → plan 본 rewrite 로 해소
 4. - [x] project-planner 위임 — spec 본문 + Rationale 보강 (§4.1 표 / §6.1.d.ii / §6.2 step 2.c / §12 Rationale 신설 / §10.9 (4) layer / §Rationale `form submission wire format wrap` / §Changelog)
 5. - [x] consistency-check `--impl-prep spec/4-nodes/3-ai spec/4-nodes/6-presentation` — developer 흐름 진입 의무 (`/consistency-check --impl-prep ...`)
-6. - [ ] 테스트 선작성 (handler.spec / thread.spec, 실패 확인)
-7. - [ ] 코드 구현 (handler.ts form_submitted 분기 + PRESENTATION_TOOLS_GUIDANCE)
-8. - [ ] 테스트 보강
-9. - [ ] TEST WORKFLOW (lint → unit → build → e2e)
-10. - [ ] REVIEW WORKFLOW (/ai-review + resolution)
-11. - [ ] plan complete 이동
+6. - [x] 테스트 선작성 (handler.spec, 실패 확인)
+7. - [x] 코드 구현 (handler.ts form_submitted 분기 + PRESENTATION_TOOLS_GUIDANCE + FORM_SUBMITTED_GUIDANCE_MESSAGE export)
+8. - [x] 테스트 보강 (`__raw__` fallback 경로, toEqual(상수) 단언 강화, mock.calls.at(-1))
+9. - [x] TEST WORKFLOW — lint / unit (4687) / build / e2e (108/108) 모두 PASS. 부수: chat-channel-{slack,discord} e2e fixture schema 정합 (PR #300 의 사전 결함, 사용자 결정으로 본 PR 결합)
+10. - [x] REVIEW WORKFLOW — `/ai-review` (review/code/2026/05/24/17_12_34/) 9 reviewer 활성. Critical 0, WARNING 7 모두 처리, RESOLUTION.md 작성. 보류: W1 e2e password_hash 평문 (별 plan)
+11. - [x] plan complete 이동 (본 commit)
 
 ## 부수 후속 (본 PR 외)
 
