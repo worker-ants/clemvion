@@ -1,6 +1,6 @@
 ---
 id: slack
-status: partial
+status: implemented
 code:
   - codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts
   - codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts
@@ -11,11 +11,12 @@ code:
   - codebase/backend/src/modules/chat-channel/chat-channel-inbound-authenticator.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
+  - codebase/backend/test/chat-channel-slack.e2e-spec.ts
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
   - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
-pending_plans:
-  - plan/in-progress/chat-channel-slack-impl-followup-e2e.md
+  - codebase/frontend/src/content/docs/06-integrations-and-config/slack.mdx
+  - codebase/frontend/src/content/docs/06-integrations-and-config/slack.en.mdx
 ---
 
 # Spec: Slack Chat Channel Adapter
