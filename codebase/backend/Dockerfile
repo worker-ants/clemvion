@@ -17,6 +17,10 @@ COPY codebase/packages/node-summary/package.json codebase/packages/node-summary/
 COPY codebase/packages/node-summary/src ./packages/node-summary/src
 RUN cd packages/node-summary && npm ci && npm run build
 
+COPY codebase/packages/chat-channel-validation/package.json codebase/packages/chat-channel-validation/package-lock.json codebase/packages/chat-channel-validation/tsconfig.json ./packages/chat-channel-validation/
+COPY codebase/packages/chat-channel-validation/src ./packages/chat-channel-validation/src
+RUN cd packages/chat-channel-validation && npm ci && npm run build
+
 COPY codebase/backend/package.json codebase/backend/package-lock.json ./backend/
 RUN cd backend && npm ci
 
@@ -24,7 +28,8 @@ RUN cd backend && npm ci
 # them as file: deps. Pruning earlier would remove typescript and break the
 # `prepare` script that npm re-runs while resolving file: deps.
 RUN cd packages/expression-engine && npm prune --omit=dev \
-    && cd ../node-summary && npm prune --omit=dev
+    && cd ../node-summary && npm prune --omit=dev \
+    && cd ../chat-channel-validation && npm prune --omit=dev
 
 # ---------- builder: compile TypeScript ----------
 FROM deps AS builder
