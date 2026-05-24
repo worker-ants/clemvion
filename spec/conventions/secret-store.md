@@ -63,7 +63,7 @@ interface SecretResolver {
 
 | 시점 | 의무 호출 |
 |---|---|
-| Trigger 생성 (notification / chatChannel 설정 포함) | `store(ref, workspaceId, plaintext)` — config 에는 ref 만 저장. `rotate()` 도 멱등성(UPSERT) 을 보장하므로 setup 경로의 재시도 안전성을 위해 `rotate()` 사용 허용 |
+| Trigger 생성 (notification / chatChannel 설정 포함) | **`rotate(ref, workspaceId, plaintext)` 권장** — UPSERT 멱등성으로 setup 재시도 안전 (§5.5 예시 + `triggers.service.ts.setupChatChannel` 구현체 모두 `rotate()` 사용). `store()` 도 동일 결과를 내지만, 동일 ref 가 이미 있을 때 `store()` 의 동작 (덮어쓰기 vs throw) 은 backend 구현 변경에 취약 — `rotate()` 의 명시적 UPSERT 시맨틱이 안전 |
 | Trigger 삭제 | 해당 trigger 의 모든 ref 를 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제 (cascade 차원 — DB FK 가 없으므로 application 책임). 개별 `delete()` 보다 prefix 패턴 권장 |
 | 외부 API 호출 직전 (sendMessage, HMAC 서명 등) | `resolve(ref)` — 매 호출 마다 fetch (캐싱은 SecretResolver 내부 결정) |
 | Secret rotation API | `rotate(refV2, workspaceId, newPlaintext)` |

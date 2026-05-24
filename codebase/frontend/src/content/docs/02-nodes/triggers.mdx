@@ -306,14 +306,33 @@ Last-Event-Id: 42         # 재연결 시
 
 `notification`도 `interaction`도 켜지 않은 트리거는 기존 동작 그대로예요 — 웹훅이 들어오면 즉시 실행이 시작되고, 결과는 트리거 화면의 호출 이력 또는 워크플로우의 실행 내역에서 확인하면 돼요.
 
-## Chat Channel 연결 (Telegram 봇)
+## Chat Channel 연결
 
-Webhook 트리거에 `config.chatChannel`을 설정하면 **텔레그램 봇**이 워크플로우의 대화 인터페이스가 돼요. Telegram 사용자가 보내는 메시지가 워크플로우를 시작하거나, 실행 중인 워크플로우의 입력 대기(`waiting_for_input`)를 채워요.
+Webhook 트리거에 Chat Channel 을 설정하면 외부 챗봇이 워크플로우의 대화 인터페이스가 돼요. 사용자가 보내는 메시지·명령이 워크플로우를 시작하거나, 실행 중인 워크플로우의 입력 대기(`waiting_for_input`)를 채워요.
 
-### 설정 방법
+현재 지원 provider 는 세 가지예요:
+
+| Provider | 상세 가이드 |
+|---|---|
+| Telegram | [Telegram 통합 가이드](/docs/06-integrations-and-config/telegram) |
+| Slack | [Slack 통합 가이드](/docs/06-integrations-and-config/slack) |
+| Discord | [Discord 통합 가이드](/docs/06-integrations-and-config/discord) |
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="트리거 생성 dialog 의 Chat Channel 섹션 — 3 provider (telegram / slack / discord)"
+/>
+
+[**Triggers**](/triggers) 화면 → **"+ Webhook 트리거 추가"** → 폼 하단 **"Chat Channel 연결 (외부 챗봇)"** 토글 → Provider 선택 → 자격증명 입력 → **만들기**.
+
+각 provider 의 자격증명 종류와 외부 포털 설정 단계는 위 가이드를 참고해요.
+
+### Telegram 설정 방법
 
 1. [Telegram BotFather](https://t.me/botfather) 에서 `/newbot` 명령으로 봇을 만들고 **API Token** 을 받아 두세요.
-2. **Triggers 화면 → "+ Webhook 트리거 추가" → 폼 하단의 "Chat Channel 연결 (Telegram 봇)" 토글 → Bot Token 입력 → 만들기.** 자동으로 `setWebhook` 이 호출돼 봇이 워크플로우 엔드포인트로 연결돼요.
+2. **Triggers 화면 → "+ Webhook 트리거 추가" → 폼 하단의 "Chat Channel 연결 (외부 챗봇)" 토글 → Provider = Telegram → Bot Token 입력 → 만들기.** 자동으로 `setWebhook` 이 호출돼 봇이 워크플로우 엔드포인트로 연결돼요.
 3. API 로 등록하려면 트리거 생성 API 본문에 `config.chatChannel` 을 포함해 호출하세요:
 
 ```bash
@@ -333,6 +352,37 @@ curl -X POST https://<your-host>/api/triggers \
 ```
 
 3. 트리거가 활성화되면 자동으로 `setWebhook` 이 호출돼 봇이 워크플로우 엔드포인트로 연결돼요. `botToken` 은 응답에 노출되지 않고 secret store 에 AES-256-GCM 으로 암호화 저장돼요 — 응답에는 `hasBotToken: true` derived 필드만 포함돼요.
+
+### Slack 설정 방법
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="트리거 생성 dialog 의 Chat Channel 섹션 — Slack provider 분기 (botToken + inboundSigningPlaintext)"
+/>
+
+1. [Slack API 콘솔](https://api.slack.com/apps)에서 앱 생성 → **Basic Information** 의 **Signing Secret** (lowercase hex 32 chars) 과 install 후 발급되는 **Bot User OAuth Token** (`xoxb-...`)을 받아 두세요. 자세한 manifest 설정은 [Slack 통합 가이드](/docs/06-integrations-and-config/slack)를 참조해요.
+2. **Triggers 화면 → "+ Webhook 트리거 추가" → 폼 하단의 "Chat Channel 연결 (외부 챗봇)" 토글 → Provider = Slack → Bot Token + Signing Secret 입력 → 만들기.**
+3. 생성된 트리거의 endpoint URL 을 복사해 Slack 앱 manifest 의 **Event Subscriptions Request URL** 과 **Interactivity Request URL** 에 입력하면 워크플로우와 연결돼요.
+
+### Discord 설정 방법
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="트리거 생성 dialog 의 Chat Channel 섹션 — Discord provider 분기 (botToken + inboundSigningPlaintext = ed25519 public key)"
+/>
+
+1. [Discord Developer Portal](https://discord.com/developers/applications) 에서 Application + Bot 을 만들고 **Bot Token** (Bot 탭) 과 **Application Public Key** (General Information 탭, ed25519 lowercase hex 64 chars) 를 받아 두세요. 자세한 단계는 [Discord 통합 가이드](/docs/06-integrations-and-config/discord)를 참조해요.
+2. **Triggers 화면 → "+ Webhook 트리거 추가" → 폼 하단의 "Chat Channel 연결 (외부 챗봇)" 토글 → Provider = Discord → Bot Token + Application Public Key 입력 → 만들기.**
+3. 생성된 트리거의 endpoint URL 을 복사해 Developer Portal 의 **Interactions Endpoint URL** 에 입력하면 PING handshake 가 자동 처리돼 연결이 완료돼요.
+
+<Callout type="warn">
+Discord v1 한계: 일반 DM 자유 텍스트는 수신할 수 없어요. AI 대화 reply 는 슬래시 명령(`/workflow reply <message>`) 또는 응답 메시지의 **Reply** 버튼을 통한 modal 입력으로만 가능해요.
+{/* 내부 SoT: spec/5-system/15-chat-channel.md R-CC-13 + spec/4-nodes/7-trigger/providers/discord.md R-D-3 */}
+</Callout>
 
 ### 상태 확인
 
@@ -381,7 +431,7 @@ Chat Channel 을 통해 아래 노드 유형이 동작해요:
 신규 error code — Chat Channel API가 반환할 수 있는 코드: `INVALID_BOT_TOKEN`, `WORKSPACE_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`. 현재 `ERROR_KO` 테이블에 미등록으로 영문 그대로 노출돼요 — 향후 `backend-labels.ts` 갱신 시 흡수 예정이에요.
 </Callout>
 
-자세한 설정과 Telegram 봇 생성 단계별 안내는 [Telegram 통합 가이드](/docs/06-integrations-and-config/telegram)를 참고해요.
+자세한 설정과 단계별 안내는 각 통합 가이드를 참고해요: [Telegram](/docs/06-integrations-and-config/telegram) · [Slack](/docs/06-integrations-and-config/slack) · [Discord](/docs/06-integrations-and-config/discord).
 
 ## 캔버스 요약
 

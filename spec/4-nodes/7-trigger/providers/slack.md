@@ -12,6 +12,8 @@ code:
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/test/chat-channel-slack.e2e-spec.ts
+  - codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
+  - codebase/frontend/src/app/(main)/triggers/page.tsx
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
   - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
@@ -206,6 +208,7 @@ Convention §1.1 의 `ackInteraction` 정책 — provider 에 따라 noop 가능
 
 - `botToken` (Slack `xoxb-*` 형식) 은 `botTokenRef` (`secret://triggers/{id}/bot-token`) 만 config 에 저장. 평문 금지 ([CCH-SE-03](../../../5-system/15-chat-channel.md#34-신뢰성--보안)).
 - **Signing Secret**: Slack 앱의 [Request URL 검증](https://api.slack.com/authentication/verifying-requests-from-slack) 은 `X-Slack-Signature: v0=<HMAC-SHA256(signing_secret, "v0:" + X-Slack-Request-Timestamp + ":" + raw_body)>` 형식. signing secret 은 `SecretResolver` 가 관리 — ref = `secret://triggers/{id}/inbound-signing` ([Convention Secret Store §1](../../../conventions/secret-store.md#1-uri-scheme) 의 provider 공통 슬롯).
+  - **형식 (Slack 발급 표준)**: `^[a-f0-9]{32}$` (lowercase hex 32 chars). Backend 의 `TriggersService.assertInboundSigningPlaintextByProvider` 가 trigger 생성 시점에 정규식 검증 — 위반 시 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'`). uppercase hex 는 외부 Slack HMAC 검증 실패를 유발하므로 사전 차단.
   - HooksController 가 raw body + 헤더 두 값을 fetch → `SecretResolver.resolve(inboundSigningRef)` → HMAC-SHA256 재계산 후 constant-time compare. 실패 시 `401 Unauthorized` ([Spec Chat Channel §5.5](../../../5-system/15-chat-channel.md#55-inbound-http-contract) 의 401 라인 적용).
 - **Replay 차단**: `X-Slack-Request-Timestamp` 가 현재 시각 ± 5분 밖이면 `401` (Slack 권장).
 - **Config 필드**: `Trigger.config.chatChannel.inboundSigningRef = "secret://triggers/{id}/inbound-signing"` 로 set. Telegram / Discord 와 **동일 슬롯** — provider 별 자원 성격·검증 알고리즘은 backend 의 provider 분기 책임 ([Convention §2.3 ChatChannelConfig](../../../conventions/chat-channel-adapter.md#23-chatchannelconfig)). Slack 의 경우 발급 주체 = Slack 앱 install 시점에 Slack 이 발급하여 사용자가 manual 입력 (provider-issued). 사용자 입력 plaintext 가 직접 `SecretResolver.store` 로 들어가고 ref 만 config 에 보관 — `setupChannel` 의 `SetupResult.issuedInboundSigning` 은 비움 (server-issued 한정 필드). Rationale R-S-1.

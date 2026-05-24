@@ -189,6 +189,22 @@ export class SlackAdapter implements ChatChannelAdapter {
   ): Promise<void> {
     return Promise.resolve();
   }
+
+  /**
+   * [Convention chat-channel-adapter §1 revokeBotToken 옵션] Bot token rotation 24h grace
+   * 종료 시점에 이전 token 을 Slack `auth.revoke` API 로 무효화.
+   *
+   * - 외부 API 실패는 caller 에 propagate 하지 않고 swallow — caller (TriggersService) 의
+   *   secret_store cleanup 을 차단하지 않는 best-effort.
+   * - Telegram / Discord 등 다른 provider 는 본 메서드 미구현 (`undefined`).
+   */
+  async revokeBotToken(oldBotToken: string): Promise<void> {
+    try {
+      await this.client.authRevoke(oldBotToken);
+    } catch {
+      // best-effort — caller 가 swallow 보장하지만 방어적으로도 swallow.
+    }
+  }
 }
 
 /**

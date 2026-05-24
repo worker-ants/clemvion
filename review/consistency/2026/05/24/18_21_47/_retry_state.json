@@ -1,0 +1,83 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47",
+  "summary_subagent_type": "consistency-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/SUMMARY.md",
+  "subagent_invocations": [
+    {
+      "name": "cross_spec",
+      "subagent_type": "cross-spec-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/_prompts/cross_spec.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/cross_spec.md"
+    },
+    {
+      "name": "rationale_continuity",
+      "subagent_type": "rationale-continuity-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/_prompts/rationale_continuity.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/rationale_continuity.md"
+    },
+    {
+      "name": "convention_compliance",
+      "subagent_type": "convention-compliance-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/_prompts/convention_compliance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/convention_compliance.md"
+    },
+    {
+      "name": "plan_coherence",
+      "subagent_type": "plan-coherence-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/_prompts/plan_coherence.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/plan_coherence.md"
+    },
+    {
+      "name": "naming_collision",
+      "subagent_type": "naming-collision-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/_prompts/naming_collision.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-create-multi-provider-ui-plan-677f12/review/consistency/2026/05/24/18_21_47/naming_collision.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "agents_fatal": [],
+  "agent_history": {
+    "cross_spec": [
+      {
+        "ts": "2026-05-24T09:27:02.170548Z",
+        "status": "success"
+      }
+    ],
+    "rationale_continuity": [
+      {
+        "ts": "2026-05-24T09:27:02.204750Z",
+        "status": "success"
+      }
+    ],
+    "convention_compliance": [
+      {
+        "ts": "2026-05-24T09:27:02.237247Z",
+        "status": "success"
+      }
+    ],
+    "plan_coherence": [
+      {
+        "ts": "2026-05-24T09:27:02.268472Z",
+        "status": "success"
+      }
+    ],
+    "naming_collision": [
+      {
+        "ts": "2026-05-24T09:27:02.298794Z",
+        "status": "success"
+      }
+    ]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

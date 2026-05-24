@@ -239,6 +239,15 @@ export interface ChatChannelAdapter {
     update: ChannelUpdate,
     config: ChatChannelConfig,
   ): Promise<void>;
+
+  /**
+   * (옵션) Bot token rotation 시 *이전* token 을 외부 provider 측에서 revoke.
+   * SoT: [spec/conventions/chat-channel-adapter.md §1] Adapter Interface 의 revokeBotToken?
+   * 옵션 메서드. provider 가 revocation API 를 제공하면 구현 (Slack `auth.revoke`),
+   * Telegram / Discord 처럼 없으면 미구현 (`undefined`). caller (`TriggersService.rotateBotToken`)
+   * 는 본 메서드 존재 여부를 type-guard 로 확인 후 best-effort 호출.
+   */
+  revokeBotToken?(oldBotToken: string): Promise<void>;
 }
 
 /** Redis ChannelConversation 레코드 — Spec §4.3. */

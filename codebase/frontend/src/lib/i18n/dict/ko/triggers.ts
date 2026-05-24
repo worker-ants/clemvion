@@ -238,8 +238,20 @@ export const triggers = {
     rotateBotTokenFailed: "Bot Token 회전에 실패했어요",
     rotateBotTokenDialogTitle: "Bot Token 재발급",
     rotateBotTokenDialogConfirm: "재발급",
-    addChatChannelToggle: "Chat Channel 연결 (Telegram 봇)",
+    addChatChannelToggle: "Chat Channel 연결 (외부 챗봇)",
     addChatChannelHelp:
-      "켜면 트리거 생성 시 봇 토큰을 등록하고 자동으로 setWebhook 이 호출돼요. 끄면 일반 webhook 트리거.",
+      "켜면 트리거 생성 시 외부 챗 플랫폼(Telegram/Slack/Discord)의 봇 토큰을 등록하고 provider 별 setup 절차가 자동 실행돼요. 끄면 일반 webhook 트리거.",
+    inboundSigningLabelSlack: "Slack Signing Secret",
+    inboundSigningLabelDiscord: "Discord Application Public Key",
+    inboundSigningPlaceholderSlack: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    inboundSigningPlaceholderDiscord:
+      "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    inboundSigningFormatHelpSlack:
+      "Slack 앱 → Basic Information → Signing Secret 에서 복사 (hex 32 chars). 형식 위반 시 400.",
+    inboundSigningFormatHelpDiscord:
+      "Discord Developer Portal → Applications → General Information → Public Key 에서 복사 (ed25519, hex 64 chars). 형식 위반 시 400.",
+    inboundSigningRequiredErrorSlack: "Slack Signing Secret 을 입력해 주세요.",
+    inboundSigningRequiredErrorDiscord:
+      "Discord Application Public Key 를 입력해 주세요.",
   },
 } as const;

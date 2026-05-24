@@ -11,6 +11,11 @@ code: ["codebase/backend/src/modules/chat-channel/providers/discord/discord.adap
 
 Discord 봇을 워크플로우의 인터페이스로 연결하면, slash command (`/workflow start`) 와 button / modal 기반 인터랙션으로 워크플로우를 시작·조작할 수 있어요.
 
+<Callout type="warn">
+{/* 내부 SoT: spec/5-system/15-chat-channel.md R-CC-13 + spec/4-nodes/7-trigger/providers/discord.md R-D-3 */}
+Discord v1 한계: 일반 DM 텍스트 메시지는 미지원이에요. v1 은 Interactions Webhook 방식으로 동작하며, Discord 의 자유 텍스트 DM 수신은 Gateway WebSocket 연결이 필요해 v1 범위 밖이에요. v1 사용자 reply 경로: (a) `/workflow reply <message>` slash command text option, (b) AI 응답 메시지의 **Reply** 버튼 클릭 후 modal TEXT_INPUT (기본 UX).
+</Callout>
+
 ## 1. Discord 앱 만들기
 
 1. [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**
@@ -40,13 +45,30 @@ Discord Developer Portal 의 앱 **General Information** 페이지 하단:
 
 ## 4. clemvion 트리거에 Discord 연결
 
-1. clemvion 의 워크플로우 화면 → **Webhook 트리거** 생성
-2. **Chat Channel** 섹션 활성화 → **Provider** = `Discord`
-3. **Bot Token** 입력 (`xxx.yyy.zzz`)
-4. **Public Key** 입력 (Discord Portal 의 64 chars hex)
-5. 저장 → backend 가:
+**GUI 등록 흐름 (권장)**:
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="트리거 생성 dialog 의 Chat Channel 섹션 — Discord provider 선택 및 Bot Token / Application Public Key 입력"
+/>
+
+1. 좌측 메뉴 → [**Triggers**](/triggers) → 우측 상단 **"+ Webhook 트리거 추가"** 클릭
+2. 트리거 이름·연결할 워크플로우·인증 방식 입력
+3. 폼 하단 **"Chat Channel 연결 (외부 챗봇)"** 토글을 켜기
+4. **Provider** 드롭다운 = `Discord` 선택
+5. **Bot Token** 입력 — Discord Developer Portal **Bot** 탭 → **Reset Token** 으로 발급한 값
+6. **Application Public Key** 입력 — Developer Portal **General Information** 의 64자리 hex Public Key
+7. **만들기** 클릭 → backend 가:
    - `GET /applications/@me` 호출로 application id / name 캐시
    - `PUT /applications/{app_id}/commands` 로 slash command 4종 (`start` / `cancel` / `help` / `reply`) bulk overwrite 등록
+8. 생성된 트리거의 endpoint URL 을 복사해 Discord Developer Portal **General Information** 의 **Interactions Endpoint URL** 에 입력
+   - 저장 시 Discord 가 PING (`type: 1`) 을 보내고 clemvion 이 자동으로 `{ type: 1 }` 200 응답 → 검증 통과
+
+<Callout type="note">
+endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요. slash command 는 bulk overwrite 후 Discord 캐시 반영까지 최대 1시간 소요될 수 있어요.
+</Callout>
 
 ## 5. 사용 방법
 

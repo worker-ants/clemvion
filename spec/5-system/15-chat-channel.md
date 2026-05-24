@@ -1,7 +1,27 @@
 ---
 id: chat-channel
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/modules/chat-channel/**
+  - codebase/backend/src/modules/triggers/dto/chat-channel-config.dto.ts
+  - codebase/backend/src/modules/triggers/triggers.service.ts
+  - codebase/backend/src/modules/triggers/triggers.controller.ts
+  - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/modules/hooks/hooks.controller.ts
+  - codebase/backend/test/chat-channel-slack.e2e-spec.ts
+  - codebase/backend/test/chat-channel-discord.e2e-spec.ts
+  - codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
+  - codebase/frontend/src/app/(main)/triggers/page.tsx
+  - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
+  - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
+  - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
+pending_plans:
+  - plan/in-progress/chat-channel-dispatcher-split.md
+  - plan/in-progress/chat-channel-discord-gateway.md
+  - plan/in-progress/chat-channel-slack-socket-mode.md
+  - plan/in-progress/chat-channel-form-native-modal.md
+  - plan/in-progress/chat-channel-visual-ssr-png.md
+  - plan/in-progress/chat-channel-secret-store-infra.md
 ---
 
 # Spec: Chat Channel (외부 chat 플랫폼 ↔ 워크플로우 서버사이드 어댑터)
@@ -32,7 +52,7 @@ code: []
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
-| CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택. supported provider 는 [`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실 (v1 supported: `telegram` / v1 spec-defined: `slack`, `discord` — impl pending) | 필수 |
+| CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택. supported provider 는 [`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실 (v1 supported: `telegram` / `slack` / `discord` — 2026-05-24 갱신, PR #300 정합) | 필수 |
 | CCH-AD-02 | Trigger enable / 신규 생성 시 어댑터의 `setupChannel()` 자동 호출 (텔레그램은 `setWebhook`) | 필수 |
 | CCH-AD-03 | Trigger disable / 삭제 시 어댑터의 `teardownChannel()` 자동 호출 | 필수 |
 | CCH-AD-04 | Webhook 진입점 ([`POST /api/hooks/:endpointPath`](./12-webhook.md#31-webhook-수신-엔드포인트)) 핸들러는 `config.chatChannel` 가 있으면 raw body 를 `parseUpdate(raw)` 로 통과시켜 워크플로우 input 으로 변환. [WH-NF-01](./12-webhook.md#4-비기능-요구사항) 의 200ms 응답 시한을 깨지 않도록 `parseUpdate` 50ms (CCH-NF-01) + 트리거 조회 + `202 Accepted` 반환의 순서로 처리 | 필수 |
@@ -156,9 +176,11 @@ code: []
 ```jsonc
 {
   "chatChannel": {
-    "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실. 본 예시는 Telegram. (slack / discord 동일 슬롯 구조)
-    "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // provider 공통 봇 토큰 (CCH-SE-03 / conventions/secret-store.md)
-    "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // provider 공통 inbound webhook 출처 검증용 자료 — provider 별 의미·검증 알고리즘 분기는 backend 책임. Telegram: server-issued shared secret (setupChannel 의 randomBytes 발급) / Slack: HMAC-SHA256 signing secret (사용자 입력) / Discord: ed25519 public key (사용자 입력). SoT: conventions/chat-channel-adapter.md §2.3
+    "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실 (v1 supported: telegram / slack / discord)
+    "botToken": "<provider 발급 plaintext>",   // 입력 전용 — POST /api/triggers 요청 body 한정. service 가 SecretResolver.store 로 옮긴 뒤 strip — 응답·DB JSONB 미노출 (SS-SE-01). telegram=BotFather `\d+:[A-Za-z0-9_-]+` / slack=`xoxb-*` / discord=Developer Portal Bot Token
+    "inboundSigningPlaintext": "<provider-issued plaintext>",  // 입력 전용, slack/discord 한정 (telegram 은 server-issued 자동 발급). slack=lowercase hex 32 chars (signing secret) / discord=lowercase hex 64 chars (ed25519 application public key). 입력 후 service 가 SecretResolver.store(inboundSigningRef, plaintext) → strip. telegram 입력 시 400 VALIDATION_ERROR(field='inboundSigningPlaintext'). SoT: conventions/secret-store.md §5.5 (b)
+    "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // 응답·DB JSONB 보관 ref. provider 공통 (CCH-SE-03 / conventions/secret-store.md). botToken plaintext 는 응답 strip
+    "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // 응답·DB JSONB 보관 ref. provider 공통 단일 슬롯 — 검증 알고리즘은 backend 의 provider 분기 책임. Telegram: server-issued shared secret (setupChannel 의 randomBytes 발급) / Slack: HMAC-SHA256 signing secret (사용자 inboundSigningPlaintext 입력) / Discord: ed25519 public key (사용자 inboundSigningPlaintext 입력). SoT: conventions/chat-channel-adapter.md §2.3
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
       "username": "myworkflow_bot"
@@ -287,6 +309,29 @@ Bot token 의 신규 등록·변경은 **single-path** 로 일원화된다:
 PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 provider (텔레그램) 측에 등록된 webhook 은 그대로라 즉시 수신 단절, (b) rotate API 의 24h grace 정책 일관성이 깨짐, (c) audit log 가 `trigger.update` 와 `chat-channel.rotate-bot-token` 으로 mixed. 따라서 single-path.
 
 [`spec/2-navigation/2-trigger-list.md §3`](../2-navigation/2-trigger-list.md#3-api) 의 PATCH 설명에는 "`config.chatChannel.botTokenRef` 는 PATCH 로 변경 불가 — rotate API 사용" cross-link 가 추가된다.
+
+#### 5.4.1.1 `inboundSigning` PATCH 정책 (slack / discord 한정 — v1 차단)
+
+`inboundSigning` 자원 (slack signing secret / discord ed25519 public key — provider-issued, server-stored) 의 변경 정책은 다음과 같다:
+
+| 시점 | 메커니즘 | 비고 |
+|---|---|---|
+| 최초 트리거 생성 (`POST /api/triggers`) | 입력 body 의 `chatChannel.inboundSigningPlaintext` plaintext → `SecretResolver.store(inboundSigningRef, plaintext)` 후 strip. config 에는 `inboundSigningRef` 만 보관 (SS-SE-01) | 처음 한 번 |
+| 트리거 활성화 (`PATCH /api/triggers/:id/toggle` true) | 기존 `inboundSigningRef` 그대로 사용 | 변경 없음 |
+| **회전 (rotation)** | **v1 미정의 — PATCH body 의 `config.chatChannel.inboundSigningPlaintext` / `inboundSigning` 직접 변경은 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'` 또는 `'inboundSigning'`) 로 차단.** rotation 이 필요하면 트리거 삭제·재생성 | v2 후속 결정 — 별 spec |
+
+v1 차단의 정당화 — R-CC-10 (`botToken` single-path) 와 자원 성격이 달라 같은 single-path 패턴을 자동 적용하지 않는다:
+
+- `botToken` 은 외부 provider (Telegram BotFather / Slack OAuth / Discord Developer Portal) 측에 등록된 token — PATCH 직접 교체 시 외부 등록 token 과 mismatch 즉시 발생 → R-CC-10 의 single-path + 24h grace 가 정당화됨.
+- `inboundSigning` (slack signing secret / discord public key) 은 외부 provider 가 발급하지만 우리 측에 저장만 됨 — 외부 provider 자체가 회전 API 를 제공하지 않거나 (Slack signing secret 은 manual 재발급 후 사용자가 재입력), 회전이 사용자 워크플로우 외부에서 일어남.
+- v1 단계는 회전 빈도가 낮을 것으로 가정 — rotation API 신설 비용 (24h grace + revoke + audit) 대비 사용 빈도 검증 후 v2 결정. 그 사이 보수적 차단으로 정책 모호성 회피.
+
+v2 시점의 결정 후보:
+- (A) `botToken` single-path 패턴 그대로 차용 — `POST /api/triggers/:id/chat-channel/rotate-inbound-signing` 신설.
+- (B) PATCH body 허용 (grace 없음, 즉시 교체) — 외부 provider 가 grace 를 제공하지 않으므로 우리 측 grace 도 무의미.
+- (C) 트리거 삭제·재생성 강제 (v1 동일) — UX 부담 있으나 단순.
+
+별 spec 결정 사안. 본 spec 은 v1 차단 정책만 SoT.
 
 ### 5.4.2 응답 DTO derived 필드 — `hasBotToken`
 
@@ -540,3 +585,13 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 대안 (기각):
 - CCH-MP-01 본문에 "Gateway 미사용 provider 는 모달/slash 입력 허용" 예외 절 추가 — provider 한계가 시스템 spec 에 누수. R-D-9 의 동일 정신 (provider 한계는 provider spec Rationale 에).
 - Discord v1 도 Gateway 도입 — R-D-3 기각 사유 (long-lived connection 관리 부담) 그대로 적용.
+
+### R-CC-14. PR #300 정합 catch-up — CCH-AD-01 의 "impl pending" 문구 제거 (2026-05-24)
+
+`§3.1 CCH-AD-01` 의 "v1 supported: `telegram` / v1 spec-defined: `slack`, `discord` — impl pending" 진술이 PR #300 (`feat(chat-channel): slack + discord providers (v1 supported)`) 머지 후 stale 상태로 남아 있었다. `_overview.md §1` 은 PR #300 시점부터 셋 다 `supported (v1)` 로 표기되어 있어 두 spec 문서가 같은 사실에 대해 상반된 상태를 기술하는 spec-internal drift 가 발생했다.
+
+본 catch-up:
+- CCH-AD-01 의 "v1 supported: telegram / v1 spec-defined: slack, discord — impl pending" → "v1 supported: telegram / slack / discord — 2026-05-24 갱신, PR #300 정합"
+- 새 결정 신설·기존 결정 번복 아님. `_overview.md §1` 의 supported 선언이 단일 진실 — 본 spec 은 정합 cross-link.
+
+발견 경로: `plan/in-progress/trigger-create-multi-provider-ui.md` 의 GUI 구현 착수 직전 `/consistency-check --impl-prep` (`review/consistency/2026/05/24/18_21_47/SUMMARY.md` C-2) 가 BLOCK. 사용자 결정 (2026-05-24) 으로 본 구현 PR 안에 spec 정정 commit 을 함께 포함.

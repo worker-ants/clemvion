@@ -1,5 +1,5 @@
 ---
-status: backlog (trigger 조건 미충족 — 2nd provider 도입 결정 대기)
+status: ready (trigger 조건 충족 — Slack / Discord backend (PR #300) + GUI (PR trigger-create-multi-provider-ui) 시점)
 created: 2026-05-22
 owner: project-planner
 priority: post-v1 (provider ≥ 2 도입 시 진입)
@@ -10,7 +10,7 @@ related_spec_pr: PR #259
 > - R8 본문에 **v1 vs v2 적용 시점** 명확화: v1 단일 dispatcher 구조에서는 subscription 1개라 per-trigger listener dedup 자체가 무의미. 정책은 분리 후 적용.
 > - 본 plan 의 trigger 조건 명문화: Telegram 외 두 번째 chat channel provider (Slack / KakaoTalk 등) 도입 결정 시 본 plan 으로 진입.
 >
-> 진입 전까지는 본 plan 은 backlog 상태로 유지된다.
+> **Trigger 조건 충족 (2026-05-24)**: Slack / Discord backend adapter 가 PR #300 으로 registry 등록되고, `trigger-create-multi-provider-ui` plan 으로 GUI 진입점도 활성화됨 (사용자 관점 multi-provider). status `backlog → ready` 전환. 실제 분리 리팩토링 진입은 별 사용자 결정 (`status: ready → in-progress` 시점) — 그 전까지는 단일 NotificationDispatcher 구조 유지 (v1 단일 listener 라 dedup/teardown 정책이 무음).
 
 
 # Plan — NotificationDispatcher → ChannelDispatcher 분리 리팩토링
