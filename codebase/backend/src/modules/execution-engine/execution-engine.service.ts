@@ -1036,6 +1036,15 @@ export class ExecutionEngineService
     setImmediate(() => firePayload(50));
 
     try {
+      // 사전 상태 전이: 본 Execution 은 DB 에서 WAITING_FOR_INPUT 으로 로드됨.
+      // waitForX 가 (RUNNING → WAITING_FOR_INPUT) 전이를 시도하므로 먼저
+      // RUNNING 으로 옮긴다. spec/5-system/4-execution-engine.md §1.1 state
+      // machine 의 WAITING_FOR_INPUT → RUNNING 전이는 정상 (resume sentinel).
+      await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.RUNNING,
+      );
+
       // waitForX 직접 invoke — executeNode 우회. waitForX 내부에서 nodeExec
       // lookup → status WAITING_FOR_INPUT 갱신 + outputData save → emit →
       // pending 등록 + await → resolve.

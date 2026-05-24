@@ -2058,6 +2058,146 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ status: 'cancelled' }),
       );
     });
+
+    // Phase 2.7 — rehydration 통합 시나리오. 단일 instance 의 in-memory
+    // pendingContinuations 를 강제로 비운 뒤 applyContinuation 을 직접 호출
+    // (BullMQ Worker 가 다른 instance 또는 재시작 후 본 instance 의 worker 가
+    // pick up 한 상황 시뮬레이션). rehydrateAndResume 가 DB 에서 context 재구성
+    // 후 waitForFormSubmission 을 재 invoke 해 workflow 가 정상 완료되는지 검증.
+    it('Phase 2.7 — rehydration: pendingContinuations 가 비어있어도 applyContinuation → rehydrate → workflow 정상 완료', async () => {
+      // 1. 정상 시작 → 폼 노드에서 WAITING_FOR_INPUT 진입.
+      await service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      // 2. 첫 단계 시점의 NodeExecution(form 노드) outputData 캡처. waitFor
+      //    Form 가 NodeExecution.outputData 에 form 노드의 envelope (status=
+      //    waiting_for_input + meta.interactionType=form) 을 저장한 마지막 save 결과.
+      const saveCalls = mockNodeExecutionRepo.save.mock.calls;
+      const waitingSave = saveCalls.find(
+        (c: unknown[]) =>
+          (c[0] as { status?: string; nodeId?: string })?.status ===
+            NodeExecutionStatus.WAITING_FOR_INPUT &&
+          (c[0] as { nodeId?: string })?.nodeId === 'node-form',
+      );
+      expect(waitingSave).toBeDefined();
+      const persistedFormOutput = (
+        (waitingSave as unknown[])[0] as {
+          outputData?: Record<string, unknown>;
+        }
+      ).outputData;
+      expect(persistedFormOutput).toBeDefined();
+
+      // 3. 인스턴스 재시작 시뮬레이션 — in-memory resolver 강제 제거 + 같은 id 의
+      //    in-memory context 도 제거하여 rehydrateContext 가 DB 에서 재구성하도록.
+      const pendings = (
+        service as unknown as { pendingContinuations: Map<string, unknown> }
+      ).pendingContinuations;
+      pendings.clear();
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+      contextService.deleteContext(executionId);
+
+      // 4. 정확히 rehydrateAndResume 분기에 들어가도록 DB 응답 mock 갱신.
+      //    - Execution 은 WAITING_FOR_INPUT.
+      //    - NodeExecution(form) 은 WAITING_FOR_INPUT + persistedFormOutput 보유.
+      //    - Node(form) 정의는 formNodes 에서 찾는다.
+      //    - execution_node_log 는 start 노드 1건 (form 노드는 아직 미완료).
+      //    - findOne (status=COMPLETED) 으로 start 노드의 outputData 반환.
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+        recursionDepth: 0,
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValueOnce({
+        id: 'ne-node-form',
+        executionId,
+        nodeId: 'node-form',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: persistedFormOutput,
+        startedAt: new Date(),
+      });
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValueOnce(formNodes.find((n) => n.id === 'node-form'));
+      mockExecutionNodeLogRepo.find.mockResolvedValueOnce([
+        { id: 1, executionId, nodeId: 'node-start' },
+      ]);
+      mockWorkflowRepo.findOne.mockResolvedValueOnce({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      // execution_node_log 의 start 노드를 위한 COMPLETED NodeExecution lookup.
+      // 그리고 rehydration 후 waitForFormSubmission 이 호출하는 findOne (form node
+      // 의 가장 최근 row) 도 같은 mock 이 처리해야 한다 — nodeId 별 분기.
+      const originalFindOne = mockNodeExecutionRepo.findOne;
+      mockNodeExecutionRepo.findOne = jest
+        .fn()
+        .mockImplementation(
+          (
+            opts: { where?: { nodeId?: string; status?: string } } = {},
+          ): Promise<unknown> => {
+            const nid = opts.where?.nodeId;
+            if (
+              nid === 'node-start' &&
+              opts.where?.status === NodeExecutionStatus.COMPLETED
+            ) {
+              return Promise.resolve({
+                id: 'ne-node-start',
+                executionId,
+                nodeId: 'node-start',
+                status: NodeExecutionStatus.COMPLETED,
+                outputData: { processed: true },
+                startedAt: new Date(),
+              });
+            }
+            if (nid === 'node-form') {
+              return Promise.resolve({
+                id: 'ne-node-form',
+                executionId,
+                nodeId: 'node-form',
+                status: NodeExecutionStatus.WAITING_FOR_INPUT,
+                outputData: persistedFormOutput,
+                startedAt: new Date(),
+              });
+            }
+            // 그 외 lookup 은 기본 mock 으로 처리 (legacy 호환).
+            return (originalFindOne as jest.Mock)(opts);
+          },
+        );
+
+      mockWebsocketService.emitExecutionEvent.mockClear();
+      mockWebsocketService.emitNodeEvent.mockClear();
+
+      // 5. BullMQ Worker pickup 시뮬레이션 — applyContinuation 직접 호출.
+      //    pendingContinuations 가 비어있으므로 rehydrateAndResume 로 진입.
+      await service.applyContinuation('execution-1', 'ne-node-form', {
+        type: 'form_submitted',
+        formData: { approved: true },
+      });
+      // setImmediate polling 이 동작할 시간 확보 — flushPromises 두 번 (한 번은
+      // setImmediate fire, 두 번째는 그 콜백의 후속 promise chain).
+      await flushPromises();
+      await flushPromises();
+      await flushPromises();
+
+      // 6. 검증 — workflow 가 COMPLETED 까지 도달.
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+      // form 노드의 NODE_COMPLETED 이벤트도 emit 됐어야 함.
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'node-form',
+        'execution.node.completed',
+        expect.objectContaining({ status: 'completed' }),
+      );
+    });
   });
 
   describe('Button (Carousel) node blocking', () => {
