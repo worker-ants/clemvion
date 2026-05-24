@@ -19,6 +19,10 @@ COPY codebase/packages/node-summary/package.json codebase/packages/node-summary/
 COPY codebase/packages/node-summary/src ./packages/node-summary/src
 RUN cd packages/node-summary && npm ci && npm run build
 
+COPY codebase/packages/chat-channel-validation/package.json codebase/packages/chat-channel-validation/package-lock.json codebase/packages/chat-channel-validation/tsconfig.json ./packages/chat-channel-validation/
+COPY codebase/packages/chat-channel-validation/src ./packages/chat-channel-validation/src
+RUN cd packages/chat-channel-validation && npm ci && npm run build
+
 COPY codebase/frontend/package.json codebase/frontend/package-lock.json ./frontend/
 RUN cd frontend && npm ci
 
