@@ -193,14 +193,22 @@ export class TriggersService {
   }
 
   /**
-   * [Spec Chat Channel §5.4.1 single-path] — 외부 입력으로 들어올 수 없는 내부 필드를 차단.
+   * [Spec Chat Channel §5.4.1 single-path + 2-trigger-list §3] — 외부 입력 가드 + provider 분기.
    *
+   * 내부 필드 (외부 입력 금지):
    * - `botTokenRef` — 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token`
-   *   (24h grace 적용). PATCH/POST body 직접 변경 시 grace 없는 즉시 교체가 되어 정책 일관성 깨짐.
-   * - `inboundSigningRef` / `inboundSigning` — setupChannel 시 어댑터가 자동 발급. 외부 입력 무시.
+   *   (24h grace 적용).
+   * - `inboundSigningRef` — service 가 secret store ref 를 set. 외부 입력 무시.
+   * - `inboundSigning` — server-issued 자료 (Telegram). provider-issued 입력은 신규
+   *   `inboundSigningPlaintext` 필드 사용.
    *
-   * DTO 단에서도 @IsEmpty() 로 차단되지만, error envelope 형식을 spec 의 VALIDATION_ERROR 와
-   * 정합시키기 위해 service 단 추가 검증.
+   * Provider-issued plaintext 분기 (`inboundSigningPlaintext`):
+   * - telegram: 본 필드 입력 시 400 (server-issued randomBytes 만, 사용자 secret 보호).
+   * - slack: 필수. hex 32 chars.
+   * - discord: 필수. hex 64 chars (ed25519 public key 32 bytes).
+   *
+   * DTO 단에서도 @IsEmpty / @IsString / @MaxLength 로 1차 검증되지만, error envelope 형식을
+   * spec 의 VALIDATION_ERROR 와 정합시키기 위해 service 단 추가 검증 + provider 분기.
    */
   private assertChatChannelInputSafe(
     chatChannel: ChatChannelConfigDto | undefined,
@@ -226,8 +234,63 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
-          'inboundSigning 은 setupChannel 시 자동 발급되는 내부 필드입니다. 외부 입력은 허용되지 않습니다.',
+          'inboundSigning 은 setupChannel 시 자동 발급되는 내부 필드입니다. provider-issued (Slack signing secret / Discord public key) 입력은 inboundSigningPlaintext 를 사용하세요.',
         details: { field: 'inboundSigning' },
+      });
+    }
+    this.assertInboundSigningPlaintextByProvider(chatChannel);
+  }
+
+  /**
+   * Provider 별 `inboundSigningPlaintext` 요구/금지 + 형식 분기.
+   * SoT: spec/4-nodes/7-trigger/providers/{slack,discord}.md §6 + spec/conventions/secret-store.md §5.5.
+   */
+  private assertInboundSigningPlaintextByProvider(
+    chatChannel: ChatChannelConfigDto,
+  ): void {
+    const plaintext = chatChannel.inboundSigningPlaintext;
+    const provider = chatChannel.provider;
+
+    if (provider === 'telegram') {
+      if (typeof plaintext === 'string' && plaintext.length > 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message:
+            'Telegram inboundSigning 은 server-issued 입니다. inboundSigningPlaintext 를 입력하지 마세요 (setupChannel 의 randomBytes 가 자동 발급).',
+          details: { field: 'inboundSigningPlaintext' },
+        });
+      }
+      return;
+    }
+
+    // slack / discord — provider-issued, 사용자 입력 필수.
+    if (typeof plaintext !== 'string' || plaintext.length === 0) {
+      const label =
+        provider === 'slack'
+          ? 'Slack signing secret'
+          : 'Discord application public key';
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: `${label} 가 필요합니다. inboundSigningPlaintext 를 입력하세요.`,
+        details: { field: 'inboundSigningPlaintext' },
+      });
+    }
+
+    if (provider === 'slack' && !/^[a-f0-9]{32}$/i.test(plaintext)) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          'Slack signing secret 형식이 올바르지 않습니다 (hex 32 chars 필요).',
+        details: { field: 'inboundSigningPlaintext' },
+      });
+    }
+
+    if (provider === 'discord' && !/^[a-f0-9]{64}$/i.test(plaintext)) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          'Discord application public key 형식이 올바르지 않습니다 (ed25519 public key hex 64 chars 필요).',
+        details: { field: 'inboundSigningPlaintext' },
       });
     }
   }
@@ -235,7 +298,8 @@ export class TriggersService {
   /**
    * [Spec Chat Channel §5.4.2] — 응답 DTO 전용 derived 필드 + 내부 ref strip.
    *
-   * - `botTokenRef` / `inboundSigningRef` / `inboundSigning` 응답에서 제거 (UI 에 노출 X).
+   * - `botTokenRef` / `inboundSigningRef` / `inboundSigning` / `inboundSigningPlaintext`
+   *   응답에서 제거 (UI 에 노출 X — secret-store.md §5.5 SS-SE-01: plaintext 는 config 에 흘리지 않음).
    * - `hasBotToken: boolean` derived 필드 주입 (`botTokenRef IS NOT NULL → true`).
    *
    * Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
@@ -253,6 +317,7 @@ export class TriggersService {
       botTokenRef,
       inboundSigningRef: _inboundSigningRef,
       inboundSigning: _inboundSigning,
+      inboundSigningPlaintext: _inboundSigningPlaintext,
       ...rest
     } = cfg.chatChannel;
     const sanitizedChatChannel = {
@@ -384,16 +449,49 @@ export class TriggersService {
         '',
     );
 
+    // [secret-store.md §5.5 (b)] provider-issued inbound-signing plaintext 처리.
+    // Slack signing secret / Discord public key — 사용자가 외부 portal 에서 입력한 값을
+    // secret store 로 옮기고 plaintext 는 config 에 절대 흘리지 않음 (SS-SE-01).
+    const inboundSigningRef = `secret://triggers/${trigger.id}/inbound-signing`;
+    const providerIssuedPlaintext = (
+      chatChannelCfg as ChatChannelConfigDto & {
+        inboundSigningPlaintext?: string;
+      }
+    ).inboundSigningPlaintext;
+    let providerIssuedStored = false;
+    if (
+      typeof providerIssuedPlaintext === 'string' &&
+      providerIssuedPlaintext.length > 0
+    ) {
+      await this.secrets.rotate(
+        inboundSigningRef,
+        trigger.workspaceId,
+        providerIssuedPlaintext,
+      );
+      providerIssuedStored = true;
+    }
+
+    // chatChannelCfg 에서 plaintext 필드들을 제거 — config 에 흘러가지 않음.
+    const {
+      botToken: _bt,
+      inboundSigningPlaintext: _isp,
+      ...sanitizedCfg
+    } = chatChannelCfg as ChatChannelConfigDto & {
+      botToken?: string;
+      inboundSigningPlaintext?: string;
+    };
     const internalCfg: ChatChannelConfig = {
-      ...(chatChannelCfg as ChatChannelConfig),
+      ...(sanitizedCfg as ChatChannelConfig),
       botTokenRef,
+      ...(providerIssuedStored ? { inboundSigningRef } : {}),
     };
 
     try {
       const result = await adapter.setupChannel(internalCfg, callbackUrl);
 
-      // issuedInboundSigning → secret store 저장.
-      const inboundSigningRef = `secret://triggers/${trigger.id}/inbound-signing`;
+      // issuedInboundSigning (server-issued, Telegram) → secret store 저장.
+      // provider-issued (slack/discord) 인 경우 setupChannel 의 issuedInboundSigning 은 비어 있음
+      // — 이미 위에서 사용자 입력 plaintext 를 저장했으므로 noop.
       if (result.issuedInboundSigning) {
         await this.secrets.rotate(
           inboundSigningRef,
@@ -407,7 +505,9 @@ export class TriggersService {
         ...internalCfg,
         ...(result.configUpdates ?? {}),
         botTokenRef,
-        ...(result.issuedInboundSigning ? { inboundSigningRef } : {}),
+        ...(result.issuedInboundSigning || providerIssuedStored
+          ? { inboundSigningRef }
+          : {}),
       };
       const newConfig = {
         ...(trigger.config ?? {}),
@@ -432,7 +532,7 @@ export class TriggersService {
       this.logger.warn(
         `TriggersService: setupChannel 실패 (trigger=${trigger.id}, provider=${chatChannelCfg.provider}): ${message}`,
       );
-      // fallbackConfig: botTokenRef 만 config 에 반영 (inboundSigningRef 없음).
+      // fallbackConfig: botTokenRef + (provider-issued 라면 inboundSigningRef 도) config 에 반영.
       const fallbackConfig = {
         ...(trigger.config ?? {}),
         chatChannel: internalCfg,
