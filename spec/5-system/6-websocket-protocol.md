@@ -239,7 +239,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | 코드 | 설명 |
 |------|------|
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID |
-| `INVALID_EXECUTION_STATE` | 실행이 `waiting_for_input` 상태가 아님 |
+| `INVALID_EXECUTION_STATE` | 실행이 기대 상태가 아님 (`submit_form` / `click_button` / `submit_message` / `end_conversation` 의 `waiting_for_input` 기대 또는 `retry_last_turn` 의 `failed` 기대). WS 전용 코드 — REST 진입점은 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 로 표기 (의도적 분리, [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 참조) |
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
 | `RESUME_CHECKPOINT_MISSING` | (공통) rehydration 시 `NodeExecution.outputData` 가 부재 또는 손상. Execution 은 `cancelled` 로 종결 ([§7.5](./4-execution-engine.md#75-resume-after-restart-rehydration)) |
 | `RESUME_FAILED` | (공통) continuation-queue `RESUME_BULLMQ_ATTEMPTS` 소진. Execution 은 `cancelled` 로 종결 |

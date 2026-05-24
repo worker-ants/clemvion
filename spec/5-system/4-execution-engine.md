@@ -843,6 +843,23 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 - Rehydration 자체는 LLM 을 호출하지 않는다 — 사용자 메시지가 도착한 이후의 다음 turn 부터 LLM 호출.
 - BullMQ retry 가 메시지를 중복 deliver 하더라도 위 멱등성 가드가 LLM 중복 호출을 차단 (단, 핸들러 실행 중 worker 가 죽는 경우는 위 "최악 시나리오" 참조).
 
+### 7.5.1 Publisher 측 사전 검증 — `INVALID_EXECUTION_STATE`
+
+§7.4 의 입력 receiver (controller / WS gateway) 가 publish 직전에 `nodeId → nodeExecutionId` DB lookup 을 수행하는 단계 (`execution_id + node_id + status='waiting_for_input'`). 다음 케이스는 BullMQ enqueue 를 **시도하지 않고** client 에 즉시 동기 응답한다.
+
+| 케이스 | 응답 코드 (WS ack) | 원인 |
+| --- | --- | --- |
+| 매칭 row 0건 | `INVALID_EXECUTION_STATE` | Execution 이 다른 상태(`running` / `completed` / `cancelled` / `failed`)거나 nodeId 미일치 |
+| 동일 매칭 row 2건 이상 (invariant 위반) | `INVALID_EXECUTION_STATE` + `logger.warn` | 일반적으로 발생 불가. race 또는 데이터 손상 의심 |
+
+`INVALID_EXECUTION_STATE` 는 동일 의미를 표현하는 **두 layer 의 코드** 중 WS 쪽 — REST 진입점은 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 를 반환한다 (의도적 분리: WS ack 와 REST 422 의 routing 분기가 클라이언트에서 동일 코드를 다르게 처리해야 하는 혼동을 회피).
+
+본 코드는 `waiting_for_input` 진입점 외에도 [`execution.retry_last_turn`](./6-websocket-protocol.md#42-실행-제어-명령-client--server) (`failed` 상태가 기대) 같은 다른 commands 에서도 "기대 상태가 아님" 의 범용 표현으로 재사용된다.
+
+본 분류는 [§7.5 rehydration](#75-resume-after-restart-rehydration) 의 `RESUME_*` (worker 측 비동기 실패) 와 직교 — `INVALID_EXECUTION_STATE` 는 ack 동기 응답, `RESUME_*` 는 후행 `EXECUTION_CANCELLED` 이벤트.
+
+> **구현 상태 (Phase 2 cont 시점)**: 현재 backend 는 `resolveWaitingNodeExecutionId` 가 invalid lookup 을 `__no_node_exec__` sentinel publish 로 우회 처리 — 사용자에게는 BullMQ worker 가 `RESUME_CHECKPOINT_MISSING` 으로 surface (1-2초 지연). spec 규범에 맞춘 동기 `INVALID_EXECUTION_STATE` 반환은 후속 PR 예정 (`plan/in-progress/spec-update-workflow-resumable-execution-phase2-followup.md` 변경 2.3).
+
 ---
 
 ## 8. 동시 실행 제한
@@ -903,8 +920,9 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 | 큐 이름 | 역할 | attempts | 비고 |
 |---------|------|----------|------|
 | `execution-continuation` | 사용자 입력 fan-out (§7.4 / §7.5) | `RESUME_BULLMQ_ATTEMPTS` (기본 3) | Durable Continuation (2026-05-24) 으로 도입. 옛 Redis pub/sub `execution:continuation` 채널 대체 |
-| `background-execution` | Background 노드 본문 실행 (§3.3) | 기존값 유지 | 기존 |
-| `task-queue` | 노드 실행 태스크 (§4.2) — 구현 검증 후 본 행 확정/삭제 | 기존값 유지 | 기존 (현행 spec §4.2 에 큐 이름이 명시되지 않은 채로 운영 중 — Phase 2 구현 시 실제 이름 확인 후 §4.2 표 갱신) |
+| `background-execution` | Background 노드 본문 실행 (§3.3) | 코드 기본값 (현재 `BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS`) | 기존 |
+
+> 일반 노드 실행은 별도 큐 없이 `runExecution` 의 in-process while-loop 에서 직접 dispatch (§2.1) — Phase 2 cont 시점에 옛 spec 의 `task-queue` 행은 검증 결과 미존재로 확정·삭제됨 (§Rationale "Durable Continuation (2026-05-24)" 의 후속 정리).
 
 ---
 
@@ -971,7 +989,7 @@ SIGTERM 수신 시 동작 계약 — k8s 재배포 / Docker Compose `docker comp
 1. **새 Execution 시작 거부**. `POST /api/workflows/:id/execute` (HTTP) 및 WS [`execution.start`](./6-websocket-protocol.md#42-실행-제어-명령-client--server) 명령이 **503 Service Unavailable** 응답. response body 는 표준 API 에러 shape (`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`, [Spec API 규약](./2-api-convention.md)), `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더 동봉. LB drain 동안 traffic 이 다른 인스턴스로 라우팅.
 
    > **Phase 1 구현 범위**: HTTP 진입점 (`POST /api/workflows/:id/execute`) gate 만 구현됨. WS `execution.start` 명령은 spec [§8.2](../3-workflow-editor/3-execution.md#82-execution-제어-명령) 에 정의되어 있으나, 현재 backend WebSocket gateway 에 해당 핸들러가 미구현 상태로 본 gate 도 적용 대상 외. Phase 2 (continuation-queue 본구현) 에서 WS handler 신설 시 동일 gate 추가 예정.
-2. BullMQ `execution-continuation` / `background-execution` / `task-queue` 의 active job 처리 중인 worker 는 현재 노드를 완료까지 진행. 신규 job consume 중단.
+2. BullMQ `execution-continuation` / `background-execution` 의 active job 처리 중인 worker 는 현재 노드를 완료까지 진행. 신규 job consume 중단. (일반 노드 실행은 큐 미경유, in-process while-loop 종결까지 대기 — §2.1 / §9.3)
 3. **WAITING_FOR_INPUT 상태의 Execution 은 건드리지 않음** — DB 상태 그대로 두고 in-memory resolver 만 자연 소실. 사용자 입력 도착 시 §7.5 rehydration 으로 재개.
 4. **RUNNING 상태의 노드** 는:
    - `SIGTERM_GRACE_MS` (기본 30초) 까지 완료 대기.
@@ -1106,3 +1124,20 @@ _원본 메모: memory/engine-raw-config-decision.md_
 초기안에서 `execution.resumed_after_restart` 신규 이벤트를 도입할지 검토했으나, 기존 `execution.resumed` (transient) 와 의미상 유사하여 클라이언트 혼동 위험이 크고 `spec/5-system/14-external-interaction-api.md` SSE 매핑까지 추가 갱신해야 한다. 본 채택안에서는 신규 이벤트 미도입 — 재개 사실은 평상시 흐름의 `execution.node.completed` / `execution.node.started` 이벤트로 충분히 관측 가능. 디버깅용 backend instance id 가 필요하면 백엔드 로그 또는 별도 텔레메트리 export 로 처리.
 
 **Refs**: 후속 PR (TBD), 추적 plan `plan/in-progress/workflow-resumable-execution.md`.
+
+### Phase 2 cont 후속 정리 (2026-05-25)
+
+Phase 2 본 구현 (`edc7f68b` Phase 2 WIP) 후 실제 backend 코드 검증에서 발견된 spec drift 두 건 정리.
+
+**1. `task-queue` 행 삭제 (§9.3)**:
+
+Phase 2 WIP spec 의 §9.3 큐 목록에 `task-queue` 가 "구현 검증 후 본 행 확정/삭제" placeholder 로 잔류했으나, `codebase/backend/src/modules/execution-engine/queues/` 의 실제 BullMQ 큐는 `background-execution` 과 `execution-continuation` 두 개뿐이고, 일반 노드 실행은 `runExecution` 의 in-process while-loop 에서 직접 dispatch 한다. spec drift 해소를 위해 해당 행을 삭제하고 §11 Graceful Shutdown 항목 2의 `task-queue` 토큰도 제거.
+
+**2. `INVALID_EXECUTION_STATE` (§7.5.1) 신설 + WS/REST 이름 분리 유지**:
+
+Phase 2 WIP 의 §7.4 가 publisher 측 사전 검증의 0건/다중 row 케이스에 대해 "client 에 `INVALID_EXECUTION_STATE` 응답" 만 한 줄 명시했으나 구체적 정의가 없어 §7.5.1 sub-section 신설로 공식화. 동시에 같은 의미를 표현하는 REST 의 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 와 별 코드로 유지하는 결정을 명시 — 이름 통일 검토 후 다음 사유로 분리 유지:
+
+- (기각) 두 layer 공통으로 `INVALID_STATE` 로 통일 — WS ack 처리 클라이언트가 동일 코드를 다른 routing 으로 처리해야 하는 case (sync ack 응답 vs subsequent event)에서 코드만으로는 분기 어려움.
+- (채택) WS 는 `INVALID_EXECUTION_STATE`, REST 는 `INVALID_STATE` 유지 — 두 layer 의 routing 분기를 코드 이름에서 즉시 인지 가능. spec 본문에서 두 layer 가 같은 의미임을 명시적 cross-link 로 보강.
+
+본 코드의 적용 범위는 `waiting_for_input` 진입점 (`execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation`) 외에 `execution.retry_last_turn` (기대 상태 = `failed`) 도 동일 의미로 재사용한다. retry-handler-followup 작업이 별 PR 로 spec 추가 시 본 코드를 재정의하지 말고 §7.5.1 참조하여 사용.

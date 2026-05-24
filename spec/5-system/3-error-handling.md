@@ -41,6 +41,8 @@ code: []
 | `RESOURCE_CONFLICT` | 리소스 충돌 (이름 중복 등) | 409 |
 | `INVALID_STATE` | 상태 전이 불가 (이미 실행 중인 워크플로우 삭제 등) | 422 |
 
+> WS commands 에서는 동일 의미를 `INVALID_EXECUTION_STATE` 코드로 표기 ([WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)). REST 와 WS 의 routing 분기 가시성을 위해 의도적 분리.
+
 ### 1.4 워크플로우 실행 에러
 
 엔진 수준 에러 (execution status → `failed`):

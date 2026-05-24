@@ -2,7 +2,6 @@
 worktree: workflow-resumable-execution-phase2-cont-64f537
 started: 2026-05-25
 owner: project-planner
-status: pending
 ---
 
 # Spec Update Proposal — workflow-resumable-execution Phase 2 follow-up
@@ -94,14 +93,20 @@ nodeExecutionId` DB lookup 을 수행하는 단계에서, 다음 케이스는 Bu
 
 ## 영향 범위
 
-- `spec/5-system/4-execution-engine.md` §9.3 + §7.5 + §11 (작은 토큰 정정)
-- `spec/5-system/6-websocket-protocol.md` §4.2 (주석 한 줄)
+- `spec/5-system/4-execution-engine.md` §9.3 + §7.5.1 (신설) + §11 + §Rationale
+- `spec/5-system/6-websocket-protocol.md` §4.2 (`INVALID_EXECUTION_STATE` 행 주석)
+- `spec/5-system/3-error-handling.md` §1.3 (`INVALID_STATE` 행 역방향 cross-link)
+- `spec/data-flow/0-overview.md` §4 (큐 카탈로그) + §5 (Continuation bus 설명)
+- `spec/data-flow/3-execution.md` §1.3 시퀀스 + §2.2/§2.3 Redis 표
 - Implementation 후행 작업 (변경 2.3) 은 별 PR
 
 ## 권고 후속 흐름
 
-1. project-planner 가 본 plan 을 픽업 → `/consistency-check --spec` 으로 본 변경의 cross-spec 영향 점검.
-2. spec/5-system/4-execution-engine.md / 6-websocket-protocol.md 직접 갱신.
+1. project-planner 가 본 plan 을 픽업 → `/consistency-check --spec` 으로 본 변경의 cross-spec 영향 점검 (`review/consistency/2026/05/25/08_28_14/SUMMARY.md` 완료, BLOCK: NO).
+2. 위 5개 spec 파일 직접 갱신.
 3. (선택) 변경 2.3 의 implementation 후속 작업은 별 plan 으로 분리.
+4. **plan 간 편집 조율** (consistency-check WARNING W7/W8/W9):
+   - `plan/in-progress/retry-handler-followup.md` WARNING #1/#2/#3 가 동일 spec 파일 (`spec/5-system/4-execution-engine.md` + `spec/5-system/6-websocket-protocol.md §4.2`) 에 미결 spec 편집 항목 보유. 본 plan 적용 후 retry-handler-followup PR 에서 추가 편집 시 §7.5.1 의 `INVALID_EXECUTION_STATE` 범용 정의를 재사용 (재정의 금지).
+   - `plan/in-progress/workflow-resumable-execution.md §"다음 단계" 3번` 의 `retry-handler-followup.md` 에 WARNING #2 BullMQ 기준 명시 한 줄 추가는 본 plan 과 독립 — 별도 commit 으로 처리.
 
 본 plan 완료 시 `git mv` 로 `plan/complete/` 이동.

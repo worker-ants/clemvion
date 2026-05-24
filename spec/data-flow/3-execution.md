@@ -94,18 +94,32 @@ sequenceDiagram
 sequenceDiagram
   autonumber
   participant C as Client (Form 제출자)
-  participant API as ExecutionsController
+  participant API as ExecutionsController / WS gateway
   participant PG as Postgres
-  participant Bus as ContinuationBusService (Redis pub/sub)
-  participant Eng as ExecutionEngineService (waiting instance)
+  participant Bus as ContinuationBusService (BullMQ execution-continuation)
+  participant Proc as ContinuationExecutionProcessor (임의 instance)
+  participant Eng as ExecutionEngineService
 
-  C->>API: POST /api/executions/:id/interactions { nodeExecutionId, type, payload }
-  API->>PG: UPDATE node_execution SET interaction_data, output_data, status='completed', finished_at
-  API->>Bus: publish channel=execution:<id> payload={nodeExecutionId, type}
-  Bus-->>Eng: receive (same OR different instance)
-  Eng->>PG: UPDATE execution SET status='running' (재개 시)
-  Eng->>Eng: 토폴로지 다음 단계 진행
+  C->>API: POST /api/executions/:id/interactions { nodeId, type, payload }
+  API->>PG: SELECT node_execution WHERE execution_id+node_id+status='waiting_for_input' (publisher 측 사전 검증 — §7.5.1)
+  alt lookup 0건 / 다중 row
+    API-->>C: INVALID_EXECUTION_STATE (동기 ack)
+  else 1건 매칭
+    API->>Bus: enqueue { executionId, nodeExecutionId, type, payload, jobId=`<exec>:<ne>:<seq>` }
+    Bus-->>Proc: deliver (any instance — at-least-once)
+    Proc->>Eng: applyContinuation(executionId, nodeExecutionId, payload)
+    alt 로컬 pendingContinuations hit (fast path)
+      Eng->>Eng: resolver 호출 → waitForX await 풀림
+    else local miss (§7.5 rehydration)
+      Eng->>PG: ExecutionContext 재구성 (execution_node_log + node_execution.output_data)
+      Eng->>Eng: waitForX 직접 invoke + setImmediate 로 resolver fire
+    end
+    Eng->>PG: UPDATE execution SET status='running' + UPDATE node_execution SET status='completed'
+    Eng->>Eng: 토폴로지 다음 단계 진행
+  end
 ```
+
+> Publisher 측 사전 검증 (`INVALID_EXECUTION_STATE` 동기 ack) 의 상세 분류는 [실행 엔진 §7.5.1](../5-system/4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 참조. rehydration 슬로우 패스의 실패 (`RESUME_CHECKPOINT_MISSING` / `RESUME_INCOMPATIBLE_STATE` / `RESUME_FAILED`) 는 후행 `EXECUTION_CANCELLED` 이벤트로 surface.
 
 ### 1.4 Sub-workflow 호출 (Workflow 노드 = flow.workflow)
 
@@ -133,13 +147,17 @@ sequenceDiagram
 
 | 큐 | producer | consumer | payload 핵심 필드 |
 | --- | --- | --- | --- |
+| `execution-continuation` | `ContinuationBusService.publish` (WS gateway / REST controller 경유) | `ContinuationExecutionProcessor` | `{type, executionId, nodeExecutionId, payload}` — jobId = `${executionId}:${nodeExecutionId}:${seq}` (Redis INCR per executionId — idempotency key). 자세한 라이프사이클은 [Spec 실행 엔진 §7.4 / §7.5](../5-system/4-execution-engine.md#74-분산-실행-multi-instance) |
 | `background-execution` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | `executionId, parentNodeExecutionId, workspaceId, workflowId, bodyEntryNodeIds[], input, variables, nodeOutputCache, expressionContext, config{notifyOnFailure, maxDurationMs}` (`background-execution.queue.ts`) |
 
-### 2.3 Redis (Pub/Sub — Continuation bus)
+### 2.3 Redis (보조 키 — 분산 lock & seq)
 
-| Channel | publisher | subscriber | 용도 |
-| --- | --- | --- | --- |
-| `execution:<executionId>` | `ExecutionsController` (폼/버튼 API), `WorkflowAssistantController` (AI 메시지 응답) | `ExecutionEngineService.waitFor*` | 다중 인스턴스 환경에서 다른 인스턴스의 대기 실행 깨움 |
+| 키 패턴 | 용도 | TTL |
+| --- | --- | --- |
+| `exec:recover:lock` | 부팅 시 `recoverStuckExecutions` 단일 인스턴스 가드 (전역 lock — [실행 엔진 §7.4 / §9.2](../5-system/4-execution-engine.md#74-분산-실행-multi-instance)) | 60초 |
+| `exec:cont:seq:<executionId>` | continuation publish 의 monotonic seq (Redis INCR) — BullMQ jobId 의 idempotency 보장 | 미설정 (자연 expire 미적용 — Phase 3 후속) |
+
+> Phase 2 (2026-05-24) 이전의 Redis pub/sub 채널 `execution:<executionId>` 는 폐기됨 — 위 BullMQ 큐 `execution-continuation` 로 교체. 결정 근거는 [실행 엔진 §Rationale "Durable Continuation (2026-05-24)"](../5-system/4-execution-engine.md#rationale).
 
 ### 2.4 WebSocket
 
