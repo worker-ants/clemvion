@@ -223,6 +223,20 @@ class ExecutionCancelledError extends Error {
 }
 
 /**
+ * Phase 2.5 — continuation publish 결과. WS gateway / REST controller 가 ack
+ * 에 즉시 동봉 (`queued: boolean` + 디버깅용 `jobId`).
+ *
+ * - `queued: true` + `jobId: string` — 정상 enqueue. BullMQ 가 비동기로 처리.
+ *   spec §7.4 라우팅 원칙상 모든 정상 publish 는 이 분기.
+ * - `queued: false` + `jobId: null` — enqueue 자체 실패 (Redis 장애 등). caller
+ *   는 throw 또는 `success: false` ack 로 변환.
+ */
+export interface ContinuationPublishResult {
+  queued: boolean;
+  jobId: string | null;
+}
+
+/**
  * Phase 2.3a — §7.5 rehydration 경로 전용 에러. RehydrateAndResume 의 정상
  * 종결 분기는 RESUME_CHECKPOINT_MISSING / RESUME_INCOMPATIBLE_STATE / RESUME_FAILED
  * 세 코드 중 하나로 마무리되며, 본 클래스로 표현해 outer try/catch 가 분기.
@@ -2774,18 +2788,19 @@ export class ExecutionEngineService
   async continueExecution(
     executionId: string,
     formData?: unknown,
-  ): Promise<void> {
+  ): Promise<ContinuationPublishResult> {
     // spec/4-nodes/6-presentation/0-common.md §10.9 — sentinel wrap 책임.
     // raw formData 를 그대로 publish 하지 않고 `{ type: 'form_submitted',
     // formData }` 로 wrap 한 뒤 publish.
     const nodeExecutionId =
       await this.resolveWaitingNodeExecutionId(executionId);
-    void this.continuationBus.publish({
+    const jobId = await this.continuationBus.publish({
       type: 'continue',
       executionId,
       nodeExecutionId,
       payload: { type: 'form_submitted', formData },
     });
+    return ExecutionEngineService.buildPublishResult(jobId);
   }
 
   /**
@@ -2799,15 +2814,16 @@ export class ExecutionEngineService
   async continueButtonClick(
     executionId: string,
     buttonId: string,
-  ): Promise<void> {
+  ): Promise<ContinuationPublishResult> {
     const nodeExecutionId =
       await this.resolveWaitingNodeExecutionId(executionId);
-    void this.continuationBus.publish({
+    const jobId = await this.continuationBus.publish({
       type: 'button_click',
       executionId,
       nodeExecutionId,
       payload: { buttonId },
     });
+    return ExecutionEngineService.buildPublishResult(jobId);
   }
 
   /**
@@ -2818,7 +2834,7 @@ export class ExecutionEngineService
   async continueAiConversation(
     executionId: string,
     message: string,
-  ): Promise<void> {
+  ): Promise<ContinuationPublishResult> {
     if (message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH) {
       throw new Error(
         `Message exceeds maximum length of ${ExecutionEngineService.MAX_MESSAGE_LENGTH} characters`,
@@ -2826,25 +2842,48 @@ export class ExecutionEngineService
     }
     const nodeExecutionId =
       await this.resolveWaitingNodeExecutionId(executionId);
-    void this.continuationBus.publish({
+    const jobId = await this.continuationBus.publish({
       type: 'ai_message',
       executionId,
       nodeExecutionId,
       payload: { message },
     });
+    return ExecutionEngineService.buildPublishResult(jobId);
   }
 
   /**
    * End a multi-turn AI conversation.
    */
-  async endAiConversation(executionId: string): Promise<void> {
+  async endAiConversation(
+    executionId: string,
+  ): Promise<ContinuationPublishResult> {
     const nodeExecutionId =
       await this.resolveWaitingNodeExecutionId(executionId);
-    void this.continuationBus.publish({
+    const jobId = await this.continuationBus.publish({
       type: 'ai_end_conversation',
       executionId,
       nodeExecutionId,
     });
+    return ExecutionEngineService.buildPublishResult(jobId);
+  }
+
+  /**
+   * Phase 2.5 — continuation publish 결과 → WS ack `queued` / `jobId` 매핑 helper.
+   *
+   * Phase 2 의 라우팅 원칙 (spec §7.4 "모든 진입점은 항상 BullMQ enqueue") 상
+   * publish 가 정상 enqueue 되면 항상 `queued: true`. jobId 가 null 이면 Redis
+   * 장애 등으로 enqueue 자체가 실패한 케이스 — caller (WS gateway / REST
+   * controller) 는 이 경우 `success: false` 로 ack 한 뒤 client 재시도 유도.
+   */
+  private static buildPublishResult(
+    jobId: string | null,
+  ): ContinuationPublishResult {
+    if (jobId === null) {
+      // spec §7.4 publish 측 실패 — Redis 장애. queued 값은 의미 없음 (enqueue
+      // 자체가 실패). caller 가 throw 로 다루도록 jobId=null + queued=false 반환.
+      return { queued: false, jobId: null };
+    }
+    return { queued: true, jobId };
   }
 
   /**

@@ -47,7 +47,20 @@ describe('WebsocketGateway', () => {
         {
           provide: ExecutionEngineService,
           useValue: {
-            continueExecution: jest.fn(),
+            // Phase 2.5 — publish 가 `{queued, jobId}` 반환. WS gateway 가
+            // ack 에 `queued: result.queued` 동봉 + `jobId === null` 분기.
+            continueExecution: jest
+              .fn()
+              .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
+            continueButtonClick: jest
+              .fn()
+              .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
+            continueAiConversation: jest
+              .fn()
+              .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
+            endAiConversation: jest
+              .fn()
+              .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
             cancelWaitingExecution: jest.fn(),
           },
         },
@@ -509,6 +522,44 @@ describe('WebsocketGateway', () => {
       );
       expect(result.data.success).toBe(false);
       expect(result.data.error).toBe('Not authorized for this execution');
+    });
+
+    it('Phase 2.5 — success ack 에 resumed + queued + executionId 동봉 (spec §4.2)', async () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+
+      const result = await gateway.handleSubmitForm(
+        { executionId: 'exec-1', formData: { approved: true } },
+        socket,
+      );
+      expect(result.data).toMatchObject({
+        success: true,
+        executionId: 'exec-1',
+        resumed: true,
+        queued: true,
+      });
+    });
+
+    it('Phase 2.5 — publish 가 jobId=null 반환 (Redis 장애) 시 success=false + Redis error 메시지', async () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueExecution as jest.Mock).mockResolvedValueOnce({
+        queued: false,
+        jobId: null,
+      });
+
+      const result = await gateway.handleSubmitForm(
+        { executionId: 'exec-1', formData: {} },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.error).toMatch(/enqueue failed/);
     });
   });
 

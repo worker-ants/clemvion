@@ -350,7 +350,13 @@ export class WebsocketGateway
     @ConnectedSocket() client: Socket,
   ): Promise<{
     event: string;
-    data: { success: boolean; error?: string };
+    data: {
+      success: boolean;
+      executionId?: string;
+      resumed?: boolean;
+      queued?: boolean;
+      error?: string;
+    };
   }> {
     // Verify the client is authenticated
     const enriched = client as Socket & {
@@ -378,11 +384,31 @@ export class WebsocketGateway
     }
 
     try {
-      this.executionEngineService.continueExecution(
+      // Phase 2.5 — publish 가 BullMQ enqueue 반환 (queued + jobId). spec §7.4
+      // 라우팅 원칙상 정상 enqueue 시 queued=true. jobId=null 이면 Redis
+      // 장애로 본 분기에서 success: false 응답 후 client 재시도 유도.
+      const result = await this.executionEngineService.continueExecution(
         data.executionId,
         data.formData,
       );
-      return { event: 'execution.form_submitted', data: { success: true } };
+      if (result.jobId === null) {
+        return {
+          event: 'execution.form_submitted',
+          data: {
+            success: false,
+            error: 'Continuation enqueue failed (Redis unavailable)',
+          },
+        };
+      }
+      return {
+        event: 'execution.form_submitted',
+        data: {
+          success: true,
+          executionId: data.executionId,
+          resumed: true,
+          queued: result.queued,
+        },
+      };
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Form submission failed';
@@ -405,6 +431,7 @@ export class WebsocketGateway
       executionId?: string;
       buttonId?: string;
       resumed?: boolean;
+      queued?: boolean;
       error?: string;
     };
   }> {
@@ -433,10 +460,19 @@ export class WebsocketGateway
     }
 
     try {
-      this.executionEngineService.continueButtonClick(
+      const result = await this.executionEngineService.continueButtonClick(
         data.executionId,
         data.buttonId,
       );
+      if (result.jobId === null) {
+        return {
+          event: 'execution.click_button.ack',
+          data: {
+            success: false,
+            error: 'Continuation enqueue failed (Redis unavailable)',
+          },
+        };
+      }
       return {
         event: 'execution.click_button.ack',
         data: {
@@ -444,6 +480,7 @@ export class WebsocketGateway
           executionId: data.executionId,
           buttonId: data.buttonId,
           resumed: true,
+          queued: result.queued,
         },
       };
     } catch (error: unknown) {
@@ -463,7 +500,13 @@ export class WebsocketGateway
     @ConnectedSocket() client: Socket,
   ): Promise<{
     event: string;
-    data: { success: boolean; error?: string };
+    data: {
+      success: boolean;
+      executionId?: string;
+      resumed?: boolean;
+      queued?: boolean;
+      error?: string;
+    };
   }> {
     const enriched = client as Socket & {
       userId?: string;
@@ -491,11 +534,28 @@ export class WebsocketGateway
     }
 
     try {
-      this.executionEngineService.continueAiConversation(
+      const result = await this.executionEngineService.continueAiConversation(
         data.executionId,
         data.message,
       );
-      return { event: 'execution.submit_message.ack', data: { success: true } };
+      if (result.jobId === null) {
+        return {
+          event: 'execution.submit_message.ack',
+          data: {
+            success: false,
+            error: 'Continuation enqueue failed (Redis unavailable)',
+          },
+        };
+      }
+      return {
+        event: 'execution.submit_message.ack',
+        data: {
+          success: true,
+          executionId: data.executionId,
+          resumed: true,
+          queued: result.queued,
+        },
+      };
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Message submission failed';
@@ -512,7 +572,13 @@ export class WebsocketGateway
     @ConnectedSocket() client: Socket,
   ): Promise<{
     event: string;
-    data: { success: boolean; error?: string };
+    data: {
+      success: boolean;
+      executionId?: string;
+      resumed?: boolean;
+      queued?: boolean;
+      error?: string;
+    };
   }> {
     const enriched = client as Socket & {
       userId?: string;
@@ -539,10 +605,26 @@ export class WebsocketGateway
     }
 
     try {
-      this.executionEngineService.endAiConversation(data.executionId);
+      const result = await this.executionEngineService.endAiConversation(
+        data.executionId,
+      );
+      if (result.jobId === null) {
+        return {
+          event: 'execution.end_conversation.ack',
+          data: {
+            success: false,
+            error: 'Continuation enqueue failed (Redis unavailable)',
+          },
+        };
+      }
       return {
         event: 'execution.end_conversation.ack',
-        data: { success: true },
+        data: {
+          success: true,
+          executionId: data.executionId,
+          resumed: true,
+          queued: result.queued,
+        },
       };
     } catch (error: unknown) {
       const message =
