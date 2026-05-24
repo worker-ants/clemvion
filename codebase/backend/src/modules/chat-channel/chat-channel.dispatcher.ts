@@ -64,6 +64,14 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
           `ChatChannelDispatcher subscription error: ${err instanceof Error ? err.message : String(err)}`,
         ),
     });
+    // 부트 시점 진단 log — production log 에 1회 찍힘. 사용자가 outbound 누락
+    // 원인을 추적할 때 본 log 가 보이는지로 dispatcher subscription 확립 여부를
+    // 1차 확인. 안 보이면 dispatcher instance 자체가 인스턴스화 안 된 것 (module
+    // 등록 오류). 보이는데 handle() 의 후속 warn 들이 안 보이면 emit 가 dispatcher
+    // 에 도달 안 함 (WebsocketService Subject 분리 또는 emit 자체 누락).
+    this.logger.log(
+      `subscribed to WebsocketService.executionEvents$ (waiting for ${[...SUBSCRIBED_EVENTS].join(', ')})`,
+    );
   }
 
   onModuleDestroy(): void {
@@ -75,6 +83,13 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
 
   private async handle(event: ExecutionChannelEvent): Promise<void> {
     if (!SUBSCRIBED_EVENTS.has(event.eventType)) return;
+    // 진단 log — handle() 에 SUBSCRIBED_EVENTS 매치 event 가 도달했음을 확인. 본
+    // log 가 안 보이면 emit 가 dispatcher 에 도달 안 함 (WebsocketService Subject
+    // 분리 또는 module DI 이슈). production 'log' level 이라 noise 최소화 위해
+    // event type + executionId 만.
+    this.logger.log(
+      `handle event ${event.eventType} (executionId=${event.executionId})`,
+    );
     const triggerId = (event.payload as { triggerId?: unknown }).triggerId;
     if (typeof triggerId !== 'string' || triggerId.length === 0) {
       // Trigger id 가 없는 execution (수동 실행 등) 은 채널 대상 아님. silent OK —
