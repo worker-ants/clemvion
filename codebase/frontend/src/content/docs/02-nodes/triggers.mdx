@@ -353,6 +353,37 @@ curl -X POST https://<your-host>/api/triggers \
 
 3. 트리거가 활성화되면 자동으로 `setWebhook` 이 호출돼 봇이 워크플로우 엔드포인트로 연결돼요. `botToken` 은 응답에 노출되지 않고 secret store 에 AES-256-GCM 으로 암호화 저장돼요 — 응답에는 `hasBotToken: true` derived 필드만 포함돼요.
 
+### Slack 설정 방법
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="트리거 생성 dialog 의 Chat Channel 섹션 — Slack provider 분기 (botToken + inboundSigningPlaintext)"
+/>
+
+1. [Slack API 콘솔](https://api.slack.com/apps)에서 앱 생성 → **Basic Information** 의 **Signing Secret** (lowercase hex 32 chars) 과 install 후 발급되는 **Bot User OAuth Token** (`xoxb-...`)을 받아 두세요. 자세한 manifest 설정은 [Slack 통합 가이드](/docs/06-integrations-and-config/slack)를 참조해요.
+2. **Triggers 화면 → "+ Webhook 트리거 추가" → 폼 하단의 "Chat Channel 연결 (외부 챗봇)" 토글 → Provider = Slack → Bot Token + Signing Secret 입력 → 만들기.**
+3. 생성된 트리거의 endpoint URL 을 복사해 Slack 앱 manifest 의 **Event Subscriptions Request URL** 과 **Interactivity Request URL** 에 입력하면 워크플로우와 연결돼요.
+
+### Discord 설정 방법
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="트리거 생성 dialog 의 Chat Channel 섹션 — Discord provider 분기 (botToken + inboundSigningPlaintext = ed25519 public key)"
+/>
+
+1. [Discord Developer Portal](https://discord.com/developers/applications) 에서 Application + Bot 을 만들고 **Bot Token** (Bot 탭) 과 **Application Public Key** (General Information 탭, ed25519 lowercase hex 64 chars) 를 받아 두세요. 자세한 단계는 [Discord 통합 가이드](/docs/06-integrations-and-config/discord)를 참조해요.
+2. **Triggers 화면 → "+ Webhook 트리거 추가" → 폼 하단의 "Chat Channel 연결 (외부 챗봇)" 토글 → Provider = Discord → Bot Token + Application Public Key 입력 → 만들기.**
+3. 생성된 트리거의 endpoint URL 을 복사해 Developer Portal 의 **Interactions Endpoint URL** 에 입력하면 PING handshake 가 자동 처리돼 연결이 완료돼요.
+
+<Callout type="warn">
+Discord v1 한계: 일반 DM 자유 텍스트는 수신할 수 없어요. AI 대화 reply 는 슬래시 명령(`/workflow reply <message>`) 또는 응답 메시지의 **Reply** 버튼을 통한 modal 입력으로만 가능해요.
+{/* 내부 SoT: spec/5-system/15-chat-channel.md R-CC-13 + spec/4-nodes/7-trigger/providers/discord.md R-D-3 */}
+</Callout>
+
 ### 상태 확인
 
 트리거 상세 화면의 `chatChannelHealth` 필드로 연결 상태를 확인해요:

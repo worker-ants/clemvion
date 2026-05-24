@@ -183,7 +183,9 @@ export class ChatChannelConfigDto {
    * 형식 검증은 service 단에서 수행 (provider 정보가 있어야 분기 가능). DTO 는 String 타입과
    * 길이 상한만 검증.
    *
-   * @see spec/conventions/secret-store.md §5.5
+   * @see spec/conventions/secret-store.md §5.5 (b) provider-issued plaintext 흐름
+   * @see spec/conventions/chat-channel-adapter.md §2.3 (inboundSigningRef 단일 슬롯 단일 진실)
+   * @see spec/5-system/15-chat-channel.md §4.1 (chatChannel 스키마)
    * @see spec/4-nodes/7-trigger/providers/slack.md §6 R-S-1
    * @see spec/4-nodes/7-trigger/providers/discord.md §6
    */

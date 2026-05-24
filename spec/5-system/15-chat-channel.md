@@ -1,7 +1,27 @@
 ---
 id: chat-channel
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/modules/chat-channel/**
+  - codebase/backend/src/modules/triggers/dto/chat-channel-config.dto.ts
+  - codebase/backend/src/modules/triggers/triggers.service.ts
+  - codebase/backend/src/modules/triggers/triggers.controller.ts
+  - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/modules/hooks/hooks.controller.ts
+  - codebase/backend/test/chat-channel-slack.e2e-spec.ts
+  - codebase/backend/test/chat-channel-discord.e2e-spec.ts
+  - codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
+  - codebase/frontend/src/app/(main)/triggers/page.tsx
+  - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
+  - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
+  - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
+pending_plans:
+  - plan/in-progress/chat-channel-dispatcher-split.md
+  - plan/in-progress/chat-channel-discord-gateway.md
+  - plan/in-progress/chat-channel-slack-socket-mode.md
+  - plan/in-progress/chat-channel-form-native-modal.md
+  - plan/in-progress/chat-channel-visual-ssr-png.md
+  - plan/in-progress/chat-channel-secret-store-infra.md
 ---
 
 # Spec: Chat Channel (외부 chat 플랫폼 ↔ 워크플로우 서버사이드 어댑터)
@@ -156,9 +176,11 @@ code: []
 ```jsonc
 {
   "chatChannel": {
-    "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실. 본 예시는 Telegram. (slack / discord 동일 슬롯 구조)
-    "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // provider 공통 봇 토큰 (CCH-SE-03 / conventions/secret-store.md)
-    "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // provider 공통 inbound webhook 출처 검증용 자료 — provider 별 의미·검증 알고리즘 분기는 backend 책임. Telegram: server-issued shared secret (setupChannel 의 randomBytes 발급) / Slack: HMAC-SHA256 signing secret (사용자 입력) / Discord: ed25519 public key (사용자 입력). SoT: conventions/chat-channel-adapter.md §2.3
+    "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실 (v1 supported: telegram / slack / discord)
+    "botToken": "<provider 발급 plaintext>",   // 입력 전용 — POST /api/triggers 요청 body 한정. service 가 SecretResolver.store 로 옮긴 뒤 strip — 응답·DB JSONB 미노출 (SS-SE-01). telegram=BotFather `\d+:[A-Za-z0-9_-]+` / slack=`xoxb-*` / discord=Developer Portal Bot Token
+    "inboundSigningPlaintext": "<provider-issued plaintext>",  // 입력 전용, slack/discord 한정 (telegram 은 server-issued 자동 발급). slack=lowercase hex 32 chars (signing secret) / discord=lowercase hex 64 chars (ed25519 application public key). 입력 후 service 가 SecretResolver.store(inboundSigningRef, plaintext) → strip. telegram 입력 시 400 VALIDATION_ERROR(field='inboundSigningPlaintext'). SoT: conventions/secret-store.md §5.5 (b)
+    "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // 응답·DB JSONB 보관 ref. provider 공통 (CCH-SE-03 / conventions/secret-store.md). botToken plaintext 는 응답 strip
+    "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // 응답·DB JSONB 보관 ref. provider 공통 단일 슬롯 — 검증 알고리즘은 backend 의 provider 분기 책임. Telegram: server-issued shared secret (setupChannel 의 randomBytes 발급) / Slack: HMAC-SHA256 signing secret (사용자 inboundSigningPlaintext 입력) / Discord: ed25519 public key (사용자 inboundSigningPlaintext 입력). SoT: conventions/chat-channel-adapter.md §2.3
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
       "username": "myworkflow_bot"

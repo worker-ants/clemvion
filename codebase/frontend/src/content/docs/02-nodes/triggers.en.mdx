@@ -342,6 +342,37 @@ curl -X POST https://<your-host>/api/triggers \
 
 3. When the trigger is activated, `setWebhook` is called automatically to wire the bot to the workflow endpoint. `botToken` is never returned in responses — it lives AES-256-GCM-encrypted in the secret store. Responses include `hasBotToken: true` only.
 
+### Slack setup
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="Trigger create dialog — Slack provider branch (botToken + inboundSigningPlaintext)"
+/>
+
+1. From the [Slack API console](https://api.slack.com/apps), create an app, then grab the **Signing Secret** (lowercase hex 32 chars) from **Basic Information** and the **Bot User OAuth Token** (`xoxb-...`) issued on install. Full manifest setup is in the [Slack integration guide](/docs/06-integrations-and-config/slack).
+2. **Triggers screen → "+ Add Webhook Trigger" → toggle "Connect a Chat Channel (external chatbot)" → Provider = Slack → enter Bot Token + Signing Secret → Create.**
+3. Copy the trigger's endpoint URL into the Slack app manifest under **Event Subscriptions Request URL** and **Interactivity Request URL** to complete the wiring.
+
+### Discord setup
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="Trigger create dialog — Discord provider branch (botToken + inboundSigningPlaintext = ed25519 public key)"
+/>
+
+1. From the [Discord Developer Portal](https://discord.com/developers/applications), create an Application + Bot, then copy the **Bot Token** (Bot tab) and the **Application Public Key** (General Information tab, ed25519 lowercase hex 64 chars). Full steps are in the [Discord integration guide](/docs/06-integrations-and-config/discord).
+2. **Triggers screen → "+ Add Webhook Trigger" → toggle "Connect a Chat Channel (external chatbot)" → Provider = Discord → enter Bot Token + Application Public Key → Create.**
+3. Copy the trigger's endpoint URL into the Developer Portal's **Interactions Endpoint URL** to complete the PING handshake automatically.
+
+<Callout type="warn">
+Discord v1 limitation: plain DM free-text messages are not received. AI conversation replies are only available through the slash command (`/workflow reply <message>`) or the modal triggered by the **Reply** button on AI response messages.
+{/* Internal SoT: spec/5-system/15-chat-channel.md R-CC-13 + spec/4-nodes/7-trigger/providers/discord.md R-D-3 */}
+</Callout>
+
 ### Health status
 
 Check `chatChannelHealth` on the trigger detail view:
