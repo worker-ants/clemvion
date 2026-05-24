@@ -174,7 +174,21 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     }
 
     const eiaEvent = toEiaEvent(event);
-    if (!eiaEvent) return;
+    if (!eiaEvent) {
+      // **결정적 진단** (2026-05-25): handle 까지 통과했는데 outbound 안 가는
+      // 회귀 case. toEiaEvent 가 null 반환 = ai_message 의 경우 `payload.message`
+      // 가 string 아님 (분기 line 343-355 참조). emit payload 의 message field
+      // 가 누락/변형됐을 가능성. payload key 들을 dump 해 어떤 field 가 빠졌는지
+      // 식별.
+      this.logger.warn(
+        `event ${event.eventType} (trigger=${triggerId}) — toEiaEvent null. ` +
+          `payload keys=[${Object.keys(event.payload).join(',')}]. outbound skip.`,
+      );
+      return;
+    }
+    this.logger.debug(
+      `toEiaEvent ok: ${eiaEvent.type} (executionId=${event.executionId})`,
+    );
 
     // Phase 4 (PR-C) — waiting_for_input(form) 도착 시 formState 초기화.
     if (
@@ -211,11 +225,22 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // **결정적 진단** (2026-05-25): renderNode 결과 messages 의 개수와 종류 log.
+    // 빈 배열이면 sendMessage 호출 0회 = 사용자에게 메시지 안 감. messages.length=N
+    // 인데도 telegram 도착 안 하면 sendMessage 가 silent 성공 (telegram API 200
+    // 인데 drop) 시나리오.
+    this.logger.log(
+      `renderNode → ${messages.length} message(s) (event=${event.eventType}, kinds=[${messages.map((m) => m.body.kind).join(',')}])`,
+    );
+
     // conversationKey 가 ChannelMessage 안에 들어가지 않은 경우 보정.
     for (const message of messages) {
       if (!message.conversationKey) message.conversationKey = conversationKey;
       try {
         await adapter.sendMessage(message, chatChannelCfg);
+        this.logger.log(
+          `sendMessage ok (trigger=${trigger.id}, kind=${message.body.kind}, conversationKey=${message.conversationKey})`,
+        );
       } catch (err) {
         this.logger.error(
           `ChatChannelDispatcher.sendMessage 실패 (trigger=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
