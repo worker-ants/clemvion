@@ -156,6 +156,31 @@ function withInteractionMeta(
 }
 
 /**
+ * `HooksService.handleChatChannelWebhook` 가 execute() 호출 시 input 의
+ * top-level 에 주입하는 `chatChannel: {provider, conversationKey, channelUserKey}`
+ * 를 안전하게 추출. routing context 등록의 input source — 본 함수가 객체
+ * shape 을 검증해 sub-property 가 모두 string 인 경우만 통과시킨다 (다른
+ * 트리거 경로의 input 이 무관한 chatChannel 키를 갖고 있어도 오인식 안 함).
+ */
+function extractChatChannelFromInput(
+  input: unknown,
+): Record<string, unknown> | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const raw = (input as { chatChannel?: unknown }).chatChannel;
+  if (!raw || typeof raw !== 'object') return undefined;
+  const provider = (raw as { provider?: unknown }).provider;
+  const conversationKey = (raw as { conversationKey?: unknown })
+    .conversationKey;
+  if (typeof provider !== 'string' || provider.length === 0) return undefined;
+  if (typeof conversationKey !== 'string' || conversationKey.length === 0) {
+    return undefined;
+  }
+  // raw 전체를 그대로 통과 — channelUserKey 외 추가 provider-specific 필드도
+  // dispatcher 가 필요로 할 수 있다. sanitize 는 WebsocketService 측에서 적용.
+  return raw as Record<string, unknown>;
+}
+
+/**
  * Per-branch subgraph plan for the Parallel logic node.
  *
  * `bodyNodeIds` — nodes exclusive to this branch (reachable from this
@@ -731,6 +756,22 @@ export class ExecutionEngineService
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
 
+    // 2.5. Register outbound routing context for `ChatChannelDispatcher` /
+    // `NotificationFanout`. 트리거 발화 경로 (schedule / webhook) 만 등록 —
+    // 수동 실행(executedBy)은 dispatcher 가 처리할 trigger 가 없어 skip.
+    // input.chatChannel 은 HooksService.handleChatChannelWebhook 가 주입한
+    // `{provider, conversationKey, channelUserKey}`. 등록된 routing context 는
+    // 이후 모든 emit 의 fanout envelope (internal subscriber) 에 자동 첨부되며
+    // wire envelope (frontend) 에는 첨부되지 않는다. [Spec Chat Channel §3.1
+    // CCH-AD-05 / §3.2].
+    if (options?.triggerId) {
+      const chatChannel = extractChatChannelFromInput(input);
+      this.eventEmitter.registerExecutionRouting(executionId, {
+        triggerId: options.triggerId,
+        ...(chatChannel ? { chatChannel } : {}),
+      });
+    }
+
     // 3. Run execution in background (fire-and-forget)
     this.runExecution(savedExecution, input).catch((error: unknown) => {
       this.logger.error(
@@ -738,6 +779,10 @@ export class ExecutionEngineService
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      // runExecution 가 terminal event 를 emit 하지 못한 경로 (예: 본문 진입
+      // 전 setup 단계 throw) — routing context 가 그대로 남으면 같은
+      // executionId 재사용 시 stale context 가 첨부된다. 명시 release.
+      this.eventEmitter.releaseExecutionRouting(executionId);
     });
 
     return executionId;

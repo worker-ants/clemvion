@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   ExecutionEventType,
+  ExecutionRoutingContext,
   NodeEventType,
   WebsocketService,
 } from '../../websocket/websocket.service';
@@ -50,5 +51,28 @@ export class ExecutionEventEmitter {
       eventType,
       payload,
     );
+  }
+
+  /**
+   * Execution 단위 outbound 라우팅 컨텍스트 등록 — `WebsocketService` 위임.
+   * [Spec Chat Channel §3.1 CCH-AD-05]: 트리거 발화로 시작된 execution 의
+   * `triggerId` / `chatChannel` 을 등록하면, 이후 모든 emit 의 fanout
+   * envelope 에 자동 첨부되어 `ChatChannelDispatcher` / `NotificationFanout`
+   * 가 trigger 식별을 통과할 수 있다. 엔진의 execute() 진입 시점에 1회 호출.
+   */
+  registerExecutionRouting(
+    executionId: string,
+    context: ExecutionRoutingContext,
+  ): void {
+    this.websocketService.registerExecutionRouting(executionId, context);
+  }
+
+  /**
+   * Routing context 명시 해제. terminal event 발송 시 자동 release 되므로
+   * 일반적으로는 호출 불필요. 엔진이 setup 단계 throw 등으로 terminal event
+   * 자체를 emit 하지 못한 경로의 누수 방지용.
+   */
+  releaseExecutionRouting(executionId: string): void {
+    this.websocketService.releaseExecutionRouting(executionId);
   }
 }
