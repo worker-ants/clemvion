@@ -35,17 +35,18 @@ owner: project-planner
 
 목표: 재배포 자체로 인한 일괄 실패 중단. Phase 2 가 완료되기 전이라 사용자 입력 도착 시점에 메모리 resolver 가 없으면 그 1회는 실패로 처리하나, 명확한 에러 메시지로 안내. 워크플로 자체가 cancel 되지는 않음.
 
-- [ ] 1.1 — `recoverStuckExecutions()` 의 stale 대상에서 `status='waiting_for_input'` 제외. `status='running'` 만 검출.
+- [x] 1.1 — `recoverStuckExecutions()` 의 stale 대상에서 `status='waiting_for_input'` 제외. `status='running'` 만 검출.
   - 위치: `codebase/backend/src/modules/execution-engine/execution-engine.service.ts:644-692`
   - 옛 30분 일괄 FAIL 로직 (line 663-678) 의 SQL WHERE 절을 `status='running' AND started_at < now() - INTERVAL '30 minutes'` 로 변경.
   - 옛 error message "Execution failed: server restarted while waiting for user input" 는 더 이상 발생하지 않음. RUNNING heartbeat 미응답에 대한 fail 메시지로 교체 ("Execution failed: worker heartbeat timeout").
-  - 테스트: 부팅 후 WAITING_FOR_INPUT row 가 보존되는지 확인하는 e2e.
-- [ ] 1.2 — SIGTERM graceful shutdown 핸들러 추가.
-  - 위치: `codebase/backend/src/main.ts`, NestJS `app.enableShutdownHooks()` + `onModuleDestroy` 활용.
-  - `SIGTERM_GRACE_MS` (기본 30000) 환경변수 도입. spec §11 의 5단계 동작 그대로 구현.
-  - `/api/executions/start` 가 종료 중일 때 503 + 표준 에러 shape (`code: 'SERVER_SHUTTING_DOWN'`) + `Retry-After` 헤더 반환.
-  - active job 처리 중 worker 는 노드 완료까지 대기. 미완료 NodeExecution 은 `failed` + `error.code='SERVER_INTERRUPTED'` 마킹.
-  - 테스트: testcontainers 기반 통합 — SIGTERM 후 RUNNING NodeExecution 이 SERVER_INTERRUPTED 로 마킹되는지 확인.
+  - 구현 commit: `e34d2db2`. 테스트: e2e 는 Phase 2 통합 e2e (2.7) 에서 커버.
+- [x] 1.2 — SIGTERM graceful shutdown 핸들러 추가.
+  - 위치: `codebase/backend/src/main.ts`, NestJS `app.enableShutdownHooks()` + `OnApplicationShutdown` 훅 (ShutdownStateService).
+  - `SIGTERM_GRACE_MS` (기본 30000) 환경변수 도입. spec §11 의 5단계 동작 구현.
+  - `POST /api/workflows/:id/execute` 가 종료 중일 때 503 + `code: 'SERVER_SHUTTING_DOWN'` + `Retry-After` 헤더 반환.
+  - active NodeExecution 은 drain wait 후 미완료 시 `failed` + `error.code='SERVER_INTERRUPTED'` 마킹.
+  - 구현 commit: `e34d2db2`. 후속 fix: `8a4ad936` (W-1/W-2/W-3 등 ai-review 발견사항).
+  - **Phase 1 scope**: HTTP gate 만 구현 (WS `execution.start` gate 는 WS 명령이 미구현 상태 — Phase 2 예정). spec §11 clarification → spec-fix draft 예정.
 - [ ] 1.3 — `continueExecution` / `continueButtonClick` / `continueAiConversation` / `endAiConversation` 의 "키 없음" 분기에서, Phase 2 가 적용되기 전까지는 명확한 에러 응답.
   - 현재: silent skip (다른 인스턴스가 처리한다고 가정).
   - 임시 보강 (Phase 2 적용 전): 로컬 키 없음 + Execution.status === 'waiting_for_input' 이면 사용자에게 "재배포로 세션이 일시 중단되었습니다. 새 폼을 다시 제출해주세요" 메시지 + Execution을 `cancelled` + `error.code='SESSION_INTERRUPTED'` 마킹 (임시 — Phase 2 적용 시 제거).

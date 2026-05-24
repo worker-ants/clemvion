@@ -703,12 +703,15 @@ export class ExecutionEngineService
       const staleThreshold = new Date(
         finishedAt.getTime() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
       );
+      // W-21 fix (SUMMARY#W-21): error.code 구조화 — 클라이언트가 code 로
+      // 분기 가능. message 는 유지 (기존 log/display 호환).
       const updateResult = await this.executionRepository
         .createQueryBuilder()
         .update(Execution)
         .set({
           status: ExecutionStatus.FAILED,
           error: {
+            code: 'WORKER_HEARTBEAT_TIMEOUT',
             message: 'Execution failed: worker heartbeat timeout',
           },
           finishedAt,
