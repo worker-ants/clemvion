@@ -184,6 +184,7 @@ export const triggers = {
     rowChip: "Chat",
     provider: "Provider",
     providerTelegram: "Telegram",
+    providerSlack: "Slack",
     botToken: "Bot Token",
     botTokenRegistered: "등록됨 (•••• 마스킹)",
     botTokenMissing: "미설정",

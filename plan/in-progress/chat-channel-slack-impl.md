@@ -25,48 +25,48 @@ status: in-progress
 - **시스템 spec**: [`spec/5-system/15-chat-channel.md`](../../spec/5-system/15-chat-channel.md)
 - **Template plan**: [`plan/complete/chat-channel-impl.md`](../complete/chat-channel-impl.md) (Telegram 의 5 phase PR-A~E 구조 follow)
 
-## Phase 구조 (Telegram template follow — 진입 시 상세 작성)
+## Phase 구조 (Telegram template follow)
 
-### Phase 0 — 사전 검토
-- [ ] `/consistency-check --impl-prep spec/4-nodes/7-trigger/providers/slack.md` 호출
-- [ ] [`spec/conventions/spec-impl-evidence.md`](../../spec/conventions/spec-impl-evidence.md) 의 `code:` frontmatter 채우기 준비
+### Phase 0 — 사전 검토 ✅
+- [x] `/consistency-check --impl-prep spec/4-nodes/7-trigger/providers/slack.md` 호출 — review/consistency/2026/05/24/12_06_30/. BLOCK: NO (CRITICAL 3건은 모두 false positive)
+- [x] W-1 spec patch (botIdentity.teamId Convention 추가)
 
-### Phase 1 — Foundation
-- [ ] `SlackAdapter` skeleton (`ChatChannelAdapter` interface 구현)
-- [ ] `SlackClient` HTTP wrapper (Web API + Events API + Interactivity 분기)
-- [ ] `ChannelAdapterRegistry` 에 `'slack'` 등록 (`ChatChannelModule.onModuleInit`)
-- [ ] `signingSecretRef` config 필드 처리 (DTO + SecretResolver 호출)
+### Phase 1 — Foundation ✅ (commit 1da8e483)
+- [x] `SlackAdapter` skeleton + `SlackClient` HTTP wrapper + types
+- [x] `ChannelAdapterRegistry` 에 'slack' 등록
+- [x] `slack-signing.ts` HMAC-SHA256 검증 (constant-time + 5분 replay window) + 13 test
 
-### Phase 2 — Inbound (parseUpdate + auth)
-- [ ] Events API envelope 분기 (DM message / file_shared / app_mention / url_verification)
-- [ ] Interactivity payload 분기 (block_actions / view_submission v2 skip)
-- [ ] Slash commands 분기 (`/<prefix> start|cancel|help` + 자유 text)
-- [ ] `X-Slack-Signature` HMAC-SHA256 + 5분 replay window 검증 (HooksController guard)
-- [ ] URL Verification handshake (`{ challenge }` 200 응답)
-- [ ] HooksService 가 `files.info` 후속 호출로 mimeType 보강 (R-S-7 normative 흐름)
+### Phase 2 — Inbound (parseUpdate + auth) ✅ (commit 7b31269a)
+- [x] `slack-update.parser.ts` — Events API / Interactivity / Slash Commands 3종 envelope 분기 (pure)
+- [x] DM-only 필터 + bot/subtype 무시 + idempotencyKey 분기 (event_id / trigger_id)
+- [x] file_shared mimeType placeholder + R-S-7 normative 흐름
+- [x] `setupChannel` (auth.test → botIdentity + teamId 캐시, issuedInboundSigning 비움)
+- [x] `ChatChannelInboundAuthenticator.verify` 에 Slack 분기 — HMAC-SHA256 검증
+- [x] `HooksService` rawBody 전달 + url_verification handshake (`{ challenge }` 200 응답)
+- [x] `HooksController` 가 challenge 케이스 root-level JSON 직접 응답 (TransformInterceptor 우회)
 
-### Phase 3 — Outbound (renderNode + sendMessage)
-- [ ] AI Multi Turn → `chat.postMessage` mrkdwn + 3500 char 분할
-- [ ] Button Presentation → Block Kit `actions` block
-- [ ] Form 다단계 (Convention §4) — field type 별 Block Kit hint
-- [ ] Carousel / Chart / Table v1 — mrkdwn monospace + image_block fallback
-- [ ] Typing no-op
+### Phase 3 — Outbound (renderNode + sendMessage) ✅
+- [x] `slack-message.renderer.ts` — 5종 EIA event 분기 (ai_message / completed / failed / cancelled / waiting_for_input)
+- [x] AI Multi Turn → text + 3500 char 분할 + continued suffix
+- [x] Button Presentation → Block Kit actions block (style primary/danger)
+- [x] Form 다단계 첫 필드 → form_prompt + hint (Block Kit input 은 v2 modal)
+- [x] Carousel / Chart / Table v1 mrkdwn monospace fallback
+- [x] Typing no-op (R-S-5)
+- [x] `chat.postMessage` 분기 + ok=false throw + conversationKey 검증
 
-### Phase 4 — Bot token rotation API
-- [ ] `POST /api/triggers/:id/chat-channel/rotate-bot-token` 의 provider=slack 경로
-- [ ] `auth.revoke` 24h grace 종료 시점 cron (`ChatChannelTokenRotatorService` 확장)
+### Phase 4 — Bot token rotation API ✅
+- [x] 기존 `TriggersService.rotateBotToken` 가 provider-agnostic → Slack adapter 6함수 구현으로 자동 통과 (setupChannel 재호출 → auth.test 신 token 검증 → inboundSigningRef 변경 없음 — Slack 은 provider-issued)
+- [x] (별 plan) `auth.revoke` 24h grace cron — CCH-SE-04-C 영역 → [`chat-channel-slack-impl-followup-e2e.md`](./chat-channel-slack-impl-followup-e2e.md) 로 인계
 
-### Phase 5 — Test + UI
-- [ ] Unit/integration tests (parseUpdate / renderNode / adapter / HMAC verify)
-- [ ] E2E test (fake Slack server)
-- [ ] Frontend trigger drawer 의 provider select 에 `slack` 옵션 + `signingSecretRef` 입력 UI
-- [ ] i18n 키 `triggers.chatChannel.slack.*` (ko/en)
-- [ ] User guide page `codebase/frontend/src/content/docs/triggers/slack-setup.md` 신설
+### Phase 5 — Test + UI ✅
+- [x] Unit tests (parseUpdate 23 + renderer 11 + signing 13 + adapter 10 + authenticator Slack 4)
+- [x] E2E test → [`chat-channel-slack-impl-followup-e2e.md`](./chat-channel-slack-impl-followup-e2e.md) 로 인계 (frontmatter `pending_plans:` 등록 완료)
+- [x] Frontend trigger drawer providerLabel('slack') 추가
+- [x] i18n 키 `triggers.chatChannel.providerSlack` (ko/en)
+- [x] User guide page → followup plan 으로 분리
 
-### Phase 6 — `_overview.md §2 → §1` 승격 + plan complete
-- [ ] `spec/4-nodes/7-trigger/providers/_overview.md §2` 의 `slack` 행 제거 + §1 supported 표에 `supported (v1)` 추가
-- [ ] `spec/4-nodes/7-trigger/providers/slack.md` frontmatter `code:` 에 구현 경로 cross-link
-- [ ] 본 plan `git mv` 로 `plan/complete/` 이동
+### Phase 6 — `_overview.md §1 supported` 승격
+- [x] **followup plan 의 책임**: e2e + user guide 완료 후 `_overview.md §2 → §1` 승격 + slack.md frontmatter `status: partial → implemented`. **현재 status: partial** (spec frontmatter 에 `pending_plans:` 로 followup 등록 완료).
 
 ## 위험
 

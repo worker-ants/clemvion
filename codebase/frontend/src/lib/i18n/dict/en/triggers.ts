@@ -193,6 +193,7 @@ export const triggers: Dict["triggers"] = {
     rowChip: "Chat",
     provider: "Provider",
     providerTelegram: "Telegram",
+    providerSlack: "Slack",
     botToken: "Bot Token",
     botTokenRegistered: "Registered (•••• masked)",
     botTokenMissing: "Not set",
