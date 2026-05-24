@@ -1423,7 +1423,7 @@ describe('ExecutionEngineService', () => {
     // 자동으로 routing context 가 첨부된다. terminal event 발송 시점에 release
     // 도 의무 (메모리 누수 방지 + 같은 executionId 재사용 시 stale context 차단).
 
-    it('webhook trigger (options.triggerId + input.chatChannel) → register 1회 호출 + chatChannel 동봉', async () => {
+    it('webhook trigger (options.triggerId + input.chatChannel) → register 1회 호출 + workflowId + chatChannel 동봉', async () => {
       await service.execute(
         workflowId,
         {
@@ -1441,6 +1441,7 @@ describe('ExecutionEngineService', () => {
         mockWebsocketService.registerExecutionRouting,
       ).toHaveBeenCalledWith(executionId, {
         triggerId: 'trg-tele',
+        workflowId,
         chatChannel: {
           provider: 'telegram',
           conversationKey: '12345',
@@ -1449,7 +1450,7 @@ describe('ExecutionEngineService', () => {
       });
     });
 
-    it('일반 webhook (chatChannel 미설정) → triggerId 만 register', async () => {
+    it('일반 webhook (chatChannel 미설정) → triggerId + workflowId 만 register', async () => {
       await service.execute(
         workflowId,
         { parameters: {} },
@@ -1458,7 +1459,10 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
       expect(
         mockWebsocketService.registerExecutionRouting,
-      ).toHaveBeenCalledWith(executionId, { triggerId: 'trg-wh' });
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-wh',
+        workflowId,
+      });
     });
 
     it('수동 실행 (executedBy, triggerId 없음) → register 호출 안 함', async () => {
@@ -1469,7 +1473,7 @@ describe('ExecutionEngineService', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('chatChannel.provider 가 빈 문자열이면 chatChannel 등록 제외 (triggerId 만 등록)', async () => {
+    it('chatChannel.provider 가 빈 문자열이면 chatChannel 등록 제외 (triggerId + workflowId 만 등록)', async () => {
       // extractChatChannelFromInput 의 경계값 검증 — provider 또는
       // conversationKey 가 비어있으면 chatChannel 통째 미통과. dispatcher 가
       // 잘못된 routing 으로 발송 시도하는 회귀 차단.
@@ -1483,7 +1487,10 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
       expect(
         mockWebsocketService.registerExecutionRouting,
-      ).toHaveBeenCalledWith(executionId, { triggerId: 'trg-bad' });
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-bad',
+        workflowId,
+      });
     });
 
     it('chatChannel.conversationKey 가 빈 문자열이면 chatChannel 등록 제외', async () => {
@@ -1497,7 +1504,10 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
       expect(
         mockWebsocketService.registerExecutionRouting,
-      ).toHaveBeenCalledWith(executionId, { triggerId: 'trg-bad2' });
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-bad2',
+        workflowId,
+      });
     });
 
     it('runExecution 가 reject 하면 .catch 가 routing context 명시 release (안전망)', async () => {
