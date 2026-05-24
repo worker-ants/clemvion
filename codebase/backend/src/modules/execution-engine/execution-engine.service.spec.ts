@@ -61,6 +61,9 @@ function flushPromises(): Promise<void> {
 
 describe('ExecutionEngineService', () => {
   let service: ExecutionEngineService;
+  // Phase 2 — ContinuationBusService mock 의 publish closure 가 lazy reference 로
+  // 사용. service 는 Test.createTestingModule 이 끝난 뒤에야 set 되므로 외부 변수.
+  let resolvedService: ExecutionEngineService | undefined;
   let handlerRegistry: NodeHandlerRegistry;
   let mockWebsocketService: {
     emitExecutionEvent: jest.Mock;
@@ -276,25 +279,64 @@ describe('ExecutionEngineService', () => {
           },
         },
         {
-          // 분산 메시지 fan-out 을 in-memory 로 시뮬레이트 — `publish(msg)`
-          // 가 같은 메시지를 즉시 등록된 핸들러로 dispatch 한다. 단일
-          // 인스턴스 환경에서의 round-trip 동등성을 보장.
+          // Phase 2 (workflow-resumable-execution) — BullMQ continuation-queue
+          // 의 in-memory 시뮬레이션. 옛 Redis pub/sub `on(type, handler)` 등록
+          // 경로는 폐기되어 `on` 은 no-op. publish 는 즉시 service 의 dispatch
+          // 메서드 (applyContinuation / applyCancellation) 를 호출해 Phase 1
+          // 까지의 round-trip 동등성을 유지한다. SoT: spec/5-system/4-execution-engine.md §7.4.
           provide: ContinuationBusService,
-          useValue: (() => {
-            const handlers = new Map<string, (msg: unknown) => void>();
-            return {
-              on: jest.fn((type: string, handler: (msg: unknown) => void) => {
-                handlers.set(type, handler);
-              }),
-              publish: jest.fn(async (msg: { type: string }) => {
-                const h = handlers.get(msg.type);
-                if (h) h(msg);
-                return 1;
-              }),
-              acquireLock: jest.fn().mockResolvedValue(true),
-              releaseLock: jest.fn().mockResolvedValue(true),
-            };
-          })(),
+          useValue: {
+            on: jest.fn(),
+            publish: jest.fn(
+              async (msg: {
+                type: string;
+                executionId: string;
+                nodeExecutionId?: string;
+                payload?: unknown;
+              }) => {
+                const nodeExecutionId =
+                  msg.nodeExecutionId ?? '__no_node_exec__';
+                // service 인스턴스가 closure 외부에서 set 되므로 lazy reference.
+                if (!resolvedService) return null;
+                if (msg.type === 'cancel') {
+                  resolvedService.applyCancellation(msg.executionId);
+                } else if (msg.type === 'continue') {
+                  await resolvedService.applyContinuation(
+                    msg.executionId,
+                    nodeExecutionId,
+                    msg.payload,
+                  );
+                } else if (msg.type === 'button_click') {
+                  const buttonId = (
+                    msg.payload as { buttonId?: string } | undefined
+                  )?.buttonId;
+                  await resolvedService.applyContinuation(
+                    msg.executionId,
+                    nodeExecutionId,
+                    { type: 'button_click', buttonId },
+                  );
+                } else if (msg.type === 'ai_message') {
+                  const message = (
+                    msg.payload as { message?: string } | undefined
+                  )?.message;
+                  await resolvedService.applyContinuation(
+                    msg.executionId,
+                    nodeExecutionId,
+                    { type: 'ai_message', message },
+                  );
+                } else if (msg.type === 'ai_end_conversation') {
+                  await resolvedService.applyContinuation(
+                    msg.executionId,
+                    nodeExecutionId,
+                    { type: 'ai_end_conversation' },
+                  );
+                }
+                return 'jobId-stub';
+              },
+            ),
+            acquireLock: jest.fn().mockResolvedValue(true),
+            releaseLock: jest.fn().mockResolvedValue(true),
+          },
         },
         {
           provide: WebsocketService,
@@ -386,6 +428,7 @@ describe('ExecutionEngineService', () => {
     }).compile();
 
     service = module.get<ExecutionEngineService>(ExecutionEngineService);
+    resolvedService = service;
     handlerRegistry = module.get<NodeHandlerRegistry>(NodeHandlerRegistry);
     mockWebsocketService = module.get(WebsocketService);
     mockConfigService = module.get(ConfigService);

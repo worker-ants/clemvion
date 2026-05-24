@@ -541,7 +541,23 @@ export class ExecutionEngineService
 
   onModuleInit(): void {
     this.registerHandlers();
+    // Phase 2 (workflow-resumable-execution): 옛 ContinuationBusService.on(...)
+    // 등록 경로는 폐기. 처리는 BullMQ Worker (continuation-execution.processor.ts)
+    // 가 담당하며 본 서비스의 applyContinuation / applyCancellation /
+    // isNodeExecutionWaiting public 메서드를 호출한다.
     this.registerContinuationHandlers();
+  }
+
+  /**
+   * Phase 2 (workflow-resumable-execution) — **no-op stub**. 옛 Phase 1 까지의
+   * Redis pub/sub 기반 listener 등록은 BullMQ Worker (continuation-execution.
+   * processor.ts) 가 대체. 본 메서드는 기존 spec 테스트의 직접 호출 + 외부
+   * subclass 호환을 위해 method 이름만 유지한다.
+   *
+   * @deprecated 후속 정리 시 제거 예정 (관련 spec 테스트 hook 정리 동반).
+   */
+  private registerContinuationHandlers(): void {
+    // intentionally empty — Phase 2 부터 worker 가 dispatch 담당.
   }
 
   /**
@@ -568,48 +584,234 @@ export class ExecutionEngineService
    * Map 에 키가 없는 인스턴스는 silent skip — 같은 메시지를 두 곳에서
    * 처리하지 않도록 보장한다.
    */
-  private registerContinuationHandlers(): void {
-    this.continuationBus.on('continue', (msg) => {
-      // spec/4-nodes/6-presentation/0-common.md §10.9 — `continueExecution`
-      // 가 이미 `{ type: 'form_submitted', formData }` sentinel 로 wrap 해서
-      // publish 했으므로, listener 는 payload 를 그대로 forward 한다.
-      // (wrap 책임: continueExecution — listener 는 unwrap/re-wrap 하지 않음.)
-      this.resolvePending(msg.executionId, msg.payload);
-    });
+  /**
+   * Phase 2 — BullMQ Worker (continuation-execution.processor.ts) 가 호출하는
+   * dispatch entry. spec/5-system/4-execution-engine.md §7.5.
+   *
+   * Fast path: 로컬 `pendingContinuations` Map 에 키가 있으면 즉시 resolve.
+   * Slow path: 키 miss + WAITING_FOR_INPUT 상태 유효 시 §7.5 rehydration
+   *   경로 진입 (rehydrateAndResume).
+   *
+   * sentinel wrap (spec §10.9 — 'continue' 의 `{type:'form_submitted',formData}`)
+   * 은 caller (continueExecution) 가 wrap 한 채로 전달되므로 본 메서드는
+   * unwrap 없이 그대로 resolver 에 전달한다.
+   *
+   * @param executionId Execution UUID
+   * @param nodeExecutionId WAITING_FOR_INPUT NodeExecution UUID (rehydration 1차 키)
+   * @param payload type 별 형태 (form_submitted sentinel / button_click /
+   *                ai_message / ai_end_conversation)
+   */
+  async applyContinuation(
+    executionId: string,
+    nodeExecutionId: string,
+    payload: unknown,
+  ): Promise<void> {
+    // ai_message 길이 가드 (인-프로세스 직접 publish 우회 방어)
+    if (
+      typeof payload === 'object' &&
+      payload !== null &&
+      (payload as { type?: string }).type === 'ai_message' &&
+      typeof (payload as { message?: unknown }).message === 'string' &&
+      (payload as { message: string }).message.length >
+        ExecutionEngineService.MAX_MESSAGE_LENGTH
+    ) {
+      this.logger.warn(
+        `ai_message 길이 초과로 drop — execution=${executionId}, length=${
+          (payload as { message: string }).message.length
+        }`,
+      );
+      return;
+    }
 
-    this.continuationBus.on('cancel', (msg) => {
-      this.rejectPending(msg.executionId, new ExecutionCancelledError());
-    });
+    // Fast path: 로컬 호스팅 인스턴스 (같은 인스턴스가 publish 후 같은 인스턴스
+    // worker 가 pick up 한 경우 + sticky LB session 등).
+    if (this.pendingContinuations.has(executionId)) {
+      this.resolvePending(executionId, payload);
+      return;
+    }
 
-    this.continuationBus.on('button_click', (msg) => {
-      const buttonId = (msg.payload as { buttonId?: string } | undefined)
-        ?.buttonId;
-      this.resolvePending(msg.executionId, { type: 'button_click', buttonId });
-    });
+    // Slow path (§7.5 rehydration): 다른 인스턴스가 publish 했거나, 본 인스턴스
+    // 가 재시작 후 인-메모리 resolver 가 사라진 경우.
+    await this.rehydrateAndResume(executionId, nodeExecutionId, payload);
+  }
 
-    this.continuationBus.on('ai_message', (msg) => {
-      const message = (msg.payload as { message?: string } | undefined)
-        ?.message;
-      // 서비스 레이어와 별개로 핸들러 내부에서도 길이 재검증 — Redis 직접
-      // publish 우회 시에도 가드. 초과 메시지는 silent drop.
-      if (
-        typeof message === 'string' &&
-        message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH
-      ) {
+  /**
+   * Phase 2 — BullMQ Worker 가 호출하는 cancel dispatch.
+   * cancel 은 rehydration 대상 아님 — 호스팅 인스턴스가 없으면 silent.
+   * (cancelWaitingExecution → bus.publish → worker pick up → applyCancellation)
+   */
+  applyCancellation(executionId: string): void {
+    this.rejectPending(executionId, new ExecutionCancelledError());
+  }
+
+  /**
+   * Phase 2 — Worker 멱등성 가드. 처리 전 NodeExecution 이 여전히
+   * WAITING_FOR_INPUT 인지 확인. 다른 worker 가 먼저 처리했으면 false 반환
+   * → ack-and-discard.
+   */
+  async isNodeExecutionWaiting(nodeExecutionId: string): Promise<boolean> {
+    if (!nodeExecutionId || nodeExecutionId === '__no_node_exec__') {
+      // legacy/skipped nodeExecutionId — fast path 만 시도 (status 가드 우회).
+      return true;
+    }
+    const row = await this.nodeExecutionRepository.findOne({
+      where: { id: nodeExecutionId },
+      select: { id: true, status: true },
+    });
+    return row?.status === NodeExecutionStatus.WAITING_FOR_INPUT;
+  }
+
+  /**
+   * §7.5 Resume after Restart (rehydration) — slow path 본체.
+   *
+   * Phase 2 본 구현은 **fast-fail 모드**: 로컬 resolver 가 없는 케이스에서
+   * Execution / NodeExecution 상태를 검증하고 명확한 RESUME_* 코드로
+   * cancelled / failed 마킹한다. true full rehydration (runExecution 체크포인트
+   * 재진입) 은 ExecutionContext 재구성과 runExecution idempotent re-run 이
+   * 필요한 거대한 refactor 라 별도 후속 (Phase 2.3a) 으로 분리.
+   *
+   * 본 구현이 보장하는 것:
+   * - 메시지가 silent drop 되지 않음 (BullMQ 영속화 + 명시적 마킹).
+   * - Execution 상태가 일관 (사용자가 "어떻게 됐는지" 항상 알 수 있음).
+   * - Phase 1 의 silent skip 대비 사용자 경험 개선.
+   *
+   * @todo Phase 2.3a — runExecution 의 resume-from-checkpoint 변형 추가 시
+   *       본 메서드의 fast-fail 분기를 진짜 재개 로직으로 교체.
+   */
+  private async rehydrateAndResume(
+    executionId: string,
+    nodeExecutionId: string,
+    _payload: unknown,
+  ): Promise<void> {
+    try {
+      const execution = await this.executionRepository.findOneBy({
+        id: executionId,
+      });
+      if (!execution || execution.status !== ExecutionStatus.WAITING_FOR_INPUT) {
         this.logger.warn(
-          `ai_message 길이 초과로 drop — execution=${msg.executionId}, length=${message.length}`,
+          `Rehydration skipped — execution=${executionId} not WAITING_FOR_INPUT (status=${execution?.status ?? 'absent'}). RESUME_CHECKPOINT_MISSING`,
         );
+        await this.markExecutionCancelled(executionId, 'RESUME_CHECKPOINT_MISSING');
         return;
       }
-      this.resolvePending(msg.executionId, { type: 'ai_message', message });
-    });
 
-    this.continuationBus.on(
-      'ai_end_conversation',
-      (msg: ContinuationMessage) => {
-        this.resolvePending(msg.executionId, { type: 'ai_end_conversation' });
-      },
-    );
+      if (nodeExecutionId === '__no_node_exec__') {
+        this.logger.warn(
+          `Rehydration skipped — execution=${executionId} 의 publisher 가 nodeExecutionId 미설정 (legacy path). RESUME_CHECKPOINT_MISSING`,
+        );
+        await this.markExecutionCancelled(executionId, 'RESUME_CHECKPOINT_MISSING');
+        return;
+      }
+
+      const nodeExec = await this.nodeExecutionRepository.findOneBy({
+        id: nodeExecutionId,
+      });
+      if (!nodeExec || nodeExec.status !== NodeExecutionStatus.WAITING_FOR_INPUT) {
+        this.logger.warn(
+          `Rehydration skipped — nodeExec=${nodeExecutionId} not WAITING_FOR_INPUT (status=${nodeExec?.status ?? 'absent'}). RESUME_CHECKPOINT_MISSING`,
+        );
+        await this.markExecutionCancelled(executionId, 'RESUME_CHECKPOINT_MISSING');
+        await this.markNodeExecutionFailed(nodeExecutionId, 'RESUME_CHECKPOINT_MISSING');
+        return;
+      }
+
+      // TODO Phase 2.3a — 여기에서 다음 작업이 일어나야 한다:
+      //   1. ExecutionContext 를 DB (execution_node_log + NodeExecution.outputData)
+      //      + Redis (살아있으면 우선) 로부터 재구성.
+      //   2. pendingContinuations.set(executionId, { resolve: r, reject: j }).
+      //   3. resumeFromCheckpoint(execution, context, { fromNodeId: nodeExec.nodeId })
+      //      를 호출하여 runExecution-equivalent loop 를 새로 시작.
+      //   4. 위 1-3 이 완료되면 (즉 새 resolver 가 등록되면) r(payload) 호출로
+      //      즉시 resume.
+      //
+      // 본 Phase 2 MVP 에서는 위 작업이 미구현이므로, 사용자가 명시적으로
+      // 알 수 있도록 RESUME_FAILED 로 마킹한다 (Phase 1 의 silent skip 대비
+      // 운영 가시성 + DB 일관성 확보가 우선).
+      this.logger.warn(
+        `Rehydration not yet implemented — execution=${executionId} nodeExec=${nodeExecutionId}. RESUME_FAILED. Phase 2.3a follow-up 에서 진짜 재개 로직 추가 예정.`,
+      );
+      await this.markExecutionCancelled(executionId, 'RESUME_FAILED');
+      await this.markNodeExecutionFailed(nodeExecutionId, 'RESUME_FAILED');
+    } catch (err) {
+      this.logger.error(
+        `Rehydration error — execution=${executionId} nodeExec=${nodeExecutionId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      await this.markExecutionCancelled(executionId, 'RESUME_INCOMPATIBLE_STATE');
+      await this.markNodeExecutionFailed(nodeExecutionId, 'RESUME_INCOMPATIBLE_STATE');
+    }
+  }
+
+  private async markExecutionCancelled(
+    executionId: string,
+    code: 'RESUME_CHECKPOINT_MISSING' | 'RESUME_FAILED' | 'RESUME_INCOMPATIBLE_STATE',
+  ): Promise<void> {
+    try {
+      await this.executionRepository
+        .createQueryBuilder()
+        .update(Execution)
+        .set({
+          status: ExecutionStatus.CANCELLED,
+          error: {
+            code,
+            message: ExecutionEngineService.resumeErrorMessage(code),
+          },
+          finishedAt: new Date(),
+        })
+        .where('id = :id', { id: executionId })
+        .andWhere('status = :status', {
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+        })
+        .execute();
+    } catch (err) {
+      this.logger.error(
+        `markExecutionCancelled(${code}) 실패 — execution=${executionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  private async markNodeExecutionFailed(
+    nodeExecutionId: string,
+    code: 'RESUME_CHECKPOINT_MISSING' | 'RESUME_FAILED' | 'RESUME_INCOMPATIBLE_STATE',
+  ): Promise<void> {
+    try {
+      await this.nodeExecutionRepository
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({
+          status: NodeExecutionStatus.FAILED,
+          error: {
+            code,
+            message: ExecutionEngineService.resumeErrorMessage(code),
+          },
+          finishedAt: new Date(),
+        })
+        .where('id = :id', { id: nodeExecutionId })
+        .andWhere('status = :status', {
+          status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        })
+        .execute();
+    } catch (err) {
+      this.logger.error(
+        `markNodeExecutionFailed(${code}) 실패 — nodeExec=${nodeExecutionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  private static resumeErrorMessage(
+    code: 'RESUME_CHECKPOINT_MISSING' | 'RESUME_FAILED' | 'RESUME_INCOMPATIBLE_STATE',
+  ): string {
+    switch (code) {
+      case 'RESUME_CHECKPOINT_MISSING':
+        return 'Execution checkpoint missing — DB row 부재 또는 상태 불일치로 rehydration 불가';
+      case 'RESUME_FAILED':
+        return 'Execution rehydration failed — continuation queue retry 소진 또는 후속 (Phase 2.3a) 미구현 분기';
+      case 'RESUME_INCOMPATIBLE_STATE':
+        return 'Execution checkpoint incompatible — _resumeState deserialize 실패 (schema drift 가능)';
+    }
   }
 
   /**
@@ -1987,34 +2189,41 @@ export class ExecutionEngineService
    * 판단할 수 없으므로 폐기됐다. WAITING_FOR_INPUT 상태 검증은 publisher
    * 측 (controller / WS gateway) 의 책임이다.
    */
-  continueExecution(executionId: string, formData?: unknown): void {
+  async continueExecution(
+    executionId: string,
+    formData?: unknown,
+  ): Promise<void> {
     // spec/4-nodes/6-presentation/0-common.md §10.9 — sentinel wrap 책임.
     // raw formData 를 그대로 publish 하지 않고 `{ type: 'form_submitted',
-    // formData }` 로 wrap 한 뒤 publish. `'continue'` listener 는 payload 를
-    // 그대로 resolvePending 에 forward (unwrap/re-wrap 금지). dispatch 측
-    // (waitForAiConversation) 은 sentinel 로 명시 매칭 가능.
+    // formData }` 로 wrap 한 뒤 publish.
+    const nodeExecutionId =
+      await this.resolveWaitingNodeExecutionId(executionId);
     void this.continuationBus.publish({
       type: 'continue',
       executionId,
+      nodeExecutionId,
       payload: { type: 'form_submitted', formData },
     });
   }
 
   /**
    * Cancel a waiting execution by rejecting the pending continuation.
+   * cancel 은 nodeExecutionId 불필요 (rehydration 대상 아님).
    */
   cancelWaitingExecution(executionId: string): void {
     void this.continuationBus.publish({ type: 'cancel', executionId });
   }
 
-  /**
-   * Resume a paused execution by clicking a button.
-   * Called from WebSocket handler.
-   */
-  continueButtonClick(executionId: string, buttonId: string): void {
+  async continueButtonClick(
+    executionId: string,
+    buttonId: string,
+  ): Promise<void> {
+    const nodeExecutionId =
+      await this.resolveWaitingNodeExecutionId(executionId);
     void this.continuationBus.publish({
       type: 'button_click',
       executionId,
+      nodeExecutionId,
       payload: { buttonId },
     });
   }
@@ -2024,15 +2233,21 @@ export class ExecutionEngineService
    */
   private static readonly MAX_MESSAGE_LENGTH = 10_000;
 
-  continueAiConversation(executionId: string, message: string): void {
+  async continueAiConversation(
+    executionId: string,
+    message: string,
+  ): Promise<void> {
     if (message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH) {
       throw new Error(
         `Message exceeds maximum length of ${ExecutionEngineService.MAX_MESSAGE_LENGTH} characters`,
       );
     }
+    const nodeExecutionId =
+      await this.resolveWaitingNodeExecutionId(executionId);
     void this.continuationBus.publish({
       type: 'ai_message',
       executionId,
+      nodeExecutionId,
       payload: { message },
     });
   }
@@ -2040,11 +2255,56 @@ export class ExecutionEngineService
   /**
    * End a multi-turn AI conversation.
    */
-  endAiConversation(executionId: string): void {
+  async endAiConversation(executionId: string): Promise<void> {
+    const nodeExecutionId =
+      await this.resolveWaitingNodeExecutionId(executionId);
     void this.continuationBus.publish({
       type: 'ai_end_conversation',
       executionId,
+      nodeExecutionId,
     });
+  }
+
+  /**
+   * Phase 2 (workflow-resumable-execution) — publisher 측 책임.
+   * `execution_id + status='waiting_for_input'` 으로 NodeExecution 을 lookup.
+   *
+   * 0건 또는 다중 row 인 경우: §7.5 rehydration 1차 키가 부재한 상태 — Phase 2
+   * 본 메서드는 fallback sentinel `__no_node_exec__` 을 반환한다 (worker 가
+   * fast-path 만 시도, slow-path 는 `RESUME_CHECKPOINT_MISSING` 처리).
+   *
+   * 본 메서드는 throw 하지 않는다 — caller (continueExecution 등) 가 항상 publish
+   * 를 진행하도록 보장. invariant 위반 (다중 row) 은 logger.warn 으로 기록.
+   */
+  private async resolveWaitingNodeExecutionId(
+    executionId: string,
+  ): Promise<string> {
+    try {
+      const rows = await this.nodeExecutionRepository.find({
+        where: {
+          executionId,
+          status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        },
+        select: { id: true, nodeId: true, startedAt: true },
+        order: { startedAt: 'DESC' },
+      });
+      if (rows.length === 0) {
+        return '__no_node_exec__';
+      }
+      if (rows.length > 1) {
+        this.logger.warn(
+          `resolveWaitingNodeExecutionId — execution=${executionId} 에 WAITING_FOR_INPUT NodeExecution 이 ${rows.length} 건 (정상은 1). 가장 최근 startedAt 사용 (id=${rows[0].id}).`,
+        );
+      }
+      return rows[0].id;
+    } catch (err) {
+      this.logger.error(
+        `resolveWaitingNodeExecutionId 실패 — execution=${executionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return '__no_node_exec__';
+    }
   }
 
   /**

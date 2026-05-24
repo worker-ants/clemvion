@@ -1,8 +1,10 @@
 ---
-worktree: workflow-resumable-execution-6b105e
+worktree: workflow-resumable-execution-phase2-a6b133
 started: 2026-05-24
-owner: project-planner
+owner: developer
 ---
+
+> **Worktree 이력**: Phase 0/1 = `workflow-resumable-execution-6b105e` (merged base 로 잔류). Phase 2 = `workflow-resumable-execution-phase2-a6b133` (현재).
 
 # Plan — Durable Continuation & Graceful Shutdown
 
@@ -47,10 +49,7 @@ owner: project-planner
   - active NodeExecution 은 drain wait 후 미완료 시 `failed` + `error.code='SERVER_INTERRUPTED'` 마킹.
   - 구현 commit: `e34d2db2`. 후속 fix: `8a4ad936` (W-1/W-2/W-3 등 ai-review 발견사항).
   - **Phase 1 scope**: HTTP gate 만 구현 (WS `execution.start` gate 는 WS 명령이 미구현 상태 — Phase 2 예정). spec §11 clarification → spec-fix draft 예정.
-- [ ] 1.3 — `continueExecution` / `continueButtonClick` / `continueAiConversation` / `endAiConversation` 의 "키 없음" 분기에서, Phase 2 가 적용되기 전까지는 명확한 에러 응답.
-  - 현재: silent skip (다른 인스턴스가 처리한다고 가정).
-  - 임시 보강 (Phase 2 적용 전): 로컬 키 없음 + Execution.status === 'waiting_for_input' 이면 사용자에게 "재배포로 세션이 일시 중단되었습니다. 새 폼을 다시 제출해주세요" 메시지 + Execution을 `cancelled` + `error.code='SESSION_INTERRUPTED'` 마킹 (임시 — Phase 2 적용 시 제거).
-  - **본 단계는 Phase 2 가 같은 sprint 안에 진행될 경우 skip 가능**. 사용자 영향 분석 후 결정.
+- [x] 1.3 — **SKIP** (2026-05-25 사용자 결정). Phase 2 가 같은 sprint 안에 진행되어 임시 코드를 도입할 필요 없음. Phase 2 의 BullMQ 영속 큐 + rehydration 으로 "키 없음" 케이스가 자연 해소된다.
 
 ### Phase 2 — Durable continuation 본 구현
 
@@ -78,11 +77,47 @@ owner: project-planner
 - [ ] 2.6 — 옛 Redis pub/sub `execution:continuation` 채널 publisher / subscriber 코드 제거.
   - 단일 배포 (dual-write 금지) 로 진행.
 - [ ] 2.7 — 통합 e2e: testcontainers 환경에서 backend 2 인스턴스 띄우고, 인스턴스 A 에서 시작 → A 죽임 → B 가 사용자 입력 받고 rehydration 으로 재개 → workflow 정상 완료.
+- [ ] 2.8 — `task-queue` 큐 이름 확인 + `spec/5-system/4-execution-engine.md §9.2/§4.2` 정합화 (impl-prep 검토에서 발견 — 별도 sub-task). 또는 spec 수정 분리.
+- [ ] 2.9 — `INVALID_EXECUTION_STATE` 에러 코드 spec 등재 (§7.5 또는 §6-ws-protocol §4.2). lookup 0건/다중 row 시 반환 명시.
 
 ### Phase 3 — 후속 정리 (선택)
 
 - [ ] 3.1 — BullMQ retry 율 모니터링 / DLQ 알람 임계 설정.
 - [ ] 3.2 — `spec/data-flow/3-execution.md` 시퀀스 다이어그램의 mermaid 자체를 BullMQ 흐름으로 재작성 (현재는 주석만 갱신).
+
+### Phase 2 진행 상태 (WIP — 2026-05-25 commit 시점)
+
+본 worktree (`workflow-resumable-execution-phase2-a6b133`) 의 commit `<WIP-HASH>` 까지:
+
+**구현 완료 (코드 수준)**:
+- [x] 2.1 — `continuation-execution.queue.ts` 신규: `CONTINUATION_EXECUTION_QUEUE` 상수 + `buildContinuationJobId` + `CONTINUATION_QUEUE_DEFAULT_OPTS` + `ContinuationJob` 타입
+- [x] 2.2 — `continuation-bus.service.ts` 전면 재작성: Redis pub/sub 제거 + `@InjectQueue(CONTINUATION_EXECUTION_QUEUE)` 로 BullMQ enqueue. `nextSeq` (Redis INCR per executionId) 로 jobId 단조 증가. lockClient 만 별도 ioredis 유지 (recoverStuckExecutions lock 용).
+- [x] 2.3 (partial) — `continuation-execution.processor.ts` 신규: `@Processor(CONTINUATION_EXECUTION_QUEUE)` Worker. 5 type dispatch → `engine.applyContinuation(...)` / `engine.applyCancellation(...)`. `engine.isNodeExecutionWaiting()` 멱등성 가드.
+- [x] 2.4 — `ExecutionEngineService.resolveWaitingNodeExecutionId()` 신규: publisher 측 DB lookup. continue* 메서드들이 async 로 전환되어 lookup 후 publish.
+- [x] 2.6 — 옛 Redis pub/sub 채널 (`CONTINUATION_CHANNEL = 'execution:continuation'`) 제거. ContinuationBusService 의 `on(type, handler)` API 는 no-op stub 으로 호환만 유지. `registerContinuationHandlers()` 도 no-op stub.
+
+**미완료 — 새 세션 인수 항목**:
+- [ ] **2.3a (CRITICAL — 진짜 rehydration 구현)**: 현재 `rehydrateAndResume()` 는 fast-fail mode (모든 slow-path 케이스를 `RESUME_FAILED` 마킹). 이걸 spec §7.5 의 진짜 재개 로직으로 교체:
+  1. `ExecutionContext` 재구성 — `execution_node_log` 에서 완료된 노드 순서 + 각 `NodeExecution.outputData` 에서 출력값 → `nodeOutputCache` 채움
+  2. `pendingContinuations.set(executionId, { resolve, reject })` 등록 (즉시 resolve 되도록)
+  3. `runExecution`-equivalent loop 를 재시작 (`resumeFromCheckpoint(execution, context, { fromNodeId })`):
+     - completed 노드는 cache hit 으로 자동 skip
+     - waiting 노드 도달 시 `waitForX()` 호출 → pending 등록된 resolver 즉시 응답
+     - 이후 그래프 순회 평소대로 진행
+  4. multi-turn `_resumeState` deserialize 분기 — schema drift 시 `RESUME_INCOMPATIBLE_STATE`
+  - 위치: `execution-engine.service.ts` — 새 메서드 `resumeFromCheckpoint()`, `rehydrateContext()`
+  - 예상 분량: ~300-500 LoC + 다수 테스트
+- [ ] **2.5 — WS ack `queued: boolean` + `RESUME_*` 코드 전달**:
+  - WS gateway `handleSubmitForm` / `handleClickButton` / `handleSubmitMessage` / `handleEndConversation` ack payload 에 `queued: boolean` 필드 추가
+  - rehydration 실패 케이스 (RESUME_CHECKPOINT_MISSING / RESUME_FAILED / RESUME_INCOMPATIBLE_STATE) 가 WS ack 에 `resumed: false` + `error: {code, message}` 로 전달되도록 (현재는 fire-and-forget publish 라 caller 에 비동기 결과 전달 메커니즘 없음)
+- [ ] **2.7 — 통합 e2e**: testcontainers 시나리오 — 단일 인스턴스에서 in-memory resolver 강제 제거 후 BullMQ worker pick up → rehydration → workflow 정상 완료
+- [ ] **2.8 — `task-queue` 큐 이름 spec 정합화** (impl-prep WARNING)
+- [ ] **2.9 — `INVALID_EXECUTION_STATE` 에러 코드 spec 등재** (impl-prep WARNING)
+
+**테스트 회귀 14건 — 새 세션 첫 작업**:
+- `execution-engine.service.spec.ts` 의 14건이 `continueAiConversation` / 기타 async 시그니처 변경으로 동기 `.toThrow()` 패턴이 깨짐. `await expect(...).rejects.toThrow(...)` 패턴으로 수정 필요.
+
+**impl-prep 검토**: `review/consistency/2026/05/25/01_17_41/SUMMARY.md` — BLOCK: NO (pre-existing CRITICAL 2건은 auth/graph-rag 무관).
 
 ## 다음 단계
 

@@ -26,7 +26,9 @@ import { Cafe24Module } from '../../nodes/integration/cafe24/cafe24.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
+import { CONTINUATION_EXECUTION_QUEUE } from './queues/continuation-execution.queue';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
+import { ContinuationExecutionProcessor } from './continuation/continuation-execution.processor';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
@@ -53,6 +55,9 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     McpModule,
     NotificationsModule,
     BullModule.registerQueue({ name: BACKGROUND_EXECUTION_QUEUE }),
+    // Phase 2 (workflow-resumable-execution) — durable continuation 영속 큐.
+    // SoT: spec/5-system/4-execution-engine.md §7.4 / §9.3.
+    BullModule.registerQueue({ name: CONTINUATION_EXECUTION_QUEUE }),
   ],
   providers: [
     ExecutionEngineService,
@@ -66,6 +71,9 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     ParallelExecutor,
     BackgroundExecutionProcessor,
     ContinuationBusService,
+    // Phase 2 — BullMQ Worker. 옛 ContinuationBusService.registerContinuationHandlers
+    // 의 in-process dispatch 대체.
+    ContinuationExecutionProcessor,
     ConversationThreadService,
     ExecutionEventEmitter,
     GraphTraversalService,
