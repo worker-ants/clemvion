@@ -395,6 +395,30 @@ describe('WebsocketService', () => {
       expect(events[1].payload.triggerId).toBe('trg-late');
     });
 
+    it('emitNodeEvent 도 fanout envelope 에 routing context 첨부 — emitExecutionEvent 와 동일 경로 공유', async () => {
+      // `attachRoutingContext` 는 emit 메서드 양쪽에서 호출. emitNodeEvent
+      // 의 fanout 도 NotificationFanout / ChatChannelDispatcher 가 구독하는
+      // 같은 stream 으로 흘러가므로 동일하게 routing 첨부돼야 한다.
+      service.registerExecutionRouting('exec-node', {
+        triggerId: 'trg-N',
+        chatChannel: { provider: 'telegram', conversationKey: '999' },
+      });
+      const eventP = nextFanoutEvent(service);
+      service.emitNodeEvent(
+        'exec-node',
+        'node-1',
+        NodeEventType.NODE_COMPLETED,
+        { output: 'x' },
+      );
+      const fanout = await eventP;
+      expect(fanout.payload.triggerId).toBe('trg-N');
+      expect(fanout.payload.chatChannel).toEqual({
+        provider: 'telegram',
+        conversationKey: '999',
+      });
+      expect(fanout.payload.nodeId).toBe('node-1');
+    });
+
     it('credential-shape 키가 chatChannel 안에 있으면 sanitize 가 마스킹 (defense in depth)', async () => {
       // chatChannel 자체는 conversationKey/channelUserKey 같은 비-secret 만 담는 게
       // 정상이지만, 호출자 회귀로 secret 이 섞일 위험에 대비해 fanout envelope 의

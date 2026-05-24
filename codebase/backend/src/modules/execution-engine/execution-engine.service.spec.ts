@@ -1468,6 +1468,64 @@ describe('ExecutionEngineService', () => {
         mockWebsocketService.registerExecutionRouting,
       ).not.toHaveBeenCalled();
     });
+
+    it('chatChannel.provider 가 빈 문자열이면 chatChannel 등록 제외 (triggerId 만 등록)', async () => {
+      // extractChatChannelFromInput 의 경계값 검증 — provider 또는
+      // conversationKey 가 비어있으면 chatChannel 통째 미통과. dispatcher 가
+      // 잘못된 routing 으로 발송 시도하는 회귀 차단.
+      await service.execute(
+        workflowId,
+        {
+          chatChannel: { provider: '', conversationKey: '12345' },
+        },
+        { triggerId: 'trg-bad' },
+      );
+      await flushPromises();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, { triggerId: 'trg-bad' });
+    });
+
+    it('chatChannel.conversationKey 가 빈 문자열이면 chatChannel 등록 제외', async () => {
+      await service.execute(
+        workflowId,
+        {
+          chatChannel: { provider: 'telegram', conversationKey: '' },
+        },
+        { triggerId: 'trg-bad2' },
+      );
+      await flushPromises();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, { triggerId: 'trg-bad2' });
+    });
+
+    it('runExecution 가 reject 하면 .catch 가 routing context 명시 release (안전망)', async () => {
+      // ExecutionEngine 의 fire-and-forget runExecution 이 throw 한 채 reject
+      // 하면 terminal event 가 emit 되지 않아 WebsocketService 의 자동
+      // release 가 작동하지 않는다. execute() 의 .catch 블록이 명시 release
+      // 로 안전망 제공 — Map 에 stale context 가 남아 같은 executionId
+      // 재사용 시 잘못 첨부되는 회귀를 차단.
+      const runSpy = jest
+        .spyOn(
+          service as unknown as { runExecution: jest.Mock },
+          'runExecution',
+        )
+        .mockRejectedValueOnce(new Error('boom — runExecution reject'));
+      try {
+        await service.execute(
+          workflowId,
+          { chatChannel: { provider: 'telegram', conversationKey: '12345' } },
+          { triggerId: 'trg-throw' },
+        );
+        await flushPromises();
+        expect(
+          mockWebsocketService.releaseExecutionRouting,
+        ).toHaveBeenCalledWith(executionId);
+      } finally {
+        runSpy.mockRestore();
+      }
+    });
   });
 
   describe('runExecution — workspace timezone injection', () => {

@@ -24,6 +24,21 @@ export interface ExecutionChannelEvent {
 }
 
 /**
+ * `ChatChannelDispatcher` 가 outbound 발송 시 라우팅에 사용하는 conversation
+ * 식별자. 필수 두 필드는 [Spec Chat Channel §3.1 CCH-AD-05 / §4.3] 의 conversation
+ * 매핑 키 — `(provider, conversationKey)` 1:1 ChannelConversation. provider 별
+ * 추가 필드 (channelUserKey, 그 외 provider-specific) 는 index signature 로 허용 —
+ * 본 타입은 dispatcher 에 전달되는 wire shape 의 최소 contract 만 강제하고
+ * 확장 필드는 provider 책임으로 통과시킨다.
+ */
+export interface ChatChannelRoutingInfo {
+  provider: string;
+  conversationKey: string;
+  channelUserKey?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Execution 단위 outbound 라우팅 컨텍스트. ExecutionEngine 이 execute() 진입
  * 시 등록 → 이후 emit 되는 모든 이벤트의 fanout envelope 에 자동 첨부 →
  * `ChatChannelDispatcher` / `NotificationFanout` 가 trigger 와 conversation 을
@@ -34,10 +49,9 @@ export interface ExecutionRoutingContext {
   triggerId?: string;
   /**
    * 트리거가 `config.chatChannel` 설정 webhook 인 경우만 set. 일반 webhook
-   * 트리거는 undefined. 본 값은 ChatChannelDispatcher 가 outbound 발송 시
-   * `(provider, conversationKey)` 라우팅에 사용.
+   * 트리거는 undefined.
    */
-  chatChannel?: Record<string, unknown>;
+  chatChannel?: ChatChannelRoutingInfo;
 }
 
 export enum ExecutionEventType {

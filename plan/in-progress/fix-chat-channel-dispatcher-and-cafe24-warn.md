@@ -84,13 +84,20 @@ wire / facade 분리는 spec §4.4 wire shape 호환성 유지를 위한 보수�
 - [x] 1. 스펙 분석 (spec/5-system/15-chat-channel + 11-mcp-client + 6-websocket-protocol) — spec 변경 불필요
 - [x] 2. consistency-check --impl-prep — BLOCK: NO, 본 fix 범위와 무관한 W1~W5 (별 PR 책임)
 - [x] 3. DOCUMENTATION 매트릭스 점검 — 매칭 0건 (backend 회귀 fix only, 사용자 가시 변경 없음)
-- [ ] 4. Issue 1 TDD (WebsocketService routing context + emit envelope)
-- [ ] 5. Issue 1 구현
-- [ ] 6. Issue 2 TDD (McpToolProvider silent skip)
-- [ ] 7. Issue 2 구현
-- [ ] 8. TEST WORKFLOW (lint / unit / build / e2e)
-- [ ] 9. REVIEW WORKFLOW (/ai-review + RESOLUTION)
+- [x] 4. Issue 1 TDD (WebsocketService routing context + emit envelope) — 9개 + 3개 spec
+- [x] 5. Issue 1 구현 — WebsocketService.registerExecutionRouting/releaseExecutionRouting + ExecutionEventEmitter 위임 + ExecutionEngineService.execute() 등록 호출
+- [x] 6. Issue 2 TDD (McpToolProvider silent skip) — 2개 spec (단독 cafe24 + mcp+cafe24 혼합)
+- [x] 7. Issue 2 구현 — openServer null sentinel + materializeServer null 처리
+- [x] 8. TEST WORKFLOW (lint / unit / build / e2e) — 모두 PASS (4753 unit, 119 e2e)
+- [x] 9. REVIEW WORKFLOW (/ai-review + RESOLUTION) — Critical 0건, WARNING 8건/INFO 15건 분류 → 10개 즉시 fix + 8개 follow-up
 - [ ] 10. PR 생성·push (단일 PR)
+
+## 구현 결과 (commit hash)
+
+- `chore(plan):` `8e2d2f04` — plan + consistency artifacts
+- `fix(chat-channel):` `b869c667` — Issue 1 (WebsocketService routing context + emit fanout 분리)
+- `fix(mcp):` `353fd585` — Issue 2 (McpToolProvider null sentinel silent skip)
+- `refactor(review):` (예정) — 10개 review 적용 + RESOLUTION + 새 spec 4개
 
 ## Consistency-check 결과
 

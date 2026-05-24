@@ -257,6 +257,11 @@ export class McpToolProvider implements AgentToolProvider {
    * loser. Once openServer resolves, the entry is moved to
    * sessionsByExecution and the inflight slot is cleared.
    */
+  /**
+   * Inflight Promise 의 resolve 가 `null` 이면 not_capable skip 한 ref
+   * (caller materializeServer 가 sessions 에 등록하지 않음). `.finally` 가
+   * null/throw 와 무관하게 inflight 에서 entry 를 삭제하므로 메모리 누수 없음.
+   */
   private readonly inflight = new Map<string, Promise<ServerEntry | null>>();
 
   constructor(
@@ -552,6 +557,17 @@ export class McpToolProvider implements AgentToolProvider {
     return this.buildToolDefsForEntry(ref, entry);
   }
 
+  /**
+   * 한 MCP 서버에 connect + tools/list 수행 후 `ServerEntry` 반환.
+   *
+   * **반환 계약**:
+   * - `ServerEntry` — 정상 connect + listTools 성공
+   * - `null` — `serviceType !== 'mcp'` 인 not_capable 케이스 (silent skip,
+   *   다른 provider 가 처리). spec/5-system/11-mcp-client.md §6.2 의
+   *   `not_capable` skipReason vocabulary 와 정합
+   * - `throw` — connect/list/status 실패 등 진단 정보가 의미 있는 실패.
+   *   `Promise.allSettled` 가 잡아 `meta.mcpDiagnostics.errors[]` 에 누적
+   */
   private async openServer(
     ref: McpServerRefConfig,
     ctx: ProviderBuildCtx,
