@@ -1,0 +1,104 @@
+---
+title: "Slack integration"
+title_en: "Slack integration"
+section: "06-integrations-and-config"
+order: 7
+summary: "Connect a Slack bot as a Chat Channel on a Webhook trigger to enable real-time conversational interactions with your workflow."
+summary_en: "Connect a Slack bot as a Chat Channel on a Webhook trigger to enable real-time conversational interactions with your workflow."
+spec: ["spec/4-nodes/7-trigger/providers/slack.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md"]
+code: ["codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts", "codebase/backend/src/modules/chat-channel/providers/slack/slack-update.parser.ts", "codebase/backend/src/modules/chat-channel/providers/slack/slack-message.renderer.ts"]
+---
+
+Connect a Slack bot as your workflow's conversational interface, and users can start or interact with workflows by DMing the bot or using a slash command.
+
+## 1. Create a Slack app
+
+1. Go to the [Slack API console](https://api.slack.com/apps) and choose **Create New App** → **From scratch**.
+2. Pick an app name and the install workspace.
+3. From the **Basic Information** page, note two credentials:
+   - **Signing Secret** — used to verify request origin (`X-Slack-Signature` HMAC key)
+   - **Bot User OAuth Token** — `xoxb-...`. Used by clemvion to send messages (available after install in the next step)
+
+<Callout type="warn">
+The Signing Secret and Bot Token grant full control over the bot account. Never embed them in code or public repos. clemvion encrypts both with backend AES-256-GCM and never exposes them in the UI.
+</Callout>
+
+## 2. App manifest configuration
+
+On the Slack app's **App Manifest** page, configure:
+
+### 2.1 OAuth & Permissions — Bot Token Scopes
+
+- `chat:write` — bot sends messages
+- `im:history` — receive DM messages
+- `im:read` — read DM channel metadata
+- `commands` — handle slash commands
+- `files:read` — read `file_shared` event payloads (Form `file` field)
+
+### 2.2 Event Subscriptions
+
+- **Enable Events** = On
+- **Request URL** = `https://<your-clemvion-domain>/api/hooks/<endpointPath>`
+  - `<endpointPath>` is generated when you create the trigger (next step)
+  - Slack sends a one-time URL Verification challenge; the backend responds automatically
+- **Subscribe to bot events**:
+  - `message.im` — DM messages
+  - `file_shared` — DM file uploads (Form `file` field)
+
+### 2.3 Interactivity & Shortcuts
+
+- **Interactivity** = On
+- **Request URL** = same URL as Event Subscriptions (Block Kit button clicks / modal submits also arrive here)
+
+### 2.4 Slash Commands (optional — for power users)
+
+- Command = `/workflow` (or your preferred prefix)
+- Request URL = same as above
+- Short description = "Workflow assistant"
+
+## 3. Connect Slack to a clemvion trigger
+
+1. In clemvion, open the workflow screen → create a **Webhook trigger**
+2. Enable the **Chat Channel** section in the trigger panel
+3. **Provider** = `Slack`
+4. **Bot Token** = the `xoxb-...` token from **OAuth & Permissions** (after **Install to Workspace**)
+5. **Signing Secret** = the value from **Basic Information**
+6. Save → backend calls `auth.test` to cache bot identity (`bot_id`, `username`, `team_id`)
+7. Copy the generated `endpointPath` into the Slack manifest's Request URLs (2.2 / 2.3)
+
+## 4. Usage
+
+### 4.1 DM conversation
+
+- Click the bot's name in Slack to open a DM
+- The first message starts a new workflow execution (analogous to Telegram `/start`)
+- AI Multi Turn responses arrive automatically in the DM
+- User replies become the next input
+
+### 4.2 Slash command (optional)
+
+- `/workflow` — same as first DM (starts a new execution)
+- `/workflow cancel` — cancel the active execution
+- `/workflow reply <message>` — free-text reply during an AI Multi Turn (alternative to plain DM)
+
+### 4.3 Buttons / Forms
+
+- Button Presentation nodes are converted to Slack Block Kit `actions` blocks
+- Form nodes use v1 multi-step text sequence (one question per field, answered via DM)
+- v2 (planned) will support Slack `views.open` modal natively
+
+## 5. v1 limitations / known gaps
+
+- **DM only** — group / channel / mpim are unsupported (auto-rejected with notice). Multi-user channels are bundled with v2 multi-user-thread work.
+- **No typing indicator** — Slack Web API has no server-initiated typing. Long LLM latency leaves the user without progress feedback (v2 candidate: placeholder message + edit).
+- **Visual nodes** (Chart / Table / Carousel) — v1 falls back to mrkdwn monospace text. v2 upgrades to SSR PNG (shared plan with Telegram).
+- **No Socket Mode** — v1 is Webhook-mode only. Private-network Slack deployments will be addressed in a v2 plan.
+
+## 6. Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Slack says "Your URL didn't respond with the value of the challenge parameter" | Signing Secret mismatch or endpoint not publicly reachable. If clemvion shows `chat_channel_health = degraded`, a setup error is likely |
+| Slack retry storm ("dispatch_failed") | 3-second ack missed. Inspect backend latency — degraded health usually points to outbound API failure |
+| Bot ignores DMs | Missing `message.im` event subscription or the bot isn't a conversation member (DMs are automatic) |
+| `invalid_auth` errors | Bot token rotated/expired — use the **Rotate Bot Token** action in the trigger panel for a 24h-grace rotation |

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-24T11:36:25.784190",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-chat-channel-inbound-signing-rename.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

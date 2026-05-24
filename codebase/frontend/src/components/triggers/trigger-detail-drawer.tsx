@@ -1140,6 +1140,8 @@ function ChatChannelCard({
   // PROVIDER LABEL — extensible when more providers land
   function providerLabel(p?: string): string {
     if (p === "telegram") return t("triggers.chatChannel.providerTelegram");
+    if (p === "slack") return t("triggers.chatChannel.providerSlack");
+    if (p === "discord") return t("triggers.chatChannel.providerDiscord");
     return p ?? "-";
   }
 

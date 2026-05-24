@@ -48,7 +48,7 @@ code: []
 POST https://api.telegram.org/bot{token}/setWebhook
 {
   "url": "{callbackUrl}",                   // = `${BASE_URL}/api/hooks/${trigger.endpointPath}`
-  "secret_token": "{randomly_generated}",   // 32 chars [A-Za-z0-9_-]. config.chatChannel.secretToken 에 저장
+  "secret_token": "{randomly_generated}",   // 32 chars [A-Za-z0-9_-]. plaintext 는 SetupResult.issuedInboundSigning 로 1회만 노출 → caller (TriggersService) 가 SecretResolver.store(secret://triggers/{id}/inbound-signing, ...) 로 보관 후 ref 만 config.chatChannel.inboundSigningRef 에 set
   "allowed_updates": ["message", "callback_query"],  // 필요한 update 만 — group 관련 update 는 미구독
   "drop_pending_updates": true              // 기존 봇이 있던 경우 stale update 폐기
 }
@@ -156,7 +156,7 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 ## 6. 보안
 
 - `botToken` 은 `botTokenRef` (secret store ref) 만 config 에 저장. 평문 금지 ([CCH-SE-03](../../../5-system/15-chat-channel.md#34-신뢰성--보안)).
-- `setWebhook` 의 `secret_token` 파라미터를 등록 시점에 랜덤 발급 (`crypto.randomBytes(24).toString('base64url')` 32 chars). 텔레그램이 모든 update 에 `X-Telegram-Bot-Api-Secret-Token` 헤더로 동봉 → 어댑터가 검증. 검증 실패 시 401 + adapter 가 `null` 반환 (워크플로우 시작 안 함).
+- `setWebhook` 의 `secret_token` 파라미터를 등록 시점에 랜덤 발급 (`crypto.randomBytes(24).toString('base64url')` 32 chars). plaintext 는 `SetupResult.issuedInboundSigning` 에 1회만 노출 → caller 가 `SecretResolver.store(secret://triggers/{id}/inbound-signing, ...)` 보관 후 ref 만 `config.chatChannel.inboundSigningRef` 에 set ([Convention §2.3](../../../conventions/chat-channel-adapter.md#23-chatchannelconfig)). 텔레그램이 모든 update 에 `X-Telegram-Bot-Api-Secret-Token` 헤더로 동봉 → HooksController 가 `SecretResolver.resolve(inboundSigningRef)` 후 헤더 동일성 검증. 실패 시 `401` + adapter 가 `null` 반환 (워크플로우 시작 안 함).
 - group chat / channel update 는 어댑터 진입점에서 차단 ([CCH-CV-05](../../../5-system/15-chat-channel.md#32-identity--conversation-매핑)) — `chat.type` 검사. `groupChatRefusal` 안내 발송 후 update 무시.
 - 다른 봇이 보낸 메시지 (`from.is_bot === true`) 도 무시.
 

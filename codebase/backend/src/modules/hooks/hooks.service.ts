@@ -105,10 +105,16 @@ export class HooksService {
 
     // 3a. Chat Channel 분기 — config.chatChannel 가 있으면 adapter 가 inbound 처리.
     //     일반 webhook 경로와 별도 — auth / parameter schema 검증 모두 우회 (chat 채널은
-    //     자체 secret_token 헤더 검증 + parseUpdate 의 raw body 만 사용).
+    //     자체 inbound-signing 헤더/서명 검증 + parseUpdate 의 raw body 만 사용 —
+    //     provider 별: Telegram secret_token / Slack X-Slack-Signature / Discord X-Signature-Ed25519).
     const chatChannelCfg = readChatChannelConfig(trigger.config);
     if (chatChannelCfg) {
-      return this.handleChatChannelWebhook(trigger, chatChannelCfg, input);
+      return this.handleChatChannelWebhook(
+        trigger,
+        chatChannelCfg,
+        input,
+        rawBody?.toString('utf8') ?? '',
+      );
     }
 
     // 3. Authenticate
@@ -182,7 +188,13 @@ export class HooksService {
     trigger: Trigger,
     config: ChatChannelConfig,
     input: WebhookInput,
-  ): Promise<{ executionId: string; status?: 'pending' }> {
+    rawBodyString = '',
+  ): Promise<{
+    executionId: string;
+    status?: 'pending';
+    challenge?: string;
+    discordPing?: boolean;
+  }> {
     let adapter: ChatChannelAdapter;
     try {
       adapter = this.channelAdapterRegistry.get(config.provider);
@@ -193,12 +205,28 @@ export class HooksService {
       });
     }
 
-    // Provider 별 inbound 인증 (Guard 패턴) — 단일 책임 분리.
+    // Provider 별 inbound 인증 (Guard 패턴) — 단일 책임 분리. Slack 은 rawBody string 필요.
     await this.chatChannelInboundAuthenticator.verify(
       trigger.id,
       config,
       input.headers,
+      rawBodyString,
     );
+
+    // Slack url_verification handshake (Spec providers/slack §3.1) — Slack 이 Request URL 등록 시
+    // 1회 발송. parser 가 null 반환 후 challenge 추출하여 controller 에 전달.
+    if (config.provider === 'slack' && isSlackUrlVerification(input.body)) {
+      const challenge = (input.body as { challenge?: unknown }).challenge;
+      if (typeof challenge === 'string' && challenge.length > 0) {
+        return { executionId: 'ignored', challenge };
+      }
+    }
+
+    // Discord PING handshake (Spec providers/discord §3.1) — Interactions Endpoint URL
+    // 등록 시 1회 + 주기적. type=1 → { type: 1 } 200 응답.
+    if (config.provider === 'discord' && isDiscordPing(input.body)) {
+      return { executionId: 'ignored', discordPing: true };
+    }
 
     const update = await adapter.parseUpdate(input.body, config);
     if (!update) {
@@ -643,4 +671,22 @@ function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
   const provider = (chatChannel as { provider?: unknown }).provider;
   if (typeof provider !== 'string' || provider.length === 0) return null;
   return chatChannel as ChatChannelConfig;
+}
+
+/**
+ * Slack Events API url_verification envelope 여부 — controller 가 challenge 응답을 200 OK 로
+ * 반환하기 위한 분기. Spec [providers/slack §3.1].
+ */
+function isSlackUrlVerification(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  return (body as { type?: unknown }).type === 'url_verification';
+}
+
+/**
+ * Discord Interactions Webhook PING (type=1) envelope 여부 — controller 가 `{ type: 1 }`
+ * 200 응답으로 handshake 처리하기 위한 분기. Spec [providers/discord §3.1].
+ */
+function isDiscordPing(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  return (body as { type?: unknown }).type === 1;
 }
