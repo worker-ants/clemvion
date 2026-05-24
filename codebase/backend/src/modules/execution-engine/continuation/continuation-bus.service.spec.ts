@@ -37,16 +37,18 @@ function createFakeRedis(): FakeRedisCmds {
       store.set(key, value);
       return 'OK';
     }),
-    eval: jest.fn(async (script: string, _n: number, key: string, arg: string) => {
-      if (script.includes("call('get', KEYS[1]) == ARGV[1]")) {
-        if (store.get(key) === arg) {
-          store.delete(key);
-          return 1;
+    eval: jest.fn(
+      async (script: string, _n: number, key: string, arg: string) => {
+        if (script.includes("call('get', KEYS[1]) == ARGV[1]")) {
+          if (store.get(key) === arg) {
+            store.delete(key);
+            return 1;
+          }
+          return 0;
         }
         return 0;
-      }
-      return 0;
-    }),
+      },
+    ),
     quit: jest.fn(async () => 'OK'),
     on: jest.fn(),
   };
@@ -158,9 +160,7 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
         nodeExecutionId: 'ne-init',
       });
       expect(fakeRedisInstances.length).toBeGreaterThan(0);
-      fakeRedisInstances[0].incr.mockRejectedValueOnce(
-        new Error('Redis down'),
-      );
+      fakeRedisInstances[0].incr.mockRejectedValueOnce(new Error('Redis down'));
 
       const jobId = await bus.publish({
         type: 'continue',
