@@ -396,7 +396,7 @@ AI Agent multi-turn 의 사용자 입력 대기 루프 (`status: 'waiting_for_in
 |---|---|---|
 | `'ai_end_conversation'` | 종료 | `user_ended` 포트로 라우팅 (§7.7) |
 | `'ai_message'` | AI message turn | `handleAiMessageTurn(executionId, node, action.message, ...)` |
-| `'form_submitted'` | form submit turn | `handleAiMessageTurn(executionId, node, JSON.stringify(action.formData), ...)` — handler `processMultiTurnMessage` 의 form 분기에서 [AI Agent §6.2 step 2.c](../3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn) 의 tool_result content `{type:'form_submitted', data:{…}}` JSON 채워 LLM 재호출 |
+| `'form_submitted'` | form submit turn | `handleAiMessageTurn(executionId, node, JSON.stringify(action.formData), ...)` — handler `processMultiTurnMessage` 의 form 분기에서 [AI Agent §6.2 step 2.c](../3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn) 의 tool_result content `{ok:true, type:'form_submitted', data:{…}, message:'<재호출 금지 안내문>'}` JSON 채워 LLM 재호출 (가드 필드 SoT: [AI Agent §12.6](../3-ai/1-ai-agent.md#126-render_form-submit-후-llm-의-동일-form-재호출-회귀-차단-2026-05-24)) |
 | `'button_click'` | 버튼 클릭 | 별도 경로 ([§3](#3-blocking-mode-실행-흐름) Blocking Mode). **AI conversation 대기 중 미도달 invariant** (아래) |
 | 그 외 (`!type` / 미매칭) | **warn log + loop 재진입** | silent skip 금지 — `console.warn('[waitForAiConversation] unknown action.type', { executionId, action })` 후 다음 resume 대기로 돌아간다. 무한 루프 방어는 `maxTurns` cap 이 별도 layer 에서 담당 |
 

@@ -125,7 +125,7 @@ code: []
 
 **`output.interaction.data.<fieldName>` (resumed)**:
 
-위 metadata 객체 배열이 그대로 보존되어 `output.interaction.data.<fieldName>` 에 들어간다 — [node-output §4.5](../../conventions/node-output.md#45-interactiondata-payload-규격) 의 `form_submitted` payload `value` 슬롯 free-form 안에 정합. AI Agent `render_form` 의 tool_result content (`{type: 'form_submitted', data: { … }}`) 에도 동일하게 metadata 배열이 직렬화되어 LLM 에 회신된다.
+위 metadata 객체 배열이 그대로 보존되어 `output.interaction.data.<fieldName>` 에 들어간다 — [node-output §4.5](../../conventions/node-output.md#45-interactiondata-payload-규격) 의 `form_submitted` payload `value` 슬롯 free-form 안에 정합. AI Agent `render_form` 의 tool_result content (`{ok:true, type:'form_submitted', data:{…}, message:'<재호출 금지 안내문>'}`, [AI Agent §12.6](../3-ai/1-ai-agent.md#126-render_form-submit-후-llm-의-동일-form-재호출-회귀-차단-2026-05-24)) 에도 동일하게 metadata 배열이 `data` 안에 직렬화되어 LLM 에 회신된다.
 
 **폼 재제출 정책:**
 
