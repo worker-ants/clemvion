@@ -45,8 +45,12 @@ export interface ChatChannelConfig {
    */
   inboundSigningRef?: string;
 
-  /** setupChannel 결과 캐시 (read-only after creation). */
-  botIdentity?: { botId: number; username: string };
+  /**
+   * setupChannel 결과 캐시 (read-only after creation).
+   * `teamId` 는 workspace/team 개념을 가진 provider (Slack workspace, Discord guild) 만 채움.
+   * Telegram 등 단일 namespace provider 는 비움.
+   */
+  botIdentity?: { botId: number; username: string; teamId?: string };
 
   uiMapping?: {
     formMode?: 'multi_step';

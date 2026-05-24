@@ -109,7 +109,12 @@ export class HooksService {
     //     provider 별: Telegram secret_token / Slack X-Slack-Signature / Discord X-Signature-Ed25519).
     const chatChannelCfg = readChatChannelConfig(trigger.config);
     if (chatChannelCfg) {
-      return this.handleChatChannelWebhook(trigger, chatChannelCfg, input);
+      return this.handleChatChannelWebhook(
+        trigger,
+        chatChannelCfg,
+        input,
+        rawBody?.toString('utf8') ?? '',
+      );
     }
 
     // 3. Authenticate
@@ -183,7 +188,8 @@ export class HooksService {
     trigger: Trigger,
     config: ChatChannelConfig,
     input: WebhookInput,
-  ): Promise<{ executionId: string; status?: 'pending' }> {
+    rawBodyString = '',
+  ): Promise<{ executionId: string; status?: 'pending'; challenge?: string }> {
     let adapter: ChatChannelAdapter;
     try {
       adapter = this.channelAdapterRegistry.get(config.provider);
@@ -194,12 +200,22 @@ export class HooksService {
       });
     }
 
-    // Provider 별 inbound 인증 (Guard 패턴) — 단일 책임 분리.
+    // Provider 별 inbound 인증 (Guard 패턴) — 단일 책임 분리. Slack 은 rawBody string 필요.
     await this.chatChannelInboundAuthenticator.verify(
       trigger.id,
       config,
       input.headers,
+      rawBodyString,
     );
+
+    // Slack url_verification handshake (Spec providers/slack §3.1) — Slack 이 Request URL 등록 시
+    // 1회 발송. parser 가 null 반환 후 challenge 추출하여 controller 에 전달.
+    if (config.provider === 'slack' && isSlackUrlVerification(input.body)) {
+      const challenge = (input.body as { challenge?: unknown }).challenge;
+      if (typeof challenge === 'string' && challenge.length > 0) {
+        return { executionId: 'ignored', challenge };
+      }
+    }
 
     const update = await adapter.parseUpdate(input.body, config);
     if (!update) {
@@ -644,4 +660,13 @@ function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
   const provider = (chatChannel as { provider?: unknown }).provider;
   if (typeof provider !== 'string' || provider.length === 0) return null;
   return chatChannel as ChatChannelConfig;
+}
+
+/**
+ * Slack Events API url_verification envelope 여부 — controller 가 challenge 응답을 200 OK 로
+ * 반환하기 위한 분기. Spec [providers/slack §3.1].
+ */
+function isSlackUrlVerification(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  return (body as { type?: unknown }).type === 'url_verification';
 }

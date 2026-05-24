@@ -158,7 +158,12 @@ interface ChatChannelConfig {
    * 처리하는 case 가 있을 수 있어 `?` 유지. 단 v1 의 세 provider 는 모두 본 ref 가 필수다.
    */
   inboundSigningRef?: string;
-  botIdentity?: { botId: number; username: string };
+  /**
+   * setupChannel 결과 캐시 — provider 가 발급한 bot identity.
+   * `botId` / `username` 은 모든 provider 공통. `teamId` 는 workspace/team 개념을 가진 provider
+   * (Slack workspace, Discord guild 등) 만 채움 — Telegram 등 단일 namespace provider 는 비움.
+   */
+  botIdentity?: { botId: number; username: string; teamId?: string };
   uiMapping?: {
     formMode?: "multi_step";
     /**
@@ -318,3 +323,4 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 | 2026-05-23 | §2.3 `visualNode` enum 교체 (`text_only`→`text` rename + `auto` 신설, default `auto`). §3 시각형 노드 매핑 행에 enum 분기 인용 추가. v1 photo 선택 시 fallback to text + warning 로그 정책. legacy `text_only` 값 read-time normalize 정책. `KeyboardHint` 'text' 와의 의미 구분 인라인 주석. spec-telegram-chat-channel-ui-polish. |
 | 2026-05-24 | §2.3 `ChatChannelConfig` 에 provider-specific webhook 인증 ref 2종 optional 필드 추가 — `signingSecretRef?` (Slack HMAC, provider-issued) / `publicKeyRef?` (Discord ed25519 public key). 기존 `secretTokenRef?` 주석을 "다른 provider 는 별 필드 사용" 으로 명확화. 6함수 인터페이스 / 기타 데이터 타입 변경 없음. spec-slack-discord-chat-channel. |
 | 2026-05-24 | §2.3 `ChatChannelConfig` 의 3 필드 (`secretTokenRef?` / `signingSecretRef?` / `publicKeyRef?`) 를 단일 role-based 필드 `inboundSigningRef?` 로 통합. provider 별 자원 성격·발급 주체·검증 알고리즘 분기 표를 주석으로 명시. §2.4 `SetupResult.issuedSecretToken` 도 `issuedInboundSigning` 으로 rename. 6함수 시그니처 변경 없음. Migration 불필요 (production data 없음). spec-chat-channel-inbound-signing-rename. |
+| 2026-05-24 | §2.3 `ChatChannelConfig.botIdentity` 에 `teamId?: string` optional 필드 추가 — workspace/team 개념을 가진 provider (Slack workspace, Discord guild) 의 식별자 캐시용. Telegram 등 단일 namespace provider 는 비움. impl-prep cross-spec W-1 해소 (slack.md §3.1 와의 일치). |

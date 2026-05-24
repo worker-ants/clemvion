@@ -111,6 +111,8 @@ export interface SlackAuthTestResult {
   user?: string;
   user_id?: string;
   bot_id?: string;
+  /** ok=false 시 Slack 이 채움. */
+  error?: string;
 }
 
 /** chat.postMessage 응답 (성공 시 ts + channel). */

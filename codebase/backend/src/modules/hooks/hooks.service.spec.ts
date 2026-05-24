@@ -698,11 +698,13 @@ describe('HooksService', () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       mockAdapter.parseUpdate.mockResolvedValue(null);
       await service.handleWebhook('abc', chatInput);
-      // HooksService 가 authenticator.verify 를 trigger.id, config, headers 와 호출.
+      // HooksService 가 authenticator.verify 를 trigger.id, config, headers, rawBody (string) 와 호출.
+      // Slack signing 검증을 위해 4번째 param (rawBody string) 추가됨 — Telegram 은 무시.
       expect(authenticator.verify).toHaveBeenCalledWith(
         chatChannelTrigger.id,
         expect.objectContaining({ provider: 'telegram' }),
         chatInput.headers,
+        expect.any(String),
       );
     });
   });

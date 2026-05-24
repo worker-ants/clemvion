@@ -4,10 +4,12 @@ import {
   Param,
   Body,
   Req,
+  Res,
   Query,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -54,6 +56,7 @@ export class HooksController {
     @Query() query: Record<string, string>,
     @Req()
     req: { headers: Record<string, unknown>; method: string; rawBody?: Buffer },
+    @Res({ passthrough: true }) res: Response,
   ) {
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {
@@ -72,6 +75,15 @@ export class HooksController {
       },
       req.rawBody,
     );
+
+    // Slack url_verification handshake — root-level `{ challenge }` JSON + 200 OK 응답이 필수.
+    // TransformInterceptor 의 `{ data: ... }` 래핑을 우회하기 위해 res.json 으로 직접 전송.
+    // Spec [providers/slack §3.1 / 5-system/15-chat-channel.md §5.5].
+    const challenge = (result as unknown as { challenge?: string }).challenge;
+    if (typeof challenge === 'string' && challenge.length > 0) {
+      res.status(HttpStatus.OK).json({ challenge });
+      return;
+    }
 
     return {
       ...result,
