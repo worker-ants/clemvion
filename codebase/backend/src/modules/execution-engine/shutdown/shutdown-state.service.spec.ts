@@ -181,4 +181,31 @@ describe('ShutdownStateService', () => {
   it('status enum 참조 sanity', () => {
     expect(ExecutionStatus.FAILED).toBe('failed');
   });
+
+  // W-11 fix (SUMMARY#W-11): markRemainingAsInterrupted 내 DB UPDATE 실패 시
+  // graceful degradation 검증 — throw 가 aApplicationShutdown 밖으로 누출되지 않아야 함.
+  describe('DB UPDATE 실패 시 graceful degradation', () => {
+    it('NodeExecution UPDATE 실패 시 에러를 throw 하지 않고 로그만 남김', async () => {
+      nodeExecutionUpdateMock.mockRejectedValueOnce(new Error('DB 연결 실패'));
+      service = buildService(30, 10);
+      service.registerInFlight('ne-fail', 'exec-fail');
+
+      // 외부로 throw 되면 안 됨 — graceful degradation.
+      await expect(
+        service.onApplicationShutdown('SIGTERM'),
+      ).resolves.not.toThrow();
+    });
+
+    it('Execution UPDATE 실패 시 에러를 throw 하지 않고 로그만 남김', async () => {
+      executionUpdateMock.mockRejectedValueOnce(
+        new Error('Execution DB 연결 실패'),
+      );
+      service = buildService(30, 10);
+      service.registerInFlight('ne-exec-fail', 'exec-exec-fail');
+
+      await expect(
+        service.onApplicationShutdown('SIGTERM'),
+      ).resolves.not.toThrow();
+    });
+  });
 });

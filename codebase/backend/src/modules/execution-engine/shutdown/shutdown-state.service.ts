@@ -16,6 +16,7 @@ import {
   NodeExecution,
   NodeExecutionStatus,
 } from '../../node-executions/entities/node-execution.entity';
+import { DEFAULT_GRACE_MS } from './shutdown.constants';
 
 /**
  * Phase 1.2 — Graceful Shutdown.
@@ -46,6 +47,10 @@ export class ShutdownStateService implements OnApplicationShutdown {
 
   private shuttingDown = false;
 
+  // W-19 fix (SUMMARY#W-19): 필드 선언을 생성자 위로 이동 — 스타일 일치.
+  private readonly graceMs: number;
+  private readonly pollMs: number;
+
   constructor(
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
@@ -58,7 +63,8 @@ export class ShutdownStateService implements OnApplicationShutdown {
     @Inject('SHUTDOWN_POLL_MS')
     pollMs?: number,
   ) {
-    this.graceMs = graceMs ?? 30_000;
+    // W-18 fix (SUMMARY#W-18): DEFAULT_GRACE_MS 상수 단일화.
+    this.graceMs = graceMs ?? DEFAULT_GRACE_MS;
     this.pollMs = pollMs ?? 200;
   }
 
@@ -71,16 +77,13 @@ export class ShutdownStateService implements OnApplicationShutdown {
     executionRepository: Repository<Execution>,
     nodeExecutionRepository: Repository<NodeExecution>,
   ): ShutdownStateService {
-    const graceMs = Number(config.get('SIGTERM_GRACE_MS') ?? 30_000);
+    const graceMs = Number(config.get('SIGTERM_GRACE_MS') ?? DEFAULT_GRACE_MS);
     return new ShutdownStateService(
       executionRepository,
       nodeExecutionRepository,
       graceMs,
     );
   }
-
-  private readonly graceMs: number;
-  private readonly pollMs: number;
 
   get isShuttingDown(): boolean {
     return this.shuttingDown;

@@ -32,6 +32,7 @@ import { ExecutionEventEmitter } from './events/execution-event-emitter.service'
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
+import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
 
 @Module({
   imports: [
@@ -72,8 +73,17 @@ import { ShutdownStateService } from './shutdown/shutdown-state.service';
     ShutdownStateService,
     {
       // SoT: spec §11. ENV var name 은 spec 표와 일치.
+      // W-2 fix (SUMMARY#W-2): 비숫자 입력 시 NaN 이 graceMs 로 전파되어
+      // retryAfterSec=NaN → Retry-After: NaN 헤더 + drain timeout 0 으로
+      // 즉시 SERVER_INTERRUPTED 마킹되는 문제 방어.
+      // W-18 fix (SUMMARY#W-18): DEFAULT_GRACE_MS 상수로 단일화.
       provide: 'SHUTDOWN_GRACE_MS',
-      useFactory: () => Number(process.env.SIGTERM_GRACE_MS ?? 30_000),
+      useFactory: (): number => {
+        const parsed = Number(process.env.SIGTERM_GRACE_MS ?? DEFAULT_GRACE_MS);
+        return Number.isFinite(parsed) && parsed > 0
+          ? parsed
+          : DEFAULT_GRACE_MS;
+      },
     },
   ],
   exports: [

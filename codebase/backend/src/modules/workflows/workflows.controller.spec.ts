@@ -210,6 +210,9 @@ describe('WorkflowsController (execute — graceful shutdown gate)', () => {
       unknown
     >;
     expect(body.code).toBe('SERVER_SHUTTING_DOWN');
+    // W-13 fix (SUMMARY#W-13): body.message 중립 문구 검증.
+    expect(typeof body.message).toBe('string');
+    expect(body.message).toBe('Service temporarily unavailable. Please retry.');
     expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '30');
     // 거부 시 engine.execute 호출되지 않음.
     expect(engine.execute).not.toHaveBeenCalled();

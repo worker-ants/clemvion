@@ -3363,10 +3363,6 @@ export class ExecutionEngineService
       context.parentNodeExecutionId,
       nodeInput,
     );
-    // Phase 1.2 — Graceful Shutdown 추적. SIGTERM 수신 시 본 in-flight
-    // 등록이 ShutdownStateService 의 drain wait + SERVER_INTERRUPTED 마킹
-    // 대상이 된다. unregister 는 finally 블록 (성공/실패/예외 무관) 에서.
-    this.shutdownState.registerInFlight(nodeExecution.id, executionId);
     this.eventEmitter.emitNode(
       executionId,
       node.id,
@@ -3391,6 +3387,12 @@ export class ExecutionEngineService
     );
 
     try {
+      // Phase 1.2 — Graceful Shutdown 추적. SIGTERM 수신 시 본 in-flight
+      // 등록이 ShutdownStateService 의 drain wait + SERVER_INTERRUPTED 마킹
+      // 대상이 된다. try 첫 줄에 배치해야 emitNode throw 후에도 finally 의
+      // unregisterInFlight 가 보장됨 (W-1 fix — SUMMARY#W-1).
+      this.shutdownState.registerInFlight(nodeExecution.id, executionId);
+
       // Get handler — wrapped 전체가 finally 의 unregisterInFlight 보장 대상.
       const handler = this.handlerRegistry.get(node.type);
 

@@ -29,6 +29,7 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
+  ApiResponse,
 } from '@nestjs/swagger';
 import {
   ApiAcceptedWrappedResponse,
@@ -210,6 +211,18 @@ export class WorkflowsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
+  // W-14 fix (SUMMARY#W-14): Graceful Shutdown gate 의 503 응답 문서화.
+  @ApiResponse({
+    status: 503,
+    description: '서버 종료 중 — Retry-After 헤더 초 단위 대기 후 재시도',
+    schema: {
+      example: {
+        statusCode: 503,
+        code: 'SERVER_SHUTTING_DOWN',
+        message: 'Service temporarily unavailable. Please retry.',
+      },
+    },
+  })
   async execute(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
@@ -226,10 +239,11 @@ export class WorkflowsController {
     // Execution 시작을 503 으로 거부해 LB drain 동안 다른 인스턴스로 라우팅.
     if (this.shutdownState.isShuttingDown) {
       res.setHeader('Retry-After', String(this.shutdownState.retryAfterSec));
+      // W-3 fix (SUMMARY#W-3): 내부 운영 상태("Server is shutting down...")
+      // 대신 중립 메시지 사용. code 는 클라이언트 분기용으로 유지.
       throw new ServiceUnavailableException({
         code: 'SERVER_SHUTTING_DOWN',
-        message:
-          'Server is shutting down; new executions are temporarily refused. Retry after the indicated interval.',
+        message: 'Service temporarily unavailable. Please retry.',
       });
     }
 
