@@ -220,6 +220,107 @@ export const FORM_SUBMITTED_GUIDANCE_MESSAGE =
   '사용자가 form 을 제출했습니다. 같은 form 을 다시 호출하지 말고, data 의 입력값을 받아 후속 답변 / 다른 도구 호출 / turn 종결 중 하나로 진행하세요.';
 
 /**
+ * `render_form` submit tool_result content 의 `data` 필드에 적용되는 byte cap.
+ * SoT: spec/4-nodes/3-ai/1-ai-agent.md §12.7.
+ *
+ * 사용자가 form 의 textarea 에 대량 텍스트를 입력하면 그대로 LLM 컨텍스트에
+ * 직렬화되어 token 비용 폭주 + context window 초과 위험이 있다. 10KB 로 cap
+ * 적용하고 초과 시 string 필드만 균등 truncate, `formDataTruncation` 메타로
+ * LLM 에 truncate 사실 명시.
+ *
+ * 본 cap 은 LLM-facing tool_result content layer 한정 — Presentation 공통
+ * §10.9 4-layer SSOT 중 (4) layer 만 영향. `output.interaction.data` /
+ * `presentation_user` thread turn / WS wire / internal bus sentinel 의 formData
+ * 는 raw 전체 (변경 없음).
+ */
+export const FORM_SUBMITTED_MAX_BYTES = 10 * 1024;
+
+const FORM_DATA_TRUNCATED_MARKER = '...<truncated>';
+
+/**
+ * formData byte 크기가 cap 을 초과하면 각 string 필드의 값을 균등하게
+ * truncate 한다. 모든 필드명/구조는 보존하고 비-string 필드 (number/boolean/
+ * array/object) 는 건드리지 않는다 (보통 작고, JSON stringify 결과에서 차지
+ * 비중이 적다).
+ *
+ * SoT: spec/4-nodes/3-ai/1-ai-agent.md §12.7 — 선택지 (A) per-field string
+ * 균등 truncate + `formDataTruncation` 메타.
+ *
+ * cap 미만이면 `formDataTruncation` 은 undefined 로 반환 (호출자가 옵셔널
+ * 필드로만 부착하도록).
+ */
+export function capFormDataBytes(
+  formData: Record<string, unknown>,
+  capBytes: number,
+): {
+  capped: Record<string, unknown>;
+  formDataTruncation?: {
+    originalBytes: number;
+    bytesAfterCap: number;
+    truncatedFields: string[];
+  };
+} {
+  const originalBytes = Buffer.byteLength(JSON.stringify(formData), 'utf8');
+  if (originalBytes <= capBytes) {
+    return { capped: formData };
+  }
+  const stringFields = Object.entries(formData).filter(
+    ([, v]) => typeof v === 'string',
+  ) as Array<[string, string]>;
+  if (stringFields.length === 0) {
+    // 모든 필드가 비-string. truncate 대상 없음 — 보강 메타만 부착해 LLM 에
+    // "cap 초과지만 truncate 불가" 신호. (실무에서는 거의 발생 안 함.)
+    return {
+      capped: formData,
+      formDataTruncation: {
+        originalBytes,
+        bytesAfterCap: originalBytes,
+        truncatedFields: [],
+      },
+    };
+  }
+  // 비-string 필드의 직렬화 비용을 먼저 cap 에서 제외 (그대로 보존되므로).
+  const nonStringEntries = Object.entries(formData).filter(
+    ([, v]) => typeof v !== 'string',
+  );
+  const nonStringObject = Object.fromEntries(nonStringEntries);
+  const nonStringBytes = Buffer.byteLength(
+    JSON.stringify(nonStringObject),
+    'utf8',
+  );
+  // string 필드들에 할당 가능한 총 byte 예산. 음수가 되면 0 으로 clamp 후
+  // marker 만 박는다.
+  const stringBudget = Math.max(0, capBytes - nonStringBytes - 256); // 256B = JSON 구조 overhead 여유
+  const perFieldBudget = Math.max(
+    FORM_DATA_TRUNCATED_MARKER.length,
+    Math.floor(stringBudget / stringFields.length),
+  );
+  const capped: Record<string, unknown> = { ...formData };
+  const truncatedFields: string[] = [];
+  for (const [key, value] of stringFields) {
+    const valueBytes = Buffer.byteLength(value, 'utf8');
+    if (valueBytes <= perFieldBudget) continue;
+    const keepBytes = Math.max(
+      0,
+      perFieldBudget - FORM_DATA_TRUNCATED_MARKER.length,
+    );
+    // utf8 byte 단위 truncate — char 단위가 아닌 byte 안전성 보장.
+    const buf = Buffer.from(value, 'utf8').subarray(0, keepBytes);
+    capped[key] = buf.toString('utf8') + FORM_DATA_TRUNCATED_MARKER;
+    truncatedFields.push(key);
+  }
+  const bytesAfterCap = Buffer.byteLength(JSON.stringify(capped), 'utf8');
+  return {
+    capped,
+    formDataTruncation: {
+      originalBytes,
+      bytesAfterCap,
+      truncatedFields,
+    },
+  };
+}
+
+/**
  * Provider 가 반환한 diagnostic delta 를 노드 단위로 누적.
  * `meta.ragDiagnostics` / `meta.ragSources` 의 값을 한곳에서 만들기 위한 헬퍼.
  */
@@ -1660,6 +1761,13 @@ export class AiAgentHandler implements NodeHandler {
         (m) =>
           m.role === 'tool' && m.toolCallId === pendingFormToolCall.toolCallId,
       );
+      // spec §12.7 — formData 크기 cap. cap 초과 시 string 필드 균등 truncate
+      // + formDataTruncation 메타 부착. 비-string 필드 (number/boolean/array/
+      // object) 는 보존.
+      const { capped: cappedFormData, formDataTruncation } = capFormDataBytes(
+        formData,
+        FORM_SUBMITTED_MAX_BYTES,
+      );
       const newToolResult: ChatMessage = {
         role: 'tool',
         toolCallId: pendingFormToolCall.toolCallId,
@@ -1671,8 +1779,9 @@ export class AiAgentHandler implements NodeHandler {
         content: JSON.stringify({
           ok: true,
           type: 'form_submitted',
-          data: formData,
+          data: cappedFormData,
           message: FORM_SUBMITTED_GUIDANCE_MESSAGE,
+          ...(formDataTruncation ? { formDataTruncation } : {}),
         }),
       };
       if (stubIndex >= 0) {
