@@ -190,10 +190,10 @@ Convention §1.1 의 `ackInteraction` 정책 — provider 에 따라 noop 가능
 ## 6. 보안
 
 - `botToken` (Slack `xoxb-*` 형식) 은 `botTokenRef` (`secret://triggers/{id}/bot-token`) 만 config 에 저장. 평문 금지 ([CCH-SE-03](../../../5-system/15-chat-channel.md#34-신뢰성--보안)).
-- **Signing Secret**: Slack 앱의 [Request URL 검증](https://api.slack.com/authentication/verifying-requests-from-slack) 은 `X-Slack-Signature: v0=<HMAC-SHA256(signing_secret, "v0:" + X-Slack-Request-Timestamp + ":" + raw_body)>` 형식. signing secret 도 `SecretResolver` 가 관리 — ref = `secret://triggers/{id}/slack-signing-secret` ([Convention Secret Store §1](../../../conventions/secret-store.md#1-uri-scheme) 의 예시 표 갱신 대상).
-  - HooksController 가 raw body + 헤더 두 값을 fetch → `SecretResolver.resolve(slackSigningSecretRef)` → constant-time compare. 실패 시 `401 Unauthorized` ([Spec Chat Channel §5.5](../../../5-system/15-chat-channel.md#55-inbound-http-contract) 의 401 라인 적용).
+- **Signing Secret**: Slack 앱의 [Request URL 검증](https://api.slack.com/authentication/verifying-requests-from-slack) 은 `X-Slack-Signature: v0=<HMAC-SHA256(signing_secret, "v0:" + X-Slack-Request-Timestamp + ":" + raw_body)>` 형식. signing secret 은 `SecretResolver` 가 관리 — ref = `secret://triggers/{id}/inbound-signing` ([Convention Secret Store §1](../../../conventions/secret-store.md#1-uri-scheme) 의 provider 공통 슬롯).
+  - HooksController 가 raw body + 헤더 두 값을 fetch → `SecretResolver.resolve(inboundSigningRef)` → HMAC-SHA256 재계산 후 constant-time compare. 실패 시 `401 Unauthorized` ([Spec Chat Channel §5.5](../../../5-system/15-chat-channel.md#55-inbound-http-contract) 의 401 라인 적용).
 - **Replay 차단**: `X-Slack-Request-Timestamp` 가 현재 시각 ± 5분 밖이면 `401` (Slack 권장).
-- **Config 필드**: `Trigger.config.chatChannel` 에 `signingSecretRef: "secret://triggers/{id}/slack-signing-secret"` 신설 — Slack 전용 필드 (provider 별 옵션, [Convention §2.3 ChatChannelConfig](../../../conventions/chat-channel-adapter.md#23-chatchannelconfig) 의 `secretTokenRef` 와는 의미 분리: Telegram secretTokenRef = 서버 발급, Slack signingSecretRef = Slack 앱 install 시 받음). 두 필드 모두 webhook 인증용이지만 발급 주체 차이 때문에 별 필드 — Rationale R-S-1.
+- **Config 필드**: `Trigger.config.chatChannel.inboundSigningRef = "secret://triggers/{id}/inbound-signing"` 로 set. Telegram / Discord 와 **동일 슬롯** — provider 별 자원 성격·검증 알고리즘은 backend 의 provider 분기 책임 ([Convention §2.3 ChatChannelConfig](../../../conventions/chat-channel-adapter.md#23-chatchannelconfig)). Slack 의 경우 발급 주체 = Slack 앱 install 시점에 Slack 이 발급하여 사용자가 manual 입력 (provider-issued). 사용자 입력 plaintext 가 직접 `SecretResolver.store` 로 들어가고 ref 만 config 에 보관 — `setupChannel` 의 `SetupResult.issuedInboundSigning` 은 비움 (server-issued 한정 필드). Rationale R-S-1.
 - group/channel/mpim event 는 어댑터 진입점에서 차단 ([CCH-CV-05](../../../5-system/15-chat-channel.md#32-identity--conversation-매핑)) — `event.channel_type !== "im"`. `groupChatRefusal` 안내 발송 후 update 무시.
 - 다른 봇이 보낸 메시지 (`bot_id` 존재) 도 무시.
 
@@ -229,14 +229,14 @@ Telegram §7 의 `/start` / `/cancel` / `/help` 와 의미 1:1 — Slack 은 단
 
 ## Rationale
 
-### R-S-1. `signingSecretRef` 를 `secretTokenRef` 와 분리한 별 필드로 (2026-05-24)
+### R-S-1. `inboundSigningRef` 단일 슬롯 공유 — provider 별 의미·발급 주체는 backend 분기 (2026-05-24, 갱신 2026-05-24)
 
 대안:
-1. **(채택) `signingSecretRef` 별 필드**: 발급 주체가 다름 — Telegram `secretToken` 은 우리 어댑터가 `randomBytes` 발급 (server-issued), Slack `signing secret` 은 Slack 앱 install 시점에 Slack 이 발급해 사용자가 입력 (provider-issued). 필드를 통합하면 ownership / rotation 책임이 모호.
-2. **(기각) 기존 `secretTokenRef` 재사용**: 두 자원의 라이프사이클이 다름 — Telegram secretToken 은 `setupChannel` 의 부수효과로 자동 발급/저장, Slack signingSecret 은 사용자 manual 입력. 같은 필드에 묶으면 setup 자동화 로직이 분기 폭주.
-3. **(기각) 단일 `webhookSecretRef` 로 generalize 한 후 provider-specific 의미만 분기**: 컨벤션 본문에 provider 별 의미 표가 들어가 drift 위험.
+1. **(채택) `inboundSigningRef?` 단일 슬롯 (Telegram / Slack / Discord 공유)**: 세 자원 (Telegram secret_token / Slack signing secret / Discord public key) 의 공통 role 은 "inbound webhook 출처 검증용 자료". ref 슬롯을 단일화하면 (a) Convention 의 필드 폭 ↓ (b) 새 provider 추가 시 ref 신설 불필요 (c) catalog 와 data-model 의 naming 일관성 ↑. 발급 주체·검증 알고리즘 차이는 backend 의 provider 분기 책임으로 흡수 (provider 가 이미 `provider` 식별자로 분기되므로 자연).
+2. **(기각) `signingSecretRef` 별 필드 + `secretTokenRef` (Telegram) / `publicKeyRef` (Discord) 의 3 필드**: 초기 안. provider 별 의미 차이를 필드명으로 표면화하는 장점은 있으나, 동일 role 의 자원이 3개 ref 슬롯에 흩어져 (a) Convention §2.3 의 필드 수 ↑ (b) `bot-token` 처럼 provider 공통 자원과 패턴 비대칭 (provider 공통은 단일 필드, provider 별은 다중 필드 — 일관성 ↓) (c) 새 provider 추가 시 ref 필드 신설 의무. 본 안의 ownership 모호성 우려는 backend 의 provider 분기 + `SetupResult.issuedInboundSigning` 의 "server-issued 한정" 명시로 충분히 해소됨.
+3. **(기각) `webhookSecretRef` (Telegram 만 generic 이름) + Slack/Discord 별 필드 — 본 plan 시작 직전 상태**: naming 비일관 (Telegram 만 generic). 통합 결정 정당화.
 
-근거: Convention §2.3 의 `secretTokenRef` 주석 ("Telegram: setupChannel 시 어댑터가 randomBytes 로 발급 ... 다른 provider 는 unused (HMAC 지원 시 webhook.md HMAC 경로)") 와 정합. Slack 은 HMAC 경로이므로 별 필드 도입이 자연. Convention §2.3 에 `signingSecretRef?` optional 필드 추가 여부는 본 plan 의 §Phase 4 컨벤션 영향도 점검 → consistency-check 결정.
+근거: 사용자 결정 (2026-05-24, [`plan/in-progress/spec-chat-channel-inbound-signing-rename.md`](../../../../plan/in-progress/spec-chat-channel-inbound-signing-rename.md)) — role-based generic naming 으로 통합. Slack 의 자원은 secret-store 의 `secret://triggers/{id}/inbound-signing` 슬롯에 보관되며, backend 의 SlackAdapter 가 HMAC-SHA256 알고리즘으로 검증한다. Migration 불필요 (production data 없음).
 
 ### R-S-2. Events API Request URL 자동 등록 미지원 (2026-05-24)
 
@@ -324,3 +324,4 @@ Spec Chat Channel §5.5 는 inbound webhook 응답을 `202 Accepted` 로 SoT 화
 | 날짜 | 내용 |
 |---|---|
 | 2026-05-24 | v1 spec 신설 — Slack Web API + Events API + Interactivity 기반 Webhook-mode 어댑터. Telegram §5 의 5종 인터랙션 매핑 1:1 + Slack native primitives 변환. Form 은 v1 다단계 텍스트 시퀀스 (Convention §4 준수). typing no-op. URL Verification / Interactivity 의 200 응답 예외. |
+| 2026-05-24 | §6 보안 + Rationale R-S-1 — signing secret 의 secret-store ref / config 필드를 단일 `inboundSigningRef` (`secret://triggers/{id}/inbound-signing`) 슬롯으로 통합 (Telegram / Discord 공유). 발급 주체 (Slack provider-issued) / 검증 알고리즘 (HMAC-SHA256) 는 backend 의 SlackAdapter 가 분기. spec-chat-channel-inbound-signing-rename. |

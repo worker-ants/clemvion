@@ -22,7 +22,7 @@ secret://<scope>/<resourceId>/<name>
 |---|---|---|
 | `scope` | 자원 namespace | lower-case kebab-case (예: `triggers`, `auth-configs`, `oauth-clients`) |
 | `resourceId` | 자원 식별자 | UUID v4 또는 별 spec 의 ID 형식 |
-| `name` | 자원 안의 secret 이름 | lower-case kebab-case (예: `bot-token`, `webhook-secret`, `notification-signing`, `bot-token.v2`) |
+| `name` | 자원 안의 secret 이름 | lower-case kebab-case (예: `bot-token`, `inbound-signing`, `notification-signing`, `bot-token.v2`) |
 
 예시:
 
@@ -30,9 +30,7 @@ secret://<scope>/<resourceId>/<name>
 |---|---|
 | `secret://triggers/{triggerId}/bot-token` | Chat Channel adapter 의 봇 토큰 (provider 공통 — Telegram bot token / Slack `xoxb-*` / Discord bot token 등) |
 | `secret://triggers/{triggerId}/bot-token.v2` | 봇 토큰 (rotation grace) |
-| `secret://triggers/{triggerId}/webhook-secret` | Telegram `setWebhook.secret_token` (server-issued) |
-| `secret://triggers/{triggerId}/slack-signing-secret` | Slack `X-Slack-Signature` HMAC key (provider-issued — Slack 앱 install 시 받음) |
-| `secret://triggers/{triggerId}/discord-public-key` | Discord application ed25519 public key (`X-Signature-Ed25519` 검증) |
+| `secret://triggers/{triggerId}/inbound-signing` | Chat Channel inbound webhook 출처 검증용 자료 (provider 공통 슬롯). provider 별 의미: Telegram = server-issued shared secret (`setWebhook.secret_token`, 어댑터가 randomBytes 발급) / Slack = HMAC-SHA256 signing secret (Slack 발급, 사용자 입력) / Discord = ed25519 application public key (Discord 발급, 사용자 입력). 검증 알고리즘 분기는 backend 의 provider 별 책임 — ref 슬롯은 단일. SoT: [`conventions/chat-channel-adapter.md §2.3`](./chat-channel-adapter.md#23-chatchannelconfig) |
 | `secret://triggers/{triggerId}/notification-signing` | EIA notification HMAC signing secret |
 | `secret://triggers/{triggerId}/notification-signing.v2` | EIA HMAC signing (rotation grace) |
 
@@ -229,6 +227,41 @@ async rotateBotToken(triggerId: string, newToken: string, workspaceId: string) {
 }
 ```
 
+### 5.5 Chat Channel `inboundSigningRef` 초기화 — provider 두 경로
+
+`inbound-signing` 자원은 provider 별로 두 가지 초기화 경로가 있다 — `setupChannel` 의 결과 (server-issued, Telegram) 와 사용자 입력 (provider-issued, Slack / Discord). 둘 다 동일 ref slot (`secret://triggers/{id}/inbound-signing`) 로 보관한다.
+
+```typescript
+// (a) server-issued — Telegram 등 adapter 의 setupChannel 이 randomBytes 로 발급
+async setupChatChannel(trigger: Trigger, workspaceId: string) {
+  const adapter = this.registry.get(trigger.config.chatChannel.provider);
+  const result = await adapter.setupChannel(trigger.config.chatChannel, callbackUrl);
+  // configUpdates 안에 plaintext 흘리지 않고 issuedInboundSigning 으로 분리 (Convention §2.4)
+  if (result.issuedInboundSigning) {
+    const ref = buildSecretRef({ scope: 'triggers', resourceId: trigger.id, name: 'inbound-signing' });
+    await this.secrets.rotate(ref, workspaceId, result.issuedInboundSigning);  // setup 재시도 안전성 (§2.1)
+    trigger.config.chatChannel.inboundSigningRef = ref;
+  }
+  Object.assign(trigger.config.chatChannel, result.configUpdates ?? {});
+  await this.repo.save(trigger);
+}
+
+// (b) provider-issued — Slack signing secret / Discord public key, 사용자 manual 입력
+async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
+  const trigger = await this.repo.save({ ...dto, workspaceId });
+  if (dto.chatChannel?.inboundSigningPlaintext) {  // DTO 한정 입력 필드 (plaintext)
+    const ref = buildSecretRef({ scope: 'triggers', resourceId: trigger.id, name: 'inbound-signing' });
+    await this.secrets.rotate(ref, workspaceId, dto.chatChannel.inboundSigningPlaintext);
+    // DTO 의 plaintext 는 config 에 흘리지 않음 — inboundSigningRef 만 보관.
+    trigger.config.chatChannel.inboundSigningRef = ref;
+    await this.repo.save(trigger);
+  }
+  // 이어서 setupChatChannel(trigger) 호출 — (a) 경로의 issuedInboundSigning 은 비어 있음
+}
+```
+
+두 경로의 공존은 `inboundSigningRef` 단일 slot 이 backend 의 provider 분기로 흡수한다는 의미 — Convention §2.3 의 표 참조.
+
 ---
 
 ## 6. Trigger 삭제 시 cascade
@@ -293,3 +326,4 @@ async rotateBotToken(triggerId: string, newToken: string, workspaceId: string) {
 |---|---|
 | 2026-05-22 | v1 — `SecretResolver` interface 신설, `secret://<scope>/<resourceId>/<name>` URI scheme 정의, **application-side AES-256-GCM** + 환경변수 마스터키 백엔드 채택 (DB 는 ciphertext 만 보관). CCH-SE-03 v1 plaintext stub 종료. EIA notification.signing.secret 도 같은 store 로 통합. |
 | 2026-05-24 | §1 예시 표에 chat channel provider 별 webhook 인증 ref 2종 추가 — `slack-signing-secret` (Slack HMAC) / `discord-public-key` (Discord ed25519). `bot-token` 의 용도 설명을 provider 공통 (Telegram/Slack/Discord) 으로 generalize. Scheme 자체 변경 없음. spec-slack-discord-chat-channel. |
+| 2026-05-24 | §1 예시 표 — `webhook-secret` (Telegram) / `slack-signing-secret` (Slack) / `discord-public-key` (Discord) 3종을 단일 role-based 이름 `inbound-signing` 으로 통합. 세 자원 모두 "inbound webhook 출처 검증용 자료" 공통 role 이고, 검증 알고리즘 분기는 backend 책임 — ref 슬롯은 단일. ChatChannelConfig 의 3개 필드도 단일 `inboundSigningRef?` 로 통합 ([`chat-channel-adapter.md §2.3`](./chat-channel-adapter.md#23-chatchannelconfig)). Migration 불필요 (production data 없음). spec-chat-channel-inbound-signing-rename. |

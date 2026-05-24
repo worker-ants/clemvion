@@ -65,7 +65,7 @@ code: []
 |----|---------|---------|
 | CCH-SE-01 | 어댑터의 외부 API 호출 (sendMessage 등) 에 5초 타임아웃 + 3회 지수 백오프 재시도. 최종 실패 시 trigger 의 `chat_channel_health` 를 `degraded` 로 갱신 ([§3.4.2](#342-trigger-테이블-신규-컬럼)). 자동 비활성화 금지 ([WH-MG-04 / EIA-NX-07](./12-webhook.md#34-관리) 와 동일 정책) | 필수 |
 | CCH-SE-02 | 인터랙션 명령 처리는 EIA `Idempotency-Key` 를 어댑터가 자동 발급 (텔레그램 `update_id` 기반). 동일 `update_id` 30초 안 재도착은 무시 | 필수 |
-| CCH-SE-03 | 어댑터의 외부 API secret (텔레그램 bot token) 과 webhook 인증 secret (`secret_token`) 은 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 secret store 에 backend AES-256-GCM 으로 암호화 보관 — config JSONB 평문 금지. `config.chatChannel` 에는 ref 만 ([`botTokenRef`](#41-triggerconfigchatchannel) / `secretTokenRef`) 저장. ref 형식은 [secret-store.md §1](../conventions/secret-store.md#1-uri-scheme) — `secret://triggers/{triggerId}/{bot-token,webhook-secret}`. DB 는 ciphertext (BYTEA) 만 본다 | 필수 |
+| CCH-SE-03 | 어댑터의 외부 API secret (provider 별 bot token) 과 inbound webhook 출처 검증용 자료 (Telegram secret_token / Slack signing secret / Discord public key) 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 secret store 에 backend AES-256-GCM 으로 암호화 보관 — config JSONB 평문 금지. `config.chatChannel` 에는 ref 만 ([`botTokenRef`](#41-triggerconfigchatchannel) / `inboundSigningRef`) 저장. ref 형식은 [secret-store.md §1](../conventions/secret-store.md#1-uri-scheme) — `secret://triggers/{triggerId}/{bot-token,inbound-signing}`. DB 는 ciphertext (BYTEA) 만 본다 | 필수 |
 | CCH-SE-04 | Bot token rotation API (`POST /api/triggers/:id/chat-channel/rotate-bot-token`) — old token 은 24h grace 동안 병행 받음 (텔레그램의 경우 setWebhook 재호출). 동사를 `rotate-bot-token` 으로 한 이유는 EIA 의 `rotate-secret` (HMAC signing secret) 과 자원 의미가 다르기 때문 (외부 provider bot token vs HMAC secret) — URL 만으로 의도 구별 가능 | 권장 |
 | CCH-SE-04-C | `rotate-bot-token` 완료 후 `chat_channel_token_v2` 의 v2 ref 는 24h grace 경과 시 `ChatChannelTokenRotatorService` (매시간 cron — `NotificationSecretRotatorService` 와 동일 패턴) 가 다음을 수행한다: (1) v2 ref 의 secret_store row 삭제 (`secrets.delete(v2Ref)`), (2) `chat_channel_token_v2 = NULL` / `chat_channel_rotated_at = NULL` 저장. primary `botTokenRef` 의 plaintext 는 `rotate-bot-token` 시점에 이미 신 token 으로 교체되므로 v2 → primary 승격은 별도 단계가 아니다 | 필수 (v2 cron) |
 
@@ -156,11 +156,9 @@ code: []
 ```jsonc
 {
   "chatChannel": {
-    "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실. 본 예시는 Telegram. Slack/Discord 는 추가 인증 필드 사용 (아래 주석)
-    "botTokenRef":   "secret://triggers/{triggerId}/bot-token",     // secret store ref (CCH-SE-03 / conventions/secret-store.md) — provider 공통
-    "secretTokenRef": "secret://triggers/{triggerId}/webhook-secret", // Telegram setWebhook 의 secret_token ref (server-issued). setupChannel 이 randomBytes 로 발급해 secret store 에 저장 후 ref 만 config 에 보관. Slack/Discord 는 unused
-    // "signingSecretRef": "secret://triggers/{triggerId}/slack-signing-secret",  // Slack 전용 — provider-issued (Slack 앱 install 시 입력). X-Slack-Signature HMAC 검증
-    // "publicKeyRef":     "secret://triggers/{triggerId}/discord-public-key",    // Discord 전용 — application ed25519 public key (X-Signature-Ed25519 검증)
+    "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실. 본 예시는 Telegram. (slack / discord 동일 슬롯 구조)
+    "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // provider 공통 봇 토큰 (CCH-SE-03 / conventions/secret-store.md)
+    "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // provider 공통 inbound webhook 출처 검증용 자료 — provider 별 의미·검증 알고리즘 분기는 backend 책임. Telegram: server-issued shared secret (setupChannel 의 randomBytes 발급) / Slack: HMAC-SHA256 signing secret (사용자 입력) / Discord: ed25519 public key (사용자 입력). SoT: conventions/chat-channel-adapter.md §2.3
     "botIdentity": {                            // setupChannel 결과 캐시 (read-only after creation)
       "botId": 123456789,
       "username": "myworkflow_bot"
@@ -184,7 +182,7 @@ code: []
 
 `chatChannel` 미존재 = 일반 webhook 트리거 (기존 동작 그대로). 본 필드는 [Webhook §2.2](./12-webhook.md#22-config-필드-구조) 의 `config` JSONB 안에 위치.
 
-`botTokenRef` / `secretTokenRef` / `signingSecretRef` (Slack) / `publicKeyRef` (Discord) 는 모두 [`secret-store.md`](../conventions/secret-store.md) 의 `SecretResolver` 가 resolve — config JSONB 에는 ref 만, plaintext 는 backend AES-256-GCM 으로 암호화되어 `secret_store` 테이블의 `encrypted BYTEA` 컬럼에 보관. [EIA §7.1](./14-external-interaction-api.md#71-trigger-엔티티-확장) 의 `notification.signing.secretRef` 와 동일 정책 + 동일 백엔드. Provider 별 인증 필드의 의미·발급 주체는 [`conventions/chat-channel-adapter.md §2.3 ChatChannelConfig`](../conventions/chat-channel-adapter.md#23-chatchannelconfig) 가 단일 진실.
+`botTokenRef` / `inboundSigningRef` 는 모두 [`secret-store.md`](../conventions/secret-store.md) 의 `SecretResolver` 가 resolve — config JSONB 에는 ref 만, plaintext 는 backend AES-256-GCM 으로 암호화되어 `secret_store` 테이블의 `encrypted BYTEA` 컬럼에 보관. [EIA §7.1](./14-external-interaction-api.md#71-trigger-엔티티-확장) 의 `notification.signing.secretRef` 와 동일 정책 + 동일 백엔드. `inboundSigningRef` 의 provider 별 자원 성격·발급 주체·검증 알고리즘은 [`conventions/chat-channel-adapter.md §2.3 ChatChannelConfig`](../conventions/chat-channel-adapter.md#23-chatchannelconfig) 가 단일 진실 (Telegram = server-issued shared secret / Slack = HMAC key / Discord = ed25519 public key).
 
 ### 4.2 Trigger 테이블 신규 컬럼
 
