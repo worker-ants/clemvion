@@ -1,10 +1,14 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
+  BeforeInsert,
+  BeforeUpdate,
   Column,
   CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
+import { isValidBcryptHash } from '../../../shared/utils/bcrypt-format';
 
 @Entity('user')
 export class User {
@@ -105,4 +109,34 @@ export class User {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
+
+  /**
+   * `password_hash` 포맷 invariant 강제. spec/5-system/1-auth.md §"비밀번호 저장"
+   * 의 "bcrypt only, nullable for OAuth-only" 규약을 entity-level 에서 enforce.
+   *
+   * null / undefined 는 통과 (OAuth-only 사용자). string 이지만 bcrypt 포맷이
+   * 아닌 모든 값은 throw — DB 저장 차단.
+   *
+   * 본 가드의 목적: application 코드가 항상 `bcrypt.hash(...)` 를 거치는
+   * 현재 구조의 invariant 를 미래 회귀 (raw string set, 평문 'x' 같은 e2e
+   * fixture 의 production 유출 등) 로부터 보호. ai-review PR #301 security W1
+   * 후속.
+   *
+   * 로그 안전성: 에러 메시지에 실제 hash 값을 포함하지 않는다 (type 과
+   * length 만 노출).
+   */
+  @BeforeInsert()
+  @BeforeUpdate()
+  validatePasswordHashFormat(): void {
+    if (this.passwordHash === null || this.passwordHash === undefined) return;
+    if (isValidBcryptHash(this.passwordHash)) return;
+    const observedType = typeof this.passwordHash;
+    const observedLength =
+      typeof this.passwordHash === 'string' ? this.passwordHash.length : 'N/A';
+    throw new Error(
+      `Invalid password_hash format: must be bcrypt hash (60 chars, $2[aby]$ prefix). ` +
+        `Got type=${observedType}, length=${observedLength}. ` +
+        `SoT: spec/5-system/1-auth.md §"비밀번호 저장".`,
+    );
+  }
 }
