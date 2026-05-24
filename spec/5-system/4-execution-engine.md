@@ -968,13 +968,17 @@ class IntegrationHandlerBase {
 
 SIGTERM 수신 시 동작 계약 — k8s 재배포 / Docker Compose `docker compose down` 등 모든 정상 종료 시점에 적용.
 
-1. **새 Execution 시작 거부**. `POST /api/executions/start` 및 WS `execution.start` 가 **503 Service Unavailable** 응답. response body 는 표준 API 에러 shape (`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`, [Spec API 규약](./2-api-convention.md)), `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더 동봉. LB drain 동안 traffic 이 다른 인스턴스로 라우팅.
+1. **새 Execution 시작 거부**. `POST /api/workflows/:id/execute` (HTTP) 및 WS [`execution.start`](./6-websocket-protocol.md#42-실행-제어-명령-client--server) 명령이 **503 Service Unavailable** 응답. response body 는 표준 API 에러 shape (`{ error: { code: 'SERVER_SHUTTING_DOWN', message: '...' } }`, [Spec API 규약](./2-api-convention.md)), `Retry-After: <ceil(SIGTERM_GRACE_MS / 1000)>` 헤더 동봉. LB drain 동안 traffic 이 다른 인스턴스로 라우팅.
+
+   > **Phase 1 구현 범위**: HTTP 진입점 (`POST /api/workflows/:id/execute`) gate 만 구현됨. WS `execution.start` 명령은 spec [§8.2](../3-workflow-editor/3-execution.md#82-execution-제어-명령) 에 정의되어 있으나, 현재 backend WebSocket gateway 에 해당 핸들러가 미구현 상태로 본 gate 도 적용 대상 외. Phase 2 (continuation-queue 본구현) 에서 WS handler 신설 시 동일 gate 추가 예정.
 2. BullMQ `execution-continuation` / `background-execution` / `task-queue` 의 active job 처리 중인 worker 는 현재 노드를 완료까지 진행. 신규 job consume 중단.
 3. **WAITING_FOR_INPUT 상태의 Execution 은 건드리지 않음** — DB 상태 그대로 두고 in-memory resolver 만 자연 소실. 사용자 입력 도착 시 §7.5 rehydration 으로 재개.
 4. **RUNNING 상태의 노드** 는:
    - `SIGTERM_GRACE_MS` (기본 30초) 까지 완료 대기.
    - 완료 시: 평상시 흐름으로 다음 노드 enqueue. continuation-queue 가 영속이므로 다른 인스턴스가 pick up.
    - 미완료 시: 해당 NodeExecution 을 `failed` + `error.code='SERVER_INTERRUPTED'` 로 마킹 후 Execution 도 노드의 errorPolicy 에 따라 처리 (`stop` → Execution `failed`, `continue` → 다음 노드 enqueue). §7.2 체크포인트 기반 Resume 으로 다른 인스턴스가 미완료 task 를 재큐할 수도 있음 (기존 §7.2 동작).
+
+   > **Phase 1 구현 범위**: errorPolicy 분기 없이 전체 `stop` 동등 처리 (NodeExecution + Execution 모두 `failed`). `continue` 정책 분기 (`다음 노드 enqueue`) 는 Phase 2 의 `execution-continuation` BullMQ 큐 (§7.4) 가 영속 상태로 enqueue 가능해진 뒤 추가 예정.
 5. `SIGTERM_GRACE_MS` 경과 후 강제 종료.
 
 | 환경 변수 | 기본값 | 설명 |
