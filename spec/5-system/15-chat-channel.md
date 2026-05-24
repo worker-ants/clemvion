@@ -310,6 +310,29 @@ PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 
 
 [`spec/2-navigation/2-trigger-list.md §3`](../2-navigation/2-trigger-list.md#3-api) 의 PATCH 설명에는 "`config.chatChannel.botTokenRef` 는 PATCH 로 변경 불가 — rotate API 사용" cross-link 가 추가된다.
 
+#### 5.4.1.1 `inboundSigning` PATCH 정책 (slack / discord 한정 — v1 차단)
+
+`inboundSigning` 자원 (slack signing secret / discord ed25519 public key — provider-issued, server-stored) 의 변경 정책은 다음과 같다:
+
+| 시점 | 메커니즘 | 비고 |
+|---|---|---|
+| 최초 트리거 생성 (`POST /api/triggers`) | 입력 body 의 `chatChannel.inboundSigningPlaintext` plaintext → `SecretResolver.store(inboundSigningRef, plaintext)` 후 strip. config 에는 `inboundSigningRef` 만 보관 (SS-SE-01) | 처음 한 번 |
+| 트리거 활성화 (`PATCH /api/triggers/:id/toggle` true) | 기존 `inboundSigningRef` 그대로 사용 | 변경 없음 |
+| **회전 (rotation)** | **v1 미정의 — PATCH body 의 `config.chatChannel.inboundSigningPlaintext` / `inboundSigning` 직접 변경은 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'` 또는 `'inboundSigning'`) 로 차단.** rotation 이 필요하면 트리거 삭제·재생성 | v2 후속 결정 — 별 spec |
+
+v1 차단의 정당화 — R-CC-10 (`botToken` single-path) 와 자원 성격이 달라 같은 single-path 패턴을 자동 적용하지 않는다:
+
+- `botToken` 은 외부 provider (Telegram BotFather / Slack OAuth / Discord Developer Portal) 측에 등록된 token — PATCH 직접 교체 시 외부 등록 token 과 mismatch 즉시 발생 → R-CC-10 의 single-path + 24h grace 가 정당화됨.
+- `inboundSigning` (slack signing secret / discord public key) 은 외부 provider 가 발급하지만 우리 측에 저장만 됨 — 외부 provider 자체가 회전 API 를 제공하지 않거나 (Slack signing secret 은 manual 재발급 후 사용자가 재입력), 회전이 사용자 워크플로우 외부에서 일어남.
+- v1 단계는 회전 빈도가 낮을 것으로 가정 — rotation API 신설 비용 (24h grace + revoke + audit) 대비 사용 빈도 검증 후 v2 결정. 그 사이 보수적 차단으로 정책 모호성 회피.
+
+v2 시점의 결정 후보:
+- (A) `botToken` single-path 패턴 그대로 차용 — `POST /api/triggers/:id/chat-channel/rotate-inbound-signing` 신설.
+- (B) PATCH body 허용 (grace 없음, 즉시 교체) — 외부 provider 가 grace 를 제공하지 않으므로 우리 측 grace 도 무의미.
+- (C) 트리거 삭제·재생성 강제 (v1 동일) — UX 부담 있으나 단순.
+
+별 spec 결정 사안. 본 spec 은 v1 차단 정책만 SoT.
+
 ### 5.4.2 응답 DTO derived 필드 — `hasBotToken`
 
 `GET /api/triggers/:id` 응답의 `config.chatChannel` 객체에는 **`hasBotToken: boolean`** 파생 필드가 포함된다:

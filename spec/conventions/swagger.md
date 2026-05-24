@@ -75,6 +75,41 @@ order?: 'asc' | 'desc';
 - nested object: `@ApiProperty({ type: () => NestedDto })`
 - union 또는 dynamic: `@ApiProperty({ type: 'object', additionalProperties: true })`
 
+### 1-5. `writeOnly` / `readOnly` — 보안 민감 + 응답 sanitize 필드 (2026-05-24)
+
+Swagger UI 의 request/response 스키마 분리를 활용해 보안 민감 입력 / 자동 발급 응답 필드를 명시:
+
+- **`writeOnly: true`** — 입력 전용. 응답 스키마에서 자동 제외. 사용처: 사용자가 입력하지만 응답에 절대 노출되지 않는 보안 민감 자료 (bot token plaintext, signing secret plaintext, 비밀번호 등).
+- **`readOnly: true`** — 응답 전용. 입력 스키마에서 자동 제외. 사용처: 서버가 자동 발급하는 ID / 타임스탬프 / derived field.
+
+```ts
+/**
+ * 입력 전용 — 서버가 secret store 로 옮긴 뒤 응답에서 strip.
+ */
+@ApiPropertyOptional({
+  description: 'Provider 발급 plaintext (slack signing secret / discord public key)',
+  writeOnly: true,
+  minLength: 32,
+  maxLength: 128,
+})
+@IsOptional()
+@IsString()
+@MinLength(32)
+@MaxLength(128)
+inboundSigningPlaintext?: string;
+
+/**
+ * 응답 전용 — 서버가 hasBotToken: botTokenRef !== null 로 자동 계산.
+ */
+@ApiProperty({
+  description: 'Bot token 이 secret store 에 저장됐는지 여부 (derived)',
+  readOnly: true,
+})
+hasBotToken: boolean;
+```
+
+**의무**: secret store 입력 plaintext (e.g. `botToken`, `inboundSigningPlaintext`) 필드는 항상 `writeOnly: true` 동반. 서버 derived field (`hasBotToken`, `id`, `createdAt` 등) 는 응답 DTO 한정으로 `readOnly: true` 동반. SoT 는 본 절.
+
 ---
 
 ## 2) Controller 패턴
