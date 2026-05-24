@@ -32,6 +32,22 @@ export type TriggerDetail = Trigger & {
   nextRunAt?: Date | null;
 };
 
+/**
+ * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01] 응답에서 strip 해야 하는
+ * chat-channel 필드 allow-list. 신규 plaintext / 내부 ref 필드 추가 시 본 상수에
+ * 반드시 키 추가 — destructure 누락 위험 회피. `sanitizeChatChannelForResponse` 가
+ * 단일 진실로 참조한다.
+ */
+const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
+  // 내부 secret store ref — UI 에 노출 X. derived `hasBotToken` 만 제공.
+  'botTokenRef',
+  'inboundSigningRef',
+  // 입력 전용 plaintext — 응답에 절대 노출 X (SS-SE-01).
+  'botToken',
+  'inboundSigning',
+  'inboundSigningPlaintext',
+]);
+
 @Injectable()
 export class TriggersService {
   private readonly logger = new Logger(TriggersService.name);
@@ -354,13 +370,15 @@ export class TriggersService {
   }
 
   /**
-   * [Spec Chat Channel §5.4.2] — 응답 DTO 전용 derived 필드 + 내부 ref strip.
+   * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01] — 응답 DTO 전용 derived 필드
+   * + 내부 ref + plaintext strip.
    *
-   * - `botTokenRef` / `inboundSigningRef` / `inboundSigning` / `inboundSigningPlaintext`
-   *   응답에서 제거 (UI 에 노출 X — secret-store.md §5.5 SS-SE-01: plaintext 는 config 에 흘리지 않음).
+   * Strip 키 집합 (`CHAT_CHANNEL_RESPONSE_STRIP_KEYS`) 은 module-level 상수로 단일 진실.
+   * 신규 plaintext / 내부 ref 필드 추가 시 본 상수에 키를 추가해야 응답 sanitize 가 적용됨
+   * (allow-list 패턴 — destructure 시 누락 위험 회피).
+   *
    * - `hasBotToken: boolean` derived 필드 주입 (`botTokenRef IS NOT NULL → true`).
-   *
-   * Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
+   * - Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
    */
   private sanitizeChatChannelForResponse<T extends Trigger>(trigger: T): T {
     const cfg = trigger.config as
@@ -371,17 +389,14 @@ export class TriggersService {
       | null
       | undefined;
     if (!cfg?.chatChannel) return trigger;
-    const {
-      botTokenRef,
-      inboundSigningRef: _inboundSigningRef,
-      inboundSigning: _inboundSigning,
-      inboundSigningPlaintext: _inboundSigningPlaintext,
-      ...rest
-    } = cfg.chatChannel;
-    const sanitizedChatChannel = {
-      ...rest,
-      hasBotToken: typeof botTokenRef === 'string' && botTokenRef.length > 0,
-    };
+    const botTokenRef = cfg.chatChannel.botTokenRef;
+    const sanitizedChatChannel: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(cfg.chatChannel)) {
+      if (CHAT_CHANNEL_RESPONSE_STRIP_KEYS.has(key)) continue;
+      sanitizedChatChannel[key] = value;
+    }
+    sanitizedChatChannel.hasBotToken =
+      typeof botTokenRef === 'string' && botTokenRef.length > 0;
     const sanitizedConfig = {
       ...cfg,
       chatChannel: sanitizedChatChannel,
@@ -937,38 +952,33 @@ export class TriggersService {
 
   /**
    * 24h grace 종료 시점에 old bot token 을 외부 provider 측에서도 revoke (가능한 경우).
-   *   - Slack: `auth.revoke` API 호출
-   *   - Telegram: API 미지원 (bot token 은 Bot Father reset 만) — noop
-   *   - Discord: token revoke endpoint 없음 — noop
+   *
+   * Adapter 인터페이스의 `revokeBotToken?` 옵션 메서드를 활용 — SoT:
+   * [spec/conventions/chat-channel-adapter.md §1] Adapter Interface.
+   *   - Slack: `auth.revoke` API 호출 (SlackAdapter.revokeBotToken 구현)
+   *   - Telegram: revocation API 미지원 — adapter 미구현 (undefined)
+   *   - Discord: token revoke endpoint 없음 — adapter 미구현 (undefined)
    *
    * 실패는 secret_store cleanup 을 차단하지 않는다 (best-effort).
+   * Service 단에 provider 별 분기 없음 — adapter 의 메서드 존재 여부가 분기 역할 (OCP 정합).
    */
   private async tryRevokeOldBotToken(
     config: ChatChannelConfig,
     v2Ref: string,
     triggerId: string,
   ): Promise<void> {
-    if (config.provider !== 'slack') return; // Telegram / Discord 는 미지원.
+    if (!this.channelAdapterRegistry.has(config.provider)) return;
+    const adapter = this.channelAdapterRegistry.get(config.provider);
+    if (typeof adapter.revokeBotToken !== 'function') return; // provider 가 revocation 미지원.
     try {
       const oldToken = await this.secrets.resolve(v2Ref);
-      const adapter = this.channelAdapterRegistry.has(config.provider)
-        ? this.channelAdapterRegistry.get(config.provider)
-        : null;
-      // SlackAdapter 의 client 노출이 없으므로 별 SlackClient 의존 — 본 메서드는 향후
-      // adapter 에 `revokeBotToken(token)` 옵션 함수를 추가하면 더 깔끔. 현재는
-      // provider 별 분기를 service 단에 둠.
-      const slackAdapter = adapter as unknown as {
-        client?: { authRevoke?: (token: string) => Promise<{ ok: boolean }> };
-      } | null;
-      if (slackAdapter?.client?.authRevoke) {
-        await slackAdapter.client.authRevoke(oldToken);
-        this.logger.log(
-          `Slack auth.revoke 호출 — trigger=${triggerId} 의 old bot token 무효화 완료`,
-        );
-      }
+      await adapter.revokeBotToken(oldToken);
+      this.logger.log(
+        `Adapter revokeBotToken 호출 — trigger=${triggerId} provider=${config.provider} 의 old bot token 무효화 완료`,
+      );
     } catch (err) {
       this.logger.warn(
-        `Slack auth.revoke best-effort 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+        `Adapter revokeBotToken best-effort 실패 (trigger=${triggerId}, provider=${config.provider}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
