@@ -8,6 +8,7 @@ import { ChannelAdapterRegistry } from './channel-adapter.registry';
 import { ChannelConversationService } from './channel-conversation.service';
 import { ChatChannelDispatcher } from './chat-channel.dispatcher';
 import { ChatChannelController } from './chat-channel.controller';
+import { ChatChannelTokenRotatorService } from './chat-channel-token-rotator.service';
 import { TelegramAdapter } from './providers/telegram/telegram.adapter';
 import { TelegramClient } from './providers/telegram/telegram-client';
 import { SlackAdapter } from './providers/slack/slack.adapter';
@@ -49,6 +50,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
     SlackAdapter,
     DiscordClient,
     DiscordAdapter,
+    ChatChannelTokenRotatorService,
   ],
   exports: [
     ChannelAdapterRegistry,

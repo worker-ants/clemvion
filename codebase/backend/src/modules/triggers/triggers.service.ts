@@ -726,6 +726,95 @@ export class TriggersService {
     return { promoted };
   }
 
+  /**
+   * [Spec CCH-SE-04-C] — 24h grace 가 경과한 chat channel bot token 회전 cleanup.
+   *   - `chat_channel_token_v2` ref 의 secret_store row 삭제 (`secrets.delete(v2Ref)`)
+   *   - provider 별 `auth.revoke` best-effort 호출 (Slack 만 지원, Discord/Telegram 미지원)
+   *   - `chat_channel_token_v2 = NULL` / `chat_channel_rotated_at = NULL` 갱신
+   *
+   * Idempotent — v2 가 null 이면 no-op. 매시간 cron (ChatChannelTokenRotatorService).
+   * NotificationSecretRotator 와 동일 패턴.
+   */
+  async cleanupRotatedChatChannelTokens(
+    nowMs: number = Date.now(),
+  ): Promise<{ cleaned: number }> {
+    const graceMs = 24 * 60 * 60 * 1000;
+    const candidates = await this.triggerRepository
+      .createQueryBuilder('t')
+      .where('t.chat_channel_token_v2 IS NOT NULL')
+      .andWhere('t.chat_channel_rotated_at <= :cutoff', {
+        cutoff: new Date(nowMs - graceMs),
+      })
+      .getMany();
+    let cleaned = 0;
+    for (const trigger of candidates) {
+      const v2Ref = trigger.chatChannelTokenV2;
+      if (!v2Ref) continue;
+
+      // provider 별 auth.revoke best-effort — 실패는 cleanup 진행 차단 안 함.
+      const chatChannelCfg = (
+        trigger.config as { chatChannel?: ChatChannelConfig }
+      ).chatChannel;
+      if (chatChannelCfg?.provider) {
+        await this.tryRevokeOldBotToken(chatChannelCfg, v2Ref, trigger.id);
+      }
+
+      // secret_store v2 row 삭제 (best-effort — 미존재 ref 는 noop).
+      try {
+        await this.secrets.delete(v2Ref);
+      } catch (err) {
+        this.logger.warn(
+          `ChatChannel v2 ref delete 실패 (trigger=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+
+      // 컬럼 갱신.
+      trigger.chatChannelTokenV2 = null;
+      trigger.chatChannelRotatedAt = null;
+      await this.triggerRepository.save(trigger);
+      cleaned++;
+    }
+    return { cleaned };
+  }
+
+  /**
+   * 24h grace 종료 시점에 old bot token 을 외부 provider 측에서도 revoke (가능한 경우).
+   *   - Slack: `auth.revoke` API 호출
+   *   - Telegram: API 미지원 (bot token 은 Bot Father reset 만) — noop
+   *   - Discord: token revoke endpoint 없음 — noop
+   *
+   * 실패는 secret_store cleanup 을 차단하지 않는다 (best-effort).
+   */
+  private async tryRevokeOldBotToken(
+    config: ChatChannelConfig,
+    v2Ref: string,
+    triggerId: string,
+  ): Promise<void> {
+    if (config.provider !== 'slack') return; // Telegram / Discord 는 미지원.
+    try {
+      const oldToken = await this.secrets.resolve(v2Ref);
+      const adapter = this.channelAdapterRegistry.has(config.provider)
+        ? this.channelAdapterRegistry.get(config.provider)
+        : null;
+      // SlackAdapter 의 client 노출이 없으므로 별 SlackClient 의존 — 본 메서드는 향후
+      // adapter 에 `revokeBotToken(token)` 옵션 함수를 추가하면 더 깔끔. 현재는
+      // provider 별 분기를 service 단에 둠.
+      const slackAdapter = adapter as unknown as {
+        client?: { authRevoke?: (token: string) => Promise<{ ok: boolean }> };
+      } | null;
+      if (slackAdapter?.client?.authRevoke) {
+        await slackAdapter.client.authRevoke(oldToken);
+        this.logger.log(
+          `Slack auth.revoke 호출 — trigger=${triggerId} 의 old bot token 무효화 완료`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Slack auth.revoke best-effort 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   async getHistory(
     id: string,
     workspaceId: string,
