@@ -29,6 +29,10 @@ import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { RoleGate, useHasRole } from "@/components/auth/role-gate";
+import {
+  SLACK_SIGNING_SECRET_REGEX,
+  DISCORD_PUBLIC_KEY_REGEX,
+} from "@workflow/chat-channel-validation";
 
 const PAGE_SIZE = 20;
 
@@ -279,9 +283,12 @@ export default function TriggersPage() {
         return;
       }
       // [provider 발급 표준] Slack signing secret / Discord public key 는 lowercase hex.
-      // backend assertInboundSigningPlaintextByProvider 와 동일 정규식 — uppercase 입력 차단.
+      // 정규식은 `@workflow/chat-channel-validation` 패키지 단일 진실 — backend
+      // `assertInboundSigningPlaintextByProvider` 와 같은 export 를 사용.
       const expectedHex =
-        formChatChannelProvider === "slack" ? /^[a-f0-9]{32}$/ : /^[a-f0-9]{64}$/;
+        formChatChannelProvider === "slack"
+          ? SLACK_SIGNING_SECRET_REGEX
+          : DISCORD_PUBLIC_KEY_REGEX;
       if (!expectedHex.test(plaintext)) {
         toast.error(
           formChatChannelProvider === "slack"
