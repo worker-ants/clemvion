@@ -402,6 +402,85 @@ describe('McpToolProvider', () => {
       expect(tools).toEqual([]);
       expect(mcpClient.connect).not.toHaveBeenCalled();
     });
+
+    it('serviceType="cafe24" 인 Internal Bridge 통합은 silent skip — WARN 미발생', async () => {
+      // [Spec MCP Client §6.2 skipReason vocabulary] "not_capable" — 본 provider 가
+      // 처리할 대상 아닌 service_type 은 Cafe24McpToolProvider 가 처리. 두 provider
+      // 가 같은 mcpServers ref 를 순회하므로 본 provider 는 throw/WARN 없이
+      // 통과해야 한다 (Cafe24McpToolProvider 의 silent continue 와 비대칭 해소).
+      // 회귀 사례: 매 turn 마다 "MCP server … is not service_type='mcp' (got cafe24)"
+      // WARN 이 로그를 도배하던 문제 (2026-05-25 사용자 보고).
+      integrations.getForExecution.mockResolvedValue(
+        makeIntegration({ serviceType: 'cafe24' }),
+      );
+      const warnSpy = jest
+        .spyOn(
+          (McpToolProvider as unknown as { logger: { warn: jest.Mock } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+      try {
+        const tools = await provider.buildTools({
+          config: {
+            mcpServers: [{ integrationId: 'cafe24-int' }],
+          },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+        });
+        expect(tools).toEqual([]);
+        expect(mcpClient.connect).not.toHaveBeenCalled();
+        // 핵심: WARN logger 가 호출되지 않아야 한다 (silent skip).
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('비-mcp service_type 통합이 정상 mcp 통합과 섞여 있어도 정상 통합은 처리됨', async () => {
+      // 사용자 보고 시나리오: weather MCP (serviceType='mcp') + 카페24
+      // (serviceType='cafe24') 가 같은 mcpServers 배열에 공존. 정상 통합은 노출,
+      // 카페24 ref 는 silent skip.
+      const okIntegration = makeIntegration({
+        id: 'aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee',
+      });
+      const cafe24Integration = makeIntegration({
+        id: 'b74e1adc-d7bf-438f-9555-09719a473eb9',
+        serviceType: 'cafe24',
+      });
+      integrations.getForExecution
+        .mockResolvedValueOnce(okIntegration)
+        .mockResolvedValueOnce(cafe24Integration);
+      mcpClient.connect.mockResolvedValueOnce(makeSession());
+
+      const warnSpy = jest
+        .spyOn(
+          (McpToolProvider as unknown as { logger: { warn: jest.Mock } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+      try {
+        const tools = await provider.buildTools({
+          config: {
+            mcpServers: [
+              { integrationId: okIntegration.id },
+              { integrationId: cafe24Integration.id },
+            ],
+          },
+          workspaceId: 'ws-1',
+          executionId: 'exec-1',
+        });
+
+        expect(tools.length).toBeGreaterThan(0);
+        expect(tools.every((t) => t.name.startsWith('mcp_aaaa1111__'))).toBe(
+          true,
+        );
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 
   describe('execute', () => {
