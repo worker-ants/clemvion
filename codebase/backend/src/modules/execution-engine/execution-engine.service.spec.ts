@@ -2165,7 +2165,7 @@ describe('ExecutionEngineService', () => {
               });
             }
             // 그 외 lookup 은 기본 mock 으로 처리 (legacy 호환).
-            return (originalFindOne as jest.Mock)(opts);
+            return originalFindOne(opts);
           },
         );
 

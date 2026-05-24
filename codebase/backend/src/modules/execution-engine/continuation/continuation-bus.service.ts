@@ -160,7 +160,10 @@ export class ContinuationBusService {
    *
    * @deprecated Phase 2 부터는 worker 가 처리. 호출 코드 제거 예정.
    */
-  on(_type: ContinuationType, _handler: (msg: ContinuationMessage) => void): void {
+  on(
+    _type: ContinuationType,
+    _handler: (msg: ContinuationMessage) => void,
+  ): void {
     this.logger.debug(
       'ContinuationBusService.on() 호출은 Phase 2 부터 no-op — worker (continuation-execution.processor.ts) 가 dispatch 담당',
     );

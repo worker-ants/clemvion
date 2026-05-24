@@ -26,7 +26,6 @@ import {
 } from './workflow-errors';
 import {
   ContinuationBusService,
-  ContinuationMessage,
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
@@ -740,7 +739,10 @@ export class ExecutionEngineService
       const execution = await this.executionRepository.findOneBy({
         id: executionId,
       });
-      if (!execution || execution.status !== ExecutionStatus.WAITING_FOR_INPUT) {
+      if (
+        !execution ||
+        execution.status !== ExecutionStatus.WAITING_FOR_INPUT
+      ) {
         throw new RehydrationError(
           'RESUME_CHECKPOINT_MISSING',
           `Execution ${executionId} not WAITING_FOR_INPUT (status=${execution?.status ?? 'absent'})`,
@@ -905,7 +907,7 @@ export class ExecutionEngineService
         this.contextService.setNodeOutput(
           execution.id,
           log.nodeId,
-          ne.outputData as Record<string, unknown>,
+          ne.outputData,
         );
       }
       executedNodes.add(log.nodeId);
@@ -918,7 +920,7 @@ export class ExecutionEngineService
       this.contextService.setNodeOutput(
         execution.id,
         waitingNodeExec.nodeId,
-        waitingNodeExec.outputData as Record<string, unknown>,
+        waitingNodeExec.outputData,
       );
     }
 
@@ -1040,10 +1042,7 @@ export class ExecutionEngineService
       // waitForX 가 (RUNNING → WAITING_FOR_INPUT) 전이를 시도하므로 먼저
       // RUNNING 으로 옮긴다. spec/5-system/4-execution-engine.md §1.1 state
       // machine 의 WAITING_FOR_INPUT → RUNNING 전이는 정상 (resume sentinel).
-      await this.updateExecutionStatus(
-        savedExecution,
-        ExecutionStatus.RUNNING,
-      );
+      await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
 
       // waitForX 직접 invoke — executeNode 우회. waitForX 내부에서 nodeExec
       // lookup → status WAITING_FOR_INPUT 갱신 + outputData save → emit →
@@ -1221,7 +1220,9 @@ export class ExecutionEngineService
           | undefined;
         const downstreamInteraction = this.getInteractionType(context, node.id);
         if (downstreamOutput?.status === 'waiting_for_input') {
-          const downstreamBlocking = this.handlerRegistry.getMetadata(node.type);
+          const downstreamBlocking = this.handlerRegistry.getMetadata(
+            node.type,
+          );
           if (
             downstreamBlocking.kind === 'blocking' &&
             downstreamBlocking.interaction === 'form'
@@ -1348,7 +1349,10 @@ export class ExecutionEngineService
 
   private async markExecutionCancelled(
     executionId: string,
-    code: 'RESUME_CHECKPOINT_MISSING' | 'RESUME_FAILED' | 'RESUME_INCOMPATIBLE_STATE',
+    code:
+      | 'RESUME_CHECKPOINT_MISSING'
+      | 'RESUME_FAILED'
+      | 'RESUME_INCOMPATIBLE_STATE',
   ): Promise<void> {
     try {
       await this.executionRepository
@@ -1378,7 +1382,10 @@ export class ExecutionEngineService
 
   private async markNodeExecutionFailed(
     nodeExecutionId: string,
-    code: 'RESUME_CHECKPOINT_MISSING' | 'RESUME_FAILED' | 'RESUME_INCOMPATIBLE_STATE',
+    code:
+      | 'RESUME_CHECKPOINT_MISSING'
+      | 'RESUME_FAILED'
+      | 'RESUME_INCOMPATIBLE_STATE',
   ): Promise<void> {
     try {
       await this.nodeExecutionRepository
@@ -1407,7 +1414,10 @@ export class ExecutionEngineService
   }
 
   private static resumeErrorMessage(
-    code: 'RESUME_CHECKPOINT_MISSING' | 'RESUME_FAILED' | 'RESUME_INCOMPATIBLE_STATE',
+    code:
+      | 'RESUME_CHECKPOINT_MISSING'
+      | 'RESUME_FAILED'
+      | 'RESUME_INCOMPATIBLE_STATE',
   ): string {
     switch (code) {
       case 'RESUME_CHECKPOINT_MISSING':

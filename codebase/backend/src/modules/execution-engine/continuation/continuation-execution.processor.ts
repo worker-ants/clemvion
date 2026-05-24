@@ -56,9 +56,8 @@ export class ContinuationExecutionProcessor extends WorkerHost {
     // §7.5 멱등성 보강: 처리 전 NodeExecution 상태 재검증. 이미 COMPLETED/FAILED
     // 면 다른 worker 가 먼저 처리한 결과로 본다. cancel 류는 status 무관.
     if (type !== 'cancel') {
-      const stillWaiting = await this.engine.isNodeExecutionWaiting(
-        nodeExecutionId,
-      );
+      const stillWaiting =
+        await this.engine.isNodeExecutionWaiting(nodeExecutionId);
       if (!stillWaiting) {
         this.logger.debug(
           `[${type}] ack-and-discard — nodeExec=${nodeExecutionId} 이 이미 COMPLETED/FAILED. (정상 race)`,
@@ -72,10 +71,15 @@ export class ContinuationExecutionProcessor extends WorkerHost {
     // 분기해 처리한다.
     switch (type) {
       case 'continue':
-        await this.engine.applyContinuation(executionId, nodeExecutionId, payload);
+        await this.engine.applyContinuation(
+          executionId,
+          nodeExecutionId,
+          payload,
+        );
         break;
       case 'cancel':
-        await this.engine.applyCancellation(executionId);
+        // applyCancellation 은 sync (rejectPending 만 호출) — await 불필요.
+        this.engine.applyCancellation(executionId);
         break;
       case 'button_click':
         await this.engine.applyContinuation(executionId, nodeExecutionId, {
