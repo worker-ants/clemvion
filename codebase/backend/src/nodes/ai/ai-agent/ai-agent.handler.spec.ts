@@ -1656,12 +1656,19 @@ describe('AiAgentHandler', () => {
       );
       expect(toolResultMsg).toBeDefined();
       const parsed = JSON.parse(toolResultMsg!.content as string) as {
+        ok?: boolean;
         type: string;
         data: Record<string, unknown>;
+        message?: string;
       };
       expect(parsed.type).toBe('form_submitted');
       expect(parsed.data.email).toBe('a@b.c');
       expect(parsed.data.name).toBe('Alice');
+      // spec §12.6 — LLM 재호출 가드 필드 (`ok:true` + `message`) 보강.
+      // 동일 form 재호출 회귀 차단 (2026-05-24 회귀, PR #299).
+      expect(parsed.ok).toBe(true);
+      expect(typeof parsed.message).toBe('string');
+      expect(parsed.message).toMatch(/재호출|다시 호출|do not call/i);
 
       // spec §6.2 step 2.c — appendPresentationInteraction 호출 검증
       // (presentation_user thread push + data.via: 'ai_render' sentinel).
@@ -1839,11 +1846,16 @@ describe('AiAgentHandler', () => {
       );
       expect(toolResultMsg).toBeDefined();
       const parsed = JSON.parse(toolResultMsg!.content as string) as {
+        ok?: boolean;
         type: string;
         data: Record<string, unknown>;
+        message?: string;
       };
       expect(parsed.type).toBe('form_submitted');
       expect(parsed.data.field).toBe('value');
+      // spec §12.6 — fallback 경로에서도 가드 필드 보강이 동일 적용된다.
+      expect(parsed.ok).toBe(true);
+      expect(parsed.message).toMatch(/재호출|다시 호출|do not call/i);
     });
 
     it('options 미전달 (구 호출자) + pendingFormToolCall 없음 → 정상 ai_user 경로 (하위 호환)', async () => {
@@ -3273,6 +3285,42 @@ describe('AiAgentHandler — render_* dispatch (spec §4.1)', () => {
       status: 'rendered',
     });
     expect(meta.presentationSchemaViolations).toBeUndefined();
+  });
+
+  // spec/4-nodes/3-ai/1-ai-agent.md §12.6 — `render_form` submit 후 LLM 의
+  // 동일 form 재호출 회귀 차단. `PRESENTATION_TOOLS_GUIDANCE` 에 form_submitted
+  // 케이스 처리 라인이 포함되어야 한다 — `{ok:true, type:'form_submitted'}` 를
+  // 받으면 같은 form 재호출 금지 + 후속 답변 / 다른 도구 호출 / turn 종결 유도.
+  it('systemPrompt 에 form_submitted 재호출 금지 안내가 포함된다 (spec §12.6)', async () => {
+    mockLlmService.chat.mockResolvedValueOnce({
+      content: 'ok',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      model: 'gpt-4o',
+      finishReason: 'stop',
+    });
+
+    await handler.execute(
+      { x: 1 },
+      {
+        systemPrompt: 'sys',
+        userPrompt: 'hello',
+        model: 'gpt-4o',
+        includeSystemContext: false,
+        presentationTools: [{ type: 'form' }],
+      },
+      ctx,
+    );
+
+    const callArgs = mockLlmService.chat.mock.calls[0][1] as {
+      messages: Array<{ role: string; content?: string }>;
+    };
+    const systemMsg = callArgs.messages.find((m) => m.role === 'system');
+    expect(systemMsg).toBeDefined();
+    expect(systemMsg!.content).toEqual(
+      expect.stringContaining('form_submitted'),
+    );
+    // 핵심 안내: 같은 form 재호출 금지 + 후속 행동 유도
+    expect(systemMsg!.content).toMatch(/재호출하지|다시 호출하지|do not call/i);
   });
 
   it('retry-gate: silently drops 2nd schema violation for the same tool (spec §4.1)', async () => {

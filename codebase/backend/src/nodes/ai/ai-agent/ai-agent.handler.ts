@@ -198,7 +198,21 @@ const PRESENTATION_TOOLS_GUIDANCE =
   '바로 짧은 마무리 텍스트 응답으로 turn 을 종결하거나, 사용자의 다음 메시지를 기다리세요.\n' +
   '- `{error: "INVALID_PAYLOAD", ...}` — 페이로드에 누락/오류가 있어 사용자에게 표시되지 않았습니다. 오류 사유를 보고 ' +
   '같은 turn 안에서 1회 재시도 (수정된 payload 로). 두 번째 실패 후에는 텍스트로 대체 응답하세요.\n' +
-  '도구 호출 4회 초과 시 자동 차단됩니다 — 사용자에게는 이미 카드가 표시된 상태이므로 추가 호출은 무의미합니다.';
+  '도구 호출 4회 초과 시 자동 차단됩니다 — 사용자에게는 이미 카드가 표시된 상태이므로 추가 호출은 무의미합니다.\n' +
+  '- `{ok: true, type: "form_submitted", data: {…}, message: "..."}` — 사용자가 `render_form` 을 통해 제출한 form 응답이 도착했습니다. **같은 form 을 다시 호출하지 마세요.** ' +
+  '`data` 의 입력값을 reasoning 에 반영해 후속 답변(텍스트) / 다른 도구 호출 / turn 종결 중 하나로 진행하세요. 동일 form 재호출은 사용자 화면에 같은 form 이 다시 떠 회귀로 인식됩니다.';
+
+/**
+ * `render_form` submit 시 tool_result content 에 함께 직렬화되는 LLM 재호출
+ * 가드 안내문. SoT: spec/4-nodes/3-ai/1-ai-agent.md §12.6.
+ *
+ * `{ok:true, type:'form_submitted', data, message}` shape 의 `message` 필드와
+ * `PRESENTATION_TOOLS_GUIDANCE` 의 `form_submitted` 안내 라인이 같은 의미를
+ * 공유하도록 단일 상수로 추출 — 두 위치의 표현이 어긋나면 LLM 이 충돌 신호로
+ * 해석할 수 있다.
+ */
+const FORM_SUBMITTED_GUIDANCE_MESSAGE =
+  '사용자가 form 을 제출했습니다. 같은 form 을 다시 호출하지 말고, data 의 입력값을 받아 후속 답변 / 다른 도구 호출 / turn 종결 중 하나로 진행하세요.';
 
 /**
  * Provider 가 반환한 diagnostic delta 를 노드 단위로 누적.
@@ -1644,7 +1658,17 @@ export class AiAgentHandler implements NodeHandler {
       const newToolResult: ChatMessage = {
         role: 'tool',
         toolCallId: pendingFormToolCall.toolCallId,
-        content: JSON.stringify({ type: 'form_submitted', data: formData }),
+        // spec/4-nodes/3-ai/1-ai-agent.md §12.6 — 가드 필드 `ok:true` +
+        // `message` 보강. 기존 `{type, data}` SoT 는 유지하여 4-layer SSOT 의
+        // 다른 layer (NodeOutput interaction.type / internal bus sentinel /
+        // WS wire) 영향 0. system prompt 의 재호출 금지 가드 패턴 (`ok:true`)
+        // 과 매칭되도록 신호 복원 + `message` 로 명시적 후속 행동 유도.
+        content: JSON.stringify({
+          ok: true,
+          type: 'form_submitted',
+          data: formData,
+          message: FORM_SUBMITTED_GUIDANCE_MESSAGE,
+        }),
       };
       if (stubIndex >= 0) {
         messages[stubIndex] = newToolResult;
