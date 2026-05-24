@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Client } from 'pg';
-import { createHmac, randomBytes, randomUUID } from 'crypto';
+import { createHmac } from 'crypto';
 import request from 'supertest';
 
 import { createDbClient } from './helpers/db';
+import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
 
 /**
  * e2e: Slack Chat Channel adapter ([Spec providers/slack.md §3~§6]).
@@ -35,64 +36,11 @@ function nowSec(offset = 0): string {
   return String(Math.floor(Date.now() / 1000) + offset);
 }
 
-async function setupSlackTrigger(db: Client): Promise<{
-  triggerId: string;
-  endpointPath: string;
-  workspaceId: string;
-  workflowId: string;
-}> {
-  const workspaceId = randomUUID();
-  const userId = randomUUID();
-  await db.query(
-    `INSERT INTO "user" (id, email, name, password_hash, email_verified, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, true, NOW(), NOW())
-     ON CONFLICT DO NOTHING`,
-    [userId, `slack-e2e-${userId.slice(0, 8)}@e2e.local`, 'Slack E2E', 'x'],
-  );
-  await db.query(
-    `INSERT INTO workspace (id, name, slug, owner_id, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-    [
-      workspaceId,
-      `slack-${workspaceId.slice(0, 8)}`,
-      `slack-${workspaceId.slice(0, 8)}`,
-      userId,
-    ],
-  );
-  const workflowId = randomUUID();
-  await db.query(
-    `INSERT INTO workflow (id, name, workspace_id, is_active, current_version, created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, true, 1, $4, NOW(), NOW())`,
-    [workflowId, 'slack-e2e-wf', workspaceId, userId],
-  );
-  const triggerId = randomUUID();
-  const endpointPath = `slack-e2e-${randomBytes(6).toString('hex')}`;
-
-  // inbound-signing secret 저장 (AES-256-GCM application encryption — secret_store INSERT 는
-  // application 경로를 거쳐야 함. e2e 에서는 직접 INSERT 가 불가 — REST API 없이
-  // 우회 위해 testing endpoint 가 있다면 사용, 없으면 SecretResolverService 의 평문 INSERT
-  // 가 fail-fast 라 별도 stub 필요. 본 e2e 는 trigger row 만 setup + auth flow 만 검증).
-  await db.query(
-    `INSERT INTO trigger
-       (id, workspace_id, workflow_id, type, name, endpoint_path, is_active, config,
-        chat_channel_health, created_at, updated_at)
-     VALUES ($1, $2, $3, 'webhook', 'slack-e2e-trigger', $4, true, $5::jsonb, 'unknown', NOW(), NOW())`,
-    [
-      triggerId,
-      workspaceId,
-      workflowId,
-      endpointPath,
-      JSON.stringify({
-        chatChannel: {
-          provider: 'slack',
-          botTokenRef: `secret://triggers/${triggerId}/bot-token`,
-          inboundSigningRef: `secret://triggers/${triggerId}/inbound-signing`,
-        },
-      }),
-    ],
-  );
-  return { triggerId, endpointPath, workspaceId, workflowId };
-}
+// inbound-signing secret 저장 (AES-256-GCM application encryption — secret_store INSERT 는
+// application 경로를 거쳐야 함. e2e 에서는 직접 INSERT 가 불가 — REST API 없이
+// 우회 위해 testing endpoint 가 있다면 사용, 없으면 SecretResolverService 의 평문 INSERT
+// 가 fail-fast 라 별도 stub 필요. 본 e2e 는 trigger row 만 setup + auth flow 만 검증.
+// user/workspace/workflow/trigger fixture 신설은 `helpers/e2e-chat-channel-fixture.ts` 에서 공용 헬퍼로.
 
 describe('Slack Chat Channel e2e', () => {
   let db: Client;
@@ -102,7 +50,7 @@ describe('Slack Chat Channel e2e', () => {
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
-    const setup = await setupSlackTrigger(db);
+    const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
     endpointPath = setup.endpointPath;
     triggerId = setup.triggerId;
   });
@@ -171,7 +119,7 @@ describe('Slack Chat Channel e2e', () => {
 
     it('inboundSigningRef 미설정 trigger 는 signing skip → 202 (legacy)', async () => {
       // 새 trigger setup — inboundSigningRef 없음.
-      const setup = await setupSlackTrigger(db);
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
       await db.query(`UPDATE trigger SET config = $1::jsonb WHERE id = $2`, [
         JSON.stringify({
           chatChannel: {
@@ -198,7 +146,7 @@ describe('Slack Chat Channel e2e', () => {
     });
 
     it('미지원 envelope → 202 + ignored (parser null)', async () => {
-      const setup = await setupSlackTrigger(db);
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
       await db.query(`UPDATE trigger SET config = $1::jsonb WHERE id = $2`, [
         JSON.stringify({
           chatChannel: {
@@ -222,7 +170,7 @@ describe('Slack Chat Channel e2e', () => {
 
   describe('group chat 차단 — Spec CCH-CV-05', () => {
     it('channel_type=channel 의 message → 202 + ignored', async () => {
-      const setup = await setupSlackTrigger(db);
+      const setup = await setupChatChannelTrigger({ db, provider: 'slack' });
       await db.query(`UPDATE trigger SET config = $1::jsonb WHERE id = $2`, [
         JSON.stringify({
           chatChannel: {

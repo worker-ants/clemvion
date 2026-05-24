@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Client } from 'pg';
-import { randomBytes, randomUUID } from 'crypto';
 import request from 'supertest';
 
 import { createDbClient } from './helpers/db';
+import { setupChatChannelTrigger } from './helpers/e2e-chat-channel-fixture';
 
 /**
  * e2e: Discord Chat Channel adapter ([Spec providers/discord.md §3~§6]).
@@ -20,57 +20,9 @@ import { createDbClient } from './helpers/db';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
-async function setupDiscordTrigger(db: Client): Promise<{
-  triggerId: string;
-  endpointPath: string;
-}> {
-  const workspaceId = randomUUID();
-  const userId = randomUUID();
-  await db.query(
-    `INSERT INTO "user" (id, email, name, password_hash, email_verified, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, true, NOW(), NOW())
-     ON CONFLICT DO NOTHING`,
-    [userId, `discord-e2e-${userId.slice(0, 8)}@e2e.local`, 'Discord E2E', 'x'],
-  );
-  await db.query(
-    `INSERT INTO workspace (id, name, slug, owner_id, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-    [
-      workspaceId,
-      `discord-${workspaceId.slice(0, 8)}`,
-      `discord-${workspaceId.slice(0, 8)}`,
-      userId,
-    ],
-  );
-  const workflowId = randomUUID();
-  await db.query(
-    `INSERT INTO workflow (id, name, workspace_id, is_active, current_version, created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, true, 1, $4, NOW(), NOW())`,
-    [workflowId, 'discord-e2e-wf', workspaceId, userId],
-  );
-  const triggerId = randomUUID();
-  const endpointPath = `discord-e2e-${randomBytes(6).toString('hex')}`;
-  await db.query(
-    `INSERT INTO trigger
-       (id, workspace_id, workflow_id, type, name, endpoint_path, is_active, config,
-        chat_channel_health, created_at, updated_at)
-     VALUES ($1, $2, $3, 'webhook', 'discord-e2e-trigger', $4, true, $5::jsonb, 'unknown', NOW(), NOW())`,
-    [
-      triggerId,
-      workspaceId,
-      workflowId,
-      endpointPath,
-      JSON.stringify({
-        chatChannel: {
-          provider: 'discord',
-          botTokenRef: `secret://triggers/${triggerId}/bot-token`,
-          // 의도적으로 inboundSigningRef 비움 — signing skip path (legacy) 검증
-        },
-      }),
-    ],
-  );
-  return { triggerId, endpointPath };
-}
+// user/workspace/workflow/trigger fixture 는 `helpers/e2e-chat-channel-fixture.ts` 공용 헬퍼로.
+// Discord 는 `inboundSigningRef` 가 trigger.config 에 박히지 않는다 — signing skip
+// (legacy) path 검증 위한 의도적 누락. 헬퍼가 provider='discord' 인자에서 이 동작을 보장.
 
 describe('Discord Chat Channel e2e', () => {
   let db: Client;
@@ -80,7 +32,7 @@ describe('Discord Chat Channel e2e', () => {
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
-    const setup = await setupDiscordTrigger(db);
+    const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
     endpointPath = setup.endpointPath;
     triggerId = setup.triggerId;
   });
@@ -148,7 +100,7 @@ describe('Discord Chat Channel e2e', () => {
   });
 
   it('inboundSigningRef 설정된 trigger + 잘못된 signature → 401', async () => {
-    const setup = await setupDiscordTrigger(db);
+    const setup = await setupChatChannelTrigger({ db, provider: 'discord' });
     await db.query(`UPDATE trigger SET config = $1::jsonb WHERE id = $2`, [
       JSON.stringify({
         chatChannel: {
