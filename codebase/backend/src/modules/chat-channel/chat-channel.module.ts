@@ -1,10 +1,12 @@
-import { forwardRef, Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { forwardRef, Module, OnApplicationBootstrap } from '@nestjs/common';
+import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { TriggersModule } from '../triggers/triggers.module';
 import { WebsocketModule } from '../websocket/websocket.module';
 import { ChannelAdapterRegistry } from './channel-adapter.registry';
+import { ChannelListenerRegistry } from './channel-listener.registry';
 import { ChannelConversationService } from './channel-conversation.service';
 import { ChatChannelDispatcher } from './chat-channel.dispatcher';
 import { ChatChannelController } from './chat-channel.controller';
@@ -41,6 +43,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
   controllers: [ChatChannelController],
   providers: [
     ChannelAdapterRegistry,
+    ChannelListenerRegistry,
     ChannelConversationService,
     ChatChannelDispatcher,
     ChatChannelInboundAuthenticator,
@@ -54,20 +57,52 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
   ],
   exports: [
     ChannelAdapterRegistry,
+    ChannelListenerRegistry,
     ChannelConversationService,
     ChatChannelInboundAuthenticator,
   ],
 })
-export class ChatChannelModule {
+export class ChatChannelModule implements OnApplicationBootstrap {
   constructor(
     private readonly registry: ChannelAdapterRegistry,
+    private readonly listenerRegistry: ChannelListenerRegistry,
     private readonly telegramAdapter: TelegramAdapter,
     private readonly slackAdapter: SlackAdapter,
     private readonly discordAdapter: DiscordAdapter,
+    @InjectRepository(Trigger)
+    private readonly triggerRepository: Repository<Trigger>,
   ) {
     // onModuleInit 대신 constructor — 어댑터 인스턴스는 NestJS DI 시점에 ready.
     this.registry.register(this.telegramAdapter);
     this.registry.register(this.slackAdapter);
     this.registry.register(this.discordAdapter);
+  }
+
+  /**
+   * [Spec R8 v1 적용 (2026-05-24)] hot reload / process restart 후 listener registry 가
+   * 비어있는 상태를 DB 로부터 일괄 복원. active trigger + chatChannel 설정된 것만 register.
+   *
+   * `onApplicationBootstrap` 은 NestJS 의 모든 모듈 init 완료 + DB 연결 준비 완료 후 실행.
+   * `onModuleInit` (constructor 시점) 에서는 typeorm repository 의 query 가 안전하지 않음.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    const activeTriggers = await this.triggerRepository
+      .createQueryBuilder('t')
+      .where('t.is_active = true')
+      .andWhere("t.config ->> 'chatChannel' IS NOT NULL")
+      .select(['t.id', 't.config'])
+      .getMany();
+
+    const entries: Array<{ triggerId: string; provider: string }> = [];
+    for (const trigger of activeTriggers) {
+      const cfg = trigger.config as
+        | { chatChannel?: { provider?: string } }
+        | null
+        | undefined;
+      const provider = cfg?.chatChannel?.provider;
+      if (typeof provider !== 'string' || provider.length === 0) continue;
+      entries.push({ triggerId: trigger.id, provider });
+    }
+    this.listenerRegistry.bulkRegister(entries);
   }
 }
