@@ -64,6 +64,8 @@ describe('ExecutionEngineService', () => {
   let mockWebsocketService: {
     emitExecutionEvent: jest.Mock;
     emitNodeEvent: jest.Mock;
+    registerExecutionRouting: jest.Mock;
+    releaseExecutionRouting: jest.Mock;
   };
   let mockConfigService: { get: jest.Mock };
 
@@ -298,6 +300,8 @@ describe('ExecutionEngineService', () => {
           useValue: {
             emitExecutionEvent: jest.fn(),
             emitNodeEvent: jest.fn(),
+            registerExecutionRouting: jest.fn(),
+            releaseExecutionRouting: jest.fn(),
           },
         },
         {
@@ -1408,6 +1412,119 @@ describe('ExecutionEngineService', () => {
           triggerId: undefined,
         }),
       );
+    });
+  });
+
+  describe('runExecution — chat-channel routing context registration', () => {
+    // Spec [chat-channel.md §3.1 CCH-AD-05]: ChatChannelDispatcher 가 trigger 와
+    // conversationKey 를 식별할 수 있어야 outbound 메시지 발송 가능. 엔진이
+    // execute() 진입 시점에 WebsocketService 에 (executionId → {triggerId,
+    // chatChannel}) 를 등록해야 이후 emit 되는 모든 이벤트의 fanout envelope 에
+    // 자동으로 routing context 가 첨부된다. terminal event 발송 시점에 release
+    // 도 의무 (메모리 누수 방지 + 같은 executionId 재사용 시 stale context 차단).
+
+    it('webhook trigger (options.triggerId + input.chatChannel) → register 1회 호출 + chatChannel 동봉', async () => {
+      await service.execute(
+        workflowId,
+        {
+          __triggerSource: 'webhook',
+          chatChannel: {
+            provider: 'telegram',
+            conversationKey: '12345',
+            channelUserKey: 'user-1',
+          },
+        },
+        { triggerId: 'trg-tele' },
+      );
+      await flushPromises();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-tele',
+        chatChannel: {
+          provider: 'telegram',
+          conversationKey: '12345',
+          channelUserKey: 'user-1',
+        },
+      });
+    });
+
+    it('일반 webhook (chatChannel 미설정) → triggerId 만 register', async () => {
+      await service.execute(
+        workflowId,
+        { parameters: {} },
+        { triggerId: 'trg-wh' },
+      );
+      await flushPromises();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, { triggerId: 'trg-wh' });
+    });
+
+    it('수동 실행 (executedBy, triggerId 없음) → register 호출 안 함', async () => {
+      await service.execute(workflowId, { data: 'x' }, { executedBy: 'u1' });
+      await flushPromises();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('chatChannel.provider 가 빈 문자열이면 chatChannel 등록 제외 (triggerId 만 등록)', async () => {
+      // extractChatChannelFromInput 의 경계값 검증 — provider 또는
+      // conversationKey 가 비어있으면 chatChannel 통째 미통과. dispatcher 가
+      // 잘못된 routing 으로 발송 시도하는 회귀 차단.
+      await service.execute(
+        workflowId,
+        {
+          chatChannel: { provider: '', conversationKey: '12345' },
+        },
+        { triggerId: 'trg-bad' },
+      );
+      await flushPromises();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, { triggerId: 'trg-bad' });
+    });
+
+    it('chatChannel.conversationKey 가 빈 문자열이면 chatChannel 등록 제외', async () => {
+      await service.execute(
+        workflowId,
+        {
+          chatChannel: { provider: 'telegram', conversationKey: '' },
+        },
+        { triggerId: 'trg-bad2' },
+      );
+      await flushPromises();
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, { triggerId: 'trg-bad2' });
+    });
+
+    it('runExecution 가 reject 하면 .catch 가 routing context 명시 release (안전망)', async () => {
+      // ExecutionEngine 의 fire-and-forget runExecution 이 throw 한 채 reject
+      // 하면 terminal event 가 emit 되지 않아 WebsocketService 의 자동
+      // release 가 작동하지 않는다. execute() 의 .catch 블록이 명시 release
+      // 로 안전망 제공 — Map 에 stale context 가 남아 같은 executionId
+      // 재사용 시 잘못 첨부되는 회귀를 차단.
+      const runSpy = jest
+        .spyOn(
+          service as unknown as { runExecution: jest.Mock },
+          'runExecution',
+        )
+        .mockRejectedValueOnce(new Error('boom — runExecution reject'));
+      try {
+        await service.execute(
+          workflowId,
+          { chatChannel: { provider: 'telegram', conversationKey: '12345' } },
+          { triggerId: 'trg-throw' },
+        );
+        await flushPromises();
+        expect(
+          mockWebsocketService.releaseExecutionRouting,
+        ).toHaveBeenCalledWith(executionId);
+      } finally {
+        runSpy.mockRestore();
+      }
     });
   });
 

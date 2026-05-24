@@ -75,6 +75,7 @@ import {
 } from '../../nodes/core/node-handler.interface';
 import { NODE_TYPES } from '../../nodes/core/node-types.constants';
 import {
+  ChatChannelRoutingInfo,
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket.service';
@@ -153,6 +154,33 @@ function withInteractionMeta(
   const prevMeta = (next.meta as Record<string, unknown> | undefined) ?? {};
   next.meta = { ...prevMeta, interactionType };
   return next;
+}
+
+/**
+ * `HooksService.handleChatChannelWebhook` 가 execute() 호출 시 input 의
+ * top-level 에 주입하는 `chatChannel: {provider, conversationKey, channelUserKey?}`
+ * 를 안전하게 추출.
+ *
+ * **검증 범위**: 필수 두 필드 (`provider`, `conversationKey`) 가 비어있지 않은
+ * string 인 경우에만 통과. `channelUserKey` 및 provider-specific 추가 필드는
+ * 형식 검증 없이 그대로 통과시킨다 — dispatcher 가 provider 별로 필요한 키를
+ * 읽어가므로 본 함수가 shape 을 좁히지 않는다. credential 형 키의 정제는 하위
+ * 레이어 (`WebsocketService.attachRoutingContext` → `sanitizePayloadForWs`) 책임.
+ */
+function extractChatChannelFromInput(
+  input: unknown,
+): ChatChannelRoutingInfo | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const raw = (input as { chatChannel?: unknown }).chatChannel;
+  if (!raw || typeof raw !== 'object') return undefined;
+  const provider = (raw as { provider?: unknown }).provider;
+  const conversationKey = (raw as { conversationKey?: unknown })
+    .conversationKey;
+  if (typeof provider !== 'string' || provider.length === 0) return undefined;
+  if (typeof conversationKey !== 'string' || conversationKey.length === 0) {
+    return undefined;
+  }
+  return raw as ChatChannelRoutingInfo;
 }
 
 /**
@@ -731,13 +759,36 @@ export class ExecutionEngineService
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
 
-    // 3. Run execution in background (fire-and-forget)
+    // 3. Register outbound routing context for `ChatChannelDispatcher` /
+    // `NotificationFanout`. 트리거 발화 경로 (schedule / webhook) 만 등록 —
+    // 수동 실행(executedBy)은 dispatcher 가 처리할 trigger 가 없어 skip.
+    // input.chatChannel 은 HooksService.handleChatChannelWebhook 가 주입한
+    // `{provider, conversationKey, channelUserKey}`. 등록된 routing context 는
+    // 이후 모든 emit 의 fanout envelope (internal subscriber) 에 자동 첨부되며
+    // wire envelope (frontend) 에는 첨부되지 않는다. [Spec Chat Channel §3.1
+    // CCH-AD-05 / §3.2].
+    if (options?.triggerId) {
+      const chatChannel = extractChatChannelFromInput(input);
+      this.eventEmitter.registerExecutionRouting(executionId, {
+        triggerId: options.triggerId,
+        ...(chatChannel ? { chatChannel } : {}),
+      });
+    }
+
+    // 4. Run execution in background (fire-and-forget)
     this.runExecution(savedExecution, input).catch((error: unknown) => {
       this.logger.error(
         `Background execution failed for ${executionId}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
+      // pair: 정상 경로는 `WebsocketService.emitExecutionEvent` 의 terminal
+      // event 분기 (`releaseExecutionRouting`) 가 자동 정리. runExecution 이
+      // terminal event 자체를 emit 하지 못한 경로 (예: 본문 진입 전 setup
+      // 단계 throw) 의 안전망 — routing context 가 stale 로 남아 같은
+      // executionId 재사용 시 잘못 첨부되는 것을 차단. `Map.delete` 가
+      // idempotent 하므로 정상 경로와 중복 호출돼도 무해.
+      this.eventEmitter.releaseExecutionRouting(executionId);
     });
 
     return executionId;

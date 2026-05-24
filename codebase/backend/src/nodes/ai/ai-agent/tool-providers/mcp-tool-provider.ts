@@ -257,7 +257,12 @@ export class McpToolProvider implements AgentToolProvider {
    * loser. Once openServer resolves, the entry is moved to
    * sessionsByExecution and the inflight slot is cleared.
    */
-  private readonly inflight = new Map<string, Promise<ServerEntry>>();
+  /**
+   * Inflight Promise 의 resolve 가 `null` 이면 not_capable skip 한 ref
+   * (caller materializeServer 가 sessions 에 등록하지 않음). `.finally` 가
+   * null/throw 와 무관하게 inflight 에서 entry 를 삭제하므로 메모리 누수 없음.
+   */
+  private readonly inflight = new Map<string, Promise<ServerEntry | null>>();
 
   constructor(
     private readonly mcpClient: McpClientService,
@@ -521,6 +526,10 @@ export class McpToolProvider implements AgentToolProvider {
    * Throws on connection / list-tools failure — the caller wraps each call in
    * `Promise.allSettled` so one server's error does not poison the others.
    *
+   * 반환 `null` = "본 provider 가 처리할 대상이 아닌 ref" (Spec MCP §6.2 의
+   * `not_capable` skipReason). 다른 provider (예: `Cafe24McpToolProvider`) 가
+   * 같은 ref 를 처리하므로 본 provider 는 silent skip — WARN 발생 금지.
+   *
    * Concurrent builders on the same `(executionId, integrationId)` pair de-dup
    * via the {@link inflight} cache so we never open two sessions for one slot.
    */
@@ -543,23 +552,41 @@ export class McpToolProvider implements AgentToolProvider {
       this.inflight.set(inflightKey, pending);
     }
     const entry = await pending;
+    if (!entry) return []; // not_capable — silent skip, sessions 미등록
     sessions.set(ref.integrationId, entry);
     return this.buildToolDefsForEntry(ref, entry);
   }
 
+  /**
+   * 한 MCP 서버에 connect + tools/list 수행 후 `ServerEntry` 반환.
+   *
+   * **반환 계약**:
+   * - `ServerEntry` — 정상 connect + listTools 성공
+   * - `null` — `serviceType !== 'mcp'` 인 not_capable 케이스 (silent skip,
+   *   다른 provider 가 처리). spec/5-system/11-mcp-client.md §6.2 의
+   *   `not_capable` skipReason vocabulary 와 정합
+   * - `throw` — connect/list/status 실패 등 진단 정보가 의미 있는 실패.
+   *   `Promise.allSettled` 가 잡아 `meta.mcpDiagnostics.errors[]` 에 누적
+   */
   private async openServer(
     ref: McpServerRefConfig,
     ctx: ProviderBuildCtx,
     sid: string,
-  ): Promise<ServerEntry> {
+  ): Promise<ServerEntry | null> {
     const integration = await this.integrationsService.getForExecution(
       ref.integrationId,
       ctx.workspaceId,
     );
     if (integration.serviceType !== 'mcp') {
-      throw new Error(
-        `Integration ${ref.integrationId} is not service_type='mcp' (got ${integration.serviceType})`,
-      );
+      // Spec MCP §6.2 의 `not_capable` skipReason — 본 provider 는 외부 HTTP
+      // transport (`service_type='mcp'`) 전용. Internal Bridge service_type
+      // (`cafe24` 등) 은 같은 mcpServers 배열을 순회하는 다른 provider
+      // (예: Cafe24McpToolProvider) 가 처리하므로 본 provider 는 silent skip
+      // 한다. `Cafe24McpToolProvider` 가 비-cafe24 ref 를 silent `continue`
+      // 하는 비대칭이었던 회귀 (사용자 보고 2026-05-25 — 매 turn 마다 WARN
+      // 도배) 를 본 분기로 해소. `null` sentinel = materializeServer 가
+      // sessions 에 안 넣고 빈 ToolDef[] 반환.
+      return null;
     }
     if (integration.status !== 'connected') {
       throw new Error(

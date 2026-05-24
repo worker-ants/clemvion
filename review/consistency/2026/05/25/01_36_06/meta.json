@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-25T01:36:06.292988",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/5-system/15-chat-channel.md spec/5-system/11-mcp-client.md spec/5-system/6-websocket-protocol.md)",
+  "target_path": "spec/5-system/15-chat-channel.md spec/5-system/11-mcp-client.md spec/5-system/6-websocket-protocol.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
