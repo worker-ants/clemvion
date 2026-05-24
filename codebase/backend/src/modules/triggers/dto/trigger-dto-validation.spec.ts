@@ -166,4 +166,163 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
     const errors = await validate(dto, VALIDATE_OPTIONS);
     expect(errors).toEqual([]);
   });
+
+  // [Spec providers/_overview.md §1 v1 supported: telegram / slack / discord]
+  // [secret-store.md §5.5 (b) provider-issued plaintext]
+  describe('chatChannel (ChatChannelConfigDto)', () => {
+    const SLACK_SIGNING_SECRET = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6'; // hex 32
+    const DISCORD_PUBLIC_KEY =
+      'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'; // hex 64
+
+    it('통과 — provider=telegram + botToken', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:TelegramBotToken',
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors).toEqual([]);
+    });
+
+    it('통과 — provider=slack + botToken + inboundSigningPlaintext (hex 32)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'slack',
+          botToken: 'xoxb-fake',
+          inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors).toEqual([]);
+    });
+
+    it('통과 — provider=discord + botToken + inboundSigningPlaintext (hex 64)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'discord',
+          botToken: 'discord-bot',
+          inboundSigningPlaintext: DISCORD_PUBLIC_KEY,
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors).toEqual([]);
+    });
+
+    it('실패 — provider enum 외 (whatsapp)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: { provider: 'whatsapp', botToken: 'fake' },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+    });
+
+    it('실패 — botToken 누락', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: { provider: 'telegram' },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+    });
+
+    it('실패 — inboundSigningPlaintext 가 minLength 미달 (5 chars)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'slack',
+          botToken: 'xoxb-fake',
+          inboundSigningPlaintext: 'short',
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+    });
+
+    it('실패 — botTokenRef 외부 입력 (IsEmpty 가드)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          botTokenRef: 'secret://triggers/x/bot-token',
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+    });
+
+    it('실패 — inboundSigningRef 외부 입력 (IsEmpty 가드)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          inboundSigningRef: 'secret://triggers/x/inbound-signing',
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+    });
+
+    it('실패 — legacy inboundSigning 입력 (IsEmpty 가드, provider-issued 는 inboundSigningPlaintext 사용)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          inboundSigning: 'some-secret',
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+    });
+
+    it('통과 — uiMapping enum 모두 valid (visualNode=auto, formMode=multi_step, buttonLayout=horizontal)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          uiMapping: {
+            formMode: 'multi_step',
+            visualNode: 'auto',
+            buttonLayout: 'horizontal',
+          },
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors).toEqual([]);
+    });
+
+    it('통과 — uiMapping.visualNode 의 legacy text_only → text 로 read-time normalize', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          uiMapping: { visualNode: 'text_only' },
+        },
+      });
+      // class-transformer @Transform 이 read-time normalize 적용.
+      expect(dto.chatChannel?.uiMapping?.visualNode).toBe('text');
+    });
+
+    it('실패 — rateLimitPerMinute 가 범위 밖 (1000 > 600 max)', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          rateLimitPerMinute: 1000,
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+    });
+  });
 });

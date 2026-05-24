@@ -247,8 +247,20 @@ export const triggers: Dict["triggers"] = {
     rotateBotTokenFailed: "Bot Token rotation failed",
     rotateBotTokenDialogTitle: "Rotate Bot Token",
     rotateBotTokenDialogConfirm: "Rotate",
-    addChatChannelToggle: "Connect a Chat Channel (Telegram bot)",
+    addChatChannelToggle: "Connect a Chat Channel (external chatbot)",
     addChatChannelHelp:
-      "When enabled, you register a bot token and setWebhook is called automatically on trigger creation. When disabled, this is a plain webhook trigger.",
+      "When enabled, you register a bot token for an external chat platform (Telegram/Slack/Discord) and the provider-specific setup runs automatically on trigger creation. When disabled, this is a plain webhook trigger.",
+    inboundSigningLabelSlack: "Slack Signing Secret",
+    inboundSigningLabelDiscord: "Discord Application Public Key",
+    inboundSigningPlaceholderSlack: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    inboundSigningPlaceholderDiscord:
+      "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    inboundSigningFormatHelpSlack:
+      "Copy from Slack app → Basic Information → Signing Secret (hex 32 chars). 400 on format violation.",
+    inboundSigningFormatHelpDiscord:
+      "Copy from Discord Developer Portal → Applications → General Information → Public Key (ed25519, hex 64 chars). 400 on format violation.",
+    inboundSigningRequiredErrorSlack: "Slack Signing Secret is required.",
+    inboundSigningRequiredErrorDiscord:
+      "Discord Application Public Key is required.",
   },
 };

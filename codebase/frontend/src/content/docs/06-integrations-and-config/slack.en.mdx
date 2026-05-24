@@ -13,6 +13,11 @@ Connect a Slack bot as your workflow's conversational interface, and users can s
 
 ## 1. Create a Slack app
 
+<Callout type="note">
+{/* Internal SoT: spec/4-nodes/7-trigger/providers/slack.md Rationale R-S-2 */}
+The Slack app manifest configuration in §2 (Event Subscriptions Request URL, Interactivity Request URL) is not automated by clemvion. Slack's design constraint prevents external services from editing another app's manifest directly. Create the trigger in §3 to get the endpoint URL, then paste it into the manifest yourself.
+</Callout>
+
 1. Go to the [Slack API console](https://api.slack.com/apps) and choose **Create New App** → **From scratch**.
 2. Pick an app name and the install workspace.
 3. From the **Basic Information** page, note two credentials:
@@ -58,13 +63,28 @@ On the Slack app's **App Manifest** page, configure:
 
 ## 3. Connect Slack to a clemvion trigger
 
-1. In clemvion, open the workflow screen → create a **Webhook trigger**
-2. Enable the **Chat Channel** section in the trigger panel
-3. **Provider** = `Slack`
-4. **Bot Token** = the `xoxb-...` token from **OAuth & Permissions** (after **Install to Workspace**)
-5. **Signing Secret** = the value from **Basic Information**
-6. Save → backend calls `auth.test` to cache bot identity (`bot_id`, `username`, `team_id`)
-7. Copy the generated `endpointPath` into the Slack manifest's Request URLs (2.2 / 2.3)
+**GUI flow (recommended)**:
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/triggers/page.tsx"
+  symbol="createMutation"
+  describes="Chat Channel section in the trigger create dialog — Slack provider with Bot Token and Signing Secret"
+/>
+
+1. Sidebar → [**Triggers**](/triggers) → top-right **"+ Add Webhook Trigger"**
+2. Enter trigger name, target workflow, and auth type
+3. Toggle **"Connect a Chat Channel (external bot)"** at the bottom of the form
+4. **Provider** dropdown = `Slack`
+5. **Bot Token** = the `xoxb-...` token from **OAuth & Permissions** (after **Install to Workspace**)
+6. **Signing Secret** = the 32-char hex value from **Basic Information**
+7. Click **Create** — the backend calls `auth.test` to cache bot identity (`bot_id`, `username`, `team_id`)
+8. Copy the generated endpoint URL and paste it into **Event Subscriptions Request URL** and **Interactivity Request URL** in the Slack app manifest (§2.2 / 2.3)
+   - Slack sends a one-time URL Verification challenge; clemvion responds automatically with `{ challenge }` 200
+
+<Callout type="note">
+Copy the endpoint URL using the 📋 button on the trigger list screen. Use the same URL for both Event Subscriptions (§2.2) and Interactivity (§2.3).
+</Callout>
 
 ## 4. Usage
 

@@ -51,6 +51,19 @@ interface ChatChannelAdapter {
    * inbound interact 명령 처리 직후 호출. ack 가 의무가 아닌 provider 는 noop 구현 가능.
    */
   ackInteraction(update: ChannelUpdate, config: ChatChannelConfig): Promise<void>;
+
+  /**
+   * (옵션) Bot token rotation 시 *이전* token 을 외부 provider 측에서 revoke.
+   *
+   * Slack 의 `auth.revoke` 처럼 외부 provider 가 token revocation API 를 제공하는 경우 구현.
+   * Telegram / Discord 처럼 revocation 이 의미 없거나 제공되지 않는 provider 는 미구현 (undefined).
+   * 호출자 (`TriggersService.rotateBotToken`) 는 본 메서드 존재 여부를 type-guard 로 확인 후 best-effort
+   * 호출 — 실패해도 rotation 자체는 진행 (24h grace 안에 v2 token 은 새 token 으로 작동).
+   *
+   * @param oldBotToken — rotation 직전 보유했던 plaintext bot token.
+   * @returns 외부 API 응답 무관 void. 내부 에러는 caller 에 propagate 하지 않고 swallow (logger.warn).
+   */
+  revokeBotToken?(oldBotToken: string): Promise<void>;
 }
 ```
 
@@ -64,6 +77,7 @@ interface ChatChannelAdapter {
 | `renderNode` | EIA payload → `ChannelMessage[]`. side-effect free | none | pure |
 | `sendMessage` | 외부 API 호출. 재시도·rate limit 책임 | 외부 API 호출 | dedup 책임은 caller (EIA 의 `seq` + `X-Clemvion-Delivery` 그대로 어댑터 안에서 활용) |
 | `ackInteraction` | provider 가 요구하는 ack (텔레그램 `answerCallbackQuery`). provider 에 따라 noop 가능 — 함수 자체는 의무지만 구현체는 비어 있을 수 있음 | 외부 API 호출 (provider 의존) | yes |
+| `revokeBotToken?` (옵션) | 이전 bot token 의 외부 provider 측 revocation (Slack `auth.revoke` 등). provider 가 revocation API 를 제공하면 구현, 아니면 미구현 (`undefined`). best-effort — 실패는 swallow | 외부 API 호출 (provider 의존, 옵션) | yes |
 
 ### 1.2 EiaEvent 입력
 

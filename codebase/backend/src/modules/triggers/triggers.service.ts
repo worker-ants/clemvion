@@ -32,6 +32,22 @@ export type TriggerDetail = Trigger & {
   nextRunAt?: Date | null;
 };
 
+/**
+ * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01] 응답에서 strip 해야 하는
+ * chat-channel 필드 allow-list. 신규 plaintext / 내부 ref 필드 추가 시 본 상수에
+ * 반드시 키 추가 — destructure 누락 위험 회피. `sanitizeChatChannelForResponse` 가
+ * 단일 진실로 참조한다.
+ */
+const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
+  // 내부 secret store ref — UI 에 노출 X. derived `hasBotToken` 만 제공.
+  'botTokenRef',
+  'inboundSigningRef',
+  // 입력 전용 plaintext — 응답에 절대 노출 X (SS-SE-01).
+  'botToken',
+  'inboundSigning',
+  'inboundSigningPlaintext',
+]);
+
 @Injectable()
 export class TriggersService {
   private readonly logger = new Logger(TriggersService.name);
@@ -125,11 +141,18 @@ export class TriggersService {
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     this.assertNotificationUrlSafe(notification);
     this.assertChatChannelInputSafe(chatChannel);
+    // [SS-SE-01] mergeExternalConfig 호출 전 plaintext (botToken / inboundSigningPlaintext)
+    // 를 strip — 첫 triggerRepository.save 시 plaintext 가 DB JSONB 에 일시 기록되지 않도록.
+    // setupChatChannel 은 원본 dto.chatChannel (plaintext 포함) 을 별도 전달 받아 secret store
+    // 로 옮긴 뒤 ref 만 config 에 반영.
+    const safeChatChannel = chatChannel
+      ? this.stripChatChannelPlaintext(chatChannel)
+      : undefined;
     const mergedConfig = this.mergeExternalConfig(
       config ?? {},
       notification,
       interaction,
-      chatChannel,
+      safeChatChannel,
     );
     const trigger = this.triggerRepository.create({
       ...rest,
@@ -142,6 +165,13 @@ export class TriggersService {
     // Chat Channel 어댑터 setup — CCH-AD-02.
     if (chatChannel) {
       await this.setupChatChannel(saved, chatChannel);
+      // setupChatChannel 은 별도 triggerRepository.update 로 botTokenRef / inboundSigningRef /
+      // chatChannelHealth 등을 갱신. in-memory `saved` 는 그 update 를 모르므로 응답 stale
+      // 회귀 (hasBotToken=false). 재조회로 최신 상태 반영.
+      const refreshed = await this.triggerRepository.findOne({
+        where: { id: saved.id, workspaceId },
+      });
+      if (refreshed) return this.sanitizeChatChannelForResponse(refreshed);
     }
     return this.sanitizeChatChannelForResponse(saved);
   }
@@ -174,13 +204,17 @@ export class TriggersService {
     }
     this.assertNotificationUrlSafe(notification);
     this.assertChatChannelInputSafe(chatChannel);
+    // [SS-SE-01] mergeExternalConfig 호출 전 plaintext strip (create() 와 동일 정책).
+    const safeChatChannel = chatChannel
+      ? this.stripChatChannelPlaintext(chatChannel)
+      : undefined;
     // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
     const baseConfig = config ?? trigger.config ?? {};
     const mergedConfig = this.mergeExternalConfig(
       baseConfig,
       notification,
       interaction,
-      chatChannel,
+      safeChatChannel,
     );
     Object.assign(trigger, rest, { config: mergedConfig });
     const saved = await this.triggerRepository.save(trigger);
@@ -188,19 +222,33 @@ export class TriggersService {
     if (chatChannel) {
       // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
       await this.setupChatChannel(saved, chatChannel);
+      // setupChatChannel 은 별도 triggerRepository.update — in-memory `saved` 는 stale.
+      // 응답 hasBotToken / inboundSigningRef 가 최신 반영되도록 재조회.
+      const refreshed = await this.triggerRepository.findOne({
+        where: { id: saved.id, workspaceId },
+      });
+      if (refreshed) return this.sanitizeChatChannelForResponse(refreshed);
     }
     return this.sanitizeChatChannelForResponse(saved);
   }
 
   /**
-   * [Spec Chat Channel §5.4.1 single-path] — 외부 입력으로 들어올 수 없는 내부 필드를 차단.
+   * [Spec Chat Channel §5.4.1 single-path + 2-trigger-list §3] — 외부 입력 가드 + provider 분기.
    *
+   * 내부 필드 (외부 입력 금지):
    * - `botTokenRef` — 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token`
-   *   (24h grace 적용). PATCH/POST body 직접 변경 시 grace 없는 즉시 교체가 되어 정책 일관성 깨짐.
-   * - `inboundSigningRef` / `inboundSigning` — setupChannel 시 어댑터가 자동 발급. 외부 입력 무시.
+   *   (24h grace 적용).
+   * - `inboundSigningRef` — service 가 secret store ref 를 set. 외부 입력 무시.
+   * - `inboundSigning` — server-issued 자료 (Telegram). provider-issued 입력은 신규
+   *   `inboundSigningPlaintext` 필드 사용.
    *
-   * DTO 단에서도 @IsEmpty() 로 차단되지만, error envelope 형식을 spec 의 VALIDATION_ERROR 와
-   * 정합시키기 위해 service 단 추가 검증.
+   * Provider-issued plaintext 분기 (`inboundSigningPlaintext`):
+   * - telegram: 본 필드 입력 시 400 (server-issued randomBytes 만, 사용자 secret 보호).
+   * - slack: 필수. hex 32 chars.
+   * - discord: 필수. hex 64 chars (ed25519 public key 32 bytes).
+   *
+   * DTO 단에서도 @IsEmpty / @IsString / @MaxLength 로 1차 검증되지만, error envelope 형식을
+   * spec 의 VALIDATION_ERROR 와 정합시키기 위해 service 단 추가 검증 + provider 분기.
    */
   private assertChatChannelInputSafe(
     chatChannel: ChatChannelConfigDto | undefined,
@@ -226,19 +274,111 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
-          'inboundSigning 은 setupChannel 시 자동 발급되는 내부 필드입니다. 외부 입력은 허용되지 않습니다.',
+          'inboundSigning 은 setupChannel 시 자동 발급되는 내부 필드입니다. provider-issued (Slack signing secret / Discord public key) 입력은 inboundSigningPlaintext 를 사용하세요.',
         details: { field: 'inboundSigning' },
+      });
+    }
+    this.assertInboundSigningPlaintextByProvider(chatChannel);
+  }
+
+  /**
+   * [SS-SE-01 — spec/conventions/secret-store.md §5.5] plaintext (botToken /
+   * inboundSigningPlaintext) 를 chatChannel 객체에서 제거. setupChatChannel 호출 전 config 에
+   * 흘러가는 것을 차단해 첫 triggerRepository.save 시 DB JSONB 에 일시 기록되는 시간 창을
+   * 제거한다. adapter 미등록 early-return 경로에서도 plaintext 가 영구 잔류하지 않음을 보장.
+   *
+   * 원본 plaintext 는 호출자가 별도 변수로 보관해 setupChatChannel 에 전달 — SecretResolver.store
+   * 로 옮긴 뒤 ref 만 config 에 반영.
+   */
+  private stripChatChannelPlaintext(
+    chatChannel: ChatChannelConfigDto,
+  ): ChatChannelConfigDto {
+    const {
+      botToken: _bt,
+      inboundSigningPlaintext: _isp,
+      ...rest
+    } = chatChannel as ChatChannelConfigDto & {
+      botToken?: string;
+      inboundSigningPlaintext?: string;
+    };
+    return rest as ChatChannelConfigDto;
+  }
+
+  /**
+   * Provider 별 `inboundSigningPlaintext` 요구/금지 + 형식 분기.
+   * SoT: spec/4-nodes/7-trigger/providers/{slack,discord}.md §6 + spec/conventions/secret-store.md §5.5.
+   *
+   * 분기:
+   *   - telegram → server-issued (randomBytes 자동 발급). 외부 입력 시 400.
+   *   - slack / discord → provider-issued (사용자 manual 입력). 필수 + hex 형식 검증.
+   *
+   * **신규 provider 추가 시**: 본 함수에 명시적 분기 추가 의무. CHAT_CHANNEL_PROVIDERS 가
+   * 4번째 값을 가지면 아래 "provider-issued 필수" 가정이 무음 적용되어 잘못된 검증을 통과시킬
+   * 위험. 신규 provider 의 inbound-signing 발급 모델 (server-issued vs provider-issued) 을
+   * 결정 후 본 함수에 case 추가 필요.
+   */
+  private assertInboundSigningPlaintextByProvider(
+    chatChannel: ChatChannelConfigDto,
+  ): void {
+    const plaintext = chatChannel.inboundSigningPlaintext;
+    const provider = chatChannel.provider;
+
+    if (provider === 'telegram') {
+      if (typeof plaintext === 'string' && plaintext.length > 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message:
+            'Telegram inboundSigning 은 server-issued 입니다. inboundSigningPlaintext 를 입력하지 마세요 (setupChannel 의 randomBytes 가 자동 발급).',
+          details: { field: 'inboundSigningPlaintext' },
+        });
+      }
+      return;
+    }
+
+    // slack / discord — provider-issued, 사용자 입력 필수 (위 doc 의 신규 provider 의무 참조).
+    if (typeof plaintext !== 'string' || plaintext.length === 0) {
+      const label =
+        provider === 'slack'
+          ? 'Slack signing secret'
+          : 'Discord application public key';
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: `${label} 가 필요합니다. inboundSigningPlaintext 를 입력하세요.`,
+        details: { field: 'inboundSigningPlaintext' },
+      });
+    }
+
+    // [provider 발급 표준] Slack signing secret / Discord public key 는 모두 lowercase hex 로
+    // 발급된다. uppercase 입력은 외부 provider HMAC / ed25519 검증 실패를 유발하므로 사전 차단.
+    if (provider === 'slack' && !/^[a-f0-9]{32}$/.test(plaintext)) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          'Slack signing secret 형식이 올바르지 않습니다 (lowercase hex 32 chars 필요).',
+        details: { field: 'inboundSigningPlaintext' },
+      });
+    }
+
+    if (provider === 'discord' && !/^[a-f0-9]{64}$/.test(plaintext)) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          'Discord application public key 형식이 올바르지 않습니다 (ed25519 public key lowercase hex 64 chars 필요).',
+        details: { field: 'inboundSigningPlaintext' },
       });
     }
   }
 
   /**
-   * [Spec Chat Channel §5.4.2] — 응답 DTO 전용 derived 필드 + 내부 ref strip.
+   * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01] — 응답 DTO 전용 derived 필드
+   * + 내부 ref + plaintext strip.
    *
-   * - `botTokenRef` / `inboundSigningRef` / `inboundSigning` 응답에서 제거 (UI 에 노출 X).
+   * Strip 키 집합 (`CHAT_CHANNEL_RESPONSE_STRIP_KEYS`) 은 module-level 상수로 단일 진실.
+   * 신규 plaintext / 내부 ref 필드 추가 시 본 상수에 키를 추가해야 응답 sanitize 가 적용됨
+   * (allow-list 패턴 — destructure 시 누락 위험 회피).
+   *
    * - `hasBotToken: boolean` derived 필드 주입 (`botTokenRef IS NOT NULL → true`).
-   *
-   * Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
+   * - Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
    */
   private sanitizeChatChannelForResponse<T extends Trigger>(trigger: T): T {
     const cfg = trigger.config as
@@ -249,16 +389,14 @@ export class TriggersService {
       | null
       | undefined;
     if (!cfg?.chatChannel) return trigger;
-    const {
-      botTokenRef,
-      inboundSigningRef: _inboundSigningRef,
-      inboundSigning: _inboundSigning,
-      ...rest
-    } = cfg.chatChannel;
-    const sanitizedChatChannel = {
-      ...rest,
-      hasBotToken: typeof botTokenRef === 'string' && botTokenRef.length > 0,
-    };
+    const botTokenRef = cfg.chatChannel.botTokenRef;
+    const sanitizedChatChannel: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(cfg.chatChannel)) {
+      if (CHAT_CHANNEL_RESPONSE_STRIP_KEYS.has(key)) continue;
+      sanitizedChatChannel[key] = value;
+    }
+    sanitizedChatChannel.hasBotToken =
+      typeof botTokenRef === 'string' && botTokenRef.length > 0;
     const sanitizedConfig = {
       ...cfg,
       chatChannel: sanitizedChatChannel,
@@ -375,25 +513,58 @@ export class TriggersService {
       'http://localhost:3000';
     const callbackUrl = `${baseUrl.replace(/\/$/, '')}/api/hooks/${trigger.endpointPath.replace(/^\//, '')}`;
 
+    // secret store ref 생성 — spec/conventions/secret-store.md §1 URI scheme 단일 진입점.
+    const botTokenRef = buildSecretRef({
+      scope: 'triggers',
+      resourceId: trigger.id,
+      name: 'bot-token',
+    });
+    const inboundSigningRef = buildSecretRef({
+      scope: 'triggers',
+      resourceId: trigger.id,
+      name: 'inbound-signing',
+    });
+
     // secret store 에 botToken 저장 (UPSERT — 재시도 안전).
-    const botTokenRef = `secret://triggers/${trigger.id}/bot-token`;
     await this.secrets.rotate(
       botTokenRef,
       trigger.workspaceId,
-      (chatChannelCfg as ChatChannelConfig & { botToken?: string }).botToken ??
-        '',
+      chatChannelCfg.botToken ?? '',
     );
 
+    // [secret-store.md §5.5 (b)] provider-issued inbound-signing plaintext 처리.
+    // Slack signing secret / Discord public key — 사용자가 외부 portal 에서 입력한 값을
+    // secret store 로 옮기고 plaintext 는 config 에 절대 흘리지 않음 (SS-SE-01).
+    const providerIssuedPlaintext = chatChannelCfg.inboundSigningPlaintext;
+    let providerIssuedStored = false;
+    if (
+      typeof providerIssuedPlaintext === 'string' &&
+      providerIssuedPlaintext.length > 0
+    ) {
+      await this.secrets.rotate(
+        inboundSigningRef,
+        trigger.workspaceId,
+        providerIssuedPlaintext,
+      );
+      providerIssuedStored = true;
+    }
+
+    // chatChannelCfg 에서 plaintext 필드들을 제거 — config 에 흘러가지 않음 (SS-SE-01).
+    // create()/update() 의 stripChatChannelPlaintext 와 의도적으로 이중 방어 — adapter
+    // 코드가 dto.botToken 을 직접 mutate 하는 회귀에 대비.
+    const sanitizedCfg = this.stripChatChannelPlaintext(chatChannelCfg);
     const internalCfg: ChatChannelConfig = {
-      ...(chatChannelCfg as ChatChannelConfig),
+      ...(sanitizedCfg as ChatChannelConfig),
       botTokenRef,
+      ...(providerIssuedStored ? { inboundSigningRef } : {}),
     };
 
     try {
       const result = await adapter.setupChannel(internalCfg, callbackUrl);
 
-      // issuedInboundSigning → secret store 저장.
-      const inboundSigningRef = `secret://triggers/${trigger.id}/inbound-signing`;
+      // issuedInboundSigning (server-issued, Telegram) → secret store 저장.
+      // provider-issued (slack/discord) 인 경우 setupChannel 의 issuedInboundSigning 은 비어 있음
+      // — 이미 위에서 사용자 입력 plaintext 를 저장했으므로 noop.
       if (result.issuedInboundSigning) {
         await this.secrets.rotate(
           inboundSigningRef,
@@ -407,7 +578,9 @@ export class TriggersService {
         ...internalCfg,
         ...(result.configUpdates ?? {}),
         botTokenRef,
-        ...(result.issuedInboundSigning ? { inboundSigningRef } : {}),
+        ...(result.issuedInboundSigning || providerIssuedStored
+          ? { inboundSigningRef }
+          : {}),
       };
       const newConfig = {
         ...(trigger.config ?? {}),
@@ -432,7 +605,7 @@ export class TriggersService {
       this.logger.warn(
         `TriggersService: setupChannel 실패 (trigger=${trigger.id}, provider=${chatChannelCfg.provider}): ${message}`,
       );
-      // fallbackConfig: botTokenRef 만 config 에 반영 (inboundSigningRef 없음).
+      // fallbackConfig: botTokenRef + (provider-issued 라면 inboundSigningRef 도) config 에 반영.
       const fallbackConfig = {
         ...(trigger.config ?? {}),
         chatChannel: internalCfg,
@@ -567,7 +740,9 @@ export class TriggersService {
    *
    * Controller 는 input validation + workspaceId 검증 + 본 메서드 호출만 담당.
    *
-   * @throws BadRequestException `CHAT_CHANNEL_NOT_CONFIGURED` / `CHAT_CHANNEL_PROVIDER_UNKNOWN` / `CHAT_CHANNEL_ENDPOINT_REQUIRED`
+   * @throws BadRequestException `CHAT_CHANNEL_NOT_CONFIGURED` / `CHAT_CHANNEL_PROVIDER_UNKNOWN` /
+   *   `CHAT_CHANNEL_ENDPOINT_REQUIRED` / `BOT_TOKEN_INVALID` (setupChannel 401/403) /
+   *   `CHAT_CHANNEL_SETUP_FAILED` (기타 setupChannel 실패)
    */
   async rotateBotToken(
     id: string,
@@ -637,9 +812,16 @@ export class TriggersService {
     await this.secrets.rotate(botTokenRef, trigger.workspaceId, newBotToken);
 
     // 4. 새 token 으로 setupChannel 재호출 — adapter 가 resolveBotToken 으로 신 token 자동 사용.
+    // [Spec Chat Channel §5.4] 외부 API 401/403 (인증 실패) 은 BOT_TOKEN_INVALID 400 으로,
+    // 그 외 setupChannel 실패는 CHAT_CHANNEL_SETUP_FAILED 502 로 변환.
     const mergedConfig: ChatChannelConfig = { ...chatChannelCfg, botTokenRef };
     const callbackUrl = this.buildCallbackUrl(trigger.endpointPath);
-    const result = await adapter.setupChannel(mergedConfig, callbackUrl);
+    let result;
+    try {
+      result = await adapter.setupChannel(mergedConfig, callbackUrl);
+    } catch (err) {
+      throw this.translateSetupChannelError(err);
+    }
     const mergedChannel: ChatChannelConfig = {
       ...mergedConfig,
       ...(result.configUpdates ?? {}),
@@ -669,6 +851,34 @@ export class TriggersService {
       },
     );
     return { rotatedAt: rotatedAt.toISOString() };
+  }
+
+  /**
+   * [Spec Chat Channel §5.4 에러 표] adapter.setupChannel 의 외부 API 에러를 spec 에 정의된
+   * BadRequestException 으로 변환.
+   *
+   * - 401 / 403 (외부 provider 인증 실패) → `BOT_TOKEN_INVALID` 400
+   * - 기타 (5xx / 네트워크 등) → `CHAT_CHANNEL_SETUP_FAILED` 502
+   *
+   * adapter 가 throw 하는 Error 의 message 에 status code 가 포함됨을 가정 (provider client 들의
+   * 표준 error message 패턴: "Slack auth.test failed: 401", "Discord getApplicationMe failed:
+   * 403", "Telegram setWebhook failed: ..." 등). 정확도가 낮을 경우 default 가 SETUP_FAILED 라
+   * fail-safe.
+   */
+  private translateSetupChannelError(err: unknown): BadRequestException {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/\b(401|403)\b/.test(message)) {
+      return new BadRequestException({
+        code: 'BOT_TOKEN_INVALID',
+        message: 'Bot token is invalid (401/403 from provider).',
+        details: { reason: message.slice(0, 256) },
+      });
+    }
+    return new BadRequestException({
+      code: 'CHAT_CHANNEL_SETUP_FAILED',
+      message: 'Chat channel setup failed after rotation.',
+      details: { reason: message.slice(0, 256) },
+    });
   }
 
   /** publicBaseUrl 결합 — setupChatChannel 과 공용 헬퍼. */
@@ -779,38 +989,33 @@ export class TriggersService {
 
   /**
    * 24h grace 종료 시점에 old bot token 을 외부 provider 측에서도 revoke (가능한 경우).
-   *   - Slack: `auth.revoke` API 호출
-   *   - Telegram: API 미지원 (bot token 은 Bot Father reset 만) — noop
-   *   - Discord: token revoke endpoint 없음 — noop
+   *
+   * Adapter 인터페이스의 `revokeBotToken?` 옵션 메서드를 활용 — SoT:
+   * [spec/conventions/chat-channel-adapter.md §1] Adapter Interface.
+   *   - Slack: `auth.revoke` API 호출 (SlackAdapter.revokeBotToken 구현)
+   *   - Telegram: revocation API 미지원 — adapter 미구현 (undefined)
+   *   - Discord: token revoke endpoint 없음 — adapter 미구현 (undefined)
    *
    * 실패는 secret_store cleanup 을 차단하지 않는다 (best-effort).
+   * Service 단에 provider 별 분기 없음 — adapter 의 메서드 존재 여부가 분기 역할 (OCP 정합).
    */
   private async tryRevokeOldBotToken(
     config: ChatChannelConfig,
     v2Ref: string,
     triggerId: string,
   ): Promise<void> {
-    if (config.provider !== 'slack') return; // Telegram / Discord 는 미지원.
+    if (!this.channelAdapterRegistry.has(config.provider)) return;
+    const adapter = this.channelAdapterRegistry.get(config.provider);
+    if (typeof adapter.revokeBotToken !== 'function') return; // provider 가 revocation 미지원.
     try {
       const oldToken = await this.secrets.resolve(v2Ref);
-      const adapter = this.channelAdapterRegistry.has(config.provider)
-        ? this.channelAdapterRegistry.get(config.provider)
-        : null;
-      // SlackAdapter 의 client 노출이 없으므로 별 SlackClient 의존 — 본 메서드는 향후
-      // adapter 에 `revokeBotToken(token)` 옵션 함수를 추가하면 더 깔끔. 현재는
-      // provider 별 분기를 service 단에 둠.
-      const slackAdapter = adapter as unknown as {
-        client?: { authRevoke?: (token: string) => Promise<{ ok: boolean }> };
-      } | null;
-      if (slackAdapter?.client?.authRevoke) {
-        await slackAdapter.client.authRevoke(oldToken);
-        this.logger.log(
-          `Slack auth.revoke 호출 — trigger=${triggerId} 의 old bot token 무효화 완료`,
-        );
-      }
+      await adapter.revokeBotToken(oldToken);
+      this.logger.log(
+        `Adapter revokeBotToken 호출 — trigger=${triggerId} provider=${config.provider} 의 old bot token 무효화 완료`,
+      );
     } catch (err) {
       this.logger.warn(
-        `Slack auth.revoke best-effort 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+        `Adapter revokeBotToken best-effort 실패 (trigger=${triggerId}, provider=${config.provider}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }

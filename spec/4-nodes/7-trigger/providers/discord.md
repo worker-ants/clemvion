@@ -12,6 +12,8 @@ code:
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/test/chat-channel-discord.e2e-spec.ts
+  - codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
+  - codebase/frontend/src/app/(main)/triggers/page.tsx
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
   - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
@@ -78,7 +80,13 @@ Body: [
     "options": [
       { "name": "start", "type": 1, "description": "Start a new conversation" },
       { "name": "cancel", "type": 1, "description": "Cancel the active conversation" },
-      { "name": "help", "type": 1, "description": "Show help" }
+      { "name": "help", "type": 1, "description": "Show help" },
+      {
+        "name": "reply", "type": 1, "description": "Reply to the active AI conversation (v1 Gateway 미사용 결과 — R-CC-13 / R-D-3)",
+        "options": [
+          { "name": "message", "type": 3, "description": "Your reply text", "required": true }
+        ]
+      }
     ]
   }
 ]
@@ -217,6 +225,7 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 
 - `botToken` (Discord bot token, [`Bot <token>`](https://discord.com/developers/docs/reference#authentication) 형식) 은 `botTokenRef` (`secret://triggers/{id}/bot-token`) 만 config 에 저장. 평문 금지 ([CCH-SE-03](../../../5-system/15-chat-channel.md#34-신뢰성--보안)).
 - **Application Public Key (ed25519)**: Discord application 의 [Interactions endpoint 검증](https://discord.com/developers/docs/interactions/receiving-and-responding#security-and-authorization) 은 `X-Signature-Ed25519` + `X-Signature-Timestamp` 헤더 + raw body 를 application public key 로 verify. public key 는 Discord Developer Portal 에서 사용자가 복사해 입력 — `SecretResolver` 가 관리, ref = `secret://triggers/{id}/inbound-signing` ([Convention Secret Store §1](../../../conventions/secret-store.md#1-uri-scheme) 의 provider 공통 슬롯).
+  - **형식 (Discord 발급 표준)**: `^[a-f0-9]{64}$` (lowercase hex 64 chars, ed25519 public key 32 bytes). Backend 의 `TriggersService.assertInboundSigningPlaintextByProvider` 가 trigger 생성 시점에 정규식 검증 — 위반 시 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'`). uppercase hex 는 외부 Discord ed25519 verify 실패 회피를 위해 사전 차단.
   - public key 는 비밀이 아니라 **공개키** 지만, `SecretResolver` 로 일관성 있게 관리 (rotation / workspace 격리 / audit 동일 흐름). Rationale R-D-1.
   - HooksController 가 raw body + 두 헤더 → `SecretResolver.resolve(inboundSigningRef)` → ed25519 verify (Node.js `crypto.verify('ed25519', ...)`). 실패 시 `401 Unauthorized` ([Spec Chat Channel §5.5](../../../5-system/15-chat-channel.md#55-inbound-http-contract) 적용). Discord 는 401 응답 시 retry 하지 않음.
 - **Config 필드**: `Trigger.config.chatChannel.inboundSigningRef = "secret://triggers/{id}/inbound-signing"` 로 set. Telegram / Slack 과 **동일 슬롯** — provider 별 자원 성격·검증 알고리즘은 backend 의 provider 분기 책임 ([Convention §2.3 ChatChannelConfig](../../../conventions/chat-channel-adapter.md#23-chatchannelconfig)). Discord 의 경우 발급 주체 = Discord Developer Portal 발급 후 사용자가 manual 입력 (provider-issued). 자원 타입 = ed25519 application public key (asymmetric — public 정보지만 `SecretResolver` 로 일관성 관리, R-D-1). `setupChannel` 의 `SetupResult.issuedInboundSigning` 은 비움 (server-issued 한정 필드).

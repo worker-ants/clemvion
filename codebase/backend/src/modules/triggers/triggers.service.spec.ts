@@ -729,6 +729,194 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       expect.objectContaining({ chatChannelHealth: 'degraded' }),
     );
   });
+
+  // [Spec providers/_overview.md §1 v1 supported: telegram / slack / discord]
+  // [secret-store.md §5.5 (b) provider-issued plaintext 흐름]
+  describe('provider-issued inbound-signing (slack/discord)', () => {
+    const SLACK_SIGNING_SECRET = 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6'; // hex 32
+    const DISCORD_PUBLIC_KEY =
+      'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789'; // hex 64
+
+    beforeEach(() => {
+      // slack/discord adapter 의 setupChannel 은 issuedInboundSigning 을 비움 (provider-issued).
+      mockAdapter.setupChannel.mockResolvedValue({
+        configUpdates: { botIdentity: { botId: 222, username: 'slackbot' } },
+        // issuedInboundSigning 없음
+      });
+    });
+
+    it('slack — valid plaintext → rotate(botToken) + rotate(inboundSigning, plaintext) 2회 + inboundSigningRef 가 config 에 set', async () => {
+      const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(trigger);
+
+      await service.update('trig-1', 'ws-1', {
+        chatChannel: {
+          provider: 'slack',
+          botToken: 'xoxb-fake-token',
+          inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+        },
+      });
+
+      // botToken 저장
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        'secret://triggers/trig-1/bot-token',
+        'ws-1',
+        'xoxb-fake-token',
+      );
+      // provider-issued inbound-signing plaintext 저장 (setupChannel 호출 전)
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        'secret://triggers/trig-1/inbound-signing',
+        'ws-1',
+        SLACK_SIGNING_SECRET,
+      );
+      // healthy 상태로 저장 + chatChannel.inboundSigningRef 가 config 에 반영
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          chatChannelHealth: 'healthy',
+          config: expect.objectContaining({
+            chatChannel: expect.objectContaining({
+              inboundSigningRef: 'secret://triggers/trig-1/inbound-signing',
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('slack — plaintext 누락 → 400 VALIDATION_ERROR (details.field=inboundSigningPlaintext)', async () => {
+      const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(trigger);
+
+      await expect(
+        service.update('trig-1', 'ws-1', {
+          chatChannel: { provider: 'slack', botToken: 'xoxb-fake-token' },
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'VALIDATION_ERROR',
+          details: { field: 'inboundSigningPlaintext' },
+        }),
+      });
+    });
+
+    it('slack — 잘못된 hex 형식 → 400 VALIDATION_ERROR', async () => {
+      const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(trigger);
+
+      await expect(
+        service.update('trig-1', 'ws-1', {
+          chatChannel: {
+            provider: 'slack',
+            botToken: 'xoxb-fake-token',
+            inboundSigningPlaintext: 'too-short-not-hex',
+          },
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'VALIDATION_ERROR',
+          details: { field: 'inboundSigningPlaintext' },
+        }),
+      });
+    });
+
+    it('discord — valid plaintext (hex 64) → 200 + ref 가 config 에 set', async () => {
+      const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(trigger);
+
+      await service.update('trig-1', 'ws-1', {
+        chatChannel: {
+          provider: 'discord',
+          botToken: 'discord-bot-token',
+          inboundSigningPlaintext: DISCORD_PUBLIC_KEY,
+        },
+      });
+
+      expect(secrets.rotate).toHaveBeenCalledWith(
+        'secret://triggers/trig-1/inbound-signing',
+        'ws-1',
+        DISCORD_PUBLIC_KEY,
+      );
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ chatChannelHealth: 'healthy' }),
+      );
+    });
+
+    it('discord — 잘못된 hex 64 형식 → 400 VALIDATION_ERROR', async () => {
+      const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(trigger);
+
+      await expect(
+        service.update('trig-1', 'ws-1', {
+          chatChannel: {
+            provider: 'discord',
+            botToken: 'discord-bot-token',
+            inboundSigningPlaintext: SLACK_SIGNING_SECRET, // hex 32 — too short for discord
+          },
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'VALIDATION_ERROR',
+          details: { field: 'inboundSigningPlaintext' },
+        }),
+      });
+    });
+
+    it('telegram — inboundSigningPlaintext 입력 시 400 (server-issued 만 허용)', async () => {
+      const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(trigger);
+
+      await expect(
+        service.update('trig-1', 'ws-1', {
+          chatChannel: {
+            provider: 'telegram',
+            botToken: '111:TestToken',
+            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+          },
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'VALIDATION_ERROR',
+          details: { field: 'inboundSigningPlaintext' },
+        }),
+      });
+    });
+
+    it('slack — plaintext 가 trigger.config 에 흘러가지 않음 (SS-SE-01)', async () => {
+      const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
+      triggerRepo.findOne.mockResolvedValue(trigger);
+
+      await service.update('trig-1', 'ws-1', {
+        chatChannel: {
+          provider: 'slack',
+          botToken: 'xoxb-fake-token',
+          inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+        },
+      });
+
+      // (a) 최종 update 시 plaintext 가 config 에 없어야 함.
+      const updateCalls = (triggerRepo.update as jest.Mock).mock.calls;
+      const lastUpdatePatch = updateCalls[updateCalls.length - 1][1] as {
+        config?: { chatChannel?: Record<string, unknown> };
+      };
+      const persistedChatChannel = lastUpdatePatch.config?.chatChannel ?? {};
+      expect(persistedChatChannel).not.toHaveProperty(
+        'inboundSigningPlaintext',
+      );
+      expect(persistedChatChannel).not.toHaveProperty('botToken');
+
+      // (b) 최초 save 시점 plaintext 가 config 에 없어야 함 —
+      // stripChatChannelPlaintext 가 mergeExternalConfig 전에 호출됐음을 검증
+      // (DB JSONB 일시 기록 회피 — adapter 미등록 early-return 경로 SS-SE-01 보장).
+      const saveCalls = (triggerRepo.save as jest.Mock).mock.calls;
+      const firstSaved = saveCalls[0][0] as {
+        config?: { chatChannel?: Record<string, unknown> };
+      };
+      const initialChatChannel = firstSaved.config?.chatChannel ?? {};
+      expect(initialChatChannel).not.toHaveProperty('inboundSigningPlaintext');
+      expect(initialChatChannel).not.toHaveProperty('botToken');
+    });
+  });
 });
 
 describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)', () => {
