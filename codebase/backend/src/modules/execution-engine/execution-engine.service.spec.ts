@@ -42,6 +42,7 @@ import { Workflow } from '../workflows/entities/workflow.entity';
 import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
+import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import {
   ExecutionContext,
   NodeHandler,
@@ -367,6 +368,20 @@ describe('ExecutionEngineService', () => {
         // lets future ConversationThread tests assert side-effects without
         // re-mocking the service.
         ConversationThreadService,
+        // workflow-resumable-execution Phase 1.2 — Graceful Shutdown 추적.
+        // 단위 테스트에서는 부작용 없는 mock 으로 충분 (DB UPDATE 가 일어나지
+        // 않으며 register/unregister 도 noop 으로 처리 — drain wait 없음).
+        {
+          provide: ShutdownStateService,
+          useValue: {
+            isShuttingDown: false,
+            inFlightCount: 0,
+            retryAfterSec: 30,
+            registerInFlight: jest.fn(),
+            unregisterInFlight: jest.fn(),
+            onApplicationShutdown: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -679,7 +694,10 @@ describe('ExecutionEngineService', () => {
       mockBus.releaseLock.mockResolvedValue(true);
     });
 
-    it('SET NX lock 획득 후 stale (>30분) WAITING_FOR_INPUT 만 FAILED 처리', async () => {
+    // workflow-resumable-execution Phase 1.1 (2026-05-25) — Recovery 대상에서
+    // WAITING_FOR_INPUT 제외. RUNNING heartbeat 미응답만 stuck 으로 본다.
+    // 사용자 입력 대기 (waiting_for_input) 는 §7.5 rehydration 경로로 자연 재개.
+    it('SET NX lock 획득 후 stale (>30분) RUNNING 만 FAILED 처리', async () => {
       const before = Date.now();
       await (
         service as unknown as { recoverStuckExecutions: () => Promise<void> }
@@ -691,10 +709,14 @@ describe('ExecutionEngineService', () => {
       const setArg = setMethod.mock.calls[0][0] as Record<string, unknown>;
       expect(setArg.status).toBe(ExecutionStatus.FAILED);
       expect((setArg.error as { message: string }).message).toContain(
-        'server restarted',
+        'worker heartbeat timeout',
+      );
+      // WAITING_FOR_INPUT 회귀 가드 — 옛 메시지가 다시 나오면 안 됨.
+      expect((setArg.error as { message: string }).message).not.toContain(
+        'server restarted while waiting for user input',
       );
       expect(where).toHaveBeenCalledWith('status = :status', {
-        status: ExecutionStatus.WAITING_FOR_INPUT,
+        status: ExecutionStatus.RUNNING,
       });
       expect(andWhere).toHaveBeenCalledWith(
         'started_at < :threshold',
@@ -704,6 +726,24 @@ describe('ExecutionEngineService', () => {
       const arg = (andWhere.mock.calls[0][1] as { threshold: Date }).threshold;
       const expected = before - 30 * 60 * 1000;
       expect(Math.abs(arg.getTime() - expected)).toBeLessThan(5_000);
+    });
+
+    // workflow-resumable-execution Phase 1.1 회귀 가드. 핵심 행동 변화 —
+    // WAITING_FOR_INPUT 은 절대 stuck recovery 대상에 포함되어선 안 된다.
+    // 옛 코드가 WHERE status = WAITING_FOR_INPUT 로 일괄 FAIL 처리하던 패턴은
+    // 재발 시 운영 회귀로 직결되므로 명시적으로 가드.
+    it('WAITING_FOR_INPUT 은 recovery WHERE 절에 절대 포함되지 않는다', async () => {
+      await (
+        service as unknown as { recoverStuckExecutions: () => Promise<void> }
+      ).recoverStuckExecutions();
+
+      const allWhereCalls = where.mock.calls.flat();
+      const allAndWhereCalls = andWhere.mock.calls.flat();
+      const flatStringified = [...allWhereCalls, ...allAndWhereCalls]
+        .map((v) => JSON.stringify(v))
+        .join(' ');
+      expect(flatStringified).not.toContain('waiting_for_input');
+      expect(flatStringified).not.toContain('WAITING_FOR_INPUT');
     });
 
     it('lock 획득 실패 시 update 를 호출하지 않는다 (다른 인스턴스가 처리 중)', async () => {

@@ -30,6 +30,7 @@ import {
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
+import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
@@ -535,6 +536,7 @@ export class ExecutionEngineService
     private readonly backgroundQueue: Queue<BackgroundExecutionJob>,
     private readonly continuationBus: ContinuationBusService,
     private readonly conversationThreadService: ConversationThreadService,
+    private readonly shutdownState: ShutdownStateService,
   ) {}
 
   onModuleInit(): void {
@@ -647,10 +649,14 @@ export class ExecutionEngineService
   }
 
   /**
-   * Recovery 의 stale 임계값 — WAITING_FOR_INPUT 가 이 시간보다 오래되면
-   * 정상적으로 진행 중인 입력 대기로 보지 않고 stuck 으로 간주한다. 다중
-   * 인스턴스 환경에서 다른 인스턴스가 활발히 처리 중인 정상 대기를 잘못
-   * FAIL 시키는 것을 방지하는 보수적 가드.
+   * Recovery 의 stale 임계값 — RUNNING execution 이 이 시간보다 오래되면
+   * worker heartbeat 가 끊긴 stuck 으로 간주한다. WAITING_FOR_INPUT 은 본
+   * 임계값과 무관하며 recovery 대상이 아니다 (사용자 입력은 며칠 후 도착할
+   * 수도 있으므로 무기한 보존, §7.5 rehydration 으로 자연 재개).
+   * 다중 인스턴스 환경에서 다른 인스턴스가 활발히 처리 중인 정상 RUNNING 을
+   * 잘못 FAIL 시키지 않도록 보수적 가드 (heartbeat 간격 5초의 360배).
+   *
+   * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.4 Recovery.
    */
   private static readonly STUCK_RECOVERY_STALE_MS = 30 * 60 * 1000;
 
@@ -662,12 +668,21 @@ export class ExecutionEngineService
   private static readonly RECOVERY_LOCK_TTL_SECONDS = 60;
 
   /**
-   * On server restart, mark executions stuck in WAITING_FOR_INPUT as FAILED.
+   * On server restart, mark RUNNING executions whose worker heartbeat is
+   * long-gone as FAILED.
+   *
    * 다중 인스턴스 환경에서:
    * - SET NX 분산 lock 으로 동시에 여러 인스턴스가 recovery 를 수행하지 않게
    *   가드.
-   * - `startedAt < now() - 30분` 인 row 만 FAIL 처리 — 다른 인스턴스가 정상
-   *   처리 중인 신규 대기는 보존한다.
+   * - `status='running' AND startedAt < now() - 30분` 인 row 만 FAIL 처리 —
+   *   다른 인스턴스가 정상 처리 중인 신규 실행은 보존한다.
+   * - **WAITING_FOR_INPUT 은 절대 건드리지 않는다**. 사용자 입력은 며칠 후
+   *   도착할 수도 있고 노드별 `formConfig.timeout` 이 별도로 적용되므로,
+   *   본 함수가 강제로 종결시키지 않는다. 부팅 후 입력 도착 시 §7.5
+   *   rehydration 경로로 자연 재개.
+   *
+   * SoT: spec/5-system/4-execution-engine.md §7.4 Recovery (workflow-
+   * resumable-execution Phase 1.1, 2026-05-25).
    */
   private async recoverStuckExecutions(): Promise<void> {
     const acquired = await this.continuationBus.acquireLock(
@@ -694,13 +709,12 @@ export class ExecutionEngineService
         .set({
           status: ExecutionStatus.FAILED,
           error: {
-            message:
-              'Execution failed: server restarted while waiting for user input',
+            message: 'Execution failed: worker heartbeat timeout',
           },
           finishedAt,
         })
         .where('status = :status', {
-          status: ExecutionStatus.WAITING_FOR_INPUT,
+          status: ExecutionStatus.RUNNING,
         })
         .andWhere('started_at < :threshold', { threshold: staleThreshold })
         .execute();
@@ -708,7 +722,7 @@ export class ExecutionEngineService
       const affected = updateResult.affected ?? 0;
       if (affected > 0) {
         this.logger.warn(
-          `Recovered ${affected} stale execution(s) (>30min) stuck in WAITING_FOR_INPUT`,
+          `Recovered ${affected} stale execution(s) (>30min) stuck in RUNNING (worker heartbeat timeout)`,
         );
       }
     } finally {
@@ -2218,7 +2232,11 @@ export class ExecutionEngineService
       // WARN #6 (Security) — _resumeState 는 engine-internal 한 turn debug,
       // model state, rawConfig (잠재 credential 포함) 등을 담으므로 DB 에
       // 저장하지 않는다. Multi-turn 상태는 in-memory nodeOutputCache 에서만
-      // 유지되며 server restart 시 recoverStuckExecutions 가 FAILED 로 전환.
+      // 유지되며 server restart 시 메모리에서 소실된다 — Execution 자체는
+      // WAITING_FOR_INPUT 으로 보존되지만 (workflow-resumable-execution
+      // Phase 1.1) 후속 turn 입력이 들어와도 §7.5 rehydration 이 구현되기
+      // 전까지는 silent skip 된다 (Phase 2 에서 BullMQ continuation-queue +
+      // rehydration 으로 본격 해결 예정).
       const persistedOutput: Record<string, unknown> = {
         ...(structured ?? nodeOutput),
       };
@@ -2390,7 +2408,10 @@ export class ExecutionEngineService
       // `emitAiWaitingForInput` policy). `_resumeState` carries engine-
       // internal turn debug, model state, and rawConfig (potential
       // credentials). Multi-turn state lives in the in-memory cache only;
-      // server restart triggers `recoverStuckExecutions` → FAILED.
+      // server restart loses the in-memory cache. Execution stays in
+      // WAITING_FOR_INPUT (workflow-resumable-execution Phase 1.1 — no longer
+      // auto-FAILED by recoverStuckExecutions), Phase 2 will introduce §7.5
+      // rehydration to actually resume from any instance.
       //
       // `nodeExec` should normally exist here — the first turn entered via
       // `emitAiWaitingForInput` already persisted it. A null arrival means
@@ -3342,6 +3363,10 @@ export class ExecutionEngineService
       context.parentNodeExecutionId,
       nodeInput,
     );
+    // Phase 1.2 — Graceful Shutdown 추적. SIGTERM 수신 시 본 in-flight
+    // 등록이 ShutdownStateService 의 drain wait + SERVER_INTERRUPTED 마킹
+    // 대상이 된다. unregister 는 finally 블록 (성공/실패/예외 무관) 에서.
+    this.shutdownState.registerInFlight(nodeExecution.id, executionId);
     this.eventEmitter.emitNode(
       executionId,
       node.id,
@@ -3366,7 +3391,7 @@ export class ExecutionEngineService
     );
 
     try {
-      // Get handler
+      // Get handler — wrapped 전체가 finally 의 unregisterInFlight 보장 대상.
       const handler = this.handlerRegistry.get(node.type);
 
       // Validate config
@@ -3633,6 +3658,9 @@ export class ExecutionEngineService
           );
           throw error;
       }
+    } finally {
+      // Phase 1.2 — register 짝. handler 결과·에러·throw 무관 항상 해제.
+      this.shutdownState.unregisterInFlight(nodeExecution.id);
     }
   }
 

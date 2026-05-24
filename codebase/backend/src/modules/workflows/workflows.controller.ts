@@ -10,7 +10,10 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  ServiceUnavailableException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { BadRequestException, Logger } from '@nestjs/common';
 import { Roles } from '../../common/guards/roles.guard';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -36,6 +39,7 @@ import {
 import { Node } from '../nodes/entities/node.entity';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
@@ -62,6 +66,7 @@ export class WorkflowsController {
   constructor(
     private readonly workflowsService: WorkflowsService,
     private readonly executionEngineService: ExecutionEngineService,
+    private readonly shutdownState: ShutdownStateService,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
   ) {}
@@ -209,12 +214,25 @@ export class WorkflowsController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
+    @Res({ passthrough: true }) res: Response,
     @Body()
     body?: {
       input?: Record<string, unknown>;
       parameterValues?: Record<string, unknown>;
     },
   ) {
+    // workflow-resumable-execution Phase 1.2 — Graceful Shutdown gate.
+    // SoT: spec/5-system/4-execution-engine.md §11. SIGTERM 수신 후에는 신규
+    // Execution 시작을 503 으로 거부해 LB drain 동안 다른 인스턴스로 라우팅.
+    if (this.shutdownState.isShuttingDown) {
+      res.setHeader('Retry-After', String(this.shutdownState.retryAfterSec));
+      throw new ServiceUnavailableException({
+        code: 'SERVER_SHUTTING_DOWN',
+        message:
+          'Server is shutting down; new executions are temporarily refused. Retry after the indicated interval.',
+      });
+    }
+
     // Verify workflow belongs to workspace
     await this.workflowsService.findById(id, workspaceId);
 

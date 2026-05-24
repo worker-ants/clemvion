@@ -31,6 +31,7 @@ import { ConversationThreadService } from './conversation-thread/conversation-th
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
+import { ShutdownStateService } from './shutdown/shutdown-state.service';
 
 @Module({
   imports: [
@@ -68,6 +69,12 @@ import { NodeHandlerDependenciesProvider } from './handlers/node-handler-depende
     ExecutionEventEmitter,
     GraphTraversalService,
     NodeHandlerDependenciesProvider,
+    ShutdownStateService,
+    {
+      // SoT: spec §11. ENV var name 은 spec 표와 일치.
+      provide: 'SHUTDOWN_GRACE_MS',
+      useFactory: () => Number(process.env.SIGTERM_GRACE_MS ?? 30_000),
+    },
   ],
   exports: [
     ExecutionEngineService,
@@ -75,6 +82,7 @@ import { NodeHandlerDependenciesProvider } from './handlers/node-handler-depende
     NodeComponentRegistry,
     ExpressionResolverService,
     ConversationThreadService,
+    ShutdownStateService,
   ],
 })
 export class ExecutionEngineModule {}

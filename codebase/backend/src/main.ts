@@ -139,6 +139,14 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // workflow-resumable-execution Phase 1.2 — Graceful Shutdown.
+  // Nest lifecycle 훅 (`onModuleDestroy` / `onApplicationShutdown`) 이
+  // SIGTERM 시 호출되도록 활성. SoT: spec/5-system/4-execution-engine.md §11.
+  // 본 호출이 없으면 `ShutdownStateService.onApplicationShutdown` 이 SIGTERM
+  // 도착해도 트리거되지 않아 in-flight node execution 이 SERVER_INTERRUPTED
+  // 로 마킹되지 못한다.
+  app.enableShutdownHooks();
+
   const port = configService.get<number>('app.port') || 3011;
   await app.listen(port);
   console.log(`Application running on port ${port}`);
