@@ -1,4 +1,7 @@
-import { AiAgentHandler } from './ai-agent.handler';
+import {
+  AiAgentHandler,
+  FORM_SUBMITTED_GUIDANCE_MESSAGE,
+} from './ai-agent.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
 import { KbToolProvider, kbToolName } from './tool-providers/kb-tool-provider';
 import { RenderToolProvider } from './tool-providers/render-tool-provider';
@@ -1667,8 +1670,7 @@ describe('AiAgentHandler', () => {
       // spec §12.6 — LLM 재호출 가드 필드 (`ok:true` + `message`) 보강.
       // 동일 form 재호출 회귀 차단 (2026-05-24 회귀, PR #299).
       expect(parsed.ok).toBe(true);
-      expect(typeof parsed.message).toBe('string');
-      expect(parsed.message).toMatch(/재호출|다시 호출|do not call/i);
+      expect(parsed.message).toEqual(FORM_SUBMITTED_GUIDANCE_MESSAGE);
 
       // spec §6.2 step 2.c — appendPresentationInteraction 호출 검증
       // (presentation_user thread push + data.via: 'ai_render' sentinel).
@@ -1855,7 +1857,47 @@ describe('AiAgentHandler', () => {
       expect(parsed.data.field).toBe('value');
       // spec §12.6 — fallback 경로에서도 가드 필드 보강이 동일 적용된다.
       expect(parsed.ok).toBe(true);
-      expect(parsed.message).toMatch(/재호출|다시 호출|do not call/i);
+      expect(parsed.message).toEqual(FORM_SUBMITTED_GUIDANCE_MESSAGE);
+    });
+
+    it("source: 'form_submitted' + plain text userMessage → __raw__ fallback 경로에서도 가드 필드 유지", async () => {
+      // JSON 이 아닌 순수 텍스트를 userMessage 로 전달 — try/catch __raw__ 분기.
+      // spec §12.6: __raw__ 경로에서도 ok:true + message 가드 필드가 LLM 에게
+      // 전달되어야 한다 (회귀 차단).
+      const state = baseState();
+
+      mockLlmService.chat.mockResolvedValue({
+        content: '알겠어요.',
+        usage: { inputTokens: 30, outputTokens: 10, totalTokens: 40 },
+        model: 'gpt-4o',
+        finishReason: 'stop',
+      });
+
+      await handlerWithThread.processMultiTurnMessage('plain text', state, {
+        source: 'form_submitted',
+      });
+
+      const callArgs = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+        messages: Array<{
+          role: string;
+          toolCallId?: string;
+          content?: string;
+        }>;
+      };
+      const toolResultMsg = callArgs.messages.find(
+        (m) => m.role === 'tool' && m.toolCallId === 'call_form_1',
+      );
+      expect(toolResultMsg).toBeDefined();
+      const parsed = JSON.parse(toolResultMsg!.content as string) as {
+        ok?: boolean;
+        type: string;
+        data: Record<string, unknown>;
+        message?: string;
+      };
+      // __raw__ 분기 검증
+      expect(parsed.ok).toBe(true);
+      expect(parsed.data.__raw__).toBe('plain text');
+      expect(parsed.message).toEqual(FORM_SUBMITTED_GUIDANCE_MESSAGE);
     });
 
     it('options 미전달 (구 호출자) + pendingFormToolCall 없음 → 정상 ai_user 경로 (하위 호환)', async () => {
@@ -3311,7 +3353,7 @@ describe('AiAgentHandler — render_* dispatch (spec §4.1)', () => {
       ctx,
     );
 
-    const callArgs = mockLlmService.chat.mock.calls[0][1] as {
+    const callArgs = mockLlmService.chat.mock.calls.at(-1)![1] as {
       messages: Array<{ role: string; content?: string }>;
     };
     const systemMsg = callArgs.messages.find((m) => m.role === 'system');
@@ -3320,7 +3362,7 @@ describe('AiAgentHandler — render_* dispatch (spec §4.1)', () => {
       expect.stringContaining('form_submitted'),
     );
     // 핵심 안내: 같은 form 재호출 금지 + 후속 행동 유도
-    expect(systemMsg!.content).toMatch(/재호출하지|다시 호출하지|do not call/i);
+    expect(systemMsg!.content).toContain('다시 호출하지');
   });
 
   it('retry-gate: silently drops 2nd schema violation for the same tool (spec §4.1)', async () => {

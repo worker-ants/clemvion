@@ -93,8 +93,8 @@ shape SoT 유지 (기존 `{type, data}` 호환) + 가드 필드 2개 (`ok`, `mes
 1. - [x] 스펙 분석 (§6.2 step 2.c / §10.9 step 4 의 LLM tool_result content layer 표현 확인)
 2. - [x] 사용자 결정: spec 동반 갱신을 본 PR 에 포함 (2026-05-24, AskUserQuestion 응답)
 3. - [x] consistency-check `--plan plan/in-progress/form-resubmit-fix.md` (`review/consistency/2026/05/24/16_37_48/`) — Critical 3건 (frontmatter) + WARNING 다수 → plan 본 rewrite 로 해소
-4. - [ ] project-planner 위임 — spec 본문 + Rationale 보강 (§4.1 표 / §6.1.d.ii / §6.2 step 2.c / §12 Rationale 신설 / §10.9 (4) layer / §Rationale `form submission wire format wrap` / §Changelog)
-5. - [ ] consistency-check `--impl-prep spec/4-nodes/3-ai spec/4-nodes/6-presentation` — developer 흐름 진입 의무 (`/consistency-check --impl-prep ...`)
+4. - [x] project-planner 위임 — spec 본문 + Rationale 보강 (§4.1 표 / §6.1.d.ii / §6.2 step 2.c / §12 Rationale 신설 / §10.9 (4) layer / §Rationale `form submission wire format wrap` / §Changelog)
+5. - [x] consistency-check `--impl-prep spec/4-nodes/3-ai spec/4-nodes/6-presentation` — developer 흐름 진입 의무 (`/consistency-check --impl-prep ...`)
 6. - [ ] 테스트 선작성 (handler.spec / thread.spec, 실패 확인)
 7. - [ ] 코드 구현 (handler.ts form_submitted 분기 + PRESENTATION_TOOLS_GUIDANCE)
 8. - [ ] 테스트 보강

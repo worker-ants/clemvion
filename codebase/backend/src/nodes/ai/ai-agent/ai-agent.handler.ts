@@ -210,8 +210,13 @@ const PRESENTATION_TOOLS_GUIDANCE =
  * `PRESENTATION_TOOLS_GUIDANCE` 의 `form_submitted` 안내 라인이 같은 의미를
  * 공유하도록 단일 상수로 추출 — 두 위치의 표현이 어긋나면 LLM 이 충돌 신호로
  * 해석할 수 있다.
+ *
+ * **보안 경계**: `message` 필드는 하드코딩 상수만 허용 (프롬프트 인젝션 회피).
+ * 사용자 입력 (formData / userMessage) 은 `data` 필드 안에 그대로 전달되며
+ * `message` 에는 절대 합성하지 않는다. 향후 동적 콘텐츠를 이 채널에 삽입해야
+ * 하는 경우 별도 sanitization 레이어를 반드시 추가하라.
  */
-const FORM_SUBMITTED_GUIDANCE_MESSAGE =
+export const FORM_SUBMITTED_GUIDANCE_MESSAGE =
   '사용자가 form 을 제출했습니다. 같은 form 을 다시 호출하지 말고, data 의 입력값을 받아 후속 답변 / 다른 도구 호출 / turn 종결 중 하나로 진행하세요.';
 
 /**
