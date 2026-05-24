@@ -81,6 +81,11 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
     if (typeof triggerId !== 'string' || triggerId.length === 0) {
       // webhook 이 시작한 execution 만 trigger 가 알려진다. 본 fanout 도 그 경우에만.
       // payload 에 triggerId 가 없으면 DB lookup 까지 가는 것보다 silent skip 이 안전.
+      // 수동 실행은 정상적으로 여기 도달 — 매번 warn 하면 noise. PR #314 의 routing
+      // context 미등록 시 webhook 발화 execution 도 여기 막힘 → debug 로 가시화.
+      this.logger.debug(
+        `event ${event.eventType} skipped — payload.triggerId 없음 (수동 실행 또는 routing context 미등록)`,
+      );
       return;
     }
     const trigger = await this.triggerRepository.findOne({
