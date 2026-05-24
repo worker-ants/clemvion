@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { WebsocketGateway } from './websocket.gateway';
 
@@ -237,6 +237,8 @@ const TERMINAL_EXECUTION_EVENTS: ReadonlySet<ExecutionEventType> = new Set([
 
 @Injectable()
 export class WebsocketService {
+  private readonly logger = new Logger(WebsocketService.name);
+
   /**
    * Execution-scoped monotonic sequence counter.
    *
@@ -296,6 +298,13 @@ export class WebsocketService {
   ): void {
     if (!executionId) return;
     this.executionRouting.set(executionId, context);
+    // production 진단용 debug log — log level 을 'debug' 로 올리면 dispatcher 의
+    // listenerRegistry miss 와 envelope 첨부 누락을 시간순으로 추적 가능.
+    this.logger.debug(
+      `routing context registered: executionId=${executionId} ` +
+        `triggerId=${context.triggerId ?? '<none>'} ` +
+        `chatChannel=${context.chatChannel ? `${context.chatChannel.provider}/${context.chatChannel.conversationKey}` : '<none>'}`,
+    );
   }
 
   /**

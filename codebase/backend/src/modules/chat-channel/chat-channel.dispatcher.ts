@@ -77,7 +77,13 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     if (!SUBSCRIBED_EVENTS.has(event.eventType)) return;
     const triggerId = (event.payload as { triggerId?: unknown }).triggerId;
     if (typeof triggerId !== 'string' || triggerId.length === 0) {
-      // Trigger id 가 없는 execution (수동 실행 등) 은 채널 대상 아님.
+      // Trigger id 가 없는 execution (수동 실행 등) 은 채널 대상 아님. silent OK —
+      // 수동 실행 emit 마다 warn 찍으면 noise. PR #314 의 routing context 등록이
+      // 안 됐다면 webhook 발화 execution 도 여기서 막힘 — 다음 if 가드들의 warn 으로는
+      // 식별 안 되므로 debug 로 가시화 (production log level 상승 시 보임).
+      this.logger.debug(
+        `event ${event.eventType} skipped — payload.triggerId 없음 (수동 실행 또는 routing context 미등록)`,
+      );
       return;
     }
     // [Spec R8 v1 적용 (2026-05-24)] per-trigger listener registry 사전 가드.
@@ -85,7 +91,17 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     // event 의 비활성 trigger 메시지 발송 위험 사전 차단). registry 가 비어있는 race
     // window (process restart 직후) 는 bulkRegister 가 onApplicationBootstrap 에서 일괄
     // 복원하므로 의미 있는 갭이 거의 없음.
+    //
+    // **회귀 신호** (2026-05-25): triggerId 가 있는 webhook 발화 execution 인데 registry
+    // 에 미등록 ⇒ trigger 활성화 시 listener.register 누락 또는 deploy 직후 race.
+    // logger.warn 으로 즉시 운영 가시화 (이전엔 silent skip 이라 PR #314 적용 후에도
+    // outbound 안 가는 원인을 production log 로 식별 불가했던 회귀를 차단).
     if (!this.listenerRegistry.has(triggerId)) {
+      this.logger.warn(
+        `event ${event.eventType} (trigger=${triggerId}) — listenerRegistry miss. ` +
+          `bootstrap 누락 또는 활성화 시점 register 누락 가능. ` +
+          `즉각 영향: outbound 메시지 발송 안 됨.`,
+      );
       return;
     }
     const trigger = await this.triggerRepository.findOne({
@@ -98,9 +114,21 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
         'chatChannelHealth',
       ],
     });
-    if (!trigger) return;
+    if (!trigger) {
+      this.logger.warn(
+        `event ${event.eventType} (trigger=${triggerId}) — DB lookup 실패 (trigger 삭제됨?). outbound skip.`,
+      );
+      return;
+    }
     const chatChannelCfg = readChatChannelConfig(trigger.config);
-    if (!chatChannelCfg) return;
+    if (!chatChannelCfg) {
+      // listener registry 에는 있는데 config 에 chatChannel 없음 — 트리거가 chatChannel
+      // 제거된 채 listener 가 stale 일 가능성.
+      this.logger.warn(
+        `event ${event.eventType} (trigger=${triggerId}) — trigger.config.chatChannel 없음 (registry stale 가능). outbound skip.`,
+      );
+      return;
+    }
 
     let adapter: ChatChannelAdapter;
     try {
@@ -114,10 +142,19 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     }
 
     // execution 의 conversation 매핑 — payload 안에 conversationKey 가 있어야 함 (HooksService 가
-    // execute() 시 input.chatChannel.conversationKey 로 주입 → 엔진이 payload 에 전달).
+    // execute() 시 input.chatChannel.conversationKey 로 주입 → WebsocketService 의 routing
+    // context registry → fanout envelope 에 자동 첨부 [PR #314]).
     const conversationKey = readConversationKey(event.payload);
     if (!conversationKey) {
-      // 일반 webhook (chatChannel 무관) execution 일 수도 있음 — skip silent.
+      // **회귀 신호** (2026-05-25): trigger 가 chatChannel cfg 까지 가졌는데 envelope 에
+      // conversationKey 없음 ⇒ PR #314 의 routing context 첨부가 작동 안 함.
+      // 가능 원인: (a) ExecutionEngine 이 register 호출 안 함, (b) WebsocketService 의
+      // attachRoutingContext 가 chatChannel 미첨부, (c) sanitize 가 conversationKey 제거.
+      // logger.warn 으로 즉시 가시화.
+      this.logger.warn(
+        `event ${event.eventType} (trigger=${triggerId}, provider=${chatChannelCfg.provider}) — ` +
+          `event.payload.chatChannel.conversationKey 없음. routing context 미첨부 회귀 신호. outbound skip.`,
+      );
       return;
     }
 
