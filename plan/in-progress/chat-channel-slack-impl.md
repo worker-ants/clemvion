@@ -1,21 +1,22 @@
 ---
-worktree: (assigned at impl-start)
+worktree: spec-slack-discord-chat-channel-bb4d35
 started: 2026-05-24
-owner: developer (TBD)
-status: backlog
+owner: developer
+status: in-progress
 ---
 
-# Slack Chat Channel Adapter — 구현 (스켈레톤)
+# Slack Chat Channel Adapter — 구현
 
-본 plan 은 [`spec/4-nodes/7-trigger/providers/slack.md`](../../spec/4-nodes/7-trigger/providers/slack.md) 의 Slack adapter 를 backend / frontend 에 구현하는 후속 작업이다. spec 단계는 [`plan/in-progress/spec-slack-discord-chat-channel.md`](./spec-slack-discord-chat-channel.md) 가 완료.
+본 plan 은 [`spec/4-nodes/7-trigger/providers/slack.md`](../../spec/4-nodes/7-trigger/providers/slack.md) 의 Slack adapter 를 backend / frontend 에 구현. spec 단계는 [`plan/complete/spec-slack-discord-chat-channel.md`](../complete/spec-slack-discord-chat-channel.md) + [`plan/complete/spec-chat-channel-inbound-signing-rename.md`](../complete/spec-chat-channel-inbound-signing-rename.md) 가 완료.
 
-**상태: backlog** — `status: backlog` 이며, 본 worktree 진입은 spec PR merge 이후 + 사용자 결정에 의해 trigger.
+사용자 결정 (2026-05-24): spec PR push 없이 본 worktree 에 stacked 로 impl 진행. push 는 사용자 별도 명령 시.
 
 ## 진입 조건
 
-- [ ] [`plan/complete/spec-slack-discord-chat-channel.md`](../complete/spec-slack-discord-chat-channel.md) 로 이동 완료 (spec PR merged)
-- [ ] 사용자가 Slack impl 진행 명시적 결정
-- [ ] worktree 생성: `.claude/tools/ensure-worktree.sh chat-channel-slack-impl`
+- [x] [`plan/complete/spec-slack-discord-chat-channel.md`](../complete/spec-slack-discord-chat-channel.md) — local main 기준 complete (PR push 는 별도)
+- [x] [`plan/complete/spec-chat-channel-inbound-signing-rename.md`](../complete/spec-chat-channel-inbound-signing-rename.md) — naming 통합 완료
+- [x] 사용자가 Slack impl 진행 명시적 결정 (2026-05-24)
+- [x] worktree — `spec-slack-discord-chat-channel-bb4d35` 에 stacked 진입 (spec 작업과 같은 branch)
 
 ## 참조
 

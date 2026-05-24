@@ -521,8 +521,8 @@ describe('HooksService', () => {
    */
   describe('Chat Channel 분기', () => {
     const SECRET_TOKEN = 'secret-token-abc';
-    const SECRET_TOKEN_REF = 'secret://triggers/t1/webhook-secret';
-    /** 헤더에 올바른 secretToken 을 포함한 입력 */
+    const SECRET_TOKEN_REF = 'secret://triggers/t1/inbound-signing';
+    /** 헤더에 올바른 inbound-signing 자료 (Telegram secret_token) 을 포함한 입력 */
     const chatInput: WebhookInput = {
       ...input,
       headers: { 'x-telegram-bot-api-secret-token': SECRET_TOKEN },
@@ -533,7 +533,7 @@ describe('HooksService', () => {
         chatChannel: {
           provider: 'telegram',
           botTokenRef: 'secret://triggers/t1/bot-token',
-          secretTokenRef: SECRET_TOKEN_REF,
+          inboundSigningRef: SECRET_TOKEN_REF,
         },
       },
     } as unknown as Trigger;

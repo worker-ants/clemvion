@@ -11,8 +11,8 @@ import { ChatChannelConfig } from './types';
  * 호출 시점: HooksService.handleChatChannelWebhook 진입 직후, parseUpdate 이전.
  *
  * 현재 검증 정책:
- *   - Telegram: `X-Telegram-Bot-Api-Secret-Token` 헤더 ↔ `config.secretTokenRef` resolve 비교.
- *     `secretTokenRef` 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
+ *   - Telegram: `X-Telegram-Bot-Api-Secret-Token` 헤더 ↔ `config.inboundSigningRef` resolve 비교.
+ *     `inboundSigningRef` 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
  *   - 다른 provider: 어댑터별 자체 검증 (HMAC 등) — 본 클래스는 noop.
  */
 @Injectable()
@@ -25,7 +25,7 @@ export class ChatChannelInboundAuthenticator {
    * 검증 실패 시 `UnauthorizedException` throw. 성공 시 void.
    *
    * @param triggerId — 로그용
-   * @param config — `ChatChannelConfig` (provider, secretTokenRef 등)
+   * @param config — `ChatChannelConfig` (provider, inboundSigningRef 등)
    * @param headers — webhook request headers (lowercased key)
    */
   async verify(
@@ -45,16 +45,16 @@ export class ChatChannelInboundAuthenticator {
     config: ChatChannelConfig,
     headers: Record<string, string>,
   ): Promise<void> {
-    // secretTokenRef 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
-    if (!config.secretTokenRef) return;
+    // inboundSigningRef 미설정 시 검증 skip (legacy / setupChannel 전 trigger).
+    if (!config.inboundSigningRef) return;
 
     const headerToken = headers['x-telegram-bot-api-secret-token'] ?? '';
     let expected: string;
     try {
-      expected = await this.secrets.resolve(config.secretTokenRef);
+      expected = await this.secrets.resolve(config.inboundSigningRef);
     } catch (err) {
       this.logger.warn(
-        `Telegram secret_token resolve 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
+        `Telegram inbound-signing resolve 실패 (trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
       );
       throw new UnauthorizedException({
         code: 'AUTH_FAILED',

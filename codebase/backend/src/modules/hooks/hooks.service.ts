@@ -105,7 +105,8 @@ export class HooksService {
 
     // 3a. Chat Channel 분기 — config.chatChannel 가 있으면 adapter 가 inbound 처리.
     //     일반 webhook 경로와 별도 — auth / parameter schema 검증 모두 우회 (chat 채널은
-    //     자체 secret_token 헤더 검증 + parseUpdate 의 raw body 만 사용).
+    //     자체 inbound-signing 헤더/서명 검증 + parseUpdate 의 raw body 만 사용 —
+    //     provider 별: Telegram secret_token / Slack X-Slack-Signature / Discord X-Signature-Ed25519).
     const chatChannelCfg = readChatChannelConfig(trigger.config);
     if (chatChannelCfg) {
       return this.handleChatChannelWebhook(trigger, chatChannelCfg, input);
