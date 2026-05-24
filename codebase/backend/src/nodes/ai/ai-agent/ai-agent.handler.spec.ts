@@ -1,6 +1,7 @@
 import {
   AiAgentHandler,
   FORM_SUBMITTED_GUIDANCE_MESSAGE,
+  FORM_SUBMITTED_MAX_BYTES,
 } from './ai-agent.handler';
 import { ExecutionContext } from '../../core/node-handler.interface';
 import { KbToolProvider, kbToolName } from './tool-providers/kb-tool-provider';
@@ -1898,6 +1899,139 @@ describe('AiAgentHandler', () => {
       expect(parsed.ok).toBe(true);
       expect(parsed.data.__raw__).toBe('plain text');
       expect(parsed.message).toEqual(FORM_SUBMITTED_GUIDANCE_MESSAGE);
+    });
+
+    // spec/4-nodes/3-ai/1-ai-agent.md §12.7 — formData 10KB cap. cap 미만은
+    // unchanged, 초과는 string 필드만 균등 truncate + formDataTruncation 메타
+    // 부착. 다른 type 필드 (number/boolean/array/object) 는 보존.
+    describe('formData 크기 cap (spec §12.7)', () => {
+      it('cap 미만 formData → unchanged, formDataTruncation 없음', async () => {
+        const state = baseState();
+        mockLlmService.chat.mockResolvedValue({
+          content: 'ok',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+        await handlerWithThread.processMultiTurnMessage(
+          JSON.stringify({ email: 'a@b.c', name: 'Alice' }),
+          state,
+          { source: 'form_submitted' },
+        );
+        const callArgs = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+          messages: Array<{
+            role: string;
+            toolCallId?: string;
+            content?: string;
+          }>;
+        };
+        const toolResultMsg = callArgs.messages.find(
+          (m) => m.role === 'tool' && m.toolCallId === 'call_form_1',
+        );
+        const parsed = JSON.parse(toolResultMsg!.content as string) as {
+          data: Record<string, unknown>;
+          formDataTruncation?: unknown;
+        };
+        expect(parsed.data.email).toBe('a@b.c');
+        expect(parsed.data.name).toBe('Alice');
+        expect(parsed.formDataTruncation).toBeUndefined();
+      });
+
+      it('cap 초과 formData → string 필드 truncate + formDataTruncation 메타 부착', async () => {
+        // 단일 필드를 cap 의 1.5배 길이로 — 균등 truncate 후 cap 이하로 떨어져야 함.
+        const longText = 'A'.repeat(Math.floor(FORM_SUBMITTED_MAX_BYTES * 1.5));
+        const state = baseState();
+        mockLlmService.chat.mockResolvedValue({
+          content: 'ok',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+        await handlerWithThread.processMultiTurnMessage(
+          JSON.stringify({ content: longText, subject: 'short' }),
+          state,
+          { source: 'form_submitted' },
+        );
+        const callArgs = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+          messages: Array<{
+            role: string;
+            toolCallId?: string;
+            content?: string;
+          }>;
+        };
+        const toolResultMsg = callArgs.messages.find(
+          (m) => m.role === 'tool' && m.toolCallId === 'call_form_1',
+        );
+        const parsed = JSON.parse(toolResultMsg!.content as string) as {
+          data: Record<string, unknown>;
+          formDataTruncation?: {
+            originalBytes: number;
+            bytesAfterCap: number;
+            truncatedFields: string[];
+          };
+        };
+        // string 필드는 truncate 됐고 마커 부착. 필드명/구조 보존.
+        expect(typeof parsed.data.content).toBe('string');
+        expect((parsed.data.content as string).length).toBeLessThan(
+          longText.length,
+        );
+        expect(parsed.data.content as string).toMatch(/<truncated>/);
+        // 짧은 string 필드 (subject) 는 그대로.
+        expect(parsed.data.subject).toBe('short');
+        // formDataTruncation 메타 검증.
+        expect(parsed.formDataTruncation).toBeDefined();
+        expect(parsed.formDataTruncation!.originalBytes).toBeGreaterThan(
+          FORM_SUBMITTED_MAX_BYTES,
+        );
+        expect(parsed.formDataTruncation!.bytesAfterCap).toBeLessThanOrEqual(
+          FORM_SUBMITTED_MAX_BYTES,
+        );
+        expect(parsed.formDataTruncation!.truncatedFields).toContain('content');
+        expect(parsed.formDataTruncation!.truncatedFields).not.toContain(
+          'subject',
+        );
+      });
+
+      it('비-string 필드 (number/boolean/array/object) 는 truncate 대상 외 — 그대로 보존', async () => {
+        const longText = 'B'.repeat(Math.floor(FORM_SUBMITTED_MAX_BYTES * 1.5));
+        const state = baseState();
+        mockLlmService.chat.mockResolvedValue({
+          content: 'ok',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        });
+        await handlerWithThread.processMultiTurnMessage(
+          JSON.stringify({
+            note: longText, // 거대 string — truncate 대상
+            count: 42, // number — 보존
+            agree: true, // boolean — 보존
+            tags: ['a', 'b'], // array — 보존
+            meta: { k: 1 }, // object — 보존
+          }),
+          state,
+          { source: 'form_submitted' },
+        );
+        const callArgs = mockLlmService.chat.mock.calls.at(-1)?.[1] as {
+          messages: Array<{
+            role: string;
+            toolCallId?: string;
+            content?: string;
+          }>;
+        };
+        const toolResultMsg = callArgs.messages.find(
+          (m) => m.role === 'tool' && m.toolCallId === 'call_form_1',
+        );
+        const parsed = JSON.parse(toolResultMsg!.content as string) as {
+          data: Record<string, unknown>;
+          formDataTruncation?: { truncatedFields: string[] };
+        };
+        expect(parsed.data.count).toBe(42);
+        expect(parsed.data.agree).toBe(true);
+        expect(parsed.data.tags).toEqual(['a', 'b']);
+        expect(parsed.data.meta).toEqual({ k: 1 });
+        expect(parsed.formDataTruncation!.truncatedFields).toEqual(['note']);
+      });
     });
 
     it('options 미전달 (구 호출자) + pendingFormToolCall 없음 → 정상 ai_user 경로 (하위 호환)', async () => {
