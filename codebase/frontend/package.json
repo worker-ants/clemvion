@@ -31,6 +31,7 @@
     "@simplewebauthn/browser": "^13.3.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-query": "^5.95.2",
+    "@workflow/chat-channel-validation": "file:../packages/chat-channel-validation",
     "@workflow/expression-engine": "file:../packages/expression-engine",
     "@workflow/node-summary": "file:../packages/node-summary",
     "@xyflow/react": "^12.10.2",

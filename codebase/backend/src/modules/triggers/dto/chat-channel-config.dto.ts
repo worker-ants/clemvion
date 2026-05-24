@@ -188,6 +188,7 @@ export class ChatChannelConfigDto {
    * @see spec/5-system/15-chat-channel.md §4.1 (chatChannel 스키마)
    * @see spec/4-nodes/7-trigger/providers/slack.md §6 R-S-1
    * @see spec/4-nodes/7-trigger/providers/discord.md §6
+   * @see `@workflow/chat-channel-validation` — backend / frontend 가 공유하는 정규식 SoT (lowercase hex)
    */
   @ApiPropertyOptional({
     description:

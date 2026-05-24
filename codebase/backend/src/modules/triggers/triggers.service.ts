@@ -25,6 +25,10 @@ import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import {
+  SLACK_SIGNING_SECRET_REGEX,
+  DISCORD_PUBLIC_KEY_REGEX,
+} from '@workflow/chat-channel-validation';
 
 export type TriggerDetail = Trigger & {
   cronExpression?: string;
@@ -350,7 +354,8 @@ export class TriggersService {
 
     // [provider 발급 표준] Slack signing secret / Discord public key 는 모두 lowercase hex 로
     // 발급된다. uppercase 입력은 외부 provider HMAC / ed25519 검증 실패를 유발하므로 사전 차단.
-    if (provider === 'slack' && !/^[a-f0-9]{32}$/.test(plaintext)) {
+    // SoT: `@workflow/chat-channel-validation` 패키지 — backend / frontend 가 동일 정규식 사용.
+    if (provider === 'slack' && !SLACK_SIGNING_SECRET_REGEX.test(plaintext)) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
@@ -359,7 +364,7 @@ export class TriggersService {
       });
     }
 
-    if (provider === 'discord' && !/^[a-f0-9]{64}$/.test(plaintext)) {
+    if (provider === 'discord' && !DISCORD_PUBLIC_KEY_REGEX.test(plaintext)) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
