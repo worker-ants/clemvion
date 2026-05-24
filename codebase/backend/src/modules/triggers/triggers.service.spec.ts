@@ -964,6 +964,147 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
   });
 });
 
+/**
+ * 회귀: triggers.service 가 webhook callbackUrl 을 조립할 때
+ * 등록되지 않은 config key (`app.publicBaseUrl` / `publicBaseUrl`) 를 읽어
+ * 항상 http://localhost:3000 fallback 으로 떨어졌고, 그 결과 Telegram setWebhook 이
+ * "An HTTPS URL must be provided for webhook" 로 거절되어 trigger 가 degraded 로 저장됐다.
+ * `app.config.ts` 가 등록하는 canonical key 는 `app.url` 이다.
+ */
+describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 방지)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let mockAdapter: { setupChannel: jest.Mock };
+  let configGet: jest.Mock;
+
+  const baseTrigger = {
+    id: 'trig-tg',
+    workspaceId: 'ws-1',
+    type: 'webhook',
+    endpointPath: 'hook-abc',
+    config: {},
+    chatChannelHealth: 'unknown',
+    chatChannelLastError: null,
+  } as unknown as Trigger;
+
+  async function buildService(getImpl: (key: string) => unknown) {
+    configGet = jest.fn(getImpl);
+    mockAdapter = {
+      setupChannel: jest.fn().mockResolvedValue({
+        configUpdates: { botIdentity: { botId: 111, username: 'bot' } },
+        issuedInboundSigning: 'issued-secret-xyz',
+      }),
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TriggersService,
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(baseTrigger),
+            update: jest.fn().mockResolvedValue(undefined),
+            save: jest.fn((t: Trigger) => Promise.resolve(t)),
+            createQueryBuilder: jest.fn(),
+          },
+        },
+        { provide: getRepositoryToken(Execution), useValue: {} },
+        { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: ChannelAdapterRegistry,
+          useValue: {
+            has: jest.fn().mockReturnValue(true),
+            get: jest.fn().mockReturnValue(mockAdapter),
+          },
+        },
+        {
+          provide: ChannelListenerRegistry,
+          useValue: {
+            register: jest.fn(),
+            unregister: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(),
+            size: jest.fn(() => 0),
+            bulkRegister: jest.fn(),
+          },
+        },
+        { provide: ConfigService, useValue: { get: configGet } },
+        {
+          provide: SecretResolverService,
+          useValue: {
+            resolve: jest.fn(),
+            store: jest.fn(),
+            rotate: jest.fn().mockResolvedValue(undefined),
+            delete: jest.fn(),
+            deleteByPrefix: jest.fn().mockResolvedValue(0),
+            exists: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+  }
+
+  it('app.url=https://workflow-api.getit.co.kr 가 set 되어 있으면 adapter.setupChannel 이 https callback URL 로 호출된다', async () => {
+    await buildService((key) =>
+      key === 'app.url' ? 'https://workflow-api.getit.co.kr' : undefined,
+    );
+
+    await service.update('trig-tg', 'ws-1', {
+      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+    });
+
+    expect(mockAdapter.setupChannel).toHaveBeenCalledWith(
+      expect.anything(),
+      'https://workflow-api.getit.co.kr/api/hooks/hook-abc',
+    );
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ chatChannelHealth: 'healthy' }),
+    );
+  });
+
+  it('config 가 `app.url` key 를 읽는다 (registered key) — 미등록 alias 는 무시', async () => {
+    // 운영 회귀 재현: app.publicBaseUrl 같은 key 에만 값이 있고 app.url 은 비어 있는 경우,
+    // 코드는 절대 publicBaseUrl 을 fallback 으로 쓰지 말아야 한다 (해당 key 는 등록된 적이 없다).
+    await buildService((key) =>
+      key === 'app.publicBaseUrl' || key === 'publicBaseUrl'
+        ? 'https://should-not-be-used.example.com'
+        : undefined,
+    );
+
+    await service.update('trig-tg', 'ws-1', {
+      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+    });
+
+    const passedCallback = mockAdapter.setupChannel.mock.calls[0][1] as string;
+    expect(passedCallback).not.toContain('should-not-be-used.example.com');
+    // app.url 이 undefined 이면 fallback (http://localhost:3011) 로 떨어져야 한다.
+    expect(passedCallback).toBe('http://localhost:3011/api/hooks/hook-abc');
+    // 그리고 ConfigService 는 'app.url' 을 적어도 한 번은 조회해야 한다.
+    expect(configGet).toHaveBeenCalledWith('app.url');
+  });
+
+  it('endpointPath 의 leading slash 와 baseUrl 의 trailing slash 가 정규화된다', async () => {
+    await buildService((key) =>
+      key === 'app.url' ? 'https://workflow-api.getit.co.kr/' : undefined,
+    );
+    triggerRepo.findOne.mockResolvedValue({
+      ...baseTrigger,
+      endpointPath: '/hook-abc',
+    } as unknown as Trigger);
+
+    await service.update('trig-tg', 'ws-1', {
+      chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+    });
+
+    expect(mockAdapter.setupChannel).toHaveBeenCalledWith(
+      expect.anything(),
+      'https://workflow-api.getit.co.kr/api/hooks/hook-abc',
+    );
+  });
+});
+
 describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)', () => {
   let service: TriggersService;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;

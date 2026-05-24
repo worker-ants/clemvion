@@ -514,11 +514,7 @@ export class TriggersService {
       });
     }
     const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);
-    const baseUrl =
-      this.configService.get<string>('app.publicBaseUrl') ??
-      this.configService.get<string>('publicBaseUrl') ??
-      'http://localhost:3000';
-    const callbackUrl = `${baseUrl.replace(/\/$/, '')}/api/hooks/${trigger.endpointPath.replace(/^\//, '')}`;
+    const callbackUrl = this.buildCallbackUrl(trigger.endpointPath);
 
     // secret store ref 생성 — spec/conventions/secret-store.md §1 URI scheme 단일 진입점.
     const botTokenRef = buildSecretRef({
@@ -897,12 +893,15 @@ export class TriggersService {
     });
   }
 
-  /** publicBaseUrl 결합 — setupChatChannel 과 공용 헬퍼. */
+  /**
+   * APP_URL 기반 webhook callback URL 조립. setupChatChannel / rotateChatChannelBotToken 공용.
+   *
+   * `app.url` 은 `common/config/app.config.ts` 가 `APP_URL` env 로부터 등록한 canonical key.
+   * Telegram setWebhook 은 HTTPS 만 허용하므로 운영 env 는 반드시 https:// 로 시작해야 한다.
+   */
   private buildCallbackUrl(endpointPath: string): string {
     const baseUrl =
-      this.configService.get<string>('app.publicBaseUrl') ??
-      this.configService.get<string>('publicBaseUrl') ??
-      'http://localhost:3000';
+      this.configService.get<string>('app.url') ?? 'http://localhost:3011';
     return `${baseUrl.replace(/\/$/, '')}/api/hooks/${endpointPath.replace(/^\//, '')}`;
   }
 
