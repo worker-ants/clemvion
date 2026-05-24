@@ -840,9 +840,12 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // PR-B (WARN #15) — 5개 continuation 진입점이 ContinuationBusService.publish
-  // 로 fan-out 되는지 + bus 핸들러 등록 시 로컬 Map 의 resolver 가 호출되는지.
-  describe('continuation entry points → bus.publish (PR-B)', () => {
+  // Phase 2 (workflow-resumable-execution) — 5개 continuation 진입점이
+  // ContinuationBusService.publish (BullMQ enqueue) 로 fan-out 되는지 +
+  // applyContinuation / applyCancellation dispatch (BullMQ Worker 가 호출하는
+  // entry) 가 로컬 `pendingContinuations` Map 의 resolver 를 호출하는지 검증.
+  // 옛 Redis pub/sub `on(type, handler)` 등록 경로는 폐기 (spec §7.4).
+  describe('continuation entry points → bus.publish + apply* dispatch', () => {
     let mockBus: {
       on: jest.Mock;
       publish: jest.Mock;
@@ -854,175 +857,6 @@ describe('ExecutionEngineService', () => {
         .continuationBus;
       mockBus.publish.mockClear();
     });
-
-    it('continueExecution → bus.publish({type:"continue", payload:{type:"form_submitted",formData}}) (spec §10.9 wrap)', () => {
-      // spec/4-nodes/6-presentation/0-common.md §10.9 — wrap 책임은
-      // continueExecution. raw formData 가 아닌 sentinel 형태로 publish.
-      service.continueExecution('exec-1', { name: 'Alice' });
-      expect(mockBus.publish).toHaveBeenCalledWith({
-        type: 'continue',
-        executionId: 'exec-1',
-        payload: { type: 'form_submitted', formData: { name: 'Alice' } },
-      });
-    });
-
-    it('cancelWaitingExecution → bus.publish({type:"cancel"})', () => {
-      service.cancelWaitingExecution('exec-2');
-      expect(mockBus.publish).toHaveBeenCalledWith({
-        type: 'cancel',
-        executionId: 'exec-2',
-      });
-    });
-
-    it('continueButtonClick → bus.publish({type:"button_click", payload:{buttonId}})', () => {
-      service.continueButtonClick('exec-3', 'btn-confirm');
-      expect(mockBus.publish).toHaveBeenCalledWith({
-        type: 'button_click',
-        executionId: 'exec-3',
-        payload: { buttonId: 'btn-confirm' },
-      });
-    });
-
-    it('continueAiConversation → bus.publish({type:"ai_message", payload:{message}})', () => {
-      service.continueAiConversation('exec-4', 'hi');
-      expect(mockBus.publish).toHaveBeenCalledWith({
-        type: 'ai_message',
-        executionId: 'exec-4',
-        payload: { message: 'hi' },
-      });
-    });
-
-    it('continueAiConversation 은 10000자 초과 시 throw 하고 publish 하지 않는다', () => {
-      const tooLong = 'x'.repeat(10_001);
-      expect(() => service.continueAiConversation('exec-5', tooLong)).toThrow(
-        /Message exceeds maximum length/,
-      );
-      expect(mockBus.publish).not.toHaveBeenCalled();
-    });
-
-    it('endAiConversation → bus.publish({type:"ai_end_conversation"})', () => {
-      service.endAiConversation('exec-6');
-      expect(mockBus.publish).toHaveBeenCalledWith({
-        type: 'ai_end_conversation',
-        executionId: 'exec-6',
-      });
-    });
-
-    it('등록된 continue 핸들러 — msg.payload 를 그대로 resolvePending 으로 forward (spec §10.9 raw forward)', () => {
-      // spec/4-nodes/6-presentation/0-common.md §10.9 — wrap 책임은
-      // continueExecution. listener 는 msg.payload 를 re-wrap 하지 않고
-      // 그대로 resolvePending 에 forward 한다. msg.payload 는 이미
-      // continueExecution 이 `{type:'form_submitted', formData}` 로 wrap 한 상태.
-      const continueCall = mockBus.on.mock.calls.find(
-        (c: unknown[]) => c[0] === 'continue',
-      );
-      expect(continueCall).toBeDefined();
-      const handler = continueCall![1] as (msg: unknown) => void;
-
-      const resolveSpy = jest.fn();
-      const pendings = (
-        service as unknown as {
-          pendingContinuations: Map<
-            string,
-            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
-          >;
-        }
-      ).pendingContinuations;
-      pendings.set('exec-1', {
-        nodeId: 'n1',
-        resolve: resolveSpy,
-        reject: jest.fn(),
-      });
-
-      // payload 는 continueExecution 이 wrap 한 sentinel 형태 — listener 는 그대로 forward.
-      handler({
-        type: 'continue',
-        executionId: 'exec-1',
-        payload: { type: 'form_submitted', formData: { ok: 1 } },
-      });
-      expect(resolveSpy).toHaveBeenCalledWith({
-        type: 'form_submitted',
-        formData: { ok: 1 },
-      });
-      expect(pendings.has('exec-1')).toBe(false);
-
-      // 키가 없는 메시지 — silent skip.
-      handler({
-        type: 'continue',
-        executionId: 'exec-not-here',
-        payload: { type: 'form_submitted', formData: {} },
-      });
-      // 어떤 에러도 던지지 않음. 추가 resolve 도 일어나지 않음 (resolveSpy 횟수 1).
-      expect(resolveSpy).toHaveBeenCalledTimes(1);
-    });
-
-    it('continueExecution — form 필드명이 "type" 인 페이로드도 sentinel wrap 으로 정확히 라우팅 (silent drop 회귀 방지, spec §10.9)', () => {
-      // spec §10.9 — root cause regression guard. continueExecution 이 sentinel
-      // wrap 을 담당하므로 form 필드명이 `type` 이어도 dispatch 가 `form_submitted`
-      // 로 명시 매칭된다. listener 는 raw forward — 이 테스트는 e2e 에 해당하는
-      // continueExecution → (bus mock) → listener → resolvePending 흐름을 검증.
-      service.continueExecution('exec-coll', {
-        type: '주문 문의',
-        contact: '010-1234-5678',
-      });
-      expect(mockBus.publish).toHaveBeenCalledWith({
-        type: 'continue',
-        executionId: 'exec-coll',
-        payload: {
-          type: 'form_submitted',
-          formData: { type: '주문 문의', contact: '010-1234-5678' },
-        },
-      });
-
-      // 또한 listener → resolvePending 흐름 검증 (listener raw forward).
-      const continueCall = mockBus.on.mock.calls.find(
-        (c: unknown[]) => c[0] === 'continue',
-      );
-      const handler = continueCall![1] as (msg: unknown) => void;
-      const resolveSpy = jest.fn();
-      const pendings = (
-        service as unknown as {
-          pendingContinuations: Map<
-            string,
-            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
-          >;
-        }
-      ).pendingContinuations;
-      pendings.set('exec-coll', {
-        nodeId: 'n1',
-        resolve: resolveSpy,
-        reject: jest.fn(),
-      });
-      // listener 에 wrap 된 payload 투입 (continueExecution 이 만들었을 형태).
-      handler({
-        type: 'continue',
-        executionId: 'exec-coll',
-        payload: {
-          type: 'form_submitted',
-          formData: { type: '주문 문의', contact: '010-1234-5678' },
-        },
-      });
-      expect(resolveSpy).toHaveBeenCalledWith({
-        type: 'form_submitted',
-        formData: { type: '주문 문의', contact: '010-1234-5678' },
-      });
-    });
-
-    it('continueExecution — undefined formData 도 sentinel wrap (빈 폼 제출, TypeError 회피)', () => {
-      // 빈 form 제출 또는 formData 인자 없음 — continueExecution 이 wrap.
-      service.continueExecution('exec-empty');
-      expect(mockBus.publish).toHaveBeenCalledWith({
-        type: 'continue',
-        executionId: 'exec-empty',
-        payload: { type: 'form_submitted', formData: undefined },
-      });
-    });
-
-    const findHandler = (type: string): ((msg: unknown) => void) => {
-      const call = mockBus.on.mock.calls.find((c: unknown[]) => c[0] === type);
-      expect(call).toBeDefined();
-      return call![1] as (msg: unknown) => void;
-    };
 
     // W8 (SUMMARY) — `pendingContinuations` Map 타입 단언을 헬퍼로 추출.
     // 3곳 이상의 중복을 줄여 타입 단언 변경 시 단일 수정점 보장.
@@ -1038,20 +872,145 @@ describe('ExecutionEngineService', () => {
         }
       ).pendingContinuations;
 
-    it('cancel 핸들러 — 로컬 Map 키 없으면 silent skip (review W12)', () => {
-      const handler = findHandler('cancel');
+    it('continueExecution → bus.publish({type:"continue", payload:{type:"form_submitted",formData}}) (spec §10.9 wrap)', async () => {
+      // spec/4-nodes/6-presentation/0-common.md §10.9 — wrap 책임은
+      // continueExecution. raw formData 가 아닌 sentinel 형태로 publish.
+      // mock NodeExecution repo 는 WAITING_FOR_INPUT row lookup 을 지원하지
+      // 않으므로 resolveWaitingNodeExecutionId 가 fallback sentinel 을 반환.
+      await service.continueExecution('exec-1', { name: 'Alice' });
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'continue',
+        executionId: 'exec-1',
+        nodeExecutionId: '__no_node_exec__',
+        payload: { type: 'form_submitted', formData: { name: 'Alice' } },
+      });
+    });
+
+    it('cancelWaitingExecution → bus.publish({type:"cancel"})', () => {
+      service.cancelWaitingExecution('exec-2');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'cancel',
+        executionId: 'exec-2',
+      });
+    });
+
+    it('continueButtonClick → bus.publish({type:"button_click", payload:{buttonId}})', async () => {
+      await service.continueButtonClick('exec-3', 'btn-confirm');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'button_click',
+        executionId: 'exec-3',
+        nodeExecutionId: '__no_node_exec__',
+        payload: { buttonId: 'btn-confirm' },
+      });
+    });
+
+    it('continueAiConversation → bus.publish({type:"ai_message", payload:{message}})', async () => {
+      await service.continueAiConversation('exec-4', 'hi');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'ai_message',
+        executionId: 'exec-4',
+        nodeExecutionId: '__no_node_exec__',
+        payload: { message: 'hi' },
+      });
+    });
+
+    it('continueAiConversation 은 10000자 초과 시 throw 하고 publish 하지 않는다', async () => {
+      const tooLong = 'x'.repeat(10_001);
+      await expect(
+        service.continueAiConversation('exec-5', tooLong),
+      ).rejects.toThrow(/Message exceeds maximum length/);
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('endAiConversation → bus.publish({type:"ai_end_conversation"})', async () => {
+      await service.endAiConversation('exec-6');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'ai_end_conversation',
+        executionId: 'exec-6',
+        nodeExecutionId: '__no_node_exec__',
+      });
+    });
+
+    it('applyContinuation continue — msg.payload 를 그대로 resolvePending 으로 forward (spec §10.9 raw forward)', async () => {
+      // Phase 2 — BullMQ Worker (continuation-execution.processor) 가 호출하는
+      // applyContinuation 이 옛 `on('continue', handler)` 의 역할을 한다.
+      // payload sentinel 은 unwrap 없이 그대로 resolver 에 forward.
+      const resolveSpy = jest.fn();
+      const pendings = getPendings(service);
+      pendings.set('exec-1', {
+        nodeId: 'n1',
+        resolve: resolveSpy,
+        reject: jest.fn(),
+      });
+
+      await service.applyContinuation('exec-1', 'ne-1', {
+        type: 'form_submitted',
+        formData: { ok: 1 },
+      });
+      expect(resolveSpy).toHaveBeenCalledWith({
+        type: 'form_submitted',
+        formData: { ok: 1 },
+      });
+      expect(pendings.has('exec-1')).toBe(false);
+    });
+
+    it('continueExecution — form 필드명이 "type" 인 페이로드도 sentinel wrap 으로 정확히 라우팅 (silent drop 회귀 방지, spec §10.9)', async () => {
+      // spec §10.9 — root cause regression guard. continueExecution 이 sentinel
+      // wrap 을 담당하므로 form 필드명이 `type` 이어도 dispatch 가 `form_submitted`
+      // 로 명시 매칭된다.
+      await service.continueExecution('exec-coll', {
+        type: '주문 문의',
+        contact: '010-1234-5678',
+      });
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'continue',
+        executionId: 'exec-coll',
+        nodeExecutionId: '__no_node_exec__',
+        payload: {
+          type: 'form_submitted',
+          formData: { type: '주문 문의', contact: '010-1234-5678' },
+        },
+      });
+
+      // applyContinuation dispatch 도 sentinel 을 그대로 resolver 에 forward 하는지 검증.
+      const resolveSpy = jest.fn();
+      const pendings = getPendings(service);
+      pendings.set('exec-coll', {
+        nodeId: 'n1',
+        resolve: resolveSpy,
+        reject: jest.fn(),
+      });
+      await service.applyContinuation('exec-coll', 'ne-coll', {
+        type: 'form_submitted',
+        formData: { type: '주문 문의', contact: '010-1234-5678' },
+      });
+      expect(resolveSpy).toHaveBeenCalledWith({
+        type: 'form_submitted',
+        formData: { type: '주문 문의', contact: '010-1234-5678' },
+      });
+    });
+
+    it('continueExecution — undefined formData 도 sentinel wrap (빈 폼 제출, TypeError 회피)', async () => {
+      // 빈 form 제출 또는 formData 인자 없음 — continueExecution 이 wrap.
+      await service.continueExecution('exec-empty');
+      expect(mockBus.publish).toHaveBeenCalledWith({
+        type: 'continue',
+        executionId: 'exec-empty',
+        nodeExecutionId: '__no_node_exec__',
+        payload: { type: 'form_submitted', formData: undefined },
+      });
+    });
+
+    it('applyCancellation — 로컬 Map 키 없으면 silent skip (review W12)', () => {
       const pendings = getPendings(service);
       pendings.clear();
 
       // 미등록 executionId — 어떤 에러도 던지지 않음.
-      expect(() =>
-        handler({ type: 'cancel', executionId: 'exec-not-here' }),
-      ).not.toThrow();
+      expect(() => service.applyCancellation('exec-not-here')).not.toThrow();
       expect(pendings.size).toBe(0);
     });
 
-    it('button_click 핸들러 — payload 누락 시 buttonId: undefined 로 resolve (review I9)', () => {
-      const handler = findHandler('button_click');
+    it('applyContinuation button_click — payload 누락 시 buttonId: undefined 로 resolve (review I9)', async () => {
       const resolveSpy = jest.fn();
       const pendings = getPendings(service);
       pendings.set('exec-btn', {
@@ -1060,15 +1019,17 @@ describe('ExecutionEngineService', () => {
         reject: jest.fn(),
       });
 
-      handler({ type: 'button_click', executionId: 'exec-btn' });
+      await service.applyContinuation('exec-btn', 'ne-btn', {
+        type: 'button_click',
+        buttonId: undefined,
+      });
       expect(resolveSpy).toHaveBeenCalledWith({
         type: 'button_click',
         buttonId: undefined,
       });
     });
 
-    it('ai_message 핸들러 — 길이 초과 메시지는 silent drop (Redis 직접 publish 우회 방지)', () => {
-      const handler = findHandler('ai_message');
+    it('applyContinuation ai_message — 길이 초과 메시지는 silent drop (인-프로세스 직접 publish 우회 방어)', async () => {
       const resolveSpy = jest.fn();
       const pendings = getPendings(service);
       pendings.set('exec-ai', {
@@ -1078,10 +1039,9 @@ describe('ExecutionEngineService', () => {
       });
 
       const oversized = 'x'.repeat(10_001);
-      handler({
+      await service.applyContinuation('exec-ai', 'ne-ai', {
         type: 'ai_message',
-        executionId: 'exec-ai',
-        payload: { message: oversized },
+        message: oversized,
       });
       expect(resolveSpy).not.toHaveBeenCalled();
       // Map 은 그대로 — 호스트 인스턴스의 다른 정상 메시지를 기다릴 수 있도록.
@@ -2056,11 +2016,13 @@ describe('ExecutionEngineService', () => {
       );
     });
 
-    it('should silently skip continueExecution without local pending continuation (multi-instance safe)', () => {
+    it('should silently skip continueExecution without local pending continuation (multi-instance safe)', async () => {
       // PR-B — 다중 인스턴스에서 다른 인스턴스가 호스팅 중일 수 있으므로
       // "No pending continuation" 즉시 throw 는 폐기됐다. publish 만 수행하고
       // 키가 있는 인스턴스만 실제 resolve 한다.
-      expect(() => service.continueExecution('non-existent', {})).not.toThrow();
+      await expect(
+        service.continueExecution('non-existent', {}),
+      ).resolves.not.toThrow();
     });
 
     it('should throw when continueAiConversation receives oversized message', async () => {
@@ -2069,16 +2031,16 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       const oversizedMessage = 'x'.repeat(10_001);
-      expect(() =>
+      await expect(
         service.continueAiConversation(executionId, oversizedMessage),
-      ).toThrow('Message exceeds maximum length');
+      ).rejects.toThrow('Message exceeds maximum length');
     });
 
-    it('should silently skip continueAiConversation without local pending continuation (multi-instance safe)', () => {
+    it('should silently skip continueAiConversation without local pending continuation (multi-instance safe)', async () => {
       // PR-B — 위와 동일 사유. publish 만 수행하고 silent skip.
-      expect(() =>
+      await expect(
         service.continueAiConversation('non-existent', 'hello'),
-      ).not.toThrow();
+      ).resolves.not.toThrow();
     });
 
     it('should handle cancellation of waiting execution', async () => {
