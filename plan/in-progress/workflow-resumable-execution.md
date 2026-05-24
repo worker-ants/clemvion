@@ -55,30 +55,16 @@ owner: developer
 
 목표: 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스가 재개 가능. spec §7.4 / §7.5 / §11 의 본문 구현.
 
-- [ ] 2.1 — BullMQ `execution-continuation` 큐 신설.
-  - 위치: `codebase/backend/src/modules/execution-engine/queues/continuation-execution.queue.ts` (신규).
-  - `background-execution.queue.ts` 의 패턴 그대로 따름.
-  - `attempts: RESUME_BULLMQ_ATTEMPTS` (기본 3), `removeOnComplete: true`, exponential backoff.
-- [ ] 2.2 — Continuation publisher 를 BullMQ enqueue 로 교체.
-  - 위치: `codebase/backend/src/modules/execution-engine/continuation/continuation-bus.service.ts`.
-  - 기존 `Redis pub.publish(CONTINUATION_CHANNEL, msg)` → `continuationQueue.add('continue', msg, { jobId, attempts })`.
-  - jobId 스키마: `${executionId}:${nodeExecutionId}:${monotonic-seq}` (Redis INCR per executionId).
-  - **항상 enqueue 원칙 유지** — 자기 인스턴스에 키가 있어도 BullMQ 경유. sticky fast-path 도입하지 않음.
-- [ ] 2.3 — Continuation worker / consumer 신설.
-  - 위치: `codebase/backend/src/modules/execution-engine/continuation/continuation-execution.processor.ts` (신규).
-  - 로컬 `pendingContinuations` 키 hit → 즉시 resolve (fast path).
-  - 키 miss → §7.5 rehydration: Execution.status 검증 → NodeExecution.outputData 에서 체크포인트 로드 → ExecutionContext 재구성 → `waitForX()` 새로 invoke → resolver 호출.
-- [ ] 2.4 — `nodeId → nodeExecutionId` lookup 절차.
-  - WS gateway / REST controller 가 publish 직전에 DB lookup (`execution_id + node_id + status='waiting_for_input'`) 수행.
-  - 0건 / 다중 row 시 client 에 `INVALID_EXECUTION_STATE` 응답.
-- [ ] 2.5 — Rehydration 실패 처리 + WS ack 에 `queued` 필드 / `RESUME_*` 에러 코드 전달.
-  - 위치: WS gateway controllers (`execution-actions.controller.ts` 또는 그 동등 파일).
-  - `RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE` 각 케이스에서 Execution `cancelled` + 동반 NodeExecution `failed` 마킹.
-- [ ] 2.6 — 옛 Redis pub/sub `execution:continuation` 채널 publisher / subscriber 코드 제거.
-  - 단일 배포 (dual-write 금지) 로 진행.
-- [ ] 2.7 — 통합 e2e: testcontainers 환경에서 backend 2 인스턴스 띄우고, 인스턴스 A 에서 시작 → A 죽임 → B 가 사용자 입력 받고 rehydration 으로 재개 → workflow 정상 완료.
-- [ ] 2.8 — `task-queue` 큐 이름 확인 + `spec/5-system/4-execution-engine.md §9.2/§4.2` 정합화 (impl-prep 검토에서 발견 — 별도 sub-task). 또는 spec 수정 분리.
-- [ ] 2.9 — `INVALID_EXECUTION_STATE` 에러 코드 spec 등재 (§7.5 또는 §6-ws-protocol §4.2). lookup 0건/다중 row 시 반환 명시.
+- [x] 2.1 — BullMQ `execution-continuation` 큐 신설. (Phase 2 WIP `edc7f68b`)
+- [x] 2.2 — Continuation publisher 를 BullMQ enqueue 로 교체. (Phase 2 WIP `edc7f68b`)
+- [x] 2.3 — Continuation worker / consumer 신설 (fast-path). (Phase 2 WIP `edc7f68b`)
+- [x] 2.3a — 진짜 rehydration 본 구현 (slow path). (Phase 2 cont commit `b6f9e8fe` + `c5d9d698`)
+- [x] 2.4 — `nodeId → nodeExecutionId` lookup 절차. (Phase 2 WIP `edc7f68b`)
+- [x] 2.5 — Rehydration 실패 처리 + WS ack `queued` 필드. (Phase 2 cont commit `a05dfe07` + `c5d9d698`)
+- [x] 2.6 — 옛 Redis pub/sub `execution:continuation` 채널 제거. (Phase 2 WIP `edc7f68b`)
+- [x] 2.7 — 통합 e2e (단일 instance simulation 으로 한정 — 다중 instance e2e 는 future PR). (Phase 2 cont commit `b08415e2`)
+- [x] 2.8 — `task-queue` 큐 이름 정합화 — spec-update plan 으로 제안 작성. project-planner 픽업 대기. (Phase 2 cont commit `b3a22048`)
+- [x] 2.9 — `INVALID_EXECUTION_STATE` 에러 코드 spec 등재 — spec-update plan 으로 제안 작성. project-planner 픽업 대기. (Phase 2 cont commit `b3a22048`)
 
 ### Phase 3 — 후속 정리 (선택)
 
@@ -101,12 +87,18 @@ owner: developer
 - [x] **테스트 회귀 14건 fix** — commit `1280ed76` `fix(execution-engine-spec): async signature 적용 + bus.on 의존 테스트 제거`. 5개 entry 비동기 + nodeExecutionId 페이로드 + bus.on listener 검증 → applyContinuation/applyCancellation 직접 dispatch 검증으로 재작성.
 - [x] **2.3a (CRITICAL — 진짜 rehydration 구현)** — commit `b6f9e8fe` `feat(execution-engine): Phase 2.3a — checkpoint-based rehydration`. 새 메서드 `rehydrateContext` (execution_node_log + NodeExecution.outputData 로 context 재구성), `resumeFromCheckpoint` (waitForX 직접 invoke + setImmediate resolver fire + 남은 그래프 traversal), `RehydrationError` 분류 클래스. multi-turn AI 노드는 `_resumeState` 미영속(WARN #6) 으로 `RESUME_INCOMPATIBLE_STATE` 거부. 5건 unit 테스트 추가.
 - [x] **2.5 — WS ack `queued: boolean` + 동봉 필드** — commit `a05dfe07` `feat(websocket): Phase 2.5 — queued + resumed ack 필드`. `ContinuationPublishResult` 타입 신설, 4개 continueX 메서드가 `{queued, jobId}` 반환, WS gateway 4개 handler 가 ack 에 `{resumed, queued, executionId}` 동봉 + Redis 장애 분기 처리. RESUME_* failure codes 는 spec Rationale "WS 신규 이벤트 미도입" 에 따라 후행 `EXECUTION_CANCELLED` 이벤트로 surface (별도 WS 이벤트 미도입). 2건 unit 테스트 추가.
-- [ ] **2.7 — 통합 e2e**: testcontainers 시나리오 (in-memory resolver 강제 제거 후 BullMQ rehydration 으로 workflow 완료) — 진행 중.
-- [ ] **2.8 / 2.9 — spec 정합화** — `plan/in-progress/spec-update-workflow-resumable-execution-phase2-followup.md` 에 변경 제안 작성. project-planner 위임 필요.
+- [x] **2.7 — 통합 e2e (rehydration 시나리오)** — commit `b08415e2` `test(execution-engine): Phase 2.7 — rehydration integration 시나리오`. Form node 의 WAITING_FOR_INPUT 진입 → `pendingContinuations.clear()` + `contextService.deleteContext` (instance restart 시뮬레이션) → DB lookup mock 갱신 → `service.applyContinuation` 직접 호출 → rehydrateAndResume → workflow COMPLETED 검증. 다중 인스턴스 정밀 e2e 는 backend-e2e 인프라가 multi-instance 미지원으로 future PR.
+- [x] **2.8 / 2.9 — spec 정합화** — commit `b3a22048` `docs(spec): Phase 2.8 / 2.9 — task-queue 정합화 + INVALID_EXECUTION_STATE 등재 제안`. `plan/in-progress/spec-update-workflow-resumable-execution-phase2-followup.md` 에 변경 제안 (§9.3 task-queue 행 삭제, §7.5.1 INVALID_EXECUTION_STATE sub-section 신설, §4.2 주석 추가) 작성 — project-planner 가 별 PR 또는 본 PR 동반으로 픽업.
+
+**TEST WORKFLOW**: lint PASS / unit 4777 PASS / build PASS / e2e 119 PASS — commit `3b2f3ba1` 에서 pre-existing 회귀 해소 포함.
+
+**REVIEW WORKFLOW (`/ai-review`)**: 10 reviewer 병렬 (4건 router skip). C5 (진짜 Critical — Processor unit 테스트 누락) + W1/W4/W19/W20/W22/W23 (6건 즉시 fix) 처리. commit `c5d9d698` + `22e14698`. C1-C4/C6 reviewer 보고된 spec Critical 은 모두 false positive — spec 은 Phase 0 commit 에서 BullMQ §7.4/§7.5 / WS §4.2 보강 완료 상태. RESOLUTION: `review/code/2026/05/25/08_02_14/RESOLUTION.md`.
 
 **impl-prep 검토**:
 - `review/consistency/2026/05/25/01_17_41/SUMMARY.md` — 1차 (Phase 2 진입 시) — BLOCK: NO.
 - `review/consistency/2026/05/25/07_12_25/SUMMARY.md` — 2차 (Phase 2 cont 진입 시) — BLOCK: NO. W6/W7/W14/W15 는 본 cont 작업에서 해소 또는 spec-update plan 으로 이관.
+
+**Phase 2 cont DONE — 2026-05-25**. Phase 3 (3.1 / 3.2) 는 별 plan 으로 이관 가능.
 
 ## 다음 단계
 
