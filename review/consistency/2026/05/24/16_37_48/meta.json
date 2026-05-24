@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-24T16:37:48.393567",
+  "mode": "plan draft 검토 (--plan)",
+  "target_path": "plan/in-progress/form-resubmit-fix.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
