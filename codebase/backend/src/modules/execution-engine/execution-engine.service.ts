@@ -223,6 +223,31 @@ class ExecutionCancelledError extends Error {
 }
 
 /**
+ * Phase 2.3a — §7.5 rehydration 경로 전용 에러. RehydrateAndResume 의 정상
+ * 종결 분기는 RESUME_CHECKPOINT_MISSING / RESUME_INCOMPATIBLE_STATE / RESUME_FAILED
+ * 세 코드 중 하나로 마무리되며, 본 클래스로 표현해 outer try/catch 가 분기.
+ *
+ * - `RESUME_CHECKPOINT_MISSING` — `NodeExecution.outputData` / Workflow 정의 등
+ *   재구성에 필요한 데이터가 부재하거나 상태 invariant 가 깨진 경우.
+ * - `RESUME_INCOMPATIBLE_STATE` — multi-turn AI 의 `_resumeState` deserialize
+ *   불가 등 in-memory 전용 상태가 영속 보존되지 않은 케이스 (WARN #6).
+ * - `RESUME_FAILED` — 위 두 분류에 속하지 않는 일반 런타임 실패. BullMQ attempts
+ *   소진까지 보낸 뒤에도 본 코드로 dead-letter 마킹.
+ */
+class RehydrationError extends Error {
+  constructor(
+    public readonly code:
+      | 'RESUME_CHECKPOINT_MISSING'
+      | 'RESUME_FAILED'
+      | 'RESUME_INCOMPATIBLE_STATE',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RehydrationError';
+  }
+}
+
+/**
  * Conversation 노드가 진행 중일 때 frontend run-results UI 의 References /
  * LLM Usage / Meta 탭이 동작하도록 _resumeState 의 누적 통계와 turn 단위 RAG
  * delta 를 `meta.*` 로 펼쳐 노출한다. _resumeState 자체는 system prompt /
@@ -664,80 +689,637 @@ export class ExecutionEngineService
   /**
    * §7.5 Resume after Restart (rehydration) — slow path 본체.
    *
-   * Phase 2 본 구현은 **fast-fail 모드**: 로컬 resolver 가 없는 케이스에서
-   * Execution / NodeExecution 상태를 검증하고 명확한 RESUME_* 코드로
-   * cancelled / failed 마킹한다. true full rehydration (runExecution 체크포인트
-   * 재진입) 은 ExecutionContext 재구성과 runExecution idempotent re-run 이
-   * 필요한 거대한 refactor 라 별도 후속 (Phase 2.3a) 으로 분리.
+   * Phase 2.3a — 진짜 재개 로직. BullMQ Worker 가 user input 을 받은 시점에
+   * 로컬 `pendingContinuations` 에 키가 없다면 (instance restart 또는 다른
+   * 인스턴스가 publisher 였던 경우) 본 메서드가:
+   *   1. Execution / NodeExecution / Node 정의의 invariant 검증
+   *   2. `rehydrateContext` — execution_node_log 의 완료 노드 순서와
+   *      NodeExecution.outputData 로 ExecutionContext (nodeOutputCache /
+   *      executedNodes / variables) 재구성
+   *   3. `resumeFromCheckpoint` — 그래프 순회 재개. 적절한 waitForX 메서드를
+   *      직접 호출 (executeNode 우회 — 기존 NodeExecution row 가 이미
+   *      WAITING_FOR_INPUT). setImmediate 로 등록된 pending resolver 를
+   *      payload 와 함께 즉시 fire 해 waitForX 의 await 가 풀린다. 이후
+   *      그래프 traversal 을 평소대로 진행.
    *
-   * 본 구현이 보장하는 것:
-   * - 메시지가 silent drop 되지 않음 (BullMQ 영속화 + 명시적 마킹).
-   * - Execution 상태가 일관 (사용자가 "어떻게 됐는지" 항상 알 수 있음).
-   * - Phase 1 의 silent skip 대비 사용자 경험 개선.
+   * **알려진 한계** (spec §7.5 의 RESUME_INCOMPATIBLE_STATE 사례):
+   * - Multi-turn AI 노드의 `_resumeState` 는 보안상 DB 에 저장되지 않으므로
+   *   (WARN #6) 인스턴스 재시작 후 재개 불가 — `RESUME_INCOMPATIBLE_STATE`.
    *
-   * @todo Phase 2.3a — runExecution 의 resume-from-checkpoint 변형 추가 시
-   *       본 메서드의 fast-fail 분기를 진짜 재개 로직으로 교체.
+   * **에러 분류**:
+   * - `RESUME_CHECKPOINT_MISSING` — Execution / NodeExecution / Node 데이터가
+   *   부재 또는 invariant 위반 (state mismatch 포함).
+   * - `RESUME_INCOMPATIBLE_STATE` — multi-turn AI 등 in-memory 전용 상태가
+   *   영속 보존되지 않은 경우.
+   * - `RESUME_FAILED` — 일반 런타임 실패. BullMQ attempts 소진 dead-letter.
+   *
+   * @param payload — sentinel/format wrapped 사용자 입력 (form_submitted,
+   *                  button_click, ai_message 등). waitForX 가 unwrap.
    */
   private async rehydrateAndResume(
     executionId: string,
     nodeExecutionId: string,
-    _payload: unknown,
+    payload: unknown,
   ): Promise<void> {
+    let resolvedNodeExecutionId: string | null = null;
     try {
       const execution = await this.executionRepository.findOneBy({
         id: executionId,
       });
       if (!execution || execution.status !== ExecutionStatus.WAITING_FOR_INPUT) {
-        this.logger.warn(
-          `Rehydration skipped — execution=${executionId} not WAITING_FOR_INPUT (status=${execution?.status ?? 'absent'}). RESUME_CHECKPOINT_MISSING`,
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `Execution ${executionId} not WAITING_FOR_INPUT (status=${execution?.status ?? 'absent'})`,
         );
-        await this.markExecutionCancelled(executionId, 'RESUME_CHECKPOINT_MISSING');
-        return;
       }
-
       if (nodeExecutionId === '__no_node_exec__') {
-        this.logger.warn(
-          `Rehydration skipped — execution=${executionId} 의 publisher 가 nodeExecutionId 미설정 (legacy path). RESUME_CHECKPOINT_MISSING`,
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `Publisher 측 nodeExecutionId 미설정 (legacy path) — execution=${executionId}`,
         );
-        await this.markExecutionCancelled(executionId, 'RESUME_CHECKPOINT_MISSING');
-        return;
       }
-
       const nodeExec = await this.nodeExecutionRepository.findOneBy({
         id: nodeExecutionId,
       });
-      if (!nodeExec || nodeExec.status !== NodeExecutionStatus.WAITING_FOR_INPUT) {
-        this.logger.warn(
-          `Rehydration skipped — nodeExec=${nodeExecutionId} not WAITING_FOR_INPUT (status=${nodeExec?.status ?? 'absent'}). RESUME_CHECKPOINT_MISSING`,
+      if (
+        !nodeExec ||
+        nodeExec.status !== NodeExecutionStatus.WAITING_FOR_INPUT
+      ) {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `NodeExecution ${nodeExecutionId} not WAITING_FOR_INPUT (status=${nodeExec?.status ?? 'absent'})`,
         );
-        await this.markExecutionCancelled(executionId, 'RESUME_CHECKPOINT_MISSING');
-        await this.markNodeExecutionFailed(nodeExecutionId, 'RESUME_CHECKPOINT_MISSING');
-        return;
+      }
+      resolvedNodeExecutionId = nodeExec.id;
+
+      const node = await this.nodeRepository.findOneBy({ id: nodeExec.nodeId });
+      if (!node) {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `Node ${nodeExec.nodeId} 정의 부재 (execution=${executionId})`,
+        );
       }
 
-      // TODO Phase 2.3a — 여기에서 다음 작업이 일어나야 한다:
-      //   1. ExecutionContext 를 DB (execution_node_log + NodeExecution.outputData)
-      //      + Redis (살아있으면 우선) 로부터 재구성.
-      //   2. pendingContinuations.set(executionId, { resolve: r, reject: j }).
-      //   3. resumeFromCheckpoint(execution, context, { fromNodeId: nodeExec.nodeId })
-      //      를 호출하여 runExecution-equivalent loop 를 새로 시작.
-      //   4. 위 1-3 이 완료되면 (즉 새 resolver 가 등록되면) r(payload) 호출로
-      //      즉시 resume.
-      //
-      // 본 Phase 2 MVP 에서는 위 작업이 미구현이므로, 사용자가 명시적으로
-      // 알 수 있도록 RESUME_FAILED 로 마킹한다 (Phase 1 의 silent skip 대비
-      // 운영 가시성 + DB 일관성 확보가 우선).
-      this.logger.warn(
-        `Rehydration not yet implemented — execution=${executionId} nodeExec=${nodeExecutionId}. RESUME_FAILED. Phase 2.3a follow-up 에서 진짜 재개 로직 추가 예정.`,
+      const context = await this.rehydrateContext(execution, nodeExec);
+
+      this.logger.log(
+        `Rehydration start — execution=${executionId} waitingNode=${nodeExec.nodeId} (${node.type})`,
+      );
+      await this.resumeFromCheckpoint(execution, context, {
+        node,
+        nodeExec,
+        payload,
+      });
+      this.logger.log(
+        `Rehydration finished — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
+      );
+    } catch (err) {
+      if (err instanceof RehydrationError) {
+        this.logger.warn(
+          `Rehydration ${err.code} — execution=${executionId} nodeExec=${nodeExecutionId}: ${err.message}`,
+        );
+        await this.markExecutionCancelled(executionId, err.code);
+        if (resolvedNodeExecutionId) {
+          await this.markNodeExecutionFailed(resolvedNodeExecutionId, err.code);
+        }
+        return;
+      }
+      // ExecutionCancelledError 는 resumeFromCheckpoint 가 자체적으로 CANCELLED
+      // 마킹 후 정상 종결하므로 여기까지 도달하지 않는다 (방어적 분기).
+      if (err instanceof ExecutionCancelledError) {
+        this.logger.log(
+          `Rehydration cancelled mid-flight — execution=${executionId}`,
+        );
+        return;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.error(
+        `Rehydration unexpected error — execution=${executionId} nodeExec=${nodeExecutionId}: ${msg}`,
+        stack,
       );
       await this.markExecutionCancelled(executionId, 'RESUME_FAILED');
-      await this.markNodeExecutionFailed(nodeExecutionId, 'RESUME_FAILED');
-    } catch (err) {
-      this.logger.error(
-        `Rehydration error — execution=${executionId} nodeExec=${nodeExecutionId}: ${err instanceof Error ? err.message : String(err)}`,
+      if (resolvedNodeExecutionId) {
+        await this.markNodeExecutionFailed(
+          resolvedNodeExecutionId,
+          'RESUME_FAILED',
+        );
+      }
+    }
+  }
+
+  /**
+   * Phase 2.3a — ExecutionContext 재구성 (spec §7.5).
+   *
+   * 우선순위:
+   *   1. `ExecutionContextService.getContext(executionId)` 가 살아있으면 그대로
+   *      사용 (단일 process 재진입 — 거의 발생하지 않음).
+   *   2. 없으면 새로 생성하고 DB 의 `execution_node_log` (완료 노드 순서) +
+   *      `node_execution.output_data` (각 노드 출력) 로 채운다.
+   *
+   * 채워지는 항목:
+   *   - `variables` — workflow.workspace 의 `__workspaceId / Name / Timezone`.
+   *   - `nodeOutputCache` — execution_node_log 의 각 nodeId 의 최신 COMPLETED
+   *     `NodeExecution.outputData`. 같은 nodeId 의 loop iteration 은 마지막
+   *     COMPLETED 만 보존 (downstream gather 가 그 값만 읽음).
+   *   - Waiting node 의 outputData (status=waiting_for_input + meta) — 별도 set
+   *     해 graph loop 의 blocking check 가 인식.
+   *   - `_executedNodes` (Set) — `gatherNodeInput` 이 predecessor 완료 여부
+   *     판단에 사용.
+   *
+   * 채워지지 않는 항목 (의도적):
+   *   - `_resumeState` — multi-turn AI 의 in-memory 전용 (WARN #6). 영속 보존 X
+   *     → 후속 `resumeFromCheckpoint` 가 ai_conversation 케이스를 거부.
+   *   - `conversationThread` — 본 phase 에서는 빈 thread 로 시작 (form / button
+   *     노드는 미사용). 후속 작업에서 NodeExecution.outputData.messages 누적
+   *     재구성 가능.
+   */
+  private async rehydrateContext(
+    execution: Execution,
+    waitingNodeExec: NodeExecution,
+  ): Promise<ExecutionContext> {
+    const existing = this.contextService.getContext(execution.id);
+    if (existing) return existing;
+
+    const workflow = await this.workflowRepository.findOne({
+      where: { id: execution.workflowId },
+      relations: ['workspace'],
+    });
+    if (!workflow) {
+      throw new RehydrationError(
+        'RESUME_CHECKPOINT_MISSING',
+        `Workflow ${execution.workflowId} 부재 (execution=${execution.id})`,
       );
-      await this.markExecutionCancelled(executionId, 'RESUME_INCOMPATIBLE_STATE');
-      await this.markNodeExecutionFailed(nodeExecutionId, 'RESUME_INCOMPATIBLE_STATE');
+    }
+    const workspaceTimezone = workflow.workspace?.settings?.['timezone'];
+    const workspaceName = workflow.workspace?.name;
+
+    const context = this.contextService.createContext(
+      execution.id,
+      execution.workflowId,
+      {
+        __workspaceId: workflow.workspaceId ?? '',
+        __workspaceName: typeof workspaceName === 'string' ? workspaceName : '',
+        __workspaceTimezone:
+          typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
+      },
+      execution.recursionDepth,
+    );
+    const executedNodes = new Set<string>();
+    context._executedNodes = executedNodes;
+
+    const logs = await this.executionNodeLogRepository.find({
+      where: { executionId: execution.id },
+      order: { id: 'ASC' },
+    });
+
+    // 같은 nodeId 가 loop iteration 으로 여러 row 일 수 있음 — 1회만 처리.
+    const seenNodeIds = new Set<string>();
+    for (const log of logs) {
+      if (seenNodeIds.has(log.nodeId)) continue;
+      seenNodeIds.add(log.nodeId);
+      const ne = await this.nodeExecutionRepository.findOne({
+        where: {
+          executionId: execution.id,
+          nodeId: log.nodeId,
+          status: NodeExecutionStatus.COMPLETED,
+        },
+        order: { startedAt: 'DESC' },
+      });
+      if (!ne) continue;
+      if (ne.outputData) {
+        this.contextService.setNodeOutput(
+          execution.id,
+          log.nodeId,
+          ne.outputData as Record<string, unknown>,
+        );
+      }
+      executedNodes.add(log.nodeId);
+    }
+
+    // Waiting node 의 outputData 복원 — runExecution 의 executeNode 가 normally
+    // setNodeOutput 으로 nodeOutputCache 에 채운 envelope (status=waiting_for_input
+    // + meta.interactionType) 와 동일.
+    if (waitingNodeExec.outputData) {
+      this.contextService.setNodeOutput(
+        execution.id,
+        waitingNodeExec.nodeId,
+        waitingNodeExec.outputData as Record<string, unknown>,
+      );
+    }
+
+    return context;
+  }
+
+  /**
+   * Phase 2.3a — §7.5 resume body. 재구성된 context 로 waitForX 직접 invoke 후
+   * 그래프 순회를 이어 진행한다. runExecution 의 setup/loop/completion/catch
+   * 구조와 동일 — 차이점:
+   *   - graph state 를 새로 build (재시작 후 in-memory 자료 소실)
+   *   - reachability 와 executedNodes 를 rehydrated state 로 seed
+   *   - executeNode 우회: 기존 NodeExecution row 가 이미 WAITING_FOR_INPUT
+   *     이므로 새 row 를 만들지 않고 waitForX 만 호출
+   *   - setImmediate 로 pendingContinuations 의 resolver 에 payload 를 즉시
+   *     fire (waitForX 가 등록한 직후 microtask 에 실행)
+   */
+  private async resumeFromCheckpoint(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    opts: { node: Node; nodeExec: NodeExecution; payload: unknown },
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+
+    // Persisted interaction type — meta.interactionType (preferred) or top-level
+    // (legacy / blocking ai_form_render path).
+    const cachedOutput = context.nodeOutputCache[opts.node.id] as
+      | Record<string, unknown>
+      | undefined;
+    const cachedMeta =
+      (cachedOutput?.meta as Record<string, unknown> | undefined) ?? {};
+    const persistedInteractionType =
+      (cachedMeta.interactionType as string | undefined) ??
+      (cachedOutput?.interactionType as string | undefined);
+
+    // Multi-turn AI 는 _resumeState 미영속 — 사전 거부.
+    if (
+      persistedInteractionType === 'ai_conversation' ||
+      persistedInteractionType === 'ai_form_render'
+    ) {
+      throw new RehydrationError(
+        'RESUME_INCOMPATIBLE_STATE',
+        `Multi-turn AI 노드(${opts.node.type})의 _resumeState 는 보안상 DB 에 저장되지 않음 (engine-internal, WARN #6). 인스턴스 재시작 후 재개 불가.`,
+      );
+    }
+
+    // 그래프 상태 재구축 — runExecution 의 1505-1535 와 동일.
+    const nodes = await this.nodeRepository.findBy({
+      workflowId: savedExecution.workflowId,
+    });
+    const edges = await this.edgeRepository.findBy({
+      workflowId: savedExecution.workflowId,
+    });
+    const { graphNodes, graphEdges } = buildGraph(nodes, edges);
+    const { forwardEdges, backEdges } = identifyBackEdges(
+      graphNodes,
+      graphEdges,
+    );
+    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
+    const sortedIndexMap = new Map<string, number>();
+    for (let i = 0; i < sortedNodeIds.length; i++) {
+      sortedIndexMap.set(sortedNodeIds[i], i);
+    }
+    const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
+      this.graphTraversal.buildEdgeIndexes(
+        graphEdges,
+        backEdges,
+        sortedIndexMap,
+      );
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const maxNodeIterations = this.configService.get<number>(
+      'MAX_NODE_ITERATIONS',
+      100,
+    );
+
+    const waitingPointer = sortedIndexMap.get(opts.node.id);
+    if (waitingPointer === undefined) {
+      throw new RehydrationError(
+        'RESUME_CHECKPOINT_MISSING',
+        `Waiting node ${opts.node.id} not in sorted graph (workflow=${savedExecution.workflowId})`,
+      );
+    }
+
+    // reachability seed (트리거 + no-incoming) + 복원된 완료 노드 + waiting node.
+    const reachable = this.graphTraversal.seedInitialReachability(
+      sortedNodeIds,
+      nodeMap,
+      forwardEdges,
+    );
+    const executedNodes = context._executedNodes ?? new Set<string>();
+    context._executedNodes = executedNodes;
+    for (const nid of executedNodes) reachable.add(nid);
+    reachable.add(opts.node.id);
+
+    // nodeExecutionCount — 재시작 후 budget 은 fresh. 본 waiting node 의 첫 진입은
+    // 이미 1회 소비된 것으로 계산 (체크포인트 도달까지의 한 번).
+    const nodeExecutionCount = new Map<string, number>();
+    nodeExecutionCount.set(opts.node.id, 1);
+
+    // Resolver fire scheduler — waitForX 가 pendingContinuations 에 키 등록 직후
+    // setImmediate microtask 가 resolvePending 호출. polling 으로 race window 최소화.
+    const firePayload = (attemptsLeft: number): void => {
+      if (this.pendingContinuations.has(executionId)) {
+        this.resolvePending(executionId, opts.payload);
+        return;
+      }
+      if (attemptsLeft <= 0) {
+        this.logger.warn(
+          `Rehydration — pendingContinuations 등록 polling 한도 도달 (execution=${executionId}). waitForX 가 정상 등록을 못한 비정상 경로.`,
+        );
+        return;
+      }
+      setImmediate(() => firePayload(attemptsLeft - 1));
+    };
+    setImmediate(() => firePayload(50));
+
+    try {
+      // waitForX 직접 invoke — executeNode 우회. waitForX 내부에서 nodeExec
+      // lookup → status WAITING_FOR_INPUT 갱신 + outputData save → emit →
+      // pending 등록 + await → resolve.
+      const blockingMeta = this.handlerRegistry.getMetadata(opts.node.type);
+      if (
+        blockingMeta.kind === 'blocking' &&
+        blockingMeta.interaction === 'form'
+      ) {
+        await this.waitForFormSubmission(
+          savedExecution,
+          executionId,
+          opts.node,
+          context,
+        );
+      } else if (persistedInteractionType === 'buttons') {
+        await this.waitForButtonInteraction(
+          savedExecution,
+          executionId,
+          opts.node,
+          context,
+          graphEdges,
+        );
+      } else {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `Unsupported interaction type for rehydration: ${
+            persistedInteractionType ?? '(unknown)'
+          } (node type=${opts.node.type})`,
+        );
+      }
+
+      // waitForX 종결 → waiting node 완료. executedNodes 에 등록 + reachability 전파.
+      executedNodes.add(opts.node.id);
+      this.graphTraversal.propagateReachability(
+        opts.node.id,
+        outgoingEdgeMap,
+        context.nodeOutputCache,
+        reachable,
+      );
+
+      // back-edge 처리 (cyclic workflow 지원). runExecution 의 1769-1787 과 동일.
+      let pointer = waitingPointer + 1;
+      const backEdgesFromWaiting = backEdgeMap.get(opts.node.id);
+      if (backEdgesFromWaiting?.length) {
+        const activated = this.findActivatedBackEdge(
+          opts.node.id,
+          backEdgesFromWaiting,
+          context.nodeOutputCache,
+        );
+        if (activated) {
+          for (let i = activated.targetIndex; i <= waitingPointer; i++) {
+            reachable.delete(sortedNodeIds[i]);
+          }
+          reachable.add(sortedNodeIds[activated.targetIndex]);
+          pointer = activated.targetIndex;
+        }
+      }
+
+      // 남은 그래프 traversal — runExecution 의 1590-1790 루프와 동일.
+      // savedExecution 의 input 은 재기동 후 사라졌으므로 (waiting 이후 단계는
+      // predecessor output 만 참조하므로 정상 동작) 빈 객체로 대체.
+      const input = {};
+      while (pointer < sortedNodeIds.length) {
+        const nodeId = sortedNodeIds[pointer];
+        const node = nodeMap.get(nodeId);
+        if (!node) {
+          pointer++;
+          continue;
+        }
+        if (!reachable.has(nodeId)) {
+          pointer++;
+          continue;
+        }
+        const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
+        nodeExecutionCount.set(nodeId, count);
+        if (maxNodeIterations > 0 && count > maxNodeIterations) {
+          throw new Error(
+            `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
+              `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
+          );
+        }
+        if (node.isDisabled) {
+          await this.handleDisabledNode(
+            executionId,
+            nodeId,
+            node,
+            context,
+            executedNodes,
+          );
+          pointer++;
+          continue;
+        }
+        const nodeInput = this.gatherNodeInput(
+          nodeId,
+          graphEdges,
+          executedNodes,
+          context.nodeOutputCache,
+          input,
+          incomingEdgeMap,
+        );
+        await this.executeNode(
+          executionId,
+          node,
+          nodeInput,
+          context,
+          executedNodes,
+          nodeMap,
+          {
+            startedAt: savedExecution.startedAt?.toISOString(),
+            mode: 'manual',
+          },
+        );
+        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
+        if (dispatchKind === 'container') {
+          await this.runContainer(
+            node,
+            nodes,
+            edges,
+            context,
+            executionId,
+            executedNodes,
+            {
+              startedAt: savedExecution.startedAt?.toISOString(),
+              mode: 'manual',
+            },
+          );
+        }
+        if (dispatchKind === 'background') {
+          await this.scheduleBackgroundBody(
+            node,
+            edges,
+            context,
+            executionId,
+            input,
+          );
+        }
+        if (
+          dispatchKind === 'parallel' &&
+          this.configService.get<string>('PARALLEL_ENGINE', 'off') === 'v1'
+        ) {
+          const parallelInput = this.gatherNodeInput(
+            nodeId,
+            graphEdges,
+            executedNodes,
+            context.nodeOutputCache,
+            input,
+            incomingEdgeMap,
+          );
+          await this.runParallel(
+            node,
+            nodes,
+            edges,
+            forwardEdges,
+            backEdges,
+            outgoingEdgeMap,
+            context,
+            executionId,
+            executedNodes,
+            {
+              startedAt: savedExecution.startedAt?.toISOString(),
+              mode: 'manual',
+            },
+            reachable,
+            parallelInput,
+          );
+          pointer++;
+          continue;
+        }
+
+        // Blocking nodes (rehydration 후 downstream 에 또 다른 form/button/AI 가
+        // 있을 수 있음 — 정상 흐름과 동일하게 처리).
+        const downstreamOutput = context.nodeOutputCache[node.id] as
+          | Record<string, unknown>
+          | undefined;
+        const downstreamInteraction = this.getInteractionType(context, node.id);
+        if (downstreamOutput?.status === 'waiting_for_input') {
+          const downstreamBlocking = this.handlerRegistry.getMetadata(node.type);
+          if (
+            downstreamBlocking.kind === 'blocking' &&
+            downstreamBlocking.interaction === 'form'
+          ) {
+            await this.waitForFormSubmission(
+              savedExecution,
+              executionId,
+              node,
+              context,
+            );
+          } else if (downstreamInteraction === 'buttons') {
+            await this.waitForButtonInteraction(
+              savedExecution,
+              executionId,
+              node,
+              context,
+              graphEdges,
+            );
+          } else if (downstreamInteraction === 'ai_conversation') {
+            await this.waitForAiConversation(
+              savedExecution,
+              executionId,
+              node,
+              context,
+            );
+          }
+        }
+
+        this.graphTraversal.propagateReachability(
+          nodeId,
+          outgoingEdgeMap,
+          context.nodeOutputCache,
+          reachable,
+        );
+
+        const downstreamBackEdges = backEdgeMap.get(nodeId);
+        if (downstreamBackEdges?.length) {
+          const activated = this.findActivatedBackEdge(
+            nodeId,
+            downstreamBackEdges,
+            context.nodeOutputCache,
+          );
+          if (activated) {
+            for (let i = activated.targetIndex; i <= pointer; i++) {
+              reachable.delete(sortedNodeIds[i]);
+            }
+            reachable.add(sortedNodeIds[activated.targetIndex]);
+            pointer = activated.targetIndex;
+            continue;
+          }
+        }
+        pointer++;
+      }
+
+      // COMPLETED 처리 (runExecution 의 1792-1816 과 동일).
+      await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.COMPLETED,
+      );
+      const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
+      if (lastNodeId) {
+        savedExecution.outputData =
+          (context.nodeOutputCache[lastNodeId] as
+            | Record<string, unknown>
+            | undefined) ?? {};
+        savedExecution.finishedAt = new Date();
+        savedExecution.durationMs =
+          savedExecution.finishedAt.getTime() -
+          savedExecution.startedAt.getTime();
+        await this.executionRepository.save(savedExecution);
+      }
+      this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_COMPLETED,
+        { status: ExecutionStatus.COMPLETED },
+      );
+    } catch (error: unknown) {
+      if (error instanceof RehydrationError) {
+        // Pre-check 분기 (interaction type unsupported 등) — outer 가 처리.
+        throw error;
+      }
+      if (error instanceof ExecutionCancelledError) {
+        savedExecution.status = ExecutionStatus.CANCELLED;
+        savedExecution.finishedAt = new Date();
+        savedExecution.durationMs =
+          savedExecution.finishedAt.getTime() -
+          savedExecution.startedAt.getTime();
+        await this.executionRepository.save(savedExecution);
+        this.eventEmitter.emitExecution(
+          executionId,
+          ExecutionEventType.EXECUTION_CANCELLED,
+          { status: ExecutionStatus.CANCELLED },
+        );
+        return;
+      }
+      savedExecution.status = ExecutionStatus.FAILED;
+      const errMessage = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && error.stack) {
+        this.logger.error(
+          `Execution ${executionId} (rehydrated) failed: ${errMessage}`,
+          error.stack,
+        );
+      }
+      savedExecution.error = { message: errMessage };
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        savedExecution.finishedAt.getTime() -
+        savedExecution.startedAt.getTime();
+      await this.executionRepository.save(savedExecution);
+      this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_FAILED,
+        {
+          status: ExecutionStatus.FAILED,
+          error: errMessage,
+        },
+      );
+    } finally {
+      this.pendingContinuations.delete(executionId);
+      this.contextService.deleteContext(executionId);
+      this.clearLlmDefaultConfigCache(executionId);
     }
   }
 

@@ -6960,6 +6960,180 @@ describe('ExecutionEngineService', () => {
       expect(llm.hasDefaultLlmConfig).toHaveBeenCalledTimes(1);
     });
   });
+
+  // Phase 2.3a — §7.5 rehydration 본 구현 단위 검증. happy-path (form 제출 →
+  // 워크플로 완료) 는 e2e 에서 별도 검증; 본 블록은 invariant fail-fast 분기를
+  // 검증해 RESUME_* 코드 분류가 정확한지 보장한다.
+  describe('Rehydration — §7.5 Resume after Restart', () => {
+    type RehydrationSubject = {
+      rehydrateAndResume: (
+        executionId: string,
+        nodeExecutionId: string,
+        payload: unknown,
+      ) => Promise<void>;
+    };
+    const subject = () => service as unknown as RehydrationSubject;
+
+    beforeEach(() => {
+      // 본 블록은 직접 rehydrateAndResume 을 호출하므로 fast-path 분기를
+      // 비활성화하기 위해 pendingContinuations 를 비운다.
+      (
+        service as unknown as {
+          pendingContinuations: Map<string, unknown>;
+        }
+      ).pendingContinuations.clear();
+      mockExecutionRepo.findOneBy.mockReset();
+      mockExecutionRepo.save.mockClear();
+      // createQueryBuilder 의 chain mock — markExecutionCancelled /
+      // markNodeExecutionFailed 가 사용. 본 테스트는 호출 여부만 검증하므로
+      // execute() 가 resolves 하도록 가벼운 stub.
+      const buildUpdateChain = (): {
+        update: jest.Mock;
+        set: jest.Mock;
+        where: jest.Mock;
+        andWhere: jest.Mock;
+        execute: jest.Mock;
+      } => {
+        const chain = {
+          update: jest.fn(),
+          set: jest.fn(),
+          where: jest.fn(),
+          andWhere: jest.fn(),
+          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+        };
+        chain.update.mockReturnValue(chain);
+        chain.set.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        chain.andWhere.mockReturnValue(chain);
+        return chain;
+      };
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockImplementation(buildUpdateChain);
+      mockNodeExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockImplementation(buildUpdateChain);
+    });
+
+    it('Execution not WAITING_FOR_INPUT → RESUME_CHECKPOINT_MISSING (execution 만 cancelled)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      });
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', { foo: 1 });
+
+      // execution.update(...) chain 호출 → execute() 1회
+      const execChain = mockExecutionRepo.createQueryBuilder.mock.results[0]
+        .value as { execute: jest.Mock };
+      expect(execChain.execute).toHaveBeenCalled();
+      // NodeExecution 은 nodeExecutionId 확인 전 단계에서 throw → mark 미호출
+      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('__no_node_exec__ sentinel → RESUME_CHECKPOINT_MISSING', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+      });
+
+      await subject().rehydrateAndResume(executionId, '__no_node_exec__', {});
+
+      const execChain = mockExecutionRepo.createQueryBuilder.mock.results[0]
+        .value as { execute: jest.Mock };
+      expect(execChain.execute).toHaveBeenCalled();
+      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('NodeExecution not WAITING_FOR_INPUT → RESUME_CHECKPOINT_MISSING (둘 다 마킹)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.COMPLETED, // already moved on
+      });
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', {});
+
+      // resolvedNodeExecutionId 는 invariant 통과 못해서 null — NodeExecution 마킹 미호출
+      // (코드 흐름: resolvedNodeExecutionId = nodeExec.id 는 status 검증 통과한 뒤에 set)
+      expect(
+        mockExecutionRepo.createQueryBuilder.mock.results[0].value.execute,
+      ).toHaveBeenCalled();
+      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('Node 정의 부재 → RESUME_CHECKPOINT_MISSING (Execution + NodeExecution 모두 마킹)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-missing',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(null);
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', {});
+
+      expect(
+        mockExecutionRepo.createQueryBuilder.mock.results[0].value.execute,
+      ).toHaveBeenCalled();
+      // NodeExecution 마킹도 호출 (resolvedNodeExecutionId 가 set 된 상태)
+      expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+    });
+
+    it('Multi-turn AI 노드 (meta.interactionType=ai_conversation) → RESUME_INCOMPATIBLE_STATE', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          interactionType: 'ai_conversation',
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-1',
+        type: 'ai_agent',
+      });
+      // rehydrateContext 는 contextService 가 in-memory 새 context 를 생성하므로
+      // workflow / log 조회가 필요. 가벼운 stub.
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', {
+        type: 'ai_message',
+        message: 'hi',
+      });
+
+      // RESUME_INCOMPATIBLE_STATE 마킹 — execution 과 nodeExecution 양쪽 chain.
+      expect(
+        mockExecutionRepo.createQueryBuilder.mock.results[0].value.execute,
+      ).toHaveBeenCalled();
+      expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      // set() 호출에 'RESUME_INCOMPATIBLE_STATE' 가 들어갔는지 확인
+      const setCall = mockExecutionRepo.createQueryBuilder.mock.results[0].value
+        .set.mock.calls[0][0] as {
+        error: { code: string };
+      };
+      expect(setCall.error.code).toBe('RESUME_INCOMPATIBLE_STATE');
+    });
+  });
 });
 
 describe('buildConversationMetaFromResumeState', () => {
