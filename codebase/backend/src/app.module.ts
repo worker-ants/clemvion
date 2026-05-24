@@ -90,6 +90,7 @@ import { GraphRelation } from './modules/knowledge-base/entities/relation.entity
 import { GraphChunkEntity } from './modules/knowledge-base/entities/chunk-entity.entity';
 import { WorkflowAssistantSession } from './modules/workflow-assistant/entities/workflow-assistant-session.entity';
 import { WorkflowAssistantMessage } from './modules/workflow-assistant/entities/workflow-assistant-message.entity';
+import { SecretStore } from './modules/secret-store/entities/secret-store.entity';
 
 /**
  * TypeORM root metadata 등록 대상. forFeature 로 module 이 Repository 를
@@ -136,6 +137,7 @@ export const ROOT_ENTITIES = [
   AlertRule,
   WorkflowAssistantSession,
   WorkflowAssistantMessage,
+  SecretStore,
 ] as const;
 
 @Module({
