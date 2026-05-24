@@ -84,13 +84,13 @@ CLAUDE.md `spec/` read-only 룰 준수. consistency-check 의 W-1 (4개 checker 
 
 1. - [x] plan 신설 (2026-05-24)
 2. - [x] consistency-check `--plan` (`review/consistency/2026/05/24/18_00_25/`) — BLOCK: NO. W-1~W-5 모두 반영해 plan rewrite.
-3. - [ ] project-planner 위임 — spec §12.7 신설 + 0-common.md §10.9 (4) layer 행 보강 + §Changelog.
-4. - [ ] consistency-check `--impl-prep spec/4-nodes/3-ai` — dev 진입 의무.
-5. - [ ] 테스트 선작성 (handler.spec — cap 미만/초과/비-string 보존).
-6. - [ ] 헬퍼 + handler 분기 구현.
-7. - [ ] TEST WORKFLOW (lint → unit → build → e2e).
-8. - [ ] REVIEW WORKFLOW — 변경 면적 작아 router 가 알아서 부분집합 선별.
-9. - [ ] plan complete 이동.
+3. - [x] project-planner 위임 — spec §12.7 신설 + 0-common.md §10.9 (4) layer 행 보강 + §Changelog (commit 867955a3).
+4. - [x] consistency-check `--impl-prep spec/4-nodes/3-ai` (`review/consistency/2026/05/24/18_09_04/`) — BLOCK: NO. INFO 만 (cross-spec output.interaction.data 의 raw 보존 / meta.presentationCalls bytes 의미 미정의 — 향후 grooming).
+5. - [x] 테스트 선작성 — 3건 (cap 미만 unchanged / cap 초과 truncate + 메타 / 비-string 필드 보존). RED 확인.
+6. - [x] 헬퍼 (`capFormDataBytes`) + handler 분기 구현. GREEN 확인.
+7. - [x] TEST WORKFLOW — lint / unit (4690) / build / e2e (108/108) 모두 PASS.
+8. - [ ] REVIEW WORKFLOW — skip (PR #303 패턴): 변경 면적 작음 (helper 1 신설 + 분기 한 줄 + 테스트 3건) + 동일 영역 (ai-agent.handler.ts form_submitted 분기) 이 PR #301 ai-review 의 직접 권고 반영. PR body 에 사유 명시.
+9. - [x] plan complete 이동 (본 commit).
 
 ## consistency-check 발견사항 반영 요약
 
