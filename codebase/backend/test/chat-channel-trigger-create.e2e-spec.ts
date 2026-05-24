@@ -179,7 +179,8 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
     });
 
-    it('잘못된 hex32 형식 → 400', async () => {
+    it('잘못된 hex32 형식 (32 chars 충족 but non-hex) → 400 service regex', async () => {
+      // 길이는 32 이상으로 DTO @MinLength(32) 통과시키고 service 단 hex regex 만 발동시킴.
       const res = await postTrigger({
         workflowId,
         type: 'webhook',
@@ -188,7 +189,7 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
         chatChannel: {
           provider: 'slack',
           botToken: 'xoxb-e2e-slack-token',
-          inboundSigningPlaintext: 'not-hex-32-chars',
+          inboundSigningPlaintext: 'ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ', // 32 chars, non-hex
         },
       });
       expect(res.status).toBe(400);
@@ -196,6 +197,27 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
       });
+    });
+
+    it('너무 짧은 plaintext (DTO @MinLength 발동) → 400 DTO envelope', async () => {
+      const res = await postTrigger({
+        workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-sl-short'),
+        endpointPath: uniqueEndpoint('sl-short'),
+        chatChannel: {
+          provider: 'slack',
+          botToken: 'xoxb-e2e-slack-token',
+          inboundSigningPlaintext: 'too-short', // 9 chars
+        },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      // DTO CustomValidationPipe 는 details 를 array 로 반환 (service 단 single object 와 다름).
+      expect(Array.isArray(res.body.error.details)).toBe(true);
+      expect(res.body.error.details[0].field).toBe(
+        'chatChannel.inboundSigningPlaintext',
+      );
     });
   });
 
@@ -224,6 +246,9 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       expect(trigger.config.chatChannel).not.toHaveProperty(
         'inboundSigningPlaintext',
       );
+      expect(trigger.config.chatChannel).not.toHaveProperty(
+        'inboundSigningRef',
+      );
     });
 
     it('잘못된 hex64 형식 (32만 입력) → 400', async () => {
@@ -236,6 +261,24 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
           provider: 'discord',
           botToken: 'discord-e2e-bot-token',
           inboundSigningPlaintext: SLACK_SIGNING_SECRET_HEX32, // 32 chars only
+        },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      expect(res.body.error.details).toEqual({
+        field: 'inboundSigningPlaintext',
+      });
+    });
+
+    it('plaintext 누락 → 400 (slack 과 대칭 coverage)', async () => {
+      const res = await postTrigger({
+        workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-dc-miss'),
+        endpointPath: uniqueEndpoint('dc-miss'),
+        chatChannel: {
+          provider: 'discord',
+          botToken: 'discord-e2e-bot-token',
         },
       });
       expect(res.status).toBe(400);

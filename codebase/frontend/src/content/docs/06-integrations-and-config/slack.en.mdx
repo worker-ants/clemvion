@@ -14,7 +14,8 @@ Connect a Slack bot as your workflow's conversational interface, and users can s
 ## 1. Create a Slack app
 
 <Callout type="note">
-The Slack app manifest configuration in §2 (Event Subscriptions Request URL, Interactivity Request URL) is not automated by clemvion. Slack's design constraint (R-S-2) prevents external services from editing another app's manifest directly. Create the trigger in §3 to get the endpoint URL, then paste it into the manifest yourself.
+{/* Internal SoT: spec/4-nodes/7-trigger/providers/slack.md Rationale R-S-2 */}
+The Slack app manifest configuration in §2 (Event Subscriptions Request URL, Interactivity Request URL) is not automated by clemvion. Slack's design constraint prevents external services from editing another app's manifest directly. Create the trigger in §3 to get the endpoint URL, then paste it into the manifest yourself.
 </Callout>
 
 1. Go to the [Slack API console](https://api.slack.com/apps) and choose **Create New App** → **From scratch**.

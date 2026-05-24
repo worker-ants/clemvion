@@ -278,8 +278,10 @@ export default function TriggersPage() {
         );
         return;
       }
+      // [provider 발급 표준] Slack signing secret / Discord public key 는 lowercase hex.
+      // backend assertInboundSigningPlaintextByProvider 와 동일 정규식 — uppercase 입력 차단.
       const expectedHex =
-        formChatChannelProvider === "slack" ? /^[a-f0-9]{32}$/i : /^[a-f0-9]{64}$/i;
+        formChatChannelProvider === "slack" ? /^[a-f0-9]{32}$/ : /^[a-f0-9]{64}$/;
       if (!expectedHex.test(plaintext)) {
         toast.error(
           formChatChannelProvider === "slack"
@@ -431,11 +433,15 @@ export default function TriggersPage() {
                         id="webhook-chat-channel-provider"
                         className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
                         value={formChatChannelProvider}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setFormChatChannelProvider(
                             e.target.value as "telegram" | "slack" | "discord",
-                          )
-                        }
+                          );
+                          // provider 가 바뀌면 inboundSigning 입력 state 도 초기화 —
+                          // 보안 민감 필드의 이전 값 잔류 방지 + slack hex32 ↔ discord
+                          // hex64 형식 mismatch 방지.
+                          setFormChatChannelInboundSigningPlaintext("");
+                        }}
                       >
                         <option value="telegram">
                           {t("triggers.chatChannel.providerTelegram")}
@@ -469,14 +475,22 @@ export default function TriggersPage() {
                         {t("triggers.chatChannel.botTokenFormatHelp")}
                       </p>
                     </div>
-                    {/* Provider-issued inbound-signing — slack/discord 한정. */}
-                    {formChatChannelProvider === "slack" ? (
+                    {/* Provider-issued inbound-signing — slack/discord 한정. provider 별 라벨/
+                        placeholder/help 만 다르고 입력 흐름은 동일하므로 단일 블록 + i18n 분기.
+                        htmlFor id 는 provider 별로 분리 (a11y 가드). */}
+                    {formChatChannelProvider !== "telegram" ? (
                       <div>
-                        <Label htmlFor="webhook-chat-channel-signing">
-                          {t("triggers.chatChannel.inboundSigningLabelSlack")}
+                        <Label
+                          htmlFor={`webhook-chat-channel-signing-${formChatChannelProvider}`}
+                        >
+                          {formChatChannelProvider === "slack"
+                            ? t("triggers.chatChannel.inboundSigningLabelSlack")
+                            : t(
+                                "triggers.chatChannel.inboundSigningLabelDiscord",
+                              )}
                         </Label>
                         <Input
-                          id="webhook-chat-channel-signing"
+                          id={`webhook-chat-channel-signing-${formChatChannelProvider}`}
                           type="password"
                           autoComplete="off"
                           value={formChatChannelInboundSigningPlaintext}
@@ -485,38 +499,25 @@ export default function TriggersPage() {
                               e.target.value,
                             )
                           }
-                          placeholder={t(
-                            "triggers.chatChannel.inboundSigningPlaceholderSlack",
-                          )}
-                          className="font-mono"
-                        />
-                        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                          {t("triggers.chatChannel.inboundSigningFormatHelpSlack")}
-                        </p>
-                      </div>
-                    ) : null}
-                    {formChatChannelProvider === "discord" ? (
-                      <div>
-                        <Label htmlFor="webhook-chat-channel-signing">
-                          {t("triggers.chatChannel.inboundSigningLabelDiscord")}
-                        </Label>
-                        <Input
-                          id="webhook-chat-channel-signing"
-                          type="password"
-                          autoComplete="off"
-                          value={formChatChannelInboundSigningPlaintext}
-                          onChange={(e) =>
-                            setFormChatChannelInboundSigningPlaintext(
-                              e.target.value,
-                            )
+                          placeholder={
+                            formChatChannelProvider === "slack"
+                              ? t(
+                                  "triggers.chatChannel.inboundSigningPlaceholderSlack",
+                                )
+                              : t(
+                                  "triggers.chatChannel.inboundSigningPlaceholderDiscord",
+                                )
                           }
-                          placeholder={t(
-                            "triggers.chatChannel.inboundSigningPlaceholderDiscord",
-                          )}
                           className="font-mono"
                         />
                         <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                          {t("triggers.chatChannel.inboundSigningFormatHelpDiscord")}
+                          {formChatChannelProvider === "slack"
+                            ? t(
+                                "triggers.chatChannel.inboundSigningFormatHelpSlack",
+                              )
+                            : t(
+                                "triggers.chatChannel.inboundSigningFormatHelpDiscord",
+                              )}
                         </p>
                       </div>
                     ) : null}

@@ -12,7 +12,8 @@ code: ["codebase/backend/src/modules/chat-channel/providers/discord/discord.adap
 Discord 봇을 워크플로우의 인터페이스로 연결하면, slash command (`/workflow start`) 와 button / modal 기반 인터랙션으로 워크플로우를 시작·조작할 수 있어요.
 
 <Callout type="warn">
-Discord v1 한계 (R-CC-13 / R-D-3): 일반 DM 텍스트 메시지는 미지원이에요. v1 은 Interactions Webhook 방식으로 동작하며, Discord 의 자유 텍스트 DM 수신은 Gateway WebSocket 연결이 필요해 v1 범위 밖이에요. v1 사용자 reply 경로: (a) `/workflow reply <message>` slash command text option, (b) AI 응답 메시지의 **Reply** 버튼 클릭 후 modal TEXT_INPUT (기본 UX).
+{/* 내부 SoT: spec/5-system/15-chat-channel.md R-CC-13 + spec/4-nodes/7-trigger/providers/discord.md R-D-3 */}
+Discord v1 한계: 일반 DM 텍스트 메시지는 미지원이에요. v1 은 Interactions Webhook 방식으로 동작하며, Discord 의 자유 텍스트 DM 수신은 Gateway WebSocket 연결이 필요해 v1 범위 밖이에요. v1 사용자 reply 경로: (a) `/workflow reply <message>` slash command text option, (b) AI 응답 메시지의 **Reply** 버튼 클릭 후 modal TEXT_INPUT (기본 UX).
 </Callout>
 
 ## 1. Discord 앱 만들기

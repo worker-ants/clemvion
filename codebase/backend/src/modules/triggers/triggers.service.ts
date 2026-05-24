@@ -125,11 +125,18 @@ export class TriggersService {
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     this.assertNotificationUrlSafe(notification);
     this.assertChatChannelInputSafe(chatChannel);
+    // [SS-SE-01] mergeExternalConfig 호출 전 plaintext (botToken / inboundSigningPlaintext)
+    // 를 strip — 첫 triggerRepository.save 시 plaintext 가 DB JSONB 에 일시 기록되지 않도록.
+    // setupChatChannel 은 원본 dto.chatChannel (plaintext 포함) 을 별도 전달 받아 secret store
+    // 로 옮긴 뒤 ref 만 config 에 반영.
+    const safeChatChannel = chatChannel
+      ? this.stripChatChannelPlaintext(chatChannel)
+      : undefined;
     const mergedConfig = this.mergeExternalConfig(
       config ?? {},
       notification,
       interaction,
-      chatChannel,
+      safeChatChannel,
     );
     const trigger = this.triggerRepository.create({
       ...rest,
@@ -181,13 +188,17 @@ export class TriggersService {
     }
     this.assertNotificationUrlSafe(notification);
     this.assertChatChannelInputSafe(chatChannel);
+    // [SS-SE-01] mergeExternalConfig 호출 전 plaintext strip (create() 와 동일 정책).
+    const safeChatChannel = chatChannel
+      ? this.stripChatChannelPlaintext(chatChannel)
+      : undefined;
     // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
     const baseConfig = config ?? trigger.config ?? {};
     const mergedConfig = this.mergeExternalConfig(
       baseConfig,
       notification,
       interaction,
-      chatChannel,
+      safeChatChannel,
     );
     Object.assign(trigger, rest, { config: mergedConfig });
     const saved = await this.triggerRepository.save(trigger);
@@ -255,8 +266,40 @@ export class TriggersService {
   }
 
   /**
+   * [SS-SE-01 — spec/conventions/secret-store.md §5.5] plaintext (botToken /
+   * inboundSigningPlaintext) 를 chatChannel 객체에서 제거. setupChatChannel 호출 전 config 에
+   * 흘러가는 것을 차단해 첫 triggerRepository.save 시 DB JSONB 에 일시 기록되는 시간 창을
+   * 제거한다. adapter 미등록 early-return 경로에서도 plaintext 가 영구 잔류하지 않음을 보장.
+   *
+   * 원본 plaintext 는 호출자가 별도 변수로 보관해 setupChatChannel 에 전달 — SecretResolver.store
+   * 로 옮긴 뒤 ref 만 config 에 반영.
+   */
+  private stripChatChannelPlaintext(
+    chatChannel: ChatChannelConfigDto,
+  ): ChatChannelConfigDto {
+    const {
+      botToken: _bt,
+      inboundSigningPlaintext: _isp,
+      ...rest
+    } = chatChannel as ChatChannelConfigDto & {
+      botToken?: string;
+      inboundSigningPlaintext?: string;
+    };
+    return rest as ChatChannelConfigDto;
+  }
+
+  /**
    * Provider 별 `inboundSigningPlaintext` 요구/금지 + 형식 분기.
    * SoT: spec/4-nodes/7-trigger/providers/{slack,discord}.md §6 + spec/conventions/secret-store.md §5.5.
+   *
+   * 분기:
+   *   - telegram → server-issued (randomBytes 자동 발급). 외부 입력 시 400.
+   *   - slack / discord → provider-issued (사용자 manual 입력). 필수 + hex 형식 검증.
+   *
+   * **신규 provider 추가 시**: 본 함수에 명시적 분기 추가 의무. CHAT_CHANNEL_PROVIDERS 가
+   * 4번째 값을 가지면 아래 "provider-issued 필수" 가정이 무음 적용되어 잘못된 검증을 통과시킬
+   * 위험. 신규 provider 의 inbound-signing 발급 모델 (server-issued vs provider-issued) 을
+   * 결정 후 본 함수에 case 추가 필요.
    */
   private assertInboundSigningPlaintextByProvider(
     chatChannel: ChatChannelConfigDto,
@@ -276,7 +319,7 @@ export class TriggersService {
       return;
     }
 
-    // slack / discord — provider-issued, 사용자 입력 필수.
+    // slack / discord — provider-issued, 사용자 입력 필수 (위 doc 의 신규 provider 의무 참조).
     if (typeof plaintext !== 'string' || plaintext.length === 0) {
       const label =
         provider === 'slack'
@@ -289,20 +332,22 @@ export class TriggersService {
       });
     }
 
-    if (provider === 'slack' && !/^[a-f0-9]{32}$/i.test(plaintext)) {
+    // [provider 발급 표준] Slack signing secret / Discord public key 는 모두 lowercase hex 로
+    // 발급된다. uppercase 입력은 외부 provider HMAC / ed25519 검증 실패를 유발하므로 사전 차단.
+    if (provider === 'slack' && !/^[a-f0-9]{32}$/.test(plaintext)) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
-          'Slack signing secret 형식이 올바르지 않습니다 (hex 32 chars 필요).',
+          'Slack signing secret 형식이 올바르지 않습니다 (lowercase hex 32 chars 필요).',
         details: { field: 'inboundSigningPlaintext' },
       });
     }
 
-    if (provider === 'discord' && !/^[a-f0-9]{64}$/i.test(plaintext)) {
+    if (provider === 'discord' && !/^[a-f0-9]{64}$/.test(plaintext)) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
-          'Discord application public key 형식이 올바르지 않습니다 (ed25519 public key hex 64 chars 필요).',
+          'Discord application public key 형식이 올바르지 않습니다 (ed25519 public key lowercase hex 64 chars 필요).',
         details: { field: 'inboundSigningPlaintext' },
       });
     }
@@ -453,24 +498,29 @@ export class TriggersService {
       'http://localhost:3000';
     const callbackUrl = `${baseUrl.replace(/\/$/, '')}/api/hooks/${trigger.endpointPath.replace(/^\//, '')}`;
 
+    // secret store ref 생성 — spec/conventions/secret-store.md §1 URI scheme 단일 진입점.
+    const botTokenRef = buildSecretRef({
+      scope: 'triggers',
+      resourceId: trigger.id,
+      name: 'bot-token',
+    });
+    const inboundSigningRef = buildSecretRef({
+      scope: 'triggers',
+      resourceId: trigger.id,
+      name: 'inbound-signing',
+    });
+
     // secret store 에 botToken 저장 (UPSERT — 재시도 안전).
-    const botTokenRef = `secret://triggers/${trigger.id}/bot-token`;
     await this.secrets.rotate(
       botTokenRef,
       trigger.workspaceId,
-      (chatChannelCfg as ChatChannelConfig & { botToken?: string }).botToken ??
-        '',
+      chatChannelCfg.botToken ?? '',
     );
 
     // [secret-store.md §5.5 (b)] provider-issued inbound-signing plaintext 처리.
     // Slack signing secret / Discord public key — 사용자가 외부 portal 에서 입력한 값을
     // secret store 로 옮기고 plaintext 는 config 에 절대 흘리지 않음 (SS-SE-01).
-    const inboundSigningRef = `secret://triggers/${trigger.id}/inbound-signing`;
-    const providerIssuedPlaintext = (
-      chatChannelCfg as ChatChannelConfigDto & {
-        inboundSigningPlaintext?: string;
-      }
-    ).inboundSigningPlaintext;
+    const providerIssuedPlaintext = chatChannelCfg.inboundSigningPlaintext;
     let providerIssuedStored = false;
     if (
       typeof providerIssuedPlaintext === 'string' &&
@@ -484,15 +534,10 @@ export class TriggersService {
       providerIssuedStored = true;
     }
 
-    // chatChannelCfg 에서 plaintext 필드들을 제거 — config 에 흘러가지 않음.
-    const {
-      botToken: _bt,
-      inboundSigningPlaintext: _isp,
-      ...sanitizedCfg
-    } = chatChannelCfg as ChatChannelConfigDto & {
-      botToken?: string;
-      inboundSigningPlaintext?: string;
-    };
+    // chatChannelCfg 에서 plaintext 필드들을 제거 — config 에 흘러가지 않음 (SS-SE-01).
+    // create()/update() 의 stripChatChannelPlaintext 와 의도적으로 이중 방어 — adapter
+    // 코드가 dto.botToken 을 직접 mutate 하는 회귀에 대비.
+    const sanitizedCfg = this.stripChatChannelPlaintext(chatChannelCfg);
     const internalCfg: ChatChannelConfig = {
       ...(sanitizedCfg as ChatChannelConfig),
       botTokenRef,

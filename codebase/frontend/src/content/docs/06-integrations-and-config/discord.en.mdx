@@ -12,7 +12,8 @@ code: ["codebase/backend/src/modules/chat-channel/providers/discord/discord.adap
 Connect a Discord bot as your workflow's interface, and users can drive workflows via `/workflow start` slash commands, button clicks, and modal text inputs.
 
 <Callout type="warn">
-Discord v1 limitation (R-CC-13 / R-D-3): free-text DM messages are not supported. v1 uses Interactions Webhook only; receiving plain DM text requires a Gateway WebSocket connection, which is out of scope for v1. User reply paths: (a) `/workflow reply <message>` slash command text option, (b) the **Reply** button on AI messages opens a modal TEXT_INPUT (default UX).
+{/* Internal SoT: spec/5-system/15-chat-channel.md R-CC-13 + spec/4-nodes/7-trigger/providers/discord.md R-D-3 */}
+Discord v1 limitation: free-text DM messages are not supported. v1 uses Interactions Webhook only; receiving plain DM text requires a Gateway WebSocket connection, which is out of scope for v1. User reply paths: (a) `/workflow reply <message>` slash command text option, (b) the **Reply** button on AI messages opens a modal TEXT_INPUT (default UX).
 </Callout>
 
 ## 1. Create a Discord app

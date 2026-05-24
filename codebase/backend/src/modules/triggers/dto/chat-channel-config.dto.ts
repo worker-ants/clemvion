@@ -8,6 +8,7 @@ import {
   Min,
   ValidateNested,
   MaxLength,
+  MinLength,
   IsEmpty,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
@@ -97,10 +98,14 @@ export class ChatChannelConfigDto {
 
   @ApiProperty({
     description:
-      'Active bot token (텔레그램 BotFather 발급). 입력 전용 — 서버가 secret store 에 저장 후 응답에는 포함하지 않음.',
+      'Active bot token (provider 발급). telegram = BotFather 발급 `\\d+:[A-Za-z0-9_-]+` / ' +
+      'slack = OAuth Install 시 발급 `xoxb-...` / discord = Developer Portal Bot 탭 발급. ' +
+      '입력 전용 — 서버가 secret store 에 저장 후 응답에는 포함하지 않음 ' +
+      '(spec/conventions/secret-store.md §4 SS-SE-01).',
     minLength: 1,
     maxLength: 256,
     example: '123456789:AAFakeTokenForExample',
+    writeOnly: true,
   })
   @IsString()
   @MaxLength(256)
@@ -185,15 +190,20 @@ export class ChatChannelConfigDto {
   @ApiPropertyOptional({
     description:
       'Provider-issued inbound webhook 인증 자료 plaintext. ' +
-      'slack = signing secret hex 32 / discord = ed25519 public key hex 64. ' +
+      'slack = signing secret lowercase hex 32 / discord = ed25519 public key lowercase hex 64. ' +
       'telegram = 본 필드 미사용 (server-issued, randomBytes 자동 발급). ' +
-      '응답에서 strip — config 에는 inboundSigningRef 만 보관 (SS-SE-01).',
+      '응답에서 strip — config 에는 inboundSigningRef 만 보관 ' +
+      '(spec/conventions/secret-store.md §4 SS-SE-01). ' +
+      'minLength 는 Slack 최소 (32). Discord (64) 와 형식 (lowercase hex) 는 ' +
+      'TriggersService 의 provider 별 분기 검증.',
     minLength: 32,
     maxLength: 128,
     example: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6',
+    writeOnly: true,
   })
   @IsOptional()
   @IsString()
+  @MinLength(32)
   @MaxLength(128)
   inboundSigningPlaintext?: string;
 

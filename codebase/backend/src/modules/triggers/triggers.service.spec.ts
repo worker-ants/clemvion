@@ -894,7 +894,7 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
         },
       });
 
-      // triggerRepo.update 호출 시 전달된 config 에 inboundSigningPlaintext / botToken 이 없어야 함.
+      // (a) 최종 update 시 plaintext 가 config 에 없어야 함.
       const updateCalls = (triggerRepo.update as jest.Mock).mock.calls;
       const lastUpdatePatch = updateCalls[updateCalls.length - 1][1] as {
         config?: { chatChannel?: Record<string, unknown> };
@@ -904,6 +904,17 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
         'inboundSigningPlaintext',
       );
       expect(persistedChatChannel).not.toHaveProperty('botToken');
+
+      // (b) 최초 save 시점 plaintext 가 config 에 없어야 함 —
+      // stripChatChannelPlaintext 가 mergeExternalConfig 전에 호출됐음을 검증
+      // (DB JSONB 일시 기록 회피 — adapter 미등록 early-return 경로 SS-SE-01 보장).
+      const saveCalls = (triggerRepo.save as jest.Mock).mock.calls;
+      const firstSaved = saveCalls[0][0] as {
+        config?: { chatChannel?: Record<string, unknown> };
+      };
+      const initialChatChannel = firstSaved.config?.chatChannel ?? {};
+      expect(initialChatChannel).not.toHaveProperty('inboundSigningPlaintext');
+      expect(initialChatChannel).not.toHaveProperty('botToken');
     });
   });
 });
