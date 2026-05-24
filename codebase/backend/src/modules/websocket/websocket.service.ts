@@ -364,6 +364,19 @@ export class WebsocketService {
       seq,
       payload: fanoutEnvelope,
     });
+    // 진단 log — dispatcher 가 못 받는다는 보고 (2026-05-25) 의 emit-vs-subscribe
+    // 분리 가설 검증용. ai_message / waiting_for_input 만 log (noise 회피).
+    // dispatcher 의 handle log 와 짝지어 보면 emit-subscribe 가 같은 Subject 인지
+    // 확인 가능. routing context 등록 여부도 같이 찍어 PR #314 fix 작동 검증.
+    if (
+      eventType === ExecutionEventType.AI_MESSAGE ||
+      eventType === ExecutionEventType.EXECUTION_WAITING_FOR_INPUT
+    ) {
+      const hasRouting = this.executionRouting.has(executionId);
+      this.logger.log(
+        `emit ${eventType} (executionId=${executionId}, seq=${seq}, routing=${hasRouting ? 'attached' : 'NONE'})`,
+      );
+    }
     if (TERMINAL_EXECUTION_EVENTS.has(eventType)) {
       this.releaseSeqCounter(executionId);
       this.releaseExecutionRouting(executionId);
