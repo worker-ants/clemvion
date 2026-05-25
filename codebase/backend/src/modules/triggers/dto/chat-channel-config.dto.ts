@@ -121,9 +121,7 @@ function findFirstUnknownPlaceholder(
  * `help`, `executionCancelled` 등) 는 본 validator scope 밖 — 기존 운영 데이터 영향 회피.
  */
 @ValidatorConstraint({ name: 'languageHintsPlaceholder', async: false })
-export class LanguageHintsPlaceholderValidator
-  implements ValidatorConstraintInterface
-{
+export class LanguageHintsPlaceholderValidator implements ValidatorConstraintInterface {
   // Stateless — instance fields 회피 (class-validator singleton 패턴에서의 race 회피).
   validate(value: unknown, _args: ValidationArguments): boolean {
     return findFirstUnknownPlaceholder(value) === null;
@@ -337,4 +335,3 @@ export class ChatChannelConfigDto {
   @Validate(LanguageHintsPlaceholderValidator)
   languageHints?: Record<string, string>;
 }
-

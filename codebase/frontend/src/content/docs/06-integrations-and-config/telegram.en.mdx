@@ -126,7 +126,53 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 - Response: `{ data: { triggerId, rotatedAt, chatChannelHealth, botIdentity } }`
 - Errors: 400 `BOT_TOKEN_INVALID`, 404 `TRIGGER_NOT_FOUND`, 502 `CHAT_CHANNEL_SETUP_FAILED`, etc. ([Spec Chat Channel §5.4](https://github.com/worker-ants/clemvion/blob/main/spec/5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약))
 
-## 7. Limitations
+## 7. Customizing notification messages (`languageHints` / `languageLocale`)
+
+You can override the bot's built-in notification messages via `config.chatChannel.languageHints`.
+
+### 7.1 `languageLocale` — default locale
+
+`languageLocale` selects the **language of built-in default messages** for keys that have no override.
+
+| Value | Description |
+|---|---|
+| `"ko"` | Korean defaults (**default** when omitted) |
+| `"en"` | English defaults |
+
+**Lookup order** (per key):
+1. `languageHints[key]` — operator override always wins
+2. Built-in default for the chosen `languageLocale`
+3. `"ko"` fallback when `languageLocale` is also omitted
+
+### 7.2 Execution failure keys (CCH-ERR-*)
+
+When a workflow execution fails, the bot sends the user a failure-specific message. You can override any of the 6 keys below.
+
+<Callout type="note">
+Sensitive-data protection: the raw `error.message`, `nodeId`, `executionId`, and `details.url` are never included in notification messages. The only allowed placeholder in operator overrides is `{statusCode}`. Any other `{...}` placeholder returns 400 `VALIDATION_ERROR` (`details.code='UNKNOWN_PLACEHOLDER'`).
+</Callout>
+
+| Key | Sent when | `{statusCode}` allowed |
+|---|---|---|
+| `executionFailedThirdParty4xx` | External service (LLM / MCP / HTTP node) rejected with 4xx (`HTTP_4XX`) | optional |
+| `executionFailedThirdParty5xx` | External service 5xx transient error (`HTTP_5XX`) | optional |
+| `executionFailedThirdParty` | External service unreachable (no status code, not a timeout) | no |
+| `executionFailedTimeout` | Processing timed out (`HTTP_TIMEOUT` / `LLM_TIMEOUT` / `EXECUTION_TIMEOUT` etc.) | no |
+| `executionFailedRateLimit` | Rate limit exceeded (`LLM_RATE_LIMIT`) | no |
+| `executionFailedInternal` | Server-side error (DB / CODE / SUB_WORKFLOW failure + unknown fallback) | no |
+
+**EN default messages** (`languageLocale: "en"`):
+
+```
+executionFailedThirdParty4xx  → The external service rejected the request ({statusCode}). Please try again later.
+executionFailedThirdParty5xx  → The external service is temporarily unavailable ({statusCode}). Please try again later.
+executionFailedThirdParty     → Couldn't reach the external service. Please try again later.
+executionFailedTimeout        → The request timed out. Please try again later.
+executionFailedRateLimit      → Too many requests. Please try again later.
+executionFailedInternal       → The service is temporarily unavailable. Please try again later.
+```
+
+## 8. Limitations
 
 - **1:1 (private) chats only** — messages in group chats are silently ignored.
 - **Bot messages are ignored** — messages with `from.is_bot=true` are dropped to prevent bot loops.

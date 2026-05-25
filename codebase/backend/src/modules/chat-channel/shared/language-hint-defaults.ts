@@ -44,8 +44,7 @@ export const DEFAULT_LANGUAGE_HINTS: Record<
       'The external service is temporarily unavailable ({statusCode}). Please try again later.',
     executionFailedThirdParty:
       "Couldn't reach the external service. Please try again later.",
-    executionFailedTimeout:
-      'The request timed out. Please try again later.',
+    executionFailedTimeout: 'The request timed out. Please try again later.',
     executionFailedRateLimit: 'Too many requests. Please try again later.',
     executionFailedInternal:
       'The service is temporarily unavailable. Please try again later.',

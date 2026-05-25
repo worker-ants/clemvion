@@ -304,4 +304,93 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       expect(res.status).toBe(400);
     });
   });
+
+  describe('CCH-ERR-* — languageLocale + languageHints placeholder validator (R-CC-15 (c))', () => {
+    it('languageLocale=en + CCH-ERR-* override (valid {statusCode}) → 201', async () => {
+      const res = await postTrigger({
+        workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-cch-err-ok'),
+        endpointPath: uniqueEndpoint('cch-err-ok'),
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:e2eToken',
+          languageLocale: 'en',
+          languageHints: {
+            executionFailedThirdParty4xx: 'Rejected ({statusCode}).',
+            executionFailedInternal: 'Service issue.',
+          },
+        },
+      });
+      expect(res.status).toBe(201);
+      const trigger = res.body.data as {
+        id: string;
+        config: { chatChannel: Record<string, unknown> };
+      };
+      createdTriggerIds.push(trigger.id);
+      expect(trigger.config.chatChannel.languageLocale).toBe('en');
+      expect(trigger.config.chatChannel.languageHints).toMatchObject({
+        executionFailedThirdParty4xx: 'Rejected ({statusCode}).',
+        executionFailedInternal: 'Service issue.',
+      });
+    });
+
+    it('languageLocale=fr (unknown) → 400 VALIDATION_ERROR', async () => {
+      const res = await postTrigger({
+        workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-cch-locale-bad'),
+        endpointPath: uniqueEndpoint('cch-locale-bad'),
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:bad',
+          languageLocale: 'fr',
+        },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('CCH-ERR-* override 에 unknown placeholder ({nodeId}) → 400 UNKNOWN_PLACEHOLDER', async () => {
+      const res = await postTrigger({
+        workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-cch-ph-bad'),
+        endpointPath: uniqueEndpoint('cch-ph-bad'),
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:bad',
+          languageHints: {
+            executionFailedInternal: '오류 in {nodeId}',
+          },
+        },
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      // ValidationPipe 의 exceptionFactory 는 message 안에 UNKNOWN_PLACEHOLDER:<field>:<placeholder>
+      // 포맷을 그대로 흘려 보낸다 — error.message 또는 details 안에서 검출.
+      const serialized = JSON.stringify(res.body.error);
+      expect(serialized).toContain('UNKNOWN_PLACEHOLDER');
+      expect(serialized).toContain('executionFailedInternal');
+    });
+
+    it('기존 키 (executionCompleted) 의 {nodeId} 는 검증 면제 → 201', async () => {
+      // 본 PR 의 validator 는 CCH-ERR-* 6 키만 검증 — 기존 키는 면제 (기존 운영 데이터 보호)
+      const res = await postTrigger({
+        workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-cch-legacy-ok'),
+        endpointPath: uniqueEndpoint('cch-legacy-ok'),
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:e2eToken',
+          languageHints: {
+            executionCompleted: '완료 ({nodeId})', // 기존 키 — 면제
+          },
+        },
+      });
+      expect(res.status).toBe(201);
+      createdTriggerIds.push(res.body.data.id);
+    });
+  });
 });

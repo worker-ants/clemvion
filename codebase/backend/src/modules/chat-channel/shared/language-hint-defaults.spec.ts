@@ -125,10 +125,9 @@ describe('resolveLanguageHint — 3-level lookup', () => {
 
 describe('applyPlaceholders ({statusCode} 치환)', () => {
   it('integer statusCode replaces {statusCode}', () => {
-    const text = applyPlaceholders(
-      'HTTP {statusCode} error',
-      { statusCode: 404 },
-    );
+    const text = applyPlaceholders('HTTP {statusCode} error', {
+      statusCode: 404,
+    });
     expect(text).toBe('HTTP 404 error');
   });
 
@@ -138,10 +137,9 @@ describe('applyPlaceholders ({statusCode} 치환)', () => {
   });
 
   it('multiple {statusCode} occurrences all replaced', () => {
-    const text = applyPlaceholders(
-      '{statusCode}—{statusCode}',
-      { statusCode: 502 },
-    );
+    const text = applyPlaceholders('{statusCode}—{statusCode}', {
+      statusCode: 502,
+    });
     expect(text).toBe('502—502');
   });
 
@@ -154,10 +152,9 @@ describe('applyPlaceholders ({statusCode} 치환)', () => {
 
   it('does not interpret unknown placeholders ({nodeId} stays literal)', () => {
     // DTO validator 가 등록 시점에 reject 해야 하지만, runtime 도 안전.
-    const text = applyPlaceholders(
-      'fail in {nodeId} ({statusCode})',
-      { statusCode: 500 },
-    );
+    const text = applyPlaceholders('fail in {nodeId} ({statusCode})', {
+      statusCode: 500,
+    });
     expect(text).toBe('fail in {nodeId} (500)');
   });
 });

@@ -4,10 +4,7 @@ import {
 } from './execution-failure-classifier';
 import type { EiaFailedEvent } from '../types';
 
-function makeEvent(
-  code: string,
-  details?: unknown,
-): EiaFailedEvent {
+function makeEvent(code: string, details?: unknown): EiaFailedEvent {
   return {
     type: 'execution.failed',
     executionId: 'exec-1',
