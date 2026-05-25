@@ -3094,6 +3094,74 @@ describe('ExecutionEngineService', () => {
 
       warnSpy.mockRestore();
     });
+
+    it('button_click action.type: MAX_UNKNOWN_SKIPS 카운팅 제외 — stale telegram 클릭 누적이 대화를 죽이지 않는다', async () => {
+      // spec/4-nodes/6-presentation/0-common.md §10.9 line 400/407 —
+      // `button_click` 은 enum-complete 케이스로 spec 이 명시한 "warn log +
+      // loop 재진입 graceful degradation" 그대로 동작해야 한다. 텔레그램 stale
+      // inline_keyboard 클릭이 누적돼도 MAX_UNKNOWN_SKIPS (=20) cap 이 발동해
+      // 대화가 FAILED 종결되는 회귀를 차단.
+      //
+      // 회귀 시나리오: 사용자가 Presentation Carousel 노드를 거친 뒤 후속 AI
+      // Agent 가 `waitForAiConversation` 진입. 텔레그램에 잔존한 이전 inline
+      // keyboard 의 콜백이 button_callback → continueButtonClick →
+      // bus.publish({type:'button_click'}) 경로로 본 루프에 도달.
+      const endReturn = {
+        config: { mode: 'multi_turn' },
+        output: {},
+        meta: {},
+        port: 'ended',
+        status: 'ended',
+      };
+      const handler = makeAiDispatchHandler(() => endReturn);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
+
+      const logger = (service as unknown as { logger: { warn: jest.Mock } })
+        .logger;
+      const warnSpy = jest.spyOn(logger, 'warn');
+
+      const execPromise = service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      const pendings = (
+        service as unknown as {
+          pendingContinuations: Map<
+            string,
+            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+          >;
+        }
+      ).pendingContinuations;
+
+      // 25회 — MAX_UNKNOWN_SKIPS (20) 를 충분히 초과. 모두 button_click 이므로
+      // skip 카운팅에서 제외되어야 한다. 매 iteration 마다 새 pending 이 등록
+      // 되므로 loop 가 살아 있어야 진행된다.
+      for (let i = 0; i < 25; i += 1) {
+        const pendingEntry = pendings.get(executionId);
+        expect(pendingEntry).toBeDefined(); // loop alive 검증
+        pendingEntry?.resolve({ type: 'button_click', buttonId: `btn-${i}` });
+        await flushPromises();
+      }
+
+      // 21회 이상 button_click 후에도 대화가 alive 인지 — ai_end_conversation
+      // 으로 정상 종결되는지 확인.
+      const stillAlive = pendings.get(executionId);
+      expect(stillAlive).toBeDefined();
+
+      service.endAiConversation(executionId);
+      await execPromise;
+
+      // FAILED 종결을 야기하는 cap 도달 warn 이 없어야 함.
+      const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
+      const hasCapWarn = warnCalls.some((msg) =>
+        msg.includes('unknown skip limit'),
+      );
+      expect(hasCapWarn).toBe(false);
+
+      warnSpy.mockRestore();
+    });
   });
 
   // ---------------------------------------------------------------------------

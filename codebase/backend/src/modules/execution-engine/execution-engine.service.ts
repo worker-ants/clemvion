@@ -3063,11 +3063,30 @@ export class ExecutionEngineService
         if (turn.finalStatus === 'FAILED') {
           finalStatus = 'FAILED';
         }
+      } else if (action.type === 'button_click') {
+        // spec/4-nodes/6-presentation/0-common.md §10.9 line 400/407 —
+        // `button_click` 는 dispatch enum 의 4 케이스 중 하나로 명시돼 있으나,
+        // line 407 invariant: "AI conversation 대기 중 (`ai_conversation` /
+        // `ai_form_render` 상태) presentation 노드 본체 버튼은 표시·라우팅 안
+        // 됨" 이라서 정상 흐름에서는 도달하지 않는다. spec 은 "도달 시 graceful
+        // degradation = warn log + loop 재진입" 으로 명시 — 본 분기가 그 정확한
+        // 구현.
+        //
+        // 회귀 차단 (사용자 보고 2026-05-25): 텔레그램 stale inline_keyboard
+        // 클릭이 누적되면 truly-unknown 케이스의 `MAX_UNKNOWN_SKIPS` (20) cap
+        // 에 도달해 대화가 FAILED 종결되는 회귀. button_click 은 enum-known
+        // 이므로 skip count 에서 명시적으로 제외 — 무한 클릭에도 대화 alive
+        // 유지, 사용자는 다음 메시지 입력으로 자연스럽게 진행 가능.
+        this.logger.warn(
+          `[waitForAiConversation] button_click action received during ai_conversation (spec §10.9 invariant breach — likely stale chat-channel inline_keyboard click). execution=${executionId} buttonId=${String((action as { buttonId?: unknown }).buttonId ?? '').slice(0, 64)} — loop re-entering (skip count excluded per spec line 407 graceful degradation)`,
+        );
       } else {
-        // spec §10.9 — 알 수 없는 action.type 은 silent skip 회피. warn log
-        // 남기고 loop 재진입 (다음 이벤트 대기). 새 action type 추가 시 dispatch
-        // 분기 누락이 silent failure 가 되지 않게 가드.
+        // spec §10.9 line 401 — 알 수 없는 action.type 은 silent skip 회피.
+        // warn log 남기고 loop 재진입 (다음 이벤트 대기). 새 action type 추가
+        // 시 dispatch 분기 누락이 silent failure 가 되지 않게 가드.
         // W6 (SUMMARY) — unknown skip 최대 횟수 cap (MAX_UNKNOWN_SKIPS).
+        // button_click 은 enum-known 케이스로 위 else if 분기가 처리하므로
+        // 본 cap 의 대상에서 제외된다 (spec line 407).
         unknownSkipCount += 1;
         this.logger.warn(
           `Unknown continuation action.type=${String(action.type).slice(0, 64)} for execution=${executionId} — loop re-entering (skip=${unknownSkipCount}/${MAX_UNKNOWN_SKIPS})`,
