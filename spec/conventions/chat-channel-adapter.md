@@ -290,6 +290,8 @@ function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.fa
 
 **위치**: 본 helper 는 `codebase/backend/src/modules/chat-channel/shared/execution-failure-classifier.ts` 한 파일로 구현. 어댑터별 호출만 (provider-specific 분기 없음).
 
+**locale 분기 책임**: 본 helper 는 `key` 만 결정 — locale 별 default 문구 lookup 은 어댑터 책임 ([Spec Chat Channel §4.1.1](../5-system/15-chat-channel.md#411-languagehints-default-문구--ko--en) 의 KO/EN 표). 어댑터의 lookup 순서: (1) `languageHints[key]` override → (2) `config.chatChannel.languageLocale` 의 default → (3) 'ko' fallback. helper 는 locale 무관 (key 자체는 locale 과 직교).
+
 ---
 
 ## 4. Form 다단계 시퀀스 규약

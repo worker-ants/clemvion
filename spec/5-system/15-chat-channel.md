@@ -95,7 +95,7 @@ pending_plans:
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
-| CCH-ERR-01 | `execution.failed` 수신 시 어댑터가 분류 알고리즘 결과 (`key`, `placeholders`) 로 `languageHints[key]` 를 lookup → placeholders 치환 → `text` ChannelMessage 1건 sendMessage. `languageHints[key]` 미설정 시 [`§4.1`](#41-triggerconfigchatchannel) 의 default 한국어 문구 사용 | 필수 |
+| CCH-ERR-01 | `execution.failed` 수신 시 어댑터가 분류 알고리즘 결과 (`key`, `placeholders`) 로 `languageHints[key]` 를 lookup → placeholders 치환 → `text` ChannelMessage 1건 sendMessage. `languageHints[key]` 미설정 시 [`§4.1.1`](#411-languagehints-default-문구--ko--en) 의 default 문구 (KO / EN, `config.chatChannel.languageLocale` 기준 선택, locale 미설정 시 'ko' fallback) 사용 | 필수 |
 | CCH-ERR-02 | 분류 입력 화이트리스트 — `error.code` (EIA §6.4 enum) + `error.details.statusCode` (정수, optional) 2 필드만 분류 결정에 사용. `error.message` 원문·`nodeId`·`details` 의 다른 필드·`workflowId`·`executionId` 는 분류 입력으로 사용 금지 | 필수 |
 | CCH-ERR-03 | 민감정보 노출 금지 — `error.message` 원문, `details.url` / `details.endpoint` / `details.query` / `details.stack` / `nodeId` / `executionId` / `workflowId` 는 channel 메시지 본문·로그(`level=info` 이상)·metric 어디에도 포함하지 않는다. i18n template 의 허용 placeholder 는 `{statusCode}` 1종 (정수, PII/secret 아님) | 필수 |
 | CCH-ERR-04 | 분류 표에 없는 `error.code` (unknown) 또는 `error.code === null` 는 `executionFailedInternal` key 로 fallback. silently swallow 금지 — backend 로그 (`level=warn`, structured `{ kind: "chat_channel_unknown_failure_code", code, hasDetails: boolean }`) 발사 후 generic 안내 발송 | 필수 |
@@ -211,13 +211,14 @@ pending_plans:
       "buttonLayout": "auto"                    // "auto" | "vertical" | "horizontal"
     },
     "rateLimitPerMinute": 60,                   // CCH-NF-03 override
-    "languageHints": {                          // 봇이 보내는 자체 안내 메시지 i18n
+    "languageLocale": "ko",                     // "ko" | "en" — 미설정 default = "ko". 어댑터가 languageHints 미설정 시 본 locale 의 default 문구 lookup. 사용자 명시 override (languageHints[key] = "...") 가 우선.
+    "languageHints": {                          // 봇이 보내는 자체 안내 메시지 i18n (사용자 override). 미설정 키는 languageLocale 의 default 문구 사용.
       "groupChatRefusal":              "이 봇은 1:1 대화만 지원합니다.",
       "executionStarted":              "워크플로우를 시작합니다…",
       "executionCompleted":            "워크플로우가 완료되었습니다.",
       "executionStillRunning":         "워크플로우가 처리 중입니다. 잠시만 기다려 주세요.",  // CCH-CV-03 의 running 케이스 안내 default
       "help":                          "사용 가능한 명령: /start, /cancel, /help",          // §7 명령 처리의 /help default
-      // 실행 실패 안내 (CCH-ERR-01 / §3.5) — 분류 알고리즘 (Convention §3.1) 결과의 key. 미설정 시 본 default.
+      // 실행 실패 안내 (CCH-ERR-01 / §3.5) — 분류 알고리즘 (Convention §3.1) 결과의 key. 미설정 시 languageLocale 의 default.
       // 허용 placeholder = `{statusCode}` 1종 (정수). 그 외 placeholder 는 DTO validator 가 등록 시점에 reject.
       "executionFailedThirdParty4xx":  "외부 서비스 요청이 거부되었습니다 ({statusCode}). 잠시 후 다시 시도해 주세요.",
       "executionFailedThirdParty5xx":  "외부 서비스에 일시적인 문제가 발생했습니다 ({statusCode}). 잠시 후 다시 시도해 주세요.",
@@ -233,6 +234,21 @@ pending_plans:
 `chatChannel` 미존재 = 일반 webhook 트리거 (기존 동작 그대로). 본 필드는 [Webhook §2.2](./12-webhook.md#22-config-필드-구조) 의 `config` JSONB 안에 위치.
 
 `botTokenRef` / `inboundSigningRef` 는 모두 [`secret-store.md`](../conventions/secret-store.md) 의 `SecretResolver` 가 resolve — config JSONB 에는 ref 만, plaintext 는 backend AES-256-GCM 으로 암호화되어 `secret_store` 테이블의 `encrypted BYTEA` 컬럼에 보관. [EIA §7.1](./14-external-interaction-api.md#71-trigger-엔티티-확장) 의 `notification.signing.secretRef` 와 동일 정책 + 동일 백엔드. `inboundSigningRef` 의 provider 별 자원 성격·발급 주체·검증 알고리즘은 [`conventions/chat-channel-adapter.md §2.3 ChatChannelConfig`](../conventions/chat-channel-adapter.md#23-chatchannelconfig) 가 단일 진실 (Telegram = server-issued shared secret / Slack = HMAC key / Discord = ed25519 public key).
+
+#### 4.1.1 `languageHints` default 문구 — KO / EN
+
+CCH-ERR-* 6 키의 default 문구는 KO / EN 두 locale 모두 backend 가 보관한다. 어댑터의 lookup 순서는 (1) `languageHints[key]` 사용자 override → (2) `languageLocale` 의 default 문구 → (3) (방어적) `languageLocale` 미설정 시 'ko' fallback. 기존 5 키 (`groupChatRefusal` 등) 의 EN default 화는 본 spec 범위 밖 — 별 plan 추적.
+
+| key | KO default | EN default |
+|---|---|---|
+| `executionFailedThirdParty4xx` | "외부 서비스 요청이 거부되었습니다 ({statusCode}). 잠시 후 다시 시도해 주세요." | "The external service rejected the request ({statusCode}). Please try again later." |
+| `executionFailedThirdParty5xx` | "외부 서비스에 일시적인 문제가 발생했습니다 ({statusCode}). 잠시 후 다시 시도해 주세요." | "The external service is temporarily unavailable ({statusCode}). Please try again later." |
+| `executionFailedThirdParty`    | "외부 서비스 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요." | "Couldn't reach the external service. Please try again later." |
+| `executionFailedTimeout`       | "처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요." | "The request timed out. Please try again later." |
+| `executionFailedRateLimit`     | "요청량이 많아 잠시 후 다시 시도해 주세요." | "Too many requests. Please try again later." |
+| `executionFailedInternal`      | "서비스에 일시적 문제가 발생했습니다. 잠시 후 다시 시도해 주세요." | "The service is temporarily unavailable. Please try again later." |
+
+`{statusCode}` placeholder 는 두 locale 모두 동일 위치 — 어댑터의 치환 코드가 locale 분기 없이 단일 경로 (Rationale R-CC-15 (c) 의 placeholder 화이트리스트 정책 그대로).
 
 ### 4.2 Trigger 테이블 신규 컬럼
 

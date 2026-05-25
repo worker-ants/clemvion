@@ -86,8 +86,8 @@ related_specs:
 | `providers/telegram/telegram-message.renderer.ts` | `execution.failed` case 추가 — `languageHints[key]` lookup + `{statusCode}` placeholder 치환 + MarkdownV2 escape |
 | `providers/slack/slack-message.renderer.ts` | 동일 — mrkdwn 무사용 plain text |
 | `providers/discord/discord-message.renderer.ts` | 동일 — `content` field plain text |
-| `dto/create-trigger.dto.ts` + `dto/update-trigger.dto.ts` | `languageHints` 객체 validation 에 신규 6 키 optional 허용 (기존 키와 동일 패턴) |
-| Default `languageHints` (registry 또는 provider adapter) | 한국어 default 6 문구 추가 |
+| `dto/create-trigger.dto.ts` + `dto/update-trigger.dto.ts` | `languageHints` 객체 validation 에 신규 6 키 optional 허용 (기존 키와 동일 패턴). `languageLocale: "ko" \| "en"` enum field 추가 (optional, default "ko"). `languageHints` template placeholder 검증 — 허용 placeholder `{statusCode}` 만, 그 외 발견 시 `400 VALIDATION_ERROR (code='UNKNOWN_PLACEHOLDER')` (R-CC-15 (c)). |
+| Default `languageHints` (registry 또는 provider adapter) | 한국어 + 영어 default 12 문구 (KO 6 + EN 6) 추가. lookup 순서: (1) `languageHints[key]` override → (2) `config.chatChannel.languageLocale` 의 default → (3) 'ko' fallback. Convention §3.1 helper 와 분리 (helper 는 key 만 결정, locale 분기는 어댑터). |
 
 ### Tests
 
@@ -139,9 +139,7 @@ related_specs:
 - 본 plan 파일 (이 파일)
 - (후속) backend / test / e2e 변경 — 별 commit
 
-## 결정 대기 (사용자)
+## 결정 (사용자 응답 2026-05-25)
 
-- **Q5: spec PR + 구현 PR 분리 vs 한 묶음?** — 권장은 **한 묶음** (e2e 1회 통과 의미 확보). 사용자 응답 후 진행.
-- **Q6: i18n default 문구 — 영어 default 도 동시 추가? KO 만?** — 권장은 **KO default 만** (기존 `executionStillRunning` 등이 모두 한국어 default. EN 은 사용자 `languageHints` override 책임).
-
-본 plan 은 Q5/Q6 미회신 시 KO default + 한 묶음 PR 가정으로 진행.
+- **Q5: spec PR + 구현 PR 분리 vs 한 묶음?** → **한 묶음** (e2e 1회 통과 의미 확보). Phase 1-4 같은 worktree (`chat-channel-error-notify-6d37ec`) 연속 진행.
+- **Q6: i18n default 문구 — KO + EN 둘 다?** → **KO + EN 둘 다 spec 에 미리 정의**. `config.chatChannel.languageLocale: "ko" | "en"` (default "ko") 필드 신설로 사용자 override 부담 감소. 기존 5 키 (`groupChatRefusal` 등) 의 EN 화는 본 PR 범위 밖 (별 plan). 본 변경은 commit 2 차 spec 보강으로 적용.
