@@ -257,3 +257,95 @@ describe('isEmptyTextBody — sendMessage 호출 직전 빈 text guard', () => {
     expect(isEmptyTextBody({ kind: 'typing' })).toBe(false);
   });
 });
+
+/**
+ * toEiaEvent — execution.failed back-compat (string error wrap).
+ *
+ * 회귀 보호: execution-engine 이 emit 하는 payload.error 가 EIA §6.4 의 object shape 가
+ * 아닌 string (errMessage) 인 경우 (execution-engine.service.ts line 1339-1346 / 2526-2533) —
+ * dispatcher 가 object 만 인정해 null 반환 → outbound skip → CCH-ERR-* 안내 미발송.
+ * dispatcher 차원 back-compat: string 도 generic object 로 wrap (classifier unknown
+ * fallback → executionFailedInternal 안내 발송).
+ */
+describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-05-25)', () => {
+  const baseEnvelope: Pick<
+    ExecutionChannelEvent,
+    'executionId' | 'eventType' | 'seq'
+  > = {
+    executionId: 'exec-1',
+    eventType: 'execution.failed',
+    seq: 9,
+  };
+  const baseRouting = {
+    triggerId: 'trig-1',
+    workflowId: 'wf-1',
+    timestamp: '2026-05-25T00:00:00.000Z',
+  };
+
+  it('payload.error 가 object → 기존 처리 (정상 path)', () => {
+    const event: ExecutionChannelEvent = {
+      ...baseEnvelope,
+      payload: {
+        ...baseRouting,
+        status: 'failed',
+        error: {
+          code: 'HTTP_4XX',
+          message: 'Bad request',
+          details: { statusCode: 401 },
+        },
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.failed') throw new Error();
+    expect(eia.error.code).toBe('HTTP_4XX');
+    expect((eia.error.details as { statusCode: number }).statusCode).toBe(401);
+  });
+
+  it('payload.error 가 string → wrap (back-compat, code=INTERNAL_ERROR)', () => {
+    const event: ExecutionChannelEvent = {
+      ...baseEnvelope,
+      payload: {
+        ...baseRouting,
+        status: 'failed',
+        error: 'Error: {"error":{"code":429,"message":"You exceeded quota"}}',
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.failed') throw new Error();
+    expect(eia.error.code).toBe('INTERNAL_ERROR');
+    expect(eia.error.message).toContain('quota');
+  });
+
+  it('payload.error 가 undefined / 잘못된 타입 → wrap (placeholder, code=INTERNAL_ERROR)', () => {
+    const event: ExecutionChannelEvent = {
+      ...baseEnvelope,
+      payload: {
+        ...baseRouting,
+        status: 'failed',
+        // error 미존재
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.failed') throw new Error();
+    expect(eia.error.code).toBe('INTERNAL_ERROR');
+    expect(eia.error.message).toBe('unknown error');
+  });
+
+  it('payload.error 가 number → wrap (placeholder)', () => {
+    const event: ExecutionChannelEvent = {
+      ...baseEnvelope,
+      payload: {
+        ...baseRouting,
+        status: 'failed',
+        error: 42,
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.failed') throw new Error();
+    expect(eia.error.code).toBe('INTERNAL_ERROR');
+  });
+});
