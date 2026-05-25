@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "started_at": "2026-05-25T00:00:00Z",
+  "summary_items_total": 7,
+  "items_resolved_ids": ["W1", "W2", "W3", "W4", "W5"],
+  "items_pending_ids": ["W6", "W7"],
+  "items_escalated_ids": {"W6": "spec", "W7": "spec"},
+  "commits_made": [
+    {"sha": "24358787", "summary_id": "W1-W5", "scope": "execution-engine"},
+    {"sha": "d0f8bfeb", "summary_id": "W3", "scope": "execution-engine"}
+  ],
+  "spec_drafts_pending": [
+    "plan/in-progress/spec-fix-presentation-common-frontmatter.md"
+  ],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 2,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/e2e-20260525-155640.log",
+    "_test_logs/e2e-20260525-155826.log"
+  ],
+  "auto_fix_iterations": {"W3": 2},
+  "escalation_reason": "spec",
+  "last_reset_hint_sec": null
+}
