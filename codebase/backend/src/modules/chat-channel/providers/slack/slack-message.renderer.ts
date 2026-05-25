@@ -73,16 +73,15 @@ function renderWaitingForInput(
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   const interactionType = event.node?.interactionType;
-  // ai_form_render = ai-agent render_form blocking 진입 (ai_conversation sub-state) —
-  // chat channel 안에서는 ai_conversation 과 동일 경로 처리. spec/conventions/interaction-type-registry.md §1.
+  // chat channel 에서 ai_conversation / ai_form_render waiting 은 silent — 직전 ai_message
+  // event 가 응답 본문 발송 책임. conversationConfig.message 는 frontend reconcile 용
+  // echo 라 chat channel 에 발송 시 사용자에게 중복 도착.
+  // SoT: spec/conventions/chat-channel-adapter.md §3 (2026-05-25 갱신).
   if (
     interactionType === 'ai_conversation' ||
     interactionType === 'ai_form_render'
   ) {
-    const message =
-      (event.context?.conversationConfig as { message?: string } | undefined)
-        ?.message ?? '';
-    return message.length > 0 ? chunkText(message) : [];
+    return [];
   }
   if (interactionType === 'buttons') {
     return renderButtons(event, config);

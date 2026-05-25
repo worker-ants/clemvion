@@ -322,8 +322,10 @@ describe('renderSlackEvent — form 다단계 (CCH-MP-03)', () => {
   });
 });
 
-describe('renderSlackEvent — ai_conversation (CCH-MP-01)', () => {
-  it('conversationConfig.message → chunked text', () => {
+describe('renderSlackEvent — ai_conversation / ai_form_render (R-CCA-6)', () => {
+  // chat channel 에서 ai_conversation / ai_form_render waiting 은 silent (빈 array) —
+  // ai_message event 가 응답 본문 단독 발송 책임. 중복 발송 회귀 fix (R-CCA-6, 2026-05-25).
+  it('ai_conversation → silent (빈 array) — conversationConfig.message 가 ai_message 와 중복이라 발송 안 함', () => {
     const msgs = renderSlackEvent(
       {
         type: 'execution.waiting_for_input',
@@ -338,6 +340,24 @@ describe('renderSlackEvent — ai_conversation (CCH-MP-01)', () => {
       },
       CONFIG,
     );
-    expect(msgs[0].body).toEqual({ kind: 'text', text: 'hi' });
+    expect(msgs).toEqual([]);
+  });
+
+  it('ai_form_render → silent (빈 array, ai_conversation 과 동일 정책)', () => {
+    const msgs = renderSlackEvent(
+      {
+        type: 'execution.waiting_for_input',
+        executionId: 'e',
+        triggerId: 't',
+        workflowId: 'w',
+        seq: 1,
+        timestamp: '2026-05-24T00:00:00Z',
+        node: { id: 'n', type: 'ai', interactionType: 'ai_form_render' },
+        interaction: {},
+        context: { conversationConfig: { message: '폼 작성' } },
+      },
+      CONFIG,
+    );
+    expect(msgs).toEqual([]);
   });
 });

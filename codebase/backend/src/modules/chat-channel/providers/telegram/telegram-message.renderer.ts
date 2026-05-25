@@ -103,21 +103,16 @@ function renderWaitingForInput(
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   switch (event.node.interactionType) {
-    // ai_form_render 는 ai-agent 의 render_form blocking 진입 — ai_conversation 의 sub-state.
-    // chat channel 안에서는 동일 경로로 처리 (form 인라인 렌더 어려움 — conversationConfig.message
-    // 있으면 표시, 없으면 awaitingInput 안내). spec/conventions/interaction-type-registry.md §1.
+    // chat channel 안에서 ai_conversation / ai_form_render 의 waiting 은 silent.
+    // 이유: ai-agent multi-turn 의 매 turn 마다 (a) `ai_message` event 가 응답 본문을
+    // emit 하고 (b) 직후 `waiting_for_input(ai_conversation).conversationConfig.message`
+    // 가 같은 본문을 echo (frontend reconcile 용) → chat channel 에 둘 다 발송하면
+    // 사용자에게 동일 메시지 2회 도착. messaging app UX 에서 텍스트 입력 자체가
+    // default prompt 이므로 awaitingInput 안내도 발송 안 함.
+    // SoT: spec/conventions/chat-channel-adapter.md §3 (2026-05-25 갱신).
     case 'ai_conversation':
-    case 'ai_form_render': {
-      const message = (
-        event.context.conversationConfig as { message?: unknown } | undefined
-      )?.message;
-      if (typeof message === 'string' && message.length > 0) {
-        return renderText(message);
-      }
-      return renderText(
-        config.languageHints?.awaitingInput ?? '메시지를 보내주세요.',
-      );
-    }
+    case 'ai_form_render':
+      return [];
     case 'buttons':
       return renderButtons(event, config);
     case 'form':

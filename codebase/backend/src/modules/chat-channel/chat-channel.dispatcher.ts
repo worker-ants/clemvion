@@ -469,17 +469,37 @@ export function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
       };
     }
     case 'execution.failed': {
-      const error = (event.payload as { error?: unknown }).error;
-      if (!error || typeof error !== 'object') return null;
+      // execution-engine 이 emit 하는 payload.error shape 가 spec EIA §6.4 의 object
+      // (`{ code, message, nodeId, details? }`) 와 drift — 일부 throw 경로에서 string
+      // (errMessage) 으로 emit (execution-engine.service.ts line 1339-1346 / 2526-2533).
+      // dispatcher 차원 back-compat wrap: string 이면 generic object 로 변환해 classifier
+      // 의 unknown fallback (`executionFailedInternal`) 안내가 발송되도록 한다. 사용자가
+      // CCH-ERR-* 안내를 받지 못하는 silent skip 회귀 fix (2026-05-25).
+      //
+      // 후속: execution-engine 의 emit shape 를 spec EIA §6.4 정합으로 마이그레이션하는
+      // 별 plan (`spec-update-execution-failed-payload-shape`). 그 PR merge 후 본 wrap
+      // 은 deprecated path 로 남고, object 케이스만 hot path.
+      const errorRaw = (event.payload as { error?: unknown }).error;
+      let error: {
+        code: string;
+        message: string;
+        nodeId?: string | null;
+        details?: unknown;
+      };
+      if (errorRaw && typeof errorRaw === 'object') {
+        // Spec-정합 object shape (정상 path).
+        error = errorRaw as typeof error;
+      } else if (typeof errorRaw === 'string') {
+        // Legacy string emit (back-compat wrap) — classifier unknown fallback.
+        error = { code: 'INTERNAL_ERROR', message: errorRaw };
+      } else {
+        // 양쪽 미정의 — minimal placeholder. classifier unknown fallback.
+        error = { code: 'INTERNAL_ERROR', message: 'unknown error' };
+      }
       return {
         ...base,
         type: 'execution.failed',
-        error: error as {
-          code: string;
-          message: string;
-          nodeId?: string | null;
-          details?: unknown;
-        },
+        error,
         durationMs: (event.payload as { durationMs?: number }).durationMs,
       };
     }

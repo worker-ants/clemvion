@@ -154,7 +154,9 @@ describe('renderTelegramMessages', () => {
     expect(m[0].body.kind).toBe('text');
   });
 
-  it('waiting_for_input(ai_form_render) → ai_conversation 과 동일 경로 (conversationConfig.message → text)', () => {
+  // chat channel 에서 ai_conversation / ai_form_render waiting 은 silent (빈 array) —
+  // ai_message event 가 응답 본문 단독 발송 책임. 중복 발송 회귀 fix (R-CCA-6, 2026-05-25).
+  it('waiting_for_input(ai_form_render) → silent (빈 array, R-CCA-6)', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.waiting_for_input',
@@ -163,12 +165,10 @@ describe('renderTelegramMessages', () => {
       context: { conversationConfig: { message: '폼을 작성해 주세요' } },
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
-    expect(m).toHaveLength(1);
-    expect(m[0].body.kind).toBe('text');
-    expect((m[0].body as { text: string }).text).toContain('폼을 작성해');
+    expect(m).toEqual([]);
   });
 
-  it('waiting_for_input(ai_conversation) → conversationConfig.message → text', () => {
+  it('waiting_for_input(ai_conversation) → silent (빈 array, R-CCA-6) — conversationConfig.message 가 ai_message 와 중복이라 발송 안 함', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.waiting_for_input',
@@ -177,11 +177,7 @@ describe('renderTelegramMessages', () => {
       context: { conversationConfig: { message: 'how can I help?' } },
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
-    expect(m[0].body).toEqual({
-      kind: 'text',
-      text: 'how can I help?',
-      chunked: false,
-    });
+    expect(m).toEqual([]);
   });
 
   it('waiting_for_input(buttons) → buttons body (Phase 3 PR-B)', () => {
