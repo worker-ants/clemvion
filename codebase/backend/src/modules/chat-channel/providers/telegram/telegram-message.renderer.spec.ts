@@ -717,7 +717,11 @@ describe('execution.ai_message — presentations[] sequential 발송 (CCH-MP-01 
     expect(m[0].body.kind).toBe('text');
   });
 
-  it('render_form (presentations[*].type === "form") → skip (ai_form_render 별 plan 추적)', () => {
+  it('render_form (presentations[*].type === "form") → v1 임시 fallback text 발화 (사용자 보고 2026-05-25 회귀 ④ 해소)', () => {
+    // SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표 (2026-05-25 갱신)
+    // 직전 정책 ("form 은 별 plan 추적 — skip") 은 사용자에게 메시지가 안 보이는
+    // 회귀 유발. v1 임시 fallback (fields 목록 + 답변 안내) 로 발화 — full native
+    // modal 은 별 plan `chat-channel-form-native-modal` v2.
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.ai_message',
@@ -728,13 +732,126 @@ describe('execution.ai_message — presentations[] sequential 발송 (CCH-MP-01 
           type: 'form',
           toolCallId: 'tc-form',
           renderedAt: '2026-05-25T07:00:00.000Z',
-          payload: { fields: [{ name: 'a', label: 'A' }] },
+          payload: {
+            fields: [
+              { name: 'name', label: '이름', type: 'text', required: true },
+              { name: 'phone', label: '전화번호', type: 'phone' },
+            ],
+          },
         },
       ],
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
-    // text 1건 — form presentation 은 skip
+    // text 1건 (ai_message message) + form fallback text 1건+
+    expect(m.length).toBeGreaterThan(1);
+    const all = m
+      .map((msg) => (msg.body.kind === 'text' ? msg.body.text : ''))
+      .join('\n');
+    expect(all).toContain('with form');
+    // fallback 안에 fields 라벨이 들어있어야 함
+    expect(all).toContain('이름');
+    expect(all).toContain('전화번호');
+  });
+
+  it('ai_message empty body + render_form presentation → form fallback 만 발화 (회귀 ④ — LLM 이 form 만 호출하고 텍스트 없는 케이스)', () => {
+    // LLM 이 render_form 호출하고 응답 텍스트는 비어있는 정상 패턴.
+    // 기존 정책으로는 text 1건 (빈 string) → isEmptyTextBody skip → 사용자 0 메시지.
+    // 본 fix: form fallback 메시지가 발화돼 사용자가 form 을 볼 수 있어야 함.
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: '',
+      turnCount: 1,
+      presentations: [
+        {
+          type: 'form',
+          toolCallId: 'tc-form',
+          renderedAt: '2026-05-25T07:00:00.000Z',
+          payload: {
+            fields: [{ name: 'name', label: '이름', type: 'text' }],
+          },
+        },
+      ],
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    // form fallback 메시지가 최소 1건은 있어야 함
+    const formMsg = m.find(
+      (msg) => msg.body.kind === 'text' && msg.body.text.includes('이름'),
+    );
+    expect(formMsg).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2026-05-25 — 회귀 ⑤ (사용자 보고): renderer 가 handler structured return shape
+// (`{config, output: {rendered/items/...}}`) 을 처리하지 못해 "(카드가 없습니다.)"
+// 잘못 표시. nodeOutput 의 여러 위치 (.payload / .output / .rendered top-level)
+// 에서 본문을 추출해야 함.
+// ---------------------------------------------------------------------------
+describe('execution.node.completed — handler structured return shape 처리 (회귀 ⑤)', () => {
+  it('template — nodeOutput.output.rendered (structured shape) 추출 — 회귀 ⑤ 핵심', () => {
+    // Template handler 가 return {config, output: {rendered: 본문}} →
+    // nodeExecution.outputData = 이 객체 → NODE_COMPLETED emit .output = 이 객체.
+    // 본 fix 전: nodeOutput.rendered / nodeOutput.payload.rendered 둘 다 없음 →
+    // null → 빈 array → 메시지 누락. 본 fix 후: nodeOutput.output.rendered 도 추출.
+    const event = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.node.completed' as const,
+      node: { id: 'tpl-1', type: 'template' as const, label: '템플릿' },
+      output: {
+        config: { template: '본문 raw', outputFormat: 'text' },
+        output: { rendered: '카페24와 날씨에 대한 문의가 가능해요.' },
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
     expect(m).toHaveLength(1);
     expect(m[0].body.kind).toBe('text');
+    if (m[0].body.kind === 'text') {
+      expect(m[0].body.text).toContain('카페24');
+    }
+  });
+
+  it('carousel — nodeOutput.output.items (structured shape) 추출', () => {
+    const event = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.node.completed' as const,
+      node: { id: 'car-1', type: 'carousel' as const },
+      output: {
+        config: { items: [{ title: '상품 A' }] },
+        output: { items: [{ title: '상품 A' }] },
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    const all = m
+      .map((msg) => (msg.body.kind === 'text' ? msg.body.text : ''))
+      .join('\n');
+    expect(all).toContain('상품 A');
+    expect(all).not.toContain('카드가 없습니다');
+  });
+
+  it('carousel static mode — items 가 config 안에만 있는 경우 (handler return shape)', () => {
+    // Carousel static mode: handler 가 items 를 output 안 넣고 config.items 만 유지.
+    // 회귀: renderer 가 config.items 도 fallback 으로 봐야 빈 items 오해 안 함.
+    const event = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.node.completed' as const,
+      node: { id: 'car-2', type: 'carousel' as const },
+      output: {
+        config: {
+          items: [
+            { title: '카드 1', description: '본문' },
+            { title: '카드 2' },
+          ],
+          mode: 'static',
+        },
+        output: {},
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    const all = m
+      .map((msg) => (msg.body.kind === 'text' ? msg.body.text : ''))
+      .join('\n');
+    expect(all).toContain('카드 1');
+    expect(all).toContain('카드 2');
   });
 });

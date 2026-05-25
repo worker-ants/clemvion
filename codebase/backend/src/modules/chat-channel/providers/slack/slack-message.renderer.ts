@@ -109,12 +109,51 @@ function renderPresentationPayload(
   presentation: PresentationPayload,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
-  if (presentation.type === 'form') return [];
+  // 회귀 ④ fix (사용자 보고 2026-05-25): render_form 도 v1 임시 fallback 발화.
+  // SoT: spec/conventions/chat-channel-adapter.md §3.
+  if (presentation.type === 'form') {
+    return renderFormFallback(presentation.payload);
+  }
   return renderPresentationByType(
     presentation.type,
     { payload: presentation.payload },
     config,
   );
+}
+
+/**
+ * 회귀 ⑤ (사용자 보고 2026-05-25): handler structured return shape 처리.
+ */
+function extractRendered(nodeOutput: Record<string, unknown>): string | null {
+  const candidates: unknown[] = [
+    nodeOutput.rendered,
+    (nodeOutput.payload as { rendered?: unknown } | undefined)?.rendered,
+    (nodeOutput.output as { rendered?: unknown } | undefined)?.rendered,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.length > 0) return c;
+  }
+  return null;
+}
+
+function extractVisualPayload(
+  type: 'carousel' | 'table' | 'chart',
+  nodeOutput: Record<string, unknown>,
+): unknown {
+  const keys =
+    type === 'carousel' ? ['items'] : type === 'table' ? ['rows'] : ['series'];
+  const hasArrayKey = (v: unknown): boolean => {
+    if (!v || typeof v !== 'object') return false;
+    const obj = v as Record<string, unknown>;
+    return keys.some((k) => Array.isArray(obj[k]));
+  };
+  const candidates: unknown[] = [
+    nodeOutput.payload,
+    nodeOutput.output,
+    nodeOutput.config,
+    nodeOutput,
+  ];
+  return candidates.find(hasArrayKey) ?? nodeOutput.payload ?? nodeOutput;
 }
 
 function renderPresentationByType(
@@ -123,20 +162,45 @@ function renderPresentationByType(
   _config: ChatChannelConfig,
 ): ChannelMessage[] {
   if (type === 'template') {
-    const rendered =
-      typeof nodeOutput.rendered === 'string'
-        ? nodeOutput.rendered
-        : typeof (nodeOutput.payload as { rendered?: unknown } | undefined)
-              ?.rendered === 'string'
-          ? (nodeOutput.payload as { rendered: string }).rendered
-          : null;
-    if (rendered === null || rendered.length === 0) return [];
+    const rendered = extractRendered(nodeOutput);
+    if (rendered === null) return [];
     return chunkText(rendered);
   }
-  const payload = nodeOutput.payload ?? (nodeOutput as unknown);
+  const payload = extractVisualPayload(type, nodeOutput);
   const text = renderVisualFallback(type, payload);
   if (!text) return [];
   return chunkText(text);
+}
+
+/**
+ * 회귀 ④ (사용자 보고 2026-05-25): AI Agent `render_form` v1 임시 fallback.
+ * SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표 (2026-05-25 갱신).
+ */
+function renderFormFallback(
+  payload: Record<string, unknown>,
+): ChannelMessage[] {
+  const fields = Array.isArray(payload?.fields)
+    ? (payload.fields as Array<{
+        name?: unknown;
+        label?: unknown;
+        type?: unknown;
+        required?: unknown;
+      }>)
+    : [];
+  if (fields.length === 0) return [];
+  const lines: string[] = ['📝 입력이 필요해요:'];
+  for (const f of fields) {
+    const label = typeof f.label === 'string' ? f.label : '';
+    const name = typeof f.name === 'string' ? f.name : '';
+    const fieldType = typeof f.type === 'string' ? f.type : 'text';
+    const required = f.required === true ? ' *' : '';
+    const display = label || name;
+    if (!display) continue;
+    lines.push(`• ${display}${required} (${fieldType})`);
+  }
+  lines.push('');
+  lines.push('답변을 메시지로 보내주세요.');
+  return chunkText(lines.join('\n'));
 }
 
 function renderWaitingForInput(

@@ -74,7 +74,7 @@ pending_plans:
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
-| CCH-MP-01 | [AI Multi Turn](../4-nodes/3-ai/1-ai-agent.md) 의 `execution.ai_message` → 채널 텍스트 메시지 1건 이상으로 변환 (provider 별 길이 제한 분할). **payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) / [EIA §6.5 line 536](./14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message))** 가 비어있지 않으면 4종 display-only presentation (`carousel`/`table`/`chart`/`template`) 각각을 `CCH-MP-04` 의 v1 fallback 으로 렌더해 ChannelMessage 시퀀스로 text 뒤에 **sequential `await`** 추가 발송 (`Promise.all` 금지 — provider rate limit + 표시 순서 보장). `render_form` (`presentations[*].type === 'form'`) 은 별 plan `chat-channel-form-native-modal` 추적 — 본 룰 처리 대상 아님. | 필수 |
+| CCH-MP-01 | [AI Multi Turn](../4-nodes/3-ai/1-ai-agent.md) 의 `execution.ai_message` → 채널 텍스트 메시지 1건 이상으로 변환 (provider 별 길이 제한 분할). **payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) / [EIA §6.5 line 536](./14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message))** 가 비어있지 않으면 5종 presentation 각각을 v1 fallback 으로 렌더해 ChannelMessage 시퀀스로 text 뒤에 **sequential `await`** 추가 발송 (`Promise.all` 금지 — provider rate limit + 표시 순서 보장). 4종 display-only (`carousel`/`table`/`chart`/`template`) 는 `CCH-MP-04` 의 v1 fallback 재사용 (텔레그램 §5.4 MarkdownV2). `render_form` (`presentations[*].type === 'form'`) 은 **v1 임시 텍스트 fallback** — fields 목록 + 답변 안내 텍스트로 발화 (2026-05-25 사용자 보고 회귀 해소). 별 plan `chat-channel-form-native-modal` v2 가 native modal/Mini App 으로 격상하기 전까지 임시 정책. | 필수 |
 | CCH-MP-02 | [Button Presentation](../4-nodes/6-presentation/0-common.md) 의 `execution.waiting_for_input` (interactionType=buttons) → 채널의 inline keyboard 로 변환. tap → `click_button` 명령 | 필수 |
 | CCH-MP-03 | [Form](../4-nodes/6-presentation/4-form.md) 의 `execution.waiting_for_input` (interactionType=form) → 다단계 prompt 시퀀스 (필드별 한 줄 질문). 검증 실패 시 그 필드만 재질문 ([EIA-RL-03](./14-external-interaction-api.md#34-신뢰성·일관성)) | 필수 |
 | CCH-MP-04 | Carousel / Chart / Table 의 `execution.waiting_for_input` → 채널 메시지로 변환. **`uiMapping.visualNode` enum 분기 적용** (`"text" \| "photo" \| "auto"`, default `"auto"`). **v1 정책** (MarkdownV2 텍스트/monospace 표현): `text` / `auto` 모두 chart 는 데이터로부터 monospace mini bar chart 텍스트 합성, table 은 monospace MarkdownV2 표 (column 너비 정렬 + row cap), carousel 은 카드 N장 sequential ChannelMessage (`auto` 는 카드별 image url 있으면 `sendPhoto`, 없으면 `sendMessage`; `text` 는 image url 무시하고 항상 텍스트 카드). v1 에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음 — 정상 fallback). **v2 정책** (SSR PNG, 별 plan `chat-channel-visual-ssr-png` 추적): `photo` / `auto` 모두 SSR 인프라 도입 후 `sendPhoto` 로 본격 이미지 렌더로 격상 — `output.rendered` snapshot 폐기 (D5 / 2026-05-17) 이후 어댑터가 raw 데이터로부터 직접 SSR 책임. enum 별 노드타입 매트릭스 SoT 는 [providers/telegram.md §5.4](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) | 필수 (v1 MarkdownV2 텍스트, v2 PNG) |
@@ -696,7 +696,7 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 **세부**:
 - (a) **`renderNode` 인터페이스 변경 최소화**: 새 함수 추가 ([Convention R-CCA-5 대안 2 기각](../conventions/chat-channel-adapter.md#r-cca-5)) 대신 시그니처 union 확장 — `renderNode(event: EiaEvent | ChatChannelInternalEvent)`. 함수 개수 6 유지. SoT: [Convention §R-CCA-7](../conventions/chat-channel-adapter.md#r-cca-7-rendernode-시그니처-union-확장--chat-channel-internal-이벤트-수용-2026-05-25).
 - (b) **blocking presentation 케이스 사전 제외**: presentation 노드가 buttons 로 인해 blocking 진입한 경우는 기존 `CCH-MP-02` / `CCH-MP-04` (`execution.waiting_for_input` interactionType=buttons) 흐름이 처리 — 어댑터 sub-filter 가 `nodeExec.outputData.status === 'waiting_for_input'` 케이스를 사전 제외 (중복 발송 방지).
-- (c) **`render_form` 제외**: interactive form 은 기존 `ai_form_render` interactionType 의 `waiting_for_input` 으로 별도 처리 — 별 plan `chat-channel-form-native-modal` 추적. 본 결정의 `presentations[]` 처리 대상은 4종 display-only (`carousel`/`table`/`chart`/`template`) 만.
+- (c) **`render_form` 처리** (2026-05-25 갱신): interactive form 의 native modal/Mini App 격상은 별 plan `chat-channel-form-native-modal` v2. v1 에서는 사용자에게 form 의 존재 자체를 알리지 못해 메시지 0 도착 회귀 ([R-CC-17](#r-cc-17)) 가 발생했으므로 **v1 임시 텍스트 fallback** (fields 목록 + 답변 안내) 으로 발화한다. SoT: `chat-channel-adapter.md §3` 매핑 표.
 - (d) **발송 순서 — sequential `await`**: text → presentations[0] → presentations[1] → ... (`Promise.all` 금지). provider rate limit + 표시 순서 보장 필요. `CCH-NF-02` (200ms 이내) 는 시작 시점 latency 기준 — 시퀀스 전체 합산 latency 는 시퀀스 길이에 비례 자연 증가.
 - (e) **v2 SSR PNG 비대상**: 시각형 (carousel/table/chart) 의 v1 MarkdownV2 fallback 은 [`providers/telegram.md §5.4`](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) 재사용. v2 SSR PNG 격상은 별 plan `chat-channel-visual-ssr-png` 추적.
 - (f) **EIA-RL-04 정합**: `WebsocketService.emitToExecution` 이 실행 엔진 §4.4 의 단일 sink 로서 TX commit 후 호출됨 — NotificationDispatcher after-commit hook 과 동일 fan-out 채널. R8 의 per-trigger `ChannelListenerRegistry` 가드 정책 그대로 적용.
@@ -709,3 +709,38 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 - [`spec/5-system/14-external-interaction-api.md §R10`](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장-2026-05-21) 한 줄 보강 (chat-channel-internal 추가 listener 허용 범위 명시).
 
 **구현**: 본 spec 결정 머지 후 별도 PR (developer skill) — chat-channel/types.ts type 보강, chat-channel.dispatcher SUBSCRIBED_EVENTS 확장, 3 provider renderer 갱신.
+
+### R-CC-17. `render_form` v1 임시 텍스트 fallback + presentation renderer shape 처리 (2026-05-25)
+
+PR #328 (R-CC-16) 머지 직후 사용자 보고로 발견된 추가 회귀 2건. chat-channel-form-template-render-fix.
+
+**회귀 시나리오** (사용자 보고 2026-05-25, 텔레그램):
+
+- (회귀 ④ — form 렌더링 누락) AI Agent 가 `render_form` 도구를 호출하고 응답 텍스트가 비어있는 정상 패턴에서, chat-channel 이 `presentations[i].type === 'form'` 을 skip 하던 R-CC-16 정책 + 빈 ai_message text 가 `isEmptyTextBody` guard 로 skip 되어 **사용자에게 메시지 0건** 도착. form 의 존재 자체를 알 수 없음.
+- (회귀 ⑤ — handler structured return shape 미처리) Template / Carousel handler 가 `{config: {...}, output: {rendered/items/...}}` 형태로 반환하는 데 chat-channel renderer 의 `renderPresentationByType` / `renderCarouselFallback` 등이 `nodeOutput.payload` 만 보고 `output` 안의 본문/items 를 추출하지 못해 **"(카드가 없습니다.)" 잘못 표시**.
+
+**대안 검토 및 채택 결정**:
+
+1. **(채택 — 회귀 ④)** `CCH-MP-01` 갱신: `render_form` (`presentations[*].type === 'form'`) 도 v1 임시 텍스트 fallback (fields 목록 + 답변 안내) 로 발화. R-CC-16 (c) 의 "form 처리 별 plan 추적, skip" 정책을 "v1 임시 fallback + v2 native modal" 두 단계로 분리. native modal 의 SoT 는 `chat-channel-form-native-modal` plan v2 유지.
+
+2. **(채택 — 회귀 ⑤)** 3 provider renderer (telegram/discord/slack) 의 `renderPresentationByType` / fallback 함수가 nodeOutput 의 여러 위치 (payload / output / config / flat) 에서 본문/항목을 추출 — `extractRendered` / `extractVisualPayload` 헬퍼 도입. spec 본문 변경 없음 — renderer 의 입력 shape 처리 강화 (R-CCA-7 의 union 입력 처리 정책 안에서).
+
+3. **(기각)** AI Agent handler 가 ai_message message 를 빈 string 으로 emit 하지 못하게 차단 — handler 정상 동작 (render_form 호출 turn 은 text 없을 수 있음). 차단은 정상 UX 회귀.
+
+4. **(기각)** chat-channel dispatcher 의 `isEmptyTextBody` guard 제거 — 다른 경로의 빈 text 발송 회귀 위험 (Telegram 400 "message text is empty"). guard 유지, presentations 만 별도 발화로 우회.
+
+**세부**:
+
+- (a) **form fallback 시각**: text 1줄 "📝 입력이 필요해요:" + fields 각 줄 (label + required 표시 + type) + 마지막 "답변을 메시지로 보내주세요." 안내. v1 한정 임시.
+- (b) **사용자 입력 처리**: 본 v1 fallback 의 form 응답은 ai-agent multi-turn 의 일반 ai_message 흐름으로 처리됨 (자연 텍스트로 답변). LLM 이 답변을 toolCallId 와 매칭해 form 으로 처리. 본 fix 는 발화 표면만 다루고 응답 처리 경로는 기존 multi-turn 유지.
+- (c) **`renderPresentationByType` shape 처리 우선순위**: `nodeOutput.payload.<field>` (AI Agent `presentations[i]` wrapping) → `nodeOutput.output.<field>` (graph 노드 handler structured return) → `nodeOutput.config.<field>` (Carousel static mode 처럼 config 안에만 보존) → `nodeOutput.<field>` (flat). 첫 매치 사용.
+- (d) **v2 native modal 진입 시**: `chat-channel-form-native-modal` plan v2 가 활성화되면 본 v1 임시 fallback 은 plan 의 entry point 가 됨 (deprecated 하지 않고 fallback 으로 잔존 — 사용자가 modal 거부 시 fallback).
+
+**영향**:
+
+- `spec/conventions/chat-channel-adapter.md §3` 매핑 표 — `execution.ai_message` row 의 `render_form` 절 갱신 (skip → v1 임시 fallback).
+- 본 spec §3.3 CCH-MP-01 (본 변경) + R-CC-16 (c) 갱신.
+- 3 provider renderer code 동반 갱신 (`renderPresentationPayload` 의 form 분기 + `renderPresentationByType` 의 shape 처리).
+- 별 plan `chat-channel-form-native-modal` 갱신 — v1 임시 fallback 도입 + v2 native modal 진입 조건 명확화.
+
+**구현**: 동일 PR (chat-channel-form-template-render-fix) 안에서 spec + 코드 묶음.
