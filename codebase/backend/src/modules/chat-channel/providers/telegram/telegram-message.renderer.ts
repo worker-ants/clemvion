@@ -2,8 +2,10 @@ import {
   ChannelButton,
   ChannelMessage,
   ChatChannelConfig,
+  ChatChannelInternalEvent,
   EiaEvent,
 } from '../../types';
+import type { PresentationPayload } from '../../../../shared/conversation-thread/conversation-thread.types';
 import { classifyExecutionFailure } from '../../shared/execution-failure-classifier';
 import {
   resolveLanguageHint,
@@ -39,12 +41,12 @@ export function escapeMarkdownV2(text: string): string {
  * v1 (Phase 2 / PR-A) = text 만. 그 외 분기는 Phase 3/4/5 에서 fill in.
  */
 export function renderTelegramMessages(
-  event: EiaEvent,
+  event: EiaEvent | ChatChannelInternalEvent,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   switch (event.type) {
     case 'execution.ai_message':
-      return renderText(event.message);
+      return renderAiMessage(event, config);
     case 'execution.completed':
       return renderText(
         config.languageHints?.executionCompleted ??
@@ -59,6 +61,110 @@ export function renderTelegramMessages(
       );
     case 'execution.waiting_for_input':
       return renderWaitingForInput(event, config);
+    case 'execution.node.completed':
+      return renderNodeCompleted(event, config);
+  }
+}
+
+/**
+ * CCH-MP-01 보강 (2026-05-25): AI Multi Turn 의 `execution.ai_message` 가 응답
+ * 텍스트 다음에 `presentations?: PresentationPayload[]` (AI Agent `render_*` 도구
+ * 호출 turn) 를 sequential 발송한다. `Promise.all` 금지 — provider rate limit +
+ * 표시 순서 보장. `form` (interactive) 은 별 plan `chat-channel-form-native-modal`
+ * 추적 — 본 룰 처리 대상 아님.
+ *
+ * SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표 `execution.ai_message` 행.
+ */
+function renderAiMessage(
+  event: Extract<EiaEvent, { type: 'execution.ai_message' }>,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  const out: ChannelMessage[] = [...renderText(event.message)];
+  const presentations = event.presentations;
+  if (Array.isArray(presentations) && presentations.length > 0) {
+    for (const p of presentations) {
+      out.push(...renderPresentationPayload(p, config));
+    }
+  }
+  return out;
+}
+
+/**
+ * CCH-MP-06 (2026-05-25): 비-blocking presentation 노드 (`template` body,
+ * `carousel`/`table`/`chart` 의 buttons 없음 케이스) 의 `execution.node.completed`
+ * → 채널 메시지로 변환. v1 fallback 정책은 CCH-MP-04 (텔레그램 §5.4) 와 동일.
+ *
+ * SoT: spec/5-system/15-chat-channel.md §3.3 CCH-MP-06,
+ *      spec/conventions/chat-channel-adapter.md §3 매핑 표 + §R-CCA-7.
+ */
+function renderNodeCompleted(
+  event: Extract<ChatChannelInternalEvent, { type: 'execution.node.completed' }>,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  return renderPresentationByType(
+    event.node.type,
+    event.output,
+    config,
+  );
+}
+
+/**
+ * AI Agent `render_*` 도구가 emit 한 PresentationPayload 1건을 channel 메시지로
+ * 변환. payload shape 은 [spec/4-nodes/3-ai/1-ai-agent.md §7.10] 의
+ * `PresentationPayload` — `{type, toolCallId, renderedAt, payload, truncation?}`.
+ *
+ * `type === 'form'` 은 별 plan 추적 — skip.
+ *
+ * v1 fallback 정책 재사용 (CCH-MP-04 §5.4): `nodeOutput` shape 으로 변환해
+ * 기존 `renderCarouselFallback` / `renderTableFallback` / `renderChartFallback`
+ * 사용.
+ */
+function renderPresentationPayload(
+  presentation: PresentationPayload,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  // render_form 은 별 plan — 본 룰 처리 대상 아님.
+  if (presentation.type === 'form') return [];
+  return renderPresentationByType(
+    presentation.type,
+    // PresentationPayload 의 `payload` 는 zod-validated 본문 (`items`/`rows`/`rendered` 등).
+    // §5.4 fallback 함수들은 `nodeOutput.payload` shape 을 요구하므로 그대로 wrap.
+    { payload: presentation.payload },
+    config,
+  );
+}
+
+/**
+ * presentation 4종 (`template`/`carousel`/`table`/`chart`) 별 분기 — §5.4 v1
+ * fallback 함수 재사용. `execution.node.completed` (output 직접) /
+ * `execution.ai_message.presentations[]` (payload wrapping) 두 진입점 공유.
+ */
+function renderPresentationByType(
+  type: 'carousel' | 'table' | 'chart' | 'template',
+  nodeOutput: Record<string, unknown>,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  switch (type) {
+    case 'template': {
+      // Template: `output.rendered` 본문 직접 추출.
+      // 1) execution.node.completed: `output = { rendered: '...' }`
+      // 2) ai_message.presentations[i]: `nodeOutput = { payload: { rendered: '...' } }`
+      const rendered =
+        typeof nodeOutput.rendered === 'string'
+          ? nodeOutput.rendered
+          : typeof (nodeOutput.payload as { rendered?: unknown } | undefined)
+                ?.rendered === 'string'
+            ? (nodeOutput.payload as { rendered: string }).rendered
+            : null;
+      if (rendered === null || rendered.length === 0) return [];
+      return renderText(rendered);
+    }
+    case 'carousel':
+      return renderCarouselFallback(nodeOutput, config);
+    case 'table':
+      return renderTableFallback(nodeOutput, config);
+    case 'chart':
+      return renderChartFallback(nodeOutput, config);
   }
 }
 

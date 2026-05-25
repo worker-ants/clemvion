@@ -2,8 +2,10 @@ import type {
   ChannelButton,
   ChannelMessage,
   ChatChannelConfig,
+  ChatChannelInternalEvent,
   EiaEvent,
 } from '../../types';
+import type { PresentationPayload } from '../../../../shared/conversation-thread/conversation-thread.types';
 import { classifyExecutionFailure } from '../../shared/execution-failure-classifier';
 import {
   resolveLanguageHint,
@@ -39,12 +41,12 @@ export function escapeSlackMrkdwn(text: string): string {
 }
 
 export function renderSlackEvent(
-  event: EiaEvent,
+  event: EiaEvent | ChatChannelInternalEvent,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   switch (event.type) {
     case 'execution.ai_message':
-      return chunkText(event.message);
+      return renderAiMessage(event, config);
     case 'execution.completed':
       return [
         textMessage(
@@ -63,9 +65,76 @@ export function renderSlackEvent(
       ];
     case 'execution.waiting_for_input':
       return renderWaitingForInput(event, config);
+    case 'execution.node.completed':
+      return renderNodeCompleted(event, config);
     default:
       return [];
   }
+}
+
+/**
+ * CCH-MP-01 보강 (2026-05-25): Slack renderer 의 ai_message 가 응답 텍스트
+ * 다음에 `presentations?: PresentationPayload[]` 를 sequential 발송.
+ * SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표.
+ */
+function renderAiMessage(
+  event: Extract<EiaEvent, { type: 'execution.ai_message' }>,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  const out: ChannelMessage[] = [...chunkText(event.message)];
+  const presentations = event.presentations;
+  if (Array.isArray(presentations) && presentations.length > 0) {
+    for (const p of presentations) {
+      out.push(...renderPresentationPayload(p, config));
+    }
+  }
+  return out;
+}
+
+/**
+ * CCH-MP-06 (2026-05-25): 비-blocking presentation 노드 완료 → Slack 메시지.
+ * v1 fallback 정책 (mrkdwn 텍스트) 그대로 적용.
+ */
+function renderNodeCompleted(
+  event: Extract<ChatChannelInternalEvent, { type: 'execution.node.completed' }>,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  return renderPresentationByType(event.node.type, event.output, config);
+}
+
+function renderPresentationPayload(
+  presentation: PresentationPayload,
+  config: ChatChannelConfig,
+): ChannelMessage[] {
+  if (presentation.type === 'form') return [];
+  return renderPresentationByType(
+    presentation.type,
+    { payload: presentation.payload },
+    config,
+  );
+}
+
+function renderPresentationByType(
+  type: 'carousel' | 'table' | 'chart' | 'template',
+  nodeOutput: Record<string, unknown>,
+  _config: ChatChannelConfig,
+): ChannelMessage[] {
+  if (type === 'template') {
+    const rendered =
+      typeof nodeOutput.rendered === 'string'
+        ? nodeOutput.rendered
+        : typeof (nodeOutput.payload as { rendered?: unknown } | undefined)
+              ?.rendered === 'string'
+          ? (nodeOutput.payload as { rendered: string }).rendered
+          : null;
+    if (rendered === null || rendered.length === 0) return [];
+    return chunkText(rendered);
+  }
+  const payload =
+    (nodeOutput.payload as unknown) ?? (nodeOutput as unknown);
+  const text = renderVisualFallback(type, payload);
+  if (!text) return [];
+  return chunkText(text);
 }
 
 function renderWaitingForInput(

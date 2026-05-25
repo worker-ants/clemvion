@@ -349,3 +349,129 @@ describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-0
     expect(eia.error.code).toBe('INTERNAL_ERROR');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 2026-05-25 — chat-channel-internal listener (CCH-AD-07 / CCH-MP-06)
+// presentation 노드 (carousel/table/chart/template) 비-blocking 완료 시
+// `execution.node.completed` 를 in-process WS Subject 에서 추가 픽업해
+// `ChatChannelInternalEvent` 로 변환. blocking 케이스는 sub-filter 가
+// 사전 제외 (status === 'waiting_for_input' → null).
+// SoT: spec/conventions/chat-channel-adapter.md §1.3 / §3 / §R-CCA-7,
+//      spec/5-system/15-chat-channel.md §3.1 CCH-AD-07 / §3.3 CCH-MP-06.
+// ---------------------------------------------------------------------------
+describe('toEiaEvent — execution.node.completed (chat-channel-internal, CCH-AD-07)', () => {
+  const baseRouting = {
+    triggerId: 'trig-1',
+    workflowId: 'wf-1',
+    timestamp: '2026-05-25T07:00:00.000Z',
+  };
+
+  // template / carousel / table / chart 4종은 각각 동일 패턴으로 정상 픽업
+  it('template 비-blocking 완료 → ChatChannelInternalEvent (output.rendered 보존)', () => {
+    const event: ExecutionChannelEvent = {
+      executionId: 'exec-tmpl',
+      eventType: 'execution.node.completed',
+      seq: 3,
+      payload: {
+        ...baseRouting,
+        nodeId: 'node-tmpl',
+        nodeType: 'template',
+        nodeLabel: '템플릿 2',
+        output: { rendered: '카페24와 날씨에 대한 문의가 가능해요.' },
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.node.completed') throw new Error();
+    expect(eia.node).toEqual({
+      id: 'node-tmpl',
+      type: 'template',
+      label: '템플릿 2',
+    });
+    expect(eia.output).toEqual({
+      rendered: '카페24와 날씨에 대한 문의가 가능해요.',
+    });
+    expect(eia.triggerId).toBe('trig-1');
+    expect(eia.workflowId).toBe('wf-1');
+    expect(eia.executionId).toBe('exec-tmpl');
+  });
+
+  it.each(['carousel', 'table', 'chart'] as const)(
+    '%s 비-blocking 완료 → ChatChannelInternalEvent (output 보존)',
+    (nodeType) => {
+      const event: ExecutionChannelEvent = {
+        executionId: `exec-${nodeType}`,
+        eventType: 'execution.node.completed',
+        seq: 4,
+        payload: {
+          ...baseRouting,
+          nodeId: `node-${nodeType}`,
+          nodeType,
+          output: { payload: { items: [{ title: 'a' }] } },
+        },
+      };
+      const eia = toEiaEvent(event);
+      expect(eia).not.toBeNull();
+      if (eia?.type !== 'execution.node.completed') throw new Error();
+      expect(eia.node.type).toBe(nodeType);
+    },
+  );
+
+  // sub-filter: presentation 4종 외 nodeType 은 null (다른 노드 발화 안 함)
+  it('비-presentation 노드 (ai_agent / code / http) → null (sub-filter 제외)', () => {
+    for (const nodeType of ['ai_agent', 'code', 'http_request', 'form']) {
+      const event: ExecutionChannelEvent = {
+        executionId: 'exec-other',
+        eventType: 'execution.node.completed',
+        seq: 1,
+        payload: {
+          ...baseRouting,
+          nodeId: 'node-other',
+          nodeType,
+          output: { result: 'ok' },
+        },
+      };
+      const eia = toEiaEvent(event);
+      expect(eia).toBeNull();
+    }
+  });
+
+  // blocking 케이스 사전 제외 — execution.waiting_for_input 이 별도 처리
+  it('output.status === "waiting_for_input" (blocking) → null (별도 흐름 처리)', () => {
+    const event: ExecutionChannelEvent = {
+      executionId: 'exec-block',
+      eventType: 'execution.node.completed',
+      seq: 2,
+      payload: {
+        ...baseRouting,
+        nodeId: 'node-carousel-block',
+        nodeType: 'carousel',
+        output: {
+          status: 'waiting_for_input',
+          payload: { items: [] },
+          buttonConfig: { buttons: [{ id: 'a', label: 'A' }] },
+        },
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).toBeNull();
+  });
+
+  // base contract: triggerId/workflowId 없으면 base 가드로 null
+  it('triggerId 누락 → null', () => {
+    const event: ExecutionChannelEvent = {
+      executionId: 'exec-x',
+      eventType: 'execution.node.completed',
+      seq: 1,
+      payload: {
+        workflowId: 'wf-1',
+        timestamp: '2026-05-25T00:00:00.000Z',
+        nodeId: 'node-tmpl',
+        nodeType: 'template',
+        output: { rendered: 'x' },
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).toBeNull();
+  });
+});
