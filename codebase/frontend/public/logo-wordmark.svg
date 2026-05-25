@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" role="img" aria-label="Clemvion">
   <title>Clemvion</title>
-  <!-- Wordmark only (no sub-copy). Spec §8.4.1, §8.4.4 -->
-  <text x="0" y="28" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="28" font-weight="200" fill="#0e1a12" letter-spacing="-0.5">clem<tspan font-weight="600" fill="#1e7a42">vi</tspan>on</text>
+  <!-- Wordmark only (no sub-copy). Spec spec/6-brand.md §8.4.1, §8.4.4 -->
+  <text x="0" y="28" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="28" font-weight="200" fill="#0e1a12" letter-spacing="-0.5">clem<tspan font-weight="600" fill="#0e8c8a">vi</tspan>on</text>
 </svg>

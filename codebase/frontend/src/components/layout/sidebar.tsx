@@ -387,9 +387,11 @@ export function Sidebar() {
         )}
       >
         {/* Logo — spec/6-brand.md §8.4.6 + spec/2-navigation/_layout.md §2.1.
-            The entire logo header row is filled with vine-dark-bg-elevated
-            (#111e14) so the Vine-green brand SVG remains crisp regardless of
-            theme. The neutral palette of the sidebar body resumes below. */}
+            The entire logo header row is filled with a dark brand surface
+            (#111e14 — formerly "vine-dark-bg-elevated"; renamed in spec §8
+            R-14 after the 2026-05-25 mark refresh) so the gradient brand
+            SVG remains crisp regardless of theme. The neutral palette of
+            the sidebar body resumes below. */}
         <div className="flex h-14 items-center bg-[#111e14] px-4">
           {!collapsed && (
             <Link

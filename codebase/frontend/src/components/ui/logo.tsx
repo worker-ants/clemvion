@@ -34,9 +34,10 @@ export interface LogoProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, "
 
 const ASSET_PATHS: Record<LogoVariant, { light: string; dark: string }> = {
   full: { light: "/logo.svg", dark: "/logo-dark.svg" },
-  // Wordmark currently has only one tone — the `vi` accent uses vine-700,
-  // which has enough contrast against both light and dark surfaces.
-  // A dedicated dark wordmark can be added later if reviews show contrast issues.
+  // Wordmark currently has only one tone — the `vi` accent uses the
+  // brand teal-deep (#0e8c8a, per spec §8.3), which has enough contrast
+  // against both light and dark surfaces. A dedicated dark wordmark
+  // variant can be added later if reviews show contrast issues.
   wordmark: { light: "/logo-wordmark.svg", dark: "/logo-wordmark.svg" },
   mark: { light: "/logo-mark.svg", dark: "/logo-mark-dark.svg" },
 };

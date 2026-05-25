@@ -5,8 +5,12 @@ import { Logo } from "@/components/ui/logo";
  *
  * The brand-refresh theme rollback (2026-05-15) restored the original
  * gradient background. The brand SVG assets are still rendered above the
- * card, on a vine-dark-bg-elevated (#111e14) surface so the green-on-light
- * contrast remains crisp regardless of system theme.
+ * card, on a dark brand surface (#111e14 — formerly known as
+ * "vine-dark-bg-elevated"; renamed in spec §8 R-14 after the single-path
+ * mark replaced the node-graph motif on 2026-05-25) so the gradient mark
+ * pops regardless of system theme. The hex is held stable across the
+ * 2026-05-25 mark refresh because the new teal→lime gradient still reads
+ * cleanly on this dark backdrop.
  *
  * The logo is rendered as a NON-link image. The a11y smoke test
  * (`codebase/frontend/e2e/a11y/smoke.spec.ts`) enforces that the first Tab on auth
@@ -22,8 +26,8 @@ export default function AuthLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-[hsl(var(--background))] via-[hsl(var(--muted))] to-[hsl(var(--background))] p-4">
-      {/* Vine-green brand SVG on a vine-dark-bg-elevated surface — matches
-          the apple-icon look + ensures contrast in both themes. */}
+      {/* Gradient brand SVG on a dark brand surface — matches the
+          apple-icon look + ensures contrast in both themes. */}
       <div className="mb-6 flex items-center rounded-2xl bg-[#111e14] px-5 py-3">
         <Logo variant="full" theme="dark" size={200} />
       </div>
