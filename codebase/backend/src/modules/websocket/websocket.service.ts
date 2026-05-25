@@ -48,6 +48,14 @@ export interface ExecutionRoutingContext {
   /** 트리거 발화로 시작된 execution 만 set. 수동 실행은 undefined. */
   triggerId?: string;
   /**
+   * Workflow id — `ChatChannelDispatcher.toEiaEvent` 가 EiaEvent.base 의 필수
+   * 필드로 사용. PR #314 의 초기 routing context 에는 누락되어 있었고, 그 결과
+   * dispatcher 가 `if (!workflowId) return null` 에서 silent skip 하여 outbound
+   * 가 안 가던 회귀 (2026-05-25 사용자 production log 확인) 를 해소한다. trigger
+   * 발화 execution 의 workflow 는 항상 알려져 있으므로 register 시점에 명시.
+   */
+  workflowId?: string;
+  /**
    * 트리거가 `config.chatChannel` 설정 webhook 인 경우만 set. 일반 webhook
    * 트리거는 undefined.
    */
@@ -445,6 +453,7 @@ export class WebsocketService {
     if (!ctx) return wireEnvelope;
     const additions: Record<string, unknown> = {};
     if (ctx.triggerId) additions.triggerId = ctx.triggerId;
+    if (ctx.workflowId) additions.workflowId = ctx.workflowId;
     if (ctx.chatChannel) {
       additions.chatChannel = sanitizePayloadForWs(ctx.chatChannel) as Record<
         string,
