@@ -1,10 +1,10 @@
 ---
-worktree: workflow-resumable-execution-phase2-a6b133
+worktree: workflow-resumable-execution-phase2-cont-64f537
 started: 2026-05-24
 owner: developer
 ---
 
-> **Worktree 이력**: Phase 0/1 = `workflow-resumable-execution-6b105e` (merged base 로 잔류). Phase 2 = `workflow-resumable-execution-phase2-a6b133` (현재).
+> **Worktree 이력**: Phase 0/1 = `workflow-resumable-execution-6b105e` (merged base 로 잔류). Phase 2 = `workflow-resumable-execution-phase2-a6b133`. Phase 2 cont = `workflow-resumable-execution-phase2-cont-64f537` (현재 active).
 
 # Plan — Durable Continuation & Graceful Shutdown
 
