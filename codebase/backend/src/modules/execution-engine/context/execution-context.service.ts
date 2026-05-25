@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   ExecutionContext,
   NodeHandlerOutput,
@@ -21,9 +21,15 @@ type MutableExecutionContext = Omit<
 /**
  * In-memory execution context management for Phase 1.
  * In production, this would be backed by Redis.
+ *
+ * **Tracking logs (회귀 ③ 진단, 2026-05-25)**: createContext / deleteContext /
+ * setNodeOutput (context not found 분기) 시점에 진단 로그를 남긴다. 사용자 보고
+ * "Execution context not found" race 의 root cause 식별이 목표 — 어떤 caller 가
+ * context 를 삭제했는지 (또는 race window 가 있는지) production 로그로 추적.
  */
 @Injectable()
 export class ExecutionContextService {
+  private readonly logger = new Logger(ExecutionContextService.name);
   private readonly contexts = new Map<string, ExecutionContext>();
 
   createContext(
@@ -32,6 +38,17 @@ export class ExecutionContextService {
     initialVariables: Record<string, unknown> = {},
     recursionDepth?: number,
   ): ExecutionContext {
+    const existing = this.contexts.get(executionId);
+    if (existing) {
+      // 회귀 ③ tracking: 동일 executionId 의 context 가 이미 존재할 때 재생성 시도
+      // — 누가 호출했는지 식별. multi-instance race 또는 sub-workflow re-entry 의심.
+      this.logger.warn(
+        `[ctx-trace] createContext OVERWRITE — executionId=${executionId} ` +
+          `workflowId=${workflowId} (existing workflowId=${existing.workflowId}, ` +
+          `nodes=${Object.keys(existing.nodeOutputCache).length}). ` +
+          `Caller stack:\n${new Error().stack?.split('\n').slice(1, 6).join('\n')}`,
+      );
+    }
     const context: ExecutionContext = {
       executionId,
       workflowId,
@@ -95,6 +112,14 @@ export class ExecutionContextService {
   setNodeOutput(executionId: string, nodeId: string, output: unknown): void {
     const context = this.contexts.get(executionId);
     if (!context) {
+      // 회귀 ③ tracking (2026-05-25): caller stack 을 함께 남겨 어떤 경로가
+      // 사라진 context 에 write 시도했는지 식별. 발생 후 진단용 — production
+      // 로그에서 setNodeOutput throw 패턴을 검색해 race window 추적.
+      this.logger.error(
+        `[ctx-trace] setNodeOutput MISSING — executionId=${executionId} ` +
+          `nodeId=${nodeId} (race: deleteContext fired earlier). Caller:\n` +
+          `${new Error().stack?.split('\n').slice(1, 10).join('\n')}`,
+      );
       throw new Error(`Execution context not found: ${executionId}`);
     }
     context.nodeOutputCache[nodeId] = output;
@@ -151,6 +176,15 @@ export class ExecutionContextService {
   }
 
   deleteContext(executionId: string): void {
+    const existed = this.contexts.has(executionId);
+    // 회귀 ③ tracking (2026-05-25): context 삭제 caller 식별. 의심 race —
+    // runExecution finally / resumeFromCheckpoint finally 중 어느 path 가
+    // 동시 진행 중인 다른 await 를 무효화하는지 production 로그로 추적.
+    // log 라인 prefix `[ctx-trace] deleteContext` 로 grep 가능.
+    this.logger.log(
+      `[ctx-trace] deleteContext — executionId=${executionId} existed=${existed}. ` +
+        `Caller:\n${new Error().stack?.split('\n').slice(1, 6).join('\n')}`,
+    );
     this.contexts.delete(executionId);
   }
 }
