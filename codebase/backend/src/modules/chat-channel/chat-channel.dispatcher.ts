@@ -315,7 +315,7 @@ function readConversationKey(payload: Record<string, unknown>): string | null {
 }
 
 /** ExecutionChannelEvent (WebsocketService) → EiaEvent (어댑터 입력) 변환. */
-function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
+export function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
   const baseExtract = (
     field: 'triggerId' | 'workflowId',
   ): string | undefined => {
@@ -337,32 +337,77 @@ function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
   };
   switch (event.eventType) {
     case 'execution.waiting_for_input': {
-      const node = (event.payload as { node?: unknown }).node;
-      const interaction =
-        (event.payload as { interaction?: Record<string, unknown> })
-          .interaction ?? {};
-      const context =
-        (
-          event.payload as {
-            context?: {
-              formConfig?: unknown;
-              buttonConfig?: unknown;
-              conversationConfig?: unknown;
-              conversationThread?: unknown;
-            };
-          }
-        ).context ?? {};
-      if (!node || typeof node !== 'object') return null;
+      // WS protocol (Spec 5-system/6-websocket-protocol §4.4) emits a flat
+      // shape — `{ waitingNodeId, waitingNodeType, interactionType,
+      // conversationThread, buttonConfig?, nodeOutput? }` — while the EIA
+      // spec (§6.2) and the chat-channel renderer (EiaWaitingForInputEvent)
+      // expect the nested `{ node, interaction, context }` shape. Translate
+      // here so the in-process subscription path (dispatcher → renderer)
+      // works without the outbound webhook re-encoding the same payload.
+      const p = event.payload as {
+        waitingNodeId?: unknown;
+        waitingNodeType?: unknown;
+        interactionType?: unknown;
+        conversationThread?: unknown;
+        buttonConfig?: unknown;
+        nodeOutput?: {
+          config?: unknown;
+          conversationConfig?: unknown;
+          formConfig?: unknown;
+        };
+        // Back-compat: outbound webhook re-publishes already provide the
+        // nested shape directly. If present, prefer them verbatim.
+        node?: unknown;
+        interaction?: Record<string, unknown>;
+        context?: {
+          formConfig?: unknown;
+          buttonConfig?: unknown;
+          conversationConfig?: unknown;
+          conversationThread?: unknown;
+        };
+      };
+      if (p.node && typeof p.node === 'object') {
+        return {
+          ...base,
+          type: 'execution.waiting_for_input',
+          node: p.node as {
+            id: string;
+            type: string;
+            interactionType: 'form' | 'buttons' | 'ai_conversation';
+          },
+          interaction: p.interaction ?? {},
+          context: p.context ?? {},
+        };
+      }
+      const nodeId =
+        typeof p.waitingNodeId === 'string' ? p.waitingNodeId : undefined;
+      const nodeType =
+        typeof p.waitingNodeType === 'string' ? p.waitingNodeType : undefined;
+      const interactionType =
+        p.interactionType === 'form' ||
+        p.interactionType === 'buttons' ||
+        p.interactionType === 'ai_conversation'
+          ? p.interactionType
+          : undefined;
+      if (!nodeId || !nodeType || !interactionType) return null;
+      // form nodeOutput shape: form handler stores `{ status, interactionType,
+      // config: { fields:[...] }, ... }` (Spec 4-nodes form §3) — `config` is
+      // the formConfig itself. ai_conversation nodeOutput carries
+      // `conversationConfig` explicitly (execution-engine L2261). buttons
+      // emit places `buttonConfig` top-level (execution-engine L3042).
+      const formConfig =
+        p.nodeOutput?.formConfig ?? p.nodeOutput?.config ?? undefined;
       return {
         ...base,
         type: 'execution.waiting_for_input',
-        node: node as {
-          id: string;
-          type: string;
-          interactionType: 'form' | 'buttons' | 'ai_conversation';
+        node: { id: nodeId, type: nodeType, interactionType },
+        interaction: {},
+        context: {
+          formConfig,
+          buttonConfig: p.buttonConfig,
+          conversationConfig: p.nodeOutput?.conversationConfig,
+          conversationThread: p.conversationThread,
         },
-        interaction,
-        context,
       };
     }
     case 'execution.ai_message': {
