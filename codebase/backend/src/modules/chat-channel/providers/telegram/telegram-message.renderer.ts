@@ -98,14 +98,13 @@ function renderAiMessage(
  *      spec/conventions/chat-channel-adapter.md §3 매핑 표 + §R-CCA-7.
  */
 function renderNodeCompleted(
-  event: Extract<ChatChannelInternalEvent, { type: 'execution.node.completed' }>,
+  event: Extract<
+    ChatChannelInternalEvent,
+    { type: 'execution.node.completed' }
+  >,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
-  return renderPresentationByType(
-    event.node.type,
-    event.output,
-    config,
-  );
+  return renderPresentationByType(event.node.type, event.output, config);
 }
 
 /**

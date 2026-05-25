@@ -86,7 +86,10 @@ function renderAiMessage(
  * v1 fallback 정책 (markdown 텍스트) 그대로 적용.
  */
 function renderNodeCompleted(
-  event: Extract<ChatChannelInternalEvent, { type: 'execution.node.completed' }>,
+  event: Extract<
+    ChatChannelInternalEvent,
+    { type: 'execution.node.completed' }
+  >,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   return renderPresentationByType(event.node.type, event.output, config);
@@ -122,8 +125,7 @@ function renderPresentationByType(
     return chunkText(rendered);
   }
   // chart/table/carousel: 기존 renderVisualFallback (markdown 텍스트) 재사용.
-  const payload =
-    (nodeOutput.payload as unknown) ?? (nodeOutput as unknown);
+  const payload = nodeOutput.payload ?? (nodeOutput as unknown);
   const text = renderVisualFallback(type, payload);
   if (!text) return [];
   return chunkText(text);
