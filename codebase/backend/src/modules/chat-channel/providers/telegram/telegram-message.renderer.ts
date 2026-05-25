@@ -103,7 +103,11 @@ function renderWaitingForInput(
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   switch (event.node.interactionType) {
-    case 'ai_conversation': {
+    // ai_form_render 는 ai-agent 의 render_form blocking 진입 — ai_conversation 의 sub-state.
+    // chat channel 안에서는 동일 경로로 처리 (form 인라인 렌더 어려움 — conversationConfig.message
+    // 있으면 표시, 없으면 awaitingInput 안내). spec/conventions/interaction-type-registry.md §1.
+    case 'ai_conversation':
+    case 'ai_form_render': {
       const message = (
         event.context.conversationConfig as { message?: unknown } | undefined
       )?.message;

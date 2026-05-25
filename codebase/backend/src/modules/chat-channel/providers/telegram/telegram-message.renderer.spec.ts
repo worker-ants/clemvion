@@ -154,6 +154,20 @@ describe('renderTelegramMessages', () => {
     expect(m[0].body.kind).toBe('text');
   });
 
+  it('waiting_for_input(ai_form_render) → ai_conversation 과 동일 경로 (conversationConfig.message → text)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.waiting_for_input',
+      node: { id: 'n1', type: 'ai-agent', interactionType: 'ai_form_render' },
+      interaction: {},
+      context: { conversationConfig: { message: '폼을 작성해 주세요' } },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m).toHaveLength(1);
+    expect(m[0].body.kind).toBe('text');
+    expect((m[0].body as { text: string }).text).toContain('폼을 작성해');
+  });
+
   it('waiting_for_input(ai_conversation) → conversationConfig.message → text', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,

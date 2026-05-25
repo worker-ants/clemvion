@@ -236,6 +236,16 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
     // conversationKey 가 ChannelMessage 안에 들어가지 않은 경우 보정.
     for (const message of messages) {
       if (!message.conversationKey) message.conversationKey = conversationKey;
+      // 빈 text / buttons text body 는 provider API (Telegram 400 "message text is empty"
+      // 등) 가 reject — sendMessage 호출 직전 silent skip. renderer 결과의 빈 string 은
+      // upstream emit (예: ai_message.message 가 empty) 의 결함으로, 사용자에게 빈 메시지를
+      // 보내는 것보다 silent skip + warn 가 안전.
+      if (isEmptyTextBody(message.body)) {
+        this.logger.warn(
+          `sendMessage skip — empty text body (trigger=${trigger.id}, kind=${message.body.kind}, event=${event.eventType})`,
+        );
+        continue;
+      }
       try {
         await adapter.sendMessage(message, chatChannelCfg);
         this.logger.log(
@@ -294,6 +304,23 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
 }
 
 /** Trigger.config 에서 chatChannel 추출 (형식 검증 최소). */
+/**
+ * sendMessage 호출 전 빈 text body guard.
+ *
+ * upstream emit (예: ai_message.message 가 empty string) 의 결함으로 renderer 가 빈 text 를
+ * 반환하면 provider API 가 400 ("message text is empty" — Telegram Bot API documented) 으로
+ * reject. 사용자에게 빈 메시지를 보내는 것보다 silent skip + warn 가 안전 (CCH-SE-01 의 retry
+ * backoff 도 호출되지 않아 자원 절약).
+ *
+ * text / buttons body 의 사용자-visible text 필드가 trim 후 비었으면 true. 다른 body kind
+ * (image / form_prompt / typing) 는 자체 content 가 다른 자원이라 본 guard 비대상.
+ */
+export function isEmptyTextBody(body: ChannelMessage['body']): boolean {
+  if (body.kind === 'text') return body.text.trim().length === 0;
+  if (body.kind === 'buttons') return body.text.trim().length === 0;
+  return false;
+}
+
 function readChatChannelConfig(config: unknown): ChatChannelConfig | null {
   if (!config || typeof config !== 'object') return null;
   const chatChannel = (config as { chatChannel?: unknown }).chatChannel;
@@ -383,10 +410,15 @@ export function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
         typeof p.waitingNodeId === 'string' ? p.waitingNodeId : undefined;
       const nodeType =
         typeof p.waitingNodeType === 'string' ? p.waitingNodeType : undefined;
+      // WaitingInteractionType 은 4종 — spec/conventions/interaction-type-registry.md §1
+      // ('form' / 'buttons' / 'ai_conversation' / 'ai_form_render', 2026-05-23 ai_form_render 추가).
+      // chat channel 안에서 ai_form_render 는 ai_conversation 의 sub-state — renderer 가 동일 경로로
+      // 처리 (form 인라인 렌더 어려움, conversationConfig.message 가 있으면 그것 표시).
       const interactionType =
         p.interactionType === 'form' ||
         p.interactionType === 'buttons' ||
-        p.interactionType === 'ai_conversation'
+        p.interactionType === 'ai_conversation' ||
+        p.interactionType === 'ai_form_render'
           ? p.interactionType
           : undefined;
       if (!nodeId || !nodeType || !interactionType) return null;

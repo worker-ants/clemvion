@@ -63,7 +63,12 @@ function renderWaitingForInput(
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   const interactionType = event.node?.interactionType;
-  if (interactionType === 'ai_conversation') {
+  // ai_form_render = ai-agent render_form blocking 진입 (ai_conversation sub-state) —
+  // chat channel 안에서는 ai_conversation 과 동일 경로 처리. spec/conventions/interaction-type-registry.md §1.
+  if (
+    interactionType === 'ai_conversation' ||
+    interactionType === 'ai_form_render'
+  ) {
     const message =
       (event.context?.conversationConfig as { message?: string } | undefined)
         ?.message ?? '';

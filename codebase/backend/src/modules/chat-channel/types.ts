@@ -180,7 +180,12 @@ export interface EiaWaitingForInputEvent extends EiaEventBase {
   node: {
     id: string;
     type: string;
-    interactionType: 'form' | 'buttons' | 'ai_conversation';
+    /**
+     * SoT: [spec/conventions/interaction-type-registry.md §1 `WaitingInteractionType`](../../../../spec/conventions/interaction-type-registry.md#1-waitinginteractiontype).
+     * 4종 — `ai_form_render` 는 ai-agent 의 render_form blocking 진입 (sub-state of ai_conversation).
+     * chat channel 안에서는 `ai_conversation` 과 동일 경로로 처리 (renderer 의 switch fallthrough).
+     */
+    interactionType: 'form' | 'buttons' | 'ai_conversation' | 'ai_form_render';
   };
   interaction: Record<string, unknown>;
   context: {
