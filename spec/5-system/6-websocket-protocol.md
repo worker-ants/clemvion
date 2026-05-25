@@ -227,12 +227,69 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
     "nodeId": "uuid",
     "buttonId": "uuid",
     "resumed": true,
-    "queued": false
+    "queued": true
   }
 }
 ```
 
-`queued: boolean` 은 선택 필드 — `true` 면 continuation-queue ([Spec 실행 엔진 §7.4](./4-execution-engine.md#74-분산-실행-multi-instance)) 로 enqueue 만 됐고 실제 재개는 다른 인스턴스가 비동기로 수행 ([§7.5 rehydration](./4-execution-engine.md#75-resume-after-restart-rehydration)). `false` (또는 미동봉) 이면 in-instance fast path 로 즉시 resolve. 본 필드는 관측·디버깅 용도이며 클라이언트 routing 결정에 사용하지 않는다. 동일 의미론이 `execution.submit_form.ack` / `execution.submit_message.ack` / `execution.end_conversation.ack` 에 공통 적용된다 (각 ack 의 success payload 는 명령별 식별자만 다르고 `resumed` / `queued` 필드는 동일).
+`queued: boolean` 은 선택 필드 — `true` 면 continuation-queue ([Spec 실행 엔진 §7.4](./4-execution-engine.md#74-분산-실행-multi-instance)) 로 정상 enqueue 됨 (Phase 2 의 "모든 진입점 항상 BullMQ enqueue" 라우팅 원칙 상 정상 publish 는 항상 `true`). `false` 면 publish 단계 실패 (Redis 장애 등) — 재시도 권장. 본 필드는 관측·디버깅 용도이며 클라이언트 routing 결정에 사용하지 않는다.
+
+**공통 ack success payload shape:**
+
+4개 명령 (`click_button` / `submit_form` / `submit_message` / `end_conversation`) 의 ack success payload 는 명령별 식별자만 다르고 `resumed` / `queued` 필드는 동일하다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `executionId` | uuid | 실행 ID (공통) |
+| `nodeId` | uuid | 대상 노드 ID (공통) |
+| `resumed` | boolean | 재개 성공 여부 |
+| `queued` | boolean | continuation-queue 정상 enqueue 여부 (`true` = 정상, `false` = Redis 장애 등 publish 실패) |
+| 명령별 식별자 | — | `buttonId` (click_button) / `formData` 없음 (submit_form) / `message` 없음 (submit_message) / — (end_conversation) |
+
+**폼 제출 응답 (`execution.submit_form.ack`):**
+
+```json
+{
+  "type": "execution.submit_form.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "resumed": true,
+    "queued": true
+  }
+}
+```
+
+**메시지 전송 응답 (`execution.submit_message.ack`):**
+
+```json
+{
+  "type": "execution.submit_message.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "resumed": true,
+    "queued": true
+  }
+}
+```
+
+**대화 종료 응답 (`execution.end_conversation.ack`):**
+
+```json
+{
+  "type": "execution.end_conversation.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "resumed": true,
+    "queued": true
+  }
+}
+```
 
 **버튼 클릭 에러 코드:**
 

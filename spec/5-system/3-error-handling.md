@@ -71,6 +71,20 @@ code: []
 
 > 구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드 수준 envelope 에 더 이상 사용하지 않는다. 엔진 레벨(노드 실패가 Stop Workflow 로 격상된 경우)에서만 `NodeExecution.error.message` 컨텍스트로 남는다.
 
+### 1.5 WS commands 에러 코드 (도메인 spec 참조)
+
+다음 에러 코드는 WebSocket ack 응답 전용이며 REST API 에는 적용되지 않는다. 각 코드의 정의·트리거 조건·적용 명령 범위는 해당 도메인 spec 이 SoT 이고, 본 §1.5 는 공용 카탈로그 가시성을 위한 등재 목적이다.
+
+| 코드 | 설명 | 도메인 SoT |
+|------|------|-----------|
+| `INVALID_EXECUTION_STATE` | 실행이 기대 상태가 아님 (`waiting_for_input` 또는 `failed` 기대). 동기 ack 응답 — BullMQ enqueue 시도 없음 | [WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) |
+| `RESUME_CHECKPOINT_MISSING` | rehydration 시 `NodeExecution.outputData` 부재 또는 손상. Execution `cancelled` 로 종결 | [WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5](./4-execution-engine.md#75-resume-after-restart-rehydration) |
+| `RESUME_FAILED` | continuation-queue `RESUME_BULLMQ_ATTEMPTS` 소진. Execution `cancelled` 로 종결 | [WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5](./4-execution-engine.md#75-resume-after-restart-rehydration) |
+| `RESUME_INCOMPATIBLE_STATE` | `_resumeState` schema 가 deploy 후 변경되어 deserialize 실패. Execution `cancelled` 로 종결 | [WS Protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) / [실행 엔진 §7.5](./4-execution-engine.md#75-resume-after-restart-rehydration) |
+| `SERVER_SHUTTING_DOWN` | 서버 SIGTERM 수신 후 새 Execution 시작 불가. HTTP 진입점은 503 으로 표기 ([실행 엔진 §11](./4-execution-engine.md#11-graceful-shutdown)) | [실행 엔진 §11](./4-execution-engine.md#11-graceful-shutdown) |
+
+> `INVALID_EXECUTION_STATE` 와 동일 의미의 REST 코드는 §1.3 의 `INVALID_STATE` (422) — 두 layer 의 routing 분기 가시성을 위해 의도적으로 분리. 상세: [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state).
+
 ---
 
 ## 2. 에러 응답 형식

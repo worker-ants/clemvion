@@ -34,14 +34,14 @@
       "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/workflow-resumable-execution-phase2-cont-64f537/review/consistency/2026/05/25/08_41_30/naming_collision.md"
     }
   ],
-  "agents_pending": [
+  "agents_pending": [],
+  "agents_success": [
     "cross_spec",
     "rationale_continuity",
     "convention_compliance",
     "plan_coherence",
     "naming_collision"
   ],
-  "agents_success": [],
   "agents_fatal": [],
   "agent_history": {},
   "rate_limit_episodes": 0,
