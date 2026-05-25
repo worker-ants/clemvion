@@ -1,5 +1,10 @@
 // OpenTelemetry는 다른 모듈을 import하기 전에 부트스트랩되어야 자동 계측이 정확하다.
 import './instrumentation';
+// undici dispatcher 의 autoSelectFamily 설정 — Node 22 + undici 의 IPv6 broken route
+// ETIMEDOUT 회귀 fix. 모든 outbound fetch (TelegramClient / SlackClient / DiscordClient
+// / LLM / HTTP node / cafe24 등) 가 자동 영향. instrumentation 직후 + AppModule import
+// 전에 적용해야 NestJS module 의 fetch-using DI 가 새 dispatcher 사용.
+import './bootstrap/undici-dispatcher';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 
