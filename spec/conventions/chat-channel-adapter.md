@@ -189,6 +189,15 @@ interface ChatChannelConfig {
     buttonLayout?: "auto" | "vertical" | "horizontal";
   };
   rateLimitPerMinute?: number;
+  /**
+   * `languageHints` 미설정 키의 default 문구 locale 선택. default "ko".
+   * 어댑터의 lookup 순서: (1) `languageHints[key]` override → (2) 본 locale 의 default 문구
+   * → (3) 'ko' fallback. 본 lookup 책임은 어댑터 — Convention §3.1 의 `classifyExecutionFailure`
+   * helper 는 `key` 만 결정 (locale 무관).
+   *
+   * @see spec/5-system/15-chat-channel.md §4.1.1 (KO/EN default 12 문구 표)
+   */
+  languageLocale?: "ko" | "en";
   languageHints?: Record<string, string>;
 }
 ```
@@ -357,6 +366,8 @@ interface ChannelAdapterRegistry {
 
 ## Rationale
 
+> **Rationale ID 컨벤션**: 본 컨벤션 파일의 신규 Rationale 은 2026-05-25 이후 **`R-CCA-N` prefix** (`CCA` = Chat Channel Adapter) 를 사용한다. 기존 `R1~R4` 는 하위 호환 유지 (rename 시 cross-link 깨짐 위험). cross-file 인용 시에는 `[CCA §R-CCA-N]` 형태로 파일 prefix 명시. 이는 [Spec Chat Channel §3.1 Rationale ID 컨벤션](../5-system/15-chat-channel.md#rationale-id-컨벤션-2026-05-23) 의 `R-CC-N` 패턴과 동일 정신 — Convention 파일은 별 prefix `R-CCA-N` 으로 충돌 방지.
+
 ### R1. 6함수 인터페이스의 책임 분리 (2026-05-21)
 
 `parseUpdate` / `renderNode` 는 **pure 함수**, `setupChannel` / `teardownChannel` / `sendMessage` / `ackInteraction` 는 **side-effect 동반**. 이 분리는 어댑터 테스트 가능성을 결정 — pure 함수는 fixture 기반 단위 테스트, side-effect 함수는 mocked HTTP client 로 통합 테스트. cafe24 의 [`cafe24-api-metadata.md`](./cafe24-api-metadata.md) 메타데이터 구조와 동일한 layer 분리 패턴.
@@ -376,7 +387,7 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 
 모든 어댑터가 같은 시퀀스를 따라야 사용자 경험이 채널 간 일관됨. provider 마다 native form UI 가 있을 수도 있지만 (Telegram Mini App, Slack Block Kit 등) v1 은 다단계 텍스트 시퀀스로 통일 — 컨벤션 차원 강제. native UI 분기는 v2 옵션.
 
-### R5. Execution Failed 분류 helper 를 Convention 에 두는 이유 (2026-05-25)
+### R-CCA-5. Execution Failed 분류 helper 를 Convention 에 두는 이유 (2026-05-25)
 
 대안:
 1. **(채택) Convention §3.1 의 pure helper**: cross-provider 공통 알고리즘 — Form 다단계 시퀀스 (§4) 와 같은 layer. 어댑터별 중복 구현 회피. 분류 알고리즘 자체는 provider 와 무관 (input = EIA payload, output = i18n key + placeholders, 둘 다 provider invariant).
@@ -404,3 +415,4 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 | 2026-05-24 | §2.3 `ChatChannelConfig` 의 3 필드 (`secretTokenRef?` / `signingSecretRef?` / `publicKeyRef?`) 를 단일 role-based 필드 `inboundSigningRef?` 로 통합. provider 별 자원 성격·발급 주체·검증 알고리즘 분기 표를 주석으로 명시. §2.4 `SetupResult.issuedSecretToken` 도 `issuedInboundSigning` 으로 rename. 6함수 시그니처 변경 없음. Migration 불필요 (production data 없음). spec-chat-channel-inbound-signing-rename. |
 | 2026-05-24 | §2.3 `ChatChannelConfig.botIdentity` 에 `teamId?: string` optional 필드 추가 — workspace/team 개념을 가진 provider (Slack workspace, Discord guild) 의 식별자 캐시용. Telegram 등 단일 namespace provider 는 비움. impl-prep cross-spec W-1 해소 (slack.md §3.1 와의 일치). |
 | 2026-05-25 | §3 매핑 표 `execution.failed` 행 격상 — 입력 계약을 `error.message` (구) → `error.code + error.details.statusCode` (신) 로 교체 (**breaking change**: 기존 `renderNode(execution.failed)` 구현 갱신 의무, backend 구현 PR `chat-channel-error-notify` 가 동반). 출력은 분류 helper §3.1 결과 → `text` 1건. §3.1 "Execution Failed 분류 알고리즘" 신설 — pure function `classifyExecutionFailure` + `details: unknown` 런타임 type-guard 책임 + 카테고리 매핑 표 + `{statusCode}` placeholder 규약 + unknown fallback. Rationale R5 추가 (기존 `error.message` 접근 기각 사유 R-CC-15 대안 2 cross-ref 포함). 6함수 인터페이스 / 기타 데이터 타입 변경 없음. [`spec/5-system/15-chat-channel.md §3.5 CCH-ERR-*`](../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 동반 갱신. chat-channel-error-notify. |
+| 2026-05-25 | impl-prep drift fix: (a) §2.3 `ChatChannelConfig` interface 에 `languageLocale?: "ko" \| "en"` 필드 명시 추가 — spec 본문 [§4.1](../5-system/15-chat-channel.md#41-triggerconfigchatchannel) 와의 type drift 해소. (b) Rationale 절 도입에 prefix 컨벤션 한 줄 — Convention 파일 신규 Rationale 은 `R-CCA-N` prefix 사용 (기존 R1~R4 hold). (c) 직전 commit 의 R5 → R-CCA-5 rename (cross-file scope 혼동 회피 — 다른 spec 파일에 동명 R5 가 존재). chat-channel-error-notify impl-prep. |

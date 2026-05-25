@@ -101,8 +101,9 @@ related_specs:
 
 | 영향 여부 | 비고 |
 |---|---|
-| `trigger-detail-drawer.tsx` (chatChannel languageHints 편집 UI) | `languageHints` 편집 form 이 존재하면 신규 6 키 추가. 미존재 시 본 plan 범위 밖 |
-| i18n dict `triggers.ts` (ko/en) | "실행 실패 안내" section label 정도 — UI label 변경 시만 |
+| `trigger-detail-drawer.tsx` (chatChannel languageHints 편집 UI) | PR #283 (`trigger-list-chat-channel-ui`, MERGED) 가 5-키 가정으로 편집 form 머지 완료. 본 PR 진입 시 (1) form 실재 위치 확인 — `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx` 또는 chatChannel sub-component, (2) 6 신규 키 + `languageLocale` enum field 추가, (3) 같은 PR 안에서 처리 (별 follow-up PR 금지 — PROJECT.md §사후 보정 PR 금지). form 미존재 (사후 발견) 시 별 follow-up plan 신설 의무 |
+| i18n dict `triggers.ts` (ko/en) | "실행 실패 안내" section label + 신규 6 키 label (UI 에서 form field label 로 노출 시). KO/EN parity 의무 (PROJECT.md §i18n key parity) |
+| `languageLocale` select UI | "ko" / "en" 2-option select. trigger-detail-drawer 의 chatChannel section 안 |
 
 ### User Guide 동반 갱신 ([PROJECT.md §변경 시 동반 갱신 매트릭스](../../PROJECT.md))
 
