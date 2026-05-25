@@ -26,11 +26,15 @@ import { Cafe24Module } from '../../nodes/integration/cafe24/cafe24.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BACKGROUND_EXECUTION_QUEUE } from './queues/background-execution.queue';
 import { BackgroundExecutionProcessor } from './queues/background-execution.processor';
+import { CONTINUATION_EXECUTION_QUEUE } from './queues/continuation-execution.queue';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
+import { ContinuationExecutionProcessor } from './continuation/continuation-execution.processor';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
+import { ShutdownStateService } from './shutdown/shutdown-state.service';
+import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
 
 @Module({
   imports: [
@@ -51,6 +55,9 @@ import { NodeHandlerDependenciesProvider } from './handlers/node-handler-depende
     McpModule,
     NotificationsModule,
     BullModule.registerQueue({ name: BACKGROUND_EXECUTION_QUEUE }),
+    // Phase 2 (workflow-resumable-execution) — durable continuation 영속 큐.
+    // SoT: spec/5-system/4-execution-engine.md §7.4 / §9.3.
+    BullModule.registerQueue({ name: CONTINUATION_EXECUTION_QUEUE }),
   ],
   providers: [
     ExecutionEngineService,
@@ -64,10 +71,28 @@ import { NodeHandlerDependenciesProvider } from './handlers/node-handler-depende
     ParallelExecutor,
     BackgroundExecutionProcessor,
     ContinuationBusService,
+    // Phase 2 — BullMQ Worker. 옛 ContinuationBusService.registerContinuationHandlers
+    // 의 in-process dispatch 대체.
+    ContinuationExecutionProcessor,
     ConversationThreadService,
     ExecutionEventEmitter,
     GraphTraversalService,
     NodeHandlerDependenciesProvider,
+    ShutdownStateService,
+    {
+      // SoT: spec §11. ENV var name 은 spec 표와 일치.
+      // W-2 fix (SUMMARY#W-2): 비숫자 입력 시 NaN 이 graceMs 로 전파되어
+      // retryAfterSec=NaN → Retry-After: NaN 헤더 + drain timeout 0 으로
+      // 즉시 SERVER_INTERRUPTED 마킹되는 문제 방어.
+      // W-18 fix (SUMMARY#W-18): DEFAULT_GRACE_MS 상수로 단일화.
+      provide: 'SHUTDOWN_GRACE_MS',
+      useFactory: (): number => {
+        const parsed = Number(process.env.SIGTERM_GRACE_MS ?? DEFAULT_GRACE_MS);
+        return Number.isFinite(parsed) && parsed > 0
+          ? parsed
+          : DEFAULT_GRACE_MS;
+      },
+    },
   ],
   exports: [
     ExecutionEngineService,
@@ -75,6 +100,7 @@ import { NodeHandlerDependenciesProvider } from './handlers/node-handler-depende
     NodeComponentRegistry,
     ExpressionResolverService,
     ConversationThreadService,
+    ShutdownStateService,
   ],
 })
 export class ExecutionEngineModule {}

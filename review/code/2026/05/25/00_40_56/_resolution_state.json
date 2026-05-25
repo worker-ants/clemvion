@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "started_at": "2026-05-25T00:00:00Z",
+  "summary_items_total": 23,
+  "items_resolved_ids": ["W-1","W-2","W-3","W-8","W-10","W-11","W-12","W-13","W-14","W-15","W-18","W-19","W-21","W-22"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "C-1": "spec",
+    "W-7": "spec",
+    "W-4": "deferred-phase2",
+    "W-5": "deferred-phase2",
+    "W-6": "deferred-phase2",
+    "W-9": "deferred-phase2",
+    "W-16": "user-guide-writer",
+    "W-17": "deferred-phase2",
+    "W-20": "deferred-phase2"
+  },
+  "commits_made": [
+    {"sha": "8a4ad936", "summary_ids": ["W-1","W-2","W-3","W-10","W-11","W-12","W-13","W-14","W-15","W-18","W-19"], "scope": "execution-engine"},
+    {"sha": "b3feedb0", "summary_ids": ["W-21"], "scope": "execution-engine"},
+    {"sha": "932d63ec", "summary_ids": ["C-1","W-7"], "scope": "plan/spec-draft"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-fix-graceful-shutdown-phase-scope.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260525-010317.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec — C-1 WS gate / W-7 errorPolicy spec §11 phase scope clarification needed",
+  "last_reset_hint_sec": null
+}

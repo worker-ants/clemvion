@@ -78,6 +78,7 @@
 | **PRD 5 NF-DP-02 Docker Compose 셀프 호스팅 번들** | ❌ (현재 docker-compose.yml은 dev infra만) | `self-hosting-deployment.md` |
 | **PRD 5 NF-DP-03 Kubernetes Helm Chart** | ❌ | `self-hosting-deployment.md` |
 | **PRD 5 NF-DP-06 셀프 호스팅 설치/운영 문서** | ❌ | `self-hosting-deployment.md` |
+| **Spec 5-system/4-execution-engine §7.5 / §11 Durable Continuation & Graceful Shutdown** | 🚧 Phase 0 (spec) ✅ 2026-05-24 / Phase 1 (hotfix) ✅ 2026-05-24 / Phase 2 (BullMQ continuation-queue + rehydration) ✅ 2026-05-25 / Phase 3 (DLQ 모니터링 + mermaid 재작성) 대기 | `workflow-resumable-execution.md` (운영 회귀 대응 — k8s 재배포 시 WAITING_FOR_INPUT 일괄 FAIL 해소) |
 
 ### C. LLM Provider 확장 — ✅ 완료 (2026-05-11)
 

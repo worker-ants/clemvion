@@ -80,7 +80,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **Workflow AI Assistant** | 에디터 내 채팅형 AI로 자연어 요청 → 노드·엣지 자동 구성. Clarify → Plan → Execute 3단계 대화 루프, SSE 스트리밍, 세션 영속. 상세: [PRD 2 §10](./3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-), [PRD 6 §3.6](./4-nodes/3-ai/_product-overview.md#36-workflow-ai-assistant). |
 | **팀 워크스페이스·RBAC** | 데이터 모델(`Workspace.type = personal \| team`, `WorkspaceMember.role`) + 백엔드 모듈(`codebase/backend/src/modules/workspaces`) + 프런트엔드 UI(워크스페이스 전환, 멤버 초대·역할·소유권 이전). 회원가입 시 개인 워크스페이스가 자동 생성되고 `X-Workspace-Id`는 서버가 자동 매핑한다. |
 | **Cafe24 통합** | 워크플로 `cafe24` 단일 노드 (18 카테고리 메타데이터 기반 Resource × Operation) + AI Agent Internal MCP Bridge 양방향 노출 + Public/Private 앱 OAuth + Cafe24 Developers "테스트 실행" / "앱으로 가기" App URL 흐름 + leaky-bucket rate limit + BullMQ 기반 cross-pod refresh 직렬화 + 7일 임계 + 6h cron 백그라운드 갱신 (refresh_token 14일 만료 전 자동 갱신, 2026-05-19 정책) — 모두 구현 완료 (PR #20-#67, #212). spec: [Cafe24 노드](./4-nodes/4-integration/4-cafe24.md), [통합 §5.8](./2-navigation/4-integration.md#58-cafe24). 다른 first-party 이커머스(Shopify·Naver Smartstore)로의 Internal MCP Bridge 패턴 확장은 §6.3 참조. |
-| **시스템** | 인증/인가(개인·팀 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀, 분산 continuation bus), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
+| **시스템** | 인증/인가(개인·팀 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀, BullMQ 영속 `execution-continuation` 큐 기반 분산 continuation + §7.5 rehydration), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
 
 #### 6.2 백엔드만 존재 / 부분 구현 (🚧)
 
@@ -246,7 +246,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 
 ### 2.6 Data Layer
 - **PostgreSQL**: 주 데이터베이스 (워크플로우, 사용자, 설정 등)
-- **Redis**: 캐시, 실행 상태 Pub/Sub, 세션 관리
+- **Redis**: 캐시, BullMQ 큐 백엔드 (실행 태스크 / `execution-continuation` / `background-execution`), 운영 lock (`exec:recover:lock`), KB 채널 등, 세션 관리
 - **Vector DB**: Knowledge Base 임베딩 저장/검색
 - **Object Storage**: S3 호환 스토리지 (AWS S3 / MinIO). 파일 업로드, Knowledge Base 원본 문서 등 저장
 
@@ -386,7 +386,7 @@ docs-consolidation(2026-05-12) 으로 PRD/Spec 가 통합되었다. 옛 PRD 의 
 - **배경**: 워크플로우 실행은 (a) 노드별 외부 API 호출로 인한 가변적 latency, (b) Background / Parallel 등 동시 실행, (c) Form 등 사람-개입 노드의 장기 대기, (d) 셀프 호스팅 단일 노드부터 SaaS 멀티 노드까지 수평 확장이 동시에 필요하다.
 - **채택**: Redis 기반 BullMQ 큐 + N 개 워커 인스턴스. Execution = 큐 작업, NodeExecution = 워커가 핸들러 호출, Background/sub-workflow 는 별도 BullMQ 큐 (`background-execution`) 로 분리.
 - **기각된 대안**: ① in-process 단일 프로세스 실행 — 셀프 호스팅 1 인스턴스 환경에선 충분하지만 SaaS 수평 확장이 불가, Form 등 장기 대기로 process 가 점유됨. ② Postgres `LISTEN/NOTIFY` 기반 자체 큐 — Redis 의존성을 줄이지만 retry / DLQ / rate limit / cross-pod refresh 직렬화 등 BullMQ 가 제공하는 기능을 다시 구현해야 함.
-- **trade-off**: Redis 가 추가 의존성이 되어 셀프 호스팅 설치 부담이 늘었지만 (Docker Compose 에 포함), continuation bus·BullMQ 기반 cron·Cafe24 cross-pod refresh 직렬화 등 다른 시스템도 같은 Redis 를 재사용해 net 부담이 낮다. 큐 작업 직렬화의 trade-off (snapshot 격리 등) 는 [Spec 실행 엔진 §3](./5-system/4-execution-engine.md) 와 [Conversation Thread §3.2](./conventions/conversation-thread.md#32-background-격리-근거) 참조.
+- **trade-off**: Redis 가 추가 의존성이 되어 셀프 호스팅 설치 부담이 늘었지만 (Docker Compose 에 포함), BullMQ `execution-continuation` ([Spec 실행 엔진 §7.4 / §7.5](./5-system/4-execution-engine.md#74-분산-실행-multi-instance)) · `background-execution` · BullMQ 기반 cron · Cafe24 cross-pod refresh 직렬화 등 다른 시스템도 같은 Redis 를 재사용해 net 부담이 낮다. 큐 작업 직렬화의 trade-off (snapshot 격리 등) 는 [Spec 실행 엔진 §3](./5-system/4-execution-engine.md) 와 [Conversation Thread §3.2](./conventions/conversation-thread.md#32-background-격리-근거) 참조.
 
 ### Inline Alert 의 위치를 `0-overview.md` cross-cutting 자리로 (§3.4)
 

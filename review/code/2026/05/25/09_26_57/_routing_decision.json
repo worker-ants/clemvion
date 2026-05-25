@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-25T09:26:57.000Z",
+  "decisions": [
+    {"name": "security", "selected": false, "reason": "검토 대상이 순수 문서·스펙 갱신이며 보안 로직 또는 인증/암호화 코드 변경 없음"},
+    {"name": "performance", "selected": false, "reason": "성능 영향 코드 변경 없음 — 순수 문서 및 스펙 정의 갱신"},
+    {"name": "architecture", "selected": false, "reason": "모듈 경계·서비스 분리·인터페이스 신설 없음 — 스펙 문서 갱신 범위"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced (router_safety): spec/0-overview.md, spec/1-data-model.md, spec/5-system/* 등 스펙 본문 변경 — 요구사항 일관성 검증 필요"},
+    {"name": "scope", "selected": true, "reason": "agents_forced (router_safety): 스펙 갱신 범위 검증 필요"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced (router_safety): 스펙 변경의 의도하지 않은 부작용 검증 필요"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced (router_safety): 스펙 문서 구조·일관성·유지보수성 검증 필요"},
+    {"name": "testing", "selected": false, "reason": "테스트 코드 변경 없음 — 순수 문서·스펙 파일만 갱신"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced (router_safety): 스펙 파일(.md)·리뷰 보고서(.md) 변경 23건 이상"},
+    {"name": "dependency", "selected": false, "reason": "package.json 또는 패키지 매니페스트 파일 변경 없음"},
+    {"name": "database", "selected": false, "reason": "마이그레이션·SQL·스키마 변경 없음 — 순수 스펙 문서 갱신"},
+    {"name": "concurrency", "selected": false, "reason": "async/await·Promise·락·워커 코드 변경 없음 — 스펙 문서만 갱신"},
+    {"name": "api_contract", "selected": false, "reason": "API 라우트·컨트롤러 구현 코드 변경 없음 — 스펙 문서 정의만 갱신"},
+    {"name": "user_guide_sync", "selected": false, "reason": "PROJECT.md 매트릭스 트리거 범위에 직접 매칭되는 코드 경로 변경 없음 — 순수 스펙 문서 갱신"}
+  ],
+  "selected_count": 5,
+  "skipped_count": 9,
+  "forced": ["documentation", "requirement", "scope", "side_effect", "maintainability"]
+}

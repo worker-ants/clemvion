@@ -226,7 +226,67 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
     "executionId": "uuid",
     "nodeId": "uuid",
     "buttonId": "uuid",
-    "resumed": true
+    "resumed": true,
+    "queued": true
+  }
+}
+```
+
+`queued: boolean` 은 선택 필드 — `true` 면 continuation-queue ([Spec 실행 엔진 §7.4](./4-execution-engine.md#74-분산-실행-multi-instance)) 로 정상 enqueue 됨 (Phase 2 의 "모든 진입점 항상 BullMQ enqueue" 라우팅 원칙 상 정상 publish 는 항상 `true`). `false` 면 publish 단계 실패 (Redis 장애 등) — 재시도 권장. 본 필드는 관측·디버깅 용도이며 클라이언트 routing 결정에 사용하지 않는다.
+
+**공통 ack success payload shape:**
+
+4개 명령 (`click_button` / `submit_form` / `submit_message` / `end_conversation`) 의 ack success payload 는 명령별 식별자만 다르고 `resumed` / `queued` 필드는 동일하다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `executionId` | uuid | 실행 ID (공통) |
+| `nodeId` | uuid | 대상 노드 ID (공통) |
+| `resumed` | boolean | 재개 성공 여부 |
+| `queued` | boolean | continuation-queue 정상 enqueue 여부 (`true` = 정상, `false` = Redis 장애 등 publish 실패) |
+| 명령별 식별자 | — | `buttonId` (click_button) / `formData` 없음 (submit_form) / `message` 없음 (submit_message) / — (end_conversation) |
+
+**폼 제출 응답 (`execution.submit_form.ack`):**
+
+```json
+{
+  "type": "execution.submit_form.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "resumed": true,
+    "queued": true
+  }
+}
+```
+
+**메시지 전송 응답 (`execution.submit_message.ack`):**
+
+```json
+{
+  "type": "execution.submit_message.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "resumed": true,
+    "queued": true
+  }
+}
+```
+
+**대화 종료 응답 (`execution.end_conversation.ack`):**
+
+```json
+{
+  "type": "execution.end_conversation.ack",
+  "id": "req-uuid",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "resumed": true,
+    "queued": true
   }
 }
 ```
@@ -236,8 +296,13 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | 코드 | 설명 |
 |------|------|
 | `INVALID_BUTTON_ID` | 존재하지 않는 버튼 ID |
-| `INVALID_EXECUTION_STATE` | 실행이 `waiting_for_input` 상태가 아님 |
+| `INVALID_EXECUTION_STATE` | 실행이 기대 상태가 아님 (`submit_form` / `click_button` / `submit_message` / `end_conversation` 의 `waiting_for_input` 기대 또는 `retry_last_turn` 의 `failed` 기대). WS 전용 코드 — REST 진입점은 422 `INVALID_STATE` ([Spec 에러 처리 §3-error-handling.md](./3-error-handling.md)) 로 표기 (의도적 분리, [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 참조) |
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
+| `RESUME_CHECKPOINT_MISSING` | (공통) rehydration 시 `NodeExecution.outputData` 가 부재 또는 손상. Execution 은 `cancelled` 로 종결 ([§7.5](./4-execution-engine.md#75-resume-after-restart-rehydration)) |
+| `RESUME_FAILED` | (공통) continuation-queue `RESUME_BULLMQ_ATTEMPTS` 소진. Execution 은 `cancelled` 로 종결 |
+| `RESUME_INCOMPATIBLE_STATE` | (공통) `_resumeState` schema 가 deploy 후 변경되어 deserialize 실패. Execution 은 `cancelled` 로 종결 |
+
+> 위 표의 마지막 3개 코드 (`RESUME_*`) 는 `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation` 의 ack 에 공통 적용된다. **`execution.retry_last_turn` 은 적용 대상 아님** — retry_last_turn 은 동일 nodeId 의 새 NodeExecution row spawn 경로이며 rehydration 경로를 타지 않는다 (전용 코드는 `RETRY_STATE_NOT_FOUND` / `NODE_NOT_RETRYABLE` / `RETRY_TOO_EARLY` 참조).
 
 **`execution.retry_last_turn` ack:**
 
