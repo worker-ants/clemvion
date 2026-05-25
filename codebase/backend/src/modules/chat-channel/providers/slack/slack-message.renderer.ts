@@ -73,9 +73,13 @@ export function renderSlackEvent(
 }
 
 /**
- * CCH-MP-01 보강 (2026-05-25): Slack renderer 의 ai_message 가 응답 텍스트
- * 다음에 `presentations?: PresentationPayload[]` 를 sequential 발송.
- * SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표.
+ * CCH-MP-01 보강 (2026-05-25): AI Multi Turn 의 `execution.ai_message` 가 응답
+ * 텍스트 다음에 `presentations?: PresentationPayload[]` (AI Agent `render_*` 도구
+ * 호출 turn) 를 sequential 발송한다. `Promise.all` 금지 — provider rate limit +
+ * 표시 순서 보장.
+ *
+ * SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표 `execution.ai_message`
+ *      행. R-CC-16 / R-CC-17 (chat-channel-form-template-render-fix).
  */
 function renderAiMessage(
   event: Extract<EiaEvent, { type: 'execution.ai_message' }>,
@@ -92,8 +96,12 @@ function renderAiMessage(
 }
 
 /**
- * CCH-MP-06 (2026-05-25): 비-blocking presentation 노드 완료 → Slack 메시지.
- * v1 fallback 정책 (mrkdwn 텍스트) 그대로 적용.
+ * CCH-MP-06 (2026-05-25): 비-blocking presentation 노드 (`template` body,
+ * `carousel`/`table`/`chart` 의 buttons 없음 케이스) 의 `execution.node.completed`
+ * → Slack 메시지로 변환. v1 fallback 정책은 CCH-MP-04 (Slack §5.4) 와 동일.
+ *
+ * SoT: spec/5-system/15-chat-channel.md §3.3 CCH-MP-06,
+ *      spec/conventions/chat-channel-adapter.md §3 매핑 표 + §R-CCA-7.
  */
 function renderNodeCompleted(
   event: Extract<
@@ -105,6 +113,22 @@ function renderNodeCompleted(
   return renderPresentationByType(event.node.type, event.output, config);
 }
 
+/**
+ * AI Agent `render_*` 도구가 emit 한 PresentationPayload 1건을 channel 메시지로
+ * 변환. payload shape 은 [spec/4-nodes/3-ai/1-ai-agent.md §7.10] 의
+ * `PresentationPayload` — `{type, toolCallId, renderedAt, payload, truncation?}`.
+ *
+ * 두 진입 경로:
+ *   1. `execution.node.completed` (CCH-MP-06) — handler structured `{config, output}` shape
+ *   2. `execution.ai_message.presentations[]` (CCH-MP-01 보강) — `{payload: {...}}` wrapped
+ *
+ * `type === 'form'` 은 별 plan `chat-channel-form-native-modal` v2 가 native
+ * modal 로 격상하기 전까지 v1 임시 skip — Slack 도 텔레그램과 달리 v1 fallback
+ * text 도입 안 함 (별도 결정).
+ *
+ * v1 fallback 정책 재사용 (CCH-MP-04 §5.4): `nodeOutput` shape 으로 변환해
+ * 기존 `renderVisualFallback` (mrkdwn 텍스트) 사용.
+ */
 function renderPresentationPayload(
   presentation: PresentationPayload,
   config: ChatChannelConfig,
@@ -156,6 +180,14 @@ function extractVisualPayload(
   return candidates.find(hasArrayKey) ?? nodeOutput.payload ?? nodeOutput;
 }
 
+/**
+ * presentation 4종 (`template`/`carousel`/`table`/`chart`) 별 분기 — Slack v1
+ * fallback (mrkdwn 텍스트) 함수 재사용. 세 진입점 공유 (renderNodeCompleted /
+ * renderPresentationPayload). handler structured return shape (회귀 ⑤, PR #329)
+ * 보강은 위 `extractRendered`/`extractVisualPayload` 가 처리.
+ *
+ * SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표 + §R-CCA-7.
+ */
 function renderPresentationByType(
   type: 'carousel' | 'table' | 'chart' | 'template',
   nodeOutput: Record<string, unknown>,
