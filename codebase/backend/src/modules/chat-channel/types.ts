@@ -169,13 +169,30 @@ export type EiaEvent =
   | EiaFailedEvent
   | EiaCancelledEvent;
 
-export interface EiaEventBase {
+/**
+ * Routing context fields shared by ALL chat-channel events (EIA outbound 5종 +
+ * chat-channel-internal). Dispatcher fan-out · per-trigger registry · seq
+ * ordering · timestamp display 가 본 fields 에 의존.
+ *
+ * 본 base 는 EIA event 와 internal event 가 공유하는 routing layer 의 SoT.
+ * EIA-specific identity 는 `EiaEventBase` (본 base 의 alias) 가 표현하고,
+ * internal-specific identity 는 `ChatChannelInternalEventBase` (역시 alias) 가
+ * 표현해 타입 경계 분리 — 두 도메인의 의미 차이를 명시 (W12 fix, 2026-05-25).
+ */
+export interface ChatChannelEventBase {
   executionId: string;
   triggerId: string;
   workflowId: string;
   seq: number;
   timestamp: string;
 }
+
+/**
+ * EIA outbound notification event base (§6). EIA SDK 가 외부 webhook payload 로
+ * 받는 5종 이벤트 공통 필드. `ChatChannelEventBase` 의 alias — routing context
+ * 가 동일하지만 의미는 "외부 표면" 한정 (외부 SDK consume).
+ */
+export type EiaEventBase = ChatChannelEventBase;
 
 export interface EiaWaitingForInputEvent extends EiaEventBase {
   type: 'execution.waiting_for_input';
@@ -266,7 +283,7 @@ export type ChatChannelInternalEvent = EiaNodeCompletedEvent;
  * (`output.status === 'waiting_for_input'`) 도 사전 제외 — 그 흐름은
  * `execution.waiting_for_input` (interactionType=buttons) 행이 처리.
  */
-export interface EiaNodeCompletedEvent extends EiaEventBase {
+export interface EiaNodeCompletedEvent extends ChatChannelEventBase {
   type: 'execution.node.completed';
   node: {
     id: string;
