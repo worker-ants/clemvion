@@ -69,8 +69,20 @@ export class StuckDocumentRecoveryService implements OnApplicationBootstrap {
     // UPDATE ... RETURNING 으로 SELECT + UPDATE 를 원자적으로 결합.
     // 다중 인스턴스가 동시에 돌려도 단일 row 의 status='processing' 가드가 mutual exclusion 역할.
     // RETURNING 으로 실제 전환된 행만 회수해 이중 큐잉을 차단한다.
-    const rows = await this.dataSource.query<
-      { id: string; knowledge_base_id: string; rag_mode: 'vector' | 'graph' }[]
+    //
+    // TypeORM v0.3 의 `DataSource.query` 는 UPDATE/DELETE 에 대해 `[rows, rowCount]`
+    // 튜플을 반환한다 (PostgresQueryRunner). destructure 로 실제 rows 배열만 꺼내지
+    // 않으면 `rows.length === 2` 가 항상 참이 되어, 매 부팅마다 `documentId: undefined`
+    // 인 가짜 job 2개가 큐잉되고 processor 가 drop 하는 회귀가 발생한다.
+    const [rows] = await this.dataSource.query<
+      [
+        {
+          id: string;
+          knowledge_base_id: string;
+          rag_mode: 'vector' | 'graph';
+        }[],
+        number,
+      ]
     >(
       `UPDATE document d
           SET embedding_status = 'pending',
@@ -104,8 +116,10 @@ export class StuckDocumentRecoveryService implements OnApplicationBootstrap {
   }
 
   private async recoverStuckGraphExtraction(): Promise<void> {
-    const rows = await this.dataSource.query<
-      { id: string; knowledge_base_id: string }[]
+    // recoverStuckEmbedding 과 동일 — UPDATE/DELETE 시 `DataSource.query` 의
+    // `[rows, rowCount]` 튜플 destructure 가 필수.
+    const [rows] = await this.dataSource.query<
+      [{ id: string; knowledge_base_id: string }[], number]
     >(
       `UPDATE document
           SET graph_extraction_status = 'pending',
