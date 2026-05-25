@@ -32,7 +32,7 @@ const SUBSCRIBED_EVENTS = new Set<string>([
   // chat-channel-internal — EIA §6.1 outbound 화이트리스트 외 추가 구독.
   // SoT: spec/5-system/15-chat-channel.md §3.1 CCH-AD-07 + spec/conventions/chat-channel-adapter.md §1.3.
   // presentation 노드 (`carousel`/`table`/`chart`/`template`) 비-blocking 완료만
-  // 발화 — `toEiaEvent` 의 sub-filter 가 sub-set 한정 (다른 노드는 null 반환).
+  // 발화 — `toChatChannelEvent` 의 sub-filter 가 sub-set 한정 (다른 노드는 null 반환).
   'execution.node.completed',
 ]);
 
@@ -187,27 +187,33 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const eiaEvent = toEiaEvent(event);
-    if (!eiaEvent) {
-      // **결정적 진단** (2026-05-25): handle 까지 통과했는데 outbound 안 가는
-      // 회귀 case. toEiaEvent 가 null 반환 = ai_message 의 경우 `payload.message`
-      // 가 string 아님 (분기 line 343-355 참조). emit payload 의 message field
-      // 가 누락/변형됐을 가능성. payload key 들을 dump 해 어떤 field 가 빠졌는지
-      // 식별.
-      this.logger.warn(
-        `event ${event.eventType} (trigger=${triggerId}) — toEiaEvent null. ` +
-          `payload keys=[${Object.keys(event.payload).join(',')}]. outbound skip.`,
+    const channelEvent = toChatChannelEvent(event);
+    if (!channelEvent) {
+      // W13 (2026-05-25) — sub-filter 에 의한 정상 null (비-presentation 노드의
+      // `execution.node.completed`, blocking 케이스 등) 은 debug 로 격하해 운영
+      // log 노이즈 감소. 다른 eventType 의 null 은 에러성 (예: ai_message message
+      // 가 string 아님) 이므로 warn 유지 — payload key dump 로 어떤 field 가
+      // 빠졌는지 식별.
+      const isSubFilterNull = event.eventType === 'execution.node.completed';
+      const logFn = isSubFilterNull
+        ? this.logger.debug.bind(this.logger)
+        : this.logger.warn.bind(this.logger);
+      logFn(
+        `event ${event.eventType} (trigger=${triggerId}) — toChatChannelEvent null` +
+          (isSubFilterNull
+            ? ' (sub-filter — presentation 노드 외 또는 blocking 케이스, 정상)'
+            : `. payload keys=[${Object.keys(event.payload).join(',')}]. outbound skip.`),
       );
       return;
     }
     this.logger.debug(
-      `toEiaEvent ok: ${eiaEvent.type} (executionId=${event.executionId})`,
+      `toChatChannelEvent ok: ${channelEvent.type} (executionId=${event.executionId})`,
     );
 
     // Phase 4 (PR-C) — waiting_for_input(form) 도착 시 formState 초기화.
     if (
-      eiaEvent.type === 'execution.waiting_for_input' &&
-      eiaEvent.node.interactionType === 'form'
+      channelEvent.type === 'execution.waiting_for_input' &&
+      channelEvent.node.interactionType === 'form'
     ) {
       const state = await this.conversationService.lookup(
         trigger.id,
@@ -215,7 +221,7 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       );
       if (state) {
         state.formState = {
-          nodeId: eiaEvent.node.id,
+          nodeId: channelEvent.node.id,
           currentFieldIdx: 0,
           partialFormData: {},
         };
@@ -230,7 +236,7 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
 
     let messages: ChannelMessage[];
     try {
-      messages = await adapter.renderNode(eiaEvent, chatChannelCfg);
+      messages = await adapter.renderNode(channelEvent, chatChannelCfg);
     } catch (err) {
       this.logger.error(
         `ChatChannelDispatcher.renderNode 실패 (trigger=${trigger.id}, event=${event.eventType}): ${err instanceof Error ? err.message : String(err)}`,
@@ -361,8 +367,13 @@ function readConversationKey(payload: Record<string, unknown>): string | null {
  *
  * 반환 union 의 후자 (ChatChannelInternalEvent) 는 EIA outbound §6.1 화이트리스트
  * 5종 외 — chat-channel-internal 한정 listener 전용. SoT: spec/conventions/chat-channel-adapter.md §1.3.
+ *
+ * **함수명 (2026-05-25 rename)**: 옛 `toEiaEvent` 가 EIA outbound 5종만 반환하는
+ * 인상을 줘 chat-channel-internal variant 추가 후 의미 경계가 모호해졌다 (W3).
+ * `toChatChannelEvent` 가 EIA + internal 모두를 포함하는 어댑터 입력 union 임을
+ * 명확히 표현. 옛 이름은 deprecated alias 로 짧게 유지 — 후속 PR 에서 제거.
  */
-export function toEiaEvent(
+export function toChatChannelEvent(
   event: ExecutionChannelEvent,
 ): EiaEvent | ChatChannelInternalEvent | null {
   const baseExtract = (
@@ -586,3 +597,10 @@ export function toEiaEvent(
       return null;
   }
 }
+
+/**
+ * @deprecated 2026-05-25 — `toEiaEvent` 는 chat-channel-internal variant 도
+ * 반환하게 되어 함수명-반환 의미 불일치 (W3). 신규 caller 는 `toChatChannelEvent`
+ * 사용. 본 alias 는 hot-path back-compat 만 유지 — 후속 PR 에서 제거 예정.
+ */
+export const toEiaEvent = toChatChannelEvent;
