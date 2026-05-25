@@ -1,7 +1,11 @@
 ---
-id: common
-status: spec-only
-code: []
+id: presentation-common
+status: implemented
+code:
+  - codebase/backend/src/nodes/presentation/_shared/**
+  - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
+  - codebase/backend/src/nodes/ai/ai-agent/tool-providers/render-tool-provider.ts
+  - codebase/backend/src/shared/conversation-thread/**
 ---
 
 # Spec: Presentation 노드 공통 규약
@@ -424,6 +428,7 @@ WS wire `execution.submit_form` 의 payload shape `{ executionId, nodeId, formDa
 
 | 일자 | 변경 |
 |------|------|
+| 2026-05-25 | §10.9 dispatch 표 `button_click` 케이스 graceful degradation (line 407 invariant) 구현 완료 — `waitForAiConversation` else 분기에 `else if (action.type === 'button_click')` 명시 분기 추가, `MAX_UNKNOWN_SKIPS` 카운팅 제외. 텔레그램 stale `inline_keyboard` 클릭이 누적돼 AI 대화가 FAILED 종결되던 회귀 차단. 본문(§10.9) 변경 없음 — 기존 SoT 그대로 충실 구현. frontmatter `status: spec-only` → `implemented` 소급 승격 (`spec-impl-evidence §6 Rollout` 적용, `id: common` → `presentation-common` 으로 카테고리 prefix 부여). WS protocol §4.4 와의 C2/C3 drift (`buttonConfig.timeout` / `nodeOutput.type`) 는 별도 plan `spec-drift-ws-button-config.md` 가 추적 중 — 본 spec 본문(§3·§4)은 SoT 이며 본 frontmatter 승격이 그 drift 의 "완료 완결" 을 의미하지는 않는다. 결정 근거: PR `telegram-carousel-button-click-5b52c1` ai-review (`review/code/2026/05/25/15_42_38/`) WARNING W6/W7 후속 조치 (`plan/in-progress/spec-fix-presentation-common-frontmatter.md`) |
 | 2026-05-24 | §10.9 4-layer SSOT 표 (4) LLM tool_result content layer 추가 보강 — `data` 크기가 10KB cap (`FORM_SUBMITTED_MAX_BYTES`) 초과 시 옵셔널 `formDataTruncation: {originalBytes, bytesAfterCap, truncatedFields[]}` 메타가 tool_result content 에 동시 부착된다. 본 cap 은 LLM 토큰 DoS 방어 + context window 보호 — LLM-facing layer 한정으로 (1)(2)(3) layer 영향 없음. 결정 근거: [AI Agent §12.7](../3-ai/1-ai-agent.md#127-render_form-submit-후-formdata-크기-cap-2026-05-24) (PR #301 ai-review security INFO #1) |
 | 2026-05-24 | §10.9 4-layer SSOT 표 (4) LLM tool_result content layer 보강 — `render_form` submit 시 tool_result content 에 재호출 가드 필드 `ok: true` + `message:'<재호출 금지 안내문>'` 가 함께 직렬화된다. 기존 `{type, data}` SoT 유지, 다른 layer (외부 WS wire / internal bus sentinel / NodeOutput interaction.type) 변경 없음. §Rationale "form submission wire format wrap" 의 "LLM-facing layer 변경 불요" 단락도 새 shape 에 맞춰 갱신. 결정 근거: [AI Agent §12.6](../3-ai/1-ai-agent.md#126-render_form-submit-후-llm-의-동일-form-재호출-회귀-차단-2026-05-24) (회귀 시점 30e02117 / PR #299, 사용자 보고 2026-05-24) |
 | 2026-05-23 | §10.6 보강 — `render_form` 활성 단계의 UI 표면을 assistant turn 의 timeline 인라인 (assistant `presentations[*].form` payload 위치) 으로 통합 명문화. `pendingFormToolCall.toolCallId` 매칭 predicate 로 active vs submitted 분기. MessageInput 그대로 활성 (form 우회 허용) + form bypass 시 cancelled tool_result fallback ([AI Agent §6.2 step 2.c.bypass](../3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). 결정 근거: [§Rationale render_form 활성 form 의 timeline 인라인 통합 (2026-05-23)](#render_form-활성-form-의-timeline-인라인-통합-2026-05-23) + [AI Agent §12.5](../3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합-2026-05-23) |
