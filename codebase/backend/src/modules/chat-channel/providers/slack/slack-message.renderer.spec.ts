@@ -361,3 +361,116 @@ describe('renderSlackEvent — ai_conversation / ai_form_render (R-CCA-6)', () =
     expect(msgs).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 2026-05-25 — CCH-MP-06 / CCH-MP-01 보강 (회귀 ①+② 해소).
+// SoT: spec/conventions/chat-channel-adapter.md §3 / §1.3 / §R-CCA-7.
+// ---------------------------------------------------------------------------
+describe('renderSlackEvent — execution.node.completed (CCH-MP-06)', () => {
+  const BASE_NODE = {
+    executionId: 'e1',
+    triggerId: 't1',
+    workflowId: 'w1',
+    seq: 1,
+    timestamp: '2026-05-25T07:00:00.000Z',
+  };
+
+  it('template + output.rendered → text 1건', () => {
+    const msgs = renderSlackEvent(
+      {
+        ...BASE_NODE,
+        type: 'execution.node.completed',
+        node: { id: 'tpl-1', type: 'template' },
+        output: { rendered: '카페24와 날씨에 대한 문의가 가능해요.' },
+      },
+      CONFIG,
+    );
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].body.kind).toBe('text');
+    if (msgs[0].body.kind === 'text') {
+      expect(msgs[0].body.text).toContain('카페24');
+    }
+  });
+
+  it('template + 빈 rendered → 빈 array (guard)', () => {
+    const msgs = renderSlackEvent(
+      {
+        ...BASE_NODE,
+        type: 'execution.node.completed',
+        node: { id: 'tpl-1', type: 'template' },
+        output: { rendered: '' },
+      },
+      CONFIG,
+    );
+    expect(msgs).toHaveLength(0);
+  });
+
+  it('carousel → mrkdwn fallback text 발화', () => {
+    const msgs = renderSlackEvent(
+      {
+        ...BASE_NODE,
+        type: 'execution.node.completed',
+        node: { id: 'car-1', type: 'carousel' },
+        output: { payload: { items: [{ title: 'Card A' }] } },
+      },
+      CONFIG,
+    );
+    expect(msgs.length).toBeGreaterThan(0);
+  });
+});
+
+describe('renderSlackEvent — execution.ai_message presentations[] (CCH-MP-01 보강)', () => {
+  it('text + presentations 4종 → sequential 추가 발송', () => {
+    const msgs = renderSlackEvent(
+      {
+        ...BASE,
+        message: 'AI 응답',
+        turnCount: 1,
+        presentations: [
+          {
+            type: 'template',
+            toolCallId: 't1',
+            renderedAt: '2026-05-25T07:00:00.000Z',
+            payload: { rendered: '템플릿 결과' },
+          },
+        ],
+      },
+      CONFIG,
+    );
+    expect(msgs.length).toBeGreaterThan(1);
+    const allTexts = msgs
+      .map((m) => (m.body.kind === 'text' ? m.body.text : ''))
+      .join('\n');
+    expect(allTexts).toContain('AI 응답');
+    expect(allTexts).toContain('템플릿 결과');
+  });
+
+  it('presentations 미정의 → text 1건만 (기존 동작)', () => {
+    const msgs = renderSlackEvent(
+      { ...BASE, message: 'plain', turnCount: 1 },
+      CONFIG,
+    );
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].body.kind).toBe('text');
+  });
+
+  it('render_form (type === form) → skip', () => {
+    const msgs = renderSlackEvent(
+      {
+        ...BASE,
+        message: 'with form',
+        turnCount: 1,
+        presentations: [
+          {
+            type: 'form',
+            toolCallId: 't1',
+            renderedAt: '2026-05-25T07:00:00.000Z',
+            payload: { fields: [{ name: 'a', label: 'A' }] },
+          },
+        ],
+      },
+      CONFIG,
+    );
+    expect(msgs).toHaveLength(1);
+  });
+});

@@ -18,6 +18,8 @@ import {
   ChannelMessage,
   ChatChannelAdapter,
   ChatChannelConfig,
+  ChatChannelInternalEvent,
+  EiaAiMessageEvent,
   EiaEvent,
 } from './types';
 
@@ -27,6 +29,18 @@ const SUBSCRIBED_EVENTS = new Set<string>([
   'execution.completed',
   'execution.failed',
   'execution.cancelled',
+  // chat-channel-internal — EIA §6.1 outbound 화이트리스트 외 추가 구독.
+  // SoT: spec/5-system/15-chat-channel.md §3.1 CCH-AD-07 + spec/conventions/chat-channel-adapter.md §1.3.
+  // presentation 노드 (`carousel`/`table`/`chart`/`template`) 비-blocking 완료만
+  // 발화 — `toEiaEvent` 의 sub-filter 가 sub-set 한정 (다른 노드는 null 반환).
+  'execution.node.completed',
+]);
+
+const PRESENTATION_NODE_TYPES = new Set<string>([
+  'carousel',
+  'table',
+  'chart',
+  'template',
 ]);
 
 /**
@@ -341,8 +355,16 @@ function readConversationKey(payload: Record<string, unknown>): string | null {
   return null;
 }
 
-/** ExecutionChannelEvent (WebsocketService) → EiaEvent (어댑터 입력) 변환. */
-export function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
+/**
+ * ExecutionChannelEvent (WebsocketService) → EiaEvent | ChatChannelInternalEvent
+ * (어댑터 입력) 변환.
+ *
+ * 반환 union 의 후자 (ChatChannelInternalEvent) 는 EIA outbound §6.1 화이트리스트
+ * 5종 외 — chat-channel-internal 한정 listener 전용. SoT: spec/conventions/chat-channel-adapter.md §1.3.
+ */
+export function toEiaEvent(
+  event: ExecutionChannelEvent,
+): EiaEvent | ChatChannelInternalEvent | null {
   const baseExtract = (
     field: 'triggerId' | 'workflowId',
   ): string | undefined => {
@@ -446,6 +468,15 @@ export function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
       const message = (event.payload as { message?: unknown }).message;
       if (typeof message !== 'string') return null;
       const turnCount = (event.payload as { turnCount?: unknown }).turnCount;
+      // 2026-05-25 — CCH-MP-01 보강: `presentations?` 필드 추출 (AI Agent
+      // `render_*` 도구 호출 turn 의 sequential 발송 — SoT EIA §6.5 line 536 /
+      // chat-channel-adapter §1.2 line 89). 미추출 시 chat-channel renderer 가
+      // 봐도 event.presentations 가 undefined 라 회귀 ② 가 동작 안 함.
+      const rawPresentations = (event.payload as { presentations?: unknown })
+        .presentations;
+      const presentations = Array.isArray(rawPresentations)
+        ? (rawPresentations as EiaAiMessageEvent['presentations'])
+        : undefined;
       return {
         ...base,
         type: 'execution.ai_message',
@@ -454,6 +485,7 @@ export function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
         messages: (event.payload as { messages?: unknown[] }).messages,
         metadata: (event.payload as { metadata?: unknown }).metadata,
         llmCalls: (event.payload as { llmCalls?: unknown[] }).llmCalls,
+        ...(presentations !== undefined ? { presentations } : {}),
       };
     }
     case 'execution.completed': {
@@ -511,6 +543,43 @@ export function toEiaEvent(event: ExecutionChannelEvent): EiaEvent | null {
           cancelledBy?: 'user' | 'system' | 'timeout';
         },
         durationMs: (event.payload as { durationMs?: number }).durationMs,
+      };
+    }
+    case 'execution.node.completed': {
+      // chat-channel-internal — CCH-AD-07 / CCH-MP-06 / R-CCA-7.
+      // presentation 노드 4종 한정 sub-filter + blocking 케이스 사전 제외.
+      // SoT: spec/conventions/chat-channel-adapter.md §1.3 / §3.
+      const p = event.payload as {
+        nodeId?: unknown;
+        nodeType?: unknown;
+        nodeLabel?: unknown;
+        output?: unknown;
+        meta?: unknown;
+      };
+      const nodeId = typeof p.nodeId === 'string' ? p.nodeId : undefined;
+      const nodeType = typeof p.nodeType === 'string' ? p.nodeType : undefined;
+      if (!nodeId || !nodeType) return null;
+      // presentation 노드 4종 외 — sub-filter 제외 (AI Agent / LLM / code 등).
+      if (!PRESENTATION_NODE_TYPES.has(nodeType)) return null;
+      // blocking 케이스 사전 제외 — `execution.waiting_for_input` (interactionType=buttons)
+      // 흐름이 별도 처리 (중복 발송 방지).
+      const output = (p.output ?? {}) as Record<string, unknown>;
+      if (output.status === 'waiting_for_input') return null;
+      const nodeLabel =
+        typeof p.nodeLabel === 'string' ? p.nodeLabel : undefined;
+      return {
+        ...base,
+        type: 'execution.node.completed',
+        node: {
+          id: nodeId,
+          type: nodeType as 'carousel' | 'table' | 'chart' | 'template',
+          ...(nodeLabel !== undefined ? { label: nodeLabel } : {}),
+        },
+        output,
+        meta:
+          p.meta && typeof p.meta === 'object'
+            ? (p.meta as Record<string, unknown>)
+            : undefined,
       };
     }
     default:

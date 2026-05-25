@@ -556,3 +556,185 @@ describe('visual fallback — unrecognized / template', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 2026-05-25 — chat-channel outbound 회귀 ① + ② fix
+// CCH-MP-06 (비-blocking presentation 발화) + CCH-MP-01 보강 (ai_message
+// presentations[] sequential 발송) 의 telegram renderer 구현 검증.
+// SoT: spec/5-system/15-chat-channel.md §3.3 / R-CC-16,
+//      spec/conventions/chat-channel-adapter.md §3 / R-CCA-7.
+// ---------------------------------------------------------------------------
+describe('execution.node.completed (CCH-MP-06) — 비-blocking presentation 본문 발화', () => {
+  it('template + output.rendered → MarkdownV2 escape 후 text 1건', () => {
+    const event = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.node.completed' as const,
+      node: { id: 'tpl-1', type: 'template' as const, label: '템플릿 2' },
+      output: { rendered: '카페24와 날씨에 대한 문의가 가능해요.' },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m).toHaveLength(1);
+    expect(m[0].body.kind).toBe('text');
+    if (m[0].body.kind === 'text') {
+      // MarkdownV2 escape — `.` → `\.`
+      expect(m[0].body.text).toContain('카페24와');
+      expect(m[0].body.text).toContain('가능해요\\.');
+    }
+  });
+
+  it('carousel + items[] → renderCarouselFallback (카드별 sequential text)', () => {
+    const event = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.node.completed' as const,
+      node: { id: 'car-1', type: 'carousel' as const },
+      output: {
+        payload: {
+          items: [
+            { title: '상품 A', description: '설명 A' },
+            { title: '상품 B', description: '설명 B' },
+          ],
+        },
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    const cardTexts = m
+      .filter((msg) => msg.body.kind === 'text')
+      .map((msg) => (msg.body.kind === 'text' ? msg.body.text : ''));
+    expect(cardTexts.some((t) => t.includes('상품 A'))).toBe(true);
+    expect(cardTexts.some((t) => t.includes('상품 B'))).toBe(true);
+  });
+
+  it('table → renderTableFallback (monospace table)', () => {
+    const event = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.node.completed' as const,
+      node: { id: 'tbl-1', type: 'table' as const },
+      output: {
+        payload: {
+          columns: [
+            { key: 'a', label: 'A' },
+            { key: 'b', label: 'B' },
+          ],
+          rows: [{ a: 1, b: 2 }],
+        },
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m.length).toBeGreaterThan(0);
+    const hasMonospace = m.some(
+      (msg) => msg.body.kind === 'text' && msg.body.text.includes('```'),
+    );
+    expect(hasMonospace).toBe(true);
+  });
+
+  it('chart → renderChartFallback (monospace bar chart)', () => {
+    const event = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.node.completed' as const,
+      node: { id: 'ch-1', type: 'chart' as const, label: 'My chart' },
+      output: {
+        payload: {
+          title: 'My chart',
+          series: [{ name: 's1', data: [1, 2, 3] }],
+          labels: ['a', 'b', 'c'],
+        },
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m.length).toBeGreaterThan(0);
+  });
+});
+
+describe('execution.ai_message — presentations[] sequential 발송 (CCH-MP-01 보강)', () => {
+  it('text 1건 + presentations 4종 → 5건 sequential', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: 'AI 응답 본문',
+      turnCount: 2,
+      presentations: [
+        {
+          type: 'carousel',
+          toolCallId: 'tc-1',
+          renderedAt: '2026-05-25T07:00:00.000Z',
+          payload: {
+            items: [{ title: 'Card A' }],
+          },
+        },
+        {
+          type: 'table',
+          toolCallId: 'tc-2',
+          renderedAt: '2026-05-25T07:00:01.000Z',
+          payload: {
+            columns: [{ field: 'x', label: 'X' }],
+            rows: [{ x: 'v1' }],
+          },
+        },
+        {
+          type: 'template',
+          toolCallId: 'tc-3',
+          renderedAt: '2026-05-25T07:00:02.000Z',
+          payload: { rendered: '템플릿 결과' },
+        },
+        {
+          type: 'chart',
+          toolCallId: 'tc-4',
+          renderedAt: '2026-05-25T07:00:03.000Z',
+          payload: {
+            title: 'C',
+            series: [{ name: 's', data: [1] }],
+            labels: ['a'],
+          },
+        },
+      ],
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    // 첫 메시지는 AI text. 그 뒤에 presentations 의 메시지들 sequential.
+    expect(m.length).toBeGreaterThan(4);
+    expect(m[0].body.kind).toBe('text');
+    if (m[0].body.kind === 'text') {
+      expect(m[0].body.text).toContain('AI 응답 본문');
+    }
+    // 후속 메시지들에 카드/표/템플릿/차트 흔적이 모두 보여야 한다.
+    const after = m.slice(1);
+    const allTexts = after
+      .map((msg) => (msg.body.kind === 'text' ? msg.body.text : ''))
+      .join('\n');
+    expect(allTexts).toContain('Card A');
+    expect(allTexts).toContain('템플릿 결과');
+  });
+
+  it('presentations 가 비어있으면 text 1건만 (기존 동작 회귀 차단)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: 'plain',
+      turnCount: 1,
+      presentations: [],
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m).toHaveLength(1);
+    expect(m[0].body.kind).toBe('text');
+  });
+
+  it('render_form (presentations[*].type === "form") → skip (ai_form_render 별 plan 추적)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.ai_message',
+      message: 'with form',
+      turnCount: 1,
+      presentations: [
+        {
+          type: 'form',
+          toolCallId: 'tc-form',
+          renderedAt: '2026-05-25T07:00:00.000Z',
+          payload: { fields: [{ name: 'a', label: 'A' }] },
+        },
+      ],
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    // text 1건 — form presentation 은 skip
+    expect(m).toHaveLength(1);
+    expect(m[0].body.kind).toBe('text');
+  });
+});

@@ -72,12 +72,13 @@ Chat Channel을 통해 아래 인터랙션 노드 유형을 사용할 수 있어
 
 | 노드 유형 | Telegram 표현 방식 |
 |---|---|
-| **AI Multi Turn** | 봇과 자유 텍스트 대화 |
+| **AI Multi Turn** | 봇과 자유 텍스트 대화. AI 가 `render_carousel` / `render_table` / `render_chart` / `render_template` 도구를 호출하면 응답 텍스트 다음에 해당 카드·표·차트·템플릿이 sequential 메시지로 함께 발송돼요 (`render_form` 은 별 plan 추적) |
 | **Button Presentation** | 인라인 키보드 버튼으로 선택 |
 | **Form** | 필드별 순차 텍스트 입력 (연락처 공유, 파일 업로드 포함) |
 | **Chart** | monospace 미니 막대 그래프 텍스트 (라벨·값 정렬, 첫 시리즈 표시) |
 | **Table** | monospace MarkdownV2 표 (열 너비 자동 정렬, 최대 20행 — 초과 시 "외 N행" 안내) |
 | **Carousel** | 카드별 sequential 메시지 (제목·설명·이미지 URL, 최대 10장) |
+| **Template** | `output.rendered` 본문이 MarkdownV2 escape 후 텍스트로 자동 발송돼요. 버튼이 없는 (non-blocking) 경우에도 본문이 그대로 채널에 전달돼요. HTML / Markdown 모드는 v1 에서 텍스트로 평탄화 (v2 SSR PNG 격상은 별 plan `chat-channel-visual-ssr-png` 추적) |
 
 <Callout type="note">
 시각형 노드(Chart, Table, Carousel)는 현재 **MarkdownV2 텍스트 표현**으로 동작해요. 향후 별도 PR 에서 SSR PNG 이미지 발송으로 격상될 예정이에요 (별 plan `chat-channel-visual-ssr-png` 추적).

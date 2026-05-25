@@ -5,6 +5,7 @@ import {
   ChannelUpdate,
   ChatChannelAdapter,
   ChatChannelConfig,
+  ChatChannelInternalEvent,
   EiaEvent,
   SendResult,
   SetupResult,
@@ -121,7 +122,7 @@ export class TelegramAdapter implements ChatChannelAdapter {
   }
 
   renderNode(
-    event: EiaEvent,
+    event: EiaEvent | ChatChannelInternalEvent,
     config: ChatChannelConfig,
   ): Promise<ChannelMessage[]> {
     return Promise.resolve(renderTelegramMessages(event, config));

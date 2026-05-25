@@ -136,6 +136,11 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 
 `buttonConfig.nodeOutput` 의 nodeType + `uiMapping.visualNode` enum 분기 적용. **v1 = MarkdownV2 텍스트/monospace 표현** (의존성 추가 없음, 즉시 동작). v2 SSR PNG 격상은 별 plan `chat-channel-visual-ssr-png` 추적.
 
+> 본 표의 v1 fallback 정책은 다음 3 진입점에서 모두 재사용된다 (2026-05-25):
+> - [CCH-MP-04](../../../5-system/15-chat-channel.md#33-노드--채널-ui-매핑) — blocking presentation 의 `execution.waiting_for_input` (interactionType=buttons) 시 시각형 노드 발화 (기존 정책).
+> - [CCH-MP-06](../../../5-system/15-chat-channel.md#33-노드--채널-ui-매핑) — 비-blocking presentation (buttons 없는 케이스) 의 `execution.node.completed` (chat-channel-internal listener) 본문 발화.
+> - [CCH-MP-01 보강](../../../5-system/15-chat-channel.md#33-노드--채널-ui-매핑) — AI Agent `execution.ai_message.presentations[]` (`render_*` 표현 도구 호출 결과) 의 sequential 발화.
+
 `uiMapping.visualNode` enum 값: `"text" | "photo" | "auto"`, default `"auto"`. 의미는 [Convention §2.3](../../../conventions/chat-channel-adapter.md#23-chatchannelconfig) 참조. v1 단계에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음 — 정상 fallback).
 
 **노드타입 × enum × 버전 매트릭스**:
@@ -145,7 +150,7 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 | `chart` | `output.payload.{title, series, labels}` → monospace mini bar chart (24 cell width horizontal bar, MarkdownV2 code block wrap, 4096자 초과 시 분할) | fallback to text (warning 로그) | satori SVG → PNG `sendPhoto` | text (chart 는 데이터 가독성이 text 가 더 좋음 — `auto` 도 text 우선) | text (변경 없음 — chart 는 v2 에서도 text 우선) |
 | `carousel` | `output.items[]` → sequential ChannelMessage. **imageUrl 무시하고 항상 `sendMessage`** (title bold + description + per-card buttons). 카드 cap 10장 + "외 N장" | fallback to `auto` v1 (warning 로그) | 카드 1~5장 collage PNG `sendPhoto` (1 송신) | 카드별: imageUrl 있으면 `sendPhoto` (caption=title+description), 없으면 `sendMessage` (title bold + description + per-card buttons). 카드 cap 10장 + "외 N장" 안내. global buttons 는 마지막 카드 후 별 message | 카드별 분기 + 5장 collage PNG 시도 |
 | `table` | `output.{rows, columns}` → monospace MarkdownV2 표 (column 너비 자동 정렬, cell padding, header separator, row cap 20, cell >16 chars ellipsis, code block wrap, 4096자 분할) | fallback to text (warning 로그) | 표 PNG `sendPhoto` | text (table 도 가독성 text 우선) | text (변경 없음) |
-| `template` | (CCH-MP-04 범위 외 — v2 구현 대상) `output.rendered` 가 plain text 면 `sendMessage` (4096자 분할). HTML 은 noop fallback. W-3 흡수 | fallback to text | 동일 (HTML → SSR PNG) | text fallback | 동일 (HTML → SSR PNG) |
+| `template` | `output.rendered` 를 MarkdownV2 escape 후 `sendMessage` (4096자 분할). HTML/Markdown/Text 3 모드 모두 텍스트로 발송 (v1 은 HTML 렌더링 안 함 — escape 후 plain text). 2026-05-25 — CCH-MP-06 (비-blocking 본문 발화) 및 CCH-MP-01 보강 (AI render_template 도구 결과 발화) 진입점에서 동일 fallback 재사용. v2 의 HTML/Markdown rich rendering 은 별 plan `chat-channel-visual-ssr-png` | fallback to text | HTML → SSR PNG (v2) | text | HTML → SSR PNG (v2) |
 
 **버튼 처리**: 모든 시각형에 대해 `buttonConfig.buttons[]` 가 있으면 시각 message 들 **다음** 메시지로 `inline_keyboard` 발송 (텔레그램 UX 정합 — 사용자가 컨텐츠 본 후 선택).
 

@@ -910,6 +910,8 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 
 SSE 어댑터의 **Redis pub/sub** 구독 경로 (다중 인스턴스 환경의 외부 SSE 클라이언트가 임의 인스턴스에 접속 가능해야 함) 와 Chat Channel 어댑터의 **in-process EventEmitter** 구독 경로는 **동시 운영**된다 — 두 어댑터는 NotificationDispatcher 라는 같은 facade 계층의 별도 listener 형태로 병존한다. NotificationDispatcher 의 fan-out 책임은 (a) Redis pub/sub 발행 (외부 SSE 어댑터용) + (b) in-process EventEmitter emit (Chat Channel 어댑터용) + (c) 외부 HTTP POST (notification webhook) 의 세 갈래로 늘어난다 — 세 경로 모두 동일 `seq` 와 동일 TX commit timing 을 공유.
 
+**chat-channel-internal 추가 listener 의 R10 허용 범위 (2026-05-25)**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력-2026-05-25-신설)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render_-presentations-발화-2026-05-25).
+
 ### R11. 외부 endpoint 경로 prefix 분리 — `/api/external/executions/*` (2026-05-21)
 
 **채택**: 외부 인터랙션 endpoint 는 모두 `/api/external/executions/:id/*` prefix 로 신설. 기존 `/api/executions/*` (워크스페이스 JWT, 에디터·UI 전용) 와 routing prefix·인증 family 둘 다 분리한다.

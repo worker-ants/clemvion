@@ -107,6 +107,12 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 - Form 노드는 v1 에서 다단계 텍스트 시퀀스로 진행 (필드별 한 줄 질문 + DM reply 로 답변)
 - v2 (후속) 에서 Slack modal (`views.open`) native 지원 예정
 
+### 4.4 AI Agent render 도구 / Template
+
+- AI Multi Turn 노드가 `render_carousel` / `render_table` / `render_chart` / `render_template` 도구를 호출하면 응답 텍스트 다음에 카드·표·차트·템플릿이 sequential 메시지로 함께 발송돼요 (`render_form` 은 별 plan 추적)
+- Template 노드 (버튼 없는 non-blocking 케이스) 의 `output.rendered` 본문도 텍스트로 자동 발송돼요
+- v1 fallback 정책 — chart/table 은 mrkdwn monospace 텍스트, carousel 은 카드별 sequential 메시지, template 은 plain text. v2 SSR PNG 격상은 별 plan `chat-channel-visual-ssr-png` 추적
+
 ## 5. v1 한계 / 알려진 사항
 
 - **DM only** — group chat / channel / mpim 은 미지원 (자동 거부 + 안내 메시지). multi-user 채널 대응은 v2 (multi-user thread) 와 한 묶음.
