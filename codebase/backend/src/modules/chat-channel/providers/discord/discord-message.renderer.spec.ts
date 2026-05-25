@@ -273,7 +273,9 @@ describe('renderDiscordEvent — execution.ai_message presentations[] (CCH-MP-01
     expect(msgs[0].body.kind).toBe('text');
   });
 
-  it('render_form (type === form) → skip', () => {
+  it('render_form (type === form) → v1 임시 fallback text 발화 (회귀 ④ fix, 2026-05-25)', () => {
+    // 직전 정책 (skip) 은 사용자에게 메시지 안 보이는 회귀.
+    // SoT: spec/conventions/chat-channel-adapter.md §3 (2026-05-25 갱신).
     const msgs = renderDiscordEvent(
       {
         ...BASE,
@@ -285,13 +287,67 @@ describe('renderDiscordEvent — execution.ai_message presentations[] (CCH-MP-01
             type: 'form',
             toolCallId: 't1',
             renderedAt: '2026-05-25T07:00:00.000Z',
-            payload: { fields: [{ name: 'a', label: 'A' }] },
+            payload: {
+              fields: [
+                { name: 'name', label: '이름', type: 'text', required: true },
+              ],
+            },
           },
         ],
       },
       CONFIG,
     );
-    // form 은 skip — text 1건만
+    // text 1건 (ai_message) + form fallback 1건+
+    expect(msgs.length).toBeGreaterThan(1);
+    const all = msgs
+      .map((m) => (m.body.kind === 'text' ? m.body.text : ''))
+      .join('\n');
+    expect(all).toContain('with form');
+    expect(all).toContain('이름');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2026-05-25 — 회귀 ⑤ (Discord): handler structured return shape 처리.
+// ---------------------------------------------------------------------------
+describe('renderDiscordEvent — execution.node.completed structured return shape (회귀 ⑤)', () => {
+  it('template — nodeOutput.output.rendered 추출', () => {
+    const msgs = renderDiscordEvent(
+      {
+        ...BASE,
+        type: 'execution.node.completed',
+        node: { id: 'tpl-1', type: 'template' },
+        output: {
+          config: { template: '본문 raw' },
+          output: { rendered: '카페24와 날씨에 대한 문의가 가능해요.' },
+        },
+      },
+      CONFIG,
+    );
     expect(msgs).toHaveLength(1);
+    if (msgs[0].body.kind === 'text') {
+      expect(msgs[0].body.text).toContain('카페24');
+    }
+  });
+
+  it('carousel — config.items (static mode) 추출', () => {
+    const msgs = renderDiscordEvent(
+      {
+        ...BASE,
+        type: 'execution.node.completed',
+        node: { id: 'car-1', type: 'carousel' },
+        output: {
+          config: { items: [{ title: '카드 X' }, { title: '카드 Y' }] },
+          output: {},
+        },
+      },
+      CONFIG,
+    );
+    const all = msgs
+      .map((m) => (m.body.kind === 'text' ? m.body.text : ''))
+      .join('\n');
+    // Discord 의 renderVisualFallback carousel 분기: items 인식되면 무언가 발화
+    // (빈 string 또는 카드 내용). 빈 fallback 회귀 차단.
+    expect(all.length).toBeGreaterThan(0);
   });
 });

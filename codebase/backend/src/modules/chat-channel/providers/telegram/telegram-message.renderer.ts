@@ -116,7 +116,10 @@ function renderNodeCompleted(
  * 변환. payload shape 은 [spec/4-nodes/3-ai/1-ai-agent.md §7.10] 의
  * `PresentationPayload` — `{type, toolCallId, renderedAt, payload, truncation?}`.
  *
- * `type === 'form'` 은 별 plan 추적 — skip.
+ * `type === 'form'` 은 별 plan `chat-channel-form-native-modal` v2 가 native
+ * modal/Mini App 으로 격상 — v1 에서는 텔레그램에 native form UI 없으므로 임시
+ * fallback 텍스트 (fields 목록 + 답변 안내) 를 발화. 사용자 보고 2026-05-25
+ * 회귀 ④ 해소.
  *
  * v1 fallback 정책 재사용 (CCH-MP-04 §5.4): `nodeOutput` shape 으로 변환해
  * 기존 `renderCarouselFallback` / `renderTableFallback` / `renderChartFallback`
@@ -126,8 +129,9 @@ function renderPresentationPayload(
   presentation: PresentationPayload,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
-  // render_form 은 별 plan — 본 룰 처리 대상 아님.
-  if (presentation.type === 'form') return [];
+  if (presentation.type === 'form') {
+    return renderFormFallback(presentation.payload);
+  }
   return renderPresentationByType(
     presentation.type,
     // PresentationPayload 의 `payload` 는 zod-validated 본문 (`items`/`rows`/`rendered` 등).
@@ -138,37 +142,133 @@ function renderPresentationPayload(
 }
 
 /**
+ * 회귀 ⑤ (사용자 보고 2026-05-25) — handler structured return shape 처리.
+ *
+ * Template / Carousel / Chart / Table 핸들러는 `{config: {...}, output: {rendered/items/...}}`
+ * 형태로 반환. NodeExecution.outputData 에 그대로 저장 → NODE_COMPLETED emit 의
+ * `output` 필드 = 이 객체. chat-channel renderer 는 nodeOutput 의 여러 위치
+ * 에서 본문/항목 추출해야 회귀 ⑤ ("(카드가 없습니다.)") 회피.
+ *
+ * shape 우선순위:
+ * 1. `nodeOutput.payload.<field>` — AI Agent `render_*` presentations[i] wrapping (CCH-MP-01 보강)
+ * 2. `nodeOutput.output.<field>` — graph 노드 handler structured return shape (CCH-MP-06)
+ * 3. `nodeOutput.config.<field>` — Carousel static mode 처럼 config 안에만 보존되는 경우
+ * 4. `nodeOutput.<field>` — flat shape (legacy)
+ */
+function extractRendered(nodeOutput: Record<string, unknown>): string | null {
+  const candidates: unknown[] = [
+    nodeOutput.rendered,
+    (nodeOutput.payload as { rendered?: unknown } | undefined)?.rendered,
+    (nodeOutput.output as { rendered?: unknown } | undefined)?.rendered,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.length > 0) return c;
+  }
+  return null;
+}
+
+/**
+ * Carousel / Table / Chart 의 nodeOutput 을 fallback 함수가 기대하는
+ * `{ payload: {...} }` shape 으로 정규화. structured handler return (`output.{items|rows|series}`)
+ * 와 Carousel static mode (`config.items`) 도 처리.
+ */
+function normalizePresentationNodeOutput(
+  type: 'carousel' | 'table' | 'chart',
+  nodeOutput: Record<string, unknown>,
+): { title?: string; payload?: unknown } {
+  const title =
+    typeof nodeOutput.title === 'string' ? nodeOutput.title : undefined;
+  // 우선순위: payload → output → config → flat top-level
+  const payloadFromPayload = nodeOutput.payload;
+  const payloadFromOutput = nodeOutput.output;
+  const payloadFromConfig = nodeOutput.config;
+
+  // 시각형 노드별 핵심 필드: carousel=items, table=rows/columns, chart=series/labels
+  const hasArrayKey = (v: unknown, keys: readonly string[]): boolean => {
+    if (!v || typeof v !== 'object') return false;
+    const obj = v as Record<string, unknown>;
+    return keys.some((k) => Array.isArray(obj[k]));
+  };
+  const keys =
+    type === 'carousel' ? ['items'] : type === 'table' ? ['rows'] : ['series'];
+
+  const picked = [
+    payloadFromPayload,
+    payloadFromOutput,
+    payloadFromConfig,
+  ].find((cand) => hasArrayKey(cand, keys));
+
+  return {
+    ...(title !== undefined ? { title } : {}),
+    payload: picked ?? payloadFromPayload ?? payloadFromOutput ?? nodeOutput,
+  };
+}
+
+/**
  * presentation 4종 (`template`/`carousel`/`table`/`chart`) 별 분기 — §5.4 v1
- * fallback 함수 재사용. `execution.node.completed` (output 직접) /
- * `execution.ai_message.presentations[]` (payload wrapping) 두 진입점 공유.
+ * fallback 함수 재사용. 세 진입점 공유:
+ * 1. `execution.node.completed` (CCH-MP-06) — handler structured `{config, output}` shape
+ * 2. `execution.ai_message.presentations[]` (CCH-MP-01 보강) — `{payload: {...}}` wrapped
+ * 3. (graph) `waiting_for_input.buttonConfig.nodeOutput` — structured 또는 flat shape
+ *
+ * 회귀 ⑤ fix (사용자 보고 2026-05-25): `extractRendered` / `normalizePresentationNodeOutput`
+ * 가 여러 shape (payload/output/config/flat) 에서 본문/항목 추출 — 잘못된 빈
+ * fallback ("(카드가 없습니다.)") 회귀 차단.
  */
 function renderPresentationByType(
   type: 'carousel' | 'table' | 'chart' | 'template',
   nodeOutput: Record<string, unknown>,
   config: ChatChannelConfig,
 ): ChannelMessage[] {
-  switch (type) {
-    case 'template': {
-      // Template: `output.rendered` 본문 직접 추출.
-      // 1) execution.node.completed: `output = { rendered: '...' }`
-      // 2) ai_message.presentations[i]: `nodeOutput = { payload: { rendered: '...' } }`
-      const rendered =
-        typeof nodeOutput.rendered === 'string'
-          ? nodeOutput.rendered
-          : typeof (nodeOutput.payload as { rendered?: unknown } | undefined)
-                ?.rendered === 'string'
-            ? (nodeOutput.payload as { rendered: string }).rendered
-            : null;
-      if (rendered === null || rendered.length === 0) return [];
-      return renderText(rendered);
-    }
-    case 'carousel':
-      return renderCarouselFallback(nodeOutput, config);
-    case 'table':
-      return renderTableFallback(nodeOutput, config);
-    case 'chart':
-      return renderChartFallback(nodeOutput, config);
+  if (type === 'template') {
+    const rendered = extractRendered(nodeOutput);
+    if (rendered === null) return [];
+    return renderText(rendered);
   }
+  const normalized = normalizePresentationNodeOutput(type, nodeOutput);
+  switch (type) {
+    case 'carousel':
+      return renderCarouselFallback(normalized, config);
+    case 'table':
+      return renderTableFallback(normalized, config);
+    case 'chart':
+      return renderChartFallback(normalized, config);
+  }
+}
+
+/**
+ * 회귀 ④ (사용자 보고 2026-05-25): AI Agent `render_form` 호출 결과 텔레그램
+ * 발화 누락 fix. 별 plan `chat-channel-form-native-modal` v2 가 native modal /
+ * Mini App 으로 격상하기 전까지 v1 임시 텍스트 fallback — fields 목록 + 답변
+ * 안내. 텔레그램에서 form 의 존재 자체를 사용자가 인지할 수 있게 한다.
+ *
+ * SoT: spec/conventions/chat-channel-adapter.md §3 매핑 표 (2026-05-25 갱신).
+ */
+function renderFormFallback(
+  payload: Record<string, unknown>,
+): ChannelMessage[] {
+  const fields = Array.isArray(payload?.fields)
+    ? (payload.fields as Array<{
+        name?: unknown;
+        label?: unknown;
+        type?: unknown;
+        required?: unknown;
+      }>)
+    : [];
+  if (fields.length === 0) return [];
+  const lines: string[] = ['📝 입력이 필요해요:'];
+  for (const f of fields) {
+    const label = typeof f.label === 'string' ? f.label : '';
+    const name = typeof f.name === 'string' ? f.name : '';
+    const fieldType = typeof f.type === 'string' ? f.type : 'text';
+    const required = f.required === true ? ' *' : '';
+    const display = label || name;
+    if (!display) continue;
+    lines.push(`• ${display}${required} (${fieldType})`);
+  }
+  lines.push('');
+  lines.push('답변을 메시지로 보내주세요.');
+  return renderText(lines.join('\n'));
 }
 
 /**
