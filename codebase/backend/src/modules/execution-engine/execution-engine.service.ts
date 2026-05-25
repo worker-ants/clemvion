@@ -3311,6 +3311,23 @@ export class ExecutionEngineService
     const resultObj = result as Record<string, unknown>;
 
     if (resultObj.status === 'waiting_for_input') {
+      // 회귀 ③ 방어 (사용자 보고 2026-05-25): LLM 호출 (`processMultiTurnMessage`)
+      // await 도중 외부 path 가 ExecutionContext 를 삭제했을 가능성을 사전 검증.
+      // 발생 시 throw 대신 graceful exit — 본 turn 처리는 의미 없음 (execution 이
+      // 이미 cancelled/failed 됨). throw 하면 runExecution 의 catch 가 다시 FAILED
+      // 마킹하면서 destructive 오류 로그가 production 에 쌓임.
+      // tracking 로그: ExecutionContextService.setNodeOutput 의 MISSING 분기가
+      // caller stack 을 출력 — `[ctx-trace]` prefix 로 grep.
+      if (!this.contextService.getContext(executionId)) {
+        this.logger.warn(
+          `handleAiMessageTurn: ExecutionContext absent on LLM-resume — ` +
+            `execution=${executionId} node=${node.id}. ` +
+            `Treating as graceful no-op (likely cancelled/failed during await). ` +
+            `Race source diagnosis: look for [ctx-trace] deleteContext logs prior.`,
+        );
+        return { resumeState, ended: true, finalStatus: 'FAILED' };
+      }
+
       // Run the canonical adapter once so production-strict validation
       // is enforced and the structured cache stays consistent for the
       // next emit cycle / REST polling reconciliation.
