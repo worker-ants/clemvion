@@ -28,6 +28,7 @@ import {
   ContinuationBusService,
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
+import type { ContinuationPayload } from './queues/continuation-execution.queue';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
@@ -3021,7 +3022,7 @@ export class ExecutionEngineService
         });
       });
 
-      const action = userData as Record<string, unknown>;
+      const action = userData as ContinuationPayload;
 
       if (action.type === 'ai_end_conversation') {
         this.handleAiEndConversation(executionId, node, resumeState);
@@ -3030,7 +3031,7 @@ export class ExecutionEngineService
         const turn = await this.handleAiMessageTurn(
           executionId,
           node,
-          action.message as string,
+          action.message,
           resumeState,
           nodeExec,
           'ai_message',
@@ -3077,11 +3078,13 @@ export class ExecutionEngineService
         // 에 도달해 대화가 FAILED 종결되는 회귀. button_click 은 enum-known
         // 이므로 skip count 에서 명시적으로 제외 — 무한 클릭에도 대화 alive
         // 유지, 사용자는 다음 메시지 입력으로 자연스럽게 진행 가능.
-        const buttonIdRaw = (action as { buttonId?: unknown }).buttonId;
         const buttonIdStr =
-          typeof buttonIdRaw === 'string' ? buttonIdRaw.slice(0, 64) : '';
+          typeof action.buttonId === 'string'
+            ? action.buttonId.slice(0, 64)
+            : '';
         this.logger.warn(
-          `[waitForAiConversation] button_click action received during ai_conversation (spec §10.9 invariant breach — likely stale chat-channel inline_keyboard click). execution=${executionId} buttonId=${buttonIdStr} — loop re-entering (skip count excluded per spec line 407 graceful degradation)`,
+          '[waitForAiConversation] button_click received during ai_conversation — stale inline_keyboard click, loop re-entering',
+          { executionId, buttonId: buttonIdStr },
         );
       } else {
         // spec §10.9 line 401 — 알 수 없는 action.type 은 silent skip 회피.
