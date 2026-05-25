@@ -61,6 +61,16 @@ export interface ChatChannelConfig {
   /** CCH-NF-03 override. default 60. */
   rateLimitPerMinute?: number;
 
+  /**
+   * `languageHints` 미설정 키의 default 문구 locale 선택. default "ko".
+   * 어댑터의 lookup 순서: (1) `languageHints[key]` override → (2) 본 locale 의 default
+   * 문구 → (3) 'ko' fallback.
+   *
+   * @see spec/5-system/15-chat-channel.md §4.1 / §4.1.1 (KO/EN default 12 문구 표)
+   * @see spec/conventions/chat-channel-adapter.md §2.3
+   */
+  languageLocale?: 'ko' | 'en';
+
   /** 봇이 보내는 자체 안내 메시지 i18n. */
   languageHints?: Record<string, string>;
 }

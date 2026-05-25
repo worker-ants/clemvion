@@ -4,6 +4,12 @@ import {
   ChatChannelConfig,
   EiaEvent,
 } from '../../types';
+import { classifyExecutionFailure } from '../../shared/execution-failure-classifier';
+import {
+  resolveLanguageHint,
+  applyPlaceholders,
+  type LanguageLocale,
+} from '../../shared/language-hint-defaults';
 
 const TELEGRAM_MESSAGE_LIMIT = 4096;
 const CONTINUED_SUFFIX = '\n_(continued…)_';
@@ -45,10 +51,7 @@ export function renderTelegramMessages(
           '워크플로우가 완료되었습니다.',
       );
     case 'execution.failed':
-      return renderText(
-        config.languageHints?.executionFailed ??
-          '워크플로우 실행 중 문제가 발생했습니다.',
-      );
+      return renderText(renderFailureMessage(event, config));
     case 'execution.cancelled':
       return renderText(
         config.languageHints?.executionCancelled ??
@@ -57,6 +60,28 @@ export function renderTelegramMessages(
     case 'execution.waiting_for_input':
       return renderWaitingForInput(event, config);
   }
+}
+
+/**
+ * Spec [providers/telegram §5.6] / CCH-ERR-01~03 — Execution Failed.
+ *
+ * classifier 가 (key, placeholders) 결정 → resolveLanguageHint 로 3-level lookup →
+ * applyPlaceholders 로 {statusCode} 치환. MarkdownV2 escape 는 renderText 에서 자동 적용.
+ *
+ * 민감정보 (error.message, nodeId, executionId, details.url 등) 는 본 함수에서 절대
+ * 사용하지 않는다 (CCH-ERR-03 — 입력은 classifier 의 결과만).
+ */
+function renderFailureMessage(
+  event: Extract<EiaEvent, { type: 'execution.failed' }>,
+  config: ChatChannelConfig,
+): string {
+  const { key, placeholders } = classifyExecutionFailure(event);
+  const template = resolveLanguageHint(
+    key,
+    config.languageHints,
+    config.languageLocale as LanguageLocale | undefined,
+  );
+  return applyPlaceholders(template, placeholders);
 }
 
 function renderText(rawText: string): ChannelMessage[] {
