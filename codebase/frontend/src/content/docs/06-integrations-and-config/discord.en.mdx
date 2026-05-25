@@ -89,6 +89,12 @@ Copy the endpoint URL using the 📋 button on the trigger list. Slash command a
 - v1 = multi-step text sequence (one question per field, answered via buttons/modal)
 - v2 (planned) = Discord modal (TEXT_INPUT components) native support
 
+### 5.4 AI Agent render tools / Template
+
+- When an AI Multi Turn node calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply (`render_form` is tracked in a separate plan)
+- Template nodes (non-blocking case without buttons) also send `output.rendered` as a text message automatically
+- v1 fallback policy — chart/table render as monospace text, carousel as per-card sequential messages, template as plain text. SSR PNG upgrade is tracked in plan `chat-channel-visual-ssr-png`
+
 ## 6. v1 limitations / known gaps
 
 - **No free-text DM** — v1 is Interactions Webhook only. Discord's `MESSAGE_CREATE` requires Gateway → v1 users reply via `/workflow reply` or modal (per CCH-MP-01 partial deferral, R-CC-13).

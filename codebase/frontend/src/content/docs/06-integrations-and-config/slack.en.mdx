@@ -107,6 +107,12 @@ Copy the endpoint URL using the 📋 button on the trigger list screen. Use the 
 - Form nodes use v1 multi-step text sequence (one question per field, answered via DM)
 - v2 (planned) will support Slack `views.open` modal natively
 
+### 4.4 AI Agent render tools / Template
+
+- When an AI Multi Turn node calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply (`render_form` is tracked in a separate plan)
+- Template nodes (non-blocking case without buttons) also send `output.rendered` as a text message automatically
+- v1 fallback policy — chart/table render as mrkdwn monospace text, carousel as per-card sequential messages, template as plain text. SSR PNG upgrade is tracked in plan `chat-channel-visual-ssr-png`
+
 ## 5. v1 limitations / known gaps
 
 - **DM only** — group / channel / mpim are unsupported (auto-rejected with notice). Multi-user channels are bundled with v2 multi-user-thread work.
