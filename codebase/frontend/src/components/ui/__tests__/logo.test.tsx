@@ -83,14 +83,21 @@ describe("Logo", () => {
     expect((img as HTMLElement).style.height).toBe("auto");
   });
 
-  it("renders wordmark variant with auto theme (same asset for both modes)", () => {
-    // Wordmark currently has a single tone — see logo.tsx ASSET_PATHS comment.
-    // Both auto-rendered <img>s point at the same path, but the dark wrapper
-    // still toggles via `dark:block` so future split is a trivial change.
+  it("renders wordmark variant with auto theme (separate light/dark assets)", () => {
+    // Wordmark now splits into light (black text) and dark (white text)
+    // variants — spec §8.4.4 R-16. The auto renderer emits both and lets
+    // Tailwind `dark:` swap them.
     render(<Logo variant="wordmark" theme="auto" />);
     const imgs = screen.getAllByRole("img", { hidden: true });
     expect(imgs).toHaveLength(2);
-    expect(imgs.every((i) => i.getAttribute("src") === "/logo-wordmark.svg")).toBe(true);
+    const srcs = imgs.map((i) => i.getAttribute("src"));
+    expect(srcs).toContain("/logo-wordmark.svg");
+    expect(srcs).toContain("/logo-wordmark-dark.svg");
+    const lightImg = imgs.find((i) => i.getAttribute("src") === "/logo-wordmark.svg")!;
+    const darkImg = imgs.find((i) => i.getAttribute("src") === "/logo-wordmark-dark.svg")!;
+    expect(lightImg.className).toContain("dark:hidden");
+    expect(darkImg.className).toContain("hidden");
+    expect(darkImg.className).toContain("dark:block");
   });
 
   it("keeps alt on both auto-rendered images so the visible one is announced", () => {
@@ -111,17 +118,17 @@ describe("LogoMark", () => {
     expect(img.getAttribute("alt")).toBe("Clemvion");
   });
 
-  it("renders both light and dark mark assets when theme=auto", () => {
+  it("renders the mark with auto theme as two imgs pointing at the same asset (R-16 transparent unified)", () => {
+    // After R-16 the mark has no light/dark distinction — transparent
+    // background, single gradient. Both auto-rendered <img>s point at
+    // the same file but keep the Tailwind `dark:` toggle so a future
+    // tinted-variant split is one line in logo.tsx ASSET_PATHS.
     render(<LogoMark theme="auto" />);
     const imgs = screen.getAllByRole("img", { hidden: true });
-    const srcs = imgs.map((i) => i.getAttribute("src"));
-    expect(srcs).toContain("/logo-mark.svg");
-    expect(srcs).toContain("/logo-mark-dark.svg");
-    // Symmetry with Logo auto: hidden via Tailwind dark: variant on both.
-    const lightImg = imgs.find((i) => i.getAttribute("src") === "/logo-mark.svg")!;
-    const darkImg = imgs.find((i) => i.getAttribute("src") === "/logo-mark-dark.svg")!;
-    expect(lightImg.className).toContain("dark:hidden");
-    expect(darkImg.className).toContain("hidden");
-    expect(darkImg.className).toContain("dark:block");
+    expect(imgs).toHaveLength(2);
+    expect(imgs.every((i) => i.getAttribute("src") === "/logo-mark.svg")).toBe(true);
+    expect(imgs[0].className).toContain("dark:hidden");
+    expect(imgs[1].className).toContain("hidden");
+    expect(imgs[1].className).toContain("dark:block");
   });
 });
