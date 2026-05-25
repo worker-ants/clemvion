@@ -94,14 +94,54 @@ describe('renderTelegramMessages', () => {
     expect(m[0].body.kind).toBe('text');
   });
 
-  it('failed → 사용자 안내 text', () => {
+  it('failed → 사용자 안전 안내 (CCH-ERR-03: 민감정보 미노출)', () => {
     const event: EiaEvent = {
       ...BASE_EVENT_FIELDS,
       type: 'execution.failed',
-      error: { code: 'X', message: 'internal' },
+      error: {
+        code: 'HTTP_TRANSPORT_FAILED',
+        message: 'ENOTFOUND api.internal',
+        nodeId: 'node-secret',
+      },
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
     expect(m[0].body.kind).toBe('text');
+    const text = (m[0].body as { text: string }).text;
+    expect(text).not.toContain('ENOTFOUND');
+    expect(text).not.toContain('api.internal');
+    expect(text).not.toContain('HTTP_TRANSPORT_FAILED');
+    expect(text).not.toContain('node-secret');
+  });
+
+  it('failed (HTTP_4XX with statusCode) → {statusCode} 치환 (MarkdownV2 escape 적용)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.failed',
+      error: {
+        code: 'HTTP_4XX',
+        message: 'x',
+        details: { statusCode: 401 },
+      },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m[0].body.kind).toBe('text');
+    const text = (m[0].body as { text: string }).text;
+    // MarkdownV2 escape 가 ( ) . 을 escape — 401 자체는 escape 영향 없음.
+    expect(text).toContain('401');
+  });
+
+  it('failed (languageLocale=en) → EN default', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.failed',
+      error: { code: 'LLM_RATE_LIMIT', message: 'x' },
+    };
+    const m = renderTelegramMessages(event, {
+      ...BASE_CONFIG,
+      languageLocale: 'en',
+    });
+    const text = (m[0].body as { text: string }).text;
+    expect(text.toLowerCase()).toContain('too many requests');
   });
 
   it('cancelled → text', () => {
@@ -112,6 +152,20 @@ describe('renderTelegramMessages', () => {
     };
     const m = renderTelegramMessages(event, BASE_CONFIG);
     expect(m[0].body.kind).toBe('text');
+  });
+
+  it('waiting_for_input(ai_form_render) → ai_conversation 과 동일 경로 (conversationConfig.message → text)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.waiting_for_input',
+      node: { id: 'n1', type: 'ai-agent', interactionType: 'ai_form_render' },
+      interaction: {},
+      context: { conversationConfig: { message: '폼을 작성해 주세요' } },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m).toHaveLength(1);
+    expect(m[0].body.kind).toBe('text');
+    expect((m[0].body as { text: string }).text).toContain('폼을 작성해');
   });
 
   it('waiting_for_input(ai_conversation) → conversationConfig.message → text', () => {

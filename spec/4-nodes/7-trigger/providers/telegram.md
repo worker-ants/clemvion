@@ -151,6 +151,23 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 
 **legacy `text_only` 처리**: 어댑터가 입력 단계에서 `visualNode === "text_only"` 를 `"text"` 로 read-time normalize (Convention §2.3 의 normalize 정책 적용). 마이그레이션 완료 전 과도기.
 
+### 5.6 Execution Failed (CCH-ERR-*)
+
+> Telegram §5 는 `5.5 typing` (Slack/Discord 의 typing indicator 등가) 절이 없다 — `sendChatAction(typing)` 는 [R9 의 후속 단순화 항목](../../../5-system/15-chat-channel.md#r9-cch-cv-03-running-케이스의-큐잉-vs-즉시-안내-2026-05-22) 으로 v2 검토 중. 본 §5.6 의 절 번호는 Slack/Discord 의 §5.6 과 정렬 (provider 간 동일 의무 가시성 우선).
+
+`execution.failed` 이벤트는 [Convention §3.1](../../../conventions/chat-channel-adapter.md#31-execution-failed-분류-알고리즘) 의 `classifyExecutionFailure(event)` 가 결정한 `(key, placeholders)` 를 어댑터가 lookup·치환하여 단일 `sendMessage` (plain text) 로 발송한다.
+
+| 항목 | Telegram 매핑 |
+|---|---|
+| API 호출 | `POST /bot{token}/sendMessage` (1회) — chunked 미적용 (안내 메시지는 한 줄) |
+| 본문 | `text` = `languageHints[key]` 의 `{statusCode}` 치환 결과. **MarkdownV2 escape 적용** (R4 동일 — `_*[]()~``>#+-=|{}.!` 모두 backslash escape). `parse_mode: "MarkdownV2"` |
+| `reply_markup` | 미부여 (`inline_keyboard` 등 인터랙션 컨트롤 없음 — terminal event) |
+| `reply_to_message_id` | 미부여 (1:1 DM 가정) |
+| ack | `answerCallbackQuery` 무관 (callback 이 아님) |
+| timeout / retry | [CCH-SE-01](../../../5-system/15-chat-channel.md#34-신뢰성--보안) 동일 — 5초 timeout + 3회 지수 백오프. 최종 실패 시 `chat_channel_health=degraded` |
+
+민감정보 strip — [CCH-ERR-03](../../../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 그대로. 본 §5.6 은 Telegram 별 매핑 구체만 명시.
+
 ---
 
 ## 6. 보안

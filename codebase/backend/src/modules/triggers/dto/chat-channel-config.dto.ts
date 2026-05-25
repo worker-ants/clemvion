@@ -10,6 +10,10 @@ import {
   MaxLength,
   MinLength,
   IsEmpty,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -67,6 +71,71 @@ export class ChatChannelUiMappingDto {
   @IsOptional()
   @IsIn(['auto', 'vertical', 'horizontal'])
   buttonLayout?: 'auto' | 'vertical' | 'horizontal';
+}
+
+// ---------------------------------------------------------------------------
+// CCH-ERR-03 placeholder whitelist validator
+// (선언 순서 — Validator class 는 @Validate decorator 사용 전에 정의되어야 함, TDZ 회피)
+// ---------------------------------------------------------------------------
+
+/**
+ * CCH-ERR-* 6 키 — Spec Chat Channel §4.1.1.
+ * 본 validator 의 scope (다른 키들은 검증 면제 — 기존 키 영향 회피).
+ */
+const FAILURE_HINT_KEYS = [
+  'executionFailedThirdParty4xx',
+  'executionFailedThirdParty5xx',
+  'executionFailedThirdParty',
+  'executionFailedTimeout',
+  'executionFailedRateLimit',
+  'executionFailedInternal',
+] as const;
+
+const ALLOWED_PLACEHOLDER = '{statusCode}';
+// 모든 {...} 토큰을 추출 — 허용 외 placeholder 검출용.
+const PLACEHOLDER_REGEX = /\{[^}]+\}/g;
+
+function findFirstUnknownPlaceholder(
+  value: unknown,
+): { field: string; placeholder: string } | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'object') return null;
+  for (const key of FAILURE_HINT_KEYS) {
+    const template = (value as Record<string, unknown>)[key];
+    if (typeof template !== 'string') continue;
+    const matches = template.match(PLACEHOLDER_REGEX) ?? [];
+    for (const ph of matches) {
+      if (ph !== ALLOWED_PLACEHOLDER) {
+        return { field: `languageHints.${key}`, placeholder: ph };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Spec Chat Channel R-CC-15 (c) / CCH-ERR-03 — `languageHints[CCH-ERR-* 6 키]` 의 template 안에서
+ * 허용되는 placeholder 는 `{statusCode}` 1종. 다른 `{...}` 토큰 발견 시 reject.
+ *
+ * 기존 키 (`groupChatRefusal`, `executionStarted`, `executionCompleted`, `executionStillRunning`,
+ * `help`, `executionCancelled` 등) 는 본 validator scope 밖 — 기존 운영 데이터 영향 회피.
+ */
+@ValidatorConstraint({ name: 'languageHintsPlaceholder', async: false })
+export class LanguageHintsPlaceholderValidator implements ValidatorConstraintInterface {
+  // Stateless — instance fields 회피 (class-validator singleton 패턴에서의 race 회피).
+  validate(value: unknown, _args: ValidationArguments): boolean {
+    return findFirstUnknownPlaceholder(value) === null;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    // ValidationPipe exceptionFactory 가 message 를 파싱해 details.code='UNKNOWN_PLACEHOLDER' +
+    // details.field 합성. message 포맷: `UNKNOWN_PLACEHOLDER:<field>:<placeholder>`.
+    const found = findFirstUnknownPlaceholder(args.value);
+    if (found) {
+      return `UNKNOWN_PLACEHOLDER:${found.field}:${found.placeholder}`;
+    }
+    return 'UNKNOWN_PLACEHOLDER';
+  }
 }
 
 export class ChatChannelBotIdentityDto {
@@ -243,11 +312,26 @@ export class ChatChannelConfigDto {
 
   @ApiPropertyOptional({
     description:
-      '봇이 보내는 자체 안내 메시지 i18n (groupChatRefusal / executionStarted / executionCompleted 등).',
+      "languageHints 미설정 키의 default 문구 locale. 'ko' (default) | 'en'. " +
+      'spec/5-system/15-chat-channel.md §4.1 / §4.1.1.',
+    enum: ['ko', 'en'],
+    default: 'ko',
+  })
+  @IsOptional()
+  @IsIn(['ko', 'en'])
+  languageLocale?: 'ko' | 'en';
+
+  @ApiPropertyOptional({
+    description:
+      '봇이 보내는 자체 안내 메시지 i18n (groupChatRefusal / executionStarted / executionCompleted / ' +
+      'CCH-ERR-* 6 키 [executionFailedThirdParty4xx / *5xx / ThirdParty / Timeout / RateLimit / Internal] 등). ' +
+      'CCH-ERR-* 키의 template 안에서 허용되는 placeholder 는 {statusCode} 1종 (CCH-ERR-03). ' +
+      '다른 {...} placeholder 발견 시 400 VALIDATION_ERROR (code=UNKNOWN_PLACEHOLDER).',
     type: 'object',
     additionalProperties: { type: 'string' },
   })
   @IsOptional()
   @IsObject()
+  @Validate(LanguageHintsPlaceholderValidator)
   languageHints?: Record<string, string>;
 }

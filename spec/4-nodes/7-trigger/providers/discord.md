@@ -219,6 +219,21 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 
 `POST /channels/{channel_id}/typing` — Telegram `sendChatAction(typing)` 와 1:1 (10초 유지 후 자동 만료). LLM 응답 직전 1회 호출, latency 가 10초 초과 시 5초마다 반복 (margin 5초로 indicator 끊김 방지).
 
+### 5.6 Execution Failed (CCH-ERR-*)
+
+`execution.failed` 이벤트는 [Convention §3.1](../../../conventions/chat-channel-adapter.md#31-execution-failed-분류-알고리즘) 의 `classifyExecutionFailure(event)` 가 결정한 `(key, placeholders)` 를 어댑터가 lookup·치환하여 단일 `POST /channels/{id}/messages` (plain text) 로 발송한다.
+
+| 항목 | Discord 매핑 |
+|---|---|
+| API 호출 | `POST https://discord.com/api/v10/channels/{channel_id}/messages` (1회) |
+| 본문 | `content` = `languageHints[key]` 의 `{statusCode}` 치환 결과. **plain text** (`**__~~` 등 markdown 회피). `embeds` 미부여 |
+| `components` | 미부여 (button / select 등 인터랙션 컨트롤 없음 — terminal event) |
+| `message_reference` | 미부여 (DM only — [R-D-4](#r-d-4-dm-only-guild-채널-거부-2026-05-24)) |
+| Interactions Webhook ack | 무관 (본 발송은 `MESSAGE_CREATE` 가 아니라 server-initiated push — Interactions Webhook 3초 ack 시한 규약과 별개) |
+| timeout / retry | [CCH-SE-01](../../../5-system/15-chat-channel.md#34-신뢰성--보안) 동일 — 5초 timeout + 3회 지수 백오프. 최종 실패 시 `chat_channel_health=degraded` |
+
+민감정보 strip — [CCH-ERR-03](../../../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 그대로.
+
 ---
 
 ## 6. 보안

@@ -324,5 +324,125 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
       const errors = await validate(dto, VALIDATE_OPTIONS);
       expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
     });
+
+    describe('languageLocale (CCH-ERR-01 / §4.1)', () => {
+      it('통과 — languageLocale 미설정 (default ko)', async () => {
+        const dto = plainToInstance(CreateTriggerDto, {
+          ...baseCreate,
+          chatChannel: { provider: 'telegram', botToken: '111:fake' },
+        });
+        const errors = await validate(dto, VALIDATE_OPTIONS);
+        expect(
+          errors.find((e) => e.property === 'chatChannel'),
+        ).toBeUndefined();
+      });
+
+      it('통과 — languageLocale=ko / en', async () => {
+        for (const locale of ['ko', 'en']) {
+          const dto = plainToInstance(CreateTriggerDto, {
+            ...baseCreate,
+            chatChannel: {
+              provider: 'telegram',
+              botToken: '111:fake',
+              languageLocale: locale,
+            },
+          });
+          const errors = await validate(dto, VALIDATE_OPTIONS);
+          expect(
+            errors.find((e) => e.property === 'chatChannel'),
+          ).toBeUndefined();
+        }
+      });
+
+      it('실패 — languageLocale 가 unknown 값 (fr)', async () => {
+        const dto = plainToInstance(CreateTriggerDto, {
+          ...baseCreate,
+          chatChannel: {
+            provider: 'telegram',
+            botToken: '111:fake',
+            languageLocale: 'fr',
+          },
+        });
+        const errors = await validate(dto, VALIDATE_OPTIONS);
+        expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+      });
+    });
+
+    describe('languageHints CCH-ERR-* placeholder validator (R-CC-15 (c))', () => {
+      it('통과 — CCH-ERR-* 키에 {statusCode} placeholder 만 사용', async () => {
+        const dto = plainToInstance(CreateTriggerDto, {
+          ...baseCreate,
+          chatChannel: {
+            provider: 'telegram',
+            botToken: '111:fake',
+            languageHints: {
+              executionFailedThirdParty4xx: '4xx ({statusCode})',
+              executionFailedThirdParty5xx: '5xx ({statusCode})',
+              executionFailedInternal: '내부 오류',
+            },
+          },
+        });
+        const errors = await validate(dto, VALIDATE_OPTIONS);
+        expect(
+          errors.find((e) => e.property === 'chatChannel'),
+        ).toBeUndefined();
+      });
+
+      it('통과 — 기존 키 (executionCompleted 등) 는 검증 면제 — {nodeId} 같이 unknown placeholder 도 통과', async () => {
+        // 기존 키들은 본 PR scope 밖 — validator 가 CCH-ERR-* 6 키만 검증
+        const dto = plainToInstance(CreateTriggerDto, {
+          ...baseCreate,
+          chatChannel: {
+            provider: 'telegram',
+            botToken: '111:fake',
+            languageHints: {
+              executionCompleted: '완료 — {nodeId}', // 기존 키는 면제
+            },
+          },
+        });
+        const errors = await validate(dto, VALIDATE_OPTIONS);
+        expect(
+          errors.find((e) => e.property === 'chatChannel'),
+        ).toBeUndefined();
+      });
+
+      it('실패 — CCH-ERR-* 키에 unknown placeholder ({nodeId}) 사용 시 reject', async () => {
+        const dto = plainToInstance(CreateTriggerDto, {
+          ...baseCreate,
+          chatChannel: {
+            provider: 'telegram',
+            botToken: '111:fake',
+            languageHints: {
+              executionFailedInternal: '오류 발생 in {nodeId}',
+            },
+          },
+        });
+        const errors = await validate(dto, VALIDATE_OPTIONS);
+        const chatChannelError = errors.find(
+          (e) => e.property === 'chatChannel',
+        );
+        expect(chatChannelError).toBeDefined();
+        // nested error message 에 UNKNOWN_PLACEHOLDER:languageHints.executionFailedInternal:{nodeId} 포함
+        const serialized = JSON.stringify(chatChannelError);
+        expect(serialized).toContain('UNKNOWN_PLACEHOLDER');
+        expect(serialized).toContain('executionFailedInternal');
+        expect(serialized).toContain('{nodeId}');
+      });
+
+      it('실패 — CCH-ERR-* 키에 {executionId} 사용 시 reject', async () => {
+        const dto = plainToInstance(CreateTriggerDto, {
+          ...baseCreate,
+          chatChannel: {
+            provider: 'telegram',
+            botToken: '111:fake',
+            languageHints: {
+              executionFailedTimeout: 'timeout in {executionId}',
+            },
+          },
+        });
+        const errors = await validate(dto, VALIDATE_OPTIONS);
+        expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+      });
+    });
   });
 });
