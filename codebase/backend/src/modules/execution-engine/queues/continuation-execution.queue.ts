@@ -83,5 +83,6 @@ export interface ContinuationJob {
     | 'ai_end_conversation';
   executionId: string;
   nodeExecutionId: string;
-  payload?: ContinuationPayload;
+  /** W3 — 세부 타입은 ContinuationPayload 참조. ContinuationMessage.payload 가 unknown 으로 선언되어 있어 bus service 와의 호환성을 위해 unknown 유지. */
+  payload?: unknown;
 }
