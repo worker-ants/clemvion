@@ -70,12 +70,13 @@ When the trigger activates, `setWebhook` is called automatically — no manual w
 
 | Node type | Telegram representation |
 |---|---|
-| **AI Multi Turn** | Free-form text conversation |
+| **AI Multi Turn** | Free-form text conversation. When the AI calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply (`render_form` is tracked in a separate plan). |
 | **Button Presentation** | Inline keyboard buttons |
 | **Form** | Sequential field-by-field text input (contact share, file upload included) |
 | **Chart** | Monospace mini bar chart text (labels + values aligned, first series shown) |
 | **Table** | Monospace MarkdownV2 table (auto column widths, first 20 rows — `"+N more rows"` appended if exceeded) |
 | **Carousel** | Sequential per-card messages (title + description + image URL, up to 10 cards) |
+| **Template** | `output.rendered` body is MarkdownV2-escaped and sent as a text message automatically. The body is delivered even when the node has no buttons (non-blocking mode). HTML / Markdown modes are flattened to text in v1 (SSR PNG upgrade is tracked in plan `chat-channel-visual-ssr-png`). |
 
 <Callout type="note">
 Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in Telegram. A future PR will upgrade them to SSR PNG image delivery (tracked in plan `chat-channel-visual-ssr-png`).

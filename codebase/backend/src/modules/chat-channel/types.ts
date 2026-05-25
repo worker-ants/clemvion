@@ -7,6 +7,8 @@
  *   - [spec/4-nodes/7-trigger/providers/telegram.md] — 텔레그램 구체 명세
  */
 
+import type { PresentationPayload } from '../../shared/conversation-thread/conversation-thread.types';
+
 /**
  * Trigger.config.chatChannel 의 in-memory representation.
  *
@@ -203,6 +205,16 @@ export interface EiaAiMessageEvent extends EiaEventBase {
   messages?: unknown[];
   metadata?: unknown;
   llmCalls?: unknown[];
+  /**
+   * AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉.
+   * SoT: [spec/conventions/chat-channel-adapter.md §1.2 line 89](../../../../spec/conventions/chat-channel-adapter.md#12-eiaevent-입력)
+   *      / [spec/4-nodes/3-ai/1-ai-agent.md §7.10](../../../../spec/4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)
+   *      / [spec/5-system/14-external-interaction-api.md §6.5 line 536](../../../../spec/5-system/14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message).
+   *
+   * 4종 display-only (`carousel`/`table`/`chart`/`template`) 만 본 필드로 채널 발화 대상.
+   * `render_form` (`type === 'form'`) 은 별 plan `chat-channel-form-native-modal` 추적.
+   */
+  presentations?: PresentationPayload[];
 }
 
 export interface EiaCompletedEvent extends EiaEventBase {
@@ -226,6 +238,44 @@ export interface EiaCancelledEvent extends EiaEventBase {
   type: 'execution.cancelled';
   result: { cancelledBy?: 'user' | 'system' | 'timeout' };
   durationMs?: number;
+}
+
+/**
+ * Chat-channel-internal in-process event — EIA outbound 5종 화이트리스트 (§6.1)
+ * 외 추가로 chat-channel adapter 가 구독하는 이벤트. 외부 SDK 미노출.
+ *
+ * SoT:
+ *   - [spec/conventions/chat-channel-adapter.md §1.3](../../../../spec/conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력-2026-05-25-신설)
+ *   - [spec/5-system/15-chat-channel.md §3.1 CCH-AD-07](../../../../spec/5-system/15-chat-channel.md#31-실행-엔진과의-연결)
+ *   - [spec/conventions/chat-channel-adapter.md §R-CCA-7](../../../../spec/conventions/chat-channel-adapter.md#r-cca-7)
+ *
+ * 구독 소스: R8 의 in-process fan-out 채널 (`WebsocketService.executionEvents$` Subject)
+ * — chat-channel `Dispatcher` 가 presentation 노드 한정 sub-filter 로 attach.
+ *
+ * 현재 단일 variant — `execution.node.completed` (presentation 노드 4종 비-blocking).
+ * 추가 variant 가 필요해지면 본 union 에 행 추가.
+ */
+export type ChatChannelInternalEvent = EiaNodeCompletedEvent;
+
+/**
+ * 비-blocking presentation 노드 (`carousel`/`table`/`chart`/`template`) 완료 시
+ * chat-channel-internal listener 가 픽업하는 이벤트.
+ *
+ * `node.type` 은 4종 display-only presentation 한정 — form 제외, AI Agent / LLM /
+ * code 등 비-presentation 노드는 sub-filter 가 제외. blocking 진입 케이스
+ * (`output.status === 'waiting_for_input'`) 도 사전 제외 — 그 흐름은
+ * `execution.waiting_for_input` (interactionType=buttons) 행이 처리.
+ */
+export interface EiaNodeCompletedEvent extends EiaEventBase {
+  type: 'execution.node.completed';
+  node: {
+    id: string;
+    type: 'carousel' | 'table' | 'chart' | 'template';
+    label?: string;
+  };
+  /** NodeHandlerOutput.output — 예: Template `{rendered, ...}`, Carousel `{items, ...}`. */
+  output: Record<string, unknown>;
+  meta?: Record<string, unknown>;
 }
 
 export interface SetupResult {
@@ -260,8 +310,14 @@ export interface ChatChannelAdapter {
     raw: unknown,
     config: ChatChannelConfig,
   ): Promise<ChannelUpdate | null>;
+  /**
+   * EIA outbound 이벤트 + chat-channel-internal 이벤트 → 외부 채널 메시지 변환.
+   * 입력 union: `EiaEvent` (EIA §6 5종) | `ChatChannelInternalEvent` (chat-channel-internal).
+   * 어댑터 구현체는 `event.type` discriminated union 분기로 처리.
+   * SoT: [spec/conventions/chat-channel-adapter.md §R-CCA-7](../../../../spec/conventions/chat-channel-adapter.md#r-cca-7).
+   */
   renderNode(
-    event: EiaEvent,
+    event: EiaEvent | ChatChannelInternalEvent,
     config: ChatChannelConfig,
   ): Promise<ChannelMessage[]>;
   sendMessage(

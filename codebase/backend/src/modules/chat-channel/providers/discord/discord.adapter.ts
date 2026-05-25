@@ -6,6 +6,7 @@ import type {
   ChannelUpdate,
   ChatChannelAdapter,
   ChatChannelConfig,
+  ChatChannelInternalEvent,
   EiaEvent,
   SendResult,
   SetupResult,
@@ -147,7 +148,7 @@ export class DiscordAdapter implements ChatChannelAdapter {
    * Spec §5 — 5종 EIA event → ChannelMessage. conversationKey 는 dispatcher 보정.
    */
   renderNode(
-    event: EiaEvent,
+    event: EiaEvent | ChatChannelInternalEvent,
     config: ChatChannelConfig,
   ): Promise<ChannelMessage[]> {
     return Promise.resolve(renderDiscordEvent(event, config));

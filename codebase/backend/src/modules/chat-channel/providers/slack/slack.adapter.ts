@@ -5,6 +5,7 @@ import type {
   ChannelUpdate,
   ChatChannelAdapter,
   ChatChannelConfig,
+  ChatChannelInternalEvent,
   EiaEvent,
   SendResult,
   SetupResult,
@@ -114,7 +115,7 @@ export class SlackAdapter implements ChatChannelAdapter {
    * conversationKey 는 dispatcher 가 보정 (Telegram renderer 와 동일 패턴).
    */
   renderNode(
-    event: EiaEvent,
+    event: EiaEvent | ChatChannelInternalEvent,
     config: ChatChannelConfig,
   ): Promise<ChannelMessage[]> {
     return Promise.resolve(renderSlackEvent(event, config));

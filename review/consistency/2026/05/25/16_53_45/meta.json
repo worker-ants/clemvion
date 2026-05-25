@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-25T16:53:45.803741",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/chat-channel-template-render-outbound.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
