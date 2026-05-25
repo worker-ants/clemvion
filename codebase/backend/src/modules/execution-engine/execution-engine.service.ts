@@ -771,6 +771,11 @@ export class ExecutionEngineService
       const chatChannel = extractChatChannelFromInput(input);
       this.eventEmitter.registerExecutionRouting(executionId, {
         triggerId: options.triggerId,
+        // workflowId 는 ChatChannelDispatcher.toEiaEvent 가 EiaEvent.base 의
+        // 필수 필드로 요구 — 누락 시 dispatcher 가 `if (!workflowId) return null`
+        // 에서 silent skip 하여 outbound 메시지가 안 가던 PR #314 잔여 회귀
+        // (2026-05-25 사용자 production log 확인) 해소.
+        workflowId,
         ...(chatChannel ? { chatChannel } : {}),
       });
     }

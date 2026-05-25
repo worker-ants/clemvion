@@ -269,9 +269,10 @@ describe('WebsocketService', () => {
       return firstValueFrom(svc.executionEvents$.pipe(take(n), toArray()));
     }
 
-    it('register 된 execution 의 fanout envelope 에 triggerId + chatChannel 첨부', async () => {
+    it('register 된 execution 의 fanout envelope 에 triggerId + workflowId + chatChannel 첨부', async () => {
       service.registerExecutionRouting('exec-1', {
         triggerId: 'trg-A',
+        workflowId: 'wf-A',
         chatChannel: {
           provider: 'telegram',
           conversationKey: '12345',
@@ -286,6 +287,9 @@ describe('WebsocketService', () => {
       const fanout = await eventP;
       const payload = fanout.payload;
       expect(payload.triggerId).toBe('trg-A');
+      // workflowId 도 첨부 — ChatChannelDispatcher.toEiaEvent 가 EiaEvent.base
+      // 의 필수 필드로 요구. 누락 시 silent skip 회귀 (PR #318 fix).
+      expect(payload.workflowId).toBe('wf-A');
       expect(payload.chatChannel).toEqual({
         provider: 'telegram',
         conversationKey: '12345',
