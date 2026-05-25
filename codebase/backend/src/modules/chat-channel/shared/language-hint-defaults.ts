@@ -64,6 +64,26 @@ export function resolveLanguageHint(
   languageHints: Record<string, string> | undefined,
   languageLocale: LanguageLocale | undefined,
 ): string {
+  // Deprecation guard (CCH-ERR-* 마이그레이션 안내):
+  // 구 운영자 설정의 `executionFailed` 단일 키 + `{{code}}`/`{{message}}` 는 silently ignored.
+  // 1회 경고 로그로 마이그레이션 필요성 알림 (CCH-ERR-04 연계 / W#13).
+  if (
+    languageHints !== undefined &&
+    typeof (languageHints as Record<string, unknown>)['executionFailed'] ===
+      'string'
+  ) {
+    console.warn(
+      JSON.stringify({
+        kind: 'chat_channel_deprecated_execution_failed_hint',
+        message:
+          'languageHints.executionFailed 단일 키는 더 이상 사용되지 않습니다. ' +
+          'CCH-ERR-* 6 키(executionFailedThirdParty4xx/5xx/ThirdParty/Timeout/RateLimit/Internal)로 마이그레이션하세요.',
+        migration_guide:
+          'spec/5-system/15-chat-channel.md §4.1.1 / user-guide 실행 실패 안내 메시지 가이드 참조',
+      }),
+    );
+  }
+
   // (1) user override
   const override = languageHints?.[key];
   if (typeof override === 'string' && override.length > 0) {

@@ -3,6 +3,7 @@
  *
  * 기존 discord.adapter.spec.ts 가 happy path 를 커버. 본 spec 은 신규 §5.6 분기.
  */
+import { Logger } from '@nestjs/common';
 import { renderDiscordEvent } from './discord-message.renderer';
 import type { ChatChannelConfig, EiaEvent } from '../../types';
 
@@ -70,7 +71,7 @@ describe('renderDiscordEvent — execution.failed (CCH-ERR-*)', () => {
     expect(text).toContain('429');
   });
 
-  it('HTTP_5XX without statusCode → key 분기는 5xx, placeholder omit ("?")', () => {
+  it('HTTP_5XX without statusCode → key 분기는 5xx, placeholder omit ("?" 치환)', () => {
     const msgs = renderDiscordEvent(
       {
         ...BASE,
@@ -80,8 +81,10 @@ describe('renderDiscordEvent — execution.failed (CCH-ERR-*)', () => {
       CONFIG,
     );
     const text = (msgs[0].body as { text: string }).text;
-    // {statusCode} omit → '?' 치환
+    // {statusCode} omit → '?' 치환 (applyPlaceholders 기본값 — W#7 강화)
     expect(text).toContain('?');
+    // KO default 문구의 prefix 확인 (5xx 분기 올바른지 검증)
+    expect(text).toContain('일시적');
   });
 
   it('LLM_RATE_LIMIT → executionFailedRateLimit', () => {
@@ -131,7 +134,7 @@ describe('renderDiscordEvent — execution.failed (CCH-ERR-*)', () => {
 
   it('unknown code → executionFailedInternal fallback (CCH-ERR-04) + warn log', () => {
     const warnSpy = jest
-      .spyOn(console, 'warn')
+      .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => undefined);
     const msgs = renderDiscordEvent(
       {

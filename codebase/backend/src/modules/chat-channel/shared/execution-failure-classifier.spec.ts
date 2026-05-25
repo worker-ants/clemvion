@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import {
   classifyExecutionFailure,
   type ExecutionFailureClass,
@@ -122,25 +123,27 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
   });
 
   describe('Unknown fallback (CCH-ERR-04)', () => {
-    it('unknown code → executionFailedInternal + warn log', () => {
+    it('unknown code → executionFailedInternal + warn log (NestJS Logger)', () => {
       const warnSpy = jest
-        .spyOn(console, 'warn')
+        .spyOn(Logger.prototype, 'warn')
         .mockImplementation(() => undefined);
       const result = classifyExecutionFailure(makeEvent('SOMETHING_NEW'));
       expect(result.key).toBe('executionFailedInternal');
-      // structured warn log (CCH-ERR-04)
+      // structured warn log (CCH-ERR-04) — NestJS Logger.warn
       expect(warnSpy).toHaveBeenCalled();
       const call = warnSpy.mock.calls[0]?.[0];
-      // 구조: { kind, code, hasDetails } 등 — 직렬화 형태는 자유.
+      // 구조: { kind, code, triggerId, hasDetails } 등 — 직렬화 형태는 자유.
       const repr = typeof call === 'string' ? call : JSON.stringify(call);
       expect(repr).toContain('chat_channel_unknown_failure_code');
       expect(repr).toContain('SOMETHING_NEW');
+      // triggerId 포함 확인 (W#6 / CCH-ERR-04)
+      expect(repr).toContain('trig-1');
       warnSpy.mockRestore();
     });
 
     it('empty code → executionFailedInternal', () => {
       const warnSpy = jest
-        .spyOn(console, 'warn')
+        .spyOn(Logger.prototype, 'warn')
         .mockImplementation(() => undefined);
       const result = classifyExecutionFailure(makeEvent(''));
       expect(result.key).toBe('executionFailedInternal');
@@ -192,6 +195,61 @@ describe('classifyExecutionFailure (Convention §3.1)', () => {
       ];
       const result = classifyExecutionFailure(makeEvent('LLM_RATE_LIMIT'));
       expect(keys).toContain(result.key);
+    });
+  });
+
+  // W#4 — extractStatusCode 경계값 케이스 (statusCode: 0, 1.5, -200)
+  describe('extractStatusCode boundary values (W#4)', () => {
+    it('statusCode: 0 → Number.isInteger(0) === true → 0 이 노출됨 (설계 의도 확인)', () => {
+      // statusCode 0 은 정수이므로 통과 — 사용자에게 "0" 이 노출될 수 있음을 명시.
+      // 이는 HTTP status code 로서 의미 없는 값이지만 현재 type-guard 로는 통과.
+      const result = classifyExecutionFailure(
+        makeEvent('HTTP_4XX', { statusCode: 0 }),
+      );
+      expect(result.key).toBe('executionFailedThirdParty4xx');
+      // 0 은 정수이므로 statusCode 에 포함됨 (현재 구현 동작 문서화)
+      expect(result.placeholders.statusCode).toBe(0);
+    });
+
+    it('statusCode: 1.5 (float) → Number.isInteger 실패 → omit', () => {
+      const result = classifyExecutionFailure(
+        makeEvent('HTTP_4XX', { statusCode: 1.5 }),
+      );
+      expect(result.key).toBe('executionFailedThirdParty4xx');
+      expect(result.placeholders.statusCode).toBeUndefined();
+    });
+
+    it('statusCode: -200 (음수 정수) → Number.isInteger 통과 → -200 포함', () => {
+      // 음수 HTTP status code 는 의미 없지만 type-guard 는 정수만 검사.
+      // 현재 구현 동작을 문서화 (음수 필터링은 DTO 레이어 책임).
+      const result = classifyExecutionFailure(
+        makeEvent('HTTP_5XX', { statusCode: -200 }),
+      );
+      expect(result.key).toBe('executionFailedThirdParty5xx');
+      expect(result.placeholders.statusCode).toBe(-200);
+    });
+  });
+
+  // W#5 — event.error undefined 방어 경로
+  describe('event.error undefined guard (W#5)', () => {
+    it('event.error 가 undefined 인 강제 캐스팅 시 → executionFailedInternal fallback', () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      // EiaFailedEvent 타입상 error 는 필수지만 runtime 에서 undefined 가 올 수 있는
+      // 방어 경로를 검증 (강제 캐스팅 사용).
+      const event = {
+        type: 'execution.failed' as const,
+        executionId: 'exec-1',
+        triggerId: 'trig-1',
+        workflowId: 'wf-1',
+        seq: 1,
+        timestamp: '2026-05-25T00:00:00.000Z',
+        error: undefined,
+      } as unknown as import('../types').EiaFailedEvent;
+      const result = classifyExecutionFailure(event);
+      expect(result.key).toBe('executionFailedInternal');
+      warnSpy.mockRestore();
     });
   });
 });

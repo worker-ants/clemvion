@@ -102,8 +102,11 @@ describe('resolveLanguageHint — 3-level lookup', () => {
     expect(result).toBe(DEFAULT_LANGUAGE_HINTS.ko.executionFailedTimeout);
   });
 
-  it('legacy `executionFailed` single key is ignored (deprecated)', () => {
+  it('legacy `executionFailed` single key is ignored (deprecated) + warn log 발생', () => {
     // 운영자가 `executionFailed` 만 설정한 경우 — 신규 6 키 lookup 은 default 로 fallback
+    const warnSpy = jest
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
     const result = resolveLanguageHint(
       'executionFailedInternal',
       { executionFailed: 'legacy custom' },
@@ -111,6 +114,12 @@ describe('resolveLanguageHint — 3-level lookup', () => {
     );
     // legacy 'executionFailed' 무시, ko default 반환
     expect(result).toBe(DEFAULT_LANGUAGE_HINTS.ko.executionFailedInternal);
+    // W#13: deprecation warn log 발생 확인
+    expect(warnSpy).toHaveBeenCalled();
+    const call = warnSpy.mock.calls[0]?.[0];
+    const repr = typeof call === 'string' ? call : JSON.stringify(call);
+    expect(repr).toContain('chat_channel_deprecated_execution_failed_hint');
+    warnSpy.mockRestore();
   });
 
   it('empty string override falls back to default (treat empty as unset)', () => {

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { EiaFailedEvent } from '../types';
 
 /**
@@ -12,8 +13,11 @@ import type { EiaFailedEvent } from '../types';
  * 다른 필드 (`error.message`, `nodeId`, `executionId`, `details.url` 등) 는 분류 결정에
  * 사용하지 않으며 반환값에도 포함하지 않는다 (CCH-ERR-03).
  *
- * Side-effect: unknown code fallback 시 console.warn (CCH-ERR-04) — structured log.
+ * Side-effect free except diagnostic warn log:
+ *   unknown code fallback 시 NestJS Logger.warn (CCH-ERR-04) — structured log.
  */
+
+const logger = new Logger('ChatChannelFailureClassifier');
 
 export interface ExecutionFailureClass {
   /** languageHints lookup key — Spec Chat Channel §4.1 의 6 키 중 1개. */
@@ -111,10 +115,11 @@ export function classifyExecutionFailure(
   }
 
   // Unknown — fallback to internal + structured warn log (CCH-ERR-04).
-  console.warn(
+  logger.warn(
     JSON.stringify({
       kind: 'chat_channel_unknown_failure_code',
       code,
+      triggerId: event.triggerId,
       hasDetails: event.error?.details !== undefined,
     }),
   );
