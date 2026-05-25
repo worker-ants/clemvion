@@ -10,7 +10,10 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  ServiceUnavailableException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { BadRequestException, Logger } from '@nestjs/common';
 import { Roles } from '../../common/guards/roles.guard';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -26,6 +29,7 @@ import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
+  ApiResponse,
 } from '@nestjs/swagger';
 import {
   ApiAcceptedWrappedResponse,
@@ -36,6 +40,7 @@ import {
 import { Node } from '../nodes/entities/node.entity';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
@@ -62,6 +67,7 @@ export class WorkflowsController {
   constructor(
     private readonly workflowsService: WorkflowsService,
     private readonly executionEngineService: ExecutionEngineService,
+    private readonly shutdownState: ShutdownStateService,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
   ) {}
@@ -205,16 +211,42 @@ export class WorkflowsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
+  // W-14 fix (SUMMARY#W-14): Graceful Shutdown gate 의 503 응답 문서화.
+  @ApiResponse({
+    status: 503,
+    description: '서버 종료 중 — Retry-After 헤더 초 단위 대기 후 재시도',
+    schema: {
+      example: {
+        statusCode: 503,
+        code: 'SERVER_SHUTTING_DOWN',
+        message: 'Service temporarily unavailable. Please retry.',
+      },
+    },
+  })
   async execute(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
+    @Res({ passthrough: true }) res: Response,
     @Body()
     body?: {
       input?: Record<string, unknown>;
       parameterValues?: Record<string, unknown>;
     },
   ) {
+    // workflow-resumable-execution Phase 1.2 — Graceful Shutdown gate.
+    // SoT: spec/5-system/4-execution-engine.md §11. SIGTERM 수신 후에는 신규
+    // Execution 시작을 503 으로 거부해 LB drain 동안 다른 인스턴스로 라우팅.
+    if (this.shutdownState.isShuttingDown) {
+      res.setHeader('Retry-After', String(this.shutdownState.retryAfterSec));
+      // W-3 fix (SUMMARY#W-3): 내부 운영 상태("Server is shutting down...")
+      // 대신 중립 메시지 사용. code 는 클라이언트 분기용으로 유지.
+      throw new ServiceUnavailableException({
+        code: 'SERVER_SHUTTING_DOWN',
+        message: 'Service temporarily unavailable. Please retry.',
+      });
+    }
+
     // Verify workflow belongs to workspace
     await this.workflowsService.findById(id, workspaceId);
 

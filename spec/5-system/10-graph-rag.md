@@ -1,7 +1,15 @@
 ---
 id: graph-rag
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/knowledge-base/graph/**
+  - codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts
+  - codebase/frontend/src/components/knowledge-base/graph-3d-renderer.tsx
+  - codebase/frontend/src/components/knowledge-base/entity-list.tsx
+  - codebase/frontend/src/components/knowledge-base/relation-list.tsx
+  - codebase/backend/migrations/V025__graph_rag.sql
+  - codebase/backend/migrations/V026__graph_extraction_status_nullable_index.sql
+  - codebase/backend/migrations/V027__relation_head_tail_index.sql
 ---
 
 # Spec: Graph RAG

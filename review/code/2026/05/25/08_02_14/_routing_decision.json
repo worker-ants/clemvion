@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-25T08:02:14Z",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced (router_safety): 소스 코드 변경"},
+    {"name": "performance", "selected": false, "reason": "포매팅·구조 변경, I/O 최적화·캐시 변경 없음"},
+    {"name": "architecture", "selected": true, "reason": "Redis pub/sub → BullMQ 큐 아키텍처 전환, jobId 시퀀싱 추가, DI 변경"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced (router_safety): 소스 코드 변경"},
+    {"name": "scope", "selected": true, "reason": "agents_forced (router_safety): 소스 코드 변경"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced (router_safety): 소스 코드 변경"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced (router_safety): 소스 코드 변경"},
+    {"name": "testing", "selected": true, "reason": "agents_forced (router_safety): 소스 코드 변경"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced (router_safety): 문서 파일 변경"},
+    {"name": "dependency", "selected": true, "reason": "@nestjs/bullmq 패키지 신규 import (getQueueToken), CONTINUATION_EXECUTION_QUEUE 모듈 의존성 추가"},
+    {"name": "database", "selected": false, "reason": "DB 쿼리·마이그레이션·ORM 변경 없음"},
+    {"name": "concurrency", "selected": true, "reason": "BullMQ 워커 패턴 (async queue) 으로 교체, lock 리팩토링, 비동기 처리 구조 변경"},
+    {"name": "api_contract", "selected": false, "reason": "HTTP route, GraphQL schema, API 응답 구조 변경 없음 (내부 모듈 리팩토링)"},
+    {"name": "user_guide_sync", "selected": false, "reason": "PROJECT.md 매트릭스 trigger 어디에도 매칭 안 됨 (내부 execution-engine 모듈)"}
+  ],
+  "selected_count": 11,
+  "skipped_count": 3,
+  "forced": ["documentation", "maintainability", "requirement", "scope", "security", "side_effect", "testing"]
+}

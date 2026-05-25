@@ -26,10 +26,10 @@ import {
 } from './workflow-errors';
 import {
   ContinuationBusService,
-  ContinuationMessage,
   RECOVERY_LOCK_KEY,
 } from './continuation/continuation-bus.service';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
+import { ShutdownStateService } from './shutdown/shutdown-state.service';
 import { createEmptyConversationThread } from '../../shared/conversation-thread/conversation-thread.types';
 import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
@@ -218,6 +218,48 @@ class ExecutionCancelledError extends Error {
   constructor() {
     super('Execution cancelled while waiting for input');
     this.name = 'ExecutionCancelledError';
+  }
+}
+
+/**
+ * Phase 2.5 — continuation publish 결과. WS gateway / REST controller 가 ack
+ * 에 즉시 동봉 (`queued: boolean` + 디버깅용 `jobId`).
+ *
+ * - `queued: true` + `jobId: string` — 정상 enqueue. BullMQ 가 비동기로 처리.
+ *   spec §7.4 라우팅 원칙상 모든 정상 publish 는 이 분기.
+ * - `queued: false` + `jobId: null` — enqueue 자체 실패 (Redis 장애 등). caller
+ *   는 throw 또는 `success: false` ack 로 변환.
+ *
+ * **불변 조건**: `queued: false` ↔ `jobId: null` — 두 필드는 항상 쌍으로 반전.
+ * `queued` 만 확인해도 실패 여부를 판단할 수 있다. `jobId` 는 디버깅 전용.
+ */
+export interface ContinuationPublishResult {
+  queued: boolean;
+  jobId: string | null;
+}
+
+/**
+ * Phase 2.3a — §7.5 rehydration 경로 전용 에러. RehydrateAndResume 의 정상
+ * 종결 분기는 RESUME_CHECKPOINT_MISSING / RESUME_INCOMPATIBLE_STATE / RESUME_FAILED
+ * 세 코드 중 하나로 마무리되며, 본 클래스로 표현해 outer try/catch 가 분기.
+ *
+ * - `RESUME_CHECKPOINT_MISSING` — `NodeExecution.outputData` / Workflow 정의 등
+ *   재구성에 필요한 데이터가 부재하거나 상태 invariant 가 깨진 경우.
+ * - `RESUME_INCOMPATIBLE_STATE` — multi-turn AI 의 `_resumeState` deserialize
+ *   불가 등 in-memory 전용 상태가 영속 보존되지 않은 케이스 (WARN #6).
+ * - `RESUME_FAILED` — 위 두 분류에 속하지 않는 일반 런타임 실패. BullMQ attempts
+ *   소진까지 보낸 뒤에도 본 코드로 dead-letter 마킹.
+ */
+class RehydrationError extends Error {
+  constructor(
+    public readonly code:
+      | 'RESUME_CHECKPOINT_MISSING'
+      | 'RESUME_FAILED'
+      | 'RESUME_INCOMPATIBLE_STATE',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RehydrationError';
   }
 }
 
@@ -535,11 +577,28 @@ export class ExecutionEngineService
     private readonly backgroundQueue: Queue<BackgroundExecutionJob>,
     private readonly continuationBus: ContinuationBusService,
     private readonly conversationThreadService: ConversationThreadService,
+    private readonly shutdownState: ShutdownStateService,
   ) {}
 
   onModuleInit(): void {
     this.registerHandlers();
+    // Phase 2 (workflow-resumable-execution): 옛 ContinuationBusService.on(...)
+    // 등록 경로는 폐기. 처리는 BullMQ Worker (continuation-execution.processor.ts)
+    // 가 담당하며 본 서비스의 applyContinuation / applyCancellation /
+    // isNodeExecutionWaiting public 메서드를 호출한다.
     this.registerContinuationHandlers();
+  }
+
+  /**
+   * Phase 2 (workflow-resumable-execution) — **no-op stub**. 옛 Phase 1 까지의
+   * Redis pub/sub 기반 listener 등록은 BullMQ Worker (continuation-execution.
+   * processor.ts) 가 대체. 본 메서드는 기존 spec 테스트의 직접 호출 + 외부
+   * subclass 호환을 위해 method 이름만 유지한다.
+   *
+   * @deprecated 후속 정리 시 제거 예정 (관련 spec 테스트 hook 정리 동반).
+   */
+  private registerContinuationHandlers(): void {
+    // intentionally empty — Phase 2 부터 worker 가 dispatch 담당.
   }
 
   /**
@@ -566,48 +625,812 @@ export class ExecutionEngineService
    * Map 에 키가 없는 인스턴스는 silent skip — 같은 메시지를 두 곳에서
    * 처리하지 않도록 보장한다.
    */
-  private registerContinuationHandlers(): void {
-    this.continuationBus.on('continue', (msg) => {
-      // spec/4-nodes/6-presentation/0-common.md §10.9 — `continueExecution`
-      // 가 이미 `{ type: 'form_submitted', formData }` sentinel 로 wrap 해서
-      // publish 했으므로, listener 는 payload 를 그대로 forward 한다.
-      // (wrap 책임: continueExecution — listener 는 unwrap/re-wrap 하지 않음.)
-      this.resolvePending(msg.executionId, msg.payload);
-    });
+  /**
+   * Phase 2 — BullMQ Worker (continuation-execution.processor.ts) 가 호출하는
+   * dispatch entry. spec/5-system/4-execution-engine.md §7.5.
+   *
+   * Fast path: 로컬 `pendingContinuations` Map 에 키가 있으면 즉시 resolve.
+   * Slow path: 키 miss + WAITING_FOR_INPUT 상태 유효 시 §7.5 rehydration
+   *   경로 진입 (rehydrateAndResume).
+   *
+   * sentinel wrap (spec §10.9 — 'continue' 의 `{type:'form_submitted',formData}`)
+   * 은 caller (continueExecution) 가 wrap 한 채로 전달되므로 본 메서드는
+   * unwrap 없이 그대로 resolver 에 전달한다.
+   *
+   * @param executionId Execution UUID
+   * @param nodeExecutionId WAITING_FOR_INPUT NodeExecution UUID (rehydration 1차 키)
+   * @param payload type 별 형태 (form_submitted sentinel / button_click /
+   *                ai_message / ai_end_conversation)
+   */
+  async applyContinuation(
+    executionId: string,
+    nodeExecutionId: string,
+    payload: unknown,
+  ): Promise<void> {
+    // ai_message 길이 가드 (인-프로세스 직접 publish 우회 방어)
+    if (
+      typeof payload === 'object' &&
+      payload !== null &&
+      (payload as { type?: string }).type === 'ai_message' &&
+      typeof (payload as { message?: unknown }).message === 'string' &&
+      (payload as { message: string }).message.length >
+        ExecutionEngineService.MAX_MESSAGE_LENGTH
+    ) {
+      this.logger.warn(
+        `ai_message 길이 초과로 drop — execution=${executionId}, length=${
+          (payload as { message: string }).message.length
+        }`,
+      );
+      return;
+    }
 
-    this.continuationBus.on('cancel', (msg) => {
-      this.rejectPending(msg.executionId, new ExecutionCancelledError());
-    });
+    // Fast path: 로컬 호스팅 인스턴스 (같은 인스턴스가 publish 후 같은 인스턴스
+    // worker 가 pick up 한 경우 + sticky LB session 등).
+    if (this.pendingContinuations.has(executionId)) {
+      this.resolvePending(executionId, payload);
+      return;
+    }
 
-    this.continuationBus.on('button_click', (msg) => {
-      const buttonId = (msg.payload as { buttonId?: string } | undefined)
-        ?.buttonId;
-      this.resolvePending(msg.executionId, { type: 'button_click', buttonId });
-    });
+    // Slow path (§7.5 rehydration): 다른 인스턴스가 publish 했거나, 본 인스턴스
+    // 가 재시작 후 인-메모리 resolver 가 사라진 경우.
+    await this.rehydrateAndResume(executionId, nodeExecutionId, payload);
+  }
 
-    this.continuationBus.on('ai_message', (msg) => {
-      const message = (msg.payload as { message?: string } | undefined)
-        ?.message;
-      // 서비스 레이어와 별개로 핸들러 내부에서도 길이 재검증 — Redis 직접
-      // publish 우회 시에도 가드. 초과 메시지는 silent drop.
+  /**
+   * Phase 2 — BullMQ Worker 가 호출하는 cancel dispatch.
+   * cancel 은 rehydration 대상 아님 — 호스팅 인스턴스가 없으면 silent.
+   * (cancelWaitingExecution → bus.publish → worker pick up → applyCancellation)
+   */
+  applyCancellation(executionId: string): void {
+    this.rejectPending(executionId, new ExecutionCancelledError());
+  }
+
+  /**
+   * Phase 2 — Worker 멱등성 가드. 처리 전 NodeExecution 이 여전히
+   * WAITING_FOR_INPUT 인지 확인. 다른 worker 가 먼저 처리했으면 false 반환
+   * → ack-and-discard.
+   */
+  async isNodeExecutionWaiting(nodeExecutionId: string): Promise<boolean> {
+    if (!nodeExecutionId || nodeExecutionId === '__no_node_exec__') {
+      // legacy/skipped nodeExecutionId — fast path 만 시도 (status 가드 우회).
+      return true;
+    }
+    const row = await this.nodeExecutionRepository.findOne({
+      where: { id: nodeExecutionId },
+      select: { id: true, status: true },
+    });
+    return row?.status === NodeExecutionStatus.WAITING_FOR_INPUT;
+  }
+
+  /**
+   * §7.5 Resume after Restart (rehydration) — slow path 본체.
+   *
+   * Phase 2.3a — 진짜 재개 로직. BullMQ Worker 가 user input 을 받은 시점에
+   * 로컬 `pendingContinuations` 에 키가 없다면 (instance restart 또는 다른
+   * 인스턴스가 publisher 였던 경우) 본 메서드가:
+   *   1. Execution / NodeExecution / Node 정의의 invariant 검증
+   *   2. `rehydrateContext` — execution_node_log 의 완료 노드 순서와
+   *      NodeExecution.outputData 로 ExecutionContext (nodeOutputCache /
+   *      executedNodes / variables) 재구성
+   *   3. `resumeFromCheckpoint` — 그래프 순회 재개. 적절한 waitForX 메서드를
+   *      직접 호출 (executeNode 우회 — 기존 NodeExecution row 가 이미
+   *      WAITING_FOR_INPUT). setImmediate 로 등록된 pending resolver 를
+   *      payload 와 함께 즉시 fire 해 waitForX 의 await 가 풀린다. 이후
+   *      그래프 traversal 을 평소대로 진행.
+   *
+   * **알려진 한계** (spec §7.5 의 RESUME_INCOMPATIBLE_STATE 사례):
+   * - Multi-turn AI 노드의 `_resumeState` 는 보안상 DB 에 저장되지 않으므로
+   *   (WARN #6) 인스턴스 재시작 후 재개 불가 — `RESUME_INCOMPATIBLE_STATE`.
+   *
+   * **에러 분류**:
+   * - `RESUME_CHECKPOINT_MISSING` — Execution / NodeExecution / Node 데이터가
+   *   부재 또는 invariant 위반 (state mismatch 포함).
+   * - `RESUME_INCOMPATIBLE_STATE` — multi-turn AI 등 in-memory 전용 상태가
+   *   영속 보존되지 않은 경우.
+   * - `RESUME_FAILED` — 일반 런타임 실패. BullMQ attempts 소진 dead-letter.
+   *
+   * @param payload — sentinel/format wrapped 사용자 입력 (form_submitted,
+   *                  button_click, ai_message 등). waitForX 가 unwrap.
+   */
+  private async rehydrateAndResume(
+    executionId: string,
+    nodeExecutionId: string,
+    payload: unknown,
+  ): Promise<void> {
+    let resolvedNodeExecutionId: string | null = null;
+    try {
+      const execution = await this.executionRepository.findOneBy({
+        id: executionId,
+      });
       if (
-        typeof message === 'string' &&
-        message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH
+        !execution ||
+        execution.status !== ExecutionStatus.WAITING_FOR_INPUT
       ) {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `Execution ${executionId} not WAITING_FOR_INPUT (status=${execution?.status ?? 'absent'})`,
+        );
+      }
+      if (nodeExecutionId === '__no_node_exec__') {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `Publisher 측 nodeExecutionId 미설정 (legacy path) — execution=${executionId}`,
+        );
+      }
+      const nodeExec = await this.nodeExecutionRepository.findOneBy({
+        id: nodeExecutionId,
+      });
+      if (
+        !nodeExec ||
+        nodeExec.status !== NodeExecutionStatus.WAITING_FOR_INPUT
+      ) {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `NodeExecution ${nodeExecutionId} not WAITING_FOR_INPUT (status=${nodeExec?.status ?? 'absent'})`,
+        );
+      }
+      resolvedNodeExecutionId = nodeExec.id;
+
+      const node = await this.nodeRepository.findOneBy({ id: nodeExec.nodeId });
+      if (!node) {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `Node ${nodeExec.nodeId} 정의 부재 (execution=${executionId})`,
+        );
+      }
+
+      const context = await this.rehydrateContext(execution, nodeExec);
+
+      this.logger.log(
+        `Rehydration start — execution=${executionId} waitingNode=${nodeExec.nodeId} (${node.type})`,
+      );
+      await this.resumeFromCheckpoint(execution, context, {
+        node,
+        nodeExec,
+        payload,
+      });
+      this.logger.log(
+        `Rehydration finished — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
+      );
+    } catch (err) {
+      if (err instanceof RehydrationError) {
+        // W19: internal identifiers は structured params へ — error.message は
+        // コード分類のみ。BullMQ DLQ Board / 外部ログ集積への情報漏洩防止.
+        this.logger.warn('Rehydration failed', {
+          code: err.code,
+          executionId,
+          nodeExecutionId,
+        });
+        await this.markExecutionCancelled(executionId, err.code);
+        if (resolvedNodeExecutionId) {
+          await this.markNodeExecutionFailed(resolvedNodeExecutionId, err.code);
+        }
+        return;
+      }
+      // ExecutionCancelledError 는 resumeFromCheckpoint 가 자체적으로 CANCELLED
+      // 마킹 후 정상 종결하므로 여기까지 도달하지 않는다 (방어적 분기).
+      if (err instanceof ExecutionCancelledError) {
+        this.logger.log('Rehydration cancelled mid-flight', { executionId });
+        return;
+      }
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.error('Rehydration unexpected error', stack, {
+        executionId,
+        nodeExecutionId,
+      });
+      await this.markExecutionCancelled(executionId, 'RESUME_FAILED');
+      if (resolvedNodeExecutionId) {
+        await this.markNodeExecutionFailed(
+          resolvedNodeExecutionId,
+          'RESUME_FAILED',
+        );
+      }
+    }
+  }
+
+  /**
+   * Phase 2.3a — ExecutionContext 재구성 (spec §7.5).
+   *
+   * 우선순위:
+   *   1. `ExecutionContextService.getContext(executionId)` 가 살아있으면 그대로
+   *      사용 (단일 process 재진입 — 거의 발생하지 않음).
+   *   2. 없으면 새로 생성하고 DB 의 `execution_node_log` (완료 노드 순서) +
+   *      `node_execution.output_data` (각 노드 출력) 로 채운다.
+   *
+   * 채워지는 항목:
+   *   - `variables` — workflow.workspace 의 `__workspaceId / Name / Timezone`.
+   *   - `nodeOutputCache` — execution_node_log 의 각 nodeId 의 최신 COMPLETED
+   *     `NodeExecution.outputData`. 같은 nodeId 의 loop iteration 은 마지막
+   *     COMPLETED 만 보존 (downstream gather 가 그 값만 읽음).
+   *   - Waiting node 의 outputData (status=waiting_for_input + meta) — 별도 set
+   *     해 graph loop 의 blocking check 가 인식.
+   *   - `_executedNodes` (Set) — `gatherNodeInput` 이 predecessor 완료 여부
+   *     판단에 사용.
+   *
+   * 채워지지 않는 항목 (의도적):
+   *   - `_resumeState` — multi-turn AI 의 in-memory 전용 (WARN #6). 영속 보존 X
+   *     → 후속 `resumeFromCheckpoint` 가 ai_conversation 케이스를 거부.
+   *   - `conversationThread` — 본 phase 에서는 빈 thread 로 시작 (form / button
+   *     노드는 미사용). 후속 작업에서 NodeExecution.outputData.messages 누적
+   *     재구성 가능.
+   */
+  private async rehydrateContext(
+    execution: Execution,
+    waitingNodeExec: NodeExecution,
+  ): Promise<ExecutionContext> {
+    const existing = this.contextService.getContext(execution.id);
+    if (existing) return existing;
+
+    const workflow = await this.workflowRepository.findOne({
+      where: { id: execution.workflowId },
+      relations: ['workspace'],
+    });
+    if (!workflow) {
+      throw new RehydrationError(
+        'RESUME_CHECKPOINT_MISSING',
+        `Workflow ${execution.workflowId} 부재 (execution=${execution.id})`,
+      );
+    }
+    const workspaceTimezone = workflow.workspace?.settings?.['timezone'];
+    const workspaceName = workflow.workspace?.name;
+
+    const context = this.contextService.createContext(
+      execution.id,
+      execution.workflowId,
+      {
+        __workspaceId: workflow.workspaceId ?? '',
+        __workspaceName: typeof workspaceName === 'string' ? workspaceName : '',
+        __workspaceTimezone:
+          typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
+      },
+      execution.recursionDepth,
+    );
+    const executedNodes = new Set<string>();
+    context._executedNodes = executedNodes;
+
+    const logs = await this.executionNodeLogRepository.find({
+      where: { executionId: execution.id },
+      order: { id: 'ASC' },
+    });
+
+    // 같은 nodeId 가 loop iteration 으로 여러 row 일 수 있음 — 1회만 처리.
+    const seenNodeIds = new Set<string>();
+    for (const log of logs) {
+      if (seenNodeIds.has(log.nodeId)) continue;
+      seenNodeIds.add(log.nodeId);
+      const ne = await this.nodeExecutionRepository.findOne({
+        where: {
+          executionId: execution.id,
+          nodeId: log.nodeId,
+          status: NodeExecutionStatus.COMPLETED,
+        },
+        order: { startedAt: 'DESC' },
+      });
+      if (!ne) continue;
+      if (ne.outputData) {
+        this.contextService.setNodeOutput(
+          execution.id,
+          log.nodeId,
+          ne.outputData,
+        );
+      }
+      executedNodes.add(log.nodeId);
+    }
+
+    // Waiting node 의 outputData 복원 — runExecution 의 executeNode 가 normally
+    // setNodeOutput 으로 nodeOutputCache 에 채운 envelope (status=waiting_for_input
+    // + meta.interactionType) 와 동일.
+    if (waitingNodeExec.outputData) {
+      this.contextService.setNodeOutput(
+        execution.id,
+        waitingNodeExec.nodeId,
+        waitingNodeExec.outputData,
+      );
+    }
+
+    return context;
+  }
+
+  /**
+   * Phase 2.3a — §7.5 resume body. 재구성된 context 로 waitForX 직접 invoke 후
+   * 그래프 순회를 이어 진행한다. runExecution 의 setup/loop/completion/catch
+   * 구조와 동일 — 차이점:
+   *   - graph state 를 새로 build (재시작 후 in-memory 자료 소실)
+   *   - reachability 와 executedNodes 를 rehydrated state 로 seed
+   *   - executeNode 우회: 기존 NodeExecution row 가 이미 WAITING_FOR_INPUT
+   *     이므로 새 row 를 만들지 않고 waitForX 만 호출
+   *   - setImmediate polling (최대 50회) 으로 pendingContinuations resolver
+   *     등록을 대기 후 payload fire (waitForX 등록 완료 tick 에 실행)
+   */
+  private async resumeFromCheckpoint(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    opts: { node: Node; nodeExec: NodeExecution; payload: unknown },
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+
+    // Persisted interaction type — meta.interactionType (preferred) or top-level
+    // (legacy / blocking ai_form_render path).
+    const cachedOutput = context.nodeOutputCache[opts.node.id] as
+      | Record<string, unknown>
+      | undefined;
+    const cachedMeta =
+      (cachedOutput?.meta as Record<string, unknown> | undefined) ?? {};
+    const persistedInteractionType =
+      (cachedMeta.interactionType as string | undefined) ??
+      (cachedOutput?.interactionType as string | undefined);
+
+    // Multi-turn AI 는 _resumeState 미영속 — 사전 거부.
+    if (
+      persistedInteractionType === 'ai_conversation' ||
+      persistedInteractionType === 'ai_form_render'
+    ) {
+      throw new RehydrationError(
+        'RESUME_INCOMPATIBLE_STATE',
+        `Multi-turn AI 노드(${opts.node.type})의 _resumeState 는 보안상 DB 에 저장되지 않음 (engine-internal, WARN #6). 인스턴스 재시작 후 재개 불가.`,
+      );
+    }
+
+    // 그래프 상태 재구축 — runExecution 의 1505-1535 와 동일.
+    const nodes = await this.nodeRepository.findBy({
+      workflowId: savedExecution.workflowId,
+    });
+    const edges = await this.edgeRepository.findBy({
+      workflowId: savedExecution.workflowId,
+    });
+    const { graphNodes, graphEdges } = buildGraph(nodes, edges);
+    const { forwardEdges, backEdges } = identifyBackEdges(
+      graphNodes,
+      graphEdges,
+    );
+    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
+    const sortedIndexMap = new Map<string, number>();
+    for (let i = 0; i < sortedNodeIds.length; i++) {
+      sortedIndexMap.set(sortedNodeIds[i], i);
+    }
+    const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
+      this.graphTraversal.buildEdgeIndexes(
+        graphEdges,
+        backEdges,
+        sortedIndexMap,
+      );
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const maxNodeIterations = this.configService.get<number>(
+      'MAX_NODE_ITERATIONS',
+      100,
+    );
+
+    const waitingPointer = sortedIndexMap.get(opts.node.id);
+    if (waitingPointer === undefined) {
+      throw new RehydrationError(
+        'RESUME_CHECKPOINT_MISSING',
+        `Waiting node ${opts.node.id} not in sorted graph (workflow=${savedExecution.workflowId})`,
+      );
+    }
+
+    // reachability seed (트리거 + no-incoming) + 복원된 완료 노드 + waiting node.
+    const reachable = this.graphTraversal.seedInitialReachability(
+      sortedNodeIds,
+      nodeMap,
+      forwardEdges,
+    );
+    const executedNodes = context._executedNodes ?? new Set<string>();
+    context._executedNodes = executedNodes;
+    for (const nid of executedNodes) reachable.add(nid);
+    reachable.add(opts.node.id);
+
+    // nodeExecutionCount — 재시작 후 budget 은 fresh. 본 waiting node 의 첫 진입은
+    // 이미 1회 소비된 것으로 계산 (체크포인트 도달까지의 한 번).
+    const nodeExecutionCount = new Map<string, number>();
+    nodeExecutionCount.set(opts.node.id, 1);
+
+    // Resolver fire scheduler — waitForX 가 pendingContinuations 에 키 등록 직후
+    // setImmediate microtask 가 resolvePending 호출. polling 으로 race window 최소화.
+    const firePayload = (attemptsLeft: number): void => {
+      if (this.pendingContinuations.has(executionId)) {
+        this.resolvePending(executionId, opts.payload);
+        return;
+      }
+      if (attemptsLeft <= 0) {
         this.logger.warn(
-          `ai_message 길이 초과로 drop — execution=${msg.executionId}, length=${message.length}`,
+          `Rehydration — pendingContinuations 등록 polling 한도 도달 (execution=${executionId}). waitForX 가 정상 등록을 못한 비정상 경로.`,
         );
         return;
       }
-      this.resolvePending(msg.executionId, { type: 'ai_message', message });
-    });
+      setImmediate(() => firePayload(attemptsLeft - 1));
+    };
+    setImmediate(() => firePayload(50));
 
-    this.continuationBus.on(
-      'ai_end_conversation',
-      (msg: ContinuationMessage) => {
-        this.resolvePending(msg.executionId, { type: 'ai_end_conversation' });
-      },
-    );
+    try {
+      // 사전 상태 전이: 본 Execution 은 DB 에서 WAITING_FOR_INPUT 으로 로드됨.
+      // waitForX 가 (RUNNING → WAITING_FOR_INPUT) 전이를 시도하므로 먼저
+      // RUNNING 으로 옮긴다. spec/5-system/4-execution-engine.md §1.1 state
+      // machine 의 WAITING_FOR_INPUT → RUNNING 전이는 정상 (resume sentinel).
+      await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
+
+      // waitForX 직접 invoke — executeNode 우회. waitForX 내부에서 nodeExec
+      // lookup → status WAITING_FOR_INPUT 갱신 + outputData save → emit →
+      // pending 등록 + await → resolve.
+      const blockingMeta = this.handlerRegistry.getMetadata(opts.node.type);
+      if (
+        blockingMeta.kind === 'blocking' &&
+        blockingMeta.interaction === 'form'
+      ) {
+        await this.waitForFormSubmission(
+          savedExecution,
+          executionId,
+          opts.node,
+          context,
+        );
+      } else if (persistedInteractionType === 'buttons') {
+        await this.waitForButtonInteraction(
+          savedExecution,
+          executionId,
+          opts.node,
+          context,
+          graphEdges,
+        );
+      } else {
+        throw new RehydrationError(
+          'RESUME_CHECKPOINT_MISSING',
+          `Unsupported interaction type for rehydration: ${
+            persistedInteractionType ?? '(unknown)'
+          } (node type=${opts.node.type})`,
+        );
+      }
+
+      // waitForX 종결 → waiting node 완료. executedNodes 에 등록 + reachability 전파.
+      executedNodes.add(opts.node.id);
+      this.graphTraversal.propagateReachability(
+        opts.node.id,
+        outgoingEdgeMap,
+        context.nodeOutputCache,
+        reachable,
+      );
+
+      // back-edge 처리 (cyclic workflow 지원). runExecution 의 1769-1787 과 동일.
+      let pointer = waitingPointer + 1;
+      const backEdgesFromWaiting = backEdgeMap.get(opts.node.id);
+      if (backEdgesFromWaiting?.length) {
+        const activated = this.findActivatedBackEdge(
+          opts.node.id,
+          backEdgesFromWaiting,
+          context.nodeOutputCache,
+        );
+        if (activated) {
+          for (let i = activated.targetIndex; i <= waitingPointer; i++) {
+            reachable.delete(sortedNodeIds[i]);
+          }
+          reachable.add(sortedNodeIds[activated.targetIndex]);
+          pointer = activated.targetIndex;
+        }
+      }
+
+      // 남은 그래프 traversal — runExecution 의 1590-1790 루프와 동일.
+      // savedExecution 의 input 은 재기동 후 사라졌으므로 (waiting 이후 단계는
+      // predecessor output 만 참조하므로 정상 동작) 빈 객체로 대체.
+      const input = {};
+      while (pointer < sortedNodeIds.length) {
+        const nodeId = sortedNodeIds[pointer];
+        const node = nodeMap.get(nodeId);
+        if (!node) {
+          pointer++;
+          continue;
+        }
+        if (!reachable.has(nodeId)) {
+          pointer++;
+          continue;
+        }
+        const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
+        nodeExecutionCount.set(nodeId, count);
+        if (maxNodeIterations > 0 && count > maxNodeIterations) {
+          throw new Error(
+            `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
+              `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
+          );
+        }
+        if (node.isDisabled) {
+          await this.handleDisabledNode(
+            executionId,
+            nodeId,
+            node,
+            context,
+            executedNodes,
+          );
+          pointer++;
+          continue;
+        }
+        const nodeInput = this.gatherNodeInput(
+          nodeId,
+          graphEdges,
+          executedNodes,
+          context.nodeOutputCache,
+          input,
+          incomingEdgeMap,
+        );
+        await this.executeNode(
+          executionId,
+          node,
+          nodeInput,
+          context,
+          executedNodes,
+          nodeMap,
+          {
+            startedAt: savedExecution.startedAt?.toISOString(),
+            mode: 'manual',
+          },
+        );
+        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
+        if (dispatchKind === 'container') {
+          await this.runContainer(
+            node,
+            nodes,
+            edges,
+            context,
+            executionId,
+            executedNodes,
+            {
+              startedAt: savedExecution.startedAt?.toISOString(),
+              mode: 'manual',
+            },
+          );
+        }
+        if (dispatchKind === 'background') {
+          await this.scheduleBackgroundBody(
+            node,
+            edges,
+            context,
+            executionId,
+            input,
+          );
+        }
+        if (
+          dispatchKind === 'parallel' &&
+          this.configService.get<string>('PARALLEL_ENGINE', 'off') === 'v1'
+        ) {
+          const parallelInput = this.gatherNodeInput(
+            nodeId,
+            graphEdges,
+            executedNodes,
+            context.nodeOutputCache,
+            input,
+            incomingEdgeMap,
+          );
+          await this.runParallel(
+            node,
+            nodes,
+            edges,
+            forwardEdges,
+            backEdges,
+            outgoingEdgeMap,
+            context,
+            executionId,
+            executedNodes,
+            {
+              startedAt: savedExecution.startedAt?.toISOString(),
+              mode: 'manual',
+            },
+            reachable,
+            parallelInput,
+          );
+          pointer++;
+          continue;
+        }
+
+        // Blocking nodes (rehydration 후 downstream 에 또 다른 form/button/AI 가
+        // 있을 수 있음 — 정상 흐름과 동일하게 처리).
+        const downstreamOutput = context.nodeOutputCache[node.id] as
+          | Record<string, unknown>
+          | undefined;
+        const downstreamInteraction = this.getInteractionType(context, node.id);
+        if (downstreamOutput?.status === 'waiting_for_input') {
+          const downstreamBlocking = this.handlerRegistry.getMetadata(
+            node.type,
+          );
+          if (
+            downstreamBlocking.kind === 'blocking' &&
+            downstreamBlocking.interaction === 'form'
+          ) {
+            await this.waitForFormSubmission(
+              savedExecution,
+              executionId,
+              node,
+              context,
+            );
+          } else if (downstreamInteraction === 'buttons') {
+            await this.waitForButtonInteraction(
+              savedExecution,
+              executionId,
+              node,
+              context,
+              graphEdges,
+            );
+          } else if (downstreamInteraction === 'ai_conversation') {
+            await this.waitForAiConversation(
+              savedExecution,
+              executionId,
+              node,
+              context,
+            );
+          }
+        }
+
+        this.graphTraversal.propagateReachability(
+          nodeId,
+          outgoingEdgeMap,
+          context.nodeOutputCache,
+          reachable,
+        );
+
+        const downstreamBackEdges = backEdgeMap.get(nodeId);
+        if (downstreamBackEdges?.length) {
+          const activated = this.findActivatedBackEdge(
+            nodeId,
+            downstreamBackEdges,
+            context.nodeOutputCache,
+          );
+          if (activated) {
+            for (let i = activated.targetIndex; i <= pointer; i++) {
+              reachable.delete(sortedNodeIds[i]);
+            }
+            reachable.add(sortedNodeIds[activated.targetIndex]);
+            pointer = activated.targetIndex;
+            continue;
+          }
+        }
+        pointer++;
+      }
+
+      // COMPLETED 처리 (runExecution 의 1792-1816 과 동일).
+      await this.updateExecutionStatus(
+        savedExecution,
+        ExecutionStatus.COMPLETED,
+      );
+      const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
+      if (lastNodeId) {
+        savedExecution.outputData =
+          (context.nodeOutputCache[lastNodeId] as
+            | Record<string, unknown>
+            | undefined) ?? {};
+        savedExecution.finishedAt = new Date();
+        savedExecution.durationMs =
+          savedExecution.finishedAt.getTime() -
+          savedExecution.startedAt.getTime();
+        await this.executionRepository.save(savedExecution);
+      }
+      this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_COMPLETED,
+        { status: ExecutionStatus.COMPLETED },
+      );
+    } catch (error: unknown) {
+      if (error instanceof RehydrationError) {
+        // Pre-check 분기 (interaction type unsupported 등) — outer 가 처리.
+        throw error;
+      }
+      if (error instanceof ExecutionCancelledError) {
+        savedExecution.status = ExecutionStatus.CANCELLED;
+        savedExecution.finishedAt = new Date();
+        savedExecution.durationMs =
+          savedExecution.finishedAt.getTime() -
+          savedExecution.startedAt.getTime();
+        await this.executionRepository.save(savedExecution);
+        this.eventEmitter.emitExecution(
+          executionId,
+          ExecutionEventType.EXECUTION_CANCELLED,
+          { status: ExecutionStatus.CANCELLED },
+        );
+        return;
+      }
+      savedExecution.status = ExecutionStatus.FAILED;
+      const errMessage = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error && error.stack) {
+        this.logger.error(
+          `Execution ${executionId} (rehydrated) failed: ${errMessage}`,
+          error.stack,
+        );
+      }
+      savedExecution.error = { message: errMessage };
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        savedExecution.finishedAt.getTime() -
+        savedExecution.startedAt.getTime();
+      await this.executionRepository.save(savedExecution);
+      this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.EXECUTION_FAILED,
+        {
+          status: ExecutionStatus.FAILED,
+          error: errMessage,
+        },
+      );
+    } finally {
+      this.pendingContinuations.delete(executionId);
+      this.contextService.deleteContext(executionId);
+      this.clearLlmDefaultConfigCache(executionId);
+    }
+  }
+
+  private async markExecutionCancelled(
+    executionId: string,
+    code:
+      | 'RESUME_CHECKPOINT_MISSING'
+      | 'RESUME_FAILED'
+      | 'RESUME_INCOMPATIBLE_STATE',
+  ): Promise<void> {
+    try {
+      await this.executionRepository
+        .createQueryBuilder()
+        .update(Execution)
+        .set({
+          status: ExecutionStatus.CANCELLED,
+          error: {
+            code,
+            message: ExecutionEngineService.resumeErrorMessage(code),
+          },
+          finishedAt: new Date(),
+        })
+        .where('id = :id', { id: executionId })
+        .andWhere('status = :status', {
+          status: ExecutionStatus.WAITING_FOR_INPUT,
+        })
+        .execute();
+    } catch (err) {
+      this.logger.error(
+        `markExecutionCancelled(${code}) 실패 — execution=${executionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  private async markNodeExecutionFailed(
+    nodeExecutionId: string,
+    code:
+      | 'RESUME_CHECKPOINT_MISSING'
+      | 'RESUME_FAILED'
+      | 'RESUME_INCOMPATIBLE_STATE',
+  ): Promise<void> {
+    try {
+      await this.nodeExecutionRepository
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({
+          status: NodeExecutionStatus.FAILED,
+          error: {
+            code,
+            message: ExecutionEngineService.resumeErrorMessage(code),
+          },
+          finishedAt: new Date(),
+        })
+        .where('id = :id', { id: nodeExecutionId })
+        .andWhere('status = :status', {
+          status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        })
+        .execute();
+    } catch (err) {
+      this.logger.error(
+        `markNodeExecutionFailed(${code}) 실패 — nodeExec=${nodeExecutionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  private static resumeErrorMessage(
+    code:
+      | 'RESUME_CHECKPOINT_MISSING'
+      | 'RESUME_FAILED'
+      | 'RESUME_INCOMPATIBLE_STATE',
+  ): string {
+    switch (code) {
+      case 'RESUME_CHECKPOINT_MISSING':
+        return 'Execution checkpoint missing — DB row 부재 또는 상태 불일치로 rehydration 불가';
+      case 'RESUME_FAILED':
+        return 'Execution rehydration failed — continuation queue retry 소진 또는 후속 (Phase 2.3a) 미구현 분기';
+      case 'RESUME_INCOMPATIBLE_STATE':
+        return 'Execution checkpoint incompatible — _resumeState deserialize 실패 (schema drift 가능)';
+    }
   }
 
   /**
@@ -647,10 +1470,14 @@ export class ExecutionEngineService
   }
 
   /**
-   * Recovery 의 stale 임계값 — WAITING_FOR_INPUT 가 이 시간보다 오래되면
-   * 정상적으로 진행 중인 입력 대기로 보지 않고 stuck 으로 간주한다. 다중
-   * 인스턴스 환경에서 다른 인스턴스가 활발히 처리 중인 정상 대기를 잘못
-   * FAIL 시키는 것을 방지하는 보수적 가드.
+   * Recovery 의 stale 임계값 — RUNNING execution 이 이 시간보다 오래되면
+   * worker heartbeat 가 끊긴 stuck 으로 간주한다. WAITING_FOR_INPUT 은 본
+   * 임계값과 무관하며 recovery 대상이 아니다 (사용자 입력은 며칠 후 도착할
+   * 수도 있으므로 무기한 보존, §7.5 rehydration 으로 자연 재개).
+   * 다중 인스턴스 환경에서 다른 인스턴스가 활발히 처리 중인 정상 RUNNING 을
+   * 잘못 FAIL 시키지 않도록 보수적 가드 (heartbeat 간격 5초의 360배).
+   *
+   * SoT: spec/5-system/4-execution-engine.md §7.1 / §7.4 Recovery.
    */
   private static readonly STUCK_RECOVERY_STALE_MS = 30 * 60 * 1000;
 
@@ -662,12 +1489,21 @@ export class ExecutionEngineService
   private static readonly RECOVERY_LOCK_TTL_SECONDS = 60;
 
   /**
-   * On server restart, mark executions stuck in WAITING_FOR_INPUT as FAILED.
+   * On server restart, mark RUNNING executions whose worker heartbeat is
+   * long-gone as FAILED.
+   *
    * 다중 인스턴스 환경에서:
    * - SET NX 분산 lock 으로 동시에 여러 인스턴스가 recovery 를 수행하지 않게
    *   가드.
-   * - `startedAt < now() - 30분` 인 row 만 FAIL 처리 — 다른 인스턴스가 정상
-   *   처리 중인 신규 대기는 보존한다.
+   * - `status='running' AND startedAt < now() - 30분` 인 row 만 FAIL 처리 —
+   *   다른 인스턴스가 정상 처리 중인 신규 실행은 보존한다.
+   * - **WAITING_FOR_INPUT 은 절대 건드리지 않는다**. 사용자 입력은 며칠 후
+   *   도착할 수도 있고 노드별 `formConfig.timeout` 이 별도로 적용되므로,
+   *   본 함수가 강제로 종결시키지 않는다. 부팅 후 입력 도착 시 §7.5
+   *   rehydration 경로로 자연 재개.
+   *
+   * SoT: spec/5-system/4-execution-engine.md §7.4 Recovery (workflow-
+   * resumable-execution Phase 1.1, 2026-05-25).
    */
   private async recoverStuckExecutions(): Promise<void> {
     const acquired = await this.continuationBus.acquireLock(
@@ -688,19 +1524,21 @@ export class ExecutionEngineService
       const staleThreshold = new Date(
         finishedAt.getTime() - ExecutionEngineService.STUCK_RECOVERY_STALE_MS,
       );
+      // W-21 fix (SUMMARY#W-21): error.code 구조화 — 클라이언트가 code 로
+      // 분기 가능. message 는 유지 (기존 log/display 호환).
       const updateResult = await this.executionRepository
         .createQueryBuilder()
         .update(Execution)
         .set({
           status: ExecutionStatus.FAILED,
           error: {
-            message:
-              'Execution failed: server restarted while waiting for user input',
+            code: 'WORKER_HEARTBEAT_TIMEOUT',
+            message: 'Execution failed: worker heartbeat timeout',
           },
           finishedAt,
         })
         .where('status = :status', {
-          status: ExecutionStatus.WAITING_FOR_INPUT,
+          status: ExecutionStatus.RUNNING,
         })
         .andWhere('started_at < :threshold', { threshold: staleThreshold })
         .execute();
@@ -708,7 +1546,7 @@ export class ExecutionEngineService
       const affected = updateResult.affected ?? 0;
       if (affected > 0) {
         this.logger.warn(
-          `Recovered ${affected} stale execution(s) (>30min) stuck in WAITING_FOR_INPUT`,
+          `Recovered ${affected} stale execution(s) (>30min) stuck in RUNNING (worker heartbeat timeout)`,
         );
       }
     } finally {
@@ -1970,36 +2808,45 @@ export class ExecutionEngineService
    * 판단할 수 없으므로 폐기됐다. WAITING_FOR_INPUT 상태 검증은 publisher
    * 측 (controller / WS gateway) 의 책임이다.
    */
-  continueExecution(executionId: string, formData?: unknown): void {
+  async continueExecution(
+    executionId: string,
+    formData?: unknown,
+  ): Promise<ContinuationPublishResult> {
     // spec/4-nodes/6-presentation/0-common.md §10.9 — sentinel wrap 책임.
     // raw formData 를 그대로 publish 하지 않고 `{ type: 'form_submitted',
-    // formData }` 로 wrap 한 뒤 publish. `'continue'` listener 는 payload 를
-    // 그대로 resolvePending 에 forward (unwrap/re-wrap 금지). dispatch 측
-    // (waitForAiConversation) 은 sentinel 로 명시 매칭 가능.
-    void this.continuationBus.publish({
+    // formData }` 로 wrap 한 뒤 publish.
+    const nodeExecutionId =
+      await this.resolveWaitingNodeExecutionId(executionId);
+    const jobId = await this.continuationBus.publish({
       type: 'continue',
       executionId,
+      nodeExecutionId,
       payload: { type: 'form_submitted', formData },
     });
+    return ExecutionEngineService.buildPublishResult(jobId);
   }
 
   /**
    * Cancel a waiting execution by rejecting the pending continuation.
+   * cancel 은 nodeExecutionId 불필요 (rehydration 대상 아님).
    */
   cancelWaitingExecution(executionId: string): void {
     void this.continuationBus.publish({ type: 'cancel', executionId });
   }
 
-  /**
-   * Resume a paused execution by clicking a button.
-   * Called from WebSocket handler.
-   */
-  continueButtonClick(executionId: string, buttonId: string): void {
-    void this.continuationBus.publish({
+  async continueButtonClick(
+    executionId: string,
+    buttonId: string,
+  ): Promise<ContinuationPublishResult> {
+    const nodeExecutionId =
+      await this.resolveWaitingNodeExecutionId(executionId);
+    const jobId = await this.continuationBus.publish({
       type: 'button_click',
       executionId,
+      nodeExecutionId,
       payload: { buttonId },
     });
+    return ExecutionEngineService.buildPublishResult(jobId);
   }
 
   /**
@@ -2007,27 +2854,101 @@ export class ExecutionEngineService
    */
   private static readonly MAX_MESSAGE_LENGTH = 10_000;
 
-  continueAiConversation(executionId: string, message: string): void {
+  async continueAiConversation(
+    executionId: string,
+    message: string,
+  ): Promise<ContinuationPublishResult> {
     if (message.length > ExecutionEngineService.MAX_MESSAGE_LENGTH) {
       throw new Error(
         `Message exceeds maximum length of ${ExecutionEngineService.MAX_MESSAGE_LENGTH} characters`,
       );
     }
-    void this.continuationBus.publish({
+    const nodeExecutionId =
+      await this.resolveWaitingNodeExecutionId(executionId);
+    const jobId = await this.continuationBus.publish({
       type: 'ai_message',
       executionId,
+      nodeExecutionId,
       payload: { message },
     });
+    return ExecutionEngineService.buildPublishResult(jobId);
   }
 
   /**
    * End a multi-turn AI conversation.
    */
-  endAiConversation(executionId: string): void {
-    void this.continuationBus.publish({
+  async endAiConversation(
+    executionId: string,
+  ): Promise<ContinuationPublishResult> {
+    const nodeExecutionId =
+      await this.resolveWaitingNodeExecutionId(executionId);
+    const jobId = await this.continuationBus.publish({
       type: 'ai_end_conversation',
       executionId,
+      nodeExecutionId,
     });
+    return ExecutionEngineService.buildPublishResult(jobId);
+  }
+
+  /**
+   * Phase 2.5 — continuation publish 결과 → WS ack `queued` / `jobId` 매핑 helper.
+   *
+   * Phase 2 의 라우팅 원칙 (spec §7.4 "모든 진입점은 항상 BullMQ enqueue") 상
+   * publish 가 정상 enqueue 되면 항상 `queued: true`. jobId 가 null 이면 Redis
+   * 장애 등으로 enqueue 자체가 실패한 케이스 — caller (WS gateway / REST
+   * controller) 는 이 경우 `success: false` 로 ack 한 뒤 client 재시도 유도.
+   */
+  private static buildPublishResult(
+    jobId: string | null,
+  ): ContinuationPublishResult {
+    if (jobId === null) {
+      // spec §7.4 publish 측 실패 — Redis 장애. queued 값은 의미 없음 (enqueue
+      // 자체가 실패). caller 가 throw 로 다루도록 jobId=null + queued=false 반환.
+      return { queued: false, jobId: null };
+    }
+    return { queued: true, jobId };
+  }
+
+  /**
+   * Phase 2 (workflow-resumable-execution) — publisher 측 책임.
+   * `execution_id + status='waiting_for_input'` 으로 NodeExecution 을 lookup.
+   *
+   * 0건 또는 다중 row 인 경우: §7.5 rehydration 1차 키가 부재한 상태 — Phase 2
+   * 본 메서드는 fallback sentinel `__no_node_exec__` 을 반환한다 (worker 가
+   * fast-path 만 시도, slow-path 는 `RESUME_CHECKPOINT_MISSING` 처리).
+   *
+   * 본 메서드는 throw 하지 않는다 — caller (continueExecution 등) 가 항상 publish
+   * 를 진행하도록 보장. invariant 위반 (다중 row) 은 logger.warn 으로 기록.
+   */
+  private async resolveWaitingNodeExecutionId(
+    executionId: string,
+  ): Promise<string> {
+    try {
+      const rows = await this.nodeExecutionRepository.find({
+        where: {
+          executionId,
+          status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        },
+        select: { id: true, nodeId: true, startedAt: true },
+        order: { startedAt: 'DESC' },
+      });
+      if (rows.length === 0) {
+        return '__no_node_exec__';
+      }
+      if (rows.length > 1) {
+        this.logger.warn(
+          `resolveWaitingNodeExecutionId — execution=${executionId} 에 WAITING_FOR_INPUT NodeExecution 이 ${rows.length} 건 (정상은 1). 가장 최근 startedAt 사용 (id=${rows[0].id}).`,
+        );
+      }
+      return rows[0].id;
+    } catch (err) {
+      this.logger.error(
+        `resolveWaitingNodeExecutionId 실패 — execution=${executionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return '__no_node_exec__';
+    }
   }
 
   /**
@@ -2218,7 +3139,11 @@ export class ExecutionEngineService
       // WARN #6 (Security) — _resumeState 는 engine-internal 한 turn debug,
       // model state, rawConfig (잠재 credential 포함) 등을 담으므로 DB 에
       // 저장하지 않는다. Multi-turn 상태는 in-memory nodeOutputCache 에서만
-      // 유지되며 server restart 시 recoverStuckExecutions 가 FAILED 로 전환.
+      // 유지되며 server restart 시 메모리에서 소실된다 — Execution 자체는
+      // WAITING_FOR_INPUT 으로 보존되지만 (workflow-resumable-execution
+      // Phase 1.1) 후속 turn 입력이 들어와도 §7.5 rehydration 이 구현되기
+      // 전까지는 silent skip 된다 (Phase 2 에서 BullMQ continuation-queue +
+      // rehydration 으로 본격 해결 예정).
       const persistedOutput: Record<string, unknown> = {
         ...(structured ?? nodeOutput),
       };
@@ -2390,7 +3315,10 @@ export class ExecutionEngineService
       // `emitAiWaitingForInput` policy). `_resumeState` carries engine-
       // internal turn debug, model state, and rawConfig (potential
       // credentials). Multi-turn state lives in the in-memory cache only;
-      // server restart triggers `recoverStuckExecutions` → FAILED.
+      // server restart loses the in-memory cache. Execution stays in
+      // WAITING_FOR_INPUT (workflow-resumable-execution Phase 1.1 — no longer
+      // auto-FAILED by recoverStuckExecutions), Phase 2 will introduce §7.5
+      // rehydration to actually resume from any instance.
       //
       // `nodeExec` should normally exist here — the first turn entered via
       // `emitAiWaitingForInput` already persisted it. A null arrival means
@@ -3366,7 +4294,13 @@ export class ExecutionEngineService
     );
 
     try {
-      // Get handler
+      // Phase 1.2 — Graceful Shutdown 추적. SIGTERM 수신 시 본 in-flight
+      // 등록이 ShutdownStateService 의 drain wait + SERVER_INTERRUPTED 마킹
+      // 대상이 된다. try 첫 줄에 배치해야 emitNode throw 후에도 finally 의
+      // unregisterInFlight 가 보장됨 (W-1 fix — SUMMARY#W-1).
+      this.shutdownState.registerInFlight(nodeExecution.id, executionId);
+
+      // Get handler — wrapped 전체가 finally 의 unregisterInFlight 보장 대상.
       const handler = this.handlerRegistry.get(node.type);
 
       // Validate config
@@ -3633,6 +4567,9 @@ export class ExecutionEngineService
           );
           throw error;
       }
+    } finally {
+      // Phase 1.2 — register 짝. handler 결과·에러·throw 무관 항상 해제.
+      this.shutdownState.unregisterInFlight(nodeExecution.id);
     }
   }
 

@@ -165,6 +165,7 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 
 | 큐 이름 | 등록 모듈 | Producer | Consumer | 작업 단위 |
 | --- | --- | --- | --- | --- |
+| `execution-continuation` | `execution-engine.module.ts` | `ContinuationBusService.publish` (WS gateway / REST controller 경유) | `ContinuationExecutionProcessor` | 사용자 입력 fan-out (form/button/AI message — [실행 엔진 §7.4/§7.5](../5-system/4-execution-engine.md)) |
 | `background-execution` | `execution-engine.module.ts` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | Background 노드의 자식 흐름 |
 | `document-embedding` | `knowledge-base.module.ts` | KB 문서 업로드·재임베딩 API | `DocumentEmbeddingProcessor` | 문서 1건 임베딩 |
 | `graph-extraction` | `knowledge-base.module.ts` | 임베딩 완료 hook·재추출 API | `GraphExtractionProcessor` | 문서 1건 entity/relation 추출 |
@@ -178,8 +179,8 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 
 ## 5. 다중 인스턴스·동시성 모델
 
-- **Stateless backend**: 모든 controller·service 는 stateless. 인스턴스 간 작업 조정은 Redis (BullMQ + Pub/Sub) 가 담당.
-- **Continuation bus**: 실행 엔진은 form 제출·button click 같은 비동기 재개 신호를 Redis pub/sub (`ContinuationBusService`) 로 동기화. 실행을 수행 중인 인스턴스가 다른 인스턴스에서도 깨워질 수 있다 (`spec/5-system/4-execution-engine.md`).
+- **Stateless backend**: 모든 controller·service 는 stateless. 인스턴스 간 작업 조정은 Redis (BullMQ 영속 큐 + 보조 Pub/Sub) 가 담당.
+- **Continuation bus**: 실행 엔진은 form 제출·button click 같은 비동기 재개 신호를 BullMQ 영속 큐 `execution-continuation` (`ContinuationBusService`) 로 동기화. 옛 Redis pub/sub `execution:continuation` 채널은 폐기 (at-most-once 문제 해소 — `spec/5-system/4-execution-engine.md §7.4 / §7.5 / §Rationale "Durable Continuation (2026-05-24)"`). 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스가 BullMQ Worker 로 pick up 해 재개 가능 — 호스팅 인스턴스가 부재하면 §7.5 rehydration 경로로 진입.
 - **HNSW 인덱스**: pgvector HNSW 인덱스는 차원별로 분리된 partial index (`V022/V030~V033`) — KB 마다 차원이 다르면 각자 인덱스에 매칭된다.
 - **재시도 / 멱등**: BullMQ 의 `attempts` 와 service-level retry (`retryWithBackoff`) 양층. 두 층은 도메인 spec 의 상태 전이에 동기로 반영된다.
 

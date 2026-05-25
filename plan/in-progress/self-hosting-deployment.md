@@ -59,6 +59,7 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 - [ ] Helm test — `helm install --dry-run` + `helm test` 동작
 - [ ] DB / Redis / MinIO 는 in-cluster (PVC) 또는 외부 (RDS/ElastiCache/S3) 모두 지원하도록 chart 옵션 분기
 - [ ] Helm chart 자동 lint (CI)
+- [ ] **`terminationGracePeriodSeconds` 설정** — backend / worker Deployment 의 pod spec 에 `terminationGracePeriodSeconds: <ceil(SIGTERM_GRACE_MS / 1000) + 5>` (기본값 35초 = 30 + 5 readiness drain 여유). `SIGTERM_GRACE_MS` 환경변수와 동기화. SoT: [`spec/5-system/4-execution-engine.md §11 Graceful Shutdown`](../../spec/5-system/4-execution-engine.md#11-graceful-shutdown).
 
 ### 5. 운영·보안 가이드 (NF-SC-08, NF-DP-06)
 
