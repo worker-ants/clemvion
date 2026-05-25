@@ -3077,8 +3077,11 @@ export class ExecutionEngineService
         // 에 도달해 대화가 FAILED 종결되는 회귀. button_click 은 enum-known
         // 이므로 skip count 에서 명시적으로 제외 — 무한 클릭에도 대화 alive
         // 유지, 사용자는 다음 메시지 입력으로 자연스럽게 진행 가능.
+        const buttonIdRaw = (action as { buttonId?: unknown }).buttonId;
+        const buttonIdStr =
+          typeof buttonIdRaw === 'string' ? buttonIdRaw.slice(0, 64) : '';
         this.logger.warn(
-          `[waitForAiConversation] button_click action received during ai_conversation (spec §10.9 invariant breach — likely stale chat-channel inline_keyboard click). execution=${executionId} buttonId=${String((action as { buttonId?: unknown }).buttonId ?? '').slice(0, 64)} — loop re-entering (skip count excluded per spec line 407 graceful degradation)`,
+          `[waitForAiConversation] button_click action received during ai_conversation (spec §10.9 invariant breach — likely stale chat-channel inline_keyboard click). execution=${executionId} buttonId=${buttonIdStr} — loop re-entering (skip count excluded per spec line 407 graceful degradation)`,
         );
       } else {
         // spec §10.9 line 401 — 알 수 없는 action.type 은 silent skip 회피.
