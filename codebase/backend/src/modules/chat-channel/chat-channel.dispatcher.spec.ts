@@ -351,6 +351,82 @@ describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-0
 });
 
 // ---------------------------------------------------------------------------
+// 2026-05-25 — toEiaEvent 의 `execution.ai_message` 분기가 payload 의
+// `presentations?: PresentationPayload[]` 필드를 추출하는지 회귀 차단.
+// 추출 누락 시 chat-channel renderer 가 event.presentations === undefined 로
+// 보아 회귀 ② (AI render_* sequential 발송) 가 실패. SoT: spec §6.5 line 536 +
+// chat-channel-adapter.md §1.2 line 89.
+// ---------------------------------------------------------------------------
+describe('toEiaEvent — execution.ai_message presentations[] 추출 (CCH-MP-01 보강)', () => {
+  const baseRouting = {
+    triggerId: 'trig-1',
+    workflowId: 'wf-1',
+    timestamp: '2026-05-25T07:00:00.000Z',
+  };
+
+  it('payload.presentations[] 가 있으면 EiaAiMessageEvent.presentations 에 그대로 옮긴다', () => {
+    const presentations = [
+      {
+        type: 'carousel',
+        toolCallId: 'tc-1',
+        renderedAt: '2026-05-25T07:00:00.000Z',
+        payload: { items: [{ title: 'A' }] },
+      },
+    ];
+    const event: ExecutionChannelEvent = {
+      executionId: 'exec-1',
+      eventType: 'execution.ai_message',
+      seq: 7,
+      payload: {
+        ...baseRouting,
+        message: 'hi',
+        turnCount: 2,
+        presentations,
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.ai_message') throw new Error();
+    expect(eia.presentations).toEqual(presentations);
+  });
+
+  it('payload.presentations 가 없으면 EiaAiMessageEvent.presentations 미정의 (회귀 차단)', () => {
+    const event: ExecutionChannelEvent = {
+      executionId: 'exec-1',
+      eventType: 'execution.ai_message',
+      seq: 7,
+      payload: {
+        ...baseRouting,
+        message: 'hi',
+        turnCount: 2,
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.ai_message') throw new Error();
+    expect(eia.presentations).toBeUndefined();
+  });
+
+  it('payload.presentations 가 non-array (잘못된 타입) → 무시 (presentations 미정의)', () => {
+    const event: ExecutionChannelEvent = {
+      executionId: 'exec-1',
+      eventType: 'execution.ai_message',
+      seq: 7,
+      payload: {
+        ...baseRouting,
+        message: 'hi',
+        turnCount: 2,
+        presentations: 'not-an-array',
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.ai_message') throw new Error();
+    expect(eia.presentations).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 2026-05-25 — chat-channel-internal listener (CCH-AD-07 / CCH-MP-06)
 // presentation 노드 (carousel/table/chart/template) 비-blocking 완료 시
 // `execution.node.completed` 를 in-process WS Subject 에서 추가 픽업해

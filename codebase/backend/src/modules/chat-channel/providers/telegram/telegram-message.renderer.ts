@@ -63,6 +63,10 @@ export function renderTelegramMessages(
       return renderWaitingForInput(event, config);
     case 'execution.node.completed':
       return renderNodeCompleted(event, config);
+    default:
+      // discriminated union 새 variant 누락 시 silent skip.
+      // Discord/Slack renderer 와 동일 패턴 (W10 — 일관성 fix).
+      return [];
   }
 }
 
