@@ -220,7 +220,9 @@ export const triggers: Dict["triggers"] = {
     rateLimitPerMinute: "Inbound per-minute cap (default 60)",
     languageHints: "Bot guidance i18n (languageHints)",
     languageHintsHelp:
-      "Keys for bot-sent guidance messages — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help.",
+      "Keys for bot-sent guidance messages — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help. " +
+      "Execution failure guidance (CCH-ERR-*) 6 keys: executionFailedThirdParty4xx / executionFailedThirdParty5xx / executionFailedThirdParty / executionFailedTimeout / executionFailedRateLimit / executionFailedInternal. " +
+      "Allowed placeholder in CCH-ERR-* keys: {statusCode} only.",
     health: "Channel health",
     healthUnknown: "Unknown",
     healthHealthy: "Healthy",

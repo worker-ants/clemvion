@@ -4,6 +4,12 @@ import type {
   ChatChannelConfig,
   EiaEvent,
 } from '../../types';
+import { classifyExecutionFailure } from '../../shared/execution-failure-classifier';
+import {
+  resolveLanguageHint,
+  applyPlaceholders,
+  type LanguageLocale,
+} from '../../shared/language-hint-defaults';
 
 /**
  * Discord renderer (pure, side-effect free).
@@ -37,7 +43,7 @@ export function renderDiscordEvent(
         ),
       ];
     case 'execution.failed':
-      return [textMessage(renderFailedMessage(event.error, config))];
+      return [textMessage(renderFailedMessage(event, config))];
     case 'execution.cancelled':
       return [
         textMessage(
@@ -57,7 +63,12 @@ function renderWaitingForInput(
   config: ChatChannelConfig,
 ): ChannelMessage[] {
   const interactionType = event.node?.interactionType;
-  if (interactionType === 'ai_conversation') {
+  // ai_form_render = ai-agent render_form blocking 진입 (ai_conversation sub-state) —
+  // chat channel 안에서는 ai_conversation 과 동일 경로 처리. spec/conventions/interaction-type-registry.md §1.
+  if (
+    interactionType === 'ai_conversation' ||
+    interactionType === 'ai_form_render'
+  ) {
     const message =
       (event.context?.conversationConfig as { message?: string } | undefined)
         ?.message ?? '';
@@ -233,17 +244,27 @@ function renderVisualFallback(nodeType: string, payload: unknown): string {
   return '';
 }
 
+/**
+ * Spec [providers/discord §5.6] / CCH-ERR-01~03 — Execution Failed.
+ *
+ * Breaking change (2026-05-25): 이전 구현은 `{{code}}` / `{{message}}` placeholder 로
+ * `error.code` / `error.message` 원문을 사용자에게 노출했다 — CCH-ERR-03 위반 (내부
+ * 인프라 정보 / 노드 핸들러 stack 누설 위험). 본 함수는 분류 helper 결과의 generic
+ * i18n 문구만 사용 + `{statusCode}` placeholder 1종만 허용.
+ *
+ * Discord plain text 만 (embeds 미부여, components 미부여, message_reference 미부여).
+ */
 function renderFailedMessage(
-  error: { code: string; message: string },
+  event: Extract<EiaEvent, { type: 'execution.failed' }>,
   config: ChatChannelConfig,
 ): string {
-  const template = config.languageHints?.executionFailed;
-  if (typeof template === 'string' && template.length > 0) {
-    return template
-      .replace('{{code}}', error.code)
-      .replace('{{message}}', error.message);
-  }
-  return `오류가 발생했습니다 — ${error.message}`;
+  const { key, placeholders } = classifyExecutionFailure(event);
+  const template = resolveLanguageHint(
+    key,
+    config.languageHints,
+    config.languageLocale as LanguageLocale | undefined,
+  );
+  return applyPlaceholders(template, placeholders);
 }
 
 function chunkText(text: string): ChannelMessage[] {

@@ -211,7 +211,9 @@ export const triggers = {
     rateLimitPerMinute: "분당 최대 inbound (default 60)",
     languageHints: "안내 메시지 i18n (languageHints)",
     languageHintsHelp:
-      "봇이 보내는 자체 안내 메시지 키 — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help.",
+      "봇이 보내는 자체 안내 메시지 키 — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help. " +
+      "실행 실패 안내(CCH-ERR-*) 6 키: executionFailedThirdParty4xx / executionFailedThirdParty5xx / executionFailedThirdParty / executionFailedTimeout / executionFailedRateLimit / executionFailedInternal. " +
+      "CCH-ERR-* 키에서 허용되는 placeholder: {statusCode} 1종.",
     health: "Channel 건강도",
     healthUnknown: "확인 안 됨",
     healthHealthy: "정상",

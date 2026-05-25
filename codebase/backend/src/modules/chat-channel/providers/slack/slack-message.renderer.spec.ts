@@ -62,7 +62,37 @@ describe('renderSlackEvent — basic event types', () => {
     expect(msgs[0].body).toEqual({ kind: 'text', text: '완료!' });
   });
 
-  it('failed → 사용자 안전 안내', () => {
+  it('failed → 사용자 안전 안내 (CCH-ERR-03: 민감정보 미노출)', () => {
+    const msgs = renderSlackEvent(
+      {
+        type: 'execution.failed',
+        executionId: 'exec-secret',
+        triggerId: 'trig-1',
+        workflowId: 'wf-secret',
+        seq: 1,
+        timestamp: '2026-05-24T00:00:00Z',
+        error: {
+          code: 'HTTP_TRANSPORT_FAILED',
+          message: 'ENOTFOUND api.internal.example.com',
+          nodeId: 'node-secret',
+        },
+      },
+      CONFIG,
+    );
+    expect(msgs[0].body).toMatchObject({ kind: 'text' });
+    const text = (msgs[0].body as { text: string }).text;
+    // generic 안내 — 분류 helper 가 HTTP_TRANSPORT_FAILED → executionFailedThirdParty
+    expect(text.length).toBeGreaterThan(0);
+    // 민감정보 strip 검증
+    expect(text).not.toContain('ENOTFOUND');
+    expect(text).not.toContain('api.internal');
+    expect(text).not.toContain('HTTP_TRANSPORT_FAILED');
+    expect(text).not.toContain('exec-secret');
+    expect(text).not.toContain('node-secret');
+    expect(text).not.toContain('wf-secret');
+  });
+
+  it('failed (HTTP_4XX with statusCode) → {statusCode} placeholder 치환 (KO default)', () => {
     const msgs = renderSlackEvent(
       {
         type: 'execution.failed',
@@ -71,12 +101,62 @@ describe('renderSlackEvent — basic event types', () => {
         workflowId: 'w',
         seq: 1,
         timestamp: '2026-05-24T00:00:00Z',
-        error: { code: 'X', message: 'something' },
+        error: {
+          code: 'HTTP_4XX',
+          message: 'should-not-leak',
+          details: { statusCode: 404, url: 'https://internal' },
+        },
       },
       CONFIG,
     );
-    expect(msgs[0].body).toMatchObject({ kind: 'text' });
-    expect((msgs[0].body as { text: string }).text).toContain('something');
+    const text = (msgs[0].body as { text: string }).text;
+    expect(text).toContain('404');
+    expect(text).not.toContain('should-not-leak');
+    expect(text).not.toContain('https://internal');
+  });
+
+  it('failed (HTTP_5XX with languageLocale=en) → EN default', () => {
+    const msgs = renderSlackEvent(
+      {
+        type: 'execution.failed',
+        executionId: 'e',
+        triggerId: 't',
+        workflowId: 'w',
+        seq: 1,
+        timestamp: '2026-05-24T00:00:00Z',
+        error: {
+          code: 'HTTP_5XX',
+          message: 'should-not-leak',
+          details: { statusCode: 502 },
+        },
+      },
+      { ...CONFIG, languageLocale: 'en' },
+    );
+    const text = (msgs[0].body as { text: string }).text;
+    expect(text).toContain('502');
+    expect(text.toLowerCase()).toContain('try again');
+  });
+
+  it('failed (user override) → languageHints[key] 우선', () => {
+    const msgs = renderSlackEvent(
+      {
+        type: 'execution.failed',
+        executionId: 'e',
+        triggerId: 't',
+        workflowId: 'w',
+        seq: 1,
+        timestamp: '2026-05-24T00:00:00Z',
+        error: { code: 'HTTP_5XX', message: 'x', details: { statusCode: 503 } },
+      },
+      {
+        ...CONFIG,
+        languageHints: {
+          executionFailedThirdParty5xx: '커스텀 안내 ({statusCode})',
+        },
+      },
+    );
+    const text = (msgs[0].body as { text: string }).text;
+    expect(text).toBe('커스텀 안내 (503)');
   });
 
   it('cancelled → languageHints text', () => {

@@ -61,7 +61,35 @@ export interface ChatChannelConfig {
   /** CCH-NF-03 override. default 60. */
   rateLimitPerMinute?: number;
 
-  /** 봇이 보내는 자체 안내 메시지 i18n. */
+  /**
+   * `languageHints` 미설정 키의 default 문구 locale 선택. default "ko".
+   * 어댑터의 lookup 순서: (1) `languageHints[key]` override → (2) 본 locale 의 default
+   * 문구 → (3) 'ko' fallback.
+   *
+   * @see spec/5-system/15-chat-channel.md §4.1 / §4.1.1 (KO/EN default 12 문구 표)
+   * @see spec/conventions/chat-channel-adapter.md §2.3
+   */
+  languageLocale?: 'ko' | 'en';
+
+  /**
+   * 봇이 보내는 자체 안내 메시지 i18n.
+   *
+   * **Breaking change (2026-05-25)**: 이전 단일 키 `executionFailed` (+ `{{code}}` / `{{message}}`
+   * placeholder) 는 더 이상 사용되지 않습니다. 기존 DB 의 `executionFailed` 키는 silently ignored
+   * 되며, 아래 6 키로 마이그레이션하세요.
+   *
+   * CCH-ERR-* 6 키 (spec/5-system/15-chat-channel.md §4.1.1):
+   *   - `executionFailedThirdParty4xx` — HTTP 4xx 오류 (placeholder: `{statusCode}`)
+   *   - `executionFailedThirdParty5xx` — HTTP 5xx 오류 (placeholder: `{statusCode}`)
+   *   - `executionFailedThirdParty`    — 기타 외부 서비스 오류
+   *   - `executionFailedTimeout`       — 처리 시간 초과
+   *   - `executionFailedRateLimit`     — Rate limit 초과
+   *   - `executionFailedInternal`      — 내부 서비스 오류 (fallback)
+   *
+   * @deprecated `executionFailed` 단일 키 + `{{code}}`/`{{message}}` placeholder 는 제거됨.
+   *   6 키 체계로 마이그레이션 필요. runtime 에서 deprecation 경고 로그 발생.
+   * @see spec/5-system/15-chat-channel.md §4.1 / §4.1.1
+   */
   languageHints?: Record<string, string>;
 }
 
@@ -152,7 +180,12 @@ export interface EiaWaitingForInputEvent extends EiaEventBase {
   node: {
     id: string;
     type: string;
-    interactionType: 'form' | 'buttons' | 'ai_conversation';
+    /**
+     * SoT: [spec/conventions/interaction-type-registry.md §1 `WaitingInteractionType`](../../../../spec/conventions/interaction-type-registry.md#1-waitinginteractiontype).
+     * 4종 — `ai_form_render` 는 ai-agent 의 render_form blocking 진입 (sub-state of ai_conversation).
+     * chat channel 안에서는 `ai_conversation` 과 동일 경로로 처리 (renderer 의 switch fallthrough).
+     */
+    interactionType: 'form' | 'buttons' | 'ai_conversation' | 'ai_form_render';
   };
   interaction: Record<string, unknown>;
   context: {

@@ -97,7 +97,53 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 - **Form `file` 필드 사실상 미지원** — file upload 가 Gateway attachment 기반. workaround: 외부 storage URL 입력 (`text` + url validation).
 - **typing 은 native** — `POST /channels/{id}/typing` (10초 유지). LLM latency 가 길면 5초마다 반복 호출 (Slack 와 차이).
 
-## 7. 트러블슈팅
+## 7. 안내 메시지 커스터마이즈 (`languageHints` / `languageLocale`)
+
+봇이 사용자에게 보내는 자체 안내 문구는 `config.chatChannel.languageHints` 로 override 할 수 있어요.
+
+### 7.1 `languageLocale` — 기본 locale 선택
+
+`languageLocale` 필드로 override 하지 않은 키의 **default 문구 언어**를 선택해요.
+
+| 값 | 설명 |
+|---|---|
+| `"ko"` | 한국어 default 문구 사용 (**default**, 생략 시 동일) |
+| `"en"` | 영어 default 문구 사용 |
+
+**lookup 우선순위** (키 하나당):
+1. `languageHints[key]` — 운영자 override 가 있으면 항상 우선
+2. `languageLocale` 의 언어별 내장 default
+3. `"ko"` fallback — `languageLocale` 도 생략됐을 때
+
+### 7.2 실행 실패 안내 키 (CCH-ERR-*)
+
+워크플로우 execution 이 실패하면 봇이 사용자에게 실패 유형에 맞는 안내 메시지를 발송해요. 아래 6개 키로 문구를 override 할 수 있어요.
+
+<Callout type="note">
+민감정보 보호: `error.message` 원문 · `nodeId` · `executionId` · `details.url` 등은 안내 메시지에 절대 노출되지 않아요. 운영자 override 에서 허용되는 placeholder 는 `{statusCode}` 1종뿐이에요. 다른 `{...}` placeholder 사용 시 400 `VALIDATION_ERROR` (`details.code='UNKNOWN_PLACEHOLDER'`) 가 반환돼요.
+</Callout>
+
+| 키 | 발송 조건 | `{statusCode}` 허용 |
+|---|---|---|
+| `executionFailedThirdParty4xx` | 외부 서비스(LLM / MCP / HTTP 노드)가 4xx 거부 (`HTTP_4XX`) | 선택 |
+| `executionFailedThirdParty5xx` | 외부 서비스 5xx 일시 오류 (`HTTP_5XX`) | 선택 |
+| `executionFailedThirdParty` | 외부 서비스 응답 없음 (timeout 제외, status code 없음) | 불허 |
+| `executionFailedTimeout` | 처리 시간 초과 (`HTTP_TIMEOUT` / `LLM_TIMEOUT` / `EXECUTION_TIMEOUT` 등) | 불허 |
+| `executionFailedRateLimit` | 요청량 초과 (`LLM_RATE_LIMIT`) | 불허 |
+| `executionFailedInternal` | 서버 내부 오류 (DB / CODE / SUB_WORKFLOW 실패 + 미분류 fallback) | 불허 |
+
+**KO default 문구** (`languageLocale: "ko"` 또는 생략 시):
+
+```
+executionFailedThirdParty4xx  → 외부 서비스 요청이 거부되었습니다 ({statusCode}). 잠시 후 다시 시도해 주세요.
+executionFailedThirdParty5xx  → 외부 서비스에 일시적인 문제가 발생했습니다 ({statusCode}). 잠시 후 다시 시도해 주세요.
+executionFailedThirdParty     → 외부 서비스 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.
+executionFailedTimeout        → 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.
+executionFailedRateLimit      → 요청량이 많아 잠시 후 다시 시도해 주세요.
+executionFailedInternal       → 서비스에 일시적 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.
+```
+
+## 8. 트러블슈팅
 
 | 증상 | 원인 / 해결 |
 |---|---|

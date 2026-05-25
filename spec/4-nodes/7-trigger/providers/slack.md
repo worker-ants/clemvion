@@ -202,6 +202,20 @@ Slack Web API 는 server-initiated typing indicator 가 없다 (`as_user=true` +
 
 Convention §1.1 의 `ackInteraction` 정책 — provider 에 따라 noop 가능. Slack 의 typing 도 동일 정신: provider 가 native 미지원 시 no-op 허용.
 
+### 5.6 Execution Failed (CCH-ERR-*)
+
+`execution.failed` 이벤트는 [Convention §3.1](../../../conventions/chat-channel-adapter.md#31-execution-failed-분류-알고리즘) 의 `classifyExecutionFailure(event)` 가 결정한 `(key, placeholders)` 를 어댑터가 lookup·치환하여 단일 `chat.postMessage` (plain text) 로 발송한다.
+
+| 항목 | Slack 매핑 |
+|---|---|
+| API 호출 | `POST https://slack.com/api/chat.postMessage` (1회) |
+| 본문 | `text` = `languageHints[key]` 의 `{statusCode}` 치환 결과. **mrkdwn 무사용** (`<>*_~` 등 mrkdwn 문법 회피, plain text). `blocks` 미부여 |
+| `thread_ts` | 미부여 (1:1 DM 가정 — [R-S-4](#r-s-4-groupchannelmpim-거부--dm-만-지원-2026-05-24) 의 DM only) |
+| `channel` | conversation 의 `channel_id` (기존 `chat.postMessage` 매핑과 동일) |
+| timeout / retry | [CCH-SE-01](../../../5-system/15-chat-channel.md#34-신뢰성--보안) 동일 — 5초 timeout + 3회 지수 백오프. 최종 실패 시 `chat_channel_health=degraded` |
+
+민감정보 strip — [CCH-ERR-03](../../../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 그대로.
+
 ---
 
 ## 6. 보안
