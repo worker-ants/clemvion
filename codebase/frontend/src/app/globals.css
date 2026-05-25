@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+/*
+ * Tailwind v4 dark variant — `.dark` class strategy.
+ *
+ * Default Tailwind v4 binds `dark:` to the `prefers-color-scheme: dark`
+ * media query, which is independent of the `.dark` class our theme
+ * tokens below rely on. That mismatch made `<Logo theme="auto">` (and
+ * every other `dark:` utility in the app — see statistics/triggers/
+ * integrations pages) render the dark variant whenever the user's OS
+ * was in dark mode, regardless of whether the app itself was actually
+ * in dark mode (which currently is never, since no theme provider
+ * applies `.dark` yet).
+ *
+ * This `@custom-variant dark` declaration overrides Tailwind's default
+ * so `dark:` tracks the same `.dark` ancestor that the CSS tokens do.
+ * Result: with no theme provider, the app is consistently light. When
+ * a theme provider is added later, applying `.dark` on `<html>` will
+ * flip both the CSS tokens AND `dark:` utilities together.
+ *
+ * Spec: spec/6-brand.md §8 R-18 (2026-05-25).
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ===== Theme Variables ===== */
 :root {
   --background: 0 0% 100%;
