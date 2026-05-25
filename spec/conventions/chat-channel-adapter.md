@@ -35,10 +35,15 @@ interface ChatChannelAdapter {
   parseUpdate(raw: unknown, config: ChatChannelConfig): Promise<ChannelUpdate | null>;
 
   /**
-   * EIA outbound 이벤트 → 외부 채널 메시지 변환.
+   * EIA outbound 이벤트 + chat-channel-internal 이벤트 → 외부 채널 메시지 변환.
    * NotificationDispatcher 의 in-process EventEmitter listener 가 호출. Side-effect free.
+   * 입력 union: §1.2 `EiaEvent` (EIA §6 5종) + §1.3 `ChatChannelInternalEvent` (chat-channel-internal).
+   * 어댑터 구현체는 `event.type` discriminated union 분기로 처리. SoT: §R-CCA-7.
    */
-  renderNode(event: EiaEvent, config: ChatChannelConfig): Promise<ChannelMessage[]>;
+  renderNode(
+    event: EiaEvent | ChatChannelInternalEvent,
+    config: ChatChannelConfig,
+  ): Promise<ChannelMessage[]>;
 
   /**
    * 외부 채널 API 호출 (sendMessage / sendPhoto / answerCallbackQuery 등).
@@ -74,7 +79,7 @@ interface ChatChannelAdapter {
 | `setupChannel` | 외부 채널의 inbound hook 등록 (텔레그램 `setWebhook`) + bot identity 조회 | 외부 API 호출 1회 이상 | yes — 같은 config 재호출 OK |
 | `teardownChannel` | 외부 채널의 hook 해제. 부분 실패 OK (best-effort) | 외부 API 호출 | yes |
 | `parseUpdate` | raw body → `ChannelUpdate \| null`. DB 미접근, 외부 API 미호출. 무시 대상은 `null` — **`null` 의 의미는 "어댑터가 해석 불가/무시"** 단일 의미. 호출자(`HooksService`) 가 raw body 에서 provider-specific 메타 (예: 텔레그램 `chat.type`, `from.is_bot`) 를 확인해 안내 메시지 발송 여부를 결정한다 (어댑터는 side-effect free 유지). 안내 발송 책임 = 호출자 | none | pure |
-| `renderNode` | EIA payload → `ChannelMessage[]`. side-effect free | none | pure |
+| `renderNode` | `EiaEvent \| ChatChannelInternalEvent` payload → `ChannelMessage[]`. side-effect free. 입력 union 은 §1.2 / §1.3 정의. SoT: §R-CCA-7 (union 확장 근거) | none | pure |
 | `sendMessage` | 외부 API 호출. 재시도·rate limit 책임 | 외부 API 호출 | dedup 책임은 caller (EIA 의 `seq` + `X-Clemvion-Delivery` 그대로 어댑터 안에서 활용) |
 | `ackInteraction` | provider 가 요구하는 ack (텔레그램 `answerCallbackQuery`). provider 에 따라 noop 가능 — 함수 자체는 의무지만 구현체는 비어 있을 수 있음 | 외부 API 호출 (provider 의존) | yes |
 | `revokeBotToken?` (옵션) | 이전 bot token 의 외부 provider 측 revocation (Slack `auth.revoke` 등). provider 가 revocation API 를 제공하면 구현, 아니면 미구현 (`undefined`). best-effort — 실패는 swallow | 외부 API 호출 (provider 의존, 옵션) | yes |
@@ -86,13 +91,39 @@ interface ChatChannelAdapter {
 ```typescript
 type EiaEvent =
   | { type: "execution.waiting_for_input"; /* EIA §6.2 */ executionId: string; triggerId: string; workflowId: string; node: { id: string; type: string; interactionType: "form" | "buttons" | "ai_conversation" | "ai_form_render" /* SoT: [interaction-type-registry §1](./interaction-type-registry.md#1-waitinginteractiontype) — 4종 (ai_form_render = ai-agent render_form blocking sub-state, 2026-05-23 추가). chat channel 안에서는 ai_conversation 과 동일 경로. */ }; interaction: { /* ... */ }; context: { formConfig?: unknown; buttonConfig?: unknown; conversationConfig?: unknown; conversationThread?: unknown }; timestamp: string; seq: number }
-  | { type: "execution.ai_message";        /* EIA §6.5 (ai_message) + WS §4.4 */ executionId: string; triggerId: string; workflowId: string; message: string; turnCount: number; messages: unknown[]; metadata?: unknown; llmCalls?: unknown[]; timestamp: string; seq: number }
+  | { type: "execution.ai_message";        /* EIA §6.5 (ai_message) + WS §4.4 */ executionId: string; triggerId: string; workflowId: string; message: string; turnCount: number; messages: unknown[]; metadata?: unknown; llmCalls?: unknown[]; /** AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉. SoT: [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) / [EIA §6.5 line 536](../5-system/14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message). */ presentations?: PresentationPayload[]; timestamp: string; seq: number }
   | { type: "execution.completed";         /* EIA §6.3 */ executionId: string; triggerId: string; workflowId: string; result: { outputs: unknown; finalNodeId: string; finalPort: string }; durationMs: number; timestamp: string; seq: number }
   | { type: "execution.failed";            /* EIA §6.4 */ executionId: string; triggerId: string; workflowId: string; error: { code: string; message: string; nodeId: string | null; details?: unknown }; durationMs: number; timestamp: string; seq: number }
   | { type: "execution.cancelled";         /* EIA §6.5 (cancelled) */ executionId: string; triggerId: string; workflowId: string; result: { cancelledBy: "user" | "system" | "timeout" }; durationMs: number; timestamp: string; seq: number };
 ```
 
 내부 필드의 SoT 는 EIA §6 의 각 페이로드 형식. 본 컨벤션은 어댑터 입력으로 union 만 정의.
+
+### 1.3 ChatChannelInternalEvent 입력 (2026-05-25 신설)
+
+chat-channel 어댑터가 EIA outbound 5종 외에 추가로 구독하는 **in-process 이벤트**. 외부 SDK 미노출 — EIA §6.1 outbound HTTP webhook 화이트리스트와는 별도 표면. 구독 소스: R8 의 in-process fan-out 경로 (NotificationDispatcher / `WebsocketService` 단일 sink) — chat-channel `Dispatcher` 가 presentation 노드 한정 sub-filter 로 attach.
+
+```typescript
+type ChatChannelInternalEvent =
+  | {
+      type: "execution.node.completed";
+      // SoT: WS §4.4 execution.node.completed — same event name, consumed as chat-channel-internal.
+      // EIA §6.1 outbound 5종 화이트리스트는 변경 없음. 외부 SDK 미노출.
+      executionId: string;
+      triggerId: string;
+      workflowId: string;
+      node: { id: string; type: "carousel" | "table" | "chart" | "template"; label?: string };
+      /** NodeHandlerOutput.output — 예: Template 의 `{rendered, ...}`, Carousel 의 `{items, ...}`. */
+      output: Record<string, unknown>;
+      meta?: Record<string, unknown>;
+      timestamp: string;
+      seq: number;
+    };
+```
+
+`node.type` 은 4종 display-only presentation 한정 (form 제외, AI Agent / LLM / code 등 비-presentation 노드 무시). filter 책임은 어댑터 (sub-filter). blocking 진입 케이스 (`nodeExec.outputData.status === 'waiting_for_input'`) 도 어댑터 sub-filter 가 사전 제외 — 그 케이스는 `execution.waiting_for_input` (interactionType=buttons) 이 별도로 발사.
+
+근거: §R-CCA-7 (`renderNode` 시그니처 union 확장 근거).
 
 ---
 
@@ -235,20 +266,21 @@ interface SendResult {
 
 ---
 
-## 3. EIA Event → renderNode 매핑
+## 3. EIA / Internal Event → renderNode 매핑
 
-`renderNode(event)` 가 처리해야 하는 5종 EIA 이벤트와 출력 `ChannelMessage[]`:
+`renderNode(event)` 가 처리해야 하는 EIA 외부 5종 + chat-channel-internal 이벤트와 출력 `ChannelMessage[]`. 외부 EIA outbound HTTP webhook 표면 (EIA §6.1) 은 5종 그대로 — 본 표의 마지막 행 (`execution.node.completed` chat-channel-internal) 은 §1.3 `ChatChannelInternalEvent` 입력으로 별도 표면:
 
-| EIA event type | 입력 payload | 출력 ChannelMessage 시퀀스 |
+| Event type | 입력 payload | 출력 ChannelMessage 시퀀스 |
 |---|---|---|
 | `execution.waiting_for_input` (interactionType=form) | `formConfig.fields[]` | 다단계 — 첫 필드의 `form_prompt` 1건. 이후 응답마다 다음 필드 (§4) |
 | `execution.waiting_for_input` (interactionType=buttons) | `buttonConfig.buttons[]` + `buttonConfig.nodeOutput` | `buttons` 1건. node output 이 시각형 (carousel/table/chart) 이면 그 앞에 시각 ChannelMessage 시퀀스 추가 — `uiMapping.visualNode` enum 분기 적용 (`text` / `photo` / `auto`, default `auto`). provider 별 v1 fallback 정책 (텔레그램: [§5.4](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) MarkdownV2 텍스트/monospace) 또는 v2 SSR PNG (별 plan `chat-channel-visual-ssr-png`). v1 에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음 — 정상 fallback) |
 | `execution.waiting_for_input` (interactionType=ai_conversation) | — (silent) | **빈 array** — chat channel 에서 silent. 이유: ai-agent multi-turn 의 매 turn 마다 (a) `execution.ai_message` event 가 응답 본문을 emit, (b) 직후 `waiting_for_input(ai_conversation).conversationConfig.message` 가 같은 본문을 echo (frontend reconcile 용도). chat channel 에 둘 다 발송하면 사용자에게 동일 메시지 2회 도착. messaging app UX 에서 텍스트 입력 자체가 default prompt 이므로 awaitingInput 안내도 발송 안 함. 본 결정은 [Rationale R-CCA-6](#r-cca-6-ai_conversation--ai_form_render-waiting-chat-channel-silent-정책-2026-05-25) 참조 |
 | `execution.waiting_for_input` (interactionType=ai_form_render) | — (silent) | ai_conversation 과 동일 경로 — **빈 array**. ai_form_render 는 ai-agent 의 render_form blocking sub-state ([interaction-type-registry §1](./interaction-type-registry.md#1-waitinginteractiontype) — 2026-05-23 추가). v2 의 chat channel form 인라인 처리는 별 plan |
-| `execution.ai_message` | `message` | `text` 1건 (chunked 가능) |
+| `execution.ai_message` (갱신 2026-05-25) | `message` (필수) + `presentations?[]` (옵션) | `text` 1건+ (chunked 가능) + (presentations 가 비어있지 않으면) 4종 display-only presentation (`carousel`/`table`/`chart`/`template`) 각각을 [§5.4 v1 fallback](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) (CCH-MP-04 와 동일) 로 렌더해 ChannelMessage 시퀀스로 text 뒤에 **sequential `await`** 추가 발송 (`Promise.all` 금지 — provider rate limit + 표시 순서 보장). `render_form` (`presentations[*].type === 'form'`) 은 별 plan `chat-channel-form-native-modal` 추적 — 본 row 무시. SoT: [AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) / [EIA §6.5 line 536](../5-system/14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message). |
 | `execution.completed` | `result.outputs` | `text` 1건 — `languageHints.executionCompleted` 또는 result 의 summary |
 | `execution.failed` | `error.code` + `error.details.statusCode` (다른 필드 사용 금지) | `text` 1건 — 분류 helper [§3.1](#31-execution-failed-분류-알고리즘) 결과 `(key, placeholders)` → `languageHints[key]` lookup + placeholder 치환. [Spec Chat Channel §3.5 CCH-ERR-*](../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 가 시스템 의무 SoT |
 | `execution.cancelled` | `cancelledBy` | `text` 1건 |
+| `execution.node.completed` (presentation 노드 한정, **chat-channel-internal** — §1.3 `ChatChannelInternalEvent`, 2026-05-25 신설) | `node.type ∈ {template, carousel, table, chart}` + `output` | `template`: `output.rendered` 를 `text` 1건 (MarkdownV2 escape). `carousel`/`table`/`chart`: §5.4 v1 fallback 의 `renderCarouselFallback`/`renderTableFallback`/`renderChartFallback` 그대로 재사용. **buttons 가 있는 (blocking) 케이스는 `execution.waiting_for_input` (interactionType=buttons) 행이 별도 처리** — 어댑터 sub-filter 가 `nodeExec.outputData.status === 'waiting_for_input'` 인 케이스를 사전 필터링. `form` 노드는 항상 blocking 이라 본 row 대상 아님. SoT: [Spec Chat Channel §3.1 CCH-AD-07](../5-system/15-chat-channel.md#31-실행-엔진과의-연결) / §3.3 CCH-MP-06. |
 
 ### 3.1 Execution Failed 분류 알고리즘
 
@@ -414,6 +446,29 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 - (b) **chat channel UX**: messaging app 의 텍스트 입력 자체가 default prompt — 별도 "메시지를 보내주세요" 안내가 UX noise.
 - (c) **buttons / form interactionType 영향 없음**: 본 정책은 `ai_conversation` / `ai_form_render` 만 silent. `buttons` / `form` 은 그대로 발송 (각각 inline_keyboard / form prompt 가 ai-agent 의 응답과 다른 자원).
 
+### R-CCA-7. `renderNode` 시그니처 union 확장 — chat-channel-internal 이벤트 수용 (2026-05-25)
+
+chat-channel 어댑터가 EIA outbound 5종 외에 chat-channel-internal 이벤트 (`execution.node.completed` presentation 노드 한정) 도 처리해야 한다. 비-blocking presentation 노드 (Template body, buttons 없는 Carousel/Table/Chart) 의 본문이 외부 채널에 발화되지 않는 회귀 (2026-05-25 사용자 보고) 해소가 동기.
+
+대안:
+
+1. **(채택) `renderNode` 입력 union 확장** — `renderNode(event: EiaEvent | ChatChannelInternalEvent)`. 함수 개수 6 유지, [R-CCA-5 대안 2](#r-cca-5) 의 "새 함수 추가 = 인터페이스 drift" 정신 보존. union 패턴은 이미 EIA §6 5종 union 으로 확립 — variant 1종 추가에 해당. provider 어댑터 구현체는 기존 EIA 5종 분기와 동일 패턴으로 `event.type` discriminated union 분기 추가.
+
+2. **(기각) 7번째 함수 `renderPresentationNode` 신설** — R-CCA-5 대안 2 가 명시 기각한 "함수 개수 증가 = 모든 provider 어댑터 contract 변경" 패턴 재현. 본 결정의 layer 도 동일 — `ChatChannelInternalEvent` 처리는 provider 별로 다를 수 있지만 (Telegram MarkdownV2 vs Discord embeds), 그것은 함수 *내부* 분기로 흡수 가능하며 R-CCA-5 의 기각 논거가 그대로 적용된다.
+
+3. **(기각) `EiaEvent` union 자체에 `execution.node.completed` 추가** — [R3](#r3-eiaevent-를-별-타입으로-정의하지-않고-eia-spec-위임-2026-05-21) "EIA spec §6 SoT, drift 회피" 위배. `EiaEvent` type name 자체가 EIA §6 outbound 5종을 의미하므로 의미 경계 붕괴. 별도 type `ChatChannelInternalEvent` 로 분리해 의미 경계 보존.
+
+4. **(기각) EIA §6.1 outbound HTTP webhook 화이트리스트 5종 → 6종 확장 (`node.completed` 외부 노출)** — 외부 SDK breaking change. 본 회귀는 chat-channel 전용 UX 갭이므로 외부 표면 확장 불필요. EIA 외부 표면 안정성 유지.
+
+세부:
+
+- (a) **구독 소스**: R8 의 in-process fan-out 경로 (NotificationDispatcher / `WebsocketService` 단일 sink) 그대로 사용. presentation 노드 한정 sub-filter 만 어댑터 측에 추가. EIA R10 의 "단일 sink" 원칙 위배 아님 (어댑터는 기존 sink 의 consumer 한정, 새 sink 도입 없음).
+- (b) **EIA-RL-04 (TX commit 후 발송) 정합**: `WebsocketService.emitToExecution` 이 실행 엔진 §4.4 의 단일 sink 로서 TX commit 후 호출됨. NotificationDispatcher after-commit hook 과 동일 fan-out 채널 — `execution.node.completed` 도 동일 보장.
+- (c) **per-trigger `ChannelListenerRegistry`**: R8 의 미등록 trigger silent skip 가드 정책 그대로 적용 — `execution.node.completed` 도 동일 가드.
+- (d) **blocking 케이스 사전 필터링**: presentation 노드가 buttons 로 인해 blocking 진입 (`nodeExec.outputData.status === 'waiting_for_input'`) 한 경우는 `execution.waiting_for_input` (interactionType=buttons) 이 별도 처리. 어댑터 sub-filter 가 본 케이스를 사전 제외 (중복 발송 방지).
+- (e) **form 노드 제외**: form 노드는 항상 blocking — `execution.waiting_for_input` (interactionType=form/ai_form_render) 흐름이 처리. `node.type ∈ {template, carousel, table, chart}` 4종 한정.
+- (f) **provider 별 렌더 차이 흡수**: Telegram 은 [§5.4 v1 fallback](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) MarkdownV2, Slack/Discord 도 동일 fallback 정책. v2 SSR PNG 는 별 plan `chat-channel-visual-ssr-png`.
+
 ---
 
 ## Changelog
@@ -431,4 +486,5 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 | 2026-05-25 | §3 매핑 표 `execution.failed` 행 격상 — 입력 계약을 `error.message` (구) → `error.code + error.details.statusCode` (신) 로 교체 (**breaking change**: 기존 `renderNode(execution.failed)` 구현 갱신 의무, backend 구현 PR `chat-channel-error-notify` 가 동반). 출력은 분류 helper §3.1 결과 → `text` 1건. §3.1 "Execution Failed 분류 알고리즘" 신설 — pure function `classifyExecutionFailure` + `details: unknown` 런타임 type-guard 책임 + 카테고리 매핑 표 + `{statusCode}` placeholder 규약 + unknown fallback. Rationale R5 추가 (기존 `error.message` 접근 기각 사유 R-CC-15 대안 2 cross-ref 포함). 6함수 인터페이스 / 기타 데이터 타입 변경 없음. [`spec/5-system/15-chat-channel.md §3.5 CCH-ERR-*`](../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 동반 갱신. chat-channel-error-notify. |
 | 2026-05-25 | impl-prep drift fix: (a) §2.3 `ChatChannelConfig` interface 에 `languageLocale?: "ko" \| "en"` 필드 명시 추가 — spec 본문 [§4.1](../5-system/15-chat-channel.md#41-triggerconfigchatchannel) 와의 type drift 해소. (b) Rationale 절 도입에 prefix 컨벤션 한 줄 — Convention 파일 신규 Rationale 은 `R-CCA-N` prefix 사용 (기존 R1~R4 hold). (c) 직전 commit 의 R5 → R-CCA-5 rename (cross-file scope 혼동 회피 — 다른 spec 파일에 동명 R5 가 존재). chat-channel-error-notify impl-prep. |
 | 2026-05-25 | runtime drift fix: (a) §1.2 `EiaEvent` union 의 `execution.waiting_for_input.node.interactionType` enum 을 3종 → 4종 확장 (`ai_form_render` 추가). SoT [`interaction-type-registry §1 WaitingInteractionType`](./interaction-type-registry.md#1-waitinginteractiontype) (2026-05-23 ai_form_render 추가) 와의 silent drift 해소 — runtime 에서 ChatChannelDispatcher.toEiaEvent 가 `ai_form_render` 도착 시 `null` 반환해 outbound skip 되던 버그 fix. (b) §3 매핑 표에 `ai_form_render` 행 신설 — chat channel 안에서는 form 인라인 렌더 어려워 `ai_conversation` 과 동일 경로 (conversationConfig.message 표시). v2 form 처리는 후속 plan. chat-channel-error-notify runtime fix. |
+| 2026-05-25 | chat-channel outbound 회귀 fix (사용자 보고 텔레그램 워크플로): (a) §1 `interface ChatChannelAdapter` 의 `renderNode` 시그니처 union 확장 — `EiaEvent | ChatChannelInternalEvent` 입력 수용. §1.1 표 `renderNode` 행도 동시 갱신. 함수 개수 6 유지 (R-CCA-5 정신 보존). (b) §1.2 `EiaEvent` 의 `execution.ai_message` variant 에 `presentations?: PresentationPayload[]` 필드 추가 — EIA §6.5 line 536 의 약속이 chat-channel spec 에 미연동되어 있던 drift 해소. (c) §1.3 `ChatChannelInternalEvent` 신설 — `execution.node.completed` (presentation 노드 한정, chat-channel-internal) variant 정의. EIA §6.1 outbound HTTP webhook 5종 화이트리스트는 변경 없음 — 외부 SDK 미노출. (d) §3 매핑 표에 두 행 갱신/신설: `execution.ai_message` 행에 `presentations?[]` 처리 (4종 display-only sequential 발송) + `execution.node.completed` 행 신설 (presentation 노드 비-blocking 본문 발화 — Template 본문 / 4종 v1 fallback 재사용). (e) §Rationale R-CCA-7 신설 — `renderNode` 시그니처 union 확장 근거 (4 대안 검토). [`spec/5-system/15-chat-channel.md`](../5-system/15-chat-channel.md) CCH-AD-07 / CCH-MP-06 / CCH-MP-01 보강 동반. chat-channel-template-render-outbound. |
 | 2026-05-25 | 중복 발송 fix (사용자 보고 2026-05-25 텔레그램 회귀): §3 매핑 표의 `ai_conversation` / `ai_form_render` 행을 **silent (빈 array)** 로 정정. 이유: ai-agent multi-turn 의 매 turn 마다 (a) `ai_message` event 가 응답 본문 emit + (b) 직후 `waiting_for_input(ai_conversation).conversationConfig.message` 가 같은 본문을 echo (frontend reconcile 용) → chat channel 에 둘 다 발송 시 사용자에게 동일 메시지 2회 도착. chat channel UX 에서 `ai_message` 가 단독 발송 책임. Rationale [R-CCA-6](#r-cca-6-ai_conversation--ai_form_render-waiting-chat-channel-silent-정책-2026-05-25) 추가. chat-channel-error-notify runtime fix. |
