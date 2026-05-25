@@ -50,6 +50,23 @@ export const CONTINUATION_QUEUE_DEFAULT_OPTS = {
 };
 
 /**
+ * Typed payload variants for ContinuationJob / waitForAiConversation dispatch.
+ *
+ * 각 type 에 대응하는 payload shape 을 명시함으로써 처리 코드의 `as { ... }`
+ * 인라인 단언을 제거한다.
+ *
+ * `form_submitted` 는 ContinuationJob.type 에 없는 내부 sentinel 이나
+ * waitForAiConversation dispatch 루프가 수신하는 action 으로 합산한다.
+ */
+export type ContinuationPayload =
+  | { type: 'continue'; formData?: Record<string, unknown> }
+  | { type: 'cancel' }
+  | { type: 'button_click'; buttonId?: string }
+  | { type: 'ai_message'; message: string }
+  | { type: 'ai_end_conversation' }
+  | { type: 'form_submitted'; formData?: unknown };
+
+/**
  * Continuation job payload — `ContinuationMessage` 와 동일 shape 이나
  * BullMQ-side 명시적 타입으로 분리해 향후 wire format 변경 시 영향 격리.
  *
@@ -66,5 +83,6 @@ export interface ContinuationJob {
     | 'ai_end_conversation';
   executionId: string;
   nodeExecutionId: string;
+  /** W3 — 세부 타입은 ContinuationPayload 참조. ContinuationMessage.payload 가 unknown 으로 선언되어 있어 bus service 와의 호환성을 위해 unknown 유지. */
   payload?: unknown;
 }

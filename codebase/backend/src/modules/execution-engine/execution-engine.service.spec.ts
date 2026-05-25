@@ -450,6 +450,20 @@ describe('ExecutionEngineService', () => {
     expect(service).toBeDefined();
   });
 
+  // W2 (SUMMARY) — `pendingContinuations` Map 타입 단언 공유 헬퍼.
+  // 여러 describe 블록에서 재사용하도록 최상위 describe 스코프로 승격.
+  const getPendings = (
+    svc: ExecutionEngineService,
+  ): Map<string, { nodeId: string; resolve: jest.Mock; reject: jest.Mock }> =>
+    (
+      svc as unknown as {
+        pendingContinuations: Map<
+          string,
+          { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
+        >;
+      }
+    ).pendingContinuations;
+
   describe('executeInline — Sub-Workflow parent linking', () => {
     let contextService: ExecutionContextService;
 
@@ -858,19 +872,7 @@ describe('ExecutionEngineService', () => {
       mockBus.publish.mockClear();
     });
 
-    // W8 (SUMMARY) — `pendingContinuations` Map 타입 단언을 헬퍼로 추출.
-    // 3곳 이상의 중복을 줄여 타입 단언 변경 시 단일 수정점 보장.
-    const getPendings = (
-      svc: ExecutionEngineService,
-    ): Map<string, { nodeId: string; resolve: jest.Mock; reject: jest.Mock }> =>
-      (
-        svc as unknown as {
-          pendingContinuations: Map<
-            string,
-            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
-          >;
-        }
-      ).pendingContinuations;
+    // W8 (SUMMARY) / W2 (SUMMARY) — getPendings 공유 헬퍼 (최상위 describe 스코프) 사용.
 
     it('continueExecution → bus.publish({type:"continue", payload:{type:"form_submitted",formData}}) (spec §10.9 wrap)', async () => {
       // spec/4-nodes/6-presentation/0-common.md §10.9 — wrap 책임은
@@ -3063,14 +3065,7 @@ describe('ExecutionEngineService', () => {
 
       // unknown type 메시지 주입 — bus handler 를 통해 pendingContinuations 에 직접 주입.
       // 버스 mock 의 publish 는 type 으로 handler 조회하므로, 직접 resolvePending 사용.
-      const pendings = (
-        service as unknown as {
-          pendingContinuations: Map<
-            string,
-            { nodeId: string; resolve: jest.Mock; reject: jest.Mock }
-          >;
-        }
-      ).pendingContinuations;
+      const pendings = getPendings(service);
 
       // pending 이 있으면 unknown type 으로 resolve.
       const pendingEntry = pendings.get(executionId);
@@ -3093,6 +3088,226 @@ describe('ExecutionEngineService', () => {
       await execPromise;
 
       warnSpy.mockRestore();
+    });
+
+    it('button_click action.type: MAX_UNKNOWN_SKIPS 카운팅 제외 — stale telegram 클릭 누적이 대화를 죽이지 않는다', async () => {
+      // spec/4-nodes/6-presentation/0-common.md §10.9 line 400/407 —
+      // `button_click` 은 enum-complete 케이스로 spec 이 명시한 "warn log +
+      // loop 재진입 graceful degradation" 그대로 동작해야 한다. 텔레그램 stale
+      // inline_keyboard 클릭이 누적돼도 MAX_UNKNOWN_SKIPS (=20) cap 이 발동해
+      // 대화가 FAILED 종결되는 회귀를 차단.
+      //
+      // 회귀 시나리오: 사용자가 Presentation Carousel 노드를 거친 뒤 후속 AI
+      // Agent 가 `waitForAiConversation` 진입. 텔레그램에 잔존한 이전 inline
+      // keyboard 의 콜백이 button_callback → continueButtonClick →
+      // bus.publish({type:'button_click'}) 경로로 본 루프에 도달.
+      const endReturn = {
+        config: { mode: 'multi_turn' },
+        output: {},
+        meta: {},
+        port: 'ended',
+        status: 'ended',
+      };
+      const handler = makeAiDispatchHandler(() => endReturn);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
+
+      const logger = (service as unknown as { logger: { warn: jest.Mock } })
+        .logger;
+      const warnSpy = jest.spyOn(logger, 'warn');
+
+      const execPromise = service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      const pendings = getPendings(service);
+
+      // 25회 — MAX_UNKNOWN_SKIPS (20) 를 충분히 초과. 모두 button_click 이므로
+      // skip 카운팅에서 제외되어야 한다. 매 iteration 마다 새 pending 이 등록
+      // 되므로 loop 가 살아 있어야 진행된다.
+      for (let i = 0; i < 25; i += 1) {
+        const pendingEntry = pendings.get(executionId);
+        expect(pendingEntry).toBeDefined(); // loop alive 검증
+        pendingEntry?.resolve({ type: 'button_click', buttonId: `btn-${i}` });
+        await flushPromises();
+      }
+
+      // 21회 이상 button_click 후에도 대화가 alive 인지 — ai_end_conversation
+      // 으로 정상 종결되는지 확인.
+      const stillAlive = pendings.get(executionId);
+      expect(stillAlive).toBeDefined();
+
+      service.endAiConversation(executionId);
+      await execPromise;
+
+      // FAILED 종결을 야기하는 cap 도달 warn 이 없어야 함.
+      const warnCalls = warnSpy.mock.calls.map((c) => String(c[0]));
+      const hasCapWarn = warnCalls.some((msg) =>
+        msg.includes('unknown skip limit'),
+      );
+      expect(hasCapWarn).toBe(false);
+
+      warnSpy.mockRestore();
+    });
+
+    // -------------------------------------------------------------------------
+    // W4 (SUMMARY) — button_click × N → ai_message → ended 인터리빙 통합 케이스.
+    // stale 클릭이 복수로 누적된 뒤 실제 ai_message 가 도달하면 정상 처리됨.
+    // -------------------------------------------------------------------------
+    it('W4 — button_click × N 인터리빙 후 ai_message 도달 시 정상 처리 (인터리빙 통합)', async () => {
+      // 시나리오: stale button_click 3회 → ai_message 1회 → ai_end_conversation.
+      // button_click 은 skip count 에서 제외되고 ai_message 는 정상 처리되어야 한다.
+      const processReturn = {
+        config: { mode: 'multi_turn' },
+        output: { result: { messages: [], message: 'ok', turnCount: 1 } },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [{ role: 'assistant', content: 'ok' }],
+          turnCount: 1,
+          turnDebugHistory: [],
+          model: 'test-model',
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
+        },
+        port: 'waiting_for_input',
+      };
+      const handler = makeAiDispatchHandler(() => processReturn);
+      handlerRegistry.register('ai_agent', handler, {
+        kind: 'blocking',
+        interaction: 'ai_conversation',
+      });
+
+      const execPromise = service.execute(workflowId, { data: 'test' });
+      await flushPromises();
+
+      const pendings = getPendings(service);
+
+      // stale button_click 3회 — skip 카운팅 제외, loop alive 유지.
+      for (let i = 0; i < 3; i += 1) {
+        const entry = pendings.get(executionId);
+        expect(entry).toBeDefined();
+        entry?.resolve({ type: 'button_click', buttonId: `stale-${i}` });
+        await flushPromises();
+      }
+
+      // ai_message 도달 — processMultiTurnMessage 가 호출되어야 한다.
+      const entryForMsg = pendings.get(executionId);
+      expect(entryForMsg).toBeDefined();
+      entryForMsg?.resolve({ type: 'ai_message', message: 'hello AI' });
+      await flushPromises();
+
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
+        'hello AI',
+        expect.any(Object),
+        expect.objectContaining({ source: 'ai_message' }),
+      );
+
+      // ai_end_conversation 으로 정상 종결.
+      service.endAiConversation(executionId);
+      await execPromise;
+    });
+
+    // -------------------------------------------------------------------------
+    // W5 (SUMMARY) — buttonId 경계값 테스트 (64+, null, 숫자).
+    // slice(0, 64) 가드가 올바르게 동작하는지 확인.
+    // -------------------------------------------------------------------------
+    describe('W5 — buttonId 경계값 (slice(0,64) 가드)', () => {
+      const setupForButtonIdTest = async (): Promise<{
+        pendings: ReturnType<typeof getPendings>;
+        warnSpy: jest.SpyInstance;
+        execPromise: Promise<unknown>;
+      }> => {
+        const endReturn = {
+          config: { mode: 'multi_turn' },
+          output: {},
+          meta: {},
+          port: 'ended',
+          status: 'ended',
+        };
+        const handler = makeAiDispatchHandler(() => endReturn);
+        handlerRegistry.register('ai_agent', handler, {
+          kind: 'blocking',
+          interaction: 'ai_conversation',
+        });
+
+        const logger = (service as unknown as { logger: { warn: jest.Mock } })
+          .logger;
+        const warnSpy = jest.spyOn(logger, 'warn');
+
+        const execPromise = service.execute(workflowId, { data: 'test' });
+        await flushPromises();
+
+        return { pendings: getPendings(service), warnSpy, execPromise };
+      };
+
+      it('buttonId 64자 초과 → 64자로 슬라이싱되어 warn log 에 포함', async () => {
+        const { pendings, warnSpy, execPromise } = await setupForButtonIdTest();
+
+        const longId = 'a'.repeat(100);
+        const entry = pendings.get(executionId);
+        expect(entry).toBeDefined();
+        entry?.resolve({ type: 'button_click', buttonId: longId });
+        await flushPromises();
+
+        const warnCalls = warnSpy.mock.calls;
+        const hasButtonClickWarn = warnCalls.some((args) => {
+          const ctx = args[1] as { buttonId?: string } | undefined;
+          return typeof ctx?.buttonId === 'string' && ctx.buttonId.length <= 64;
+        });
+        expect(hasButtonClickWarn).toBe(true);
+
+        service.endAiConversation(executionId);
+        await execPromise;
+        warnSpy.mockRestore();
+      });
+
+      it('buttonId null → 빈 문자열 fallback (TypeError 없음)', async () => {
+        const { pendings, warnSpy, execPromise } = await setupForButtonIdTest();
+
+        const entry = pendings.get(executionId);
+        expect(entry).toBeDefined();
+        // null 은 ContinuationPayload 에서 string | undefined 이지만
+        // 런타임 신뢰 불가 — 방어 코드 검증.
+        entry?.resolve({
+          type: 'button_click',
+          buttonId: null as unknown as string,
+        });
+        await flushPromises();
+
+        // 예외 없이 loop 재진입 확인.
+        const stillAlive = pendings.get(executionId);
+        expect(stillAlive).toBeDefined();
+
+        service.endAiConversation(executionId);
+        await execPromise;
+        warnSpy.mockRestore();
+      });
+
+      it('buttonId 숫자 → 빈 문자열 fallback (typeof 가드)', async () => {
+        const { pendings, warnSpy, execPromise } = await setupForButtonIdTest();
+
+        const entry = pendings.get(executionId);
+        expect(entry).toBeDefined();
+        entry?.resolve({
+          type: 'button_click',
+          buttonId: 42 as unknown as string,
+        });
+        await flushPromises();
+
+        const warnCalls = warnSpy.mock.calls;
+        const hasButtonClickWarn = warnCalls.some((args) => {
+          const ctx = args[1] as { buttonId?: string } | undefined;
+          // 숫자는 빈 문자열 fallback 이므로 buttonId === ''
+          return ctx?.buttonId === '';
+        });
+        expect(hasButtonClickWarn).toBe(true);
+
+        service.endAiConversation(executionId);
+        await execPromise;
+        warnSpy.mockRestore();
+      });
     });
   });
 
