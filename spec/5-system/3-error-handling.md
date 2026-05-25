@@ -71,6 +71,8 @@ code: []
 
 > 구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드 수준 envelope 에 더 이상 사용하지 않는다. 엔진 레벨(노드 실패가 Stop Workflow 로 격상된 경우)에서만 `NodeExecution.error.message` 컨텍스트로 남는다.
 
+> Chat Channel 어댑터의 사용자 안내 메시지 분류는 본 enum 을 입력으로 사용한다 — 분류 표 SoT 는 [`spec/conventions/chat-channel-adapter.md §3.1`](../conventions/chat-channel-adapter.md#31-execution-failed-분류-알고리즘). 본 enum 확장 (예: MCP 도구 카테고리) 시 분류 표 행 추가 검토 의무.
+
 ### 1.5 WS commands 에러 코드 (도메인 spec 참조)
 
 다음 에러 코드는 WebSocket ack 응답 전용이며 REST API 에는 적용되지 않는다. 각 코드의 정의·트리거 조건·적용 명령 범위는 해당 도메인 spec 이 SoT 이고, 본 §1.5 는 공용 카탈로그 가시성을 위한 등재 목적이다.

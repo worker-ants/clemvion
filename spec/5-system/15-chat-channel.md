@@ -16,12 +16,12 @@ code:
   - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
   - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
 pending_plans:
-  - plan/in-progress/chat-channel-dispatcher-split.md
   - plan/in-progress/chat-channel-discord-gateway.md
   - plan/in-progress/chat-channel-slack-socket-mode.md
   - plan/in-progress/chat-channel-form-native-modal.md
   - plan/in-progress/chat-channel-visual-ssr-png.md
   - plan/in-progress/chat-channel-secret-store-infra.md
+  - plan/in-progress/chat-channel-error-notify.md
 ---
 
 # Spec: Chat Channel (외부 chat 플랫폼 ↔ 워크플로우 서버사이드 어댑터)
@@ -89,7 +89,21 @@ pending_plans:
 | CCH-SE-04 | Bot token rotation API (`POST /api/triggers/:id/chat-channel/rotate-bot-token`) — old token 은 24h grace 동안 병행 받음 (텔레그램의 경우 setWebhook 재호출). 동사를 `rotate-bot-token` 으로 한 이유는 EIA 의 `rotate-secret` (HMAC signing secret) 과 자원 의미가 다르기 때문 (외부 provider bot token vs HMAC secret) — URL 만으로 의도 구별 가능 | 권장 |
 | CCH-SE-04-C | `rotate-bot-token` 완료 후 `chat_channel_token_v2` 의 v2 ref 는 24h grace 경과 시 `ChatChannelTokenRotatorService` (매시간 cron — `NotificationSecretRotatorService` 와 동일 패턴) 가 다음을 수행한다: (1) v2 ref 의 secret_store row 삭제 (`secrets.delete(v2Ref)`), (2) `chat_channel_token_v2 = NULL` / `chat_channel_rotated_at = NULL` 저장. primary `botTokenRef` 의 plaintext 는 `rotate-bot-token` 시점에 이미 신 token 으로 교체되므로 v2 → primary 승격은 별도 단계가 아니다 | 필수 (v2 cron) |
 
-#### 3.5 비기능 요구사항
+#### 3.5 실행 실패 사용자 안내 (CCH-ERR-*)
+
+`execution.failed` 이벤트 (EIA §6.4) 수신 시, 어댑터가 channel 사용자에게 generic 안내 메시지를 1건 발송한다. 분류 알고리즘과 입력 화이트리스트는 [`conventions/chat-channel-adapter.md §3.1`](../conventions/chat-channel-adapter.md#31-execution-failed-분류-알고리즘) 단일 진실.
+
+| ID | 요구사항 | 우선순위 |
+|----|---------|---------|
+| CCH-ERR-01 | `execution.failed` 수신 시 어댑터가 분류 알고리즘 결과 (`key`, `placeholders`) 로 `languageHints[key]` 를 lookup → placeholders 치환 → `text` ChannelMessage 1건 sendMessage. `languageHints[key]` 미설정 시 [`§4.1`](#41-triggerconfigchatchannel) 의 default 한국어 문구 사용 | 필수 |
+| CCH-ERR-02 | 분류 입력 화이트리스트 — `error.code` (EIA §6.4 enum) + `error.details.statusCode` (정수, optional) 2 필드만 분류 결정에 사용. `error.message` 원문·`nodeId`·`details` 의 다른 필드·`workflowId`·`executionId` 는 분류 입력으로 사용 금지 | 필수 |
+| CCH-ERR-03 | 민감정보 노출 금지 — `error.message` 원문, `details.url` / `details.endpoint` / `details.query` / `details.stack` / `nodeId` / `executionId` / `workflowId` 는 channel 메시지 본문·로그(`level=info` 이상)·metric 어디에도 포함하지 않는다. i18n template 의 허용 placeholder 는 `{statusCode}` 1종 (정수, PII/secret 아님) | 필수 |
+| CCH-ERR-04 | 분류 표에 없는 `error.code` (unknown) 또는 `error.code === null` 는 `executionFailedInternal` key 로 fallback. silently swallow 금지 — backend 로그 (`level=warn`, structured `{ kind: "chat_channel_unknown_failure_code", code, hasDetails: boolean }`) 발사 후 generic 안내 발송 | 필수 |
+| CCH-ERR-05 | 안내 메시지 발송도 [CCH-SE-01](#34-신뢰성--보안) 의 5초 timeout + 3회 지수 백오프 정책 적용. 최종 실패 시 silent log (사용자가 받지 못한 안내는 추가 안내로 보완 시도 금지 — 무한 retry 방지). 책임 분리는 Convention §1.1 그대로 — 분류 helper 호출·template 합성은 `renderNode` (pure), retry·timeout 은 `sendMessage` (side-effect). 안내 발송이 최종 실패하면 CCH-SE-01 의 일반 정책에 따라 `chat_channel_health=degraded` 갱신 | 권장 |
+
+본 절은 **execution 의 실패 안내** 정책으로, [CCH-SE-01](#34-신뢰성--보안) 의 **어댑터 자체 외부 API 호출 실패** (sendMessage retry 소진 등) 와 의미 분리된다. 두 정책의 sink 자원이 다르다: 전자는 `output.error.code` (실행 엔진 / 노드 핸들러 결과), 후자는 `chat_channel_health` (어댑터 외부 호출 status). (Rationale R-CC-15 (d) 참조.)
+
+#### 3.6 비기능 요구사항
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
@@ -137,7 +151,13 @@ pending_plans:
                                   ├─ execution.waiting_for_input
                                   ├─ execution.ai_message
                                   ├─ execution.completed
-                                  ├─ execution.failed
+                                  ├─ execution.failed  ──▶  classifyExecutionFailure()
+                                  │                         (Convention §3.1 — pure helper)
+                                  │                         │
+                                  │                         ▼
+                                  │                   languageHints[key] + {statusCode} 치환
+                                  │                         │
+                                  │                         ▼ (이하 일반 renderNode → sendMessage 경로와 동일)
                                   └─ execution.cancelled
                                            │
                               ChatChannelAdapter.subscribe(emitter)
@@ -192,11 +212,19 @@ pending_plans:
     },
     "rateLimitPerMinute": 60,                   // CCH-NF-03 override
     "languageHints": {                          // 봇이 보내는 자체 안내 메시지 i18n
-      "groupChatRefusal":      "이 봇은 1:1 대화만 지원합니다.",
-      "executionStarted":      "워크플로우를 시작합니다…",
-      "executionCompleted":    "워크플로우가 완료되었습니다.",
-      "executionStillRunning": "워크플로우가 처리 중입니다. 잠시만 기다려 주세요.",  // CCH-CV-03 의 running 케이스 안내 default
-      "help":                  "사용 가능한 명령: /start, /cancel, /help"            // §7 명령 처리의 /help default
+      "groupChatRefusal":              "이 봇은 1:1 대화만 지원합니다.",
+      "executionStarted":              "워크플로우를 시작합니다…",
+      "executionCompleted":            "워크플로우가 완료되었습니다.",
+      "executionStillRunning":         "워크플로우가 처리 중입니다. 잠시만 기다려 주세요.",  // CCH-CV-03 의 running 케이스 안내 default
+      "help":                          "사용 가능한 명령: /start, /cancel, /help",          // §7 명령 처리의 /help default
+      // 실행 실패 안내 (CCH-ERR-01 / §3.5) — 분류 알고리즘 (Convention §3.1) 결과의 key. 미설정 시 본 default.
+      // 허용 placeholder = `{statusCode}` 1종 (정수). 그 외 placeholder 는 DTO validator 가 등록 시점에 reject.
+      "executionFailedThirdParty4xx":  "외부 서비스 요청이 거부되었습니다 ({statusCode}). 잠시 후 다시 시도해 주세요.",
+      "executionFailedThirdParty5xx":  "외부 서비스에 일시적인 문제가 발생했습니다 ({statusCode}). 잠시 후 다시 시도해 주세요.",
+      "executionFailedThirdParty":     "외부 서비스 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      "executionFailedTimeout":        "처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.",
+      "executionFailedRateLimit":      "요청량이 많아 잠시 후 다시 시도해 주세요.",
+      "executionFailedInternal":       "서비스에 일시적 문제가 발생했습니다. 잠시 후 다시 시도해 주세요."
     }
   }
 }
@@ -360,7 +388,7 @@ v2 시점의 결정 후보:
 | **비활성 trigger (chatChannel 경로)** | **`202 Accepted`** | **`{ ignored: true }`** | silent skip — WH-EP-07 의 예외. 일반 webhook 경로는 여전히 410 Gone |
 | 트리거 미존재 (잘못된 endpointPath) | `404 Not Found` | 표준 에러 envelope ([API Convention §5.3](./2-api-convention.md)) | — chatChannel 경로도 동일, [WH-RS-02](./12-webhook.md#3-api-명세) 와 일치. endpointPath 자체가 부재인 경우 2xx 는 stale webhook 영구 잔존을 유발 |
 | Webhook 인증 실패 (Telegram `X-Telegram-Bot-Api-Secret-Token` 누락/불일치 · Slack `X-Slack-Signature` HMAC mismatch · Discord `X-Signature-Ed25519` verify 실패) | `401 Unauthorized` | 표준 에러 envelope | WH-SC-04 와 일치. chatChannel 비활성 트리거도 인증은 그대로 수행 — auth 실패 시 401 (Rationale R-CC-12 (d)) |
-| 어댑터 내부 에러 (sendMessage 실패 등) | `202 Accepted` | `{ ignored: true }` 또는 `{ executionId }` (실패 단계에 따라) | 백그라운드 처리, `chat_channel_health='degraded'` 갱신 |
+| 어댑터 내부 에러 (sendMessage 실패 등) | `202 Accepted` | `{ ignored: true }` 또는 `{ executionId }` (실패 단계에 따라) | 백그라운드 처리, `chat_channel_health='degraded'` 갱신. 본 행의 정책은 **어댑터 외부 API 호출 실패** 영역 — execution 자체의 실패 안내 정책은 [§3.5 CCH-ERR-*](#35-실행-실패-사용자-안내-cch-err-) 참조 |
 | **Slack URL Verification** (`type: "url_verification"`) | **`200 OK`** | `{ challenge: <받은 값> }` JSON | provider-specific 예외 (§5.5.1) — Slack 이 challenge 응답을 추출해야 함. [slack.md §3.1](../4-nodes/7-trigger/providers/slack.md#31-setupchannel-구체) 참조 |
 | **Slack Interactivity ack** (`payload.type ∈ {block_actions, view_submission, ...}`) | **`200 OK`** | 빈 body 또는 `{ response_action }` | provider-specific 예외 (§5.5.1) — Slack 의 3초 ack 시한, `202` 미인정 |
 | **Discord PING** (`type: 1`) | **`200 OK`** | `{ type: 1 }` JSON | provider-specific 예외 (§5.5.1) — Discord Interactions endpoint 등록 시 1회 + 주기적 발송. [discord.md §3.1](../4-nodes/7-trigger/providers/discord.md#31-setupchannel-구체) 참조 |
@@ -530,7 +558,7 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 2. **(기각) Redis 큐에 임시 적재 → `waiting_for_input` 도달 시 자동 재발사**: 위 (a)/(b) 이슈 + 큐 TTL / 폐기 정책 / 순서 정렬 등 추가 메커니즘 필요. v1 의 단순성과 어긋남.
 3. **(기각) `waiting_for_input` 도달까지 HTTP 연결 보류**: WH-NF-01 의 200ms 응답 시한과 정면 충돌. 텔레그램이 webhook 응답 지연 시 retry 폭주.
 
-근거: v1 단순성 + 사용자 mental model ("처리 중에 보낸 메시지는 다시 보내야 함" 이 봇 UX 의 일반적 기대). [CCH-NF-03](#35-비기능-요구사항) 의 rate-limit 큐 정책은 **다른 트리거 조건** (`분당 60건 초과 시 적재`) 으로, 본 케이스 (`execution running 중 사용자 메시지 도착`) 와 정책 방향이 다른 것은 정당하다 (전자는 외부 사용자 폭주 방어, 후자는 execution life-cycle 정합).
+근거: v1 단순성 + 사용자 mental model ("처리 중에 보낸 메시지는 다시 보내야 함" 이 봇 UX 의 일반적 기대). [CCH-NF-03](#36-비기능-요구사항) 의 rate-limit 큐 정책은 **다른 트리거 조건** (`분당 60건 초과 시 적재`) 으로, 본 케이스 (`execution running 중 사용자 메시지 도착`) 와 정책 방향이 다른 것은 정당하다 (전자는 외부 사용자 폭주 방어, 후자는 execution life-cycle 정합).
 
 후속 단순화 (v2): `waiting_for_input` 직전 노드가 LLM 호출 등 긴 latency 인 경우 사용자가 답답함을 느낄 수 있음 — `sendChatAction(typing)` 주기적 발송 정책을 별 plan 으로 검토.
 
@@ -603,3 +631,20 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 - 새 결정 신설·기존 결정 번복 아님. `_overview.md §1` 의 supported 선언이 단일 진실 — 본 spec 은 정합 cross-link.
 
 발견 경로: `plan/in-progress/trigger-create-multi-provider-ui.md` 의 GUI 구현 착수 직전 `/consistency-check --impl-prep` (`review/consistency/2026/05/24/18_21_47/SUMMARY.md` C-2) 가 BLOCK. 사용자 결정 (2026-05-24) 으로 본 구현 PR 안에 spec 정정 commit 을 함께 포함.
+
+### R-CC-15. Execution Failed 안내 — 분류 입력 화이트리스트 + placeholder 1종 정책 (2026-05-25)
+
+대안:
+1. **(채택) `error.code` enum + `details.statusCode` 2 필드만 분류 입력 + `{statusCode}` 1 placeholder**: 사용자에게 노출되는 데이터의 채널 = 분류 결정 + 메시지 본문 두 갈래 모두 명시적 화이트리스트. 분류 결정이 enum 이므로 코드 수준 정적 검증 가능 (`switch` 문 exhaustive check 가능). placeholder `{statusCode}` 는 정수라 secret/PII 아님 (HTTP status code 자체는 공개 정보).
+2. **(기각) `error.message` 원문을 사용자 안내에 포함**: 일부 노드 핸들러가 `error.message` 에 URL · query · DB 컬럼명 · stack 일부 · API key 일부를 흘릴 가능성 존재 (대표 사례: `HTTP_TRANSPORT_FAILED` 의 `message: "ENOTFOUND api.internal.example.com"` — 내부 인프라 노출). spec 차원에서 redact 가이드를 강제하려면 모든 노드 핸들러의 message 필드를 audit 해야 — 비현실적.
+3. **(기각) `nodeId` / `nodeName` placeholder 추가**: 사용자가 노드 이름을 알면 디버깅에 도움이 될 수 있으나, 노드 이름은 워크플로우 작성자가 임의로 정의한 internal label — 외부 chat 사용자에게는 의미 불명 + 워크플로우 구조 노출 위험.
+4. **(기각) `executionId` / `traceCode` placeholder 추가**: support 문의 시 운영자가 traceback 가능한 식별자가 유용. v1 에서는 채택 안 함 — (a) executionId 는 UUID 로 사용자가 입력하기 부담스러움, (b) traceCode (8자리 short hash 등) 도입은 별 자원 (mapping table) 필요. 후속 plan 으로 검토.
+
+근거: 안내 메시지의 **유틸리티 가치** (사용자가 "왜 실패했는지" 대략 짐작) 보다 **민감정보 누출 위험** 이 압도적. v1 은 카테고리별 generic + statusCode 만으로 충분 — 사용자가 더 자세한 정보를 원하면 워크플로우 운영자에게 문의 (운영자는 backend 로그에서 executionId / error.message 원문 접근 가능).
+
+세부:
+- (a) **분류 입력 enum 의 SoT** = [`spec/5-system/3-error-handling.md §1.4 / §3.2`](./3-error-handling.md#14-워크플로우-실행-에러) 의 `ErrorCode` enum. 본 spec 은 카테고리 매핑 규칙만 (Convention §3.1) — enum 자체는 그쪽이 단일 진실.
+- (b) **unknown code fallback** 은 `executionFailedInternal`. silent swallow 금지 (CCH-ERR-04) 이유 = 운영 중 새 노드 카테고리 추가 시 missing case 를 backend 로그에서 즉시 감지 가능해야 한다. silent skip 시 enum 확장이 누락된 채 long-term drift 발생.
+- (c) **placeholder 정책** = `{statusCode}` 1종. unknown placeholder 가 raw 형태 (`{nodeId}` 등) 로 사용자에게 노출되지 않도록 DTO validator 가 등록 시점에 reject. 미허용 placeholder 가 발견되면 `400 VALIDATION_ERROR (details.field='languageHints.executionFailed*', code='UNKNOWN_PLACEHOLDER')`.
+- (d) **`chat_channel_health` 와의 의미 분리**: `chat_channel_health=degraded` 는 어댑터의 외부 API 호출 (sendMessage 등) 실패 신호 (CCH-SE-01). 본 spec 의 실패 안내는 **execution 자체의 실패** (`output.error.code` — LLM API / HTTP 노드 / 사용자 코드 실패) 안내. 두 자원이 직교적이므로 발송 자체는 `chat_channel_health` 와 무관. 단 안내 sendMessage 호출이 5초 timeout 후 retry 도 실패하면 CCH-SE-01 의 일반 정책에 따라 health=degraded 갱신 — 이건 안내 발송 메커니즘 자체의 외부 호출 실패라 정합.
+- (e) **MCP 도구 호출 실패 카테고리 반영 시점**: 본 spec 작성 시점 (2026-05-25) `3-error-handling.md §1.4` 의 enum 에 MCP 전용 코드 (`MCP_TOOL_CALL_FAILED` 등) 미정의. MCP 노드가 별 코드 enum 을 추가하면 Convention §3.1 의 분류 표에 행 추가 + 신규 i18n 키 검토. 본 spec 의 §3.5 CCH-ERR-02 화이트리스트 ({code, statusCode}) 는 그대로 유효 (MCP 도구도 HTTP-like statusCode 가 있으면 같은 placeholder 활용 가능).

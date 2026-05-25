@@ -237,8 +237,58 @@ interface SendResult {
 | `execution.waiting_for_input` (interactionType=ai_conversation) | `conversationConfig.message` | `text` 1건 (provider 길이 제한 초과 시 chunked) |
 | `execution.ai_message` | `message` | `text` 1건 (chunked 가능) |
 | `execution.completed` | `result.outputs` | `text` 1건 — `languageHints.executionCompleted` 또는 result 의 summary |
-| `execution.failed` | `error.message` | `text` 1건 — 에러 안내 (사용자에게 안전한 형태로 redact) |
+| `execution.failed` | `error.code` + `error.details.statusCode` (다른 필드 사용 금지) | `text` 1건 — 분류 helper [§3.1](#31-execution-failed-분류-알고리즘) 결과 `(key, placeholders)` → `languageHints[key]` lookup + placeholder 치환. [Spec Chat Channel §3.5 CCH-ERR-*](../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 가 시스템 의무 SoT |
 | `execution.cancelled` | `cancelledBy` | `text` 1건 |
+
+### 3.1 Execution Failed 분류 알고리즘
+
+`execution.failed` 이벤트를 사용자 안내 메시지로 변환하기 전, **provider-invariant pure function** 이 `(key, placeholders)` 를 결정한다. 어댑터 (`renderNode`) 는 본 helper 결과로 [Spec Chat Channel §4.1 `languageHints`](../5-system/15-chat-channel.md#41-triggerconfigchatchannel) 의 i18n template 을 lookup·치환하여 `text` ChannelMessage 1건을 합성한다.
+
+```typescript
+interface ExecutionFailureClass {
+  /** languageHints lookup key — Spec Chat Channel §4.1 의 6 키 중 1개. */
+  key:
+    | "executionFailedThirdParty4xx"
+    | "executionFailedThirdParty5xx"
+    | "executionFailedThirdParty"
+    | "executionFailedTimeout"
+    | "executionFailedRateLimit"
+    | "executionFailedInternal";
+  /** i18n template placeholder 치환값. 화이트리스트 = `{statusCode}` 1종 (정수). */
+  placeholders: { statusCode?: number };
+}
+
+/**
+ * Pure function. Side-effect free. Provider-invariant.
+ * 입력 화이트리스트 (CCH-ERR-02): `event.error.code` + `event.error.details?.statusCode` 만.
+ *
+ * 타입 안전성: §1.2 의 `EiaEvent` union 에서 `details: unknown` 로 선언되어 있으므로,
+ * 본 helper 는 `statusCode` 접근 전 런타임 type-guard 수행 의무 —
+ * `typeof details === 'object' && details !== null && 'statusCode' in details && typeof (details as any).statusCode === 'number'`.
+ * 가드 실패 시 `placeholders.statusCode` omit (undefined).
+ */
+function classifyExecutionFailure(event: Extract<EiaEvent, { type: "execution.failed" }>): ExecutionFailureClass;
+```
+
+**카테고리 매핑** (`error.code` enum 의 SoT 는 [`spec/5-system/3-error-handling.md §1.4 / §3.2`](../5-system/3-error-handling.md#14-워크플로우-실행-에러)):
+
+| `error.code` | 추가 조건 | 결과 `key` | placeholders |
+|---|---|---|---|
+| `HTTP_4XX` | `details.statusCode` ∈ [400, 499] (있으면) | `executionFailedThirdParty4xx` | `{ statusCode }` (없으면 omit) |
+| `HTTP_5XX` | `details.statusCode` ∈ [500, 599] (있으면) | `executionFailedThirdParty5xx` | `{ statusCode }` (없으면 omit) |
+| `HTTP_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
+| `HTTP_TRANSPORT_FAILED` | — | `executionFailedThirdParty` | `{}` |
+| `LLM_RATE_LIMIT` | — | `executionFailedRateLimit` | `{}` |
+| `LLM_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
+| `LLM_CALL_FAILED` · `LLM_RESPONSE_INVALID` · `MAX_COLLECTION_RETRIES_EXCEEDED` | — | `executionFailedThirdParty` | `{}` |
+| `EMAIL_SEND_FAILED` | — | `executionFailedThirdParty` | `{}` |
+| `EXECUTION_TIMEOUT` (engine) · `CODE_TIMEOUT` | — | `executionFailedTimeout` | `{}` |
+| `CODE_EXECUTION_FAILED` · `SUB_WORKFLOW_FAILED` · `DB_*` · `RECURSION_DEPTH_EXCEEDED` · `MAX_ITERATIONS_EXCEEDED` · `CYCLE_DETECTED` · `INVALID_EXPRESSION` · `VARIABLE_NOT_FOUND` · `TYPE_MISMATCH` · `ERROR_PORT_FALLBACK` | — | `executionFailedInternal` | `{}` |
+| 그 외 모든 code (`error.code === null` 포함) | unknown — fallback | `executionFailedInternal` | `{}` (+ backend `warn` 로그, CCH-ERR-04) |
+
+**`statusCode` placeholder omit 규칙**: `details.statusCode` 가 missing 이거나 정수가 아닌 경우 (type-guard 실패), `4xx`/`5xx` 분기 자체는 `error.code` (`HTTP_4XX`/`HTTP_5XX`) 만으로 결정한다 (HTTP 노드 핸들러는 `error.code` 와 `details.statusCode` 를 일관되게 set 한다고 가정 — 노드 핸들러 계약). placeholder 가 omit 되면 어댑터는 template 의 `{statusCode}` 토큰을 `"?"` 로 치환 (또는 `({statusCode})` 괄호 segment 전체 제거 — 어댑터 자유). 사용자 영향 ≈ 0.
+
+**위치**: 본 helper 는 `codebase/backend/src/modules/chat-channel/shared/execution-failure-classifier.ts` 한 파일로 구현. 어댑터별 호출만 (provider-specific 분기 없음).
 
 ---
 
@@ -324,6 +374,19 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 
 모든 어댑터가 같은 시퀀스를 따라야 사용자 경험이 채널 간 일관됨. provider 마다 native form UI 가 있을 수도 있지만 (Telegram Mini App, Slack Block Kit 등) v1 은 다단계 텍스트 시퀀스로 통일 — 컨벤션 차원 강제. native UI 분기는 v2 옵션.
 
+### R5. Execution Failed 분류 helper 를 Convention 에 두는 이유 (2026-05-25)
+
+대안:
+1. **(채택) Convention §3.1 의 pure helper**: cross-provider 공통 알고리즘 — Form 다단계 시퀀스 (§4) 와 같은 layer. 어댑터별 중복 구현 회피. 분류 알고리즘 자체는 provider 와 무관 (input = EIA payload, output = i18n key + placeholders, 둘 다 provider invariant).
+2. **(기각) 어댑터 인터페이스에 `renderError(event)` 신설**: R2 의 인터페이스 최소화 원칙 그대로 적용 — 6함수 인터페이스 (§1) drift 발생. 새 함수 추가는 모든 provider 어댑터의 contract 변경. 분류 자체가 provider invariant 이므로 함수 분리 이득 없음.
+3. **(기각) Spec `15-chat-channel.md` 본문에 알고리즘 표 인라인**: Spec 본문은 요구사항·시스템 동작·EIA 관계 중심. 알고리즘 상세 (입력 타입 / fallback 규칙 / placeholder 정책) 는 형식 규약 — Convention 거주가 더 자연스러움. 본 분리는 cafe24 의 [`cafe24-api-metadata.md`](./cafe24-api-metadata.md) (형식 규약) ↔ [`4-nodes/4-integration/4-cafe24.md`](../4-nodes/4-integration/4-cafe24.md) (시스템·노드 정의) 의 분리 패턴과 동일.
+4. **(기각) `error.message` 를 그대로 사용자에게 redact 해서 전달**: 노드 핸들러가 `error.message` 에 URL · query · DB 컬럼명 · stack · API key 일부를 흘릴 가능성. spec 차원 redact 가이드는 모든 노드 핸들러 audit 을 요구 — 비현실적. 대신 분류 결과 (`key`) 로 `languageHints[key]` 에 미리 검증된 generic 문구만 노출. 본 결정의 PII 위험 평가 상세는 [Spec Chat Channel R-CC-15 대안 2](../5-system/15-chat-channel.md#r-cc-15-execution-failed-안내--분류-입력-화이트리스트--placeholder-1종-정책-2026-05-25) 참조.
+
+세부:
+- (a) **`renderNode` 시그니처는 미변경** — 본 helper 결과는 어댑터 안에서 `renderNode` 가 직접 호출해 lookup·치환 후 `text` ChannelMessage 합성. dispatcher 가 분류 helper 와 renderNode 를 외부에서 chain 하지 않음 (provider 별 mrkdwn / MarkdownV2 / plain 텍스트 차이가 어댑터 안에서 흡수되어야 하므로).
+- (b) **provider 별 텍스트 합성 차이** 는 각 `providers/<name>.md §5.6` 의 SoT. 분류 결과 (key + placeholders) 자체는 provider 무관.
+- (c) **breaking change 표기**: §3 매핑 표의 `execution.failed` 행의 입력 계약이 기존 `error.message` → `error.code + details.statusCode` 로 교체된다. 기존 구현 (`renderNode` 의 `execution.failed` 처리) 는 본 컨벤션 갱신과 함께 갱신 대상 — backend 구현 PR (chat-channel-error-notify) 가 동반 처리한다.
+
 ---
 
 ## Changelog
@@ -338,3 +401,4 @@ EIA spec §6 의 payload 가 SoT — 본 컨벤션은 union 만 정의. 두 spec
 | 2026-05-24 | §2.3 `ChatChannelConfig` 에 provider-specific webhook 인증 ref 2종 optional 필드 추가 — `signingSecretRef?` (Slack HMAC, provider-issued) / `publicKeyRef?` (Discord ed25519 public key). 기존 `secretTokenRef?` 주석을 "다른 provider 는 별 필드 사용" 으로 명확화. 6함수 인터페이스 / 기타 데이터 타입 변경 없음. spec-slack-discord-chat-channel. |
 | 2026-05-24 | §2.3 `ChatChannelConfig` 의 3 필드 (`secretTokenRef?` / `signingSecretRef?` / `publicKeyRef?`) 를 단일 role-based 필드 `inboundSigningRef?` 로 통합. provider 별 자원 성격·발급 주체·검증 알고리즘 분기 표를 주석으로 명시. §2.4 `SetupResult.issuedSecretToken` 도 `issuedInboundSigning` 으로 rename. 6함수 시그니처 변경 없음. Migration 불필요 (production data 없음). spec-chat-channel-inbound-signing-rename. |
 | 2026-05-24 | §2.3 `ChatChannelConfig.botIdentity` 에 `teamId?: string` optional 필드 추가 — workspace/team 개념을 가진 provider (Slack workspace, Discord guild) 의 식별자 캐시용. Telegram 등 단일 namespace provider 는 비움. impl-prep cross-spec W-1 해소 (slack.md §3.1 와의 일치). |
+| 2026-05-25 | §3 매핑 표 `execution.failed` 행 격상 — 입력 계약을 `error.message` (구) → `error.code + error.details.statusCode` (신) 로 교체 (**breaking change**: 기존 `renderNode(execution.failed)` 구현 갱신 의무, backend 구현 PR `chat-channel-error-notify` 가 동반). 출력은 분류 helper §3.1 결과 → `text` 1건. §3.1 "Execution Failed 분류 알고리즘" 신설 — pure function `classifyExecutionFailure` + `details: unknown` 런타임 type-guard 책임 + 카테고리 매핑 표 + `{statusCode}` placeholder 규약 + unknown fallback. Rationale R5 추가 (기존 `error.message` 접근 기각 사유 R-CC-15 대안 2 cross-ref 포함). 6함수 인터페이스 / 기타 데이터 타입 변경 없음. [`spec/5-system/15-chat-channel.md §3.5 CCH-ERR-*`](../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 동반 갱신. chat-channel-error-notify. |
