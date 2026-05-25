@@ -34,11 +34,16 @@ export interface LogoProps extends Omit<React.HTMLAttributes<HTMLSpanElement>, "
 
 const ASSET_PATHS: Record<LogoVariant, { light: string; dark: string }> = {
   full: { light: "/logo.svg", dark: "/logo-dark.svg" },
-  // Wordmark currently has only one tone — the `vi` accent uses vine-700,
-  // which has enough contrast against both light and dark surfaces.
-  // A dedicated dark wordmark can be added later if reviews show contrast issues.
-  wordmark: { light: "/logo-wordmark.svg", dark: "/logo-wordmark.svg" },
-  mark: { light: "/logo-mark.svg", dark: "/logo-mark-dark.svg" },
+  // Wordmark splits into light/dark variants — black text on light
+  // surface, white text on dark surface (spec §8.4.4 R-16).
+  wordmark: { light: "/logo-wordmark.svg", dark: "/logo-wordmark-dark.svg" },
+  // Mark has no light/dark distinction — the SVG container is transparent
+  // and the gradient (teal→lime) reads on both surfaces (spec §8.4.1
+  // R-16). Both keys point at the same file; the auto-theme renderer
+  // still emits the dual-img pair for Tailwind `dark:` toggle symmetry
+  // with `full`, so a future split (e.g. tinted mark for high-contrast
+  // mode) is a one-line change here.
+  mark: { light: "/logo-mark.svg", dark: "/logo-mark.svg" },
 };
 
 const DEFAULT_ALT: Record<LogoVariant, string> = {
