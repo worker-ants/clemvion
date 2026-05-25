@@ -71,6 +71,46 @@ function toRecord<T extends object>(params: T): Record<string, unknown> {
 }
 
 /**
+ * fetch error 를 사람이 읽을 수 있는 root cause 문자열로 풀어낸다.
+ *
+ * Node 의 global fetch (undici) 는 network/DNS/TLS/abort 실패를 `TypeError:
+ * fetch failed` 단일 message 로 래핑하고 실제 원인은 `cause` 에 둔다 (예:
+ * `Error: getaddrinfo ENOTFOUND api.telegram.org` / `Error: connect
+ * ECONNREFUSED` / `UND_ERR_SOCKET` / `AbortError`). cause 까지 풀어서
+ * log 에 노출해야 운영자가 네트워크 단절 vs DNS vs TLS vs timeout 을
+ * 구분할 수 있다.
+ */
+export function describeFetchError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as { cause?: unknown }).cause;
+  if (!cause) return err.message;
+  if (cause instanceof Error) {
+    const code = (cause as { code?: unknown }).code;
+    const codeStr = typeof code === 'string' ? ` [${code}]` : '';
+    return `${err.message} ← ${cause.name}: ${cause.message}${codeStr}`;
+  }
+  // non-Error cause — typeof primitive 만 직접 변환, 객체는 JSON 으로 (Object default stringify
+  // `[object Object]` 회피).
+  if (typeof cause === 'object') {
+    try {
+      return `${err.message} ← cause=${JSON.stringify(cause)}`;
+    } catch {
+      return `${err.message} ← cause=[unserializable object]`;
+    }
+  }
+  return `${err.message} ← cause=${String(cause as string | number | boolean | bigint | symbol | null | undefined)}`;
+}
+
+/** URL 의 host 부분만 안전하게 추출 (token 등 path/query 가 log 에 노출되지 않도록). */
+export function safeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
  * Phase 1 = 메서드 시그니처 + 본문 NotImplemented (sendMessage / setWebhook 등은 Phase 2 채움).
  *
  * NestJS provider — singleton. 토큰은 매 호출에 인자로 받는다 (provider별 instance 분리 X) —
@@ -131,8 +171,14 @@ export class TelegramClient {
   }
 
   /**
-   * Generic Bot API call. 5초 timeout, 3회 지수 백오프 (1s/2s/4s) — CCH-SE-01.
+   * Generic Bot API call. 5초 timeout, 3회 시도, 재시도 간 지수 백오프 (1s/2s) — CCH-SE-01.
    * 본 메서드는 단위 테스트에서 mock 하기 쉽도록 단일 진입점으로 격리.
+   *
+   * 재시도 조건: fetch throw (network/abort/TLS — `fetch failed` 의 정체) 또는 5xx
+   * HTTP. 4xx 는 재시도 무의미하므로 즉시 반환. fetch error 의 `cause`
+   * (Node undici 의 `ENOTFOUND` / `ECONNREFUSED` / `UND_ERR_*` 등) 가 진단의
+   * 결정적 단서라 최종 warn 에 함께 노출 — message 만으로는 모두 동일하게
+   * `fetch failed` 로 보여 root cause 식별이 불가능.
    */
   protected async call<T>(
     token: string,
@@ -172,6 +218,9 @@ export class TelegramClient {
       } catch (err) {
         clearTimeout(timer);
         lastError = err;
+        this.logger.warn(
+          `TelegramClient.${method} attempt ${i + 1}/${attempts} 실패: ${describeFetchError(err)} (url host=${safeHost(url)})`,
+        );
       }
       if (i < attempts - 1) {
         const delay = 1000 * Math.pow(2, i);
@@ -179,7 +228,7 @@ export class TelegramClient {
       }
     }
     this.logger.warn(
-      `TelegramClient.${method} 3회 재시도 실패: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      `TelegramClient.${method} ${attempts}회 재시도 실패: ${describeFetchError(lastError)}`,
     );
     return {
       ok: false,
