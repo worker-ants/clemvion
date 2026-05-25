@@ -451,7 +451,7 @@ code: []
 
 §1 배경 기술을 *"제품 브랜드 색상 또는 그래디언트"* (main 표현) 로 **복원**. 이전 Stage 1 (commit `b6267429`) 에서 *"`soil-50` 단색, 그라데이션 금지"* 로 구체화했으나, 동일자 §8 부분 롤백 (`spec/6-brand.md` R-13) 에서 `soil-50` 토큰이 §8.2 와 함께 폐기되어 본 표현도 함께 복원했다.
 
-코드 상태: `codebase/frontend/src/app/(auth)/layout.tsx` 는 `bg-gradient-to-br from-[hsl(var(--background))] via-[hsl(var(--muted))] to-[hsl(var(--background))]` 패턴 — Shadcn neutral 그라데이션. 로고는 `#111e14` (dark brand surface — 옛 *vine-dark-bg-elevated* 명칭, `spec/6-brand.md` R-14 로 모티프 교체 후 호칭 변경) 라운드 컨테이너 안에 별도 배치 (그라데이션 위 dark surface 로 시인성 확보).
+코드 상태: `codebase/frontend/src/app/(auth)/layout.tsx` 는 `bg-gradient-to-br from-[hsl(var(--background))] via-[hsl(var(--muted))] to-[hsl(var(--background))]` 패턴 — Shadcn neutral 그라데이션. 로고는 `<Logo theme="auto">` 로 wrapper bg/rounded 없이 그라데이션 surface 위에 직접 배치 (`spec/6-brand.md` R-16 transparent + R-17 dark backdrop 폐기). 옛 `#111e14` 라운드 wrapper (R-14 시점) 는 R-17 로 폐기.
 
 ### R-2. `[Logo]` 자리 변종 명시 (2026-05-15 정정)
 

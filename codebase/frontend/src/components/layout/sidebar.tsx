@@ -387,19 +387,19 @@ export function Sidebar() {
         )}
       >
         {/* Logo — spec/6-brand.md §8.4.6 + spec/2-navigation/_layout.md §2.1.
-            The entire logo header row is filled with a dark brand surface
-            (#111e14 — formerly "vine-dark-bg-elevated"; renamed in spec §8
-            R-14 after the 2026-05-25 mark refresh) so the gradient brand
-            SVG remains crisp regardless of theme. The neutral palette of
-            the sidebar body resumes below. */}
-        <div className="flex h-14 items-center bg-[#111e14] px-4">
+            The header row inherits the sidebar's neutral card surface
+            (the dedicated #111e14 backdrop was dropped in spec §8 R-17,
+            2026-05-25). The brand SVGs are transparent (R-16) so the
+            gradient mark + black/white wordmark adapts to the active
+            theme via <Logo theme="auto">. */}
+        <div className="flex h-14 items-center px-4">
           {!collapsed && (
             <Link
               href="/dashboard"
               aria-label={t("sidebar.productName")}
               className="flex items-center"
             >
-              <Logo variant="full" theme="dark" size={150} />
+              <Logo variant="full" theme="auto" size={150} />
             </Link>
           )}
           {collapsed && (
@@ -408,7 +408,7 @@ export function Sidebar() {
               aria-label={t("sidebar.productName")}
               className="mx-auto flex items-center"
             >
-              <LogoMark theme="dark" size={32} />
+              <LogoMark theme="auto" size={32} />
             </Link>
           )}
           {isSmall && mobileOpen && (
