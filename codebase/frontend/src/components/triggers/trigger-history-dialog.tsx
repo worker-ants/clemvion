@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils/date";
@@ -29,6 +30,12 @@ interface Props {
   triggerId: string | null;
   /** 다이얼로그 타이틀에 표시할 트리거 이름. 빈 문자열 fallback. */
   triggerName?: string;
+  /**
+   * 트리거가 연결된 워크플로우 ID. 채워져 있으면 각 호출 항목이
+   * `/workflows/{workflowId}/executions/{executionId}` 로 drill-down 하는 Link 로
+   * 렌더된다. 빈 문자열·null 이면 read-only row.
+   */
+  workflowId?: string | null;
   /** true 이면 Dialog 를 마운트·표시한다. false 이면 쿼리도 비활성화된다 (enabled: !!triggerId && open). */
   open: boolean;
   /** Dialog 닫기 요청 시 부모가 historyTarget 을 null 로 되돌리는 핸들러. */
@@ -52,6 +59,7 @@ interface Props {
 export function TriggerHistoryDialog({
   triggerId,
   triggerName,
+  workflowId,
   open,
   onClose,
   onOpenFullDetail,
@@ -102,27 +110,52 @@ export function TriggerHistoryDialog({
             </p>
           ) : (
             <ul className="space-y-2">
-              {history.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="flex items-center justify-between rounded-md border border-[hsl(var(--border))] px-3 py-2 text-sm"
-                >
-                  <span className="text-[hsl(var(--muted-foreground))]">
-                    {formatDate(entry.startedAt, "datetime")}
-                  </span>
-                  <Badge
-                    variant={
-                      entry.status === "success"
-                        ? "success"
-                        : entry.status === "error" || entry.status === "failed"
-                          ? "destructive"
-                          : "outline"
-                    }
-                  >
-                    {entry.status}
-                  </Badge>
-                </li>
-              ))}
+              {history.map((entry) => {
+                const statusVariant =
+                  entry.status === "success"
+                    ? "success"
+                    : entry.status === "error" || entry.status === "failed"
+                      ? "destructive"
+                      : "outline";
+                const startedAtLabel = formatDate(entry.startedAt, "datetime");
+                const rowBody = (
+                  <>
+                    <span className="font-medium text-[hsl(var(--foreground))]">
+                      {startedAtLabel}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <Badge variant={statusVariant}>{entry.status}</Badge>
+                      {workflowId ? (
+                        <ChevronRight
+                          className="h-4 w-4 text-[hsl(var(--muted-foreground))]"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </span>
+                  </>
+                );
+                const rowClass =
+                  "flex items-center justify-between rounded-md border border-[hsl(var(--border))] px-3 py-2 text-sm";
+                return (
+                  <li key={entry.id}>
+                    {workflowId ? (
+                      <Link
+                        href={`/workflows/${workflowId}/executions/${entry.id}`}
+                        className={`${rowClass} hover:bg-[hsl(var(--muted))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]`}
+                        aria-label={t("triggers.history.viewExecution", {
+                          startedAt: startedAtLabel,
+                          status: entry.status,
+                        })}
+                        onClick={onClose}
+                      >
+                        {rowBody}
+                      </Link>
+                    ) : (
+                      <div className={rowClass}>{rowBody}</div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

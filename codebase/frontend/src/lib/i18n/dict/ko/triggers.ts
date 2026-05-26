@@ -38,6 +38,7 @@ export const triggers = {
     empty: "최근 호출 이력이 없어요",
     loadFailed: "호출 이력을 불러올 수 없어요",
     viewFullDetail: "전체 상세 보기",
+    viewExecution: "{{startedAt}} ({{status}}) 실행 상세로 이동",
     close: "닫기",
   },
   delete: {

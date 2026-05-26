@@ -97,9 +97,12 @@ export default function TriggersPage() {
     null,
   );
   // [Spec §2.1 + Rationale R-6] 호출 이력 전용 modal — detail drawer 와 분리.
+  // workflowId 는 각 호출 항목이 `/workflows/{workflowId}/executions/{id}` 로
+  // drill-down 하는 Link 를 그리기 위해 동봉 (행에 이미 알려져 있음).
   const [historyTarget, setHistoryTarget] = useState<{
     id: string;
     name: string;
+    workflowId: string;
   } | null>(null);
   const canEdit = useHasRole("editor");
   const queryClient = useQueryClient();
@@ -740,6 +743,7 @@ export default function TriggersPage() {
                             setHistoryTarget({
                               id: trigger.id,
                               name: trigger.name,
+                              workflowId: trigger.workflowId,
                             })
                           }
                         >
@@ -824,6 +828,7 @@ export default function TriggersPage() {
       <TriggerHistoryDialog
         triggerId={historyTarget?.id ?? null}
         triggerName={historyTarget?.name}
+        workflowId={historyTarget?.workflowId ?? null}
         open={historyTarget !== null}
         onClose={() => setHistoryTarget(null)}
         onOpenFullDetail={
