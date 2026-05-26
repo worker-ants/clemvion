@@ -12,6 +12,11 @@ interface SlideDrawerProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /**
+   * 어느 가장자리에서 슬라이드인지. default `"right"` — 기존 호출처 회귀 방지.
+   * `"left"` 는 본문 좌측 보조 네비 (`/docs` 모바일 사이드바) 용.
+   */
+  side?: "left" | "right";
 }
 
 /**
@@ -41,9 +46,11 @@ export function SlideDrawer({
   onClose,
   title,
   children,
+  side = "right",
 }: SlideDrawerProps) {
   const t = useT();
   const titleId = React.useId();
+  const isLeft = side === "left";
 
   // Close on Escape key
   React.useEffect(() => {
@@ -89,8 +96,13 @@ export function SlideDrawer({
           // out of focus/AT, omit (undefined → attribute absent) otherwise.
           inert={!open || undefined}
           className={cn(
-            "fixed right-0 top-0 z-50 h-full w-full max-w-lg transform border-l border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-xl transition-transform duration-300 ease-in-out",
-            open ? "translate-x-0" : "translate-x-full",
+            "fixed top-0 z-50 h-full w-full max-w-lg transform border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-xl transition-transform duration-300 ease-in-out",
+            isLeft ? "left-0 border-r" : "right-0 border-l",
+            open
+              ? "translate-x-0"
+              : isLeft
+                ? "-translate-x-full"
+                : "translate-x-full",
           )}
         >
           {/* Header */}

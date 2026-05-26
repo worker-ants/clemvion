@@ -8,6 +8,8 @@ export const docs: Dict["docs"] = {
   onThisPage: "On this page",
   previous: "Previous",
   next: "Next",
+  mobileSidebarToggle: "Guide contents",
+  mobileSidebarTitle: "User Guide",
   sectionGettingStarted: "Getting Started",
   sectionNodes: "Node Guide",
   sectionExpression: "Expression Language",

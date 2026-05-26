@@ -6,6 +6,8 @@ export const docs = {
   onThisPage: "이 페이지",
   previous: "이전",
   next: "다음",
+  mobileSidebarToggle: "가이드 목차",
+  mobileSidebarTitle: "사용자 가이드",
   sectionGettingStarted: "시작하기",
   sectionNodes: "노드 가이드",
   sectionExpression: "표현식 언어",
