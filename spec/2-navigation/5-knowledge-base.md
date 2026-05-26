@@ -50,7 +50,7 @@ code: []
 | 이름 | 컬렉션 이름 (필수) |
 | 설명 | 컬렉션 설명 (선택) |
 | 검색 모드 | `vector` (기본) / `graph` 중 선택. **생성 시에만 결정, 사후 변경 불가** |
-| 임베딩 모델 | 사용할 임베딩 모델 선택 (LLMConfig 연동) |
+| 임베딩 모델 | 지정된 LLMConfig (미지정 시 워크스페이스 default) 의 임베딩 모델 목록을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 텍스트 입력은 허용하지 않는다. 미로드 / 조회 실패 시 select 비활성, 에러 메시지만 표시 ([설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정-2026-05-26) 의 결정을 그대로 적용) |
 | 추출 LLM | `graph` 모드 일 때만 표시. 그래프 추출에 사용할 LLMConfig 의 chat 모델. 미지정 시 워크스페이스 default |
 | 청크 크기 | 문서 분할 청크 크기 (기본: 1000 토큰) |
 | 청크 오버랩 | 청크 간 오버랩 (기본: 200 토큰) |
@@ -185,3 +185,15 @@ KB 상세 화면에 그래프 통계/탐색 영역을 추가한다.
 | DELETE | /api/knowledge-bases/:id/entities/:entityId | (graph 모드, P1) entity 삭제 (관련 relation, chunk_entity CASCADE) |
 | GET | /api/knowledge-bases/:id/relations | (graph 모드, P1) relation 목록 |
 | DELETE | /api/knowledge-bases/:id/relations/:relationId | (graph 모드, P1) relation 삭제 |
+
+---
+
+## Rationale
+
+### R-1. 임베딩 모델 선택을 select-only 로 한정 (2026-05-26)
+
+KB 생성·설정 폼의 임베딩 모델 입력은 §2.2 표에 명시한 대로 select-only 로 강제한다. 결정 근거·기각 대안은 [설정 화면 §B.2 Rationale R-1](./6-config.md#r-1-기본-모델-선택을-select-only-로-한정-2026-05-26) 과 동일하므로 본 문서에서는 추가 기술 없이 cross-reference 한다. 임베딩 모델은 모델별 차원(`dimension`) 이 달라 잘못된 ID 가 저장되면 KB 임베딩이 통째로 손상되므로, select 강제의 보호 효과가 chat 모델보다 더 크다.
+
+운영상 고려:
+- **Local (Ollama) 프로바이더 다운 시**: 모델 조회가 실패해도 사용자가 ID 를 직접 입력해 우회하는 경로는 제공하지 않는다. Ollama 가 잠시 내려간 상황에서는 일시적으로 KB 생성·설정 변경이 불가하다 — 그러나 임베딩 자체가 Ollama 호출이라 ID 를 적어 저장해도 후속 임베딩이 동일 사유로 실패할 뿐이라 사용자 입장에서 손해가 없다. Ollama 복구 후 정상 조회/저장이 가능하다.
+- **자동 vs 버튼 트리거**: LLMConfig 변경 시 select 의 현재 값은 초기화되며, 사용자가 명시적으로 "모델 불러오기" 버튼을 누른 시점에만 목록을 조회한다 (LLMConfig 화면과 동일 정책). 자동 prefetch 는 KB 폼이 LLMConfig select 와 동일 화면에 있어 변경 의도를 충분히 표현할 수 있다는 가정 아래 채택하지 않는다.

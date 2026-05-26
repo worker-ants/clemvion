@@ -319,7 +319,7 @@ SELECT id FROM document
 - **RagSearchService**: KB 메타를 한 번에 조회 → `(model, dim)` 그룹핑 → `Promise.all` 로 그룹별 query 임베딩 + 차원 cast SQL 병렬 처리. NULL/unsupported 차원 KB 는 검색 제외(unsupported 는 ERROR 로그). `searchGroup` private 헬퍼 추출.
 - **공유 상수** `embedding/embedding-dimensions.const.ts`: `SUPPORTED_EMBEDDING_DIMS`, `EMBEDDING_MODEL_PATTERN`. RagSearch + Create/Update DTO 가 모두 참조.
 - **LlmService.listModels**: `{ type?: 'chat'|'embedding' }` 옵션을 서비스 레이어에서 필터링. `LlmConfigController` 는 `@ApiQuery` 데코레이터 추가.
-- **프론트엔드**: `EmbeddingModelCombobox` 신설(default LLM Config 의 embedding 모델 datalist + graceful degrade). KB 생성 폼/상세 설정 모달에서 사용. KB 상세에 "지식 베이스 설정" 모달, "KB 전체 재임베딩" 버튼 + 확인 모달, embeddingDimension 메타 노출. payload 타입 `KbUpdatePayload` 명시, reEmbedAll 응답 envelope unwrap, chunkSize/chunkOverlap 사전 검증.
+- **프론트엔드**: `EmbeddingModelCombobox` 신설(지정 LLM Config 의 embedding 모델을 "모델 불러오기" 버튼으로 조회한 뒤 select 로 선택. 자유 입력 fallback 없음 — [지식 저장소 §Rationale R-1](../2-navigation/5-knowledge-base.md#r-1-임베딩-모델-선택을-select-only-로-한정-2026-05-26)). KB 생성 폼/상세 설정 모달에서 사용. KB 상세에 "지식 베이스 설정" 모달, "KB 전체 재임베딩" 버튼 + 확인 모달, embeddingDimension 메타 노출. payload 타입 `KbUpdatePayload` 명시, reEmbedAll 응답 envelope unwrap, chunkSize/chunkOverlap 사전 검증.
 
 #### 검증
 
