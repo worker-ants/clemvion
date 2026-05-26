@@ -71,7 +71,11 @@ export const knowledgeBases: Dict["knowledgeBases"] = {
   columnSize: "Size",
   columnChunks: "Chunks",
   embeddingModelHint:
-    "Pick from the default LLM config's embedding models, or type a custom ID.",
+    "Click \"Load models\" to pick from the selected LLM config's embedding models.",
+  embeddingModelLoadRequired: "Click \"Load models\" first",
+  embeddingModelLoadFailed:
+    "Failed to load embedding models. Check the LLM config and credentials, then try again",
+  embeddingModelSavedFallback: "Current saved: {{model}}",
   embeddingDimension: "Dimension",
   settingsTitle: "Knowledge base settings",
   settingsSave: "Save",

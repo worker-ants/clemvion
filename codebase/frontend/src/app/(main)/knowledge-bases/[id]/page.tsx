@@ -39,7 +39,7 @@ import {
 import { EntityList } from "@/components/knowledge-base/entity-list";
 import { RelationList } from "@/components/knowledge-base/relation-list";
 import { GraphVisualization } from "@/components/knowledge-base/graph-visualization";
-import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
+import { llmConfigsApi } from "@/lib/api/llm-configs";
 import { useKbEvents } from "@/lib/websocket/use-kb-events";
 import { RoleGate } from "@/components/auth/role-gate";
 import { toast } from "sonner";
@@ -165,19 +165,12 @@ export default function KnowledgeBaseDetailPage({
   );
 
   // settings 다이얼로그가 열렸을 때만 LLMConfig 목록을 fetch (임베딩/추출 select 둘 다 사용).
-  const { data: llmConfigsRes } = useQuery({
+  const { data: llmConfigs = [] } = useQuery({
     queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.getAll(),
+    queryFn: () => llmConfigsApi.list(),
     staleTime: 30_000,
     enabled: showSettings,
   });
-  const llmConfigs: LlmConfigData[] = (() => {
-    const raw = (llmConfigsRes as { data?: LlmConfigData[] } | undefined)?.data;
-    if (Array.isArray(raw)) return raw;
-    return Array.isArray(llmConfigsRes)
-      ? (llmConfigsRes as LlmConfigData[])
-      : [];
-  })();
 
   // graph 모드 KB 의 추출 진행 상태 / 통계. 5초 polling 으로 추출 진행을 따라간다.
   // 단, 모든 문서가 completed/failed 로 정착된 상태에서는 1분 polling 으로 완화.

@@ -7,7 +7,7 @@ import {
   knowledgeBasesApi,
   type RagMode,
 } from "@/lib/api/knowledge-bases";
-import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
+import { llmConfigsApi } from "@/lib/api/llm-configs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,19 +53,12 @@ export function CreateKbFormDialog({
 
   // 임베딩 LLMConfig select 가 vector 모드에서도 보여야 하므로 dialog 가 열려 있는 동안
   // 항상 fetch. graph 모드의 extraction LLM select 도 같은 데이터를 공유한다.
-  const { data: llmConfigsRes } = useQuery({
+  const { data: llmConfigs = [] } = useQuery({
     queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.getAll(),
+    queryFn: () => llmConfigsApi.list(),
     staleTime: 30_000,
     enabled: open,
   });
-  const llmConfigs: LlmConfigData[] = (() => {
-    const raw = (llmConfigsRes as { data?: LlmConfigData[] } | undefined)?.data;
-    if (Array.isArray(raw)) return raw;
-    return Array.isArray(llmConfigsRes)
-      ? (llmConfigsRes as LlmConfigData[])
-      : [];
-  })();
 
   function resetForm() {
     setActiveTab("basic");

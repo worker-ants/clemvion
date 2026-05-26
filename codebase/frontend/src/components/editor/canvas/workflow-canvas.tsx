@@ -20,7 +20,6 @@ import { buildNodeInitialConfig } from "@/lib/utils/build-node-initial-config";
 import {
   llmConfigsApi,
   LLM_CONFIGS_QUERY_KEY,
-  type LlmConfigData,
 } from "@/lib/api/llm-configs";
 import { Button } from "@/components/ui/button";
 import {
@@ -112,18 +111,15 @@ export function WorkflowCanvas() {
   // 아니라 실제 LLM 이름으로 표시되어 사용자 인지와 실행 결과가 일치한다.
   // 다른 컴포넌트(custom-node, llm-config-selector)도 LLM_CONFIGS_QUERY_KEY 로
   // 같은 쿼리 캐시를 공유한다.
-  const { data: llmConfigsData } = useQuery({
+  const { data: llmConfigs = [] } = useQuery({
     queryKey: LLM_CONFIGS_QUERY_KEY,
-    queryFn: () => llmConfigsApi.getAll(),
+    queryFn: () => llmConfigsApi.list(),
     staleTime: 30_000,
   });
-  const defaultLlmConfigId = useMemo<string | null>(() => {
-    const configs: LlmConfigData[] =
-      (llmConfigsData?.data as LlmConfigData[] | undefined) ??
-      (llmConfigsData as LlmConfigData[] | undefined) ??
-      [];
-    return configs.find((c) => c.isDefault)?.id ?? null;
-  }, [llmConfigsData]);
+  const defaultLlmConfigId = useMemo<string | null>(
+    () => llmConfigs.find((c) => c.isDefault)?.id ?? null,
+    [llmConfigs],
+  );
 
   const buildInitialConfig = useCallback(
     (nodeType: string, defaultConfig: Record<string, unknown> | undefined) =>

@@ -1,14 +1,18 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
-import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
+import { llmConfigsApi } from "@/lib/api/llm-configs";
 import { useT } from "@/lib/i18n";
+import { useEmbeddingModelLoader } from "@/components/llm-config/use-embedding-model-loader";
+import { ModelSelectField } from "@/components/llm-config/model-select-field";
 
 interface EmbeddingModelComboboxProps {
   value: string;
   onChange: (value: string) => void;
+  /**
+   * `value === ""` 일 때 select 의 disabled option 으로 노출되는 텍스트.
+   */
   placeholder?: string;
   disabled?: boolean;
   /**
@@ -19,9 +23,9 @@ interface EmbeddingModelComboboxProps {
   llmConfigId?: string;
 }
 
-// 지정된 LLMConfig (또는 워크스페이스 default) 의 임베딩 타입 모델 목록을 받아 datalist
-// 자동완성을 제공한다. Provider 가 embedding 모델을 노출하지 못하거나(예: 일부 custom
-// provider) 응답 실패 시에는 일반 텍스트 입력으로 graceful degrade.
+// 지정된 LLMConfig (또는 워크스페이스 default) 의 임베딩 모델을 "모델 불러오기" 버튼 클릭
+// 시점에만 조회해 NativeSelect 로 선택하게 한다. 자유 입력 fallback 은 제공하지 않는다 —
+// 잘못된 모델 ID 가 저장되어 KB 임베딩이 손상되는 사례 차단 (spec/2-navigation/5-knowledge-base.md §Rationale R-1).
 export function EmbeddingModelCombobox({
   value,
   onChange,
@@ -30,56 +34,55 @@ export function EmbeddingModelCombobox({
   llmConfigId,
 }: EmbeddingModelComboboxProps) {
   const t = useT();
-  const datalistId = useId();
 
-  const { data: configsRes } = useQuery({
+  const { data: configs = [] } = useQuery({
     queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.getAll(),
+    queryFn: () => llmConfigsApi.list(),
     staleTime: 30_000,
   });
-  const configs: LlmConfigData[] = useMemo(() => {
-    const raw = (configsRes as { data?: LlmConfigData[] } | undefined)?.data;
-    if (Array.isArray(raw)) return raw;
-    return Array.isArray(configsRes) ? (configsRes as LlmConfigData[]) : [];
-  }, [configsRes]);
   const defaultConfigId = useMemo(
     () => configs.find((c) => c.isDefault)?.id ?? configs[0]?.id,
     [configs],
   );
-  // 호출자가 지정한 llmConfigId 가 있으면 그걸로, 없으면 default 로 폴백.
   const effectiveConfigId = llmConfigId ?? defaultConfigId;
 
-  const { data: models = [] } = useQuery({
-    queryKey: ["llm-config-embedding-models", effectiveConfigId],
-    queryFn: () =>
-      llmConfigsApi.listModels(effectiveConfigId as string, {
-        type: "embedding",
-      }),
-    enabled: Boolean(effectiveConfigId),
-    staleTime: 60_000,
-    retry: false,
+  const {
+    models,
+    errorMessage,
+    isPending,
+    hasAttemptedLoad,
+    canLoad,
+    load,
+  } = useEmbeddingModelLoader({
+    configId: effectiveConfigId,
+    fallbackErrorMessage: t("knowledgeBases.embeddingModelLoadFailed"),
   });
 
+  const embeddingModels = useMemo(
+    // API 에 { type: "embedding" } 파라미터를 전달하지만, provider 에 따라 서버가
+    // type 파라미터를 무시하고 mixed 응답을 반환할 수 있으므로 클라이언트에서도 필터.
+    () => models.filter((m) => m.type === "embedding"),
+    [models],
+  );
+
   return (
-    <div className="flex flex-col gap-1">
-      <Input
-        list={datalistId}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        aria-autocomplete="list"
-      />
-      <datalist id={datalistId}>
-        {models.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name && m.name !== m.id ? m.name : undefined}
-          </option>
-        ))}
-      </datalist>
-      <p className="text-xs text-[hsl(var(--muted-foreground))]">
-        {t("knowledgeBases.embeddingModelHint")}
-      </p>
-    </div>
+    <ModelSelectField
+      value={value}
+      onChange={onChange}
+      models={embeddingModels}
+      errorMessage={errorMessage}
+      isPending={isPending}
+      canLoad={canLoad}
+      hasAttemptedLoad={hasAttemptedLoad}
+      load={load}
+      formatSavedFallback={(model) =>
+        t("knowledgeBases.embeddingModelSavedFallback", { model })
+      }
+      loadRequiredHint={t("knowledgeBases.embeddingModelLoadRequired")}
+      loadedHint={t("knowledgeBases.embeddingModelHint")}
+      placeholder={placeholder}
+      disabled={disabled}
+      testIdPrefix="embedding-model"
+    />
   );
 }
