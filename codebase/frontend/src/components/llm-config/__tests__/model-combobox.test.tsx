@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { ModelCombobox } from "../model-combobox";
@@ -396,5 +396,35 @@ describe("ModelCombobox", () => {
     );
     expect(getSelect()).toBeDisabled();
     expect(getLoadButton()).toBeDisabled();
+  });
+
+  // SUMMARY#2(testing): 인플라이트 요청 중 로드 버튼이 비활성
+  it("disables the load button while the request is pending", async () => {
+    let resolveLoad!: (v: Awaited<ReturnType<typeof llmConfigsApi.previewModels>>) => void;
+    vi.mocked(llmConfigsApi.previewModels).mockReturnValue(
+      new Promise((res) => { resolveLoad = res; }),
+    );
+
+    wrap(
+      <ModelCombobox
+        value=""
+        onChange={vi.fn()}
+        provider="openai"
+        apiKey="sk-xxx"
+      />,
+    );
+
+    fireEvent.click(getLoadButton());
+
+    // 응답 전 — 버튼이 비활성이어야 한다
+    await waitFor(() => {
+      expect(getLoadButton()).toBeDisabled();
+    });
+
+    // 응답 후 — 버튼이 활성 복귀
+    act(() => { resolveLoad([{ id: "gpt-4o", name: "gpt-4o", type: "chat" }]); });
+    await waitFor(() => {
+      expect(getLoadButton()).not.toBeDisabled();
+    });
   });
 });

@@ -249,4 +249,124 @@ describe("EmbeddingModelCombobox", () => {
     });
     expect(getSelect()).toBeDisabled();
   });
+
+  // SUMMARY#5: getAll 결과가 빈 배열 → effectiveConfigId=undefined → 버튼 비활성
+  it("disables the load button when getAll returns no configs (canLoad=false)", async () => {
+    vi.mocked(llmConfigsApi.getAll).mockResolvedValue({ data: [] });
+
+    wrap(<EmbeddingModelCombobox value="" onChange={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(getLoadButton()).toBeDisabled();
+    });
+    expect(getSelect()).toBeDisabled();
+  });
+
+  // SUMMARY#6: getAll API 실패 시 버튼 비활성 유지
+  it("disables the load button when getAll API fails", async () => {
+    vi.mocked(llmConfigsApi.getAll).mockRejectedValue(new Error("network"));
+
+    wrap(<EmbeddingModelCombobox value="" onChange={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(getLoadButton()).toBeDisabled();
+    });
+  });
+
+  // SUMMARY#7: isEmpty 상태 — 로드 성공 + 빈 목록 → "모델 없음" 메시지 표시
+  it("shows the empty-list message when load succeeds with no embedding models", async () => {
+    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([]);
+
+    wrap(
+      <EmbeddingModelCombobox
+        value=""
+        onChange={vi.fn()}
+        llmConfigId="explicit-cfg"
+      />,
+    );
+
+    fireEvent.click(getLoadButton());
+
+    await waitFor(() => {
+      // 사용 가능한 모델이 없을 때 noModelsFound 또는 embeddingModelLoadRequired 메시지
+      const msg =
+        screen.queryByText(/사용 가능한 모델이 없어요/i) ??
+        screen.queryByText(/no models/i);
+      expect(msg).toBeInTheDocument();
+    });
+    expect(getSelect()).toBeDisabled();
+  });
+
+  // SUMMARY#1 regression guard: llmConfigId 변경 직후 isEmpty 메시지가 나타나지 않아야 함
+  it("does not show empty-list message immediately after llmConfigId change (stale isSuccess guard)", async () => {
+    vi.mocked(llmConfigsApi.listModels).mockResolvedValueOnce([]);
+
+    const { rerender } = wrap(
+      <EmbeddingModelCombobox
+        value=""
+        onChange={vi.fn()}
+        llmConfigId="cfg-a"
+      />,
+    );
+
+    // cfg-a 로 로드 → 빈 응답 → 이 시점에는 isEmpty=true
+    fireEvent.click(getLoadButton());
+    await waitFor(() => {
+      const msg =
+        screen.queryByText(/사용 가능한 모델이 없어요/i) ??
+        screen.queryByText(/no models/i);
+      expect(msg).toBeInTheDocument();
+    });
+
+    // cfg-b 로 변경 → reset → isEmpty 메시지가 사라져야 한다
+    rerender(
+      <QueryClientProvider
+        client={
+          new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        }
+      >
+        <EmbeddingModelCombobox
+          value=""
+          onChange={vi.fn()}
+          llmConfigId="cfg-b"
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      const msg =
+        screen.queryByText(/사용 가능한 모델이 없어요/i) ??
+        screen.queryByText(/no models/i);
+      expect(msg).toBeNull();
+    });
+    expect(getSelect()).toBeDisabled();
+  });
+
+  // INFO: type:"chat" 모델이 listModels 응답에 섞여도 select option 에 나타나지 않아야 함
+  it("filters out non-embedding models from the select options", async () => {
+    vi.mocked(llmConfigsApi.listModels).mockResolvedValue([
+      { id: "gpt-4o", name: "gpt-4o", type: "chat" },
+      {
+        id: "text-embedding-3-small",
+        name: "text-embedding-3-small",
+        type: "embedding",
+      },
+    ]);
+
+    wrap(
+      <EmbeddingModelCombobox
+        value=""
+        onChange={vi.fn()}
+        llmConfigId="explicit-cfg"
+      />,
+    );
+
+    fireEvent.click(getLoadButton());
+
+    await waitFor(() => {
+      expect(optionValues()).toContain("text-embedding-3-small");
+    });
+    // chat 모델은 노출되지 않아야 한다
+    expect(optionValues()).not.toContain("gpt-4o");
+  });
 });
