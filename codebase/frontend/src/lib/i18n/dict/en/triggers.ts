@@ -40,6 +40,7 @@ export const triggers: Dict["triggers"] = {
     empty: "No recent calls.",
     loadFailed: "Failed to load history.",
     viewFullDetail: "View full detail",
+    viewExecution: "Open execution detail ({{startedAt}}, {{status}})",
     close: "Close",
   },
   delete: {
