@@ -69,7 +69,11 @@ export const knowledgeBases = {
   columnSize: "크기",
   columnChunks: "청크",
   embeddingModelHint:
-    "기본 LLM 설정의 임베딩 모델 중에서 선택하거나 직접 입력할 수 있어요.",
+    "\"모델 불러오기\"를 누르면 선택한 LLM 설정의 임베딩 모델 중에서 선택할 수 있어요.",
+  embeddingModelLoadRequired: "먼저 \"모델 불러오기\"를 눌러주세요",
+  embeddingModelLoadFailed:
+    "모델 목록을 불러오지 못했어요. LLM 설정과 자격증명을 확인한 뒤 다시 시도해주세요",
+  embeddingModelSavedFallback: "현재 저장값: {{model}}",
   embeddingDimension: "차원",
   settingsTitle: "지식 저장소 설정",
   settingsSave: "저장",

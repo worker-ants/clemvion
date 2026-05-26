@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   llmConfigsApi,
   LLM_CONFIGS_QUERY_KEY,
-  type LlmConfigData,
 } from "@/lib/api/llm-configs";
 import { useT } from "@/lib/i18n";
 
@@ -21,15 +20,11 @@ export function LlmConfigSelector({
   label,
 }: LlmConfigSelectorProps) {
   const t = useT();
-  const { data, isLoading, isPending } = useQuery({
+  const { data: configs = [], isLoading, isPending } = useQuery({
     queryKey: LLM_CONFIGS_QUERY_KEY,
-    queryFn: () => llmConfigsApi.getAll(),
+    queryFn: () => llmConfigsApi.list(),
     staleTime: 30_000,
   });
-  const configs: LlmConfigData[] = useMemo(
-    () => data?.data ?? data ?? [],
-    [data],
-  );
   const defaultConfig = useMemo(
     () => configs.find((c) => c.isDefault),
     [configs],

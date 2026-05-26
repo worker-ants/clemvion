@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "started_at": "2026-05-26T12:00:00Z",
+  "summary_items_total": 12,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7, 9, 10, 12],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "8": "deferred-refactor",
+    "11": "deferred-refactor"
+  },
+  "commits_made": [
+    {
+      "sha": "3122d752",
+      "summary_ids": [1, 10, 12],
+      "scope": "embedding-model"
+    },
+    {
+      "sha": "574447a0",
+      "summary_ids": [2, 3, 4, 5, 6, 7, 9],
+      "scope": "model-select tests"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260526-114823.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}

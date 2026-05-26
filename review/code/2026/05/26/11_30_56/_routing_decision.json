@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-26T11:35:00Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "State 관리, 단순 mutation/button click 기반 로딩 — 성능 최적화 불요"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "ModelLoader 훅과 combobox 컴포넌트 경계 변경, datalist → select 아키텍처 전환"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 + spec 요구사항 일관성 검증"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 + State reset on prop change pattern 도입"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 + 신규 test 파일 추가"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): .md/.ts i18n dict 파일 변경"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/lock 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션, SQL, schema 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": true,
+      "reason": "useMutation + async/await + stale closure 가드 + setState on prop change 패턴"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP endpoint 신설·수정 없음, 기존 listModels/previewModels API 재활용"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "spec/2-navigation/5-knowledge-base.md 및 spec/2-navigation/6-config.md 변경, PROJECT.md 동반 갱신 매트릭스 확인 필요하나 리뷰 자체는 router 불필요"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": [
+    "security",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "side_effect",
+    "testing"
+  ]
+}
