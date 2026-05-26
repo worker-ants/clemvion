@@ -27,6 +27,7 @@ function renderDialog(
   const props = {
     triggerId: "t-1",
     triggerName: "order-hook",
+    workflowId: "wf-1" as string | null,
     open: true,
     onClose: vi.fn(),
     onOpenFullDetail: undefined as undefined | (() => void),
@@ -86,6 +87,76 @@ describe("TriggerHistoryDialog", () => {
     renderDialog();
     expect(await screen.findByText(/success/i)).toBeInTheDocument();
     expect(screen.getByText(/failed/i)).toBeInTheDocument();
+  });
+
+  it("workflowId 가 있으면 각 항목이 실행 상세 페이지로 링크된다", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      data: {
+        data: [
+          {
+            id: "exec-1",
+            startedAt: "2026-05-22T14:32:00.000Z",
+            status: "success",
+          },
+          {
+            id: "exec-2",
+            startedAt: "2026-05-22T14:21:00.000Z",
+            status: "failed",
+          },
+        ],
+      },
+    });
+    renderDialog({ workflowId: "wf-99" });
+    const links = await screen.findAllByRole("link");
+    const hrefs = links.map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual(
+      expect.arrayContaining([
+        "/workflows/wf-99/executions/exec-1",
+        "/workflows/wf-99/executions/exec-2",
+      ]),
+    );
+  });
+
+  it("workflowId 가 없으면 항목은 링크 없이 read-only 로 표시된다", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      data: {
+        data: [
+          {
+            id: "exec-1",
+            startedAt: "2026-05-22T14:32:00.000Z",
+            status: "success",
+          },
+        ],
+      },
+    });
+    renderDialog({ workflowId: null });
+    await screen.findByText(/success/i);
+    // 푸터의 onOpenFullDetail Button 만이 link 역할일 수 있으므로 href 패턴으로 단정.
+    const links = screen
+      .queryAllByRole("link")
+      .filter((a) => a.getAttribute("href")?.includes("/executions/"));
+    expect(links).toHaveLength(0);
+  });
+
+  it("실행 상세 링크 클릭 시 onClose 가 호출되어 dialog 가 닫힌다", async () => {
+    apiGetMock.mockResolvedValueOnce({
+      data: {
+        data: [
+          {
+            id: "exec-1",
+            startedAt: "2026-05-22T14:32:00.000Z",
+            status: "success",
+          },
+        ],
+      },
+    });
+    const onClose = vi.fn();
+    renderDialog({ workflowId: "wf-99", onClose });
+    const link = (await screen.findAllByRole("link")).find((a) =>
+      a.getAttribute("href")?.includes("/executions/exec-1"),
+    )!;
+    fireEvent.click(link);
+    expect(onClose).toHaveBeenCalled();
   });
 
   it("올바른 endpoint 와 limit=10 으로 호출한다", async () => {
