@@ -104,21 +104,20 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 ### 4.3 Button / Form
 
 - Button Presentation 노드의 버튼은 Slack Block Kit `actions block` 으로 자동 변환
-- Form 노드는 v1 에서 다단계 텍스트 시퀀스로 진행 (필드별 한 줄 질문 + DM reply 로 답변)
-- v2 (후속) 에서 Slack modal (`views.open`) native 지원 예정
+- Form 노드는 현재 다단계 텍스트 시퀀스로 진행돼요 (필드별 한 줄 질문 + DM reply 로 답변)
 
 ### 4.4 AI Agent render 도구 / Template
 
-- AI Multi Turn 노드가 `render_carousel` / `render_table` / `render_chart` / `render_template` 도구를 호출하면 응답 텍스트 다음에 카드·표·차트·템플릿이 sequential 메시지로 함께 발송돼요 (`render_form` 은 별 plan 추적)
+- AI Multi Turn 노드가 `render_carousel` / `render_table` / `render_chart` / `render_template` 도구를 호출하면 응답 텍스트 다음에 카드·표·차트·템플릿이 sequential 메시지로 함께 발송돼요
 - Template 노드 (버튼 없는 non-blocking 케이스) 의 `output.rendered` 본문도 텍스트로 자동 발송돼요
-- v1 fallback 정책 — chart/table 은 mrkdwn monospace 텍스트, carousel 은 카드별 sequential 메시지, template 은 plain text. v2 SSR PNG 격상은 별 plan `chat-channel-visual-ssr-png` 추적
+- 현재 표현 방식 — chart/table 은 mrkdwn monospace 텍스트, carousel 은 카드별 sequential 메시지, template 은 plain text
 
-## 5. v1 한계 / 알려진 사항
+## 5. 현재 한계 / 알려진 사항
 
-- **DM only** — group chat / channel / mpim 은 미지원 (자동 거부 + 안내 메시지). multi-user 채널 대응은 v2 (multi-user thread) 와 한 묶음.
-- **Typing indicator 없음** — Slack Web API 가 server-initiated typing indicator 를 제공 안 함. LLM 응답 latency 가 긴 경우 사용자가 "처리 중" 표시를 못 받음 (v2 후보 plan 에서 placeholder 메시지 + edit 으로 검토).
-- **시각형 노드** (Chart / Table / Carousel) — v1 은 mrkdwn monospace 텍스트 fallback. v2 에서 SSR PNG (Telegram 과 공유 plan) 격상.
-- **Socket Mode 미지원** — v1 은 Webhook-mode 만. private network 안의 Slack 운영은 v2 plan 에서 검토.
+- **DM only** — group chat / channel / mpim 은 미지원이에요 (자동 거부 + 안내 메시지).
+- **Typing indicator 없음** — Slack Web API 가 server-initiated typing indicator 를 제공하지 않아 LLM 응답 latency 가 긴 경우 사용자에게 "처리 중" 표시가 보이지 않아요.
+- **시각형 노드** (Chart / Table / Carousel) — 현재는 mrkdwn monospace 텍스트로 표현돼요.
+- **Socket Mode 미지원** — 현재는 Webhook 모드만 지원해요.
 
 ## 6. 안내 메시지 커스터마이즈 (`languageHints` / `languageLocale`)
 
@@ -138,7 +137,7 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 2. `languageLocale` 의 언어별 내장 default
 3. `"ko"` fallback — `languageLocale` 도 생략됐을 때
 
-### 6.2 실행 실패 안내 키 (CCH-ERR-*)
+### 6.2 실행 실패 안내 키
 
 워크플로우 execution 이 실패하면 봇이 사용자에게 실패 유형에 맞는 안내 메시지를 발송해요. 아래 6개 키로 문구를 override 할 수 있어요.
 

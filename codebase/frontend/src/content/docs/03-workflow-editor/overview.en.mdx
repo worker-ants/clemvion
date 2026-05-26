@@ -91,16 +91,16 @@ The Assistant can't trigger executions, but it can **read the results of runs yo
 <Step>Click `Run` again to verify.</Step>
 </Steps>
 
-## v1 limits
+## Current limits
 
 <Callout type="warn">
-The items below are out of scope for v1. Rollout timing tracks the spec and PRD updates and will expand over time.
+The items below are currently out of scope for the Assistant.
 </Callout>
 
 <FieldTable rows={[
   { name: "Editing across workflows", required: false, type: "one session = one workflow", description: "A session is bound to a single workflow. To work on multiple workflows, open the Assistant inside each.", default: "-" },
   { name: "Direct execution from Assistant", required: false, type: "user clicks Run", description: "By design, only the user triggers `Run`. This avoids surprise executions while the Assistant is editing.", default: "-" },
-  { name: "Sharing sessions with the team", required: false, type: "personal sessions", description: "Session sharing is gated on richer team RBAC and is on the roadmap.", default: "-" },
+  { name: "Sharing sessions with the team", required: false, type: "personal sessions", description: "Assistant sessions are personal and are not shared with other team members.", default: "-" },
   { name: "Offline use", required: false, type: "online required", description: "The Assistant streams from the LLM provider in real time. The panel still opens offline but messages can't be sent.", default: "-" }
 ]} />
 

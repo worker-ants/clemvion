@@ -151,7 +151,7 @@ Multi Turn 모드에서 사용자 응답은 **무제한 대기**해요. 외부 c
 </Callout>
 
 <Callout type="note">
-**Single Turn vs Multi Turn — `config` echo 차이.** Single Turn 출력은 입력한 raw config 전체(systemPrompt · userPrompt · maxTurns · conditions · knowledgeBases 등)를 그대로 echo 해요. Multi Turn 의 종료 출력(`user_ended` / `max_turns` / 조건 포트)은 현재 `config: { mode, model }` 까지만 echo 하고 나머지 필드는 생략돼요. 두 모드를 한 워크플로우에서 섞어 쓸 때 `$node["AI Agent"].config.systemPrompt` 같은 참조가 모드별로 다르게 동작할 수 있다는 점에 주의해요. 전체 echo 통일은 후속 작업으로 예정돼 있어요.
+**Single Turn vs Multi Turn — `config` echo 차이.** Single Turn 출력은 입력한 raw config 전체(systemPrompt · userPrompt · maxTurns · conditions · knowledgeBases 등)를 그대로 echo 해요. Multi Turn 의 종료 출력(`user_ended` / `max_turns` / 조건 포트)은 현재 `config: { mode, model }` 까지만 echo 하고 나머지 필드는 생략돼요. 두 모드를 한 워크플로우에서 섞어 쓸 때 `$node["AI Agent"].config.systemPrompt` 같은 참조가 모드별로 다르게 동작할 수 있다는 점에 주의해요.
 </Callout>
 
 ## Text Classifier
