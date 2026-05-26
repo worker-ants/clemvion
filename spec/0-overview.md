@@ -324,9 +324,10 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 - **에러 페이지·빈 상태**: 본 카탈로그의 대상은 in-page 신호(Badge/Toast/Alert/Skeleton). page-level 의 에러 페이지·빈 상태 패턴은 [`spec/2-navigation/11-error-empty-states.md`](./2-navigation/11-error-empty-states.md) 의 canonical 정의를 따른다.
 
 ### 3.5 반응형 및 테마
-- 최소 해상도: 1280x720
+- 최소 해상도: 1280x720 — 에디터·대시보드 등 *작업형* 페이지의 권장 기준
 - 라이트/다크 테마 지원
 - 에디터는 데스크탑 전용 (모바일에서는 뷰어 모드만 제공)
+- 사용자 가이드 (`/docs`) 같은 *열람형* 페이지는 1024px (lg) 미만에서도 모바일 진입(`SlideDrawer`)으로 최소 열람 기능을 제공한다. 상세는 [`./2-navigation/13-user-guide.md` §10](./2-navigation/13-user-guide.md#10-접근표시) 참조.
 
 ---
 

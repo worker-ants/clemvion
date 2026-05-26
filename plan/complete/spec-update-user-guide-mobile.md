@@ -40,11 +40,13 @@ owner: project-planner
 
 ## 체크리스트
 
-- [ ] §10 표 갱신 (검색 행 + 모바일 진입 행)
-- [ ] Rationale R-x 추가
-- [ ] frontmatter `pending_plans` 등록 → 머지 시 제거
-- [ ] `/consistency-check --spec` 통과 (`docs-mobile-sidebar` 구현 PR 과 정합)
+- [x] §10 표 갱신 (검색 행 + 모바일 진입 행)
+- [x] Rationale R-1 추가 (R-x → R-1 로 확정)
+- [x] frontmatter `pending_plans` 제거 + `status: spec-only → implemented` 승격 + `code:` 등록
+- [x] `_layout.md §2.4` 에 `/docs` 별도 breakpoint 교차 참조 한 줄 추가 (cross-spec INFO)
+- [x] `0-overview.md §3.5` 에 열람형 페이지 1024px 예외 단서 추가 (cross-spec INFO)
+- [x] `/consistency-check --spec` 통과 — BLOCK: NO (`review/consistency/2026/05/26/11_57_24/`)
 
 ## 의존성
 
-`docs-mobile-sidebar` 구현 PR 머지와 동시 또는 직후. 구현이 먼저 머지되면 본 plan 머지 전까지 짧은 drift 기간이 존재 — 무리 없음 (UI 가 spec 보다 풍부한 상태).
+`docs-mobile-sidebar` 구현 PR 과 동일 PR 안에서 같이 머지. 구현·spec 정정이 한 PR 로 묶이므로 별도 drift 기간 없음.
