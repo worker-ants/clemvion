@@ -109,7 +109,7 @@ export function SlideDrawer({
           // out of focus/AT, omit (undefined → attribute absent) otherwise.
           inert={!open || undefined}
           className={cn(
-            "fixed top-0 z-50 h-full w-full max-w-lg transform border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-xl transition-transform duration-300 ease-in-out",
+            "fixed top-0 z-50 flex h-full w-full max-w-lg transform flex-col border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-xl transition-transform duration-300 ease-in-out",
             isLeft ? "left-0 border-r" : "right-0 border-l",
             open
               ? "translate-x-0"
@@ -118,8 +118,9 @@ export function SlideDrawer({
                 : "translate-x-full",
           )}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-6 py-4">
+          {/* Header — flex shrink-0 으로 자연스러운 자기 높이 유지. content 는
+              flex-1 로 남는 공간 점유 (이전의 calc(100% - 65px) 매직 넘버 제거). */}
+          <div className="flex shrink-0 items-center justify-between border-b border-[hsl(var(--border))] px-6 py-4">
             <h2 id={titleId} className="text-lg font-semibold">
               {title}
             </h2>
@@ -134,9 +135,7 @@ export function SlideDrawer({
           </div>
 
           {/* Content */}
-          <div className="h-[calc(100%-65px)] overflow-y-auto p-6">
-            {children}
-          </div>
+          <div className="flex-1 overflow-y-auto p-6">{children}</div>
         </div>
       </FocusScope>
     </>
