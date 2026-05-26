@@ -1,6 +1,5 @@
 "use client";
 
-import { type ReactNode } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -45,8 +44,12 @@ interface ModelSelectFieldProps {
   /**
    * Option 렌더링을 호출자가 커스터마이즈하고 싶을 때. 미지정 시 기본 포맷
    * (`name (id)` 또는 `id`) 사용.
+   *
+   * **반드시 string 을 반환해야 한다.** `<option>` 태그는 HTML 표준상 텍스트
+   * 컨텐츠만 허용하므로 JSX 요소를 반환하면 브라우저가 마크업을 무시하거나
+   * 렌더링이 깨진다. `dangerouslySetInnerHTML` 사용 금지.
    */
-  renderOption?: (m: ModelInfo) => ReactNode;
+  renderOption?: (m: ModelInfo) => string;
 }
 
 function defaultOptionLabel(m: ModelInfo): string {
@@ -81,10 +84,16 @@ export function ModelSelectField({
   // 본 resetKey 범위에서 로드를 시도했으나 반환된 모델이 0건인 상태.
   // useMutation.isSuccess 대신 hasAttemptedLoad 로 판단해 resetKey 변경 시
   // 즉시 "모델 없음" 메시지가 잘못 표시되는 버그를 방지한다 (PR review SUMMARY #1).
-  const isEmpty = !errorMessage && hasAttemptedLoad && !hasLoadedModels;
+  // !isPending 추가: 재시도 시작 시 onMutate 에서 errorMessage=null, hasAttemptedLoad=true 가
+  // 되어 pending 중에 isEmpty=true 가 되는 플리커를 방지한다 (review WARNING #6).
+  const isEmpty = !errorMessage && hasAttemptedLoad && !hasLoadedModels && !isPending;
   const savedValueMissingFromLoaded =
     value !== "" && !models.some((m) => m.id === value);
   const selectDisabled = disabled || !hasLoadedModels;
+  // 버튼 aria-label 과 텍스트 span 에서 동일 삼항이 반복되는 것을 방지 (INFO #17).
+  const loadLabel = isPending
+    ? t("llmConfigs.loadingModels")
+    : t("llmConfigs.loadModels");
 
   return (
     <div className="flex flex-col gap-1">
@@ -114,11 +123,7 @@ export function ModelSelectField({
           variant="outline"
           onClick={load}
           disabled={disabled || !canLoad || isPending}
-          aria-label={
-            isPending
-              ? t("llmConfigs.loadingModels")
-              : t("llmConfigs.loadModels")
-          }
+          aria-label={loadLabel}
           data-testid={`${testIdPrefix}-load`}
         >
           {isPending ? (
@@ -127,9 +132,7 @@ export function ModelSelectField({
             <RefreshCw className="h-4 w-4" />
           )}
           <span className="ml-1.5 text-xs">
-            {isPending
-              ? t("llmConfigs.loadingModels")
-              : t("llmConfigs.loadModels")}
+            {loadLabel}
           </span>
         </Button>
       </div>

@@ -2,7 +2,7 @@ import { apiClient } from "./client";
 import { unwrap } from "./unwrap";
 
 /**
- * React Query key for `llmConfigsApi.getAll()`. Shared across components
+ * React Query key for `llmConfigsApi.list()`. Shared across components
  * (canvas pre-fill, selector dropdown, custom-node summary) so that a single
  * fetch is reused via the query cache.
  */
@@ -39,9 +39,13 @@ export const llmConfigsApi = {
    * array (selector dropdowns, default-config lookup). Paginated views should
    * keep calling `getAll(params)` and pass the raw response to
    * `normalizePagedResponse`.
+   *
+   * Calls `apiClient.get` directly (does not call `getAll()`) to avoid sharing
+   * the React Query cache key with paginated `getAll(params)` calls that use
+   * different parameters (review WARNING #7 — cache key collision prevention).
    */
   async list(): Promise<LlmConfigData[]> {
-    const raw = await llmConfigsApi.getAll();
+    const { data: raw } = await apiClient.get("/llm-configs");
     const enveloped = (raw as { data?: LlmConfigData[] } | undefined)?.data;
     if (Array.isArray(enveloped)) return enveloped;
     if (Array.isArray(raw)) return raw as LlmConfigData[];

@@ -79,6 +79,9 @@ describe("llmConfigsApi", () => {
         },
       });
       const result = await llmConfigsApi.list();
+      // INFO #13: list() must call apiClient.get("/llm-configs") directly,
+      // not getAll(), to avoid React Query cache key collision with paginated calls.
+      expect(apiClient.get).toHaveBeenCalledWith("/llm-configs");
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe("c1");
     });
@@ -88,6 +91,7 @@ describe("llmConfigsApi", () => {
         data: [{ id: "c1", isDefault: true }],
       });
       const result = await llmConfigsApi.list();
+      expect(apiClient.get).toHaveBeenCalledWith("/llm-configs");
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe("c1");
     });
@@ -95,6 +99,7 @@ describe("llmConfigsApi", () => {
     it("returns an empty array when the response is neither shape", async () => {
       vi.mocked(apiClient.get).mockResolvedValue({ data: null });
       const result = await llmConfigsApi.list();
+      expect(apiClient.get).toHaveBeenCalledWith("/llm-configs");
       expect(result).toEqual([]);
     });
   });

@@ -71,6 +71,8 @@ export function useEmbeddingModelLoader({
       setModels(data);
     },
     onError: (err: unknown) => {
+      // 재시도 실패 시 이전에 로드된 모델 목록은 유지해 사용자 선택 컨텍스트를 보존.
+      // setModels([]) 를 호출하지 않으므로 기존 목록이 그대로 남는다.
       setErrorMessage(sanitizeLoaderError(err, fallbackErrorMessage));
     },
   });

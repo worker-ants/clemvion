@@ -12,8 +12,8 @@ vi.mock("@/lib/api/llm-configs", async () => {
   return {
     ...actual,
     llmConfigsApi: {
-      // selector 가 호출하는 `list()` 만 mock 하면 충분. 내부적으로 `getAll()` 을
-      // 한 번 더 호출하는 정규화 헬퍼이므로 둘 다 mock 해도 되나 단순성 위해 분리.
+      // selector 는 `list()` 만 호출한다. `list()` 는 내부 구현 세부사항(apiClient.get
+      // 직접 호출)을 캡슐화하므로 테스트에서는 `list` 만 mock 하면 충분하다.
       list: vi.fn(),
     },
   };

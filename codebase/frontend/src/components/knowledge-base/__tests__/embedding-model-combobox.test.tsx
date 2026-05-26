@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { EmbeddingModelCombobox } from "../embedding-model-combobox";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
+import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
 
 vi.mock("@/lib/api/llm-configs", () => ({
   llmConfigsApi: {
@@ -31,15 +31,23 @@ function optionValues(): string[] {
   return Array.from(getSelect().options).map((o) => o.value);
 }
 
-const DEFAULT_CONFIG = {
+// INFO #14: Use a complete LlmConfigData shape to avoid `as never` type coercion.
+const DEFAULT_CONFIG: LlmConfigData = {
   id: "default-cfg",
+  provider: "openai",
+  name: "Default Config",
+  apiKey: "***",
+  defaultModel: "gpt-4o",
+  defaultParams: {},
   isDefault: true,
+  createdAt: "2026-01-01T00:00:00Z",
+  updatedAt: "2026-01-01T00:00:00Z",
 };
 
 describe("EmbeddingModelCombobox", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(llmConfigsApi.list).mockResolvedValue([DEFAULT_CONFIG] as never);
+    vi.mocked(llmConfigsApi.list).mockResolvedValue([DEFAULT_CONFIG]);
   });
 
   it("renders a disabled select before models are loaded (no free input)", async () => {
