@@ -1,9 +1,9 @@
 "use client";
 
-import { useId, useMemo } from "react";
+import { useMemo } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n";
 import { useModelLoader } from "./use-model-loader";
 
@@ -38,7 +38,6 @@ export function ModelCombobox({
   disabled,
 }: ModelComboboxProps) {
   const t = useT();
-  const datalistId = useId();
 
   const { models, errorMessage, isPending, isSuccess, canLoad, load } =
     useModelLoader({
@@ -54,19 +53,39 @@ export function ModelCombobox({
     [models],
   );
 
+  const hasLoadedModels = chatModels.length > 0;
   const isEmpty = !errorMessage && isSuccess && chatModels.length === 0;
+  // 편집 흐름: 저장된 모델 ID 가 새로 불러온 목록에 없을 때 placeholder option 으로 유지.
+  // 사용자가 명시적으로 다른 option 을 고르기 전까지는 저장값이 변경되지 않도록 보존.
+  const savedValueMissingFromLoaded =
+    value !== "" && !chatModels.some((m) => m.id === value);
+  const selectDisabled = disabled || !hasLoadedModels;
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex gap-2">
-        <Input
-          list={datalistId}
+        <NativeSelect
+          data-testid="model-combobox-select"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          disabled={disabled}
-          aria-autocomplete="list"
-        />
+          disabled={selectDisabled}
+        >
+          {!value && (
+            <option value="" disabled>
+              {placeholder ?? t("llmConfigs.modelPlaceholder")}
+            </option>
+          )}
+          {savedValueMissingFromLoaded && (
+            <option value={value}>
+              {t("llmConfigs.modelSavedFallback", { model: value })}
+            </option>
+          )}
+          {chatModels.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name && m.name !== m.id ? `${m.name} (${m.id})` : m.id}
+            </option>
+          ))}
+        </NativeSelect>
         <Button
           type="button"
           variant="outline"
@@ -87,18 +106,15 @@ export function ModelCombobox({
           </span>
         </Button>
       </div>
-      <datalist id={datalistId}>
-        {chatModels.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name && m.name !== m.id ? m.name : undefined}
-          </option>
-        ))}
-      </datalist>
       {errorMessage ? (
         <p className="text-xs text-[hsl(var(--destructive))]">{errorMessage}</p>
       ) : isEmpty ? (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
           {t("llmConfigs.noModelsFound")}
+        </p>
+      ) : !hasLoadedModels ? (
+        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+          {t("llmConfigs.modelLoadRequired")}
         </p>
       ) : (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
