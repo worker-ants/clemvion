@@ -24,7 +24,10 @@ interface SlideDrawerProps {
  * `body.style.overflow` 를 복원한다 — 단일 boolean 정책은 두 drawer 가
  * 중첩 됐다가 하나만 먼저 닫힐 때 다른 drawer 의 body lock 을 무효화하는
  * race 를 일으킴 (review W-14).
+ *
+ * 클라이언트 전용 모듈-레벨 변수. SSR 환경으로 이동 금지 (`document` 접근 포함).
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 테스트에서 __resetForTesting 으로 접근
 let openDrawerCount = 0;
 
 function lockBodyScroll(): void {
@@ -39,6 +42,16 @@ function unlockBodyScroll(): void {
   if (openDrawerCount === 0) {
     document.body.style.overflow = "";
   }
+}
+
+/**
+ * 테스트 전용 — `openDrawerCount` 를 0 으로 리셋해 테스트 간 카운터 오염을 방지.
+ * 프로덕션 코드에서 호출 금지.
+ * @internal
+ */
+export function __resetForTesting(): void {
+  openDrawerCount = 0;
+  document.body.style.overflow = "";
 }
 
 export function SlideDrawer({

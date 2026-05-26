@@ -1,10 +1,11 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
-import { SlideDrawer } from "../slide-drawer";
+import { SlideDrawer, __resetForTesting } from "../slide-drawer";
 
 afterEach(() => {
   cleanup();
-  document.body.style.overflow = "";
+  // W-10: openDrawerCount 리셋 — 테스트 간 카운터 오염 방지.
+  __resetForTesting();
 });
 
 // 닫힌 상태일 때 panel 에 `aria-hidden=true` + `inert` 가 붙어 RTL 기본 query 가
@@ -99,5 +100,92 @@ describe("SlideDrawer", () => {
     );
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // W-4: overlay 클릭 / 닫기 버튼 클릭 → onClose 호출
+  it("overlay 클릭 시 onClose 가 호출돼요 (W-4)", () => {
+    const onClose = vi.fn();
+    const { container } = render(
+      <SlideDrawer open onClose={onClose} title="T">
+        body
+      </SlideDrawer>,
+    );
+    // Overlay 는 panel 바로 앞의 fixed div (aria role 없음, bg-black/50).
+    // querySelector 로 fixed inset-0 overlay 를 찾아 클릭.
+    const overlay = container.querySelector(".fixed.inset-0");
+    expect(overlay).not.toBeNull();
+    fireEvent.click(overlay!);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("닫기(X) 버튼 클릭 시 onClose 가 호출돼요 (W-4)", () => {
+    const onClose = vi.fn();
+    render(
+      <SlideDrawer open onClose={onClose} title="T">
+        body
+      </SlideDrawer>,
+    );
+    // 테스트 locale 은 ko 기본값 — aria-label 은 "닫기" (common.close).
+    // 영문 매칭을 피하기 위해 한국어 패턴 사용.
+    const closeBtn = screen.getByRole("button", { name: /닫기/ });
+    fireEvent.click(closeBtn);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // W-3: body scroll lock — 열림 시 overflow hidden, 닫힘 시 복원, 중첩 시나리오
+  it("열릴 때 body scroll 이 잠기고 닫힐 때 복원돼요 (W-3)", () => {
+    const { rerender } = render(
+      <SlideDrawer open={false} onClose={() => {}} title="T">
+        body
+      </SlideDrawer>,
+    );
+    expect(document.body.style.overflow).toBe("");
+
+    rerender(
+      <SlideDrawer open onClose={() => {}} title="T">
+        body
+      </SlideDrawer>,
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+
+    rerender(
+      <SlideDrawer open={false} onClose={() => {}} title="T">
+        body
+      </SlideDrawer>,
+    );
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("두 drawer 가 중첩될 때 첫 번째가 닫혀도 scroll lock 이 유지돼요 (W-3 중첩 시나리오)", () => {
+    const { rerender: rerender1, unmount: unmount1 } = render(
+      <SlideDrawer open onClose={() => {}} title="T1">
+        body1
+      </SlideDrawer>,
+    );
+    const { rerender: rerender2 } = render(
+      <SlideDrawer open onClose={() => {}} title="T2">
+        body2
+      </SlideDrawer>,
+    );
+    // 두 drawer 모두 열려있는 상태 → lock 유지
+    expect(document.body.style.overflow).toBe("hidden");
+
+    // 첫 번째 닫힘 — 두 번째가 아직 열려있으므로 lock 유지
+    rerender1(
+      <SlideDrawer open={false} onClose={() => {}} title="T1">
+        body1
+      </SlideDrawer>,
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+
+    // 두 번째도 닫힘 → lock 해제
+    rerender2(
+      <SlideDrawer open={false} onClose={() => {}} title="T2">
+        body2
+      </SlideDrawer>,
+    );
+    expect(document.body.style.overflow).toBe("");
+
+    unmount1();
   });
 });

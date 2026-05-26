@@ -7,9 +7,9 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import type { DocsSection } from "@/lib/docs/registry";
-import type { DocsSearchEntry } from "@/lib/docs/registry";
+import type { DocsSection, DocsSearchEntry } from "@/lib/docs/registry";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { __resetForTesting } from "@/components/ui/slide-drawer";
 
 // pathname 을 테스트 안에서 동적으로 바꿀 수 있도록 mutable 변수에 위임.
 // `localizedDocsHref` 가 locale prefix 를 붙이므로 활성 페이지 매칭은 prefix 포함.
@@ -93,7 +93,8 @@ describe("DocsMobileSidebar", () => {
 
   afterEach(() => {
     cleanup();
-    document.body.style.overflow = "";
+    // W-10: openDrawerCount 리셋 — 테스트 간 카운터 오염 방지.
+    __resetForTesting();
     useLocaleStore.setState({ locale: "ko" });
   });
 
@@ -163,9 +164,12 @@ describe("DocsMobileSidebar", () => {
   });
 
   it("drawer 가 열릴 때 활성 페이지 항목에 대해 scrollIntoView 가 호출돼요", async () => {
-    const scrollSpy = vi.fn();
-    // 모든 Element 의 scrollIntoView 를 spy. drawer 안 활성 link 가 호출 대상.
-    Element.prototype.scrollIntoView = scrollSpy;
+    // jsdom 은 scrollIntoView 를 구현하지 않으므로 먼저 noop 으로 정의한 뒤
+    // vi.spyOn 으로 spy — afterEach 시 vitest 가 자동 복원해 전역 오염을 방지(W-9).
+    if (!Element.prototype.scrollIntoView) {
+      Element.prototype.scrollIntoView = () => {};
+    }
+    const scrollSpy = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
     render(
       <DocsMobileSidebar
         sections={sections}
@@ -175,5 +179,41 @@ describe("DocsMobileSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: /가이드 목차/ }));
     // setTimeout(0) 으로 next tick 에 scroll — waitFor 로 flush 대기.
     await waitFor(() => expect(scrollSpy).toHaveBeenCalled());
+  });
+
+  it("토글 버튼의 aria-expanded 가 열림/닫힘 상태를 정확히 반영해요 (W-5)", () => {
+    render(
+      <DocsMobileSidebar
+        sections={sections}
+        entriesByLocale={entriesByLocale}
+      />,
+    );
+    const toggle = screen.getByRole("button", { name: /가이드 목차/ });
+    // 초기 상태 — 닫혀 있어야 함
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    // 클릭 → 열림
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    // 재클릭 → 닫힘 (W-11: 토글 동작 검증)
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("매칭 페이지가 없는 경로에서는 섹션·페이지 라벨이 표시되지 않아요 (W-6)", () => {
+    currentPathname = "/docs/ko/unknown-page";
+    render(
+      <DocsMobileSidebar
+        sections={sections}
+        entriesByLocale={entriesByLocale}
+      />,
+    );
+    const toggle = screen.getByRole("button", { name: /가이드 목차/ });
+    // 섹션/페이지 라벨이 없으므로 ChevronRight 분기가 렌더되지 않아야 함
+    expect(toggle.textContent).not.toContain("노드 가이드");
+    expect(toggle.textContent).not.toContain("AI 노드");
+    expect(toggle.textContent).not.toContain("시작하기");
+    expect(toggle.textContent).not.toContain("제품 소개");
   });
 });

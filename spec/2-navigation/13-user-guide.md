@@ -2,6 +2,8 @@
 id: user-guide
 status: spec-only
 code: []
+pending_plans:
+  - plan/in-progress/spec-update-user-guide-mobile.md
 ---
 
 # Spec: User Guide (`/docs`)

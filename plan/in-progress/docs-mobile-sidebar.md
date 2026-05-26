@@ -24,28 +24,31 @@ owner: developer
 
 ## 작업 체크리스트
 
-- [ ] `SlideDrawer` 에 `side?: "left" | "right"` (default `"right"`) prop 추가, CSS 분기 (`left-0` ↔ `right-0`, `-translate-x-full` ↔ `translate-x-full`, `border-r` ↔ `border-l`) 분기.
-- [ ] 기존 SlideDrawer 호출처 2곳(`authentication/page.tsx`, `trigger-detail-drawer.tsx`) 동작 무변경 단위 테스트로 회귀 보장.
-- [ ] 신규 client 컴포넌트 `codebase/frontend/src/components/docs/docs-mobile-sidebar.tsx`:
-  - 상단 sticky bar (햄버거 아이콘 + 현재 섹션·페이지 라벨)
-  - 토글 시 `SlideDrawer side="left"` 안에 `DocsSearch` + `DocsSidebar` 표시
-  - drawer 안 현재 활성 페이지로 `scrollIntoView({ block: "center" })` (열림 시·drawer 안 ref)
-  - `usePathname` 변경 시 `setOpen(false)` 자동 close
-  - 사용자 가시 문자열은 `t("docs.mobileSidebarToggle")` / `t("docs.mobileSidebarTitle")` 경유 (TSX 하드코딩 금지)
-- [ ] `codebase/frontend/src/app/(main)/docs/layout.tsx`:
-  - 기존 `<aside className="hidden ... lg:block">` 유지 (데스크탑 동작 무변경)
-  - 그 위 또는 article 안에 `<DocsMobileSidebar sections=... entriesByLocale=... />` 를 `lg:hidden` 으로 추가
-- [ ] i18n KO/EN 양쪽 동시 추가 (parity):
-  - `dict/ko/docs.ts`: `mobileSidebarToggle: "가이드 목차"`, `mobileSidebarTitle: "사용자 가이드"`
-  - `dict/en/docs.ts`: `mobileSidebarToggle: "Guide contents"`, `mobileSidebarTitle: "User Guide"`
-- [ ] TDD: 단위 테스트 선작성
-  - SlideDrawer side="left" 시 left-0 / -translate-x-full 클래스 적용
-  - SlideDrawer 기본값(=right) 동작 회귀 없음
-  - DocsMobileSidebar 토글 라벨에 현재 섹션·페이지 라벨이 나타남
-  - 열림 → pathname 변경 → 자동 close
-  - 활성 항목 scrollIntoView 호출 (mock)
-- [ ] TEST WORKFLOW: lint → unit → build → e2e (e2e: 본 변경은 UI 진입만, e2e 보호 영역은 가이드 라우팅 — 화이트리스트 후보 검토)
-- [ ] /ai-review 통과 + 필요 시 resolution-applier 처리
+- [x] `SlideDrawer` 에 `side?: "left" | "right"` (default `"right"`) prop 추가, CSS 분기 (`left-0` ↔ `right-0`, `-translate-x-full` ↔ `translate-x-full`, `border-r` ↔ `border-l`) 분기.
+- [x] 기존 SlideDrawer 호출처 2곳(`authentication/page.tsx`, `trigger-detail-drawer.tsx`) 동작 무변경 단위 테스트로 회귀 보장.
+- [x] 신규 client 컴포넌트 `codebase/frontend/src/components/docs/docs-mobile-sidebar.tsx`:
+  - [x] 상단 sticky bar (햄버거 아이콘 + 현재 섹션·페이지 라벨)
+  - [x] 토글 시 `SlideDrawer side="left"` 안에 `DocsSearch` + `DocsSidebar` 표시
+  - [x] drawer 안 현재 활성 페이지로 `scrollIntoView({ block: "center" })` (열림 시·drawer 안 ref)
+  - [x] anchor 클릭 시 자동 close (click capture — react-compiler 규약 준수. pathname useEffect 방식은 규약 위반)
+  - [x] 사용자 가시 문자열은 `t("docs.mobileSidebarToggle")` / `t("docs.mobileSidebarTitle")` 경유 (TSX 하드코딩 금지)
+- [x] `codebase/frontend/src/app/(main)/docs/layout.tsx`:
+  - [x] 기존 `<aside className="hidden ... lg:block">` 유지 (데스크탑 동작 무변경)
+  - [x] article 안에 `<DocsMobileSidebar sections=... entriesByLocale=... />` 를 `lg:hidden` 으로 추가
+- [x] i18n KO/EN 양쪽 동시 추가 (parity):
+  - [x] `dict/ko/docs.ts`: `mobileSidebarToggle: "가이드 목차"`, `mobileSidebarTitle: "사용자 가이드"`
+  - [x] `dict/en/docs.ts`: `mobileSidebarToggle: "Guide contents"`, `mobileSidebarTitle: "User Guide"`
+- [x] TDD: 단위 테스트 작성
+  - [x] SlideDrawer side="left" 시 left-0 / -translate-x-full 클래스 적용
+  - [x] SlideDrawer 기본값(=right) 동작 회귀 없음
+  - [x] DocsMobileSidebar 토글 라벨에 현재 섹션·페이지 라벨이 나타남
+  - [x] 활성 항목 scrollIntoView 호출 (vi.spyOn mock — 자동 복원)
+  - [x] aria-expanded 열림/닫힘 상태 반영 + 재클릭 토글 동작 검증
+  - [x] 매칭 없는 경로 엣지케이스 (섹션/페이지 라벨 미표시)
+  - [x] body scroll lock / overlay 클릭 / 닫기 버튼 클릭 테스트 추가
+  - [ ] 열림 → pathname 변경 → 자동 close (react-compiler 규약으로 click capture 방식 채택, pathname useEffect 미구현 — JSDoc 으로 의도 명시 완료)
+- [x] TEST WORKFLOW: lint → unit → build → e2e 통과
+- [x] /ai-review 통과 + resolution-applier 처리
 
 ## 사전 일관성 검토 (BLOCK: NO)
 

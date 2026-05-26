@@ -16,7 +16,9 @@ import { useLocale, useT } from "@/lib/i18n";
 import { type Locale } from "@/lib/i18n/types";
 
 interface DocsMobileSidebarProps {
+  /** 가이드 트리의 섹션 목록. `DocsSidebar` 와 현재 페이지 매칭에 모두 사용. */
   sections: DocsSection[];
+  /** 로케일별 검색 인덱스. `DocsSearch` 에 그대로 전달. */
   entriesByLocale: Record<Locale, DocsSearchEntry[]>;
 }
 
@@ -27,7 +29,8 @@ interface DocsMobileSidebarProps {
  * 좌측 `SlideDrawer` 안에 동일한 `DocsSidebar` + `DocsSearch` 를 재사용해 띄운다.
  *
  * 부수 동작:
- *  - `usePathname` 변경 시 자동 close (페이지 이동 후 drawer 가 남는 회귀 방지)
+ *  - anchor 클릭 시 자동 close (click capture — react-compiler 의 setState-in-effect
+ *    규약 준수. useEffect 로 pathname 을 추적하면 규약 위반이라 click capture 방식 채택)
  *  - 열림 시 활성 페이지 항목으로 `scrollIntoView({ block: "center" })` —
  *    긴 가이드 트리에서 사용자가 자신의 현재 위치를 한 번에 확인 가능
  */
@@ -75,7 +78,7 @@ export function DocsMobileSidebar({
     <div className="lg:hidden">
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen((prev) => !prev)}
         aria-label={toggleLabel}
         aria-expanded={open}
         className="sticky top-0 z-30 -mx-4 flex w-[calc(100%+2rem)] items-center gap-2 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 px-4 py-2.5 text-sm backdrop-blur supports-[backdrop-filter]:bg-[hsl(var(--background))]/80"
