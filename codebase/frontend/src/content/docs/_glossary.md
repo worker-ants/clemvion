@@ -70,3 +70,7 @@
 | "인풋" | "입력" |
 | "서브미션" | "제출" |
 | "옵션 값을 넣어주세요" 류 수동태 | "···을 입력해요" 능동태 |
+| `spec/...` · `/spec/...` 경로, `plan/in-progress/...` · `plan/complete/...` 경로 (본문 내) | 같은 사실을 사용자 가시 표현으로 다시 적어요. frontmatter 의 `spec:` 필드는 빌드 검증용 metadata 라 별개. (가드: `no-internal-refs.test.ts`) |
+| 내부 식별자 `CCH-XX-NN` · `R-XX-N` 등 | 사용자에게 의미 있는 동작 설명으로 풀어 적어요. |
+| i18n 매핑 테이블 이름 (`ERROR_KO`·`WARNING_KO`·`LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO`·`OPTION_LABEL_KO`), 매핑 파일명 (`backend-labels.ts`) | 매핑은 내부 구현이라 사용자 안내에 등장할 이유가 없어요. 동작/한계만 서술. |
+| "v2 (후속)" · "v2 (planned)" · "향후 ~ 예정" · "별 plan `<name>`" · "별도 plan" · "separate plan" · "후속 PR" 등 로드맵성 문구 | 현재 동작 상태만 서술. 변경이 합쳐지면 그 시점에 같은 PR 에서 본문을 갱신. |

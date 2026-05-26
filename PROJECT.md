@@ -201,6 +201,8 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - **KO/EN sibling 한쪽만 갱신** — `.mdx` 갱신 시 `.en.mdx` 동시 갱신 default. 한쪽 누락은 사후 보정 패턴. (단 `.en.mdx` 신규 생성 누락은 위반 아님 — `spec/conventions/i18n-userguide.md §Rationale`)
 - **frontmatter `spec:` / `code:` 경로 stale** — `registry.test.ts` 가 hard fail 가드. 작성 시점에 Glob 으로 실존 검증
 - **내부 `/docs/<section>/<slug>` 링크 slug 미실존** — 다른 `.mdx` 의 path 와 매치 필요. 로케일 프리픽스 없이 작성 (`mdx-components.tsx` 의 DocsLink 가 주입)
+- **내부 SoT(`spec/`·`plan/`·내부 식별자·매핑 테이블) 본문 노출** — 사용자가 열람할 수 없는 `spec/<area>/...`·`/spec/...` 경로, `plan/in-progress/`·`plan/complete/` 경로, "별 plan `<name>`"·"separate plan" 표현, `CCH-XX-NN`·`R-XX-N` 같은 내부 anchor id, `ERROR_KO`·`WARNING_KO`·`LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO`·`OPTION_LABEL_KO` 같은 i18n 매핑 테이블 이름, `backend-labels.ts` 같은 내부 파일명을 본문에 적지 않는다. frontmatter 의 `spec:`/`code:` 필드는 빌드 검증용 metadata 라 렌더링되지 않으므로 별개 — 본문에는 같은 사실을 사용자 가시 표현으로 다시 적는다. (PR #332 회수 패턴, 가드: `no-internal-refs.test.ts`)
+- **향후 진행 예정 사항 언급** — "v2 (후속)"·"v2 (planned)"·"향후 ~ 예정"·"별 plan 진입 후" 같은 로드맵성 문구를 사용자 가이드에 적지 않는다. 사용자 가이드는 **현재 동작하는 상태** 만 서술한다. 변경이 합쳐지면 그 시점에 같은 PR 에서 가이드 본문을 갱신한다. (PR #332 회수 패턴, 자동 검출 어려움 — `user-guide-writer` agent 가 작성 시점에 차단)
 
 #### user-guide-writer 자가 검증 체크리스트 (배포 전)
 
@@ -215,6 +217,8 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] KO/EN 변경 set 의 파일 쌍 대응이 맞는가
 - [ ] Callout `type` ∈ `{note, tip, warn}` 인가
 - [ ] **GUI 흐름 절 (예: "1. 좌측 메뉴 → Triggers 클릭")** 에 `<ImplAnchor kind="ui-entry">` 가 동반 작성됐는가? `file`/`symbol` 이 코드에 실존하는가? (SoT: [`spec/conventions/user-guide-evidence.md`](../../spec/conventions/user-guide-evidence.md). 가드: `impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts`)
+- [ ] 본문에 내부 SoT (`spec/`·`plan/in-progress|complete/` 경로, `CCH-XX-NN`·`R-XX-N` 같은 내부 식별자, `ERROR_KO`·`backend-labels.ts` 같은 매핑 테이블·파일 이름) 가 노출되지 않는가? (가드: `no-internal-refs.test.ts`)
+- [ ] "v2 (후속)"·"향후 ~ 예정"·"별 plan ..." 같은 향후 진행 예정 표현이 본문에 없는가? 현재 동작 상태 서술로 통일됐는가?
 
 ### i18n dict 파일 컨벤션
 
@@ -240,6 +244,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/impl-anchor-existence.test.ts` — 모든 `<ImplAnchor>` 의 `file` 실존 + `symbol` grep ≥1 매치. SoT: `spec/conventions/user-guide-evidence.md §2`
 - `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts` — `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts` — `02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
+- `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) Principle 6
 
 이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) · [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) · [`spec/conventions/user-guide-evidence.md`](spec/conventions/user-guide-evidence.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
 
