@@ -7,7 +7,7 @@ import { llmConfigsApi } from "@/lib/api/llm-configs";
 
 vi.mock("@/lib/api/llm-configs", () => ({
   llmConfigsApi: {
-    getAll: vi.fn(),
+    list: vi.fn(),
     listModels: vi.fn(),
   },
 }));
@@ -39,9 +39,7 @@ const DEFAULT_CONFIG = {
 describe("EmbeddingModelCombobox", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(llmConfigsApi.getAll).mockResolvedValue({
-      data: [DEFAULT_CONFIG],
-    });
+    vi.mocked(llmConfigsApi.list).mockResolvedValue([DEFAULT_CONFIG] as never);
   });
 
   it("renders a disabled select before models are loaded (no free input)", async () => {
@@ -250,9 +248,9 @@ describe("EmbeddingModelCombobox", () => {
     expect(getSelect()).toBeDisabled();
   });
 
-  // SUMMARY#5: getAll 결과가 빈 배열 → effectiveConfigId=undefined → 버튼 비활성
-  it("disables the load button when getAll returns no configs (canLoad=false)", async () => {
-    vi.mocked(llmConfigsApi.getAll).mockResolvedValue({ data: [] });
+  // SUMMARY#5: list 결과가 빈 배열 → effectiveConfigId=undefined → 버튼 비활성
+  it("disables the load button when list returns no configs (canLoad=false)", async () => {
+    vi.mocked(llmConfigsApi.list).mockResolvedValue([]);
 
     wrap(<EmbeddingModelCombobox value="" onChange={vi.fn()} />);
 
@@ -262,9 +260,9 @@ describe("EmbeddingModelCombobox", () => {
     expect(getSelect()).toBeDisabled();
   });
 
-  // SUMMARY#6: getAll API 실패 시 버튼 비활성 유지
-  it("disables the load button when getAll API fails", async () => {
-    vi.mocked(llmConfigsApi.getAll).mockRejectedValue(new Error("network"));
+  // SUMMARY#6: list API 실패 시 버튼 비활성 유지
+  it("disables the load button when list API fails", async () => {
+    vi.mocked(llmConfigsApi.list).mockRejectedValue(new Error("network"));
 
     wrap(<EmbeddingModelCombobox value="" onChange={vi.fn()} />);
 

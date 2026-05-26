@@ -1,7 +1,10 @@
 ---
 worktree: llm-model-select-4857c3
 started: 2026-05-26
+completed: 2026-05-26
 owner: developer
+followup_plans:
+  - plan/in-progress/llm-model-select-followup-refactor.md
 ---
 
 # LLM 설정 / 임베딩 모델 선택 — select-only 전환
@@ -61,3 +64,24 @@ lint → unit (frontend) → build (frontend) → e2e (LLM 설정·KB 설정 흐
 
 ## REVIEW 계획
 `/ai-review` 호출 후 SUMMARY 처리.
+
+---
+
+## 결과 (2026-05-26 완료)
+
+- spec: `6-config.md §B.2` + Rationale R-1 / `5-knowledge-base.md §2.2` + Rationale R-1 (cross-ref) / `8-embedding-pipeline.md L322` 동기화 — commit `0c3f40a8`.
+- 구현: `ModelCombobox` + `EmbeddingModelCombobox` 가 `NativeSelect` 기반으로 전환, 편집 흐름 호환 placeholder option, 자동 fetch 제거 후 명시 "모델 불러오기" 버튼 트리거 — commit `ae292fb6`.
+- 사전 일관성 검토 — `review/consistency/2026/05/26/10_59_37` (BLOCK: NO).
+- 코드 리뷰 — `review/code/2026/05/26/11_30_56`. SUMMARY Critical 0, WARNING 12건 + INFO 다수.
+- 리뷰 후속 조치:
+  - SUMMARY #1 (isSuccess stale 버그) — `hasAttemptedLoad` state 도입 — commit `3122d752`.
+  - SUMMARY #10 (서버 에러 메시지 무제한 노출) — 200자 상한 적용 — commit `3122d752`.
+  - SUMMARY #12 (aria-label pending 불일치) — pending 시 동적 변경 — commit `3122d752` + `model-combobox.tsx` 후속 hand-fix.
+  - SUMMARY #2-7 / #9 (테스트 커버리지) — `use-model-loader.test.tsx` 에 retry/pending/stale 케이스 복원, `embedding-model-combobox.test.tsx` 에 empty/getAll-fail/filter 케이스 추가 — commit `574447a0`.
+  - INFO 항목 (plan worktree frontmatter, use-model-loader 주석 datalist 잔류 등) — commit `3122d752` 에 포함.
+- 보류 항목 (`plan/in-progress/llm-model-select-followup-refactor.md`):
+  - SUMMARY #8 — `useEmbeddingModelLoader` 훅 추출 (구조적 비대칭).
+  - SUMMARY #11 — 공통 JSX 패턴 추출.
+  - architecture INFO — `EmbeddingModelCombobox` API 응답 정규화 레이어 이동.
+- TEST WORKFLOW: lint PASS / unit 4944 PASS / build PASS / e2e 123 PASS (resolution-applier 재수행).
+- RESOLUTION.md: `review/code/2026/05/26/11_30_56/RESOLUTION.md`.

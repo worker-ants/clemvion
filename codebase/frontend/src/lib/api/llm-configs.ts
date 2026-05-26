@@ -33,6 +33,21 @@ export const llmConfigsApi = {
     return data;
   },
 
+  /**
+   * Returns the full LLM config list as a flat `LlmConfigData[]`, normalizing
+   * the `{ data: [...] }` envelope. Use this in components that only need the
+   * array (selector dropdowns, default-config lookup). Paginated views should
+   * keep calling `getAll(params)` and pass the raw response to
+   * `normalizePagedResponse`.
+   */
+  async list(): Promise<LlmConfigData[]> {
+    const raw = await llmConfigsApi.getAll();
+    const enveloped = (raw as { data?: LlmConfigData[] } | undefined)?.data;
+    if (Array.isArray(enveloped)) return enveloped;
+    if (Array.isArray(raw)) return raw as LlmConfigData[];
+    return [];
+  },
+
   async getById(id: string) {
     const { data } = await apiClient.get(`/llm-configs/${id}`);
     return data;

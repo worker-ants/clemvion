@@ -68,6 +68,37 @@ describe("llmConfigsApi", () => {
     });
   });
 
+  describe("list", () => {
+    it("normalizes the {data: LlmConfigData[]} envelope to a flat array", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue({
+        data: {
+          data: [
+            { id: "c1", isDefault: true },
+            { id: "c2", isDefault: false },
+          ],
+        },
+      });
+      const result = await llmConfigsApi.list();
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe("c1");
+    });
+
+    it("returns the body itself when not enveloped (dual-shape contract)", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue({
+        data: [{ id: "c1", isDefault: true }],
+      });
+      const result = await llmConfigsApi.list();
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe("c1");
+    });
+
+    it("returns an empty array when the response is neither shape", async () => {
+      vi.mocked(apiClient.get).mockResolvedValue({ data: null });
+      const result = await llmConfigsApi.list();
+      expect(result).toEqual([]);
+    });
+  });
+
   describe("previewModels", () => {
     it("posts provider/apiKey/baseUrl and unwraps the envelope", async () => {
       vi.mocked(apiClient.post).mockResolvedValue({

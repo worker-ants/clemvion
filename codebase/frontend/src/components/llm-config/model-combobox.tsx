@@ -1,11 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { Loader2, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { NativeSelect } from "@/components/ui/native-select";
 import { useT } from "@/lib/i18n";
 import { useModelLoader } from "./use-model-loader";
+import { ModelSelectField } from "./model-select-field";
 
 interface ModelComboboxProps {
   value: string;
@@ -23,6 +21,9 @@ interface ModelComboboxProps {
    * apiKey is empty. Unused when apiKey is re-entered.
    */
   configId?: string;
+  /**
+   * `value === ""` 일 때 select 의 disabled option 으로 노출되는 텍스트.
+   */
   placeholder?: string;
   disabled?: boolean;
 }
@@ -39,88 +40,44 @@ export function ModelCombobox({
 }: ModelComboboxProps) {
   const t = useT();
 
-  const { models, errorMessage, isPending, isSuccess, canLoad, load } =
-    useModelLoader({
-      provider,
-      apiKey,
-      baseUrl,
-      configId,
-      fallbackErrorMessage: t("llmConfigs.loadModelsFailed"),
-    });
+  const {
+    models,
+    errorMessage,
+    isPending,
+    hasAttemptedLoad,
+    canLoad,
+    load,
+  } = useModelLoader({
+    provider,
+    apiKey,
+    baseUrl,
+    configId,
+    fallbackErrorMessage: t("llmConfigs.loadModelsFailed"),
+  });
 
   const chatModels = useMemo(
     () => models.filter((m) => m.type === "chat"),
     [models],
   );
 
-  const hasLoadedModels = chatModels.length > 0;
-  const isEmpty = !errorMessage && isSuccess && chatModels.length === 0;
-  // 편집 흐름: 저장된 모델 ID 가 새로 불러온 목록에 없을 때 placeholder option 으로 유지.
-  // 사용자가 명시적으로 다른 option 을 고르기 전까지는 저장값이 변경되지 않도록 보존.
-  const savedValueMissingFromLoaded =
-    value !== "" && !chatModels.some((m) => m.id === value);
-  const selectDisabled = disabled || !hasLoadedModels;
-
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex gap-2">
-        <NativeSelect
-          data-testid="model-combobox-select"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={selectDisabled}
-        >
-          {!value && (
-            <option value="" disabled>
-              {placeholder ?? t("llmConfigs.modelPlaceholder")}
-            </option>
-          )}
-          {savedValueMissingFromLoaded && (
-            <option value={value}>
-              {t("llmConfigs.modelSavedFallback", { model: value })}
-            </option>
-          )}
-          {chatModels.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name && m.name !== m.id ? `${m.name} (${m.id})` : m.id}
-            </option>
-          ))}
-        </NativeSelect>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={load}
-          disabled={disabled || !canLoad || isPending}
-          aria-label={isPending ? t("llmConfigs.loadingModels") : t("llmConfigs.loadModels")}
-          data-testid="model-combobox-load"
-        >
-          {isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          <span className="ml-1.5 text-xs">
-            {isPending
-              ? t("llmConfigs.loadingModels")
-              : t("llmConfigs.loadModels")}
-          </span>
-        </Button>
-      </div>
-      {errorMessage ? (
-        <p className="text-xs text-[hsl(var(--destructive))]">{errorMessage}</p>
-      ) : isEmpty ? (
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          {t("llmConfigs.noModelsFound")}
-        </p>
-      ) : !hasLoadedModels ? (
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          {t("llmConfigs.modelLoadRequired")}
-        </p>
-      ) : (
-        <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          {t("llmConfigs.loadModelsHint")}
-        </p>
-      )}
-    </div>
+    <ModelSelectField
+      value={value}
+      onChange={onChange}
+      models={chatModels}
+      errorMessage={errorMessage}
+      isPending={isPending}
+      canLoad={canLoad}
+      hasAttemptedLoad={hasAttemptedLoad}
+      load={load}
+      formatSavedFallback={(model) =>
+        t("llmConfigs.modelSavedFallback", { model })
+      }
+      loadRequiredHint={t("llmConfigs.modelLoadRequired")}
+      loadedHint={t("llmConfigs.loadModelsHint")}
+      placeholder={placeholder}
+      disabled={disabled}
+      testIdPrefix="model-combobox"
+    />
   );
 }

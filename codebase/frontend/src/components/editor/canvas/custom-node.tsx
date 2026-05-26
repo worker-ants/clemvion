@@ -11,7 +11,7 @@ import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-port
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
-import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
+import { llmConfigsApi } from "@/lib/api/llm-configs";
 import { useLocale } from "@/lib/i18n";
 import { translateNodePortLabel } from "@/lib/i18n/backend-labels";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -71,17 +71,16 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const showSummary = useStore(zoomSelector);
 
   const isAiNode = data.type === "ai_agent" || data.type === "text_classifier" || data.type === "information_extractor";
-  const { data: llmConfigsData } = useQuery({
+  const { data: llmConfigs = [] } = useQuery({
     queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.getAll(),
+    queryFn: () => llmConfigsApi.list(),
     staleTime: 30_000,
     enabled: isAiNode,
   });
   const summaryContext = useMemo<SummaryContext | undefined>(() => {
     if (!isAiNode) return undefined;
-    const configs: LlmConfigData[] = llmConfigsData?.data ?? llmConfigsData ?? [];
-    return { hasDefaultLlmConfig: configs.some((c) => c.isDefault) };
-  }, [isAiNode, llmConfigsData]);
+    return { hasDefaultLlmConfig: llmConfigs.some((c) => c.isDefault) };
+  }, [isAiNode, llmConfigs]);
 
   const locale = useLocale();
   const summary = useMemo(

@@ -52,7 +52,7 @@ describe("useModelLoader", () => {
     });
     await waitFor(() => {
       expect(result.current.models).toHaveLength(1);
-      expect(result.current.isSuccess).toBe(true);
+      expect(result.current.hasAttemptedLoad).toBe(true);
     });
   });
 
