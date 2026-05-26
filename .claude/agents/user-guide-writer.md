@@ -63,6 +63,8 @@ context=<자유 markdown — 어떤 변경인지, 어떤 섹션을 추가/갱신
   - Callout `type` 의 spec 밖 값 금지
   - frontmatter 의 `spec:` / `code:` 경로 Glob 실존 검증
   - 내부 docs 링크 slug 실존 검증
+  - **내부 SoT 본문 노출 금지** — 사용자가 열람할 수 없는 `spec/<area>/...`·`/spec/...` 경로, `plan/in-progress/`·`plan/complete/` 경로, "별 plan `<name>`"·"separate plan" 표현, `CCH-XX-NN`·`R-XX-N` 같은 내부 anchor id, `ERROR_KO`·`WARNING_KO` 등 i18n 매핑 테이블 이름, `backend-labels.ts` 같은 내부 파일명을 본문에 적지 않는다. frontmatter 의 `spec:`/`code:` 필드는 빌드 검증용 metadata 라 별개 — 본문에는 같은 사실을 사용자 가시 표현으로 다시 적는다. SoT: PROJECT.md §자주 누락되는 작성 패턴 + [`spec/conventions/i18n-userguide.md`](../../spec/conventions/i18n-userguide.md) Principle 6-B. 가드: `no-internal-refs.test.ts`
+  - **향후 진행 예정 사항 언급 금지** — "v2 (후속)"·"v2 (planned)"·"향후 ~ 예정"·"별 plan 진입 후" 같은 로드맵성 문구를 본문에 적지 않는다. 사용자 가이드는 **현재 동작하는 상태**만 서술한다. 변경이 합쳐지면 그 시점에 같은 PR 에서 본문을 갱신한다 (자동 검출 어려워 본 agent 가 작성 시점에 챙긴다)
 - §SoT 의 페이지 구조 규약 (3층 / 도입 → 상세 → 팁) 준수.
 
 ### 5. 다국어 sibling 처리
@@ -127,6 +129,8 @@ context=<자유 markdown — 어떤 변경인지, 어떤 섹션을 추가/갱신
 - [x] canonical / sibling 짝 대응
 - [x] 페이지 구조 (도입 → 상세 → 팁) 준수
 - [x] 프론트매터 `spec:` / `code:` 경로 실존 (Glob 확인)
+- [x] 본문에 내부 SoT (`spec/`·`plan/`·`CCH-`/`R-` 내부 식별자·`ERROR_KO` 등 매핑 테이블·`backend-labels.ts`) 노출 없음 (`no-internal-refs.test.ts` 통과)
+- [x] 본문에 "v2 (후속)"·"향후 ~ 예정"·"별 plan ..." 같은 로드맵성 문구 없음 (현재 동작 상태 서술로 통일)
 
 ## 동반 갱신 점검 (PROJECT.md §변경 유형 → 갱신 위치 매핑)
 - (매칭된 trigger 와 처리 결과 1-2줄)
