@@ -392,7 +392,7 @@ Discord v1 한계: 일반 DM 자유 텍스트는 수신할 수 없어요. AI 대
 |---|---|
 | `unknown` | 아직 `setupChannel` 이 호출되지 않았거나 확인 전 |
 | `healthy` | 봇 연결 정상 |
-| `degraded` | `setupChannel` / rotate / sendMessage 실패. **자동 비활성화는 하지 않아요** (CCH-SE-01) |
+| `degraded` | `setupChannel` / rotate / sendMessage 실패. **자동 비활성화는 하지 않아요** — 사용자가 명시적으로 활성/비활성 토글해야 해요 |
 
 ### Bot Token 회전 (single-path)
 
@@ -413,7 +413,7 @@ Chat Channel 을 통해 아래 노드 유형이 동작해요:
 - **AI Multi Turn** — 봇과 자유 대화
 - **Button Presentation** — 인라인 키보드 버튼으로 선택
 - **Form** — 필드 단위 순차 입력
-- **Chart / Table / Carousel** — v1: monospace MarkdownV2 텍스트 fallback (즉시 동작). v2: SSR PNG 격상 (별 plan `chat-channel-visual-ssr-png` 진입 후). `uiMapping.visualNode` enum (`"text"` / `"photo"` / `"auto"`, default `"auto"`) 으로 동작 분기 — 자세한 매트릭스는 [Telegram 통합 가이드 §3](/docs/06-integrations-and-config/telegram).
+- **Chart / Table / Carousel** — 현재는 monospace MarkdownV2 텍스트로 발송돼요. `uiMapping.visualNode` enum (`"text"` / `"photo"` / `"auto"`, default `"auto"`) 으로 동작을 조정할 수 있어요 — 자세한 매트릭스는 [Telegram 통합 가이드 §3](/docs/06-integrations-and-config/telegram).
 
 ### 명령어
 
@@ -428,7 +428,7 @@ Chat Channel 을 통해 아래 노드 유형이 동작해요:
 </Callout>
 
 <Callout type="warn">
-신규 error code — Chat Channel API가 반환할 수 있는 코드: `INVALID_BOT_TOKEN`, `WORKSPACE_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`. 현재 `ERROR_KO` 테이블에 미등록으로 영문 그대로 노출돼요 — 향후 `backend-labels.ts` 갱신 시 흡수 예정이에요.
+Chat Channel API가 반환할 수 있는 error code: `INVALID_BOT_TOKEN`, `WORKSPACE_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`. 일부 코드는 현재 영문 메시지 그대로 화면에 노출될 수 있어요.
 </Callout>
 
 자세한 설정과 단계별 안내는 각 통합 가이드를 참고해요: [Telegram](/docs/06-integrations-and-config/telegram) · [Slack](/docs/06-integrations-and-config/slack) · [Discord](/docs/06-integrations-and-config/discord).

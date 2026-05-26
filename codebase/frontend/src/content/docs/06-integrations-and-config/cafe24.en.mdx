@@ -81,7 +81,7 @@ Drop **Integration → Cafe24** from the node palette. In the settings panel:
 |---|---|
 | **Integration** | Select the Cafe24 integration you created |
 | **Resource** | One of 18 categories (Product / Order / Customer / Category / Promotion ...) |
-| **Operation** | The endpoint id (`product_list`, `order_get`, `customer_update`, ...). See `spec/conventions/cafe24-api-metadata.md` or the [official Cafe24 docs](https://developers.cafe24.com/docs/ko/api/admin/) |
+| **Operation** | The endpoint id (`product_list`, `order_get`, `customer_update`, ...). See the [official Cafe24 docs](https://developers.cafe24.com/docs/ko/api/admin/) for the full list |
 | **Fields** | Per-operation inputs. Expressions like `{{ $input.x }}` are supported |
 | **Pagination** | Limit / Offset (only when the operation is paginated) |
 
@@ -133,13 +133,6 @@ Once a Cafe24 integration is added, the LLM sees tools named `mcp_<sid>__<resour
 | Salesreport | `mall.read_salesreport` (read only) |
 
 See the [official Cafe24 docs](https://developers.cafe24.com/docs/ko/api/admin/#api-index) for the full list across all 18 categories.
-
-## Related spec
-
-- Node spec: `spec/4-nodes/4-integration/4-cafe24.md`
-- Integration management screen: `spec/2-navigation/4-integration.md` §5.8 / §10.3
-- Internal MCP Bridge: `spec/5-system/11-mcp-client.md` §2.3
-- Metadata convention: `spec/conventions/cafe24-api-metadata.md`
 
 ## FAQ
 

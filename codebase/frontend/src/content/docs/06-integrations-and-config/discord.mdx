@@ -86,22 +86,21 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 
 ### 5.3 Form
 
-- v1 = 다단계 텍스트 시퀀스 (필드별 한 줄 질문 + button/modal 응답)
-- v2 (후속) = Discord modal (TEXT_INPUT components) native 지원
+- 현재는 다단계 텍스트 시퀀스로 진행돼요 (필드별 한 줄 질문 + button/modal 응답)
 
 ### 5.4 AI Agent render 도구 / Template
 
-- AI Multi Turn 노드가 `render_carousel` / `render_table` / `render_chart` / `render_template` 도구를 호출하면 응답 텍스트 다음에 카드·표·차트·템플릿이 sequential 메시지로 함께 발송돼요 (`render_form` 은 별 plan 추적)
+- AI Multi Turn 노드가 `render_carousel` / `render_table` / `render_chart` / `render_template` 도구를 호출하면 응답 텍스트 다음에 카드·표·차트·템플릿이 sequential 메시지로 함께 발송돼요
 - Template 노드 (버튼 없는 non-blocking 케이스) 의 `output.rendered` 본문도 텍스트로 자동 발송돼요
-- v1 fallback 정책 — chart/table 은 monospace 텍스트, carousel 은 카드별 sequential 메시지, template 은 plain text. v2 SSR PNG 격상은 별 plan `chat-channel-visual-ssr-png` 추적
+- 현재 표현 방식 — chart/table 은 monospace 텍스트, carousel 은 카드별 sequential 메시지, template 은 plain text
 
-## 6. v1 한계 / 알려진 사항
+## 6. 현재 한계 / 알려진 사항
 
-- **자유 텍스트 DM 미지원** — v1 은 Interactions Webhook only. Discord 의 일반 `MESSAGE_CREATE` event 는 Gateway WebSocket 연결이 필요 → v1 사용자는 자유 채팅 대신 `/workflow reply` slash command 또는 modal 사용 ([R-CC-13](https://github.com) 부분 유예).
-- **DM only** — guild (server) 채널 미지원 (자동 거부). guild bot UX 는 v2 multi-user thread 와 한 묶음.
-- **자동 start 미지원** — Telegram `/start` 의 DM 첫 메시지 자동 시작과 달리, Discord 는 `/workflow start` 명시적 입력 필수.
-- **Form `file` 필드 사실상 미지원** — file upload 가 Gateway attachment 기반. workaround: 외부 storage URL 입력 (`text` + url validation).
-- **typing 은 native** — `POST /channels/{id}/typing` (10초 유지). LLM latency 가 길면 5초마다 반복 호출 (Slack 와 차이).
+- **자유 텍스트 DM 미지원** — Discord 의 일반 `MESSAGE_CREATE` event 는 Gateway WebSocket 연결이 필요해요. 자유 채팅 대신 `/workflow reply` slash command 또는 modal 을 사용해 주세요.
+- **DM only** — guild (server) 채널은 지원하지 않아요 (자동 거부).
+- **자동 start 미지원** — Telegram `/start` 의 DM 첫 메시지 자동 시작과 달리, Discord 는 `/workflow start` 를 명시적으로 입력해야 해요.
+- **Form `file` 필드 사실상 미지원** — file upload 가 Gateway attachment 기반이라 사용할 수 없어요. 외부 storage URL 입력 (`text` + url validation) 을 우회로 사용해요.
+- **typing 은 native** — `POST /channels/{id}/typing` (10초 유지). LLM latency 가 길면 5초마다 반복 호출돼요.
 
 ## 7. 안내 메시지 커스터마이즈 (`languageHints` / `languageLocale`)
 

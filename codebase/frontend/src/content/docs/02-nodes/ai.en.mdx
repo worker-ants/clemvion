@@ -140,7 +140,7 @@ In Multi Turn mode, user responses are **awaited indefinitely**. No timeout fire
 </Callout>
 
 <Callout type="note">
-**Single Turn vs. Multi Turn — `config` echo differences.** Single Turn output echoes the full raw config (systemPrompt, userPrompt, maxTurns, conditions, knowledgeBases, …) verbatim. Multi Turn terminal outputs (`user_ended`, `max_turns`, condition ports) currently echo only `config: { mode, model }` and omit the rest. If you mix both modes in one workflow, expressions like `$node["AI Agent"].config.systemPrompt` may behave differently per mode. Unifying the echo is a tracked follow-up (`plan/in-progress/engine-raw-config-followups.md`, Follow-up #1).
+**Single Turn vs. Multi Turn — `config` echo differences.** Single Turn output echoes the full raw config (systemPrompt, userPrompt, maxTurns, conditions, knowledgeBases, …) verbatim. Multi Turn terminal outputs (`user_ended`, `max_turns`, condition ports) currently echo only `config: { mode, model }` and omit the rest. If you mix both modes in one workflow, expressions like `$node["AI Agent"].config.systemPrompt` may behave differently per mode.
 </Callout>
 
 ## Text Classifier

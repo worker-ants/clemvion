@@ -86,19 +86,18 @@ Copy the endpoint URL using the 📋 button on the trigger list. Slash command a
 
 ### 5.3 Forms
 
-- v1 = multi-step text sequence (one question per field, answered via buttons/modal)
-- v2 (planned) = Discord modal (TEXT_INPUT components) native support
+- Currently runs as a multi-step text sequence (one question per field, answered via buttons/modal)
 
 ### 5.4 AI Agent render tools / Template
 
-- When an AI Multi Turn node calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply (`render_form` is tracked in a separate plan)
+- When an AI Multi Turn node calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply
 - Template nodes (non-blocking case without buttons) also send `output.rendered` as a text message automatically
-- v1 fallback policy — chart/table render as monospace text, carousel as per-card sequential messages, template as plain text. SSR PNG upgrade is tracked in plan `chat-channel-visual-ssr-png`
+- Current rendering — chart/table as monospace text, carousel as per-card sequential messages, template as plain text
 
-## 6. v1 limitations / known gaps
+## 6. Current limitations / known gaps
 
-- **No free-text DM** — v1 is Interactions Webhook only. Discord's `MESSAGE_CREATE` requires Gateway → v1 users reply via `/workflow reply` or modal (per CCH-MP-01 partial deferral, R-CC-13).
-- **DM only** — guild (server) channels rejected. Multi-user channels bundled with v2 multi-user thread plans.
+- **No free-text DM** — Discord's `MESSAGE_CREATE` requires a Gateway WebSocket connection. Use `/workflow reply` slash command or modal instead of free-text chat.
+- **DM only** — guild (server) channels are rejected.
 - **No auto-start** — unlike Telegram `/start` via first DM, Discord requires explicit `/workflow start`.
 - **Form `file` field largely unsupported** — file upload needs Gateway attachment. Workaround: external storage URL (text + url validation).
 - **Native typing** — `POST /channels/{id}/typing` (10s). Long LLM latency repeats every 5s.

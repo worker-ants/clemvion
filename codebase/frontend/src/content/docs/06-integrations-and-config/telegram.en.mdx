@@ -70,16 +70,16 @@ When the trigger activates, `setWebhook` is called automatically — no manual w
 
 | Node type | Telegram representation |
 |---|---|
-| **AI Multi Turn** | Free-form text conversation. When the AI calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply (`render_form` is tracked in a separate plan). |
+| **AI Multi Turn** | Free-form text conversation. When the AI calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply. |
 | **Button Presentation** | Inline keyboard buttons |
 | **Form** | Sequential field-by-field text input (contact share, file upload included) |
 | **Chart** | Monospace mini bar chart text (labels + values aligned, first series shown) |
 | **Table** | Monospace MarkdownV2 table (auto column widths, first 20 rows — `"+N more rows"` appended if exceeded) |
 | **Carousel** | Sequential per-card messages (title + description + image URL, up to 10 cards) |
-| **Template** | `output.rendered` body is MarkdownV2-escaped and sent as a text message automatically. The body is delivered even when the node has no buttons (non-blocking mode). HTML / Markdown modes are flattened to text in v1 (SSR PNG upgrade is tracked in plan `chat-channel-visual-ssr-png`). |
+| **Template** | `output.rendered` body is MarkdownV2-escaped and sent as a text message automatically. The body is delivered even when the node has no buttons (non-blocking mode). HTML / Markdown modes are currently flattened to text. |
 
 <Callout type="note">
-Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in Telegram. A future PR will upgrade them to SSR PNG image delivery (tracked in plan `chat-channel-visual-ssr-png`).
+Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in Telegram.
 
 `uiMapping.visualNode` options (default `"auto"`):
 
@@ -87,7 +87,7 @@ Visual nodes (Chart, Table, Carousel) currently render as **MarkdownV2 text** in
 |---|---|
 | `"auto"` (default) | Per-node smart choice — chart/table render as text; carousel sends `sendPhoto` per card when `imageUrl` is set, otherwise text |
 | `"text"` | Force text-only for all visual nodes (carousel `imageUrl` is ignored) |
-| `"photo"` | After v2 SSR infrastructure lands, sends PNG images. On v1 it falls back to `text` behavior (this is normal and does not affect health) |
+| `"photo"` | Currently behaves the same as `"text"` (this is normal and does not affect health) |
 
 > The legacy enum value `"text_only"` is deprecated. Existing values in the DB are read-time normalized to `"text"` by the adapter, so older triggers keep working.
 </Callout>
@@ -108,7 +108,7 @@ Check `chatChannelHealth` on the trigger detail view:
 |---|---|
 | `unknown` | `setupChannel` not yet called or pending |
 | `healthy` | Bot connected normally |
-| `degraded` | `setupChannel` / `rotate-bot-token` failed or recent consecutive `sendMessage` failures. **The trigger is not auto-disabled** (CCH-SE-01) — only an explicit user toggle changes activation |
+| `degraded` | `setupChannel` / `rotate-bot-token` failed or recent consecutive `sendMessage` failures. **The trigger is not auto-disabled** — only an explicit user toggle changes activation |
 
 The last error message is available in `chatChannelLastError`.
 
@@ -125,7 +125,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 - The old token is honored for a **24-hour grace window** alongside the new one, so in-flight updates are not lost. After 24h the old token is cleaned up automatically.
 - Response: `{ data: { triggerId, rotatedAt, chatChannelHealth, botIdentity } }`
-- Errors: 400 `BOT_TOKEN_INVALID`, 404 `TRIGGER_NOT_FOUND`, 502 `CHAT_CHANNEL_SETUP_FAILED`, etc. ([Spec Chat Channel §5.4](https://github.com/worker-ants/clemvion/blob/main/spec/5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약))
+- Errors: 400 `BOT_TOKEN_INVALID`, 404 `TRIGGER_NOT_FOUND`, 502 `CHAT_CHANNEL_SETUP_FAILED`, etc.
 
 ## 7. Customizing notification messages (`languageHints` / `languageLocale`)
 
@@ -145,7 +145,7 @@ You can override the bot's built-in notification messages via `config.chatChanne
 2. Built-in default for the chosen `languageLocale`
 3. `"ko"` fallback when `languageLocale` is also omitted
 
-### 7.2 Execution failure keys (CCH-ERR-*)
+### 7.2 Execution failure keys
 
 When a workflow execution fails, the bot sends the user a failure-specific message. You can override any of the 6 keys below.
 
@@ -177,8 +177,8 @@ executionFailedInternal       → The service is temporarily unavailable. Please
 
 - **1:1 (private) chats only** — messages in group chats are silently ignored.
 - **Bot messages are ignored** — messages with `from.is_bot=true` are dropped to prevent bot loops.
-- **60 requests/minute per conversation** — requests above the cap are ignored (CCH-NF-03).
-- **Bot token storage** — the bot token and webhook secret_token are encrypted with AES-256-GCM in the secret store (CCH-SE-03). Only ciphertext lives in the DB; plaintext is transiently decrypted inside the backend process that holds the master key.
+- **60 requests/minute per conversation** — requests above the cap are ignored.
+- **Bot token storage** — the bot token and webhook secret_token are encrypted with AES-256-GCM in the secret store. Only ciphertext lives in the DB; plaintext is transiently decrypted inside the backend process that holds the master key.
 
 ## Rationale
 
