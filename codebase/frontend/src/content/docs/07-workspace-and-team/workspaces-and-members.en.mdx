@@ -38,7 +38,7 @@ A workspace is the unit that bundles your workflows, integrations, and knowledge
 | **Editor** | Workflows/triggers/schedules CRUD + execution |
 | **Viewer** | Read-only on all resources |
 
-See `spec/2-navigation/9-user-profile.md` §4.2 for the full matrix.
+The full role/permission matrix is available in the workspace settings screen.
 
 ## Inviting members
 
@@ -76,10 +76,3 @@ In team workspaces, an additional `All / Mine / Shared` button group appears nex
 - **Transfer ownership** — Pick a non-Owner member to receive the role. Both members' roles swap atomically (target → Owner, you → Admin).
 - **Delete workspace** — Owner-only. Re-enter the workspace name to confirm; members, invitations, and the workspace itself are removed in one transaction.
 
-## See also
-
-These spec documents live in the repository:
-
-- Authentication & session policy — `spec/5-system/1-auth.md`
-- Member management screen spec — `spec/2-navigation/9-user-profile.md` §4.1
-- Invitation token flow — `spec/5-system/1-auth.md` §1.5

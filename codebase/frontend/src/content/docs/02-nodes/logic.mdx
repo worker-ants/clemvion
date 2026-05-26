@@ -423,7 +423,7 @@ Background 노드는 본문이 메인 흐름과 분리되어 실행되기 때문
   GET /api/executions/{executionId}/background-runs/{backgroundRunId}
   ```
 
-  응답에는 `status`, `startedAt`, `completedAt`, 본문 노드 NodeExecution 목록(cursor 페이지네이션), 관련 알림이 포함돼요. 같은 워크스페이스의 Editor 이상 멤버나 실행을 시작한 사용자만 조회 가능해요. 자세한 응답 스키마는 spec [Background §8](/spec/4-nodes/1-logic/12-background.md#8-모니터링-api) 참고.
+  응답에는 `status`, `startedAt`, `completedAt`, 본문 노드 NodeExecution 목록(cursor 페이지네이션), 관련 알림이 포함돼요. 같은 워크스페이스의 Editor 이상 멤버나 실행을 시작한 사용자만 조회 가능해요.
 
 <Callout type="note">
 본문의 개별 노드 이벤트는 메인 실행 채널(`execution:&lt;id&gt;`)에 그대로 발행돼요 — 클라이언트는 `parentNodeExecutionId` 가 Background 노드의 NodeExecution.id 와 같은 노드들을 골라 본문 카드 안에 보여줘요. 따로 채널을 더 구독할 필요 없이 기존 실행 구독만으로 본문 노드 진행을 받을 수 있어요.

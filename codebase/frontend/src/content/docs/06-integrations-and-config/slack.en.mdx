@@ -104,21 +104,20 @@ Copy the endpoint URL using the 📋 button on the trigger list screen. Use the 
 ### 4.3 Buttons / Forms
 
 - Button Presentation nodes are converted to Slack Block Kit `actions` blocks
-- Form nodes use v1 multi-step text sequence (one question per field, answered via DM)
-- v2 (planned) will support Slack `views.open` modal natively
+- Form nodes currently run as a multi-step text sequence (one question per field, answered via DM)
 
 ### 4.4 AI Agent render tools / Template
 
-- When an AI Multi Turn node calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply (`render_form` is tracked in a separate plan)
+- When an AI Multi Turn node calls a `render_carousel` / `render_table` / `render_chart` / `render_template` tool, the resulting card / table / chart / template is sent as a sequential message right after the AI's text reply
 - Template nodes (non-blocking case without buttons) also send `output.rendered` as a text message automatically
-- v1 fallback policy — chart/table render as mrkdwn monospace text, carousel as per-card sequential messages, template as plain text. SSR PNG upgrade is tracked in plan `chat-channel-visual-ssr-png`
+- Current rendering — chart/table as mrkdwn monospace text, carousel as per-card sequential messages, template as plain text
 
-## 5. v1 limitations / known gaps
+## 5. Current limitations / known gaps
 
-- **DM only** — group / channel / mpim are unsupported (auto-rejected with notice). Multi-user channels are bundled with v2 multi-user-thread work.
-- **No typing indicator** — Slack Web API has no server-initiated typing. Long LLM latency leaves the user without progress feedback (v2 candidate: placeholder message + edit).
-- **Visual nodes** (Chart / Table / Carousel) — v1 falls back to mrkdwn monospace text. v2 upgrades to SSR PNG (shared plan with Telegram).
-- **No Socket Mode** — v1 is Webhook-mode only. Private-network Slack deployments will be addressed in a v2 plan.
+- **DM only** — group / channel / mpim are unsupported (auto-rejected with notice).
+- **No typing indicator** — the Slack Web API does not expose a server-initiated typing indicator, so users see no progress feedback during long LLM latency.
+- **Visual nodes** (Chart / Table / Carousel) — currently rendered as mrkdwn monospace text.
+- **No Socket Mode** — only Webhook mode is supported right now.
 
 ## 6. Customizing notification messages (`languageHints` / `languageLocale`)
 
@@ -138,7 +137,7 @@ You can override the bot's built-in notification messages via `config.chatChanne
 2. Built-in default for the chosen `languageLocale`
 3. `"ko"` fallback when `languageLocale` is also omitted
 
-### 6.2 Execution failure keys (CCH-ERR-*)
+### 6.2 Execution failure keys
 
 When a workflow execution fails, the bot sends the user a failure-specific message. You can override any of the 6 keys below.
 

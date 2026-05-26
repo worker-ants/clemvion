@@ -381,7 +381,7 @@ Check `chatChannelHealth` on the trigger detail view:
 |---|---|
 | `unknown` | `setupChannel` not yet called or pending |
 | `healthy` | Bot connected normally |
-| `degraded` | `setupChannel` / rotate / sendMessage failure. **Not auto-disabled** (CCH-SE-01) |
+| `degraded` | `setupChannel` / rotate / sendMessage failure. **Not auto-disabled** — only an explicit user toggle changes activation |
 
 ### Rotating the bot token (single-path)
 
@@ -400,7 +400,7 @@ The old token is honored for a **24-hour grace window** alongside the new one, s
 - **AI Multi Turn** — free conversation with the bot
 - **Button Presentation** — selection via inline keyboard buttons
 - **Form** — sequential field-by-field input
-- **Chart / Table / Carousel** — v1: monospace MarkdownV2 text fallback (works today). v2: SSR PNG upgrade (after plan `chat-channel-visual-ssr-png` lands). `uiMapping.visualNode` enum (`"text"` / `"photo"` / `"auto"`, default `"auto"`) controls behavior — full matrix in [Telegram integration guide §3](/docs/06-integrations-and-config/telegram).
+- **Chart / Table / Carousel** — currently delivered as monospace MarkdownV2 text. The `uiMapping.visualNode` enum (`"text"` / `"photo"` / `"auto"`, default `"auto"`) controls the behavior — see the full matrix in the [Telegram integration guide §3](/docs/06-integrations-and-config/telegram).
 
 ### Commands
 
@@ -415,7 +415,7 @@ Group chats are not supported — the bot only operates in 1:1 (private) convers
 </Callout>
 
 <Callout type="warn">
-New error codes from the Chat Channel API: `INVALID_BOT_TOKEN`, `WORKSPACE_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`. These are not yet mapped in `ERROR_KO` so they appear in English — a future `backend-labels.ts` update will add Korean labels.
+Error codes the Chat Channel API can return: `INVALID_BOT_TOKEN`, `WORKSPACE_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`. Some codes may currently appear in English in the UI.
 </Callout>
 
 For step-by-step setup and advanced settings, see the individual integration guides: [Telegram](/docs/06-integrations-and-config/telegram) · [Slack](/docs/06-integrations-and-config/slack) · [Discord](/docs/06-integrations-and-config/discord).
