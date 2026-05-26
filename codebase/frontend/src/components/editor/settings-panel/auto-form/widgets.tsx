@@ -113,6 +113,64 @@ export function SelectWidget({ ui, label, value, onChange, schema, required }: W
   );
 }
 
+/**
+ * Renders an array<enum> schema field as a vertical checkbox list. Used by
+ * AI 노드 `systemContextSections` ([Spec AI Common §11](../../../../../../spec/4-nodes/3-ai/0-common.md))
+ * — 4개 섹션 (time / timezone / workspace / node) 중 임의 부분집합 선택.
+ *
+ * Value 는 항상 `string[]` 이어야 하지만 비배열 입력 (legacy DB row, undefined,
+ * null) 도 받아 빈 selection 으로 graceful 처리한다. 토글은 immutable —
+ * `value.filter` / `[...value, opt]` 로 새 배열을 emit 한다.
+ */
+export function MultiSelectWidget({
+  ui,
+  label,
+  value,
+  onChange,
+  schema,
+  required,
+}: WidgetProps) {
+  const locale = useLocale();
+  const rawOptions =
+    ui?.options ??
+    (Array.isArray(schema.items?.enum)
+      ? schema.items.enum.map((v) => ({ value: String(v), label: String(v) }))
+      : Array.isArray(schema.enum)
+        ? schema.enum.map((v) => ({ value: String(v), label: String(v) }))
+        : []);
+  const options = rawOptions.map((o) => ({
+    value: o.value,
+    label: translateBackendOptionLabel(o.label, locale) ?? o.label,
+  }));
+  const selected = Array.isArray(value) ? (value as string[]) : [];
+
+  const toggle = (optionValue: string) => {
+    const next = selected.includes(optionValue)
+      ? selected.filter((v) => v !== optionValue)
+      : [...selected, optionValue];
+    onChange(next);
+  };
+
+  return (
+    <FieldGroup
+      label={label}
+      hint={translateBackendHint(ui?.hint, locale)}
+      required={required}
+    >
+      <div className="flex flex-col gap-1">
+        {options.map((opt) => (
+          <CheckboxField
+            key={opt.value}
+            label={opt.label}
+            checked={selected.includes(opt.value)}
+            onChange={() => toggle(opt.value)}
+          />
+        ))}
+      </div>
+    </FieldGroup>
+  );
+}
+
 export function ExpressionWidget({ ui, label, value, onChange, required }: WidgetProps) {
   const locale = useLocale();
   return (
