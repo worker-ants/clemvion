@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-26T11:31:48Z",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced (router_safety): src 변경 시 강제 포함"},
+    {"name": "performance", "selected": false, "reason": "UI render 조건부 분기만, I/O/캐시/집계 변경 없음"},
+    {"name": "architecture", "selected": true, "reason": "SlideDrawer side prop 확장 + 신규 DocsMobileSidebar 컴포넌트로 레이아웃 레이어 변경"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced (router_safety): src 변경 시 강제 포함"},
+    {"name": "scope", "selected": true, "reason": "agents_forced (router_safety): src 변경 시 강제 포함"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced (router_safety): src 변경 시 강제 포함"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced (router_safety): src 변경 시 강제 포함"},
+    {"name": "testing", "selected": true, "reason": "agents_forced (router_safety): src 변경 시 강제 포함"},
+    {"name": "documentation", "selected": true, "reason": "agents_forced (router_safety): md 파일 변경 (plan x2 + consistency review) 있음"},
+    {"name": "dependency", "selected": false, "reason": "package.json/lock 파일 변경 없음"},
+    {"name": "database", "selected": false, "reason": "DB 쿼리·마이그레이션·ORM 변경 없음"},
+    {"name": "concurrency", "selected": false, "reason": "async/await, Promise, 락/뮤텍스 코드 변경 없음 (setTimeout 은 drawer 기존 처리)"},
+    {"name": "api_contract", "selected": false, "reason": "HTTP route/GraphQL/swagger 변경 없음, 내부 컴포넌트 props 만 추가"},
+    {"name": "user_guide_sync", "selected": true, "reason": "codebase/frontend/src/components/docs/** (신규 모바일 네비) + i18n dict 갱신 → PROJECT.md 매트릭스 trigger 디렉토리 확인 필요"}
+  ],
+  "selected_count": 11,
+  "skipped_count": 3,
+  "forced": ["security", "requirement", "scope", "side_effect", "maintainability", "testing", "documentation"]
+}

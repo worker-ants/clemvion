@@ -12,6 +12,11 @@ interface SlideDrawerProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /**
+   * 어느 가장자리에서 슬라이드인지. default `"right"` — 기존 호출처 회귀 방지.
+   * `"left"` 는 본문 좌측 보조 네비 (`/docs` 모바일 사이드바) 용.
+   */
+  side?: "left" | "right";
 }
 
 /**
@@ -19,7 +24,10 @@ interface SlideDrawerProps {
  * `body.style.overflow` 를 복원한다 — 단일 boolean 정책은 두 drawer 가
  * 중첩 됐다가 하나만 먼저 닫힐 때 다른 drawer 의 body lock 을 무효화하는
  * race 를 일으킴 (review W-14).
+ *
+ * 클라이언트 전용 모듈-레벨 변수. SSR 환경으로 이동 금지 (`document` 접근 포함).
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 테스트에서 __resetForTesting 으로 접근
 let openDrawerCount = 0;
 
 function lockBodyScroll(): void {
@@ -36,14 +44,26 @@ function unlockBodyScroll(): void {
   }
 }
 
+/**
+ * 테스트 전용 — `openDrawerCount` 를 0 으로 리셋해 테스트 간 카운터 오염을 방지.
+ * 프로덕션 코드에서 호출 금지.
+ * @internal
+ */
+export function __resetForTesting(): void {
+  openDrawerCount = 0;
+  document.body.style.overflow = "";
+}
+
 export function SlideDrawer({
   open,
   onClose,
   title,
   children,
+  side = "right",
 }: SlideDrawerProps) {
   const t = useT();
   const titleId = React.useId();
+  const isLeft = side === "left";
 
   // Close on Escape key
   React.useEffect(() => {
@@ -89,12 +109,18 @@ export function SlideDrawer({
           // out of focus/AT, omit (undefined → attribute absent) otherwise.
           inert={!open || undefined}
           className={cn(
-            "fixed right-0 top-0 z-50 h-full w-full max-w-lg transform border-l border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-xl transition-transform duration-300 ease-in-out",
-            open ? "translate-x-0" : "translate-x-full",
+            "fixed top-0 z-50 flex h-full w-full max-w-lg transform flex-col border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-xl transition-transform duration-300 ease-in-out",
+            isLeft ? "left-0 border-r" : "right-0 border-l",
+            open
+              ? "translate-x-0"
+              : isLeft
+                ? "-translate-x-full"
+                : "translate-x-full",
           )}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-6 py-4">
+          {/* Header — flex shrink-0 으로 자연스러운 자기 높이 유지. content 는
+              flex-1 로 남는 공간 점유 (이전의 calc(100% - 65px) 매직 넘버 제거). */}
+          <div className="flex shrink-0 items-center justify-between border-b border-[hsl(var(--border))] px-6 py-4">
             <h2 id={titleId} className="text-lg font-semibold">
               {title}
             </h2>
@@ -109,9 +135,7 @@ export function SlideDrawer({
           </div>
 
           {/* Content */}
-          <div className="h-[calc(100%-65px)] overflow-y-auto p-6">
-            {children}
-          </div>
+          <div className="flex-1 overflow-y-auto p-6">{children}</div>
         </div>
       </FocusScope>
     </>
