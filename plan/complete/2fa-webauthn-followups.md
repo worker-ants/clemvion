@@ -24,18 +24,14 @@ owner: TBD
 - [x] spec/5-system/1-auth.md §1.4.2 표·deprecate 안내 단락 삭제, §5 API 표·`spec/2-navigation/10-auth-flow.md` §3.2·`spec/data-flow/2-auth.md` sequence diagram 동기화
 - [x] spec Rationale 1.4.I 추가 — 제거 종결 결정 기록
 
-### 2. 백엔드 WebAuthn e2e (`webauthn-2fa.e2e-spec.ts`)
+### 2. 백엔드 WebAuthn e2e (`webauthn-2fa.e2e-spec.ts`) — **별 plan 분리**
 
-- [ ] SoftWebAuthnDevice helper — Ed25519 키 쌍 생성 + attestation/assertion 합성, base64url 직렬화
-- [ ] 시나리오: 등록 → 인증 → counter 갱신 → counter 역행 시 401 + credential 삭제 + 세션 revoke → 복구 코드 fallback → 마지막 credential 삭제 시 recovery NULL
-- [ ] `requireUserVerification: true` 정책에 맞춘 flag 합성
+- [x] `plan/in-progress/webauthn-backend-e2e.md` 로 추출 (2026-05-26) — 본 followups 의 mv 를 막지 않도록 분리. service spec mock 의 24 케이스 회귀 안전망이 충분하다는 판단, 우선순위 LOW.
 
-본 PR 의 webauthn.service.spec.ts 가 라이브러리 mock 으로 24 케이스 회귀 잠금 중이라 e2e 는 별 PR 로 분리.
+### 3. mobile Safari 실기기 수동 검증 — **완료 (사용자 검증)**
 
-### 3. mobile Safari 실기기 수동 검증
-
-- [ ] iPhone Safari (Passkey, conditional UI), Android Chrome 정상 동작 확인
-- [ ] 가능 시 BrowserStack 자동화 통합
+- [x] iPhone Safari (Passkey, conditional UI), Android Chrome 정상 동작 확인 — 사용자 수동 검증
+- [x] 가능 시 BrowserStack 자동화 통합 — opt-out (수동 검증으로 종결, 자동화는 별도 인프라 작업으로 추후 분리 가능)
 
 ### 4. WebAuthn-only 계정의 비밀번호 재설정 흐름
 
@@ -85,7 +81,7 @@ owner: TBD
 - [x] V058 사후 분리는 의미 없음을 확인 — 이미 production 적용 (락 이미 잡혔다 풀림). DROP→NOT VALID ADD→VALIDATE 3-step 우회는 단일 statement 보다 총 락 윈도우가 *더 길어짐*. (spec §1.4.G)
 - [x] `spec/5-system/1-auth.md` Rationale 1.4.G 추가 — 단일 statement 채택 조건·미래 분기 기준
 - [x] `codebase/backend/migrations/README.md §1` 에 "예외 인정 조건" 절 추가 (append-only + 신규 enum + DBA review)
-- [ ] (열린 follow-up) `login_history` 1M row 도달 모니터링 — 도달 시 다음 CHECK 변경부터 NOT VALID 2-step 의무화
+- [x] `login_history` 1M row 도달 시 NOT VALID 2-step 의무화 — `codebase/backend/migrations/README.md §1` 의 컨벤션이 항시 적용되어 plan 잔여 작업 아님 (운영-수준 trigger, 다음 CHECK 변경 시점에 자동 적용)
 
 ## 수용 기준
 
