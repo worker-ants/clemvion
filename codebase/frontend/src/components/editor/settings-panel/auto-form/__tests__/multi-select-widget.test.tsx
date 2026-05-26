@@ -1,9 +1,9 @@
 // Unit tests for `MultiSelectWidget` — renders an array<enum> schema field as
 // a vertical checkbox list. Used by AI 노드 `systemContextSections` ([Spec
-// AI Common §11](../../../../../../spec/4-nodes/3-ai/0-common.md)).
+// AI Common §11](../../../../../../../spec/4-nodes/3-ai/0-common.md)).
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { MultiSelectWidget } from "../widgets";
 import type { UiHint, JsonSchemaNode } from "@/lib/node-definitions";
@@ -33,21 +33,44 @@ const ARRAY_ENUM_SCHEMA: JsonSchemaNode = {
   items: { type: "string", enum: ["time", "timezone", "workspace", "node"] },
 };
 
+const DEFAULT_VALUE = ["time", "timezone"];
+
+type RenderOverrides = {
+  schema?: JsonSchemaNode;
+  ui?: UiHint;
+  label?: string;
+  /** Pass a value to override the default `["time", "timezone"]`. Use `{ value: null }` or
+   *  `{ value: undefined }` explicitly to test falsy inputs. The sentinel `DEFAULT_VALUE`
+   *  is used when the key is omitted entirely. */
+  value?: unknown;
+  onChange?: (v: unknown) => void;
+};
+
+/** Render helper — reduces boilerplate across tests. Override any prop as needed. */
+function renderDefault(overrides: RenderOverrides = {}) {
+  const schema = overrides.schema ?? ARRAY_ENUM_SCHEMA;
+  const ui = overrides.ui ?? makeUi();
+  const label = overrides.label ?? "컨텍스트 섹션";
+  const value = "value" in overrides ? overrides.value : DEFAULT_VALUE;
+  const onChange = overrides.onChange ?? (() => {});
+  return render(
+    <MultiSelectWidget
+      schema={schema}
+      ui={ui}
+      label={label}
+      value={value}
+      onChange={onChange}
+    />,
+  );
+}
+
 describe("MultiSelectWidget", () => {
   beforeEach(() => {
     useLocaleStore.getState().setLocale("ko");
   });
 
   it("renders one checkbox per option with i18n KO labels (default locale)", () => {
-    render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={makeUi()}
-        label="컨텍스트 섹션"
-        value={["time", "timezone"]}
-        onChange={() => {}}
-      />,
-    );
+    renderDefault();
 
     // 4개 옵션 모두 체크박스로 렌더
     const boxes = screen.getAllByRole("checkbox");
@@ -61,15 +84,7 @@ describe("MultiSelectWidget", () => {
   });
 
   it("checks only the options present in `value`", () => {
-    render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={makeUi()}
-        label="컨텍스트 섹션"
-        value={["time", "timezone"]}
-        onChange={() => {}}
-      />,
-    );
+    renderDefault();
 
     const time = screen.getByLabelText("현재 시각 (ISO 8601, 오프셋 포함)") as HTMLInputElement;
     const timezone = screen.getByLabelText("타임존 (IANA + UTC 오프셋)") as HTMLInputElement;
@@ -84,15 +99,7 @@ describe("MultiSelectWidget", () => {
 
   it("toggling an unchecked option emits a new array that unions the value", () => {
     const onChange = vi.fn();
-    render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={makeUi()}
-        label="컨텍스트 섹션"
-        value={["time", "timezone"]}
-        onChange={onChange}
-      />,
-    );
+    renderDefault({ onChange });
 
     fireEvent.click(screen.getByLabelText("워크스페이스 ID / 이름"));
 
@@ -102,15 +109,7 @@ describe("MultiSelectWidget", () => {
 
   it("toggling a checked option emits a new array that filters the value", () => {
     const onChange = vi.fn();
-    render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={makeUi()}
-        label="컨텍스트 섹션"
-        value={["time", "timezone"]}
-        onChange={onChange}
-      />,
-    );
+    renderDefault({ onChange });
 
     fireEvent.click(screen.getByLabelText("현재 시각 (ISO 8601, 오프셋 포함)"));
 
@@ -119,15 +118,7 @@ describe("MultiSelectWidget", () => {
   });
 
   it("renders the translated hint (KO) below the checkbox list", () => {
-    render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={makeUi()}
-        label="컨텍스트 섹션"
-        value={["time", "timezone"]}
-        onChange={() => {}}
-      />,
-    );
+    renderDefault();
 
     // KO 매핑 (backend-labels HINT_KO) — 부분 매치
     expect(
@@ -137,15 +128,7 @@ describe("MultiSelectWidget", () => {
 
   it("treats undefined / null / non-array value as empty selection", () => {
     const onChange = vi.fn();
-    const { rerender } = render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={makeUi()}
-        label="컨텍스트 섹션"
-        value={undefined}
-        onChange={onChange}
-      />,
-    );
+    const { rerender } = renderDefault({ value: undefined, onChange });
 
     // 모두 unchecked
     for (const box of screen.getAllByRole("checkbox") as HTMLInputElement[]) {
@@ -186,15 +169,10 @@ describe("MultiSelectWidget", () => {
   });
 
   it("falls back to schema `items.enum` when `ui.options` is absent", () => {
-    render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={{ label: "Context Sections", widget: "multiselect" }}
-        label="컨텍스트 섹션"
-        value={[]}
-        onChange={() => {}}
-      />,
-    );
+    renderDefault({
+      ui: { label: "Context Sections", widget: "multiselect" },
+      value: [],
+    });
 
     // ui.options 가 없으면 enum 그대로 — 4 개 옵션, label 은 raw value
     const boxes = screen.getAllByRole("checkbox");
@@ -207,15 +185,7 @@ describe("MultiSelectWidget", () => {
 
   it("renders raw English labels under `en` locale", () => {
     useLocaleStore.getState().setLocale("en");
-    render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={makeUi()}
-        label="Context Sections"
-        value={["time"]}
-        onChange={() => {}}
-      />,
-    );
+    renderDefault({ label: "Context Sections", value: ["time"] });
 
     expect(
       screen.getByLabelText("Current time (ISO 8601 with offset)"),
@@ -224,23 +194,11 @@ describe("MultiSelectWidget", () => {
     expect(screen.getByText(/Selecting "Workspace" or "Node"/)).toBeInTheDocument();
   });
 
-  it("emits the same option only once even on rapid double-toggle", () => {
+  it("single click calls onChange exactly once with toggled value", () => {
     const onChange = vi.fn();
-    render(
-      <MultiSelectWidget
-        schema={ARRAY_ENUM_SCHEMA}
-        ui={makeUi()}
-        label="컨텍스트 섹션"
-        value={["time"]}
-        onChange={onChange}
-      />,
-    );
+    renderDefault({ value: ["time"], onChange });
 
-    // 같은 옵션 두 번 클릭 — 토글이지만 부모가 상태 commit 을 하지 않는 시나리오:
-    // 두 번째 클릭은 첫 번째와 동일한 input value 기반 토글이라 같은 배열
-    // (제거된 ['']) 을 다시 emit 한다. 그러나 첫 emit 는 ['time'] 제거 → []
-    // 두 번째 emit (state 가 그대로일 때) 는 다시 ['time'] 추가 → ['time']
-    // 본 테스트는 widget 이 옵션 한 번에 onChange 한 번만 호출함을 보장한다.
+    // 체크된 옵션 클릭 → onChange 정확히 1회, 해당 값 제거된 배열 emit
     fireEvent.click(screen.getByLabelText("현재 시각 (ISO 8601, 오프셋 포함)"));
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenLastCalledWith([]);

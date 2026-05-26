@@ -7,6 +7,28 @@ import { resolveWidget } from "./widget-resolver";
  * `widgets.tsx` to avoid a circular import with `widget-registry.ts`.
  */
 
+export type WidgetOption = { value: string; label: string };
+
+/**
+ * Resolve the raw options list for a widget from `ui.options` or schema enum
+ * values. Pass `itemsEnum: true` to prefer `schema.items.enum` over
+ * `schema.enum` (MultiSelectWidget pattern for array schemas).
+ */
+export function resolveWidgetOptions(
+  schema: JsonSchemaNode,
+  ui: UiHint | undefined,
+  { itemsEnum = false }: { itemsEnum?: boolean } = {},
+): WidgetOption[] {
+  if (ui?.options) return ui.options as WidgetOption[];
+  if (itemsEnum && Array.isArray(schema.items?.enum)) {
+    return schema.items.enum.map((v) => ({ value: String(v), label: String(v) }));
+  }
+  if (Array.isArray(schema.enum)) {
+    return schema.enum.map((v) => ({ value: String(v), label: String(v) }));
+  }
+  return [];
+}
+
 export function humanize(key: string): string {
   return key
     .replace(/([A-Z])/g, " $1")

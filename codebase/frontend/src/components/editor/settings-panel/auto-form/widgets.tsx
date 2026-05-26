@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import type { JsonSchemaNode, UiHint } from "@/lib/node-definitions";
-import { humanize, pickWidget } from "./utils";
+import { humanize, pickWidget, resolveWidgetOptions } from "./utils";
 import { isFieldRequired, isFieldVisible } from "./visibility";
 import { useT, useLocale } from "@/lib/i18n";
 import {
@@ -92,11 +92,7 @@ export function CheckboxWidget({ label, value, onChange, required }: WidgetProps
 
 export function SelectWidget({ ui, label, value, onChange, schema, required }: WidgetProps) {
   const locale = useLocale();
-  const rawOptions =
-    ui?.options ??
-    (Array.isArray(schema.enum)
-      ? schema.enum.map((v) => ({ value: String(v), label: String(v) }))
-      : []);
+  const rawOptions = resolveWidgetOptions(schema, ui);
   const options = rawOptions.map((o) => ({
     ...o,
     label: translateBackendOptionLabel(o.label, locale) ?? o.label,
@@ -130,19 +126,23 @@ export function MultiSelectWidget({
   schema,
   required,
 }: WidgetProps) {
+  const t = useT();
   const locale = useLocale();
-  const rawOptions =
-    ui?.options ??
-    (Array.isArray(schema.items?.enum)
-      ? schema.items.enum.map((v) => ({ value: String(v), label: String(v) }))
-      : Array.isArray(schema.enum)
-        ? schema.enum.map((v) => ({ value: String(v), label: String(v) }))
-        : []);
+  const rawOptions = resolveWidgetOptions(schema, ui, { itemsEnum: true });
   const options = rawOptions.map((o) => ({
     value: o.value,
     label: translateBackendOptionLabel(o.label, locale) ?? o.label,
   }));
   const selected = Array.isArray(value) ? (value as string[]) : [];
+
+  if (process.env.NODE_ENV !== "production" && options.length === 0) {
+    console.warn(
+      "[MultiSelectWidget] No options resolved for field %o — " +
+        "schema.items.enum or schema.enum must be defined, or ui.options must be provided. " +
+        "Verify widget assignment (spec §11.1).",
+      label,
+    );
+  }
 
   const toggle = (optionValue: string) => {
     const next = selected.includes(optionValue)
@@ -158,14 +158,20 @@ export function MultiSelectWidget({
       required={required}
     >
       <div className="flex flex-col gap-1">
-        {options.map((opt) => (
-          <CheckboxField
-            key={opt.value}
-            label={opt.label}
-            checked={selected.includes(opt.value)}
-            onChange={() => toggle(opt.value)}
-          />
-        ))}
+        {options.length === 0 ? (
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+            {t("nodeConfigs.autoForm.noOptions")}
+          </span>
+        ) : (
+          options.map((opt) => (
+            <CheckboxField
+              key={opt.value}
+              label={opt.label}
+              checked={selected.includes(opt.value)}
+              onChange={() => toggle(opt.value)}
+            />
+          ))
+        )}
       </div>
     </FieldGroup>
   );
