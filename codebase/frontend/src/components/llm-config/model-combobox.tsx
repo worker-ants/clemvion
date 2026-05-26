@@ -91,7 +91,7 @@ export function ModelCombobox({
           variant="outline"
           onClick={load}
           disabled={disabled || !canLoad || isPending}
-          aria-label={t("llmConfigs.loadModels")}
+          aria-label={isPending ? t("llmConfigs.loadingModels") : t("llmConfigs.loadModels")}
           data-testid="model-combobox-load"
         >
           {isPending ? (

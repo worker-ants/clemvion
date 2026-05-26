@@ -61,9 +61,10 @@ export function useModelLoader({
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // provider / configId 변경 시 이전 provider 의 모델 목록이 datalist 에 남아
-  // autocomplete 가 잘못된 모델을 제안하지 않도록 render 단계에서 초기화한다.
-  // React 권장 "reset state on prop change" 패턴 (useEffect 대신).
+  // provider / configId 변경 시 이전 provider 의 모델 목록이 select 에 잔류하지
+  // 않도록 render 단계에서 초기화한다.
+  // React 권장 "reset state on prop change" 패턴 (useEffect 대신 — useEffect 사용 시
+  // 렌더 후 cleanup 이 한 프레임 지연되어 이전 값이 잠깐 노출될 수 있다).
   // apiKey 변경은 사용자가 타이핑하는 중간 단계라 의도적으로 초기화하지 않는다.
   const resetKey = `${provider}|${configId ?? ""}`;
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
@@ -110,7 +111,13 @@ export function useModelLoader({
           | { message?: string | string[] }
           | undefined;
         const raw = body?.message;
-        const msg = Array.isArray(raw) ? raw.join(", ") : raw;
+        const combined = Array.isArray(raw) ? raw.join(", ") : raw;
+        // 서버 반환 메시지를 그대로 노출하되 길이를 200자로 제한해
+        // 스택 트레이스 등 민감 정보의 과다 노출을 줄인다 (SUMMARY#10).
+        const msg =
+          combined && combined.length > 0
+            ? combined.slice(0, 200)
+            : undefined;
         setErrorMessage(msg || fallbackErrorMessage);
         return;
       }

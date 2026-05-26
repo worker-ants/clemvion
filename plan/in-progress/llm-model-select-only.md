@@ -1,5 +1,5 @@
 ---
-worktree: llm-model-select
+worktree: llm-model-select-4857c3
 started: 2026-05-26
 owner: developer
 ---

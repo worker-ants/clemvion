@@ -56,15 +56,22 @@ export function EmbeddingModelCombobox({
 
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // hasAttemptedLoad は このresetKey のスコープで mutate() が呼ばれたかどうかを追跡する。
+  // loadMutation.isSuccess は llmConfigId 変更後もリセットされないため、
+  // isEmpty 計算を誤らせないよう独立した state で管理する。
+  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
 
   // llmConfigId 변경 시 이전 config 의 모델 목록은 더 이상 유효하지 않으므로 reset.
   // React 권장 "reset state on prop change" 패턴.
+  // useEffect 대신 render 단계에서 처리 — useEffect 는 렌더 후 실행이라 변경 전 값이
+  // 한 프레임 노출(플래시)될 수 있다.
   const [prevResetKey, setPrevResetKey] = useState(effectiveConfigId ?? "");
   const resetKey = effectiveConfigId ?? "";
   if (prevResetKey !== resetKey) {
     setPrevResetKey(resetKey);
     setModels([]);
     setErrorMessage(null);
+    setHasAttemptedLoad(false);
   }
 
   const loadMutation = useMutation({
@@ -80,6 +87,7 @@ export function EmbeddingModelCombobox({
     },
     onMutate: () => {
       setErrorMessage(null);
+      setHasAttemptedLoad(true);
     },
     onSuccess: ({ data, snapshot }) => {
       // Stale closure 가드 — 응답 도착 시점에 effectiveConfigId 가 바뀌었으면 무시.
@@ -92,7 +100,13 @@ export function EmbeddingModelCombobox({
           | { message?: string | string[] }
           | undefined;
         const raw = body?.message;
-        const msg = Array.isArray(raw) ? raw.join(", ") : raw;
+        const combined = Array.isArray(raw) ? raw.join(", ") : raw;
+        // 서버 반환 메시지를 그대로 노출하되 길이를 200자로 제한해
+        // 스택 트레이스 등 민감 정보의 과다 노출을 줄인다 (SUMMARY#10).
+        const msg =
+          combined && combined.length > 0
+            ? combined.slice(0, 200)
+            : undefined;
         setErrorMessage(msg || t("knowledgeBases.embeddingModelLoadFailed"));
         return;
       }
@@ -101,12 +115,18 @@ export function EmbeddingModelCombobox({
   });
 
   const embeddingModels = useMemo(
+    // API 에 { type: "embedding" } 파라미터를 전달하지만, provider 에 따라 서버가
+    // type 파라미터를 무시하고 mixed 응답을 반환할 수 있으므로 클라이언트에서도 필터.
     () => models.filter((m) => m.type === "embedding"),
     [models],
   );
   const hasLoadedModels = embeddingModels.length > 0;
+  // isEmpty: 이 llmConfigId 범위에서 로드를 시도했으나 반환된 임베딩 모델이 없는 상태.
+  // loadMutation.isSuccess 대신 hasAttemptedLoad + 에러 없음으로 판단한다 —
+  // llmConfigId 변경 시 loadMutation.isSuccess 가 stale 하게 남아 "모델 없음" 메시지가
+  // 버튼 클릭 전에 잘못 표시되는 버그를 방지한다 (SUMMARY#1).
   const isEmpty =
-    !errorMessage && loadMutation.isSuccess && embeddingModels.length === 0;
+    !errorMessage && hasAttemptedLoad && embeddingModels.length === 0;
   const savedValueMissingFromLoaded =
     value !== "" && !embeddingModels.some((m) => m.id === value);
   const canLoad = Boolean(effectiveConfigId);
@@ -144,7 +164,11 @@ export function EmbeddingModelCombobox({
           variant="outline"
           onClick={() => loadMutation.mutate()}
           disabled={disabled || !canLoad || loadMutation.isPending}
-          aria-label={t("llmConfigs.loadModels")}
+          aria-label={
+            loadMutation.isPending
+              ? t("llmConfigs.loadingModels")
+              : t("llmConfigs.loadModels")
+          }
           data-testid="embedding-model-load"
         >
           {loadMutation.isPending ? (
