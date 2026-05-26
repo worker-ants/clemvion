@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronRight, Menu } from "lucide-react";
 import type { DocsSection, DocsSearchEntry } from "@/lib/docs/registry";
@@ -41,12 +41,6 @@ export function DocsMobileSidebar({
   const [open, setOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
-  // pathname 이 바뀌면 drawer 를 자동으로 닫는다. 첫 마운트에서도 setOpen(false)
-  // 가 호출되지만 open 초기값이 false 라 무해.
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
   // 열릴 때 활성 페이지 항목으로 스크롤. drawer 의 transition 이 끝나기 전에
   // 호출되면 layout 이 비어있을 수 있으므로 next tick 으로 미룬다.
   useEffect(() => {
@@ -60,19 +54,19 @@ export function DocsMobileSidebar({
     return () => window.clearTimeout(id);
   }, [open]);
 
-  const { sectionLabel, pageTitle } = useMemo(() => {
-    for (const section of sections) {
-      for (const page of section.pages) {
-        if (localizedDocsHref(page.slug, locale) === pathname) {
-          return {
-            sectionLabel: localizedSectionLabel(section.key, locale),
-            pageTitle: localizedTitle(page.frontmatter, locale),
-          };
-        }
+  // 현재 페이지 매칭. react-compiler 가 inline 계산도 자동 메모하므로
+  // useMemo 를 두지 않는다 (수동 memoization 가 react-compiler 와 충돌).
+  let sectionLabel = "";
+  let pageTitle = "";
+  outer: for (const section of sections) {
+    for (const page of section.pages) {
+      if (localizedDocsHref(page.slug, locale) === pathname) {
+        sectionLabel = localizedSectionLabel(section.key, locale);
+        pageTitle = localizedTitle(page.frontmatter, locale);
+        break outer;
       }
     }
-    return { sectionLabel: "", pageTitle: "" };
-  }, [sections, pathname, locale]);
+  }
 
   const toggleLabel = t("docs.mobileSidebarToggle");
   const drawerTitle = t("docs.mobileSidebarTitle");
@@ -111,7 +105,17 @@ export function DocsMobileSidebar({
         title={drawerTitle}
         side="left"
       >
-        <div ref={drawerRef} className="flex flex-col gap-4">
+        {/* drawer 안에서 anchor 클릭 시 자동 close — pathname 변경을 effect 로 추적하면
+            react-compiler 의 setState-in-effect 규약 위반이라 click capture 로 처리. */}
+        <div
+          ref={drawerRef}
+          className="flex flex-col gap-4"
+          onClickCapture={(e) => {
+            if (e.target instanceof Element && e.target.closest("a")) {
+              setOpen(false);
+            }
+          }}
+        >
           <DocsSearch entriesByLocale={entriesByLocale} />
           <DocsSidebar sections={sections} />
         </div>

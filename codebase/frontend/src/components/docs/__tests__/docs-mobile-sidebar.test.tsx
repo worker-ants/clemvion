@@ -140,8 +140,8 @@ describe("DocsMobileSidebar", () => {
     expect(within(panel).getByRole("link", { name: "AI 노드" })).toBeInTheDocument();
   });
 
-  it("열린 상태에서 pathname 이 바뀌면 drawer 가 자동 close 돼요", () => {
-    const { rerender } = render(
+  it("drawer 안의 페이지 링크를 클릭하면 자동 close 돼요 (사용자가 페이지 이동 시 drawer 가 잔존하지 않음)", () => {
+    render(
       <DocsMobileSidebar
         sections={sections}
         entriesByLocale={entriesByLocale}
@@ -150,13 +150,12 @@ describe("DocsMobileSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: /가이드 목차/ }));
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-hidden", "false");
 
-    currentPathname = "/docs/ko/02-nodes/overview";
-    rerender(
-      <DocsMobileSidebar
-        sections={sections}
-        entriesByLocale={entriesByLocale}
-      />,
-    );
+    // drawer 안의 다른 페이지 링크 클릭 → drawer close
+    const link = within(screen.getByRole("dialog")).getByRole("link", {
+      name: "개요",
+    });
+    fireEvent.click(link);
+
     expect(screen.getByRole("dialog", { hidden: true })).toHaveAttribute(
       "aria-hidden",
       "true",
