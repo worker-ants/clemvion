@@ -8,6 +8,10 @@ export const docs: Dict["docs"] = {
   onThisPage: "On this page",
   previous: "Previous",
   next: "Next",
+  // Label shown on the mobile/tablet (<lg) sticky toggle button
+  mobileSidebarToggle: "Guide contents",
+  // SlideDrawer header title on mobile
+  mobileSidebarTitle: "User Guide",
   sectionGettingStarted: "Getting Started",
   sectionNodes: "Node Guide",
   sectionExpression: "Expression Language",
