@@ -393,6 +393,7 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
   },
   autoForm: {
     noFields: "No configurable fields.",
+    noOptions: "No options available.",
     unsupportedWidgetHint: "Advanced widget not yet supported in auto-form",
     defaultItemLabel: "Item",
     defaultItemLabelLowercase: "item",

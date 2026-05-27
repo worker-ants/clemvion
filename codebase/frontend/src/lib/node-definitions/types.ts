@@ -31,6 +31,7 @@ export type UiWidget =
   | "textarea"
   | "number"
   | "select"
+  | "multiselect"
   | "checkbox"
   | "expression"
   | "kv"
