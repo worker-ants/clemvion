@@ -10,8 +10,6 @@ AI가 엮고, 실행하고, 성장시키는 워크플로우 시스템.
 
 브랜드 스토리·비주얼 가이드: [`spec/6-brand.md`](./spec/6-brand.md).
 
-> 참고: git 저장소 URL 과 코드 디렉터리(`codebase/backend/`, `codebase/frontend/`) 는 인프라 자산으로 그대로 유지됩니다. Docker 이미지 태그(`clemvion/*`), Kubernetes 매니페스트, 문서·UI·이메일·Swagger·인증·OTEL·스토리지 키 등 빌드/배포 자산과 사용자 노출 영역은 모두 `clemvion` 으로 통일되어 있습니다.
-
 ## 주요 기능
 
 - **캔버스 에디터** - 무한 2D 캔버스에서 노드를 드래그앤드롭으로 배치하고 연결
