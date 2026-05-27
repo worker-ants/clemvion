@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import type { JsonSchemaNode, UiHint } from "@/lib/node-definitions";
-import { humanize, pickWidget } from "./utils";
+import { humanize, pickWidget, resolveWidgetOptions } from "./utils";
 import { isFieldRequired, isFieldVisible } from "./visibility";
 import { useT, useLocale } from "@/lib/i18n";
 import {
@@ -92,11 +92,7 @@ export function CheckboxWidget({ label, value, onChange, required }: WidgetProps
 
 export function SelectWidget({ ui, label, value, onChange, schema, required }: WidgetProps) {
   const locale = useLocale();
-  const rawOptions =
-    ui?.options ??
-    (Array.isArray(schema.enum)
-      ? schema.enum.map((v) => ({ value: String(v), label: String(v) }))
-      : []);
+  const rawOptions = resolveWidgetOptions(schema, ui);
   const options = rawOptions.map((o) => ({
     ...o,
     label: translateBackendOptionLabel(o.label, locale) ?? o.label,
@@ -110,6 +106,74 @@ export function SelectWidget({ ui, label, value, onChange, schema, required }: W
       hint={translateBackendHint(ui?.hint, locale)}
       required={required}
     />
+  );
+}
+
+/**
+ * Renders an array<enum> schema field as a vertical checkbox list. Used by
+ * AI 노드 `systemContextSections` ([Spec AI Common §11](../../../../../../spec/4-nodes/3-ai/0-common.md))
+ * — 4개 섹션 (time / timezone / workspace / node) 중 임의 부분집합 선택.
+ *
+ * Value 는 항상 `string[]` 이어야 하지만 비배열 입력 (legacy DB row, undefined,
+ * null) 도 받아 빈 selection 으로 graceful 처리한다. 토글은 immutable —
+ * `value.filter` / `[...value, opt]` 로 새 배열을 emit 한다.
+ */
+export function MultiSelectWidget({
+  ui,
+  label,
+  value,
+  onChange,
+  schema,
+  required,
+}: WidgetProps) {
+  const t = useT();
+  const locale = useLocale();
+  const rawOptions = resolveWidgetOptions(schema, ui, { itemsEnum: true });
+  const options = rawOptions.map((o) => ({
+    value: o.value,
+    label: translateBackendOptionLabel(o.label, locale) ?? o.label,
+  }));
+  const selected = Array.isArray(value) ? (value as string[]) : [];
+
+  if (process.env.NODE_ENV !== "production" && options.length === 0) {
+    console.warn(
+      "[MultiSelectWidget] No options resolved for field %o — " +
+        "schema.items.enum or schema.enum must be defined, or ui.options must be provided. " +
+        "Verify widget assignment (spec §11.1).",
+      label,
+    );
+  }
+
+  const toggle = (optionValue: string) => {
+    const next = selected.includes(optionValue)
+      ? selected.filter((v) => v !== optionValue)
+      : [...selected, optionValue];
+    onChange(next);
+  };
+
+  return (
+    <FieldGroup
+      label={label}
+      hint={translateBackendHint(ui?.hint, locale)}
+      required={required}
+    >
+      <div className="flex flex-col gap-1">
+        {options.length === 0 ? (
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+            {t("nodeConfigs.autoForm.noOptions")}
+          </span>
+        ) : (
+          options.map((opt) => (
+            <CheckboxField
+              key={opt.value}
+              label={opt.label}
+              checked={selected.includes(opt.value)}
+              onChange={() => toggle(opt.value)}
+            />
+          ))
+        )}
+      </div>
+    </FieldGroup>
   );
 }
 

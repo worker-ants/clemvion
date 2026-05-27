@@ -391,6 +391,7 @@ export const nodeConfigs = {
   },
   autoForm: {
     noFields: "설정할 수 있는 항목이 없어요.",
+    noOptions: "선택 항목이 없어요.",
     unsupportedWidgetHint: "아직 지원되지 않는 위젯이에요. 원시 JSON으로 표시돼요.",
     defaultItemLabel: "항목",
     defaultItemLabelLowercase: "항목",
