@@ -85,7 +85,7 @@ describe("useEmbeddingModelLoader", () => {
       .mockRejectedValueOnce(
         Object.assign(new Error("first fail"), {
           isAxiosError: true,
-          response: { data: { message: "Provider unavailable" } },
+          response: { data: { error: { code: "LLM_MODEL_LIST_FAILED" } } },
         }),
       )
       .mockResolvedValueOnce([
@@ -103,7 +103,7 @@ describe("useEmbeddingModelLoader", () => {
 
     act(() => result.current.load());
     await waitFor(() => {
-      expect(result.current.errorMessage).toBe("Provider unavailable");
+      expect(result.current.errorMessage).toBe("failed");
     });
 
     // Retry start clears errorMessage
@@ -125,7 +125,7 @@ describe("useEmbeddingModelLoader", () => {
       .mockRejectedValueOnce(
         Object.assign(new Error("network"), {
           isAxiosError: true,
-          response: { data: { message: "Service unavailable" } },
+          response: { data: { error: { code: "LLM_MODEL_LIST_FAILED" } } },
         }),
       );
 
@@ -145,7 +145,7 @@ describe("useEmbeddingModelLoader", () => {
 
     act(() => result.current.load());
     await waitFor(() => {
-      expect(result.current.errorMessage).toBe("Service unavailable");
+      expect(result.current.errorMessage).toBe("failed");
     });
 
     // onError does not call setModels([]) — previous list is preserved
@@ -223,11 +223,11 @@ describe("useEmbeddingModelLoader", () => {
     });
   });
 
-  it("sanitizes axios error messages and uses fallback for non-axios errors", async () => {
+  it("maps a known error code and falls back otherwise", async () => {
     vi.mocked(llmConfigsApi.listModels).mockRejectedValueOnce(
       Object.assign(new Error("boom"), {
         isAxiosError: true,
-        response: { data: { message: "Auth failure" } },
+        response: { data: { error: { code: "LLM_CONFIG_INVALID" } } },
       }),
     );
 
@@ -236,13 +236,14 @@ describe("useEmbeddingModelLoader", () => {
         useEmbeddingModelLoader({
           configId: "cfg-abc",
           fallbackErrorMessage: "generic fallback",
+          errorMessagesByCode: { LLM_CONFIG_INVALID: "Invalid config" },
         }),
       { wrapper },
     );
 
     act(() => result.current.load());
     await waitFor(() => {
-      expect(result.current.errorMessage).toBe("Auth failure");
+      expect(result.current.errorMessage).toBe("Invalid config");
     });
   });
 });

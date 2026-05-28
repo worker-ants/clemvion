@@ -39,6 +39,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useCanvasHoverStore } from "@/lib/stores/canvas-hover-store";
 import { CustomNode } from "./custom-node";
+import { HasDefaultLlmConfigProvider } from "./has-default-llm-config-context";
 import { CustomEdge, EdgeMarkerDefs } from "./custom-edge";
 import { useEdgeHighlighting } from "./use-edge-highlighting";
 import { CanvasEmptyState } from "./canvas-empty-state";
@@ -120,6 +121,9 @@ export function WorkflowCanvas() {
     () => llmConfigs.find((c) => c.isDefault)?.id ?? null,
     [llmConfigs],
   );
+  // Provided to every CustomNode via context so AI nodes can render their
+  // config summary without each subscribing to the llm-configs query.
+  const hasDefaultLlmConfig = defaultLlmConfigId !== null;
 
   const buildInitialConfig = useCallback(
     (nodeType: string, defaultConfig: Record<string, unknown> | undefined) =>
@@ -480,6 +484,7 @@ export function WorkflowCanvas() {
 
   return (
     <TooltipProvider delayDuration={300}>
+    <HasDefaultLlmConfigProvider value={hasDefaultLlmConfig}>
     <div
       ref={reactFlowWrapper}
       className="h-full w-full"
@@ -664,6 +669,7 @@ export function WorkflowCanvas() {
         </div>
       )}
     </div>
+    </HasDefaultLlmConfigProvider>
     </TooltipProvider>
   );
 }

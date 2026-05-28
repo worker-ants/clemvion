@@ -1,0 +1,86 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-29T00:58:45Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 사용자 입력·에러 메시지 처리·정보 누수 방지 패턴"
+    },
+    {
+      "name": "performance",
+      "selected": true,
+      "reason": "CustomNode 의 per-node useQuery → context 로 변경해 N 개 AI 노드의 불필요한 재렌더 제거"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "useBaseModelLoader 추출로 useModelLoader/useEmbeddingModelLoader 간 중복 제거 + 새 컨텍스트 계층"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 에러 코드 매핑·메시지 로컬라이제이션 기능 추가"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 변경 범위·의도 매칭 검증"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 컨텍스트 추가·훅 시그니처 변경·전역 상태 영향"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 길이·패턴·공유 로직 구조화"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 새 훅/컨텍스트/에러 처리 테스트 추가"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "새 공개 훅(useDefaultLlmConfigId, useBaseModelLoader) + JSDoc 주석 추가"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/package-lock.json 또는 의존성 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB 쿼리·마이그레이션·schema 변경 없음 — 모두 frontend 재구조화"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/Promise 조합의 근본적 변화 없음 — 기존 useMutation 활용 패턴 유지"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP 라우트·controller·GraphQL schema 변경 없음 — 클라이언트 side 호출 패턴 변화만"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "PROJECT.md 트리거 디렉토리(backend/src 등)와 무관 — frontend 내부 컴포넌트 리팩토링"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing"
+  ]
+}

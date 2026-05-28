@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { useModelLoader } from "./use-model-loader";
+import { buildLoaderErrorMessages } from "./loader-error-messages";
 import { ModelSelectField } from "./model-select-field";
 
 interface ModelComboboxProps {
@@ -40,6 +41,8 @@ export function ModelCombobox({
 }: ModelComboboxProps) {
   const t = useT();
 
+  const errorMessagesByCode = useMemo(() => buildLoaderErrorMessages(t), [t]);
+
   const {
     models,
     errorMessage,
@@ -53,6 +56,7 @@ export function ModelCombobox({
     baseUrl,
     configId,
     fallbackErrorMessage: t("llmConfigs.loadModelsFailed"),
+    errorMessagesByCode,
   });
 
   const chatModels = useMemo(
