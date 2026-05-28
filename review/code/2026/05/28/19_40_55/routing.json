@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-28T19:40:55Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "반복문 I/O·대용량 처리·캐시 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈 경계·인터페이스 변경 없음. apiInfo 는 기존 logUsage 호출의 argument 추가만"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 계획 문서 변경 — 문서 파일 변경 시 항상 적용"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/requirements*.txt/Pipfile/go.mod 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migrations/SQL/schema/ORM 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/Promise/락/뮤텍스/워커/setInterval 코드 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP route/controller/GraphQL/swagger 변경 없음. logUsage 는 내부 helper"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "PROJECT.md 동반 갱신 매트릭스의 모든 trigger 과 매칭 안 됨. backend 내부 logUsage 구현"
+    }
+  ],
+  "selected_count": 8,
+  "skipped_count": 6,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}

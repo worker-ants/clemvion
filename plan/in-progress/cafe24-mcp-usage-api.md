@@ -39,9 +39,9 @@ PR #338 (`integration-activity-api-label`) 에서 4개 통합 핸들러 (cafe24 
 - [x] 원인 진단 (cafe24 노드 정상 / MCP bridge 누락 확인)
 - [x] test 선작성 (mcp-tool-provider.spec 의 logUsage api 검증)
 - [x] fix (resource destructure + apiInfo + 2곳 api 전달)
-- [ ] TEST WORKFLOW (lint/unit/build/e2e)
-- [ ] REVIEW WORKFLOW (/ai-review + RESOLUTION)
-- [ ] plan complete 이동
+- [x] TEST WORKFLOW 통과 (lint 26s / unit 32s 4975 tests / build 48s / e2e 45s 123 tests)
+- [x] REVIEW WORKFLOW 통과 (7 reviewer, CRITICAL 0 + WARNING 6. resolution-applier 6/6 항목 처리 — rate-limit/transport-fail logUsage api 검증 명시화 + PRODUCT_LIST_API 상수 + JSDoc/NOTE 주석 + e2e 재통과)
+- [x] plan complete 이동
 
 ## 비고
 
