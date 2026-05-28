@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const categoryOperations: Cafe24OperationMetadata[] = [
   {
     id: 'category_list',
-    label: '카테고리 목록 조회',
     description: 'List product categories in the mall.',
     scopeType: 'read',
     method: 'GET',
@@ -19,7 +18,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'category_get',
-    label: '카테고리 단건 조회',
     description: 'Get a single category by category_no.',
     scopeType: 'read',
     method: 'GET',
@@ -33,7 +31,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'category_create',
-    label: '카테고리 생성',
     description: 'Create a new category.',
     scopeType: 'write',
     method: 'POST',
@@ -55,7 +52,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'category_update',
-    label: '카테고리 수정',
     description: 'Update a category.',
     scopeType: 'write',
     method: 'PUT',
@@ -71,7 +67,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'category_delete',
-    label: '카테고리 삭제',
     description: 'Delete a category by category_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -84,7 +79,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'category_products_list',
-    label: '카테고리별 상품 목록 조회',
     description: 'List products belonging to a category.',
     scopeType: 'read',
     method: 'GET',
@@ -105,7 +99,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   // Phase 6d — category baselines
   {
     id: 'category_count',
-    label: '카테고리 개수 조회',
     description: 'Retrieve the count of product categories.',
     scopeType: 'read',
     method: 'GET',
@@ -118,7 +111,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mains_list',
-    label: '메인 카테고리 목록',
     description: 'List the main categories pinned to the storefront home.',
     scopeType: 'read',
     method: 'GET',
@@ -132,7 +124,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'autodisplay_list',
-    label: '자동 진열 목록',
     description: 'List automated category display layouts.',
     scopeType: 'read',
     method: 'GET',
@@ -147,7 +138,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   // Phase 7f — Category 완성 (decorationimages + seo + mains add/update/delete + autodisplay CUD)
   {
     id: 'category_decorationimages_get',
-    label: '카테고리 꾸미기 이미지 조회',
     description: 'Retrieve decoration image settings for a category.',
     scopeType: 'read',
     method: 'GET',
@@ -161,7 +151,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'category_decorationimages_update',
-    label: '카테고리 꾸미기 이미지 수정',
     description: 'Update decoration image settings for a category.',
     scopeType: 'write',
     method: 'PUT',
@@ -175,7 +164,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'category_seo_get',
-    label: '카테고리 SEO 조회',
     description: 'Retrieve SEO settings of a category.',
     scopeType: 'read',
     method: 'GET',
@@ -189,7 +177,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'category_seo_update',
-    label: '카테고리 SEO 수정',
     description: 'Update SEO settings of a category (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -206,7 +193,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mains_add',
-    label: '메인 카테고리 추가',
     description: 'Add a main category (pin to storefront home).',
     scopeType: 'write',
     method: 'POST',
@@ -225,7 +211,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   // 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'mains_update',
-    label: '메인 카테고리 수정',
     description:
       'Update a main category. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
@@ -241,7 +226,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mains_delete',
-    label: '메인 카테고리 삭제',
     description:
       'Delete a main category. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
@@ -255,7 +239,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'autodisplay_create',
-    label: '자동 진열 생성',
     description: 'Create an auto-layout rule for a category.',
     scopeType: 'write',
     method: 'POST',
@@ -270,7 +253,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'autodisplay_update',
-    label: '자동 진열 수정',
     description: 'Update an auto-layout rule by display_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -287,7 +269,6 @@ export const categoryOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'autodisplay_delete',
-    label: '자동 진열 삭제',
     description: 'Delete an auto-layout rule by display_no.',
     scopeType: 'write',
     method: 'DELETE',

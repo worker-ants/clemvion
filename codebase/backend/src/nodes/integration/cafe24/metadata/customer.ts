@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const customerOperations: Cafe24OperationMetadata[] = [
   {
     id: 'customer_list',
-    label: '회원 목록 조회',
     description: 'Search customers by member id or cellphone.',
     scopeType: 'read',
     method: 'GET',
@@ -31,7 +30,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   // 결정은 `plan/in-progress/cafe24-backlog-residual.md §G-2` 트랙에서 진행.
   {
     id: 'customer_get',
-    label: '회원 단건 조회',
     description:
       'Get a single customer by member_id. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
@@ -46,7 +44,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_update',
-    label: '회원 정보 수정',
     description:
       'Update customer profile fields. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
@@ -65,7 +62,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_group_update',
-    label: '회원 등급 변경',
     description: 'Move a customer to a different customer tier.',
     scopeType: 'write',
     // cafe24 docs anchor `update-a-customer-s-customer-tier`: POST
@@ -90,7 +86,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_memos_create',
-    label: '회원 메모 작성',
     description: 'Add a memo to a customer.',
     scopeType: 'write',
     method: 'POST',
@@ -123,7 +118,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_memos_count',
-    label: '회원 메모 개수 조회',
     description:
       'Retrieve the count of memos attached to a customer. Sibling of `customer_memos_list`.',
     scopeType: 'read',
@@ -138,7 +132,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_memos_list',
-    label: '회원 메모 목록 조회',
     description:
       'List memos attached to a customer, filterable by date/importance/text.',
     scopeType: 'read',
@@ -177,7 +170,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_memos_get',
-    label: '회원 메모 단건 조회',
     description: 'Get a single customer memo by `memo_no`.',
     scopeType: 'read',
     method: 'GET',
@@ -192,7 +184,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_memos_update',
-    label: '회원 메모 수정',
     description: 'Update an existing customer memo.',
     scopeType: 'write',
     method: 'PUT',
@@ -227,7 +218,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_memos_delete',
-    label: '회원 메모 삭제',
     description: 'Delete a customer memo by `memo_no`.',
     scopeType: 'write',
     method: 'DELETE',
@@ -243,7 +233,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   // Phase 7b — Customer deep (paymentinfo / properties / groups / social)
   {
     id: 'customer_delete',
-    label: '회원 탈퇴 처리',
     description: 'Delete a customer account by member_id.',
     scopeType: 'write',
     method: 'DELETE',
@@ -264,7 +253,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_autoupdate_get',
-    label: '회원 등급 자동 갱신 조회',
     description:
       'Retrieve the auto-tier-update setting for a specific customer.',
     scopeType: 'read',
@@ -282,7 +270,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_paymentinfo_list',
-    label: '회원 결제수단 목록',
     description: "List a customer's saved payment methods.",
     scopeType: 'read',
     method: 'GET',
@@ -296,7 +283,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_paymentinfo_delete',
-    label: '회원 결제수단 삭제',
     description: 'Remove all saved payment information for a customer.',
     scopeType: 'write',
     method: 'DELETE',
@@ -310,7 +296,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_paymentinfo_delete_by_id',
-    label: '회원 결제수단 ID 삭제',
     description: 'Remove a specific payment method from a customer.',
     scopeType: 'write',
     method: 'DELETE',
@@ -325,7 +310,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_plusapp_get',
-    label: 'Plus 앱 설치 정보 조회',
     description: 'Retrieve Plus-app installation info for a customer.',
     scopeType: 'read',
     method: 'GET',
@@ -339,7 +323,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customer_social_get',
-    label: '소셜 계정 조회',
     description: "Retrieve a customer's linked social account.",
     scopeType: 'read',
     method: 'GET',
@@ -353,7 +336,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customers_properties_view',
-    label: '회원가입 필드 조회',
     description:
       'View configured signup/edit form fields for the mall (join or edit type).',
     scopeType: 'read',
@@ -375,7 +357,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customers_properties_edit',
-    label: '회원가입 필드 수정',
     description: 'Edit the configured signup/edit form fields (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -400,7 +381,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'social_list',
-    label: '소셜 연동 목록',
     description: 'List social-login integrations configured on the mall.',
     scopeType: 'read',
     method: 'GET',
@@ -431,7 +411,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customergroups_list',
-    label: '회원 등급 목록',
     description:
       'List customer tiers configured on the mall, filterable by tier id/name.',
     scopeType: 'read',
@@ -456,7 +435,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customergroups_count',
-    label: '회원 등급 개수',
     description: 'Retrieve the count of configured customer tiers.',
     scopeType: 'read',
     method: 'GET',
@@ -479,7 +457,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customergroups_get',
-    label: '회원 등급 단건 조회',
     description: 'Retrieve a customer tier by group_no.',
     scopeType: 'read',
     method: 'GET',
@@ -493,7 +470,6 @@ export const customerOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customergroups_settings_get',
-    label: '회원 등급 설정 조회',
     description: 'Retrieve mall-level customer tier settings.',
     scopeType: 'read',
     method: 'GET',

@@ -2,8 +2,8 @@ import type { Cafe24OperationMetadata } from './types.js';
 import { validateCafe24Constraints } from './constraint-validator.js';
 
 /**
- * Helper — minimal operation stub. `id`/`label`/etc. are not consulted by
- * the validator; only `fields` (for key reference) and `constraints` matter.
+ * Helper — minimal operation stub. Only `fields` (for key reference) and
+ * `constraints` matter to the validator; `id`/`description`/etc. are stubs.
  */
 function op(
   fields: string[],
@@ -11,7 +11,6 @@ function op(
 ): Cafe24OperationMetadata {
   return {
     id: 'test_op',
-    label: 'test',
     description: 'test',
     scopeType: 'read',
     method: 'GET',

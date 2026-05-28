@@ -5,9 +5,9 @@
  * (= `cafe24.<resource>.<operation>`) 를 lookup 키로 사용한다. ActivityTab 이
  * `apiLabel` 컬럼에서 사람 친화 라벨로 변환할 때 참조.
  *
- * 라벨은 `backend metadata.label` 에서 자동 추출. 새 operation 이 추가되면
- * 같은 PR 안에서 본 dict + EN 동반 갱신. 키 누락 시 ActivityTab 은 endpoint
- * subtext 한 줄로 fallback (spec §4.6).
+ * 라벨은 operation id 기반으로 작성. 새 operation 이 추가되면 KO/EN 동반 갱신
+ * 필요 (같은 PR 안). 키 누락 시 ActivityTab 은 endpoint subtext 한 줄로
+ * fallback (spec §4.6).
  *
  * SoT: spec/conventions/cafe24-api-metadata.md §7.5,
  *      spec/2-navigation/4-integration.md §4.6 / §9.3

@@ -14,7 +14,8 @@ import type { Cafe24Resource } from './types.js';
 
 export interface Cafe24PlannedOperationEntry {
   id: string;
-  label: string;
+  // `label` 필드는 frontend i18n dict 이주 (2026-05-28).
+  // SoT: spec/conventions/cafe24-api-metadata.md §7.5.
   paginated?: boolean;
 }
 
