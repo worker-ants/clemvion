@@ -45,6 +45,8 @@ EnterWorktree(name="<task_name>-<slug>")
 
 세션 CWD 자동 이동. `name` 에 `<task_name>-<slug>` 형식 명시 (생략 시 random).
 
+> **브랜치명 주의**: 하네스 `EnterWorktree` 는 브랜치를 항상 `worktree-<name>` 로 만든다 (접두를 바꾸는 설정 없음, `WorktreeCreate` hook 은 git repo 에선 미발화). 이 접두는 §6 의 자동 정규화 hook 이 `claude/<name>` 으로 사후 교정하므로 컨벤션 위반이 남지 않는다. ①·③ 은 처음부터 `claude/` 로 생성하므로 정규화 대상이 아니다.
+
 **③ Native `git worktree add` (스크립트·CI)**
 
 ```bash
@@ -73,3 +75,20 @@ D 의 read/silent 정책: `ls`, `cat`, `grep`, `find`, `pwd`, `git status`, `git
 **우회**:
 - branch 변경 (정상 동선): 자동 통과.
 - `BYPASS_DEFAULT_BRANCH_GUARD=1`: 단발성 우회 (release tagging, 긴급 hotfix).
+
+## 6. 브랜치명 정규화 (worktree- → claude/)
+
+하네스 `EnterWorktree`(§4 ②)가 만드는 `worktree-<name>` 브랜치를 프로젝트 컨벤션 `claude/<name>` 으로 사후 교정한다. 판정·rename 은 `.claude/hooks/_lib/branch_naming.py` (`normalize`) 한 곳에서 한다.
+
+**왜 사후 교정인가**: `EnterWorktree` 의 접두를 바꾸는 설정이 없고, `WorktreeCreate` hook 은 git repo 안에서는 발화하지 않는다(non-git fallback 전용). 생성을 가로챌 수 없으므로, 확실히 발화하는 hook 에서 rename 한다.
+
+| 시점 | hook | 동작 |
+|---|---|---|
+| UserPromptSubmit | `normalize_worktree_branch.py` | rename 후 알림 reminder inject (cross-turn 케이스) |
+| PreToolUse (bash) | `normalize_worktree_branch.py` | `git push` 전 silent rename (same-turn 케이스 — 백그라운드 잡이 한 턴 안에서 생성→push) |
+
+**rename 조건 (모두 충족 시에만)**: linked worktree(`.git` 이 파일) **AND** 현재 branch 가 `worktree-` 로 시작 **AND** upstream 미설정. → `git branch -m worktree-<name> claude/<name>`. `claude/<name>` 충돌 시 짧은 slug 부착.
+
+**안전장치**: upstream 이 붙은(=이미 push/PR) 브랜치는 건드리지 않아 divergence 를 방지한다. main worktree 브랜치는 절대 대상이 아니다. 멱등 — 이미 `claude/` 면 no-op 이라 기존 stray 브랜치도 자동 치유된다.
+
+활성화: `.claude/settings.json` 등록만으로 자동.
