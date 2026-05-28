@@ -56,18 +56,21 @@ sequenceDiagram
   alt not found
     Hk-->>Ext: 404
   end
-  alt auth_config_id 설정 OR ip_whitelist
-    Hk->>PG: SELECT auth_config (decrypt config)
-    Hk->>Hk: 검증 (Bearer/API Key/Basic + IP allowlist)
-    alt 실패
-      Hk-->>Ext: 401/403
+  alt trigger.auth_config_id IS NOT NULL
+    Hk->>PG: SELECT auth_config WHERE id=:authConfigId AND workspace_id=:wsId (decrypt config)
+    Hk->>Hk: is_active 확인 + ip_whitelist (있으면) + AuthConfig.type 별 검증 (bearer_token/api_key/basic_auth/hmac)
+    alt 실패 또는 is_active=false
+      Hk-->>Ext: 401 AUTH_FAILED
     end
+    Hk->>PG: UPDATE auth_config SET last_used_at=now (fire-and-forget, 성공 시)
   end
   Hk->>Eng: execute(workflowId, inputData={headers, body, query, ip}, triggerId=trigger.id)
   Hk->>PG: UPDATE trigger SET last_triggered_at=now
   Eng-->>Hk: { executionId }
-  Hk-->>Ext: 200 { executionId } (default) OR 동기 응답 모드면 결과 반환
+  Hk-->>Ext: 202 { executionId } (비동기 실행)
 ```
+
+> `ip_whitelist` 는 `AuthConfig` 종속 ([Spec 데이터 모델 §2.17](../1-data-model.md#217-authconfig)) 이므로 `auth_config_id IS NULL` 이면 ip_whitelist 도 평가 대상이 없다 ("ip_whitelist-only" 경로는 존재하지 않음). 응답 코드는 [Spec Webhook WH-RS-01](../5-system/12-webhook.md#33-응답-및-피드백) 의 `202 Accepted` 와 정합.
 
 ### 1.3 Schedule 발사
 
@@ -117,7 +120,8 @@ sequenceDiagram
 | `trigger` | 발사 | UPDATE `last_triggered_at` | — |
 | `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` (V011) | FK CASCADE on trigger_id |
 | `schedule` | sweep | UPDATE `next_run_at, last_run_at` | `(next_run_at, is_active)` |
-| `auth_config` | 웹훅 인증 | SELECT `type, config (decrypted), ip_whitelist` | FK from `trigger.auth_config_id` |
+| `auth_config` | 웹훅 인증 (read) | SELECT `type, config (decrypted), ip_whitelist, is_active` | FK from `trigger.auth_config_id` |
+| `auth_config` | 검증 성공 (write) | UPDATE `last_used_at` (fire-and-forget, 트랜잭션 외) | — |
 | `execution` | 진입 시 | INSERT (자세히는 [`execution.md`](./3-execution.md)) | `trigger_id` FK SET NULL (트리거 삭제 시 실행 이력 보존) |
 
 ### 2.2 Redis (BullMQ)
@@ -158,7 +162,7 @@ Schedule 과의 동기화는 양방향 — 둘 중 하나만 변경해도 다른
 | 의존 | 방향 | 참고 |
 | --- | --- | --- |
 | Execution 도메인 | cross-ref | 모든 트리거가 최종 진입 — [`execution.md`](./3-execution.md) |
-| Auth 도메인 (AuthConfig) | webhook 인증 | API Key / Bearer / Basic. credentials 는 암호화 |
+| Auth 도메인 (AuthConfig) | webhook 인증 | API Key / Bearer / Basic / HMAC. credentials 는 AES-256-GCM 암호화. 인증 성공 시 `last_used_at` 갱신 ([Spec 데이터 모델 §2.17](../1-data-model.md#217-authconfig)) |
 
 ---
 

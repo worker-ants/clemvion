@@ -20,7 +20,7 @@ secret://<scope>/<resourceId>/<name>
 
 | 부분 | 의미 | 규칙 |
 |---|---|---|
-| `scope` | 자원 namespace | lower-case kebab-case (예: `triggers`, `auth-configs`, `oauth-clients`) |
+| `scope` | 자원 namespace | lower-case kebab-case (예: `triggers`, `oauth-clients`). `auth-configs` 는 향후 확장 여지일 뿐 현재 미사용 — 아래 "비대상" 참고 |
 | `resourceId` | 자원 식별자 | UUID v4 또는 별 spec 의 ID 형식 |
 | `name` | 자원 안의 secret 이름 | lower-case kebab-case (예: `bot-token`, `inbound-signing`, `notification-signing`, `bot-token.v2`) |
 
@@ -35,6 +35,8 @@ secret://<scope>/<resourceId>/<name>
 | `secret://triggers/{triggerId}/notification-signing.v2` | EIA HMAC signing (rotation grace) |
 
 `name` 안에 `.v2` 접미사는 [CCH-SE-04](../5-system/15-chat-channel.md#34-신뢰성--보안) / [EIA-NX-12](../5-system/14-external-interaction-api.md#31-outbound-notification-notification-webhook) 의 24h grace rotation 기간 동안 병행 보관용. primary 와 동일 자원의 변형이라는 의미를 keep.
+
+> **비대상 — `AuthConfig.config`**: `AuthConfig` ([Spec 데이터 모델 §2.17](../1-data-model.md#217-authconfig)) 의 자격증명은 `auth-configs` 모듈 자체의 컬럼 transformer (Integration `credentials` 와 동일 `ENCRYPTION_KEY`·AES-256-GCM) 가 직접 암복호화한다. 본 `secret://` URI scheme 의 통합 대상이 **아니다**. 응답 마스킹 정책의 단일 진실도 본 convention 이 아니라 [Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책) 다.
 
 ---
 
@@ -327,3 +329,4 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 | 2026-05-22 | v1 — `SecretResolver` interface 신설, `secret://<scope>/<resourceId>/<name>` URI scheme 정의, **application-side AES-256-GCM** + 환경변수 마스터키 백엔드 채택 (DB 는 ciphertext 만 보관). CCH-SE-03 v1 plaintext stub 종료. EIA notification.signing.secret 도 같은 store 로 통합. |
 | 2026-05-24 | §1 예시 표에 chat channel provider 별 webhook 인증 ref 2종 추가 — `slack-signing-secret` (Slack HMAC) / `discord-public-key` (Discord ed25519). `bot-token` 의 용도 설명을 provider 공통 (Telegram/Slack/Discord) 으로 generalize. Scheme 자체 변경 없음. spec-slack-discord-chat-channel. |
 | 2026-05-24 | §1 예시 표 — `webhook-secret` (Telegram) / `slack-signing-secret` (Slack) / `discord-public-key` (Discord) 3종을 단일 role-based 이름 `inbound-signing` 으로 통합. 세 자원 모두 "inbound webhook 출처 검증용 자료" 공통 role 이고, 검증 알고리즘 분기는 backend 책임 — ref 슬롯은 단일. ChatChannelConfig 의 3개 필드도 단일 `inboundSigningRef?` 로 통합 ([`chat-channel-adapter.md §2.3`](./chat-channel-adapter.md#23-chatchannelconfig)). Migration 불필요 (production data 없음). spec-chat-channel-inbound-signing-rename. |
+| 2026-05-28 | §1 에 `AuthConfig.config` 비대상 명시 추가 — webhook 인증 AuthConfig wiring 과정에서 AuthConfig 자격증명이 본 store 와 별 도메인 (모듈 transformer 직접 처리) 임을 명확화. 응답 마스킹 정책 SoT 는 `spec/1-data-model.md §2.17.2`. 본 convention 의 interface·scheme 변경 없음. auth-config-webhook-wiring. |
