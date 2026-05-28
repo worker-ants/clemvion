@@ -7,10 +7,12 @@ import {
   Body,
   Param,
   Query,
+  Req,
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
@@ -29,14 +31,16 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import { AuthConfigsService } from './auth-configs.service';
-import { WorkspaceId } from '../../common/decorators';
+import { WorkspaceId, CurrentUser } from '../../common/decorators';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreateAuthConfigDto } from './dto/create-auth-config.dto';
 import { UpdateAuthConfigDto } from './dto/update-auth-config.dto';
+import { RevealAuthConfigDto } from './dto/reveal-auth-config.dto';
 import {
   AuthConfigDto,
   AuthConfigUsageDto,
 } from './dto/responses/auth-config-response.dto';
+import { RevealAuthConfigResponseDto } from './dto/responses/reveal-auth-config-response.dto';
 
 @ApiTags('Auth Configs')
 @ApiBearerAuth('access-token')
@@ -74,7 +78,8 @@ export class AuthConfigsController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
   ) {
-    return this.authConfigsService.findById(id, workspaceId);
+    // 응답은 secret 류 필드를 마스킹 (평문은 create/regenerate/reveal 만).
+    return this.authConfigsService.findByIdForResponse(id, workspaceId);
   }
 
   @Post()
@@ -154,6 +159,41 @@ export class AuthConfigsController {
     @WorkspaceId() workspaceId: string,
   ) {
     return this.authConfigsService.regenerate(id, workspaceId);
+  }
+
+  @Post(':id/reveal')
+  // 평문 자격증명 노출은 민감 동작 — Admin+ 로 제한 + 비밀번호 재확인 + audit 기록.
+  @Roles('admin')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '인증 설정 평문 노출 (Reveal)',
+    description:
+      '마스킹된 config 의 평문 값을 1회 반환합니다. 현재 로그인 비밀번호 재확인이 필요하며, audit_log 에 auth_config.reveal 로 기록됩니다.',
+  })
+  @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(RevealAuthConfigResponseDto, {
+    description: '평문 config (1회 노출)',
+  })
+  @ApiBadRequestResponse({ description: '입력값 검증 실패 (password 누락)' })
+  @ApiUnauthorizedResponse({
+    description: '비밀번호 재확인 실패 또는 토큰 만료',
+  })
+  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
+  @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
+  async reveal(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: RevealAuthConfigDto,
+    @Req() req: Request,
+  ): Promise<RevealAuthConfigResponseDto> {
+    return this.authConfigsService.reveal(
+      id,
+      workspaceId,
+      userId,
+      body.password,
+      req.ip,
+    );
   }
 
   @Delete(':id')

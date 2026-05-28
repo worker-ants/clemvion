@@ -12,12 +12,15 @@ export class AuthConfigDto {
   name: string;
 
   @ApiProperty({
-    enum: ['api_key', 'bearer_token', 'hmac_signature', 'basic_auth'],
+    enum: ['api_key', 'bearer_token', 'basic_auth', 'hmac'],
     example: 'api_key',
   })
   type: string;
 
-  /** 타입별 세부 설정 (마스킹된 값 포함) */
+  /**
+   * 타입별 세부 설정. secret 류 필드(key/token/secret/password)는 `***<last4>` 로
+   * 마스킹된다 (spec/1-data-model.md §2.17.2). 평문은 create/regenerate/reveal 응답에서만.
+   */
   @ApiProperty({ type: 'object', additionalProperties: true })
   config: Record<string, unknown>;
 
