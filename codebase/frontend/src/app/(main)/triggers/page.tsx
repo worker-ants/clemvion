@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
   AuthConfigSelect,
   useAuthConfigs,
   AUTH_CONFIG_TYPE_LABEL_KEYS,
+  type AuthConfigOption,
 } from "@/components/triggers/auth-config-select";
 import {
   TriggerDeleteDialog,
@@ -99,6 +100,51 @@ const STATUS_FILTER_LABELS: Record<StatusFilter, TranslationKey> = {
   active: "triggers.statusActive",
   inactive: "triggers.statusInactive",
 };
+
+/**
+ * 목록 행의 "인증" 셀 — Spec 2-trigger-list §2.1 + R-15.
+ * webhook 만 인증 대상: 연결된 AuthConfig type 뱃지, 무인증이면 보안 경고.
+ * webhook 외 타입은 inbound HTTP 인증 N/A 이므로 "-".
+ */
+function TriggerAuthCell({
+  trigger,
+  authConfigById,
+}: {
+  trigger: Trigger;
+  authConfigById: Map<string, AuthConfigOption>;
+}) {
+  const t = useT();
+
+  if (trigger.type !== "webhook") {
+    return <span className="text-[hsl(var(--muted-foreground))]">-</span>;
+  }
+
+  if (trigger.authConfigId) {
+    const cfg = authConfigById.get(trigger.authConfigId);
+    return (
+      <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
+        {cfg
+          ? t(AUTH_CONFIG_TYPE_LABEL_KEYS[cfg.type] ?? "authentication.typeApiKey")
+          : t("triggers.authConfigured")}
+      </span>
+    );
+  }
+
+  // 외부 노출 webhook + 무인증 → 보안 경고 (R-15)
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400"
+      title={t("triggers.authUnauthenticatedWarning")}
+    >
+      <AlertTriangle
+        role="img"
+        aria-label={t("triggers.authUnauthenticatedWarning")}
+        className="h-4 w-4 shrink-0"
+      />
+      {t("triggers.authConfigNone")}
+    </span>
+  );
+}
 
 export default function TriggersPage() {
   const t = useT();
@@ -181,7 +227,7 @@ export default function TriggersPage() {
         lastTriggeredAt: t.lastTriggeredAt,
         cronExpression: t.cronExpression,
         nextRunAt: t.nextRunAt,
-        authConfigId: t.authConfigId ?? null,
+        authConfigId: t.authConfigId || null,
         chatChannelProvider: t.config?.chatChannel?.provider,
         chatChannelHealth: t.chatChannelHealth,
       }));
@@ -204,7 +250,10 @@ export default function TriggersPage() {
 
   // [Spec 2-trigger-list §2.1 인증 열] authConfigId → AuthConfig type 해석용 맵.
   const { data: authConfigs = [] } = useAuthConfigs();
-  const authConfigById = new Map(authConfigs.map((c) => [c.id, c]));
+  const authConfigById = useMemo(
+    () => new Map(authConfigs.map((c) => [c.id, c])),
+    [authConfigs],
+  );
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
@@ -657,42 +706,10 @@ export default function TriggersPage() {
                   </td>
                   {/* 인증 (AuthConfig) — Spec 2-trigger-list §2.1 + R-15 */}
                   <td className="px-4 py-3">
-                    {(() => {
-                      if (trigger.type !== "webhook") {
-                        return (
-                          <span className="text-[hsl(var(--muted-foreground))]">
-                            -
-                          </span>
-                        );
-                      }
-                      if (trigger.authConfigId) {
-                        const cfg = authConfigById.get(trigger.authConfigId);
-                        return (
-                          <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
-                            {cfg
-                              ? t(
-                                  AUTH_CONFIG_TYPE_LABEL_KEYS[cfg.type] ??
-                                    "authentication.typeApiKey",
-                                )
-                              : t("triggers.authConfigured")}
-                          </span>
-                        );
-                      }
-                      // 외부 노출 webhook + 무인증 → 보안 경고 (R-15)
-                      return (
-                        <span
-                          className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400"
-                          title={t("triggers.authUnauthenticatedWarning")}
-                        >
-                          <AlertTriangle
-                            role="img"
-                            aria-label={t("triggers.authUnauthenticatedWarning")}
-                            className="h-4 w-4 shrink-0"
-                          />
-                          {t("triggers.authConfigNone")}
-                        </span>
-                      );
-                    })()}
+                    <TriggerAuthCell
+                      trigger={trigger}
+                      authConfigById={authConfigById}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <Link

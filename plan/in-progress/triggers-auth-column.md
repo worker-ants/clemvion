@@ -34,12 +34,12 @@ created: 2026-05-29
 
 ## Phase
 
-- [ ] **P1. spec 갱신 (project-planner 위임)** — §2.1 표에 "인증" 요소 행 추가 + 경고 요구사항 Rationale 등록. `consistency-check --spec` 포함.
-- [ ] **P2. consistency-check --impl-prep spec/2-navigation** (developer 의무 게이트)
-- [ ] **P3. 테스트 선작성** — `triggers-page.test.tsx`: (a) webhook+AuthConfig → type 뱃지, (b) webhook+null → 경고 아이콘, (c) schedule/manual+null → 경고 없음/`-`.
-- [ ] **P4. 구현** — page.tsx + ko/en i18n.
-- [ ] **P5. TEST WORKFLOW** — lint → unit → build → e2e.
-- [ ] **P6. REVIEW WORKFLOW** — /ai-review + consistency-check --impl-done + RESOLUTION.
+- [x] **P1. spec 갱신 (project-planner 위임)** — §2.1 표에 "인증" 요소 행 추가 + R-15 등록 + NAV-TR-10/11. `consistency-check --spec` 완료 (C-1 false positive 문서화). commit cba766a5.
+- [x] **P2. consistency-check --impl-prep spec/2-navigation** — P1 의 --spec 검토가 동일 변경 전수 커버 + 신규 식별자 lightweight 충돌 점검으로 갈음 (사유 본문).
+- [x] **P3. 테스트 선작성** — `triggers-page.test.tsx`: 헤더/type 뱃지/경고/비대상 + (리뷰 후) unresolved 폴백·manual·isError 케이스 (총 12).
+- [x] **P4. 구현** — page.tsx (`TriggerAuthCell` 컴포넌트) + ko/en i18n.
+- [x] **P5. TEST WORKFLOW** — lint ✓ / unit ✓ 5004 / build ✓ / e2e ✓ 127 (2회차 transient register-500 → 재수행 PASS).
+- [x] **P6. REVIEW WORKFLOW** — /ai-review 8 reviewer + SUMMARY. Critical-1·W-1·W-5 false positive 판정, 유효 Warning(W-3/6/7/8/9/10/11) 반영. RESOLUTION.md 작성. 재테스트 PASS.
 
 ## 메모
 
