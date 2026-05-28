@@ -775,7 +775,12 @@ function ExternalInteractionCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setEditing(false)}
+              onClick={() => {
+                // useMutation 전환 후 직전 저장 실패의 error 상태가 재진입까지
+                // 잔류하지 않도록 cancel 시 mutation 상태를 초기화한다.
+                saveMutation.reset();
+                setEditing(false);
+              }}
               disabled={saveMutation.isPending}
             >
               {t("triggers.externalInteraction.cancel")}

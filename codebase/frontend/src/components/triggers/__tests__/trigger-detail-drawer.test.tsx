@@ -16,16 +16,37 @@ import {
 import type { AuthConfigOption } from "../auth-config-select";
 
 const apiGetMock = vi.fn();
+const apiPatchMock = vi.fn();
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     get: (...args: unknown[]) => apiGetMock(...args),
     post: vi.fn(),
-    patch: vi.fn(),
+    patch: (...args: unknown[]) => apiPatchMock(...args),
     delete: vi.fn(),
   },
 }));
 
+const toastSuccess = vi.fn();
+const toastError = vi.fn();
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: unknown[]) => toastSuccess(...args),
+    error: (...args: unknown[]) => toastError(...args),
+  },
+}));
+
 import { TriggerDetailDrawer } from "../trigger-detail-drawer";
+
+/**
+ * "Edit" 버튼은 Overview·Webhook·EIA 카드에 각각 존재한다(라벨 모두 "Edit").
+ * 타이틀 텍스트로 카드 헤더(타이틀의 부모 = CardHeader)를 찾아 그 안의 Edit
+ * 버튼만 집어, DOM 구조 가정을 이 헬퍼 한 곳으로 격리한다.
+ */
+function cardEditButton(cardTitle: string): HTMLElement {
+  const header = screen.getByText(cardTitle).parentElement;
+  if (!header) throw new Error(`card header not found for: ${cardTitle}`);
+  return within(header).getByRole("button", { name: "Edit" });
+}
 
 type TriggerData = Record<string, unknown> & { id: string; type: string };
 
@@ -201,12 +222,9 @@ describe("TriggerDetailDrawer", () => {
     };
     mockApi({ ...WEBHOOK_TRIGGER, authConfigId: null }, [linked]);
     renderDrawer();
-    const webhookTitle = await screen.findByText("Webhook Configuration");
+    await screen.findByText("Webhook Configuration");
 
-    // "Edit" 버튼은 Overview·Webhook·EIA 카드에 각각 존재하므로 Webhook 카드
-    // 헤더(타이틀의 부모 = CardHeader)로 스코프를 좁혀 정확히 진입한다.
-    const webhookHeader = webhookTitle.parentElement!;
-    fireEvent.click(within(webhookHeader).getByRole("button", { name: "Edit" }));
+    fireEvent.click(cardEditButton("Webhook Configuration"));
 
     await waitFor(() => {
       // 드롭다운 option: "인증 없음" + 등록된 AuthConfig.
@@ -233,5 +251,60 @@ describe("TriggerDetailDrawer", () => {
     mockApi(SCHEDULE_TRIGGER, []);
     renderDrawer({ triggerId: "t-2" });
     expect(await screen.findByText("Inactive")).toBeInTheDocument();
+  });
+
+  // W3 — ExternalInteractionCard.handleSave 의 useMutation 전환 검증.
+  // (저장 → PATCH 발행 → 성공 시 read 모드 복귀 / 실패 시 edit 모드 유지)
+  it("External Interaction 저장 성공 시 PATCH 를 발행하고 read 모드로 복귀한다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    apiPatchMock.mockResolvedValueOnce({ data: {} });
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(apiPatchMock).toHaveBeenCalledWith(
+        "/triggers/t-1",
+        expect.objectContaining({
+          interaction: expect.objectContaining({
+            enabled: expect.any(Boolean),
+            tokenStrategy: expect.any(String),
+          }),
+        }),
+      );
+    });
+    expect(toastSuccess).toHaveBeenCalled();
+    // read 모드 복귀 → Save 버튼 사라지고 Edit 재노출.
+    await waitFor(() => {
+      expect(
+        within(
+          screen.getByText("External Interaction").parentElement!,
+        ).queryByRole("button", { name: "Save" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("External Interaction 저장 실패 시 error toast 를 띄우고 edit 모드를 유지한다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    apiPatchMock.mockRejectedValueOnce(new Error("boom"));
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalled();
+    });
+    // edit 모드 유지 → Save 버튼이 그대로 노출.
+    expect(
+      within(
+        screen.getByText("External Interaction").parentElement!,
+      ).getByRole("button", { name: "Save" }),
+    ).toBeInTheDocument();
   });
 });
