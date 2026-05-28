@@ -1,8 +1,9 @@
 ---
 worktree: chat-channel-error-notify-6d37ec
 started: 2026-05-25
+completed: 2026-05-28
 owner: project-planner (spec) → developer (impl, TBD)
-status: in-progress
+status: complete
 related_specs:
   - spec/5-system/15-chat-channel.md
   - spec/conventions/chat-channel-adapter.md
@@ -144,3 +145,9 @@ related_specs:
 
 - **Q5: spec PR + 구현 PR 분리 vs 한 묶음?** → **한 묶음** (e2e 1회 통과 의미 확보). Phase 1-4 같은 worktree (`chat-channel-error-notify-6d37ec`) 연속 진행.
 - **Q6: i18n default 문구 — KO + EN 둘 다?** → **KO + EN 둘 다 spec 에 미리 정의**. `config.chatChannel.languageLocale: "ko" | "en"` (default "ko") 필드 신설로 사용자 override 부담 감소. 기존 5 키 (`groupChatRefusal` 등) 의 EN 화는 본 PR 범위 밖 (별 plan). 본 변경은 commit 2 차 spec 보강으로 적용.
+
+## 완료 기록 (2026-05-28)
+
+- **Phase 1-4** — PR #323 (`feat(chat-channel): 외부 채널 실행 실패 사용자 안내 (CCH-ERR-*) + runtime drift fix`) 로 spec / backend classifier·renderer / DTO validation / unit·e2e test / i18n dict / user-guide MDX / code-review(RESOLUTION) 까지 일괄 머지·통과.
+- **잔여 갭 보완 (본 worktree `chat-channel-error-notify-finish`)** — PR #323 에 누락됐던 §Frontend `languageLocale` select UI 를 `trigger-detail-drawer.tsx` (read row + edit select + save payload) 에 추가, i18n dict `languageLocale` / `languageLocaleKo` / `languageLocaleEn` / `languageLocaleHelp` 4 키 KO/EN parity 신설. backend DTO·types 는 PR #323 에서 이미 `languageLocale?: 'ko' | 'en'` 지원. 프론트 tsc 0 error / lint 통과.
+- 모든 deliverable 충족 → `plan/complete/` 이동.
