@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
+import { Address4, Address6 } from 'ip-address';
 import { AuthConfig } from './entities/auth-config.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
@@ -213,11 +214,12 @@ export class AuthConfigsService {
       throw this.authFailed();
     }
 
-    // ip_whitelist (exact match — CIDR 매칭은 follow-up). ip_whitelist 가 설정되면
-    // 클라이언트 IP 를 알 수 없는 경우(헤더 strip·직접 연결)에도 거부한다 — 화이트리스트가
-    // silent bypass 되지 않도록 (fail-closed). ip_whitelist 는 AuthConfig 종속이라 여기서만 시행.
+    // ip_whitelist — 단일 IP 와 CIDR 표기(예: 10.0.0.0/8, 2001:db8::/32)를 모두 지원
+    // (단일 IP 는 /32·/128 호스트로 취급). ip_whitelist 가 설정되면 클라이언트 IP 를 알 수
+    // 없는 경우(헤더 strip·직접 연결)에도 거부한다 — 화이트리스트가 silent bypass 되지 않도록
+    // (fail-closed). ip_whitelist 는 AuthConfig 종속이라 여기서만 시행.
     if (ac.ipWhitelist?.length) {
-      if (!ctx.clientIp || !ac.ipWhitelist.includes(ctx.clientIp)) {
+      if (!ctx.clientIp || !this.ipInWhitelist(ctx.clientIp, ac.ipWhitelist)) {
         throw this.authFailed();
       }
     }
@@ -244,6 +246,56 @@ export class AuthConfigsService {
     void this.authConfigRepository
       .update({ id: ac.id }, { lastUsedAt: new Date() })
       .catch(() => undefined);
+  }
+
+  /**
+   * clientIp 가 ip_whitelist 의 한 항목에 속하는지 검사. 각 항목은 단일 IP
+   * (예: 10.0.0.1) 또는 CIDR (예: 10.0.0.0/8, 2001:db8::/32) — 단일 IP 는
+   * /32(v4)·/128(v6) 호스트로 취급된다. clientIp 또는 항목이 파싱 불가하면
+   * 매칭에서 제외(fail-closed). 서로 다른 주소 패밀리(v4 vs v6)는 교차 매칭하지
+   * 않는다. dual-stack 소켓의 IPv4-mapped IPv6 (::ffff:1.2.3.4) 는 IPv4 로
+   * 정규화해 v4 항목과 비교한다.
+   */
+  private ipInWhitelist(clientIp: string, whitelist: string[]): boolean {
+    const client = this.parseIp(clientIp);
+    if (!client) return false;
+    return whitelist.some((entry) => {
+      const range = this.parseIp(entry);
+      if (!range || range.isV4 !== client.isV4) return false;
+      try {
+        return client.addr.isInSubnet(range.addr as never);
+      } catch {
+        return false;
+      }
+    });
+  }
+
+  /**
+   * IP 문자열(단일 또는 CIDR)을 ip-address 객체로 파싱. IPv4-mapped IPv6 는
+   * IPv4 로 정규화한다. 파싱 불가 시 null.
+   */
+  private parseIp(
+    value: string,
+  ): { addr: Address4 | Address6; isV4: boolean } | null {
+    if (Address4.isValid(value)) {
+      try {
+        return { addr: new Address4(value), isV4: true };
+      } catch {
+        return null;
+      }
+    }
+    if (Address6.isValid(value)) {
+      try {
+        const a6 = new Address6(value);
+        if (a6.is4()) {
+          return { addr: a6.to4(), isV4: true };
+        }
+        return { addr: a6, isV4: false };
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   private verifyBearer(ac: AuthConfig, ctx: WebhookAuthContext): void {

@@ -64,7 +64,7 @@ code: []
 | WH-SC-06 | API Key 검증 — AuthConfig.type=`api_key`, 헤더 `config.headerName` (default `X-API-Key`) 의 값 비교 | 필수 |
 | WH-SC-07 | Basic Auth 검증 — AuthConfig.type=`basic_auth` (`Authorization: Basic base64(user:pass)`) | 필수 |
 | WH-SC-08 | 인증 성공 시 `AuthConfig.last_used_at = NOW()` fire-and-forget UPDATE (트랜잭션 외, 실패 시 미갱신) | 필수 |
-| WH-SC-09 | AuthConfig.ip_whitelist 가 설정된 경우 클라이언트 IP allowlist 시행 (불일치 시 401 `AUTH_FAILED`). ip_whitelist 는 AuthConfig 종속이므로 `auth_config_id IS NOT NULL` 일 때만 평가 | 권장 |
+| WH-SC-09 | AuthConfig.ip_whitelist 가 설정된 경우 클라이언트 IP allowlist 시행 (불일치 시 401 `AUTH_FAILED`). 각 항목은 단일 IP 또는 CIDR 표기를 허용하며 (IPv4-mapped IPv6 클라이언트는 IPv4 로 정규화 비교), 클라이언트 IP 를 알 수 없으면 거부(fail-closed). ip_whitelist 는 AuthConfig 종속이므로 `auth_config_id IS NOT NULL` 일 때만 평가 | 권장 |
 
 #### 3.3 응답 및 피드백
 
