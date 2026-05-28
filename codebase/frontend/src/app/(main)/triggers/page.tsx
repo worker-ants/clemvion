@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
+import { getWebhookUrl } from "@/lib/utils/webhook-url";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { RoleGate, useHasRole } from "@/components/auth/role-gate";
 import {
@@ -358,13 +359,6 @@ export default function TriggersPage() {
       }
     }
     createMutation.mutate();
-  }
-
-  function getWebhookUrl(endpointPath: string) {
-    const base = typeof window !== "undefined"
-      ? window.location.origin.replace(/:\d+$/, ":3011")
-      : "";
-    return `${base}/api/hooks/${endpointPath}`;
   }
 
   function copyToClipboard(text: string) {
