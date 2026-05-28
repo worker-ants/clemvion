@@ -2,15 +2,21 @@
   "version": 1,
   "started_at": "2026-05-28T12:00:00Z",
   "summary_items_total": 9,
-  "items_resolved_ids": [],
-  "items_pending_ids": ["W5", "W2", "I2", "I3", "I6", "I7", "I10", "I11", "INFO1"],
+  "items_resolved_ids": ["W5", "W2", "W3", "W4", "I2", "I3", "I6", "I7", "I10", "I11"],
+  "items_pending_ids": [],
   "items_escalated_ids": {},
-  "commits_made": [],
+  "commits_made": [
+    {
+      "sha": "9fcc63e6",
+      "summary_id": "W5/W2-W4/I2/I3/I6/I7/I10/I11",
+      "scope": "cafe24"
+    }
+  ],
   "spec_drafts_pending": [],
   "spec_drafts_applied": [],
-  "e2e_attempts": 0,
-  "e2e_last_status": null,
-  "e2e_log_paths": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260528-114235.log"],
   "auto_fix_iterations": {},
   "escalation_reason": null,
   "last_reset_hint_sec": null
