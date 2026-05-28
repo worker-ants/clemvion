@@ -6,6 +6,7 @@ import { EmbeddingModelCombobox } from "../embedding-model-combobox";
 import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
 
 vi.mock("@/lib/api/llm-configs", () => ({
+  LLM_CONFIGS_QUERY_KEY: ["llm-configs"],
   llmConfigsApi: {
     list: vi.fn(),
     listModels: vi.fn(),
@@ -190,11 +191,18 @@ describe("EmbeddingModelCombobox", () => {
     expect(getSelect().value).toBe("legacy-embedding-id");
   });
 
-  it("keeps select disabled and shows error message on load failure (no free input fallback)", async () => {
+  it("shows a localized code-mapped message on load failure and never the raw server text", async () => {
     vi.mocked(llmConfigsApi.listModels).mockRejectedValue(
       Object.assign(new Error("boom"), {
         isAxiosError: true,
-        response: { data: { message: "Provider unavailable" } },
+        response: {
+          data: {
+            error: {
+              code: "LLM_CREDENTIALS_REQUIRED",
+              message: "https://internal.endpoint leaked",
+            },
+          },
+        },
       }),
     );
 
@@ -209,8 +217,10 @@ describe("EmbeddingModelCombobox", () => {
     fireEvent.click(getLoadButton());
 
     await waitFor(() => {
-      expect(screen.getByText(/provider unavailable/i)).toBeInTheDocument();
+      expect(screen.getByText(/API 키를 입력/)).toBeInTheDocument();
     });
+    // 서버 원본 메시지(엔드포인트 등)는 절대 노출되지 않는다
+    expect(screen.queryByText(/internal\.endpoint/)).toBeNull();
     expect(getSelect()).toBeDisabled();
   });
 

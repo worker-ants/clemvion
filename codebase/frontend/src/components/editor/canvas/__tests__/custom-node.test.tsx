@@ -31,12 +31,6 @@ vi.mock("../node-icon", () => ({
   NodeIcon: ({ name }: { name: string }) => <span data-testid="node-icon">{name}</span>,
 }));
 
-// Mock react-query — useQuery returns empty data by default; override via mockLlmConfigs
-let mockLlmConfigs: Array<{ id: string; isDefault: boolean }> = [];
-vi.mock("@tanstack/react-query", () => ({
-  useQuery: () => ({ data: mockLlmConfigs }),
-}));
-
 // Mock tooltip — renders TooltipContent with data-testid for conditional rendering tests
 vi.mock("@/components/ui/tooltip", () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -45,6 +39,7 @@ vi.mock("@/components/ui/tooltip", () => ({
 }));
 
 import { CustomNode } from "../custom-node";
+import { HasDefaultLlmConfigProvider } from "../has-default-llm-config-context";
 import { useNodeDefinitionsStore } from "@/lib/stores/node-definitions-store";
 import type { NodeDefinition } from "@/lib/node-definitions";
 
@@ -202,7 +197,10 @@ type CustomNodeData = {
 
 type CustomNodeType = Node<CustomNodeData, "custom">;
 
-function renderNode(overrides: Partial<CustomNodeData> = {}, options?: { zoom?: number; selected?: boolean }) {
+function renderNode(
+  overrides: Partial<CustomNodeData> = {},
+  options?: { zoom?: number; selected?: boolean; hasDefaultLlmConfig?: boolean },
+) {
   mockZoom = options?.zoom ?? 1;
   const defaultData: CustomNodeData = {
     type: "http_request",
@@ -232,14 +230,17 @@ function renderNode(overrides: Partial<CustomNodeData> = {}, options?: { zoom?: 
     height: 80,
   } as NodeProps<CustomNodeType>;
 
-  return render(<CustomNode {...props} />);
+  return render(
+    <HasDefaultLlmConfigProvider value={options?.hasDefaultLlmConfig ?? false}>
+      <CustomNode {...props} />
+    </HasDefaultLlmConfigProvider>,
+  );
 }
 
 describe("CustomNode", () => {
   beforeEach(() => {
     mockZoom = 1;
     mockNodeStatus = null;
-    mockLlmConfigs = [];
   });
 
   // --- Summary rendering ---

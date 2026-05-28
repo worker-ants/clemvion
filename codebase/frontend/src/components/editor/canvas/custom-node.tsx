@@ -3,7 +3,6 @@
 import { memo, useEffect, useMemo } from "react";
 import { Handle, Position, useStore, useUpdateNodeInternals } from "@xyflow/react";
 import type { NodeProps, Node } from "@xyflow/react";
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, getCategoryColor } from "@/lib/node-definitions";
@@ -11,11 +10,11 @@ import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-port
 import { useExecutionStore } from "@/lib/stores/execution-store";
 import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
 import { useLocale } from "@/lib/i18n";
 import { translateNodePortLabel } from "@/lib/i18n/backend-labels";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { NodeIcon } from "./node-icon";
+import { useHasDefaultLlmConfig } from "./has-default-llm-config-context";
 
 type CustomNodeData = {
   type: string;
@@ -71,16 +70,12 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const showSummary = useStore(zoomSelector);
 
   const isAiNode = data.type === "ai_agent" || data.type === "text_classifier" || data.type === "information_extractor";
-  const { data: llmConfigs = [] } = useQuery({
-    queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.list(),
-    staleTime: 30_000,
-    enabled: isAiNode,
-  });
+  // Shared workspace-level flag from context — see has-default-llm-config-context.
+  const hasDefaultLlmConfig = useHasDefaultLlmConfig();
   const summaryContext = useMemo<SummaryContext | undefined>(() => {
     if (!isAiNode) return undefined;
-    return { hasDefaultLlmConfig: llmConfigs.some((c) => c.isDefault) };
-  }, [isAiNode, llmConfigs]);
+    return { hasDefaultLlmConfig };
+  }, [isAiNode, hasDefaultLlmConfig]);
 
   const locale = useLocale();
   const summary = useMemo(

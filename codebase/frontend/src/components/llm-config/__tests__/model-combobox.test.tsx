@@ -296,13 +296,16 @@ describe("ModelCombobox", () => {
     expect(llmConfigsApi.listModels).not.toHaveBeenCalled();
   });
 
-  it("shows the sanitized error message and keeps select disabled on failure", async () => {
+  it("shows a localized code-mapped message and keeps select disabled on failure", async () => {
     vi.mocked(llmConfigsApi.previewModels).mockRejectedValue(
       Object.assign(new Error("Request failed"), {
         isAxiosError: true,
         response: {
           data: {
-            message: "Authentication failed. Please check your API key.",
+            error: {
+              code: "LLM_CREDENTIALS_REQUIRED",
+              message: "Authentication failed at https://internal.endpoint/v1",
+            },
           },
         },
       }),
@@ -320,8 +323,10 @@ describe("ModelCombobox", () => {
     fireEvent.click(getLoadButton());
 
     await waitFor(() => {
-      expect(screen.getByText(/authentication failed/i)).toBeInTheDocument();
+      expect(screen.getByText(/API 키를 입력/)).toBeInTheDocument();
     });
+    // 서버 원본 메시지(엔드포인트 등)는 노출되지 않는다
+    expect(screen.queryByText(/internal\.endpoint/)).toBeNull();
 
     // 조회 실패 → 자유 입력 fallback 없음. select 는 비활성 유지.
     expect(getSelect()).toBeDisabled();
