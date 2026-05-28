@@ -51,6 +51,8 @@ export const llmConfigs: Dict["llmConfigs"] = {
   loadModelsHint: "Click \"Load models\" to pick from the provider's model list",
   noModelsFound: "No models available",
   loadModelsFailed: "Failed to load models. Check the API key and Base URL, then try again",
+  errorCredentialsRequired: "Enter an API key, then try again",
+  errorConfigInvalid: "Invalid provider configuration. Check the Base URL",
   modelLoadRequired: "Click \"Load models\" first",
   modelSavedFallback: "Current saved: {{model}}",
   deleteTitle: "Delete Provider",

@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { llmConfigsApi } from "@/lib/api/llm-configs";
 import { useT } from "@/lib/i18n";
 import { useEmbeddingModelLoader } from "@/components/llm-config/use-embedding-model-loader";
+import { useDefaultLlmConfigId } from "@/components/llm-config/use-default-llm-config-id";
+import { buildLoaderErrorMessages } from "@/components/llm-config/loader-error-messages";
 import { ModelSelectField } from "@/components/llm-config/model-select-field";
 
 interface EmbeddingModelComboboxProps {
@@ -35,16 +35,10 @@ export function EmbeddingModelCombobox({
 }: EmbeddingModelComboboxProps) {
   const t = useT();
 
-  const { data: configs = [] } = useQuery({
-    queryKey: ["llm-configs"],
-    queryFn: () => llmConfigsApi.list(),
-    staleTime: 30_000,
-  });
-  const defaultConfigId = useMemo(
-    () => configs.find((c) => c.isDefault)?.id ?? configs[0]?.id,
-    [configs],
-  );
+  const defaultConfigId = useDefaultLlmConfigId();
   const effectiveConfigId = llmConfigId ?? defaultConfigId;
+
+  const errorMessagesByCode = useMemo(() => buildLoaderErrorMessages(t), [t]);
 
   const {
     models,
@@ -56,6 +50,7 @@ export function EmbeddingModelCombobox({
   } = useEmbeddingModelLoader({
     configId: effectiveConfigId,
     fallbackErrorMessage: t("knowledgeBases.embeddingModelLoadFailed"),
+    errorMessagesByCode,
   });
 
   const embeddingModels = useMemo(

@@ -49,6 +49,8 @@ export const llmConfigs = {
   loadModelsHint: "\"모델 불러오기\"를 누르면 제공자에서 받아온 모델 중에서 선택할 수 있어요",
   noModelsFound: "사용 가능한 모델이 없어요",
   loadModelsFailed: "모델 목록을 불러오지 못했어요. API 키와 Base URL을 확인한 뒤 다시 시도해주세요",
+  errorCredentialsRequired: "API 키를 입력한 뒤 다시 시도해주세요",
+  errorConfigInvalid: "제공자 설정이 올바르지 않아요. Base URL을 확인해주세요",
   modelLoadRequired: "먼저 \"모델 불러오기\"를 눌러주세요",
   modelSavedFallback: "현재 저장값: {{model}}",
   deleteTitle: "제공자 삭제",

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { llmConfigsApi, type ModelInfo } from "@/lib/api/llm-configs";
-import { sanitizeLoaderError } from "./sanitize-loader-error";
+import { llmConfigsApi } from "@/lib/api/llm-configs";
+import {
+  useBaseModelLoader,
+  type UseBaseModelLoaderResult,
+} from "./use-base-model-loader";
 
 export interface UseEmbeddingModelLoaderArgs {
   /**
@@ -12,77 +13,37 @@ export interface UseEmbeddingModelLoaderArgs {
    * 결정된 id 를 넘긴다.
    */
   configId: string | undefined;
-  /** Fallback error message when the server payload cannot be parsed. */
+  /** Fallback error message when the error code is unknown / absent. */
   fallbackErrorMessage: string;
+  /** Localized message per backend error code (see loader-error-messages). */
+  errorMessagesByCode?: Record<string, string>;
 }
 
-export interface UseEmbeddingModelLoaderResult {
-  models: ModelInfo[];
-  errorMessage: string | null;
-  isPending: boolean;
-  /** 본 configId 범위에서 사용자가 `load()` 를 한 번이라도 트리거했는지. */
-  hasAttemptedLoad: boolean;
-  canLoad: boolean;
-  load: () => void;
-}
+export type UseEmbeddingModelLoaderResult = UseBaseModelLoaderResult;
 
 /**
- * `useModelLoader` 의 임베딩 변형. preview 경로가 없고 `GET /llm-configs/:id/models?type=embedding`
- * 하나만 호출한다. 상태 관리·에러 sanitize·stale closure 가드·prop 변경 시 리셋 패턴은
- * `useModelLoader` 와 대칭이다.
+ * `useModelLoader` 의 임베딩 변형. preview 경로가 없고
+ * `GET /llm-configs/:id/models?type=embedding` 하나만 호출한다. 공통 상태 관리는
+ * `useBaseModelLoader` 가 담당한다.
  */
 export function useEmbeddingModelLoader({
   configId,
   fallbackErrorMessage,
+  errorMessagesByCode,
 }: UseEmbeddingModelLoaderArgs): UseEmbeddingModelLoaderResult {
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
-
-  // configId 변경 시 이전 config 모델 목록은 더 이상 유효하지 않으므로 render 단계 reset.
-  const resetKey = configId ?? "";
-  const [prevResetKey, setPrevResetKey] = useState(resetKey);
-  if (prevResetKey !== resetKey) {
-    setPrevResetKey(resetKey);
-    setModels([]);
-    setErrorMessage(null);
-    setHasAttemptedLoad(false);
-  }
-
-  const loadMutation = useMutation({
-    mutationFn: async () => {
+  return useBaseModelLoader<string | undefined>({
+    resetKey: configId ?? "",
+    canLoad: Boolean(configId),
+    fallbackErrorMessage,
+    errorMessagesByCode,
+    captureSnapshot: () => configId,
+    isSnapshotCurrent: (snapshot) => snapshot === configId,
+    fetchModels: async () => {
       if (!configId) {
         // canLoad 가드가 있어 정상 흐름에서는 도달하지 않음. 방어용.
         throw new Error("missing-config-id");
       }
-      const snapshot = configId;
-      const data = await llmConfigsApi.listModels(snapshot, {
-        type: "embedding",
-      });
-      return { data, snapshot };
-    },
-    onMutate: () => {
-      setErrorMessage(null);
-      setHasAttemptedLoad(true);
-    },
-    onSuccess: ({ data, snapshot }) => {
-      // Stale closure 가드 — 응답 도착 시점에 configId 가 바뀌었으면 무시.
-      if (snapshot !== configId) return;
-      setModels(data);
-    },
-    onError: (err: unknown) => {
-      // 재시도 실패 시 이전에 로드된 모델 목록은 유지해 사용자 선택 컨텍스트를 보존.
-      // setModels([]) 를 호출하지 않으므로 기존 목록이 그대로 남는다.
-      setErrorMessage(sanitizeLoaderError(err, fallbackErrorMessage));
+      return llmConfigsApi.listModels(configId, { type: "embedding" });
     },
   });
-
-  return {
-    models,
-    errorMessage,
-    isPending: loadMutation.isPending,
-    hasAttemptedLoad,
-    canLoad: Boolean(configId),
-    load: () => loadMutation.mutate(),
-  };
 }
