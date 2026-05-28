@@ -11,6 +11,7 @@ import { randomBytes } from 'crypto';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
+import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import {
@@ -64,6 +65,8 @@ export class TriggersService {
     private readonly executionRepository: Repository<Execution>,
     @InjectRepository(Schedule)
     private readonly scheduleRepository: Repository<Schedule>,
+    @InjectRepository(AuthConfig)
+    private readonly authConfigRepository: Repository<AuthConfig>,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
     private readonly channelListenerRegistry: ChannelListenerRegistry,
     private readonly configService: ConfigService,
@@ -147,6 +150,10 @@ export class TriggersService {
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     this.assertNotificationUrlSafe(notification);
     this.assertChatChannelInputSafe(chatChannel);
+    // authConfigId 가 주어지면 같은 워크스페이스의 AuthConfig 인지 검증 (cross-workspace 차단).
+    if (rest.authConfigId) {
+      await this.assertAuthConfigInWorkspace(rest.authConfigId, workspaceId);
+    }
     // [SS-SE-01] mergeExternalConfig 호출 전 plaintext (botToken / inboundSigningPlaintext)
     // 를 strip — 첫 triggerRepository.save 시 plaintext 가 DB JSONB 에 일시 기록되지 않도록.
     // setupChatChannel 은 원본 dto.chatChannel (plaintext 포함) 을 별도 전달 받아 secret store
@@ -155,7 +162,7 @@ export class TriggersService {
       ? this.stripChatChannelPlaintext(chatChannel)
       : undefined;
     const mergedConfig = this.mergeExternalConfig(
-      config ?? {},
+      this.stripInlineAuthKeys(config ?? {}),
       notification,
       interaction,
       safeChatChannel,
@@ -210,12 +217,17 @@ export class TriggersService {
     }
     this.assertNotificationUrlSafe(notification);
     this.assertChatChannelInputSafe(chatChannel);
+    // authConfigId 를 새로 set 하는 경우 같은 워크스페이스의 AuthConfig 인지 검증.
+    // null 로 set (인증 제거) 은 검증 대상 아님.
+    if (rest.authConfigId) {
+      await this.assertAuthConfigInWorkspace(rest.authConfigId, workspaceId);
+    }
     // [SS-SE-01] mergeExternalConfig 호출 전 plaintext strip (create() 와 동일 정책).
     const safeChatChannel = chatChannel
       ? this.stripChatChannelPlaintext(chatChannel)
       : undefined;
     // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
-    const baseConfig = config ?? trigger.config ?? {};
+    const baseConfig = this.stripInlineAuthKeys(config ?? trigger.config ?? {});
     const mergedConfig = this.mergeExternalConfig(
       baseConfig,
       notification,
@@ -465,6 +477,50 @@ export class TriggersService {
    * loopback, metadata IP 는 거부. 발송 시점의 post-resolve 검증은 NotificationDispatcher 가
    * 추가로 수행 (Spec EIA §8.1).
    */
+  /**
+   * authConfigId 가 호출자의 워크스페이스에 속한 AuthConfig 인지 검증.
+   * cross-workspace 참조(다른 워크스페이스 자격증명에 트리거 binding) 를 차단한다.
+   */
+  private async assertAuthConfigInWorkspace(
+    authConfigId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    const found = await this.authConfigRepository.findOne({
+      where: { id: authConfigId, workspaceId },
+    });
+    if (!found) {
+      throw new BadRequestException({
+        code: 'AUTH_CONFIG_NOT_FOUND',
+        message: 'Auth config not found in this workspace',
+        details: { field: 'authConfigId' },
+      });
+    }
+  }
+
+  /**
+   * 폐기된 inline webhook 인증 키를 config 에서 제거 (방어적 — 인증은 authConfigId 로만).
+   * V065 cleanup 과 별개로, 클라이언트가 보낸 평문 secret/bearerToken 이 config JSONB 에
+   * 새로 유입되지 않도록 한다 (spec/5-system/12-webhook.md §2.2).
+   */
+  private stripInlineAuthKeys(
+    config: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const {
+      authType: _authType,
+      secret: _secret,
+      bearerToken: _bearerToken,
+      hmacHeader: _hmacHeader,
+      hmacAlgorithm: _hmacAlgorithm,
+      ...rest
+    } = config;
+    void _authType;
+    void _secret;
+    void _bearerToken;
+    void _hmacHeader;
+    void _hmacAlgorithm;
+    return rest;
+  }
+
   private assertNotificationUrlSafe(
     notification: NotificationConfigDto | undefined,
   ): void {

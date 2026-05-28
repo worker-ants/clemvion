@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
+import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { TriggersController } from './triggers.controller';
 import { TriggersService } from './triggers.service';
 import { NotificationSecretRotatorService } from './notification-secret-rotator.service';
@@ -12,7 +13,7 @@ import { SecretStoreModule } from '../secret-store/secret-store.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Trigger, Execution, Schedule]),
+    TypeOrmModule.forFeature([Trigger, Execution, Schedule, AuthConfig]),
     ConfigModule,
     // ChatChannelController 가 TriggersService.rotateBotToken 을 호출하므로 양방향 의존.
     forwardRef(() => ChatChannelModule),
