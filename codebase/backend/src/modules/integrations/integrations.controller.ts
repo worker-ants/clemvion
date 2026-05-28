@@ -134,7 +134,8 @@ export class IntegrationsController {
   })
   @ApiParam({
     name: 'type',
-    description: '서비스 타입 (예: `cafe24`)',
+    description:
+      '서비스 타입. 현재 지원: `cafe24` (operations 목록 반환). 그 외 값은 빈 배열 반환.',
     example: 'cafe24',
   })
   @ApiOkWrappedResponse(OperationCatalogDto, {

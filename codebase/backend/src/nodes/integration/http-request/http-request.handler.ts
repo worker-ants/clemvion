@@ -696,7 +696,11 @@ export function extractApiPath(url: string): string {
     const u = new URL(url);
     return `${u.host}${u.pathname}`;
   } catch {
+    // relative URL fallback: strip query string and fragment
     const q = url.indexOf('?');
-    return q === -1 ? url : url.slice(0, q);
+    const h = url.indexOf('#');
+    const candidates = [q, h].filter((i) => i !== -1);
+    const end = candidates.length > 0 ? Math.min(...candidates) : url.length;
+    return url.slice(0, end);
   }
 }

@@ -52,6 +52,7 @@ import {
   ServerInfo,
 } from '../mcp/mcp-client.service';
 import { listAllCafe24Operations } from '../../nodes/integration/cafe24/metadata';
+import { OperationCatalogDto } from './dto/responses/integration-response.dto';
 
 /**
  * Public shape returned to the integrations UI for both `previewTest` and
@@ -123,9 +124,9 @@ function clampApiField(
   return raw.slice(0, max - 1) + '…';
 }
 
-const API_LABEL_MAX = 128;
-const API_METHOD_MAX = 8;
-const API_PATH_MAX = 256;
+export const API_LABEL_MAX = 128;
+export const API_METHOD_MAX = 8;
+export const API_PATH_MAX = 256;
 
 export interface IntegrationUsageNode {
   id: string;
@@ -1028,15 +1029,7 @@ export class IntegrationsService {
    * 완전 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching
    * 흐름이 분기 없이 일관 동작.
    */
-  getServiceCatalog(serviceType: string): {
-    operations: Array<{
-      key: string;
-      method: string;
-      path: string;
-      labelKey: string;
-      descriptionKey?: string;
-    }>;
-  } {
+  getServiceCatalog(serviceType: string): OperationCatalogDto {
     if (serviceType === 'cafe24') {
       const operations = listAllCafe24Operations().map(
         ({ resource, operation }) => ({

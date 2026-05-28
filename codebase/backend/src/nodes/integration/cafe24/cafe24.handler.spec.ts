@@ -139,6 +139,35 @@ describe('Cafe24Handler', () => {
       expectErrorOutput(result, 'CAFE24_UNKNOWN_OPERATION');
     });
 
+    // W5 — operation lookup failure: api.label present, method/path still null (INT-US-05)
+    it('logs apiInfo.label only (method/path null) when operation lookup fails (INT-US-05)', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_does_not_exist',
+          fields: {},
+        },
+        makeContext(),
+      );
+      expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          api: expect.objectContaining({
+            label: 'cafe24.product.product_does_not_exist',
+          }),
+        }),
+      );
+      // method and path should NOT be set (still undefined/null) since lookup failed
+      const logCall = integrationsService.logUsage.mock.calls[0][0] as {
+        api: { label?: string; method?: string | null; path?: string | null };
+      };
+      expect(logCall.api.method).toBeUndefined();
+      expect(logCall.api.path).toBeUndefined();
+    });
+
     it('CAFE24_MISSING_FIELDS when requiredFields not supplied', async () => {
       integrationsService.getForExecution.mockResolvedValue(makeIntegration());
       const result = await handler.execute(
@@ -310,6 +339,17 @@ describe('Cafe24Handler', () => {
       // Usage log (success).
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'success' }),
+      );
+
+      // W3 — api field value assertion (INT-US-05)
+      expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          api: expect.objectContaining({
+            label: 'cafe24.product.product_list',
+            method: 'GET',
+            path: expect.stringContaining('products'),
+          }),
+        }),
       );
     });
 

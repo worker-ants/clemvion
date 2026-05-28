@@ -26,6 +26,7 @@ export interface IntegrationUsageParams {
    *  - `path`: host+path / driver / SMTP host 등 (의미 통합별 상이).
    * 길이 한도 (label 128, method 8, path 256) 초과 시 서비스 레이어가
    * 끝에 `…` 를 붙여 자른다.
+   * 빈 문자열·`undefined` 는 서비스 레이어에서 `null` 로 coerce 된다.
    */
   api?: {
     label?: string | null;

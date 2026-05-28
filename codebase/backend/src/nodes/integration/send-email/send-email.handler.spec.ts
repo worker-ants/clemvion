@@ -288,6 +288,15 @@ describe('SendEmailHandler', () => {
           workflowId: 'wf-1',
         }),
       );
+      // W3 — api field value assertion (INT-US-05): SEND + SMTP host
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          api: expect.objectContaining({
+            method: 'SEND',
+            path: 'smtp.example.com',
+          }),
+        }),
+      );
       // Transporter is now cached across calls; close() only fires on shutdown.
       handler.shutdown();
       expect(closeMock).toHaveBeenCalled();
@@ -518,6 +527,15 @@ describe('SendEmailHandler', () => {
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'EMAIL_SEND_FAILED' }),
+        }),
+      );
+      // W3 — api field on failure (INT-US-05)
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          api: expect.objectContaining({
+            method: 'SEND',
+            path: 'smtp.example.com',
+          }),
         }),
       );
       handler.shutdown();

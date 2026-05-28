@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -40,6 +40,9 @@ import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { ScopeTab } from "./scope-tab";
 import { Cafe24AppUrlCard } from "./cafe24-app-url-card";
 import { openOAuthPopup } from "./open-oauth-popup";
+
+/** catalog staleTime: 1h (operation 메타데이터는 정적·변경 빈도 매우 낮음) */
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 const TABS = [
   "overview",
@@ -666,8 +669,14 @@ function ActivityTab({
   const { data: catalog } = useQuery({
     queryKey: ["integrations", "catalog", serviceType],
     queryFn: () => integrationsApi.catalog(serviceType),
-    staleTime: 60 * 60 * 1000,
+    staleTime: ONE_HOUR_MS,
   });
+
+  // useMemo must be called unconditionally (Rules of Hooks) — before any early return.
+  const catalogByKey = useMemo(
+    () => new Map((catalog?.operations ?? []).map((op) => [op.key, op])),
+    [catalog],
+  );
 
   if (isLoading) {
     return (
@@ -686,9 +695,6 @@ function ActivityTab({
   }
 
   const rate = Math.round(data.summary.successRate * 100);
-  const catalogByKey = new Map(
-    (catalog?.operations ?? []).map((op) => [op.key, op]),
-  );
 
   return (
     <div className="space-y-4">
@@ -811,6 +817,8 @@ function renderApiCell(args: {
  * `cafe24.<resource>.<operation>` catalog key 가 cafe24Catalog dict 에 매핑돼
  * 있으면 사람 친화 라벨 반환, 없으면 null 반환 (endpoint-only fallback 으로
  * 위임). 현재 dict 는 빈 상태이므로 항상 null. SoT: dict/{ko,en}/cafe24Catalog.ts.
+ *
+ * @see plan/in-progress/cafe24-catalog-i18n.md — dict 채우기 follow-up
  */
 function tryTranslateLabel(catalogKey: string, t: TFunction): string | null {
   const fullKey = `cafe24Catalog.${catalogKey}` as TranslationKey;
