@@ -414,13 +414,15 @@ cafe24.<resource>.<operation>
 
 | 책임 | 위치 | 저장/노출 형태 |
 |---|---|---|
-| catalog key 발급 | backend cafe24 핸들러 / `Cafe24McpBridge` (`logUsage` 호출 시) | `cafe24.<resource>.<operation>` (영문 식별자) |
+| catalog key 발급 | (1) backend cafe24 노드 핸들러 (`IntegrationHandlerBase.logUsage` 경유) **및** (2) AI Agent Internal Bridge provider (`Cafe24McpToolProvider` 가 `IntegrationsService.logUsage` 직접 호출) — **두 실행 경로 모두 의무** | `cafe24.<resource>.<operation>` (영문 식별자) |
 | catalog key 영속화 | `integration_usage_log.api_label` (`varchar(128)`) | 영속 — 언어 정보 없음 |
 | catalog endpoint 노출 | `GET /api/integrations/services/cafe24/catalog` ([통합 §9.3](../2-navigation/4-integration.md#93-사용처활동)) | `{ key, method, path, labelKey, descriptionKey }` 배열. `labelKey`/`descriptionKey` 는 frontend dict 의 lookup key (영문 ID) |
 | 노드 에디터 operation 드롭다운 노출 | `GET /nodes/definitions` 의 cafe24 extras (`extras.operationsByResource[].labelKey`) | `cafe24.<resource>.<operation>` (catalog key 와 동일 형식 — 한 SoT) |
 | i18n 변환 (단일 진실) | frontend i18n dict `cafe24Catalog.<key>` (KO/EN) | `labelKey` → 사람 친화 라벨 (예: `"상품 목록 조회"` / `"List products"`) |
 
 **왜 이 분리가 필요한가**: backend 가 i18n 결과 (한국어 hardcoded `label`) 를 보유하면 (a) 사용자 UI 언어 변경 시 backend 의 옛 언어 라벨이 영문 UI 에 그대로 노출되는 회귀가 영구화되고, (b) catalog 라벨 수정 시 backend 와 dict 사이에 drift 가 생긴다. backend 는 catalog key 만 노출하고 i18n 을 매 frontend 렌더 시점에 수행하면 두 회귀 모두 발생하지 않는다. 활동 로그 (`api_label`) 와 노드 에디터 드롭다운이 같은 catalog key 로 단일화되어 SoT 가 dict 한 곳에 모인다. 결정 근거 상세는 [Spec 통합 ## Rationale "활동 로그 API 식별 — 3컬럼 (label/method/path) + catalog endpoint 신설 (2026-05-28)"](../2-navigation/4-integration.md#rationale) 및 본 문서 ## Rationale "backend `label` 필드 제거 — frontend i18n dict 단일 SoT (2026-05-28)" 참조.
+
+**두 실행 경로 모두 동일 catalog key 동반 의무 (2026-05-28 회귀)**: 위 "catalog key 발급" 행의 두 경로 — 노드 핸들러와 Internal Bridge provider — 는 활동 로그에 **같은 형식** (`cafe24.<resource>.<operation>`) 의 `api_label` 을 채워야 한다. Internal Bridge (`Cafe24McpToolProvider`) 는 노드 핸들러 base class 를 거치지 않고 `IntegrationsService.logUsage` 를 직접 호출하므로, `api` 채우기를 누락해도 노드 핸들러 테스트는 통과하는 사각지대다. 실제로 활동 로그 API 식별 도입 (2026-05-28) 당시 Internal Bridge 경로의 `api` 채우기가 누락돼 AI Agent 의 cafe24 MCP 호출이 활동 탭에서 `—` 로 표시되는 회귀가 발생했다. cross-cutting SoT: [`spec/4-nodes/4-integration/_product-overview.md` INT-US-05 "실행 경로"](../4-nodes/4-integration/_product-overview.md#24-사용처-추적-및-라이프사이클).
 
 **`Cafe24OperationMetadata.id` 와의 관계**: `<operation>` 은 metadata row 의 `id` 와 동일 값이다. metadata row 가 추가/변경되면 catalog key 도 자동으로 일치 — drift 방지. catalog endpoint 의 `key` 필드는 `${'cafe24.'}${resource}.${op.id}` 로 생성한다.
 
