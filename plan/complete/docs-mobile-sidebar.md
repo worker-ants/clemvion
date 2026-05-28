@@ -46,7 +46,7 @@ owner: developer
   - [x] aria-expanded 열림/닫힘 상태 반영 + 재클릭 토글 동작 검증
   - [x] 매칭 없는 경로 엣지케이스 (섹션/페이지 라벨 미표시)
   - [x] body scroll lock / overlay 클릭 / 닫기 버튼 클릭 테스트 추가
-  - [ ] 열림 → pathname 변경 → 자동 close (react-compiler 규약으로 click capture 방식 채택, pathname useEffect 미구현 — JSDoc 으로 의도 명시 완료)
+  - [x] 열림 → anchor 클릭 → 자동 close (react-compiler 의 setState-in-effect 규약상 pathname useEffect 방식은 의도적 미채택, click capture 로 구현 — 컴포넌트 JSDoc/인라인 주석에 근거 명시)
 - [x] TEST WORKFLOW: lint → unit → build → e2e 통과
 - [x] /ai-review 통과 + resolution-applier 처리
 
@@ -58,9 +58,15 @@ owner: developer
 2. spec/2-navigation/13-user-guide.md §10 "검색 미포함" drift 가 본 변경으로 더 확대 (모바일 진입까지 추가) — 같은 후속 plan 으로.
 3. SlideDrawer side prop 확장 시 기존 호출처 회귀 주의 — 단위 테스트로 보장.
 
-## Drift 후속 처리 — `plan/in-progress/spec-update-user-guide-mobile.md`
+## Drift 후속 처리 — `plan/complete/spec-update-user-guide-mobile.md`
 
-본 PR 머지 후 또는 동시에 project-planner 가 spec 본문 정정. 본 task 의 책임은 후속 plan 노트 작성까지.
+본 PR 머지 후 또는 동시에 project-planner 가 spec 본문 정정. 본 task 의 책임은 후속 plan 노트 작성까지. → 후속 plan 완료 (`plan/complete/` 이동 완료).
+
+## 완료
+
+- 구현 PR `#335` (`c90b40e2 feat(docs): 모바일/태블릿 사용자 가이드 사이드바 진입 추가`) main 머지 완료.
+- Drift 후속 spec plan (`spec-update-user-guide-mobile.md`) 완료 → `plan/complete/`.
+- 미체크였던 "pathname useEffect 자동 close" 는 react-compiler 규약상 의도적 미채택 결정으로 해소 (click capture 구현으로 대체, 근거 컴포넌트 주석에 기록).
 
 ## Side-effect 검토
 
