@@ -58,16 +58,16 @@ owner: developer
 
 ## Phase
 
-- [ ] **Phase 0** — plan 작성, spec 갱신 위임 준비 (본 turn)
-- [ ] **Phase 1** — spec 갱신 (project-planner 위임)
-- [ ] **Phase 2** — consistency-check --impl-prep 통과
-- [ ] **Phase 3** — backend TDD: entity + migration + IntegrationUsageParams + logUsage 매핑
-- [ ] **Phase 4** — backend TDD: 4개 핸들러 logUsage api 채우기
-- [ ] **Phase 5** — backend TDD: catalog endpoint
-- [ ] **Phase 6** — frontend: DTO + i18n + ActivityTab + catalog hook
+- [x] **Phase 0** — plan 작성, spec 갱신 위임 준비
+- [x] **Phase 1** — spec 갱신 (project-planner 위임)
+- [x] **Phase 2** — consistency-check --impl-prep 통과 (BLOCK: NO, false-positive 정정 완료)
+- [x] **Phase 3** — backend TDD: entity + migration + IntegrationUsageParams + logUsage 매핑
+- [x] **Phase 4** — backend TDD: 4개 핸들러 logUsage api 채우기
+- [x] **Phase 5** — backend TDD: catalog endpoint
+- [x] **Phase 6** — frontend: DTO + i18n + ActivityTab + catalog hook (cafe24Catalog dict 는 빈 슬롯, 라벨 채우기는 follow-up)
 - [ ] **Phase 7** — TEST WORKFLOW (lint → unit → build → e2e)
 - [ ] **Phase 8** — REVIEW WORKFLOW (/ai-review + RESOLUTION + 재테스트)
-- [ ] **Phase 9** — partial-implementation 점검 (남은 surface 없음 확인 — followup 불필요)
+- [x] **Phase 9** — partial-implementation 분기 — cafe24 catalog 라벨 i18n 채우기는 `plan/in-progress/cafe24-catalog-i18n.md` 신설로 분기. 본 PR 의 surface 는 인프라 (3컬럼 + endpoint + dict 슬롯 + UI fallback) 까지만 구현
 - [ ] **Phase 10** — plan complete 이동
 
 ## 확정된 설계 결정

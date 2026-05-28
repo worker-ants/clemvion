@@ -19,6 +19,19 @@ export interface IntegrationUsageParams {
   status: 'success' | 'failed';
   durationMs: number;
   error?: { code?: string; message?: string } | null;
+  /**
+   * API 식별 정보. SoT: `spec/4-nodes/4-integration/_product-overview.md` INT-US-05.
+   *  - `label`: catalog key (e.g., `cafe24.<resource>.<operation>`). 통합별로 NULL 가능.
+   *  - `method`: HTTP method / SQL 동사 / `SEND` 등 (의미 통합별 상이).
+   *  - `path`: host+path / driver / SMTP host 등 (의미 통합별 상이).
+   * 길이 한도 (label 128, method 8, path 256) 초과 시 서비스 레이어가
+   * 끝에 `…` 를 붙여 자른다.
+   */
+  api?: {
+    label?: string | null;
+    method?: string | null;
+    path?: string | null;
+  };
 }
 
 export class IntegrationHandlerBase {
@@ -93,6 +106,7 @@ export class IntegrationHandlerBase {
         status: params.status,
         durationMs: params.durationMs,
         error: params.error ?? null,
+        api: params.api,
       });
     } catch (err) {
       logger.warn(

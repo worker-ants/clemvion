@@ -123,6 +123,8 @@ export const integrations: Dict["integrations"] = {
   activityEmpty: "No calls recorded in the last 7 days.",
   activitySummary: "Last 7 days: {{total}} calls · {{rate}}% success",
   activityWhen: "When",
+  activityApi: "API",
+  activityApiUnknown: "—",
   activityStatus: "Status",
   activityDuration: "Duration",
   activityError: "Error",

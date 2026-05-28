@@ -1475,6 +1475,114 @@ describe('IntegrationsService', () => {
       const patch = updateCall[1] as { lastError?: { message?: string } };
       expect(patch.lastError?.message?.length).toBeLessThanOrEqual(2048);
     });
+
+    // -----------------------------------------------------------------
+    // INT-US-05 — api identification columns
+    // -----------------------------------------------------------------
+
+    it('persists api identification fields when provided', async () => {
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'success',
+        durationMs: 1,
+        api: {
+          label: 'cafe24.orders.order_list',
+          method: 'GET',
+          path: '/admin/orders',
+        },
+      });
+      expect(usageLogRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiLabel: 'cafe24.orders.order_list',
+          apiMethod: 'GET',
+          apiPath: '/admin/orders',
+        }),
+      );
+    });
+
+    it('stores null api fields when api param is omitted', async () => {
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'success',
+        durationMs: 1,
+      });
+      expect(usageLogRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiLabel: null,
+          apiMethod: null,
+          apiPath: null,
+        }),
+      );
+    });
+
+    it('truncates over-length api fields with ellipsis suffix', async () => {
+      const longLabel = 'cafe24.' + 'x'.repeat(200);
+      const longPath = '/' + 'p'.repeat(400);
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'success',
+        durationMs: 1,
+        api: { label: longLabel, method: 'OPTIONSXX', path: longPath },
+      });
+      const created = (usageLogRepo.create.mock.calls[0] as unknown[])[0] as {
+        apiLabel: string;
+        apiMethod: string;
+        apiPath: string;
+      };
+      expect(created.apiLabel.length).toBe(128);
+      expect(created.apiLabel.endsWith('…')).toBe(true);
+      expect(created.apiMethod.length).toBe(8);
+      expect(created.apiMethod.endsWith('…')).toBe(true);
+      expect(created.apiPath.length).toBe(256);
+      expect(created.apiPath.endsWith('…')).toBe(true);
+    });
+
+    it('coerces empty-string api fields to null', async () => {
+      await service.logUsage({
+        integrationId: 'int-1',
+        nodeExecutionId: 'nex-1',
+        workflowId: 'wf-1',
+        status: 'success',
+        durationMs: 1,
+        api: { label: '', method: '', path: '' },
+      });
+      expect(usageLogRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiLabel: null,
+          apiMethod: null,
+          apiPath: null,
+        }),
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // getServiceCatalog (INT-US-05 / spec/conventions/cafe24-api-metadata.md §7.5)
+  // -----------------------------------------------------------------
+
+  describe('getServiceCatalog', () => {
+    it('returns cafe24 operations as `cafe24.<resource>.<operation>` keys', () => {
+      const result = service.getServiceCatalog('cafe24');
+      expect(result.operations.length).toBeGreaterThan(0);
+      const sample = result.operations[0];
+      expect(sample.key).toMatch(/^cafe24\.[a-z0-9_]+\.[a-z0-9_]+$/i);
+      expect(sample.labelKey).toBe(sample.key);
+      expect(typeof sample.method).toBe('string');
+      expect(typeof sample.path).toBe('string');
+    });
+
+    it('returns empty operations[] for non-cafe24 service types', () => {
+      for (const type of ['http', 'database', 'email', 'mcp', 'google', 'github', 'unknown']) {
+        const result = service.getServiceCatalog(type);
+        expect(result).toEqual({ operations: [] });
+      }
+    });
   });
 });
 

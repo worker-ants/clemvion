@@ -42,6 +42,7 @@ import {
   OAuthBeginPopupResultDto,
   PreviewTestResultDto,
   ServiceCatalogDto,
+  OperationCatalogDto,
   TestConnectionResultDto,
 } from './dto/responses/integration-response.dto';
 import { IntegrationsService } from './integrations.service';
@@ -120,6 +121,28 @@ export class IntegrationsController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   getAvailableServices() {
     return this.integrationsService.getAvailableServices();
+  }
+
+  // 라우트 선언 순서 주의: `services/:type/catalog` 는 정적 prefix 라 동적
+  // `@Get(':id')` 보다 앞에 있어야 한다 (NestJS = Express 라우터). 위의
+  // `cafe24/precheck` 와 동일 패턴. SoT: spec/2-navigation/4-integration.md §9.3.
+  @Get('services/:type/catalog')
+  @ApiOperation({
+    summary: '통합별 API operation 카탈로그',
+    description:
+      '특정 서비스 타입이 노출하는 API operation 목록을 반환합니다. 통합 상세 §4.6 Recent activity 탭에서 활동 로그 `apiLabel` (catalog key) 을 사람 친화 라벨로 변환할 때 frontend 가 i18n dict 와 결합해 사용합니다. 초기엔 `cafe24` 만 채워 반환하고 그 외 서비스 타입은 빈 배열을 반환합니다. spec/2-navigation/4-integration.md §9.3 + spec/conventions/cafe24-api-metadata.md §7.5.',
+  })
+  @ApiParam({
+    name: 'type',
+    description: '서비스 타입 (예: `cafe24`)',
+    example: 'cafe24',
+  })
+  @ApiOkWrappedResponse(OperationCatalogDto, {
+    description: '서비스 타입의 operation 카탈로그 (빈 배열 가능)',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  getServiceCatalog(@Param('type') type: string) {
+    return this.integrationsService.getServiceCatalog(type);
   }
 
   /**

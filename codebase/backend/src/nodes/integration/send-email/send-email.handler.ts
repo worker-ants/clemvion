@@ -128,6 +128,12 @@ export class SendEmailHandler
     }
 
     const start = Date.now();
+    // INT-US-05 — apiInfo 는 외부 catch 에서도 참조한다. SMTP host 는
+    // credentials resolve 성공 후 채우고, 그 전엔 NULL fallback.
+    const apiInfo: {
+      method?: string | null;
+      path?: string | null;
+    } = { method: 'SEND', path: null };
     try {
       const integration = await this.resolveIntegration(
         integrationId,
@@ -135,6 +141,7 @@ export class SendEmailHandler
         'email',
       );
       const credentials = integration.credentials as Partial<SmtpCredentials>;
+      apiInfo.path = credentials.host ?? null;
       const missing = missingSmtpFields(credentials);
       if (missing.length > 0) {
         throw new IntegrationError(
@@ -172,6 +179,7 @@ export class SendEmailHandler
         integrationId,
         status: 'success',
         durationMs,
+        api: apiInfo,
       }).catch(() => {});
       return {
         config: configEcho,
@@ -196,6 +204,7 @@ export class SendEmailHandler
         status: 'failed',
         durationMs: Date.now() - start,
         error: logError,
+        api: apiInfo,
       }).catch(() => {});
       // CONVENTIONS §3.2 — runtime failures route to the `error` port with
       // a standardized `output.error.{code,message,details}` envelope.

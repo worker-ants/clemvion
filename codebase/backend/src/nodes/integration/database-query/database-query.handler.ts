@@ -120,6 +120,10 @@ export class DatabaseQueryHandler
     // 파싱 실패 / resolveIntegration 실패 / SSRF guard 실패 모두 catch 후
     // port:'error' 로 라우팅. fallback 코드는 INTEGRATION_CALL_FAILED.
     let driver: 'postgres' | 'mysql' = 'postgres';
+    // INT-US-05 — api_method 는 SQL 첫 토큰 (`SELECT` / `INSERT` / ...). 첫
+    // 토큰이 동사가 아닌 경우 (raw 쿼리 분기 등) 는 NULL fallback. api_path 는
+    // 확정된 driver 토큰 — 그 전엔 default 'postgres'.
+    const apiMethod = extractSqlVerb(query);
     try {
       const parameters = parseParameters(config.parameters);
 
@@ -171,6 +175,7 @@ export class DatabaseQueryHandler
         integrationId,
         status: 'success',
         durationMs,
+        api: { method: apiMethod, path: driver },
       }).catch(() => {});
       return {
         config: configEcho,
@@ -185,6 +190,7 @@ export class DatabaseQueryHandler
         status: 'failed',
         durationMs,
         error: toLogError(err),
+        api: { method: apiMethod, path: driver },
       }).catch(() => {});
       // D4 — IntegrationError (resolve / missingDbFields / parseParameters /
       // SSRF guard 등) 는 그대로 code 를 surface, 그 외 (SQL throw 등) 는
@@ -396,6 +402,18 @@ function missingDbFields(creds: Partial<DbCredentials>): string[] {
   return required.filter(
     (k) => creds[k] === undefined || creds[k] === null || creds[k] === '',
   );
+}
+
+/**
+ * INT-US-05 — `IntegrationUsageLog.api_method` 용. 쿼리 첫 비공백 토큰을
+ * upper-case 로 추출 (e.g., `SELECT`, `INSERT`, `UPDATE`, `DELETE`).
+ * 첫 토큰이 영문 단어가 아니거나 query 가 비어있으면 NULL fallback.
+ */
+export function extractSqlVerb(query: string | undefined): string | null {
+  if (!query) return null;
+  const match = query.trim().match(/^([A-Za-z]+)/);
+  if (!match) return null;
+  return match[1].toUpperCase();
 }
 
 function parseParameters(raw: unknown): unknown[] {
