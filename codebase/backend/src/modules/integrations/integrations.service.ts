@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { createTransport } from 'nodemailer';
 import { Integration } from './entities/integration.entity';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
@@ -253,6 +254,7 @@ export class IntegrationsService {
   ) {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
+      ['email', this.testEmailTransport.bind(this)],
     ]);
   }
 
@@ -1252,6 +1254,50 @@ export class IntegrationsService {
       success: true,
       message: 'Connection successful',
     };
+  }
+
+  /**
+   * Email(SMTP) 통합 연결 테스트 — `nodemailer` transporter 의 `verify()` 로
+   * 실제 SMTP 접속 + 인증 + (STARTTLS/TLS) 핸드셰이크를 검증한다. 종전엔
+   * transport tester 가 없어 구조 검증만 통과하면 무조건 "성공" 으로 표시돼,
+   * 인증 실패한 자격증명도 연결 성공으로 보이던 문제를 해소한다.
+   *
+   * 구성은 send-email 핸들러의 `resolveTransport` 와 동일한 매핑을 따른다
+   * (`secure: 'tls'` → 암묵 TLS, `'starttls'` → requireTLS). 단 연결 테스트는
+   * 1회성이므로 pool 을 쓰지 않고, 매달리지 않도록 짧은 타임아웃을 둔다.
+   * `dispatchTest` 가 `validateCredentials` 로 필수 필드(host/port/secure/
+   * username/password)를 이미 보장하므로 여기서는 형변환만 한다.
+   */
+  private async testEmailTransport(
+    _authType: string,
+    credentials: Record<string, unknown>,
+  ): Promise<IntegrationTestResult> {
+    const secure = credentials.secure as 'none' | 'starttls' | 'tls';
+    const transporter = createTransport({
+      host: credentials.host as string,
+      port: credentials.port as number,
+      secure: secure === 'tls',
+      requireTLS: secure === 'starttls',
+      auth: {
+        user: credentials.username as string,
+        pass: credentials.password as string,
+      },
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 10_000,
+    });
+    try {
+      await transporter.verify();
+      return { success: true, message: 'Connection successful' };
+    } catch (err) {
+      return {
+        success: false,
+        message: clampMessage(err instanceof Error ? err.message : String(err)),
+        code: 'EMAIL_CONNECT_FAILED',
+      };
+    } finally {
+      transporter.close();
+    }
   }
 
   private async testMcpTransport(

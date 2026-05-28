@@ -12,6 +12,9 @@ import {
 } from './integrations.service';
 import type { Integration } from './entities/integration.entity';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
+import { createTransport } from 'nodemailer';
+
+jest.mock('nodemailer', () => ({ createTransport: jest.fn() }));
 
 type Mock = jest.Mock;
 
@@ -602,6 +605,96 @@ describe('IntegrationsService', () => {
         code: 'INTEGRATION_INCOMPLETE',
         message: expect.stringContaining('pending_install'),
       });
+    });
+  });
+
+  // -----------------------------------------------------------------
+  // testConnection — email(SMTP) transport tester (Fix 2)
+  // 종전엔 email 에 transport tester 가 없어 구조 검증만 통과하면 무조건
+  // 성공으로 표시됐다. 이제 nodemailer verify() 로 실제 접속+인증을 검증한다.
+  // -----------------------------------------------------------------
+  describe('testConnection — email(SMTP)', () => {
+    const mockedCreateTransport = createTransport as unknown as Mock;
+
+    function makeEmailIntegration(): Integration {
+      return makeIntegration({
+        serviceType: 'email',
+        authType: 'smtp',
+        credentials: {
+          host: 'smtp.example.com',
+          port: 587,
+          secure: 'starttls',
+          username: 'user@example.com',
+          password: 'app-password',
+          default_from: 'user@example.com',
+        },
+      });
+    }
+
+    beforeEach(() => {
+      mockedCreateTransport.mockReset();
+    });
+
+    it('returns success when nodemailer verify() resolves', async () => {
+      integrationRepo.findOne.mockResolvedValue(makeEmailIntegration());
+      const verify = jest.fn().mockResolvedValue(true);
+      const close = jest.fn();
+      mockedCreateTransport.mockReturnValue({ verify, close });
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(result).toEqual({ success: true, message: 'Connection successful' });
+      // 실제 SMTP 검증이 수행됐는지 — verify 호출 + STARTTLS 매핑 확인.
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(mockedCreateTransport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          host: 'smtp.example.com',
+          port: 587,
+          secure: false,
+          requireTLS: true,
+          auth: { user: 'user@example.com', pass: 'app-password' },
+        }),
+      );
+      expect(close).toHaveBeenCalled();
+    });
+
+    it('returns failure with EMAIL_CONNECT_FAILED when verify() rejects (auth failure)', async () => {
+      integrationRepo.findOne.mockResolvedValue(makeEmailIntegration());
+      const verify = jest
+        .fn()
+        .mockRejectedValue(new Error('Invalid login: 535 Authentication failed'));
+      const close = jest.fn();
+      mockedCreateTransport.mockReturnValue({ verify, close });
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('EMAIL_CONNECT_FAILED');
+      expect(result.message).toContain('Authentication failed');
+      // 실패해도 transporter 는 닫아야 한다 (소켓 누수 방지).
+      expect(close).toHaveBeenCalled();
+    });
+
+    it('does not attempt SMTP connection when a required field is missing (structural validation first)', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'email',
+          authType: 'smtp',
+          credentials: {
+            host: 'smtp.example.com',
+            port: 587,
+            secure: 'starttls',
+            username: 'user@example.com',
+            // password 누락
+            default_from: 'user@example.com',
+          },
+        }),
+      );
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(result.success).toBe(false);
+      expect(mockedCreateTransport).not.toHaveBeenCalled();
     });
   });
 
