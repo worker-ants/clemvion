@@ -133,19 +133,63 @@ function parseInteractivity(
   const type = parsed.type;
   const user = parsed.user as { id?: string } | undefined;
   const channel = parsed.channel as { id?: string } | undefined;
+  const container = parsed.container as { channel_id?: string } | undefined;
   const triggerId = parsed.trigger_id;
   const userId = user?.id;
-  const channelId = channel?.id;
+  const channelId = channel?.id ?? container?.channel_id;
+
+  // §4.1 view_submission — modal 일괄 제출. conversationKey 는 modal-open 시 set 한
+  // view.private_metadata (channel object 가 payload 에 없을 수 있어 channelId 가드 전 처리).
+  if (type === 'view_submission') {
+    const view = parsed.view as
+      | {
+          id?: string;
+          callback_id?: string;
+          private_metadata?: string;
+          state?: { values?: Record<string, Record<string, unknown>> };
+        }
+      | undefined;
+    if (view?.callback_id !== 'clemvion_form') return null;
+    const conversationKey =
+      typeof view.private_metadata === 'string' ? view.private_metadata : '';
+    const fields = flattenViewStateValues(view.state?.values);
+    return {
+      conversationKey,
+      channelUserKey: typeof userId === 'string' ? userId : '',
+      command: { kind: 'form_submission', fields },
+      idempotencyKey:
+        (typeof view.id === 'string' && view.id) ||
+        (typeof triggerId === 'string' ? triggerId : ''),
+      receivedAt,
+    };
+  }
 
   if (typeof triggerId !== 'string' || triggerId.length === 0) return null;
   if (typeof userId !== 'string' || typeof channelId !== 'string') return null;
 
   if (type === 'block_actions') {
     const actions = parsed.actions as
-      | Array<{ value?: string; selected_option?: { value?: string } }>
+      | Array<{
+          action_id?: string;
+          value?: string;
+          selected_option?: { value?: string };
+        }>
       | undefined;
     if (!Array.isArray(actions) || actions.length === 0) return null;
     const a0 = actions[0];
+    // §4.1 native modal 게이팅 — "양식 작성하기" 버튼 클릭. trigger_id (3초) 운반.
+    if (a0.action_id === '__open_form__') {
+      return {
+        conversationKey: channelId,
+        channelUserKey: userId,
+        command: {
+          kind: 'open_form_modal',
+          openContext: { triggerId },
+        },
+        idempotencyKey: triggerId,
+        receivedAt,
+      };
+    }
     const callbackData = a0.value ?? a0.selected_option?.value;
     if (typeof callbackData !== 'string') return null;
     return {
@@ -157,8 +201,65 @@ function parseInteractivity(
     };
   }
 
-  // view_submission / shortcut / message_action / view_closed — v1 미처리.
+  // shortcut / message_action / view_closed — v1 미처리.
   return null;
+}
+
+/**
+ * §4.1 view_submission 의 `view.state.values` 를 `{ [fieldName]: value }` 로 평탄화.
+ * block_id = field name (modal open 시 set), 각 block 의 단일 inner element (action_id 'v') 의
+ * 값을 element type 별로 추출. action_id 는 상수라 inner key 를 iterate 하여 값을 읽는다.
+ * SoT: spec/conventions/chat-channel-adapter.md §2.1 / §4.1.
+ */
+function flattenViewStateValues(
+  values: Record<string, Record<string, unknown>> | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!values || typeof values !== 'object') return out;
+  for (const [blockId, inner] of Object.entries(values)) {
+    if (!inner || typeof inner !== 'object') continue;
+    const innerKeys = Object.keys(inner);
+    if (innerKeys.length === 0) continue;
+    // action_id 는 상수 'v' 라 단일 inner element 만 존재 — 첫 key 의 값을 읽는다.
+    const element = inner[innerKeys[0]] as Record<string, unknown> | undefined;
+    if (!element || typeof element !== 'object') continue;
+    const value = extractElementValue(element);
+    if (value !== undefined) out[blockId] = value;
+  }
+  return out;
+}
+
+/** Slack input element type 별 값 추출. optional 빈 입력은 undefined (key omit). */
+function extractElementValue(
+  element: Record<string, unknown>,
+): string | undefined {
+  // plain_text_input → .value
+  if (typeof element.value === 'string' && element.value.length > 0) {
+    return element.value;
+  }
+  // static_select / radio_buttons → .selected_option?.value
+  const selected = element.selected_option as { value?: unknown } | undefined;
+  if (selected && typeof selected.value === 'string') {
+    return selected.value;
+  }
+  // datepicker → .selected_date
+  if (
+    typeof element.selected_date === 'string' &&
+    element.selected_date.length > 0
+  ) {
+    return element.selected_date;
+  }
+  // checkboxes → .selected_options?.map(o => o.value).join(',')
+  const selectedOptions = element.selected_options as
+    | Array<{ value?: unknown }>
+    | undefined;
+  if (Array.isArray(selectedOptions) && selectedOptions.length > 0) {
+    const vals = selectedOptions
+      .map((o) => (typeof o.value === 'string' ? o.value : ''))
+      .filter((v) => v.length > 0);
+    if (vals.length > 0) return vals.join(',');
+  }
+  return undefined;
 }
 
 // ---------- Slash Commands ----------

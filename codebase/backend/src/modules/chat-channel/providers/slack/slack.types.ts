@@ -54,12 +54,16 @@ export interface SlackInteractivityPayload {
   team?: { id: string; domain?: string };
   user?: { id: string; username?: string };
   channel?: { id: string; name?: string };
+  /** block_actions: 메시지가 속한 채널 (channel object 부재 시 fallback). */
+  container?: { channel_id?: string };
   /** block_actions: 사용자가 누른 component(s). */
   actions?: SlackInteractivityAction[];
   /** view_submission: modal 의 입력 값. */
   view?: {
     id: string;
     callback_id?: string;
+    /** §4.1 modal-open 시 set 한 conversationKey 운반 슬롯. */
+    private_metadata?: string;
     state?: { values: Record<string, Record<string, unknown>> };
   };
   /** 응답 url — 비동기 갱신용 (1시간 유효, 5회 한도). */

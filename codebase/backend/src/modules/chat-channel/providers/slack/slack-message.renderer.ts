@@ -10,8 +10,10 @@ import { classifyExecutionFailure } from '../../shared/execution-failure-classif
 import {
   resolveLanguageHint,
   applyPlaceholders,
+  resolveFormOpenLabel,
   type LanguageLocale,
 } from '../../shared/language-hint-defaults';
+import { decideFormMode, extractFormFields } from '../../shared/form-mode';
 
 /**
  * Slack mrkdwn / Block Kit renderer (pure, side-effect free).
@@ -254,6 +256,29 @@ function renderWaitingForInput(
     return renderButtons(event, config);
   }
   if (interactionType === 'form') {
+    // §4.1 native modal 게이팅 — Slack 은 file 외 전 필드 modal 수용 (providers/slack §5.3).
+    const fields = extractFormFields(event.context?.formConfig);
+    const mode = decideFormMode({
+      formMode: config.uiMapping?.formMode,
+      supportsNativeForm: true,
+      fields,
+      isFieldModalCompatible: (f) => f.type !== 'file',
+    });
+    if (mode === 'native_modal') {
+      return [
+        {
+          conversationKey: '',
+          body: {
+            kind: 'form_modal',
+            openLabel: resolveFormOpenLabel(
+              config.languageHints,
+              config.languageLocale as LanguageLocale | undefined,
+            ),
+            formConfig: event.context?.formConfig,
+          },
+        },
+      ];
+    }
     return renderFormFirstField(event);
   }
   return [];

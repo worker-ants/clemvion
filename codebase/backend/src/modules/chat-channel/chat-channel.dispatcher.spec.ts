@@ -1,5 +1,10 @@
-import { toEiaEvent, isEmptyTextBody } from './chat-channel.dispatcher';
+import {
+  toEiaEvent,
+  isEmptyTextBody,
+  ChatChannelDispatcher,
+} from './chat-channel.dispatcher';
 import type { ExecutionChannelEvent } from '../websocket/websocket.service';
+import type { ChannelMessage } from './types';
 
 /**
  * toEiaEvent — WS protocol §4.4 flat emit shape ↔ EIA spec §6.2 nested
@@ -549,5 +554,117 @@ describe('toEiaEvent — execution.node.completed (chat-channel-internal, CCH-AD
     };
     const eia = toEiaEvent(event);
     expect(eia).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §4.1 native modal 게이팅 — waiting_for_input(form) 도착 시 renderNode 결과를 보고
+// form_modal → pendingFormModal persist, form_prompt → formState persist.
+// SoT: spec/conventions/chat-channel-adapter.md §4.1.
+// ---------------------------------------------------------------------------
+describe('ChatChannelDispatcher.handle — form 게이팅 state persist', () => {
+  function buildDispatcher(renderResult: ChannelMessage[]) {
+    const state: Record<string, unknown> = {
+      executionId: 'exec-1',
+      threadId: 'default',
+      channelUserKey: 'U1',
+      startedAt: '2026-05-28T00:00:00Z',
+      lastUpdateAt: '2026-05-28T00:00:00Z',
+    };
+    const upsert = jest.fn(async () => undefined);
+    const conversationService = {
+      lookup: jest.fn(async () => state),
+      upsert,
+      updateExecutionId: jest.fn(async () => undefined),
+    };
+    const adapter = {
+      provider: 'slack',
+      supportsNativeForm: true,
+      renderNode: jest.fn(async () => renderResult),
+      sendMessage: jest.fn(async () => ({
+        externalMsgId: 'm',
+        sentAt: '2026-05-28T00:00:00Z',
+      })),
+    };
+    const registry = { get: jest.fn(() => adapter) };
+    const listenerRegistry = { has: jest.fn(() => true) };
+    const triggerRepository = {
+      findOne: jest.fn(async () => ({
+        id: 'trig-1',
+        workspaceId: 'ws',
+        workflowId: 'wf-1',
+        config: { chatChannel: { provider: 'slack' } },
+        chatChannelHealth: 'healthy',
+      })),
+      update: jest.fn(async () => undefined),
+    };
+    const dispatcher = new ChatChannelDispatcher(
+      { executionEvents$: { subscribe: jest.fn() } } as never,
+      registry as never,
+      listenerRegistry as never,
+      conversationService as never,
+      triggerRepository as never,
+    );
+    return { dispatcher, state, upsert };
+  }
+
+  const formEvent: ExecutionChannelEvent = {
+    executionId: 'exec-1',
+    eventType: 'execution.waiting_for_input',
+    seq: 1,
+    payload: {
+      triggerId: 'trig-1',
+      workflowId: 'wf-1',
+      timestamp: '2026-05-28T00:00:00Z',
+      chatChannel: { conversationKey: 'D1' },
+      waitingNodeId: 'node-form',
+      waitingNodeType: 'form',
+      interactionType: 'form',
+      nodeOutput: {
+        config: { fields: [{ name: 'email', label: 'Email', type: 'email' }] },
+      },
+    },
+  };
+
+  it('renderNode → form_modal → pendingFormModal persist (formState 미설정)', async () => {
+    const formModalMsg: ChannelMessage = {
+      conversationKey: '',
+      body: {
+        kind: 'form_modal',
+        openLabel: '양식 작성하기',
+        formConfig: {
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        },
+      },
+    };
+    const { dispatcher, state } = buildDispatcher([formModalMsg]);
+    await (
+      dispatcher as unknown as {
+        handle: (e: ExecutionChannelEvent) => Promise<void>;
+      }
+    ).handle(formEvent);
+    expect(state.pendingFormModal).toMatchObject({ nodeId: 'node-form' });
+    expect(
+      (state.pendingFormModal as { fields: unknown[] }).fields,
+    ).toHaveLength(1);
+    expect(state.formState).toBeUndefined();
+  });
+
+  it('renderNode → form_prompt → formState persist (pendingFormModal 미설정)', async () => {
+    const formPromptMsg: ChannelMessage = {
+      conversationKey: '',
+      body: { kind: 'form_prompt', fieldName: 'email', label: 'Email' },
+    };
+    const { dispatcher, state } = buildDispatcher([formPromptMsg]);
+    await (
+      dispatcher as unknown as {
+        handle: (e: ExecutionChannelEvent) => Promise<void>;
+      }
+    ).handle(formEvent);
+    expect(state.formState).toMatchObject({
+      nodeId: 'node-form',
+      currentFieldIdx: 0,
+    });
+    expect(state.pendingFormModal).toBeUndefined();
   });
 });

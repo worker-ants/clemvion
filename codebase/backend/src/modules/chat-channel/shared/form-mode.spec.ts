@@ -112,7 +112,12 @@ describe('extractFormFields', () => {
     });
     expect(fields).toEqual([
       { name: 'email', label: 'Email', type: 'email', required: true },
-      { name: 'note', label: 'note', type: 'textarea', description: 'optional note' },
+      {
+        name: 'note',
+        label: 'note',
+        type: 'textarea',
+        description: 'optional note',
+      },
     ]);
   });
 
@@ -143,7 +148,9 @@ describe('extractFormFields', () => {
   });
 
   it('name 없는 필드 / 잘못된 shape skip', () => {
-    expect(extractFormFields({ fields: [{ label: 'no name' }, null, 3] })).toEqual([]);
+    expect(
+      extractFormFields({ fields: [{ label: 'no name' }, null, 3] }),
+    ).toEqual([]);
     expect(extractFormFields(null)).toEqual([]);
     expect(extractFormFields({})).toEqual([]);
   });

@@ -569,6 +569,114 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    it('§4.1 open_form_modal → adapter.openFormModal 호출 + interactionHttpResponse 반환 (discord-style)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: {
+          kind: 'open_form_modal',
+          openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        },
+        idempotencyKey: 'I1',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      const openFormModal = jest.fn().mockResolvedValue({
+        httpResponse: { type: 9, data: { custom_id: 'clemvion_form' } },
+      });
+      (mockAdapter as Record<string, unknown>).openFormModal = openFormModal;
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+        pendingFormModal: {
+          nodeId: 'node-form',
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        },
+      });
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(openFormModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          openContext: { interactionId: 'I1', interactionToken: 'tok' },
+          nodeId: 'node-form',
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+          conversationKey: 'chat-123',
+        }),
+      );
+      expect(res).toMatchObject({
+        interactionHttpResponse: {
+          type: 9,
+          data: { custom_id: 'clemvion_form' },
+        },
+      });
+      expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    it('§4.1 form_submission → interact submit_form (pendingFormModal.nodeId + fields) + pendingFormModal clear', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: {
+          kind: 'form_submission',
+          fields: { email: 'a@b.io', name: 'Bob' },
+        },
+        idempotencyKey: 'V1',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      const buildFormSubmissionResponse = jest.fn().mockReturnValue({});
+      (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse =
+        buildFormSubmissionResponse;
+      const state = {
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+        pendingFormModal: {
+          nodeId: 'node-form',
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        },
+      };
+      conversationService.lookup.mockResolvedValue(state);
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockResolvedValue(undefined);
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      expect(interactionService.interact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionId: 'exec-active',
+          scope: 'in_process_trusted',
+        }),
+        expect.objectContaining({
+          command: 'submit_form',
+          nodeId: 'node-form',
+          data: { email: 'a@b.io', name: 'Bob' },
+        }),
+      );
+      // pendingFormModal clear 후 upsert.
+      expect(conversationService.upsert).toHaveBeenCalledWith(
+        chatChannelTrigger.id,
+        'chat-123',
+        expect.objectContaining({ pendingFormModal: undefined }),
+      );
+      expect(res).toMatchObject({ executionId: 'exec-active' });
+    });
+
     it('Authenticator 가 401 throw 시 HooksService 도 전파', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       authenticator.verify.mockRejectedValueOnce(

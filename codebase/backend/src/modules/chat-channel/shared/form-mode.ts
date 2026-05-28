@@ -33,8 +33,11 @@ export interface DecideFormModeParams {
 /**
  * native modal 경로를 탈지 결정. 위 4 조건 모두 충족 시 'native_modal', 아니면 'multi_step'.
  */
-export function decideFormMode(params: DecideFormModeParams): 'native_modal' | 'multi_step' {
-  const { formMode, supportsNativeForm, fields, isFieldModalCompatible } = params;
+export function decideFormMode(
+  params: DecideFormModeParams,
+): 'native_modal' | 'multi_step' {
+  const { formMode, supportsNativeForm, fields, isFieldModalCompatible } =
+    params;
   if (formMode === 'multi_step') return 'multi_step';
   if (!supportsNativeForm) return 'multi_step';
   if (fields.length === 0 || fields.length > NATIVE_MODAL_MAX_FIELDS) {

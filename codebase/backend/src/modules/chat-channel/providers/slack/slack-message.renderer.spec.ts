@@ -290,28 +290,30 @@ describe('renderSlackEvent — buttons (CCH-MP-02)', () => {
   });
 });
 
+function formEvent(
+  fields: Array<Record<string, unknown>>,
+): Extract<EiaEvent, { type: 'execution.waiting_for_input' }> {
+  return {
+    type: 'execution.waiting_for_input',
+    executionId: 'e',
+    triggerId: 't',
+    workflowId: 'w',
+    seq: 1,
+    timestamp: '2026-05-24T00:00:00Z',
+    node: { id: 'n', type: 'form', interactionType: 'form' },
+    interaction: {},
+    context: { formConfig: { fields } },
+  };
+}
+
 describe('renderSlackEvent — form 다단계 (CCH-MP-03)', () => {
-  it('첫 필드 → form_prompt + hint', () => {
+  it('multi_step opt-out → 첫 필드 form_prompt + hint', () => {
     const msgs = renderSlackEvent(
-      {
-        type: 'execution.waiting_for_input',
-        executionId: 'e',
-        triggerId: 't',
-        workflowId: 'w',
-        seq: 1,
-        timestamp: '2026-05-24T00:00:00Z',
-        node: { id: 'n', type: 'form', interactionType: 'form' },
-        interaction: {},
-        context: {
-          formConfig: {
-            fields: [
-              { name: 'email', label: 'Email', type: 'email', required: true },
-              { name: 'age', label: 'Age', type: 'number' },
-            ],
-          },
-        },
-      },
-      CONFIG,
+      formEvent([
+        { name: 'email', label: 'Email', type: 'email', required: true },
+        { name: 'age', label: 'Age', type: 'number' },
+      ]),
+      { ...CONFIG, uiMapping: { formMode: 'multi_step' } },
     );
     expect(msgs[0].body).toMatchObject({
       kind: 'form_prompt',
@@ -319,6 +321,53 @@ describe('renderSlackEvent — form 다단계 (CCH-MP-03)', () => {
       hint: 'email',
     });
     expect((msgs[0].body as { label: string }).label).toContain('Email *');
+  });
+});
+
+describe('renderSlackEvent — form §4.1 native modal 게이팅', () => {
+  it('≤5 non-file fields + formMode auto → form_modal (openLabel)', () => {
+    const msgs = renderSlackEvent(
+      formEvent([
+        { name: 'email', label: 'Email', type: 'email', required: true },
+        { name: 'age', label: 'Age', type: 'number' },
+      ]),
+      CONFIG,
+    );
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].body).toMatchObject({
+      kind: 'form_modal',
+      openLabel: '양식 작성하기',
+    });
+    expect((msgs[0].body as { formConfig: unknown }).formConfig).toBeDefined();
+  });
+
+  it('file 필드 포함 → form_prompt (multi-step, Slack file 비수용)', () => {
+    const msgs = renderSlackEvent(
+      formEvent([
+        { name: 'email', label: 'Email', type: 'email' },
+        { name: 'doc', label: 'Doc', type: 'file' },
+      ]),
+      CONFIG,
+    );
+    expect(msgs[0].body).toMatchObject({ kind: 'form_prompt' });
+  });
+
+  it('6 fields → form_prompt (modal max 5 초과)', () => {
+    const fields = Array.from({ length: 6 }, (_, i) => ({
+      name: `f${i}`,
+      label: `F${i}`,
+      type: 'text',
+    }));
+    const msgs = renderSlackEvent(formEvent(fields), CONFIG);
+    expect(msgs[0].body).toMatchObject({ kind: 'form_prompt' });
+  });
+
+  it('formMode=multi_step → form_prompt (opt-out)', () => {
+    const msgs = renderSlackEvent(
+      formEvent([{ name: 'email', label: 'Email', type: 'email' }]),
+      { ...CONFIG, uiMapping: { formMode: 'multi_step' } },
+    );
+    expect(msgs[0].body).toMatchObject({ kind: 'form_prompt' });
   });
 });
 

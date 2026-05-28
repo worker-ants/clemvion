@@ -17,9 +17,7 @@ describe('resolveFormOpenLabel (§4.1 form_modal 버튼 라벨)', () => {
     expect(resolveFormOpenLabel(undefined, undefined)).toBe('양식 작성하기');
   });
   it('languageHints override 우선', () => {
-    expect(
-      resolveFormOpenLabel({ formOpenLabel: '작성' }, 'en'),
-    ).toBe('작성');
+    expect(resolveFormOpenLabel({ formOpenLabel: '작성' }, 'en')).toBe('작성');
   });
   it('빈 override 는 무시 → locale default', () => {
     expect(resolveFormOpenLabel({ formOpenLabel: '' }, 'en')).toBe('Open form');

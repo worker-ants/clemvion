@@ -7,6 +7,10 @@ import type {
   ChatChannelConfig,
   ChatChannelInternalEvent,
   EiaEvent,
+  FormModalField,
+  FormSubmissionResult,
+  OpenFormModalParams,
+  OpenFormModalResult,
   SendResult,
   SetupResult,
 } from '../../types';
@@ -169,6 +173,29 @@ export class SlackAdapter implements ChatChannelAdapter {
       });
       return wrapSendResult(res, 'chat.postMessage(form_prompt)');
     }
+    if (message.body.kind === 'form_modal') {
+      // §4.1 native modal 게이팅 — "양식 작성하기" 버튼 메시지. 클릭 시 openFormModal 가
+      // views.open 으로 modal 을 연다 (action_id '__open_form__' 로 parseUpdate 가 분기).
+      const openLabel = message.body.openLabel;
+      const blocks = [
+        {
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              action_id: '__open_form__',
+              text: { type: 'plain_text', text: openLabel },
+            },
+          ],
+        },
+      ];
+      const res = await this.client.chatPostMessage(botToken, {
+        channel,
+        text: openLabel,
+        blocks,
+      });
+      return wrapSendResult(res, 'chat.postMessage(form_modal)');
+    }
     if (message.body.kind === 'image') {
       // v1 = files.uploadV2 미구현 — fallbackText 로 text 발송 (R-S §5.4).
       const text = message.body.caption ?? message.body.fallbackText;
@@ -191,6 +218,57 @@ export class SlackAdapter implements ChatChannelAdapter {
     _config: ChatChannelConfig,
   ): Promise<void> {
     return Promise.resolve();
+  }
+
+  /**
+   * §4.1 native modal open — `open_form_modal` command 처리 시 HooksService 가 호출.
+   * Slack 은 `views.open(trigger_id, view)` API 로 modal 을 즉시 연다 (HTTP 응답 body 아님 →
+   * OpenFormModalResult.httpResponse 미설정). block_id = field name (parseUpdate 가 block_id 를
+   * field name 으로 읽음). private_metadata = conversationKey (view_submission 에서 복원).
+   * SoT: spec/conventions/chat-channel-adapter.md §4.1 / providers/slack §5.3.
+   */
+  async openFormModal(
+    params: OpenFormModalParams,
+  ): Promise<OpenFormModalResult> {
+    const botToken = await this.resolveBotToken(params.config);
+    const view = {
+      type: 'modal',
+      callback_id: 'clemvion_form',
+      private_metadata: params.conversationKey,
+      title: { type: 'plain_text', text: '양식' },
+      submit: { type: 'plain_text', text: '제출' },
+      close: { type: 'plain_text', text: '취소' },
+      blocks: params.fields.map(toInputBlock),
+    };
+    await this.client.viewsOpen(botToken, {
+      trigger_id: params.openContext.triggerId,
+      view,
+    });
+    return {};
+  }
+
+  /**
+   * §4.1 native modal 제출의 Slack HTTP 응답 합성. validationError 가 있으면
+   * `{ response_action: 'errors', errors }` 로 modal 을 error 와 함께 재표시 (block_id 키),
+   * 없으면 빈 body (Slack 이 modal 을 성공 close).
+   * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 5.
+   */
+  buildFormSubmissionResponse(params: {
+    config: ChatChannelConfig;
+    validationError?: { field?: string; message: string };
+  }): FormSubmissionResult {
+    if (params.validationError) {
+      return {
+        httpResponse: {
+          response_action: 'errors',
+          errors: {
+            [params.validationError.field ?? 'form']:
+              params.validationError.message,
+          },
+        },
+      };
+    }
+    return {};
   }
 
   /**
@@ -249,6 +327,52 @@ function buildActionsBlocks(text: string, buttons: ChannelButton[]): unknown[] {
       }),
     },
   ];
+}
+
+/**
+ * §4.1 FormModalField → Slack input block. block_id = field name (parseUpdate 가 block_id 를
+ * field name 으로 읽음). element action_id 는 상수 'v' (parseUpdate 가 inner key 무관 값 읽음).
+ * SoT: spec/conventions/chat-channel-adapter.md §4.1 / providers/slack §5.3.
+ */
+function toInputBlock(f: FormModalField): Record<string, unknown> {
+  return {
+    type: 'input',
+    block_id: f.name,
+    optional: !f.required,
+    label: { type: 'plain_text', text: f.label },
+    element: toInputElement(f),
+  };
+}
+
+function toInputElement(f: FormModalField): Record<string, unknown> {
+  switch (f.type) {
+    case 'textarea':
+      return { type: 'plain_text_input', action_id: 'v', multiline: true };
+    case 'select':
+    case 'radio':
+      return {
+        type: 'static_select',
+        action_id: 'v',
+        options: (f.options ?? []).map((o) => ({
+          text: { type: 'plain_text', text: o.label },
+          value: o.value,
+        })),
+      };
+    case 'date':
+      return { type: 'datepicker', action_id: 'v' };
+    case 'checkbox':
+      return {
+        type: 'checkboxes',
+        action_id: 'v',
+        options: (f.options ?? []).map((o) => ({
+          text: { type: 'plain_text', text: o.label },
+          value: o.value,
+        })),
+      };
+    // text / email / number / phone (+ unknown fallback)
+    default:
+      return { type: 'plain_text_input', action_id: 'v' };
+  }
 }
 
 function wrapSendResult(

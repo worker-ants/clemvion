@@ -194,6 +194,13 @@ export class HooksService {
     status?: 'pending';
     challenge?: string;
     discordPing?: boolean;
+    /**
+     * §4.1 native modal — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
+     * (Discord modal open `{ type: 9 }` / MODAL_SUBMIT ack `{ type: 4 }` / Slack
+     * view_submission `{ response_action: 'errors' }`). HooksController 가 res.json 으로 전송.
+     * SoT: spec/conventions/chat-channel-adapter.md §4.1.
+     */
+    interactionHttpResponse?: unknown;
   }> {
     let adapter: ChatChannelAdapter;
     try {
@@ -275,6 +282,81 @@ export class HooksService {
         );
       }
       await adapter.ackInteraction(update, config);
+      return { executionId: state?.executionId ?? 'ignored' };
+    }
+
+    // §4.1 native modal — "양식 작성하기" 버튼 클릭. pendingFormModal 의 fields + provider
+    // openContext (trigger_id / interaction token) 로 adapter 가 modal 을 연다. Discord 는
+    // httpResponse 로 modal 을 반환 (controller 가 res.json), Slack 은 views.open API (httpResponse 없음).
+    if (update.command.kind === 'open_form_modal') {
+      if (state?.pendingFormModal && adapter.openFormModal) {
+        const result = await adapter.openFormModal({
+          config,
+          openContext: update.command.openContext,
+          fields: state.pendingFormModal.fields,
+          conversationKey: update.conversationKey,
+          nodeId: state.pendingFormModal.nodeId,
+        });
+        if (result.httpResponse !== undefined) {
+          return {
+            executionId: state.executionId ?? 'ignored',
+            interactionHttpResponse: result.httpResponse,
+          };
+        }
+      }
+      return { executionId: state?.executionId ?? 'ignored' };
+    }
+
+    // §4.1 native modal — modal 일괄 제출. pendingFormModal.nodeId 로 EIA submit_form 단일 호출.
+    if (update.command.kind === 'form_submission') {
+      const nodeId = state?.pendingFormModal?.nodeId;
+      if (hasActiveExecution && nodeId) {
+        try {
+          const ctx: InternalInteractionRequestContext = {
+            executionId: state.executionId!,
+            triggerId: trigger.id,
+            scope: 'in_process_trusted',
+          };
+          await this.interactionService.interact(ctx, {
+            command: 'submit_form',
+            nodeId,
+            data: update.command.fields,
+          });
+          // 성공 — pendingFormModal clear.
+          state.pendingFormModal = undefined;
+          state.lastUpdateAt = new Date().toISOString();
+          await this.channelConversationService.upsert(
+            trigger.id,
+            update.conversationKey,
+            state,
+          );
+          if (adapter.buildFormSubmissionResponse) {
+            const r = adapter.buildFormSubmissionResponse({ config });
+            if (r.httpResponse !== undefined) {
+              return {
+                executionId: state.executionId!,
+                interactionHttpResponse: r.httpResponse,
+              };
+            }
+          }
+          return { executionId: state.executionId! };
+        } catch (err) {
+          this.logger.warn(
+            `form_submission submit_form 실패 — 검증 재안내: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          const r = adapter.buildFormSubmissionResponse?.({
+            config,
+            validationError: { message: '입력값을 다시 확인해주세요.' },
+          });
+          if (r?.httpResponse !== undefined) {
+            return {
+              executionId: state?.executionId ?? 'ignored',
+              interactionHttpResponse: r.httpResponse,
+            };
+          }
+          return { executionId: state?.executionId ?? 'ignored' };
+        }
+      }
       return { executionId: state?.executionId ?? 'ignored' };
     }
 

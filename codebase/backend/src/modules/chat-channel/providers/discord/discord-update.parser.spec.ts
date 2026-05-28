@@ -148,6 +148,19 @@ describe('parseDiscordUpdate — MESSAGE_COMPONENT', () => {
   it('guild channel button → null', () => {
     expect(parseDiscordUpdate(buttonClick('b', 0))).toBeNull();
   });
+
+  it('§4.1 __open_form__ → open_form_modal (interactionId + interactionToken)', () => {
+    const upd = parseDiscordUpdate(buttonClick('__open_form__'));
+    expect(upd).toMatchObject({
+      conversationKey: 'C1',
+      channelUserKey: 'U1',
+      command: {
+        kind: 'open_form_modal',
+        openContext: { interactionId: 'I002', interactionToken: 't' },
+      },
+      idempotencyKey: 'I002',
+    });
+  });
 });
 
 describe('parseDiscordUpdate — MODAL_SUBMIT', () => {
@@ -193,6 +206,59 @@ describe('parseDiscordUpdate — MODAL_SUBMIT', () => {
         data: { components: [] },
       }),
     ).toBeNull();
+  });
+
+  it('§4.1 clemvion_form → form_submission (custom_id = field name 평탄화)', () => {
+    const upd = parseDiscordUpdate({
+      id: 'I005',
+      application_id: 'A',
+      type: 5,
+      token: 't',
+      version: 1,
+      channel_id: 'C1',
+      channel: { id: 'C1', type: 1 },
+      user: { id: 'U1' },
+      data: {
+        custom_id: 'clemvion_form',
+        components: [
+          {
+            type: 1,
+            components: [{ type: 4, custom_id: 'name', value: 'Bob' }],
+          },
+          {
+            type: 1,
+            components: [{ type: 4, custom_id: 'email', value: 'b@x.io' }],
+          },
+        ],
+      },
+    });
+    expect(upd?.command).toEqual({
+      kind: 'form_submission',
+      fields: { name: 'Bob', email: 'b@x.io' },
+    });
+  });
+
+  it('§4.1 clemvion_reply → text_message (단일 TEXT_INPUT 값)', () => {
+    const upd = parseDiscordUpdate({
+      id: 'I006',
+      application_id: 'A',
+      type: 5,
+      token: 't',
+      version: 1,
+      channel_id: 'C1',
+      channel: { id: 'C1', type: 1 },
+      user: { id: 'U1' },
+      data: {
+        custom_id: 'clemvion_reply',
+        components: [
+          {
+            type: 1,
+            components: [{ type: 4, custom_id: 'reply', value: 'hi there' }],
+          },
+        ],
+      },
+    });
+    expect(upd?.command).toEqual({ kind: 'text_message', text: 'hi there' });
   });
 });
 
