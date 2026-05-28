@@ -63,7 +63,7 @@ import { OperationCatalogDto } from './dto/responses/integration-response.dto';
 export interface IntegrationTestResult {
   success: boolean;
   message: string;
-  /** Failure code in the `MCP_*` vocabulary; absent on success. */
+  /** Failure code (e.g. `MCP_*` 또는 email 의 `EMAIL_CONNECT_FAILED`); absent on success. */
   code?: string;
   capabilities?: ServerCapabilities;
   serverInfo?: ServerInfo;
@@ -100,6 +100,9 @@ const ADMIN_ROLES = new Set(['owner', 'admin']);
  * The same bound is applied to `IntegrationUsageLog.error.message` for
  * consistency.
  */
+/** email(SMTP) 연결 테스트의 connection/greeting/socket 공통 타임아웃 (ms). */
+const SMTP_TEST_TIMEOUT_MS = 10_000;
+
 function clampMessage(raw: string | undefined): string {
   if (!raw) return 'Unknown error';
   return raw.length > MCP_ERROR_MESSAGE_MAX_LEN
@@ -1282,9 +1285,10 @@ export class IntegrationsService {
         user: credentials.username as string,
         pass: credentials.password as string,
       },
-      connectionTimeout: 10_000,
-      greetingTimeout: 10_000,
-      socketTimeout: 10_000,
+      // 연결 테스트가 응답 없는 서버에 매달리지 않도록 3종 타임아웃을 동일하게 둔다.
+      connectionTimeout: SMTP_TEST_TIMEOUT_MS,
+      greetingTimeout: SMTP_TEST_TIMEOUT_MS,
+      socketTimeout: SMTP_TEST_TIMEOUT_MS,
     });
     try {
       await transporter.verify();

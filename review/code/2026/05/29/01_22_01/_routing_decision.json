@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-29T01:22:01Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "반복문·I/O·캐싱·비동기 진입점 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": true,
+      "reason": "error-port 라우팅 로직이 executeNode 흐름에 새로운 분기 구조 추가"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 변경 — plan/in-progress/fix-mail-send-status.md"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/package-lock.json/requirements.txt 등 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migration 파일·SQL·prisma schema 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await·Promise·lock·worker·setTimeout 사용 패턴 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "IntegrationTestResult 인터페이스에 code 필드 추가 — test API contract 변경"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "PROJECT.md 갱신 매트릭스 trigger 조건 미충족"
+    }
+  ],
+  "selected_count": 10,
+  "skipped_count": 4,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

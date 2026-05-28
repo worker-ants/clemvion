@@ -643,7 +643,10 @@ describe('IntegrationsService', () => {
 
       const result = await service.testConnection('int-1', 'ws-1');
 
-      expect(result).toEqual({ success: true, message: 'Connection successful' });
+      expect(result).toEqual({
+        success: true,
+        message: 'Connection successful',
+      });
       // 실제 SMTP 검증이 수행됐는지 — verify 호출 + STARTTLS 매핑 확인.
       expect(verify).toHaveBeenCalledTimes(1);
       expect(mockedCreateTransport).toHaveBeenCalledWith(
@@ -662,7 +665,9 @@ describe('IntegrationsService', () => {
       integrationRepo.findOne.mockResolvedValue(makeEmailIntegration());
       const verify = jest
         .fn()
-        .mockRejectedValue(new Error('Invalid login: 535 Authentication failed'));
+        .mockRejectedValue(
+          new Error('Invalid login: 535 Authentication failed'),
+        );
       const close = jest.fn();
       mockedCreateTransport.mockReturnValue({ verify, close });
 
@@ -695,6 +700,57 @@ describe('IntegrationsService', () => {
 
       expect(result.success).toBe(false);
       expect(mockedCreateTransport).not.toHaveBeenCalled();
+    });
+
+    it('maps secure:"tls" to implicit TLS (secure:true, requireTLS:false)', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'email',
+          authType: 'smtp',
+          credentials: {
+            host: 'smtp.example.com',
+            port: 465,
+            secure: 'tls',
+            username: 'user@example.com',
+            password: 'app-password',
+            default_from: 'user@example.com',
+          },
+        }),
+      );
+      const verify = jest.fn().mockResolvedValue(true);
+      mockedCreateTransport.mockReturnValue({ verify, close: jest.fn() });
+
+      await service.testConnection('int-1', 'ws-1');
+
+      expect(mockedCreateTransport).toHaveBeenCalledWith(
+        expect.objectContaining({ secure: true, requireTLS: false }),
+      );
+    });
+
+    it('previewTest (pre-save) also runs the real SMTP verify for email', async () => {
+      const verify = jest.fn().mockResolvedValue(true);
+      const close = jest.fn();
+      mockedCreateTransport.mockReturnValue({ verify, close });
+
+      const result = await service.previewTest({
+        serviceType: 'email',
+        authType: 'smtp',
+        credentials: {
+          host: 'smtp.example.com',
+          port: 587,
+          secure: 'starttls',
+          username: 'user@example.com',
+          password: 'app-password',
+          default_from: 'user@example.com',
+        },
+      });
+
+      expect(result).toEqual({
+        success: true,
+        message: 'Connection successful',
+      });
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(close).toHaveBeenCalled();
     });
   });
 

@@ -230,11 +230,21 @@ class ExecutionCancelledError extends Error {
  * (§1.4 의 엔진 레벨 코드).
  */
 class ErrorPortFallbackError extends Error {
+  /** 외부 Execution.error.code 로 직렬화 — FE/알림이 이 값으로 분기 가능. */
   readonly code = 'ERROR_PORT_FALLBACK';
   constructor(message: string) {
     super(message);
     this.name = 'ErrorPortFallbackError';
   }
+}
+
+/** error 포트 노드의 `output.error.message` 가 DB(JSONB)·WS payload 를 비대화
+ *  시키지 않도록 상한을 둔다. 초과분은 `…` 로 잘라낸다. */
+const NODE_ERROR_MESSAGE_MAX_LEN = 2000;
+function clampNodeErrorMessage(raw: string): string {
+  return raw.length > NODE_ERROR_MESSAGE_MAX_LEN
+    ? raw.slice(0, NODE_ERROR_MESSAGE_MAX_LEN) + '…'
+    : raw;
 }
 
 /**
@@ -1349,9 +1359,11 @@ export class ExecutionEngineService
       }
       savedExecution.error = {
         message: errMessage,
-        // §1.4 — sentinel(예: ErrorPortFallbackError) 의 엔진 레벨 code 를 보존.
-        ...(typeof (error as { code?: unknown }).code === 'string'
-          ? { code: (error as { code: string }).code }
+        // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error
+        // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
+        // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
+        ...(error instanceof ErrorPortFallbackError
+          ? { code: error.code }
           : {}),
       };
       savedExecution.finishedAt = new Date();
@@ -2544,9 +2556,11 @@ export class ExecutionEngineService
       }
       savedExecution.error = {
         message: errMessage,
-        // §1.4 — sentinel(예: ErrorPortFallbackError) 의 엔진 레벨 code 를 보존.
-        ...(typeof (error as { code?: unknown }).code === 'string'
-          ? { code: (error as { code: string }).code }
+        // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error
+        // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
+        // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
+        ...(error instanceof ErrorPortFallbackError
+          ? { code: error.code }
           : {}),
       };
       savedExecution.finishedAt = new Date();
@@ -4321,6 +4335,11 @@ export class ExecutionEngineService
    * @param executedNodes  본 실행에서 이미 완료된 노드 id 집합 (중복 실행 차단)
    * @param nodeMap        $node expression 해석용 (target workflow 한정)
    * @param executionMeta  startedAt / mode (replay / live)
+   * @param outgoingEdgeMap 노드의 outgoing edge 맵. spec/5-system/3-error-handling.md
+   *   §3.2 의 "error 포트 연결 여부" 판정에 쓴다 — 핸들러가 `port: 'error'` 로
+   *   라우팅했는데 연결된 error 엣지가 없으면 ERROR_PORT_FALLBACK 으로 Stop
+   *   Workflow. **required** — 모든 호출 경로(main loop / rehydrate / container /
+   *   parallel)가 자기 그래프 맵을 전달해 fallback 판정이 침묵하지 않도록 강제한다.
    *
    * blocking 노드 (form/buttons/ai_conversation) 의 waiting 진입은 본 메서드가
    * 아니라 호출 측 (waitForFormSubmission / waitForButtonInteraction /
@@ -4332,14 +4351,9 @@ export class ExecutionEngineService
     nodeInput: unknown,
     context: ExecutionContext,
     executedNodes: Set<string>,
-    nodeMap?: Map<string, Node>,
-    executionMeta?: { startedAt?: string; mode?: string },
-    // spec/5-system/3-error-handling.md §3.2 — error 포트 연결 여부 판정에 필요.
-    // 호출자가 그래프 outgoing edge 맵을 넘기면, 핸들러가 `port: 'error'` 로
-    // 라우팅했는데 연결된 error 엣지가 없을 때 ERROR_PORT_FALLBACK 으로 Stop
-    // Workflow 한다. 생략 시(맵 미전달) fallback 판정을 건너뛴다(노드는 여전히
-    // FAILED 로 마킹).
-    outgoingEdgeMap?: Map<string, GraphEdge[]>,
+    nodeMap: Map<string, Node> | undefined,
+    executionMeta: { startedAt?: string; mode?: string } | undefined,
+    outgoingEdgeMap: Map<string, GraphEdge[]>,
   ): Promise<void> {
     // §3.2 — error 포트 라우팅 + error 엣지 미연결 시 finally 이후 던질 sentinel.
     let errorPortFallbackMessage: string | null = null;
@@ -4511,61 +4525,19 @@ export class ExecutionEngineService
 
       if (!isBlocking && this.isErrorPortRouted(finalOutput)) {
         // spec/5-system/3-error-handling.md §3.2 — 핸들러가 런타임 실패를
-        // `port: 'error'` 로 라우팅한 경우. NodeExecution.status 는 `failed` 로
-        // 기록하되 Execution 은 (error 엣지가 연결돼 있으면) 계속 진행한다.
-        // D4 결정(2026-05-17) 이후 Integration·LLM·Code·Workflow 노드 8종은
-        // throw 대신 이 경로로 실패를 surface 하므로, 엔진이 COMPLETED 로
-        // 오인하지 않도록 여기서 FAILED 로 분기한다.
-        const errorEnvelope = (finalOutput as Record<string, unknown>).error as
-          | { code?: unknown; message?: unknown }
-          | undefined;
-        const errorCode =
-          typeof errorEnvelope?.code === 'string'
-            ? errorEnvelope.code
-            : undefined;
-        const errorMessage =
-          typeof errorEnvelope?.message === 'string'
-            ? errorEnvelope.message
-            : 'Node routed to error port';
-        nodeExecution.status = NodeExecutionStatus.FAILED;
-        nodeExecution.outputData = (output as Record<string, unknown>) ?? {};
-        nodeExecution.error = {
-          message: errorMessage,
-          ...(errorCode ? { code: errorCode } : {}),
-        };
-        nodeExecution.finishedAt = new Date();
-        nodeExecution.durationMs =
-          nodeExecution.finishedAt.getTime() -
-          nodeExecution.startedAt.getTime();
-        await this.nodeExecutionRepository.save(nodeExecution);
-        this.eventEmitter.emitNode(
+        // `port: 'error'` 로 라우팅한 경우. D4 결정(2026-05-17) 이후 Integration·
+        // LLM·Code·Workflow 노드 8종은 throw 대신 이 경로로 실패를 surface 하므로,
+        // 엔진이 COMPLETED 로 오인하지 않도록 FAILED 로 finalize 한다. error 엣지
+        // 미연결이면 폴백 메시지를 돌려받아 finally 이후 throw (Stop Workflow).
+        errorPortFallbackMessage = await this.finalizeErrorPortNode(
           executionId,
-          node.id,
-          NodeEventType.NODE_FAILED,
-          {
-            nodeExecutionId: nodeExecution.id,
-            parentNodeExecutionId: context.parentNodeExecutionId,
-            status: NodeExecutionStatus.FAILED,
-            duration: nodeExecution.durationMs,
-            error: errorMessage,
-            nodeType: node.type,
-            nodeLabel: node.label ?? node.type,
-            output: nodeExecution.outputData,
-            input: nodeExecution.inputData,
-            startedAt: nodeExecution.startedAt?.toISOString?.(),
-            finishedAt: nodeExecution.finishedAt?.toISOString?.(),
-          },
+          node,
+          nodeExecution,
+          context,
+          output,
+          finalOutput,
+          outgoingEdgeMap,
         );
-        // §3.2 — error 포트에 연결된 엣지가 없으면 Stop Workflow 폴백.
-        // outgoingEdgeMap 이 전달된 경우에만 판정 (미전달 시 노드 FAILED 만
-        // 반영하고 Execution 은 계속). 실제 throw 는 finally 이후로 미뤄
-        // unregisterInFlight 가 먼저 실행되게 한다.
-        if (
-          outgoingEdgeMap !== undefined &&
-          !this.hasConnectedErrorEdge(node.id, outgoingEdgeMap)
-        ) {
-          errorPortFallbackMessage = errorMessage;
-        }
       } else if (!isBlocking) {
         // Update node execution record
         nodeExecution.status = NodeExecutionStatus.COMPLETED;
@@ -4721,6 +4693,69 @@ export class ExecutionEngineService
       );
       throw new ErrorPortFallbackError(errorPortFallbackMessage);
     }
+  }
+
+  /**
+   * spec/5-system/3-error-handling.md §3.2 — 핸들러가 `port: 'error'` 로 라우팅한
+   * 노드를 FAILED 로 finalize 하고 NODE_FAILED 를 emit 한다.
+   *
+   * @returns error 포트에 연결된 엣지가 없으면 Stop Workflow 폴백을 트리거할
+   *   메시지(호출부가 finally 이후 ErrorPortFallbackError 로 throw), 연결돼 있으면
+   *   `null` (Execution 계속 진행).
+   */
+  private async finalizeErrorPortNode(
+    executionId: string,
+    node: Node,
+    nodeExecution: NodeExecution,
+    context: ExecutionContext,
+    rawOutput: unknown,
+    finalOutput: unknown,
+    outgoingEdgeMap: Map<string, GraphEdge[]>,
+  ): Promise<string | null> {
+    const errorEnvelope = (finalOutput as Record<string, unknown>).error as
+      | { code?: unknown; message?: unknown }
+      | undefined;
+    const errorCode =
+      typeof errorEnvelope?.code === 'string' ? errorEnvelope.code : undefined;
+    // 외부 서버가 반환한 메시지가 DB(JSONB) 비대화·WS payload 비대화를 일으키지
+    // 않도록 길이를 제한한다 (ai-review security WARNING).
+    const errorMessage = clampNodeErrorMessage(
+      typeof errorEnvelope?.message === 'string'
+        ? errorEnvelope.message
+        : 'Node routed to error port',
+    );
+    nodeExecution.status = NodeExecutionStatus.FAILED;
+    nodeExecution.outputData = (rawOutput as Record<string, unknown>) ?? {};
+    nodeExecution.error = {
+      message: errorMessage,
+      ...(errorCode ? { code: errorCode } : {}),
+    };
+    nodeExecution.finishedAt = new Date();
+    nodeExecution.durationMs =
+      nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
+    await this.nodeExecutionRepository.save(nodeExecution);
+    this.eventEmitter.emitNode(
+      executionId,
+      node.id,
+      NodeEventType.NODE_FAILED,
+      {
+        nodeExecutionId: nodeExecution.id,
+        parentNodeExecutionId: context.parentNodeExecutionId,
+        status: NodeExecutionStatus.FAILED,
+        duration: nodeExecution.durationMs,
+        error: errorMessage,
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+        output: nodeExecution.outputData,
+        input: nodeExecution.inputData,
+        startedAt: nodeExecution.startedAt?.toISOString?.(),
+        finishedAt: nodeExecution.finishedAt?.toISOString?.(),
+      },
+    );
+    // §3.2 — error 포트에 연결된 엣지가 없으면 Stop Workflow 폴백.
+    return this.hasConnectedErrorEdge(node.id, outgoingEdgeMap)
+      ? null
+      : errorMessage;
   }
 
   /**

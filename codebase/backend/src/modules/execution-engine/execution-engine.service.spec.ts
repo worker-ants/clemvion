@@ -1853,6 +1853,43 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
       );
     });
+
+    it('marks FAILED with a default message when error envelope carries no code/message', async () => {
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-err',
+          workflowId,
+          type: 'err_node',
+          category: NodeCategory.LOGIC,
+          label: 'Bare error',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      // error 포트로 라우팅하지만 output.error 가 없는 핸들러 (코드/메시지 부재).
+      handlerRegistry.register('err_node', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () =>
+          mockOutput({ note: 'oops' }, { port: 'error' }),
+        ),
+      });
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      const errNe = lastNodeExecSave('n-err');
+      expect(errNe?.status).toBe(NodeExecutionStatus.FAILED);
+      expect(errNe?.error).toEqual({ message: 'Node routed to error port' });
+      // 미연결 error 포트 → Stop Workflow.
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ExecutionStatus.FAILED,
+          error: expect.objectContaining({ code: 'ERROR_PORT_FALLBACK' }),
+        }),
+      );
+    });
   });
 
   describe('WebSocket events', () => {
