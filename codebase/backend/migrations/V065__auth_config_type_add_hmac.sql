@@ -1,4 +1,4 @@
--- V064: auth_config.type 에 'hmac' 추가
+-- V065: auth_config.type 에 'hmac' 추가
 --
 -- 관련 spec:
 --   - spec/1-data-model.md §2.17 / §2.17.1 (AuthConfig.type enum + config JSONB 스키마)

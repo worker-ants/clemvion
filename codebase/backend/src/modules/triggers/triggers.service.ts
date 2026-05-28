@@ -499,7 +499,7 @@ export class TriggersService {
 
   /**
    * 폐기된 inline webhook 인증 키를 config 에서 제거 (방어적 — 인증은 authConfigId 로만).
-   * V065 cleanup 과 별개로, 클라이언트가 보낸 평문 secret/bearerToken 이 config JSONB 에
+   * V066 cleanup 과 별개로, 클라이언트가 보낸 평문 secret/bearerToken 이 config JSONB 에
    * 새로 유입되지 않도록 한다 (spec/5-system/12-webhook.md §2.2).
    */
   private stripInlineAuthKeys(
