@@ -313,4 +313,21 @@ describe('TelegramAdapter', () => {
       expect(client.answerCallbackQuery).not.toHaveBeenCalled();
     });
   });
+
+  // SUMMARY#9 — Telegram exhaustiveness guard + supportsNativeForm assertion.
+  describe('native form modal guard (SUMMARY#9)', () => {
+    it('supportsNativeForm === false', () => {
+      expect(adapter.supportsNativeForm).toBe(false);
+    });
+
+    it('form_modal 메시지 sendMessage 시 throw', async () => {
+      const msg = {
+        conversationKey: '9999',
+        body: { kind: 'form_modal' as const, openLabel: 'Fill', formConfig: { fields: [] } },
+      };
+      await expect(adapter.sendMessage(msg, baseConfig)).rejects.toThrow(
+        /native form modal 미지원|supportsNativeForm/i,
+      );
+    });
+  });
 });

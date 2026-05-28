@@ -679,6 +679,129 @@ describe('HooksService', () => {
       expect(res).toMatchObject({ executionId: 'exec-active' });
     });
 
+    it('§4.1 form_submission → interact reject 시 buildFormSubmissionResponse(validationError) + re-noise sendMessage', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'user-456',
+        command: {
+          kind: 'form_submission',
+          fields: { email: 'bad-email' },
+        },
+        idempotencyKey: 'V2',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      const buildFormSubmissionResponse = jest.fn().mockReturnValue({
+        httpResponse: { type: 4, data: { content: '⚠️ 입력값을 다시 확인해주세요.', flags: 64 } },
+      });
+      (mockAdapter as Record<string, unknown>).buildFormSubmissionResponse = buildFormSubmissionResponse;
+      const state = {
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+        pendingFormModal: {
+          nodeId: 'node-form',
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        },
+      };
+      conversationService.lookup.mockResolvedValue(state);
+      const execRepo = (
+        moduleRef.get(ExecutionsService) as {
+          executionRepository: jest.Mocked<{
+            findOne: jest.MockedFunction<() => Promise<{ status: string }>>;
+          }>;
+        }
+      ).executionRepository;
+      execRepo.findOne.mockResolvedValue({ status: 'waiting_for_input' });
+      interactionService.interact.mockRejectedValue(new Error('validation failed'));
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      // buildFormSubmissionResponse 가 validationError 와 함께 호출돼야 함.
+      expect(buildFormSubmissionResponse).toHaveBeenCalledWith(
+        expect.objectContaining({ validationError: { message: '입력값을 다시 확인해주세요.' } }),
+      );
+      // interactionHttpResponse 가 반환돼야 함.
+      expect(res).toMatchObject({
+        interactionHttpResponse: { type: 4, data: { content: '⚠️ 입력값을 다시 확인해주세요.', flags: 64 } },
+      });
+      // re-noise: sendMessage 로 form_modal 버튼 재발송해야 함.
+      expect(mockAdapter.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ body: expect.objectContaining({ kind: 'form_modal' }) }),
+        expect.anything(),
+      );
+    });
+
+    it('§4.1 open_form_modal channelUserKey mismatch → 거부 (executionId ignored)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'attacker-999',
+        command: {
+          kind: 'open_form_modal',
+          openContext: { interactionId: 'I2', interactionToken: 'tok2' },
+        },
+        idempotencyKey: 'I2',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      const openFormModal = jest.fn().mockResolvedValue({ httpResponse: { type: 9 } });
+      (mockAdapter as Record<string, unknown>).openFormModal = openFormModal;
+      conversationService.lookup.mockResolvedValue({
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+        pendingFormModal: {
+          nodeId: 'node-form',
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        },
+      });
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      // openFormModal 가 호출되면 안 됨.
+      expect(openFormModal).not.toHaveBeenCalled();
+      expect(res).toMatchObject({ executionId: 'exec-active' });
+    });
+
+    it('§4.1 form_submission channelUserKey mismatch → 거부 (executionId ignored)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-123',
+        channelUserKey: 'attacker-999',
+        command: {
+          kind: 'form_submission',
+          fields: { email: 'a@b.io' },
+        },
+        idempotencyKey: 'V3',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      const state = {
+        executionId: 'exec-active',
+        threadId: 'default',
+        channelUserKey: 'user-456',
+        startedAt: new Date().toISOString(),
+        lastUpdateAt: new Date().toISOString(),
+        pendingFormModal: {
+          nodeId: 'node-form',
+          fields: [{ name: 'email', label: 'Email', type: 'email' }],
+        },
+      };
+      conversationService.lookup.mockResolvedValue(state);
+
+      const res = await service.handleWebhook('abc', chatInput);
+
+      // interact 가 호출되면 안 됨.
+      expect(interactionService.interact).not.toHaveBeenCalled();
+      expect(res).toMatchObject({ executionId: 'exec-active' });
+    });
+
     it('Authenticator 가 401 throw 시 HooksService 도 전파', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       authenticator.verify.mockRejectedValueOnce(
