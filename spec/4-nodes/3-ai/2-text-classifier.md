@@ -153,7 +153,8 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
       { "requestPayload": {}, "responsePayload": {}, "durationMs": 420 }
     ]
   },
-  "port": "class_0"
+  "port": "class_0",
+  "status": "ended"
 }
 ```
 
@@ -173,6 +174,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | `meta.thinkingTokens` | number? | handler return | 모델이 보고할 때만 |
 | `meta.llmCalls` | Array | handler return | LLM 호출 디버그 트레이스 (`requestPayload` / `responsePayload` / `durationMs`) |
 | `port` | String | handler return | 매칭 성공 시 `<category.id>` 또는 `class_${i}`. 매칭 실패 시 `'fallback'` |
+| `status` | `'ended'` | handler return | 종결 상태 (Principle 0) |
 
 **Fallback 변형** (port `fallback`):
 
@@ -195,7 +197,8 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
     "totalTokens": 60,
     "llmCalls": [/* … */]
   },
-  "port": "fallback"
+  "port": "fallback",
+  "status": "ended"
 }
 ```
 
@@ -236,7 +239,8 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
     "totalTokens": 70,
     "llmCalls": [/* … */]
   },
-  "port": ["class_0", "class_1"]
+  "port": ["class_0", "class_1"],
+  "status": "ended"
 }
 ```
 
@@ -249,6 +253,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | `output.result.categories[i].evidence` | string[]? | handler return | `includeEvidence: true` 일 때만. JSON 파싱 실패의 substring fallback 시 `[]` |
 | `output.result.originalInput` | String | handler return | LLM 에 투입된 resolved 입력 |
 | `port` | string[] \| `'fallback'` | handler return | 매칭된 카테고리들의 포트 id 배열 (Principle 5 fan-out). 매칭 없음 시 `'fallback'` |
+| `status` | `'ended'` | handler return | 종결 상태 (Principle 0) |
 
 **Fallback 변형** (port `fallback`):
 
@@ -269,7 +274,8 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
     "totalTokens": 60,
     "llmCalls": [/* … */]
   },
-  "port": "fallback"
+  "port": "fallback",
+  "status": "ended"
 }
 ```
 
@@ -293,6 +299,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
       "code": "LLM_CALL_FAILED",
       "message": "OpenAI API timeout after 5020ms",
       "details": {
+        "retryable": true,
         "originalInput": "환불 요청드립니다 …(truncated)"
       }
     }
@@ -307,7 +314,8 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
       { "requestPayload": {}, "responsePayload": null, "durationMs": 5020 }
     ]
   },
-  "port": "error"
+  "port": "error",
+  "status": "ended"
 }
 ```
 
@@ -315,12 +323,15 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 |------|------|------|------|
 | `output.error.code` | String | handler return | `UPPER_SNAKE_CASE`. 본 노드의 예약어: `LLM_CALL_FAILED` (네트워크/타임아웃/5xx), `LLM_RATE_LIMIT` (429), `LLM_RESPONSE_INVALID` (JSON 파싱 + substring fallback 모두 실패 — 현재 핸들러는 substring fallback 으로 회복하므로 이 코드는 reserved) |
 | `output.error.message` | String | handler return | 사람이 읽는 메시지 (provider 원문 보존, 국제화 없음). 다운스트림에서 사용자에게 노출 시 sanitize 책임은 호출자 |
+| `output.error.details.retryable` | `boolean` | handler return | **필수** ([CONVENTIONS Principle 3.2.1](../../conventions/node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수)). 본 에러가 일시적이며 재시도 시 성공 가능성 여부. `LLM_CALL_FAILED` (timeout/5xx) / `LLM_RATE_LIMIT` (429) → `true`, auth(401/403) → `false` |
+| `output.error.details.retryAfterSec?` | `number?` | handler return | provider 가 `Retry-After` 등 신호를 제공한 경우의 권장 대기 시간 (초). invariant: `retryable === true` 일 때만 set (Principle 3.2.1) |
 | `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (에러 envelope 의 PII / 대용량 방지). D6 통일 — 정상은 `output.result.originalInput` (full), 에러는 본 필드 (truncated) 단일 경로 |
 | `meta.durationMs` | number | handler return | `execute()` 진입부터 catch 블록 진입 직전까지의 소요 시간 (ms). 성공 경로와 동일 측정 기준 (Principle 2) |
 | `meta.model` | String | handler return | 호출 시도된 모델 ID (`config.model` 또는 `llmConfig.defaultModel`) |
 | `meta.{inputTokens, outputTokens, totalTokens}` | number | handler return | 에러 시 LLM 응답 미수신 → 모두 `0`. 표현식이 `undefined` 로 falling through 하지 않도록 명시 0 default |
 | `meta.llmCalls` | Array | handler return | 실패한 호출의 trace (`responsePayload: null`, `durationMs` 동봉). 디버깅에 핵심 |
 | `port` | `'error'` | handler return | 에러 분기 |
+| `status` | `'ended'` | handler return | 종결 상태 (Principle 0) |
 
 > 본 핸들러는 JSON 파싱 실패 시 substring fallback 으로 회복하므로 `LLM_RESPONSE_INVALID` 는 발화하지 않는다. fallback 매칭에도 실패하면 §5.1 fallback case (`port: 'fallback'`, `category: null`) 로 정상 종료된다. `error` 포트는 LLM API 호출 자체의 throw 만 라우팅한다.
 
@@ -368,3 +379,4 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | 일자 | 변경 |
 |------|------|
 | 2026-05-18 (system-context) | §1 config 표에 `includeSystemContext` / `systemContextSections` 추가 + §4 실행 로직 0.5 단계 추가 + §8 Rationale stub 신설. 설계·결정 근거는 [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) 및 [공통 §Rationale](./0-common.md#rationale). [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 와 한 묶음 결정. consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO). |
+| 2026-05-29 (error-output-fields) | §5.3 error 예시·필드 표에 `output.error.details.retryable` (필수, [CONVENTIONS Principle 3.2.1](../../conventions/node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수)) / `retryAfterSec?` 추가 (timeout 예시 → `retryable: true`). §5.1 / §5.2 / §5.3 JSON 예시 전반과 필드 표에 누락된 `"status": "ended"` (Principle 0) 보강. consistency-check 세션: `review/consistency/2026/05/29/00_45_44/` (BLOCK: NO). |
