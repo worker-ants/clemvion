@@ -10,7 +10,7 @@
 | W-1 | requirement | **false positive** | spec §2.1 표에 "인증" 행은 본 PR 에서 이미 추가됨 (reviewer 는 code-only diff 만 봐 spec diff 미인지) | (cba766a5) |
 | W-2 / I-3 | requirement | 수용(부분) | unresolved authConfigId 폴백을 회귀 테스트로 고정. 라벨 자체는 "Configured" 유지 (정상 동작 — 같은 워크스페이스 config 는 항상 해석됨) | (refactor) |
 | W-3 | requirement | 수용 | `authConfigId: t.authConfigId \|\| null` 로 빈 문자열 정규화 | (refactor) |
-| W-4 | security | 후속 이관 | `ipWhitelist` CIDR 미매칭은 본 PR 외 backend 선행 코드. `## 보류·후속 항목` 참조 | — |
+| W-4 | security | 수용 | `ipWhitelist` 매칭을 `ip-address` 기반 CIDR 인식으로 교체 (`AuthConfigsService.ipInWhitelist`/`parseIp`). 단일 IP 는 /32·/128 호스트로, CIDR (`10.0.0.0/8`·`2001:db8::/32`) 는 서브넷으로 평가. IPv4-mapped IPv6 클라이언트는 IPv4 정규화 비교. 파싱 불가·패밀리 불일치는 fail-closed. spec(데이터 모델 §2.17 / Webhook WH-SC-09) 동반 갱신, 회귀 테스트 7건 추가 | (branch `claude/w4-cidr-ipwhitelist`) |
 | W-5 | side_effect | **false positive** | triggers page 의 empty/loading/error 상태는 `<div>` 이며 table `colSpan` 미사용 (grep 확인). 갱신 대상 없음 | — |
 | W-6 | maintainability | 수용 | 인증 셀 IIFE → 모듈 레벨 `TriggerAuthCell` 컴포넌트 추출 | (refactor) |
 | W-7 | maintainability | 수용 | `authConfigById` 를 `useMemo` 로 메모이제이션 | (refactor) |
@@ -32,4 +32,4 @@
 
 ## 보류·후속 항목
 
-- **W-4 (CIDR ipWhitelist)**: `codebase/backend/src/modules/auth-configs/auth-configs.service.ts` 의 `ipWhitelist.includes(clientIp)` 가 문자열 완전 일치만 수행 — CIDR 표기 화이트리스트 무력화. 본 PR 범위(프론트 인증 열) 밖의 선행 backend 코드이며 주석에 follow-up 으로 이미 인지됨. 별 plan 으로 이관 권장 (보안 강화).
+- ~~**W-4 (CIDR ipWhitelist)**: `auth-configs.service.ts` 의 `ipWhitelist.includes(clientIp)` 가 문자열 완전 일치만 수행 — CIDR 표기 화이트리스트 무력화.~~ **해결됨 (2026-05-29, branch `claude/w4-cidr-ipwhitelist`)**: `ip-address` 라이브러리 기반 `ipInWhitelist`/`parseIp` 헬퍼로 교체. 단일 IP·CIDR(v4/v6) 모두 지원, IPv4-mapped IPv6 정규화, 파싱 불가·패밀리 불일치 fail-closed. spec(데이터 모델 §2.17 / Webhook WH-SC-09) 동반 갱신, 회귀 테스트 7건 추가 (auth-configs.service.spec). 위 조치 항목 표 W-4 행 참조.
