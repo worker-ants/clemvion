@@ -1,7 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createHmac } from 'crypto';
 import {
   BadRequestException,
   GoneException,
@@ -19,13 +18,14 @@ import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry
 import { ChannelConversationService } from '../chat-channel/channel-conversation.service';
 import { ChatChannelAdapter } from '../chat-channel/types';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
-import { UnauthorizedException } from '@nestjs/common';
+import { AuthConfigsService } from '../auth-configs/auth-configs.service';
 
 describe('HooksService', () => {
   let service: HooksService;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let nodeRepo: jest.Mocked<Repository<Node>>;
   let engine: jest.Mocked<ExecutionEngineService>;
+  let authConfigs: { verifyWebhookRequest: jest.Mock };
 
   let moduleRef: any;
 
@@ -85,6 +85,10 @@ describe('HooksService', () => {
           provide: ChatChannelInboundAuthenticator,
           useValue: { verify: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: AuthConfigsService,
+          useValue: { verifyWebhookRequest: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -92,6 +96,7 @@ describe('HooksService', () => {
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
     nodeRepo = moduleRef.get(getRepositoryToken(Node));
     engine = moduleRef.get(ExecutionEngineService);
+    authConfigs = moduleRef.get(AuthConfigsService);
   });
 
   const activeTrigger: Trigger = {
@@ -228,23 +233,7 @@ describe('HooksService', () => {
     ]);
   });
 
-  describe('auth — bearer / HMAC (constantTimeEquals coverage)', () => {
-    const bearerTrigger: Trigger = {
-      ...activeTrigger,
-      config: { authType: 'bearer', bearerToken: 'sekret-token-1234' },
-    };
-
-    const hmacSecret = 'webhook-secret';
-    const hmacTrigger: Trigger = {
-      ...activeTrigger,
-      config: {
-        authType: 'hmac',
-        secret: hmacSecret,
-        hmacHeader: 'x-hub-signature-256',
-        hmacAlgorithm: 'sha256',
-      },
-    };
-
+  describe('auth — AuthConfig 위임 (verifyWebhookRequest)', () => {
     const noTriggerParamsNode = {
       id: 'n',
       workflowId: 'wf1',
@@ -253,158 +242,63 @@ describe('HooksService', () => {
       config: {},
     } as unknown as Node;
 
-    it('bearer: rejects when token is missing', async () => {
-      triggerRepo.findOne.mockResolvedValue(bearerTrigger);
+    const authConfigId = 'ac-1';
+    const authTrigger: Trigger = { ...activeTrigger, authConfigId };
+
+    it('authConfigId 가 null 이면 verifyWebhookRequest 미호출 + 통과 (인증 없음)', async () => {
+      triggerRepo.findOne.mockResolvedValue(activeTrigger); // authConfigId: null
+      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
       nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
+      engine.execute.mockResolvedValue('exec-noauth');
+
+      const res = await service.handleWebhook('abc', input);
+      expect(res).toEqual({ executionId: 'exec-noauth' });
+      expect(authConfigs.verifyWebhookRequest).not.toHaveBeenCalled();
+    });
+
+    it('authConfigId 존재 시 verifyWebhookRequest(authConfigId, workspaceId, ctx) 위임 — clientIp 는 CF-Connecting-IP 에서 추출', async () => {
+      triggerRepo.findOne.mockResolvedValue(authTrigger);
+      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
+      engine.execute.mockResolvedValue('exec-auth');
+      authConfigs.verifyWebhookRequest.mockResolvedValue(undefined);
+      const rawBody = Buffer.from(JSON.stringify(input.body));
+      const headers = {
+        authorization: 'Bearer xyz',
+        'cf-connecting-ip': '203.0.113.7',
+      };
+
+      const res = await service.handleWebhook(
+        'abc',
+        { ...input, headers },
+        rawBody,
+      );
+      expect(res).toEqual({ executionId: 'exec-auth' });
+      expect(authConfigs.verifyWebhookRequest).toHaveBeenCalledWith(
+        authConfigId,
+        'ws',
+        expect.objectContaining({
+          headers,
+          rawBody,
+          clientIp: '203.0.113.7',
+        }),
+      );
+    });
+
+    it('verifyWebhookRequest 가 401 throw 시 handleWebhook 도 전파 + execute 미호출', async () => {
+      triggerRepo.findOne.mockResolvedValue(authTrigger);
+      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
+      authConfigs.verifyWebhookRequest.mockRejectedValue(
+        new UnauthorizedException({
+          code: 'AUTH_FAILED',
+          message: 'Authentication failed',
+        }),
+      );
+
       await expect(service.handleWebhook('abc', input)).rejects.toBeInstanceOf(
         UnauthorizedException,
       );
-    });
-
-    it('bearer: rejects on length mismatch (constantTimeEquals fast-path)', async () => {
-      triggerRepo.findOne.mockResolvedValue(bearerTrigger);
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      const headers = { authorization: 'Bearer short' };
-      await expect(
-        service.handleWebhook('abc', { ...input, headers }),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('bearer: rejects on equal-length mismatch', async () => {
-      triggerRepo.findOne.mockResolvedValue(bearerTrigger);
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      const headers = { authorization: 'Bearer sekret-token-0000' };
-      await expect(
-        service.handleWebhook('abc', { ...input, headers }),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('bearer: accepts valid token (constantTimeEquals match)', async () => {
-      triggerRepo.findOne.mockResolvedValue(bearerTrigger);
-      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      engine.execute.mockResolvedValue('exec-bearer');
-      const headers = { authorization: 'Bearer sekret-token-1234' };
-      const res = await service.handleWebhook('abc', { ...input, headers });
-      expect(res).toEqual({ executionId: 'exec-bearer' });
-    });
-
-    it('hmac: rejects when signature header is missing', async () => {
-      triggerRepo.findOne.mockResolvedValue(hmacTrigger);
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      const rawBody = Buffer.from(JSON.stringify(input.body));
-      await expect(
-        service.handleWebhook('abc', input, rawBody),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('hmac: rejects when rawBody is undefined', async () => {
-      triggerRepo.findOne.mockResolvedValue(hmacTrigger);
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      const headers = { 'x-hub-signature-256': 'sha256=deadbeef' };
-      await expect(
-        service.handleWebhook('abc', { ...input, headers }),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('hmac: rejects on signature mismatch', async () => {
-      triggerRepo.findOne.mockResolvedValue(hmacTrigger);
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      const rawBody = Buffer.from(JSON.stringify(input.body));
-      const wrong = `sha256=${createHmac('sha256', 'WRONG-SECRET').update(rawBody).digest('hex')}`;
-      const headers = { 'x-hub-signature-256': wrong };
-      await expect(
-        service.handleWebhook('abc', { ...input, headers }, rawBody),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('hmac: accepts valid sha256 signature', async () => {
-      triggerRepo.findOne.mockResolvedValue(hmacTrigger);
-      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      engine.execute.mockResolvedValue('exec-hmac');
-      const rawBody = Buffer.from(JSON.stringify(input.body));
-      const sig = `sha256=${createHmac('sha256', hmacSecret).update(rawBody).digest('hex')}`;
-      const headers = { 'x-hub-signature-256': sig };
-      const res = await service.handleWebhook(
-        'abc',
-        { ...input, headers },
-        rawBody,
-      );
-      expect(res).toEqual({ executionId: 'exec-hmac' });
-    });
-
-    it('hmac: rejects unsupported algorithm (allowlist)', async () => {
-      triggerRepo.findOne.mockResolvedValue({
-        ...activeTrigger,
-        config: {
-          authType: 'hmac',
-          secret: hmacSecret,
-          hmacHeader: 'x-hub-signature-256',
-          hmacAlgorithm: 'md5',
-        },
-      });
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      const rawBody = Buffer.from(JSON.stringify(input.body));
-      const headers = { 'x-hub-signature-256': 'md5=deadbeef' };
-      await expect(
-        service.handleWebhook('abc', { ...input, headers }, rawBody),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('hmac: unsupported algorithm response does not leak the rejected name', async () => {
-      // information leakage 차단: 거부 응답이 알고리즘명을 반사하면 외부 호출자가
-      // 서버 구성을 탐지할 단서를 얻는다. 응답 메시지는 일반 인증 실패와 동일해야 한다.
-      triggerRepo.findOne.mockResolvedValue({
-        ...activeTrigger,
-        config: {
-          authType: 'hmac',
-          secret: hmacSecret,
-          hmacHeader: 'x-hub-signature-256',
-          hmacAlgorithm: 'md5',
-        },
-      });
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      const rawBody = Buffer.from(JSON.stringify(input.body));
-      const err = await service
-        .handleWebhook(
-          'abc',
-          { ...input, headers: { 'x-hub-signature-256': 'md5=x' } },
-          rawBody,
-        )
-        .catch((e: unknown) => e as UnauthorizedException);
-      const response = (err as UnauthorizedException).getResponse() as {
-        code: string;
-        message: string;
-      };
-      expect(response.code).toBe('AUTH_FAILED');
-      expect(response.message).toBe('Authentication failed');
-      expect(response.message).not.toMatch(/md5/i);
-    });
-
-    it('hmac: accepts valid sha512 signature (allow-list 두 번째 알고리즘 경로)', async () => {
-      const sha512Trigger: Trigger = {
-        ...activeTrigger,
-        config: {
-          authType: 'hmac',
-          secret: hmacSecret,
-          hmacHeader: 'x-hub-signature-512',
-          hmacAlgorithm: 'sha512',
-        },
-      };
-      triggerRepo.findOne.mockResolvedValue(sha512Trigger);
-      triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
-      nodeRepo.findOne.mockResolvedValue(noTriggerParamsNode);
-      engine.execute.mockResolvedValue('exec-sha512');
-      const rawBody = Buffer.from(JSON.stringify(input.body));
-      const sig = `sha512=${createHmac('sha512', hmacSecret).update(rawBody).digest('hex')}`;
-      const headers = { 'x-hub-signature-512': sig };
-      const res = await service.handleWebhook(
-        'abc',
-        { ...input, headers },
-        rawBody,
-      );
-      expect(res).toEqual({ executionId: 'exec-sha512' });
+      expect(engine.execute).not.toHaveBeenCalled();
     });
   });
 

@@ -3,7 +3,6 @@ import {
   Logger,
   NotFoundException,
   GoneException,
-  UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -27,17 +26,7 @@ import {
   ChatChannelConfig,
 } from '../chat-channel/types';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
-import * as crypto from 'crypto';
-
-const HMAC_ALLOWED_ALGORITHMS = new Set(['sha256', 'sha512']);
-
-interface WebhookConfig {
-  authType?: 'none' | 'hmac' | 'bearer';
-  secret?: string;
-  bearerToken?: string;
-  hmacHeader?: string;
-  hmacAlgorithm?: string;
-}
+import { AuthConfigsService } from '../auth-configs/auth-configs.service';
 
 export interface WebhookInput {
   body: unknown;
@@ -62,6 +51,7 @@ export class HooksService {
     private readonly interactionService: InteractionService,
     private readonly executionsService: ExecutionsService,
     private readonly chatChannelInboundAuthenticator: ChatChannelInboundAuthenticator,
+    private readonly authConfigsService: AuthConfigsService,
   ) {}
 
   async handleWebhook(
@@ -117,9 +107,19 @@ export class HooksService {
       );
     }
 
-    // 3. Authenticate
-    const config = (trigger.config ?? {}) as WebhookConfig;
-    this.verifyAuth(config, input.headers, rawBody);
+    // 3. Authenticate — trigger.authConfigId 가 가리키는 AuthConfig 로 위임
+    //    (spec/5-system/12-webhook.md §7 step 6). authConfigId 가 null 이면 인증 없음(none).
+    if (trigger.authConfigId) {
+      await this.authConfigsService.verifyWebhookRequest(
+        trigger.authConfigId,
+        trigger.workspaceId,
+        {
+          headers: input.headers,
+          rawBody,
+          clientIp: extractClientIp(input.headers),
+        },
+      );
+    }
 
     // 4. Extract & validate trigger parameters from body
     const schema = await loadTriggerParameterSchema(
@@ -580,87 +580,18 @@ export class HooksService {
     // per_trigger — token 미동봉 (호출자가 trigger 등록 시 받은 itk_* 사용)
     return { endpoints };
   }
+}
 
-  private verifyAuth(
-    config: WebhookConfig,
-    headers: Record<string, string>,
-    rawBody?: Buffer,
-  ): void {
-    const authType = config.authType ?? 'none';
-
-    if (authType === 'none') {
-      return;
-    }
-
-    if (authType === 'bearer') {
-      const authHeader = headers['authorization'] ?? '';
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-      const expected = config.bearerToken ?? '';
-      if (!token || !expected || !this.constantTimeEquals(token, expected)) {
-        throw new UnauthorizedException({
-          code: 'AUTH_FAILED',
-          message: 'Invalid bearer token',
-        });
-      }
-      return;
-    }
-
-    if (authType === 'hmac') {
-      const hmacHeader = (
-        config.hmacHeader ?? 'x-hub-signature-256'
-      ).toLowerCase();
-      const algorithm = config.hmacAlgorithm ?? 'sha256';
-      // 알고리즘 허용 목록. 외부 입력(트리거 설정)이 그대로 crypto.createHmac 에
-      // 전달되므로 화이트리스트로 좁혀 임의 알고리즘·낮은 보안 다이제스트 사용을 차단한다.
-      if (!HMAC_ALLOWED_ALGORITHMS.has(algorithm)) {
-        // 응답 메시지는 다른 인증 실패와 동일하게 고정 — 알고리즘 값을 반사하면
-        // 외부 호출자가 서버 내부 구성을 탐지할 단서를 얻는다 (information leakage).
-        // 진단은 서버 로그에만 남긴다.
-        this.logger.warn(
-          `webhook HMAC config rejected: algorithm=${algorithm} (not in allow-list)`,
-        );
-        throw new UnauthorizedException({
-          code: 'AUTH_FAILED',
-          message: 'Authentication failed',
-        });
-      }
-      const signature = headers[hmacHeader] ?? '';
-      const secret = config.secret ?? '';
-
-      if (!signature || !rawBody) {
-        throw new UnauthorizedException({
-          code: 'AUTH_FAILED',
-          message: 'Missing HMAC signature',
-        });
-      }
-
-      const expected = `${algorithm}=${crypto
-        .createHmac(algorithm, secret)
-        .update(rawBody)
-        .digest('hex')}`;
-
-      if (!this.constantTimeEquals(signature, expected)) {
-        throw new UnauthorizedException({
-          code: 'AUTH_FAILED',
-          message: 'Invalid HMAC signature',
-        });
-      }
-      return;
-    }
-  }
-
-  /**
-   * 길이가 다르면 즉시 false 를 반환한 뒤 길이가 같을 때만 timingSafeEqual 을
-   * 호출한다. timingSafeEqual 은 길이가 다르면 동기적으로 RangeError 를 던지므로
-   * 사전 길이 비교가 없으면 외부 입력으로 unhandled exception → 요청 단위 DoS 가
-   * 가능하다. 한 쌍의 길이만 노출되며 내용 비교는 일정 시간으로 수행된다.
-   */
-  private constantTimeEquals(a: string, b: string): boolean {
-    const aBuf = Buffer.from(a);
-    const bBuf = Buffer.from(b);
-    if (aBuf.length !== bBuf.length) return false;
-    return crypto.timingSafeEqual(aBuf, bBuf);
-  }
+/**
+ * 클라이언트 IP 추출 — CF-Connecting-IP 우선, X-Forwarded-For 첫 IP, 없으면 undefined.
+ * (spec/5-system/1-auth.md §2.3 의 IP 추출 우선순위와 정합. ip_whitelist 검증용.)
+ */
+function extractClientIp(headers: Record<string, string>): string | undefined {
+  const cf = headers['cf-connecting-ip'];
+  if (cf) return cf.trim();
+  const xff = headers['x-forwarded-for'];
+  if (xff) return xff.split(',')[0]?.trim();
+  return undefined;
 }
 
 /** Trigger.config.chatChannel 추출 (HooksService 내부 헬퍼 — dispatcher 와 중복 정의 OK). */

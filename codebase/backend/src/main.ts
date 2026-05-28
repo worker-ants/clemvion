@@ -43,7 +43,7 @@ async function bootstrap() {
     );
   }
 
-  // rawBody: true 는 HMAC 웹훅(`HooksService.verifyAuth`) 의 서명 검증에 필수다.
+  // rawBody: true 는 HMAC 웹훅(`AuthConfigsService.verifyWebhookRequest`) 의 서명 검증에 필수다.
   // 미설정 시 `req.rawBody` 가 undefined 가 되어 HMAC 분기가 항상 401 을 반환한다.
   const app = await NestFactory.create(AppModule, { rawBody: true });
   const configService = app.get(ConfigService);
