@@ -38,7 +38,7 @@ webhook 엔드포인트는 백엔드(HooksController)가 서빙하므로, 프론
 
 - [x] 포트 `3011` 인라인 하드코딩 제거 (`page.tsx` / `drawer.tsx` 양쪽).
 - [x] 환경변수 미설정 시 안전한 fallback 동작 명시 (유틸 주석 + `.env.example`).
-- [ ] lint + unit + e2e 통과.
+- [x] lint + unit + build 통과 (e2e 는 환경 차단 — 후속).
 
 ## 미해결 — 사용자 결정 필요 (consistency plan-coherence [CRITICAL])
 
