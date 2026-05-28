@@ -77,6 +77,10 @@ export const triggers: Dict["triggers"] = {
   authConfigNone: "No authentication",
   authConfigCreateLink: "+ Create a new auth config",
   authConfigLoadFailed: "Failed to load auth configs",
+  // [Spec 2-trigger-list §2.1 + R-15] list auth column
+  authConfigured: "Configured",
+  authUnauthenticatedWarning:
+    "This webhook is publicly accessible but has no authentication configured — a security risk.",
   secretKey: "Secret Key",
   secretPlaceholder: "your-secret-key",
   signatureHeader: "Signature Header",

@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-29T00:24:00Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "반복문 내 I/O·캐시·비동기 진입점 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈 경계·서비스 레이어 변경 없음 — 기존 component 내 column 추가"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): src 변경 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec/plan/i18n dict 변경 동반"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json·lock 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "DB 쿼리·마이그레이션·schema 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await·Promise·락·워커 코드 변경 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "route handler 없지만 /auth-configs 호출 추가 + AuthConfig type display logic"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "triggers 변경 매트릭스 trigger 자체 매칭하나, i18n dict 신규 키만 (UI 호출 새로움) — user-guide-writer agent 전담"
+    }
+  ],
+  "selected_count": 9,
+  "skipped_count": 5,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation"
+  ]
+}
