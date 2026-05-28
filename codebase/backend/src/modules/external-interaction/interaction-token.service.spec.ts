@@ -237,7 +237,7 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
       expect(result.revoked).toBe(0);
     });
 
-    it('jti 없으면 revoked:0', async () => {
+    it('jti 없으면 revoked:0 — DELETE 도 skip (terminal event 마다 호출되므로 불필요 쿼리 회피)', async () => {
       const repo = {
         find: jest.fn().mockResolvedValue([]),
         insert: jest.fn(),
@@ -246,8 +246,8 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
       const svc = makeServiceWithRepo(repo);
       const result = await svc.revokeAllForExecution('exec-1');
       expect(result.revoked).toBe(0);
-      // 빈 list 라도 cleanup delete 는 호출 (idempotent)
-      expect(repo.delete).toHaveBeenCalledWith({ executionId: 'exec-1' });
+      // 발급된 jti 0건이면 단일 find 후 early-return — DELETE 미호출.
+      expect(repo.delete).not.toHaveBeenCalled();
     });
 
     it('만료된 jti 는 Redis 등재 skip — ttl > 0 인 것만 blacklist', async () => {
