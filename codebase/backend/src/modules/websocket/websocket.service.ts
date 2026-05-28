@@ -148,7 +148,7 @@ export enum BackgroundRunEventType {
 const CREDENTIAL_KEY_PATTERN =
   /^(password|passwd|pwd|api[_-]?key|secret|token|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|authorization|cookie)$/i;
 
-const MAX_SANITIZE_DEPTH = 10;
+export const MAX_SANITIZE_DEPTH = 10;
 
 /**
  * 동일 객체 참조에 대한 sanitize 결과 캐시.

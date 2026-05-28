@@ -20,9 +20,10 @@ export const translationOperations: Cafe24OperationMetadata[] = [
     responseShape: 'list',
     paginated: true,
   },
-  // Phase 6g — Translation 보완. 본 파일의 기존 path 컨벤션 (`translation/...`)
-  // 을 유지 — Cafe24 docs anchor 는 `translations/...` (복수) 이나 기존
-  // 코드와의 일관성을 우선. 정정이 필요할 경우 별 cleanup PR 로 분리.
+  // Translation endpoint path 는 단수 `translation/...` 이 정답 —
+  // spec/conventions/cafe24-api-catalog/translation.md (SoT) 와 일치한다.
+  // (Cafe24 docs 의 anchor slug 가 `...-translations` 복수로 보이는 것은
+  // 리소스 개념 표기일 뿐 URL path 가 아니다.)
   {
     id: 'translation_products_update',
     description:

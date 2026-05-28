@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-28T22:13:50.970676",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-cafe24-nonce-key-design.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

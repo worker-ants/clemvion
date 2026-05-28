@@ -1,3 +1,4 @@
+import { lookup } from 'node:dns/promises';
 import {
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
@@ -8,7 +9,7 @@ jest.mock('node:dns/promises', () => ({
   lookup: jest.fn(),
 }));
 
-const { lookup } = jest.requireMock('node:dns/promises');
+const mockedLookup = jest.mocked(lookup);
 
 describe('http-safety — assertSafeOutboundUrl (synchronous literal check)', () => {
   beforeEach(() => {
@@ -60,25 +61,27 @@ describe('http-safety — assertSafeOutboundUrl (synchronous literal check)', ()
 describe('http-safety — assertSafeOutboundHostResolved (DNS-aware)', () => {
   beforeEach(() => {
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
-    lookup.mockReset();
+    mockedLookup.mockReset();
   });
 
   it('public hostname 이 public IP 로 resolve 되면 통과', async () => {
-    lookup.mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }]);
+    mockedLookup.mockResolvedValueOnce([
+      { address: '93.184.216.34', family: 4 },
+    ]);
     await expect(
       assertSafeOutboundHostResolved('example.com'),
     ).resolves.toBeUndefined();
   });
 
   it('DNS rebinding 차단: public hostname 이 private IP 로 resolve 되면 블록', async () => {
-    lookup.mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }]);
+    mockedLookup.mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }]);
     await expect(
       assertSafeOutboundHostResolved('evil.example.com'),
     ).rejects.toThrow(/SSRF_BLOCKED.*10\.0\.0\.5/);
   });
 
   it('하나라도 private 이면 블록 (multi-A record)', async () => {
-    lookup.mockResolvedValueOnce([
+    mockedLookup.mockResolvedValueOnce([
       { address: '93.184.216.34', family: 4 },
       { address: '127.0.0.1', family: 4 },
     ]);
@@ -88,7 +91,7 @@ describe('http-safety — assertSafeOutboundHostResolved (DNS-aware)', () => {
   });
 
   it('DNS resolve 실패 시 fail-open (어차피 도달 불가)', async () => {
-    lookup.mockRejectedValueOnce(new Error('ENOTFOUND'));
+    mockedLookup.mockRejectedValueOnce(new Error('ENOTFOUND'));
     await expect(
       assertSafeOutboundHostResolved('nonexistent.invalid'),
     ).resolves.toBeUndefined();
@@ -98,7 +101,7 @@ describe('http-safety — assertSafeOutboundHostResolved (DNS-aware)', () => {
     await expect(assertSafeOutboundHostResolved('127.0.0.1')).rejects.toThrow(
       /SSRF_BLOCKED/,
     );
-    expect(lookup).not.toHaveBeenCalled();
+    expect(mockedLookup).not.toHaveBeenCalled();
   });
 
   it('ALLOW_PRIVATE_HOST_TARGETS=true 면 DNS lookup 도 스킵', async () => {
@@ -106,7 +109,7 @@ describe('http-safety — assertSafeOutboundHostResolved (DNS-aware)', () => {
     await expect(
       assertSafeOutboundHostResolved('127.0.0.1'),
     ).resolves.toBeUndefined();
-    expect(lookup).not.toHaveBeenCalled();
+    expect(mockedLookup).not.toHaveBeenCalled();
   });
 });
 
