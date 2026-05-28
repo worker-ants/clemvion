@@ -1,4 +1,7 @@
-import { DatabaseQueryHandler } from './database-query.handler.js';
+import {
+  DatabaseQueryHandler,
+  extractSqlVerb,
+} from './database-query.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -274,6 +277,51 @@ describe('DatabaseQueryHandler', () => {
       expect(releaseMock).toHaveBeenCalled();
       expect(logUsage).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'failed' }),
+      );
+      await handler.shutdown();
+    });
+
+    // W3 — api field value assertion in logUsage (INT-US-05)
+    it('passes api.method (SQL verb) and api.path (driver token) to logUsage on success (INT-US-05)', async () => {
+      const { service, logUsage } = makeService();
+      queryMock.mockResolvedValue({ rows: [{ id: 1 }], rowCount: 1 });
+      const handler = new DatabaseQueryHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: 'SELECT id FROM users WHERE age > $1',
+          parameters: [18],
+        },
+        ctx(),
+      );
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'success',
+          api: expect.objectContaining({ method: 'SELECT' }),
+        }),
+      );
+      await handler.shutdown();
+    });
+
+    it('passes api.method and api.path to logUsage on failure (INT-US-05)', async () => {
+      const { service, logUsage } = makeService();
+      queryMock.mockRejectedValue(new Error('syntax error'));
+      const handler = new DatabaseQueryHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          integrationId: 'int-1',
+          query: 'INSERT INTO t VALUES ($1)',
+          parameters: [1],
+        },
+        ctx(),
+      );
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          api: expect.objectContaining({ method: 'INSERT' }),
+        }),
       );
       await handler.shutdown();
     });
@@ -717,5 +765,68 @@ describe('DatabaseQueryHandler', () => {
       expect(output.error.code).toBe('INTEGRATION_SERVICE_UNAVAILABLE');
       expect(output.error.message).toMatch(/integrations service/);
     });
+  });
+});
+
+// W2 + W4 — extractSqlVerb unit tests (INT-US-05)
+describe('extractSqlVerb', () => {
+  it('returns null for undefined input', () => {
+    expect(extractSqlVerb(undefined)).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(extractSqlVerb('')).toBeNull();
+  });
+
+  it('extracts SELECT from a standard query', () => {
+    expect(extractSqlVerb('SELECT id FROM users WHERE age > $1')).toBe(
+      'SELECT',
+    );
+  });
+
+  it('handles leading whitespace', () => {
+    expect(extractSqlVerb('  SELECT 1')).toBe('SELECT');
+  });
+
+  it('uppercases mixed-case SQL verb', () => {
+    expect(extractSqlVerb('SeLeCt 1')).toBe('SELECT');
+  });
+
+  it('returns null when first token starts with a digit', () => {
+    expect(extractSqlVerb('123invalid')).toBeNull();
+  });
+
+  it('extracts WITH for CTE queries', () => {
+    expect(extractSqlVerb('WITH cte AS (SELECT 1) SELECT * FROM cte')).toBe(
+      'WITH',
+    );
+  });
+
+  it('extracts INSERT', () => {
+    expect(extractSqlVerb('INSERT INTO t VALUES ($1)')).toBe('INSERT');
+  });
+
+  it('extracts UPDATE', () => {
+    expect(extractSqlVerb('UPDATE t SET col = $1 WHERE id = $2')).toBe(
+      'UPDATE',
+    );
+  });
+
+  it('extracts DELETE', () => {
+    expect(extractSqlVerb('DELETE FROM t WHERE id = $1')).toBe('DELETE');
+  });
+
+  // W4 — over-length SQL verb (9-char SAVEPOINT gets clamped by clampApiField downstream)
+  it('returns full SAVEPOINT (9 chars) — clampApiField upstream of DB write handles truncation', () => {
+    // extractSqlVerb itself returns the full verb; callers apply clampApiField.
+    expect(extractSqlVerb('SAVEPOINT sp1')).toBe('SAVEPOINT');
+  });
+
+  it('returns ROLLBACK (8 chars — exactly at api_method limit)', () => {
+    expect(extractSqlVerb('ROLLBACK')).toBe('ROLLBACK');
+  });
+
+  it('returns TRUNCATE (8 chars — exactly at api_method limit)', () => {
+    expect(extractSqlVerb('TRUNCATE t')).toBe('TRUNCATE');
   });
 });

@@ -51,6 +51,8 @@ import {
   ServerCapabilities,
   ServerInfo,
 } from '../mcp/mcp-client.service';
+import { listAllCafe24Operations } from '../../nodes/integration/cafe24/metadata';
+import { OperationCatalogDto } from './dto/responses/integration-response.dto';
 
 /**
  * Public shape returned to the integrations UI for both `previewTest` and
@@ -103,6 +105,28 @@ function clampMessage(raw: string | undefined): string {
     ? raw.slice(0, MCP_ERROR_MESSAGE_MAX_LEN)
     : raw;
 }
+
+/**
+ * `integration_usage_log.api_{label,method,path}` 컬럼의 길이 제약 (각각 128/8/256)
+ * 을 넘는 입력은 끝에 `…` (U+2026) 를 부착해 잘라 저장한다. SoT:
+ * `spec/conventions/cafe24-api-metadata.md §7.5` 와 INT-US-05. `clampMessage` 와
+ * 달리 ellipsis 가 들어가는 이유는 UI 가 잘린 사실을 사용자에게 시각적으로
+ * 노출하기 위함 (path 가 미묘하게 다르게 보이면 디버깅 혼란을 막을 수 있다).
+ */
+function clampApiField(
+  raw: string | null | undefined,
+  max: number,
+): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (raw.length === 0) return null;
+  if (raw.length <= max) return raw;
+  if (max <= 1) return raw.slice(0, max);
+  return raw.slice(0, max - 1) + '…';
+}
+
+export const API_LABEL_MAX = 128;
+export const API_METHOD_MAX = 8;
+export const API_PATH_MAX = 256;
 
 export interface IntegrationUsageNode {
   id: string;
@@ -705,6 +729,11 @@ export class IntegrationsService {
     status: 'success' | 'failed';
     durationMs: number;
     error?: { code?: string; message?: string } | null;
+    api?: {
+      label?: string | null;
+      method?: string | null;
+      path?: string | null;
+    };
   }): Promise<void> {
     try {
       await this.usageLogRepository.save(
@@ -720,6 +749,9 @@ export class IntegrationsService {
                 message: clampMessage(params.error.message),
               }
             : null,
+          apiLabel: clampApiField(params.api?.label, API_LABEL_MAX),
+          apiMethod: clampApiField(params.api?.method, API_METHOD_MAX),
+          apiPath: clampApiField(params.api?.path, API_PATH_MAX),
         }),
       );
 
@@ -984,6 +1016,34 @@ export class IntegrationsService {
   // ---------------------------------------------------------------
   // Service metadata
   // ---------------------------------------------------------------
+
+  /**
+   * `GET /api/integrations/services/:type/catalog` 의 백엔드 로직. 통합
+   * 활동 로그의 `api_label` (catalog key) 을 frontend 가 사람 친화
+   * 라벨로 변환할 때 참조하는 메타데이터. SoT: `spec/conventions/cafe24-api-metadata.md
+   * §7.5` + 통합 spec §9.3.
+   *
+   * 초기엔 cafe24 만 backend 메타데이터로 채워 반환한다. 그 외 미지원
+   * 서비스 타입 (http, database, email, mcp, google, github 등) 은 빈
+   * 배열 — 활동 로그의 `apiLabel` 이 NULL 이라 lookup 자체가 발생하지 않는다.
+   * 완전 미지원 type 도 빈 배열을 반환해 frontend 의 1회 fetch + caching
+   * 흐름이 분기 없이 일관 동작.
+   */
+  getServiceCatalog(serviceType: string): OperationCatalogDto {
+    if (serviceType === 'cafe24') {
+      const operations = listAllCafe24Operations().map(
+        ({ resource, operation }) => ({
+          key: `cafe24.${resource}.${operation.id}`,
+          method: operation.method,
+          path: operation.path,
+          labelKey: `cafe24.${resource}.${operation.id}`,
+          descriptionKey: `cafe24.${resource}.${operation.id}.description`,
+        }),
+      );
+      return { operations };
+    }
+    return { operations: [] };
+  }
 
   getAvailableServices() {
     // Cafe24 Public app 흐름은 우리 서버에 `CAFE24_CLIENT_ID` / `CAFE24_CLIENT_SECRET`

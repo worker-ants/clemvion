@@ -1,0 +1,88 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-28T09:44:23Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "3컬럼 추가 + nullable 필드 — 인덱스·쿼리 최적화 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "IntegrationUsageParams/catalog endpoint 는 기존 모듈 내 메서드 확장일 뿐 경계 변경 없음"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 + spec 변경 시 강제"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 시 강제"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일 30건 이상 변경"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json/요구사항 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": true,
+      "reason": "agents_forced (router_safety): V064 migration SQL 신규 생성"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await·Promise·락·워커 변경 없음 — 동기 코드만"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "GET /api/integrations/services/:type/catalog 신규 endpoint — 라우트·DTO·응답 shape 정의"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": true,
+      "reason": "catalog endpoint 추가 + i18n dict 신설 → user-guide 활동 탭 섹션 갱신 여부 검증 필요"
+    }
+  ],
+  "selected_count": 10,
+  "skipped_count": 4,
+  "forced": [
+    "database",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

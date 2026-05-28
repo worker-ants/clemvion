@@ -11,6 +11,7 @@ import { nodeConfigs } from "./nodeConfigs";
 import { triggers } from "./triggers";
 import { schedules } from "./schedules";
 import { integrations } from "./integrations";
+import { cafe24Catalog } from "./cafe24Catalog";
 import { knowledgeBases } from "./knowledgeBases";
 import { llmConfigs } from "./llmConfigs";
 import { authentication } from "./authentication";
@@ -35,6 +36,7 @@ export const ko = {
   triggers,
   schedules,
   integrations,
+  cafe24Catalog,
   knowledgeBases,
   llmConfigs,
   authentication,

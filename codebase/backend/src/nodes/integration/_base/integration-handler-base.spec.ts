@@ -155,7 +155,35 @@ describe('IntegrationHandlerBase.logUsage', () => {
       status: 'failed',
       durationMs: 120,
       error: { code: 'X', message: 'oops' },
+      api: undefined,
     });
+  });
+
+  it('forwards api identification fields to service.logUsage (INT-US-05)', async () => {
+    const logUsage = jest.fn().mockResolvedValue(undefined);
+    const handler = new TestHandler({
+      getForExecution: jest.fn(),
+      logUsage,
+    } as never);
+    await handler.callLog(ctx(), {
+      integrationId: 'int-1',
+      status: 'success',
+      durationMs: 42,
+      api: {
+        label: 'cafe24.orders.order_list',
+        method: 'GET',
+        path: '/admin/orders',
+      },
+    });
+    expect(logUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        api: {
+          label: 'cafe24.orders.order_list',
+          method: 'GET',
+          path: '/admin/orders',
+        },
+      }),
+    );
   });
 });
 

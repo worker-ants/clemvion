@@ -117,6 +117,16 @@ code: []
 | fetch reject (네트워크 / 타임아웃) | `failed` | `HTTP_TRANSPORT_FAILED` |
 | SSRF 차단 / redirect 한도 초과 | `failed` | `HTTP_BLOCKED` |
 
+### 4.3 활동 로그 API 식별 정보 ([`_product-overview.md INT-US-05`](./_product-overview.md#24-사용처-추적-및-라이프사이클))
+
+본 식별 정보는 `authentication === 'integration'` (통합 연결된 HTTP 요청) 호출에만 `logUsage` 가 발생하므로 그 경우에만 기록된다. inline credentials 모드는 활동 로그 자체가 생성되지 않는다.
+
+`logUsage` 호출 시 `api` 식별 정보를 함께 전달한다:
+
+- `api_label` = NULL (HTTP Request 는 endpoint 카탈로그가 없음 — 사용자가 임의 URL 을 호출하므로 catalog key 가 의미 없음)
+- `api_method` = 정규화된 HTTP method (`GET` / `POST` / ...)
+- `api_path` = `host + path`. URL 의 query string 은 제거 (endpoint 단위 그룹화 + 자격증명 누출 방지). `base_url` 이 합성된 후의 절대 URL 기준. `base_url` 없이 상대 URL 만 들어오면 path-only fallback (host 미포함). URL parse 실패 시 best-effort raw string 그대로 저장 (잘림 정책은 [`0-common.md §4.1 step 6`](./0-common.md#4-handler-실행-세멘틱) 의 백엔드 자동 truncate)
+
 ## 5. 출력 구조
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지. `output.response` 는 1차 네이밍 통일 (Principle 8.2). `meta.durationMs` 통일 ([공통 §6.1](./0-common.md#61-metaduration-vs-metadurationms-명명-통일)).
