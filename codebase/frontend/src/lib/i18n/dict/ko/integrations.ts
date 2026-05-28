@@ -121,6 +121,8 @@ export const integrations = {
   activityEmpty: "최근 7일간 호출 기록이 없어요.",
   activitySummary: "최근 7일: {{total}}회 호출 · 성공률 {{rate}}%",
   activityWhen: "시간",
+  activityApi: "API",
+  activityApiUnknown: "—",
   activityStatus: "상태",
   activityDuration: "소요",
   activityError: "오류",

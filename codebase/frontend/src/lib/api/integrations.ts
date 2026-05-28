@@ -159,6 +159,32 @@ export interface ActivityItem {
   error: Record<string, unknown> | null;
   durationMs: number;
   at: string;
+  /**
+   * INT-US-05 — API 식별 정보. 통합별로 채우기 정책이 비대칭이라 3필드 모두
+   * optional. SoT: `spec/4-nodes/4-integration/_product-overview.md INT-US-05`.
+   *  - cafe24: `apiLabel` = `cafe24.<resource>.<operation>` (catalog key)
+   *  - http-request / database-query / send-email: `apiLabel` = null,
+   *    `apiMethod`/`apiPath` 채워짐
+   */
+  apiLabel?: string | null;
+  apiMethod?: string | null;
+  apiPath?: string | null;
+}
+
+/**
+ * `GET /api/integrations/services/:type/catalog` 응답. cafe24 만 채워지고
+ * 그 외 서비스는 빈 배열. SoT: `spec/2-navigation/4-integration.md §9.3`.
+ */
+export interface OperationCatalogEntry {
+  key: string;
+  method: string;
+  path: string;
+  labelKey: string;
+  descriptionKey?: string;
+}
+
+export interface OperationCatalogResponse {
+  operations: OperationCatalogEntry[];
 }
 
 export interface ActivityResponse {
@@ -217,6 +243,16 @@ export const integrationsApi = {
       params,
     });
     return unwrap<ActivityResponse>(data);
+  },
+
+  /**
+   * 서비스 타입별 API operation 카탈로그. Recent activity 탭이 `apiLabel`
+   * (catalog key) 을 사람 친화 라벨로 변환할 때 i18n dict 와 결합해 사용.
+   * cafe24 만 채워지고 나머지 서비스는 빈 배열.
+   */
+  async catalog(type: string): Promise<OperationCatalogResponse> {
+    const { data } = await apiClient.get(`/integrations/services/${type}/catalog`);
+    return unwrap<OperationCatalogResponse>(data);
   },
 
   async create(body: {

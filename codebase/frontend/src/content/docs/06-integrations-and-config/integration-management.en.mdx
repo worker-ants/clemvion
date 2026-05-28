@@ -53,6 +53,7 @@ The detail page tabs cover almost every operational task.
   { name: "Security", type: "Tab", required: "Always", description: "Non-OAuth integrations: `Rotate credentials` form. The new values replace the old only after the connection test passes." },
   { name: "Scope & Permissions", type: "Tab", required: "OAuth", description: "Inspect current scopes and request more. On `insufficient_scope` errors, missing items are flagged red." },
   { name: "Usage", type: "Tab", required: "Always", description: "Lists workflows and nodes referencing this integration. `Open in editor` jumps you straight there." },
+  { name: "Activity", type: "Tab", required: "Always", description: "Shows the last 7 days of call history with API, status, duration, and error columns. The `API` column shows which endpoint was called. Cafe24 integrations display a human-friendly operation label; other services show the HTTP method and path as-is. If neither is available, it shows `—`." },
   { name: "Danger zone", type: "Tab", required: "Admin", description: "Delete, or switch Personal ↔ Organization scope. Deletion is blocked when it's still in use." }
 ]} />
 

@@ -97,7 +97,10 @@ code: []
 8. **Query / Body 구성**: 메타데이터의 `fields[*].location` (path / query / body) 에 따라 분배. `pagination.{limit, offset}` 는 항상 query. body 의 envelope 직렬화는 step 9 의 wrapper 가 단일 책임으로 담당한다 (§4.2 참고).
 9. **호출 (rate-limit-aware + 401 reactive refresh)**: `Cafe24ApiClient` wrapper 가 다음을 수행 — `Authorization: Bearer {access_token}` 헤더 부여 → POST/PUT 본문은 Cafe24 request envelope 으로 wrap (§4.2) → fetch → 응답 헤더 `X-Cafe24-Call-Remain` 모니터링 → 429 응답 시 헤더 값(초) 만큼 sleep 후 재시도(최대 2회). **401 응답 시** `refresh_token` 으로 access_token 을 1회 갱신 후 동일 요청 1회 재시도 (§6.1 의 401 분기 — proactive step 6 가 race window 로 빗나간 경우 자가 회복). 재시도가 2xx 면 step 10 정상 흐름; 재시도도 401 이면 §6.1 격하 (`error(auth_failed)`). 403 은 본 reactive refresh 대상 아님 — 즉시 §6.1 격하.
 10. **응답 파싱**: JSON 본문을 그대로 `output.response` 에 보존. `meta.statusCode`, `meta.durationMs`, `meta.callUsage` (헤더 `X-Cafe24-Call-Usage`), `meta.callRemain` (헤더 `X-Cafe24-Call-Remain`).
-11. **Usage 로깅** ([공통 §4 의 6단계 Usage 로깅](./0-common.md#4-handler-실행-세멘틱)): 성공·실패 무관 1건. `error.code` 는 §6 의 vocabulary.
+11. **Usage 로깅** ([공통 §4 의 6단계 Usage 로깅](./0-common.md#4-handler-실행-세멘틱)): 성공·실패 무관 1건. `error.code` 는 §6 의 vocabulary. **활동 로그 API 식별 정보** ([`_product-overview.md` INT-US-05](./_product-overview.md#24-사용처-추적-및-라이프사이클)):
+    - `api_label` = catalog key `cafe24.<resource>.<operation>` — 예: `cafe24.product.product_list`. cafe24 만 catalog 를 가지므로 4개 통합 중 유일하게 라벨이 NULL 이 아니다. frontend 가 `GET /api/integrations/services/cafe24/catalog` ([통합 §9.3](../../2-navigation/4-integration.md#93-사용처활동)) 응답의 `labelKey` 와 i18n dict 를 결합해 사람 친화 라벨로 렌더한다 — DB 는 언어 정보 없는 catalog key 만 저장 ([`cafe24-api-metadata.md`](../../conventions/cafe24-api-metadata.md))
+    - `api_method` = operation 의 `method` (메타데이터 row 의 `method` 값 — `GET`/`POST`/`PUT`/`DELETE`)
+    - `api_path` = operation 의 `path` template (메타데이터 row 의 `path` 값 — placeholder 그대로. 예: `products/{product_no}`. 실제 호출 URL 의 path 치환값이 아님 — endpoint 단위 그룹화 + path placeholder 안의 ID PII 누출 방지)
 12. **반환 분기**:
     - 2xx → §5.1 (`port:'success'`)
     - 3xx/4xx/5xx → §5.3 (`port:'error'`, `output.error.code` 는 §6 분류 (`CAFE24_404` / `CAFE24_422` / `CAFE24_AUTH_FAILED` / `CAFE24_RATE_LIMITED` / `CAFE24_4XX` / `CAFE24_5XX`))

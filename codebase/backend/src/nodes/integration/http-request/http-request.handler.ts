@@ -204,6 +204,7 @@ export class HttpRequestHandler
           status: 'failed',
           durationMs: Date.now() - start,
           error: toLogError(err),
+          api: { method, path: extractApiPath(initialUrl) },
         });
         // D4 — 종전 throw 였으나 port:'error' 로 통일.
         return buildPreflightErrorOutput(
@@ -305,6 +306,7 @@ export class HttpRequestHandler
               code: 'HTTP_BLOCKED',
               message: err instanceof Error ? err.message : String(err),
             },
+            api: { method, path: extractApiPath(url) },
           }).catch(() => {});
         }
         // D4 (2026-05-17) — SSRF 차단 throw → port:'error' (HTTP_BLOCKED).
@@ -374,6 +376,7 @@ export class HttpRequestHandler
           error: res.ok
             ? null
             : { code: `HTTP_${res.status}`, message: res.statusText },
+          api: { method, path: extractApiPath(url) },
         });
       }
 
@@ -425,6 +428,7 @@ export class HttpRequestHandler
           status: 'failed',
           durationMs,
           error: { code: 'HTTP_TRANSPORT_FAILED', message },
+          api: { method, path: extractApiPath(url) },
         });
       }
       // Transport failures don't carry a Response, so `responseHeaders` is
@@ -679,4 +683,24 @@ function resolveUrl(baseUrl: string | undefined, configUrl: string): string {
   if (/^https?:\/\//i.test(configUrl)) return configUrl;
   if (!baseUrl) return configUrl;
   return `${baseUrl.replace(/\/+$/, '')}/${configUrl.replace(/^\/+/, '')}`;
+}
+
+/**
+ * INT-US-05 — `IntegrationUsageLog.api_path` 용 host+path 추출. query string
+ * 은 (a) endpoint 단위 그룹화를 깨고 (b) PII/credentials 가 흘러들 수 있어
+ * 항상 제거한다. absolute URL 이면 `host+pathname`, relative URL 이면
+ * path-only fallback (baseUrl 미해소 케이스).
+ */
+export function extractApiPath(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.host}${u.pathname}`;
+  } catch {
+    // relative URL fallback: strip query string and fragment
+    const q = url.indexOf('?');
+    const h = url.indexOf('#');
+    const candidates = [q, h].filter((i) => i !== -1);
+    const end = candidates.length > 0 ? Math.min(...candidates) : url.length;
+    return url.slice(0, end);
+  }
 }

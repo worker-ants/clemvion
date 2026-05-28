@@ -140,6 +140,45 @@ export class ServiceCatalogDto {
   services: ServiceCatalogEntryDto[];
 }
 
+/**
+ * 통합별 API operation 카탈로그 한 행. SoT:
+ * `spec/conventions/cafe24-api-metadata.md §7.5` + 통합 spec §9.3.
+ * `key` 는 활동 로그 `api_label` 의 join key (cafe24 의 경우
+ * `cafe24.<resource>.<operation>`). `labelKey`/`descriptionKey` 는
+ * frontend i18n dict 의 lookup key — 백엔드는 i18n 결과를 직접 반환하지
+ * 않는다 (UI 언어 변경 시 stale 회귀 방지).
+ */
+export class OperationCatalogEntryDto {
+  @ApiProperty({ example: 'cafe24.order.order_list' })
+  key: string;
+
+  @ApiProperty({ example: 'GET' })
+  method: string;
+
+  @ApiProperty({ example: '/admin/orders' })
+  path: string;
+
+  @ApiProperty({ example: 'cafe24.order.order_list' })
+  labelKey: string;
+
+  @ApiProperty({
+    example: 'cafe24.order.order_list.description',
+    required: false,
+  })
+  descriptionKey?: string;
+}
+
+/**
+ * `GET /api/integrations/services/:type/catalog` 응답 shape.
+ * 기존 `ServiceCatalogDto` (서비스 종류 목록) 와 명확히 구분되도록 `Operation`
+ * 접두 — 이 카탈로그는 "특정 서비스 타입이 노출하는 operation 목록".
+ * 초기엔 cafe24 만 채워 반환하고 다른 서비스는 빈 배열.
+ */
+export class OperationCatalogDto {
+  @ApiProperty({ type: [OperationCatalogEntryDto] })
+  operations: OperationCatalogEntryDto[];
+}
+
 /** MCP `tools/list` 미리보기 — 등록 UI 의 capability 카운트 표시용 */
 export class McpConnectionPreviewDto {
   @ApiProperty({ required: false, description: '서버가 노출하는 도구 수' })
@@ -313,6 +352,18 @@ export class IntegrationActivityItemDto {
 
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   executionId?: string | null;
+
+  /** 호출된 API 의 catalog key. cafe24 = `cafe24.<resource>.<operation>`. INT-US-05. */
+  @ApiPropertyOptional({ nullable: true })
+  apiLabel?: string | null;
+
+  /** HTTP method / SQL 동사 / `SEND` 등. INT-US-05 채우기 정책 참조. */
+  @ApiPropertyOptional({ nullable: true })
+  apiMethod?: string | null;
+
+  /** endpoint path / driver token / SMTP host 등. PII 제거 후 저장. INT-US-05. */
+  @ApiPropertyOptional({ nullable: true })
+  apiPath?: string | null;
 }
 
 export class IntegrationActivityDto {

@@ -1,4 +1,4 @@
-import { HttpRequestHandler } from './http-request.handler.js';
+import { HttpRequestHandler, extractApiPath } from './http-request.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
@@ -772,6 +772,65 @@ describe('HttpRequestHandler', () => {
         }),
       );
     });
+
+    // W3 — api field value assertion in logUsage (INT-US-05)
+    it('passes api.method and api.path to logUsage on success (INT-US-05)', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({ ok: true }),
+      });
+      const { service, logUsage } = makeService('bearer_token', {
+        token: 'abc',
+      });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/me',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'success',
+          api: expect.objectContaining({
+            method: 'GET',
+            path: 'api.example.com/me',
+          }),
+        }),
+      );
+    });
+
+    it('passes api.method and api.path to logUsage on transport failure (INT-US-05)', async () => {
+      global.fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      const { service, logUsage } = makeService('bearer_token', {
+        token: 'abc',
+      });
+      const handler = new HttpRequestHandler(service as never);
+      await handler.execute(
+        null,
+        {
+          method: 'POST',
+          url: 'https://api.example.com/orders',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      );
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          api: expect.objectContaining({
+            method: 'POST',
+            path: 'api.example.com/orders',
+          }),
+        }),
+      );
+    });
   });
 
   // ENG-RC-* — Phase 2 raw-echo migration. Verifies that `config` carries
@@ -1064,5 +1123,36 @@ describe('HttpRequestHandler', () => {
       expect(result.output.requestBodyType).toBe('json');
       expect(result.output.responseHeaders).toBeUndefined();
     });
+  });
+});
+
+// W1 — extractApiPath unit tests (INT-US-05)
+describe('extractApiPath', () => {
+  it('extracts host + pathname from an absolute URL (no query string)', () => {
+    expect(extractApiPath('https://api.example.com/v1/orders')).toBe(
+      'api.example.com/v1/orders',
+    );
+  });
+
+  it('strips query string from an absolute URL', () => {
+    expect(
+      extractApiPath('https://api.example.com/v1/orders?page=1&limit=20'),
+    ).toBe('api.example.com/v1/orders');
+  });
+
+  it('returns relative URL path as-is when no query string or fragment', () => {
+    expect(extractApiPath('/v1/orders')).toBe('/v1/orders');
+  });
+
+  it('strips query string from a relative URL', () => {
+    expect(extractApiPath('/v1/orders?page=1')).toBe('/v1/orders');
+  });
+
+  it('strips fragment from a relative URL (I4 fix)', () => {
+    expect(extractApiPath('/v1/orders#section')).toBe('/v1/orders');
+  });
+
+  it('strips both query string and fragment from a relative URL, keeping the shorter cut', () => {
+    expect(extractApiPath('/v1/orders?page=1#section')).toBe('/v1/orders');
   });
 });

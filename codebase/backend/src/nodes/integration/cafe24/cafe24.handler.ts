@@ -131,6 +131,17 @@ export class Cafe24Handler
       | { limit?: number; offset?: number; cursor?: string }
       | undefined;
 
+    // INT-US-05 — logUsage 호출 시 함께 보낼 API 식별 정보. operation lookup
+    // 이전이라도 사용자 입력 (resource + operationId) 으로 catalog key 는 추정
+    // 가능하다. operation metadata 가 확정되면 method/path 까지 채운다.
+    const apiInfo: {
+      label?: string | null;
+      method?: string | null;
+      path?: string | null;
+    } = {
+      label: `cafe24.${resource}.${operationId}`,
+    };
+
     // D4 (2026-05-17, plan/in-progress/node-output-redesign) — Integration
     // 4종 모두 send-email 의 catch-all 패턴으로 통일. handler.validate() 가
     // 거른 config 형식 오류만 throw, 그 외 IntegrationError (resolve /
@@ -153,6 +164,9 @@ export class Cafe24Handler
           `operation "${operationId}" not defined for resource "${resource}"`,
         );
       }
+      // operation 확정 후 method/path 도 apiInfo 에 채운다 (INT-US-05).
+      apiInfo.method = operation.method;
+      apiInfo.path = operation.path;
 
       // 2. Required field check.
       const missing = operation.requiredFields.filter(
@@ -228,6 +242,7 @@ export class Cafe24Handler
           status: 'failed',
           durationMs,
           error: { code: errorOutput.code, message: errorOutput.message },
+          api: apiInfo,
         });
         return {
           config: echo,
@@ -268,6 +283,7 @@ export class Cafe24Handler
           status: 'failed',
           durationMs,
           error: { code, message: `Cafe24 API returned ${result.status}` },
+          api: apiInfo,
         });
         return {
           config: echo,
@@ -289,6 +305,7 @@ export class Cafe24Handler
         integrationId,
         status: 'success',
         durationMs,
+        api: apiInfo,
       });
       return {
         config: echo,
@@ -309,6 +326,7 @@ export class Cafe24Handler
         status: 'failed',
         durationMs,
         error: { code, message },
+        api: apiInfo,
       }).catch(() => {});
       const details: Record<string, unknown> = {
         resource,

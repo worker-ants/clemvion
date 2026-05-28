@@ -42,6 +42,21 @@ export class IntegrationUsageLog {
   @Column({ name: 'duration_ms', type: 'integer', default: 0 })
   durationMs: number;
 
+  /**
+   * Catalog key 형식 (Cafe24: `cafe24.<resource>.<operation>`). 다른 통합은 NULL.
+   * SoT: `spec/conventions/cafe24-api-metadata.md §7.5`.
+   */
+  @Column({ name: 'api_label', type: 'varchar', length: 128, nullable: true })
+  apiLabel: string | null;
+
+  /** HTTP method / SQL 동사 / `SEND` 등 — 통합별 의미 다름. */
+  @Column({ name: 'api_method', type: 'varchar', length: 8, nullable: true })
+  apiMethod: string | null;
+
+  /** host+path / driver / SMTP host 등 — 통합별 의미 다름. */
+  @Column({ name: 'api_path', type: 'varchar', length: 256, nullable: true })
+  apiPath: string | null;
+
   @CreateDateColumn({ name: 'at', type: 'timestamptz' })
   at: Date;
 }

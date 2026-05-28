@@ -57,6 +57,18 @@
 | INT-US-02 | 사용처가 존재하는 연동은 삭제 차단 — 사용 중 노드 목록을 표시하고 "먼저 연동을 교체하거나 노드를 제거" 안내 | 필수 |
 | INT-US-03 | 연동이 `expired`/`error` 상태로 전이되면 이를 참조하는 노드의 워크플로우 에디터에 경고 뱃지 표시 | 필수 |
 | INT-US-04 | 연동별 최근 호출 이력을 조회 가능하도록 `integration_usage_log` 기록 (노드 실행 시점마다 1건). 최근 7일 호출 수 차트 제공 | 필수 |
+| INT-US-05 | `integration_usage_log` 기록 시 호출 대상 API 식별 정보 (`api_label`/`api_method`/`api_path`) 를 함께 저장하여, 통합 상세 §4.6 Recent activity 탭에서 어떤 API 가 호출됐는지 사용자가 식별 가능. 채우기 정책은 통합별로 비대칭 (아래 표) — 핸들러는 `logUsage` 호출 시 `api` 식별 정보를 동반할 의무가 있다. 길이 한도 초과 시 백엔드가 끝에 `…` 를 붙여 자르고 저장 (`clampMessage` 패턴) | 필수 |
+
+**활동 로그 API 식별 — 통합별 채우기 정책 (INT-US-05)**
+
+| 통합 | `api_label` | `api_method` | `api_path` |
+|---|---|---|---|
+| cafe24 ([§4-cafe24.md](./4-cafe24.md)) | catalog key (`cafe24.<resource>.<operation>`) | operation 의 HTTP method (`GET`/`POST`/...) | operation 의 path template (placeholder 그대로 — `products/{product_no}`) |
+| http-request ([§1-http-request.md](./1-http-request.md)) | NULL | HTTP method | host + path. query string 제거. baseUrl 없으면 path-only |
+| database-query ([§2-database-query.md](./2-database-query.md)) | NULL | SQL 동사 (`SELECT`/`INSERT`/`UPDATE`/`DELETE`) — `queryType='raw'` 처럼 첫 토큰이 SQL 동사가 아닌 경우 NULL 폴백 | driver (`postgres` / `mysql`) |
+| send-email ([§3-send-email.md](./3-send-email.md)) | NULL | `SEND` | SMTP host or NULL |
+
+각 핸들러의 채우기 정책 상세는 해당 노드 spec 의 "활동 로그" 절 참조. 본 표가 단일 진실 — 위배는 [`spec/2-navigation/4-integration.md §4.6 / §9.3`](../../2-navigation/4-integration.md#46-recent-activity-탭) 의 UI 분기 (라벨 / endpoint / `—` fallback) 와 직접 어긋난다.
 
 ### 2.5 Webhook 서비스 경계
 

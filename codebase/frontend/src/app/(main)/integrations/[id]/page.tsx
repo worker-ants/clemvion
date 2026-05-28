@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -40,6 +40,9 @@ import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
 import { ScopeTab } from "./scope-tab";
 import { Cafe24AppUrlCard } from "./cafe24-app-url-card";
 import { openOAuthPopup } from "./open-oauth-popup";
+
+/** catalog staleTime: 1h (operation 메타데이터는 정적·변경 빈도 매우 낮음) */
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 const TABS = [
   "overview",
@@ -206,7 +209,13 @@ export default function IntegrationDetailPage({
         />
       )}
       {tab === "usage" && <UsageTab integrationId={id} t={t} />}
-      {tab === "activity" && <ActivityTab integrationId={id} t={t} />}
+      {tab === "activity" && (
+        <ActivityTab
+          integrationId={id}
+          serviceType={integration.serviceType}
+          t={t}
+        />
+      )}
       {tab === "danger" && (
         <DangerTab
           integration={integration}
@@ -638,12 +647,36 @@ function UsageTab({ integrationId, t }: { integrationId: string; t: TFunction })
 
 // ---------------- Activity ----------------
 
-function ActivityTab({ integrationId, t }: { integrationId: string; t: TFunction }) {
+function ActivityTab({
+  integrationId,
+  serviceType,
+  t,
+}: {
+  integrationId: string;
+  serviceType: string;
+  t: TFunction;
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ["integrations", integrationId, "activity"],
     queryFn: () =>
       integrationsApi.activity(integrationId, { limit: 20, days: 7 }),
   });
+
+  // Catalog 는 service-type 별로 한 번만 fetch (TanStack staleTime 1h). 통합별
+  // operation 메타데이터는 거의 안 바뀌고, 여러 통합 상세 페이지를 오갈 때
+  // 같은 service-type 끼리 캐시 공유한다. cafe24 가 아닌 service 는 빈 배열을
+  // 받기 때문에 lookup miss → endpoint subtext fallback 으로 자연 처리.
+  const { data: catalog } = useQuery({
+    queryKey: ["integrations", "catalog", serviceType],
+    queryFn: () => integrationsApi.catalog(serviceType),
+    staleTime: ONE_HOUR_MS,
+  });
+
+  // useMemo must be called unconditionally (Rules of Hooks) — before any early return.
+  const catalogByKey = useMemo(
+    () => new Map((catalog?.operations ?? []).map((op) => [op.key, op])),
+    [catalog],
+  );
 
   if (isLoading) {
     return (
@@ -673,45 +706,127 @@ function ActivityTab({ integrationId, t }: { integrationId: string; t: TFunction
           <thead className="text-left text-xs uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
             <tr>
               <th className="px-2 py-2">{t("integrations.activityWhen")}</th>
+              <th className="px-2 py-2">{t("integrations.activityApi")}</th>
               <th className="px-2 py-2">{t("integrations.activityStatus")}</th>
               <th className="px-2 py-2">{t("integrations.activityDuration")}</th>
               <th className="px-2 py-2">{t("integrations.activityError")}</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {data.items.map((row) => (
-              <tr key={row.id}>
-                <td className="px-2 py-2">
-                  {formatDate(row.at, "datetime")}
-                </td>
-                <td className="px-2 py-2">
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-xs",
-                      row.status === "success"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-                    )}
-                  >
-                    {row.status}
-                  </span>
-                </td>
-                <td className="px-2 py-2">{row.durationMs}ms</td>
-                <td className="px-2 py-2 text-xs text-[hsl(var(--muted-foreground))]">
-                  {row.error
-                    ? String(
-                        (row.error as { message?: string }).message ??
-                          JSON.stringify(row.error),
-                      )
-                    : "—"}
-                </td>
-              </tr>
-            ))}
+            {data.items.map((row) => {
+              const apiCell = renderApiCell({
+                apiLabel: row.apiLabel ?? null,
+                apiMethod: row.apiMethod ?? null,
+                apiPath: row.apiPath ?? null,
+                catalog: catalogByKey,
+                t,
+              });
+              return (
+                <tr key={row.id}>
+                  <td className="px-2 py-2">
+                    {formatDate(row.at, "datetime")}
+                  </td>
+                  <td className="px-2 py-2">{apiCell}</td>
+                  <td className="px-2 py-2">
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-xs",
+                        row.status === "success"
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+                      )}
+                    >
+                      {row.status}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2">{row.durationMs}ms</td>
+                  <td className="px-2 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+                    {row.error
+                      ? String(
+                          (row.error as { message?: string }).message ??
+                            JSON.stringify(row.error),
+                        )
+                      : "—"}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
   );
+}
+
+/**
+ * `§4.6` 활동 탭의 `API` 컬럼 렌더링.
+ *  - 라벨 dict lookup 성공: 굵게 라벨 + 작게 endpoint subtext (2줄)
+ *  - 라벨 없음 + endpoint 있음: endpoint 한 줄
+ *  - 둘 다 NULL: `—` (i18n key `activityApiUnknown`)
+ * SoT: spec/2-navigation/4-integration.md §4.6.
+ */
+function renderApiCell(args: {
+  apiLabel: string | null;
+  apiMethod: string | null;
+  apiPath: string | null;
+  catalog: Map<string, { labelKey: string; descriptionKey?: string }>;
+  t: TFunction;
+}) {
+  const { apiLabel, apiMethod, apiPath, catalog, t } = args;
+  const endpoint =
+    apiMethod && apiPath
+      ? `${apiMethod} ${apiPath}`
+      : apiMethod
+      ? apiMethod
+      : apiPath ?? "";
+
+  // catalog endpoint 가 응답한 labelKey 가 dict 안에 있으면 i18n 라벨 사용.
+  // 본 PR 에서는 dict 가 빈 상태라 사실상 모든 cafe24 호출도 endpoint-only
+  // fallback 으로 흐른다 (follow-up plan cafe24-catalog-i18n.md 에서 채움).
+  const catalogEntry = apiLabel ? catalog.get(apiLabel) : undefined;
+  const labelKey = catalogEntry?.labelKey ?? apiLabel ?? null;
+  const humanLabel = labelKey ? tryTranslateLabel(labelKey, t) : null;
+
+  if (humanLabel) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className="font-medium">{humanLabel}</span>
+        {endpoint && (
+          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+            {endpoint}
+          </span>
+        )}
+      </div>
+    );
+  }
+  if (endpoint) {
+    return (
+      <span className="text-xs font-mono text-[hsl(var(--muted-foreground))]">
+        {endpoint}
+      </span>
+    );
+  }
+  return (
+    <span className="text-[hsl(var(--muted-foreground))]">
+      {t("integrations.activityApiUnknown")}
+    </span>
+  );
+}
+
+/**
+ * `cafe24.<resource>.<operation>` catalog key 가 cafe24Catalog dict 에 매핑돼
+ * 있으면 사람 친화 라벨 반환, 없으면 null 반환 (endpoint-only fallback 으로
+ * 위임). 현재 dict 는 빈 상태이므로 항상 null. SoT: dict/{ko,en}/cafe24Catalog.ts.
+ *
+ * @see plan/in-progress/cafe24-catalog-i18n.md — dict 채우기 follow-up
+ */
+function tryTranslateLabel(catalogKey: string, t: TFunction): string | null {
+  const fullKey = `cafe24Catalog.${catalogKey}` as TranslationKey;
+  const translated = t(fullKey);
+  // i18n framework 가 key 누락 시 key 문자열을 그대로 반환 — 그 케이스는 lookup
+  // miss 로 취급해 endpoint subtext fallback 으로 흘려보낸다.
+  if (translated === fullKey) return null;
+  return translated;
 }
 
 // ---------------- Danger zone ----------------
