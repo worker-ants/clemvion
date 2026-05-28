@@ -1,12 +1,13 @@
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { TriggersService } from './triggers.service';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
+import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
@@ -30,6 +31,10 @@ describe('TriggersService.findOneDetail', () => {
         },
         {
           provide: getRepositoryToken(Schedule),
+          useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
         },
         {
@@ -171,6 +176,7 @@ describe('TriggersService.findOneDetail', () => {
 describe('TriggersService — notification/interaction config 병합 (External Interaction API)', () => {
   let service: TriggersService;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let authConfigRepo: jest.Mocked<Repository<AuthConfig>>;
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -186,6 +192,10 @@ describe('TriggersService — notification/interaction config 병합 (External I
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
         {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
@@ -221,6 +231,41 @@ describe('TriggersService — notification/interaction config 병합 (External I
 
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    authConfigRepo = moduleRef.get(getRepositoryToken(AuthConfig));
+  });
+
+  it('create — authConfigId 가 같은 워크스페이스면 통과', async () => {
+    authConfigRepo.findOne.mockResolvedValue({
+      id: 'ac-1',
+      workspaceId: 'ws',
+    } as AuthConfig);
+    await service.create('ws', {
+      workflowId: 'wf-1',
+      type: 'webhook',
+      name: 'hook',
+      authConfigId: 'ac-1',
+    });
+    expect(authConfigRepo.findOne).toHaveBeenCalledWith({
+      where: { id: 'ac-1', workspaceId: 'ws' },
+    });
+    expect(triggerRepo.create).toHaveBeenCalled();
+  });
+
+  it('create — authConfigId 가 다른 워크스페이스(미존재)면 AUTH_CONFIG_NOT_FOUND + create 미호출', async () => {
+    authConfigRepo.findOne.mockResolvedValue(null);
+    const err = await service
+      .create('ws', {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'hook',
+        authConfigId: 'other-ws-ac',
+      })
+      .catch((e: unknown) => e as BadRequestException);
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect((err as BadRequestException).getResponse()).toMatchObject({
+      code: 'AUTH_CONFIG_NOT_FOUND',
+    });
+    expect(triggerRepo.create).not.toHaveBeenCalled();
   });
 
   it('create — notification/interaction 을 config JSONB 안으로 병합 (1급 컬럼 아님)', async () => {
@@ -252,12 +297,14 @@ describe('TriggersService — notification/interaction config 병합 (External I
     expect(result).not.toHaveProperty('interaction');
   });
 
-  it('create — 기존 config 와 notification/interaction 이 함께 병합', async () => {
+  it('create — 기존 config 보존 + notification 병합 + inline 인증 키 strip', async () => {
     await service.create('ws', {
       workflowId: 'wf-1',
       type: 'webhook',
       name: 'hook',
-      config: { method: 'POST', hmacAlgorithm: 'sha256' },
+      // method 는 비인증 키 → 보존. hmacAlgorithm/bearerToken 은 폐기된 inline 인증
+      // 키 → strip (인증은 authConfigId 로만; spec 5-system/12-webhook.md §2.2).
+      config: { method: 'POST', hmacAlgorithm: 'sha256', bearerToken: 'x' },
       notification: {
         url: 'https://customer.example.com/cb',
         events: ['execution.completed'],
@@ -268,11 +315,15 @@ describe('TriggersService — notification/interaction config 병합 (External I
       expect.objectContaining({
         config: expect.objectContaining({
           method: 'POST',
-          hmacAlgorithm: 'sha256',
           notification: expect.any(Object),
         }),
       }),
     );
+    const createdConfig = (
+      triggerRepo.create.mock.calls[0][0] as { config: Record<string, unknown> }
+    ).config;
+    expect(createdConfig).not.toHaveProperty('hmacAlgorithm');
+    expect(createdConfig).not.toHaveProperty('bearerToken');
   });
 
   it('create — notification.url 이 사설 IP 면 INVALID_NOTIFICATION_URL', async () => {
@@ -460,6 +511,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
         {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
@@ -668,6 +723,10 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
         {
           provide: ChannelAdapterRegistry,
           useValue: adapterRegistry,
@@ -1010,6 +1069,10 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
         { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: getRepositoryToken(Schedule), useValue: {} },
         {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
+        {
           provide: ChannelAdapterRegistry,
           useValue: {
             has: jest.fn().mockReturnValue(true),
@@ -1131,6 +1194,10 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
         { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: getRepositoryToken(Schedule), useValue: {} },
         {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
+        {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
         },
@@ -1228,6 +1295,10 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         { provide: getRepositoryToken(Schedule), useValue: {} },
+        {
+          provide: getRepositoryToken(AuthConfig),
+          useValue: { findOne: jest.fn() },
+        },
         {
           provide: ChannelAdapterRegistry,
           useValue: {
