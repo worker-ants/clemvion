@@ -677,7 +677,16 @@ describe('Cafe24McpToolProvider', () => {
       expect(parsed.status).toBe(200);
       expect(parsed.response).toEqual({ products: [{ product_no: 1 }] });
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'success' }),
+        expect.objectContaining({
+          status: 'success',
+          // INT-US-05 — MCP bridge 경로도 활동 로그에 api 식별 정보 동반.
+          // spec/conventions/cafe24-api-metadata.md §7.5 + spec/5-system/11-mcp-client.md §8.3.
+          api: {
+            label: 'cafe24.product.product_list',
+            method: 'GET',
+            path: expect.any(String),
+          },
+        }),
       );
     });
 
@@ -762,6 +771,13 @@ describe('Cafe24McpToolProvider', () => {
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'CAFE24_AUTH_FAILED' }),
+          // 실패 경로에서도 api 식별 정보가 동반돼야 활동 탭에서 어떤 API 가
+          // 실패했는지 식별 가능 (INT-US-05).
+          api: {
+            label: 'cafe24.product.product_list',
+            method: 'GET',
+            path: expect.any(String),
+          },
         }),
       );
     });
