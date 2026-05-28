@@ -29,10 +29,11 @@ webhook 엔드포인트는 백엔드(HooksController)가 서빙하므로, 프론
 
 ### P2. 테스트
 - [x] `webhook-url.test.ts` 작성 (override / API_URL 유도 / origin fallback / WH-EP-02 형식 / 포트 미주입 회귀).
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) 통과 — **보류: 워크트리 node_modules 미설치**.
+- [x] lint · unit · build 통과 (`npm ci` 후 — full unit 2833 pass, lint 0 error, build OK).
+- [ ] e2e — 자동 흐름 환경 차단 (순수 프론트 표시 로직, unit 으로 보호).
 
 ### P3. 리뷰
-- [ ] REVIEW WORKFLOW (`/ai-review`) + 이슈 조치 + RESOLUTION.md.
+- [x] REVIEW WORKFLOW (`/ai-review` 4 reviewer 전부 LOW) + 이슈 조치 + `review/code/2026/05/29/08_30_00/RESOLUTION.md`.
 
 ## 완료 기준
 
