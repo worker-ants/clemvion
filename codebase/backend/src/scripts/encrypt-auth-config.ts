@@ -59,7 +59,6 @@ async function main(): Promise<void> {
   console.log(`Scanning ${rows.length} auth_config row(s)…`);
 
   let migrated = 0;
-  const skipped = 0;
   let failed = 0;
   for (const row of rows) {
     try {
@@ -76,7 +75,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    `Done. migrated=${migrated} skipped=${skipped} failed=${failed} total=${rows.length}`,
+    `Done. migrated=${migrated} failed=${failed} total=${rows.length}`,
   );
   await dataSource.destroy();
 }
