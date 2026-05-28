@@ -58,10 +58,12 @@ async function renderPage() {
   });
 }
 
-function mockTriggersResponse(body: unknown) {
-  // Two queries: /triggers (list) and /workflows (workflows-list dropdown)
+function mockTriggersResponse(body: unknown, authConfigs: unknown[] = []) {
+  // Queries: /triggers (list), /workflows (dropdown), /auth-configs (auth column).
   apiGetMock.mockImplementation((url: string) => {
     if (url === "/workflows") return Promise.resolve({ data: { data: [] } });
+    if (url === "/auth-configs")
+      return Promise.resolve({ data: { data: authConfigs } });
     return Promise.resolve({ data: body });
   });
 }
@@ -190,5 +192,110 @@ describe("TriggersPage — RBAC", () => {
     expect(screen.queryByText(/^delete$/i)).toBeNull();
     expect(screen.queryByText(/activate/i)).toBeNull();
     expect(screen.queryByText(/deactivate/i)).toBeNull();
+  });
+});
+
+// [Spec 2-trigger-list §2.1 "인증" 요소 + R-15] 인증 열 + 무인증 webhook 경고
+describe("TriggersPage — auth column", () => {
+  const WARNING_LABEL =
+    "This webhook is publicly accessible but has no authentication configured — a security risk.";
+  const HMAC_CONFIG = { id: "ac-1", name: "Prod HMAC", type: "hmac" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cleanup();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    setRole("editor");
+  });
+
+  function listBody(rows: unknown[]) {
+    return {
+      data: rows,
+      pagination: { page: 1, limit: 20, totalItems: rows.length, totalPages: 1 },
+    };
+  }
+
+  function webhookRow(authConfigId: string | null) {
+    return {
+      id: "t1",
+      name: "Hook A",
+      type: "webhook",
+      isActive: true,
+      workflowId: "w1",
+      workflow: { id: "w1", name: "WF" },
+      authConfigId,
+    };
+  }
+
+  function nonWebhookRow(type: "schedule" | "manual") {
+    return {
+      id: "t2",
+      name: type === "schedule" ? "Daily" : "Run Manually",
+      type,
+      isActive: true,
+      workflowId: "w1",
+      workflow: { id: "w1", name: "WF" },
+      authConfigId: null,
+    };
+  }
+
+  it("renders an Authentication column header", async () => {
+    mockTriggersResponse(listBody([webhookRow(null)]));
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(
+      screen.getByRole("columnheader", { name: "Authentication" }),
+    ).toBeInTheDocument();
+  });
+
+  it("webhook with a bound AuthConfig shows its type badge, no warning", async () => {
+    mockTriggersResponse(listBody([webhookRow("ac-1")]), [HMAC_CONFIG]);
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(await screen.findByText("HMAC")).toBeInTheDocument();
+    expect(screen.queryByLabelText(WARNING_LABEL)).toBeNull();
+  });
+
+  it("webhook without authentication shows a security warning icon", async () => {
+    mockTriggersResponse(listBody([webhookRow(null)]));
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(screen.getByLabelText(WARNING_LABEL)).toBeInTheDocument();
+  });
+
+  it("webhook with an authConfigId not present in the list falls back to 'Configured', no warning", async () => {
+    // authConfigId 가 설정돼 있으나 워크스페이스 목록에서 해석되지 않는 경우:
+    // 무인증으로 오인(경고)하지 않고 'Configured' 폴백을 표시해야 한다.
+    mockTriggersResponse(listBody([webhookRow("ac-missing")]), [HMAC_CONFIG]);
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(await screen.findByText("Configured")).toBeInTheDocument();
+    expect(screen.queryByLabelText(WARNING_LABEL)).toBeNull();
+  });
+
+  it.each([["schedule"], ["manual"]] as const)(
+    "non-webhook (%s) without auth shows '-' and no warning",
+    async (type) => {
+      mockTriggersResponse(listBody([nonWebhookRow(type)]));
+      await renderPage();
+      await screen.findByText(type === "schedule" ? "Daily" : "Run Manually");
+      expect(screen.queryByLabelText(WARNING_LABEL)).toBeNull();
+    },
+  );
+
+  it("webhook with auth bound but /auth-configs query failing does not show a false warning", async () => {
+    // useAuthConfigs 가 실패하면 type 해석이 불가하지만, authConfigId 가 있으므로
+    // 무인증 경고를 띄우면 안 된다 ('Configured' 폴백).
+    apiGetMock.mockImplementation((url: string) => {
+      if (url === "/workflows") return Promise.resolve({ data: { data: [] } });
+      if (url === "/auth-configs")
+        return Promise.reject(new Error("boom"));
+      return Promise.resolve({ data: listBody([webhookRow("ac-1")]) });
+    });
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(await screen.findByText("Configured")).toBeInTheDocument();
+    expect(screen.queryByLabelText(WARNING_LABEL)).toBeNull();
   });
 });

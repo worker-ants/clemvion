@@ -335,6 +335,11 @@ export class InteractionTokenService implements OnModuleDestroy {
       where: { executionId },
       select: ['jti', 'expAt'],
     });
+    // iext 토큰을 발급하지 않은 execution (모든 수동/스케줄 실행) 은 여기서 끝 — terminal event
+    // 마다 호출되므로 불필요한 DELETE 쿼리를 피해 단일 인덱스 lookup 으로 비용을 제한한다.
+    if (tokens.length === 0) {
+      return { revoked: 0 };
+    }
     const nowSec = Math.floor(Date.now() / 1000);
     let revoked = 0;
     for (const token of tokens) {

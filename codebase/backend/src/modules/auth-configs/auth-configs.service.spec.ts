@@ -355,6 +355,96 @@ describe('AuthConfigsService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
+    it('ip_whitelist: CIDR 범위 내 IP → 통과', async () => {
+      const ac = await seed(
+        'bearer_token',
+        {},
+        { ipWhitelist: ['10.0.0.0/8'] },
+      );
+      const token = ac.config.token as string;
+      await expect(
+        service.verifyWebhookRequest(ac.id, WS, {
+          headers: { authorization: `Bearer ${token}` },
+          clientIp: '10.5.6.7',
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('ip_whitelist: CIDR 범위 밖 IP → 401', async () => {
+      const ac = await seed(
+        'bearer_token',
+        {},
+        { ipWhitelist: ['10.0.0.0/8'] },
+      );
+      const token = ac.config.token as string;
+      await expect(
+        service.verifyWebhookRequest(ac.id, WS, {
+          headers: { authorization: `Bearer ${token}` },
+          clientIp: '11.0.0.1',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('ip_whitelist: IPv6 CIDR 범위 내 IP → 통과', async () => {
+      const ac = await seed(
+        'bearer_token',
+        {},
+        { ipWhitelist: ['2001:db8::/32'] },
+      );
+      const token = ac.config.token as string;
+      await expect(
+        service.verifyWebhookRequest(ac.id, WS, {
+          headers: { authorization: `Bearer ${token}` },
+          clientIp: '2001:db8::1',
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('ip_whitelist: IPv4-mapped IPv6 클라이언트 IP → v4 항목과 매칭 통과', async () => {
+      const ac = await seed(
+        'bearer_token',
+        {},
+        { ipWhitelist: ['10.0.0.0/8'] },
+      );
+      const token = ac.config.token as string;
+      await expect(
+        service.verifyWebhookRequest(ac.id, WS, {
+          headers: { authorization: `Bearer ${token}` },
+          clientIp: '::ffff:10.5.6.7',
+        }),
+      ).resolves.toBeUndefined();
+    });
+
+    it('ip_whitelist: 파싱 불가한 clientIp → 401 (fail-closed)', async () => {
+      const ac = await seed(
+        'bearer_token',
+        {},
+        { ipWhitelist: ['10.0.0.0/8'] },
+      );
+      const token = ac.config.token as string;
+      await expect(
+        service.verifyWebhookRequest(ac.id, WS, {
+          headers: { authorization: `Bearer ${token}` },
+          clientIp: 'not-an-ip',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('ip_whitelist: 주소 패밀리 불일치 (v4 클라이언트 vs v6 항목) → 401', async () => {
+      const ac = await seed(
+        'bearer_token',
+        {},
+        { ipWhitelist: ['2001:db8::/32'] },
+      );
+      const token = ac.config.token as string;
+      await expect(
+        service.verifyWebhookRequest(ac.id, WS, {
+          headers: { authorization: `Bearer ${token}` },
+          clientIp: '10.5.6.7',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
     it('authConfigId 미존재 → 401', async () => {
       await expect(
         service.verifyWebhookRequest(crypto.randomUUID(), WS, { headers: {} }),

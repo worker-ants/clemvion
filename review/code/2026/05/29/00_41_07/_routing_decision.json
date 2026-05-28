@@ -1,0 +1,86 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-29T00:41:07Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): token revocation 및 blacklist 메커니즘 security-critical"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "I/O 추가 없음, 반복문/캐시/정렬 변경 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈 경계 변경 없음, 서비스 내 메서드 실행 순서만 재정렬"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): Spec EIA §3.3 EIA-AU-04 (필수) 버그 수정 — notification config 유무 무관 terminal revoke"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): terminal event revoke 호출 위치 변경 — notification 게이트 이동"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): execution path 순서 변경, fail-open 에러 핸들링, tokenService 호출 시점 이동"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 종전 0건 테스트 → 8건 신설(NotificationFanout) + 1건 추가(InteractionGuard), JSDoc 갱신"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 신규 src 코드 — notification-fanout.service.spec.ts 신설(8개 테스트 케이스), interaction.guard.spec.ts 1개 추가"
+    },
+    {
+      "name": "documentation",
+      "selected": false,
+      "reason": "public API 변경 없음, JSDoc 이미 inline 갱신됨"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migrations/ 또는 스키마 변경 없음, 기존 execution_token 테이블 활용만 함"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await 구조 변경 없음, Promise 조합/락/워커 추가 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": false,
+      "reason": "HTTP route/controller 변경 없음, 내부 service 로직만 재정렬"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "external-interaction 모듈 내부 서비스 변경, PROJECT.md trigger 매트릭스 매칭 어디도 없음"
+    }
+  ],
+  "selected_count": 6,
+  "skipped_count": 8,
+  "forced": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing"
+  ]
+}
