@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Copy, Loader2, Inbox, Plus, X, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { TriggerDetailDrawer } from "@/components/triggers/trigger-detail-drawer";
+import { AuthConfigSelect } from "@/components/triggers/auth-config-select";
 import {
   TriggerDeleteDialog,
   type TriggerDeleteTarget,
@@ -56,8 +57,6 @@ interface Workflow {
   id: string;
   name: string;
 }
-
-type AuthType = "none" | "hmac" | "bearer";
 
 const FILTER_TABS = ["all", "webhook", "schedule", "manual"] as const;
 type FilterTab = (typeof FILTER_TABS)[number];
@@ -110,10 +109,7 @@ export default function TriggersPage() {
   // Form state
   const [formName, setFormName] = useState("");
   const [formWorkflowId, setFormWorkflowId] = useState("");
-  const [formAuthType, setFormAuthType] = useState<AuthType>("none");
-  const [formSecret, setFormSecret] = useState("");
-  const [formHmacHeader, setFormHmacHeader] = useState("X-Hub-Signature-256");
-  const [formBearerToken, setFormBearerToken] = useState("");
+  const [formAuthConfigId, setFormAuthConfigId] = useState<string | null>(null);
   // [Spec Chat Channel §4.1 / 2-trigger-list §2.3.1 R-8 / providers/_overview.md §1]
   // 생성 dialog 의 Chat Channel 섹션 — 3 provider (telegram / slack / discord).
   const [formChatChannelEnabled, setFormChatChannelEnabled] = useState(false);
@@ -205,28 +201,22 @@ export default function TriggersPage() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const config: Record<string, unknown> = { authType: formAuthType };
-      if (formAuthType === "hmac") {
-        config.secret = formSecret;
-        config.hmacHeader = formHmacHeader;
-        config.hmacAlgorithm = "sha256";
-      }
-      if (formAuthType === "bearer") {
-        config.bearerToken = formBearerToken;
-      }
+      // 인증은 authConfigId binding 으로만 (inline 인증 필드 폐지). null = 인증 없음.
       // Chat Channel 토글이 켜져 있으면 top-level `chatChannel` 필드 부착. backend
       // CreateTriggerDto 의 chatChannel 은 top-level (config 안 아님) — setupChannel
       // 자동 호출의 진입 조건. provider-issued (slack/discord) 의 경우
       // inboundSigningPlaintext 도 함께 전송.
       // SoT: spec/conventions/secret-store.md §5.5 / providers/{slack,discord}.md §6 /
-      //      codebase/backend/src/modules/triggers/dto/create-trigger.dto.ts line 121.
+      //      codebase/backend/src/modules/triggers/dto/create-trigger.dto.ts.
       const requestBody: Record<string, unknown> = {
         workflowId: formWorkflowId,
         type: "webhook",
         name: formName,
         endpointPath: crypto.randomUUID(),
-        config,
       };
+      if (formAuthConfigId) {
+        requestBody.authConfigId = formAuthConfigId;
+      }
       if (formChatChannelEnabled && formChatChannelBotToken.trim().length > 0) {
         const chatChannel: Record<string, unknown> = {
           provider: formChatChannelProvider,
@@ -254,10 +244,7 @@ export default function TriggersPage() {
   function resetForm() {
     setFormName("");
     setFormWorkflowId("");
-    setFormAuthType("none");
-    setFormSecret("");
-    setFormHmacHeader("X-Hub-Signature-256");
-    setFormBearerToken("");
+    setFormAuthConfigId(null);
     setFormChatChannelEnabled(false);
     setFormChatChannelProvider("telegram");
     setFormChatChannelBotToken("");
@@ -372,53 +359,19 @@ export default function TriggersPage() {
                 </select>
               </div>
               <div>
-                <Label htmlFor="webhook-auth">{t("triggers.authenticationLabel")}</Label>
-                <select
-                  id="webhook-auth"
-                  className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
-                  value={formAuthType}
-                  onChange={(e) => setFormAuthType(e.target.value as AuthType)}
-                >
-                  <option value="none">{t("triggers.authNone")}</option>
-                  <option value="hmac">{t("triggers.authHmac")}</option>
-                  <option value="bearer">{t("triggers.authBearer")}</option>
-                </select>
+                <Label htmlFor="webhook-authconfig">
+                  {t("triggers.authConfigLabel")}
+                </Label>
+                <AuthConfigSelect
+                  id="webhook-authconfig"
+                  value={formAuthConfigId}
+                  onChange={setFormAuthConfigId}
+                  disabled={createMutation.isPending}
+                />
+                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.authConfigHelp")}
+                </p>
               </div>
-              {formAuthType === "hmac" && (
-                <>
-                  <div>
-                    <Label htmlFor="webhook-secret">{t("triggers.secretKey")}</Label>
-                    <Input
-                      id="webhook-secret"
-                      type="password"
-                      value={formSecret}
-                      onChange={(e) => setFormSecret(e.target.value)}
-                      placeholder={t("triggers.secretPlaceholder")}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="webhook-hmac-header">{t("triggers.signatureHeader")}</Label>
-                    <Input
-                      id="webhook-hmac-header"
-                      value={formHmacHeader}
-                      onChange={(e) => setFormHmacHeader(e.target.value)}
-                      placeholder="X-Hub-Signature-256"
-                    />
-                  </div>
-                </>
-              )}
-              {formAuthType === "bearer" && (
-                <div>
-                  <Label htmlFor="webhook-token">{t("triggers.bearerToken")}</Label>
-                  <Input
-                    id="webhook-token"
-                    type="password"
-                    value={formBearerToken}
-                    onChange={(e) => setFormBearerToken(e.target.value)}
-                    placeholder={t("triggers.bearerPlaceholder")}
-                  />
-                </div>
-              )}
 
               {/* Chat Channel — Spec Chat Channel §4.1 / 2-trigger-list R-8 / providers/_overview.md §1 */}
               <div className="border-t border-[hsl(var(--border))] pt-3">
