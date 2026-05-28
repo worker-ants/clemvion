@@ -454,6 +454,8 @@ LLM 응답
 
 길이 한도 / truncate 정책은 [`spec/conventions/cafe24-api-metadata.md §7.5`](../conventions/cafe24-api-metadata.md#75-catalog-key-형식--활동-로그-api_label) 참조.
 
+> **api 채우기는 호출부의 명시적 의무 (2026-05-28 회귀 방지)**: Internal Bridge 경로는 노드 핸들러의 `IntegrationHandlerBase.logUsage` (api 인자 자동 forward) 를 거치지 않고, tool provider (현재 `Cafe24McpToolProvider`) 가 `IntegrationsService.logUsage` 를 **직접 호출**한다. 따라서 `api` 식별 정보를 호출부에서 직접 채워야 하며, 누락해도 노드 핸들러 테스트는 통과하므로 사각지대가 된다. 실제로 활동 로그 API 식별 도입 (2026-05-28) 당시 본 Internal Bridge 경로의 `api` 채우기가 누락돼 AI Agent 의 cafe24 MCP 호출이 통합 상세 §4.6 활동 탭에서 `—` 로 표시되는 회귀가 발생했다. 채우는 값은 노드 핸들러와 동일 형식 (catalog key `cafe24.<resource>.<operation>` + operation.method + operation.path). 본 의무의 cross-cutting 정의는 [`spec/4-nodes/4-integration/_product-overview.md` INT-US-05 "실행 경로"](../4-nodes/4-integration/_product-overview.md#24-사용처-추적-및-라이프사이클) 가 SoT.
+
 **메타 도구 (`list_resources` · `read_resource` · `list_prompts` · `get_prompt`) 는 usage 로그에 기록하지 않는다** — 외부 API 호출이라기보다 MCP 세션의 내부 discovery 흐름이며, 매 호출 기록은 Activity 탭의 신호 대비 잡음을 키운다. 추후 별도 dashboard 가 필요해지면 분리된 trace 로 도입.
 
 `tools/list` / `resources/list` / `prompts/list` 등 buildTools 단계의 setup RPC 도 usage 로그에 기록하지 않는다.

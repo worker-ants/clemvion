@@ -57,7 +57,7 @@
 | INT-US-02 | 사용처가 존재하는 연동은 삭제 차단 — 사용 중 노드 목록을 표시하고 "먼저 연동을 교체하거나 노드를 제거" 안내 | 필수 |
 | INT-US-03 | 연동이 `expired`/`error` 상태로 전이되면 이를 참조하는 노드의 워크플로우 에디터에 경고 뱃지 표시 | 필수 |
 | INT-US-04 | 연동별 최근 호출 이력을 조회 가능하도록 `integration_usage_log` 기록 (노드 실행 시점마다 1건). 최근 7일 호출 수 차트 제공 | 필수 |
-| INT-US-05 | `integration_usage_log` 기록 시 호출 대상 API 식별 정보 (`api_label`/`api_method`/`api_path`) 를 함께 저장하여, 통합 상세 §4.6 Recent activity 탭에서 어떤 API 가 호출됐는지 사용자가 식별 가능. 채우기 정책은 통합별로 비대칭 (아래 표) — 핸들러는 `logUsage` 호출 시 `api` 식별 정보를 동반할 의무가 있다. 길이 한도 초과 시 백엔드가 끝에 `…` 를 붙여 자르고 저장 (`clampMessage` 패턴) | 필수 |
+| INT-US-05 | `integration_usage_log` 기록 시 호출 대상 API 식별 정보 (`api_label`/`api_method`/`api_path`) 를 함께 저장하여, 통합 상세 §4.6 Recent activity 탭에서 어떤 API 가 호출됐는지 사용자가 식별 가능. 채우기 정책은 통합별로 비대칭 (아래 표) — **`integration_usage_log` 에 행을 쓰는 모든 실행 경로** (노드 핸들러 + AI Agent Internal Bridge MCP provider — 아래 "실행 경로" 참조) 는 `logUsage` 호출 시 `api` 식별 정보를 동반할 의무가 있다. 길이 한도 초과 시 백엔드가 끝에 `…` 를 붙여 자르고 저장 (`clampMessage` 패턴) | 필수 |
 
 **활동 로그 API 식별 — 통합별 채우기 정책 (INT-US-05)**
 
@@ -69,6 +69,13 @@
 | send-email ([§3-send-email.md](./3-send-email.md)) | NULL | `SEND` | SMTP host or NULL |
 
 각 핸들러의 채우기 정책 상세는 해당 노드 spec 의 "활동 로그" 절 참조. 본 표가 단일 진실 — 위배는 [`spec/2-navigation/4-integration.md §4.6 / §9.3`](../../2-navigation/4-integration.md#46-recent-activity-탭) 의 UI 분기 (라벨 / endpoint / `—` fallback) 와 직접 어긋난다.
+
+**실행 경로 (api 동반 의무의 적용 범위)** — `integration_usage_log` 에 행을 쓰는 코드 경로는 두 부류이며, **양쪽 모두** `logUsage` 호출 시 위 표대로 `api` 를 채울 의무가 있다:
+
+1. **노드 핸들러 경로** — cafe24 / http-request / database-query / send-email 노드가 `IntegrationHandlerBase.logUsage` (`api` 인자 전달) 를 경유. base class 가 `api` 를 `IntegrationsService.logUsage` 로 forward.
+2. **AI Agent Internal Bridge 경로** — AI Agent 노드에 연결된 통합을 MCP tool 로 노출하는 provider (현재 cafe24: `Cafe24McpToolProvider`) 가 노드 base class 를 거치지 않고 `IntegrationsService.logUsage` 를 **직접 호출**한다. cafe24 Internal Bridge 는 노드 핸들러와 **동일한 catalog key 형식** (`cafe24.<resource>.<operation>`) 으로 `api.label` 을 채운다.
+
+> **누락 사각지대 주의 (2026-05-28 회귀)**: Internal Bridge 경로는 노드 핸들러 base class 를 거치지 않으므로, `api` 채우기를 빠뜨려도 노드 핸들러 테스트는 통과한다. 실제로 활동 로그 API 식별 도입 (2026-05-28) 당시 4개 노드 핸들러만 `api` 를 채우고 `Cafe24McpToolProvider` 경로를 누락해, AI Agent 의 cafe24 MCP 호출이 §4.6 활동 탭에서 `—` 로 표시되는 회귀가 발생했다. **신규 통합 실행 경로 (새 노드 핸들러 또는 새 Internal Bridge provider) 를 추가할 때 `logUsage` 호출의 `api` 동반은 필수 체크 항목이다.** 결정 근거: [`spec/2-navigation/4-integration.md ## Rationale`](../../2-navigation/4-integration.md#rationale).
 
 ### 2.5 Webhook 서비스 경계
 
