@@ -1,0 +1,195 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_routing_decision.json",
+  "routing_status": "done",
+  "routing_skip_reason": null,
+  "agents_forced": [
+    "documentation",
+    "requirement"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: spec/5-system/1-auth.md, spec/5-system/12-webhook.md, spec/conventions/secret-store.md (외 1건)"
+    ],
+    "requirement": [
+      "spec 본문 변경 — documentation 외에도 요구사항 일관성 검증 필요: spec/5-system/1-auth.md, spec/5-system/12-webhook.md, spec/conventions/secret-store.md (외 1건)"
+    ]
+  },
+  "agents_skipped": [
+    "performance",
+    "dependency",
+    "concurrency",
+    "user_guide_sync"
+  ],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/security.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/performance.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/architecture.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/documentation.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/dependency.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/database.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/concurrency.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/api_contract.md"
+    },
+    {
+      "name": "user_guide_sync",
+      "subagent_type": "user-guide-sync-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/_prompts/user_guide_sync.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/auth-config-webhook-wiring/review/code/2026/05/28/21_50_50/user_guide_sync.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "security",
+    "architecture",
+    "database",
+    "api_contract",
+    "documentation",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing"
+  ],
+  "agents_fatal": [],
+  "agent_history": {
+    "security": [
+      {
+        "ts": "2026-05-28T12:58:25.228686Z",
+        "status": "success"
+      }
+    ],
+    "architecture": [
+      {
+        "ts": "2026-05-28T12:58:25.264721Z",
+        "status": "success"
+      }
+    ],
+    "database": [
+      {
+        "ts": "2026-05-28T12:58:25.299666Z",
+        "status": "success"
+      }
+    ],
+    "api_contract": [
+      {
+        "ts": "2026-05-28T12:58:25.332604Z",
+        "status": "success"
+      }
+    ],
+    "documentation": [
+      {
+        "ts": "2026-05-28T12:58:25.364046Z",
+        "status": "success"
+      }
+    ],
+    "requirement": [
+      {
+        "ts": "2026-05-28T12:58:25.395633Z",
+        "status": "success"
+      }
+    ],
+    "scope": [
+      {
+        "ts": "2026-05-28T12:58:25.425323Z",
+        "status": "success"
+      }
+    ],
+    "side_effect": [
+      {
+        "ts": "2026-05-28T12:58:25.454883Z",
+        "status": "success"
+      }
+    ],
+    "maintainability": [
+      {
+        "ts": "2026-05-28T12:58:25.484501Z",
+        "status": "success"
+      }
+    ],
+    "testing": [
+      {
+        "ts": "2026-05-28T12:58:25.512976Z",
+        "status": "success"
+      }
+    ]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

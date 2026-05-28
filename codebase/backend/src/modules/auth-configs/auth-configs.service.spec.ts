@@ -185,10 +185,11 @@ describe('AuthConfigsService', () => {
     }
 
     it('bearer_token: 올바른 토큰 → 통과 + lastUsedAt 갱신', async () => {
-      const ac = await seed('bearer_token', { token: 'tok-abc' });
+      const ac = await seed('bearer_token', {});
+      const token = ac.config.token as string; // 자동 발급된 값
       await expect(
         service.verifyWebhookRequest(ac.id, WS, {
-          headers: { authorization: 'Bearer tok-abc' },
+          headers: { authorization: `Bearer ${token}` },
         }),
       ).resolves.toBeUndefined();
       expect(repo.update).toHaveBeenCalledWith(
@@ -221,22 +222,21 @@ describe('AuthConfigsService', () => {
     });
 
     it('api_key: 기본 X-API-Key 헤더 검증', async () => {
-      const ac = await seed('api_key', { key: 'k-123' });
+      const ac = await seed('api_key', {});
+      const key = ac.config.key as string;
       await expect(
         service.verifyWebhookRequest(ac.id, WS, {
-          headers: { 'x-api-key': 'k-123' },
+          headers: { 'x-api-key': key },
         }),
       ).resolves.toBeUndefined();
     });
 
     it('api_key: headerName 커스텀 헤더 검증', async () => {
-      const ac = await seed('api_key', {
-        key: 'k-123',
-        headerName: 'X-My-Key',
-      });
+      const ac = await seed('api_key', { headerName: 'X-My-Key' });
+      const key = ac.config.key as string;
       await expect(
         service.verifyWebhookRequest(ac.id, WS, {
-          headers: { 'x-my-key': 'k-123' },
+          headers: { 'x-my-key': key },
         }),
       ).resolves.toBeUndefined();
     });
@@ -262,12 +262,11 @@ describe('AuthConfigsService', () => {
     });
 
     it('hmac: 올바른 서명 → 통과', async () => {
-      const secret = 'whs_test';
       const ac = await seed('hmac', {
-        secret,
         header: 'X-Hub-Signature-256',
         algorithm: 'sha256',
       });
+      const secret = ac.config.secret as string; // 자동 발급된 값
       const rawBody = Buffer.from('{"a":1}');
       const sig = `sha256=${crypto.createHmac('sha256', secret).update(rawBody).digest('hex')}`;
       await expect(
@@ -325,17 +324,35 @@ describe('AuthConfigsService', () => {
     it('ip_whitelist: 허용 IP → 통과', async () => {
       const ac = await seed(
         'bearer_token',
-        { token: 't' },
+        {},
         {
           ipWhitelist: ['10.0.0.1'],
         },
       );
+      const token = ac.config.token as string;
       await expect(
         service.verifyWebhookRequest(ac.id, WS, {
-          headers: { authorization: 'Bearer t' },
+          headers: { authorization: `Bearer ${token}` },
           clientIp: '10.0.0.1',
         }),
       ).resolves.toBeUndefined();
+    });
+
+    it('ip_whitelist: 설정됐는데 clientIp 불명 → 401 (fail-closed)', async () => {
+      const ac = await seed(
+        'bearer_token',
+        {},
+        {
+          ipWhitelist: ['10.0.0.1'],
+        },
+      );
+      const token = ac.config.token as string;
+      await expect(
+        service.verifyWebhookRequest(ac.id, WS, {
+          headers: { authorization: `Bearer ${token}` },
+          // clientIp 미지정 — whitelist 설정 시 거부돼야 함
+        }),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('authConfigId 미존재 → 401', async () => {
