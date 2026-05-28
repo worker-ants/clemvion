@@ -29,6 +29,9 @@ export function getWebhookBaseUrl(): string {
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
   if (apiUrl) {
+    // 후행 슬래시 먼저 제거한 뒤 trailing `/api` segment 만 제거 (`.env.example`
+    // 컨벤션상 NEXT_PUBLIC_API_URL 은 `…/api` 로 끝남). `/api` 없이 origin 만
+    // 설정된 값은 그대로 origin 으로 쓰여 `${origin}/api/hooks/…` 가 된다.
     return stripTrailingSlash(apiUrl).replace(/\/api$/, "");
   }
 

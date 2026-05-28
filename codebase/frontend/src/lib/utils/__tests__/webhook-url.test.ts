@@ -48,6 +48,22 @@ describe("webhook-url", () => {
       vi.stubGlobal("window", { location: { origin: "https://staging.example.com" } });
       expect(getWebhookBaseUrl()).toBe("https://staging.example.com");
     });
+
+    it("treats a whitespace-only override as unset and falls through", () => {
+      process.env.NEXT_PUBLIC_WEBHOOK_BASE_URL = "   ";
+      process.env.NEXT_PUBLIC_API_URL = "http://localhost:3011/api";
+      expect(getWebhookBaseUrl()).toBe("http://localhost:3011");
+    });
+
+    it("uses NEXT_PUBLIC_API_URL as-is when it has no /api suffix", () => {
+      process.env.NEXT_PUBLIC_API_URL = "https://api.example.com";
+      expect(getWebhookBaseUrl()).toBe("https://api.example.com");
+    });
+
+    it("returns empty string when no env var is set and window is absent (SSR)", () => {
+      vi.stubGlobal("window", undefined);
+      expect(getWebhookBaseUrl()).toBe("");
+    });
   });
 
   describe("getWebhookUrl", () => {
@@ -64,6 +80,22 @@ describe("webhook-url", () => {
     it("does not double the slash when endpointPath has a leading slash", () => {
       process.env.NEXT_PUBLIC_API_URL = "https://app.example.com/api";
       expect(getWebhookUrl("/abc-123")).toBe("https://app.example.com/api/hooks/abc-123");
+    });
+
+    it("strips multiple leading slashes from endpointPath", () => {
+      process.env.NEXT_PUBLIC_API_URL = "https://app.example.com/api";
+      expect(getWebhookUrl("//abc-123")).toBe("https://app.example.com/api/hooks/abc-123");
+    });
+
+    it("composes the full URL from the explicit override (priority 1)", () => {
+      process.env.NEXT_PUBLIC_WEBHOOK_BASE_URL = "https://hooks.example.com";
+      process.env.NEXT_PUBLIC_API_URL = "https://app.example.com/api";
+      expect(getWebhookUrl(PATH)).toBe("https://hooks.example.com/api/hooks/abc-123");
+    });
+
+    it("composes a relative URL under SSR (no base) — WH-EP-02 path preserved", () => {
+      vi.stubGlobal("window", undefined);
+      expect(getWebhookUrl(PATH)).toBe("/api/hooks/abc-123");
     });
   });
 });
