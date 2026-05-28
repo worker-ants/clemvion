@@ -58,10 +58,12 @@ async function renderPage() {
   });
 }
 
-function mockTriggersResponse(body: unknown) {
-  // Two queries: /triggers (list) and /workflows (workflows-list dropdown)
+function mockTriggersResponse(body: unknown, authConfigs: unknown[] = []) {
+  // Queries: /triggers (list), /workflows (dropdown), /auth-configs (auth column).
   apiGetMock.mockImplementation((url: string) => {
     if (url === "/workflows") return Promise.resolve({ data: { data: [] } });
+    if (url === "/auth-configs")
+      return Promise.resolve({ data: { data: authConfigs } });
     return Promise.resolve({ data: body });
   });
 }
@@ -190,5 +192,106 @@ describe("TriggersPage — RBAC", () => {
     expect(screen.queryByText(/^delete$/i)).toBeNull();
     expect(screen.queryByText(/activate/i)).toBeNull();
     expect(screen.queryByText(/deactivate/i)).toBeNull();
+  });
+});
+
+// [Spec 2-trigger-list §2.1 "인증" 요소 + R-15] 인증 열 + 무인증 webhook 경고
+describe("TriggersPage — auth column", () => {
+  const WARNING_LABEL =
+    "This webhook is publicly accessible but has no authentication configured — a security risk.";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cleanup();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    setRole("editor");
+  });
+
+  function listBody(rows: unknown[]) {
+    return {
+      data: rows,
+      pagination: { page: 1, limit: 20, totalItems: rows.length, totalPages: 1 },
+    };
+  }
+
+  it("renders an Authentication column header", async () => {
+    mockTriggersResponse(
+      listBody([
+        {
+          id: "t1",
+          name: "Hook A",
+          type: "webhook",
+          isActive: true,
+          workflowId: "w1",
+          workflow: { id: "w1", name: "WF" },
+          authConfigId: null,
+        },
+      ]),
+    );
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(
+      screen.getByRole("columnheader", { name: "Authentication" }),
+    ).toBeInTheDocument();
+  });
+
+  it("webhook with a bound AuthConfig shows its type badge, no warning", async () => {
+    mockTriggersResponse(
+      listBody([
+        {
+          id: "t1",
+          name: "Hook A",
+          type: "webhook",
+          isActive: true,
+          workflowId: "w1",
+          workflow: { id: "w1", name: "WF" },
+          authConfigId: "ac-1",
+        },
+      ]),
+      [{ id: "ac-1", name: "Prod HMAC", type: "hmac" }],
+    );
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(await screen.findByText("HMAC")).toBeInTheDocument();
+    expect(screen.queryByLabelText(WARNING_LABEL)).toBeNull();
+  });
+
+  it("webhook without authentication shows a security warning icon", async () => {
+    mockTriggersResponse(
+      listBody([
+        {
+          id: "t1",
+          name: "Hook A",
+          type: "webhook",
+          isActive: true,
+          workflowId: "w1",
+          workflow: { id: "w1", name: "WF" },
+          authConfigId: null,
+        },
+      ]),
+    );
+    await renderPage();
+    await screen.findByText("Hook A");
+    expect(screen.getByLabelText(WARNING_LABEL)).toBeInTheDocument();
+  });
+
+  it("non-webhook (schedule) without auth shows no warning", async () => {
+    mockTriggersResponse(
+      listBody([
+        {
+          id: "t2",
+          name: "Daily",
+          type: "schedule",
+          isActive: true,
+          workflowId: "w1",
+          workflow: { id: "w1", name: "WF" },
+          authConfigId: null,
+        },
+      ]),
+    );
+    await renderPage();
+    await screen.findByText("Daily");
+    expect(screen.queryByLabelText(WARNING_LABEL)).toBeNull();
   });
 });

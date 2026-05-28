@@ -74,6 +74,10 @@ export const triggers = {
   authConfigNone: "인증 없음",
   authConfigCreateLink: "+ 새 인증 설정 만들기",
   authConfigLoadFailed: "인증 설정 목록을 불러오지 못했어요",
+  // [Spec 2-trigger-list §2.1 + R-15] 목록 인증 열
+  authConfigured: "설정됨",
+  authUnauthenticatedWarning:
+    "외부에 노출된 웹훅인데 인증이 설정되어 있지 않아 보안에 취약해요.",
   secretKey: "시크릿 키",
   secretPlaceholder: "your-secret-key",
   signatureHeader: "서명 헤더",
