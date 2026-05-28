@@ -443,11 +443,16 @@ LLM 응답
 
 [Spec 통합 §14 핸들러 실행 세멘틱](../2-navigation/4-integration.md#14-연관-동작) 에서 정의한 Integration 노드의 usage 로깅 패턴은 AI Agent 의 MCP 호출에도 적용된다 — `tools/call` 1회당 1 record, `node_execution_id` 는 호출 시점의 AI Agent NodeExecution.
 
-| 필드 | 값 |
-|------|----|
-| `status` | `success` / `failed` |
-| `error` | 실패 시 `{ code, message }` (§8.2 vocabulary). `message` 는 2KB 로 clamp |
-| `duration_ms` | RPC 호출 단위의 elapsed |
+| 필드 | 타입 | 값 |
+|------|------|----|
+| `status` | enum | `success` / `failed` |
+| `error` | jsonb? | 실패 시 `{ code, message }` (§8.2 vocabulary). `message` 는 2KB 로 clamp |
+| `duration_ms` | int | RPC 호출 단위의 elapsed |
+| `api_label` | `varchar(128)? NULL` | Internal Bridge (`Cafe24McpBridge`) 경로에서만 `cafe24.<resource>.<operation>` 형식 catalog key 채움. 외부 MCP 서버 경로는 NULL |
+| `api_method` | `varchar(8)? NULL` | Internal Bridge: HTTP method (cafe24 operation). 외부 MCP 경로: NULL |
+| `api_path` | `varchar(256)? NULL` | Internal Bridge: operation.path template. 외부 MCP 경로: NULL |
+
+길이 한도 / truncate 정책은 [`spec/conventions/cafe24-api-metadata.md §7.5`](../conventions/cafe24-api-metadata.md#75-catalog-key-형식--활동-로그-api_label) 참조.
 
 **메타 도구 (`list_resources` · `read_resource` · `list_prompts` · `get_prompt`) 는 usage 로그에 기록하지 않는다** — 외부 API 호출이라기보다 MCP 세션의 내부 discovery 흐름이며, 매 호출 기록은 Activity 탭의 신호 대비 잡음을 키운다. 추후 별도 dashboard 가 필요해지면 분리된 trace 로 도입.
 

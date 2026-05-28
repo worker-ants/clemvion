@@ -93,7 +93,10 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 4. **Integration stub 분기** — `integrationsService` 가 주입되지 않은 경우(테스트/DI 미주입) `status: 'requires_integration'` 로 즉시 반환 (외부 호출 없음). §5.4
 5. **Integration 조회** — `IntegrationsService.getForExecution(integrationId, workspaceId)` 로 SMTP 자격증명 복호화. `serviceType !== 'email'` / `status !== 'connected'` / 필수 필드 누락 → `IntegrationError` throw (catch 후 §5.3)
 6. **SMTP 발송** — credentials hash 기반으로 nodemailer transporter 캐시 재사용. `from = credentials.default_from`, `subject` / `body` 는 평가된 값. `bodyType='html'` 이면 `html` 옵션, 아니면 `text` 옵션
-7. **Usage 로깅** — `logUsage({integrationId, status, durationMs, error?})` 를 성공/실패 무관 호출 ([공통 §4.1](./0-common.md#41-공통-계약))
+7. **Usage 로깅** — `logUsage({integrationId, status, durationMs, error?, api})` 를 성공/실패 무관 호출 ([공통 §4.1](./0-common.md#41-공통-계약)). 활동 로그 API 식별 정보 (`_product-overview.md` INT-US-05):
+   - `api_label` = NULL (Send Email 은 단일 동작 — operation catalog 없음)
+   - `api_method` = `'SEND'` (상수 — 향후 다른 SMTP method 추가 시 enum 확장)
+   - `api_path` = `credentials.host` (SMTP host) 또는 NULL. **수신자 이메일은 절대 저장하지 않는다** (PII 보호 — 수신자 마스킹된 디테일은 §5.3 의 `output.error.details.to` 에 한정)
 8. **반환** — 성공 §5.1 / runtime 실패 §5.3 / Integration stub §5.4
 
 ## 5. 출력 구조
