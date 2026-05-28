@@ -33,6 +33,8 @@ import { parseDiscordUpdate } from './discord-update.parser';
 export class DiscordAdapter implements ChatChannelAdapter {
   private readonly logger = new Logger(DiscordAdapter.name);
   readonly provider = 'discord';
+  /** Discord 는 MODAL (type 9) 지원 — §4.1 native form modal (TEXT_INPUT only: text 계열만 수용). */
+  readonly supportsNativeForm = true;
 
   constructor(
     private readonly client: DiscordClient,

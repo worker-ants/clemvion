@@ -39,13 +39,16 @@ export type ChatChannelProvider = (typeof CHAT_CHANNEL_PROVIDERS)[number];
 
 export class ChatChannelUiMappingDto {
   @ApiPropertyOptional({
-    description: 'Form 노드의 채널 UI 매핑 모드. v1 은 multi_step 만.',
-    enum: ['multi_step'],
-    default: 'multi_step',
+    description:
+      'Form 노드의 채널 입력 표면. auto=지원 provider+전 필드 modal 수용+fields≤5 면 native modal, ' +
+      '아니면 다단계. native_modal=modal 우선 (미충족 시 다단계 fallback). multi_step=강제 다단계 opt-out. ' +
+      'SoT spec/conventions/chat-channel-adapter.md §2.3 / §4.1 / R-CCA-8.',
+    enum: ['multi_step', 'native_modal', 'auto'],
+    default: 'auto',
   })
   @IsOptional()
-  @IsIn(['multi_step'])
-  formMode?: 'multi_step';
+  @IsIn(['multi_step', 'native_modal', 'auto'])
+  formMode?: 'multi_step' | 'native_modal' | 'auto';
 
   @ApiPropertyOptional({
     description:

@@ -37,6 +37,8 @@ import type { ChannelButton } from '../../types';
 export class SlackAdapter implements ChatChannelAdapter {
   private readonly logger = new Logger(SlackAdapter.name);
   readonly provider = 'slack';
+  /** Slack 은 views.open modal 지원 — §4.1 native form modal (file 외 전 필드 수용). */
+  readonly supportsNativeForm = true;
 
   constructor(
     private readonly client: SlackClient,

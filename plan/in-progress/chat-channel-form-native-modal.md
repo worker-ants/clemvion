@@ -10,6 +10,8 @@ status: in-progress
 v1 Convention §4 "Form 다단계 시퀀스 규약" (모든 어댑터 동일 다단계 텍스트) 의 예외 절을 신설 — provider 가 native form UI (Slack `views.open` modal / Discord MODAL_SUBMIT) 를 지원 시 단일 step 으로 처리.
 
 > **Spec 단계 완료 (2026-05-28)**: Convention §4.1 / R-CCA-8 신설, slack.md §5.3 / R-S-6 + discord.md §5.3 / R-D-6 격상, 15-chat-channel.md CCH-MP-03 + formMode enum 갱신, telegram.md §5.3 cross-link 정정. consistency-check `--spec` 통과 (rationale-continuity OK — R4 "native UI 분기는 v2 옵션" 의 실현). 다음 단계 = developer 의 `--impl-prep` + 백엔드 구현.
+>
+> **impl-prep consistency-check (00_48_25) — CRITICAL 3건은 false-positive 판정**: cross-spec/convention-compliance checker 가 "Convention §4.1 / R-CCA-8 / form_modal / form_submission / formMode enum 미존재" 를 CRITICAL 로 보고했으나, 이는 checker 가 provider spec 의 Convention cross-link 를 **미병합 origin/main** 경로로 resolve 해 읽었기 때문 (origin/main grep 0건 vs worktree HEAD grep 11건 — `git show` 로 검증 완료). worktree HEAD (commit 78e5c71a) 의 spec 상태는 완전히 일관적. impl-prep 게이트 본질(구현 전 spec 내부 정합성)은 충족 — 진행.
 
 ## 진입 조건 (Convention 변경 필요)
 

@@ -55,7 +55,14 @@ export interface ChatChannelConfig {
   botIdentity?: { botId: number; username: string; teamId?: string };
 
   uiMapping?: {
-    formMode?: 'multi_step';
+    /**
+     * Form 입력 표면 선택. default "auto".
+     * - "auto": supportsNativeForm provider + 전 필드 modal 수용 타입 + fields ≤ 5 → native modal, 아니면 다단계.
+     * - "native_modal": modal 우선 (위 조건 미충족 시 다단계 fallback).
+     * - "multi_step": 항상 다단계 (modal 지원 provider 에서도 강제 — opt-out).
+     * SoT: spec/conventions/chat-channel-adapter.md §2.3 / §4.1 / R-CCA-8.
+     */
+    formMode?: 'multi_step' | 'native_modal' | 'auto';
     visualNode?: 'photo' | 'text_only';
     buttonLayout?: 'auto' | 'vertical' | 'horizontal';
   };
@@ -114,7 +121,20 @@ export type ChannelCommand =
   | { kind: 'text_message'; text: string }
   | { kind: 'button_callback'; callbackData: string; callbackQueryId: string }
   | { kind: 'file_upload'; fileId: string; mimeType: string }
-  | { kind: 'contact_share'; phone: string };
+  | { kind: 'contact_share'; phone: string }
+  /**
+   * §4.1 native modal 게이팅 — "양식 작성하기" 버튼 클릭. 어댑터가 이 시점에만 가용한
+   * trigger_id (Slack) / interaction token (Discord) 을 `openContext` 에 담아 반환.
+   * HooksService 가 conversation state 의 pendingFormModal 필드로 modal 을 연다.
+   * SoT: spec/conventions/chat-channel-adapter.md §4.1.
+   */
+  | { kind: 'open_form_modal'; openContext: Record<string, string> }
+  /**
+   * §4.1 native modal 일괄 제출 — Slack view_submission / Discord MODAL_SUBMIT.
+   * `fields` = { [fieldName]: rawValue } (parseUpdate 가 pure normalize).
+   * SoT: spec/conventions/chat-channel-adapter.md §2.1 / §4.1.
+   */
+  | { kind: 'form_submission'; fields: Record<string, string> };
 
 /** Outbound — 워크플로우 이벤트를 외부 채널 메시지로 변환한 결과. */
 export interface ChannelMessage {
@@ -133,6 +153,14 @@ export type ChannelMessageBody =
       label: string;
       hint?: KeyboardHint;
     }
+  /**
+   * §4.1 native modal 경로 — "양식 작성하기" 버튼 메시지. server push 시점엔 trigger_id/
+   * interaction token 이 없어 modal 을 즉시 못 열기 때문에, 버튼으로 사용자 클릭을 유도한 뒤
+   * 그 시점에 modal 을 연다. `formConfig` = EIA waiting_for_input.context.formConfig 원본
+   * (어댑터가 modal view 합성 시 fields shape 으로 읽음).
+   * SoT: spec/conventions/chat-channel-adapter.md §2.2 / §4.1.
+   */
+  | { kind: 'form_modal'; openLabel: string; formConfig: unknown }
   | { kind: 'image'; bytes: Buffer; caption?: string; fallbackText: string }
   | { kind: 'typing' };
 
@@ -155,6 +183,54 @@ export type KeyboardHint =
   | 'date'
   | 'file_upload'
   | 'share_contact';
+
+/**
+ * §4.1 native modal 이 필요로 하는 form 필드 정의 (formConfig.fields[] 의 정규화 shape).
+ * Form spec §1 config 의 부분집합 — modal view 합성 + modal 수용 타입 판정에 필요한 필드만.
+ * SoT: spec/4-nodes/6-presentation/4-form.md §1 / spec/conventions/chat-channel-adapter.md §2.2.
+ */
+export interface FormModalField {
+  name: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  description?: string;
+  /** select / radio 의 선택지. */
+  options?: Array<{ label: string; value: string }>;
+}
+
+/**
+ * §4.1 native modal open 파라미터 — HooksService 가 `open_form_modal` command 처리 시
+ * conversation state 의 pendingFormModal 필드 + parseUpdate 의 openContext 로 합성.
+ */
+export interface OpenFormModalParams {
+  config: ChatChannelConfig;
+  /** parseUpdate 가 추출한 provider 별 토큰 (Slack: { triggerId } / Discord: { interactionId, interactionToken }). */
+  openContext: Record<string, string>;
+  fields: FormModalField[];
+  conversationKey: string;
+  nodeId: string;
+}
+
+/**
+ * §4.1 native modal open 결과 — provider 비대칭 흡수.
+ * - Slack: `views.open` API 호출 후 `httpResponse` undefined (webhook 응답은 일반 ack).
+ * - Discord: modal 을 webhook HTTP 응답 body (`{ type: 9, data }`) 로 열어야 하므로 본 필드로 반환
+ *   → HooksController 가 res.json 으로 직접 전송.
+ */
+export interface OpenFormModalResult {
+  httpResponse?: unknown;
+}
+
+/**
+ * §4.1 native modal 제출 처리 결과 — provider 비대칭 HTTP 응답.
+ * - Slack view_submission: 성공 시 빈 200, 검증 실패 시 `{ response_action: 'errors', errors }`.
+ * - Discord MODAL_SUBMIT: ack (type 4/5) 또는 검증 실패 시 후속 안내.
+ */
+export interface FormSubmissionResult {
+  /** provider 가 webhook 응답 body 로 돌려줄 JSON (Slack response_action / Discord ack). undefined 면 일반 ack. */
+  httpResponse?: unknown;
+}
 
 /**
  * EiaEvent — NotificationDispatcher 의 in-process subscriber 가 받는 5종 union.
@@ -318,6 +394,13 @@ export interface SendResult {
 /** Adapter interface — 모든 provider 어댑터 구현 의무. */
 export interface ChatChannelAdapter {
   readonly provider: string;
+  /**
+   * provider 가 native form modal (Slack views.open / Discord MODAL) 을 지원하는지.
+   * true 면 renderNode 의 form 분기가 modal-eligible form 에 대해 form_modal 메시지를 낸다.
+   * false (Telegram) 는 항상 §4.2 다단계.
+   * SoT: spec/conventions/chat-channel-adapter.md §1 / R-CCA-8.
+   */
+  readonly supportsNativeForm: boolean;
   setupChannel(
     config: ChatChannelConfig,
     callbackUrl: string,
@@ -354,6 +437,25 @@ export interface ChatChannelAdapter {
    * 는 본 메서드 존재 여부를 type-guard 로 확인 후 best-effort 호출.
    */
   revokeBotToken?(oldBotToken: string): Promise<void>;
+
+  /**
+   * (옵션, supportsNativeForm=true 어댑터 한정) §4.1 native modal open.
+   * `open_form_modal` command 도착 시 HooksService 가 호출 — Slack 은 views.open API,
+   * Discord 는 webhook HTTP 응답 body 로 modal 반환 (OpenFormModalResult.httpResponse).
+   * SoT: spec/conventions/chat-channel-adapter.md §4.1.
+   */
+  openFormModal?(params: OpenFormModalParams): Promise<OpenFormModalResult>;
+
+  /**
+   * (옵션, supportsNativeForm=true 어댑터 한정) §4.1 native modal 제출의 provider HTTP 응답 합성.
+   * EIA submit_form 호출은 HooksService 가 담당하고, 본 메서드는 provider 가 webhook 응답으로
+   * 돌려줘야 하는 ack / 검증 실패 재표시 body 만 합성. validationError 가 있으면 재표시 body.
+   * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 5.
+   */
+  buildFormSubmissionResponse?(params: {
+    config: ChatChannelConfig;
+    validationError?: { field?: string; message: string };
+  }): FormSubmissionResult;
 }
 
 /** Redis ChannelConversation 레코드 — Spec §4.3. */
@@ -376,5 +478,15 @@ export interface ChannelConversationState {
     nodeId: string;
     currentFieldIdx: number;
     partialFormData: Record<string, unknown>;
+  };
+  /**
+   * §4.1 native modal 진행 상태 — dispatcher 가 form_modal 메시지를 낼 때 저장.
+   * 사용자가 "양식 작성하기" 버튼 클릭 (open_form_modal) 시 modal view 합성에, modal 제출
+   * (form_submission) 시 submit_form 의 nodeId 에 사용. multi_step 경로는 본 필드 미사용 (formState 사용).
+   * SoT: spec/conventions/chat-channel-adapter.md §4.1.
+   */
+  pendingFormModal?: {
+    nodeId: string;
+    fields: FormModalField[];
   };
 }
