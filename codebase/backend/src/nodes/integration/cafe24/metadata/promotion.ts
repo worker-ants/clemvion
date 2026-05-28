@@ -7,7 +7,6 @@ import {
 export const promotionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'coupon_list',
-    label: '쿠폰 목록 조회',
     description: 'List coupons available in the mall.',
     scopeType: 'read',
     method: 'GET',
@@ -33,7 +32,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   // 미확인. 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'coupon_get',
-    label: '쿠폰 단건 조회',
     description:
       'Get a single coupon by coupon_no. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
@@ -48,7 +46,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'coupon_create',
-    label: '쿠폰 생성',
     description: 'Create a new coupon.',
     scopeType: 'write',
     method: 'POST',
@@ -75,7 +72,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'coupon_issue',
-    label: '쿠폰 발급',
     description: 'Issue a coupon to specified members.',
     scopeType: 'write',
     method: 'POST',
@@ -97,7 +93,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'coupon_delete',
-    label: '쿠폰 삭제',
     description:
       'Delete a coupon by coupon_no. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'write',
@@ -111,7 +106,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'coupon_count',
-    label: '쿠폰 개수 조회',
     description:
       'Retrieve the total count of coupons. Sibling of coupon_list (paginated).',
     scopeType: 'read',
@@ -125,7 +119,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'coupon_issues_list',
-    label: '발급 쿠폰 목록 조회',
     description:
       'List the issuance records of a coupon (who received it, when).',
     scopeType: 'read',
@@ -143,7 +136,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'coupon_issuance_customers_list',
-    label: '쿠폰 발급 대상 회원 목록',
     description:
       'List customers eligible for conditional issuance of a coupon.',
     scopeType: 'read',
@@ -159,7 +151,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customers_coupons_list',
-    label: '회원별 쿠폰 목록',
     description:
       'List the coupons a customer holds. Uses the codebase-wide `member_id` path placeholder (Cafe24 docs call this `customer_no`).',
     scopeType: 'read',
@@ -175,7 +166,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customers_coupons_count',
-    label: '회원별 쿠폰 개수',
     description: 'Retrieve the count of coupons a customer holds.',
     scopeType: 'read',
     method: 'GET',
@@ -189,7 +179,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'serialcoupons_list',
-    label: '시리얼 쿠폰 코드 조회',
     description:
       'Retrieve the generated serial coupon codes for a coupon (paginated by limit/offset).',
     scopeType: 'read',
@@ -204,7 +193,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'serialcoupons_generate',
-    label: '시리얼 쿠폰 코드 생성',
     description:
       'Generate a batch of serial coupon codes. `coupon_no` + `quantity` in body.',
     scopeType: 'write',
@@ -223,7 +211,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'serialcoupons_delete',
-    label: '시리얼 쿠폰 코드 삭제',
     description:
       'Delete serial coupon codes for a coupon. (Specific code filtering via query/body per cafe24 docs.)',
     scopeType: 'write',
@@ -240,7 +227,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'serialcoupons_issues_get',
-    label: '시리얼 쿠폰 발급 코드 조회',
     description: 'List the issued/used codes for a serial coupon.',
     scopeType: 'read',
     method: 'GET',
@@ -254,7 +240,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'serialcoupons_issues_register',
-    label: '시리얼 쿠폰 발급 코드 등록',
     description: 'Register a specific code into the serial coupon issued set.',
     scopeType: 'write',
     method: 'POST',
@@ -270,7 +255,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   // Phase 6c — benefits CRUD + customerevents + customers_coupons_delete
   {
     id: 'benefits_list',
-    label: '회원 혜택 목록',
     description: 'List the customer-benefit campaigns configured on the mall.',
     scopeType: 'read',
     method: 'GET',
@@ -284,7 +268,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'benefits_count',
-    label: '회원 혜택 개수',
     description: 'Retrieve the count of configured customer benefits.',
     scopeType: 'read',
     method: 'GET',
@@ -297,7 +280,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'benefits_get',
-    label: '회원 혜택 단건 조회',
     description: 'Retrieve a single customer benefit by benefit_no.',
     scopeType: 'read',
     method: 'GET',
@@ -311,7 +293,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'benefits_create',
-    label: '회원 혜택 생성',
     description:
       'Create a customer-benefit campaign. Required: benefit_name, benefit_type, start_date, end_date, benefit_scope.',
     scopeType: 'write',
@@ -360,7 +341,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'benefits_update',
-    label: '회원 혜택 수정',
     description:
       'Update a customer-benefit campaign by benefit_no. Body fields are partial — provide only the ones to change.',
     scopeType: 'write',
@@ -389,7 +369,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'benefits_delete',
-    label: '회원 혜택 삭제',
     description: 'Delete a customer-benefit campaign by benefit_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -402,7 +381,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customerevents_get',
-    label: '회원 정보 이벤트 조회',
     description: 'Retrieve the current member-information-update event status.',
     scopeType: 'read',
     method: 'GET',
@@ -415,7 +393,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customerevents_create',
-    label: '회원 정보 이벤트 생성',
     description:
       'Create a member-information-modification campaign event. Refer to Cafe24 docs for the full body schema (event period, reward, target tier, ...).',
     scopeType: 'write',
@@ -440,7 +417,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customerevents_update_status',
-    label: '회원 정보 이벤트 상태 수정',
     description:
       'Update the run-status of the member-information-update event.',
     scopeType: 'write',
@@ -460,7 +436,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customers_coupons_delete',
-    label: '회원 쿠폰 삭제',
     description:
       'Remove a coupon from a customer. Uses codebase `member_id` placeholder (Cafe24 docs: customer_no).',
     scopeType: 'write',
@@ -477,7 +452,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   // Phase 7a — discountcodes CRUD + commonevents CRUD
   {
     id: 'discountcodes_list',
-    label: '할인 코드 목록',
     description: 'List discount codes for the mall.',
     scopeType: 'read',
     method: 'GET',
@@ -491,7 +465,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'discountcodes_get',
-    label: '할인 코드 단건 조회',
     description: 'Retrieve a discount code by discount_code_no.',
     scopeType: 'read',
     method: 'GET',
@@ -505,7 +478,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'discountcodes_create',
-    label: '할인 코드 생성',
     description:
       'Create a discount code. Body fields are partial — refer to Cafe24 docs for the discount type / amount schema.',
     scopeType: 'write',
@@ -538,7 +510,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'discountcodes_update',
-    label: '할인 코드 수정',
     description: 'Update a discount code by discount_code_no (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -565,7 +536,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'discountcodes_delete',
-    label: '할인 코드 삭제',
     description: 'Delete a discount code by discount_code_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -578,7 +548,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commonevents_list',
-    label: '전체 이벤트 목록',
     description: 'List storewide promotions / events.',
     scopeType: 'read',
     method: 'GET',
@@ -592,7 +561,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commonevents_create',
-    label: '전체 이벤트 생성',
     description:
       'Create a storewide promotion. Body fields are partial — see Cafe24 docs.',
     scopeType: 'write',
@@ -617,7 +585,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commonevents_update',
-    label: '전체 이벤트 수정',
     description: 'Update a storewide promotion by event_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -642,7 +609,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commonevents_delete',
-    label: '전체 이벤트 삭제',
     description: 'Delete a storewide promotion by event_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -656,7 +622,6 @@ export const promotionOperations: Cafe24OperationMetadata[] = [
   // Phase 8b — Promotion 완성 (coupon_manage)
   {
     id: 'coupon_manage',
-    label: '쿠폰 관리 (사용/중지)',
     description: 'Manage a coupon — pause or resume it via `use_coupon` enum.',
     scopeType: 'write',
     method: 'PUT',

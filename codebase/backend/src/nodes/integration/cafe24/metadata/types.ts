@@ -122,7 +122,8 @@ export interface Cafe24RestrictedApproval {
  */
 export interface Cafe24OperationMetadata {
   id: string;
-  label: string;
+  // `label` 필드는 frontend i18n dict (`cafe24Catalog.<resource>.<id>`) 로 이주
+  // 됨 (2026-05-28). SoT: spec/conventions/cafe24-api-metadata.md §7.5.
   description: string;
   scopeType: 'read' | 'write';
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';

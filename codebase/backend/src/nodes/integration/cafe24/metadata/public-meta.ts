@@ -42,7 +42,12 @@ export interface PublicCafe24Field {
 export interface PublicCafe24OperationSupported {
   status: 'supported';
   id: string;
-  label: string;
+  /**
+   * Frontend i18n dict (`cafe24Catalog.<key>`) lookup key. 형식:
+   * `cafe24.<resource>.<id>`. SoT: spec/conventions/cafe24-api-metadata.md §7.5.
+   * dict lookup miss 시 frontend 는 본 키를 그대로 노출 (fallback) — drift 즉시 감지.
+   */
+  labelKey: string;
   description: string;
   scope: 'read' | 'write';
   paginated: boolean;
@@ -59,7 +64,8 @@ export interface PublicCafe24OperationSupported {
 export interface PublicCafe24OperationPlanned {
   status: 'planned';
   id: string;
-  label: string;
+  /** `cafe24.<resource>.<id>` — same shape as supported. */
+  labelKey: string;
   paginated: boolean;
 }
 
@@ -82,9 +88,13 @@ export interface PublicCafe24Extras {
  * Project an internal `Cafe24OperationMetadata` into its public shape.
  * `method` and `path` are intentionally dropped — frontend renders the
  * form from labels + field types only.
+ *
+ * @param op - Internal operation metadata row from `CAFE24_OPERATIONS_BY_RESOURCE`.
+ * @param resource - Cafe24 resource key (e.g. `"product"`). Used to build `labelKey`.
  */
 export function toPublicSupportedOperation(
   op: Cafe24OperationMetadata,
+  resource: Cafe24Resource,
 ): PublicCafe24OperationSupported {
   const required = new Set(op.requiredFields);
   const fields: PublicCafe24Field[] = Object.entries(op.fields).map(
@@ -101,7 +111,7 @@ export function toPublicSupportedOperation(
   return {
     status: 'supported',
     id: op.id,
-    label: op.label,
+    labelKey: `cafe24.${resource}.${op.id}`,
     description: op.description,
     scope: op.scopeType,
     paginated: op.paginated === true,
@@ -113,13 +123,18 @@ export function toPublicSupportedOperation(
   };
 }
 
+/**
+ * @param op - Planned operation entry from `CAFE24_PLANNED_BY_RESOURCE`.
+ * @param resource - Cafe24 resource key. Used to build `labelKey`.
+ */
 function toPublicPlannedOperation(
   op: Cafe24PlannedOperationEntry,
+  resource: Cafe24Resource,
 ): PublicCafe24OperationPlanned {
   return {
     status: 'planned',
     id: op.id,
-    label: op.label,
+    labelKey: `cafe24.${resource}.${op.id}`,
     paginated: op.paginated === true,
   };
 }
@@ -141,12 +156,16 @@ export function buildCafe24Extras(): PublicCafe24Extras {
   for (const [resource, ops] of Object.entries(
     CAFE24_OPERATIONS_BY_RESOURCE,
   ) as Array<[Cafe24Resource, readonly Cafe24OperationMetadata[]]>) {
-    operationsByResource[resource] = ops.map(toPublicSupportedOperation);
+    operationsByResource[resource] = ops.map((op) =>
+      toPublicSupportedOperation(op, resource),
+    );
   }
   for (const [resource, ops] of Object.entries(
     CAFE24_PLANNED_BY_RESOURCE,
   ) as Array<[Cafe24Resource, readonly Cafe24PlannedOperationEntry[]]>) {
-    plannedByResource[resource] = ops.map(toPublicPlannedOperation);
+    plannedByResource[resource] = ops.map((op) =>
+      toPublicPlannedOperation(op, resource),
+    );
   }
 
   return { operationsByResource, plannedByResource };

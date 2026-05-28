@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-28T11:25:21Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "I/O 루프·캐시·비동기 변경 없음, 메타데이터 필드 제거만"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "모듈 경계·DI 변경 없음, 동일 타입 정의 영역 내 필드 제거"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec §7.5 책임 분리 약속 + INT-US-05 검증 필요"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 18 메타데이터 파일 + frontend 통합 + spec 변경 범위 정당성"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): PublicCafe24Operation 시그니처 변경 (label→labelKey) — /nodes/definitions 응답 shape 변경"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 18 metadata 파일 + public-meta.ts + types.ts"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — public-meta.spec.ts assertion 정합성"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): spec §7.5 신설 + CHANGELOG + Rationale 갱신 + plan 문서"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json / lock 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "migrations / schema / ORM 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "async/await·Promise·락·워커 변경 없음, 동기 메타데이터 리터럴"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "/nodes/definitions cafe24 extras 응답 shape 변경 (label→labelKey) 호환성 단절"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": true,
+      "reason": "cafe24 operation 라벨 i18n 책임 분리로 frontend dict 단일 SoT 확립, 사용자 가이드 sync 검토 필요"
+    }
+  ],
+  "selected_count": 10,
+  "skipped_count": 4,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

@@ -4,7 +4,6 @@ import { RESTRICTED_APPROVAL } from './restricted-approval.js';
 export const notificationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'sms_send',
-    label: 'SMS 발송',
     description: 'Send an SMS via the Cafe24 SMS service.',
     scopeType: 'write',
     method: 'POST',
@@ -21,7 +20,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'sms_balance_get',
-    label: 'SMS 잔액 조회',
     description: 'Get the remaining SMS credit balance.',
     scopeType: 'read',
     method: 'GET',
@@ -36,7 +34,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   // Phase 6f — Notification 보완
   {
     id: 'sms_senders_list',
-    label: 'SMS 발신자 목록 조회',
     description: 'List the registered SMS sender numbers.',
     scopeType: 'read',
     method: 'GET',
@@ -50,7 +47,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'sms_receivers_get',
-    label: 'SMS 수신자 조회',
     description: 'Retrieve a single SMS recipient.',
     scopeType: 'read',
     method: 'GET',
@@ -66,7 +62,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'automails_get',
-    label: '자동 이메일 설정 조회',
     description: 'Retrieve the automated email settings.',
     scopeType: 'read',
     method: 'GET',
@@ -80,7 +75,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'automails_update',
-    label: '자동 이메일 설정 수정',
     description:
       'Update the automated email settings. Body fields are partial — refer to Cafe24 docs for the full schema.',
     scopeType: 'write',
@@ -95,7 +89,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'recipientgroups_list',
-    label: '수신자 그룹 목록',
     description: 'List distribution (recipient) groups.',
     scopeType: 'read',
     method: 'GET',
@@ -110,7 +103,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'recipientgroups_get',
-    label: '수신자 그룹 상세',
     description: 'Retrieve details of a single distribution group by group_no.',
     scopeType: 'read',
     method: 'GET',
@@ -126,7 +118,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   // Phase 8e — Notification 완성 (invitation + recipientgroups CUD)
   {
     id: 'customers_invitation_send',
-    label: '회원 활성화 초대 발송',
     description: 'Send an invitation to a member to activate their account.',
     scopeType: 'write',
     method: 'POST',
@@ -141,7 +132,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'recipientgroups_create',
-    label: '수신자 그룹 생성',
     description:
       'Create a distribution group. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
@@ -157,7 +147,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'recipientgroups_update',
-    label: '수신자 그룹 수정',
     description: 'Update a distribution group (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -173,7 +162,6 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'recipientgroups_delete',
-    label: '수신자 그룹 삭제',
     description: 'Delete a distribution group by group_no.',
     scopeType: 'write',
     method: 'DELETE',

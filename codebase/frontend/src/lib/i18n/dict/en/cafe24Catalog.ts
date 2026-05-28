@@ -1,10 +1,10 @@
 /**
  * Cafe24 catalog key → human-friendly label dict (EN).
  *
- * Auto-derived from `operation.id` (snake_case → verb + nouns). KO sibling
+ * Labels are authored from operation id (snake_case → verb + nouns). KO sibling
  * at `dict/ko/cafe24Catalog.ts` is the SoT for catalog meaning; EN labels
  * here aim for a natural verb-first phrasing (e.g. `orders_list` → "List orders").
- * When a new operation is added, both dicts must be updated in the same PR.
+ * When a new operation is added, KO/EN must both be updated in the same PR.
  *
  * SoT: see KO sibling.
  */

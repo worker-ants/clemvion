@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const communityOperations: Cafe24OperationMetadata[] = [
   {
     id: 'boards_list',
-    label: '게시판 목록 조회',
     description: 'List boards in the mall.',
     scopeType: 'read',
     method: 'GET',
@@ -17,7 +16,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'board_articles_list',
-    label: '게시판 글 목록 조회',
     description: 'List articles in a specific board.',
     scopeType: 'read',
     method: 'GET',
@@ -32,7 +30,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'board_article_get',
-    label: '게시판 글 단건 조회',
     description: 'Get a single article.',
     scopeType: 'read',
     method: 'GET',
@@ -48,7 +45,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   // Phase 7c — Community boards CRUD + comments + commenttemplates + urgentinquiry
   {
     id: 'boards_settings_get',
-    label: '게시판 설정 조회',
     description: "Retrieve a board's settings.",
     scopeType: 'read',
     method: 'GET',
@@ -62,7 +58,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'boards_settings_update',
-    label: '게시판 설정 수정',
     description: "Update a board's settings (partial).",
     scopeType: 'write',
     method: 'PUT',
@@ -78,7 +73,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'board_articles_create',
-    label: '게시판 글 작성',
     description: 'Create a board article.',
     scopeType: 'write',
     method: 'POST',
@@ -96,7 +90,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'board_articles_update',
-    label: '게시판 글 수정',
     description: 'Update a board article.',
     scopeType: 'write',
     method: 'PUT',
@@ -113,7 +106,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'board_articles_delete',
-    label: '게시판 글 삭제',
     description: 'Delete a board article.',
     scopeType: 'write',
     method: 'DELETE',
@@ -128,7 +120,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'board_articles_comments_list',
-    label: '게시판 댓글 목록',
     description: 'List comments on a board article.',
     scopeType: 'read',
     method: 'GET',
@@ -144,7 +135,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'board_articles_comments_create',
-    label: '게시판 댓글 작성',
     description: 'Create a comment on a board article.',
     scopeType: 'write',
     method: 'POST',
@@ -161,7 +151,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'board_articles_comments_delete',
-    label: '게시판 댓글 삭제',
     description: 'Delete a comment on a board article.',
     scopeType: 'write',
     method: 'DELETE',
@@ -177,7 +166,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commenttemplates_list',
-    label: '자주 쓰는 답변 목록',
     description: 'List the frequently-used reply templates.',
     scopeType: 'read',
     method: 'GET',
@@ -191,7 +179,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commenttemplates_create',
-    label: '자주 쓰는 답변 생성',
     description: 'Create a frequently-used reply template.',
     scopeType: 'write',
     method: 'POST',
@@ -207,7 +194,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   // Phase 8j — Community 완성 (boards extras + commenttemplates rest + financials + urgentinquiry)
   {
     id: 'boards_comments_bulk',
-    label: '게시판 댓글 일괄 조회',
     description: 'Bulk list of comments across a board (all articles).',
     scopeType: 'read',
     method: 'GET',
@@ -222,7 +208,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'boards_seo_get',
-    label: '게시판 SEO 조회',
     description: "Retrieve a board's SEO settings.",
     scopeType: 'read',
     method: 'GET',
@@ -236,7 +221,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'boards_seo_update',
-    label: '게시판 SEO 수정',
     description: "Update a board's SEO settings (partial).",
     scopeType: 'write',
     method: 'PUT',
@@ -252,7 +236,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commenttemplates_get',
-    label: '자주 쓰는 답변 단건',
     description: 'Retrieve a single comment template by template_no.',
     scopeType: 'read',
     method: 'GET',
@@ -266,7 +249,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commenttemplates_update',
-    label: '자주 쓰는 답변 수정',
     description: 'Update a comment template (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -282,7 +264,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'commenttemplates_delete',
-    label: '자주 쓰는 답변 삭제',
     description: 'Delete a comment template.',
     scopeType: 'write',
     method: 'DELETE',
@@ -295,7 +276,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'financials_monthlyreviews_count',
-    label: '월별 후기 카운트',
     description: 'Retrieve the count of product reviews by month.',
     scopeType: 'read',
     method: 'GET',
@@ -310,7 +290,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'urgentinquiry_get',
-    label: '긴급 문의 게시글 조회',
     description: 'Retrieve an urgent-inquiry article by inquiry_no.',
     scopeType: 'read',
     method: 'GET',
@@ -324,7 +303,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'urgentinquiry_reply_get',
-    label: '긴급 문의 답변 조회',
     description: 'Retrieve the reply to an urgent inquiry.',
     scopeType: 'read',
     method: 'GET',
@@ -339,7 +317,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'urgentinquiry_reply_create',
-    label: '긴급 문의 답변 작성',
     description: 'Create a reply to an urgent inquiry.',
     scopeType: 'write',
     method: 'POST',
@@ -354,7 +331,6 @@ export const communityOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'urgentinquiry_reply_update',
-    label: '긴급 문의 답변 수정',
     description: 'Update the reply to an urgent inquiry (partial).',
     scopeType: 'write',
     method: 'PUT',

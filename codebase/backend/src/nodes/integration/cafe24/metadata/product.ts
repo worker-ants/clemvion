@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const productOperations: Cafe24OperationMetadata[] = [
   {
     id: 'product_list',
-    label: '상품 목록 조회',
     description:
       'List products in the mall. Supports filtering by category, display status, date range, price range.',
     scopeType: 'read',
@@ -62,7 +61,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_get',
-    label: '상품 단건 조회',
     description: 'Get a single product by product_no.',
     scopeType: 'read',
     method: 'GET',
@@ -76,7 +74,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_create',
-    label: '상품 생성',
     description:
       'Create a new product. Required fields vary by mall settings; refer to Cafe24 docs for the full field list.',
     scopeType: 'write',
@@ -111,7 +108,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_update',
-    label: '상품 수정',
     description:
       'Update a product (name, price, display, selling, description, ...).',
     scopeType: 'write',
@@ -131,7 +127,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_delete',
-    label: '상품 삭제',
     description: 'Delete a product by product_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -144,7 +139,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_variants_list',
-    label: '상품 품목(옵션) 목록 조회',
     description: 'List variants (option combinations) for a product.',
     scopeType: 'read',
     method: 'GET',
@@ -159,7 +153,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_variants_inventory_update',
-    label: '상품 품목 재고 수정',
     description: 'Update inventory quantity for a specific variant.',
     scopeType: 'write',
     method: 'PUT',
@@ -181,7 +174,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_count',
-    label: '상품 개수 조회',
     description:
       'Retrieve the total count of products matching the supplied filters. Cafe24 docs surface count-specific URL as the sibling `/count` path of the list endpoint, mirroring `order_count`.',
     scopeType: 'read',
@@ -232,7 +224,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_options_list',
-    label: '상품 옵션 목록 조회',
     description: 'List the option set defined on a product.',
     scopeType: 'read',
     method: 'GET',
@@ -247,7 +238,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_options_create',
-    label: '상품 옵션 생성',
     description:
       'Create a new option on a product (e.g. size, color). `option_values` is the array of selectable values.',
     scopeType: 'write',
@@ -278,7 +268,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_options_update',
-    label: '상품 옵션 수정',
     description:
       'Update an existing product option identified by `option_no` (body).',
     scopeType: 'write',
@@ -309,7 +298,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_options_delete',
-    label: '상품 옵션 삭제',
     description:
       'Delete the entire option configuration from a product (cafe24 docs `delete-a-product-option`: removes all options).',
     scopeType: 'write',
@@ -326,7 +314,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_seo_get',
-    label: '상품 SEO 설정 조회',
     description:
       "Retrieve a product's SEO meta settings (title / description / keywords / URL path).",
     scopeType: 'read',
@@ -341,7 +328,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_seo_update',
-    label: '상품 SEO 설정 수정',
     description:
       "Update a product's SEO meta settings. All body fields are optional — provide only the ones to change.",
     scopeType: 'write',
@@ -362,7 +348,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   // Batch 2-A — product_variants (5) · product_additionalimages (3) · product_images (2)
   {
     id: 'product_variants_get',
-    label: '상품 품목 단건 조회',
     description: 'Retrieve a single product variant.',
     scopeType: 'read',
     method: 'GET',
@@ -376,7 +361,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_variants_update',
-    label: '상품 품목 수정',
     description: 'Update a single product variant.',
     scopeType: 'write',
     method: 'PUT',
@@ -390,7 +374,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_variants_update_multiple',
-    label: '상품 품목 일괄 수정',
     description: 'Update multiple variants of a product in one call.',
     scopeType: 'write',
     method: 'PUT',
@@ -403,7 +386,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_variants_delete',
-    label: '상품 품목 삭제',
     description: 'Delete a product variant.',
     scopeType: 'write',
     method: 'DELETE',
@@ -417,7 +399,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_variants_inventory_get',
-    label: '상품 품목 재고 조회',
     description: 'Retrieve inventory details for a product variant.',
     scopeType: 'read',
     method: 'GET',
@@ -431,7 +412,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_additionalimages_create',
-    label: '추가 이미지 등록',
     description: 'Register an additional product image.',
     scopeType: 'write',
     method: 'POST',
@@ -444,7 +424,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_additionalimages_update',
-    label: '추가 이미지 수정',
     description: 'Update additional product images.',
     scopeType: 'write',
     method: 'PUT',
@@ -457,7 +436,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_additionalimages_delete',
-    label: '추가 이미지 삭제',
     description:
       'Delete all additional product images for a product (collection-level DELETE — individual image_no selector is not supported by the Cafe24 endpoint).',
     scopeType: 'write',
@@ -471,7 +449,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_images_upload',
-    label: '상품 이미지 업로드',
     description: 'Upload product image files.',
     scopeType: 'write',
     method: 'POST',
@@ -484,7 +461,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_images_delete',
-    label: '상품 이미지 삭제',
     description: "Delete a product's image files (per-product scope).",
     scopeType: 'write',
     method: 'DELETE',
@@ -501,7 +477,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   // Batch 2-B — product_approve (3) · customproperties (3) · decorationimages (4)
   {
     id: 'product_approve_get',
-    label: '상품 승인 상태 조회',
     description: 'Retrieve approval status for a product.',
     scopeType: 'read',
     method: 'GET',
@@ -514,7 +489,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_approve_create',
-    label: '상품 승인 요청',
     description: 'Create an approval request for a product.',
     scopeType: 'write',
     method: 'POST',
@@ -527,7 +501,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_approve_update',
-    label: '상품 승인 상태 변경',
     description: 'Update the approval status of a product.',
     scopeType: 'write',
     method: 'PUT',
@@ -540,7 +513,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_customproperties_get',
-    label: '상품 사용자 정의 속성 조회',
     description: 'Retrieve user-defined custom properties for a product.',
     scopeType: 'read',
     method: 'GET',
@@ -553,7 +525,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_customproperties_update',
-    label: '상품 사용자 정의 속성 수정',
     description:
       'Update a specific user-defined custom property for a product.',
     scopeType: 'write',
@@ -573,7 +544,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_customproperties_delete',
-    label: '상품 사용자 정의 속성 삭제',
     description:
       'Delete a specific user-defined custom property for a product.',
     scopeType: 'write',
@@ -589,7 +559,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_decorationimages_list',
-    label: '상품 꾸미기 이미지 목록',
     description: 'List decoration images attached to a product.',
     scopeType: 'read',
     method: 'GET',
@@ -605,7 +574,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_decorationimages_set',
-    label: '상품 꾸미기 이미지 설정',
     description: 'Set (create) a decoration image for a product.',
     scopeType: 'write',
     method: 'POST',
@@ -618,7 +586,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_decorationimages_update',
-    label: '상품 꾸미기 이미지 수정',
     description: 'Update a decoration image of a product.',
     scopeType: 'write',
     method: 'PUT',
@@ -631,7 +598,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_decorationimages_delete',
-    label: '상품 꾸미기 이미지 삭제',
     description:
       'Delete a specific decoration image (by code) attached to a product.',
     scopeType: 'write',
@@ -654,7 +620,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   // Batch 2-C — product_discountprice · hits · icons (4) · memos (5)
   {
     id: 'product_discountprice_get',
-    label: '상품 할인가 조회',
     description: 'Retrieve the discounted price for a product.',
     scopeType: 'read',
     method: 'GET',
@@ -667,7 +632,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_hits_count',
-    label: '상품 조회수 카운트',
     description: 'Retrieve view-count statistics for a product.',
     scopeType: 'read',
     method: 'GET',
@@ -683,7 +647,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_icons_list',
-    label: '상품 아이콘 목록',
     description: 'List icons attached to a product.',
     scopeType: 'read',
     method: 'GET',
@@ -699,7 +662,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_icons_set',
-    label: '상품 아이콘 설정',
     description: 'Set (create) an icon for a product.',
     scopeType: 'write',
     method: 'POST',
@@ -712,7 +674,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_icons_update',
-    label: '상품 아이콘 수정',
     description: 'Update icons of a product.',
     scopeType: 'write',
     method: 'PUT',
@@ -725,7 +686,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_icons_delete',
-    label: '상품 아이콘 삭제',
     description: 'Delete an icon of a product by code.',
     scopeType: 'write',
     method: 'DELETE',
@@ -747,7 +707,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_memos_list',
-    label: '상품 메모 목록',
     description: 'List memos attached to a product.',
     scopeType: 'read',
     method: 'GET',
@@ -763,7 +722,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_memos_get',
-    label: '상품 메모 단건 조회',
     description: 'Retrieve a single product memo by memo_no.',
     scopeType: 'read',
     method: 'GET',
@@ -777,7 +735,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_memos_create',
-    label: '상품 메모 생성',
     description: 'Create a memo for a product.',
     scopeType: 'write',
     method: 'POST',
@@ -790,7 +747,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_memos_update',
-    label: '상품 메모 수정',
     description: 'Update a product memo by memo_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -804,7 +760,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_memos_delete',
-    label: '상품 메모 삭제',
     description: 'Delete a product memo by memo_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -819,7 +774,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   // Batch 2-D — product_tags (4) · bundleproducts (5) · categories_products (4)
   {
     id: 'product_tags_list',
-    label: '상품 태그 목록',
     description: 'List tags attached to a product.',
     scopeType: 'read',
     method: 'GET',
@@ -835,7 +789,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_tags_count',
-    label: '상품 태그 개수',
     description: 'Count tags attached to a product.',
     scopeType: 'read',
     method: 'GET',
@@ -848,7 +801,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_tags_create',
-    label: '상품 태그 생성',
     description: 'Create one or more tags for a product.',
     scopeType: 'write',
     method: 'POST',
@@ -861,7 +813,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'product_tags_delete',
-    label: '상품 태그 삭제',
     description: 'Delete a product tag by tag value.',
     scopeType: 'write',
     method: 'DELETE',
@@ -883,7 +834,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'bundleproducts_list',
-    label: '묶음 상품 목록',
     description: 'List bundle products.',
     scopeType: 'read',
     method: 'GET',
@@ -898,7 +848,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'bundleproducts_get',
-    label: '묶음 상품 단건 조회',
     description: 'Retrieve a single bundle product by product_no.',
     scopeType: 'read',
     method: 'GET',
@@ -911,7 +860,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'bundleproducts_create',
-    label: '묶음 상품 생성',
     description: 'Create a bundle product.',
     scopeType: 'write',
     method: 'POST',
@@ -922,7 +870,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'bundleproducts_update',
-    label: '묶음 상품 수정',
     description: 'Update a bundle product.',
     scopeType: 'write',
     method: 'PUT',
@@ -935,7 +882,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'bundleproducts_delete',
-    label: '묶음 상품 삭제',
     description: 'Delete a bundle product.',
     scopeType: 'write',
     method: 'DELETE',
@@ -948,7 +894,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'categories_products_count',
-    label: '카테고리 내 상품 개수',
     description: 'Count products belonging to a category.',
     scopeType: 'read',
     method: 'GET',
@@ -961,7 +906,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'categories_products_add',
-    label: '카테고리에 상품 추가',
     description: 'Add products to a category.',
     scopeType: 'write',
     method: 'POST',
@@ -974,7 +918,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'categories_products_update',
-    label: '카테고리 상품 수정',
     description: 'Update products attached to a category.',
     scopeType: 'write',
     method: 'PUT',
@@ -987,7 +930,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'categories_products_delete',
-    label: '카테고리 상품 삭제',
     description: 'Delete a specific product from a category.',
     scopeType: 'write',
     method: 'DELETE',
@@ -1011,7 +953,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   // PUT method).
   {
     id: 'mains_products_list',
-    label: '메인 카테고리 상품 목록',
     description: 'List products attached to a main display category.',
     scopeType: 'read',
     method: 'GET',
@@ -1028,7 +969,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mains_products_count',
-    label: '메인 카테고리 상품 개수',
     description: 'Count products attached to a main display category.',
     scopeType: 'read',
     method: 'GET',
@@ -1042,7 +982,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mains_products_set',
-    label: '메인 카테고리 상품 설정',
     description: 'Set products attached to a main display category.',
     scopeType: 'write',
     method: 'POST',
@@ -1056,7 +995,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mains_products_update_sorting',
-    label: '메인 카테고리 상품 정렬 수정',
     description: 'Update fixed sorting of products in a main display category.',
     scopeType: 'write',
     method: 'PUT',
@@ -1070,7 +1008,6 @@ export const productOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mains_products_delete',
-    label: '메인 카테고리 상품 삭제',
     description: 'Delete products from a main display category.',
     scopeType: 'write',
     method: 'DELETE',

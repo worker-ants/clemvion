@@ -247,7 +247,12 @@ export type Cafe24RestrictedApproval = {
 export type Cafe24SupportedOperation = {
   status: "supported";
   id: string;
-  label: string;
+  /**
+   * i18n dict (`cafe24Catalog.<key>`) lookup key. 형식: `cafe24.<resource>.<id>`.
+   * SoT: `spec/conventions/cafe24-api-metadata.md §7.5`. dict lookup miss 시
+   * 본 키 자체를 그대로 노출 (fallback) — drift 즉시 감지.
+   */
+  labelKey: string;
   description: string;
   scope: "read" | "write";
   paginated: boolean;
@@ -263,7 +268,8 @@ export type Cafe24SupportedOperation = {
 export type Cafe24PlannedOperation = {
   status: "planned";
   id: string;
-  label: string;
+  /** `cafe24.<resource>.<id>` — same shape as supported. */
+  labelKey: string;
   paginated: boolean;
 };
 
