@@ -1,4 +1,4 @@
--- V065: trigger.config 에서 폐지된 inline webhook 인증 키 제거 (cleanup)
+-- V066: trigger.config 에서 폐지된 inline webhook 인증 키 제거 (cleanup)
 --
 -- 관련 spec:
 --   - spec/5-system/12-webhook.md §2.2 (config 에 인증 키 미보유) + Rationale "inline auth path 폐지"
