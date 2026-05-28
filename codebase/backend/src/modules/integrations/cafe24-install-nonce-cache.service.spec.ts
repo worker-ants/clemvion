@@ -100,6 +100,27 @@ describe('Cafe24InstallNonceCache', () => {
     expect(redis.quit).toHaveBeenCalled();
   });
 
+  it('close() is a no-op (no throw) when Redis is not configured', async () => {
+    const noRedis = new Cafe24InstallNonceCache();
+    await expect(noRedis.close()).resolves.toBeUndefined();
+  });
+
+  // INFO-5 — collision 테스트는 trade-off 의 "동일 prefix → 동일 키" 만 검증할 뿐
+  // prefix 길이 자체는 박제하지 않는다. prefix 길이를 8 이외로 바꾸면 키 길이가
+  // 달라지므로, 키의 hmac 세그먼트가 정확히 8자임을 직접 assertion 으로 고정한다.
+  it('nonce key uses exactly the first 8 chars of the hmac (prefix length invariant)', async () => {
+    redis.set.mockResolvedValue('OK');
+    await cache.isReplay({
+      mallId: 'myshop',
+      timestamp: '1700000000',
+      hmac: 'abcdefgh-IJKLMNOP-this-tail-must-not-appear',
+    });
+    const key = redis.set.mock.calls[0][0] as string;
+    const hmacSegment = key.split(':').pop();
+    expect(hmacSegment).toBe('abcdefgh');
+    expect(hmacSegment).toHaveLength(8);
+  });
+
   // W-39 — HMAC prefix(8자) 만으로 키를 만들기 때문에, 첫 8자가 동일하고
   // 나머지가 다른 두 HMAC 은 동일 nonce key 로 합쳐진다. 즉 두 번째 호출이
   // 실제론 다른 HMAC 임에도 replay 로 마킹된다. 이건 의도된 trade-off

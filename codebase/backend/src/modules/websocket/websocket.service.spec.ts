@@ -3,6 +3,7 @@ import {
   BackgroundRunEventType,
   ExecutionChannelEvent,
   ExecutionEventType,
+  MAX_SANITIZE_DEPTH,
   NodeEventType,
   WebsocketService,
 } from './websocket.service';
@@ -76,6 +77,39 @@ describe('WebsocketService', () => {
       expect(payload.errorMessage).toBe('pg failure');
     });
 
+    it('redacts the full credential key pattern set (password/token/secret/...)', () => {
+      // CREDENTIAL_KEY_PATTERN 이 api_key 외의 키들도 일관 마스킹하는지 회귀.
+      // 패턴 목록에서 키를 추가/제거하면 본 테스트가 신호를 준다.
+      const secrets = {
+        password: 'pw',
+        passwd: 'pw',
+        pwd: 'pw',
+        apiKey: 'k',
+        secret: 's',
+        token: 't',
+        accessToken: 'at',
+        refresh_token: 'rt',
+        privateKey: 'pk',
+        client_secret: 'cs',
+        authorization: 'Bearer x',
+        cookie: 'sid=1',
+      };
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        { nested: { ...secrets, keep: 'ok' } },
+      );
+      const payload = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const nested = payload.nested as Record<string, unknown>;
+      for (const key of Object.keys(secrets)) {
+        expect(nested[key]).toBe('[REDACTED]');
+      }
+      expect(nested.keep).toBe('ok');
+    });
+
     it('preserves nested object reference identity when no credential key is present', () => {
       // GC-pressure 최적화: 자식 변경이 없으면 sanitize 가 새 객체를 만들지
       // 않고 원본 참조를 그대로 반환해야 한다 (Review 후속 #14 / W-25).
@@ -126,10 +160,10 @@ describe('WebsocketService', () => {
     it('redacts the whole subtree when sanitize depth exceeds MAX_SANITIZE_DEPTH', () => {
       // depth 초과 경로에서는 credential 키 매칭을 더 수행할 수 없으므로
       // 보수적으로 [REDACTED_DEPTH] 로 통째 마스킹 (Review 후속 #4).
-      // MAX_SANITIZE_DEPTH = 10 — 11단계 깊이 페이로드 끝에 credential 을 박아
-      // 통째 마스킹이 되는지 검증.
+      // MAX_SANITIZE_DEPTH 를 초과하는 깊이 페이로드 끝에 credential 을 박아
+      // 통째 마스킹이 되는지 검증. 상수 변경 시 자동 추적되도록 매직넘버 대신 import.
       let deep: Record<string, unknown> = { api_key: 'should-not-leak' };
-      for (let i = 0; i < 12; i++) deep = { next: deep };
+      for (let i = 0; i < MAX_SANITIZE_DEPTH + 2; i++) deep = { next: deep };
       service.emitBackgroundRunEvent(
         'bg-run-1',
         BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
