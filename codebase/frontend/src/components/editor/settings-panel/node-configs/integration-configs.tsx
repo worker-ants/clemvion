@@ -4,6 +4,7 @@ import { IntegrationSelector } from "./integration-selector";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n/types";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 import { cafe24Catalog as cafe24CatalogKo } from "@/lib/i18n/dict/ko/cafe24Catalog";
 import { cafe24Catalog as cafe24CatalogEn } from "@/lib/i18n/dict/en/cafe24Catalog";
@@ -390,9 +391,13 @@ function findPlannedOperation(
  * dict 에 key 가 등록되지 않은 경우 (catalog drift) 본 key 자체를 그대로 반환
  * — 사용자가 보면 어색하지만 dict 누락 즉시 감지 가능. SoT:
  * spec/conventions/cafe24-api-metadata.md §7.5 "dict lookup miss fallback".
+ *
+ * @param locale - Active UI locale ("ko" | "en"). Drives dict selection.
+ * @param labelKey - `cafe24.<resource>.<id>` key from PublicCafe24Operation.labelKey.
+ * @returns Human-friendly label string, or `labelKey` itself on dict miss.
  */
 function resolveCafe24OperationLabel(
-  locale: "ko" | "en",
+  locale: Locale,
   labelKey: string,
 ): string {
   const dict = locale === "en" ? cafe24CatalogEn : cafe24CatalogKo;

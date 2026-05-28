@@ -52,11 +52,11 @@ parent_branch: claude/integration-activity-api-label-ed0a6e
 
 ## Phase
 
-- [ ] Phase 0 — plan 작성, spec 영역 식별 (본 turn 일부)
-- [ ] Phase 1 — spec 갱신 (project-planner 위임)
-- [ ] Phase 2 — `consistency-check --impl-prep` 통과
-- [ ] Phase 3 — backend: types/metadata 18 파일 label 제거 + public-meta.ts labelKey 도입
-- [ ] Phase 4 — frontend: PublicCafe24Operation type 갱신 + integration-configs dict lookup
+- [x] Phase 0 — plan 작성, spec 영역 식별 (본 turn 일부)
+- [x] Phase 1 — spec 갱신 (project-planner 위임)
+- [x] Phase 2 — `consistency-check --impl-prep` 통과
+- [x] Phase 3 — backend: types/metadata 18 파일 label 제거 + public-meta.ts labelKey 도입
+- [x] Phase 4 — frontend: PublicCafe24Operation type 갱신 + integration-configs dict lookup
 - [ ] Phase 5 — TEST WORKFLOW (lint/unit/build/e2e)
 - [ ] Phase 6 — REVIEW WORKFLOW (/ai-review + RESOLUTION + 재테스트)
 - [ ] Phase 7 — plan complete 이동

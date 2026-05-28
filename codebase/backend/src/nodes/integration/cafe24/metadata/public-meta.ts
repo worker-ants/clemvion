@@ -88,6 +88,9 @@ export interface PublicCafe24Extras {
  * Project an internal `Cafe24OperationMetadata` into its public shape.
  * `method` and `path` are intentionally dropped — frontend renders the
  * form from labels + field types only.
+ *
+ * @param op - Internal operation metadata row from `CAFE24_OPERATIONS_BY_RESOURCE`.
+ * @param resource - Cafe24 resource key (e.g. `"product"`). Used to build `labelKey`.
  */
 export function toPublicSupportedOperation(
   op: Cafe24OperationMetadata,
@@ -120,6 +123,10 @@ export function toPublicSupportedOperation(
   };
 }
 
+/**
+ * @param op - Planned operation entry from `CAFE24_PLANNED_BY_RESOURCE`.
+ * @param resource - Cafe24 resource key. Used to build `labelKey`.
+ */
 function toPublicPlannedOperation(
   op: Cafe24PlannedOperationEntry,
   resource: Cafe24Resource,
