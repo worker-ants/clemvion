@@ -27,9 +27,7 @@ describe('HooksController', () => {
     hooksService = {
       handleWebhook: jest.fn(),
     };
-    controller = new HooksController(
-      hooksService as unknown as HooksService,
-    );
+    controller = new HooksController(hooksService as unknown as HooksService);
   });
 
   it('interactionHttpResponse 있을 때 res.status(200).json(interactionHttpResponse) 직접 전송', async () => {
@@ -70,6 +68,9 @@ describe('HooksController', () => {
 
     // res.json 미호출 — TransformInterceptor 에 위임.
     expect(res.json).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ executionId: 'exec-2', message: expect.stringContaining('Webhook') });
+    expect(result).toMatchObject({
+      executionId: 'exec-2',
+      message: expect.stringContaining('Webhook'),
+    });
   });
 });

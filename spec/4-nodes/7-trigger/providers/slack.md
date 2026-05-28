@@ -264,6 +264,7 @@ Convention §1.1 의 `ackInteraction` 정책 — provider 에 따라 noop 가능
 - **Config 필드**: `Trigger.config.chatChannel.inboundSigningRef = "secret://triggers/{id}/inbound-signing"` 로 set. Telegram / Discord 와 **동일 슬롯** — provider 별 자원 성격·검증 알고리즘은 backend 의 provider 분기 책임 ([Convention §2.3 ChatChannelConfig](../../../conventions/chat-channel-adapter.md#23-chatchannelconfig)). Slack 의 경우 발급 주체 = Slack 앱 install 시점에 Slack 이 발급하여 사용자가 manual 입력 (provider-issued). 사용자 입력 plaintext 가 직접 `SecretResolver.store` 로 들어가고 ref 만 config 에 보관 — `setupChannel` 의 `SetupResult.issuedInboundSigning` 은 비움 (server-issued 한정 필드). Rationale R-S-1.
 - group/channel/mpim event 는 어댑터 진입점에서 차단 ([CCH-CV-05](../../../5-system/15-chat-channel.md#32-identity--conversation-매핑)) — `event.channel_type !== "im"`. `groupChatRefusal` 안내 발송 후 update 무시.
 - 다른 봇이 보낸 메시지 (`bot_id` 존재) 도 무시.
+- **§4.1 native modal `private_metadata` (위험 수용)**: `openFormModal` 이 view 의 `private_metadata` 에 `conversationKey` (DM 채널 ID, 예: `D0123ABCD`) 를 평문으로 담는다 — view_submission 이 채널 ID 를 payload 에 포함하지 않아 submit 시 conversation 복원에 필요. Slack 서버가 이 값을 열람·보관할 수 있으나 (a) 채널 ID 자체는 비밀이 아니며 (Slack 이 이미 보유), (b) 봇 토큰·signing secret 등 자격증명은 일절 포함하지 않으므로 **위험 수용**. 자격증명·PII 는 `private_metadata` 에 절대 넣지 않는다 (SS-SE-01 정신).
 
 **HTTP 응답 코드 정책**: 인증 / 비활성 트리거 / group chat / 미지원 event / 어댑터 내부 에러 등 모든 케이스의 응답 정책은 [Spec Chat Channel §5.5 Inbound HTTP Contract](../../../5-system/15-chat-channel.md#55-inbound-http-contract) 가 단일 진실. 본 파일은 케이스 매트릭스 사본을 두지 않음 (drift 회피).
 

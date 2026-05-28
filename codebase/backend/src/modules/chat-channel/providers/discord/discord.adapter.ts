@@ -4,11 +4,11 @@ import type {
   ChannelButton,
   ChannelMessage,
   ChannelUpdate,
-  ChatChannelAdapter,
   ChatChannelConfig,
   ChatChannelInternalEvent,
   EiaEvent,
   FormSubmissionResult,
+  NativeFormAdapter,
   OpenFormModalParams,
   OpenFormModalResult,
   SendResult,
@@ -34,11 +34,11 @@ import { NATIVE_MODAL_MAX_FIELDS } from '../../shared/form-mode';
  *   - R-CC-13: 자유 텍스트 DM 미수신 → reply 는 `/workflow reply` slash 또는 modal TEXT_INPUT.
  */
 @Injectable()
-export class DiscordAdapter implements ChatChannelAdapter {
+export class DiscordAdapter implements NativeFormAdapter {
   private readonly logger = new Logger(DiscordAdapter.name);
   readonly provider = 'discord';
   /** Discord 는 MODAL (type 9) 지원 — §4.1 native form modal (TEXT_INPUT only: text 계열만 수용). */
-  readonly supportsNativeForm = true;
+  readonly supportsNativeForm = true as const;
 
   constructor(
     private readonly client: DiscordClient,

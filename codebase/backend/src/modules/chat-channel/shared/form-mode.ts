@@ -88,6 +88,59 @@ export function extractFormFields(formConfig: unknown): FormModalField[] {
   return out;
 }
 
+/** §4.1 step 4 client-side 검증 정규식 — 기본 email shape. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** §4.1 step 4 client-side 검증 정규식 — 정수/소수 (음수 허용). */
+const NUMBER_RE = /^-?\d+(\.\d+)?$/;
+
+/**
+ * §4.1 step 4 — submit_form 전 client-side 값 검증 (pure). 서버측 EIA 검증 + catch 경로를
+ * 보완하는 1차 게이트. defs 순서대로 검사해 FIRST 오류를 반환, 모두 통과면 null.
+ *
+ * 규칙 (def 별):
+ *   - required: 값 누락/공백 → 필수 입력 오류.
+ *   - type=email: 비어있지 않은 값이 EMAIL_RE 미충족 → 이메일 형식 오류.
+ *   - type=number: 비어있지 않은 값이 NUMBER_RE 미충족 → 숫자 형식 오류.
+ *   - type=select|radio (+ options): 비어있지 않은 값이 options.value 집합 밖 → 선택지 오류.
+ * 빈 optional 필드는 skip.
+ *
+ * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 4.
+ */
+export function validateFormSubmission(
+  fields: Record<string, string>,
+  defs: FormModalField[],
+): { field: string; message: string } | null {
+  for (const def of defs) {
+    const raw = fields[def.name];
+    const value = typeof raw === 'string' ? raw : '';
+    const isEmpty = value.trim().length === 0;
+
+    if (def.required === true && isEmpty) {
+      return { field: def.name, message: '필수 입력 항목입니다.' };
+    }
+    // 빈 optional 필드는 형식 검증 skip.
+    if (isEmpty) continue;
+
+    if (def.type === 'email' && !EMAIL_RE.test(value)) {
+      return { field: def.name, message: '올바른 이메일 형식이 아닙니다.' };
+    }
+    if (def.type === 'number' && !NUMBER_RE.test(value)) {
+      return { field: def.name, message: '숫자만 입력해 주세요.' };
+    }
+    if (
+      (def.type === 'select' || def.type === 'radio') &&
+      def.options &&
+      def.options.length > 0
+    ) {
+      const allowed = def.options.map((o) => o.value);
+      if (!allowed.includes(value)) {
+        return { field: def.name, message: '유효한 선택지가 아닙니다.' };
+      }
+    }
+  }
+  return null;
+}
+
 function normalizeOptions(
   raw: unknown,
 ): Array<{ label: string; value: string }> | undefined {

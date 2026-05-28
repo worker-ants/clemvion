@@ -1,5 +1,10 @@
-import { decideFormMode, extractFormFields } from './form-mode';
-import type { FormModalField } from '../types';
+import {
+  decideFormMode,
+  extractFormFields,
+  validateFormSubmission,
+} from './form-mode';
+import { isNativeFormAdapter } from '../types';
+import type { ChatChannelAdapter, FormModalField } from '../types';
 
 /** Slack: file 외 전부 modal 수용. */
 const slackCompatible = (f: FormModalField): boolean => f.type !== 'file';
@@ -153,5 +158,136 @@ describe('extractFormFields', () => {
     ).toEqual([]);
     expect(extractFormFields(null)).toEqual([]);
     expect(extractFormFields({})).toEqual([]);
+  });
+});
+
+describe('validateFormSubmission', () => {
+  it('required 필드 누락/공백 → 필수 입력 오류', () => {
+    const defs = [field({ name: 'email', type: 'email', required: true })];
+    expect(validateFormSubmission({}, defs)).toEqual({
+      field: 'email',
+      message: '필수 입력 항목입니다.',
+    });
+    expect(validateFormSubmission({ email: '   ' }, defs)).toEqual({
+      field: 'email',
+      message: '필수 입력 항목입니다.',
+    });
+  });
+
+  it('email — 잘못된 형식 → 오류 / 올바른 형식 → null', () => {
+    const defs = [field({ name: 'email', type: 'email' })];
+    expect(validateFormSubmission({ email: 'bad-email' }, defs)).toEqual({
+      field: 'email',
+      message: '올바른 이메일 형식이 아닙니다.',
+    });
+    expect(validateFormSubmission({ email: 'a@b.io' }, defs)).toBeNull();
+  });
+
+  it('number — 비숫자 → 오류 / 숫자 → null', () => {
+    const defs = [field({ name: 'age', type: 'number' })];
+    expect(validateFormSubmission({ age: 'abc' }, defs)).toEqual({
+      field: 'age',
+      message: '숫자만 입력해 주세요.',
+    });
+    expect(validateFormSubmission({ age: '42' }, defs)).toBeNull();
+    expect(validateFormSubmission({ age: '-3.14' }, defs)).toBeNull();
+  });
+
+  it('select — options 밖 값 → 오류 / options 안 값 → null', () => {
+    const defs = [
+      field({
+        name: 'plan',
+        type: 'select',
+        options: [
+          { label: 'A', value: 'a' },
+          { label: 'B', value: 'b' },
+        ],
+      }),
+    ];
+    expect(validateFormSubmission({ plan: 'z' }, defs)).toEqual({
+      field: 'plan',
+      message: '유효한 선택지가 아닙니다.',
+    });
+    expect(validateFormSubmission({ plan: 'a' }, defs)).toBeNull();
+  });
+
+  it('radio — options 밖 값 → 오류', () => {
+    const defs = [
+      field({
+        name: 'r',
+        type: 'radio',
+        options: [{ label: 'Yes', value: 'y' }],
+      }),
+    ];
+    expect(validateFormSubmission({ r: 'n' }, defs)).toEqual({
+      field: 'r',
+      message: '유효한 선택지가 아닙니다.',
+    });
+  });
+
+  it('모든 필드 유효 → null', () => {
+    const defs = [
+      field({ name: 'email', type: 'email', required: true }),
+      field({ name: 'age', type: 'number' }),
+    ];
+    expect(
+      validateFormSubmission({ email: 'a@b.io', age: '30' }, defs),
+    ).toBeNull();
+  });
+
+  it('빈 optional 필드는 형식 검증 skip', () => {
+    const defs = [field({ name: 'email', type: 'email' })];
+    expect(validateFormSubmission({ email: '' }, defs)).toBeNull();
+    expect(validateFormSubmission({}, defs)).toBeNull();
+  });
+
+  it('FIRST 오류만 반환 (def 순서)', () => {
+    const defs = [
+      field({ name: 'email', type: 'email' }),
+      field({ name: 'age', type: 'number' }),
+    ];
+    expect(
+      validateFormSubmission({ email: 'bad', age: 'alsobad' }, defs),
+    ).toEqual({ field: 'email', message: '올바른 이메일 형식이 아닙니다.' });
+  });
+});
+
+describe('isNativeFormAdapter', () => {
+  const base = {
+    provider: 'x',
+    setupChannel: jest.fn(),
+    teardownChannel: jest.fn(),
+    parseUpdate: jest.fn(),
+    renderNode: jest.fn(),
+    sendMessage: jest.fn(),
+    ackInteraction: jest.fn(),
+  };
+
+  it('supportsNativeForm:true + 두 메서드 모두 함수 → true', () => {
+    const adapter = {
+      ...base,
+      supportsNativeForm: true,
+      openFormModal: jest.fn(),
+      buildFormSubmissionResponse: jest.fn(),
+    } as unknown as ChatChannelAdapter;
+    expect(isNativeFormAdapter(adapter)).toBe(true);
+  });
+
+  it('supportsNativeForm:false → false', () => {
+    const adapter = {
+      ...base,
+      supportsNativeForm: false,
+      openFormModal: jest.fn(),
+      buildFormSubmissionResponse: jest.fn(),
+    } as unknown as ChatChannelAdapter;
+    expect(isNativeFormAdapter(adapter)).toBe(false);
+  });
+
+  it('메서드 누락 시 → false', () => {
+    const adapter = {
+      ...base,
+      supportsNativeForm: true,
+    } as unknown as ChatChannelAdapter;
+    expect(isNativeFormAdapter(adapter)).toBe(false);
   });
 });

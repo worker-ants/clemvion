@@ -22,17 +22,40 @@ class MockRedis {
     return entry.value;
   }
 
+  /**
+   * 두 호출 형식 모두 수용:
+   *  - upsert: set(key, value, 'EX', ttlSec)
+   *  - acquireLock: set(key, value, 'EX', ttlSec, 'NX') → NX 면 이미 존재 시 null.
+   */
   async set(
     key: string,
     value: string,
     _ex: 'EX',
     ttlSec: number,
-  ): Promise<void> {
+    nx?: 'NX',
+  ): Promise<string | null> {
+    if (nx === 'NX' && (await this.get(key)) !== null) {
+      return null;
+    }
     this.store.set(key, { value, expiresAt: Date.now() + ttlSec * 1000 });
+    return 'OK';
   }
 
   async del(key: string): Promise<number> {
     return this.store.delete(key) ? 1 : 0;
+  }
+
+  /** releaseLock 의 안전 해제 Lua 모사: token 일치 시에만 del. */
+  async eval(
+    _script: string,
+    _numKeys: number,
+    key: string,
+    token: string,
+  ): Promise<number> {
+    if ((await this.get(key)) === token) {
+      return this.store.delete(key) ? 1 : 0;
+    }
+    return 0;
   }
 
   async quit(): Promise<void> {}
@@ -179,6 +202,84 @@ describe('ChannelConversationService', () => {
     it('Redis 미주입 시 false', () => {
       const degradedService = new ChannelConversationService();
       expect(degradedService.isAvailable()).toBe(false);
+    });
+  });
+
+  describe('acquireLock() / releaseLock()', () => {
+    it('첫 호출 → true (lock 획득), 동시 둘째 호출 → false (NX 미충족)', async () => {
+      const first = await service.acquireLock(triggerId, conversationKey, 't1');
+      expect(first).toBe(true);
+      const second = await service.acquireLock(
+        triggerId,
+        conversationKey,
+        't2',
+      );
+      expect(second).toBe(false);
+    });
+
+    it('releaseLock 후 동일 conversation 재획득 가능', async () => {
+      await service.acquireLock(triggerId, conversationKey, 't1');
+      await service.releaseLock(triggerId, conversationKey, 't1');
+      const reAcquired = await service.acquireLock(
+        triggerId,
+        conversationKey,
+        't3',
+      );
+      expect(reAcquired).toBe(true);
+    });
+
+    it('releaseLock 은 token 불일치 시 lock 을 삭제하지 않음 (소유권 확인)', async () => {
+      await service.acquireLock(triggerId, conversationKey, 'owner');
+      // 다른 token 으로 release 시도 → 삭제되면 안 됨.
+      await service.releaseLock(triggerId, conversationKey, 'intruder');
+      const stillHeld = await service.acquireLock(
+        triggerId,
+        conversationKey,
+        'other',
+      );
+      expect(stillHeld).toBe(false);
+    });
+
+    it('releaseLock 은 eval 을 호출 (Lua 안전 해제)', async () => {
+      const evalSpy = jest.spyOn(redis, 'eval');
+      await service.acquireLock(triggerId, conversationKey, 't1');
+      await service.releaseLock(triggerId, conversationKey, 't1');
+      expect(evalSpy).toHaveBeenCalledWith(
+        expect.stringContaining("redis.call('del',KEYS[1])"),
+        1,
+        `chat-channel-lock:${triggerId}:${conversationKey}:formsubmit`,
+        't1',
+      );
+    });
+
+    it('Redis 미가용 시 acquireLock → true (fail-open)', async () => {
+      const degradedService = new ChannelConversationService();
+      const acquired = await degradedService.acquireLock(
+        triggerId,
+        conversationKey,
+        't1',
+      );
+      expect(acquired).toBe(true);
+    });
+
+    it('Redis 미가용 시 releaseLock → noop (예외 없음)', async () => {
+      const degradedService = new ChannelConversationService();
+      await expect(
+        degradedService.releaseLock(triggerId, conversationKey, 't1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('lock key 는 별도 namespace 라 conversation state 와 충돌 없음', async () => {
+      await service.upsert(triggerId, conversationKey, state);
+      const acquired = await service.acquireLock(
+        triggerId,
+        conversationKey,
+        't1',
+      );
+      expect(acquired).toBe(true);
+      // state 는 그대로 유지.
+      const result = await service.lookup(triggerId, conversationKey);
+      expect(result?.executionId).toBe('exec-abc');
     });
   });
 

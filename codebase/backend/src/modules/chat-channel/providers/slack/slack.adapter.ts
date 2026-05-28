@@ -3,12 +3,12 @@ import { SecretResolverService } from '../../../secret-store/secret-resolver.ser
 import type {
   ChannelMessage,
   ChannelUpdate,
-  ChatChannelAdapter,
   ChatChannelConfig,
   ChatChannelInternalEvent,
   EiaEvent,
   FormModalField,
   FormSubmissionResult,
+  NativeFormAdapter,
   OpenFormModalParams,
   OpenFormModalResult,
   SendResult,
@@ -38,11 +38,11 @@ import type { ChannelButton } from '../../types';
  * Phase 4: bot token rotation 의 Slack 분기 + auth.revoke.
  */
 @Injectable()
-export class SlackAdapter implements ChatChannelAdapter {
+export class SlackAdapter implements NativeFormAdapter {
   private readonly logger = new Logger(SlackAdapter.name);
   readonly provider = 'slack';
   /** Slack 은 views.open modal 지원 — §4.1 native form modal (file 외 전 필드 수용). */
-  readonly supportsNativeForm = true;
+  readonly supportsNativeForm = true as const;
 
   constructor(
     private readonly client: SlackClient,

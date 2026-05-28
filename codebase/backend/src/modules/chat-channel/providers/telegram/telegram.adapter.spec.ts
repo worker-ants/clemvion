@@ -323,7 +323,11 @@ describe('TelegramAdapter', () => {
     it('form_modal 메시지 sendMessage 시 throw', async () => {
       const msg = {
         conversationKey: '9999',
-        body: { kind: 'form_modal' as const, openLabel: 'Fill', formConfig: { fields: [] } },
+        body: {
+          kind: 'form_modal' as const,
+          openLabel: 'Fill',
+          formConfig: { fields: [] },
+        },
       };
       await expect(adapter.sendMessage(msg, baseConfig)).rejects.toThrow(
         /native form modal 미지원|supportsNativeForm/i,

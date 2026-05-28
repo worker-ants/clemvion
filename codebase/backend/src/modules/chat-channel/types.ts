@@ -458,6 +458,36 @@ export interface ChatChannelAdapter {
   }): FormSubmissionResult;
 }
 
+/**
+ * §4.1 native form modal 을 지원하는 어댑터 (Slack / Discord) 의 narrowed 인터페이스.
+ * base `ChatChannelAdapter` 에서 옵션(`?`)인 `openFormModal` / `buildFormSubmissionResponse`
+ * 를 필수로 좁히고, `supportsNativeForm` 을 `true` literal 로 고정. 호출 측은
+ * `isNativeFormAdapter` type guard 로 narrowing 한 뒤 `?.` / `&&` 없이 직접 호출.
+ * SoT: spec/conventions/chat-channel-adapter.md §4.1.
+ */
+export interface NativeFormAdapter extends ChatChannelAdapter {
+  readonly supportsNativeForm: true;
+  openFormModal(params: OpenFormModalParams): Promise<OpenFormModalResult>;
+  buildFormSubmissionResponse(params: {
+    config: ChatChannelConfig;
+    validationError?: { field?: string; message: string };
+  }): FormSubmissionResult;
+}
+
+/**
+ * 런타임 type guard — 어댑터가 native form modal 경로를 지원하는지 (`supportsNativeForm===true`
+ * + 두 옵션 메서드 모두 구현) 확인. true 면 `NativeFormAdapter` 로 narrowing.
+ */
+export function isNativeFormAdapter(
+  adapter: ChatChannelAdapter,
+): adapter is NativeFormAdapter {
+  return (
+    adapter.supportsNativeForm === true &&
+    typeof adapter.openFormModal === 'function' &&
+    typeof adapter.buildFormSubmissionResponse === 'function'
+  );
+}
+
 /** Redis ChannelConversation 레코드 — Spec §4.3. */
 export interface ChannelConversationState {
   /** 활성 execution. terminal 후 null. */
