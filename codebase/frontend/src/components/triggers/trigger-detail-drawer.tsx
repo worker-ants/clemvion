@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
+import { useCopyToClipboard } from "@/lib/hooks/use-copy-to-clipboard";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
   AuthConfigSelect,
@@ -386,6 +387,7 @@ function WebhookConfigCard({
 }) {
   const t = useT();
   const canEdit = useHasRole("editor");
+  const copyToClipboard = useCopyToClipboard();
   const [showExample, setShowExample] = useState(false);
   const url = trigger.endpointPath ? getWebhookUrl(trigger.endpointPath) : "";
   // 연결된 AuthConfig (read-only 표시 + cURL 예시 분기용).
@@ -437,10 +439,10 @@ function WebhookConfigCard({
   }
 
   function copyText(text: string) {
-    navigator.clipboard.writeText(text).then(
-      () => toast.success(t("triggers.copied")),
-      () => toast.error(t("triggers.copyFailed")),
-    );
+    void copyToClipboard(text, {
+      success: t("triggers.copied"),
+      error: t("triggers.copyFailed"),
+    });
   }
 
   function cancelEdit() {
@@ -657,6 +659,7 @@ function ExternalInteractionCard({
 }) {
   const t = useT();
   const canEdit = useHasRole("editor");
+  const copyToClipboard = useCopyToClipboard();
   const notification = trigger.config?.notification;
   const interaction = trigger.config?.interaction;
   const hasAny = Boolean(notification?.url || interaction?.enabled);
@@ -675,7 +678,6 @@ function ExternalInteractionCard({
 
   // Edit state
   const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [urlValue, setUrlValue] = useState(notification?.url ?? "");
   const [eventsValue, setEventsValue] = useState<Set<string>>(
     new Set(notification?.events ?? []),
@@ -691,9 +693,8 @@ function ExternalInteractionCard({
   const [rotateResult, setRotateResult] = useState<string | null>(null);
   const [revokeResult, setRevokeResult] = useState<string | null>(null);
 
-  async function handleSave(): Promise<void> {
-    setSaving(true);
-    try {
+  const saveMutation = useMutation({
+    mutationFn: async () => {
       const patchBody: Record<string, unknown> = {};
       if (urlValue && urlValue.length > 0) {
         patchBody.notification = {
@@ -708,17 +709,18 @@ function ExternalInteractionCard({
         tokenStrategy: strategy,
       };
       await apiClient.patch(`/triggers/${trigger.id}`, patchBody);
+    },
+    onSuccess: () => {
       toast.success(t("triggers.externalInteraction.saveSucceeded"));
       setEditing(false);
       onSaved();
-    } catch (err) {
+    },
+    onError: (err) => {
       toast.error(
         `${t("triggers.externalInteraction.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
       );
-    } finally {
-      setSaving(false);
-    }
-  }
+    },
+  });
 
   async function handleRotateSecret(): Promise<void> {
     if (!window.confirm(t("triggers.externalInteraction.rotateConfirm"))) return;
@@ -751,13 +753,11 @@ function ExternalInteractionCard({
     }
   }
 
-  async function copyText(text: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(t("triggers.externalInteraction.copied"));
-    } catch {
-      toast.error(t("triggers.copyFailed"));
-    }
+  function copyText(text: string): void {
+    void copyToClipboard(text, {
+      success: t("triggers.externalInteraction.copied"),
+      error: t("triggers.copyFailed"),
+    });
   }
 
   return (
@@ -776,12 +776,16 @@ function ExternalInteractionCard({
               size="sm"
               variant="outline"
               onClick={() => setEditing(false)}
-              disabled={saving}
+              disabled={saveMutation.isPending}
             >
               {t("triggers.externalInteraction.cancel")}
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving
+            <Button
+              size="sm"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+            >
+              {saveMutation.isPending
                 ? t("triggers.externalInteraction.saving")
                 : t("triggers.externalInteraction.save")}
             </Button>

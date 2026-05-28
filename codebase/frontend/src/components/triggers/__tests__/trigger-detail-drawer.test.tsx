@@ -1,0 +1,237 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  render,
+  screen,
+  cleanup,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useLocaleStore } from "@/lib/stores/locale-store";
+import {
+  useWorkspaceStore,
+  type WorkspaceRole,
+} from "@/lib/stores/workspace-store";
+import type { AuthConfigOption } from "../auth-config-select";
+
+const apiGetMock = vi.fn();
+vi.mock("@/lib/api/client", () => ({
+  apiClient: {
+    get: (...args: unknown[]) => apiGetMock(...args),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
+import { TriggerDetailDrawer } from "../trigger-detail-drawer";
+
+type TriggerData = Record<string, unknown> & { id: string; type: string };
+
+const WEBHOOK_TRIGGER: TriggerData = {
+  id: "t-1",
+  name: "order-hook",
+  type: "webhook",
+  isActive: true,
+  workflowId: "wf-1",
+  workflowName: "Order flow",
+  endpointPath: "order-abc",
+  authConfigId: null,
+};
+
+const SCHEDULE_TRIGGER: TriggerData = {
+  id: "t-2",
+  name: "nightly",
+  type: "schedule",
+  isActive: false,
+  workflowId: "wf-2",
+  workflowName: "Nightly job",
+  cronExpression: "0 0 * * *",
+  timezone: "UTC",
+};
+
+/**
+ * Routes apiClient.get by URL: trigger detail + auth-configs are the only
+ * endpoints the drawer reads. A `/history` call would mean the removed Recent
+ * Calls card regressed (case 5).
+ */
+function mockApi(trigger: TriggerData | null, authConfigs: AuthConfigOption[]) {
+  apiGetMock.mockImplementation((url: string) => {
+    if (typeof url === "string" && url.startsWith("/auth-configs")) {
+      return Promise.resolve({ data: { data: authConfigs } });
+    }
+    if (trigger && url === `/triggers/${trigger.id}`) {
+      return Promise.resolve({ data: { data: trigger } });
+    }
+    return Promise.reject(new Error(`unexpected GET ${url}`));
+  });
+}
+
+function renderDrawer(
+  override?: Partial<Parameters<typeof TriggerDetailDrawer>[0]>,
+) {
+  const triggerId = override?.triggerId ?? "t-1";
+  const props = {
+    triggerId,
+    open: true,
+    onClose: vi.fn(),
+    ...override,
+  } as const;
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <TriggerDetailDrawer {...props} />
+    </QueryClientProvider>,
+  );
+  return props;
+}
+
+function setRole(role: WorkspaceRole) {
+  useWorkspaceStore.setState({
+    workspaces: [
+      { id: "ws-1", name: "Test", type: "team", slug: "team-1", role },
+    ],
+    currentWorkspaceId: "ws-1",
+    loaded: true,
+  });
+}
+
+describe("TriggerDetailDrawer", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cleanup();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.getState().reset();
+    setRole("editor");
+  });
+
+  // Case 1 — query gated by `!!triggerId && open`.
+  it("triggerId=null 이면 API 를 호출하지 않는다", () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    renderDrawer({ triggerId: null });
+    expect(apiGetMock).not.toHaveBeenCalled();
+  });
+
+  it("open=false 이면 API 를 호출하지 않는다", () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    renderDrawer({ open: false });
+    expect(apiGetMock).not.toHaveBeenCalled();
+  });
+
+  // Case 2 — trigger 미발견(조회 실패) 시 notFound 메시지.
+  it("trigger 조회 실패 시 notFound 메시지를 렌더링한다", async () => {
+    apiGetMock.mockImplementation((url: string) => {
+      if (typeof url === "string" && url.startsWith("/auth-configs")) {
+        return Promise.resolve({ data: { data: [] } });
+      }
+      return Promise.reject(new Error("not found"));
+    });
+    renderDrawer({ triggerId: "missing" });
+    expect(
+      await screen.findByText("Trigger not found."),
+    ).toBeInTheDocument();
+  });
+
+  // Case 3 — webhook: Webhook + External Interaction 렌더, Schedule 미렌더.
+  it("type=webhook 이면 Webhook·External Interaction 카드를 렌더하고 Schedule 카드는 미렌더한다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    renderDrawer();
+    expect(
+      await screen.findByText("Webhook Configuration"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("External Interaction")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Schedule Configuration"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Case 4 — schedule: Schedule 카드만, Webhook 미렌더.
+  it("type=schedule 이면 Schedule 카드만 렌더하고 Webhook 카드는 미렌더한다", async () => {
+    mockApi(SCHEDULE_TRIGGER, []);
+    renderDrawer({ triggerId: "t-2" });
+    expect(
+      await screen.findByText("Schedule Configuration"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Webhook Configuration"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("External Interaction")).not.toBeInTheDocument();
+  });
+
+  // Case 5 — Recent Calls 제거 회귀 가드: /history 호출 없음.
+  it("Recent Calls 카드가 제거되어 /history 를 호출하지 않는다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    renderDrawer();
+    await screen.findByText("Webhook Configuration");
+    const historyCalls = apiGetMock.mock.calls.filter(
+      (call) => typeof call[0] === "string" && call[0].includes("/history"),
+    );
+    expect(historyCalls).toHaveLength(0);
+  });
+
+  // Case 6 — AuthConfig selector (inline authType 필드 폐지, R-14).
+  it("연결된 AuthConfig 가 read 모드에서 이름·type chip 으로 표시된다", async () => {
+    const linked: AuthConfigOption = {
+      id: "ac-1",
+      name: "Partner HMAC",
+      type: "hmac",
+    };
+    mockApi({ ...WEBHOOK_TRIGGER, authConfigId: "ac-1" }, [linked]);
+    renderDrawer();
+    expect(
+      await screen.findByText(/Partner HMAC · HMAC/),
+    ).toBeInTheDocument();
+  });
+
+  it("authConfigId 가 없으면 '인증 없음' 배지를 표시한다", async () => {
+    mockApi({ ...WEBHOOK_TRIGGER, authConfigId: null }, []);
+    renderDrawer();
+    await screen.findByText("Webhook Configuration");
+    expect(screen.getByText("No authentication")).toBeInTheDocument();
+  });
+
+  it("Webhook 편집 모드에서 AuthConfig selector (드롭다운 + 새 인증 설정 링크) 가 노출된다", async () => {
+    const linked: AuthConfigOption = {
+      id: "ac-1",
+      name: "Partner HMAC",
+      type: "hmac",
+    };
+    mockApi({ ...WEBHOOK_TRIGGER, authConfigId: null }, [linked]);
+    renderDrawer();
+    const webhookTitle = await screen.findByText("Webhook Configuration");
+
+    // "Edit" 버튼은 Overview·Webhook·EIA 카드에 각각 존재하므로 Webhook 카드
+    // 헤더(타이틀의 부모 = CardHeader)로 스코프를 좁혀 정확히 진입한다.
+    const webhookHeader = webhookTitle.parentElement!;
+    fireEvent.click(within(webhookHeader).getByRole("button", { name: "Edit" }));
+
+    await waitFor(() => {
+      // 드롭다운 option: "인증 없음" + 등록된 AuthConfig.
+      expect(
+        screen.getByRole("option", { name: "No authentication" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: /Partner HMAC · HMAC/ }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("+ Create a new auth config"),
+    ).toBeInTheDocument();
+  });
+
+  // Case 7 — Enabled 배지 i18n.
+  it("isActive=true 이면 Active 배지를 렌더한다", async () => {
+    mockApi({ ...WEBHOOK_TRIGGER, isActive: true }, []);
+    renderDrawer();
+    expect(await screen.findByText("Active")).toBeInTheDocument();
+  });
+
+  it("isActive=false 이면 Inactive 배지를 렌더한다", async () => {
+    mockApi(SCHEDULE_TRIGGER, []);
+    renderDrawer({ triggerId: "t-2" });
+    expect(await screen.findByText("Inactive")).toBeInTheDocument();
+  });
+});
