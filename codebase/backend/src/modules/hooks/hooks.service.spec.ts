@@ -657,6 +657,8 @@ describe('HooksService', () => {
 
       const res = await service.handleWebhook('abc', chatInput);
 
+      // Fields are allowlist-filtered to only keys declared in pendingFormModal.fields.
+      // 'name' is not in pendingFormModal.fields so it is stripped (security guard).
       expect(interactionService.interact).toHaveBeenCalledWith(
         expect.objectContaining({
           executionId: 'exec-active',
@@ -665,7 +667,7 @@ describe('HooksService', () => {
         expect.objectContaining({
           command: 'submit_form',
           nodeId: 'node-form',
-          data: { email: 'a@b.io', name: 'Bob' },
+          data: { email: 'a@b.io' },
         }),
       );
       // pendingFormModal clear 후 upsert.

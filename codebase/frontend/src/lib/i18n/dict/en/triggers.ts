@@ -224,6 +224,8 @@ export const triggers: Dict["triggers"] = {
     buttonLayoutVertical: "vertical",
     buttonLayoutHorizontal: "horizontal",
     formModeMultiStep: "multi_step",
+    formModeNativeModal: "Native modal",
+    formModeAuto: "Auto",
     rateLimitPerMinute: "Inbound per-minute cap (default 60)",
     languageLocale: "Guidance default language (languageLocale)",
     languageLocaleKo: "한국어 (ko)",

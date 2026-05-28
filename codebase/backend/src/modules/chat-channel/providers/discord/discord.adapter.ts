@@ -17,6 +17,7 @@ import type {
 import { DiscordClient } from './discord-client';
 import { renderDiscordEvent } from './discord-message.renderer';
 import { parseDiscordUpdate } from './discord-update.parser';
+import { NATIVE_MODAL_MAX_FIELDS } from '../../shared/form-mode';
 
 /**
  * Discord Chat Channel Adapter.
@@ -263,21 +264,23 @@ export class DiscordAdapter implements ChatChannelAdapter {
       data: {
         custom_id: 'clemvion_form',
         title: '양식',
-        components: params.fields.slice(0, 5).map((f) => ({
-          type: 1,
-          components: [
-            {
-              type: 4,
-              custom_id: f.name,
-              label: f.label,
-              style: f.type === 'textarea' ? 2 : 1,
-              required: f.required === true,
-              ...(f.description
-                ? { placeholder: f.description.slice(0, 100) }
-                : {}),
-            },
-          ],
-        })),
+        components: params.fields
+          .slice(0, NATIVE_MODAL_MAX_FIELDS)
+          .map((f) => ({
+            type: 1,
+            components: [
+              {
+                type: 4,
+                custom_id: f.name,
+                label: f.label,
+                style: f.type === 'textarea' ? 2 : 1,
+                required: f.required === true,
+                ...(f.description
+                  ? { placeholder: f.description.slice(0, 100) }
+                  : {}),
+              },
+            ],
+          })),
       },
     };
     return Promise.resolve({ httpResponse: modal });

@@ -65,12 +65,15 @@ export function extractFormFields(formConfig: unknown): FormModalField[] {
       ? ((root.config as Record<string, unknown>).fields as unknown[])
       : [];
   const out: FormModalField[] = [];
+  /** Valid field name pattern: alphanumeric, underscore, hyphen, 1–64 chars.
+   * Rejects path traversal (../../), newlines, SQL special chars etc. */
+  const FIELD_NAME_RE = /^[a-zA-Z0-9_-]{1,64}$/;
   for (const raw of rawFields) {
     if (!raw || typeof raw !== 'object') continue;
     const f = raw as Record<string, unknown>;
     const name = typeof f.name === 'string' ? f.name : '';
     const type = typeof f.type === 'string' ? f.type : 'text';
-    if (!name) continue;
+    if (!name || !FIELD_NAME_RE.test(name)) continue;
     const label =
       typeof f.label === 'string' && f.label.length > 0 ? f.label : name;
     const field: FormModalField = { name, label, type };

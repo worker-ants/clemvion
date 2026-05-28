@@ -289,6 +289,14 @@ export class HooksService {
     // openContext (trigger_id / interaction token) 로 adapter 가 modal 을 연다. Discord 는
     // httpResponse 로 modal 을 반환 (controller 가 res.json), Slack 은 views.open API (httpResponse 없음).
     if (update.command.kind === 'open_form_modal') {
+      // Security guard: DM-only providers make conversationKey≈user, but in group channels
+      // another member could click the button and intercept a different user's form.
+      if (state && state.channelUserKey !== update.channelUserKey) {
+        this.logger.warn(
+          `open_form_modal channelUserKey mismatch — state.channelUserKey=${state.channelUserKey} update.channelUserKey=${update.channelUserKey} conversationKey=${update.conversationKey}`,
+        );
+        return { executionId: state?.executionId ?? 'ignored' };
+      }
       if (state?.pendingFormModal && adapter.openFormModal) {
         const result = await adapter.openFormModal({
           config,
@@ -303,14 +311,35 @@ export class HooksService {
             interactionHttpResponse: result.httpResponse,
           };
         }
+      } else {
+        this.logger.warn(
+          `open_form_modal: pendingFormModal 없거나 adapter.openFormModal 미지원 — conversationKey=${update.conversationKey}`,
+        );
       }
       return { executionId: state?.executionId ?? 'ignored' };
     }
 
     // §4.1 native modal — modal 일괄 제출. pendingFormModal.nodeId 로 EIA submit_form 단일 호출.
     if (update.command.kind === 'form_submission') {
+      // Security guard: same channelUserKey check as open_form_modal.
+      if (state && state.channelUserKey !== update.channelUserKey) {
+        this.logger.warn(
+          `form_submission channelUserKey mismatch — state.channelUserKey=${state.channelUserKey} update.channelUserKey=${update.channelUserKey} conversationKey=${update.conversationKey}`,
+        );
+        return { executionId: state?.executionId ?? 'ignored' };
+      }
       const nodeId = state?.pendingFormModal?.nodeId;
       if (hasActiveExecution && nodeId) {
+        // Security: filter submitted fields to only keys declared in pendingFormModal.
+        // This prevents undefined-field injection and bounds Discord component count.
+        const allowedNames = new Set(
+          state.pendingFormModal!.fields.map((f) => f.name),
+        );
+        const filteredFields = Object.fromEntries(
+          Object.entries(update.command.fields).filter(([k]) =>
+            allowedNames.has(k),
+          ),
+        );
         try {
           const ctx: InternalInteractionRequestContext = {
             executionId: state.executionId!,
@@ -320,7 +349,7 @@ export class HooksService {
           await this.interactionService.interact(ctx, {
             command: 'submit_form',
             nodeId,
-            data: update.command.fields,
+            data: filteredFields,
           });
           // 성공 — pendingFormModal clear.
           state.pendingFormModal = undefined;
@@ -348,6 +377,33 @@ export class HooksService {
             config,
             validationError: { message: '입력값을 다시 확인해주세요.' },
           });
+          // §4.1 step 5: spec 에 따라 Discord 는 검증 실패 후 "양식 작성하기" 버튼을 재노출해
+          // 사용자가 재시도할 수 있게 한다 (Interactions 응답 후 동일 modal 재전송 불가이므로
+          // 별도 sendMessage 로 버튼 재발송). pendingFormModal 은 유지 (재클릭 가능).
+          try {
+            if (state?.pendingFormModal) {
+              const openLabel =
+                config.languageHints?.formOpenLabel ??
+                (config.languageLocale === 'en'
+                  ? 'Fill out form'
+                  : '양식 작성하기');
+              await adapter.sendMessage(
+                {
+                  conversationKey: update.conversationKey,
+                  body: {
+                    kind: 'form_modal',
+                    openLabel,
+                    formConfig: { fields: state.pendingFormModal.fields },
+                  },
+                },
+                config,
+              );
+            }
+          } catch (reNoiseErr) {
+            this.logger.warn(
+              `form_submission 재안내 버튼 재발송 실패 (best-effort): ${reNoiseErr instanceof Error ? reNoiseErr.message : String(reNoiseErr)}`,
+            );
+          }
           if (r?.httpResponse !== undefined) {
             return {
               executionId: state?.executionId ?? 'ignored',

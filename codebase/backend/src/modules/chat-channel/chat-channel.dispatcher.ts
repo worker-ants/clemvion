@@ -246,6 +246,10 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
           };
           state.formState = undefined;
         } else {
+          // Clear any stale pendingFormModal to maintain mutual exclusivity with formState.
+          // Without this, a previous pendingFormModal could persist alongside formState,
+          // causing hooks.service form_submission to use the wrong nodeId.
+          state.pendingFormModal = undefined;
           state.formState = {
             nodeId: channelEvent.node.id,
             currentFieldIdx: 0,
