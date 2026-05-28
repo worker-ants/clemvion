@@ -78,7 +78,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | id | label | type | dynamic | 설명 |
 |------|-------|------|---------|------|
 | `out` | Output | data | false | 발송 성공 (부분 거부 포함). §5.1 |
-| `error` | Error | error | false | runtime 전송 실패 — `EMAIL_SEND_FAILED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED`. §5.3 |
+| `error` | Error | error | false | runtime 전송 실패 — `EMAIL_SEND_FAILED` / `EMAIL_HOST_BLOCKED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED`. §5.3 |
 
 > Send Email 은 동적 포트가 없다. D4 (2026-05-17, send-email 은 이미 reference 패턴) — `handler.validate()` 실패만 throw → 노드 실행 자체가 시작되지 않음. `execute()` 안의 모든 실패는 §5.3 (`port:'error'`) 로 라우팅.
 
@@ -92,12 +92,13 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 3. **Body cap** — 평가된 `body` 를 `truncateBodyForOutput` (256KB) 로 제한. 초과 시 `output.bodyTruncated: true` 부여
 4. **Integration stub 분기** — `integrationsService` 가 주입되지 않은 경우(테스트/DI 미주입) `status: 'requires_integration'` 로 즉시 반환 (외부 호출 없음). §5.4
 5. **Integration 조회** — `IntegrationsService.getForExecution(integrationId, workspaceId)` 로 SMTP 자격증명 복호화. `serviceType !== 'email'` / `status !== 'connected'` / 필수 필드 누락 → `IntegrationError` throw (catch 후 §5.3)
-6. **SMTP 발송** — credentials hash 기반으로 nodemailer transporter 캐시 재사용. `from = credentials.default_from`, `subject` / `body` 는 평가된 값. `bodyType='html'` 이면 `html` 옵션, 아니면 `text` 옵션
-7. **Usage 로깅** — `logUsage({integrationId, status, durationMs, error?, api})` 를 성공/실패 무관 호출 ([공통 §4.1](./0-common.md#41-공통-계약)). 활동 로그 API 식별 정보 (`_product-overview.md` INT-US-05):
+6. **SSRF 가드** — `credentials.host` 가 사설(RFC1918)·loopback·link-local·CGNAT·IPv6 사설 대역을 가리키면 `EMAIL_HOST_BLOCKED` 로 §5.3 라우팅. [HTTP Request §8](./1-http-request.md#4-실행-로직) 과 **동일 메커니즘·플래그** — 기본 차단, self-host 는 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out. 연결 테스트([Spec 통합 관리 §5.5](../../2-navigation/4-integration.md#55-email-smtp))와 동일 가드를 발송 경로에도 적용해 비대칭을 막는다.
+7. **SMTP 발송** — credentials hash 기반으로 nodemailer transporter 캐시 재사용. `from = credentials.default_from`, `subject` / `body` 는 평가된 값. `bodyType='html'` 이면 `html` 옵션, 아니면 `text` 옵션
+8. **Usage 로깅** — `logUsage({integrationId, status, durationMs, error?, api})` 를 성공/실패 무관 호출 ([공통 §4.1](./0-common.md#41-공통-계약)). 활동 로그 API 식별 정보 (`_product-overview.md` INT-US-05):
    - `api_label` = NULL (Send Email 은 단일 동작 — operation catalog 없음)
    - `api_method` = `'SEND'` (상수 — 향후 다른 SMTP method 추가 시 enum 확장)
    - `api_path` = `credentials.host` (SMTP host) 또는 NULL. **수신자 이메일은 절대 저장하지 않는다** (PII 보호 — 수신자 마스킹된 디테일은 §5.3 의 `output.error.details.to` 에 한정)
-8. **반환** — 성공 §5.1 / runtime 실패 §5.3 / Integration stub §5.4
+9. **반환** — 성공 §5.1 / runtime 실패 §5.3 / Integration stub §5.4
 
 ## 5. 출력 구조
 
@@ -212,6 +213,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | 코드 | 조건 |
 |------|------|
 | `EMAIL_SEND_FAILED` | nodemailer `sendMail` 이 throw 한 generic transport 실패 (네트워크/SMTP 응답 오류 등). `IntegrationError` 가 아닌 모든 catch 분기의 fallback |
+| `EMAIL_HOST_BLOCKED` | SMTP `host` 가 사설/loopback 대역이라 SSRF 가드(§4 step 6)에 차단됨. 기본 ON, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out. HTTP 의 `HTTP_BLOCKED` 와 동일 메커니즘 |
 | `EMAIL_NO_RECIPIENTS` (D4) | `to` 정규화 결과가 빈 배열 — `execute()` 안에서 검증. 종전 throw 였으나 D4 이후 본 경로 |
 | `INTEGRATION_INCOMPLETE` | SMTP credentials 의 `host`/`port`/`secure`/`username`/`password`/`default_from` 중 하나라도 누락 |
 | `INTEGRATION_TYPE_MISMATCH` | 참조된 Integration 의 `serviceType` 이 `'email'` 이 아님 |
@@ -277,7 +279,7 @@ D4 이전에 send-email 은 이미 catch-all 패턴을 갖춰 다른 Integration
 
 ## 6. 에러 코드
 
-§5.3 의 `output.error.code` enum (`EMAIL_SEND_FAILED` / `EMAIL_NO_RECIPIENTS` / `INTEGRATION_*` / `INTEGRATION_SERVICE_UNAVAILABLE`) 가 모든 실행 단계 실패 경로의 surface. [공통 §4.2 공통 에러 코드](./0-common.md#42-공통-에러-코드) 표는 모든 Integration 노드에 적용된다.
+§5.3 의 `output.error.code` enum (`EMAIL_SEND_FAILED` / `EMAIL_HOST_BLOCKED` / `EMAIL_NO_RECIPIENTS` / `INTEGRATION_*` / `INTEGRATION_SERVICE_UNAVAILABLE`) 가 모든 실행 단계 실패 경로의 surface. [공통 §4.2 공통 에러 코드](./0-common.md#42-공통-에러-코드) 표는 모든 Integration 노드에 적용된다.
 
 `output.error.message` 는 `IntegrationHandlerBase.sanitizeMessage` 가 비밀 토큰 (`Bearer …` / `password=…` / 32+ 자 hex/base64 등) 을 `***` 로 마스킹한 후 노출된다. `output.error.details.to` 의 수신자 목록은 `maskEmailForErrorDetails` 로 로컬 파트가 마스킹된다 (`alice@example.com` → `a***@example.com`).
 
@@ -286,6 +288,10 @@ D4 이전에 send-email 은 이미 catch-all 패턴을 갖춰 다른 Integration
 [공통 §5](./0-common.md#5-캔버스-요약) — `Send Email` 행 인용 (`to: {수신자}`, 2명 초과 시 `+N`).
 
 ## 8. Rationale
+
+### 8.0 SMTP host SSRF 가드 (2026-05-29)
+
+§4 step 6 의 SSRF 가드는 HTTP Request / Database Query 노드와 **동일한 `ALLOW_PRIVATE_HOST_TARGETS` 플래그**를 공유한다(기본 차단, self-host opt-out) — integration 노드 전반의 SSRF posture 일관성. 별도 opt-in 플래그를 신설하지 않은 근거·코드명(`EMAIL_HOST_BLOCKED`) 채택 근거·chat-channel 분류표 무영향 분석은 [Spec 통합 관리 §Rationale "SMTP SSRF 가드를 http/db 와 동일 `ALLOW_PRIVATE_HOST_TARGETS` 로 통일"](../../2-navigation/4-integration.md#smtp-ssrf-가드를-httpdb-와-동일-allow_private_host_targets-로-통일-2026-05-29) 가 SoT. 연결 테스트만 막고 발송은 뚫리는 비대칭을 막기 위해 발송 경로(본 노드)에도 동일 가드를 적용한다.
 
 ### 8.1 `to`/`cc`/`bcc` array-only 정준화 (2026-05-19)
 

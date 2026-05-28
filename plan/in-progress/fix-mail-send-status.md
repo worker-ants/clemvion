@@ -72,17 +72,34 @@ breaking change 포함).
   - 연결 테스트 동작이 실제 검증으로 바뀌었으나, user-guide
     (`integration-management.mdx`) claim("테스트 통과해야 저장")은 그대로 정확.
 
-## 후속 (project-planner 위임 — spec 영역)
+## Spec 갱신 (project-planner, 완료 — 본 브랜치)
 
-- `spec/5-system/3-error-handling.md` / `spec/2-navigation/4-integration.md`
-  frontmatter `code: []` → 구현 파일 링크 갱신 (pre-existing 갭).
-- `spec/2-navigation/4-integration.md §5.5`: "테스트: SMTP 핸드셰이크 + NOOP" →
-  실제 구현 `nodemailer verify()` (연결+인증) 로 갱신. previewTest 도 SMTP 검증
-  수행함을 명시.
-- `spec/2-navigation/4-integration.md` 에러 코드 표: `EMAIL_HOST_BLOCKED` 신규 코드
-  + SMTP SSRF 가드(기본 ON, `ALLOW_PRIVATE_HOST_TARGETS` opt-out) 동작 명시.
-- `spec/5-system/3-error-handling.md`: `ERROR_PORT_FALLBACK` 를 API/실행 결과
-  스키마에 명시 (ai-review INFO16).
+draft: `plan/in-progress/spec-draft-mail-send-status.md`. consistency-check --spec
+BLOCK: NO (재검 후). 산출물 `review/consistency/2026/05/29/{07_40_47,07_50_55}/`.
+
+- [x] `spec/2-navigation/4-integration.md §5.5`: NOOP → `nodemailer verify()`
+      (연결+인증+TLS), preview-test/`:id/test`/rotate 공통, IntegrationTestResult.code
+      (`EMAIL_CONNECT_FAILED`/`EMAIL_HOST_BLOCKED`), SSRF 가드 서술
+- [x] `spec/2-navigation/4-integration.md` 에러 vocab 표: `SMTP_SEND_FAILED`→
+      `EMAIL_SEND_FAILED` 정정 + `EMAIL_HOST_BLOCKED`/`EMAIL_CONNECT_FAILED` 추가.
+      §9.2 preview-test 행 service 별 외부호출 분기 비고
+- [x] `spec/2-navigation/4-integration.md ## Rationale`: verify 채택 + SSRF 통일·
+      코드명·chat-channel 무영향 2항 추가
+- [x] `spec/5-system/3-error-handling.md §1.4` Email 행: `EMAIL_HOST_BLOCKED` 추가
+- [x] `spec/4-nodes/4-integration/3-send-email.md`: §4 SSRF step 6 / §5.3·§6 enum /
+      §3 error 포트 / §8.0 Rationale 추가
+- [x] `spec/4-nodes/4-integration/1-http-request.md §4`: `ALLOW_PRIVATE_HOST_TARGETS`
+      opt-out·적용 범위(HTTP/DB/Email)·MCP 구분 명시 (env var spec 최초 명시)
+
+## 남은 후속 (별도 grooming/plan — 본 PR 범위 밖)
+
+- **frontmatter status/code 갱신** (item D): spec-only→partial/implemented 승격 +
+  `code:` 채움은 전용 롤아웃 `spec-frontmatter-rollout.md`
+  (spec-impl-evidence.md §6) 책임. 큰 spec 과대주장 방지 위해 분리.
+- `spec/4-nodes/4-integration/2-database-query.md`: DB 노드 SSRF 가드 정책이 spec
+  본문에 미기술 (코드엔 존재). consistency I2 — 별도 spec 보강 task.
+- `EMAIL_HOST_BLOCKED` 사용자 가시 ko 매핑 — `backend-labels.ts ERROR_KO` 미존재로
+  영문 노출 (기존 errorCode 와 동일 상태).
 
 ## 사용자 가시 노출 주의 (PROJECT.md 변경 매트릭스)
 
