@@ -31,11 +31,12 @@ const FANOUT_EVENTS = new Set<string>([
 /**
  * [Spec EIA §6 / §R10] — WebsocketService 의 executionEvents$ 를 구독해서:
  *
- * 1. fanout 대상 event 가 들어오면 trigger 조회 → notification config 가 본 event 를 구독 중이면
+ * 1. terminal event (`completed/failed/cancelled`) 시 [Spec EIA §3.3 EIA-AU-04] 에 따라 해당
+ *    execution 의 iext jti 를 즉시 blacklist (`revokeAllForExecution`). V060 의 execution_token
+ *    테이블 + jti 추적으로 v1 의 "exp 자연 무효화" 잔여 위험 해소. **outbound notification config
+ *    유무와 독립** — interaction-only 트리거도 종료 시 토큰 무효화 의무를 진다.
+ * 2. fanout 대상 event 가 들어오면 trigger 조회 → notification config 가 본 event 를 구독 중이면
  *    NotificationDispatcher 로 enqueue (after-commit hook 역할).
- * 2. terminal event (`completed/failed/cancelled`) 발송 후 — execution 의 iext jti 가 알려지면
- *    blacklist 등록. v1 은 jti 추적 인프라가 없어 fail-open 으로 진행 (자세한 jti revoke 는
- *    iext exp 가 ttl 도달 시점에 자연 무효화).
  *
  * 본 service 는 ExecutionEngine 외부에 위치해 R10 (단일 sink) 유지. ExecutionEngine 은 여전히
  * WebsocketService.emit 만 호출.
@@ -50,7 +51,7 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
     private readonly dispatcher: NotificationDispatcher,
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
-    // tokenService 는 향후 jti 추적 인프라 도입 시 사용. 현재는 fail-open.
+    // terminal event 시 iext jti 즉시 blacklist (EIA-AU-04). Redis/Repo 미가용 시 fail-open.
     private readonly tokenService: InteractionTokenService,
   ) {}
 
@@ -88,6 +89,19 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
       );
       return;
     }
+    // [Spec EIA §3.3 EIA-AU-04] terminal event 시 해당 execution 의 iext jti 를 즉시 blacklist.
+    // outbound notification config / 구독 여부와 **독립** — interaction-only 트리거 (notification
+    // 미설정) 도 종료 시 토큰 무효화 의무를 진다. 따라서 아래 notification 게이트의 early return
+    // 보다 반드시 먼저 수행한다. execution_token 0건이면 revokeAllForExecution 가 no-op.
+    if (TERMINAL_EVENTS.has(event.eventType)) {
+      try {
+        await this.tokenService.revokeAllForExecution(event.executionId);
+      } catch (err) {
+        this.logger.warn(
+          `NotificationFanout: revokeAllForExecution 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
     const trigger = await this.triggerRepository.findOne({
       where: { id: triggerId },
       select: ['id', 'workspaceId', 'workflowId', 'config'],
@@ -119,17 +133,5 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
         timestamp: new Date().toISOString(),
       },
     });
-    // [Spec EIA §3.3 EIA-AU-04] terminal event 발송 후 해당 execution 의 iext jti 를 즉시 blacklist.
-    // V060 의 execution_token 테이블 + revokeAllForExecution 으로 v1 의 "exp 자연 무효화" 잔여
-    // 위험 해소. Repository 미주입이거나 0건이면 no-op.
-    if (TERMINAL_EVENTS.has(event.eventType)) {
-      try {
-        await this.tokenService.revokeAllForExecution(event.executionId);
-      } catch (err) {
-        this.logger.warn(
-          `NotificationFanout: revokeAllForExecution 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
   }
 }

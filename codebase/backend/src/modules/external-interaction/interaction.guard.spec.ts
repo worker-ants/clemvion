@@ -117,6 +117,26 @@ describe('InteractionGuard', () => {
     });
   });
 
+  it('iext family — blacklisted (terminal revoke) reason → TOKEN_REVOKED 401 [EIA-AU-04]', async () => {
+    const verifyPerExecution = jest.fn().mockResolvedValue({
+      valid: false,
+      reason: 'blacklisted',
+    });
+    const { guard } = makeGuard({ verifyPerExecution });
+    const ctx = makeContext(
+      { executionId: 'exec-1' },
+      { authorization: 'Bearer iext_revoked' },
+    );
+    await expect(guard.canActivate(ctx as never)).rejects.toMatchObject({
+      response: { error: { code: 'TOKEN_REVOKED' } },
+    });
+    // 갱신 경로 안내 헤더도 동봉 (만료/무효와 동일).
+    expect(ctx.setHeader).toHaveBeenCalledWith(
+      REFRESH_TOKEN_URL_HEADER,
+      '/api/external/executions/exec-1/refresh-token',
+    );
+  });
+
   it('itk family — execution.triggerId 매칭 후 verifyPerTrigger 통과', async () => {
     const verifyPerTrigger = jest.fn().mockReturnValue(true);
     const triggerFindOne = jest.fn().mockResolvedValue({
