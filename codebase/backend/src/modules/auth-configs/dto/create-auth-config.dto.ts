@@ -10,12 +10,13 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+// "인증 없음" 은 AuthConfig row 가 아니라 Trigger.authConfigId IS NULL 로 표현한다
+// (spec/1-data-model.md §2.17.3). 따라서 type 에 'none' 을 두지 않는다.
 export const AUTH_CONFIG_TYPES = [
   'api_key',
   'bearer_token',
   'basic_auth',
   'hmac',
-  'none',
 ] as const;
 export type AuthConfigType = (typeof AUTH_CONFIG_TYPES)[number];
 
@@ -34,7 +35,7 @@ export class CreateAuthConfigDto {
   /** 인증 타입 */
   @ApiProperty({
     description:
-      '인증 타입. api_key=API 키, bearer_token=Bearer 토큰, basic_auth=Basic 인증, hmac=서명 기반, none=인증 없음',
+      '인증 타입. api_key=API 키 (X-API-Key 헤더), bearer_token=Bearer 토큰, basic_auth=Basic 인증, hmac=HMAC 서명. "인증 없음" 은 type 이 아니라 Trigger.authConfigId 를 null 로 두어 표현한다.',
     enum: AUTH_CONFIG_TYPES,
     example: 'api_key',
   })
@@ -46,7 +47,7 @@ export class CreateAuthConfigDto {
    */
   @ApiPropertyOptional({
     description:
-      '인증 상세 설정. api_key의 경우 { key } 자동 발급, bearer_token의 경우 { token } 자동 발급. basic_auth는 { username, password } 필요.',
+      '인증 상세 설정 (spec/1-data-model.md §2.17.1). api_key: { key 자동발급, headerName?="X-API-Key" }. bearer_token: { token 자동발급 }. basic_auth: { username, password } 사용자 입력 필수. hmac: { secret 자동발급, header?="X-Hub-Signature-256", algorithm?="sha256"|"sha512" }.',
     type: 'object',
     additionalProperties: true,
     example: { headerName: 'X-API-Key' },
