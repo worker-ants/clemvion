@@ -5,13 +5,16 @@ import type { ReactNode } from "react";
 import { EmbeddingModelCombobox } from "../embedding-model-combobox";
 import { llmConfigsApi, type LlmConfigData } from "@/lib/api/llm-configs";
 
-vi.mock("@/lib/api/llm-configs", () => ({
-  LLM_CONFIGS_QUERY_KEY: ["llm-configs"],
-  llmConfigsApi: {
-    list: vi.fn(),
-    listModels: vi.fn(),
-  },
-}));
+vi.mock("@/lib/api/llm-configs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/llm-configs")>();
+  return {
+    ...actual,
+    llmConfigsApi: {
+      list: vi.fn(),
+      listModels: vi.fn(),
+    },
+  };
+});
 
 function wrap(ui: ReactNode) {
   const qc = new QueryClient({

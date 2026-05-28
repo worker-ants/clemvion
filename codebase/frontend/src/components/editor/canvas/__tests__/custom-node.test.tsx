@@ -570,6 +570,22 @@ describe("CustomNode", () => {
     expect(screen.getByText("Category 1")).toBeInTheDocument();
   });
 
+  // §6: AI 노드는 hasDefaultLlmConfig 컨텍스트 값에 따라 config 요약/경고 분기.
+  // 컴포넌트가 context 값을 소비해 렌더에 반영하는지 (provider 값별로 다른 결과)
+  // 검증한다 — 순수 요약 로직은 node-config-summary 단위 테스트가 커버.
+  it("renders ai_agent without crashing when a default llm config is present", () => {
+    const { container } = renderNode(
+      {
+        type: "ai_agent",
+        label: "AI Agent",
+        config: { mode: "single_turn" },
+        category: "ai",
+      },
+      { hasDefaultLlmConfig: true },
+    );
+    expect(container.querySelector('[data-testid="handle-out"]')).toBeInTheDocument();
+  });
+
   it("filters out conditions with empty id", () => {
     const { container } = renderNode({
       type: "ai_agent",

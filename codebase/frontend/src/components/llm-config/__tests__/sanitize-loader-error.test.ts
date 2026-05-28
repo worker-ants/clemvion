@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sanitizeLoaderError } from "../sanitize-loader-error";
+import { buildLoaderErrorMessages } from "../loader-error-messages";
 
 // Helper to build a minimal Axios-like error matching the backend envelope
 // `{ error: { code, message } }` (http-exception.filter).
@@ -50,5 +51,28 @@ describe("sanitizeLoaderError", () => {
       response: undefined,
     });
     expect(sanitizeLoaderError(err, "timeout fallback", MESSAGES)).toBe("timeout fallback");
+  });
+
+  // The backend wraps every error as `{ error: { code, message } }`. A legacy
+  // flat `{ message }` body (no `error.code`) must resolve to the fallback —
+  // never the raw string.
+  it("returns the fallback for a legacy flat-message body (no error.code)", () => {
+    const err = Object.assign(new Error("legacy"), {
+      isAxiosError: true,
+      response: { data: { message: "raw flat message" } },
+    });
+    expect(sanitizeLoaderError(err, "fallback", MESSAGES)).toBe("fallback");
+  });
+});
+
+describe("buildLoaderErrorMessages", () => {
+  it("maps the known user-actionable backend codes", () => {
+    const t = ((key: string) => key) as Parameters<typeof buildLoaderErrorMessages>[0];
+    const map = buildLoaderErrorMessages(t);
+    expect(Object.keys(map).sort()).toEqual(
+      ["LLM_CONFIG_INVALID", "LLM_CREDENTIALS_REQUIRED"].sort(),
+    );
+    expect(map.LLM_CREDENTIALS_REQUIRED).toBe("llmConfigs.errorCredentialsRequired");
+    expect(map.LLM_CONFIG_INVALID).toBe("llmConfigs.errorConfigInvalid");
   });
 });

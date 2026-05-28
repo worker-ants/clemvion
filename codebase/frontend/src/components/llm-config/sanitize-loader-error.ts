@@ -16,6 +16,10 @@ interface ServerErrorBody {
  * strings can carry endpoint / upstream detail, and they are not localized
  * (review/code/2026/05/26/12_10_38 SUMMARY #10). Granularity that matters to
  * the user (missing key, bad config) is expressed through error codes instead.
+ *
+ * Note: when `messagesByCode` is omitted, every error resolves to `fallback` —
+ * there is no raw-message path. Callers that want code-specific text must pass
+ * the map (see `buildLoaderErrorMessages`).
  */
 export function sanitizeLoaderError(
   err: unknown,

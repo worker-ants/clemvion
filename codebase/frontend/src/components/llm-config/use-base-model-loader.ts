@@ -75,22 +75,24 @@ export function useBaseModelLoader<TSnapshot>({
   }
 
   const loadMutation = useMutation({
-    mutationFn: async () => {
-      const snapshot = captureSnapshot();
-      const data = await fetchModels();
-      return { data, snapshot };
-    },
+    // 요청 출발 시점의 scope 를 onMutate 에서 한 번 캡처해 context 로 전달한다.
+    // onSuccess / onError 양쪽이 같은 snapshot 으로 stale 가드를 적용한다.
     onMutate: () => {
       // pending 중에는 이전 에러 메시지를 숨겨 사용자에게 진행 중임을 명확히 표시.
       setErrorMessage(null);
       setHasAttemptedLoad(true);
+      return { snapshot: captureSnapshot() };
     },
-    onSuccess: ({ data, snapshot }) => {
+    mutationFn: () => fetchModels(),
+    onSuccess: (data, _vars, context) => {
       // Stale closure 가드: 요청 출발 시점의 scope 가 현재와 다르면 무시한다.
-      if (!isSnapshotCurrent(snapshot)) return;
+      if (!isSnapshotCurrent(context.snapshot)) return;
       setModels(data);
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, _vars, context) => {
+      // resetKey 변경 직후 도착한 이전 scope 의 실패는 무시 — 새 scope UI 에
+      // 옛 에러 메시지가 잘못 표시되지 않게 한다 (onSuccess 와 대칭).
+      if (context && !isSnapshotCurrent(context.snapshot)) return;
       // 재시도 실패 시 이전에 로드된 모델 목록은 유지해 사용자 선택 컨텍스트를 보존.
       setErrorMessage(
         sanitizeLoaderError(err, fallbackErrorMessage, errorMessagesByCode),

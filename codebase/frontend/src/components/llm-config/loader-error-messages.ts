@@ -6,6 +6,9 @@ import type { TFunction } from "@/lib/i18n";
  * back to the loader's generic `fallbackErrorMessage`. Raw server text is never
  * surfaced — provider error strings can leak endpoint / upstream detail
  * (review/code/2026/05/26/12_10_38 SUMMARY #10).
+ *
+ * When adding a code here, add the matching key to both `i18n/dict/ko/llmConfigs`
+ * and `i18n/dict/en/llmConfigs`.
  */
 export function buildLoaderErrorMessages(t: TFunction): Record<string, string> {
   return {

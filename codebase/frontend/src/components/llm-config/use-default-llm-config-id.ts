@@ -18,6 +18,8 @@ export function useDefaultLlmConfigId(): string | undefined {
     staleTime: 30_000,
   });
   return useMemo(
+    // Intentional fallback: a workspace with configs but no explicit default
+    // still resolves to a usable id (the first) so models can be loaded.
     () => configs.find((c) => c.isDefault)?.id ?? configs[0]?.id,
     [configs],
   );
