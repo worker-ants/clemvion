@@ -57,7 +57,7 @@ code:
 | `sendMessage` (text) | [`POST /api/chat.postMessage`](https://api.slack.com/methods/chat.postMessage) (channel, text, mrkdwn=true) |
 | `sendMessage` (buttons) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", ...}]}]` |
 | `sendMessage` (form_prompt) | `chat.postMessage` + 옵션 `blocks: [{type: "input", ...}]` 으로 single-field 안내 (§4.2 다단계 텍스트 시퀀스) |
-| `sendMessage` (form_modal) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", action_id: "__open_form__", ...}]}]` — "양식 작성하기" 버튼 발송 (§4.1 native modal 게이팅). 클릭 시 `ackInteraction` 이 [`POST /api/views.open`](https://api.slack.com/methods/views.open) 으로 modal open (§3.3) |
+| `sendMessage` (form_modal) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", action_id: "__open_form__", ...}]}]` — "양식 작성하기" 버튼 발송 (§4.1 native modal 게이팅). 클릭 시 `HooksService` 가 `openFormModal` 에서 [`POST /api/views.open`](https://api.slack.com/methods/views.open) 으로 modal open (§3.3) |
 | `sendMessage` (image) | [`POST /api/files.uploadV2`](https://api.slack.com/methods/files.uploadV2) (channel, file, initial_comment) — v1 carousel/chart/table 의 image fallback path |
 | `sendMessage` (typing) | **no-op** — Slack Web API 에 server-initiated typing indicator 가 없다 (Rationale R-S-5) |
 | `ackInteraction` (button_callback / view_submission) | Interactivity 응답: 3초 안에 HTTP `200 OK` 반환 (빈 body 또는 `response_action`) — 비동기 갱신은 [`response_url`](https://api.slack.com/interactivity/handling#message_responses) 사용 |
@@ -83,7 +83,7 @@ Events API 의 "Request URL" 은 Slack 앱 manifest 의 사전 등록 사항 —
 
 ### 3.3 `views.open` 구체 (native form modal)
 
-[Convention §4.1 native modal 경로](../../../conventions/chat-channel-adapter.md#41-native-modal-경로-2026-05-28-신설) 의 Slack 구현. `form_modal` 버튼 (`action_id: "__open_form__"`) 클릭 → `block_actions` interaction 의 `trigger_id` (3초 유효) 로 즉시 modal open:
+[Convention §4.1 native modal 경로](../../../conventions/chat-channel-adapter.md#41-native-modal-경로-2026-05-28-신설) 의 Slack 구현. `form_modal` 버튼 (`action_id: "__open_form__"`) 클릭 → parseUpdate 가 `open_form_modal` command (openContext.triggerId) 반환 → `HooksService` 가 `openFormModal` 에서 `block_actions` 의 `trigger_id` (3초 유효) 로 즉시 modal open:
 
 ```
 POST https://slack.com/api/views.open
@@ -132,7 +132,7 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 
 | payload.type | ChannelUpdate.command |
 |---|---|
-| `"block_actions"` & `actions[0].action_id === "__open_form__"` | `null` (EIA 명령 아님) — `ackInteraction` 이 `trigger_id` 로 `views.open` 호출 (§3.3 / §4.1 native modal 게이팅) |
+| `"block_actions"` & `actions[0].action_id === "__open_form__"` | `{ kind: "open_form_modal", openContext: { triggerId } }` — `HooksService` 가 `openFormModal` 에서 `trigger_id` 로 `views.open` 호출 (§3.3 / §4.1 native modal 게이팅) |
 | `"block_actions"` (button tap) | `{ kind: "button_callback", callbackData: payload.actions[0].value }` |
 | `"block_actions"` (select menu) | `{ kind: "button_callback", callbackData: payload.actions[0].selected_option.value }` |
 | `"view_submission"` & `view.callback_id === "clemvion_form"` (modal submit) | **`{ kind: "form_submission", fields }`** — `payload.view.state.values` 를 `{ <field.name>: rawValue }` 로 평탄화 (block_id=field.name, element value 추출). native form modal 채택 ([R-S-6](#r-s-6-form--5-fields-이하-native-modal-6-또는-multi_step-opt-out-시-다단계-2026-05-24-갱신-2026-05-28)) |

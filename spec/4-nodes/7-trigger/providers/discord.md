@@ -57,7 +57,7 @@ code:
 | `sendMessage` (text) | [`POST /channels/{channel_id}/messages`](https://discord.com/developers/docs/resources/channel#create-message) (content) — DM 채널은 사전에 [`POST /users/@me/channels`](https://discord.com/developers/docs/resources/user#create-dm) 로 채널 생성 후 channel_id 캐시 |
 | `sendMessage` (buttons) | `POST /channels/{id}/messages` + `components: [{type: 1, components: [{type: 2, ...}]}]` (ACTION_ROW + BUTTON) |
 | `sendMessage` (form_prompt) | §4.2 다단계: plain text content + "Reply" button → 단일 TEXT_INPUT modal (Convention §4.2) |
-| `sendMessage` (form_modal) | §4.1 native modal 게이팅 — `POST /channels/{id}/messages` + "양식 작성하기" 버튼 (`custom_id: "__open_form__"`). 클릭 시 `ackInteraction` 이 interaction response `{ type: 9, data: <modal> }` (MODAL) 로 N개 TEXT_INPUT modal open (§3.3) |
+| `sendMessage` (form_modal) | §4.1 native modal 게이팅 — `POST /channels/{id}/messages` + "양식 작성하기" 버튼 (`custom_id: "__open_form__"`). 클릭 시 `HooksService` 가 `openFormModal` 에서 interaction HTTP 응답 `{ type: 9, data: <modal> }` (MODAL) 로 N개 TEXT_INPUT modal open (§3.3) |
 | `sendMessage` (image) | `POST /channels/{id}/messages` + `attachments: [{filename, ...}]` + multipart/form-data file upload, 또는 `embeds: [{image: {url: ...}}]` |
 | `sendMessage` (typing) | [`POST /channels/{channel_id}/typing`](https://discord.com/developers/docs/resources/channel#trigger-typing-indicator) — 10초 유지 후 자동 만료 |
 | `ackInteraction` (button / modal) | Interactions Webhook 응답: 3초 안에 HTTP `200 OK` + body `{ type: 5 }` (DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE) / `{ type: 6 }` (DEFERRED_UPDATE_MESSAGE) / **`{ type: 9, data: <modal> }` (MODAL — `__open_form__` 또는 Reply 버튼 클릭 시 §3.3 / §5.1)**. 비동기 후속 갱신은 [`PATCH /webhooks/{app_id}/{interaction_token}/messages/@original`](https://discord.com/developers/docs/interactions/receiving-and-responding#edit-original-interaction-response) (15분 유효, 5회 한도) |
@@ -112,7 +112,7 @@ Discord Developer Portal 의 Interactions Endpoint URL 은 우리 측에서 revo
 
 ### 3.3 MODAL 구체 (native form modal)
 
-[Convention §4.1 native modal 경로](../../../conventions/chat-channel-adapter.md#41-native-modal-경로-2026-05-28-신설) 의 Discord 구현. Discord modal 은 **interaction RESPONSE (type 9)** 로만 열 수 있다 (server push 로는 불가) — `form_modal` 버튼 (`custom_id: "__open_form__"`) 클릭 → MESSAGE_COMPONENT interaction 의 token 으로 `ackInteraction` 이 modal 응답:
+[Convention §4.1 native modal 경로](../../../conventions/chat-channel-adapter.md#41-native-modal-경로-2026-05-28-신설) 의 Discord 구현. Discord modal 은 **interaction RESPONSE (type 9)** 로만 열 수 있다 (server push 로는 불가) — `form_modal` 버튼 (`custom_id: "__open_form__"`) 클릭 → parseUpdate 가 `open_form_modal` command 반환 → `HooksService` 가 `openFormModal` 에서 MODAL JSON 을 webhook HTTP 응답 body 로 반환 (HooksController 가 `res.json`):
 
 ```
 HTTP 200 (Interactions Webhook 응답 body)
@@ -150,8 +150,8 @@ Discord Interactions Webhook 의 단일 envelope (`type` 필드 분기) — `Con
 | `type === 2` (APPLICATION_COMMAND) & `data.options[0].name === "start"` | `{ kind: "start" }` |
 | `type === 2` & `data.options[0].name === "cancel"` | `{ kind: "cancel" }` |
 | `type === 2` & `data.options[0].name === "help"` | (helper) — 어댑터가 직접 도움말 응답, EIA 호출 없음 |
-| `type === 3` (MESSAGE_COMPONENT) & `data.custom_id === "__open_form__"` (BUTTON) | `null` (EIA 명령 아님) — `ackInteraction` 이 `{ type: 9 }` MODAL 응답 (§3.3 / §4.1 native form 게이팅) |
-| `type === 3` (MESSAGE_COMPONENT) & `data.custom_id === "__reply__"` (BUTTON) | `null` — `ackInteraction` 이 `{ type: 9 }` MODAL 응답 (AI reply modal, §5.1 b) |
+| `type === 3` (MESSAGE_COMPONENT) & `data.custom_id === "__open_form__"` (BUTTON) | `{ kind: "open_form_modal", openContext: { interactionId, interactionToken } }` — `HooksService` 가 `openFormModal` 에서 `{ type: 9 }` MODAL 을 webhook HTTP 응답 body 로 반환 (§3.3 / §4.1 native form 게이팅) |
+| `type === 3` (MESSAGE_COMPONENT) & `data.custom_id === "__reply__"` (BUTTON) | `null` — AI reply modal (§5.1 b). v1 reply-modal 발화 경로는 후속 — 도입 시 동일 게이팅 패턴 |
 | `type === 3` (MESSAGE_COMPONENT) & `data.component_type === 2` (그 외 BUTTON) | `{ kind: "button_callback", callbackData: data.custom_id }` |
 | `type === 3` & `data.component_type === 3` (SELECT_MENU) | `{ kind: "button_callback", callbackData: data.values[0] }` |
 | `type === 5` (MODAL_SUBMIT) & `data.custom_id === "clemvion_form"` | **`{ kind: "form_submission", fields }`** — `data.components[].components[]` 의 `{ custom_id: field.name, value }` 평탄화. native form modal 채택 ([R-D-6](#r-d-6-form--text-계열--5-fields-native-modal-그-외-다단계-2026-05-24-갱신-2026-05-28)) |
