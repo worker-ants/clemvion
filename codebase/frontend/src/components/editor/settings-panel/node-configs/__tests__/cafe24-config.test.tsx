@@ -37,7 +37,7 @@ type Cafe24Initial = Parameters<typeof Cafe24Config>[0]["config"];
 const PRODUCT_LIST_OP = {
   status: "supported" as const,
   id: "product_list",
-  label: "상품 목록 조회",
+  labelKey: "cafe24.product.product_list",
   description: "List products",
   scope: "read" as const,
   paginated: true,
@@ -70,7 +70,7 @@ const PRODUCT_LIST_OP = {
 const PRODUCT_GET_OP = {
   status: "supported" as const,
   id: "product_get",
-  label: "상품 단건 조회",
+  labelKey: "cafe24.product.product_get",
   description: "Get one product",
   scope: "read" as const,
   paginated: false,
@@ -95,7 +95,7 @@ const PRODUCT_GET_OP = {
 const PLANNED_PRODUCT_COUNT = {
   status: "planned" as const,
   id: "product_count",
-  label: "상품 개수 조회",
+  labelKey: "cafe24.product.product_count",
   paginated: false,
 };
 

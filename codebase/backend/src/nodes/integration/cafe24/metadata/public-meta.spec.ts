@@ -21,17 +21,20 @@ import { CAFE24_PLANNED_BY_RESOURCE } from './planned.js';
 describe('toPublicSupportedOperation', () => {
   it('strips method and path from the public projection', () => {
     const meta = findCafe24Operation('product', 'product_list')!;
-    const pub = toPublicSupportedOperation(meta);
+    const pub = toPublicSupportedOperation(meta, 'product');
     expect((pub as unknown as Record<string, unknown>).method).toBeUndefined();
     expect((pub as unknown as Record<string, unknown>).path).toBeUndefined();
   });
 
-  it('preserves id, label, scope, paginated, description', () => {
+  it('preserves id, scope, paginated, description, and emits labelKey', () => {
     const meta = findCafe24Operation('product', 'product_list')!;
-    const pub = toPublicSupportedOperation(meta);
+    const pub = toPublicSupportedOperation(meta, 'product');
     expect(pub.status).toBe('supported');
     expect(pub.id).toBe('product_list');
-    expect(pub.label).toBe(meta.label);
+    // INT-US-05 + spec/conventions/cafe24-api-metadata.md §7.5 — `label` is gone,
+    // `labelKey` carries `cafe24.<resource>.<id>` for frontend dict lookup.
+    expect(pub.labelKey).toBe('cafe24.product.product_list');
+    expect((pub as unknown as Record<string, unknown>).label).toBeUndefined();
     expect(pub.scope).toBe(meta.scopeType);
     expect(pub.paginated).toBe(true);
     expect(pub.description).toBe(meta.description);
@@ -39,7 +42,7 @@ describe('toPublicSupportedOperation', () => {
 
   it('marks each field with the correct `required` flag', () => {
     const meta = findCafe24Operation('product', 'product_list')!;
-    const pub = toPublicSupportedOperation(meta);
+    const pub = toPublicSupportedOperation(meta, 'product');
     const shopNo = pub.fields.find((f) => f.name === 'shop_no');
     const categoryNo = pub.fields.find((f) => f.name === 'category_no');
     expect(shopNo?.required).toBe(true); // requiredFields = ['shop_no']
@@ -48,14 +51,14 @@ describe('toPublicSupportedOperation', () => {
 
   it('forwards field.location so the UI can group path / query / body', () => {
     const meta = findCafe24Operation('product', 'product_get')!;
-    const pub = toPublicSupportedOperation(meta);
+    const pub = toPublicSupportedOperation(meta, 'product');
     const productNo = pub.fields.find((f) => f.name === 'product_no');
     expect(productNo?.location).toBe('path');
   });
 
   it('preserves enum and default when present', () => {
     const meta = findCafe24Operation('product', 'product_list')!;
-    const pub = toPublicSupportedOperation(meta);
+    const pub = toPublicSupportedOperation(meta, 'product');
     const display = pub.fields.find((f) => f.name === 'display');
     expect(display?.type).toBe('enum');
     expect(display?.enum).toEqual(['T', 'F']);
@@ -65,7 +68,7 @@ describe('toPublicSupportedOperation', () => {
 
   it('paginated defaults to false when metadata omits the flag', () => {
     const meta = findCafe24Operation('product', 'product_get')!;
-    const pub = toPublicSupportedOperation(meta);
+    const pub = toPublicSupportedOperation(meta, 'product');
     expect(pub.paginated).toBe(false);
   });
 });

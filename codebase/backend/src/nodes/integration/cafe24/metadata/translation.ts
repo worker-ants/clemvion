@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const translationOperations: Cafe24OperationMetadata[] = [
   {
     id: 'translation_products_list',
-    label: '상품 번역 목록 조회',
     description: 'List product translations for a given language.',
     scopeType: 'read',
     method: 'GET',
@@ -26,7 +25,6 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   // 코드와의 일관성을 우선. 정정이 필요할 경우 별 cleanup PR 로 분리.
   {
     id: 'translation_products_update',
-    label: '상품 번역 수정',
     description:
       'Update product translation for a given language. Body fields are partial — provide only the ones to change.',
     scopeType: 'write',
@@ -49,7 +47,6 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'translation_categories_list',
-    label: '카테고리 번역 목록 조회',
     description: 'List category translations for a given language.',
     scopeType: 'read',
     method: 'GET',
@@ -65,7 +62,6 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'translation_categories_update',
-    label: '카테고리 번역 수정',
     description: 'Update category translation for a language.',
     scopeType: 'write',
     method: 'PUT',
@@ -81,7 +77,6 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'translation_store_list',
-    label: '상점 번역 목록 조회',
     description: 'List store-level translations for a given language.',
     scopeType: 'read',
     method: 'GET',
@@ -96,7 +91,6 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'translation_store_update',
-    label: '상점 번역 수정',
     description:
       'Update the store-level translations (mall name, policies, ...) for a given language.',
     scopeType: 'write',
@@ -112,7 +106,6 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'translation_themes_list',
-    label: '테마 번역 목록 조회',
     description: 'List theme-level translations for a given language.',
     scopeType: 'read',
     method: 'GET',
@@ -128,7 +121,6 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   // Phase 8c — Translation 완성 (테마 번역 단건 조회/수정)
   {
     id: 'translation_themes_get',
-    label: '테마 번역 단건 조회',
     description: 'Retrieve a single theme translation entry by theme_no.',
     scopeType: 'read',
     method: 'GET',
@@ -143,7 +135,6 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'translation_themes_update',
-    label: '테마 번역 수정',
     description:
       'Update a single theme translation entry (partial). Refer to Cafe24 docs for full body schema.',
     scopeType: 'write',

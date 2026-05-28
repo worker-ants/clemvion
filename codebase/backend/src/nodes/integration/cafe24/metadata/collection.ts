@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const collectionOperations: Cafe24OperationMetadata[] = [
   {
     id: 'brands_list',
-    label: '브랜드 목록 조회',
     description: 'List brands in the mall.',
     scopeType: 'read',
     method: 'GET',
@@ -17,7 +16,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'manufacturers_list',
-    label: '제조사 목록 조회',
     description: 'List manufacturers.',
     scopeType: 'read',
     method: 'GET',
@@ -31,7 +29,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'trends_list',
-    label: '트렌드 목록 조회',
     description: 'List trends.',
     scopeType: 'read',
     method: 'GET',
@@ -46,7 +43,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   // Phase 6d — collection (brands CRUD baseline)
   {
     id: 'brands_count',
-    label: '브랜드 개수 조회',
     description: 'Retrieve the count of brands.',
     scopeType: 'read',
     method: 'GET',
@@ -59,7 +55,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'brands_create',
-    label: '브랜드 생성',
     description: 'Create a brand. brand_name required.',
     scopeType: 'write',
     method: 'POST',
@@ -75,7 +70,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'brands_update',
-    label: '브랜드 수정',
     description: 'Update a brand by brand_code.',
     scopeType: 'write',
     method: 'PUT',
@@ -91,7 +85,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'brands_delete',
-    label: '브랜드 삭제',
     description: 'Delete a brand by brand_code.',
     scopeType: 'write',
     method: 'DELETE',
@@ -105,7 +98,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   // Phase 8h — Collection 완성 (manufacturers + trends + classifications + origin)
   {
     id: 'manufacturers_count',
-    label: '제조사 개수 조회',
     description: 'Retrieve the count of manufacturers.',
     scopeType: 'read',
     method: 'GET',
@@ -118,7 +110,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'manufacturers_get',
-    label: '제조사 단건 조회',
     description: 'Retrieve a manufacturer by manufacturer_code.',
     scopeType: 'read',
     method: 'GET',
@@ -132,7 +123,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'manufacturers_create',
-    label: '제조사 생성',
     description:
       'Create a manufacturer. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
@@ -147,7 +137,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'manufacturers_update',
-    label: '제조사 수정',
     description: 'Update a manufacturer (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -162,7 +151,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'trends_count',
-    label: '트렌드 개수 조회',
     description: 'Retrieve the count of trend tags.',
     scopeType: 'read',
     method: 'GET',
@@ -175,7 +163,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'classifications_list',
-    label: '사용자 정의 카테고리 목록',
     description: 'List custom (user-defined) classifications.',
     scopeType: 'read',
     method: 'GET',
@@ -189,7 +176,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'classifications_count',
-    label: '사용자 정의 카테고리 수',
     description: 'Retrieve the count of custom classifications.',
     scopeType: 'read',
     method: 'GET',
@@ -202,7 +188,6 @@ export const collectionOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'origin_list',
-    label: '원산지 목록 조회',
     description: 'List country-of-origin entries.',
     scopeType: 'read',
     method: 'GET',

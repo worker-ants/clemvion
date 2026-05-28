@@ -7,7 +7,6 @@ import {
 export const orderOperations: Cafe24OperationMetadata[] = [
   {
     id: 'order_list',
-    label: '주문 목록 조회',
     description:
       'List orders with filters by date range, status, payment method, etc.',
     scopeType: 'read',
@@ -45,7 +44,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_get',
-    label: '주문 단건 조회',
     description: 'Get a single order by order_id.',
     scopeType: 'read',
     method: 'GET',
@@ -59,7 +57,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_items_list',
-    label: '주문 상품 목록 조회',
     description: 'List items in an order.',
     scopeType: 'read',
     method: 'GET',
@@ -73,7 +70,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_shipments_create',
-    label: '주문 배송 정보 등록',
     description:
       'Register shipping info (carrier, tracking number) for order items.',
     scopeType: 'write',
@@ -101,7 +97,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_buyer_update',
-    label: '주문자 정보 수정',
     description: 'Update buyer information on an order.',
     scopeType: 'write',
     method: 'PUT',
@@ -118,7 +113,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_memos_create',
-    label: '주문 메모 작성',
     description: 'Add a memo to an order.',
     scopeType: 'write',
     method: 'POST',
@@ -140,7 +134,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_count',
-    label: '주문 개수 조회',
     description:
       'Retrieve a count of orders matching the supplied filter (status, payment status, date range).',
     scopeType: 'read',
@@ -175,7 +168,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_status_update',
-    label: '주문 상태 변경',
     description:
       'Update the status of a single order. Path placeholder reuses the codebase-wide `order_id` naming (Cafe24 docs call this `order_no`).',
     scopeType: 'write',
@@ -196,7 +188,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_status_update_multiple',
-    label: '주문 상태 일괄 변경',
     description:
       'Update the status of multiple orders at once. Returns HTTP 207 (Multi-Status) when individual orders have differing outcomes.',
     scopeType: 'write',
@@ -226,7 +217,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // Phase 6a — A/S 자동화 (cancellation / exchange / return / refund)
   {
     id: 'refunds_list',
-    label: '환불 목록 조회',
     description: 'List refunds for the mall.',
     scopeType: 'read',
     method: 'GET',
@@ -242,7 +232,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'refunds_get',
-    label: '환불 단건 조회',
     description: 'Retrieve a single refund by refund_code.',
     scopeType: 'read',
     method: 'GET',
@@ -257,7 +246,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cancellation_get',
-    label: '취소 조회',
     description: 'Retrieve an order cancellation by claim_code.',
     scopeType: 'read',
     method: 'GET',
@@ -272,7 +260,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cancellation_create_multiple',
-    label: '취소 일괄 생성',
     description:
       'Bulk-create order cancellations. Pass `requests` as an array of cancellation request objects; see Cafe24 docs for the per-item schema. HTTP 207 when statuses vary by object.',
     scopeType: 'write',
@@ -292,7 +279,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'exchange_get',
-    label: '교환 조회',
     description: 'Retrieve an exchange by claim_code.',
     scopeType: 'read',
     method: 'GET',
@@ -308,7 +294,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'exchange_create_multiple',
-    label: '교환 일괄 생성',
     description:
       'Bulk-create exchanges. Pass `requests` as an array — each entry typically carries order_id, exchange_item_no, product_no, variant_code, exchange_reason, exchange_quantity, shipping fees.',
     scopeType: 'write',
@@ -329,7 +314,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'return_get',
-    label: '반품 조회',
     description: 'Retrieve a return by claim_code.',
     scopeType: 'read',
     method: 'GET',
@@ -344,7 +328,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'return_create_multiple',
-    label: '반품 일괄 생성',
     description:
       'Bulk-create order returns. Pass `requests` as an array of return-item objects (order_id, items, return reason, refund method).',
     scopeType: 'write',
@@ -365,7 +348,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // Batch 3-A — autocalculation · buyer · cancellation · completions · exchange · exchangerequests · items (CRUD/labels/options)
   {
     id: 'order_autocalculation_delete',
-    label: '주문 자동 계산 해제',
     description: 'Remove auto-calculation setting from an order.',
     scopeType: 'write',
     method: 'DELETE',
@@ -376,7 +358,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_buyer_get',
-    label: '주문자 정보 조회',
     description: 'Retrieve customer details of an order.',
     scopeType: 'read',
     method: 'GET',
@@ -387,7 +368,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_buyer_history_list',
-    label: '주문자 정보 변경 이력',
     description: 'Retrieve buyer-info change history for an order.',
     scopeType: 'read',
     method: 'GET',
@@ -398,7 +378,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_cancellation_create',
-    label: '주문 취소 생성',
     description: 'Create a cancellation for an order.',
     scopeType: 'write',
     method: 'POST',
@@ -409,7 +388,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_cancellation_update',
-    label: '주문 취소 상세 변경',
     description: 'Update cancellation details of an order.',
     scopeType: 'write',
     method: 'PUT',
@@ -425,7 +403,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_completions_complete',
-    label: 'PG 결제 후 주문 완료',
     description: 'Mark an order as completed after PG payment confirmation.',
     scopeType: 'write',
     method: 'POST',
@@ -436,7 +413,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_exchange_create',
-    label: '주문 교환 생성',
     description: 'Create an exchange request for an order.',
     scopeType: 'write',
     method: 'POST',
@@ -447,7 +423,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_exchange_update',
-    label: '주문 교환 수정',
     description: 'Update an exchange of an order.',
     scopeType: 'write',
     method: 'PUT',
@@ -462,7 +437,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_exchangerequests_reject',
-    label: '교환 요청 반려',
     description: 'Reject an exchange request for an order.',
     scopeType: 'write',
     method: 'PUT',
@@ -473,7 +447,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_items_create',
-    label: '주문 상품 추가',
     description: 'Add an item to an order.',
     scopeType: 'write',
     method: 'POST',
@@ -484,7 +457,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_items_update',
-    label: '주문 상품 수정',
     description: 'Update an order item.',
     scopeType: 'write',
     method: 'PUT',
@@ -501,7 +473,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // cafe24 docs labels endpoints are item-scoped (`items/{order_item_code}/labels`).
   {
     id: 'order_items_labels_get',
-    label: '주문 상품 라벨 조회',
     description: 'Retrieve labels attached to an order item.',
     scopeType: 'read',
     method: 'GET',
@@ -515,7 +486,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_items_labels_create',
-    label: '주문 상품 라벨 생성',
     description: 'Create labels for an order item.',
     scopeType: 'write',
     method: 'POST',
@@ -529,7 +499,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_items_labels_update',
-    label: '주문 상품 라벨 수정',
     description: 'Update labels for an order item.',
     scopeType: 'write',
     method: 'PUT',
@@ -543,7 +512,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_items_labels_delete',
-    label: '주문 상품 라벨 삭제',
     description: 'Delete labels for an order item.',
     scopeType: 'write',
     method: 'DELETE',
@@ -558,7 +526,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // cafe24 docs options endpoints are item-scoped (`items/{order_item_code}/options`).
   {
     id: 'order_items_options_create',
-    label: '주문 상품 옵션 생성',
     description: 'Create options for an order item.',
     scopeType: 'write',
     method: 'POST',
@@ -572,7 +539,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_items_options_update',
-    label: '주문 상품 옵션 수정',
     description: 'Update options for an order item.',
     scopeType: 'write',
     method: 'PUT',
@@ -587,7 +553,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // Batch 3-B — memos · payments · paymenttimeline · receivers · refunds · return · shipments
   {
     id: 'order_memos_list',
-    label: '주문 메모 목록',
     description: 'List memos for an order.',
     scopeType: 'read',
     method: 'GET',
@@ -598,7 +563,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_memos_update',
-    label: '주문 메모 수정',
     description: 'Update an order memo.',
     scopeType: 'write',
     method: 'PUT',
@@ -612,7 +576,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_memos_delete',
-    label: '주문 메모 삭제',
     description: 'Delete an order memo.',
     scopeType: 'write',
     method: 'DELETE',
@@ -626,7 +589,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_payments_status_update',
-    label: '주문 결제 상태 수정',
     description: 'Update the payment status of an order.',
     scopeType: 'write',
     method: 'PUT',
@@ -637,7 +599,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_paymenttimeline_history',
-    label: '결제 이력 조회',
     description: 'Retrieve the payment-history timeline of an order.',
     scopeType: 'read',
     method: 'GET',
@@ -650,7 +611,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_paymenttimeline_details',
-    label: '결제 상세 조회',
     description: 'Retrieve payment-detail breakdown of an order by payment_no.',
     scopeType: 'read',
     method: 'GET',
@@ -666,7 +626,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_receivers_list',
-    label: '받는 사람 목록',
     description: 'List recipients attached to an order.',
     scopeType: 'read',
     method: 'GET',
@@ -677,7 +636,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_receivers_update',
-    label: '받는 사람 수정',
     description: 'Update recipients attached to an order.',
     scopeType: 'write',
     method: 'PUT',
@@ -688,7 +646,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_receivers_change_shipping',
-    label: '받는 사람 배송지 변경',
     description:
       'Change shipping information for a specific recipient (shipping_code) of an order.',
     scopeType: 'write',
@@ -706,7 +663,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_receivers_history_list',
-    label: '받는 사람 변경 이력',
     description: 'List recipient-change history for an order.',
     scopeType: 'read',
     method: 'GET',
@@ -717,7 +673,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_refunds_update',
-    label: '주문 환불 수정',
     description: 'Update an order refund by refund_code.',
     scopeType: 'write',
     method: 'PUT',
@@ -732,7 +687,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_return_create',
-    label: '주문 반품 생성',
     description: 'Create a return for an order.',
     scopeType: 'write',
     method: 'POST',
@@ -743,7 +697,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_return_update',
-    label: '주문 반품 수정',
     description: 'Update a return of an order by claim_code.',
     scopeType: 'write',
     method: 'PUT',
@@ -758,7 +711,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_shipments_list',
-    label: '주문 배송 정보 목록',
     description: 'List shipping information of an order.',
     scopeType: 'read',
     method: 'GET',
@@ -769,7 +721,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_shipments_update',
-    label: '주문 배송 정보 수정',
     description: 'Update an order shipment.',
     scopeType: 'write',
     method: 'PUT',
@@ -783,7 +734,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_shipments_delete',
-    label: '주문 배송 정보 삭제',
     description: 'Delete an order shipment.',
     scopeType: 'write',
     method: 'DELETE',
@@ -798,7 +748,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // Batch 3-C — shippingfeecancellation · shortagecancellation · benefits · calculation · coupons · dashboard · inflowgroups
   {
     id: 'order_shippingfeecancellation_get',
-    label: '배송비 취소 상세',
     description: 'Retrieve shipping-fee cancellation details of an order.',
     scopeType: 'read',
     method: 'GET',
@@ -809,7 +758,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_shippingfeecancellation_create',
-    label: '배송비 취소 생성',
     description: 'Create a shipping-fee cancellation for an order.',
     scopeType: 'write',
     method: 'POST',
@@ -820,7 +768,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'order_shortagecancellation_create',
-    label: '재고 부족 취소 생성',
     description: 'Create a stock-shortage cancellation for an order.',
     scopeType: 'write',
     method: 'POST',
@@ -831,7 +778,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_benefits_list',
-    label: '주문 혜택 목록',
     description: 'List benefits applied to an order.',
     scopeType: 'read',
     method: 'GET',
@@ -842,7 +788,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_calculation_total',
-    label: '주문 결제 금액 계산',
     description: 'Calculate the total payment amount for an order.',
     scopeType: 'read',
     method: 'POST',
@@ -853,7 +798,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_coupons_list',
-    label: '주문 쿠폰 목록',
     description: 'List coupons applied to an order.',
     scopeType: 'read',
     method: 'GET',
@@ -864,7 +808,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_dashboard_list',
-    label: '주문 대시보드',
     description: 'Retrieve orders dashboard summary.',
     scopeType: 'read',
     method: 'GET',
@@ -875,7 +818,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_inflowgroups_list',
-    label: '유입 그룹 목록',
     description: 'List traffic-source (inflow) groups.',
     scopeType: 'read',
     method: 'GET',
@@ -890,7 +832,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_inflowgroups_create',
-    label: '유입 그룹 생성',
     description: 'Create a traffic-source (inflow) group.',
     scopeType: 'write',
     method: 'POST',
@@ -901,7 +842,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_inflowgroups_update',
-    label: '유입 그룹 수정',
     description: 'Update a traffic-source (inflow) group by group_id.',
     scopeType: 'write',
     method: 'PUT',
@@ -912,7 +852,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_inflowgroups_delete',
-    label: '유입 그룹 삭제',
     description: 'Delete a traffic-source (inflow) group by group_id.',
     scopeType: 'write',
     method: 'DELETE',
@@ -928,7 +867,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // 추가로 정정.
   {
     id: 'orders_inflows_list',
-    label: '유입 출처 목록',
     description: 'List traffic sources (inflows) for an inflow group.',
     scopeType: 'read',
     method: 'GET',
@@ -944,7 +882,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_inflows_create',
-    label: '유입 출처 생성',
     description: 'Create a traffic source (inflow) under an inflow group.',
     scopeType: 'write',
     method: 'POST',
@@ -958,7 +895,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_inflows_update',
-    label: '유입 출처 수정',
     description:
       'Update a traffic source (inflow) by inflow_id within a group.',
     scopeType: 'write',
@@ -973,7 +909,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_inflows_delete',
-    label: '유입 출처 삭제',
     description:
       'Delete a traffic source (inflow) by inflow_id within a group.',
     scopeType: 'write',
@@ -988,7 +923,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_memos_list',
-    label: '관리자 메모 목록 (전체 주문)',
     description:
       'List admin memos across all orders (no order_id filter). Distinct from `order_memos_list` which lists memos for a single order.',
     scopeType: 'read',
@@ -1003,7 +937,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_migrations_get',
-    label: '이관 주문 조회',
     description: 'Retrieve migrated orders.',
     scopeType: 'read',
     method: 'GET',
@@ -1014,7 +947,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_migrations_create',
-    label: '이관 주문 생성',
     description: 'Create migration order entries.',
     scopeType: 'write',
     method: 'POST',
@@ -1025,7 +957,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_migrations_update',
-    label: '이관 주문 수정',
     description: 'Update migration order entries.',
     scopeType: 'write',
     method: 'PUT',
@@ -1036,7 +967,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_migrations_delete',
-    label: '이관 주문 삭제',
     description: 'Delete a migrated order by order_id.',
     scopeType: 'write',
     method: 'DELETE',
@@ -1048,7 +978,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_paymentamount_get',
-    label: '결제 금액 조회',
     description: 'Retrieve calculated payment amount.',
     scopeType: 'read',
     method: 'GET',
@@ -1059,7 +988,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_saleschannels_list',
-    label: '판매 채널 목록',
     description: 'List sales channels.',
     scopeType: 'read',
     method: 'GET',
@@ -1074,7 +1002,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_saleschannels_create',
-    label: '판매 채널 생성',
     description: 'Create a sales channel.',
     scopeType: 'write',
     method: 'POST',
@@ -1085,7 +1012,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_saleschannels_update',
-    label: '판매 채널 수정',
     description: 'Update a sales channel by sales_channel_id.',
     scopeType: 'write',
     method: 'PUT',
@@ -1096,7 +1022,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_saleschannels_delete',
-    label: '판매 채널 삭제',
     description: 'Delete a sales channel by sales_channel_id.',
     scopeType: 'write',
     method: 'DELETE',
@@ -1108,7 +1033,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // Batch 3-E — payments multi · reservations · return · returnrequests · cancellation bulk · cancellationrequests · cashreceipt
   {
     id: 'payments_status_update_multiple',
-    label: '결제 상태 일괄 변경',
     description: 'Update payment status for multiple orders in bulk.',
     scopeType: 'write',
     method: 'PUT',
@@ -1119,7 +1043,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'reservations_get',
-    label: '예약 상품 조회',
     description: 'Retrieve a booked (reserved) item (filter via query).',
     scopeType: 'read',
     method: 'GET',
@@ -1134,7 +1057,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'return_update',
-    label: '반품 수정',
     description: 'Update a return record (top-level resource).',
     scopeType: 'write',
     method: 'PUT',
@@ -1145,7 +1067,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'returnrequests_create',
-    label: '반품 요청 생성',
     description: 'Create a return request for multiple items.',
     scopeType: 'write',
     method: 'POST',
@@ -1156,7 +1077,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'returnrequests_reject',
-    label: '반품 요청 거부',
     description: 'Reject a return request for multiple items.',
     scopeType: 'write',
     method: 'PUT',
@@ -1167,7 +1087,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cancellation_update_bulk',
-    label: '취소 상세 일괄 변경',
     description: 'Change cancellation details in bulk.',
     scopeType: 'write',
     method: 'PUT',
@@ -1178,7 +1097,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cancellationrequests_create',
-    label: '취소 요청 생성',
     description: 'Create a cancellation request for multiple items.',
     scopeType: 'write',
     method: 'POST',
@@ -1189,7 +1107,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cancellationrequests_reject',
-    label: '취소 요청 거부',
     description: 'Reject a cancellation request for multiple items.',
     scopeType: 'write',
     method: 'PUT',
@@ -1200,7 +1117,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cashreceipt_list',
-    label: '현금영수증 목록',
     description: 'List cash receipts.',
     scopeType: 'read',
     method: 'GET',
@@ -1215,7 +1131,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cashreceipt_create',
-    label: '현금영수증 발행',
     description: 'Issue a cash receipt.',
     scopeType: 'write',
     method: 'POST',
@@ -1226,7 +1141,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cashreceipt_update',
-    label: '현금영수증 수정',
     description: 'Update a cash receipt by cashreceipt_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -1237,7 +1151,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'cashreceipt_cancel',
-    label: '현금영수증 취소',
     description: 'Cancel a cash receipt by cashreceipt_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -1251,7 +1164,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // Batch 3-F — collectrequests · control · exchange bulk · exchangerequests bulk · fulfillments · labels · orderform_properties
   {
     id: 'collectrequests_update',
-    label: '수거 요청 수정',
     description: 'Update a collect request by request_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -1262,7 +1174,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'control',
-    label: '주문 컨트롤',
     description: 'Apply order-control actions in bulk.',
     scopeType: 'write',
     method: 'POST',
@@ -1273,7 +1184,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'exchange_update_multiple',
-    label: '교환 일괄 수정',
     description: 'Update multiple order exchanges in bulk.',
     scopeType: 'write',
     method: 'PUT',
@@ -1284,7 +1194,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'exchangerequests_create_bulk',
-    label: '교환 요청 일괄 생성',
     description: 'Create exchange requests in bulk.',
     scopeType: 'write',
     method: 'POST',
@@ -1295,7 +1204,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'exchangerequests_reject_multiple',
-    label: '교환 요청 일괄 거부',
     description: 'Reject multiple exchange requests in bulk.',
     scopeType: 'write',
     method: 'PUT',
@@ -1308,7 +1216,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'fulfillments_create',
-    label: '풀필먼트 배송 생성',
     description:
       'Create shipping information for multiple orders via fulfillment.',
     scopeType: 'write',
@@ -1320,7 +1227,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'labels_list',
-    label: '주문 라벨 목록',
     description: 'List order labels.',
     scopeType: 'read',
     method: 'GET',
@@ -1334,7 +1240,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'labels_create_multiple',
-    label: '주문 라벨 일괄 생성',
     description: 'Create multiple order labels in bulk.',
     scopeType: 'write',
     method: 'POST',
@@ -1345,7 +1250,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orderform_properties_get',
-    label: '주문서 추가 필드 조회',
     description: 'Retrieve additional order-form properties.',
     scopeType: 'read',
     method: 'GET',
@@ -1356,7 +1260,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orderform_properties_create',
-    label: '주문서 추가 필드 생성',
     description: 'Create an additional order-form property.',
     scopeType: 'write',
     method: 'POST',
@@ -1367,7 +1270,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orderform_properties_update',
-    label: '주문서 추가 필드 수정',
     description: 'Update an additional order-form property by property_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -1378,7 +1280,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orderform_properties_delete',
-    label: '주문서 추가 필드 삭제',
     description: 'Delete an additional order-form property by property_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -1390,7 +1291,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   // Batch 3-G — shipments bulk · subscription_shipments · unpaidorders
   {
     id: 'shipments_create_multiple',
-    label: '배송 일괄 생성',
     description: 'Create shipping information for multiple orders.',
     scopeType: 'write',
     method: 'POST',
@@ -1401,7 +1301,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shipments_update_multiple',
-    label: '배송 일괄 수정',
     description: 'Update shipping information for multiple orders.',
     scopeType: 'write',
     method: 'PUT',
@@ -1412,7 +1311,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'subscription_shipments_get',
-    label: '정기배송 조회',
     description: 'Retrieve a subscription shipment by subscription_id.',
     scopeType: 'read',
     method: 'GET',
@@ -1423,7 +1321,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'subscription_shipments_create',
-    label: '정기배송 생성',
     description: 'Create a subscription shipment.',
     scopeType: 'write',
     method: 'POST',
@@ -1434,7 +1331,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'subscription_shipments_update',
-    label: '정기배송 수정',
     description: 'Update a subscription shipment by subscription_id.',
     scopeType: 'write',
     method: 'PUT',
@@ -1445,7 +1341,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'subscription_shipments_items_update',
-    label: '정기배송 상품 옵션 수정',
     description: 'Update product variants in a subscription shipment.',
     scopeType: 'write',
     method: 'PUT',
@@ -1456,7 +1351,6 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'unpaidorders_list',
-    label: '미결제 주문 목록',
     description: 'List unpaid orders.',
     scopeType: 'read',
     method: 'GET',

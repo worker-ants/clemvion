@@ -7,7 +7,6 @@ import {
 export const salesreportOperations: Cafe24OperationMetadata[] = [
   {
     id: 'salesreport_daily',
-    label: '일일 매출 통계',
     description: 'Daily sales statistics for a date range.',
     scopeType: 'read',
     method: 'GET',
@@ -31,7 +30,6 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'salesreport_products',
-    label: '상품별 매출 통계',
     description: 'Sales statistics grouped by product.',
     scopeType: 'read',
     method: 'GET',
@@ -55,7 +53,6 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'salesreport_monthly',
-    label: '월별 매출 통계',
     description:
       'Retrieve the monthly sales aggregate (financials/monthlysales).',
     scopeType: 'read',
@@ -70,7 +67,6 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'salesreport_hourly',
-    label: '시간대별 매출 통계',
     description: 'Retrieve hourly sales statistics across a date range.',
     scopeType: 'read',
     method: 'GET',
@@ -94,7 +90,6 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'salesreport_volume',
-    label: '매출 리포트 조회',
     description: 'Retrieve a sales volume report for a date range.',
     scopeType: 'read',
     method: 'GET',

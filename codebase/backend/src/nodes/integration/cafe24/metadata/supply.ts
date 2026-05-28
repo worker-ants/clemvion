@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const supplyOperations: Cafe24OperationMetadata[] = [
   {
     id: 'suppliers_list',
-    label: '공급사 목록 조회',
     description: 'List suppliers.',
     scopeType: 'read',
     method: 'GET',
@@ -18,7 +17,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   // Phase 6d — supply baselines
   {
     id: 'suppliers_count',
-    label: '공급사 개수 조회',
     description: 'Retrieve the count of suppliers.',
     scopeType: 'read',
     method: 'GET',
@@ -31,7 +29,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_get',
-    label: '공급사 단건 조회',
     description: 'Retrieve a single supplier by supplier_code.',
     scopeType: 'read',
     method: 'GET',
@@ -46,7 +43,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   // Phase 7g — Supply 완성 (suppliers CUD + suppliers_users CRUD + regional shipping + shipping_suppliers)
   {
     id: 'suppliers_create',
-    label: '공급사 등록',
     description:
       'Register a new supplier. Body schema partial — refer to Cafe24 docs for full schema.',
     scopeType: 'write',
@@ -67,7 +63,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_update',
-    label: '공급사 수정',
     description:
       'Update an existing supplier (partial). Refer to Cafe24 docs for full schema.',
     scopeType: 'write',
@@ -84,7 +79,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_delete',
-    label: '공급사 삭제',
     description: 'Delete a supplier by supplier_code.',
     scopeType: 'write',
     method: 'DELETE',
@@ -97,7 +91,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_list',
-    label: '공급사 사용자 목록',
     description: 'List supplier user accounts.',
     scopeType: 'read',
     method: 'GET',
@@ -112,7 +105,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_count',
-    label: '공급사 사용자 수',
     description: 'Retrieve the count of supplier user accounts.',
     scopeType: 'read',
     method: 'GET',
@@ -126,7 +118,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_get',
-    label: '공급사 사용자 단건 조회',
     description: 'Retrieve supplier user details by user_id.',
     scopeType: 'read',
     method: 'GET',
@@ -140,7 +131,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_create',
-    label: '공급사 사용자 등록',
     description:
       'Create a supplier user account. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
@@ -157,7 +147,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_update',
-    label: '공급사 사용자 수정',
     description: 'Update supplier user details (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -172,7 +161,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_delete',
-    label: '공급사 사용자 삭제',
     description: 'Delete a supplier user by user_id.',
     scopeType: 'write',
     method: 'DELETE',
@@ -188,7 +176,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   // 이름. cafe24 API 의 inconsistency).
   {
     id: 'suppliers_users_regional_list',
-    label: '사용자 지역별 배송비 목록',
     description: "Retrieve a supplier user's list of regional shipping fees.",
     scopeType: 'read',
     method: 'GET',
@@ -202,7 +189,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_regional_create',
-    label: '사용자 지역별 배송비 등록',
     description:
       'Create regional shipping fee for a supplier user. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
@@ -217,7 +203,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_regional_delete',
-    label: '사용자 지역별 배송비 삭제',
     description:
       'Delete a specific regional shipping fee setting by regional_surcharge_no.',
     scopeType: 'write',
@@ -234,7 +219,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_regional_settings_get',
-    label: '지역별 배송비 설정 조회',
     description: "Retrieve a supplier user's regional shipping fee settings.",
     scopeType: 'read',
     method: 'GET',
@@ -249,7 +233,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'suppliers_users_regional_settings_update',
-    label: '지역별 배송비 설정 수정',
     description:
       "Update a supplier user's regional shipping fee settings (partial).",
     scopeType: 'write',
@@ -264,7 +247,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shipping_suppliers_get',
-    label: '공급사 배송 설정 조회',
     description: "Retrieve a supplier's shipping settings.",
     scopeType: 'read',
     method: 'GET',
@@ -278,7 +260,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shipping_suppliers_update',
-    label: '공급사 배송 설정 수정',
     description: "Update a supplier's shipping settings (partial).",
     scopeType: 'write',
     method: 'PUT',
@@ -292,7 +273,6 @@ export const supplyOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shipping_suppliers_additionalfees_get',
-    label: '공급사 국제 배송 추가비 조회',
     description:
       'Retrieve additional handling fees for supplier international shipping.',
     scopeType: 'read',

@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const shippingOperations: Cafe24OperationMetadata[] = [
   {
     id: 'shipping_companies_list',
-    label: '배송사 목록 조회',
     description: 'List shipping companies (carriers).',
     scopeType: 'read',
     method: 'GET',
@@ -17,7 +16,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   // Phase 6d — shipping baseline
   {
     id: 'carriers_get',
-    label: '배송사 단건 조회',
     description: 'Retrieve a single shipping carrier by carrier_no.',
     scopeType: 'read',
     method: 'GET',
@@ -32,7 +30,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   // Phase 7e — Shipping 완성 (carriers CRUD + regionalsurcharges + settings + shippingorigins)
   {
     id: 'carriers_create',
-    label: '배송사 등록',
     description: 'Register a new shipping carrier.',
     scopeType: 'write',
     method: 'POST',
@@ -47,7 +44,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'carriers_update',
-    label: '배송사 수정',
     description: 'Update a shipping carrier by carrier_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -63,7 +59,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'carriers_delete',
-    label: '배송사 삭제',
     description: 'Delete a shipping carrier by carrier_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -76,7 +71,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'regionalsurcharges_get',
-    label: '지역별 배송비 조회',
     description: 'Retrieve the regional shipping zone surcharges.',
     scopeType: 'read',
     method: 'GET',
@@ -89,7 +83,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'regionalsurcharges_update',
-    label: '지역별 배송비 수정',
     description: 'Update the regional shipping zone surcharges (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -102,7 +95,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shipping_settings_get',
-    label: '배송·반품 설정 조회',
     description: 'Retrieve the store-level shipping & return settings.',
     scopeType: 'read',
     method: 'GET',
@@ -115,7 +107,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shipping_settings_update',
-    label: '배송·반품 설정 수정',
     description: 'Update the store-level shipping & return settings (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -128,7 +119,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shipping_additionalfees_countries',
-    label: '국제 배송 추가비 국가 목록',
     description:
       'List countries with applicable additional handling fees for international shipping.',
     scopeType: 'read',
@@ -143,7 +133,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shippingorigins_list',
-    label: '출고지 목록',
     description: 'List configured shipping origins.',
     scopeType: 'read',
     method: 'GET',
@@ -157,7 +146,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shippingorigins_get',
-    label: '출고지 단건 조회',
     description: 'Retrieve a shipping origin by origin_code.',
     scopeType: 'read',
     method: 'GET',
@@ -171,7 +159,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shippingorigins_create',
-    label: '출고지 등록',
     description: 'Register a new shipping origin.',
     scopeType: 'write',
     method: 'POST',
@@ -189,7 +176,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shippingorigins_update',
-    label: '출고지 수정',
     description: 'Update a shipping origin by origin_code (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -208,7 +194,6 @@ export const shippingOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shippingorigins_delete',
-    label: '출고지 삭제',
     description: 'Delete a shipping origin by origin_code.',
     scopeType: 'write',
     method: 'DELETE',

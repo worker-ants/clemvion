@@ -4,7 +4,6 @@ import { RESTRICTED_APPROVAL } from './restricted-approval.js';
 export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'store_get',
-    label: '상점 정보 조회',
     description: 'Get the mall (store) information.',
     scopeType: 'read',
     method: 'GET',
@@ -17,7 +16,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shops_list',
-    label: '멀티쇼핑몰 목록 조회',
     description: 'List shops in a multi-shop mall.',
     scopeType: 'read',
     method: 'GET',
@@ -29,7 +27,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Phase 6b — 결제 설정 (paymentmethods / paymentgateway)
   {
     id: 'paymentmethods_list',
-    label: '결제수단 목록',
     description: 'List available payment methods.',
     scopeType: 'read',
     method: 'GET',
@@ -43,7 +40,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentmethods_paymentproviders_list',
-    label: '결제수단별 제공사 목록',
     description: 'List the providers (PG) registered for a payment method.',
     scopeType: 'read',
     method: 'GET',
@@ -63,7 +59,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentgateway_paymentmethods_list',
-    label: '결제대행사 결제수단 목록',
     description:
       'List the payment methods attached to a registered payment gateway.',
     scopeType: 'read',
@@ -81,7 +76,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentgateway_create',
-    label: '결제대행사 생성',
     description:
       'Register a new payment gateway (PG). `pg_code` + `pg_name` required.',
     scopeType: 'write',
@@ -105,7 +99,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentgateway_update',
-    label: '결제대행사 수정',
     description: 'Update an existing payment gateway by client_id.',
     scopeType: 'write',
     method: 'PUT',
@@ -123,7 +116,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentgateway_delete',
-    label: '결제대행사 삭제',
     description: 'Remove a registered payment gateway by client_id.',
     scopeType: 'write',
     method: 'DELETE',
@@ -138,7 +130,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-A — shops·activitylogs·dashboard·financials·menus
   {
     id: 'shops_get',
-    label: '멀티쇼핑몰 단건 조회',
     description: 'Retrieve a single shop within a multi-shop mall.',
     scopeType: 'read',
     method: 'GET',
@@ -151,7 +142,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'activitylogs_list',
-    label: '액션 로그 목록',
     description:
       'List operator activity logs within a date range. Requires Cafe24 partner approval.',
     scopeType: 'read',
@@ -184,7 +174,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'activitylogs_get',
-    label: '액션 로그 단건 조회',
     description:
       'Retrieve a single action log entry by process_no. Requires Cafe24 partner approval.',
     scopeType: 'read',
@@ -199,7 +188,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'dashboard_get',
-    label: '대시보드 조회',
     description: 'Retrieve aggregated dashboard information for the store.',
     scopeType: 'read',
     method: 'GET',
@@ -212,7 +200,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'financials_paymentgateway_get',
-    label: '결제대행사 계약 정보 조회',
     description:
       'Retrieve a list of payment gateway contract details. Requires Cafe24 partner approval (PG settings group).',
     scopeType: 'read',
@@ -228,7 +215,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'financials_store_get',
-    label: '상점 거래 정보 조회',
     description: 'Retrieve transaction information of the store.',
     scopeType: 'read',
     method: 'GET',
@@ -241,7 +227,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'menus_get',
-    label: '메뉴 조회',
     description:
       'Retrieve admin menu structure of the mall. Requires Cafe24 partner approval.',
     scopeType: 'read',
@@ -257,7 +242,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-B — automessages·benefits·boards_setting·carts_setting
   {
     id: 'automessages_arguments_get',
-    label: '자동 메시지 변수 목록',
     description: 'List available variables for automated messages.',
     scopeType: 'read',
     method: 'GET',
@@ -270,7 +254,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'automessages_setting_get',
-    label: '자동 메시지 설정 조회',
     description: 'Retrieve the automated message settings.',
     scopeType: 'read',
     method: 'GET',
@@ -283,7 +266,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'automessages_setting_update',
-    label: '자동 메시지 설정 수정',
     description: 'Update automated message settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -301,7 +283,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'benefits_setting_get',
-    label: '혜택 설정 조회',
     description: 'Retrieve incentive (benefit) settings.',
     scopeType: 'read',
     method: 'GET',
@@ -314,7 +295,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'benefits_setting_update',
-    label: '혜택 설정 수정',
     description: 'Update incentive (benefit) settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -327,7 +307,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'boards_setting_get',
-    label: '게시판 설정 조회 (store)',
     description: 'Retrieve mall-wide board settings (store scope).',
     scopeType: 'read',
     method: 'GET',
@@ -340,7 +319,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'boards_setting_update',
-    label: '게시판 설정 수정 (store)',
     description: 'Update mall-wide board settings (store scope).',
     scopeType: 'write',
     method: 'PUT',
@@ -353,7 +331,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'carts_setting_get',
-    label: '장바구니 설정 조회',
     description: 'Retrieve shopping-cart settings.',
     scopeType: 'read',
     method: 'GET',
@@ -366,7 +343,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'carts_setting_update',
-    label: '장바구니 설정 수정',
     description: 'Update shopping-cart settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -380,7 +356,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-C — categories_properties·coupons·currency·customers setting
   {
     id: 'categories_properties_setting_get',
-    label: '카테고리 진열 추가 설정 조회',
     description:
       'Retrieve additional display settings for products in category lists.',
     scopeType: 'read',
@@ -394,7 +369,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'categories_properties_setting_update',
-    label: '카테고리 진열 추가 설정 수정',
     description:
       'Update additional display settings for products in category lists.',
     scopeType: 'write',
@@ -408,7 +382,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'coupons_setting_get',
-    label: '쿠폰 설정 조회',
     description: 'Retrieve coupon settings.',
     scopeType: 'read',
     method: 'GET',
@@ -421,7 +394,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'coupons_setting_update',
-    label: '쿠폰 설정 수정',
     description: 'Update coupon settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -434,7 +406,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'currency_get',
-    label: '통화 설정 조회',
     description: 'Retrieve currency settings.',
     scopeType: 'read',
     method: 'GET',
@@ -447,7 +418,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'currency_update',
-    label: '통화 수정',
     description: 'Update a currency.',
     scopeType: 'write',
     method: 'PUT',
@@ -460,7 +430,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customers_setting_get',
-    label: '회원 관련 설정 조회',
     description: 'Retrieve member-related settings.',
     scopeType: 'read',
     method: 'GET',
@@ -473,7 +442,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'customers_setting_update',
-    label: '회원 관련 설정 수정',
     description: 'Update member-related settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -487,7 +455,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-D — images·information·kakaoalimtalk·kakaopay setting
   {
     id: 'images_setting_get',
-    label: '상품 이미지 크기 설정 조회',
     description: 'Retrieve product image size settings.',
     scopeType: 'read',
     method: 'GET',
@@ -500,7 +467,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'images_setting_update',
-    label: '상품 이미지 크기 설정 수정',
     description: 'Update product image size settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -513,7 +479,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'information_get',
-    label: '상점 정책 조회',
     description: 'Retrieve store policies (terms, privacy, etc.).',
     scopeType: 'read',
     method: 'GET',
@@ -526,7 +491,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'information_update',
-    label: '상점 정책 수정',
     description: 'Update store policies.',
     scopeType: 'write',
     method: 'PUT',
@@ -539,7 +503,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'kakaoalimtalk_profile_get',
-    label: '카카오 채널 발신자 프로필 키 조회',
     description: 'Retrieve the Kakao channel sender profile key.',
     scopeType: 'read',
     method: 'GET',
@@ -552,7 +515,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'kakaoalimtalk_setting_get',
-    label: '카카오 알림톡 설정 조회',
     description: 'Retrieve KakaoTalk notification settings.',
     scopeType: 'read',
     method: 'GET',
@@ -565,7 +527,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'kakaoalimtalk_setting_update',
-    label: '카카오 알림톡 설정 수정',
     description: 'Update KakaoTalk notification settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -578,7 +539,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'kakaopay_setting_get',
-    label: '카카오페이 주문 설정 조회',
     description:
       'Retrieve KakaoPay order settings. Requires Cafe24 partner approval.',
     scopeType: 'read',
@@ -593,7 +553,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'kakaopay_setting_update',
-    label: '카카오페이 주문 설정 수정',
     description:
       'Update KakaoPay order settings. Requires Cafe24 partner approval.',
     scopeType: 'write',
@@ -609,7 +568,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-E — mains_properties·mobile·naverpay·orderform setting
   {
     id: 'mains_properties_setting_get',
-    label: '메인 진열 추가 설정 조회',
     description:
       'Retrieve additional display settings for products on the main screen.',
     scopeType: 'read',
@@ -623,7 +581,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mains_properties_setting_update',
-    label: '메인 진열 추가 설정 수정',
     description:
       'Update additional display settings for products on the main screen.',
     scopeType: 'write',
@@ -637,7 +594,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mobile_setting_get',
-    label: '모바일 설정 조회',
     description: 'Retrieve mobile-storefront settings.',
     scopeType: 'read',
     method: 'GET',
@@ -650,7 +606,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mobile_setting_update',
-    label: '모바일 설정 수정',
     description: 'Update mobile-storefront settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -663,7 +618,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'naverpay_setting_get',
-    label: '네이버페이 설정 조회',
     description:
       'Retrieve Naver Pay settings. Requires Cafe24 partner approval.',
     scopeType: 'read',
@@ -678,7 +632,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'naverpay_setting_create',
-    label: '네이버페이 설정 생성',
     description: 'Create Naver Pay settings. Requires Cafe24 partner approval.',
     scopeType: 'write',
     method: 'POST',
@@ -692,7 +645,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'naverpay_setting_update',
-    label: '네이버페이 설정 수정',
     description: 'Update Naver Pay settings. Requires Cafe24 partner approval.',
     scopeType: 'write',
     method: 'PUT',
@@ -706,7 +658,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orderform_setting_get',
-    label: '주문서 양식 설정 조회',
     description: 'Retrieve order form settings.',
     scopeType: 'read',
     method: 'GET',
@@ -719,7 +670,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orderform_setting_update',
-    label: '주문서 양식 설정 수정',
     description: 'Update order form settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -733,7 +683,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-F — orders·payment setting · paymentgateway_paymentmethods CUD · paymentmethods_paymentproviders_update_display · paymentservices_get
   {
     id: 'orders_setting_get',
-    label: '주문 설정 조회',
     description: 'Retrieve order settings.',
     scopeType: 'read',
     method: 'GET',
@@ -746,7 +695,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_setting_update',
-    label: '주문 설정 수정',
     description: 'Update order settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -759,7 +707,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_status_get',
-    label: '주문 상태 표기 조회',
     description: 'Retrieve order-status display configuration (labels).',
     scopeType: 'read',
     method: 'GET',
@@ -772,7 +719,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_status_update',
-    label: '주문 상태 표기 수정',
     description: 'Update order-status display configuration (labels).',
     scopeType: 'write',
     method: 'PUT',
@@ -785,7 +731,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'payment_setting_get',
-    label: '결제 설정 조회',
     description: 'Retrieve payment settings.',
     scopeType: 'read',
     method: 'GET',
@@ -798,7 +743,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'payment_setting_update',
-    label: '결제 설정 수정',
     description: 'Update payment settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -811,7 +755,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentgateway_paymentmethods_create',
-    label: '결제대행사 결제수단 생성',
     description:
       'Create a payment method for an existing payment gateway. Requires Cafe24 partner approval.',
     scopeType: 'write',
@@ -827,7 +770,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentgateway_paymentmethods_update',
-    label: '결제대행사 결제수단 수정',
     description:
       'Update a specific payment method of a payment gateway. Requires Cafe24 partner approval.',
     scopeType: 'write',
@@ -844,7 +786,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentgateway_paymentmethods_delete',
-    label: '결제대행사 결제수단 삭제',
     description:
       'Delete a specific payment method of a payment gateway. Requires Cafe24 partner approval.',
     scopeType: 'write',
@@ -860,7 +801,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentmethods_paymentproviders_update_display',
-    label: '결제수단 노출 상태 수정',
     description:
       'Update the display (visibility) status of a payment method by provider.',
     scopeType: 'write',
@@ -887,7 +827,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'paymentservices_get',
-    label: 'PG 설정 목록 조회',
     description: 'Retrieve a list of registered PG (payment service) settings.',
     scopeType: 'read',
     method: 'GET',
@@ -901,7 +840,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-G — points·policy
   {
     id: 'points_setting_get',
-    label: '적립금 설정 조회',
     description: 'Retrieve mileage (points) settings.',
     scopeType: 'read',
     method: 'GET',
@@ -914,7 +852,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'points_setting_update',
-    label: '적립금 설정 수정',
     description: 'Update mileage (points) settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -927,7 +864,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'policy_get',
-    label: '상점 프로필 조회',
     description: 'Retrieve store profile (business policy/contact).',
     scopeType: 'read',
     method: 'GET',
@@ -940,7 +876,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'policy_update',
-    label: '상점 프로필 수정',
     description: 'Update store profile (business policy/contact).',
     scopeType: 'write',
     method: 'PUT',
@@ -959,7 +894,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // once their Cafe24 docs anchors are verified.
   {
     id: 'privacy_boards_get',
-    label: '게시판 개인정보 정책 조회',
     description: 'Retrieve the privacy policy shown when posting on a board.',
     scopeType: 'read',
     method: 'GET',
@@ -972,7 +906,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'privacy_boards_update',
-    label: '게시판 개인정보 정책 수정',
     description: 'Update the privacy policy shown when posting on a board.',
     scopeType: 'write',
     method: 'PUT',
@@ -985,7 +918,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'privacy_join_get',
-    label: '회원가입 개인정보 정책 조회',
     description: 'Retrieve the privacy policy shown during member signup.',
     scopeType: 'read',
     method: 'GET',
@@ -998,7 +930,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'privacy_join_update',
-    label: '회원가입 개인정보 정책 수정',
     description: 'Update the privacy policy shown during member signup.',
     scopeType: 'write',
     method: 'PUT',
@@ -1011,7 +942,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'privacy_orders_get',
-    label: '주문 개인정보 정책 조회',
     description: 'Retrieve the privacy policy shown during checkout.',
     scopeType: 'read',
     method: 'GET',
@@ -1024,7 +954,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'privacy_orders_update',
-    label: '주문 개인정보 정책 수정',
     description: 'Update the privacy policy shown during checkout.',
     scopeType: 'write',
     method: 'PUT',
@@ -1038,7 +967,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-H — products_display·products_properties·products_setting · redirects · restocknotification
   {
     id: 'products_display_setting_list',
-    label: '상품 진열 설정 목록',
     description: 'List product-display settings entries.',
     scopeType: 'read',
     method: 'GET',
@@ -1054,7 +982,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'products_display_setting_update',
-    label: '상품 진열 설정 수정',
     description: 'Update a product-display settings entry.',
     scopeType: 'write',
     method: 'PUT',
@@ -1067,7 +994,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'products_properties_setting_get',
-    label: '상품 상세 추가 설정 조회',
     description: 'Retrieve additional settings for product detail pages.',
     scopeType: 'read',
     method: 'GET',
@@ -1080,7 +1006,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'products_properties_setting_update',
-    label: '상품 상세 추가 설정 수정',
     description: 'Update additional settings for product detail pages.',
     scopeType: 'write',
     method: 'PUT',
@@ -1093,7 +1018,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'products_setting_get',
-    label: '상품 설정 조회',
     description: 'Retrieve product settings.',
     scopeType: 'read',
     method: 'GET',
@@ -1106,7 +1030,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'redirects_list',
-    label: '리다이렉트 목록',
     description: 'List URL redirects defined on the storefront.',
     scopeType: 'read',
     method: 'GET',
@@ -1122,7 +1045,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'redirects_create',
-    label: '리다이렉트 생성',
     description: 'Create a URL redirect.',
     scopeType: 'write',
     method: 'POST',
@@ -1135,7 +1057,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'redirects_update',
-    label: '리다이렉트 수정',
     description: 'Update an existing URL redirect.',
     scopeType: 'write',
     method: 'PUT',
@@ -1150,7 +1071,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'redirects_delete',
-    label: '리다이렉트 삭제',
     description: 'Delete a URL redirect by id.',
     scopeType: 'write',
     method: 'DELETE',
@@ -1163,7 +1083,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'restocknotification_setting_get',
-    label: '재입고 알림 설정 조회',
     description: 'Retrieve restock-notification settings.',
     scopeType: 'read',
     method: 'GET',
@@ -1176,7 +1095,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'restocknotification_setting_update',
-    label: '재입고 알림 설정 수정',
     description: 'Update restock-notification settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -1190,7 +1108,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-I — seo · shippingmanager · sms · socials (apple/kakao/naver)
   {
     id: 'seo_setting_get',
-    label: 'SEO 설정 조회',
     description: 'Retrieve SEO settings.',
     scopeType: 'read',
     method: 'GET',
@@ -1203,7 +1120,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'seo_setting_update',
-    label: 'SEO 설정 수정',
     description: 'Update SEO settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -1216,7 +1132,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'shippingmanager_get',
-    label: '배송 매니저 활성화 정보',
     description:
       'Retrieve activation information for the shipping manager add-on.',
     scopeType: 'read',
@@ -1228,7 +1143,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'sms_setting_get',
-    label: 'SMS 설정 조회',
     description: 'Retrieve SMS settings.',
     scopeType: 'read',
     method: 'GET',
@@ -1241,7 +1155,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'sms_setting_update',
-    label: 'SMS 설정 수정',
     description: 'Update SMS settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -1254,7 +1167,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'socials_apple_get',
-    label: 'Apple 로그인 연동 상세',
     description: 'Retrieve Apple login integration details.',
     scopeType: 'read',
     method: 'GET',
@@ -1271,7 +1183,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // 미확인. 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'socials_apple_settings_get',
-    label: 'Apple 로그인 연동 설정',
     description:
       'Retrieve Apple login integration settings. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
@@ -1285,7 +1196,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'socials_kakaosync_get',
-    label: '카카오 싱크 상세',
     description: 'Retrieve KakaoSync integration details.',
     scopeType: 'read',
     method: 'GET',
@@ -1298,7 +1208,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'socials_kakaosync_update',
-    label: '카카오 싱크 수정',
     description: 'Update KakaoSync integration settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -1311,7 +1220,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'socials_naverlogin_get',
-    label: '네이버 로그인 상세',
     description: 'Retrieve Naver login integration details.',
     scopeType: 'read',
     method: 'GET',
@@ -1324,7 +1232,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'socials_naverlogin_update',
-    label: '네이버 로그인 수정',
     description: 'Update Naver login integration settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -1337,7 +1244,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'socials_navershopping_get',
-    label: '네이버 쇼핑 설정',
     description: 'Retrieve Naver Shopping integration settings.',
     scopeType: 'read',
     method: 'GET',
@@ -1351,7 +1257,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   // Batch 1-J — store_accounts · dropshipping · store_setting · subscription · taxmanager · users
   {
     id: 'store_accounts_list',
-    label: '상점 계좌 목록',
     description: 'List the bank accounts registered to the store.',
     scopeType: 'read',
     method: 'GET',
@@ -1364,7 +1269,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'store_dropshipping_get',
-    label: '위탁배송 설정 조회',
     description: 'Retrieve dropshipping settings.',
     scopeType: 'read',
     method: 'GET',
@@ -1377,7 +1281,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'store_dropshipping_manage',
-    label: '위탁배송 설정 관리',
     description: 'Manage dropshipping settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -1390,7 +1293,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'store_setting_get',
-    label: '상점 보안 설정 조회',
     description: 'Retrieve store security settings.',
     scopeType: 'read',
     method: 'GET',
@@ -1403,7 +1305,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'store_setting_update',
-    label: '상점 보안 설정 수정',
     description: 'Update store security settings.',
     scopeType: 'write',
     method: 'PUT',
@@ -1416,7 +1317,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'subscription_shipments_setting_list',
-    label: '정기배송 상품 목록',
     description: 'List subscription shipping products.',
     scopeType: 'read',
     method: 'GET',
@@ -1432,7 +1332,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'subscription_shipments_setting_create_rule',
-    label: '정기배송 결제 규칙 생성',
     description: 'Create a subscription payment rule.',
     scopeType: 'write',
     method: 'POST',
@@ -1445,7 +1344,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'subscription_shipments_setting_update',
-    label: '정기배송 상품 수정',
     description: 'Update a subscription shipping product by subscription_no.',
     scopeType: 'write',
     method: 'PUT',
@@ -1461,7 +1359,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'subscription_shipments_setting_delete',
-    label: '정기배송 상품 삭제',
     description: 'Delete a subscription shipping product by subscription_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -1476,7 +1373,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'taxmanager_get',
-    label: '세금 매니저 활성화 정보',
     description: 'Retrieve activation information for the tax manager add-on.',
     scopeType: 'read',
     method: 'GET',
@@ -1489,7 +1385,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'users_list',
-    label: '운영자 사용자 목록',
     description: 'List admin users with optional filters.',
     scopeType: 'read',
     method: 'GET',
@@ -1505,7 +1400,6 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'users_get',
-    label: '운영자 사용자 상세',
     description: 'Retrieve a single admin user by user_id.',
     scopeType: 'read',
     method: 'GET',

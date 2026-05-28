@@ -19,7 +19,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   // `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'applications_list',
-    label: '설치된 앱 목록 조회',
     description:
       'List apps installed in the mall. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
@@ -34,7 +33,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'scripttags_list',
-    label: '스크립트태그 목록 조회',
     description: 'List script tags injected by apps.',
     scopeType: 'read',
     method: 'GET',
@@ -51,7 +49,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   // 운영 검증 / 제거 결정은 `cafe24-backlog-residual.md §G-2` 트랙.
   {
     id: 'webhooks_list',
-    label: 'Webhook 설정 조회',
     description:
       'List webhook subscriptions configured for the app. ⚠ Not documented in cafe24 admin docs (Latest 2026-03-01); kept for backwards compatibility pending production verification.',
     scopeType: 'read',
@@ -66,7 +63,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   // Phase 7d — Application (apps_update + scripttags CRUD + webhooks_update + logs)
   {
     id: 'apps_update',
-    label: '앱 정보 수정',
     description: 'Update installed-app information (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -79,7 +75,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'scripttags_count',
-    label: '스크립트태그 개수 조회',
     description: 'Retrieve the count of registered script tags.',
     scopeType: 'read',
     method: 'GET',
@@ -92,7 +87,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'scripttags_get',
-    label: '스크립트태그 단건 조회',
     description: 'Retrieve a script tag by script_no.',
     scopeType: 'read',
     method: 'GET',
@@ -106,7 +100,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'scripttags_create',
-    label: '스크립트태그 생성',
     description: 'Register a new script tag.',
     scopeType: 'write',
     method: 'POST',
@@ -127,7 +120,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'scripttags_update',
-    label: '스크립트태그 수정',
     description: 'Update a script tag by script_no (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -144,7 +136,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'scripttags_delete',
-    label: '스크립트태그 삭제',
     description: 'Delete a script tag by script_no.',
     scopeType: 'write',
     method: 'DELETE',
@@ -157,7 +148,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'webhooks_update',
-    label: 'Webhook 설정 수정',
     description: 'Edit webhook settings (partial).',
     scopeType: 'write',
     method: 'PUT',
@@ -172,7 +162,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'webhooks_logs_list',
-    label: 'Webhook 로그 목록',
     description: 'List webhook delivery logs (delivered/failed history).',
     scopeType: 'read',
     method: 'GET',
@@ -197,7 +186,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   // Phase 8g — Application 완성 (appstore orders + payments + databridge + recipes)
   {
     id: 'appstore_orders_get',
-    label: '앱스토어 주문 조회',
     description: 'Retrieve a Cafe24 appstore order.',
     scopeType: 'read',
     method: 'GET',
@@ -210,7 +198,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'appstore_orders_create',
-    label: '앱스토어 주문 생성',
     description:
       'Create a Cafe24 appstore order. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
@@ -224,7 +211,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'appstore_payments_list',
-    label: '앱스토어 결제 목록',
     description: 'List Cafe24 appstore payments.',
     scopeType: 'read',
     method: 'GET',
@@ -248,7 +234,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'appstore_payments_count',
-    label: '앱스토어 결제 수',
     description: 'Retrieve the count of Cafe24 appstore payments.',
     scopeType: 'read',
     method: 'GET',
@@ -271,7 +256,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'databridge_logs_list',
-    label: 'DataBridge 로그 목록',
     description: 'List DataBridge webhook logs.',
     scopeType: 'read',
     method: 'GET',
@@ -295,7 +279,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'recipes_list',
-    label: '레시피 목록 조회',
     description: 'List recipes (DataBridge automation recipes).',
     scopeType: 'read',
     method: 'GET',
@@ -309,7 +292,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'recipes_create',
-    label: '레시피 생성',
     description: 'Create a recipe. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
     method: 'POST',
@@ -323,7 +305,6 @@ export const applicationOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'recipes_delete',
-    label: '레시피 삭제',
     description: 'Delete a recipe by recipe_code.',
     scopeType: 'write',
     method: 'DELETE',

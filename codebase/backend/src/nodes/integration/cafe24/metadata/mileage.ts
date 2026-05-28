@@ -8,7 +8,6 @@ import {
 export const mileageOperations: Cafe24OperationMetadata[] = [
   {
     id: 'mileage_list',
-    label: '적립금 내역 조회',
     description: 'List mileage (loyalty point) transactions.',
     scopeType: 'read',
     method: 'GET',
@@ -34,7 +33,6 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'mileage_grant',
-    label: '적립금 지급',
     description: 'Grant mileage to a member.',
     scopeType: 'write',
     method: 'POST',
@@ -62,7 +60,6 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   // Phase 6e — Mileage 보완
   {
     id: 'points_autoexpiration_get',
-    label: '적립금 자동 만료 조회',
     description:
       'Retrieve an automatic points-expiration rule by id. Uses codebase `member_id` for the customer reference (Cafe24 docs vary by endpoint).',
     scopeType: 'read',
@@ -78,7 +75,6 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'points_autoexpiration_create',
-    label: '적립금 자동 만료 생성',
     description:
       'Register an automatic points-expiration rule. Body should include customer reference + expiration_date + points_amount.',
     scopeType: 'write',
@@ -100,7 +96,6 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'points_autoexpiration_delete',
-    label: '적립금 자동 만료 삭제',
     description: 'Remove an automatic points-expiration rule by id.',
     scopeType: 'write',
     method: 'DELETE',
@@ -114,7 +109,6 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'credits_list',
-    label: '예치금 내역 조회',
     description: 'Retrieve the credit (예치금) ledger for a date range.',
     scopeType: 'read',
     method: 'GET',
@@ -139,7 +133,6 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'credits_report',
-    label: '예치금 리포트 조회',
     description:
       'Retrieve the credit (예치금) summary report for a date range.',
     scopeType: 'read',
@@ -165,7 +158,6 @@ export const mileageOperations: Cafe24OperationMetadata[] = [
   // Phase 8a — Mileage 완성
   {
     id: 'points_report',
-    label: '적립금 리포트 조회',
     description: 'Retrieve a points (mileage) report by date range.',
     scopeType: 'read',
     method: 'GET',

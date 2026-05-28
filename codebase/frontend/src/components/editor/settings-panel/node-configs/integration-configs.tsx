@@ -4,6 +4,9 @@ import { IntegrationSelector } from "./integration-selector";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
+import { useLocaleStore } from "@/lib/stores/locale-store";
+import { cafe24Catalog as cafe24CatalogKo } from "@/lib/i18n/dict/ko/cafe24Catalog";
+import { cafe24Catalog as cafe24CatalogEn } from "@/lib/i18n/dict/en/cafe24Catalog";
 import { getNodeDefinition } from "@/lib/node-definitions";
 import type {
   Cafe24NodeExtras,
@@ -378,6 +381,24 @@ function findPlannedOperation(
  * surfaced as hint text rather than specialised widgets so the
  * expression-input experience stays uniform.
  */
+/**
+ * `cafe24.<resource>.<operation>` catalog key → KO/EN 사람 친화 라벨.
+ *
+ * dict 키 자체에 `.` 가 포함돼 있어 일반 `useT(dotted.key)` 의 nested-lookup
+ * 흐름과 충돌한다. 따라서 `cafe24Catalog` flat dict 를 직접 import 해 lookup.
+ *
+ * dict 에 key 가 등록되지 않은 경우 (catalog drift) 본 key 자체를 그대로 반환
+ * — 사용자가 보면 어색하지만 dict 누락 즉시 감지 가능. SoT:
+ * spec/conventions/cafe24-api-metadata.md §7.5 "dict lookup miss fallback".
+ */
+function resolveCafe24OperationLabel(
+  locale: "ko" | "en",
+  labelKey: string,
+): string {
+  const dict = locale === "en" ? cafe24CatalogEn : cafe24CatalogKo;
+  return dict[labelKey] ?? labelKey;
+}
+
 function Cafe24FieldRow({
   field,
   value,
@@ -426,6 +447,10 @@ export function Cafe24Config({
   onChange: OnChange;
 }) {
   const t = useT();
+  // Cafe24 operation 라벨은 i18n 의 nested key 시스템과 호환되지 않는
+  // flat dict (`cafe24Catalog.<dotted-key>`) 이라 locale 스토어를 직접 보고
+  // dict 를 import 해서 lookup한다. SoT: spec §7.5.
+  const locale = useLocaleStore((s) => s.locale);
   // Extras ship with `GET /nodes/definitions` (Phase 2). When they're not
   // available (definitions still loading on initial mount, or an older
   // backend that doesn't supply extras), `readCafe24Extras()` returns null
@@ -479,15 +504,18 @@ export function Cafe24Config({
           value: "",
           label: t("nodeConfigs.integration.cafe24OperationSelectPlaceholder"),
         },
-        ...supportedListForResource.map((op) => ({
-          value: op.id,
-          label: op.restrictedApproval
-            ? `${op.label} ⚠ ${t("nodeConfigs.integration.cafe24OperationApprovalSuffix")}`
-            : op.label,
-        })),
+        ...supportedListForResource.map((op) => {
+          const label = resolveCafe24OperationLabel(locale, op.labelKey);
+          return {
+            value: op.id,
+            label: op.restrictedApproval
+              ? `${label} ⚠ ${t("nodeConfigs.integration.cafe24OperationApprovalSuffix")}`
+              : label,
+          };
+        }),
         ...plannedListForResource.map((op) => ({
           value: op.id,
-          label: `${op.label} ${plannedSuffix}`,
+          label: `${resolveCafe24OperationLabel(locale, op.labelKey)} ${plannedSuffix}`,
           disabled: true,
         })),
       ];

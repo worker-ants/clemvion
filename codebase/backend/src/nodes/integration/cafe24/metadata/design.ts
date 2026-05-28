@@ -3,7 +3,6 @@ import type { Cafe24OperationMetadata } from './types.js';
 export const designOperations: Cafe24OperationMetadata[] = [
   {
     id: 'themes_list',
-    label: '테마 목록 조회',
     description: 'List installed themes.',
     scopeType: 'read',
     method: 'GET',
@@ -18,7 +17,6 @@ export const designOperations: Cafe24OperationMetadata[] = [
   // Phase 8i — Design 완성 (themes count/get + theme_pages CRUD + icons)
   {
     id: 'themes_count',
-    label: '테마 개수 조회',
     description: 'Retrieve the count of installed themes.',
     scopeType: 'read',
     method: 'GET',
@@ -31,7 +29,6 @@ export const designOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'themes_get',
-    label: '테마 단건 조회',
     description: 'Retrieve a single theme by skin_no.',
     scopeType: 'read',
     method: 'GET',
@@ -45,7 +42,6 @@ export const designOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'theme_pages_get',
-    label: '테마 페이지 조회',
     description: 'Retrieve theme page contents (HTML/CSS).',
     scopeType: 'read',
     method: 'GET',
@@ -60,7 +56,6 @@ export const designOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'theme_pages_create',
-    label: '테마 페이지 생성',
     description:
       'Create a theme page. Body schema partial — refer to Cafe24 docs.',
     scopeType: 'write',
@@ -76,7 +71,6 @@ export const designOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'theme_pages_update',
-    label: '테마 페이지 수정',
     description:
       'Update theme page contents (partial). Page identifier goes in body.',
     scopeType: 'write',
@@ -94,7 +88,6 @@ export const designOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'theme_pages_delete',
-    label: '테마 페이지 삭제',
     description: 'Delete a theme page. Page identifier goes in query.',
     scopeType: 'write',
     method: 'DELETE',
@@ -108,7 +101,6 @@ export const designOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'icons_list',
-    label: '디자인 아이콘 목록 조회',
     description: 'List storefront design icons (new/best/sale badges, etc.).',
     scopeType: 'read',
     method: 'GET',
@@ -121,7 +113,6 @@ export const designOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'icons_update_settings',
-    label: '상점 아이콘 설정 수정',
     description:
       'Update storefront icon settings (partial). Refer to Cafe24 docs for full schema.',
     scopeType: 'write',
