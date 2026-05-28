@@ -210,6 +210,11 @@ export const triggers = {
     buttonLayoutHorizontal: "horizontal",
     formModeMultiStep: "multi_step",
     rateLimitPerMinute: "분당 최대 inbound (default 60)",
+    languageLocale: "안내 기본 언어 (languageLocale)",
+    languageLocaleKo: "한국어 (ko)",
+    languageLocaleEn: "English (en)",
+    languageLocaleHelp:
+      "languageHints 미설정 키에 적용되는 default 문구 언어 (default ko). 실행 실패 안내(CCH-ERR-*) 등 봇 자체 안내에 사용.",
     languageHints: "안내 메시지 i18n (languageHints)",
     languageHintsHelp:
       "봇이 보내는 자체 안내 메시지 키 — groupChatRefusal / executionStarted / executionCompleted / executionStillRunning / help. " +

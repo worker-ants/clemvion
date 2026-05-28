@@ -36,6 +36,8 @@ interface ChatChannelConfigView {
   };
   rateLimitPerMinute?: number;
   languageHints?: Record<string, string>;
+  /** Spec §4.1 — languageHints 미설정 키의 default 문구 언어 (default ko). */
+  languageLocale?: "ko" | "en";
 }
 
 interface TriggerDetail {
@@ -1131,6 +1133,9 @@ function ChatChannelCard({
       ? JSON.stringify(chatChannel.languageHints, null, 2)
       : "",
   );
+  const [languageLocale, setLanguageLocale] = useState<"ko" | "en">(
+    chatChannel?.languageLocale ?? "ko",
+  );
 
   // Rotate Bot Token modal
   const [rotateOpen, setRotateOpen] = useState(false);
@@ -1194,6 +1199,7 @@ function ChatChannelCard({
         rateLimitPerMinute: Number.isFinite(rateLimitParsed)
           ? rateLimitParsed
           : 60,
+        languageLocale,
         ...(parsedHints ? { languageHints: parsedHints } : {}),
       };
       // backend mergeExternalConfig 가 chatChannel 전체를 교체하므로 비편집 필드도 동봉
@@ -1394,6 +1400,14 @@ function ChatChannelCard({
                   {t("triggers.chatChannel.rateLimitPerMinute")}
                 </dt>
                 <dd>{chatChannel?.rateLimitPerMinute ?? 60}</dd>
+                <dt className="text-[hsl(var(--muted-foreground))]">
+                  {t("triggers.chatChannel.languageLocale")}
+                </dt>
+                <dd>
+                  {(chatChannel?.languageLocale ?? "ko") === "en"
+                    ? t("triggers.chatChannel.languageLocaleEn")
+                    : t("triggers.chatChannel.languageLocaleKo")}
+                </dd>
               </dl>
             </div>
 
@@ -1474,6 +1488,29 @@ function ChatChannelCard({
                 onChange={(e) => setRateLimitPerMinute(e.target.value)}
                 className="mt-1"
               />
+            </div>
+            <div>
+              <Label htmlFor="cc-languageLocale">
+                {t("triggers.chatChannel.languageLocale")}
+              </Label>
+              <select
+                id="cc-languageLocale"
+                className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent px-2 py-1.5 text-sm"
+                value={languageLocale}
+                onChange={(e) =>
+                  setLanguageLocale(e.target.value as "ko" | "en")
+                }
+              >
+                <option value="ko">
+                  {t("triggers.chatChannel.languageLocaleKo")}
+                </option>
+                <option value="en">
+                  {t("triggers.chatChannel.languageLocaleEn")}
+                </option>
+              </select>
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("triggers.chatChannel.languageLocaleHelp")}
+              </p>
             </div>
             <div>
               <Label htmlFor="cc-languageHints">
