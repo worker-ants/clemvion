@@ -68,6 +68,12 @@ export const triggers = {
   authNone: "없음 (공개)",
   authHmac: "HMAC 서명",
   authBearer: "Bearer 토큰",
+  authConfigLabel: "인증 설정",
+  authConfigHelp:
+    "Authentication 메뉴에서 발급한 인증 설정을 연결해요. 인증 없이 두려면 '인증 없음' 을 선택하세요.",
+  authConfigNone: "인증 없음",
+  authConfigCreateLink: "+ 새 인증 설정 만들기",
+  authConfigLoadFailed: "인증 설정 목록을 불러오지 못했어요",
   secretKey: "시크릿 키",
   secretPlaceholder: "your-secret-key",
   signatureHeader: "서명 헤더",

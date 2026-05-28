@@ -71,6 +71,12 @@ export const triggers: Dict["triggers"] = {
   authNone: "None (Public)",
   authHmac: "HMAC Signature",
   authBearer: "Bearer Token",
+  authConfigLabel: "Auth config",
+  authConfigHelp:
+    "Link an auth config issued in the Authentication menu. Choose 'No authentication' to leave it public.",
+  authConfigNone: "No authentication",
+  authConfigCreateLink: "+ Create a new auth config",
+  authConfigLoadFailed: "Failed to load auth configs",
   secretKey: "Secret Key",
   secretPlaceholder: "your-secret-key",
   signatureHeader: "Signature Header",

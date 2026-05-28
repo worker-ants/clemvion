@@ -5,8 +5,8 @@ section: "02-nodes"
 order: 2
 summary: "워크플로우의 시작점인 Manual Trigger를 설명하고, 웹훅·스케줄이 같은 파라미터 스키마를 공유하는 이유, 그리고 외부 시스템이 웹훅으로 시작한 실행과 인터랙션을 주고받는 방법을 짚어요."
 summary_en: "Explains the Manual Trigger that starts workflows, why webhooks and schedules share the same parameter schema, and how external systems can interact with executions that webhooks start."
-spec: ["spec/4-nodes/7-trigger/0-common.md", "spec/5-system/12-webhook.md", "spec/5-system/14-external-interaction-api.md"]
-code: ["codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts"]
+spec: ["spec/4-nodes/7-trigger/0-common.md", "spec/5-system/12-webhook.md", "spec/5-system/14-external-interaction-api.md", "spec/2-navigation/6-config.md"]
+code: ["codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts", "codebase/frontend/src/app/(main)/authentication/page.tsx", "codebase/frontend/src/components/triggers/auth-config-select.tsx"]
 ---
 
 이 페이지에서는 트리거 노드의 역할과 설정 방법을 설명해요. 현재 캔버스에 배치 가능한 트리거 노드는 **Manual Trigger** 한 종류이고, 웹훅과 스케줄은 별도의 트리거 시스템에서 같은 파라미터 스키마를 공유하는 방식으로 동작해요.
@@ -96,15 +96,44 @@ POST {base_url}/api/hooks/{endpoint_path}
 - 메서드는 `POST`만 받아요. `Content-Type`은 `application/json` 또는 `application/x-www-form-urlencoded`.
 - 본문 최대 크기는 1MB예요. 초과 시 `413 Payload Too Large`.
 
-### 인증 옵션
+### 인증 설정
 
-트리거 상세에서 인증 방식을 셋 중 하나로 설정해요. 검증 실패는 모두 동일한 `401 Unauthorized` 메시지로만 응답해요 (알고리즘이 무엇이었는지는 응답에 노출되지 않아요 — 정보 유출 방지).
+웹훅 트리거의 인증은 [Authentication 메뉴](/authentication)에서 만들어 둔 **인증 설정(AuthConfig)**을 연결하는 방식으로 동작해요. 트리거 생성·상세 화면의 **"인증 설정"** 셀렉터에서 원하는 인증 설정을 선택하거나 "인증 없음"을 선택해요.
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/triggers/auth-config-select.tsx"
+  symbol="AuthConfigSelect"
+  describes="트리거 생성·상세 화면의 인증 설정 셀렉터 — AuthConfig 연결 또는 '인증 없음' 선택"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/authentication/page.tsx"
+  symbol="AuthenticationPage"
+  describes="Authentication 페이지 — 인증 설정 목록 조회·생성·재발급·Reveal"
+/>
+
+검증 실패는 모두 동일한 `401 Unauthorized` 메시지로만 응답해요 (알고리즘이 무엇이었는지는 응답에 노출되지 않아요 — 정보 유출 방지).
+
+#### 인증 없음 (공개)
+
+"인증 없음"을 선택하면 누구나 호출할 수 있어요. URL의 UUID 자체가 사실상 비밀이에요. 민감한 데이터를 다루는 워크플로우에는 권장하지 않아요.
+
+#### 인증 설정 4종
+
+[Authentication 메뉴](/authentication)에서 다음 4가지 타입 중 하나로 인증 설정을 만들어요.
 
 <FieldTable rows={[
-  { name: "None (공개)", required: false, type: "검증 없음", description: "누구나 호출할 수 있어요. URL의 UUID 자체가 사실상 비밀이에요. 외부 노출이 우려되는 워크플로우에는 권장하지 않아요.", default: "-" },
-  { name: "HMAC 서명", required: false, type: "Secret 기반", description: "요청 헤더에 `X-Hub-Signature-256: sha256=<hex>` 같은 서명을 동봉해요. 알고리즘은 `sha256` 또는 `sha512`만 허용해요. GitHub Webhook과 동일한 방식이에요.", default: "-" },
-  { name: "Bearer Token", required: false, type: "토큰 비교", description: "요청 헤더에 `Authorization: Bearer <token>`을 동봉하고, 트리거에 저장된 값과 동일할 때만 통과해요.", default: "-" }
+  { name: "API Key", required: false, type: "키 비교", description: "요청 헤더에 발급된 API 키를 동봉해요. 키 값은 생성 시 단 한 번 평문으로 표시돼요.", default: "-" },
+  { name: "Bearer Token", required: false, type: "토큰 비교", description: "요청 헤더에 `Authorization: Bearer <token>`을 동봉해요. 토큰 값은 생성 시 단 한 번 평문으로 표시돼요.", default: "-" },
+  { name: "HMAC", required: false, type: "서명 검증", description: "요청 헤더에 `X-Hub-Signature-256: sha256=<hex>` 같은 서명을 동봉해요. 알고리즘은 `sha256` 또는 `sha512`만 허용해요. GitHub Webhook과 동일한 방식이에요. 시크릿 값은 생성 시 단 한 번 평문으로 표시돼요.", default: "-" },
+  { name: "Basic Auth", required: false, type: "사용자명/비밀번호", description: "요청 헤더에 `Authorization: Basic <base64>`를 동봉해요. username 과 password 는 생성 시 직접 입력해요.", default: "-" }
 ]} />
+
+<Callout type="tip">
+인증 자료(시크릿·토큰·비밀번호)는 [Authentication 메뉴](/authentication)에서만 발급·재발급·Reveal(관리자 이상, 비밀번호 재확인)할 수 있어요. 트리거 화면에서는 어떤 인증 설정을 연결할지만 선택해요.
+</Callout>
 
 <Callout type="warn">
 HMAC을 쓰면 서버가 본문 원본 바이트로 서명을 검증해요. 외부 시스템이 본문을 자동으로 재가공해서 보내면 서명이 깨질 수 있어요. 발신 측에서 원문을 그대로 송신하도록 확인하세요.
@@ -170,7 +199,7 @@ POST /api/triggers
   "type": "webhook",
   "workflowId": "uuid",
   "endpointPath": "uuid-or-slug",
-  "authType": "bearer",
+  "authConfigId": "<Authentication 메뉴에서 만든 인증 설정 ID>",
 
   // Outbound: 우리 서버 → 외부 URL 로 이벤트 push
   "notification": {

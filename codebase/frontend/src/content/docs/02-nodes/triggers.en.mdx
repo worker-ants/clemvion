@@ -85,15 +85,44 @@ POST {base_url}/api/hooks/{endpoint_path}
 - Only `POST` is accepted. `Content-Type` must be `application/json` or `application/x-www-form-urlencoded`.
 - Maximum body size is 1MB. Larger payloads get `413 Payload Too Large`.
 
-### Authentication options
+### Authentication settings
 
-Pick one of three auth methods on the trigger detail panel. Every failure returns the same generic `401 Unauthorized` — the algorithm or reason is not echoed back, to prevent information leakage.
+Webhook trigger authentication works by linking an **auth config** you create in the [Authentication menu](/authentication). On the trigger create or detail panel, use the **"Auth Config"** selector to pick a config or choose "No authentication".
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/components/triggers/auth-config-select.tsx"
+  symbol="AuthConfigSelect"
+  describes="Auth config selector on the trigger create/detail panel — link an AuthConfig or choose no authentication"
+/>
+
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/authentication/page.tsx"
+  symbol="AuthenticationPage"
+  describes="Authentication page — list, create, regenerate, and reveal auth configs"
+/>
+
+Every authentication failure returns the same generic `401 Unauthorized` — the algorithm or reason is not echoed back, to prevent information leakage.
+
+#### No authentication (public)
+
+Choosing "No authentication" allows anyone to call the webhook. The UUID in the URL is effectively the secret. Not recommended for workflows that handle sensitive data.
+
+#### Four auth config types
+
+Go to the [Authentication menu](/authentication) to create a config with one of these four types.
 
 <FieldTable rows={[
-  { name: "None (public)", required: false, type: "No verification", description: "Anyone can call it. The UUID in the URL is effectively the secret. Not recommended for workflows that touch sensitive data.", default: "-" },
-  { name: "HMAC signature", required: false, type: "Secret-based", description: "Senders include a header such as `X-Hub-Signature-256: sha256=<hex>`. Allowed algorithms are `sha256` and `sha512` only. Same model as GitHub Webhook.", default: "-" },
-  { name: "Bearer Token", required: false, type: "Token compare", description: "Senders include `Authorization: Bearer <token>`. The request is accepted only when the token matches the value stored on the trigger.", default: "-" }
+  { name: "API Key", required: false, type: "Key compare", description: "Senders include the issued API key in the request header. The key value is shown in plaintext exactly once, at creation.", default: "-" },
+  { name: "Bearer Token", required: false, type: "Token compare", description: "Senders include `Authorization: Bearer <token>`. The token is shown in plaintext exactly once, at creation.", default: "-" },
+  { name: "HMAC", required: false, type: "Signature verification", description: "Senders include a header such as `X-Hub-Signature-256: sha256=<hex>`. Allowed algorithms are `sha256` and `sha512` only — same model as GitHub Webhook. The secret value is shown in plaintext exactly once, at creation.", default: "-" },
+  { name: "Basic Auth", required: false, type: "Username / password", description: "Senders include `Authorization: Basic <base64>`. Username and password are entered directly at creation time.", default: "-" }
 ]} />
+
+<Callout type="tip">
+Auth credentials (secret, token, password) are issued, regenerated, and revealed (admin or above, requires password confirmation) only in the [Authentication menu](/authentication). The trigger panel only lets you select which auth config to link.
+</Callout>
 
 <Callout type="warn">
 HMAC verification reads the **raw bytes** of the request body. If a relay middlebox rewrites the body, the signature will break. Make sure the sender ships the original payload as-is.
@@ -159,7 +188,7 @@ POST /api/triggers
   "type": "webhook",
   "workflowId": "uuid",
   "endpointPath": "uuid-or-slug",
-  "authType": "bearer",
+  "authConfigId": "<auth config ID from the Authentication menu>",
 
   // Outbound: our server → external URL
   "notification": {

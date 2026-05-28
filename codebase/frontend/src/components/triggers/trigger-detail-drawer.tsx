@@ -12,6 +12,11 @@ import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
 import {
+  AuthConfigSelect,
+  useAuthConfigs,
+  AUTH_CONFIG_TYPE_LABEL_KEYS,
+} from "./auth-config-select";
+import {
   Loader2,
   Copy,
   ChevronDown,
@@ -48,10 +53,9 @@ interface TriggerDetail {
   workflowId: string;
   workflowName: string;
   endpointPath?: string;
+  /** Webhook 인증 — 연결된 AuthConfig (없으면 인증 없음). 인증 자료는 Authentication 메뉴에서 관리. */
+  authConfigId?: string | null;
   config?: {
-    authType?: "none" | "hmac" | "bearer";
-    hmacHeader?: string;
-    hmacAlgorithm?: string;
     /** Spec EIA §4 — notification webhook 설정 (외부 인터랙션 채널 메타). */
     notification?: {
       url?: string;
@@ -384,20 +388,20 @@ function WebhookConfigCard({
   const canEdit = useHasRole("editor");
   const [showExample, setShowExample] = useState(false);
   const url = trigger.endpointPath ? getWebhookUrl(trigger.endpointPath) : "";
-  const authType = trigger.config?.authType ?? "none";
-  const hmacHeader = trigger.config?.hmacHeader ?? "X-Hub-Signature-256";
+  // 연결된 AuthConfig (read-only 표시 + cURL 예시 분기용).
+  const { data: authConfigs = [] } = useAuthConfigs();
+  const linkedAuthConfig = trigger.authConfigId
+    ? (authConfigs.find((c) => c.id === trigger.authConfigId) ?? null)
+    : null;
 
-  // Edit state — `authType=none|hmac|bearer`, endpointPath, hmacHeader, hmacSecret, bearerToken
+  // Edit state — endpointPath + authConfigId (인증 자료는 Authentication 메뉴에서 관리).
   const [editing, setEditing] = useState(false);
   const [endpointPathValue, setEndpointPathValue] = useState(
     trigger.endpointPath ?? "",
   );
-  const [authTypeValue, setAuthTypeValue] = useState<
-    "none" | "hmac" | "bearer"
-  >(authType);
-  const [hmacHeaderValue, setHmacHeaderValue] = useState(hmacHeader);
-  const [hmacSecretValue, setHmacSecretValue] = useState("");
-  const [bearerTokenValue, setBearerTokenValue] = useState("");
+  const [authConfigIdValue, setAuthConfigIdValue] = useState<string | null>(
+    trigger.authConfigId ?? null,
+  );
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -405,29 +409,15 @@ function WebhookConfigCard({
       if (endpointPathValue !== (trigger.endpointPath ?? "")) {
         body.endpointPath = endpointPathValue.trim();
       }
-      // W10: 변경된 필드만 전송 — config 전체 spread 제거
-      const configPatch: Record<string, unknown> = {
-        authType: authTypeValue,
-      };
-      if (authTypeValue === "hmac") {
-        configPatch.hmacHeader = hmacHeaderValue.trim() || "X-Hub-Signature-256";
-        if (hmacSecretValue.trim().length > 0) {
-          configPatch.hmacSecret = hmacSecretValue.trim();
-        }
+      // 인증은 authConfigId binding 으로만 (inline 인증 필드 폐지). null = 인증 없음.
+      if (authConfigIdValue !== (trigger.authConfigId ?? null)) {
+        body.authConfigId = authConfigIdValue;
       }
-      if (authTypeValue === "bearer") {
-        if (bearerTokenValue.trim().length > 0) {
-          configPatch.bearerToken = bearerTokenValue.trim();
-        }
-      }
-      body.config = configPatch;
       await apiClient.patch(`/triggers/${trigger.id}`, body);
     },
     onSuccess: () => {
       toast.success(t("triggers.detail.saved"));
       setEditing(false);
-      setHmacSecretValue("");
-      setBearerTokenValue("");
       onSaved();
     },
     onError: () => {
@@ -456,28 +446,38 @@ function WebhookConfigCard({
   function cancelEdit() {
     setEditing(false);
     setEndpointPathValue(trigger.endpointPath ?? "");
-    // W14: trigger.config 를 직접 참조해 stale closure 방지
-    setAuthTypeValue(trigger.config?.authType ?? "none");
-    setHmacHeaderValue(trigger.config?.hmacHeader ?? "X-Hub-Signature-256");
-    setHmacSecretValue("");
-    setBearerTokenValue("");
+    setAuthConfigIdValue(trigger.authConfigId ?? null);
   }
 
   function getCurlExample() {
-    if (authType === "hmac") {
-      return `SECRET="your-secret-key"
+    // 인증 자료 평문은 노출하지 않고 placeholder 만 — 실제 값은 Authentication 메뉴에서 확인.
+    const acType = linkedAuthConfig?.type;
+    if (acType === "hmac") {
+      return `SECRET="<HMAC_SECRET>"
 BODY='{"event":"test"}'
 SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print "sha256="$2}')
 
 curl -X POST ${url} \\
   -H "Content-Type: application/json" \\
-  -H "${hmacHeader}: $SIG" \\
+  -H "X-Hub-Signature-256: $SIG" \\
   -d "$BODY"`;
     }
-    if (authType === "bearer") {
+    if (acType === "bearer_token") {
       return `curl -X POST ${url} \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer your-token" \\
+  -H "Authorization: Bearer <BEARER_TOKEN>" \\
+  -d '{"event":"test"}'`;
+    }
+    if (acType === "api_key") {
+      return `curl -X POST ${url} \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: <API_KEY>" \\
+  -d '{"event":"test"}'`;
+    }
+    if (acType === "basic_auth") {
+      return `curl -X POST ${url} \\
+  -H "Content-Type: application/json" \\
+  -u "<USERNAME>:<PASSWORD>" \\
   -d '{"event":"test"}'`;
     }
     return `curl -X POST ${url} \\
@@ -540,73 +540,19 @@ curl -X POST ${url} \\
               </p>
             </div>
             <div>
-              <Label htmlFor="webhook-edit-auth">
-                {t("triggers.detail.authTypeLabel")}
+              <Label htmlFor="webhook-edit-authconfig">
+                {t("triggers.authConfigLabel")}
               </Label>
-              <select
-                id="webhook-edit-auth"
-                className="flex h-10 w-full rounded-md border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm"
-                value={authTypeValue}
-                onChange={(e) =>
-                  setAuthTypeValue(
-                    e.target.value as "none" | "hmac" | "bearer",
-                  )
-                }
-              >
-                <option value="none">{t("triggers.authNone")}</option>
-                <option value="hmac">{t("triggers.authHmac")}</option>
-                <option value="bearer">{t("triggers.authBearer")}</option>
-              </select>
+              <AuthConfigSelect
+                id="webhook-edit-authconfig"
+                value={authConfigIdValue}
+                onChange={setAuthConfigIdValue}
+                disabled={updateMutation.isPending}
+              />
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                {t("triggers.authConfigHelp")}
+              </p>
             </div>
-            {authTypeValue === "hmac" && (
-              <>
-                <div>
-                  <Label htmlFor="webhook-edit-hmac-header">
-                    {t("triggers.detail.hmacHeaderLabel")}
-                  </Label>
-                  <Input
-                    id="webhook-edit-hmac-header"
-                    value={hmacHeaderValue}
-                    onChange={(e) => setHmacHeaderValue(e.target.value)}
-                    placeholder="X-Hub-Signature-256"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="webhook-edit-hmac-secret">
-                    {t("triggers.detail.hmacSecretLabel")}
-                  </Label>
-                  <Input
-                    id="webhook-edit-hmac-secret"
-                    type="password"
-                    value={hmacSecretValue}
-                    onChange={(e) => setHmacSecretValue(e.target.value)}
-                    placeholder="•••••••• (leave blank to keep)"
-                    autoComplete="new-password"
-                  />
-                  <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                    {t("triggers.detail.hmacSecretHelp")}
-                  </p>
-                </div>
-              </>
-            )}
-            {authTypeValue === "bearer" && (
-              <div>
-                <Label htmlFor="webhook-edit-bearer">
-                  {t("triggers.detail.bearerTokenLabel")}
-                </Label>
-                <Input
-                  id="webhook-edit-bearer"
-                  type="password"
-                  value={bearerTokenValue}
-                  onChange={(e) => setBearerTokenValue(e.target.value)}
-                  placeholder="•••••••• (leave blank to keep)"
-                  autoComplete="new-password"
-                />
-                <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                  {t("triggers.detail.bearerTokenHelp")}
-                </p>
-              </div>
-            )}
           </div>
         )}
 
@@ -642,19 +588,19 @@ curl -X POST ${url} \\
               {t("triggers.authenticationLabel")}
             </dt>
             <dd>
-              <Badge variant="outline">
-                {authType === "hmac" ? t("triggers.authHmac") : authType === "bearer" ? t("triggers.authBearer") : t("triggers.authNone")}
-              </Badge>
+              {linkedAuthConfig ? (
+                <Badge variant="outline">
+                  {linkedAuthConfig.name} ·{" "}
+                  {t(
+                    AUTH_CONFIG_TYPE_LABEL_KEYS[linkedAuthConfig.type] ??
+                      "authentication.typeApiKey",
+                  )}
+                </Badge>
+              ) : (
+                <Badge variant="outline">{t("triggers.authConfigNone")}</Badge>
+              )}
             </dd>
           </div>
-          {authType === "hmac" && (
-            <div className="flex items-center justify-between">
-              <dt className="text-[hsl(var(--muted-foreground))]">
-                {t("triggers.signatureHeader")}
-              </dt>
-              <dd className="font-medium">{hmacHeader}</dd>
-            </div>
-          )}
         </dl>
 
         {/* Usage Example */}
