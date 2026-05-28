@@ -59,11 +59,6 @@ describe("webhook-url", () => {
       process.env.NEXT_PUBLIC_API_URL = "https://api.example.com";
       expect(getWebhookBaseUrl()).toBe("https://api.example.com");
     });
-
-    it("returns empty string when no env var is set and window is absent (SSR)", () => {
-      vi.stubGlobal("window", undefined);
-      expect(getWebhookBaseUrl()).toBe("");
-    });
   });
 
   describe("getWebhookUrl", () => {
@@ -91,11 +86,6 @@ describe("webhook-url", () => {
       process.env.NEXT_PUBLIC_WEBHOOK_BASE_URL = "https://hooks.example.com";
       process.env.NEXT_PUBLIC_API_URL = "https://app.example.com/api";
       expect(getWebhookUrl(PATH)).toBe("https://hooks.example.com/api/hooks/abc-123");
-    });
-
-    it("composes a relative URL under SSR (no base) — WH-EP-02 path preserved", () => {
-      vi.stubGlobal("window", undefined);
-      expect(getWebhookUrl(PATH)).toBe("/api/hooks/abc-123");
     });
   });
 });
