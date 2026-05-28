@@ -100,17 +100,17 @@ export class AuthConfigsService {
     const config: Record<string, unknown> =
       (data.config as Record<string, unknown>) || {};
 
-    // type 별 자동 발급 (spec/1-data-model.md §2.17.1).
-    if (data.type === 'api_key' && !config.key) {
+    // type 별 비밀값은 항상 제품이 자동 발급 — 사용자 입력 비밀값은 받지 않는다
+    // (spec/1-data-model.md §2.17.1 / §2.17.3: "사용자 입력 옵션 제거, 자동 발급 강제").
+    // hmac 의 header/algorithm 은 검증 메타라 사용자 입력을 보존하지만 secret 은 강제 발급.
+    if (data.type === 'api_key') {
       config.key = `wfk_${randomBytes(24).toString('hex')}`;
     }
-    if (data.type === 'bearer_token' && !config.token) {
+    if (data.type === 'bearer_token') {
       config.token = `wft_${randomBytes(32).toString('hex')}`;
     }
     if (data.type === 'hmac') {
-      if (!config.secret) {
-        config.secret = `whs_${randomBytes(32).toString('hex')}`;
-      }
+      config.secret = `whs_${randomBytes(32).toString('hex')}`;
       if (!config.header) config.header = 'X-Hub-Signature-256';
       if (!config.algorithm) config.algorithm = 'sha256';
     }
@@ -213,10 +213,11 @@ export class AuthConfigsService {
       throw this.authFailed();
     }
 
-    // ip_whitelist (exact match — CIDR 매칭은 follow-up). 설정돼 있고 IP 를 알 수
-    // 있을 때만 평가한다. ip_whitelist 는 AuthConfig 종속이므로 여기서만 시행된다.
-    if (ac.ipWhitelist?.length && ctx.clientIp) {
-      if (!ac.ipWhitelist.includes(ctx.clientIp)) {
+    // ip_whitelist (exact match — CIDR 매칭은 follow-up). ip_whitelist 가 설정되면
+    // 클라이언트 IP 를 알 수 없는 경우(헤더 strip·직접 연결)에도 거부한다 — 화이트리스트가
+    // silent bypass 되지 않도록 (fail-closed). ip_whitelist 는 AuthConfig 종속이라 여기서만 시행.
+    if (ac.ipWhitelist?.length) {
+      if (!ctx.clientIp || !ac.ipWhitelist.includes(ctx.clientIp)) {
         throw this.authFailed();
       }
     }

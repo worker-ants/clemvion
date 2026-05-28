@@ -5,12 +5,14 @@ import { ROLES_KEY } from '../../common/guards/roles.guard';
 describe('AuthConfigsController — @Roles metadata', () => {
   const reflector = new Reflector();
 
+  // Auth Config CRUD 는 spec 인증 §3.2 권한 매트릭스상 Admin+ (Editor=R). 자격증명
+  // 생성·수정·삭제·재발급·평문노출 모두 Admin 이상으로 가드한다.
   const cases: { method: keyof AuthConfigsController; expected: string[] }[] = [
-    { method: 'create', expected: ['editor'] },
-    { method: 'update', expected: ['editor'] },
-    // regenerate 는 키 교체로 외부 호출자 중단을 유발하므로 Admin+ 가드.
+    { method: 'create', expected: ['admin'] },
+    { method: 'update', expected: ['admin'] },
     { method: 'regenerate', expected: ['admin'] },
-    { method: 'remove', expected: ['editor'] },
+    { method: 'remove', expected: ['admin'] },
+    { method: 'reveal', expected: ['admin'] },
   ];
 
   it.each(cases)(

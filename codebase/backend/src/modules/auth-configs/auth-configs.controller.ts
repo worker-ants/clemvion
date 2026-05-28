@@ -83,7 +83,7 @@ export class AuthConfigsController {
   }
 
   @Post()
-  @Roles('editor')
+  @Roles('admin')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: '인증 설정 생성',
@@ -102,7 +102,7 @@ export class AuthConfigsController {
   }
 
   @Patch(':id')
-  @Roles('editor')
+  @Roles('admin')
   @ApiOperation({
     summary: '인증 설정 수정',
     description:
@@ -197,7 +197,7 @@ export class AuthConfigsController {
   }
 
   @Delete(':id')
-  @Roles('editor')
+  @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: '인증 설정 삭제',
