@@ -35,12 +35,15 @@ code: []
 
 ### A.2 인증 방식별 설정
 
+type 별 `config` 스키마·자동 발급 규칙의 단일 진실은 [Spec 데이터 모델 §2.17.1](../../1-data-model.md#2171-config-의-jsonb-스키마). IP Whitelist 는 모든 type 공통 (선택) 필드다.
+
 #### API Key
 
 | 필드 | 설명 |
 |------|------|
 | 이름 | 인증 설정 이름 |
-| API Key | 자동 생성 (표시: 마스킹, 복사 가능) |
+| API Key | 자동 생성 (`wfk_<hex24>`, 표시: 마스킹). 복사 버튼은 **마스킹 문자열** 복사 — 평문 복사는 생성 직후 1회 또는 Reveal 흐름 (§A.4) |
+| Header 이름 | 검증에 사용할 헤더명 (default `X-API-Key`) |
 | Key 재생성 | 기존 키 폐기 후 새 키 생성 (확인 필요) |
 | IP Whitelist | 허용 IP 목록 (선택) |
 
@@ -49,24 +52,58 @@ code: []
 | 필드 | 설명 |
 |------|------|
 | 이름 | 인증 설정 이름 |
-| Token | 자동 생성 또는 사용자 입력 |
-| 만료 시간 | 토큰 유효 기간 설정 (선택) |
+| Token | 자동 생성 (`wft_<hex32>`, 표시: 마스킹). 사용자 입력은 받지 않음 (Rationale) |
+| Token 재생성 | 기존 토큰 폐기 후 새 토큰 생성 (확인 필요) |
+| IP Whitelist | 허용 IP 목록 (선택) |
 
 #### Basic Auth
 
 | 필드 | 설명 |
 |------|------|
 | 이름 | 인증 설정 이름 |
-| Username | 사용자 이름 |
-| Password | 비밀번호 (마스킹 표시) |
+| Username | 사용자 이름 (사용자 입력, 응답에 평문 노출 — 식별 보조) |
+| Password | 비밀번호 (사용자 입력, masked input). 저장 후 응답에는 `***<last4>` 마스킹 — 평문 재확인은 Reveal 흐름 (§A.4) |
+| IP Whitelist | 허용 IP 목록 (선택) |
+
+#### HMAC
+
+| 필드 | 설명 |
+|------|------|
+| 이름 | 인증 설정 이름 |
+| Secret | 자동 생성 (`whs_<hex32>`, 표시: 마스킹, 재생성 가능) |
+| Header | 서명을 담는 헤더명 (default `X-Hub-Signature-256`). 외부 provider 와 맞춤 (GitHub `X-Hub-Signature-256`, Stripe `Stripe-Signature` 등) |
+| Algorithm | select: `sha256` / `sha512`. 다른 값은 보안상 미지원 |
+| IP Whitelist | 허용 IP 목록 (선택) |
 
 ### A.3 인증 사용량/이력
 
 | 항목 | 설명 |
 |------|------|
-| 최근 호출 시각 | 마지막 사용 시각 |
+| 최근 호출 시각 | 마지막 사용 시각 (`last_used_at`, webhook 인증 성공 시 갱신) |
 | 기간별 호출 수 | 일/주/월 기준 호출 횟수 |
 | 호출 이력 테이블 | 시각, 소스 IP, 대상 트리거, 응답 코드 |
+
+### A.4 마스킹과 Reveal 흐름
+
+#### 마스킹 표시 규칙
+
+응답에서 `config.key` / `token` / `secret` / `password` 는 항상 `***<last4>` (예: `wft_***c8a1`). `headerName` / `header` / `algorithm` / `username` 은 평문. 규칙의 단일 진실은 [Spec 데이터 모델 §2.17.2](../../1-data-model.md#2172-마스킹노출-정책).
+
+#### Reveal 흐름
+
+```
+1. 카드 ⋮ 메뉴 → "Reveal" 클릭 (Admin+ 만 노출).
+2. 현재 로그인 비밀번호 재확인 다이얼로그.
+3. POST /api/auth-configs/:id/reveal { password }
+   - 통과: 200 + config 평문 전체 (1회).
+   - 실패: 401 (잘못된 password) / 403 (Editor·Viewer).
+4. UI: 평문 표시 + "Copy" 버튼 + 30초 후 자동 hide.
+5. audit_log 에 action='auth_config.reveal' 기록.
+```
+
+#### 권한
+
+Owner / Admin → Reveal 버튼 노출 + 호출 가능. Editor / Viewer → 버튼 미노출, API 직접 호출 시 403 `FORBIDDEN`. ([Spec 인증 §3.2](../5-system/1-auth.md#3-인가-authorization).)
 
 ---
 
@@ -144,7 +181,8 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 | POST | /api/auth-configs | 인증 설정 생성 |
 | GET | /api/auth-configs/:id | 상세 조회 |
 | PATCH | /api/auth-configs/:id | 수정 |
-| POST | /api/auth-configs/:id/regenerate | 키/토큰 재생성 |
+| POST | /api/auth-configs/:id/regenerate | 키/토큰 재생성 (신규 값 1회 평문 응답) |
+| POST | /api/auth-configs/:id/reveal | 평문 config 1회 노출. `:id` (UUID). body `{ password }`. Admin+. audit_log 기록 (§A.4) |
 | DELETE | /api/auth-configs/:id | 삭제 |
 | GET | /api/auth-configs/:id/usage | 사용량/이력 조회 |
 
@@ -178,3 +216,14 @@ AI 노드에서 사용할 LLM 프로바이더와 모델을 관리한다.
 기각 대안:
 - *combobox 유지 + 저장 시점 서버 검증*: 저장 시점 listModels 재호출 비용·rate-limit 부담 + 사용자가 잘못 적은 ID 를 fix 하기 위한 라운드트립이 늘어 UX 가 악화. select-only 가 더 단순.
 - *조회 실패 시 자유 입력 허용*: 실패 원인은 대부분 자격증명/네트워크 — 잘못된 ID 가 통과되어도 어차피 다음 호출에서 같은 사유로 실패하므로 보호 효과가 모호.
+
+### R-2. Part A — Webhook 인증 wiring + AuthConfig 도메인 보강 (2026-05-28)
+
+`/authentication` (AuthConfig) 자격증명을 Webhook 수신 인증에 실제로 wiring 하면서 Part A 를 다음과 같이 보강했다. 상세 근거는 [Spec Webhook Rationale "inline auth path 폐지"](../5-system/12-webhook.md#rationale) + [Spec 데이터 모델 §2.17.3](../1-data-model.md#2173-rationale-authconfig-도메인).
+
+- **HMAC type 추가**: 기존 API Key / Bearer / Basic Auth 3종에 `hmac` 추가. Webhook HMAC 서명 검증을 trigger inline `config.secret` 대신 AuthConfig 로 흡수.
+- **bearer_token 자동 발급 강제** (consistency W-2): 기존 "자동 생성 또는 사용자 입력" 중 사용자 입력 옵션을 제거하고 자동 발급(`wft_<hex32>`)만 허용. 외부 호출자 발급 토큰은 제품이 충분한 엔트로피로 생성하는 게 일관적이며, 사용자 입력 토큰의 형식·엔트로피 검증 부담을 없앤다.
+- **Bearer Token 만료 시간 필드 v1 제외** (consistency W-3): 기존 "만료 시간 (선택)" 행을 제거. 본 변경은 토큰 만료·자동 회전을 다루지 않는다 — JSONB 스키마 `{ token }` 와 정합. 만료/회전이 필요해지면 후속 결정으로 재도입.
+- **항상 마스킹 + Reveal 엔드포인트** (§A.4): API 응답에서 secret 류는 항상 `***<last4>`. 평문은 create / regenerate / reveal 3 경로만. Reveal 은 Admin+ · 비밀번호 재확인 · audit 기록.
+
+사전 일관성 검토: `review/consistency/2026/05/28/13_56_08/SUMMARY.md` (BLOCK: NO).

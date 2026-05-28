@@ -21,7 +21,7 @@ ai-review W6/W7: `trigger-detail-drawer.tsx` 에 전용 unit 테스트가 없어
 3. `type="webhook"` — WebhookConfigCard + ExternalInteractionCard 렌더링, ScheduleConfigurationCard 미렌더링
 4. `type="schedule"` — ScheduleConfigurationCard 만 렌더링
 5. Recent Calls 카드 미렌더링 회귀 가드 (`/triggers/:id/history` 호출 없음)
-6. authType 별 i18n 값 렌더링 (hmac / bearer / none)
+6. ~~authType 별 i18n 값 렌더링 (hmac / bearer / none)~~ → **무효화 (2026-05-28, auth-config-webhook-wiring)**: inline `authType` 필드가 제거되고 trigger drawer 가 `authConfigId` → AuthConfig selector 로 전환됨 (`spec/2-navigation/2-trigger-list.md` R-14). 본 케이스는 **AuthConfig selector 렌더링** (목록 드롭다운 / "인증 없음" / "+ 새 인증 설정" 링크 + 선택된 AuthConfig 의 type chip 표시) 기준으로 재작성한다.
 7. Enabled 배지 i18n 값 렌더링
 
 ## 완료 기준

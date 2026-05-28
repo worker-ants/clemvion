@@ -295,6 +295,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Integration (Personal) | 자기 것 | 자기 것 | 자기 것 | 자기 것 |
 | Knowledge Base | CRUD | CRUD | CRUD | R |
 | Auth Config | CRUD | CRUD | R | R |
+| Auth Config Reveal (평문 노출) | ✅ | ✅ | — | — |
 | LLM Config | CRUD | CRUD | R | R |
 | Statistics | R | R | R | R |
 | Marketplace 설치 | ✅ | ✅ | ✅ | — |
@@ -309,6 +310,8 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 4. 역할이 해당 액션에 대한 권한을 가지는지 확인
 5. 권한 없음 → 403 Forbidden
 ```
+
+> **Auth Config Reveal 권한 분리 근거**: Auth Config 의 `R` (Editor/Viewer) 은 **마스킹된 응답 조회** (`***<last4>`, [Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)) 를 포함한다. 자격증명의 존재·식별에는 마스킹으로 충분하며 평문 유출 위험이 없다. 평문을 보는 **Reveal** (`POST /api/auth-configs/:id/reveal`) 은 별도 액션으로 분리해 Admin+ 로 제한한다 — 평문 reveal 은 현재 로그인 비밀번호 재확인 + audit 기록이 필요한 민감 동작이므로 권한을 좁힌다.
 
 ---
 
@@ -325,7 +328,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 트리거 | trigger.create, trigger.update, trigger.delete, trigger.toggle |
 | 스케줄 | schedule.create, schedule.update, schedule.delete |
 | Integration | integration.create, integration.update, integration.delete |
-| 설정 | auth_config.*, llm_config.* |
+| 설정 | auth_config.create, auth_config.update, auth_config.delete, auth_config.regenerate, auth_config.reveal, llm_config.* |
 
 > 워크스페이스 컨텍스트가 없는 인증 이벤트(login, logout, login_failed 등)는 AuditLog 가 아닌 §4.3 **LoginHistory** 에 기록된다.
 

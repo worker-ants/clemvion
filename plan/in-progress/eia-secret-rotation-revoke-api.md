@@ -10,6 +10,8 @@ owner: developer
 > 상위: [`plan/complete/external-interaction-api.md`](../complete/external-interaction-api.md) §"완료 후 잔여"
 > 관련 spec: [`spec/5-system/14-external-interaction-api.md`](../../spec/5-system/14-external-interaction-api.md) §3.1 EIA-NX-12 / §3.3 EIA-AU-07
 
+> **범위 구분 (2026-05-28, auth-config-webhook-wiring)**: 본 plan 은 **outbound notification HMAC signing secret** 의 회전만 다룬다. **inbound webhook 인증 자격증명** (트리거가 수신하는 요청의 검증용) 의 회전은 별개로, `auth-config-webhook-wiring` PR 에서 `POST /api/auth-configs/:id/regenerate` 로 흡수됐다 (과거 예약 행 `POST /api/triggers/:id/auth/rotate-secret` 은 신설 없이 폐기 — `spec/2-navigation/2-trigger-list.md` R-14). 두 secret 은 대상·endpoint 가 다르므로 본 plan 과 충돌하지 않는다.
+
 ## 배경
 
 PR2 (#230) 는 outbound notification 의 수신 측 grace 검증 (NotificationWebhookProcessor 의 v1/v2 secret 둘 다 시도) 까지만 구현. 사용자 API 인 secret rotate / itk_* revoke endpoint 는 follow-up 으로 분리됨.
