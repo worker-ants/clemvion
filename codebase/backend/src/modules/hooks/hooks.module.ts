@@ -8,6 +8,7 @@ import { ExecutionEngineModule } from '../execution-engine/execution-engine.modu
 import { ExternalInteractionModule } from '../external-interaction/external-interaction.module';
 import { ExecutionsModule } from '../executions/executions.module';
 import { ChatChannelModule } from '../chat-channel/chat-channel.module';
+import { AuthConfigsModule } from '../auth-configs/auth-configs.module';
 
 @Module({
   imports: [
@@ -18,6 +19,8 @@ import { ChatChannelModule } from '../chat-channel/chat-channel.module';
     // ChatChannelInboundAuthenticator 는 ChatChannelModule 에서 export — secret store
     // 의존성은 그 안에 캡슐화 (Guard 패턴).
     ChatChannelModule,
+    // Webhook 인증 검증 위임 — AuthConfigsService.verifyWebhookRequest.
+    AuthConfigsModule,
   ],
   controllers: [HooksController],
   providers: [HooksService],
