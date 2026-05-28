@@ -1,13 +1,15 @@
 ---
 worktree: chat-channel-form-native-modal-c021b9
 started: 2026-05-24
-owner: project-planner (spec done) → developer (impl, TBD)
-status: in-progress
+owner: project-planner (spec) → developer (impl)
+status: done
 ---
 
 # Form native modal — Slack views.open + Discord MODAL_SUBMIT
 
 v1 Convention §4 "Form 다단계 시퀀스 규약" (모든 어댑터 동일 다단계 텍스트) 의 예외 절을 신설 — provider 가 native form UI (Slack `views.open` modal / Discord MODAL_SUBMIT) 를 지원 시 단일 step 으로 처리.
+
+> **완료 (2026-05-28)**: spec(Convention §4.1/R-CCA-8 + slack/discord/telegram/15-chat-channel) + 백엔드 vertical slice(types/capability/formMode/helper, renderer·parser·adapter·client, dispatcher, hooks·controller) + 단위 테스트 구현. `/ai-review` (11 reviewer) → resolution-applier 가 Critical 5건(보안 channelUserKey 가드 2 + pendingFormModal clear + Discord 재표시 + spec drift) + frontend formMode + 테스트/MDX 반영. TEST WORKFLOW 전 스테이지 통과 (lint·unit 5054·build·e2e 127). 비-blocking hardening 은 [`chat-channel-form-modal-hardening-followup`](./chat-channel-form-modal-hardening-followup.md) 로 분리. 리뷰 산출물: `review/code/2026/05/29/07_53_25/{SUMMARY,RESOLUTION}.md`.
 
 > **Spec 단계 완료 (2026-05-28)**: Convention §4.1 / R-CCA-8 신설, slack.md §5.3 / R-S-6 + discord.md §5.3 / R-D-6 격상, 15-chat-channel.md CCH-MP-03 + formMode enum 갱신, telegram.md §5.3 cross-link 정정. consistency-check `--spec` 통과 (rationale-continuity OK — R4 "native UI 분기는 v2 옵션" 의 실현). 다음 단계 = developer 의 `--impl-prep` + 백엔드 구현.
 >
