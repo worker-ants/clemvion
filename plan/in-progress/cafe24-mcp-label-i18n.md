@@ -57,9 +57,9 @@ parent_branch: claude/integration-activity-api-label-ed0a6e
 - [x] Phase 2 — `consistency-check --impl-prep` 통과
 - [x] Phase 3 — backend: types/metadata 18 파일 label 제거 + public-meta.ts labelKey 도입
 - [x] Phase 4 — frontend: PublicCafe24Operation type 갱신 + integration-configs dict lookup
-- [ ] Phase 5 — TEST WORKFLOW (lint/unit/build/e2e)
-- [ ] Phase 6 — REVIEW WORKFLOW (/ai-review + RESOLUTION + 재테스트)
-- [ ] Phase 7 — plan complete 이동
+- [x] Phase 5 — TEST WORKFLOW 통과 (lint 28s / unit 27s 4975 tests / build 72s / e2e 46s 123 tests)
+- [x] Phase 6 — REVIEW WORKFLOW 통과 (9 reviewer, CRITICAL 0 + WARNING 6 + INFO 13. resolution-applier 가 9/9 항목 자동 처리 — JSDoc / Locale type / dict drift 가드 spec 신설 + e2e 재통과)
+- [x] Phase 7 — plan complete 이동
 
 ## 확정된 설계 결정
 
