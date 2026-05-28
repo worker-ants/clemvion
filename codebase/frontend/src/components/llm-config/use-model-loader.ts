@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { llmConfigsApi, type ModelInfo } from "@/lib/api/llm-configs";
+import { useMemo } from "react";
+import { llmConfigsApi } from "@/lib/api/llm-configs";
 import {
   LOCAL_PROVIDER,
   PROVIDERS_REQUIRING_BASE_URL,
 } from "@/lib/llm-providers";
-import { sanitizeLoaderError } from "./sanitize-loader-error";
+import {
+  useBaseModelLoader,
+  type UseBaseModelLoaderResult,
+} from "./use-base-model-loader";
 
 function providerRequiresApiKey(provider: string) {
   return provider !== "" && provider !== LOCAL_PROVIDER;
@@ -32,30 +34,18 @@ export interface UseModelLoaderArgs {
    * is empty. Unused when apiKey is re-entered.
    */
   configId?: string;
-  /** Fallback error message when the server payload cannot be parsed. */
+  /** Fallback error message when the error code is unknown / absent. */
   fallbackErrorMessage: string;
+  /** Localized message per backend error code (see loader-error-messages). */
+  errorMessagesByCode?: Record<string, string>;
 }
 
-export interface UseModelLoaderResult {
-  models: ModelInfo[];
-  errorMessage: string | null;
-  isPending: boolean;
-  /**
-   * True once the user has triggered `load()` for the current resetKey scope.
-   * Used by consumers to distinguish "not yet attempted" from "attempted but
-   * returned no rows" — `useMutation.isSuccess` cannot be used because it is
-   * not reset when the provider / configId changes.
-   */
-  hasAttemptedLoad: boolean;
-  canLoad: boolean;
-  load: () => void;
-}
+export type UseModelLoaderResult = UseBaseModelLoaderResult;
 
 /**
- * Encapsulates the "load models" concerns: network routing (preview vs. saved
- * config), mutation state, error sanitization, stale-closure guard on provider/
- * configId change, and reset-on-prop-change. The consuming component only
- * renders the returned state.
+ * Encapsulates the chat "load models" concerns: network routing (preview vs.
+ * saved config) and the can-load gate. Shared state-machine behavior (reset,
+ * stale-closure guard, error sanitization) lives in `useBaseModelLoader`.
  */
 export function useModelLoader({
   provider,
@@ -63,62 +53,8 @@ export function useModelLoader({
   baseUrl,
   configId,
   fallbackErrorMessage,
+  errorMessagesByCode,
 }: UseModelLoaderArgs): UseModelLoaderResult {
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
-
-  // provider / configId 변경 시 이전 provider 의 모델 목록이 select 에 잔류하지
-  // 않도록 render 단계에서 초기화한다.
-  // React 권장 "reset state on prop change" 패턴 (useEffect 대신 — useEffect 사용 시
-  // 렌더 후 cleanup 이 한 프레임 지연되어 이전 값이 잠깐 노출될 수 있다).
-  // apiKey 변경은 사용자가 타이핑하는 중간 단계라 의도적으로 초기화하지 않는다.
-  const resetKey = `${provider}|${configId ?? ""}`;
-  const [prevResetKey, setPrevResetKey] = useState(resetKey);
-  if (prevResetKey !== resetKey) {
-    setPrevResetKey(resetKey);
-    setModels([]);
-    setErrorMessage(null);
-    setHasAttemptedLoad(false);
-  }
-
-  const loadMutation = useMutation({
-    mutationFn: async () => {
-      const trimmedKey = apiKey.trim();
-      const trimmedBaseUrl = baseUrl?.trim();
-      const snapshot: LoadSnapshot = { provider, configId };
-      const useSavedConfig = Boolean(configId) && !trimmedKey;
-      const data = useSavedConfig
-        ? await llmConfigsApi.listModels(configId as string)
-        : await llmConfigsApi.previewModels({
-            provider,
-            apiKey: trimmedKey,
-            baseUrl: trimmedBaseUrl || undefined,
-          });
-      return { data, snapshot };
-    },
-    onMutate: () => {
-      // pending 중에는 이전 에러 메시지를 숨겨 사용자에게 진행 중임을 명확히 표시.
-      setErrorMessage(null);
-      setHasAttemptedLoad(true);
-    },
-    onSuccess: ({ data, snapshot }) => {
-      // Stale closure 가드: 요청 출발 시점의 props 가 현재 props 와 다르면
-      // 이전 provider/configId 응답이므로 무시한다.
-      if (
-        snapshot.provider !== provider ||
-        snapshot.configId !== configId
-      ) {
-        return;
-      }
-      setModels(data);
-    },
-    onError: (err: unknown) => {
-      // 재시도 실패 시 이전에 로드된 모델 목록은 유지해 사용자 선택 컨텍스트를 보존.
-      setErrorMessage(sanitizeLoaderError(err, fallbackErrorMessage));
-    },
-  });
-
   const canLoad = useMemo(() => {
     if (!provider) return false;
     if (PROVIDERS_REQUIRING_BASE_URL.has(provider) && !baseUrl?.trim()) {
@@ -131,12 +67,26 @@ export function useModelLoader({
     return true;
   }, [provider, apiKey, baseUrl, configId]);
 
-  return {
-    models,
-    errorMessage,
-    isPending: loadMutation.isPending,
-    hasAttemptedLoad,
+  return useBaseModelLoader<LoadSnapshot>({
+    // apiKey 변경은 사용자가 타이핑하는 중간 단계라 의도적으로 reset 하지 않는다.
+    resetKey: `${provider}|${configId ?? ""}`,
     canLoad,
-    load: () => loadMutation.mutate(),
-  };
+    fallbackErrorMessage,
+    errorMessagesByCode,
+    captureSnapshot: () => ({ provider, configId }),
+    isSnapshotCurrent: (s) =>
+      s.provider === provider && s.configId === configId,
+    fetchModels: async () => {
+      const trimmedKey = apiKey.trim();
+      const trimmedBaseUrl = baseUrl?.trim();
+      const useSavedConfig = Boolean(configId) && !trimmedKey;
+      return useSavedConfig
+        ? llmConfigsApi.listModels(configId as string)
+        : llmConfigsApi.previewModels({
+            provider,
+            apiKey: trimmedKey,
+            baseUrl: trimmedBaseUrl || undefined,
+          });
+    },
+  });
 }

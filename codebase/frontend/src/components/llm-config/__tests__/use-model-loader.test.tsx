@@ -128,11 +128,13 @@ describe("useModelLoader", () => {
     expect(result.current.canLoad).toBe(true);
   });
 
-  it("extracts sanitized error message from axios response", async () => {
+  it("maps a known error code to its localized message", async () => {
     vi.mocked(llmConfigsApi.previewModels).mockRejectedValue(
       Object.assign(new Error("boom"), {
         isAxiosError: true,
-        response: { data: { message: "Rate limit exceeded" } },
+        response: {
+          data: { error: { code: "LLM_CREDENTIALS_REQUIRED", message: "raw" } },
+        },
       }),
     );
 
@@ -142,13 +144,41 @@ describe("useModelLoader", () => {
           provider: "openai",
           apiKey: "sk-xxx",
           fallbackErrorMessage: "fallback",
+          errorMessagesByCode: { LLM_CREDENTIALS_REQUIRED: "Enter an API key" },
         }),
       { wrapper },
     );
 
     act(() => result.current.load());
     await waitFor(() => {
-      expect(result.current.errorMessage).toBe("Rate limit exceeded");
+      expect(result.current.errorMessage).toBe("Enter an API key");
+    });
+  });
+
+  it("falls back (never shows raw message) for an unmapped error code", async () => {
+    vi.mocked(llmConfigsApi.previewModels).mockRejectedValue(
+      Object.assign(new Error("boom"), {
+        isAxiosError: true,
+        response: {
+          data: { error: { code: "LLM_MODEL_LIST_FAILED", message: "leaky endpoint detail" } },
+        },
+      }),
+    );
+
+    const { result } = renderHook(
+      () =>
+        useModelLoader({
+          provider: "openai",
+          apiKey: "sk-xxx",
+          fallbackErrorMessage: "fallback",
+          errorMessagesByCode: { LLM_CREDENTIALS_REQUIRED: "Enter an API key" },
+        }),
+      { wrapper },
+    );
+
+    act(() => result.current.load());
+    await waitFor(() => {
+      expect(result.current.errorMessage).toBe("fallback");
     });
   });
 
@@ -179,7 +209,7 @@ describe("useModelLoader", () => {
       .mockRejectedValueOnce(
         Object.assign(new Error("first fail"), {
           isAxiosError: true,
-          response: { data: { message: "Auth error" } },
+          response: { data: { error: { code: "LLM_MODEL_LIST_FAILED" } } },
         }),
       )
       .mockResolvedValueOnce([
@@ -196,10 +226,10 @@ describe("useModelLoader", () => {
       { wrapper },
     );
 
-    // 첫 번째 로드 실패 — 에러 메시지 설정
+    // 첫 번째 로드 실패 — 에러 메시지 설정 (코드 미매핑 → fallback)
     act(() => result.current.load());
     await waitFor(() => {
-      expect(result.current.errorMessage).toBe("Auth error");
+      expect(result.current.errorMessage).toBe("failed");
     });
 
     // 재시도 시작 시 에러 메시지가 즉시 null 로 초기화된다
@@ -248,7 +278,7 @@ describe("useModelLoader", () => {
       .mockRejectedValueOnce(
         Object.assign(new Error("network"), {
           isAxiosError: true,
-          response: { data: { message: "Service unavailable" } },
+          response: { data: { error: { code: "LLM_MODEL_LIST_FAILED" } } },
         }),
       );
 
@@ -269,10 +299,10 @@ describe("useModelLoader", () => {
       expect(result.current.models[0].id).toBe("gpt-4o");
     });
 
-    // 두 번째 로드 실패
+    // 두 번째 로드 실패 (코드 미매핑 → fallback)
     act(() => result.current.load());
     await waitFor(() => {
-      expect(result.current.errorMessage).toBe("Service unavailable");
+      expect(result.current.errorMessage).toBe("failed");
     });
 
     // onError 에서 setModels([]) 를 호출하지 않으므로 기존 목록이 유지된다

@@ -1,33 +1,37 @@
 import axios from "axios";
 
-/**
- * Maximum number of characters to expose from a server error message.
- * Limits upstream stack-trace / endpoint path leakage while preserving
- * enough context for the user to identify the root cause
- * (see `review/code/2026/05/26/11_30_56` SUMMARY #10).
- */
-const MAX_ERROR_MESSAGE_LENGTH = 200;
+interface ServerErrorBody {
+  error?: { code?: string; message?: string };
+}
 
 /**
- * Converts an Axios load-models error into a user-safe message:
- * - Joins array-shaped `message` payloads with commas.
- * - Truncates to MAX_ERROR_MESSAGE_LENGTH chars to limit upstream stack-trace
- *   / endpoint leakage.
- * - Falls back to the i18n fallback when the payload is empty or non-axios.
+ * Converts an Axios load-models error into a user-safe message.
+ *
+ * The backend wraps every error as `{ error: { code, message } }`
+ * (http-exception.filter). We key off the machine-readable `code` and look it
+ * up in the caller-provided localized `messagesByCode` map. Unknown codes (and
+ * any non-Axios error) fall back to `fallback`.
+ *
+ * The raw server `message` is intentionally never surfaced: provider error
+ * strings can carry endpoint / upstream detail, and they are not localized
+ * (review/code/2026/05/26/12_10_38 SUMMARY #10). Granularity that matters to
+ * the user (missing key, bad config) is expressed through error codes instead.
+ *
+ * Note: when `messagesByCode` is omitted, every error resolves to `fallback` —
+ * there is no raw-message path. Callers that want code-specific text must pass
+ * the map (see `buildLoaderErrorMessages`).
  */
 export function sanitizeLoaderError(
   err: unknown,
   fallback: string,
+  messagesByCode?: Record<string, string>,
 ): string {
   if (axios.isAxiosError(err)) {
-    const body = err.response?.data as
-      | { message?: string | string[] }
-      | undefined;
-    const raw = body?.message;
-    const combined = Array.isArray(raw) ? raw.join(", ") : raw;
-    // empty string treated as absent — use fallback
-    if (combined && combined.length > 0)
-      return combined.slice(0, MAX_ERROR_MESSAGE_LENGTH);
+    const code = (err.response?.data as ServerErrorBody | undefined)?.error
+      ?.code;
+    if (code && messagesByCode && code in messagesByCode) {
+      return messagesByCode[code];
+    }
   }
   return fallback;
 }
