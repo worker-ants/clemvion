@@ -53,10 +53,11 @@ code:
 |---|---|
 | `setupChannel` | (a) [`POST /api/auth.test`](https://api.slack.com/methods/auth.test) — bot identity 캐시. (b) Events API "Request URL" 은 Slack 앱 manifest 측 설정이므로 어댑터는 URL Verification handshake (`type: "url_verification"`) 응답 코드만 보장. (c) signing secret 은 사용자가 OAuth Install 단계에서 받아 별도 입력 — 어댑터가 발급하지 않음 |
 | `teardownChannel` | best-effort no-op — Slack 앱 manifest 의 Request URL 은 우리 측에서 revoke 할 수 없음. 다만 bot token rotation (`auth.revoke`) 은 별도 [CCH-SE-04](../../../5-system/15-chat-channel.md#34-신뢰성--보안) rotate API 의 책임 — `teardownChannel` 자체는 외부 호출 없음 |
-| `parseUpdate` | Events API (`event_callback` envelope) + Interactivity (`payload=<URL-encoded JSON>`) + Slash Commands (`application/x-www-form-urlencoded`) → `ChannelUpdate` |
+| `parseUpdate` | Events API (`event_callback` envelope) + Interactivity (`payload=<URL-encoded JSON>` — `block_actions` / `view_submission`) + Slash Commands (`application/x-www-form-urlencoded`) → `ChannelUpdate` |
 | `sendMessage` (text) | [`POST /api/chat.postMessage`](https://api.slack.com/methods/chat.postMessage) (channel, text, mrkdwn=true) |
 | `sendMessage` (buttons) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", ...}]}]` |
-| `sendMessage` (form_prompt) | `chat.postMessage` + 옵션 `blocks: [{type: "input", ...}]` 으로 single-field 안내 (v1 다단계 텍스트 시퀀스 + Convention §4 준수) |
+| `sendMessage` (form_prompt) | `chat.postMessage` + 옵션 `blocks: [{type: "input", ...}]` 으로 single-field 안내 (§4.2 다단계 텍스트 시퀀스) |
+| `sendMessage` (form_modal) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", action_id: "__open_form__", ...}]}]` — "양식 작성하기" 버튼 발송 (§4.1 native modal 게이팅). 클릭 시 `ackInteraction` 이 [`POST /api/views.open`](https://api.slack.com/methods/views.open) 으로 modal open (§3.3) |
 | `sendMessage` (image) | [`POST /api/files.uploadV2`](https://api.slack.com/methods/files.uploadV2) (channel, file, initial_comment) — v1 carousel/chart/table 의 image fallback path |
 | `sendMessage` (typing) | **no-op** — Slack Web API 에 server-initiated typing indicator 가 없다 (Rationale R-S-5) |
 | `ackInteraction` (button_callback / view_submission) | Interactivity 응답: 3초 안에 HTTP `200 OK` 반환 (빈 body 또는 `response_action`) — 비동기 갱신은 [`response_url`](https://api.slack.com/interactivity/handling#message_responses) 사용 |
@@ -80,6 +81,35 @@ Events API 의 "Request URL" 은 Slack 앱 manifest 의 사전 등록 사항 —
 
 선택 정리: bot token rotation API (`POST /api/triggers/:id/chat-channel/rotate-bot-token`) 가 호출되면 별도 step 으로 [`POST /api/auth.revoke`](https://api.slack.com/methods/auth.revoke) 로 old token 무효화 — [CCH-SE-04](../../../5-system/15-chat-channel.md#34-신뢰성--보안) 의 24h grace 종료 시점에 `ChatChannelTokenRotatorService` 가 수행.
 
+### 3.3 `views.open` 구체 (native form modal)
+
+[Convention §4.1 native modal 경로](../../../conventions/chat-channel-adapter.md#41-native-modal-경로-2026-05-28-신설) 의 Slack 구현. `form_modal` 버튼 (`action_id: "__open_form__"`) 클릭 → `block_actions` interaction 의 `trigger_id` (3초 유효) 로 즉시 modal open:
+
+```
+POST https://slack.com/api/views.open
+Authorization: Bearer {botToken}
+{
+  "trigger_id": "<block_actions payload 의 trigger_id>",
+  "view": {
+    "type": "modal",
+    "callback_id": "clemvion_form",       // view_submission 분기용 고정 id
+    "title": { "type": "plain_text", "text": "<form 제목 또는 default>" },
+    "submit": { "type": "plain_text", "text": "제출" },
+    "blocks": [
+      // formConfig.fields[] → input block. block_id = field.name
+      { "type": "input", "block_id": "<field.name>", "label": {...},
+        "element": { "type": "plain_text_input" | "static_select" | "datepicker" | "checkboxes", ... },
+        "optional": !field.required }
+    ]
+  }
+}
+```
+
+- **trigger_id 3초 제약**: `block_actions` 수신 직후 동기적으로 `views.open` 을 호출해야 한다 (지연 시 `trigger_expired`). EIA 등 다른 I/O 를 사이에 끼우지 않음.
+- **필드 type → element 매핑**은 §5.3 표.
+- **view_submission**: 사용자 제출 → `payload.view.state.values` 를 `parseUpdate` 가 `{ kind: "form_submission", fields }` 로 normalize (§4.2 의 다단계와 달리 전 필드 1회 수집).
+- **검증 실패 재표시**: server-side 검증 실패 (EIA 400 VALIDATION_FAILED) 시 view_submission 응답으로 `{ "response_action": "errors", "errors": { "<field.name>": "<message>" } }` 반환 — modal 이 닫히지 않고 해당 필드에 에러 표시 (Convention §4.1 step 5).
+
 ---
 
 ## 4. 명령 매핑 (`parseUpdate`)
@@ -102,10 +132,11 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 
 | payload.type | ChannelUpdate.command |
 |---|---|
+| `"block_actions"` & `actions[0].action_id === "__open_form__"` | `null` (EIA 명령 아님) — `ackInteraction` 이 `trigger_id` 로 `views.open` 호출 (§3.3 / §4.1 native modal 게이팅) |
 | `"block_actions"` (button tap) | `{ kind: "button_callback", callbackData: payload.actions[0].value }` |
 | `"block_actions"` (select menu) | `{ kind: "button_callback", callbackData: payload.actions[0].selected_option.value }` |
-| `"view_submission"` (modal submit) | v1: 미사용 (Convention §4 다단계 시퀀스 채택 — R-S-6). v2: `{ kind: "form_submission", fields: payload.view.state.values }` 로 확장 예정 |
-| `"shortcut"` / `"message_action"` / `"view_closed"` | v1 `null` |
+| `"view_submission"` & `view.callback_id === "clemvion_form"` (modal submit) | **`{ kind: "form_submission", fields }`** — `payload.view.state.values` 를 `{ <field.name>: rawValue }` 로 평탄화 (block_id=field.name, element value 추출). native form modal 채택 ([R-S-6](#r-s-6-form--5-fields-이하-native-modal-6-또는-multi_step-opt-out-시-다단계-2026-05-24-갱신-2026-05-28)) |
+| `"shortcut"` / `"message_action"` / `"view_closed"` | v1 `null` (view_closed 시 execution 은 waiting 유지 — 버튼 메시지 잔존, 사용자 재클릭 가능. Convention §4) |
 
 **3초 ack 의무**: Slack Interactivity 는 endpoint 가 3초 안에 `200 OK` 를 반환해야 한다. `ackInteraction` 이 즉시 빈 body 200 응답 — 비동기 후속 갱신은 `response_url` (1시간 유효, 5회 한도) 로 별 POST.
 
@@ -154,28 +185,33 @@ Slack slash command 는 **workspace 단위 1개 prefix** 만 등록 가능하므
 
 ### 5.3 Form (CCH-MP-03)
 
-v1 = [Convention §4 다단계 시퀀스](../../../conventions/chat-channel-adapter.md#4-form-다단계-시퀀스-규약) 정책 적용 — **모든 어댑터가 동일한 다단계 텍스트 시퀀스** 컨벤션 차원 강제 (Convention Rationale R4). Slack 의 native `views.open` modal 은 v2 옵션 (R-S-6).
+Slack 은 `supportsNativeForm = true`. [Convention §4](../../../conventions/chat-channel-adapter.md#4-form-입력-시퀀스-규약) 의 **formMode 분기** 적용:
 
-필드 type 별 Block Kit hint:
+- **§4.1 native modal** — `formMode ∈ {auto, native_modal}` && `fields.length <= 5` && 전 필드가 Slack modal 수용 타입 (아래 표의 모든 type — Slack modal 은 plain_text_input/static_select/datepicker/checkboxes 를 input block 으로 지원하므로 v1 form 의 모든 type 수용). `form_modal` 버튼 → `views.open` (§3.3) → `view_submission` 일괄 제출.
+- **§4.2 다단계 텍스트 시퀀스** — `fields.length > 5` 또는 `formMode === "multi_step"` (사용자 opt-out). 기존 텍스트 시퀀스.
 
-| `field.type` ([Form spec §1](../../6-presentation/4-form.md#1-설정-config)) | Slack hint |
-|---|---|
-| `text` / `textarea` / `email` | plain text prompt (`section` block + 사용자 자유 DM reply) |
-| `number` | plain text prompt + 안내 ("숫자만 입력") |
-| `select` / `radio` | Block Kit `actions` block 의 `static_select` element (단일 선택) |
-| `checkbox` | Block Kit `checkboxes` element + 완료 button (Block Kit checkboxes 는 단일 element 안에서 N개 옵션 선택 + submit 별도 button) |
-| `date` | Block Kit `datepicker` element (native date picker — Slack 지원) |
-| `file` | plain text prompt ("파일을 이 DM 에 업로드해 주세요") → `file_shared` event 수신 |
-| `text` + [`validation.preset: 'phone'`](../../6-presentation/4-form.md#1-설정-config) | plain text prompt + 안내 ("전화번호 입력") — Slack 은 share_contact 동등 native UI 없음. Form spec 의 `type` Enum 자체는 미변경 |
+**필드 type → modal input block** (§4.1) / 다단계 hint (§4.2):
 
-각 필드 prompt 본문 포맷 (Telegram §5.3 와 동일):
+| `field.type` ([Form spec §1](../../6-presentation/4-form.md#1-설정-config)) | §4.1 modal input element | §4.2 다단계 hint |
+|---|---|---|
+| `text` / `textarea` / `email` | `plain_text_input` (textarea → `multiline: true`) | plain text prompt (`section` block + 사용자 자유 DM reply) |
+| `number` | `plain_text_input` (submit 후 어댑터 숫자 검증) | plain text prompt + 안내 ("숫자만 입력") |
+| `select` / `radio` | `static_select` (단일 선택) | Block Kit `actions` block 의 `static_select` element |
+| `checkbox` | `checkboxes` element | Block Kit `checkboxes` element + 완료 button |
+| `date` | `datepicker` element | Block Kit `datepicker` element |
+| `file` | modal 미수용 → form 에 file 필드 1개라도 있으면 §4.2 다단계 fallback (`file_shared` event 경로) | plain text prompt ("파일을 이 DM 에 업로드해 주세요") → `file_shared` event 수신 |
+| `text` + [`validation.preset: 'phone'`](../../6-presentation/4-form.md#1-설정-config) | `plain_text_input` (어댑터 형식 검증) | plain text prompt + 안내 ("전화번호 입력") — Slack 은 share_contact 동등 없음. Form spec `type` Enum 미변경 |
+
+> **modal 수용 타입 제약** (Convention §4.1 (a)): Slack modal 은 위 표의 모든 type 을 input block 으로 수용하므로 `file` 필드만 §4.1 제외 (다단계 fallback). file 필드 없는 ≤5 fields form 은 modal.
+
+§4.2 다단계 각 필드 prompt 본문 포맷 (Telegram §5.3 와 동일):
 
 ```
 {field.label}{required ? " *" : ""}
 {field.description || ""}
 ```
 
-server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 그 필드만 재질문 (Convention §4 step 5).
+server-side validation 실패 시: §4.1 modal 은 `view_submission` 응답 `response_action: errors` 로 해당 필드 강조 (§3.3), §4.2 다단계 는 currentFieldIdx 를 되돌리고 그 필드만 재질문 (Convention §4.2 step 5).
 
 ### 5.4 Carousel / Chart / Table (CCH-MP-04)
 
@@ -300,14 +336,16 @@ Telegram §7 의 `/start` / `/cancel` / `/help` 와 의미 1:1 — Slack 은 단
 
 근거: Convention §1.1 의 `ackInteraction` 와 동일 정신 — provider 가 native 미지원 시 no-op 허용. UX 격상은 별 plan.
 
-### R-S-6. v1 Form = 다단계 텍스트 시퀀스, modal 은 v2 (2026-05-24)
+### R-S-6. Form — ≤5 fields native modal, 6+ 또는 multi_step opt-out 시 다단계 (2026-05-24, 갱신 2026-05-28)
 
-대안:
-1. **(채택) v1 다단계 텍스트 시퀀스** (Convention §4 준수): Telegram 과 동일 UX. 컨벤션 차원 강제 (Convention Rationale R4) 와 정합.
-2. **(기각) v1 부터 `views.open` modal native**: Slack 의 가장 native 한 form UX 지만 컨벤션 §4 위반. modal 을 도입하려면 컨벤션 §4 에 "provider 가 native form UI 지원 시 예외" 절 추가 + Telegram 도 [Mini App](https://core.telegram.org/bots/webapps) 의 native form 으로 격상하는 path 가 함께 검토되어야 — 변경 범위 큼.
-3. **(보류) v1 부터 modal + v2 에서 컨벤션 통합**: 일단 도입했다가 컨벤션이 따라가는 패턴 — drift 위험.
+**(2026-05-28 갱신 — v2 채택)** Slack `views.open` modal 을 native form 으로 채택. [Convention §4.1 / R-CCA-8](../../../conventions/chat-channel-adapter.md#r-cca-8-native-form-modal-예외-절--5-fields-이하-single-modal-2026-05-28) 의 예외 절 신설에 따라, `formMode ∈ {auto, native_modal}` && `fields ≤ 5` && file 필드 미포함 form 은 단일 modal (§3.3 / §5.3). 그 외 (fields > 5 / `formMode = multi_step` / file 포함) 는 §4.2 다단계 fallback.
 
-근거: 컨벤션 우선 + 변경 범위 최소화. modal 은 별 plan [`chat-channel-form-native-modal`](../../../../plan/in-progress/chat-channel-form-native-modal.md) 후보 (v2 trigger 시 진입).
+대안 (historical):
+1. **(구 채택 → 다단계 fallback 으로 잔존) v1 다단계 텍스트 시퀀스** (Convention §4.2): Telegram 과 동일 UX. modal 미대상 form 의 fallback 으로 유지.
+2. **(v2 채택) `views.open` modal native**: Slack 의 가장 native 한 form UX. 2026-05-28 Convention §4.1 예외 절 신설로 활성화 — R4 가 예고한 "native UI 분기 v2 옵션" 의 실현 (번복 아님). Telegram 은 `supportsNativeForm=false` 로 다단계 유지하므로 Telegram Mini App 격상은 본 plan 범위 밖 (별도 작업).
+3. **(기각) fields > 5 도 multi-page modal**: Discord 와의 공통 분모 (modal 5 fields 한계) 통일 + UX 복잡도 회피 — 6+ 는 다단계가 단순. Convention R-CCA-8 대안 3.
+
+근거: Convention §4.1 native modal 경로 활성화. SoT: [`chat-channel-form-native-modal`](../../../../plan/in-progress/chat-channel-form-native-modal.md) v2.
 
 ### R-S-7. `file_shared` event → `files.info` 후속 조회 — HooksService 위임 (채택) (2026-05-24)
 
@@ -325,7 +363,7 @@ event.type === "file_shared" 도착
   ↓ 보강된 mimeType / filename / url_private 으로 ChannelUpdate 갱신
   ↓ Form `file` 필드의 allowedMimeTypes / maxFileSize 1차 검증
   ↓ 통과 시 EIA submit_form (data.<fieldName> = { fileId, filename, mimeType, urlPrivate }) 호출
-  ↓ 실패 시 currentFieldIdx 되돌리고 form_prompt 재발송 (Convention §4 step 5)
+  ↓ 실패 시 currentFieldIdx 되돌리고 form_prompt 재발송 (Convention §4.2 step 5)
 ```
 
 근거: Convention §1.1 pure 계약 유지 우선. mimeType 보강 책임을 caller 로 일원화하면 다른 file-receiving provider (향후 Telegram `document` / Discord v2 Gateway attachment) 도 동일 패턴 재사용 가능.
@@ -357,3 +395,4 @@ Spec Chat Channel §5.5 는 inbound webhook 응답을 `202 Accepted` 로 SoT 화
 |---|---|
 | 2026-05-24 | v1 spec 신설 — Slack Web API + Events API + Interactivity 기반 Webhook-mode 어댑터. Telegram §5 의 5종 인터랙션 매핑 1:1 + Slack native primitives 변환. Form 은 v1 다단계 텍스트 시퀀스 (Convention §4 준수). typing no-op. URL Verification / Interactivity 의 200 응답 예외. |
 | 2026-05-24 | §6 보안 + Rationale R-S-1 — signing secret 의 secret-store ref / config 필드를 단일 `inboundSigningRef` (`secret://triggers/{id}/inbound-signing`) 슬롯으로 통합 (Telegram / Discord 공유). 발급 주체 (Slack provider-issued) / 검증 알고리즘 (HMAC-SHA256) 는 backend 의 SlackAdapter 가 분기. spec-chat-channel-inbound-signing-rename. |
+| 2026-05-28 | Native form modal 채택 (chat-channel-form-native-modal v2): (a) §3 표에 `form_modal` row (`views.open`) + `parseUpdate` 에 view_submission 추가. (b) §3.3 `views.open` 구체 신설 — trigger_id 3초 제약·view payload·response_action errors 재표시. (c) §4.2 Interactivity 표의 `view_submission` row 를 "v1 미사용" → `form_submission` (view.state.values 평탄화) 으로 격상 + `__open_form__` block_actions 분기 추가. (d) §5.3 Form 을 formMode 분기 (≤5 fields & file 미포함 → modal, 그 외 다단계) 로 재작성 + 필드 type→modal input element 표. (e) R-S-6 갱신 (v2 채택 — modal native). Convention [§4.1 / R-CCA-8](../../../conventions/chat-channel-adapter.md#r-cca-8-native-form-modal-예외-절--5-fields-이하-single-modal-2026-05-28) 동반. |
