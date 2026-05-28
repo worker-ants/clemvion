@@ -76,23 +76,11 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
 
   private async handle(event: ExecutionChannelEvent): Promise<void> {
     if (!FANOUT_EVENTS.has(event.eventType)) return;
-    // execution 의 trigger 조회 — 효율을 위해 payload 에서 workflow / trigger id 가 있으면 활용.
-    const triggerId =
-      (event.payload as { triggerId?: unknown }).triggerId ?? null;
-    if (typeof triggerId !== 'string' || triggerId.length === 0) {
-      // webhook 이 시작한 execution 만 trigger 가 알려진다. 본 fanout 도 그 경우에만.
-      // payload 에 triggerId 가 없으면 DB lookup 까지 가는 것보다 silent skip 이 안전.
-      // 수동 실행은 정상적으로 여기 도달 — 매번 warn 하면 noise. PR #314 의 routing
-      // context 미등록 시 webhook 발화 execution 도 여기 막힘 → debug 로 가시화.
-      this.logger.debug(
-        `event ${event.eventType} skipped — payload.triggerId 없음 (수동 실행 또는 routing context 미등록)`,
-      );
-      return;
-    }
     // [Spec EIA §3.3 EIA-AU-04] terminal event 시 해당 execution 의 iext jti 를 즉시 blacklist.
-    // outbound notification config / 구독 여부와 **독립** — interaction-only 트리거 (notification
-    // 미설정) 도 종료 시 토큰 무효화 의무를 진다. 따라서 아래 notification 게이트의 early return
-    // 보다 반드시 먼저 수행한다. execution_token 0건이면 revokeAllForExecution 가 no-op.
+    // spec 은 종료 시 토큰을 **무조건** invalidate 하도록 요구하므로 (triggerId / notification
+    // config 조건 없음), 아래 notification fanout 게이트의 early return 보다 반드시 먼저, 그리고
+    // triggerId 유무와 독립적으로 수행한다. iext 토큰을 발급하지 않은 execution (수동 실행 등) 은
+    // revokeAllForExecution 가 단일 인덱스 lookup 후 no-op 으로 끝난다 (execution_token 0건).
     if (TERMINAL_EVENTS.has(event.eventType)) {
       try {
         await this.tokenService.revokeAllForExecution(event.executionId);
@@ -101,6 +89,20 @@ export class NotificationFanout implements OnModuleInit, OnModuleDestroy {
           `NotificationFanout: revokeAllForExecution 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+    }
+    // --- 이하 outbound notification fanout — notification config 가 본 event 를 구독 중일 때만. ---
+    // execution 의 trigger 조회 — 효율을 위해 payload 에서 workflow / trigger id 가 있으면 활용.
+    const triggerId =
+      (event.payload as { triggerId?: unknown }).triggerId ?? null;
+    if (typeof triggerId !== 'string' || triggerId.length === 0) {
+      // webhook 이 시작한 execution 만 trigger 가 알려진다. notification fanout 도 그 경우에만.
+      // payload 에 triggerId 가 없으면 DB lookup 까지 가는 것보다 silent skip 이 안전.
+      // 수동 실행은 정상적으로 여기 도달 — 매번 warn 하면 noise. PR #314 의 routing
+      // context 미등록 시 webhook 발화 execution 도 여기 막힘 → debug 로 가시화.
+      this.logger.debug(
+        `event ${event.eventType} skipped — payload.triggerId 없음 (수동 실행 또는 routing context 미등록)`,
+      );
+      return;
     }
     const trigger = await this.triggerRepository.findOne({
       where: { id: triggerId },

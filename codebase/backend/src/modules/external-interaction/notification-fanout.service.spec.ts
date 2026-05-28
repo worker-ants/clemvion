@@ -34,7 +34,13 @@ function makeFanout(deps: {
     triggerRepository as never,
     tokenService as never,
   );
-  return { fanout, dispatcher, triggerRepository, tokenService };
+  return {
+    fanout,
+    dispatcher,
+    triggerRepository,
+    tokenService,
+    websocketService,
+  };
 }
 
 function event(
@@ -127,9 +133,18 @@ describe('NotificationFanout — terminal revoke 게이트 [EIA-AU-04]', () => {
     expect(tokenService.revokeAllForExecution).not.toHaveBeenCalled();
   });
 
-  it('triggerId 없는 manual 실행 terminal → revoke 미호출 (불필요 쿼리 회피)', async () => {
+  it('triggerId 없는 terminal (수동 실행/routing context 미등록 webhook) → revoke 는 호출, notification fanout 은 skip [EIA-AU-04]', async () => {
+    // EIA-AU-04 는 triggerId 조건이 없다 — terminal 이면 무조건 토큰 무효화 시도.
+    // notification fanout 만 triggerId 게이트 뒤로 남는다 (trigger lookup 불가).
     const { fanout, tokenService, triggerRepository } = makeFanout({});
     await invoke(fanout, event('execution.completed', {}));
+    expect(tokenService.revokeAllForExecution).toHaveBeenCalledWith('exec-1');
+    expect(triggerRepository.findOne).not.toHaveBeenCalled();
+  });
+
+  it('non-terminal + triggerId 없음 → revoke 미호출, notification skip', async () => {
+    const { fanout, tokenService, triggerRepository } = makeFanout({});
+    await invoke(fanout, event('execution.waiting_for_input', {}));
     expect(tokenService.revokeAllForExecution).not.toHaveBeenCalled();
     expect(triggerRepository.findOne).not.toHaveBeenCalled();
   });
@@ -152,5 +167,31 @@ describe('NotificationFanout — terminal revoke 게이트 [EIA-AU-04]', () => {
     await invoke(fanout, event('execution.completed', { triggerId: 'trg-1' }));
     expect(tokenService.revokeAllForExecution).toHaveBeenCalled();
     expect(dispatcher.enqueue).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('NotificationFanout — 구독 라이프사이클', () => {
+  it('onModuleInit → executionEvents$ 1회 구독', () => {
+    const { fanout, websocketService } = makeFanout({});
+    fanout.onModuleInit();
+    expect(websocketService.executionEvents$.subscribe).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
+  it('onModuleDestroy → 구독 unsubscribe', () => {
+    const unsubscribe = jest.fn();
+    const { fanout, websocketService } = makeFanout({});
+    websocketService.executionEvents$.subscribe.mockReturnValue({
+      unsubscribe,
+    });
+    fanout.onModuleInit();
+    fanout.onModuleDestroy();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('onModuleInit 없이 onModuleDestroy → no-op (구독 없음)', () => {
+    const { fanout } = makeFanout({});
+    expect(() => fanout.onModuleDestroy()).not.toThrow();
   });
 });
