@@ -1,13 +1,15 @@
 ---
-worktree: (assigned at impl-start)
+worktree: chat-channel-form-native-modal-c021b9
 started: 2026-05-28
-owner: developer (TBD)
-status: backlog
+owner: developer
+status: done
 ---
 
 # Form modal hardening — 후속 (chat-channel-form-native-modal v2 review deferred)
 
 `chat-channel-form-native-modal` (2026-05-28 완료, PR branch `claude/chat-channel-form-native-modal-c021b9`) 의 impl-done `/ai-review` 에서 식별된 **비-blocking 강화 항목**. 본 plan 으로 분리해 추적 (기능 자체는 v2 에서 동작·테스트 완료).
+
+> **완료 (2026-05-28, 동일 branch)**: 항목 1~4 모두 반영. 1) `ChannelConversationService.acquire/releaseLock` + form_submission per-conversation lock. 2) `NativeFormAdapter` 서브인터페이스 + `isNativeFormAdapter` 가드. 3) slack.md §6 `private_metadata` 위험 수용 명시. 4) `validateFormSubmission` client-side 게이트 (required/email/number/select; pattern·minLength preset 은 EIA server 검증 위임 유지). TEST WORKFLOW 통과 (lint·unit 5075·build·e2e 127).
 
 ## 항목
 
