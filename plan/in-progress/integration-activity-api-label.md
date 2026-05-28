@@ -65,10 +65,10 @@ owner: developer
 - [x] **Phase 4** — backend TDD: 4개 핸들러 logUsage api 채우기
 - [x] **Phase 5** — backend TDD: catalog endpoint
 - [x] **Phase 6** — frontend: DTO + i18n + ActivityTab + catalog hook (cafe24Catalog dict 는 빈 슬롯, 라벨 채우기는 follow-up)
-- [ ] **Phase 7** — TEST WORKFLOW (lint → unit → build → e2e)
-- [ ] **Phase 8** — REVIEW WORKFLOW (/ai-review + RESOLUTION + 재테스트)
+- [x] **Phase 7** — TEST WORKFLOW 통과 (lint 28s / unit 32s 4951 tests / build 78s / e2e 47s 123 tests)
+- [x] **Phase 8** — REVIEW WORKFLOW 통과 (`/ai-review` 10 reviewer, resolution-applier 12/12 항목 자동 처리, e2e 재통과). 산출 `review/code/2026/05/28/09_44_23/SUMMARY.md` + `RESOLUTION.md`
 - [x] **Phase 9** — partial-implementation 분기 — cafe24 catalog 라벨 i18n 채우기는 `plan/in-progress/cafe24-catalog-i18n.md` 신설로 분기. 본 PR 의 surface 는 인프라 (3컬럼 + endpoint + dict 슬롯 + UI fallback) 까지만 구현
-- [ ] **Phase 10** — plan complete 이동
+- [x] **Phase 10** — plan complete 이동
 
 ## 확정된 설계 결정
 

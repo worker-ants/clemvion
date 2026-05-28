@@ -1,0 +1,220 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_routing_decision.json",
+  "routing_status": "done",
+  "routing_skip_reason": null,
+  "agents_forced": [
+    "database",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: plan/in-progress/cafe24-catalog-i18n.md, plan/in-progress/integration-activity-api-label.md, review/consistency/2026/05/28/09_07_26/SUMMARY.md (외 16건)"
+    ],
+    "database": [
+      "마이그레이션·스키마·SQL 변경: codebase/backend/migrations/V064__integration_usage_log_api_columns.sql"
+    ],
+    "requirement": [
+      "spec 본문 변경 — documentation 외에도 요구사항 일관성 검증 필요: spec/1-data-model.md, spec/2-navigation/4-integration.md, spec/4-nodes/4-integration/0-common.md (외 8건)",
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts, codebase/backend/src/modules/integrations/entities/integration-usage-log.entity.ts, codebase/backend/src/modules/integrations/integrations.controller.ts (외 16건)"
+    ],
+    "security": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts, codebase/backend/src/modules/integrations/entities/integration-usage-log.entity.ts, codebase/backend/src/modules/integrations/integrations.controller.ts (외 16건)"
+    ],
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts, codebase/backend/src/modules/integrations/entities/integration-usage-log.entity.ts, codebase/backend/src/modules/integrations/integrations.controller.ts (외 16건)"
+    ],
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts, codebase/backend/src/modules/integrations/entities/integration-usage-log.entity.ts, codebase/backend/src/modules/integrations/integrations.controller.ts (외 16건)"
+    ],
+    "maintainability": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts, codebase/backend/src/modules/integrations/entities/integration-usage-log.entity.ts, codebase/backend/src/modules/integrations/integrations.controller.ts (외 16건)"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts, codebase/backend/src/modules/integrations/entities/integration-usage-log.entity.ts, codebase/backend/src/modules/integrations/integrations.controller.ts (외 16건)"
+    ]
+  },
+  "agents_skipped": [
+    "performance",
+    "architecture",
+    "dependency",
+    "concurrency"
+  ],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/security.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/performance.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/architecture.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/documentation.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/dependency.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/database.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/concurrency.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/api_contract.md"
+    },
+    {
+      "name": "user_guide_sync",
+      "subagent_type": "user-guide-sync-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/_prompts/user_guide_sync.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/integration-activity-api-label-ed0a6e/review/code/2026/05/28/09_44_23/user_guide_sync.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "database",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "agents_fatal": [],
+  "agent_history": {
+    "security": [
+      {
+        "ts": "2026-05-28T00:51:16.252001Z",
+        "status": "success"
+      }
+    ],
+    "requirement": [
+      {
+        "ts": "2026-05-28T00:51:16.280701Z",
+        "status": "success"
+      }
+    ],
+    "scope": [
+      {
+        "ts": "2026-05-28T00:51:16.306991Z",
+        "status": "success"
+      }
+    ],
+    "side_effect": [
+      {
+        "ts": "2026-05-28T00:51:16.333793Z",
+        "status": "success"
+      }
+    ],
+    "maintainability": [
+      {
+        "ts": "2026-05-28T00:51:16.360243Z",
+        "status": "success"
+      }
+    ],
+    "testing": [
+      {
+        "ts": "2026-05-28T00:51:16.387346Z",
+        "status": "success"
+      }
+    ],
+    "documentation": [
+      {
+        "ts": "2026-05-28T00:51:16.413820Z",
+        "status": "success"
+      }
+    ],
+    "database": [
+      {
+        "ts": "2026-05-28T00:51:16.440865Z",
+        "status": "success"
+      }
+    ],
+    "api_contract": [
+      {
+        "ts": "2026-05-28T00:51:16.468172Z",
+        "status": "success"
+      }
+    ],
+    "user_guide_sync": [
+      {
+        "ts": "2026-05-28T00:51:16.495390Z",
+        "status": "success"
+      }
+    ]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

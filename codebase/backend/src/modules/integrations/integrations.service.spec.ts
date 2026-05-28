@@ -1578,7 +1578,15 @@ describe('IntegrationsService', () => {
     });
 
     it('returns empty operations[] for non-cafe24 service types', () => {
-      for (const type of ['http', 'database', 'email', 'mcp', 'google', 'github', 'unknown']) {
+      for (const type of [
+        'http',
+        'database',
+        'email',
+        'mcp',
+        'google',
+        'github',
+        'unknown',
+      ]) {
         const result = service.getServiceCatalog(type);
         expect(result).toEqual({ operations: [] });
       }
