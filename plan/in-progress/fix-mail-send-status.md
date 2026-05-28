@@ -91,15 +91,20 @@ BLOCK: NO (재검 후). 산출물 `review/consistency/2026/05/29/{07_40_47,07_50
 - [x] `spec/4-nodes/4-integration/1-http-request.md §4`: `ALLOW_PRIVATE_HOST_TARGETS`
       opt-out·적용 범위(HTTP/DB/Email)·MCP 구분 명시 (env var spec 최초 명시)
 
-## 남은 후속 (별도 grooming/plan — 본 PR 범위 밖)
+- [x] `spec/4-nodes/4-integration/2-database-query.md §4`: DB 노드 SSRF 가드(공통
+      `ALLOW_PRIVATE_HOST_TARGETS`, 차단 시 `INTEGRATION_CALL_FAILED` fallback) note
+      추가 — consistency I2 해소
 
-- **frontmatter status/code 갱신** (item D): spec-only→partial/implemented 승격 +
-  `code:` 채움은 전용 롤아웃 `spec-frontmatter-rollout.md`
-  (spec-impl-evidence.md §6) 책임. 큰 spec 과대주장 방지 위해 분리.
-- `spec/4-nodes/4-integration/2-database-query.md`: DB 노드 SSRF 가드 정책이 spec
-  본문에 미기술 (코드엔 존재). consistency I2 — 별도 spec 보강 task.
-- `EMAIL_HOST_BLOCKED` 사용자 가시 ko 매핑 — `backend-labels.ts ERROR_KO` 미존재로
-  영문 노출 (기존 errorCode 와 동일 상태).
+## 남은 후속 (본 PR 범위 밖 — 근거 명시)
+
+- **frontmatter status/code 갱신** (item D): 전용 롤아웃
+  `plan/complete/spec-frontmatter-rollout.md` 이 **이미 완료**됐고 4개 가드도 활성.
+  현재 touched spec 들은 `spec-only` 로 가드 통과 중. 가드 활성 상태에서 본 bug-fix
+  PR 이 piecemeal 재분류하면 롤아웃 결정과 충돌·unit 가드 위반 위험 → 별도 grooming
+  task 로 분리 (재분류 필요 시 spec-impl-evidence §3 라이프사이클 일괄 적용).
+- `EMAIL_HOST_BLOCKED` 사용자 가시 ko 매핑 — `backend-labels.ts` 에 `ERROR_KO`
+  테이블 자체가 미존재(영문 노출, 기존 모든 errorCode 와 동일). ERROR_KO 인프라
+  신설은 PROJECT.md 매트릭스상 별도 후속 plan.
 
 ## 사용자 가시 노출 주의 (PROJECT.md 변경 매트릭스)
 
