@@ -54,7 +54,13 @@ breaking change 포함).
       - 실패 시 `EMAIL_CONNECT_FAILED`. preview-test/testConnection/rotate 공통
       - unit test 3종 (verify resolve→success / reject→fail / 구조검증 우선)
 - [x] TEST WORKFLOW: lint PASS / unit PASS (5010) / build PASS / e2e (진행중)
-- [ ] REVIEW WORKFLOW: `/ai-review` + 이슈 조치 + RESOLUTION.md
+- [x] REVIEW WORKFLOW: `/ai-review` (9 reviewer, MEDIUM, Critical 0) + 이슈 조치 +
+      RESOLUTION.md (`review/code/2026/05/29/01_22_01/`)
+- [x] **Fix 3** (ai-review W1 SSRF, 사용자 결정) — SMTP private-host SSRF 가드
+      - `common/utils/smtp-host-guard.ts`: 기존 `ALLOW_PRIVATE_HOST_TARGETS`
+        재사용(기본 ON, self-host opt-out), `ssrf.util` 재사용
+      - testEmailTransport + send-email 핸들러 양쪽 적용, `EMAIL_HOST_BLOCKED`
+      - unit test 3 spec (가드 로직 / 연결테스트 차단 / 발송 차단)
 
 ## DOCUMENTATION 점검
 
@@ -66,7 +72,19 @@ breaking change 포함).
   - 연결 테스트 동작이 실제 검증으로 바뀌었으나, user-guide
     (`integration-management.mdx`) claim("테스트 통과해야 저장")은 그대로 정확.
 
-## 후속(선택, 본 PR 범위 밖)
+## 후속 (project-planner 위임 — spec 영역)
 
 - `spec/5-system/3-error-handling.md` / `spec/2-navigation/4-integration.md`
-  frontmatter `code: []` → 구현 파일 링크 갱신 (pre-existing 갭, project-planner 영역).
+  frontmatter `code: []` → 구현 파일 링크 갱신 (pre-existing 갭).
+- `spec/2-navigation/4-integration.md §5.5`: "테스트: SMTP 핸드셰이크 + NOOP" →
+  실제 구현 `nodemailer verify()` (연결+인증) 로 갱신. previewTest 도 SMTP 검증
+  수행함을 명시.
+- `spec/2-navigation/4-integration.md` 에러 코드 표: `EMAIL_HOST_BLOCKED` 신규 코드
+  + SMTP SSRF 가드(기본 ON, `ALLOW_PRIVATE_HOST_TARGETS` opt-out) 동작 명시.
+- `spec/5-system/3-error-handling.md`: `ERROR_PORT_FALLBACK` 를 API/실행 결과
+  스키마에 명시 (ai-review INFO16).
+
+## 사용자 가시 노출 주의 (PROJECT.md 변경 매트릭스)
+
+- 신규 `ErrorCode.EMAIL_HOST_BLOCKED` — `backend-labels.ts` 에 `ERROR_KO` 매핑
+  테이블이 아직 없어 영문 message 가 그대로 노출됨 (기존 errorCode 와 동일 상태).

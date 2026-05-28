@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { createTransport } from 'nodemailer';
+import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
@@ -1275,6 +1276,16 @@ export class IntegrationsService {
     _authType: string,
     credentials: Record<string, unknown>,
   ): Promise<IntegrationTestResult> {
+    // SSRF 완화 (opt-in) — `SMTP_BLOCK_PRIVATE_HOSTS` 정책이 켜진 경우 사설/
+    // loopback host 에 대한 연결 시도를 차단. send_email 발송 경로와 동일한 가드.
+    if (await isSmtpHostBlocked(credentials.host as string)) {
+      return {
+        success: false,
+        code: 'EMAIL_HOST_BLOCKED',
+        message:
+          'SMTP host points to a private/loopback address blocked by policy.',
+      };
+    }
     const secure = credentials.secure as 'none' | 'starttls' | 'tls';
     const transporter = createTransport({
       host: credentials.host as string,

@@ -20,9 +20,26 @@
 
 ## 보류·후속 항목
 
+### W1 (SSRF) — 사용자 결정 후 **수정 완료**
+
+사용자 결정 2건:
+1. SSRF 처리 방식 → 차단 구현.
+2. 플래그 정책 → **기존 `ALLOW_PRIVATE_HOST_TARGETS` 재사용** (http/db 와 동일,
+   기본 ON·self-host opt-out). 별 `SMTP_BLOCK_PRIVATE_HOSTS` 폐기.
+
+조치:
+- `common/utils/smtp-host-guard.ts` 신설 — `ssrf.util`(isPrivateHost/
+  resolvesToPrivate) 재사용, `ALLOW_PRIVATE_HOST_TARGETS=true` 시 opt-out.
+- `testEmailTransport`(연결 테스트) + `SendEmailHandler`(발송) 양쪽 가드 적용
+  → 비대칭 방지. 차단 시 `EMAIL_HOST_BLOCKED`.
+- `ErrorCode.EMAIL_HOST_BLOCKED` enum 추가, `.env.example`
+  ALLOW_PRIVATE_HOST_TARGETS 주석에 SMTP 포함 명시.
+- 테스트: smtp-host-guard.spec(가드 로직), integrations·send-email spec(차단 분기).
+
+### 그 외 보류
+
 | SUMMARY # | 발견 | 보류 사유 |
 |---|---|---|
-| **W1** | 보안 — SMTP `host` private IP 미차단 (SSRF) | **사용자 결정 대기 (ESCALATE)**. ① 이 risk 는 본 PR 신규 도입이 아니라 기존 `send_email` 핸들러가 이미 런타임에 host 로 접속하던 동작에 내재. ② private IP 하드 차단은 self-host 환경의 **내부 SMTP relay**(10.x/192.168.x/localhost mailhog 등 정상 사용처)를 깨뜨림. ③ SMTP 프로토콜 특성상 HTTP metadata(169.254.169.254) 탈취 난이도 높음. → 별도 보안 하드닝 이니셔티브로 분리 권장. 사용자 결정 후 별 plan 진행. |
 | W2 | 보안 — SMTP 원본 에러 메시지 노출 | **수용**. 메시지는 사용자 **본인** SMTP 서버의 진단 정보(인증 실패 사유 등)로, 연결 테스트의 핵심 가치. `clampMessage` 로 길이만 제한. MCP tester 도 동일하게 외부 message 를 반환(일관). 일반화하면 디버깅 불가. |
 | W4 | 보안 — `_selectedPort` 신뢰 경계 | **수용(기존 동작)**. `_selectedPort` 는 graph-traversal 의 모든 라우팅이 이미 신뢰하는 엔진 메타데이터이며 핸들러는 `port` 만 선언(applyPortSelection 이 변환). 본 PR 신규 도입 아님. first-party 핸들러 신뢰 모델. |
 | INFO4 | `ErrorPortFallbackError` → `workflow-errors.ts` 이동 | 후속(선택). 낮은 우선순위. |

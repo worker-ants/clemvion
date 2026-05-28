@@ -13,8 +13,14 @@ import {
 import type { Integration } from './entities/integration.entity';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
 import { createTransport } from 'nodemailer';
+import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
 
 jest.mock('nodemailer', () => ({ createTransport: jest.fn() }));
+// SSRF 가드는 별도 unit spec(smtp-host-guard.spec.ts)이 검증한다. 여기서는
+// 실제 DNS 조회를 피하기 위해 모킹하고, 호출 여부·분기만 제어한다.
+jest.mock('../../common/utils/smtp-host-guard', () => ({
+  isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
+}));
 
 type Mock = jest.Mock;
 
@@ -631,8 +637,12 @@ describe('IntegrationsService', () => {
       });
     }
 
+    const mockedIsSmtpHostBlocked = isSmtpHostBlocked as unknown as Mock;
+
     beforeEach(() => {
       mockedCreateTransport.mockReset();
+      mockedIsSmtpHostBlocked.mockReset();
+      mockedIsSmtpHostBlocked.mockResolvedValue(false);
     });
 
     it('returns success when nodemailer verify() resolves', async () => {
@@ -751,6 +761,31 @@ describe('IntegrationsService', () => {
       });
       expect(verify).toHaveBeenCalledTimes(1);
       expect(close).toHaveBeenCalled();
+    });
+
+    it('blocks a private/loopback host (no SMTP attempt) — guard on by default', async () => {
+      mockedIsSmtpHostBlocked.mockResolvedValue(true);
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'email',
+          authType: 'smtp',
+          credentials: {
+            host: '169.254.169.254',
+            port: 587,
+            secure: 'starttls',
+            username: 'user@example.com',
+            password: 'app-password',
+            default_from: 'user@example.com',
+          },
+        }),
+      );
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('EMAIL_HOST_BLOCKED');
+      // 차단 시 실제 SMTP 연결을 시도하지 않아야 한다.
+      expect(mockedCreateTransport).not.toHaveBeenCalled();
     });
   });
 
