@@ -1,7 +1,8 @@
 ---
-worktree: cafe24-catalog-i18n
+worktree: cafe24-catalog-i18n-stacked
 started: 2026-05-28
-owner: planner-developer
+owner: developer
+parent_branch: claude/integration-activity-api-label-ed0a6e
 ---
 
 # Cafe24 catalog 라벨 i18n 채우기 (follow-up)
@@ -31,9 +32,14 @@ owner: planner-developer
 
 ## Phase
 
-- [ ] dict/ko/cafe24Catalog.ts 적재 — backend metadata.label → key/value 매핑
-- [ ] dict/en/cafe24Catalog.ts 영문 번역
-- [ ] i18n parity 가드 + hardcoded-korean-ratchet 가드 통과
-- [ ] ActivityTab 수동 검증 + 가능하면 단위 test 추가
-- [ ] backend metadata 의 한국어 `label` 필드 deprecate 처리 (선택적)
-- [ ] plan complete 이동
+- [x] dict/ko/cafe24Catalog.ts 적재 — backend metadata.label 에서 정규식 추출, 500 operations (18 카테고리)
+- [x] dict/en/cafe24Catalog.ts 영문 번역 — operation.id (snake_case) → verb-first phrasing (e.g. orders_list → "List orders")
+- [x] i18n parity 가드 통과 (ko/en 동일 500 keys), ratchet 영향 없음 (TSX 외 .ts dict 파일은 ratchet 검사 대상 아님)
+- [x] TEST WORKFLOW 통과: lint 27s / unit 32s 4975 tests / build 58s / e2e 47s 123 tests
+- [ ] backend metadata 의 한국어 `label` 필드 deprecate 처리 — 본 PR scope 밖, 별 follow-up 으로 분리 (소비처는 MCP tool description 자동 생성에서 여전히 사용 중이라 단순 제거 불가, 신규 plan 필요)
+- [x] plan complete 이동
+
+## 작업 후 결정
+
+- backend metadata `Cafe24OperationMetadata.label` 의 한국어 hardcoded 는 본 PR 에서 제거하지 않음. MCP bridge (`Cafe24McpBridge.buildTools`) 가 LLM 의 tool description 에 그대로 사용 중이라, frontend i18n dict 와 별개의 소비처를 가진다. label 일원화는 backend metadata 의 label 을 i18n key 로 바꾸고 MCP bridge 가 lookup 하는 별 plan 으로 분리.
+- ActivityTab 단위 test 추가는 본 PR 의 mechanical 한 dict 적재 변경 범위 밖. 별 follow-up 가능.
