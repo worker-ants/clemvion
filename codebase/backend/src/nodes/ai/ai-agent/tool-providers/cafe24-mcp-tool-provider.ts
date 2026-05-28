@@ -330,6 +330,12 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     return { kind: 'recovered', integration: fresh };
   }
 
+  /**
+   * Execute a Cafe24 MCP tool call via the Internal Bridge transport.
+   * Logs api.label/method/path on every logUsage call when ctx carries
+   * nodeExecutionId + workflowId (INT-US-05;
+   * spec/conventions/cafe24-api-metadata.md §7.5).
+   */
   async execute(
     call: ToolCall,
     ctx: ProviderExecCtx,
@@ -485,6 +491,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       });
 
       // Usage log — success.
+      // NOTE: success awaits logUsage; fail is fire-and-forget (.catch(() => undefined)).
       if (ctx.nodeExecutionId && ctx.workflowId) {
         await this.integrationsService.logUsage({
           integrationId: integration.id,

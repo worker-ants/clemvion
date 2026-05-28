@@ -15,6 +15,7 @@ owner: developer
 PR #338 (`integration-activity-api-label`) 에서 4개 통합 핸들러 (cafe24 node / http / db / email) 의 `logUsage` 호출에 `api` 식별 정보를 채웠으나, **cafe24 MCP bridge (`Cafe24McpToolProvider`) 경로는 누락**됐다.
 
 - `spec/5-system/11-mcp-client.md §8.3` 이 "Internal Bridge (`Cafe24McpBridge`) 경로에서 `api_label`/`api_method`/`api_path` 채운다" 고 약속했으나 구현 미반영 — spec-impl 갭.
+  - 용어 매핑: spec §8.3 의 `api_label`/`api_method`/`api_path` (DB 컬럼, snake_case) ← `logUsage` 파라미터 `api.label`/`api.method`/`api.path` (camelCase 객체 키).
 - `cafe24-mcp-tool-provider.ts` 의 logUsage 2곳 (success line 480, fail line 509) 이 `api` 없이 호출 → 활동 로그에 NULL 저장 → 프론트가 `—` fallback.
 
 ## 진단 (둘 다 확인)
