@@ -2,8 +2,6 @@
 id: trigger-list
 status: spec-only
 code: []
-pending_plans:
-  - triggers-auth-column
 ---
 
 # Spec: 트리거 목록 화면
