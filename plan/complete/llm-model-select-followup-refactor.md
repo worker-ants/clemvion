@@ -28,7 +28,13 @@ parent_plan: plan/complete/llm-model-select-only.md
 - 6개 컴포넌트 (llm-config-selector / custom-node / workflow-canvas / create-kb-form-dialog / knowledge-bases/[id] page / embedding-model-combobox) 의 인라인 분기 제거.
 - `list()` 가 `apiClient.get` 직접 호출 (commit `3b8fa8fd`) — React Query cache key collision 위험 방지.
 
-## 잔여 항목 (별도 처리 필요)
+## 잔여 항목 — 완료 (commit `9373bffd` 구현 + ai-review 반영 commit)
+
+§4-§7 모두 구현 완료. 구현 노트:
+- §4: `useBaseModelLoader<TSnapshot>` 추출. 두 훅은 `resetKey`/`canLoad`/`captureSnapshot`/`isSnapshotCurrent`/`fetchModels` 만 주입. (`useResetOnKeyChange` 단독 분리 대신 상태 기계 전체 통합 채택 — 중복 최대 제거.)
+- §5: `use-default-llm-config-id.ts` 신설. `LLM_CONFIGS_QUERY_KEY` 캐시 공유 + default→first 폴백 캡슐화.
+- §6: prop drilling 대신 React Context (`has-default-llm-config-context.ts`) 채택 — `CustomNode` 가 React Flow `nodeTypes` 로 렌더되어 직접 prop 전달 불가. `WorkflowCanvas` 가 1회 조회 후 `hasDefaultLlmConfig: boolean` context 제공.
+- §7: backend 실제 에러 envelope `{ error: { code } }` 기반 i18n 매핑(`loader-error-messages.ts`). plan 의 예시 코드(`LLM_AUTH_FAILED` 등)는 backend 미존재 — 실제 emit 코드(`LLM_CREDENTIALS_REQUIRED`/`LLM_CONFIG_INVALID`) 만 매핑, 그 외 fallback. 서버 원본 message 비노출(SUMMARY #10) + 기존 `data.message`(top-level) 오독 버그 동시 수정. 옵션 A 채택.
 
 ### §4. `useBaseModelLoader` 공통 훅 추출
 
@@ -64,8 +70,8 @@ parent_plan: plan/complete/llm-model-select-only.md
 - [x] §1. `useEmbeddingModelLoader` 추출, `embedding-model-combobox.tsx` 가 훅 사용.
 - [x] §2. 공통 JSX 패턴 추출. 두 컴포넌트가 같은 컴포넌트 사용.
 - [x] §3. API 응답 정규화 — `list()` 메서드 + getAll envelope 흡수.
-- [ ] §4. `useBaseModelLoader` 또는 `useResetOnKeyChange` 공통 추출.
-- [ ] §5. `useDefaultLlmConfigId` 훅 분리.
-- [ ] §6. `CustomNode` 다수 구독 → prop drilling.
-- [ ] §7. 서버 에러 메시지 코드 기반 i18n 매핑.
-- [ ] TEST WORKFLOW 통과, `/ai-review` Critical 0.
+- [x] §4. `useBaseModelLoader` 공통 추출.
+- [x] §5. `useDefaultLlmConfigId` 훅 분리.
+- [x] §6. `CustomNode` 다수 구독 → Context (prop drilling 불가 → context 채택).
+- [x] §7. 서버 에러 메시지 코드 기반 i18n 매핑.
+- [x] TEST WORKFLOW 통과 (lint·unit 5004·build·e2e 127), `/ai-review` Critical 0 (위험도 LOW).
