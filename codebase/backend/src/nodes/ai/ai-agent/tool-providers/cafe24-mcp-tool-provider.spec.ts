@@ -64,6 +64,15 @@ function makeCall(name: string, args: Record<string, unknown> = {}): ToolCall {
   };
 }
 
+// INFO-6 — shared constant for api assertion across all logUsage test cases
+// (label: cafe24.product.product_list, method: GET). Extracted to avoid
+// repeating the same object literal in every failure-path test.
+const PRODUCT_LIST_API = {
+  label: 'cafe24.product.product_list',
+  method: 'GET',
+  path: expect.any(String),
+} as const;
+
 describe('Cafe24McpToolProvider', () => {
   let integrationsService: { getForExecution: Mock; logUsage: Mock };
   let apiClient: { call: Mock; refreshTokenViaQueue: Mock };
@@ -677,7 +686,12 @@ describe('Cafe24McpToolProvider', () => {
       expect(parsed.status).toBe(200);
       expect(parsed.response).toEqual({ products: [{ product_no: 1 }] });
       expect(integrationsService.logUsage).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'success' }),
+        expect.objectContaining({
+          status: 'success',
+          // INT-US-05 — MCP bridge 경로도 활동 로그에 api 식별 정보 동반.
+          // spec/conventions/cafe24-api-metadata.md §7.5 + spec/5-system/11-mcp-client.md §8.3.
+          api: PRODUCT_LIST_API,
+        }),
       );
     });
 
@@ -762,6 +776,9 @@ describe('Cafe24McpToolProvider', () => {
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'CAFE24_AUTH_FAILED' }),
+          // 실패 경로에서도 api 식별 정보가 동반돼야 활동 탭에서 어떤 API 가
+          // 실패했는지 식별 가능 (INT-US-05).
+          api: PRODUCT_LIST_API,
         }),
       );
     });
@@ -777,10 +794,23 @@ describe('Cafe24McpToolProvider', () => {
           config: {},
           workspaceId: 'ws-1',
           executionId: 'exec-1',
+          // W2/W3 — inject nodeExecutionId/workflowId so logUsage guard is
+          // satisfied and the api assertion below can be verified (INT-US-05).
+          nodeExecutionId: 'ne-1',
+          workflowId: 'wf-1',
         },
       );
       expect(res.status).toBe('error');
       expect(JSON.parse(res.content).error.code).toBe('CAFE24_RATE_LIMITED');
+      expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({ code: 'CAFE24_RATE_LIMITED' }),
+          // 실패 경로에서도 api 식별 정보가 동반돼야 활동 탭에서 어떤 API 가
+          // 실패했는지 식별 가능 (INT-US-05).
+          api: PRODUCT_LIST_API,
+        }),
+      );
     });
 
     // B-5-5: Cafe24TransportFailedError envelope 변환 — 분류된 코드가
@@ -811,6 +841,9 @@ describe('Cafe24McpToolProvider', () => {
         expect.objectContaining({
           status: 'failed',
           error: expect.objectContaining({ code: 'CAFE24_TRANSPORT_FAILED' }),
+          // W1 — transport 실패 경로도 auth-fail 과 동일하게 api 식별 정보가
+          // 동반돼야 활동 탭에서 어떤 API 가 실패했는지 식별 가능 (INT-US-05).
+          api: PRODUCT_LIST_API,
         }),
       );
     });

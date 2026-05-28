@@ -330,6 +330,12 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
     return { kind: 'recovered', integration: fresh };
   }
 
+  /**
+   * Execute a Cafe24 MCP tool call via the Internal Bridge transport.
+   * Logs api.label/method/path on every logUsage call when ctx carries
+   * nodeExecutionId + workflowId (INT-US-05;
+   * spec/conventions/cafe24-api-metadata.md §7.5).
+   */
   async execute(
     call: ToolCall,
     ctx: ProviderExecCtx,
@@ -389,7 +395,16 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
         error: `Unknown cafe24 operation ${operationId}`,
       };
     }
-    const { operation } = opEntry;
+    const { resource, operation } = opEntry;
+    // INT-US-05 — 활동 로그에 동반할 API 식별 정보. catalog key 는 노드
+    // 핸들러와 동일 형식 (`cafe24.<resource>.<operation>`). frontend i18n dict
+    // 가 사람 친화 라벨로 변환. SoT: spec/conventions/cafe24-api-metadata.md §7.5,
+    // spec/5-system/11-mcp-client.md §8.3 (Internal Bridge 경로).
+    const apiInfo = {
+      label: `cafe24.${resource}.${operation.id}`,
+      method: operation.method,
+      path: operation.path,
+    };
 
     let args: Record<string, unknown> = {};
     try {
@@ -476,6 +491,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
       });
 
       // Usage log — success.
+      // NOTE: success awaits logUsage; fail is fire-and-forget (.catch(() => undefined)).
       if (ctx.nodeExecutionId && ctx.workflowId) {
         await this.integrationsService.logUsage({
           integrationId: integration.id,
@@ -490,6 +506,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
                   message: `Cafe24 API returned ${result.status}`,
                 }
               : null,
+          api: apiInfo,
         });
       }
 
@@ -514,6 +531,7 @@ export class Cafe24McpToolProvider implements AgentToolProvider {
             status: 'failed',
             durationMs: Date.now() - startedAt,
             error: { code: errInfo.code, message: errInfo.message },
+            api: apiInfo,
           })
           .catch(() => undefined);
       }
