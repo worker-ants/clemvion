@@ -15,3 +15,10 @@
 - [ ] `migration-recheck-on-main` 알림 코멘트가 게시되어 있으면 위 절차 재수행
 
 상세 규약: [`spec/conventions/migrations.md`](../blob/main/spec/conventions/migrations.md) §6.2 / §6.3.
+
+## CLA (기여자 라이선스 동의)
+
+> 프로젝트 저작권자(Sangmin Yeo / worker-ants) 본인은 본 섹션을 삭제해도 됨. 그 외 모든 기여자는 체크 필요.
+
+- [ ] [CLA.md](../blob/main/CLA.md) 전문을 읽었으며 해당 내용에 동의합니다.  
+  _I have read the full text of [CLA.md](../blob/main/CLA.md) and I hereby agree to its terms._
