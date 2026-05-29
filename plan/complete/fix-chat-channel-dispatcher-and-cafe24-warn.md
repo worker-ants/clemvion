@@ -1,6 +1,6 @@
 ---
 name: fix-chat-channel-dispatcher-and-cafe24-warn
-status: in-progress
+status: complete
 worktree: .claude/worktrees/fix-chat-channel-dispatcher-and-cafe24-warn-68da78
 branch: claude/fix-chat-channel-dispatcher-and-cafe24-warn-68da78
 created: 2026-05-25

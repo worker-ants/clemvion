@@ -2,7 +2,6 @@
 title: resolveTokenExpiry JWT exp 우선순위 추가 (TZ 버그 방어)
 worktree: resolve-token-expiry-jwt-exp-284f57
 branch: claude/resolve-token-expiry-jwt-exp-284f57
-status: in-progress
 ---
 
 ## 문제
