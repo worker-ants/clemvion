@@ -123,7 +123,7 @@ Typical error codes:
   { name: "EXECUTION_TIMEOUT", type: "Timeout", description: "Per-node or overall workflow timeout exceeded." },
   { name: "INVALID_EXPRESSION", type: "Expression", description: "Expression evaluation failed. Check syntax, null access, or type mismatches." },
   { name: "INTEGRATION_ERROR", type: "Integration", description: "An external integration call failed. Verify auth, network, and response shape." },
-  { name: "LLM_RATE_LIMITED", type: "LLM", description: "Hit the LLM provider's rate limit. Wait and retry, or enable a Retry policy." },
+  { name: "LLM_RATE_LIMIT", type: "LLM", description: "Hit the LLM provider's rate limit. Wait and retry, or enable a Retry policy." },
   { name: "MAX_ITERATIONS_EXCEEDED", type: "Iteration", description: "Exceeded a Loop/ForEach max iteration count." },
   { name: "ERROR_PORT_FALLBACK", type: "Fallback", description: "Route to Error Port was configured but no edge connected — auto-fell back to Stop Workflow." }
 ]} />
