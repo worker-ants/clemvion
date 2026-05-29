@@ -1,12 +1,15 @@
 ---
 worktree: telegram-chat-channel-spec-polish-49c49b
 started: 2026-05-23
+completed: 2026-05-29
 owner: project-planner
 ---
 
 > 비공식 메타: 우선순위 P1 (UI 구현 차단 해소 — 후속 developer plan 의 선행 조건). branch `claude/telegram-chat-channel-spec-polish-49c49b`. 머지 후 `plan/complete/` 로 이동.
 
 # Plan — Telegram Chat Channel Spec 공백 4건 보강
+
+> ✅ 완료 (2026-05-29). spec 공백 4 결정이 PR #281 (`f287a24b` — "chat-channel — 4 P1 결정") 으로 머지됨. 라이프사이클 조건(spec 6 파일 한 PR 머지)을 6 파일 전수 검증 — 결정1: `2-trigger-list.md` Chat Channel 칩/배지(§2.1)·상세 카드(§2.3)·필드 권한 매트릭스 9 row(§2.3.1)·Rationale R-8; 결정2: `15-chat-channel.md §5.4.1` botToken single-path + `§5.4.2` `hasBotToken` derived 필드 + `1-data-model.md §2.8` cross-link; 결정3: visualNode `text/photo/auto` enum (`chat-channel-adapter.md §2.3` + Changelog 2026-05-23 / `15-chat-channel.md` CCH-MP-04 / `telegram.md §5.4` 매트릭스 / R-CC-11); 결정4: `15-chat-channel.md §5.5` Inbound HTTP Contract + `12-webhook.md` WH-EP-07 예외·§3.1 응답표·§7 step 5 + `telegram.md §6` cross-link / R-CC-12. R-CC-10/11/12 Rationale 모두 실재. plan 만 `in-progress/` 잔류한 stale 상태를 grooming 으로 `complete/` 이동 ([plan-lifecycle §6.1](../../.claude/docs/plan-lifecycle.md)). 본 plan 의 "후속 plan" 4건은 별개 plan 으로 분리 진행(라이프사이클 §187) — 본 plan 완료 조건과 무관.
 
 ## 배경
 

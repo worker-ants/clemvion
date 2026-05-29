@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-29T08:45:29.109813",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-fix-isactive-drawer-toggle.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
