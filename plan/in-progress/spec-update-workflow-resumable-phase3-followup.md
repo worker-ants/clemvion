@@ -12,6 +12,18 @@ owner: project-planner
 > 산출 review: `review/code/2026/05/29/09_07_18/SUMMARY.md`,
 > `review/consistency/2026/05/29/09_23_46/SUMMARY.md` (둘 다 BLOCK: NO).
 
+## 진행 상태 (2026-05-29 — PR #355 동반 처리)
+
+변경 1·3·4·5·6 은 본 PR (`workflow-resumable-phase3-a4ea4a`) 에서 직접 반영 완료. 변경 2 는 이미 등재돼 있어 no-op. **변경 7 (frontmatter status 전이) 만 잔여** — project-planner 픽업 대상.
+
+- [x] **변경 1** — `6-websocket-protocol.md §4.2` 실패 ack `errorCode?: string` 평면 필드 + retry_last_turn nested 와의 의도적 분리 명시.
+- [x] **변경 2** — `3-error-handling.md §1.5` WS 카탈로그에 `INVALID_EXECUTION_STATE` 이미 등재됨 (consistency C-2 는 §1.5 미인지 — no-op 확인).
+- [x] **변경 3** — `14-external-interaction-api.md §5.1` `STATE_MISMATCH` 행에 §7.5.1 역링크 추가.
+- [x] **변경 4** — `4-execution-engine.md §7.5` 큐 옵션에 `removeOnFail: false` 명시.
+- [x] **변경 5** — `4-execution-engine.md §Rationale` "DLQ 모니터링 — 로그 기반 알람 선택" 항목 추가, §9.3 인라인은 Rationale 참조로 정리.
+- [x] **변경 6** — `3-workflow-editor/3-execution.md §8` REST 표에 `POST :id/continue` (422 `INVALID_STATE`) 등재.
+- [ ] **변경 7 (잔여 — project-planner)** — `4-execution-engine.md` frontmatter `status: spec-only` → `partial` + `code:` + `pending_plans:`. build-guard(`spec-status-lifecycle.test.ts`) 연동 + 엔진 **전체** 문서 범위라 어느 plan 들이 엔진의 미구현 표면을 책임지는지 spec-coverage 판단 필요 — developer 범위 밖으로 분리.
+
 ## 동기
 
 변경 2.3 (publisher 측 동기 `INVALID_EXECUTION_STATE`) + Phase 3.1 (DLQ 모니터링)
