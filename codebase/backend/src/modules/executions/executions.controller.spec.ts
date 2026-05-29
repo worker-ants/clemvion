@@ -1,4 +1,6 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import { ExecutionsController } from './executions.controller';
+import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
 
 describe('ExecutionsController', () => {
   let controller: ExecutionsController;
@@ -66,6 +68,31 @@ describe('ExecutionsController', () => {
       await expect(
         controller.continueExecution('exec-1', 'workspace-1'),
       ).rejects.toThrow('Execution not found');
+    });
+
+    it('변경 2.3 — InvalidExecutionStateError 면 422 INVALID_STATE 로 변환 (spec §7.5.1)', async () => {
+      mockExecutionEngineService.continueExecution.mockRejectedValueOnce(
+        new InvalidExecutionStateError('not waiting'),
+      );
+
+      await expect(
+        controller.continueExecution('exec-1', 'workspace-1'),
+      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+
+      mockExecutionEngineService.continueExecution.mockRejectedValueOnce(
+        new InvalidExecutionStateError('detail kept server-side'),
+      );
+      const rejection = controller
+        .continueExecution('exec-1', 'workspace-1')
+        .catch((e: unknown) => e);
+      const err = (await rejection) as UnprocessableEntityException;
+      // review W-5 — client 응답 메시지는 고정 문자열(내부 detail 미노출).
+      expect(err.getResponse()).toEqual({
+        error: {
+          code: 'INVALID_STATE',
+          message: 'Execution is not waiting for input.',
+        },
+      });
     });
 
     it('should handle missing body', async () => {

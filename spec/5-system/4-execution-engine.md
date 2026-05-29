@@ -858,7 +858,7 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 
 본 분류는 [§7.5 rehydration](#75-resume-after-restart-rehydration) 의 `RESUME_*` (worker 측 비동기 실패) 와 직교 — `INVALID_EXECUTION_STATE` 는 ack 동기 응답, `RESUME_*` 는 후행 `EXECUTION_CANCELLED` 이벤트.
 
-> **구현 상태 (Phase 2 cont 시점)**: 현재 backend 는 `resolveWaitingNodeExecutionId` 가 invalid lookup 을 `__no_node_exec__` sentinel publish 로 우회 처리 — 사용자에게는 BullMQ worker 가 `RESUME_CHECKPOINT_MISSING` 으로 surface (1-2초 지연). spec 규범에 맞춘 동기 `INVALID_EXECUTION_STATE` 반환은 후속 PR 예정 (`plan/in-progress/spec-update-workflow-resumable-execution-phase2-followup.md` 변경 2.3).
+> **구현 상태 (변경 2.3 적용 완료)**: `resolveWaitingNodeExecutionId` 는 invalid lookup (0건 / 다중 row) 시 `InvalidExecutionStateError` 를 throw 하며, publisher 진입점이 이를 동기 surface 한다 — WS gateway 4개 handler 는 ack `errorCode='INVALID_EXECUTION_STATE'`, REST `POST :id/continue` 는 422 `INVALID_STATE`, EIA 외부 진입점(`interaction.service`)은 409 `STATE_MISMATCH`. 옛 `__no_node_exec__` sentinel 우회(→ worker `RESUME_CHECKPOINT_MISSING`, 1-2초 지연)는 제거됐다. DB lookup 자체의 infra 실패는 `INVALID_EXECUTION_STATE` 가 아닌 원본 에러로 전파(재시도 가능). sentinel 은 cancel 류(nodeExecutionId 부재) 및 deploy 전 enqueue 된 legacy job 호환을 위해 worker 측에만 잔존.
 
 ---
 
@@ -924,6 +924,20 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 | `background-execution` | Background 노드 본문 실행 (§3.3) | 코드 기본값 (현재 `BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS`) | 기존 |
 
 > 일반 노드 실행은 별도 큐 없이 `runExecution` 의 in-process while-loop 에서 직접 dispatch (§2.1) — Phase 2 cont 시점에 옛 spec 의 `task-queue` 행은 검증 결과 미존재로 확정·삭제됨 (§Rationale "Durable Continuation (2026-05-24)" 의 후속 정리).
+
+#### Dead-letter 모니터링 (Phase 3.1)
+
+`execution-continuation` 큐는 `removeOnFail: false` 로 운영되어 attempts (`RESUME_BULLMQ_ATTEMPTS`) 소진 job 이 `failed`(dead-letter) 상태로 누적된다. rehydration 이 구조적으로 실패하는 회귀(배포 후 `_resumeState` schema drift, 체크포인트 손상 등)는 dead-letter depth 급증으로 나타나므로 다음을 둔다:
+
+- `ContinuationDlqMonitorService` — dead-letter(`failed`) depth 와 retry backlog(`delayed`)를 주기 polling, 임계 초과 시 structured `logger.error` 알람을 cooldown 1회로 발생 (로그 기반 알람 파이프라인이 픽업). 별도 메트릭 SDK 미사용 — 현 backend 는 OTel traces-only.
+- worker `onFailed` (`@OnWorkerEvent('failed')`) — 실패 1건마다 `RETRY`(attempts 잔여) / `DEAD-LETTER`(attempts 소진) 태그 + 시도 횟수 로깅.
+
+| 환경변수 | 기본값 | 설명 |
+|----------|--------|------|
+| `CONTINUATION_DLQ_ALARM_THRESHOLD` | `50` | dead-letter(`failed`) job 수 알람 임계 |
+| `CONTINUATION_DLQ_MONITOR_INTERVAL_MS` | `60000` | depth polling 주기 |
+| `CONTINUATION_DLQ_ALARM_COOLDOWN_MS` | `300000` | 알람 재발 최소 간격 |
+| `CONTINUATION_DLQ_MONITOR_ENABLED` | `true` | `'false'` 지정 시 모니터 비활성 |
 
 ---
 

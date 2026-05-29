@@ -1,8 +1,9 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Inject, Logger, forwardRef } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import {
   CONTINUATION_EXECUTION_QUEUE,
+  CONTINUATION_QUEUE_DEFAULT_OPTS,
   type ContinuationJob,
 } from '../queues/continuation-execution.queue';
 import { ExecutionEngineService } from '../execution-engine.service';
@@ -107,5 +108,33 @@ export class ContinuationExecutionProcessor extends WorkerHost {
         this.logger.warn(`Unknown continuation type: ${String(_exhaust)}`);
       }
     }
+  }
+
+  /**
+   * Phase 3.1 — retry 율 / dead-letter 가시성. job 1회 실패마다 시도 횟수를
+   * 로깅한다. attemptsMade < attempts 면 backoff 후 재시도 예정(retry),
+   * attemptsMade >= attempts 면 attempts 소진 = dead-letter (spec §7.5
+   * `RESUME_FAILED`). DLQ depth 추세는 ContinuationDlqMonitorService 가 별도
+   * 관측. cancel 류(nodeExecutionId sentinel)도 동일 경로로 집계된다.
+   */
+  @OnWorkerEvent('failed')
+  onFailed(job: Job<ContinuationJob> | undefined, err: Error): void {
+    if (!job) {
+      this.logger.warn(
+        `[continuation] job 실패 (job 핸들 없음): ${err?.message ?? err}`,
+      );
+      return;
+    }
+    const attemptsMade = job.attemptsMade ?? 0;
+    // fallback 은 큐 기본값(RESUME_BULLMQ_ATTEMPTS=3)과 일치시켜 첫 실패가
+    // DEAD-LETTER 로 오분류되지 않게 한다 (review W-3).
+    const maxAttempts =
+      job.opts?.attempts ?? CONTINUATION_QUEUE_DEFAULT_OPTS.attempts;
+    const isDeadLetter = attemptsMade >= maxAttempts;
+    const tag = isDeadLetter ? 'DEAD-LETTER' : 'RETRY';
+    this.logger.warn(
+      `[continuation ${tag}] type=${job.data?.type} execution=${job.data?.executionId} ` +
+        `jobId=${job.id} attempt=${attemptsMade}/${maxAttempts}: ${err?.message ?? err}`,
+    );
   }
 }

@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -356,6 +357,7 @@ export class WebsocketGateway
       resumed?: boolean;
       queued?: boolean;
       error?: string;
+      errorCode?: string;
     };
   }> {
     // Verify the client is authenticated
@@ -410,12 +412,11 @@ export class WebsocketGateway
         },
       };
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Form submission failed';
-      return {
-        event: 'execution.form_submitted',
-        data: { success: false, error: message },
-      };
+      return this.buildContinuationErrorAck(
+        'execution.form_submitted',
+        error,
+        'Form submission failed',
+      );
     }
   }
 
@@ -433,6 +434,7 @@ export class WebsocketGateway
       resumed?: boolean;
       queued?: boolean;
       error?: string;
+      errorCode?: string;
     };
   }> {
     const enriched = client as Socket & {
@@ -484,12 +486,11 @@ export class WebsocketGateway
         },
       };
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Button click failed';
-      return {
-        event: 'execution.click_button.ack',
-        data: { success: false, error: message },
-      };
+      return this.buildContinuationErrorAck(
+        'execution.click_button.ack',
+        error,
+        'Button click failed',
+      );
     }
   }
 
@@ -506,6 +507,7 @@ export class WebsocketGateway
       resumed?: boolean;
       queued?: boolean;
       error?: string;
+      errorCode?: string;
     };
   }> {
     const enriched = client as Socket & {
@@ -557,12 +559,11 @@ export class WebsocketGateway
         },
       };
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Message submission failed';
-      return {
-        event: 'execution.submit_message.ack',
-        data: { success: false, error: message },
-      };
+      return this.buildContinuationErrorAck(
+        'execution.submit_message.ack',
+        error,
+        'Message submission failed',
+      );
     }
   }
 
@@ -578,6 +579,7 @@ export class WebsocketGateway
       resumed?: boolean;
       queued?: boolean;
       error?: string;
+      errorCode?: string;
     };
   }> {
     const enriched = client as Socket & {
@@ -627,13 +629,32 @@ export class WebsocketGateway
         },
       };
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'End conversation failed';
-      return {
-        event: 'execution.end_conversation.ack',
-        data: { success: false, error: message },
-      };
+      return this.buildContinuationErrorAck(
+        'execution.end_conversation.ack',
+        error,
+        'End conversation failed',
+      );
     }
+  }
+
+  /**
+   * 변경 2.3 (review W-8) — continuation 핸들러 4종의 catch 블록 공통화.
+   * spec §7.5.1 — publisher 측 사전 검증 실패(`InvalidExecutionStateError`)는
+   * 동기 ack 에 `errorCode='INVALID_EXECUTION_STATE'` 로 surface (worker 측
+   * `RESUME_*` 와 직교). 그 외 에러는 메시지만 전달.
+   */
+  private buildContinuationErrorAck(
+    event: string,
+    error: unknown,
+    fallbackMessage: string,
+  ): {
+    event: string;
+    data: { success: false; error: string; errorCode?: string };
+  } {
+    const message = error instanceof Error ? error.message : fallbackMessage;
+    const errorCode =
+      error instanceof InvalidExecutionStateError ? error.code : undefined;
+    return { event, data: { success: false, error: message, errorCode } };
   }
 
   broadcastToChannel(channel: string, event: string, payload: unknown): void {

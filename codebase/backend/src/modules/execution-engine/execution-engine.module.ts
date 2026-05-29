@@ -29,6 +29,11 @@ import { BackgroundExecutionProcessor } from './queues/background-execution.proc
 import { CONTINUATION_EXECUTION_QUEUE } from './queues/continuation-execution.queue';
 import { ContinuationBusService } from './continuation/continuation-bus.service';
 import { ContinuationExecutionProcessor } from './continuation/continuation-execution.processor';
+import { ContinuationDlqMonitorService } from './continuation/continuation-dlq-monitor.service';
+import {
+  CONTINUATION_DLQ_MONITOR_CONFIG,
+  loadContinuationDlqMonitorConfig,
+} from './continuation/continuation-dlq-monitor.config';
 import { ConversationThreadService } from './conversation-thread/conversation-thread.service';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
@@ -74,6 +79,13 @@ import { DEFAULT_GRACE_MS } from './shutdown/shutdown.constants';
     // Phase 2 — BullMQ Worker. 옛 ContinuationBusService.registerContinuationHandlers
     // 의 in-process dispatch 대체.
     ContinuationExecutionProcessor,
+    // Phase 3.1 — continuation 큐 dead-letter depth / retry backlog 모니터 + 임계 알람.
+    ContinuationDlqMonitorService,
+    {
+      // Phase 3.1 — DLQ 모니터 설정 주입 (review W-9 — env 직접 읽기 대신 factory).
+      provide: CONTINUATION_DLQ_MONITOR_CONFIG,
+      useFactory: () => loadContinuationDlqMonitorConfig(),
+    },
     ConversationThreadService,
     ExecutionEventEmitter,
     GraphTraversalService,

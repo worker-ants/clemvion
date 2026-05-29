@@ -23,6 +23,7 @@ import { ExecutionNodeLog } from './entities/execution-node-log.entity';
 import {
   WorkflowNotFoundError,
   SubWorkflowTimeoutError,
+  InvalidExecutionStateError,
 } from './workflow-errors';
 import {
   ContinuationBusService,
@@ -288,6 +289,9 @@ class RehydrationError extends Error {
     this.name = 'RehydrationError';
   }
 }
+
+// InvalidExecutionStateError (변경 2.3) 는 ./workflow-errors 로 이동했다 (review W-7).
+// 소비자(controller / gateway / interaction)는 ./workflow-errors 에서 직접 import.
 
 /**
  * Conversation 노드가 진행 중일 때 frontend run-results UI 의 References /
@@ -2958,18 +2962,25 @@ export class ExecutionEngineService
    * Phase 2 (workflow-resumable-execution) — publisher 측 책임.
    * `execution_id + status='waiting_for_input'` 으로 NodeExecution 을 lookup.
    *
-   * 0건 또는 다중 row 인 경우: §7.5 rehydration 1차 키가 부재한 상태 — Phase 2
-   * 본 메서드는 fallback sentinel `__no_node_exec__` 을 반환한다 (worker 가
-   * fast-path 만 시도, slow-path 는 `RESUME_CHECKPOINT_MISSING` 처리).
+   * spec/5-system/4-execution-engine.md §7.5.1 — 변경 2.3. 0건 또는 다중 row 는
+   * `INVALID_EXECUTION_STATE` 로 즉시 거부한다 ([InvalidExecutionStateError]).
+   * caller (continueExecution 등) 는 이 throw 가 발생하면 BullMQ enqueue 를
+   * 시도하지 않으므로, 옛 fallback sentinel (`__no_node_exec__`) publish → worker
+   * `RESUME_CHECKPOINT_MISSING` (1-2초 지연) 경로 대신 동기 에러로 surface 된다.
    *
-   * 본 메서드는 throw 하지 않는다 — caller (continueExecution 등) 가 항상 publish
-   * 를 진행하도록 보장. invariant 위반 (다중 row) 은 logger.warn 으로 기록.
+   * - 0건 — Execution 이 다른 상태(running / completed / cancelled / failed)거나
+   *   nodeId 미일치.
+   * - 2건 이상 — invariant 위반 (정상은 1건). race 또는 데이터 손상 의심. warn 후 거부.
+   *
+   * DB lookup 자체의 infra 실패는 `INVALID_EXECUTION_STATE` 가 아닌 원본 에러로
+   * 재던져 caller (WS handler: 일반 실패 ack / REST: 500) 가 재시도하도록 한다.
    */
   private async resolveWaitingNodeExecutionId(
     executionId: string,
   ): Promise<string> {
+    let rows: Array<{ id: string }>;
     try {
-      const rows = await this.nodeExecutionRepository.find({
+      rows = await this.nodeExecutionRepository.find({
         where: {
           executionId,
           status: NodeExecutionStatus.WAITING_FOR_INPUT,
@@ -2977,23 +2988,34 @@ export class ExecutionEngineService
         select: { id: true, nodeId: true, startedAt: true },
         order: { startedAt: 'DESC' },
       });
-      if (rows.length === 0) {
-        return '__no_node_exec__';
-      }
-      if (rows.length > 1) {
-        this.logger.warn(
-          `resolveWaitingNodeExecutionId — execution=${executionId} 에 WAITING_FOR_INPUT NodeExecution 이 ${rows.length} 건 (정상은 1). 가장 최근 startedAt 사용 (id=${rows[0].id}).`,
-        );
-      }
-      return rows[0].id;
     } catch (err) {
       this.logger.error(
-        `resolveWaitingNodeExecutionId 실패 — execution=${executionId}: ${
+        `resolveWaitingNodeExecutionId DB lookup 실패 — execution=${executionId}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
-      return '__no_node_exec__';
+      throw err instanceof Error ? err : new Error(String(err));
     }
+
+    if (rows.length === 0) {
+      // 정상적인 client 에러 (execution 이 대기 상태가 아님). 진단용 상세는 서버
+      // 로그에만 남기고 (review W-5) client 응답에는 고정 메시지만 surface.
+      this.logger.debug(
+        `resolveWaitingNodeExecutionId — execution=${executionId} 에 WAITING_FOR_INPUT NodeExecution 없음 — INVALID_EXECUTION_STATE.`,
+      );
+      throw new InvalidExecutionStateError(
+        `no WAITING_FOR_INPUT NodeExecution for execution=${executionId}`,
+      );
+    }
+    if (rows.length > 1) {
+      this.logger.warn(
+        `resolveWaitingNodeExecutionId — execution=${executionId} 에 WAITING_FOR_INPUT NodeExecution 이 ${rows.length} 건 (정상은 1). invariant 위반 — INVALID_EXECUTION_STATE 거부.`,
+      );
+      throw new InvalidExecutionStateError(
+        `multiple (${rows.length}) WAITING_FOR_INPUT NodeExecutions for execution=${executionId} (invariant violation)`,
+      );
+    }
+    return rows[0].id;
   }
 
   /**

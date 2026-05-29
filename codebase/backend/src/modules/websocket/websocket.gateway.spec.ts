@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -522,6 +523,44 @@ describe('WebsocketGateway', () => {
       );
       expect(result.data.success).toBe(false);
       expect(result.data.error).toBe('Not authorized for this execution');
+    });
+
+    it('변경 2.3 — InvalidExecutionStateError 면 ack 에 errorCode=INVALID_EXECUTION_STATE 동봉 (spec §7.5.1)', async () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueExecution as jest.Mock).mockRejectedValueOnce(
+        new InvalidExecutionStateError('not waiting'),
+      );
+
+      const result = await gateway.handleSubmitForm(
+        { executionId: 'exec-1', formData: {} },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.errorCode).toBe('INVALID_EXECUTION_STATE');
+    });
+
+    it('변경 2.3 — 일반 에러는 errorCode 미동봉 (INVALID_EXECUTION_STATE 전용)', async () => {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.continueExecution as jest.Mock).mockRejectedValueOnce(
+        new Error('boom'),
+      );
+
+      const result = await gateway.handleSubmitForm(
+        { executionId: 'exec-1', formData: {} },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.errorCode).toBeUndefined();
     });
 
     it('Phase 2.5 — success ack 에 resumed + queued + executionId 동봉 (spec §4.2)', async () => {
