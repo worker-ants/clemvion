@@ -59,12 +59,29 @@ owner: developer
   - 설계 노트 `.claude/docs/orchestrator-workflow-migration.md`: 빌링 단일경로 gating
     질문 + 무손실/손실 매핑 + consistency-check 파일럿 경로 + 본 PR 비목표 명시.
 
-## 여전히 별 PR — live rewrite (안전상 본 PR 제외)
+## 테마4-② live 마이그레이션 (사용자 승인 후 본 PR 진행)
 
-- [ ] **테마4-② 실제 Workflow 이전 실행** — 2,116 LOC + 3 SKILL/command 교체. CI e2e
-  검증 불가 + 빌링 정책 critical. **차단 게이트: Workflow 의 agent invoke 가 main
-  Claude 의 Agent tool 단일경로를 보존하는지 확인 후**에만. 설계·테스트 groundwork 는
-  본 PR 에서 완료 — 실행은 consistency-check 파일럿부터 격리 PR 로. (설계 노트 참고)
+빌링 gate 해소 — 사용자 확인: **Workflow 는 `claude -p` 와 달리 플랜 토큰에 포함**되어
+정책 부합. CLAUDE.md §외부 LLM 호출 정책에 명시.
+
+- [x] **빌링 정책 갱신** — Workflow 를 plan-metered 허용 경로로 명시 (Agent tool 과 병기).
+- [x] **consistency-check → Workflow 마이그레이션 + 라이브 스모크 검증** —
+  `.claude/workflows/consistency-check.js` (parallel checkers → summary). orchestrator
+  `--prepare` 는 유지(model-free), 수동 fan-out/STATUS/ScheduleWakeup 루프를 Workflow 가
+  대체. 1 checker+summary 스모크로 end-to-end 확인(BLOCK:YES 정상 집계).
+  - **발견(설계 노트 기록)**: Workflow sub-agent 의 report-file Write 는 차단됨
+    (*"return findings as text"*). → checker 는 output_file Write(허용), **summary 는
+    텍스트 반환 → main Claude 가 SUMMARY.md Write**. consistency-summary 에 `mode=workflow`
+    분기 추가.
+- [ ] **ai-review review-portion** (router+14 reviewer+summary) — 같은 패턴이라 적합하나
+  더 큼 + 자체 스모크 필요. **resolution-applier(코드 수정·commit·e2e) 와 `/loop` 한도
+  복구는 Workflow 부적합 → bespoke 유지.** 다음 격리 PR 권고.
+- [ ] **merge-coordinate** — analyzer 는 적합하나 Phase2 confirm gate(AskUserQuestion)가
+  background Workflow 에 부적합 → 대부분 main-driven 유지. 최저 우선순위.
+
+> live rewrite 경계: Workflow 는 **fan-out + 집계 반환**에 적합. 코드 수정/commit/e2e
+> (resolution-applier), 중간 사용자 confirm(merge), cross-turn 한도 복구(/loop)는
+> bespoke 로 남긴다. 상세: [`.claude/docs/orchestrator-workflow-migration.md`](../../.claude/docs/orchestrator-workflow-migration.md).
 
 ## 검증
 
