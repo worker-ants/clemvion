@@ -1058,6 +1058,14 @@ engine.runNode
 
 구현: `state-machine.ts` `ALLOWED_TRANSITIONS`.
 
+### retryable error 종결 시 `_retryState` 보존 (R1 채택)
+
+retryable error (HTTP 429 / 5xx / network timeout) 종결을 처리하는 두 안 중 **R1 (status `ended` + `port: 'error'` 유지 + `_retryState` 동봉)** 을 채택한다 (§1.3 보존 예외).
+
+- **R2 (status `waiting_for_retry` 신설) 기각**: `waiting_for_input` 패밀리 확장이라 §1.3 블로킹/재개 컨트랙트가 다른 노드에까지 번지고, Principle 5 port 활성화 모델과의 정합 재검토가 필요해 spec 면적이 커진다.
+- R1 은 기존 `'ended'` + `port: 'error'` 의미를 그대로 두므로 `error` 포트 후속 노드(알림 등)의 의미가 변하지 않는다. retryable 여부는 `output.error.details.retryable` boolean 단일 신호로 충분히 전달되며, retry 는 `error` 라우팅 후의 별도 사용자 인터랙션(`execution.retry_last_turn`)으로 진입한다.
+- `_retryState` 는 internal 필드로 `_resumeState` 와 동일하게 expression resolver 비노출·credential strip 정책을 따른다. TTL(`expiresAt`, 기본 60분)이 사실상 retry 상한 역할을 한다.
+
 ### Engine Raw Config Exposure
 
 **결정 요약**:

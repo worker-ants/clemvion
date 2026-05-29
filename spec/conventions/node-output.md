@@ -144,6 +144,8 @@ code: []
 반드시 `error` 포트를 갖는 노드: `http_request`, `database_query`, `send_email`, `cafe24`, `ai_agent`, `information_extractor`, `text_classifier`, `code`, `workflow` (sub-workflow 실패 시).
 `transform` 은 pre-flight(config) 검증만 수행 → throw.
 
+> 이 중 LLM 계열 (`ai_agent` / `text_classifier` / `information_extractor`) 은 error 종결 시 `output.error.details.retryable` 분류 의무를 진다 — SoT 는 §3.2.1.
+
 ---
 
 ## Principle 4 — 블로킹/재개 컨트랙트 통일
