@@ -106,6 +106,8 @@
 
 코드 변경 후 함께 갱신해야 할 문서·번역 자산의 white list. 누락 시 `fix(i18n):` · `docs(user-guide):` 사후 보정 PR 패턴을 차단.
 
+> **machine-readable companion**: 본 표의 구조적 spine(`change_type → trigger → targets → verify → guard_test → convention_ref`)은 [`.claude/config/doc-sync-matrix.json`](.claude/config/doc-sync-matrix.json) 에 SSOT 로 정리돼 있다 — `user-guide-sync-reviewer` 가 안정적 색인으로 읽고, [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 본 표와의 행 수 1:1 · 참조 실존을 검증한다(divergence 시 빌드 fail). 본 표는 사람용 뷰 — 한 행 추가/삭제 시 JSON 도 같이 고친다. 의미 기반 trigger(glob 없는 행)는 JSON 에서 `match:"semantic"` 로 표기되며 reviewer 가 판단으로 매칭한다.
+
 | 변경 유형 | 필수 갱신 위치 | 검증 명령 |
 | --- | --- | --- |
 | 새 노드 추가 (`codebase/backend/src/nodes/<cat>/<name>/`) | (a) `codebase/frontend/src/content/docs/02-nodes/<cat>.mdx` + `.en.mdx` 의 노드 항목<br>(b) `codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts` 의 노드명·필드명·placeholder·도움말<br>(c) `codebase/frontend/src/lib/i18n/backend-labels.ts` — 에러 코드·label 번역 | `cd codebase/frontend && npm test -- i18n docs` |
