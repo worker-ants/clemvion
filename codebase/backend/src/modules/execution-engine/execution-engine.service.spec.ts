@@ -9,6 +9,7 @@ import {
   buildConversationConfigFromOutput,
   buildConversationMetaFromResumeState,
 } from './execution-engine.service';
+import { InvalidExecutionStateError } from './workflow-errors';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ExecutionContextService } from './context/execution-context.service';
@@ -199,6 +200,14 @@ describe('ExecutionEngineService', () => {
             startedAt: new Date(),
           });
         }),
+      // Phase 2.3 (변경 2.3) — resolveWaitingNodeExecutionId 의 publisher 측 lookup.
+      // 기본값: WAITING_FOR_INPUT row 1건 존재 (정상 케이스). 0건/다중 row throw
+      // 경로는 개별 테스트에서 mockResolvedValueOnce 로 override.
+      find: jest
+        .fn()
+        .mockResolvedValue([
+          { id: 'ne-waiting', nodeId: 'n-wait', startedAt: new Date() },
+        ]),
     };
 
     mockNodeRepo = {
@@ -877,13 +886,13 @@ describe('ExecutionEngineService', () => {
     it('continueExecution → bus.publish({type:"continue", payload:{type:"form_submitted",formData}}) (spec §10.9 wrap)', async () => {
       // spec/4-nodes/6-presentation/0-common.md §10.9 — wrap 책임은
       // continueExecution. raw formData 가 아닌 sentinel 형태로 publish.
-      // mock NodeExecution repo 는 WAITING_FOR_INPUT row lookup 을 지원하지
-      // 않으므로 resolveWaitingNodeExecutionId 가 fallback sentinel 을 반환.
+      // 기본 mock find 가 WAITING_FOR_INPUT row 1건 (id=ne-waiting) 을 반환하므로
+      // resolveWaitingNodeExecutionId 가 그 id 를 publish payload 에 채운다.
       await service.continueExecution('exec-1', { name: 'Alice' });
       expect(mockBus.publish).toHaveBeenCalledWith({
         type: 'continue',
         executionId: 'exec-1',
-        nodeExecutionId: '__no_node_exec__',
+        nodeExecutionId: 'ne-waiting',
         payload: { type: 'form_submitted', formData: { name: 'Alice' } },
       });
     });
@@ -901,7 +910,7 @@ describe('ExecutionEngineService', () => {
       expect(mockBus.publish).toHaveBeenCalledWith({
         type: 'button_click',
         executionId: 'exec-3',
-        nodeExecutionId: '__no_node_exec__',
+        nodeExecutionId: 'ne-waiting',
         payload: { buttonId: 'btn-confirm' },
       });
     });
@@ -911,7 +920,7 @@ describe('ExecutionEngineService', () => {
       expect(mockBus.publish).toHaveBeenCalledWith({
         type: 'ai_message',
         executionId: 'exec-4',
-        nodeExecutionId: '__no_node_exec__',
+        nodeExecutionId: 'ne-waiting',
         payload: { message: 'hi' },
       });
     });
@@ -929,8 +938,67 @@ describe('ExecutionEngineService', () => {
       expect(mockBus.publish).toHaveBeenCalledWith({
         type: 'ai_end_conversation',
         executionId: 'exec-6',
-        nodeExecutionId: '__no_node_exec__',
+        nodeExecutionId: 'ne-waiting',
       });
+    });
+
+    // Phase 2.3 (변경 2.3) — spec §7.5.1 publisher 측 사전 검증. WAITING row 가
+    // 0건이면 BullMQ enqueue 를 시도하지 않고 INVALID_EXECUTION_STATE 로 즉시 거부.
+    it('continueExecution — WAITING NodeExecution 0건이면 INVALID_EXECUTION_STATE throw + publish 안 함', async () => {
+      mockNodeExecutionRepo.find.mockResolvedValueOnce([]);
+      await expect(
+        service.continueExecution('exec-none', { name: 'Bob' }),
+      ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('continueExecution — throw 된 InvalidExecutionStateError.code === INVALID_EXECUTION_STATE', async () => {
+      mockNodeExecutionRepo.find.mockResolvedValueOnce([]);
+      await expect(
+        service.continueExecution('exec-none', {}),
+      ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_STATE' });
+    });
+
+    it('continueButtonClick — WAITING row 0건이면 INVALID_EXECUTION_STATE throw + publish 안 함', async () => {
+      mockNodeExecutionRepo.find.mockResolvedValueOnce([]);
+      await expect(
+        service.continueButtonClick('exec-none', 'btn-x'),
+      ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+      expect(mockBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('continueExecution — WAITING row 다중(invariant 위반)이면 warn + INVALID_EXECUTION_STATE throw', async () => {
+      const warnSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { warn: (m: string) => void } })
+            .logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+      mockNodeExecutionRepo.find.mockResolvedValueOnce([
+        { id: 'ne-a', nodeId: 'n1', startedAt: new Date() },
+        { id: 'ne-b', nodeId: 'n2', startedAt: new Date() },
+      ]);
+      await expect(
+        service.continueExecution('exec-dup', {}),
+      ).rejects.toBeInstanceOf(InvalidExecutionStateError);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('invariant 위반'),
+      );
+      expect(mockBus.publish).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('continueExecution — DB lookup infra 실패는 INVALID_EXECUTION_STATE 가 아닌 원본 에러로 전파', async () => {
+      mockNodeExecutionRepo.find.mockRejectedValueOnce(
+        new Error('connection terminated'),
+      );
+      const rejection = service.continueExecution('exec-dberr', {});
+      await expect(rejection).rejects.toThrow('connection terminated');
+      await expect(rejection).rejects.not.toBeInstanceOf(
+        InvalidExecutionStateError,
+      );
+      expect(mockBus.publish).not.toHaveBeenCalled();
     });
 
     it('applyContinuation continue — msg.payload 를 그대로 resolvePending 으로 forward (spec §10.9 raw forward)', async () => {
@@ -967,7 +1035,7 @@ describe('ExecutionEngineService', () => {
       expect(mockBus.publish).toHaveBeenCalledWith({
         type: 'continue',
         executionId: 'exec-coll',
-        nodeExecutionId: '__no_node_exec__',
+        nodeExecutionId: 'ne-waiting',
         payload: {
           type: 'form_submitted',
           formData: { type: '주문 문의', contact: '010-1234-5678' },
@@ -998,7 +1066,7 @@ describe('ExecutionEngineService', () => {
       expect(mockBus.publish).toHaveBeenCalledWith({
         type: 'continue',
         executionId: 'exec-empty',
-        nodeExecutionId: '__no_node_exec__',
+        nodeExecutionId: 'ne-waiting',
         payload: { type: 'form_submitted', formData: undefined },
       });
     });

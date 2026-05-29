@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { WorkspaceId } from '../../common/decorators/workspace.decorator';
 import {
@@ -18,6 +19,7 @@ import {
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import {
   ApiOkPaginatedResponse,
@@ -25,6 +27,7 @@ import {
 } from '../../common/swagger';
 import { ExecutionsService } from './executions.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
 import { QueryExecutionDto } from './dto/query-execution.dto';
 import {
   ExecutionContinueResultDto,
@@ -135,6 +138,10 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
+  @ApiUnprocessableEntityResponse({
+    description:
+      '실행이 입력 대기(waiting_for_input) 상태가 아님 (INVALID_STATE)',
+  })
   async continueExecution(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
@@ -142,7 +149,18 @@ export class ExecutionsController {
   ) {
     // CRIT #1 — IDOR 차단.
     await this.executionsService.verifyOwnership(id, workspaceId);
-    this.executionEngineService.continueExecution(id, body?.formData);
+    // spec §7.5.1 — publisher 측 사전 검증 실패는 동기 422 INVALID_STATE 로 surface.
+    // WS gateway 의 INVALID_EXECUTION_STATE 와 동일 의미, REST 진입점은 422.
+    try {
+      await this.executionEngineService.continueExecution(id, body?.formData);
+    } catch (error: unknown) {
+      if (error instanceof InvalidExecutionStateError) {
+        throw new UnprocessableEntityException({
+          error: { code: 'INVALID_STATE', message: error.message },
+        });
+      }
+      throw error;
+    }
     return { success: true };
   }
 }

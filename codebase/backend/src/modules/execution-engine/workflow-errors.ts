@@ -40,3 +40,33 @@ export class SubWorkflowTimeoutError extends Error {
     this.timeoutMs = timeoutMs;
   }
 }
+
+/**
+ * Phase 2.3 (변경 2.3) — publisher 측 사전 검증 실패 에러.
+ *
+ * spec/5-system/4-execution-engine.md §7.5.1 — 입력 receiver (controller / WS
+ * gateway / EIA) 가 `nodeId → nodeExecutionId` DB lookup 단계에서 다음을 만나면
+ * BullMQ enqueue 를 **시도하지 않고** 즉시 client 에 동기 에러를 반환한다.
+ *
+ * - 매칭 row 0건 — Execution 이 `waiting_for_input` 이 아니거나 nodeId 미일치.
+ * - 매칭 row 2건 이상 — invariant 위반 (race / 데이터 손상). logger.warn 후 거부.
+ *
+ * ack 동기 응답 전용 — worker 측 비동기 실패인 `RESUME_*` (`RehydrationError`)
+ * 와 직교한다. surface: WS gateway = ack `errorCode`, REST = 422 `INVALID_STATE`,
+ * EIA = 409 `STATE_MISMATCH`.
+ *
+ * **보안 (review W-5)**: `message` 는 client 에 그대로 노출되므로 내부 식별자
+ * (executionId, row 수) 를 담지 않는 고정 문자열이다. 진단용 상세는 `detail`
+ * 필드에 담아 throw 측에서 서버 로그로만 기록한다.
+ */
+export class InvalidExecutionStateError extends Error {
+  readonly code = 'INVALID_EXECUTION_STATE' as const;
+  /** 서버 로그 전용 진단 상세 — client 응답에 포함하지 않는다. */
+  readonly detail?: string;
+
+  constructor(detail?: string) {
+    super('Execution is not waiting for input.');
+    this.name = 'InvalidExecutionStateError';
+    this.detail = detail;
+  }
+}

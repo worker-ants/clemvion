@@ -13,6 +13,7 @@ import {
   ExecutionStatus,
 } from '../executions/entities/execution.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { InteractionTokenService } from './interaction-token.service';
 import { InteractDto } from './dto/interact.dto';
@@ -71,9 +72,11 @@ export class InteractionService {
           );
         }
         this.assertWaiting(execution);
-        this.executionEngineService.continueExecution(
-          ctx.executionId,
-          dto.data,
+        await this.dispatchContinuation(
+          this.executionEngineService.continueExecution(
+            ctx.executionId,
+            dto.data,
+          ),
         );
         break;
       case 'click_button':
@@ -85,9 +88,11 @@ export class InteractionService {
           );
         }
         this.assertWaiting(execution);
-        this.executionEngineService.continueButtonClick(
-          ctx.executionId,
-          dto.buttonId,
+        await this.dispatchContinuation(
+          this.executionEngineService.continueButtonClick(
+            ctx.executionId,
+            dto.buttonId,
+          ),
         );
         break;
       case 'submit_message':
@@ -99,15 +104,19 @@ export class InteractionService {
           );
         }
         this.assertWaiting(execution);
-        this.executionEngineService.continueAiConversation(
-          ctx.executionId,
-          dto.message,
+        await this.dispatchContinuation(
+          this.executionEngineService.continueAiConversation(
+            ctx.executionId,
+            dto.message,
+          ),
         );
         break;
       case 'end_conversation':
         this.assertNodeId(dto);
         this.assertWaiting(execution);
-        this.executionEngineService.endAiConversation(ctx.executionId);
+        await this.dispatchContinuation(
+          this.executionEngineService.endAiConversation(ctx.executionId),
+        );
         break;
       case 'cancel':
         // cancel 은 nodeId 불필요. running / waiting / pending 모두 허용.
@@ -252,6 +261,25 @@ export class InteractionService {
         'INVALID_COMMAND',
         `nodeId is required for command "${dto.command}"`,
       );
+    }
+  }
+
+  /**
+   * spec §7.5.1 — continuation publish 의 publisher 측 사전 검증 (resolveWaiting
+   * NodeExecutionId) 이 throw 하는 `INVALID_EXECUTION_STATE` 를 EIA 외부 진입점의
+   * 409 `STATE_MISMATCH` 로 매핑한다 (assertWaiting 과 동일 의미 — assertWaiting
+   * 통과 후의 race window 보강). 그 외 에러는 그대로 전파.
+   */
+  private async dispatchContinuation(promise: Promise<unknown>): Promise<void> {
+    try {
+      await promise;
+    } catch (error: unknown) {
+      if (error instanceof InvalidExecutionStateError) {
+        throw new ConflictException({
+          error: { code: 'STATE_MISMATCH', message: error.message },
+        });
+      }
+      throw error;
     }
   }
 
