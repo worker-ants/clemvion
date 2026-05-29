@@ -2,32 +2,19 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 
 ## 실행 방법 (main Claude 가 따른다)
 
-5개 checker 는 모두 `.claude/agents/<checker>-checker.md` 에 정의된 sub-agent 이며, main Claude(이 세션) 가 `Agent` tool 로 직접 invoke 한다.
+5개 checker 는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은 `Workflow` tool 이 결정적으로 처리한다 (옛 수동 Agent fan-out + STATUS/retry 루프 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책). 절차 SSOT: [`.claude/skills/consistency-checker/SKILL.md`](../skills/consistency-checker/SKILL.md).
 
-0. **사전 점검**: 현재 worktree 확인 (CLAUDE.md "Worktree 기반 작업 정책"). main 워크트리에서 호출되면 worktree 안내 후 거부.
+0. **사전 점검**: 현재 worktree 확인. main 워크트리 호출 시 worktree 안내 후 거부.
 
-1. **세션 준비**:
+1. **세션 준비** (model 호출 없음):
    ```bash
-   # /loop 밖
    python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py $ARGUMENTS
-   # /loop 안 (loop_mode=true 초기화)
-   AI_REVIEW_LOOP=1 python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py $ARGUMENTS
-   # wake 사이클 — `$ARGUMENTS` 에 `--resume <session_dir>` 이 들어있을 때
-   python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py --resume <session_dir>
    ```
-   stdout 마지막 줄이 세션 디렉토리 절대경로. model 호출 없음.
+   stdout 마지막 줄이 세션 디렉토리 절대경로.
 
-2. **상태 파일 로드**: `<session_dir>/_retry_state.json` 을 Read.
+2. **manifest 로드 + Workflow 실행**: `<session_dir>/_retry_state.json` 을 Read (경로뿐, 작음) → `subagent_invocations` / `summary_subagent_type` / `summary_output_file` 추출 → `Workflow(name="consistency-check", args={invocations, summary:{subagent_type, output_file}})`. Workflow 가 checker 병렬 invoke (각 checker 가 자기 `prompt_file` Read → `output_file` Write) 후 `consistency-summary` 로 통합 SUMMARY.md 작성. 완료 시 task-notification.
 
-3. **병렬 sub-agent 호출**: pending 의 각 checker 에 대해 한 응답 안에서 multiple `Agent` tool 호출. `subagent_type` 은 `<checker>-checker` (예: `cross-spec-checker`). prompt 는 `prompt_file=<...>` + `output_file=<...>` 두 줄.
-
-4. **STATUS 파싱·상태 갱신**: `STATUS=success|rate_limit|network|fatal` 한 줄 반환. `/ai-review` 와 동일한 규약. `_retry_state.json` 을 Write 로 갱신.
-
-5. **수렴 분기**:
-   - 모두 완료 → `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")` invoke. summary 가 자기 컨텍스트에서 `_retry_state.json` 과 5 checker 의 결과 파일(`<session_dir>/<checker>.md`)을 Read 해 통합 후 `summary_output_file` 에 Write.
-   - 남으면 `/ai-review` 와 동일한 ScheduleWakeup 로직. wake prompt 는 `/loop /consistency-check --resume <session_dir>` 형태 (첫 호출의 --spec/--plan/--impl-prep 인자는 보존할 필요 없음 — _retry_state.json 이 이미 invocations 목록을 가지고 있음).
-
-6. **BLOCK 결정**: SUMMARY.md 작성 후 main 이 그 파일의 상단 30 라인을 Read 해 `BLOCK: YES` 가 있는지 확인.
+3. **BLOCK 결정**: SUMMARY.md 작성 후 main 이 그 파일의 상단 30 라인을 Read 해 `BLOCK: YES` 가 있는지 확인. Workflow 반환의 `unfinished[]` 가 있으면 해당 checker 만 재실행.
    - **BLOCK: YES** → Critical 위배. 호출자(planner/developer)에게 즉시 보고하고 작업 차단. (`developer` skill 안에서 호출되면 그 작업을 멈춘다.)
    - **BLOCK: NO** → Warning/Info 만 사용자에게 보여주고 진행.
 

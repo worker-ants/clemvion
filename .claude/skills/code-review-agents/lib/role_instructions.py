@@ -197,8 +197,8 @@ REVIEWER_INSTRUCTIONS = {
     },
     "user_guide_sync": {
         "ko_title": "유저 가이드 동반 갱신(User Guide Sync)",
-        "perspective": "다음 코드 변경이 PROJECT.md §변경 시 동반 갱신 매트릭스의 trigger 에 매칭되는데 right column 의 유저 가이드(docs MDX)·i18n dict·backend-labels 동반 갱신이 누락됐는지 분석한다. 매트릭스는 본 리뷰어 prompt 에 inline 하지 않으며, 첫 행동으로 PROJECT.md 를 Read 해 현재 매트릭스를 SoT 로 적재한다.",
-        "checklist": """1. **PROJECT.md Read (SSOT)** — `PROJECT.md` 의 §변경 시 동반 갱신 (또는 §i18n / §유저 가이드 갱신 같은 동등 표) 을 Read. 매트릭스가 부재하면 INFO 1건 + NONE 위험도로 종료
+        "perspective": "다음 코드 변경이 동반 갱신 매트릭스의 trigger 에 매칭되는데 유저 가이드(docs MDX)·i18n dict·backend-labels 동반 갱신이 누락됐는지 분석한다. 매트릭스는 본 리뷰어 prompt 에 inline 하지 않으며, 첫 행동으로 `.claude/config/doc-sync-matrix.json` (machine-readable SSOT) 을 Read 하고 `PROJECT.md` §변경 유형 → 갱신 위치 매핑 본문을 보조로 적재한다.",
+        "checklist": """1. **매트릭스 적재 (SSOT)** — `.claude/config/doc-sync-matrix.json` 의 `rows[]` (각 행 `{change_type, trigger:{globs,match}, targets, verify, convention_ref}`) 를 Read + `PROJECT.md` 본문을 nuance 보조로 Read. JSON 부재 시 PROJECT.md 표로 폴백; 둘 다 없으면 INFO 1건 + NONE 위험도로 종료. `trigger.match=="semantic"` 행은 glob 없이 의미 매칭
 2. **변경 파일 식별** — orchestrator 가 prompt 에 포함한 변경 file 목록 + 필요 시 `git diff --name-only HEAD` / `git diff --cached --name-only` 로 보강
 3. **trigger 매칭** — 각 변경 파일을 매트릭스 left column 패턴에 매칭. 한 파일이 여러 trigger 에 매칭 가능
 4. **동반 갱신 누락 검출** — 매칭된 trigger 의 middle column 동반 갱신 파일이 같은 변경 set 에 staged 됐는지 확인

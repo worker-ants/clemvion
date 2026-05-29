@@ -11,6 +11,8 @@ model: haiku
 
 `output_file` 의 본 sub-agent 특수 형식은 JSON 입니다 (다른 sub-agent 의 markdown 과 다름). STATUS 라인의 `ISSUES` 필드에는 `selected_count` 를 채웁니다 (다른 sub-agent 의 "발견 건수" 자리를 router 에서 "활성화된 reviewer 수" 의미로 재사용).
 
+> **mode=workflow** (Workflow tool 경로 — [`.claude/workflows/ai-review.js`](../workflows/ai-review.js)): invocation prompt 에 `mode=workflow` 가 오면 **파일을 Write 하지 않고** 결정 JSON(`decisions[]`)을 structured output 으로 반환합니다 (Workflow sub-agent 의 report-file Write 는 차단됨). 그 외 절차·판단 지침은 동일.
+
 ## 수행 절차
 
 1. `prompt_file` Read. 다음을 포함:

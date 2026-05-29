@@ -56,19 +56,23 @@ python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.
 
 한 줄: `pending=<n> success=<n> fatal=<n> branches=<n> base=<branch> last_reset=<sec|null>`.
 
-#### 3. 병렬 analyzer 호출
+#### 3. analyze → summary (Workflow tool, 기본 경로)
 
-`agents_pending` 의 4 analyzer 에 대해 **한 응답 안에서** 동시 `Agent` 호출. prompt: `prompt_file=<...>\noutput_file=<...>`.
+`_retry_state.json` Read (경로뿐) → `Workflow(name="merge-coordinate", args={invocations, branches, base, summary})`. Workflow 가 4 analyzer 를 병렬 실행(각자 prompt_file Read·output_file Write) → `integration-risk-summary` 가 통합 SUMMARY 마크다운 **반환**. 매핑: `invocations=subagent_invocations`, `summary={subagent_type: summary_subagent_type, output_file: summary_output_file}`, `branches`·`base` 는 동명 필드.
 
-#### 4. STATUS 파싱·상태 갱신
+완료 시 반환의 `summary_markdown` 을 **main 이 `summary.output_file`(=`summary_output_file`) 에 Write** (workflow/sub-agent 는 못 씀) → 상단 30줄 Read → `BLOCK: YES` 또는 `BLOCK: NO`. `unfinished[]` 있으면 해당 analyzer 재실행.
+
+> **Phase 1 만 Workflow.** Phase 2 confirm·Phase 3 execute(격리 worktree git merge/rebase + conflict resolver 루프 + patch-apply confirm)·Phase 4 chain/rollback 은 사용자 개입·git side effect 라 background Workflow 부적합 → main-driven bespoke 유지. 상세: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md).
+
+#### 3-fallback. 수동 Agent fan-out (Workflow 불가 시)
+
+`agents_pending` 의 4 analyzer 를 **한 응답 안에서** 동시 `Agent` 호출 (prompt: `prompt_file=<...>\noutput_file=<...>`) → STATUS 파싱·상태 갱신:
 
 ```bash
 python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --update <session_dir> --agent <name> --status <s> [--reset-hint <sec>]
 ```
 
-#### 5. 수렴 — Summary
-
-모두 완료되면 `Agent(subagent_type="integration-risk-summary", prompt="session_dir=<session_dir>")`. SUMMARY.md 가 작성되면 main 은 상단 30줄 Read → `BLOCK: YES` 또는 `BLOCK: NO`.
+모두 완료되면 `Agent(subagent_type="integration-risk-summary", prompt="session_dir=<session_dir>")` → SUMMARY.md 작성 → 상단 30줄 Read.
 
 ### Phase 2 — 사용자 confirm
 
@@ -82,7 +86,7 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 
 격리 worktree 안에서 SUMMARY 의 통합 순서대로:
 
-1. base checkout.
+1. base checkout. **직후 `git rev-parse HEAD` 로 `pre-merge-ref` 기록** (Phase 4 rollback 기준점).
 2. 각 branch 를 `merge` 또는 `rebase` (SUMMARY 권고대로).
 3. **conflict 발생 시**:
    - `<session_dir>/_conflicts/<file>-<n>.md` 에 conflict 정보 작성.
@@ -100,6 +104,20 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 2. `/ai-review --branch <base>`.
 
 두 결과 SUMMARY 를 사용자에게 보고. 후속 fix 가 필요하면 resolution-applier 흐름으로 자동 진입 (`/ai-review` § 6).
+
+#### Phase 4 post-merge rollback (BLOCK:YES 또는 해소 불가 시)
+
+통합은 격리 worktree 안에서만 일어났고 **아직 어디에도 push/merge 되지 않았다** — rollback 은 안전하고 국소적이다. Phase 4 의 `/consistency-check` 또는 `/ai-review` 가 **post-merge `BLOCK: YES`** 를 내거나 resolution-applier 가 자동 해소 불가로 escalate 하면:
+
+1. 사용자에게 BLOCK 사유 + rollback 여부를 `AskUserQuestion` 으로 확인.
+2. rollback 승인 시 격리 worktree 에서 통합 전 상태로 되돌린다:
+   ```bash
+   git reset --hard <pre-merge-ref>   # Phase 3 1단계 base checkout 직후의 ref
+   ```
+   `pre-merge-ref` 는 Phase 3 진입 직후 `git rev-parse HEAD` 로 기록해 둔다 (통합 시작 전 base tip). 이후 `git worktree remove` 로 `integrate-<slug>` 정리.
+3. rollback 없이 worktree 를 남겨 직접 해결하려면, 본 worktree 는 재진입성이 있으므로 그대로 두고 사용자 수정 후 Phase 4 만 재실행.
+
+> **절대 금지**: BLOCK 해소 없이 통합 결과를 base 로 push/merge. main 워크트리로의 반영은 BLOCK:NO + 사용자 명시 승인 이후에만.
 
 ## 환경변수
 
