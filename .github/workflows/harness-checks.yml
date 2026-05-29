@@ -12,6 +12,7 @@ on:
       - '.claude/skills/**'
       - '.claude/tests/**'
       - '.claude.project.json'
+      - 'PROJECT.md'
       - '.github/workflows/harness-checks.yml'
 
 concurrency:

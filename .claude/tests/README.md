@@ -23,6 +23,7 @@ third-party dependencies — hooks must run on a bare `python3`. Do not introduc
 | `test_agent_consistency.py` | Registry drift across the 4 places an agent is declared: `role_instructions.py` (SSOT) ↔ `.claude/agents/<name>.md` ↔ `.claude.project.json` toggles ↔ `README.md` table. Catches add/rename/remove misses; does **not** police prose wording (the `.md` is an intentionally human-edited rendering). |
 | `test_branch_guard.py` | `branch_guard.evaluate()` decision table — block only on (main worktree) ∧ (current == origin default); allow otherwise. Default branch is resolved, not hardcoded to `main`. |
 | `test_branch_naming.py` | `worktree-*` → `claude/*` normalization: idempotent, skips main worktree / pushed branches / detached HEAD, appends a slug on collision. |
+| `test_doc_sync_matrix.py` | PROJECT.md's "변경 유형 → 갱신 위치 매핑" matrix: every `*.test.ts` guard and `spec/...md` it references must still exist. Catches a renamed/removed guard going stale in the matrix. Reaches into `codebase/` and `spec/` on purpose (the matrix is a harness↔product binding). |
 
 ## Conventions for new tests
 
