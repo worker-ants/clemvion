@@ -253,6 +253,16 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 
 > **매트릭스 참조 무결성 가드**: 위 표·목록이 이름으로 참조하는 `*.test.ts` 가드와 `spec/...md` 문서가 rename·삭제로 stale 되지 않았는지 [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 검증한다 (harness-checks CI, PROJECT.md 변경 시 실행). dangling 참조 시 빌드 fail.
 
+## plan·review 산출물 git 취급
+
+`plan/complete/` 와 `review/` 하위 파일은 **버전 관리 대상에서 제외**한다. 작업 추적·검토 산출물은 로컬 작업 흐름의 부산물이지 커밋 이력에 남길 자산이 아니다.
+
+이 비추적은 nested `.gitignore` 가 강제한다 — `plan/.gitignore` 의 `complete/`, `review/.gitignore` 의 `*` (`!.gitignore` 만 예외). 따라서 `git add .` / `git add -A` 같은 일반 경로로는 이 디렉토리의 신규 파일이 staging 에 잡히지 않으므로, 별도의 수동 add/commit 회피 절차는 불필요하다. (의도적 `git add -f` 로 강제 추가하지 말 것.)
+
+- **`plan/complete/` 로 이동**: `git mv` 가 아니라 **일반 파일 이동**(`mv`)으로 처리한다. `git mv` 는 gitignore 를 무시하고 목적지를 강제 staging 하므로, 완료 plan 이 추적 상태로 끌려 들어간다. `mv` 로 옮겨야 ignore 규칙이 실질 작동해 complete/ 파일이 untracked 로 남는다.
+
+> `plan/in-progress/` 는 본 규칙 대상이 아니다 (추적됨 — 진행 중 추적 파일은 종전대로 취급). 완료로 전이되는 순간부터 위 규칙을 적용한다.
+
 ## e2e 테스트 작성 가이드
 
 e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 안전망이다. unit · integration 으로 이미 보호되는 단일 핸들러 로직은 침범하지 않는다.

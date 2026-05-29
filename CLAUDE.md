@@ -38,7 +38,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 결정의 배경·근거 | 해당 spec 문서 끝의 `## Rationale` |
 | 정식 규약 | `spec/conventions/<name>.md` |
 | 진행 중 작업 | `plan/in-progress/<name>.md` (frontmatter 에 `worktree` 명시) |
-| 완료된 작업 | `plan/complete/<name>.md` (`git mv` 로 이동) |
+| 완료된 작업 | `plan/complete/<name>.md` (이동 방식은 [`PROJECT.md`](PROJECT.md) 참조, 미명시 시 `git mv`) |
 | 1회성·역사 문서 | `plan/complete/archive/from-*/` 만 보관, 신규 생성 금지 |
 | 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
 | 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |

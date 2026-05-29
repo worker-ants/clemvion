@@ -16,10 +16,10 @@
 
 ## 3. 이동 규칙
 
-- **`git mv` 사용**: 단순 복사·삭제가 아니라 `git mv` 로 history 보존.
+- **이동 방식**: 프로젝트가 [`PROJECT.md`](../../PROJECT.md) 에서 지정한 이동 방식을 따른다. 미명시 시 `git mv` 로 history 보존 (단순 복사·삭제 아님).
 - **이동 시점**: 작업 단계가 끝날 때마다 plan 갱신, 모든 항목이 완료된 순간 `complete/` 로 이동.
 - **이동은 마지막 작업 PR 안에서**: 모든 체크박스 `[x]` + 미해결 follow-up 0건이 되는 PR 안에 `chore(plan): mark <name> complete` 형태의 별 commit 으로. **plan 이동만 담은 별 PR 분리 금지** (PR 증식 + 이동 누락 패턴 차단).
-- **revert 패턴**: review 중 follow-up 으로 빠지면 같은 PR 의 추가 commit 으로 `[ ]` 복원 + `git mv` 도 `in-progress/` 로 revert.
+- **revert 패턴**: review 중 follow-up 으로 빠지면 `[ ]` 복원 + 이동(PROJECT.md 지정 방식, 미명시 시 `git mv`)도 `in-progress/` 로 revert.
 - **인입 참조**: `review/**` 같은 시점 기록 문서는 옛 경로 유지. `spec/` 등 살아있는 문서의 plan 링크는 이동과 동시에 갱신.
 
 ## 4. Frontmatter 스키마
@@ -46,7 +46,7 @@ commit 전 확인:
 
 - [ ] 본 PR 의 변경으로 plan 의 모든 체크박스가 `[x]` 인가
 - [ ] 미해결 follow-up·"TODO"·"결정 필요" 항목이 0건인가
-- [ ] `git mv` 로 옮겼는가 (단순 복사·삭제 아님)
+- [ ] PROJECT.md 지정 방식(미명시 시 `git mv`)으로 옮겼는가 (단순 복사·삭제 아님)
 - [ ] commit 메시지가 `chore(plan): mark <name> complete` 형식인가
 
 한 항목이라도 `[ ]` 이면 이동 skip — 이번 PR 은 plan 의 일부만 처리한 것이고 plan 은 `in-progress/` 에 남는다.
