@@ -57,33 +57,35 @@ stdout 마지막 줄 = 세션 디렉토리.
 
 `.claude.project.json` 의 `agents.checkers.<name>: false` 로 특정 checker 비활성. 디폴트는 전부 활성화 (키 누락·`true` ⇒ enabled, 명시 `false` ⇒ disabled). 일회성 override 는 `CONSISTENCY_AGENTS` env (project_config 보다 우선). 5 checker key: `cross_spec` · `rationale_continuity` · `convention_compliance` · `plan_coherence` · `naming_collision`.
 
-### 2. 세션 상태 한 줄 받기
+### 2. Workflow 실행 (기본 경로)
 
-```bash
-python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py --summary-state <session_dir>
+`--prepare` 가 만든 `_retry_state.json` 은 model-free manifest 다 (경로만, prompt body 없음). 이걸 짧게 Read 해 invocation 목록을 추출하고 `Workflow` tool 에 넘긴다 — fan-out·STATUS 추적·수렴을 Workflow 가 결정적으로 처리한다 (수작업 `--summary-state`/`--update`/`ScheduleWakeup` 루프 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책).
+
+```text
+1. Read <session_dir>/_retry_state.json — subagent_invocations[], summary_subagent_type, summary_output_file 추출 (작음: 경로뿐).
+2. Workflow(name="consistency-check", args={
+     invocations: subagent_invocations,            // [{name, subagent_type, prompt_file, output_file}]
+     summary: { subagent_type: summary_subagent_type, output_file: summary_output_file }
+   })
 ```
 
-한 줄: `pending=<n> success=<n> fatal=<n> last_reset=<sec|null>`. 분기 결정에 충분.
+Workflow 동작: `Checkers` phase 에서 각 checker 를 `agentType` 으로 병렬 invoke (checker 가 자기 `prompt_file` 을 Read 하고 `output_file` 에 Write — 기존 call-contract 그대로, Workflow 내 checker write 는 허용됨). `Summary` phase 에서 `consistency-summary` 가 `mode=workflow` 로 통합 SUMMARY 마크다운을 **반환**한다 (terminal sub-agent 의 report-file Write 는 harness 가 차단하므로 파일 대신 텍스트 반환). 완료 시 task-notification.
 
-### 3. 병렬 sub-agent 호출
+### 3. SUMMARY 기록 + 결과 확인
 
-`agents_pending` 의 각 checker 에 대해 **한 응답 안에서** 여러 `Agent` 호출. prompt: `prompt_file=<...>\noutput_file=<...>` (orchestrator 가 만든 경로).
+Workflow 반환값:
+- `summary_markdown` — 통합 SUMMARY 전문. **main Claude 가 이걸 `summary.output_file`(=`<session_dir>/SUMMARY.md`) 에 Write** 한다 (workflow/sub-agent 는 못 쓰므로 호출자 책임).
+- `unfinished[]` — success 아닌 checker. 비어있지 않으면(rate_limit/network) 해당 checker 만 재실행.
 
-### 4. STATUS 파싱·상태 갱신
+SUMMARY.md 기록 후 상단 30줄 Read(또는 `summary_markdown` 직접) → `BLOCK: YES/NO` 검출.
 
-```bash
-python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py --update <session_dir> --agent <name> --status <s> [--reset-hint <sec>]
-```
+> **재시도 정책 차이**: Workflow 경로는 옛 ScheduleWakeup cross-turn quota 자동 재시도를 갖지 않는다. 사전 쓰기 게이트(대화형 실행)라 수용 가능 — 한도 시 사용자가 재호출하거나 `unfinished` checker 만 다시 돌린다.
 
-JSON 직접 Read/Write 안 함. fallback 분류 규약은 call-contract.
+### (fallback) 수동 Agent 경로
 
-### 5. 수렴 분기
+Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--update <...> --agent <name> --status <s>` CLI + 직접 `Agent` fan-out + `Agent(consistency-summary, session_dir=<...>)` 로 동일 결과를 낼 수 있다 (state CLI 는 `test_orchestrator_state.py` 류로 검증되는 안정 인터페이스). loop_mode 시 ScheduleWakeup 재예약.
 
-- **모두 완료**: `Agent(subagent_type="consistency-summary", prompt="session_dir=<session_dir>")`. summary 가 SUMMARY.md Write 후 main 은 상단 30줄 Read 해 `BLOCK: YES` 검출.
-- **남고 `loop_mode=true`**: ScheduleWakeup → turn 종료.
-- **남고 `loop_mode=false`**: partial summary + `/loop /consistency-check` 안내.
-
-### 6. BLOCK 처리
+### 4. BLOCK 처리
 
 `BLOCK: YES` 발견 시:
 - `developer` 안 호출이면 → 구현 진입 중단.

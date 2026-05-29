@@ -1,0 +1,236 @@
+{
+  "_doc": "Machine-readable SSOT for PROJECT.md §변경 유형 → 갱신 위치 매핑. Consumed by user-guide-sync-reviewer (stable change_type enumeration) and validated by .claude/tests/test_doc_sync_matrix.py. The PROJECT.md prose table is the human-readable companion; the test binds the two (same row count) and checks that every guard_test / convention_ref / concrete path resolves. Edit BOTH together — the test fails on divergence.",
+  "_schema": {
+    "id": "stable slug",
+    "change_type": "human label; its core phrase must also appear in the PROJECT.md table",
+    "trigger": "{ globs: [...], match: 'glob' | 'semantic' } — semantic rows have no clean glob and need reviewer judgment",
+    "targets": "human-readable required co-update locations (may contain <placeholders>/{ko,en} braces)",
+    "verify": "verification command string (literal), or null if manual/none",
+    "guard_tests": "specific *.test.ts files this row's guard relies on (subset, existence-checked)",
+    "convention_ref": "spec/conventions/*.md or spec/*.md SoT path, or null"
+  },
+  "rows": [
+    {
+      "id": "new-node",
+      "change_type": "새 노드 추가",
+      "trigger": { "globs": ["codebase/backend/src/nodes/**"], "match": "glob" },
+      "targets": [
+        "codebase/frontend/src/content/docs/02-nodes/<cat>.mdx + .en.mdx 의 노드 항목",
+        "codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts 의 노드명·필드명·placeholder·도움말",
+        "codebase/frontend/src/lib/i18n/backend-labels.ts 의 에러 코드·label 번역"
+      ],
+      "verify": "cd codebase/frontend && npm test -- i18n docs",
+      "guard_tests": ["i18n.test.ts", "nodes-coverage.test.ts"],
+      "convention_ref": null
+    },
+    {
+      "id": "node-schema-change",
+      "change_type": "노드 schema 변경 (필드 추가·라벨 변경)",
+      "trigger": { "globs": ["codebase/backend/src/nodes/**"], "match": "glob" },
+      "targets": [
+        "codebase/frontend/src/content/docs/02-nodes/<cat>.mdx 의 FieldTable",
+        "codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts 의 해당 키",
+        "codebase/frontend/src/lib/i18n/backend-labels.ts 의 label/errorCode"
+      ],
+      "verify": "cd codebase/frontend && npm test -- i18n docs",
+      "guard_tests": ["i18n.test.ts"],
+      "convention_ref": null
+    },
+    {
+      "id": "new-ui-string",
+      "change_type": "신규 UI 문자열 (TSX)",
+      "trigger": { "globs": ["codebase/frontend/src/**/*.tsx"], "match": "semantic" },
+      "targets": [
+        "codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts 양쪽 — 한쪽만 추가 금지 (parity 가드 fail)"
+      ],
+      "verify": "cd codebase/frontend && npm test -- i18n",
+      "guard_tests": ["i18n.test.ts", "hardcoded-korean-ratchet.test.ts"],
+      "convention_ref": null
+    },
+    {
+      "id": "integration-provider-change",
+      "change_type": "통합 신규/제공자 변경",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": [
+        "codebase/frontend/src/content/docs/06-integrations-and-config/<provider>.{mdx,en.mdx} + dict 키"
+      ],
+      "verify": "cd codebase/frontend && npm test -- i18n docs",
+      "guard_tests": ["integrations-coverage.test.ts"],
+      "convention_ref": null
+    },
+    {
+      "id": "new-userguide-section-dir",
+      "change_type": "유저 가이드 신규 섹션 디렉토리",
+      "trigger": { "globs": ["codebase/frontend/src/content/docs/*/"], "match": "glob" },
+      "targets": [
+        "codebase/frontend/src/lib/docs/locale.ts 의 SECTION_LABELS_BY_LOCALE 양쪽 로케일 등록 (KO/EN 모두)"
+      ],
+      "verify": "cd codebase/frontend && npm test -- locale",
+      "guard_tests": ["locale.test.ts"],
+      "convention_ref": null
+    },
+    {
+      "id": "backend-api-change",
+      "change_type": "백엔드 API 추가·변경",
+      "trigger": { "globs": ["codebase/backend/src/**/*.controller.ts", "codebase/backend/src/**/dto/**"], "match": "semantic" },
+      "targets": [
+        "controller·DTO 의 swagger jsdoc",
+        "API 노출 변경이 사용자 안내에 영향 → 관련 user-guide 페이지"
+      ],
+      "verify": null,
+      "guard_tests": [],
+      "convention_ref": "spec/conventions/swagger.md"
+    },
+    {
+      "id": "new-warning-code",
+      "change_type": "신규 warningCode 발행 (backend warningRules)",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": [
+        "codebase/frontend/src/lib/i18n/backend-labels.ts 의 WARNING_KO 한국어 매핑 (영문 SoT — 백엔드 영문 코드, frontend 매핑)"
+      ],
+      "verify": "cd codebase/frontend && npm test -- backend-labels",
+      "guard_tests": ["backend-labels.test.ts"],
+      "convention_ref": null
+    },
+    {
+      "id": "new-error-code",
+      "change_type": "신규 errorCode 발행 (ErrorCode enum 추가)",
+      "trigger": { "globs": ["codebase/backend/src/nodes/core/error-codes.ts"], "match": "glob" },
+      "targets": [
+        "backend-labels.ts 에 ERROR_KO 매핑 테이블이 없어 영문 message 노출됨. errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 (후속 plan 에서 ERROR_KO 신설 검토)"
+      ],
+      "verify": null,
+      "guard_tests": [],
+      "convention_ref": null
+    },
+    {
+      "id": "new-cross-cutting-enum",
+      "change_type": "신규 cross-cutting enum 값 추가",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": [
+        "spec/conventions/interaction-type-registry.md 의 매트릭스에 행 추가",
+        "매트릭스가 가리키는 모든 코드 분기 위치 동시 갱신 (TS assertNever 패턴)",
+        "AST 가드 통과"
+      ],
+      "verify": "cd codebase/frontend && npm test -- interaction-type-exhaustiveness",
+      "guard_tests": ["interaction-type-exhaustiveness.test.ts"],
+      "convention_ref": "spec/conventions/interaction-type-registry.md"
+    },
+    {
+      "id": "new-backend-ui-zod-value",
+      "change_type": "신규 backend zod ui.label / hint / group / itemLabel 값",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": [
+        "codebase/frontend/src/lib/i18n/backend-labels.ts 의 LABEL_KO / HINT_KO / GROUP_KO / ITEM_LABEL_KO / OPTION_LABEL_KO 중 적절한 매핑에 동일 PR 안에서 한국어 등록"
+      ],
+      "verify": "cd codebase/frontend && npm test -- ui-label-parity",
+      "guard_tests": ["ui-label-parity.test.ts"],
+      "convention_ref": "spec/conventions/i18n-userguide.md"
+    },
+    {
+      "id": "new-handler-output-field",
+      "change_type": "신규 handler output field (output.result.* 의 신규 키)",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": [
+        "spec/conventions/data-hydration-surfaces.md §1 매트릭스에 행 추가",
+        "표가 가리키는 모든 frontend hydration 함수 (parseHistoryMessages / threadTurnsToConversationItems / applyExecutionSnapshot 등) 처리 추가",
+        "backend handler 의 모든 종결 분기 (single-turn out / multi-turn user_ended / max_turns / condition / error) 에 동일 field 동시 echo"
+      ],
+      "verify": "cd codebase/frontend && npm test -- hydration-coverage",
+      "guard_tests": ["hydration-coverage.test.ts"],
+      "convention_ref": "spec/conventions/data-hydration-surfaces.md"
+    },
+    {
+      "id": "auth-session-flow-change",
+      "change_type": "인증·권한·세션 흐름 변경",
+      "trigger": { "globs": ["codebase/backend/src/modules/auth/**"], "match": "semantic" },
+      "targets": [
+        "codebase/frontend/src/content/docs/07-workspace-and-team/ 의 관련 페이지 + e2e"
+      ],
+      "verify": "make e2e-test",
+      "guard_tests": [],
+      "convention_ref": null
+    },
+    {
+      "id": "auth-config-type-enum-change",
+      "change_type": "AuthConfig type enum 변경 (api_key / bearer_token / basic_auth / hmac)",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": [
+        "spec/1-data-model.md §2.17 + §2.17.1",
+        "spec/2-navigation/6-config.md Part A AUTH_TYPES",
+        "codebase/frontend/src/lib/i18n/dict/{ko,en}/authentication.ts 의 type 라벨 + 폼 helper text",
+        "codebase/frontend/src/content/docs/06-integrations-and-config/ 의 인증 설정 안내 페이지",
+        "DB migration (CHECK 제약)"
+      ],
+      "verify": "cd codebase/frontend && npm test -- i18n docs",
+      "guard_tests": ["i18n.test.ts"],
+      "convention_ref": "spec/1-data-model.md"
+    },
+    {
+      "id": "expression-language-change",
+      "change_type": "표현식 언어 변경",
+      "trigger": { "globs": ["codebase/packages/expression-engine/**"], "match": "semantic" },
+      "targets": [
+        "codebase/frontend/src/content/docs/04-expression-language/{basics,variables-and-context,cheatsheet}.mdx + .en.mdx"
+      ],
+      "verify": null,
+      "guard_tests": ["registry.test.ts"],
+      "convention_ref": null
+    },
+    {
+      "id": "run-debug-flow-change",
+      "change_type": "실행·디버깅 흐름 변경",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": [
+        "codebase/frontend/src/content/docs/05-run-and-debug/"
+      ],
+      "verify": null,
+      "guard_tests": [],
+      "convention_ref": null
+    },
+    {
+      "id": "env-runtime-change",
+      "change_type": "환경 변수·기동 방법·런타임 변경 (제품 최종 상태)",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": ["README.md"],
+      "verify": null,
+      "guard_tests": [],
+      "convention_ref": null
+    },
+    {
+      "id": "spec-major-change",
+      "change_type": "spec 신규/대규모 변경",
+      "trigger": { "globs": ["spec/2-*/**", "spec/3-*/**", "spec/4-*/**", "spec/5-*/**", "spec/conventions/**"], "match": "glob" },
+      "targets": [
+        "frontmatter code: / status: / pending_plans: 정합 갱신",
+        "status: partial 이면 pending_plans: 의 plan 신설",
+        "status: implemented 이면 code: 글로브 ≥1 매치 보장"
+      ],
+      "verify": "cd codebase/frontend && npm test -- spec-frontmatter spec-code-paths spec-pending-plan-existence",
+      "guard_tests": ["spec-frontmatter.test.ts", "spec-code-paths.test.ts", "spec-pending-plan-existence.test.ts"],
+      "convention_ref": "spec/conventions/spec-impl-evidence.md"
+    },
+    {
+      "id": "userguide-gui-flow-section",
+      "change_type": "user-guide GUI 흐름 절 신규/변경",
+      "trigger": { "globs": ["codebase/frontend/src/content/docs/02-nodes/**.mdx", "codebase/frontend/src/content/docs/06-integrations-and-config/**.mdx"], "match": "semantic" },
+      "targets": [
+        "<ImplAnchor kind=\"ui-entry\"> 동반 작성 — file/symbol 실존 의무"
+      ],
+      "verify": "cd codebase/frontend && npm test -- impl-anchor-existence integrations-coverage triggers-coverage",
+      "guard_tests": ["impl-anchor-existence.test.ts", "integrations-coverage.test.ts", "triggers-coverage.test.ts"],
+      "convention_ref": "spec/conventions/user-guide-evidence.md"
+    },
+    {
+      "id": "spec-defect-found",
+      "change_type": "spec 자체에 누락·오류가 있다고 판단됨",
+      "trigger": { "globs": [], "match": "semantic" },
+      "targets": [
+        "plan/in-progress/spec-update-<name>.md 에 제안 노트 작성 후 project-planner 위임"
+      ],
+      "verify": null,
+      "guard_tests": [],
+      "convention_ref": null
+    }
+  ]
+}

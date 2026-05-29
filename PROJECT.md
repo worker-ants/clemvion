@@ -106,6 +106,8 @@
 
 코드 변경 후 함께 갱신해야 할 문서·번역 자산의 white list. 누락 시 `fix(i18n):` · `docs(user-guide):` 사후 보정 PR 패턴을 차단.
 
+> **machine-readable companion**: 본 표의 구조적 spine(`change_type → trigger → targets → verify → guard_test → convention_ref`)은 [`.claude/config/doc-sync-matrix.json`](.claude/config/doc-sync-matrix.json) 에 SSOT 로 정리돼 있다 — `user-guide-sync-reviewer` 가 안정적 색인으로 읽고, [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 본 표와의 행 수 1:1 · 참조 실존을 검증한다(divergence 시 빌드 fail). 본 표는 사람용 뷰 — 한 행 추가/삭제 시 JSON 도 같이 고친다. 의미 기반 trigger(glob 없는 행)는 JSON 에서 `match:"semantic"` 로 표기되며 reviewer 가 판단으로 매칭한다.
+
 | 변경 유형 | 필수 갱신 위치 | 검증 명령 |
 | --- | --- | --- |
 | 새 노드 추가 (`codebase/backend/src/nodes/<cat>/<name>/`) | (a) `codebase/frontend/src/content/docs/02-nodes/<cat>.mdx` + `.en.mdx` 의 노드 항목<br>(b) `codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts` 의 노드명·필드명·placeholder·도움말<br>(c) `codebase/frontend/src/lib/i18n/backend-labels.ts` — 에러 코드·label 번역 | `cd codebase/frontend && npm test -- i18n docs` |
@@ -248,6 +250,8 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) Principle 6
 
 이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) · [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) · [`spec/conventions/user-guide-evidence.md`](spec/conventions/user-guide-evidence.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
+
+> **매트릭스 참조 무결성 가드**: 위 표·목록이 이름으로 참조하는 `*.test.ts` 가드와 `spec/...md` 문서가 rename·삭제로 stale 되지 않았는지 [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 검증한다 (harness-checks CI, PROJECT.md 변경 시 실행). dangling 참조 시 빌드 fail.
 
 ## e2e 테스트 작성 가이드
 

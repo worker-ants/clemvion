@@ -26,20 +26,17 @@ AI_REVIEW_LOOP=1 python3 .claude/skills/merge-coordinator/scripts/merge_coordina
 python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --resume <session_dir>
 ```
 
-stdout 마지막 줄이 세션 디렉토리. `_retry_state.json` Read 후 4 analyzer 를 **한 응답 안에서** 병렬 invoke:
+stdout 마지막 줄이 세션 디렉토리. `_retry_state.json` Read (경로뿐) 후 analyze→summary 를 `Workflow` tool 이 결정적으로 처리한다 (옛 fan-out→update→summary 수작업 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합:
+
 ```
-Agent(subagent_type="merge-conflict-analyzer", prompt="prompt_file=<...>\noutput_file=<...>")
-Agent(subagent_type="semantic-conflict-analyzer", ...)
-Agent(subagent_type="integration-order-planner", ...)
-Agent(subagent_type="cross-branch-spec-analyzer", ...)
+Workflow(name="merge-coordinate", args={invocations, branches, base, summary})
 ```
 
-STATUS 파싱·`_retry_state.json` 갱신은 `/ai-review` 와 동일 규약 ([SKILL.md 단계 4](../skills/code-review-agents/SKILL.md) 참고).
+매핑: `invocations=subagent_invocations`, `summary={subagent_type: summary_subagent_type, output_file: summary_output_file}`, `branches`·`base` 동명. Workflow 가 4 analyzer 병렬(각자 prompt_file Read·output_file Write) → `integration-risk-summary` 가 통합 SUMMARY 마크다운 **반환**. 완료 시 반환의 `summary_markdown` 을 **main 이 `summary_output_file` 에 Write** → 상단 30줄로 BLOCK 확인. `unfinished[]` 있으면 해당 analyzer 재실행.
 
-모두 success → summary 호출:
-```
-Agent(subagent_type="integration-risk-summary", prompt="session_dir=<session_dir>")
-```
+> **Phase 1 만 Workflow** — Phase 2~4(confirm·git execute·conflict resolver·chain)는 bespoke 유지. 절차 SSOT: [SKILL.md](../skills/merge-coordinator/SKILL.md).
+
+**Workflow 불가 시 fallback** — 4 analyzer 를 **한 응답 안에서** 병렬 `Agent` invoke (prompt `prompt_file=<...>\noutput_file=<...>`) → STATUS 파싱·`--update` ([SKILL.md 단계 3-fallback](../skills/merge-coordinator/SKILL.md)) → `Agent(subagent_type="integration-risk-summary", prompt="session_dir=<session_dir>")`.
 
 ### Phase 2 — 계획 확정 (사용자 confirm)
 

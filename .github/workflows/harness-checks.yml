@@ -1,0 +1,36 @@
+# Harness self-tests — guards the `.claude/` automation layer (hooks, skill
+# libs, agent registry) that has no other coverage. Stdlib-only `unittest`, no
+# install step. Policy/intent: `.claude/tests/README.md`.
+
+name: harness-checks
+
+on:
+  pull_request:
+    paths:
+      - '.claude/agents/**'
+      - '.claude/hooks/**'
+      - '.claude/skills/**'
+      - '.claude/tests/**'
+      - '.claude.project.json'
+      - 'PROJECT.md'
+      - '.github/workflows/harness-checks.yml'
+
+concurrency:
+  group: harness-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      # ubuntu-latest ships python3, but pin via setup-python to keep the
+      # actions major policy consistent with the other workflows (v5/v6 line).
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Run harness unit tests
+        run: python3 -m unittest discover -s .claude/tests -p 'test_*.py'

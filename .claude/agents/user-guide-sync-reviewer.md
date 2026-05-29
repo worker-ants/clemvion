@@ -9,11 +9,14 @@ model: sonnet
 
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md).
 
-## SSOT — PROJECT.md §변경 시 동반 갱신 매트릭스
+## SSOT — `.claude/config/doc-sync-matrix.json` (+ PROJECT.md 표)
 
-매트릭스의 단일 진실 원천은 본 저장소 루트의 `PROJECT.md` 안 §변경 시 동반 갱신 표입니다. **본 reviewer 의 첫 행동은 Read 로 `PROJECT.md` 의 해당 절을 직접 읽어 현재 매트릭스를 컨텍스트에 적재** 하는 것입니다. 매트릭스를 본 파일에 inline 하지 않는 이유: 매트릭스가 살아있는 문서로 자주 갱신되므로 reviewer 정의에 박으면 stale 됨.
+매트릭스의 machine-readable SSOT 는 [`.claude/config/doc-sync-matrix.json`](../config/doc-sync-matrix.json) 입니다. **본 reviewer 의 첫 행동은 이 JSON 을 Read** 하는 것 — `rows[]` 의 각 항목이 `{id, change_type, trigger:{globs[], match}, targets[], verify, guard_tests[], convention_ref}` 구조라 trigger 색인이 안정적입니다 (prose 표를 정규식으로 긁을 때의 절 제목 변동·셀 파싱 취약성 회피).
 
-읽을 위치 — `PROJECT.md` 안의 다음 표 (left column: trigger 변경 영역 / middle column: 동반 갱신 대상 / right column: 검증 명령). 절 제목은 시기에 따라 §변경 시 동반 갱신 / §i18n / §유저 가이드 갱신 등으로 표현될 수 있으므로 표 형태로 색인.
+- `trigger.match == "glob"` 행 — `trigger.globs` 로 변경 파일을 직접 매칭.
+- `trigger.match == "semantic"` 행 — glob 없음. `change_type` + `targets` 의미로 reviewer 가 판단 매칭 (예: "인증·권한·세션 흐름 변경", "표현식 언어 변경").
+
+**보조 — PROJECT.md prose**: JSON 은 spine 만 담는다. 동반 갱신의 nuance·`(a)(b)(c)` 세부·"자주 누락" 사례는 `PROJECT.md` §변경 유형 → 갱신 위치 매핑 본문을 함께 Read 해 보강한다. JSON 과 표는 `test_doc_sync_matrix.py` 가 1:1 로 묶어두므로 행 집합은 동일하다.
 
 ## 리뷰 관점
 
@@ -31,7 +34,7 @@ model: sonnet
 
 ## 검토 절차
 
-1. **PROJECT.md Read** — §변경 시 동반 갱신 표 (또는 동등 표) 추출. 매트릭스가 본 파일에 없으면 다음으로 큰 매트릭스 검색: §i18n, §유저 가이드. 매트릭스가 발견되지 않으면 INFO 1건 (매트릭스 부재) + NONE 위험도로 종료.
+1. **매트릭스 적재** — [`.claude/config/doc-sync-matrix.json`](../config/doc-sync-matrix.json) 을 Read 해 `rows[]` 색인 + `PROJECT.md` §변경 유형 → 갱신 위치 매핑 본문을 보조로 Read. JSON 이 없으면 PROJECT.md 표로 폴백; 둘 다 없으면 INFO 1건 (매트릭스 부재) + NONE 위험도로 종료.
 2. **변경 파일 컨텍스트 식별** — orchestrator 가 prompt 에 포함한 변경 file 목록 추출. 필요 시 `git status --short` / `git diff --name-only HEAD` 로 보강 (Bash 사용 가능).
 3. **매칭** — 각 변경 파일을 매트릭스 left column 패턴에 매칭. 한 변경 파일이 여러 trigger 에 매칭될 수 있음.
 4. **동반 갱신 누락 검출** — 매칭된 trigger 의 middle column 에 명시된 동반 갱신 파일(들) 이 같은 변경 set 안에 staged 됐는지 확인 (`git diff --cached --name-only` + `git diff --name-only` + untracked).

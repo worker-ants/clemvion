@@ -73,6 +73,13 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 
 ## 외부 LLM 호출 정책
 
-`subprocess.run(["claude", "-p", ...])` 와 Anthropic SDK 직접 호출 **금지**. model 호출은 main Claude 가 `Agent` tool 로 sub-agent invoke 하는 단일 경로만 사용.
+**기준**: model 호출은 **플랜 토큰 사용량에 포함되는(plan-metered) harness 경로**로만 한다. `subprocess.run(["claude", "-p", ...])` 와 Anthropic SDK 직접 호출은 별도 과금/미터링을 우회하므로 **금지**.
+
+허용되는 단일 경로 — 둘 다 main Claude 가 초기화하고 플랜 토큰에 포함된다:
+
+- **`Agent` tool** — main Claude 가 sub-agent 를 직접 invoke (기본 경로).
+- **`Workflow` tool** — main Claude 가 호출하는 결정적 오케스트레이션. 내부 `agent()` 는 harness sub-agent 를 띄우며 `claude -p` 와 달리 플랜 토큰에 포함된다. 다수 sub-agent 의 fan-out/pipeline 을 스크립트로 결정적 제어할 때 사용 (orchestrator 의 수작업 STATUS/재시도 상태기계를 대체 가능).
+
+auxiliary Python 스크립트(예: `.claude/skills/**/scripts/*orchestrator*.py`)는 **여전히 model 을 직접 호출하지 않는다** — 세션 준비·상태 파일 관리만. model 호출은 위 두 tool 중 하나로 main Claude 가 수행한다.
 
 Sub-agent 호출 규약(prompt_file/output_file/STATUS 라인) + 한도 무한 재시도 정책: [`.claude/docs/subagent-call-contract.md`](.claude/docs/subagent-call-contract.md).

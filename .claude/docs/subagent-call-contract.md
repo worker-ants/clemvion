@@ -31,6 +31,17 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 
 `resolution-applier` 등 확장 sub-agent 는 자기 definition 에 명시한 추가 필드를 포함할 수 있다. 그 외 sub-agent 는 위 4필드만 사용한다.
 
+### 3.1 확장 sub-agent 카탈로그
+
+기본 4필드 STATUS 라인 / markdown output 규약에서 벗어나는 sub-agent 는 현재 둘뿐이다. 본 카탈로그는 "어디를 봐야 하는지" 만 가리킨다 — 형식의 SSOT 는 각 definition 본문이다.
+
+| sub-agent | 벗어나는 점 | SSOT |
+|---|---|---|
+| [`resolution-applier`](../agents/resolution-applier.md) | STATUS 라인에 `ITEMS` / `E2E` / `ESCALATE` / `NEEDS_SPEC` / `RESOLUTION` 추가 필드. 입력은 `session_dir=` 한 줄. | `resolution-applier.md` §반환 형식 + §ESCALATE 매트릭스 |
+| [`review-router`](../agents/review-router.md) | `output_file` 가 markdown 이 아니라 **JSON**. STATUS 의 `ISSUES` 자리를 `selected_count` 의미로 재사용. | `review-router.md` §출력 형식 |
+
+`code-review-summary` / `consistency-summary` / `integration-risk-summary` 은 입력만 `session_dir=` 한 줄이고 (§1 에 명시) 반환 라인은 기본 4필드 그대로라 확장이 아니다.
+
 ## 4. STATUS 결정 규약
 
 | STATUS | 조건 |
