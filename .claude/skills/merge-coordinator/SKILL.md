@@ -82,7 +82,7 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 
 격리 worktree 안에서 SUMMARY 의 통합 순서대로:
 
-1. base checkout.
+1. base checkout. **직후 `git rev-parse HEAD` 로 `pre-merge-ref` 기록** (Phase 4 rollback 기준점).
 2. 각 branch 를 `merge` 또는 `rebase` (SUMMARY 권고대로).
 3. **conflict 발생 시**:
    - `<session_dir>/_conflicts/<file>-<n>.md` 에 conflict 정보 작성.
@@ -100,6 +100,20 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 2. `/ai-review --branch <base>`.
 
 두 결과 SUMMARY 를 사용자에게 보고. 후속 fix 가 필요하면 resolution-applier 흐름으로 자동 진입 (`/ai-review` § 6).
+
+#### Phase 4 post-merge rollback (BLOCK:YES 또는 해소 불가 시)
+
+통합은 격리 worktree 안에서만 일어났고 **아직 어디에도 push/merge 되지 않았다** — rollback 은 안전하고 국소적이다. Phase 4 의 `/consistency-check` 또는 `/ai-review` 가 **post-merge `BLOCK: YES`** 를 내거나 resolution-applier 가 자동 해소 불가로 escalate 하면:
+
+1. 사용자에게 BLOCK 사유 + rollback 여부를 `AskUserQuestion` 으로 확인.
+2. rollback 승인 시 격리 worktree 에서 통합 전 상태로 되돌린다:
+   ```bash
+   git reset --hard <pre-merge-ref>   # Phase 3 1단계 base checkout 직후의 ref
+   ```
+   `pre-merge-ref` 는 Phase 3 진입 직후 `git rev-parse HEAD` 로 기록해 둔다 (통합 시작 전 base tip). 이후 `git worktree remove` 로 `integrate-<slug>` 정리.
+3. rollback 없이 worktree 를 남겨 직접 해결하려면, 본 worktree 는 재진입성이 있으므로 그대로 두고 사용자 수정 후 Phase 4 만 재실행.
+
+> **절대 금지**: BLOCK 해소 없이 통합 결과를 base 로 push/merge. main 워크트리로의 반영은 BLOCK:NO + 사용자 명시 승인 이후에만.
 
 ## 환경변수
 
