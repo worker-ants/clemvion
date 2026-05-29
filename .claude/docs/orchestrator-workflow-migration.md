@@ -97,11 +97,15 @@ aggregate**; it does **not** fit:
 - [x] Billing gate resolved + recorded in CLAUDE.md.
 - [x] Harness + orchestrator state-machine tests (`test_orchestrator_state.py`).
 - [x] **consistency-check migrated** to Workflow + smoke-validated.
-- [ ] **ai-review review-portion** (router + 14 reviewers + summary) — *fits*
-      the same pattern (reviewers Write outputs, summary returns, main writes
-      SUMMARY). Bigger; needs its own smoke test. resolution-applier + `/loop`
-      stay bespoke (above). Recommend as the next focused PR, not bundled.
-- [ ] merge-coordinate — analyzers fit, but confirm gates keep it mostly
-      main-driven. Lowest priority.
+- [x] **ai-review review-portion migrated** ([`.claude/workflows/ai-review.js`](../workflows/ai-review.js)):
+      Route → Review → Summary. Router returns its decision via structured-output
+      schema (no file write); selected = `agents_forced ∪ selected`; reviewers
+      Write their outputs; summary returns markdown, main writes SUMMARY. Smoke-
+      tested both paths: routing=skipped (1 reviewer) and routing=pending (router
+      picked forced `documentation`, skipped 13). **resolution-applier (§6) +
+      `/loop` stay bespoke** — see §"What does NOT fit Workflow".
+- [ ] merge-coordinate — analyzers fit, but Phase-2 confirm gates
+      (`AskUserQuestion` mid-flow) keep it mostly main-driven. Lowest priority;
+      not migrated.
 
 Each further migration must be smoke-tested live (no CI e2e for these flows).

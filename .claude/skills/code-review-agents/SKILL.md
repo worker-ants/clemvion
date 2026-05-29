@@ -38,55 +38,47 @@ stdout 마지막 줄 = 세션 디렉토리 절대경로.
 - `--staged`, `--commit <ref>`, `--range <a>..<b>`, `--branch <base>`, 파일/디렉토리 경로
 - `--route=auto` (기본) / `--route=all` (router skip, 전수 실행)
 
-### 2. 세션 상태 한 줄 받기
+### 2. Workflow 실행 (Route → Review → Summary, 기본 경로)
 
-```bash
-python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --summary-state <session_dir>
+`--prepare` 가 만든 `_retry_state.json` 은 model-free manifest (경로뿐). 짧게 Read 해 매니페스트를 추출하고 `Workflow` tool 에 넘긴다 — router 호출·선별·reviewer fan-out·STATUS 추적·수렴을 Workflow 가 결정적으로 처리 (옛 step 2.5 라우터 → `--apply-routing` → fan-out → `--update` → summary 수작업 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책).
+
+```text
+1. Read <session_dir>/_retry_state.json — subagent_invocations[], router_subagent_type,
+   router_prompt_file, router_output_file, routing_status, agents_forced,
+   summary_subagent_type, summary_output_file 추출 (경로뿐, 작음).
+2. Workflow(name="ai-review", args={
+     invocations:    subagent_invocations,
+     router:         router_prompt_file 이 null 이 아니면 {subagent_type: router_subagent_type,
+                       prompt_file: router_prompt_file, output_file: router_output_file}, 아니면 null,
+     routing_status: routing_status,         // "pending" → router 실행, "skipped" → 전수
+     agents_forced:  agents_forced,
+     summary: { subagent_type: summary_subagent_type, output_file: summary_output_file }
+   })
 ```
 
-한 줄 형식: `pending=<n> success=<n> fatal=<n> routing=<status> last_reset=<sec|null>`. 분기 결정에 충분. 전체 `_retry_state.json` 은 sub-agent 들이 자기 ctx 로 Read (main 부담 X).
+Workflow 동작:
+- **Route**: `routing_status=="pending"` 이고 router 가 있으면 `review-router` 를 `mode=workflow` + structured-output schema 로 invoke → `decisions[]` 반환. `selected = agents_forced ∪ {selected:true}`. `skipped` 이면 전수. router 실패 시 fail-open(전수).
+- **Review**: selected reviewer 를 `agentType` 으로 병렬 invoke (각 reviewer 가 자기 `prompt_file` Read → `output_file` Write — call-contract 그대로, Workflow 내 reviewer write 허용).
+- **Summary**: `code-review-summary` 가 `mode=workflow` 로 통합 SUMMARY 마크다운을 **반환** (terminal sub-agent 의 report-file Write 는 차단되므로 텍스트 반환).
 
-### 2.5. 라우터 호출 (`routing=pending` 일 때만, 첫 사이클)
+완료 시 task-notification. selected 0명이면 반환에 `error` — main 이 minimal SUMMARY.
 
-`Agent(subagent_type="review-router", prompt="prompt_file=<router_prompt_file>\noutput_file=<router_output_file>")`. prompt_file·output_file 경로는 step 1 의 orchestrator 출력에 포함됨 (또는 `--summary-state` 의 확장 옵션으로).
+### 3. SUMMARY 기록 + 수렴 분기
 
-라우터 응답 분기:
+Workflow 반환값:
+- `summary_markdown` — 통합 SUMMARY 전문. **main Claude 가 `summary.output_file`(=`<session_dir>/SUMMARY.md`) 에 Write** (workflow/sub-agent 는 못 씀).
+- `reviewers[]` / `skipped[]` / `unfinished[]` / `routing` / `router_decisions`.
 
-- `STATUS=success` → orchestrator 가 `--apply-routing <session_dir>` 로 state 갱신 (decisions JSON 적용 → pending/skipped 분류). 호출:
-  ```bash
-  python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --apply-routing <session_dir>
-  ```
-  selected 0명이면 `applied=0` echo — main 이 minimal SUMMARY 작성 후 종료.
-- `STATUS=fatal` (router 가드 사유) → 동일하게 minimal SUMMARY.
-- `STATUS=fatal` 그 외 → fallback (전체 reviewer 실행). orchestrator 가 `--apply-routing --fallback` 으로 처리.
-- `STATUS=rate_limit/network` → ScheduleWakeup (loop 안), 또는 한도 안내 (loop 밖).
+분기:
+1. SUMMARY.md 기록 후 상단 30줄(또는 `summary_markdown`) 로 전체 위험도 확인.
+2. Critical/Warning > 0 이면 §6 자동 후속 흐름 진입. 아니면 종료 + 1-2문장 보고.
+3. `unfinished[]` 가 있으면(rate_limit/network) 해당 reviewer 만 재실행 — loop 결합은 §7.
 
-### 3. 병렬 reviewer 호출
+> **재시도 정책 차이**: Workflow 경로는 옛 cross-turn ScheduleWakeup quota 자동 재시도를 갖지 않는다. `unfinished` reviewer 는 main 이 재실행하거나 `/loop` (fallback 경로)로 처리. 한도 상황의 무한 재시도가 꼭 필요하면 아래 fallback 경로 사용.
 
-`agents_pending` 의 각 reviewer 에 대해 **한 응답 안에서** 여러 `Agent` 호출. 각 호출:
-- `subagent_type` = `<role>-reviewer`
-- `prompt` = `prompt_file=<...>\noutput_file=<...>` (orchestrator 가 만든 경로 그대로)
+### (fallback) 수동 Agent 경로
 
-### 4. STATUS 파싱·상태 갱신
-
-각 응답의 STATUS 한 줄로 분류 (call-contract 정책). main 은 orchestrator 의 `--update <session_dir> --agent <name> --status <s> [--reset-hint <sec>]` 한 번 호출로 상태 파일을 갱신:
-
-```bash
-python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py --update <session_dir> --agent security --status success
-```
-
-JSON 직접 Read/Write 없음. STATUS 미수신 / 본문 응답 등 비정상 케이스는 main 이 fallback 분류 후 `--update --status rate_limit|network|fatal` 으로.
-
-### 5. 수렴 분기
-
-- **모두 완료** (pending=0):
-  1. `Agent(subagent_type="code-review-summary", prompt="session_dir=<session_dir>")`. summary sub-agent 가 자기 ctx 로 reviewer 결과 통합 후 SUMMARY.md Write.
-  2. SUMMARY.md 의 상단 30줄을 main 이 Read 해 전체 위험도 확인.
-  3. Critical/Warning > 0 이면 §6 자동 후속 흐름 진입. 아니면 종료 + 사용자에게 1-2문장 보고.
-
-- **남고 `loop_mode=true`**: `ScheduleWakeup(delay=last_reset or 1800, prompt="/loop /ai-review --resume <session_dir>", reason=...)` → turn 종료.
-
-- **남고 `loop_mode=false`**: code-review-summary 를 partial 호출 후 사용자에게 `/loop /ai-review` 안내.
+Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-routing` / `--update` CLI + 직접 `Agent` fan-out + `Agent(code-review-summary, session_dir=<...>)` + `/loop` ScheduleWakeup 로 동일 결과를 낸다 (state CLI 는 `test_orchestrator_state.py` 로 검증되는 안정 인터페이스).
 
 ### 6. 자동 후속 흐름 — `resolution-applier` 위임
 
@@ -115,11 +107,14 @@ STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS
 
 > **idempotency**: resolution-applier 가 중간 종료돼도 `_resolution_state.json` + git log + RESOLUTION.md 로 복구. main 은 같은 session_dir 로 재호출만 하면 된다.
 
-### 7. /loop 결합
+### 7. /loop 결합 (fallback 경로 + resolution-applier 한도 복구)
 
-- 첫 사이클: 사용자 인자(`/ai-review --staged` 등) 로 step 1 `--prepare`. session_dir 기록.
-- wake 사이클: prompt 안의 `--resume <session_dir>` 로 orchestrator 호출 → step 2 부터. routing 이 `done` 이면 step 2.5 skip.
-- 자연 종료: pending=0 + resolution-applier ESCALATE=no → ScheduleWakeup 미호출 → /loop 종료.
+Workflow 경로(§2)는 한 번에 완주하거나 `unfinished[]` 를 반환한다. cross-turn quota 자동 재시도가 필요한 경우는 **fallback 수동 Agent 경로** 또는 **§6 resolution-applier 의 rate_limit/network 재예약**에서 처리:
+
+- 첫 사이클(fallback): 사용자 인자(`/ai-review --staged` 등) 로 step 1 `--prepare`. session_dir 기록.
+- wake 사이클(fallback): prompt 안의 `--resume <session_dir>` 로 orchestrator 호출 → fallback fan-out. `routing=done` 이면 router 재호출 skip.
+- §6 resolution-applier 가 `rate_limit/network` STATUS 면 ScheduleWakeup 재예약(같은 session_dir, idempotency 복구).
+- 자연 종료: SUMMARY 완료 + resolution-applier ESCALATE=no → ScheduleWakeup 미호출 → /loop 종료.
 
 ## Reviewer 매트릭스 (디폴트 14)
 

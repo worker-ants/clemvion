@@ -73,11 +73,16 @@ owner: developer
     (*"return findings as text"*). → checker 는 output_file Write(허용), **summary 는
     텍스트 반환 → main Claude 가 SUMMARY.md Write**. consistency-summary 에 `mode=workflow`
     분기 추가.
-- [ ] **ai-review review-portion** (router+14 reviewer+summary) — 같은 패턴이라 적합하나
-  더 큼 + 자체 스모크 필요. **resolution-applier(코드 수정·commit·e2e) 와 `/loop` 한도
-  복구는 Workflow 부적합 → bespoke 유지.** 다음 격리 PR 권고.
+- [x] **ai-review review-portion → Workflow 마이그레이션 + 라이브 스모크 검증** —
+  `.claude/workflows/ai-review.js` (Route→Review→Summary). router 는 structured-output
+  schema 로 결정 반환(파일 미작성), `selected = agents_forced ∪ selected`, reviewer 는
+  output_file Write, summary 는 텍스트 반환→main 이 SUMMARY.md Write. 두 경로 스모크:
+  routing=skipped(1 reviewer) + routing=pending(router 가 forced `documentation` 선택,
+  13개 skip) 모두 정상. review-router/code-review-summary 에 `mode=workflow` 분기 추가.
+  **resolution-applier(§6)·`/loop` 한도복구는 bespoke 유지** (코드 수정·commit·e2e /
+  cross-turn quota 는 Workflow 부적합).
 - [ ] **merge-coordinate** — analyzer 는 적합하나 Phase2 confirm gate(AskUserQuestion)가
-  background Workflow 에 부적합 → 대부분 main-driven 유지. 최저 우선순위.
+  background Workflow 에 부적합 → 대부분 main-driven 유지. 최저 우선순위. 미진행.
 
 > live rewrite 경계: Workflow 는 **fan-out + 집계 반환**에 적합. 코드 수정/commit/e2e
 > (resolution-applier), 중간 사용자 confirm(merge), cross-turn 한도 복구(/loop)는
