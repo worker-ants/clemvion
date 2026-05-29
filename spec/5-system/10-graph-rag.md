@@ -20,7 +20,7 @@ code:
 
 ## Overview (제품 정의)
 
-> **구현 상태**: ✅ **P0~P2 구현 완료** (검증 일자: 2026-05-11). KB 모드 선택, 추출 파이프라인 (`graph-extraction` 큐 chained dispatch), Hybrid 검색 (`RagSearchService` graph 분기), Entity / Relation CRUD, 3D 그래프 시각화 (`graph-3d-renderer.tsx`) 까지 동작. 마이그레이션 `V025__graph_rag.sql` ~ `V027__relation_head_tail_index.sql` 적용. 본 문서 범위 밖 (§2.2) 의 community detection / Neo4j 등 P2 이후 항목만 미구현으로 남는다.
+> **구현 상태**: ✅ **P0~P2 구현 완료**. KB 모드 선택, 추출 파이프라인 (`graph-extraction` 큐 chained dispatch), Hybrid 검색 (`RagSearchService` graph 분기), Entity / Relation CRUD, 3D 그래프 시각화 (`graph-3d-renderer.tsx`) 까지 동작. 마이그레이션 `V025__graph_rag.sql` ~ `V027__relation_head_tail_index.sql` 적용. 본 문서 범위 밖 (§2.2) 의 community detection / Neo4j 등 P2 이후 항목만 미구현으로 남는다.
 
 ---
 
@@ -533,7 +533,7 @@ LIMIT $5;        -- ragTopK
 | `document:graph_started` | `{ documentId, knowledgeBaseId }` | 추출 시작 |
 | `document:graph_progress` | `{ documentId, progress: number, entityDelta: number, relationDelta: number }` | chunk 처리마다 |
 | `document:graph_completed` | `{ documentId, entityCount, relationCount }` | 완료 |
-| `document:graph_error` | `{ documentId, error: string }` | **(의미 변경, 2026-05-11)** in-flight 일시 오류 — `document:graph_retry` 또는 `graph_failed` 가 곧 따라온다. **영구 실패 신호로 사용하지 말 것** (이전 동작은 `graph_failed` 로 이관됨) |
+| `document:graph_error` | `{ documentId, error: string }` | in-flight 일시 오류 — `document:graph_retry` 또는 `graph_failed` 가 곧 따라온다. **영구 실패 신호로 사용하지 말 것** (영구 실패는 `graph_failed`) |
 | `document:graph_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
 | `document:graph_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
 
@@ -556,7 +556,7 @@ LIMIT $5;        -- ragTopK
 - LLM `chat()` 호출에 `{ timeoutMs: 90_000 }` 적용 — 청크 응답 hang 시 90s 안에 즉시 reject.
 - 문서 단위 `retryWithBackoff(maxRetries=3, baseDelayMs=1_000)` (1s → 4s → 16s).
 - chunk_entity 정리 (`DELETE FROM chunk_entity WHERE chunk_id IN ...`) 가 추출 진입부에 있어 idempotent — 재시도 시 dedup INSERT 가 안전하게 누적됨.
-- 청크 단위 LLM 재시도는 별도 적용하지 않음 (문서 단위 재시도로 단순화 — LLM 비용 vs 코드 복잡도 트레이드오프). 후속 PR 에서 정밀화 검토.
+- 청크 단위 LLM 재시도는 별도 적용하지 않음 (문서 단위 재시도로 단순화 — LLM 비용 vs 코드 복잡도 트레이드오프). 정밀화는 후속 검토.
 
 > **원칙**: 그래프 검색이 어떠한 이유로든 빈 결과를 만들 경우, vector seed 결과만으로 응답을 구성한다 (graceful degradation).
 
@@ -573,11 +573,9 @@ LIMIT $5;        -- ragTopK
 
 ## Rationale
 
-Graph RAG 도메인 모델 결정의 배경·근거. 옛 `memory/graph-rag-decisions.md` 의 내용을 inline 흡수한 것이며, 폐기된 대안과 1회성 분석 자료는 `plan/complete/archive/from-memory/` 에 보관한다.
+Graph RAG 도메인 모델 결정의 배경·근거.
 
-### Memory: Graph RAG 기획 결정 (2026-05-02)
-
-> **역사 기록**: 아래는 docs-consolidation(2026-05-12) 이전 시점의 결정 스냅샷이다. 표·목록 안에 등장하는 `prd/*.md` 경로는 그 당시의 PRD 트리이며, 현재는 본 문서(및 `spec/` 트리 전반) 로 흡수되었다. 결정 자체는 여전히 유효해 그대로 보존하되, 경로는 사후 갱신하지 않는다 — 결정이 내려진 시점의 컨텍스트를 보존하기 위함.
+### Graph RAG 기획 결정
 
 #### 도메인 용어
 
@@ -587,11 +585,10 @@ Graph RAG 도메인 모델 결정의 배경·근거. 옛 `memory/graph-rag-decis
 - **ChunkEntity**: 어느 청크가 어떤 entity 를 언급했는지 추적하는 매핑.
 - **KB.rag_mode**: 검색 모드. `vector` (default) / `graph` 두 가지. **생성 시에만 결정, 사후 변경 불가.**
 
-#### 사용자 결정 (2026-05-02)
+#### 사용자 결정
 
 | # | 결정 사항 | 선택 |
 | --- | --- | --- |
-| 1 | PRD 위치 | 별도 파일 `prd/9-graph-rag.md` |
 | 2 | 모드 옵션 범위 | `vector` / `graph` 2종 (graph 안에 hybrid 통합) |
 | 3 | 추출 트리거 | 임베딩 완료 후 자동 chained (사용자 개입 없이 graph-extraction 큐 dispatch) |
 | 4 | UI 우선순위 | P0 = 추출 진행/완료 상태만, P1 = entity 목록 + 통계, P2 = 그래프 시각화 |
@@ -601,20 +598,12 @@ Graph RAG 도메인 모델 결정의 배경·근거. 옛 `memory/graph-rag-decis
 
 #### 결정 근거 (요약)
 
-- **단일 PRD 파일**: 도메인 동기/요구사항/스펙이 응집되어 한 곳에서 읽힘
 - **mode 2종**: graph 안에 vector seed 가 이미 포함된 Hybrid 형태라 mode 3개로 쪼갤 가치 작음
 - **자동 chained**: 사용자에게 별도 액션 강요하지 않음, 임베딩 큐 → 추출 큐 자연 흐름
 - **사후 변경 불가**: vector→graph 전환은 기존 chunk 에 대한 추출 트리거가 필요해 마이그레이션이 무겁고, graph→vector 는 entity/relation 폐기. 새 KB 가 더 단순
 - **추출 LLM 분리**: 임베딩 모델은 표현 학습용, 추출 모델은 reasoning 용. 비용/품질을 분리 제어 가능
 
-#### 영향 범위
-
-- 신규: `prd/9-graph-rag.md`, `spec/5-system/10-graph-rag.md`
-- 갱신: `prd/0-overview.md`, `prd/4-integration.md`, `prd/6-phase2-ai.md`
-- 갱신: `spec/1-data-model.md`, `spec/5-system/9-rag-search.md`, `spec/5-system/8-embedding-pipeline.md`, `spec/2-navigation/5-knowledge-base.md`, `spec/4-nodes/3-ai/1-ai-agent.md`
-- 작업 plan: `plan/complete/ai-knowledge-base/graph-rag-prd.md`
-
-#### 비-목표 (이번 PRD 범위 밖)
+#### 비-목표 (범위 밖)
 
 - Microsoft GraphRAG community detection / 글로벌 요약 (P2 이후)
 - Apache AGE / Neo4j 도입 (데이터 규모 임계 도달 시 검토)

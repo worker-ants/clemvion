@@ -85,7 +85,7 @@
 - **1280px ~ 1439px**: 사이드바 기본 축소 (아이콘만, 64px)
 - **< 1280px**: 사이드바 숨김, 햄버거 메뉴로 토글
 
-> **참고**: 본 표는 *전역 chrome* 인 글로벌 사이드바에만 적용된다. `/docs` 내부 가이드 사이드바는 article 안의 *보조 네비* 로 별도 breakpoint (lg=1024px) 를 사용한다. 근거는 [`./13-user-guide.md` Rationale R-1](./13-user-guide.md#r-1-docs-내부-사이드바-breakpoint-가-글로벌-1280px-과-다른-이유-2026-05-26) 참조.
+> **참고**: 본 표는 *전역 chrome* 인 글로벌 사이드바에만 적용된다. `/docs` 내부 가이드 사이드바는 article 안의 *보조 네비* 로 별도 breakpoint (lg=1024px) 를 사용한다. 근거는 [`./13-user-guide.md` Rationale R-1](./13-user-guide.md#r-1-docs-내부-사이드바-breakpoint-가-글로벌-1280px-과-다른-이유) 참조.
 
 ---
 
@@ -144,14 +144,12 @@
 
 ## Rationale
 
-### R-1. 사이드바 로고 변종 규칙 (2026-05-15)
+### R-1. 사이드바 로고 변종 규칙
 
-§2.1 로고 행에 expanded/collapsed 변종 규칙을 추가한 이유: 본 문서는 사이드바의 **자리**만 정의하고, 자리에 들어가는 로고 변종·색은 `spec/6-brand.md §8.4` (brand spec) 가 단일 진실로 결정한다. 본 행은 brand spec §8.4.6 의 결정(expanded → Full logo / collapsed → Icon mark)을 자리 정의에 반영한 것이다.
+§2.1 로고 행에 expanded/collapsed 변종 규칙을 두는 이유: 본 문서는 사이드바의 **자리**만 정의하고, 자리에 들어가는 로고 변종·색은 `spec/6-brand.md §8.4` (brand spec) 가 단일 진실로 결정한다. 본 행은 brand spec §8.4.6 의 결정(expanded → Full logo / collapsed → Icon mark)을 자리 정의에 반영한 것이다.
 
-근거 출처: `spec/6-brand.md §8.4.6` (로고 노출 자리) 및 동 문서 R-9 (브랜드 spec 의 라우트 spec 우선권). 사전 일관성 검토 세션: `review/consistency/2026/05/15/18_36_51/`.
+근거 출처: `spec/6-brand.md §8.4.6` (로고 노출 자리) 및 동 문서 R-9 (브랜드 spec 의 라우트 spec 우선권).
 
-### R-2. §2.1 로고 행 정정 (2026-05-15 롤백)
+### R-2. §2.1 로고 행 — 라이트/다크 자산 선택 위임
 
-§8.2 컬러 토큰 정식화 폐기(`spec/6-brand.md` R-13) 와 함께, 본 §2.1 의 *"Full logo (light)"* 표현에서 *(light)* 한정을 제거. 라이트/다크 자산 선택은 노출 자리(surface) 의 배경 톤에 따라 brand spec §8.4 가 결정한다. R-1 의 §8.4.6 참조는 본 롤백 후에도 유효하며, 다만 §8.4.6 표 자체가 *"라이트/다크 자산 선택은 노출 자리에 맞춤"* 표현으로 정정되었다.
-
-사전 일관성 검토 세션: `review/consistency/2026/05/15/23_45_11/`.
+§2.1 의 로고 행은 라이트/다크 한정 없이 표기한다. 라이트/다크 자산 선택은 노출 자리(surface) 의 배경 톤에 따라 brand spec §8.4 가 결정한다 (§8.4.6 표 기준).

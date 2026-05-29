@@ -27,7 +27,7 @@ code: []
 >
 > `errorPolicy` 는 `parallelNodeConfigSchema` 에 직접 노출된 parallel-specific 필드다 (공통 `errorHandling.policy` 와 별개). 엔진은 `config.errorPolicy` 가 명시되면 그 값을 그대로 사용하고, 미지정 시 공통 `errorHandling.policy` 의 매핑(`skip_node`/`use_default_output`/`route_to_error_port` → `continue`, 그 외 → `stop`)으로 fallback 한다 (옛 동선 호환).
 >
-> ⚠ **미구현 (P1)**: `waitAll: false` 는 schema 에 노출되어 있으나 엔진 단계에서 무시된다. 아카이브 개선안은 schema 제거 또는 validate 단계 reject 를 제안한다 ([logic/parallel.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/parallel.md#3-제안된-output-구조)).
+> ⚠ **미구현 (P1)**: `waitAll: false` 는 schema 에 노출되어 있으나 엔진 단계에서 무시된다. 후속으로 schema 제거 또는 validate 단계 reject 가 검토된다.
 
 ## 2. 설정 UI
 

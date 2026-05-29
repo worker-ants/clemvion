@@ -6,17 +6,15 @@ code: []
 
 # Spec: 워크플로 Re-run (재실행)
 
-> 관련 문서: [Spec 실행 엔진 §6.3](./4-execution-engine.md#63-재실행조회-정책-replay-policy) · [Spec 실행 내역 §3.7](../2-navigation/14-execution-history.md#37-re-run-액션) · [Spec 워크플로 실행/디버깅 §10.14](../3-workflow-editor/3-execution.md#1014-re-run-진입점) · [Spec AI Assistant §4.1.2](../3-workflow-editor/4-ai-assistant.md#412-re-run-비트리거-정책) · [Spec 데이터 모델 §2.13](../1-data-model.md#213-execution) · [Spec 노드 카테고리](../4-nodes/0-overview.md#2-노드-전체-목록) · [PLAN raw config exposure](../../plan/complete/engine-raw-config-exposure.md)
+> 관련 문서: [Spec 실행 엔진 §6.3](./4-execution-engine.md#63-재실행조회-정책-replay-policy) · [Spec 실행 내역 §3.7](../2-navigation/14-execution-history.md#37-re-run-액션) · [Spec 워크플로 실행/디버깅 §10.14](../3-workflow-editor/3-execution.md#1014-re-run-진입점) · [Spec AI Assistant §4.1.2](../3-workflow-editor/4-ai-assistant.md#412-re-run-비트리거-정책) · [Spec 데이터 모델 §2.13](../1-data-model.md#213-execution) · [Spec 노드 카테고리](../4-nodes/0-overview.md#2-노드-전체-목록)
 
 ---
 
 ## Overview (제품 정의)
 
-> 출처: 본 spec 신규 작성(2026-05-13). `plan/in-progress/replay-rerun.md` 의 §1 PRD 항목을 본 문서로 흡수. 옛 `prd/` 트리는 docs-consolidation(2026-05-12)으로 spec 에 병합되었으므로 신규 PRD 도 spec/ 안에 둔다.
-
 ### 1. 배경
 
-`spec/5-system/4-execution-engine.md §6.3` Replay 정책 표는 View / Re-run / Multi-turn resume 세 모드를 분리 정의하고 있으나, **Re-run** 만 "🚧 미구현 (future PRD)" 상태로 남아 있었다. 사용자는 실행 상세 페이지에서 "이 실행을 같은 입력으로 다시 돌려서 결과를 비교하고 싶다", "타임 의존 결과(`$now` / `random()`) 를 다시 계산하고 싶다", "디버그용으로 외부 호출 없이 흐름만 재현하고 싶다" 같은 요구를 가지지만, 본 기능 부재로 우회 (워크플로를 수동 트리거 패널에서 다시 시작) 해야 했다.
+`spec/5-system/4-execution-engine.md §6.3` Replay 정책 표는 View / Re-run / Multi-turn resume 세 모드를 분리 정의한다. 사용자는 실행 상세 페이지에서 "이 실행을 같은 입력으로 다시 돌려서 결과를 비교하고 싶다", "타임 의존 결과(`$now` / `random()`) 를 다시 계산하고 싶다", "디버그용으로 외부 호출 없이 흐름만 재현하고 싶다" 같은 요구를 가지지만, 본 기능 부재로 우회 (워크플로를 수동 트리거 패널에서 다시 시작) 해야 했다.
 
 본 spec 은 Re-run 의 사용자 가치, 정책 결정(A~G), API/UI/데이터 모델 명세, 외부 부수효과 안전장치, AI Assistant 와의 경계, 기존 정책과의 관계를 한 곳에 정의한다.
 
@@ -266,7 +264,7 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 - `re_run_of != NULL` 인 행은 같은 `chain_id` 의 다른 행을 참조해야 함 (cross-chain re-run 불가)
 - chain 깊이 32 제한은 **애플리케이션 레벨** 에서 enforce (DB constraint 로 표현 어려움)
 
-마이그레이션은 PR2 (`codebase/backend/migrations/V###__execution_re_run_chain.sql`) 에서 작성하며, 본 spec 은 컬럼·인덱스·불변식만 명세한다. 기존 row 의 백필은 `chain_id = id`, `re_run_of = NULL` 로 일괄 채움 (모두 chain 의 원본으로 간주).
+마이그레이션 (`codebase/backend/migrations/V###__execution_re_run_chain.sql`) 은 본 spec 의 컬럼·인덱스·불변식을 구현한다. 기존 row 의 백필은 `chain_id = id`, `re_run_of = NULL` 로 일괄 채움 (모두 chain 의 원본으로 간주).
 
 ### 9.2 NodeExecution dry-run 표기
 
@@ -370,7 +368,7 @@ dry-run 모드로 실행된 NodeExecution 은 별도 컬럼 추가 없이 `outpu
 
 ## 11. 감사 로그
 
-`audit_log` 테이블에 신규 이벤트 `re_run_initiated` 를 추가한다 (PR2 마이그레이션에서 enum 확장).
+`audit_log` 테이블에 신규 이벤트 `re_run_initiated` 를 추가한다 (마이그레이션에서 enum 확장).
 
 | 필드 | 값 |
 | --- | --- |
@@ -390,7 +388,7 @@ dry-run 모드로 실행된 NodeExecution 은 별도 컬럼 추가 없이 `outpu
 
 사용자당 분당 10회. 초과 시 표준 `429 TOO_MANY_REQUESTS` (Spec [API 규칙 §3 Rate Limiting](./2-api-convention.md) 의 공통 정책 적용).
 
-본 spec 은 정책만 명시. 구현은 PR2 에서 BullMQ 기반 토큰 버킷 또는 Redis INCR + EXPIRE 패턴 중 선택 (개발자 재량).
+본 spec 은 정책만 명시. 구현은 BullMQ 기반 토큰 버킷 또는 Redis INCR + EXPIRE 패턴 중 선택 (개발자 재량).
 
 ---
 
@@ -415,7 +413,7 @@ Re-run 은 [Spec 실행 엔진 §6.3](./4-execution-engine.md#63-재실행조회
 
 ### 14.2 raw config echo 정책 — Re-run 의 핵심 전제
 
-Re-run 이 "현재 시점의 워크플로 정의의 raw config 를 다시 평가" 하려면 [Spec 실행 엔진 §6.1 컨텍스트 구조](./4-execution-engine.md#61-컨텍스트-구조) 의 `rawConfig` echo 가 노드 핸들러 전체에서 일관되게 동작해야 한다. raw config 노출 작업은 [`plan/complete/engine-raw-config-exposure.md`](../../plan/complete/engine-raw-config-exposure.md) 에서 완료됐고, 본 spec 은 그 결과를 전제로 한다.
+Re-run 이 "현재 시점의 워크플로 정의의 raw config 를 다시 평가" 하려면 [Spec 실행 엔진 §6.1 컨텍스트 구조](./4-execution-engine.md#61-컨텍스트-구조) 의 `rawConfig` echo 가 노드 핸들러 전체에서 일관되게 동작해야 한다. 본 spec 은 raw config 노출이 노드 핸들러 전체에 적용된 것을 전제로 한다.
 
 ### 14.3 Multi-turn snapshot 과의 직교성
 
@@ -453,7 +451,7 @@ Re-run 은 **트리거를 다시 발화하지 않는다** — 원본 실행이 w
 | 감사 로그 | §11 — `re_run_initiated` 이벤트 |
 | Rate limit | §12 — 사용자당 분당 10회 |
 | 관측성 | NodeExecution 의 dry-run 표기 (§7.4) + chain badge 로 Re-run 트래픽을 일반 manual 실행과 구분 가능 |
-| 회귀 잠금 | PR2 의 단위·통합·e2e 테스트가 다음을 회귀 가드:<br>- 입력 동일/수정/dry-run 케이스<br>- 권한 거부 (`RERUN_PERMISSION_DENIED`)<br>- 삭제된 워크플로 (`RERUN_WORKFLOW_DELETED`)<br>- chain 깊이 32 초과 (`RERUN_CHAIN_DEPTH_EXCEEDED`)<br>- multi-turn 노드 새 세션 (RR-PL-04)<br>- AI Assistant 비트리거 (RR-PL-07) |
+| 회귀 잠금 | 단위·통합·e2e 테스트가 다음을 회귀 가드:<br>- 입력 동일/수정/dry-run 케이스<br>- 권한 거부 (`RERUN_PERMISSION_DENIED`)<br>- 삭제된 워크플로 (`RERUN_WORKFLOW_DELETED`)<br>- chain 깊이 32 초과 (`RERUN_CHAIN_DEPTH_EXCEEDED`)<br>- multi-turn 노드 새 세션 (RR-PL-04)<br>- AI Assistant 비트리거 (RR-PL-07) |
 
 ---
 

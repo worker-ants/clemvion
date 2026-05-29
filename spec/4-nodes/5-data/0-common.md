@@ -70,9 +70,3 @@ Data 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 |------|-------------|-------------|---------------------|
 | [transform](./1-transform.md#5-출력-구조) | §5.1 | — | §5.8 (config·expression 오류) |
 | [code](./2-code.md#5-출력-구조) | §5.1 (`success` port) | §5.3 (`error` port) | §5.8 (코드 컴파일 실패) |
-
-## 6. CHANGELOG
-
-| 일자 | 변경 |
-|------|------|
-| 2026-05-10 | §4 5필드 공통 규약 / §5 출력 구조 색인 신설. 노드 문서 §5 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용) |

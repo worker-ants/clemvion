@@ -364,7 +364,7 @@ handler 가 `output: { result: {...}, partial?: {...} }` 런타임 필드와 `_r
 - `$node["X"].config.maxTurns` → raw 한도값 (Principle 1.1)
 - `$node["X"].status` → `"waiting_for_input"`
 
-> **D6 결정 (2026-05-17)**: waiting 의 대화 상태 (`messages` / `message` / `turnCount` / `maxTurns`) 가 종결 시점 (`output.result.*`) 과 단일 경로로 통일. 옛 top-level `output.messages` 등은 폐기 — 다운스트림은 `$node["X"].output.result.messages` 처럼 단일 경로로 접근한다. `output.partial.*` 은 result/partial 의미 분리로 별도 슬롯 유지 (plan/in-progress/node-output-redesign D6).
+> **D6 결정**: waiting 의 대화 상태 (`messages` / `message` / `turnCount` / `maxTurns`) 가 종결 시점 (`output.result.*`) 과 단일 경로로 통일. 다운스트림은 `$node["X"].output.result.messages` 처럼 단일 경로로 접근한다. `output.partial.*` 은 result/partial 의미 분리로 별도 슬롯 유지.
 
 ### 5.5 Case: Multi Turn 재개 (`status: 'resumed'`)
 
@@ -664,11 +664,4 @@ Pre-flight 검증 (CONVENTIONS Principle 3.1 — throw):
 
 `includeSystemContext` / `systemContextSections` config echo 는 default 값과 일치하면 생략한다 ([공통 §11.7](./0-common.md#117-config-echo)).
 
-**알려진 결함 — 이연 (W-1)**: 본 노드는 config echo 를 `config.schema` 로 노출하지만 원본 config 필드명은 `outputSchema` 이다 ([CONVENTIONS Principle 7](../../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig) — config echo 는 원본 필드명 그대로). doc 전반 ~15곳 + expression 접근 예에 걸쳐 있어 일괄 rename 은 별도 작업으로 분리한다 (`spec-update-ai-error-output-fields` PR W-1, 후속 backlog).
-
-## 9. CHANGELOG
-
-| 일자 | 변경 |
-|------|------|
-| 2026-05-18 (system-context) | §1 config 표에 `includeSystemContext` / `systemContextSections` 추가 + §4.1 / §4.2 실행 로직에 0.5 단계 추가 + §8 Rationale stub 신설. 설계·결정 근거는 [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) 및 [공통 §Rationale](./0-common.md#rationale). [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 와 한 묶음 결정. consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO). |
-| 2026-05-29 (error-output-fields) | §5.3 (LLM_RESPONSE_INVALID) · §5.6.4 (MAX_COLLECTION_RETRIES_EXCEEDED) error 예시·필드 표에 `output.error.details.retryable` (필수, [CONVENTIONS Principle 3.2.1](../../conventions/node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수), 둘 다 `false`) / `retryAfterSec?` 추가. §8 Rationale 에 W-1 (`config.schema`→`config.outputSchema`) 이연 결정 명시. consistency-check 세션: `review/consistency/2026/05/29/00_45_44/` (BLOCK: NO). |
+**알려진 결함 — 이연 (W-1)**: 본 노드는 config echo 를 `config.schema` 로 노출하지만 원본 config 필드명은 `outputSchema` 이다 ([CONVENTIONS Principle 7](../../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig) — config echo 는 원본 필드명 그대로). doc 전반 ~15곳 + expression 접근 예에 걸쳐 있어 일괄 rename 은 후속 작업으로 이연한다.

@@ -80,11 +80,11 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | `out` | Output | data | false | 발송 성공 (부분 거부 포함). §5.1 |
 | `error` | Error | error | false | runtime 전송 실패 — `EMAIL_SEND_FAILED` / `EMAIL_HOST_BLOCKED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED`. §5.3 |
 
-> Send Email 은 동적 포트가 없다. D4 (2026-05-17, send-email 은 이미 reference 패턴) — `handler.validate()` 실패만 throw → 노드 실행 자체가 시작되지 않음. `execute()` 안의 모든 실패는 §5.3 (`port:'error'`) 로 라우팅.
+> Send Email 은 동적 포트가 없다. `handler.validate()` 실패만 throw → 노드 실행 자체가 시작되지 않음. `execute()` 안의 모든 실패는 §5.3 (`port:'error'`) 로 라우팅.
 
 ## 4. 실행 로직
 
-1. **Pre-flight 검증** (`validate()`) — `evaluateMetadataBlockingErrors` (warningRules 평가) + `validateConfig` (recipient array-only, §8.1) + `subject`/`body` 문자열 / `bodyType` enum 체크. 실패 시 throw → 노드 실행 자체가 시작되지 않음 (워크플로우 실패 처리). 이외 모든 실행 단계 실패는 §5.3 (`port:'error'`) 으로 라우팅 (D4)
+1. **Pre-flight 검증** (`validate()`) — `evaluateMetadataBlockingErrors` (warningRules 평가) + `validateConfig` (recipient array-only, §8.1) + `subject`/`body` 문자열 / `bodyType` enum 체크. 실패 시 throw → 노드 실행 자체가 시작되지 않음 (워크플로우 실패 처리). 이외 모든 실행 단계 실패는 §5.3 (`port:'error'`) 으로 라우팅
 2. **수신자 정규화** — `to`/`cc`/`bcc` 는 array-only (§8 Rationale):
    - 배열 → 원소를 `trim()` 후 빈 문자열 제거
    - 비-배열 입력 → defensive `[]` 반환 (raw 는 schema + validator 두 layer 가 이미 reject 하므로 standard path 에서는 도달 불가, legacy 데이터·직접 호출 경로의 safety net)
@@ -104,7 +104,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 > CONVENTIONS Principle 11 포맷. JSON 예시는 `undefined` 필드 생략, 5필드 (`config`/`output`/`meta?`/`port?`/`status?`) 외 top-level 키 금지.
 >
-> `config` 은 사용자가 입력한 **raw** 값을 echo (Principle 7) — `{{ }}` 보존, `to`/`cc`/`bcc` 는 array 원형 보존 (2026-05-19 정준화로 array-only — §8 Rationale), 자격증명 echo 금지. `output.subject` / `output.body` / `output.bodyType` 는 실제 SMTP 에 전송된 평가된 값 (Principle 1). `meta` 는 실행 메트릭만 (Principle 2).
+> `config` 은 사용자가 입력한 **raw** 값을 echo (Principle 7) — `{{ }}` 보존, `to`/`cc`/`bcc` 는 array 원형 보존 (array-only — §8 Rationale), 자격증명 echo 금지. `output.subject` / `output.body` / `output.bodyType` 는 실제 SMTP 에 전송된 평가된 값 (Principle 1). `meta` 는 실행 메트릭만 (Principle 2).
 
 ### 5.1 Case: 정상 발송 (port `out`)
 
@@ -136,7 +136,7 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
 | `config.integrationId` | UUID | config echo (Principle 7) | SMTP Integration 참조. 자격증명 자체는 echo 되지 않음 |
-| `config.to` / `cc` / `bcc` | string[] | config echo | 사용자가 입력한 **raw** 배열 (표현식 보존). 정규화 결과는 echo 하지 않음. 2026-05-19 정준화로 array-only (§8 Rationale) |
+| `config.to` / `cc` / `bcc` | string[] | config echo | 사용자가 입력한 **raw** 배열 (표현식 보존). 정규화 결과는 echo 하지 않음. array-only (§8 Rationale) |
 | `config.subject` / `body` | string | config echo | raw 템플릿 (`{{ }}` 보존) |
 | `config.bodyType` | `'text'` / `'html'` | config echo | 본문 포맷 |
 | `config.attachments` | Attachment[] | config echo | 사용자가 입력한 raw. `filename` / `content` / `contentType` / `encoding` / `cid` 만 nodemailer 로 전달되며, `path` / `href` 등 파일·URL 접근 옵션은 서버에서 strip + `disableFileAccess` / `disableUrlAccess` 로 차단 |
@@ -214,12 +214,12 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 |------|------|
 | `EMAIL_SEND_FAILED` | nodemailer `sendMail` 이 throw 한 generic transport 실패 (네트워크/SMTP 응답 오류 등). `IntegrationError` 가 아닌 모든 catch 분기의 fallback |
 | `EMAIL_HOST_BLOCKED` | SMTP `host` 가 사설/loopback 대역이라 SSRF 가드(§4 step 6)에 차단됨. 기본 ON, `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out. HTTP 의 `HTTP_BLOCKED` 와 동일 메커니즘 |
-| `EMAIL_NO_RECIPIENTS` (D4) | `to` 정규화 결과가 빈 배열 — `execute()` 안에서 검증. 종전 throw 였으나 D4 이후 본 경로 |
+| `EMAIL_NO_RECIPIENTS` | `to` 정규화 결과가 빈 배열 — `execute()` 안에서 검증 |
 | `INTEGRATION_INCOMPLETE` | SMTP credentials 의 `host`/`port`/`secure`/`username`/`password`/`default_from` 중 하나라도 누락 |
 | `INTEGRATION_TYPE_MISMATCH` | 참조된 Integration 의 `serviceType` 이 `'email'` 이 아님 |
 | `INTEGRATION_NOT_CONNECTED` | Integration 상태가 `connected` 가 아님 (`expired` / `error`) |
 | `INTEGRATION_NOT_FOUND` | `integrationId` 가 워크스페이스에 존재하지 않음 |
-| `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | `__workspaceId` 컨텍스트 누락 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 |
+| `INTEGRATION_SERVICE_UNAVAILABLE` | `__workspaceId` 컨텍스트 누락 (deployment 오류) |
 | `INTEGRATION_CALL_FAILED` | 기타 분류되지 않은 실패 (베이스 helper 의 fallback — `IntegrationsService.getForExecution` 내부에서 발생 가능) |
 
 > `IntegrationError` 가 catch 된 경우 그 `code` 가 `output.error.code` 로 직접 노출된다 (예: `INTEGRATION_NOT_CONNECTED`). 그 외 모든 throw 는 `EMAIL_SEND_FAILED` 로 mapping. 자격증명 echo / 평문 노출은 `sanitizeMessage` + `maskEmailForErrorDetails` + `truncateForErrorDetails` 가 차단한다.
@@ -264,18 +264,14 @@ SMTP를 통해 이메일을 발송하는 **Integration 노드**. Integration 엔
 
 > 본 케이스는 **runtime 정상 경로 분기** 가 아니라 환경 구성 누락을 알리는 escape hatch 다. 워크플로 작성자가 직접 마주칠 일이 없으며, 다운스트림 노드는 `status === 'requires_integration'` 으로 분기하지 않는다.
 
-### 5.8 (D4 — 2026-05-17) handler.validate 실패만 throw, 나머지 모두 §5.3 으로 라우팅
-
-D4 이전에 send-email 은 이미 catch-all 패턴을 갖춰 다른 Integration 4종의 reference 였다. D4 통일 후에는 spec 표현도 다른 노드와 동일 구조로 명문화된다:
+### 5.8 handler.validate 실패만 throw, 나머지 모두 §5.3 으로 라우팅
 
 - **`handler.validate()` 실패** (config 형식 자체가 잘못된 경우): warningRule + `evaluateMetadataBlockingErrors` + `validateSendEmailConfig` 가 throw → 엔진이 워크플로우 실패 처리. 예: `Email integration 을 선택해야 합니다.`, `수신자 (To) 를 한 명 이상 입력해야 합니다.`, `subject is required and must be a string`, `bodyType must be either "text" or "html"`.
 - **`execute()` 안의 모든 실패**: §5.3 (`port: 'error'` + `output.error.*`) 으로 라우팅된다. 다음 코드들이 해당:
   - `EMAIL_SEND_FAILED` — nodemailer transport / SMTP 응답 실패 (fallback)
-  - `EMAIL_NO_RECIPIENTS` — `to` 정규화 결과가 빈 배열 (종전 throw, D4 이후 본 경로)
+  - `EMAIL_NO_RECIPIENTS` — `to` 정규화 결과가 빈 배열
   - `INTEGRATION_NOT_FOUND` / `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` ([공통 §4.2](./0-common.md#42-공통-에러-코드))
   - `INTEGRATION_SERVICE_UNAVAILABLE` — `__workspaceId` 컨텍스트 누락 (deployment 오류)
-
-> D4 결정으로 종전 §5.8 의 "throw → 노드 자체 실패" 표현은 `handler.validate()` 단계에만 한정된다. 종전 footnote 의 P1 개선안 (`EMAIL_NO_RECIPIENTS` 의 error 포트 라우팅) 도 D4 와 함께 완료.
 
 ## 6. 에러 코드
 
@@ -289,11 +285,11 @@ D4 이전에 send-email 은 이미 catch-all 패턴을 갖춰 다른 Integration
 
 ## 8. Rationale
 
-### 8.0 SMTP host SSRF 가드 (2026-05-29)
+### 8.0 SMTP host SSRF 가드
 
-§4 step 6 의 SSRF 가드는 HTTP Request / Database Query 노드와 **동일한 `ALLOW_PRIVATE_HOST_TARGETS` 플래그**를 공유한다(기본 차단, self-host opt-out) — integration 노드 전반의 SSRF posture 일관성. 별도 opt-in 플래그를 신설하지 않은 근거·코드명(`EMAIL_HOST_BLOCKED`) 채택 근거·chat-channel 분류표 무영향 분석은 [Spec 통합 관리 §Rationale "SMTP SSRF 가드를 http/db 와 동일 `ALLOW_PRIVATE_HOST_TARGETS` 로 통일"](../../2-navigation/4-integration.md#smtp-ssrf-가드를-httpdb-와-동일-allow_private_host_targets-로-통일-2026-05-29) 가 SoT. 연결 테스트만 막고 발송은 뚫리는 비대칭을 막기 위해 발송 경로(본 노드)에도 동일 가드를 적용한다.
+§4 step 6 의 SSRF 가드는 HTTP Request / Database Query 노드와 **동일한 `ALLOW_PRIVATE_HOST_TARGETS` 플래그**를 공유한다(기본 차단, self-host opt-out) — integration 노드 전반의 SSRF posture 일관성. 별도 opt-in 플래그를 신설하지 않은 근거·코드명(`EMAIL_HOST_BLOCKED`) 채택 근거·chat-channel 분류표 무영향 분석은 [Spec 통합 관리 §Rationale "SMTP SSRF 가드를 http/db 와 동일 `ALLOW_PRIVATE_HOST_TARGETS` 로 통일"](../../2-navigation/4-integration.md#smtp-ssrf-가드를-httpdb-와-동일-allow_private_host_targets-로-통일) 가 SoT. 연결 테스트만 막고 발송은 뚫리는 비대칭을 막기 위해 발송 경로(본 노드)에도 동일 가드를 적용한다.
 
-### 8.1 `to`/`cc`/`bcc` array-only 정준화 (2026-05-19)
+### 8.1 `to`/`cc`/`bcc` array-only 정준화
 
 종전: 표 상 `String[] / String` (sum type) — 사용자가 콤마-구분 단일 문자열 (`"alice@x.com, bob@y.com"`) 도 입력 가능.
 
@@ -306,15 +302,7 @@ D4 이전에 send-email 은 이미 catch-all 패턴을 갖춰 다른 Integration
 
 결과: raw `string` 이 들어오면 zod 단계에서 거부되어 normalizeRecipients 까지 도달하지 못하지만, validator 단독으로는 통과 — `add_node` tool 응답에는 valid 처럼 보이는데 storage 에는 array 로 강제 변환되어 의도와 다른 1-원소 array 가 저장될 수 있음.
 
-**선택지 비교** (ai-review W-2 / consistency-check I-2 후속, 2026-05-19 결정):
-
-| 안 | 효과 | 채택 여부 |
-|---|---|---|
-| ① zod 를 `z.union([z.string(), z.array(z.string())])` 로 완화 | validator 와 일치, 사용자 입력 호환성 유지 | 기각 (storage 에 두 형태 공존 — output echo·downstream 표현식이 모두 sum-type 을 처리해야 함) |
-| ② **validator + handler 를 array-only 로 좁힘 (breaking)** | 두 layer 정렬, storage·echo·표현식 모두 단일 array 형태 | **채택** (스테이징 단계, 단일 string 형태 워크플로 거의 없음) |
-| ③ array-only 좁힘 + frontend 자동 wrap (단일 string → `[string]`) | breaking 회피 | 기각 (frontend 가 backend semantic 보정 책임을 떠안음 — 책임 위치 모호) |
-
-**마이그레이션**: 본 정준화는 **breaking change** 이나, 현재 스테이징 단계로 production 데이터에 단일 string 형태 `to` 가 저장된 워크플로우가 무시할 수준이라는 사용자 판단으로 **별 마이그레이션 스크립트 없이** 진행.
+**해법**: validator + handler 를 array-only 로 좁혀 (breaking) 두 layer 를 정렬한다 — storage·echo·표현식 모두 단일 array 형태로 통일된다. zod 를 sum-type 으로 완화하면 storage 에 두 형태가 공존해 output echo·downstream 표현식이 모두 sum-type 을 처리해야 하고, frontend 자동 wrap 은 backend semantic 보정 책임을 frontend 가 떠안게 되어 책임 위치가 모호해지므로 모두 배제했다. 스테이징 단계로 단일 string 형태 워크플로가 거의 없어 별도 마이그레이션 스크립트 없이 진행한다.
 
 **결과 동작 layer**:
 - **frontend** — `widget: 'field-array'` 이미 array. 변경 없음

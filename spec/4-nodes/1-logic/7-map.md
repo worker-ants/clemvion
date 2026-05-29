@@ -101,7 +101,7 @@ code: []
 
 > 이 시점의 `output` 은 **해석된 원본 배열** 이다. body iteration 입력 분배에만 쓰이며, 다운스트림에서 직접 참조해서는 안 된다 — 완료 후 §5.2 의 `{ mapped, count }` 구조로 덮어쓰여진다.
 
-> **D2 결정 (2026-05-17)**: §5.1 의 `output: items[]` 는 **엔진-내부 전용 중간 표현**으로, 외부 expression / run history / webhook payload 어디에도 노출되지 않는다 ([common §9.1](./0-common.md#91-컨테이너-노드-핸들러--엔진-오버라이트-컨트랙트)). 핸들러 시그니처가 배열을 반환하는 것은 5필드 invariant 를 깨지 않고 엔진에 분배 데이터를 넘기기 위한 컨트랙트이며, 다운스트림은 §5.2 의 envelope 만 본다. 따라서 `null` 반환 + 별도 internal 채널 도입(B안)은 채택하지 않는다 — 동작 동등성 대비 invariant 변경 비용이 더 크다.
+> **D2 결정**: §5.1 의 `output: items[]` 는 **엔진-내부 전용 중간 표현**으로, 외부 expression / run history / webhook payload 어디에도 노출되지 않는다 ([common §9.1](./0-common.md#91-컨테이너-노드-핸들러--엔진-오버라이트-컨트랙트)). 핸들러 시그니처가 배열을 반환하는 것은 5필드 invariant 를 깨지 않고 엔진에 분배 데이터를 넘기기 위한 컨트랙트이며, 다운스트림은 §5.2 의 envelope 만 본다. 따라서 `null` 반환 + 별도 internal 채널 도입(B안)은 채택하지 않는다 — 동작 동등성 대비 invariant 변경 비용이 더 크다.
 
 **body 내부 expression 접근**:
 - `$item` → 현재 항목 (예: `{ id: 1, name: "Alice" }`)
@@ -149,11 +149,11 @@ code: []
 
 > **`errorPolicy: 'skip' / 'continue'` 시 결과 형태**: 인덱스 보존을 위해 실패 항목은 `output.mapped[i] = { _skipped: true, error: { code, message } }` 형태로 삽입된다 ([공통 §4](./0-common.md#4-에러-정책-errorpolicy) · [실행 엔진 §3.2](../../5-system/4-execution-engine.md#32-foreach--map-실행)). Map 의 의도는 "동일 타입 변환 배열" 이므로 다운스트림은 `_skipped` 플래그로 정상/실패를 구분해야 한다.
 
-> **D3 결정 (2026-05-17) — ForEach 와의 의도된 분기**: ForEach 는 `output.items[i] = null` placeholder + `output.skipped[]` 별도 배열로 실패를 분리한다 ([9-foreach.md §5.3](./9-foreach.md#53-case-변형-errorpolicy--skip--continue-시-결과-분리)). 두 노드의 차이는 **시멘틱 차이**에서 의도된 것:
+> **D3 결정 — ForEach 와의 의도된 분기**: ForEach 는 `output.items[i] = null` placeholder + `output.skipped[]` 별도 배열로 실패를 분리한다 ([9-foreach.md §5.3](./9-foreach.md#53-case-변형-errorpolicy--skip--continue-시-결과-분리)). 두 노드의 차이는 **시멘틱 차이**에서 의도된 것:
 > - **Map** = "**동일 타입 변환 배열**" 계약. 다운스트림은 `mapped.map(...)` 처럼 배열 전체를 한 번에 다루기 때문에, 실패 항목도 같은 배열에 인라인으로 두는 편이 자연스럽다. `_skipped` 플래그로 분기.
 > - **ForEach** = "**독립 항목 반복**" 계약. 각 iteration 이 독립이므로 성공-실패가 한 배열에 섞이지 않는 편이 의미가 명확하다. `items[]` 는 성공+null 만, `skipped[]` 는 실패만.
 >
-> 따라서 D3 는 통일하지 않고 현 정책을 유지한다 (plan/in-progress/node-output-redesign D3).
+> 따라서 D3 는 통일하지 않고 현 정책을 유지한다.
 
 ### 5.7 엔진 오버라이트 컨트랙트 (Principle 9)
 
@@ -164,7 +164,7 @@ code: []
 | 모든 iter 완료 (done) | `{ mapped: [...], count: N }` | **엔진이 오버라이트** |
 
 - 핸들러는 시작 시점에 한 번만 실행되어 `output: items` (배열) 를 반환한다 (`map.handler.ts` 현 구현). 엔진의 `ForEachExecutor` 는 이 배열을 body 분배 입력으로 소비하고, 모든 iter 완료 후 핸들러 재호출 없이 `{ mapped, count }` 로 노드 envelope 의 `output` 을 덮어쓴다.
-- 다운스트림 노드는 항상 §5.2 형태 (`output.mapped[i]` / `output.count`) 만 본다 — §5.1 의 raw 배열은 노출되지 않는다. **D2 결정 (2026-05-17)** 으로 이 동작은 그대로 유지된다.
+- 다운스트림 노드는 항상 §5.2 형태 (`output.mapped[i]` / `output.count`) 만 본다 — §5.1 의 raw 배열은 노출되지 않는다. **D2 결정** 으로 이 동작은 그대로 유지된다.
 - 컬렉션 키는 ForEach 의 `items`, Loop 의 `iterations`, Parallel 의 `branches` 와 모두 다르다 ([공통 §5](./0-common.md#5-반복분기-출력-구조-conventions-92) · [§9.1](./0-common.md#91-컨테이너-노드-핸들러--엔진-오버라이트-컨트랙트)). **Map 의 컬렉션 키는 반드시 `mapped`**.
 
 ## 6. 에러 코드

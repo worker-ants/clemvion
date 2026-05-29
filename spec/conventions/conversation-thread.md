@@ -184,7 +184,7 @@ race-free.
 | 단계 | 저장소 | 비고 |
 |---|---|---|
 | 실행 중 | `ExecutionContext` (실행 엔진 §6.2 정책에 따라 Redis 포함 직렬화) | `ExecutionContextService.createContext` 가 빈 thread (`{ id: 'default', nextSeq: 0, turns: [], totalChars: 0 }`) 로 초기화. TTL 은 실행 타임아웃 × 2 (execution-engine §6.2) |
-| 실행 후 | NodeExecution 분산 저장 | `output.interaction` (presentation, `interaction.type` ∈ form_submitted/button_click/button_continue), `output.result.messages` (AI 멀티턴 누적 — waiting/resumed 시. D6 2026-05-17 이후 단일 경로 — [AI Agent §7.4·§7.5](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)), `output.result.response` (AI 최종 응답) 가 SoT. thread 자체는 재구성 가능한 derived view |
+| 실행 후 | NodeExecution 분산 저장 | `output.interaction` (presentation, `interaction.type` ∈ form_submitted/button_click/button_continue), `output.result.messages` (AI 멀티턴 누적 — waiting/resumed 시. D6 단일 경로 — [AI Agent §7.4·§7.5](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)), `output.result.response` (AI 최종 응답) 가 SoT. thread 자체는 재구성 가능한 derived view |
 | WS payload | `EXECUTION_WAITING_FOR_INPUT` 의 `conversationThread` snapshot 동봉 (선택) | UI 가 라이브 thread 표시 가능 |
 
 **v1 은 신규 DB 컬럼 도입 없음.** 향후 사용자 요구 명확해지면 `Execution.conversation_thread jsonb NULL` 컬럼 마이그레이션 검토.
@@ -262,7 +262,7 @@ race-free.
 - **`$thread.text` lazy 평가**: 현재 `buildExpressionContext` 가 호출마다 전체 thread 를 system_text 로 즉시 렌더 (성능 hot path). 측정 결과 비용이 크면 `Object.defineProperty` lazy getter 또는 `$thread.text` 를 별도 key 로 분리해 명시 요청 시만 렌더.
 - **Service 모듈 위치 정리**: 현재 `codebase/backend/src/modules/execution-engine/conversation-thread/` 에 types/renderer/service 가 함께 있음. types/renderer 는 pure 라 향후 `src/shared/` 또는 별도 `@workflow/conversation-thread` 패키지로 분리해 nodes/ai → execution-engine 의 의존 그래프를 단순화 검토.
 - **Storage cap evict 정책**: §STORAGE_MAX_TURNS=500 은 LRU style FIFO drop. 향후 사용자 인터랙션 우선 보존 등 정책 옵션 검토.
-- **시각 회귀 인프라 (storybook / visual regression)**: §9.10 의 fixture 인프라는 unit 테스트 입력 export 만 제공. 시각 회귀를 자동화하려면 storybook 또는 playwright snapshot 통합이 필요 — 본 v2 로드맵 항목으로 별 PR 검토 (2026-05-19 Rationale 의 storybook 도입 기각 결정 후속).
+- **시각 회귀 인프라 (storybook / visual regression)**: §9.10 의 fixture 인프라는 unit 테스트 입력 export 만 제공. 시각 회귀를 자동화하려면 storybook 또는 playwright snapshot 통합이 필요 — 본 v2 로드맵 항목으로 검토.
 
 ---
 
@@ -270,55 +270,33 @@ race-free.
 
 설계 결정의 근거는 [Spec AI Agent §12](../4-nodes/3-ai/1-ai-agent.md#12-rationale) Rationale 섹션에 단일 인라인 — Conversation Thread 도입 동기, 선택지 비교, v1/v2 경계, 옛 `conversationHistory` 필드 제거 사유. 본 문서는 컨벤션의 단일 진실 공급원이며 동기·역사는 AI Agent 본문에 둔다.
 
-### 8.1 Conversation Preview 의 렌더 규칙 분리 (2026-05-18)
+### 8.1 Conversation Preview 의 렌더 규칙 분리
 
-**결정**: ConversationTurn 스키마는 그대로 두고, UI 렌더 규칙 (§9) + LLM payload prefix 책임 경계 (§1.5) + 금지된 인라인 마커 (§1.6) 만 명문화.
-
-**대안 비교**:
-
-| 대안 | 채택 여부 | 사유 |
-|---|---|---|
-| A. `ConversationTurn` 에 `displayKind: 'bubble'/'card'/'tool'/'system'` 필드 신설 | ❌ | `source` enum 으로 이미 1:1 도출 가능 — 중복. source → displayKind 매핑을 spec 한 곳(§9)에 명시하는 것으로 충분 |
-| B. UI 가 emit messages 의 raw content 를 그대로 표시 + `source: 'injected'` 만으로 chip 표시 | ❌ | `[from <nodeLabel>]` prefix 와 `[user-input]…[/user-input]` 같은 임의 marker 가 그대로 노출됨. 사용자 오인의 근본 원인 |
-| C. (채택) emit messages 와 `conversationThread` snapshot 의 역할 분리 + source 별 시각 매핑 강제 | ✅ | 데이터 모델 무변경. `conversationThread` snapshot 은 [WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread) 에서 이미 emit. source/nodeLabel/data 메타로 raw 파싱 없이 분기 가능 |
+**결정**: ConversationTurn 스키마는 그대로 두고, UI 렌더 규칙 (§9) + LLM payload prefix 책임 경계 (§1.5) + 금지된 인라인 마커 (§1.6) 만 명문화. emit messages 와 `conversationThread` snapshot 의 역할을 분리하고 source 별 시각 매핑을 강제한다 — 데이터 모델 무변경, `conversationThread` snapshot 은 [WebSocket §4.4.5](../5-system/6-websocket-protocol.md#445-conversation-thread-snapshot-conversationthread) 에서 이미 emit 되며 source/nodeLabel/data 메타로 raw 파싱 없이 분기 가능. (`ConversationTurn` 에 `displayKind` 필드를 신설하는 안은 `source` enum 으로 이미 1:1 도출 가능해 중복이고, UI 가 emit messages 의 raw content 를 그대로 표시하는 안은 `[from <nodeLabel>]` prefix 와 `[user-input]…[/user-input]` 마커가 그대로 노출돼 사용자 오인의 근본 원인이 된다.)
 
 **`[from <nodeLabel>]` prefix 를 `turn.text` 에 박지 않는 이유**: LLM payload 표현 (prefix prepended) 과 thread 의 본문 (raw) 은 서로 다른 layer 의 표현. text 에 박으면 ① UI 가 raw 노출 시 사용자 오인 ② thread 가 다른 LLM provider / 다른 formatter 로 가야 할 때 prefix 가 박혀 있으면 후처리 strip 부담 ③ DB 영속 형태도 prefix 가 박혀 retroactive cleanup 어려움. builder 단계에서 prepend 하면 위 3가지 모두 회피.
 
 **`[user-input]…[/user-input]` 마커 — 보안 유지 + UI strip 분리**: 본 marker 는 polyglot prompt injection 방어용 (`renderInteractionText`) — LLM 이 instruction 과 user-origin 데이터를 식별하도록 backend 가 의도적으로 박는다. 마커 자체를 폐기하면 prompt injection 표면이 확장된다. 사용자 오인 문제는 marker 폐기가 아니라 UI 표시 시점의 strip (§9.5) 으로 해결 — backend 는 LLM-facing 보안 유지, UI 는 사용자에게 노출 전 strip. 라벨/이벤트/메타 등 의미 있는 1급 데이터는 별도로 `data.buttonLabel` 격상으로 보장된다 (§1.6 표).
 
-**chip 표시 "권장 → 필수" 격상 이유** ([WebSocket §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 옛 "권장" → §9.2 의 강제 3중 신호): 사용자 오인 0% 목표는 한 신호 (chip 만) 로는 달성 불가 — 색약·다크모드·소형 화면·스크롤 상태 모두에서 안정적 구분을 위해 ① 아이콘 ② 컨테이너 형식 (bubble vs 회색 카드) ③ chip 3중을 동시 적용해야 한다. `ai-thread-source-mark` plan (2026-05-16, Phase 1 spec 완료) 이 chip 표시를 "Follow-up (별도 PR)" 으로 미뤘으나, 본 작업이 그 Follow-up 을 정식 spec 으로 흡수하며 단일 신호로는 부족하다고 판단, 강제 매핑으로 격상.
+**chip 표시 "권장 → 필수" 격상 이유** ([WebSocket §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 옛 "권장" → §9.2 의 강제 3중 신호): 사용자 오인 0% 목표는 한 신호 (chip 만) 로는 달성 불가 — 색약·다크모드·소형 화면·스크롤 상태 모두에서 안정적 구분을 위해 ① 아이콘 ② 컨테이너 형식 (bubble vs 회색 카드) ③ chip 3중을 동시 적용해야 한다 — 단일 신호로는 부족하므로 강제 매핑으로 격상.
 
-**emit messages 를 conversation Preview 에서 격리한 이유** (§9.3 D4 / §9.4 D6): `ai-thread-source-mark` Open Question 의 잠정 결정은 "injection 메시지를 UI conversation timeline 에 보여주되 turn 카운팅에서만 제외" 였다. 본 작업은 이 잠정 결정을 재검토해 **conversation Preview 의 1차 소스를 `conversationThread` snapshot 으로 교체**하고 emit messages 는 LLM debug 패널 (Request/Response/LLM Usage) 전용으로 격리한다. 사유: emit messages 는 LLM 으로 간 페이로드와 1:1 정합이 목적이라 `[from <nodeLabel>]` prefix 가 박혀 있고, 이를 conversation Preview 가 그대로 표시하면 사용자 오인 + raw payload 의 strip 부담이 매 렌더마다 발생. `conversationThread` snapshot 은 source/nodeLabel/data 메타가 라이브로 살아있어 raw 파싱 없이 시각 분기가 자연스럽다.
+**emit messages 를 conversation Preview 에서 격리한 이유** (§9.3 D4 / §9.4 D6): **conversation Preview 의 1차 소스를 `conversationThread` snapshot 으로 두고** emit messages 는 LLM debug 패널 (Request/Response/LLM Usage) 전용으로 격리한다. 사유: emit messages 는 LLM 으로 간 페이로드와 1:1 정합이 목적이라 `[from <nodeLabel>]` prefix 가 박혀 있고, 이를 conversation Preview 가 그대로 표시하면 사용자 오인 + raw payload 의 strip 부담이 매 렌더마다 발생. `conversationThread` snapshot 은 source/nodeLabel/data 메타가 라이브로 살아있어 raw 파싱 없이 시각 분기가 자연스럽다.
 
-### 8.2 UI 계약 SoT 격상 (2026-05-19, §9.6 ~ §9.11)
+### 8.2 UI 계약 SoT 격상 (§9.6 ~ §9.11)
 
 **결정**: 데이터 모델 + LLM context 정책만 spec 화되어 있던 §9 를 **UI 라이프사이클·렌더 계약 SoT** 로 확장. §9.6~§9.11 신설 (tool-call 그룹 시각 정책 / WS 이벤트 → store 변환 계약 / content blank 동치성 / UI Invariants / 회귀 차단 시나리오 / 변환 함수 contract).
 
-**배경**: 2026-05-18 ~ 19 사이 conversation Preview UI 가 4번 회귀 (PR #206 → #208 → #210 → #214). 각 회귀가 동일 영역에서 발생한 공통 원인은 spec 이 "데이터 모델 + LLM context 정책" 만 명세하고 **UI 동적 라이프사이클** 이 결여돼 있어 매 PR 마다 구현자가 추측 의사결정을 내린 것.
+**배경**: conversation Preview UI 가 동일 영역에서 반복 회귀했고, 그 공통 원인은 spec 이 "데이터 모델 + LLM context 정책" 만 명세하고 **UI 동적 라이프사이클** 이 결여돼 있어 구현자가 매번 추측 의사결정을 내린 것이다. 따라서 `conversation-thread.md` §9 를 시각 매핑 + UI 계약 양 축으로 확장해 단일 SoT 를 보존한다 — §9.6~§9.11 이 §9.1~§9.5 와 직접 cross-link 되며, 회귀 발생 시 §9.10 의 회귀 시나리오 표 갱신만으로 추적 가능하다. (§9.1 표 비고만 미세 추가하는 안은 §9.1 이 정적 매핑이지 라이프사이클 계약이 아니라 효과가 없고, 별도 spec 파일 신설은 데이터 모델과 UI 계약이 동일 도메인이라 cross-link 부담·drift 위험을 키운다.)
 
-**대안 비교**:
+**storybook 도입 기각**: §9.10 의 fixture 인프라는 unit 테스트 입력 export 만 제공한다. 시각 회귀를 자동화하려면 storybook 또는 playwright snapshot 통합이 필요하지만 별도 인프라 의존이 크다 — §7 v2 로드맵의 "시각 회귀 인프라" 항목으로 이관.
 
-| 대안 | 채택 여부 | 사유 |
-|---|---|---|
-| A. 회귀가 날 때마다 §9.1 표 비고만 미세 추가 | ❌ | 4번 반복으로 효과 없음. §9.1 은 정적 매핑이지 라이프사이클 계약이 아님 |
-| B. UI 영역의 별도 spec 파일 신설 (`spec/3-workflow-editor/conversation-ui.md`) | ❌ | conversation-thread 의 데이터 모델과 UI 계약이 동일 도메인 — 분리하면 cross-link 부담 증가, drift 위험 |
-| C. (채택) `conversation-thread.md` §9 를 시각 매핑 + UI 계약 양 축으로 확장 | ✅ | 단일 SoT 보존. §9.6~§9.11 이 §9.1~§9.5 와 직접 cross-link. 회귀 발생 시 §9.10 의 회귀 시나리오 표 갱신만으로 추적 가능 |
-
-**storybook 도입 기각**: §9.10 의 fixture 인프라는 unit 테스트 입력 export 만 제공한다. 시각 회귀를 자동화하려면 storybook 또는 playwright snapshot 통합이 필요하지만, 본 PR 의 범위 (spec + fixture + isAssistantContentBlank 위치 이전) 를 초과해 별 인프라 의존이 크다 — §7 v2 로드맵의 "시각 회귀 인프라" 항목으로 이관.
-
-### 8.3 `system_error` source 신설 (2026-05-23)
+### 8.3 `system_error` source 신설
 
 **결정**: 멀티턴 AI Agent (또는 추후 다른 LLM 노드) 가 `output.error` 와 함께 종결될 때 conversation thread 안에 인라인으로 표시되는 `system_error` source 를 신설. 시각·인터랙션·payload 단일 정의는 §1.1 / §1.2 / §9.1.
 
-**대안 비교**:
+`ConversationTurnSource` 에 `system_error` 신규 enum 값을 추가하는 방식을 채택한다 — source 단독 분기 SoT 를 유지하면서 thread 자연 순서를 보존하고, `system` 행과 시각·의미·인터랙션이 모두 달라 별도 source 가 정합하다. AST 가드 (`interaction-type-exhaustiveness.test.ts`) 가 모든 처리 분기 위치 등록을 강제한다. (기존 `system` source 를 `data.kind` discriminator 로 재사용하는 안은 source 의 1:1 시각 매핑 (§9.1) 을 1:N 으로 분기시켜 미리보기 매핑표의 단순함을 잃고, `system_error` 는 재시도 버튼 인터랙션이 있어 read-only `system` note 와 의미 부담이 다르다. 별도 store 필드로 분리하는 안은 live conversation thread 의 자연 순서를 잃고 §9.6 그룹 정책과의 상호작용 재설계가 필요하다.)
 
-| 대안 | 채택 여부 | 사유 |
-|---|---|---|
-| A. 기존 `system` source 를 재사용 + `data.kind: 'error' | 'note'` discriminator | ❌ | source enum 의 1:1 시각 매핑 (§9.1) 이 1:N 으로 분기 — 미리보기 매핑표가 source 단독으로 결정 가능한 단순함을 잃는다. 또한 `system_error` 는 인터랙션 (재시도 버튼) 이 있어 read-only `system` note 와 의미 부담이 다르다. |
-| B. 별도 store 필드 (예: `nodeErrors: Map<nodeId, error>`) 로 분리 + UI 가 conversation 과 합성 | ❌ | live conversation thread 의 자연 순서 (어느 user turn 직후 실패) 를 잃는다. timeline 위치가 별도 layer 에 따라 결정되면 §9.6 그룹 정책과의 상호작용도 재설계 필요. |
-| C. (채택) `ConversationTurnSource` 에 `system_error` 신규 enum 값 추가 | ✅ | source 단독 분기 SoT 유지 + thread 자연 순서 보존. `system` 행과 시각·의미·인터랙션이 모두 달라 별 source 가 정합. AST 가드 (`interaction-type-exhaustiveness.test.ts`) 가 모든 처리 분기 위치 등록을 강제. |
-
-**`startExecution` 만 conversation 을 클리어하는 이유 — Inv-6**: 이전 정책 (failExecution 시 conversation 전체 클리어) 은 사용자가 "왜 대화가 사라졌지?" 의 혼동을 일으켰다 (사용자 보고 — Gemini 429 quota 에러 시 multi-turn 대화 전체 소실). conversation thread 는 사용자가 직접 발화한 user turn + LLM 응답 + tool 호출의 합성이라 노드 실패와 무관하게 가치를 갖는다. `startExecution` 만 클리어함으로써 (a) 사용자 발화 보존 (b) system_error 가 thread 의 자연 위치에서 끊김을 표시 (c) retry 시 자연스럽게 이어짐 — 3가지 효과를 한 정책으로 얻는다.
+**`startExecution` 만 conversation 을 클리어하는 이유 — Inv-6**: failExecution 시 conversation 전체를 클리어하면 사용자가 "왜 대화가 사라졌지?" 의 혼동을 일으킨다 (예: quota 에러 시 multi-turn 대화 전체 소실). conversation thread 는 사용자가 직접 발화한 user turn + LLM 응답 + tool 호출의 합성이라 노드 실패와 무관하게 가치를 갖는다. `startExecution` 만 클리어함으로써 (a) 사용자 발화 보존 (b) system_error 가 thread 의 자연 위치에서 끊김을 표시 (c) retry 시 자연스럽게 이어짐 — 3가지 효과를 한 정책으로 얻는다.
 
 **시각·인터랙션 — `system_error` 가 `system` note 와 다른 컨테이너 강조 (빨간 라인)**: §9.1 매핑표가 system note (얇은 회색 텍스트) 와 system_error (얇은 빨간 라인 + 우측 액션 영역) 를 시각으로 분리. §9.2 의 3중 신호 (아이콘 + 컨테이너 + chip) 가 동시 적용된다 — 단일 신호 (예: 색상만) 로 구분하지 않는 정책은 system_error 에도 동일하게 강제.
 
@@ -474,7 +452,7 @@ REPLACE 는 unconditional 배열 교체가 아니라 **carry-over policy 가 명
 | `resumeFromForm` / `resumeFromButtons` / `resumeFromConversation` (waiting 해제) | ✅ 적용 | ❌ 미적용 — 대화 진행 중 |
 | `resumeFromAiRenderForm` (AI Agent render_form 제출 후) | ❌ **미적용 — conversation/AI 응답 대기 상태 보존** | ❌ 미적용 — 대화 진행 중 |
 
-`resumeFromAiRenderForm` 의 **별도 분기**는 의도된 비대칭: `render_form` 제출은 multi-turn AI 대화 한복판의 form 입력 1건 완료이지 `waiting_for_input` 해제 자체가 아니다. `waitingNodeId` / `waitingInteractionType: 'ai_form_render'` / `waitingConversationConfig` / `isWaitingAiResponse: true` 는 보존하고, `waitingConversationConfig.pendingFormToolCall` 만 null 로 클리어 (nested patch) — UI 가 form payload 를 `FormSubmittedContent` 로 자연 전환하면서 AI 응답 대기 spinner 가 유지된다. 옛 동작 (`resumeFromForm` 호출로 affordance 전체 클리어 → conversationPreview 가 live → completed 분기로 떨어지면서 timeline 깜빡임) 의 회귀 차단 ([Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합-2026-05-23)).
+`resumeFromAiRenderForm` 의 **별도 분기**는 의도된 비대칭: `render_form` 제출은 multi-turn AI 대화 한복판의 form 입력 1건 완료이지 `waiting_for_input` 해제 자체가 아니다. `waitingNodeId` / `waitingInteractionType: 'ai_form_render'` / `waitingConversationConfig` / `isWaitingAiResponse: true` 는 보존하고, `waitingConversationConfig.pendingFormToolCall` 만 null 로 클리어 (nested patch) — UI 가 form payload 를 `FormSubmittedContent` 로 자연 전환하면서 AI 응답 대기 spinner 가 유지된다. 옛 동작 (`resumeFromForm` 호출로 affordance 전체 클리어 → conversationPreview 가 live → completed 분기로 떨어지면서 timeline 깜빡임) 의 회귀 차단 ([Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합)).
 
 본 정책의 단일 진실은 본 §9.7.1. 다른 spec 의 lifecycle 표 (예: [Spec 실행 §10.8](../3-workflow-editor/3-execution.md#108-라이프사이클)) 는 본 정책을 cross-ref 한다.
 
@@ -521,7 +499,7 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 | Inv-4 | live tool row 는 thread snapshot 이 lean (`includeToolTurns: false`) 이어도 store 에 보존돼야 한다. (§9.7 의 MERGE orphan tools 책임) |
 | Inv-5 | tool-call 그룹 분류·sequence-claim 결과는 §9.6 의 단일 결정 함수 `groupToolCallItems` 에서 도출. conversation Preview (`SummaryView`) 와 실행 트리 timeline (`ResultTimeline`) 양 surface 가 동일 결과를 사용 — 행 시각 형식 (chip vs 한 줄) 의 차이는 허용하지만 그룹 구성·자식 수·claim 결과는 동일. |
 | Inv-6 | 노드 실패 / 실행 실패 시 store `conversationMessages` 는 비워지지 않는다 — `startExecution` 만 conversation snapshot 을 클리어한다. 정의 단일 진실: §9.7.1 store reset 정책. `system_error` item 은 thread 의 마지막에 APPEND 되며, 기존 user / assistant / tool item 은 변형되지 않는다 (immutability — Inv-3 의 메타데이터 불변 원칙과 동일 강도). |
-| Inv-7 | AI Agent `render_form` 활성 form 의 submit 직후 store 의 multi-turn 컨텍스트 (`waitingNodeId`, `waitingInteractionType: 'ai_form_render'`, `waitingConversationConfig` 중 `pendingFormToolCall` 를 제외한 나머지, `isWaitingAiResponse: true`) 는 보존된다. `pendingFormToolCall` 만 null 로 클리어 — `resumeFromAiRenderForm` 의 nested patch 책임. 회귀 방지: 옛 `resumeFromForm` 가 affordance 전체 클리어해 ConversationInspector 가 live → completed 분기로 떨어져 `result.status !== 'completed'` 인 server-side waiting 상태에서 preview = null 로 깜빡이던 버그 ([Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합-2026-05-23)). 정의 단일 진실: §9.7.1 store reset 정책 표의 `resumeFromAiRenderForm` 행. |
+| Inv-7 | AI Agent `render_form` 활성 form 의 submit 직후 store 의 multi-turn 컨텍스트 (`waitingNodeId`, `waitingInteractionType: 'ai_form_render'`, `waitingConversationConfig` 중 `pendingFormToolCall` 를 제외한 나머지, `isWaitingAiResponse: true`) 는 보존된다. `pendingFormToolCall` 만 null 로 클리어 — `resumeFromAiRenderForm` 의 nested patch 책임. 회귀 방지: 옛 `resumeFromForm` 가 affordance 전체 클리어해 ConversationInspector 가 live → completed 분기로 떨어져 `result.status !== 'completed'` 인 server-side waiting 상태에서 preview = null 로 깜빡이던 버그 ([Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합)). 정의 단일 진실: §9.7.1 store reset 정책 표의 `resumeFromAiRenderForm` 행. |
 
 ### 9.10 회귀 차단 시나리오
 
@@ -546,7 +524,7 @@ LLM provider 가 어떤 형태로 content 를 emit 하든 (Anthropic `null`, Ope
 
 본 시나리오들의 **입력 fixture** 는 `codebase/frontend/src/components/editor/run-results/__tests__/fixtures/conversation-scenarios.ts` 에 단일 export 로 둔다. 새 시나리오 발견 시 본 표 추가 + fixture 추가 + 해당 테스트 작성을 PR review 의 의무로 한다.
 
-**구현 상태** (2026-05-20, PR #214 머지 후): CT-S1 ~ CT-S8 모두 기존 단위 테스트로 충족된다. 1차 매핑:
+**구현 상태**: CT-S1 ~ CT-S8 모두 기존 단위 테스트로 충족된다. 1차 매핑:
 
 | ID | 충족 테스트 |
 | --- | --- |
@@ -582,21 +560,3 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 | `mergeOrphanToolItems(threadItems, prev)` | (threadItems, store prev) → merged items | `handleWaitingForInput` 내부 — REPLACE 직전 |
 
 신규 변환 path 도입 시 본 contract 표 갱신 + §9.11 의 등가성 정의 만족 여부 검토 의무.
-
----
-
-## 10. CHANGELOG
-
-| 일자 | 변경 |
-|---|---|
-| 2026-05-14 | 신규 작성 — Conversation Thread 정식 도입 |
-| 2026-05-16 | AI Agent 의 옛 `conversationHistory` / `historyCount` schema·UI 메타 제거 (`contextScope` / `contextScopeN` 로 단일화) |
-| 2026-05-16 | §5.1 에 emit 레이어 연계 설명 신규 추가 — injection 산출 메시지가 WebSocket emit 시 `source: 'injected'` 마커를 동봉하며, 이는 [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 WebSocket 페이로드 전용 2값 표식이다 (내부 `ConversationTurnSource` 5값과 구별). 디버깅 타임라인의 turn 카운팅이 backend `turnCount` 와 일치하기 위한 전제 |
-| 2026-05-18 | §1.2 의 `text` / `data` 의미 명확화. §1.5 (LLM payload prefix 컨벤션) · §1.6 (금지된 인라인 마커) · §9 (미리보기 UI 렌더 규칙) 신규. §8.1 Rationale 추가. [Spec WebSocket Protocol §4.4.6](../5-system/6-websocket-protocol.md#446-messagessource-마커) 의 chip "권장" 을 §9.2 의 3중 신호 정규 매핑으로 강제 격상 |
-| 2026-05-18 | (구현 단계 발견) §1.5 명확화 — `[from <nodeLabel>]` prefix 가 `output.result.messages` 와 emit messages 에 함께 영속되어 LLM history attribution 을 유지함을 명시 (기존 "prefix 미포함" 진술 정정). §1.6 재정의 — `[user-input]…[/user-input]` 마커는 prompt injection 방어용 LLM-facing 마커로 유지 (옛 "금지" 진술을 "LLM-facing 의무 + UI strip" 으로 정정). §8.1 Rationale 의 "폐기" 항목을 "보안 유지 + UI strip 분리" 로 재기술. §9.5 를 "옛 임의 marker 호환" 에서 "LLM-facing 마커의 UI strip" 로 의미 명확화 |
-| 2026-05-18 | (consistency-check 후속) §1.2 `text` 행을 §1.6 와 정합되도록 재진술 (자기 충돌 C-1 해소): "인라인 마커 박지 않는다" → "user 출처 marker 는 §1.6 의무, UI strip 으로 처리". §1.2 `data?` 행에서 node-output §4.5 shape 인라인 재열거 제거 (drift 회피, §4.5 단일 정의에 위임). §1.4 표 구조 4열 확장 (UI 카드 헤더 · 본문 컬럼 추가). §4 영속화 행의 `output.messages` 를 D6 단일 경로 `output.result.messages` 로 정정 |
-| 2026-05-19 | §9 확장 — §9.6 (tool-call 그룹 시각 정책), §9.7 (WS 이벤트 → store 변환 계약), §9.8 (content blank 동치성), §9.9 (UI Invariants), §9.10 (회귀 차단 시나리오), §9.11 (변환 함수 contract) 신설. §9 prologue 에 라이프사이클 다이어그램 추가. §9.1 `ai_assistant` 행에 §9.6 parent chip 분기 비고, `ai_tool` 행 status badge 표기를 `pending/success/error` 로 확장. §9.5 진입점 목록에 `mergeOrphanToolItems` 추가. 4건 UI 회귀 (PR #206/#208/#210/#214) 의 spec 결손 보강. fixture 인프라 (`__tests__/fixtures/conversation-scenarios.ts`) 와 `isAssistantContentBlank` 위치 이전을 동일 PR 에 동반 |
-| 2026-05-19 | §9.6 보강 — tool-call 그룹 분류의 단일 결정 함수 `groupToolCallItems` 명시 + 적용 surface 표 (conversation Preview + 좌측 실행 트리 timeline) 추가. §9.9 Inv-5 신설 — 두 surface 가 동일 그룹 결과 사용 강제. 좌측 timeline 의 빈 봇 행 + 후행 tool 평면 노출이 conversation Preview 와 시각 차이를 만들어 사용자 혼동 발생 (스크린샷 보고). conversation Preview 의 chip + indent tree 시각을 좌측 timeline 에 동일 정책으로 적용 |
-| 2026-05-20 | §9.10 충족 상태 표 추가 (PR #214 머지 후 후속 정리, plan W-4) — CT-S1 ~ CT-S8 의 1차 매핑 테스트 파일·describe·it 명시. 표 변경 없음, 부가 정보. |
-| 2026-05-23 | §1.2 `presentations?` 행 비고에 `type: 'form'` 페이로드의 활성 form UI 단일 진실 (assistant turn timeline 인라인, `pendingFormToolCall.toolCallId` 매칭 분기) 추가. §9.1 `ai_assistant` 행에 chat bubble 내 inline 렌더 + form active/submitted 분기 비고 추가. §9.7 표에 `waiting_for_input (interactionType=ai_form_render)` 행 신설 — `pendingFormToolCall: { toolCallId, formConfig }` 저장 정책. §9.7.1 store reset 표에 `resumeFromAiRenderForm` 행 신설 — `pendingFormToolCall` 만 nested null patch, 나머지 affordance 보존 (옛 `resumeFromForm` 의 affordance 전체 클리어 회귀 차단). §9.9 Inv-7 신설 — multi-turn 컨텍스트 보존 invariant. §9.10 CT-S12/S13/S14 신설 — 활성 form 제출 후 timeline persist / 여러 turn 의 활성↔제출 분기 / form bypass 시 cancelled fallback 시나리오. 결정 근거: [Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합-2026-05-23) |
-| 2026-05-23 | §1.1 `system_error` source 신설 — multi-turn AI Agent 가 `output.error` 와 함께 종결될 때 conversation thread 안에 인라인 표시. §1.2 `data?` 비고에 system_error 한정 payload shape (`{code, message, retryable, retryAfterSec?, nodeId, nodeLabel}`) 인라인 정의. §9.1 매핑표에 `system_error` 행 (❌ 빨간 라인 + chip + `[다시 시도]` 버튼) 추가. §9.2 3중 신호에 ❌ 아이콘 등록. §9.6 그룹 정책에 system_error 가 unclaim 상태 유지 명시. §9.7.1 store reset 정책 신설 — `failExecution` / `completeExecution` 시 conversation snapshot 보존, `startExecution` 만 클리어 (Inv-6 의 단일 진실). §9.7 표에 `node.failed` / `node.completed` (with error) 두 행 APPEND 정책 추가. §9.9 Inv-6 신설 (Inv 6개로 확장). §9.10 CT-S9/S10/S11 신설 — retryable / non-retryable / retry 후 새 turn 시나리오. §8.3 Rationale 신설 — `system_error` vs `system` 재사용 결정 (§8.3 Rationale 참조). |

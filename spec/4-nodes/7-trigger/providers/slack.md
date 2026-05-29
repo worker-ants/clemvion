@@ -83,7 +83,7 @@ Events API 의 "Request URL" 은 Slack 앱 manifest 의 사전 등록 사항 —
 
 ### 3.3 `views.open` 구체 (native form modal)
 
-[Convention §4.1 native modal 경로](../../../conventions/chat-channel-adapter.md#41-native-modal-경로-2026-05-28-신설) 의 Slack 구현. `form_modal` 버튼 (`action_id: "__open_form__"`) 클릭 → parseUpdate 가 `open_form_modal` command (openContext.triggerId) 반환 → `HooksService` 가 `openFormModal` 에서 `block_actions` 의 `trigger_id` (3초 유효) 로 즉시 modal open:
+[Convention §4.1 native modal 경로](../../../conventions/chat-channel-adapter.md#41-native-modal-경로) 의 Slack 구현. `form_modal` 버튼 (`action_id: "__open_form__"`) 클릭 → parseUpdate 가 `open_form_modal` command (openContext.triggerId) 반환 → `HooksService` 가 `openFormModal` 에서 `block_actions` 의 `trigger_id` (3초 유효) 로 즉시 modal open:
 
 ```
 POST https://slack.com/api/views.open
@@ -122,7 +122,7 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 |---|---|
 | `event.type === "message"` & `event.channel_type === "im"` & no `bot_id` & `subtype === undefined` | `{ kind: "text_message", text: event.text }` |
 | `event.type === "app_mention"` (모든 채널) | DM 외 채널 → `null` (R-S-4). DM 안의 mention 은 `text_message` 로 흡수 |
-| `event.type === "file_shared"` & DM | `parseUpdate` 는 `{ kind: "file_upload", fileId: event.file_id, mimeType: "application/octet-stream" }` 를 동기 반환 (Convention §1.1 pure 계약 유지). 실제 mimeType / filename / url_private 보강은 **호출자 (`HooksService`) 가 `files.info` 1회 후속 호출** 책임 — 자세한 흐름은 Rationale R-S-7 (채택) |
+| `event.type === "file_shared"` & DM | `parseUpdate` 는 `{ kind: "file_upload", fileId: event.file_id, mimeType: "application/octet-stream" }` 를 동기 반환 (Convention §1.1 pure 계약 유지). 실제 mimeType / filename / url_private 보강은 **호출자 (`HooksService`) 가 `files.info` 1회 후속 호출** 책임 — 자세한 흐름은 Rationale R-S-7 |
 | `event.type === "message"` & `event.channel_type ∈ ('channel', 'group', 'mpim')` | `null` — 호출자가 `groupChatRefusal` 안내 |
 | `event.type === "message"` & `bot_id` 존재 또는 `subtype === "bot_message"` | `null` — 봇/자기 메시지 무시 |
 | 그 외 event (`reaction_added`, `team_join` 등) | `null` — v1 미처리 |
@@ -135,7 +135,7 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 | `"block_actions"` & `actions[0].action_id === "__open_form__"` | `{ kind: "open_form_modal", openContext: { triggerId } }` — `HooksService` 가 `openFormModal` 에서 `trigger_id` 로 `views.open` 호출 (§3.3 / §4.1 native modal 게이팅) |
 | `"block_actions"` (button tap) | `{ kind: "button_callback", callbackData: payload.actions[0].value }` |
 | `"block_actions"` (select menu) | `{ kind: "button_callback", callbackData: payload.actions[0].selected_option.value }` |
-| `"view_submission"` & `view.callback_id === "clemvion_form"` (modal submit) | **`{ kind: "form_submission", fields }`** — `payload.view.state.values` 를 `{ <field.name>: rawValue }` 로 평탄화 (block_id=field.name, element value 추출). native form modal 채택 ([R-S-6](#r-s-6-form--5-fields-이하-native-modal-6-또는-multi_step-opt-out-시-다단계-2026-05-24-갱신-2026-05-28)) |
+| `"view_submission"` & `view.callback_id === "clemvion_form"` (modal submit) | **`{ kind: "form_submission", fields }`** — `payload.view.state.values` 를 `{ <field.name>: rawValue }` 로 평탄화 (block_id=field.name, element value 추출). native form modal 채택 ([R-S-6](#r-s-6-form--5-fields-이하-native-modal-6-또는-multi_step-opt-out-시-다단계)) |
 | `"shortcut"` / `"message_action"` / `"view_closed"` | v1 `null` (view_closed 시 execution 은 waiting 유지 — 버튼 메시지 잔존, 사용자 재클릭 가능. Convention §4) |
 
 **3초 ack 의무**: Slack Interactivity 는 endpoint 가 3초 안에 `200 OK` 를 반환해야 한다. `ackInteraction` 이 즉시 빈 body 200 응답 — 비동기 후속 갱신은 `response_url` (1시간 유효, 5회 한도) 로 별 POST.
@@ -215,7 +215,7 @@ server-side validation 실패 시: §4.1 modal 은 `view_submission` 응답 `res
 
 ### 5.4 Carousel / Chart / Table (CCH-MP-04)
 
-[Convention §3 매핑 표](../../../conventions/chat-channel-adapter.md#3-eia-event--rendernode-매핑) 의 `uiMapping.visualNode` enum 분기 적용. **v1 = mrkdwn 텍스트/monospace 표현** (의존성 추가 없음). v2 SSR PNG 격상은 별 plan [`chat-channel-visual-ssr-png`](../../../../plan/in-progress/chat-channel-visual-ssr-png.md) 공유 (Telegram §5.4 와 동일 격상 trigger). v1 단계에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음).
+[Convention §3 매핑 표](../../../conventions/chat-channel-adapter.md#3-eia-event--rendernode-매핑) 의 `uiMapping.visualNode` enum 분기 적용. **v1 = mrkdwn 텍스트/monospace 표현** (의존성 추가 없음). v2 SSR PNG 격상 예정 (Telegram §5.4 와 동일 격상 trigger). v1 단계에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음).
 
 **노드타입 × enum × 버전 매트릭스**:
 
@@ -234,7 +234,7 @@ server-side validation 실패 시: §4.1 modal 은 `view_submission` 응답 `res
 
 Slack Web API 는 server-initiated typing indicator 가 없다 (`as_user=true` + Real Time Messaging 의 `typing` event 는 Socket Mode 전용). v1 은 **no-op** — `renderNode` 가 typing ChannelMessage 를 생성하지 않거나 `sendMessage` 가 silent skip. UX 영향:
 
-- LLM 응답 latency 가 긴 경우 (수 초~수 십 초) 사용자가 "봇이 죽었나" 느낄 수 있음 — 별 plan [`chat-channel-progress-indicator`](../../../../plan/in-progress/chat-channel-progress-indicator.md) (v2 후보 — 생성 보류) 에서 "처리 중입니다" 라는 임시 메시지를 보낸 후 응답으로 `chat.update` 갱신하는 방안 검토.
+- LLM 응답 latency 가 긴 경우 (수 초~수 십 초) 사용자가 "봇이 죽었나" 느낄 수 있음 — v2 후보로 "처리 중입니다" 라는 임시 메시지를 보낸 후 응답으로 `chat.update` 갱신하는 방안 검토.
 
 Convention §1.1 의 `ackInteraction` 정책 — provider 에 따라 noop 가능. Slack 의 typing 도 동일 정신: provider 가 native 미지원 시 no-op 허용.
 
@@ -246,7 +246,7 @@ Convention §1.1 의 `ackInteraction` 정책 — provider 에 따라 noop 가능
 |---|---|
 | API 호출 | `POST https://slack.com/api/chat.postMessage` (1회) |
 | 본문 | `text` = `languageHints[key]` 의 `{statusCode}` 치환 결과. **mrkdwn 무사용** (`<>*_~` 등 mrkdwn 문법 회피, plain text). `blocks` 미부여 |
-| `thread_ts` | 미부여 (1:1 DM 가정 — [R-S-4](#r-s-4-groupchannelmpim-거부--dm-만-지원-2026-05-24) 의 DM only) |
+| `thread_ts` | 미부여 (1:1 DM 가정 — [R-S-4](#r-s-4-groupchannelmpim-거부--dm-만-지원) 의 DM only) |
 | `channel` | conversation 의 `channel_id` (기존 `chat.postMessage` 매핑과 동일) |
 | timeout / retry | [CCH-SE-01](../../../5-system/15-chat-channel.md#34-신뢰성--보안) 동일 — 5초 timeout + 3회 지수 백오프. 최종 실패 시 `chat_channel_health=degraded` |
 
@@ -298,62 +298,45 @@ Telegram §7 의 `/start` / `/cancel` / `/help` 와 의미 1:1 — Slack 은 단
 
 ## Rationale
 
-### R-S-1. `inboundSigningRef` 단일 슬롯 공유 — provider 별 의미·발급 주체는 backend 분기 (2026-05-24, 갱신 2026-05-24)
+### R-S-1. `inboundSigningRef` 단일 슬롯 공유 — provider 별 의미·발급 주체는 backend 분기
 
-대안:
-1. **(채택) `inboundSigningRef?` 단일 슬롯 (Telegram / Slack / Discord 공유)**: 세 자원 (Telegram secret_token / Slack signing secret / Discord public key) 의 공통 role 은 "inbound webhook 출처 검증용 자료". ref 슬롯을 단일화하면 (a) Convention 의 필드 폭 ↓ (b) 새 provider 추가 시 ref 신설 불필요 (c) catalog 와 data-model 의 naming 일관성 ↑. 발급 주체·검증 알고리즘 차이는 backend 의 provider 분기 책임으로 흡수 (provider 가 이미 `provider` 식별자로 분기되므로 자연).
-2. **(기각) `signingSecretRef` 별 필드 + `secretTokenRef` (Telegram) / `publicKeyRef` (Discord) 의 3 필드**: 초기 안. provider 별 의미 차이를 필드명으로 표면화하는 장점은 있으나, 동일 role 의 자원이 3개 ref 슬롯에 흩어져 (a) Convention §2.3 의 필드 수 ↑ (b) `bot-token` 처럼 provider 공통 자원과 패턴 비대칭 (provider 공통은 단일 필드, provider 별은 다중 필드 — 일관성 ↓) (c) 새 provider 추가 시 ref 필드 신설 의무. 본 안의 ownership 모호성 우려는 backend 의 provider 분기 + `SetupResult.issuedInboundSigning` 의 "server-issued 한정" 명시로 충분히 해소됨.
-3. **(기각) `webhookSecretRef` (Telegram 만 generic 이름) + Slack/Discord 별 필드 — 본 plan 시작 직전 상태**: naming 비일관 (Telegram 만 generic). 통합 결정 정당화.
+`inboundSigningRef?` 단일 슬롯 (Telegram / Slack / Discord 공유) 채택: 세 자원 (Telegram secret_token / Slack signing secret / Discord public key) 의 공통 role 은 "inbound webhook 출처 검증용 자료". ref 슬롯을 단일화하면 (a) Convention 의 필드 폭 ↓ (b) 새 provider 추가 시 ref 신설 불필요 (c) catalog 와 data-model 의 naming 일관성 ↑. 발급 주체·검증 알고리즘 차이는 backend 의 provider 분기 책임으로 흡수 (provider 가 이미 `provider` 식별자로 분기되므로 자연). ownership 모호성 우려는 backend 의 provider 분기 + `SetupResult.issuedInboundSigning` 의 "server-issued 한정" 명시로 해소.
 
-근거: 사용자 결정 (2026-05-24, [`plan/in-progress/spec-chat-channel-inbound-signing-rename.md`](../../../../plan/in-progress/spec-chat-channel-inbound-signing-rename.md)) — role-based generic naming 으로 통합. Slack 의 자원은 secret-store 의 `secret://triggers/{id}/inbound-signing` 슬롯에 보관되며, backend 의 SlackAdapter 가 HMAC-SHA256 알고리즘으로 검증한다. Migration 불필요 (production data 없음).
+근거: role-based generic naming 으로 통합. Slack 의 자원은 secret-store 의 `secret://triggers/{id}/inbound-signing` 슬롯에 보관되며, backend 의 SlackAdapter 가 HMAC-SHA256 알고리즘으로 검증한다. Migration 불필요 (production data 없음).
 
-### R-S-2. Events API Request URL 자동 등록 미지원 (2026-05-24)
+### R-S-2. Events API Request URL 자동 등록 미지원
 
-대안:
-1. **(채택) 사용자가 Slack 앱 manifest 에 사전 등록**: Slack 의 Events API Request URL 은 OAuth Install 흐름 안에 묶여 있지 않고 앱 manifest 의 정적 설정. API 로 동적 변경 불가능 (Slack Web API 미제공).
-2. **(기각) [`POST /apps.manifest.update`](https://api.slack.com/methods/apps.manifest.update) 호출**: 본 API 는 `xoxe.xoxp-*` configuration token (앱 owner 의 user token) 만 인정 — 워크플로우 사용자의 bot token 으로는 호출 불가. ops 부담 큼.
+사용자가 Slack 앱 manifest 에 사전 등록한다: Slack 의 Events API Request URL 은 OAuth Install 흐름 안에 묶여 있지 않고 앱 manifest 의 정적 설정 — API 로 동적 변경 불가능 (Slack Web API 미제공). `apps.manifest.update` 는 `xoxe.xoxp-*` configuration token (앱 owner 의 user token) 만 인정하여 워크플로우 사용자의 bot token 으로는 호출 불가.
 
-근거: Slack 의 design 제약 — `setupChannel` 은 `auth.test` 로 identity 캐시만, URL 등록 verification 은 호출자가 응답 헤더 처리. UI 가이드에 manifest 입력 안내 추가 (별 [user guide 페이지](../../../../codebase/frontend/src/content/docs/triggers/) — 후속 impl plan 책임).
+근거: Slack 의 design 제약 — `setupChannel` 은 `auth.test` 로 identity 캐시만, URL 등록 verification 은 호출자가 응답 헤더 처리. UI 가이드에 manifest 입력 안내 추가.
 
-### R-S-3. v1 = Webhook-mode only, Socket Mode 는 v2 (2026-05-24)
+### R-S-3. v1 = Webhook-mode only, Socket Mode 는 v2
 
-대안:
-1. **(채택) Webhook-mode only (v1)**: Events API + Interactivity Request URL 만 사용. stateless HTTP — 다중 인스턴스 라우팅 부담 없음.
-2. **(기각) Socket Mode (WebSocket)**: bot 별 long-lived WebSocket connection 1개 필요. 다중 인스턴스 환경에서 라우팅 / failover 추가 부담. v1 단순성과 어긋남.
-3. **(기각) Hybrid**: 둘 다 지원 → 사용자 결정 부담 증가.
+Webhook-mode only (v1) 채택: Events API + Interactivity Request URL 만 사용. stateless HTTP — 다중 인스턴스 라우팅 부담 없음. Socket Mode (WebSocket) 는 bot 별 long-lived WebSocket connection 1개가 필요해 다중 인스턴스 환경에서 라우팅 / failover 부담이 생기므로 v1 단순성과 어긋난다.
 
-근거: v1 단순성. Socket Mode 가 필요한 사용 사례 (private network 안의 Slack 등) 가 v2 trigger 시 별 plan 으로 분리.
+근거: v1 단순성. Socket Mode 가 필요한 사용 사례 (private network 안의 Slack 등) 는 v2 로 분리.
 
-### R-S-4. group/channel/mpim 거부 — DM 만 지원 (2026-05-24)
+### R-S-4. group/channel/mpim 거부 — DM 만 지원
 
 [CCH-CV-05](../../../5-system/15-chat-channel.md#32-identity--conversation-매핑) v1 정책 정합. Slack `app_mention` 도 채널/DM 모두 발생할 수 있으므로 채널 mention 은 별도로 거부 (DM 안의 mention 만 `text_message` 로 흡수). multi-user 채널 대응은 v2 multi-user thread 와 한 묶음.
 
-### R-S-5. typing indicator no-op (2026-05-24)
+### R-S-5. typing indicator no-op
 
-대안:
-1. **(채택) no-op**: Slack Web API 에 server-initiated typing indicator 가 없다. Socket Mode 의 `typing` event 만 가능하지만 v1 은 Webhook-mode only (R-S-3).
-2. **(기각) ephemeral "..." 메시지**: 노이즈 + 이후 갱신/삭제 부담 (`chat.delete` 호출 추가).
-3. **(기각) "처리 중입니다" placeholder + `chat.update` 으로 응답 교체**: UX 는 좋으나 EIA `execution.ai_message` 도착 시점에 message_ts 추적 부담. 별 plan `chat-channel-progress-indicator` 로 분리.
+no-op 채택: Slack Web API 에 server-initiated typing indicator 가 없다. Socket Mode 의 `typing` event 만 가능하지만 v1 은 Webhook-mode only (R-S-3). ephemeral "..." 메시지는 노이즈 + 갱신/삭제 부담이 있고, "처리 중입니다" placeholder + `chat.update` 교체는 UX 는 좋으나 EIA `execution.ai_message` 도착 시점의 message_ts 추적 부담이 있어 v2 로 분리.
 
-근거: Convention §1.1 의 `ackInteraction` 와 동일 정신 — provider 가 native 미지원 시 no-op 허용. UX 격상은 별 plan.
+근거: Convention §1.1 의 `ackInteraction` 와 동일 정신 — provider 가 native 미지원 시 no-op 허용. UX 격상은 v2.
 
-### R-S-6. Form — ≤5 fields native modal, 6+ 또는 multi_step opt-out 시 다단계 (2026-05-24, 갱신 2026-05-28)
+### R-S-6. Form — ≤5 fields native modal, 6+ 또는 multi_step opt-out 시 다단계
 
-**(2026-05-28 갱신 — v2 채택)** Slack `views.open` modal 을 native form 으로 채택. [Convention §4.1 / R-CCA-8](../../../conventions/chat-channel-adapter.md#r-cca-8-native-form-modal-예외-절--5-fields-이하-single-modal-2026-05-28) 의 예외 절 신설에 따라, `formMode ∈ {auto, native_modal}` && `fields ≤ 5` && file 필드 미포함 form 은 단일 modal (§3.3 / §5.3). 그 외 (fields > 5 / `formMode = multi_step` / file 포함) 는 §4.2 다단계 fallback.
+Slack `views.open` modal 을 native form 으로 채택. [Convention §4.1 / R-CCA-8](../../../conventions/chat-channel-adapter.md#r-cca-8-native-form-modal-예외-절--5-fields-이하-single-modal) 의 예외 절에 따라, `formMode ∈ {auto, native_modal}` && `fields ≤ 5` && file 필드 미포함 form 은 단일 modal (§3.3 / §5.3). 그 외 (fields > 5 / `formMode = multi_step` / file 포함) 는 §4.2 다단계 텍스트 시퀀스 (Telegram 과 동일 UX) 로 fallback.
 
-대안 (historical):
-1. **(구 채택 → 다단계 fallback 으로 잔존) v1 다단계 텍스트 시퀀스** (Convention §4.2): Telegram 과 동일 UX. modal 미대상 form 의 fallback 으로 유지.
-2. **(v2 채택) `views.open` modal native**: Slack 의 가장 native 한 form UX. 2026-05-28 Convention §4.1 예외 절 신설로 활성화 — R4 가 예고한 "native UI 분기 v2 옵션" 의 실현 (번복 아님). Telegram 은 `supportsNativeForm=false` 로 다단계 유지하므로 Telegram Mini App 격상은 본 plan 범위 밖 (별도 작업).
-3. **(기각) fields > 5 도 multi-page modal**: Discord 와의 공통 분모 (modal 5 fields 한계) 통일 + UX 복잡도 회피 — 6+ 는 다단계가 단순. Convention R-CCA-8 대안 3.
+`views.open` modal 은 Slack 의 가장 native 한 form UX 다. fields > 5 까지 multi-page modal 로 끌고 가는 대신 6+ 는 다단계로 두는 이유는 Discord 와의 공통 분모 (modal 5 fields 한계) 통일 + UX 복잡도 회피. Telegram 은 `supportsNativeForm=false` 로 다단계 유지.
 
-근거: Convention §4.1 native modal 경로 활성화. SoT: [`chat-channel-form-native-modal`](../../../../plan/in-progress/chat-channel-form-native-modal.md) v2.
+근거: Convention §4.1 native modal 경로.
 
-### R-S-7. `file_shared` event → `files.info` 후속 조회 — HooksService 위임 (채택) (2026-05-24)
+### R-S-7. `file_shared` event → `files.info` 후속 조회 — HooksService 위임
 
-대안:
-1. **(채택) `parseUpdate` pure 유지 + `HooksService` 가 `files.info` 호출**: `parseUpdate` 는 side-effect free (Convention §1.1) 계약 유지. mimeType 미상 placeholder 로 `ChannelUpdate { kind: "file_upload", fileId, mimeType: "application/octet-stream" }` 동기 반환. caller (`HooksService`) 가 ChannelUpdate 수신 직후 [`files.info`](https://api.slack.com/methods/files.info) 1회 호출로 실제 mimeType / filename / url_private 보강 → form `file` 필드 `allowedMimeTypes` 검증 + EIA `submit_form` payload 합성.
-2. **(기각) `parseUpdate` 의 contract 를 async + 외부 호출 허용 으로 완화**: Convention 차원 변경 — 본 spec 범위 외 + Telegram parser 의 pure 단순성 손실.
-3. **(기각) `mimeType` 미상으로 EIA 전달 후 backend 가 보강**: Form validation 시점이 webhook 진입점 안에서 처리되므로 (5.3 의 multi-step sequence 흐름) HooksService 가 호출하는 것이 자연.
+`parseUpdate` pure 유지 + `HooksService` 가 `files.info` 호출 채택: `parseUpdate` 는 side-effect free (Convention §1.1) 계약 유지. mimeType 미상 placeholder 로 `ChannelUpdate { kind: "file_upload", fileId, mimeType: "application/octet-stream" }` 동기 반환. caller (`HooksService`) 가 ChannelUpdate 수신 직후 [`files.info`](https://api.slack.com/methods/files.info) 1회 호출로 실제 mimeType / filename / url_private 보강 → form `file` 필드 `allowedMimeTypes` 검증 + EIA `submit_form` payload 합성. `parseUpdate` contract 를 async 로 완화하면 Telegram parser 의 pure 단순성을 잃으므로 채택하지 않는다.
 
 **Normative 흐름**:
 ```
@@ -369,31 +352,18 @@ event.type === "file_shared" 도착
 
 근거: Convention §1.1 pure 계약 유지 우선. mimeType 보강 책임을 caller 로 일원화하면 다른 file-receiving provider (향후 Telegram `document` / Discord v2 Gateway attachment) 도 동일 패턴 재사용 가능.
 
-### R-S-8. URL Verification / Interactivity 의 `200 OK` 예외 (2026-05-24)
+### R-S-8. URL Verification / Interactivity 의 `200 OK` 예외
 
 Spec Chat Channel §5.5 는 inbound webhook 응답을 `202 Accepted` 로 SoT 화. Slack 의 두 케이스만 예외:
 1. URL Verification: Slack 이 `challenge` 값을 응답 본문에서 추출해야 하므로 `200 OK + { challenge }` JSON 필수.
 2. Interactivity 3초 ack: Slack 이 `200 OK` (또는 `response_action`) 만 success 로 인정 — `202` 는 클라이언트에 error 로 표시될 가능성.
 
-대안 (기각): §5.5 를 200/202 둘 다 허용으로 generalize — 모든 provider 의 응답 정책이 모호해짐. Slack 만 예외 (Telegram 은 그대로 202) 가 변경 범위 최소.
+§5.5 를 200/202 둘 다 허용으로 generalize 하면 모든 provider 의 응답 정책이 모호해지므로, Slack 만 예외 (Telegram 은 그대로 202) 로 두어 변경 범위를 최소화한다.
 
-근거: provider 특성 차이. Spec Chat Channel §5.5 의 후속 갱신 (case 표에 "Slack url_verification: 200 + challenge" / "Slack interactivity ack: 200" 행 추가) 은 본 plan §Phase 4 의 시스템 spec 점검 대상.
+근거: provider 특성 차이. Spec Chat Channel §5.5 의 case 표에 "Slack url_verification: 200 + challenge" / "Slack interactivity ack: 200" 행 추가가 후속 갱신 대상.
 
-### R-S-9. DM 첫 메시지 자동 `start` (slash command prefix 의존 회피) (2026-05-24)
+### R-S-9. DM 첫 메시지 자동 `start` (slash command prefix 의존 회피)
 
-대안:
-1. **(채택) DM 첫 메시지 자동 start**: Telegram `/start` 의 의미상 동등. slash command prefix 가 workspace 단위 1개라는 Slack 제약을 우회.
-2. **(기각) `/workflow start` 명령 의무화**: 사용자가 매번 명령을 쳐야 함 — DM bot UX 와 어긋남. 게다가 prefix 가 trigger 별 달라야 의미 있는데 Slack 은 그것 불가.
-3. **(기각) `app_home` 진입 자동 start**: Slack Home tab 은 별도 surface — DM 메시지 흐름과 분리. 사용자 발견성 낮음.
+DM 첫 메시지 자동 start 채택: Telegram `/start` 의 의미상 동등이며, slash command prefix 가 workspace 단위 1개라는 Slack 제약을 우회한다. `/workflow start` 의무화는 매번 명령을 쳐야 해 DM bot UX 와 어긋나고 (게다가 prefix 가 trigger 별 달라야 의미 있는데 Slack 은 불가), `app_home` 진입 자동 start 는 Slack Home tab 이 별도 surface 라 발견성이 낮다.
 
 근거: Slack 의 native bot UX 와 정합. slash command 는 명시적 명령 (cancel / help) 의 보조 도구.
-
----
-
-## Changelog
-
-| 날짜 | 내용 |
-|---|---|
-| 2026-05-24 | v1 spec 신설 — Slack Web API + Events API + Interactivity 기반 Webhook-mode 어댑터. Telegram §5 의 5종 인터랙션 매핑 1:1 + Slack native primitives 변환. Form 은 v1 다단계 텍스트 시퀀스 (Convention §4 준수). typing no-op. URL Verification / Interactivity 의 200 응답 예외. |
-| 2026-05-24 | §6 보안 + Rationale R-S-1 — signing secret 의 secret-store ref / config 필드를 단일 `inboundSigningRef` (`secret://triggers/{id}/inbound-signing`) 슬롯으로 통합 (Telegram / Discord 공유). 발급 주체 (Slack provider-issued) / 검증 알고리즘 (HMAC-SHA256) 는 backend 의 SlackAdapter 가 분기. spec-chat-channel-inbound-signing-rename. |
-| 2026-05-28 | Native form modal 채택 (chat-channel-form-native-modal v2): (a) §3 표에 `form_modal` row (`views.open`) + `parseUpdate` 에 view_submission 추가. (b) §3.3 `views.open` 구체 신설 — trigger_id 3초 제약·view payload·response_action errors 재표시. (c) §4.2 Interactivity 표의 `view_submission` row 를 "v1 미사용" → `form_submission` (view.state.values 평탄화) 으로 격상 + `__open_form__` block_actions 분기 추가. (d) §5.3 Form 을 formMode 분기 (≤5 fields & file 미포함 → modal, 그 외 다단계) 로 재작성 + 필드 type→modal input element 표. (e) R-S-6 갱신 (v2 채택 — modal native). Convention [§4.1 / R-CCA-8](../../../conventions/chat-channel-adapter.md#r-cca-8-native-form-modal-예외-절--5-fields-이하-single-modal-2026-05-28) 동반. |

@@ -12,7 +12,7 @@ code:
 
 > 관련 문서: [PROJECT.md §변경 유형 갱신 매핑](../../PROJECT.md#변경-유형--갱신-위치-매핑) · [user-guide-evidence](./user-guide-evidence.md) · [plan-lifecycle](../../.claude/docs/plan-lifecycle.md)
 >
-> SoT 역할: spec 문서가 약속한 surface 와 실제 구현 코드 사이의 정적 증거 (evidence) 를 frontmatter 로 명시·검증한다. 본 컨벤션은 텔레그램 chat-channel UI 영구 누락 사례(2026-05-23 발견)와 같은 *spec 약속 vs 구현 부재* 갭을 build-time 가드로 차단하는 단일 진실 (single source of truth) 이다.
+> SoT 역할: spec 문서가 약속한 surface 와 실제 구현 코드 사이의 정적 증거 (evidence) 를 frontmatter 로 명시·검증한다. 본 컨벤션은 텔레그램 chat-channel UI 영구 누락 사례와 같은 *spec 약속 vs 구현 부재* 갭을 build-time 가드로 차단하는 단일 진실 (single source of truth) 이다.
 
 ---
 
@@ -52,7 +52,7 @@ code:                                      # status 에 따라 검증 다름
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/app/(main)/triggers/page.tsx
 pending_plans:                             # status: partial 일 때 의무
-  - plan/in-progress/chat-channel-visual-ssr-png.md
+  - plan/in-progress/<name>.md
 user_guide:                                # 선택. 가이드 페이지 cross-link
   - codebase/frontend/src/content/docs/06-integrations-and-config/telegram.mdx
 ---
@@ -93,7 +93,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 ## 4. Build-time 가드 (4건)
 
-본 컨벤션의 정합성은 다음 4개 단위 테스트가 강제. 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치 (예정 — 구현은 후속 plan 2 `spec-frontmatter-rollout.md`).
+본 컨벤션의 정합성은 다음 4개 단위 테스트가 강제. 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치.
 
 | 가드 | 검증 |
 |---|---|
@@ -131,7 +131,7 @@ code:
   - codebase/backend/src/modules/chat-channel/**
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
 pending_plans:
-  - plan/in-progress/chat-channel-visual-ssr-png.md
+  - plan/in-progress/<name>.md
 ---
 ```
 
@@ -156,7 +156,7 @@ user_guide:
 
 ## 6. Rollout 정책
 
-본 컨벤션의 일괄 적용은 후속 plan 2 (`plan/in-progress/spec-frontmatter-rollout.md`) 에서 진행:
+본 컨벤션의 일괄 적용 절차:
 
 1. §1 대상 spec 60여개 일괄 frontmatter 추가 (한 PR 안에)
 2. 초기 `status` 분류:
@@ -165,32 +165,30 @@ user_guide:
    - 부분 구현 + 후속 plan 존재 → `partial` + `pending_plans:` 채움
    - 그 외 → `spec-only`
 3. 4개 가드 테스트 동반 작성
-4. PROJECT.md §자동 가드 표에 4개 row 추가 (본 spec PR 의 결정 E-4 에서 이미 매트릭스 반영)
+4. PROJECT.md §자동 가드 표에 4개 row 추가
 
 ## Rationale
 
 ### R-1. `code:` 글로브 허용 vs 명시 파일만
 
-글로브 허용을 채택. 영역 단위 책임 (예: `codebase/backend/src/modules/chat-channel/**`) 을 자연스럽게 표현하고 마이그레이션 부담을 낮춤. **단점**: stale 글로브 (없어진 파일을 가리키는 glob 이 다른 파일에 매칭돼서 통과) 는 본 가드만으로 검출 불가. 이 약점은 `/spec-coverage` standing audit (후속 plan 5) 가 보완 — NLP 휴리스틱으로 spec 본문이 약속한 UI/API surface 와 매칭되는 코드 부재를 감지.
+글로브 허용을 채택. 영역 단위 책임 (예: `codebase/backend/src/modules/chat-channel/**`) 을 자연스럽게 표현하고 마이그레이션 부담을 낮춤. **단점**: stale 글로브 (없어진 파일을 가리키는 glob 이 다른 파일에 매칭돼서 통과) 는 본 가드만으로 검출 불가. 이 약점은 `/spec-coverage` standing audit 가 보완 — NLP 휴리스틱으로 spec 본문이 약속한 UI/API surface 와 매칭되는 코드 부재를 감지.
 
-### R-2. `spec-only` TTL 30일 → 90일 완화
+### R-2. `spec-only` TTL 90일 + `backlog` enum
 
-초기 안은 30일. cross-spec consistency-check 에서 "장기 로드맵 spec 이 즉시 30일 카운터 받음" 으로 지적 (W-3, 1차 라운드). 90일로 완화 + `backlog` enum 신설로 이중 안전망:
-- 30일은 backlog 항목까지 강제 분류해 false-pressure 유발
+`spec-only` TTL 은 90일, `backlog` enum 신설로 이중 안전망:
+- 30일 같은 짧은 TTL 은 backlog 항목까지 강제 분류해 false-pressure 유발
 - 90일은 spec 작성 후 분기 1회 단위로 검토 — Phase 분리 결정 사이클과 정합
 - backlog 는 §6.3 로드맵 매칭을 가드로 강제해 "임의 보류" 차단
 
 ### R-3. `backlog` enum 신설 근거
 
-`spec/0-overview.md §6.3 로드맵` 항목 (Marketplace, 고급 권한 모델 등) 은 *결정 후 spec 작성됐으나 구현 plan 은 분기/연 단위 후* 인 자연스러운 상태. `spec-only` (90일 카운터) 와 강제 분리해 카운터 압력에서 보호. **가드**: `backlog` 의 `id:` 가 §6.3 항목 텍스트에 grep 매칭 의무 — §6.3 구조 변경 시 가드 갱신 의무 (롤아웃 plan 에 명시).
+`spec/0-overview.md §6.3 로드맵` 항목 (Marketplace, 고급 권한 모델 등) 은 *결정 후 spec 작성됐으나 구현 plan 은 분기/연 단위 후* 인 자연스러운 상태. `spec-only` (90일 카운터) 와 강제 분리해 카운터 압력에서 보호. **가드**: `backlog` 의 `id:` 가 §6.3 항목 텍스트에 grep 매칭 의무 — §6.3 구조 변경 시 가드 갱신 의무.
 
 ### R-4. `archived` 명명 근거 (cafe24 deprecated 와의 구분)
 
-초기 안은 `deprecated`. naming-collision consistency-check 에서 `spec/conventions/cafe24-api-catalog/_overview.md §3` 의 `deprecated` (Cafe24 endpoint 폐기 상태) 와 의미 도메인 혼동 지적 (W-6 / W-1). `archived` 로 개명해 두 도메인 명확히 분리:
+`archived` 로 명명해 `spec/conventions/cafe24-api-catalog/_overview.md §3` 의 `deprecated` (Cafe24 endpoint 폐기 상태) 와 의미 도메인을 명확히 분리:
 - 본 컨벤션 `archived` = spec 문서 자체의 폐기
 - cafe24 `deprecated` = 외부 API endpoint 의 폐기 (별 도메인)
-
-`spec/conventions/cafe24-api-catalog/_overview.md §3` 의 `deprecated` 행에도 본 PR 안에서 "spec frontmatter `archived` 와 별 도메인" 한 줄 추가.
 
 ### R-5. `status: partial` 의 `pending_plans:` 의무화 — plan 라이프사이클 역방향 강제
 

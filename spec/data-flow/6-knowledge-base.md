@@ -199,7 +199,7 @@ sequenceDiagram
 | `document:embedding_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed` | `EmbeddingService.emitEvent` |
 | `document:graph_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed` | `GraphExtractionService.emitEvent` |
 
-> KB-level batch 이벤트(`kb:reembed_started/finished`, `kb:reextract_started/finished`, `kb:graph_stats_updated`) 는 spec 에서 폐기됨 — backend 의 emit 경로가 `kb:` 채널에 도달하지 못하는 **dead path**. 후속 plan `plan/in-progress/kb-graph-stats-dead-path.md` 가 코드 측 결함 처리(emit 경로 수정 또는 코드 제거) 를 dev 에 위임한다.
+> KB-level batch 이벤트(`kb:reembed_started/finished`, `kb:reextract_started/finished`, `kb:graph_stats_updated`) 는 spec 에서 폐기됨 — backend 의 emit 경로가 `kb:` 채널에 도달하지 못하는 **dead path** (emit 경로 수정 또는 코드 제거 필요).
 
 ---
 
@@ -273,4 +273,4 @@ graph 추출이 LLM chat (느림·rate limit 빡빡) 인 반면 embedding 은 em
 
 `spec/0-overview.md §2.7` 은 `{workspaceId}/knowledge-base/{kbId}/{documentId}_{filename}` 을
 제안하지만 현재 코드는 `kb/{kbId}/{docId}/{filename}` 으로 업로드한다. data-flow 는 코드 기준으로
-기재하고, 정합성 정리는 별도 plan 으로 분리 ([`file-storage.md`](./4-file-storage.md) Rationale 참고).
+기재한다 ([`file-storage.md`](./4-file-storage.md) Rationale 참고).

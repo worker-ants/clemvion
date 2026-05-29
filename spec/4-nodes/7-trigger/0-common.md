@@ -81,10 +81,3 @@ Trigger 노드는 워크플로 진입점이므로 **입력 포트가 없다** (`
 | 노드 | 정상 케이스 |
 |------|-------------|
 | [manual_trigger](./1-manual-trigger.md#5-출력-구조) | §5.1 |
-
-## 5. CHANGELOG
-
-| 일자 | 변경 |
-|------|------|
-| 2026-05-10 | §3 5필드 공통 규약 / §4 출력 구조 색인 신설. 노드 문서 §5 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용) |
-| 2026-05-10 | manual_trigger D-카테고리 마이그레이션: webhook transport (`body`/`headers`/`query`/`method`) 를 `output.request.{...}` 묶음으로 이동, `meta.source: 'manual' \| 'webhook' \| 'schedule'` 필수화, 어댑터 input 에 `__triggerSource` 마커 도입 |

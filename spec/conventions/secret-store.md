@@ -70,7 +70,7 @@ interface SecretResolver {
 | 외부 API 호출 직전 (sendMessage, HMAC 서명 등) | `resolve(ref)` — 매 호출 마다 fetch (캐싱은 SecretResolver 내부 결정) |
 | Secret rotation API | `rotate(refV2, workspaceId, newPlaintext)` |
 
-### 2.1.1 DIP 인터페이스 — v1 면제 (2026-05-22)
+### 2.1.1 DIP 인터페이스 — v1 면제
 
 소비자 모듈은 구체 클래스(`SecretResolverService`) 가 아닌 추상 인터페이스에 의존해야 한다는 것이 일반 원칙이나, **v1 구현에서는 NestJS DI 편의상 구체 클래스를 직접 inject 하는 것이 허용된다**.
 
@@ -286,47 +286,24 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 
 ## Rationale
 
-### R1. Application-side AES-256-GCM 채택 (2026-05-22)
+### R1. Application-side AES-256-GCM 채택
 
-대안:
-1. **(채택) Application-side AES-256-GCM (Node `crypto`)** — 마스터키가 app↔DB 경계를 절대 넘지 않음. DB 는 ciphertext 만 봄 (DBA 도 복호화 불가). PostgreSQL extension 의존성 0 — managed PG (Heroku 등) 환경 호환성 ↑. AEAD 의 auth tag 로 tamper detection 내장. 단위 테스트 시 DB 의존성 없음.
-2. **(기각) PostgreSQL pgcrypto (`pgp_sym_encrypt`)** — 마스터키가 SQL parameter 로 매 호출 wire 전송 (parameter binding 이라도). pgcrypto extension 의존성 (managed PG 일부 환경 미지원). 단위 테스트가 DB 의존.
-3. **(기각) AWS Secrets Manager** — AWS lock-in. 자체 호스팅 사용자가 추가 의존성 부담.
-4. **(기각) HashiCorp Vault** — multi-cloud OSS 지만 HA cluster 운영 부담 큼.
+**Application-side AES-256-GCM (Node `crypto`)** 를 채택한다 — 마스터키가 app↔DB 경계를 절대 넘지 않음. DB 는 ciphertext 만 봄 (DBA 도 복호화 불가). PostgreSQL extension 의존성 0 — managed PG (Heroku 등) 환경 호환성 ↑. AEAD 의 auth tag 로 tamper detection 내장. 단위 테스트 시 DB 의존성 없음.
 
-근거: 사용자 확인 (2026-05-22) — 마스터키가 app 메모리 밖으로 나가지 않는 경계 분리가 self-hosting 환경에서 더 큰 보안 이득. PostgreSQL 의 운영 변경 (extension 활성화 / 재시작) 없이 도입 가능. 향후 enterprise 사용자 요청 시 §3.4 swap 으로 확장.
+근거: 마스터키가 app 메모리 밖으로 나가지 않는 경계 분리가 self-hosting 환경에서 더 큰 보안 이득. PostgreSQL 의 운영 변경 (extension 활성화 / 재시작) 없이 도입 가능. 향후 enterprise 사용자 요청 시 §3.4 swap 으로 확장.
 
-### R2. URI scheme 의 `<scope>` 분리 (2026-05-22)
+### R2. URI scheme 의 `<scope>` 분리
 
-대안:
-1. **(채택) `secret://<scope>/<resourceId>/<name>`** — 다른 도메인 자원 (cafe24 access token 등) 도 같은 store 공유 가능. namespace 충돌 없음.
-2. **(기각) `secret://triggers/<id>/<name>`** — trigger 만 가정. cafe24 가 추가될 때 scheme 변경 필요.
-3. **(기각) 별 테이블 분리 (`trigger_secrets` / `cafe24_secrets`)** — 같은 암호화/decryption 코드 반복.
+`secret://<scope>/<resourceId>/<name>` 를 채택한다 — 다른 도메인 자원 (cafe24 access token 등) 도 같은 store 공유 가능. namespace 충돌 없음.
 
 근거: 향후 OAuth client secret, cafe24 access token 등의 통합 가능성 + namespace 명확성.
 
-### R3. `.v2` 접미사로 rotation grace 표현 (2026-05-22)
+### R3. `.v2` 접미사로 rotation grace 표현
 
-대안:
-1. **(채택) `name.v2`** — 같은 자원의 변형임을 name 안에 명시. `bot-token` ↔ `bot-token.v2` 시각적 묶임.
-2. **(기각) 별 테이블 `secret_store_v2`** — schema 중복.
-3. **(기각) `version` 컬럼 + 같은 ref** — primary 와 v2 가 같은 ref 를 공유하면 `resolve(ref)` 가 모호.
+`name.v2` 를 채택한다 — 같은 자원의 변형임을 name 안에 명시. `bot-token` ↔ `bot-token.v2` 시각적 묶임.
 
 근거: name 안에서 분리하면 ref string 자체로 의도 명확. `resolve('secret://triggers/{id}/bot-token')` vs `resolve('secret://triggers/{id}/bot-token.v2')` 둘 다 명시적.
 
-### R4. Trigger FK 미설정 (2026-05-22)
+### R4. Trigger FK 미설정
 
-`secret_store.workspace_id` 는 workspace FK 를 가질 수 있으나 본 spec 은 application-level cascade 만 정의 — 향후 다른 scope (예: workspace 외부의 system-wide secret) 도 같은 테이블에 두려면 FK 가 제약. trigger 삭제 시의 명시적 cleanup 책임은 `TriggersService.delete()` 가 진다.
-
-대안 (기각): `ON DELETE CASCADE` — workspace 삭제 시 자동 정리지만 trigger 단위 cleanup 은 application 책임. 두 cascade 경로를 혼합하면 implicit DB 동작과 explicit application 동작이 섞여 추적 어려움.
-
----
-
-## Changelog
-
-| 날짜 | 내용 |
-|---|---|
-| 2026-05-22 | v1 — `SecretResolver` interface 신설, `secret://<scope>/<resourceId>/<name>` URI scheme 정의, **application-side AES-256-GCM** + 환경변수 마스터키 백엔드 채택 (DB 는 ciphertext 만 보관). CCH-SE-03 v1 plaintext stub 종료. EIA notification.signing.secret 도 같은 store 로 통합. |
-| 2026-05-24 | §1 예시 표에 chat channel provider 별 webhook 인증 ref 2종 추가 — `slack-signing-secret` (Slack HMAC) / `discord-public-key` (Discord ed25519). `bot-token` 의 용도 설명을 provider 공통 (Telegram/Slack/Discord) 으로 generalize. Scheme 자체 변경 없음. spec-slack-discord-chat-channel. |
-| 2026-05-24 | §1 예시 표 — `webhook-secret` (Telegram) / `slack-signing-secret` (Slack) / `discord-public-key` (Discord) 3종을 단일 role-based 이름 `inbound-signing` 으로 통합. 세 자원 모두 "inbound webhook 출처 검증용 자료" 공통 role 이고, 검증 알고리즘 분기는 backend 책임 — ref 슬롯은 단일. ChatChannelConfig 의 3개 필드도 단일 `inboundSigningRef?` 로 통합 ([`chat-channel-adapter.md §2.3`](./chat-channel-adapter.md#23-chatchannelconfig)). Migration 불필요 (production data 없음). spec-chat-channel-inbound-signing-rename. |
-| 2026-05-28 | §1 에 `AuthConfig.config` 비대상 명시 추가 — webhook 인증 AuthConfig wiring 과정에서 AuthConfig 자격증명이 본 store 와 별 도메인 (모듈 transformer 직접 처리) 임을 명확화. 응답 마스킹 정책 SoT 는 `spec/1-data-model.md §2.17.2`. 본 convention 의 interface·scheme 변경 없음. auth-config-webhook-wiring. |
+`secret_store.workspace_id` 는 workspace FK 를 가질 수 있으나 본 spec 은 application-level cascade 만 정의 — 향후 다른 scope (예: workspace 외부의 system-wide secret) 도 같은 테이블에 두려면 FK 가 제약. trigger 삭제 시의 명시적 cleanup 책임은 `TriggersService.delete()` 가 진다. `ON DELETE CASCADE` 는 채택하지 않는다 — implicit DB 동작과 explicit application 동작이 섞이면 추적이 어려워지기 때문.

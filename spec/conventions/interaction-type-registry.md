@@ -8,7 +8,7 @@ code: []
 
 > 관련 문서: [Spec WebSocket Protocol §4.4](../5-system/6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) · [Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md) · [Spec Conversation Thread §1.1](./conversation-thread.md)
 
-cross-cutting **enum 값** 의 단일 진실 + **처리 분기 위치 매트릭스**. enum 1개 값 추가 시 N개 위치를 동시 갱신해야 하는 문제 (PR #269/#270/#271 일련의 회귀가 동일 패턴) 를 spec/harness 양쪽에서 차단한다.
+cross-cutting **enum 값** 의 단일 진실 + **처리 분기 위치 매트릭스**. enum 1개 값 추가 시 N개 위치를 동시 갱신해야 하는 문제를 spec/harness 양쪽에서 차단한다.
 
 신규 enum 값은 본 문서 매트릭스에 반드시 등록한다 — 등록되지 않은 값을 코드에 추가하면 단위 테스트 `codebase/frontend/src/lib/__tests__/interaction-type-exhaustiveness.test.ts` 가 hard fail.
 
@@ -34,7 +34,7 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 | `form` | engine waiting emit `'form'` (form 노드 핸들러) | (a) `use-execution-events.handleExecutionResumed` (b) `handleWaitingForInput` 의 분기 (c) `apply-execution-snapshot.ts` 의 reconcile + waiting hydration + maybeSeed (d) `run-results-drawer.tsx` `isWaitingForm` (e) `executions/[id]/page.tsx` `isWaitingForm` (f) `result-detail.tsx` formPreview |
 | `buttons` | engine waiting emit `'buttons'` (presentation 노드 + 버튼) | (a)~(e) 동등 + `pauseForButtons` |
 | `ai_conversation` | ai-agent.handler multi-turn waiting (interactionType meta) | (a)~(f) 동등 + `pauseForConversation` + conversation timeline hydration |
-| `ai_form_render` | ai-agent.handler 의 render_form blocking 진입 | (a)~(c) 동등 + `conversationConfig.pendingFormToolCall: { toolCallId, formConfig }` 동봉 + 위 ai_conversation 의 모든 hydration 경로 + (d) `result-detail.tsx` `isWaitingConversation` 분기 (별도 formPreview stack 아님) + (e) `executions/[id]/page.tsx` `isWaitingConversation` 분기 + (f) `AssistantPresentationsBlock` case `"form"` 의 active 분기 (`payload.toolCallId === pendingFormToolCall.toolCallId` 매칭 시 interactive `DynamicFormUI`, 그 외 `FormSubmittedContent`) + (g) `resumeFromAiRenderForm` (별도 신규 action — `pendingFormToolCall` 만 nested null patch, 나머지 affordance 보존). SoT: [AI Agent §6.1.d.ii / §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합-2026-05-23) |
+| `ai_form_render` | ai-agent.handler 의 render_form blocking 진입 | (a)~(c) 동등 + `conversationConfig.pendingFormToolCall: { toolCallId, formConfig }` 동봉 + 위 ai_conversation 의 모든 hydration 경로 + (d) `result-detail.tsx` `isWaitingConversation` 분기 (별도 formPreview stack 아님) + (e) `executions/[id]/page.tsx` `isWaitingConversation` 분기 + (f) `AssistantPresentationsBlock` case `"form"` 의 active 분기 (`payload.toolCallId === pendingFormToolCall.toolCallId` 매칭 시 interactive `DynamicFormUI`, 그 외 `FormSubmittedContent`) + (g) `resumeFromAiRenderForm` (별도 신규 action — `pendingFormToolCall` 만 nested null patch, 나머지 affordance 보존). SoT: [AI Agent §6.1.d.ii / §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합) |
 
 **규칙**:
 1. 표의 모든 위치를 한 PR 안에서 동시 갱신.
@@ -89,7 +89,7 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 
 ## 4. Rationale
 
-PR #269 (presentation tool family) → #270 (hotfix: SchemaForm key 중복 + buildTools 가드) → #271 (실행 내역 렌더 / i18n / system prompt / 페이지 복귀 회귀) 의 세 번 연속 회귀는 **모두 동일 패턴**:
+presentation tool family 도입 과정의 연속 회귀 (SchemaForm key 중복 + buildTools 가드, 실행 내역 렌더 / i18n / system prompt / 페이지 복귀) 는 **모두 동일 패턴**:
 
 > "하나의 enum 값을 추가했는데 N개의 처리 분기 위치 중 일부를 빠뜨림"
 

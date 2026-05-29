@@ -172,7 +172,7 @@ code: []
   "output": { "in_0": "first", "in_1": "second" }
 }
 ```
-> P1 개선안([아카이브 logic/merge.md §3](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/merge.md#3-제안된-output-구조))은 `{ items: [{ index, value }], count }` 로의 breaking 전환을 제안하나, 현재 코드는 `in_<i>` 키 형태를 유지한다. 다운스트림은 `$node["X"].output.in_0` 등으로 접근.
+> 현재 코드는 `in_<i>` 키 형태를 유지한다. 다운스트림은 `$node["X"].output.in_0` 등으로 접근. (후속으로 `{ items: [{ index, value }], count }` 형태로의 breaking 전환이 검토 대상)
 
 **`strategy: 'first'`** — 정규화 배열의 첫 항목만 남기고 outputFormat 적용
 ```json

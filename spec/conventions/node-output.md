@@ -304,7 +304,7 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 - 엔진은 `Object.freeze` 적용한 shallow snapshot 을 주입한다 — top-level 필드 mutation 은 strict 모드에서 TypeError 가 발생한다.
 - **Shallow 임에 유의** — `rawConfig.headers.foo = '...'` 같은 중첩 객체 변이는 차단되지 않는다. 핸들러는 rawConfig 를 read-only 로 다루어야 하며, 변형이 필요하면 `structuredClone` 으로 복제한다.
 
-**`config` echo 구현 방식 — 명시 enumeration 의무화** (D1 결정, 2026-05-17):
+**`config` echo 구현 방식 — 명시 enumeration 의무화** (D1):
 
 - ✅ **권장 — 명시 키 enumeration**: 각 비민감 필드를 명시적으로 나열해 echo 한다.
   ```ts

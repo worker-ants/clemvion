@@ -97,7 +97,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | 추가 필드 | 설명 |
 |-----------|------|
 | `timestamp` | 서버 이벤트 발생 시각 (ISO 8601) |
-| `seq` | 채널 내 순서 번호 (재연결 시 놓친 이벤트 감지용). `execution:{executionId}` 채널의 경우 = "execution 내 monotonic counter", 외부 SSE 의 `id:` / Outbound Notification 의 `seq` 와 동일 값 공유 — [Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification-2026-05-21) |
+| `seq` | 채널 내 순서 번호 (재연결 시 놓친 이벤트 감지용). `execution:{executionId}` 채널의 경우 = "execution 내 monotonic counter", 외부 SSE 의 `id:` / Outbound Notification 의 `seq` 와 동일 값 공유 — [Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification) |
 
 ---
 
@@ -653,7 +653,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `document:embedding_started` | `{ documentId, knowledgeBaseId }` | processing 시작 |
 | `document:embedding_progress` | `{ documentId, progress: number }` | 청크 배치 완료마다 (0~100) |
 | `document:embedding_completed` | `{ documentId, chunkCount }` | 완료 |
-| `document:embedding_error` | `{ documentId, error: string }` | **(의미 변경, 2026-05-11)** in-flight 일시 오류 — `_retry` 또는 `_failed` 가 곧 따라온다. 영구 실패 신호로 사용하지 말 것 |
+| `document:embedding_error` | `{ documentId, error: string }` | in-flight 일시 오류 — `_retry` 또는 `_failed` 가 곧 따라온다. 영구 실패 신호로 사용하지 말 것 |
 | `document:embedding_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
 | `document:embedding_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
 
@@ -695,7 +695,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `execution.click_button` | `click_button` | 동일 페이로드 |
 | `execution.submit_message` | `submit_message` | 동일 페이로드 |
 | `execution.end_conversation` | `end_conversation` | 동일 페이로드 |
-| `execution.retry_last_turn` | (외부 미노출 — 향후 별 PR 에서 노출 예정) | 내부 UI 한정. 외부 노출 시 토큰 권한·Notification 정합·retry 횟수 제한 별도 결정 필요 (상세: §4.2 참조). |
+| `execution.retry_last_turn` | (외부 미노출 — 향후 노출 예정) | 내부 UI 한정. 외부 노출 시 토큰 권한·Notification 정합·retry 횟수 제한 별도 결정 필요 (상세: §4.2 참조). |
 | `execution.stop` | `cancel` (또는 `POST /api/executions/:id/cancel` alias) | force 옵션은 외부에서 미지원 |
 | `execution.start` | (외부 미지원) | 외부는 webhook 트리거로 실행 시작 |
 | `execution.continue` / `execution.step` | (외부 미지원) | 디버깅 전용, UI/내부 한정 |
@@ -723,12 +723,12 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `replay.unavailable` | `execution.replay_unavailable` | — |
 
 **핵심 규약:**
-- **`seq` 동일 공유**: SSE 의 `id:` 필드와 Outbound Notification 페이로드의 `seq` 는 본 spec §2.2 의 monotonic counter 와 같은 값을 사용한다 ([Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification-2026-05-21)).
+- **`seq` 동일 공유**: SSE 의 `id:` 필드와 Outbound Notification 페이로드의 `seq` 는 본 spec §2.2 의 monotonic counter 와 같은 값을 사용한다 ([Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification)).
 - **5분 버퍼 공유**: §6.2 의 재연결 이벤트 버퍼를 SSE 어댑터도 동일하게 사용한다. 외부 클라이언트의 `Last-Event-Id` 는 본 spec 의 `lastSeq` 와 동일 의미.
 - **transaction-after emit**: 본 spec §4.1 의 트랜잭션 commit 후 emit 규약은 SSE / Notification 에도 그대로 적용된다 ([Spec EIA §9.3](./14-external-interaction-api.md#93-트랜잭션과-발송-순서-eia-rl-04)).
 - **단일 구현 경로**: 외부 표면은 내부 WebSocket 의 명령/이벤트 처리 경로를 facade 로 감싼 형태로만 구현해야 한다. 두 표면이 분기되면 §R5 가 경고하는 maintenance 부담이 발생.
 
-> 외부 WebSocket 채널 신설은 v1 에서 보류. 보류 사유와 재논의 트리거는 [Spec EIA §R5](./14-external-interaction-api.md#r5-외부-websocket-채널-신설--보류-2026-05-21) 참조.
+> 외부 WebSocket 채널 신설은 v1 에서 보류. 보류 사유와 재논의 트리거는 [Spec EIA §R5](./14-external-interaction-api.md#r5-외부-websocket-채널-신설--보류) 참조.
 
 ---
 
@@ -871,40 +871,31 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 
 ## Rationale
 
-### 메시지 origin 마커 도입 — `messages[].source` (2026-05-16)
+### 메시지 origin 마커 도입 — `messages[].source`
 
 `ConversationThread.contextScope` 가 활성화된 AI Agent 는 매 turn `processMultiTurnMessageInner` 직전에 `[system, ...injectedThread, ...selfHistory]` 형태로 messages 배열을 재빌드한다. injected 부분은 업스트림 Presentation 노드 / 다른 AI Agent 의 turn 을 `role: 'user' | 'assistant' | 'tool'` 로 변환한 결과로, payload 의 `messages` 스냅샷에 그대로 포함된다.
 
 이때 frontend 가 messages 를 순회하며 user 개수로 turn 인덱스를 도출하면 backend 의 권위 `turnCount` (= 핸들러가 실제로 처리한 user→assistant 사이클 수) 와 어긋난다. 결과적으로 `llmCalls[]` 와 어시스턴트 메시지를 매칭할 수 없어 Response / Request / LLM Usage 탭이 빈 상태로 표시되는 회귀 발생.
 
-후보 안:
-1. **(채택)** 메시지에 `source: 'live' | 'injected'` 마커를 부여. 소비 측이 `live` 만으로 turn 을 센다. 후속 origin (예: 미래의 system_text 자동 push, multi-thread 머지) 추가 시 enum 값 확장만 하면 되어 확장성 우수.
-2. (기각) backend 가 `injectedContextLength: number` 만 동봉. 단순하지만 messages 배열의 prefix 가 연속된 injection 이라는 단단한 가정이 필요해, 향후 inline 주입(중간 삽입) 또는 [Conversation Thread §7 v2 로드맵 "Multi-thread"](../conventions/conversation-thread.md#7-v2-로드맵) 의 분기별 thread 머지 시나리오에서 prefix 위치 추정이 깨진다.
-3. (기각) 어시스턴트 메시지에 `turnIndex` 를 직접 동봉. 의미 중복 (`llmCalls[]` 와 1:1 매칭은 시간순 누적이면 충분), 또한 user 메시지의 turn 매핑은 여전히 필요해 근본 해소 불가.
+해소책으로 메시지에 `source: 'live' | 'injected'` 마커를 부여하고 소비 측이 `live` 만으로 turn 을 센다. 후속 origin (예: 미래의 system_text 자동 push, multi-thread 머지) 추가 시 enum 값 확장만 하면 되어 확장성이 좋다. (`injectedContextLength: number` 만 동봉하는 안은 messages 배열의 prefix 가 연속된 injection 이라는 가정이 필요해 inline 주입이나 [Conversation Thread §7 v2 로드맵 "Multi-thread"](../conventions/conversation-thread.md#7-v2-로드맵) 의 thread 머지 시나리오에서 깨지고, 어시스턴트 메시지에 `turnIndex` 를 직접 동봉하는 안은 user 메시지 turn 매핑을 해소하지 못한다.)
 
 **영속 정책 (미정)**: 본 spec 은 transport 레이어 (WebSocket emit) 의 `source` 마커 정의에 한정. `NodeExecution.outputData.messages` 의 DB 영속 형태에 `source` 가 동봉될지는 별도 결정 사항이며, 구현 phase 의 backend 작업에서 결정한다. 미동봉으로 진행하더라도 §4.4.6 의 "필드 누락 시 `'live'` 로 간주" 폴백 규약으로 이력 재구성이 안전하게 작동한다. 단, 이력 화면의 디버깅 타임라인이 현재 emit 과 동일 정확도를 가지려면 영속 형태에도 마커가 들어가는 것이 바람직 — 향후 DB 컬럼 신설 ([Conversation Thread §7 v2 로드맵](../conventions/conversation-thread.md#7-v2-로드맵)) 시점에 함께 결정한다.
 
-> 관련 일관성 검토: `review/consistency/2026/05/16/09_42_54/SUMMARY.md` (BLOCK: NO, WARNING 1건 — `ConversationTurnSource` 와 명명 혼동 위험을 §4.4.6 명확화 문장으로 해소).
+### KB 채널 단위 전환 — `embedding:{knowledgeBaseId}` → `kb:{documentId}`
 
-### KB 채널 단위 전환 — `embedding:{knowledgeBaseId}` → `kb:{documentId}` (2026-05-16)
-
-초기 spec 은 임베딩 진행 상태를 KB 단위로 broadcast 한다고 기술했으나, backend 실제 구현은 처음부터 **문서 단위 채널** 이었다 (`WebsocketService.emitKbEvent` 의 `KbEventType` union, `kb:${documentId}` 채널). frontend `useKbEvents` 도 동일하게 문서별 구독. spec 의 KB 단위 표기는 기록 오류로 판명되어 정정.
+KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`WebsocketService.emitKbEvent` 의 `KbEventType` union, `kb:${documentId}` 채널). frontend `useKbEvents` 도 동일하게 문서별 구독한다.
 
 문서 단위 채널의 근거:
 - 문서별 독립 진행 상태 추적이 가능해 progress UI 가 문서마다 갱신.
 - 권한 검증을 문서 소유 KB 단위로 분기하기 쉬움.
 - frontend 가 보유한 documentIds 만큼 구독하므로 무관한 KB 이벤트로 인한 노이즈 차단.
 
-이벤트 표기는 점 표기(`embedding.started`) 에서 콜론+언더스코어(`document:embedding_started`) 로 정렬 — backend type union 의 형식과 일치.
+이벤트 표기는 콜론+언더스코어(`document:embedding_started`) 를 사용 — backend type union 의 형식과 일치한다. KB 단위 통계 이벤트(`kb:graph_stats_updated` 등) 는 도입하지 않는다.
 
-`kb:graph_stats_updated` 같이 KB 단위 통계 이벤트를 도입했던 시도는 `kb-stats.helper.ts:42-46` 가 `emitExecutionEvent` 로 잘못 호출해 채널이 `execution:kb:…` 로 prefix 되어 frontend 의 `kb:` 구독에 도달하지 못하는 **dead path** 였다. spec 에서 일괄 제거. 후속 plan `plan/in-progress/kb-graph-stats-dead-path.md` 가 코드 측 결함 처리(emit 경로 수정 또는 코드 제거) 를 dev 에 위임한다.
+### `ai_form_render` 의 `formConfig` 위치 단일화 — `pendingFormToolCall` 안으로 nest
 
-### `ai_form_render` 의 `formConfig` 위치 단일화 — `pendingFormToolCall` 안으로 nest (2026-05-23)
+§4.4 의 `formConfig` 필드는 그래프 Form 노드 (`interactionType: 'form'`) 의 폼 설정 운반용 top-level 필드다. AI Agent multi-turn 의 `render_form` blocking flow ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) 에서는 `interactionType: 'ai_form_render'` 의 form payload 를 `conversationConfig.pendingFormToolCall.formConfig` 위치로 nest 한다 (`execution-engine.service.ts:2147-2210` emit, frontend 도 동일 위치에서 read). UI 가 단일 위치에서 form 출처를 읽도록 SoT 를 단일화 — Conversation Thread §9.7 표의 `waiting_for_input (interactionType=ai_form_render)` 행과 정합한다.
 
-§4.4 의 `formConfig` 필드는 본래 그래프 Form 노드 (`interactionType: 'form'`) 의 폼 설정 운반용. AI Agent multi-turn 의 `render_form` blocking flow 가 도입되면서 (PR #273-#288, [Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) `interactionType: 'ai_form_render'` 도 top-level `formConfig` 를 공유한다고 spec 상 기술돼 있었으나, backend `execution-engine.service.ts:2147-2210` 는 처음부터 **`conversationConfig.pendingFormToolCall.formConfig`** 위치로 emit 중이었음. frontend 도 같은 위치에서 읽음. spec 만 동봉 위치를 잘못 명시한 drift.
+`pendingFormToolCall.formConfig` nest 는 `toolCallId` 와 묶여 단일 원자 운반체로 의미가 명확하다.
 
-2026-05-23 사용자 보고 (`render_form` UX 통합) 의 spec 단계에서 정합화: `formConfig` 는 `interactionType: 'form'` 한정 top-level 필드, `ai_form_render` 의 form payload 는 `conversationConfig.pendingFormToolCall.formConfig` 안으로 nest. UI 가 단일 위치에서 form 출처를 읽도록 SoT 단일화 — Conversation Thread §9.7 표의 `waiting_for_input (interactionType=ai_form_render)` 행과 정합.
-
-**대안 비교** — code 를 spec 에 맞춰 top-level `formConfig` 로 옮기는 안은 기각: (a) 옛 동작에 의존하는 e2e 테스트가 없는 변경이지만 `pendingFormToolCall.formConfig` nest 가 `toolCallId` 와 묶여 단일 원자 운반체로 의미가 더 명확하고, (b) backend 이미 그렇게 emit 중이라 code 변경 면적이 더 큼.
-
-**근거**: [Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합-2026-05-23). plan: [plan/in-progress/ai-presentation-form-inline.md](../../plan/in-progress/ai-presentation-form-inline.md).
+**근거**: [Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합).

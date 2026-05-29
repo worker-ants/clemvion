@@ -397,13 +397,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 ### 1.5.A — 가입 시 이메일 일치 강제
 
-토큰 이메일 ≠ 가입/로그인 사용자 이메일인 경우의 처리로 세 옵션을 검토했다:
-
-- **이메일 일치 강제 (선택)** — 다르면 가입·accept 모두 차단.
-- 토큰만 무효화, 가입은 허용 — 가입은 끝나지만 워크스페이스 멤버는 안 됨. UX 가 모호.
-- 검증 없이 자동 accept — 토큰 누출 시 임의 워크스페이스 진입 가능.
-
-이메일 일치 강제를 채택한 이유:
+토큰 이메일 ≠ 가입/로그인 사용자 이메일인 경우, 가입·accept 를 모두 차단한다 (이메일 일치 강제). 이유:
 
 - 토큰은 (긴 random 이지만) URL·메일 경유로 유출 가능. 일치 검증이 없으면 누출 토큰 단독으로 워크스페이스 진입이 가능해 권한 escalate 위협이 큼.
 - 가입 페이지에서 이메일을 prefill + readOnly 로 고정하면 정상 사용자에게는 UX 마찰이 거의 없음 (이메일을 "고를" 필요가 사라짐).
@@ -423,23 +417,13 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 ### 1.4.A — WebAuthn 라이브러리: `@simplewebauthn/server` + `@simplewebauthn/browser`
 
-후보:
-
-- **`@simplewebauthn/*` (선택)** — 서버·브라우저 양쪽 모듈을 같은 메인테이너가 관리. FIDO2 L3 / WebAuthn spec 추적이 빠르고, registration·authentication 의 `generate`·`verify` 페어가 대칭이라 코드가 단순. Node 18+ 에서 ESM/CJS 모두 동작.
-- `fido2-lib` — 저수준 API. CBOR / COSE 해석을 직접 다뤄야 해 보일러플레이트가 많음.
-- 직접 구현 — 비현실적. WebAuthn spec 변화 추적·attestation 검증 보안 리스크가 큼.
+`@simplewebauthn/*` 는 서버·브라우저 양쪽 모듈을 같은 메인테이너가 관리한다. FIDO2 L3 / WebAuthn spec 추적이 빠르고, registration·authentication 의 `generate`·`verify` 페어가 대칭이라 코드가 단순하며 Node 18+ 에서 ESM/CJS 모두 동작한다.
 
 `@simplewebauthn/server` 가 다음 두 항목을 무료로 제공한다: (a) attestation/assertion 의 origin·rpID·challenge 일관성 검증, (b) counter 역행 감지. 본 spec 의 보안 요구를 라이브러리가 그대로 만족한다.
 
 ### 1.4.B — 복구 코드 풀 분리 (TOTP / WebAuthn 별도)
 
-세 옵션을 검토했다:
-
-- **별도 풀 (선택)** — `user.totp_recovery_codes` 와 `user.webauthn_recovery_codes` 두 컬럼.
-- 공통 풀 — 한 컬럼에서 TOTP·WebAuthn 양쪽 fallback.
-- WebAuthn 만 fallback 없음 — 사용자가 마지막 credential 분실 시 계정 잠김.
-
-별도 풀을 선택한 이유:
+`user.totp_recovery_codes` 와 `user.webauthn_recovery_codes` 두 컬럼으로 풀을 분리한다. 이유:
 
 - 사용자가 한쪽 방식만 비활성화·재설정해도 다른 쪽 복구가 유지되어야 한다. 공통 풀이면 TOTP 비활성화 시점에 WebAuthn 복구도 함께 폐기되어야 할지 결정이 모호해진다.
 - "WebAuthn 만 사용" 사용자에게도 TOTP 활성화 없이 복구 수단을 제공해야 한다. 공통 풀 가설은 "TOTP 가 항상 켜져 있다" 라는 가정에 의존한다.
@@ -447,12 +431,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 ### 1.4.C — WebAuthn challenge: stateless JWT (별도 테이블 없음)
 
-검토한 두 옵션:
-
-- **stateless JWT (선택)** — `optionsToken` 으로 발급. payload `{ kind, sub, challenge, exp(5분) }`.
-- `webauthn_challenge` 테이블 — INSERT/SELECT/DELETE 필요.
-
-JWT 채택 이유:
+challenge 는 stateless JWT (`optionsToken`, payload `{ kind, sub, challenge, exp(5분) }`) 로 발급한다. 채택 이유:
 
 - WebAuthn spec 의 challenge unique·fresh 요건은 challenge 자체가 random 이고 verify 시 클라이언트 응답과 일치 확인하면 만족된다. 서버 측 DB 의 단명 row 가 unique 강제에 필수는 아님.
 - replay 방어: JWT 만료 5분 + `kind` 검증으로 의도 다른 흐름(`register`↔`auth`) 교차 사용 차단.
@@ -461,14 +440,7 @@ JWT 채택 이유:
 
 ### 1.4.E — counter 역행 시 credential 강제 삭제 (vs suspend)
 
-WebAuthn 인증기의 sign counter 가 역행하면 (저장값 ≥ 신규값) `@simplewebauthn/server` 의 `verifyAuthenticationResponse` 는 reject 한다. 본 spec 은 reject 시 **해당 row 를 즉시 삭제** 하고 `failure_reason=WEBAUTHN_COUNTER_REGRESSION` 으로 LoginHistory 에 기록한다.
-
-검토한 두 옵션:
-
-- **삭제 (선택)** — credential row 제거. 사용자가 같은 인증기를 다시 쓰려면 `/profile/security` 에서 재등록.
-- suspend — 별도 `disabled_at` 컬럼 + 사용자가 명시적으로 "다시 활성화" 가능.
-
-삭제를 선택한 이유:
+WebAuthn 인증기의 sign counter 가 역행하면 (저장값 ≥ 신규값) `@simplewebauthn/server` 의 `verifyAuthenticationResponse` 는 reject 한다. 본 spec 은 reject 시 **해당 row 를 즉시 삭제** 하고 `failure_reason=WEBAUTHN_COUNTER_REGRESSION` 으로 LoginHistory 에 기록한다 (사용자가 같은 인증기를 다시 쓰려면 `/profile/security` 에서 재등록). suspend(`disabled_at` 컬럼 + 명시적 재활성화) 대신 삭제를 선택한 이유:
 
 - counter 역행은 (a) 인증기 복제·클론 공격 (b) 인증기 firmware 오류 두 가지로 좁혀진다. 둘 다 신뢰가 깨진 상태이므로 즉시 신뢰 철회가 원칙.
 - suspend 는 사용자에게 "재활성화" 선택지를 주는데, 이는 클론 공격자가 본인을 사칭해 재활성화 버튼을 눌러도 동일한 효과 — 보안 이득이 작다.
@@ -482,16 +454,9 @@ WebAuthn 등록 사용자에게 로그인 화면이 TOTP 입력란을 함께 노
 - 사용자가 의도적으로 TOTP 로 전환하길 원하면 보안 설정에서 WebAuthn credential 을 모두 삭제 (혹은 webauthn 복구 코드 사용) 한 뒤 재로그인 가능. 의식적인 다운그레이드만 허용한다.
 - 분실 시 잠김 위협은 별도 복구 코드 (§1.4.1) 로 완화. 복구 코드 분실까지 가정한 계정 복구는 본 spec 범위 밖 (관리자 개입 경로).
 
-### 1.4.F — WebAuthn 환경변수 미설정 시 부팅 거부 vs 기능 비활성
+### 1.4.F — WebAuthn 환경변수 미설정 시 기능 비활성
 
-본 PR 직후 운영 인스턴스에서 `WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN` 미설정 상태로 NestJS bootstrap 이 throw → 컨테이너 crashloop 발생. 운영자가 WebAuthn 을 사용할 의향이 없거나 아직 도메인이 정해지지 않은 셀프 호스팅 단계에서 앱 전체가 죽는 trade-off 가 부적절하다는 판단으로, 정책을 두 가지 후보 중 선택:
-
-| 후보 | 동작 | 채택 여부 |
-|------|------|-----------|
-| A. 부팅 거부 (이전) | env 미설정 + `WEBAUTHN_ALLOW_FALLBACK!=1` → throw | **기각** — 운영자가 WebAuthn 을 안 쓰는 경우에도 앱 자체가 안 뜸. 일반 로그인·TOTP 까지 동반 마비. |
-| B. 기능 비활성 (현재) | env 미설정 → `enabled=false`. WebAuthn 엔드포인트만 503, 나머지 정상 | **채택** — 옵션 기능답게 옵션. 운영자가 의식적으로 켜야 켜진다. |
-
-채택 이유:
+`WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN` 미설정 + `WEBAUTHN_ALLOW_FALLBACK!=1` 이면 부팅을 거부하지 않고 `enabled=false` 로 둔다 — WebAuthn 엔드포인트만 503 을 반환하고 나머지는 정상 동작한다. 운영자가 WebAuthn 을 사용할 의향이 없거나 아직 도메인이 정해지지 않은 셀프 호스팅 단계에서 앱 전체가 죽으면 안 되기 때문이다. 채택 이유:
 
 - WebAuthn 은 **부가 인증 수단**이지 인증의 핵심 경로가 아니다. 부재 시 일반 로그인 + TOTP 가 정상 동작해야 한다.
 - 운영자가 모든 env 를 한 번에 설정하지 않는 셀프 호스팅 점진 도입 시나리오를 차단하지 말아야 한다.
@@ -505,33 +470,24 @@ V058 (`chk_login_history_event` CHECK 제약에 `webauthn_failed` 추가) 는 `D
 
 1. **append-only 테이블** — `login_history` 는 INSERT 만 발생 (UPDATE/DELETE 없음 — 보존 기간 cron 만 DELETE). long-running write 트랜잭션이 ACCESS EXCLUSIVE 와 경합할 가능성이 낮다.
 2. **enum 확장 시나리오** — 신규 enum 값 (`webauthn_failed`) 은 기존 row 에 존재하지 않으므로 NOT VALID 의 "기존 row 검증 스킵" 이 주는 이득이 없다 (어차피 전체 검증 시 0건 위배).
-3. **테이블 크기가 아직 작음** — 본 변경 시점 production `login_history` 가 락 영향이 무시 가능한 규모. 다만 장기적으로 성장하면 다음과 같은 사후 검토를 권장:
+3. **테이블 크기가 아직 작음** — `login_history` 는 락 영향이 무시 가능한 규모. 다만 장기적으로 성장하면 다음과 같은 사후 검토를 권장:
    - 1M row 도달 시: 다음 CHECK 변경부터 의무적으로 NOT VALID + VALIDATE 분리
    - 보존 기간 (180일) 정책이 효과적으로 동작하는지 cron 모니터링 (`login_history_pruner_service`)
 
-본 결정의 사후 분리는 의미가 없다 — V058 는 이미 production 에 적용됐고, 락은 이미 잡혔다 풀렸다. 미래의 동일 패턴 변경에 대해서는 위 조건 점검 후 분기.
-
-별도 V059 NOT VALID/VALIDATE 마이그레이션을 추가하는 안도 검토했으나:
-- 이미 적용된 제약을 NOT VALID 로 재선언하는 것은 의미 불명 (제약명 동일 시 `ERROR: relation already exists`).
-- DROP → NOT VALID ADD → VALIDATE 의 3-step 으로 우회 가능하지만, 이는 본래의 단일 statement 보다 더 긴 락 윈도우를 만든다 (총 3개 ACCESS EXCLUSIVE 락).
-
-따라서 정책 채택:
-- V058 는 그대로 유지
-- 본 Rationale 절을 통해 "왜 컨벤션 예외" 인지를 형식화 — 추후 유사 결정이 무근거 번복이 되지 않도록
-- migrations/README.md §1 의 컨벤션 자체는 강화 대상 — `login_history` 같은 append-only 테이블도 1M row 이후에는 NOT VALID 2-step 의무화 권장
+이미 적용된 제약을 NOT VALID 로 재선언하는 것은 의미 불명이고 (제약명 동일 시 `ERROR: relation already exists`), DROP → NOT VALID ADD → VALIDATE 3-step 우회는 단일 statement 보다 더 긴 락 윈도우(총 3개 ACCESS EXCLUSIVE 락)를 만든다. 미래의 동일 패턴 변경에 대해서는 위 조건 점검 후 분기하며, `login_history` 같은 append-only 테이블도 1M row 이후에는 NOT VALID 2-step 의무화를 권장한다.
 
 ### 1.4.H — WebAuthn 도메인 모듈 분리
 
-WebAuthn 관련 entity·service·DTO·controller·tests 를 `codebase/backend/src/modules/auth/webauthn/` 서브폴더로 이동하고 `WebAuthnModule` 을 신설한다. AuthModule 은 WebAuthnModule 을 import 해 WebAuthnService 를 주입받는다 — 단방향 의존성 (`AuthModule → WebAuthnModule`).
+WebAuthn 관련 entity·service·DTO·controller·tests 는 `codebase/backend/src/modules/auth/webauthn/` 서브폴더에 위치하고 `WebAuthnModule` 로 묶인다. AuthModule 은 WebAuthnModule 을 import 해 WebAuthnService 를 주입받는다 — 단방향 의존성 (`AuthModule → WebAuthnModule`).
 
-| 위치 (이전 → 변경) | 분류 |
+| 위치 | 분류 |
 |--------|------|
-| `auth/webauthn.service.ts` → `auth/webauthn/webauthn.service.ts` | service |
-| `auth/entities/webauthn-credential.entity.ts` → `auth/webauthn/entities/webauthn-credential.entity.ts` | entity |
-| `auth/dto/webauthn.dto.ts` → `auth/webauthn/dto/webauthn.dto.ts` | request DTO |
-| `auth/dto/responses/webauthn-response.dto.ts` → `auth/webauthn/dto/responses/webauthn-response.dto.ts` | response DTO |
-| (신규) `auth/webauthn/webauthn.module.ts` | NestJS module |
-| (신규) `auth/webauthn/webauthn.controller.ts` | HTTP controller — `/auth/2fa/webauthn/...` |
+| `auth/webauthn/webauthn.service.ts` | service |
+| `auth/webauthn/entities/webauthn-credential.entity.ts` | entity |
+| `auth/webauthn/dto/webauthn.dto.ts` | request DTO |
+| `auth/webauthn/dto/responses/webauthn-response.dto.ts` | response DTO |
+| `auth/webauthn/webauthn.module.ts` | NestJS module |
+| `auth/webauthn/webauthn.controller.ts` | HTTP controller — `/auth/2fa/webauthn/...` |
 
 AuthService 는 `webauthnCredentialRepository` 직접 주입 대신 `WebAuthnService.countCredentials()` 를 사용한다. `countCredentials()` 가 기능 비활성(§1.4.3) 시 0 을 반환하므로 AuthService 는 enabled 분기 로직을 보유할 필요 없음.
 
@@ -545,20 +501,12 @@ LoginHistoryService 는 AuthModule 과 WebAuthnModule 양쪽에 provider 로 둔
 
 - AuthModule 비대화 — login·register·OAuth·session·TOTP 외에 WebAuthn 까지 한 곳에 있어 응집도 낮음. 도메인 모듈 + 컨트롤러 분리로 도메인 경계 명시.
 - 단방향 의존성으로 순환 위험 차단. AuthService 는 WebAuthnService 를 알지만 역방향 의존성 없음.
-- ai-review C-8 follow-up.
 
 ### 1.4.I — `requiresTotp` deprecated 필드 제거 종결
 
-`/auth/login` 의 2FA challenge 응답에서 `requiresTotp?: boolean` 필드를 완전히 제거한다 (backend `LoginChallengeDto` · `AuthService.login()` · frontend `TwoFactorChallengeResponse` 동시).
+`/auth/login` 의 2FA challenge 응답에는 `requiresTotp?: boolean` 필드가 존재하지 않는다 (backend `LoginChallengeDto` · `AuthService.login()` · frontend `TwoFactorChallengeResponse` 모두). 클라이언트는 `requires2fa` + `methods` 만으로 분기한다 (`lib/api/auth.ts` 의 `TwoFactorChallengeResponse` / `isTwoFactorChallenge()`).
 
-**제거 가능한 시점이 된 근거**
-
-- 2fa-webauthn 본 PR (2026-05-18) 도입 이후 두 마이너 버전 경과 — `requiresTotp` 는 호환 bridge 로서의 역할을 마침.
-- 신규 프론트엔드가 동일 배포에 포함되어 있음 — `lib/api/auth.ts` 의 `TwoFactorChallengeResponse` / `isTwoFactorChallenge()` 가 이미 `requires2fa` + `methods` 만으로 분기. 외부 클라이언트는 본 API 를 사용하지 않음.
-- spec §1.4.2 에 명시했던 두 제거 조건 ((1) 두 마이너 버전 경과, (2) `methods` 기반 신규 프론트엔드 배포) 모두 충족.
-
-**채택 이유**
+**이유**
 
 - 같은 의미를 두 필드로 중복 표현하는 비용 — Swagger 문서·클라이언트 타입·DTO·테스트 mock 모두에서 노이즈 발생.
 - "두 필드 충돌 시 `requires2fa` 우선" 같은 정합성 규칙을 유지보수해야 하는 부담 제거.
-- plan/in-progress/2fa-webauthn-followups.md §1 follow-up 종결.

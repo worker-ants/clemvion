@@ -176,7 +176,7 @@ Loop / ForEach / Map / Parallel 의 노드 envelope 는 시점에 따라 두 가
 | `map` | `mapped` | `items[]` (body 입력 분배) | `{ mapped: [...], count }` |
 | `parallel` | `branches` | (없음 — 분기별 빈 입력) | `{ branches: [...], count }` |
 
-> **D2 결정 (2026-05-17, plan/in-progress/node-output-redesign)**: 시작 시점의 `output: items[]` 는 **엔진-내부 전용 중간 표현** 이다. body 분배 직후 엔진 오버라이트로 envelope 의 `output` 이 `{ <컬렉션>, count }` 로 교체되므로, **다운스트림 expression (`$node["X"].output.*`) · 외부 observer (run history API · webhook payload 등) 어디서도 raw 배열이 노출되지 않는다**. 핸들러 시그니처(`output: items[]`)와 외부 노출 형태가 다른 이질감은 의도된 설계 — 5필드 invariant (`{config, output, meta?, port?, status?}`) 를 깨지 않고 분배용 데이터를 엔진에 전달하기 위한 컨트랙트다.
+> **D2 결정**: 시작 시점의 `output: items[]` 는 **엔진-내부 전용 중간 표현** 이다. body 분배 직후 엔진 오버라이트로 envelope 의 `output` 이 `{ <컬렉션>, count }` 로 교체되므로, **다운스트림 expression (`$node["X"].output.*`) · 외부 observer (run history API · webhook payload 등) 어디서도 raw 배열이 노출되지 않는다**. 핸들러 시그니처(`output: items[]`)와 외부 노출 형태가 다른 이질감은 의도된 설계 — 5필드 invariant (`{config, output, meta?, port?, status?}`) 를 깨지 않고 분배용 데이터를 엔진에 전달하기 위한 컨트랙트다.
 
 다운스트림 노드는 `done` 포트 이후에 항상 `{ <컬렉션>, count }` 형태를 본다.
 
@@ -194,7 +194,7 @@ Loop / ForEach / Map / Parallel 의 노드 envelope 는 시점에 따라 두 가
 
 **왜 pass-through 인가**: 위 노드의 "비즈니스 결과물" (Principle 1) 은 input 자체가 아니라 **분기된 데이터 흐름**이다. input 을 변형 없이 흘려보내고 분기/메타정보만 `port`·`meta` 에 담는 것이 다른 노드들의 데이터 변형 컨트랙트(map, transform 등)와 명확히 구분된다.
 
-> 출처: [INCONSISTENCY_MATRIX 축6 채택안](../../../plan/complete/archive/from-user-memo/node-specs-improvement/INCONSISTENCY_MATRIX.md). 아카이브 의 `meta.*` 추가 제안은 위 표대로 모두 핸들러에 반영 완료(2026-05-11). Switch `meta.value` 는 deprecated alias 로 유지되었으나 본 plan 결정(D4)에 따라 `meta.resolvedValue` 단독으로 정리된다.
+Switch `meta.value` 는 deprecated alias 이며 `meta.resolvedValue` 단독으로 정리되어 있다.
 
 ## 11. 출력 구조 색인
 
@@ -214,9 +214,3 @@ Loop / ForEach / Map / Parallel 의 노드 envelope 는 시점에 따라 두 가
 | [parallel](./10-parallel.md#5-출력-구조) | §5.1 (시작 — N분기) / §5.2 (`done`) | §5.7 `{branches, count}` | 컨테이너 |
 | [merge](./11-merge.md#5-출력-구조) | §5.1 (단일) | — | 데이터 노드 |
 | [background](./12-background.md#5-출력-구조) | §5.1 (`main`) / §5.2 (`bg`) | §5.7 (변형) | 컨테이너 (fire-and-forget) |
-
-## 12. CHANGELOG
-
-| 일자 | 변경 |
-|------|------|
-| 2026-05-10 | §9 5필드 공통 규약 / §10 Pass-through 노드 규약 / §11 출력 구조 색인 신설. 노드 문서 §5 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). 기존 §1~§8 anchor 보존 |

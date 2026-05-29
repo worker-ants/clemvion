@@ -159,7 +159,7 @@ config: `{ "language": "javascript", "code": "return $input.value * 2;" }`, inpu
 | `config.language` | `'javascript'` | config echo (Principle 7) | 사용자가 선택한 언어 (default `javascript`) |
 | `config.code` | string | config echo | 사용자 코드 본문 raw — expression resolver 에서 제외되므로 `{{ }}` 가 있어도 평가되지 않음. 길이 제한 없음 (Data 공통 §4) |
 | `config.timeout` | number? | config echo | 사용자가 설정한 타임아웃 초. 미설정 시 default `30` |
-| `output` | any | runtime — 사용자 `return` 값 | primitive (`42`) / object / array / `undefined` (return 없음) 모두 가능. **shape 은 사용자 코드가 결정**한다 (Principle 8 의 `output.result` 래핑은 적용하지 않음 — 개선안 §5 근거) |
+| `output` | any | runtime — 사용자 `return` 값 | primitive (`42`) / object / array / `undefined` (return 없음) 모두 가능. **shape 은 사용자 코드가 결정**한다 (Principle 8 의 `output.result` 래핑은 적용하지 않음) |
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms) |
 | `meta.success` | `true` | handler return | Code 노드 전용 편의 필드 ([CONVENTIONS Principle 2](../../conventions/node-output.md#principle-2--meta-는-실행-메트릭만-담는다)) |
 | `meta.logs` | string[] | handler return | `console.log/warn/error` 캡처. `[level] payload` 형식, 최대 100줄 |
@@ -297,7 +297,7 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 | `language` 가 `javascript` 외 | (zod enum) `Invalid enum value. Expected 'javascript', received '...'` | schema parse 시점 |
 | **`code` 컴파일 실패** (`vm.Script` 구문 오류) | `code has a syntax error: <V8 SyntaxError 메시지>` | handler.validate (사용자 코드를 한 번도 실행하지 못한 상태) |
 
-> Pre-flight throw 는 사용자 코드를 단 한 번도 실행하지 못한 상태이므로 `error` 포트가 아닌 throw 로 처리한다 (Data 공통 §4.1, 개선안 [`data/code.md`](../../../plan/complete/archive/from-user-memo/node-specs-improvement/data/code.md) §5.근거). 캔버스 배지 / 실행 시작 직전 검증으로 즉시 노출된다.
+> Pre-flight throw 는 사용자 코드를 단 한 번도 실행하지 못한 상태이므로 `error` 포트가 아닌 throw 로 처리한다 (Data 공통 §4.1). 캔버스 배지 / 실행 시작 직전 검증으로 즉시 노출된다.
 
 ## 7. 샌드박싱
 

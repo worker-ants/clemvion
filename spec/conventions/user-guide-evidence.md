@@ -4,18 +4,11 @@ status: spec-only
 code: []
 ---
 
-<!-- NOTE: status="spec-only" because the ImplAnchor component + 3 guards
-     live in PR #292 (plan 3) which is not yet merged into the base of this
-     PR (plan 2 / spec-frontmatter-rollout). After PR #292 merges, a follow-up
-     commit should graduate this to status="implemented" with code: pointing
-     to impl-anchor.tsx + 3 test files. -->
-
-
 # Convention: User-Guide Evidence (`<ImplAnchor>`)
 
 > 관련 문서: [spec-impl-evidence](./spec-impl-evidence.md) · [i18n-userguide](./i18n-userguide.md) · [PROJECT.md §유저 가이드 파일 컨벤션](../../PROJECT.md#유저-가이드-파일-컨벤션) · [spec/2-navigation/13-user-guide.md §공용 MDX 컴포넌트](../2-navigation/13-user-guide.md)
 >
-> SoT 역할: 유저 가이드 본문이 약속한 UI / API surface 가 실제 코드에 존재함을 build-time 으로 강제하는 `<ImplAnchor>` 컴포넌트의 단일 진실. 텔레그램 chat-channel 가이드 GUI 흐름 약속 vs frontend UI 부재 (2026-05-23 발견) 같은 *가이드 → 코드* 역방향 갭을 차단한다.
+> SoT 역할: 유저 가이드 본문이 약속한 UI / API surface 가 실제 코드에 존재함을 build-time 으로 강제하는 `<ImplAnchor>` 컴포넌트의 단일 진실. 텔레그램 chat-channel 가이드 GUI 흐름 약속 vs frontend UI 부재 같은 *가이드 → 코드* 역방향 갭을 차단한다.
 
 ---
 
@@ -31,7 +24,7 @@ code: []
 
 ### 1.1 위치·시그니처
 
-구현 위치: `codebase/frontend/src/components/docs/impl-anchor.tsx` (구현은 후속 plan 3 `user-guide-reverse-coverage.md`).
+구현 위치: `codebase/frontend/src/components/docs/impl-anchor.tsx`.
 
 ```mdx
 <ImplAnchor
@@ -64,7 +57,7 @@ code: []
 
 ## 2. Build-time 가드 (3건)
 
-구현은 후속 plan 3 (`user-guide-reverse-coverage.md`). 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역.
+모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역.
 
 | 가드 | 검증 |
 |---|---|
@@ -149,7 +142,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 `spec-impl-evidence` + 본 컨벤션의 강제력은 다음 3채널로 보장:
 
 1. **build-time 가드 3건** (§2) — CI 차단
-2. **`user-guide-writer` 자가 검증 체크리스트** — GUI 흐름 절 작성 시 `<ImplAnchor>` 동반 의무 항목. `.claude/agents/user-guide-writer.md` 에 본 PR 안에서 추가
+2. **`user-guide-writer` 자가 검증 체크리스트** — GUI 흐름 절 작성 시 `<ImplAnchor>` 동반 의무 항목. `.claude/agents/user-guide-writer.md` 에 등재
 3. **`PROJECT.md §유저 가이드 파일 컨벤션 SoT 인덱스`** — 본 문서 등재 (결정 E-5)
 
 ## 5. i18n-userguide.md §Principle 7 와의 관계
@@ -159,7 +152,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 - **GUI 흐름 절** 안의 약속은 본 가드가 검출 (anchor 가 코드에 없으면 차단) → §Principle 7 의 부분 보완
 - **개념 설명 절** (워크플로우 디자인, 데이터 모델 설명 등) 은 여전히 자동 검출 불가 — §Principle 7 의 미커버 영역으로 남음
 
-후속 plan 3 (`user-guide-reverse-coverage.md`) 에서 `i18n-userguide.md §Principle 7` 본문 갱신 — 본 가드의 부분 커버 범위 명시.
+후속으로 `i18n-userguide.md §Principle 7` 본문에 본 가드의 부분 커버 범위를 명시한다.
 
 ## Rationale
 
@@ -177,11 +170,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 ### R-3. `kind` enum 4 값 채택 vs 더 세분화
 
-후보였던 분류:
-- ui-entry / component / api-endpoint / e2e-scenario (채택)
-- 더 세분: route / page / dialog / button / link / form-field / api / e2e / unit-test
-
-채택안은 4 값으로 단순화 — 가이드 작성자가 분류에 고민하는 시간 최소화. 더 세분화는 false-classification 부담만 키우고 가드 강도는 동일. 후속 enhancement 로 분리 가능.
+`kind` 은 ui-entry / component / api-endpoint / e2e-scenario 4 값으로 단순화 — 가이드 작성자가 분류에 고민하는 시간 최소화. route / page / dialog / button / form-field 식 더 세분화는 false-classification 부담만 키우고 가드 강도는 동일하므로 채택하지 않는다. 후속 enhancement 로 분리 가능.
 
 ### R-4. integrations + triggers 만 신규 coverage 가드 대상
 

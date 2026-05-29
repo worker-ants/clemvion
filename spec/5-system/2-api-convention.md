@@ -339,9 +339,9 @@ Content-Type: application/json
 
 ## Rationale
 
-### §11 Webhook 절을 12-webhook.md 로 위임·정합화 (2026-05-29)
+### §11 Webhook 절을 12-webhook.md 로 위임·정합화
 
-`§11` 은 webhook 도메인 SoT([Spec Webhook](./12-webhook.md))와 중복 기술돼 drift 가 누적됐다 (consistency cross_spec 10건). 코드(`hooks.controller.ts` / `hooks.service.ts` / `app.module.ts` ThrottlerModule)를 ground truth 로 삼아 정합화하고, 상세는 12-webhook 으로 위임했다. 정정 내역:
+`§11` 은 webhook 도메인 SoT([Spec Webhook](./12-webhook.md))와 중복 기술돼 drift 가 누적됐다. 코드(`hooks.controller.ts` / `hooks.service.ts` / `app.module.ts` ThrottlerModule)를 ground truth 로 삼아 정합화하고, 상세는 12-webhook 으로 위임했다. 정정 내역:
 
 - URL `{base_url}/hooks/` → `{base_url}/api/hooks/` (코드: `@Controller('hooks')` + global prefix `api`). "`/hooks/*` 는 `/api/*` 와 분리" note 는 사실과 반대여서 삭제.
 - 메서드: GET/PUT 행 삭제 — 코드는 `@Post(':endpointPath')` 단일 (POST 전용).
