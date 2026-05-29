@@ -1,6 +1,7 @@
 import { SendEmailHandler } from './send-email.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+import { isSmtpHostBlocked } from '../../../common/utils/smtp-host-guard.js';
 
 const sendMailMock = jest.fn();
 const closeMock = jest.fn();
@@ -11,6 +12,12 @@ jest.mock('nodemailer', () => ({
     close: () => closeMock(),
   })),
 }));
+// SSRF 가드는 smtp-host-guard.spec.ts 가 검증한다. 핸들러 테스트에서는 실제
+// DNS 조회를 피하기 위해 모킹하고 분기만 제어한다 (기본 false = 허용).
+jest.mock('../../../common/utils/smtp-host-guard.js', () => ({
+  isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
+}));
+const mockedIsSmtpHostBlocked = isSmtpHostBlocked as unknown as jest.Mock;
 
 function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
   return {
@@ -300,6 +307,44 @@ describe('SendEmailHandler', () => {
       // Transporter is now cached across calls; close() only fires on shutdown.
       handler.shutdown();
       expect(closeMock).toHaveBeenCalled();
+    });
+
+    it('routes to error port (EMAIL_HOST_BLOCKED) when the SSRF guard blocks the host', async () => {
+      mockedIsSmtpHostBlocked.mockResolvedValueOnce(true);
+      const { service } = makeService({
+        integration: {
+          id: 'int-1',
+          workspaceId: 'ws-1',
+          serviceType: 'email',
+          status: 'connected',
+          name: 'Internal SMTP',
+          authType: 'smtp',
+          credentials: {
+            host: '169.254.169.254',
+            port: 587,
+            secure: 'starttls',
+            username: 'user',
+            password: 'pw',
+            default_from: 'noreply@example.com',
+          },
+        },
+      });
+      const handler = new SendEmailHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        baseConfig,
+        makeContext(),
+      )) as unknown as {
+        output: { error?: { code: string } };
+        meta: { deliveryStatus: string };
+        port?: string;
+      };
+
+      expect(out.port).toBe('error');
+      expect(out.output.error?.code).toBe('EMAIL_HOST_BLOCKED');
+      expect(out.meta.deliveryStatus).toBe('failed');
+      // 차단 시 실제 발송을 시도하지 않아야 한다.
+      expect(sendMailMock).not.toHaveBeenCalled();
     });
 
     it('passes bcc through to sendMail when provided', async () => {

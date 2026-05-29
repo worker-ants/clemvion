@@ -23,6 +23,9 @@ export const ErrorCode = {
   DB_PERMISSION_DENIED: 'DB_PERMISSION_DENIED',
   // Email
   EMAIL_SEND_FAILED: 'EMAIL_SEND_FAILED',
+  // SMTP host 가 사설/loopback 대역이라 SSRF 가드에 차단된 경우 (기본 ON,
+  // `ALLOW_PRIVATE_HOST_TARGETS=true` 로 opt-out). connection test / 발송 양쪽 공통.
+  EMAIL_HOST_BLOCKED: 'EMAIL_HOST_BLOCKED',
   // LLM
   LLM_CALL_FAILED: 'LLM_CALL_FAILED',
   LLM_RATE_LIMITED: 'LLM_RATE_LIMITED',
