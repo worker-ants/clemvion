@@ -1,0 +1,23 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-05-29T08:26:13Z",
+  "decisions": [
+    {"name": "security", "selected": true, "reason": "agents_forced (router_safety): src코드 변경에 따른 의무 검토"},
+    {"name": "performance", "selected": false, "reason": "반복문/I/O/데이터 구조 변경 없음"},
+    {"name": "architecture", "selected": false, "reason": "모듈 경계/DI 변경 없음, 기존 컴포넌트 내부 단순 리팩토링"},
+    {"name": "requirement", "selected": true, "reason": "agents_forced (router_safety): src코드 변경에 따른 의무 검토"},
+    {"name": "scope", "selected": true, "reason": "agents_forced (router_safety): src코드 변경에 따른 의무 검토"},
+    {"name": "side_effect", "selected": true, "reason": "agents_forced (router_safety): src코드 변경에 따른 의무 검토"},
+    {"name": "maintainability", "selected": true, "reason": "agents_forced (router_safety): src코드 변경에 따른 의무 검토"},
+    {"name": "testing", "selected": true, "reason": "agents_forced (router_safety): src코드 변경에 따른 의무 검토"},
+    {"name": "documentation", "selected": false, "reason": "공개 API 변경 없음, JSDoc/README 미수정"},
+    {"name": "dependency", "selected": false, "reason": "package.json 변경 없음"},
+    {"name": "database", "selected": false, "reason": "DB 마이그레이션/쿼리/ORM 변경 없음"},
+    {"name": "concurrency", "selected": false, "reason": "async/Lock/Queue 패턴 신규 도입 없음"},
+    {"name": "api_contract", "selected": false, "reason": "API route/contract 변경 없음"},
+    {"name": "user_guide_sync", "selected": false, "reason": "PROJECT.md 매트릭스 미매칭 — 내부 컴포넌트 리팩토링, 신규 UI 문자열/API/노드 변경 없음"}
+  ],
+  "selected_count": 6,
+  "skipped_count": 8,
+  "forced": ["maintainability", "requirement", "scope", "security", "side_effect", "testing"]
+}
