@@ -52,6 +52,22 @@ export class SlackClient {
   }
 
   /**
+   * `views.open` — §4.1 native form modal open. `open_form_modal` command 처리 시
+   * HooksService → SlackAdapter.openFormModal 가 호출. trigger_id (3초 유효) + modal view.
+   * Spec [providers/slack §5.3] / chat-channel-adapter §4.1.
+   */
+  viewsOpen(
+    botToken: string,
+    payload: { trigger_id: string; view: unknown },
+  ): Promise<{ ok: boolean; error?: string }> {
+    return this.call<{ ok: boolean; error?: string }>(
+      botToken,
+      'views.open',
+      payload as unknown as Record<string, unknown>,
+    );
+  }
+
+  /**
    * `files.uploadV2` — v1 carousel/chart/table fallback path (Spec §5.4). Phase 3 후속.
    */
   filesUploadV2(

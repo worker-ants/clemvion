@@ -200,6 +200,93 @@ describe('parseSlackUpdate — Interactivity', () => {
     expect(upd).toBeNull();
   });
 
+  it('§4.1 block_actions __open_form__ → open_form_modal (openContext.triggerId)', () => {
+    const upd = parseSlackUpdate(
+      interactivity({
+        type: 'block_actions',
+        team: { id: 'T1' },
+        user: { id: 'U1' },
+        channel: { id: 'D1' },
+        trigger_id: 'trg.open',
+        actions: [{ action_id: '__open_form__' }],
+      }),
+    );
+    expect(upd).toMatchObject({
+      conversationKey: 'D1',
+      channelUserKey: 'U1',
+      command: {
+        kind: 'open_form_modal',
+        openContext: { triggerId: 'trg.open' },
+      },
+      idempotencyKey: 'trg.open',
+    });
+  });
+
+  it('§4.1 view_submission callback_id=clemvion_form → form_submission (평탄화)', () => {
+    const upd = parseSlackUpdate(
+      interactivity({
+        type: 'view_submission',
+        team: { id: 'T1' },
+        user: { id: 'U1' },
+        trigger_id: 'trg.sub',
+        view: {
+          id: 'V1',
+          callback_id: 'clemvion_form',
+          private_metadata: 'D1',
+          state: {
+            values: {
+              name: { v: { type: 'plain_text_input', value: 'Alice' } },
+              role: {
+                v: {
+                  type: 'static_select',
+                  selected_option: { value: 'admin' },
+                },
+              },
+              when: { v: { type: 'datepicker', selected_date: '2026-05-28' } },
+            },
+          },
+        },
+      }),
+    );
+    expect(upd).toMatchObject({
+      conversationKey: 'D1',
+      channelUserKey: 'U1',
+      command: {
+        kind: 'form_submission',
+        fields: { name: 'Alice', role: 'admin', when: '2026-05-28' },
+      },
+      idempotencyKey: 'V1',
+    });
+  });
+
+  it('§4.1 view_submission checkboxes → comma-joined value', () => {
+    const upd = parseSlackUpdate(
+      interactivity({
+        type: 'view_submission',
+        user: { id: 'U1' },
+        view: {
+          id: 'V2',
+          callback_id: 'clemvion_form',
+          private_metadata: 'D9',
+          state: {
+            values: {
+              opts: {
+                v: {
+                  type: 'checkboxes',
+                  selected_options: [{ value: 'a' }, { value: 'b' }],
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+    expect(upd?.command).toEqual({
+      kind: 'form_submission',
+      fields: { opts: 'a,b' },
+    });
+  });
+
   it('payload 가 잘못된 JSON → null', () => {
     expect(parseSlackUpdate({ payload: 'not json' })).toBeNull();
   });

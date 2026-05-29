@@ -94,6 +94,17 @@ export class HooksController {
       return;
     }
 
+    // §4.1 native modal — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
+    // (Discord modal `{ type: 9 }` open / `{ type: 4 }` ack / Slack `{ response_action }`).
+    // TransformInterceptor 래핑 우회 — res.json 으로 직접 전송. Spec [chat-channel-adapter §4.1].
+    const interactionHttpResponse = (
+      result as unknown as { interactionHttpResponse?: unknown }
+    ).interactionHttpResponse;
+    if (interactionHttpResponse !== undefined) {
+      res.status(HttpStatus.OK).json(interactionHttpResponse);
+      return;
+    }
+
     return {
       ...result,
       message: 'Webhook received, workflow execution started',

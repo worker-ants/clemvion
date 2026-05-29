@@ -299,6 +299,46 @@ describe('CreateTriggerDto — notification/interaction sub-DTO', () => {
       expect(errors).toEqual([]);
     });
 
+    // SUMMARY#10 — native_modal / auto 신규 enum 값 검증 (testing review)
+    it('통과 — uiMapping.formMode = native_modal', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          uiMapping: { formMode: 'native_modal' },
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors).toEqual([]);
+    });
+
+    it('통과 — uiMapping.formMode = auto', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          uiMapping: { formMode: 'auto' },
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors).toEqual([]);
+    });
+
+    it('실패 — uiMapping.formMode = invalid_mode', async () => {
+      const dto = plainToInstance(CreateTriggerDto, {
+        ...baseCreate,
+        chatChannel: {
+          provider: 'telegram',
+          botToken: '111:fake',
+          uiMapping: { formMode: 'invalid_mode' },
+        },
+      });
+      const errors = await validate(dto, VALIDATE_OPTIONS);
+      expect(errors.find((e) => e.property === 'chatChannel')).toBeDefined();
+    });
+
     it('통과 — uiMapping.visualNode 의 legacy text_only → text 로 read-time normalize', async () => {
       const dto = plainToInstance(CreateTriggerDto, {
         ...baseCreate,

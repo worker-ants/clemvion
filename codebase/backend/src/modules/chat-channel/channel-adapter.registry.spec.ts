@@ -12,6 +12,7 @@ import type {
 
 class FakeAdapter implements ChatChannelAdapter {
   readonly provider: string;
+  readonly supportsNativeForm = false;
   constructor(provider: string) {
     this.provider = provider;
   }

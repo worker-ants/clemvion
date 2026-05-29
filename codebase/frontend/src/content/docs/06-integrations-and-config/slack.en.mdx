@@ -104,7 +104,19 @@ Copy the endpoint URL using the 📋 button on the trigger list screen. Use the 
 ### 4.3 Buttons / Forms
 
 - Button Presentation nodes are converted to Slack Block Kit `actions` blocks
-- Form nodes currently run as a multi-step text sequence (one question per field, answered via DM)
+- Form nodes use **native modal** by default — clicking "Fill out form" opens a Slack Modal (`views.open`) where users fill in all fields at once.
+
+#### Form mode (`formMode`)
+
+Control the behavior via the trigger's Chat Channel > UI mapping > **Form mode** setting:
+
+| Value | Behavior |
+|---|---|
+| `auto` (default) | Uses native modal when possible, falls back to multi-step |
+| `native_modal` | Always forces the Slack modal |
+| `multi_step` | Always uses multi-step text sequence (one question per field, answered via DM) |
+
+Slack supports all field types (`text`, `email`, `textarea`, `select`, etc.) in modal. Forms with a `file` field automatically fall back to `multi_step`.
 
 ### 4.4 AI Agent render tools / Template
 

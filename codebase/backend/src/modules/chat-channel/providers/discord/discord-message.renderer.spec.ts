@@ -351,3 +351,61 @@ describe('renderDiscordEvent — execution.node.completed structured return shap
     expect(all.length).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// §4.1 native modal 게이팅 — Discord MODAL 은 TEXT_INPUT only (text 계열만).
+// ---------------------------------------------------------------------------
+describe('renderDiscordEvent — form §4.1 native modal 게이팅', () => {
+  function formEvent(
+    fields: Array<Record<string, unknown>>,
+  ): Extract<EiaEvent, { type: 'execution.waiting_for_input' }> {
+    return {
+      ...BASE,
+      type: 'execution.waiting_for_input',
+      node: { id: 'n', type: 'form', interactionType: 'form' },
+      interaction: {},
+      context: { formConfig: { fields } },
+    };
+  }
+
+  it('≤5 text-family fields → form_modal', () => {
+    const msgs = renderDiscordEvent(
+      formEvent([
+        { name: 'name', label: 'Name', type: 'text', required: true },
+        { name: 'email', label: 'Email', type: 'email' },
+      ]),
+      CONFIG,
+    );
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].body).toMatchObject({
+      kind: 'form_modal',
+      openLabel: '양식 작성하기',
+    });
+  });
+
+  it('select 필드 포함 → form_prompt (Discord modal TEXT_INPUT only)', () => {
+    const msgs = renderDiscordEvent(
+      formEvent([
+        { name: 'name', label: 'Name', type: 'text' },
+        {
+          name: 'role',
+          label: 'Role',
+          type: 'select',
+          options: [{ label: 'A', value: 'a' }],
+        },
+      ]),
+      CONFIG,
+    );
+    expect(msgs[0].body).toMatchObject({ kind: 'form_prompt' });
+  });
+
+  it('6 fields → form_prompt (modal max 5 초과)', () => {
+    const fields = Array.from({ length: 6 }, (_, i) => ({
+      name: `f${i}`,
+      label: `F${i}`,
+      type: 'text',
+    }));
+    const msgs = renderDiscordEvent(formEvent(fields), CONFIG);
+    expect(msgs[0].body).toMatchObject({ kind: 'form_prompt' });
+  });
+});

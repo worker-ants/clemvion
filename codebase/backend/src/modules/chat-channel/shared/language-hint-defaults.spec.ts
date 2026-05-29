@@ -2,8 +2,27 @@ import {
   DEFAULT_LANGUAGE_HINTS,
   resolveLanguageHint,
   applyPlaceholders,
+  resolveFormOpenLabel,
+  FORM_OPEN_LABEL_DEFAULTS,
   type LanguageLocale,
 } from './language-hint-defaults';
+
+describe('resolveFormOpenLabel (§4.1 form_modal 버튼 라벨)', () => {
+  it('default KO / EN', () => {
+    expect(resolveFormOpenLabel(undefined, 'ko')).toBe('양식 작성하기');
+    expect(resolveFormOpenLabel(undefined, 'en')).toBe('Open form');
+    expect(FORM_OPEN_LABEL_DEFAULTS.ko).toBe('양식 작성하기');
+  });
+  it('locale 미설정 → ko fallback', () => {
+    expect(resolveFormOpenLabel(undefined, undefined)).toBe('양식 작성하기');
+  });
+  it('languageHints override 우선', () => {
+    expect(resolveFormOpenLabel({ formOpenLabel: '작성' }, 'en')).toBe('작성');
+  });
+  it('빈 override 는 무시 → locale default', () => {
+    expect(resolveFormOpenLabel({ formOpenLabel: '' }, 'en')).toBe('Open form');
+  });
+});
 
 describe('DEFAULT_LANGUAGE_HINTS (Spec Chat Channel §4.1.1)', () => {
   it('contains all 6 keys for both ko and en', () => {

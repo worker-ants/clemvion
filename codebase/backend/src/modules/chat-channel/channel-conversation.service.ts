@@ -155,8 +155,68 @@ export class ChannelConversationService implements OnModuleDestroy {
     await this.upsert(triggerId, conversationKey, state);
   }
 
+  /**
+   * §4.1 native modal 동시 제출 방지 lock 획득 (SET NX EX).
+   * lockKey = `chat-channel-lock:{triggerId}:{conversationKey}:formsubmit`.
+   * `token` 은 호출자가 발급한 고유 값 (release 시 소유권 확인용).
+   *
+   * Redis 미가용 시 true (fail-open — 기존 graceful degradation 정합, lock 인프라 없음).
+   * 오류 시에도 true (fail-open) + logger.warn.
+   *
+   * @returns true 면 lock 획득 성공, false 면 이미 다른 요청이 보유 중.
+   */
+  async acquireLock(
+    triggerId: string,
+    conversationKey: string,
+    token: string,
+    ttlSec = 30,
+  ): Promise<boolean> {
+    if (!this.redis) return true;
+    const lockKey = this.buildLockKey(triggerId, conversationKey);
+    try {
+      // ioredis 타입 시그니처는 EX seconds NX 순서 — Redis 명령상 `SET k v NX EX n` 와 동치.
+      const result = await this.redis.set(lockKey, token, 'EX', ttlSec, 'NX');
+      return result === 'OK';
+    } catch (err) {
+      this.logger.warn(
+        `ChannelConversationService.acquireLock 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return true;
+    }
+  }
+
+  /**
+   * acquireLock 으로 획득한 lock 안전 해제. Lua 로 소유권 (token 일치) 확인 후 DEL —
+   * TTL 만료 후 다른 요청이 잡은 lock 을 잘못 삭제하지 않도록 보장.
+   * Redis 미가용 시 noop. 오류 시 logger.warn (lock 은 TTL 로 자연 만료).
+   */
+  async releaseLock(
+    triggerId: string,
+    conversationKey: string,
+    token: string,
+  ): Promise<void> {
+    if (!this.redis) return;
+    const lockKey = this.buildLockKey(triggerId, conversationKey);
+    try {
+      await this.redis.eval(
+        "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
+        1,
+        lockKey,
+        token,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `ChannelConversationService.releaseLock 실패 (TTL 로 자연 만료): ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   private buildKey(triggerId: string, conversationKey: string): string {
     return `chat-channel:${triggerId}:${conversationKey}`;
+  }
+
+  private buildLockKey(triggerId: string, conversationKey: string): string {
+    return `chat-channel-lock:${triggerId}:${conversationKey}:formsubmit`;
   }
 
   async onModuleDestroy(): Promise<void> {

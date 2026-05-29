@@ -80,6 +80,22 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
 
   if (i.type === 3) {
     // MESSAGE_COMPONENT — button or select.
+    // §4.1 native modal 게이팅 — "양식 작성하기" 버튼 클릭. interaction token (15분) 운반.
+    if (i.data?.custom_id === '__open_form__') {
+      return {
+        conversationKey: channelId,
+        channelUserKey: userId,
+        command: {
+          kind: 'open_form_modal',
+          openContext: {
+            interactionId: String(i.id),
+            interactionToken: String(i.token),
+          },
+        },
+        idempotencyKey,
+        receivedAt,
+      };
+    }
     const componentType = i.data?.component_type;
     let callbackData: string | undefined;
     if (componentType === 2) {
@@ -100,8 +116,31 @@ export function parseDiscordUpdate(raw: unknown): ChannelUpdate | null {
   }
 
   if (i.type === 5) {
-    // MODAL_SUBMIT — TEXT_INPUT 결과를 text_message 로 normalize (R-CC-13 의 inbound path b).
+    // MODAL_SUBMIT — custom_id 로 분기.
+    const modalId = i.data?.custom_id;
     const components = i.data?.components ?? [];
+    // §4.1 native form modal — TEXT_INPUT 결과를 fields 로 일괄 평탄화 (custom_id = field name).
+    if (modalId === 'clemvion_form') {
+      const fields: Record<string, string> = {};
+      for (const tc of components.flatMap((c) => c.components ?? [])) {
+        if (
+          typeof tc.custom_id === 'string' &&
+          typeof tc.value === 'string' &&
+          tc.value.length > 0
+        ) {
+          fields[tc.custom_id] = tc.value;
+        }
+      }
+      return {
+        conversationKey: channelId,
+        channelUserKey: userId,
+        command: { kind: 'form_submission', fields },
+        idempotencyKey,
+        receivedAt,
+      };
+    }
+    // clemvion_reply (또는 그 외) — TEXT_INPUT 결과를 text_message 로 normalize
+    // (R-CC-13 의 inbound path b).
     const text = components
       .flatMap((c) => c.components ?? [])
       .map((tc) => tc.value)

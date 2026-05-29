@@ -253,5 +253,86 @@ describe('SlackAdapter', () => {
         ),
       ).rejects.toThrow(/conversationKey/);
     });
+
+    it('form_modal → __open_form__ 버튼 actions block', async () => {
+      const client = makeClient();
+      const spy = jest
+        .spyOn(client, 'chatPostMessage')
+        .mockResolvedValue({ ok: true, channel: 'D1', ts: '9.9' });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      await adapter.sendMessage(
+        {
+          conversationKey: 'D1',
+          body: {
+            kind: 'form_modal',
+            openLabel: '양식 작성하기',
+            formConfig: {},
+          },
+        },
+        SLACK_CONFIG,
+      );
+      const call = spy.mock.calls[0][1];
+      expect(call.text).toBe('양식 작성하기');
+      const block = (call.blocks as Array<Record<string, unknown>>)[0];
+      const el = (block.elements as Array<Record<string, unknown>>)[0];
+      expect(el.action_id).toBe('__open_form__');
+    });
+  });
+
+  describe('§4.1 openFormModal', () => {
+    it('views.open 호출 — view blocks block_id = field name + private_metadata=conversationKey', async () => {
+      const client = makeClient();
+      const spy = jest
+        .spyOn(client, 'viewsOpen')
+        .mockResolvedValue({ ok: true });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      const result = await adapter.openFormModal({
+        config: SLACK_CONFIG,
+        openContext: { triggerId: 'trg.x' },
+        fields: [
+          { name: 'email', label: 'Email', type: 'email', required: true },
+          {
+            name: 'role',
+            label: 'Role',
+            type: 'select',
+            options: [{ label: 'Admin', value: 'admin' }],
+          },
+        ],
+        conversationKey: 'D1',
+        nodeId: 'node-1',
+      });
+      expect(result.httpResponse).toBeUndefined();
+      const [token, payload] = spy.mock.calls[0];
+      expect(token).toBe('xoxb-test-token');
+      expect(payload.trigger_id).toBe('trg.x');
+      const view = payload.view as {
+        callback_id: string;
+        private_metadata: string;
+        blocks: Array<{ block_id: string }>;
+      };
+      expect(view.callback_id).toBe('clemvion_form');
+      expect(view.private_metadata).toBe('D1');
+      expect(view.blocks.map((b) => b.block_id)).toEqual(['email', 'role']);
+    });
+  });
+
+  describe('§4.1 buildFormSubmissionResponse', () => {
+    it('validationError → response_action errors (block_id 키)', () => {
+      const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+      const r = adapter.buildFormSubmissionResponse({
+        config: SLACK_CONFIG,
+        validationError: { field: 'email', message: '형식 오류' },
+      });
+      expect(r.httpResponse).toEqual({
+        response_action: 'errors',
+        errors: { email: '형식 오류' },
+      });
+    });
+
+    it('성공 (validationError 없음) → 빈 body', () => {
+      const adapter = new SlackAdapter(makeClient(), makeSecretsMock());
+      const r = adapter.buildFormSubmissionResponse({ config: SLACK_CONFIG });
+      expect(r.httpResponse).toBeUndefined();
+    });
   });
 });

@@ -24,7 +24,10 @@ import {
   ChannelUpdate,
   ChatChannelAdapter,
   ChatChannelConfig,
+  isNativeFormAdapter,
 } from '../chat-channel/types';
+import { validateFormSubmission } from '../chat-channel/shared/form-mode';
+import { randomUUID } from 'crypto';
 import { ChatChannelInboundAuthenticator } from '../chat-channel/chat-channel-inbound-authenticator';
 import { AuthConfigsService } from '../auth-configs/auth-configs.service';
 
@@ -194,6 +197,13 @@ export class HooksService {
     status?: 'pending';
     challenge?: string;
     discordPing?: boolean;
+    /**
+     * §4.1 native modal — provider 가 webhook 응답 body 로 직접 돌려줘야 하는 JSON
+     * (Discord modal open `{ type: 9 }` / MODAL_SUBMIT ack `{ type: 4 }` / Slack
+     * view_submission `{ response_action: 'errors' }`). HooksController 가 res.json 으로 전송.
+     * SoT: spec/conventions/chat-channel-adapter.md §4.1.
+     */
+    interactionHttpResponse?: unknown;
   }> {
     let adapter: ChatChannelAdapter;
     try {
@@ -278,6 +288,166 @@ export class HooksService {
       return { executionId: state?.executionId ?? 'ignored' };
     }
 
+    // §4.1 native modal — "양식 작성하기" 버튼 클릭. pendingFormModal 의 fields + provider
+    // openContext (trigger_id / interaction token) 로 adapter 가 modal 을 연다. Discord 는
+    // httpResponse 로 modal 을 반환 (controller 가 res.json), Slack 은 views.open API (httpResponse 없음).
+    if (update.command.kind === 'open_form_modal') {
+      // Security guard: DM-only providers make conversationKey≈user, but in group channels
+      // another member could click the button and intercept a different user's form.
+      if (state && state.channelUserKey !== update.channelUserKey) {
+        this.logger.warn(
+          `open_form_modal channelUserKey mismatch — state.channelUserKey=${state.channelUserKey} update.channelUserKey=${update.channelUserKey} conversationKey=${update.conversationKey}`,
+        );
+        return { executionId: state?.executionId ?? 'ignored' };
+      }
+      if (state?.pendingFormModal && isNativeFormAdapter(adapter)) {
+        const result = await adapter.openFormModal({
+          config,
+          openContext: update.command.openContext,
+          fields: state.pendingFormModal.fields,
+          conversationKey: update.conversationKey,
+          nodeId: state.pendingFormModal.nodeId,
+        });
+        if (result.httpResponse !== undefined) {
+          return {
+            executionId: state.executionId ?? 'ignored',
+            interactionHttpResponse: result.httpResponse,
+          };
+        }
+      } else {
+        this.logger.warn(
+          `open_form_modal: pendingFormModal 없거나 adapter.openFormModal 미지원 — conversationKey=${update.conversationKey}`,
+        );
+      }
+      return { executionId: state?.executionId ?? 'ignored' };
+    }
+
+    // §4.1 native modal — modal 일괄 제출. pendingFormModal.nodeId 로 EIA submit_form 단일 호출.
+    if (update.command.kind === 'form_submission') {
+      // Security guard: same channelUserKey check as open_form_modal.
+      if (state && state.channelUserKey !== update.channelUserKey) {
+        this.logger.warn(
+          `form_submission channelUserKey mismatch — state.channelUserKey=${state.channelUserKey} update.channelUserKey=${update.channelUserKey} conversationKey=${update.conversationKey}`,
+        );
+        return { executionId: state?.executionId ?? 'ignored' };
+      }
+      const nodeId = state?.pendingFormModal?.nodeId;
+      if (hasActiveExecution && nodeId) {
+        // Concurrency guard (CCH race): acquire a per-conversation lock so a duplicate
+        // submit (double-click / provider retry) can't fire two submit_form calls.
+        // fail-open when redis unavailable (acquireLock returns true).
+        const lockToken = randomUUID();
+        const acquired = await this.channelConversationService.acquireLock(
+          trigger.id,
+          update.conversationKey,
+          lockToken,
+        );
+        if (!acquired) {
+          this.logger.warn(
+            `form_submission 중복 제출 감지 — lock 미획득, skip: conversationKey=${update.conversationKey}`,
+          );
+          return { executionId: state?.executionId ?? 'ignored' };
+        }
+        try {
+          // Security: filter submitted fields to only keys declared in pendingFormModal.
+          // This prevents undefined-field injection and bounds Discord component count.
+          const allowedNames = new Set(
+            state.pendingFormModal!.fields.map((f) => f.name),
+          );
+          const filteredFields = Object.fromEntries(
+            Object.entries(update.command.fields).filter(([k]) =>
+              allowedNames.has(k),
+            ),
+          );
+
+          // §4.1 step 4: client-side 값 검증 — submit_form 전 1차 게이트. 실패 시 interact 호출
+          // 없이 provider 재표시 응답 + 버튼 재노출 (catch 경로와 동일한 best-effort re-noise).
+          // pendingFormModal 유지 → 사용자가 정정 후 재제출 가능.
+          const verr = validateFormSubmission(
+            filteredFields as Record<string, string>,
+            state.pendingFormModal!.fields,
+          );
+          if (verr) {
+            this.logger.warn(
+              `form_submission client-side 검증 실패 — field=${verr.field} msg=${verr.message} conversationKey=${update.conversationKey}`,
+            );
+            const r = isNativeFormAdapter(adapter)
+              ? adapter.buildFormSubmissionResponse({
+                  config,
+                  validationError: verr,
+                })
+              : undefined;
+            await this.reNoiseFormModal(update, state, config, adapter);
+            if (r?.httpResponse !== undefined) {
+              return {
+                executionId: state.executionId!,
+                interactionHttpResponse: r.httpResponse,
+              };
+            }
+            return { executionId: state.executionId! };
+          }
+
+          const ctx: InternalInteractionRequestContext = {
+            executionId: state.executionId!,
+            triggerId: trigger.id,
+            scope: 'in_process_trusted',
+          };
+          await this.interactionService.interact(ctx, {
+            command: 'submit_form',
+            nodeId,
+            data: filteredFields,
+          });
+          // 성공 — pendingFormModal clear.
+          state.pendingFormModal = undefined;
+          state.lastUpdateAt = new Date().toISOString();
+          await this.channelConversationService.upsert(
+            trigger.id,
+            update.conversationKey,
+            state,
+          );
+          if (isNativeFormAdapter(adapter)) {
+            const r = adapter.buildFormSubmissionResponse({ config });
+            if (r.httpResponse !== undefined) {
+              return {
+                executionId: state.executionId!,
+                interactionHttpResponse: r.httpResponse,
+              };
+            }
+          }
+          return { executionId: state.executionId! };
+        } catch (err) {
+          this.logger.warn(
+            `form_submission submit_form 실패 — 검증 재안내: ${err instanceof Error ? err.message : String(err)}`,
+          );
+          const r = isNativeFormAdapter(adapter)
+            ? adapter.buildFormSubmissionResponse({
+                config,
+                validationError: { message: '입력값을 다시 확인해주세요.' },
+              })
+            : undefined;
+          // §4.1 step 5: spec 에 따라 Discord 는 검증 실패 후 "양식 작성하기" 버튼을 재노출해
+          // 사용자가 재시도할 수 있게 한다 (Interactions 응답 후 동일 modal 재전송 불가이므로
+          // 별도 sendMessage 로 버튼 재발송). pendingFormModal 은 유지 (재클릭 가능).
+          await this.reNoiseFormModal(update, state, config, adapter);
+          if (r?.httpResponse !== undefined) {
+            return {
+              executionId: state.executionId ?? 'ignored',
+              interactionHttpResponse: r.httpResponse,
+            };
+          }
+          return { executionId: state.executionId ?? 'ignored' };
+        } finally {
+          // 성공·검증실패·예외 모든 경로에서 lock 해제 — 정당한 재제출 (re-noise 후) 이 막히지 않도록.
+          await this.channelConversationService.releaseLock(
+            trigger.id,
+            update.conversationKey,
+            lockToken,
+          );
+        }
+      }
+      return { executionId: state?.executionId ?? 'ignored' };
+    }
+
     // 활성 execution 이 있고 사용자 인터랙션 명령이면 in-process interact 호출.
     if (
       hasActiveExecution &&
@@ -341,6 +511,40 @@ export class HooksService {
 
     await adapter.ackInteraction(update, config);
     return { executionId, status: 'pending' as const };
+  }
+
+  /**
+   * §4.1 step 5 — form_submission 검증 실패 (client-side gate 또는 EIA reject) 후 "양식 작성하기"
+   * 버튼을 재노출 (best-effort). Interactions 응답 후 동일 modal 재전송 불가이므로 별도 sendMessage.
+   * pendingFormModal 은 호출자가 유지 (재클릭 가능). 실패는 swallow (logger.warn).
+   */
+  private async reNoiseFormModal(
+    update: ChannelUpdate,
+    state: { pendingFormModal?: { fields: unknown } },
+    config: ChatChannelConfig,
+    adapter: ChatChannelAdapter,
+  ): Promise<void> {
+    if (!state.pendingFormModal) return;
+    try {
+      const openLabel =
+        config.languageHints?.formOpenLabel ??
+        (config.languageLocale === 'en' ? 'Fill out form' : '양식 작성하기');
+      await adapter.sendMessage(
+        {
+          conversationKey: update.conversationKey,
+          body: {
+            kind: 'form_modal',
+            openLabel,
+            formConfig: { fields: state.pendingFormModal.fields },
+          },
+        },
+        config,
+      );
+    } catch (reNoiseErr) {
+      this.logger.warn(
+        `form_submission 재안내 버튼 재발송 실패 (best-effort): ${reNoiseErr instanceof Error ? reNoiseErr.message : String(reNoiseErr)}`,
+      );
+    }
   }
 
   /**

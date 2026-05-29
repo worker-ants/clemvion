@@ -219,6 +219,8 @@ export const triggers = {
     buttonLayoutVertical: "vertical",
     buttonLayoutHorizontal: "horizontal",
     formModeMultiStep: "multi_step",
+    formModeNativeModal: "네이티브 모달",
+    formModeAuto: "자동",
     rateLimitPerMinute: "분당 최대 inbound (default 60)",
     languageLocale: "안내 기본 언어 (languageLocale)",
     languageLocaleKo: "한국어 (ko)",

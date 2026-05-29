@@ -4,16 +4,20 @@ import type {
   ChannelButton,
   ChannelMessage,
   ChannelUpdate,
-  ChatChannelAdapter,
   ChatChannelConfig,
   ChatChannelInternalEvent,
   EiaEvent,
+  FormSubmissionResult,
+  NativeFormAdapter,
+  OpenFormModalParams,
+  OpenFormModalResult,
   SendResult,
   SetupResult,
 } from '../../types';
 import { DiscordClient } from './discord-client';
 import { renderDiscordEvent } from './discord-message.renderer';
 import { parseDiscordUpdate } from './discord-update.parser';
+import { NATIVE_MODAL_MAX_FIELDS } from '../../shared/form-mode';
 
 /**
  * Discord Chat Channel Adapter.
@@ -30,9 +34,11 @@ import { parseDiscordUpdate } from './discord-update.parser';
  *   - R-CC-13: 자유 텍스트 DM 미수신 → reply 는 `/workflow reply` slash 또는 modal TEXT_INPUT.
  */
 @Injectable()
-export class DiscordAdapter implements ChatChannelAdapter {
+export class DiscordAdapter implements NativeFormAdapter {
   private readonly logger = new Logger(DiscordAdapter.name);
   readonly provider = 'discord';
+  /** Discord 는 MODAL (type 9) 지원 — §4.1 native form modal (TEXT_INPUT only: text 계열만 수용). */
+  readonly supportsNativeForm = true as const;
 
   constructor(
     private readonly client: DiscordClient,
@@ -200,6 +206,29 @@ export class DiscordAdapter implements ChatChannelAdapter {
       });
       return wrapSendResult(res, 'postChannelMessage(form_prompt)');
     }
+    if (message.body.kind === 'form_modal') {
+      // §4.1 native modal 게이팅 — "양식 작성하기" 버튼 메시지. 클릭 시 openFormModal 가
+      // type:9 MODAL 을 interaction HTTP 응답으로 연다 (custom_id '__open_form__' 분기).
+      const openLabel = message.body.openLabel;
+      const components = [
+        {
+          type: 1,
+          components: [
+            {
+              type: 2,
+              style: 1,
+              custom_id: '__open_form__',
+              label: openLabel,
+            },
+          ],
+        },
+      ];
+      const res = await this.client.postChannelMessage(botToken, channel, {
+        content: openLabel,
+        components,
+      });
+      return wrapSendResult(res, 'postChannelMessage(form_modal)');
+    }
     if (message.body.kind === 'image') {
       const text = message.body.caption ?? message.body.fallbackText;
       const res = await this.client.postChannelMessage(botToken, channel, {
@@ -220,6 +249,67 @@ export class DiscordAdapter implements ChatChannelAdapter {
     _config: ChatChannelConfig,
   ): Promise<void> {
     return Promise.resolve();
+  }
+
+  /**
+   * §4.1 native modal open — `open_form_modal` command 처리 시 HooksService 가 호출.
+   * Discord 는 modal 을 webhook HTTP 응답 body (`{ type: 9, data }`) 로 열어야 하므로 API 호출
+   * 없이 modal object 를 OpenFormModalResult.httpResponse 로 반환 (HooksController 가 res.json).
+   * TEXT_INPUT only — custom_id = field name (MODAL_SUBMIT 가 custom_id 로 field 식별).
+   * SoT: spec/conventions/chat-channel-adapter.md §4.1 / providers/discord §5.3.
+   */
+  openFormModal(params: OpenFormModalParams): Promise<OpenFormModalResult> {
+    const modal = {
+      type: 9,
+      data: {
+        custom_id: 'clemvion_form',
+        title: '양식',
+        components: params.fields
+          .slice(0, NATIVE_MODAL_MAX_FIELDS)
+          .map((f) => ({
+            type: 1,
+            components: [
+              {
+                type: 4,
+                custom_id: f.name,
+                label: f.label,
+                style: f.type === 'textarea' ? 2 : 1,
+                required: f.required === true,
+                ...(f.description
+                  ? { placeholder: f.description.slice(0, 100) }
+                  : {}),
+              },
+            ],
+          })),
+      },
+    };
+    return Promise.resolve({ httpResponse: modal });
+  }
+
+  /**
+   * §4.1 native modal 제출의 Discord HTTP 응답 합성. Discord 는 MODAL_SUBMIT 에 반드시
+   * 응답해야 하므로 항상 type 4 (ephemeral, flags 64) ack 를 반환. validationError 가 있으면
+   * 경고 문구로 재안내 (Interactions 응답 후 동일 modal 재전송 불가 — providers/discord §5.3).
+   * SoT: spec/conventions/chat-channel-adapter.md §4.1 step 5.
+   */
+  buildFormSubmissionResponse(params: {
+    config: ChatChannelConfig;
+    validationError?: { field?: string; message: string };
+  }): FormSubmissionResult {
+    if (params.validationError) {
+      return {
+        httpResponse: {
+          type: 4,
+          data: { content: `⚠️ ${params.validationError.message}`, flags: 64 },
+        },
+      };
+    }
+    return {
+      httpResponse: {
+        type: 4,
+        data: { content: '✅ 제출되었습니다.', flags: 64 },
+      },
+    };
   }
 }
 
