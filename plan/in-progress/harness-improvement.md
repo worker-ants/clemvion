@@ -81,8 +81,14 @@ owner: developer
   13개 skip) 모두 정상. review-router/code-review-summary 에 `mode=workflow` 분기 추가.
   **resolution-applier(§6)·`/loop` 한도복구는 bespoke 유지** (코드 수정·commit·e2e /
   cross-turn quota 는 Workflow 부적합).
-- [ ] **merge-coordinate** — analyzer 는 적합하나 Phase2 confirm gate(AskUserQuestion)가
-  background Workflow 에 부적합 → 대부분 main-driven 유지. 최저 우선순위. 미진행.
+- [x] **merge-coordinate Phase 1 → Workflow 마이그레이션 + 라이브 스모크 검증** —
+  `.claude/workflows/merge-coordinate.js` (Analyze→Summary). 4 analyzer 병렬(각자
+  output_file Write) → `integration-risk-summary` 가 마크다운 **반환**→main 이 SUMMARY.md
+  Write. branches/base 는 통합순서 표 컨텍스트로 전달. 1 analyzer+summary 스모크 정상
+  (BLOCK:NO, 누락 analyzer 3개 "재시도 필요" 표기). integration-risk-summary 에
+  `mode=workflow` 분기 추가. **Phase 2 confirm·Phase 3 execute(git merge/rebase +
+  conflict resolver 루프 + patch-apply confirm)·Phase 4 chain/rollback 은 bespoke 유지**
+  (AskUserQuestion mid-flow·git side effect 라 background Workflow 부적합).
 
 > live rewrite 경계: Workflow 는 **fan-out + 집계 반환**에 적합. 코드 수정/commit/e2e
 > (resolution-applier), 중간 사용자 confirm(merge), cross-turn 한도 복구(/loop)는

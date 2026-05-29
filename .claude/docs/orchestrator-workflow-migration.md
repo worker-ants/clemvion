@@ -1,9 +1,11 @@
 # Orchestrator → native Workflow tool: migration design + pilot
 
-> Status: **consistency-check migrated & validated** (pilot). ai-review /
-> merge-coordinate **not** migrated — see §"What does NOT fit Workflow". This
-> doc records the analysis, the (resolved) billing gate, the pilot result, and
-> the constraints the pilot uncovered. (Proposal 테마4-②.)
+> Status: **consistency-check, ai-review (review-portion), merge-coordinate
+> (Phase 1) migrated & smoke-validated.** The interactive / side-effecting
+> portions (resolution-applier, merge Phase 2-4, /loop quota recovery) stay
+> bespoke — see §"What does NOT fit Workflow". This doc records the analysis,
+> the (resolved) billing gate, the pilot result, and the constraints the pilot
+> uncovered. (Proposal 테마4-②.)
 
 ## Billing gate — RESOLVED
 
@@ -104,8 +106,13 @@ aggregate**; it does **not** fit:
       tested both paths: routing=skipped (1 reviewer) and routing=pending (router
       picked forced `documentation`, skipped 13). **resolution-applier (§6) +
       `/loop` stay bespoke** — see §"What does NOT fit Workflow".
-- [ ] merge-coordinate — analyzers fit, but Phase-2 confirm gates
-      (`AskUserQuestion` mid-flow) keep it mostly main-driven. Lowest priority;
-      not migrated.
+- [x] **merge-coordinate Phase 1 migrated** ([`.claude/workflows/merge-coordinate.js`](../workflows/merge-coordinate.js)):
+      Analyze (4 analyzers in parallel) → Summary (returns markdown, main writes
+      SUMMARY). Smoke-tested. **Phase 2 confirm, Phase 3 execute (git merge/rebase
+      + merge-conflict-resolver per-conflict loop + patch-apply confirm), Phase 4
+      chain/rollback stay bespoke** — they need `AskUserQuestion` mid-flow and own
+      git side effects, which a background Workflow cannot. See §"What does NOT
+      fit Workflow".
 
-Each further migration must be smoke-tested live (no CI e2e for these flows).
+All three fan-out flows are now migrated. Each migration was smoke-tested live
+(no CI e2e for these flows).

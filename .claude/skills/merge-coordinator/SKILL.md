@@ -56,19 +56,23 @@ python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.
 
 한 줄: `pending=<n> success=<n> fatal=<n> branches=<n> base=<branch> last_reset=<sec|null>`.
 
-#### 3. 병렬 analyzer 호출
+#### 3. analyze → summary (Workflow tool, 기본 경로)
 
-`agents_pending` 의 4 analyzer 에 대해 **한 응답 안에서** 동시 `Agent` 호출. prompt: `prompt_file=<...>\noutput_file=<...>`.
+`_retry_state.json` Read (경로뿐) → `Workflow(name="merge-coordinate", args={invocations, branches, base, summary})`. Workflow 가 4 analyzer 를 병렬 실행(각자 prompt_file Read·output_file Write) → `integration-risk-summary` 가 통합 SUMMARY 마크다운 **반환**. 매핑: `invocations=subagent_invocations`, `summary={subagent_type: summary_subagent_type, output_file: summary_output_file}`, `branches`·`base` 는 동명 필드.
 
-#### 4. STATUS 파싱·상태 갱신
+완료 시 반환의 `summary_markdown` 을 **main 이 `summary.output_file`(=`summary_output_file`) 에 Write** (workflow/sub-agent 는 못 씀) → 상단 30줄 Read → `BLOCK: YES` 또는 `BLOCK: NO`. `unfinished[]` 있으면 해당 analyzer 재실행.
+
+> **Phase 1 만 Workflow.** Phase 2 confirm·Phase 3 execute(격리 worktree git merge/rebase + conflict resolver 루프 + patch-apply confirm)·Phase 4 chain/rollback 은 사용자 개입·git side effect 라 background Workflow 부적합 → main-driven bespoke 유지. 상세: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md).
+
+#### 3-fallback. 수동 Agent fan-out (Workflow 불가 시)
+
+`agents_pending` 의 4 analyzer 를 **한 응답 안에서** 동시 `Agent` 호출 (prompt: `prompt_file=<...>\noutput_file=<...>`) → STATUS 파싱·상태 갱신:
 
 ```bash
 python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.py --update <session_dir> --agent <name> --status <s> [--reset-hint <sec>]
 ```
 
-#### 5. 수렴 — Summary
-
-모두 완료되면 `Agent(subagent_type="integration-risk-summary", prompt="session_dir=<session_dir>")`. SUMMARY.md 가 작성되면 main 은 상단 30줄 Read → `BLOCK: YES` 또는 `BLOCK: NO`.
+모두 완료되면 `Agent(subagent_type="integration-risk-summary", prompt="session_dir=<session_dir>")` → SUMMARY.md 작성 → 상단 30줄 Read.
 
 ### Phase 2 — 사용자 confirm
 
