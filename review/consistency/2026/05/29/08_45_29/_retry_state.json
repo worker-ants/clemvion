@@ -1,0 +1,83 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29",
+  "summary_subagent_type": "consistency-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/SUMMARY.md",
+  "subagent_invocations": [
+    {
+      "name": "cross_spec",
+      "subagent_type": "cross-spec-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/_prompts/cross_spec.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/cross_spec.md"
+    },
+    {
+      "name": "rationale_continuity",
+      "subagent_type": "rationale-continuity-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/_prompts/rationale_continuity.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/rationale_continuity.md"
+    },
+    {
+      "name": "convention_compliance",
+      "subagent_type": "convention-compliance-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/_prompts/convention_compliance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/convention_compliance.md"
+    },
+    {
+      "name": "plan_coherence",
+      "subagent_type": "plan-coherence-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/_prompts/plan_coherence.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/plan_coherence.md"
+    },
+    {
+      "name": "naming_collision",
+      "subagent_type": "naming-collision-checker",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/_prompts/naming_collision.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/telegram-guide-realign-6ad222/review/consistency/2026/05/29/08_45_29/naming_collision.md"
+    }
+  ],
+  "agents_pending": [],
+  "agents_success": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "agents_fatal": [],
+  "agent_history": {
+    "cross_spec": [
+      {
+        "ts": "2026-05-28T23:52:11.237010Z",
+        "status": "success"
+      }
+    ],
+    "rationale_continuity": [
+      {
+        "ts": "2026-05-28T23:52:11.269692Z",
+        "status": "success"
+      }
+    ],
+    "convention_compliance": [
+      {
+        "ts": "2026-05-28T23:52:11.298176Z",
+        "status": "success"
+      }
+    ],
+    "plan_coherence": [
+      {
+        "ts": "2026-05-28T23:52:11.327740Z",
+        "status": "success"
+      }
+    ],
+    "naming_collision": [
+      {
+        "ts": "2026-05-28T23:52:11.355818Z",
+        "status": "success"
+      }
+    ]
+  },
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

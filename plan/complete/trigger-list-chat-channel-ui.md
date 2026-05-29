@@ -1,10 +1,13 @@
 ---
 worktree: trigger-list-chat-channel-ui-d0c4a3
 started: 2026-05-23
+completed: 2026-05-29
 owner: developer
 ---
 
 # Plan — Trigger List 의 Chat Channel UI 구현 (단일 PR 통합)
+
+> ✅ 완료 (2026-05-29). 완료 기준 4건 모두 충족 — PR #283 (`c619c62b`) 머지 (lint·unit 4541·build·e2e 98 PASS), spec PR #281 결정 1·2 가 UI 로 실현 (목록 Chat Channel 칩 + health 배지, drawer Chat Channel 카드 read/edit + Bot Token rotate modal, 트리거 생성 dialog Chat Channel 섹션), backend 보조 (`hasBotToken` derived 필드 sanitize, PATCH `botTokenRef` 차단 `@IsEmpty`, `visualNode` `text_only`→`text` read-time normalize), 가이드 GUI 격상 ([[telegram-guide-realign]] 4 mdx). 의도적 boundary 항목 (visualNode v2 SSR / secret-store infra) 은 별개 plan. plan 만 `in-progress/` 잔류한 stale 상태를 grooming 으로 `complete/` 이동 ([plan-lifecycle §6.1](../../.claude/docs/plan-lifecycle.md)).
 
 ## 배경
 

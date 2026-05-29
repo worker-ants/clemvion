@@ -1,10 +1,13 @@
 ---
 worktree: telegram-guide-realign-14fa1e
 started: 2026-05-23
+completed: 2026-05-29
 owner: developer
 ---
 
 # Plan — Telegram 유저 가이드 정정 (spec PR #281 반영)
+
+> ✅ 완료 (2026-05-29). 본 plan 의 4 mdx 정정 본체는 PR #282 (`2c6c8d4b`) 에서 spec PR #281 의 4 P1 결정 (health enum `healthy`·`visualNode` enum·single-path rotate + 24h grace·secret store 암호화 문구) 을 반영하며 완료됐고, "후속" 의 GUI 격상은 UI 구현 머지 (#283 `c619c62b`, 이후 Slack/Discord 다중 provider #308) 로 달성됨. 정정 대상 4 파일 (telegram.mdx/en, triggers.mdx/en) 이 현재 spec SoT 와 정렬됨을 확인 — health enum (`unknown`/`healthy`/`degraded`, `ok`/`error` 잔재 없음)·`visualNode` 3-옵션 매트릭스 + legacy `text_only` read-time normalize 안내·rotate single-path + 24h grace·AES-256-GCM secret store + `hasBotToken` derived 필드 모두 반영. plan 만 `in-progress/` 에 잔류해 있던 stale 상태를 grooming 으로 `complete/` 이동 ([plan-lifecycle §6.1](../../.claude/docs/plan-lifecycle.md)).
 
 ## 배경
 
