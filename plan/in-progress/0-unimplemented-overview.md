@@ -78,7 +78,7 @@
 | **PRD 5 NF-DP-02 Docker Compose 셀프 호스팅 번들** | ❌ (현재 docker-compose.yml은 dev infra만) | `self-hosting-deployment.md` |
 | **PRD 5 NF-DP-03 Kubernetes Helm Chart** | ❌ | `self-hosting-deployment.md` |
 | **PRD 5 NF-DP-06 셀프 호스팅 설치/운영 문서** | ❌ | `self-hosting-deployment.md` |
-| **Spec 5-system/4-execution-engine §7.5 / §11 Durable Continuation & Graceful Shutdown** | ✅ Phase 0~3 + 변경 2.3 완료 2026-05-29 (Phase 0 spec / Phase 1 hotfix / Phase 2 BullMQ rehydration / Phase 3.1 DLQ 모니터링 / 변경 2.3 publisher 동기 INVALID_EXECUTION_STATE). spec 문서 후속만 `spec-update-workflow-resumable-phase3-followup.md` 로 이관 | `complete/workflow-resumable-execution.md` (운영 회귀 대응 — k8s 재배포 시 WAITING_FOR_INPUT 일괄 FAIL 해소) |
+| **Spec 5-system/4-execution-engine §7.5 / §11 Durable Continuation & Graceful Shutdown** | ✅ Phase 0~3 + 변경 2.3 완료 2026-05-29 (§7.5 rehydration / Phase 3.1 DLQ 모니터링 / 변경 2.3 publisher 동기 INVALID_EXECUTION_STATE). **§11 잔여**: WS `execution.start` gate(G1) / errorPolicy `continue` on SIGTERM(G2) / `exec:cont:seq` TTL(G3) 는 `execution-engine-residual-gaps.md` 추적. spec frontmatter `partial` 전이 완료 | `complete/workflow-resumable-execution.md` + `execution-engine-residual-gaps.md` (운영 회귀 대응 — k8s 재배포 시 WAITING_FOR_INPUT 일괄 FAIL 해소) |
 
 ### C. LLM Provider 확장 — ✅ 완료 (2026-05-11)
 

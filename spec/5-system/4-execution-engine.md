@@ -1,7 +1,10 @@
 ---
 id: execution-engine
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/modules/execution-engine/**
+pending_plans:
+  - plan/in-progress/execution-engine-residual-gaps.md
 ---
 
 # Spec: 실행 엔진 상세
@@ -91,9 +94,9 @@ pending → running ──┤                     └─ cancelled
 **재개 state 직렬화 필드** (`NodeHandlerOutput` top-level — `_resumeState`):
 
 - AI 계열(ai_agent / information_extractor) multi-turn 핸들러가 다음 턴을 처리하기 위해 보관하는 내부 상태. CONVENTIONS Principle 0 의 5필드 외 허용 예외.
-- 실행 엔진은 `_resumeState` 를 우선 읽고, 없으면 레거시 `_multiTurnState` 로 fall-back 한다 (Stage 2 rename, Stage 5 에서 legacy 키 제거 예정).
+- 실행 엔진은 `_resumeState` 를 읽어 다음 턴을 재구성한다. 옛 `_multiTurnState` 키는 Stage 2 rename + Stage 5 제거가 완료되어 현재 코드·페이로드에 존재하지 않는다.
 - expression resolver 는 이 필드를 expose 하지 않는다 (internal-only).
-- 최종 출력 저장 시 엔진(`stripControlFields()`)이 `_resumeState` / `_multiTurnState` 양쪽 모두를 제거한다.
+- 최종 출력 저장 시 엔진(`stripControlFields()`)이 `_resumeState` 를 제거한다. 옛 `_multiTurnState` 도 strip 대상에 남겨 두나 이는 구버전 페이로드 호환용 defensive guard 일 뿐, 현재 경로에서는 해당 키가 생성되지 않는다.
 
 **보존 예외 — `_retryState`** (retryable error 종결 시):
 
@@ -114,7 +117,7 @@ pending → running ──┤                     └─ cancelled
 
 > presentation 의 `interaction` 과 AI Agent multi-turn 의 `interaction.type='message_received'` 는 모두 [ConversationThread](../conventions/conversation-thread.md#22-ai-agent) 에 자동 push 되어 후속 AI Agent 가 자동 주입 받을 수 있다. push 시점은 nodeOutputCache 갱신과 같은 단일 트랜잭션.
 
-> 현재 엔진은 presentation 노드의 `status: 'submitted' | 'button_click' | 'button_continue'` 레거시 값을 유지한다. Stage 3(presentation Principle 1.1 재작성) 에서 모두 `resumed` 로 통일 예정.
+> presentation 노드의 재개 상태는 `status: 'resumed'` 로 통일돼 있다 (Stage 3 presentation Principle 1.1 재작성 완료). 옛 `'submitted'` / `'button_click'` / `'button_continue'` 는 더 이상 status 값으로 쓰이지 않으며, 해당 의미는 `interaction.type` enum 으로만 표현된다.
 
 ### 1.2 NodeExecution 상태
 
