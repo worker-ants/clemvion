@@ -98,7 +98,7 @@ sequenceDiagram
   end
 ```
 
-`pending_install` 행은 일일 만료 스캐너 (`integration-expiry` 큐) 가 동일하게 처리한다 — `COALESCE(install_token_issued_at, created_at) < now - 24h AND status='pending_install'` 인 행을 `status='expired', status_reason='install_timeout', install_token=NULL` 로 전이. 재사용 시 (변경 3, `createPrivatePendingIntegration` 의 기존 row 갱신 분기) `install_token_issued_at` 이 재발급 시점으로 갱신되므로 `created_at` 만 기준으로 했을 때 발생하던 "토큰 발급 직후 조기 만료" 회귀를 막는다. V044 이전 행은 `install_token_issued_at` NULL → `created_at` fallback 으로 옛 의미를 유지한다.
+`pending_install` 행은 일일 만료 스캐너 (`integration-expiry` 큐) 가 동일하게 처리한다 — `COALESCE(install_token_issued_at, created_at) < now - 24h AND status='pending_install'` 인 행을 `status='expired', status_reason='install_timeout', install_token=NULL` 로 전이. 재사용 시 (`createPrivatePendingIntegration` 의 기존 row 갱신 분기) `install_token_issued_at` 이 재발급 시점으로 갱신되므로 `created_at` 만 기준으로 했을 때 발생하던 "토큰 발급 직후 조기 만료" 회귀를 막는다. V044 이전 행은 `install_token_issued_at` NULL → `created_at` fallback 으로 옛 의미를 유지한다.
 
 ### 1.3 노드 실행에서 호출
 
@@ -127,18 +127,18 @@ sequenceDiagram
 
 ### 1.4 OAuth 만료 스캐너 (BullMQ `integration-expiry`)
 
-`integration-expiry` 큐 위에 **네 개의 독립 BullMQ 스케줄러**가 각자 job 을 enqueue 한다 (2026-05-16 신설, 2026-05-19 cafe24 주기 분리). 각 job 은 자체 retry 정책 (`attempts: 3`, exponential backoff 60s)으로 BullMQ 가 재시도하며, 실패는 큐 메트릭에 그대로 노출된다.
+`integration-expiry` 큐 위에 **네 개의 독립 BullMQ 스케줄러**가 각자 job 을 enqueue 한다. 각 job 은 자체 retry 정책 (`attempts: 3`, exponential backoff 60s)으로 BullMQ 가 재시도하며, 실패는 큐 메트릭에 그대로 노출된다.
 
-**주기 분리 (2026-05-19 갱신)**:
+**주기 분리**:
 - `connected-expiry` / `pending-install-ttl` / `usage-log-prune` — **daily** `0 0 * * *` UTC. 알림 빈도·24h TTL·90d retention 의 정량적 특성이 일일 cadence 와 일치.
-- `cafe24-background-refresh` — **6h** `0 */6 * * *` UTC. refresh_token 14일 만기 사전 차단의 안전 마진 확보용 (`lastRotatedAt < now-7d` cutoff 와 짝). 자세한 근거는 [navigation §11.1 Rationale](../2-navigation/4-integration.md#cafe24-background-refresh-7일-임계--6h-cron-2026-05-19-갱신) 참조.
+- `cafe24-background-refresh` — **6h** `0 */6 * * *` UTC. refresh_token 14일 만기 사전 차단의 안전 마진 확보용 (`lastRotatedAt < now-7d` cutoff 와 짝). 자세한 근거는 [navigation §11.1 Rationale](../2-navigation/4-integration.md#cafe24-background-refresh-7일-임계--6h-cron) 참조.
 
 | Job name | Scheduler id | 역할 |
 | --- | --- | --- |
-| `connected-expiry` | `connected-expiry-daily` | `status NOT IN (expired, error, pending_install) AND token_expires_at < now+Δ` 행 처리. `remain ≤ 7d`/`≤ 3d` 임계는 알림만 (status 변경 없음). `remain ≤ 0d` 분기: **(2026-05-18 갱신)** `service_type='cafe24'` AND `credentials.refresh_token` 존재 행은 `cafe24-token-refresh` 큐 enqueue (jobId dedup) + 알림 — scanner 가 직접 status 변경하지 않고 worker (`Cafe24TokenRefreshProcessor`) 가 refresh 성공 시 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 로 전이. refresh_token 없는 provider 는 여전히 `status=expired, status_reason='token_expired'` + 알림. **(2026-05-16 정책 유지)** worker 의 refresh 실패 분기: `invalid_grant` → `error(auth_failed)`, transport 3회 실패 → `error(network)` — 옛 `expired(refresh_failed)` 분기 폐기 (REQ HIGH-2). |
+| `connected-expiry` | `connected-expiry-daily` | `status NOT IN (expired, error, pending_install) AND token_expires_at < now+Δ` 행 처리. `remain ≤ 7d`/`≤ 3d` 임계는 알림만 (status 변경 없음). `remain ≤ 0d` 분기: `service_type='cafe24'` AND `credentials.refresh_token` 존재 행은 `cafe24-token-refresh` 큐 enqueue (jobId dedup) + 알림 — scanner 가 직접 status 변경하지 않고 worker (`Cafe24TokenRefreshProcessor`) 가 refresh 성공 시 `connected` 유지, `invalid_grant` 시 `error(auth_failed)` 로 전이. refresh_token 없는 provider 는 `status=expired, status_reason='token_expired'` + 알림. worker 의 refresh 실패 분기: `invalid_grant` → `error(auth_failed)`, transport 3회 실패 → `error(network)`. |
 | `pending-install-ttl` | `pending-install-ttl-daily` | `status='pending_install' AND COALESCE(install_token_issued_at, created_at) < now-24h` 행을 `expired(install_timeout) + install_token=NULL` 로 전이 (Cafe24 Private 한정). TTL 기준은 V044 의 `install_token_issued_at` 으로 — 재사용 시 토큰 재발급 시점에 갱신되어 조기 만료 회귀를 막는다. NULL 인 V044 이전 행은 `created_at` fallback. |
 | `usage-log-prune` | `usage-log-prune-daily` | `integration_usage_log` 90일 보존 외 행 삭제 |
-| `cafe24-background-refresh` | `cafe24-background-refresh-daily` (ID historical, 실제 주기 6h) | **(2026-05-19 갱신)** `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-7d OR last_rotated_at IS NULL)` 행을 `cafe24-token-refresh` 큐 (jobId=integrationId dedup) 로 enqueue. enqueuer 역할만 — 실제 refresh 는 큐의 worker (`Cafe24TokenRefreshProcessor`) 수행. 14일 idle cafe24 통합의 refresh_token 자동 갱신. 임계 근거: refresh_token 14일의 50% 마진 (cron 6h 와 짝). scheduler ID 는 BullMQ idempotent upsert 활용을 위해 historical 보존 (옛 daily 시절 명명). |
+| `cafe24-background-refresh` | `cafe24-background-refresh-daily` (ID historical, 실제 주기 6h) | `status='connected' AND service_type='cafe24' AND (last_rotated_at < now-7d OR last_rotated_at IS NULL)` 행을 `cafe24-token-refresh` 큐 (jobId=integrationId dedup) 로 enqueue. enqueuer 역할만 — 실제 refresh 는 큐의 worker (`Cafe24TokenRefreshProcessor`) 수행. 14일 idle cafe24 통합의 refresh_token 자동 갱신. 임계 근거: refresh_token 14일의 50% 마진 (cron 6h 와 짝). scheduler ID 는 BullMQ idempotent upsert 활용을 위해 historical 보존 (옛 daily 시절 명명). |
 
 ```mermaid
 sequenceDiagram
@@ -209,15 +209,15 @@ sequenceDiagram
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
 | `integration` | 생성·갱신 | `workspace_id, service_type, name, auth_type, credentials (encrypted JSONB), scope, status, status_reason, install_token (Cafe24 private 전용), install_token_issued_at (TTL 기준), mall_id (Cafe24 전용, plain), token_expires_at, last_used_at, last_rotated_at, last_error, created_by` | `(workspace_id, name) UNIQUE` (V008/V001), `(workspace_id, status)` 배지 카운트 + pending_install TTL 스캐너 조회 겸용, `(workspace_id, service_type)`, `(token_expires_at)` 스캐너용 (V009). `install_token` 컬럼 V042 + partial UNIQUE V043. `install_token_issued_at` V044 (TTL 기준 분리), `mall_id` plain 컬럼 V045 + 부분 UNIQUE `(workspace_id, mall_id) WHERE service_type='cafe24' AND mall_id IS NOT NULL` V046 (CONCURRENTLY 라 분리). |
-| `integration_usage_log` | 노드 실행 후 | INSERT `integration_id, node_execution_id, workflow_id, status, error?, duration_ms, at, api_label?, api_method?, api_path?` (활동 로그 API 식별 3컬럼, 본 PR 신규 — 통합별 채우기 정책은 [`spec/4-nodes/4-integration/_product-overview.md INT-US-05`](../4-nodes/4-integration/_product-overview.md#24-사용처-추적-및-라이프사이클), cafe24 catalog key 형식 + 길이/truncate 정책은 [`spec/conventions/cafe24-api-metadata.md §7.5`](../conventions/cafe24-api-metadata.md#75-catalog-key-형식--활동-로그-api_label)) | V008 `(integration_id, at DESC)`. 보존 90일 일일 배치 정리 |
+| `integration_usage_log` | 노드 실행 후 | INSERT `integration_id, node_execution_id, workflow_id, status, error?, duration_ms, at, api_label?, api_method?, api_path?` (활동 로그 API 식별 3컬럼 — 통합별 채우기 정책은 [`spec/4-nodes/4-integration/_product-overview.md INT-US-05`](../4-nodes/4-integration/_product-overview.md#24-사용처-추적-및-라이프사이클), cafe24 catalog key 형식 + 길이/truncate 정책은 [`spec/conventions/cafe24-api-metadata.md §7.5`](../conventions/cafe24-api-metadata.md#75-catalog-key-형식--활동-로그-api_label)) | V008 `(integration_id, at DESC)`. 보존 90일 일일 배치 정리 |
 | `integration_oauth_state` | OAuth start | INSERT `state, service_type, workspace_id, user_id, integration_id (reauthorize/private install 시), mode, requested_scopes, provider_meta (encrypted JSONB), expires_at = now+10m` | one-shot DELETE on callback. `state UNIQUE` (V009). `integration_id` FK → integration ON DELETE CASCADE (V009). `provider_meta` 컬럼 V041 추가 — cafe24 private 의 mall_id/client_id/client_secret 을 callback 까지 캐리. |
 
 ### 2.2 Redis
 
 | 큐 | producer | consumer | payload | dedup |
 | --- | --- | --- | --- | --- |
-| `integration-expiry` | `IntegrationExpiryScanner` 의 4개 스케줄러 — daily 3개 (`connected-expiry-daily` / `pending-install-ttl-daily` / `usage-log-prune-daily`) + 6h 1개 (`cafe24-background-refresh-daily` — ID historical, 실제 주기 6h, 2026-05-19 갱신) | 동일 module 내 processor — `job.name` 으로 분기 | `{ triggeredAt: ISO }` (per-job 단일 data shape) | — |
-| `cafe24-token-refresh` (2026-05-16 신규, 2026-05-21 갱신) | `Cafe24ApiClient` proactive (API 호출 직전) + `cafe24-background-refresh` 잡 (일일 idle 스캐너) + `Cafe24ApiClient.performAuthRefresh` (401 reactive 자가 회복 경로) | `Cafe24TokenRefreshProcessor` worker (`Cafe24Module` 소속) | `{ integrationId: UUID, source: 'background' \| 'proactive' \| 'reactive_401' }` (2026-05-18: `reactive_401` 추가 — `executeWithRateLimit` 의 401 자가 회복 경로가 사용, [Rationale](../2-navigation/4-integration.md#cafe24-token-만료-sot--jwt-exp-격상-2026-05-18) 참고) | **source 별 dedup 전략 분리 (2026-05-21 갱신)**: `proactive` / `background` 는 `jobId = integrationId` 로 클러스터 전체에서 같은 통합의 refresh 가 단일 worker 실행으로 모임. `reactive_401` 은 `jobId = ${integrationId}#reactive-${Date.now()}-${rand6}` 형태의 unique jobId 로 BullMQ dedup 자체를 우회 — cross-pod 직렬화는 `refreshAccessToken` 의 PostgreSQL row-level `pessimistic_write` lock 으로 폴백 보호. `payload.integrationId` 는 모든 source 에서 원본 UUID 그대로이며 worker 는 본 필드로 통합을 lookup (jobId 에서 파싱하지 않음). 보존: `removeOnComplete: { age: 60 }`, `removeOnFail: { age: 300 }` (전 source 통일). `attempts: 1` (refresh 실패는 거의 terminal — invalid_grant). `reactive_401` 은 worker 의 short-circuit guard 도 skip (empirical 401 = 어떤 expiry 정보든 신뢰 불가 신호). 자세한 근거는 [Rationale "reactive_401 jobId unique 화 — dedup 완전 우회 (2026-05-21)"](../2-navigation/4-integration.md#reactive_401-jobid-unique-화--dedup-완전-우회-2026-05-21). |
+| `integration-expiry` | `IntegrationExpiryScanner` 의 4개 스케줄러 — daily 3개 (`connected-expiry-daily` / `pending-install-ttl-daily` / `usage-log-prune-daily`) + 6h 1개 (`cafe24-background-refresh-daily` — ID historical, 실제 주기 6h) | 동일 module 내 processor — `job.name` 으로 분기 | `{ triggeredAt: ISO }` (per-job 단일 data shape) | — |
+| `cafe24-token-refresh` | `Cafe24ApiClient` proactive (API 호출 직전) + `cafe24-background-refresh` 잡 (일일 idle 스캐너) + `Cafe24ApiClient.performAuthRefresh` (401 reactive 자가 회복 경로) | `Cafe24TokenRefreshProcessor` worker (`Cafe24Module` 소속) | `{ integrationId: UUID, source: 'background' \| 'proactive' \| 'reactive_401' }` (`reactive_401` 은 `executeWithRateLimit` 의 401 자가 회복 경로가 사용, [Rationale](../2-navigation/4-integration.md#cafe24-token-만료-sot--jwt-exp-격상) 참고) | **source 별 dedup 전략 분리**: `proactive` / `background` 는 `jobId = integrationId` 로 클러스터 전체에서 같은 통합의 refresh 가 단일 worker 실행으로 모임. `reactive_401` 은 `jobId = ${integrationId}#reactive-${Date.now()}-${rand6}` 형태의 unique jobId 로 BullMQ dedup 자체를 우회 — cross-pod 직렬화는 `refreshAccessToken` 의 PostgreSQL row-level `pessimistic_write` lock 으로 폴백 보호. `payload.integrationId` 는 모든 source 에서 원본 UUID 그대로이며 worker 는 본 필드로 통합을 lookup (jobId 에서 파싱하지 않음). 보존: `removeOnComplete: { age: 60 }`, `removeOnFail: { age: 300 }` (전 source 통일). `attempts: 1` (refresh 실패는 거의 terminal — invalid_grant). `reactive_401` 은 worker 의 short-circuit guard 도 skip (empirical 401 = 어떤 expiry 정보든 신뢰 불가 신호). 자세한 근거는 [Rationale "reactive_401 jobId unique 화 — dedup 완전 우회"](../2-navigation/4-integration.md#reactive_401-jobid-unique-화--dedup-완전-우회). |
 
 ### 2.3 외부
 
@@ -248,14 +248,14 @@ stateDiagram-v2
   expired --> [*]: manual delete
 ```
 
-> **(2026-05-16 갱신)**: 옛 `connected --> expired: 만료 스캐너 OR refresh 실패` 화살표에서 "refresh 실패" 분기를 `connected --> error` 로 이동 (REQ HIGH-2). refresh 실패의 status_reason 은 `auth_failed` (invalid_grant) 또는 `network` (transport 3회 연속). `expired` 는 이제 (a) refresh_token 없는 provider 의 `token_expires_at` 만료 또는 (b) `pending_install` 24h TTL 의 두 경로만 유발.
+> refresh 실패는 `connected --> error` 로 전이하며 status_reason 은 `auth_failed` (invalid_grant) 또는 `network` (transport 3회 연속). `expired` 는 (a) refresh_token 없는 provider 의 `token_expires_at` 만료 또는 (b) `pending_install` 24h TTL 의 두 경로만 유발.
 
 ### 3.2 `status_reason` 매핑
 
 | status | status_reason 후보 |
 | --- | --- |
 | `error` | `insufficient_scope`, `auth_failed` (401/403 또는 refresh `invalid_grant`), `network` (transport 3회 연속 실패 — V049 `consecutive_network_failures` 카운터), `unknown`, `credentials_unreadable` |
-| `expired` | `token_expired` (refresh_token 없는 provider 의 token_expires_at 만료), `install_timeout` (Cafe24 Private 24h TTL). **(2026-05-16 갱신)** 옛 `refresh_failed` 제거 — refresh 실패는 이제 `error(auth_failed)` 로 분류 (REQ HIGH-2). |
+| `expired` | `token_expired` (refresh_token 없는 provider 의 token_expires_at 만료), `install_timeout` (Cafe24 Private 24h TTL). refresh 실패는 `error(auth_failed)` 로 분류. |
 | `pending_install` | callback 실패 분기 코드: `oauth_token_exchange_failed`, `oauth_state_mismatch`, `oauth_state_expired` (모두 snake_case — DB 저장 표기. 동일 의미의 API 에러 코드는 `spec/2-navigation/4-integration.md §10.4` 의 `OAUTH_*` UPPER_SNAKE_CASE) — status 는 보존되지만 사용자가 진단 단서를 볼 수 있도록 채워짐. `resource_not_found` 는 row 자체가 사라진 케이스라 DB 갱신 불가 → 후보값에서 제외 |
 | `connected` | NULL |
 

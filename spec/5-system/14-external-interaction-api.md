@@ -59,7 +59,7 @@ code: []
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
 | EIA-IN-01 | `POST /api/external/executions/:executionId/interact` 로 인터랙션 명령을 제출한다 | 필수 |
-| EIA-IN-02 | 지원 명령: `submit_form`, `click_button`, `submit_message`, `end_conversation`, `cancel` — 모두 WebSocket §4.2 의 동일명 명령과 의미 동일. **`retry_last_turn` 미포함** — 1차 PR (2026-05-23) 은 내부 UI 한정. 외부 노출 시 `per_execution` 토큰 권한 매트릭스 + Notification 흐름과의 정합 + retry 횟수 제한 정책이 별도 결정 필요 (별 PR) | 필수 |
+| EIA-IN-02 | 지원 명령: `submit_form`, `click_button`, `submit_message`, `end_conversation`, `cancel` — 모두 WebSocket §4.2 의 동일명 명령과 의미 동일. **`retry_last_turn` 미포함** — 내부 UI 한정. 외부 노출 시 `per_execution` 토큰 권한 매트릭스 + Notification 흐름과의 정합 + retry 횟수 제한 정책이 별도 결정 필요 | 필수 |
 | EIA-IN-03 | `GET /api/external/executions/:executionId/stream` 는 Server-Sent Events 스트림. terminal 이벤트(`completed`/`failed`/`cancelled`) 발송 후 자동 종료 | 필수 |
 | EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / seq / updatedAt) | 필수 |
 | EIA-IN-05 | `POST /api/external/executions/:executionId/cancel` 는 명시적 취소 — `interact` 의 `command:"cancel"` 과 동치 (편의 alias) | 권장 |
@@ -121,8 +121,6 @@ type InteractionRequestContext =
 ```
 
 위 union 분리 시 `InteractionGuard` 는 첫 타입만 반환하고, `InteractionService.interact()` 의 token 검증 분기는 type narrowing 으로 `scope === 'in_process_trusted'` 일 때만 skip 한다 — 컴파일러가 invariant 를 강제.
-
-후속 추적: 타입 분리 리팩토링은 별 plan `spec-fix-eia-au-08-type-split` 로 신설 (v2 일정과 묶음).
 
 ### 3.4 신뢰성·일관성
 
@@ -582,7 +580,7 @@ ALTER TABLE trigger
 }
 ```
 
-> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼도 동일하게 ref 만 보관 (rotation grace 기간). `config.interaction.triggerToken` 는 현재 JSONB 평문 (향후 secret store 통합 검토 — 별 plan).
+> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼도 동일하게 ref 만 보관 (rotation grace 기간). `config.interaction.triggerToken` 는 현재 JSONB 평문 (향후 secret store 통합 검토).
 
 ### 7.2 Execution 엔티티 확장
 
@@ -777,31 +775,22 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 
 ## Rationale
 
-### R1. 두 채널 분리 vs. 한 채널로 통합 (2026-05-21)
+### R1. 두 채널 분리 vs. 한 채널로 통합
 
-**채택**: Outbound notification webhook + Inbound REST/SSE 두 채널을 독립적으로 제공.
+**채택**: Outbound notification webhook + Inbound REST/SSE 두 채널을 독립적으로 제공. Trigger 등록 시 `notification` 과 `interaction` 을 각각 켜고 끄게 하며, 인터랙션 없는 자동화는 둘 다 끈 채로 기존 동작 유지. 클라이언트가 항상 SSE 를 열고 있을 수 있는 환경(브라우저 chat 위젯) 이라면 inbound 만으로도 가능하지만, 서버-to-서버 자동화에서는 SSE 를 영속 유지하기 어려우므로 둘 다 optional 로 제공해 사용자가 선택한다. (외부 WebSocket 만 제공하는 안은 §R5 의 근거로 보류.)
 
-검토한 대안:
-1. **외부 WebSocket 만 제공** — 기각. 자세한 근거는 §R5.
-2. **Notification 만 제공 (inbound 없음)** — 기각. 인터랙션이 필요한 워크플로우에서 사용자가 응답할 채널이 사라진다. AI Multi Turn / Form / Buttons 가 데드락.
-3. **Inbound 만 제공 (notification 없음)** — 부분 채택의 한 case. 클라이언트가 항상 SSE 를 열고 있을 수 있는 환경(브라우저 chat 위젯) 이라면 가능하지만, 서버-to-서버 자동화에서는 SSE 를 영속 유지하기 어렵다. → 둘 다 optional 로 제공해 사용자가 선택.
-4. **(채택) 둘 다 optional 로 제공** — Trigger 등록 시 `notification` 과 `interaction` 을 각각 켜고 끄게 함. 인터랙션 없는 자동화는 둘 다 끈 채로 기존 동작 유지.
+**핵심 근거**: 두 채널은 **방향 (outbound push vs inbound pull/post)** 과 **인프라 요구 (URL 호스트 가능 여부 vs 영속 연결 가능 여부)** 가 다르다. 한 채널만으로는 외부 환경의 다양성을 커버할 수 없다 — 예컨대 Notification 만 제공하면 인터랙션이 필요한 워크플로우에서 사용자가 응답할 채널이 사라져 AI Multi Turn / Form / Buttons 가 데드락한다.
 
-**핵심 근거**: 두 채널은 **방향 (outbound push vs inbound pull/post)** 과 **인프라 요구 (URL 호스트 가능 여부 vs 영속 연결 가능 여부)** 가 다르다. 한 채널만으로는 외부 환경의 다양성을 커버할 수 없다.
+### R2. Notification 의 응답으로 인터랙션 받지 않는 결정
 
-### R2. Notification 의 응답으로 인터랙션 받지 않는 결정 (2026-05-21)
+**채택**: **인터랙션은 별도 inbound 채널로 분리**하고 notification 은 순수 통보로 한정한다. Outbound notification 의 HTTP 응답 body 로 인터랙션 결과를 받는 방식 (예: `waiting_for_input` notification 에 200 OK + form data 응답 → 그대로 form 제출로 처리) 은 다음 이유로 채택하지 않는다:
 
-**기각된 대안**: Outbound notification 의 HTTP 응답 body 로 인터랙션 결과를 받는다 (예: `waiting_for_input` notification 에 200 OK + form data 응답 → 그대로 form 제출로 처리).
-
-**기각 사유**:
 - HTTP 응답 1회는 양방향 대화 (AI multi-turn 의 N turn) 를 표현할 수 없다.
 - "1 notification = 1 응답" 비대칭 모델이 됨 — 모든 노드를 동일 모델로 묶기 어려움.
 - 재시도 시 같은 인터랙션 응답을 여러 번 보내는 ambiguity 가 생긴다 (서버는 첫 응답만 의미 있게 처리해야 하지만, 클라이언트는 "성공 = 인터랙션 반영" 으로 오해 가능).
 - HMAC 서명 검증 후 곧장 비즈니스 로직 응답을 요구하는 동기 모델은 클라이언트 구현 부담이 큼.
 
-→ **인터랙션은 별도 inbound 채널로 분리**. notification 은 순수 통보로 한정.
-
-### R3. SSE 채택 vs WebSocket 외부용 신설 (2026-05-21)
+### R3. SSE 채택 vs WebSocket 외부용 신설
 
 **채택**: SSE (Server-Sent Events) 를 외부 inbound 이벤트 스트림의 1차 채널로.
 
@@ -811,11 +800,9 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 - 자동 재연결 + `Last-Event-Id` 기반 누락 복구가 표준에 포함
 - 서버리스/에지 컴퓨팅 환경에서도 구현 가능
 
-기각된 대안:
-- **Long-polling**: 라이브 chat·multi-turn 에서 latency 큼. 사용자 경험 저하.
-- **외부 WebSocket 신설**: §R5 별도 결정 — 보류.
+Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경험을 저하시키므로 배제했고, 외부 WebSocket 신설은 §R5 의 별도 결정으로 보류한다.
 
-### R4. `per_execution` 토큰을 default 로 (2026-05-21)
+### R4. `per_execution` 토큰을 default 로
 
 **채택**: `tokenStrategy: "per_execution"` 이 default. 별도 명시할 때만 `per_trigger`.
 
@@ -830,7 +817,7 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 
 → default 는 안전 쪽, 옵션으로 편의 쪽 모두 제공.
 
-### R5. 외부 WebSocket 채널 신설 — **보류** (2026-05-21)
+### R5. 외부 WebSocket 채널 신설 — **보류**
 
 **결정**: v1 에서 외부 WebSocket 채널은 신설하지 않는다. SSE + REST 조합으로 충분.
 
@@ -848,13 +835,13 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 
 재도입 시 권장 형태: 기존 `/ws` 게이트웨이를 그대로 재사용하고, 인증 단계에서 `iext_*` / `itk_*` 토큰도 받게 확장. 별도 URL 신설 금지. 명령·이벤트 형식은 [Spec WS §4.1·§4.2](./6-websocket-protocol.md) 와 100% 일치 → 두 구현 분기 차단.
 
-### R6. Notification 실패 시 자동 비활성화 금지 (2026-05-21)
+### R6. Notification 실패 시 자동 비활성화 금지
 
 **채택**: notification 5회 연속 실패 시 trigger 의 `notificationHealth` 만 `degraded` 로 표시. trigger 자체는 비활성화하지 않는다.
 
 **근거**: notification 은 trigger 의 **부수 기능**. 자동 비활성화는 본체(워크플로우 실행) 까지 멈추게 한다. 사용자 의도와 다를 수 있음 — degraded 표시 + 알림 + UI 에서 명시 비활성화 버튼 제공이 적절. 자동 차단은 사용자 confirm 필요.
 
-### R7. seq 동일 공유 — SSE 와 notification (2026-05-21)
+### R7. seq 동일 공유 — SSE 와 notification
 
 **채택**: SSE 의 `id` 와 notification 페이로드의 `seq` 는 같은 monotonic counter (= [Spec WS §2.2](./6-websocket-protocol.md#22-서버--클라이언트-이벤트-래퍼) 의 `seq`).
 
@@ -863,19 +850,15 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 - 디버깅 시 backend 로그·DB 의 emit 순서와 클라이언트가 본 순서를 1:1 대응할 수 있음
 - 신규 counter 도입 시 두 채널 간 정합성 검증이 별도 필요해짐 → 비용 크고 이득 없음
 
-**구현 상태 (2026-05-22 추가)**: WS spec §2.2 가 `seq` 필드를 정의했지만 backend (`WebsocketService.emitExecutionEvent` / `Execution` 엔티티) 에는 **아직 미구현** 상태였음 (impl-prep 단계 검토에서 발견). 본 spec 의 외부 표면 (SSE / Notification) 은 seq 가 필수 전제이므로, **PR2 의 phase P0 에서 seq counter 를 함께 신설**한다 (execution 별 atomic INCR, Redis `INCR exec:seq:<id>` 또는 DB row-level lock 으로 발급). 같은 counter 가 WS event envelope · SSE `id:` · Notification `seq` 세 곳 모두에 동봉된다.
+**구현 전제**: 본 spec 의 외부 표면 (SSE / Notification) 은 seq 가 필수 전제이므로, execution 별 atomic INCR (Redis `INCR exec:seq:<id>` 또는 DB row-level lock) 로 발급되는 seq counter 를 신설한다. 같은 counter 가 WS event envelope · SSE `id:` · Notification `seq` 세 곳 모두에 동봉된다.
 
-### R8. Idempotency-Key 와 `submit_form` 검증 실패의 관계 (2026-05-21)
+### R8. Idempotency-Key 와 `submit_form` 검증 실패의 관계
 
-**채택**: `submit_form` 의 field validation 실패는 **idempotent 응답 캐시에 적재하지 않는다**. waiting_for_input 상태가 유지되어 사용자가 재제출 가능하기 때문에, 동일 key 로 새 body 를 보내는 것은 normal flow.
+**채택**: `submit_form` 의 field validation 실패는 **idempotent 응답 캐시에 적재하지 않는다**. waiting_for_input 상태가 유지되어 사용자가 재제출 가능하기 때문에, 동일 key 로 새 body 를 보내는 것은 normal flow. 즉 4xx 응답 중 `400 VALIDATION_FAILED` 만 idempotency cache 에서 제외하고, 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시한다.
 
-**기각된 대안**: `400 VALIDATION_FAILED` 응답도 다른 응답들과 동일하게 idempotency cache 에 적재 (24h).
+**근거**: validation 실패가 캐시되면 사용자가 form 수정 후 재제출 시 같은 key 를 쓰면 stale 에러가 반환된다. 이는 [Spec 실행 엔진 §1.3](./4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status) 의 "검증 실패 → waiting_for_input 유지 → 재제출 가능" 컨벤션과 직접 충돌하며, 사용자 UX (form 수정 → 재제출) 가 깨진다.
 
-**기각 사유**: validation 실패가 캐시되면 사용자가 form 수정 후 재제출 시 같은 key 를 쓰면 stale 에러가 반환된다. 이는 [Spec 실행 엔진 §1.3](./4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status) 의 "검증 실패 → waiting_for_input 유지 → 재제출 가능" 컨벤션과 직접 충돌하며, 사용자 UX (form 수정 → 재제출) 가 깨진다.
-
-**결정**: 4xx 응답 중 `400 VALIDATION_FAILED` 만 idempotency cache 에서 제외하고, 그 외 (성공 2xx / `409 Conflict` / `410 Gone`) 는 캐시.
-
-### R9. spec 위치 — `5-system/` 하위 신규 파일 (2026-05-21)
+### R9. spec 위치 — `5-system/` 하위 신규 파일
 
 **채택**: `spec/5-system/14-external-interaction-api.md` 로 신설. 12-webhook 의 본문에 흡수하지 않음.
 
@@ -886,7 +869,7 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 
 12-webhook 은 §3.4 관리 표에 "notification / interaction 설정 필드" 행만 추가하고 본문 cross-link 로 본 spec 을 가리킨다.
 
-### R10. WebsocketService 단일 sink 정책의 확장 (2026-05-21)
+### R10. WebsocketService 단일 sink 정책의 확장
 
 **참조**: [Spec 실행 엔진 §4.4](./4-execution-engine.md) 의 "이벤트 발행 sink — `WebsocketService` 단일 sink 정책" Rationale 마지막 문장 — "향후 외부 sink (Webhook 콜백, 텔레메트리 export 등) 가 실제로 추가될 때 본 결정을 재검토한다."
 
@@ -904,35 +887,29 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 - 새 외부 sink 추가 (텔레메트리 export 등) 시 엔진 코드 수정 없이 facade 만 추가 가능
 - 트랜잭션 commit 후 emit 규약 (§9.3 EIA-RL-04) 이 단일 sink 정책의 timing 보장과 자연스럽게 정합
 
-**기각된 대안**: NotificationDispatcher 를 엔진 내부에 직접 호출 — 엔진이 외부 sink 종류·재시도·서명·SSRF 정책을 모두 알아야 해 단일 책임 위반. 또한 실행 엔진 §4.4 의 원래 결정 (책임 격리) 을 번복하는 것이 된다.
+NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채택하지 않는다 — 엔진이 외부 sink 종류·재시도·서명·SSRF 정책을 모두 알아야 해 단일 책임을 위반하고, 실행 엔진 §4.4 의 책임 격리 결정을 번복하게 된다.
 
-**추가 facade 사례 — Chat Channel adapter (2026-05-21)**: [Spec Chat Channel](./15-chat-channel.md) 의 server-side 어댑터도 NotificationDispatcher 와 **동일 facade 계층** 의 추가 in-process subscriber 로 위치한다. 구체 구독 메커니즘은 **NotificationDispatcher 가 after-commit hook 위에 노출하는 in-process EventEmitter** 의 listener 로 attach. 외부 HTTP notification 와 어댑터의 채널 emit 은 같은 after-commit hook 에서 fan-out 되어 EIA-RL-04 (TX commit 후 발송) 정합. 어댑터는 엔진 내부 코드를 호출하지 않으며, 본 R10 의 **엔진 단일 sink + 외부 facade** 원칙을 깨지 않는다 — 기각된 대안 (NotificationDispatcher 를 엔진 내부에서 직접 호출) 과의 구조적 차이는 어댑터 역시 엔진 외부에서 NotificationDispatcher 가 emit 하는 결과만 받는다는 점.
+**추가 facade 사례 — Chat Channel adapter**: [Spec Chat Channel](./15-chat-channel.md) 의 server-side 어댑터도 NotificationDispatcher 와 **동일 facade 계층** 의 추가 in-process subscriber 로 위치한다. 구체 구독 메커니즘은 **NotificationDispatcher 가 after-commit hook 위에 노출하는 in-process EventEmitter** 의 listener 로 attach. 외부 HTTP notification 와 어댑터의 채널 emit 은 같은 after-commit hook 에서 fan-out 되어 EIA-RL-04 (TX commit 후 발송) 정합. 어댑터는 엔진 내부 코드를 호출하지 않으며, 본 R10 의 **엔진 단일 sink + 외부 facade** 원칙을 깨지 않는다 — 기각된 대안 (NotificationDispatcher 를 엔진 내부에서 직접 호출) 과의 구조적 차이는 어댑터 역시 엔진 외부에서 NotificationDispatcher 가 emit 하는 결과만 받는다는 점.
 
 SSE 어댑터의 **Redis pub/sub** 구독 경로 (다중 인스턴스 환경의 외부 SSE 클라이언트가 임의 인스턴스에 접속 가능해야 함) 와 Chat Channel 어댑터의 **in-process EventEmitter** 구독 경로는 **동시 운영**된다 — 두 어댑터는 NotificationDispatcher 라는 같은 facade 계층의 별도 listener 형태로 병존한다. NotificationDispatcher 의 fan-out 책임은 (a) Redis pub/sub 발행 (외부 SSE 어댑터용) + (b) in-process EventEmitter emit (Chat Channel 어댑터용) + (c) 외부 HTTP POST (notification webhook) 의 세 갈래로 늘어난다 — 세 경로 모두 동일 `seq` 와 동일 TX commit timing 을 공유.
 
-**chat-channel-internal 추가 listener 의 R10 허용 범위 (2026-05-25)**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력-2026-05-25-신설)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render_-presentations-발화-2026-05-25).
+**chat-channel-internal 추가 listener 의 R10 허용 범위**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render_-presentations-발화).
 
-### R11. 외부 endpoint 경로 prefix 분리 — `/api/external/executions/*` (2026-05-21)
+### R11. 외부 endpoint 경로 prefix 분리 — `/api/external/executions/*`
 
-**채택**: 외부 인터랙션 endpoint 는 모두 `/api/external/executions/:id/*` prefix 로 신설. 기존 `/api/executions/*` (워크스페이스 JWT, 에디터·UI 전용) 와 routing prefix·인증 family 둘 다 분리한다.
+**채택**: 외부 인터랙션 endpoint 는 모두 `/api/external/executions/:id/*` prefix 로 신설. 기존 `/api/executions/*` (워크스페이스 JWT, 에디터·UI 전용) 와 routing prefix·인증 family 둘 다 분리한다. 별도 prefix 로 컨트롤러 분리가 명확해지고, Guard·CORS·rate-limit 정책을 prefix 단위로 적용 가능하며 Swagger 에서도 별도 tag 로 표현된다.
 
-검토한 대안:
-1. **(채택) 별도 prefix `/api/external/executions/*`**: 컨트롤러 분리 명확, Guard·CORS·rate-limit 정책을 prefix 단위로 적용 가능. Swagger 에서도 별도 tag.
-2. **(기각) 같은 경로 `/api/executions/:id/*` 에 Guard 분기**: 같은 endpoint 가 두 토큰 family 를 수용. (a) 응답 shape 가 family 별로 달라지면 spec 이 모호해진다 (b) 한 Guard 가 두 토큰 family 를 매번 분기해야 하므로 코드 복잡도 증가 (c) 기존 endpoint 의 응답 shape 변경 위험 — 외부 토큰용으로 경량 view 를 만들면 기존 UI 가 영향받음.
-3. **(기각) 같은 경로에 별도 controller (NestJS route 우선순위)**: 같은 path 에 두 controller 가 등록되면 NestJS 라우터가 모호 → 런타임 에러 가능.
+같은 경로 `/api/executions/:id/*` 에 Guard 를 분기해 두 토큰 family 를 수용하는 안은 채택하지 않는다 — (a) 응답 shape 가 family 별로 달라지면 spec 이 모호해지고 (b) 한 Guard 가 두 토큰 family 를 매번 분기해야 하므로 코드 복잡도가 증가하며 (c) 기존 endpoint 의 응답 shape 변경 위험 (외부 토큰용 경량 view 가 기존 UI 에 영향). 같은 path 에 별도 controller 를 등록하는 안도 NestJS 라우터가 모호해져 런타임 에러 가능성이 있어 배제한다.
 
 **근거**:
-- naming-collision-checker 가 지적한 경로 충돌 (`GET /api/executions/:id` 의 응답 shape 차이, `POST /api/executions/:id/stop` 과 `cancel` 의 의미 중복) 이 prefix 분리로 즉시 해소
+- 경로 충돌 (`GET /api/executions/:id` 의 응답 shape 차이, `POST /api/executions/:id/stop` 과 `cancel` 의 의미 중복) 이 prefix 분리로 즉시 해소
 - prefix 분리는 외부 API 가 internal API 의 일부가 아니라 별도 표면임을 URL 만 봐도 알 수 있게 함 — facade 원칙 (§R5) 의 코드 수준 표현
 - 미래 확장 (예: `/api/external/triggers/*`, `/api/external/workflows/:id/runs/*`) 도 동일 prefix 아래 확장 가능
 
-### R12. HMAC 알고리즘 표기 — inbound vs outbound 분리 (2026-05-21)
+### R12. HMAC 알고리즘 표기 — inbound vs outbound 분리
 
-**채택**: Trigger 의 inbound webhook HMAC 검증 ([Spec Webhook §4.2](./12-webhook.md#42-hmac-서명)) 은 `hmacAlgorithm: 'sha256' | 'sha512'`. 본 spec 의 outbound notification 서명 표기는 `signing.algorithm: 'hmac-sha256' | 'hmac-sha512'`.
+**채택**: Trigger 의 inbound webhook HMAC 검증 ([Spec Webhook §4.2](./12-webhook.md#42-hmac-서명)) 은 `hmacAlgorithm: 'sha256' | 'sha512'`. 본 spec 의 outbound notification 서명 표기는 `signing.algorithm: 'hmac-sha256' | 'hmac-sha512'`. inbound 는 외부 발신자(GitHub 등) 의 서명 헤더 형식 (`X-Hub-Signature-256: sha256=...`) 과 정합해야 하고, outbound 는 본 spec 의 자체 서명 헤더 (`X-Clemvion-Signature: t=...,v1=...`) 의 알고리즘 식별자 의미가 명시적이도록 `hmac-` prefix 를 부여한다.
 
-검토한 대안:
-1. **(채택) inbound `sha256` / outbound `hmac-sha256` 분리**: inbound 는 외부 발신자(GitHub 등) 의 서명 헤더 형식 (`X-Hub-Signature-256: sha256=...`) 과 정합. outbound 는 본 spec 의 자체 서명 헤더 (`X-Clemvion-Signature: t=...,v1=...`) 의 알고리즘 식별자 의미가 명시적이도록 `hmac-` prefix 부여.
-2. **(기각) 양쪽 모두 `sha256`**: outbound 표기에서 "HMAC 서명" 임이 명시적이지 않아 향후 다른 서명 방식 (예: Ed25519) 추가 시 식별자 ambiguity.
-3. **(기각) 양쪽 모두 `hmac-sha256`**: inbound 는 외부 발신자가 정한 헤더 형식과 정합해야 하므로 (`sha256=<hex>`) 우리가 표기를 바꿔도 의미 없음. 12-webhook 의 기존 표기를 바꾸면 backward incompat.
+양쪽을 모두 `sha256` 으로 통일하는 안은 outbound 표기에서 "HMAC 서명" 임이 명시적이지 않아 향후 다른 서명 방식 (예: Ed25519) 추가 시 식별자 ambiguity 가 생기고, 양쪽을 모두 `hmac-sha256` 으로 통일하는 안은 inbound 가 외부 발신자가 정한 헤더 형식 (`sha256=<hex>`) 과 정합해야 하므로 12-webhook 의 기존 표기를 바꾸면 backward incompat 이 되어 모두 채택하지 않는다.
 
 각 경로에서 algorithm 화이트리스트는 `sha256`/`sha512` 만 (둘 다). 본 spec §3.1 EIA-NX-03 에 두 표기의 관계를 명시.

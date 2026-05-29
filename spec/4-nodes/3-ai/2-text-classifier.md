@@ -108,7 +108,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
    - **Multi-label**: `categories: { type: 'array', items: { name: enum, … } }` — 매칭 없음은 빈 배열로 표현
 2. `includeConfidence` / `includeEvidence` 가 `true` 이면 응답 스키마에 `confidence: number` / `evidence: string[]` 을 추가하고 시스템 프롬프트에 해당 필드 설명을 주입한다.
 3. `LlmService.chat` 호출. 실패 시 §5.3 (`error` 포트, `LLM_CALL_FAILED`).
-4. JSON 응답을 파싱. 파싱 실패 시 카테고리 이름의 substring 매칭으로 fallback 한다 (review W-2: 텍스트 fallback 도 custom id 라우팅 유지).
+4. JSON 응답을 파싱. 파싱 실패 시 카테고리 이름의 substring 매칭으로 fallback 한다 (텍스트 fallback 도 custom id 라우팅 유지).
 5. 모드별 결과 처리:
    - **Single-label**: 매칭 실패(`category` 미반환·`__none__`·미정의 카테고리) → §5.1 fallback case (`port: 'fallback'`, `result.category: null`). 매칭 성공 → §5.1 정상 case (`port: '<category.id>'` 또는 `class_${i}`).
    - **Multi-label**: 매칭된 카테고리들에 대해 §5.2 정상 case (`port: ['class_0', 'class_1', …]`). 매칭 없음 → §5.2 fallback case (`port: 'fallback'`, `result.categories: []`).
@@ -335,7 +335,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 
 > 본 핸들러는 JSON 파싱 실패 시 substring fallback 으로 회복하므로 `LLM_RESPONSE_INVALID` 는 발화하지 않는다. fallback 매칭에도 실패하면 §5.1 fallback case (`port: 'fallback'`, `category: null`) 로 정상 종료된다. `error` 포트는 LLM API 호출 자체의 throw 만 라우팅한다.
 
-> **D6 결정 (2026-05-17)**: 종전 top-level `output.originalInput` (full, truncation 없음) 은 폐기. 정상 (`output.result.originalInput`) / 에러 (`output.error.details.originalInput` truncated) 양쪽이 단일 경로로 통일. 에러 시 full 입력이 필요한 워크플로는 깨지므로 마이그레이션 필요 (truncated 버전만 surface). (plan/in-progress/node-output-redesign D6)
+> **D6 결정**: `originalInput` 은 정상 (`output.result.originalInput`, full) / 에러 (`output.error.details.originalInput`, truncated) 양쪽 단일 경로로 통일. top-level `output.originalInput` 은 사용하지 않는다.
 
 **Expression 접근 예**:
 - `$node["Intent"].output.error.code` → `"LLM_CALL_FAILED"`
@@ -359,7 +359,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 | `inputField` 가 빈 문자열 | `Input Field 를 입력해야 합니다.` | warningRule + handler.validate |
 | `categories[i].name` 누락 | `Category {i+1}: name is required` | `validateTextClassifierConfig` |
 | `categories[i].name === '__none__'` | `Category {i+1}: "__none__" is a reserved name` | `validateTextClassifierConfig` |
-| `categories[i].id` 중복 | `Category {i+1}: duplicate id "<id>" — each category must have a unique id` | `validateTextClassifierConfig` (resolver dedupe → silent 오분류 방지, review W-4) |
+| `categories[i].id` 중복 | `Category {i+1}: duplicate id "<id>" — each category must have a unique id` | `validateTextClassifierConfig` (resolver dedupe → silent 오분류 방지) |
 
 ## 7. 캔버스 요약
 
@@ -373,10 +373,3 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 - 응답 wrapper / 토큰 회계 / Conversation Thread / System Context Prefix: [공통 §5](./0-common.md#5-응답-형식-규약-principle-11), [§6](./0-common.md#6-토큰-회계-meta), [§10](./0-common.md#10-conversation-context-자동-컨텍스트-주입), [§11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix)
 
 `includeSystemContext` / `systemContextSections` config echo 는 default 값과 일치하면 생략한다 ([공통 §11.7](./0-common.md#117-config-echo)).
-
-## 9. CHANGELOG
-
-| 일자 | 변경 |
-|------|------|
-| 2026-05-18 (system-context) | §1 config 표에 `includeSystemContext` / `systemContextSections` 추가 + §4 실행 로직 0.5 단계 추가 + §8 Rationale stub 신설. 설계·결정 근거는 [공통 §11](./0-common.md#11-ai-노드-시스템-프롬프트-자동-prefix-system-context-prefix) 및 [공통 §Rationale](./0-common.md#rationale). [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 와 한 묶음 결정. consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO). |
-| 2026-05-29 (error-output-fields) | §5.3 error 예시·필드 표에 `output.error.details.retryable` (필수, [CONVENTIONS Principle 3.2.1](../../conventions/node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수)) / `retryAfterSec?` 추가 (timeout 예시 → `retryable: true`). §5.1 / §5.2 / §5.3 JSON 예시 전반과 필드 표에 누락된 `"status": "ended"` (Principle 0) 보강. consistency-check 세션: `review/consistency/2026/05/29/00_45_44/` (BLOCK: NO). |

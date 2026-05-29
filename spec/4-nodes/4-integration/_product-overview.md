@@ -75,7 +75,7 @@
 1. **노드 핸들러 경로** — cafe24 / http-request / database-query / send-email 노드가 `IntegrationHandlerBase.logUsage` (`api` 인자 전달) 를 경유. base class 가 `api` 를 `IntegrationsService.logUsage` 로 forward.
 2. **AI Agent Internal Bridge 경로** — AI Agent 노드에 연결된 통합을 MCP tool 로 노출하는 provider (현재 cafe24: `Cafe24McpToolProvider`) 가 노드 base class 를 거치지 않고 `IntegrationsService.logUsage` 를 **직접 호출**한다. cafe24 Internal Bridge 는 노드 핸들러와 **동일한 catalog key 형식** (`cafe24.<resource>.<operation>`) 으로 `api.label` 을 채운다.
 
-> **누락 사각지대 주의 (2026-05-28 회귀)**: Internal Bridge 경로는 노드 핸들러 base class 를 거치지 않으므로, `api` 채우기를 빠뜨려도 노드 핸들러 테스트는 통과한다. 실제로 활동 로그 API 식별 도입 (2026-05-28) 당시 4개 노드 핸들러만 `api` 를 채우고 `Cafe24McpToolProvider` 경로를 누락해, AI Agent 의 cafe24 MCP 호출이 §4.6 활동 탭에서 `—` 로 표시되는 회귀가 발생했다. **신규 통합 실행 경로 (새 노드 핸들러 또는 새 Internal Bridge provider) 를 추가할 때 `logUsage` 호출의 `api` 동반은 필수 체크 항목이다.** 결정 근거: [`spec/2-navigation/4-integration.md ## Rationale`](../../2-navigation/4-integration.md#rationale).
+> **누락 사각지대 주의**: Internal Bridge 경로는 노드 핸들러 base class 를 거치지 않으므로, `api` 채우기를 빠뜨려도 노드 핸들러 테스트는 통과한다. **신규 통합 실행 경로 (새 노드 핸들러 또는 새 Internal Bridge provider) 를 추가할 때 `logUsage` 호출의 `api` 동반은 필수 체크 항목이다.** 결정 근거: [`spec/2-navigation/4-integration.md ## Rationale`](../../2-navigation/4-integration.md#rationale).
 
 ### 2.5 Webhook 서비스 경계
 

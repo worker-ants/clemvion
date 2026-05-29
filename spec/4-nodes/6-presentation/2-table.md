@@ -191,7 +191,7 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
 }
 ```
 
-> **D5 결정 (2026-05-17) — `output.rendered` 폐기, frontend client-side 렌더로 전환** (plan/in-progress/node-output-redesign D5): backend 는 HTML snapshot 을 더 이상 생성하지 않는다. 다운스트림/UI 는 `output.rows` + `output.columns` 로 직접 렌더한다 (Carousel/Chart 와 완전 일관). escape 책임은 표시 계층 (React JSX 자동 escape) 으로 이동. 다운스트림 expression `$node["T"].output.rendered` 참조 워크플로는 깨지므로 마이그레이션 필요.
+> **`output.rendered` 폐기, frontend client-side 렌더**: backend 는 HTML snapshot 을 더 이상 생성하지 않는다. 다운스트림/UI 는 `output.rows` + `output.columns` 로 직접 렌더한다 (Carousel/Chart 와 완전 일관). escape 책임은 표시 계층 (React JSX 자동 escape) 으로 이동. 다운스트림 expression `$node["T"].output.rendered` 참조 워크플로는 깨지므로 마이그레이션 필요.
 
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|

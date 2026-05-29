@@ -67,7 +67,7 @@ code: []
 2. **count 평가**: 엔진이 `engineResolvedConfig.count` 를 정수로 강제 변환 (`coerceContainerNumber`). `count > maxIterations` 시 즉시 `MAX_ITERATIONS_EXCEEDED` throw (§6).
 3. **반복 실행**: `LoopExecutor.execute` 가 0 ~ `count - 1` 인덱스로 body 서브그래프를 순차 실행. 매 반복마다 `context.loopContext = { index, count, isFirst, isLast }` 를 바인딩.
 4. **emit 수집**: 각 반복에서 `emit` 포트에 연결된 body 노드의 출력을 `LoopIterationResult { index, output }` 으로 수집.
-5. **반복 간 입력 전달**: i 번째 반복의 body 입력은 (i-1) 번째 반복의 emit 출력. 첫 반복(i=0)의 입력은 `undefined` ([아카이브 개선안 §2 항목 5](../../../plan/complete/archive/from-user-memo/node-specs-improvement/logic/loop.md)).
+5. **반복 간 입력 전달**: i 번째 반복의 body 입력은 (i-1) 번째 반복의 emit 출력. 첫 반복(i=0)의 입력은 `undefined`.
 6. **breakCondition 검사**: 매 반복 종료 후 (body 실행 직후) `engine` 이 `config.breakCondition` 표현식을 freshly built `expressionContext` (현재 `$loop.*`, `$var.*`, body 노드들의 최신 `$node[...].output` 반영) 와 함께 `evaluate()` 한다. truthy 면 즉시 조기 종료 + `meta.exitReason='break'`. 평가 에러는 silent false (loop 진행).
 7. **maxIterations 가드**: 반복 인덱스 i 가 `maxIterations` 에 도달하면 `MAX_ITERATIONS_EXCEEDED` throw.
 8. **완료 시점 (엔진 오버라이트)**: `collected.map(r => r.output)` 로 `iterations` 배열 생성 → 엔진이 `{ iterations }` 로 `output` 을 덮어쓴다 (§5.2, §5.7). 다운스트림은 `done` 포트로 라우팅. 반복 횟수가 필요하면 `output.iterations.length` 를 사용한다 (CONVENTIONS Principle 1.1 — config↔output 직교).
@@ -195,13 +195,7 @@ Loop 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 
 
 `count` 의 zod schema 는 `default('1')` 이며, UI 메타는 `ui.required: true` 다. 두 layer 가 결합되어 "count 가 빈 값" 상태는 발생하지 않는다 — 사용자가 폼에서 명시적으로 비워도, storage layer (zod parse) 에서 `'1'` 로 채워진다.
 
-**선택지 비교** (ai-review W-1 / consistency-check I-1 후속, 2026-05-19 결정):
-
-| 안 | 효과 | 채택 여부 |
-|---|---|---|
-| ① `default('')` 변경 | `loop:no-count` warningRule 살아남. 신규 노드 추가 시 빈 input 노출 — 의미 있는 default UX 부재 | 기각 |
-| ② **`default('1')` 유지 + warningRule 제거 + Rationale 명문화** | `'1'` = "한 번 반복" 으로 의미 있는 fallback. dead rule 제거로 SSOT 단순화 | **채택** |
-| ③ 현 상태 유지 + dead rule 인지만 spec 에 기록 | warningRule 이 SSOT 에 남아 향후 유지보수자에게 "왜 발화 안 되지?" 혼동 유발 | 기각 |
+`default('1')` 을 유지하는 이유는 `'1'` = "한 번 반복" 으로 의미 있는 fallback 이기 때문이다. `default('')` 로 두면 신규 노드 추가 시 빈 input 이 노출되어 의미 있는 default UX 가 부재하고, dead `loop:no-count` warningRule 도 살아남는다. 대신 `default('1')` + warningRule 제거 + Rationale 명문화로 SSOT 를 단순화한다.
 
 **결과 동작 layer**:
 - **UI** — `ui.required: true` 가 asterisk 표시 (`visibility.ts isFieldRequired`)

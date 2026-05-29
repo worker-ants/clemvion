@@ -174,9 +174,9 @@ Webhook·Manual 과 통일된 "실행 시작점" 모델을 갖기 위해서다. 
 모든 진입 경로를 추적할 수 있고, 실행 이력 목록에서 `trigger.type` 만 보면 진입 경로를 파악할 수 있다.
 Schedule 의 cron 메타데이터는 별도 row 에 두어 schedule 화면이 직접 다룬다.
 
-### webhook URL 표기 정정 (2026-05-29)
+### webhook URL 표기
 
-본 문서는 `/api/webhooks/:path` · `/api/webhooks/:workspaceSlug/:path` 로 표기했으나, 실제 코드(`HooksController`)는 `/api/hooks/:endpointPath` 단일 라우트다 (`/api/webhooks`·workspaceSlug 세그먼트 미존재). webhook 도메인 SoT([Spec Webhook WH-EP-02](../5-system/12-webhook.md)) 기준으로 정합화했다 (consistency cross_spec).
+webhook 진입 라우트는 `/api/hooks/:endpointPath` 단일 형태다 (`HooksController`). `/api/webhooks`·workspaceSlug 세그먼트는 존재하지 않으며, webhook 도메인 SoT([Spec Webhook WH-EP-02](../5-system/12-webhook.md)) 와 정합한다.
 
 ### Webhook `endpoint_path` 의 UNIQUE 범위
 

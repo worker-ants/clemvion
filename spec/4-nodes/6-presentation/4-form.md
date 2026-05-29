@@ -59,7 +59,7 @@ code: []
 |---|---|---|---|---|
 | `phone` | `text` | 전화번호 — 국제 포맷 허용 (`+`, 숫자, 공백, `-`, `()`) | `^\+?[\d\s\-()]+$` (1자 이상) | Telegram: `request_contact: true` (share_contact 버튼). 미지원 provider: 일반 text 입력 |
 
-(v1 카탈로그 = 1종. URL / datetime 등 후속 preset 은 사용 사례 발생 시 별 plan 으로 추가.)
+(v1 카탈로그 = 1종. URL / datetime 등 후속 preset 은 사용 사례 발생 시 추가.)
 
 `preset` 과 `pattern` 이 동시에 설정되면 `preset` 이 우선 적용된다. `message` 가 없으면 preset 별 default 메시지 사용 (`phone` → "전화번호 형식이 올바르지 않습니다.").
 
@@ -119,13 +119,13 @@ code: []
 | `type` | `File.type` | MIME 타입 — `allowedMimeTypes` 검증 통과 후 값 |
 | `lastModified` | `File.lastModified` | UNIX epoch milliseconds |
 
-> file **내용 자체 (binary)** 는 본 spec 시점에서 LLM 에 전달하지 않는다. multimodal 비지원 모델 호환 + §10.4 1MB cap 보호 + 별도 binary upload 채널이 정해질 때까지 보류 — [공통 §Rationale file 타입 metadata-only (2026-05-23)](./0-common.md#file-타입-metadata-only-2026-05-23) SoT.
+> file **내용 자체 (binary)** 는 본 spec 시점에서 LLM 에 전달하지 않는다. multimodal 비지원 모델 호환 + §10.4 1MB cap 보호 + 별도 binary upload 채널이 정해질 때까지 보류 — [공통 §Rationale file 타입 metadata-only](./0-common.md#file-타입-metadata-only) SoT.
 
 `maxFiles == 1` 인 경우도 frontend 는 **단일 metadata 객체** 가 아니라 **길이 1 의 배열** 로 직렬화한다 — backend / LLM 측 단일 진실 (`formData[fieldName]` 은 항상 배열) 유지. 빈 선택 시 `[]` (빈 배열). field 가 `required: true` 인데 빈 배열이면 §6.2 의 "필수 필드 미입력" 검증 실패 흐름.
 
 **`output.interaction.data.<fieldName>` (resumed)**:
 
-위 metadata 객체 배열이 그대로 보존되어 `output.interaction.data.<fieldName>` 에 들어간다 — [node-output §4.5](../../conventions/node-output.md#45-interactiondata-payload-규격) 의 `form_submitted` payload `value` 슬롯 free-form 안에 정합. AI Agent `render_form` 의 tool_result content (`{ok:true, type:'form_submitted', data:{…}, message:'<재호출 금지 안내문>'}`, [AI Agent §12.6](../3-ai/1-ai-agent.md#126-render_form-submit-후-llm-의-동일-form-재호출-회귀-차단-2026-05-24)) 에도 동일하게 metadata 배열이 `data` 안에 직렬화되어 LLM 에 회신된다.
+위 metadata 객체 배열이 그대로 보존되어 `output.interaction.data.<fieldName>` 에 들어간다 — [node-output §4.5](../../conventions/node-output.md#45-interactiondata-payload-규격) 의 `form_submitted` payload `value` 슬롯 free-form 안에 정합. AI Agent `render_form` 의 tool_result content (`{ok:true, type:'form_submitted', data:{…}, message:'<재호출 금지 안내문>'}`, [AI Agent §12.6](../3-ai/1-ai-agent.md#126-render_form-submit-후-llm-의-동일-form-재호출-회귀-차단)) 에도 동일하게 metadata 배열이 `data` 안에 직렬화되어 LLM 에 회신된다.
 
 **폼 재제출 정책:**
 

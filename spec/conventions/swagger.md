@@ -75,7 +75,7 @@ order?: 'asc' | 'desc';
 - nested object: `@ApiProperty({ type: () => NestedDto })`
 - union 또는 dynamic: `@ApiProperty({ type: 'object', additionalProperties: true })`
 
-### 1-5. `writeOnly` / `readOnly` — 보안 민감 + 응답 sanitize 필드 (2026-05-24)
+### 1-5. `writeOnly` / `readOnly` — 보안 민감 + 응답 sanitize 필드
 
 Swagger UI 의 request/response 스키마 분리를 활용해 보안 민감 입력 / 자동 발급 응답 필드를 명시:
 
@@ -232,7 +232,7 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 
 ## 5) 응답 DTO 규약
 
-**2026-04-20 도입**: 모든 성공 응답은 `@ApiOkResponse({ schema: ... })` 의 인라인 객체가 아닌 **응답 DTO 클래스 + 공용 래퍼 헬퍼** 를 사용합니다.
+모든 성공 응답은 `@ApiOkResponse({ schema: ... })` 의 인라인 객체가 아닌 **응답 DTO 클래스 + 공용 래퍼 헬퍼** 를 사용합니다.
 
 ### 5-1. 응답 DTO 위치
 - `codebase/backend/src/modules/<module>/dto/responses/*-response.dto.ts`

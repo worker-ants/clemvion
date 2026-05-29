@@ -84,12 +84,12 @@ code: []
    - 파싱 실패 시 정규식으로 userinfo 만 제거 (best-effort)
 3. **Integration 자격증명 해석** (`authentication='integration'` 일 때만):
    - `IntegrationsService.getForExecution(integrationId, workspaceId)` 호출 → `serviceType='http'` 검증, `status='connected'` 검증
-   - `auth_type` 별 credential 빌드 (§4.1 표). 실패 시 `INTEGRATION_INCOMPLETE` 등 catch 후 §5.3 (`port: 'error'`) 라우팅 + Usage 로그 `failed` 기록 (D4, 2026-05-17)
+   - `auth_type` 별 credential 빌드 (§4.1 표). 실패 시 `INTEGRATION_INCOMPLETE` 등 catch 후 §5.3 (`port: 'error'`) 라우팅 + Usage 로그 `failed` 기록 (D4)
 4. **URL 결합**: `base_url` 이 있고 `url` 이 절대(`https?://`)가 아니면 `{base_url}/{url}` (중복 슬래시 정규화)
 5. **Query Params 병합**: 노드 `queryParams` → URL 에 append → `auth_type='api_key' & location='query'` credential append
 6. **Headers 병합** (뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 **integration 자격증명 헤더가 사용자 입력을 덮어쓴다** (사용자가 `Authorization` 을 위조해 자격증명을 무력화하는 경로 차단)
 7. **Body 직렬화**: `GET` / `HEAD` 외 method 일 때 `bodyType` 에 따라 직렬화. `form-data` 는 multipart boundary 자동 부여 (Content-Type 미지정)
-8. **SSRF 가드** (`authentication='integration'` 일 때만): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅 + Usage 로그 `failed` 기록 (D4, 2026-05-17)
+8. **SSRF 가드** (`authentication='integration'` 일 때만): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅 + Usage 로그 `failed` 기록 (D4)
 9. **fetch 호출**: `AbortController` 로 `timeout` 적용, `redirect: 'manual'`. `integration` 인증인 경우 3xx 응답을 받으면 최대 5홉까지 수동 follow + 매 홉 SSRF 재검증
 10. **응답 파싱**: `responseType='json'` → `res.json()` (실패 시 `null`), 그 외 `text`
 11. **Usage 로깅** (§4.2): `integration` 인증일 때만 `success` / `failed` 기록
@@ -108,7 +108,7 @@ code: []
 | `api_key` + `location=query` | URL 쿼리 파라미터 append | `?token=secret` |
 | `bearer_token` | `Authorization: Bearer {token}` | — |
 | `basic` | `Authorization: Basic {base64(username:password)}` | — |
-| 그 외 | `INTEGRATION_AUTH_UNSUPPORTED` (catch 후 §5.3 라우팅, D4 2026-05-17) | — |
+| 그 외 | `INTEGRATION_AUTH_UNSUPPORTED` (catch 후 §5.3 라우팅, D4) | — |
 
 ### 4.2 Usage 로깅 매트릭스 (`authentication='integration'` 일 때)
 
@@ -304,7 +304,7 @@ CONVENTIONS Principle 3.2 의 표준 envelope `output.error.{code, message, deta
 - `$node["X"].output.response` → 서버 body (4xx/5xx) 또는 `{ error: "..." }` (transport)
 - `$node["X"].port === 'error'` → 분기 라우팅
 
-### 5.8 (D4 — 2026-05-17) handler.validate 실패만 throw, 나머지 모두 §5.3 으로 라우팅
+### 5.8 (D4) handler.validate 실패만 throw, 나머지 모두 §5.3 으로 라우팅
 
 D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 노드 실행 실패 경로를 정의했었다. 현재는 다음 두 경로로 분리된다:
 

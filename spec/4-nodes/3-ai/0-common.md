@@ -101,7 +101,7 @@ LLM 3 노드는 `output.result.*` / `output.error.*` / `output.interaction.*` wr
 
 ## 7. 진단 누적 (provider tool)
 
-KB / MCP / 일반 provider 도구 호출이 발생한 노드는 `meta.ragSources` / `meta.ragDiagnostics` / `meta.mcpDiagnostics` 누적치를 메타에 노출한다. multi-turn 에서는 turn 단위 delta 가 `meta.turnDebug[i].{ragSources, ragDiagnostics, mcpDiagnostics}` 에도 분리되어 노출되며, "delta 의 합 = 전체 누적" 관계를 만족한다. `mcpDiagnostics.serverSummaries[]` (2026-05-18 신규) 는 buildTools 결과의 정적 스냅샷으로 노드 실행 단위로 1회 결정되며 turn 단위 delta 와 무관하다. 자세한 필드 의미:
+KB / MCP / 일반 provider 도구 호출이 발생한 노드는 `meta.ragSources` / `meta.ragDiagnostics` / `meta.mcpDiagnostics` 누적치를 메타에 노출한다. multi-turn 에서는 turn 단위 delta 가 `meta.turnDebug[i].{ragSources, ragDiagnostics, mcpDiagnostics}` 에도 분리되어 노출되며, "delta 의 합 = 전체 누적" 관계를 만족한다. `mcpDiagnostics.serverSummaries[]` 는 buildTools 결과의 정적 스냅샷으로 노드 실행 단위로 1회 결정되며 turn 단위 delta 와 무관하다. 자세한 필드 의미:
 
 - RAG: [Spec Graph RAG §4.3](../../5-system/10-graph-rag.md#43-출력-메타데이터)
 - MCP: [Spec MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics) (`serverSummaries[].skipReason` vocabulary 포함)
@@ -231,7 +231,7 @@ systemPrompt 의 최종 본문은 다음 순서로 build 된다 ([Spec AI Agent 
 
 ### 11.6 Cafe24 등 MCP 도구와의 cross-check
 
-§11 의 systemPrompt prefix 와 [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 의 도구 description 자동 suffix 는 서로 보완 관계다 (2026-05-18 한 묶음 결정):
+§11 의 systemPrompt prefix 와 [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 의 도구 description 자동 suffix 는 서로 보완 관계다:
 
 - systemPrompt prefix: LLM 의 일반적 시각 추론 ("어제 자정") 의 기준
 - 도구 description suffix: 특정 도구 호출 인자 ("`since` 필드") 가 어느 timezone 인지
@@ -244,35 +244,14 @@ systemPrompt 의 최종 본문은 다음 순서로 build 된다 ([Spec AI Agent 
 
 ---
 
-## 12. CHANGELOG
-
-| 일자 | 변경 |
-|------|------|
-| 2026-05-18 | §7 진단 누적 본문에 `mcpDiagnostics.serverSummaries[]` 정적 스냅샷 의미 한 줄 보강 — buildTools 단위로 결정되며 turn 단위 delta 와 무관. [Spec MCP Client §6.2](../../5-system/11-mcp-client.md#62-진단-누적-mcpdiagnostics) 의 `skipReason` vocabulary 신설과 한 세트 (cafe24-expired-self-healing). |
-| 2026-05-18 (system-context) | **§11 신설 — AI 노드 시스템 프롬프트 자동 prefix (System Context Prefix)**. 3 노드 공통 필드 `includeSystemContext` (default `true`) / `systemContextSections` (default `['time','timezone']`) 추가. systemPrompt 빌드 ordering 의 단일 SoT 를 §11.4 로 통합. 기존 §11 CHANGELOG → §12 로 번호 +1 이동. [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) (도구 description 자동 KST suffix) 와 한 묶음 결정 — 두 채널이 보완하여 LLM 의 시각 추론 회귀 (KST/UTC 9시간 어긋남) 를 차단. 본 절은 [Spec AI Agent](./1-ai-agent.md) / [Spec Information Extractor](./3-information-extractor.md) / [Spec Text Classifier](./2-text-classifier.md) §1 config 표에 두 필드를 동시에 추가하는 묶음 PR. 자세한 결정 근거는 §Rationale "시스템 컨텍스트 자동 주입 (2026-05-18 신설 — §11)". consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO). |
-| 2026-05-14 | §10 Conversation Context 공통 규약 신설. AI 카테고리 3 노드 공통 인터페이스 정의 (v1 ai_agent 만 push + 주입, text_classifier/information_extractor 는 v2 추가). 기존 §10 CHANGELOG → §11 로 번호 변경 |
-| 2026-05-10 | ai_agent §7 출력 구조 7 sub-cases (§7.1~§7.9) 로 재구성 — 옛 §7.4 condition (multi) → §7.6, 옛 §7.5/7.6/7.7 (user_ended/max_turns/error multi) → §7.7/§7.8/§7.9. waiting/resumed 명시적 sub-section (§7.4/§7.5). §9 색인 갱신 |
-| 2026-05-10 | §9 출력 구조 색인 신설. 노드 문서의 §5/§7 출력 구조 5필드 모델로 정합화 (Principle 0~11 적용). 기존 §1~§8 anchor 보존 |
-| 2026-05-09 | ai_agent multi-turn ended/condition 경로의 `config.model` echo 정책을 raw template echo 로 통일 (`spec/4-nodes/3-ai/1-ai-agent.md §7` 머리 노트 참조) |
-
----
-
 ## Rationale
 
-### 시스템 컨텍스트 자동 주입 (2026-05-18 신설 — §11)
+### 시스템 컨텍스트 자동 주입 (§11)
 
 **문제**: AI 카테고리 3 노드 어디에도 LLM 에게 "지금이 몇 시인지·어느 timezone 인지" 를 자동으로 알려주는 경로가 없었다. 사용자는 systemPrompt 본문에 수동으로 `"오늘은 {{ $now }}"` 같은 표현식을 박아야 했고, 그것마저 `$now` 가 UTC ISO8601 ([Spec 실행 엔진 §6.2](../../5-system/4-execution-engine.md#62-제공-변수)) 이라 KST 사용자가 인지하지 못한 채 9시간 어긋난 reasoning 을 받는 회귀 가능성이 있었다.
 
-**결정**: §11 신설로 systemPrompt 앞에 `Current time` + `Timezone` prefix 자동 prepend. 기본 활성화 (`includeSystemContext: true`). 섹션은 default `['time', 'timezone']` 로 최소 정보만 — 워크스페이스/노드 정보는 디버깅 용도라 opt-in.
+**결정**: §11 신설로 systemPrompt 앞에 `Current time` + `Timezone` prefix 자동 prepend. 기본 활성화 (`includeSystemContext: true`) + systemPrompt 앞 prefix + 섹션 단위 opt-out + 3 노드 공통 규약. 섹션은 default `['time', 'timezone']` 로 최소 정보만 — 워크스페이스/노드 정보는 디버깅 용도라 opt-in. 시각 정보는 LLM reasoning 의 일반 prefix 패턴이고 토큰 비용도 ~30 토큰으로 미미하므로 opt-in 이 아닌 default 활성화로 두어 시각 정보 누락에 의한 회귀 누적을 막는다. suffix 가 아닌 prefix 인 이유는 사용자 systemPrompt 의 마지막 지시 (`"답변은 JSON 으로"` 등) 가 묻히지 않도록 하기 위함이고, 노드별 별도 필드가 아닌 `0-common.md §11` 단일 정의인 이유는 3 노드가 동일 컨텍스트를 필요로 하여 drift 를 방지하기 위함이다.
 
-**대안**:
-- (A, 기각) **opt-in (`includeSystemContext: false` 기본)** — 시각 정보는 LLM reasoning 의 일반 prefix 패턴이며 (Anthropic / OpenAI 의 default system prompt 컨벤션) 토큰 비용도 ~30 토큰으로 미미. opt-in 으로 두면 사용자가 시각 정보 누락을 인지하지 못한 채 회귀가 누적된다. 또한 cafe24 도구 description 의 KST suffix 와 두 채널 보완 효과를 얻으려면 default 활성화가 필요.
-- (B, 기각) **systemPrompt 뒤에 suffix** — 사용자 systemPrompt 의 마지막 지시 (`"답변은 JSON 으로"` 등) 가 prefix 에 묻혀 LLM 응답 품질 저하 가능. prefix 가 자연스럽다.
-- (C, 기각) **각 노드별로 별도 필드** — 3 노드 모두 동일 컨텍스트가 필요. `0-common.md §11` 의 단일 정의로 drift 방지.
-- (D, 채택) **default true + systemPrompt 앞 prefix + 섹션 단위 opt-out + 공통 규약**.
-
-**Cafe24 와의 cross-channel 정합**: [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 의 도구 description 자동 suffix 와 본 §11 시스템 프롬프트 prefix 는 한 묶음 결정 (2026-05-18) — 두 채널이 함께 노출되어야 LLM 이 `$now`(UTC) ↔ prefix(워크스페이스 timezone) ↔ cafe24 도구(KST) 의 변환을 정확히 수행한다.
+**Cafe24 와의 cross-channel 정합**: [Cafe24 API Metadata §5.3](../../conventions/cafe24-api-metadata.md#53-ai-agent--mcp-도구-description-자동-suffix) 의 도구 description 자동 suffix 와 본 §11 시스템 프롬프트 prefix 는 보완 관계 — 두 채널이 함께 노출되어야 LLM 이 `$now`(UTC) ↔ prefix(워크스페이스 timezone) ↔ cafe24 도구(KST) 의 변환을 정확히 수행한다.
 
 **기존 워크플로 점진 적용**: §11.1 의 "기존 row 해석 정책" 참고. config 부재 시 default 해석 (`true` + `['time','timezone']`) — DB 마이그레이션으로 명시 `false` 를 박지 않는다. 회귀 우려 워크플로만 사용자가 인지 후 명시적 opt-out.
-
-**근거**: 사용자 제안 (2026-05-18) — "AI 노드들의 시스템 프롬프트에 현재 시간이 제공된다면, 시스템 타임존 정보까지 포함해서 제공해야 오해를 하지 않을 것 같아". consistency-check 세션: `review/consistency/2026/05/18/23_08_06/` (BLOCK: NO).

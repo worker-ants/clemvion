@@ -8,7 +8,7 @@ code: []
 
 > 관련 문서: [Spec Conversation Thread §9.3](./conversation-thread.md#93-데이터-소스-선택) · [Spec WebSocket Protocol §4.4](../5-system/6-websocket-protocol.md) · [Spec AI Agent §7](../4-nodes/3-ai/1-ai-agent.md#7-출력-구조)
 
-handler 의 output field 가 frontend 의 **여러 surface (live / waiting / execution-history / replay)** 에서 어떻게 hydration 되는지의 매트릭스. PR #271 의 이슈 #1 (실행 내역 페이지에서 presentations inline 렌더 누락) 와 같은 회귀를 spec/harness 양쪽에서 차단.
+handler 의 output field 가 frontend 의 **여러 surface (live / waiting / execution-history / replay)** 에서 어떻게 hydration 되는지의 매트릭스. 실행 내역 페이지에서 presentations inline 렌더가 누락되는 류의 회귀를 spec/harness 양쪽에서 차단.
 
 신규 output field 추가 시 본 문서 매트릭스에 행을 추가하고 표가 가리키는 모든 hydration 함수에 처리를 동시 적용한다 — hydration coverage 단위 테스트 (`codebase/frontend/src/lib/conversation/__tests__/hydration-coverage.test.ts`) 가 누락 fail.
 
@@ -65,7 +65,7 @@ handler 의 output field 가 frontend 의 **여러 surface (live / waiting / exe
 
 | Trigger | 함수 |
 |---|---|
-| ConversationThread 재구성 view | EH-DETAIL-06 — 실행 이력의 thread 재구성 (별 PR) |
+| ConversationThread 재구성 view | EH-DETAIL-06 — 실행 이력의 thread 재구성 |
 
 ---
 
@@ -80,7 +80,7 @@ handler 의 output field 가 frontend 의 **여러 surface (live / waiting / exe
 
 ## 4. Rationale
 
-PR #271 의 이슈 #1 ("실행 내역 페이지에서 presentations 가 안 보임") 의 원인은 단순: backend 가 `ConversationTurn.presentations` 만 영속 → 실행 내역 페이지는 thread snapshot 을 fetch 하지 않음 → frontend 가 못 본다.
+"실행 내역 페이지에서 presentations 가 안 보임" 회귀의 원인은 단순: backend 가 `ConversationTurn.presentations` 만 영속 → 실행 내역 페이지는 thread snapshot 을 fetch 하지 않음 → frontend 가 못 본다.
 
 **근본 원인**: 같은 데이터 SoT 가 surface 별로 다른 hydration 경로를 거치는데, 신규 field 추가 시 "어느 경로에서 어떻게 surface 되어야 하는지" 가 spec 에 없어 개발자가 한 surface 만 update 하고 다른 surface 는 빠뜨림.
 

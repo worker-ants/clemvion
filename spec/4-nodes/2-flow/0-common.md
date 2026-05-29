@@ -66,9 +66,3 @@ Flow 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
 | Workflow | `{workflowName 또는 workflowId} · {mode}`. `workflowName`이 있으면 이름 표시, 없으면 ID 표시. 워크플로우 삭제 시 `⚠ Missing workflow` | `Data Pipeline · sync` |
-
-## 5. CHANGELOG
-
-| 일자 | 변경 |
-|------|------|
-| 2026-05-10 | Flow 카테고리 0-common.md 신설. 5필드 공통 규약·에러 컨트랙트·출력 구조 색인 정비 (Principle 0~11 적용) |

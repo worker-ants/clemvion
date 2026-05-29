@@ -12,8 +12,6 @@ code: []
 
 ## Overview (제품 정의)
 
-> 출처: `prd/7-execution-history.md` — docs-consolidation(2026-05-12)으로 본 문서에 흡수.
-
 ---
 
 ### 1. 개요

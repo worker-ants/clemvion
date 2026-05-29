@@ -142,7 +142,7 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 | 사이드바 표시 | 모든 로그인 사용자 (권한 제한 없음) |
 | 비로그인 표시 | 현재는 로그인 필수(`(main)` 그룹이 보호됨). 차후 공개 경로로 분리 가능 |
 | 검색 | `DocsSearch` 로 제공. 데스크탑 사이드바·모바일 drawer 양쪽에 동일 노출 |
-| 모바일 진입 | `< lg(1024px)` 에서 article 상단의 sticky 토글 버튼 → 좌측 `SlideDrawer` 가 `DocsSidebar` + `DocsSearch` 를 동일 컴포넌트로 노출. 데스크탑 사이드바는 그대로(`hidden lg:block`). 글로벌 사이드바와 breakpoint 가 다른 이유는 [Rationale R-1](#r-1-docs-내부-사이드바-breakpoint-가-글로벌-1280px-과-다른-이유-2026-05-26) 참조 |
+| 모바일 진입 | `< lg(1024px)` 에서 article 상단의 sticky 토글 버튼 → 좌측 `SlideDrawer` 가 `DocsSidebar` + `DocsSearch` 를 동일 컴포넌트로 노출. 데스크탑 사이드바는 그대로(`hidden lg:block`). 글로벌 사이드바와 breakpoint 가 다른 이유는 [Rationale R-1](#r-1-docs-내부-사이드바-breakpoint-가-글로벌-1280px-과-다른-이유) 참조 |
 | 인쇄용 CSS | 미포함 |
 
 ## 11. 성능
@@ -164,13 +164,6 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 
 ## Rationale
 
-### R-1. /docs 내부 사이드바 breakpoint 가 글로벌 (< 1280px) 과 다른 이유 (2026-05-26)
+### R-1. /docs 내부 사이드바 breakpoint 가 글로벌 (< 1280px) 과 다른 이유
 
 `spec/2-navigation/_layout.md §2.4` 의 글로벌 사이드바는 1280px 미만에서 햄버거로 전환된다. `/docs` 내부 사이드바는 article 안의 *보조 네비* 라 lg(1024px) 까지는 본문 옆에 자리가 충분히 남는다. 별 컨텍스트 (전역 chrome vs 페이지 내부) 이므로 breakpoint 도 별도. 두 사이드바가 동시에 햄버거로 전환되는 분기점을 일치시킬 필요가 없다.
-
-선택지로 검토했던 안:
-
-- **글로벌과 동일 1280px** — 1024~1279px 구간에서 docs 가이드 트리를 잃게 된다. 본문 옆에 240px 자리가 충분히 남는 화면 폭에서 굳이 노출을 빼앗는 것이 손해.
-- **글로벌 사이드바를 article 안 보조 네비처럼 980px 까지 노출** — 전역 chrome 은 모든 페이지에 공통이라 한 페이지의 사정 (docs article 의 자리 여유) 으로 글로벌 분기점을 옮기면 다른 페이지 (에디터 등 데스크탑 전용) 의 의도를 깨뜨림.
-
-근거 출처: docs-mobile-sidebar 구현 PR 의 사전 일관성 검토 (`review/consistency/2026/05/26/11_04_31/`) 및 사후 일관성 검토 (`review/consistency/2026/05/26/11_57_24/`) Cross-Spec checker WARNING.

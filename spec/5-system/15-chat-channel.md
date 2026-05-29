@@ -15,13 +15,6 @@ code:
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
   - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
-pending_plans:
-  - plan/in-progress/chat-channel-discord-gateway.md
-  - plan/in-progress/chat-channel-slack-socket-mode.md
-  - plan/in-progress/chat-channel-form-native-modal.md
-  - plan/in-progress/chat-channel-visual-ssr-png.md
-  - plan/in-progress/chat-channel-secret-store-infra.md
-  - plan/in-progress/chat-channel-error-notify.md
 ---
 
 # Spec: Chat Channel (외부 chat 플랫폼 ↔ 워크플로우 서버사이드 어댑터)
@@ -52,13 +45,13 @@ pending_plans:
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
-| CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택. supported provider 는 [`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실 (v1 supported: `telegram` / `slack` / `discord` — 2026-05-24 갱신, PR #300 정합) | 필수 |
+| CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택. supported provider 는 [`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실 (v1 supported: `telegram` / `slack` / `discord`) | 필수 |
 | CCH-AD-02 | Trigger enable / 신규 생성 시 어댑터의 `setupChannel()` 자동 호출 (텔레그램은 `setWebhook`) | 필수 |
 | CCH-AD-03 | Trigger disable / 삭제 시 어댑터의 `teardownChannel()` 자동 호출 | 필수 |
 | CCH-AD-04 | Webhook 진입점 ([`POST /api/hooks/:endpointPath`](./12-webhook.md#31-webhook-수신-엔드포인트)) 핸들러는 `config.chatChannel` 가 있으면 raw body 를 `parseUpdate(raw)` 로 통과시켜 워크플로우 input 으로 변환. [WH-NF-01](./12-webhook.md#4-비기능-요구사항) 의 200ms 응답 시한을 깨지 않도록 `parseUpdate` 50ms (CCH-NF-01) + 트리거 조회 + `202 Accepted` 반환의 순서로 처리 | 필수 |
-| CCH-AD-05 | EIA outbound notification 의 `execution.waiting_for_input` / `execution.ai_message` / `execution.completed` / `execution.failed` / `execution.cancelled` 이벤트를 어댑터가 **NotificationDispatcher 의 after-commit EventEmitter 에 in-process listener 로 attach** → `renderNode(payload)` → `sendMessage()` 호출. 실행 엔진의 단일 sink 정책을 깨지 않음 (어댑터는 NotificationDispatcher 와 동일 facade 계층). [EIA §R10](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장-2026-05-21) | 필수 |
+| CCH-AD-05 | EIA outbound notification 의 `execution.waiting_for_input` / `execution.ai_message` / `execution.completed` / `execution.failed` / `execution.cancelled` 이벤트를 어댑터가 **NotificationDispatcher 의 after-commit EventEmitter 에 in-process listener 로 attach** → `renderNode(payload)` → `sendMessage()` 호출. 실행 엔진의 단일 sink 정책을 깨지 않음 (어댑터는 NotificationDispatcher 와 동일 facade 계층). [EIA §R10](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장) | 필수 |
 | CCH-AD-06 | 인터랙션 응답 (텔레그램 reply / inline_keyboard tap / 다단계 form answer) 도착 → 어댑터가 [`InteractionService.interact(ctx, dto)`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts) 를 **in-process 직접 호출**. HTTP 표면을 거치지 않음 (network round-trip 회피 + 토큰 발급 우회). 우회 정당화는 [EIA §3.3 EIA-AU-08](./14-external-interaction-api.md#33-인증) — trusted in-process caller 예외 | 필수 |
-| CCH-AD-07 | 어댑터는 EIA outbound 5종 (CCH-AD-05) 외에 **`execution.node.completed` (in-process WS fan-out 채널 이벤트) 의 presentation 노드 (`carousel`/`table`/`chart`/`template`) 비-blocking 완료** 도 추가 in-process listener 로 attach. 외부 HTTP webhook (EIA §6.1) 화이트리스트는 변경 없음 — 본 listener 는 **chat-channel-internal 한정** ([Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력-2026-05-25-신설)). NotificationDispatcher / WebsocketService 단일 sink (실행 엔진 §4.4) 의 fan-out 경로를 그대로 사용 — TX commit 후 호출 (EIA-RL-04 정합), per-trigger `ChannelListenerRegistry` 가드 (R8) 그대로 적용. presentation 노드가 blocking 으로 진입한 경우 (`nodeExec.outputData.status === 'waiting_for_input'`) 는 별도 `CCH-MP-02`/`CCH-MP-04` 흐름이 처리 — 어댑터 sub-filter 가 본 케이스를 사전 제외 (중복 발송 방지). | 필수 |
+| CCH-AD-07 | 어댑터는 EIA outbound 5종 (CCH-AD-05) 외에 **`execution.node.completed` (in-process WS fan-out 채널 이벤트) 의 presentation 노드 (`carousel`/`table`/`chart`/`template`) 비-blocking 완료** 도 추가 in-process listener 로 attach. 외부 HTTP webhook (EIA §6.1) 화이트리스트는 변경 없음 — 본 listener 는 **chat-channel-internal 한정** ([Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)). NotificationDispatcher / WebsocketService 단일 sink (실행 엔진 §4.4) 의 fan-out 경로를 그대로 사용 — TX commit 후 호출 (EIA-RL-04 정합), per-trigger `ChannelListenerRegistry` 가드 (R8) 그대로 적용. presentation 노드가 blocking 으로 진입한 경우 (`nodeExec.outputData.status === 'waiting_for_input'`) 는 별도 `CCH-MP-02`/`CCH-MP-04` 흐름이 처리 — 어댑터 sub-filter 가 본 케이스를 사전 제외 (중복 발송 방지). | 필수 |
 
 #### 3.2 Identity / Conversation 매핑
 
@@ -74,12 +67,12 @@ pending_plans:
 
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
-| CCH-MP-01 | [AI Multi Turn](../4-nodes/3-ai/1-ai-agent.md) 의 `execution.ai_message` → 채널 텍스트 메시지 1건 이상으로 변환 (provider 별 길이 제한 분할). **payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) / [EIA §6.5 line 536](./14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message))** 가 비어있지 않으면 5종 presentation 각각을 v1 fallback 으로 렌더해 ChannelMessage 시퀀스로 text 뒤에 **sequential `await`** 추가 발송 (`Promise.all` 금지 — provider rate limit + 표시 순서 보장). 4종 display-only (`carousel`/`table`/`chart`/`template`) 는 `CCH-MP-04` 의 v1 fallback 재사용 (텔레그램 §5.4 MarkdownV2). `render_form` (`presentations[*].type === 'form'`) 은 **v1 임시 텍스트 fallback** — fields 목록 + 답변 안내 텍스트로 발화 (2026-05-25 사용자 보고 회귀 해소). 별 plan `chat-channel-form-native-modal` v2 가 native modal/Mini App 으로 격상하기 전까지 임시 정책. | 필수 |
+| CCH-MP-01 | [AI Multi Turn](../4-nodes/3-ai/1-ai-agent.md) 의 `execution.ai_message` → 채널 텍스트 메시지 1건 이상으로 변환 (provider 별 길이 제한 분할). **payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반) / [EIA §6.5 line 536](./14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message))** 가 비어있지 않으면 5종 presentation 각각을 v1 fallback 으로 렌더해 ChannelMessage 시퀀스로 text 뒤에 **sequential `await`** 추가 발송 (`Promise.all` 금지 — provider rate limit + 표시 순서 보장). 4종 display-only (`carousel`/`table`/`chart`/`template`) 는 `CCH-MP-04` 의 v1 fallback 재사용 (텔레그램 §5.4 MarkdownV2). `render_form` (`presentations[*].type === 'form'`) 은 **v1 임시 텍스트 fallback** — fields 목록 + 답변 안내 텍스트로 발화. v2 가 native modal/Mini App 으로 격상하기 전까지 임시 정책. | 필수 |
 | CCH-MP-02 | [Button Presentation](../4-nodes/6-presentation/0-common.md) 의 `execution.waiting_for_input` (interactionType=buttons) → 채널의 inline keyboard 로 변환. tap → `click_button` 명령 | 필수 |
 | CCH-MP-03 | [Form](../4-nodes/6-presentation/4-form.md) 의 `execution.waiting_for_input` (interactionType=form) → **formMode 분기**: native modal 지원 provider (`supportsNativeForm`) + 전 필드 modal 수용 타입 + `fields ≤ 5` + `formMode ≠ multi_step` 이면 **단일 native modal** (Slack `views.open` / Discord MODAL), 그 외 (Telegram / 6+ fields / 미수용 타입 / multi_step opt-out) 는 **다단계 prompt 시퀀스** (필드별 한 줄 질문). 검증 실패 시 그 필드만 재질문 / modal error 재표시 ([EIA-RL-03](./14-external-interaction-api.md#34-신뢰성·일관성)). SoT: [Convention §4 / §4.1 / R-CCA-8](../conventions/chat-channel-adapter.md#4-form-입력-시퀀스-규약) | 필수 |
-| CCH-MP-04 | Carousel / Chart / Table 의 `execution.waiting_for_input` → 채널 메시지로 변환. **`uiMapping.visualNode` enum 분기 적용** (`"text" \| "photo" \| "auto"`, default `"auto"`). **v1 정책** (MarkdownV2 텍스트/monospace 표현): `text` / `auto` 모두 chart 는 데이터로부터 monospace mini bar chart 텍스트 합성, table 은 monospace MarkdownV2 표 (column 너비 정렬 + row cap), carousel 은 카드 N장 sequential ChannelMessage (`auto` 는 카드별 image url 있으면 `sendPhoto`, 없으면 `sendMessage`; `text` 는 image url 무시하고 항상 텍스트 카드). v1 에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음 — 정상 fallback). **v2 정책** (SSR PNG, 별 plan `chat-channel-visual-ssr-png` 추적): `photo` / `auto` 모두 SSR 인프라 도입 후 `sendPhoto` 로 본격 이미지 렌더로 격상 — `output.rendered` snapshot 폐기 (D5 / 2026-05-17) 이후 어댑터가 raw 데이터로부터 직접 SSR 책임. enum 별 노드타입 매트릭스 SoT 는 [providers/telegram.md §5.4](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) | 필수 (v1 MarkdownV2 텍스트, v2 PNG) |
+| CCH-MP-04 | Carousel / Chart / Table 의 `execution.waiting_for_input` → 채널 메시지로 변환. **`uiMapping.visualNode` enum 분기 적용** (`"text" \| "photo" \| "auto"`, default `"auto"`). **v1 정책** (MarkdownV2 텍스트/monospace 표현): `text` / `auto` 모두 chart 는 데이터로부터 monospace mini bar chart 텍스트 합성, table 은 monospace MarkdownV2 표 (column 너비 정렬 + row cap), carousel 은 카드 N장 sequential ChannelMessage (`auto` 는 카드별 image url 있으면 `sendPhoto`, 없으면 `sendMessage`; `text` 는 image url 무시하고 항상 텍스트 카드). v1 에서 `photo` 선택 시 fallback to text + warning 로그 (`chat_channel_health` 변경 없음 — 정상 fallback). **v2 정책** (SSR PNG): `photo` / `auto` 모두 SSR 인프라 도입 후 `sendPhoto` 로 본격 이미지 렌더로 격상 — `output.rendered` snapshot 폐기 (D5) 이후 어댑터가 raw 데이터로부터 직접 SSR 책임. enum 별 노드타입 매트릭스 SoT 는 [providers/telegram.md §5.4](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) | 필수 (v1 MarkdownV2 텍스트, v2 PNG) |
 | CCH-MP-05 | Form 필드 `type` 별 채널 keyboard hint — `number` → 숫자 키패드, `phone` → share_contact, `file` → upload prompt 등. 없는 keyboard 는 일반 text input | 권장 |
-| CCH-MP-06 | 비-blocking presentation 노드 (`template` body, `carousel`/`table`/`chart` 의 buttons 없음 케이스) 의 `execution.node.completed` (CCH-AD-07 listener) → 채널 메시지로 변환. v1 fallback 정책은 `CCH-MP-04` (텔레그램 [§5.4](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) MarkdownV2 fallback) 와 동일 — 시각형 (carousel/table/chart) 은 `uiMapping.visualNode` enum 분기 (`text` / `photo` / `auto`) 적용, `template` 은 `output.rendered` 텍스트 그대로. 본 룰은 EIA outbound HTTP notification 표면 (5종 화이트리스트, §6.1) 을 확장하지 않음 — chat-channel-internal listener 한정. SoT: [Convention chat-channel-adapter §1.3](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력-2026-05-25-신설) (`ChatChannelInternalEvent`) + [§R-CCA-7](../conventions/chat-channel-adapter.md#r-cca-7-rendernode-시그니처-union-확장--chat-channel-internal-이벤트-수용-2026-05-25). | 필수 |
+| CCH-MP-06 | 비-blocking presentation 노드 (`template` body, `carousel`/`table`/`chart` 의 buttons 없음 케이스) 의 `execution.node.completed` (CCH-AD-07 listener) → 채널 메시지로 변환. v1 fallback 정책은 `CCH-MP-04` (텔레그램 [§5.4](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) MarkdownV2 fallback) 와 동일 — 시각형 (carousel/table/chart) 은 `uiMapping.visualNode` enum 분기 (`text` / `photo` / `auto`) 적용, `template` 은 `output.rendered` 텍스트 그대로. 본 룰은 EIA outbound HTTP notification 표면 (5종 화이트리스트, §6.1) 을 확장하지 않음 — chat-channel-internal listener 한정. SoT: [Convention chat-channel-adapter §1.3](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력) (`ChatChannelInternalEvent`) + [§R-CCA-7](../conventions/chat-channel-adapter.md#r-cca-7-rendernode-시그니처-union-확장--chat-channel-internal-이벤트-수용). | 필수 |
 
 #### 3.4 신뢰성 / 보안
 
@@ -183,11 +176,11 @@ pending_plans:
 
 어댑터의 outbound subscription 은 **NotificationDispatcher 가 노출하는 in-process EventEmitter** 의 listener 로 attach (Redis pub/sub 우회 — 같은 process 안에서는 EventEmitter 가 충분). 외부 HTTP notification 와 채널 emit 은 **같은 after-commit hook 에서 fan-out** 되어 둘 다 [EIA-RL-04](./14-external-interaction-api.md#34-신뢰성·일관성) (TX commit 후 발송) 와 정합. 어댑터가 엔진 내부 코드를 호출하지 않음 — facade 원칙 유지.
 
-[EIA §R10](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장-2026-05-21) 가 본 spec 의 추가 facade 사용을 명시. 본 spec 의 어댑터는 R10 의 "엔진 외부 facade 단일 위치" 원칙을 깨지 않는다.
+[EIA §R10](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장) 가 본 spec 의 추가 facade 사용을 명시. 본 spec 의 어댑터는 R10 의 "엔진 외부 facade 단일 위치" 원칙을 깨지 않는다.
 
 ### 3.3 SSE 어댑터와의 병존
 
-[EIA §R10](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장-2026-05-21) 의 SSE 어댑터는 Redis pub/sub 으로 WebsocketService 가 발행한 이벤트를 구독한다 (다중 인스턴스 환경에서 외부 SSE 클라이언트가 임의 인스턴스에 접속할 수 있어야 함). Chat Channel 어댑터는 같은 process 안의 NotificationDispatcher 가 fan-out 하는 EventEmitter 를 구독한다 — 두 어댑터는 같은 facade 계층의 별도 listener 로 병존한다 (Redis pub/sub 과 in-process EventEmitter 가 동시 운영).
+[EIA §R10](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장) 의 SSE 어댑터는 Redis pub/sub 으로 WebsocketService 가 발행한 이벤트를 구독한다 (다중 인스턴스 환경에서 외부 SSE 클라이언트가 임의 인스턴스에 접속할 수 있어야 함). Chat Channel 어댑터는 같은 process 안의 NotificationDispatcher 가 fan-out 하는 EventEmitter 를 구독한다 — 두 어댑터는 같은 facade 계층의 별도 listener 로 병존한다 (Redis pub/sub 과 in-process EventEmitter 가 동시 운영).
 
 ---
 
@@ -240,7 +233,7 @@ pending_plans:
 
 #### 4.1.1 `languageHints` default 문구 — KO / EN
 
-CCH-ERR-* 6 키의 default 문구는 KO / EN 두 locale 모두 backend 가 보관한다. 어댑터의 lookup 순서는 (1) `languageHints[key]` 사용자 override → (2) `languageLocale` 의 default 문구 → (3) (방어적) `languageLocale` 미설정 시 'ko' fallback. 기존 5 키 (`groupChatRefusal` 등) 의 EN default 화는 본 spec 범위 밖 — 별 plan 추적. 단 `formOpenLabel` (§4.1 native modal 버튼 라벨, 2026-05-28 신설) 은 modal 격상과 함께 도입되어 KO / EN 두 locale 모두 보관한다 (lookup 경로 (2) 동작 보장).
+CCH-ERR-* 6 키의 default 문구는 KO / EN 두 locale 모두 backend 가 보관한다. 어댑터의 lookup 순서는 (1) `languageHints[key]` 사용자 override → (2) `languageLocale` 의 default 문구 → (3) (방어적) `languageLocale` 미설정 시 'ko' fallback. 기존 5 키 (`groupChatRefusal` 등) 의 EN default 화는 본 spec 범위 밖. 단 `formOpenLabel` (§4.1 native modal 버튼 라벨) 은 modal 격상과 함께 도입되어 KO / EN 두 locale 모두 보관한다 (lookup 경로 (2) 동작 보장).
 
 | key | KO default | EN default |
 |---|---|---|
@@ -268,8 +261,6 @@ ALTER TABLE trigger
 ```
 
 `chat_channel_health` 의 enum (`unknown`/`healthy`/`degraded`) 은 `notification_health` 와 완전 동일 — 향후 공용 DB 타입 통합 검토 대상.
-
-Flyway 마이그레이션 슬롯 번호는 PR-A 착수 직전 [`spec/conventions/migrations.md`](../conventions/migrations.md) 에서 예약.
 
 ### 4.3 ChannelConversation (in-memory + Redis cache)
 
@@ -480,49 +471,40 @@ codebase/backend/src/modules/
 
 ## Rationale
 
-### R1. 새 트리거 유형 신설하지 않음 (2026-05-21)
+### R1. 새 트리거 유형 신설하지 않음
 
-대안:
-1. **(채택) Webhook 트리거 + `chatChannel` config**: 트리거 유형 카탈로그 유지 (Manual / Webhook / Schedule 3종 그대로), 어댑터는 config 한 갈래. 사용자 멘탈모델 = "텔레그램 어댑터를 켠 Webhook 트리거".
-2. **(기각) `Chat Channel Trigger` 신규 노드**: 트리거 종류가 N+1 로 늘어남. webhook 트리거와 90% 공통이라 코드 중복.
-3. **(기각) 어댑터 인터페이스 X, 텔레그램 1급 모듈**: Slack/카카오 요청 시 같은 모듈 N개 반복. 인터페이스를 1개 추상으로만 두면 layer 1개로 차단됨.
+Webhook 트리거 + `chatChannel` config 채택: 트리거 유형 카탈로그 유지 (Manual / Webhook / Schedule 3종 그대로), 어댑터는 config 한 갈래. 사용자 멘탈모델 = "텔레그램 어댑터를 켠 Webhook 트리거". 신규 노드로 두면 트리거 종류가 N+1 로 늘고 webhook 트리거와 90% 공통이라 코드 중복이며, 어댑터 인터페이스 없이 텔레그램을 1급 모듈로 두면 Slack/카카오 추가 시 같은 모듈 N개 반복이 된다.
 
 근거: 사용자 명시 입장 + EIA spec 의 facade 원칙과 정합. Schedule 트리거는 본 spec 의 chatChannel 옵션을 사용하지 않으므로 (외부 chat 플랫폼의 inbound update 가 아니라 cron 기반 fire) 영향 없음.
 
-### R2. Chat Channel 을 EIA 의 consumer 로만 위치 (2026-05-21)
+### R2. Chat Channel 을 EIA 의 consumer 로만 위치
 
 EIA HTTP 표면을 새로 만들지 않고 in-process facade 호출만 사용. 이유:
 - HTTP round-trip 회피 (latency CCH-NF-02 200ms 안에 들어가려면 round-trip 1회 절감 필요)
 - 토큰 발급/검증 우회 — 어댑터는 trusted in-process caller
 - 단일 inbound 명령 facade ([EIA §10 `external-interaction.module.ts`](./14-external-interaction-api.md#10-구현-파일-구조)) 가 외부 HTTP 와 in-process 호출 둘 다 수용
 
-대안 (기각): 어댑터도 EIA HTTP endpoint 를 호출 — 동일 process 안에서 자기 HTTP 표면을 호출하는 의미 없는 round-trip + 토큰 사이클 부담.
+어댑터도 EIA HTTP endpoint 를 호출하는 안은 동일 process 안에서 자기 HTTP 표면을 호출하는 의미 없는 round-trip + 토큰 사이클 부담이라 채택하지 않는다.
 
-### R3. v1 single-user DM 만 지원 (2026-05-21)
+### R3. v1 single-user DM 만 지원
 
 group chat 은 multi-user 매핑이 복잡 (어느 사용자가 답한 것? `conversation thread metadata.userKey` 가 단일 값 가정과 충돌). v1 은 1:1 DM 만 — group chat 은 어댑터가 명시적으로 거부. 후속 v2 에서 multi-user thread 도입 시 재논의.
 
-### R4. NotificationDispatcher EventEmitter subscription 메커니즘 (2026-05-21)
+### R4. NotificationDispatcher EventEmitter subscription 메커니즘
 
-대안:
-1. **(채택) NotificationDispatcher 가 노출하는 in-process EventEmitter 의 listener 로 attach**: 같은 process 안에서는 외부 인프라 없이 가장 단순. NotificationDispatcher 의 after-commit hook 가 이미 단일 진입점.
-2. **(기각) Redis pub/sub**: 같은 process 안에서는 round-trip 낭비. 다중 인스턴스 환경에서는 어차피 NotificationDispatcher 자체가 외부 HTTP 호출로 fan-out 하므로, 어댑터 sub 도 같은 process 의 listener 로 attach 하면 됨.
-3. **(기각) 별 after-commit hook 추가**: 엔진 §4.4 의 단일 sink 정책 위반 — 어댑터가 엔진 코드를 알아야 함.
+NotificationDispatcher 가 노출하는 in-process EventEmitter 의 listener 로 attach 한다: 같은 process 안에서는 외부 인프라 없이 가장 단순하고, NotificationDispatcher 의 after-commit hook 가 이미 단일 진입점이다. Redis pub/sub 은 같은 process 안에서 round-trip 낭비이고 (다중 인스턴스 환경에서도 NotificationDispatcher 자체가 외부 HTTP 호출로 fan-out 하므로 listener attach 로 충분), 별 after-commit hook 추가는 엔진 §4.4 의 단일 sink 정책 위반이라 어댑터가 엔진 코드를 알아야 한다.
 
 근거: EIA §R10 의 "엔진 외부 facade 단일 위치" 원칙 유지 + 단순한 구현 (`emitter.on('execution.waiting_for_input', adapter.onEvent)`).
 
 SSE 어댑터의 Redis pub/sub 경로와의 병존은 §3.3 명시.
 
-### R5. provider 디렉토리 위치 — `4-nodes/7-trigger/providers/` (2026-05-21)
+### R5. provider 디렉토리 위치 — `4-nodes/7-trigger/providers/`
 
-대안:
-1. **(채택) `4-nodes/7-trigger/providers/<name>.md`**: 트리거 노드 컨텍스트 안에서 발견 가능. 같은 폴더 안에 `0-common.md` / `1-manual-trigger.md` 와 형제 위치 — 자연스러운 navigation.
-2. **(기각) `5-system/chat-channel-providers/<name>.md`**: chat-channel 자체는 시스템 레이어 (15-) 지만 어댑터 구체는 트리거 config 갈래라서 시스템 레이어보다는 트리거 영역에 더 가깝다.
-3. **(기각) `conventions/chat-channel-providers/<name>.md`**: convention 은 형식 규약 (cafe24-api-metadata 와 유사). 텔레그램 어댑터는 형식이 아니라 구체 구현 명세 — convention 이 아님.
+`4-nodes/7-trigger/providers/<name>.md` 채택: 트리거 노드 컨텍스트 안에서 발견 가능하고, 같은 폴더 안에 `0-common.md` / `1-manual-trigger.md` 와 형제 위치라 자연스러운 navigation 이다. `5-system/chat-channel-providers/` 는 chat-channel 자체가 시스템 레이어 (15-) 지만 어댑터 구체는 트리거 config 갈래라 트리거 영역에 더 가깝고, `conventions/` 는 형식 규약 (cafe24-api-metadata 와 유사) 자리라 구체 구현 명세인 텔레그램 어댑터에는 맞지 않는다.
 
 providers 서브디렉토리에는 v1 단계에서 `_overview.md` 1개 + `telegram.md` 1개로 시작. 두 번째 provider (Slack 등) 가 추가될 때 `_overview.md` 를 갱신해 catalog 패턴으로 발전.
 
-### R6. `chat-channel-adapter.md` 를 `spec/conventions/` 에 두는 정당화 (2026-05-21)
+### R6. `chat-channel-adapter.md` 를 `spec/conventions/` 에 두는 정당화
 
 `spec/conventions/` 는 **다른 spec 이 참조하는 형식·인터페이스 규약** 을 모은다. 기존 거주자:
 - `node-output.md` — 모든 노드 핸들러가 따르는 출력 5필드 규약
@@ -539,15 +521,15 @@ providers 서브디렉토리에는 v1 단계에서 `_overview.md` 1개 + `telegr
 
 이 분리는 cafe24 의 [`conventions/cafe24-api-metadata.md`](../conventions/cafe24-api-metadata.md) (형식 규약) + [`4-nodes/4-integration/4-cafe24.md`](../4-nodes/4-integration/4-cafe24.md) (시스템·노드 정의) + [`conventions/cafe24-api-catalog/`](../conventions/cafe24-api-catalog/) (구체 endpoint 카탈로그) 의 3분할과 동일한 구조다.
 
-### R7. `rotate-bot-token` 동사 (2026-05-21)
+### R7. `rotate-bot-token` 동사
 
 EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbound-notification-notification-webhook) (HMAC signing secret rotation) 와 다른 자원이므로 `rotate-secret` 동사 재사용은 의미 혼동을 유발한다. `rotate-bot-token` 으로 명시화하면 URL 만으로 어떤 자원의 rotation 인지 즉시 식별 가능. [`spec/5-system/2-api-convention.md`](./2-api-convention.md) 의 RPC 스타일 (`/notification/rotate-secret`, `/interaction/revoke-token`) 과 동일 패턴 (`/<resource>/<verb>-<noun>`).
 
-### R8. Fan-out facade 의 분리 — 사실상 이미 완료, per-trigger listener 정책만 v1 적용 (2026-05-22, 갱신 2026-05-24)
+### R8. Fan-out facade 의 분리 — per-trigger listener 정책
 
-본 결정의 원본 (2026-05-22) 은 "v1 의 `NotificationDispatcher` 가 외부 HTTP POST / Redis pub/sub / in-process EventEmitter 3 갈래 fan-out 을 단일 클래스에 담는다" 고 가정하고, provider ≥ 2 시점에 `ChannelDispatcher` 분리를 권장했다. 2026-05-24 재평가 결과 — 실제 코드는 이미 분리되어 있어, 본 결정은 **per-trigger listener dedup/teardown 정책** 만으로 재정의된다.
+Fan-out facade 는 코드 구조상 이미 분리되어 있고, 본 결정은 **per-trigger listener dedup/teardown 정책** 을 정의한다.
 
-**실제 v1 구조 (2026-05-24 catch-up)**:
+**v1 구조**:
 
 - Fan-out source = `WebsocketService.executionEvents$` RxJS Subject — 모든 후속 listener 의 공통 진입.
 - Listener 3종은 별 모듈에 분리되어 있음:
@@ -555,9 +537,7 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
   2. `SseAdapter` (같은 모듈) — Redis pub/sub 으로 SSE fan-out
   3. `ChatChannelDispatcher` ([`codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts`](../../codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts)) — in-process subscription, chat-channel 전담
 
-즉 R8 의 "분리 리팩토링" 은 코드 구조상 이미 완료된 상태. 본 결정의 미적용 부분은 **per-trigger listener 라이프사이클 정책** 뿐이다 (chat-channel-dispatcher-split plan 의 작업 범위).
-
-**리스너 dedup / 라이프사이클 정책 — v1 적용 (2026-05-24)**:
+**리스너 dedup / 라이프사이클 정책**:
 
 `ChatChannelDispatcher` 는 모듈 단위 1회 subscription (`onModuleInit`) 패턴을 유지하지만, **per-trigger listener registry** (`ChannelListenerRegistry`) 를 도입해 다음을 보장:
 
@@ -569,38 +549,29 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 
 본 정책의 실효성은 v1 단계에서 **(a) trigger 삭제 후 race event 안전 가드** + **(b) hot reload 후 listener 미등록 race 회피** + **(c) handle() 의 DB round-trip 절감** 세 가지. message routing 자체는 여전히 module-level handle() 안에서 일어남 (구조 변경 없이 invariant 강화).
 
-후속 추적: 본 정책 구현은 [`plan/complete/chat-channel-dispatcher-split.md`](../../plan/complete/chat-channel-dispatcher-split.md) (2026-05-24 완료). 추가 분리 리팩토링 (예: `WebsocketService.executionEvents$` 를 EventEmitter 기반으로 교체) 은 본 plan 범위 밖.
+추가 분리 리팩토링 (예: `WebsocketService.executionEvents$` 를 EventEmitter 기반으로 교체) 은 본 결정 범위 밖.
 
-### R9. CCH-CV-03 `running` 케이스의 큐잉 vs 즉시 안내 (2026-05-22)
+### R9. CCH-CV-03 `running` 케이스의 큐잉 vs 즉시 안내
 
-대안:
-1. **(채택) 즉시 안내 + update 무시 (큐 미적재)**: `running` / `pending` 구간이 일반적으로 짧고 (수 초 ~ 수십 초), 사용자가 다음 입력 시점은 대개 `waiting_for_input` 도달 후이다. 사용자 메시지를 큐에 적재했다가 `waiting_for_input` 도달 시 재발사하면 (a) execution 의 input 시퀀스 가정과 충돌 가능 (워크플로우 노드가 그 입력을 기대하지 않은 시점에 입력 사건 발생), (b) 사용자가 같은 메시지를 두 번 보낸 경우 dedup 책임 모호.
-2. **(기각) Redis 큐에 임시 적재 → `waiting_for_input` 도달 시 자동 재발사**: 위 (a)/(b) 이슈 + 큐 TTL / 폐기 정책 / 순서 정렬 등 추가 메커니즘 필요. v1 의 단순성과 어긋남.
-3. **(기각) `waiting_for_input` 도달까지 HTTP 연결 보류**: WH-NF-01 의 200ms 응답 시한과 정면 충돌. 텔레그램이 webhook 응답 지연 시 retry 폭주.
+즉시 안내 + update 무시 (큐 미적재) 채택: `running` / `pending` 구간이 일반적으로 짧고 (수 초 ~ 수십 초), 사용자가 다음 입력 시점은 대개 `waiting_for_input` 도달 후이다. 사용자 메시지를 큐에 적재했다가 `waiting_for_input` 도달 시 재발사하면 (a) execution 의 input 시퀀스 가정과 충돌 가능 (워크플로우 노드가 그 입력을 기대하지 않은 시점에 입력 사건 발생), (b) 사용자가 같은 메시지를 두 번 보낸 경우 dedup 책임 모호 — 게다가 큐 TTL / 폐기 정책 / 순서 정렬 등 추가 메커니즘이 필요해 v1 의 단순성과 어긋난다. `waiting_for_input` 도달까지 HTTP 연결을 보류하는 안은 WH-NF-01 의 200ms 응답 시한과 정면 충돌하고 텔레그램이 webhook 응답 지연 시 retry 폭주한다.
 
 근거: v1 단순성 + 사용자 mental model ("처리 중에 보낸 메시지는 다시 보내야 함" 이 봇 UX 의 일반적 기대). [CCH-NF-03](#36-비기능-요구사항) 의 rate-limit 큐 정책은 **다른 트리거 조건** (`분당 60건 초과 시 적재`) 으로, 본 케이스 (`execution running 중 사용자 메시지 도착`) 와 정책 방향이 다른 것은 정당하다 (전자는 외부 사용자 폭주 방어, 후자는 execution life-cycle 정합).
 
-후속 단순화 (v2): `waiting_for_input` 직전 노드가 LLM 호출 등 긴 latency 인 경우 사용자가 답답함을 느낄 수 있음 — `sendChatAction(typing)` 주기적 발송 정책을 별 plan 으로 검토.
+후속 단순화 (v2): `waiting_for_input` 직전 노드가 LLM 호출 등 긴 latency 인 경우 사용자가 답답함을 느낄 수 있음 — `sendChatAction(typing)` 주기적 발송 정책을 후속 검토.
 
-### Rationale ID 컨벤션 (2026-05-23)
+### Rationale ID 컨벤션
 
 본 절 신규 항목은 **`R-CC-N` prefix** (`CC` = Chat Channel) 를 사용한다. 본 파일에는 `[EIA §R10]` 등 외부 spec 의 Rationale 참조가 다수 있어 (line 33, 138, 353 등), 신규 로컬 Rationale 에 prefix 없는 `R10/R11/R12` 를 쓰면 검토자가 외부 참조와 혼동할 위험이 있어 prefix 채택. 기존 `R1~R9` / `R-K` 는 하위 호환 위해 그대로 유지 (rename 시 cross-link 깨짐 위험).
 
-### R-CC-10. Bot Token 변경 single-path (rotate API only) (2026-05-23)
+### R-CC-10. Bot Token 변경 single-path (rotate API only)
 
-대안:
-1. **(채택) single-path**: 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token`. PATCH body 의 `botTokenRef` 변경은 차단.
-2. **(기각) PATCH + rotate 양쪽 허용**: [`spec/2-navigation/2-trigger-list.md` Rationale R-2](../2-navigation/2-trigger-list.md#r-2-webhook-hmac-secret-입력-vs-rotate-분리-2026-05-22) 의 hmacSecret 패턴과 정렬되나, 자원 성격이 다르다 — hmacSecret 는 우리가 보유한 server-side HMAC signing secret 으로 PATCH 직접 교체 시 외부 수신자 (cafe24 등) 가 새 키를 동기화하기 전에 검증 실패 ↔ botToken 은 외부 provider (텔레그램) 측에 등록된 토큰으로, PATCH 직접 교체는 우리 DB 만 갱신하고 텔레그램 측은 그대로라 수신이 즉시 깨짐. PATCH 와 rotate 의 두 경로 공존 시 grace 24h 정책 일관성 깨짐 + audit log mixing.
-3. **(기각) PATCH 만 허용**: rotate API 의 24h grace 기능 (CCH-SE-04) 이 제공하는 무중단 회전을 잃음.
+single-path 채택: 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 이며 PATCH body 의 `botTokenRef` 변경은 차단한다. PATCH + rotate 양쪽 허용은 [`spec/2-navigation/2-trigger-list.md` Rationale R-2](../2-navigation/2-trigger-list.md#r-2-webhook-hmac-secret-입력-vs-rotate-분리) 의 hmacSecret 패턴과 정렬되나 자원 성격이 다르다 — hmacSecret 는 우리가 보유한 server-side HMAC signing secret 으로 PATCH 직접 교체 시 외부 수신자 (cafe24 등) 가 새 키를 동기화하기 전에 검증 실패 ↔ botToken 은 외부 provider (텔레그램) 측에 등록된 토큰으로 PATCH 직접 교체는 우리 DB 만 갱신하고 텔레그램 측은 그대로라 수신이 즉시 깨지며, 두 경로 공존 시 grace 24h 정책 일관성이 깨지고 audit log 가 mixing 된다. PATCH 만 허용하면 rotate API 의 24h grace 기능 (CCH-SE-04) 이 제공하는 무중단 회전을 잃는다.
 
 근거: R-2 와 다른 결론을 내리는 정당화는 **자원의 위치 (server-side 보유 vs external provider 측 등록)** 차이. single-path 는 grace 정책 일관성·audit log 단일성·UX 명확성 모두 확보.
 
-### R-CC-11. `uiMapping.visualNode` enum 교체 (`text_only`→`text` + `auto` 신설) (2026-05-23)
+### R-CC-11. `uiMapping.visualNode` enum 교체 (`text_only`→`text` + `auto` 신설)
 
-대안:
-1. **(채택) 3-enum** (`"text" | "photo" | "auto"`, default `"auto"`): default 가 합리적 휴리스틱 (chart/table → text, carousel imageUrl 있으면 photo). 사용자가 명시적으로 선택하지 않아도 합리적 동작. text_only → text rename 으로 photo / auto 와 동급 단어 통일.
-2. **(기각) 2-enum 유지** (`"photo" | "text_only"`): default 가 명확하지 않음. v2 SSR 인프라 도입 시 photo 가 default 가 되는 게 자연스러우나 v1 단계에서는 photo fallback to text 가 필요해 default 결정이 모호.
-3. **(기각) `auto` 만 단일 mode**: 사용자가 강제로 text 또는 photo 를 원할 때 (예: 데이터 가독성 우선 / 시각적 임팩트 우선) 표현 못함.
+3-enum (`"text" | "photo" | "auto"`, default `"auto"`) 채택: default 가 합리적 휴리스틱 (chart/table → text, carousel imageUrl 있으면 photo) 이라 사용자가 명시적으로 선택하지 않아도 합리적으로 동작하고, text_only → text rename 으로 photo / auto 와 동급 단어로 통일한다. 2-enum (`"photo" | "text_only"`) 유지는 default 가 명확하지 않고 (v1 단계에서는 photo fallback to text 가 필요해 default 결정이 모호), `auto` 단일 mode 는 사용자가 강제로 text 또는 photo 를 원할 때 (데이터 가독성 우선 / 시각적 임팩트 우선) 표현하지 못한다.
 
 세부:
 - (a) `text_only` → `text` rename: 영문 일관성 (`photo` / `auto` 와 동급 단어). 운영 영향은 어댑터의 read-time normalize (`text_only` → `text`) 로 흡수.
@@ -611,12 +582,9 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 
 `spec/conventions/chat-channel-adapter.md §7` (변경 관리) 의 "두 외부 spec 동시 갱신 의무" + 컨벤션 파일 자체 = 3 파일을 한 commit 으로 묶음. `providers/_overview.md` catalog 는 provider 목록 변경이 아니라 enum 한 필드 변경이라 갱신 불필요 (Convention §7 의 catalog 갱신 조항은 provider 추가/제거 시점에 적용).
 
-### R-CC-12. Inbound HTTP Contract — `202 Accepted` 고정 + `401` (auth) / `404` (endpointPath) 예외 (2026-05-23)
+### R-CC-12. Inbound HTTP Contract — `202 Accepted` 고정 + `401` (auth) / `404` (endpointPath) 예외
 
-대안:
-1. **(채택) `202 Accepted` 고정 + `401` (auth 실패) + `404` (endpointPath 미존재)**: 기존 [12-webhook.md §7 step 7c·step 10](./12-webhook.md#7-처리-흐름) 가 이미 `202 Accepted` 를 SoT 로 정의 — spec 일관성 유지.
-2. **(기각) `200 OK` 신규 도입**: 텔레그램은 2xx 응답을 모두 success 로 인식하므로 200/202 차이는 텔레그램 측에 무관. 신규 도입 시 §7 step 7c 도 함께 변경해야 하는데 그게 더 큰 변경 — 변경 최소화 원칙 위배.
-3. **(기각) WH-EP-07 의 410 Gone 정책 그대로 적용**: chat-channel provider 가 non-2xx 응답 시 webhook 자동 비활성화 + retry 폭주를 유발 (Telegram Bot API documented behavior). 운영 영향 큼.
+`202 Accepted` 고정 + `401` (auth 실패) + `404` (endpointPath 미존재) 채택: 기존 [12-webhook.md §7 step 7c·step 10](./12-webhook.md#7-처리-흐름) 가 이미 `202 Accepted` 를 SoT 로 정의해 spec 일관성을 유지한다. `200 OK` 신규 도입은 텔레그램이 2xx 응답을 모두 success 로 인식하므로 무관한데 §7 step 7c 도 함께 변경해야 해 변경 최소화 원칙에 어긋나고, WH-EP-07 의 410 Gone 정책을 그대로 적용하면 chat-channel provider 가 non-2xx 응답 시 webhook 자동 비활성화 + retry 폭주를 유발 (Telegram Bot API documented behavior) 해 운영 영향이 크다.
 
 세부:
 - (a) **`202` 고정 (200 대신) 이유**: [WH-RS-01](./12-webhook.md#4-비기능-요구사항) (202 Accepted 가 webhook 수신 응답 표준) 와 정합. 기존 SoT 채택.
@@ -625,42 +593,26 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 - (d) **auth 실패 401 의 이유**: silent 2xx 도 가능하나 (a) 공격자가 brute-force 시 차이를 알 수 없게 하는 보안 이점은 있음. 그러나 운영자가 "왜 봇이 응답 안 함" 디버깅 시 401 가시성이 필요. (b) 텔레그램은 secret_token 검증 실패 시 retry 하지 않음을 documented behavior 로 의존 — non-2xx retry 폭주 위험 없음.
 - (e) **404 케이스는 일반 webhook 경로와 동일** — endpointPath 자체가 존재하지 않으면 2xx 가 stale webhook 무한 잔존을 유발 ([WH-RS-02](./12-webhook.md#3-api-명세) 와 동일 정책).
 
-### R-K. `chat_channel_token_v2` 컬럼 명명의 semantic 비대칭 (2026-05-21)
+### R-K. `chat_channel_token_v2` 컬럼 명명의 semantic 비대칭
 
 `notification_secret_v2` 는 HMAC signing secret 의 v2 (rotation grace 기간 신규 secret), `chat_channel_token_v2` 는 외부 provider bot token reference 의 v2 (rotation grace 기간 신규 token). 두 컬럼은 의미상 직교 (signing secret vs external bot token) 하지만 **명명 패턴은 동일 유지** (`<channel>_<resource>_v2`). 명명 일관성 우선 — 의미 차이는 컬럼 description 으로 명시. 향후 공용 rotation 패턴 통합 검토 시 두 컬럼 모두 영향.
 
-### R-CC-13. Discord v1 의 CCH-MP-01 부분 유예 — Interactions Webhook only 의 결과 (2026-05-24)
+### R-CC-13. Discord v1 의 CCH-MP-01 부분 유예 — Interactions Webhook only 의 결과
 
-[CCH-MP-01](#33-노드--채널-ui-매핑) 은 "AI Multi Turn 의 `execution.ai_message` → 채널 텍스트 메시지 1건 이상으로 변환" 을 **필수** 요구사항으로 정의한다. Discord provider v1 ([`providers/discord.md` R-D-3](../4-nodes/7-trigger/providers/discord.md#r-d-3-v1--interactions-webhook-only-gateway--v2-2026-05-24)) 은 Interactions Webhook only 정책 (Gateway WebSocket 미사용) 결과 [Discord `MESSAGE_CREATE` event](https://discord.com/developers/docs/topics/gateway-events#message-create) 를 수신할 수 없다. 따라서:
+[CCH-MP-01](#33-노드--채널-ui-매핑) 은 "AI Multi Turn 의 `execution.ai_message` → 채널 텍스트 메시지 1건 이상으로 변환" 을 **필수** 요구사항으로 정의한다. Discord provider v1 ([`providers/discord.md` R-D-3](../4-nodes/7-trigger/providers/discord.md#r-d-3-v1--interactions-webhook-only-gateway--v2)) 은 Interactions Webhook only 정책 (Gateway WebSocket 미사용) 결과 [Discord `MESSAGE_CREATE` event](https://discord.com/developers/docs/topics/gateway-events#message-create) 를 수신할 수 없다. 따라서:
 
 - **Outbound (서버 → 사용자)**: CCH-MP-01 outbound 의무 완전 충족 — `POST /channels/{id}/messages` 로 `execution.ai_message` 전송 가능 (Discord §5.1).
 - **Inbound (사용자 → 서버)**: 자유 텍스트 reply 입력 경로가 제약됨. 사용자 reply 는 **(a) `/<prefix> reply <message>` slash command text option** 또는 **(b) Modal TEXT_INPUT (`Reply` button 클릭 후)** 으로만 가능 — 일반 DM 텍스트 (`MESSAGE_CREATE`) 미수신.
 
-이는 CCH-MP-01 의 "AI Multi Turn 의 자연 대화" UX 가 Discord v1 에서 **Telegram / Slack 과 다른 입력 흐름** 으로 동작함을 의미한다. 본 spec 의 CCH-MP-01 정의 자체는 미변경 (provider 가 의무를 충족하는 방식의 차이) — Discord provider spec 의 §5.1 + R-D-3 에서 자기 부분 유예를 normative 하게 기술. 완전 자연 대화는 v2 Gateway plan ([`chat-channel-discord-gateway`](../../plan/in-progress/chat-channel-discord-gateway.md) — 후속 trigger) 진입 시 해소.
+이는 CCH-MP-01 의 "AI Multi Turn 의 자연 대화" UX 가 Discord v1 에서 **Telegram / Slack 과 다른 입력 흐름** 으로 동작함을 의미한다. 본 spec 의 CCH-MP-01 정의 자체는 미변경 (provider 가 의무를 충족하는 방식의 차이) — Discord provider spec 의 §5.1 + R-D-3 에서 자기 부분 유예를 normative 하게 기술. 완전 자연 대화는 v2 Gateway 진입 시 해소.
 
-> 2026-05-25 보강: CCH-MP-01 의 `presentations[]` 처리 의무 확장 (chat-channel-template-render-outbound) 은 outbound `POST /channels/{id}/messages` 경로에서 v1 MarkdownV2 fallback 으로 발송 가능하므로 본 R-CC-13 의 outbound 의무 완전 충족 결론을 깨지 않는다 (R-D-3 의 inbound 분기 유예와는 별도 자원).
+CCH-MP-01 의 `presentations[]` 처리 의무 확장은 outbound `POST /channels/{id}/messages` 경로에서 v1 MarkdownV2 fallback 으로 발송 가능하므로 본 R-CC-13 의 outbound 의무 완전 충족 결론을 깨지 않는다 (R-D-3 의 inbound 분기 유예와는 별도 자원).
 
-대안 (기각):
-- CCH-MP-01 본문에 "Gateway 미사용 provider 는 모달/slash 입력 허용" 예외 절 추가 — provider 한계가 시스템 spec 에 누수. R-D-9 의 동일 정신 (provider 한계는 provider spec Rationale 에).
-- Discord v1 도 Gateway 도입 — R-D-3 기각 사유 (long-lived connection 관리 부담) 그대로 적용.
+CCH-MP-01 본문에 "Gateway 미사용 provider 는 모달/slash 입력 허용" 예외 절을 추가하는 안은 provider 한계가 시스템 spec 에 누수되므로 채택하지 않는다 (R-D-9 의 동일 정신 — provider 한계는 provider spec Rationale 에). Discord v1 도 Gateway 도입하는 안은 R-D-3 기각 사유 (long-lived connection 관리 부담) 가 그대로 적용된다.
 
-### R-CC-14. PR #300 정합 catch-up — CCH-AD-01 의 "impl pending" 문구 제거 (2026-05-24)
+### R-CC-15. Execution Failed 안내 — 분류 입력 화이트리스트 + placeholder 1종 정책
 
-`§3.1 CCH-AD-01` 의 "v1 supported: `telegram` / v1 spec-defined: `slack`, `discord` — impl pending" 진술이 PR #300 (`feat(chat-channel): slack + discord providers (v1 supported)`) 머지 후 stale 상태로 남아 있었다. `_overview.md §1` 은 PR #300 시점부터 셋 다 `supported (v1)` 로 표기되어 있어 두 spec 문서가 같은 사실에 대해 상반된 상태를 기술하는 spec-internal drift 가 발생했다.
-
-본 catch-up:
-- CCH-AD-01 의 "v1 supported: telegram / v1 spec-defined: slack, discord — impl pending" → "v1 supported: telegram / slack / discord — 2026-05-24 갱신, PR #300 정합"
-- 새 결정 신설·기존 결정 번복 아님. `_overview.md §1` 의 supported 선언이 단일 진실 — 본 spec 은 정합 cross-link.
-
-발견 경로: `plan/in-progress/trigger-create-multi-provider-ui.md` 의 GUI 구현 착수 직전 `/consistency-check --impl-prep` (`review/consistency/2026/05/24/18_21_47/SUMMARY.md` C-2) 가 BLOCK. 사용자 결정 (2026-05-24) 으로 본 구현 PR 안에 spec 정정 commit 을 함께 포함.
-
-### R-CC-15. Execution Failed 안내 — 분류 입력 화이트리스트 + placeholder 1종 정책 (2026-05-25)
-
-대안:
-1. **(채택) `error.code` enum + `details.statusCode` 2 필드만 분류 입력 + `{statusCode}` 1 placeholder**: 사용자에게 노출되는 데이터의 채널 = 분류 결정 + 메시지 본문 두 갈래 모두 명시적 화이트리스트. 분류 결정이 enum 이므로 코드 수준 정적 검증 가능 (`switch` 문 exhaustive check 가능). placeholder `{statusCode}` 는 정수라 secret/PII 아님 (HTTP status code 자체는 공개 정보).
-2. **(기각) `error.message` 원문을 사용자 안내에 포함**: 일부 노드 핸들러가 `error.message` 에 URL · query · DB 컬럼명 · stack 일부 · API key 일부를 흘릴 가능성 존재 (대표 사례: `HTTP_TRANSPORT_FAILED` 의 `message: "ENOTFOUND api.internal.example.com"` — 내부 인프라 노출). spec 차원에서 redact 가이드를 강제하려면 모든 노드 핸들러의 message 필드를 audit 해야 — 비현실적.
-3. **(기각) `nodeId` / `nodeName` placeholder 추가**: 사용자가 노드 이름을 알면 디버깅에 도움이 될 수 있으나, 노드 이름은 워크플로우 작성자가 임의로 정의한 internal label — 외부 chat 사용자에게는 의미 불명 + 워크플로우 구조 노출 위험.
-4. **(기각) `executionId` / `traceCode` placeholder 추가**: support 문의 시 운영자가 traceback 가능한 식별자가 유용. v1 에서는 채택 안 함 — (a) executionId 는 UUID 로 사용자가 입력하기 부담스러움, (b) traceCode (8자리 short hash 등) 도입은 별 자원 (mapping table) 필요. 후속 plan 으로 검토.
+`error.code` enum + `details.statusCode` 2 필드만 분류 입력 + `{statusCode}` 1 placeholder 채택: 사용자에게 노출되는 데이터의 채널 = 분류 결정 + 메시지 본문 두 갈래 모두 명시적 화이트리스트. 분류 결정이 enum 이므로 코드 수준 정적 검증 가능 (`switch` 문 exhaustive check 가능). placeholder `{statusCode}` 는 정수라 secret/PII 아님 (HTTP status code 자체는 공개 정보). `error.message` 원문을 사용자 안내에 포함하지 않는 이유는 일부 노드 핸들러가 `error.message` 에 URL · query · DB 컬럼명 · stack 일부 · API key 일부를 흘릴 가능성 (대표 사례: `HTTP_TRANSPORT_FAILED` 의 `message: "ENOTFOUND api.internal.example.com"` — 내부 인프라 노출) 이 있고 spec 차원에서 redact 를 강제하려면 모든 노드 핸들러 message 필드 audit 이 비현실적이기 때문이다. `nodeId` / `nodeName` placeholder 는 워크플로우 작성자가 임의로 정의한 internal label 이라 외부 chat 사용자에게 의미 불명 + 구조 노출 위험으로, `executionId` / `traceCode` placeholder 는 (a) executionId 가 UUID 로 입력하기 부담스럽고 (b) traceCode 도입은 별 자원 (mapping table) 이 필요해 후속 검토로 미룬다.
 
 근거: 안내 메시지의 **유틸리티 가치** (사용자가 "왜 실패했는지" 대략 짐작) 보다 **민감정보 누출 위험** 이 압도적. v1 은 카테고리별 generic + statusCode 만으로 충분 — 사용자가 더 자세한 정보를 원하면 워크플로우 운영자에게 문의 (운영자는 backend 로그에서 executionId / error.message 원문 접근 가능).
 
@@ -669,80 +621,40 @@ EIA 의 [`notification/rotate-secret`](./14-external-interaction-api.md#31-outbo
 - (b) **unknown code fallback** 은 `executionFailedInternal`. silent swallow 금지 (CCH-ERR-04) 이유 = 운영 중 새 노드 카테고리 추가 시 missing case 를 backend 로그에서 즉시 감지 가능해야 한다. silent skip 시 enum 확장이 누락된 채 long-term drift 발생.
 - (c) **placeholder 정책** = `{statusCode}` 1종. unknown placeholder 가 raw 형태 (`{nodeId}` 등) 로 사용자에게 노출되지 않도록 DTO validator 가 등록 시점에 reject. 미허용 placeholder 가 발견되면 `400 VALIDATION_ERROR (details.field='languageHints.executionFailed*', code='UNKNOWN_PLACEHOLDER')`. `UNKNOWN_PLACEHOLDER` 는 [`spec/5-system/3-error-handling.md §2 에러 응답 형식`](./3-error-handling.md#2-에러-응답-형식) 의 `details[].code` 자리 (즉 `VALIDATION_ERROR` 의 하위 세부 코드) — `§1.3` 의 top-level `error.code` enum 자체에는 등재하지 않음.
 - (d) **`chat_channel_health` 와의 의미 분리**: `chat_channel_health=degraded` 는 어댑터의 외부 API 호출 (sendMessage 등) 실패 신호 (CCH-SE-01). 본 spec 의 실패 안내는 **execution 자체의 실패** (`output.error.code` — LLM API / HTTP 노드 / 사용자 코드 실패) 안내. 두 자원이 직교적이므로 발송 자체는 `chat_channel_health` 와 무관. 단 안내 sendMessage 호출이 5초 timeout 후 retry 도 실패하면 CCH-SE-01 의 일반 정책에 따라 health=degraded 갱신 — 이건 안내 발송 메커니즘 자체의 외부 호출 실패라 정합.
-- (e) **MCP 도구 호출 실패 카테고리 반영 시점**: 본 spec 작성 시점 (2026-05-25) `3-error-handling.md §1.4` 의 enum 에 MCP 전용 코드 (`MCP_TOOL_CALL_FAILED` 등) 미정의. MCP 노드가 별 코드 enum 을 추가하면 Convention §3.1 의 분류 표에 행 추가 + 신규 i18n 키 검토. 본 spec 의 §3.5 CCH-ERR-02 화이트리스트 ({code, statusCode}) 는 그대로 유효 (MCP 도구도 HTTP-like statusCode 가 있으면 같은 placeholder 활용 가능).
+- (e) **MCP 도구 호출 실패 카테고리 반영 시점**: 현재 `3-error-handling.md §1.4` 의 enum 에 MCP 전용 코드 (`MCP_TOOL_CALL_FAILED` 등) 미정의. MCP 노드가 별 코드 enum 을 추가하면 Convention §3.1 의 분류 표에 행 추가 + 신규 i18n 키 검토. 본 spec 의 §3.5 CCH-ERR-02 화이트리스트 ({code, statusCode}) 는 그대로 유효 (MCP 도구도 HTTP-like statusCode 가 있으면 같은 placeholder 활용 가능).
 
-### R-CC-16. chat-channel outbound 의 비-blocking presentation + AI render_* presentations[] 발화 (2026-05-25)
+### R-CC-16. chat-channel outbound 의 비-blocking presentation + AI render_* presentations[] 발화
 
-**회귀 시나리오** (사용자 보고 2026-05-25, 텔레그램): 워크플로 `Manual Trigger → Carousel (buttons) → Template (본문) → AI Agent` 에서:
-- Carousel waiting_for_input → 텔레그램 발화 ✓ (CCH-MP-02)
-- **Template 실행 (3ms 완료, output.rendered 본문 존재) → 텔레그램 발화 누락** ✗
-- AI Agent ai_message 응답 → 텔레그램 발화 ✓ (CCH-MP-01)
-- AI Agent `render_carousel` / `render_template` 등 도구 호출 → 텔레그램에 presentation 미노출 ✗
+chat-channel 어댑터는 (①) 비-blocking presentation 노드 (`carousel`/`table`/`chart`/`template`) 의 완료와 (②) AI Agent `render_*` turn 의 presentations 를 채널에 발화한다. 두 채택 결정:
 
-**진단**:
-- (회귀 ①) EIA §6.1 outbound 5종 화이트리스트에 `node.completed` 없음. chat-channel-adapter §3 매핑 표에 **비-blocking presentation 본문 발화** 정의 부재 — spec gap.
-- (회귀 ②) [EIA §6.5 line 536](./14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message) 은 `execution.ai_message` payload 에 `presentations?: PresentationPayload[]` 약속을 명시했으나 chat-channel-adapter `EiaAiMessageEvent` 가 필드 누락 + §3 매핑 표가 처리 미정의 — 작성 시점 drift 회귀 (의도적 기각 아님).
+1. (① 대응) `CCH-AD-07` + `CCH-MP-06` 신설. 어댑터가 `execution.node.completed` (in-process WS fan-out 채널 이벤트) 의 presentation 노드 비-blocking 완료를 chat-channel-internal listener 로 attach. EIA §6.1 outbound HTTP webhook 화이트리스트는 변경 없음 — 외부 SDK 영향 없음.
 
-**대안 검토 및 채택 결정**:
+2. (② 대응) `CCH-MP-01` 보강 + Convention §1.2 `EiaAiMessageEvent` 의 `presentations?: PresentationPayload[]` 필드. payload 가 비어있지 않으면 4종 display-only presentation 을 CCH-MP-04 v1 fallback 으로 sequential 발송.
 
-1. **(채택 — 회귀 ①)** `CCH-AD-07` 신설 + `CCH-MP-06` 신설. chat-channel 어댑터가 `execution.node.completed` (in-process WS fan-out 채널 이벤트) 의 presentation 노드 (`carousel`/`table`/`chart`/`template`) 비-blocking 완료를 chat-channel-internal listener 로 attach. EIA §6.1 outbound HTTP webhook 화이트리스트는 변경 없음 — 외부 SDK 영향 없음.
-
-2. **(채택 — 회귀 ②)** `CCH-MP-01` 보강 + Convention §1.2 `EiaAiMessageEvent` 에 `presentations?: PresentationPayload[]` 필드 추가. payload 가 비어있지 않으면 4종 display-only presentation 을 CCH-MP-04 v1 fallback 으로 sequential 발송.
-
-3. **(기각)** EIA §6.1 outbound HTTP webhook 화이트리스트 5종 → 6종 (`node.completed` 추가) — 외부 SDK breaking change. 본 회귀는 chat-channel 전용 UX 갭이므로 외부 표면 확장 불필요.
-
-4. **(기각)** Template 등 비-blocking presentation 에 dummy `buttons: [continue]` 추가 의무화 — UX 회귀. 사용자가 명시적 인터랙션 없이 본문만 보여주는 케이스 차단.
-
-5. **(기각)** AI Agent `render_*` 별도 outbound 이벤트 (`tool_call_completed` 등) 발사 — 동일 turn 의 text + presentations 가 서로 다른 event 로 분리되어 도착 순서 race 위험. 현재 `presentations` 가 ai_message 와 같은 payload 에 들어 있어 atomicity 보장.
+EIA §6.1 outbound HTTP webhook 화이트리스트를 6종 (`node.completed` 추가) 으로 확장하는 안은 외부 SDK breaking change 라 chat-channel 전용 UX 갭에는 과하다. 비-blocking presentation 에 dummy `buttons: [continue]` 추가 의무화는 명시적 인터랙션 없이 본문만 보여주는 UX 를 차단한다. AI Agent `render_*` 를 별도 outbound 이벤트 (`tool_call_completed` 등) 로 발사하는 안은 동일 turn 의 text + presentations 가 서로 다른 event 로 분리돼 도착 순서 race 위험이 있어, `presentations` 를 ai_message 와 같은 payload 에 담아 atomicity 를 보장한다.
 
 **세부**:
-- (a) **`renderNode` 인터페이스 변경 최소화**: 새 함수 추가 ([Convention R-CCA-5 대안 2 기각](../conventions/chat-channel-adapter.md#r-cca-5)) 대신 시그니처 union 확장 — `renderNode(event: EiaEvent | ChatChannelInternalEvent)`. 함수 개수 6 유지. SoT: [Convention §R-CCA-7](../conventions/chat-channel-adapter.md#r-cca-7-rendernode-시그니처-union-확장--chat-channel-internal-이벤트-수용-2026-05-25).
+- (a) **`renderNode` 인터페이스 변경 최소화**: 새 함수 추가 ([Convention R-CCA-5 대안 2 기각](../conventions/chat-channel-adapter.md#r-cca-5)) 대신 시그니처 union 확장 — `renderNode(event: EiaEvent | ChatChannelInternalEvent)`. 함수 개수 6 유지. SoT: [Convention §R-CCA-7](../conventions/chat-channel-adapter.md#r-cca-7-rendernode-시그니처-union-확장--chat-channel-internal-이벤트-수용).
 - (b) **blocking presentation 케이스 사전 제외**: presentation 노드가 buttons 로 인해 blocking 진입한 경우는 기존 `CCH-MP-02` / `CCH-MP-04` (`execution.waiting_for_input` interactionType=buttons) 흐름이 처리 — 어댑터 sub-filter 가 `nodeExec.outputData.status === 'waiting_for_input'` 케이스를 사전 제외 (중복 발송 방지).
-- (c) **`render_form` 처리** (2026-05-25 갱신): interactive form 의 native modal/Mini App 격상은 별 plan `chat-channel-form-native-modal` v2. v1 에서는 사용자에게 form 의 존재 자체를 알리지 못해 메시지 0 도착 회귀 ([R-CC-17](#r-cc-17)) 가 발생했으므로 **v1 임시 텍스트 fallback** (fields 목록 + 답변 안내) 으로 발화한다. SoT: `chat-channel-adapter.md §3` 매핑 표.
+- (c) **`render_form` 처리**: interactive form 의 native modal/Mini App 격상은 v2. v1 에서는 사용자에게 form 의 존재 자체를 알리지 못하면 메시지 0 도착이 되므로 **v1 임시 텍스트 fallback** (fields 목록 + 답변 안내) 으로 발화한다 ([R-CC-17](#r-cc-17)). SoT: `chat-channel-adapter.md §3` 매핑 표.
 - (d) **발송 순서 — sequential `await`**: text → presentations[0] → presentations[1] → ... (`Promise.all` 금지). provider rate limit + 표시 순서 보장 필요. `CCH-NF-02` (200ms 이내) 는 시작 시점 latency 기준 — 시퀀스 전체 합산 latency 는 시퀀스 길이에 비례 자연 증가.
-- (e) **v2 SSR PNG 비대상**: 시각형 (carousel/table/chart) 의 v1 MarkdownV2 fallback 은 [`providers/telegram.md §5.4`](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) 재사용. v2 SSR PNG 격상은 별 plan `chat-channel-visual-ssr-png` 추적.
+- (e) **v2 SSR PNG 비대상**: 시각형 (carousel/table/chart) 의 v1 MarkdownV2 fallback 은 [`providers/telegram.md §5.4`](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) 재사용. v2 SSR PNG 격상은 후속 작업.
 - (f) **EIA-RL-04 정합**: `WebsocketService.emitToExecution` 이 실행 엔진 §4.4 의 단일 sink 로서 TX commit 후 호출됨 — NotificationDispatcher after-commit hook 과 동일 fan-out 채널. R8 의 per-trigger `ChannelListenerRegistry` 가드 정책 그대로 적용.
 - (g) **R10 (단일 sink) 정합**: chat-channel 어댑터의 추가 listener 는 기존 sink (`WebsocketService.emit*`) 의 consumer 한정 — 새 sink 도입 없음.
 
-**영향 spec / 동반 갱신**:
-- [`spec/conventions/chat-channel-adapter.md`](../conventions/chat-channel-adapter.md) §1 / §1.1 / §1.2 / §1.3 / §3 / §R-CCA-7 (동반 PR 안에서 동시 갱신).
-- 본 spec §3.1 CCH-AD-07 / §3.3 CCH-MP-01 보강 / §3.3 CCH-MP-06 (본 변경).
-- [`spec/4-nodes/7-trigger/providers/telegram.md §5.4`](../4-nodes/7-trigger/providers/telegram.md#54-carousel--chart--table-cch-mp-04) (`template` 행 갱신 — CCH-MP-06 cross-ref 추가).
-- [`spec/5-system/14-external-interaction-api.md §R10`](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장-2026-05-21) 한 줄 보강 (chat-channel-internal 추가 listener 허용 범위 명시).
+### R-CC-17. `render_form` v1 임시 텍스트 fallback + presentation renderer shape 처리
 
-**구현**: 본 spec 결정 머지 후 별도 PR (developer skill) — chat-channel/types.ts type 보강, chat-channel.dispatcher SUBSCRIBED_EVENTS 확장, 3 provider renderer 갱신.
+두 채택 결정으로 form presentation 발화와 renderer 의 nodeOutput shape 추출을 정의한다:
 
-### R-CC-17. `render_form` v1 임시 텍스트 fallback + presentation renderer shape 처리 (2026-05-25)
+1. (form 렌더링) `CCH-MP-01` 갱신: `render_form` (`presentations[*].type === 'form'`) 도 v1 임시 텍스트 fallback (fields 목록 + 답변 안내) 로 발화한다. AI Agent 가 `render_form` 을 호출하고 응답 텍스트가 비어있는 정상 패턴에서 form 을 skip 하면 빈 ai_message text 가 `isEmptyTextBody` guard 로 skip 되어 사용자에게 메시지 0건이 도착하기 때문이다. form 처리는 "v1 임시 fallback + v2 native modal" 두 단계로 분리하며 native modal 은 v2.
 
-PR #328 (R-CC-16) 머지 직후 사용자 보고로 발견된 추가 회귀 2건. chat-channel-form-template-render-fix.
+2. (renderer shape) 3 provider renderer (telegram/discord/slack) 의 `renderPresentationByType` / fallback 함수가 nodeOutput 의 여러 위치 (payload / output / config / flat) 에서 본문/항목을 추출한다 (`extractRendered` / `extractVisualPayload` 헬퍼). Template / Carousel handler 가 `{config, output: {rendered/items/...}}` 형태로 반환하는데 `nodeOutput.payload` 만 보면 본문/items 를 추출하지 못해 "(카드가 없습니다.)" 가 잘못 표시되기 때문이다. spec 본문 변경 없이 renderer 의 입력 shape 처리 강화 (R-CCA-7 의 union 입력 처리 정책 안에서).
 
-**회귀 시나리오** (사용자 보고 2026-05-25, 텔레그램):
-
-- (회귀 ④ — form 렌더링 누락) AI Agent 가 `render_form` 도구를 호출하고 응답 텍스트가 비어있는 정상 패턴에서, chat-channel 이 `presentations[i].type === 'form'` 을 skip 하던 R-CC-16 정책 + 빈 ai_message text 가 `isEmptyTextBody` guard 로 skip 되어 **사용자에게 메시지 0건** 도착. form 의 존재 자체를 알 수 없음.
-- (회귀 ⑤ — handler structured return shape 미처리) Template / Carousel handler 가 `{config: {...}, output: {rendered/items/...}}` 형태로 반환하는 데 chat-channel renderer 의 `renderPresentationByType` / `renderCarouselFallback` 등이 `nodeOutput.payload` 만 보고 `output` 안의 본문/items 를 추출하지 못해 **"(카드가 없습니다.)" 잘못 표시**.
-
-**대안 검토 및 채택 결정**:
-
-1. **(채택 — 회귀 ④)** `CCH-MP-01` 갱신: `render_form` (`presentations[*].type === 'form'`) 도 v1 임시 텍스트 fallback (fields 목록 + 답변 안내) 로 발화. R-CC-16 (c) 의 "form 처리 별 plan 추적, skip" 정책을 "v1 임시 fallback + v2 native modal" 두 단계로 분리. native modal 의 SoT 는 `chat-channel-form-native-modal` plan v2 유지.
-
-2. **(채택 — 회귀 ⑤)** 3 provider renderer (telegram/discord/slack) 의 `renderPresentationByType` / fallback 함수가 nodeOutput 의 여러 위치 (payload / output / config / flat) 에서 본문/항목을 추출 — `extractRendered` / `extractVisualPayload` 헬퍼 도입. spec 본문 변경 없음 — renderer 의 입력 shape 처리 강화 (R-CCA-7 의 union 입력 처리 정책 안에서).
-
-3. **(기각)** AI Agent handler 가 ai_message message 를 빈 string 으로 emit 하지 못하게 차단 — handler 정상 동작 (render_form 호출 turn 은 text 없을 수 있음). 차단은 정상 UX 회귀.
-
-4. **(기각)** chat-channel dispatcher 의 `isEmptyTextBody` guard 제거 — 다른 경로의 빈 text 발송 회귀 위험 (Telegram 400 "message text is empty"). guard 유지, presentations 만 별도 발화로 우회.
+AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하는 안은 render_form 호출 turn 에 text 가 없을 수 있는 정상 동작을 막아 UX 회귀이고, `isEmptyTextBody` guard 를 제거하는 안은 다른 경로의 빈 text 발송 회귀 위험 (Telegram 400 "message text is empty") 이 있어 guard 를 유지하고 presentations 만 별도 발화로 우회한다.
 
 **세부**:
 
 - (a) **form fallback 시각**: text 1줄 "📝 입력이 필요해요:" + fields 각 줄 (label + required 표시 + type) + 마지막 "답변을 메시지로 보내주세요." 안내. v1 한정 임시.
 - (b) **사용자 입력 처리**: 본 v1 fallback 의 form 응답은 ai-agent multi-turn 의 일반 ai_message 흐름으로 처리됨 (자연 텍스트로 답변). LLM 이 답변을 toolCallId 와 매칭해 form 으로 처리. 본 fix 는 발화 표면만 다루고 응답 처리 경로는 기존 multi-turn 유지.
 - (c) **`renderPresentationByType` shape 처리 우선순위**: `nodeOutput.payload.<field>` (AI Agent `presentations[i]` wrapping) → `nodeOutput.output.<field>` (graph 노드 handler structured return) → `nodeOutput.config.<field>` (Carousel static mode 처럼 config 안에만 보존) → `nodeOutput.<field>` (flat). 첫 매치 사용.
-- (d) **v2 native modal 진입 (2026-05-28 갱신)**: `chat-channel-form-native-modal` plan v2 가 활성화됨. 단 본 R-CC-17 의 v1 임시 텍스트 fallback 은 **ai-agent `render_form` presentation** (`execution.ai_message.presentations[i].type === 'form'`, non-blocking 표현 도구 turn — CCH-MP-01) 표면이고, modal 격상 ([Convention §4.1 / R-CCA-8](../conventions/chat-channel-adapter.md#41-native-modal-경로-2026-05-28-신설)) 은 **blocking form 노드** (`execution.waiting_for_input(form)` — CCH-MP-03) 표면으로 **서로 다른 경로**다. 따라서: (i) blocking form 노드는 CCH-MP-03 의 formMode 분기 (modal / 다단계) 를 탄다 — modal 은 `supportsNativeForm` provider + 전 필드 modal 수용 타입 + `fields ≤ 5` + `formMode ≠ multi_step` 일 때, 그 외 (modal 미지원 provider / 6+ fields / 미수용 타입 포함 / multi_step opt-out) 는 다단계 텍스트. (ii) ai-agent `render_form` presentation 은 본 R-CC-17 의 v1 임시 텍스트 fallback 을 그대로 유지 (modal 격상 범위 밖 — ai_message presentations 경로의 native UI 격상은 후속 별 작업).
-
-**영향**:
-
-- `spec/conventions/chat-channel-adapter.md §3` 매핑 표 — `execution.ai_message` row 의 `render_form` 절 갱신 (skip → v1 임시 fallback).
-- 본 spec §3.3 CCH-MP-01 (본 변경) + R-CC-16 (c) 갱신.
-- 3 provider renderer code 동반 갱신 (`renderPresentationPayload` 의 form 분기 + `renderPresentationByType` 의 shape 처리).
-- 별 plan `chat-channel-form-native-modal` 갱신 — v1 임시 fallback 도입 + v2 native modal 진입 조건 명확화.
-
-**구현**: 동일 PR (chat-channel-form-template-render-fix) 안에서 spec + 코드 묶음.
+- (d) **v2 native modal 진입**: 본 R-CC-17 의 v1 임시 텍스트 fallback 은 **ai-agent `render_form` presentation** (`execution.ai_message.presentations[i].type === 'form'`, non-blocking 표현 도구 turn — CCH-MP-01) 표면이고, modal 격상 ([Convention §4.1 / R-CCA-8](../conventions/chat-channel-adapter.md#41-native-modal-경로)) 은 **blocking form 노드** (`execution.waiting_for_input(form)` — CCH-MP-03) 표면으로 **서로 다른 경로**다. 따라서: (i) blocking form 노드는 CCH-MP-03 의 formMode 분기 (modal / 다단계) 를 탄다 — modal 은 `supportsNativeForm` provider + 전 필드 modal 수용 타입 + `fields ≤ 5` + `formMode ≠ multi_step` 일 때, 그 외 (modal 미지원 provider / 6+ fields / 미수용 타입 포함 / multi_step opt-out) 는 다단계 텍스트. (ii) ai-agent `render_form` presentation 은 본 R-CC-17 의 v1 임시 텍스트 fallback 을 그대로 유지 (modal 격상 범위 밖 — ai_message presentations 경로의 native UI 격상은 후속 별 작업).

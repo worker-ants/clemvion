@@ -79,11 +79,11 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 
 테스트는 카탈로그 MD 의 표를 파싱한다 — MD 표 구문이 깨지면 곧장 fail. 따라서 본 카탈로그는 **사람이 직접 손으로 수정하는 SoT** 이며, 코드 변경 시점에 반드시 카탈로그 동기 갱신을 함께 commit 해야 한다(`spec/conventions/cafe24-api-metadata.md` §5 의 신규 endpoint 추가 절차에 인용).
 
-> **참고 — `constraints` invariant 는 본 catalog-sync 와 별개 파일에서 수행**: backend 메타데이터의 `constraints?` ([Cafe24 API Metadata §2](../cafe24-api-metadata.md#2-operation-메타데이터-형식)) 필드명 부분집합 검증·길이 invariant 는 `metadata.spec.ts` 가 담당한다 — `catalog-sync.spec.ts` 의 검증 대상이 아니다. `constraints` 자체는 backend 메타데이터 row 가 단일 SoT 이며 catalog 컬럼으로 노출하지 않는다 (`restrictedApproval.approvalGroup` 과 동일 패턴, 2026-05-22 결정).
+> **참고 — `constraints` invariant 는 본 catalog-sync 와 별개 파일에서 수행**: backend 메타데이터의 `constraints?` ([Cafe24 API Metadata §2](../cafe24-api-metadata.md#2-operation-메타데이터-형식)) 필드명 부분집합 검증·길이 invariant 는 `metadata.spec.ts` 가 담당한다 — `catalog-sync.spec.ts` 의 검증 대상이 아니다. `constraints` 자체는 backend 메타데이터 row 가 단일 SoT 이며 catalog 컬럼으로 노출하지 않는다 (`restrictedApproval.approvalGroup` 과 동일 패턴).
 
 ## 5. Coverage Matrix
 
-2026-05-21 기준. 본 매트릭스는 카탈로그 row 수 + 메타데이터 row 수의 한 화면 요약이다 — 위 동기 테스트와 별개의 휴먼 가독성 보조 정보다. row 추가/삭제 시 본 표도 손으로 갱신한다.
+본 매트릭스는 카탈로그 row 수 + 메타데이터 row 수의 한 화면 요약이다 — 위 동기 테스트와 별개의 휴먼 가독성 보조 정보다. row 추가/삭제 시 본 표도 손으로 갱신한다.
 
 | Resource | Supported | Planned | Cafe24 docs sub-resource 수 |
 |----------|-----------|---------|---|
@@ -107,7 +107,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | [translation](./translation.md) | 9 | 0 | 4 |
 | **합계** | **500** | **0** | **~250** |
 
-> 18 resource 전부 0-planned. `store.md` 의 `privacy_*` id 명명 우려 (별 `privacy` resource 와 prefix 충돌) 는 `plan/in-progress/cafe24-restricted-scopes-followups.md §3` 별 트랙으로 follow-up 가능.
+> 18 resource 전부 0-planned. `store.md` 의 `privacy_*` id 명명 우려 (별 `privacy` resource 와 prefix 충돌) 는 별 트랙으로 follow-up 가능.
 
 > "Cafe24 docs sub-resource 수" 는 공식 docs 좌측 사이드바에서 본 resource 그룹 아래의 두 번째 레벨 항목 수다. 각 sub-resource 마다 통상 2~5 operation 이 존재하므로 endpoint 합계는 ~500.
 
@@ -121,43 +121,3 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 4. `npm test --workspace backend -- catalog-sync` 통과 확인.
 
 > `spec/conventions/cafe24-api-metadata.md` §5 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
-
-## 7. CHANGELOG
-
-| 일자 | 변경 |
-|------|------|
-| 2026-05-16 | 신규 컨벤션 — 18 resource 카탈로그 + 양방향 동기 테스트 도입. 사용자 결정(2026-05-16) "Cafe24 docs 전수 등재" 에 따라 supported 53 + planned ~300 으로 초기 채움. |
-| 2026-05-16 (coverage Phase 5a) | Order resource — `order_count`, `order_status_update`, `order_status_update_multiple` 3건을 planned → supported 로 승격 (backend metadata + planned.ts mirror 동시 갱신). order supported 6 → 9, 합계 53 → 56. |
-| 2026-05-16 (coverage Phase 5b) | Product resource — `product_count`, `product_options_list/create/update/delete`, `product_seo_get/update` 7건을 planned → supported 로 승격. product supported 7 → 14, 합계 56 → 63. |
-| 2026-05-16 (coverage Phase 5c) | Customer resource — 회원 메모 CRUD 완성: `customer_memos_count/list/get/update/delete` 5건을 planned → supported 로 승격. customer supported 5 → 10, 합계 63 → 68. |
-| 2026-05-16 (coverage Phase 5d) | Promotion resource — 쿠폰 보완: `coupon_count`, `coupon_issues_list`, `coupon_issuance_customers_list`, `customers_coupons_list`, `customers_coupons_count` 5건을 planned → supported 로 승격. promotion supported 5 → 10, 합계 68 → 73. |
-| 2026-05-16 (coverage Phase 5e) | Salesreport resource 완성 — `salesreport_monthly`, `salesreport_hourly`, `salesreport_volume` 3건을 planned → supported 로 승격. salesreport supported 2 → 5, planned 3 → 0, 합계 73 → 76. salesreport resource 의 첫 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 5f) | Promotion resource — 시리얼쿠폰 5건 (`serialcoupons_list`, `serialcoupons_generate`, `serialcoupons_delete`, `serialcoupons_issues_get`, `serialcoupons_issues_register`) 를 planned → supported 로 승격. promotion supported 10 → 15, 합계 76 → 81. |
-| 2026-05-16 (coverage Phase 6a) | Order resource — A/S 자동화 8건 (`refunds_list/get`, `cancellation_get/create_multiple`, `exchange_get/create_multiple`, `return_get/create_multiple`) 를 planned → supported 로 승격. order supported 9 → 17, 합계 81 → 89. |
-| 2026-05-16 (coverage Phase 6b) | Store resource — 결제 설정 6건 (`paymentmethods_list`, `paymentmethods_paymentproviders_list`, `paymentgateway_paymentmethods_list`, `paymentgateway_create/update/delete`) 를 planned → supported 로 승격. store supported 2 → 8, 합계 89 → 95. |
-| 2026-05-16 (coverage Phase 6c) | Promotion resource — 회원 혜택 CRUD 6건 + 회원 정보 이벤트 3건 + customers_coupons_delete 1건 = 10건. promotion supported 15 → 25, 합계 95 → 105. |
-| 2026-05-16 (coverage Phase 6d) | Category/Collection/Supply/Shipping baseline 10건 — category(category_count/mains_list/autodisplay_list), collection(brands count/create/update/delete), supply(suppliers_count/get), shipping(carriers_get). 합계 105 → 115. |
-| 2026-05-16 (coverage Phase 6e) | Mileage resource — 적립금 자동 만료 3건 (`points_autoexpiration_get/create/delete`) + 예치금 2건 (`credits_list`, `credits_report`) = 5건. mileage supported 2 → 7, 합계 115 → 120. |
-| 2026-05-16 (coverage Phase 6f) | Notification resource — SMS 2건 (`sms_senders_list`, `sms_receivers_get`) + automails 2건 (`automails_get/update`) + recipientgroups 2건 (`recipientgroups_list/get`) = 6건. notification supported 2 → 8, 합계 120 → 126. |
-| 2026-05-16 (coverage Phase 6g) | Translation resource — products_update + categories list/update + store list/update + themes list 6건. translation supported 1 → 7, 합계 126 → 132. 본 사이클 (Phase 6 a~g) 종료. |
-| 2026-05-16 (coverage Phase 7a) | Promotion resource — discountcodes CRUD 5건 + commonevents CRUD 4건 = 9건. promotion supported 25 → 34, 합계 132 → 141. |
-| 2026-05-16 (coverage Phase 7b) | Customer resource 완성 — 회원 14건 (paymentinfo 3 + properties 2 + customergroups 4 + delete + autoupdate + plusapp + social + social_list). customer supported 10 → 24, planned 14 → 0, 합계 141 → 155. customer 두 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 7c) | Community resource — boards 설정 2건 + boards 글 CRUD 3건 + comments 3건 + commenttemplates 2건 = 10건. community supported 3 → 13, 합계 155 → 165. |
-| 2026-05-16 (coverage Phase 7d) | Application resource — apps_update + scripttags CRUD 5건 + webhooks_update + webhooks_logs_list = 8건. application supported 3 → 11, 합계 165 → 173. |
-| 2026-05-16 (coverage Phase 7e) | Shipping resource 완성 — carriers CRUD 3건 + regionalsurcharges 2건 + shipping_settings 2건 + shipping_additionalfees_countries + shippingorigins CRUD 5건 = 13건. shipping supported 2 → 15, planned 13 → 0, 합계 173 → 186. shipping 세 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 7f) | Category resource 완성 — decorationimages 2건 (get/update) + seo 2건 (get/update) + mains 3건 (add/update/delete) + autodisplay 3건 (create/update/delete) = 10건. category supported 9 → 19, planned 10 → 0, 합계 186 → 196. category 네 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 7g) | Supply resource 완성 — suppliers CUD 3건 + suppliers_users CRUD 6건 + suppliers_users regional shipping 5건 + shipping_suppliers 3건 = 17건. supply supported 3 → 20, planned 17 → 0, 합계 196 → 213. supply 다섯 번째 0-planned resource. 본 사이클 (Phase 7 a~g) 종료. |
-| 2026-05-16 (coverage Phase 8a) | Mileage resource 완성 — `points_report` 1건. mileage supported 7 → 8, planned 1 → 0, 합계 213 → 214. mileage 여섯 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8b) | Promotion resource 완성 — `coupon_manage` 1건 (use_coupon T/F 토글). promotion supported 34 → 35, planned 1 → 0, 합계 214 → 215. promotion 일곱 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8c) | Translation resource 완성 — 테마 번역 단건 조회/수정 2건. translation supported 7 → 9, planned 2 → 0, 합계 215 → 217. translation 여덟 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8d) | Personal resource 완성 — `customers_wishlist_count` + `products_carts_count` + `products_carts_list` 3건. personal supported 2 → 5, planned 3 → 0, 합계 217 → 220. personal 아홉 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8e) | Notification resource 완성 — `customers_invitation_send` + recipientgroups CUD 3건 = 4건. notification supported 8 → 12, planned 4 → 0, 합계 220 → 224. notification 열 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8f) | Privacy resource 완성 — customers_privacy list/count/update 3건 + products_wishlist_customers list/count 2건 = 5건. privacy supported 1 → 6, planned 5 → 0, 합계 224 → 229. privacy 열한 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8g) | Application resource 완성 — appstore_orders get/create 2건 + appstore_payments list/count 2건 + databridge_logs_list + recipes list/create/delete 3건 = 8건. application supported 11 → 19, planned 8 → 0, 합계 229 → 237. application 열두 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8h) | Collection resource 완성 — manufacturers count/get/create/update 4건 + trends_count + classifications list/count 2건 + origin_list = 8건. collection supported 7 → 15, planned 8 → 0, 합계 237 → 245. collection 열세 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8i) | Design resource 완성 — themes count/get 2건 + theme_pages CRUD 4건 (get/create/update/delete) + icons_list + icons_update_settings = 8건. design supported 1 → 9, planned 8 → 0, 합계 245 → 253. design 열네 번째 0-planned resource. |
-| 2026-05-16 (coverage Phase 8j) | Community resource 완성 — boards_comments_bulk + boards_seo get/update 2건 + commenttemplates get/update/delete 3건 + financials_monthlyreviews_count + urgentinquiry get/reply CRUD 4건 = 11건. community supported 13 → 24, planned 11 → 0, 합계 253 → 264. community 열다섯 번째 0-planned resource. 본 사이클 (Phase 8 a~j) 종료. |
-| 2026-05-17 | §2 에 `restricted` 컬럼 추가 + §4 검증 규칙 8 신설 — 카페24 별도 승인 대상 식별. SoT 는 [`cafe24-restricted-scopes.md`](../cafe24-restricted-scopes.md). 영향 카탈로그 (mileage / notification / privacy / store) 표 헤더·row 동시 갱신. 사용자 보고 (질문에서 제공한 3종 표) 후속. consistency-check 세션: `review/consistency/2026/05/17/12_12_46/` (BLOCK: NO). |
-| 2026-05-17 (drift fix) | §2 컬럼 정의 순서를 실제 파일 헤더 (`scope→restricted→paginated→status→docs`) 기준으로 정정 (C-1) + `restricted` 값 `op` → `operation` 으로 토큰 통일 (메타데이터 `level` 과 일치, W-9) + §4 검증 규칙 8 에 `approvalGroup` 비검증 명시 (W-8 재명명) + Coverage Matrix 기준일 갱신 (W-4). impl-prep consistency-check 세션: `review/consistency/2026/05/17/12_37_41/`. |
-| 2026-05-21 (coverage 완료) | Store resource — 마지막 6 planned (`privacy_boards_get/update`, `privacy_join_get/update`, `privacy_orders_get/update`) 를 planned → supported 로 승격. 경로는 `privacy/{boards,join,orders}` (GET/PUT, scope `mall.{read,write}_store`). store supported 100 → 106, planned 6 → 0, 합계 494 → 500. **18 resource 전부 0-planned 도달**. backend metadata (`store.ts`) + planned mirror (`planned.ts`) + 카탈로그 (`store.md`) 동시 갱신. body field 는 `policy_update`/`points_setting_update` 와 동일하게 `shop_no` 만 선언 (settings-style update 의 최소 패턴). |
-| 2026-05-21 (planned bulk) | **Planned operation 전수 구현** — 사용자 요청 "미구현 상태의 항목을 모두 구현". store / product / order 3 resource 의 planned 236건 중 230건을 `planned → supported` 로 승격 (Phase 1 store 92 / Phase 2 product 49 / Phase 3 order 89 = 230). 잔존 6건은 store 의 `privacy_*` row (id prefix 결정 미해소, `cafe24-restricted-scopes-followups.md §3` 후속). Phase 0.5 drift fix 2건 동반 (C-1 restricted-scopes.md `op`→`operation`, C-2 store.md `## Rationale` 위치 정정). §4 검증 규칙 8 에 `planned` 행 예외 명시 (W-1). 합계 supported 264 → 494, planned ~109 → 6. plan: `plan/in-progress/cafe24-planned-implementation.md`. 22 batch commit (1-A ~ 1-J / 2-A ~ 2-E / 3-A ~ 3-G). consistency-check 세션: `review/consistency/2026/05/21/07_31_53/`. |

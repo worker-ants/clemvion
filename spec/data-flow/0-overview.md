@@ -180,7 +180,7 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 ## 5. 다중 인스턴스·동시성 모델
 
 - **Stateless backend**: 모든 controller·service 는 stateless. 인스턴스 간 작업 조정은 Redis (BullMQ 영속 큐 + 보조 Pub/Sub) 가 담당.
-- **Continuation bus**: 실행 엔진은 form 제출·button click 같은 비동기 재개 신호를 BullMQ 영속 큐 `execution-continuation` (`ContinuationBusService`) 로 동기화. 옛 Redis pub/sub `execution:continuation` 채널은 폐기 (at-most-once 문제 해소 — `spec/5-system/4-execution-engine.md §7.4 / §7.5 / §Rationale "Durable Continuation (2026-05-24)"`). 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스가 BullMQ Worker 로 pick up 해 재개 가능 — 호스팅 인스턴스가 부재하면 §7.5 rehydration 경로로 진입.
+- **Continuation bus**: 실행 엔진은 form 제출·button click 같은 비동기 재개 신호를 BullMQ 영속 큐 `execution-continuation` (`ContinuationBusService`) 로 동기화. 옛 Redis pub/sub `execution:continuation` 채널은 폐기 (at-most-once 문제 해소 — `spec/5-system/4-execution-engine.md §7.4 / §7.5 / §Rationale "Durable Continuation"`). 어느 인스턴스가 사용자 입력을 받아도 다른 인스턴스가 BullMQ Worker 로 pick up 해 재개 가능 — 호스팅 인스턴스가 부재하면 §7.5 rehydration 경로로 진입.
 - **HNSW 인덱스**: pgvector HNSW 인덱스는 차원별로 분리된 partial index (`V022/V030~V033`) — KB 마다 차원이 다르면 각자 인덱스에 매칭된다.
 - **재시도 / 멱등**: BullMQ 의 `attempts` 와 service-level retry (`retryWithBackoff`) 양층. 두 층은 도메인 spec 의 상태 전이에 동기로 반영된다.
 
