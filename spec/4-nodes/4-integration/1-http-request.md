@@ -98,6 +98,8 @@ code: []
     - 3xx/4xx/5xx → §5.3 (`port:'error'`, `output.error.code = 'HTTP_4XX' | 'HTTP_5XX'` — 3xx 도 manual redirect 한도 도달 시 도달 가능)
     - fetch reject (네트워크 / 타임아웃 / abort) → §5.3 (`output.error.code = 'HTTP_TRANSPORT_FAILED'`, `meta.statusCode = 0`)
 
+> **`ALLOW_PRIVATE_HOST_TARGETS` (SSRF opt-out)** — 위 step 8 의 SSRF 가드는 환경변수 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 비활성화할 수 있다. 기본은 차단(secure-by-default)이며, self-host 가 내부 DB·on-prem API·내부 SMTP relay 등 사설망 대상에 정당하게 접근해야 할 때만 켠다 (외부 egress 방화벽 전제). **이 플래그는 통합 노드 전반의 SSRF 가드를 공통 제어한다** — HTTP Request·Database Query·Send Email(SMTP, [§3-send-email §4 step 6](./3-send-email.md#4-실행-로직)) 가 동일 플래그를 공유한다. AI Agent 의 MCP 서버는 별개 정책(`MCP_ALLOW_INSECURE_URL`, [Spec MCP Client §3.2](../../5-system/11-mcp-client.md))을 사용한다.
+
 ### 4.1 `auth_type` 별 credential 적용
 
 | `auth_type` | 주입 위치 | 예시 |

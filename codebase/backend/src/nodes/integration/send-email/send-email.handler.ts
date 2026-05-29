@@ -21,6 +21,7 @@ import {
   truncateForErrorDetails,
 } from '../../core/error-codes.js';
 import { sendEmailNodeMetadata } from './send-email.schema.js';
+import { isSmtpHostBlocked } from '../../../common/utils/smtp-host-guard.js';
 
 interface SmtpCredentials {
   host: string;
@@ -147,6 +148,16 @@ export class SendEmailHandler
         throw new IntegrationError(
           'INTEGRATION_INCOMPLETE',
           `SMTP integration is missing fields: ${missing.join(', ')}`,
+        );
+      }
+
+      // SSRF 완화 (opt-in) — `SMTP_BLOCK_PRIVATE_HOSTS` 정책이 켜진 경우 사설/
+      // loopback host 로의 발송을 차단. 연결 테스트와 동일한 가드를 발송 경로에도
+      // 적용해 비대칭(테스트만 차단)을 막는다.
+      if (await isSmtpHostBlocked(credentials.host as string)) {
+        throw new IntegrationError(
+          'EMAIL_HOST_BLOCKED',
+          'SMTP host points to a private/loopback address blocked by policy.',
         );
       }
 

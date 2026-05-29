@@ -1700,6 +1700,198 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // spec/5-system/3-error-handling.md §3.2 — 핸들러가 런타임 실패를
+  // `port: 'error'` 로 라우팅(throw 아님)했을 때의 엔진 동작. D4 결정(2026-05-17)
+  // 이후 Integration·LLM·Code·Workflow 노드 8종이 이 경로를 쓴다. 회귀 전:
+  // 엔진이 모든 정상 return 을 COMPLETED 로 마킹해 인증 실패한 send_email 도
+  // 실행 성공으로 표시됐다.
+  describe('error port routing (§3.2)', () => {
+    const errHandler = (): NodeHandler => ({
+      validate: () => ({ valid: true, errors: [] }),
+      execute: jest.fn(async () =>
+        mockOutput(
+          { error: { code: 'EMAIL_SEND_FAILED', message: 'SMTP auth failed' } },
+          { port: 'error' },
+        ),
+      ),
+    });
+
+    const lastNodeExecSave = (nodeId: string) =>
+      mockNodeExecutionRepo.save.mock.calls
+        .map((c) => c[0] as Partial<NodeExecution>)
+        .filter((n) => n.nodeId === nodeId)
+        .pop();
+
+    it('marks the node FAILED (not COMPLETED) and continues when the error port is connected', async () => {
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-err',
+          workflowId,
+          type: 'err_node',
+          category: NodeCategory.LOGIC,
+          label: 'Mailer',
+          config: {},
+          isDisabled: false,
+        },
+        {
+          id: 'n-handle',
+          workflowId,
+          type: 'test_node',
+          category: NodeCategory.LOGIC,
+          label: 'Handle error',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      const edges: Partial<Edge>[] = [
+        {
+          id: 'e-err',
+          workflowId,
+          sourceNodeId: 'n-err',
+          sourcePort: 'error',
+          targetNodeId: 'n-handle',
+          targetPort: 'in',
+          type: EdgeType.DATA,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue(edges);
+      handlerRegistry.register('err_node', errHandler());
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // 노드는 FAILED 로 마킹 (회귀 전: COMPLETED).
+      const errNe = lastNodeExecSave('n-err');
+      expect(errNe?.status).toBe(NodeExecutionStatus.FAILED);
+      expect(errNe?.error).toEqual(
+        expect.objectContaining({
+          code: 'EMAIL_SEND_FAILED',
+          message: 'SMTP auth failed',
+        }),
+      );
+      // NODE_FAILED 이벤트 발사 (NODE_COMPLETED 아님).
+      expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
+        executionId,
+        'n-err',
+        'execution.node.failed',
+        expect.objectContaining({ status: 'failed' }),
+      );
+      // error 포트가 연결돼 있으므로 다운스트림이 실행되고 Execution 은 계속 → COMPLETED.
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      );
+    });
+
+    it('stops the workflow (ERROR_PORT_FALLBACK) when the error port has no connected edge', async () => {
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-err',
+          workflowId,
+          type: 'err_node',
+          category: NodeCategory.LOGIC,
+          label: 'Mailer',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      handlerRegistry.register('err_node', errHandler());
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      // 노드는 FAILED.
+      const errNe = lastNodeExecSave('n-err');
+      expect(errNe?.status).toBe(NodeExecutionStatus.FAILED);
+      // error 포트 미연결 → Stop Workflow 폴백 → Execution FAILED + code 보존.
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ExecutionStatus.FAILED,
+          error: expect.objectContaining({ code: 'ERROR_PORT_FALLBACK' }),
+        }),
+      );
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.failed',
+        expect.objectContaining({ status: 'failed' }),
+      );
+      // 성공 종료 이벤트는 발사되지 않아야 한다.
+      expect(mockWebsocketService.emitExecutionEvent).not.toHaveBeenCalledWith(
+        executionId,
+        'execution.completed',
+        expect.anything(),
+      );
+    });
+
+    it('still marks a normal (non-error-port) handler COMPLETED', async () => {
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-ok',
+          workflowId,
+          type: 'ok_node',
+          category: NodeCategory.LOGIC,
+          label: 'OK',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      handlerRegistry.register('ok_node', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => mockOutput({ ok: true })),
+      });
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      const okNe = lastNodeExecSave('n-ok');
+      expect(okNe?.status).toBe(NodeExecutionStatus.COMPLETED);
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
+      );
+    });
+
+    it('marks FAILED with a default message when error envelope carries no code/message', async () => {
+      const nodes: Partial<Node>[] = [
+        {
+          id: 'n-err',
+          workflowId,
+          type: 'err_node',
+          category: NodeCategory.LOGIC,
+          label: 'Bare error',
+          config: {},
+          isDisabled: false,
+        },
+      ];
+      mockNodeRepo.findBy.mockResolvedValue(nodes);
+      mockEdgeRepo.findBy.mockResolvedValue([]);
+      // error 포트로 라우팅하지만 output.error 가 없는 핸들러 (코드/메시지 부재).
+      handlerRegistry.register('err_node', {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () =>
+          mockOutput({ note: 'oops' }, { port: 'error' }),
+        ),
+      });
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+
+      const errNe = lastNodeExecSave('n-err');
+      expect(errNe?.status).toBe(NodeExecutionStatus.FAILED);
+      expect(errNe?.error).toEqual({ message: 'Node routed to error port' });
+      // 미연결 error 포트 → Stop Workflow.
+      expect(mockExecutionRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ExecutionStatus.FAILED,
+          error: expect.objectContaining({ code: 'ERROR_PORT_FALLBACK' }),
+        }),
+      );
+    });
+  });
+
   describe('WebSocket events', () => {
     it('should emit EXECUTION_STARTED event when execution begins', async () => {
       await service.execute(workflowId, { data: 'test' });
