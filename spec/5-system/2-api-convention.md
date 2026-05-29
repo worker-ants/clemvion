@@ -162,7 +162,7 @@ GET /api/triggers?type=webhook&status=active
 |------|------|------|
 | 일반 API | 100 req/min (사용자 기준) | `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` |
 | 인증 API | 10 req/min (IP 기준) | 동일 |
-| Webhook 수신 | 1000 req/min (워크스페이스 기준) | 동일 |
+| Webhook 수신 | 100 req/min (글로벌 throttler `default`) | 동일 |
 | 파일 업로드 | 10 req/min (사용자 기준) | 동일 |
 
 Rate Limit 초과 시 `429` 응답 + `Retry-After` 헤더.
@@ -247,108 +247,64 @@ ws(s)://{base_url}/ws?token={access_token}
 
 외부 시스템에서 워크플로우를 트리거하기 위해 호출하는 Webhook 수신 엔드포인트를 정의한다.
 
+> **단일 진실**: Webhook 수신 엔드포인트의 상세 명세(URL·인증·입력 데이터·에러)는 [Spec Webhook](./12-webhook.md) 가 SoT 다. 본 절은 일반 API 규약 관점의 요점만 정리하고 상세는 위임한다.
+
 ### 11.1 URL 구조
 
 ```
-POST {base_url}/hooks/{endpoint_path}
+POST {base_url}/api/hooks/{endpoint_path}
 ```
 
-- `base_url`: SaaS → 서비스 도메인 (예: `https://api.example.com`), 셀프 호스팅 → 설정된 도메인
-- `endpoint_path`: Trigger 엔티티의 `endpoint_path` 값. 사용자가 트리거 생성 시 지정 (유니크)
-- 예시: `POST https://api.example.com/hooks/order-created`
-
-> **참고**: `/hooks/*` 경로는 `/api/*` 경로와 분리된다. API Gateway에서 별도 라우팅.
+- `base_url`: SaaS → 서비스 도메인 (예: `https://api.example.com`), 셀프 호스팅 → 설정된 도메인. 프론트엔드 base 결정 규약은 [Spec Webhook WH-EP-02](./12-webhook.md#31-webhook-엔드포인트).
+- `endpoint_path`: Trigger 엔티티의 `endpoint_path` 값 (생성 시 UUID 자동 발급, 라우팅 식별자)
+- 예시: `POST https://api.example.com/api/hooks/order-created`
 
 ### 11.2 지원 메서드
 
 | 메서드 | 지원 | 설명 |
 |--------|------|------|
-| POST | ✓ (기본) | 표준 webhook 수신 |
-| GET | ✓ | 간단한 트리거 (쿼리 파라미터) |
-| PUT | ✓ | 일부 외부 서비스 호환용 |
+| POST | ✓ | 표준 webhook 수신 (유일 지원 메서드) |
 
-Trigger 엔티티에 허용 메서드를 설정한다. 설정되지 않은 메서드로 요청 시 `405 Method Not Allowed`.
+POST 외 메서드는 `405 Method Not Allowed`. (GET/PUT 은 v1 미지원 — [Spec Webhook WH-EP-03](./12-webhook.md#31-webhook-엔드포인트).)
 
 ### 11.3 요청 처리 플로우
 
 ```
-1. URL에서 endpoint_path 추출
-2. Trigger 엔티티 조회 (endpoint_path → trigger)
-   - 없으면 → 404 Not Found
-   - 비활성(is_active=false) → 410 Gone
-3. 인증 검증 (Trigger에 연결된 AuthConfig 기준)
-   - AuthConfig 없으면 → 인증 없이 수신 (공개)
-   - 검증 실패 → 401 Unauthorized
-4. 페이로드 파싱
-   - Content-Type: application/json → JSON 파싱
-   - Content-Type: application/x-www-form-urlencoded → form 파싱
-   - Content-Type: text/plain → 텍스트로 저장
-   - 기타 → 400 Bad Request
-5. 실행 생성 및 큐에 추가
-   - Execution 엔티티 생성 (status: pending, trigger_type: webhook)
-   - 실행 엔진 큐에 작업 추가
-6. 즉시 응답 반환
+1. URL에서 endpoint_path 추출 → Trigger 조회 (없으면 404, 비활성 410 Gone)
+2. 인증 검증 (Trigger.auth_config_id 가 가리키는 AuthConfig 기준. 없으면 공개 수신, 실패 401)
+3. 페이로드 파싱 (application/json / application/x-www-form-urlencoded)
+4. Execution 생성 + 실행 엔진 큐 적재
+5. 즉시 202 응답 반환 (비동기 실행)
 ```
+
+> 상세 처리 흐름·인증 분기·파라미터 추출은 [Spec Webhook §7](./12-webhook.md#7-처리-흐름) 참조.
 
 ### 11.4 응답 형식
 
-| 모드 | 설명 | 응답 |
-|------|------|------|
-| **비동기 (기본)** | 실행 큐에 추가 후 즉시 응답 | `202 Accepted` + `{ "executionId": "uuid" }` |
-| **동기** | 워크플로우 실행 완료 후 응답 (쿼리: `?wait=true`, 최대 대기 30초) | `200 OK` + 워크플로우 최종 출력 데이터 |
+비동기 단일 모드. 실행 큐 적재 후 즉시 `202 Accepted` 반환 (동기 `?wait=true` 모드는 미지원). 모든 응답은 전역 `TransformInterceptor` 가 `{ data: ... }` 로 래핑한다 (§5 참조).
 
-**비동기 응답:**
 ```json
 {
   "data": {
     "executionId": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "pending",
-    "triggeredAt": "2026-03-29T14:00:00Z"
+    "message": "Webhook received, workflow execution started"
   }
 }
 ```
 
-**동기 응답 (타임아웃):**
-```json
-{
-  "error": {
-    "code": "EXECUTION_TIMEOUT",
-    "message": "Workflow execution did not complete within 30 seconds",
-    "executionId": "550e8400-e29b-41d4-a716-446655440000"
-  }
-}
-```
+> `interaction.enabled=true` 트리거의 응답 확장 필드는 [Spec Webhook §3.1](./12-webhook.md#31-webhook-수신-엔드포인트) / [Spec External Interaction API §4.1](./14-external-interaction-api.md#41-webhook-호출-응답-확장).
 
 ### 11.5 인증 방식
 
-Webhook 트리거에 AuthConfig를 연결하여 인증을 적용한다.
-
-| 인증 유형 | 검증 방법 |
-|-----------|-----------|
-| API Key | `X-API-Key` 헤더 또는 `?api_key=` 쿼리 파라미터 |
-| Bearer Token | `Authorization: Bearer {token}` 헤더 |
-| Basic Auth | `Authorization: Basic {base64}` 헤더 |
-| HMAC Signature | `X-Webhook-Signature` 헤더. `HMAC-SHA256(secret, body)` 검증 |
-| 없음 (공개) | AuthConfig 미연결 시 인증 없이 수신 |
+Webhook 트리거에 `AuthConfig` 를 연결해 인증한다 (none / api_key / bearer_token / basic_auth / hmac). 헤더·기본값·검증 방식의 SoT 는 [Spec Webhook §4](./12-webhook.md#4-인증-방식) — 예: HMAC 은 `AuthConfig.config.header`(기본 `X-Hub-Signature-256`), API Key 는 `AuthConfig.config.headerName`(기본 `X-API-Key`) **헤더** 검증.
 
 ### 11.6 워크플로우 실행 입력 데이터
 
-Webhook으로 수신한 데이터는 다음 구조로 워크플로우의 첫 번째 노드에 전달된다:
-
-```json
-{
-  "headers": { "content-type": "application/json", "x-custom": "value" },
-  "query": { "param1": "value1" },
-  "body": { "event": "order.created", "data": { ... } },
-  "method": "POST",
-  "path": "/hooks/order-created",
-  "triggeredAt": "2026-03-29T14:00:00Z"
-}
-```
+Webhook 수신 데이터의 워크플로우 입력 구조(`parameters` / `body` / `headers` / `query` / `method`)는 [Spec Webhook §5](./12-webhook.md#5-워크플로우-입력-데이터-구조) 가 SoT.
 
 ### 11.7 Rate Limiting
 
-Webhook 수신은 워크스페이스 기준 **1000 req/min** 제한 (§7 참조). 초과 시 `429 Too Many Requests`.
+Webhook 수신은 글로벌 throttler **100 req/min** 제한 (§7 참조). 초과 시 `429 Too Many Requests`.
 
 ---
 
@@ -378,3 +334,20 @@ Content-Type: application/json
 | `Trigger.endpoint_path` | 워크스페이스 단위 | 동일 워크스페이스 내에서 중복 불가. 다른 워크스페이스와는 독립 |
 
 > 인덱스 정의: [데이터 모델 §3](../1-data-model.md#3-인덱스-전략) 참조
+
+---
+
+## Rationale
+
+### §11 Webhook 절을 12-webhook.md 로 위임·정합화 (2026-05-29)
+
+`§11` 은 webhook 도메인 SoT([Spec Webhook](./12-webhook.md))와 중복 기술돼 drift 가 누적됐다 (consistency cross_spec 10건). 코드(`hooks.controller.ts` / `hooks.service.ts` / `app.module.ts` ThrottlerModule)를 ground truth 로 삼아 정합화하고, 상세는 12-webhook 으로 위임했다. 정정 내역:
+
+- URL `{base_url}/hooks/` → `{base_url}/api/hooks/` (코드: `@Controller('hooks')` + global prefix `api`). "`/hooks/*` 는 `/api/*` 와 분리" note 는 사실과 반대여서 삭제.
+- 메서드: GET/PUT 행 삭제 — 코드는 `@Post(':endpointPath')` 단일 (POST 전용).
+- 동기 `?wait=true` 모드 삭제 — 코드에 wait 파라미터·동기 경로 없음 (구 설계 잔재).
+- 응답 shape: `{ data: { executionId, message } }` 로 정정 — 전역 `TransformInterceptor` 가 `{data}` 래핑. 구 표기의 `status`/`triggeredAt` 필드는 실제 반환에 없음.
+- HMAC 헤더 `X-Webhook-Signature` 고정 → `AuthConfig.config.header`(기본 `X-Hub-Signature-256`), API Key `?api_key=` 쿼리 옵션 삭제(헤더 전용) — 12-webhook §4 로 위임.
+- 입력 데이터 `path` 필드 삭제 — 12-webhook §5 입력 구조에 없음.
+- Content-Type `text/plain` 삭제 — 코드는 json/form parameter 추출만.
+- Rate limit `1000 req/min(워크스페이스)` → `100 req/min(글로벌 throttler default)` — §7 표 포함.

@@ -57,7 +57,7 @@ flowchart LR
   GW --> APP
   UI -.->|Socket.io ack/JWT| WS
 
-  WEBHOOK_IN -->|POST /api/webhooks/:path| APP
+  WEBHOOK_IN -->|POST /api/hooks/:endpointPath| APP
 
   APP -->|TypeORM| PG
   APP -->|BullMQ enqueue| REDIS
