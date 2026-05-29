@@ -17,9 +17,9 @@ owner: project-planner
 - [x] **변경 2.1** — `spec/5-system/4-execution-engine.md §7.5.1` 신설 (Publisher 측 사전 검증 + `INVALID_EXECUTION_STATE` 정의) — commit `4dd805ed`.
 - [x] **변경 2.2** — `spec/5-system/6-websocket-protocol.md §4.2` `INVALID_EXECUTION_STATE` 행 주석 + `spec/5-system/3-error-handling.md` 역방향 cross-link — commit `4dd805ed`.
 - [x] **동반 갱신 (impl-prep WARNING)** — `spec/data-flow/0-overview.md §4/§5` + `spec/data-flow/3-execution.md §1.3/§2.2/§2.3` — commit `4dd805ed`.
-- [ ] **변경 2.3** — Implementation 후행 작업 (`resolveWaitingNodeExecutionId` throw 전환) — 별 PR 권장. 본 plan 범위 외.
+- [x] **변경 2.3** — Implementation 후행 작업 (`resolveWaitingNodeExecutionId` throw 전환) — worktree `workflow-resumable-phase3-a4ea4a` (2026-05-29) 에서 구현. WS ack `errorCode='INVALID_EXECUTION_STATE'` / REST 422 `INVALID_STATE` / EIA 409 `STATE_MISMATCH` 동기 surface + sentinel 우회 제거. 상세는 [`workflow-resumable-execution.md` §"변경 2.3"](workflow-resumable-execution.md).
 
-본 plan 의 spec 작업은 완료 — `[ ]` 잔여 변경 2.3 만 별 plan 으로 이관 후 `git mv` 로 `plan/complete/` 이동 가능.
+본 plan 의 spec 작업 + 변경 2.3 모두 완료 — `git mv` 로 `plan/complete/` 이동 가능.
 
 ## 동기
 

@@ -302,7 +302,7 @@ POST /api/external/executions/550e8400-.../interact
 | `401 Unauthorized` | `TOKEN_INVALID` / `TOKEN_EXPIRED` | 토큰 검증 실패 (응답 헤더 `X-Refresh-Token-Url` 동봉) |
 | `403 Forbidden` | `SCOPE_MISMATCH` | 토큰 scope 가 해당 execution 에 일치하지 않음 |
 | `404 Not Found` | `EXECUTION_NOT_FOUND` | executionId 없음 |
-| `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 또는 다른 nodeId) |
+| `409 Conflict` | `STATE_MISMATCH` | 현재 노드/실행 상태와 명령 불일치 (예: completed 상태에서 submit_message, 또는 다른 nodeId). publisher 측 사전 검증([실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state))의 EIA 진입점 매핑 — WS 의 `INVALID_EXECUTION_STATE` 와 동일 의미를 EIA 는 `STATE_MISMATCH` 로 표기 |
 | `409 Conflict` | `IDEMPOTENCY_KEY_CONFLICT` | 같은 키 + 다른 body |
 | `410 Gone` | `EXECUTION_TERMINATED` | execution 이 이미 completed/failed/cancelled |
 | `429 Too Many Requests` | `RATE_LIMITED` | inbound rate-limit 초과 |

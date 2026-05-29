@@ -4,7 +4,7 @@ started: 2026-05-24
 owner: developer
 ---
 
-> **Worktree 이력**: Phase 0/1 = `workflow-resumable-execution-6b105e` (merged base 로 잔류). Phase 2 = `workflow-resumable-execution-phase2-a6b133`. Phase 2 cont = `workflow-resumable-execution-phase2-cont-64f537` (현재 active).
+> **Worktree 이력**: Phase 0/1 = `workflow-resumable-execution-6b105e` (merged base 로 잔류). Phase 2 = `workflow-resumable-execution-phase2-a6b133`. Phase 2 cont = `workflow-resumable-execution-phase2-cont-64f537`. Phase 3 + 변경 2.3 = `workflow-resumable-phase3-a4ea4a` (현재 active, 2026-05-29).
 
 # Plan — Durable Continuation & Graceful Shutdown
 
@@ -66,10 +66,27 @@ owner: developer
 - [x] 2.8 — `task-queue` 큐 이름 정합화 — spec-update plan 으로 제안 작성. project-planner 픽업 대기. (Phase 2 cont commit `b3a22048`)
 - [x] 2.9 — `INVALID_EXECUTION_STATE` 에러 코드 spec 등재 — spec-update plan 으로 제안 작성. project-planner 픽업 대기. (Phase 2 cont commit `b3a22048`)
 
-### Phase 3 — 후속 정리 (선택)
+### Phase 3 — 후속 정리 (worktree `workflow-resumable-phase3-a4ea4a`, 2026-05-29)
 
-- [ ] 3.1 — BullMQ retry 율 모니터링 / DLQ 알람 임계 설정.
-- [ ] 3.2 — `spec/data-flow/3-execution.md` 시퀀스 다이어그램의 mermaid 자체를 BullMQ 흐름으로 재작성 (현재는 주석만 갱신).
+- [x] 3.1 — BullMQ retry 율 모니터링 / DLQ 알람 임계 설정.
+  - 신규 `ContinuationDlqMonitorService` (`continuation/continuation-dlq-monitor.service.ts`) — `execution-continuation` 큐의 dead-letter(`failed`) depth + retry backlog(`delayed`)를 주기 polling, 임계 초과 시 structured `logger.error` 알람(cooldown 1회). 별도 메트릭 SDK 미사용 (현 backend OTel traces-only).
+  - processor `onFailed` (`@OnWorkerEvent('failed')`) — 실패 1건마다 `RETRY`/`DEAD-LETTER` 태그 + 시도 횟수 로깅.
+  - env: `CONTINUATION_DLQ_ALARM_THRESHOLD`(50) / `CONTINUATION_DLQ_MONITOR_INTERVAL_MS`(60000) / `CONTINUATION_DLQ_ALARM_COOLDOWN_MS`(300000) / `CONTINUATION_DLQ_MONITOR_ENABLED`(true). spec §9.3 문서화.
+  - 테스트: monitor 12건 + processor onFailed 3건 신규.
+- [x] 3.2 — `spec/data-flow/3-execution.md` 시퀀스 다이어그램.
+  - mermaid 본문은 이미 BullMQ(`execution-continuation` enqueue → worker pick up → fast-path/rehydration + publisher 측 `INVALID_EXECUTION_STATE` 분기)로 재작성돼 있음 (origin/main 반영 완료). plan 작성 시점 "주석만 갱신" 기술은 stale — 추가 변경 불필요.
+
+### 변경 2.3 — publisher 측 동기 `INVALID_EXECUTION_STATE` (spec §7.5.1, worktree `workflow-resumable-phase3-a4ea4a`)
+
+> spec-update-followup plan 의 "변경 2.3 (별 PR 권장)" 구현. 옛 `__no_node_exec__` sentinel 우회 제거.
+
+- [x] `resolveWaitingNodeExecutionId` — 0건/다중 row 시 `InvalidExecutionStateError` throw (sentinel 반환 폐기). DB infra 실패는 원본 에러로 전파.
+- [x] WS gateway 4개 handler — catch → ack `errorCode='INVALID_EXECUTION_STATE'` (+ `errorCode?: string` ack 필드 신설, `error` string 유지로 프론트 toast 호환).
+- [x] REST `POST :id/continue` — `await` + catch → 422 `INVALID_STATE`.
+- [x] EIA `interaction.service` 4개 dispatch — `await this.dispatchContinuation(...)` + catch → 409 `STATE_MISMATCH` (assertWaiting 선검증 후 race 보강).
+- [x] worker 측 sentinel 처리(`__no_node_exec__`)는 cancel 류 + legacy job 호환 위해 잔존.
+- [x] stale "구현 상태" note (`spec/5-system/4-execution-engine.md` §7.5.1) → 적용 완료로 갱신.
+- 테스트: service throw 5건 + gateway 2건 + controller 1건 + interaction 1건 신규.
 
 ### Phase 2 진행 상태 (WIP — 2026-05-25 commit 시점)
 

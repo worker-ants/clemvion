@@ -183,4 +183,52 @@ describe('ContinuationExecutionProcessor', () => {
       expect(engine.applyCancellation).not.toHaveBeenCalled();
     });
   });
+
+  // ── Phase 3.1 — retry 율 / dead-letter 가시성 ─────────────────────────────
+  describe('onFailed (retry-rate 로깅)', () => {
+    function failJob(
+      attemptsMade: number,
+      attempts: number,
+    ): Job<ContinuationJob> {
+      return {
+        id: 'job-x',
+        data: { type: 'continue', executionId: 'e1', nodeExecutionId: 'ne1' },
+        attemptsMade,
+        opts: { attempts },
+      } as unknown as Job<ContinuationJob>;
+    }
+
+    function warnSpy(): jest.SpyInstance {
+      return jest
+        .spyOn(
+          (processor as unknown as { logger: { warn: jest.Mock } }).logger,
+          'warn',
+        )
+        .mockImplementation(() => undefined);
+    }
+
+    it('attemptsMade < attempts → RETRY 태그로 warn', () => {
+      const spy = warnSpy();
+      processor.onFailed(failJob(1, 3), new Error('boom'));
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringContaining('[continuation RETRY]'),
+      );
+    });
+
+    it('attemptsMade >= attempts → DEAD-LETTER 태그로 warn', () => {
+      const spy = warnSpy();
+      processor.onFailed(failJob(3, 3), new Error('exhausted'));
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringContaining('[continuation DEAD-LETTER]'),
+      );
+    });
+
+    it('job 핸들 없음 → 안전하게 warn 후 반환 (throw 없음)', () => {
+      const spy = warnSpy();
+      expect(() =>
+        processor.onFailed(undefined, new Error('no handle')),
+      ).not.toThrow();
+      expect(spy).toHaveBeenCalled();
+    });
+  });
 });

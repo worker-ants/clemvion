@@ -304,6 +304,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 > 위 표의 마지막 3개 코드 (`RESUME_*`) 는 `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation` 의 ack 에 공통 적용된다. **`execution.retry_last_turn` 은 적용 대상 아님** — retry_last_turn 은 동일 nodeId 의 새 NodeExecution row spawn 경로이며 rehydration 경로를 타지 않는다 (전용 코드는 `RETRY_STATE_NOT_FOUND` / `NODE_NOT_RETRYABLE` / `RETRY_TOO_EARLY` 참조).
 
+> **실패 ack 형태**: `execution.submit_form` / `click_button` / `submit_message` / `end_conversation` 의 실패 ack payload 는 `{ success: false, error: string, errorCode?: string }` 다. `errorCode` 는 위 표의 코드(`INVALID_EXECUTION_STATE` 등)를 담는 **평면 필드** — 기존 `error`(사람용 메시지 문자열)와 하위 호환되도록 형제 필드로 추가됐다. `execution.retry_last_turn` 의 nested `error: { code, message }` 와 계층이 다른 것은 의도된 분리다: 4개 continuation 명령은 도입 시점부터 평면 `{ success, error }` 를 써 왔고 `errorCode` 는 그 위의 additive 확장이다 (publisher 측 동기 검증 — [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state)).
+
 **`execution.retry_last_turn` ack:**
 
 기존 `execution.click_button.ack` 의 `resumed` flag 패턴 + 실패 시 `error` 객체 추가.

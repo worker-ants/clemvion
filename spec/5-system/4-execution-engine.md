@@ -820,7 +820,7 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 
 - BullMQ jobId 가 idempotency key — 동일 jobId 의 중복 처리는 BullMQ 가 차단.
 - 추가로 worker 는 처리 전 `NodeExecution.status === 'waiting_for_input'` 인지 재검증. 이미 `COMPLETED` (다른 worker 가 먼저 처리) 면 즉시 ack-and-discard. 이 가드는 BullMQ 의 멱등성을 보완해 정상-경로 race 까지 닫는다.
-- BullMQ `removeOnComplete: true` + `attempts: RESUME_BULLMQ_ATTEMPTS` (기본 3) 로 두며, 모든 attempt 가 실패하면 dead-letter (Execution 을 `cancelled` 로 마킹 + `error.code='RESUME_FAILED'`).
+- BullMQ `removeOnComplete: true` + `removeOnFail: false` + `attempts: RESUME_BULLMQ_ATTEMPTS` (기본 3) 로 두며, 모든 attempt 가 실패하면 dead-letter (Execution 을 `cancelled` 로 마킹 + `error.code='RESUME_FAILED'`). `removeOnFail: false` 로 실패 job 을 보존하므로 dead-letter depth 를 §9.3 "Dead-letter 모니터링" 이 관측할 수 있다.
 
 **Rehydration 실패 케이스**
 
@@ -858,7 +858,7 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 
 본 분류는 [§7.5 rehydration](#75-resume-after-restart-rehydration) 의 `RESUME_*` (worker 측 비동기 실패) 와 직교 — `INVALID_EXECUTION_STATE` 는 ack 동기 응답, `RESUME_*` 는 후행 `EXECUTION_CANCELLED` 이벤트.
 
-> **구현 상태 (Phase 2 cont 시점)**: 현재 backend 는 `resolveWaitingNodeExecutionId` 가 invalid lookup 을 `__no_node_exec__` sentinel publish 로 우회 처리 — 사용자에게는 BullMQ worker 가 `RESUME_CHECKPOINT_MISSING` 으로 surface (1-2초 지연). spec 규범에 맞춘 동기 `INVALID_EXECUTION_STATE` 반환은 후속 PR 예정 (`plan/in-progress/spec-update-workflow-resumable-execution-phase2-followup.md` 변경 2.3).
+> **구현 상태 (변경 2.3 적용 완료)**: `resolveWaitingNodeExecutionId` 는 invalid lookup (0건 / 다중 row) 시 `InvalidExecutionStateError` 를 throw 하며, publisher 진입점이 이를 동기 surface 한다 — WS gateway 4개 handler 는 ack `errorCode='INVALID_EXECUTION_STATE'`, REST `POST :id/continue` 는 422 `INVALID_STATE`, EIA 외부 진입점(`interaction.service`)은 409 `STATE_MISMATCH`. 옛 `__no_node_exec__` sentinel 우회(→ worker `RESUME_CHECKPOINT_MISSING`, 1-2초 지연)는 제거됐다. DB lookup 자체의 infra 실패는 `INVALID_EXECUTION_STATE` 가 아닌 원본 에러로 전파(재시도 가능). sentinel 은 cancel 류(nodeExecutionId 부재) 및 deploy 전 enqueue 된 legacy job 호환을 위해 worker 측에만 잔존.
 
 ---
 
@@ -924,6 +924,20 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 | `background-execution` | Background 노드 본문 실행 (§3.3) | 코드 기본값 (현재 `BACKGROUND_EXECUTION_QUEUE_DEFAULT_OPTS`) | 기존 |
 
 > 일반 노드 실행은 별도 큐 없이 `runExecution` 의 in-process while-loop 에서 직접 dispatch (§2.1) — Phase 2 cont 시점에 옛 spec 의 `task-queue` 행은 검증 결과 미존재로 확정·삭제됨 (§Rationale "Durable Continuation (2026-05-24)" 의 후속 정리).
+
+#### Dead-letter 모니터링 (Phase 3.1)
+
+`execution-continuation` 큐는 `removeOnFail: false` 로 운영되어 attempts (`RESUME_BULLMQ_ATTEMPTS`) 소진 job 이 `failed`(dead-letter) 상태로 누적된다. rehydration 이 구조적으로 실패하는 회귀(배포 후 `_resumeState` schema drift, 체크포인트 손상 등)는 dead-letter depth 급증으로 나타나므로 다음을 둔다:
+
+- `ContinuationDlqMonitorService` — dead-letter(`failed`) depth 와 retry backlog(`delayed`)를 주기 polling, 임계 초과 시 structured `logger.error` 알람을 cooldown 1회로 발생. 메트릭 SDK 대신 로그 기반을 택한 근거는 [§Rationale "DLQ 모니터링 — 로그 기반 알람 선택"](#rationale) 참조.
+- worker `onFailed` (`@OnWorkerEvent('failed')`) — 실패 1건마다 `RETRY`(attempts 잔여) / `DEAD-LETTER`(attempts 소진) 태그 + 시도 횟수 로깅.
+
+| 환경변수 | 기본값 | 설명 |
+|----------|--------|------|
+| `CONTINUATION_DLQ_ALARM_THRESHOLD` | `50` | dead-letter(`failed`) job 수 알람 임계 |
+| `CONTINUATION_DLQ_MONITOR_INTERVAL_MS` | `60000` | depth polling 주기 |
+| `CONTINUATION_DLQ_ALARM_COOLDOWN_MS` | `300000` | 알람 재발 최소 간격 |
+| `CONTINUATION_DLQ_MONITOR_ENABLED` | `true` | `'false'` 지정 시 모니터 비활성 |
 
 ---
 
@@ -1159,3 +1173,12 @@ Phase 2 WIP 까지 `recoverStuckExecutions` 의 stale 임계값은 `started_at <
 - **Execution `cancelled`**: 이 3개 코드는 모두 **인프라 실패** (checkpoint 손상, 큐 소진, schema 변경) 로 인한 종결이며 사용자의 의도적 취소(`cancel` 명령)와 의미가 다름에도, Re-run 진입 가능성을 열어두기 위해 `cancelled` 를 선택한다. `failed` 는 비즈니스/노드 에러로 워크플로우가 정상 종결된 경우이고, 인프라 실패는 "사용자가 다시 시도하면 성공할 수 있는" 범주이므로 `cancelled` 가 더 적합 — Re-run UI 가 `cancelled` 상태에서 활성화된다 ([Spec 실행 엔진 §6.3](./4-execution-engine.md#63-재실행조회-정책-replay-policy)).
 - **NodeExecution `failed`**: 노드는 정상 완료하지 못했으므로 `completed` 로 둘 수 없고, `cancelled` 는 NodeExecution enum 에 없다 (§1.2). `failed` 가 유일한 비-completed 단말 상태로 정합.
 - **대안 (기각)**: Execution 도 `failed` 로 통일 → Re-run 진입점 분기가 `failed` 원인 (인프라 vs 비즈니스) 을 코드 외부에서 판별해야 해 UX 복잡도 증가. Execution 도 `cancelled` + NodeExecution 도 `cancelled` enum 신설 → §1.2 enum 변경 비용과 외부 API / execution-history 필터 drift 위험.
+
+### DLQ 모니터링 — 로그 기반 알람 선택 (Phase 3.1, 2026-05-29)
+
+§9.3 "Dead-letter 모니터링" 의 `ContinuationDlqMonitorService` 가 OTel 메트릭 대신 structured `logger.error` 알람을 쓰는 결정의 근거:
+
+- **현 backend 는 OTel traces-only** (`instrumentation.ts` — MeterProvider / metrics exporter 미구성, custom Counter/Gauge 0건). DLQ depth 알람 하나를 위해 metrics SDK 파이프라인 전체를 도입하는 것은 Phase 3.1(선택적 후속 정리) 범위에 비해 과도.
+- **로그 기반 알람은 기존 운영 인프라로 즉시 픽업 가능** — `logger.error('[DLQ ALARM] ...')` 는 로그 수집/알람 파이프라인(Sentry·로그 기반 alert)이 별도 코드 없이 트리거. cooldown 으로 알람 폭증 방지.
+- **대안 (기각)**: (a) OTel Meter Gauge 신설 — 메트릭 백엔드(수집기/대시보드) 부재 상태에서 소비처 없는 메트릭. metrics 파이프라인 구축 시 재검토 (별도 plan). (b) `/health` endpoint 에 DLQ depth 노출 — readiness probe 가 DLQ 누적으로 unhealthy 가 되면 정상 트래픽까지 차단되는 부작용. depth 는 알람 대상이지 readiness 대상이 아님.
+- env 4종(`CONTINUATION_DLQ_*`)은 `SHUTDOWN_GRACE_MS` 와 동일한 `useFactory` 주입 패턴을 따른다 (서비스가 `process.env` 직접 접근 안 함).

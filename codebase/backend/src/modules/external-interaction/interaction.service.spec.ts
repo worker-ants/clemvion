@@ -12,6 +12,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { InteractionRequestContext } from './interaction.guard';
+import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
 
 type Mock = jest.Mock;
 
@@ -104,6 +105,73 @@ describe('InteractionService.interact', () => {
       executionId: 'exec-1',
       accepted: true,
       currentStatus: 'running',
+    });
+  });
+
+  it('변경 2.3 — assertWaiting 통과 후 engine 이 InvalidExecutionStateError 면 STATE_MISMATCH(409) 로 매핑 (race window)', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne.mockResolvedValueOnce(makeExecution()); // loadAndAssertAlive — waiting
+    engine.continueExecution.mockRejectedValueOnce(
+      new InvalidExecutionStateError('no waiting NodeExecution'),
+    );
+    await expect(
+      service.interact(IEXT_CTX, {
+        command: 'submit_form',
+        nodeId: '550e8400-e29b-41d4-a716-446655440000',
+        data: { field1: 'a' },
+      }),
+    ).rejects.toMatchObject({
+      response: { error: { code: 'STATE_MISMATCH' } },
+    });
+  });
+
+  it('변경 2.3 — click_button: engine InvalidExecutionStateError → STATE_MISMATCH(409) (W-2)', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne.mockResolvedValueOnce(makeExecution());
+    engine.continueButtonClick.mockRejectedValueOnce(
+      new InvalidExecutionStateError('detail'),
+    );
+    await expect(
+      service.interact(IEXT_CTX, {
+        command: 'click_button',
+        nodeId: '550e8400-e29b-41d4-a716-446655440000',
+        buttonId: 'btn-1',
+      }),
+    ).rejects.toMatchObject({
+      response: { error: { code: 'STATE_MISMATCH' } },
+    });
+  });
+
+  it('변경 2.3 — submit_message: engine InvalidExecutionStateError → STATE_MISMATCH(409) (W-2)', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne.mockResolvedValueOnce(makeExecution());
+    engine.continueAiConversation.mockRejectedValueOnce(
+      new InvalidExecutionStateError('detail'),
+    );
+    await expect(
+      service.interact(IEXT_CTX, {
+        command: 'submit_message',
+        nodeId: '550e8400-e29b-41d4-a716-446655440000',
+        message: 'hi',
+      }),
+    ).rejects.toMatchObject({
+      response: { error: { code: 'STATE_MISMATCH' } },
+    });
+  });
+
+  it('변경 2.3 — end_conversation: engine InvalidExecutionStateError → STATE_MISMATCH(409) (W-2)', async () => {
+    const { service, repo, engine } = makeMocks();
+    repo.findOne.mockResolvedValueOnce(makeExecution());
+    engine.endAiConversation.mockRejectedValueOnce(
+      new InvalidExecutionStateError('detail'),
+    );
+    await expect(
+      service.interact(IEXT_CTX, {
+        command: 'end_conversation',
+        nodeId: '550e8400-e29b-41d4-a716-446655440000',
+      }),
+    ).rejects.toMatchObject({
+      response: { error: { code: 'STATE_MISMATCH' } },
     });
   });
 
