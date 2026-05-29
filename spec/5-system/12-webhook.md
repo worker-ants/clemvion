@@ -41,8 +41,8 @@ code: []
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
 | WH-EP-01 | 트리거별 고유한 webhook URL 자동 생성 | 필수 |
-| WH-EP-02 | URL 형식: `{base_url}/api/hooks/{endpoint_path}` | 필수 |
-| WH-EP-03 | HTTP POST 메서드 지원 | 필수 |
+| WH-EP-02 | URL 형식: `{base_url}/api/hooks/{endpoint_path}`. `base_url` 은 webhook 을 서빙하는 백엔드 origin. 프론트엔드(트리거 화면)는 표시·복사용 URL 의 base 를 `NEXT_PUBLIC_WEBHOOK_BASE_URL`(명시 override) → `NEXT_PUBLIC_API_URL` 에서 후행 `/api` 제거 → `window.location.origin` 순으로 결정한다 (구현 `codebase/frontend/src/lib/utils/webhook-url.ts`). | 필수 |
+| WH-EP-03 | HTTP POST 메서드 지원 (POST 전용 — GET/PUT 미지원) | 필수 |
 | WH-EP-04 | JSON, form-urlencoded 요청 본문 수신 | 필수 |
 | WH-EP-05 | 요청 본문 전체를 워크플로우 입력 데이터로 전달 (`body`) | 필수 |
 | WH-EP-05-1 | Manual Trigger 노드가 선언한 `parameters` 스키마에 따라 body에서 파라미터를 추출/검증하여 `$input.parameters` / `$params`로 제공 | 필수 |
@@ -60,7 +60,7 @@ code: []
 | WH-SC-02 | HMAC 서명 검증 — AuthConfig.type=`hmac`, `config.secret` 기반, 헤더는 `config.header` (default `X-Hub-Signature-256`) | 필수 |
 | WH-SC-03 | Bearer Token 검증 — AuthConfig.type=`bearer_token` (`Authorization: Bearer <token>`) | 필수 |
 | WH-SC-04 | 인증 실패 시 `401 Unauthorized` 응답 (단일 메시지 `AUTH_FAILED` — enumeration 방지) | 필수 |
-| WH-SC-05 | Rate limiting (트리거당 분당 최대 요청 수) | 권장 |
+| WH-SC-05 | Rate limiting — 분당 최대 요청 수 (현행 구현: 글로벌 throttler **100 req/min**, [Spec API 규약 §7](./2-api-convention.md#7-rate-limiting)) | 권장 |
 | WH-SC-06 | API Key 검증 — AuthConfig.type=`api_key`, 헤더 `config.headerName` (default `X-API-Key`) 의 값 비교 | 필수 |
 | WH-SC-07 | Basic Auth 검증 — AuthConfig.type=`basic_auth` (`Authorization: Basic base64(user:pass)`) | 필수 |
 | WH-SC-08 | 인증 성공 시 `AuthConfig.last_used_at = NOW()` fire-and-forget UPDATE (트랜잭션 외, 실패 시 미갱신) | 필수 |
@@ -174,15 +174,17 @@ POST /api/hooks/:endpointPath
 | Content-Type | `application/json`, `application/x-www-form-urlencoded` |
 | 요청 본문 최대 크기 | 1MB |
 
-**성공 응답** (`202 Accepted`):
+**성공 응답** (`202 Accepted`) — 핸들러 반환값(아래)은 전역 `TransformInterceptor` 가 `{ "data": { ... } }` 로 래핑해 전송한다 ([Spec API 규약 §5.1](./2-api-convention.md#5-응답-형식)):
 ```json
 {
-  "executionId": "uuid",
-  "message": "Webhook received, workflow execution started"
+  "data": {
+    "executionId": "uuid",
+    "message": "Webhook received, workflow execution started"
+  }
 }
 ```
 
-트리거에 `interaction.enabled=true` + `tokenStrategy="per_execution"` 가 설정되면 위 응답에 추가로 `status: "pending"` 과 `interaction: { token, expiresAt, endpoints }` 가 동봉된다. 상세는 [Spec External Interaction API §4.1](./14-external-interaction-api.md#41-webhook-호출-응답-확장).
+트리거에 `interaction.enabled=true` + `tokenStrategy="per_execution"` 가 설정되면 위 `data` 객체에 추가로 `status: "pending"` 과 `interaction: { token, expiresAt, endpoints }` 가 동봉된다. 상세는 [Spec External Interaction API §4.1](./14-external-interaction-api.md#41-webhook-호출-응답-확장).
 
 **에러 응답**:
 
@@ -305,7 +307,7 @@ codebase/backend/src/modules/hooks/
 ```
 
 - `/api/hooks/*` 경로는 JWT 인증 제외 (외부 서비스가 호출하므로)
-- Rate Limiting 적용: 트리거당 60req/min
+- Rate Limiting 적용: 글로벌 throttler **100 req/min** ([Spec API 규약 §7](./2-api-convention.md#7-rate-limiting))
 - 기존 `TriggersService.findByEndpointPath()` 재사용
 
 ---
@@ -340,7 +342,7 @@ codebase/backend/src/modules/hooks/
    b. ExecutionEngineService.execute(trigger.workflowId, { parameters, body, headers, query, method }, { triggerId: trigger.id })
       - 3번째 인자로 `triggerId`를 전달해야 생성되는 Execution 행의 `trigger_id` 컬럼이 채워지고, 결과적으로 "최근 실행" 화면에서 출처가 `webhook` 으로 분류된다.
 9. Trigger.lastTriggeredAt = now → DB 업데이트
-10. 202 Accepted + { executionId } 반환
+10. 202 Accepted + { data: { executionId, message } } 반환 (전역 TransformInterceptor 가 `{ data }` 래핑)
 
 > Chat Channel 분기의 outbound 응답 (사용자에게 메시지 발송) 은 본 webhook 수신 흐름 안에서 발생하지 않는다.
 > [Spec Chat Channel §3.1](./15-chat-channel.md#31-전체-시퀀스-telegram-예시) 의 NotificationDispatcher EventEmitter 경로로 비동기 처리된다.
@@ -356,7 +358,7 @@ codebase/backend/src/modules/hooks/
 | 비밀 키 저장 | Webhook 인증 자료는 모두 `auth_config.config` JSONB 에 AES-256-GCM 으로 암호화 저장 ([Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)). API 응답 시 항상 마스킹, 평문 노출은 create / regenerate / reveal 3 경로만 |
 | last_used_at 갱신 | 인증 성공 직후 `auth_config.last_used_at = NOW()` fire-and-forget UPDATE. 트랜잭션 외라 race 시 last-write-wins, 실패 시 미갱신 (활성 가시성 차단) |
 | 본문 크기 제한 | 1MB 초과 시 `413 Payload Too Large` |
-| Rate Limiting | Throttler 적용 (60req/min/trigger) |
+| Rate Limiting | 글로벌 Throttler 적용 (100 req/min, [Spec API 규약 §7](./2-api-convention.md#7-rate-limiting)) |
 | JWT 제외 | `/api/hooks/*` 경로는 JWT guard에서 제외 |
 | CORS | webhook 엔드포인트는 CORS 제한 없음 |
 
@@ -386,6 +388,12 @@ codebase/backend/src/modules/hooks/
 ---
 
 ## Rationale
+
+### webhook URL base 결정 규약 명문화 + cross-spec 정합화 (2026-05-29)
+
+`getWebhookUrl` 포트 하드코딩 제거 구현(`codebase/frontend/src/lib/utils/webhook-url.ts`) 후속으로, WH-EP-02 에 프론트엔드 base 결정 우선순위(`NEXT_PUBLIC_WEBHOOK_BASE_URL` → `NEXT_PUBLIC_API_URL` 의 `/api` 제거 → `window.location.origin`)를 명문화했다. webhook 엔드포인트는 백엔드가 서빙하므로 base 는 백엔드 origin 이다.
+
+동시에 consistency cross_spec(10건) 정합화 — 코드를 ground truth 로 삼아 본 spec 을 webhook 도메인 SoT 로 확정하고 [Spec API 규약 §11](./2-api-convention.md#11-webhook-수신-엔드포인트) · [data-flow 트리거](../data-flow/10-triggers.md) 의 drift 를 정정했다: ① 응답은 전역 `TransformInterceptor` 로 `{data:...}` 래핑(§3.1) ② rate limit 은 60 이 아니라 글로벌 throttler **100 req/min**(§6·§8·WH-SC-05) ③ POST 전용(GET/PUT·`?wait` 동기모드 미지원) ④ URL 정본 `/api/hooks/:endpointPath`(`/api/webhooks`·workspaceSlug 세그먼트는 코드에 없음).
 
 ### 외부 인터랙션 채널을 별도 spec 파일로 분리 (2026-05-21)
 

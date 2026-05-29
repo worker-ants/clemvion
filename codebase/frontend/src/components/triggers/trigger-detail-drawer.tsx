@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { getWebhookUrl } from "@/lib/utils/webhook-url";
 
 /** Spec Chat Channel §4.1 + §5.4.2 — config.chatChannel (응답 sanitize 후 형태). */
 interface ChatChannelConfigView {
@@ -163,13 +164,6 @@ export function TriggerDetailDrawer({ triggerId, open, onClose }: TriggerDetailD
       )}
     </SlideDrawer>
   );
-}
-
-function getWebhookUrl(endpointPath: string) {
-  const base = typeof window !== "undefined"
-    ? window.location.origin.replace(/:\d+$/, ":3011")
-    : "";
-  return `${base}/api/hooks/${endpointPath}`;
 }
 
 function OverviewCard({

@@ -22,7 +22,7 @@ code: []
 │                                                         │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │ ● order-webhook          Webhook    Active          │ │
-│  │   → Order Processing     POST /hooks/order  📋  ⋮  │ │
+│  │   → Order Processing  POST /api/hooks/order 📋 ⋮  │ │
 │  ├─────────────────────────────────────────────────────┤ │
 │  │ ● daily-report  [Schedule] Schedule   Active          │ │
 │  │   → Daily Report Gen     0 9 * * *  Next: 09:00 ⋮  │ │
@@ -111,10 +111,10 @@ code: []
 ### 2.4 Webhook URL 형식
 
 ```
-{base_url}/hooks/{endpoint_path}
+{base_url}/api/hooks/{endpoint_path}
 ```
 
-- `base_url`: SaaS의 경우 서비스 도메인, 셀프 호스팅의 경우 설정된 도메인
+- `base_url`: SaaS의 경우 서비스 도메인, 셀프 호스팅의 경우 설정된 도메인. 프론트엔드는 `NEXT_PUBLIC_WEBHOOK_BASE_URL`(명시 override) → `NEXT_PUBLIC_API_URL`에서 후행 `/api` 제거 → `window.location.origin` 순으로 base 를 결정한다 (webhook 엔드포인트는 백엔드가 서빙하므로 base 는 백엔드 origin). 구현: `codebase/frontend/src/lib/utils/webhook-url.ts`. 정본 형식은 [Spec Webhook WH-EP-02](../5-system/12-webhook.md#31-webhook-엔드포인트).
 - `endpoint_path`: Trigger.endpoint_path 값
 
 ---
