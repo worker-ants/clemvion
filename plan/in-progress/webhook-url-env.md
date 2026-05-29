@@ -20,7 +20,7 @@ webhook 엔드포인트는 백엔드(HooksController)가 서빙하므로, 프론
 - [x] `spec/5-system/12-webhook.md` WH-EP-02 에 프론트 base 결정 규약 명문화 (NEXT_PUBLIC_WEBHOOK_BASE_URL → NEXT_PUBLIC_API_URL `/api` 제거 → window.location.origin). 적용 명세: `plan/complete/spec-draft-webhook-consistency.md`.
 - [x] (consistency cross_spec 10건) `spec/5-system/2-api-convention.md §11`(전면 위임+정정) / `spec/data-flow/{10-triggers,0-overview}.md` 의 webhook URL·응답 shape·rate-limit·메서드·HMAC·workspaceSlug drift 를 12-webhook SoT 기준 정합화.
 - [x] (consistency naming) `spec/2-navigation/2-trigger-list.md §2.4` `{base_url}/hooks/` → `{base_url}/api/hooks/` 정정.
-- [ ] **사용자 확인 1건 (미해결)**: webhook rate limit — WH-SC-05 권장목표 60 vs 코드 현행 100(글로벌 throttler). 현재 spec 은 코드값 **100** 으로 통일. 60 으로 강제할지 결정 필요.
+- [x] webhook rate limit 결정 — 사용자 확인: 코드 현행값 **100 req/min**(글로벌 throttler default) 유지. spec 이미 100 으로 통일됨 (추가 변경 없음).
 
 > consistency-check --spec 결과(review/consistency/2026/05/29/09_24_14): cross_spec 클린. summary 의 BLOCK:YES 는 적용 전 draft·미머지 코드 기준 stale read (C-1~4 이미 반영·C-6 잔존 0건·C-7 코드에 실재) — 수동 재검증으로 BLOCK 사유 없음 확인. 단 rate-limit(C-5) 만 실 사용자 결정 잔여.
 
