@@ -34,7 +34,7 @@ interface ChatChannelConfigView {
   hasBotToken?: boolean;
   botIdentity?: { botId?: number; username?: string };
   uiMapping?: {
-    formMode?: "multi_step";
+    formMode?: "multi_step" | "native_modal" | "auto";
     /** Spec R-CC-11 — text/photo/auto, default auto. legacy text_only 는 backend normalize. */
     visualNode?: "text" | "photo" | "auto";
     buttonLayout?: "auto" | "vertical" | "horizontal";
@@ -1102,6 +1102,12 @@ function ChatChannelCard({
     return t("triggers.chatChannel.visualNodeAuto");
   }
 
+  function formModeLabel(v?: string): string {
+    if (v === "native_modal") return t("triggers.chatChannel.formModeNativeModal");
+    if (v === "auto") return t("triggers.chatChannel.formModeAuto");
+    return t("triggers.chatChannel.formModeMultiStep");
+  }
+
   async function handleSave(): Promise<void> {
     setSaving(true);
     try {
@@ -1333,7 +1339,7 @@ function ChatChannelCard({
                 <dt className="text-[hsl(var(--muted-foreground))]">
                   {t("triggers.chatChannel.uiMappingFormMode")}
                 </dt>
-                <dd>{chatChannel?.uiMapping?.formMode ?? "multi_step"}</dd>
+                <dd>{formModeLabel(chatChannel?.uiMapping?.formMode)}</dd>
                 <dt className="text-[hsl(var(--muted-foreground))]">
                   {t("triggers.chatChannel.uiMappingVisualNode")}
                 </dt>

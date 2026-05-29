@@ -290,7 +290,7 @@ export default function TriggersPage() {
         const chatChannel: Record<string, unknown> = {
           provider: formChatChannelProvider,
           botToken: formChatChannelBotToken.trim(),
-          uiMapping: { formMode: "multi_step", visualNode: "auto", buttonLayout: "auto" },
+          uiMapping: { formMode: "auto", visualNode: "auto", buttonLayout: "auto" },
         };
         if (formChatChannelProvider !== "telegram") {
           chatChannel.inboundSigningPlaintext =

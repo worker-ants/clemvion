@@ -10,8 +10,10 @@ import { classifyExecutionFailure } from '../../shared/execution-failure-classif
 import {
   resolveLanguageHint,
   applyPlaceholders,
+  resolveFormOpenLabel,
   type LanguageLocale,
 } from '../../shared/language-hint-defaults';
+import { decideFormMode, extractFormFields } from '../../shared/form-mode';
 
 /**
  * Discord renderer (pure, side-effect free).
@@ -246,6 +248,33 @@ function renderWaitingForInput(
     return renderButtons(event, config);
   }
   if (interactionType === 'form') {
+    // §4.1 native modal 게이팅 — Discord MODAL 은 TEXT_INPUT only (text 계열만 수용,
+    // providers/discord §5.3). select/checkbox 등 비-text 필드가 있으면 다단계로 fallback.
+    const fields = extractFormFields(event.context?.formConfig);
+    const mode = decideFormMode({
+      formMode: config.uiMapping?.formMode,
+      supportsNativeForm: true,
+      fields,
+      isFieldModalCompatible: (f) =>
+        ['text', 'textarea', 'email', 'number', 'date', 'phone'].includes(
+          f.type,
+        ),
+    });
+    if (mode === 'native_modal') {
+      return [
+        {
+          conversationKey: '',
+          body: {
+            kind: 'form_modal',
+            openLabel: resolveFormOpenLabel(
+              config.languageHints,
+              config.languageLocale as LanguageLocale | undefined,
+            ),
+            formConfig: event.context?.formConfig,
+          },
+        },
+      ];
+    }
     return renderFormFirstField(event);
   }
   return [];

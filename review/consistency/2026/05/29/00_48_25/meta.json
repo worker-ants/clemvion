@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-05-29T00:48:25.051434",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/4-nodes/7-trigger/providers/)",
+  "target_path": "spec/4-nodes/7-trigger/providers/",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

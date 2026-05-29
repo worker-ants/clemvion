@@ -98,6 +98,30 @@ export function resolveLanguageHint(
 }
 
 /**
+ * §4.1 native modal `form_modal` 버튼 라벨 default (KO/EN).
+ * CCH-ERR-* 와 달리 봇 메시지 라벨 키이며 modal 격상과 함께 도입 (2026-05-28).
+ * SoT: spec/5-system/15-chat-channel.md §4.1.1 / spec/conventions/chat-channel-adapter.md §2.2.
+ */
+export const FORM_OPEN_LABEL_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '양식 작성하기',
+  en: 'Open form',
+};
+
+/**
+ * `form_modal` 버튼 라벨 3-level lookup — (1) languageHints.formOpenLabel override →
+ * (2) languageLocale default → (3) ko fallback.
+ */
+export function resolveFormOpenLabel(
+  languageHints: Record<string, string> | undefined,
+  languageLocale: LanguageLocale | undefined,
+): string {
+  const override = languageHints?.formOpenLabel;
+  if (typeof override === 'string' && override.length > 0) return override;
+  if (languageLocale === 'en') return FORM_OPEN_LABEL_DEFAULTS.en;
+  return FORM_OPEN_LABEL_DEFAULTS.ko;
+}
+
+/**
  * `{statusCode}` placeholder 치환 — 화이트리스트 1종 (CCH-ERR-03).
  * 다른 placeholder (`{nodeId}` 등) 는 literal 유지 — DTO validator 가 등록 시점에 reject 하지만,
  * runtime 도 안전 (raw 노출되어도 internal label 만, 사용자에게 의미 불명).

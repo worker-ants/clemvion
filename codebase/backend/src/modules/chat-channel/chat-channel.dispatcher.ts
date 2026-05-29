@@ -22,6 +22,7 @@ import {
   EiaAiMessageEvent,
   EiaEvent,
 } from './types';
+import { extractFormFields } from './shared/form-mode';
 
 const SUBSCRIBED_EVENTS = new Set<string>([
   'execution.waiting_for_input',
@@ -210,30 +211,6 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       `toChatChannelEvent ok: ${channelEvent.type} (executionId=${event.executionId})`,
     );
 
-    // Phase 4 (PR-C) — waiting_for_input(form) 도착 시 formState 초기화.
-    if (
-      channelEvent.type === 'execution.waiting_for_input' &&
-      channelEvent.node.interactionType === 'form'
-    ) {
-      const state = await this.conversationService.lookup(
-        trigger.id,
-        conversationKey,
-      );
-      if (state) {
-        state.formState = {
-          nodeId: channelEvent.node.id,
-          currentFieldIdx: 0,
-          partialFormData: {},
-        };
-        state.lastUpdateAt = new Date().toISOString();
-        await this.conversationService.upsert(
-          trigger.id,
-          conversationKey,
-          state,
-        );
-      }
-    }
-
     let messages: ChannelMessage[];
     try {
       messages = await adapter.renderNode(channelEvent, chatChannelCfg);
@@ -243,6 +220,49 @@ export class ChatChannelDispatcher implements OnModuleInit, OnModuleDestroy {
       );
       await this.markDegraded(trigger.id, err);
       return;
+    }
+
+    // §4.1 native modal 게이팅 — waiting_for_input(form) 도착 시 renderer 가 form_modal
+    // (native modal 버튼) 을 냈으면 pendingFormModal 을 persist (다단계 formState 미사용),
+    // form_prompt (다단계) 를 냈으면 기존 formState 초기화. renderNode 결과를 보고 분기해야
+    // mode 결정 (provider 별 modal 수용 타입 판정) 을 renderer 와 dispatcher 가 이중으로
+    // 하지 않는다. SoT: spec/conventions/chat-channel-adapter.md §4.1.
+    if (
+      channelEvent.type === 'execution.waiting_for_input' &&
+      channelEvent.node.interactionType === 'form'
+    ) {
+      const state = await this.conversationService.lookup(
+        trigger.id,
+        conversationKey,
+      );
+      if (state) {
+        const modalMsg = messages.find((m) => m.body.kind === 'form_modal');
+        if (modalMsg) {
+          state.pendingFormModal = {
+            nodeId: channelEvent.node.id,
+            fields: extractFormFields(
+              (modalMsg.body as { formConfig: unknown }).formConfig,
+            ),
+          };
+          state.formState = undefined;
+        } else {
+          // Clear any stale pendingFormModal to maintain mutual exclusivity with formState.
+          // Without this, a previous pendingFormModal could persist alongside formState,
+          // causing hooks.service form_submission to use the wrong nodeId.
+          state.pendingFormModal = undefined;
+          state.formState = {
+            nodeId: channelEvent.node.id,
+            currentFieldIdx: 0,
+            partialFormData: {},
+          };
+        }
+        state.lastUpdateAt = new Date().toISOString();
+        await this.conversationService.upsert(
+          trigger.id,
+          conversationKey,
+          state,
+        );
+      }
     }
 
     // **결정적 진단** (2026-05-25): renderNode 결과 messages 의 개수와 종류 log.

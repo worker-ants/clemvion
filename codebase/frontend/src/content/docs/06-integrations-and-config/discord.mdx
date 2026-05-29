@@ -86,7 +86,21 @@ endpoint URL 복사는 트리거 목록 화면의 📋 버튼으로 가능해요
 
 ### 5.3 Form
 
-- 현재는 다단계 텍스트 시퀀스로 진행돼요 (필드별 한 줄 질문 + button/modal 응답)
+Form 노드는 **native modal** 방식으로 동작해요 — "양식 작성하기" 버튼 클릭 시 Discord Modal (Interaction type 9) 이 열리고 사용자가 모든 필드를 한 번에 입력해요.
+
+#### Form 모드 (`formMode`)
+
+| 값 | 동작 |
+|---|---|
+| `auto` (기본) | native modal 사용 가능하면 자동 선택, 불가 시 다단계로 fallback |
+| `native_modal` | 항상 native modal (Discord modal) 강제 |
+| `multi_step` | 다단계 텍스트 시퀀스 강제 (필드별 질문 + button/modal 응답) |
+
+#### Discord modal 제한 사항
+
+- **최대 5개 필드** — Discord modal 은 TEXT_INPUT 컴포넌트를 최대 5개까지 허용해요. 필드가 6개 이상이면 자동으로 `multi_step` 으로 fallback 돼요.
+- **TEXT_INPUT 계열만** — `text`, `email`, `textarea`, `number`, `phone` 필드만 modal 에 포함돼요. `select`, `radio`, `checkbox`, `date`, `file` 필드가 있으면 `multi_step` 으로 fallback 돼요.
+- **검증 실패 재시도** — Discord modal 은 유효성 검사 오류 시 modal 을 재전송할 수 없어요. 대신 오류 안내 메시지와 함께 "양식 작성하기" 버튼이 다시 발송돼 재시도할 수 있어요.
 
 ### 5.4 AI Agent render 도구 / Template
 

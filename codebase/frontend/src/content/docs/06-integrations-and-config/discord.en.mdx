@@ -86,7 +86,21 @@ Copy the endpoint URL using the 📋 button on the trigger list. Slash command a
 
 ### 5.3 Forms
 
-- Currently runs as a multi-step text sequence (one question per field, answered via buttons/modal)
+Form nodes use **native modal** by default — clicking "Fill out form" opens a Discord Modal (Interaction type 9) where users fill in all fields at once.
+
+#### Form mode (`formMode`)
+
+| Value | Behavior |
+|---|---|
+| `auto` (default) | Uses native modal when possible, falls back to multi-step |
+| `native_modal` | Always forces the Discord modal |
+| `multi_step` | Always uses multi-step text sequence (one question per field, answered via buttons/modal) |
+
+#### Discord modal limits
+
+- **Maximum 5 fields** — Discord modals support up to 5 TEXT_INPUT components. Forms with 6 or more fields automatically fall back to `multi_step`.
+- **TEXT_INPUT-family only** — Only `text`, `email`, `textarea`, `number`, `phone` fields can be shown in the modal. `select`, `radio`, `checkbox`, `date`, or `file` fields cause automatic `multi_step` fallback.
+- **Validation failure retry** — Discord does not allow re-sending a modal after an interaction response. Instead, an error message and a fresh "Fill out form" button are sent so the user can retry.
 
 ### 5.4 AI Agent render tools / Template
 

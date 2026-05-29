@@ -35,6 +35,8 @@ import { SecretResolverService } from '../../../secret-store/secret-resolver.ser
 @Injectable()
 export class TelegramAdapter implements ChatChannelAdapter {
   readonly provider = 'telegram';
+  /** Telegram 은 native form modal 미지원 (Mini App 격상은 별도 작업) — 항상 §4.2 다단계. */
+  readonly supportsNativeForm = false;
   private readonly logger = new Logger(TelegramAdapter.name);
 
   constructor(
@@ -230,6 +232,12 @@ export class TelegramAdapter implements ChatChannelAdapter {
           sentAt: new Date(res.result.date * 1000).toISOString(),
         };
       }
+      case 'form_modal':
+        // Telegram 은 supportsNativeForm=false — renderer 가 form_modal 을 내지 않으므로 도달 불가.
+        // exhaustiveness 가드 (Convention §4.1: native modal 미지원 provider 는 §4.2 다단계).
+        throw new Error(
+          'Telegram 은 native form modal 미지원 (supportsNativeForm=false)',
+        );
     }
   }
 

@@ -182,5 +182,94 @@ describe('DiscordAdapter', () => {
         ),
       ).rejects.toThrow(/conversationKey/);
     });
+
+    it('form_modal → __open_form__ 버튼 components', async () => {
+      const client = new DiscordClient();
+      const spy = jest
+        .spyOn(client, 'postChannelMessage')
+        .mockResolvedValue({ id: 'M3', channel_id: 'C1' });
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      await adapter.sendMessage(
+        {
+          conversationKey: 'C1',
+          body: {
+            kind: 'form_modal',
+            openLabel: '양식 작성하기',
+            formConfig: {},
+          },
+        },
+        DISCORD_CONFIG,
+      );
+      const call = spy.mock.calls[0][2];
+      const row = (call.components as Array<Record<string, unknown>>)[0];
+      const btn = (row.components as Array<Record<string, unknown>>)[0];
+      expect(btn.custom_id).toBe('__open_form__');
+      expect(btn.label).toBe('양식 작성하기');
+    });
+  });
+
+  describe('§4.1 openFormModal', () => {
+    it('type:9 MODAL httpResponse — TEXT_INPUT custom_id = field name (API 미호출)', async () => {
+      const client = new DiscordClient();
+      const spy = jest.spyOn(client, 'postChannelMessage');
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const result = await adapter.openFormModal({
+        config: DISCORD_CONFIG,
+        openContext: { interactionId: 'I1', interactionToken: 'tok' },
+        fields: [
+          { name: 'name', label: 'Name', type: 'text', required: true },
+          { name: 'note', label: 'Note', type: 'textarea' },
+        ],
+        conversationKey: 'C1',
+        nodeId: 'n1',
+      });
+      expect(spy).not.toHaveBeenCalled();
+      const modal = result.httpResponse as {
+        type: number;
+        data: {
+          custom_id: string;
+          components: Array<{
+            components: Array<{ custom_id: string; style: number }>;
+          }>;
+        };
+      };
+      expect(modal.type).toBe(9);
+      expect(modal.data.custom_id).toBe('clemvion_form');
+      const ids = modal.data.components.map((r) => r.components[0].custom_id);
+      expect(ids).toEqual(['name', 'note']);
+      // textarea → style 2 (paragraph).
+      expect(modal.data.components[1].components[0].style).toBe(2);
+    });
+  });
+
+  describe('§4.1 buildFormSubmissionResponse', () => {
+    it('성공 → type 4 ephemeral ack', () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const r = adapter.buildFormSubmissionResponse({ config: DISCORD_CONFIG });
+      expect(r.httpResponse).toMatchObject({
+        type: 4,
+        data: { flags: 64 },
+      });
+    });
+
+    it('validationError → type 4 ephemeral 경고', () => {
+      const adapter = new DiscordAdapter(
+        new DiscordClient(),
+        makeSecretsMock(),
+      );
+      const r = adapter.buildFormSubmissionResponse({
+        config: DISCORD_CONFIG,
+        validationError: { message: '오류' },
+      });
+      const resp = r.httpResponse as {
+        type: number;
+        data: { content: string };
+      };
+      expect(resp.type).toBe(4);
+      expect(resp.data.content).toContain('오류');
+    });
   });
 });
