@@ -11,7 +11,7 @@
 워크플로우 실행을 시작하는 3가지 진입점을 표준화한다:
 
 - **Manual**: 사용자가 UI 의 Run 버튼으로 즉시 실행
-- **Webhook**: 외부 HTTP 호출이 `/api/webhooks/:path` 로 들어옴
+- **Webhook**: 외부 HTTP 호출이 `/api/hooks/:endpointPath` 로 들어옴
 - **Schedule**: BullMQ repeatable job 으로 cron 표현식에 따라 발사
 
 모두 최종적으로 `ExecutionEngineService.execute(workflowId, inputData, triggerId)` 로 수렴해
@@ -22,7 +22,7 @@
 - `codebase/backend/src/modules/triggers/triggers.service.ts` — Trigger CRUD
 - `codebase/backend/src/modules/schedules/schedules.service.ts` — Schedule CRUD
 - `codebase/backend/src/modules/schedules/schedule-runner.service.ts` — `SCHEDULE_QUEUE = 'schedule-execution'` producer + processor
-- `codebase/backend/src/modules/hooks/hooks.controller.ts` — `/api/webhooks/:path` 진입
+- `codebase/backend/src/modules/hooks/hooks.controller.ts` — `/api/hooks/:endpointPath` 진입
 
 ---
 
@@ -51,7 +51,7 @@ sequenceDiagram
   participant PG as Postgres
   participant Eng as ExecutionEngineService
 
-  Ext->>Hk: POST /api/webhooks/:path (headers, body)
+  Ext->>Hk: POST /api/hooks/:endpointPath (headers, body)
   Hk->>PG: SELECT trigger WHERE endpoint_path=:path AND type='webhook' AND is_active
   alt not found
     Hk-->>Ext: 404
@@ -174,7 +174,14 @@ Webhook·Manual 과 통일된 "실행 시작점" 모델을 갖기 위해서다. 
 모든 진입 경로를 추적할 수 있고, 실행 이력 목록에서 `trigger.type` 만 보면 진입 경로를 파악할 수 있다.
 Schedule 의 cron 메타데이터는 별도 row 에 두어 schedule 화면이 직접 다룬다.
 
+### webhook URL 표기 정정 (2026-05-29)
+
+본 문서는 `/api/webhooks/:path` · `/api/webhooks/:workspaceSlug/:path` 로 표기했으나, 실제 코드(`HooksController`)는 `/api/hooks/:endpointPath` 단일 라우트다 (`/api/webhooks`·workspaceSlug 세그먼트 미존재). webhook 도메인 SoT([Spec Webhook WH-EP-02](../5-system/12-webhook.md)) 기준으로 정합화했다 (consistency cross_spec).
+
 ### Webhook `endpoint_path` 의 UNIQUE 범위
 
-`(workspace_id, endpoint_path)` 가 UNIQUE 이므로 다른 워크스페이스가 같은 경로를 가질 수 있다.
-공개 URL 은 `/api/webhooks/:workspaceSlug/:path` 형태로 라우팅되어 충돌이 없다 (`spec/5-system/12-webhook.md`).
+`(workspace_id, endpoint_path)` 가 UNIQUE 이므로 워크스페이스 스코프 안에서는 경로가 유일하다.
+다만 실제 라우팅 키는 `endpoint_path` 단독이다 — `HooksController` 가 workspace 필터 없이
+`findOne({ endpointPath, type: 'webhook' })` 로 조회한다 (외부 호출이라 workspace 컨텍스트 없음).
+충돌 회피는 `endpoint_path` 를 UUID 로 자동 발급(WH-MG-02)해 사실상 전역 고유로 만드는 방식에 의존한다.
+공개 URL 형식은 `{base_url}/api/hooks/:endpointPath` 단일 형태다 (`spec/5-system/12-webhook.md` WH-EP-02).
