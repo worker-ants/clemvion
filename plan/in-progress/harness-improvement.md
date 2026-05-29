@@ -46,20 +46,28 @@ owner: developer
   대신 `.claude/README.md` agent 레지스트리에 3종의 소속 흐름을 명시해 navigability
   만 보강(테마6 에 포함).
 
-## 별 PR 로 분리 — 고 churn / 선행조건
+## 잔여 항목 추가 진행 (사용자 요청 — 본 PR 에 포함)
 
-- [ ] **테마1 full JSON-SSOT 추출** — 매트릭스를 `.claude/config/doc-sync-matrix.json`
-  으로 추출하고 PROJECT.md 표를 derived 뷰로. 제안 자신이 hedge 한("둘 다 유지",
-  "JSON 은 사람이 읽기 불편") 유일한 고-churn 항목. 잘못 추출하면 *고치려는 그 drift*
-  를 새로 만든다 → 격리 리뷰 PR 권고. 본 PR 의 matrix-reference 가드가 그 전까지
-  dangling 참조를 빌드에서 차단.
-- [ ] **테마4-② orchestrator → native Workflow tool 부분 이전** — 2,116 LOC 상태기계.
-  large/risky. **선행조건이 본 PR 의 `#4 테스트 하네스로 충족**됐으나, 추가 게이트:
-  Workflow 가 agent 를 main Claude 의 Agent tool 경로로만 invoke 하는지(빌링 단일
-  경로 정책 보존) 확인 후에만 착수. orchestrator 상태 전이 테스트를 먼저 보강 권고.
+- [x] **테마1 full JSON-SSOT 추출** — `.claude/config/doc-sync-matrix.json` 19행 SSOT.
+  매트릭스가 substantially semantic 이라 spine 만 추출 + 의미 행 `match:"semantic"`
+  무손실 표기. PROJECT.md 표는 사람용 뷰로 유지, test 가 행수 1:1 + 참조 실존 binding.
+  user-guide-sync-reviewer 를 JSON-first 로 갱신. (commit `8464703`)
+- [x] **테마4-② 선행 groundwork** (live rewrite 는 분리 유지) —
+  - orchestrator 상태기계 테스트 `test_orchestrator_state.py`(subprocess CLI 구동,
+    13 케이스): bucket 전이 / rate-limit episode·reset-hint / routing 선별·forced /
+    fallback / resume. 마이그레이션을 *대조할* 행위 스펙.
+  - 설계 노트 `.claude/docs/orchestrator-workflow-migration.md`: 빌링 단일경로 gating
+    질문 + 무손실/손실 매핑 + consistency-check 파일럿 경로 + 본 PR 비목표 명시.
+
+## 여전히 별 PR — live rewrite (안전상 본 PR 제외)
+
+- [ ] **테마4-② 실제 Workflow 이전 실행** — 2,116 LOC + 3 SKILL/command 교체. CI e2e
+  검증 불가 + 빌링 정책 critical. **차단 게이트: Workflow 의 agent invoke 가 main
+  Claude 의 Agent tool 단일경로를 보존하는지 확인 후**에만. 설계·테스트 groundwork 는
+  본 PR 에서 완료 — 실행은 consistency-check 파일럿부터 격리 PR 로. (설계 노트 참고)
 
 ## 검증
 
-- `python3 -m unittest discover -s .claude/tests -p 'test_*.py'` — 27 tests OK.
+- `python3 -m unittest discover -s .claude/tests -p 'test_*.py'` — 45 tests OK.
 - 변경 set 전부 `.claude/**`·`.github/**`·`*.md`·`skills-lock.json` → e2e 면제
   화이트리스트 부분집합 (PROJECT.md §e2e 면제 화이트리스트).

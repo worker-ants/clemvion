@@ -10,6 +10,7 @@ drift across copies). Each doc is the **SSOT** for its topic.
 | [`subagent-call-contract.md`](subagent-call-contract.md) | How main Claude invokes sub-agents: `prompt_file`/`output_file`/`session_dir` args, the STATUS return line, retry/rate-limit flow, risk grades | Anyone writing or invoking a `.claude/agents/<name>.md`; every reviewer/checker/analyzer cites it. |
 | [`plan-lifecycle.md`](plan-lifecycle.md) | `plan/` lifecycle (in-progress ↔ complete), frontmatter schema, move rules, spec-coverage standing-audit placement | `developer` and `project-planner` when creating/moving plans. |
 | [`test-wrapper.md`](test-wrapper.md) | The `.claude/tools/run-test.sh` wrapper contract (one-line pass / failure summary), stage definitions | `developer` during TEST WORKFLOW. |
+| [`orchestrator-workflow-migration.md`](orchestrator-workflow-migration.md) | **Design only** (not executed): plan + gating billing-path question for migrating the bespoke orchestrators to the native `Workflow` tool | Whoever picks up 테마4-② later. |
 
 ## Reading order for a newcomer
 
