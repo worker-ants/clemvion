@@ -80,6 +80,15 @@ export class SendEmailHandler
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
+    // parallel-p2-followups §1 (2026-05-30) — node-cancellation 사전 체크.
+    // SMTP 진행 중 abort 의 nodemailer 처리는 transporter.close() 가 best-effort
+    // — 본 PR 은 사전 체크 + spec 명시.
+    if (context.abortSignal?.aborted) {
+      const err = new Error('Operation was aborted before email send');
+      err.name = 'AbortError';
+      throw err;
+    }
+
     const integrationId = config.integrationId as string;
     const to = normalizeRecipients(config.to);
     const cc = normalizeRecipients(config.cc);

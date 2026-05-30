@@ -99,6 +99,17 @@ export class DatabaseQueryHandler
     config: Record<string, unknown>,
     context: ExecutionContext,
   ): Promise<NodeHandlerOutput> {
+    // parallel-p2-followups §1 (2026-05-30) — node-cancellation 컨벤션.
+    // 노드 진입 직전 이미 abort 된 경우 (cancel-others-on-fail 첫 분기 실패
+    // 후 dispatch 된 케이스) 즉시 throw. 진행 중 abort 의 처리는 driver 별
+    // cancel 메커니즘 (best-effort) — 후속 PR 에서 PostgreSQL pg.client.cancel
+    // 등 추가. 본 PR 은 사전 체크 + best-effort 명시.
+    if (context.abortSignal?.aborted) {
+      const err = new Error('Operation was aborted before database query');
+      err.name = 'AbortError';
+      throw err;
+    }
+
     const integrationId = config.integrationId as string;
     const query = config.query as string;
 

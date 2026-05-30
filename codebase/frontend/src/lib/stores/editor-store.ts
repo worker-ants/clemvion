@@ -28,6 +28,20 @@ interface EditorState {
   // version history panel) can refetch.
   saveCount: number;
 
+  // parallel-p2 결정 D + E + I (2026-05-30) — cross-node graphWarningRules
+  // 평가 결과. graph 변경 시점에 debounced fetch, 결과로 저장 버튼 disable
+  // (hasError) + 노드 배지 표시 (후속). SoT: spec/conventions/cross-node-warning-rules.md.
+  graphWarnings: {
+    results: Array<{
+      ruleId: string;
+      severity: "error" | "warning";
+      nodeId: string;
+      message: string;
+    }>;
+    hasError: boolean;
+    hasWarning: boolean;
+  };
+
   // Undo/Redo
   undoStack: Array<{ nodes: Node[]; edges: Edge[] }>;
   redoStack: Array<{ nodes: Node[]; edges: Edge[] }>;
@@ -59,6 +73,12 @@ interface EditorState {
   setSaving: (saving: boolean) => void;
   setVersionHistoryOpen: (open: boolean) => void;
   saveWorkflow: () => Promise<boolean>;
+  /**
+   * graph-warnings endpoint 호출 후 결과를 store 에 저장. graph 변경 시점에
+   * debounced 호출 권고 (워크플로 에디터의 useEffect 에서). 본 action 의
+   * 호출 빈도는 caller 책임.
+   */
+  fetchGraphWarnings: () => Promise<void>;
   pushUndo: () => void;
   undo: () => void;
   redo: () => void;
@@ -402,6 +422,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   redoStack: [],
   versionHistoryOpen: false,
   saveCount: 0,
+  graphWarnings: { results: [], hasError: false, hasWarning: false },
 
   setWorkflow: (id, name, nodes, edges) => {
     // Re-derive containerId from the loaded edges so the in-memory state
@@ -752,6 +773,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return false;
     } finally {
       set({ isSaving: false });
+    }
+  },
+
+  fetchGraphWarnings: async () => {
+    const { workflowId } = get();
+    if (!workflowId) return;
+    try {
+      const response = await workflowsApi.graphWarnings(workflowId);
+      const body = (response.data ?? response) as {
+        results: Array<{
+          ruleId: string;
+          severity: "error" | "warning";
+          nodeId: string;
+          message: string;
+        }>;
+        hasError: boolean;
+        hasWarning: boolean;
+      };
+      set({ graphWarnings: body });
+    } catch (error) {
+      // 평가 실패는 경고만 — 저장 차단까지 가지 않음 (backend 단의 reject 가
+      // 안전망). 새 그래프 상태에 대한 평가가 실패한 경우 기존 결과 유지.
+      console.warn("fetchGraphWarnings failed", error);
     }
   },
 
