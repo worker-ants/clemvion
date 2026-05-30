@@ -74,7 +74,9 @@ describe('WebsocketGateway', () => {
               .fn()
               .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
             // W3: publish 실패 시 zombie row 방지 — 보상 메서드.
-            markSpawnedRowFailedOnPublishError: jest.fn().mockResolvedValue(undefined),
+            markSpawnedRowFailedOnPublishError: jest
+              .fn()
+              .mockResolvedValue(undefined),
           },
         },
         {

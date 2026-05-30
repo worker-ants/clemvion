@@ -8035,6 +8035,7 @@ describe('ExecutionEngineService', () => {
       processReturn: () => unknown;
       spawnedStatus?: NodeExecutionStatus;
       retryState?: Record<string, unknown> | undefined;
+      config?: Record<string, unknown>;
     }): {
       handler: NodeHandler & { processMultiTurnMessage: jest.Mock };
       savedSpawn: { status?: NodeExecutionStatus };
@@ -8045,7 +8046,11 @@ describe('ExecutionEngineService', () => {
         type: 'ai_agent',
         category: NodeCategory.AI,
         label: 'RetryAgent',
-        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        config: opts.config ?? {
+          mode: 'multi_turn',
+          llmConfigId: 'cfg-1',
+          maxTurns: 20,
+        },
         isDisabled: false,
       };
       const spawnedRow = {
@@ -8206,6 +8211,69 @@ describe('ExecutionEngineService', () => {
             NodeExecutionStatus.FAILED,
       );
       expect(savedFailed).toBe(true);
+    });
+
+    // #11 (followup) — re-entry 시 node.config 의 `{{ expression }}` 이
+    // best-effort 로 평가돼 operational 필드(여기선 llmConfigId)가 evaluated
+    // 값으로 resumeState 에 들어간다. `$execution.workflowId` 는 rehydrated
+    // context 에서 해소 가능한 대표 토큰.
+    it('resolves config expressions on re-entry (operational fields use evaluated values)', async () => {
+      const { handler } = installReentry({
+        processReturn: terminalSuccess,
+        config: {
+          mode: 'multi_turn',
+          llmConfigId: '{{ $execution.workflowId }}',
+          maxTurns: 20,
+        },
+      });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
+      const state = handler.processMultiTurnMessage.mock.calls[0][1] as Record<
+        string,
+        unknown
+      >;
+      // operational llmConfigId = evaluated value.
+      expect(state.llmConfigId).toBe(workflowId);
+      // rawConfig echo 는 spec config-echo 정책상 raw template 을 보존.
+      expect((state.rawConfig as Record<string, unknown>).llmConfigId).toBe(
+        '{{ $execution.workflowId }}',
+      );
+    });
+
+    // W9 — replay turn 처리 중 외부 cancel 이 도달하면 소실되지 않고 Execution
+    // 이 CANCELLED 로 마감된다 (cancel-only 핸들러 + race).
+    it('honors external cancel arriving during the replay turn → Execution CANCELLED (W9)', async () => {
+      let releaseTurn: (() => void) | undefined;
+      const turnGate = new Promise<void>((r) => {
+        releaseTurn = r;
+      });
+      installReentry({
+        // replay turn 이 gate 가 풀릴 때까지 hang — 그 사이 cancel 이 도달.
+        processReturn: () => turnGate.then(() => terminalSuccess()),
+      });
+
+      const p = service.applyRetryLastTurn(EXEC, SPAWNED);
+      // re-entry 가 cancel 핸들러 등록 + replay turn 시작까지 진행하도록 flush.
+      await flushPromises();
+      // 외부 cancel 도달 (worker applyCancellation 경유와 동형).
+      service.applyCancellation(EXEC);
+      await p;
+      await flushPromises();
+
+      const cancelled =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.cancelled',
+        );
+      expect(cancelled.length).toBe(1);
+      // 성공/실패 종결 이벤트는 발사되지 않는다.
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(0);
+      releaseTurn?.(); // 잔여 promise 정리.
     });
   });
 

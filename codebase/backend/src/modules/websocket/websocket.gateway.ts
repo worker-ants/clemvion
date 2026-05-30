@@ -21,6 +21,7 @@ import { BackgroundRunsService } from '../executions/background-runs/background-
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { ExecutionEventType } from './websocket.service';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
+import { WsErrorCode } from './ws-error-codes';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
@@ -682,7 +683,10 @@ export class WebsocketGateway
           executionId: data.executionId,
           nodeExecutionId: data.nodeExecutionId,
           resumed: false,
-          error: { code: 'UNAUTHENTICATED', message: 'Not authenticated' },
+          error: {
+            code: WsErrorCode.UNAUTHENTICATED,
+            message: 'Not authenticated',
+          },
         },
       };
     }
@@ -704,7 +708,7 @@ export class WebsocketGateway
           nodeExecutionId: data.nodeExecutionId,
           resumed: false,
           error: {
-            code: 'NOT_FOUND',
+            code: WsErrorCode.NOT_FOUND,
             message: 'Execution not found',
           },
         },
@@ -742,7 +746,7 @@ export class WebsocketGateway
             nodeExecutionId: data.nodeExecutionId,
             resumed: false,
             error: {
-              code: 'INTERNAL_ERROR',
+              code: WsErrorCode.INTERNAL_ERROR,
               message: 'Retry could not be queued. Please try again.',
             },
           },
@@ -770,7 +774,7 @@ export class WebsocketGateway
           ? error.code
           : error instanceof InvalidExecutionStateError
             ? error.code
-            : 'INTERNAL_ERROR';
+            : WsErrorCode.INTERNAL_ERROR;
       // 보안 — RetryLastTurnError / InvalidExecutionStateError 의 message 는
       // 고정 client-safe 문자열. 그 외는 일반화한 메시지.
       const message =

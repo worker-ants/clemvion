@@ -28,23 +28,48 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
     ExecutionStatus.FAILED,
   ],
   [ExecutionStatus.COMPLETED]: [],
-  [ExecutionStatus.FAILED]: [
-    // 2026-05-30 — spec/5-system/6-websocket-protocol.md §4.2 /
-    // spec/5-system/4-execution-engine.md §1.3 (execution.retry_last_turn).
-    // AI Agent multi-turn 의 retryable error 종결로 Execution 이 FAILED 가
-    // 됐을 때, `execution.retry_last_turn` 재진입은 spawn 된 새 NodeExecution
-    // turn 을 RUNNING 으로 구동해 WS 이벤트 (node.started/completed) 를 발행해야
-    // 한다. 따라서 FAILED → RUNNING 단일 전이를 retry 재진입 전용으로 허용한다.
-    // (일반 노드 실패 경로에는 영향 없음 — applyRetryLastTurn 만 이 전이를 사용.)
-    ExecutionStatus.RUNNING,
-  ],
+  // FAILED 는 일반 경로에서 종착 상태다. 유일한 예외인 FAILED → RUNNING
+  // (execution.retry_last_turn 재진입) 은 ALLOWED_TRANSITIONS 에 넣지 않고
+  // `allowRetryReentry` opt-in 으로만 허용한다 (W5 하드닝) — 아래 canTransition 참조.
+  [ExecutionStatus.FAILED]: [],
   [ExecutionStatus.CANCELLED]: [],
 };
 
 /**
+ * 전이 허용 옵션 — 일반 ALLOWED_TRANSITIONS 표 밖의 컨텍스트 한정 전이를 명시적
+ * opt-in 으로만 허용한다.
+ */
+export interface TransitionOptions {
+  /**
+   * spec/5-system/6-websocket-protocol.md §4.2 / 4-execution-engine.md §1.3 —
+   * `execution.retry_last_turn` 재진입 전용. retryable error 로 FAILED 가 된
+   * Execution 을, spawn 된 새 NodeExecution turn 구동(WS node.started/completed
+   * 발행)을 위해 RUNNING 으로 전이시킨다. 이 전이는 retry 재진입 경로
+   * (`applyRetryLastTurn` → `finalizeAiNode`) 에서만 켜져야 하며, 일반
+   * updateExecutionStatus 호출은 FAILED Execution 을 RUNNING 으로 되돌릴 수 없다
+   * (방어적 — 실패 종결된 실행의 우발적 부활 차단).
+   */
+  allowRetryReentry?: boolean;
+}
+
+/**
  * Check whether a state transition is allowed.
  */
-export function canTransition(from: string, to: string): boolean {
+export function canTransition(
+  from: string,
+  to: string,
+  opts?: TransitionOptions,
+): boolean {
+  // retry 재진입 전용 FAILED → RUNNING — 표 밖 전이를 opt-in 으로만 허용.
+  // from/to 는 string 파라미터이므로 enum 멤버를 string 으로 비교한다
+  // (@typescript-eslint/no-unsafe-enum-comparison).
+  if (
+    opts?.allowRetryReentry &&
+    from === (ExecutionStatus.FAILED as string) &&
+    to === (ExecutionStatus.RUNNING as string)
+  ) {
+    return true;
+  }
   const allowed = ALLOWED_TRANSITIONS[from];
   if (!allowed) return false;
   return allowed.includes(to);
@@ -53,8 +78,12 @@ export function canTransition(from: string, to: string): boolean {
 /**
  * Assert that a state transition is valid, throwing if not.
  */
-export function assertTransition(from: string, to: string): void {
-  if (!canTransition(from, to)) {
+export function assertTransition(
+  from: string,
+  to: string,
+  opts?: TransitionOptions,
+): void {
+  if (!canTransition(from, to, opts)) {
     throw new Error(
       `Invalid state transition: cannot transition from "${from}" to "${to}"`,
     );
