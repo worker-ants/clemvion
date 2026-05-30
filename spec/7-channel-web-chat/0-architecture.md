@@ -1,9 +1,12 @@
 ---
 id: web-chat-architecture
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/channel-web-chat/**
+  - codebase/packages/web-chat-sdk/**
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
+  - plan/in-progress/channel-web-chat-followups.md
 ---
 
 # Spec: Channel Web Chat — 아키텍처

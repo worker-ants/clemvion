@@ -1,9 +1,11 @@
 ---
 id: web-chat-sdk
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/packages/web-chat-sdk/**
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
+  - plan/in-progress/channel-web-chat-followups.md
 ---
 
 # Spec: Channel Web Chat — SDK (스니펫 로더 + npm)

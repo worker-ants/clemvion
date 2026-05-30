@@ -1,9 +1,13 @@
 ---
 id: web-chat-security
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/common/cors/web-chat-cors.ts
+  - codebase/backend/src/modules/web-chat-cors/**
+  - codebase/channel-web-chat/src/widget/host-bridge.ts
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
+  - plan/in-progress/channel-web-chat-followups.md
 ---
 
 # Spec: Channel Web Chat — 보안 (CORS · 임베드 · 남용 방어 · 프라이버시)

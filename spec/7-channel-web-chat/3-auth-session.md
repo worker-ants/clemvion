@@ -1,9 +1,13 @@
 ---
 id: web-chat-auth-session
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/channel-web-chat/src/lib/session-store.ts
+  - codebase/channel-web-chat/src/lib/eia-client.ts
+  - codebase/channel-web-chat/src/widget/use-widget.ts
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
+  - plan/in-progress/channel-web-chat-followups.md
 ---
 
 # Spec: Channel Web Chat — 인증 / 세션 흐름

@@ -28,23 +28,22 @@ EIA(External Interaction API, `spec/5-system/14`)는 **이미 구현됨**(`codeb
 
 ## 작업 범위
 
-### 프론트 (주력)
-- [x] `codebase/channel-web-chat/` 스캐폴딩 — Next.js CSR-only(`output:'export'`, dynamic ssr:false shell). **상태기계·EIA 클라이언트·화면·conversation 렌더는 미구현(stub).**
-- [x] `codebase/packages/web-chat-sdk/` 스캐폴딩 — 공개 타입(BootConfig/ChatInstance) + boot/validate + wc:* 상수. **iframe bridge·명령 큐·EIA 호출(@workflow/sdk 재사용) 미구현.**
-- [ ] host↔iframe `wc:*` postMessage bridge + 명령 큐(boot 전 버퍼링) + loader 스니펫(IIFE).
-- [ ] EIA 클라이언트(@workflow/sdk 재사용): webhook 시작 → SSE 구독 → submit_*. per_execution 세션(spec `3-auth-session`).
-- [ ] 위젯 화면(spec `1-widget-app §2`): 런처/추천질문/패널/헤더/퀵액션/메시지/Form/presentation/입력/면책.
-- [ ] conversation 렌더 규약: `conversationThread.turns` 1차 소스, `[user-input]` strip, `live`/`injected` 마커(conversation-thread §9.4·§9.5).
-- [ ] 상태기계·종료/재시작/새로고침 복원(storage)·in-flight unread (spec `1-widget-app §3·§3.1`).
-- [ ] M2 BYO-UI headless client 노출 + 샘플(스니펫·npm).
-- [ ] 샘플 프로젝트 — 스니펫·npm 두 경로 시연.
-- [ ] conversation 렌더 규약 준수 — `conversationThread.turns` snapshot 1차 소스, `ai_message.messages[]` raw 노출 금지, `[user-input]` strip (conversation-thread §9.4·§9.5).
-- [ ] 인터랙션 전체 렌더 — text/buttons/추천질문/AI multi-turn/Form/presentations(carousel·table·chart·template), `ai_form_render` 포함.
+### 프론트 (주력) — 완료
+- [x] `codebase/channel-web-chat/` Next.js CSR-only(`output:'export'`, dynamic ssr:false). 정적 export build ✓.
+- [x] `codebase/packages/web-chat-sdk/` 타입 + boot + WidgetBridge(host) + loader IIFE(전역 ClemvionChat).
+- [x] host↔iframe `wc:*` bridge(양방향 origin 검증·명령 큐) + iframe 측 리시버 핸드셰이크.
+- [x] EIA 클라이언트(webhook 시작→SSE→submit_*) + per_execution 세션 + 새로고침 복원.
+- [x] 위젯 화면: 런처/추천질문/패널/헤더/퀵액션/메시지/Form/입력/면책. (rich presentation 전용 컴포넌트 → followup #4)
+- [x] conversation 렌더 규약(`conversationThread.turns` 1차·`[user-input]` strip·`live`/`injected`).
+- [x] 상태기계·종료/재시작/새로고침 복원·in-flight unread.
+- [x] 샘플(스니펫·npm·BYO-UI 개념). M2 정식 패키징 → followup #6.
 
 ### 백엔드 (소수)
-- [ ] `/api/external/*` 워크스페이스 단위 동적 CORS — `interactionAllowedOrigins` 기반, path 로 워크스페이스 역인덱스, 전역 `enableCors`(frontend 전용)와 경로-스코프 분리. (`/api/hooks/*` 는 무제한 유지.)
-- [ ] 워크스페이스 `interactionAllowedOrigins` 설정 노출 + 임베드 soft 검증용 캐시 가능 config 엔드포인트.
-- [ ] 공개 webhook 남용 방어(spec `4-security` §남용) — IP/세션 rate-limit·대화수 상한·페이로드 크기, 워크플로우 측 비용 가드.
+- [x] `/api/external/*` 워크스페이스 단위 동적 CORS(`interactionAllowedOrigins`, path 역인덱스, 단일 delegate). `/api/hooks/*` 무제한.
+- [ ] 임베드 soft 검증 config 엔드포인트(→ followup #3, `detectHostOrigin` helper 만 존재).
+- [ ] 공개 webhook 남용 방어(→ followup #1·#2: auth-scoped throttle + 워크플로우 비용 가드).
+
+> 잔여 surface 추적: [`channel-web-chat-followups.md`](./channel-web-chat-followups.md). 관련 spec `status: partial`.
 
 ## 비목표 (spec 비목표)
 파일 첨부/이모지, 상담원 핸드오프, 다중 세션 목록(N5), 호스트 제공 사용자 식별키(추후), 풀 CSS 테마.
