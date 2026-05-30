@@ -356,7 +356,7 @@ code: []
 | 기존 사용자 | OAuth 프로바이더 정보 연결 → 로그인 처리 |
 | 신규 사용자 | 자동 회원가입 → 개인 워크스페이스 생성 → 로그인 처리 |
 | JWT 발급 | Access Token + Refresh Token 발급 |
-| 리다이렉트 | `{frontend_url}/callback?success=true&token={accessToken}` (Refresh Token은 httpOnly Cookie로 설정, Access Token은 짧게 URL 파라미터로 전달되며 클라이언트가 즉시 메모리에 저장 후 URL 정리) |
+| 리다이렉트 | `{frontend_url}/callback?success=true` — **access token 은 URL 에 싣지 않는다**. Refresh Token 만 httpOnly Cookie 로 설정하고, 콜백 페이지가 `POST /api/auth/refresh`(refresh 쿠키 사용)로 access token 을 발급받아 메모리에 적재한다 (decision A, 2026-05-31 — URL history/Referer/프록시 로그 노출 차단). |
 
 ### 5.4 OAuth 에러 처리
 
@@ -368,7 +368,7 @@ code: []
 | 서버 오류 | `{frontend_url}/callback?error=server_error` |
 
 프론트엔드의 `/callback` 페이지:
-- `success=true` + `token` → `setAccessToken(token)` 후 대시보드(`/dashboard`)로 리다이렉트
+- `success=true` → `refreshAccessToken()`(`POST /api/auth/refresh`)로 access token 발급 → 메모리 적재 → 대시보드(`/dashboard`)로 리다이렉트. refresh 실패 시 에러 표시.
 - `error=*` → 에러 메시지 표시 + "다시 시도" 버튼 + 로그인 화면 링크
 
 ---
