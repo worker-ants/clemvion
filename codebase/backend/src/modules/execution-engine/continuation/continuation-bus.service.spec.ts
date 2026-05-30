@@ -4,6 +4,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import {
   ContinuationBusService,
   RECOVERY_LOCK_KEY,
+  DEFAULT_SEQ_KEY_TTL_SECONDS,
 } from './continuation-bus.service';
 import { CONTINUATION_EXECUTION_QUEUE } from '../queues/continuation-execution.queue';
 
@@ -18,6 +19,7 @@ import { CONTINUATION_EXECUTION_QUEUE } from '../queues/continuation-execution.q
 // `new Redis(...)` 를 직접 호출하므로 module-level mock 으로 대체.
 type FakeRedisCmds = {
   incr: jest.Mock;
+  expire: jest.Mock;
   set: jest.Mock;
   eval: jest.Mock;
   quit: jest.Mock;
@@ -31,6 +33,7 @@ function createFakeRedis(): FakeRedisCmds {
   const store = new Map<string, string>();
   const instance: FakeRedisCmds = {
     incr: jest.fn(async (_key: string) => ++counter),
+    expire: jest.fn(async (_key: string, _ttl: number) => 1),
     set: jest.fn(async (key: string, value: string, ..._args: unknown[]) => {
       const hasNX = _args.some((a) => a === 'NX');
       if (hasNX && store.has(key)) return null;
@@ -179,6 +182,55 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
         nodeExecutionId: 'ne-5',
       });
       expect(jobId).toBeNull();
+    });
+  });
+
+  describe('seq 키 TTL (G3 — spec §9.2)', () => {
+    it('publish 마다 seq 키에 sliding-window EXPIRE 를 설정 (executionId 종결 후 자연 소멸)', async () => {
+      await bus.publish({
+        type: 'continue',
+        executionId: 'exec-ttl-1',
+        nodeExecutionId: 'ne-ttl-1',
+      });
+      expect(fakeRedisInstances.length).toBeGreaterThan(0);
+      expect(fakeRedisInstances[0].expire).toHaveBeenCalledWith(
+        'exec:cont:seq:exec-ttl-1',
+        DEFAULT_SEQ_KEY_TTL_SECONDS,
+      );
+    });
+
+    it('연속 publish 는 매번 EXPIRE 를 갱신 (sliding window)', async () => {
+      await bus.publish({
+        type: 'continue',
+        executionId: 'exec-ttl-2',
+        nodeExecutionId: 'ne-ttl-2',
+      });
+      await bus.publish({
+        type: 'continue',
+        executionId: 'exec-ttl-2',
+        nodeExecutionId: 'ne-ttl-2',
+      });
+      const expireCalls = fakeRedisInstances[0].expire.mock.calls.filter(
+        (c) => c[0] === 'exec:cont:seq:exec-ttl-2',
+      );
+      expect(expireCalls.length).toBe(2);
+    });
+
+    it('EXPIRE 실패는 seq 를 무효화하지 않음 — 정상 jobId 반환', async () => {
+      await bus.publish({
+        type: 'continue',
+        executionId: 'exec-ttl-init',
+        nodeExecutionId: 'ne-ttl-init',
+      });
+      fakeRedisInstances[0].expire.mockRejectedValueOnce(
+        new Error('EXPIRE failed'),
+      );
+      const jobId = await bus.publish({
+        type: 'continue',
+        executionId: 'exec-ttl-3',
+        nodeExecutionId: 'ne-ttl-3',
+      });
+      expect(jobId).toMatch(/^exec-ttl-3:ne-ttl-3:\d+$/);
     });
   });
 

@@ -913,7 +913,7 @@ case 2 의 rehydration 경로는 §7.4 의 기존 원칙 "키 없음 → 즉시 
 | `ws:{wsId}:session:{connId}` | WebSocket 세션 정보 | 세션 유지 시간 |
 | `exec:{wsId}:queue:priority` | 우선순위 큐 (Sorted Set) | 영구 (큐 소비 시 삭제) |
 | `exec:recover:lock` | 부팅 시 stuck recovery 분산 lock — 워크스페이스 단위가 아닌 **전역**. 단일 인스턴스만 recovery UPDATE 를 수행하도록 보장 (§7.4 참조) | 60초 |
-| `exec:cont:seq:<executionId>` | continuation publish 의 monotonic seq (Redis INCR per executionId) — BullMQ jobId (`${executionId}:${nodeExecutionId}:${seq}`) 의 idempotency key. executionId 는 UUID, 워크스페이스 단위가 아닌 **전역**. 8 bytes 미만. executionId 종결 후에도 잔류하나 동작에 무영향 — TTL 미설정 안전 (Phase 3 후속 정리 예정) | 미설정 (자연 expire — Phase 3 후속 정리) |
+| `exec:cont:seq:<executionId>` | continuation publish 의 monotonic seq (Redis INCR per executionId) — BullMQ jobId (`${executionId}:${nodeExecutionId}:${seq}`) 의 idempotency key. executionId 는 UUID, 워크스페이스 단위가 아닌 **전역**. 8 bytes 미만. **sliding-window TTL** — 매 publish (`nextSeq`) 가 EXPIRE 를 갱신해 continuation 이 활성인 동안 키가 유지되고, executionId 종결 후 (publish 중단) TTL 경과 시 자연 소멸. seq 단조성은 활성 구간 내내 보존 | `CONTINUATION_SEQ_TTL_SECONDS` (기본 86400 = 24시간, 매 publish 갱신) |
 
 > 전역 키 `exec:recover:lock` 및 `exec:cont:seq:<executionId>` 는 §9.1 의 `{service}:{workspaceId}:{resource}` 패턴을 따르지 않는다. 부팅 단일 진입 가드라는 **워크스페이스에 종속되지 않는** 책임을 가지므로 전역 키로 둔다. (옛 `execution:continuation` Redis pub/sub 채널은 BullMQ 큐 `execution-continuation` 로 교체되어 폐기 — §9.3 / §Rationale "Durable Continuation".)
 

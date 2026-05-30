@@ -56,6 +56,19 @@ export type ContinuationMessage = {
  */
 export const RECOVERY_LOCK_KEY = 'exec:recover:lock';
 
+/**
+ * G3 (spec §9.2) — `exec:cont:seq:<executionId>` 키 TTL 기본값 (초, 24시간).
+ *
+ * sliding window: 매 publish (`nextSeq`) 가 EXPIRE 를 갱신해 continuation 이
+ * 활성인 동안 키가 유지되고, executionId 종결 후 (publish 중단) TTL 경과 시
+ * 자연 소멸 → 옛 "TTL 미설정 잔류" 메모리 누수 해소. seq 단조성은 활성 구간
+ * 내내 보존된다 (활성 구간 = window 미만 간격으로 publish 가 이어지는 동안).
+ *
+ * 인터랙티브 워크플로의 executionId 최대 수명 + 여유를 커버. 더 긴 대기가
+ * 필요한 배포는 ENV `CONTINUATION_SEQ_TTL_SECONDS` (양수 정수) 로 오버라이드.
+ */
+export const DEFAULT_SEQ_KEY_TTL_SECONDS = 86_400;
+
 @Injectable()
 export class ContinuationBusService {
   private readonly logger = new Logger(ContinuationBusService.name);
@@ -65,12 +78,22 @@ export class ContinuationBusService {
   private readonly lockToken = `${hostname()}:${randomUUID()}`;
   /** monotonic seq per executionId 용 Redis INCR 키 prefix. */
   private static readonly SEQ_KEY_PREFIX = 'exec:cont:seq:';
+  /** seq 키 sliding-window TTL (초). G3 — spec §9.2. */
+  private readonly seqKeyTtlSeconds: number;
 
   constructor(
     private readonly configService: ConfigService,
     @InjectQueue(CONTINUATION_EXECUTION_QUEUE)
     private readonly continuationQueue: Queue<ContinuationJob>,
-  ) {}
+  ) {
+    // ENV 오버라이드 (양수 정수만 채택, 그 외 기본값). shutdown 모듈의
+    // SIGTERM_GRACE_MS 팩토리와 동일한 NaN/음수 방어 패턴.
+    const parsed = Number(process.env.CONTINUATION_SEQ_TTL_SECONDS);
+    this.seqKeyTtlSeconds =
+      Number.isFinite(parsed) && parsed > 0
+        ? Math.floor(parsed)
+        : DEFAULT_SEQ_KEY_TTL_SECONDS;
+  }
 
   /**
    * Lazy 초기화: lockClient 가 처음 필요할 때 connect.
@@ -175,11 +198,21 @@ export class ContinuationBusService {
    * 가 같아져 BullMQ 가 두 번째를 중복으로 거부한다 (idempotency 1단 가드).
    */
   private async nextSeq(executionId: string): Promise<number> {
+    const key = `${ContinuationBusService.SEQ_KEY_PREFIX}${executionId}`;
     try {
       const client = this.getLockClient();
-      const seq = await client.incr(
-        `${ContinuationBusService.SEQ_KEY_PREFIX}${executionId}`,
-      );
+      const seq = await client.incr(key);
+      // G3 (spec §9.2) — sliding-window TTL. 매 publish 가 만료 시계를 갱신.
+      // EXPIRE 실패는 이미 성공한 INCR (= 유효 seq) 를 무효화하지 않도록 swallow
+      // — 다음 publish 가 TTL 을 다시 시도하므로 누수는 일시적.
+      await client.expire(key, this.seqKeyTtlSeconds).catch((err: unknown) => {
+        this.logger.warn(
+          `seq 키 EXPIRE 설정 실패 (${ContinuationBusService.sanitizeForLog(
+            executionId,
+          )}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return 0;
+      });
       return seq;
     } catch (err) {
       this.logger.warn(

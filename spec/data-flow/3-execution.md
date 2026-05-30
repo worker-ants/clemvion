@@ -155,7 +155,7 @@ sequenceDiagram
 | 키 패턴 | 용도 | TTL |
 | --- | --- | --- |
 | `exec:recover:lock` | 부팅 시 `recoverStuckExecutions` 단일 인스턴스 가드 (전역 lock — [실행 엔진 §7.4 / §9.2](../5-system/4-execution-engine.md#74-분산-실행-multi-instance)) | 60초 |
-| `exec:cont:seq:<executionId>` | continuation publish 의 monotonic seq (Redis INCR) — BullMQ jobId 의 idempotency 보장 | 미설정 (자연 expire 미적용 — Phase 3 후속) |
+| `exec:cont:seq:<executionId>` | continuation publish 의 monotonic seq (Redis INCR) — BullMQ jobId 의 idempotency 보장 | sliding-window TTL — `CONTINUATION_SEQ_TTL_SECONDS` (기본 24시간), 매 publish 갱신 → executionId 종결 후 자연 소멸 ([실행 엔진 §9.2](../5-system/4-execution-engine.md#92-용도별-키-정의-및-ttl)) |
 
 > Continuation 신호는 BullMQ 큐 `execution-continuation` 로 전달된다 (이전 Redis pub/sub 채널 `execution:<executionId>` 는 폐기). 결정 근거는 [실행 엔진 §Rationale "Durable Continuation"](../5-system/4-execution-engine.md#rationale).
 
