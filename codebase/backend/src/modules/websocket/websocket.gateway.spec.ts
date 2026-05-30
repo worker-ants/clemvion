@@ -73,6 +73,8 @@ describe('WebsocketGateway', () => {
             publishRetryLastTurn: jest
               .fn()
               .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
+            // W3: publish 실패 시 zombie row 방지 — 보상 메서드.
+            markSpawnedRowFailedOnPublishError: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -663,7 +665,9 @@ describe('WebsocketGateway', () => {
       expect(result.data.error?.code).toBe('UNAUTHENTICATED');
     });
 
-    it('ownership failure → nested FORBIDDEN error ack', async () => {
+    // S1: ownership 실패 응답은 NOT_FOUND 로 통일 — sibling handler 의 IDOR
+    // 방어 정책(ID enumeration 차단) 일치.
+    it('ownership failure → nested NOT_FOUND error ack (IDOR enumeration defense)', async () => {
       const mockExecutions = module.get(ExecutionsService);
       (mockExecutions.verifyOwnership as jest.Mock).mockRejectedValueOnce(
         new Error('Execution not found'),
@@ -674,7 +678,7 @@ describe('WebsocketGateway', () => {
       );
       expect(result.data.success).toBe(false);
       expect(result.data.resumed).toBe(false);
-      expect(result.data.error?.code).toBe('FORBIDDEN');
+      expect(result.data.error?.code).toBe('NOT_FOUND');
     });
 
     it('RetryLastTurnError → nested error ack with its code (RETRY_STATE_NOT_FOUND)', async () => {

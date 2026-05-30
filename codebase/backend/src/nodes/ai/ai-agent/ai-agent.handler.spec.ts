@@ -3046,6 +3046,34 @@ describe('AiAgentHandler', () => {
       expect(expiresMs).toBeGreaterThanOrEqual(before + 4 * 60_000);
       expect(expiresMs).toBeLessThanOrEqual(Date.now() + 6 * 60_000);
     });
+
+    // W17: resolveRetryStateTtlMinutes — invalid/negative/zero 입력 시
+    // fallback 60분 동작 검증.
+    it.each([
+      ['non-numeric string', 'abc'],
+      ['negative value', '-1'],
+      ['zero', '0'],
+    ])(
+      'falls back to 60-minute TTL when AI_RETRY_STATE_TTL_MINUTES=%s',
+      (_label, envValue) => {
+        process.env.AI_RETRY_STATE_TTL_MINUTES = envValue;
+        const before = Date.now();
+        const result = handler.endMultiTurnConversation(
+          { ...retryableState },
+          'error',
+          {
+            code: 'LLM_CALL_FAILED',
+            message: '503',
+            details: { statusCode: 503, retryable: true },
+          },
+        ) as Record<string, unknown>;
+        const retryState = result._retryState as Record<string, unknown>;
+        const expiresMs = Date.parse(retryState.expiresAt as string);
+        // Must be ~60 min ahead (default fallback), not ~5 min or invalid.
+        expect(expiresMs).toBeGreaterThanOrEqual(before + 59 * 60_000);
+        expect(expiresMs).toBeLessThanOrEqual(Date.now() + 61 * 60_000);
+      },
+    );
   });
 
   describe('tool call telemetry — WS emit + turnDebug.toolCalls', () => {

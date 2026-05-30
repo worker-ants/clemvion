@@ -688,6 +688,8 @@ export class WebsocketGateway
     }
 
     // CRIT #1 — IDOR 차단. workspace 소유 검증.
+    // verifyOwnership 은 NotFound 로 통일 — Forbidden 으로 응답하면 attacker 가
+    // executionId 의 존재 여부를 추론할 수 있다 (sibling handler 정책 일치, S1).
     try {
       await this.executionsService.verifyOwnership(
         data.executionId,
@@ -702,20 +704,22 @@ export class WebsocketGateway
           nodeExecutionId: data.nodeExecutionId,
           resumed: false,
           error: {
-            code: 'FORBIDDEN',
-            message: 'Not authorized for this execution',
+            code: 'NOT_FOUND',
+            message: 'Execution not found',
           },
         },
       };
     }
 
+    // W3: spawnedNodeExecutionId 를 outer scope 에 보존해 publish 실패 시 row 마감.
+    let spawnedNodeExecutionId: string | undefined;
     try {
       // 1. validate + atomic consume + spawn 새 row.
-      const { spawnedNodeExecutionId } =
+      ({ spawnedNodeExecutionId } =
         await this.executionEngineService.retryLastTurn(
           data.executionId,
           data.nodeExecutionId,
-        );
+        ));
       // 2. spawn 된 row 로 multi-turn loop 재진입을 worker 에 handoff.
       const publishResult =
         await this.executionEngineService.publishRetryLastTurn(
@@ -725,6 +729,11 @@ export class WebsocketGateway
       if (!publishResult.queued) {
         // Redis 장애 등 publish 실패 — _retryState 는 이미 소비됐으므로 재시도
         // 시 RETRY_STATE_NOT_FOUND 가 된다. client 에 실패를 알린다.
+        // W3: spawn 된 RUNNING row 를 FAILED 로 마감해 zombie row 방지.
+        void this.executionEngineService.markSpawnedRowFailedOnPublishError(
+          spawnedNodeExecutionId,
+          'queued=false',
+        );
         return {
           event,
           data: {
@@ -749,6 +758,13 @@ export class WebsocketGateway
         },
       };
     } catch (error: unknown) {
+      // W3: publish が throw した場合も spawn 済み row を FAILED に閉じる.
+      if (spawnedNodeExecutionId) {
+        void this.executionEngineService.markSpawnedRowFailedOnPublishError(
+          spawnedNodeExecutionId,
+          'publish threw',
+        );
+      }
       const code =
         error instanceof RetryLastTurnError
           ? error.code

@@ -2959,17 +2959,16 @@ export class ExecutionEngineService
    *  5. `retryAfterSec` 카운트다운 미경과 → RETRY_TOO_EARLY.
    *  6. atomic consume + spawn.
    *
-   * **continuation bus 미경유** — 대기중 row 의 rehydration 이 아니라 새 row spawn
-   * 이므로 `execution-continuation` 큐를 타지 않는다 (spec §4.2 "Continuation Bus
-   * 미경유").
+   * **본 메서드는 큐를 publish 하지 않음** — caller(WS gateway) 가 spawn 된 row
+   * id 로 `publishRetryLastTurn` 을 호출해 `retry_last_turn` continuation job 을
+   * BullMQ 에 enqueue 하고, worker 가 `applyRetryLastTurn` 으로 multi-turn loop
+   * 에 재진입한다 (INFO#3: "Continuation Bus 미경유" 표현 수정 — 본 메서드 자체가
+   * publish 안 할 뿐, caller 가 publish 함).
    *
-   * ⚠️ **재진입 (loop re-drive) 미완 — 문서화된 갭**: 새 NodeExecution row 를
-   * `_retryState` 로 seed 해 spawn 하는 것까지는 본 메서드가 수행하나, 새 row 를
-   * multi-turn loop (`waitForAiConversation`) 로 실제 재진입시키는 부분은 별도
-   * 작업으로 남아 있다 — `waitForAiConversation` 가 live 한 `ExecutionContext` +
-   * `savedExecution` + main dispatch loop 컨텍스트를 요구하는데, WS 명령 경로는
-   * (다른 인스턴스일 수 있고) 그 컨텍스트를 갖지 않기 때문이다. 자세한 hook
-   * 요구사항은 본 메서드 끝의 NOTE 주석 참조.
+   * **재진입 구현 완료**: `applyRetryLastTurn` 이 `_retryState` → `_resumeState`
+   * shape 변환 후 `runAiConversationLoop` 로 재진입. INFO#1: 이전 "재진입 미완 갭"
+   * 주석은 현 구현을 반영해 삭제함. 남은 문서화된 갭은 downstream graph traversal
+   * (성공 후 후속 노드 재개) — `applyRetryLastTurn` 의 docstring 참조.
    */
   async retryLastTurn(
     executionId: string,
@@ -3121,6 +3120,38 @@ export class ExecutionEngineService
   }
 
   /**
+   * W3 보상 — `publishRetryLastTurn` 실패(`queued: false` / throw) 시 WS gateway
+   * 가 호출해 spawn 된 RUNNING row 를 FAILED 로 마감한다.
+   *
+   * `_retryState` 는 이미 소비됐으므로 재시도 시 RETRY_STATE_NOT_FOUND 가 된다.
+   * Execution 은 이미 FAILED 상태이므로 row 만 FAILED 로 정리한다.
+   */
+  async markSpawnedRowFailedOnPublishError(
+    spawnedNodeExecutionId: string,
+    reason: string,
+  ): Promise<void> {
+    try {
+      await this.nodeExecutionRepository
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({
+          status: NodeExecutionStatus.FAILED,
+          error: { message: `Retry publish failed: ${reason}` },
+          finishedAt: new Date(),
+        })
+        .where('id = :id', { id: spawnedNodeExecutionId })
+        .andWhere('status = :status', { status: NodeExecutionStatus.RUNNING })
+        .execute();
+    } catch (err) {
+      this.logger.error(
+        `markSpawnedRowFailedOnPublishError: failed to close row ${spawnedNodeExecutionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /**
    * spec/5-system/6-websocket-protocol.md §4.2 / spec/5-system/4-execution-engine.md
    * §1.3 / spec/4-nodes/3-ai/1-ai-agent.md §7.9 — `retry_last_turn` worker 재진입.
    *
@@ -3136,7 +3167,8 @@ export class ExecutionEngineService
    *   2. ExecutionContext 확보 (`rehydrateContext` 재사용 — live 면 그대로).
    *   3. `_retryState` → `_resumeState` shape 변환 후 nodeOutputCache /
    *      structuredOutputCache 에 주입.
-   *   4. Execution FAILED → RUNNING 전이 + NODE_STARTED (spawn 된 row) emit.
+   *   4. NODE_STARTED (spawn 된 row) emit. Execution FAILED → RUNNING 전이는
+   *      `finalizeAiNode` 의 COMPLETED 분기가 담당 (W4: JSDoc 정합).
    *   5. `runAiConversationLoop` 를 마지막 user message replay (initialAction =
    *      `ai_message`) 로 구동 → 실패했던 LLM turn 재실행. 이후 정상 loop.
    *   6. `finalizeAiNode` 로 spawn 된 row + Execution 마감.
@@ -3181,20 +3213,34 @@ export class ExecutionEngineService
       return;
     }
 
-    const execution = await this.executionRepository.findOneBy({
-      id: executionId,
-    });
+    // INFO#4 / W3 — execution + node 조회를 병렬화 (W18) 하고, 각 not-found 에서
+    // spawn 된 RUNNING row 를 FAILED 로 마감해 zombie row 방지.
+    const [execution, node] = await Promise.all([
+      this.executionRepository.findOneBy({ id: executionId }),
+      this.nodeRepository.findOneBy({ id: spawnedRow.nodeId }),
+    ]);
     if (!execution) {
       this.logger.error(
-        `applyRetryLastTurn: execution ${executionId} not found — cannot re-enter`,
+        `applyRetryLastTurn: execution ${executionId} not found — marking spawned row FAILED to avoid zombie`,
       );
+      spawnedRow.status = NodeExecutionStatus.FAILED;
+      spawnedRow.error = {
+        message: 'Retry re-entry failed: parent execution not found',
+      };
+      spawnedRow.finishedAt = new Date();
+      await this.nodeExecutionRepository.save(spawnedRow);
       return;
     }
-    const node = await this.nodeRepository.findOneBy({ id: spawnedRow.nodeId });
     if (!node) {
       this.logger.error(
-        `applyRetryLastTurn: node ${spawnedRow.nodeId} not found — cannot re-enter`,
+        `applyRetryLastTurn: node ${spawnedRow.nodeId} not found — marking spawned row FAILED to avoid zombie`,
       );
+      spawnedRow.status = NodeExecutionStatus.FAILED;
+      spawnedRow.error = {
+        message: 'Retry re-entry failed: node definition not found',
+      };
+      spawnedRow.finishedAt = new Date();
+      await this.nodeExecutionRepository.save(spawnedRow);
       return;
     }
 

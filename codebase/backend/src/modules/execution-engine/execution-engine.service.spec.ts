@@ -8237,6 +8237,21 @@ describe('ExecutionEngineService', () => {
         'iso',
       );
     });
+
+    // W16: 입력에 _retryState 가 없는 경우 — 비-retryable 종결 시 output 에
+    // _retryState 가 undefined (not present) 임을 검증 (silent regression 방지).
+    it('output has no _retryState when input lacks _retryState (non-retryable termination)', () => {
+      const out = strip({
+        result: { ok: true },
+        port: 'user_ended',
+        status: 'ended',
+        _resumeState: { messages: [] },
+        // _retryState: intentionally absent
+      }) as Record<string, unknown>;
+      expect(out._resumeState).toBeUndefined();
+      expect(out._retryState).toBeUndefined();
+      expect('_retryState' in out).toBe(false);
+    });
   });
 });
 

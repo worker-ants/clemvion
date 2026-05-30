@@ -48,6 +48,7 @@ import {
   applyCap,
   renderThreadAsSystemText,
 } from '../../../shared/conversation-thread/thread-renderer';
+import { truncateForErrorDetails } from '../../core/error-codes';
 
 /**
  * Per-tool execution metadata recorded into `meta.turnDebug[].toolCalls`. The
@@ -2598,9 +2599,12 @@ export class AiAgentHandler implements NodeHandler {
       // spec §7.9 — 실패한 turn 의 사용자 메시지. retry 재진입(`applyRetryLastTurn`)
       // 이 이 메시지를 `ai_message` action 으로 replay 해 마지막 LLM 호출을
       // 재실행한다. messages snapshot 에는 포함되지 않는다 (pre-turn history).
+      // S2: 길이 제한 적용 — 사용자 입력 원문을 길이 제한 없이 DB 영속하면 PII
+      // 노출·스토리지 증가 위험. truncateForErrorDetails(500자 기본) 로 cap.
       ...(typeof failedUserMessage === 'string'
         ? {
-            lastUserMessage: failedUserMessage,
+            lastUserMessage:
+              truncateForErrorDetails(failedUserMessage) ?? failedUserMessage,
             lastUserMessageSource: failedUserMessageSource ?? 'ai_message',
           }
         : {}),
