@@ -17,9 +17,10 @@ owner: project-planner
 - ✅ **Phase D 기반 구현** (`feat(execution-engine)` 13dde237): `_retryState` 영속(기존 미구현이었음 — handler/adapter/finalize/strip 전수), error code 3종, `RetryLastTurnError`, 엔진 `retryLastTurn()` 의 검증·atomic consume·새 row spawn. 단위 테스트 348 통과, build 통과.
 - ✅ **multi-turn loop 재진입 + WS wiring (#2 = 경유 확정, 626b4250)**: continuation bus `retry_last_turn` job type + processor case, WS gateway `execution.retry_last_turn` 핸들러(검증→consume→spawn→publish→ack), worker `applyRetryLastTurn`(ExecutionContext rehydrate → `_retryState`→`_resumeState`(credential 재유도) → 실패 last user message replay 로 turn 재실행 → loop 구동 → finalize), state-machine FAILED→RUNNING. TEST WORKFLOW 전부 통과 (lint/build/e2e 127 / backend unit 5176; 재진입 408 신규).
 
-- 🔲 **남은 한계 (신규 followup 항목)**:
-  - **WARNING #10 — 성공 retry 후 downstream 그래프 traversal**: retry 로 대화는 재개되나, AI 노드의 출력 포트에 연결된 하류 노드는 미실행 (성공 종결 시 Execution 을 COMPLETED 로만 마감). 대부분 multi-turn AI 가 terminal 이라 영향 제한적이나, AI 노드 하류가 있는 워크플로는 `resumeFromCheckpoint` 의 reachability/back-edge traversal 을 retry 종결 후에도 돌려야 한다.
-  - **WARNING #11 — 재유도 config 의 expression 미평가**: `applyRetryLastTurn` 이 재유도하는 `node.config` 필드(llmConfigId/maxTurns 등)가 `{{expression}}` 이면 재진입 시 미평가. static config 는 정상. 필요 시 재진입 경로에서 expression resolve 추가.
+- ✅ **WARNING #11 — 재유도 config 의 expression 재평가** (`fix(execution-engine)` 3ca67305): `applyRetryLastTurn` → `buildRetryReentryState` 가 `resolveRetryNodeConfig` 로 `node.config` 의 `{{expression}}` 을 best-effort 평가 (operational 필드 llmConfigId/maxTurns 등). raw fallback 으로 static config 회귀 없음. `rawConfig` echo 는 spec config-echo 정책상 raw 유지. **한계**: 재진입 경로는 원본 nodeInput 을 영속하지 않으므로 (`_retryState` 최소화) `$input.*` 참조는 미해소 — `$node`/`$var`/`$thread`/`$execution`/`$now` 만 해소. 단위 테스트 추가.
+
+- 🔲 **남은 한계 (스펙 결정 필요 — project-planner)**:
+  - **WARNING #10 — 성공 retry 후 downstream 그래프 traversal**: retry 로 대화는 재개되나, AI 노드의 출력 포트에 연결된 하류 노드는 미실행 (성공 종결 시 Execution 을 COMPLETED 로만 마감). **스펙 판단 결론 (2026-05-30)**: `spec/5-system/6-websocket-protocol.md §4.2` + `spec/4-nodes/3-ai/1-ai-agent.md §10/§7.9` 가 `retry_last_turn` 을 "노드 단위 재시도 — 마지막 LLM 호출 재진입"으로 정의하고 워크플로 Re-run([§13](../../spec/5-system/13-replay-rerun.md))과 **명시적으로 구분**한다. downstream 재개는 spec 이 약속한 바 없으므로 현재 COMPLETED-finalize 는 **spec 준수** 상태. downstream traversal 은 신규 제품 동작(노드 단위 → 워크플로 재개로 의미 확장)이라 `project-planner` 의 spec 결정이 선행돼야 하며 developer 범위가 아니다. `completeRetryExecution` docstring 에 DOCUMENTED GAP 으로 명시 보존. **사용자/기획 결정 대기.**
 
 ## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8, #9)
 
@@ -80,14 +81,15 @@ owner: project-planner
 
 ## 코드 리뷰 후속 추적 (review/code/2026/05/30/11_22_49 — resolution-applier 추가, 2026-05-30)
 
-다음 항목은 ai-review SUMMARY 의 DEFER 분류 — 비차단, 중기 개선 목표.
+다음 항목은 ai-review SUMMARY 의 DEFER 분류였으며 **2026-05-30 일괄 해소** (`fix(execution-engine)` 3ca67305, `docs(user-guide)` 352450a3):
 
-- **W5** — FAILED→RUNNING state-machine 전이 범용 노출 하드닝: `canTransition` 에 context 기반 검증 또는 retry 전용 진입점 분리.
-- **W6/W7/W13** — `applyRetryLastTurn` SRP 리팩토링 → `RetryLastTurnUseCase` 별도 클래스로 shape 변환 / Execution 마감 블록 추출. 225줄 단일 메서드 분해.
-- **W9** — cancel 신호 소실: retry 재진입 첫 iteration(`pendingInitialAction` 처리 중) 에 cancel 도달 시 `pendingContinuations` 미등록으로 cancel 소실 — 알려진 엣지 케이스, 후속 작업 필요.
-- **W11** — WS ack 에러 코드 SoT 분산 (`INTERNAL_ERROR`, `FORBIDDEN`/`UNAUTHENTICATED` 미등재): `ErrorCode` 또는 별도 `WsErrorCode` 상수로 통합.
-- **W12** — `extractLlmError` 순환 복잡도 개선: `NETWORK_ERROR_PATTERN` 상수 추출, `classifyLlmError` private static 분리.
-- **W14/W15** — user-guide 동반 갱신 (비차단 — doc-sync 가드 미적용 surface): retry 재시도 error code 3종(`RETRY_STATE_NOT_FOUND`/`NODE_NOT_RETRYABLE`/`RETRY_TOO_EARLY`)을 `05-run-and-debug` MDX 에러 카탈로그 + 멀티턴 재시도 흐름 절에 추가, `backend-labels.ts` 한국어 매핑 등재 검토. (WS-ack 코드라 node error catalog 가드엔 안 걸리나 사용자 노출 시 KO 라벨 권장.)
+- ✅ **W5** — FAILED→RUNNING 전이를 `TransitionOptions.allowRetryReentry` opt-in 으로 한정. ALLOWED_TRANSITIONS 표에서 제거하고 `canTransition(from,to,opts)` 가 opt-in 일 때만 허용. `finalizeAiNode(..., allowRetryReentry)` → `updateExecutionStatus(..., opts)` 로 전달, `applyRetryLastTurn` 만 true. state-machine 단위 테스트 3종 추가.
+- ✅ **W6/W7/W13** — `applyRetryLastTurn` SRP 분해: `buildRetryReentryState`(shape 변환 + initialAction) / `completeRetryExecution`(성공 마감) / `failRetryExecution`(실패·취소 마감) 로 추출. 별도 클래스 대신 in-service helper (결합도 유지, 회귀 위험 최소).
+- ✅ **W9** — cancel 신호 소실: replay turn(`pendingInitialAction`) 처리 시 cancel-only `pendingContinuations` 핸들러 등록 + `Promise.race` 로 cancel 신호와 race. cancel 이 이기면 `ExecutionCancelledError` → Execution CANCELLED. 정상 경로 무변경. 단위 테스트 추가.
+- ✅ **W11** — WS ack 코드 SoT 분리: `ws-error-codes.ts` `WsErrorCode`(UNAUTHENTICATED/FORBIDDEN/NOT_FOUND/INTERNAL_ERROR). `handleRetryLastTurn` 의 리터럴 4곳 대체.
+- ✅ **W12** — `extractAiTurnErrorPayload` 분리: `NETWORK_ERRNO_PATTERN`/`NETWORK_MESSAGE_PATTERN` 상수 + `classifyLlmError` private static. 기존 테스트 25종 green 유지.
+- ✅ **W14** — user-guide 갱신: retry 거절 코드 3종(`RETRY_STATE_NOT_FOUND`/`NODE_NOT_RETRYABLE`/`RETRY_TOO_EARLY`)을 `05-run-and-debug/run-results` (KO/EN) 에러 코드 표(type=재시도) + "멀티턴 대화 중 오류 발생 시 재시도" 소절에 추가. user-guide-writer sub-agent 위임, 컨벤션 체크리스트 통과.
+- ✅ **W15** — `backend-labels.ts` 등재: **불필요로 판단**. 해당 파일은 Zod 스키마 UI 라벨(label/hint/placeholder) 번역 테이블이고, retry 코드는 WS-ack `error.code` (폼 라벨 아님). 사용자 노출은 W14 의 user-guide 문서로 커버.
 
 > **W1/W2 (spec gap) 해소 완료 (2026-05-30)**: WS ack `success` 필드(§4.2) + `_retryState.lastUserMessage`/`lastUserMessageSource`(node-output §4.2.1) 를 spec 에 명시 반영. (원본 escalation draft `spec-fix-retry-ws-ack-fields.md` 는 적용 후 제거.)
 
