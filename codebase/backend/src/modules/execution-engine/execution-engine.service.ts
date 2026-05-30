@@ -504,6 +504,73 @@ export type ExecuteOptions =
  *    `endAiConversation` / `cancelWaitingExecution`. 본 서비스는 ~4200줄로
  *    크기가 크므로 PR-H/I 에서 점진적으로 책임 분해 예정.
  */
+/**
+ * Graph rebuild 결과를 한 번에 운반하는 구조체. `loadAndBuildGraph` 가 반환하며
+ * `runExecution` / `resumeFromCheckpoint` / `resumeGraphAfterRetry` 가 traversal
+ * 단계에서 사용한다. `runNodeDispatchLoop` 의 입력 `graphState` 이기도 하다.
+ *
+ * **`GraphTraversalSummary` (knowledge-base RAG) 와 의미 분리** — 본 타입은
+ * execution-engine 의 워크플로 graph 재구축 결과만 담는다.
+ */
+interface ExecutionGraphState {
+  /** Workflow 에 속한 모든 노드 (container child / tool area 포함 — runContainer / runParallel 에 그대로 전달). */
+  nodes: Node[];
+  /** Workflow 에 속한 모든 edge (graph-builder filter 적용 전). */
+  edges: Edge[];
+  /** 최상위 노드만 필터된 graph edges (buildGraph 결과). */
+  graphEdges: GraphEdge[];
+  /** identifyBackEdges 가 forward 로 분류한 edges (topologicalSort 입력). */
+  forwardEdges: GraphEdge[];
+  /** identifyBackEdges 가 back 으로 분류한 edges (cyclic workflow). */
+  backEdges: GraphEdge[];
+  /** Topological 정렬된 노드 id 순서. */
+  sortedNodeIds: string[];
+  /** `sortedNodeIds` 의 id → index 역방향 O(1) lookup. */
+  sortedIndexMap: Map<string, number>;
+  /** sourceNodeId → list of back-edge + target sorted index. */
+  backEdgeMap: Map<string, Array<{ edge: GraphEdge; targetIndex: number }>>;
+  /** sourceNodeId → forward outgoing edges. */
+  outgoingEdgeMap: Map<string, GraphEdge[]>;
+  /** targetNodeId → forward incoming edges. */
+  incomingEdgeMap: Map<string, GraphEdge[]>;
+  /** id → Node 객체 lookup. */
+  nodeMap: Map<string, Node>;
+  /** `MAX_NODE_ITERATIONS` config (기본 100, 0 = unlimited). */
+  maxNodeIterations: number;
+}
+
+/**
+ * `runNodeDispatchLoop` 의 파라미터. 호출자 (`resumeFromCheckpoint` /
+ * `resumeGraphAfterRetry`) 가 시작 단계 (graph rebuild + reachability seed +
+ * 시작 노드 전파) 와 종결 단계 (Execution.COMPLETED 마감 + outputData seed) 를
+ * 모두 책임지고, 본 helper 는 그 사이의 pointer 기반 node dispatch loop 만
+ * 책임진다.
+ *
+ * **`GraphTraversalService` 와의 책임 분리**: `GraphTraversalService` 는 pure
+ * graph reachability / propagation (외부 service 호출 없음). 본 helper 는
+ * dispatch (executeNode / runContainer / runParallel / scheduleBackgroundBody)
+ * + blocking wait (form / button / AI multi-turn) 까지 포함하므로 도메인 책임
+ * 이 다르다.
+ */
+interface NodeDispatchLoopParams {
+  executionId: string;
+  savedExecution: Execution;
+  context: ExecutionContext;
+  graphState: ExecutionGraphState;
+  /** Loop 가 mutate — 호출자가 helper 호출 전에 seed (예: completedNode / waitingNode 추가). */
+  executedNodes: Set<string>;
+  /** Loop 가 mutate — 호출자가 helper 호출 전에 seed (트리거 + no-incoming + executedNodes + 시작 노드). */
+  reachable: Set<string>;
+  /** Loop 가 mutate (+1 per visit) — 호출자가 helper 호출 전에 초기 entry (시작 노드 = 0) 만 set, 본 helper 의 첫 +1 이 1 이 되도록. */
+  nodeExecutionCount: Map<string, number>;
+  /** Loop 시작 pointer — 호출자가 시작 노드의 `sortedIndexMap.get(...) + 1` 로 설정 (시작 노드는 helper 호출 전 propagateReachability 가 이미 다음을 reachable 에 추가). */
+  pointer: number;
+  /** Input 객체 — gatherNodeInput 의 default fallback. resume / retry 경로엔 `{}`. */
+  input: Record<string, unknown>;
+  /** executeNode 의 meta — startedAt + mode. */
+  dispatchMeta: { startedAt?: string; mode: 'manual' };
+}
+
 @Injectable()
 export class ExecutionEngineService
   implements OnModuleInit, OnApplicationBootstrap, WorkflowExecutor
@@ -962,6 +1029,278 @@ export class ExecutionEngineService
   }
 
   /**
+   * Workflow id 로 graph state 를 한 번에 재구축. `runExecution` /
+   * `resumeFromCheckpoint` / `resumeGraphAfterRetry` 3 곳에서 공유 (이전엔
+   * 동일 패턴이 3중 복제 — PR #365 ai-review WARNING #11 해소).
+   *
+   * 책임:
+   *   - `nodeRepository.findBy` / `edgeRepository.findBy` 로 DB 로드
+   *   - `buildGraph` → topological filtering (container child / tool area 제외)
+   *   - `identifyBackEdges` + `topologicalSort` → forward edges 기반 정렬
+   *   - `sortedIndexMap` + `graphTraversal.buildEdgeIndexes` (back / outgoing / incoming)
+   *   - `nodeMap` 생성 + `MAX_NODE_ITERATIONS` config 로드
+   *
+   * 본 helper 자체는 호출자의 nodeOutputCache / executedNodes / reachable 등
+   * traversal 상태를 다루지 않는다 — 호출자가 helper 결과를 seed 입력으로 사용한다.
+   */
+  private async loadAndBuildGraph(
+    workflowId: string,
+  ): Promise<ExecutionGraphState> {
+    const nodes = await this.nodeRepository.findBy({ workflowId });
+    const edges = await this.edgeRepository.findBy({ workflowId });
+    const { graphNodes, graphEdges } = buildGraph(nodes, edges);
+    const { forwardEdges, backEdges } = identifyBackEdges(
+      graphNodes,
+      graphEdges,
+    );
+    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
+    const sortedIndexMap = new Map<string, number>();
+    for (let i = 0; i < sortedNodeIds.length; i++) {
+      sortedIndexMap.set(sortedNodeIds[i], i);
+    }
+    const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
+      this.graphTraversal.buildEdgeIndexes(
+        graphEdges,
+        backEdges,
+        sortedIndexMap,
+      );
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const maxNodeIterations = this.configService.get<number>(
+      'MAX_NODE_ITERATIONS',
+      100,
+    );
+    return {
+      nodes,
+      edges,
+      graphEdges,
+      forwardEdges,
+      backEdges,
+      sortedNodeIds,
+      sortedIndexMap,
+      backEdgeMap,
+      outgoingEdgeMap,
+      incomingEdgeMap,
+      nodeMap,
+      maxNodeIterations,
+    };
+  }
+
+  /**
+   * Pointer 기반 node dispatch loop — `resumeFromCheckpoint` 와
+   * `resumeGraphAfterRetry` 가 공유 (이전엔 약 175라인 중복 — PR #365 ai-review
+   * WARNING #10 해소).
+   *
+   * 호출자가 helper 호출 **전에** 처리:
+   *   - graph state 구축 (`loadAndBuildGraph`)
+   *   - reachable seed (트리거 + no-incoming + executedNodes + 시작 노드)
+   *   - 시작 노드의 `executedNodes.add` + `propagateReachability` + back-edge
+   *     처리 → params.pointer 도출
+   *   - `nodeExecutionCount` 초기 entry — **시작 노드는 0 으로 set** (WARNING #16
+   *     해소: 첫 +1 이 1 이 되어 MAX_NODE_ITERATIONS=1 환경에서 false positive
+   *     방지. 이전 1 초기값은 back-edge 재방문 시 2 가 되어 곧장 한도 초과)
+   *
+   * 호출자가 helper 호출 **후에** 처리:
+   *   - Execution.COMPLETED 마감 + lastNode outputData seed + EXECUTION_COMPLETED emit
+   *
+   * Loop 내부 동작 (한 노드 visit 당):
+   *   1. pointer / reachable / count 가드 (MAX_NODE_ITERATIONS 초과 시 throw)
+   *   2. isDisabled → handleDisabledNode + pointer++
+   *   3. gatherNodeInput → executeNode (한 번만 호출, parallel 분기에서도 재사용 — WARNING #14)
+   *   4. dispatchKind 별 (container / background / parallel) 후속 처리
+   *   5. blocking node (form / button / AI multi-turn) → waitForX
+   *   6. propagateReachability + back-edge 처리 → pointer 갱신
+   *
+   * Throws: 호출자의 catch 가 처리. `ExecutionCancelledError` 도 그대로 throw.
+   */
+  private async runNodeDispatchLoop(
+    params: NodeDispatchLoopParams,
+  ): Promise<void> {
+    const {
+      executionId,
+      savedExecution,
+      context,
+      graphState,
+      executedNodes,
+      reachable,
+      nodeExecutionCount,
+      input,
+      dispatchMeta,
+    } = params;
+    const {
+      nodes,
+      edges,
+      graphEdges,
+      forwardEdges,
+      backEdges,
+      sortedNodeIds,
+      backEdgeMap,
+      outgoingEdgeMap,
+      incomingEdgeMap,
+      nodeMap,
+      maxNodeIterations,
+    } = graphState;
+    let pointer = params.pointer;
+
+    while (pointer < sortedNodeIds.length) {
+      const nodeId = sortedNodeIds[pointer];
+      const node = nodeMap.get(nodeId);
+      if (!node) {
+        pointer++;
+        continue;
+      }
+      if (!reachable.has(nodeId)) {
+        pointer++;
+        continue;
+      }
+      const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
+      nodeExecutionCount.set(nodeId, count);
+      if (maxNodeIterations > 0 && count > maxNodeIterations) {
+        throw new Error(
+          `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
+            `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
+        );
+      }
+      if (node.isDisabled) {
+        await this.handleDisabledNode(
+          executionId,
+          nodeId,
+          node,
+          context,
+          executedNodes,
+        );
+        pointer++;
+        continue;
+      }
+      const nodeInput = this.gatherNodeInput(
+        nodeId,
+        graphEdges,
+        executedNodes,
+        context.nodeOutputCache,
+        input,
+        incomingEdgeMap,
+      );
+      await this.executeNode(
+        executionId,
+        node,
+        nodeInput,
+        context,
+        executedNodes,
+        nodeMap,
+        dispatchMeta,
+        outgoingEdgeMap,
+      );
+      const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
+      if (dispatchKind === 'container') {
+        await this.runContainer(
+          node,
+          nodes,
+          edges,
+          context,
+          executionId,
+          executedNodes,
+          dispatchMeta,
+        );
+      }
+      if (dispatchKind === 'background') {
+        await this.scheduleBackgroundBody(
+          node,
+          edges,
+          context,
+          executionId,
+          input,
+        );
+      }
+      if (
+        dispatchKind === 'parallel' &&
+        // PR #364 (default ON) 정책 정합 — runExecution / resumeFromCheckpoint
+        // 가 모두 'v1' default. helper 도 동일 default 사용해 retry 경로의
+        // 우연한 'off' default (PR #365 잔재) 도 동시 통일.
+        this.configService.get<string>('PARALLEL_ENGINE', 'v1') === 'v1'
+      ) {
+        // WARNING #14: `gatherNodeInput` 의 두 번째 호출을 제거 — 이미 위에서
+        // 동일 인자로 호출한 결과 `nodeInput` 을 재사용.
+        await this.runParallel(
+          node,
+          nodes,
+          edges,
+          forwardEdges,
+          backEdges,
+          outgoingEdgeMap,
+          context,
+          executionId,
+          executedNodes,
+          dispatchMeta,
+          reachable,
+          nodeInput,
+        );
+        pointer++;
+        continue;
+      }
+
+      // Blocking nodes (form / button / AI multi-turn — downstream 에 존재할 수
+      // 있음, 정상 흐름과 동일하게 처리).
+      const downstreamOutput = context.nodeOutputCache[node.id] as
+        | Record<string, unknown>
+        | undefined;
+      const downstreamInteraction = this.getInteractionType(context, node.id);
+      if (downstreamOutput?.status === 'waiting_for_input') {
+        const downstreamBlocking = this.handlerRegistry.getMetadata(node.type);
+        if (
+          downstreamBlocking.kind === 'blocking' &&
+          downstreamBlocking.interaction === 'form'
+        ) {
+          await this.waitForFormSubmission(
+            savedExecution,
+            executionId,
+            node,
+            context,
+          );
+        } else if (downstreamInteraction === 'buttons') {
+          await this.waitForButtonInteraction(
+            savedExecution,
+            executionId,
+            node,
+            context,
+            graphEdges,
+          );
+        } else if (downstreamInteraction === 'ai_conversation') {
+          await this.waitForAiConversation(
+            savedExecution,
+            executionId,
+            node,
+            context,
+          );
+        }
+      }
+
+      this.graphTraversal.propagateReachability(
+        nodeId,
+        outgoingEdgeMap,
+        context.nodeOutputCache,
+        reachable,
+      );
+
+      const downstreamBackEdges = backEdgeMap.get(nodeId);
+      if (downstreamBackEdges?.length) {
+        const activated = this.findActivatedBackEdge(
+          nodeId,
+          downstreamBackEdges,
+          context.nodeOutputCache,
+        );
+        if (activated) {
+          for (let i = activated.targetIndex; i <= pointer; i++) {
+            reachable.delete(sortedNodeIds[i]);
+          }
+          reachable.add(sortedNodeIds[activated.targetIndex]);
+          pointer = activated.targetIndex;
+          continue;
+        }
+      }
+      pointer++;
+    }
+  }
+
+  /**
    * Phase 2.3a — §7.5 resume body. 재구성된 context 로 waitForX 직접 invoke 후
    * 그래프 순회를 이어 진행한다. runExecution 의 setup/loop/completion/catch
    * 구조와 동일 — 차이점:
@@ -1001,34 +1340,18 @@ export class ExecutionEngineService
       );
     }
 
-    // 그래프 상태 재구축 — runExecution 의 1505-1535 와 동일.
-    const nodes = await this.nodeRepository.findBy({
-      workflowId: savedExecution.workflowId,
-    });
-    const edges = await this.edgeRepository.findBy({
-      workflowId: savedExecution.workflowId,
-    });
-    const { graphNodes, graphEdges } = buildGraph(nodes, edges);
-    const { forwardEdges, backEdges } = identifyBackEdges(
-      graphNodes,
+    // 그래프 상태 재구축 — `loadAndBuildGraph` 가 3 호출자 공통 (PR #365
+    // ai-review WARNING #11 해소).
+    const graphState = await this.loadAndBuildGraph(savedExecution.workflowId);
+    const {
+      sortedNodeIds,
+      sortedIndexMap,
+      backEdgeMap,
+      outgoingEdgeMap,
+      nodeMap,
+      forwardEdges,
       graphEdges,
-    );
-    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
-    const sortedIndexMap = new Map<string, number>();
-    for (let i = 0; i < sortedNodeIds.length; i++) {
-      sortedIndexMap.set(sortedNodeIds[i], i);
-    }
-    const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-      this.graphTraversal.buildEdgeIndexes(
-        graphEdges,
-        backEdges,
-        sortedIndexMap,
-      );
-    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-    const maxNodeIterations = this.configService.get<number>(
-      'MAX_NODE_ITERATIONS',
-      100,
-    );
+    } = graphState;
 
     const waitingPointer = sortedIndexMap.get(opts.node.id);
     if (waitingPointer === undefined) {
@@ -1049,10 +1372,9 @@ export class ExecutionEngineService
     for (const nid of executedNodes) reachable.add(nid);
     reachable.add(opts.node.id);
 
-    // nodeExecutionCount — 재시작 후 budget 은 fresh. 본 waiting node 의 첫 진입은
-    // 이미 1회 소비된 것으로 계산 (체크포인트 도달까지의 한 번).
+    // nodeExecutionCount — 재시작 후 budget 은 fresh. waiting node 의 초기값은
+    // helper 호출 직전에 0 으로 set 한다 (WARNING #16 해소, 위 helper 호출 참조).
     const nodeExecutionCount = new Map<string, number>();
-    nodeExecutionCount.set(opts.node.id, 1);
 
     // Resolver fire scheduler — waitForX 가 pendingContinuations 에 키 등록 직후
     // setImmediate microtask 가 resolvePending 호출. polling 으로 race window 최소화.
@@ -1118,7 +1440,7 @@ export class ExecutionEngineService
         reachable,
       );
 
-      // back-edge 처리 (cyclic workflow 지원). runExecution 의 1769-1787 과 동일.
+      // back-edge 처리 (cyclic workflow 지원). runExecution 의 동일 부분과 일치.
       let pointer = waitingPointer + 1;
       const backEdgesFromWaiting = backEdgeMap.get(opts.node.id);
       if (backEdgesFromWaiting?.length) {
@@ -1136,183 +1458,32 @@ export class ExecutionEngineService
         }
       }
 
-      // 남은 그래프 traversal — runExecution 의 1590-1790 루프와 동일.
-      // savedExecution 의 input 은 재기동 후 사라졌으므로 (waiting 이후 단계는
-      // predecessor output 만 참조하므로 정상 동작) 빈 객체로 대체.
-      const input = {};
-      while (pointer < sortedNodeIds.length) {
-        const nodeId = sortedNodeIds[pointer];
-        const node = nodeMap.get(nodeId);
-        if (!node) {
-          pointer++;
-          continue;
-        }
-        if (!reachable.has(nodeId)) {
-          pointer++;
-          continue;
-        }
-        const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
-        nodeExecutionCount.set(nodeId, count);
-        if (maxNodeIterations > 0 && count > maxNodeIterations) {
-          throw new Error(
-            `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
-              `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
-          );
-        }
-        if (node.isDisabled) {
-          await this.handleDisabledNode(
-            executionId,
-            nodeId,
-            node,
-            context,
-            executedNodes,
-          );
-          pointer++;
-          continue;
-        }
-        const nodeInput = this.gatherNodeInput(
-          nodeId,
-          graphEdges,
-          executedNodes,
-          context.nodeOutputCache,
-          input,
-          incomingEdgeMap,
-        );
-        await this.executeNode(
-          executionId,
-          node,
-          nodeInput,
-          context,
-          executedNodes,
-          nodeMap,
-          {
-            startedAt: savedExecution.startedAt?.toISOString(),
-            mode: 'manual',
-          },
-          outgoingEdgeMap,
-        );
-        const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
-        if (dispatchKind === 'container') {
-          await this.runContainer(
-            node,
-            nodes,
-            edges,
-            context,
-            executionId,
-            executedNodes,
-            {
-              startedAt: savedExecution.startedAt?.toISOString(),
-              mode: 'manual',
-            },
-          );
-        }
-        if (dispatchKind === 'background') {
-          await this.scheduleBackgroundBody(
-            node,
-            edges,
-            context,
-            executionId,
-            input,
-          );
-        }
-        if (
-          dispatchKind === 'parallel' &&
-          this.configService.get<string>('PARALLEL_ENGINE', 'v1') === 'v1'
-        ) {
-          const parallelInput = this.gatherNodeInput(
-            nodeId,
-            graphEdges,
-            executedNodes,
-            context.nodeOutputCache,
-            input,
-            incomingEdgeMap,
-          );
-          await this.runParallel(
-            node,
-            nodes,
-            edges,
-            forwardEdges,
-            backEdges,
-            outgoingEdgeMap,
-            context,
-            executionId,
-            executedNodes,
-            {
-              startedAt: savedExecution.startedAt?.toISOString(),
-              mode: 'manual',
-            },
-            reachable,
-            parallelInput,
-          );
-          pointer++;
-          continue;
-        }
+      // WARNING #16 — nodeExecutionCount 초기값 0 통일 (이전엔 1). 첫 helper
+      // visit 의 +1 이 1 이 되도록 — MAX_NODE_ITERATIONS=1 환경에서 false
+      // positive 방지. waitingNode 는 이미 위에서 executedNodes 에 추가되어
+      // helper 는 그 다음 노드부터 dispatch.
+      nodeExecutionCount.set(opts.node.id, 0);
 
-        // Blocking nodes (rehydration 후 downstream 에 또 다른 form/button/AI 가
-        // 있을 수 있음 — 정상 흐름과 동일하게 처리).
-        const downstreamOutput = context.nodeOutputCache[node.id] as
-          | Record<string, unknown>
-          | undefined;
-        const downstreamInteraction = this.getInteractionType(context, node.id);
-        if (downstreamOutput?.status === 'waiting_for_input') {
-          const downstreamBlocking = this.handlerRegistry.getMetadata(
-            node.type,
-          );
-          if (
-            downstreamBlocking.kind === 'blocking' &&
-            downstreamBlocking.interaction === 'form'
-          ) {
-            await this.waitForFormSubmission(
-              savedExecution,
-              executionId,
-              node,
-              context,
-            );
-          } else if (downstreamInteraction === 'buttons') {
-            await this.waitForButtonInteraction(
-              savedExecution,
-              executionId,
-              node,
-              context,
-              graphEdges,
-            );
-          } else if (downstreamInteraction === 'ai_conversation') {
-            await this.waitForAiConversation(
-              savedExecution,
-              executionId,
-              node,
-              context,
-            );
-          }
-        }
+      // 남은 그래프 traversal — `runNodeDispatchLoop` 가 공통 helper
+      // (resumeGraphAfterRetry 와 공유, PR #365 ai-review WARNING #10 해소).
+      // savedExecution 의 input 은 재기동 후 사라졌으므로 빈 객체로 대체.
+      await this.runNodeDispatchLoop({
+        executionId,
+        savedExecution,
+        context,
+        graphState,
+        executedNodes,
+        reachable,
+        nodeExecutionCount,
+        pointer,
+        input: {},
+        dispatchMeta: {
+          startedAt: savedExecution.startedAt?.toISOString(),
+          mode: 'manual',
+        },
+      });
 
-        this.graphTraversal.propagateReachability(
-          nodeId,
-          outgoingEdgeMap,
-          context.nodeOutputCache,
-          reachable,
-        );
-
-        const downstreamBackEdges = backEdgeMap.get(nodeId);
-        if (downstreamBackEdges?.length) {
-          const activated = this.findActivatedBackEdge(
-            nodeId,
-            downstreamBackEdges,
-            context.nodeOutputCache,
-          );
-          if (activated) {
-            for (let i = activated.targetIndex; i <= pointer; i++) {
-              reachable.delete(sortedNodeIds[i]);
-            }
-            reachable.add(sortedNodeIds[activated.targetIndex]);
-            pointer = activated.targetIndex;
-            continue;
-          }
-        }
-        pointer++;
-      }
-
-      // COMPLETED 처리 (runExecution 의 1792-1816 과 동일).
+      // COMPLETED 처리.
       await this.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.COMPLETED,
@@ -2217,37 +2388,23 @@ export class ExecutionEngineService
         { status: ExecutionStatus.RUNNING },
       );
 
-      // 4. Load nodes and edges
-      const nodes = await this.nodeRepository.findBy({ workflowId });
-      const edges = await this.edgeRepository.findBy({ workflowId });
-
-      // 5. Build graph (filters container children & tool area nodes)
-      const { graphNodes, graphEdges } = buildGraph(nodes, edges);
-
-      // 6. Identify back-edges (edges that create cycles) and separate forward-edges
-      const { forwardEdges, backEdges } = identifyBackEdges(
-        graphNodes,
+      // 4-7. Load nodes/edges + build graph + identifyBackEdges +
+      // topologicalSort + buildEdgeIndexes + nodeMap + maxNodeIterations —
+      // `loadAndBuildGraph` 가 3 호출자 공통 (PR #365 ai-review WARNING #11
+      // 해소).
+      const {
+        nodes,
+        edges,
         graphEdges,
-      );
-
-      // 7. Topological sort on forward-edges-only graph (guaranteed DAG)
-      const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
-
-      // Pre-compute node-id → sorted-index map for O(1) lookup
-      const sortedIndexMap = new Map<string, number>();
-      for (let i = 0; i < sortedNodeIds.length; i++) {
-        sortedIndexMap.set(sortedNodeIds[i], i);
-      }
-
-      // CRIT #2 — executeInline 과 동일한 helper. back / outgoing / incoming
-      // edge lookup 을 한 곳에 빌드. Pointer 이동·O(1) gatherNodeInput·port
-      // routing 에 사용.
-      const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-        this.graphTraversal.buildEdgeIndexes(
-          graphEdges,
-          backEdges,
-          sortedIndexMap,
-        );
+        forwardEdges,
+        backEdges,
+        sortedNodeIds,
+        backEdgeMap,
+        outgoingEdgeMap,
+        incomingEdgeMap,
+        nodeMap,
+        maxNodeIterations,
+      } = await this.loadAndBuildGraph(workflowId);
 
       // 8. Create execution context (inject workspaceId + workspace timezone
       // for AI handlers — spec/4-nodes/3-ai/0-common.md §11.3 SoT precedence:
@@ -2272,14 +2429,8 @@ export class ExecutionEngineService
         savedExecution.recursionDepth,
       );
 
-      // 9. Build lookup maps
-      const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-      // 10. Execute nodes with pointer-based loop (supports back-edge jumps)
-      // Inject runtime state into context for sub-workflow inline execution
-      const maxNodeIterations = this.configService.get<number>(
-        'MAX_NODE_ITERATIONS',
-        100,
-      );
+      // 9-10. nodeMap + maxNodeIterations 는 loadAndBuildGraph 결과를 그대로
+      // 사용 (위에서 destructure). Cyclic workflow 가드 경고는 보존.
       if (maxNodeIterations === 0 && backEdges.length > 0) {
         this.logger.warn(
           `MAX_NODE_ITERATIONS=0 (unlimited) with ${backEdges.length} back-edge(s). ` +
@@ -3497,13 +3648,18 @@ export class ExecutionEngineService
     context: ExecutionContext,
     completedNode: Node,
   ): Promise<void> {
-    // 1. workflow nodes/edges 로드.
-    const nodes = await this.nodeRepository.findBy({
-      workflowId: savedExecution.workflowId,
-    });
-    const edges = await this.edgeRepository.findBy({
-      workflowId: savedExecution.workflowId,
-    });
+    // 1. workflow nodes/edges 로드 + graph rebuild — `loadAndBuildGraph` 가
+    // 3 호출자 공통 (PR #365 ai-review WARNING #11 해소).
+    const graphState = await this.loadAndBuildGraph(savedExecution.workflowId);
+    const {
+      nodes,
+      sortedNodeIds,
+      sortedIndexMap,
+      backEdgeMap,
+      outgoingEdgeMap,
+      nodeMap,
+      forwardEdges,
+    } = graphState;
 
     // 2. defensive fallback — graph 없으면 즉시 COMPLETED 마감.
     if (nodes.length === 0) {
@@ -3513,28 +3669,6 @@ export class ExecutionEngineService
       await this.completeRetryExecution(savedExecution, executionId);
       return;
     }
-
-    const { graphNodes, graphEdges } = buildGraph(nodes, edges);
-    const { forwardEdges, backEdges } = identifyBackEdges(
-      graphNodes,
-      graphEdges,
-    );
-    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
-    const sortedIndexMap = new Map<string, number>();
-    for (let i = 0; i < sortedNodeIds.length; i++) {
-      sortedIndexMap.set(sortedNodeIds[i], i);
-    }
-    const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
-      this.graphTraversal.buildEdgeIndexes(
-        graphEdges,
-        backEdges,
-        sortedIndexMap,
-      );
-    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-    const maxNodeIterations = this.configService.get<number>(
-      'MAX_NODE_ITERATIONS',
-      100,
-    );
 
     const completedPointer = sortedIndexMap.get(completedNode.id);
     if (completedPointer === undefined) {
@@ -3556,11 +3690,9 @@ export class ExecutionEngineService
     for (const nid of executedNodes) reachable.add(nid);
     reachable.add(completedNode.id);
 
-    const nodeExecutionCount = new Map<string, number>();
-    nodeExecutionCount.set(completedNode.id, 1);
-
     // 4. completedNode 를 executedNodes 에 등록 + outgoing reachability 전파 +
-    // back-edge 처리 (resumeFromCheckpoint 의 line 1113-1138 패턴).
+    // back-edge 처리. nodeExecutionCount 초기값은 helper 호출 직전 0 으로 set
+    // (WARNING #16 — MAX_NODE_ITERATIONS=1 환경 false positive 방지).
     executedNodes.add(completedNode.id);
     this.graphTraversal.propagateReachability(
       completedNode.id,
@@ -3586,178 +3718,27 @@ export class ExecutionEngineService
       }
     }
 
-    // 5. 그래프 traversal loop (resumeFromCheckpoint traversal loop 패턴 동일 —
-    // input 은 retry 경로엔 의미 없으므로 빈 객체).
-    const input = {};
-    while (pointer < sortedNodeIds.length) {
-      const nodeId = sortedNodeIds[pointer];
-      const node = nodeMap.get(nodeId);
-      if (!node) {
-        pointer++;
-        continue;
-      }
-      if (!reachable.has(nodeId)) {
-        pointer++;
-        continue;
-      }
-      const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
-      nodeExecutionCount.set(nodeId, count);
-      if (maxNodeIterations > 0 && count > maxNodeIterations) {
-        throw new Error(
-          `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
-            `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
-        );
-      }
-      if (node.isDisabled) {
-        await this.handleDisabledNode(
-          executionId,
-          nodeId,
-          node,
-          context,
-          executedNodes,
-        );
-        pointer++;
-        continue;
-      }
-      const nodeInput = this.gatherNodeInput(
-        nodeId,
-        graphEdges,
-        executedNodes,
-        context.nodeOutputCache,
-        input,
-        incomingEdgeMap,
-      );
-      await this.executeNode(
-        executionId,
-        node,
-        nodeInput,
-        context,
-        executedNodes,
-        nodeMap,
-        {
-          startedAt: savedExecution.startedAt?.toISOString(),
-          mode: 'manual',
-        },
-        outgoingEdgeMap,
-      );
-      const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
-      if (dispatchKind === 'container') {
-        await this.runContainer(
-          node,
-          nodes,
-          edges,
-          context,
-          executionId,
-          executedNodes,
-          {
-            startedAt: savedExecution.startedAt?.toISOString(),
-            mode: 'manual',
-          },
-        );
-      }
-      if (dispatchKind === 'background') {
-        await this.scheduleBackgroundBody(
-          node,
-          edges,
-          context,
-          executionId,
-          input,
-        );
-      }
-      if (
-        dispatchKind === 'parallel' &&
-        this.configService.get<string>('PARALLEL_ENGINE', 'off') === 'v1'
-      ) {
-        const parallelInput = this.gatherNodeInput(
-          nodeId,
-          graphEdges,
-          executedNodes,
-          context.nodeOutputCache,
-          input,
-          incomingEdgeMap,
-        );
-        await this.runParallel(
-          node,
-          nodes,
-          edges,
-          forwardEdges,
-          backEdges,
-          outgoingEdgeMap,
-          context,
-          executionId,
-          executedNodes,
-          {
-            startedAt: savedExecution.startedAt?.toISOString(),
-            mode: 'manual',
-          },
-          reachable,
-          parallelInput,
-        );
-        pointer++;
-        continue;
-      }
+    const nodeExecutionCount = new Map<string, number>();
+    nodeExecutionCount.set(completedNode.id, 0);
 
-      // Blocking nodes (downstream 에 또 다른 form/button/AI 가 있을 수 있음 —
-      // 정상 흐름과 동일하게 처리).
-      const downstreamOutput = context.nodeOutputCache[node.id] as
-        | Record<string, unknown>
-        | undefined;
-      const downstreamInteraction = this.getInteractionType(context, node.id);
-      if (downstreamOutput?.status === 'waiting_for_input') {
-        const downstreamBlocking = this.handlerRegistry.getMetadata(node.type);
-        if (
-          downstreamBlocking.kind === 'blocking' &&
-          downstreamBlocking.interaction === 'form'
-        ) {
-          await this.waitForFormSubmission(
-            savedExecution,
-            executionId,
-            node,
-            context,
-          );
-        } else if (downstreamInteraction === 'buttons') {
-          await this.waitForButtonInteraction(
-            savedExecution,
-            executionId,
-            node,
-            context,
-            graphEdges,
-          );
-        } else if (downstreamInteraction === 'ai_conversation') {
-          await this.waitForAiConversation(
-            savedExecution,
-            executionId,
-            node,
-            context,
-          );
-        }
-      }
-
-      this.graphTraversal.propagateReachability(
-        nodeId,
-        outgoingEdgeMap,
-        context.nodeOutputCache,
-        reachable,
-      );
-
-      const downstreamBackEdges = backEdgeMap.get(nodeId);
-      if (downstreamBackEdges?.length) {
-        const activated = this.findActivatedBackEdge(
-          nodeId,
-          downstreamBackEdges,
-          context.nodeOutputCache,
-        );
-        if (activated) {
-          for (let i = activated.targetIndex; i <= pointer; i++) {
-            reachable.delete(sortedNodeIds[i]);
-          }
-          reachable.add(sortedNodeIds[activated.targetIndex]);
-          pointer = activated.targetIndex;
-          continue;
-        }
-      }
-      pointer++;
-    }
+    // 5. 그래프 traversal loop — `runNodeDispatchLoop` 가 공통 helper
+    // (resumeFromCheckpoint 와 공유, PR #365 ai-review WARNING #10 해소).
+    // input 은 retry 경로엔 의미 없으므로 빈 객체.
+    await this.runNodeDispatchLoop({
+      executionId,
+      savedExecution,
+      context,
+      graphState,
+      executedNodes,
+      reachable,
+      nodeExecutionCount,
+      pointer,
+      input: {},
+      dispatchMeta: {
+        startedAt: savedExecution.startedAt?.toISOString(),
+        mode: 'manual',
+      },
+    });
 
     // 6. 자연 종결 — Execution COMPLETED 마감 (resumeFromCheckpoint COMPLETED
     // finalize block 패턴 동일).
