@@ -132,7 +132,7 @@
 
 ### 4.10 Parallel
 
-> **P1 구현 완료**: `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값. `PARALLEL_ENGINE=off` 로 rollback). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드(form/buttons/ai_conversation) 금지, back-edge 금지, 중첩 Parallel 금지(P2 예정). `waitAll` 은 항상 true로 동작 — `false` 는 spec out (2026-05-30 결정 K, 근거는 `10-parallel.md` § Rationale). fire-and-forget 의미는 Background 노드 사용 권고.
+> **P1+P2 구현 완료**: `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값. `PARALLEL_ENGINE=off` 로 rollback). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드(form/buttons/ai_conversation) 금지, back-edge 금지. **중첩 Parallel 은 깊이 ≤ 2 허용 + 외부 × 내부 concurrency 곱셈 cap = 32 silent clamp** (2026-05-30 결정 #3 + G + D, 근거는 `10-parallel.md` § Rationale). `waitAll` 은 항상 true로 동작 — `false` 는 spec out (2026-05-30 결정 K). fire-and-forget 의미는 Background 노드 사용 권고.
 
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
