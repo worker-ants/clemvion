@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, cleanup, waitFor } from "@testing-library/react";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -7,6 +7,9 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("next/link", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("@/lib/i18n", () => ({
+  useT: () => (key: string) => key,
 }));
 
 const refreshAccessToken = vi.fn();
@@ -36,6 +39,14 @@ describe("CallbackContent (decision A — refresh-cookie reuse)", () => {
 
     await waitFor(() => expect(refreshAccessToken).toHaveBeenCalled());
     // refresh 가 token 을 못 주면 대시보드로 이동하지 않는다 (error 상태).
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("does not route to dashboard when refresh rejects (catch branch)", async () => {
+    refreshAccessToken.mockRejectedValue(new Error("network down"));
+    render(<CallbackContent success="true" />);
+
+    await waitFor(() => expect(refreshAccessToken).toHaveBeenCalled());
     expect(push).not.toHaveBeenCalled();
   });
 

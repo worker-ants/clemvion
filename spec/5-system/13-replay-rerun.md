@@ -246,7 +246,15 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 
 **Response**: `Execution[]` — 본 chain 의 모든 row 를 `started_at ASC` 정렬. 각 항목은 위 §8.1 응답과 동일 shape (단 `nodeExecutions` 는 생략).
 
-권한은 §RR-PL-06 과 동일. 미허가 시 `RERUN_PERMISSION_DENIED`.
+권한은 §RR-PL-06 과 동일.
+
+**에러 코드**:
+
+| HTTP | code | 의미 |
+| --- | --- | --- |
+| 401 | `UNAUTHORIZED` | 인증 토큰 없음/만료 |
+| 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 미충족 (타인 실행이고 owner/admin 아님) |
+| 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 미존재 또는 다른 워크스페이스 |
 
 ---
 

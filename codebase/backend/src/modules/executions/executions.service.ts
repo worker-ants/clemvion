@@ -196,6 +196,11 @@ export class ExecutionsService {
 
   // ─── Replay/Re-run (decision F2, spec/5-system/13-replay-rerun.md §8) ───
 
+  /** RR-PL-06 — 워크스페이스 owner/admin 여부 (JWT role 기준). */
+  private isOwnerOrAdmin(user: JwtPayload): boolean {
+    return user.role === 'owner' || user.role === 'admin';
+  }
+
   /** chain 깊이 = 본 실행에서 re_run_of 를 따라 root 까지의 조상 수(+자기 1). */
   private async computeChainDepth(executionId: string): Promise<number> {
     let depth = 1;
@@ -252,11 +257,10 @@ export class ExecutionsService {
     }
 
     // RR-PL-06 — 타인의 실행이면 owner/admin 만 re-run 가능.
-    const isOwnerOrAdmin = user.role === 'owner' || user.role === 'admin';
     if (
       original.executedBy &&
       original.executedBy !== user.sub &&
-      !isOwnerOrAdmin
+      !this.isOwnerOrAdmin(user)
     ) {
       throw new ForbiddenException({
         code: 'RERUN_PERMISSION_DENIED',
@@ -324,7 +328,10 @@ export class ExecutionsService {
 
   /**
    * 같은 chain 의 모든 실행을 started_at ASC 로 반환 (spec §8.2). nodeExecutions
-   * 는 생략(목록 용). 권한은 RR-PL-06 (워크스페이스 격리) 과 동일.
+   * 는 생략(목록 용).
+   * @param user 인증 사용자 — RR-PL-06 권한 판정용 (타인 실행은 owner/admin 한정).
+   * @throws NotFoundException RERUN_EXECUTION_NOT_FOUND (미존재/타 워크스페이스)
+   * @throws ForbiddenException RERUN_PERMISSION_DENIED (RR-PL-06)
    */
   async getChain(
     executionId: string,
@@ -343,8 +350,11 @@ export class ExecutionsService {
       });
     }
     // RR-PL-06 — chain 조회 권한은 re-run 과 동일: 타인 실행은 owner/admin 만.
-    const isOwnerOrAdmin = user.role === 'owner' || user.role === 'admin';
-    if (exec.executedBy && exec.executedBy !== user.sub && !isOwnerOrAdmin) {
+    if (
+      exec.executedBy &&
+      exec.executedBy !== user.sub &&
+      !this.isOwnerOrAdmin(user)
+    ) {
       throw new ForbiddenException({
         code: 'RERUN_PERMISSION_DENIED',
         message: 'You do not have permission to view this execution chain',

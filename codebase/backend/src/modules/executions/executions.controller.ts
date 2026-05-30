@@ -215,6 +215,7 @@ export class ExecutionsController {
     description: 'chain 내 실행 목록 (nodeExecutions 생략)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'RERUN_PERMISSION_DENIED (RR-PL-06)' })
   @ApiNotFoundResponse({ description: 'RERUN_EXECUTION_NOT_FOUND' })
   async getChain(
     @Param('id', ParseUUIDPipe) id: string,

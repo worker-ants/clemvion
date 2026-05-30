@@ -209,6 +209,32 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     );
   });
 
+  it('throws INVALID_INPUT when inputOverride fails trigger schema validation', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        chainId: null,
+      },
+    ];
+    getRawOneQueue = [{ reRunOf: null }];
+    // trigger node 에 required 파라미터 → 빈 override 는 missing_required 로 실패.
+    nodeRepo.findOne.mockResolvedValue({
+      config: {
+        parameters: [{ name: 'orderId', type: 'string', required: true }],
+      },
+    });
+    await expect(
+      service.reRun('e1', 'ws-1', user, {
+        useOriginalInput: false,
+        inputOverride: {},
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(engine.execute).not.toHaveBeenCalled();
+  });
+
   it('allows chain depth 31 (boundary — not exceeded)', async () => {
     getOneQueue = [
       {
