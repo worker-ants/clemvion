@@ -4,6 +4,10 @@ status: partial
 code:
   - codebase/backend/src/nodes/core/node-handler.interface.ts
   - codebase/backend/src/nodes/integration/http-request/http-request.handler.ts
+  - codebase/backend/src/modules/executions/executions.controller.ts
+  - codebase/backend/src/modules/executions/executions.service.ts
+  - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
+  - codebase/frontend/src/lib/api/executions.ts
 pending_plans:
   - plan/in-progress/node-cancellation-infrastructure.md
 ---
@@ -18,7 +22,7 @@ pending_plans:
 
 - **Parallel `cancel-others-on-fail` errorPolicy** (parallel-p2 결정 A) — 첫 분기 실패 시 다른 분기의 외부 I/O 를 즉시 중단
 - **Workflow 단위 timeout** — 실행 시간 한도 초과 시 진행 중 노드의 외부 I/O 중단
-- **사용자 cancel 버튼** — 실행 중 워크플로우를 UI 에서 중단
+- **사용자 cancel 버튼** — 실행 중 워크플로우를 UI 에서 중단 (구현됨, 2026-05-31: 에디터 툴바의 Stop 버튼이 `running` / `waiting_for_input` 상태에서 노출되어 `POST /executions/:id/stop` 호출 → 최종 `cancelled` 전이는 WS `execution.cancelled` 이벤트로 확정. `executions.controller.ts` / `editor-toolbar.tsx`)
 - **WorkflowExecution graceful shutdown** — 서버 종료 시 진행 중 노드의 외부 I/O 중단
 
 본 컨벤션은 노드 단계 cancellation 의 단일 메커니즘 — `ExecutionContext.abortSignal` 전파 — 을 정의한다.

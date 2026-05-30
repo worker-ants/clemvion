@@ -24,10 +24,13 @@ import {
   History,
   Trash2,
   PlayCircle,
+  Square,
 } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useT } from "@/lib/i18n";
 import { useHasRole } from "@/components/auth/role-gate";
+import { executionsApi } from "@/lib/api/executions";
 
 export function EditorToolbar() {
   const t = useT();
@@ -50,11 +53,16 @@ export function EditorToolbar() {
 
   const executionStatus = useExecutionStore((s) => s.status);
   const startExecution = useExecutionStore((s) => s.startExecution);
+  const executionId = useExecutionStore((s) => s.executionId);
 
   const toggleAssistant = useAssistantStore((s) => s.toggle);
   const assistantOpen = useAssistantStore((s) => s.isOpen);
 
   const isRunning = executionStatus === "running";
+  // 실행 중단 가능 상태 — running / waiting_for_input (spec/conventions/node-cancellation.md)
+  const isCancellable =
+    executionStatus === "running" || executionStatus === "waiting_for_input";
+  const [cancelling, setCancelling] = useState(false);
   const canEdit = useHasRole("editor");
 
   // Dropdown states
@@ -165,6 +173,22 @@ export function EditorToolbar() {
       console.error("Execution failed:", error);
     }
   }, [workflowId, selectedNodeId, saveBeforeRun, startExecution, t]);
+
+  // 실행 중단 — POST /executions/:id/stop. 최종 cancelled 전이는 WS
+  // `execution.cancelled` 이벤트가 store status 를 갱신한다.
+  const handleStop = useCallback(async () => {
+    if (!executionId || cancelling) return;
+    setCancelling(true);
+    try {
+      await executionsApi.stop(executionId);
+      toast.success(t("executions.stopped"));
+    } catch (error) {
+      console.error("Stop failed:", error);
+      toast.error(t("executions.stopFailed"));
+    } finally {
+      setCancelling(false);
+    }
+  }, [executionId, cancelling, t]);
 
   const handleExport = useCallback(async () => {
     if (!workflowId) return;
@@ -304,6 +328,25 @@ export function EditorToolbar() {
             >
               <Save size={14} />
               {t("common.save")}
+            </Button>
+          )}
+
+          {/* Stop button — 실행 중단 (running / waiting_for_input) */}
+          {isCancellable && executionId && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-8 gap-1.5 text-xs"
+              disabled={cancelling}
+              onClick={() => void handleStop()}
+              title={t("executions.stop")}
+            >
+              {cancelling ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Square size={14} />
+              )}
+              {t("executions.stop")}
             </Button>
           )}
 
