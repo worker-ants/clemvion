@@ -11,6 +11,8 @@ import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
+import { Edge } from '../edges/entities/edge.entity';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import type { JwtPayload } from '../../common/decorators';
 
 // 공용 mock Response — passthrough 용. setHeader 만 노출.
@@ -66,7 +68,15 @@ describe('WorkflowsController (execute endpoint)', () => {
         },
         {
           provide: getRepositoryToken(Node),
-          useValue: { findOne: jest.fn() },
+          useValue: { findOne: jest.fn(), find: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Edge),
+          useValue: { find: jest.fn() },
+        },
+        {
+          provide: NodeComponentRegistry,
+          useValue: { getComponent: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -184,7 +194,15 @@ describe('WorkflowsController (execute — graceful shutdown gate)', () => {
         },
         {
           provide: getRepositoryToken(Node),
-          useValue: { findOne: jest.fn() },
+          useValue: { findOne: jest.fn(), find: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Edge),
+          useValue: { find: jest.fn() },
+        },
+        {
+          provide: NodeComponentRegistry,
+          useValue: { getComponent: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -268,7 +286,15 @@ describe('WorkflowsController (canvas + version endpoints)', () => {
         },
         {
           provide: getRepositoryToken(Node),
-          useValue: { findOne: jest.fn() },
+          useValue: { findOne: jest.fn(), find: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Edge),
+          useValue: { find: jest.fn() },
+        },
+        {
+          provide: NodeComponentRegistry,
+          useValue: { getComponent: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -328,6 +354,8 @@ describe('WorkflowsController (findAll — ownership wiring)', () => {
         { provide: ExecutionEngineService, useValue: {} },
         { provide: ShutdownStateService, useValue: mockShutdownState() },
         { provide: getRepositoryToken(Node), useValue: {} },
+        { provide: getRepositoryToken(Edge), useValue: {} },
+        { provide: NodeComponentRegistry, useValue: {} },
       ],
     }).compile();
 
@@ -355,5 +383,105 @@ describe('WorkflowsController (findAll — ownership wiring)', () => {
       expect.objectContaining({ ownership: 'mine' }),
       'user-42',
     );
+  });
+});
+
+describe('WorkflowsController (graph-warnings endpoint, parallel-p2 §6)', () => {
+  let controller: WorkflowsController;
+  let nodeRepo: jest.Mocked<Repository<Node>>;
+  let edgeRepo: jest.Mocked<Repository<Edge>>;
+  let registry: jest.Mocked<NodeComponentRegistry>;
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      controllers: [WorkflowsController],
+      providers: [
+        {
+          provide: WorkflowsService,
+          useValue: { findById: jest.fn().mockResolvedValue({ id: 'wf-1' }) },
+        },
+        { provide: ExecutionEngineService, useValue: {} },
+        { provide: ShutdownStateService, useValue: mockShutdownState() },
+        {
+          provide: getRepositoryToken(Node),
+          useValue: { find: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Edge),
+          useValue: { find: jest.fn() },
+        },
+        {
+          provide: NodeComponentRegistry,
+          useValue: { getComponent: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    controller = moduleRef.get(WorkflowsController);
+    nodeRepo = moduleRef.get(getRepositoryToken(Node));
+    edgeRepo = moduleRef.get(getRepositoryToken(Edge));
+    registry = moduleRef.get(NodeComponentRegistry);
+  });
+
+  it('returns empty results when no nodes have graphWarningRules', async () => {
+    nodeRepo.find.mockResolvedValue([
+      { id: 'n1', type: 'http', config: {} } as unknown as Node,
+    ]);
+    edgeRepo.find.mockResolvedValue([]);
+    registry.getComponent.mockReturnValue(undefined);
+
+    const res = await controller.graphWarnings('wf-1', 'ws');
+    expect(res.results).toEqual([]);
+    expect(res.hasError).toBe(false);
+    expect(res.hasWarning).toBe(false);
+  });
+
+  it('returns triggered rule results with hasError/hasWarning summary', async () => {
+    nodeRepo.find.mockResolvedValue([
+      {
+        id: 'p1',
+        type: 'parallel',
+        label: 'P1',
+        config: {},
+      } as unknown as Node,
+    ]);
+    edgeRepo.find.mockResolvedValue([]);
+    registry.getComponent.mockReturnValue({
+      metadata: {
+        graphWarningRules: [
+          {
+            id: 'parallel:test-error',
+            severity: 'error',
+            evaluate: (n) => ({ message: `error: ${n.label}` }),
+          },
+          {
+            id: 'parallel:test-warn',
+            severity: 'warning',
+            evaluate: () => ({ message: 'warn' }),
+          },
+        ],
+      },
+    } as unknown as ReturnType<NodeComponentRegistry['getComponent']>);
+
+    const res = await controller.graphWarnings('wf-1', 'ws');
+    expect(res.results).toHaveLength(2);
+    expect(res.results[0]).toEqual({
+      ruleId: 'parallel:test-error',
+      severity: 'error',
+      nodeId: 'p1',
+      message: 'error: P1',
+    });
+    expect(res.hasError).toBe(true);
+    expect(res.hasWarning).toBe(true);
+  });
+
+  it('rejects when workflow not found (delegates to workflowsService.findById)', async () => {
+    const wfService = (
+      controller as unknown as {
+        workflowsService: { findById: jest.Mock };
+      }
+    ).workflowsService;
+    wfService.findById.mockRejectedValueOnce(new Error('not found'));
+    await expect(controller.graphWarnings('wf-x', 'ws')).rejects.toThrow();
   });
 });
