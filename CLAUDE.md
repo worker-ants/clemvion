@@ -24,7 +24,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
   ├── spec/                # 제품의 단일 진실
   ├── plan/                # 작업 추적 (in-progress/ ↔ complete/)
   ├── review/              # 코드 리뷰 / 일관성 검토 산출물 (nested ISO)
-  ├── codebase/{frontend,backend,packages}/
+  ├── codebase/{frontend,backend,packages,channel-web-chat}/  # channel-web-chat: 임베드형 웹채팅 위젯 SPA (Next.js CSR, spec/7-channel-web-chat)
   └── .claude/worktrees/   # 모든 신규 작업의 git worktree
 ```
 
