@@ -1,5 +1,6 @@
 import { ZodSchema } from 'zod';
 import type { WarningRule } from '@workflow/node-summary';
+import type { GraphWarningRule } from './graph-warning-rule';
 import { NodeCategory } from '../../modules/nodes/entities/node.entity';
 import {
   ExecutionContext,
@@ -26,6 +27,10 @@ export type {
 export type { NodeTypeMetadata };
 // Re-export so node component authors can import everything from one path.
 export type { WarningRule, WarningSeverity } from '@workflow/node-summary';
+export type {
+  GraphWarningRule,
+  GraphWarningRuleResult,
+} from './graph-warning-rule';
 
 export type NodePortKind = 'data' | 'error' | 'control';
 
@@ -147,6 +152,24 @@ export interface NodeComponentMetadata {
    * (regex, recursion) belong in {@link validateConfig} instead.
    */
   warningRules?: readonly WarningRule[];
+  /**
+   * Cross-node 평가 rule 목록 (parallel-p2 결정 D + E + I, 2026-05-30).
+   *
+   * {@link warningRules} 의 mini-DSL 은 단일 노드의 config 만 평가하므로 부모-자식
+   * cross 평가 (외부 Parallel × 내부 Parallel 의 maxConcurrency 곱 / Parallel
+   * 의 분기 서브그래프 안에 또 Parallel 이 있는지) 를 표현 불가. 본 필드는
+   * graph 전체를 함수 인자로 받아 평가하는 형태로 그 한계를 해소한다.
+   *
+   * 평가 타이밍:
+   *  - workflow save endpoint (POST/PUT) 의 validate — severity 'error'
+   *    triggered 시 reject (후속 PR)
+   *  - frontend canvas — graph 변경 시점마다 평가, severity 별 배지 (후속 PR)
+   *  - 본 PR 은 type + Parallel 두 rule 등재 + 평가 유틸 만 (backend SSOT 인프라)
+   *
+   * 작성자 가이드 + SSOT 메커니즘:
+   * {@link ./graph-warning-rule.ts} JSDoc + spec/conventions/cross-node-warning-rules.md.
+   */
+  graphWarningRules?: readonly GraphWarningRule[];
   /**
    * Imperative escape hatch for warnings the {@link warningRules} mini-DSL
    * cannot express. Returns warning messages — same shape as
