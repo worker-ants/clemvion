@@ -14,14 +14,16 @@ model: sonnet
 
 ## 수행 절차 B — workflow 모드
 
-prompt 가 `mode=workflow` 로 시작하면 `_retry_state.json` 없이, prompt 본문의 manifest 만으로 동작합니다. 이 모드에서도 **legacy 와 동일하게 보고서를 직접 파일에 Write** 합니다 — analyzer 의 `output_file` Write 와 같은 write 경로이며, 둘은 동일한 harness write 가드(`worktree.bgIsolation`) 적용을 받으므로 analyzer 가 썼다면 본인도 쓸 수 있습니다. 보고서 전문 대신 짧은 status 한 줄만 반환해 호출자 컨텍스트 이중 적재를 막습니다.
+prompt 가 `mode=workflow` 로 시작하면 `_retry_state.json` 없이, prompt 본문의 manifest 만으로 동작합니다. 이 모드에서는 보고서를 **(1) `summary_output_file` 에 Write 시도(best-effort)** 한 뒤 **(2) 항상 전문을 반환** 합니다 — 본인은 workflow 의 *마지막(terminal)* sub-agent 라 report-file Write 가 harness 에 차단될 수 있고(병렬 analyzer 의 non-terminal write 는 통과, terminal summary write 만 거부됨), workflow 스크립트는 FS 접근이 없으므로, 디스크 단일 진실의 신뢰 경로는 호출자(main)가 반환된 전문을 멱등 Write 하는 것입니다 (merge-coordinator SKILL).
 
 1. prompt 의 `base`, `branches`, `results` 블록(각 줄 `name<TAB>status<TAB>output_file`), 그리고 `summary_output_file=<경로>` 파싱.
 2. `status` 가 `success`/`fatal` 인 analyzer 의 `output_file` Read. `success` 아닌 것은 "재시도 필요".
 3. 아래 §출력 형식으로 통합. Critical 1건이라도 있으면 상단 **`BLOCK: YES`**.
-4. 완성된 보고서를 **`summary_output_file` 에 Write** 합니다.
-   - **Write 성공 시**: 보고서 전문을 반환하지 말고 **한 줄만** 반환 — `STATUS=success BLOCK=<YES|NO> PATH=<summary_output_file>`.
-   - **Write 차단/실패 시** (예: 부모 bg 세션이 EnterWorktree 로 isolate 되지 않음): 첫 줄에 `WRITE_BLOCKED` 만 출력하고, 이어서 SUMMARY 마크다운 전문을 반환합니다 (호출자가 대신 기록 — fallback).
+4. 완성된 보고서를 **`summary_output_file` 에 Write 시도**합니다 (성공/차단 무관하게 다음 단계 진행).
+5. 정확히 아래 3-파트 형식으로 **반환**합니다:
+   - **1번째 줄 (status 헤더)**: `STATUS=<written|write_blocked> BLOCK=<YES|NO> PATH=<summary_output_file>` (4번 Write 성공이면 `written`, 차단/실패면 `write_blocked`).
+   - **2번째 줄**: 정확히 `===SUMMARY_MARKDOWN_BELOW===` 한 줄 (delimiter).
+   - **그 다음**: SUMMARY.md 마크다운 **전문** (Write 성공 여부와 무관하게 항상 포함). 호출자가 이 전문을 디스크에 멱등 기록합니다.
 
 ## 수행 절차 A — session_dir 모드
 

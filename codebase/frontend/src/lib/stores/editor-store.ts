@@ -725,10 +725,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const edgeId = String(args.id ?? "");
       if (!edgeId) return;
       s.pushUndo();
-      set((state) => ({
-        edges: state.edges.filter((e) => e.id !== edgeId),
-        isDirty: true,
-      }));
+      set((state) => {
+        const nextEdges = state.edges.filter((e) => e.id !== edgeId);
+        // Re-derive container assignments so removing this wire doesn't leave
+        // stale containerId values behind (engine would otherwise reject with
+        // CONTAINER_MISSING_EMIT / CONTAINER_INVALID_CHILD). Mirrors the
+        // edge-removal handling in onEdgesChange.
+        const nextNodes = deriveContainerAssignments(state.nodes, nextEdges);
+        return {
+          edges: nextEdges,
+          nodes: nextNodes,
+          isDirty: true,
+        };
+      });
     }
   },
 
@@ -736,7 +745,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { workflowId, workflowName, nodes, edges, isSaving } = get();
     if (!workflowId || isSaving) return false;
 
-    set({ isSaving: true });
+    // Optimistically clear isDirty at save START (the payload below is a snapshot
+    // of the current canvas). Any edit made DURING the in-flight save re-sets
+    // isDirty:true through its own mutator, so those edits stay correctly
+    // unsaved-dirty — no lost change, O(1), no full-state serialization compare.
+    set({ isSaving: true, isDirty: false });
     try {
       const payload = {
         name: workflowName,
@@ -770,10 +783,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
 
       await workflowsApi.saveCanvas(workflowId, payload);
-      set((state) => ({ isDirty: false, saveCount: state.saveCount + 1 }));
+      // Do NOT touch isDirty here: it was cleared at save start, and any edit
+      // made during the in-flight save already re-set it via that edit's mutator.
+      set((state) => ({ saveCount: state.saveCount + 1 }));
       return true;
     } catch (error) {
       console.error("Save failed:", error);
+      // Snapshot was not persisted — restore the dirty flag so the user keeps
+      // the unsaved-changes signal (harmless if an in-flight edit already set it).
+      set({ isDirty: true });
       return false;
     } finally {
       set({ isSaving: false });

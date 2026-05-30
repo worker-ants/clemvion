@@ -34,6 +34,7 @@ import {
   NodeDto,
 } from './dto/responses/node-response.dto';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { WorkspaceId } from '../../common/decorators';
 
 @ApiTags('Nodes')
 @ApiBearerAuth('access-token')
@@ -73,8 +74,14 @@ export class NodesController {
   })
   @ApiOkWrappedArrayResponse(NodeDto, { description: '노드 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  async findByWorkflow(@Param('workflowId', ParseUUIDPipe) workflowId: string) {
-    return this.nodesService.findByWorkflow(workflowId);
+  @ApiNotFoundResponse({
+    description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
+  })
+  async findByWorkflow(
+    @Param('workflowId', ParseUUIDPipe) workflowId: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    return this.nodesService.findByWorkflow(workflowId, workspaceId);
   }
 
   @Post('workflows/:workflowId/nodes')
@@ -92,12 +99,16 @@ export class NodesController {
   @ApiCreatedWrappedResponse(NodeDto, { description: '생성된 노드' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({
+    description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
+  })
   @ApiConflictResponse({ description: '동일 워크플로우 내 라벨 중복' })
   async create(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
+    @WorkspaceId() workspaceId: string,
     @Body() dto: CreateNodeDto,
   ) {
-    return this.nodesService.create(workflowId, dto);
+    return this.nodesService.create(workflowId, workspaceId, dto);
   }
 
   @Patch('nodes/:id')
@@ -113,9 +124,10 @@ export class NodesController {
   @ApiConflictResponse({ description: '동일 워크플로우 내 라벨 중복' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
     @Body() dto: UpdateNodeDto,
   ) {
-    return this.nodesService.update(id, dto);
+    return this.nodesService.update(id, workspaceId, dto);
   }
 
   @Delete('nodes/:id')
@@ -129,7 +141,10 @@ export class NodesController {
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 노드를 찾을 수 없음' })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.nodesService.remove(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    await this.nodesService.remove(id, workspaceId);
   }
 }

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { verifyDiscordSignature } from './providers/discord/discord-signing';
@@ -104,7 +105,14 @@ export class ChatChannelInboundAuthenticator {
         message: 'Invalid Telegram secret token',
       });
     }
-    if (headerToken !== expected) {
+    // constant-time compare — timing side-channel 차단. 길이가 다르면
+    // timingSafeEqual 가 throw 하므로 사전 길이 비교로 거른다 (Slack signing 동일 패턴).
+    const headerBuf = Buffer.from(headerToken, 'utf8');
+    const expectedBuf = Buffer.from(expected, 'utf8');
+    if (
+      headerBuf.length !== expectedBuf.length ||
+      !timingSafeEqual(headerBuf, expectedBuf)
+    ) {
       throw new UnauthorizedException({
         code: 'AUTH_FAILED',
         message: 'Invalid Telegram secret token',

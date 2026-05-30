@@ -32,7 +32,7 @@ stdout 마지막 줄이 세션 디렉토리. `_retry_state.json` Read (경로뿐
 Workflow(name="merge-coordinate", args={invocations, branches, base, summary})
 ```
 
-매핑: `invocations=subagent_invocations`, `summary={subagent_type: summary_subagent_type, output_file: summary_output_file}`, `branches`·`base` 동명. Workflow 가 4 analyzer 병렬(각자 prompt_file Read·output_file Write) → `integration-risk-summary` 가 통합 SUMMARY 를 `summary_output_file` 에 **직접 Write** 하고 짧은 status(`BLOCK`) 만 반환. 완료 시 반환의 `block` (YES/NO) 으로 BLOCK 판정 — SUMMARY.md 전문을 다시 Read 하지 않는다(불필요한 컨텍스트 적재). `summary_written=false` 인 fallback(write 차단) 경우에만 반환의 `summary_markdown` 을 `summary_output_file` 에 Write. `unfinished[]` 있으면 해당 analyzer 재실행.
+매핑: `invocations=subagent_invocations`, `summary={subagent_type: summary_subagent_type, output_file: summary_output_file}`, `branches`·`base` 동명. Workflow 가 4 analyzer 병렬(각자 prompt_file Read·output_file Write) → `integration-risk-summary` 가 통합 SUMMARY 를 `summary_output_file` 에 Write 시도하고 **항상 status 헤더 + 전문** 반환. 완료 시 Workflow 는 `summary_output`(경로) + `summary_markdown`(전문, 항상) + `summary_written` + `block` 반환. **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 (`summary_written` 값과 **무관하게 멱등 persist** — workflow 의 terminal summary write 는 차단될 수 있고 workflow 스크립트는 FS 접근이 없으므로 디스크 단일 진실의 신뢰 경로는 main 의 이 Write 다). 그 다음 반환의 `block` (YES/NO) 으로 판정. `unfinished[]` 있으면 해당 analyzer 재실행.
 
 > **Phase 1 만 Workflow** — Phase 2~4(confirm·git execute·conflict resolver·chain)는 bespoke 유지. 절차 SSOT: [SKILL.md](../skills/merge-coordinator/SKILL.md).
 

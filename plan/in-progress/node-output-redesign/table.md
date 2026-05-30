@@ -151,11 +151,11 @@ Table 은 Carousel 과 유사한 패턴 (블로킹 분기 + 단계 (waiting / re
 
 ## 종합 개선안 (2026-05-16)
 
-- [ ] (spec) §5.1 의 `output.rendered` 위치 결정 — Carousel/Chart 와 일관성 위해 두 옵션 중 하나 선택:
+- [x] (spec) §5.1 의 `output.rendered` 위치 결정 — Carousel/Chart 와 일관성 위해 두 옵션 중 하나 선택:
   - 옵션 A: spec 에서 `output.rendered` 제거하고 `meta.rendered` 로 이동, 또는
   - 옵션 B: spec footnote 에 "Table 은 backend HTML snapshot 을 유지 — frontend 가 evaluated label 을 매번 재계산하지 않도록 한다" 명시.
   근거: `table.handler.ts:139-143, :156`.
-- [ ] (impl) 위 spec 결정에 따라 `output.rendered` → `meta.rendered` 이동, 또는 frontend client-side recharts 패턴으로 전환 (HTML 생성 제거). 근거: `table.handler.ts:228-250` `renderHtml`.
+- [x] (impl) 위 spec 결정에 따라 `output.rendered` → `meta.rendered` 이동, 또는 frontend client-side recharts 패턴으로 전환 (HTML 생성 제거). 근거: `table.handler.ts:228-250` `renderHtml`.
 - [ ] (impl) `safeEvaluate` (`table.handler.ts:260-272`) 의 `console.error` 를 정식 logger (Nest `Logger`) 로 교체 — 운영 환경 noise 감소. 근거: `table.handler.ts:264-269`.
 - [ ] (impl) `resolveColumnLabels` 의 expression-throw 경로 unit 테스트 추가 — `safeEvaluate` catch 후 label 이 `'null'` 문자열로 표면화되는 동작 검증. 근거: `table.handler.ts:220-225`.
 - [ ] (spec) §1 의 `config.pagination` echo 여부 명시 — 현 handler `configEcho` (`:165-178`) 누락. Principle 7 ↔ spec 명시 합치 필요.

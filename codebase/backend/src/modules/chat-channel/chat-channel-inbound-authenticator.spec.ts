@@ -48,6 +48,18 @@ describe('ChatChannelInboundAuthenticator', () => {
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
+    it('실패 — 같은 길이 다른 토큰 (timing-safe compare mismatch) → 401', async () => {
+      const secrets = makeSecretsMock(async () => 'expected-token');
+      const authenticator = new ChatChannelInboundAuthenticator(secrets);
+      // 'expected-token' 과 동일 길이(14) — 길이 가드를 통과해
+      // timingSafeEqual mismatch 경로를 탄다.
+      await expect(
+        authenticator.verify('t1', TELEGRAM_CONFIG, {
+          'x-telegram-bot-api-secret-token': 'xxxxxxxxxxxxxx',
+        }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
     it('실패 — inboundSigningRef resolve 실패 시 UnauthorizedException (raw error 미노출)', async () => {
       const secrets = makeSecretsMock(async () => {
         throw new Error('secret store unavailable');
