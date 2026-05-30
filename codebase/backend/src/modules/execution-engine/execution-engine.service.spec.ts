@@ -9020,13 +9020,145 @@ describe('ExecutionEngineService', () => {
       expect(completed.length).toBe(1);
     });
 
-    // W4 buttons / W4 ai_conversation 시나리오는 `getInteractionType` 의
-    // flat-path / structured-path 양쪽 캐시에 정확히 일치하는 fixture 구성이
-    // 필요하고 (downstreamInteraction === 'buttons' 분기는 nodeOutputCache /
-    // structuredOutputCache 의 정확한 위치에 interactionType 가 들어가야 함),
-    // 본 PR 의 scope (resume 분기 도달 회귀 가드) 대비 디버깅 비용이 크다.
-    // W4 form 1건이 blocking 분기 진입의 핵심 회귀 가드를 확보하므로 buttons /
-    // ai_conversation 은 후속 PR 로 분리한다.
+    // W4 buttons / ai_conversation — `waitForX` private method spy 패턴.
+    // form 시나리오는 metadata 의 `interaction === 'form'` 분기로 통과하지만,
+    // buttons / ai_conversation 분기는 `getInteractionType` (캐시 양쪽 lookup)
+    // 결과 의존이라 fixture 정확성 디버깅 비용이 크다. 본 PR 의 회귀 가드
+    // 목적은 `runNodeDispatchLoop` 의 buttons / ai_conversation 분기 도달 자체
+    // 검증이므로 `waitForX` 를 spy 로 대체해 hang 회피 + 호출 1회 검증으로
+    // 단순화한다.
+
+    it('reaches waitForButtonInteraction when downstream is a buttons node (W4 buttons)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const buttonsNode: Partial<Node> = {
+        id: DOWNSTREAM_ID,
+        workflowId,
+        type: 'test_buttons_w4',
+        category: NodeCategory.PRESENTATION,
+        label: 'DownstreamButtons',
+        config: { buttons: [{ id: 'btn-ok', label: 'OK' }] },
+        isDisabled: false,
+      };
+      // mockOutput 의 양쪽 위치에 interactionType 명시 — flat 와 structured
+      // 양쪽 캐시 모두에 'buttons' 가 들어가도록.
+      const buttonsHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () =>
+          mockOutput(
+            {
+              type: 'buttons',
+              interactionType: 'buttons',
+              buttons: [{ id: 'btn-ok', label: 'OK' }],
+            },
+            {
+              status: 'waiting_for_input',
+              meta: { interactionType: 'buttons' },
+            },
+          ),
+        ),
+      } as unknown as NodeHandler & { execute: jest.Mock };
+      const { downstreamHandler } = installReentryWithDownstream({
+        nodes: [agentNode, buttonsNode],
+        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
+        downstreamHandler: buttonsHandler,
+        downstreamType: 'test_buttons_w4',
+        downstreamMetadata: { kind: 'blocking', interaction: 'buttons' },
+      });
+
+      // waitForButtonInteraction private method 를 spy 로 대체 — 분기 도달
+      // 검증 + hang 회피.
+      const svcAny = service as unknown as {
+        waitForButtonInteraction: jest.Mock;
+      };
+      const originalWait = svcAny.waitForButtonInteraction;
+      svcAny.waitForButtonInteraction = jest.fn().mockResolvedValue(undefined);
+
+      try {
+        await service.applyRetryLastTurn(EXEC, SPAWNED);
+        await flushPromises();
+
+        // Buttons handler.execute 가 dispatch 됨.
+        expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);
+        // runNodeDispatchLoop 의 `downstreamInteraction === 'buttons'` 분기 도달.
+        expect(svcAny.waitForButtonInteraction).toHaveBeenCalledTimes(1);
+      } finally {
+        svcAny.waitForButtonInteraction = originalWait;
+      }
+    });
+
+    it('reaches waitForAiConversation when downstream is an ai_conversation node (W4 ai_conversation)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const downstreamAiNode: Partial<Node> = {
+        id: DOWNSTREAM_ID,
+        workflowId,
+        type: 'test_ai_conv_w4',
+        category: NodeCategory.AI,
+        label: 'DownstreamAi',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-2', maxTurns: 10 },
+        isDisabled: false,
+      };
+      const aiHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () =>
+          mockOutput(
+            {
+              type: 'ai_conversation',
+              interactionType: 'ai_conversation',
+            },
+            {
+              status: 'waiting_for_input',
+              meta: { interactionType: 'ai_conversation' },
+            },
+          ),
+        ),
+        processMultiTurnMessage: jest.fn(),
+        endMultiTurnConversation: jest.fn(),
+      } as unknown as NodeHandler & { execute: jest.Mock };
+      const { downstreamHandler } = installReentryWithDownstream({
+        nodes: [agentNode, downstreamAiNode],
+        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
+        downstreamHandler: aiHandler,
+        downstreamType: 'test_ai_conv_w4',
+        downstreamMetadata: {
+          kind: 'blocking',
+          interaction: 'ai_conversation',
+        },
+      });
+
+      const svcAny = service as unknown as {
+        waitForAiConversation: jest.Mock;
+      };
+      const originalWait = svcAny.waitForAiConversation;
+      svcAny.waitForAiConversation = jest.fn().mockResolvedValue(undefined);
+
+      try {
+        await service.applyRetryLastTurn(EXEC, SPAWNED);
+        await flushPromises();
+
+        expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);
+        // runNodeDispatchLoop 의 `downstreamInteraction === 'ai_conversation'`
+        // 분기 도달.
+        expect(svcAny.waitForAiConversation).toHaveBeenCalledTimes(1);
+      } finally {
+        svcAny.waitForAiConversation = originalWait;
+      }
+    });
   });
 
   // spec node-output §4.2.1 — stripControlFields preserves _retryState while
