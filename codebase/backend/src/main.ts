@@ -30,6 +30,12 @@ import {
   assertCorsOriginsConfigured,
   corsOriginCallback,
 } from './common/utils/cors-origins';
+import {
+  createWebChatCorsDelegate,
+  parseWidgetOrigins,
+  type CorsRequestLike,
+} from './common/cors/web-chat-cors';
+import { WebChatCorsOriginResolver } from './modules/web-chat-cors/web-chat-cors-origin.resolver';
 
 async function bootstrap() {
   // Fail-closed: OAUTH_STUB_MODE bypasses real provider verification, so
@@ -138,11 +144,22 @@ async function bootstrap() {
 
   // CORS (W-1: 다중 도메인 allowlist + production fail-closed).
   // 우선순위: CORS_ORIGINS (콤마 구분) → FRONTEND_URL → wildcard (dev/test 만).
+  // 경로-스코프 delegate (단일 레이어): /api/hooks/* 무제한, /api/external/* 워크스페이스 allowlist,
+  // 그 외 기존 동작(frontend allowlist + credentials). SoT: spec/7-channel-web-chat/4-security §2.
   assertCorsOriginsConfigured();
-  app.enableCors({
-    origin: corsOriginCallback,
-    credentials: true,
+  const webChatCorsResolver = app.get(WebChatCorsOriginResolver);
+  const webChatCorsDelegate = createWebChatCorsDelegate({
+    widgetOrigins: parseWidgetOrigins(process.env.WEB_CHAT_WIDGET_ORIGINS),
+    resolveAllowlist: (executionId) =>
+      webChatCorsResolver.resolveAllowlist(executionId),
+    defaultOptions: () => ({ origin: corsOriginCallback, credentials: true }),
   });
+  app.enableCors(
+    (
+      req: CorsRequestLike,
+      cb: (err: Error | null, options?: unknown) => void,
+    ) => webChatCorsDelegate(req, cb),
+  );
 
   // workflow-resumable-execution Phase 1.2 — Graceful Shutdown.
   // Nest lifecycle 훅 (`onModuleDestroy` / `onApplicationShutdown`) 이

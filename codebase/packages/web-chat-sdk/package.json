@@ -1,0 +1,32 @@
+{
+  "name": "@clemvion/web-chat",
+  "//name": "잠정 scope — eia-sdk-publish.md §결정 #3 확정 종속 (@workflow/* vs @clemvion/*). spec/7-channel-web-chat/2-sdk §npm scope.",
+  "version": "0.1.0",
+  "description": "임베드형 웹채팅 위젯 SDK — CDN 스니펫 로더 + npm. host↔iframe(wc:*) bridge + 공개 JS API. EIA 호출은 @workflow/sdk 재사용.",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc && npm run build:loader",
+    "build:loader": "esbuild src/loader-entry.ts --bundle --minify --format=iife --outfile=dist/loader.js",
+    "prepare": "[ -d dist ] || tsc",
+    "test": "jest",
+    "lint": "tsc --noEmit"
+  },
+  "//dependencies": "EIA 클라이언트 연동 increment 에서 @workflow/sdk(file:../sdk) 추가 — 스캐폴딩 stub 은 미사용이라 보류(2-sdk §2).",
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "@types/jest": "^30.0.0",
+    "esbuild": "^0.25.0",
+    "jest": "^30.0.0",
+    "jest-environment-jsdom": "^30.0.0",
+    "ts-jest": "^29.2.5"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+    "testEnvironment": "node"
+  }
+}
