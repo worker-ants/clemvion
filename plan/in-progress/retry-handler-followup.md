@@ -95,13 +95,15 @@ PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 
 
 ### PR #371 ai-review 남은 후속 (`review/code/2026/05/30/17_21_35`)
 
-| 항목 | 상태 |
-| --- | --- |
-| WARNING #13 (이중 DB 조회 진정한 제거) | 🔲 A순위 #3 별 PR |
-| W2 (resume 경로 parallel/background dispatch 테스트) | 🔲 별 PR |
-| W5/I2 (back-edge waiting node 이중 실행 가능성 spec 검토) | 🔲 별 PR (project-planner 위임) |
-| W4 downstream blocking (form/button/multi-turn AI) 테스트 | 🔲 별 PR |
-| PR3 — AI Agent → HTTP retry e2e 시나리오 | 🔲 A순위 #4 별 PR |
+| 항목 | 상태 | 비고 |
+| --- | --- | --- |
+| WARNING #13 (이중 DB 조회 진정한 제거) | ❌ skip — **갭 없음** | `rehydrateContext` (workflow/log/node_execution) vs `loadAndBuildGraph` (node/edge) 가 직교 영역. PR #371 ai-review 의 분석이 false positive. 추가 fix 가치 없음 (1 query 절약 가능한 `applyRetryLastTurn:3253` `nodeRepository.findOneBy` 정도) |
+| W2 (resume 경로 parallel/background dispatch 테스트) | ✅ PR #378 | commit `8ef5c29c` — 2 시나리오 추가 |
+| W4 downstream blocking — form | ✅ PR #379 | commit `ce44acd9` — 1 시나리오 추가. helper 의 `downstreamMetadata` 일반화 동반 |
+| W4 downstream blocking — buttons | 🔲 후속 PR | `getInteractionType` 의 flat path (`nodeOutputCache[nodeId].interactionType`) / structured path (`structuredOutputCache[nodeId].meta.interactionType`) 양쪽 캐시 정확 일치 fixture 디버깅 필요. `mockOutput` 의 1차/2차 인자에 어떤 위치로 들어가는지 setNodeOutput / `toEngineFlatShape` 의 처리 경로 추가 추적 |
+| W4 downstream blocking — ai_conversation | 🔲 후속 PR | multi-turn AI handler 의 dispatch 가 단순 `executeNode` 아닌 `processMultiTurnMessage` 별도 경로라 fixture 설계 추가 필요 |
+| W5/I2 (back-edge waiting node 이중 실행 가능성 spec 검토) | 🔲 후속 PR | project-planner 위임 |
+| PR3 — AI Agent → HTTP retry e2e 시나리오 | 🔲 후속 PR | LLM mock 인프라 (LlmService.chat 429 시뮬레이션) + WS 클라이언트 명령 시뮬레이션이 별 PR scope. 본 PR (#365/#371/#378/#379) 의 unit 7+ 회귀 가드가 핵심 케이스 모두 커버 |
 
 ## 의존 관계
 
