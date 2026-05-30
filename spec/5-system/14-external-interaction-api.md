@@ -637,7 +637,11 @@ ALTER TABLE trigger
 - `/api/external/executions/:id/interact`, `/stream`, `/cancel`, `/refresh-token` 은 **CORS 허용**: `Access-Control-Allow-Origin` 은 워크스페이스 설정의 `interactionAllowedOrigins` ([Spec 데이터 모델 §2.2 Workspace.settings](../1-data-model.md#22-workspace)) 기준. 미설정 시 차단 (브라우저 호출 시 사용자가 명시 설정 필요). 단 **공식 웹채팅 위젯의 hosted CDN origin 은 빌트인 상수로 항상 허용**(모든 워크스페이스 공통)하고, `interactionAllowedOrigins` 는 그 외 추가 origin (BYO-UI 고객 도메인 등) 을 병합한다 — [Spec Channel Web Chat 보안 §2](../7-channel-web-chat/4-security.md).
 - Hooks 엔드포인트 (`/api/hooks/:endpointPath`) 는 기존대로 무제한 CORS.
 
-> **Implementation Note (경로-스코프 CORS)**: 현행 `main.ts` 전역 `app.enableCors` 는 단일 allowlist (`CORS_ORIGINS`/`FRONTEND_URL`, frontend 전용) 를 모든 라우트에 적용하므로, 위 `/api/external/*` 동적 CORS·`/api/hooks/*` 무제한 CORS 를 실현하려면 **해당 공개 표면에 경로-스코프 CORS 를 분리** 도입하고 전역 enableCors 는 그 경로를 제외해야 한다 (이중 `Access-Control-Allow-Origin` 헤더 충돌 방지, 내부 endpoint 과노출 방지). 워크스페이스는 path param(`:id`/`:endpointPath`) 으로 역인덱스 가능해 preflight 단계에서도 동적 echo 가능. 상세는 [Spec Channel Web Chat 보안 §2.1](../7-channel-web-chat/4-security.md).
+> **Implementation Note (경로-스코프 CORS — 구현됨)**: 전역 `app.enableCors` 를 **CorsOptionsDelegate 단일 레이어**로 교체해
+> 실현했다 ([`main.ts`](../../codebase/backend/src/main.ts), [`common/cors/web-chat-cors.ts`](../../codebase/backend/src/common/cors/web-chat-cors.ts),
+> [`modules/web-chat-cors`](../../codebase/backend/src/modules/web-chat-cors/)) — `/api/hooks/*` 무제한, `/api/external/*` 워크스페이스
+> allowlist(`WebChatCorsOriginResolver` 가 execution→workflow→workspace 로 역인덱스, 60s TTL 캐시), 그 외 경로는 기존 frontend
+> allowlist + credentials 유지. 단일 delegate 라 이중 `Access-Control-Allow-Origin` 충돌이 없다. 상세는 [Spec Channel Web Chat 보안 §2](../7-channel-web-chat/4-security.md).
 
 ---
 

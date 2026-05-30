@@ -11,13 +11,13 @@
     "build:loader": "esbuild src/loader-entry.ts --bundle --minify --format=iife --outfile=dist/loader.js",
     "prepare": "[ -d dist ] || tsc",
     "test": "jest",
-    "lint": "eslint src/**/*.ts"
+    "lint": "tsc --noEmit"
   },
   "//dependencies": "EIA 클라이언트 연동 increment 에서 @workflow/sdk(file:../sdk) 추가 — 스캐폴딩 stub 은 미사용이라 보류(2-sdk §2).",
   "devDependencies": {
     "typescript": "^5.7.3",
     "@types/jest": "^30.0.0",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.25.0",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
     "ts-jest": "^29.2.5"

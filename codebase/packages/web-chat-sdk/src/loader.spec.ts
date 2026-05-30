@@ -1,8 +1,14 @@
 /**
  * @jest-environment jsdom
  */
+import { afterEach } from "@jest/globals";
 import { createGlobalApi, installGlobal, type QueueStub } from "./loader";
 import type { ChatInstance } from "./types";
+
+afterEach(() => {
+  // 전역 오염 정리.
+  delete (window as unknown as { ClemvionChat?: unknown }).ClemvionChat;
+});
 
 function fakeInstance(): ChatInstance & { calls: string[] } {
   const calls: string[] = [];
@@ -36,9 +42,45 @@ describe("createGlobalApi", () => {
     expect(inst.calls).toEqual([]);
   });
 
-  it("알 수 없는 메서드 → throw", () => {
+  it("모든 instance 메서드 위임", () => {
+    const inst = fakeInstance();
+    const api = createGlobalApi(() => inst);
+    api("boot", { apiBase: "a", triggerEndpointPath: "t" });
+    api("show");
+    api("hide");
+    api("close");
+    api("updateProfile", { plan: "pro" });
+    api("on", "message", () => {});
+    expect(inst.calls).toEqual(["show", "hide", "close", "updateProfile", "on"]);
+  });
+
+  it("on: callback 누락 시 throw 없이 warn", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const inst = fakeInstance();
+    const api = createGlobalApi(() => inst);
+    api("boot", { apiBase: "a", triggerEndpointPath: "t" });
+    api("on", "message"); // callback 없음
+    expect(inst.calls).not.toContain("on");
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("알 수 없는 메서드 → throw 없이 warn(호스트 중단 방지)", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
     const api = createGlobalApi(() => fakeInstance());
-    expect(() => api("nope")).toThrow(/알 수 없는 메서드/);
+    expect(() => api("nope")).not.toThrow();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("boot 재호출 시 이전 인스턴스 shutdown 후 재할당(누수 방지)", () => {
+    const first = fakeInstance();
+    const second = fakeInstance();
+    const insts = [first, second];
+    const api = createGlobalApi(() => insts.shift()!);
+    api("boot", { apiBase: "a", triggerEndpointPath: "t" });
+    api("boot", { apiBase: "a", triggerEndpointPath: "t" });
+    expect(first.calls).toContain("shutdown");
   });
 
   it("shutdown 후 인스턴스 해제", () => {
@@ -70,5 +112,23 @@ describe("installGlobal — 큐 스텁 replay", () => {
     // 설치 후 새 호출도 동작
     (window as unknown as { ClemvionChat: (m: string, ...a: unknown[]) => unknown }).ClemvionChat("close");
     expect(inst.calls).toContain("close");
+  });
+
+  it("스니펫 미실행(window.ClemvionChat 없음) → 빈 큐로 설치", () => {
+    const inst = fakeInstance();
+    delete (window as unknown as { ClemvionChat?: unknown }).ClemvionChat;
+    const api = installGlobal(window, () => inst);
+    expect(typeof api).toBe("function");
+    api("boot", { apiBase: "a", triggerEndpointPath: "t" });
+    api("open");
+    expect(inst.calls).toEqual(["open"]);
+  });
+
+  it("중복 install → 재설치/재replay 하지 않음", () => {
+    const inst = fakeInstance();
+    delete (window as unknown as { ClemvionChat?: unknown }).ClemvionChat;
+    const first = installGlobal(window, () => inst);
+    const second = installGlobal(window, () => fakeInstance());
+    expect(second).toBe(first); // 동일 dispatcher
   });
 });

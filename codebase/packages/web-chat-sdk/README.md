@@ -17,7 +17,20 @@ chat.on("message", (m) => {/* host 자체 분석 */});
 chat.open();
 ```
 
-## 상태 (스캐폴딩)
+## 상태
 
-공개 표면(타입 `BootConfig`/`ChatInstance` + `boot`/`validateBootConfig`)만. iframe 주입·`wc:*` postMessage
-bridge·명령 큐·EIA 클라이언트 연동은 후속 increment. 진행: [`plan/in-progress/channel-web-chat-impl.md`](../../../plan/in-progress/channel-web-chat-impl.md).
+구현됨: 타입(`BootConfig`/`ChatInstance`/`wc:*` 프로토콜) + `boot`/`validateBootConfig`/`setWidgetBase` +
+`WidgetBridge`(iframe 주입·양방향 origin 검증·명령 큐) + 스니펫 로더 IIFE(`dist/loader.js`, 전역 `ClemvionChat`).
+EIA HTTP/SSE 호출은 위젯 SPA 내부([`channel-web-chat`](../../channel-web-chat/))에서 수행한다.
+잔여(rich presentation·rate-limit 등)는 [`channel-web-chat-followups.md`](../../../plan/in-progress/channel-web-chat-followups.md).
+
+### setWidgetBase
+
+위젯 CDN base 는 배포 env 로 주입한다(0-architecture §4). 스니펫은 로더 스크립트 src 에서 자동 유도하며,
+npm 사용 시 명시 지정 가능:
+
+```ts
+ClemvionChat.setWidgetBase("https://cdn.example.com");
+```
+
+스니펫 큐: 로더가 비동기 로드되는 동안 `ClemvionChat(...)` 호출은 `ClemvionChat.q` 에 버퍼링됐다가 로드 완료 시 순서대로 replay 된다.

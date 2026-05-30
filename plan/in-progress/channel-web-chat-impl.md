@@ -1,5 +1,5 @@
 ---
-worktree: (assigned at impl-start)
+worktree: .claude/worktrees/channel-web-chat-spec-3b22b3
 started: 2026-05-30
 owner: developer (TBD)
 ---

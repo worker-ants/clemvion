@@ -22,7 +22,10 @@ npm run lint
 npm run typecheck
 ```
 
-## 상태 (스캐폴딩)
+## 상태
 
-foundation 단계. 상태기계·EIA 클라이언트·화면·conversation 렌더 규약은 후속 increment.
-진행 추적: [`plan/in-progress/channel-web-chat-impl.md`](../../plan/in-progress/channel-web-chat-impl.md).
+구현됨: 상태기계(`src/lib/widget-state`), EIA 클라이언트(`src/lib/eia-client`), conversation 렌더 규약
+(`src/lib/conversation` — `[user-input]` strip·`live`/`injected`), 세션 복원(`src/lib/session-store`),
+화면(런처/패널/메시지/Form/입력/면책), host↔iframe bridge(`src/widget/host-bridge`).
+잔여(rich presentation 전용 컴포넌트 등): [`channel-web-chat-followups.md`](../../plan/in-progress/channel-web-chat-followups.md).
+진행 추적: [`channel-web-chat-impl.md`](../../plan/in-progress/channel-web-chat-impl.md).

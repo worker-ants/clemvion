@@ -1,5 +1,5 @@
 ---
-worktree: (assigned at impl-start)
+worktree: .claude/worktrees/channel-web-chat-spec-3b22b3
 started: 2026-05-30
 owner: developer (TBD)
 ---
@@ -35,6 +35,11 @@ owner: developer (TBD)
 
 ### 6. M2 BYO-UI headless client 정식 패키징
 - 현재 `@workflow/sdk`(EIA 클라이언트) 재사용을 샘플로만 시연. 정식 headless API 표면 노출·문서는 후속.
+
+### 7-b. 위젯 리사이즈·이벤트 API 보강 (코드 리뷰 지적)
+- [ ] `wc:resize` 수신 처리 — host(SDK WidgetBridge)가 iframe 의 collapsed/expanded 크기 요청을 받아 iframe 엘리먼트 resize.
+- [ ] `on()` 구독 해제 — `off(event, cb)` 또는 `on()` 이 unsubscribe 함수 반환(SPA 언마운트 메모리 누수 방지). spec `2-sdk` 표면 변경 → **project-planner 위임** 필요.
+- [ ] 전역 함수명(`ClemvionChat`) 충돌 방지 패턴 — 호스트 전역 네임스페이스 오염 대비. spec `2-sdk §1` 유보 항목 명문화 → project-planner.
 
 ### 7. CI 테스트 오케스트레이션 wiring
 - `codebase/channel-web-chat` + `codebase/packages/web-chat-sdk` 를 `.claude/test-stages.sh`(lint/unit/build) + CI

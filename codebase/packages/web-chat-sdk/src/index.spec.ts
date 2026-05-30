@@ -26,6 +26,10 @@ describe("validateBootConfig", () => {
       /triggerEndpointPath/,
     );
   });
+  it("과대 profile → throw", () => {
+    const big = { blob: "x".repeat(20_000) };
+    expect(() => validateBootConfig({ ...valid, profile: big })).toThrow(/너무 큽니다/);
+  });
 });
 
 describe("resolveIframeTarget", () => {
@@ -64,5 +68,21 @@ describe("boot", () => {
     expect(document.querySelector("iframe")).not.toBeNull();
     chat.shutdown();
     expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("on: iframe 의 wc:event → 콜백 위임(통합)", () => {
+    const chat = boot(valid);
+    const cb = jest.fn();
+    chat.on("message", cb);
+    const iframe = document.querySelector("iframe") as HTMLIFrameElement;
+    // iframe 측에서 ready 후 wc:event 발신 시뮬레이션 (origin = 위젯 origin)
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "wc:event", payload: { name: "message", data: { text: "응답" } } },
+        origin: "https://cdn.example.com",
+        source: iframe.contentWindow,
+      }),
+    );
+    expect(cb).toHaveBeenCalledWith({ text: "응답" });
   });
 });

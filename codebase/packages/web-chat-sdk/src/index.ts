@@ -58,7 +58,24 @@ export function validateBootConfig(config: BootConfig): void {
   if (!config.triggerEndpointPath) {
     throw new Error("[web-chat] boot.triggerEndpointPath 는 필수입니다.");
   }
+  // profile 은 webhook payload 로 전송되므로 크기를 제한(대용량 페이로드 방지).
+  if (config.profile !== undefined) {
+    let size = 0;
+    try {
+      size = JSON.stringify(config.profile).length;
+    } catch {
+      throw new Error("[web-chat] boot.profile 직렬화 실패 — 순환 참조 등 확인.");
+    }
+    if (size > MAX_PROFILE_BYTES) {
+      throw new Error(
+        `[web-chat] boot.profile 가 너무 큽니다(${size} > ${MAX_PROFILE_BYTES} chars).`,
+      );
+    }
+  }
 }
+
+/** profile 직렬화 최대 크기(chars). webhook payload 비대화 방지. */
+export const MAX_PROFILE_BYTES = 16_384;
 
 /** 위젯 부팅 — iframe 주입 + wc:* bridge 연결 후 제어 인스턴스 반환. */
 export function boot(config: BootConfig): ChatInstance {
