@@ -10,6 +10,12 @@ owner: project-planner
 > 실패해도 진행 중이던 대화가 UI(타임라인 + Preview)에서 사라지지 않도록 한다. 동시에
 > retryable 케이스는 "한 번 실패 = 종결" 이 아니라 인라인 [다시 시도] 버튼으로 회복 경로를 제공한다.
 
+## 진행 상태 (2026-05-30)
+
+- **spec 변경 — 완료, main 머지됨**: 본 plan "영향 spec" 표 전체가 적용됨 (`d109dbd3`, PR #289 에 포함). `node-output.md §3.3` LLM retryable 분류 cross-ref + `execution-engine.md` Rationale R1 사유는 2026-05-30 잔여 gap 보강.
+- **구현 — Phase A+B+C-min 완료, main 머지됨**: 대화 보존(store reset 분리) + system_error 인라인 + retryable 자동 분류 (`68306a29` / `de73e3ab`, PR #289).
+- **구현 — Phase D (남은 범위) → [`retry-handler-followup.md`](./retry-handler-followup.md) 가 추적**: WS `execution.retry_last_turn` 서버 핸들러 / `_retryState` 소비 원자성·단일 소비 마킹 / `INVALID_EXECUTION_STATE` 사전 검증 / TTL SoT·cleanup / 백엔드 테스트(WARNING #1~#5, #7, #8). 따라서 `§4.2` 의 `INVALID_EXECUTION_STATE` 추가 등 잔여 spec 정밀화의 처리 주체는 follow-up plan 이다.
+
 ## 배경
 
 (코드 추적 보고 = 2026-05-23 사용자 대화, 첨부 스크린샷 — Gemini quota 429 에러)
@@ -51,7 +57,7 @@ owner: project-planner
 ### B. 에러를 conversation thread 의 system_error item 으로 인라인 표시
 
 - `ConversationTurnSource` 에 새 source `system_error` 추가 (기존 `system` 은 예약 정보용 — `system_error` 는 별 의미·시각). [Conversation Thread §1.1](../../spec/conventions/conversation-thread.md#11-conversationturnsource)
-- `ConversationTurn.data` payload (system_error 한정): `{ code: string, message: string, retryable: boolean, retryAfterSec?: number, nodeId: string, nodeLabel: string }`. `code` / `message` 는 `output.error.{code, message}` 와 동일 (single source of truth — 핸들러 emit 단계에서 복사).
+- `ConversationTurn.data` payload (system_error 한정): `{ code: string, message: string, retryable: boolean, retryAfterSec?: number, nodeId: UUID, nodeLabel: string, nodeExecutionId?: UUID }`. `code` / `message` 는 `output.error.{code, message}` 와 동일 (single source of truth — 핸들러 emit 단계에서 복사). `nodeExecutionId?` 는 `execution.retry_last_turn` 명령의 payload key — live view 의 WS payload 에는 set, history view 합성(`parseHistoryMessages`)에는 미동봉 (UI 가 retry 버튼 자동 suppress). shape SoT 는 [Conversation Thread §1.2.1](../../spec/conventions/conversation-thread.md#121-system_error-data-shape).
 - WS `execution.node.failed` 또는 `output.error` 가 set 된 `execution.node.completed` 수신 시 store 가 `conversationMessages` 마지막에 `type: 'system_error'` 항목을 APPEND. payload 의 `nodeId` 가 conversation 의 호스트 AI Agent 노드와 일치할 때만 (또는 multi-turn `interactionType: 'ai_conversation'` 컨텍스트 안에서만) 적용.
 - §9.1 source 별 시각 매핑 표에 `system_error` 행 추가 — **§9.2 3중 시각 신호 전체 정의**:
   - **아이콘**: ❌
@@ -70,7 +76,7 @@ owner: project-planner
   - `retryAfterSec?: number` — 선택. provider 가 `Retry-After` 헤더 또는 동등한 신호를 제공한 경우만 set. `retryable=true` 일 때만 set 가능 (false 와 함께 set 시 spec 위반 — `convention-compliance` checker 가 발견).
   - 위치: `spec/conventions/node-output.md Principle 3.2` 를 두 계층으로 분리 — "선택 공통 표준 필드 (LLM 계열 한정 필수)" sub-section 신설 + 기존 "노드별 선택 필드" 유지.
 - AI Agent 의 분류 규칙 (`spec/4-nodes/3-ai/1-ai-agent.md §10` 에러 코드 표에 sub-case 분리 열 추가):
-  - `retryable=true`: HTTP 429 (`LLM_RATE_LIMITED`), HTTP 5xx (`LLM_CALL_FAILED` 의 5xx sub-case), network timeout (`LLM_CALL_FAILED` 의 timeout sub-case)
+  - `retryable=true`: HTTP 429 (`LLM_RATE_LIMIT`), HTTP 5xx (`LLM_CALL_FAILED` 의 5xx sub-case), network timeout (`LLM_CALL_FAILED` 의 timeout sub-case)
   - `retryable=false`: 인증 실패 401/403 (`LLM_CALL_FAILED` 의 auth sub-case), JSON 파싱 실패 (`LLM_RESPONSE_INVALID`), schema fatal, 사용자 취소
 - 새 WS 명령 `execution.retry_last_turn`: payload `{ executionId, nodeExecutionId }`. ack 패턴은 기존 `execution.<cmd>.ack` 패턴 준수:
   - **ack type**: `execution.retry_last_turn.ack`
@@ -114,7 +120,7 @@ owner: project-planner
 | `spec/conventions/conversation-thread.md` §8 Rationale | **(본 PR 갱신)** `system_error` 신설 결정 (2026-05-23) 항 추가. `system` source 재사용 대신 별 source 분리 사유 + system note 와의 의미·시각 차이 + `data` discriminator 안 기각 사유 명시 (plan Rationale "system_error vs system source 재사용" 단락의 SoT 본 spec 절로 이전). |
 | `spec/conventions/data-hydration-surfaces.md` §1 + §3 | **(본 PR 갱신)** Output field → hydration surface 매트릭스에 `output.error` (multi-turn error 종결) 행 추가 — surface 4종: (a) `parseHistoryMessages` last system_error 합성 (OQ3 결정), (b) `threadTurnsToConversationItems` system_error turn 매핑, (c) `applyExecutionSnapshot` waiting/ended 분기, (d) WS `execution.node.failed` / `node.completed` (with error) APPEND. **backend echo 위치**: `buildMultiTurnFinalOutput` 의 `errorPayload` 경로 (single source — `ai-agent.handler.ts:2227` 참조). §3 "신규 field 추가 절차" 충족. `NodeExecution.outputData (REST fetch, no live thread)` 행 비고에 "`output.error` set + multi-turn → 마지막에 system_error item 합성" 추가. |
 | `spec/5-system/14-external-interaction-api.md` EIA-IN-02 | **(본 PR 갱신 — 외부 표면 미노출 결정)** 외부 허용 command 목록에 `retry_last_turn` 미포함. 본 PR 1차 범위는 내부 UI (Run Results 드로어) 한정. 외부 표면 노출은 별 PR 에서 다룬다 (사유: 외부 토큰 `per_execution` 의 retry 권한 매트릭스 정의 + Notification 흐름과의 정합 + retry 횟수 제한 정책이 별도 결정 필요). 본 명령은 §4.6 매핑표에 "외부 미노출" 로 명시. |
-| `spec/conventions/conversation-thread.md` §1.2 | `data?` 행 비고에 system_error source 의 payload shape 인라인 정의: `{ code: string, message: string, retryable: boolean, retryAfterSec?: number, nodeId: UUID, nodeLabel: string }`. node-output §4.5 는 presentation interaction 전용이므로 system_error 는 scope 외 — 본 §1.2 가 단일 진실. |
+| `spec/conventions/conversation-thread.md` §1.2 + §1.2.1 (신설) | `data?` 행에서 system_error 한정 shape 을 §1.2.1 독립 서브섹션으로 정의: `{ code: string, message: string, retryable: boolean, retryAfterSec?: number, nodeId: UUID, nodeLabel: string, nodeExecutionId?: UUID }`. `nodeExecutionId?` 는 `execution.retry_last_turn` 의 payload key (live WS 에만 set). node-output §4.5 는 presentation interaction 전용이므로 system_error 는 scope 외 — 본 §1.2.1 이 단일 진실. |
 | `spec/conventions/conversation-thread.md` §9.1 | source 별 시각 매핑 표에 `system_error` 행 추가 — **§9.2 3중 시각 신호 전체**: <br> · UI 형식: `❌ 가운데 정렬 얇은 빨간 full-width 라인 (system note 와 동급 컨테이너지만 빨간 강조)` <br> · 헤더: `<nodeLabel> · <code>` chip <br> · 본문: `data.message` <br> · 우측 액션: `data.retryable === true` 일 때 `[다시 시도]` 버튼 + `data.retryAfterSec` 카운트다운 |
 | `spec/conventions/conversation-thread.md` §9.2 | 3중 시각 신호 표의 "아이콘" 행에 `❌ (system_error)` 추가. "컨테이너 형식" 행에 system_error 가 system note 와 동일 가운데정렬 라인이되 빨간 강조임을 명시. |
 | `spec/conventions/conversation-thread.md` §9.6 | tool-call 그룹 시각 정책에 명시: `system_error` source 는 §9.6 parent/child 분류 대상 외 — `groupToolCallItems` 는 system_error 항목을 unclaim 상태 그대로 둔다 (indent tree 미흡수). `isAssistantContentBlank` 평가 미적용. |
@@ -124,10 +130,10 @@ owner: project-planner
 | `spec/conventions/conversation-thread.md` §10 CHANGELOG | 2026-05-23 row 추가 — system_error source 신설 + §9.7 CLEAR 분리 정책 + Inv-6 + CT-S9/S10/S11. |
 | `spec/3-workflow-editor/3-execution.md` §10.5 / §10.6 | conversation 인스펙터의 입력 영역 행에 retry 진입점 비고: "마지막 항목이 retryable system_error 이면 입력 영역 자리에 `[다시 시도]` 버튼 노출 + retryAfterSec 카운트다운". §10.6 디폴트 탭 우선순위 비고: "AI multi-turn retryable error 종결 시 Preview 우선 (conversation thread 안에 system_error 가 표시되므로). Error 탭은 `output.error` JSON 형식으로 계속 접근 가능." |
 | `spec/3-workflow-editor/3-execution.md` §10.8 | 라이프사이클 표 갱신: <br> · `노드 실행 완료` 행 — output.error 가 set 이면 timeline 항목 + system_error append. <br> · `실행 실패` 행 — "드로어 유지. 실패 시점까지 + **conversation snapshot 보존** ([Conversation Thread §9.7](../conventions/conversation-thread.md#97-ws-이벤트--store-변환-계약) store reset 정책)". <br> · `새 실행 시작` 행 — "이전 히스토리 클리어, 드로어 리셋, conversation snapshot 도 클리어 (Conversation Thread §9.7 — `startExecution` 만 적용되는 reset 묶음)". <br> · 신규 행: `Multi Turn 재시도 클릭 (execution.retry_last_turn)` → 노드 status `running` 전환 + system_error item 의 버튼을 spinner 로 교체. |
-| `spec/5-system/6-websocket-protocol.md` §4.2 | **(본 PR 갱신)** 실행 제어 명령 표에 `execution.retry_last_turn` 신규 행 추가: payload `{ executionId, nodeExecutionId }`. ack 정의: `execution.retry_last_turn.ack` payload `{ executionId, nodeExecutionId, resumed: boolean, error?: { code, message } }` — `execution.click_button.ack` (resumed flag) + `execution.submit_form` reject (error 객체) 패턴 결합. 에러 코드 표에 `INVALID_RESUME_TOKEN` ("_retryState token 이 DB 에 없거나 만료됨"), `NODE_NOT_RETRYABLE` ("`output.error.details.retryable === false` 또는 노드가 retryable error 로 종결되지 않음"), `RETRY_TOO_EARLY` ("`retryAfterSec` 카운트다운 종료 전 호출 — 서버측 enforcement") 추가. 본 행 비고에 "Re-run (§13 replay-rerun) 과 다름 — 동일 Execution 안 노드 단위 재시도" cross-ref. |
+| `spec/5-system/6-websocket-protocol.md` §4.2 | **(본 PR 갱신)** 실행 제어 명령 표에 `execution.retry_last_turn` 신규 행 추가: payload `{ executionId, nodeExecutionId }`. ack 정의: `execution.retry_last_turn.ack` payload `{ executionId, nodeExecutionId, resumed: boolean, error?: { code, message } }` — `execution.click_button.ack` (resumed flag) + `execution.submit_form` reject (error 객체) 패턴 결합. 에러 코드 표에 `RETRY_STATE_NOT_FOUND` ("`_retryState` 가 DB 에 없거나 만료됨 — 별도 token 필드는 payload 에 존재하지 않음"), `NODE_NOT_RETRYABLE` ("`output.error.details.retryable === false` 또는 노드가 retryable error 로 종결되지 않음"), `RETRY_TOO_EARLY` ("`retryAfterSec` 카운트다운 종료 전 호출 — 서버측 enforcement") 추가. 본 행 비고에 "Re-run (§13 replay-rerun) 과 다름 — 동일 Execution 안 노드 단위 재시도" cross-ref. |
 | `spec/5-system/6-websocket-protocol.md` §4.1 | **(본 PR 갱신)** `execution.node.failed` payload `error` 필드 shape 을 `output.error` 전체 구조 (`{ code, message, details?: { retryable?, retryAfterSec?, ... } }`) 로 명시. `execution.node.completed` payload `output` 도 `output.error` 동봉 시 동일 구조. **구현 착수 전 확인 필요**: 현행 backend 가 error port 종결 시 `execution.node.completed` payload 의 `output` 에 `output.error` 를 실제 동봉하는지 코드 확인. 동봉되어 있으면 spec 명시화만, 미동봉이면 backend emit 변경 + WS consumer 코드 회귀 검증. (영향 codebase 표 FE WS 행에 이미 반영됨.) |
 | `spec/5-system/6-websocket-protocol.md` §4.6 | **(본 PR 갱신)** 외부 표면 매핑 표에 `execution.retry_last_turn` 행 추가하되 **"(외부 미노출 — 향후 별 PR 에서 노출 예정)"** 비고로 표시 — `submit_form` / `click_button` / `submit_message` / `end_conversation` 처럼 REST 매핑을 갖지 않고, 내부 WS 전용. **`execution.start` 의 "원칙적 배제 — webhook 대체" 와 의미 다름** (retry_last_turn 은 외부 표면 노출 가능하나 별 PR 로 미룸). EIA spec EIA-IN-02 와 정합. SSE event 매핑은 영향 없음 (응답은 기존 `execution.node.started` / `execution.node.completed` 가 새 nodeExecutionId 로 재발화). |
-| `spec/4-nodes/3-ai/2-text-classifier.md` §5.3 · `spec/4-nodes/3-ai/3-information-extractor.md` §5.3/§5.6.4 | **(별 plan 에서 처리됨 — 본 PR scope 외)** 두 노드의 error 예시·필드 표에 `details.retryable` (필수) 보강은 [`spec-update-ai-error-output-fields`](./spec-update-ai-error-output-fields.md) plan 에서 2026-05-29 완료 (`review/consistency/2026/05/29/00_45_44/`). 본 PR 은 §3.2.1 규약·ai-agent §7.9/§10 만 갱신했고 형제 노드 본문 정합은 위 plan 이 담당. |
+| `spec/4-nodes/3-ai/2-text-classifier.md` §5.3 · `spec/4-nodes/3-ai/3-information-extractor.md` §5.3/§5.6.4 | **(완료 — 본 PR scope 외)** 두 노드의 error 예시·필드 표에 `details.retryable` (필수) 보강은 이미 spec 에 반영됨 (`text-classifier.md §5.3` 필드 표 + error 예시, `information-extractor.md §5.3/§5.6.4` 동일). 본 PR 은 §3.2.1 규약·ai-agent §7.9/§10 만 갱신했고 형제 노드 본문 정합은 별도로 완료. |
 
 ## 영향 codebase (구현 turn 에서 다룸)
 
@@ -194,10 +200,7 @@ A → B → C 순. 각 phase 마다 RED → GREEN → REFACTOR.
 
 ### system_error vs `system` source 재사용
 
-- `system` source 는 §1.1 표에 "예약 (v1 자동 push 없음)" 으로 남아있다. 의미 부담이 작다.
-- 그러나 system_error 는 시각·인터랙션 (`[다시 시도]` 버튼) · 동작 의미 (실패 신호) 가 system note 와 다르므로 별 source 분리가 더 명확하다.
-- `data.kind: 'error' | 'note'` discriminator 로 system 안에 박는 안은 source enum 의 디스패치를 무력화 (§9.1 매핑 표가 1:1 → 1:N) — UI 분기 비용 증가.
-- 결정: `system_error` 새 source 추가. `system` 은 그대로 reserved 유지 (v2 에서 매뉴얼 system note 도입 시 활성화).
+→ 본 결정의 단일 진실은 spec 이전 완료되어 [`conversation-thread.md §8.3`](../../spec/conventions/conversation-thread.md#83-system_error-source-신설) 로 이전됨 (`system_error` 새 source 추가 / `system` reserved 유지 / `data.kind` discriminator 기각 사유 포함).
 
 ### R1 (status `ended` + `_retryState`) 채택 사유
 
@@ -216,7 +219,7 @@ A → B → C 순. 각 phase 마다 RED → GREEN → REFACTOR.
 | `knowledgeBases` / `ragTopK` / `ragThreshold` | `_resumeState` 그대로 | KB ID 목록 — credential 무관 |
 | `mcpServers` | `_resumeState` 그대로 | MCP server ID 목록 — secret 은 별도 store 에서 lookup 이라 `_retryState` 에 포함 안됨 |
 | `pendingFormToolCall?` | `_resumeState` 그대로 | retryable error 가 form 대기 중에 발생한 케이스 — toolCallId + formConfig (credential 없음) |
-| `expiresAt` | 신규 — `Date.now() + TTL` | TTL 60분. 만료 후 `INVALID_RESUME_TOKEN` 에러 코드 |
+| `expiresAt` | 신규 — `Date.now() + TTL` | TTL 60분. 만료 후 `RETRY_STATE_NOT_FOUND` 에러 코드 |
 
 → 모든 필드가 `_resumeState` 와 동등하거나 그 부분집합 + `expiresAt`. credential 노출 표면은 `_resumeState` 보다 늘어나지 않는다.
 
@@ -227,10 +230,10 @@ A → B → C 순. 각 phase 마다 RED → GREEN → REFACTOR.
 - 60분 초과는 stale state 누적 우려 — `_retryState` 는 `NodeExecution.outputData` JSONB 안에 누적되므로 무한 보존 시 DB 비대화. 기각 대안: 24시간 (실용 가치 낮음 — 1시간 후 quota 가 회복 안 됐다면 사용자 개입 필요), 5분 (사용자가 자리 비울 때 짧음).
 - 향후 사용량 데이터로 적정값 재검토 (별 PR).
 
-**`LLM_RATE_LIMITED` 도입 — "대체" 가 아닌 "sub-case 분리" 패턴**:
+**`LLM_RATE_LIMIT` 도입 — "대체" 가 아닌 "sub-case 분리" 패턴**:
 
-- 현행 `LLM_CALL_FAILED` 는 429 를 포함해 모든 호출 실패를 포괄. 본 PR 에서 `LLM_RATE_LIMITED` 를 도입할 때 기존 `LLM_CALL_FAILED` 를 폐기/대체하지 않고 **sub-case 분리** — 429 만 `LLM_RATE_LIMITED` 로 분기. 5xx / timeout / auth 는 여전히 `LLM_CALL_FAILED` 의 sub-case (5xx → retryable=true, timeout → retryable=true, auth → retryable=false).
-- 기존 코드의 `code === 'LLM_CALL_FAILED'` 분기를 깨지 않고 `code === 'LLM_RATE_LIMITED'` 가 추가됨 — breaking change 없음.
+- 현행 `LLM_CALL_FAILED` 는 429 를 포함해 모든 호출 실패를 포괄. 본 PR 에서 `LLM_RATE_LIMIT` 를 도입할 때 기존 `LLM_CALL_FAILED` 를 폐기/대체하지 않고 **sub-case 분리** — 429 만 `LLM_RATE_LIMIT` 로 분기. 5xx / timeout / auth 는 여전히 `LLM_CALL_FAILED` 의 sub-case (5xx → retryable=true, timeout → retryable=true, auth → retryable=false).
+- 기존 코드의 `code === 'LLM_CALL_FAILED'` 분기를 깨지 않고 `code === 'LLM_RATE_LIMIT'` 가 추가됨 — breaking change 없음.
 
 ### Inv-6 의 범위
 

@@ -24,10 +24,12 @@ pending_plans:
 pending → running ──┤                     └─ cancelled
                     ├─ completed
                     │
-                    └─ failed
+                    └─ failed ─ running (retry_last_turn 재진입, opt-in)
 ```
 
 > ※ Rehydration (다른 인스턴스가 사용자 입력을 받아 재개) 은 `waiting_for_input` 의 **내부 transition** — 다이어그램상 self-loop 로 표시하지 않으나 §7.5 의 재개 경로가 이를 수행한다. 상태 enum 자체는 변경되지 않는다.
+>
+> ※ `failed → running` 은 **`execution.retry_last_turn` 재진입 전용** 전이다 (아래 표 · §1.3). AI Agent multi-turn 의 retryable error 종결로 `failed` 가 된 Execution 을, 동일 nodeId 의 **새 NodeExecution row** 를 구동(WS `node.started`/`node.completed` 발행)하기 위해 `running` 으로 되돌린다. **이것은 Execution entity 레벨 전이**이며, 동시에 §1.2 의 새 NodeExecution row 가 생성된다(기존 `failed` row 는 전이시키지 않음 — §1.2 비고). 일반 노드 실패 경로에는 적용되지 않고, 코드상 `allowRetryReentry` opt-in (state-machine) 으로만 허용해 실패 종결 실행의 우발적 부활을 차단한다.
 
 | 상태 | 설명 | 전이 조건 |
 |------|------|-----------|
@@ -52,6 +54,7 @@ pending → running ──┤                     └─ cancelled
 | waiting_for_input | failed | AI Agent multi-turn turn 처리 중 LLM throw (429/timeout/connection) — `handleAiTurnError` 가 [§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) shape (`port='error', status='ended'`) 으로 finalize |
 | waiting_for_input | waiting_for_input | 다른 인스턴스에서 재개 (rehydration) — Execution.status enum 자체는 변하지 않고 `pendingContinuations` 가 새 인스턴스에 재등록 (§7.5) |
 | waiting_for_input | cancelled | 사용자 취소, 타임아웃, 또는 rehydration 실패의 단말 케이스 (`RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED` / `RESUME_INCOMPATIBLE_STATE` — §7.5) |
+| failed | running | **`execution.retry_last_turn` 재진입 전용** (`allowRetryReentry` opt-in) — AI Agent multi-turn retryable error 종결로 `failed` 가 된 Execution 을 동일 nodeId 의 새 NodeExecution row 구동을 위해 `running` 으로 전이. 성공 종결 시 다시 `completed`, 재실패 시 `failed`, replay 중 cancel 도달 시 `cancelled`. 일반 경로엔 없음 — [§1.3](#13-블로킹재개-컨트랙트-nodehandleroutput-status) / [6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) |
 
 > **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다. `waiting_for_input → failed` 전이도 동일한 원자성 — `NodeExecution.status=FAILED` save + `Execution.status=FAILED` 가 단일 트랜잭션으로 묶이고, WS 이벤트 순서는 `NODE_FAILED` → `EXECUTION_FAILED`.
 
@@ -102,8 +105,8 @@ pending → running ──┤                     └─ cancelled
 
 - AI Agent multi-turn 이 retryable error (HTTP 429 / 5xx / network timeout — `output.error.details.retryable === true`) 로 종결될 때, `buildMultiTurnFinalOutput` 이 `_resumeState` snapshot 을 `_retryState` 로 운반한다 (top-level, Principle 0 예외).
 - **`stripControlFields()` 는 `_retryState` 를 보존** — `NodeExecution.outputData._retryState` 로 DB 영속.
-- `_retryState` shape: `_resumeState` 의 부분집합 + `expiresAt: ISO 8601` (TTL — 기본 60분). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` boundary strip). expression resolver / autocomplete 비노출.
-- 소비: WS 명령 `execution.retry_last_turn` ([Spec WebSocket §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)) 이 `nodeExecutionId` 로 `_retryState` 를 lookup → `expiresAt` 검증 → 새 NodeExecution row spawn → multi-turn loop 재진입. TTL 만료 또는 한 번 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 응답.
+- `_retryState` shape: `_resumeState` 의 부분집합 + `expiresAt: ISO 8601` (TTL — 기본 60분, env `AI_RETRY_STATE_TTL_MINUTES` override). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` boundary strip). expression resolver / autocomplete 비노출.
+- 소비 (atomic): WS 명령 `execution.retry_last_turn` ([Spec WebSocket §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)) 이 `nodeExecutionId` 로 `_retryState` 를 lookup → `expiresAt` 검증 → **동일 트랜잭션에서 `_retryState` 키 제거(소비) + 새 NodeExecution row spawn** → continuation 큐(`execution-continuation`)에 `retry_last_turn` job publish → **worker 가 spawn 된 row 를 `_retryState` 로 seed 해 multi-turn loop 재진입**. 키 제거가 affected=1 인 쪽만 진행해 동시 retry 중복 spawn 차단. TTL 만료 또는 이미 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND`. (재진입은 worker 컨텍스트 필요 — WS gateway 동기 수행 불가하므로 continuation bus 로 handoff.)
 - 상세 SoT: [CONVENTIONS node-output Principle 4.2.1](../conventions/node-output.md#421-보존-예외--_retrystate), [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트).
 
 **`interaction.data` payload 규격** (CONVENTIONS §4.5):
@@ -142,6 +145,8 @@ pending → running ──┤
 | `completed` | 정상 완료 |
 | `failed` | 실행 실패 |
 | `skipped` | 건너뜀 (노드 비활성, Skip Node 정책, 조건 분기 미선택) |
+
+> **`retry_last_turn` 재진입은 새 row 를 spawn 한다**: AI Agent multi-turn 의 retryable error 로 `failed` 가 된 NodeExecution row 는 **전이시키지 않고 그대로 둔다**. `execution.retry_last_turn` 은 동일 nodeId 의 **새 NodeExecution row 를 `running` 으로 생성**(`_retryState` seed)해 마지막 turn 을 replay 한다 — 따라서 한 nodeId 가 복수 row 를 가질 수 있고, WS 명령이 `nodeExecutionId` (nodeId 아님) 로 row 를 식별하는 이유다 ([6-websocket-protocol §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)). §1.1 의 `failed → running` 은 이 새 row 구동에 따른 **Execution entity** 전이이며, 기존 `failed` row 의 전이가 아니다.
 
 ---
 
@@ -1057,6 +1062,26 @@ engine.runNode
 직접 `WFI → failed` 단일 전이 + NodeExecution.status=FAILED save + `NODE_FAILED` → `EXECUTION_FAILED` WS 이벤트 순서를 채택한다 — 단일 트랜잭션 commit 으로 §1.1 의 기존 원자성 정책과 동일하다. `WFI → running` 후 `running → failed` 의 두 단계 전이는 두 트랜잭션 분리로 단일 원자성이 깨져 더 복잡하므로 택하지 않는다.
 
 구현: `state-machine.ts` `ALLOWED_TRANSITIONS`.
+
+### retryable error 종결 시 `_retryState` 보존 (R1 채택)
+
+retryable error (HTTP 429 / 5xx / network timeout) 종결을 처리하는 두 안 중 **R1 (status `ended` + `port: 'error'` 유지 + `_retryState` 동봉)** 을 채택한다 (§1.3 보존 예외).
+
+- **R2 (status `waiting_for_retry` 신설) 기각**: `waiting_for_input` 패밀리 확장이라 §1.3 블로킹/재개 컨트랙트가 다른 노드에까지 번지고, Principle 5 port 활성화 모델과의 정합 재검토가 필요해 spec 면적이 커진다.
+- R1 은 기존 `'ended'` + `port: 'error'` 의미를 그대로 두므로 `error` 포트 후속 노드(알림 등)의 의미가 변하지 않는다. retryable 여부는 `output.error.details.retryable` boolean 단일 신호로 충분히 전달되며, retry 는 `error` 라우팅 후의 별도 사용자 인터랙션(`execution.retry_last_turn`)으로 진입한다.
+- `_retryState` 는 internal 필드로 `_resumeState` 와 동일하게 expression resolver 비노출·credential strip 정책을 따른다. TTL(`expiresAt`, 기본 60분)이 사실상 retry 상한 역할을 한다.
+
+### `failed → running` 재진입 전이 (R1 의 retry 실행 경로)
+
+R1(위) 의 `execution.retry_last_turn` 이 실제로 실행되는 시점의 상태 전이 결정:
+
+- retry 는 **새 NodeExecution row 를 spawn** 해 마지막 turn 을 replay 한다 (기존 `failed` row 는 보존). 새 row 의 turn 이 WS `node.started`/`node.completed` 를 발행하려면 Execution 이 `running` 이어야 하므로 §1.1 에 **`failed → running` 단일 전이**를 추가한다.
+- 이 전이는 R2(`waiting_for_retry` 신설 — 기각) 와 무관한 별개 경로이고, `waiting_for_input → running → failed` 재개 흐름과도 다르다 (retry 는 입력 대기 없이 새 row 를 즉시 구동). 일반 노드 실패에 번지지 않도록 state-machine 의 `allowRetryReentry` opt-in 으로만 허용 — `failed` 종결 실행이 일반 `updateExecutionStatus` 경로로 우발 부활하는 것을 차단한다.
+- 재진입 성공 시 Execution 은 `completed`, 재실패 시 `failed`(retryable 재실패면 새 `_retryState` 보존 → 재-retry 가능), replay 중 사용자 cancel 도달 시 `cancelled` 로 마감한다.
+
+### 재진입 시 config expression 재평가
+
+retry 재진입은 노드 config 의 `{{ expression }}` 을 best-effort 재평가해 operational 필드(`llmConfigId`/`maxTurns` 등)를 정상 dispatch 와 일치시킨다. 단 `_retryState` 는 turn 직전 `_resumeState` snapshot 에서 파생돼 원본 nodeInput 을 포함하지 않으므로 `$input.*` 는 미해소 — `$node`/`$var`/`$thread`/`$execution`/`$now` 만 rehydrated context 에서 해소된다 (documented limitation). 재평가 실패 시 raw config 로 fallback 하므로 static config 는 영향 없다. `output.config` echo 는 위 "Engine Raw Config Exposure" 결정대로 **항상 raw**(`rawConfig` frozen snapshot)를 유지하며, 재평가 값은 실행에만 쓰이고 echo 에는 반영되지 않는다 — replay reproducibility 와 config-echo 직교성을 모두 보존한다.
 
 ### Engine Raw Config Exposure
 

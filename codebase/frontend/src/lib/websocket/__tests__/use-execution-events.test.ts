@@ -1639,7 +1639,7 @@ describe("useExecutionEvents", () => {
         nodeLabel: "CS Bot",
         nodeExecutionId: "11111111-1111-1111-1111-111111111111",
         error: {
-          code: "LLM_RATE_LIMITED",
+          code: "LLM_RATE_LIMIT",
           message: "Anthropic API returned 429 (Too Many Requests)",
           details: {
             provider: "anthropic",
@@ -1656,7 +1656,7 @@ describe("useExecutionEvents", () => {
       const last = items[items.length - 1];
       expect(last.type).toBe("system_error");
       expect(last.systemError).toMatchObject({
-        code: "LLM_RATE_LIMITED",
+        code: "LLM_RATE_LIMIT",
         retryable: true,
         retryAfterSec: 30,
         nodeId: "agent-1",
@@ -1703,7 +1703,7 @@ describe("useExecutionEvents", () => {
         output: {
           result: { messages: [], turnCount: 2 },
           error: {
-            code: "LLM_RATE_LIMITED",
+            code: "LLM_RATE_LIMIT",
             message: "Rate limited",
             details: { retryable: true, retryAfterSec: 10 },
           },
@@ -1713,7 +1713,7 @@ describe("useExecutionEvents", () => {
       const items = useExecutionStore.getState().conversationMessages;
       const last = items[items.length - 1];
       expect(last.type).toBe("system_error");
-      expect(last.systemError?.code).toBe("LLM_RATE_LIMITED");
+      expect(last.systemError?.code).toBe("LLM_RATE_LIMIT");
       expect(last.systemError?.retryAfterSec).toBe(10);
     });
 
@@ -1758,7 +1758,7 @@ describe("useExecutionEvents", () => {
       failed?.({
         nodeId: "agent-1",
         nodeType: "ai_agent",
-        error: { code: "LLM_RATE_LIMITED", message: "429" },
+        error: { code: "LLM_RATE_LIMIT", message: "429" },
       });
 
       // single-turn AI 는 thread 가 없으므로 inline marker 안 함

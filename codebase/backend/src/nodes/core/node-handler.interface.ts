@@ -197,6 +197,18 @@ export interface NodeHandlerOutput {
    * narrowing helper.
    */
   _resumeState?: Record<string, unknown>;
+  /**
+   * Engine-internal retry continuation state (CONVENTIONS §4.2.1, spec
+   * 4-execution-engine §1.3). Populated by AI Agent multi-turn when it
+   * terminates on a *retryable* error (`output.error.details.retryable ===
+   * true`). Unlike `_resumeState`, this field is PRESERVED by
+   * `stripControlFields()` so it persists into `NodeExecution.outputData`
+   * (DB JSONB) and can later be consumed by `execution.retry_last_turn`.
+   * Carries a subset of `_resumeState` plus `expiresAt` (ISO 8601 TTL).
+   * Still excluded from expression resolver / autocomplete like
+   * `_resumeState` (internal-only).
+   */
+  _retryState?: Record<string, unknown>;
 }
 
 /**
@@ -295,6 +307,15 @@ export interface ResumableNodeHandler extends NodeHandler {
     state: Record<string, unknown>,
     endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
     errorPayload?: { code: string; message: string; details?: unknown },
+    /**
+     * spec/4-nodes/3-ai/1-ai-agent.md §7.9 — retryable error 종결 시, 실패한
+     * turn 을 일으킨 사용자 메시지 (+ dispatch source). `state.messages` 는
+     * turn 처리 전 history snapshot 이라 이 메시지를 포함하지 않으므로,
+     * `_retryState` 가 별도로 운반해 retry 재진입이 같은 마지막 turn 을
+     * replay 할 수 있게 한다. 정상 종결에서는 undefined.
+     */
+    failedUserMessage?: string,
+    failedUserMessageSource?: ResumableMessageSource,
   ): unknown;
 }
 

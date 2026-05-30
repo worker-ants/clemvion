@@ -78,6 +78,19 @@ AI Agent / Information Extractor runs in Multi Turn mode appear on the timeline 
 Text Classifier is a single-call node, so the timeline has no assistant messages for it. Instead, check the `LLM Usage` tab at the node level for token and model info.
 </Callout>
 
+### Retrying after an error in multi-turn conversations
+
+When a multi-turn AI Agent node ends due to an LLM error (rate limit, server error, timeout), the **conversation is preserved**. A **[Retry]** button appears next to the `system_error` entry in the conversation inspector. Clicking it resends the last user message to the LLM.
+
+<Callout type="note">
+Whether a retry is available depends on the error type.
+
+- **Retryable**: Rate Limit (429), server errors (5xx), network/timeout — the conversation is preserved and the [Retry] button appears.
+- **Not retryable**: Authentication errors (401/403) and similar — these indicate a configuration problem that retrying won't fix, so no button appears. Check your credentials in [LLM config](/docs/06-integrations-and-config/llm-config).
+
+Retry is available **once within 60 minutes**. After the window expires or a retry has already been used, you need to run the workflow again from the start.
+</Callout>
+
 ## Browsing execution history
 
 You can re-open results after a run has finished.
@@ -123,9 +136,12 @@ Typical error codes:
   { name: "EXECUTION_TIMEOUT", type: "Timeout", description: "Per-node or overall workflow timeout exceeded." },
   { name: "INVALID_EXPRESSION", type: "Expression", description: "Expression evaluation failed. Check syntax, null access, or type mismatches." },
   { name: "INTEGRATION_ERROR", type: "Integration", description: "An external integration call failed. Verify auth, network, and response shape." },
-  { name: "LLM_RATE_LIMITED", type: "LLM", description: "Hit the LLM provider's rate limit. Wait and retry, or enable a Retry policy." },
+  { name: "LLM_RATE_LIMIT", type: "LLM", description: "Hit the LLM provider's rate limit. Wait and retry, or enable a Retry policy." },
   { name: "MAX_ITERATIONS_EXCEEDED", type: "Iteration", description: "Exceeded a Loop/ForEach max iteration count." },
-  { name: "ERROR_PORT_FALLBACK", type: "Fallback", description: "Route to Error Port was configured but no edge connected — auto-fell back to Stop Workflow." }
+  { name: "ERROR_PORT_FALLBACK", type: "Fallback", description: "Route to Error Port was configured but no edge connected — auto-fell back to Stop Workflow." },
+  { name: "RETRY_STATE_NOT_FOUND", type: "Retry", description: "The retry window has expired (default 60 min) or the retry has already been used. Run the workflow again." },
+  { name: "NODE_NOT_RETRYABLE", type: "Retry", description: "This error is not retryable (e.g. auth errors 401/403). Check your LLM config credentials and run again." },
+  { name: "RETRY_TOO_EARLY", type: "Retry", description: "The provider's requested back-off period (Retry-After) has not elapsed yet. Wait a moment and try again." }
 ]} />
 
 ## Tips & notes

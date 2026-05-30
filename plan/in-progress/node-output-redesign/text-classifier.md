@@ -165,7 +165,7 @@ Text Classifier 는 분류 노드 (단계 1개). single/multi label × 정상/fa
 
 4. **에러 컨트랙트 (Principle 3)**:
    - `:163-210` 의 try/catch — `LLM_CALL_FAILED` envelope. `output.error.details.originalInput` (truncate 500자) + `output.originalInput` (full) 분리는 spec §5.3 footnote 와 일치.
-   - **gap**: spec §6 의 `LLM_RATE_LIMITED` / `LLM_RESPONSE_INVALID` 는 "reserved — 현재 핸들러는 `LLM_CALL_FAILED` 로 통합 / fallback 으로 회복" 으로 명시 — handler 는 429 도 catch-all 로 `LLM_CALL_FAILED` 로 묶고, JSON 파싱 실패는 `:415-424` substring fallback 으로 회복. spec ↔ impl 정합 (예약 상태).
+   - **gap**: spec §6 의 `LLM_RATE_LIMIT` / `LLM_RESPONSE_INVALID` 는 "reserved — 현재 핸들러는 `LLM_CALL_FAILED` 로 통합 / fallback 으로 회복" 으로 명시 — handler 는 429 도 catch-all 로 `LLM_CALL_FAILED` 로 묶고, JSON 파싱 실패는 `:415-424` substring fallback 으로 회복. spec ↔ impl 정합 (예약 상태).
 
 5. **conventions Principle 0–11 위반 패턴**:
    - Principle 0 (5필드): 정상 / 에러 모두 `{ config, output, meta, port }` 4 필드 — `status` 생략 (종결 단계 단일이라 합리적). 부합.
@@ -201,5 +201,5 @@ Text Classifier 는 분류 노드 (단계 1개). single/multi label × 정상/fa
 - [ ] (impl) 위 결정에 따라 `:191-193` 의 `output.originalInput` 키 제거 또는 `output.result.originalInput` 보강. 단위 테스트 `:331-396` 갱신.
 - [ ] (spec) `meta.llmCalls` (single-call) ↔ `meta.turnDebug[i].llmCalls` (multi-turn) 위치 통일 검토 — 옵션 A: text-classifier 도 `meta.turnDebug[0].llmCalls` wrapper 채택해 AI 3종 동일. 옵션 B: ai-agent / info-extractor 가 single-call 경로에 `meta.llmCalls` 노출 추가. 근거: 기존 plan §"진단 2", spec §5.1 의 `meta.llmCalls` ↔ `[공통 §6](../../../spec/4-nodes/3-ai/0-common.md#6-토큰-회계-meta)` 의 `meta.turnDebug` 위치 차이.
 - [ ] (impl) `output.error.details.originalInput` 의 500자 cap boundary 테스트 추가 — 501자 입력이 500자로 잘리고 `output.originalInput` 은 full 유지 검증. 근거: `:173-193`, `truncateForErrorDetails`.
-- [ ] (spec) §5.3 `output.error.code` 표의 `LLM_RATE_LIMITED` / `LLM_RESPONSE_INVALID` "reserved" 라벨 유지 명시 — 현 handler 는 발화하지 않음. spec ↔ impl 명시적 정합 유지.
+- [ ] (spec) §5.3 `output.error.code` 표의 `LLM_RATE_LIMIT` / `LLM_RESPONSE_INVALID` "reserved" 라벨 유지 명시 — 현 handler 는 발화하지 않음. spec ↔ impl 명시적 정합 유지.
 - [ ] (impl, optional) schema autocomplete 의 legacy `error: z.string().optional()` 필드 (`text-classifier.schema.ts:124`) 제거 검토 — Principle 3 envelope 이전 잔재. `error: z.object({code, message, details}).optional()` 로 교체해 ai-agent / info-extractor schema 와 통일.

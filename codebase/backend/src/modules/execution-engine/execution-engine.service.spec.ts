@@ -3708,7 +3708,8 @@ describe('ExecutionEngineService', () => {
 
     it('string throw 를 처리한다', () => {
       const result = extract()('something went wrong');
-      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+      // 분류 불가 fallback → LLM_CALL_FAILED non-retryable (spec §10 단일 taxonomy)
+      expect(result.code).toBe('LLM_CALL_FAILED');
       expect(result.message).toBe('something went wrong');
     });
 
@@ -3734,10 +3735,19 @@ describe('ExecutionEngineService', () => {
       expect(result.code).toBe('LLM_RATE_LIMIT');
     });
 
-    it('명시 code 없고 rate limit 아니면 AI_AGENT_TURN_FAILED fallback', () => {
+    it('network/timeout 메시지 → LLM_CALL_FAILED + retryable=true (spec §10)', () => {
       const err = new Error('Connection timeout');
       const result = extract()(err);
-      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+      expect(result.code).toBe('LLM_CALL_FAILED');
+      expect((result.details as Record<string, unknown>).retryable).toBe(true);
+    });
+
+    it('분류 불가 메시지 → LLM_CALL_FAILED + retryable=false', () => {
+      const err = new Error('something unexpected happened');
+      const result = extract()(err);
+      // spec §10 — 별도 AI_* fallback 없이 LLM_CALL_FAILED non-retryable 로 통합
+      expect(result.code).toBe('LLM_CALL_FAILED');
+      expect((result.details as Record<string, unknown>).retryable).toBe(false);
     });
 
     it('details 필드를 포함한 오류를 처리한다 (retryable 자동 분류)', () => {
@@ -3787,7 +3797,7 @@ describe('ExecutionEngineService', () => {
       expect(() => extract()(nonSerializable)).not.toThrow();
       const result = extract()(nonSerializable);
       expect(result.message).toBe('[non-serializable error object]');
-      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+      expect(result.code).toBe('LLM_CALL_FAILED');
     });
 
     // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 retryable 분류
@@ -3801,23 +3811,82 @@ describe('ExecutionEngineService', () => {
         );
       });
 
-      it('LLM_CONNECTION_ERROR → retryable=true', () => {
-        const result = extract()(
-          Object.assign(new Error('ECONNRESET'), {
-            code: 'LLM_CONNECTION_ERROR',
-          }),
-        );
-        expect((result.details as Record<string, unknown>).retryable).toBe(
-          true,
-        );
-      });
-
-      it('AI_AGENT_TURN_FAILED → retryable=false (보수적 default)', () => {
+      it('분류 불가 fallback → LLM_CALL_FAILED + retryable=false (보수적 default)', () => {
         const result = extract()(new Error('unexpected error'));
-        expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+        expect(result.code).toBe('LLM_CALL_FAILED');
         expect((result.details as Record<string, unknown>).retryable).toBe(
           false,
         );
+      });
+
+      // spec/4-nodes/3-ai/1-ai-agent.md §10 — HTTP status 기반 분류 (스펙이 SoT).
+      // 멀티턴 경로는 raw SDK 에러(.status)를 받으므로 status 로 분류한다.
+      describe('HTTP status 기반 분류 (§10)', () => {
+        const withStatus = (status: number, msg = 'provider error') =>
+          Object.assign(new Error(msg), { status });
+
+        it('status 429 → LLM_RATE_LIMIT + retryable=true', () => {
+          const r = extract()(withStatus(429, 'too many requests'));
+          expect(r.code).toBe('LLM_RATE_LIMIT');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('status 500 → LLM_CALL_FAILED + retryable=true (5xx)', () => {
+          const r = extract()(withStatus(500));
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('status 503 → LLM_CALL_FAILED + retryable=true (5xx)', () => {
+          const r = extract()(withStatus(503));
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('status 401 → LLM_CALL_FAILED + retryable=false (auth)', () => {
+          const r = extract()(withStatus(401, 'unauthorized'));
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(false);
+        });
+
+        it('status 403 → LLM_CALL_FAILED + retryable=false (auth)', () => {
+          const r = extract()(withStatus(403, 'forbidden'));
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(false);
+        });
+
+        it('err.response.status 502 fallback → LLM_CALL_FAILED + retryable=true', () => {
+          const r = extract()(
+            Object.assign(new Error('bad gateway'), {
+              response: { status: 502 },
+            }),
+          );
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('errno ECONNRESET → LLM_CALL_FAILED + retryable=true (network)', () => {
+          const r = extract()(
+            Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }),
+          );
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('client-layer LLM_CONNECTION_ERROR 코드 누출 시 LLM_CALL_FAILED 로 매핑 + retryable=true', () => {
+          const r = extract()(
+            Object.assign(new Error('network down'), {
+              code: 'LLM_CONNECTION_ERROR',
+            }),
+          );
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('status 400 (bad request, 비-auth 4xx) → 비재시도 fallback', () => {
+          const r = extract()(withStatus(400, 'bad request'));
+          expect((r.details as Record<string, unknown>).retryable).toBe(false);
+        });
       });
 
       it('LLM_RATE_LIMIT + Retry-After 헤더 → retryAfterSec 추출 (초 단위)', () => {
@@ -7747,6 +7816,519 @@ describe('ExecutionEngineService', () => {
         error: { code: string };
       };
       expect(setCall.error.code).toBe('RESUME_INCOMPATIBLE_STATE');
+    });
+  });
+
+  // spec/5-system/4-execution-engine.md §1.3 / spec/5-system/6-websocket-protocol.md
+  // §4.2 / spec/4-nodes/3-ai/1-ai-agent.md §7.9 — execution.retry_last_turn.
+  describe('retryLastTurn (_retryState consume + spawn)', () => {
+    const EXEC = 'exec-retry';
+    const NE_ID = 'ne-failed';
+    const NODE_ID = 'n-ai';
+
+    function futureIso(minutes = 30): string {
+      return new Date(Date.now() + minutes * 60_000).toISOString();
+    }
+
+    function makeFailedNodeExec(overrides: Record<string, unknown> = {}) {
+      return {
+        id: NE_ID,
+        executionId: EXEC,
+        nodeId: NODE_ID,
+        status: NodeExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 60_000),
+        finishedAt: new Date(Date.now() - 60_000),
+        parentNodeExecutionId: null,
+        outputData: {
+          output: {
+            result: { messages: [], turnCount: 1 },
+            error: {
+              code: 'LLM_RATE_LIMIT',
+              message: 'rate limited',
+              details: { statusCode: 429, retryable: true },
+            },
+          },
+          _retryState: {
+            messages: [{ role: 'user', content: 'hi' }],
+            turnCount: 1,
+            expiresAt: futureIso(),
+          },
+        },
+        ...overrides,
+      };
+    }
+
+    let qbExecuteAffected: number;
+    let createdEntities: Array<Record<string, unknown>>;
+
+    function installRetryMocks(nodeExec: Record<string, unknown> | null) {
+      qbExecuteAffected = 1;
+      createdEntities = [];
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue(nodeExec);
+      // dataSource.transaction → manager with create / save / createQueryBuilder.
+      (service as unknown as { dataSource: unknown }).dataSource = {
+        transaction: jest.fn(
+          async (cb: (manager: unknown) => Promise<unknown>) => {
+            const manager = {
+              create: jest.fn((_t: unknown, data: Record<string, unknown>) => {
+                const entity = { id: 'ne-spawned', ...data };
+                createdEntities.push(entity);
+                return entity;
+              }),
+              save: jest.fn(async (_t: unknown, entity: unknown) => entity),
+              createQueryBuilder: jest.fn(() => {
+                const qb = {
+                  update: jest.fn(() => qb),
+                  set: jest.fn(() => qb),
+                  where: jest.fn(() => qb),
+                  andWhere: jest.fn(() => qb),
+                  execute: jest.fn(async () => ({
+                    affected: qbExecuteAffected,
+                  })),
+                };
+                return qb;
+              }),
+            };
+            return cb(manager);
+          },
+        ),
+      };
+    }
+
+    it('spawns a new NodeExecution when TTL is valid', async () => {
+      installRetryMocks(makeFailedNodeExec());
+      const result = await service.retryLastTurn(EXEC, NE_ID);
+      expect(result.spawnedNodeExecutionId).toBe('ne-spawned');
+      expect(createdEntities[0]).toMatchObject({
+        executionId: EXEC,
+        nodeId: NODE_ID,
+        status: NodeExecutionStatus.RUNNING,
+      });
+      // seeded with _retryState in inputData.
+      const input = createdEntities[0].inputData as Record<string, unknown>;
+      expect(input._retryState).toBeDefined();
+    });
+
+    it('rejects with RETRY_STATE_NOT_FOUND when TTL expired', async () => {
+      installRetryMocks(
+        makeFailedNodeExec({
+          outputData: {
+            output: {
+              error: { details: { retryable: true } },
+            },
+            _retryState: {
+              messages: [],
+              expiresAt: new Date(Date.now() - 1000).toISOString(),
+            },
+          },
+        }),
+      );
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'RETRY_STATE_NOT_FOUND',
+      });
+    });
+
+    it('rejects with RETRY_STATE_NOT_FOUND when _retryState already consumed (missing)', async () => {
+      installRetryMocks(
+        makeFailedNodeExec({
+          outputData: {
+            output: { error: { details: { retryable: true } } },
+            // no _retryState key
+          },
+        }),
+      );
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'RETRY_STATE_NOT_FOUND',
+      });
+    });
+
+    it('rejects with RETRY_STATE_NOT_FOUND when concurrent consume removed the key (affected=0)', async () => {
+      installRetryMocks(makeFailedNodeExec());
+      qbExecuteAffected = 0; // simulate the row already consumed by another retry
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'RETRY_STATE_NOT_FOUND',
+      });
+    });
+
+    it('rejects with NODE_NOT_RETRYABLE when retryable !== true', async () => {
+      installRetryMocks(
+        makeFailedNodeExec({
+          outputData: {
+            output: {
+              error: {
+                code: 'LLM_RESPONSE_INVALID',
+                details: { retryable: false },
+              },
+            },
+            _retryState: { messages: [], expiresAt: futureIso() },
+          },
+        }),
+      );
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'NODE_NOT_RETRYABLE',
+      });
+    });
+
+    it('rejects with INVALID_EXECUTION_STATE when node is not FAILED', async () => {
+      installRetryMocks(
+        makeFailedNodeExec({ status: NodeExecutionStatus.COMPLETED }),
+      );
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'INVALID_EXECUTION_STATE',
+      });
+    });
+
+    it('rejects with INVALID_EXECUTION_STATE when nodeExecution belongs to a different execution', async () => {
+      installRetryMocks(makeFailedNodeExec({ executionId: 'other-exec' }));
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'INVALID_EXECUTION_STATE',
+      });
+    });
+
+    it('rejects with RETRY_TOO_EARLY when retryAfterSec has not elapsed', async () => {
+      installRetryMocks(
+        makeFailedNodeExec({
+          finishedAt: new Date(), // just finished now
+          outputData: {
+            output: {
+              error: {
+                code: 'LLM_RATE_LIMIT',
+                details: { retryable: true, retryAfterSec: 120 },
+              },
+            },
+            _retryState: { messages: [], expiresAt: futureIso() },
+          },
+        }),
+      );
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'RETRY_TOO_EARLY',
+      });
+    });
+  });
+
+  // spec/5-system/6-websocket-protocol.md §4.2 "Continuation Bus 경유 (worker
+  // handoff)" / §4.2.1 + spec/4-nodes/3-ai/1-ai-agent.md §7.9 — retry 재진입.
+  describe('applyRetryLastTurn (multi-turn loop re-entry)', () => {
+    const EXEC = executionId;
+    const NODE_ID = 'node-agent-retry';
+    const SPAWNED = 'ne-spawned-retry';
+
+    // WARNING #11 — W9 테스트의 turnGate 잔여 promise 정리를 afterEach 에서
+    // 보장해 microtask 누수가 이후 테스트 spy 를 오염하지 않게 한다.
+    let _releasePendingTurnGate: (() => void) | undefined;
+    afterEach(() => {
+      _releasePendingTurnGate?.();
+      _releasePendingTurnGate = undefined;
+    });
+
+    function retryStateSeed(): Record<string, unknown> {
+      return {
+        // pre-failed-turn history (does NOT include the failed user message).
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'first' },
+          { role: 'assistant', content: 'ack' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 10,
+        totalOutputTokens: 5,
+        toolCalls: 0,
+        model: 'test-model',
+        // failed user message to replay (spec §7.9).
+        lastUserMessage: 'please retry me',
+        lastUserMessageSource: 'ai_message',
+        expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+      };
+    }
+
+    function installReentry(opts: {
+      processReturn: () => unknown;
+      spawnedStatus?: NodeExecutionStatus;
+      retryState?: Record<string, unknown> | undefined;
+      config?: Record<string, unknown>;
+    }): {
+      handler: NodeHandler & { processMultiTurnMessage: jest.Mock };
+      savedSpawn: { status?: NodeExecutionStatus };
+    } {
+      const node: Partial<Node> = {
+        id: NODE_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: opts.config ?? {
+          mode: 'multi_turn',
+          llmConfigId: 'cfg-1',
+          maxTurns: 20,
+        },
+        isDisabled: false,
+      };
+      const spawnedRow = {
+        id: SPAWNED,
+        executionId: EXEC,
+        nodeId: NODE_ID,
+        status: opts.spawnedStatus ?? NodeExecutionStatus.RUNNING,
+        startedAt: new Date(),
+        inputData:
+          'retryState' in opts
+            ? opts.retryState
+              ? { _retryState: opts.retryState }
+              : {}
+            : { _retryState: retryStateSeed() },
+      };
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue(spawnedRow);
+      // re-entry loads node via nodeRepository.findOneBy.
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(node);
+      mockNodeRepo.findBy = jest.fn().mockResolvedValue([node]);
+      mockExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: EXEC,
+        workflowId,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 60_000),
+      });
+
+      const handler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(),
+        processMultiTurnMessage: jest.fn(async () => opts.processReturn()),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: {},
+          output: {},
+          meta: {},
+          port: 'user_ended',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler & { processMultiTurnMessage: jest.Mock };
+      handlerRegistry.register('ai_agent', handler);
+      return { handler, savedSpawn: spawnedRow };
+    }
+
+    function terminalSuccess(): unknown {
+      // re-run of the failed turn now succeeds → terminal `ended` output with
+      // a fresh assistant response on the spawned row.
+      return {
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            messages: [
+              { role: 'user', content: 'please retry me' },
+              { role: 'assistant', content: 'retried OK' },
+            ],
+            message: 'retried OK',
+            turnCount: 2,
+            endReason: 'user_ended',
+          },
+        },
+        meta: { interactionType: 'ai_conversation', model: 'test-model' },
+        port: 'user_ended',
+        status: 'ended',
+      };
+    }
+
+    it('replays the failed last turn and produces a new assistant response on the spawned row', async () => {
+      const { handler } = installReentry({ processReturn: terminalSuccess });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // The failed last user message was replayed verbatim (spec §7.9).
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
+      const [replayedMsg] = handler.processMultiTurnMessage.mock.calls[0];
+      expect(replayedMsg).toBe('please retry me');
+
+      // A NODE_STARTED was emitted for the spawned row.
+      const nodeStarted = mockWebsocketService.emitNodeEvent.mock.calls.filter(
+        (c: unknown[]) => c[2] === 'execution.node.started',
+      );
+      expect(
+        nodeStarted.some(
+          (c: unknown[]) =>
+            (c[3] as { nodeExecutionId?: string }).nodeExecutionId === SPAWNED,
+        ),
+      ).toBe(true);
+
+      // A fresh assistant message event was emitted.
+      const aiMsg = mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+        (c: unknown[]) => c[1] === 'execution.ai_message',
+      );
+      expect(aiMsg.length).toBeGreaterThan(0);
+    });
+
+    it('marks the Execution COMPLETED when the replayed conversation ends normally', async () => {
+      installReentry({ processReturn: terminalSuccess });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
+    });
+
+    it('re-failure (retryable again) → Execution FAILED + NODE_FAILED on spawned row', async () => {
+      // The replayed turn throws again (LLM still rate-limited).
+      const { handler } = installReentry({
+        processReturn: () => {
+          throw Object.assign(new Error('429'), { status: 429 });
+        },
+      });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
+      const failedEvents =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.failed',
+        );
+      expect(failedEvents.length).toBe(1);
+      const nodeFailed = mockWebsocketService.emitNodeEvent.mock.calls.filter(
+        (c: unknown[]) => c[2] === 'execution.node.failed',
+      );
+      expect(
+        nodeFailed.some(
+          (c: unknown[]) =>
+            (c[3] as { nodeExecutionId?: string }).nodeExecutionId === SPAWNED,
+        ),
+      ).toBe(true);
+    });
+
+    it('ack-and-discard when spawned row is no longer RUNNING (idempotency)', async () => {
+      const { handler } = installReentry({
+        processReturn: terminalSuccess,
+        spawnedStatus: NodeExecutionStatus.COMPLETED,
+      });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+      // Already handled by another worker — no re-entry.
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
+    });
+
+    it('missing _retryState on spawned row → marks row FAILED, no replay', async () => {
+      const { handler } = installReentry({
+        processReturn: terminalSuccess,
+        retryState: undefined,
+      });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
+      // spawned row saved as FAILED.
+      const savedFailed = mockNodeExecutionRepo.save.mock.calls.some(
+        (c: unknown[]) =>
+          (c[0] as { id?: string; status?: NodeExecutionStatus }).id ===
+            SPAWNED &&
+          (c[0] as { status?: NodeExecutionStatus }).status ===
+            NodeExecutionStatus.FAILED,
+      );
+      expect(savedFailed).toBe(true);
+    });
+
+    // #11 (followup) — re-entry 시 node.config 의 `{{ expression }}` 이
+    // best-effort 로 평가돼 operational 필드(여기선 llmConfigId)가 evaluated
+    // 값으로 resumeState 에 들어간다. `$execution.workflowId` 는 rehydrated
+    // context 에서 해소 가능한 대표 토큰.
+    it('resolves config expressions on re-entry (operational fields use evaluated values)', async () => {
+      const { handler } = installReentry({
+        processReturn: terminalSuccess,
+        config: {
+          mode: 'multi_turn',
+          llmConfigId: '{{ $execution.workflowId }}',
+          maxTurns: 20,
+        },
+      });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
+      const state = handler.processMultiTurnMessage.mock.calls[0][1] as Record<
+        string,
+        unknown
+      >;
+      // operational llmConfigId = evaluated value.
+      expect(state.llmConfigId).toBe(workflowId);
+      // rawConfig echo 는 spec config-echo 정책상 raw template 을 보존.
+      expect((state.rawConfig as Record<string, unknown>).llmConfigId).toBe(
+        '{{ $execution.workflowId }}',
+      );
+    });
+
+    // W9 — replay turn 처리 중 외부 cancel 이 도달하면 소실되지 않고 Execution
+    // 이 CANCELLED 로 마감된다 (cancel-only 핸들러 + race).
+    // WARNING #11 — turnGate 정리는 afterEach 에서 보장 (microtask 누수 방지).
+    it('honors external cancel arriving during the replay turn → Execution CANCELLED (W9)', async () => {
+      const turnGate = new Promise<void>((r) => {
+        _releasePendingTurnGate = r;
+      });
+      installReentry({
+        // replay turn 이 gate 가 풀릴 때까지 hang — 그 사이 cancel 이 도달.
+        processReturn: () => turnGate.then(() => terminalSuccess()),
+      });
+
+      const p = service.applyRetryLastTurn(EXEC, SPAWNED);
+      // re-entry 가 cancel 핸들러 등록 + replay turn 시작까지 진행하도록 flush.
+      await flushPromises();
+      // 외부 cancel 도달 (worker applyCancellation 경유와 동형).
+      service.applyCancellation(EXEC);
+      await p;
+      await flushPromises();
+
+      const cancelled =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.cancelled',
+        );
+      expect(cancelled.length).toBe(1);
+      // 성공/실패 종결 이벤트는 발사되지 않는다.
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(0);
+      // turnGate 정리는 afterEach 에서 수행 (_releasePendingTurnGate).
+    });
+  });
+
+  // spec node-output §4.2.1 — stripControlFields preserves _retryState while
+  // stripping _resumeState.
+  describe('stripControlFields _retryState preservation', () => {
+    function strip(output: unknown): unknown {
+      return (
+        service as unknown as { stripControlFields(o: unknown): unknown }
+      ).stripControlFields(output);
+    }
+
+    it('preserves _retryState but strips _resumeState / control fields', () => {
+      const out = strip({
+        result: { ok: true },
+        port: 'error',
+        status: 'ended',
+        _resumeState: { messages: [] },
+        _retryState: {
+          messages: [{ role: 'user', content: 'hi' }],
+          expiresAt: 'iso',
+        },
+      }) as Record<string, unknown>;
+      expect(out._resumeState).toBeUndefined();
+      expect(out.port).toBeUndefined();
+      expect(out.status).toBeUndefined();
+      expect(out._retryState).toBeDefined();
+      expect((out._retryState as Record<string, unknown>).expiresAt).toBe(
+        'iso',
+      );
+    });
+
+    // W16: 입력에 _retryState 가 없는 경우 — 비-retryable 종결 시 output 에
+    // _retryState 가 undefined (not present) 임을 검증 (silent regression 방지).
+    it('output has no _retryState when input lacks _retryState (non-retryable termination)', () => {
+      const out = strip({
+        result: { ok: true },
+        port: 'user_ended',
+        status: 'ended',
+        _resumeState: { messages: [] },
+        // _retryState: intentionally absent
+      }) as Record<string, unknown>;
+      expect(out._resumeState).toBeUndefined();
+      expect(out._retryState).toBeUndefined();
+      expect('_retryState' in out).toBe(false);
     });
   });
 });

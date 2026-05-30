@@ -12,12 +12,16 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  RetryLastTurnError,
+} from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { ExecutionEventType } from './websocket.service';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
+import { WsErrorCode } from './ws-error-codes';
 
 const MAX_SUBSCRIPTIONS_PER_CONNECTION = 20;
 
@@ -94,6 +98,29 @@ export class WebsocketGateway
     private readonly knowledgeBaseService: KnowledgeBaseService,
   ) {
     this.channelAuthorizers = [
+      {
+        // CRIT (IDOR) — `execution:` 구독은 join 전 workspace 소유 검증을 받는다.
+        // 과거에는 1회성 snapshot 만 verifyOwnership 으로 보호되고 room join 은
+        // 무검증이라, 타 workspace executionId 를 추측한 사용자가 증분 broadcast
+        // 이벤트(node.started/completed, ai_message 등)를 수신할 수 있었다.
+        // authorizer 로 승격해 join(아래 handleSubscribe) 이전에 동기 차단한다.
+        matches: (channel) => channel.startsWith('execution:'),
+        authorize: async (channel, workspaceId) => {
+          const executionId = channel.slice('execution:'.length);
+          // UUID 형식 검증 — 비-UUID 입력은 DB 조회 전 차단 (background:run 과 동일 정책).
+          if (!isValidUuid(executionId)) {
+            return { error: 'Not authorized for this execution' };
+          }
+          // verifyOwnership 은 미소유/부재 시 throw (NotFound 통일 — ID enumeration 차단).
+          const allowed = await this.executionsService
+            .verifyOwnership(executionId, workspaceId)
+            .then(() => true)
+            .catch(() => false);
+          return allowed
+            ? null
+            : { error: 'Not authorized for this execution' };
+        },
+      },
       {
         matches: (channel) => channel.startsWith('kb:'),
         authorize: async (channel, workspaceId) => {
@@ -634,6 +661,160 @@ export class WebsocketGateway
         error,
         'End conversation failed',
       );
+    }
+  }
+
+  /**
+   * spec/5-system/6-websocket-protocol.md §4.2 — `execution.retry_last_turn`.
+   *
+   * AI Agent multi-turn 의 retryable error 종결 후, 동일 nodeId 의 새
+   * NodeExecution row 를 spawn 해 마지막 LLM turn 을 재실행한다. 다른
+   * continuation 명령 (대기중 row 재개) 과 달리, validate + atomic consume +
+   * 새 row spawn (`retryLastTurn`) 후 `retry_last_turn` continuation job 을
+   * publish 해 worker 로 handoff 한다.
+   *
+   * ack 형태 (spec §4.2):
+   *  - 성공: `{ success: true, executionId, nodeExecutionId, resumed: true }`
+   *  - 실패: nested `{ success: false, executionId, nodeExecutionId,
+   *          resumed: false, error: { code, message } }`
+   *    (continuation 명령의 평면 `errorCode` 와 다른 계층 — 의도된 분리).
+   */
+  @SubscribeMessage('execution.retry_last_turn')
+  async handleRetryLastTurn(
+    @MessageBody() data: { executionId: string; nodeExecutionId: string },
+    @ConnectedSocket() client: Socket,
+  ): Promise<{
+    event: string;
+    data: {
+      success: boolean;
+      executionId?: string;
+      nodeExecutionId?: string;
+      resumed?: boolean;
+      error?: { code: string; message: string };
+    };
+  }> {
+    const event = 'execution.retry_last_turn.ack';
+    const enriched = client as Socket & {
+      userId?: string;
+      workspaceId?: string;
+    };
+    if (!enriched.userId) {
+      return {
+        event,
+        data: {
+          success: false,
+          executionId: data.executionId,
+          nodeExecutionId: data.nodeExecutionId,
+          resumed: false,
+          error: {
+            code: WsErrorCode.UNAUTHENTICATED,
+            message: 'Not authenticated',
+          },
+        },
+      };
+    }
+
+    // CRIT #1 — IDOR 차단. workspace 소유 검증.
+    // verifyOwnership 은 NotFound 로 통일 — Forbidden 으로 응답하면 attacker 가
+    // executionId 의 존재 여부를 추론할 수 있다 (sibling handler 정책 일치, S1).
+    try {
+      await this.executionsService.verifyOwnership(
+        data.executionId,
+        enriched.workspaceId ?? '',
+      );
+    } catch {
+      return {
+        event,
+        data: {
+          success: false,
+          executionId: data.executionId,
+          nodeExecutionId: data.nodeExecutionId,
+          resumed: false,
+          error: {
+            code: WsErrorCode.NOT_FOUND,
+            message: 'Execution not found',
+          },
+        },
+      };
+    }
+
+    // W3: spawnedNodeExecutionId 를 outer scope 에 보존해 publish 실패 시 row 마감.
+    let spawnedNodeExecutionId: string | undefined;
+    try {
+      // 1. validate + atomic consume + spawn 새 row.
+      ({ spawnedNodeExecutionId } =
+        await this.executionEngineService.retryLastTurn(
+          data.executionId,
+          data.nodeExecutionId,
+        ));
+      // 2. spawn 된 row 로 multi-turn loop 재진입을 worker 에 handoff.
+      const publishResult =
+        await this.executionEngineService.publishRetryLastTurn(
+          data.executionId,
+          spawnedNodeExecutionId,
+        );
+      if (!publishResult.queued) {
+        // Redis 장애 등 publish 실패 — _retryState 는 이미 소비됐으므로 재시도
+        // 시 RETRY_STATE_NOT_FOUND 가 된다. client 에 실패를 알린다.
+        // W3: spawn 된 RUNNING row 를 FAILED 로 마감해 zombie row 방지.
+        void this.executionEngineService.markSpawnedRowFailedOnPublishError(
+          spawnedNodeExecutionId,
+          'queued=false',
+        );
+        return {
+          event,
+          data: {
+            success: false,
+            executionId: data.executionId,
+            nodeExecutionId: data.nodeExecutionId,
+            resumed: false,
+            error: {
+              code: WsErrorCode.INTERNAL_ERROR,
+              message: 'Retry could not be queued. Please try again.',
+            },
+          },
+        };
+      }
+      return {
+        event,
+        data: {
+          success: true,
+          executionId: data.executionId,
+          nodeExecutionId: data.nodeExecutionId,
+          resumed: true,
+        },
+      };
+    } catch (error: unknown) {
+      // W3: publish 가 throw 한 경우에도 spawn 된 row 를 FAILED 로 마감한다.
+      if (spawnedNodeExecutionId) {
+        void this.executionEngineService.markSpawnedRowFailedOnPublishError(
+          spawnedNodeExecutionId,
+          'publish threw',
+        );
+      }
+      const code =
+        error instanceof RetryLastTurnError
+          ? error.code
+          : error instanceof InvalidExecutionStateError
+            ? error.code
+            : WsErrorCode.INTERNAL_ERROR;
+      // 보안 — RetryLastTurnError / InvalidExecutionStateError 의 message 는
+      // 고정 client-safe 문자열. 그 외는 일반화한 메시지.
+      const message =
+        error instanceof RetryLastTurnError ||
+        error instanceof InvalidExecutionStateError
+          ? error.message
+          : 'Retry failed';
+      return {
+        event,
+        data: {
+          success: false,
+          executionId: data.executionId,
+          nodeExecutionId: data.nodeExecutionId,
+          resumed: false,
+          error: { code, message },
+        },
+      };
     }
   }
 

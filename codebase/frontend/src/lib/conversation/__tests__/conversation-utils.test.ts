@@ -1150,7 +1150,7 @@ describe("system_error source — threadTurnsToConversationItems + parseHistoryM
         source: "system_error" as const,
         text: "Anthropic 429",
         data: {
-          code: "LLM_RATE_LIMITED",
+          code: "LLM_RATE_LIMIT",
           message: "Anthropic 429",
           retryable: true,
           retryAfterSec: 30,
@@ -1163,7 +1163,7 @@ describe("system_error source — threadTurnsToConversationItems + parseHistoryM
     expect(items).toHaveLength(2);
     expect(items[1].type).toBe("system_error");
     expect(items[1].systemError).toMatchObject({
-      code: "LLM_RATE_LIMITED",
+      code: "LLM_RATE_LIMIT",
       retryable: true,
       retryAfterSec: 30,
       nodeId: "agent-1",
@@ -1207,7 +1207,7 @@ describe("system_error source — threadTurnsToConversationItems + parseHistoryM
           turnCount: 1,
         },
         error: {
-          code: "LLM_RATE_LIMITED",
+          code: "LLM_RATE_LIMIT",
           message: "Rate limited (after 1 turn)",
           details: { retryable: true, retryAfterSec: 60 },
         },
@@ -1218,7 +1218,7 @@ describe("system_error source — threadTurnsToConversationItems + parseHistoryM
     expect(items.length).toBeGreaterThan(0);
     const last = items[items.length - 1];
     expect(last.type).toBe("system_error");
-    expect(last.systemError?.code).toBe("LLM_RATE_LIMITED");
+    expect(last.systemError?.code).toBe("LLM_RATE_LIMIT");
     expect(last.systemError?.retryable).toBe(true);
     expect(last.systemError?.retryAfterSec).toBe(60);
   });
@@ -1269,7 +1269,7 @@ describe("system_error source — threadTurnsToConversationItems + parseHistoryM
         content: "error",
         turnIndex: 0,
         systemError: {
-          code: "LLM_RATE_LIMITED",
+          code: "LLM_RATE_LIMIT",
           message: "error",
           retryable: true,
           nodeId: "n",
