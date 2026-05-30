@@ -77,6 +77,12 @@ export function canTransition(
 
 /**
  * Assert that a state transition is valid, throwing if not.
+ *
+ * @param from - Current execution status string.
+ * @param to   - Target execution status string.
+ * @param opts - TransitionOptions forwarded to canTransition. Allows opt-in
+ *               transitions outside the standard ALLOWED_TRANSITIONS table
+ *               (예: `allowRetryReentry` for FAILED → RUNNING retry re-entry).
  */
 export function assertTransition(
   from: string,

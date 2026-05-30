@@ -762,7 +762,7 @@ export class WebsocketGateway
         },
       };
     } catch (error: unknown) {
-      // W3: publish が throw した場合も spawn 済み row を FAILED に閉じる.
+      // W3: publish 가 throw 한 경우에도 spawn 된 row 를 FAILED 로 마감한다.
       if (spawnedNodeExecutionId) {
         void this.executionEngineService.markSpawnedRowFailedOnPublishError(
           spawnedNodeExecutionId,

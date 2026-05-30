@@ -134,5 +134,21 @@ describe('StateMachine', () => {
         assertTransition(ExecutionStatus.COMPLETED, ExecutionStatus.RUNNING),
       ).toThrow('Invalid state transition');
     });
+
+    // WARNING #3 / INFO #25 — `allowRetryReentry` opt-in 이 assertTransition 에도
+    // 정상 전파되는지 확인. failed → running 은 opts 없으면 throw, opts 있으면 통과.
+    it('should not throw for failed -> running with retry opt-in', () => {
+      expect(() =>
+        assertTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING, {
+          allowRetryReentry: true,
+        }),
+      ).not.toThrow();
+    });
+
+    it('should throw for failed -> running without retry opt-in', () => {
+      expect(() =>
+        assertTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING),
+      ).toThrow('Invalid state transition');
+    });
   });
 });

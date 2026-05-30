@@ -8011,6 +8011,14 @@ describe('ExecutionEngineService', () => {
     const NODE_ID = 'node-agent-retry';
     const SPAWNED = 'ne-spawned-retry';
 
+    // WARNING #11 — W9 테스트의 turnGate 잔여 promise 정리를 afterEach 에서
+    // 보장해 microtask 누수가 이후 테스트 spy 를 오염하지 않게 한다.
+    let _releasePendingTurnGate: (() => void) | undefined;
+    afterEach(() => {
+      _releasePendingTurnGate?.();
+      _releasePendingTurnGate = undefined;
+    });
+
     function retryStateSeed(): Record<string, unknown> {
       return {
         // pre-failed-turn history (does NOT include the failed user message).
@@ -8244,10 +8252,10 @@ describe('ExecutionEngineService', () => {
 
     // W9 — replay turn 처리 중 외부 cancel 이 도달하면 소실되지 않고 Execution
     // 이 CANCELLED 로 마감된다 (cancel-only 핸들러 + race).
+    // WARNING #11 — turnGate 정리는 afterEach 에서 보장 (microtask 누수 방지).
     it('honors external cancel arriving during the replay turn → Execution CANCELLED (W9)', async () => {
-      let releaseTurn: (() => void) | undefined;
       const turnGate = new Promise<void>((r) => {
-        releaseTurn = r;
+        _releasePendingTurnGate = r;
       });
       installReentry({
         // replay turn 이 gate 가 풀릴 때까지 hang — 그 사이 cancel 이 도달.
@@ -8273,7 +8281,7 @@ describe('ExecutionEngineService', () => {
           (c: unknown[]) => c[1] === 'execution.completed',
         );
       expect(completed.length).toBe(0);
-      releaseTurn?.(); // 잔여 promise 정리.
+      // turnGate 정리는 afterEach 에서 수행 (_releasePendingTurnGate).
     });
   });
 

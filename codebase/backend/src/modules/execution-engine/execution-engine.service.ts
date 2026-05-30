@@ -3252,7 +3252,7 @@ export class ExecutionEngineService
     // W6/W7/W13 — `_retryState` → `_resumeState` shape 복원 + replay initialAction
     // 도출은 `buildRetryReentryState` 로 분리 (SRP). 본 메서드는 orchestration
     // (검증 / context rehydrate / emit / loop 구동 / Execution 마감) 만 담당.
-    const { resumeState, initialAction } = await this.buildRetryReentryState(
+    const { resumeState, initialAction } = this.buildRetryReentryState(
       execution,
       node,
       context,
@@ -3297,7 +3297,7 @@ export class ExecutionEngineService
 
       // finalizeAiNode: COMPLETED 면 spawn row COMPLETED + Execution RUNNING +
       // EXECUTION_RESUMED, FAILED 면 spawn row FAILED + NODE_FAILED + sentinel throw.
-      // W5 — 본 호출은 retry 재진입이므로 FAILED → RUNNING opt-in 을 켠다.
+      // W5 / WARNING #5 — 본 호출은 retry 재진입이므로 retryReentry opt-in 을 켠다.
       await this.finalizeAiNode(
         execution,
         executionId,
@@ -3305,7 +3305,7 @@ export class ExecutionEngineService
         context,
         spawnedRow,
         finalStatus,
-        true,
+        { retryReentry: true },
       );
       await this.completeRetryExecution(execution, executionId);
     } catch (error: unknown) {
@@ -3330,15 +3330,15 @@ export class ExecutionEngineService
    * @returns resumeState (loop seed) + initialAction (실패 last turn replay;
    *   lastUserMessage 부재 시 undefined → replay 없이 wait loop 진입).
    */
-  private async buildRetryReentryState(
+  private buildRetryReentryState(
     execution: Execution,
     node: Node,
     context: ExecutionContext,
     retryState: Record<string, unknown>,
-  ): Promise<{
+  ): {
     resumeState: Record<string, unknown>;
     initialAction: ContinuationPayload | undefined;
-  }> {
+  } {
     // expiresAt 은 resume state 에 불필요. lastUserMessage/Source 는 replay 용.
     const {
       expiresAt: _expiresAt,
@@ -3353,7 +3353,7 @@ export class ExecutionEngineService
     void _expiresAt;
 
     const rawNodeConfig = node.config ?? {};
-    const resolvedConfig = await this.resolveRetryNodeConfig(
+    const resolvedConfig = this.resolveRetryNodeConfig(
       execution,
       node,
       context,
@@ -3452,11 +3452,11 @@ export class ExecutionEngineService
     executionId: string,
     error: unknown,
   ): Promise<void> {
-    if (error instanceof ExecutionCancelledError) {
-      execution.status = ExecutionStatus.CANCELLED;
-    } else {
-      execution.status = ExecutionStatus.FAILED;
-    }
+    // isCancelled 를 상단에서 한 번만 평가해 이중 평가 제거 (WARNING #10).
+    const isCancelled = error instanceof ExecutionCancelledError;
+    execution.status = isCancelled
+      ? ExecutionStatus.CANCELLED
+      : ExecutionStatus.FAILED;
     const errMessage = error instanceof Error ? error.message : String(error);
     execution.error = { message: errMessage };
     execution.finishedAt = new Date();
@@ -3465,14 +3465,12 @@ export class ExecutionEngineService
     await this.executionRepository.save(execution);
     this.eventEmitter.emitExecution(
       executionId,
-      execution.status === ExecutionStatus.CANCELLED
+      isCancelled
         ? ExecutionEventType.EXECUTION_CANCELLED
         : ExecutionEventType.EXECUTION_FAILED,
       {
         status: execution.status,
-        ...(execution.status === ExecutionStatus.FAILED
-          ? { error: errMessage }
-          : {}),
+        ...(!isCancelled ? { error: errMessage } : {}),
       },
     );
   }
@@ -3491,17 +3489,22 @@ export class ExecutionEngineService
    * **config echo (`rawConfig`) 는 본 메서드 결과가 아닌 raw 값을 유지해야 한다**
    * (spec/4-nodes/3-ai/1-ai-agent.md §config-echo: 항상 raw echo).
    */
-  private async resolveRetryNodeConfig(
+  private resolveRetryNodeConfig(
     execution: Execution,
     node: Node,
     context: ExecutionContext,
-  ): Promise<Record<string, unknown>> {
+  ): Record<string, unknown> {
     const rawConfig = node.config ?? {};
     try {
-      const nodes = await this.nodeRepository.findBy({
-        workflowId: execution.workflowId,
-      });
-      const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+      // WARNING #4 수정: `findBy({ workflowId })` 로 전체 노드를 조회하던 것을
+      // 이미 파라미터로 받은 `node` 한 건만 포함하는 Map 으로 교체.
+      // `buildExpressionContext` 가 nodeMap 을 쓰는 목적은 `$node.<id>.output`
+      // 참조 해소이며, 재진입 경로에서 upstream 노드의 outputData 는
+      // `rehydrateContext` 가 `nodeOutputCache` 에 seed 한다.
+      // 개별 노드 설정 expression(`$node`, `$var`, `$execution` 등) 해소에는
+      // 현재 노드 하나로 충분하고, 대형 워크플로에서 수십~수백 row 조회 부작용을
+      // 제거한다.
+      const nodeMap = new Map([[node.id, node]]);
       const exprContext = this.expressionResolver.buildExpressionContext(
         // 재진입엔 원본 nodeInput 미영속 — `$input.*` 미해소 (documented limit).
         {},
@@ -3728,9 +3731,19 @@ export class ExecutionEngineService
         // cancel-only reject 핸들러를 등록하고, replay turn 을 cancel 신호와
         // race 한다. 정상 경로는 wait 단계에서 cancel 을 받지만 (아래 else),
         // replay 는 wait 없이 즉시 처리되므로 이 race 가 그 대칭을 제공한다.
-        // cancel 이 이기면 ExecutionCancelledError 가 throw 돼
+        // cancel 이 이기면 ExecutionCancelledError 가 Promise.race 에서 throw 되고
+        // 아래 try 의 catch(finally) 를 경유해 `runAiConversationLoop` 밖으로 전파,
         // `applyRetryLastTurn` 의 catch 가 Execution 을 CANCELLED 로 마감한다.
-        // (resolve 는 no-op — replay 중엔 외부 입력을 수신하지 않는다.)
+        // (WARNING #3: cancel → throw → loop 탈출 경로 명시. finalStatus / conversationEnded
+        //  는 갱신되지 않은 채 throw 로 빠져나가므로 loop 재진입은 발생하지 않는다.)
+        //
+        // WARNING #2 — resolve: () => {} no-op 의 의미:
+        // replay 구간은 외부 사용자 메시지(continueAiConversation)를 수신하지 않는다.
+        // 이 타이밍 창에 메시지가 도달하면 resolve no-op 으로 조용히 drop 된다.
+        // 이는 정상 turn 중 외부 메시지가 drop 되는 동작과 동일하며 알려진 narrow
+        // window 다 — replay 는 단일 turn 이므로 창이 극히 짧다. 별도 AbortController
+        // 로 분리하면 Map 을 비우는 구간이 생겨 cancel 신호를 놓칠 위험이 있으므로
+        // 현재 no-op resolve + reject-only 패턴을 유지한다.
         const replayMessage =
           replayAction.type === 'form_submitted'
             ? JSON.stringify(replayAction.formData ?? {})
@@ -4652,11 +4665,13 @@ export class ExecutionEngineService
     context: ExecutionContext,
     nodeExec: NodeExecution | null,
     finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED',
-    // W5 — retry 재진입(`applyRetryLastTurn`)에서 호출될 때만 true. COMPLETED
-    // 분기의 FAILED → RUNNING 전이를 state-machine opt-in 으로 허용한다. 일반
-    // multi-turn 완료(`waitForAiConversation`)는 false (WAITING/RUNNING → RUNNING).
-    allowRetryReentry = false,
+    // W5 / WARNING #5 — boolean flag → opts 객체 파라미터 (Flag Parameter 안티패턴 해소).
+    // retry 재진입(`applyRetryLastTurn`)에서 호출될 때만 `{ retryReentry: true }`.
+    // COMPLETED 분기의 FAILED → RUNNING 전이를 state-machine opt-in 으로 허용한다.
+    // 일반 multi-turn 완료(`waitForAiConversation`)는 opts 미전달 (WAITING/RUNNING → RUNNING).
+    opts?: { retryReentry?: boolean },
   ): Promise<void> {
+    const allowRetryReentry = opts?.retryReentry === true;
     const isFailed = finalStatus === 'FAILED';
     if (nodeExec) {
       nodeExec.status = isFailed
