@@ -82,7 +82,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 
 | 영역 | 상태 |
 |------|------|
-| **Parallel 노드 (P1)** | `PARALLEL_ENGINE=v1` 환경변수로 활성화하면 `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다(off 시 기존 순차 동작). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge·중첩 Parallel은 금지. Merge `wait_all` 조합으로 결과 합산 가능. P2에서 중첩 Parallel과 waitAll=false를 추가할 예정이다. |
+| **Parallel 노드 (P1)** | `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값. `PARALLEL_ENGINE=off` 로 rollback). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge·중첩 Parallel은 금지. Merge `wait_all` 조합으로 결과 합산 가능. P2에서 중첩 Parallel과 waitAll=false를 추가할 예정이다. |
 | **조직 레벨 Integration 공유** | 팀 워크스페이스 단위 Integration 공유는 후속 단계에서 도입 예정이다. |
 
 #### 6.3 로드맵 / 미구현 (❌)

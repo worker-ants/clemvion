@@ -1218,7 +1218,7 @@ export class ExecutionEngineService
         }
         if (
           dispatchKind === 'parallel' &&
-          this.configService.get<string>('PARALLEL_ENGINE', 'off') === 'v1'
+          this.configService.get<string>('PARALLEL_ENGINE', 'v1') === 'v1'
         ) {
           const parallelInput = this.gatherNodeInput(
             nodeId,
@@ -2400,12 +2400,14 @@ export class ExecutionEngineService
         }
 
         // Parallel dispatch (PARALLEL_ENGINE=v1): run branch subgraphs
-        // concurrently. In the default 'off' mode the Parallel handler's
-        // `port: string[]` return value is handled by the legacy sequential
-        // propagateReachability path below, preserving existing semantics.
+        // concurrently. Default is now 'v1' (parallel-p2 결정 B). Set
+        // PARALLEL_ENGINE=off explicitly to roll back to legacy sequential
+        // propagateReachability behavior — the Parallel handler's
+        // `port: string[]` return value is still handled there, preserving
+        // existing semantics as a rollback card.
         if (
           dispatchKind === 'parallel' &&
-          this.configService.get<string>('PARALLEL_ENGINE', 'off') === 'v1'
+          this.configService.get<string>('PARALLEL_ENGINE', 'v1') === 'v1'
         ) {
           const nodeInput = this.gatherNodeInput(
             nodeId,
