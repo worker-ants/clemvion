@@ -10,7 +10,7 @@ code: []
 
 입력을 동일하게 받는 N개의 분기를 동시에(병렬로) 실행하는 **컨테이너 노드** (`executionMetadata.kind = 'parallel'`). 핸들러는 `branch_0` ~ `branch_{N-1}` 동적 출력 포트를 fan-out 활성화하고, 모든 분기가 종료된 후 엔진이 `done` 포트로 `{ branches: [...] }` 결과를 내보낸다. `branches[i]` 는 `Promise.allSettled` 모델을 따른다 — `{ status: 'fulfilled', value }` 또는 `{ status: 'rejected', error: { code, message } }` (CONVENTIONS Principle 9, [공통 §9.1](./0-common.md#91-컨테이너-노드-핸들러--엔진-오버라이트-컨트랙트)).
 
-> **🚧 P1 구현 상태**: `PARALLEL_ENGINE=v1` 환경변수로 활성화 시 `ParallelExecutor` 가 `p-limit` + `Promise.allSettled` 로 분기를 동시 실행한다. 기본값(`off`)이면 엔진이 토폴로지 순서로 순차 진행한다. 분기 간 `variables` 는 `structuredClone` 으로 deep clone, `nodeOutputCache` 는 shallow copy 로 격리된다.
+> **P1 구현 상태**: `ParallelExecutor` 가 `p-limit` + `Promise.allSettled` 로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값). `PARALLEL_ENGINE=off` 로 명시 설정 시 엔진이 토폴로지 순서로 순차 진행 (rollback card). 분기 간 `variables` 는 `structuredClone` 으로 deep clone, `nodeOutputCache` 는 shallow copy 로 격리된다.
 
 ---
 
@@ -68,7 +68,7 @@ code: []
 
 1. `branchCount` 를 정수 + `[2, 16]` 범위로 클램프 (handler 와 executor 양쪽에서 방어).
 2. 핸들러는 `branch_0` ~ `branch_{N-1}` 포트를 모두 활성화하는 형태로 §5.1 을 반환 — `port: string[]` (CONVENTIONS Principle 5 의 fan-out 형태).
-3. `PARALLEL_ENGINE=v1` 인 경우 엔진의 `ParallelExecutor` 가 `p-limit(effectiveConcurrency)` 로 동시 실행 슬롯을 제한하면서 `Promise.allSettled` 로 모든 분기의 서브그래프를 병렬 실행. `effectiveConcurrency` = `maxConcurrency > 0 ? maxConcurrency : branchCount`. flag off 시 엔진이 토폴로지 순서로 순차 실행.
+3. 엔진의 `ParallelExecutor` 가 `p-limit(effectiveConcurrency)` 로 동시 실행 슬롯을 제한하면서 `Promise.allSettled` 로 모든 분기의 서브그래프를 병렬 실행. `effectiveConcurrency` = `maxConcurrency > 0 ? maxConcurrency : branchCount`. `PARALLEL_ENGINE=off` 명시 시 엔진이 토폴로지 순서로 순차 실행 (rollback card).
 4. 각 분기는 `ExecutionContext` 의 shallow clone 을 받으며, `variables` 는 `structuredClone` 으로 deep clone, `itemContext` / `loopContext` 는 분기 진입 시 `undefined` 로 클리어 (중첩 ForEach/Loop 의 상태 누출 방지).
 5. `errorPolicy` 적용:
    - `stop` (기본): 첫 분기 실패 시 즉시 throw → Parallel 노드 FAILED 전이.
