@@ -92,7 +92,12 @@ export class NodesService {
     await this.nodeRepository.remove(node);
   }
 
-  async bulkCreate(workflowId: string, dtos: CreateNodeDto[]): Promise<Node[]> {
+  async bulkCreate(
+    workflowId: string,
+    workspaceId: string,
+    dtos: CreateNodeDto[],
+  ): Promise<Node[]> {
+    await this.assertWorkflowInWorkspace(workflowId, workspaceId);
     // O(n) batch duplicate detection using Set
     const seen = new Set<string>();
     for (const dto of dtos) {

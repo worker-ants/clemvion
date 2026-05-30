@@ -1386,10 +1386,12 @@ export class ExecutionEngineService
     const nodeExecutionCount = new Map<string, number>();
 
     // Resolver fire scheduler — waitForX 가 pendingContinuations 에 키 등록 직후
-    // resolvePending 호출. time-bounded polling (≈250 × 20ms ≈ 5s) 으로 race
-    // window 를 덮는다. setImmediate self-reschedule 은 idle worker 에서
-    // microtask 로 즉시 소진돼, 실제 DB await 뒤에 일어나는 등록 전에 한도가
-    // 바닥나 resume 이 영구 hang 하던 결함을 해소한다.
+    // resolvePending 호출. time-bounded polling (MAX_ATTEMPTS × POLL_INTERVAL_MS
+    // ≈ 5s) 으로 race window 를 덮는다. setImmediate self-reschedule 은 idle
+    // worker 에서 microtask 로 즉시 소진돼, 실제 DB await 뒤에 일어나는 등록 전에
+    // 한도가 바닥나 resume 이 영구 hang 하던 결함을 해소한다.
+    const FIRE_PAYLOAD_MAX_ATTEMPTS = 250;
+    const FIRE_PAYLOAD_POLL_INTERVAL_MS = 20;
     const firePayload = (attemptsLeft: number): void => {
       if (this.pendingContinuations.has(executionId)) {
         this.resolvePending(executionId, opts.payload);
@@ -1401,9 +1403,12 @@ export class ExecutionEngineService
         );
         return;
       }
-      setTimeout(() => firePayload(attemptsLeft - 1), 20);
+      setTimeout(
+        () => firePayload(attemptsLeft - 1),
+        FIRE_PAYLOAD_POLL_INTERVAL_MS,
+      );
     };
-    setTimeout(() => firePayload(250), 0);
+    setTimeout(() => firePayload(FIRE_PAYLOAD_MAX_ATTEMPTS), 0);
 
     try {
       // 사전 상태 전이: 본 Execution 은 DB 에서 WAITING_FOR_INPUT 으로 로드됨.

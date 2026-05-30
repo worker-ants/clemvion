@@ -153,9 +153,23 @@ describe('NodesService', () => {
   });
 
   describe('bulkCreate', () => {
+    it('throws NotFoundException for a workflow in another workspace (IDOR guard)', async () => {
+      mockWorkflowRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.bulkCreate('wf-other', WS, [
+          {
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'HTTP Request',
+          },
+        ]),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
     it('should throw on duplicate labels within the batch', async () => {
       await expect(
-        service.bulkCreate('wf-1', [
+        service.bulkCreate('wf-1', WS, [
           {
             type: 'http_request',
             category: NodeCategory.INTEGRATION,
@@ -176,7 +190,7 @@ describe('NodesService', () => {
       ]);
 
       await expect(
-        service.bulkCreate('wf-1', [
+        service.bulkCreate('wf-1', WS, [
           {
             type: 'code',
             category: NodeCategory.DATA,
@@ -194,7 +208,7 @@ describe('NodesService', () => {
       ];
       mockRepo.save.mockResolvedValue(nodes);
 
-      const result = await service.bulkCreate('wf-1', [
+      const result = await service.bulkCreate('wf-1', WS, [
         {
           type: 'http_request',
           category: NodeCategory.INTEGRATION,
