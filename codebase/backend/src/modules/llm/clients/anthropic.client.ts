@@ -46,7 +46,7 @@ export class AnthropicClient implements LLMClient {
     return { type: 'auto', disable_parallel_tool_use: false };
   }
 
-  async chat(params: ChatParams): Promise<ChatResult> {
+  async chat(params: ChatParams, signal?: AbortSignal): Promise<ChatResult> {
     const systemMessages = params.messages.filter((m) => m.role === 'system');
     const system =
       systemMessages.map((m) => m.content).join('\n\n') || undefined;
@@ -104,7 +104,10 @@ export class AnthropicClient implements LLMClient {
       requestParams.tool_choice = this.buildToolChoice(params.toolChoice);
     }
 
-    const response = await this.client.messages.create(requestParams);
+    const response = await this.client.messages.create(
+      requestParams,
+      signal ? { signal } : undefined,
+    );
 
     let textContent = '';
     const toolCalls: ToolCall[] = [];

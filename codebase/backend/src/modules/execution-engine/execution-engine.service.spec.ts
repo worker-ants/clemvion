@@ -4773,7 +4773,6 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
       );
     });
-
   });
 
   describe('Reachability-based execution', () => {
@@ -8699,9 +8698,17 @@ describe('ExecutionEngineService', () => {
         nodes: [agentNode16, triggerNode16],
         edges: [
           // forward edge: agent → trigger (the "downstream" after retry completes)
-          { sourceNodeId: AGENT_ID, targetNodeId: TRIGGER_ID, sourcePort: 'user_ended' },
+          {
+            sourceNodeId: AGENT_ID,
+            targetNodeId: TRIGGER_ID,
+            sourcePort: 'user_ended',
+          },
           // back-edge: trigger(back) → agent
-          { sourceNodeId: TRIGGER_ID, targetNodeId: AGENT_ID, sourcePort: 'back' },
+          {
+            sourceNodeId: TRIGGER_ID,
+            targetNodeId: AGENT_ID,
+            sourcePort: 'back',
+          },
         ],
       });
 
@@ -8727,15 +8734,17 @@ describe('ExecutionEngineService', () => {
       expect(triggerHandler16.execute).toHaveBeenCalledTimes(1);
 
       // Execution must complete — no MAX_NODE_ITERATIONS exceeded false positive.
-      const completed16 = mockWebsocketService.emitExecutionEvent.mock.calls.filter(
-        (c: unknown[]) => c[1] === 'execution.completed',
-      );
+      const completed16 =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
       expect(completed16.length).toBe(1);
 
       // Must NOT have emitted execution.failed.
-      const failed16 = mockWebsocketService.emitExecutionEvent.mock.calls.filter(
-        (c: unknown[]) => c[1] === 'execution.failed',
-      );
+      const failed16 =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.failed',
+        );
       expect(failed16.length).toBe(0);
     });
 
