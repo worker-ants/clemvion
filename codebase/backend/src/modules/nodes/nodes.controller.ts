@@ -74,6 +74,9 @@ export class NodesController {
   })
   @ApiOkWrappedArrayResponse(NodeDto, { description: '노드 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({
+    description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
+  })
   async findByWorkflow(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
     @WorkspaceId() workspaceId: string,
@@ -96,6 +99,9 @@ export class NodesController {
   @ApiCreatedWrappedResponse(NodeDto, { description: '생성된 노드' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({
+    description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
+  })
   @ApiConflictResponse({ description: '동일 워크플로우 내 라벨 중복' })
   async create(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,

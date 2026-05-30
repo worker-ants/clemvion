@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Edge } from './entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import { assertWorkflowInWorkspace } from '../workflows/workflow-ownership.util';
 import { CreateEdgeDto } from './dto/create-edge.dto';
 
 @Injectable()
@@ -18,31 +19,15 @@ export class EdgesService {
     private readonly workflowRepository: Repository<Workflow>,
   ) {}
 
-  /**
-   * Cross-workspace IDOR guard: ensure the workflow belongs to the caller's
-   * workspace before any edge read/mutation. Mirrors WorkflowsService.findById
-   * NotFoundException shape so callers cannot probe foreign-workspace rows.
-   */
-  private async assertWorkflowInWorkspace(
-    workflowId: string,
-    workspaceId: string,
-  ): Promise<void> {
-    const workflow = await this.workflowRepository.findOne({
-      where: { id: workflowId, workspaceId },
-    });
-    if (!workflow) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Workflow not found',
-      });
-    }
-  }
-
   async findByWorkflow(
     workflowId: string,
     workspaceId: string,
   ): Promise<Edge[]> {
-    await this.assertWorkflowInWorkspace(workflowId, workspaceId);
+    await assertWorkflowInWorkspace(
+      this.workflowRepository,
+      workflowId,
+      workspaceId,
+    );
     return this.edgeRepository.find({
       where: { workflowId },
     });
@@ -53,7 +38,11 @@ export class EdgesService {
     workspaceId: string,
     dto: CreateEdgeDto,
   ): Promise<Edge> {
-    await this.assertWorkflowInWorkspace(workflowId, workspaceId);
+    await assertWorkflowInWorkspace(
+      this.workflowRepository,
+      workflowId,
+      workspaceId,
+    );
     if (dto.sourceNodeId === dto.targetNodeId) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
@@ -69,14 +58,20 @@ export class EdgesService {
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {
-    const edge = await this.edgeRepository.findOne({ where: { id } });
-    if (!edge) {
+    // Single query: load the edge with its workflow relation and verify the
+    // workflow belongs to the caller's workspace. A miss (no row, or a row in a
+    // foreign workspace) throws the same NotFoundException so callers cannot
+    // probe foreign-workspace rows (IDOR guard).
+    const edge = await this.edgeRepository.findOne({
+      where: { id },
+      relations: ['workflow'],
+    });
+    if (!edge || edge.workflow?.workspaceId !== workspaceId) {
       throw new NotFoundException({
         code: 'RESOURCE_NOT_FOUND',
         message: 'Edge not found',
       });
     }
-    await this.assertWorkflowInWorkspace(edge.workflowId, workspaceId);
     await this.edgeRepository.remove(edge);
   }
 }

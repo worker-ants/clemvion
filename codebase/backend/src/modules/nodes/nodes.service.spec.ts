@@ -8,11 +8,22 @@ function makeWorkflow(id: string, workspaceId: string) {
   return { id, workspaceId };
 }
 
-function makeNode(id: string, label: string, workflowId = 'wf-1'): Node {
+function makeNode(
+  id: string,
+  label: string,
+  workflowId = 'wf-1',
+  workspaceId = WS,
+): Node {
   const node = new Node();
   node.id = id;
   node.label = label;
   node.workflowId = workflowId;
+  // update()/remove() load the node with its `workflow` relation and check
+  // workflow.workspaceId in a single query (IDOR guard).
+  node.workflow = makeWorkflow(
+    workflowId,
+    workspaceId,
+  ) as unknown as Node['workflow'];
   node.type = 'http_request';
   node.category = NodeCategory.INTEGRATION;
   node.positionX = 0;
@@ -63,22 +74,45 @@ describe('NodesService', () => {
     });
 
     it('update throws NotFoundException when the node belongs to another workspace', async () => {
+      // Single-query path: the node is loaded with its workflow relation; the
+      // workflow lives in a foreign workspace.
       mockRepo.findOne.mockResolvedValue(
-        makeNode('n1', 'HTTP Request', 'wf-other'),
+        makeNode('n1', 'HTTP Request', 'wf-other', 'ws-other'),
       );
-      mockWorkflowRepo.findOne.mockResolvedValue(null);
       await expect(
         service.update('n1', WS, { label: 'API Call' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('update throws NotFoundException when the node does not exist', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.update('missing', WS, { label: 'API Call' }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('remove throws NotFoundException when the node belongs to another workspace', async () => {
+      // Single-query path: node loaded with workflow relation in a foreign workspace.
       mockRepo.findOne.mockResolvedValue(
-        makeNode('n1', 'HTTP Request', 'wf-other'),
+        makeNode('n1', 'HTTP Request', 'wf-other', 'ws-other'),
       );
-      mockWorkflowRepo.findOne.mockResolvedValue(null);
       await expect(service.remove('n1', WS)).rejects.toThrow(NotFoundException);
       expect(mockRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('remove throws NotFoundException when the node does not exist', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(service.remove('missing', WS)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('removes a node in the caller workspace', async () => {
+      mockRepo.findOne.mockResolvedValue(makeNode('n1', 'HTTP Request'));
+      await service.remove('n1', WS);
+      expect(mockRepo.remove).toHaveBeenCalled();
     });
   });
 
@@ -128,7 +162,7 @@ describe('NodesService', () => {
 
     it('should allow rename to a unique label', async () => {
       const existing = makeNode('n1', 'HTTP Request', 'wf-1');
-      // First findOne for findById
+      // First findOne loads the node with its workflow relation
       mockRepo.findOne
         .mockResolvedValueOnce(existing)
         // Second findOne for assertLabelUnique

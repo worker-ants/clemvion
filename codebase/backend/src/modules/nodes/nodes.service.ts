@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
 import { Node } from './entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import { assertWorkflowInWorkspace } from '../workflows/workflow-ownership.util';
 import { CreateNodeDto } from './dto/create-node.dto';
 import { UpdateNodeDto } from './dto/update-node.dto';
 
@@ -19,31 +20,15 @@ export class NodesService {
     private readonly workflowRepository: Repository<Workflow>,
   ) {}
 
-  /**
-   * Cross-workspace IDOR guard: ensure the workflow belongs to the caller's
-   * workspace before any node read/mutation. Mirrors WorkflowsService.findById
-   * NotFoundException shape so callers cannot probe foreign-workspace rows.
-   */
-  private async assertWorkflowInWorkspace(
-    workflowId: string,
-    workspaceId: string,
-  ): Promise<void> {
-    const workflow = await this.workflowRepository.findOne({
-      where: { id: workflowId, workspaceId },
-    });
-    if (!workflow) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Workflow not found',
-      });
-    }
-  }
-
   async findByWorkflow(
     workflowId: string,
     workspaceId: string,
   ): Promise<Node[]> {
-    await this.assertWorkflowInWorkspace(workflowId, workspaceId);
+    await assertWorkflowInWorkspace(
+      this.workflowRepository,
+      workflowId,
+      workspaceId,
+    );
     return this.nodeRepository.find({
       where: { workflowId },
       order: { createdAt: 'ASC' },
@@ -66,7 +51,11 @@ export class NodesService {
     workspaceId: string,
     dto: CreateNodeDto,
   ): Promise<Node> {
-    await this.assertWorkflowInWorkspace(workflowId, workspaceId);
+    await assertWorkflowInWorkspace(
+      this.workflowRepository,
+      workflowId,
+      workspaceId,
+    );
     await this.assertLabelUnique(workflowId, dto.label);
     const node = this.nodeRepository.create({ ...dto, workflowId });
     return this.saveWithUniqueConstraint(node);
@@ -77,8 +66,20 @@ export class NodesService {
     workspaceId: string,
     dto: UpdateNodeDto,
   ): Promise<Node> {
-    const node = await this.findById(id);
-    await this.assertWorkflowInWorkspace(node.workflowId, workspaceId);
+    // Single query: load the node with its workflow relation and verify the
+    // workflow belongs to the caller's workspace. A miss (no row, or a row in a
+    // foreign workspace) throws the same NotFoundException so callers cannot
+    // probe foreign-workspace rows (IDOR guard).
+    const node = await this.nodeRepository.findOne({
+      where: { id },
+      relations: ['workflow'],
+    });
+    if (!node || node.workflow?.workspaceId !== workspaceId) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Node not found',
+      });
+    }
     if (dto.label !== undefined && dto.label !== node.label) {
       await this.assertLabelUnique(node.workflowId, dto.label, id);
     }
@@ -87,17 +88,35 @@ export class NodesService {
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {
-    const node = await this.findById(id);
-    await this.assertWorkflowInWorkspace(node.workflowId, workspaceId);
+    // Single query with workflow relation + workspace check (IDOR guard).
+    const node = await this.nodeRepository.findOne({
+      where: { id },
+      relations: ['workflow'],
+    });
+    if (!node || node.workflow?.workspaceId !== workspaceId) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Node not found',
+      });
+    }
     await this.nodeRepository.remove(node);
   }
 
+  /**
+   * Internal batch helper — has no current HTTP route. If exposed later, the
+   * controller must pass `@WorkspaceId() workspaceId` (the workspace guard
+   * below is already wired) so the cross-workspace IDOR guarantee holds.
+   */
   async bulkCreate(
     workflowId: string,
     workspaceId: string,
     dtos: CreateNodeDto[],
   ): Promise<Node[]> {
-    await this.assertWorkflowInWorkspace(workflowId, workspaceId);
+    await assertWorkflowInWorkspace(
+      this.workflowRepository,
+      workflowId,
+      workspaceId,
+    );
     // O(n) batch duplicate detection using Set
     const seen = new Set<string>();
     for (const dto of dtos) {

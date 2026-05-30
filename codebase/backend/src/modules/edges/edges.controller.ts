@@ -46,6 +46,9 @@ export class EdgesController {
   })
   @ApiOkWrappedArrayResponse(EdgeDto, { description: '엣지 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({
+    description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
+  })
   async findByWorkflow(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
     @WorkspaceId() workspaceId: string,
@@ -70,6 +73,9 @@ export class EdgesController {
     description: '입력값 검증 실패 또는 self-loop 시도',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({
+    description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
+  })
   async create(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
     @WorkspaceId() workspaceId: string,

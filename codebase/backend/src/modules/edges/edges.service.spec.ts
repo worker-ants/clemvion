@@ -4,10 +4,16 @@ import { Edge, EdgeType } from './entities/edge.entity';
 
 const WS = 'ws-1';
 
-function makeEdge(id: string, workflowId = 'wf-1'): Edge {
+function makeEdge(id: string, workflowId = 'wf-1', workspaceId = WS): Edge {
   const edge = new Edge();
   edge.id = id;
   edge.workflowId = workflowId;
+  // remove() loads the edge with its `workflow` relation and checks
+  // workflow.workspaceId in a single query (IDOR guard).
+  edge.workflow = {
+    id: workflowId,
+    workspaceId,
+  } as unknown as Edge['workflow'];
   edge.sourceNodeId = 'src';
   edge.targetNodeId = 'tgt';
   edge.sourcePort = 'out';
@@ -57,8 +63,10 @@ describe('EdgesService', () => {
     });
 
     it('remove throws NotFoundException when the edge belongs to another workspace', async () => {
-      mockRepo.findOne.mockResolvedValue(makeEdge('e1', 'wf-other'));
-      mockWorkflowRepo.findOne.mockResolvedValue(null);
+      // Single-query path: edge loaded with its workflow relation in a foreign workspace.
+      mockRepo.findOne.mockResolvedValue(
+        makeEdge('e1', 'wf-other', 'ws-other'),
+      );
       await expect(service.remove('e1', WS)).rejects.toThrow(NotFoundException);
       expect(mockRepo.remove).not.toHaveBeenCalled();
     });

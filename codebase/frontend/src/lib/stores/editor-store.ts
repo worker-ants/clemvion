@@ -745,7 +745,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { workflowId, workflowName, nodes, edges, isSaving } = get();
     if (!workflowId || isSaving) return false;
 
-    set({ isSaving: true });
+    // Optimistically clear isDirty at save START (the payload below is a snapshot
+    // of the current canvas). Any edit made DURING the in-flight save re-sets
+    // isDirty:true through its own mutator, so those edits stay correctly
+    // unsaved-dirty — no lost change, O(1), no full-state serialization compare.
+    set({ isSaving: true, isDirty: false });
     try {
       const payload = {
         name: workflowName,
@@ -779,23 +783,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
 
       await workflowsApi.saveCanvas(workflowId, payload);
-      // Edits made during the in-flight save are persisted with the next save,
-      // not this one. Only clear isDirty if the canvas still matches what we
-      // actually sent; otherwise the in-flight edits remain unsaved-dirty.
-      set((state) => {
-        const stillEqual =
-          state.nodes.length === nodes.length &&
-          state.edges.length === edges.length &&
-          JSON.stringify(state.nodes) === JSON.stringify(nodes) &&
-          JSON.stringify(state.edges) === JSON.stringify(edges);
-        return {
-          isDirty: stillEqual ? false : state.isDirty,
-          saveCount: state.saveCount + 1,
-        };
-      });
+      // Do NOT touch isDirty here: it was cleared at save start, and any edit
+      // made during the in-flight save already re-set it via that edit's mutator.
+      set((state) => ({ saveCount: state.saveCount + 1 }));
       return true;
     } catch (error) {
       console.error("Save failed:", error);
+      // Snapshot was not persisted — restore the dirty flag so the user keeps
+      // the unsaved-changes signal (harmless if an in-flight edit already set it).
+      set({ isDirty: true });
       return false;
     } finally {
       set({ isSaving: false });
