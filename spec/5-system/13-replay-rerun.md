@@ -419,6 +419,8 @@ Re-run 이 "현재 시점의 워크플로 정의의 raw config 를 다시 평가
 
 Multi-turn resume 은 진행 중 실행의 다음 turn 을 같은 Execution row 안에서 진행한다 (`state.rawConfig` frozen snapshot 사용). Re-run 은 새 Execution row 를 생성하므로 두 모드는 직교한다 — 같은 워크플로의 multi-turn 노드도 RR-PL-04 에 따라 새 세션으로 시작.
 
+노드 단위 재시도 (`execution.retry_last_turn`, [Spec WebSocket §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server) + [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) 도 본 Re-run 모드와 직교한다. retry 는 동일 Execution 안에서 같은 노드의 마지막 LLM 호출만 새 NodeExecution row 로 재진입하며, 성공 시 그 노드의 downstream 은 일반 노드 `COMPLETED` 와 동일하게 진행된다. Re-run 은 새 Execution row 와 chain 깊이 증가를 만드는 반면 retry 는 동일 chain·동일 Execution 안의 in-place 재시도라는 점이 다르다 — retry 는 새 Execution row 를 생성하지 않으므로 §9 의 `re_run_of` / `chain_id` 에 관여하지 않으며, chain badge (§10.3) 도 부여되지 않는다.
+
 ### 14.4 트리거 실행과의 관계
 
 Re-run 은 **트리거를 다시 발화하지 않는다** — 원본 실행이 webhook 으로 시작됐어도 Re-run 은 webhook 발화 없이 manual 경로로 진행한다. 결과 Execution row 의 `executed_by = <Re-run 호출자>`, `trigger_id = NULL` 로 채워진다 ([Spec 실행 엔진 §6.1.1](./4-execution-engine.md#611-트리거-입력-파라미터-seeding) 의 Manual 경로와 동일).
@@ -494,3 +496,7 @@ AI Assistant 의 read-only 정책 ([Spec AI Assistant §4.1](../3-workflow-edito
 ### 본 spec 이 단일 파일인 이유
 
 `spec/5-system/` 의 다른 영역들 (12-webhook, 10-graph-rag) 도 단일 spec 파일에 Overview + 본문 + Rationale 을 함께 담는 패턴을 쓴다. Re-run 은 영역 단위가 아닌 단일 기능이라 같은 패턴이 적합. 본 spec 이 14-execution-history.md / 4-ai-assistant.md / 3-execution.md 등에 cross-link 되더라도, 정책의 single source of truth 는 본 파일.
+
+### `execution.retry_last_turn` 과의 경계 (§14.3 보강)
+
+노드 단위 재시도 (`execution.retry_last_turn`, [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) + [§12.8](../4-nodes/3-ai/1-ai-agent.md#128-retry_last_turn-성공-후-downstream-graph-진행)) 는 동일 Execution 안에서 같은 노드의 마지막 LLM 호출만 새 NodeExecution row 로 재진입하는 in-place 재시도이며, 성공 시 downstream graph 는 일반 노드 `COMPLETED` 와 동일하게 진행된다. 본 Re-run spec 의 단위 (전체 워크플로, RR-PL-03) 와 chain 추적 모델 (RR-PL-05) 은 retry 에 적용되지 않으며, 둘은 동일 사용자 가치 ("실패한 흐름 다시" — §2) 의 다른 입자 (granularity) 다. retry 가 노드 단위로 좁고 빠른 회복 (시간 단위 60분 TTL) 을 다루고, Re-run 이 워크플로 단위로 무한 깊이 (chain 32) 의 재실행을 다룬다.

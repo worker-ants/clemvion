@@ -21,8 +21,15 @@ owner: project-planner
 
 - ✅ **spec 텍스트 동기화 4건 (review SUMMARY #6/#7/#8/#9)** (`docs(spec)` ee999466 + `fix` 219d54fb): consistency-check 1차 BLOCK 후 project-planner 가 설계 확정·반영 — #6 `failed→running` Execution-entity 전이(§1.1/§1.2/Rationale, allowRetryReentry opt-in), #7 분류 불가 fallback 을 `LLM_CALL_FAILED` non-retryable 로 통합(§10, classifyLlmError 코드 정렬 — `AI_AGENT_TURN_FAILED` 제거), #8 cancel-during-replay→cancelled(§4.2), #9 config 재평가 정책(§7.9 + §5.5 cross-ref, rawConfig snapshot 직교성). **`/consistency-check --spec` 재검 BLOCK: NO** (`review/consistency/2026/05/30/13_34_40`, LOW). 상세: [`spec-fix-retry-state-transitions.md`](./spec-fix-retry-state-transitions.md).
 
-- 🔲 **남은 한계 (스펙 결정 필요 — project-planner)**:
-  - **WARNING #10 — 성공 retry 후 downstream 그래프 traversal**: retry 로 대화는 재개되나, AI 노드의 출력 포트에 연결된 하류 노드는 미실행 (성공 종결 시 Execution 을 COMPLETED 로만 마감). **스펙 판단 결론 (2026-05-30)**: `spec/5-system/6-websocket-protocol.md §4.2` + `spec/4-nodes/3-ai/1-ai-agent.md §10/§7.9` 가 `retry_last_turn` 을 "노드 단위 재시도 — 마지막 LLM 호출 재진입"으로 정의하고 워크플로 Re-run([§13](../../spec/5-system/13-replay-rerun.md))과 **명시적으로 구분**한다. downstream 재개는 spec 이 약속한 바 없으므로 현재 COMPLETED-finalize 는 **spec 준수** 상태. downstream traversal 은 신규 제품 동작(노드 단위 → 워크플로 재개로 의미 확장)이라 `project-planner` 의 spec 결정이 선행돼야 하며 developer 범위가 아니다. `completeRetryExecution` docstring 에 DOCUMENTED GAP 으로 명시 보존. **사용자/기획 결정 대기.**
+- ✅ **WARNING #10 (spec 명시 — PR1, 2026-05-30)** — retry 성공 후 downstream traversal 이 일반 노드 `COMPLETED` 와 동일하게 진행됨을 spec 3 개 문서에 명시: `spec/4-nodes/3-ai/1-ai-agent.md §7.9` (재진입 종결 후 graph 진행 단락) + **신규 §12.8** (Rationale 결정 근거), `spec/5-system/6-websocket-protocol.md §4.2` (재진입 종결 후 graph 진행 bullet) + Rationale 끝 cross-ref 단락, `spec/5-system/13-replay-rerun.md §14.3` (retry 직교성 단락) + Rationale 끝 §14.3 보강 단락.
+
+  **직전 "사용자/기획 결정 대기" 분류는 과보수적이었음** — `/consistency-check --spec` 의 rationale-continuity-checker 가 "과거 Rationale 에 downstream 차단 결정이 명시된 적 없음" 을 확인했고, spec 의 "노드 단위 재시도" 표현은 워크플로 Re-run 과의 **단위 구분 의도**였지 downstream 차단 의도가 아니었음이 project-planner 와 합의됨. retry 성공한 노드는 일반 성공 노드와 의미적으로 동일하므로 downstream traversal 은 워크플로 엔진의 **기본 invariant** 적용 (신규 정책 아님). 따라서 본 변경은 무근거 번복이 아닌 표면 명확화.
+
+  **구현 fix 는 PR2** — `execution-engine.service.ts:3427 completeRetryExecution` 의 즉시 Execution.COMPLETED 마감을 일반 graph loop 합류 (`resumeGraphAfterRetry` 헬퍼 신설) 로 교체 (`developer` 위임). 단위·e2e 테스트 추가. 본 PR1 의 spec 변경이 merge 된 직후 착수.
+
+  **frontmatter 정책**: PR1 시점에서 3 개 target spec 파일의 frontmatter `status` 변경 없음 — PR2 (구현 fix) merge 후 `pending_plans:` 등 `spec/conventions/spec-impl-evidence.md §2·§3` 가드 정합 정리.
+
+  **consistency-check 결과**: `review/consistency/2026/05/30/14_48_20/SUMMARY.md` — BLOCK: NO, 위험도 LOW (Critical 0건, Warning 4건 모두 보완 반영, Info 9건).
 
 ## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8, #9)
 
