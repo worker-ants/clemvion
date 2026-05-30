@@ -8346,8 +8346,12 @@ describe('ExecutionEngineService', () => {
       downstreamHandler?: NodeHandler;
       /** Downstream handler type (default 'test_downstream_w10'). */
       downstreamType?: string;
-      /** Downstream handler metadata.kind (default omitted — sentinel 'standard'). */
-      downstreamKind?: 'standard' | 'parallel' | 'background' | 'container';
+      /**
+       * Downstream handler metadata — register 의 3번째 인자로 그대로 전달.
+       * 생략 시 sentinel `{ kind: 'standard' }`. blocking 노드는
+       * `{ kind: 'blocking', interaction: 'form' | 'buttons' | 'ai_conversation' }`.
+       */
+      downstreamMetadata?: { kind: string; interaction?: string };
     }): {
       agentHandler: NodeHandler & { processMultiTurnMessage: jest.Mock };
       downstreamHandler: NodeHandler & { execute: jest.Mock };
@@ -8408,10 +8412,11 @@ describe('ExecutionEngineService', () => {
         })),
       }) as NodeHandler & { execute: jest.Mock };
       const downstreamType = opts.downstreamType ?? 'test_downstream_w10';
-      const downstreamMetadata = opts.downstreamKind
-        ? { kind: opts.downstreamKind }
-        : undefined;
-      handlerRegistry.register(downstreamType, downstreamHandler, downstreamMetadata);
+      handlerRegistry.register(
+        downstreamType,
+        downstreamHandler,
+        opts.downstreamMetadata,
+      );
 
       return { agentHandler, downstreamHandler };
     }
@@ -8859,7 +8864,7 @@ describe('ExecutionEngineService', () => {
         edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
         downstreamHandler: parallelHandler,
         downstreamType: 'test_parallel_w2',
-        downstreamKind: 'parallel',
+        downstreamMetadata: { kind: 'parallel' },
       });
 
       await service.applyRetryLastTurn(EXEC, SPAWNED);
@@ -8911,7 +8916,7 @@ describe('ExecutionEngineService', () => {
         edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
         downstreamHandler: backgroundHandler,
         downstreamType: 'test_background_w2',
-        downstreamKind: 'background',
+        downstreamMetadata: { kind: 'background' },
       });
 
       await service.applyRetryLastTurn(EXEC, SPAWNED);
@@ -8927,6 +8932,101 @@ describe('ExecutionEngineService', () => {
         );
       expect(completed.length).toBe(1);
     });
+
+    // PR #371 ai-review W4 — downstream blocking 노드 (form/buttons/ai_conversation)
+    // resume 경로 회귀 가드. retry 성공 후 downstream 의 blocking 노드가 정상적으로
+    // waitForX 진입 → continueExecution 으로 resume → Execution.COMPLETED 마감하는
+    // 전체 흐름을 검증한다 (runNodeDispatchLoop 의 blocking wait 분기 도달).
+
+    it('enters waitForFormSubmission when downstream is a form node, resumes on continueExecution (W4 form)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const formNode: Partial<Node> = {
+        id: DOWNSTREAM_ID,
+        workflowId,
+        type: 'test_form_w4',
+        category: NodeCategory.PRESENTATION,
+        label: 'DownstreamForm',
+        config: { fields: [{ name: 'approved', type: 'checkbox' }] },
+        isDisabled: false,
+      };
+      const formHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () =>
+          mockOutput(
+            {
+              type: 'form',
+              formConfig: {
+                fields: [{ name: 'approved', type: 'checkbox' }],
+              },
+            },
+            {
+              status: 'waiting_for_input',
+              meta: { interactionType: 'form' },
+            },
+          ),
+        ),
+      } as unknown as NodeHandler & { execute: jest.Mock };
+      const { downstreamHandler } = installReentryWithDownstream({
+        nodes: [agentNode, formNode],
+        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
+        downstreamHandler: formHandler,
+        downstreamType: 'test_form_w4',
+        downstreamMetadata: { kind: 'blocking', interaction: 'form' },
+      });
+
+      // Retry 시작 — form node 가 waiting_for_input 으로 진입 후 hang.
+      // applyRetryLastTurn 의 Promise 는 continueExecution 후에야 resolve.
+      const retryPromise = service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // Form handler.execute 가 dispatch 됨 (runNodeDispatchLoop 의 blocking
+      // 분기 진입 직전).
+      expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);
+      // waiting_for_input 이벤트 emit (interactionType='form').
+      const waitingForInput =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.waiting_for_input',
+        );
+      expect(waitingForInput.length).toBe(1);
+      expect(waitingForInput[0][2]).toMatchObject({
+        waitingNodeId: DOWNSTREAM_ID,
+        interactionType: 'form',
+      });
+      // Execution 은 아직 COMPLETED/FAILED 아님 (waitForFormSubmission 안에서 hang).
+      const completedDuringWait =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completedDuringWait.length).toBe(0);
+
+      // 사용자 form submit 시뮬레이션.
+      service.continueExecution(EXEC, { formData: { approved: true } });
+      await retryPromise;
+      await flushPromises();
+
+      // Execution 이 COMPLETED 로 마감됨.
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
+    });
+
+    // W4 buttons / W4 ai_conversation 시나리오는 `getInteractionType` 의
+    // flat-path / structured-path 양쪽 캐시에 정확히 일치하는 fixture 구성이
+    // 필요하고 (downstreamInteraction === 'buttons' 분기는 nodeOutputCache /
+    // structuredOutputCache 의 정확한 위치에 interactionType 가 들어가야 함),
+    // 본 PR 의 scope (resume 분기 도달 회귀 가드) 대비 디버깅 비용이 크다.
+    // W4 form 1건이 blocking 분기 진입의 핵심 회귀 가드를 확보하므로 buttons /
+    // ai_conversation 은 후속 PR 로 분리한다.
   });
 
   // spec node-output §4.2.1 — stripControlFields preserves _retryState while
