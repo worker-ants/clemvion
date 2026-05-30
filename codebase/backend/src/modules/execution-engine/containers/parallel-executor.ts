@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import pLimit from 'p-limit';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
@@ -16,10 +16,31 @@ export interface BranchFailure {
   error: Error;
 }
 
+export interface ClampedConcurrency {
+  intended: number;
+  actual: number;
+  parentEffective: number;
+  cap: number;
+}
+
 export interface ParallelResult {
   settled: PromiseSettledResult<void>[];
   failures: BranchFailure[];
+  /**
+   * 중첩 Parallel 의 effectiveConcurrency 가 cap=32 의 silent clamp 로 줄었을 때
+   * 기록. 미발생 (cap 미적용 또는 외부 Parallel 없음) 시 undefined.
+   * 엔진은 이 값을 `NodeExecution.meta.clampedConcurrency` 에 기록해 runtime
+   * 추적성 확보 (parallel-p2 결정 #3 + G + D, 2026-05-30).
+   */
+  clampedConcurrency?: ClampedConcurrency;
 }
+
+/**
+ * 중첩 Parallel 의 외부 × 내부 effectiveConcurrency 곱셈 cap (parallel-p2 결정 #3).
+ * 외부 maxConcurrency 16 × 내부 16 = 256 worker 폭발을 방지. silent clamp + meta
+ * 기록 + debug 로그로 가시성 확보.
+ */
+export const NESTED_PARALLEL_CONCURRENCY_CAP = 32;
 
 /**
  * Pure concurrency orchestrator for the Parallel logic node.
@@ -31,11 +52,14 @@ export interface ParallelResult {
  */
 @Injectable()
 export class ParallelExecutor {
+  private readonly logger = new Logger(ParallelExecutor.name);
+
   /**
    * @param config — Parallel node config (branchCount, maxConcurrency, waitAll, errorPolicy).
    * @param context — Shared execution context. Each branch receives a shallow clone
    *   that clears `itemContext` / `loopContext` so inner ForEach/Loop containers
-   *   do not leak state across branches.
+   *   do not leak state across branches. `parentParallelConcurrency` (if set)
+   *   triggers the nested concurrency clamp (parallel-p2 결정 #3 + G).
    * @param runBranch — Engine-provided branch runner. Takes the 0-based branch
    *   index and the branch-scoped context; resolves when the branch body completes.
    */
@@ -55,8 +79,32 @@ export class ParallelExecutor {
       0,
       Math.min(16, Math.floor(config.maxConcurrency)),
     );
-    const effectiveConcurrency =
-      maxConcurrency > 0 ? maxConcurrency : branchCount;
+    const intendedEffective = maxConcurrency > 0 ? maxConcurrency : branchCount;
+
+    // 중첩 Parallel concurrency cap (parallel-p2 결정 #3 + G + D). 외부 Parallel 의
+    // effectiveConcurrency 가 context.parentParallelConcurrency 에 set 되어 있으면
+    // 자기 effective 를 floor(32/parent) 로 silent clamp. 외부 × 내부 ≤ 32 보장.
+    const parentEffective = context.parentParallelConcurrency;
+    let effectiveConcurrency = intendedEffective;
+    let clampedConcurrency: ClampedConcurrency | undefined;
+    if (parentEffective !== undefined && parentEffective > 0) {
+      const allowed = Math.max(
+        1,
+        Math.floor(NESTED_PARALLEL_CONCURRENCY_CAP / parentEffective),
+      );
+      if (intendedEffective > allowed) {
+        effectiveConcurrency = allowed;
+        clampedConcurrency = {
+          intended: intendedEffective,
+          actual: allowed,
+          parentEffective,
+          cap: NESTED_PARALLEL_CONCURRENCY_CAP,
+        };
+        this.logger.debug(
+          `[ParallelExecutor] nested concurrency clamp: parent=${parentEffective} × intended=${intendedEffective} > cap=${NESTED_PARALLEL_CONCURRENCY_CAP}; actual=${allowed}`,
+        );
+      }
+    }
     const errorPolicy: ParallelErrorPolicy = config.errorPolicy ?? 'stop';
 
     const limit = pLimit(effectiveConcurrency);
@@ -84,6 +132,10 @@ export class ParallelExecutor {
             structuredOutputCache: { ...context.structuredOutputCache },
             itemContext: undefined,
             loopContext: undefined,
+            // 결정 G: 내부 Parallel 이 자기 effective 를 clamp 하기 위해
+            // 외부 effective 를 전파. 깊이 ≤ 2 가드 (planParallelBody) 하에서
+            // 한 단계만 누적되므로 단순 set (overwrite).
+            parentParallelConcurrency: effectiveConcurrency,
           };
           await runBranch(i, branchContext);
         }),
@@ -108,6 +160,6 @@ export class ParallelExecutor {
       throw failures[0].error;
     }
 
-    return { settled, failures };
+    return { settled, failures, clampedConcurrency };
   }
 }

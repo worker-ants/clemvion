@@ -159,8 +159,10 @@ Parallel 은 **runtime 에러 포트를 갖지 않는다**. config 검증 실패
 | `waitAll === false` (결정 K, 2026-05-30 — spec out) | `waitAll=false is not supported. Use waitAll=true (default) or the Background node for fire-and-forget semantics.` | handler.validate |
 | 분기 서브그래프 에러 (errorPolicy=`stop`) | 첫 실패 분기의 에러를 throw — Parallel 노드 FAILED | 엔진 runtime ([공통 §4](./0-common.md#4-에러-정책-errorpolicy)) |
 | 분기 서브그래프 에러 (errorPolicy=`continue`) | 실패 정보를 수집해 NodeExecution 에 기록 (모든 분기 종료 대기) | 엔진 runtime |
-| 분기 내부에 blocking 노드 (form / buttons / ai_conversation) | (graph 검증 에러) | 엔진 graph 검증 ([공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach)) |
-| 분기 내부에 back-edge / 중첩 Parallel | (graph 검증 에러) | 엔진 graph 검증 (중첩 Parallel 은 P2 예정) |
+| 분기 내부에 blocking 노드 (form / buttons / ai_conversation) | `PARALLEL_INVALID_CHILD` | 엔진 graph 검증 ([공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach)) |
+| 분기 내부에 back-edge | `PARALLEL_BACK_EDGE` | 엔진 graph 검증 (planParallelBody) |
+| 중첩 Parallel 깊이 > 2 (depth=2 의 분기에 또 Parallel 노드) | `PARALLEL_NESTED_DEPTH_EXCEEDED` | 엔진 graph 검증 (planParallelBody — 결정 #3, 2026-05-30) |
+| 중첩 Parallel concurrency 곱셈 cap = 32 초과 | (silent clamp + `meta.clampedConcurrency` 기록 + debug 로그) | runtime (ParallelExecutor — 결정 #3 + G + D) |
 
 ## 7. 캔버스 요약
 
@@ -187,3 +189,20 @@ Parallel 은 **runtime 에러 포트를 갖지 않는다**. config 검증 실패
 **결정**: Parallel 노드는 항상 `waitAll=true` (default) 로 동작 — 모든 분기 종료 후 `done` 포트로 합산 emit. `waitAll=false` 를 명시한 워크플로우는 schema validate 에서 reject (위 §6 에러 코드 표 참조).
 
 > 옛 워크플로우 호환: DB 에 `config.waitAll: false` 가 저장된 케이스는 실행 시점에 schema validate 가 reject — 사용자가 워크플로우 편집기에서 수정 필요. 별도 마이그레이션 작업은 [`plan/in-progress/parallel-p2.md`](../../../plan/in-progress/parallel-p2.md) §2-E 의 후속 항목.
+
+### 중첩 Parallel 허용 (깊이 ≤ 2, concurrency 곱셈 cap = 32, 2026-05-30 결정 #3 + G + D)
+
+P1 단계에서는 `PARALLEL_NESTED_NOT_SUPPORTED` 로 모든 중첩을 reject 했다. P2 에서 다음 결정으로 제한적 중첩 허용으로 전환됐다.
+
+**왜 깊이 ≤ 2 인가** — 외부 Parallel 의 분기 body 안에 내부 Parallel 한 단계만 허용. 3중 (`PARALLEL_NESTED_DEPTH_EXCEEDED`) 부터 reject. 워크플로우 작성자가 워크플로우를 분해하기 어려운 상황이 있어 부분 허용은 가치 있지만, 임의 깊이는 동시 worker 수 폭발 + DAG 구조 복잡도가 사용자 mental model 을 넘어선다. 두 단계는 "분기 안에서 또 분기" 라는 가장 자주 요구되는 case 를 cover.
+
+**왜 concurrency 곱셈 cap = 32 인가** — 외부 maxConcurrency 16 × 내부 16 = 최대 256 worker 동시 실행 가능. 운영 환경에서 OOM / event loop 스로틀링 위험. cap=32 는 외부 4 × 내부 8 / 외부 8 × 내부 4 / 외부 16 × 내부 2 같은 합리적 조합을 모두 허용하면서 worker 수 상한을 보수적으로 유지한다.
+
+**왜 silent clamp 인가** — cap 초과 시 reject 대신 `effectiveConcurrency = floor(32 / parentEffective)` 로 자동 축소. 워크플로우 작성자가 외부 / 내부 maxConcurrency 의 곱을 항상 정확히 계산하길 기대하기 어렵다. 의도와 실제의 차이는 두 경로로 가시화:
+
+1. **runtime** — `ParallelExecutor` 가 clamp 발생 시 결과의 `clampedConcurrency` 를 set, 엔진이 그 값을 Parallel 노드의 `meta.clampedConcurrency = { intended, actual, parentEffective, cap }` 에 기록. expression `$node["Parallel"].meta.clampedConcurrency` 로 다운스트림 노드가 관찰 가능 + run-results timeline 에서 사용자 즉시 확인 가능. 추가로 `Logger.debug` 로 운영 로그.
+2. **frontend 사전 경고** — `cross-node-warning-rules.md` (선행 plan) 의 cross-node warningRule 인프라가 완료되면 canvas 가 외부 × 내부 maxConcurrency > 32 시 사전 배지로 알림 (저장은 통과 — clamp 가 안전망).
+
+**3중 가드** (결정 E) — 깊이 검증은 runtime `planParallelBody` 단계 (본 spec) + 향후 workflow save endpoint validate + frontend canvas warningRule 의 3중 가드로 강화된다 (후 2개는 [`cross-node-warning-rules.md`](../../../plan/in-progress/cross-node-warning-rules.md) 의 책임).
+
+**전파 메커니즘 (결정 G)** — `ExecutionContext.parentParallelConcurrency?: number` 신규 필드. 외부 Parallel 의 `ParallelExecutor` 가 branch context clone 시 자기 `effectiveConcurrency` 를 이 필드에 set. 내부 Parallel 이 자기 `effectiveConcurrency` 를 계산할 때 이 값을 읽어 cap 적용. 깊이 ≤ 2 가드 하에서 한 단계만 누적. 미설정 (= outermost Parallel) 이면 clamp 없이 자기 effective 그대로 사용.

@@ -157,4 +157,105 @@ describe('ParallelExecutor', () => {
     );
     expect(calls.length).toBe(2);
   });
+
+  describe('nested Parallel concurrency clamp (parallel-p2 결정 #3 + G, cap=32)', () => {
+    it('propagates effectiveConcurrency to branch context via parentParallelConcurrency', async () => {
+      const seen: Array<number | undefined> = [];
+      await executor.execute(
+        { branchCount: 4, maxConcurrency: 0, waitAll: true },
+        baseContext,
+        async (_idx, branchCtx) => {
+          seen.push(branchCtx.parentParallelConcurrency);
+        },
+      );
+      // effectiveConcurrency = maxConcurrency(0) → branchCount(4)
+      expect(seen).toEqual([4, 4, 4, 4]);
+    });
+
+    it('uses explicit maxConcurrency when set', async () => {
+      const seen: Array<number | undefined> = [];
+      await executor.execute(
+        { branchCount: 4, maxConcurrency: 2, waitAll: true },
+        baseContext,
+        async (_idx, branchCtx) => {
+          seen.push(branchCtx.parentParallelConcurrency);
+        },
+      );
+      expect(seen).toEqual([2, 2, 2, 2]);
+    });
+
+    it('inner Parallel clamps effectiveConcurrency when parentParallelConcurrency × internal > 32', async () => {
+      // outer parentParallelConcurrency = 8, inner branchCount=8, maxConcurrency=8
+      // intended product = 8 × 8 = 64 > 32 → inner effective = floor(32/8) = 4
+      const branchCount = 8;
+      let observedConcurrencyPeak = 0;
+      let currentRunning = 0;
+      await executor.execute(
+        { branchCount, maxConcurrency: 8, waitAll: true },
+        { ...baseContext, parentParallelConcurrency: 8 },
+        async () => {
+          currentRunning++;
+          observedConcurrencyPeak = Math.max(
+            observedConcurrencyPeak,
+            currentRunning,
+          );
+          await new Promise((r) => setTimeout(r, 5));
+          currentRunning--;
+        },
+      );
+      expect(observedConcurrencyPeak).toBeLessThanOrEqual(4);
+      expect(observedConcurrencyPeak).toBeGreaterThan(0);
+    });
+
+    it('inner Parallel does NOT clamp when product ≤ 32', async () => {
+      // outer parentParallelConcurrency = 4, inner branchCount=8, maxConcurrency=8
+      // intended product = 4 × 8 = 32 ≤ 32 → inner effective stays at 8
+      const branchCount = 8;
+      let observedConcurrencyPeak = 0;
+      let currentRunning = 0;
+      await executor.execute(
+        { branchCount, maxConcurrency: 8, waitAll: true },
+        { ...baseContext, parentParallelConcurrency: 4 },
+        async () => {
+          currentRunning++;
+          observedConcurrencyPeak = Math.max(
+            observedConcurrencyPeak,
+            currentRunning,
+          );
+          await new Promise((r) => setTimeout(r, 5));
+          currentRunning--;
+        },
+      );
+      expect(observedConcurrencyPeak).toBeGreaterThanOrEqual(5);
+      expect(observedConcurrencyPeak).toBeLessThanOrEqual(8);
+    });
+
+    it('inner Parallel propagates its own (clamped) effectiveConcurrency to its branch context', async () => {
+      const seen: Array<number | undefined> = [];
+      await executor.execute(
+        { branchCount: 8, maxConcurrency: 16, waitAll: true },
+        { ...baseContext, parentParallelConcurrency: 8 },
+        async (_idx, branchCtx) => {
+          seen.push(branchCtx.parentParallelConcurrency);
+        },
+      );
+      // intended inner effective = min(16, 8) = 8 (capped to branchCount semantics)
+      // but with parent=8: clamped = floor(32/8) = 4
+      // branch context sees the (clamped) effective concurrency
+      expect(new Set(seen)).toEqual(new Set([4]));
+    });
+
+    it('absent parentParallelConcurrency (outermost Parallel) — no clamp', async () => {
+      const seen: Array<number | undefined> = [];
+      await executor.execute(
+        { branchCount: 16, maxConcurrency: 16, waitAll: true },
+        baseContext, // no parentParallelConcurrency
+        async (_idx, branchCtx) => {
+          seen.push(branchCtx.parentParallelConcurrency);
+        },
+      );
+      // no parent → effective = 16, propagated as-is
+      expect(new Set(seen)).toEqual(new Set([16]));
+    });
+  });
 });

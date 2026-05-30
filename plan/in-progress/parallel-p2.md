@@ -138,34 +138,34 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 
 #### 3-A. ExecutionContext 신규 필드 (결정 G)
 
-- [ ] `ExecutionContext` (`codebase/backend/src/nodes/core/node-handler.interface.ts`) 에 `parentParallelConcurrency?: number` 신규 필드 추가 + JSDoc — "외부 Parallel 이 자기 effectiveConcurrency 를 branch 진입 시 이 필드에 set. 내부 Parallel 이 이를 읽어 자기 effectiveConcurrency 를 clamp"
-- [ ] `ParallelExecutor` 가 branch context clone 시 `parentParallelConcurrency` 를 자기 `effectiveConcurrency` 로 set (overwrite — 깊이 ≤ 2 가드 하에 한 단계만 set)
-- [ ] 내부 ParallelExecutor 가 자기 `effectiveConcurrency` 계산 시 `parentParallelConcurrency` 가 있으면 `Math.floor(32 / parentParallelConcurrency)` 로 cap 적용 (silent clamp)
-- [ ] context clone 의 격리 (`variables` `structuredClone`, `nodeOutputCache` shallow copy — `parallel-executor.ts:65-91`) 와 신규 필드 전파의 양립 확인
+- [x] `ExecutionContext` (`codebase/backend/src/nodes/core/node-handler.interface.ts`) 에 `parentParallelConcurrency?: number` 신규 필드 + JSDoc 추가
+- [x] `ParallelExecutor` 가 branch context clone 시 `parentParallelConcurrency` 를 자기 `effectiveConcurrency` 로 set (overwrite, 깊이 ≤ 2 가드 하 한 단계 누적)
+- [x] 내부 ParallelExecutor 가 자기 `effectiveConcurrency` 계산 시 `parentParallelConcurrency` 가 있으면 `Math.floor(32 / parentParallelConcurrency)` 로 cap 적용 (silent clamp)
+- [x] context clone 격리 (`variables` `structuredClone`, `nodeOutputCache` shallow copy) 와 신규 필드 전파 양립 — `parallel-executor.spec.ts` 단위 테스트 12건 통과
 
 #### 3-B. graph 정적 검증 (깊이 ≤ 2)
 
-- [ ] `planParallelBody` (`execution-engine.service.ts:6481-6485`) 의 reject 규칙 수정:
-  - 기존 `PARALLEL_NESTED_NOT_SUPPORTED` 무조건 throw 제거
-  - 재귀 깊이 계산: 외부 Parallel 의 분기 서브그래프 안에 다른 Parallel 노드가 있으면 depth=2 로 카운팅. 그 내부 분기에 또 Parallel 이 있으면 depth=3 → reject
-  - 깊이 > 2 시 새 에러 코드 `PARALLEL_NESTED_DEPTH_EXCEEDED` throw (메시지: 외부/내부/3중 노드 라벨을 포함해 사용자가 어디서 발생했는지 알 수 있도록)
+- [x] `planParallelBody` 의 `PARALLEL_NESTED_NOT_SUPPORTED` 무조건 throw → `currentDepth: 1 | 2` 인자 기반 분기
+- [x] depth=2 의 분기 body 에 Parallel 발견 시 `PARALLEL_NESTED_DEPTH_EXCEEDED` throw (메시지 = 외부/내부 라벨 포함)
+- [x] `runParallel` 에서 `context.parentParallelConcurrency` 의 set 여부로 `currentParallelDepth` 결정 후 `planParallelBody` 에 전달
 
 #### 3-C. runtime concurrency clamp
 
-- [ ] 내부 ParallelExecutor 가 외부 × 내부 effective > 32 면 자기 effectiveConcurrency 를 `Math.floor(32 / parent)` 로 clamp
-- [ ] clamp 발생 시 `NodeExecution.meta.clampedConcurrency = { intended, actual, parentEffective, cap: 32 }` 기록 (run-results timeline 에서 사용자가 확인 가능 — D 의 frontend 사전 경고와 별개로 runtime 추적성 확보)
-- [ ] clamp debug 로그 (운영 환경 OFF 가능)
+- [x] 내부 ParallelExecutor 가 외부 × 내부 effective > 32 면 `Math.floor(32 / parent)` 로 clamp (`parallel-executor.ts`, `NESTED_PARALLEL_CONCURRENCY_CAP` 상수)
+- [x] clamp 발생 시 `ParallelResult.clampedConcurrency` 에 `{ intended, actual, parentEffective, cap }` 기록. 엔진이 `setStructuredOutput` 의 `meta.clampedConcurrency` 로 노출 — expression `$node["X"].meta.clampedConcurrency` 로 다운스트림 관찰 가능
+- [x] clamp debug 로그 (Logger.debug — 운영 환경 OFF 가능)
+
+> NodeExecution 엔티티에 `metadata` 컬럼이 없어 (`inputData` / `outputData` 만 존재) DB migration 회피 — `structuredOutputCache` 의 `meta` 로 노출. 사용자는 expression 및 run-results timeline 에서 확인.
 
 #### 3-D. spec / 테스트
 
-- [ ] 단위 테스트 (`parallel-executor.spec.ts`) — 2층 중첩 시나리오 (외부 4 × 내부 8 = 32 OK, 외부 4 × 내부 16 = clamp 8, 외부 8 × 내부 8 = clamp 4 등)
-- [ ] 통합 테스트 (`execution-engine.service.spec.ts`) — 3층 중첩 워크플로우가 `PARALLEL_NESTED_DEPTH_EXCEEDED` 로 사전 reject 되는지
-- [ ] spec `10-parallel.md` 갱신:
-  - §6 에러 코드 표 — `PARALLEL_NESTED_NOT_SUPPORTED` 행을 `PARALLEL_NESTED_DEPTH_EXCEEDED` (depth > 2) 로 치환
-  - §6 graph 검증 표 — "중첩 Parallel 금지" 행 제거, "중첩 depth ≤ 2 허용" / "concurrency 곱셈 cap = 32 (runtime silent clamp + meta 기록)" 행 추가
-  - § Rationale — "왜 깊이 2 인가" / "왜 cap 32 인가" / "왜 silent clamp 인가" 명시
-- [ ] [`spec/4-nodes/_product-overview.md:135`](../../spec/4-nodes/_product-overview.md) "중첩 Parallel 금지(P2 예정)" 문구 → "중첩 Parallel 허용 (depth ≤ 2, concurrency 곱셈 cap = 32 silent clamp)" 로 치환
-- [ ] [`spec/0-overview.md`](../../spec/0-overview.md) Parallel P1 박스 (§85) 의 "중첩 Parallel 은 금지" / "P2에서 중첩 Parallel과 waitAll=false를 추가할 예정" 문구 갱신
+- [x] 단위 테스트 (`parallel-executor.spec.ts`) — 5건 추가 (parentParallelConcurrency 전파, maxConcurrency 명시 전파, 8×8=clamp 4, 4×8=32 no clamp, absent parent no clamp 등 + 기존 7건 회귀 0)
+- [ ] 통합 테스트 (`execution-engine.service.spec.ts`) — 3층 중첩 워크플로우 `PARALLEL_NESTED_DEPTH_EXCEEDED` 사전 reject. **후속 PR 로 분리** (기존 spec 의 mock setup 매우 무거움. 단위 테스트 + spec 명시로 핵심 잠금)
+- [x] spec `10-parallel.md` 갱신:
+  - §6 에러 코드 표 — `PARALLEL_NESTED_NOT_SUPPORTED` 행 제거, `PARALLEL_NESTED_DEPTH_EXCEEDED` 행 + concurrency cap silent clamp 행 추가
+  - § Rationale 에 "중첩 Parallel 허용 (깊이 ≤ 2, concurrency 곱셈 cap = 32, 2026-05-30 결정 #3 + G + D)" 단락 신설 — 왜 깊이 2 / 왜 cap 32 / 왜 silent clamp / 전파 메커니즘 / 3중 가드 설명
+- [x] `spec/4-nodes/_product-overview.md:135` § 4.10 박스 — "P1+P2 구현 완료" 로 격상 + "중첩 Parallel 깊이 ≤ 2 허용" 명시
+- [x] `spec/0-overview.md` §85 Parallel 박스 — "P1+P2" 로 갱신. §93 "Logic 확장 노드 Parallel P2" 행 제거 (완료)
 
 ### 3-E. (삭제됨 — #5 로 격상 + 인프라는 선행 plan 분리)
 
@@ -302,3 +302,4 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 - **2026-05-30 (밤)**: 2차 사용자 결정 7건 확정 — A `cancel-others-on-fail` 추가, B PARALLEL_ENGINE default ON, C waitAll=false 시 errorPolicy=continue 강제 + UI lock, D 사전 경고 frontend cross-node warningRule, E 저장 단계 reject + canvas + runtime 3중 가드, F engine dispatch 채널 분리, G `ExecutionContext.parentParallelConcurrency` 신규 필드. plan scope 가 cross-node warningRule 인프라 + cancellation 인프라까지 확장됨에 따라 **3-E (cancellation) / 3-F (cross-node warningRule) 의 별 plan 분리 권고** 명시
 - **2026-05-30 (심야)**: 3차 결정 3건 확정 — H/I 별 plan 분리 권고 채택 (`node-cancellation-infrastructure.md` / `cross-node-warning-rules.md` 신규 작성), J waitAll=false × errorPolicy=stop 조합 schema validate 단계에서 reject. 본 plan 의 3-E → §5 (선행 plan 의존), 3-F → §6 (선행 plan 의존) 으로 격상 + 강등. 작업 단위 9개로 재정렬
 - **2026-05-30 (새벽)**: 4차 결정 K 확정 — Plan agent 분석으로 waitAll=false 의 의미가 Node.js single-threaded main loop pattern 상 별도 sub-loop 없이 살릴 수 없고, 그 sub-loop 도입은 Loop/ForEach/Map cross-container risk 매우 높음을 발견. 따라서 1차 결정 #2 (활성화) 를 변경하여 `waitAll=false` 지원 자체를 spec out. 결정 F (engine dispatch 채널 분리) / 결정 C (errorPolicy=continue 강제) / 결정 J (조합 reject) 모두 무효화. §2 가 단순한 spec-out 작업 (schema reject + engine warn 제거 + frontend CheckboxField 제거 + spec 4곳 갱신) 으로 축소
+- **2026-05-30 (오전2)**: §3 중첩 Parallel 구현 완료 — `ExecutionContext.parentParallelConcurrency?` 신규 필드 (결정 G), `planParallelBody` 의 `currentDepth` 인자 + depth=2 시 `PARALLEL_NESTED_DEPTH_EXCEEDED` throw (결정 #3 graph 검증), `ParallelExecutor` 의 `NESTED_PARALLEL_CONCURRENCY_CAP = 32` silent clamp + `ClampedConcurrency` 결과 (결정 #3 + G + D runtime), 엔진의 `setStructuredOutput` 에 `meta.clampedConcurrency` 노출. 단위 테스트 12건 (parallel-executor.spec.ts) 통과, backend 전체 5203 통과. spec `10-parallel.md` §6 + § Rationale + `_product-overview.md` §4.10 + `0-overview.md` §85/§93 갱신. 통합 테스트 (3층 reject) 는 후속 PR 로 분리.
