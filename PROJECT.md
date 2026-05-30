@@ -259,9 +259,10 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 
 이 비추적은 nested `.gitignore` 가 강제한다 — `plan/.gitignore` 의 `complete/`, `review/.gitignore` 의 `*` (`!.gitignore` 만 예외). 따라서 `git add .` / `git add -A` 같은 일반 경로로는 이 디렉토리의 신규 파일이 staging 에 잡히지 않으므로, 별도의 수동 add/commit 회피 절차는 불필요하다. (의도적 `git add -f` 로 강제 추가하지 말 것.)
 
-- **`plan/complete/` 로 이동**: `git mv` 가 아니라 **일반 파일 이동**(`mv`)으로 처리한다. `git mv` 는 gitignore 를 무시하고 목적지를 강제 staging 하므로, 완료 plan 이 추적 상태로 끌려 들어간다. `mv` 로 옮겨야 ignore 규칙이 실질 작동해 complete/ 파일이 untracked 로 남는다.
+- **plan 완료 처리 (이동이 아니라 삭제)**: `plan/in-progress/<name>.md` 는 추적 대상이다. 완료 시 `plan/complete/` 로 옮기지 않고 **두 단계로 삭제**한다 — (1) 완료된 항목을 모두 `[x]` 로 체크하고 commit (`chore(plan): mark <name> complete`), (2) 이어서 해당 plan 파일을 `git rm` 으로 삭제하고 commit (`chore(plan): remove completed <name>`). `complete/` 가 gitignore 라 그쪽으로의 `mv` 는 사실상 추적 파일 삭제와 동일하므로, 처음부터 삭제로 명확히 한다 (완료 plan 의 로컬 사본을 남기지 않는다).
+- **review 산출물은 별도 이동·정리 불필요**: `review/` 전체가 gitignore 이므로 산출물을 생성한 위치에 그대로 둔다. 옮길 추적/비추적 경계가 없어 `mv` 가 필요 없다.
 
-> `plan/in-progress/` 는 본 규칙 대상이 아니다 (추적됨 — 진행 중 추적 파일은 종전대로 취급). 완료로 전이되는 순간부터 위 규칙을 적용한다.
+> `plan/in-progress/` 는 추적된다 — 위 (1)(2) 두 commit 으로 완료 plan 을 git history 에서 제거하는 것이 완료 전이의 전부다. 두 commit 모두 마지막 작업 PR 안에서 처리하고, 삭제만 담은 별 PR 은 만들지 않는다.
 
 ## e2e 테스트 작성 가이드
 
