@@ -50,6 +50,7 @@ owner: project-planner
 | B3 | `3-workflow-editor/` | 5 | ⏳ |
 | B4 | `2-navigation/` | 14 | ⏳ |
 | B5 | `conventions/` (cafe24-api-catalog 18 + 기타 13) | ~31 | ⏳ |
+| B6 | `7-channel-web-chat/` (architecture·widget-app·sdk·auth-session·security) | 5 | ⏳ — 모두 `status: spec-only` + `pending_plans: channel-web-chat-impl`. 구현 완료 시 `implemented` 전이 |
 
 > 각 배치는 별 PR 권장 (리뷰 단위 관리 + consistency-check 부담 분산). cafe24-api-catalog 는
 > 외부 API 카탈로그(레퍼런스 성격)라 `implemented` 또는 `archived`/`backlog` 일괄 판정 가능성 높음 — 우선 검토.

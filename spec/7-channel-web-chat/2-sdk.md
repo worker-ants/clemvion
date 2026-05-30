@@ -45,7 +45,7 @@ pending_plans:
 ## 2. npm 패키지 `@clemvion/web-chat` (잠정, 개발자용)
 
 ```ts
-import { ClemvionChat } from '@clemvion/web-chat';
+import { ClemvionChat } from '@clemvion/web-chat';   // scope @clemvion/* 는 잠정 — eia-sdk-publish.md §결정 #3 확정 종속
 const chat = ClemvionChat.boot({ apiBase, triggerEndpointPath, profile, appearance, launcher });
 chat.on('message', (m) => analytics.track('chat_message', m));   // 호스트 자체 분석(호스트 책임)
 chat.on('unread', (n) => badge.set(n));
@@ -60,13 +60,15 @@ chat.shutdown();
 
 ## 3. host ↔ iframe postMessage 프로토콜
 
-| 방향 | 메시지 | 페이로드 |
+메시지 `type` 은 **`wc:` namespace prefix** 를 둔다(타 채널·OAuth popup 메시지와 혼용 방지).
+
+| 방향 | 메시지 type | 페이로드 |
 |---|---|---|
-| host → iframe | `boot` | 전체 boot config |
-| host → iframe | `command` | `open`/`close`/`sendMessage(text)`/`updateProfile`/`shutdown` |
-| iframe → host | `ready` | 위젯 로드 완료 |
-| iframe → host | `resize` | `{ width, height, state: 'collapsed'|'expanded' }` |
-| iframe → host | `event` | `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded` |
+| host → iframe | `wc:boot` | 전체 boot config |
+| host → iframe | `wc:command` | `open`/`close`/`sendMessage(text)`/`updateProfile`/`shutdown` |
+| iframe → host | `wc:ready` | 위젯 로드 완료 |
+| iframe → host | `wc:resize` | `{ width, height, state: 'collapsed'|'expanded' }` |
+| iframe → host | `wc:event` | `open`/`close`/`message`/`unread`/`conversationStarted`/`conversationEnded` |
 - **origin 검증 필수**(양방향 `event.origin` 화이트리스트). 토큰·대화 내용은 iframe 내부 유지, host 로 비노출.
 
 ## 4. Boot config 스키마

@@ -27,7 +27,7 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 **목표 (v1)**
 - 외부 사이트에 **iframe 격리형** 웹채팅 위젯 삽입 (호스트 CSS/JS 완전 격리, 보안 경계 확보).
 - 두 배포 표면: (a) CDN `<script>` 스니펫 로더(비개발자/마케터용), (b) `@clemvion/web-chat`(잠정 scope) npm(개발자용).
-- 두 사용 모드(`0-architecture §5.3`): **M1 Hosted iframe 위젯(주력)** + **M2 BYO-UI**(npm SDK headless client 로
+- 두 사용 모드([`0-architecture §5`](./0-architecture.md)): **M1 Hosted iframe 위젯(주력)** + **M2 BYO-UI**(npm SDK headless client 로
   개발자가 자체 UI 구성·자기 도메인 서빙). 두 모드 모두 동일 EIA 표면·per_execution 토큰을 쓰며 차이는 렌더링
   위치와 요청 Origin.
 - 위젯 SPA 는 `codebase/channel-web-chat/`의 **Next.js (CSR 전용, SSR·서버 컴포넌트 비활성화)** 앱.
@@ -57,8 +57,8 @@ SSE)로만 EIA 표면을 호출하며 **신규 백엔드 트리거 유형이나 
 
 | # | 구성요소 | 산출물 | 비고 |
 |---|---|---|---|
-| A | **위젯 SPA** | `codebase/channel-web-chat/` (Next.js CSR 전용) | iframe 내부 채팅 UI. static export → CDN |
-| B | **SDK** | `codebase/packages/web-chat-sdk/` → loader 스니펫 + `@clemvion/web-chat`(잠정) npm | host↔iframe bridge + 공개 JS API. EIA 호출은 기존 `@workflow/sdk` 재사용. SPA 와 분리 패키지 |
+| A | **위젯 SPA** | `codebase/channel-web-chat/` (Next.js CSR 전용, **구현 시 신설**) | iframe 내부 채팅 UI. static export → CDN |
+| B | **SDK** | `codebase/packages/web-chat-sdk/` (**구현 시 신설**) → loader 스니펫 + `@clemvion/web-chat`(잠정) npm | host↔iframe bridge + 공개 JS API. EIA 호출은 기존 `@workflow/sdk` 재사용. SPA 와 분리 패키지 |
 | C | **샘플** | SDK 패키지의 `examples/` | 스니펫·npm 두 경로 시연 |
 
 ## Rationale

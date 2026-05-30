@@ -59,8 +59,8 @@ pending_plans:
 | 대화 시작 | `POST /api/hooks/:endpointPath` → `202 { interaction: { token, endpoints } }` | EIA §4.1 |
 | 실시간 이벤트 | `GET /api/external/executions/:id/stream` (SSE, `?token=`) | EIA §5.2 |
 | AI 메시지 | SSE `execution.ai_message` (+ `presentations[]`) | EIA §6.5 |
-| 입력 대기 진입 | SSE `execution.waiting_for_input` — `interactionType` ∈ `form`/`buttons`/`ai_conversation`/`ai_form_render` | EIA §6.2, [interaction-type-registry §1.2](../conventions/interaction-type-registry.md) |
-| AI 폼 렌더(`ai_form_render`) | `conversationConfig.pendingFormToolCall.formConfig` 렌더 → `submit_form`. 위젯은 `ai_conversation` 과 동일 경로 처리 | [AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md) |
+| 입력 대기 진입 | SSE `execution.waiting_for_input` — **EIA 외부 `interactionType` ∈ `form`/`buttons`/`ai_conversation`** (EIA §6.2, 3값). render_form blocking 은 EIA 표면에서 **`ai_conversation` 으로 통합 노출** | EIA §6.2 |
+| AI 폼 렌더 (render_form blocking) | `ai_conversation` 페이로드의 `conversationConfig.pendingFormToolCall.formConfig` 렌더 → `submit_form`. 위젯은 `ai_conversation` 과 동일 경로 처리(별도 분기 아님). 내부 `WaitingInteractionType=ai_form_render` 와의 매핑은 [interaction-type-registry §1.2](../conventions/interaction-type-registry.md) | [AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md) |
 | 사용자 메시지 | `POST .../interact { command: "submit_message" }` | EIA §5.1 |
 | 버튼 탭 | `... { command: "click_button" }` | EIA §5.1 |
 | Form 제출 | `... { command: "submit_form" }` | EIA §5.1 |
@@ -84,6 +84,32 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
 - **버전 전략**: `loader.js`·위젯 SPA 는 `/web-chat/v1/` major 버전 path 고정(불변 자산) → 하위호환 깨짐 없이 v2 병행.
 - **npm scope** (`@clemvion/web-chat` 잠정) 도 미확정 — [eia-sdk-publish.md](../../plan/in-progress/eia-sdk-publish.md) 결정 종속([2-sdk](./2-sdk.md)).
 - CORS allowlist 의 "위젯 CDN 빌트인 허용"([4-security §2](./4-security.md))도 이 `<widget-cdn-base>` 를 가리킨다 — 배포 설정값.
+  빌트인 origin 상수는 **빌드타임 env 주입**(loader/SPA 빌드) + 백엔드는 **런타임 config**(워크스페이스 무관 고정값)로 관리한다.
+
+## 5. 사용 모드 (M1 Hosted iframe / M2 BYO-UI)
+
+같은 SDK 라도 **EIA 호출 코드가 어디서 도는가**(= 요청 `Origin`)가 두 모드로 갈리며, CORS 설계([4-security §2](./4-security.md))가 달라진다.
+
+| 모드 | 설명 | API 호출 Origin | 격리 책임 |
+|---|---|---|---|
+| **M1 Hosted iframe** (주력) | `boot()` 가 우리 CDN 위젯 SPA 를 iframe 으로 로드. EIA 호출은 **iframe 내부**(위젯 CDN origin) | 위젯 CDN 도메인 (워크스페이스 무관 고정) | 우리 (iframe 격리, §R1) |
+| **M2 BYO-UI / headless** | 개발자가 npm SDK 의 client primitive 로 **자체 UI 구성**해 **자기 도메인에서 서빙** | 고객 도메인 (워크스페이스마다 다름) | 개발자 |
+
+두 모드 모두 **동일 EIA 표면·per_execution 토큰**([3-auth-session](./3-auth-session.md))을 쓰며, 차이는 **렌더링 위치와 요청 Origin** 뿐이다.
+
+### 5.1 M1 — Hosted iframe
+`boot()` 가 launcher + iframe 을 주입하고 위젯 SPA(정적 CDN 문서, §2.1)를 iframe 에 로드. EIA webhook/SSE/REST 호출은
+iframe 내부(위젯 CDN origin)에서 발생 → 호출 Origin 은 워크스페이스 무관 단일 고정값. v1 주력 산출.
+
+### 5.2 origin 함의 → CORS
+M1 은 위젯 CDN 단일 origin(빌트인 허용), M2 는 고객 도메인이라 **워크스페이스 단위 allowlist**(`interactionAllowedOrigins`)
+가 필요하다. 상세 [4-security §2](./4-security.md).
+
+### 5.3 M2 — BYO-UI / headless client
+개발자가 hosted 위젯 대신 **npm SDK 의 client primitive(= 기존 [`@workflow/sdk`](./2-sdk.md) EIA 클라이언트)** 로 완전
+커스텀 채팅 UI 를 구성하고 자기 도메인에서 서빙한다. 호출 Origin = 고객 도메인이므로 워크스페이스 단위 동적 CORS 가
+필요하다(§5.2). UI·격리 책임은 개발자에게 있으며, 인증·토큰(per_execution)·EIA 표면은 M1 과 동일하다. v1 주력은 M1 이고,
+M2 는 SDK headless client 노출로 가능해진다([2-sdk](./2-sdk.md)).
 
 ## Rationale
 
