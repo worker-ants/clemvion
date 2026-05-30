@@ -21,12 +21,12 @@ pending_plans:
 ```html
 <script>
   (function(d,s){var j=d.createElement(s);j.async=1;
-   j.src="https://cdn.clemvion.ai/web-chat/v1/loader.js";
+   j.src="https://<widget-cdn-base>/web-chat/v1/loader.js";  // 도메인은 배포 환경 설정(플레이스홀더, 0-architecture §4)
    d.head.appendChild(j);})(document,"script");
 </script>
 <script>
   ClemvionChat('boot', {
-    apiBase: 'https://api.clemvion.ai',
+    apiBase: 'https://<api-base>',         // 배포 환경의 API origin(런타임 주입, 0-architecture §4)
     triggerEndpointPath: 'a1b2c3-...',     // 공개 webhook path (비밀 아님)
     locale: 'ko',
     appearance: { primaryColor: '#5B4FE9', position: 'bottom-right', zIndex: 2147483000 },

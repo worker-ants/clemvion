@@ -18,7 +18,7 @@ pending_plans:
 
 ```
 호스트 사이트 (고객 웹페이지)
-  <script src="https://cdn.clemvion.ai/web-chat/v1/loader.js">
+  <script src="https://<widget-cdn-base>/web-chat/v1/loader.js">
   ClemvionChat('boot', { triggerEndpointPath, profile, ... })
        │ (1) loader 가 launcher + iframe 주입 (클라이언트)
        ▼
@@ -28,7 +28,7 @@ pending_plans:
   └─────────────────────────────────────────────────────────────────┘
        │ HTTP (webhook + REST + SSE)
        ▼
-  Clemvion API (api.clemvion.ai) — EIA (기존 구현 재사용)
+  Clemvion API (<api-base>) — EIA (기존 구현 재사용)
 ```
 
 | 레이어 | 책임 | 격리 경계 |
@@ -70,6 +70,20 @@ pending_plans:
 
 - 위젯은 EIA inbound(REST+SSE)만 사용, outbound notification webhook 미사용(항상 SSE open).
 - **`retry_last_turn` 미지원** — EIA 외부 표면 미노출 내부 UI 한정 명령(EIA-IN-02). 위젯 v1 AI turn 재시도 버튼은 비목표.
+
+## 4. 배포 / 도메인 설정 (환경별 — 플레이스홀더)
+
+Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **고정값이 아니라 배포 환경 설정**이다.
+`<widget-cdn-base>`·`<api-base>` 는 **플레이스홀더**이며 실제 값은 배포(env/config)로 주입한다(보류 중 — 확정 시 반영):
+
+| 플레이스홀더 | 의미 | 주입 방식 |
+|---|---|---|
+| `<api-base>` | EIA 가 서빙되는 API origin | SDK `boot.apiBase` 로 **런타임 주입**(클라이언트가 빌드 없이 지정) |
+| `<widget-cdn-base>` | 위젯 SPA·`loader.js` 호스팅 CDN origin (스니펫 `<script src>` + iframe `src` 의 base) | SaaS 는 공식 CDN, 셀프호스팅은 운영자 지정. loader 빌드/배포 시 env 주입(빌드타임) 또는 런타임 조회 |
+
+- **버전 전략**: `loader.js`·위젯 SPA 는 `/web-chat/v1/` major 버전 path 고정(불변 자산) → 하위호환 깨짐 없이 v2 병행.
+- **npm scope** (`@clemvion/web-chat` 잠정) 도 미확정 — [eia-sdk-publish.md](../../plan/in-progress/eia-sdk-publish.md) 결정 종속([2-sdk](./2-sdk.md)).
+- CORS allowlist 의 "위젯 CDN 빌트인 허용"([4-security §2](./4-security.md))도 이 `<widget-cdn-base>` 를 가리킨다 — 배포 설정값.
 
 ## Rationale
 

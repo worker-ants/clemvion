@@ -14,10 +14,10 @@ owner: developer (TBD)
 EIA(External Interaction API, `spec/5-system/14`)는 **이미 구현됨**(`codebase/backend/src/modules/external-interaction/`).
 본 작업은 그 위에 얹는 **클라이언트 레이어**(위젯 SPA + SDK + 샘플)다. 백엔드 변경은 소수(아래 §백엔드).
 
-## 진입 조건 (선행 결정)
+## 진입 조건 (선행 결정 — 현재 보류)
 
-- [ ] **npm scope 확정** — [`eia-sdk-publish.md`](./eia-sdk-publish.md) §사용자 결정 #3 (`@workflow/*` vs `@clemvion/*`). spec 은 "잠정 `@clemvion/web-chat`" 표기. scope 확정 후 spec·코드 동기화.
-- [ ] **운영 인프라 확보** — 위젯 CDN 도메인, 불변 버전 호스팅(§spec 10), npm registry.
+- [ ] **npm scope 확정** (보류) — [`eia-sdk-publish.md`](./eia-sdk-publish.md) §사용자 결정 #3 (`@workflow/*` vs `@clemvion/*`). spec 은 "잠정 `@clemvion/web-chat`" 표기. 확정 후 spec·코드 동기화.
+- [ ] **운영 CDN/도메인 확정** (보류) — `<widget-cdn-base>`·`<api-base>` 는 **플레이스홀더 + 배포 환경 설정**으로 둔다(환경별 상이, SaaS/셀프호스팅). `apiBase` 는 SDK boot 런타임 주입, `<widget-cdn-base>` 는 loader 빌드/배포 env 주입. 불변 버전 path `/web-chat/v1/`. spec [0-architecture §4](../../spec/7-channel-web-chat/0-architecture.md).
 - [ ] **샘플 경로 확정** — `codebase/packages/web-chat-sdk/examples/` (잠정).
 
 ## 작업 범위
