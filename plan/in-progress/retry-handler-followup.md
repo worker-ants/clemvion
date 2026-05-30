@@ -39,51 +39,18 @@ owner: project-planner
   - **구현 방식**: in-process loop 직접 합류 — `resumeGraphAfterRetry` 헬퍼 신설, `resumeFromCheckpoint` (line 976-1337) 의 graph rebuild + traversal loop + completion 패턴을 차용하되 시작 단계 (waitForX 호출) 만 생략하고 completed node 의 outgoing edge 부터 진행. worker processor (continuation job handler) 컨텍스트 안에서 호출 — WS gateway 직접 동기 실행 경로 없음. 새 BullMQ job 발행 없음 (이미 worker context).
   - **frontmatter 정리 결정**: 본 PR2 자체에서는 3 target spec 파일 (`1-ai-agent.md` / `6-websocket-protocol.md` / `13-replay-rerun.md`) 의 frontmatter `status` / `code:` / `pending_plans:` 갱신 안 함. 각 파일이 retry 외에도 광범위한 구현 surface (AI Agent 노드 전체 / WS 프로토콜 전체 / Re-run 기능 전체) 를 가지며, 본 PR2 의 retry downstream traversal 만으로 `spec-only → partial` 승격 책임을 떠안는 건 scope creep. spec 파일별 frontmatter 정리는 별 plan 으로 분리 추적.
 
-## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8, #9)
+## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8, #9) — 정리 (2026-05-30)
 
-### WARNING #1 — `_retryState` 소비 원자성 (spec + 구현)
-
-`_retryState` 소비 4단계(lookup → expiresAt 검증 → 신규 NodeExecution spawn → 무효화)가 단일 트랜잭션으로 묶여야 한다는 명시 없음. 동시 retry 시 중복 NodeExecution row 생성 race condition 가능.
-
-**제안**: `SELECT FOR UPDATE` 또는 `UPDATE ... WHERE consumed_at IS NULL RETURNING *` 패턴을 spec에 단일 트랜잭션 의무 요건으로 추가. `project-planner` 에서 `spec/5-system/4-execution-engine.md` 보존 예외 섹션과 `spec/5-system/6-websocket-protocol.md` §4.2 에 명시.
-
-### WARNING #2 — `execution.retry_last_turn` Continuation Bus 경유 여부
-
-`execution.retry_last_turn`이 Continuation Bus 경유 여부가 미명시. 기존 명령들의 레이어 분리 패턴(WS 게이트웨이 사전 검증 → 엔진 실행)이 이 명령에도 적용되는지 불명확.
-
-> **(2026-05-24 갱신)** Continuation Bus 의 표면이 옛 Redis pub/sub 채널 `execution:continuation` 에서 BullMQ 영속 큐 `execution-continuation` 으로 교체됨 — [`workflow-resumable-execution.md`](./workflow-resumable-execution.md) Phase 0 spec 갱신 결과. 본 WARNING #2 의 spec 작성은 BullMQ `execution-continuation` 큐 기준으로 작성해야 한다. 또한 `execution.retry_last_turn` 은 새 NodeExecution row spawn 경로이며 rehydration 경로 (`RESUME_*` 에러 코드) 와는 별개 — [`spec/5-system/4-execution-engine.md §7.5`](../../spec/5-system/4-execution-engine.md#75-resume-after-restart-rehydration) 의 적용 대상이 아님을 §4.2 작성 시 명시.
-
-**제안**: Continuation 큐 경유 여부와 `FAILED` 상태 검증 주체(게이트웨이 vs 엔진)를 `spec/5-system/6-websocket-protocol.md` §4.2 에 명시. `project-planner` 위임. 본 작업은 [`workflow-resumable-execution.md`](./workflow-resumable-execution.md) 의 Phase 0 spec 반영 이후 착수.
-
-### WARNING #3 — `INVALID_EXECUTION_STATE` 사전 검증 요건
-
-`execution.retry_last_turn` 처리 시 Execution 이 `failed` 상태임을 사전 검증해야 한다는 요건 미명시.
-
-**제안**: 에러 코드 표에 `INVALID_EXECUTION_STATE`(또는 `EXECUTION_NOT_FAILED`) 추가 또는 소비 설명에 문구 명시. `project-planner` 위임.
-
-### WARNING #4 — `_retryState` 단일 소비 마킹 방법 정의
-
-`_retryState` 단일 소비 마킹 방법(DB row에서 키 삭제 vs consumed 플래그 vs null-set) 미정의.
-
-**제안**: `_retryState` 소비 시 `NodeExecution.outputData`에서 해당 키를 null-set하거나 제거하는 정책을 spec에 명시. `project-planner` 위임.
-
-### WARNING #5 — `_retryState.expiresAt` TTL SoT 및 cleanup 정책
-
-`_retryState.expiresAt` TTL 기본값(60분)의 단일 진실 위치 미지정. 환경변수 오버라이드 가능 여부 불명확. 만료 row의 DB cleanup 주체·시점 미정의.
-
-**제안**: TTL 기본값과 환경변수 키를 `spec/5-system/4-execution-engine.md` §8 또는 §7에 단일 진실로 명시. cleanup 정책 별도 추가. `project-planner` 위임.
-
-### WARNING #7 — `_retryState` 보존 동작 백엔드 단위 테스트
-
-`_retryState` 보존 동작 백엔드 단위 테스트 부재. `stripControlFields()`가 `_retryState`를 downstream에서 제거하지 않는지, DB에 실제 보존되는지 검증 없음.
-
-**작업**: (a) `_retryState` downstream 보존 검증, (b) retryable error 종결 시 `outputData._retryState` 저장 회귀 가드 추가. `codebase/backend/src/modules/execution-engine/execution-engine.service.spec.ts` 에 추가.
-
-### WARNING #8 — `_retryState.expiresAt` TTL 검증 로직 백엔드 테스트
-
-`_retryState.expiresAt` TTL 검증 로직 백엔드 테스트 전무. WS 명령 서버 측 처리 경로 테스트 없음.
-
-**작업**: (a) TTL 미만 → 정상 spawn, (b) TTL 초과 → `RETRY_STATE_NOT_FOUND`, (c) 이미 소비 → `RETRY_STATE_NOT_FOUND`, (d) `retryAfterSec` 미경과 → `RETRY_TOO_EARLY` 케이스 추가. 백엔드 WS 게이트웨이 / execution-engine 서비스 spec 파일에 추가.
+| # | 항목 | 상태 | 비고 |
+| --- | --- | --- | --- |
+| #1 | `_retryState` 소비 원자성 (spec + 구현) | ✅ | spec 정밀화 (`docs(spec)` 2fde08a0) — line 16 / 구현 atomic consume (`feat(execution-engine)` 13dde237) |
+| #2 | `execution.retry_last_turn` Continuation Bus 경유 | ✅ | line 18 (`626b4250`) — WS gateway → BullMQ `execution-continuation` 큐 publish → worker handoff |
+| #3 | `INVALID_EXECUTION_STATE` 사전 검증 요건 | ✅ | spec 정밀화 (`docs(spec)` 2fde08a0) — WS §4.2 에러 코드 표 등재 |
+| #4 | `_retryState` 단일 소비 마킹 (jsonb key 제거) | ✅ | spec 정밀화 (`docs(spec)` 2fde08a0) + 구현 affected=1 가드 |
+| #5 | TTL SoT + 환경변수 + cleanup 정책 | ✅ | spec 정밀화 (`docs(spec)` 2fde08a0) — `AI_RETRY_STATE_TTL_MINUTES` env + row 수명 종속 |
+| #7 | `_retryState` 보존 백엔드 회귀 가드 | ✅ | `describe('stripControlFields _retryState preservation')` (`execution-engine.service.spec.ts` line ~8712) — `_retryState` 보존, `_resumeState` strip 검증 |
+| #8 | `_retryState.expiresAt` TTL 검증 로직 백엔드 테스트 | ✅ | `describe('retryLastTurn (_retryState consume + spawn)')` (line ~7824) — TTL 미만 정상 / 초과 RETRY_STATE_NOT_FOUND / 이미 소비 RETRY_STATE_NOT_FOUND / retryAfterSec 미경과 RETRY_TOO_EARLY / NODE_NOT_RETRYABLE 모두 커버 |
+| #9 | retryable 분류 HTTP status 기반 | ✅ | `fix(execution-engine)` 45ed6fb7 — `classifyLlmError` status 기반. 단위 테스트 (status 429/500/503/401/403/502/ECONNRESET/timeout) |
 
 ### WARNING #9 (신규 — 2026-05-30, ✅ 구현 완료) — multi-turn retryable 분류를 HTTP status 기반으로
 
@@ -114,64 +81,27 @@ owner: project-planner
 
 PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 외 분리):
 
-### WARNING #10/#11 — graph traversal loop + graph rebuild 공통 helper 추출
+| # | 항목 | 상태 | 처리 |
+| --- | --- | --- | --- |
+| #10 | `runNodeDispatchLoop` 추출 (graph traversal loop 약 175라인 중복) | ✅ PR #371 | commit `2a85693b` — `runNodeDispatchLoop(NodeDispatchLoopParams)` 신설. `resumeFromCheckpoint` + `resumeGraphAfterRetry` 공유 |
+| #11 | `loadAndBuildGraph` 추출 (graph rebuild 3중 복제) | ✅ PR #371 | commit `2a85693b` — `loadAndBuildGraph(workflowId): ExecutionGraphState` 신설. `runExecution` + `resumeFromCheckpoint` + `resumeGraphAfterRetry` 공유 |
+| #14 | parallel 분기 `gatherNodeInput` 중복 호출 (2회→1회) | ✅ PR #371 | commit `2a85693b` — `nodeInput` 변수 재사용 |
+| #16 | `nodeExecutionCount` 초기값 1→0 (`MAX_NODE_ITERATIONS=1` 방어) | ✅ PR #371 | commit `2a85693b` 행동 변경 + commit `3fde6b81` 경계 테스트 신규 추가 |
+| #13 | `rehydrateContext` + `resumeGraphAfterRetry` 이중 DB 조회 진정한 제거 | 🔲 별 PR 후속 | PR #371 의 helper 추출로 graph rebuild 1회 호출 통일은 됐으나, `rehydrateContext` 가 별도 workflow 로드 — `ExecutionContext` 에 nodes/edges 캐시 추가 또는 인자 전달 필요 |
 
-✅ **(2026-05-30 해소)** — `loadAndBuildGraph` / `runNodeDispatchLoop` helper 추출 완료 (commit `2a85693b`).
+**네이밍 결정 근거** (consistency-check `review/consistency/2026/05/30/16_54_36` W7/W8):
+- `runGraphTraversalLoop` → `runNodeDispatchLoop` — 기존 `GraphTraversalService` (pure reachability) 와 도메인 책임 분리. 본 helper 는 dispatch + blocking wait + 외부 service 호출.
+- `GraphState` → `ExecutionGraphState` — execution-engine 도메인 귀속 (knowledge-base `GraphTraversalSummary` 와 의미 분리).
 
-`resumeGraphAfterRetry` 와 `resumeFromCheckpoint` 의 traversal loop (약 160줄) 및
-graph rebuild 로직 (약 30줄) 이 사실상 중복된다. `runExecution` 까지 포함하면
-graph rebuild 가 3중 복제 상태다. 이 중복은 버그 fix 나 dispatch kind 추가 시
-세 곳을 동기화해야 하는 위험을 만든다.
+### PR #371 ai-review 남은 후속 (`review/code/2026/05/30/17_21_35`)
 
-**제안 헬퍼** (consistency-check `review/consistency/2026/05/30/16_54_36` W7/W8 권고 반영 — 이름 변경):
-- `private async loadAndBuildGraph(workflowId: string): ExecutionGraphState` —
-  nodes/edges 로드 + buildGraph/topologicalSort/buildEdgeIndexes 를 통합.
-  `runExecution`, `resumeFromCheckpoint`, `resumeGraphAfterRetry` 가 공유.
-- `private async runNodeDispatchLoop(params: NodeDispatchLoopParams): Promise<void>` —
-  traversal while 루프 전체를 추출. `resumeFromCheckpoint` 와
-  `resumeGraphAfterRetry` 가 공유. `GraphTraversalService` (pure graph reachability)
-  와 책임 분리: 본 helper 는 execution 의 노드 dispatch (executeNode + handler
-  분기 + blocking wait) 까지 포함하므로 도메인 이름이 다름.
-
-  파라미터: `startPointer`, `graphState`, `executedNodes`, `reachable`,
-  `nodeExecutionCount`, `input`, `dispatchMeta`. `mode` 파라미터는 불필요 —
-  호출자가 helper 호출 전에 시작 단계 (waitForX 등) + 호출 후에 종결 단계
-  (Execution.COMPLETED 마감) 를 모두 책임진다 (인터페이스 단순화).
-
-**이름 변경 근거** (consistency-check W7/W8):
-- `runGraphTraversalLoop` → `runNodeDispatchLoop` — 기존 `GraphTraversalService`
-  와 도메인 책임 분리. `GraphTraversalService` 는 pure reachability/propagation
-  (외부 의존성 없음), 본 helper 는 dispatch + blocking wait + 외부 service 호출.
-- `GraphState` → `ExecutionGraphState` — execution-engine 도메인 귀속 명시 —
-  knowledge-base 의 `GraphTraversalSummary` 와 의미 분리.
-
-**WARNING #16 (행동 변경) 명시** (consistency-check W6):
-- `nodeExecutionCount` 초기값 `1 → 0` 통일은 행동 변경. helper 추출 동시에 적용.
-- `MAX_NODE_ITERATIONS` 경계 테스트 신규 추가 (회귀 가드).
-- commit message 에 "WARNING #16 행동 변경 포함 — 순수 리팩토링 + nodeExecutionCount 초기값 1→0" 명시.
-
-**우선순위**: 중간 (즉각 버그 아님, 추적된 기술 부채).
-**선행 조건 해소**: 호출자/helper 책임 분리로 인터페이스 단순화 (`mode` 불필요).
-
-### WARNING #16 — back-edge MAX_NODE_ITERATIONS=1 엣지 케이스
-
-✅ **(2026-05-30 해소)** — `nodeExecutionCount` 초기값 0 통일 (commit `2a85693b`). `resumeFromCheckpoint` (line ~1465) 와 `resumeGraphAfterRetry` (line ~3722) 양쪽에서 초기값 1→0 적용. 경계 테스트 (`MAX_NODE_ITERATIONS=1` + back-edge 재방문 시 COMPLETED 정상 완료) 를 `execution-engine.service.spec.ts` 에 추가.
-
-`nodeExecutionCount.set(completedNode.id, 1)` 초기화 후 back-edge loop 재진입으로
-`completedNode` 가 traversal 에서 재방문될 경우 count 가 1+1=2 가 되어
-`MAX_NODE_ITERATIONS=1` 설정 환경에서 오작동 가능. 운영 환경 기본값(100)에서는
-발생하지 않으나, 초기값을 0으로 두는 방어 코딩을 고려한다.
-`resumeFromCheckpoint` 의 동일 패턴과 비교 후 통일된 처리로 수정.
-
-**우선순위**: 낮음 (가설적 케이스, 운영 발생 가능성 낮음).
-
-### WARNING #13/#14 — 성능 최적화 (helper 추출 시 동시 해소)
-
-- `rehydrateContext` + `resumeGraphAfterRetry` 이중 DB 조회 제거: context 에
-  nodes/edges 캐시 또는 인자로 전달.
-- `parallel` 분기 `gatherNodeInput` 중복 호출 제거: 이미 구한 `nodeInput` 재사용.
-
-**우선순위**: 낮음 (대형 워크플로 tail latency 영향). 공통 helper 추출 시 동시 해소.
+| 항목 | 상태 |
+| --- | --- |
+| WARNING #13 (이중 DB 조회 진정한 제거) | 🔲 A순위 #3 별 PR |
+| W2 (resume 경로 parallel/background dispatch 테스트) | 🔲 별 PR |
+| W5/I2 (back-edge waiting node 이중 실행 가능성 spec 검토) | 🔲 별 PR (project-planner 위임) |
+| W4 downstream blocking (form/button/multi-turn AI) 테스트 | 🔲 별 PR |
+| PR3 — AI Agent → HTTP retry e2e 시나리오 | 🔲 A순위 #4 별 PR |
 
 ## 의존 관계
 

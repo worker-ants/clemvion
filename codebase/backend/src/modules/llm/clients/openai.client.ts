@@ -70,7 +70,7 @@ export class OpenAIClient implements LLMClient {
     });
   }
 
-  async chat(params: ChatParams): Promise<ChatResult> {
+  async chat(params: ChatParams, signal?: AbortSignal): Promise<ChatResult> {
     const messages = params.messages.map((m) => {
       if (m.role === 'tool') {
         return {
@@ -135,7 +135,10 @@ export class OpenAIClient implements LLMClient {
       }
     }
 
-    const response = await this.client.chat.completions.create(requestParams);
+    const response = await this.client.chat.completions.create(
+      requestParams,
+      signal ? { signal } : undefined,
+    );
     const reasoningTokens =
       response.usage?.completion_tokens_details?.reasoning_tokens;
     const choice = response.choices?.[0];

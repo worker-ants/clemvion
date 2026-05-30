@@ -38,6 +38,9 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import { Node } from '../nodes/entities/node.entity';
+import { Edge } from '../edges/entities/edge.entity';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { evaluateGraphWarningRulesForGraph } from '../../nodes/core/graph-warning-rule';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
@@ -68,8 +71,11 @@ export class WorkflowsController {
     private readonly workflowsService: WorkflowsService,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly shutdownState: ShutdownStateService,
+    private readonly nodeComponentRegistry: NodeComponentRegistry,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
+    @InjectRepository(Edge)
+    private readonly edgeRepository: Repository<Edge>,
   ) {}
 
   @Get()
@@ -105,6 +111,41 @@ export class WorkflowsController {
     @WorkspaceId() workspaceId: string,
   ) {
     return this.workflowsService.findById(id, workspaceId);
+  }
+
+  @Get(':id/graph-warnings')
+  @ApiOperation({
+    summary: '워크플로우 graph-level warnings 평가',
+    description:
+      'NodeComponentMetadata 의 graphWarningRules (cross-node) 를 워크플로우 nodes/edges 전체에 대해 평가해 위반 목록을 반환합니다. severity `error` 가 하나라도 있으면 frontend canvas 가 저장 버튼을 disable 하고, `warning` 은 노란 배지로 표시합니다. parallel-p2 결정 D + E + I (2026-05-30) — SoT: spec/conventions/cross-node-warning-rules.md.',
+  })
+  @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
+  @ApiResponse({
+    status: 200,
+    description: 'graphWarningRules 평가 결과 (results + summary)',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
+  async graphWarnings(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    await this.workflowsService.findById(id, workspaceId);
+    const [nodes, edges] = await Promise.all([
+      this.nodeRepository.find({ where: { workflowId: id } }),
+      this.edgeRepository.find({ where: { workflowId: id } }),
+    ]);
+    const results = evaluateGraphWarningRulesForGraph(
+      { nodes, edges },
+      (type) =>
+        this.nodeComponentRegistry.getComponent(type)?.metadata
+          .graphWarningRules,
+    );
+    return {
+      results,
+      hasError: results.some((r) => r.severity === 'error'),
+      hasWarning: results.some((r) => r.severity === 'warning'),
+    };
   }
 
   @Post()

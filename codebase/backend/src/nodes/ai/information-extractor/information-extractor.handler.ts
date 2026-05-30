@@ -239,15 +239,19 @@ export class InformationExtractorHandler implements NodeHandler {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       let call: { result: ChatResult; trace: LlmCallTrace };
       try {
-        call = await this.traceChat(llmConfig, {
-          model: model || llmConfig.defaultModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: inputField },
-          ],
-          responseFormat: 'json',
-          jsonSchema,
-        });
+        call = await this.traceChat(
+          llmConfig,
+          {
+            model: model || llmConfig.defaultModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: inputField },
+            ],
+            responseFormat: 'json',
+            jsonSchema,
+          },
+          context.abortSignal,
+        );
       } catch (error) {
         const errMessage =
           error instanceof Error ? error.message : String(error);
@@ -1384,9 +1388,12 @@ You: (call ${FINALIZE_TOOL_NAME} with order_id="312321-1331231", product_id="XYZ
   private async traceChat(
     llmConfig: Parameters<LlmService['chat']>[0],
     params: Parameters<LlmService['chat']>[1],
+    signal?: AbortSignal,
   ): Promise<{ result: ChatResult; trace: LlmCallTrace }> {
     const startedAt = Date.now();
-    const result = await this.llmService.chat(llmConfig, params);
+    const result = await this.llmService.chat(llmConfig, params, undefined, {
+      signal,
+    });
     return {
       result,
       trace: {

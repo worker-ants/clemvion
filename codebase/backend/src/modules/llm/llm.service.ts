@@ -77,7 +77,17 @@ export class LlmService {
     config: LlmConfig,
     params: ChatParams,
     context?: LlmCallContext,
-    opts?: { timeoutMs?: number; disableInnerRetry?: boolean },
+    opts?: {
+      timeoutMs?: number;
+      disableInnerRetry?: boolean;
+      /**
+       * node-cancellation 컨벤션 (2026-05-30) — `ExecutionContext.abortSignal`
+       * 을 그대로 SDK 로 전파. Provider HTTP 호출이 abort 시 즉시 throw 되어
+       * cancel-others-on-fail / Workflow timeout / 사용자 cancel 의 cleanup
+       * 효과가 노드 단계까지 도달. SoT: spec/conventions/node-cancellation.md.
+       */
+      signal?: AbortSignal;
+    },
   ): Promise<ChatResult> {
     const client = this.createClient(config);
     // Strip `source` (WebSocket emit metadata per
@@ -93,11 +103,13 @@ export class LlmService {
     // 내부 rate-limit 재시도 (withRetry) 와 겹쳐 호출 횟수가 비선형 증폭되는 것을 막는다.
     const run = () =>
       opts?.timeoutMs && opts.timeoutMs > 0
-        ? // LLMClient.chat 은 아직 AbortSignal 을 받지 않으므로 race 만 적용
-          // (후속 PR 에서 인터페이스 확장 시 signal 도 전달). 백그라운드 소켓은
-          // provider HTTP 클라이언트가 자체 keep-alive 풀로 GC.
-          withTimeout(() => client.chat(sanitized), opts.timeoutMs)
-        : client.chat(sanitized);
+        ? // timeoutMs 와 abortSignal 모두 클라이언트 호출에 전달. abort 가 먼저
+          // 발화하면 SDK 가 즉시 throw, timeout 이 먼저면 withTimeout race 가 throw.
+          withTimeout(
+            () => client.chat(sanitized, opts?.signal),
+            opts.timeoutMs,
+          )
+        : client.chat(sanitized, opts?.signal);
     const result = await (opts?.disableInnerRetry
       ? run()
       : this.withRetry(run));
