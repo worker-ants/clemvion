@@ -12,7 +12,10 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from '../../common/decorators';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  RetryLastTurnError,
+} from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -634,6 +637,141 @@ export class WebsocketGateway
         error,
         'End conversation failed',
       );
+    }
+  }
+
+  /**
+   * spec/5-system/6-websocket-protocol.md §4.2 — `execution.retry_last_turn`.
+   *
+   * AI Agent multi-turn 의 retryable error 종결 후, 동일 nodeId 의 새
+   * NodeExecution row 를 spawn 해 마지막 LLM turn 을 재실행한다. 다른
+   * continuation 명령 (대기중 row 재개) 과 달리, validate + atomic consume +
+   * 새 row spawn (`retryLastTurn`) 후 `retry_last_turn` continuation job 을
+   * publish 해 worker 로 handoff 한다.
+   *
+   * ack 형태 (spec §4.2):
+   *  - 성공: `{ success: true, executionId, nodeExecutionId, resumed: true }`
+   *  - 실패: nested `{ success: false, executionId, nodeExecutionId,
+   *          resumed: false, error: { code, message } }`
+   *    (continuation 명령의 평면 `errorCode` 와 다른 계층 — 의도된 분리).
+   */
+  @SubscribeMessage('execution.retry_last_turn')
+  async handleRetryLastTurn(
+    @MessageBody() data: { executionId: string; nodeExecutionId: string },
+    @ConnectedSocket() client: Socket,
+  ): Promise<{
+    event: string;
+    data: {
+      success: boolean;
+      executionId?: string;
+      nodeExecutionId?: string;
+      resumed?: boolean;
+      error?: { code: string; message: string };
+    };
+  }> {
+    const event = 'execution.retry_last_turn.ack';
+    const enriched = client as Socket & {
+      userId?: string;
+      workspaceId?: string;
+    };
+    if (!enriched.userId) {
+      return {
+        event,
+        data: {
+          success: false,
+          executionId: data.executionId,
+          nodeExecutionId: data.nodeExecutionId,
+          resumed: false,
+          error: { code: 'UNAUTHENTICATED', message: 'Not authenticated' },
+        },
+      };
+    }
+
+    // CRIT #1 — IDOR 차단. workspace 소유 검증.
+    try {
+      await this.executionsService.verifyOwnership(
+        data.executionId,
+        enriched.workspaceId ?? '',
+      );
+    } catch {
+      return {
+        event,
+        data: {
+          success: false,
+          executionId: data.executionId,
+          nodeExecutionId: data.nodeExecutionId,
+          resumed: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Not authorized for this execution',
+          },
+        },
+      };
+    }
+
+    try {
+      // 1. validate + atomic consume + spawn 새 row.
+      const { spawnedNodeExecutionId } =
+        await this.executionEngineService.retryLastTurn(
+          data.executionId,
+          data.nodeExecutionId,
+        );
+      // 2. spawn 된 row 로 multi-turn loop 재진입을 worker 에 handoff.
+      const publishResult =
+        await this.executionEngineService.publishRetryLastTurn(
+          data.executionId,
+          spawnedNodeExecutionId,
+        );
+      if (!publishResult.queued) {
+        // Redis 장애 등 publish 실패 — _retryState 는 이미 소비됐으므로 재시도
+        // 시 RETRY_STATE_NOT_FOUND 가 된다. client 에 실패를 알린다.
+        return {
+          event,
+          data: {
+            success: false,
+            executionId: data.executionId,
+            nodeExecutionId: data.nodeExecutionId,
+            resumed: false,
+            error: {
+              code: 'INTERNAL_ERROR',
+              message: 'Retry could not be queued. Please try again.',
+            },
+          },
+        };
+      }
+      return {
+        event,
+        data: {
+          success: true,
+          executionId: data.executionId,
+          nodeExecutionId: data.nodeExecutionId,
+          resumed: true,
+        },
+      };
+    } catch (error: unknown) {
+      const code =
+        error instanceof RetryLastTurnError
+          ? error.code
+          : error instanceof InvalidExecutionStateError
+            ? error.code
+            : 'INTERNAL_ERROR';
+      // 보안 — RetryLastTurnError / InvalidExecutionStateError 의 message 는
+      // 고정 client-safe 문자열. 그 외는 일반화한 메시지.
+      const message =
+        error instanceof RetryLastTurnError ||
+        error instanceof InvalidExecutionStateError
+          ? error.message
+          : 'Retry failed';
+      return {
+        event,
+        data: {
+          success: false,
+          executionId: data.executionId,
+          nodeExecutionId: data.nodeExecutionId,
+          resumed: false,
+          error: { code, message },
+        },
+      };
     }
   }
 

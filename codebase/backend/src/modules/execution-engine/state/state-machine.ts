@@ -28,7 +28,16 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
     ExecutionStatus.FAILED,
   ],
   [ExecutionStatus.COMPLETED]: [],
-  [ExecutionStatus.FAILED]: [],
+  [ExecutionStatus.FAILED]: [
+    // 2026-05-30 — spec/5-system/6-websocket-protocol.md §4.2 /
+    // spec/5-system/4-execution-engine.md §1.3 (execution.retry_last_turn).
+    // AI Agent multi-turn 의 retryable error 종결로 Execution 이 FAILED 가
+    // 됐을 때, `execution.retry_last_turn` 재진입은 spawn 된 새 NodeExecution
+    // turn 을 RUNNING 으로 구동해 WS 이벤트 (node.started/completed) 를 발행해야
+    // 한다. 따라서 FAILED → RUNNING 단일 전이를 retry 재진입 전용으로 허용한다.
+    // (일반 노드 실패 경로에는 영향 없음 — applyRetryLastTurn 만 이 전이를 사용.)
+    ExecutionStatus.RUNNING,
+  ],
   [ExecutionStatus.CANCELLED]: [],
 };
 

@@ -2368,6 +2368,8 @@ export class AiAgentHandler implements NodeHandler {
     state: Record<string, unknown>,
     endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
     errorPayload?: { code: string; message: string; details?: unknown },
+    failedUserMessage?: string,
+    failedUserMessageSource?: ResumableMessageSource,
   ): unknown {
     const messages = (state.messages as ChatMessage[]) ?? [];
     const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
@@ -2396,6 +2398,10 @@ export class AiAgentHandler implements NodeHandler {
       // `_retryState` 로 운반된다. buildMultiTurnFinalOutput 가 retryable
       // 여부를 errorPayload.details 에서 판정하므로, source 는 항상 넘긴다.
       state,
+      // spec §7.9 — 실패한 turn 의 사용자 메시지 (+ source). retry 재진입이
+      // 마지막 turn 을 replay 하기 위해 `_retryState` 에 운반한다.
+      failedUserMessage,
+      failedUserMessageSource,
     );
   }
 
@@ -2435,6 +2441,13 @@ export class AiAgentHandler implements NodeHandler {
      * 그 경우 `_retryState` 키 자체가 생성되지 않는다 (회귀 가드).
      */
     retryStateSource?: Record<string, unknown>,
+    /**
+     * spec/4-nodes/3-ai/1-ai-agent.md §7.9 — 실패한 turn 을 일으킨 사용자
+     * 메시지 (+ dispatch source). `messages` snapshot 에 포함되지 않으므로
+     * `_retryState.lastUserMessage` 로 운반해 retry 재진입이 replay 한다.
+     */
+    failedUserMessage?: string,
+    failedUserMessageSource?: ResumableMessageSource,
   ): NodeHandlerOutput {
     // CONVENTIONS §8 — wrap conversation result under `output.result.*`.
     // Tokens + tool-call counts go to `meta.*` (Principle 2). The legacy
@@ -2491,6 +2504,8 @@ export class AiAgentHandler implements NodeHandler {
               toolCalls: metadata.toolCalls,
               model: metadata.model,
             },
+            failedUserMessage,
+            failedUserMessageSource,
           )
         : undefined;
     return {
@@ -2549,6 +2564,8 @@ export class AiAgentHandler implements NodeHandler {
       toolCalls: number;
       model: string;
     },
+    failedUserMessage?: string,
+    failedUserMessageSource?: ResumableMessageSource,
   ): Record<string, unknown> {
     const ttlMinutes = resolveRetryStateTtlMinutes();
     const expiresAt = new Date(Date.now() + ttlMinutes * 60_000).toISOString();
@@ -2560,6 +2577,8 @@ export class AiAgentHandler implements NodeHandler {
       turnCount,
       totalInputTokens: accounting.totalInputTokens,
       totalOutputTokens: accounting.totalOutputTokens,
+      totalThinkingTokens:
+        (source.totalThinkingTokens as number | undefined) ?? 0,
       toolCalls: accounting.toolCalls,
       model: (source.model as string | undefined) ?? accounting.model,
       temperature: source.temperature,
@@ -2567,8 +2586,24 @@ export class AiAgentHandler implements NodeHandler {
       knowledgeBases: (source.knowledgeBases as unknown[] | undefined) ?? [],
       ragTopK: source.ragTopK,
       ragThreshold: source.ragThreshold,
+      ragSources: (source.ragSources as unknown[] | undefined) ?? [],
       mcpServers: (source.mcpServers as unknown[] | undefined) ?? [],
+      // NOTE — credential / context-binding 필드 (`llmConfigId`, `workspaceId`,
+      // `executionId`, `presentationTools`, `conditions`, `maxTurns` 등) 는
+      // **의도적으로 미동봉**. `_retryState` 는 DB 영속이므로 credential 참조를
+      // 담지 않는다 (spec §7.9 — `_resumeState` 와 동일 masking 정책; 회귀 테스트
+      // "_retryState … NO credentials" 가 강제). retry 재진입(`applyRetryLastTurn`)
+      // 이 이 필드들을 node.config / context 에서 재유도한다.
       ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
+      // spec §7.9 — 실패한 turn 의 사용자 메시지. retry 재진입(`applyRetryLastTurn`)
+      // 이 이 메시지를 `ai_message` action 으로 replay 해 마지막 LLM 호출을
+      // 재실행한다. messages snapshot 에는 포함되지 않는다 (pre-turn history).
+      ...(typeof failedUserMessage === 'string'
+        ? {
+            lastUserMessage: failedUserMessage,
+            lastUserMessageSource: failedUserMessageSource ?? 'ai_message',
+          }
+        : {}),
       expiresAt,
     };
   }

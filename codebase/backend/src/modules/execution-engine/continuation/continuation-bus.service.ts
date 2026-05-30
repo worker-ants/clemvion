@@ -33,7 +33,8 @@ export type ContinuationType =
   | 'cancel'
   | 'button_click'
   | 'ai_message'
-  | 'ai_end_conversation';
+  | 'ai_end_conversation'
+  | 'retry_last_turn';
 
 export type ContinuationMessage = {
   type: ContinuationType;

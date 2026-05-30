@@ -3,7 +3,10 @@ import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  RetryLastTurnError,
+} from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -63,6 +66,13 @@ describe('WebsocketGateway', () => {
               .fn()
               .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
             cancelWaitingExecution: jest.fn(),
+            // execution.retry_last_turn — validate+consume+spawn → publish handoff.
+            retryLastTurn: jest
+              .fn()
+              .mockResolvedValue({ spawnedNodeExecutionId: 'ne-spawned' }),
+            publishRetryLastTurn: jest
+              .fn()
+              .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
           },
         },
         {
@@ -600,6 +610,140 @@ describe('WebsocketGateway', () => {
       expect(result.data.success).toBe(false);
       // W20: user-safe message — no Redis infrastructure details exposed.
       expect(result.data.error).toMatch(/could not be queued/);
+    });
+  });
+
+  describe('handleRetryLastTurn (spec WS §4.2)', () => {
+    function authedSocket(): Socket {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+      return socket;
+    }
+
+    it('success ack: { success:true, executionId, nodeExecutionId, resumed:true }', async () => {
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.event).toBe('execution.retry_last_turn.ack');
+      expect(result.data).toEqual({
+        success: true,
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-failed',
+        resumed: true,
+      });
+    });
+
+    it('validate+consume+spawn then publish handoff with spawned id', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(mockEngine.retryLastTurn).toHaveBeenCalledWith(
+        'exec-1',
+        'ne-failed',
+      );
+      expect(mockEngine.publishRetryLastTurn).toHaveBeenCalledWith(
+        'exec-1',
+        'ne-spawned',
+      );
+    });
+
+    it('unauthenticated → nested error ack (resumed:false)', async () => {
+      const { socket } = createMockSocket({ id: 'no-auth' });
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.resumed).toBe(false);
+      expect(result.data.error?.code).toBe('UNAUTHENTICATED');
+    });
+
+    it('ownership failure → nested FORBIDDEN error ack', async () => {
+      const mockExecutions = module.get(ExecutionsService);
+      (mockExecutions.verifyOwnership as jest.Mock).mockRejectedValueOnce(
+        new Error('Execution not found'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-victim', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.resumed).toBe(false);
+      expect(result.data.error?.code).toBe('FORBIDDEN');
+    });
+
+    it('RetryLastTurnError → nested error ack with its code (RETRY_STATE_NOT_FOUND)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+        RetryLastTurnError.notFound('gone'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data).toMatchObject({
+        success: false,
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-failed',
+        resumed: false,
+        error: { code: 'RETRY_STATE_NOT_FOUND' },
+      });
+    });
+
+    it('NODE_NOT_RETRYABLE surfaces in nested error ack', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+        RetryLastTurnError.notRetryable('nope'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.error?.code).toBe('NODE_NOT_RETRYABLE');
+    });
+
+    it('RETRY_TOO_EARLY surfaces in nested error ack', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+        RetryLastTurnError.tooEarly('wait'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.error?.code).toBe('RETRY_TOO_EARLY');
+    });
+
+    it('InvalidExecutionStateError → nested INVALID_EXECUTION_STATE error ack', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+        new InvalidExecutionStateError('not failed'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.error?.code).toBe('INVALID_EXECUTION_STATE');
+    });
+
+    it('publish queued=false (Redis failure) → INTERNAL_ERROR nested ack', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.publishRetryLastTurn as jest.Mock).mockResolvedValueOnce({
+        queued: false,
+        jobId: null,
+      });
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.resumed).toBe(false);
+      expect(result.data.error?.code).toBe('INTERNAL_ERROR');
     });
   });
 

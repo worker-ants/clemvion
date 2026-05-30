@@ -67,6 +67,19 @@ export type ContinuationPayload =
   | { type: 'form_submitted'; formData?: unknown };
 
 /**
+ * spec/5-system/6-websocket-protocol.md §4.2 "Continuation Bus 경유 (worker
+ * handoff)" / spec/5-system/4-execution-engine.md §1.3.
+ *
+ * `retry_last_turn` job 의 payload. WS gateway 가 `retryLastTurn` 으로
+ * 검증·atomic consume·spawn 한 **새 NodeExecution row** 의 id 를 운반한다.
+ * 기존 continuation 명령과 달리 `nodeExecutionId` 는 대기중 row 가 아니라
+ * spawn 된 RUNNING row 를 가리킨다 (worker 가 그 row 로 multi-turn loop 재진입).
+ */
+export interface RetryLastTurnContinuationPayload {
+  spawnedNodeExecutionId: string;
+}
+
+/**
  * Continuation job payload — `ContinuationMessage` 와 동일 shape 이나
  * BullMQ-side 명시적 타입으로 분리해 향후 wire format 변경 시 영향 격리.
  *
@@ -80,7 +93,8 @@ export interface ContinuationJob {
     | 'cancel'
     | 'button_click'
     | 'ai_message'
-    | 'ai_end_conversation';
+    | 'ai_end_conversation'
+    | 'retry_last_turn';
   executionId: string;
   nodeExecutionId: string;
   /** W3 — 세부 타입은 ContinuationPayload 참조. ContinuationMessage.payload 가 unknown 으로 선언되어 있어 bus service 와의 호환성을 위해 unknown 유지. */

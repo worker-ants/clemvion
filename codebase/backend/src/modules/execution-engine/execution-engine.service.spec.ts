@@ -8004,6 +8004,211 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // spec/5-system/6-websocket-protocol.md §4.2 "Continuation Bus 경유 (worker
+  // handoff)" / §4.2.1 + spec/4-nodes/3-ai/1-ai-agent.md §7.9 — retry 재진입.
+  describe('applyRetryLastTurn (multi-turn loop re-entry)', () => {
+    const EXEC = executionId;
+    const NODE_ID = 'node-agent-retry';
+    const SPAWNED = 'ne-spawned-retry';
+
+    function retryStateSeed(): Record<string, unknown> {
+      return {
+        // pre-failed-turn history (does NOT include the failed user message).
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'first' },
+          { role: 'assistant', content: 'ack' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 10,
+        totalOutputTokens: 5,
+        toolCalls: 0,
+        model: 'test-model',
+        // failed user message to replay (spec §7.9).
+        lastUserMessage: 'please retry me',
+        lastUserMessageSource: 'ai_message',
+        expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+      };
+    }
+
+    function installReentry(opts: {
+      processReturn: () => unknown;
+      spawnedStatus?: NodeExecutionStatus;
+      retryState?: Record<string, unknown> | undefined;
+    }): {
+      handler: NodeHandler & { processMultiTurnMessage: jest.Mock };
+      savedSpawn: { status?: NodeExecutionStatus };
+    } {
+      const node: Partial<Node> = {
+        id: NODE_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const spawnedRow = {
+        id: SPAWNED,
+        executionId: EXEC,
+        nodeId: NODE_ID,
+        status: opts.spawnedStatus ?? NodeExecutionStatus.RUNNING,
+        startedAt: new Date(),
+        inputData:
+          'retryState' in opts
+            ? opts.retryState
+              ? { _retryState: opts.retryState }
+              : {}
+            : { _retryState: retryStateSeed() },
+      };
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue(spawnedRow);
+      // re-entry loads node via nodeRepository.findOneBy.
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(node);
+      mockNodeRepo.findBy = jest.fn().mockResolvedValue([node]);
+      mockExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: EXEC,
+        workflowId,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 60_000),
+      });
+
+      const handler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(),
+        processMultiTurnMessage: jest.fn(async () => opts.processReturn()),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: {},
+          output: {},
+          meta: {},
+          port: 'user_ended',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler & { processMultiTurnMessage: jest.Mock };
+      handlerRegistry.register('ai_agent', handler);
+      return { handler, savedSpawn: spawnedRow };
+    }
+
+    function terminalSuccess(): unknown {
+      // re-run of the failed turn now succeeds → terminal `ended` output with
+      // a fresh assistant response on the spawned row.
+      return {
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            messages: [
+              { role: 'user', content: 'please retry me' },
+              { role: 'assistant', content: 'retried OK' },
+            ],
+            message: 'retried OK',
+            turnCount: 2,
+            endReason: 'user_ended',
+          },
+        },
+        meta: { interactionType: 'ai_conversation', model: 'test-model' },
+        port: 'user_ended',
+        status: 'ended',
+      };
+    }
+
+    it('replays the failed last turn and produces a new assistant response on the spawned row', async () => {
+      const { handler } = installReentry({ processReturn: terminalSuccess });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // The failed last user message was replayed verbatim (spec §7.9).
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
+      const [replayedMsg] = handler.processMultiTurnMessage.mock.calls[0];
+      expect(replayedMsg).toBe('please retry me');
+
+      // A NODE_STARTED was emitted for the spawned row.
+      const nodeStarted = mockWebsocketService.emitNodeEvent.mock.calls.filter(
+        (c: unknown[]) => c[2] === 'execution.node.started',
+      );
+      expect(
+        nodeStarted.some(
+          (c: unknown[]) =>
+            (c[3] as { nodeExecutionId?: string }).nodeExecutionId === SPAWNED,
+        ),
+      ).toBe(true);
+
+      // A fresh assistant message event was emitted.
+      const aiMsg = mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+        (c: unknown[]) => c[1] === 'execution.ai_message',
+      );
+      expect(aiMsg.length).toBeGreaterThan(0);
+    });
+
+    it('marks the Execution COMPLETED when the replayed conversation ends normally', async () => {
+      installReentry({ processReturn: terminalSuccess });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
+    });
+
+    it('re-failure (retryable again) → Execution FAILED + NODE_FAILED on spawned row', async () => {
+      // The replayed turn throws again (LLM still rate-limited).
+      const { handler } = installReentry({
+        processReturn: () => {
+          throw Object.assign(new Error('429'), { status: 429 });
+        },
+      });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      expect(handler.processMultiTurnMessage).toHaveBeenCalledTimes(1);
+      const failedEvents =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.failed',
+        );
+      expect(failedEvents.length).toBe(1);
+      const nodeFailed = mockWebsocketService.emitNodeEvent.mock.calls.filter(
+        (c: unknown[]) => c[2] === 'execution.node.failed',
+      );
+      expect(
+        nodeFailed.some(
+          (c: unknown[]) =>
+            (c[3] as { nodeExecutionId?: string }).nodeExecutionId === SPAWNED,
+        ),
+      ).toBe(true);
+    });
+
+    it('ack-and-discard when spawned row is no longer RUNNING (idempotency)', async () => {
+      const { handler } = installReentry({
+        processReturn: terminalSuccess,
+        spawnedStatus: NodeExecutionStatus.COMPLETED,
+      });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+      // Already handled by another worker — no re-entry.
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
+    });
+
+    it('missing _retryState on spawned row → marks row FAILED, no replay', async () => {
+      const { handler } = installReentry({
+        processReturn: terminalSuccess,
+        retryState: undefined,
+      });
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+      expect(handler.processMultiTurnMessage).not.toHaveBeenCalled();
+      // spawned row saved as FAILED.
+      const savedFailed = mockNodeExecutionRepo.save.mock.calls.some(
+        (c: unknown[]) =>
+          (c[0] as { id?: string; status?: NodeExecutionStatus }).id ===
+            SPAWNED &&
+          (c[0] as { status?: NodeExecutionStatus }).status ===
+            NodeExecutionStatus.FAILED,
+      );
+      expect(savedFailed).toBe(true);
+    });
+  });
+
   // spec node-output §4.2.1 — stripControlFields preserves _retryState while
   // stripping _resumeState.
   describe('stripControlFields _retryState preservation', () => {

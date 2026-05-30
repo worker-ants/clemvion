@@ -56,7 +56,11 @@ export class ContinuationExecutionProcessor extends WorkerHost {
 
     // §7.5 멱등성 보강: 처리 전 NodeExecution 상태 재검증. 이미 COMPLETED/FAILED
     // 면 다른 worker 가 먼저 처리한 결과로 본다. cancel 류는 status 무관.
-    if (type !== 'cancel') {
+    //
+    // retry_last_turn 은 제외 — 대상 row 는 WAITING 이 아니라 spawn 된 RUNNING
+    // row 이며 (spec §4.2 "새 row 재개"), 자체 멱등 가드 (RUNNING 검증) 를
+    // `applyRetryLastTurn` 내부에서 수행한다.
+    if (type !== 'cancel' && type !== 'retry_last_turn') {
       const stillWaiting =
         await this.engine.isNodeExecutionWaiting(nodeExecutionId);
       if (!stillWaiting) {
@@ -102,6 +106,19 @@ export class ContinuationExecutionProcessor extends WorkerHost {
           type: 'ai_end_conversation',
         });
         break;
+      case 'retry_last_turn': {
+        // spec/5-system/6-websocket-protocol.md §4.2 "Continuation Bus 경유
+        // (worker handoff)" — 대기중 row 재개가 아니라 spawn 된 RUNNING row 의
+        // multi-turn loop 재진입. nodeExecutionId = spawn 된 row 의 id.
+        const spawnedNodeExecutionId =
+          (payload as { spawnedNodeExecutionId?: string } | undefined)
+            ?.spawnedNodeExecutionId ?? nodeExecutionId;
+        await this.engine.applyRetryLastTurn(
+          executionId,
+          spawnedNodeExecutionId,
+        );
+        break;
+      }
       default: {
         // exhaustiveness guard
         const _exhaust: never = type;

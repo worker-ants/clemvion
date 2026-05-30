@@ -36,7 +36,10 @@ describe('ContinuationExecutionProcessor', () => {
   let engine: jest.Mocked<
     Pick<
       ExecutionEngineService,
-      'applyContinuation' | 'applyCancellation' | 'isNodeExecutionWaiting'
+      | 'applyContinuation'
+      | 'applyCancellation'
+      | 'isNodeExecutionWaiting'
+      | 'applyRetryLastTurn'
     >
   >;
 
@@ -45,6 +48,7 @@ describe('ContinuationExecutionProcessor', () => {
       applyContinuation: jest.fn().mockResolvedValue(undefined),
       applyCancellation: jest.fn().mockReturnValue(undefined),
       isNodeExecutionWaiting: jest.fn().mockResolvedValue(true),
+      applyRetryLastTurn: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -167,6 +171,47 @@ describe('ContinuationExecutionProcessor', () => {
       expect(engine.applyContinuation).toHaveBeenCalledWith('exec-1', 'ne-1', {
         type: 'ai_end_conversation',
       });
+    });
+  });
+
+  // ── retry_last_turn dispatch (spec WS §4.2 worker handoff) ───────────────
+  describe('retry_last_turn dispatch', () => {
+    it('calls applyRetryLastTurn with the spawned nodeExecutionId from payload', async () => {
+      await processor.process(
+        makeJob({
+          type: 'retry_last_turn',
+          nodeExecutionId: 'ne-spawned',
+          payload: { spawnedNodeExecutionId: 'ne-spawned' },
+        }),
+      );
+      expect(engine.applyRetryLastTurn).toHaveBeenCalledWith(
+        'exec-1',
+        'ne-spawned',
+      );
+      expect(engine.applyContinuation).not.toHaveBeenCalled();
+    });
+
+    it('falls back to job.nodeExecutionId when payload omits spawnedNodeExecutionId', async () => {
+      await processor.process(
+        makeJob({ type: 'retry_last_turn', nodeExecutionId: 'ne-spawned' }),
+      );
+      expect(engine.applyRetryLastTurn).toHaveBeenCalledWith(
+        'exec-1',
+        'ne-spawned',
+      );
+    });
+
+    it('bypasses isNodeExecutionWaiting guard (spawned row is RUNNING, not WAITING)', async () => {
+      // even when the guard would report not-waiting, retry must still proceed.
+      engine.isNodeExecutionWaiting.mockResolvedValueOnce(false);
+      await processor.process(
+        makeJob({
+          type: 'retry_last_turn',
+          payload: { spawnedNodeExecutionId: 'ne-spawned' },
+        }),
+      );
+      expect(engine.isNodeExecutionWaiting).not.toHaveBeenCalled();
+      expect(engine.applyRetryLastTurn).toHaveBeenCalled();
     });
   });
 

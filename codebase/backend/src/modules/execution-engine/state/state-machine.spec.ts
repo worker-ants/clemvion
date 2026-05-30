@@ -66,10 +66,13 @@ describe('StateMachine', () => {
       ).toBe(false);
     });
 
-    it('should disallow failed -> running', () => {
+    // spec/5-system/6-websocket-protocol.md §4.2 / 4-execution-engine.md §1.3 —
+    // execution.retry_last_turn 재진입은 FAILED Execution 을 RUNNING 으로
+    // 전이시켜 spawn 된 노드 turn 을 구동한다 (retry 전용 전이).
+    it('should allow failed -> running (retry_last_turn re-entry)', () => {
       expect(
         canTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING),
-      ).toBe(false);
+      ).toBe(true);
     });
 
     it('should disallow cancelled -> running', () => {
