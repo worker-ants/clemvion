@@ -123,16 +123,28 @@ const reviewers = results.filter(Boolean)
 const unfinished = reviewers.filter(r => r.status !== 'success').map(r => r.name)
 
 // ---- Summary -------------------------------------------------------------
-// The summary writes SUMMARY.md itself — exactly like the legacy session_dir path
-// and like the reviewers' own output_file writes. Every sub-agent write here is
-// subject to the SAME harness write guard (`worktree.bgIsolation`, which blocks
-// shared-checkout writes when the parent bg session hasn't isolated), so if the
-// reviewers wrote their output_file, the summary can write too. Returning only a
-// short status line keeps the full merged report OFF the caller's context (no
-// double-loading). If the write IS blocked (e.g. parent bg session not isolated via
-// EnterWorktree), the summary falls back to returning the full markdown prefixed
-// with WRITE_BLOCKED and the caller persists it — never worse than the old behavior.
+// The summary sub-agent (1) Writes SUMMARY.md to summary_output_file as a best
+// effort, and (2) ALWAYS returns the full merged markdown so this workflow can
+// hand the caller BOTH the on-disk path AND the content.
+//
+// Why the caller still persists: the summary agent is the LAST agent() call, so
+// its own report-file Write can be blocked by the harness terminal-write guard
+// (observed: parallel reviewers — non-terminal — write their output_file fine,
+// while the terminal summary write is refused). A workflow SCRIPT has no
+// filesystem access, so it cannot write the file itself either. Therefore the
+// reliable on-disk guarantee is the CALLER doing an idempotent Write of the
+// returned summary_markdown to summary_output (see code-review-agents SKILL §3).
+// This return shape removes the old failure mode where the caller skipped the
+// write because summary_markdown was null on the (rarely-reached) write-success
+// path: summary_markdown is now ALWAYS populated.
+//
+// Return contract:
+//   summary_output   — absolute path the SUMMARY belongs at (caller writes here)
+//   summary_markdown  — full report markdown, ALWAYS present (caller persists it)
+//   summary_written   — true iff the summary agent's own in-workflow Write succeeded
+//                       (caller's idempotent Write is harmless either way)
 phase('Summary')
+const SUMMARY_DELIM = '===SUMMARY_MARKDOWN_BELOW==='
 const ranManifest = reviewers.map(r => `${r.name}\t${r.status}\t${r.output_file}`).join('\n')
 const summaryReturn = await agent(
   [
@@ -148,25 +160,33 @@ const summaryReturn = await agent(
     'success/fatal 인 각 reviewer 의 output_file 을 Read 해 통합하세요. success 아닌',
     'reviewer 는 "재시도 필요". 끝에 "라우터 결정" 섹션 포함(실행/제외/강제).',
     '',
-    '완성된 SUMMARY.md 를 summary_output_file 에 Write 하세요.',
-    '- Write 성공 시: 보고서 전문을 반환하지 말고 한 줄만 반환 —',
-    '  STATUS=success RISK=<NONE|LOW|MEDIUM|HIGH|CRITICAL> CRITICAL=<n> WARNING=<n> PATH=<summary_output_file>',
-    '- Write 차단/실패 시: 첫 줄에 WRITE_BLOCKED 만 출력하고, 이어서 SUMMARY.md',
-    '  마크다운 전문을 반환하세요 (호출자가 대신 기록).',
+    '출력 규약 (반드시 이 순서, 정확히 이 형식):',
+    '1) 완성된 SUMMARY.md 를 summary_output_file 에 Write 시도하세요 (best-effort).',
+    '2) 그런 다음 첫 줄에 status 헤더 한 줄을 출력 —',
+    '   `STATUS=<written|write_blocked> RISK=<NONE|LOW|MEDIUM|HIGH|CRITICAL> CRITICAL=<n> WARNING=<n> PATH=<summary_output_file>`',
+    '   (Write 가 성공하면 written, 차단/실패면 write_blocked)',
+    `3) 둘째 줄에 정확히 \`${SUMMARY_DELIM}\` 한 줄.`,
+    '4) 그 다음부터 SUMMARY.md 마크다운 전문을 그대로 출력하세요 (Write 성공 여부와 무관하게 항상 전문 포함).',
+    '   — 호출자가 이 전문을 디스크에 멱등 기록하고 위험도 판정에 사용합니다.',
   ].join('\n'),
   { label: 'summary', phase: 'Summary', agentType: summary.subagent_type },
 )
 
-const summaryWritten = !/WRITE_BLOCKED/.test(summaryReturn || '')
-const riskMatch = /RISK=([A-Z]+)/.exec(summaryReturn || '')
-const criticalMatch = /CRITICAL=(\d+)/.exec(summaryReturn || '')
-const warningMatch = /WARNING=(\d+)/.exec(summaryReturn || '')
+const raw = summaryReturn || ''
+const delimIdx = raw.indexOf(SUMMARY_DELIM)
+const header = (delimIdx >= 0 ? raw.slice(0, delimIdx) : raw).trim()
+const body = delimIdx >= 0 ? raw.slice(delimIdx + SUMMARY_DELIM.length).replace(/^\n/, '') : raw
+const statusLine = header.split('\n')[0] || ''
+const summaryWritten = /STATUS=written/i.test(statusLine)
+const riskMatch = /RISK=([A-Z]+)/.exec(statusLine)
+const criticalMatch = /CRITICAL=(\d+)/.exec(statusLine)
+const warningMatch = /WARNING=(\d+)/.exec(statusLine)
 return {
   summary_output: summary.output_file,
   summary_written: summaryWritten,
-  // full markdown is returned only as a fallback (write blocked) for the caller to persist
-  summary_markdown: summaryWritten ? null : (summaryReturn || '').replace(/^[\s\S]*?WRITE_BLOCKED[^\n]*\n?/, ''),
-  summary_status: (summaryReturn || '').split('\n')[0],
+  // ALWAYS the full report markdown — caller persists it to summary_output (idempotent)
+  summary_markdown: body || null,
+  summary_status: statusLine,
   risk: riskMatch ? riskMatch[1] : null,
   critical_count: criticalMatch ? Number(criticalMatch[1]) : null,
   warning_count: warningMatch ? Number(warningMatch[1]) : null,
