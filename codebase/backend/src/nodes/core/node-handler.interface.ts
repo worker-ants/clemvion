@@ -197,6 +197,18 @@ export interface NodeHandlerOutput {
    * narrowing helper.
    */
   _resumeState?: Record<string, unknown>;
+  /**
+   * Engine-internal retry continuation state (CONVENTIONS §4.2.1, spec
+   * 4-execution-engine §1.3). Populated by AI Agent multi-turn when it
+   * terminates on a *retryable* error (`output.error.details.retryable ===
+   * true`). Unlike `_resumeState`, this field is PRESERVED by
+   * `stripControlFields()` so it persists into `NodeExecution.outputData`
+   * (DB JSONB) and can later be consumed by `execution.retry_last_turn`.
+   * Carries a subset of `_resumeState` plus `expiresAt` (ISO 8601 TTL).
+   * Still excluded from expression resolver / autocomplete like
+   * `_resumeState` (internal-only).
+   */
+  _retryState?: Record<string, unknown>;
 }
 
 /**

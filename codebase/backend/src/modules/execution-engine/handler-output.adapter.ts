@@ -41,6 +41,10 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
       ...(r.port !== undefined ? { port: r.port } : {}),
       ...(r.status !== undefined ? { status: r.status } : {}),
       ...(r._resumeState !== undefined ? { _resumeState: r._resumeState } : {}),
+      // `_retryState` (spec §1.3 / node-output §4.2.1) — retryable error
+      // 종결 시에만 set. `_resumeState` 와 달리 DB 영속되는 보존 필드라
+      // boundary 에서 forward 해야 한다.
+      ...(r._retryState !== undefined ? { _retryState: r._retryState } : {}),
     };
   }
 
@@ -179,6 +183,11 @@ export function toEngineFlatShape(adapted: NodeHandlerOutput): unknown {
   // internal debugging state inside `output._resumeState` on purpose.
   if (adapted._resumeState !== undefined && base._resumeState === undefined) {
     base._resumeState = adapted._resumeState;
+  }
+  // `_retryState` (spec §1.3 / node-output §4.2.1) — surface the top-level
+  // retry continuation state so `applyPortSelection` / DB persistence keep it.
+  if (adapted._retryState !== undefined && base._retryState === undefined) {
+    base._retryState = adapted._retryState;
   }
   return base;
 }

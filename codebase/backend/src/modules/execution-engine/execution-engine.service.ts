@@ -24,6 +24,7 @@ import {
   WorkflowNotFoundError,
   SubWorkflowTimeoutError,
   InvalidExecutionStateError,
+  RetryLastTurnError,
 } from './workflow-errors';
 import {
   ContinuationBusService,
@@ -2940,6 +2941,174 @@ export class ExecutionEngineService
   }
 
   /**
+   * AI Agent multi-turn 의 `execution.retry_last_turn` (spec/5-system/
+   * 6-websocket-protocol.md §4.2, spec/5-system/4-execution-engine.md §1.3,
+   * spec/4-nodes/3-ai/1-ai-agent.md §7.9) 진입점.
+   *
+   * retryable error 로 종결된 NodeExecution 의 보존된 `_retryState` 를 lookup·
+   * 검증하고, **동일 트랜잭션 안에서** `_retryState` 키를 제거(소비)하면서 동일
+   * nodeId 의 새 NodeExecution row 를 spawn 한다. 키 제거가 affected=1 인 쪽만
+   * 진행하므로 동시 retry 의 중복 spawn 이 차단된다 (한 번 소비되면 후속 retry 는
+   * `RETRY_STATE_NOT_FOUND`).
+   *
+   * 검증 순서 (spec §4.2 에러 코드 표):
+   *  1. NodeExecution lookup (executionId 소속 확인). 미존재 → INVALID_EXECUTION_STATE.
+   *  2. status !== FAILED → INVALID_EXECUTION_STATE.
+   *  3. `outputData.output.error.details.retryable !== true` → NODE_NOT_RETRYABLE.
+   *  4. `outputData._retryState` 부재 또는 `now > expiresAt` → RETRY_STATE_NOT_FOUND.
+   *  5. `retryAfterSec` 카운트다운 미경과 → RETRY_TOO_EARLY.
+   *  6. atomic consume + spawn.
+   *
+   * **continuation bus 미경유** — 대기중 row 의 rehydration 이 아니라 새 row spawn
+   * 이므로 `execution-continuation` 큐를 타지 않는다 (spec §4.2 "Continuation Bus
+   * 미경유").
+   *
+   * ⚠️ **재진입 (loop re-drive) 미완 — 문서화된 갭**: 새 NodeExecution row 를
+   * `_retryState` 로 seed 해 spawn 하는 것까지는 본 메서드가 수행하나, 새 row 를
+   * multi-turn loop (`waitForAiConversation`) 로 실제 재진입시키는 부분은 별도
+   * 작업으로 남아 있다 — `waitForAiConversation` 가 live 한 `ExecutionContext` +
+   * `savedExecution` + main dispatch loop 컨텍스트를 요구하는데, WS 명령 경로는
+   * (다른 인스턴스일 수 있고) 그 컨텍스트를 갖지 않기 때문이다. 자세한 hook
+   * 요구사항은 본 메서드 끝의 NOTE 주석 참조.
+   */
+  async retryLastTurn(
+    executionId: string,
+    nodeExecutionId: string,
+  ): Promise<{ spawnedNodeExecutionId: string }> {
+    const nodeExec = await this.nodeExecutionRepository.findOneBy({
+      id: nodeExecutionId,
+    });
+    // 1. lookup + executionId 소속 검증.
+    if (!nodeExec || nodeExec.executionId !== executionId) {
+      throw new InvalidExecutionStateError(
+        `retry_last_turn: NodeExecution ${nodeExecutionId} not found for execution ${executionId}`,
+      );
+    }
+    // 2. FAILED 상태 기대.
+    if (nodeExec.status !== NodeExecutionStatus.FAILED) {
+      throw new InvalidExecutionStateError(
+        `retry_last_turn: NodeExecution ${nodeExecutionId} is ${nodeExec.status}, expected FAILED`,
+      );
+    }
+
+    const outputData: Record<string, unknown> = nodeExec.outputData ?? {};
+    const output = (outputData.output ?? {}) as Record<string, unknown>;
+    const errorObj = (output.error ?? undefined) as
+      | { details?: { retryable?: unknown; retryAfterSec?: unknown } }
+      | undefined;
+    // 3. retryable 검증.
+    if (errorObj?.details?.retryable !== true) {
+      throw RetryLastTurnError.notRetryable(
+        `retry_last_turn: node ${nodeExecutionId} did not terminate on a retryable error`,
+      );
+    }
+
+    // 4. _retryState 존재 + TTL.
+    const retryState = outputData._retryState as
+      | (Record<string, unknown> & { expiresAt?: unknown })
+      | undefined;
+    if (!retryState) {
+      throw RetryLastTurnError.notFound(
+        `retry_last_turn: _retryState missing on node ${nodeExecutionId} (already consumed?)`,
+      );
+    }
+    const expiresAtRaw = retryState.expiresAt;
+    const expiresAtMs =
+      typeof expiresAtRaw === 'string' ? Date.parse(expiresAtRaw) : NaN;
+    const now = Date.now();
+    if (!Number.isFinite(expiresAtMs) || now > expiresAtMs) {
+      throw RetryLastTurnError.notFound(
+        `retry_last_turn: _retryState expired on node ${nodeExecutionId} (expiresAt=${String(expiresAtRaw)})`,
+      );
+    }
+
+    // 5. retryAfterSec 카운트다운 enforcement. 카운트다운 기준 시각은 노드가
+    //    종결된 시점 (finishedAt, 없으면 startedAt). retryAfterSec 는
+    //    output.error.details 또는 _retryState 어느 쪽에 있든 읽는다.
+    const retryAfterSec =
+      typeof errorObj.details?.retryAfterSec === 'number'
+        ? errorObj.details.retryAfterSec
+        : typeof retryState.retryAfterSec === 'number'
+          ? retryState.retryAfterSec
+          : undefined;
+    if (retryAfterSec !== undefined && retryAfterSec > 0) {
+      const finishedAtMs = (
+        nodeExec.finishedAt ?? nodeExec.startedAt
+      )?.getTime?.();
+      if (typeof finishedAtMs === 'number') {
+        const readyAtMs = finishedAtMs + retryAfterSec * 1000;
+        if (now < readyAtMs) {
+          throw RetryLastTurnError.tooEarly(
+            `retry_last_turn: retryAfterSec=${retryAfterSec}s not elapsed for node ${nodeExecutionId}`,
+          );
+        }
+      }
+    }
+
+    // 6. ATOMIC CONSUME + SPAWN — 동일 트랜잭션. `_retryState` 키를 JSONB `-`
+    //    연산으로 제거(소비)하되 affected=1 인 writer 만 새 row 를 spawn 한다.
+    //    동시 retry 의 두 번째 호출은 affected=0 → RETRY_STATE_NOT_FOUND.
+    const seededInput = { _retryState: retryState };
+    let spawned: NodeExecution | null = null;
+    await this.dataSource.transaction(async (manager) => {
+      const consume = await manager
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({
+          // JSONB `-` 연산자로 `_retryState` 키만 제거. 다른 outputData 키 보존.
+          outputData: () => `output_data - '_retryState'`,
+        })
+        .where('id = :id', { id: nodeExecutionId })
+        // JSONB key-existence guard. `jsonb_exists(col, key)` is used instead
+        // of the `?` operator so the pg driver doesn't mistake `?` for a bound
+        // parameter placeholder. affected=1 only for the writer that still saw
+        // the key present — concurrent retry gets affected=0.
+        .andWhere(`jsonb_exists(output_data, '_retryState')`)
+        .execute();
+      if ((consume.affected ?? 0) !== 1) {
+        // 이미 다른 retry 가 소비함 (동시성) — 중복 spawn 차단.
+        throw RetryLastTurnError.notFound(
+          `retry_last_turn: _retryState already consumed for node ${nodeExecutionId}`,
+        );
+      }
+      const fresh = manager.create(NodeExecution, {
+        executionId,
+        nodeId: nodeExec.nodeId,
+        status: NodeExecutionStatus.RUNNING,
+        inputData: seededInput as Record<string, unknown>,
+        parentNodeExecutionId: nodeExec.parentNodeExecutionId ?? null,
+      });
+      spawned = await manager.save(NodeExecution, fresh);
+    });
+
+    // NOTE — multi-turn loop 재진입 hook (미완, 문서화된 갭):
+    //   여기서 spawn 된 `spawned` row 를 `_retryState.messages` 로 seed 한 채
+    //   `waitForAiConversation` 와 동등한 루프로 재진입시켜 마지막 user message
+    //   부터 LLM 을 재호출해야 한다. 그러려면 다음이 필요하다:
+    //     (a) 해당 Execution 의 `ExecutionContext` 를 rehydrate (Redis / DB)
+    //         하거나 새로 구성하고, `context.nodeOutputCache[nodeId]` 에
+    //         `{ _resumeState: <_retryState 를 _resumeState shape 으로 변환> }`
+    //         를 주입.
+    //     (b) `savedExecution` 을 RUNNING 으로 전이 후 `waitForAiConversation(
+    //         savedExecution, executionId, node, context)` 를 spawn 된 row 의
+    //         nodeExecutionId 로 호출 (또는 그와 동등한 새 진입점).
+    //     (c) 이 작업은 WS 명령 핸들러(다른 인스턴스 가능)가 아니라 execution
+    //         worker 컨텍스트에서 수행돼야 한다 — 따라서 spawn 후 worker 에
+    //         retry 작업을 위임하는 별도 신호 경로 설계가 필요.
+    //   본 메서드는 lookup/검증/atomic-consume/spawn 까지를 정확히 보장하며,
+    //   재진입 hook 은 후속 작업으로 남긴다 (spec §7.9 "새 row spawn → loop
+    //   재진입" 중 spawn 까지 구현).
+    const spawnedId = (spawned as NodeExecution | null)?.id;
+    if (!spawnedId) {
+      // transaction 이 throw 없이 끝났는데 spawned 가 null 이면 invariant 위반.
+      throw RetryLastTurnError.notFound(
+        `retry_last_turn: spawn failed for node ${nodeExecutionId}`,
+      );
+    }
+    return { spawnedNodeExecutionId: spawnedId };
+  }
+
+  /**
    * Phase 2.5 — continuation publish 결과 → WS ack `queued` / `jobId` 매핑 helper.
    *
    * Phase 2 의 라우팅 원칙 (spec §7.4 "모든 진입점은 항상 BullMQ enqueue") 상
@@ -3722,8 +3891,15 @@ export class ExecutionEngineService
       // WARN #6 — `_resumeState` 는 DB 영속 페이로드에서 strip. 정상 finalize
       // (`finalizeAiNode`) 가 같은 strip 을 수행하지만, 이 시점에 cache 가
       // 새 error shape 으로 갱신됐으므로 일관성 위해 outputData 도 동기 갱신.
+      //
+      // 보존 예외 — `_retryState` (spec/5-system/4-execution-engine.md §1.3,
+      // spec/conventions/node-output.md §4.2.1): retryable error 종결 시
+      // buildMultiTurnFinalOutput 이 운반한 top-level `_retryState` 는
+      // **strip 하지 않고** outputData 에 보존해 DB 영속한다. 이후 WS
+      // `execution.retry_last_turn` 이 nodeExecutionId 로 lookup → 소비한다.
       const { _resumeState: _stripped, ...safe } = adapted as unknown as {
         _resumeState?: unknown;
+        _retryState?: unknown;
       } & Record<string, unknown>;
       void _stripped;
       nodeExec.outputData = safe;
@@ -3917,6 +4093,11 @@ export class ExecutionEngineService
       // (buildMultiTurnFinalOutput / buildConditionOutput / buildErrorOutput)
       // do not carry _resumeState, but defensively strip it in case a future
       // handler bug leaks it.
+      //
+      // `_retryState` (spec §1.3 / node-output §4.2.1) is the documented
+      // preservation exception — only `_resumeState` is deleted here so a
+      // retryable error termination keeps `_retryState` in outputData for the
+      // later `execution.retry_last_turn` consume path.
       const finalAdapted = context.structuredOutputCache?.[node.id];
       const finalOutput = {
         ...((finalAdapted ??

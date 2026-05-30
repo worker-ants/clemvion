@@ -50,6 +50,17 @@ export const ErrorCode = {
   // when a `waitFor*` promise is rejected externally.
   USER_CANCELLED: 'USER_CANCELLED',
   INTERACTION_TIMEOUT: 'INTERACTION_TIMEOUT',
+  // AI Agent multi-turn `execution.retry_last_turn` (spec/5-system/
+  // 6-websocket-protocol.md §4.2). These surface in the WS ack's nested
+  // `error: { code, message }` object (not a node `output.error.code`), but
+  // live here so the canonical code strings have one source of truth.
+  //  - RETRY_STATE_NOT_FOUND: `_retryState` missing / expired / already consumed.
+  //  - NODE_NOT_RETRYABLE: error not retryable (retryable !== true) or node did
+  //    not terminate on a retryable error.
+  //  - RETRY_TOO_EARLY: `retryAfterSec` countdown has not elapsed yet.
+  RETRY_STATE_NOT_FOUND: 'RETRY_STATE_NOT_FOUND',
+  NODE_NOT_RETRYABLE: 'NODE_NOT_RETRYABLE',
+  RETRY_TOO_EARLY: 'RETRY_TOO_EARLY',
 } as const;
 
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
