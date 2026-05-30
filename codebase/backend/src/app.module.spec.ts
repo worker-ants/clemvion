@@ -25,6 +25,7 @@ import { IntegrationOAuthPreview } from './modules/integrations/entities/integra
 import { IntegrationExpiryDispatch } from './modules/integrations/entities/integration-expiry-dispatch.entity';
 import { AuthConfig } from './modules/auth-configs/entities/auth-config.entity';
 import { Execution } from './modules/executions/entities/execution.entity';
+import { ExecutionToken } from './modules/external-interaction/entities/execution-token.entity';
 import { NodeExecution } from './modules/node-executions/entities/node-execution.entity';
 import { ExecutionNodeLog } from './modules/execution-engine/entities/execution-node-log.entity';
 import { WorkflowVersion } from './modules/workflow-versions/entities/workflow-version.entity';
@@ -65,6 +66,7 @@ const REQUIRED_ENTITIES = [
   IntegrationExpiryDispatch,
   AuthConfig,
   Execution,
+  ExecutionToken,
   NodeExecution,
   ExecutionNodeLog,
   WorkflowVersion,
