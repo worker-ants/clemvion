@@ -61,6 +61,22 @@ PR #368 가 backend 인프라 + `GET /workflows/:id/graph-warnings` endpoint 까
 - 통합 테스트로 cancel-others-on-fail + 3층 중첩 reject 잠금
 - ai-review Critical/Warning 0
 
+### 6. GRAPH_VALIDATION_FAILED 사용자 문서 갱신 (ai-review SUMMARY#20)
+
+- [ ] `backend-labels.ts` `ERROR_KO` 매핑 테이블이 신설되면 `GRAPH_VALIDATION_FAILED` 한국어 매핑 추가 (현재 영문 노출)
+- [ ] user-guide MDX (`05-run-and-debug/` 또는 노드별 캔버스 안내 페이지) 에 graph validation 에러 응답 안내 추가
+- [ ] `GET /workflows/:id/graph-warnings` 엔드포인트를 API 참조 가이드(user-guide 존재 시)에 반영
+
+### 7. ExecutionContext God Object 해소 — ParallelBranchContext 분리 (ai-review SUMMARY#11 / C-1 결정)
+
+> **선행**: `spec/conventions/execution-context.md` 신규 작성 (project-planner). 본 항목은 그 spec 확정 후 developer 가 별 PR 로 실행. 출처: `plan/in-progress/spec-fix-execution-context-god-object.md` (C-1 옵션 a 채택, 2026-05-30).
+
+- [ ] `parentParallelConcurrency` 를 `ExecutionContext` 에서 제거하고 `ParallelBranchContext extends ExecutionContext` 로 이동 (`node-handler.interface.ts` / `parallel-executor.ts`)
+- [ ] branchContext 생성처 + 하위 노드 호출처 타입 좁히기 (Parallel 내부에서만 `parentParallelConcurrency` 접근 가능)
+- [ ] 단위 테스트 `parallel-p2-integration.spec.ts` 의 nested concurrency cap silent clamp / pass 케이스 시그니처 수정
+- [ ] e2e 통합 테스트 회귀 확인
+- [ ] `spec/4-nodes/1-logic/10-parallel.md §Rationale 결정 G` 갱신 commit hash 본 PR description 에 참조
+
 ## 의존성·리스크
 
 - DB driver / SDK 의 signal 지원 부재 가능성 — best-effort 컨벤션 (spec/conventions/node-cancellation.md) 으로 명시. driver 별 cancel 메커니즘 조사 필요

@@ -765,6 +765,25 @@ describe('DatabaseQueryHandler', () => {
       expect(output.error.code).toBe('INTEGRATION_SERVICE_UNAVAILABLE');
       expect(output.error.message).toMatch(/integrations service/);
     });
+
+    // SUMMARY#14 — abortSignal 사전 체크 경로 단위 테스트
+    it('throws AbortError when context.abortSignal is already aborted', async () => {
+      const { service } = makeService();
+      const handler = new DatabaseQueryHandler(service as never);
+      const controller = new AbortController();
+      controller.abort();
+      const abortedCtx: ExecutionContext = {
+        ...ctx(),
+        abortSignal: controller.signal,
+      };
+      await expect(
+        handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          abortedCtx,
+        ),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    });
   });
 });
 

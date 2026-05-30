@@ -459,10 +459,54 @@ export class WorkflowsService {
   }
 
   /**
+   * SUMMARY#1/2 — 컨트롤러 Repository 직접 접근 캡슐화 + 단일 evaluateGraphWarningRulesForGraph 진입점.
+   *
+   * GET /workflows/:id/graph-warnings 엔드포인트 응답 shape 을 반환.
+   * 워크플로 nodes/edges 를 로드하고 graphWarningRules 를 평가한다.
+   * throwOnError=false(기본) 이면 결과만 반환; throwOnError=true 이면
+   * severity=error 시 BadRequestException throw (saveCanvas 경로와 동일).
+   *
+   * SoT: spec/conventions/cross-node-warning-rules.md.
+   */
+  async getGraphWarnings(
+    workflowId: string,
+    opts: { throwOnError?: boolean } = {},
+  ): Promise<{
+    results: ReturnType<typeof evaluateGraphWarningRulesForGraph>;
+    hasError: boolean;
+    hasWarning: boolean;
+  }> {
+    const [nodes, edges] = await Promise.all([
+      this.nodeRepository.find({ where: { workflowId } }),
+      this.edgeRepository.find({ where: { workflowId } }),
+    ]);
+    const results = evaluateGraphWarningRulesForGraph(
+      { nodes, edges },
+      (type) => this.registry.getComponent(type)?.metadata.graphWarningRules,
+    );
+    const errors = results.filter((r) => r.severity === 'error');
+    if (opts.throwOnError && errors.length > 0) {
+      throw new BadRequestException({
+        code: 'GRAPH_VALIDATION_FAILED',
+        message: `Graph validation failed: ${errors[0].message}`,
+        details: { errors },
+      });
+    }
+    return {
+      results,
+      hasError: errors.length > 0,
+      hasWarning: results.some((r) => r.severity === 'warning'),
+    };
+  }
+
+  /**
    * Cross-node graphWarningRules 평가 (parallel-p2 §6, 결정 D + E + I).
    * severity 'error' 가 하나라도 있으면 BadRequestException 으로 transaction
    * rollback → 저장 차단. frontend canvas 가 사전 평가하지만 직접 API 호출 /
    * 옛 워크플로 마이그레이션 케이스의 backend 안전망.
+   *
+   * 본 private 메서드는 saveCanvas 트랜잭션 안에서 이미 로드된 nodes/edges 로
+   * 호출되므로 DB 쿼리를 중복 발행하지 않는다. 외부 호출은 getGraphWarnings 사용.
    *
    * SoT: spec/conventions/cross-node-warning-rules.md.
    */

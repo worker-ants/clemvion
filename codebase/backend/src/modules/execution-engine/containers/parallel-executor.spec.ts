@@ -366,5 +366,46 @@ describe('ParallelExecutor', () => {
       // No upstream + no cancel-others-on-fail → branch signal is undefined
       expect(signalsStop.every((s) => s === undefined)).toBe(true);
     });
+
+    // SUMMARY#5 — root cause re-throw race condition: abort 완료된 분기가 AbortError 를
+    // throw 하더라도 첫 non-AbortError 가 최종 throw 로 선택되어야 함
+    it('re-throws the original error (not AbortError) even when abort-completed branch settles first', async () => {
+      // branch 0: root cause (real error)
+      // branch 1: receives abort signal → throws AbortError (simulates abort-completed branch)
+      const abortError = new Error('Operation aborted');
+      abortError.name = 'AbortError';
+
+      const result = await executor
+        .execute(
+          {
+            branchCount: 2,
+            maxConcurrency: 0,
+            waitAll: true,
+            errorPolicy: 'cancel-others-on-fail',
+          },
+          baseContext,
+          async (i, branchCtx) => {
+            if (i === 0) {
+              throw new Error('real-root-cause');
+            }
+            // Simulate: this branch was already being aborted when allSettled ran
+            await new Promise<void>((_, reject) => {
+              if (branchCtx.abortSignal?.aborted) {
+                reject(abortError);
+              } else {
+                branchCtx.abortSignal?.addEventListener(
+                  'abort',
+                  () => reject(abortError),
+                  { once: true },
+                );
+              }
+            });
+          },
+        )
+        .catch((e: Error) => e);
+
+      expect((result as Error).message).toBe('real-root-cause');
+      expect((result as Error).name).not.toBe('AbortError');
+    });
   });
 });

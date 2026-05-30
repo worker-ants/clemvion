@@ -392,4 +392,48 @@ describe('OpenAIClient.listModels', () => {
     const models = await client.listModels();
     expect(models).toHaveLength(100);
   });
+
+  // SUMMARY#15 — chat() 에 signal 전달 경로 테스트
+  describe('OpenAIClient.chat — signal propagation', () => {
+    function makeNonStreamingClient(): {
+      client: OpenAIClient;
+      createMock: jest.Mock;
+    } {
+      const client = new OpenAIClient('sk-test', 'gpt-4o');
+      const createMock = jest.fn().mockResolvedValue({
+        choices: [
+          {
+            message: { content: 'ok', role: 'assistant' },
+            finish_reason: 'stop',
+          },
+        ],
+        model: 'gpt-4o',
+        usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 },
+      });
+      // @ts-expect-error — stub
+      client.client = { chat: { completions: { create: createMock } } };
+      return { client, createMock };
+    }
+
+    it('passes { signal } to SDK create when signal is provided', async () => {
+      const { client, createMock } = makeNonStreamingClient();
+      const controller = new AbortController();
+      await client.chat(
+        { model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] },
+        controller.signal,
+      );
+      expect(createMock).toHaveBeenCalledWith(expect.anything(), {
+        signal: controller.signal,
+      });
+    });
+
+    it('passes undefined options to SDK create when no signal is provided', async () => {
+      const { client, createMock } = makeNonStreamingClient();
+      await client.chat({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: 'hi' }],
+      });
+      expect(createMock).toHaveBeenCalledWith(expect.anything(), undefined);
+    });
+  });
 });
