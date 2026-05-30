@@ -1,0 +1,25 @@
+{
+  "name": "channel-web-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "임베드형 웹채팅 위젯 SPA (Next.js CSR 전용, output:export). spec/7-channel-web-chat.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^16.2.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "^16.2.3",
+    "typescript": "^5"
+  }
+}
