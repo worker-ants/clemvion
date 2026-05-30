@@ -31,6 +31,14 @@ owner: project-planner
 
   **consistency-check 결과**: `review/consistency/2026/05/30/14_48_20/SUMMARY.md` — BLOCK: NO, 위험도 LOW (Critical 0건, Warning 4건 모두 보완 반영, Info 9건).
 
+  **PR2 진행 (2026-05-30 — branch `claude/retry-downstream-traversal-impl-875fca`, base `bc2dd281`)**:
+  - `/consistency-check --impl-prep spec/5-system/` 결과: **BLOCK: NO** (`review/consistency/2026/05/30/15_10_30/SUMMARY.md`). 위험도 MEDIUM.
+    - **cross-spec W1** (`completed→running` 신규 전이 우려): 본 구현 경로에선 발생 안 함 — `finalizeAiNode(COMPLETED, retryReentry: true)` 가 spawn row COMPLETED + Execution RUNNING 으로 전이한 후 `resumeGraphAfterRetry` 가 graph loop 합류 → 정상 `RUNNING → COMPLETED` 종결. `completed → running` 전이는 우리 흐름에 없음.
+    - **convention HIGH** (W2~W4 / C2): 모두 본 PR2 와 무관한 다른 spec 파일 (`1-auth.md` `lower_snake_case` 에러 코드 / `11-mcp-client.md` / `12-webhook.md` frontmatter `spec-only` ↔ 실 구현 갭) 사전 결함. 별 PR 으로 분리.
+    - **plan-coherence C1** (worktree 경합): spec PR1 worktree 와 impl PR2 worktree 동시 존재 — PR1 push 후 spec worktree 정리 예정.
+  - **구현 방식**: in-process loop 직접 합류 — `resumeGraphAfterRetry` 헬퍼 신설, `resumeFromCheckpoint` (line 976-1337) 의 graph rebuild + traversal loop + completion 패턴을 차용하되 시작 단계 (waitForX 호출) 만 생략하고 completed node 의 outgoing edge 부터 진행. worker processor (continuation job handler) 컨텍스트 안에서 호출 — WS gateway 직접 동기 실행 경로 없음. 새 BullMQ job 발행 없음 (이미 worker context).
+  - **frontmatter 정리 결정**: 본 PR2 자체에서는 3 target spec 파일 (`1-ai-agent.md` / `6-websocket-protocol.md` / `13-replay-rerun.md`) 의 frontmatter `status` / `code:` / `pending_plans:` 갱신 안 함. 각 파일이 retry 외에도 광범위한 구현 surface (AI Agent 노드 전체 / WS 프로토콜 전체 / Re-run 기능 전체) 를 가지며, 본 PR2 의 retry downstream traversal 만으로 `spec-only → partial` 승격 책임을 떠안는 건 scope creep. spec 파일별 frontmatter 정리는 별 plan 으로 분리 추적.
+
 ## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8, #9)
 
 ### WARNING #1 — `_retryState` 소비 원자성 (spec + 구현)
