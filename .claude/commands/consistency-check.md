@@ -14,7 +14,7 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 
 2. **manifest 로드 + Workflow 실행**: `<session_dir>/_retry_state.json` 을 Read (경로뿐, 작음) → `subagent_invocations` / `summary_subagent_type` / `summary_output_file` 추출 → `Workflow(name="consistency-check", args={invocations, summary:{subagent_type, output_file}})`. Workflow 가 checker 병렬 invoke (각 checker 가 자기 `prompt_file` Read → `output_file` Write) 후 `consistency-summary` 가 통합 SUMMARY.md 를 `summary_output_file` 에 **직접 Write** 하고 짧은 status(`BLOCK`) 만 반환. 완료 시 task-notification.
 
-3. **BLOCK 결정**: Workflow 반환의 `block` (YES/NO) 으로 판정한다 — SUMMARY.md 전문을 다시 Read 하지 않는다(불필요한 컨텍스트 적재). `summary_written=false` 인 fallback(write 차단) 경우에만 반환의 `summary_markdown` 을 `summary_output_file` 에 Write 한 뒤 그 `BLOCK` 라인을 확인. 반환의 `unfinished[]` 가 있으면 해당 checker 만 재실행.
+3. **SUMMARY 기록 + BLOCK 결정**: **반드시** 반환의 `summary_markdown` 을 `summary_output` 에 Write 한다 (`summary_written` 값과 **무관하게 멱등 persist** — workflow 의 terminal summary write 는 차단될 수 있고 workflow 스크립트는 FS 접근이 없으므로 디스크 단일 진실의 신뢰 경로는 main 의 이 Write 다). 그 다음 반환의 `block` (YES/NO) 으로 판정. 반환의 `unfinished[]` 가 있으면 해당 checker 만 재실행.
    - **BLOCK: YES** → Critical 위배. 호출자(planner/developer)에게 즉시 보고하고 작업 차단. (`developer` skill 안에서 호출되면 그 작업을 멈춘다.)
    - **BLOCK: NO** → Warning/Info 만 사용자에게 보여주고 진행.
 
