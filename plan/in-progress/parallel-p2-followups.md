@@ -37,9 +37,10 @@ PR #368 가 backend 인프라 + `GET /workflows/:id/graph-warnings` endpoint 까
 
 현재 `GET /workflows/:id/graph-warnings` 는 frontend 가 명시적으로 호출 — 우회 시 reject 안 됨. Node/Edge save 시점에 자동 평가 + severity `error` reject 가 진정한 3중 가드의 backend 단.
 
-- [ ] NodesService.create/update + EdgesService.create/update 의 hook 또는 별 service 의 saveAll 메서드 도입 후 graphWarningRules 평가 → 400 reject
-- [ ] 일관성 보장 (node 변경 후 edge 변경 사이 inconsistent state 회피) — transaction 또는 별 endpoint `POST /workflows/:id/save-graph`
-- [ ] 통합 테스트
+- [x] `WorkflowsService.saveCanvas` (이미 transaction 안에서 nodes/edges sync 후 일괄 처리) 안에 `evaluateGraphWarnings(savedNodes, savedEdges)` 추가 — severity `error` 시 `BadRequestException { code: 'GRAPH_VALIDATION_FAILED', message, details: { errors } }` → transaction rollback
+- [x] 일관성 보장 — `dataSource.transaction` 안에서 syncNodes → syncEdges → evaluate → throw 시 rollback. 별 endpoint 추가 없이 `POST /workflows/:id/save` 가 단일 진입점
+- [x] 단위 테스트 — error rule 발화 시 GRAPH_VALIDATION_FAILED reject + warning rule 만 발화 시 저장 통과 (2건 신규)
+- [ ] 통합 테스트 (e2e) — 실제 HTTP API 통해 3층 중첩 Parallel 워크플로우 저장 시도 시 400 reject 확인 — **후속** (parallel-p2-followups §4 와 함께)
 
 ### 4. parallel-p2 §5 통합 테스트
 
