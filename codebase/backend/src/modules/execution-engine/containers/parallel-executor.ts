@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import pLimit from 'p-limit';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 
-export type ParallelErrorPolicy = 'stop' | 'continue';
+export type ParallelErrorPolicy = 'stop' | 'continue' | 'cancel-others-on-fail';
 
 export interface ParallelConfig {
   branchCount: number;
@@ -107,6 +107,34 @@ export class ParallelExecutor {
     }
     const errorPolicy: ParallelErrorPolicy = config.errorPolicy ?? 'stop';
 
+    // parallel-p2 §5 (결정 A + H, 2026-05-30): cancel-others-on-fail 일 때 자기
+    // 분기 그룹용 AbortController 를 만들고 branch context 에 그 signal 을 전파.
+    // 첫 분기 실패 시 controller.abort() 호출 → signal-aware 노드 (HTTP / DB /
+    // AI / Email — node-cancellation.md 컨벤션) 가 즉시 cleanup.
+    // 외부에서 전달된 context.abortSignal 이 있으면 그 abort 도 cascade — 상위
+    // cancellation 이 본 그룹에도 전파됨.
+    const cancelController =
+      errorPolicy === 'cancel-others-on-fail' ? new AbortController() : null;
+    const upstreamSignal = context.abortSignal;
+    if (cancelController && upstreamSignal) {
+      if (upstreamSignal.aborted) {
+        cancelController.abort();
+      } else {
+        const onUpstreamAbort = () => cancelController.abort();
+        upstreamSignal.addEventListener('abort', onUpstreamAbort, {
+          once: true,
+        });
+        cancelController.signal.addEventListener(
+          'abort',
+          () => upstreamSignal.removeEventListener('abort', onUpstreamAbort),
+          { once: true },
+        );
+      }
+    }
+    const branchSignal = cancelController
+      ? cancelController.signal
+      : upstreamSignal;
+
     const limit = pLimit(effectiveConcurrency);
     const indices = Array.from({ length: branchCount }, (_, i) => i);
 
@@ -136,8 +164,19 @@ export class ParallelExecutor {
             // 외부 effective 를 전파. 깊이 ≤ 2 가드 (planParallelBody) 하에서
             // 한 단계만 누적되므로 단순 set (overwrite).
             parentParallelConcurrency: effectiveConcurrency,
+            // 결정 A: cancel-others-on-fail 시 자기 그룹용 controller.signal,
+            // 아니면 상위 abortSignal pass-through (있는 경우).
+            abortSignal: branchSignal,
           };
-          await runBranch(i, branchContext);
+          try {
+            await runBranch(i, branchContext);
+          } catch (err) {
+            if (cancelController && !cancelController.signal.aborted) {
+              // 첫 실패 시 즉시 다른 분기 abort. 한 번만 발화 (idempotent).
+              cancelController.abort();
+            }
+            throw err;
+          }
         }),
       ),
     );
@@ -156,8 +195,20 @@ export class ParallelExecutor {
 
     // errorPolicy=stop: surface the first failure so the Parallel node
     // transitions to FAILED via executeNode's catch + errorPolicyHandler.
+    // errorPolicy=cancel-others-on-fail: 첫 실패가 다른 분기를 abort 시키므로
+    // 그 abort 로 인한 다운스트림 AbortError 는 의도된 결과. 외부에는 첫 실패
+    // 의 원인 (root cause) 만 throw 해 의미를 보존.
     if (errorPolicy === 'stop' && failures.length > 0) {
       throw failures[0].error;
+    }
+    if (errorPolicy === 'cancel-others-on-fail' && failures.length > 0) {
+      // 첫 (root cause) failure 를 가장 먼저 throw — AbortError 는 후속 분기의
+      // cleanup 결과이므로 사용자 메시지의 신호 대 잡음을 위해 root 만 노출.
+      const rootCause =
+        failures.find(
+          (f) => f.error.name !== 'AbortError' && f.error.name !== 'AbortError',
+        )?.error ?? failures[0].error;
+      throw rootCause;
     }
 
     return { settled, failures, clampedConcurrency };

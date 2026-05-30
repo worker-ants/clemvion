@@ -314,7 +314,8 @@ Modifying a variable that has not been declared raises an error. Always declare 
 
 <FieldTable rows={[
   { name: "Branch Count", required: true, type: "number", description: "Number of branches to run in parallel. Between 2 and 16.", default: "2" },
-  { name: "Max Concurrency", required: false, type: "number", description: "Max branches running at once. `0` runs everything in parallel; 1–16 caps the concurrent count.", default: "0 (unlimited)" }
+  { name: "Max Concurrency", required: false, type: "number", description: "Max branches running at once. `0` runs everything in parallel; 1–16 caps the concurrent count.", default: "0 (unlimited)" },
+  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "What happens when a branch fails. `stop` fails the whole Parallel on the first failure. `continue` waits for every branch to finish and collects failure info alongside successes. `cancel-others-on-fail` aborts other branches' in-flight external I/O (e.g. HTTP) the moment the first failure surfaces.", default: "stop" }
 ]} />
 
 ### Ports
@@ -372,7 +373,7 @@ Both patterns can coexist — use `done` for the full list and Merge for a resha
 </Example>
 
 <Callout type="warn">
-Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. Back-edges (cycles) and nesting Parallel inside another Parallel are not supported yet.
+Inside a Parallel branch you cannot use **blocking nodes** — Form, blocking buttons, AI multi-turn. Back-edges (cycles) are blocked. Nested Parallel is allowed up to **depth 2** (one inner Parallel inside an outer Parallel). When outer × inner concurrency exceeds 32, the inner one is silently clamped — see `meta.clampedConcurrency` on the Parallel result.
 </Callout>
 
 <Callout type="tip">

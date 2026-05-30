@@ -190,16 +190,19 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 
 **선행 plan**: [`node-cancellation-infrastructure.md`](./node-cancellation-infrastructure.md) — `NodeHandler.execute(..., signal?)` 인터페이스, `ExecutionContext.abortSignal?`, 외부 I/O 노드 (HTTP/DB/AI) 의 signal 전파. 본 작업 단위는 그 인프라 위에서 Parallel 노드 단의 표면만 처리.
 
-- [ ] 선행 plan 완료 확인 — `ExecutionContext.abortSignal` 필드와 외부 I/O 노드 (최소 HTTP) 의 signal 전파가 제공되는지
-- [ ] `parallelNodeConfigSchema.errorPolicy` enum 확장: `'stop' | 'continue' | 'cancel-others-on-fail'`
-- [ ] `validateParallelConfig` 에서 새 값 허용
-- [ ] `parallel.handler.ts` config echo 에 그대로 전달
-- [ ] `ParallelExecutor.execute` 가 `errorPolicy === 'cancel-others-on-fail'` 일 때 — 내부 `AbortController` 생성, 첫 분기 실패 시 `controller.abort()` 호출, 각 branchContext.abortSignal 에 set (선행 plan 의 ExecutionContext 신규 필드 활용)
-- [ ] frontend `ParallelConfig` SelectField 옵션 추가 (`errCancelOthersOnFail`) + i18n KO/EN 추가
-- [ ] spec `10-parallel.md` §1 errorPolicy 행 + §4 실행 로직 + §6 에러 코드 표 갱신 — abort signal 전파 + best-effort 의미 명시
-- [ ] 사용자 가이드 (`codebase/frontend/src/content/docs/02-nodes/logic.mdx` + `logic.en.mdx`) errorPolicy 행 갱신
-- [ ] 단위 테스트 (`parallel-executor.spec.ts`) — abort 콜백 시점/순서 검증
-- [ ] 통합 테스트 — HTTP 노드를 사용한 분기에서 첫 실패 시 나머지 분기의 HTTP 가 abort 되는지 (선행 plan 의 HTTP signal 전파 활용)
+- [x] 선행 plan (`node-cancellation-infrastructure.md`) 의 `ExecutionContext.abortSignal` 신규 필드 + HTTP 노드 fetch signal cascade 가 PR #369 로 main 머지 — 본 작업 unblock
+- [x] `parallelNodeConfigSchema.errorPolicy` enum 확장: `'stop' | 'continue' | 'cancel-others-on-fail'` + UI hint 갱신
+- [x] `validateParallelConfig` 의 enum 검증 갱신 (메시지: `'stop', 'continue', or 'cancel-others-on-fail'`)
+- [x] `parallel.handler.ts` config echo — `rawConfig.errorPolicy` 그대로 전달 (변경 없음)
+- [x] `ParallelExecutor.execute` — `errorPolicy === 'cancel-others-on-fail'` 일 때 자기 그룹용 `AbortController` 생성, branch context 의 `abortSignal` 에 set, 첫 실패 시 `controller.abort()`, 외부 `context.abortSignal` 과 cascade. root cause re-throw 시 AbortError 가 아닌 첫 실패 우선
+- [x] `ParallelErrorPolicy` 타입 확장: `'stop' | 'continue' | 'cancel-others-on-fail'`
+- [x] `ExecutionEngineService.runParallel`: 새 enum 값을 직접 사용 허용 (fallback 분기 그대로)
+- [x] frontend `ParallelConfig` SelectField 옵션 추가 (`errCancelOthersOnFail`) + KO/EN i18n
+- [x] frontend 단위 테스트 — options 검증 갱신 (`stop / continue / cancel-others-on-fail`)
+- [x] spec `10-parallel.md` §1 errorPolicy 행 + §4 실행 로직 + §6 에러 코드 표 + § Rationale `cancel-others-on-fail errorPolicy` 단락 신설
+- [x] 사용자 가이드 `logic.mdx` + `logic.en.mdx` — Parallel `Error Policy` 필드 추가 + 중첩 깊이 ≤ 2 + cap=32 명시
+- [x] 단위 테스트 (`parallel-executor.spec.ts`) 4건 신규 — signal 전파, 첫 실패 abort cascade, upstream cascade, stop/continue 와 분리
+- [ ] 통합 테스트 — HTTP 노드를 사용한 분기에서 첫 실패 시 나머지 분기의 HTTP 가 abort 되는지 (e2e 수준) — **후속 PR** (engine spec 의 mock 셋업 무거움. 단위 + spec 명시로 핵심 잠금)
 
 ### 6. Parallel cross-node warningRule 등재 (결정 D + E, 선행 plan 의존)
 

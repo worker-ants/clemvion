@@ -275,6 +275,7 @@ export const nodeConfigs = {
     errStop: "오류 시 중단",
     errSkip: "항목 건너뛰기",
     errContinue: "계속 진행",
+    errCancelOthersOnFail: "실패 시 다른 분기 취소",
     arrayField: "배열 필드",
     arrayFieldHintIterate: "순회할 배열",
     collectAsArray: "결과를 배열로 수집",
