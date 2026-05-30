@@ -69,8 +69,25 @@ describe('LlmService', () => {
         defaultModel: 'gpt-4o',
         baseUrl: undefined,
       });
-      expect(mockClient.chat).toHaveBeenCalledWith(params);
+      // signal 인자는 미전달 케이스라 undefined — chat(params, undefined)
+      expect(mockClient.chat).toHaveBeenCalledWith(params, undefined);
       expect(result.content).toBe('response');
+    });
+
+    it('forwards opts.signal to client.chat (node-cancellation 컨벤션, parallel-p2 followups §1)', async () => {
+      const config = {
+        id: 'config-1',
+        provider: 'openai',
+        defaultModel: 'gpt-4o',
+        apiKey: 'encrypted',
+      } as never;
+      mockClient.chat.mockResolvedValue({ content: 'ok' } as never);
+      const controller = new AbortController();
+      const params = { model: 'gpt-4o', messages: [] as never[] };
+      await service.chat(config, params as never, undefined, {
+        signal: controller.signal,
+      });
+      expect(mockClient.chat).toHaveBeenCalledWith(params, controller.signal);
     });
 
     // spec/5-system/6-websocket-protocol.md §4.4.6 — `source` is a

@@ -114,7 +114,14 @@ export type ChatStreamEvent =
   | { type: 'error'; code: string; message: string };
 
 export interface LLMClient {
-  chat(params: ChatParams): Promise<ChatResult>;
+  /**
+   * Optional `signal` (2026-05-30, node-cancellation 컨벤션) aborts the
+   * underlying HTTP request so cancel-others-on-fail / Workflow timeout /
+   * 사용자 cancel 이 in-flight AI 호출을 즉시 cleanup 한다. Provider SDK
+   * 가 미지원이면 best-effort — signal 을 무시하고 정상 완료.
+   * SoT: spec/conventions/node-cancellation.md.
+   */
+  chat(params: ChatParams, signal?: AbortSignal): Promise<ChatResult>;
   embed(texts: string[], model?: string): Promise<number[][]>;
   /**
    * Optional `signal` aborts the underlying HTTP request. Used by the service
