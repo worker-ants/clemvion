@@ -1,30 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useWidget } from "./use-widget";
+import { Launcher } from "./components/launcher";
+import { Panel } from "./components/panel";
+import { widgetStyles } from "./styles";
 
-// 위젯 SPA shell (스캐폴딩 단계 stub).
-// 상태기계·EIA 클라이언트(webhook/SSE/REST)·화면(런처/패널/메시지/입력)은 후속 increment 에서 구현.
-// SoT: spec/7-channel-web-chat/1-widget-app (화면 구조 §2, 상태기계 §3, 종료/재시작 §3.1).
-type WidgetState = "collapsed" | "panel" | "booting" | "streaming" | "awaiting_user_message" | "ended";
-
+// 위젯 SPA 진입 — useWidget(상태기계+EIA+bridge) 로 런처/패널 렌더.
+// spec/7-channel-web-chat/1-widget-app.
 export default function WidgetApp() {
-  const [state, setState] = useState<WidgetState>("collapsed");
+  const { state, config, actions } = useWidget();
 
-  // TODO(impl): postMessage bridge(wc:* — 2-sdk §3), boot config 수신, conversation 렌더 규약
-  // (conversationThread.turns 1차 소스 + [user-input] strip — 1-widget-app §2), per_execution 세션(3-auth-session).
+  // config 미수신(boot 대기) → 런처만 노출(추천질문 없음).
+  const primaryColor = config?.appearance?.primaryColor ?? "#5B4FE9";
+  const position = config?.appearance?.position ?? "bottom-right";
+  const launcherSuggestions = config?.launcher?.suggestions ?? [];
+
   return (
-    <div data-testid="web-chat-widget" data-state={state}>
-      {state === "collapsed" ? (
-        <button type="button" aria-label="채팅 열기" onClick={() => setState("panel")}>
-          chat
-        </button>
+    <div className="wc-root" data-position={position} data-testid="web-chat-widget" data-phase={state.phase}>
+      <style>{widgetStyles}</style>
+      {state.open && config ? (
+        <Panel state={state} config={config} actions={actions} />
       ) : (
-        <section aria-label="채팅 패널">
-          <button type="button" aria-label="닫기" onClick={() => setState("collapsed")}>
-            close
-          </button>
-          {/* 헤더 · 환영 메시지 · 퀵액션 · 추천질문 · 메시지 리스트 · 입력창 · 면책 푸터 — 후속 구현 */}
-        </section>
+        <Launcher
+          suggestions={state.messages.length === 0 ? launcherSuggestions : []}
+          primaryColor={primaryColor}
+          unread={state.unread}
+          onOpen={actions.open}
+          onSuggestion={(text) => {
+            actions.open();
+            actions.submitMessage(text);
+          }}
+        />
       )}
     </div>
   );

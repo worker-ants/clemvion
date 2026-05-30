@@ -51,12 +51,13 @@ export class WidgetBridge {
     this.win.addEventListener("message", this.onMessage);
   }
 
-  /** host → iframe 명령 전송. wc:ready 전이면 버퍼링. */
+  /** host → iframe 명령 전송. wc:ready(iframe 핸드셰이크) 전이면 버퍼링 — wc:boot 포함.
+   *  iframe 이 로드 완료 후 wc:ready 를 보내면 큐를 순서대로 flush(wc:boot 먼저). */
   post(type: WcMessageType, payload?: unknown): void {
     if (!type.startsWith(WC_MESSAGE_PREFIX)) {
       throw new Error(`[web-chat] 잘못된 메시지 type(prefix 누락): ${type}`);
     }
-    if (!this.ready && type !== "wc:boot") {
+    if (!this.ready) {
       this.outbox.push({ type, payload });
       return;
     }
