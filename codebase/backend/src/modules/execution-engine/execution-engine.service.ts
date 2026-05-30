@@ -3171,7 +3171,11 @@ export class ExecutionEngineService
    *      `finalizeAiNode` 의 COMPLETED 분기가 담당 (W4: JSDoc 정합).
    *   5. `runAiConversationLoop` 를 마지막 user message replay (initialAction =
    *      `ai_message`) 로 구동 → 실패했던 LLM turn 재실행. 이후 정상 loop.
-   *   6. `finalizeAiNode` 로 spawn 된 row + Execution 마감.
+   *   6. `finalizeAiNode` 로 spawn row 마감 + Execution 을 RUNNING 으로 전이.
+   *   7. 성공 종결이면 `resumeGraphAfterRetry` 가 downstream graph 로 진행
+   *      (WARNING #10 해소; spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8).
+   *      실패/취소 종결이면 `failRetryExecution` 이 Execution 을 FAILED 또는
+   *      CANCELLED 로 마감 (일반 노드 종결 규칙 — spec §10).
    */
   async applyRetryLastTurn(
     executionId: string,
@@ -3307,7 +3311,11 @@ export class ExecutionEngineService
         finalStatus,
         { retryReentry: true },
       );
-      await this.completeRetryExecution(execution, executionId);
+      // WARNING #10 해소 (spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8):
+      // 재진입 성공 후 일반 노드 COMPLETED 와 동일하게 출력 포트의 downstream
+      // 으로 graph 진행을 이어간다. downstream 이 없는 leaf 노드면 자연
+      // Execution.COMPLETED 마감 (이전 동작과 동일).
+      await this.resumeGraphAfterRetry(execution, executionId, context, node);
     } catch (error: unknown) {
       await this.failRetryExecution(execution, executionId, error);
     } finally {
@@ -3412,17 +3420,15 @@ export class ExecutionEngineService
   }
 
   /**
-   * W6/W7/W13 — retry 성공 종결 시 Execution 마감. retry 재진입은 노드 단위
-   * 재시도이므로 Execution 을 COMPLETED 로 마감한다 (finalizeAiNode 가 RUNNING
-   * 으로 전이해 둔 것을 이어받는다).
+   * retry 성공 종결 시 Execution 을 직접 COMPLETED 로 마감하는 fallback.
+   * 정상 경로(`resumeGraphAfterRetry`)에서 workflow nodes/edges 가 비어있거나
+   * completedNode 가 그래프에 없는 등 graph rebuild 불가 시에만 호출된다.
+   * (이전엔 정상 경로였으나 WARNING #10 — spec/4-nodes/3-ai/1-ai-agent.md §7.9
+   * + §12.8 — 의 해소로 정상 경로는 graph traversal 합류로 교체됨.)
    *
-   * ⚠️ DOCUMENTED GAP (WARNING #10) — 성공한 retry 후 이 AI 노드의 downstream
-   * 노드가 존재하면 그들은 실행되지 않는다. retry 는 "실패한 마지막 turn 재실행
-   * + 대화 재개" 까지를 보장하며, 대화 종료 후 그래프 순회 재개
-   * (resumeFromCheckpoint 의 reachability/back-edge 로직) 는 본 phase 범위 밖이다.
-   * spec 상 retry_last_turn 은 노드 단위 재시도로 정의돼 있어 (워크플로 Re-run §13
-   * 과 구분) 현재 동작은 spec 준수 — downstream 재개는 별도 spec 결정/후속 작업.
-   * 대부분의 multi-turn AI 노드는 대화형 종단 노드라 실측 영향이 작다.
+   * downstream 이 없는 leaf AI 노드의 경우에도 본 helper 대신 정상 경로
+   * (`resumeGraphAfterRetry`) 가 graph loop 자연 종결을 통해 동일한 결과
+   * (Execution.COMPLETED) 를 만든다.
    */
   private async completeRetryExecution(
     execution: Execution,
@@ -3433,6 +3439,332 @@ export class ExecutionEngineService
     execution.durationMs =
       execution.finishedAt.getTime() - execution.startedAt.getTime();
     await this.executionRepository.save(execution);
+    this.eventEmitter.emitExecution(
+      executionId,
+      ExecutionEventType.EXECUTION_COMPLETED,
+      { status: ExecutionStatus.COMPLETED },
+    );
+  }
+
+  /**
+   * spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8 — retry_last_turn 성공 종결 후
+   * 일반 노드 COMPLETED 와 동일하게 출력 포트의 downstream 노드로 그래프 진행을
+   * 이어간다 (WARNING #10 해소).
+   *
+   * 본 메서드는 `applyRetryLastTurn` 의 worker processor 컨텍스트에서 호출되며,
+   * 새 BullMQ job 발행 없이 in-process graph loop 합류한다. WS gateway 가 직접
+   * graph 동기 실행하는 경로는 본 retry 흐름에 없다.
+   *
+   * 동작 흐름:
+   *   1. workflow nodes/edges 로드 + graph rebuild (buildGraph / topologicalSort
+   *      / buildEdgeIndexes — `runExecution` 의 1505-1535 와 동일 패턴).
+   *   2. completedNode 가 그래프에 없거나 nodes 가 비어 있으면 defensive
+   *      fallback — `completeRetryExecution` 으로 Execution.COMPLETED 마감.
+   *   3. reachable seed (트리거 + no-incoming + context._executedNodes +
+   *      completedNode) + propagateReachability + back-edge 처리.
+   *   4. 그래프 traversal loop — downstream 노드 dispatch / blocking 노드
+   *      (form/button/AI multi-turn) waitForX 진입 등 일반 dispatch 와 동일
+   *      (`resumeFromCheckpoint` 의 1140-1314 패턴 동일).
+   *   5. 자연 종결 시 Execution 을 COMPLETED 로 마감 + lastNode 출력 저장.
+   *
+   * **`executeWithRetry` (노드 에러 정책 자동 재실행) 와 무관** — 본 메서드는
+   * 사용자 `execution.retry_last_turn` WS 명령 경로 전용.
+   *
+   * **multi-turn AI downstream 한계**: downstream 이 또 다른 multi-turn AI
+   * 노드인 경우 첫 dispatch 는 정상 진행되나, 그 노드가 waiting 중 인스턴스
+   * 재시작 발생 시 spec/5-system/4-execution-engine.md §7.5
+   * `RESUME_INCOMPATIBLE_STATE` 한계가 동일하게 적용된다.
+   *
+   * Throws: ExecutionCancelledError / 기타 graph loop 예외 — caller
+   * (`applyRetryLastTurn`) 의 catch 가 `failRetryExecution` 으로 처리한다.
+   *
+   * @remarks 본 메서드의 traversal loop + completion 코드는 `resumeFromCheckpoint`
+   * 의 line 1115-1337 와 거의 동일하다. 공통 helper 추출 리팩토링은 PR2 scope
+   * creep 회피를 위해 후속 plan 으로 분리한다.
+   */
+  private async resumeGraphAfterRetry(
+    savedExecution: Execution,
+    executionId: string,
+    context: ExecutionContext,
+    completedNode: Node,
+  ): Promise<void> {
+    // 1. workflow nodes/edges 로드.
+    const nodes = await this.nodeRepository.findBy({
+      workflowId: savedExecution.workflowId,
+    });
+    const edges = await this.edgeRepository.findBy({
+      workflowId: savedExecution.workflowId,
+    });
+
+    // 2. defensive fallback — graph 없으면 즉시 COMPLETED 마감.
+    if (nodes.length === 0) {
+      this.logger.warn(
+        `resumeGraphAfterRetry: workflow ${savedExecution.workflowId} has no nodes — falling back to Execution.COMPLETED finalize (executionId=${executionId})`,
+      );
+      await this.completeRetryExecution(savedExecution, executionId);
+      return;
+    }
+
+    const { graphNodes, graphEdges } = buildGraph(nodes, edges);
+    const { forwardEdges, backEdges } = identifyBackEdges(
+      graphNodes,
+      graphEdges,
+    );
+    const sortedNodeIds = topologicalSort(graphNodes, forwardEdges);
+    const sortedIndexMap = new Map<string, number>();
+    for (let i = 0; i < sortedNodeIds.length; i++) {
+      sortedIndexMap.set(sortedNodeIds[i], i);
+    }
+    const { backEdgeMap, outgoingEdgeMap, incomingEdgeMap } =
+      this.graphTraversal.buildEdgeIndexes(
+        graphEdges,
+        backEdges,
+        sortedIndexMap,
+      );
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const maxNodeIterations = this.configService.get<number>(
+      'MAX_NODE_ITERATIONS',
+      100,
+    );
+
+    const completedPointer = sortedIndexMap.get(completedNode.id);
+    if (completedPointer === undefined) {
+      this.logger.warn(
+        `resumeGraphAfterRetry: completed node ${completedNode.id} not in sorted graph (workflow=${savedExecution.workflowId}) — falling back to Execution.COMPLETED finalize`,
+      );
+      await this.completeRetryExecution(savedExecution, executionId);
+      return;
+    }
+
+    // 3. reachable seed (트리거 + no-incoming + 복원된 완료 노드 + completedNode).
+    const reachable = this.graphTraversal.seedInitialReachability(
+      sortedNodeIds,
+      nodeMap,
+      forwardEdges,
+    );
+    const executedNodes = context._executedNodes ?? new Set<string>();
+    context._executedNodes = executedNodes;
+    for (const nid of executedNodes) reachable.add(nid);
+    reachable.add(completedNode.id);
+
+    const nodeExecutionCount = new Map<string, number>();
+    nodeExecutionCount.set(completedNode.id, 1);
+
+    // 4. completedNode 를 executedNodes 에 등록 + outgoing reachability 전파 +
+    // back-edge 처리 (resumeFromCheckpoint 의 line 1113-1138 패턴).
+    executedNodes.add(completedNode.id);
+    this.graphTraversal.propagateReachability(
+      completedNode.id,
+      outgoingEdgeMap,
+      context.nodeOutputCache,
+      reachable,
+    );
+
+    let pointer = completedPointer + 1;
+    const backEdgesFromCompleted = backEdgeMap.get(completedNode.id);
+    if (backEdgesFromCompleted?.length) {
+      const activated = this.findActivatedBackEdge(
+        completedNode.id,
+        backEdgesFromCompleted,
+        context.nodeOutputCache,
+      );
+      if (activated) {
+        for (let i = activated.targetIndex; i <= completedPointer; i++) {
+          reachable.delete(sortedNodeIds[i]);
+        }
+        reachable.add(sortedNodeIds[activated.targetIndex]);
+        pointer = activated.targetIndex;
+      }
+    }
+
+    // 5. 그래프 traversal loop (resumeFromCheckpoint 의 1140-1314 패턴 — input
+    // 은 retry 경로엔 의미 없으므로 빈 객체).
+    const input = {};
+    while (pointer < sortedNodeIds.length) {
+      const nodeId = sortedNodeIds[pointer];
+      const node = nodeMap.get(nodeId);
+      if (!node) {
+        pointer++;
+        continue;
+      }
+      if (!reachable.has(nodeId)) {
+        pointer++;
+        continue;
+      }
+      const count = (nodeExecutionCount.get(nodeId) ?? 0) + 1;
+      nodeExecutionCount.set(nodeId, count);
+      if (maxNodeIterations > 0 && count > maxNodeIterations) {
+        throw new Error(
+          `Node "${node.label ?? node.type}" exceeded maximum iteration count (${maxNodeIterations}). ` +
+            `Set MAX_NODE_ITERATIONS=0 for unlimited.`,
+        );
+      }
+      if (node.isDisabled) {
+        await this.handleDisabledNode(
+          executionId,
+          nodeId,
+          node,
+          context,
+          executedNodes,
+        );
+        pointer++;
+        continue;
+      }
+      const nodeInput = this.gatherNodeInput(
+        nodeId,
+        graphEdges,
+        executedNodes,
+        context.nodeOutputCache,
+        input,
+        incomingEdgeMap,
+      );
+      await this.executeNode(
+        executionId,
+        node,
+        nodeInput,
+        context,
+        executedNodes,
+        nodeMap,
+        {
+          startedAt: savedExecution.startedAt?.toISOString(),
+          mode: 'manual',
+        },
+        outgoingEdgeMap,
+      );
+      const dispatchKind = this.handlerRegistry.getMetadata(node.type).kind;
+      if (dispatchKind === 'container') {
+        await this.runContainer(
+          node,
+          nodes,
+          edges,
+          context,
+          executionId,
+          executedNodes,
+          {
+            startedAt: savedExecution.startedAt?.toISOString(),
+            mode: 'manual',
+          },
+        );
+      }
+      if (dispatchKind === 'background') {
+        await this.scheduleBackgroundBody(
+          node,
+          edges,
+          context,
+          executionId,
+          input,
+        );
+      }
+      if (
+        dispatchKind === 'parallel' &&
+        this.configService.get<string>('PARALLEL_ENGINE', 'off') === 'v1'
+      ) {
+        const parallelInput = this.gatherNodeInput(
+          nodeId,
+          graphEdges,
+          executedNodes,
+          context.nodeOutputCache,
+          input,
+          incomingEdgeMap,
+        );
+        await this.runParallel(
+          node,
+          nodes,
+          edges,
+          forwardEdges,
+          backEdges,
+          outgoingEdgeMap,
+          context,
+          executionId,
+          executedNodes,
+          {
+            startedAt: savedExecution.startedAt?.toISOString(),
+            mode: 'manual',
+          },
+          reachable,
+          parallelInput,
+        );
+        pointer++;
+        continue;
+      }
+
+      // Blocking nodes (downstream 에 또 다른 form/button/AI 가 있을 수 있음 —
+      // 정상 흐름과 동일하게 처리).
+      const downstreamOutput = context.nodeOutputCache[node.id] as
+        | Record<string, unknown>
+        | undefined;
+      const downstreamInteraction = this.getInteractionType(context, node.id);
+      if (downstreamOutput?.status === 'waiting_for_input') {
+        const downstreamBlocking = this.handlerRegistry.getMetadata(node.type);
+        if (
+          downstreamBlocking.kind === 'blocking' &&
+          downstreamBlocking.interaction === 'form'
+        ) {
+          await this.waitForFormSubmission(
+            savedExecution,
+            executionId,
+            node,
+            context,
+          );
+        } else if (downstreamInteraction === 'buttons') {
+          await this.waitForButtonInteraction(
+            savedExecution,
+            executionId,
+            node,
+            context,
+            graphEdges,
+          );
+        } else if (downstreamInteraction === 'ai_conversation') {
+          await this.waitForAiConversation(
+            savedExecution,
+            executionId,
+            node,
+            context,
+          );
+        }
+      }
+
+      this.graphTraversal.propagateReachability(
+        nodeId,
+        outgoingEdgeMap,
+        context.nodeOutputCache,
+        reachable,
+      );
+
+      const downstreamBackEdges = backEdgeMap.get(nodeId);
+      if (downstreamBackEdges?.length) {
+        const activated = this.findActivatedBackEdge(
+          nodeId,
+          downstreamBackEdges,
+          context.nodeOutputCache,
+        );
+        if (activated) {
+          for (let i = activated.targetIndex; i <= pointer; i++) {
+            reachable.delete(sortedNodeIds[i]);
+          }
+          reachable.add(sortedNodeIds[activated.targetIndex]);
+          pointer = activated.targetIndex;
+          continue;
+        }
+      }
+      pointer++;
+    }
+
+    // 6. 자연 종결 — Execution COMPLETED 마감 (resumeFromCheckpoint 의 line
+    // 1316-1337 패턴).
+    await this.updateExecutionStatus(savedExecution, ExecutionStatus.COMPLETED);
+    const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
+    if (lastNodeId) {
+      savedExecution.outputData =
+        (context.nodeOutputCache[lastNodeId] as
+          | Record<string, unknown>
+          | undefined) ?? {};
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        savedExecution.finishedAt.getTime() -
+        savedExecution.startedAt.getTime();
+      await this.executionRepository.save(savedExecution);
+    }
     this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_COMPLETED,
