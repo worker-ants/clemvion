@@ -197,8 +197,8 @@ Text Classifier 는 분류 노드 (단계 1개). single/multi label × 정상/fa
 
 > **병렬 편집 주의 (2026-05-29)**: `spec/4-nodes/3-ai/2-text-classifier.md §5.3` 은 [`spec-update-ai-error-output-fields`](../spec-update-ai-error-output-fields.md) plan 이 `details.retryable` (필수) + `"status": "ended"` 를 이미 보강했다 (main 반영 완료). 아래 §5.3 관련 `(spec)` 항목을 진행할 때는 그 갱신본을 기준으로 편집한다 (`originalInput` 정책은 직접 충돌 없음 — retryable/status 와 직교).
 
-- [ ] (spec) §5.3 의 `output.originalInput` (top-level) 처리 정책 결정 — 옵션 A(추천): 제거 + `output.error.details.originalInput` (이미 존재, truncated) 만 유지. 옵션 B: `output.result.originalInput` 도 함께 emit 해 정상/에러 양쪽에서 path 통일. 근거: `text-classifier.handler.ts:184-209`, 기존 plan §"진단 1".
-- [ ] (impl) 위 결정에 따라 `:191-193` 의 `output.originalInput` 키 제거 또는 `output.result.originalInput` 보강. 단위 테스트 `:331-396` 갱신.
+- [x] (spec) §5.3 의 `output.originalInput` (top-level) 처리 정책 결정 — 옵션 A(추천): 제거 + `output.error.details.originalInput` (이미 존재, truncated) 만 유지. 옵션 B: `output.result.originalInput` 도 함께 emit 해 정상/에러 양쪽에서 path 통일. 근거: `text-classifier.handler.ts:184-209`, 기존 plan §"진단 1".
+- [x] (impl) 위 결정에 따라 `:191-193` 의 `output.originalInput` 키 제거 또는 `output.result.originalInput` 보강. 단위 테스트 `:331-396` 갱신.
 - [ ] (spec) `meta.llmCalls` (single-call) ↔ `meta.turnDebug[i].llmCalls` (multi-turn) 위치 통일 검토 — 옵션 A: text-classifier 도 `meta.turnDebug[0].llmCalls` wrapper 채택해 AI 3종 동일. 옵션 B: ai-agent / info-extractor 가 single-call 경로에 `meta.llmCalls` 노출 추가. 근거: 기존 plan §"진단 2", spec §5.1 의 `meta.llmCalls` ↔ `[공통 §6](../../../spec/4-nodes/3-ai/0-common.md#6-토큰-회계-meta)` 의 `meta.turnDebug` 위치 차이.
 - [ ] (impl) `output.error.details.originalInput` 의 500자 cap boundary 테스트 추가 — 501자 입력이 500자로 잘리고 `output.originalInput` 은 full 유지 검증. 근거: `:173-193`, `truncateForErrorDetails`.
 - [ ] (spec) §5.3 `output.error.code` 표의 `LLM_RATE_LIMIT` / `LLM_RESPONSE_INVALID` "reserved" 라벨 유지 명시 — 현 handler 는 발화하지 않음. spec ↔ impl 명시적 정합 유지.

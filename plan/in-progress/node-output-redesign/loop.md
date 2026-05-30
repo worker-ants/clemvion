@@ -131,6 +131,6 @@ Loop 은 **컨테이너 노드**로 두 단계가 명확하다 — (1) 시작(bo
 
 ## 종합 개선안 (2026-05-16)
 
-- [ ] (impl) `loop.schema.ts:14-21` 의 `loopNodeOutputSchema.config.count` 를 `z.union([z.string(), z.number()]).optional()` 로 확장 — handler 가 raw string 을 echo 하므로 outputSchema 가 runtime 출력을 통과시켜야 함. 근거: `loop.handler.ts:41` 가 `rawConfig.count` (string) 를 그대로 echo + `loop.handler.spec.ts:87` 가 `count: '10'` 기대.
+- [x] (impl) `loop.schema.ts:14-21` 의 `loopNodeOutputSchema.config.count` 를 `z.union([z.string(), z.number()]).optional()` 로 확장 — handler 가 raw string 을 echo 하므로 outputSchema 가 runtime 출력을 통과시켜야 함. 근거: `loop.handler.ts:41` 가 `rawConfig.count` (string) 를 그대로 echo + `loop.handler.spec.ts:87` 가 `count: '10'` 기대.
 - [ ] (impl) `loop.handler.spec.ts` 또는 새 통합 테스트에 엔진 오버라이트 결과 (`output.iterations` / `meta.exitReason`) 를 직접 검증하는 케이스 추가 — 현재 handler 단위 테스트는 `output: null` 만 확인. 근거: spec §5.2 의 다운스트림이 보는 출력 형태가 가드되지 않음.
 - [ ] (spec) §5.1 footnote 의 `breakCondition` 미echo 결정과, `loopNodeConfigSchema` 의 `breakCondition: z.string().optional()` 존재가 호환됨을 명시 — Principle 7 의 "선택적 echo" 항목에 안 들어있어 모호. 근거: `spec/conventions/node-output.md` 의 Principle 7 "선택적 echo" 표는 form.fields / ai_agent.systemPrompt 만 언급.
