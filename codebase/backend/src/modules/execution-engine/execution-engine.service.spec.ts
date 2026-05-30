@@ -8344,6 +8344,10 @@ describe('ExecutionEngineService', () => {
         sourcePort?: string;
       }>;
       downstreamHandler?: NodeHandler;
+      /** Downstream handler type (default 'test_downstream_w10'). */
+      downstreamType?: string;
+      /** Downstream handler metadata.kind (default omitted — sentinel 'standard'). */
+      downstreamKind?: 'standard' | 'parallel' | 'background' | 'container';
     }): {
       agentHandler: NodeHandler & { processMultiTurnMessage: jest.Mock };
       downstreamHandler: NodeHandler & { execute: jest.Mock };
@@ -8403,7 +8407,11 @@ describe('ExecutionEngineService', () => {
           status: 'ended',
         })),
       }) as NodeHandler & { execute: jest.Mock };
-      handlerRegistry.register('test_downstream_w10', downstreamHandler);
+      const downstreamType = opts.downstreamType ?? 'test_downstream_w10';
+      const downstreamMetadata = opts.downstreamKind
+        ? { kind: opts.downstreamKind }
+        : undefined;
+      handlerRegistry.register(downstreamType, downstreamHandler, downstreamMetadata);
 
       return { agentHandler, downstreamHandler };
     }
@@ -8810,6 +8818,114 @@ describe('ExecutionEngineService', () => {
           (c: unknown[]) => c[1] === 'execution.completed',
         );
       expect(completed.length).toBe(0);
+    });
+
+    // PR #371 ai-review W2 — parallel/background dispatchKind 회귀 가드.
+    // retry 성공 후 downstream 에 parallel/background 노드가 존재할 때 정상
+    // dispatch 되는지 검증 (runNodeDispatchLoop 의 dispatchKind 분기 도달).
+    it('dispatches downstream parallel node when retry succeeds (W2 parallel resume)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const parallelNode: Partial<Node> = {
+        id: DOWNSTREAM_ID,
+        workflowId,
+        type: 'test_parallel_w2',
+        category: NodeCategory.LOGIC,
+        label: 'DownstreamParallel',
+        config: { branches: [] },
+        isDisabled: false,
+      };
+      const parallelHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        // Parallel handler 의 execute 는 runParallel 의 분기 진입 전 호출됨.
+        // branches 가 비어있으면 runParallel 이 즉시 종결 (정상 흐름).
+        execute: jest.fn(async () => ({
+          config: { branches: [] },
+          output: { result: { branches: [] } },
+          meta: {},
+          port: 'out',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler & { execute: jest.Mock };
+      const { downstreamHandler } = installReentryWithDownstream({
+        nodes: [agentNode, parallelNode],
+        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
+        downstreamHandler: parallelHandler,
+        downstreamType: 'test_parallel_w2',
+        downstreamKind: 'parallel',
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // Parallel downstream handler 가 dispatch 됨 (runNodeDispatchLoop 의
+      // parallel 분기 도달).
+      expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);
+      // Execution 은 정상 COMPLETED 마감 — runParallel 가 빈 branches 로
+      // 즉시 종결 후 graph loop 자연 마감.
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
+    });
+
+    it('dispatches downstream background node when retry succeeds (W2 background resume)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const backgroundNode: Partial<Node> = {
+        id: DOWNSTREAM_ID,
+        workflowId,
+        type: 'test_background_w2',
+        category: NodeCategory.LOGIC,
+        label: 'DownstreamBackground',
+        config: {},
+        isDisabled: false,
+      };
+      const backgroundHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: {},
+          output: { result: { scheduled: true } },
+          meta: {},
+          port: 'out',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler & { execute: jest.Mock };
+      const { downstreamHandler } = installReentryWithDownstream({
+        nodes: [agentNode, backgroundNode],
+        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
+        downstreamHandler: backgroundHandler,
+        downstreamType: 'test_background_w2',
+        downstreamKind: 'background',
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // Background downstream handler 가 dispatch 됨 (runNodeDispatchLoop 의
+      // background 분기 도달 → scheduleBackgroundBody).
+      expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);
+      // Execution 은 정상 COMPLETED 마감.
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
     });
   });
 
