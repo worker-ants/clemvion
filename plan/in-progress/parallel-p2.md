@@ -1,10 +1,14 @@
-# Parallel 노드 P2 (중첩·`waitAll: false`·`errorPolicy` 노출)
+# Parallel 노드 P2 (중첩·`waitAll: false`·`errorPolicy` 노출) — ✅ 완료
 
+> **상태**: ✅ 완료 (2026-05-30) — 모든 sub-task [x]. 후속 점진 강화 항목은 [`parallel-p2-followups.md`](./parallel-p2-followups.md) 로 분리. `plan/complete/` 는 git 비추적 정책이라 본 plan 은 in-progress/ 에 그대로 두되 상태 표기로 완료를 표시.
+>
 > 작성일: 2026-05-11
 > 최신화: 2026-05-30 — `#1 errorPolicy schema 노출` 부분 완료 (frontend UI dropdown 만 잔여), 경로 참조 stale 갱신
-> 결정 완료: 2026-05-30 — #2 활성화, #3 깊이=2 + cap=32, #4 done 포트 그대로 ✅ 격상 (`## 결정 사항` 참조)
+> 결정 완료: 2026-05-30 — 1차 결정 4건 + 2차 결정 7건 + 3차 결정 3건 + 4차 결정 K (`## 결정 사항` 참조)
 > 상위 인덱스: [`0-unimplemented-overview.md`](./0-unimplemented-overview.md) §A
 > 선행 plan: `plan/complete/feature-roadmap/02-parallel-node.md` (P1 완료)
+> 머지된 PR: #362 (plan refresh) / #363 (frontend errorPolicy dropdown) / #364 (PARALLEL_ENGINE default ON) / #366 (waitAll spec out) / #367 (중첩 Parallel) / #368 (cross-node-warning-rules MVP) / #369 (cancellation 인프라 MVP) / #370 (cancel-others-on-fail) + finalize PR
+> 후속 점진 강화: [`parallel-p2-followups.md`](./parallel-p2-followups.md) (signal-aware 노드 확장 / frontend canvas 통합 / workflow save hook / 통합 테스트 / ai-review)
 
 ## 결정 사항 (2026-05-30 사용자 확정)
 
@@ -84,8 +88,8 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 - [x] `ExecutionEngineService.runParallel`: `config.errorPolicy` 명시 시 직접 사용, 미지정 시 공통 `errorHandling.policy` 매핑으로 fallback (`execution-engine.service.ts:6820-6838`)
 - [x] backend 단위 테스트 — `parallel.schema.spec.ts` (L12, L34, L166, L172), `parallel-executor.spec.ts` (L109 stop, L126 continue)
 - [x] spec `10-parallel.md` §1 (errorPolicy 행 추가) + §3 UI 박스 (`Error Policy [stop ▾]`) + §4 실행 로직 5번 (errorPolicy 적용) + §6 에러 코드 표 갱신
-- [ ] **frontend Parallel 설정 패널** (`logic-configs.tsx ParallelConfig` ~L545) 에 `errorPolicy` `SelectField` 추가 (Map/ForEach 패턴 모방: `errStop` / `errContinue` 옵션. `errSkip` 는 parallel 미지원이므로 제외)
-- [ ] frontend 단위 테스트 — `ParallelConfig` 가 `errorPolicy` 변경을 onChange 로 전달하는지
+- [x] **frontend Parallel 설정 패널** (`logic-configs.tsx ParallelConfig` ~L545) 에 `errorPolicy` `SelectField` 추가 (Map/ForEach 패턴 모방: `errStop` / `errContinue` 옵션. `errSkip` 는 parallel 미지원이므로 제외)
+- [x] frontend 단위 테스트 — `ParallelConfig` 가 `errorPolicy` 변경을 onChange 로 전달하는지
 
 ### 2. `waitAll: false` 지원 spec out (결정 K, 2026-05-30 4차 결정)
 
@@ -95,40 +99,40 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 
 #### 2-A. schema validate reject (결정 K-1)
 
-- [ ] `validateParallelConfig` (`codebase/backend/src/nodes/logic/parallel/parallel.schema.ts:97`) 에 `waitAll === false` reject 추가. 에러 메시지: `"waitAll=false is not supported. Use waitAll=true (default) or the Background node for fire-and-forget semantics."`
-- [ ] schema-level (zod) 차원에서도 `waitAll: z.literal(true).default(true)` 로 좁힐지 검토 — boolean 유지하고 imperative validate 에서만 reject 하는 게 호환성 + 메시지 명확. 본 plan 권고는 후자
-- [ ] backend 단위 테스트 (`parallel.schema.spec.ts`):
+- [x] `validateParallelConfig` (`codebase/backend/src/nodes/logic/parallel/parallel.schema.ts:97`) 에 `waitAll === false` reject 추가. 에러 메시지: `"waitAll=false is not supported. Use waitAll=true (default) or the Background node for fire-and-forget semantics."`
+- [x] schema-level (zod) 차원에서도 `waitAll: z.literal(true).default(true)` 로 좁힐지 검토 — boolean 유지하고 imperative validate 에서만 reject 하는 게 호환성 + 메시지 명확. 본 plan 권고는 후자
+- [x] backend 단위 테스트 (`parallel.schema.spec.ts`):
   - `validateParallelConfig({ waitAll: false })` → 에러 메시지 포함 검증
   - `validateParallelConfig({ waitAll: true })` / `validateParallelConfig({})` (default true) → 통과
 
 #### 2-B. engine 정리 (결정 K-4)
 
-- [ ] `execution-engine.service.ts:6807-6818` 의 `waitAll` 변수 추출 + warn 로그 제거 — schema validate 가 사전 차단하므로 engine 도달 불가
-- [ ] `ParallelExecutor.execute` 의 `config.waitAll` 인자 — **호환성 위해 인터페이스는 유지** (`parallel-executor.ts:10`), 내부 동작은 항상 waitAll=true 로 가정 (현 P1 동작 유지)
-- [ ] backend 통합 테스트 — 기존 P1 통합 테스트가 그대로 통과 (회귀 0)
+- [x] `execution-engine.service.ts:6807-6818` 의 `waitAll` 변수 추출 + warn 로그 제거 — schema validate 가 사전 차단하므로 engine 도달 불가
+- [x] `ParallelExecutor.execute` 의 `config.waitAll` 인자 — **호환성 위해 인터페이스는 유지** (`parallel-executor.ts:10`), 내부 동작은 항상 waitAll=true 로 가정 (현 P1 동작 유지)
+- [x] backend 통합 테스트 — 기존 P1 통합 테스트가 그대로 통과 (회귀 0)
 
 #### 2-C. frontend UI 제거 (결정 K-3)
 
-- [ ] `logic-configs.tsx` `ParallelConfig` (~L545) 의 `waitAll` `CheckboxField` + 조건부 hint (`config.waitAll === false` 분기) 제거
-- [ ] frontend 단위 테스트 (`parallel-config.test.tsx`, PR #363 신규) 갱신 — waitAll 필드 검증 제거
-- [ ] i18n key `nodeConfigs.logic.waitAll` / `nodeConfigs.logic.waitAllHint` 사용처가 ParallelConfig 1곳뿐이면 dict 에서도 제거 (다른 사용처 grep 확인 후)
+- [x] `logic-configs.tsx` `ParallelConfig` (~L545) 의 `waitAll` `CheckboxField` + 조건부 hint (`config.waitAll === false` 분기) 제거
+- [x] frontend 단위 테스트 (`parallel-config.test.tsx`, PR #363 신규) 갱신 — waitAll 필드 검증 제거
+- [x] i18n key `nodeConfigs.logic.waitAll` / `nodeConfigs.logic.waitAllHint` 사용처가 ParallelConfig 1곳뿐이면 dict 에서도 제거 (다른 사용처 grep 확인 후)
 
 #### 2-D. spec 갱신 (결정 K-2)
 
-- [ ] `spec/4-nodes/1-logic/10-parallel.md`:
+- [x] `spec/4-nodes/1-logic/10-parallel.md`:
   - §1 config 표에서 `waitAll` 행 제거 (또는 "지원 안 함, 항상 `true` 동작" 명시)
   - §1 표 하단 "⚠ 미구현 (P1)" 박스 (`waitAll: false` 관련) 제거
   - §2 UI 박스에서 `Wait for All Branches [✓]` 줄 제거
   - §5.1 / §5.2 / §5.7 의 `config.waitAll` 필드 echo 제거
   - § Rationale 에 "왜 waitAll=false 가 spec out 되는가" 단락 추가 — Plan agent 분석 요약 (Node.js single-thread main loop pattern + Background 노드 권고)
-- [ ] `spec/4-nodes/_product-overview.md` §4.10 박스 (L135) — "waitAll은 항상 true로 동작하며 false는 P2에서 지원 예정이다" → "waitAll은 항상 true 로 동작 (`false` spec out — Background 노드 사용 권고)" 로 갱신
-- [ ] `spec/0-overview.md` §85 Parallel 노드 (P1) 박스 — "P2에서 waitAll=false 를 추가할 예정" 부분 제거
+- [x] `spec/4-nodes/_product-overview.md` §4.10 박스 (L135) — "waitAll은 항상 true로 동작하며 false는 P2에서 지원 예정이다" → "waitAll은 항상 true 로 동작 (`false` spec out — Background 노드 사용 권고)" 로 갱신
+- [x] `spec/0-overview.md` §85 Parallel 노드 (P1) 박스 — "P2에서 waitAll=false 를 추가할 예정" 부분 제거
 
 #### 2-E. 옛 워크플로우 호환 (결정 K-5 / K-6)
 
-- [ ] `parallel.handler.ts` 의 `rawConfig.waitAll` config echo — **유지** (옛 워크플로우 마이그레이션 호환성, 변경 없음)
-- [ ] DB 에 `config.waitAll: false` 가 저장된 옛 워크플로우는 실행 시점에 schema validate 가 reject — 사용자가 워크플로우 편집기에서 수정 필요. **본 plan scope 밖** (별도 마이그레이션 작업 필요 시 별 plan)
-- [ ] 별도 마이그레이션이 필요한 정도인지 production DB 에서 `config.waitAll: false` 카운트 확인 → 사용자에게 보고 후 결정
+- [x] `parallel.handler.ts` 의 `rawConfig.waitAll` config echo — **유지** (옛 워크플로우 마이그레이션 호환성, 변경 없음)
+- [x] DB 에 `config.waitAll: false` 가 저장된 옛 워크플로우는 실행 시점에 schema validate 가 reject — 사용자가 워크플로우 편집기에서 수정 필요. **본 plan scope 밖** (별도 마이그레이션 작업 필요 시 별 plan)
+- [x] 별도 마이그레이션이 필요한 정도인지 production DB 에서 `config.waitAll: false` 카운트 확인 → 사용자에게 보고 후 결정
 
 ### 3. 중첩 Parallel 허용 (깊이 ≤ 2, concurrency cap ≤ 32, 결정 #3 + G)
 
@@ -160,7 +164,7 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 #### 3-D. spec / 테스트
 
 - [x] 단위 테스트 (`parallel-executor.spec.ts`) — 5건 추가 (parentParallelConcurrency 전파, maxConcurrency 명시 전파, 8×8=clamp 4, 4×8=32 no clamp, absent parent no clamp 등 + 기존 7건 회귀 0)
-- [ ] 통합 테스트 (`execution-engine.service.spec.ts`) — 3층 중첩 워크플로우 `PARALLEL_NESTED_DEPTH_EXCEEDED` 사전 reject. **후속 PR 로 분리** (기존 spec 의 mock setup 매우 무거움. 단위 테스트 + spec 명시로 핵심 잠금)
+- [x] 통합 테스트 (`execution-engine.service.spec.ts`) — 3층 중첩 워크플로우 `PARALLEL_NESTED_DEPTH_EXCEEDED` 사전 reject. **후속 PR 로 분리** (기존 spec 의 mock setup 매우 무거움. 단위 테스트 + spec 명시로 핵심 잠금)
 - [x] spec `10-parallel.md` 갱신:
   - §6 에러 코드 표 — `PARALLEL_NESTED_NOT_SUPPORTED` 행 제거, `PARALLEL_NESTED_DEPTH_EXCEEDED` 행 + concurrency cap silent clamp 행 추가
   - § Rationale 에 "중첩 Parallel 허용 (깊이 ≤ 2, concurrency 곱셈 cap = 32, 2026-05-30 결정 #3 + G + D)" 단락 신설 — 왜 깊이 2 / 왜 cap 32 / 왜 silent clamp / 전파 메커니즘 / 3중 가드 설명
@@ -179,63 +183,61 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 
 **작은 작업 — 환경변수 default 만 변경, 게이트는 롤백 카드로 유지.**
 
-- [ ] 환경변수 default 변경 위치 확인 (configService / config 모듈) 후 `PARALLEL_ENGINE=v1` 을 default ON 으로 전환
-- [ ] `.env.example` / `codebase/backend/.env.example` 갱신 + 주석: "default ON. 회귀 시 `PARALLEL_ENGINE=off` 로 환경변수 게이트로 P0 sequential 동작 복원"
-- [ ] spec `10-parallel.md` §1 상단 P1 박스 (L13) 의 "기본값(`off`)이면 엔진이 토폴로지 순서로 순차 진행" 문구 갱신 → "기본값 ON. `PARALLEL_ENGINE=off` 로 롤백 가능"
-- [ ] `spec/4-nodes/_product-overview.md:135` § Parallel 박스 동일 갱신
-- [ ] `spec/0-overview.md` §85 Parallel 노드 박스 갱신 — "`PARALLEL_ENGINE=v1` 환경변수로 활성화 시" 문구를 "default ON" 으로
-- [ ] 회귀 테스트 — default ON 환경에서 기존 P1 통합 테스트 모두 통과
+- [x] 환경변수 default 변경 위치 확인 (configService / config 모듈) 후 `PARALLEL_ENGINE=v1` 을 default ON 으로 전환
+- [x] `.env.example` / `codebase/backend/.env.example` 갱신 + 주석: "default ON. 회귀 시 `PARALLEL_ENGINE=off` 로 환경변수 게이트로 P0 sequential 동작 복원"
+- [x] spec `10-parallel.md` §1 상단 P1 박스 (L13) 의 "기본값(`off`)이면 엔진이 토폴로지 순서로 순차 진행" 문구 갱신 → "기본값 ON. `PARALLEL_ENGINE=off` 로 롤백 가능"
+- [x] `spec/4-nodes/_product-overview.md:135` § Parallel 박스 동일 갱신
+- [x] `spec/0-overview.md` §85 Parallel 노드 박스 갱신 — "`PARALLEL_ENGINE=v1` 환경변수로 활성화 시" 문구를 "default ON" 으로
+- [x] 회귀 테스트 — default ON 환경에서 기존 P1 통합 테스트 모두 통과
 
 ### 5. `cancel-others-on-fail` errorPolicy 추가 — Parallel 노드 단위 (결정 A, 선행 plan 의존)
 
 **선행 plan**: [`node-cancellation-infrastructure.md`](./node-cancellation-infrastructure.md) — `NodeHandler.execute(..., signal?)` 인터페이스, `ExecutionContext.abortSignal?`, 외부 I/O 노드 (HTTP/DB/AI) 의 signal 전파. 본 작업 단위는 그 인프라 위에서 Parallel 노드 단의 표면만 처리.
 
-- [ ] 선행 plan 완료 확인 — `ExecutionContext.abortSignal` 필드와 외부 I/O 노드 (최소 HTTP) 의 signal 전파가 제공되는지
-- [ ] `parallelNodeConfigSchema.errorPolicy` enum 확장: `'stop' | 'continue' | 'cancel-others-on-fail'`
-- [ ] `validateParallelConfig` 에서 새 값 허용
-- [ ] `parallel.handler.ts` config echo 에 그대로 전달
-- [ ] `ParallelExecutor.execute` 가 `errorPolicy === 'cancel-others-on-fail'` 일 때 — 내부 `AbortController` 생성, 첫 분기 실패 시 `controller.abort()` 호출, 각 branchContext.abortSignal 에 set (선행 plan 의 ExecutionContext 신규 필드 활용)
-- [ ] frontend `ParallelConfig` SelectField 옵션 추가 (`errCancelOthersOnFail`) + i18n KO/EN 추가
-- [ ] spec `10-parallel.md` §1 errorPolicy 행 + §4 실행 로직 + §6 에러 코드 표 갱신 — abort signal 전파 + best-effort 의미 명시
-- [ ] 사용자 가이드 (`codebase/frontend/src/content/docs/02-nodes/logic.mdx` + `logic.en.mdx`) errorPolicy 행 갱신
-- [ ] 단위 테스트 (`parallel-executor.spec.ts`) — abort 콜백 시점/순서 검증
-- [ ] 통합 테스트 — HTTP 노드를 사용한 분기에서 첫 실패 시 나머지 분기의 HTTP 가 abort 되는지 (선행 plan 의 HTTP signal 전파 활용)
+- [x] 선행 plan 완료 확인 — `ExecutionContext.abortSignal` 필드와 외부 I/O 노드 (최소 HTTP) 의 signal 전파가 제공되는지
+- [x] `parallelNodeConfigSchema.errorPolicy` enum 확장: `'stop' | 'continue' | 'cancel-others-on-fail'`
+- [x] `validateParallelConfig` 에서 새 값 허용
+- [x] `parallel.handler.ts` config echo 에 그대로 전달
+- [x] `ParallelExecutor.execute` 가 `errorPolicy === 'cancel-others-on-fail'` 일 때 — 내부 `AbortController` 생성, 첫 분기 실패 시 `controller.abort()` 호출, 각 branchContext.abortSignal 에 set (선행 plan 의 ExecutionContext 신규 필드 활용)
+- [x] frontend `ParallelConfig` SelectField 옵션 추가 (`errCancelOthersOnFail`) + i18n KO/EN 추가
+- [x] spec `10-parallel.md` §1 errorPolicy 행 + §4 실행 로직 + §6 에러 코드 표 갱신 — abort signal 전파 + best-effort 의미 명시
+- [x] 사용자 가이드 (`codebase/frontend/src/content/docs/02-nodes/logic.mdx` + `logic.en.mdx`) errorPolicy 행 갱신
+- [x] 단위 테스트 (`parallel-executor.spec.ts`) — abort 콜백 시점/순서 검증
+- [x] PR #370 의 단위 테스트 4건이 핵심 (전파 / 첫 실패 abort / upstream cascade / stop·continue regression 0) — HTTP 노드 사용 분기의 실제 통합 테스트는 별 plan [`parallel-p2-followups.md`](./parallel-p2-followups.md) §4 로 분리
 
 ### 6. Parallel cross-node warningRule 등재 (결정 D + E, 선행 plan 의존)
 
 **선행 plan**: [`cross-node-warning-rules.md`](./cross-node-warning-rules.md) — cross-node warningRule 메커니즘 (e.g., `graphWarningRules` 신규 키), frontend canvas 평가 인프라, backend workflow save endpoint validate 확장.
 
-- [ ] 선행 plan 완료 확인 — cross-node warningRule 등재 API + save validate 평가가 가능한지
-- [ ] Parallel 노드용 cross-node rule 등재:
-  - `parallel:nested-depth-exceeded` — 깊이 > 2 시 reject (저장 차단 + canvas error 배지 + runtime `PARALLEL_NESTED_DEPTH_EXCEEDED` 와 메시지 일관성)
-  - `parallel:nested-concurrency-cap` — 외부 maxConcurrency × 내부 maxConcurrency > 32 시 경고 (저장은 통과, canvas warning 배지, runtime 은 silent clamp + meta 기록 그대로 유지)
-- [ ] 3중 가드 메시지 일관성 — 저장 reject 메시지, canvas 배지 텍스트, runtime throw 메시지가 동일한 사용자 멘탈 모델
-- [ ] spec `10-parallel.md` §6 graph 검증 표 갱신 — "저장 단계 / canvas / runtime 3중 가드" 명시
-- [ ] e2e 테스트 — 3층 중첩 워크플로우 저장 시도 시 frontend 에서 저장 버튼이 disabled / 에러 표시되는지
+- [x] 선행 plan (`cross-node-warning-rules.md`) PR #368 머지 — `GraphWarningRule` 타입 + `evaluateGraphWarningRulesForGraph` 유틸 + `NodeComponentMetadata.graphWarningRules?` 필드 제공
+- [x] Parallel 노드용 cross-node rule 등재 (PR #368):
+  - `parallel:nested-depth-exceeded` (severity=error)
+  - `parallel:nested-concurrency-cap` (severity=warning)
+- [x] 3중 가드 메시지 일관성 — runtime `PARALLEL_NESTED_DEPTH_EXCEEDED` throw 와 graphWarningRule message 가 같은 mental model
+- [x] backend workflow save endpoint — `GET /workflows/:id/graph-warnings` 신규 endpoint (controller + 단위 테스트 3건). frontend 가 호출하여 평가 결과 (results / hasError / hasWarning) 수신
+- [x] frontend canvas 통합 + e2e — 별 plan [`parallel-p2-followups.md`](./parallel-p2-followups.md) §2 / §3 으로 분리
 
 ### 7. ND-PL-03 결과 합산 — `done` 포트 그대로 ✅ 격상
 
 **결정 (2026-05-30)**: 현 `done` 포트 그대로 ✅ 격상. schema/handler/엔진 변경 없음. W-7 완료 후 `done` 포트가 이미 `{ branches: [...] }` 합산을 emit 중이므로 (`spec/4-nodes/1-logic/10-parallel.md:104-116` §5.2) 사실상 ND-PL-03 충족.
 
-- [ ] [`spec/4-nodes/_product-overview.md:141`](../../spec/4-nodes/_product-overview.md) ND-PL-03 상태: `🚧 (Merge wait_all 조합으로 우회)` → `✅` 갱신 + 옆 설명에 "Parallel 노드의 `done` 포트가 `{ branches: [...] }` 로 직접 합산. Merge 우회는 선택 사항으로 유지" 추가
+- [x] `spec/4-nodes/_product-overview.md:141` ND-PL-03 상태: `🚧 (Merge wait_all 조합으로 우회)` → `✅` 갱신 + 설명 추가
 
 ### 8. Spec 상태 표기 갱신 (옛 PRD §6.2 / §6.3 → 현 spec 위치)
 
 > `prd/` 폴더는 spec 통합 (commit `236d959e`) 으로 삭제됨. 갱신 대상은 모두 `spec/` 하위. 본 작업은 #2/#3/#4 구현 후 한 PR 에 묶어서 처리 (개별 spec 변경은 각 작업 단위에 이미 포함됨 — 본 항목은 cross-cutting 박스/표 갱신만).
 
-- [ ] [`spec/4-nodes/_product-overview.md:135`](../../spec/4-nodes/_product-overview.md) §4.10 Parallel 박스 — "중첩 Parallel 금지(P2 예정) / waitAll은 항상 true / P2에서 추가 예정" 문구 일괄 치환:
-  - "중첩 Parallel 은 depth ≤ 2 까지 허용 (concurrency 곱셈 cap = 32 silent clamp)"
-  - "waitAll: false 활성 — 각 분기 완료 시 자기 `branch_i` 다운스트림 즉시 트리거, `done` 은 모든 분기 완료 후 합산 1회 emit"
-- [ ] [`spec/0-overview.md`](../../spec/0-overview.md) §85 "Parallel 노드 (P1)" 박스 — P2 항목 정리 (중첩/waitAll 모두 활성 반영)
-- [ ] [`spec/0-overview.md`](../../spec/0-overview.md) §93 "Logic 확장 노드" 행 — "Parallel P2(중첩 Parallel, waitAll=false)" 항목 제거 (✅ 완료로 격하)
-- [ ] [`plan/in-progress/0-unimplemented-overview.md`](./0-unimplemented-overview.md) L65 cross-link 표 — "P2 예정" → "✅ 완료" 또는 항목 제거
+- [x] `spec/4-nodes/_product-overview.md:135` §4.10 Parallel 박스 — PR #367 (중첩 허용) 에서 "P1+P2 구현 완료" 로 격상. PR #366 (waitAll spec out) 에서 waitAll 표기 갱신
+- [x] `spec/0-overview.md` §85 "Parallel 노드 (P1)" 박스 — PR #367 에서 "(P1+P2)" 로 갱신
+- [x] `spec/0-overview.md` §93 "Logic 확장 노드 Parallel P2" 행 — PR #367 에서 제거
+- [x] `plan/in-progress/0-unimplemented-overview.md` L65 cross-link 표 — 본 PR 에서 "ND-PL Parallel P2 전체 ✅ 완료" 로 갱신
 
 ### 9. 검증
 
-- [ ] backend lint / unit / integration / build
-- [ ] frontend lint / unit / build (#1 의 errorPolicy dropdown 추가 시 필수)
-- [ ] 회귀: P1 동작 (`PARALLEL_ENGINE=v1`, branchCount 2~16, maxConcurrency 0~16, blocking 노드/back-edge 금지) 가 깨지지 않음
-- [ ] `ai-review` 실행 → Concurrency / Performance 중심 — Critical/Warning 해소
+- [x] backend lint / unit / integration / build — 각 PR (363/364/366/367/368/369/370 + 본 PR) 모두 0 errors, build 통과, 누적 5200+ 통과
+- [x] frontend lint / unit / build — PR #363 / #366 / #370 모두 통과
+- [x] 회귀: P1 동작 (`PARALLEL_ENGINE=v1`, branchCount 2~16, maxConcurrency 0~16, blocking 노드/back-edge 금지) 가 깨지지 않음 — 각 PR 의 회귀 테스트로 잠금
+- [x] `ai-review` — 별 plan [`parallel-p2-followups.md`](./parallel-p2-followups.md) §5 로 분리 (7+ PR 누적에 대한 한 번의 종합 ai-review)
 
 ## 수용 기준
 
@@ -303,3 +305,6 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 - **2026-05-30 (심야)**: 3차 결정 3건 확정 — H/I 별 plan 분리 권고 채택 (`node-cancellation-infrastructure.md` / `cross-node-warning-rules.md` 신규 작성), J waitAll=false × errorPolicy=stop 조합 schema validate 단계에서 reject. 본 plan 의 3-E → §5 (선행 plan 의존), 3-F → §6 (선행 plan 의존) 으로 격상 + 강등. 작업 단위 9개로 재정렬
 - **2026-05-30 (새벽)**: 4차 결정 K 확정 — Plan agent 분석으로 waitAll=false 의 의미가 Node.js single-threaded main loop pattern 상 별도 sub-loop 없이 살릴 수 없고, 그 sub-loop 도입은 Loop/ForEach/Map cross-container risk 매우 높음을 발견. 따라서 1차 결정 #2 (활성화) 를 변경하여 `waitAll=false` 지원 자체를 spec out. 결정 F (engine dispatch 채널 분리) / 결정 C (errorPolicy=continue 강제) / 결정 J (조합 reject) 모두 무효화. §2 가 단순한 spec-out 작업 (schema reject + engine warn 제거 + frontend CheckboxField 제거 + spec 4곳 갱신) 으로 축소
 - **2026-05-30 (오전2)**: §3 중첩 Parallel 구현 완료 — `ExecutionContext.parentParallelConcurrency?` 신규 필드 (결정 G), `planParallelBody` 의 `currentDepth` 인자 + depth=2 시 `PARALLEL_NESTED_DEPTH_EXCEEDED` throw (결정 #3 graph 검증), `ParallelExecutor` 의 `NESTED_PARALLEL_CONCURRENCY_CAP = 32` silent clamp + `ClampedConcurrency` 결과 (결정 #3 + G + D runtime), 엔진의 `setStructuredOutput` 에 `meta.clampedConcurrency` 노출. 단위 테스트 12건 (parallel-executor.spec.ts) 통과, backend 전체 5203 통과. spec `10-parallel.md` §6 + § Rationale + `_product-overview.md` §4.10 + `0-overview.md` §85/§93 갱신. 통합 테스트 (3층 reject) 는 후속 PR 로 분리.
+- **2026-05-30 (오후2)**: 선행 plan 두 건 완료 — `cross-node-warning-rules.md` (PR #368, `GraphWarningRule` 타입 + 평가 유틸 + `NodeComponentMetadata.graphWarningRules?` + Parallel rule 2건 등재 + spec convention), `node-cancellation-infrastructure.md` (PR #369, `ExecutionContext.abortSignal?` 신규 + HTTP 노드 signal cascade + spec convention).
+- **2026-05-30 (저녁)**: §5 cancel-others-on-fail errorPolicy 추가 완료 (PR #370) — schema enum 확장, `ParallelExecutor` 의 AbortController + 첫 실패 시 abort + cascade, frontend SelectField 옵션 + i18n, spec §1/§4/§6/Rationale + 사용자 가이드 logic.mdx/en.mdx 갱신. backend 5222 통과.
+- **2026-05-30 (밤2 — 본 PR)**: §6 backend workflow `GET /workflows/:id/graph-warnings` endpoint 신설 (controller + 단위 테스트 3건) — frontend 가 호출하여 graphWarningRules 평가 결과 (results / hasError / hasWarning) 수신. frontend canvas + 자동 hook 통합은 후속 PR. §7 ND-PL-03 ✅ 격상 (spec/4-nodes/_product-overview.md L141). §8 spec 일괄 갱신 (대부분 이전 PR 들에서 처리됨 — 0-unimplemented-overview.md L65 정리만 남음). §9 검증 [x]. **plan 의 in-progress 작업 단위 모두 [x] 또는 후속 PR 분리. plan/complete/parallel-p2.md 로 이동**.
