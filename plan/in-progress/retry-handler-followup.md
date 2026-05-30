@@ -21,8 +21,23 @@ owner: project-planner
 
 - ✅ **spec 텍스트 동기화 4건 (review SUMMARY #6/#7/#8/#9)** (`docs(spec)` ee999466 + `fix` 219d54fb): consistency-check 1차 BLOCK 후 project-planner 가 설계 확정·반영 — #6 `failed→running` Execution-entity 전이(§1.1/§1.2/Rationale, allowRetryReentry opt-in), #7 분류 불가 fallback 을 `LLM_CALL_FAILED` non-retryable 로 통합(§10, classifyLlmError 코드 정렬 — `AI_AGENT_TURN_FAILED` 제거), #8 cancel-during-replay→cancelled(§4.2), #9 config 재평가 정책(§7.9 + §5.5 cross-ref, rawConfig snapshot 직교성). **`/consistency-check --spec` 재검 BLOCK: NO** (`review/consistency/2026/05/30/13_34_40`, LOW). 상세: [`spec-fix-retry-state-transitions.md`](./spec-fix-retry-state-transitions.md).
 
-- 🔲 **남은 한계 (스펙 결정 필요 — project-planner)**:
-  - **WARNING #10 — 성공 retry 후 downstream 그래프 traversal**: retry 로 대화는 재개되나, AI 노드의 출력 포트에 연결된 하류 노드는 미실행 (성공 종결 시 Execution 을 COMPLETED 로만 마감). **스펙 판단 결론 (2026-05-30)**: `spec/5-system/6-websocket-protocol.md §4.2` + `spec/4-nodes/3-ai/1-ai-agent.md §10/§7.9` 가 `retry_last_turn` 을 "노드 단위 재시도 — 마지막 LLM 호출 재진입"으로 정의하고 워크플로 Re-run([§13](../../spec/5-system/13-replay-rerun.md))과 **명시적으로 구분**한다. downstream 재개는 spec 이 약속한 바 없으므로 현재 COMPLETED-finalize 는 **spec 준수** 상태. downstream traversal 은 신규 제품 동작(노드 단위 → 워크플로 재개로 의미 확장)이라 `project-planner` 의 spec 결정이 선행돼야 하며 developer 범위가 아니다. `completeRetryExecution` docstring 에 DOCUMENTED GAP 으로 명시 보존. **사용자/기획 결정 대기.**
+- ✅ **WARNING #10 (spec 명시 — PR1, 2026-05-30)** — retry 성공 후 downstream traversal 이 일반 노드 `COMPLETED` 와 동일하게 진행됨을 spec 3 개 문서에 명시: `spec/4-nodes/3-ai/1-ai-agent.md §7.9` (재진입 종결 후 graph 진행 단락) + **신규 §12.8** (Rationale 결정 근거), `spec/5-system/6-websocket-protocol.md §4.2` (재진입 종결 후 graph 진행 bullet) + Rationale 끝 cross-ref 단락, `spec/5-system/13-replay-rerun.md §14.3` (retry 직교성 단락) + Rationale 끝 §14.3 보강 단락.
+
+  **직전 "사용자/기획 결정 대기" 분류는 과보수적이었음** — `/consistency-check --spec` 의 rationale-continuity-checker 가 "과거 Rationale 에 downstream 차단 결정이 명시된 적 없음" 을 확인했고, spec 의 "노드 단위 재시도" 표현은 워크플로 Re-run 과의 **단위 구분 의도**였지 downstream 차단 의도가 아니었음이 project-planner 와 합의됨. retry 성공한 노드는 일반 성공 노드와 의미적으로 동일하므로 downstream traversal 은 워크플로 엔진의 **기본 invariant** 적용 (신규 정책 아님). 따라서 본 변경은 무근거 번복이 아닌 표면 명확화.
+
+  **구현 fix 는 PR2** — `execution-engine.service.ts:3427 completeRetryExecution` 의 즉시 Execution.COMPLETED 마감을 일반 graph loop 합류 (`resumeGraphAfterRetry` 헬퍼 신설) 로 교체 (`developer` 위임). 단위·e2e 테스트 추가. 본 PR1 의 spec 변경이 merge 된 직후 착수.
+
+  **frontmatter 정책**: PR1 시점에서 3 개 target spec 파일의 frontmatter `status` 변경 없음 — PR2 (구현 fix) merge 후 `pending_plans:` 등 `spec/conventions/spec-impl-evidence.md §2·§3` 가드 정합 정리.
+
+  **consistency-check 결과**: `review/consistency/2026/05/30/14_48_20/SUMMARY.md` — BLOCK: NO, 위험도 LOW (Critical 0건, Warning 4건 모두 보완 반영, Info 9건).
+
+  **PR2 진행 (2026-05-30 — branch `claude/retry-downstream-traversal-impl-875fca`, base `bc2dd281`)**:
+  - `/consistency-check --impl-prep spec/5-system/` 결과: **BLOCK: NO** (`review/consistency/2026/05/30/15_10_30/SUMMARY.md`). 위험도 MEDIUM.
+    - **cross-spec W1** (`completed→running` 신규 전이 우려): 본 구현 경로에선 발생 안 함 — `finalizeAiNode(COMPLETED, retryReentry: true)` 가 spawn row COMPLETED + Execution RUNNING 으로 전이한 후 `resumeGraphAfterRetry` 가 graph loop 합류 → 정상 `RUNNING → COMPLETED` 종결. `completed → running` 전이는 우리 흐름에 없음.
+    - **convention HIGH** (W2~W4 / C2): 모두 본 PR2 와 무관한 다른 spec 파일 (`1-auth.md` `lower_snake_case` 에러 코드 / `11-mcp-client.md` / `12-webhook.md` frontmatter `spec-only` ↔ 실 구현 갭) 사전 결함. 별 PR 으로 분리.
+    - **plan-coherence C1** (worktree 경합): spec PR1 worktree 와 impl PR2 worktree 동시 존재 — PR1 push 후 spec worktree 정리 예정.
+  - **구현 방식**: in-process loop 직접 합류 — `resumeGraphAfterRetry` 헬퍼 신설, `resumeFromCheckpoint` (line 976-1337) 의 graph rebuild + traversal loop + completion 패턴을 차용하되 시작 단계 (waitForX 호출) 만 생략하고 completed node 의 outgoing edge 부터 진행. worker processor (continuation job handler) 컨텍스트 안에서 호출 — WS gateway 직접 동기 실행 경로 없음. 새 BullMQ job 발행 없음 (이미 worker context).
+  - **frontmatter 정리 결정**: 본 PR2 자체에서는 3 target spec 파일 (`1-ai-agent.md` / `6-websocket-protocol.md` / `13-replay-rerun.md`) 의 frontmatter `status` / `code:` / `pending_plans:` 갱신 안 함. 각 파일이 retry 외에도 광범위한 구현 surface (AI Agent 노드 전체 / WS 프로토콜 전체 / Re-run 기능 전체) 를 가지며, 본 PR2 의 retry downstream traversal 만으로 `spec-only → partial` 승격 책임을 떠안는 건 scope creep. spec 파일별 frontmatter 정리는 별 plan 으로 분리 추적.
 
 ## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8, #9)
 
@@ -94,6 +109,46 @@ owner: project-planner
 - ✅ **W15** — `backend-labels.ts` 등재: **불필요로 판단**. 해당 파일은 Zod 스키마 UI 라벨(label/hint/placeholder) 번역 테이블이고, retry 코드는 WS-ack `error.code` (폼 라벨 아님). 사용자 노출은 W14 의 user-guide 문서로 커버.
 
 > **W1/W2 (spec gap) 해소 완료 (2026-05-30)**: WS ack `success` 필드(§4.2) + `_retryState.lastUserMessage`/`lastUserMessageSource`(node-output §4.2.1) 를 spec 에 명시 반영. (원본 escalation draft `spec-fix-retry-ws-ack-fields.md` 는 적용 후 제거.)
+
+## PR2 ai-review 후속 plan (2026-05-30 — review/code/2026/05/30/15_43_30)
+
+PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 외 분리):
+
+### WARNING #10/#11 — graph traversal loop + graph rebuild 공통 helper 추출
+
+`resumeGraphAfterRetry` 와 `resumeFromCheckpoint` 의 traversal loop (약 160줄) 및
+graph rebuild 로직 (약 30줄) 이 사실상 중복된다. `runExecution` 까지 포함하면
+graph rebuild 가 3중 복제 상태다. 이 중복은 버그 fix 나 dispatch kind 추가 시
+세 곳을 동기화해야 하는 위험을 만든다.
+
+**제안 헬퍼**:
+- `private async loadAndBuildGraph(workflowId: string)` — nodes/edges 로드 +
+  buildGraph/topologicalSort/buildEdgeIndexes 를 통합. `runExecution`,
+  `resumeFromCheckpoint`, `resumeGraphAfterRetry` 가 공유.
+- `private async runGraphTraversalLoop(params: { ... })` — traversal while 루프
+  전체를 추출. `resumeFromCheckpoint` 와 `resumeGraphAfterRetry` 가 공유.
+  파라미터: `startPointer`, `mode('checkpoint'|'retry')`, 기타 traversal 상태.
+
+**우선순위**: 중간 (즉각 버그 아님, 추적된 기술 부채).
+**선행 조건**: `resumeFromCheckpoint` 의 재시작 waitForX 단계와 인터페이스 설계 필요.
+
+### WARNING #16 — back-edge MAX_NODE_ITERATIONS=1 엣지 케이스
+
+`nodeExecutionCount.set(completedNode.id, 1)` 초기화 후 back-edge loop 재진입으로
+`completedNode` 가 traversal 에서 재방문될 경우 count 가 1+1=2 가 되어
+`MAX_NODE_ITERATIONS=1` 설정 환경에서 오작동 가능. 운영 환경 기본값(100)에서는
+발생하지 않으나, 초기값을 0으로 두는 방어 코딩을 고려한다.
+`resumeFromCheckpoint` 의 동일 패턴과 비교 후 통일된 처리로 수정.
+
+**우선순위**: 낮음 (가설적 케이스, 운영 발생 가능성 낮음).
+
+### WARNING #13/#14 — 성능 최적화 (helper 추출 시 동시 해소)
+
+- `rehydrateContext` + `resumeGraphAfterRetry` 이중 DB 조회 제거: context 에
+  nodes/edges 캐시 또는 인자로 전달.
+- `parallel` 분기 `gatherNodeInput` 중복 호출 제거: 이미 구한 `nodeInput` 재사용.
+
+**우선순위**: 낮음 (대형 워크플로 tail latency 영향). 공통 helper 추출 시 동시 해소.
 
 ## 의존 관계
 

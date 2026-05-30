@@ -8287,6 +8287,426 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8 — retry 성공 후 downstream
+  // graph 는 일반 노드 COMPLETED 와 동일하게 진행된다 (WARNING #10 해소).
+  // 본 describe 는 `resumeGraphAfterRetry` 의 동작을 검증한다 —
+  // `applyRetryLastTurn` 을 통해 간접 호출하되 mock 의 차이는 downstream
+  // 노드 + edge 가 등장한다는 점.
+  describe('resumeGraphAfterRetry — downstream graph traversal (WARNING #10)', () => {
+    const EXEC = executionId;
+    const AGENT_ID = 'node-agent-retry-w10';
+    const DOWNSTREAM_ID = 'node-downstream-w10';
+    const SPAWNED = 'ne-spawned-w10';
+
+    function retryStateSeed(): Record<string, unknown> {
+      return {
+        messages: [
+          { role: 'system', content: 'sys' },
+          { role: 'user', content: 'first' },
+          { role: 'assistant', content: 'ack' },
+        ],
+        turnCount: 1,
+        totalInputTokens: 10,
+        totalOutputTokens: 5,
+        toolCalls: 0,
+        model: 'test-model',
+        lastUserMessage: 'please retry me',
+        lastUserMessageSource: 'ai_message',
+        expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+      };
+    }
+
+    function terminalSuccess(): unknown {
+      return {
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            messages: [
+              { role: 'user', content: 'please retry me' },
+              { role: 'assistant', content: 'retried OK' },
+            ],
+            message: 'retried OK',
+            turnCount: 2,
+            endReason: 'user_ended',
+          },
+        },
+        meta: { interactionType: 'ai_conversation', model: 'test-model' },
+        port: 'user_ended',
+        status: 'ended',
+      };
+    }
+
+    function installReentryWithDownstream(opts: {
+      nodes: Partial<Node>[];
+      edges: Array<{
+        sourceNodeId: string;
+        targetNodeId: string;
+        sourcePort?: string;
+      }>;
+      downstreamHandler?: NodeHandler;
+    }): {
+      agentHandler: NodeHandler & { processMultiTurnMessage: jest.Mock };
+      downstreamHandler: NodeHandler & { execute: jest.Mock };
+    } {
+      const fullEdges = opts.edges.map((e, i) => ({
+        id: `edge-w10-${i}`,
+        sourceNodeId: e.sourceNodeId,
+        sourcePort: e.sourcePort ?? 'user_ended',
+        targetNodeId: e.targetNodeId,
+        targetPort: 'in',
+        type: EdgeType.DATA,
+      }));
+      const spawnedRow = {
+        id: SPAWNED,
+        executionId: EXEC,
+        nodeId: AGENT_ID,
+        status: NodeExecutionStatus.RUNNING,
+        startedAt: new Date(),
+        inputData: { _retryState: retryStateSeed() },
+      };
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue(spawnedRow);
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockImplementation((q: { id: string }) =>
+          Promise.resolve(opts.nodes.find((n) => n.id === q.id) ?? null),
+        );
+      mockNodeRepo.findBy = jest.fn().mockResolvedValue(opts.nodes);
+      mockEdgeRepo.findBy = jest.fn().mockResolvedValue(fullEdges);
+      mockExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: EXEC,
+        workflowId,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 60_000),
+      });
+
+      const agentHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(),
+        processMultiTurnMessage: jest.fn(async () => terminalSuccess()),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: {},
+          output: {},
+          meta: {},
+          port: 'user_ended',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler & { processMultiTurnMessage: jest.Mock };
+      handlerRegistry.register('ai_agent', agentHandler);
+
+      const downstreamHandler = (opts.downstreamHandler ?? {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => ({
+          config: {},
+          output: { result: { ok: true } },
+          meta: {},
+          port: 'out',
+          status: 'ended',
+        })),
+      }) as NodeHandler & { execute: jest.Mock };
+      handlerRegistry.register('test_downstream_w10', downstreamHandler);
+
+      return { agentHandler, downstreamHandler };
+    }
+
+    // (a) downstream 존재 — retry 성공 후 downstream 노드가 dispatch 된다.
+    it('dispatches downstream node when retry succeeds and downstream exists', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const downstreamNode: Partial<Node> = {
+        id: DOWNSTREAM_ID,
+        workflowId,
+        type: 'test_downstream_w10',
+        category: NodeCategory.LOGIC,
+        label: 'Downstream',
+        config: {},
+        isDisabled: false,
+      };
+      const { downstreamHandler } = installReentryWithDownstream({
+        nodes: [agentNode, downstreamNode],
+        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // downstream handler.execute 가 1회 호출됨 (graph traversal 합류).
+      expect(downstreamHandler.execute).toHaveBeenCalledTimes(1);
+
+      // downstream node 의 node.completed 이벤트가 emit 됨.
+      const nodeCompleted =
+        mockWebsocketService.emitNodeEvent.mock.calls.filter(
+          (c: unknown[]) => c[2] === 'execution.node.completed',
+        );
+      expect(nodeCompleted.some((c: unknown[]) => c[1] === DOWNSTREAM_ID)).toBe(
+        true,
+      );
+
+      // Execution 도 정상 COMPLETED 마감 (graph loop 자연 종결).
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
+    });
+
+    // (b/e) downstream 없음 (leaf) — retry 성공 후 Execution.COMPLETED 자연 마감.
+    // 기존 동작과 회귀 없음.
+    it('completes Execution naturally when retry succeeds on a leaf node (no downstream)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const { downstreamHandler } = installReentryWithDownstream({
+        nodes: [agentNode],
+        edges: [],
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // downstream handler 는 호출되지 않음.
+      expect(downstreamHandler.execute).not.toHaveBeenCalled();
+
+      // Execution 은 정상 COMPLETED 마감.
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
+    });
+
+    // (e) defensive fallback — workflow nodes 가 비어 있으면 Execution 을
+    // 직접 COMPLETED 마감 (graph rebuild 불가).
+    it('falls back to direct Execution.COMPLETED when workflow has no nodes (defensive)', async () => {
+      const spawnedRow = {
+        id: SPAWNED,
+        executionId: EXEC,
+        nodeId: AGENT_ID,
+        status: NodeExecutionStatus.RUNNING,
+        startedAt: new Date(),
+        inputData: { _retryState: retryStateSeed() },
+      };
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue(spawnedRow);
+      // findOneBy (node lookup) must still return agentNode so that
+      // applyRetryLastTurn can resolve the node.
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue(agentNode);
+      // resumeGraphAfterRetry 의 nodeRepository.findBy 가 [] 를 반환하게
+      // 하여 nodes.length === 0 defensive fallback 을 실제로 hit 한다.
+      // rehydrateContext 는 nodeRepository.findBy 를 호출하지 않으므로
+      // 단일 mockResolvedValue([]) 만으로 충분하다.
+      mockNodeRepo.findBy = jest.fn().mockResolvedValue([]);
+      mockEdgeRepo.findBy = jest.fn().mockResolvedValue([]);
+      mockExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: EXEC,
+        workflowId,
+        status: ExecutionStatus.FAILED,
+        startedAt: new Date(Date.now() - 60_000),
+      });
+
+      const agentHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(),
+        processMultiTurnMessage: jest.fn(async () => terminalSuccess()),
+        endMultiTurnConversation: jest.fn(() => ({
+          config: {},
+          output: {},
+          meta: {},
+          port: 'user_ended',
+          status: 'ended',
+        })),
+      } as unknown as NodeHandler;
+      handlerRegistry.register('ai_agent', agentHandler);
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // 정상 COMPLETED — fallback 경로도 동일 종결.
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
+    });
+
+    // W2 — completedPointer undefined (second fallback): completedNode 가 graph
+    // 에 없으면 defensive fallback 으로 Execution.COMPLETED 마감한다.
+    it('falls back to direct Execution.COMPLETED when completedNode is absent from sorted graph (W2)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      // A different node set that does NOT include AGENT_ID — so sortedIndexMap
+      // will not contain completedNode.id, triggering the second fallback.
+      const otherNode: Partial<Node> = {
+        id: 'other-node-w10',
+        workflowId,
+        type: 'test_downstream_w10',
+        category: NodeCategory.LOGIC,
+        label: 'Other',
+        config: {},
+        isDisabled: false,
+      };
+      installReentryWithDownstream({
+        // installReentryWithDownstream sets up agent + downstream mocks,
+        // but we override findBy to return only otherNode (not AGENT_ID).
+        nodes: [agentNode, otherNode],
+        edges: [],
+      });
+      // Override: nodeRepository.findBy returns only otherNode for the graph —
+      // completedNode (AGENT_ID) won't be in sortedIndexMap.
+      mockNodeRepo.findBy = jest.fn().mockResolvedValue([otherNode]);
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // Execution is COMPLETED via defensive fallback (completeRetryExecution).
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(1);
+    });
+
+    // W3 — downstream 실패 경로: downstream 노드 실행 중 오류 발생 시
+    // failRetryExecution 이 호출되고 Execution 이 FAILED 로 마감된다.
+    it('marks Execution FAILED when downstream node throws during traversal (W3)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const downstreamNode: Partial<Node> = {
+        id: DOWNSTREAM_ID,
+        workflowId,
+        type: 'test_downstream_w10',
+        category: NodeCategory.LOGIC,
+        label: 'Downstream',
+        config: {},
+        isDisabled: false,
+      };
+      const failingDownstreamHandler = {
+        validate: () => ({ valid: true, errors: [] }),
+        execute: jest.fn(async () => {
+          throw new Error('downstream node failed unexpectedly');
+        }),
+      } as unknown as NodeHandler & { execute: jest.Mock };
+      installReentryWithDownstream({
+        nodes: [agentNode, downstreamNode],
+        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
+        downstreamHandler: failingDownstreamHandler,
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // Execution is FAILED — applyRetryLastTurn catch → failRetryExecution.
+      const failed = mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+        (c: unknown[]) => c[1] === 'execution.failed',
+      );
+      expect(failed.length).toBe(1);
+      // execution.completed must NOT have been emitted.
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(0);
+    });
+
+    // W4 — cancel 도달: retry 재진입 처리 중 cancel 이 도달하면 catch 경로가
+    // `failRetryExecution(CANCELLED)` 를 호출해 Execution 이 CANCELLED 로 마감된다.
+    // downstream traversal 진입 전 cancel 이 replay turn 구간에 도달하는 케이스.
+    // (downstream traversal 도중 blocking wait 에서 cancel 이 도달하는 고급 케이스는
+    // waitForX 블록 mock 이 필요해 별도 integration 테스트 영역이다.)
+    it('marks Execution CANCELLED when cancel arrives during retry replay → downstream never runs (W4)', async () => {
+      const agentNode: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const downstreamNode: Partial<Node> = {
+        id: DOWNSTREAM_ID,
+        workflowId,
+        type: 'test_downstream_w10',
+        category: NodeCategory.LOGIC,
+        label: 'Downstream',
+        config: {},
+        isDisabled: false,
+      };
+      // Replay turn gate — cancel arrives while replay turn is pending.
+      let releaseReplayTurn!: () => void;
+      const replayGate = new Promise<void>((r) => {
+        releaseReplayTurn = r;
+      });
+      const { agentHandler, downstreamHandler } = installReentryWithDownstream({
+        nodes: [agentNode, downstreamNode],
+        edges: [{ sourceNodeId: AGENT_ID, targetNodeId: DOWNSTREAM_ID }],
+      });
+      // Override processMultiTurnMessage to hang during replay turn so cancel
+      // arrives while the cancel-only pending continuation is registered.
+      agentHandler.processMultiTurnMessage = jest.fn(
+        () => replayGate.then(() => terminalSuccess()),
+      );
+
+      const p = service.applyRetryLastTurn(EXEC, SPAWNED);
+      // Allow applyRetryLastTurn to register the cancel-only pending continuation.
+      await flushPromises();
+      // External cancel arrives while replay turn is pending.
+      service.applyCancellation(EXEC);
+      // Release replay gate (cancel has already won — replay result is discarded).
+      releaseReplayTurn();
+      await p;
+      await flushPromises();
+
+      // Execution is CANCELLED — failRetryExecution receives ExecutionCancelledError.
+      const cancelled =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.cancelled',
+        );
+      expect(cancelled.length).toBe(1);
+      // Downstream was never reached.
+      expect(downstreamHandler.execute).not.toHaveBeenCalled();
+      const completed =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.completed',
+        );
+      expect(completed.length).toBe(0);
+    });
+  });
+
   // spec node-output §4.2.1 — stripControlFields preserves _retryState while
   // stripping _resumeState.
   describe('stripControlFields _retryState preservation', () => {
