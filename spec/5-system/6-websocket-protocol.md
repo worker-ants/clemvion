@@ -356,6 +356,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 - **TTL**: `_retryState.expiresAt` (ISO 8601). 기본 60분, 환경변수 `AI_RETRY_STATE_TTL_MINUTES` 로 override. `now > expiresAt` 이면 `RETRY_STATE_NOT_FOUND`. 만료된 미소비 `_retryState` 는 row 의 `outputData` 안에 남아있다가 (별도 cleanup job 없음 — row 수명에 종속) 다음 retry 시도 시 만료 판정으로 거부된다.
 - **Continuation Bus 경유 (worker handoff)**: WS gateway(다른 인스턴스 가능)는 multi-turn loop 를 동기 재개할 수 없다 — 재진입은 live `ExecutionContext` rehydrate + `waitForAiConversation` 재개가 필요한 **execution worker 컨텍스트**에서만 가능하다. 따라서 retry 는 검증·atomic consume·새 row spawn 후 continuation 큐(`execution-continuation`)에 **새 job type (`retry_last_turn`)** 을 publish 해 worker 로 handoff 한다. worker processor 가 그 job 을 받아 spawn 된 row 를 `_retryState`(→ `_resumeState` shape) 로 seed 한 채 multi-turn loop 에 재진입시킨다. (기존 `submit_message` 등 continuation 명령과 동일한 WS→worker 브리지를 재사용하되, 대기중 row 재개가 아닌 **새 row 재개**라는 점만 다르다.)
 - **replay 중 cancel**: replay turn 진행 중 외부 cancel 신호(`execution.cancel`)가 도달하면 진행 중 turn 을 조기 종료하고 Execution 을 `cancelled` 로 마감한다 — `execution.cancelled` 이벤트가 발사되며 `execution.completed` / `execution.failed` 는 발사되지 않는다. 이는 정상 multi-turn 의 "입력 대기 중 cancel" 과 동일 의미의 대칭 보장이다 (replay 는 입력 대기 없이 즉시 turn 을 돌리므로 별도 cancel 경로 필요). `cancelled` 페이로드의 분류는 일반 사용자 취소와 동일하게 다룬다.
+- **재진입 종결 후 graph 진행**: 재진입한 turn 이 성공 종결되면 spawn 된 NodeExecution 은 일반 노드 `COMPLETED` 와 동일하게 출력 포트의 downstream 노드로 그래프 진행이 이어진다 — [실행 엔진 §1.1 Execution 상태](./4-execution-engine.md#11-execution-상태) 의 종결 규칙 + [§2.1 토폴로지 traversal](./4-execution-engine.md#21-토폴로지-정렬-기반-실행-순환-참조-지원). 재진입이 실패하면 일반 노드 `FAILED` 와 동일하게 종결 (Execution 도 `FAILED` 마감). 워크플로 Re-run ([§13 replay-rerun](./13-replay-rerun.md)) 과 구분되는 점은 "동일 Execution 안 노드 단위 재진입" 이며 "downstream traversal 차단" 이 아니다. AI Agent 본문은 [§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) + [§12.8](../4-nodes/3-ai/1-ai-agent.md#128-retry_last_turn-성공-후-downstream-graph-진행) 참조.
 
 ### 4.4 사용자 입력 대기 이벤트 상세 (`execution.waiting_for_input`)
 
@@ -909,3 +910,7 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 `pendingFormToolCall.formConfig` nest 는 `toolCallId` 와 묶여 단일 원자 운반체로 의미가 명확하다.
 
 **근거**: [Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합).
+
+### `execution.retry_last_turn` 의 graph 진행 의미 — Re-run 과의 경계
+
+retry 는 "노드 단위 재시도" 라는 표현 때문에 일부 독자가 "downstream 도 의도적으로 차단" 으로 오독할 여지가 있었으나, spec 의 의도는 워크플로 Re-run ([§13](./13-replay-rerun.md)) 과의 단위 구분 (Execution 단위 vs 노드 단위) 이지 downstream traversal 차단이 아니다. 재진입한 turn 의 성공 후 graph 진행은 일반 노드 `COMPLETED` 와 동일한 워크플로 엔진의 기본 invariant 적용이며, AI Agent [§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) + [§12.8](../4-nodes/3-ai/1-ai-agent.md#128-retry_last_turn-성공-후-downstream-graph-진행) 이 동일 결정 근거를 공유한다.
