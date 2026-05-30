@@ -378,3 +378,12 @@ GOOGLE_CLIENT_SECRET=<복사한 client secret>
 FRONTEND_URL=http://localhost:3012
 APP_URL=http://localhost:3011
 ```
+
+## 라이선스
+
+Clemvion 은 **듀얼 라이선스(Dual Licensing)** 로 제공됩니다.
+
+- **AGPL v3 (무료)** — 소스코드 공개 의무를 준수하는 조건으로 무료 사용이 가능합니다. 내부 업무 목적 사용은 공개 의무가 없습니다. 전문은 [`LICENSE`](./LICENSE) 참조.
+- **상업 라이선스 (유료)** — AGPL v3 의무를 면제받고 소스 비공개 상태로 상업적 서비스를 운영하려는 경우 필요합니다. 안내·문의는 [`LICENSE-COMMERCIAL.md`](./LICENSE-COMMERCIAL.md) 참조.
+
+상업 라이선스 문의: **admin@getit.co.kr**
