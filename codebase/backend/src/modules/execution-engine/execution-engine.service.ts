@@ -3174,8 +3174,9 @@ export class ExecutionEngineService
    *   6. `finalizeAiNode` 로 spawn row 마감 + Execution 을 RUNNING 으로 전이.
    *   7. 성공 종결이면 `resumeGraphAfterRetry` 가 downstream graph 로 진행
    *      (WARNING #10 해소; spec/4-nodes/3-ai/1-ai-agent.md §7.9 + §12.8).
-   *      실패/취소 종결이면 `failRetryExecution` 이 Execution 을 FAILED 또는
-   *      CANCELLED 로 마감 (일반 노드 종결 규칙 — spec §10).
+   *      실패/취소/`resumeGraphAfterRetry` 내부 예외 등 모든 catch 는
+   *      `failRetryExecution` 이 Execution 을 FAILED 또는 CANCELLED 로 마감
+   *      (일반 노드 종결 규칙 — spec §10).
    */
   async applyRetryLastTurn(
     executionId: string,
@@ -3429,6 +3430,13 @@ export class ExecutionEngineService
    * downstream 이 없는 leaf AI 노드의 경우에도 본 helper 대신 정상 경로
    * (`resumeGraphAfterRetry`) 가 graph loop 자연 종결을 통해 동일한 결과
    * (Execution.COMPLETED) 를 만든다.
+   *
+   * **호출 조건**: (1) `resumeGraphAfterRetry` 진입 시 `nodes.length === 0`,
+   * 또는 (2) `sortedIndexMap.get(completedNode.id) === undefined`. 이 두 가지
+   * defensive fallback 경로 외에서는 호출해서는 안 된다.
+   *
+   * @internal 이 메서드는 `resumeGraphAfterRetry` 의 defensive fallback 에서만
+   * 호출된다. 다른 경로에서 직접 호출하지 말 것.
    */
   private async completeRetryExecution(
     execution: Execution,
@@ -3457,14 +3465,14 @@ export class ExecutionEngineService
    *
    * 동작 흐름:
    *   1. workflow nodes/edges 로드 + graph rebuild (buildGraph / topologicalSort
-   *      / buildEdgeIndexes — `runExecution` 의 1505-1535 와 동일 패턴).
+   *      / buildEdgeIndexes — `runExecution` graph rebuild 섹션과 동일 패턴).
    *   2. completedNode 가 그래프에 없거나 nodes 가 비어 있으면 defensive
    *      fallback — `completeRetryExecution` 으로 Execution.COMPLETED 마감.
    *   3. reachable seed (트리거 + no-incoming + context._executedNodes +
    *      completedNode) + propagateReachability + back-edge 처리.
    *   4. 그래프 traversal loop — downstream 노드 dispatch / blocking 노드
    *      (form/button/AI multi-turn) waitForX 진입 등 일반 dispatch 와 동일
-   *      (`resumeFromCheckpoint` 의 1140-1314 패턴 동일).
+   *      (`resumeFromCheckpoint` traversal loop 패턴과 동일).
    *   5. 자연 종결 시 Execution 을 COMPLETED 로 마감 + lastNode 출력 저장.
    *
    * **`executeWithRetry` (노드 에러 정책 자동 재실행) 와 무관** — 본 메서드는
@@ -3479,8 +3487,8 @@ export class ExecutionEngineService
    * (`applyRetryLastTurn`) 의 catch 가 `failRetryExecution` 으로 처리한다.
    *
    * @remarks 본 메서드의 traversal loop + completion 코드는 `resumeFromCheckpoint`
-   * 의 line 1115-1337 와 거의 동일하다. 공통 helper 추출 리팩토링은 PR2 scope
-   * creep 회피를 위해 후속 plan 으로 분리한다.
+   * traversal loop + COMPLETED finalize block 과 거의 동일하다. 공통 helper 추출
+   * 리팩토링은 PR2 scope creep 회피를 위해 후속 plan 으로 분리한다.
    */
   private async resumeGraphAfterRetry(
     savedExecution: Execution,
@@ -3577,8 +3585,8 @@ export class ExecutionEngineService
       }
     }
 
-    // 5. 그래프 traversal loop (resumeFromCheckpoint 의 1140-1314 패턴 — input
-    // 은 retry 경로엔 의미 없으므로 빈 객체).
+    // 5. 그래프 traversal loop (resumeFromCheckpoint traversal loop 패턴 동일 —
+    // input 은 retry 경로엔 의미 없으므로 빈 객체).
     const input = {};
     while (pointer < sortedNodeIds.length) {
       const nodeId = sortedNodeIds[pointer];
@@ -3750,8 +3758,8 @@ export class ExecutionEngineService
       pointer++;
     }
 
-    // 6. 자연 종결 — Execution COMPLETED 마감 (resumeFromCheckpoint 의 line
-    // 1316-1337 패턴).
+    // 6. 자연 종결 — Execution COMPLETED 마감 (resumeFromCheckpoint COMPLETED
+    // finalize block 패턴 동일).
     await this.updateExecutionStatus(savedExecution, ExecutionStatus.COMPLETED);
     const lastNodeId = sortedNodeIds[sortedNodeIds.length - 1];
     if (lastNodeId) {

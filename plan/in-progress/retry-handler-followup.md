@@ -110,6 +110,46 @@ owner: project-planner
 
 > **W1/W2 (spec gap) 해소 완료 (2026-05-30)**: WS ack `success` 필드(§4.2) + `_retryState.lastUserMessage`/`lastUserMessageSource`(node-output §4.2.1) 를 spec 에 명시 반영. (원본 escalation draft `spec-fix-retry-ws-ack-fields.md` 는 적용 후 제거.)
 
+## PR2 ai-review 후속 plan (2026-05-30 — review/code/2026/05/30/15_43_30)
+
+PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 외 분리):
+
+### WARNING #10/#11 — graph traversal loop + graph rebuild 공통 helper 추출
+
+`resumeGraphAfterRetry` 와 `resumeFromCheckpoint` 의 traversal loop (약 160줄) 및
+graph rebuild 로직 (약 30줄) 이 사실상 중복된다. `runExecution` 까지 포함하면
+graph rebuild 가 3중 복제 상태다. 이 중복은 버그 fix 나 dispatch kind 추가 시
+세 곳을 동기화해야 하는 위험을 만든다.
+
+**제안 헬퍼**:
+- `private async loadAndBuildGraph(workflowId: string)` — nodes/edges 로드 +
+  buildGraph/topologicalSort/buildEdgeIndexes 를 통합. `runExecution`,
+  `resumeFromCheckpoint`, `resumeGraphAfterRetry` 가 공유.
+- `private async runGraphTraversalLoop(params: { ... })` — traversal while 루프
+  전체를 추출. `resumeFromCheckpoint` 와 `resumeGraphAfterRetry` 가 공유.
+  파라미터: `startPointer`, `mode('checkpoint'|'retry')`, 기타 traversal 상태.
+
+**우선순위**: 중간 (즉각 버그 아님, 추적된 기술 부채).
+**선행 조건**: `resumeFromCheckpoint` 의 재시작 waitForX 단계와 인터페이스 설계 필요.
+
+### WARNING #16 — back-edge MAX_NODE_ITERATIONS=1 엣지 케이스
+
+`nodeExecutionCount.set(completedNode.id, 1)` 초기화 후 back-edge loop 재진입으로
+`completedNode` 가 traversal 에서 재방문될 경우 count 가 1+1=2 가 되어
+`MAX_NODE_ITERATIONS=1` 설정 환경에서 오작동 가능. 운영 환경 기본값(100)에서는
+발생하지 않으나, 초기값을 0으로 두는 방어 코딩을 고려한다.
+`resumeFromCheckpoint` 의 동일 패턴과 비교 후 통일된 처리로 수정.
+
+**우선순위**: 낮음 (가설적 케이스, 운영 발생 가능성 낮음).
+
+### WARNING #13/#14 — 성능 최적화 (helper 추출 시 동시 해소)
+
+- `rehydrateContext` + `resumeGraphAfterRetry` 이중 DB 조회 제거: context 에
+  nodes/edges 캐시 또는 인자로 전달.
+- `parallel` 분기 `gatherNodeInput` 중복 호출 제거: 이미 구한 `nodeInput` 재사용.
+
+**우선순위**: 낮음 (대형 워크플로 tail latency 영향). 공통 helper 추출 시 동시 해소.
+
 ## 의존 관계
 
 WARNING #1~#5, #9 는 `project-planner` 에서 spec 확인 후 → 개발자가 구현·테스트 (#9 는 spec 무변경 — 코드만 spec 에 정렬).
