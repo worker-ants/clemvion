@@ -173,7 +173,14 @@ export class TextClassifierHandler implements NodeHandler {
     };
     const callStartedAt = Date.now();
     try {
-      result = await this.llmService.chat(llmConfig, requestPayload);
+      result = await this.llmService.chat(
+        llmConfig,
+        requestPayload,
+        undefined,
+        {
+          signal: context.abortSignal,
+        },
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // CONVENTIONS §7 — truncate originalInput in the error envelope so long
