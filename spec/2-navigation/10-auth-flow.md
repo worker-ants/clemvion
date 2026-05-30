@@ -121,7 +121,7 @@ code: []
 └──────────────────────────────────┘
 ```
 
-- 이메일 인증 링크 클릭 → `GET /api/auth/verify-email?token={token}`
+- 이메일 인증 링크 클릭 → 인증 페이지가 `POST /api/auth/verify-email` 호출 (token 은 **요청 본문**에 동봉; 링크 자체는 `?token=` 쿼리로 전달되나 검증 호출은 POST+body 다). 아래 §API 표 참조.
 - 인증 성공 → 자동 로그인 + 개인 워크스페이스 생성 + 대시보드(`/dashboard`)로 리다이렉트
 - 인증 토큰 유효기간: 24시간
 - 재발송: 60초 쿨다운
@@ -429,7 +429,7 @@ code: []
 |--------|------|------|
 | POST | /api/auth/register | 회원가입 (본문에 `invitationToken?` 동봉 시 [§2.6](#26-초대-토큰을-통한-가입-invitationtoken) 흐름) |
 | GET | /api/invitations/:token | 초대 토큰 메타 조회 (가입 페이지 prefill 용, 인증 불요) |
-| POST | /api/auth/verify-email | 이메일 인증 확인 (쿼리: token) |
+| POST | /api/auth/verify-email | 이메일 인증 확인 (본문: `{ token }`) |
 | POST | /api/auth/resend-verification | 인증 이메일 재발송 |
 | POST | /api/auth/login | 로그인 (2FA 활성 시 `{ requires2fa, methods, challengeToken }` 응답) |
 | POST | /api/auth/login/totp | 2FA TOTP 검증 (`{ challengeToken, code }`) — 옛 `/api/auth/verify-2fa` 표기는 폐기, canonical 정의는 [auth spec §5](../5-system/1-auth.md#5-api-엔드포인트) |

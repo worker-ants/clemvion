@@ -125,8 +125,7 @@ code: []
 |--------|------|------|
 | GET | /api/triggers | 목록 조회 (쿼리: type, status, search, page, limit, sort, order). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | GET | /api/triggers/:id | 트리거 상세 조회 |
-| PATCH | /api/triggers/:id | 트리거 수정 |
-| PATCH | /api/triggers/:id/toggle | 활성/비활성 토글 |
+| PATCH | /api/triggers/:id | 트리거 수정 (활성/비활성 토글 포함 — body `{ isActive: boolean }`). 별도 `/toggle` 서브경로는 없다 |
 | GET | /api/triggers/:id/history | 호출 이력 조회 |
 | DELETE | /api/triggers/:id | 트리거 삭제 — 자세한 권한·cascade·확인 UX 는 [§4 삭제 정책](#4-삭제-정책) |
 | POST | /api/triggers/:id/chat-channel/rotate-bot-token | Chat Channel bot token rotation (24h grace). 본 endpoint 는 [Spec Chat Channel §5.4](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약) 가 single-path SoT — PATCH body 의 `config.chatChannel.botTokenRef` 직접 변경은 차단됨 ([R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only)) |

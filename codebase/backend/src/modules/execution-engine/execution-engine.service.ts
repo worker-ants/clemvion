@@ -413,15 +413,21 @@ function withSourceMarker(
  * remaining message is guaranteed to carry a `source: 'live' | 'injected'`
  * marker per spec/5-system/6-websocket-protocol.md §4.4.6.
  *
- * D6 (2026-05-17) — multi-turn 의 `message` / `messages` / `turnCount` /
- * `maxTurns` 는 waiting/resumed/ended 모두 `output.result.*` 단일 경로로
- * 통일됐다. 이 함수는 waiting / 첫 진입 시점에서 호출되며 핸들러가 push 한
- * `output.result.*` 를 그대로 읽어야 한다 (spec/4-nodes/3-ai/1-ai-agent.md
- * §7.4/§7.5). `output.partial.*` (info-extractor 의 부분 수집 진행 상태)
- * 은 D6 에서 의미 분리 유지로 top-level 그대로.
+ * D6 (2026-05-17) — multi-turn 의 `message` / `messages` / `turnCount` 는
+ * waiting/resumed/ended 모두 `output.result.*` 단일 경로로 통일됐다. 이 함수는
+ * waiting / 첫 진입 시점에서 호출되며 핸들러가 push 한 `output.result.*` 를
+ * 읽는다 (spec/4-nodes/3-ai/1-ai-agent.md §7.4/§7.5). `output.partial.*`
+ * (info-extractor 의 부분 수집 진행 상태) 은 의미 분리 유지로 top-level 그대로.
+ *
+ * `maxTurns` (2026-05-31, decision C-1) — static config 값이라 `output.result`
+ * 에 echo 하지 않는다 (CONVENTIONS Principle 1.1). WS UI 의 진행률 분모
+ * ("Turn N/M") 용으로는 **config echo (`output.config.maxTurns`)** 에서 읽어
+ * `conversationConfig.maxTurns` 로 전달한다 — caller 가 두 번째 인자로 config
+ * echo 를 넘긴다.
  */
 export function buildConversationConfigFromOutput(
   output: Record<string, unknown> | undefined,
+  config?: Record<string, unknown> | undefined,
 ): {
   message: string;
   turnCount: number;
@@ -451,7 +457,9 @@ export function buildConversationConfigFromOutput(
     turnCount: (r.turnCount as number | undefined) ?? 0,
     messages: withSourceMarker(messagesAll.filter((m) => m.role !== 'system')),
   };
-  const maxTurns = r.maxTurns as number | undefined;
+  // decision C-1 — maxTurns 는 output.result 에 없다. config echo 에서 읽어
+  // WS UI 진행률 분모로만 전달 (Principle 1.1).
+  const maxTurns = config?.maxTurns as number | undefined;
   if (maxTurns !== undefined) result.maxTurns = maxTurns;
   // spec §4.1·§7.10 — presentations emitted by render_* tools in this turn.
   const presentationsRaw = r.presentations;
@@ -4297,7 +4305,10 @@ export class ExecutionEngineService
       nodeExec ?? undefined,
     );
 
-    const initialConv = buildConversationConfigFromOutput(structuredOutput);
+    const initialConv = buildConversationConfigFromOutput(
+      structuredOutput,
+      structuredConfig as Record<string, unknown> | undefined,
+    );
 
     this.eventEmitter.emitExecution(
       executionId,
@@ -4521,7 +4532,10 @@ export class ExecutionEngineService
       const adaptedConfig = (adaptedNext.config ?? undefined) as
         | Record<string, unknown>
         | undefined;
-      const nextConv = buildConversationConfigFromOutput(adaptedOutput);
+      const nextConv = buildConversationConfigFromOutput(
+        adaptedOutput,
+        adaptedConfig,
+      );
 
       // Emit AI response event (filter system prompts from client).
       // Shape mirrors the terminal-emit branch below so the frontend

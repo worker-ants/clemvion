@@ -602,8 +602,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
         { "role": "assistant", "content": "안녕하세요, 무엇을 도와드릴까요?" }
       ],
       "message": "안녕하세요, 무엇을 도와드릴까요?",
-      "turnCount": 1,
-      "maxTurns": 20
+      "turnCount": 1
     }
   },
   "meta": {
@@ -648,8 +647,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 | `config.*` | (raw echo) | Principle 7 | 첫 turn 은 `context.rawConfig`, 후속 turn 은 `state.rawConfig` (frozen snapshot) 를 echo |
 | `output.result.messages` | ChatMessage[] | runtime accumulator | 첫 turn 은 빈 배열 (LLM 호출 전). 후속 turn 부터 system 제외한 user/assistant/tool 메시지 누적 |
 | `output.result.message` | string | handler return | 현재 턴의 assistant 응답 (waiting 시점) — 첫 진입 시 `""` |
-| `output.result.turnCount` | number | handler return | 누적 turn 수 (첫 진입 시 `0`) |
-| `output.result.maxTurns` | number | handler return | config 의 `maxTurns` 값 echo |
+| `output.result.turnCount` | number | handler return | 누적 turn 수 (첫 진입 시 `0`). 진행률 표시(`turnCount / maxTurns`)의 분모 `maxTurns` 는 **`config.maxTurns` 에서 읽는다** — output 에 echo 하지 않음 (Principle 1.1) |
 | `meta.interactionType` | `"ai_conversation"` | handler return | run-results UI 의 conversation Preview 탭 식별자 (Principle 1.1.4 의 노드 판별자가 아니라 인터랙션 타입 라벨). 탭 렌더 규칙은 [Spec Conversation Thread §9](../../conventions/conversation-thread.md#9-미리보기-ui-렌더-규칙) 의 강제 매핑표를 따른다 — 1차 소스는 emit messages 가 아닌 `conversationThread` snapshot |
 | `meta.durationMs` / 토큰 / `turnDebug` | — | (§7.1 과 동일 위치) | 진행 중 누적치를 노출해 References / LLM Usage 탭이 동작 |
 | `status` | `"waiting_for_input"` | handler return | 엔진이 실행을 일시 정지 |
@@ -703,7 +701,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 | `output.interaction.receivedAt` | ISO8601 string | 수신 시각 |
 | `status` | `"resumed"` | 1회성 transient 마커 |
 
-> **D6 결정**: waiting/resumed 의 `messages` / `message` / `turnCount` / `maxTurns` 가 종결 시점 (`output.result.*`) 과 단일 경로로 통일. 옛 top-level `output.messages` / `.message` / `.turnCount` / `.maxTurns` 는 폐기 — 다운스트림 expression 은 `$node["X"].output.result.messages` 처럼 단일 경로로 접근한다. interaction 페이로드는 의미 분리 유지 (`output.interaction.*`).
+> **D6 결정**: waiting/resumed 의 `messages` / `message` / `turnCount` 가 종결 시점 (`output.result.*`) 과 단일 경로로 통일. 옛 top-level `output.messages` / `.message` / `.turnCount` 는 폐기 — 다운스트림 expression 은 `$node["X"].output.result.messages` 처럼 단일 경로로 접근한다. `maxTurns` 는 static config 값이라 output 으로 echo 하지 않고 `config.maxTurns` 로만 노출한다 (Principle 1.1 — 진행률 분모는 UI 가 config 에서 읽는다). interaction 페이로드는 의미 분리 유지 (`output.interaction.*`).
 
 ### 7.6 Multi Turn 모드 — 조건 매칭 (`{condition.id}` 포트)
 

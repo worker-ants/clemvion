@@ -1664,15 +1664,15 @@ export class AiAgentHandler implements NodeHandler {
       },
       // CONVENTIONS §4.3 — waiting `output.result.*` carries the live
       // conversation snapshot. D6 (2026-05-17) — `messages` / `message` /
-      // `turnCount` / `maxTurns` 가 종결 시점 (`output.result.*`) 과 단일
-      // 경로로 통일되어 다운스트림 expression `$node["X"].output.result.*`
-      // 가 waiting/ended 양쪽에서 동일하게 동작.
+      // `turnCount` 가 종결 시점 (`output.result.*`) 과 단일 경로로 통일되어
+      // 다운스트림 expression `$node["X"].output.result.*` 가 waiting/ended
+      // 양쪽에서 동일하게 동작. `maxTurns` 는 static config 값이라 output 에
+      // echo 하지 않는다 (Principle 1.1 — UI 진행률 분모는 config.maxTurns).
       output: {
         result: {
           messages,
           message: '',
           turnCount: 0,
-          maxTurns,
         },
       },
       meta: {
@@ -2294,12 +2294,12 @@ export class AiAgentHandler implements NodeHandler {
             : {}),
       },
       // D6 (2026-05-17) — resumed waiting tick 도 단일 경로로 통일.
+      // `maxTurns` 는 config 전용 — output.result 에 echo 안 함 (Principle 1.1).
       output: {
         result: {
           messages,
           message: result.content || '',
           turnCount,
-          maxTurns,
           // spec §4.1·§7.10 — execution engine 이 AI_MESSAGE WS 이벤트에
           // presentations 를 포함시키기 위해 output 에 동봉.
           ...(presentationPayloads.length > 0

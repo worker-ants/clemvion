@@ -40,6 +40,8 @@ pending → running ──┤                     └─ cancelled
 | `failed` | 실패 | 노드 에러 + Stop Workflow 정책, 또는 시스템 에러 |
 | `cancelled` | 사용자 취소 | 사용자가 실행 중단 요청 |
 
+> ※ **`skipped` 는 NodeExecution 전용** — Execution 레벨에는 `skipped` 상태가 없다(§1.2). 모든 노드가 `skipped`(노드 비활성 / 조건 분기 미선택 / 도달 불가)로 종료되어 에러 없이 dispatch 루프가 자연 종료되면 Execution 은 **`completed`** 로 마감한다(정상 종료 — 구현: dispatch 루프 종료 후 `ExecutionStatus.COMPLETED`). 따라서 실행 이력 화면([2-navigation/14-execution-history.md](../2-navigation/14-execution-history.md))의 필터에도 Execution 레벨 `skipped` 항목은 없으며, all-skipped 실행은 `completed` 로 표시된다.
+
 **허용되는 상태 전이:**
 
 | From | To | 조건 |
@@ -313,9 +315,8 @@ $loop.count = 10              $item.index = 1
 - 메인 Execution과 동일한 `execution_id`를 공유. 본문 노드의 `parentNodeExecutionId` 가 Background 노드 자신의 NodeExecution id 를 가리킨다
 - 백그라운드 실패가 메인 흐름의 Execution 상태에 영향을 주지 않음
 - conversationThread 는 enqueue 시점 snapshot 으로 격리된다 — background 안에서 발생한 turn 은 메인 thread 에 영향 없고, 그 반대도 마찬가지. PRD §4.12 ND-BG-05 격리 원칙과 일관 ([Spec Conversation Thread §3.2](../conventions/conversation-thread.md#32-background-격리-근거))
-- 백그라운드 실패 시 `notifyOnError=true`이면 `notifyChannels`에 따라 알림 전송:
-  - `in_app`: Notification 엔티티 생성 (`type: background_failed`, 실행 시작 사용자에게)
-  - `email`: 실행 시작 사용자 이메일로 실패 알림 발송
+- 백그라운드 실패 시 `notifyOnFailure=true`이면 **워크스페이스 Admin 에게 인앱 알림**:
+  - Notification 엔티티 생성 (`type: background_failed`, 수신자: 워크스페이스 Admin, `channel: in_app`). 이메일 채널·실행자(executed_by) 수신은 현재 미지원 — 단일 boolean `notifyOnFailure` 로만 제어한다 ([Background 노드 §1](../4-nodes/1-logic/12-background.md) 이 SoT, 구현 `background-execution.processor.ts`).
 - Execution 상세 화면에서 Background 실행 결과를 별도 섹션으로 표시 (성공/실패 불문) — 노드 카드는 메인 카드와 동일하되 [Run Results Drawer §10.15](../3-workflow-editor/3-execution.md#1015-background-본문-실행-결과) 의 본문 실행 결과 섹션을 펼쳐 본문 NodeExecution 타임라인을 확인. 본문 실행 모니터링 API 는 [Background 모니터링 API](../4-nodes/1-logic/12-background.md#8-모니터링-api) 참조
 
 ---
