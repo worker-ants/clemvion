@@ -14,6 +14,9 @@ vi.mock("../../api/workflows", () => ({
 }));
 
 import { useEditorStore } from "../editor-store";
+import { workflowsApi } from "../../api/workflows";
+
+const saveCanvasMock = vi.mocked(workflowsApi.saveCanvas);
 
 const makeNode = (id: string, overrides?: Partial<Node>): Node => ({
   id,
@@ -398,6 +401,82 @@ describe("useEditorStore", () => {
       graphWarningsMock.mockResolvedValue(responseBody);
       await useEditorStore.getState().fetchGraphWarnings();
       expect(useEditorStore.getState().graphWarnings).toEqual(responseBody);
+    });
+  });
+
+  describe("saveWorkflow (optimistic-clear)", () => {
+    beforeEach(() => {
+      saveCanvasMock.mockReset();
+      useEditorStore.setState({
+        workflowId: "wf-1",
+        nodes: [makeNode("1")],
+        edges: [],
+        isDirty: true,
+        isSaving: false,
+        saveCount: 0,
+      });
+    });
+
+    it("clears isDirty and bumps saveCount on success", async () => {
+      saveCanvasMock.mockResolvedValue(undefined as never);
+      const ok = await useEditorStore.getState().saveWorkflow();
+
+      expect(ok).toBe(true);
+      const state = useEditorStore.getState();
+      expect(state.isDirty).toBe(false);
+      expect(state.saveCount).toBe(1);
+      expect(state.isSaving).toBe(false);
+      expect(saveCanvasMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("restores isDirty=true when the save fails", async () => {
+      saveCanvasMock.mockRejectedValue(new Error("network down"));
+      const ok = await useEditorStore.getState().saveWorkflow();
+
+      expect(ok).toBe(false);
+      const state = useEditorStore.getState();
+      expect(state.isDirty).toBe(true);
+      expect(state.isSaving).toBe(false);
+    });
+
+    it("keeps isDirty=true when the canvas is edited during the in-flight save", async () => {
+      // Defer the save resolution so we can mutate mid-flight.
+      let resolveSave: () => void = () => {};
+      saveCanvasMock.mockReturnValue(
+        new Promise<void>((res) => {
+          resolveSave = res;
+        }) as never,
+      );
+
+      const savePromise = useEditorStore.getState().saveWorkflow();
+      // optimistic-clear already set isDirty:false during the in-flight window
+      expect(useEditorStore.getState().isDirty).toBe(false);
+      // user edits mid-flight → mutator re-sets isDirty:true
+      useEditorStore.getState().addNode(makeNode("2"));
+      expect(useEditorStore.getState().isDirty).toBe(true);
+
+      resolveSave();
+      const ok = await savePromise;
+
+      expect(ok).toBe(true);
+      // the in-flight edit must NOT be cleared by the completing save
+      expect(useEditorStore.getState().isDirty).toBe(true);
+    });
+
+    it("is a no-op (returns false) when already saving", async () => {
+      useEditorStore.setState({ isSaving: true });
+      const ok = await useEditorStore.getState().saveWorkflow();
+
+      expect(ok).toBe(false);
+      expect(saveCanvasMock).not.toHaveBeenCalled();
+    });
+
+    it("returns false without calling the API when workflowId is null", async () => {
+      useEditorStore.setState({ workflowId: null });
+      const ok = await useEditorStore.getState().saveWorkflow();
+
+      expect(ok).toBe(false);
+      expect(saveCanvasMock).not.toHaveBeenCalled();
     });
   });
 });

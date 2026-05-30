@@ -35,17 +35,6 @@ export class NodesService {
     });
   }
 
-  async findById(id: string): Promise<Node> {
-    const node = await this.nodeRepository.findOne({ where: { id } });
-    if (!node) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Node not found',
-      });
-    }
-    return node;
-  }
-
   async create(
     workflowId: string,
     workspaceId: string,
