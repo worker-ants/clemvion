@@ -184,6 +184,24 @@ export const workflowsApi = {
       parameterValues: options?.parameterValues,
     }),
 
+  /**
+   * parallel-p2 결정 D + E + I (2026-05-30) — cross-node graphWarningRules
+   * 의 frontend canvas 사전 평가. graph 변경 시점에 호출하여 results /
+   * hasError / hasWarning 받음. severity error 가 하나라도 있으면 canvas 가
+   * 저장 버튼 disable + 노드 배지. SoT: spec/conventions/cross-node-warning-rules.md.
+   */
+  graphWarnings: (workflowId: string) =>
+    apiClient.get<{
+      results: Array<{
+        ruleId: string;
+        severity: "error" | "warning";
+        nodeId: string;
+        message: string;
+      }>;
+      hasError: boolean;
+      hasWarning: boolean;
+    }>(`/workflows/${workflowId}/graph-warnings`),
+
   exportWorkflow: (id: string) =>
     apiClient.get<{ data: ExportedWorkflow }>(`/workflows/${id}/export`),
 

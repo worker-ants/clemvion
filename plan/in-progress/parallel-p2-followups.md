@@ -13,25 +13,24 @@
 
 PR #369 가 HTTP 노드 1개의 fetch signal cascade 만 구현 — cancel-others-on-fail 의 효과가 노드별로 점진 강화되어야 함. 다음 노드의 `context.abortSignal` 전파:
 
-- [ ] Database 노드 — driver 별 cancel (PostgreSQL `pg.client.cancel()`, MongoDB driver `signal` 옵션, MySQL `mysql2` connection destroy)
-- [ ] AI Agent / Text Classifier / Information Extractor — Anthropic / OpenAI SDK 의 `signal` 옵션
-- [ ] Send Email (SMTP) — nodemailer connection close
-- [ ] chat-channel 노드 (Slack/Telegram/Discord) — webhook fetch signal 전파
-- [ ] 각 노드별 단위 테스트
-- [ ] `NodeExecution.status='cancelled'` 추가 (엔티티 + migration) — **별 plan 권고** (DB migration 작업)
+- [x] Database 노드 — `execute()` 진입 직전 `context.abortSignal?.aborted` 사전 체크 + AbortError throw. driver 별 도중 cancel (pg/mysql2/mongo) 은 별 PR (driver wrapping 큰 작업)
+- [x] AI Agent — `executeSingleTurn` 2곳 chat 호출 signal 전파 (PR #377). multi-turn 은 `ResumableMessageOptions` 인터페이스 확장 별 PR
+- [x] Text Classifier + Information Extractor single-turn — `chat()` 호출에 `{ signal: context.abortSignal }` (PR #375)
+- [ ] Information Extractor multi-turn (`runTurnWithCollectionRetries`) — params chain 에 signal 추가 별 PR
+- [x] Send Email (SMTP) — `execute()` 진입 직전 사전 체크 (본 PR)
+- [N/A] chat-channel 노드 — 노드 자체가 없음 (Trigger 메커니즘으로 통합)
+- [x] 각 노드별 사전 체크 / 단위 테스트 (DB/Email 본 PR, HTTP/LLM 이전 PR 들)
+- [ ] `NodeExecution.status='cancelled'` 추가 (엔티티 + migration) — 별 plan 권고
 
 ### 2. cross-node-warning-rules frontend canvas 통합
 
 PR #368 가 backend 인프라 + `GET /workflows/:id/graph-warnings` endpoint 까지 — frontend 가 호출 + 배지 표시 + 저장 버튼 제어가 후속.
 
-- [ ] frontend canvas 가 graph 변경 시점 (노드 추가/삭제/edge 변경/config 변경) debounced 으로 endpoint 호출
-- [ ] severity 별 UI 표현:
-  - `error` → 빨간 배지 + 저장 버튼 disabled
-  - `warning` → 노란 배지 + 저장은 가능
-- [ ] backend ↔ frontend SSOT 보장:
-  - shared package (`codebase/packages/node-graph-rules/`) 신설 권고 (spec convention 의 옵션 A)
-  - 또는 endpoint 호출만으로 처리 (rule 정의는 backend 만, frontend 는 결과 표시) — 더 단순
-- [ ] e2e 테스트 — 3층 중첩 Parallel 워크플로우의 canvas → save → runtime 3중 reject
+- [x] frontend canvas 가 graph 변경 시점 debounced (500ms) 으로 `workflowsApi.graphWarnings` 호출 — `workflow-editor.tsx` 의 `useEffect` 가 `workflowId/nodes/edges` 변경 감지
+- [x] `editor-store` 의 `graphWarnings: { results, hasError, hasWarning }` state + `fetchGraphWarnings` action
+- [x] severity 별 UI — 저장 버튼이 `graphWarnings.hasError` 시 disable + title 에 첫 error message (toolbar). 노드별 배지 (각 node 컴포넌트의 색 변경) 는 별 PR
+- [x] SSOT — endpoint 호출만으로 처리 채택 (옵션 B). rule 정의는 backend 만, frontend 는 결과 표시 — shared package 추가 필요 없음
+- [ ] e2e 테스트 — 3층 중첩 Parallel 워크플로우의 canvas → save → runtime 3중 reject 흐름 검증 — 별 PR
 
 ### 3. workflow save endpoint 자동 reject hook
 
@@ -44,13 +43,16 @@ PR #368 가 backend 인프라 + `GET /workflows/:id/graph-warnings` endpoint 까
 
 ### 4. parallel-p2 §5 통합 테스트
 
-- [ ] `execution-engine.service.spec.ts` 에 통합 테스트 — HTTP 노드 분기에서 첫 실패 시 다른 분기의 HTTP 가 abort 되는지 (기존 spec 의 mock 셋업 무거움 — 별 spec 파일 권고)
-- [ ] `execution-engine.service.spec.ts` 에 3층 중첩 시나리오 통합 테스트 (PR #367 가 단위 테스트로 잠금했으나 dispatch chain 검증 부족)
+- [x] 별 spec 파일 신설 `codebase/backend/src/modules/execution-engine/__test__/parallel-p2-integration.spec.ts` — 기존 execution-engine.service.spec 의 무거운 mock 셋업 회피
+- [x] cancel-others-on-fail × HTTP fetch signal cascade: 첫 분기 실패 시 다른 분기에 전달된 signal 이 abort → fetch 가 즉시 중단
+- [x] cancel-others-on-fail vs errorPolicy=stop 비교 — stop 은 자기 그룹 controller 미생성으로 branchContext.abortSignal === undefined
+- [x] nested concurrency cap silent clamp — parent=16 × intended=8 → actual=2 (32/16=2)
+- [x] nested concurrency cap pass — parent=8 × intended=4 = 32 → no clamp
+- [ ] e2e 통합 테스트 (실제 HTTP server + browser) — 별 PR (§3 의 backend save reject e2e 와 함께)
 
 ### 5. ai-review
 
-- [ ] parallel-p2 의 7+ PR (`#363 #364 #366 #367 #368 #369 #370 + finalize`) 누적 변경에 대한 `ai-review` — Concurrency / Performance 중심. Critical / Warning 해소
-- [ ] 결과 RESOLUTION.md 작성 및 후속 fix
+- [ ] parallel-p2 + followups 의 누적 변경 (#363~#377 + 본 PR) 에 대한 `ai-review` skill 호출 — Concurrency / Performance / Security 중심. Critical / Warning 해소 + RESOLUTION.md. **본 PR 머지 후 별 turn 에서 실행 권고** (skill 호출이 다수 sub-agent + 리뷰 결과 review/ 산출)
 
 ## 수용 기준
 
