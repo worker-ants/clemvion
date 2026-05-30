@@ -23,19 +23,55 @@ parallel checkers + summary. Smoke-tested end-to-end (1 checker + summary):
 checker read its `prompt_file` and wrote its `output_file`; summary aggregated to
 a correct `BLOCK: YES`.
 
-### Constraint the pilot uncovered — Workflow sub-agents RETURN, not Write
+### Constraint the pilot uncovered — and its CORRECTED diagnosis (2026-05-30)
 
-A Workflow sub-agent that tries to Write a **report file** is guard-blocked
-(*"Subagents should return findings as text, not write report files"*). Observed:
-the per-checker `output_file` Write **succeeded**, but the terminal summary's
-`SUMMARY.md` Write was **blocked**. So the design is:
-- checkers Write their `output_file` (permitted — detail stays off main ctx);
-- the **summary RETURNS** the SUMMARY markdown; the workflow returns it; **main
-  Claude (which has Write) persists `SUMMARY.md`**.
+**Original (incorrect) read:** the pilot observed the terminal summary's
+`SUMMARY.md` Write being blocked while per-checker `output_file` Writes
+succeeded, and attributed it to a *"Workflow sub-agents can't write report
+files"* rule. The design was then built around it: the summary RETURNS the
+SUMMARY markdown and main Claude persists it.
 
-This is the load-bearing nuance for any further migration: Workflow fits
-fan-out + return-aggregate, but report files are written by the caller, not the
-terminal agent.
+**That diagnosis was wrong**, and it caused a real cost: the full aggregated
+report round-trips through main Claude's context (once as the Workflow return
+value, once as the `Write` argument) on every review — a per-run context
+regression that does not exist in the legacy Agent-tool path (where the summary
+sub-agent writes `SUMMARY.md` directly and only a STATUS line reaches main).
+
+**Verified mechanism (5 live probes, 2026-05-30):** the block is the harness
+**`worktree.bgIsolation` guard**, NOT a report-file guard. When a **background
+session's parent has not isolated** (via the `EnterWorktree` *tool* — a shell
+`cd` into a worktree dir does NOT satisfy it), the harness blocks *all* workflow
+sub-agent writes to the shared checkout. The guard is **uniform**:
+- `detail.md` (a normal name) and `SUMMARY.md` were blocked **identically** →
+  filename is irrelevant;
+- mid-pipeline and terminal agents were blocked **identically** → position is
+  irrelevant;
+- per-agent `isolation: "worktree"` did **not** lift it (each agent got its own
+  worktree yet was still blocked) → the guard keys off the **parent** session's
+  isolation state, not the agent's.
+
+So reviewer/checker/analyzer writes and the summary write are subject to the
+**exact same** guard. In any context where the fan-out produced output files at
+all (the precondition for the flow to do anything), the summary write succeeds
+too. The original "reviewers wrote but summary didn't" asymmetry was almost
+certainly a difference in session isolation state between observations, not a
+report-file rule.
+
+**Corrected design (current):** every sub-agent — reviewers/checkers/analyzers
+AND the summary — writes its own file directly (legacy contract restored). The
+summary returns only a short STATUS line (`BLOCK=…` / `RISK=… CRITICAL=… WARNING=…`),
+so the full report never enters the caller's context. **Fallback:** if the
+summary's write IS blocked, it returns `WRITE_BLOCKED` + the full markdown and
+main persists it — i.e. never worse than the old behavior.
+
+**The real remedy for background runs** (so the whole flow, not just the
+summary, can write): the workflow-invoking flow must isolate the **parent
+session** via the `EnterWorktree` tool — or, repo-wide and more bluntly, set
+`"worktree": {"bgIsolation": "none"}` in `.claude/settings.json` (disables the
+shared-checkout guard for every bg agent in the repo — broader blast radius, use
+with care). Note `ensure-worktree.sh` + shell `cd` (the documented dev setup)
+does NOT perform session-level isolation, so bg workflow runs started that way
+still hit the guard.
 
 ## Current architecture
 
@@ -80,9 +116,9 @@ Doesn't cleanly map (must be re-expressed or kept):
 
 ## What does NOT fit Workflow (keep bespoke)
 
-The pilot's "agents return, caller writes" constraint + Workflow's background,
-non-interactive nature draw a clear boundary. Workflow fits **fan-out + return
-aggregate**; it does **not** fit:
+Workflow's background, non-interactive nature draws a clear boundary (this is
+independent of the now-corrected write-guard story above — these don't fit
+regardless). Workflow fits **fan-out + aggregate**; it does **not** fit:
 
 - **resolution-applier** (`/ai-review` §6) — it is not a reporter: it *edits
   code, commits, runs e2e*. A background workflow agent that returns text cannot
@@ -102,13 +138,14 @@ aggregate**; it does **not** fit:
 - [x] **ai-review review-portion migrated** ([`.claude/workflows/ai-review.js`](../workflows/ai-review.js)):
       Route → Review → Summary. Router returns its decision via structured-output
       schema (no file write); selected = `agents_forced ∪ selected`; reviewers
-      Write their outputs; summary returns markdown, main writes SUMMARY. Smoke-
+      Write their outputs; summary **writes SUMMARY itself + returns a short
+      status** (revised 2026-05-30 — see §"CORRECTED diagnosis"). Smoke-
       tested both paths: routing=skipped (1 reviewer) and routing=pending (router
       picked forced `documentation`, skipped 13). **resolution-applier (§6) +
       `/loop` stay bespoke** — see §"What does NOT fit Workflow".
 - [x] **merge-coordinate Phase 1 migrated** ([`.claude/workflows/merge-coordinate.js`](../workflows/merge-coordinate.js)):
-      Analyze (4 analyzers in parallel) → Summary (returns markdown, main writes
-      SUMMARY). Smoke-tested. **Phase 2 confirm, Phase 3 execute (git merge/rebase
+      Analyze (4 analyzers in parallel) → Summary (**writes SUMMARY itself +
+      returns a short status**; revised 2026-05-30). Smoke-tested. **Phase 2 confirm, Phase 3 execute (git merge/rebase
       + merge-conflict-resolver per-conflict loop + patch-apply confirm), Phase 4
       chain/rollback stay bespoke** — they need `AskUserQuestion` mid-flow and own
       git side effects, which a background Workflow cannot. See §"What does NOT

@@ -32,7 +32,7 @@ stdout 마지막 줄이 세션 디렉토리. `_retry_state.json` Read (경로뿐
 Workflow(name="merge-coordinate", args={invocations, branches, base, summary})
 ```
 
-매핑: `invocations=subagent_invocations`, `summary={subagent_type: summary_subagent_type, output_file: summary_output_file}`, `branches`·`base` 동명. Workflow 가 4 analyzer 병렬(각자 prompt_file Read·output_file Write) → `integration-risk-summary` 가 통합 SUMMARY 마크다운 **반환**. 완료 시 반환의 `summary_markdown` 을 **main 이 `summary_output_file` 에 Write** → 상단 30줄로 BLOCK 확인. `unfinished[]` 있으면 해당 analyzer 재실행.
+매핑: `invocations=subagent_invocations`, `summary={subagent_type: summary_subagent_type, output_file: summary_output_file}`, `branches`·`base` 동명. Workflow 가 4 analyzer 병렬(각자 prompt_file Read·output_file Write) → `integration-risk-summary` 가 통합 SUMMARY 를 `summary_output_file` 에 **직접 Write** 하고 짧은 status(`BLOCK`) 만 반환. 완료 시 반환의 `block` (YES/NO) 으로 BLOCK 판정 — SUMMARY.md 전문을 다시 Read 하지 않는다(불필요한 컨텍스트 적재). `summary_written=false` 인 fallback(write 차단) 경우에만 반환의 `summary_markdown` 을 `summary_output_file` 에 Write. `unfinished[]` 있으면 해당 analyzer 재실행.
 
 > **Phase 1 만 Workflow** — Phase 2~4(confirm·git execute·conflict resolver·chain)는 bespoke 유지. 절차 SSOT: [SKILL.md](../skills/merge-coordinator/SKILL.md).
 
@@ -40,9 +40,9 @@ Workflow(name="merge-coordinate", args={invocations, branches, base, summary})
 
 ### Phase 2 — 계획 확정 (사용자 confirm)
 
-SUMMARY.md 상단 30 라인에서 `BLOCK: YES` 검출:
+Phase 1 반환의 `block` 으로 판정 (SUMMARY.md 전문 재Read 불필요):
 - **YES** → Critical 위험 1-2 문단 요약 후 종료.
-- **NO** → SUMMARY.md 의 "통합 순서 표" + "예상 conflict 표" + "사용자 confirm 필요 지점" 표시 → confirm.
+- **NO** → SUMMARY.md 의 "통합 순서 표" + "예상 conflict 표" + "사용자 confirm 필요 지점" 표시 → confirm. (이 표들이 필요하면 그때 SUMMARY.md 를 Read.)
 
 ### Phase 3 — Execute (격리 worktree)
 
