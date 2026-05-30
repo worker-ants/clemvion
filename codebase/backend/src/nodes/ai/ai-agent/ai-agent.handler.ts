@@ -1190,15 +1190,20 @@ export class AiAgentHandler implements NodeHandler {
       tools: tools.length > 0 ? tools : undefined,
     };
     let callStartedAt = Date.now();
-    let result = await this.llmService.chat(llmConfig, {
-      model: model || llmConfig.defaultModel,
-      messages,
-      temperature,
-      maxTokens,
-      responseFormat,
-      jsonSchema,
-      tools: tools.length > 0 ? tools : undefined,
-    });
+    let result = await this.llmService.chat(
+      llmConfig,
+      {
+        model: model || llmConfig.defaultModel,
+        messages,
+        temperature,
+        maxTokens,
+        responseFormat,
+        jsonSchema,
+        tools: tools.length > 0 ? tools : undefined,
+      },
+      undefined,
+      { signal: context.abortSignal },
+    );
     llmCalls.push({
       requestPayload: firstRequest,
       responsePayload: result,
@@ -1397,15 +1402,20 @@ export class AiAgentHandler implements NodeHandler {
         tools,
       };
       callStartedAt = Date.now();
-      result = await this.llmService.chat(llmConfig, {
-        model: model || llmConfig.defaultModel,
-        messages,
-        temperature,
-        maxTokens,
-        responseFormat,
-        jsonSchema,
-        tools,
-      });
+      result = await this.llmService.chat(
+        llmConfig,
+        {
+          model: model || llmConfig.defaultModel,
+          messages,
+          temperature,
+          maxTokens,
+          responseFormat,
+          jsonSchema,
+          tools,
+        },
+        undefined,
+        { signal: context.abortSignal },
+      );
       llmCalls.push({
         requestPayload: loopRequest,
         responsePayload: result,
