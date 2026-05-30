@@ -69,14 +69,19 @@ const manifest = checkers
   .map(c => `${c.name}\t${c.status}\t${c.output_file}`)
   .join('\n')
 
-// Workflow sub-agents are expected to RETURN text, not write report files — a
-// terminal sub-agent's file Write is guard-blocked ("return findings as text").
-// So the summary RETURNS the SUMMARY.md markdown; the caller (main Claude, which
-// has Write) persists it. Per-checker detail files are written by the checkers
-// themselves (that write path is permitted and verified).
-const summaryMarkdown = await agent(
+// The summary writes SUMMARY.md itself — exactly like the legacy session_dir path
+// and like the checkers' own output_file writes. All sub-agent writes here are
+// subject to the SAME harness write guard (the `worktree.bgIsolation` guard, which
+// blocks shared-checkout writes when the parent bg session hasn't isolated), so if
+// the checkers were able to write their output_file, the summary can write too.
+// Returning only a short status line keeps the full report OFF the caller's context
+// (no double-loading). If the write IS blocked (e.g. parent bg session not isolated
+// via EnterWorktree), the summary falls back to returning the full markdown prefixed
+// with WRITE_BLOCKED, and the caller persists it — never worse than the old behavior.
+const summaryReturn = await agent(
   [
     'mode=workflow', // not session_dir mode — authoritative inputs are below
+    `summary_output_file=${summary.output_file}`,
     'results (name<TAB>status<TAB>output_file):',
     manifest,
     '',
@@ -84,15 +89,24 @@ const summaryMarkdown = await agent(
     '아닌 checker 는 "재시도 필요" 로 표기. Critical 1건이라도 있으면 상단 BLOCK: YES,',
     '없으면 BLOCK: NO.',
     '',
-    '중요: 파일을 Write 하지 말고, 완성된 SUMMARY.md 마크다운 전문을 최종 응답 텍스트로',
-    '그대로 반환하세요 (Workflow 가 호출자에게 전달, 호출자가 파일에 기록).',
+    '완성된 SUMMARY.md 를 summary_output_file 에 Write 하세요.',
+    '- Write 성공 시: 보고서 전문을 반환하지 말고 한 줄만 반환 —',
+    '  STATUS=success BLOCK=<YES|NO> PATH=<summary_output_file>',
+    '- Write 차단/실패 시: 첫 줄에 WRITE_BLOCKED 만 출력하고, 이어서 SUMMARY.md',
+    '  마크다운 전문을 반환하세요 (호출자가 대신 기록).',
   ].join('\n'),
   { label: 'summary', phase: 'Summary', agentType: summary.subagent_type },
 )
 
+const summaryWritten = !/WRITE_BLOCKED/.test(summaryReturn || '')
+const blockMatch = /BLOCK[=:]\s*(YES|NO)/i.exec(summaryReturn || '')
 return {
-  summary_output: summary.output_file, // caller writes summaryMarkdown here
-  summary_markdown: summaryMarkdown,
+  summary_output: summary.output_file,
+  summary_written: summaryWritten,
+  // full markdown is returned only as a fallback (write blocked) for the caller to persist
+  summary_markdown: summaryWritten ? null : (summaryReturn || '').replace(/^[\s\S]*?WRITE_BLOCKED[^\n]*\n?/, ''),
+  summary_status: (summaryReturn || '').split('\n')[0],
+  block: blockMatch ? blockMatch[1].toUpperCase() : null,
   checkers: checkers.map(c => ({ name: c.name, status: c.status })),
   unfinished: unfinished.map(c => c.name),
 }
