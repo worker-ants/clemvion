@@ -569,6 +569,10 @@ export function ParallelConfig({ config, onChange }: { config: Config; onChange:
         options={[
           { value: "stop", label: t("nodeConfigs.logic.errStop") },
           { value: "continue", label: t("nodeConfigs.logic.errContinue") },
+          {
+            value: "cancel-others-on-fail",
+            label: t("nodeConfigs.logic.errCancelOthersOnFail"),
+          },
         ]}
       />
     </div>

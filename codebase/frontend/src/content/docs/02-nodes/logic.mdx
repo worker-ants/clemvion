@@ -325,7 +325,8 @@ Split 출력은 원본의 다른 필드를 포함하지 않아요. 필요하면 
 
 <FieldTable rows={[
   { name: "Branch Count", required: true, type: "number", description: "동시에 실행할 분기 수예요. 2~16 사이로 지정해요.", default: "2" },
-  { name: "Max Concurrency", required: false, type: "number", description: "동시에 실행할 최대 분기 수예요. 0이면 전부 동시에, 1~16이면 그 수만큼만 동시에 실행해요.", default: "0 (무제한)" }
+  { name: "Max Concurrency", required: false, type: "number", description: "동시에 실행할 최대 분기 수예요. 0이면 전부 동시에, 1~16이면 그 수만큼만 동시에 실행해요.", default: "0 (무제한)" },
+  { name: "Error Policy", required: false, type: "`stop` / `continue` / `cancel-others-on-fail`", description: "분기에서 오류가 났을 때의 정책이에요. `stop`은 첫 실패에서 Parallel 전체를 실패시키고, `continue`는 모든 분기가 끝날 때까지 기다린 뒤 실패 정보까지 함께 모아요. `cancel-others-on-fail`은 첫 실패가 나는 순간 다른 분기의 외부 호출(HTTP 등)을 즉시 취소해 자원을 아껴요.", default: "stop" }
 ]} />
 
 ### 포트
@@ -383,7 +384,7 @@ Parallel(2)
 </Example>
 
 <Callout type="warn">
-Parallel 분기 안에서는 **Form, 버튼 블로킹, AI 대화(Multi Turn)** 같은 블로킹 노드를 사용할 수 없어요. 순환 연결(back-edge)과 Parallel 안에 또 다른 Parallel을 넣는 중첩도 현재는 지원하지 않아요.
+Parallel 분기 안에서는 **Form, 버튼 블로킹, AI 대화(Multi Turn)** 같은 블로킹 노드를 사용할 수 없어요. 순환 연결(back-edge)도 막혀요. 중첩 Parallel은 **깊이 2까지만** 허용돼요(외부 Parallel 안에 내부 Parallel 1단계). 외부 × 내부 동시 실행 수의 곱이 32를 넘으면 자동으로 줄여요(silent clamp + 결과의 `meta.clampedConcurrency` 로 확인 가능).
 </Callout>
 
 <Callout type="tip">

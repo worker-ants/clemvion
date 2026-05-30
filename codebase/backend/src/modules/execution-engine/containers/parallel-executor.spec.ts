@@ -258,4 +258,113 @@ describe('ParallelExecutor', () => {
       expect(new Set(seen)).toEqual(new Set([16]));
     });
   });
+
+  describe('errorPolicy=cancel-others-on-fail (parallel-p2 §5, 결정 A + H)', () => {
+    it('propagates the same AbortSignal to every branch (signal !== upstream)', async () => {
+      const signals: Array<AbortSignal | undefined> = [];
+      await executor
+        .execute(
+          {
+            branchCount: 3,
+            maxConcurrency: 0,
+            waitAll: true,
+            errorPolicy: 'cancel-others-on-fail',
+          },
+          baseContext, // no upstream signal
+          async (_idx, branchCtx) => {
+            signals.push(branchCtx.abortSignal);
+          },
+        )
+        .catch(() => undefined);
+      expect(signals).toHaveLength(3);
+      // all share the same controller.signal
+      expect(signals[0]).toBe(signals[1]);
+      expect(signals[1]).toBe(signals[2]);
+      expect(signals[0]).toBeDefined();
+      // no branch was aborted (none threw)
+      expect(signals[0]!.aborted).toBe(false);
+    });
+
+    it('first failure aborts the shared signal for the remaining branches', async () => {
+      const observed: Array<boolean> = []; // signal.aborted snapshots
+      const result = await executor
+        .execute(
+          {
+            branchCount: 3,
+            maxConcurrency: 0,
+            waitAll: true,
+            errorPolicy: 'cancel-others-on-fail',
+          },
+          baseContext,
+          async (i, branchCtx) => {
+            if (i === 0) {
+              // First branch fails fast → triggers abort on shared controller
+              throw new Error('root-cause');
+            }
+            // Others observe the cancellation by listening for abort
+            await new Promise<void>((resolve) => {
+              if (branchCtx.abortSignal?.aborted) {
+                observed.push(true);
+                resolve();
+              } else {
+                branchCtx.abortSignal?.addEventListener(
+                  'abort',
+                  () => {
+                    observed.push(true);
+                    resolve();
+                  },
+                  { once: true },
+                );
+              }
+            });
+          },
+        )
+        .catch((e: Error) => e);
+      // root cause re-thrown
+      expect((result as Error).message).toBe('root-cause');
+      // both other branches observed the abort
+      expect(observed.length).toBe(2);
+    });
+
+    it('cascades an already-aborted upstream signal to the branch controller', async () => {
+      const upstream = new AbortController();
+      upstream.abort();
+      const seenAborted: boolean[] = [];
+      await executor
+        .execute(
+          {
+            branchCount: 2,
+            maxConcurrency: 0,
+            waitAll: true,
+            errorPolicy: 'cancel-others-on-fail',
+          },
+          { ...baseContext, abortSignal: upstream.signal },
+          async (_i, branchCtx) => {
+            seenAborted.push(branchCtx.abortSignal?.aborted ?? false);
+          },
+        )
+        .catch(() => undefined);
+      expect(seenAborted.every((b) => b === true)).toBe(true);
+    });
+
+    it('errorPolicy=stop / continue do NOT add a fresh abort controller', async () => {
+      const signalsStop: Array<AbortSignal | undefined> = [];
+      await executor
+        .execute(
+          {
+            branchCount: 2,
+            maxConcurrency: 0,
+            waitAll: true,
+            errorPolicy: 'stop',
+          },
+          baseContext, // no upstream
+          async (_i, branchCtx) => {
+            signalsStop.push(branchCtx.abortSignal);
+          },
+        )
+        .catch(() => undefined);
+      // No upstream + no cancel-others-on-fail → branch signal is undefined
+      expect(signalsStop.every((s) => s === undefined)).toBe(true);
+    });
+  });
 });

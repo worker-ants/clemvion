@@ -68,15 +68,18 @@ export const parallelNodeConfigSchema = z
         },
       }),
     // W-7: 분기 에러 정책. parallel-specific 필드 (공통 errorHandling 와 별개)
-    // 로 노출 — 사용자가 stop/continue 를 명확히 선택. 미설정 시 'stop'.
+    // 로 노출 — 사용자가 명확히 선택. 미설정 시 'stop'.
+    // parallel-p2 §5 (결정 A + H, 2026-05-30): cancel-others-on-fail 추가 —
+    // 첫 실패 시 다른 분기의 외부 I/O 를 ExecutionContext.abortSignal 로 abort.
+    // 외부 I/O 노드의 signal 전파 의무는 spec/conventions/node-cancellation.md.
     errorPolicy: z
-      .enum(['stop', 'continue'])
+      .enum(['stop', 'continue', 'cancel-others-on-fail'])
       .default('stop')
       .meta({
         ui: {
           label: 'Error Policy',
           widget: 'select',
-          hint: 'stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches, collect rejected branches in output.branches[i].error.',
+          hint: 'stop: throw on first branch failure (Parallel node FAILS). continue: wait for all branches, collect rejected branches in output.branches[i].error. cancel-others-on-fail: on first failure, abort other in-flight branches via AbortSignal (signal-aware nodes cleanup early; best-effort).',
         },
       }),
   })
@@ -142,9 +145,12 @@ export function validateParallelConfig(config: unknown): string[] {
   if (
     c.errorPolicy !== undefined &&
     c.errorPolicy !== 'stop' &&
-    c.errorPolicy !== 'continue'
+    c.errorPolicy !== 'continue' &&
+    c.errorPolicy !== 'cancel-others-on-fail'
   ) {
-    errors.push("errorPolicy must be 'stop' or 'continue'.");
+    errors.push(
+      "errorPolicy must be 'stop', 'continue', or 'cancel-others-on-fail'.",
+    );
   }
 
   return errors;

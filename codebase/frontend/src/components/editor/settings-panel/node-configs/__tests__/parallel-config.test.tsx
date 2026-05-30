@@ -25,12 +25,12 @@ describe("ParallelConfig", () => {
     expect(select).toBeInTheDocument();
   });
 
-  it("renders only 'stop' and 'continue' options (no 'skip')", () => {
+  it("renders stop / continue / cancel-others-on-fail options (no skip)", () => {
     const onChange = vi.fn();
     render(<ParallelConfig config={{}} onChange={onChange} />);
     const select = screen.getByDisplayValue("Stop on Error") as HTMLSelectElement;
     const optionValues = Array.from(select.options).map((o) => o.value);
-    expect(optionValues).toEqual(["stop", "continue"]);
+    expect(optionValues).toEqual(["stop", "continue", "cancel-others-on-fail"]);
   });
 
   it("propagates errorPolicy change via onChange", () => {
