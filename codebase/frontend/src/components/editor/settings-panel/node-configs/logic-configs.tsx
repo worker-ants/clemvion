@@ -572,6 +572,15 @@ export function ParallelConfig({ config, onChange }: { config: Config; onChange:
           {t("nodeConfigs.logic.waitAllHint")}
         </p>
       )}
+      <SelectField
+        label={t("nodeConfigs.logic.errorPolicy")}
+        value={(config.errorPolicy as string) ?? "stop"}
+        onChange={(v) => onChange({ ...config, errorPolicy: v })}
+        options={[
+          { value: "stop", label: t("nodeConfigs.logic.errStop") },
+          { value: "continue", label: t("nodeConfigs.logic.errContinue") },
+        ]}
+      />
     </div>
   );
 }
