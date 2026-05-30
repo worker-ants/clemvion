@@ -287,8 +287,6 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     branchCountHint: "Number of concurrent branches (2-16)",
     maxConcurrency: "Max Concurrency",
     maxConcurrencyHint: "0 = all branches run at once; otherwise limits concurrent branches",
-    waitAll: "Wait for all branches",
-    waitAllHint: "waitAll=false is planned for a future phase. Currently all branches are always awaited.",
     strategy: "Strategy",
     stratWaitAll: "Wait for All",
     stratFirst: "First Arrived",

@@ -562,16 +562,6 @@ export function ParallelConfig({ config, onChange }: { config: Config; onChange:
         max={16}
         hint={t("nodeConfigs.logic.maxConcurrencyHint")}
       />
-      <CheckboxField
-        label={t("nodeConfigs.logic.waitAll")}
-        checked={(config.waitAll as boolean) ?? true}
-        onChange={(v) => onChange({ ...config, waitAll: v })}
-      />
-      {(config.waitAll as boolean) === false && (
-        <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
-          {t("nodeConfigs.logic.waitAllHint")}
-        </p>
-      )}
       <SelectField
         label={t("nodeConfigs.logic.errorPolicy")}
         value={(config.errorPolicy as string) ?? "stop"}
