@@ -121,6 +121,20 @@ export interface ExecutionContext {
    */
   recursionDepth: number;
   /**
+   * 중첩 Parallel (parallel-p2 결정 G, 2026-05-30) 의 effectiveConcurrency 전파.
+   * 외부 Parallel 의 `ParallelExecutor` 가 branch context clone 시 자기
+   * `effectiveConcurrency` 를 이 필드에 set 한다. 내부 Parallel 이 이를 읽어
+   * 자기 `effectiveConcurrency = Math.min(internalEffective, Math.floor(32 / parent))`
+   * 로 silent clamp (cap = 32, 결정 #3).
+   *
+   * 중첩 깊이 ≤ 2 가드 (planParallelBody 정적 검증) 하에서만 set 되므로 한 단계
+   * 만 누적. 미설정 (= 외부 Parallel 없음) 이면 내부 Parallel 은 clamp 없이
+   * 자기 effectiveConcurrency 그대로 사용.
+   *
+   * 상세: spec/4-nodes/1-logic/10-parallel.md §6 + § Rationale.
+   */
+  parentParallelConcurrency?: number;
+  /**
    * When set, the engine will persist every NodeExecution created under this
    * context with `parent_node_execution_id = this value`. Stamped by
    * WorkflowHandler before an inline sub-workflow run so children can be

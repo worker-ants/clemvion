@@ -6722,8 +6722,16 @@ export class ExecutionEngineService
    * body; a node reached from exactly one branch is in that branch's body.
    *
    * Fails fast with `PARALLEL_INVALID_CHILD` / `PARALLEL_BACK_EDGE` /
-   * `PARALLEL_NESTED_NOT_SUPPORTED` so the user sees a named error at
+   * `PARALLEL_NESTED_DEPTH_EXCEEDED` so the user sees a named error at
    * dispatch time instead of a mid-flight surprise.
+   *
+   * `currentDepth` (parallel-p2 결정 #3, 2026-05-30) — outermost Parallel 호출
+   * 시 1, 외부의 분기 body 안에서 dispatch 되는 내부 Parallel 시 2. depth=1 의
+   * 분기 body 에 내부 Parallel 발견 시 허용 (depth=2 가 되는 시점에 dispatch
+   * 되어 내부 planParallelBody 가 다시 호출됨). depth=2 의 분기 body 에 또
+   * Parallel 발견 시 (= depth 3 시도) `PARALLEL_NESTED_DEPTH_EXCEEDED` throw.
+   * `runParallel` 가 `context.parentParallelConcurrency` 의 set 여부로 자기
+   * depth 를 판별.
    */
   private planParallelBody(
     parallelNode: Node,
@@ -6731,6 +6739,7 @@ export class ExecutionEngineService
     forwardEdges: GraphEdge[],
     backEdges: GraphEdge[],
     branchCount: number,
+    currentDepth: 1 | 2 = 1,
   ): ParallelPlan {
     const nodeMap = new Map(allNodes.map((n) => [n.id, n]));
     const forwardAdj = new Map<string, GraphEdge[]>();
@@ -6820,9 +6829,15 @@ export class ExecutionEngineService
         if (!node) continue;
         const childKind = this.handlerRegistry.getMetadata(node.type);
         if (childKind.kind === 'parallel') {
-          throw new Error(
-            `PARALLEL_NESTED_NOT_SUPPORTED: Parallel node "${parallelNode.label ?? parallelNode.type}" body contains nested Parallel node "${node.label ?? node.type}". Nested Parallel is reserved for a later phase.`,
-          );
+          // parallel-p2 결정 #3 (2026-05-30): 중첩 Parallel 허용 (깊이 ≤ 2).
+          // depth=1 (outermost) 의 분기에 내부 Parallel 발견 시 허용 — 내부
+          // Parallel 이 자기 dispatch 시점에 currentDepth=2 로 planParallelBody
+          // 를 다시 호출하므로 그때 또 안에 Parallel 이 있으면 reject.
+          if (currentDepth >= 2) {
+            throw new Error(
+              `PARALLEL_NESTED_DEPTH_EXCEEDED: Nested Parallel node "${parallelNode.label ?? parallelNode.type}" body contains another Parallel node "${node.label ?? node.type}". Parallel nesting depth > 2 is not supported.`,
+            );
+          }
         }
         if (childKind.kind === 'blocking') {
           throw new Error(
@@ -7169,12 +7184,20 @@ export class ExecutionEngineService
           : 'stop';
     }
 
+    // parallel-p2 결정 #3 + G (2026-05-30): 중첩 Parallel 깊이 판별. 외부 Parallel
+    // 이 자기 effectiveConcurrency 를 branch context 의 parentParallelConcurrency
+    // 에 set 하므로, 본 runParallel 의 context 에 이 값이 있으면 자기는 inner
+    // (depth=2). 없으면 outermost (depth=1).
+    const currentParallelDepth: 1 | 2 =
+      context.parentParallelConcurrency !== undefined ? 2 : 1;
+
     const plan = this.planParallelBody(
       parallelNode,
       allNodes,
       forwardEdges,
       backEdges,
       branchCount,
+      currentParallelDepth,
     );
 
     // Resolve the Parallel node's current NodeExecution row so branch
@@ -7189,7 +7212,7 @@ export class ExecutionEngineService
       ? { ...context, parentNodeExecutionId }
       : context;
 
-    await this.parallelExecutor.execute(
+    const parallelResult = await this.parallelExecutor.execute(
       { branchCount, maxConcurrency, waitAll: true, errorPolicy },
       branchParentContext,
       async (branchIndex, branchContext) => {
@@ -7229,10 +7252,18 @@ export class ExecutionEngineService
       branches: branchResults,
       count: branchResults.length,
     };
+    // parallel-p2 결정 #3 + G + D (runtime 부분, 2026-05-30): 중첩 Parallel 의
+    // concurrency cap silent clamp 발생 시 meta.clampedConcurrency 에 기록 —
+    // run-results timeline + expression `$node["X"].meta.clampedConcurrency` 로
+    // 사용자가 "의도 vs 실제" 차이를 즉시 확인. frontend 사전 경고
+    // (cross-node-warning-rules.md) 와 별개로 runtime 추적성 확보.
     this.contextService.setStructuredOutput(executionId, parallelNode.id, {
       config: echoConfig,
       output: { branches: branchResults, count: branchResults.length },
       port: ['done'],
+      ...(parallelResult.clampedConcurrency
+        ? { meta: { clampedConcurrency: parallelResult.clampedConcurrency } }
+        : {}),
     });
 
     // Activate `done` downstream via the main outgoingEdgeMap (Parallel →

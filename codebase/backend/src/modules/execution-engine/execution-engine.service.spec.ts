@@ -8677,8 +8677,8 @@ describe('ExecutionEngineService', () => {
       });
       // Override processMultiTurnMessage to hang during replay turn so cancel
       // arrives while the cancel-only pending continuation is registered.
-      agentHandler.processMultiTurnMessage = jest.fn(
-        () => replayGate.then(() => terminalSuccess()),
+      agentHandler.processMultiTurnMessage = jest.fn(() =>
+        replayGate.then(() => terminalSuccess()),
       );
 
       const p = service.applyRetryLastTurn(EXEC, SPAWNED);
