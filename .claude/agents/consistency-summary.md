@@ -22,12 +22,14 @@ model: sonnet
 
 ## 수행 절차 B — workflow 모드
 
-prompt 가 `mode=workflow` 로 시작하면 `_retry_state.json` 없이 동작합니다. **이 모드에서는 파일을 Write 하지 않습니다** — Workflow sub-agent 의 report-file Write 는 harness 가 차단(*"return findings as text"*)하므로, 완성된 SUMMARY 마크다운을 **최종 응답 텍스트로 반환**합니다 (Workflow 가 호출자에게 전달, 호출자가 파일에 기록).
+prompt 가 `mode=workflow` 로 시작하면 `_retry_state.json` 없이, prompt 본문의 manifest 만으로 동작합니다. 이 모드에서도 **legacy 와 동일하게 보고서를 직접 파일에 Write** 합니다 — checker 의 `output_file` Write 와 같은 write 경로이며, 둘은 동일한 harness write 가드(`worktree.bgIsolation`) 적용을 받으므로 checker 가 썼다면 본인도 쓸 수 있습니다. 보고서 전문 대신 짧은 status 한 줄만 반환해 호출자 컨텍스트 이중 적재를 막습니다.
 
-1. prompt 의 `results` 블록(각 줄 `name<TAB>status<TAB>output_file`) 파싱.
+1. prompt 의 `results` 블록(각 줄 `name<TAB>status<TAB>output_file`) 과 `summary_output_file=<경로>` 파싱.
 2. `status` 가 `success` / `fatal` 인 checker 의 `output_file` 을 Read. `status` 가 `success` 아닌 (rate_limit / network / fatal) checker 는 "재시도 필요" 로 표기.
 3. 통합 보고서 작성 (아래 §출력 형식 동일). Critical 1건이라도 있으면 상단 **`BLOCK: YES`**, 없으면 **`BLOCK: NO`**.
-4. **Write 하지 말 것.** SUMMARY 마크다운 전문을 최종 응답으로 반환.
+4. 완성된 보고서를 **`summary_output_file` 에 Write** 합니다.
+   - **Write 성공 시**: 보고서 전문을 반환하지 말고 **한 줄만** 반환 — `STATUS=success BLOCK=<YES|NO> PATH=<summary_output_file>`.
+   - **Write 차단/실패 시** (예: 부모 bg 세션이 EnterWorktree 로 isolate 되지 않음): 첫 줄에 `WRITE_BLOCKED` 만 출력하고, 이어서 SUMMARY 마크다운 전문을 반환합니다 (호출자가 대신 기록 — fallback).
 
 ## 요약 지침
 

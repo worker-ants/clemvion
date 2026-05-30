@@ -123,15 +123,21 @@ const reviewers = results.filter(Boolean)
 const unfinished = reviewers.filter(r => r.status !== 'success').map(r => r.name)
 
 // ---- Summary -------------------------------------------------------------
-// Workflow sub-agents return text rather than writing report files — the
-// terminal summary's file Write is guard-blocked. So the summary RETURNS the
-// SUMMARY.md markdown and the caller (main Claude) persists it. Per-reviewer
-// detail files are written by the reviewers themselves (that write is allowed).
+// The summary writes SUMMARY.md itself — exactly like the legacy session_dir path
+// and like the reviewers' own output_file writes. Every sub-agent write here is
+// subject to the SAME harness write guard (`worktree.bgIsolation`, which blocks
+// shared-checkout writes when the parent bg session hasn't isolated), so if the
+// reviewers wrote their output_file, the summary can write too. Returning only a
+// short status line keeps the full merged report OFF the caller's context (no
+// double-loading). If the write IS blocked (e.g. parent bg session not isolated via
+// EnterWorktree), the summary falls back to returning the full markdown prefixed
+// with WRITE_BLOCKED and the caller persists it — never worse than the old behavior.
 phase('Summary')
 const ranManifest = reviewers.map(r => `${r.name}\t${r.status}\t${r.output_file}`).join('\n')
-const summaryMarkdown = await agent(
+const summaryReturn = await agent(
   [
     'mode=workflow',
+    `summary_output_file=${summary.output_file}`,
     'ran (name<TAB>status<TAB>output_file):',
     ranManifest,
     '',
@@ -142,15 +148,28 @@ const summaryMarkdown = await agent(
     'success/fatal 인 각 reviewer 의 output_file 을 Read 해 통합하세요. success 아닌',
     'reviewer 는 "재시도 필요". 끝에 "라우터 결정" 섹션 포함(실행/제외/강제).',
     '',
-    '중요: 파일을 Write 하지 말고, 완성된 SUMMARY.md 마크다운 전문을 최종 응답 텍스트로',
-    '반환하세요 (Workflow 가 호출자에게 전달, 호출자가 파일에 기록).',
+    '완성된 SUMMARY.md 를 summary_output_file 에 Write 하세요.',
+    '- Write 성공 시: 보고서 전문을 반환하지 말고 한 줄만 반환 —',
+    '  STATUS=success RISK=<NONE|LOW|MEDIUM|HIGH|CRITICAL> CRITICAL=<n> WARNING=<n> PATH=<summary_output_file>',
+    '- Write 차단/실패 시: 첫 줄에 WRITE_BLOCKED 만 출력하고, 이어서 SUMMARY.md',
+    '  마크다운 전문을 반환하세요 (호출자가 대신 기록).',
   ].join('\n'),
   { label: 'summary', phase: 'Summary', agentType: summary.subagent_type },
 )
 
+const summaryWritten = !/WRITE_BLOCKED/.test(summaryReturn || '')
+const riskMatch = /RISK=([A-Z]+)/.exec(summaryReturn || '')
+const criticalMatch = /CRITICAL=(\d+)/.exec(summaryReturn || '')
+const warningMatch = /WARNING=(\d+)/.exec(summaryReturn || '')
 return {
-  summary_output: summary.output_file, // caller writes summary_markdown here
-  summary_markdown: summaryMarkdown,
+  summary_output: summary.output_file,
+  summary_written: summaryWritten,
+  // full markdown is returned only as a fallback (write blocked) for the caller to persist
+  summary_markdown: summaryWritten ? null : (summaryReturn || '').replace(/^[\s\S]*?WRITE_BLOCKED[^\n]*\n?/, ''),
+  summary_status: (summaryReturn || '').split('\n')[0],
+  risk: riskMatch ? riskMatch[1] : null,
+  critical_count: criticalMatch ? Number(criticalMatch[1]) : null,
+  warning_count: warningMatch ? Number(warningMatch[1]) : null,
   reviewers: reviewers.map(r => ({ name: r.name, status: r.status })),
   skipped,
   unfinished,
