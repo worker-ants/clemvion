@@ -1828,18 +1828,20 @@ export class ExecutionEngineService
     }
 
     // 2. Create Execution record
-    const reRunOpts = options as
-      | { reRunOf?: string; chainId?: string }
-      | undefined;
+    // Re-run 으로 생성된 실행만 chain 정보 세팅 (decision F2). 일반 실행은 null.
+    // `in` 내로잉으로 unsafe cast 회피 — reRunOf/chainId 는 executedBy variant 전용.
+    const reRunOf =
+      options && 'reRunOf' in options ? (options.reRunOf ?? null) : null;
+    const chainIdOpt =
+      options && 'chainId' in options ? (options.chainId ?? null) : null;
     const execution = this.executionRepository.create({
       workflowId,
       status: ExecutionStatus.PENDING,
       inputData: (input as Record<string, unknown>) ?? {},
       executedBy: options?.executedBy,
       triggerId: options?.triggerId,
-      // Re-run 으로 생성된 실행만 chain 정보 세팅 (decision F2). 일반 실행은 null.
-      reRunOf: reRunOpts?.reRunOf ?? null,
-      chainId: reRunOpts?.chainId ?? null,
+      reRunOf,
+      chainId: chainIdOpt,
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;

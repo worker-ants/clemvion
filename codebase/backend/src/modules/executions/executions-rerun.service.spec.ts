@@ -16,7 +16,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     createQueryBuilder: jest.Mock;
   };
   let engine: { execute: jest.Mock };
-  let nodeRepo: { find: jest.Mock };
+  let nodeRepo: { findOne: jest.Mock };
 
   // createQueryBuilder 는 호출마다 새 chainable qb 를 반환. getOne/getRawOne/
   // getMany 결과는 큐에서 순서대로 소비.
@@ -57,7 +57,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     getManyQueue = [];
     execRepo = { createQueryBuilder: jest.fn(() => makeQb()) };
     engine = { execute: jest.fn().mockResolvedValue('new-exec-id') };
-    nodeRepo = { find: jest.fn().mockResolvedValue([]) };
+    nodeRepo = { findOne: jest.fn().mockResolvedValue(null) };
     service = new ExecutionsService(
       execRepo as never,
       {} as never,
@@ -182,21 +182,104 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(res.chainId).toBe('root-id');
   });
 
+  it('uses inputOverride path when useOriginalInput=false (no trigger schema → {})', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        chainId: null,
+      },
+    ];
+    getRawOneQueue = [{ reRunOf: null }];
+    nodeRepo.findOne.mockResolvedValue(null); // no trigger node → schema undefined → {}
+    jest
+      .spyOn(service, 'findById')
+      .mockResolvedValue({ id: 'new-exec-id' } as never);
+
+    await service.reRun('e1', 'ws-1', user, {
+      useOriginalInput: false,
+      inputOverride: { x: 1 },
+    });
+    expect(engine.execute).toHaveBeenCalledWith(
+      'wf-1',
+      { __triggerSource: 'manual', parameters: {} },
+      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1' },
+    );
+  });
+
+  it('allows chain depth 31 (boundary — not exceeded)', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        inputData: {},
+        chainId: 'root',
+      },
+    ];
+    // 30 parents → depth 31 (< 32, 통과).
+    getRawOneQueue = Array.from({ length: 30 }, () => ({
+      reRunOf: 'parent',
+    })).concat([{ reRunOf: null }]);
+    jest
+      .spyOn(service, 'findById')
+      .mockResolvedValue({ id: 'new-exec-id' } as never);
+
+    await expect(service.reRun('e1', 'ws-1', user, dto)).resolves.toBeDefined();
+    expect(engine.execute).toHaveBeenCalled();
+  });
+
   describe('getChain', () => {
     it('returns chain rows for root id', async () => {
       getOneQueue = [
-        { id: 'e2', workflow: { workspaceId: 'ws-1' }, chainId: 'root' },
+        {
+          id: 'e2',
+          workflow: { workspaceId: 'ws-1' },
+          chainId: 'root',
+          executedBy: 'user-1',
+        },
       ];
       getManyQueue = [[{ id: 'root' }, { id: 'e2' }]];
-      const rows = await service.getChain('e2', 'ws-1');
+      const rows = await service.getChain('e2', 'ws-1', user);
       expect(rows).toHaveLength(2);
+    });
+
+    it('handles chainId=null (root execution) via rootId = exec.id', async () => {
+      getOneQueue = [
+        {
+          id: 'e-root',
+          workflow: { workspaceId: 'ws-1' },
+          chainId: null,
+          executedBy: 'user-1',
+        },
+      ];
+      getManyQueue = [[{ id: 'e-root' }]];
+      const rows = await service.getChain('e-root', 'ws-1', user);
+      expect(rows).toHaveLength(1);
+    });
+
+    it('throws RERUN_PERMISSION_DENIED for another user (non owner/admin)', async () => {
+      getOneQueue = [
+        {
+          id: 'e2',
+          workflow: { workspaceId: 'ws-1' },
+          chainId: null,
+          executedBy: 'someone-else',
+        },
+      ];
+      await expect(service.getChain('e2', 'ws-1', user)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
 
     it('throws RERUN_EXECUTION_NOT_FOUND for another workspace', async () => {
       getOneQueue = [
         { id: 'e2', workflow: { workspaceId: 'OTHER' }, chainId: null },
       ];
-      await expect(service.getChain('e2', 'ws-1')).rejects.toBeInstanceOf(
+      await expect(service.getChain('e2', 'ws-1', user)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });

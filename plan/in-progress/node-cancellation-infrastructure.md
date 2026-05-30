@@ -10,7 +10,7 @@
 
 본 인프라는 Parallel `cancel-others-on-fail` 외에도 다음 향후 기능에 재사용된다:
 - **Workflow 단위 timeout** — 실행 시간 한도 초과 시 진행 중 노드 abort
-- **사용자 cancel 버튼** — 실행 중 워크플로우를 UI 에서 중단
+- **사용자 cancel 버튼** — 실행 중 워크플로우를 UI 에서 중단 (**구현됨 2026-05-31, decision F1**: 에디터 툴바 Stop 버튼 → `POST /executions/:id/stop` → `executionsApi.stop` + `editor-toolbar.tsx`. WS `execution.cancelled` 로 상태 확정.)
 - **WorkflowExecution graceful shutdown** — 서버 종료 시 진행 중 노드 abort
 
 ## 관련 문서

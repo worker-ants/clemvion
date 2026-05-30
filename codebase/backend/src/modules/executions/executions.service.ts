@@ -33,6 +33,12 @@ import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 // 테스트에서도 동일 상수를 참조하도록 export.
 export const MAX_EXECUTION_PATH_ROWS = 10_000;
 
+// Re-run chain 깊이 한도 (RR-PL-05, spec §9.1). 새 re-run 포함 시 초과면 거부.
+export const RERUN_CHAIN_DEPTH_LIMIT = 32;
+// re_run_of walk 의 안전 상한 — 사이클은 구조상 불가(부모는 항상 더 이른 행)하나
+// 무한 루프 방어로 한도의 2배에서 중단.
+const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
+
 /**
  * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
  * WS 구독자 다수가 동시에 동일 execution 채널에 구독해 반복 fetch 가 발생하면
@@ -194,8 +200,7 @@ export class ExecutionsService {
   private async computeChainDepth(executionId: string): Promise<number> {
     let depth = 1;
     let cursor: string | null = executionId;
-    // chain 깊이 한도(32) + 안전 여유. 사이클은 구조상 불가(부모는 항상 더 이른 행).
-    for (let i = 0; i < 64 && cursor; i++) {
+    for (let i = 0; i < RERUN_CHAIN_WALK_MAX && cursor; i++) {
       const row: { reRunOf: string | null } | undefined =
         await this.executionRepository
           .createQueryBuilder('e')
@@ -270,10 +275,10 @@ export class ExecutionsService {
 
     // RR-PL-05 — chain 깊이 32 제한 (새 실행 포함 시 초과면 거부).
     const depth = await this.computeChainDepth(executionId);
-    if (depth >= 32) {
+    if (depth >= RERUN_CHAIN_DEPTH_LIMIT) {
       throw new ConflictException({
         code: 'RERUN_CHAIN_DEPTH_EXCEEDED',
-        message: 'Re-run chain depth limit (32) exceeded',
+        message: `Re-run chain depth limit (${RERUN_CHAIN_DEPTH_LIMIT}) exceeded`,
       });
     }
 
@@ -324,6 +329,7 @@ export class ExecutionsService {
   async getChain(
     executionId: string,
     workspaceId: string,
+    user: JwtPayload,
   ): Promise<Execution[]> {
     const exec = await this.executionRepository
       .createQueryBuilder('e')
@@ -334,6 +340,14 @@ export class ExecutionsService {
       throw new NotFoundException({
         code: 'RERUN_EXECUTION_NOT_FOUND',
         message: 'Execution not found',
+      });
+    }
+    // RR-PL-06 — chain 조회 권한은 re-run 과 동일: 타인 실행은 owner/admin 만.
+    const isOwnerOrAdmin = user.role === 'owner' || user.role === 'admin';
+    if (exec.executedBy && exec.executedBy !== user.sub && !isOwnerOrAdmin) {
+      throw new ForbiddenException({
+        code: 'RERUN_PERMISSION_DENIED',
+        message: 'You do not have permission to view this execution chain',
       });
     }
     const rootId = exec.chainId ?? exec.id;

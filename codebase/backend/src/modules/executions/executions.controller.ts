@@ -23,11 +23,14 @@ import {
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
   ApiUnprocessableEntityResponse,
+  ApiForbiddenResponse,
+  ApiConflictResponse,
 } from '@nestjs/swagger';
 import {
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
   ApiOkWrappedArrayResponse,
+  ApiCreatedWrappedResponse,
 } from '../../common/swagger';
 import { ReRunRequestDto } from './dto/re-run.dto';
 import { ExecutionsService } from './executions.service';
@@ -178,15 +181,19 @@ export class ExecutionsController {
       '원본 실행을 기반으로 새 Execution 을 시작합니다 (현재 시점 워크플로 정의 사용). 입력은 원본 그대로 또는 inputOverride 로 대체 가능. spec/5-system/13-replay-rerun.md §8.1.',
   })
   @ApiParam({ name: 'id', description: '원본 실행 UUID', format: 'uuid' })
-  @ApiOkWrappedResponse(ExecutionDetailDto, {
+  @ApiCreatedWrappedResponse(ExecutionDetailDto, {
     description: '새로 생성된 실행 (reRunOf / chainId / dryRun 포함)',
   })
   @ApiBadRequestResponse({
     description: 'INVALID_INPUT / RERUN_DRY_RUN_NOT_APPLICABLE',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: 'RERUN_PERMISSION_DENIED (RR-PL-06)' })
   @ApiNotFoundResponse({
     description: 'RERUN_EXECUTION_NOT_FOUND / RERUN_WORKFLOW_DELETED',
+  })
+  @ApiConflictResponse({
+    description: 'RERUN_CHAIN_DEPTH_EXCEEDED (깊이 32 초과)',
   })
   async reRun(
     @Param('id', ParseUUIDPipe) id: string,
@@ -212,7 +219,8 @@ export class ExecutionsController {
   async getChain(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.executionsService.getChain(id, workspaceId);
+    return this.executionsService.getChain(id, workspaceId, user);
   }
 }

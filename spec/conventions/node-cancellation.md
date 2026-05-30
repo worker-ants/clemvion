@@ -54,7 +54,7 @@ signal 미지원 — best-effort. 자기 작업 완료까지 계속 진행해도
 
 - **`ParallelExecutor`** (parallel-p2 §5, 후속) — `errorPolicy === 'cancel-others-on-fail'` 일 때 내부 `AbortController` 생성, 첫 branch 실패 시 `controller.abort()` 호출, 각 `branchContext.abortSignal` 에 set
 - **향후 Workflow 단위 timeout** — `runExecution` 진입 시 타이머 시작, 한도 초과 시 abort
-- **향후 사용자 cancel 버튼** — REST API `POST /executions/:id/cancel` 가 BullMQ job 의 abort 채널을 통해 worker 측 abort
+- **사용자 cancel 버튼** (구현됨 2026-05-31) — REST API `POST /executions/:id/stop` 가 실행을 중단(running/pending → cancelled, waiting_for_input → continuation 취소). 에디터 툴바 Stop 버튼이 진입점.
 - **향후 graceful shutdown** — SIGTERM 수신 시 진행 중 execution 의 abort
 
 ## 3. signal 전파 흐름
