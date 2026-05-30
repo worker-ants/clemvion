@@ -20,11 +20,23 @@ EIA(External Interaction API, `spec/5-system/14`)는 **이미 구현됨**(`codeb
 - [ ] **운영 CDN/도메인 확정** (보류) — `<widget-cdn-base>`·`<api-base>` 는 **플레이스홀더 + 배포 환경 설정**으로 둔다(환경별 상이, SaaS/셀프호스팅). `apiBase` 는 SDK boot 런타임 주입, `<widget-cdn-base>` 는 loader 빌드/배포 env 주입. 불변 버전 path `/web-chat/v1/`. spec [0-architecture §4](../../spec/7-channel-web-chat/0-architecture.md).
 - [ ] **샘플 경로 확정** — `codebase/packages/web-chat-sdk/examples/` (잠정).
 
+## 진행 상태
+
+- ✅ **impl-prep consistency-check** (review/consistency/2026/05/30/18_24_13) — Critical(0-architecture §5 dead ref) 해소(commit 2c86950e), 저비용 WARNING 반영. 잔여 WARNING: npm scope 확정(보류), §6.3 parallel-* merge 경합(PR rebase 시 처리).
+- ✅ **스캐폴딩 foundation** (commit 6573c38b) — 위젯 SPA(Next 16 CSR, static export build ✓ tsc ✓ eslint ✓) + SDK 패키지(@clemvion/web-chat 잠정, tsc build ✓ jest 7 ✓).
+- ⏳ 후속 increment (아래 체크박스).
+
 ## 작업 범위
 
 ### 프론트 (주력)
-- [ ] `codebase/channel-web-chat/` — Next.js CSR-only 위젯 SPA (`output:'export'`, 전 컴포넌트 client). spec `1-widget-app`.
-- [ ] `codebase/packages/web-chat-sdk/` — loader 스니펫 + `@clemvion/web-chat`(잠정) npm. host↔iframe bridge, 공개 JS API. EIA 호출은 기존 `@workflow/sdk` 재사용. spec `2-sdk`.
+- [x] `codebase/channel-web-chat/` 스캐폴딩 — Next.js CSR-only(`output:'export'`, dynamic ssr:false shell). **상태기계·EIA 클라이언트·화면·conversation 렌더는 미구현(stub).**
+- [x] `codebase/packages/web-chat-sdk/` 스캐폴딩 — 공개 타입(BootConfig/ChatInstance) + boot/validate + wc:* 상수. **iframe bridge·명령 큐·EIA 호출(@workflow/sdk 재사용) 미구현.**
+- [ ] host↔iframe `wc:*` postMessage bridge + 명령 큐(boot 전 버퍼링) + loader 스니펫(IIFE).
+- [ ] EIA 클라이언트(@workflow/sdk 재사용): webhook 시작 → SSE 구독 → submit_*. per_execution 세션(spec `3-auth-session`).
+- [ ] 위젯 화면(spec `1-widget-app §2`): 런처/추천질문/패널/헤더/퀵액션/메시지/Form/presentation/입력/면책.
+- [ ] conversation 렌더 규약: `conversationThread.turns` 1차 소스, `[user-input]` strip, `live`/`injected` 마커(conversation-thread §9.4·§9.5).
+- [ ] 상태기계·종료/재시작/새로고침 복원(storage)·in-flight unread (spec `1-widget-app §3·§3.1`).
+- [ ] M2 BYO-UI headless client 노출 + 샘플(스니펫·npm).
 - [ ] 샘플 프로젝트 — 스니펫·npm 두 경로 시연.
 - [ ] conversation 렌더 규약 준수 — `conversationThread.turns` snapshot 1차 소스, `ai_message.messages[]` raw 노출 금지, `[user-input]` strip (conversation-thread §9.4·§9.5).
 - [ ] 인터랙션 전체 렌더 — text/buttons/추천질문/AI multi-turn/Form/presentations(carousel·table·chart·template), `ai_form_render` 포함.
