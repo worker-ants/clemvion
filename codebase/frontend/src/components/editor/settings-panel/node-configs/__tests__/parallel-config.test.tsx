@@ -8,13 +8,14 @@ describe("ParallelConfig", () => {
     useLocaleStore.setState({ locale: "en" });
   });
 
-  it("renders branchCount / maxConcurrency / waitAll / errorPolicy fields", () => {
+  it("renders branchCount / maxConcurrency / errorPolicy fields (waitAll spec out — 결정 K)", () => {
     const onChange = vi.fn();
     render(<ParallelConfig config={{}} onChange={onChange} />);
     expect(screen.getByText(/Branch Count/i)).toBeInTheDocument();
     expect(screen.getByText(/Max Concurrency/i)).toBeInTheDocument();
-    expect(screen.getByText(/Wait for All/i)).toBeInTheDocument();
     expect(screen.getByText(/Error Policy/i)).toBeInTheDocument();
+    // waitAll CheckboxField 는 결정 K 로 제거됨
+    expect(screen.queryByText(/Wait for All/i)).not.toBeInTheDocument();
   });
 
   it("defaults errorPolicy to 'stop' when missing", () => {
@@ -36,7 +37,7 @@ describe("ParallelConfig", () => {
     const onChange = vi.fn();
     render(
       <ParallelConfig
-        config={{ branchCount: 3, maxConcurrency: 0, waitAll: true }}
+        config={{ branchCount: 3, maxConcurrency: 0 }}
         onChange={onChange}
       />,
     );
@@ -45,7 +46,6 @@ describe("ParallelConfig", () => {
     expect(onChange).toHaveBeenCalledWith({
       branchCount: 3,
       maxConcurrency: 0,
-      waitAll: true,
       errorPolicy: "continue",
     });
   });

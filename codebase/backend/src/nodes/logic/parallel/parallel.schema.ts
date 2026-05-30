@@ -122,8 +122,18 @@ export function validateParallelConfig(config: unknown): string[] {
     }
   }
 
-  if (c.waitAll !== undefined && typeof c.waitAll !== 'boolean') {
-    errors.push('waitAll must be a boolean.');
+  if (c.waitAll !== undefined) {
+    if (typeof c.waitAll !== 'boolean') {
+      errors.push('waitAll must be a boolean.');
+    } else if (c.waitAll === false) {
+      // 결정 K (2026-05-30): waitAll=false 지원 spec out. Node.js
+      // single-threaded main loop pattern 상 "분기 완료 즉시 외부 dispatch"
+      // 의미를 살릴 수 없어 활성화 폐기. fire-and-forget 의미가 필요하면
+      // Background 노드 사용.
+      errors.push(
+        'waitAll=false is not supported. Use waitAll=true (default) or the Background node for fire-and-forget semantics.',
+      );
+    }
   }
 
   if (
