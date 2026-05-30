@@ -87,6 +87,9 @@ owner: project-planner
 - **W9** — cancel 신호 소실: retry 재진입 첫 iteration(`pendingInitialAction` 처리 중) 에 cancel 도달 시 `pendingContinuations` 미등록으로 cancel 소실 — 알려진 엣지 케이스, 후속 작업 필요.
 - **W11** — WS ack 에러 코드 SoT 분산 (`INTERNAL_ERROR`, `FORBIDDEN`/`UNAUTHENTICATED` 미등재): `ErrorCode` 또는 별도 `WsErrorCode` 상수로 통합.
 - **W12** — `extractLlmError` 순환 복잡도 개선: `NETWORK_ERROR_PATTERN` 상수 추출, `classifyLlmError` private static 분리.
+- **W14/W15** — user-guide 동반 갱신 (비차단 — doc-sync 가드 미적용 surface): retry 재시도 error code 3종(`RETRY_STATE_NOT_FOUND`/`NODE_NOT_RETRYABLE`/`RETRY_TOO_EARLY`)을 `05-run-and-debug` MDX 에러 카탈로그 + 멀티턴 재시도 흐름 절에 추가, `backend-labels.ts` 한국어 매핑 등재 검토. (WS-ack 코드라 node error catalog 가드엔 안 걸리나 사용자 노출 시 KO 라벨 권장.)
+
+> **W1/W2 (spec gap) 해소 완료 (2026-05-30)**: WS ack `success` 필드(§4.2) + `_retryState.lastUserMessage`/`lastUserMessageSource`(node-output §4.2.1) 를 spec 에 명시 반영. (원본 escalation draft `spec-fix-retry-ws-ack-fields.md` 는 적용 후 제거.)
 
 ## 의존 관계
 

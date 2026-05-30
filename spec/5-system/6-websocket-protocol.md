@@ -339,6 +339,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 > `nodeId` 가 ack 에 포함되지 않는 이유: 클라이언트가 송신 시 `nodeExecutionId` 만 보내며 ack 도 동일 식별자만 echo 한다. `nodeId` 는 `nodeExecutionId` 로 backend lookup 가능하므로 redundant.
 
+> **`success` 필드**: socket.io ack-callback 으로 반환되는 실제 payload 는 4개 continuation 명령(`submit_form`/`click_button`/`submit_message`/`end_conversation`)과 동일하게 `success: boolean` 형제 필드를 포함한다 — 성공 `{ success: true, executionId, nodeExecutionId, resumed: true }`, 실패 `{ success: false, executionId, nodeExecutionId, resumed: false, error: { code, message } }`. 위 envelope 예시는 의미 구조를 보인 것이고, `success` 는 continuation-ack 공통 convention (§307 의 평면 `{ success, error }` 패턴)을 따른다. retry 는 실패 시 평면 `errorCode` 대신 nested `error: { code, message }` 를 쓰는 것만 다르다.
+
 **`execution.retry_last_turn` 에러 코드:**
 
 | 코드 | 설명 |

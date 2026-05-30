@@ -199,7 +199,7 @@ code: []
 | `_resumeState` | 무조건 strip (DB 영속 시) | in-memory `ExecutionContext` 만 (waiting/resumed 중) |
 | `_retryState` | **retryable error 종결 시 보존** — `output.error.details.retryable === true` 일 때만 `buildMultiTurnFinalOutput` 이 운반 | `NodeExecution.outputData._retryState` (DB JSONB) |
 
-`_retryState` 포함 필드: `_resumeState` 동일 shape (messages / turnCount / model / temperature / maxTokens / knowledgeBases / RAG / MCP / pendingFormToolCall? 등) + `expiresAt: ISO 8601` (TTL — 기본 60분). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` 가 boundary 에서 strip). expression resolver / autocomplete 비노출.
+`_retryState` 포함 필드: `_resumeState` 동일 shape (messages / turnCount / model / temperature / maxTokens / knowledgeBases / RAG / MCP / pendingFormToolCall? 등) + `expiresAt: ISO 8601` (TTL — 기본 60분) + `lastUserMessage?: string` (실패한 turn 의 사용자 메시지 원문, `truncateForErrorDetails(500)` 로 cap — retry 재진입 시 replay 용. `_resumeState.messages` 는 turn 직전 스냅샷이라 실패 메시지를 포함하지 않으므로 별도 보관) + `lastUserMessageSource?: 'ai_message' | 'form_submitted'` (replay 출처). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` 가 boundary 에서 strip). expression resolver / autocomplete 비노출. `lastUserMessage` 부재 시 (옛 payload 호환) replay 없이 wait loop 진입.
 
 소비: WS 명령 `execution.retry_last_turn` ([Spec WebSocket §4.2](../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server)) 이 `nodeExecutionId` 로 `_retryState` 를 lookup → `expiresAt` 검증 → 새 NodeExecution row 를 spawn → multi-turn loop 재진입. TTL 만료 또는 한 번 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 에러 코드로 응답.
 
