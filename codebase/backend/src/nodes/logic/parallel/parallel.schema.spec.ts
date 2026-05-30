@@ -164,18 +164,26 @@ describe('Parallel node', () => {
       ).toContain('waitAll must be a boolean.');
     });
 
-    it('rejects errorPolicy 외 값 (W-7)', () => {
+    it('rejects errorPolicy 외 값 (W-7 + §5 cancel-others-on-fail)', () => {
       expect(
         validateParallelConfig({ branchCount: 2, errorPolicy: 'panic' }),
-      ).toContain("errorPolicy must be 'stop' or 'continue'.");
+      ).toContain(
+        "errorPolicy must be 'stop', 'continue', or 'cancel-others-on-fail'.",
+      );
     });
 
-    it('errorPolicy=stop / continue 는 통과 (W-7)', () => {
+    it('errorPolicy=stop / continue / cancel-others-on-fail 는 통과', () => {
       expect(
         validateParallelConfig({ branchCount: 2, errorPolicy: 'stop' }),
       ).toEqual([]);
       expect(
         validateParallelConfig({ branchCount: 2, errorPolicy: 'continue' }),
+      ).toEqual([]);
+      expect(
+        validateParallelConfig({
+          branchCount: 2,
+          errorPolicy: 'cancel-others-on-fail',
+        }),
       ).toEqual([]);
     });
 

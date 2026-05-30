@@ -277,6 +277,7 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     errStop: "Stop on Error",
     errSkip: "Skip Item",
     errContinue: "Continue",
+    errCancelOthersOnFail: "Cancel others on fail",
     arrayField: "Array Field",
     arrayFieldHintIterate: "Array to iterate over",
     collectAsArray: "Collect results as array",

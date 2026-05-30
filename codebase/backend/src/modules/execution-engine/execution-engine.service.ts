@@ -7167,11 +7167,13 @@ export class ExecutionEngineService
     // W-7: parallel-specific `config.errorPolicy` 가 1순위. 미지정 시 공통
     // `errorHandling.policy` 의 매핑으로 fallback (옛 동선 호환). 둘 다 미지정
     // 이면 'stop'.
+    // parallel-p2 §5 (결정 A + H, 2026-05-30): `cancel-others-on-fail` 도 valid.
     const parallelErrorPolicyRaw = engineResolvedConfig.errorPolicy;
     let errorPolicy: ParallelErrorPolicy;
     if (
       parallelErrorPolicyRaw === 'stop' ||
-      parallelErrorPolicyRaw === 'continue'
+      parallelErrorPolicyRaw === 'continue' ||
+      parallelErrorPolicyRaw === 'cancel-others-on-fail'
     ) {
       errorPolicy = parallelErrorPolicyRaw;
     } else {
