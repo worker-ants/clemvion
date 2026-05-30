@@ -1,0 +1,97 @@
+# Cross-Node WarningRule 인프라 + Workflow Save Validate 확장
+
+> 작성일: 2026-05-30
+> 분리 출처: [`parallel-p2.md`](./parallel-p2.md) 결정 I (cross-node warningRule 인프라를 별 plan 으로 분리)
+> 후속 plan: `parallel-p2.md` §6 (Parallel `nested-depth-exceeded` / `nested-concurrency-cap` rule 등재)
+
+## 배경
+
+`parallel-p2.md` 의 결정 D (concurrency clamp 의 frontend canvas 사전 경고) + E (중첩 깊이 검증의 3중 가드 = 저장 시점 reject + canvas 사전 경고 + runtime reject) 는 부모-자식 노드 cross 평가 인프라를 요구한다.
+
+현재 [`NodeComponentMetadata.warningRules`](../../codebase/backend/src/nodes/core/node-component.interface.ts) 의 mini-DSL 은 **단일 노드의 config 만 평가** — `branchCount < 2 || branchCount > 16` 같은 단일 노드 식만 표현 가능. 부모-자식 cross 평가 (외부 Parallel 의 maxConcurrency × 내부 Parallel 의 maxConcurrency > 32 / Parallel 노드의 분기 서브그래프 안에 또 Parallel 이 있는지) 는 미지원.
+
+본 인프라는 Parallel 외에도 다음 향후 노드 검증에 재사용된다:
+- Loop / ForEach 의 중첩 깊이 정책 (향후 도입 시)
+- Map / Filter 의 부모 컨테이너 contextual 검증
+- 그 외 노드 시스템의 graph-level 검증
+
+## 관련 문서
+
+- [`codebase/backend/src/nodes/core/node-component.interface.ts`](../../codebase/backend/src/nodes/core/node-component.interface.ts) — `NodeComponentMetadata` / `warningRules` mini-DSL
+- frontend canvas warningRule 평가 진입점 (위치 확인 필요 — `codebase/frontend/src/components/editor/canvas/` 또는 `nodes/` 하위)
+- [`codebase/backend/src/modules/workflows/`](../../codebase/backend/src/modules/workflows/) — workflow save endpoint (`WorkflowsService.create/update`) 의 validate 진입점
+- [`spec/conventions/`](../../spec/conventions/) — convention 문서 위치
+
+## 작업 단위
+
+### 1. 메커니즘 설계 — graphWarningRules 신규 키
+
+> 본 plan 작성 시 가정: 별도 `graphWarningRules` 신규 키 (graph 전체를 보고 평가하는 함수형 rule). 기존 mini-DSL 의 단일 노드 평가는 그대로 유지하고, cross-node 평가는 함수로 분리. **메커니즘 자체는 본 plan 첫 PR 에서 PoC 후 확정.**
+
+- [ ] 옵션 비교 PoC:
+  - (옵션 1) 기존 mini-DSL 확장 — `$parent.maxConcurrency` 같은 부모 노드 접근자 추가. 평가 엔진 (frontend + backend SSOT) 양쪽 모두 확장. 표현력 제한
+  - (옵션 2) `graphWarningRules: GraphWarningRule[]` 신규 키 — graph 전체를 인자로 받는 JS 함수형 rule. 표현력 무제한, 단 frontend/backend SSOT 보장 필요 (같은 함수 정의를 양쪽에서 실행)
+- [ ] 메커니즘 확정 후 타입 정의:
+  - `interface GraphWarningRule { id: string; severity: 'error' | 'warning'; evaluate: (node: Node, graph: { nodes, edges }) => { triggered: boolean; message: string } | null }`
+  - `NodeComponentMetadata` 에 `graphWarningRules?: GraphWarningRule[]` 추가
+
+### 2. backend metadata 확장
+
+- [ ] `NodeComponentMetadata` 인터페이스에 `graphWarningRules?: GraphWarningRule[]` 추가
+- [ ] handler registry / metadata 노출 API 가 `graphWarningRules` 를 frontend 로 직렬화 가능한 형태로 (또는 별도 RPC 로) 노출
+
+### 3. backend workflow save endpoint 의 validate 확장
+
+- [ ] `WorkflowsService.create/update` (정확한 위치 확인 필요) 의 validate 단계에서 워크플로우의 모든 노드를 순회하며 `graphWarningRules` 평가
+- [ ] `severity: 'error'` 인 rule 이 triggered 시 — 저장 reject (400 Bad Request + rule.message)
+- [ ] `severity: 'warning'` 인 rule — 로깅 / response 에 포함 (저장은 통과)
+- [ ] 단위 테스트 — 3층 중첩 Parallel 같은 graph 가 저장 reject 되는지 (Parallel rule 의 sample 활용)
+- [ ] 통합 테스트 — POST/PUT 워크플로우 API 가 적절한 400 에러 응답
+
+### 4. frontend canvas 평가 인프라
+
+- [ ] frontend canvas 가 graph 변경 시점 (노드 추가/삭제/edge 변경/config 변경) 마다 `graphWarningRules` 평가 호출
+- [ ] severity 별 UI 표현:
+  - `error`: 노드에 빨간 배지 + 워크플로우 "저장 불가" 상태
+  - `warning`: 노드에 노란 배지 + 저장은 가능
+- [ ] backend 와의 SSOT 보장:
+  - 함수형 rule 의 정의가 backend 와 frontend 에서 동일 실행되어야 함
+  - 옵션: rule 정의를 shared package (`codebase/packages/`) 로 분리, 또는 metadata API 가 rule 함수를 직렬화/eval (보안 우려)
+  - **권고**: shared package 로 rule 정의 이동 — backend metadata 가 그 package 의 함수 reference 만 import
+
+### 5. spec / convention 문서
+
+- [ ] 신규 [`spec/conventions/cross-node-warning-rules.md`](../../spec/conventions/cross-node-warning-rules.md) — cross-node warningRule 컨트랙트, severity 정책, SSOT 보장 방식, 저장 reject vs canvas 경고의 분기
+- [ ] 또는 기존 [`spec/conventions/node-output.md`](../../spec/conventions/node-output.md) 의 자매 문서로 분리
+- [ ] handler 작성자 가이드 — 언제 `warningRules` (단일 노드) vs `graphWarningRules` (cross-node) 를 사용할지
+
+### 6. 통합 시나리오
+
+- [ ] e2e 테스트 — 3층 중첩 Parallel 같은 잘못된 graph 가:
+  - frontend 에서 빨간 배지 + 저장 버튼 disabled
+  - backend save endpoint 가 reject (UI 우회 케이스)
+  - runtime planParallelBody 가 reject (저장 후 마이그레이션 케이스)
+
+## 수용 기준
+
+- `NodeComponentMetadata.graphWarningRules?` 신규 키 정의 + 타입 명확
+- backend workflow save endpoint 가 graphWarningRules 평가 → severity 'error' reject
+- frontend canvas 가 graph 변경 시점에 평가 + severity 별 배지
+- backend/frontend SSOT 보장 (shared package 또는 동등 메커니즘)
+- cross-node warningRule convention spec 작성
+- 단위/통합/e2e 테스트가 메커니즘 잠금
+- 본 plan 완료 후 [`parallel-p2.md`](./parallel-p2.md) §6 가 진행 가능 상태
+
+## 의존성·리스크
+
+- **의존**: 없음. 인프라 작업
+- **리스크**:
+  - backend/frontend SSOT 보장 — rule 정의가 두 코드베이스에 중복되면 drift. shared package 가 정답
+  - frontend canvas 평가의 성능 — 모든 graph 변경마다 N 노드 × M rule 평가. 워크플로우가 커지면 비용 ↑ — debounce / memoization 필요할 수 있음
+  - 신규 메커니즘 (graphWarningRules) vs 기존 mini-DSL 의 사용처 혼동 — handler 작성자 가이드 필수
+
+## 향후 활용 (본 plan scope 밖)
+
+- Loop / ForEach 의 중첩 깊이 정책 (향후 도입 시)
+- Map / Filter 의 부모 컨테이너 contextual 검증
+- 그 외 노드 시스템의 graph-level 검증 (cyclic / unreachable 등 — 현재 graph 검증과 합칠지 분리할지)

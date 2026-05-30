@@ -62,7 +62,7 @@
 | **PRD 5 NF-EX-04 노드 플러그인 시스템** | ❌ | `marketplace-and-plugin-sdk.md` |
 | **PRD 2 §4 ED-PL-05 마켓 커스텀 노드 팔레트 표시** | (마켓 의존) | `marketplace-and-plugin-sdk.md` |
 | **PRD 3 §6.1 ND-AG-06/10/21 AI Agent 도구 연결** | 🚧 의도적 제거, 재작성 예정 | `ai-agent-tool-connection-rewrite.md` |
-| **PRD 3 §4.9 ND-PL-03 Parallel 결과 합산 / 중첩 Parallel / waitAll=false** | 🚧 P2 예정 | `parallel-p2.md` |
+| **PRD 3 §4.9 ND-PL-03 Parallel 결과 합산 / 중첩 Parallel / waitAll=false** | 🚧 P2 진행 중 — errorPolicy schema 노출 (#1) backend ✅ (W-7) / frontend dropdown ⏳, 2026-05-30 사용자 결정 10건 확정 (활성화 / 깊이=2·cap=32 / done 격상 / cancel-others-on-fail 추가 / default ON / waitAll=false 시 continue 강제 / cross-node warningRule 사전 경고 / 3중 가드 / dispatch 채널 분리 / abort signal 전파) | `parallel-p2.md` + 선행 `node-cancellation-infrastructure.md` + 선행 `cross-node-warning-rules.md` |
 | **Spec 4-nodes/1-logic/11-merge `timeout` / `partialOnTimeout`** | 🚧 P2 dormant (엔진 비동기 모델 선결) | `merge-p2-async-fanin.md` |
 | **Spec 5-system/4-execution-engine §6.3 Re-run** | 🚧 PR1 (spec) ✅ / PR2 (구현) 대기 | `replay-rerun.md` |
 | **PRD 5 NF-SC-10 2FA WebAuthn** | ✅ TOTP + WebAuthn (Passkey) 모두 ✅. 잔존 follow-up 10건 | `2fa-webauthn-followups.md` (본 작업은 `plan/complete/2fa-webauthn.md`) |
@@ -119,7 +119,9 @@ plan/in-progress/                          # 2026-05-18 정리 후
 │  ── 큰 미구현 덩어리 (Spec 기준)
 ├── ai-agent-tool-connection-rewrite.md   ← AI Agent 일반 도구 연결 재설계 (디자인 결정 대기)
 ├── merge-p2-async-fanin.md               ← Merge timeout/partialOnTimeout — 엔진 비동기 모델 선결
-├── parallel-p2.md                        ← 중첩 Parallel·waitAll=false·errorPolicy 노출
+├── parallel-p2.md                        ← 중첩 Parallel·waitAll=false·errorPolicy·cancel-others-on-fail (선행: node-cancellation-infrastructure / cross-node-warning-rules)
+├── node-cancellation-infrastructure.md   ← AbortSignal 전파 인프라 (parallel-p2 §5 선행)
+├── cross-node-warning-rules.md           ← cross-node warningRule + workflow save validate 확장 (parallel-p2 §6 선행)
 ├── replay-rerun.md                       ← Re-run 재실행 (PR1 ✅ spec / PR2 ⏳ 구현)
 ├── 2fa-webauthn-followups.md             ← WebAuthn 2FA 후속 묶음 (본 작업 `plan/complete/2fa-webauthn.md` 완료 후)
 ├── self-hosting-deployment.md            ← Docker Compose 풀 번들·Helm·운영 가이드
