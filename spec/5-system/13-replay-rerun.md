@@ -121,7 +121,9 @@ Re-run 시 새 실행은 `re_run_of = <원본 ID>`, `chain_id = <원본 chain ro
 
 다음을 **모두** 만족해야 Re-run 가능:
 - 호출자가 같은 워크스페이스의 멤버이고 Editor 이상 (Owner / Admin / Editor)
-- 호출자가 원본 실행 (`executions.created_by`) 의 작성자이거나, 워크스페이스의 Owner / Admin
+- 호출자가 원본 실행 (`execution.executed_by`) 의 작성자이거나, 워크스페이스의 Owner / Admin
+
+> **`executed_by = NULL` (트리거/스케줄/웹훅 자동 실행) 정책 (v1, 2026-05-31)**: 시작자가 없는 자동 실행은 "타인의 실행" 이 아니므로 **워크스페이스 Editor+ 면 누구나 re-run/chain 조회 허용** (워크스페이스 자원으로 취급). 더 보수적으로 owner/admin 한정이 필요하면 후속 정책 결정 — 현재 구현(`executions.service.ts` reRun/getChain)은 본 v1 정책(Editor+ 허용)을 따른다.
 
 위 조건은 dry-run 모드에도 동일하게 적용된다 (안전한 모드라 해도 다른 사용자의 실행 흐름을 자동으로 재현하는 것은 정보 노출 위험).
 
