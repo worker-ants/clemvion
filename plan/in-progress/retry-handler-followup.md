@@ -78,6 +78,16 @@ owner: project-planner
 
 **구현 (Stage 1)**: `execution-engine.service.ts extractAiTurnErrorPayload` 를 HTTP status 기반으로 재설계 — `extractHttpStatus()` 헬퍼(`.status`/`.statusCode`/`.response.status`) 도입, 429→LLM_RATE_LIMIT(true), 401/403→LLM_CALL_FAILED(false), 5xx/network/timeout→LLM_CALL_FAILED(true), 명시 code(LLM_RESPONSE_INVALID 등) 보존(false), 그 외 AI_AGENT_TURN_FAILED(false). `RETRYABLE_CODES` 집합 제거, retryable 을 status/조건 기반으로 도출. client 누출 대비 `LLM_CONNECTION_ERROR`/errno 는 network 로 매핑. 단위 테스트 추가(status 429/500/503/401/403/502/ECONNRESET/timeout). **client·client spec 무변경** (spec 준수 상태 유지).
 
+## 코드 리뷰 후속 추적 (review/code/2026/05/30/11_22_49 — resolution-applier 추가, 2026-05-30)
+
+다음 항목은 ai-review SUMMARY 의 DEFER 분류 — 비차단, 중기 개선 목표.
+
+- **W5** — FAILED→RUNNING state-machine 전이 범용 노출 하드닝: `canTransition` 에 context 기반 검증 또는 retry 전용 진입점 분리.
+- **W6/W7/W13** — `applyRetryLastTurn` SRP 리팩토링 → `RetryLastTurnUseCase` 별도 클래스로 shape 변환 / Execution 마감 블록 추출. 225줄 단일 메서드 분해.
+- **W9** — cancel 신호 소실: retry 재진입 첫 iteration(`pendingInitialAction` 처리 중) 에 cancel 도달 시 `pendingContinuations` 미등록으로 cancel 소실 — 알려진 엣지 케이스, 후속 작업 필요.
+- **W11** — WS ack 에러 코드 SoT 분산 (`INTERNAL_ERROR`, `FORBIDDEN`/`UNAUTHENTICATED` 미등재): `ErrorCode` 또는 별도 `WsErrorCode` 상수로 통합.
+- **W12** — `extractLlmError` 순환 복잡도 개선: `NETWORK_ERROR_PATTERN` 상수 추출, `classifyLlmError` private static 분리.
+
 ## 의존 관계
 
 WARNING #1~#5, #9 는 `project-planner` 에서 spec 확인 후 → 개발자가 구현·테스트 (#9 는 spec 무변경 — 코드만 spec 에 정렬).
@@ -87,3 +97,4 @@ WARNING #7, #8 는 Phase D 구현 완료 후 테스트 작성.
 
 - `d109dbd3` — docs(spec): multi-turn AI 에러 시 대화 보존 + retryable 분기 + retry_last_turn (follow-up 명시)
 - `de73e3ab` — feat(backend/engine): extractAiTurnErrorPayload — details.retryable 자동 분류 (Phase C-min)
+- `4d2b1a3b` — fix(retry): resolution-applier 코드 픽스 (W3/INFO4/W18/S1/S2/W8/W4/INFO1/INFO3/W16/W17)
