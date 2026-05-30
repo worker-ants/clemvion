@@ -17,6 +17,7 @@ import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { evaluateGraphWarningRulesForGraph } from '../../nodes/core/graph-warning-rule';
 import { LlmConfigService } from '../llm-config/llm-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 
@@ -362,6 +363,13 @@ export class WorkflowsService {
       const savedNodes = await this.syncNodes(manager, id, dto);
       const savedEdges = await this.syncEdges(manager, id, dto);
 
+      // parallel-p2 §6 (결정 D + E, 2026-05-30) — cross-node graphWarningRules
+      // 의 backend 측 enforcement. 같은 transaction 안에서 평가 → severity
+      // 'error' 가 하나라도 있으면 throw → transaction rollback → 저장 차단.
+      // frontend canvas 우회 (직접 API 호출 / 옛 워크플로 마이그레이션) 케이스
+      // 의 안전망. SoT: spec/conventions/cross-node-warning-rules.md.
+      this.evaluateGraphWarnings(savedNodes, savedEdges);
+
       // Snapshot creation runs in the same transaction so canvas + version
       // either both commit or both roll back. The pessimistic lock inside
       // createVersion serialises concurrent saves on this workflow.
@@ -448,6 +456,29 @@ export class WorkflowsService {
         condition: e.condition ?? null,
       })),
     };
+  }
+
+  /**
+   * Cross-node graphWarningRules 평가 (parallel-p2 §6, 결정 D + E + I).
+   * severity 'error' 가 하나라도 있으면 BadRequestException 으로 transaction
+   * rollback → 저장 차단. frontend canvas 가 사전 평가하지만 직접 API 호출 /
+   * 옛 워크플로 마이그레이션 케이스의 backend 안전망.
+   *
+   * SoT: spec/conventions/cross-node-warning-rules.md.
+   */
+  private evaluateGraphWarnings(nodes: Node[], edges: Edge[]): void {
+    const results = evaluateGraphWarningRulesForGraph(
+      { nodes, edges },
+      (type) => this.registry.getComponent(type)?.metadata.graphWarningRules,
+    );
+    const errors = results.filter((r) => r.severity === 'error');
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        code: 'GRAPH_VALIDATION_FAILED',
+        message: `Graph validation failed: ${errors[0].message}`,
+        details: { errors },
+      });
+    }
   }
 
   private validateManualTrigger(dto: SaveCanvasDto): void {

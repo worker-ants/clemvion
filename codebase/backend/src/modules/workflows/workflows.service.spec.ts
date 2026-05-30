@@ -92,6 +92,8 @@ describe('WorkflowsService', () => {
     applyConfigDefaults: jest.fn(
       (_type: string, raw: Record<string, unknown>) => raw,
     ),
+    // parallel-p2 §6 — saveCanvas 의 cross-node graphWarningRules 평가용
+    getComponent: jest.fn().mockReturnValue(undefined),
   };
 
   const mockLlmConfigService = {
@@ -436,6 +438,114 @@ describe('WorkflowsService', () => {
       await expect(
         service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
       ).rejects.toThrow(ConflictException);
+    });
+
+    // parallel-p2 §6 (결정 D + E + I) — backend graphWarningRules 자동 reject
+    describe('graphWarningRules backend enforcement', () => {
+      it('rejects with GRAPH_VALIDATION_FAILED when a registered rule fires (severity=error)', async () => {
+        mockRepository.findOne.mockResolvedValue(mockWorkflow);
+        // transactionManager.save 가 nodes/edges 의 fake 결과 반환
+        mockTransactionManager.find.mockResolvedValue([]);
+        mockTransactionManager.save.mockImplementation(
+          (entity: unknown, data: unknown) => {
+            if (Array.isArray(data)) return Promise.resolve(data);
+            return Promise.resolve(data);
+          },
+        );
+        // graphWarningRule 1건 등록 (severity=error)
+        mockRegistry.getComponent.mockImplementation((type: string) => {
+          if (type !== 'parallel') return undefined;
+          return {
+            metadata: {
+              graphWarningRules: [
+                {
+                  id: 'parallel:test-error',
+                  severity: 'error',
+                  evaluate: () => ({ message: 'test error fires' }),
+                },
+              ],
+            },
+          } as unknown as ReturnType<typeof mockRegistry.getComponent>;
+        });
+
+        const dto: SaveCanvasDto = {
+          name: 'wf',
+          nodes: [
+            {
+              id: 'node-1',
+              type: 'manual_trigger',
+              category: NodeCategory.TRIGGER,
+              label: 'Trigger',
+              positionX: 0,
+              positionY: 0,
+            },
+            {
+              id: 'node-2',
+              type: 'parallel',
+              category: NodeCategory.LOGIC,
+              label: 'P1',
+              positionX: 100,
+              positionY: 0,
+            },
+          ],
+          edges: [],
+        };
+
+        await expect(
+          service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+        ).rejects.toMatchObject({
+          response: expect.objectContaining({
+            code: 'GRAPH_VALIDATION_FAILED',
+            message: expect.stringContaining('test error fires'),
+          }),
+        });
+      });
+
+      it('passes when only severity=warning rules fire (저장 통과)', async () => {
+        mockRepository.findOne.mockResolvedValue(mockWorkflow);
+        mockTransactionManager.find.mockResolvedValue([]);
+        mockRegistry.getComponent.mockImplementation((type: string) => {
+          if (type !== 'parallel') return undefined;
+          return {
+            metadata: {
+              graphWarningRules: [
+                {
+                  id: 'parallel:test-warn',
+                  severity: 'warning',
+                  evaluate: () => ({ message: 'warn only' }),
+                },
+              ],
+            },
+          } as unknown as ReturnType<typeof mockRegistry.getComponent>;
+        });
+
+        const dto: SaveCanvasDto = {
+          name: 'wf',
+          nodes: [
+            {
+              id: 'node-1',
+              type: 'manual_trigger',
+              category: NodeCategory.TRIGGER,
+              label: 'Trigger',
+              positionX: 0,
+              positionY: 0,
+            },
+            {
+              id: 'node-2',
+              type: 'parallel',
+              category: NodeCategory.LOGIC,
+              label: 'P1',
+              positionX: 100,
+              positionY: 0,
+            },
+          ],
+          edges: [],
+        };
+
+        await expect(
+          service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
+        ).resolves.toBeDefined();
+      });
     });
   });
 
