@@ -352,7 +352,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 - **단일 소비 (atomic consume)**: retry 처리는 `nodeExecutionId` 로 `_retryState` 를 조회하고, **동일 트랜잭션 안에서** `NodeExecution.outputData` 에서 `_retryState` 키를 제거(JSONB `-` 연산, null-set) 하면서 새 `NodeExecution` row 를 spawn 한다. 키 제거가 affected=1 인 쪽만 진행 — 동시 retry 의 중복 spawn 을 차단한다. 한 번 소비되면 후속 retry 는 `RETRY_STATE_NOT_FOUND`.
 - **TTL**: `_retryState.expiresAt` (ISO 8601). 기본 60분, 환경변수 `AI_RETRY_STATE_TTL_MINUTES` 로 override. `now > expiresAt` 이면 `RETRY_STATE_NOT_FOUND`. 만료된 미소비 `_retryState` 는 row 의 `outputData` 안에 남아있다가 (별도 cleanup job 없음 — row 수명에 종속) 다음 retry 시도 시 만료 판정으로 거부된다.
-- **Continuation Bus 미경유**: retry 는 대기중 NodeExecution 을 재개(rehydration `RESUME_*`)하는 것이 아니라 **새 `NodeExecution` row 를 spawn** 하므로 continuation 큐(`execution-continuation`)의 resume 경로를 타지 않는다. 엔진의 retry 진입점이 직접 multi-turn loop 를 새 row 로 재개한다.
+- **Continuation Bus 경유 (worker handoff)**: WS gateway(다른 인스턴스 가능)는 multi-turn loop 를 동기 재개할 수 없다 — 재진입은 live `ExecutionContext` rehydrate + `waitForAiConversation` 재개가 필요한 **execution worker 컨텍스트**에서만 가능하다. 따라서 retry 는 검증·atomic consume·새 row spawn 후 continuation 큐(`execution-continuation`)에 **새 job type (`retry_last_turn`)** 을 publish 해 worker 로 handoff 한다. worker processor 가 그 job 을 받아 spawn 된 row 를 `_retryState`(→ `_resumeState` shape) 로 seed 한 채 multi-turn loop 에 재진입시킨다. (기존 `submit_message` 등 continuation 명령과 동일한 WS→worker 브리지를 재사용하되, 대기중 row 재개가 아닌 **새 row 재개**라는 점만 다르다.)
 
 ### 4.4 사용자 입력 대기 이벤트 상세 (`execution.waiting_for_input`)
 
