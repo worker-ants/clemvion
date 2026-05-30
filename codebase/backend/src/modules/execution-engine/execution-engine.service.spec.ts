@@ -4773,6 +4773,7 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ status: ExecutionStatus.COMPLETED }),
       );
     });
+
   });
 
   describe('Reachability-based execution', () => {
@@ -8640,6 +8641,102 @@ describe('ExecutionEngineService', () => {
           (c: unknown[]) => c[1] === 'execution.completed',
         );
       expect(completed.length).toBe(0);
+    });
+
+    // WARNING #16 회귀 가드 (resumeGraphAfterRetry 경로) — nodeExecutionCount 초기값 0.
+    //
+    // 발견사항(testing.md W1): `resumeFromCheckpoint` 와 `resumeGraphAfterRetry` 는
+    // helper 호출 전 `nodeExecutionCount.set(startNode, 0)` 으로 초기화한다.
+    // 이전 코드(init=1) 에서는 back-edge 가 completedNode 를 재방문할 때
+    // count=1+1=2 > MAX_NODE_ITERATIONS=1 → false positive throw 가 발생했다.
+    //
+    // 테스트 그래프 (topological order: Agent → BackEdgeTrigger):
+    //   Agent(completedNode, no fwd edges) ← back-edge ← BackEdgeTrigger
+    //   BackEdgeTrigger 는 back-edge 포트만 출력하며 forward 엣지 없음.
+    //
+    // 흐름 (MAX_NODE_ITERATIONS=1):
+    //   1. loop starts at BackEdgeTrigger (completedPointer+1)
+    //   2. BackEdgeTrigger: count=1 (≤1, passes). fires back-edge → Agent.
+    //   3. Agent: count=init(0)+1=1 (≤1, passes). fwd 없음. pointer++.
+    //   4. BackEdgeTrigger not in reachable (cleared by back-edge). loop ends.
+    //   5. COMPLETED.
+    //
+    //   init=1 이었다면 step 3 에서 count=2>1 → throw (false positive).
+    it('MAX_NODE_ITERATIONS=1: resumeGraphAfterRetry back-edge revisit of completedNode succeeds (WARNING #16 regression guard)', async () => {
+      const TRIGGER_ID = 'node-w16-trigger';
+
+      const triggerHandler16 = {
+        validate: () => ({ valid: true, errors: [] }),
+        // BackEdgeTrigger always fires back-edge port (no forward output).
+        execute: jest.fn(async () =>
+          mockOutput({ fired: true }, { port: 'back' }),
+        ),
+      } as unknown as NodeHandler & { execute: jest.Mock };
+
+      handlerRegistry.register('w16_trigger', triggerHandler16);
+
+      const agentNode16: Partial<Node> = {
+        id: AGENT_ID,
+        workflowId,
+        type: 'ai_agent',
+        category: NodeCategory.AI,
+        label: 'RetryAgent16',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+        isDisabled: false,
+      };
+      const triggerNode16: Partial<Node> = {
+        id: TRIGGER_ID,
+        workflowId,
+        type: 'w16_trigger',
+        category: NodeCategory.LOGIC,
+        label: 'BackEdgeTrigger',
+        config: {},
+        isDisabled: false,
+      };
+
+      // Edge: Agent(user_ended) → Trigger (forward), Trigger(back) → Agent (back-edge).
+      const { agentHandler } = installReentryWithDownstream({
+        nodes: [agentNode16, triggerNode16],
+        edges: [
+          // forward edge: agent → trigger (the "downstream" after retry completes)
+          { sourceNodeId: AGENT_ID, targetNodeId: TRIGGER_ID, sourcePort: 'user_ended' },
+          // back-edge: trigger(back) → agent
+          { sourceNodeId: TRIGGER_ID, targetNodeId: AGENT_ID, sourcePort: 'back' },
+        ],
+      });
+
+      // Agent re-execution (back-edge revisit) calls handler.execute() directly.
+      // Return output with port 'done' — this port has NO forward edge in the
+      // graph (forward edge uses sourcePort='user_ended'), so propagateReachability
+      // adds nothing and Trigger is NOT re-queued after Agent's revisit.
+      (agentHandler.execute as jest.Mock).mockResolvedValue(
+        mockOutput({ revisited: true }, { port: 'done' }),
+      );
+
+      // MAX_NODE_ITERATIONS=1.
+      const cs16 = service['configService'] as unknown as { get: jest.Mock };
+      cs16.get.mockImplementation((key: string, defaultValue?: unknown) => {
+        if (key === 'MAX_NODE_ITERATIONS') return 1;
+        return defaultValue;
+      });
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED);
+      await flushPromises();
+
+      // Trigger must have been called once (not zero, not two).
+      expect(triggerHandler16.execute).toHaveBeenCalledTimes(1);
+
+      // Execution must complete — no MAX_NODE_ITERATIONS exceeded false positive.
+      const completed16 = mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+        (c: unknown[]) => c[1] === 'execution.completed',
+      );
+      expect(completed16.length).toBe(1);
+
+      // Must NOT have emitted execution.failed.
+      const failed16 = mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+        (c: unknown[]) => c[1] === 'execution.failed',
+      );
+      expect(failed16.length).toBe(0);
     });
 
     // W4 — cancel 도달: retry 재진입 처리 중 cancel 이 도달하면 catch 경로가

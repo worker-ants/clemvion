@@ -116,6 +116,8 @@ PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 
 
 ### WARNING #10/#11 — graph traversal loop + graph rebuild 공통 helper 추출
 
+✅ **(2026-05-30 해소)** — `loadAndBuildGraph` / `runNodeDispatchLoop` helper 추출 완료 (commit `2a85693b`).
+
 `resumeGraphAfterRetry` 와 `resumeFromCheckpoint` 의 traversal loop (약 160줄) 및
 graph rebuild 로직 (약 30줄) 이 사실상 중복된다. `runExecution` 까지 포함하면
 graph rebuild 가 3중 복제 상태다. 이 중복은 버그 fix 나 dispatch kind 추가 시
@@ -152,6 +154,8 @@ graph rebuild 가 3중 복제 상태다. 이 중복은 버그 fix 나 dispatch k
 **선행 조건 해소**: 호출자/helper 책임 분리로 인터페이스 단순화 (`mode` 불필요).
 
 ### WARNING #16 — back-edge MAX_NODE_ITERATIONS=1 엣지 케이스
+
+✅ **(2026-05-30 해소)** — `nodeExecutionCount` 초기값 0 통일 (commit `2a85693b`). `resumeFromCheckpoint` (line ~1465) 와 `resumeGraphAfterRetry` (line ~3722) 양쪽에서 초기값 1→0 적용. 경계 테스트 (`MAX_NODE_ITERATIONS=1` + back-edge 재방문 시 COMPLETED 정상 완료) 를 `execution-engine.service.spec.ts` 에 추가.
 
 `nodeExecutionCount.set(completedNode.id, 1)` 초기화 후 back-edge loop 재진입으로
 `completedNode` 가 traversal 에서 재방문될 경우 count 가 1+1=2 가 되어

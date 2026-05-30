@@ -504,6 +504,8 @@ export type ExecuteOptions =
  *    `endAiConversation` / `cancelWaitingExecution`. 본 서비스는 ~4200줄로
  *    크기가 크므로 PR-H/I 에서 점진적으로 책임 분해 예정.
  */
+// ─── Helper Interfaces (loadAndBuildGraph / runNodeDispatchLoop) ────────────
+
 /**
  * Graph rebuild 결과를 한 번에 운반하는 구조체. `loadAndBuildGraph` 가 반환하며
  * `runExecution` / `resumeFromCheckpoint` / `resumeGraphAfterRetry` 가 traversal
@@ -1042,6 +1044,10 @@ export class ExecutionEngineService
    *
    * 본 helper 자체는 호출자의 nodeOutputCache / executedNodes / reachable 등
    * traversal 상태를 다루지 않는다 — 호출자가 helper 결과를 seed 입력으로 사용한다.
+   *
+   * @throws {Error} DB 조회 실패(`nodeRepository`/`edgeRepository`) 또는 그래프 빌드
+   *   단계(`buildGraph` / `topologicalSort` / `buildEdgeIndexes`) 오류 — 호출자의
+   *   catch 블록이 처리한다.
    */
   private async loadAndBuildGraph(
     workflowId: string,
@@ -1110,7 +1116,10 @@ export class ExecutionEngineService
    *   5. blocking node (form / button / AI multi-turn) → waitForX
    *   6. propagateReachability + back-edge 처리 → pointer 갱신
    *
-   * Throws: 호출자의 catch 가 처리. `ExecutionCancelledError` 도 그대로 throw.
+   * @throws {Error} `MAX_NODE_ITERATIONS` 초과 — 노드 순환 한도 초과 메시지 포함.
+   *   호출자의 catch 블록이 실행 실패로 마감한다.
+   * @throws {ExecutionCancelledError} 실행 취소 신호 수신 — 호출자의 catch 블록이
+   *   처리한다.
    */
   private async runNodeDispatchLoop(
     params: NodeDispatchLoopParams,
