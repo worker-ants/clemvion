@@ -25,6 +25,7 @@ const editorState = {
   redoStack: [],
   selectedNodeId: null,
   setVersionHistoryOpen: vi.fn(),
+  graphWarnings: { results: [], hasError: false, hasWarning: false },
 };
 vi.mock("@/lib/stores/editor-store", () => ({
   useEditorStore: <T,>(selector: (s: typeof editorState) => T) => selector(editorState),

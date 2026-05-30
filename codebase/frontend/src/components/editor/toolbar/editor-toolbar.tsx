@@ -39,6 +39,7 @@ export function EditorToolbar() {
   const setWorkflowName = useEditorStore((s) => s.setWorkflowName);
   const isDirty = useEditorStore((s) => s.isDirty);
   const isSaving = useEditorStore((s) => s.isSaving);
+  const graphWarnings = useEditorStore((s) => s.graphWarnings);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
@@ -292,8 +293,14 @@ export function EditorToolbar() {
               variant="outline"
               size="sm"
               className="h-8 gap-1.5 text-xs"
-              disabled={!isDirty || isSaving}
+              disabled={!isDirty || isSaving || graphWarnings.hasError}
               onClick={() => void saveAndInvalidate()}
+              title={
+                graphWarnings.hasError
+                  ? graphWarnings.results.find((r) => r.severity === "error")
+                      ?.message
+                  : undefined
+              }
             >
               <Save size={14} />
               {t("common.save")}

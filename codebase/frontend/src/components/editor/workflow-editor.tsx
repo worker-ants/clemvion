@@ -21,6 +21,10 @@ export function WorkflowEditor() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
+  const fetchGraphWarnings = useEditorStore((s) => s.fetchGraphWarnings);
+  const workflowId = useEditorStore((s) => s.workflowId);
+  const nodes = useEditorStore((s) => s.nodes);
+  const edges = useEditorStore((s) => s.edges);
   const executionId = useExecutionStore((s) => s.executionId);
   const toggleAssistant = useAssistantStore((s) => s.toggle);
   const queryClient = useQueryClient();
@@ -40,6 +44,18 @@ export function WorkflowEditor() {
       getWsClient().connect(token);
     }
   }, []);
+
+  // parallel-p2 결정 D + E + I (2026-05-30) — cross-node graphWarningRules
+  // 사전 평가. graph 변경 시점에 debounced 으로 graph-warnings endpoint 호출,
+  // 결과를 store 에 저장. toolbar 의 save 버튼이 hasError 시 disable.
+  // 500ms debounce — 빠른 연속 편집 (drag 중 multiple onChange) 부담 완화.
+  useEffect(() => {
+    if (!workflowId) return;
+    const handle = setTimeout(() => {
+      void fetchGraphWarnings();
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [workflowId, nodes, edges, fetchGraphWarnings]);
 
   // Subscribe to WebSocket execution events
   useExecutionEvents({ executionId });
