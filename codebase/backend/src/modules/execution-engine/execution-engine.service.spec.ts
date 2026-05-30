@@ -3734,10 +3734,18 @@ describe('ExecutionEngineService', () => {
       expect(result.code).toBe('LLM_RATE_LIMIT');
     });
 
-    it('명시 code 없고 rate limit 아니면 AI_AGENT_TURN_FAILED fallback', () => {
+    it('network/timeout 메시지 → LLM_CALL_FAILED + retryable=true (spec §10)', () => {
       const err = new Error('Connection timeout');
       const result = extract()(err);
+      expect(result.code).toBe('LLM_CALL_FAILED');
+      expect((result.details as Record<string, unknown>).retryable).toBe(true);
+    });
+
+    it('분류 불가 메시지 → AI_AGENT_TURN_FAILED + retryable=false', () => {
+      const err = new Error('something unexpected happened');
+      const result = extract()(err);
       expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+      expect((result.details as Record<string, unknown>).retryable).toBe(false);
     });
 
     it('details 필드를 포함한 오류를 처리한다 (retryable 자동 분류)', () => {
@@ -3801,23 +3809,82 @@ describe('ExecutionEngineService', () => {
         );
       });
 
-      it('LLM_CONNECTION_ERROR → retryable=true', () => {
-        const result = extract()(
-          Object.assign(new Error('ECONNRESET'), {
-            code: 'LLM_CONNECTION_ERROR',
-          }),
-        );
-        expect((result.details as Record<string, unknown>).retryable).toBe(
-          true,
-        );
-      });
-
       it('AI_AGENT_TURN_FAILED → retryable=false (보수적 default)', () => {
         const result = extract()(new Error('unexpected error'));
         expect(result.code).toBe('AI_AGENT_TURN_FAILED');
         expect((result.details as Record<string, unknown>).retryable).toBe(
           false,
         );
+      });
+
+      // spec/4-nodes/3-ai/1-ai-agent.md §10 — HTTP status 기반 분류 (스펙이 SoT).
+      // 멀티턴 경로는 raw SDK 에러(.status)를 받으므로 status 로 분류한다.
+      describe('HTTP status 기반 분류 (§10)', () => {
+        const withStatus = (status: number, msg = 'provider error') =>
+          Object.assign(new Error(msg), { status });
+
+        it('status 429 → LLM_RATE_LIMIT + retryable=true', () => {
+          const r = extract()(withStatus(429, 'too many requests'));
+          expect(r.code).toBe('LLM_RATE_LIMIT');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('status 500 → LLM_CALL_FAILED + retryable=true (5xx)', () => {
+          const r = extract()(withStatus(500));
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('status 503 → LLM_CALL_FAILED + retryable=true (5xx)', () => {
+          const r = extract()(withStatus(503));
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('status 401 → LLM_CALL_FAILED + retryable=false (auth)', () => {
+          const r = extract()(withStatus(401, 'unauthorized'));
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(false);
+        });
+
+        it('status 403 → LLM_CALL_FAILED + retryable=false (auth)', () => {
+          const r = extract()(withStatus(403, 'forbidden'));
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(false);
+        });
+
+        it('err.response.status 502 fallback → LLM_CALL_FAILED + retryable=true', () => {
+          const r = extract()(
+            Object.assign(new Error('bad gateway'), {
+              response: { status: 502 },
+            }),
+          );
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('errno ECONNRESET → LLM_CALL_FAILED + retryable=true (network)', () => {
+          const r = extract()(
+            Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }),
+          );
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('client-layer LLM_CONNECTION_ERROR 코드 누출 시 LLM_CALL_FAILED 로 매핑 + retryable=true', () => {
+          const r = extract()(
+            Object.assign(new Error('network down'), {
+              code: 'LLM_CONNECTION_ERROR',
+            }),
+          );
+          expect(r.code).toBe('LLM_CALL_FAILED');
+          expect((r.details as Record<string, unknown>).retryable).toBe(true);
+        });
+
+        it('status 400 (bad request, 비-auth 4xx) → 비재시도 fallback', () => {
+          const r = extract()(withStatus(400, 'bad request'));
+          expect((r.details as Record<string, unknown>).retryable).toBe(false);
+        });
       });
 
       it('LLM_RATE_LIMIT + Retry-After 헤더 → retryAfterSec 추출 (초 단위)', () => {

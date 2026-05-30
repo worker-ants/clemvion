@@ -56,20 +56,16 @@ owner: project-planner
 
 **작업**: (a) TTL 미만 → 정상 spawn, (b) TTL 초과 → `RETRY_STATE_NOT_FOUND`, (c) 이미 소비 → `RETRY_STATE_NOT_FOUND`, (d) `retryAfterSec` 미경과 → `RETRY_TOO_EARLY` 케이스 추가. 백엔드 WS 게이트웨이 / execution-engine 서비스 spec 파일에 추가.
 
-### WARNING #9 (신규 — 2026-05-30) — `LLM_CONNECTION_ERROR` 비-spec 코드 + auth retryable 오분류
+### WARNING #9 (신규 — 2026-05-30, ✅ 구현 완료) — multi-turn retryable 분류를 HTTP status 기반으로
 
-**사용자 결정 (2026-05-30): 스펙이 SOT.** spec 에는 `LLM_CONNECTION_ERROR` 코드가 없다 — 에러 코드 SoT 는 `spec/4-nodes/3-ai/1-ai-agent.md §10` (5xx/timeout → `LLM_CALL_FAILED` retryable=true, 401/403 auth → `LLM_CALL_FAILED` retryable=false, 429 → `LLM_RATE_LIMIT`) + `spec/5-system/3-error-handling.md`. 따라서 **코드를 spec 에 맞춘다**.
+**사용자 결정 (2026-05-30): 스펙이 SOT.** 단, 코드 조사 결과 **계층이 둘**임을 확인:
 
-현행 코드의 2중 문제:
+- **LLM client SSE 계층**: `LLM_CONNECTION_ERROR` 는 `spec/5-system/7-llm-client.md §6` (221/300행) + user-docs 가 정의한 **정식 spec 코드** — 클라이언트는 spec 준수 상태. **변경 불필요.**
+- **AI Agent multi-turn `output.error` 계층** (`spec/4-nodes/3-ai/1-ai-agent.md §10`): 429 → `LLM_RATE_LIMIT`(retryable), 5xx/network/timeout → `LLM_CALL_FAILED`(retryable), 401/403 → `LLM_CALL_FAILED`(non-retryable).
 
-1. **비-spec 코드명**: LLM 클라이언트 3종(`anthropic.client.ts:262,338`, `openai.client.ts:388`, `google.client.ts:68`)이 429 외 모든 stream 오류를 `LLM_CONNECTION_ERROR` 로 emit. 이 코드는 `error-codes.ts` enum 에도, spec 에도 없음 → spec 의 `LLM_CALL_FAILED` 로 정렬해야 함.
-2. **auth retryable 오분류 (실버그)**: 클라이언트가 401/403 도 5xx/network 와 동일하게 `LLM_CONNECTION_ERROR` 로 묶고, `execution-engine.service.ts:3824` `RETRYABLE_CODES = {LLM_RATE_LIMIT, LLM_CONNECTION_ERROR}` 가 그걸 retryable=true 로 분류 → **auth 실패가 재시도 가능으로 잘못 표기됨** (spec §10 은 false). 현재는 retry_last_turn 백엔드 핸들러(Phase D)가 없어 사용자 영향은 없으나, Phase D 착수 시 반드시 동반 수정.
+멀티턴 경로는 `LlmService.chat()`(non-streaming)의 **raw provider SDK 에러(`.status`)** 를 받으므로 client 의 `LLM_CONNECTION_ERROR` SSE 코드는 도달하지 않는다. **실버그**: 기존 `extractAiTurnErrorPayload` 는 status 를 보지 않고 `message.includes('429')` 휴리스틱 + `RETRYABLE_CODES={LLM_RATE_LIMIT, LLM_CONNECTION_ERROR}`(후자는 이 경로에서 dead) 로만 분류 → **5xx / network timeout 이 `AI_AGENT_TURN_FAILED`(retryable=false) 로 떨어져 spec §10 위반** (429 만 retryable 로 표기됨).
 
-**작업**:
-- (impl) 클라이언트가 HTTP status 를 구분: 429 → `LLM_RATE_LIMIT`, 401/403 → `LLM_CALL_FAILED`(non-retryable), 5xx/network/timeout → `LLM_CALL_FAILED`(retryable). `LLM_CONNECTION_ERROR` 식별자 제거.
-- (impl) `LLM_CALL_FAILED` 한 코드 안에서 auth vs 5xx 를 구분해야 하므로, retryable 판정을 **코드 문자열 기반(`RETRYABLE_CODES`)이 아니라 HTTP status / 명시적 retryable 신호 기반**으로 변경. `extractAiTurnErrorPayload` 의 `RETRYABLE_CODES` 휴리스틱 재설계.
-- (test) auth(401/403) → retryable=false, 5xx/timeout → true, 429 → true 백엔드 단위 테스트.
-- (주의) `execution-engine.service.ts:3748-3825` 의 주석·`anthropic.client.ts` 등의 `LLM_CONNECTION_ERROR` 리터럴 전수 정리.
+**구현 (Stage 1)**: `execution-engine.service.ts extractAiTurnErrorPayload` 를 HTTP status 기반으로 재설계 — `extractHttpStatus()` 헬퍼(`.status`/`.statusCode`/`.response.status`) 도입, 429→LLM_RATE_LIMIT(true), 401/403→LLM_CALL_FAILED(false), 5xx/network/timeout→LLM_CALL_FAILED(true), 명시 code(LLM_RESPONSE_INVALID 등) 보존(false), 그 외 AI_AGENT_TURN_FAILED(false). `RETRYABLE_CODES` 집합 제거, retryable 을 status/조건 기반으로 도출. client 누출 대비 `LLM_CONNECTION_ERROR`/errno 는 network 로 매핑. 단위 테스트 추가(status 429/500/503/401/403/502/ECONNRESET/timeout). **client·client spec 무변경** (spec 준수 상태 유지).
 
 ## 의존 관계
 

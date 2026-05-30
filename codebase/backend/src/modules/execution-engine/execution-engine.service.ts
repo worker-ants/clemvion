@@ -3742,13 +3742,39 @@ export class ExecutionEngineService
   }
 
   /**
+   * provider SDK 에러에서 HTTP status code 추출. Anthropic / OpenAI `APIError`
+   * 는 `.status`, axios 풍은 `.response.status`, 일부 래퍼는 `.statusCode`.
+   */
+  private static extractHttpStatus(err: unknown): number | undefined {
+    if (!err || typeof err !== 'object') return undefined;
+    const e = err as {
+      status?: unknown;
+      statusCode?: unknown;
+      response?: { status?: unknown } | null;
+    };
+    const raw =
+      e.status ??
+      e.statusCode ??
+      (e.response && typeof e.response === 'object'
+        ? e.response.status
+        : undefined);
+    return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+  }
+
+  /**
    * throw 된 예외에서 spec §7.9 의 `output.error` shape 으로 매핑.
    *
-   * `code` 추출 precedence:
-   *  1. `err.code` (LlmClient 가 이미 `LLM_RATE_LIMIT` / `LLM_CONNECTION_ERROR`
-   *     / `LLM_API_ERROR` 등 UPPER_SNAKE_CASE 로 set).
-   *  2. message 가 '429' 또는 'rate limit' 포함 → `LLM_RATE_LIMIT`.
-   *  3. fallback → `AI_AGENT_TURN_FAILED`.
+   * 멀티턴 경로는 raw provider SDK 에러(`.status`)를 받으므로 HTTP status 기반
+   * 분류 (spec/4-nodes/3-ai/1-ai-agent.md §10, 스펙이 SoT):
+   *  - 429 → `LLM_RATE_LIMIT` (retryable)
+   *  - 401/403 (auth) → `LLM_CALL_FAILED` (non-retryable)
+   *  - 5xx / network / timeout → `LLM_CALL_FAILED` (retryable)
+   *  - 그 외 명시 code (예: `LLM_RESPONSE_INVALID`) → 보존, non-retryable
+   *  - 분류 불가 → `AI_AGENT_TURN_FAILED` (non-retryable)
+   *
+   * `details.retryable` (Principle 3.2.1) 는 코드 문자열 집합이 아니라 status/
+   * 조건으로 도출한다. client SSE 계층의 `LLM_CONNECTION_ERROR` (spec llm-client
+   * §6) 는 이 경로에 도달하지 않으나, 누출 대비 network 로 매핑한다.
    *
    * `message` / `details` 는 `sanitizeLastErrorMessage` 로 token/secret echo 차단.
    */
@@ -3785,16 +3811,44 @@ export class ExecutionEngineService
     }
     const message = sanitizeLastErrorMessage(rawMessage);
     const explicitCode = (err as { code?: unknown } | null | undefined)?.code;
+    const status = ExecutionEngineService.extractHttpStatus(err);
+    const lowerMsg = rawMessage.toLowerCase();
+    const isAuth = status === 401 || status === 403;
+    const is5xx = typeof status === 'number' && status >= 500 && status <= 599;
+    const is429 =
+      status === 429 ||
+      explicitCode === 'LLM_RATE_LIMIT' ||
+      lowerMsg.includes('429') ||
+      lowerMsg.includes('rate limit');
+    const isNetwork =
+      explicitCode === 'LLM_CONNECTION_ERROR' ||
+      (typeof explicitCode === 'string' &&
+        /^(ECONNRESET|ETIMEDOUT|ECONNREFUSED|ECONNABORTED|EAI_AGAIN|ENOTFOUND|EPIPE)$/.test(
+          explicitCode,
+        )) ||
+      /\b(timed?\s*out|timeout|etimedout|econnreset|econnrefused|socket hang up|network error|fetch failed|connection (?:error|reset|refused))\b/i.test(
+        rawMessage,
+      );
+
+    // spec/4-nodes/3-ai/1-ai-agent.md §10 — HTTP status 기반 분류 (스펙이 SoT).
+    // retryable 은 코드 문자열 집합이 아니라 status/조건으로 도출 (Principle 3.2.1).
     let code: string;
-    if (typeof explicitCode === 'string' && explicitCode.length > 0) {
-      code = explicitCode;
-    } else if (
-      rawMessage.includes('429') ||
-      rawMessage.toLowerCase().includes('rate limit')
-    ) {
+    let retryable: boolean;
+    if (is429) {
       code = 'LLM_RATE_LIMIT';
+      retryable = true;
+    } else if (isAuth) {
+      code = 'LLM_CALL_FAILED';
+      retryable = false; // 인증 실패 — 재시도해도 동일 실패
+    } else if (is5xx || isNetwork) {
+      code = 'LLM_CALL_FAILED';
+      retryable = true; // 5xx / network / timeout — 일시 회복 가능
+    } else if (typeof explicitCode === 'string' && explicitCode.length > 0) {
+      code = explicitCode; // 예: LLM_RESPONSE_INVALID (JSON 파싱) — 비재시도
+      retryable = false;
     } else {
       code = 'AI_AGENT_TURN_FAILED';
+      retryable = false; // 분류 불가 — 보수적 비재시도
     }
     const rawDetails = (err as { details?: unknown } | null | undefined)
       ?.details;
@@ -3815,14 +3869,6 @@ export class ExecutionEngineService
         baseDetails = { details: '[serialization error]' };
       }
     }
-
-    // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 노드는
-    // `details.retryable` 필수. 분류 규칙 (spec/4-nodes/3-ai/1-ai-agent.md §10):
-    // - LLM_RATE_LIMIT (429) / LLM_CONNECTION_ERROR (5xx/network) → retryable
-    // - LLM_RESPONSE_INVALID (JSON parse) / 인증 실패 → non-retryable
-    // - AI_AGENT_TURN_FAILED (fallback) → non-retryable (안전 default)
-    const RETRYABLE_CODES = new Set(['LLM_RATE_LIMIT', 'LLM_CONNECTION_ERROR']);
-    const retryable = RETRYABLE_CODES.has(code);
 
     // Retry-After 헤더 → retryAfterSec. ms → s 정수 변환. invariant: retryable
     // === true 일 때만 set (Principle 3.2.1).
