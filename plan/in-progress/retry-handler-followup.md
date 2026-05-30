@@ -10,7 +10,21 @@ owner: project-planner
 
 이 plan 은 코드 리뷰 (review/code/2026/05/23/18_30_48/SUMMARY.md) 의 다음 항목을 추적한다:
 
-## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8)
+## 진행 상태 (2026-05-30)
+
+- ✅ **WARNING #9 (retryable 분류)**: HTTP status 기반 재설계 완료 (`fix(execution-engine)` 45ed6fb7).
+- ✅ **spec 정밀화 (#1·#3·#4·#5)**: INVALID_EXECUTION_STATE 코드 / 소비 원자성(트랜잭션 + jsonb key 제거 affected=1) / TTL env / continuation 정책 spec 반영 (`docs(spec)` 2fde08a0 + 정정).
+- ✅ **Phase D 기반 구현** (`feat(execution-engine)` 13dde237): `_retryState` 영속(기존 미구현이었음 — handler/adapter/finalize/strip 전수), error code 3종, `RetryLastTurnError`, 엔진 `retryLastTurn()` 의 검증·atomic consume·새 row spawn. 단위 테스트 348 통과, build 통과.
+- ✅ **multi-turn loop 재진입 + WS wiring (#2 = 경유 확정, 626b4250)**: continuation bus `retry_last_turn` job type + processor case, WS gateway `execution.retry_last_turn` 핸들러(검증→consume→spawn→publish→ack), worker `applyRetryLastTurn`(ExecutionContext rehydrate → `_retryState`→`_resumeState`(credential 재유도) → 실패 last user message replay 로 turn 재실행 → loop 구동 → finalize), state-machine FAILED→RUNNING. TEST WORKFLOW 전부 통과 (lint/build/e2e 127 / backend unit 5176; 재진입 408 신규).
+
+- ✅ **WARNING #11 — 재유도 config 의 expression 재평가** (`fix(execution-engine)` 3ca67305): `applyRetryLastTurn` → `buildRetryReentryState` 가 `resolveRetryNodeConfig` 로 `node.config` 의 `{{expression}}` 을 best-effort 평가 (operational 필드 llmConfigId/maxTurns 등). raw fallback 으로 static config 회귀 없음. `rawConfig` echo 는 spec config-echo 정책상 raw 유지. **한계**: 재진입 경로는 원본 nodeInput 을 영속하지 않으므로 (`_retryState` 최소화) `$input.*` 참조는 미해소 — `$node`/`$var`/`$thread`/`$execution`/`$now` 만 해소. 단위 테스트 추가.
+
+- ✅ **spec 텍스트 동기화 4건 (review SUMMARY #6/#7/#8/#9)** (`docs(spec)` ee999466 + `fix` 219d54fb): consistency-check 1차 BLOCK 후 project-planner 가 설계 확정·반영 — #6 `failed→running` Execution-entity 전이(§1.1/§1.2/Rationale, allowRetryReentry opt-in), #7 분류 불가 fallback 을 `LLM_CALL_FAILED` non-retryable 로 통합(§10, classifyLlmError 코드 정렬 — `AI_AGENT_TURN_FAILED` 제거), #8 cancel-during-replay→cancelled(§4.2), #9 config 재평가 정책(§7.9 + §5.5 cross-ref, rawConfig snapshot 직교성). **`/consistency-check --spec` 재검 BLOCK: NO** (`review/consistency/2026/05/30/13_34_40`, LOW). 상세: [`spec-fix-retry-state-transitions.md`](./spec-fix-retry-state-transitions.md).
+
+- 🔲 **남은 한계 (스펙 결정 필요 — project-planner)**:
+  - **WARNING #10 — 성공 retry 후 downstream 그래프 traversal**: retry 로 대화는 재개되나, AI 노드의 출력 포트에 연결된 하류 노드는 미실행 (성공 종결 시 Execution 을 COMPLETED 로만 마감). **스펙 판단 결론 (2026-05-30)**: `spec/5-system/6-websocket-protocol.md §4.2` + `spec/4-nodes/3-ai/1-ai-agent.md §10/§7.9` 가 `retry_last_turn` 을 "노드 단위 재시도 — 마지막 LLM 호출 재진입"으로 정의하고 워크플로 Re-run([§13](../../spec/5-system/13-replay-rerun.md))과 **명시적으로 구분**한다. downstream 재개는 spec 이 약속한 바 없으므로 현재 COMPLETED-finalize 는 **spec 준수** 상태. downstream traversal 은 신규 제품 동작(노드 단위 → 워크플로 재개로 의미 확장)이라 `project-planner` 의 spec 결정이 선행돼야 하며 developer 범위가 아니다. `completeRetryExecution` docstring 에 DOCUMENTED GAP 으로 명시 보존. **사용자/기획 결정 대기.**
+
+## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8, #9)
 
 ### WARNING #1 — `_retryState` 소비 원자성 (spec + 구현)
 
@@ -56,12 +70,38 @@ owner: project-planner
 
 **작업**: (a) TTL 미만 → 정상 spawn, (b) TTL 초과 → `RETRY_STATE_NOT_FOUND`, (c) 이미 소비 → `RETRY_STATE_NOT_FOUND`, (d) `retryAfterSec` 미경과 → `RETRY_TOO_EARLY` 케이스 추가. 백엔드 WS 게이트웨이 / execution-engine 서비스 spec 파일에 추가.
 
+### WARNING #9 (신규 — 2026-05-30, ✅ 구현 완료) — multi-turn retryable 분류를 HTTP status 기반으로
+
+**사용자 결정 (2026-05-30): 스펙이 SOT.** 단, 코드 조사 결과 **계층이 둘**임을 확인:
+
+- **LLM client SSE 계층**: `LLM_CONNECTION_ERROR` 는 `spec/5-system/7-llm-client.md §6` (221/300행) + user-docs 가 정의한 **정식 spec 코드** — 클라이언트는 spec 준수 상태. **변경 불필요.**
+- **AI Agent multi-turn `output.error` 계층** (`spec/4-nodes/3-ai/1-ai-agent.md §10`): 429 → `LLM_RATE_LIMIT`(retryable), 5xx/network/timeout → `LLM_CALL_FAILED`(retryable), 401/403 → `LLM_CALL_FAILED`(non-retryable).
+
+멀티턴 경로는 `LlmService.chat()`(non-streaming)의 **raw provider SDK 에러(`.status`)** 를 받으므로 client 의 `LLM_CONNECTION_ERROR` SSE 코드는 도달하지 않는다. **실버그**: 기존 `extractAiTurnErrorPayload` 는 status 를 보지 않고 `message.includes('429')` 휴리스틱 + `RETRYABLE_CODES={LLM_RATE_LIMIT, LLM_CONNECTION_ERROR}`(후자는 이 경로에서 dead) 로만 분류 → **5xx / network timeout 이 `AI_AGENT_TURN_FAILED`(retryable=false) 로 떨어져 spec §10 위반** (429 만 retryable 로 표기됨).
+
+**구현 (Stage 1)**: `execution-engine.service.ts extractAiTurnErrorPayload` 를 HTTP status 기반으로 재설계 — `extractHttpStatus()` 헬퍼(`.status`/`.statusCode`/`.response.status`) 도입, 429→LLM_RATE_LIMIT(true), 401/403→LLM_CALL_FAILED(false), 5xx/network/timeout→LLM_CALL_FAILED(true), 명시 code(LLM_RESPONSE_INVALID 등) 보존(false), 그 외 AI_AGENT_TURN_FAILED(false). `RETRYABLE_CODES` 집합 제거, retryable 을 status/조건 기반으로 도출. client 누출 대비 `LLM_CONNECTION_ERROR`/errno 는 network 로 매핑. 단위 테스트 추가(status 429/500/503/401/403/502/ECONNRESET/timeout). **client·client spec 무변경** (spec 준수 상태 유지).
+
+## 코드 리뷰 후속 추적 (review/code/2026/05/30/11_22_49 — resolution-applier 추가, 2026-05-30)
+
+다음 항목은 ai-review SUMMARY 의 DEFER 분류였으며 **2026-05-30 일괄 해소** (`fix(execution-engine)` 3ca67305, `docs(user-guide)` 352450a3):
+
+- ✅ **W5** — FAILED→RUNNING 전이를 `TransitionOptions.allowRetryReentry` opt-in 으로 한정. ALLOWED_TRANSITIONS 표에서 제거하고 `canTransition(from,to,opts)` 가 opt-in 일 때만 허용. `finalizeAiNode(..., allowRetryReentry)` → `updateExecutionStatus(..., opts)` 로 전달, `applyRetryLastTurn` 만 true. state-machine 단위 테스트 3종 추가.
+- ✅ **W6/W7/W13** — `applyRetryLastTurn` SRP 분해: `buildRetryReentryState`(shape 변환 + initialAction) / `completeRetryExecution`(성공 마감) / `failRetryExecution`(실패·취소 마감) 로 추출. 별도 클래스 대신 in-service helper (결합도 유지, 회귀 위험 최소).
+- ✅ **W9** — cancel 신호 소실: replay turn(`pendingInitialAction`) 처리 시 cancel-only `pendingContinuations` 핸들러 등록 + `Promise.race` 로 cancel 신호와 race. cancel 이 이기면 `ExecutionCancelledError` → Execution CANCELLED. 정상 경로 무변경. 단위 테스트 추가.
+- ✅ **W11** — WS ack 코드 SoT 분리: `ws-error-codes.ts` `WsErrorCode`(UNAUTHENTICATED/FORBIDDEN/NOT_FOUND/INTERNAL_ERROR). `handleRetryLastTurn` 의 리터럴 4곳 대체.
+- ✅ **W12** — `extractAiTurnErrorPayload` 분리: `NETWORK_ERRNO_PATTERN`/`NETWORK_MESSAGE_PATTERN` 상수 + `classifyLlmError` private static. 기존 테스트 25종 green 유지.
+- ✅ **W14** — user-guide 갱신: retry 거절 코드 3종(`RETRY_STATE_NOT_FOUND`/`NODE_NOT_RETRYABLE`/`RETRY_TOO_EARLY`)을 `05-run-and-debug/run-results` (KO/EN) 에러 코드 표(type=재시도) + "멀티턴 대화 중 오류 발생 시 재시도" 소절에 추가. user-guide-writer sub-agent 위임, 컨벤션 체크리스트 통과.
+- ✅ **W15** — `backend-labels.ts` 등재: **불필요로 판단**. 해당 파일은 Zod 스키마 UI 라벨(label/hint/placeholder) 번역 테이블이고, retry 코드는 WS-ack `error.code` (폼 라벨 아님). 사용자 노출은 W14 의 user-guide 문서로 커버.
+
+> **W1/W2 (spec gap) 해소 완료 (2026-05-30)**: WS ack `success` 필드(§4.2) + `_retryState.lastUserMessage`/`lastUserMessageSource`(node-output §4.2.1) 를 spec 에 명시 반영. (원본 escalation draft `spec-fix-retry-ws-ack-fields.md` 는 적용 후 제거.)
+
 ## 의존 관계
 
-WARNING #1~#5 는 `project-planner` 에서 spec 명시 후 → 개발자가 구현·테스트.
+WARNING #1~#5, #9 는 `project-planner` 에서 spec 확인 후 → 개발자가 구현·테스트 (#9 는 spec 무변경 — 코드만 spec 에 정렬).
 WARNING #7, #8 는 Phase D 구현 완료 후 테스트 작성.
 
 ## 참고 커밋
 
 - `d109dbd3` — docs(spec): multi-turn AI 에러 시 대화 보존 + retryable 분기 + retry_last_turn (follow-up 명시)
 - `de73e3ab` — feat(backend/engine): extractAiTurnErrorPayload — details.retryable 자동 분류 (Phase C-min)
+- `4d2b1a3b` — fix(retry): resolution-applier 코드 픽스 (W3/INFO4/W18/S1/S2/W8/W4/INFO1/INFO3/W16/W17)

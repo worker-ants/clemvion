@@ -2948,6 +2948,134 @@ describe('AiAgentHandler', () => {
     });
   });
 
+  describe('_retryState top-level field (spec §7.9 / node-output §4.2.1)', () => {
+    const retryableState = {
+      messages: [
+        { role: 'system', content: 'sys' },
+        { role: 'user', content: 'cause 429' },
+      ],
+      turnCount: 3,
+      model: 'gpt-4o',
+      temperature: 0.7,
+      maxTokens: 2048,
+      knowledgeBases: ['kb-1'],
+      ragTopK: 5,
+      ragThreshold: 0.7,
+      mcpServers: [],
+      // credential — must NOT leak into _retryState.
+      llmConfigId: 'cfg-secret-1',
+      totalInputTokens: 6000,
+      totalOutputTokens: 1500,
+      totalThinkingTokens: 0,
+      toolCalls: 2,
+      ragSources: [],
+      ragLastDiagnostics: undefined,
+      turnDebugHistory: [],
+      rawConfig: { mode: 'multi_turn', model: 'gpt-4o', maxTurns: 20 },
+    };
+
+    afterEach(() => {
+      delete process.env.AI_RETRY_STATE_TTL_MINUTES;
+    });
+
+    it('attaches top-level _retryState with messages + expiresAt and NO credentials when retryable === true', () => {
+      const result = handler.endMultiTurnConversation(
+        { ...retryableState },
+        'error',
+        {
+          code: 'LLM_RATE_LIMIT',
+          message: 'rate limited',
+          details: { statusCode: 429, retryable: true, retryAfterSec: 30 },
+        },
+      ) as Record<string, unknown>;
+
+      const retryState = result._retryState as Record<string, unknown>;
+      expect(retryState).toBeDefined();
+      expect(retryState.messages).toHaveLength(2);
+      expect(retryState.turnCount).toBe(3);
+      expect(retryState.totalInputTokens).toBe(6000);
+      expect(retryState.totalOutputTokens).toBe(1500);
+      expect(retryState.toolCalls).toBe(2);
+      expect(retryState.model).toBe('gpt-4o');
+      expect(typeof retryState.expiresAt).toBe('string');
+      // ISO 8601, in the future.
+      expect(Date.parse(retryState.expiresAt as string)).toBeGreaterThan(
+        Date.now() - 1000,
+      );
+      // credential must be absent.
+      expect(retryState.llmConfigId).toBeUndefined();
+      expect('llmConfigId' in retryState).toBe(false);
+    });
+
+    it('does NOT attach _retryState for a non-retryable error (retryable === false)', () => {
+      const result = handler.endMultiTurnConversation(
+        { ...retryableState },
+        'error',
+        {
+          code: 'LLM_RESPONSE_INVALID',
+          message: 'json parse failed',
+          details: { retryable: false },
+        },
+      ) as Record<string, unknown>;
+      expect(result._retryState).toBeUndefined();
+    });
+
+    it('does NOT attach _retryState for a normal (user_ended) termination', () => {
+      const result = handler.endMultiTurnConversation(
+        { ...retryableState },
+        'user_ended',
+      ) as Record<string, unknown>;
+      expect(result._retryState).toBeUndefined();
+    });
+
+    it('honors AI_RETRY_STATE_TTL_MINUTES env override for expiresAt', () => {
+      process.env.AI_RETRY_STATE_TTL_MINUTES = '5';
+      const before = Date.now();
+      const result = handler.endMultiTurnConversation(
+        { ...retryableState },
+        'error',
+        {
+          code: 'LLM_CALL_FAILED',
+          message: '503',
+          details: { statusCode: 503, retryable: true },
+        },
+      ) as Record<string, unknown>;
+      const retryState = result._retryState as Record<string, unknown>;
+      const expiresMs = Date.parse(retryState.expiresAt as string);
+      // ~5 minutes ahead (allow generous slack for test timing).
+      expect(expiresMs).toBeGreaterThanOrEqual(before + 4 * 60_000);
+      expect(expiresMs).toBeLessThanOrEqual(Date.now() + 6 * 60_000);
+    });
+
+    // W17: resolveRetryStateTtlMinutes — invalid/negative/zero 입력 시
+    // fallback 60분 동작 검증.
+    it.each([
+      ['non-numeric string', 'abc'],
+      ['negative value', '-1'],
+      ['zero', '0'],
+    ])(
+      'falls back to 60-minute TTL when AI_RETRY_STATE_TTL_MINUTES=%s',
+      (_label, envValue) => {
+        process.env.AI_RETRY_STATE_TTL_MINUTES = envValue;
+        const before = Date.now();
+        const result = handler.endMultiTurnConversation(
+          { ...retryableState },
+          'error',
+          {
+            code: 'LLM_CALL_FAILED',
+            message: '503',
+            details: { statusCode: 503, retryable: true },
+          },
+        ) as Record<string, unknown>;
+        const retryState = result._retryState as Record<string, unknown>;
+        const expiresMs = Date.parse(retryState.expiresAt as string);
+        // Must be ~60 min ahead (default fallback), not ~5 min or invalid.
+        expect(expiresMs).toBeGreaterThanOrEqual(before + 59 * 60_000);
+        expect(expiresMs).toBeLessThanOrEqual(Date.now() + 61 * 60_000);
+      },
+    );
+  });
+
   describe('tool call telemetry — WS emit + turnDebug.toolCalls', () => {
     function lastTurnDebug(result: unknown) {
       const meta = ((result as Record<string, unknown>).meta ?? {}) as Record<

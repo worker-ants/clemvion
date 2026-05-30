@@ -24,6 +24,7 @@ import {
   WorkflowNotFoundError,
   SubWorkflowTimeoutError,
   InvalidExecutionStateError,
+  RetryLastTurnError,
 } from './workflow-errors';
 import {
   ContinuationBusService,
@@ -2940,6 +2941,607 @@ export class ExecutionEngineService
   }
 
   /**
+   * AI Agent multi-turn 의 `execution.retry_last_turn` (spec/5-system/
+   * 6-websocket-protocol.md §4.2, spec/5-system/4-execution-engine.md §1.3,
+   * spec/4-nodes/3-ai/1-ai-agent.md §7.9) 진입점.
+   *
+   * retryable error 로 종결된 NodeExecution 의 보존된 `_retryState` 를 lookup·
+   * 검증하고, **동일 트랜잭션 안에서** `_retryState` 키를 제거(소비)하면서 동일
+   * nodeId 의 새 NodeExecution row 를 spawn 한다. 키 제거가 affected=1 인 쪽만
+   * 진행하므로 동시 retry 의 중복 spawn 이 차단된다 (한 번 소비되면 후속 retry 는
+   * `RETRY_STATE_NOT_FOUND`).
+   *
+   * 검증 순서 (spec §4.2 에러 코드 표):
+   *  1. NodeExecution lookup (executionId 소속 확인). 미존재 → INVALID_EXECUTION_STATE.
+   *  2. status !== FAILED → INVALID_EXECUTION_STATE.
+   *  3. `outputData.output.error.details.retryable !== true` → NODE_NOT_RETRYABLE.
+   *  4. `outputData._retryState` 부재 또는 `now > expiresAt` → RETRY_STATE_NOT_FOUND.
+   *  5. `retryAfterSec` 카운트다운 미경과 → RETRY_TOO_EARLY.
+   *  6. atomic consume + spawn.
+   *
+   * **본 메서드는 큐를 publish 하지 않음** — caller(WS gateway) 가 spawn 된 row
+   * id 로 `publishRetryLastTurn` 을 호출해 `retry_last_turn` continuation job 을
+   * BullMQ 에 enqueue 하고, worker 가 `applyRetryLastTurn` 으로 multi-turn loop
+   * 에 재진입한다 (INFO#3: "Continuation Bus 미경유" 표현 수정 — 본 메서드 자체가
+   * publish 안 할 뿐, caller 가 publish 함).
+   *
+   * **재진입 구현 완료**: `applyRetryLastTurn` 이 `_retryState` → `_resumeState`
+   * shape 변환 후 `runAiConversationLoop` 로 재진입. INFO#1: 이전 "재진입 미완 갭"
+   * 주석은 현 구현을 반영해 삭제함. 남은 문서화된 갭은 downstream graph traversal
+   * (성공 후 후속 노드 재개) — `applyRetryLastTurn` 의 docstring 참조.
+   */
+  async retryLastTurn(
+    executionId: string,
+    nodeExecutionId: string,
+  ): Promise<{ spawnedNodeExecutionId: string }> {
+    const nodeExec = await this.nodeExecutionRepository.findOneBy({
+      id: nodeExecutionId,
+    });
+    // 1. lookup + executionId 소속 검증.
+    if (!nodeExec || nodeExec.executionId !== executionId) {
+      throw new InvalidExecutionStateError(
+        `retry_last_turn: NodeExecution ${nodeExecutionId} not found for execution ${executionId}`,
+      );
+    }
+    // 2. FAILED 상태 기대.
+    if (nodeExec.status !== NodeExecutionStatus.FAILED) {
+      throw new InvalidExecutionStateError(
+        `retry_last_turn: NodeExecution ${nodeExecutionId} is ${nodeExec.status}, expected FAILED`,
+      );
+    }
+
+    const outputData: Record<string, unknown> = nodeExec.outputData ?? {};
+    const output = (outputData.output ?? {}) as Record<string, unknown>;
+    const errorObj = (output.error ?? undefined) as
+      | { details?: { retryable?: unknown; retryAfterSec?: unknown } }
+      | undefined;
+    // 3. retryable 검증.
+    if (errorObj?.details?.retryable !== true) {
+      throw RetryLastTurnError.notRetryable(
+        `retry_last_turn: node ${nodeExecutionId} did not terminate on a retryable error`,
+      );
+    }
+
+    // 4. _retryState 존재 + TTL.
+    const retryState = outputData._retryState as
+      | (Record<string, unknown> & { expiresAt?: unknown })
+      | undefined;
+    if (!retryState) {
+      throw RetryLastTurnError.notFound(
+        `retry_last_turn: _retryState missing on node ${nodeExecutionId} (already consumed?)`,
+      );
+    }
+    const expiresAtRaw = retryState.expiresAt;
+    const expiresAtMs =
+      typeof expiresAtRaw === 'string' ? Date.parse(expiresAtRaw) : NaN;
+    const now = Date.now();
+    if (!Number.isFinite(expiresAtMs) || now > expiresAtMs) {
+      throw RetryLastTurnError.notFound(
+        `retry_last_turn: _retryState expired on node ${nodeExecutionId} (expiresAt=${String(expiresAtRaw)})`,
+      );
+    }
+
+    // 5. retryAfterSec 카운트다운 enforcement. 카운트다운 기준 시각은 노드가
+    //    종결된 시점 (finishedAt, 없으면 startedAt). retryAfterSec 는
+    //    output.error.details 또는 _retryState 어느 쪽에 있든 읽는다.
+    const retryAfterSec =
+      typeof errorObj.details?.retryAfterSec === 'number'
+        ? errorObj.details.retryAfterSec
+        : typeof retryState.retryAfterSec === 'number'
+          ? retryState.retryAfterSec
+          : undefined;
+    if (retryAfterSec !== undefined && retryAfterSec > 0) {
+      const finishedAtMs = (
+        nodeExec.finishedAt ?? nodeExec.startedAt
+      )?.getTime?.();
+      if (typeof finishedAtMs === 'number') {
+        const readyAtMs = finishedAtMs + retryAfterSec * 1000;
+        if (now < readyAtMs) {
+          throw RetryLastTurnError.tooEarly(
+            `retry_last_turn: retryAfterSec=${retryAfterSec}s not elapsed for node ${nodeExecutionId}`,
+          );
+        }
+      }
+    }
+
+    // 6. ATOMIC CONSUME + SPAWN — 동일 트랜잭션. `_retryState` 키를 JSONB `-`
+    //    연산으로 제거(소비)하되 affected=1 인 writer 만 새 row 를 spawn 한다.
+    //    동시 retry 의 두 번째 호출은 affected=0 → RETRY_STATE_NOT_FOUND.
+    const seededInput = { _retryState: retryState };
+    let spawned: NodeExecution | null = null;
+    await this.dataSource.transaction(async (manager) => {
+      const consume = await manager
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({
+          // JSONB `-` 연산자로 `_retryState` 키만 제거. 다른 outputData 키 보존.
+          outputData: () => `output_data - '_retryState'`,
+        })
+        .where('id = :id', { id: nodeExecutionId })
+        // JSONB key-existence guard. `jsonb_exists(col, key)` is used instead
+        // of the `?` operator so the pg driver doesn't mistake `?` for a bound
+        // parameter placeholder. affected=1 only for the writer that still saw
+        // the key present — concurrent retry gets affected=0.
+        .andWhere(`jsonb_exists(output_data, '_retryState')`)
+        .execute();
+      if ((consume.affected ?? 0) !== 1) {
+        // 이미 다른 retry 가 소비함 (동시성) — 중복 spawn 차단.
+        throw RetryLastTurnError.notFound(
+          `retry_last_turn: _retryState already consumed for node ${nodeExecutionId}`,
+        );
+      }
+      const fresh = manager.create(NodeExecution, {
+        executionId,
+        nodeId: nodeExec.nodeId,
+        status: NodeExecutionStatus.RUNNING,
+        inputData: seededInput as Record<string, unknown>,
+        parentNodeExecutionId: nodeExec.parentNodeExecutionId ?? null,
+      });
+      spawned = await manager.save(NodeExecution, fresh);
+    });
+
+    // 본 메서드는 lookup/검증/atomic-consume/spawn 까지를 동기 수행한다. 실제
+    // multi-turn loop 재진입은 worker 컨텍스트에서만 가능하므로 (live
+    // ExecutionContext 필요), caller (WS gateway) 가 spawn 된 row 의 id 로
+    // `publishRetryLastTurn` 을 호출해 continuation bus 로 handoff 한다 →
+    // worker processor 가 `applyRetryLastTurn` 으로 재진입한다 (spec §4.2
+    // "Continuation Bus 경유 (worker handoff)").
+    const spawnedId = (spawned as NodeExecution | null)?.id;
+    if (!spawnedId) {
+      // transaction 이 throw 없이 끝났는데 spawned 가 null 이면 invariant 위반.
+      throw RetryLastTurnError.notFound(
+        `retry_last_turn: spawn failed for node ${nodeExecutionId}`,
+      );
+    }
+    return { spawnedNodeExecutionId: spawnedId };
+  }
+
+  /**
+   * spec/5-system/6-websocket-protocol.md §4.2 "Continuation Bus 경유 (worker
+   * handoff)" — `retryLastTurn` 으로 spawn 된 RUNNING row 의 id 를 담아
+   * `retry_last_turn` continuation job 을 publish 한다. worker processor 가
+   * 이를 받아 `applyRetryLastTurn` 으로 multi-turn loop 에 재진입한다.
+   *
+   * 기존 continuation 명령과 달리 `nodeExecutionId` 는 대기중 row 가 아니라
+   * spawn 된 RUNNING row 를 가리킨다 (worker idempotency 가드는 WAITING 대신
+   * RUNNING 을 기대 — processor 가 type 별로 분기).
+   */
+  async publishRetryLastTurn(
+    executionId: string,
+    spawnedNodeExecutionId: string,
+  ): Promise<ContinuationPublishResult> {
+    const jobId = await this.continuationBus.publish({
+      type: 'retry_last_turn',
+      executionId,
+      nodeExecutionId: spawnedNodeExecutionId,
+      payload: { spawnedNodeExecutionId },
+    });
+    return ExecutionEngineService.buildPublishResult(jobId);
+  }
+
+  /**
+   * W3 보상 — `publishRetryLastTurn` 실패(`queued: false` / throw) 시 WS gateway
+   * 가 호출해 spawn 된 RUNNING row 를 FAILED 로 마감한다.
+   *
+   * `_retryState` 는 이미 소비됐으므로 재시도 시 RETRY_STATE_NOT_FOUND 가 된다.
+   * Execution 은 이미 FAILED 상태이므로 row 만 FAILED 로 정리한다.
+   */
+  async markSpawnedRowFailedOnPublishError(
+    spawnedNodeExecutionId: string,
+    reason: string,
+  ): Promise<void> {
+    try {
+      await this.nodeExecutionRepository
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({
+          status: NodeExecutionStatus.FAILED,
+          error: { message: `Retry publish failed: ${reason}` },
+          finishedAt: new Date(),
+        })
+        .where('id = :id', { id: spawnedNodeExecutionId })
+        .andWhere('status = :status', { status: NodeExecutionStatus.RUNNING })
+        .execute();
+    } catch (err) {
+      this.logger.error(
+        `markSpawnedRowFailedOnPublishError: failed to close row ${spawnedNodeExecutionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  /**
+   * spec/5-system/6-websocket-protocol.md §4.2 / spec/5-system/4-execution-engine.md
+   * §1.3 / spec/4-nodes/3-ai/1-ai-agent.md §7.9 — `retry_last_turn` worker 재진입.
+   *
+   * `retryLastTurn` 이 spawn 한 RUNNING row 를 `_retryState` 로 seed 해 multi-turn
+   * loop 에 재진입시킨다. 기존 rehydration (`rehydrateAndResume`) 과 다른 점:
+   *   - 대상 Execution 은 FAILED (waiting_for_input 아님), spawn 된 row 는 RUNNING.
+   *   - `_retryState` 가 DB (spawn 된 row 의 `inputData`) 에 영속돼 있어 in-memory
+   *     `_resumeState` 가 없어도 재구성 가능 (multi-turn rehydration 의 알려진
+   *     한계 RESUME_INCOMPATIBLE_STATE 를 retry 는 우회 — _retryState 가 DB SoT).
+   *
+   * 재진입 절차:
+   *   1. spawn 된 row + `inputData._retryState` 로드.
+   *   2. ExecutionContext 확보 (`rehydrateContext` 재사용 — live 면 그대로).
+   *   3. `_retryState` → `_resumeState` shape 변환 후 nodeOutputCache /
+   *      structuredOutputCache 에 주입.
+   *   4. NODE_STARTED (spawn 된 row) emit. Execution FAILED → RUNNING 전이는
+   *      `finalizeAiNode` 의 COMPLETED 분기가 담당 (W4: JSDoc 정합).
+   *   5. `runAiConversationLoop` 를 마지막 user message replay (initialAction =
+   *      `ai_message`) 로 구동 → 실패했던 LLM turn 재실행. 이후 정상 loop.
+   *   6. `finalizeAiNode` 로 spawn 된 row + Execution 마감.
+   */
+  async applyRetryLastTurn(
+    executionId: string,
+    spawnedNodeExecutionId: string,
+  ): Promise<void> {
+    const spawnedRow = await this.nodeExecutionRepository.findOneBy({
+      id: spawnedNodeExecutionId,
+    });
+    if (!spawnedRow || spawnedRow.executionId !== executionId) {
+      this.logger.warn(
+        `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} not found for execution ${executionId} — ack-and-discard`,
+      );
+      return;
+    }
+    // 멱등성 — 이미 다른 worker 가 처리해 RUNNING 이 아니면 discard.
+    if (spawnedRow.status !== NodeExecutionStatus.RUNNING) {
+      this.logger.debug(
+        `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} is ${spawnedRow.status} (not RUNNING) — already handled, ack-and-discard`,
+      );
+      return;
+    }
+
+    const seededInput = spawnedRow.inputData ?? {};
+    const retryState = seededInput._retryState as
+      | Record<string, unknown>
+      | undefined;
+    if (!retryState) {
+      this.logger.error(
+        `applyRetryLastTurn: spawned row ${spawnedNodeExecutionId} missing _retryState in inputData — cannot re-enter`,
+      );
+      // re-entry 불가 — spawn 된 row 를 FAILED 로 마감하지 않으면 RUNNING 영구
+      // 잔류한다. Execution 은 이미 FAILED 이므로 row 만 정리.
+      spawnedRow.status = NodeExecutionStatus.FAILED;
+      spawnedRow.error = {
+        message: 'Retry re-entry failed: missing _retryState',
+      };
+      spawnedRow.finishedAt = new Date();
+      await this.nodeExecutionRepository.save(spawnedRow);
+      return;
+    }
+
+    // INFO#4 / W3 — execution + node 조회를 병렬화 (W18) 하고, 각 not-found 에서
+    // spawn 된 RUNNING row 를 FAILED 로 마감해 zombie row 방지.
+    const [execution, node] = await Promise.all([
+      this.executionRepository.findOneBy({ id: executionId }),
+      this.nodeRepository.findOneBy({ id: spawnedRow.nodeId }),
+    ]);
+    if (!execution) {
+      this.logger.error(
+        `applyRetryLastTurn: execution ${executionId} not found — marking spawned row FAILED to avoid zombie`,
+      );
+      spawnedRow.status = NodeExecutionStatus.FAILED;
+      spawnedRow.error = {
+        message: 'Retry re-entry failed: parent execution not found',
+      };
+      spawnedRow.finishedAt = new Date();
+      await this.nodeExecutionRepository.save(spawnedRow);
+      return;
+    }
+    if (!node) {
+      this.logger.error(
+        `applyRetryLastTurn: node ${spawnedRow.nodeId} not found — marking spawned row FAILED to avoid zombie`,
+      );
+      spawnedRow.status = NodeExecutionStatus.FAILED;
+      spawnedRow.error = {
+        message: 'Retry re-entry failed: node definition not found',
+      };
+      spawnedRow.finishedAt = new Date();
+      await this.nodeExecutionRepository.save(spawnedRow);
+      return;
+    }
+
+    // ExecutionContext — live 면 재사용, 아니면 rehydrate (다른 인스턴스 / 재시작).
+    // rehydrateContext 는 waiting node 의 outputData 도 seed 하나, retry 의 spawn
+    // row 는 RUNNING (inputData seeded) 이므로 별도로 _resumeState 를 주입한다.
+    const context = await this.rehydrateContext(execution, spawnedRow);
+
+    // W6/W7/W13 — `_retryState` → `_resumeState` shape 복원 + replay initialAction
+    // 도출은 `buildRetryReentryState` 로 분리 (SRP). 본 메서드는 orchestration
+    // (검증 / context rehydrate / emit / loop 구동 / Execution 마감) 만 담당.
+    const { resumeState, initialAction } = this.buildRetryReentryState(
+      execution,
+      node,
+      context,
+      retryState,
+    );
+    // nodeOutputCache 에 `{ _resumeState }` envelope 주입 (handleAiMessageTurn /
+    // finalizeAiNode 가 읽는다). structuredOutputCache 도 seed 해 finalize 가
+    // 종료 turn 의 canonical shape 을 가질 수 있게 한다.
+    this.contextService.setNodeOutput(executionId, node.id, {
+      _resumeState: resumeState,
+    });
+
+    // NODE_STARTED (spawn 된 row) emit. Execution status 전이는 finalizeAiNode 가
+    // 담당한다 — 성공 종결 시 COMPLETED 분기가 FAILED → RUNNING (state-machine.ts
+    // 의 retry 전용 전이) 을 수행하고, 재실패 시 catch 가 FAILED 로 직접 마감한다.
+    // 여기서 미리 RUNNING 으로 옮기면 finalizeAiNode 의 RUNNING → RUNNING 전이가
+    // invalid 가 되므로 전이를 finalize 단계로 미룬다.
+    this.eventEmitter.emitNode(
+      executionId,
+      node.id,
+      NodeEventType.NODE_STARTED,
+      {
+        nodeExecutionId: spawnedRow.id,
+        parentNodeExecutionId: context.parentNodeExecutionId,
+        status: NodeExecutionStatus.RUNNING,
+        nodeType: node.type,
+        nodeLabel: node.label ?? node.type,
+        input: spawnedRow.inputData,
+        startedAt: spawnedRow.startedAt?.toISOString?.(),
+      },
+    );
+
+    try {
+      const finalStatus = await this.runAiConversationLoop(
+        executionId,
+        node,
+        context,
+        spawnedRow,
+        resumeState,
+        initialAction,
+      );
+
+      // finalizeAiNode: COMPLETED 면 spawn row COMPLETED + Execution RUNNING +
+      // EXECUTION_RESUMED, FAILED 면 spawn row FAILED + NODE_FAILED + sentinel throw.
+      // W5 / WARNING #5 — 본 호출은 retry 재진입이므로 retryReentry opt-in 을 켠다.
+      await this.finalizeAiNode(
+        execution,
+        executionId,
+        node,
+        context,
+        spawnedRow,
+        finalStatus,
+        { retryReentry: true },
+      );
+      await this.completeRetryExecution(execution, executionId);
+    } catch (error: unknown) {
+      await this.failRetryExecution(execution, executionId, error);
+    } finally {
+      this.pendingContinuations.delete(executionId);
+      this.contextService.deleteContext(executionId);
+      this.clearLlmDefaultConfigCache(executionId);
+    }
+  }
+
+  /**
+   * W6/W7/W13 — `_retryState` → `_resumeState` shape 복원 + replay initialAction
+   * 도출. `applyRetryLastTurn` 의 orchestration 에서 분리한 순수 준비 단계.
+   *
+   * credential / context-binding 필드는 `_retryState` (DB 영속) 에 미동봉이므로
+   * (spec §7.9 masking) node.config + context 에서 재유도한다 —
+   * `processMultiTurnMessageInner` 가 state 에서 직접 읽는 필드들. operational
+   * 필드는 `resolveRetryNodeConfig` 로 expression 을 best-effort 평가한 값을 쓰고
+   * (#11), config echo 용 `rawConfig` 는 spec config-echo 정책상 raw 값을 유지한다.
+   *
+   * @returns resumeState (loop seed) + initialAction (실패 last turn replay;
+   *   lastUserMessage 부재 시 undefined → replay 없이 wait loop 진입).
+   */
+  private buildRetryReentryState(
+    execution: Execution,
+    node: Node,
+    context: ExecutionContext,
+    retryState: Record<string, unknown>,
+  ): {
+    resumeState: Record<string, unknown>;
+    initialAction: ContinuationPayload | undefined;
+  } {
+    // expiresAt 은 resume state 에 불필요. lastUserMessage/Source 는 replay 용.
+    const {
+      expiresAt: _expiresAt,
+      lastUserMessage,
+      lastUserMessageSource,
+      ...resumeFields
+    } = retryState as Record<string, unknown> & {
+      expiresAt?: unknown;
+      lastUserMessage?: unknown;
+      lastUserMessageSource?: unknown;
+    };
+    void _expiresAt;
+
+    const rawNodeConfig = node.config ?? {};
+    const resolvedConfig = this.resolveRetryNodeConfig(
+      execution,
+      node,
+      context,
+    );
+    const workspaceId =
+      (context.variables?.__workspaceId as string | undefined) ?? '';
+    const resumeState: Record<string, unknown> = {
+      ...resumeFields,
+      executionId: execution.id,
+      nodeId: node.id,
+      workspaceId,
+      llmConfigId: resolvedConfig.llmConfigId,
+      maxTurns: (resolvedConfig.maxTurns as number | undefined) ?? 20,
+      maxToolCalls: (resolvedConfig.maxToolCalls as number | undefined) ?? 10,
+      conditions: (resolvedConfig.conditions as unknown[] | undefined) ?? [],
+      presentationTools:
+        (resolvedConfig.presentationTools as unknown[] | undefined) ?? [],
+      mcpServers:
+        (resumeFields.mcpServers as unknown[] | undefined) ??
+        (resolvedConfig.mcpServers as unknown[] | undefined) ??
+        [],
+      conversationThreadRef: context.conversationThread,
+    };
+    if (!('rawConfig' in resumeState)) {
+      resumeState.rawConfig = Object.freeze({ ...rawNodeConfig });
+    }
+
+    // 마지막 user message 를 replay 해 실패했던 LLM turn 을 재실행. lastUserMessage
+    // 가 없으면 (옛 _retryState 호환) replay 없이 정상 wait loop 진입 — 그 경우
+    // 사용자가 다음 메시지를 보내야 진행된다.
+    const replayMessage =
+      typeof lastUserMessage === 'string' ? lastUserMessage : undefined;
+    const replaySource: ResumableMessageSource =
+      lastUserMessageSource === 'form_submitted'
+        ? 'form_submitted'
+        : 'ai_message';
+    const initialAction: ContinuationPayload | undefined =
+      replayMessage !== undefined
+        ? replaySource === 'form_submitted'
+          ? {
+              type: 'form_submitted',
+              formData: this.tryParseJson(replayMessage),
+            }
+          : { type: 'ai_message', message: replayMessage }
+        : undefined;
+
+    if (replayMessage === undefined) {
+      this.logger.warn(
+        `applyRetryLastTurn: _retryState has no lastUserMessage for ` +
+          `execution=${execution.id} node=${node.id} — re-entering wait loop without replay ` +
+          `(user must send a new message to proceed).`,
+      );
+    }
+
+    return { resumeState, initialAction };
+  }
+
+  /**
+   * W6/W7/W13 — retry 성공 종결 시 Execution 마감. retry 재진입은 노드 단위
+   * 재시도이므로 Execution 을 COMPLETED 로 마감한다 (finalizeAiNode 가 RUNNING
+   * 으로 전이해 둔 것을 이어받는다).
+   *
+   * ⚠️ DOCUMENTED GAP (WARNING #10) — 성공한 retry 후 이 AI 노드의 downstream
+   * 노드가 존재하면 그들은 실행되지 않는다. retry 는 "실패한 마지막 turn 재실행
+   * + 대화 재개" 까지를 보장하며, 대화 종료 후 그래프 순회 재개
+   * (resumeFromCheckpoint 의 reachability/back-edge 로직) 는 본 phase 범위 밖이다.
+   * spec 상 retry_last_turn 은 노드 단위 재시도로 정의돼 있어 (워크플로 Re-run §13
+   * 과 구분) 현재 동작은 spec 준수 — downstream 재개는 별도 spec 결정/후속 작업.
+   * 대부분의 multi-turn AI 노드는 대화형 종단 노드라 실측 영향이 작다.
+   */
+  private async completeRetryExecution(
+    execution: Execution,
+    executionId: string,
+  ): Promise<void> {
+    execution.status = ExecutionStatus.COMPLETED;
+    execution.finishedAt = new Date();
+    execution.durationMs =
+      execution.finishedAt.getTime() - execution.startedAt.getTime();
+    await this.executionRepository.save(execution);
+    this.eventEmitter.emitExecution(
+      executionId,
+      ExecutionEventType.EXECUTION_COMPLETED,
+      { status: ExecutionStatus.COMPLETED },
+    );
+  }
+
+  /**
+   * W6/W7/W13 — retry 재실패/취소 시 Execution 마감. finalizeAiNode 의 FAILED
+   * sentinel throw (또는 loop 내 예외 / cancel) — Execution 을 FAILED 또는
+   * CANCELLED 로 마감한다 (runExecution catch 와 동형). NodeExecution 은
+   * finalizeAiNode FAILED 분기가 이미 FAILED + NODE_FAILED emit 했고, retryable
+   * 재실패면 새 `_retryState` 가 outputData 에 보존돼 재-retry 가능하다.
+   */
+  private async failRetryExecution(
+    execution: Execution,
+    executionId: string,
+    error: unknown,
+  ): Promise<void> {
+    // isCancelled 를 상단에서 한 번만 평가해 이중 평가 제거 (WARNING #10).
+    const isCancelled = error instanceof ExecutionCancelledError;
+    execution.status = isCancelled
+      ? ExecutionStatus.CANCELLED
+      : ExecutionStatus.FAILED;
+    const errMessage = error instanceof Error ? error.message : String(error);
+    execution.error = { message: errMessage };
+    execution.finishedAt = new Date();
+    execution.durationMs =
+      execution.finishedAt.getTime() - execution.startedAt.getTime();
+    await this.executionRepository.save(execution);
+    this.eventEmitter.emitExecution(
+      executionId,
+      isCancelled
+        ? ExecutionEventType.EXECUTION_CANCELLED
+        : ExecutionEventType.EXECUTION_FAILED,
+      {
+        status: execution.status,
+        ...(!isCancelled ? { error: errMessage } : {}),
+      },
+    );
+  }
+
+  /**
+   * #11 (followup) — retry 재진입 시 `node.config` 의 `{{ expression }}` 을
+   * best-effort 로 평가해 `applyRetryLastTurn` 의 operational 필드 (llmConfigId /
+   * maxTurns 등) 가 정상 dispatch 와 동일한 evaluated 값을 보도록 한다.
+   *
+   * 재진입 경로는 원본 nodeInput 을 영속하지 않으므로 (`_retryState` 최소화
+   * 정책 — spec/conventions/node-output.md §4.2.1) `$input.*` 는 해소되지 않는다.
+   * `$node` / `$var` / `$thread` / `$execution` / `$now` 는 rehydrated context
+   * (`rehydrateContext` 가 upstream 출력을 seed) 에서 정상 해소된다.
+   *
+   * 평가 실패 시 raw config 로 안전 fallback — static config 회귀 없음.
+   * **config echo (`rawConfig`) 는 본 메서드 결과가 아닌 raw 값을 유지해야 한다**
+   * (spec/4-nodes/3-ai/1-ai-agent.md §config-echo: 항상 raw echo).
+   */
+  private resolveRetryNodeConfig(
+    execution: Execution,
+    node: Node,
+    context: ExecutionContext,
+  ): Record<string, unknown> {
+    const rawConfig = node.config ?? {};
+    try {
+      // WARNING #4 수정: `findBy({ workflowId })` 로 전체 노드를 조회하던 것을
+      // 이미 파라미터로 받은 `node` 한 건만 포함하는 Map 으로 교체.
+      // `buildExpressionContext` 가 nodeMap 을 쓰는 목적은 `$node.<id>.output`
+      // 참조 해소이며, 재진입 경로에서 upstream 노드의 outputData 는
+      // `rehydrateContext` 가 `nodeOutputCache` 에 seed 한다.
+      // 개별 노드 설정 expression(`$node`, `$var`, `$execution` 등) 해소에는
+      // 현재 노드 하나로 충분하고, 대형 워크플로에서 수십~수백 row 조회 부작용을
+      // 제거한다.
+      const nodeMap = new Map([[node.id, node]]);
+      const exprContext = this.expressionResolver.buildExpressionContext(
+        // 재진입엔 원본 nodeInput 미영속 — `$input.*` 미해소 (documented limit).
+        {},
+        context,
+        nodeMap,
+        { startedAt: execution.startedAt?.toISOString?.() },
+      );
+      return this.expressionResolver.resolveConfig(
+        rawConfig,
+        exprContext,
+        node.type,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `applyRetryLastTurn: config expression 재평가 실패 — raw config 로 fallback ` +
+          `(execution=${execution.id} node=${node.id}): ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+      );
+      return rawConfig;
+    }
+  }
+
+  /** retry replay 의 form_submitted action 용 — JSON 문자열이면 파싱, 아니면 그대로. */
+  private tryParseJson(raw: string): Record<string, unknown> {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // not JSON — fall through.
+    }
+    return { __raw__: raw };
+  }
+
+  /**
    * Phase 2.5 — continuation publish 결과 → WS ack `queued` / `jobId` 매핑 helper.
    *
    * Phase 2 의 라우팅 원칙 (spec §7.4 "모든 진입점은 항상 BullMQ enqueue") 상
@@ -3041,7 +3643,7 @@ export class ExecutionEngineService
     // WARN #18 — resumeState 가 undefined 일 때 buildConversationMetaFromResumeState
     // 호출이 TypeError 던지던 문제 해소. 핸들러가 _resumeState 를 누락한 비정상
     // 상황에서도 빈 객체로 fallback 하여 nullable propagation 차단.
-    let resumeState =
+    const resumeState =
       (nodeOutput._resumeState as Record<string, unknown>) ?? {};
 
     // ENG-RC-* — multi-turn resume 핸들러는 ExecutionContext 가 아닌 state 만
@@ -3068,6 +3670,45 @@ export class ExecutionEngineService
       resumeState,
     );
 
+    const finalStatus = await this.runAiConversationLoop(
+      executionId,
+      node,
+      context,
+      nodeExec,
+      resumeState,
+    );
+
+    await this.finalizeAiNode(
+      savedExecution,
+      executionId,
+      node,
+      context,
+      nodeExec,
+      finalStatus,
+    );
+  }
+
+  /**
+   * PR-H 후속 (2026-05-30) — multi-turn conversation while-loop 본체. emit/
+   * finalize 와 분리해 `waitForAiConversation` (첫 turn 진입) 과
+   * `applyRetryLastTurn` (retry 재진입) 이 공유한다.
+   *
+   * @param initialAction — 있으면 첫 iteration 에서 외부 입력을 기다리지 않고
+   *   본 action 을 즉시 처리한다 (retry 재진입의 "마지막 turn replay" 용도 —
+   *   spec/4-nodes/3-ai/1-ai-agent.md §7.9). 처리 후 종료되지 않았으면 평소대로
+   *   다음 turn 입력을 await 한다. undefined 면 첫 iteration 부터 입력 await
+   *   (정상 multi-turn 경로).
+   * @returns 종료 시 finalStatus (`COMPLETED` | `FAILED`).
+   */
+  private async runAiConversationLoop(
+    executionId: string,
+    node: Node,
+    context: ExecutionContext,
+    nodeExec: NodeExecution | null,
+    initialResumeState: Record<string, unknown>,
+    initialAction?: ContinuationPayload,
+  ): Promise<'COMPLETED' | 'FAILED'> {
+    let resumeState = initialResumeState;
     // Conversation loop — exits when user ends OR handler returns terminal.
     let conversationEnded = false;
     // 2026-05-19 — spec/4-nodes/3-ai/1-ai-agent.md §7.9. handleAiMessageTurn
@@ -3078,17 +3719,89 @@ export class ExecutionEngineService
     // 알 수 없는 타입이 계속 들어오는 비정상 상황에서 루프를 종료한다.
     let unknownSkipCount = 0;
     const MAX_UNKNOWN_SKIPS = 20;
+    let pendingInitialAction = initialAction;
     while (!conversationEnded) {
-      // Wait for user message or end signal (no timeout — external cancel only)
-      const userData = await new Promise<unknown>((resolve, reject) => {
-        this.pendingContinuations.set(executionId, {
-          nodeId: node.id,
-          resolve,
-          reject,
-        });
-      });
+      let action: ContinuationPayload;
+      if (pendingInitialAction !== undefined) {
+        // retry 재진입 — 마지막 turn 을 외부 입력 대기 없이 즉시 replay.
+        const replayAction = pendingInitialAction;
+        pendingInitialAction = undefined;
 
-      const action = userData as ContinuationPayload;
+        // W9 — replay turn 처리 중 도달하는 외부 cancel 이 소실되지 않게
+        // cancel-only reject 핸들러를 등록하고, replay turn 을 cancel 신호와
+        // race 한다. 정상 경로는 wait 단계에서 cancel 을 받지만 (아래 else),
+        // replay 는 wait 없이 즉시 처리되므로 이 race 가 그 대칭을 제공한다.
+        // cancel 이 이기면 ExecutionCancelledError 가 Promise.race 에서 throw 되고
+        // 아래 try 의 catch(finally) 를 경유해 `runAiConversationLoop` 밖으로 전파,
+        // `applyRetryLastTurn` 의 catch 가 Execution 을 CANCELLED 로 마감한다.
+        // (WARNING #3: cancel → throw → loop 탈출 경로 명시. finalStatus / conversationEnded
+        //  는 갱신되지 않은 채 throw 로 빠져나가므로 loop 재진입은 발생하지 않는다.)
+        //
+        // WARNING #2 — resolve: () => {} no-op 의 의미:
+        // replay 구간은 외부 사용자 메시지(continueAiConversation)를 수신하지 않는다.
+        // 이 타이밍 창에 메시지가 도달하면 resolve no-op 으로 조용히 drop 된다.
+        // 이는 정상 turn 중 외부 메시지가 drop 되는 동작과 동일하며 알려진 narrow
+        // window 다 — replay 는 단일 turn 이므로 창이 극히 짧다. 별도 AbortController
+        // 로 분리하면 Map 을 비우는 구간이 생겨 cancel 신호를 놓칠 위험이 있으므로
+        // 현재 no-op resolve + reject-only 패턴을 유지한다.
+        const replayMessage =
+          replayAction.type === 'form_submitted'
+            ? JSON.stringify(replayAction.formData ?? {})
+            : replayAction.type === 'ai_message'
+              ? replayAction.message
+              : undefined;
+        if (replayMessage !== undefined) {
+          const cancelSignal = new Promise<never>((_, reject) => {
+            this.pendingContinuations.set(executionId, {
+              nodeId: node.id,
+              resolve: () => {},
+              reject,
+            });
+          });
+          // turn 이 먼저 끝나면 cancelSignal 은 영구 pending 으로 남으므로
+          // unhandled-rejection 경고를 사전 차단한다.
+          cancelSignal.catch(() => {});
+          try {
+            const turn = await Promise.race([
+              this.handleAiMessageTurn(
+                executionId,
+                node,
+                replayMessage,
+                resumeState,
+                nodeExec,
+                replayAction.type === 'form_submitted'
+                  ? 'form_submitted'
+                  : 'ai_message',
+              ),
+              cancelSignal,
+            ]);
+            resumeState = turn.resumeState;
+            conversationEnded = turn.ended;
+            if (turn.finalStatus === 'FAILED') {
+              finalStatus = 'FAILED';
+            }
+          } finally {
+            // race 종료 — 우리 cancel 핸들러를 제거해 다음 iteration 의 정상
+            // 등록과 충돌하지 않게 한다. cancel 이 이긴 경우 rejectPending 이
+            // 이미 삭제했으므로 delete 는 no-op.
+            this.pendingContinuations.delete(executionId);
+          }
+          // 다음 iteration 은 정상 wait 경로로 진입.
+          continue;
+        }
+        // replay 액션이 message 형이 아닌 비정상 케이스 — 일반 dispatch 로 위임.
+        action = replayAction;
+      } else {
+        // Wait for user message or end signal (no timeout — external cancel only)
+        const userData = await new Promise<unknown>((resolve, reject) => {
+          this.pendingContinuations.set(executionId, {
+            nodeId: node.id,
+            resolve,
+            reject,
+          });
+        });
+        action = userData as ContinuationPayload;
+      }
 
       if (action.type === 'ai_end_conversation') {
         this.handleAiEndConversation(executionId, node, resumeState);
@@ -3173,14 +3886,7 @@ export class ExecutionEngineService
       }
     }
 
-    await this.finalizeAiNode(
-      savedExecution,
-      executionId,
-      node,
-      context,
-      nodeExec,
-      finalStatus,
-    );
+    return finalStatus;
   }
 
   /**
@@ -3372,6 +4078,12 @@ export class ExecutionEngineService
         nodeExec,
         err,
         handler,
+        // spec/4-nodes/3-ai/1-ai-agent.md §7.9 — the failed user message
+        // (this turn's input) is NOT in `resumeState.messages` (that snapshot
+        // is the pre-turn history). Carry it into `_retryState` so the retry
+        // re-entry can replay this exact last turn (re-call the LLM).
+        message,
+        source,
       );
     }
     const resultObj = result as Record<string, unknown>;
@@ -3697,6 +4409,14 @@ export class ExecutionEngineService
     nodeExec: NodeExecution | null,
     err: unknown,
     handler: ResumableNodeHandler,
+    /**
+     * spec/4-nodes/3-ai/1-ai-agent.md §7.9 — the user message that triggered
+     * the failed turn + its dispatch source. Forwarded into `_retryState` so
+     * `applyRetryLastTurn` can replay the exact last turn. `resumeState.messages`
+     * does NOT contain this message (it is the pre-turn history snapshot).
+     */
+    failedUserMessage?: string,
+    failedUserMessageSource?: ResumableMessageSource,
   ): {
     resumeState: Record<string, unknown>;
     ended: true;
@@ -3712,6 +4432,8 @@ export class ExecutionEngineService
       resumeState,
       'error',
       errorPayload,
+      failedUserMessage,
+      failedUserMessageSource,
     );
     const adapted = adaptHandlerReturn(errorResult);
     this.contextService.setStructuredOutput(executionId, node.id, adapted);
@@ -3722,8 +4444,15 @@ export class ExecutionEngineService
       // WARN #6 — `_resumeState` 는 DB 영속 페이로드에서 strip. 정상 finalize
       // (`finalizeAiNode`) 가 같은 strip 을 수행하지만, 이 시점에 cache 가
       // 새 error shape 으로 갱신됐으므로 일관성 위해 outputData 도 동기 갱신.
+      //
+      // 보존 예외 — `_retryState` (spec/5-system/4-execution-engine.md §1.3,
+      // spec/conventions/node-output.md §4.2.1): retryable error 종결 시
+      // buildMultiTurnFinalOutput 이 운반한 top-level `_retryState` 는
+      // **strip 하지 않고** outputData 에 보존해 DB 영속한다. 이후 WS
+      // `execution.retry_last_turn` 이 nodeExecutionId 로 lookup → 소비한다.
       const { _resumeState: _stripped, ...safe } = adapted as unknown as {
         _resumeState?: unknown;
+        _retryState?: unknown;
       } & Record<string, unknown>;
       void _stripped;
       nodeExec.outputData = safe;
@@ -3742,16 +4471,104 @@ export class ExecutionEngineService
   }
 
   /**
+   * W12 (Maintainability) — network/timeout 분류용 패턴 상수화. errno 코드
+   * (`err.code`) 와 메시지 본문을 각각 매칭한다. `extractAiTurnErrorPayload` /
+   * `classifyLlmError` 가 공유.
+   */
+  private static readonly NETWORK_ERRNO_PATTERN =
+    /^(ECONNRESET|ETIMEDOUT|ECONNREFUSED|ECONNABORTED|EAI_AGAIN|ENOTFOUND|EPIPE)$/;
+
+  private static readonly NETWORK_MESSAGE_PATTERN =
+    /\b(timed?\s*out|timeout|etimedout|econnreset|econnrefused|socket hang up|network error|fetch failed|connection (?:error|reset|refused))\b/i;
+
+  /**
+   * provider SDK 에러에서 HTTP status code 추출. Anthropic / OpenAI `APIError`
+   * 는 `.status`, axios 풍은 `.response.status`, 일부 래퍼는 `.statusCode`.
+   */
+  private static extractHttpStatus(err: unknown): number | undefined {
+    if (!err || typeof err !== 'object') return undefined;
+    const e = err as {
+      status?: unknown;
+      statusCode?: unknown;
+      response?: { status?: unknown } | null;
+    };
+    const raw =
+      e.status ??
+      e.statusCode ??
+      (e.response && typeof e.response === 'object'
+        ? e.response.status
+        : undefined);
+    return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+  }
+
+  /**
    * throw 된 예외에서 spec §7.9 의 `output.error` shape 으로 매핑.
    *
-   * `code` 추출 precedence:
-   *  1. `err.code` (LlmClient 가 이미 `LLM_RATE_LIMIT` / `LLM_CONNECTION_ERROR`
-   *     / `LLM_API_ERROR` 등 UPPER_SNAKE_CASE 로 set).
-   *  2. message 가 '429' 또는 'rate limit' 포함 → `LLM_RATE_LIMIT`.
-   *  3. fallback → `AI_AGENT_TURN_FAILED`.
+   * 멀티턴 경로는 raw provider SDK 에러(`.status`)를 받으므로 HTTP status 기반
+   * 분류 (spec/4-nodes/3-ai/1-ai-agent.md §10, 스펙이 SoT):
+   *  - 429 → `LLM_RATE_LIMIT` (retryable)
+   *  - 401/403 (auth) → `LLM_CALL_FAILED` (non-retryable)
+   *  - 5xx / network / timeout → `LLM_CALL_FAILED` (retryable)
+   *  - 그 외 명시 code (예: `LLM_RESPONSE_INVALID`) → 보존, non-retryable
+   *  - 분류 불가 → `LLM_CALL_FAILED` (non-retryable fallback — §10 LLM 단일 taxonomy)
+   *
+   * `details.retryable` (Principle 3.2.1) 는 코드 문자열 집합이 아니라 status/
+   * 조건으로 도출한다. client SSE 계층의 `LLM_CONNECTION_ERROR` (spec llm-client
+   * §6) 는 이 경로에 도달하지 않으나, 누출 대비 network 로 매핑한다.
    *
    * `message` / `details` 는 `sanitizeLastErrorMessage` 로 token/secret echo 차단.
    */
+  /**
+   * W12 (Maintainability) — `extractAiTurnErrorPayload` 의 분기 트리를 분리한
+   * 순수 분류 함수. HTTP status / explicit code / message 만 보고 spec
+   * §10 (4-nodes/3-ai/1-ai-agent.md) 의 `{ code, retryable }` 를 도출한다.
+   *
+   *  - 429 / rate-limit → `LLM_RATE_LIMIT` (retryable)
+   *  - 401 / 403 (auth) → `LLM_CALL_FAILED` (non-retryable — 재시도해도 동일 실패)
+   *  - 5xx / network / timeout → `LLM_CALL_FAILED` (retryable — 일시 회복 가능)
+   *  - 그 외 명시 code (예: `LLM_RESPONSE_INVALID`) → 보존, non-retryable
+   *  - 분류 불가 → `LLM_CALL_FAILED` (보수적 non-retryable fallback — spec §10 은
+   *    별도 `AI_*` fallback 코드를 두지 않고 LLM 단일 taxonomy 를 유지한다)
+   *
+   * client SSE 계층의 `LLM_CONNECTION_ERROR` (spec llm-client §6) 는 멀티턴
+   * 경로에 도달하지 않으나, 누출 대비 network 로 매핑한다.
+   */
+  private static classifyLlmError(
+    status: number | undefined,
+    explicitCode: unknown,
+    rawMessage: string,
+  ): { code: string; retryable: boolean } {
+    const lowerMsg = rawMessage.toLowerCase();
+    const isAuth = status === 401 || status === 403;
+    const is5xx = typeof status === 'number' && status >= 500 && status <= 599;
+    const is429 =
+      status === 429 ||
+      explicitCode === 'LLM_RATE_LIMIT' ||
+      lowerMsg.includes('429') ||
+      lowerMsg.includes('rate limit');
+    const isNetwork =
+      explicitCode === 'LLM_CONNECTION_ERROR' ||
+      (typeof explicitCode === 'string' &&
+        ExecutionEngineService.NETWORK_ERRNO_PATTERN.test(explicitCode)) ||
+      ExecutionEngineService.NETWORK_MESSAGE_PATTERN.test(rawMessage);
+
+    if (is429) {
+      return { code: 'LLM_RATE_LIMIT', retryable: true };
+    }
+    if (isAuth) {
+      return { code: 'LLM_CALL_FAILED', retryable: false };
+    }
+    if (is5xx || isNetwork) {
+      return { code: 'LLM_CALL_FAILED', retryable: true };
+    }
+    if (typeof explicitCode === 'string' && explicitCode.length > 0) {
+      return { code: explicitCode, retryable: false };
+    }
+    // 분류 불가 fallback — spec §10 은 별도 AI_* 코드 없이 LLM_CALL_FAILED
+    // (non-retryable) 로 통합한다. 재시도 안전성이 확인되지 않은 미상 throw.
+    return { code: 'LLM_CALL_FAILED', retryable: false };
+  }
+
   private static extractAiTurnErrorPayload(err: unknown): {
     code: string;
     message: string;
@@ -3785,17 +4602,15 @@ export class ExecutionEngineService
     }
     const message = sanitizeLastErrorMessage(rawMessage);
     const explicitCode = (err as { code?: unknown } | null | undefined)?.code;
-    let code: string;
-    if (typeof explicitCode === 'string' && explicitCode.length > 0) {
-      code = explicitCode;
-    } else if (
-      rawMessage.includes('429') ||
-      rawMessage.toLowerCase().includes('rate limit')
-    ) {
-      code = 'LLM_RATE_LIMIT';
-    } else {
-      code = 'AI_AGENT_TURN_FAILED';
-    }
+    const status = ExecutionEngineService.extractHttpStatus(err);
+
+    // spec/4-nodes/3-ai/1-ai-agent.md §10 — HTTP status 기반 분류 (스펙이 SoT).
+    // retryable 은 코드 문자열 집합이 아니라 status/조건으로 도출 (Principle 3.2.1).
+    const { code, retryable } = ExecutionEngineService.classifyLlmError(
+      status,
+      explicitCode,
+      rawMessage,
+    );
     const rawDetails = (err as { details?: unknown } | null | undefined)
       ?.details;
     let baseDetails: Record<string, unknown> | undefined;
@@ -3815,14 +4630,6 @@ export class ExecutionEngineService
         baseDetails = { details: '[serialization error]' };
       }
     }
-
-    // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 노드는
-    // `details.retryable` 필수. 분류 규칙 (spec/4-nodes/3-ai/1-ai-agent.md §10):
-    // - LLM_RATE_LIMIT (429) / LLM_CONNECTION_ERROR (5xx/network) → retryable
-    // - LLM_RESPONSE_INVALID (JSON parse) / 인증 실패 → non-retryable
-    // - AI_AGENT_TURN_FAILED (fallback) → non-retryable (안전 default)
-    const RETRYABLE_CODES = new Set(['LLM_RATE_LIMIT', 'LLM_CONNECTION_ERROR']);
-    const retryable = RETRYABLE_CODES.has(code);
 
     // Retry-After 헤더 → retryAfterSec. ms → s 정수 변환. invariant: retryable
     // === true 일 때만 set (Principle 3.2.1).
@@ -3861,7 +4668,13 @@ export class ExecutionEngineService
     context: ExecutionContext,
     nodeExec: NodeExecution | null,
     finalStatus: 'COMPLETED' | 'FAILED' = 'COMPLETED',
+    // W5 / WARNING #5 — boolean flag → opts 객체 파라미터 (Flag Parameter 안티패턴 해소).
+    // retry 재진입(`applyRetryLastTurn`)에서 호출될 때만 `{ retryReentry: true }`.
+    // COMPLETED 분기의 FAILED → RUNNING 전이를 state-machine opt-in 으로 허용한다.
+    // 일반 multi-turn 완료(`waitForAiConversation`)는 opts 미전달 (WAITING/RUNNING → RUNNING).
+    opts?: { retryReentry?: boolean },
   ): Promise<void> {
+    const allowRetryReentry = opts?.retryReentry === true;
     const isFailed = finalStatus === 'FAILED';
     if (nodeExec) {
       nodeExec.status = isFailed
@@ -3871,6 +4684,11 @@ export class ExecutionEngineService
       // (buildMultiTurnFinalOutput / buildConditionOutput / buildErrorOutput)
       // do not carry _resumeState, but defensively strip it in case a future
       // handler bug leaks it.
+      //
+      // `_retryState` (spec §1.3 / node-output §4.2.1) is the documented
+      // preservation exception — only `_resumeState` is deleted here so a
+      // retryable error termination keeps `_retryState` in outputData for the
+      // later `execution.retry_last_turn` consume path.
       const finalAdapted = context.structuredOutputCache?.[node.id];
       const finalOutput = {
         ...((finalAdapted ??
@@ -3959,10 +4777,12 @@ export class ExecutionEngineService
     }
 
     // Atomic: NodeExecution COMPLETED + Execution RUNNING (WARN #4)
+    // W5 — retry 재진입 경로일 때만 FAILED → RUNNING opt-in 을 전달.
     await this.updateExecutionStatus(
       savedExecution,
       ExecutionStatus.RUNNING,
       nodeExec ?? undefined,
+      allowRetryReentry ? { allowRetryReentry: true } : undefined,
     );
 
     if (nodeExec) {
@@ -6386,8 +7206,9 @@ export class ExecutionEngineService
     execution: Execution,
     newStatus: ExecutionStatus,
     linkedNodeExec?: NodeExecution,
+    opts?: { allowRetryReentry?: boolean },
   ): Promise<void> {
-    assertTransition(execution.status, newStatus);
+    assertTransition(execution.status, newStatus, opts);
     if (linkedNodeExec) {
       await this.dataSource.transaction(async (manager) => {
         execution.status = newStatus;

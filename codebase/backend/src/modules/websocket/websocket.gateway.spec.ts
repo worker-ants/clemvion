@@ -3,7 +3,10 @@ import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
-import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
+import {
+  InvalidExecutionStateError,
+  RetryLastTurnError,
+} from '../execution-engine/workflow-errors';
 import { ExecutionsService } from '../executions/executions.service';
 import { BackgroundRunsService } from '../executions/background-runs/background-runs.service';
 import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
@@ -63,6 +66,17 @@ describe('WebsocketGateway', () => {
               .fn()
               .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
             cancelWaitingExecution: jest.fn(),
+            // execution.retry_last_turn — validate+consume+spawn → publish handoff.
+            retryLastTurn: jest
+              .fn()
+              .mockResolvedValue({ spawnedNodeExecutionId: 'ne-spawned' }),
+            publishRetryLastTurn: jest
+              .fn()
+              .mockResolvedValue({ queued: true, jobId: 'mock-job-id' }),
+            // W3: publish 실패 시 zombie row 방지 — 보상 메서드.
+            markSpawnedRowFailedOnPublishError: jest
+              .fn()
+              .mockResolvedValue(undefined),
           },
         },
         {
@@ -131,15 +145,15 @@ describe('WebsocketGateway', () => {
 
     it('should accept valid execution channel', async () => {
       const { socket, join } = createMockSocket({ id: 'client-1' });
+      // execution: 구독은 이제 workspace 소유 검증 authorizer 를 거친다 (IDOR fix).
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
       getSubscriptions().set('client-1', new Set());
 
-      const result = await gateway.handleSubscribe(
-        { channel: 'execution:exec-123' },
-        socket,
-      );
+      const channel = 'execution:11111111-1111-4111-8111-111111111111';
+      const result = await gateway.handleSubscribe({ channel }, socket);
       expect(result.data.success).toBe(true);
-      expect(result.data.channel).toBe('execution:exec-123');
-      expect(join).toHaveBeenCalledWith('execution:exec-123');
+      expect(result.data.channel).toBe(channel);
+      expect(join).toHaveBeenCalledWith(channel);
     });
 
     it('should accept kb channel when ownership verified', async () => {
@@ -281,8 +295,9 @@ describe('WebsocketGateway', () => {
       (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
       getSubscriptions().set('client-1', new Set());
 
+      const execId = '11111111-1111-4111-8111-111111111111';
       const fakeExecution = {
-        id: 'exec-abc',
+        id: execId,
         status: 'running',
         nodeExecutions: [],
       };
@@ -290,44 +305,47 @@ describe('WebsocketGateway', () => {
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
       findByIdMock.mockResolvedValue(fakeExecution as never);
 
-      await gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
+      await gateway.handleSubscribe({ channel: `execution:${execId}` }, socket);
 
       // emitExecutionSnapshot is fire-and-forget — wait a macrotask so the
       // awaited findById resolves and the emit side-effect lands.
       await new Promise((resolve) => setImmediate(resolve));
 
-      expect(findByIdMock).toHaveBeenCalledWith('exec-abc');
+      expect(findByIdMock).toHaveBeenCalledWith(execId);
       expect(emit).toHaveBeenCalledWith(
         'execution.snapshot',
         expect.objectContaining({
-          executionId: 'exec-abc',
+          executionId: execId,
           execution: fakeExecution,
         }),
       );
     });
 
-    it('should NOT emit execution.snapshot when workspace ownership check fails (IDOR block)', async () => {
-      const { socket, emit } = createMockSocket({ id: 'client-1' });
+    it('should NOT join or emit execution.snapshot when workspace ownership check fails (IDOR block)', async () => {
+      const { socket, emit, join } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-attacker';
       getSubscriptions().set('client-1', new Set());
 
+      const execId = '22222222-2222-4222-8222-222222222222';
       const execService = module.get(ExecutionsService);
-      // verifyOwnership rejects on workspace mismatch — emitExecutionSnapshot
-      // 가 try/catch 에서 swallow 하므로 .findById 는 호출되지 않아야 한다.
+      // verifyOwnership 가 authorizer 단계(join 이전)에서 reject → 구독 자체가
+      // 거부되어 room join·snapshot 모두 발생하지 않는다 (IDOR 차단의 핵심).
       (execService.verifyOwnership as jest.Mock).mockRejectedValueOnce(
         new Error('Execution not found'),
       );
 
-      await gateway.handleSubscribe(
-        { channel: 'execution:exec-victim' },
+      const result = await gateway.handleSubscribe(
+        { channel: `execution:${execId}` },
         socket,
       );
       await new Promise((resolve) => setImmediate(resolve));
 
+      expect(result.data.success).toBe(false);
       expect(execService.verifyOwnership).toHaveBeenCalledWith(
-        'exec-victim',
+        execId,
         'ws-attacker',
       );
+      expect(join).not.toHaveBeenCalled();
       expect(execService.findById).not.toHaveBeenCalled();
       const snapshotEmitted = emit.mock.calls.some(
         (call: unknown[]) => call[0] === 'execution.snapshot',
@@ -337,13 +355,17 @@ describe('WebsocketGateway', () => {
 
     it('should not re-emit snapshot on duplicate subscribe', async () => {
       const { socket, emit } = createMockSocket({ id: 'client-1' });
-      const existing = new Set(['execution:exec-abc']);
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      const execId = '11111111-1111-4111-8111-111111111111';
+      const existing = new Set([`execution:${execId}`]);
       getSubscriptions().set('client-1', existing);
 
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
-      findByIdMock.mockResolvedValue({ id: 'exec-abc' } as never);
+      findByIdMock.mockResolvedValue({ id: execId } as never);
 
-      await gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
+      // 이미 구독 중(isNewSubscription=false) — authorizer 는 통과하나 snapshot 은
+      // 재발행하지 않는다.
+      await gateway.handleSubscribe({ channel: `execution:${execId}` }, socket);
       await new Promise((resolve) => setImmediate(resolve));
 
       expect(findByIdMock).not.toHaveBeenCalled();
@@ -600,6 +622,142 @@ describe('WebsocketGateway', () => {
       expect(result.data.success).toBe(false);
       // W20: user-safe message — no Redis infrastructure details exposed.
       expect(result.data.error).toMatch(/could not be queued/);
+    });
+  });
+
+  describe('handleRetryLastTurn (spec WS §4.2)', () => {
+    function authedSocket(): Socket {
+      const { socket } = createMockSocket({ id: 'client-1' });
+      (socket as Socket & { userId?: string; workspaceId?: string }).userId =
+        'user-1';
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'workspace-1';
+      return socket;
+    }
+
+    it('success ack: { success:true, executionId, nodeExecutionId, resumed:true }', async () => {
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.event).toBe('execution.retry_last_turn.ack');
+      expect(result.data).toEqual({
+        success: true,
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-failed',
+        resumed: true,
+      });
+    });
+
+    it('validate+consume+spawn then publish handoff with spawned id', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(mockEngine.retryLastTurn).toHaveBeenCalledWith(
+        'exec-1',
+        'ne-failed',
+      );
+      expect(mockEngine.publishRetryLastTurn).toHaveBeenCalledWith(
+        'exec-1',
+        'ne-spawned',
+      );
+    });
+
+    it('unauthenticated → nested error ack (resumed:false)', async () => {
+      const { socket } = createMockSocket({ id: 'no-auth' });
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        socket,
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.resumed).toBe(false);
+      expect(result.data.error?.code).toBe('UNAUTHENTICATED');
+    });
+
+    // S1: ownership 실패 응답은 NOT_FOUND 로 통일 — sibling handler 의 IDOR
+    // 방어 정책(ID enumeration 차단) 일치.
+    it('ownership failure → nested NOT_FOUND error ack (IDOR enumeration defense)', async () => {
+      const mockExecutions = module.get(ExecutionsService);
+      (mockExecutions.verifyOwnership as jest.Mock).mockRejectedValueOnce(
+        new Error('Execution not found'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-victim', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.resumed).toBe(false);
+      expect(result.data.error?.code).toBe('NOT_FOUND');
+    });
+
+    it('RetryLastTurnError → nested error ack with its code (RETRY_STATE_NOT_FOUND)', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+        RetryLastTurnError.notFound('gone'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data).toMatchObject({
+        success: false,
+        executionId: 'exec-1',
+        nodeExecutionId: 'ne-failed',
+        resumed: false,
+        error: { code: 'RETRY_STATE_NOT_FOUND' },
+      });
+    });
+
+    it('NODE_NOT_RETRYABLE surfaces in nested error ack', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+        RetryLastTurnError.notRetryable('nope'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.error?.code).toBe('NODE_NOT_RETRYABLE');
+    });
+
+    it('RETRY_TOO_EARLY surfaces in nested error ack', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+        RetryLastTurnError.tooEarly('wait'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.error?.code).toBe('RETRY_TOO_EARLY');
+    });
+
+    it('InvalidExecutionStateError → nested INVALID_EXECUTION_STATE error ack', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.retryLastTurn as jest.Mock).mockRejectedValueOnce(
+        new InvalidExecutionStateError('not failed'),
+      );
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.error?.code).toBe('INVALID_EXECUTION_STATE');
+    });
+
+    it('publish queued=false (Redis failure) → INTERNAL_ERROR nested ack', async () => {
+      const mockEngine = module.get(ExecutionEngineService);
+      (mockEngine.publishRetryLastTurn as jest.Mock).mockResolvedValueOnce({
+        queued: false,
+        jobId: null,
+      });
+      const result = await gateway.handleRetryLastTurn(
+        { executionId: 'exec-1', nodeExecutionId: 'ne-failed' },
+        authedSocket(),
+      );
+      expect(result.data.success).toBe(false);
+      expect(result.data.resumed).toBe(false);
+      expect(result.data.error?.code).toBe('INTERNAL_ERROR');
     });
   });
 

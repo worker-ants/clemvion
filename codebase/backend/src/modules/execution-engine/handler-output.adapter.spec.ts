@@ -76,6 +76,18 @@ describe('adaptHandlerReturn', () => {
       expect(result._resumeState).toBe(resumeState);
     });
 
+    it('preserves _retryState when handler emits canonical shape (spec §4.2.1)', () => {
+      const retryState = { messages: [], turnCount: 3, expiresAt: 'iso' };
+      const result = adaptHandlerReturn({
+        config: {},
+        output: { result: {}, error: { code: 'LLM_RATE_LIMIT' } },
+        status: 'ended',
+        port: 'error',
+        _retryState: retryState,
+      });
+      expect(result._retryState).toBe(retryState);
+    });
+
     // INFO #5 (Security) — boundary 자동 마스킹.
     it('masks credential-like keys in echoed config', () => {
       const result = adaptHandlerReturn({
@@ -314,6 +326,18 @@ describe('toEngineFlatShape', () => {
       _resumeState: state,
     });
     expect((flat as Record<string, unknown>)._resumeState).toBe(state);
+  });
+
+  it('carries _retryState forward on object outputs (spec §4.2.1)', () => {
+    const retryState = { messages: [], turnCount: 3, expiresAt: 'iso' };
+    const flat = toEngineFlatShape({
+      config: {},
+      output: { result: {}, error: { code: 'LLM_RATE_LIMIT' } },
+      status: 'ended',
+      port: 'error',
+      _retryState: retryState,
+    });
+    expect((flat as Record<string, unknown>)._retryState).toBe(retryState);
   });
 
   it('carries _resumeState when output is null (config-only waiting declaration)', () => {

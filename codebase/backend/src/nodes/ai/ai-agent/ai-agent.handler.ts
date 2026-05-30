@@ -48,6 +48,7 @@ import {
   applyCap,
   renderThreadAsSystemText,
 } from '../../../shared/conversation-thread/thread-renderer';
+import { truncateForErrorDetails } from '../../core/error-codes';
 
 /**
  * Per-tool execution metadata recorded into `meta.turnDebug[].toolCalls`. The
@@ -163,6 +164,28 @@ function condToolName(conditionId: string): string {
  * (이는 의도된 trade-off — 장기 대화의 메모리 안정성 우선).
  */
 const MAX_RESUME_RAG_SOURCES = 200;
+
+/**
+ * Default TTL (minutes) for `_retryState.expiresAt`. spec/4-nodes/3-ai/
+ * 1-ai-agent.md §7.9 / spec/5-system/4-execution-engine.md §1.3 — retryable
+ * error 종결 시 DB 영속되는 `_retryState` 의 만료 시한. 환경변수
+ * `AI_RETRY_STATE_TTL_MINUTES` 로 override.
+ */
+const DEFAULT_RETRY_STATE_TTL_MINUTES = 60;
+
+/**
+ * `process.env.AI_RETRY_STATE_TTL_MINUTES` 를 분 단위 양수로 파싱. 미설정 /
+ * 비숫자 / 0 이하면 default(60) 로 fallback.
+ */
+function resolveRetryStateTtlMinutes(): number {
+  const raw = process.env.AI_RETRY_STATE_TTL_MINUTES;
+  if (raw === undefined || raw === '') return DEFAULT_RETRY_STATE_TTL_MINUTES;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_RETRY_STATE_TTL_MINUTES;
+  }
+  return parsed;
+}
 
 const KB_TOOL_GUIDANCE =
   '\n\n[Knowledge Base] 사용자 질문이 지식 조회를 필요로 하면 등록된 `kb_*` 도구를 호출하세요. ' +
@@ -2346,6 +2369,8 @@ export class AiAgentHandler implements NodeHandler {
     state: Record<string, unknown>,
     endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
     errorPayload?: { code: string; message: string; details?: unknown },
+    failedUserMessage?: string,
+    failedUserMessageSource?: ResumableMessageSource,
   ): unknown {
     const messages = (state.messages as ChatMessage[]) ?? [];
     const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
@@ -2370,6 +2395,14 @@ export class AiAgentHandler implements NodeHandler {
       (state.turnDebugHistory as unknown[]) ?? [],
       state.rawConfig as Record<string, unknown> | undefined,
       errorPayload,
+      // spec §7.9 — retryable error 종결 시 본 state 의 부분집합이 top-level
+      // `_retryState` 로 운반된다. buildMultiTurnFinalOutput 가 retryable
+      // 여부를 errorPayload.details 에서 판정하므로, source 는 항상 넘긴다.
+      state,
+      // spec §7.9 — 실패한 turn 의 사용자 메시지 (+ source). retry 재진입이
+      // 마지막 turn 을 replay 하기 위해 `_retryState` 에 운반한다.
+      failedUserMessage,
+      failedUserMessageSource,
     );
   }
 
@@ -2401,6 +2434,21 @@ export class AiAgentHandler implements NodeHandler {
     turnDebugHistory?: unknown[],
     rawConfig?: Record<string, unknown>,
     errorPayload?: { code: string; message: string; details?: unknown },
+    /**
+     * spec/4-nodes/3-ai/1-ai-agent.md §7.9 + spec/5-system/4-execution-engine.md
+     * §1.3 — retryable error (`errorPayload.details.retryable === true`) 종결
+     * 시 본 multi-turn state 의 부분집합을 top-level `_retryState` 로 운반해
+     * DB 영속한다. 정상 종결 / 비-retryable error 에서는 undefined 이면 되고,
+     * 그 경우 `_retryState` 키 자체가 생성되지 않는다 (회귀 가드).
+     */
+    retryStateSource?: Record<string, unknown>,
+    /**
+     * spec/4-nodes/3-ai/1-ai-agent.md §7.9 — 실패한 turn 을 일으킨 사용자
+     * 메시지 (+ dispatch source). `messages` snapshot 에 포함되지 않으므로
+     * `_retryState.lastUserMessage` 로 운반해 retry 재진입이 replay 한다.
+     */
+    failedUserMessage?: string,
+    failedUserMessageSource?: ResumableMessageSource,
   ): NodeHandlerOutput {
     // CONVENTIONS §8 — wrap conversation result under `output.result.*`.
     // Tokens + tool-call counts go to `meta.*` (Principle 2). The legacy
@@ -2437,9 +2485,34 @@ export class AiAgentHandler implements NodeHandler {
     if (errorPayload) {
       output.error = errorPayload;
     }
+    // spec §7.9 / execution-engine §1.3 — retryable error 종결 시에만 top-level
+    // `_retryState` 를 운반한다. `_resumeState` 의 부분집합 + `expiresAt` (TTL).
+    // credential (llmConfigId 가 가리키는 provider secret) 은 포함하지 않으며
+    // `maskSensitiveFields` boundary 와 동일 정책. retryable !== true 면 미동봉.
+    const retryDetails = (errorPayload?.details ?? undefined) as
+      | { retryable?: unknown }
+      | undefined;
+    const isRetryable = retryDetails?.retryable === true;
+    const retryState =
+      isRetryable && retryStateSource
+        ? AiAgentHandler.buildRetryState(
+            retryStateSource,
+            messages,
+            turnCount,
+            {
+              totalInputTokens: metadata.totalInputTokens,
+              totalOutputTokens: metadata.totalOutputTokens,
+              toolCalls: metadata.toolCalls,
+              model: metadata.model,
+            },
+            failedUserMessage,
+            failedUserMessageSource,
+          )
+        : undefined;
     return {
       config: this.buildMultiTurnConfigEcho(rawConfig, metadata.model),
       output,
+      ...(retryState ? { _retryState: retryState } : {}),
       meta: {
         durationMs: turnDebug?.totalDurationMs ?? 0,
         model: metadata.model,
@@ -2471,6 +2544,74 @@ export class AiAgentHandler implements NodeHandler {
    * `error` defensively so a programming mistake surfaces as an error
    * rather than a silent mis-route.
    */
+  /**
+   * spec/4-nodes/3-ai/1-ai-agent.md §7.9 + spec/conventions/node-output.md
+   * §4.2.1 — build the top-level `_retryState` for a retryable multi-turn
+   * error termination. Shape = subset of `_resumeState` (the fields needed to
+   * re-run the failed last turn) + `expiresAt` (ISO 8601 TTL).
+   *
+   * Credentials (the `llmConfigId` that points at a provider secret) are NOT
+   * included — same masking policy as `_resumeState` (`maskSensitiveFields`
+   * boundary strip). We deliberately allow-list the carried keys rather than
+   * spread the whole state so no secret / oversized bookkeeping leaks in.
+   */
+  private static buildRetryState(
+    source: Record<string, unknown>,
+    messages: ChatMessage[],
+    turnCount: number,
+    accounting: {
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      toolCalls: number;
+      model: string;
+    },
+    failedUserMessage?: string,
+    failedUserMessageSource?: ResumableMessageSource,
+  ): Record<string, unknown> {
+    const ttlMinutes = resolveRetryStateTtlMinutes();
+    const expiresAt = new Date(Date.now() + ttlMinutes * 60_000).toISOString();
+    const pendingFormToolCall = source.pendingFormToolCall as
+      | Record<string, unknown>
+      | undefined;
+    return {
+      messages,
+      turnCount,
+      totalInputTokens: accounting.totalInputTokens,
+      totalOutputTokens: accounting.totalOutputTokens,
+      totalThinkingTokens:
+        (source.totalThinkingTokens as number | undefined) ?? 0,
+      toolCalls: accounting.toolCalls,
+      model: (source.model as string | undefined) ?? accounting.model,
+      temperature: source.temperature,
+      maxTokens: source.maxTokens,
+      knowledgeBases: (source.knowledgeBases as unknown[] | undefined) ?? [],
+      ragTopK: source.ragTopK,
+      ragThreshold: source.ragThreshold,
+      ragSources: (source.ragSources as unknown[] | undefined) ?? [],
+      mcpServers: (source.mcpServers as unknown[] | undefined) ?? [],
+      // NOTE — credential / context-binding 필드 (`llmConfigId`, `workspaceId`,
+      // `executionId`, `presentationTools`, `conditions`, `maxTurns` 등) 는
+      // **의도적으로 미동봉**. `_retryState` 는 DB 영속이므로 credential 참조를
+      // 담지 않는다 (spec §7.9 — `_resumeState` 와 동일 masking 정책; 회귀 테스트
+      // "_retryState … NO credentials" 가 강제). retry 재진입(`applyRetryLastTurn`)
+      // 이 이 필드들을 node.config / context 에서 재유도한다.
+      ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
+      // spec §7.9 — 실패한 turn 의 사용자 메시지. retry 재진입(`applyRetryLastTurn`)
+      // 이 이 메시지를 `ai_message` action 으로 replay 해 마지막 LLM 호출을
+      // 재실행한다. messages snapshot 에는 포함되지 않는다 (pre-turn history).
+      // S2: 길이 제한 적용 — 사용자 입력 원문을 길이 제한 없이 DB 영속하면 PII
+      // 노출·스토리지 증가 위험. truncateForErrorDetails(500자 기본) 로 cap.
+      ...(typeof failedUserMessage === 'string'
+        ? {
+            lastUserMessage:
+              truncateForErrorDetails(failedUserMessage) ?? failedUserMessage,
+            lastUserMessageSource: failedUserMessageSource ?? 'ai_message',
+          }
+        : {}),
+      expiresAt,
+    };
+  }
+
   private static multiTurnPortForEndReason(
     endReason: 'user_ended' | 'max_turns' | 'condition' | 'error',
   ): string {

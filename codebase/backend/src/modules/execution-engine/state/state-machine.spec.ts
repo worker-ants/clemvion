@@ -66,9 +66,36 @@ describe('StateMachine', () => {
       ).toBe(false);
     });
 
-    it('should disallow failed -> running', () => {
+    // spec/5-system/6-websocket-protocol.md §4.2 / 4-execution-engine.md §1.3 —
+    // execution.retry_last_turn 재진입은 FAILED Execution 을 RUNNING 으로
+    // 전이시켜 spawn 된 노드 turn 을 구동한다 (retry 전용 전이).
+    // W5 하드닝 — 이 전이는 `allowRetryReentry` opt-in 으로만 허용된다. 일반
+    // 호출(opts 없음)은 거부해 실패 종결 실행의 우발적 부활을 차단한다.
+    it('should disallow failed -> running without retry opt-in (W5)', () => {
       expect(
         canTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING),
+      ).toBe(false);
+    });
+
+    it('should allow failed -> running with retry opt-in (retry_last_turn re-entry)', () => {
+      expect(
+        canTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING, {
+          allowRetryReentry: true,
+        }),
+      ).toBe(true);
+    });
+
+    // opt-in 은 FAILED → RUNNING 외 전이에는 영향을 주지 않는다.
+    it('should not let retry opt-in widen other transitions (W5)', () => {
+      expect(
+        canTransition(ExecutionStatus.CANCELLED, ExecutionStatus.RUNNING, {
+          allowRetryReentry: true,
+        }),
+      ).toBe(false);
+      expect(
+        canTransition(ExecutionStatus.FAILED, ExecutionStatus.COMPLETED, {
+          allowRetryReentry: true,
+        }),
       ).toBe(false);
     });
 
@@ -105,6 +132,22 @@ describe('StateMachine', () => {
     it('should throw for invalid transitions', () => {
       expect(() =>
         assertTransition(ExecutionStatus.COMPLETED, ExecutionStatus.RUNNING),
+      ).toThrow('Invalid state transition');
+    });
+
+    // WARNING #3 / INFO #25 — `allowRetryReentry` opt-in 이 assertTransition 에도
+    // 정상 전파되는지 확인. failed → running 은 opts 없으면 throw, opts 있으면 통과.
+    it('should not throw for failed -> running with retry opt-in', () => {
+      expect(() =>
+        assertTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING, {
+          allowRetryReentry: true,
+        }),
+      ).not.toThrow();
+    });
+
+    it('should throw for failed -> running without retry opt-in', () => {
+      expect(() =>
+        assertTransition(ExecutionStatus.FAILED, ExecutionStatus.RUNNING),
       ).toThrow('Invalid state transition');
     });
   });

@@ -339,6 +339,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 > `nodeId` 가 ack 에 포함되지 않는 이유: 클라이언트가 송신 시 `nodeExecutionId` 만 보내며 ack 도 동일 식별자만 echo 한다. `nodeId` 는 `nodeExecutionId` 로 backend lookup 가능하므로 redundant.
 
+> **`success` 필드**: socket.io ack-callback 으로 반환되는 실제 payload 는 4개 continuation 명령(`submit_form`/`click_button`/`submit_message`/`end_conversation`)과 동일하게 `success: boolean` 형제 필드를 포함한다 — 성공 `{ success: true, executionId, nodeExecutionId, resumed: true }`, 실패 `{ success: false, executionId, nodeExecutionId, resumed: false, error: { code, message } }`. 위 envelope 예시는 의미 구조를 보인 것이고, `success` 는 continuation-ack 공통 convention (§307 의 평면 `{ success, error }` 패턴)을 따른다. retry 는 실패 시 평면 `errorCode` 대신 nested `error: { code, message }` 를 쓰는 것만 다르다.
+
 **`execution.retry_last_turn` 에러 코드:**
 
 | 코드 | 설명 |
@@ -346,6 +348,14 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `RETRY_STATE_NOT_FOUND` | `NodeExecution.outputData._retryState` 가 DB 에 없거나 만료됨 (`expiresAt` TTL 초과, 또는 이미 다른 retry 가 소비). 이 코드는 `_retryState` DB row 의 만료/부재를 의미하며 별도 token 필드는 payload 에 존재하지 않는다 |
 | `NODE_NOT_RETRYABLE` | 해당 노드의 `output.error.details.retryable === false` 또는 노드가 retryable error 로 종결되지 않음 (예: 정상 종결, condition 종결) |
 | `RETRY_TOO_EARLY` | `output.error.details.retryAfterSec` 카운트다운 종료 전 호출 — 서버측 enforcement. 클라이언트가 disabled 처리하면 정상적으로는 발생 안 함 |
+| `INVALID_EXECUTION_STATE` | 대상 `NodeExecution` 이 `FAILED` 상태가 아니거나 Execution 이 retry 진입 가능 상태가 아님 (사전 검증 실패). 기존 continuation 명령의 동일 코드와 의미 공유 (기대 상태만 다름 — retry 는 `FAILED` 기대) |
+
+**`_retryState` 소비 원자성·TTL (구현 계약):**
+
+- **단일 소비 (atomic consume)**: retry 처리는 `nodeExecutionId` 로 `_retryState` 를 조회하고, **동일 트랜잭션 안에서** `NodeExecution.outputData` 에서 `_retryState` 키를 제거(JSONB `-` 연산, null-set) 하면서 새 `NodeExecution` row 를 spawn 한다. 키 제거가 affected=1 인 쪽만 진행 — 동시 retry 의 중복 spawn 을 차단한다. 한 번 소비되면 후속 retry 는 `RETRY_STATE_NOT_FOUND`.
+- **TTL**: `_retryState.expiresAt` (ISO 8601). 기본 60분, 환경변수 `AI_RETRY_STATE_TTL_MINUTES` 로 override. `now > expiresAt` 이면 `RETRY_STATE_NOT_FOUND`. 만료된 미소비 `_retryState` 는 row 의 `outputData` 안에 남아있다가 (별도 cleanup job 없음 — row 수명에 종속) 다음 retry 시도 시 만료 판정으로 거부된다.
+- **Continuation Bus 경유 (worker handoff)**: WS gateway(다른 인스턴스 가능)는 multi-turn loop 를 동기 재개할 수 없다 — 재진입은 live `ExecutionContext` rehydrate + `waitForAiConversation` 재개가 필요한 **execution worker 컨텍스트**에서만 가능하다. 따라서 retry 는 검증·atomic consume·새 row spawn 후 continuation 큐(`execution-continuation`)에 **새 job type (`retry_last_turn`)** 을 publish 해 worker 로 handoff 한다. worker processor 가 그 job 을 받아 spawn 된 row 를 `_retryState`(→ `_resumeState` shape) 로 seed 한 채 multi-turn loop 에 재진입시킨다. (기존 `submit_message` 등 continuation 명령과 동일한 WS→worker 브리지를 재사용하되, 대기중 row 재개가 아닌 **새 row 재개**라는 점만 다르다.)
+- **replay 중 cancel**: replay turn 진행 중 외부 cancel 신호(`execution.cancel`)가 도달하면 진행 중 turn 을 조기 종료하고 Execution 을 `cancelled` 로 마감한다 — `execution.cancelled` 이벤트가 발사되며 `execution.completed` / `execution.failed` 는 발사되지 않는다. 이는 정상 multi-turn 의 "입력 대기 중 cancel" 과 동일 의미의 대칭 보장이다 (replay 는 입력 대기 없이 즉시 turn 을 돌리므로 별도 cancel 경로 필요). `cancelled` 페이로드의 분류는 일반 사용자 취소와 동일하게 다룬다.
 
 ### 4.4 사용자 입력 대기 이벤트 상세 (`execution.waiting_for_input`)
 

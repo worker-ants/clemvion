@@ -70,3 +70,63 @@ export class InvalidExecutionStateError extends Error {
     this.detail = detail;
   }
 }
+
+/**
+ * AI Agent multi-turn `execution.retry_last_turn` (spec/5-system/
+ * 6-websocket-protocol.md §4.2 / spec/5-system/4-execution-engine.md §1.3) 의
+ * retry 진입 검증 실패 에러 계층. `RetryLastTurnError` 의 `code` 가 WS ack 의
+ * nested `error: { code, message }` 로 surface 된다 (continuation 명령의 평면
+ * `errorCode` 와 다른 계층 — 의도된 분리).
+ *
+ * **보안**: `message` 는 client 에 노출되므로 내부 식별자를 담지 않는 고정
+ * 문자열이다. `InvalidExecutionStateError` 와 동일한 정책.
+ *
+ * W8: 문자열 이중 정의 제거 — `RetryLastTurnErrorCode` 를 `ErrorCode` 의 retry
+ * 코드 3종에서 derive 해 단일 SoT 유지. 런타임 동작 변경 없음.
+ */
+import { ErrorCode } from '../../nodes/core/error-codes';
+
+export type RetryLastTurnErrorCode =
+  | typeof ErrorCode.RETRY_STATE_NOT_FOUND
+  | typeof ErrorCode.NODE_NOT_RETRYABLE
+  | typeof ErrorCode.RETRY_TOO_EARLY;
+
+export class RetryLastTurnError extends Error {
+  readonly code: RetryLastTurnErrorCode;
+  /** 서버 로그 전용 진단 상세 — client 응답에 포함하지 않는다. */
+  readonly detail?: string;
+
+  constructor(code: RetryLastTurnErrorCode, message: string, detail?: string) {
+    super(message);
+    this.code = code;
+    this.name = 'RetryLastTurnError';
+    this.detail = detail;
+  }
+
+  /** `_retryState` 부재 / 만료 / 이미 소비됨. */
+  static notFound(detail?: string): RetryLastTurnError {
+    return new RetryLastTurnError(
+      ErrorCode.RETRY_STATE_NOT_FOUND,
+      'Retry state not found or expired.',
+      detail,
+    );
+  }
+
+  /** 노드가 retryable error 로 종결되지 않음 (`retryable !== true`). */
+  static notRetryable(detail?: string): RetryLastTurnError {
+    return new RetryLastTurnError(
+      ErrorCode.NODE_NOT_RETRYABLE,
+      'This node cannot be retried.',
+      detail,
+    );
+  }
+
+  /** `retryAfterSec` 카운트다운 종료 전 호출. */
+  static tooEarly(detail?: string): RetryLastTurnError {
+    return new RetryLastTurnError(
+      ErrorCode.RETRY_TOO_EARLY,
+      'Retry requested before the retry-after window elapsed.',
+      detail,
+    );
+  }
+}
