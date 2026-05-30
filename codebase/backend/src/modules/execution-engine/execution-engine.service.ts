@@ -62,7 +62,6 @@ import {
 import { ExpressionResolverService } from './expression/expression-resolver.service';
 import { evaluate } from '@workflow/expression-engine';
 import {
-  coerceContainerBoolean,
   coerceContainerNumber,
   coerceContainerNumberOptional,
   coerceErrorPolicy,
@@ -7146,18 +7145,9 @@ export class ExecutionEngineService
               Math.floor(maxConcurrencyRaw),
             ),
           );
-    const waitAll = coerceContainerBoolean(
-      engineResolvedConfig.waitAll,
-      'waitAll',
-      'parallel',
-      true,
-    );
-    if (!waitAll) {
-      this.logger.warn(
-        `Parallel node "${parallelNode.label ?? parallelNode.type}" has waitAll=false, but Phase P1 always waits for all branches. ` +
-          `Use the Background node for fire-and-forget semantics.`,
-      );
-    }
+    // 결정 K (2026-05-30): waitAll=false 지원 spec out — schema validate
+    // (validateParallelConfig) 가 사전 reject 하므로 engine 도달 불가.
+    // ParallelExecutor 의 waitAll 인자는 호환성 위해 hardcoded true 로 전달.
 
     // W-7: parallel-specific `config.errorPolicy` 가 1순위. 미지정 시 공통
     // `errorHandling.policy` 의 매핑으로 fallback (옛 동선 호환). 둘 다 미지정
@@ -7200,7 +7190,7 @@ export class ExecutionEngineService
       : context;
 
     await this.parallelExecutor.execute(
-      { branchCount, maxConcurrency, waitAll, errorPolicy },
+      { branchCount, maxConcurrency, waitAll: true, errorPolicy },
       branchParentContext,
       async (branchIndex, branchContext) => {
         const branchPlan = plan.branches[branchIndex];

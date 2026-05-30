@@ -18,7 +18,7 @@ describe('Parallel node', () => {
     expect(parsed.errorPolicy).toBe('stop');
   });
 
-  it('스키마: 명시적으로 값을 전달하면 그대로 유지', () => {
+  it('스키마: 명시적으로 값을 전달하면 그대로 유지 (zod 단계는 boolean 만 검증 — waitAll=false 는 validateParallelConfig 에서 reject. 결정 K-5: 옛 워크플로우 마이그레이션 호환성 위해 zod 는 그대로)', () => {
     const parsed = parallelNodeConfigSchema.parse({
       branchCount: 4,
       maxConcurrency: 2,
@@ -84,12 +84,13 @@ describe('Parallel node', () => {
       expect(handler.validate({ branchCount: 4 }).valid).toBe(true);
     });
 
-    it('waitAll: boolean 이외는 invalid', () => {
+    it('waitAll=true 만 valid, false 와 non-boolean 모두 invalid (결정 K)', () => {
       expect(handler.validate({ branchCount: 4, waitAll: true }).valid).toBe(
         true,
       );
+      // 결정 K (2026-05-30): waitAll=false 지원 spec out
       expect(handler.validate({ branchCount: 4, waitAll: false }).valid).toBe(
-        true,
+        false,
       );
       expect(
         handler.validate({
@@ -176,6 +177,21 @@ describe('Parallel node', () => {
       expect(
         validateParallelConfig({ branchCount: 2, errorPolicy: 'continue' }),
       ).toEqual([]);
+    });
+
+    it('rejects waitAll=false (결정 K, 2026-05-30 — spec out)', () => {
+      expect(
+        validateParallelConfig({ branchCount: 2, waitAll: false }),
+      ).toContain(
+        'waitAll=false is not supported. Use waitAll=true (default) or the Background node for fire-and-forget semantics.',
+      );
+    });
+
+    it('waitAll=true / 미지정 (default) 는 통과 (결정 K)', () => {
+      expect(validateParallelConfig({ branchCount: 2, waitAll: true })).toEqual(
+        [],
+      );
+      expect(validateParallelConfig({ branchCount: 2 })).toEqual([]);
     });
   });
 

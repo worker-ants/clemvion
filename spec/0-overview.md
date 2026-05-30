@@ -82,7 +82,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 
 | 영역 | 상태 |
 |------|------|
-| **Parallel 노드 (P1)** | `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값. `PARALLEL_ENGINE=off` 로 rollback). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge·중첩 Parallel은 금지. Merge `wait_all` 조합으로 결과 합산 가능. P2에서 중첩 Parallel과 waitAll=false를 추가할 예정이다. |
+| **Parallel 노드 (P1)** | `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값. `PARALLEL_ENGINE=off` 로 rollback). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge·중첩 Parallel은 금지. Merge `wait_all` 조합으로 결과 합산 가능. P2에서 중첩 Parallel을 추가할 예정. `waitAll=false` 는 spec out — fire-and-forget 의미는 Background 노드 사용 권고. |
 | **조직 레벨 Integration 공유** | 팀 워크스페이스 단위 Integration 공유는 후속 단계에서 도입 예정이다. |
 
 #### 6.3 로드맵 / 미구현 (❌)
@@ -90,7 +90,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 영역 | 내용 |
 |------|------|
 | **Graph RAG 후속 (P2+)** | community detection / 글로벌 요약 / 도메인별 entity 타입 사전 / KB 단위 prompt override. P0~P2 본체는 §6.1 에서 ✅. 상세: [PRD 9 §8](./5-system/10-graph-rag.md#8-미결--후속-검토). |
-| **Logic 확장 노드** | Parallel P2(중첩 Parallel, waitAll=false). |
+| **Logic 확장 노드** | Parallel P2 (중첩 Parallel). |
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |

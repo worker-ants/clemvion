@@ -20,14 +20,13 @@ code: []
 |------|------|------|--------|------|
 | branchCount | Integer | ✓ | `2` | 분기 수 (출력 포트 수). `2` ~ `16`. handler 가 16 초과/2 미만 값을 클램프 |
 | maxConcurrency | Integer | | `0` | 동시 실행 제한. `0` = `branchCount` 와 동일 (제한 없음), `1`~`16` = 동시 실행 슬롯 수. [공통 §6](./0-common.md#6-리소스-제한) |
-| waitAll | Boolean | | `true` | 모든 분기 완료 대기 여부. **P1 에서는 항상 `true` 로 동작** (`false` 는 dead field — fire-and-forget 은 [Background 노드](./12-background.md) 사용) |
 | errorPolicy | `stop` / `continue` | | `stop` | 분기 에러 정책. [공통 §4](./0-common.md#4-에러-정책-errorpolicy). `stop` = 첫 실패 시 즉시 throw, `continue` = 모든 분기 종료 대기 후 실패 정보 수집 |
 
 > Source of truth: `codebase/backend/src/nodes/logic/parallel/parallel.schema.ts` (export `parallelNodeConfigSchema`)
 >
 > `errorPolicy` 는 `parallelNodeConfigSchema` 에 직접 노출된 parallel-specific 필드다 (공통 `errorHandling.policy` 와 별개). 엔진은 `config.errorPolicy` 가 명시되면 그 값을 그대로 사용하고, 미지정 시 공통 `errorHandling.policy` 의 매핑(`skip_node`/`use_default_output`/`route_to_error_port` → `continue`, 그 외 → `stop`)으로 fallback 한다 (옛 동선 호환).
 >
-> ⚠ **미구현 (P1)**: `waitAll: false` 는 schema 에 노출되어 있으나 엔진 단계에서 무시된다. 후속으로 schema 제거 또는 validate 단계 reject 가 검토된다.
+> ⚠ **`waitAll: false` 는 지원하지 않는다** (2026-05-30 결정 K — spec out). `validateParallelConfig` 가 `waitAll === false` 를 reject. Parallel 은 항상 모든 분기가 종료된 후 `done` 포트로 합산 emit 한다. 분기 완료 즉시 다운스트림으로 진행하는 fire-and-forget 의미가 필요하면 [Background 노드](./12-background.md) 사용. 옛 워크플로우의 `config.waitAll: false` 는 schema validate 에서 reject → 사용자가 워크플로우 편집기에서 수정 필요. 근거: § Rationale.
 
 ## 2. 설정 UI
 
@@ -38,9 +37,6 @@ code: []
 │                                      │
 │  Max Concurrency     [0            ] │
 │  0 = 제한 없음 (branchCount 와 동일) │
-│                                      │
-│  Wait for All Branches      [✓]      │
-│  P1 에서는 항상 true 로 동작         │
 │                                      │
 │  Error Policy        [stop       ▾]  │
 │  stop / continue                     │
@@ -85,7 +81,7 @@ code: []
 
 ```json
 {
-  "config": { "branchCount": 3, "maxConcurrency": 0, "waitAll": true },
+  "config": { "branchCount": 3, "maxConcurrency": 0 },
   "output": null,
   "port": ["branch_0", "branch_1", "branch_2"]
 }
@@ -95,7 +91,6 @@ code: []
 |------|------|------|------|
 | `config.branchCount` | Integer (raw) | config echo (Principle 7) | 사용자가 설정한 raw 값 (clamp 전). Handler 의 출력 포트 수는 클램프 후 길이지만 `config` echo 는 raw 보존 |
 | `config.maxConcurrency` | Integer (raw) | config echo | 사용자 설정 raw 값. 음수/16 초과 등 invalid 값도 그대로 echo 되며 실제 동작은 executor 가 클램프 |
-| `config.waitAll` | Boolean (raw) | config echo | 사용자 설정 raw 값 (P1 에서는 의미 없음 — §1 미구현 마킹) |
 | `output` | `null` | handler return | 컨테이너 핸들러 컨트랙트 (loop/foreach/map 과 동일). 외부 expression 으로 노출되지 않는 중간 형태 — 다운스트림이 `$node["X"].output.*` 로 관찰하는 값은 §5.2 의 완료 형태 (엔진 오버라이트 후) |
 | `port` | `string[]` | handler return | `branch_0` ~ `branch_{N-1}` 모두 활성화 (CONVENTIONS Principle 5 의 fan-out). 각 분기 서브그래프의 진입점 트리거 |
 
@@ -103,7 +98,7 @@ code: []
 
 ```json
 {
-  "config": { "branchCount": 3, "maxConcurrency": 0, "waitAll": true },
+  "config": { "branchCount": 3, "maxConcurrency": 0 },
   "output": {
     "branches": [
       { "status": "fulfilled", "value": { "userId": "u-1", "step": "validate", "ok": true } },
@@ -119,7 +114,6 @@ code: []
 |------|------|------|------|
 | `config.branchCount` | Integer (raw) | config echo | (§5.1 과 동일) |
 | `config.maxConcurrency` | Integer (raw) | config echo | (§5.1 과 동일) |
-| `config.waitAll` | Boolean (raw) | config echo | (§5.1 과 동일) |
 | `output.branches` | `Array<BranchResult>` | engine override (Principle 9.2) | 각 분기 결과 (`Promise.allSettled` 모델). `branches[i]` 는 `branch_i` 분기의 결과. 컬렉션 키 = `branches` ([공통 §5](./0-common.md#5-반복분기-출력-구조-conventions-92)) |
 | `output.branches[i].status` | `'fulfilled' \| 'rejected'` | engine | 분기 종료 상태 |
 | `output.branches[i].value` | unknown | engine | (`status: 'fulfilled'` 시) 분기의 terminal 노드 출력 |
@@ -161,7 +155,8 @@ Parallel 은 **runtime 에러 포트를 갖지 않는다**. config 검증 실패
 | `maxConcurrency` 가 숫자 아님 | `maxConcurrency는 숫자여야 합니다.` | handler.validate |
 | `maxConcurrency` 가 정수 아님 | `maxConcurrency는 정수여야 합니다.` | handler.validate |
 | `maxConcurrency` 가 `[0, 16]` 외 | `maxConcurrency는 0 이상 16 이하의 값이어야 합니다 (0 = 제한 없음).` | handler.validate |
-| `waitAll` 이 boolean 아님 | `waitAll는 boolean이어야 합니다.` | handler.validate |
+| `waitAll` 이 boolean 아님 | `waitAll must be a boolean.` | handler.validate |
+| `waitAll === false` (결정 K, 2026-05-30 — spec out) | `waitAll=false is not supported. Use waitAll=true (default) or the Background node for fire-and-forget semantics.` | handler.validate |
 | 분기 서브그래프 에러 (errorPolicy=`stop`) | 첫 실패 분기의 에러를 throw — Parallel 노드 FAILED | 엔진 runtime ([공통 §4](./0-common.md#4-에러-정책-errorpolicy)) |
 | 분기 서브그래프 에러 (errorPolicy=`continue`) | 실패 정보를 수집해 NodeExecution 에 기록 (모든 분기 종료 대기) | 엔진 runtime |
 | 분기 내부에 blocking 노드 (form / buttons / ai_conversation) | (graph 검증 에러) | 엔진 graph 검증 ([공통 §3](./0-common.md#3-컨테이너-노드-패턴-loop--map--foreach)) |
@@ -170,3 +165,25 @@ Parallel 은 **runtime 에러 포트를 갖지 않는다**. config 검증 실패
 ## 7. 캔버스 요약
 
 [공통 §8](./0-common.md#8-캔버스-요약) — `Parallel` 행 인용. (`{N} branches`, 예: `3 branches`)
+
+## Rationale
+
+### waitAll=false 가 spec out 된 근거 (2026-05-30 결정 K)
+
+본 spec 의 초기 P1 단계에서는 `waitAll: false` 가 schema 에 노출되어 있었으나 엔진 단계에서 무시되는 dead field 상태였다. P2 단계의 결정 사항으로 활성화 또는 제거가 검토됐고, 다음 분석을 거쳐 **spec out (지원 안 함)** 으로 결정됐다.
+
+**`waitAll=false` 의 의도된 의미**: 각 분기 (`branch_i`) 가 완료되는 즉시 자기 분기의 외부 다운스트림이 트리거된다 — 예를 들어 branch 0 이 1초에 끝나고 branch 1 이 5초 걸린다면, branch 0 의 외부 다운스트림이 1초 시점에 실행 시작.
+
+**기각 근거 — 엔진 구조 제약**: 현 `ExecutionEngineService` 는 Node.js single-threaded main loop pattern 으로 dispatch 한다. `runParallel` 은 main loop 가 `await` 으로 기다리는 함수이고, main loop pointer 는 `runParallel` 이 return 한 뒤에야 다음 노드로 진행한다. 따라서 branch 완료 콜백 안에서 `propagateReachability` 를 호출해도 외부 노드의 실제 dispatch 는 모든 branch 가 완료된 뒤에야 가능하다.
+
+이 의미를 살리려면 branch 완료 시점마다 외부 다운스트림을 별도 sub-loop 로 dispatch 해야 하는데, 이는 다음 risk 를 동반한다:
+
+- main dispatch loop 와 별도 sub-loop 의 동시 진행 — race / executedNodes set 동시 mutation
+- Loop / ForEach / Map 등 다른 컨테이너 노드의 fan-out 패턴 (`runContainer` 경로) 과 의 cross-impact
+- Parallel branch 안에 ForEach / Loop / Map 이 들어가는 cross-container 시나리오의 회귀 위험
+
+**대안 — Background 노드**: fire-and-forget 의미는 [Background 노드](./12-background.md) 가 명시적으로 지원한다. BullMQ enqueue 모델로 worker 단의 분리가 이미 구현돼 있고, 본 컨텍스트보다 안전.
+
+**결정**: Parallel 노드는 항상 `waitAll=true` (default) 로 동작 — 모든 분기 종료 후 `done` 포트로 합산 emit. `waitAll=false` 를 명시한 워크플로우는 schema validate 에서 reject (위 §6 에러 코드 표 참조).
+
+> 옛 워크플로우 호환: DB 에 `config.waitAll: false` 가 저장된 케이스는 실행 시점에 schema validate 가 reject — 사용자가 워크플로우 편집기에서 수정 필요. 별도 마이그레이션 작업은 [`plan/in-progress/parallel-p2.md`](../../../plan/in-progress/parallel-p2.md) §2-E 의 후속 항목.

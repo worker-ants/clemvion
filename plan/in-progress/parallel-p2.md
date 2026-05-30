@@ -12,7 +12,7 @@
 
 | ID | 결정 |
 |----|------|
-| **#2 waitAll: false** | **활성화** — emit 모델: `branch_i` 포트가 자기 분기 완료 시 즉시 emit, `done` 포트는 모든 분기 완료 후 1회 (현 `done` 컨트랙트 유지). `done` 포트는 streaming 아님 |
+| ~~**#2 waitAll: false**~~ | ~~**활성화**~~ → **4차 결정 K (2026-05-30) 로 변경: spec out** — `waitAll=true` 만 명시적 지원. 결정 F (engine dispatch 채널 분리) / 결정 C (errorPolicy=continue 강제) / 결정 J 의 sub-decision 모두 무효화 |
 | **#3 중첩 Parallel** | **허용** — 깊이 한도 = **2** (3중 이상은 reject). 외부 × 내부 effectiveConcurrency 곱셈 cap = **32** |
 | **#3 enforcement** | 깊이 cap (≤ 2) = **graph 정적 검증**. concurrency 곱셈 cap (≤ 32) = **runtime silent clamp** |
 | **#4 ND-PL-03** | 현 `done` 포트 그대로 **✅ 격상** — schema/handler 변경 없음 |
@@ -23,10 +23,10 @@
 |----|------|------|
 | **A** | `errorPolicy` 에 **`cancel-others-on-fail`** 추가 (옵션 a3) — 첫 실패 시 다른 분기 abort | **AbortController 기반 cancellation 인프라 신규**. → **선행 plan `node-cancellation-infrastructure.md` 분리** (결정 H) |
 | **B** | `PARALLEL_ENGINE=v1` **default ON 전환 + 게이트 유지** (옵션 b2) — 본 plan 내 처리 | `.env.example` / 환경변수 기본값만 변경. 게이트 자체는 롤백 카드로 유지 |
-| **C** | waitAll=false 시 errorPolicy 를 **`continue` 로 강제** (옵션 c2) + **UI 에서도 waitAll=false 시 errorPolicy SelectField 가 disabled + value 가 continue 로 lock + hint 표시** | 엔진/schema validate/frontend 3곳 변경. schema validate 단계에서 waitAll=false + errorPolicy=stop 조합 **reject** (결정 J — silent normalize 안 함) |
+| ~~**C**~~ | ~~waitAll=false 시 errorPolicy 를 `continue` 로 강제 + UI lock~~ → **결정 K 로 무효화** (waitAll=false 자체가 사라지므로 errorPolicy 조합 의미 없음) |
 | **D** | concurrency clamp 의 가시화 = **frontend canvas warningRules** (옵션 d4) | **cross-node warningRule 인프라 신규**. → **선행 plan `cross-node-warning-rules.md` 분리** (결정 I) |
 | **E** | 중첩 깊이 검증 = **workflow 저장 API validate (사전 reject) + frontend canvas warningRules + runtime planParallelBody (3중 가드)** (옵션 e2 + e3) | workflow save endpoint 의 validate 확장 — D 와 함께 → **선행 plan `cross-node-warning-rules.md` 분리** (결정 I). runtime 단계는 본 plan #3 유지 |
-| **F** | waitAll=false 의 이중 emit 처리 = **engine dispatch 모델 변경** (옵션 f3) — branch 서브그래프 진입 dispatch 와 외부 다운스트림 dispatch 의 채널 분리 | **엔진 dispatch 모델의 구조 변경**. Loop / ForEach / Map 등 다른 컨테이너 노드의 fan-out 동작에도 영향 가능 — 회귀 잠금 필수. 본 plan 내 처리 |
+| ~~**F**~~ | ~~waitAll=false 의 이중 emit 처리 = engine dispatch 채널 분리~~ → **결정 K 로 무효화** (Plan agent 2026-05-30 분석: Node.js main loop pattern 상 별도 sub-loop 없이는 "분기 완료 즉시 dispatch" 의미 살릴 수 없음. 그에 맞는 sub-loop 도입은 Loop/ForEach/Map cross-container risk 매우 높음. waitAll=false 자체를 spec out 으로 결정) |
 | **G** | `parentEffectiveConcurrency` 전파 = **`ExecutionContext.parentParallelConcurrency?: number` 신규 필드** (옵션 g1) | ExecutionContext 인터페이스 1필드 추가. 본 plan 내 처리 |
 
 ### 3차 결정 (3건 — scope 분리 / 안전벨트)
@@ -35,7 +35,21 @@
 |----|------|
 | **H** | 결정 A 의 cancellation 인프라를 **별 plan [`node-cancellation-infrastructure.md`](./node-cancellation-infrastructure.md) 로 분리**. 본 plan §5 는 그 plan 에 의존하는 Parallel 노드 단위 표면만 처리 |
 | **I** | 결정 D + E 의 cross-node warningRule 인프라 + workflow save validate 확장을 **별 plan [`cross-node-warning-rules.md`](./cross-node-warning-rules.md) 로 분리**. 본 plan §6 은 그 plan 에 의존하는 Parallel 노드용 rule 등재만 처리 |
-| **J** | `validateParallelConfig` 의 waitAll=false + errorPolicy=stop 조합 = **reject** (silent normalize 안 함). UI lock 통과한 외부 API 직접 호출 / 옛 워크플로우 마이그레이션 케이스를 명시적으로 차단 |
+| ~~**J**~~ | ~~`validateParallelConfig` 의 waitAll=false + errorPolicy=stop 조합 reject~~ → **결정 K 로 단순화**: `validateParallelConfig` 가 `waitAll === false` 자체를 reject |
+
+### 4차 결정 (waitAll=false spec out, 2026-05-30)
+
+> Plan agent 분석 결과 (2026-05-30): waitAll=false 의 "분기 완료 즉시 외부 다운스트림 dispatch" 의미는 Node.js single-threaded main loop pattern 상 별도 sub-loop 없이는 살릴 수 없다. 그에 맞는 sub-loop 도입은 Loop / ForEach / Map cross-container risk 가 매우 높다. 따라서 1차 결정 #2 (활성화) 를 변경하여 waitAll=false 지원 자체를 spec out 한다.
+
+| ID | 결정 |
+|----|------|
+| **K** | **waitAll=false 지원을 spec out**. `waitAll=true` (default) 만 명시적으로 지원. spec / schema / engine / frontend 모두 일관되게 정리. fire-and-forget 의미가 필요하면 [Background 노드](../../spec/4-nodes/1-logic/12-background.md) 사용 |
+| **K-1** | `validateParallelConfig` 에서 `waitAll === false` reject (메시지 명확화) |
+| **K-2** | spec `10-parallel.md` §1 의 `waitAll` 행 제거 또는 "지원 안 함" 명시 + § Rationale 에 결정 K 의 근거 (Plan agent 분석) 기록 |
+| **K-3** | frontend `ParallelConfig` 에서 `waitAll` `CheckboxField` + 조건부 hint 모두 **제거** (사용자 혼동 방지) |
+| **K-4** | engine 의 waitAll=false warn 로그 (`execution-engine.service.ts:6813-6818`) 제거 — schema validate 가 사전 차단하므로 도달 불가 |
+| **K-5** | parallel.handler.ts 의 config echo 에서 `waitAll` 필드 — **유지** (옛 워크플로우 마이그레이션 호환성). 단 default `true` 외 값은 schema validate 에서 reject |
+| **K-6** | 옛 워크플로우 마이그레이션 (DB 에 `config.waitAll: false` 가 저장된 케이스): **본 plan scope 밖**. 실행 시점에 schema validate 가 reject 함 — 사용자가 워크플로우 편집기에서 수정 필요. 별도 마이그레이션 작업 필요 시 별 plan |
 
 ## 배경
 
@@ -73,52 +87,48 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 - [ ] **frontend Parallel 설정 패널** (`logic-configs.tsx ParallelConfig` ~L545) 에 `errorPolicy` `SelectField` 추가 (Map/ForEach 패턴 모방: `errStop` / `errContinue` 옵션. `errSkip` 는 parallel 미지원이므로 제외)
 - [ ] frontend 단위 테스트 — `ParallelConfig` 가 `errorPolicy` 변경을 onChange 로 전달하는지
 
-### 2. `waitAll: false` 활성화 (emit 모델: branch_i 즉시 + done 일괄, 결정 #2 + F + C)
+### 2. `waitAll: false` 지원 spec out (결정 K, 2026-05-30 4차 결정)
 
-**결정 (2026-05-30)**: 활성화. emit 모델 = 각 `branch_i` 포트가 자기 분기 완료 시 즉시 다운스트림을 트리거, `done` 포트는 모든 분기 완료 후 1회 emit. dispatch 구현 = 결정 F (engine dispatch 모델 분리). errorPolicy 조합 = 결정 C (waitAll=false 시 continue 강제).
+**결정 변경**: 1차 결정 #2 "활성화" → spec out. waitAll=false 의 "분기 완료 즉시 외부 dispatch" 의미는 Node.js single-threaded main loop pattern 상 별도 sub-loop 없이는 살릴 수 없고, 그 sub-loop 도입은 Loop / ForEach / Map cross-container risk 가 매우 높음 (Plan agent 2026-05-30 분석). 따라서 `waitAll=true` 만 명시적으로 지원하고 `waitAll=false` 는 schema 단에서 reject. fire-and-forget 의미가 필요하면 [Background 노드](../../spec/4-nodes/1-logic/12-background.md) 사용.
 
-> 현 P1 동작: `branch_0` ~ `branch_{N-1}` 이 fan-out 시작 시점에 한꺼번에 활성화되고, 엔진이 토폴로지 순서로 분기 서브그래프를 처리한 뒤 `done` 으로 합산 emit. waitAll=false 활성화의 핵심은 분기 완료 시점에 자기 branch_i 의 외부 다운스트림이 즉시 트리거 되도록 dispatch 채널을 분리하는 것 (F).
+> 본 결정으로 결정 F (engine dispatch 채널 분리) / 결정 C (errorPolicy=continue 강제) / 결정 J (waitAll=false × errorPolicy=stop 조합 reject) 가 모두 무효화된다. 본 §2 작업은 매우 단순한 spec-out 처리로 축소.
 
-#### 2-A. Engine dispatch 모델 채널 분리 (결정 F, 큰 작업)
+#### 2-A. schema validate reject (결정 K-1)
 
-- [ ] `ExecutionEngineService` dispatch 흐름에서 컨테이너 노드의 fan-out 을 두 채널로 분리:
-  - **채널 1 (branch-internal dispatch)**: `branch_i` 가 분기 서브그래프 진입 트리거 (현재 동작 — fan-out 시점에 활성화)
-  - **채널 2 (branch-external dispatch)**: `branch_i` 가 외부 (Parallel 노드 밖) 다운스트림 트리거 — 분기 완료 시점에 자기 terminal 출력으로 발화
-  - 두 채널을 어떻게 routing 분리할지 설계 (예: `Edge.targetNodeId` 가 Parallel body 안인지 밖인지로 판별)
-- [ ] 영향 범위 회귀 잠금 — Loop / ForEach / Map 등 다른 컨테이너 노드의 fan-out → 다운스트림 dispatch 패턴이 본 변경에 영향받는지 검토 + 통합 테스트
-  - 후보: `executeLoopBranchBody`, `executeForEachBranchBody`, `executeMapBranchBody` 등의 dispatch 경로
-  - **리스크 高** — Loop/ForEach 의 P1 회귀 시 본 plan 차단됨
-- [ ] dispatch 모델 변경의 spec 영향 검토 — [`spec/conventions/node-output.md`](../../spec/conventions/node-output.md) Principle 4/5 (port 출력 컨트랙트) 와 정합성 보강
+- [ ] `validateParallelConfig` (`codebase/backend/src/nodes/logic/parallel/parallel.schema.ts:97`) 에 `waitAll === false` reject 추가. 에러 메시지: `"waitAll=false is not supported. Use waitAll=true (default) or the Background node for fire-and-forget semantics."`
+- [ ] schema-level (zod) 차원에서도 `waitAll: z.literal(true).default(true)` 로 좁힐지 검토 — boolean 유지하고 imperative validate 에서만 reject 하는 게 호환성 + 메시지 명확. 본 plan 권고는 후자
+- [ ] backend 단위 테스트 (`parallel.schema.spec.ts`):
+  - `validateParallelConfig({ waitAll: false })` → 에러 메시지 포함 검증
+  - `validateParallelConfig({ waitAll: true })` / `validateParallelConfig({})` (default true) → 통과
 
-#### 2-B. ParallelExecutor 분기 완료 시점 콜백 + waitAll=false 분기 (결정 #2)
+#### 2-B. engine 정리 (결정 K-4)
 
-- [ ] `ParallelExecutor` 인터페이스 확장 — 분기 완료 시점 콜백 (`onBranchComplete(branchIndex, branchContext, terminalOutput)`) 도입. `Promise.allSettled` 안에서 각 `runBranch` 가 resolve 되는 시점에 콜백 호출
-- [ ] `ExecutionEngineService.runParallel` — `waitAll=false` 분기:
-  - 각 `runBranch` 완료 시점에 자기 branch 의 terminal 노드 출력을 채널 2 (branch-external) 로 발화
-  - `done` 포트는 기존처럼 모든 분기 완료 후 1회 emit (`branches: [...]`)
-  - `waitAll=true` 분기: 현 P1 동작 그대로 (변경 없음). warn 로그 (`execution-engine.service.ts:6813-6818`) 제거
+- [ ] `execution-engine.service.ts:6807-6818` 의 `waitAll` 변수 추출 + warn 로그 제거 — schema validate 가 사전 차단하므로 engine 도달 불가
+- [ ] `ParallelExecutor.execute` 의 `config.waitAll` 인자 — **호환성 위해 인터페이스는 유지** (`parallel-executor.ts:10`), 내부 동작은 항상 waitAll=true 로 가정 (현 P1 동작 유지)
+- [ ] backend 통합 테스트 — 기존 P1 통합 테스트가 그대로 통과 (회귀 0)
 
-#### 2-C. waitAll=false × errorPolicy=continue 강제 (결정 C)
+#### 2-C. frontend UI 제거 (결정 K-3)
 
-- [ ] **엔진 강제**: `runParallel` 가 `waitAll=false` + effective errorPolicy 계산 시 — 사용자 명시 값이 `stop` 이어도 `continue` 로 강제 (`execution-engine.service.ts:6820-6838` 근처에서 처리). 강제 발생 시 debug 로그
-- [ ] **schema validate 안전벨트** (결정 J): `validateParallelConfig` 에서 `waitAll === false && errorPolicy === 'stop'` 조합 시 **reject** (사용자 의도 보호 — silent normalize 안 함). 에러 메시지: `"errorPolicy 'stop' is not allowed when waitAll=false. Use 'continue' or set waitAll=true."`. UI lock 이 있으므로 정상 케이스는 schema validate 까지 오지 않음 — reject 는 외부 API 직접 호출 / 옛 워크플로우 마이그레이션 케이스의 가드
-- [ ] **frontend `ParallelConfig` UI lock**:
-  - `waitAll=false` 일 때 errorPolicy `SelectField` 가 `disabled` + value 가 `continue` 로 고정
-  - `waitAll=false` 일 때 errorPolicy 옆에 hint: "waitAll=false 에서는 errorPolicy 가 continue 로 고정됩니다"
-  - `waitAll=true ↔ false` 전환 시 자동 재기록 (false 진입 시 continue, true 복귀 시 사용자 직전 선택 또는 default stop 복원)
-- [ ] **spec 갱신**: `10-parallel.md` §1 errorPolicy 행에 "waitAll=false 시 continue 로 고정" 명시 + § Rationale 에 "왜 continue 강제인가" 근거 추가
+- [ ] `logic-configs.tsx` `ParallelConfig` (~L545) 의 `waitAll` `CheckboxField` + 조건부 hint (`config.waitAll === false` 분기) 제거
+- [ ] frontend 단위 테스트 (`parallel-config.test.tsx`, PR #363 신규) 갱신 — waitAll 필드 검증 제거
+- [ ] i18n key `nodeConfigs.logic.waitAll` / `nodeConfigs.logic.waitAllHint` 사용처가 ParallelConfig 1곳뿐이면 dict 에서도 제거 (다른 사용처 grep 확인 후)
 
-#### 2-D. spec / 테스트 (#2 공통)
+#### 2-D. spec 갱신 (결정 K-2)
 
-- [ ] spec `10-parallel.md` 갱신:
-  - §1 `waitAll` 행: P1 미구현 캐비엣 (L23) → "true: 모든 분기 완료 후 다운스트림 트리거 / false: 각 분기 완료 시 자기 `branch_i` 다운스트림 즉시 트리거 + `done` 은 모든 분기 완료 후 합산. errorPolicy 는 continue 로 고정" 설명으로 치환
-  - §1 표 아래 "⚠ 미구현 (P1)" 박스 (L30) 제거
-  - §4 실행 로직 — waitAll=false 분기의 emit 시점 step 추가 + dispatch 채널 2 (branch-external) 명세
-  - §5.1 / §5.2 — waitAll=false 일 때 `branch_i` 의 두 시점 emit 명시 (fan-out 시 활성화 + 분기 완료 시 terminal output emit). 다운스트림은 두 번째 emit 만 의미 있음을 명문화
-- [ ] frontend `ParallelConfig` 의 `waitAll` `CheckboxField` hint 텍스트 갱신
-- [ ] 단위 테스트 (`parallel-executor.spec.ts`) — waitAll=false 모드의 emit 콜백 호출 순서/시점 검증
-- [ ] 통합 테스트 (`execution-engine.service.spec.ts`) — waitAll=false 워크플로우에서 빠른 분기의 다운스트림이 느린 분기 완료 전에 실행되는지 검증
-- [ ] 통합 테스트 — waitAll=false × errorPolicy=stop 조합이 effective continue 로 동작하는지 검증
+- [ ] `spec/4-nodes/1-logic/10-parallel.md`:
+  - §1 config 표에서 `waitAll` 행 제거 (또는 "지원 안 함, 항상 `true` 동작" 명시)
+  - §1 표 하단 "⚠ 미구현 (P1)" 박스 (`waitAll: false` 관련) 제거
+  - §2 UI 박스에서 `Wait for All Branches [✓]` 줄 제거
+  - §5.1 / §5.2 / §5.7 의 `config.waitAll` 필드 echo 제거
+  - § Rationale 에 "왜 waitAll=false 가 spec out 되는가" 단락 추가 — Plan agent 분석 요약 (Node.js single-thread main loop pattern + Background 노드 권고)
+- [ ] `spec/4-nodes/_product-overview.md` §4.10 박스 (L135) — "waitAll은 항상 true로 동작하며 false는 P2에서 지원 예정이다" → "waitAll은 항상 true 로 동작 (`false` spec out — Background 노드 사용 권고)" 로 갱신
+- [ ] `spec/0-overview.md` §85 Parallel 노드 (P1) 박스 — "P2에서 waitAll=false 를 추가할 예정" 부분 제거
+
+#### 2-E. 옛 워크플로우 호환 (결정 K-5 / K-6)
+
+- [ ] `parallel.handler.ts` 의 `rawConfig.waitAll` config echo — **유지** (옛 워크플로우 마이그레이션 호환성, 변경 없음)
+- [ ] DB 에 `config.waitAll: false` 가 저장된 옛 워크플로우는 실행 시점에 schema validate 가 reject — 사용자가 워크플로우 편집기에서 수정 필요. **본 plan scope 밖** (별도 마이그레이션 작업 필요 시 별 plan)
+- [ ] 별도 마이그레이션이 필요한 정도인지 production DB 에서 `config.waitAll: false` 카운트 확인 → 사용자에게 보고 후 결정
 
 ### 3. 중첩 Parallel 허용 (깊이 ≤ 2, concurrency cap ≤ 32, 결정 #3 + G)
 
@@ -250,7 +260,7 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 |------|----------|-------------|
 | 1 | **#1 잔여** (frontend errorPolicy dropdown) | 독립 — 즉시 처리 가능. 가장 작은 가치 단위 |
 | 2 | **#4 PARALLEL_ENGINE default ON** (결정 B) | 독립 — P1 회귀만 확인. 환경변수 1줄 + spec 박스 갱신 |
-| 3 | **#2 waitAll=false 활성화** (결정 #2 + F + C + J) | F (dispatch 채널 분리) 가 Loop/ForEach/Map 회귀 위험 — 단계적 PR 권장 (2-A engine 채널 분리 → 2-B ParallelExecutor 콜백 → 2-C UI lock + reject 안전벨트 → 2-D spec/test) |
+| 3 | **#2 waitAll=false spec out** (결정 K) | 1 PR — schema reject + engine 정리 + frontend CheckboxField 제거 + spec 4곳 갱신. 작아짐 (4차 결정으로 spec out 채택) |
 | 4 | **#3 중첩 Parallel** (결정 #3 + G) | #2 의 ParallelExecutor 변경 후 |
 | 5 | **선행 plan [`cross-node-warning-rules.md`](./cross-node-warning-rules.md) 완료 대기** | 인프라 + workflow save validate 확장 + frontend canvas 평가 인프라 |
 | 6 | **#6 Parallel cross-node rule 등재** (결정 D + E) | 위 선행 plan 완료 후 |
@@ -268,11 +278,11 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
   - **3-F cross-node warningRule 인프라가 별 plan 으로 분리될 경우 본 plan #3 (특히 D/E 부분) 가 그 plan 에 의존**
   - **3-E cancellation 인프라가 별 plan 으로 분리될 경우 본 plan A 결정 부분이 그 plan 에 의존**
 - **리스크** (높음 → 낮음 순):
-  - **F (engine dispatch 모델 분리)** — Loop/ForEach/Map 등 다른 컨테이너 노드의 fan-out → 외부 다운스트림 dispatch 가 영향받을 수 있음. 회귀 잠금 실패 시 본 plan 차단됨. 첫 PR 에 통합 테스트 충분히 추가 필수
-  - **A (cancellation 인프라)** — `NodeHandler` 인터페이스 변경 = 모든 노드 구현체 시그니처 변경. 본 plan 안에 두면 PR 크기 폭증. 별 plan 분리 강력 권고
-  - **D/E (cross-node warningRules)** — 신규 인프라 작업. 본 plan 안에 두면 frontend canvas 평가 엔진 / backend save validate 동시 변경. 별 plan 분리 권고
+  - ~~**F (engine dispatch 모델 분리)**~~ — **결정 K 로 무효화** (waitAll=false spec out). risk 소멸
+  - **A (cancellation 인프라)** — `NodeHandler` 인터페이스 변경 = 모든 노드 구현체 시그니처 변경. 별 plan `node-cancellation-infrastructure.md` 로 분리 (결정 H)
+  - **D/E (cross-node warningRules)** — 신규 인프라 작업. 별 plan `cross-node-warning-rules.md` 로 분리 (결정 I)
   - 중첩 Parallel 의 worker 폭발 — 깊이 ≤ 2 + concurrency 곱셈 cap = 32 silent clamp 로 방어. silent clamp 의 가시성을 `NodeExecution.meta.clampedConcurrency` (runtime) + cross-node warningRule (frontend 사전) 로 이중 확보
-  - `waitAll: false` 의 이중 emit — F (채널 분리) 로 처리되나, 첫 emit (fan-out 시점 활성화) 과 두 번째 emit (분기 완료 시점 terminal) 이 같은 sourceNodeId 에서 발생. 외부 다운스트림은 채널 2 만 받도록 routing 명확화 필요
+  - **옛 워크플로우 호환** (결정 K) — DB 에 `config.waitAll: false` 가 저장된 케이스는 실행 시점에 schema validate 가 reject. 사용자가 워크플로우 편집기에서 수정 필요. production DB 의 영향 카운트 조사 후 별 마이그레이션 plan 필요 여부 판단
   - **PARALLEL_ENGINE default ON 회귀** — default 변경 후 P0 sequential 동작이 환경변수 OFF 로만 복원되는데, CI / dev 환경에서 OFF case 가 충분히 테스트되는지 검증 필요
   - 본 plan 의 #1 잔여 (frontend dropdown) 가 누락된 상태로 다른 작업 단위가 진행되면 사용자는 errorPolicy 를 UI 에서 설정할 수 없음 — #1 을 우선 마무리
 
@@ -291,3 +301,4 @@ PRD 시절 PRD 3 §4.9 ND-PL-01~04 (현재는 [`spec/4-nodes/_product-overview.m
 - **2026-05-30 (오후)**: 사용자 결정 확정 — #2 활성화 (emit 모델: branch_i 즉시 + done 일괄), #3 깊이 = 2 + concurrency cap = 32 (정적/runtime 혼합 enforcement), #4 done 포트 그대로 ✅ 격상. 각 작업 단위에 sub-task 구체화 + 작업 순서/scope 밖 항목 명시
 - **2026-05-30 (밤)**: 2차 사용자 결정 7건 확정 — A `cancel-others-on-fail` 추가, B PARALLEL_ENGINE default ON, C waitAll=false 시 errorPolicy=continue 강제 + UI lock, D 사전 경고 frontend cross-node warningRule, E 저장 단계 reject + canvas + runtime 3중 가드, F engine dispatch 채널 분리, G `ExecutionContext.parentParallelConcurrency` 신규 필드. plan scope 가 cross-node warningRule 인프라 + cancellation 인프라까지 확장됨에 따라 **3-E (cancellation) / 3-F (cross-node warningRule) 의 별 plan 분리 권고** 명시
 - **2026-05-30 (심야)**: 3차 결정 3건 확정 — H/I 별 plan 분리 권고 채택 (`node-cancellation-infrastructure.md` / `cross-node-warning-rules.md` 신규 작성), J waitAll=false × errorPolicy=stop 조합 schema validate 단계에서 reject. 본 plan 의 3-E → §5 (선행 plan 의존), 3-F → §6 (선행 plan 의존) 으로 격상 + 강등. 작업 단위 9개로 재정렬
+- **2026-05-30 (새벽)**: 4차 결정 K 확정 — Plan agent 분석으로 waitAll=false 의 의미가 Node.js single-threaded main loop pattern 상 별도 sub-loop 없이 살릴 수 없고, 그 sub-loop 도입은 Loop/ForEach/Map cross-container risk 매우 높음을 발견. 따라서 1차 결정 #2 (활성화) 를 변경하여 `waitAll=false` 지원 자체를 spec out. 결정 F (engine dispatch 채널 분리) / 결정 C (errorPolicy=continue 강제) / 결정 J (조합 reject) 모두 무효화. §2 가 단순한 spec-out 작업 (schema reject + engine warn 제거 + frontend CheckboxField 제거 + spec 4곳 갱신) 으로 축소

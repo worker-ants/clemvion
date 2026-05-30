@@ -285,8 +285,6 @@ export const nodeConfigs = {
     branchCountHint: "동시 분기 수 (2-16)",
     maxConcurrency: "최대 동시 실행",
     maxConcurrencyHint: "0 = 모든 분기 동시 실행, 그 외는 동시 실행 제한",
-    waitAll: "모든 분기 대기",
-    waitAllHint: "waitAll=false 는 향후 단계에서 지원됩니다. 현재는 항상 모든 분기를 대기해요.",
     strategy: "전략",
     stratWaitAll: "모두 대기",
     stratFirst: "먼저 도착한 것",
