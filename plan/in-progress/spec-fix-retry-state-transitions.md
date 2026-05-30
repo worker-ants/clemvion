@@ -55,9 +55,10 @@ retry 재진입 시 config expression 재평가 정책이 spec §1.3 / §5.5 에
 ## 다음 단계
 
 - [x] (project-planner) #6/#7/#8/#9 spec 본문 반영
-- [ ] (developer) `classifyLlmError` fallback `AI_AGENT_TURN_FAILED` → `LLM_CALL_FAILED` 정렬 + 테스트
-- [ ] `/consistency-check --spec` 재실행 → BLOCK: NO 확인
-- [ ] BLOCK: NO 확인 후 본 plan 종료 처리 (retry-handler-followup.md 의 spec-sync 항목 closed 표기)
+- [x] (developer) `classifyLlmError` fallback `AI_AGENT_TURN_FAILED` → `LLM_CALL_FAILED` 정렬 + 테스트 (commit 219d54fb)
+- [x] `/consistency-check --spec` 재실행 → **BLOCK: NO** 확인 (`review/consistency/2026/05/30/13_34_40/SUMMARY.md`, LOW)
+- [x] `retry-handler-followup.md` 의 spec-sync 항목(#6~#9) closed 표기 — 본 spec PR 에 반영 완료
+- [ ] (후속 — 별 작업) consistency INFO: information-extractor/text-classifier §5.3 fallback sub-case 비고, execution-engine §Rationale → ai-agent §7.9 역방향 cross-ref, `AI_RETRY_STATE_TTL_MINUTES` ENV 카탈로그 등재 검토
 
 관련 파일:
 - `spec/5-system/4-execution-engine.md` §1.1 (상태 전이 표), §1.2, §5.5/§6.1 (config/rawConfig)

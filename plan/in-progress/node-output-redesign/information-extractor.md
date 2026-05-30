@@ -187,7 +187,7 @@ Information Extractor 는 ai_agent 와 매우 유사한 구조 (single/multi tur
    - 4 코드 모두 발화 가능 — `LLM_CALL_FAILED` (single `:244-255`, multi `:411-422`, multi mid-conv `:490-511`) / `LLM_RESPONSE_INVALID` (single `:301-312`, 3 attempt 후) / `MAX_COLLECTION_RETRIES_EXCEEDED` (`:790-794` multi `max_retries` 종결 envelope).
    - multi-turn `max_retries` 의 `output.error + output.result` 병존 (`:787-813`) 은 spec §5.6.4 / `[공통 §5](../../../spec/4-nodes/3-ai/0-common.md#5-응답-형식-규약-principle-11)` 의 부분 보존 패턴 정합. 부합.
    - multi-turn `LLM_CALL_FAILED` (`:490-511`) 도 `output.error + output.result` 병존 — spec §5.3 footnote ("multi-turn LLM_CALL_FAILED: result 와 병존") 정합.
-   - **LLM_RATE_LIMITED**: spec §6 표에 "예약" 명시 — handler 는 429 도 catch-all `LLM_CALL_FAILED` 로 분류. ai-agent / text-classifier 와 동일 정책. 정합 (예약 상태).
+   - **LLM_RATE_LIMIT**: spec §6 표에 "예약" 명시 — handler 는 429 도 catch-all `LLM_CALL_FAILED` 로 분류. ai-agent / text-classifier 와 동일 정책. 정합 (예약 상태).
 
 6. **conventions Principle 0–11 위반 패턴**:
    - Principle 0 (5필드): waiting 시 `_resumeState` top-level 6번째 키. spec §5.4 footnote 가 정당화.
