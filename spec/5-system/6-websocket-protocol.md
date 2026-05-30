@@ -346,6 +346,13 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `RETRY_STATE_NOT_FOUND` | `NodeExecution.outputData._retryState` 가 DB 에 없거나 만료됨 (`expiresAt` TTL 초과, 또는 이미 다른 retry 가 소비). 이 코드는 `_retryState` DB row 의 만료/부재를 의미하며 별도 token 필드는 payload 에 존재하지 않는다 |
 | `NODE_NOT_RETRYABLE` | 해당 노드의 `output.error.details.retryable === false` 또는 노드가 retryable error 로 종결되지 않음 (예: 정상 종결, condition 종결) |
 | `RETRY_TOO_EARLY` | `output.error.details.retryAfterSec` 카운트다운 종료 전 호출 — 서버측 enforcement. 클라이언트가 disabled 처리하면 정상적으로는 발생 안 함 |
+| `INVALID_EXECUTION_STATE` | 대상 `NodeExecution` 이 `FAILED` 상태가 아니거나 Execution 이 retry 진입 가능 상태가 아님 (사전 검증 실패). 기존 continuation 명령의 동일 코드와 의미 공유 (기대 상태만 다름 — retry 는 `FAILED` 기대) |
+
+**`_retryState` 소비 원자성·TTL (구현 계약):**
+
+- **단일 소비 (atomic consume)**: retry 처리는 `nodeExecutionId` 로 `_retryState` 를 조회하고, **동일 트랜잭션 안에서** `NodeExecution.outputData` 에서 `_retryState` 키를 제거(JSONB `-` 연산, null-set) 하면서 새 `NodeExecution` row 를 spawn 한다. 키 제거가 affected=1 인 쪽만 진행 — 동시 retry 의 중복 spawn 을 차단한다. 한 번 소비되면 후속 retry 는 `RETRY_STATE_NOT_FOUND`.
+- **TTL**: `_retryState.expiresAt` (ISO 8601). 기본 60분, 환경변수 `AI_RETRY_STATE_TTL_MINUTES` 로 override. `now > expiresAt` 이면 `RETRY_STATE_NOT_FOUND`. 만료된 미소비 `_retryState` 는 row 의 `outputData` 안에 남아있다가 (별도 cleanup job 없음 — row 수명에 종속) 다음 retry 시도 시 만료 판정으로 거부된다.
+- **Continuation Bus 미경유**: retry 는 대기중 NodeExecution 을 재개(rehydration `RESUME_*`)하는 것이 아니라 **새 `NodeExecution` row 를 spawn** 하므로 continuation 큐(`execution-continuation`)의 resume 경로를 타지 않는다. 엔진의 retry 진입점이 직접 multi-turn loop 를 새 row 로 재개한다.
 
 ### 4.4 사용자 입력 대기 이벤트 상세 (`execution.waiting_for_input`)
 

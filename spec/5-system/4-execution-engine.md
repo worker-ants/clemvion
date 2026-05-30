@@ -102,8 +102,8 @@ pending → running ──┤                     └─ cancelled
 
 - AI Agent multi-turn 이 retryable error (HTTP 429 / 5xx / network timeout — `output.error.details.retryable === true`) 로 종결될 때, `buildMultiTurnFinalOutput` 이 `_resumeState` snapshot 을 `_retryState` 로 운반한다 (top-level, Principle 0 예외).
 - **`stripControlFields()` 는 `_retryState` 를 보존** — `NodeExecution.outputData._retryState` 로 DB 영속.
-- `_retryState` shape: `_resumeState` 의 부분집합 + `expiresAt: ISO 8601` (TTL — 기본 60분). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` boundary strip). expression resolver / autocomplete 비노출.
-- 소비: WS 명령 `execution.retry_last_turn` ([Spec WebSocket §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)) 이 `nodeExecutionId` 로 `_retryState` 를 lookup → `expiresAt` 검증 → 새 NodeExecution row spawn → multi-turn loop 재진입. TTL 만료 또는 한 번 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 응답.
+- `_retryState` shape: `_resumeState` 의 부분집합 + `expiresAt: ISO 8601` (TTL — 기본 60분, env `AI_RETRY_STATE_TTL_MINUTES` override). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` boundary strip). expression resolver / autocomplete 비노출.
+- 소비 (atomic): WS 명령 `execution.retry_last_turn` ([Spec WebSocket §4.2](./6-websocket-protocol.md#42-실행-제어-명령-client--server)) 이 `nodeExecutionId` 로 `_retryState` 를 lookup → `expiresAt` 검증 → **동일 트랜잭션에서 `_retryState` 키 제거(소비) + 새 NodeExecution row spawn** → multi-turn loop 재진입. 키 제거가 affected=1 인 쪽만 진행해 동시 retry 중복 spawn 차단. TTL 만료 또는 이미 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND`. continuation 큐(rehydration) 미경유 — 새 row 직접 spawn.
 - 상세 SoT: [CONVENTIONS node-output Principle 4.2.1](../conventions/node-output.md#421-보존-예외--_retrystate), [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트).
 
 **`interaction.data` payload 규격** (CONVENTIONS §4.5):
