@@ -99,6 +99,29 @@ export class WebsocketGateway
   ) {
     this.channelAuthorizers = [
       {
+        // CRIT (IDOR) — `execution:` 구독은 join 전 workspace 소유 검증을 받는다.
+        // 과거에는 1회성 snapshot 만 verifyOwnership 으로 보호되고 room join 은
+        // 무검증이라, 타 workspace executionId 를 추측한 사용자가 증분 broadcast
+        // 이벤트(node.started/completed, ai_message 등)를 수신할 수 있었다.
+        // authorizer 로 승격해 join(아래 handleSubscribe) 이전에 동기 차단한다.
+        matches: (channel) => channel.startsWith('execution:'),
+        authorize: async (channel, workspaceId) => {
+          const executionId = channel.slice('execution:'.length);
+          // UUID 형식 검증 — 비-UUID 입력은 DB 조회 전 차단 (background:run 과 동일 정책).
+          if (!isValidUuid(executionId)) {
+            return { error: 'Not authorized for this execution' };
+          }
+          // verifyOwnership 은 미소유/부재 시 throw (NotFound 통일 — ID enumeration 차단).
+          const allowed = await this.executionsService
+            .verifyOwnership(executionId, workspaceId)
+            .then(() => true)
+            .catch(() => false);
+          return allowed
+            ? null
+            : { error: 'Not authorized for this execution' };
+        },
+      },
+      {
         matches: (channel) => channel.startsWith('kb:'),
         authorize: async (channel, workspaceId) => {
           const documentId = channel.slice('kb:'.length);

@@ -145,15 +145,15 @@ describe('WebsocketGateway', () => {
 
     it('should accept valid execution channel', async () => {
       const { socket, join } = createMockSocket({ id: 'client-1' });
+      // execution: 구독은 이제 workspace 소유 검증 authorizer 를 거친다 (IDOR fix).
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
       getSubscriptions().set('client-1', new Set());
 
-      const result = await gateway.handleSubscribe(
-        { channel: 'execution:exec-123' },
-        socket,
-      );
+      const channel = 'execution:11111111-1111-4111-8111-111111111111';
+      const result = await gateway.handleSubscribe({ channel }, socket);
       expect(result.data.success).toBe(true);
-      expect(result.data.channel).toBe('execution:exec-123');
-      expect(join).toHaveBeenCalledWith('execution:exec-123');
+      expect(result.data.channel).toBe(channel);
+      expect(join).toHaveBeenCalledWith(channel);
     });
 
     it('should accept kb channel when ownership verified', async () => {
@@ -295,8 +295,9 @@ describe('WebsocketGateway', () => {
       (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
       getSubscriptions().set('client-1', new Set());
 
+      const execId = '11111111-1111-4111-8111-111111111111';
       const fakeExecution = {
-        id: 'exec-abc',
+        id: execId,
         status: 'running',
         nodeExecutions: [],
       };
@@ -304,44 +305,47 @@ describe('WebsocketGateway', () => {
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
       findByIdMock.mockResolvedValue(fakeExecution as never);
 
-      await gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
+      await gateway.handleSubscribe({ channel: `execution:${execId}` }, socket);
 
       // emitExecutionSnapshot is fire-and-forget — wait a macrotask so the
       // awaited findById resolves and the emit side-effect lands.
       await new Promise((resolve) => setImmediate(resolve));
 
-      expect(findByIdMock).toHaveBeenCalledWith('exec-abc');
+      expect(findByIdMock).toHaveBeenCalledWith(execId);
       expect(emit).toHaveBeenCalledWith(
         'execution.snapshot',
         expect.objectContaining({
-          executionId: 'exec-abc',
+          executionId: execId,
           execution: fakeExecution,
         }),
       );
     });
 
-    it('should NOT emit execution.snapshot when workspace ownership check fails (IDOR block)', async () => {
-      const { socket, emit } = createMockSocket({ id: 'client-1' });
+    it('should NOT join or emit execution.snapshot when workspace ownership check fails (IDOR block)', async () => {
+      const { socket, emit, join } = createMockSocket({ id: 'client-1' });
       (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-attacker';
       getSubscriptions().set('client-1', new Set());
 
+      const execId = '22222222-2222-4222-8222-222222222222';
       const execService = module.get(ExecutionsService);
-      // verifyOwnership rejects on workspace mismatch — emitExecutionSnapshot
-      // 가 try/catch 에서 swallow 하므로 .findById 는 호출되지 않아야 한다.
+      // verifyOwnership 가 authorizer 단계(join 이전)에서 reject → 구독 자체가
+      // 거부되어 room join·snapshot 모두 발생하지 않는다 (IDOR 차단의 핵심).
       (execService.verifyOwnership as jest.Mock).mockRejectedValueOnce(
         new Error('Execution not found'),
       );
 
-      await gateway.handleSubscribe(
-        { channel: 'execution:exec-victim' },
+      const result = await gateway.handleSubscribe(
+        { channel: `execution:${execId}` },
         socket,
       );
       await new Promise((resolve) => setImmediate(resolve));
 
+      expect(result.data.success).toBe(false);
       expect(execService.verifyOwnership).toHaveBeenCalledWith(
-        'exec-victim',
+        execId,
         'ws-attacker',
       );
+      expect(join).not.toHaveBeenCalled();
       expect(execService.findById).not.toHaveBeenCalled();
       const snapshotEmitted = emit.mock.calls.some(
         (call: unknown[]) => call[0] === 'execution.snapshot',
@@ -351,13 +355,17 @@ describe('WebsocketGateway', () => {
 
     it('should not re-emit snapshot on duplicate subscribe', async () => {
       const { socket, emit } = createMockSocket({ id: 'client-1' });
-      const existing = new Set(['execution:exec-abc']);
+      (socket as Socket & { workspaceId?: string }).workspaceId = 'ws-1';
+      const execId = '11111111-1111-4111-8111-111111111111';
+      const existing = new Set([`execution:${execId}`]);
       getSubscriptions().set('client-1', existing);
 
       const findByIdMock = jest.mocked(module.get(ExecutionsService).findById);
-      findByIdMock.mockResolvedValue({ id: 'exec-abc' } as never);
+      findByIdMock.mockResolvedValue({ id: execId } as never);
 
-      await gateway.handleSubscribe({ channel: 'execution:exec-abc' }, socket);
+      // 이미 구독 중(isNewSubscription=false) — authorizer 는 통과하나 snapshot 은
+      // 재발행하지 않는다.
+      await gateway.handleSubscribe({ channel: `execution:${execId}` }, socket);
       await new Promise((resolve) => setImmediate(resolve));
 
       expect(findByIdMock).not.toHaveBeenCalled();

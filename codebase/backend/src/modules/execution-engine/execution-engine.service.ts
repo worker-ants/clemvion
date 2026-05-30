@@ -4510,7 +4510,7 @@ export class ExecutionEngineService
    *  - 401/403 (auth) → `LLM_CALL_FAILED` (non-retryable)
    *  - 5xx / network / timeout → `LLM_CALL_FAILED` (retryable)
    *  - 그 외 명시 code (예: `LLM_RESPONSE_INVALID`) → 보존, non-retryable
-   *  - 분류 불가 → `AI_AGENT_TURN_FAILED` (non-retryable)
+   *  - 분류 불가 → `LLM_CALL_FAILED` (non-retryable fallback — §10 LLM 단일 taxonomy)
    *
    * `details.retryable` (Principle 3.2.1) 는 코드 문자열 집합이 아니라 status/
    * 조건으로 도출한다. client SSE 계층의 `LLM_CONNECTION_ERROR` (spec llm-client
@@ -4527,7 +4527,8 @@ export class ExecutionEngineService
    *  - 401 / 403 (auth) → `LLM_CALL_FAILED` (non-retryable — 재시도해도 동일 실패)
    *  - 5xx / network / timeout → `LLM_CALL_FAILED` (retryable — 일시 회복 가능)
    *  - 그 외 명시 code (예: `LLM_RESPONSE_INVALID`) → 보존, non-retryable
-   *  - 분류 불가 → `AI_AGENT_TURN_FAILED` (보수적 non-retryable)
+   *  - 분류 불가 → `LLM_CALL_FAILED` (보수적 non-retryable fallback — spec §10 은
+   *    별도 `AI_*` fallback 코드를 두지 않고 LLM 단일 taxonomy 를 유지한다)
    *
    * client SSE 계층의 `LLM_CONNECTION_ERROR` (spec llm-client §6) 는 멀티턴
    * 경로에 도달하지 않으나, 누출 대비 network 로 매핑한다.
@@ -4563,7 +4564,9 @@ export class ExecutionEngineService
     if (typeof explicitCode === 'string' && explicitCode.length > 0) {
       return { code: explicitCode, retryable: false };
     }
-    return { code: 'AI_AGENT_TURN_FAILED', retryable: false };
+    // 분류 불가 fallback — spec §10 은 별도 AI_* 코드 없이 LLM_CALL_FAILED
+    // (non-retryable) 로 통합한다. 재시도 안전성이 확인되지 않은 미상 throw.
+    return { code: 'LLM_CALL_FAILED', retryable: false };
   }
 
   private static extractAiTurnErrorPayload(err: unknown): {

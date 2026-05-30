@@ -3708,7 +3708,8 @@ describe('ExecutionEngineService', () => {
 
     it('string throw 를 처리한다', () => {
       const result = extract()('something went wrong');
-      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+      // 분류 불가 fallback → LLM_CALL_FAILED non-retryable (spec §10 단일 taxonomy)
+      expect(result.code).toBe('LLM_CALL_FAILED');
       expect(result.message).toBe('something went wrong');
     });
 
@@ -3741,10 +3742,11 @@ describe('ExecutionEngineService', () => {
       expect((result.details as Record<string, unknown>).retryable).toBe(true);
     });
 
-    it('분류 불가 메시지 → AI_AGENT_TURN_FAILED + retryable=false', () => {
+    it('분류 불가 메시지 → LLM_CALL_FAILED + retryable=false', () => {
       const err = new Error('something unexpected happened');
       const result = extract()(err);
-      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+      // spec §10 — 별도 AI_* fallback 없이 LLM_CALL_FAILED non-retryable 로 통합
+      expect(result.code).toBe('LLM_CALL_FAILED');
       expect((result.details as Record<string, unknown>).retryable).toBe(false);
     });
 
@@ -3795,7 +3797,7 @@ describe('ExecutionEngineService', () => {
       expect(() => extract()(nonSerializable)).not.toThrow();
       const result = extract()(nonSerializable);
       expect(result.message).toBe('[non-serializable error object]');
-      expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+      expect(result.code).toBe('LLM_CALL_FAILED');
     });
 
     // spec/conventions/node-output.md Principle 3.2.1 — LLM 계열 retryable 분류
@@ -3809,9 +3811,9 @@ describe('ExecutionEngineService', () => {
         );
       });
 
-      it('AI_AGENT_TURN_FAILED → retryable=false (보수적 default)', () => {
+      it('분류 불가 fallback → LLM_CALL_FAILED + retryable=false (보수적 default)', () => {
         const result = extract()(new Error('unexpected error'));
-        expect(result.code).toBe('AI_AGENT_TURN_FAILED');
+        expect(result.code).toBe('LLM_CALL_FAILED');
         expect((result.details as Record<string, unknown>).retryable).toBe(
           false,
         );
