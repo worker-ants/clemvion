@@ -11,6 +11,9 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { WorkspaceId } from '../../common/decorators/workspace.decorator';
+import { CurrentUser } from '../../common/decorators';
+import type { JwtPayload } from '../../common/decorators';
+import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -24,7 +27,9 @@ import {
 import {
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
+  ApiOkWrappedArrayResponse,
 } from '../../common/swagger';
+import { ReRunRequestDto } from './dto/re-run.dto';
 import { ExecutionsService } from './executions.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { InvalidExecutionStateError } from '../execution-engine/workflow-errors';
@@ -162,5 +167,52 @@ export class ExecutionsController {
       throw error;
     }
     return { success: true };
+  }
+
+  @Post(':id/re-run')
+  @HttpCode(HttpStatus.CREATED)
+  @Roles('editor')
+  @ApiOperation({
+    summary: '실행 재실행 (Re-run)',
+    description:
+      '원본 실행을 기반으로 새 Execution 을 시작합니다 (현재 시점 워크플로 정의 사용). 입력은 원본 그대로 또는 inputOverride 로 대체 가능. spec/5-system/13-replay-rerun.md §8.1.',
+  })
+  @ApiParam({ name: 'id', description: '원본 실행 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(ExecutionDetailDto, {
+    description: '새로 생성된 실행 (reRunOf / chainId / dryRun 포함)',
+  })
+  @ApiBadRequestResponse({
+    description: 'INVALID_INPUT / RERUN_DRY_RUN_NOT_APPLICABLE',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({
+    description: 'RERUN_EXECUTION_NOT_FOUND / RERUN_WORKFLOW_DELETED',
+  })
+  async reRun(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: ReRunRequestDto,
+  ) {
+    return this.executionsService.reRun(id, workspaceId, user, dto);
+  }
+
+  @Get(':id/chain')
+  @ApiOperation({
+    summary: '실행 chain 조회',
+    description:
+      '같은 re-run chain 의 모든 실행을 started_at ASC 로 반환합니다 (chain badge / View chain). spec §8.2.',
+  })
+  @ApiParam({ name: 'id', description: '실행 UUID', format: 'uuid' })
+  @ApiOkWrappedArrayResponse(ExecutionDto, {
+    description: 'chain 내 실행 목록 (nodeExecutions 생략)',
+  })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: 'RERUN_EXECUTION_NOT_FOUND' })
+  async getChain(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    return this.executionsService.getChain(id, workspaceId);
   }
 }

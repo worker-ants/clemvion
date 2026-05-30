@@ -118,6 +118,7 @@ describe('ExecutionsService', () => {
       executionRepo as never,
       nodeExecutionRepo as never,
       executionNodeLogRepo as never,
+      { find: jest.fn() } as never, // nodeRepository (re-run inputOverride 검증용)
       engine as never,
     );
   });

@@ -427,7 +427,7 @@ function withSourceMarker(
  */
 export function buildConversationConfigFromOutput(
   output: Record<string, unknown> | undefined,
-  config?: Record<string, unknown> | undefined,
+  config?: Record<string, unknown>,
 ): {
   message: string;
   turnCount: number;
@@ -484,7 +484,13 @@ export function buildConversationConfigFromOutput(
  * 정보가 손실되기 때문.
  */
 export type ExecuteOptions =
-  | { executedBy: string; triggerId?: never }
+  | {
+      executedBy: string;
+      triggerId?: never;
+      // Replay/Re-run (decision F2) — 수동 re-run 으로 생성되는 실행에만 세팅.
+      reRunOf?: string;
+      chainId?: string;
+    }
   | { executedBy?: never; triggerId: string }
   | { executedBy?: never; triggerId?: never };
 
@@ -1822,12 +1828,18 @@ export class ExecutionEngineService
     }
 
     // 2. Create Execution record
+    const reRunOpts = options as
+      | { reRunOf?: string; chainId?: string }
+      | undefined;
     const execution = this.executionRepository.create({
       workflowId,
       status: ExecutionStatus.PENDING,
       inputData: (input as Record<string, unknown>) ?? {},
       executedBy: options?.executedBy,
       triggerId: options?.triggerId,
+      // Re-run 으로 생성된 실행만 chain 정보 세팅 (decision F2). 일반 실행은 null.
+      reRunOf: reRunOpts?.reRunOf ?? null,
+      chainId: reRunOpts?.chainId ?? null,
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;

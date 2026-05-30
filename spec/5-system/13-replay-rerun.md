@@ -1,7 +1,13 @@
 ---
 id: replay-rerun
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/modules/executions/executions.controller.ts
+  - codebase/backend/src/modules/executions/executions.service.ts
+  - codebase/backend/src/modules/executions/dto/re-run.dto.ts
+  - codebase/backend/migrations/V067__execution_re_run_chain.sql
+pending_plans:
+  - plan/in-progress/replay-rerun.md
 ---
 
 # Spec: 워크플로 Re-run (재실행)

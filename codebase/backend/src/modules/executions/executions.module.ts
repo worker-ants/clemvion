@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Execution } from './entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-log.entity';
+import { Node } from '../nodes/entities/node.entity';
 import { ExecutionsController } from './executions.controller';
 import { ExecutionsService } from './executions.service';
 import { BackgroundRunsController } from './background-runs/background-runs.controller';
@@ -17,7 +18,13 @@ import { NotificationsModule } from '../notifications/notifications.module';
     // executionPath 를 채우는 데 사용하므로 별도 forFeature 등록이 필요.
     // (TypeOrmModule.forFeature 는 모듈 단위 Repository token 을 만들어
     //  주므로 이중 등록은 단순 token 공유 — 데이터 정합성 영향 없음).
-    TypeOrmModule.forFeature([Execution, NodeExecution, ExecutionNodeLog]),
+    // Node 는 re-run 의 inputOverride 검증(loadTriggerParameterSchema)용.
+    TypeOrmModule.forFeature([
+      Execution,
+      NodeExecution,
+      ExecutionNodeLog,
+      Node,
+    ]),
     ExecutionEngineModule,
     // BackgroundRunsService 가 NotificationsService.findByResource() 에
     // 위임 — Notification Repository 를 본 모듈에서 직접 forFeature 등록
