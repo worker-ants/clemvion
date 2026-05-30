@@ -153,3 +153,64 @@ regardless). Workflow fits **fan-out + aggregate**; it does **not** fit:
 
 All three fan-out flows are now migrated. Each migration was smoke-tested live
 (no CI e2e for these flows).
+
+## Post-migration regression + remedies (2026-05-30)
+
+The migration introduced a behavioral regression: after implementation, the
+model began **deferring `/ai-review` ("scope too large") and not fixing
+review Critical/Warning** — pushing them to a later turn or the PR. Root-cause
+analysis found five compounding pressures, all pushing the same way:
+
+1. **Workflow opt-in cost guard ↔ mandatory auto-review collide.** `/ai-review`
+   is now a `Workflow`, whose always-loaded guard says "only call when the user
+   explicitly opted in; it's expensive; don't infer scale." That directly
+   fights developer SKILL's "구현 완료 → /ai-review 강제". The general, strongly
+   worded tool guard tends to beat the domain SKILL prose.
+2. **Async hand-off gap.** Workflow returns immediately + notifies later, so the
+   turn can "end" at fire-time; the §6 fix step sits behind an async boundary.
+3. **Only the cheap half migrated.** Route→Review→Summary is Workflow;
+   `resolution-applier` (the actual fix) stays a separate bespoke `Agent` call
+   main must remember — "자동으로" is misleading.
+4. **Enforcement asymmetry (the soil).** Worktree is hook-enforced; test/review/
+   fix was only SKILL prose. With pressures 1–3 added, the toothless mandate
+   yields first.
+5. **bgIsolation write-guard.** In a bg session whose parent didn't isolate via
+   the `EnterWorktree` *tool*, workflow sub-agent writes (incl. resolution-applier
+   fixes) are blocked — a rationalizable reason to defer. See §bgIsolation below.
+
+### Remedies applied
+
+- **Teeth (remedy 4 of the analysis).** New review-coverage guard gives review/
+  fix the same kind of hook teeth the worktree rule has:
+  - [`.claude/hooks/_lib/review_guard.py`](../hooks/_lib/review_guard.py) —
+    judges "branch has unreviewed `codebase/**` changes?" (only `codebase/`
+    counts — spec/plan/docs/meta PRs are never blocked).
+  - [`guard_review_before_push.py`](../hooks/guard_review_before_push.py) —
+    PreToolUse(Bash): blocks `git push` when code is unreviewed/unresolved
+    (hard gate for "PR 로 미룸").
+  - [`guard_review_before_stop.py`](../hooks/guard_review_before_stop.py) —
+    Stop: nudges once per (session, HEAD) when code is unreviewed (soft gate for
+    "다음 턴으로 미룸"; never loops — `stop_hook_active` + dedup marker).
+  - Unit-tested in [`.claude/tests/test_review_guard.py`](../tests/test_review_guard.py).
+  - Override: `BYPASS_REVIEW_GUARD=1`.
+- **Standing opt-in (remedies 1–2).** CLAUDE.md §외부 LLM 호출 정책 now records
+  that post-impl auto review/fix is a **standing sanctioned obligation**, exempt
+  from the Workflow "inferred scale" guard; auto-triggers may use the fallback
+  plain-Agent fan-out to dodge the async gap.
+- **SKILL sync (remedy 3).** developer SKILL §REVIEW WORKFLOW drops "자동으로",
+  spells out the async hops (fire → await notification → read SUMMARY → explicit
+  `resolution-applier` call → ESCALATE branch), and adds a Definition of Done.
+
+<a id="bgisolation"></a>
+### §bgIsolation — the bg-session write block, and the remedy
+
+(Recap of the "CORRECTED diagnosis" above, as the operative rule.) In a
+**background session whose parent has not isolated via the `EnterWorktree`
+tool** (a shell `cd` into a worktree does NOT satisfy it), the harness blocks
+*all* workflow sub-agent writes to the shared checkout — reviewer outputs,
+SUMMARY, and resolution-applier code fixes alike. **Remedy:** the
+workflow-invoking flow must isolate the **parent session** with the
+`EnterWorktree` tool. developer SKILL step 0 and code-review-agents SKILL §0 now
+instruct this for bg sessions. The repo-wide alternative
+`"worktree": {"bgIsolation": "none"}` in `.claude/settings.json` is **not**
+applied here — broader blast radius; left as a conscious user decision.
