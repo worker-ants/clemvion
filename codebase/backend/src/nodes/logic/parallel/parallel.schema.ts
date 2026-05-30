@@ -1,8 +1,11 @@
 import { z } from 'zod';
 import {
+  GraphWarningRule,
   NodeComponentMetadata,
   NodePorts,
 } from '../../core/node-component.interface';
+import type { Node } from '../../../modules/nodes/entities/node.entity';
+import type { Edge } from '../../../modules/edges/entities/edge.entity';
 
 /**
  * Parallel fans the input out to branch_0..branch_{N-1} ports. Its own
@@ -147,6 +150,109 @@ export function validateParallelConfig(config: unknown): string[] {
   return errors;
 }
 
+/**
+ * Helper — 노드 N (Parallel) 의 분기 body 안에 있는 모든 자식 노드 id 를 BFS 로
+ * 수집. `branch_N` outgoing edge 만 시작점 (다른 컨테이너 분기와 의미 다름).
+ * cross-node-warning-rules 평가에서 nested-Parallel 탐지에 사용.
+ */
+function collectParallelBranchBodyNodeIds(
+  parallelNodeId: string,
+  edges: readonly Edge[],
+): Set<string> {
+  const out = new Set<string>();
+  const adj = new Map<string, string[]>();
+  for (const e of edges) {
+    const list = adj.get(e.sourceNodeId) ?? [];
+    list.push(e.targetNodeId);
+    adj.set(e.sourceNodeId, list);
+  }
+  // branch_N entry points
+  const entries: string[] = [];
+  for (const e of edges) {
+    if (e.sourceNodeId !== parallelNodeId) continue;
+    if (/^branch_\d+$/.exec(e.sourcePort)) entries.push(e.targetNodeId);
+  }
+  const queue = [...entries];
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (id === undefined) break;
+    if (out.has(id)) continue;
+    out.add(id);
+    for (const next of adj.get(id) ?? []) {
+      if (!out.has(next)) queue.push(next);
+    }
+  }
+  return out;
+}
+
+/**
+ * parallel-p2 결정 #3 (2026-05-30): 중첩 Parallel 깊이 ≤ 2. 자기 분기 body 안에
+ * 또 Parallel 이 있고, 그 내부 Parallel 의 분기 body 안에 또 Parallel 이 있으면
+ * depth=3 으로 reject.
+ */
+const parallelNestedDepthExceededRule: GraphWarningRule = {
+  id: 'parallel:nested-depth-exceeded',
+  severity: 'error',
+  evaluate: (node: Node, graph) => {
+    if (node.type !== 'parallel') return null;
+    const myBody = collectParallelBranchBodyNodeIds(node.id, graph.edges);
+    for (const childId of myBody) {
+      const child = graph.nodes.find((n) => n.id === childId);
+      if (!child || child.type !== 'parallel') continue;
+      const grandBody = collectParallelBranchBodyNodeIds(child.id, graph.edges);
+      for (const gId of grandBody) {
+        const g = graph.nodes.find((n) => n.id === gId);
+        if (g && g.type === 'parallel') {
+          return {
+            message: `Parallel node "${node.label ?? node.type}" body contains nested Parallel "${child.label ?? child.type}" whose body contains another Parallel "${g.label ?? g.type}". Parallel nesting depth > 2 is not supported.`,
+          };
+        }
+      }
+    }
+    return null;
+  },
+};
+
+/**
+ * parallel-p2 결정 #3 + D (2026-05-30): 외부 × 내부 maxConcurrency 곱이
+ * NESTED_PARALLEL_CONCURRENCY_CAP (32) 초과 시 frontend canvas 사전 경고.
+ * runtime 의 silent clamp 가 안전망이지만 사용자가 의도와 실제 차이를 사전
+ * 인지하도록 warning.
+ */
+const PARALLEL_NESTED_CONCURRENCY_CAP_FOR_RULE = 32;
+const parallelNestedConcurrencyCapRule: GraphWarningRule = {
+  id: 'parallel:nested-concurrency-cap',
+  severity: 'warning',
+  evaluate: (node: Node, graph) => {
+    if (node.type !== 'parallel') return null;
+    const myCfg = node.config ?? {};
+    const myMax =
+      typeof myCfg.maxConcurrency === 'number' ? myCfg.maxConcurrency : 0;
+    const myBranch =
+      typeof myCfg.branchCount === 'number' ? myCfg.branchCount : 2;
+    const myEffective = myMax > 0 ? myMax : myBranch;
+
+    const myBody = collectParallelBranchBodyNodeIds(node.id, graph.edges);
+    for (const childId of myBody) {
+      const child = graph.nodes.find((n) => n.id === childId);
+      if (!child || child.type !== 'parallel') continue;
+      const cCfg = child.config ?? {};
+      const cMax =
+        typeof cCfg.maxConcurrency === 'number' ? cCfg.maxConcurrency : 0;
+      const cBranch =
+        typeof cCfg.branchCount === 'number' ? cCfg.branchCount : 2;
+      const cEffective = cMax > 0 ? cMax : cBranch;
+      const product = myEffective * cEffective;
+      if (product > PARALLEL_NESTED_CONCURRENCY_CAP_FOR_RULE) {
+        return {
+          message: `Parallel "${node.label ?? node.type}" (effective=${myEffective}) × nested Parallel "${child.label ?? child.type}" (effective=${cEffective}) = ${product} > cap=${PARALLEL_NESTED_CONCURRENCY_CAP_FOR_RULE}. Runtime will silently clamp the inner concurrency.`,
+        };
+      }
+    }
+    return null;
+  },
+};
+
 export const parallelNodeMetadata: NodeComponentMetadata = {
   type: 'parallel',
   category: 'logic',
@@ -173,6 +279,13 @@ export const parallelNodeMetadata: NodeComponentMetadata = {
       when: 'branchCount < 2 || branchCount > 16',
       message: 'branchCount must be 2 to 16.',
     },
+  ],
+  // parallel-p2 결정 D + E + I (2026-05-30). 본 PR 은 등재만 — workflow save
+  // endpoint / frontend canvas 의 평가 호출은 후속 PR. runtime planParallelBody
+  // (PARALLEL_NESTED_DEPTH_EXCEEDED throw) 와 메시지 의미 일관성 보장.
+  graphWarningRules: [
+    parallelNestedDepthExceededRule,
+    parallelNestedConcurrencyCapRule,
   ],
   validateConfig: validateParallelConfig,
 };

@@ -214,6 +214,184 @@ describe('Parallel node', () => {
     });
   });
 
+  describe('graphWarningRules (parallel-p2 결정 D + E + I)', () => {
+    type GraphNode = {
+      id: string;
+      type: string;
+      label?: string;
+      config?: Record<string, unknown>;
+    };
+    type GraphEdge = {
+      id: string;
+      sourceNodeId: string;
+      targetNodeId: string;
+      sourcePort: string;
+    };
+    const mkN = (n: GraphNode) =>
+      n as unknown as Parameters<
+        NonNullable<
+          typeof parallelNodeMetadata.graphWarningRules
+        >[number]['evaluate']
+      >[0];
+    const mkG = (nodes: GraphNode[], edges: GraphEdge[]) => ({
+      nodes: nodes as unknown as readonly Parameters<
+        NonNullable<
+          typeof parallelNodeMetadata.graphWarningRules
+        >[number]['evaluate']
+      >[1]['nodes'][number][],
+      edges: edges as unknown as readonly Parameters<
+        NonNullable<
+          typeof parallelNodeMetadata.graphWarningRules
+        >[number]['evaluate']
+      >[1]['edges'][number][],
+    });
+    const rules = parallelNodeMetadata.graphWarningRules ?? [];
+    const depthRule = rules.find(
+      (r) => r.id === 'parallel:nested-depth-exceeded',
+    )!;
+    const capRule = rules.find(
+      (r) => r.id === 'parallel:nested-concurrency-cap',
+    )!;
+
+    it('depth-exceeded: depth=2 (outer→inner) 는 통과', () => {
+      const outer: GraphNode = { id: 'p1', type: 'parallel' };
+      const inner: GraphNode = { id: 'p2', type: 'parallel' };
+      const term: GraphNode = { id: 't', type: 'http' };
+      const edges: GraphEdge[] = [
+        {
+          id: 'e1',
+          sourceNodeId: 'p1',
+          targetNodeId: 'p2',
+          sourcePort: 'branch_0',
+        },
+        {
+          id: 'e2',
+          sourceNodeId: 'p2',
+          targetNodeId: 't',
+          sourcePort: 'branch_0',
+        },
+      ];
+      expect(
+        depthRule.evaluate(mkN(outer), mkG([outer, inner, term], edges)),
+      ).toBeNull();
+    });
+
+    it('depth-exceeded: depth=3 (outer→inner→innermost) 는 error', () => {
+      const outer: GraphNode = { id: 'p1', type: 'parallel', label: 'Outer' };
+      const inner: GraphNode = { id: 'p2', type: 'parallel', label: 'Inner' };
+      const innermost: GraphNode = {
+        id: 'p3',
+        type: 'parallel',
+        label: 'Innermost',
+      };
+      const edges: GraphEdge[] = [
+        {
+          id: 'e1',
+          sourceNodeId: 'p1',
+          targetNodeId: 'p2',
+          sourcePort: 'branch_0',
+        },
+        {
+          id: 'e2',
+          sourceNodeId: 'p2',
+          targetNodeId: 'p3',
+          sourcePort: 'branch_0',
+        },
+      ];
+      const result = depthRule.evaluate(
+        mkN(outer),
+        mkG([outer, inner, innermost], edges),
+      );
+      expect(result).not.toBeNull();
+      expect(result!.message).toContain('Outer');
+      expect(result!.message).toContain('Inner');
+      expect(result!.message).toContain('Innermost');
+      expect(result!.message).toContain('depth > 2');
+    });
+
+    it('depth-exceeded: non-parallel 노드는 평가 skip', () => {
+      const httpNode: GraphNode = { id: 'h', type: 'http' };
+      expect(depthRule.evaluate(mkN(httpNode), mkG([httpNode], []))).toBeNull();
+    });
+
+    it('concurrency-cap: 외부 × 내부 ≤ 32 통과', () => {
+      const outer: GraphNode = {
+        id: 'p1',
+        type: 'parallel',
+        config: { branchCount: 4, maxConcurrency: 4 },
+      };
+      const inner: GraphNode = {
+        id: 'p2',
+        type: 'parallel',
+        config: { branchCount: 8, maxConcurrency: 8 }, // 4 × 8 = 32
+      };
+      const edges: GraphEdge[] = [
+        {
+          id: 'e1',
+          sourceNodeId: 'p1',
+          targetNodeId: 'p2',
+          sourcePort: 'branch_0',
+        },
+      ];
+      expect(
+        capRule.evaluate(mkN(outer), mkG([outer, inner], edges)),
+      ).toBeNull();
+    });
+
+    it('concurrency-cap: 외부 × 내부 > 32 면 warning', () => {
+      const outer: GraphNode = {
+        id: 'p1',
+        type: 'parallel',
+        label: 'Outer',
+        config: { branchCount: 8, maxConcurrency: 8 },
+      };
+      const inner: GraphNode = {
+        id: 'p2',
+        type: 'parallel',
+        label: 'Inner',
+        config: { branchCount: 8, maxConcurrency: 8 }, // 8 × 8 = 64 > 32
+      };
+      const edges: GraphEdge[] = [
+        {
+          id: 'e1',
+          sourceNodeId: 'p1',
+          targetNodeId: 'p2',
+          sourcePort: 'branch_0',
+        },
+      ];
+      const result = capRule.evaluate(mkN(outer), mkG([outer, inner], edges));
+      expect(result).not.toBeNull();
+      expect(result!.message).toMatch(/64/);
+      expect(result!.message).toMatch(/cap=32/);
+      expect(result!.message).toContain('Outer');
+      expect(result!.message).toContain('Inner');
+    });
+
+    it('concurrency-cap: maxConcurrency=0 일 때 branchCount 를 effective 로 사용', () => {
+      const outer: GraphNode = {
+        id: 'p1',
+        type: 'parallel',
+        config: { branchCount: 16, maxConcurrency: 0 }, // effective = 16
+      };
+      const inner: GraphNode = {
+        id: 'p2',
+        type: 'parallel',
+        config: { branchCount: 4, maxConcurrency: 0 }, // effective = 4. 16 × 4 = 64
+      };
+      const edges: GraphEdge[] = [
+        {
+          id: 'e1',
+          sourceNodeId: 'p1',
+          targetNodeId: 'p2',
+          sourcePort: 'branch_0',
+        },
+      ];
+      expect(
+        capRule.evaluate(mkN(outer), mkG([outer, inner], edges)),
+      ).not.toBeNull();
+    });
+  });
+
   describe('handler.execute', () => {
     const handler = new ParallelHandler();
     const ctx = {
