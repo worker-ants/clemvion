@@ -18,6 +18,10 @@ model: sonnet
 
 현재 worktree 확인 ([`.claude/docs/worktree-policy.md`](../../docs/worktree-policy.md)). main 워크트리에서 호출되면 worktree 안내 후 거부.
 
+**백그라운드(bg) 세션이면 `EnterWorktree` *툴* 로 격리됐는지 확인** — 셸 `cd` 만으로는 부족하다. 부모 bg 세션이 isolate 되지 않으면 harness `worktree.bgIsolation` 가드가 **Workflow sub-agent (reviewer·summary·resolution-applier) 의 공유 체크아웃 write 를 전부 차단**한다. 미격리 bg 세션에서 본 skill 을 돌리면 reviewer output_file·SUMMARY·후속 fix write 가 막히므로, 먼저 `EnterWorktree` 로 부모 세션을 격리한 뒤 진행한다. (배경: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md).)
+
+> **자동 트리거(구현 완료 후) vs 대화형 호출**: `developer` 의 REVIEW WORKFLOW 가 자동으로 본 skill 을 트리거한 경우, 이는 **상시 승인된 강제 의무**이지 사용자가 추론하게 한 비싼 scale 이 아니다 (CLAUDE.md §외부 LLM 호출 정책 — standing opt-in). Workflow 의 "명시 opt-in 시에만" 가드 때문에 미루지 말 것. 비동기 task-notification 간극을 피하고 싶으면 자동 트리거 시 §(fallback) 평문 Agent fan-out 경로를 택할 수 있다 — 한 번에 완주하고 SUMMARY 를 같은 흐름에서 받는다. 사용자가 직접 `/ai-review` 를 친 대화형 호출은 Workflow 경로(§2)가 자연스럽다.
+
 ### 1. 세션 준비 (model 호출 없음)
 
 ```bash

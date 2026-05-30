@@ -82,4 +82,12 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 
 auxiliary Python 스크립트(예: `.claude/skills/**/scripts/*orchestrator*.py`)는 **여전히 model 을 직접 호출하지 않는다** — 세션 준비·상태 파일 관리만. model 호출은 위 두 tool 중 하나로 main Claude 가 수행한다.
 
+### 구현 완료 후 자동 review/fix 는 상시 승인된 강제 의무 (standing opt-in)
+
+`Workflow` tool 의 일반 가드는 "사용자가 명시적으로 multi-agent orchestration 에 opt-in 했을 때만 호출" 하라고 한다. 이는 **임의 작업에 대한 비용 보호**다. 그러나 **구현(`developer`) 완료 후의 `/ai-review` + critical/warning fix 는 그 가드의 예외** — 본 프로젝트가 **상시 사전 승인한 강제 단계**다 (developer SKILL §REVIEW WORKFLOW, hook 강제). 따라서:
+
+- 구현이 끝나면 `/ai-review` 를 "범위가 커 보인다 / 사용자가 이번 턴에 명시 안 했다" 는 이유로 미루지 않는다. 이 자동 리뷰는 "추론된 scale" 이 아니라 **명시 규약**이므로 Workflow opt-in 가드에 걸리지 않는다.
+- 마찬가지로 SUMMARY 의 Critical/Warning 에 대한 `resolution-applier` fix 도 같은 턴의 강제 의무다.
+- **자동 트리거(구현 완료 후) 시에는** Workflow 의 비동기 간극을 피하기 위해 `code-review-agents` SKILL 의 **fallback 평문 Agent fan-out 경로**를 선택할 수 있다 — 사용자가 명시적으로 `/ai-review` 를 친 경우(대화형)는 Workflow 경로가 자연스럽다.
+
 Sub-agent 호출 규약(prompt_file/output_file/STATUS 라인) + 한도 무한 재시도 정책: [`.claude/docs/subagent-call-contract.md`](.claude/docs/subagent-call-contract.md).
