@@ -991,11 +991,30 @@ export class IntegrationOAuthService {
       headers.Authorization = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
     }
 
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers,
-      body: form.toString(),
-    });
+    // 10s 타임아웃 — 토큰 endpoint hang 시 무한 대기 방지 (cafe24-api.client
+    // bounded-fetch 동일 패턴). abort 시 AbortError 가 surface 된다.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    let response: Response;
+    try {
+      response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers,
+        body: form.toString(),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      const aborted = err instanceof Error && err.name === 'AbortError';
+      this.logger.warn(
+        `OAuth token exchange ${aborted ? 'timed out' : 'transport error'} for ${provider}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new BadRequestException({
+        code: 'OAUTH_TOKEN_EXCHANGE_FAILED',
+        message: 'Failed to exchange authorization code for access token',
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
       const body = await safeReadBody(response);

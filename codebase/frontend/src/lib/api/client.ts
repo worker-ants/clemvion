@@ -80,11 +80,6 @@ async function doRefresh(): Promise<string | null> {
 
 // Shared refresh entry point — deduplicates concurrent calls from AuthProvider and interceptor
 export function refreshAccessToken(): Promise<string | null> {
-  // DEBUG: Remove after verifying
-  console.log("[DEBUG refreshAccessToken]", {
-    hasExistingPromise: !!refreshPromise,
-    caller: new Error().stack?.split("\n")[2]?.trim(),
-  });
   if (!refreshPromise) {
     refreshPromise = doRefresh().finally(() => {
       refreshPromise = null;

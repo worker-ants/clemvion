@@ -26,6 +26,7 @@ import {
 import { EdgesService } from './edges.service';
 import { CreateEdgeDto } from './dto/create-edge.dto';
 import { EdgeDto } from './dto/responses/edge-response.dto';
+import { WorkspaceId } from '../../common/decorators';
 
 @ApiTags('Edges')
 @ApiBearerAuth('access-token')
@@ -45,8 +46,11 @@ export class EdgesController {
   })
   @ApiOkWrappedArrayResponse(EdgeDto, { description: '엣지 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  async findByWorkflow(@Param('workflowId', ParseUUIDPipe) workflowId: string) {
-    return this.edgesService.findByWorkflow(workflowId);
+  async findByWorkflow(
+    @Param('workflowId', ParseUUIDPipe) workflowId: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    return this.edgesService.findByWorkflow(workflowId, workspaceId);
   }
 
   @Post('workflows/:workflowId/edges')
@@ -68,9 +72,10 @@ export class EdgesController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async create(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
+    @WorkspaceId() workspaceId: string,
     @Body() dto: CreateEdgeDto,
   ) {
-    return this.edgesService.create(workflowId, dto);
+    return this.edgesService.create(workflowId, workspaceId, dto);
   }
 
   @Delete('edges/:id')
@@ -83,7 +88,10 @@ export class EdgesController {
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 엣지를 찾을 수 없음' })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.edgesService.remove(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @WorkspaceId() workspaceId: string,
+  ) {
+    await this.edgesService.remove(id, workspaceId);
   }
 }

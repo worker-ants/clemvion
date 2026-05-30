@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
 import Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class HealthService {
+export class HealthService implements OnModuleDestroy {
   private redis: Redis;
   private startTime: number;
 
@@ -26,6 +26,11 @@ export class HealthService {
       lazyConnect: true,
     });
     this.startTime = Date.now();
+  }
+
+  onModuleDestroy(): void {
+    // 모듈 종료 시 ioredis 연결을 정리 — connection leak 방지.
+    void this.redis.quit();
   }
 
   async check() {

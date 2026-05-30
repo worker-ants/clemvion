@@ -725,10 +725,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const edgeId = String(args.id ?? "");
       if (!edgeId) return;
       s.pushUndo();
-      set((state) => ({
-        edges: state.edges.filter((e) => e.id !== edgeId),
-        isDirty: true,
-      }));
+      set((state) => {
+        const nextEdges = state.edges.filter((e) => e.id !== edgeId);
+        // Re-derive container assignments so removing this wire doesn't leave
+        // stale containerId values behind (engine would otherwise reject with
+        // CONTAINER_MISSING_EMIT / CONTAINER_INVALID_CHILD). Mirrors the
+        // edge-removal handling in onEdgesChange.
+        const nextNodes = deriveContainerAssignments(state.nodes, nextEdges);
+        return {
+          edges: nextEdges,
+          nodes: nextNodes,
+          isDirty: true,
+        };
+      });
     }
   },
 
@@ -770,7 +779,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
 
       await workflowsApi.saveCanvas(workflowId, payload);
-      set((state) => ({ isDirty: false, saveCount: state.saveCount + 1 }));
+      // Edits made during the in-flight save are persisted with the next save,
+      // not this one. Only clear isDirty if the canvas still matches what we
+      // actually sent; otherwise the in-flight edits remain unsaved-dirty.
+      set((state) => {
+        const stillEqual =
+          state.nodes.length === nodes.length &&
+          state.edges.length === edges.length &&
+          JSON.stringify(state.nodes) === JSON.stringify(nodes) &&
+          JSON.stringify(state.edges) === JSON.stringify(edges);
+        return {
+          isDirty: stillEqual ? false : state.isDirty,
+          saveCount: state.saveCount + 1,
+        };
+      });
       return true;
     } catch (error) {
       console.error("Save failed:", error);
