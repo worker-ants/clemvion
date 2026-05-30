@@ -1,9 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { Node, Edge } from "@xyflow/react";
 
+// vi.hoisted 로 mock 변수를 hoisting 안전하게 정의 (vi.mock factory 참조 허용)
+const { graphWarningsMock } = vi.hoisted(() => ({
+  graphWarningsMock: vi.fn(),
+}));
+
 vi.mock("../../api/workflows", () => ({
   workflowsApi: {
     saveCanvas: vi.fn(),
+    graphWarnings: graphWarningsMock,
   },
 }));
 
@@ -338,6 +344,60 @@ describe("useEditorStore", () => {
       expect(useEditorStore.getState().nodes[0].data.config).toEqual({
         timeout: 30,
       });
+    });
+  });
+
+  // SUMMARY#17 — fetchGraphWarnings 액션 테스트
+  describe("fetchGraphWarnings", () => {
+    beforeEach(() => {
+      graphWarningsMock.mockReset();
+      useEditorStore.setState({
+        ...initialState,
+        workflowId: "wf-1",
+        graphWarnings: undefined,
+      } as never);
+    });
+
+    it("early returns without API call when workflowId is null", async () => {
+      useEditorStore.setState({ workflowId: null } as never);
+      await useEditorStore.getState().fetchGraphWarnings();
+      expect(graphWarningsMock).not.toHaveBeenCalled();
+    });
+
+    it("sets graphWarnings state on success", async () => {
+      const responseBody = {
+        results: [{ ruleId: "r1", severity: "error", nodeId: "n1", message: "err" }],
+        hasError: true,
+        hasWarning: false,
+      };
+      graphWarningsMock.mockResolvedValue({ data: responseBody });
+      await useEditorStore.getState().fetchGraphWarnings();
+      expect(useEditorStore.getState().graphWarnings).toEqual(responseBody);
+    });
+
+    it("preserves existing graphWarnings state on failure (silent warn)", async () => {
+      const existing = {
+        results: [],
+        hasError: false,
+        hasWarning: false,
+      };
+      useEditorStore.setState({ graphWarnings: existing } as never);
+      graphWarningsMock.mockRejectedValue(new Error("network error"));
+      await useEditorStore.getState().fetchGraphWarnings();
+      // 실패 시 기존 결과 유지 (saveCanvas 차단을 막기 위해)
+      expect(useEditorStore.getState().graphWarnings).toEqual(existing);
+    });
+
+    it("handles response.data === undefined by falling back to response itself", async () => {
+      const responseBody = {
+        results: [],
+        hasError: false,
+        hasWarning: true,
+      };
+      // data 없는 응답 (direct body)
+      graphWarningsMock.mockResolvedValue(responseBody);
+      await useEditorStore.getState().fetchGraphWarnings();
+      expect(useEditorStore.getState().graphWarnings).toEqual(responseBody);
     });
   });
 });

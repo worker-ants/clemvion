@@ -205,9 +205,8 @@ export class ParallelExecutor {
       // 첫 (root cause) failure 를 가장 먼저 throw — AbortError 는 후속 분기의
       // cleanup 결과이므로 사용자 메시지의 신호 대 잡음을 위해 root 만 노출.
       const rootCause =
-        failures.find(
-          (f) => f.error.name !== 'AbortError' && f.error.name !== 'AbortError',
-        )?.error ?? failures[0].error;
+        failures.find((f) => f.error.name !== 'AbortError')?.error ??
+        failures[0].error;
       throw rootCause;
     }
 

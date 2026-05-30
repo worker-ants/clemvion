@@ -116,4 +116,25 @@ describe("EditorToolbar — RBAC", () => {
     expect(await screen.findByText(/export/i)).toBeInTheDocument();
     expect(screen.queryByText(/delete/i)).toBeNull();
   });
+
+  // SUMMARY#18 — hasError: true 시 Save 버튼 disabled 및 title 검증
+  it("Editor: Save 버튼이 graphWarnings.hasError=true 일 때 disabled", () => {
+    // hasError=true 상태로 editorState 재설정
+    Object.assign(editorState, {
+      graphWarnings: {
+        results: [{ ruleId: "r1", severity: "error", nodeId: "n1", message: "Graph error occurred" }],
+        hasError: true,
+        hasWarning: false,
+      },
+    });
+    setRole("editor");
+    renderToolbar();
+    const saveBtn = screen.getByRole("button", { name: /save/i });
+    expect(saveBtn).toBeDisabled();
+    expect(saveBtn).toHaveAttribute("title", "Graph error occurred");
+    // 테스트 후 초기화
+    Object.assign(editorState, {
+      graphWarnings: { results: [], hasError: false, hasWarning: false },
+    });
+  });
 });
