@@ -1123,6 +1123,104 @@ describe('HttpRequestHandler', () => {
       expect(result.output.requestBodyType).toBe('json');
       expect(result.output.responseHeaders).toBeUndefined();
     });
+
+    describe('cancellation — context.abortSignal cascade (parallel-p2 결정 A + H)', () => {
+      it('already-aborted upstream signal aborts the fetch immediately', async () => {
+        let observedSignal: AbortSignal | undefined;
+        global.fetch = jest
+          .fn()
+          .mockImplementation((_url, init: RequestInit) => {
+            observedSignal = init.signal as AbortSignal | undefined;
+            return Promise.reject(
+              Object.assign(new Error('aborted'), { name: 'AbortError' }),
+            );
+          });
+
+        const upstream = new AbortController();
+        upstream.abort();
+        const cancellingContext: ExecutionContext = {
+          ...context,
+          abortSignal: upstream.signal,
+        };
+
+        await expect(
+          handler.execute(
+            null,
+            { method: 'GET', url: 'https://api.example.com/ping' },
+            cancellingContext,
+          ),
+        ).resolves.toBeDefined();
+
+        expect(observedSignal).toBeDefined();
+        expect(observedSignal!.aborted).toBe(true);
+      });
+
+      it('upstream abort fired during fetch cascades to the fetch controller', async () => {
+        let observedSignal: AbortSignal | undefined;
+        const fetchPromise = new Promise<Response>(() => {
+          /* never resolves; controller abort surfaces it */
+        });
+        global.fetch = jest
+          .fn()
+          .mockImplementation((_url, init: RequestInit) => {
+            observedSignal = init.signal as AbortSignal | undefined;
+            observedSignal!.addEventListener('abort', () => {
+              // simulate fetch rejecting on abort
+              (fetchPromise as unknown as { _reject?: () => void })._reject?.();
+            });
+            return new Promise((_, reject) => {
+              observedSignal!.addEventListener('abort', () =>
+                reject(
+                  Object.assign(new Error('aborted'), { name: 'AbortError' }),
+                ),
+              );
+            });
+          });
+
+        const upstream = new AbortController();
+        const cancellingContext: ExecutionContext = {
+          ...context,
+          abortSignal: upstream.signal,
+        };
+
+        const exec = handler.execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/long' },
+          cancellingContext,
+        );
+        // fire upstream abort after handler.execute started
+        setTimeout(() => upstream.abort(), 10);
+        await expect(exec).resolves.toBeDefined();
+
+        expect(observedSignal!.aborted).toBe(true);
+      });
+
+      it('no upstream signal — fetch controller behaves as today (no regression)', async () => {
+        let observedSignal: AbortSignal | undefined;
+        global.fetch = jest
+          .fn()
+          .mockImplementation((_url, init: RequestInit) => {
+            observedSignal = init.signal as AbortSignal | undefined;
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              text: jest.fn().mockResolvedValue('ok'),
+              json: jest.fn().mockResolvedValue({}),
+              headers: { get: jest.fn().mockReturnValue(null) },
+            });
+          });
+
+        await handler.execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/data' },
+          context, // no abortSignal
+        );
+
+        expect(observedSignal).toBeDefined();
+        // controller is only aborted on timeout (not within this test window)
+        expect(observedSignal!.aborted).toBe(false);
+      });
+    });
   });
 });
 
