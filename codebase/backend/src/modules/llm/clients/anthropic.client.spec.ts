@@ -395,4 +395,50 @@ describe('AnthropicClient.stream', () => {
       });
     });
   });
+
+  // SUMMARY#15 — chat() 에 signal 전달 경로 테스트
+  describe('AnthropicClient.chat — signal propagation', () => {
+    function makeNonStreamingClient(): {
+      client: AnthropicClient;
+      createMock: jest.Mock;
+    } {
+      const client = new AnthropicClient(
+        'sk-test',
+        'claude-haiku-4-5-20251001',
+      );
+      const createMock = jest.fn().mockResolvedValue({
+        content: [{ type: 'text', text: 'ok' }],
+        stop_reason: 'end_turn',
+        model: 'claude-haiku-4-5-20251001',
+        usage: { input_tokens: 5, output_tokens: 3 },
+      });
+      // @ts-expect-error — stub
+      client.client = { messages: { create: createMock } };
+      return { client, createMock };
+    }
+
+    it('passes { signal } to SDK create when signal is provided', async () => {
+      const { client, createMock } = makeNonStreamingClient();
+      const controller = new AbortController();
+      await client.chat(
+        {
+          model: 'claude-haiku-4-5-20251001',
+          messages: [{ role: 'user', content: 'hi' }],
+        },
+        controller.signal,
+      );
+      expect(createMock).toHaveBeenCalledWith(expect.anything(), {
+        signal: controller.signal,
+      });
+    });
+
+    it('passes undefined options to SDK create when no signal is provided', async () => {
+      const { client, createMock } = makeNonStreamingClient();
+      await client.chat({
+        model: 'claude-haiku-4-5-20251001',
+        messages: [{ role: 'user', content: 'hi' }],
+      });
+      expect(createMock).toHaveBeenCalledWith(expect.anything(), undefined);
+    });
+  });
 });

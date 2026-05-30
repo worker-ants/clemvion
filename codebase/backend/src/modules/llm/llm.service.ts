@@ -305,6 +305,10 @@ export class LlmService {
         return await fn();
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        // AbortError 는 retry 대상이 아님 — abort 이후 LLM retry 낭비 방지
+        if (lastError.name === 'AbortError') {
+          throw lastError;
+        }
         const isRateLimit =
           lastError.message.includes('429') ||
           lastError.message.toLowerCase().includes('rate limit');

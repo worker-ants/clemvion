@@ -190,7 +190,8 @@ export const workflowsApi = {
    * hasError / hasWarning 받음. severity error 가 하나라도 있으면 canvas 가
    * 저장 버튼 disable + 노드 배지. SoT: spec/conventions/cross-node-warning-rules.md.
    */
-  graphWarnings: (workflowId: string) =>
+  // SUMMARY#4: signal 매개변수 추가 — AbortController 로 in-flight 요청 취소 가능
+  graphWarnings: (workflowId: string, options?: { signal?: AbortSignal }) =>
     apiClient.get<{
       results: Array<{
         ruleId: string;
@@ -200,7 +201,7 @@ export const workflowsApi = {
       }>;
       hasError: boolean;
       hasWarning: boolean;
-    }>(`/workflows/${workflowId}/graph-warnings`),
+    }>(`/workflows/${workflowId}/graph-warnings`, { signal: options?.signal }),
 
   exportWorkflow: (id: string) =>
     apiClient.get<{ data: ExportedWorkflow }>(`/workflows/${id}/export`),

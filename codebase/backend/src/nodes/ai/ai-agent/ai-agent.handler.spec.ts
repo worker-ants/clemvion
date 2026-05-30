@@ -910,6 +910,30 @@ describe('AiAgentHandler', () => {
       // Stage 5: single_turn now emits `status:'ended'` for observability.
       expect(r.status).toBe('ended');
     });
+
+    // SUMMARY#16 — executeSingleTurn 이 context.abortSignal 을 llmService.chat opts.signal 로 전달하는지 검증
+    it('passes context.abortSignal as opts.signal to llmService.chat', async () => {
+      const controller = new AbortController();
+      const ctxWithSignal = makeExecutionContext({
+        executionId: 'exec-signal',
+        workflowId: 'wf-1',
+        variables: { __workspaceId: 'ws-1' },
+        abortSignal: controller.signal,
+      });
+      await handler.execute(
+        {},
+        { systemPrompt: 'You are helpful', userPrompt: 'Hi' },
+        ctxWithSignal,
+      );
+      const chatCallArgs = mockLlmService.chat.mock.calls[
+        mockLlmService.chat.mock.calls.length - 1
+      ] as unknown[];
+      // llmService.chat(llmConfig, params, context?, opts?)
+      // opts is the 4th argument (index 3)
+      const opts = chatCallArgs[3] as Record<string, unknown>;
+      expect(opts).toBeDefined();
+      expect(opts.signal).toBe(controller.signal);
+    });
   });
 
   describe('execute - multi_turn', () => {

@@ -61,6 +61,12 @@ PR #368 가 backend 인프라 + `GET /workflows/:id/graph-warnings` endpoint 까
 - 통합 테스트로 cancel-others-on-fail + 3층 중첩 reject 잠금
 - ai-review Critical/Warning 0
 
+### 6. GRAPH_VALIDATION_FAILED 사용자 문서 갱신 (ai-review SUMMARY#20)
+
+- [ ] `backend-labels.ts` `ERROR_KO` 매핑 테이블이 신설되면 `GRAPH_VALIDATION_FAILED` 한국어 매핑 추가 (현재 영문 노출)
+- [ ] user-guide MDX (`05-run-and-debug/` 또는 노드별 캔버스 안내 페이지) 에 graph validation 에러 응답 안내 추가
+- [ ] `GET /workflows/:id/graph-warnings` 엔드포인트를 API 참조 가이드(user-guide 존재 시)에 반영
+
 ## 의존성·리스크
 
 - DB driver / SDK 의 signal 지원 부재 가능성 — best-effort 컨벤션 (spec/conventions/node-cancellation.md) 으로 명시. driver 별 cancel 메커니즘 조사 필요

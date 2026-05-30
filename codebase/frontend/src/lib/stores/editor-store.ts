@@ -410,6 +410,10 @@ function propagateContainerInMap(
   return changed;
 }
 
+// SUMMARY#4: fetchGraphWarnings in-flight 요청 경쟁 조건 해소 — 새 요청 시작 전
+// 이전 in-flight 요청을 abort 해 stale 응답이 최신 상태를 덮어쓰지 않도록 한다.
+let _graphWarningsAbortController: AbortController | null = null;
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   workflowId: null,
   workflowName: "Untitled Workflow",
@@ -779,8 +783,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   fetchGraphWarnings: async () => {
     const { workflowId } = get();
     if (!workflowId) return;
+    // SUMMARY#4: 이전 in-flight 요청 abort — race condition 방어
+    _graphWarningsAbortController?.abort();
+    _graphWarningsAbortController = new AbortController();
+    const { signal } = _graphWarningsAbortController;
     try {
-      const response = await workflowsApi.graphWarnings(workflowId);
+      const response = await workflowsApi.graphWarnings(workflowId, { signal });
+      if (signal.aborted) return; // 응답 도착 시 이미 abort 됐으면 상태 갱신 skip
       const body = (response.data ?? response) as {
         results: Array<{
           ruleId: string;
@@ -793,6 +802,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
       set({ graphWarnings: body });
     } catch (error) {
+      if (signal.aborted) return; // AbortError — 후속 요청이 있으므로 무시
       // 평가 실패는 경고만 — 저장 차단까지 가지 않음 (backend 단의 reject 가
       // 안전망). 새 그래프 상태에 대한 평가가 실패한 경우 기존 결과 유지.
       console.warn("fetchGraphWarnings failed", error);

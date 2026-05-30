@@ -81,6 +81,44 @@ export class CanvasSaveResultDto {
 }
 
 /**
+ * 개별 graph warning rule 평가 결과.
+ */
+export class GraphWarningResultDto {
+  /** 규칙 ID (예: `parallel:nested-depth-exceeded`) */
+  @ApiProperty({ example: 'parallel:nested-depth-exceeded' })
+  ruleId: string;
+
+  /** 심각도 */
+  @ApiProperty({ enum: ['error', 'warning'] })
+  severity: 'error' | 'warning';
+
+  /** 위반한 노드 UUID */
+  @ApiProperty({ format: 'uuid' })
+  nodeId: string;
+
+  /** 사용자 노출 메시지 */
+  @ApiProperty({ example: 'Nested parallel depth exceeds limit' })
+  message: string;
+}
+
+/**
+ * GET /workflows/:id/graph-warnings 응답 DTO.
+ */
+export class GraphWarningsResponseDto {
+  /** 규칙 평가 결과 목록 */
+  @ApiProperty({ type: [GraphWarningResultDto] })
+  results: GraphWarningResultDto[];
+
+  /** severity=error 가 1건 이상 있으면 true — 저장 버튼 disable 기준 */
+  @ApiProperty()
+  hasError: boolean;
+
+  /** severity=warning 가 1건 이상 있으면 true — 노란 배지 표시 기준 */
+  @ApiProperty()
+  hasWarning: boolean;
+}
+
+/**
  * 워크플로우 내보내기 결과 (JSON 포맷).
  */
 export class ExportWorkflowDto {

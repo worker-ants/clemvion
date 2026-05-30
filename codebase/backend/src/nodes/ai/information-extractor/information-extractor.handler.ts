@@ -631,6 +631,9 @@ export class InformationExtractorHandler implements NodeHandler {
       let trace: LlmCallTrace;
       let result: ChatResult;
       try {
+        // TODO(parallel-p2-followups §1): signal 미전파 — runTurnWithCollectionRetries
+        // params chain 에 abortSignal 추가 후 traceChat 3번째 인자로 전달 예정.
+        // 현재 cancel-others-on-fail 발화 시 이 루프 내 LLM 호출은 즉시 abort 되지 않음.
         const call = await this.traceChat(params.llmConfig, {
           model: params.model,
           messages: [...messages],

@@ -56,6 +56,7 @@ import {
   CanvasSaveResultDto,
   ExecuteAcceptedDto,
   ExportWorkflowDto,
+  GraphWarningsResponseDto,
   WorkflowDto,
 } from './dto/responses/workflow-response.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
@@ -114,6 +115,7 @@ export class WorkflowsController {
   }
 
   @Get(':id/graph-warnings')
+  @Roles('viewer')
   @ApiOperation({
     summary: '워크플로우 graph-level warnings 평가',
     description:
@@ -123,6 +125,7 @@ export class WorkflowsController {
   @ApiResponse({
     status: 200,
     description: 'graphWarningRules 평가 결과 (results + summary)',
+    type: GraphWarningsResponseDto,
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })

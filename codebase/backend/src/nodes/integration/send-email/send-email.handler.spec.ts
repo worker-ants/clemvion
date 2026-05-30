@@ -709,5 +709,19 @@ describe('SendEmailHandler', () => {
       expect(result.port).toBe('error');
       expect(result.output.error.message).toMatch(/workspace context/);
     });
+
+    // SUMMARY#14 — abortSignal 사전 체크 경로 단위 테스트
+    it('throws AbortError when context.abortSignal is already aborted', async () => {
+      const handler = new SendEmailHandler();
+      const controller = new AbortController();
+      controller.abort();
+      const abortedCtx: ExecutionContext = {
+        ...makeContext(),
+        abortSignal: controller.signal,
+      };
+      await expect(
+        handler.execute(null, baseConfig, abortedCtx),
+      ).rejects.toMatchObject({ name: 'AbortError' });
+    });
   });
 });
