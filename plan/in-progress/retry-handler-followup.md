@@ -15,11 +15,11 @@ owner: project-planner
 - ✅ **WARNING #9 (retryable 분류)**: HTTP status 기반 재설계 완료 (`fix(execution-engine)` 45ed6fb7).
 - ✅ **spec 정밀화 (#1·#3·#4·#5)**: INVALID_EXECUTION_STATE 코드 / 소비 원자성(트랜잭션 + jsonb key 제거 affected=1) / TTL env / continuation 정책 spec 반영 (`docs(spec)` 2fde08a0 + 정정).
 - ✅ **Phase D 기반 구현** (`feat(execution-engine)` 13dde237): `_retryState` 영속(기존 미구현이었음 — handler/adapter/finalize/strip 전수), error code 3종, `RetryLastTurnError`, 엔진 `retryLastTurn()` 의 검증·atomic consume·새 row spawn. 단위 테스트 348 통과, build 통과.
-- 🔲 **남은 핵심 — multi-turn loop 재진입 + WS wiring (#2 정정)**: WS gateway(다른 인스턴스 가능)는 loop 를 동기 재개 불가 → **재진입은 worker 컨텍스트 필요**. 따라서 `retry_last_turn` 은 **continuation bus(`execution-continuation`) 의 새 job type 으로 worker handoff** 해야 한다 (기존 `## WARNING #2` 의 "경유 여부" 결정 = **경유**로 확정). 필요한 구현:
-  1. `ContinuationJob.type` 에 `retry_last_turn` 추가 + `ContinuationPayload` variant + processor switch case (exhaustiveness `never` 가드 확장).
-  2. WS gateway `execution.retry_last_turn` 핸들러 wiring: 검증→consume→spawn(엔진 `retryLastTurn` 재사용)→bus publish→ack `{resumed:true}`. (현재 엔진 메서드는 spawn 까지만 — publish + worker 재진입 미연결이라 gateway 는 의도적으로 보류 중.)
-  3. worker processor: spawn 된 row 를 `_retryState`→`_resumeState` shape 으로 seed 해 `waitForAiConversation`(또는 §7.5 rehydration 경로) 재진입.
-  4. WARNING #7/#8 의 백엔드 테스트(보존 회귀 가드 + TTL/retryAfter 케이스 — 일부는 13dde237 에 포함) 보강 + e2e.
+- ✅ **multi-turn loop 재진입 + WS wiring (#2 = 경유 확정, 626b4250)**: continuation bus `retry_last_turn` job type + processor case, WS gateway `execution.retry_last_turn` 핸들러(검증→consume→spawn→publish→ack), worker `applyRetryLastTurn`(ExecutionContext rehydrate → `_retryState`→`_resumeState`(credential 재유도) → 실패 last user message replay 로 turn 재실행 → loop 구동 → finalize), state-machine FAILED→RUNNING. TEST WORKFLOW 전부 통과 (lint/build/e2e 127 / backend unit 5176; 재진입 408 신규).
+
+- 🔲 **남은 한계 (신규 followup 항목)**:
+  - **WARNING #10 — 성공 retry 후 downstream 그래프 traversal**: retry 로 대화는 재개되나, AI 노드의 출력 포트에 연결된 하류 노드는 미실행 (성공 종결 시 Execution 을 COMPLETED 로만 마감). 대부분 multi-turn AI 가 terminal 이라 영향 제한적이나, AI 노드 하류가 있는 워크플로는 `resumeFromCheckpoint` 의 reachability/back-edge traversal 을 retry 종결 후에도 돌려야 한다.
+  - **WARNING #11 — 재유도 config 의 expression 미평가**: `applyRetryLastTurn` 이 재유도하는 `node.config` 필드(llmConfigId/maxTurns 등)가 `{{expression}}` 이면 재진입 시 미평가. static config 는 정상. 필요 시 재진입 경로에서 expression resolve 추가.
 
 ## 추적 항목 (SUMMARY WARNING #1~#5, #7, #8, #9)
 
