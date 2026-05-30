@@ -167,6 +167,29 @@ export interface ExecutionContext {
    * 핸들러는 접근하지 않아야 한다.
    */
   _executedNodes?: Set<string>;
+  /**
+   * 노드 단계 cancellation signal (parallel-p2 결정 A + H, 2026-05-30 —
+   * SoT: spec/conventions/node-cancellation.md). 장기 외부 I/O 를 수행하는
+   * 노드 (HTTP / DB / AI / Email / chat-channel) 는 본 signal 을 fetch /
+   * cancel / timeout 등에 전파한다. signal 이 abort 된 경우 노드는 즉시
+   * cleanup 후 `AbortError` 류를 throw — 엔진의 errorPolicyHandler 가
+   * 그 에러를 cancelled 의미로 분류.
+   *
+   * **생산자** (signal 을 만들고 set 하는 caller):
+   *  - `ParallelExecutor` 의 cancel-others-on-fail errorPolicy (parallel-p2 §5)
+   *  - 향후 Workflow 단위 timeout / 사용자 cancel 버튼 / graceful shutdown
+   *
+   * **소비자** (signal 을 fetch / SDK 인자로 전파하는 handler):
+   *  - HTTP — `fetch(url, { signal })`
+   *  - DB — driver 의 cancel 지원 (PostgreSQL `client.cancel()` 등)
+   *  - AI — Anthropic / OpenAI SDK 의 `signal` 옵션
+   *  - signal 미지원 노드 (CPU 바운드 / 즉시 완료) 는 무시 가능 — best-effort
+   *
+   * 미설정 (= 활성 cancellation 컨텍스트 없음) 이면 노드는 평소처럼 동작.
+   * 본 PR 의 범위는 type + HTTP 노드 1개의 signal 전파 — DB / AI / Email /
+   * chat-channel 은 후속 PR 에서 점진 통합.
+   */
+  abortSignal?: AbortSignal;
 }
 
 export interface ValidationResult {

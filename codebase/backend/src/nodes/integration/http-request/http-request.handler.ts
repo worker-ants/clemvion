@@ -328,6 +328,27 @@ export class HttpRequestHandler
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
     fetchOptions.signal = controller.signal;
+    // parallel-p2 결정 A + H (2026-05-30 — SoT: spec/conventions/
+    // node-cancellation.md): context.abortSignal 이 set 되어 있으면 자기 fetch
+    // controller 에 cascade abort 시켜 외부 cancellation (Parallel cancel-
+    // others-on-fail / 향후 Workflow timeout / 사용자 cancel) 을 즉시 반영.
+    const upstream = context.abortSignal;
+    if (upstream) {
+      if (upstream.aborted) {
+        controller.abort();
+      } else {
+        const onUpstreamAbort = () => controller.abort();
+        upstream.addEventListener('abort', onUpstreamAbort, { once: true });
+        // controller 가 timeout / 완료로 abort 될 때 listener 해제 — 메모리
+        // 누수 방지. controller.signal 의 abort 이벤트는 timeout 또는
+        // upstream abort 모두에서 발화하므로 한 곳에서 cleanup.
+        controller.signal.addEventListener(
+          'abort',
+          () => upstream.removeEventListener('abort', onUpstreamAbort),
+          { once: true },
+        );
+      }
+    }
     // Follow redirects manually so that a redirect to an internal host does
     // not bypass `assertSafeOutboundUrl`. We honour up to 5 hops and
     // re-validate each target.

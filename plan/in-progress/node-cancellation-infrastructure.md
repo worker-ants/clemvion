@@ -28,24 +28,23 @@
 
 ### 1. `ExecutionContext.abortSignal?: AbortSignal` 신규 필드
 
-- [ ] `codebase/backend/src/nodes/core/node-handler.interface.ts` 의 `ExecutionContext` 인터페이스에 `abortSignal?: AbortSignal` 추가
-- [ ] JSDoc — "장기 외부 I/O 를 수행하는 노드는 이 signal 을 fetch/cancel/timeout 에 전파. signal 이 abort 된 경우 노드는 즉시 cleanup 후 `AbortError` 류를 throw. signal 미지원 노드 (CPU 바운드 / 즉시 완료) 는 무시 가능 — best-effort."
-- [ ] `signal` 의 소비자/생산자 컨트랙트 명시:
-  - 생산자: `ParallelExecutor` (cancel-others-on-fail), 향후 Workflow timeout, 향후 사용자 cancel 버튼
-  - 소비자: 외부 I/O 노드 핸들러 (HTTP/DB/AI/Email 등)
+- [x] `node-handler.interface.ts` 의 `ExecutionContext` 에 `abortSignal?: AbortSignal` 추가 + JSDoc (생산자/소비자 컨트랙트 명시) — `_executedNodes` 다음에 배치
+- [x] JSDoc 본문: 장기 외부 I/O 전파 의무 / best-effort 의미 / 본 PR 범위 (HTTP 만 — DB / AI / Email / chat-channel 은 후속) 명시
+- [x] spec convention `spec/conventions/node-cancellation.md` 가 SoT — JSDoc 에서 링크
 
 ### 2. ExecutionEngineService 단의 signal 전파
 
-- [ ] `executeNode` 류 함수에서 `handler.execute(input, config, context)` 호출 시 `context.abortSignal` 이 set 되어 있으면 그대로 전달 (이미 ExecutionContext 안에 있으므로 자동 전파)
-- [ ] dispatch 루프에서 `context.abortSignal?.aborted` 사전 체크 — 이미 abort 된 후 dispatch 되는 노드는 skip + `NodeExecution` 상태 `cancelled` 로 기록
-- [ ] `NodeExecution` 엔티티에 `cancelled` status 추가 (`pending` / `running` / `completed` / `failed` 외) — 또는 `failed` + `error.name === 'AbortError'` 로 분류
-- [ ] 통합 테스트 — context.abortSignal 이 abort 된 후 dispatch 되는 노드가 cancelled 상태로 기록되는지
+> **후속 PR**. 본 PR 은 ExecutionContext 필드만 — 엔진은 이미 context 를 dispatch 직전 핸들러에 전달하므로 자동 전파. 사전 abort 체크 / cancelled status 분류 / 통합 테스트는 별 PR.
+
+- [ ] `executeNode` 류에서 dispatch 직전 `context.abortSignal?.aborted` 사전 체크
+- [ ] `NodeExecution.status = 'cancelled'` 추가 또는 `failed + error.name === 'AbortError'` 분류 결정
+- [ ] 통합 테스트
 
 ### 3. HTTP 노드 signal 전파 (최우선)
 
-- [ ] `codebase/backend/src/nodes/integration/http/http.handler.ts` 의 `fetch` 호출에 `signal: context.abortSignal` 추가
-- [ ] abort 시 throw 되는 `AbortError` 를 적절히 분류해 핸들러 return (`{ error: { code: 'ABORTED', message: '...' } }`)
-- [ ] 단위 테스트 — signal abort 시 fetch 가 즉시 중단되는지
+- [x] `http-request.handler.ts` 의 fetch controller 와 `context.abortSignal` cascade — upstream abort 시 controller.abort() 호출, controller 가 abort 됐을 때 upstream listener 해제 (메모리 누수 방지)
+- [x] 기존 fetch 의 timeout AbortController 와 결합 — 두 신호 모두에서 fetch 가 즉시 throw
+- [x] 단위 테스트 3건: 이미 abort 된 upstream / 실행 중 upstream abort cascade / upstream 미설정 시 regression 0
 
 ### 4. Database 노드 signal 전파
 
@@ -69,8 +68,8 @@
 
 ### 7. 통합 시나리오 / spec
 
-- [ ] [`spec/conventions/node-output.md`](../../spec/conventions/node-output.md) 또는 신규 [`spec/conventions/node-cancellation.md`](../../spec/conventions/node-cancellation.md) — cancellation 컨트랙트 명시 (signal 전파 의무 / best-effort / AbortError 처리 / cancelled NodeExecution 상태)
-- [ ] e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal 이 전파되는지
+- [x] 신규 [`spec/conventions/node-cancellation.md`](../../spec/conventions/node-cancellation.md) 작성 — 컨트랙트, 생산자/소비자, signal 전파 흐름, fetch timeout 과의 cascade 패턴, AbortError 분류, 본 PR 범위 / 후속, § Rationale
+- [ ] e2e 테스트 — 다단계 워크플로우에서 외부 cancel signal 이 전파되는지 (후속 PR)
 
 ## 수용 기준
 
