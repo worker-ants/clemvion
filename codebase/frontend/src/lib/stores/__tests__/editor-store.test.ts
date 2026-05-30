@@ -41,6 +41,7 @@ const initialState = {
   selectedNodeId: null,
   undoStack: [],
   redoStack: [],
+  saveCount: 0,
 };
 
 describe("useEditorStore", () => {
