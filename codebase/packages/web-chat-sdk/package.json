@@ -7,7 +7,8 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:loader",
+    "build:loader": "esbuild src/loader-entry.ts --bundle --minify --format=iife --outfile=dist/loader.js",
     "prepare": "[ -d dist ] || tsc",
     "test": "jest",
     "lint": "eslint src/**/*.ts"
@@ -16,6 +17,7 @@
   "devDependencies": {
     "typescript": "^5.7.3",
     "@types/jest": "^30.0.0",
+    "esbuild": "^0.24.0",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
     "ts-jest": "^29.2.5"
