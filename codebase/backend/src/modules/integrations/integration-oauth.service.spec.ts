@@ -413,6 +413,48 @@ describe('IntegrationOAuthService', () => {
         process.env.OAUTH_STUB_MODE = 'true';
       }
     });
+
+    it('surfaces token exchange timeout (AbortError) as OAUTH_TOKEN_EXCHANGE_FAILED', async () => {
+      // 토큰 endpoint hang → AbortController 가 fetch 를 abort. AbortError 가
+      // BadRequestException(OAUTH_TOKEN_EXCHANGE_FAILED) 로 surface 돼야 한다.
+      delete process.env.OAUTH_STUB_MODE;
+      process.env.GOOGLE_CLIENT_ID = 'cid';
+      process.env.GOOGLE_CLIENT_SECRET = 'csec';
+      const originalFetch = global.fetch;
+      const abortErr = new Error('The operation was aborted');
+      abortErr.name = 'AbortError';
+      (global as { fetch: jest.Mock }).fetch = jest
+        .fn()
+        .mockRejectedValue(abortErr);
+      try {
+        dataSource.query.mockResolvedValue([
+          [
+            {
+              provider: 'google',
+              serviceType: 'google',
+              mode: 'new',
+              workspaceId: 'ws-1',
+              userId: 'u-1',
+              requestedScopes: ['scope-1'],
+              integrationId: null,
+              expiresAt: new Date(Date.now() + 60_000),
+            },
+          ],
+          1,
+        ]);
+        const error = await service
+          .handleCallback('google', { code: 'slow-code', state: 'abc' })
+          .catch((e: Error) => e);
+        expect(error).toBeInstanceOf(BadRequestException);
+        const code = (error as { response?: { code?: string } }).response?.code;
+        expect(code).toBe('OAUTH_TOKEN_EXCHANGE_FAILED');
+      } finally {
+        global.fetch = originalFetch;
+        delete process.env.GOOGLE_CLIENT_ID;
+        delete process.env.GOOGLE_CLIENT_SECRET;
+        process.env.OAUTH_STUB_MODE = 'true';
+      }
+    });
   });
 
   describe('handleCallbackWithErrorCapture', () => {

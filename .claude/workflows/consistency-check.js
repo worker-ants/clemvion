@@ -69,15 +69,17 @@ const manifest = checkers
   .map(c => `${c.name}\t${c.status}\t${c.output_file}`)
   .join('\n')
 
-// The summary writes SUMMARY.md itself — exactly like the legacy session_dir path
-// and like the checkers' own output_file writes. All sub-agent writes here are
-// subject to the SAME harness write guard (the `worktree.bgIsolation` guard, which
-// blocks shared-checkout writes when the parent bg session hasn't isolated), so if
-// the checkers were able to write their output_file, the summary can write too.
-// Returning only a short status line keeps the full report OFF the caller's context
-// (no double-loading). If the write IS blocked (e.g. parent bg session not isolated
-// via EnterWorktree), the summary falls back to returning the full markdown prefixed
-// with WRITE_BLOCKED, and the caller persists it — never worse than the old behavior.
+// The summary sub-agent (1) Writes SUMMARY.md to summary_output_file (best-effort)
+// and (2) ALWAYS returns the full merged markdown so this workflow can hand the
+// caller BOTH the on-disk path AND the content. The summary is the LAST agent() call,
+// so its own report-file Write can be blocked by the harness terminal-write guard
+// (parallel checkers — non-terminal — write fine, the terminal summary write is
+// refused), and a workflow SCRIPT has no filesystem access, so the reliable on-disk
+// guarantee is the CALLER doing an idempotent Write of summary_markdown to
+// summary_output (see consistency-checker SKILL §3). summary_markdown is therefore
+// ALWAYS populated — removing the old failure mode where it was null on the
+// write-success path and a skipped caller-write left SUMMARY.md absent.
+const SUMMARY_DELIM = '===SUMMARY_MARKDOWN_BELOW==='
 const summaryReturn = await agent(
   [
     'mode=workflow', // not session_dir mode — authoritative inputs are below
@@ -89,23 +91,29 @@ const summaryReturn = await agent(
     '아닌 checker 는 "재시도 필요" 로 표기. Critical 1건이라도 있으면 상단 BLOCK: YES,',
     '없으면 BLOCK: NO.',
     '',
-    '완성된 SUMMARY.md 를 summary_output_file 에 Write 하세요.',
-    '- Write 성공 시: 보고서 전문을 반환하지 말고 한 줄만 반환 —',
-    '  STATUS=success BLOCK=<YES|NO> PATH=<summary_output_file>',
-    '- Write 차단/실패 시: 첫 줄에 WRITE_BLOCKED 만 출력하고, 이어서 SUMMARY.md',
-    '  마크다운 전문을 반환하세요 (호출자가 대신 기록).',
+    '출력 규약 (반드시 이 순서, 정확히 이 형식):',
+    '1) 완성된 SUMMARY.md 를 summary_output_file 에 Write 시도하세요 (best-effort).',
+    '2) 첫 줄에 status 헤더 — `STATUS=<written|write_blocked> BLOCK=<YES|NO> PATH=<summary_output_file>`',
+    '   (Write 성공이면 written, 차단/실패면 write_blocked).',
+    `3) 둘째 줄에 정확히 \`${SUMMARY_DELIM}\` 한 줄.`,
+    '4) 그 다음부터 SUMMARY.md 마크다운 전문 (Write 성공 여부와 무관하게 항상 포함).',
   ].join('\n'),
   { label: 'summary', phase: 'Summary', agentType: summary.subagent_type },
 )
 
-const summaryWritten = !/WRITE_BLOCKED/.test(summaryReturn || '')
-const blockMatch = /BLOCK[=:]\s*(YES|NO)/i.exec(summaryReturn || '')
+const raw = summaryReturn || ''
+const delimIdx = raw.indexOf(SUMMARY_DELIM)
+const header = (delimIdx >= 0 ? raw.slice(0, delimIdx) : raw).trim()
+const body = delimIdx >= 0 ? raw.slice(delimIdx + SUMMARY_DELIM.length).replace(/^\n/, '') : raw
+const statusLine = header.split('\n')[0] || ''
+const summaryWritten = /STATUS=written/i.test(statusLine)
+const blockMatch = /BLOCK[=:]\s*(YES|NO)/i.exec(statusLine)
 return {
   summary_output: summary.output_file,
   summary_written: summaryWritten,
-  // full markdown is returned only as a fallback (write blocked) for the caller to persist
-  summary_markdown: summaryWritten ? null : (summaryReturn || '').replace(/^[\s\S]*?WRITE_BLOCKED[^\n]*\n?/, ''),
-  summary_status: (summaryReturn || '').split('\n')[0],
+  // ALWAYS the full report markdown — caller persists it to summary_output (idempotent)
+  summary_markdown: body || null,
+  summary_status: statusLine,
   block: blockMatch ? blockMatch[1].toUpperCase() : null,
   checkers: checkers.map(c => ({ name: c.name, status: c.status })),
   unfinished: unfinished.map(c => c.name),

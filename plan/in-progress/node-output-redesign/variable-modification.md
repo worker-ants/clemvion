@@ -127,5 +127,5 @@ Variable Modification 도 **pass-through + side-effect 노드** (단계 1개). v
 ## 종합 개선안 (2026-05-16)
 
 - [ ] (spec) §1 의 `recordValues` 필드와 §5.1 JSON 예시·필드 표에 `config.recordValues` 의 echo 정책 명시 — "항상 echo" (Principle 7 일관) 또는 "true 일 때만 echo" 중 하나. 근거: `variable-modification.handler.ts:88-92` 의 conditional spread 가 Principle 7 와 미세 충돌.
-- [ ] (impl) 위 spec 결정에 따라 `handler.execute` 의 config echo 객체에서 `recordValues` 항상 echo 또는 spec 의도 명시. 근거: `variable-modification.handler.ts:88-92`.
+- [x] (impl) 위 spec 결정에 따라 `handler.execute` 의 config echo 객체에서 `recordValues` 항상 echo 또는 spec 의도 명시. 근거: `variable-modification.handler.ts:88-92`.
 - [ ] (impl) `handler.spec.ts` 에 `recordValues: false` 일 때 `config.recordValues` 가 echo 되는지/되지 않는지 명시 케이스 추가. 근거: spec/impl 결정에 따른 보강.

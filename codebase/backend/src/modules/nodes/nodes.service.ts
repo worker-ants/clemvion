@@ -6,6 +6,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
 import { Node } from './entities/node.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
+import { assertWorkflowInWorkspace } from '../workflows/workflow-ownership.util';
 import { CreateNodeDto } from './dto/create-node.dto';
 import { UpdateNodeDto } from './dto/update-node.dto';
 
@@ -14,34 +16,59 @@ export class NodesService {
   constructor(
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
+    @InjectRepository(Workflow)
+    private readonly workflowRepository: Repository<Workflow>,
   ) {}
 
-  async findByWorkflow(workflowId: string): Promise<Node[]> {
+  async findByWorkflow(
+    workflowId: string,
+    workspaceId: string,
+  ): Promise<Node[]> {
+    await assertWorkflowInWorkspace(
+      this.workflowRepository,
+      workflowId,
+      workspaceId,
+    );
     return this.nodeRepository.find({
       where: { workflowId },
       order: { createdAt: 'ASC' },
     });
   }
 
-  async findById(id: string): Promise<Node> {
-    const node = await this.nodeRepository.findOne({ where: { id } });
-    if (!node) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Node not found',
-      });
-    }
-    return node;
-  }
-
-  async create(workflowId: string, dto: CreateNodeDto): Promise<Node> {
+  async create(
+    workflowId: string,
+    workspaceId: string,
+    dto: CreateNodeDto,
+  ): Promise<Node> {
+    await assertWorkflowInWorkspace(
+      this.workflowRepository,
+      workflowId,
+      workspaceId,
+    );
     await this.assertLabelUnique(workflowId, dto.label);
     const node = this.nodeRepository.create({ ...dto, workflowId });
     return this.saveWithUniqueConstraint(node);
   }
 
-  async update(id: string, dto: UpdateNodeDto): Promise<Node> {
-    const node = await this.findById(id);
+  async update(
+    id: string,
+    workspaceId: string,
+    dto: UpdateNodeDto,
+  ): Promise<Node> {
+    // Single query: load the node with its workflow relation and verify the
+    // workflow belongs to the caller's workspace. A miss (no row, or a row in a
+    // foreign workspace) throws the same NotFoundException so callers cannot
+    // probe foreign-workspace rows (IDOR guard).
+    const node = await this.nodeRepository.findOne({
+      where: { id },
+      relations: ['workflow'],
+    });
+    if (!node || node.workflow?.workspaceId !== workspaceId) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Node not found',
+      });
+    }
     if (dto.label !== undefined && dto.label !== node.label) {
       await this.assertLabelUnique(node.workflowId, dto.label, id);
     }
@@ -49,12 +76,36 @@ export class NodesService {
     return this.saveWithUniqueConstraint(node);
   }
 
-  async remove(id: string): Promise<void> {
-    const node = await this.findById(id);
+  async remove(id: string, workspaceId: string): Promise<void> {
+    // Single query with workflow relation + workspace check (IDOR guard).
+    const node = await this.nodeRepository.findOne({
+      where: { id },
+      relations: ['workflow'],
+    });
+    if (!node || node.workflow?.workspaceId !== workspaceId) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Node not found',
+      });
+    }
     await this.nodeRepository.remove(node);
   }
 
-  async bulkCreate(workflowId: string, dtos: CreateNodeDto[]): Promise<Node[]> {
+  /**
+   * Internal batch helper — has no current HTTP route. If exposed later, the
+   * controller must pass `@WorkspaceId() workspaceId` (the workspace guard
+   * below is already wired) so the cross-workspace IDOR guarantee holds.
+   */
+  async bulkCreate(
+    workflowId: string,
+    workspaceId: string,
+    dtos: CreateNodeDto[],
+  ): Promise<Node[]> {
+    await assertWorkflowInWorkspace(
+      this.workflowRepository,
+      workflowId,
+      workspaceId,
+    );
     // O(n) batch duplicate detection using Set
     const seen = new Set<string>();
     for (const dto of dtos) {

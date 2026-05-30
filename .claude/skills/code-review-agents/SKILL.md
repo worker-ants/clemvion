@@ -69,13 +69,15 @@ Workflow 동작:
 
 ### 3. SUMMARY 기록 + 수렴 분기
 
-Workflow 반환값:
-- `summary_markdown` — 통합 SUMMARY 전문. **main Claude 가 `summary.output_file`(=`<session_dir>/SUMMARY.md`) 에 Write** (workflow/sub-agent 는 못 씀).
-- `reviewers[]` / `skipped[]` / `unfinished[]` / `routing` / `router_decisions`.
+Workflow 반환값 (ai-review.js 가 항상 경로+전문을 함께 반환):
+- `summary_output` — SUMMARY 가 있어야 할 절대경로 (`<session_dir>/SUMMARY.md`).
+- `summary_markdown` — 통합 SUMMARY **전문 (항상 채워짐)**.
+- `summary_written` — workflow 내 summary sub-agent 자체 Write 성공 여부 (terminal write 가드로 false 일 수 있음).
+- `risk` / `critical_count` / `warning_count` / `reviewers[]` / `skipped[]` / `unfinished[]` / `routing` / `router_decisions`.
 
 분기:
-1. SUMMARY.md 기록 후 상단 30줄(또는 `summary_markdown`) 로 전체 위험도 확인.
-2. Critical/Warning > 0 이면 §6 자동 후속 흐름 진입. 아니면 종료 + 1-2문장 보고.
+1. **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. (workflow 의 terminal summary sub-agent write 는 harness 가 차단할 수 있고 workflow 스크립트는 FS 접근이 없으므로, 디스크 단일 진실의 신뢰 경로는 main 의 이 Write 다. 건너뛰면 SUMMARY.md 가 디스크에 없어 review-before-stop 가드가 미해소된다.)
+2. 기록 후 `summary_markdown`(또는 상단 30줄)으로 전체 위험도 확인. Critical/Warning > 0 이면 §6 자동 후속 흐름 진입. 아니면 종료 + 1-2문장 보고.
 3. `unfinished[]` 가 있으면(rate_limit/network) 해당 reviewer 만 재실행 — loop 결합은 §7.
 
 > **재시도 정책 차이**: Workflow 경로는 옛 cross-turn ScheduleWakeup quota 자동 재시도를 갖지 않는다. `unfinished` reviewer 는 main 이 재실행하거나 `/loop` (fallback 경로)로 처리. 한도 상황의 무한 재시도가 꼭 필요하면 아래 fallback 경로 사용.

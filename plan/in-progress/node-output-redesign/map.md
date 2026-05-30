@@ -150,7 +150,7 @@ Map 은 **컨테이너 노드** (반복 변형). 단계 2개:
 
 ## 종합 개선안 (2026-05-16)
 
-- [ ] (impl) `MapHandler.execute` 의 `config` echo 객체에 `errorPolicy` 추가 — `errorPolicy: rawConfig.errorPolicy ?? 'stop'`. 근거: spec §5.1 / §5.2 예시는 `config.errorPolicy: "stop"` 포함, schema default `'stop'`, Principle 7 ("항상 echo"). 현 구현 (`map.handler.ts:56-59`) 누락.
+- [x] (impl) `MapHandler.execute` 의 `config` echo 객체에 `errorPolicy` 추가 — `errorPolicy: rawConfig.errorPolicy ?? 'stop'`. 근거: spec §5.1 / §5.2 예시는 `config.errorPolicy: "stop"` 포함, schema default `'stop'`, Principle 7 ("항상 echo"). 현 구현 (`map.handler.ts:56-59`) 누락.
 - [ ] (impl) Map 컨테이너 finalise 분기에 `meta.iterations` / `meta.skippedCount?` 추가 — Loop/ForEach 와 일관. 근거: `execution-engine.service.ts:4602-4605` 가 `structuredMeta` 미설정 (Loop 의 `:4649-4653` / ForEach 의 `:4567-4572` 와 비대칭).
 - [ ] (spec) 위 `meta.iterations` 추가에 맞춰 §5.2 의 `meta` 표에 `iterations: number`, `skippedCount?: number` 항목 추가. 근거: 컨테이너 4종 공통 메트릭.
 - [ ] (spec) §5.1 (시작 시점) JSON 예시 위에 "이 envelope 은 handler 가 반환하는 raw 형태로, `$node["X"].output` 으로 외부 노출되지 않는다 — 다운스트림은 §5.2 의 `{ mapped, count }` 만 본다" 한 줄 명시. 근거: 잔여 권고 frontmatter + plan §"진단" 의 모호함.

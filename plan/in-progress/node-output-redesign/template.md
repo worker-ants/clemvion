@@ -151,7 +151,7 @@ Template 은 expression resolver 가 `config.template` 을 평가한 결과를 `
 
 ## 종합 개선안 (2026-05-16)
 
-- [ ] (impl) `template.handler.ts:50-53` 의 `configEcho` 에 `helpers: rawConfig.helpers` 추가 — Principle 7 "항상 echo" 부합. 근거: `template.schema.ts:98-101` schema 정의.
+- [x] (impl) `template.handler.ts:50-53` 의 `configEcho` 에 `helpers: rawConfig.helpers` 추가 — Principle 7 "항상 echo" 부합. 근거: `template.schema.ts:98-101` schema 정의.
 - [ ] (spec) HTML sanitize 정책 명시 — spec §1 footnote 가 "작성자 책임" 으로 위임하지만, frontend sandbox 만 의존하는 것이 안전 가정인지 spec 본문에서 cross-check. P1 보안 트랙 진입 시 (a) DOMPurify 등 backend sanitize, (b) `outputFormat === 'html'` 인 경우만 적용, (c) frontend sandbox 만 의존 명시 — 셋 중 결정. 근거: `template.handler.ts:49`.
 - [ ] (impl) `outputFormat` default 의 schema vs handler fallback 차이 (spec §1 caveat) 를 정합화 — handler `:41` 의 `?? 'text'` 를 `?? 'html'` 로 변경하여 schema default 와 일치. 또는 spec footnote 의 caveat 명시 유지 (현 상태). 근거: `template.handler.ts:41` ↔ `template.schema.ts:96`.
 - [ ] (impl) `template` 크기 제한 schema 단계 추가 (예: `.max(100_000)`) — `output.rendered` 가 거대해질 때 메모리 보호. presentation cap (1MB) 보다 작은 임계가 적절. 근거: `template.schema.ts:84-93`.

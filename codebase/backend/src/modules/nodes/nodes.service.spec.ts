@@ -1,12 +1,29 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { NodesService } from './nodes.service';
 import { Node, NodeCategory } from './entities/node.entity';
 
-function makeNode(id: string, label: string, workflowId = 'wf-1'): Node {
+const WS = 'ws-1';
+
+function makeWorkflow(id: string, workspaceId: string) {
+  return { id, workspaceId };
+}
+
+function makeNode(
+  id: string,
+  label: string,
+  workflowId = 'wf-1',
+  workspaceId = WS,
+): Node {
   const node = new Node();
   node.id = id;
   node.label = label;
   node.workflowId = workflowId;
+  // update()/remove() load the node with its `workflow` relation and check
+  // workflow.workspaceId in a single query (IDOR guard).
+  node.workflow = makeWorkflow(
+    workflowId,
+    workspaceId,
+  ) as unknown as Node['workflow'];
   node.type = 'http_request';
   node.category = NodeCategory.INTEGRATION;
   node.positionX = 0;
@@ -19,6 +36,7 @@ function makeNode(id: string, label: string, workflowId = 'wf-1'): Node {
 describe('NodesService', () => {
   let service: NodesService;
   let mockRepo: any;
+  let mockWorkflowRepo: any;
 
   beforeEach(() => {
     mockRepo = {
@@ -28,7 +46,74 @@ describe('NodesService', () => {
       save: jest.fn((node: any) => Promise.resolve(node)),
       remove: jest.fn(),
     };
-    service = new NodesService(mockRepo);
+    mockWorkflowRepo = {
+      // Default: workflow belongs to the caller's workspace.
+      findOne: jest.fn().mockResolvedValue(makeWorkflow('wf-1', WS)),
+    };
+    service = new NodesService(mockRepo, mockWorkflowRepo);
+  });
+
+  describe('cross-workspace authorization (IDOR guard)', () => {
+    it('findByWorkflow throws NotFoundException for a workflow in another workspace', async () => {
+      mockWorkflowRepo.findOne.mockResolvedValue(null);
+      await expect(service.findByWorkflow('wf-other', WS)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('create throws NotFoundException for a workflow in another workspace', async () => {
+      mockWorkflowRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.create('wf-other', WS, {
+          type: 'http_request',
+          category: NodeCategory.INTEGRATION,
+          label: 'HTTP Request',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('update throws NotFoundException when the node belongs to another workspace', async () => {
+      // Single-query path: the node is loaded with its workflow relation; the
+      // workflow lives in a foreign workspace.
+      mockRepo.findOne.mockResolvedValue(
+        makeNode('n1', 'HTTP Request', 'wf-other', 'ws-other'),
+      );
+      await expect(
+        service.update('n1', WS, { label: 'API Call' }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('update throws NotFoundException when the node does not exist', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.update('missing', WS, { label: 'API Call' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('remove throws NotFoundException when the node belongs to another workspace', async () => {
+      // Single-query path: node loaded with workflow relation in a foreign workspace.
+      mockRepo.findOne.mockResolvedValue(
+        makeNode('n1', 'HTTP Request', 'wf-other', 'ws-other'),
+      );
+      await expect(service.remove('n1', WS)).rejects.toThrow(NotFoundException);
+      expect(mockRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('remove throws NotFoundException when the node does not exist', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      await expect(service.remove('missing', WS)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('removes a node in the caller workspace', async () => {
+      mockRepo.findOne.mockResolvedValue(makeNode('n1', 'HTTP Request'));
+      await service.remove('n1', WS);
+      expect(mockRepo.remove).toHaveBeenCalled();
+    });
   });
 
   describe('create', () => {
@@ -37,7 +122,7 @@ describe('NodesService', () => {
       mockRepo.create.mockReturnValue(makeNode('n1', 'HTTP Request', 'wf-1'));
       mockRepo.save.mockResolvedValue(makeNode('n1', 'HTTP Request', 'wf-1'));
 
-      const result = await service.create('wf-1', {
+      const result = await service.create('wf-1', WS, {
         type: 'http_request',
         category: NodeCategory.INTEGRATION,
         label: 'HTTP Request',
@@ -52,7 +137,7 @@ describe('NodesService', () => {
       );
 
       await expect(
-        service.create('wf-1', {
+        service.create('wf-1', WS, {
           type: 'http_request',
           category: NodeCategory.INTEGRATION,
           label: 'HTTP Request',
@@ -67,7 +152,7 @@ describe('NodesService', () => {
       mockRepo.findOne.mockResolvedValue(existing);
       mockRepo.save.mockResolvedValue({ ...existing, config: { url: 'test' } });
 
-      const result = await service.update('n1', {
+      const result = await service.update('n1', WS, {
         label: 'HTTP Request',
         config: { url: 'test' },
       });
@@ -77,14 +162,14 @@ describe('NodesService', () => {
 
     it('should allow rename to a unique label', async () => {
       const existing = makeNode('n1', 'HTTP Request', 'wf-1');
-      // First findOne for findById
+      // First findOne loads the node with its workflow relation
       mockRepo.findOne
         .mockResolvedValueOnce(existing)
         // Second findOne for assertLabelUnique
         .mockResolvedValueOnce(null);
       mockRepo.save.mockResolvedValue({ ...existing, label: 'API Call' });
 
-      const result = await service.update('n1', { label: 'API Call' });
+      const result = await service.update('n1', WS, { label: 'API Call' });
       expect(result.label).toBe('API Call');
     });
 
@@ -95,16 +180,30 @@ describe('NodesService', () => {
         .mockResolvedValueOnce(existing)
         .mockResolvedValueOnce(conflicting);
 
-      await expect(service.update('n1', { label: 'API Call' })).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.update('n1', WS, { label: 'API Call' }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
   describe('bulkCreate', () => {
+    it('throws NotFoundException for a workflow in another workspace (IDOR guard)', async () => {
+      mockWorkflowRepo.findOne.mockResolvedValue(null);
+      await expect(
+        service.bulkCreate('wf-other', WS, [
+          {
+            type: 'http_request',
+            category: NodeCategory.INTEGRATION,
+            label: 'HTTP Request',
+          },
+        ]),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
     it('should throw on duplicate labels within the batch', async () => {
       await expect(
-        service.bulkCreate('wf-1', [
+        service.bulkCreate('wf-1', WS, [
           {
             type: 'http_request',
             category: NodeCategory.INTEGRATION,
@@ -125,7 +224,7 @@ describe('NodesService', () => {
       ]);
 
       await expect(
-        service.bulkCreate('wf-1', [
+        service.bulkCreate('wf-1', WS, [
           {
             type: 'code',
             category: NodeCategory.DATA,
@@ -143,7 +242,7 @@ describe('NodesService', () => {
       ];
       mockRepo.save.mockResolvedValue(nodes);
 
-      const result = await service.bulkCreate('wf-1', [
+      const result = await service.bulkCreate('wf-1', WS, [
         {
           type: 'http_request',
           category: NodeCategory.INTEGRATION,
