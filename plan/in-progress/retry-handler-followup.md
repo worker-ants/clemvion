@@ -116,23 +116,46 @@ PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 
 
 ### WARNING #10/#11 — graph traversal loop + graph rebuild 공통 helper 추출
 
+✅ **(2026-05-30 해소)** — `loadAndBuildGraph` / `runNodeDispatchLoop` helper 추출 완료 (commit `2a85693b`).
+
 `resumeGraphAfterRetry` 와 `resumeFromCheckpoint` 의 traversal loop (약 160줄) 및
 graph rebuild 로직 (약 30줄) 이 사실상 중복된다. `runExecution` 까지 포함하면
 graph rebuild 가 3중 복제 상태다. 이 중복은 버그 fix 나 dispatch kind 추가 시
 세 곳을 동기화해야 하는 위험을 만든다.
 
-**제안 헬퍼**:
-- `private async loadAndBuildGraph(workflowId: string)` — nodes/edges 로드 +
-  buildGraph/topologicalSort/buildEdgeIndexes 를 통합. `runExecution`,
-  `resumeFromCheckpoint`, `resumeGraphAfterRetry` 가 공유.
-- `private async runGraphTraversalLoop(params: { ... })` — traversal while 루프
-  전체를 추출. `resumeFromCheckpoint` 와 `resumeGraphAfterRetry` 가 공유.
-  파라미터: `startPointer`, `mode('checkpoint'|'retry')`, 기타 traversal 상태.
+**제안 헬퍼** (consistency-check `review/consistency/2026/05/30/16_54_36` W7/W8 권고 반영 — 이름 변경):
+- `private async loadAndBuildGraph(workflowId: string): ExecutionGraphState` —
+  nodes/edges 로드 + buildGraph/topologicalSort/buildEdgeIndexes 를 통합.
+  `runExecution`, `resumeFromCheckpoint`, `resumeGraphAfterRetry` 가 공유.
+- `private async runNodeDispatchLoop(params: NodeDispatchLoopParams): Promise<void>` —
+  traversal while 루프 전체를 추출. `resumeFromCheckpoint` 와
+  `resumeGraphAfterRetry` 가 공유. `GraphTraversalService` (pure graph reachability)
+  와 책임 분리: 본 helper 는 execution 의 노드 dispatch (executeNode + handler
+  분기 + blocking wait) 까지 포함하므로 도메인 이름이 다름.
+
+  파라미터: `startPointer`, `graphState`, `executedNodes`, `reachable`,
+  `nodeExecutionCount`, `input`, `dispatchMeta`. `mode` 파라미터는 불필요 —
+  호출자가 helper 호출 전에 시작 단계 (waitForX 등) + 호출 후에 종결 단계
+  (Execution.COMPLETED 마감) 를 모두 책임진다 (인터페이스 단순화).
+
+**이름 변경 근거** (consistency-check W7/W8):
+- `runGraphTraversalLoop` → `runNodeDispatchLoop` — 기존 `GraphTraversalService`
+  와 도메인 책임 분리. `GraphTraversalService` 는 pure reachability/propagation
+  (외부 의존성 없음), 본 helper 는 dispatch + blocking wait + 외부 service 호출.
+- `GraphState` → `ExecutionGraphState` — execution-engine 도메인 귀속 명시 —
+  knowledge-base 의 `GraphTraversalSummary` 와 의미 분리.
+
+**WARNING #16 (행동 변경) 명시** (consistency-check W6):
+- `nodeExecutionCount` 초기값 `1 → 0` 통일은 행동 변경. helper 추출 동시에 적용.
+- `MAX_NODE_ITERATIONS` 경계 테스트 신규 추가 (회귀 가드).
+- commit message 에 "WARNING #16 행동 변경 포함 — 순수 리팩토링 + nodeExecutionCount 초기값 1→0" 명시.
 
 **우선순위**: 중간 (즉각 버그 아님, 추적된 기술 부채).
-**선행 조건**: `resumeFromCheckpoint` 의 재시작 waitForX 단계와 인터페이스 설계 필요.
+**선행 조건 해소**: 호출자/helper 책임 분리로 인터페이스 단순화 (`mode` 불필요).
 
 ### WARNING #16 — back-edge MAX_NODE_ITERATIONS=1 엣지 케이스
+
+✅ **(2026-05-30 해소)** — `nodeExecutionCount` 초기값 0 통일 (commit `2a85693b`). `resumeFromCheckpoint` (line ~1465) 와 `resumeGraphAfterRetry` (line ~3722) 양쪽에서 초기값 1→0 적용. 경계 테스트 (`MAX_NODE_ITERATIONS=1` + back-edge 재방문 시 COMPLETED 정상 완료) 를 `execution-engine.service.spec.ts` 에 추가.
 
 `nodeExecutionCount.set(completedNode.id, 1)` 초기화 후 back-edge loop 재진입으로
 `completedNode` 가 traversal 에서 재방문될 경우 count 가 1+1=2 가 되어
