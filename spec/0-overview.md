@@ -93,6 +93,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
+| **임베드형 웹채팅 위젯 + SDK** | 외부 사이트에 삽입하는 iframe 격리형 웹채팅 위젯 + 개발자 SDK(스니펫 로더 / npm) + 샘플. [External Interaction API](./5-system/14-external-interaction-api.md) 의 client-side consumer (서버는 구현 완료, 클라이언트 레이어 신규). spec: [Channel Web Chat](./7-channel-web-chat/_product-overview.md). |
 | **Internal MCP Bridge 패턴 확장** | Cafe24 (구현 완료, §6.1) 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge-in-process) 패턴으로 추가. |
 
 ---
@@ -134,6 +135,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 워크플로우 에디터 | `spec/3-workflow-editor/` | `_product-overview.md` + 캔버스·노드 공통·엣지·실행·AI Assistant |
 | 노드 시스템 | `spec/4-nodes/` | `_product-overview.md` + `0-overview.md` + 카테고리별 폴더 (`1-logic/` ~ `7-trigger/`) |
 | 시스템 공통 | `spec/5-system/` | `_product-overview.md` + 영역별 spec (인증·API 규칙·실행 엔진·LLM Client·임베딩·RAG·Graph RAG·MCP·Webhook 등) |
+| 채널 웹채팅 위젯 | `spec/7-channel-web-chat/` | `_product-overview.md` + 아키텍처·위젯 SPA·SDK·인증/세션·보안 |
 | 데이터 흐름 | `spec/data-flow/` | `0-overview.md` + 도메인별 흐름·schema 매핑 (`1-audit` ~ `12-workspace`, 알파벳 순 숫자 prefix) |
 
 문서 컨벤션:

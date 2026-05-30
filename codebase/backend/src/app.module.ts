@@ -49,6 +49,7 @@ import { WorkflowAssistantModule } from './modules/workflow-assistant/workflow-a
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { HooksModule } from './modules/hooks/hooks.module';
 import { ExternalInteractionModule } from './modules/external-interaction/external-interaction.module';
+import { WebChatCorsModule } from './modules/web-chat-cors/web-chat-cors.module';
 import { ChatChannelModule } from './modules/chat-channel/chat-channel.module';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { AlertRule } from './modules/alerts/entities/alert-rule.entity';
@@ -236,6 +237,7 @@ export const ROOT_ENTITIES = [
     KnowledgeBaseModule,
     HooksModule,
     ExternalInteractionModule,
+    WebChatCorsModule,
     ChatChannelModule,
     AlertsModule,
     WorkflowAssistantModule,
