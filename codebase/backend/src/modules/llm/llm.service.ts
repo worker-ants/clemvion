@@ -32,6 +32,27 @@ export interface LlmCallContext {
   nodeExecutionId?: string | null;
 }
 
+/**
+ * SUMMARY#10 — `LlmService.chat` / `embed` 호출 옵션 통합 타입.
+ * 인라인 리터럴 타입으로 산재하던 opts 를 단일 named type 으로 관리해
+ * 호출부의 `undefined` 자리채우기 패턴(context, opts 순서 혼란) 을 방지.
+ *
+ * SoT: spec/conventions/node-cancellation.md (signal), spec/5-system/3-llm.md.
+ */
+export interface LlmCallOptions {
+  /** 밀리초 단위 타임아웃. 0 또는 미지정 시 타임아웃 없음. */
+  timeoutMs?: number;
+  /** 호출자 측에서 자체 retry layer 를 보유한 경우 내부 rate-limit 재시도 비활성화. */
+  disableInnerRetry?: boolean;
+  /**
+   * node-cancellation 컨벤션 (2026-05-30) — `ExecutionContext.abortSignal`
+   * 을 그대로 SDK 로 전파. Provider HTTP 호출이 abort 시 즉시 throw 되어
+   * cancel-others-on-fail / Workflow timeout / 사용자 cancel 의 cleanup
+   * 효과가 노드 단계까지 도달. SoT: spec/conventions/node-cancellation.md.
+   */
+  signal?: AbortSignal;
+}
+
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
@@ -77,17 +98,7 @@ export class LlmService {
     config: LlmConfig,
     params: ChatParams,
     context?: LlmCallContext,
-    opts?: {
-      timeoutMs?: number;
-      disableInnerRetry?: boolean;
-      /**
-       * node-cancellation 컨벤션 (2026-05-30) — `ExecutionContext.abortSignal`
-       * 을 그대로 SDK 로 전파. Provider HTTP 호출이 abort 시 즉시 throw 되어
-       * cancel-others-on-fail / Workflow timeout / 사용자 cancel 의 cleanup
-       * 효과가 노드 단계까지 도달. SoT: spec/conventions/node-cancellation.md.
-       */
-      signal?: AbortSignal;
-    },
+    opts?: LlmCallOptions,
   ): Promise<ChatResult> {
     const client = this.createClient(config);
     // Strip `source` (WebSocket emit metadata per
@@ -184,7 +195,7 @@ export class LlmService {
     config: LlmConfig,
     texts: string[],
     model?: string,
-    opts?: { timeoutMs?: number; disableInnerRetry?: boolean },
+    opts?: Pick<LlmCallOptions, 'timeoutMs' | 'disableInnerRetry'>,
   ): Promise<number[][]> {
     const client = this.createClient(config);
     // Batch embed in chunks of 20

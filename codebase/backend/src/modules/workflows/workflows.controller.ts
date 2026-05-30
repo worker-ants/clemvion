@@ -38,9 +38,6 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import { Node } from '../nodes/entities/node.entity';
-import { Edge } from '../edges/entities/edge.entity';
-import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
-import { evaluateGraphWarningRulesForGraph } from '../../nodes/core/graph-warning-rule';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
@@ -72,11 +69,8 @@ export class WorkflowsController {
     private readonly workflowsService: WorkflowsService,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly shutdownState: ShutdownStateService,
-    private readonly nodeComponentRegistry: NodeComponentRegistry,
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
-    @InjectRepository(Edge)
-    private readonly edgeRepository: Repository<Edge>,
   ) {}
 
   @Get()
@@ -133,22 +127,9 @@ export class WorkflowsController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
   ) {
+    // SUMMARY#1/2 — Repository 직접 접근 제거. 서비스 메서드로 위임해 레이어 책임 분리.
     await this.workflowsService.findById(id, workspaceId);
-    const [nodes, edges] = await Promise.all([
-      this.nodeRepository.find({ where: { workflowId: id } }),
-      this.edgeRepository.find({ where: { workflowId: id } }),
-    ]);
-    const results = evaluateGraphWarningRulesForGraph(
-      { nodes, edges },
-      (type) =>
-        this.nodeComponentRegistry.getComponent(type)?.metadata
-          .graphWarningRules,
-    );
-    return {
-      results,
-      hasError: results.some((r) => r.severity === 'error'),
-      hasWarning: results.some((r) => r.severity === 'warning'),
-    };
+    return this.workflowsService.getGraphWarnings(id);
   }
 
   @Post()
