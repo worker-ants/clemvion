@@ -866,6 +866,27 @@ export class ExecutionEngineService
           `Execution ${executionId} not WAITING_FOR_INPUT (status=${execution?.status ?? 'absent'})`,
         );
       }
+
+      // §7.5 / CCH-AD-05 — 재개(slow path)는 다른 인스턴스 또는 재시작 후 worker
+      // 가 pick up 하므로, execute() 진입 시 등록한 in-memory routing context
+      // (WebsocketService.executionRouting Map)가 소실돼 있다. 특히
+      // `RESUME_INCOMPATIBLE_STATE` 는 "인스턴스 재시작으로 multi-turn in-memory
+      // 상태 소실"(§7.5 line 858)일 때 발생 — routing context 도 항상 함께 사라진
+      // 순간이다. 영속된 execution row(triggerId/workflowId/inputData.chatChannel)
+      // 로 재등록하지 않으면, 이후 emit(특히 markExecutionCancelled 의 graceful
+      // "세션 만료" 안내, 정상 재개의 ai_message 등)이 fanout envelope 에
+      // conversationKey 없이 나가 ChatChannelDispatcher 가 outbound skip 한다.
+      // 등록 형태는 execute() 의 routing 등록(§3 단계)과 동일하게 유지. terminal
+      // event(EXECUTION_CANCELLED/COMPLETED) emit 시 WebsocketService 가 자동 release.
+      if (execution.triggerId) {
+        const chatChannel = extractChatChannelFromInput(execution.inputData);
+        this.eventEmitter.registerExecutionRouting(executionId, {
+          triggerId: execution.triggerId,
+          workflowId: execution.workflowId,
+          ...(chatChannel ? { chatChannel } : {}),
+        });
+      }
+
       if (nodeExecutionId === '__no_node_exec__') {
         throw new RehydrationError(
           'RESUME_CHECKPOINT_MISSING',
