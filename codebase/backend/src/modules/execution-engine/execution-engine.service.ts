@@ -940,6 +940,13 @@ export class ExecutionEngineService
         `Rehydration launched (drive detached) — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
       );
     } catch (err) {
+      // 본 catch 는 detached drive launch **이전**(invariant 검증 / rehydrateContext
+      // / resumeFromCheckpoint 의 pre-check·graph load)에서 throw 된 경우만 도달한다
+      // (launch 후 에러는 driveResumeDetached 가 자체 finally 로 처리). 따라서 그
+      // 전에 rehydrateContext 가 생성한 in-memory context / pendingContinuations /
+      // config 캐시를 여기서 정리한다 — 미정리 시 동일 executionId 재시도가 오염된
+      // context 를 재사용한다. (`finalizeRehydrationCleanup` 은 멱등.)
+      this.finalizeRehydrationCleanup(executionId);
       if (err instanceof RehydrationError) {
         // W19: internal identifiers は structured params へ — error.message は
         // コード分類のみ。BullMQ DLQ Board / 外部ログ集積への情報漏洩防止.

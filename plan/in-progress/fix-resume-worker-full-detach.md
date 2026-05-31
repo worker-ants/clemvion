@@ -54,7 +54,16 @@ worker 는 setup(graph load + invariant 검증)까지만 await. **전체 resume 
 - [ ] e2e
 - [ ] /ai-review + fix + RESOLUTION.md
 
-## 후속 (선택)
+## 체크리스트 (REVIEW)
+- [x] /ai-review (concurrency/side-effect/testing, Critical 0) + Warning 3 fix + SUMMARY/RESOLUTION
+- [x] e2e (140)
+
+## 후속 (별도 PR)
+- **markExecutionCancelled RUNNING-stuck** (pre-existing): updateExecutionStatus(RUNNING)
+  후 RehydrationError(ai 재구성 실패 등) 발생 시 markExecutionCancelled 의
+  `WHERE status=WAITING_FOR_INPUT` 가 affected=0 → Execution RUNNING 고착 + 텔레그램
+  graceful 안내 무음. WHERE 를 `IN (WAITING_FOR_INPUT, RUNNING)` 으로 확장 검토
+  (공유 가드라 blast radius 격리 위해 별도 PR).
 - continuation worker concurrency 상향(현재 1) — full detach 로 process() 가 빨라져
   필수 아님. 대량 동시 resume 의 setup(rehydrateContext/loadAndBuildGraph) 직렬화
   latency 가 문제되면 검토.
