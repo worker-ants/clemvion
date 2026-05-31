@@ -597,8 +597,13 @@ export class ExecutionEngineService
   private readonly logger = new Logger(ExecutionEngineService.name);
 
   /**
-   * Stores pending continuation resolvers for Form nodes that are
-   * waiting for user input. Key: executionId.
+   * Stores pending continuation resolvers for blocking nodes (form / button /
+   * ai_conversation) waiting for user input.
+   *
+   * Key 는 해당 노드를 구동한 ExecutionContext 의 Map 키(`contextKeyOf`)와 동일하다:
+   * - 메인 흐름·sub-workflow: `executionId` — 외부 `continueExecution(executionId)` 로 재개.
+   * - background 본문: `bg:<executionId>:<backgroundRunId>` — 외부 재개 대상이 아니며
+   *   (fire-and-forget, 메인 키와 격리) `executeBackgroundSubgraph` finally 가 정리한다.
    */
   private readonly pendingContinuations = new Map<
     string,
@@ -782,6 +787,9 @@ export class ExecutionEngineService
 
     // Fast path: 로컬 호스팅 인스턴스 (같은 인스턴스가 publish 후 같은 인스턴스
     // worker 가 pick up 한 경우 + sticky LB session 등).
+    // NOTE: `executionId` 키로만 조회한다 — background 본문의 bgKey resolver 는
+    // fire-and-forget 라 외부 재개 대상이 아니며(maxDurationMs 로 종결), 여기서 절대
+    // hit 되지 않는다. (resolver 잔류로 오인해 키를 바꾸지 말 것.)
     if (this.pendingContinuations.has(executionId)) {
       this.resolvePending(executionId, payload);
       return;
@@ -1066,7 +1074,7 @@ export class ExecutionEngineService
       if (!ne) continue;
       if (ne.outputData) {
         this.contextService.setNodeOutput(
-          execution.id,
+          this.contextKeyOf(context),
           log.nodeId,
           ne.outputData,
         );
@@ -1079,7 +1087,7 @@ export class ExecutionEngineService
     // + meta.interactionType) 와 동일.
     if (waitingNodeExec.outputData) {
       this.contextService.setNodeOutput(
-        execution.id,
+        this.contextKeyOf(context),
         waitingNodeExec.nodeId,
         waitingNodeExec.outputData,
       );
@@ -1622,7 +1630,11 @@ export class ExecutionEngineService
           ...(cachedOutput ?? {}),
           _resumeState: resumeState,
         };
-        this.contextService.setNodeOutput(executionId, node.id, seededOutput);
+        this.contextService.setNodeOutput(
+          this.contextKeyOf(context),
+          node.id,
+          seededOutput,
+        );
         await this.waitForAiConversation(
           savedExecution,
           executionId,
@@ -1786,7 +1798,11 @@ export class ExecutionEngineService
     );
   }
 
-  /** rehydration 종결 시 in-memory resolver / context / config 캐시 정리. */
+  /**
+   * rehydration 종결 시 in-memory resolver / context / config 캐시 정리.
+   * executionId 키만 다룬다 — background 본문의 bgKey resolver/context 는
+   * `executeBackgroundSubgraph` finally 가 독립 정리하며 rehydration 경로와 교차하지 않는다.
+   */
   private finalizeRehydrationCleanup(executionId: string): void {
     this.pendingContinuations.delete(executionId);
     this.contextService.deleteContext(executionId);
@@ -2319,7 +2335,11 @@ export class ExecutionEngineService
           }
           executedNodes.add(nodeId);
           // Pass clean input through trigger node's output slot
-          this.contextService.setNodeOutput(executionId, nodeId, cleanInput);
+          this.contextService.setNodeOutput(
+            this.contextKeyOf(context),
+            nodeId,
+            cleanInput,
+          );
           this.graphTraversal.propagateReachability(
             nodeId,
             outgoingEdgeMap,
@@ -2650,6 +2670,18 @@ export class ExecutionEngineService
     });
 
     return executionId;
+  }
+
+  /**
+   * in-memory ExecutionContext Map 라우팅 키 해소 (spec/conventions/execution-context.md
+   * 원칙 4). 비-background context 는 `_contextKey === executionId` 이므로 동작 불변,
+   * background 본문만 `bg:<executionId>:<backgroundRunId>` 별도 키를 반환한다. 이 키로
+   * contextService 에 접근해야 부모의 `deleteContext(executionId)` race 로 본문 context 가
+   * 삭제되는 일을 막는다. `context` 미보유 경로(AI 멀티턴 클러스터)는 `contextKey`
+   * 파라미터를 직접 받아 동일 키를 전달한다.
+   */
+  private contextKeyOf(context: ExecutionContext): string {
+    return context._contextKey ?? context.executionId;
   }
 
   /**
@@ -3145,7 +3177,7 @@ export class ExecutionEngineService
     // of the function continues to see raw formData (back-compat with the
     // pre-wrap signature).
     const submitted = await new Promise<unknown>((resolve, reject) => {
-      this.pendingContinuations.set(executionId, {
+      this.pendingContinuations.set(this.contextKeyOf(context), {
         nodeId: node.id,
         resolve,
         reject,
@@ -3210,12 +3242,12 @@ export class ExecutionEngineService
         : {}),
     };
     this.contextService.setStructuredOutput(
-      executionId,
+      this.contextKeyOf(context),
       node.id,
       updatedStructured,
     );
     this.contextService.setNodeOutput(
-      executionId,
+      this.contextKeyOf(context),
       node.id,
       toEngineFlatShape(updatedStructured),
     );
@@ -3705,7 +3737,7 @@ export class ExecutionEngineService
     // nodeOutputCache 에 `{ _resumeState }` envelope 주입 (handleAiMessageTurn /
     // finalizeAiNode 가 읽는다). structuredOutputCache 도 seed 해 finalize 가
     // 종료 turn 의 canonical shape 을 가질 수 있게 한다.
-    this.contextService.setNodeOutput(executionId, node.id, {
+    this.contextService.setNodeOutput(this.contextKeyOf(context), node.id, {
       _resumeState: resumeState,
     });
 
@@ -4412,7 +4444,7 @@ export class ExecutionEngineService
               : undefined;
         if (replayMessage !== undefined) {
           const cancelSignal = new Promise<never>((_, reject) => {
-            this.pendingContinuations.set(executionId, {
+            this.pendingContinuations.set(this.contextKeyOf(context), {
               nodeId: node.id,
               resolve: () => {},
               reject,
@@ -4425,6 +4457,7 @@ export class ExecutionEngineService
             const turn = await Promise.race([
               this.handleAiMessageTurn(
                 executionId,
+                this.contextKeyOf(context),
                 node,
                 replayMessage,
                 resumeState,
@@ -4443,8 +4476,9 @@ export class ExecutionEngineService
           } finally {
             // race 종료 — 우리 cancel 핸들러를 제거해 다음 iteration 의 정상
             // 등록과 충돌하지 않게 한다. cancel 이 이긴 경우 rejectPending 이
-            // 이미 삭제했으므로 delete 는 no-op.
-            this.pendingContinuations.delete(executionId);
+            // 이미 삭제했으므로 delete 는 no-op. 키는 set 사이트(4435)와 동일하게
+            // contextKeyOf(context) — background 본문(bgKey)에서도 누수 없이 정리.
+            this.pendingContinuations.delete(this.contextKeyOf(context));
           }
           // 다음 iteration 은 정상 wait 경로로 진입.
           continue;
@@ -4454,7 +4488,7 @@ export class ExecutionEngineService
       } else {
         // Wait for user message or end signal (no timeout — external cancel only)
         const userData = await new Promise<unknown>((resolve, reject) => {
-          this.pendingContinuations.set(executionId, {
+          this.pendingContinuations.set(this.contextKeyOf(context), {
             nodeId: node.id,
             resolve,
             reject,
@@ -4464,11 +4498,17 @@ export class ExecutionEngineService
       }
 
       if (action.type === 'ai_end_conversation') {
-        this.handleAiEndConversation(executionId, node, resumeState);
+        this.handleAiEndConversation(
+          executionId,
+          this.contextKeyOf(context),
+          node,
+          resumeState,
+        );
         conversationEnded = true;
       } else if (action.type === 'ai_message') {
         const turn = await this.handleAiMessageTurn(
           executionId,
+          this.contextKeyOf(context),
           node,
           action.message,
           resumeState,
@@ -4492,6 +4532,7 @@ export class ExecutionEngineService
         const formData = action.formData ?? {};
         const turn = await this.handleAiMessageTurn(
           executionId,
+          this.contextKeyOf(context),
           node,
           JSON.stringify(formData),
           resumeState,
@@ -4700,6 +4741,9 @@ export class ExecutionEngineService
    */
   private async handleAiMessageTurn(
     executionId: string,
+    // in-memory context Map 키 (원칙 4) — background 본문은 bgKey, 그 외 executionId.
+    // 이 메서드는 context 객체를 받지 않으므로 호출자가 contextKeyOf(context) 를 전달.
+    contextKey: string,
     node: Node,
     message: string,
     resumeState: Record<string, unknown>,
@@ -4749,6 +4793,7 @@ export class ExecutionEngineService
     } catch (err) {
       return this.handleAiTurnError(
         executionId,
+        contextKey,
         node,
         resumeState,
         nodeExec,
@@ -4772,7 +4817,7 @@ export class ExecutionEngineService
       // 마킹하면서 destructive 오류 로그가 production 에 쌓임.
       // tracking 로그: ExecutionContextService.setNodeOutput 의 MISSING 분기가
       // caller stack 을 출력 — `[ctx-trace]` prefix 로 grep.
-      if (!this.contextService.getContext(executionId)) {
+      if (!this.contextService.getContext(contextKey)) {
         this.logger.warn(
           `handleAiMessageTurn: ExecutionContext absent on LLM-resume — ` +
             `execution=${executionId} node=${node.id}. ` +
@@ -4786,13 +4831,9 @@ export class ExecutionEngineService
       // is enforced and the structured cache stays consistent for the
       // next emit cycle / REST polling reconciliation.
       const adaptedNext = adaptHandlerReturn(result);
-      this.contextService.setStructuredOutput(
-        executionId,
-        node.id,
-        adaptedNext,
-      );
+      this.contextService.setStructuredOutput(contextKey, node.id, adaptedNext);
       const flatNext = this.applyPortSelection(toEngineFlatShape(adaptedNext));
-      this.contextService.setNodeOutput(executionId, node.id, flatNext);
+      this.contextService.setNodeOutput(contextKey, node.id, flatNext);
 
       // Persist the accumulated turn snapshot to `NodeExecution.outputData`
       // (DB SoT — spec/5-system/4-execution-engine.md §646). Without this,
@@ -4948,7 +4989,7 @@ export class ExecutionEngineService
           // up via contextService — single Map access.
           conversationThread: (() => {
             const t =
-              this.contextService.getContext(executionId)?.conversationThread;
+              this.contextService.getContext(contextKey)?.conversationThread;
             return t ? cloneThread(t) : undefined;
           })(),
           nodeOutput: {
@@ -5025,9 +5066,9 @@ export class ExecutionEngineService
     );
 
     const adaptedConv = adaptHandlerReturn(resultObj);
-    this.contextService.setStructuredOutput(executionId, node.id, adaptedConv);
+    this.contextService.setStructuredOutput(contextKey, node.id, adaptedConv);
     const portRouted = this.applyPortSelection(toEngineFlatShape(adaptedConv));
-    this.contextService.setNodeOutput(executionId, node.id, portRouted);
+    this.contextService.setNodeOutput(contextKey, node.id, portRouted);
     return { resumeState, ended: true };
   }
 
@@ -5038,6 +5079,8 @@ export class ExecutionEngineService
    */
   private handleAiEndConversation(
     executionId: string,
+    // in-memory context Map 키 (원칙 4) — 호출자가 contextKeyOf(context) 전달.
+    contextKey: string,
     node: Node,
     resumeState: Record<string, unknown>,
   ): void {
@@ -5064,10 +5107,10 @@ export class ExecutionEngineService
     // legacy bare return (ai_agent) persist uniformly through the
     // structured cache + port selector path.
     const adaptedEnd = adaptHandlerReturn(finalOutput);
-    this.contextService.setStructuredOutput(executionId, node.id, adaptedEnd);
+    this.contextService.setStructuredOutput(contextKey, node.id, adaptedEnd);
     const flatEnd = toEngineFlatShape(adaptedEnd);
     const routedEnd = this.applyPortSelection(flatEnd);
-    this.contextService.setNodeOutput(executionId, node.id, routedEnd);
+    this.contextService.setNodeOutput(contextKey, node.id, routedEnd);
   }
 
   /**
@@ -5095,6 +5138,8 @@ export class ExecutionEngineService
    */
   private handleAiTurnError(
     executionId: string,
+    // in-memory context Map 키 (원칙 4) — handleAiMessageTurn 의 contextKey 전달.
+    contextKey: string,
     node: Node,
     resumeState: Record<string, unknown>,
     nodeExec: NodeExecution | null,
@@ -5127,9 +5172,9 @@ export class ExecutionEngineService
       failedUserMessageSource,
     );
     const adapted = adaptHandlerReturn(errorResult);
-    this.contextService.setStructuredOutput(executionId, node.id, adapted);
+    this.contextService.setStructuredOutput(contextKey, node.id, adapted);
     const portRouted = this.applyPortSelection(toEngineFlatShape(adapted));
-    this.contextService.setNodeOutput(executionId, node.id, portRouted);
+    this.contextService.setNodeOutput(contextKey, node.id, portRouted);
 
     if (nodeExec) {
       // WARN #6 — `_resumeState` 는 DB 영속 페이로드에서 strip. 정상 finalize
@@ -5595,7 +5640,7 @@ export class ExecutionEngineService
 
     // Await user button click indefinitely; external cancel is the only exit.
     const clickData = await new Promise<unknown>((resolve, reject) => {
-      this.pendingContinuations.set(executionId, {
+      this.pendingContinuations.set(this.contextKeyOf(context), {
         nodeId: node.id,
         resolve,
         reject,
@@ -5736,7 +5781,11 @@ export class ExecutionEngineService
     // `updatedOutput` carries `_selectedPort` so existing routing logic
     // (applyPortSelection / hasPortMismatch / stripControlFields) keeps
     // operating without changes.
-    this.contextService.setNodeOutput(executionId, node.id, updatedOutput);
+    this.contextService.setNodeOutput(
+      this.contextKeyOf(context),
+      node.id,
+      updatedOutput,
+    );
 
     // Mirror the interaction result into the structured NodeHandlerOutput
     // cache so `$node["<label>"].output.interaction.buttonId` and
@@ -5782,7 +5831,7 @@ export class ExecutionEngineService
       ...(prevMeta !== undefined ? { meta: prevMeta } : {}),
     };
     this.contextService.setStructuredOutput(
-      executionId,
+      this.contextKeyOf(context),
       node.id,
       updatedStructured,
     );
@@ -6027,7 +6076,11 @@ export class ExecutionEngineService
       // Structured cache powers `$node[X].config/.output/.meta/.port/.status`
       // expressions; the flat cache preserves pre-migration engine internals.
       const adapted = adaptHandlerReturn(output);
-      this.contextService.setStructuredOutput(executionId, node.id, adapted);
+      this.contextService.setStructuredOutput(
+        this.contextKeyOf(context),
+        node.id,
+        adapted,
+      );
       // Echo channel (structured.config = raw per Principle 7) and engine-
       // side action-parameter channel are now separated. Container paths
       // (runContainer/runParallel) read the evaluated snapshot from this
@@ -6035,7 +6088,7 @@ export class ExecutionEngineService
       // `{{...}}` and Number()/typeof checks would fail (Loop count → NaN,
       // Parallel branchCount → silent default).
       this.contextService.setEngineResolvedConfig(
-        executionId,
+        this.contextKeyOf(context),
         node.id,
         resolvedConfig,
       );
@@ -6044,7 +6097,11 @@ export class ExecutionEngineService
       // If handler returned port-based output ({ port, data }), set _selectedPort
       // so that downstream routing filters edges correctly.
       const finalOutput = this.applyPortSelection(flatForCache);
-      this.contextService.setNodeOutput(executionId, node.id, finalOutput);
+      this.contextService.setNodeOutput(
+        this.contextKeyOf(context),
+        node.id,
+        finalOutput,
+      );
       executedNodes.add(node.id);
 
       // Check if this is a blocking node (waiting_for_input).
@@ -6147,7 +6204,7 @@ export class ExecutionEngineService
 
         case 'use_default':
           this.contextService.setNodeOutput(
-            executionId,
+            this.contextKeyOf(context),
             node.id,
             result.output,
           );
@@ -6164,7 +6221,7 @@ export class ExecutionEngineService
 
         case 'route_error':
           this.contextService.setNodeOutput(
-            executionId,
+            this.contextKeyOf(context),
             node.id,
             result.output,
           );
@@ -7025,9 +7082,25 @@ export class ExecutionEngineService
    * traversal — we just rebuild the context and apply the timeout.
    */
   async executeBackgroundSubgraph(job: BackgroundExecutionJob): Promise<void> {
+    // 본문은 메인과 동일한 executionId 를 NodeExecution 그룹핑·WS 채널용으로
+    // 공유하되, in-memory context 는 별도 Map 키(bgKey)로 등록해 부모와 격리한다
+    // (spec/4-nodes/1-logic/12-background.md §4 / execution-context.md 원칙 4).
+    // 이로써 부모 runExecution finally 의 deleteContext(executionId) 가 fire-and-forget
+    // 본문이 쓰던 context 를 삭제하던 race ("Execution context not found") 를 차단.
+    // backgroundRunId 가 모니터링 전역 유일 키(UUID v4, spec §5.1)이므로 1차 사용.
+    // 옛 BullMQ job(빈 backgroundRunId)은 parentNodeExecutionId(Background 노드별
+    // NodeExecution id — 동일 execution 내 bg 노드 간 구분)로, 그마저 없으면 'root'
+    // 로 폴백한다. 정상 경로는 backgroundRunId 로 항상 유일. (backgroundRunId 가 모든
+    // job 레코드에 채워진 이후엔 이 폴백 체인 제거 가능.)
+    const bgKeySuffix =
+      job.backgroundRunId || job.parentNodeExecutionId || 'root';
+    const bgKey = `bg:${job.executionId}:${bgKeySuffix}`;
     const context = this.contextService.createContext(
       job.executionId,
       job.workflowId,
+      {},
+      0,
+      bgKey,
     );
     context.variables = { ...job.variables };
     context.nodeOutputCache = { ...job.nodeOutputCache };
@@ -7040,32 +7113,43 @@ export class ExecutionEngineService
     context.conversationThread =
       job.conversationThread ?? createEmptyConversationThread();
 
-    const run = this.executeInline(job.workflowId, job.input, {
-      executionId: job.executionId,
-      context,
-      executedNodes: new Set<string>(),
-      recursionDepth: 0,
-      parentNodeExecutionId: job.parentNodeExecutionId || undefined,
-      entryNodeIds: job.bodyEntryNodeIds,
-    });
+    try {
+      const run = this.executeInline(job.workflowId, job.input, {
+        executionId: job.executionId,
+        context,
+        executedNodes: new Set<string>(),
+        recursionDepth: 0,
+        parentNodeExecutionId: job.parentNodeExecutionId || undefined,
+        entryNodeIds: job.bodyEntryNodeIds,
+      });
 
-    if (job.config.maxDurationMs > 0) {
-      await Promise.race([
-        run,
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () =>
-              reject(
-                new Error(
-                  `Background body exceeded maxDurationMs (${job.config.maxDurationMs}ms)`,
+      if (job.config.maxDurationMs > 0) {
+        await Promise.race([
+          run,
+          new Promise<never>((_, reject) =>
+            setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    `Background body exceeded maxDurationMs (${job.config.maxDurationMs}ms)`,
+                  ),
                 ),
-              ),
-            job.config.maxDurationMs,
+              job.config.maxDurationMs,
+            ),
           ),
-        ),
-      ]);
-    } else {
-      await run;
+        ]);
+      } else {
+        await run;
+      }
+    } finally {
+      // 본문 전용 bgKey context 를 자체 정리 — 메인 runExecution finally 의
+      // deleteContext(executionId) 와 독립. (멱등: 미존재 시 no-op.)
+      this.contextService.deleteContext(bgKey);
+      // 본문이 interactive 노드(form/button/ai)로 대기에 진입했다면 waitForX 가
+      // pendingContinuations 를 bgKey 로 등록한다. background 는 fire-and-forget 라
+      // 외부 continueExecution(executionId) 로 재개되지 않으므로(메인 키와 격리됨)
+      // maxDurationMs 타임아웃 후 본 finally 에서 resolver 누수를 정리한다.
+      this.pendingContinuations.delete(bgKey);
     }
   }
 
@@ -7626,14 +7710,18 @@ export class ExecutionEngineService
     // run-results timeline + expression `$node["X"].meta.clampedConcurrency` 로
     // 사용자가 "의도 vs 실제" 차이를 즉시 확인. frontend 사전 경고
     // (cross-node-warning-rules.md) 와 별개로 runtime 추적성 확보.
-    this.contextService.setStructuredOutput(executionId, parallelNode.id, {
-      config: echoConfig,
-      output: { branches: branchResults, count: branchResults.length },
-      port: ['done'],
-      ...(parallelResult.clampedConcurrency
-        ? { meta: { clampedConcurrency: parallelResult.clampedConcurrency } }
-        : {}),
-    });
+    this.contextService.setStructuredOutput(
+      this.contextKeyOf(context),
+      parallelNode.id,
+      {
+        config: echoConfig,
+        output: { branches: branchResults, count: branchResults.length },
+        port: ['done'],
+        ...(parallelResult.clampedConcurrency
+          ? { meta: { clampedConcurrency: parallelResult.clampedConcurrency } }
+          : {}),
+      },
+    );
 
     // Activate `done` downstream via the main outgoingEdgeMap (Parallel →
     // done-port edges). Branch exit → join (Merge) edges are also activated.
@@ -7907,13 +7995,17 @@ export class ExecutionEngineService
         ? { ...(prevStructuredMeta ?? {}), ...(structuredMeta ?? {}) }
         : undefined;
 
-    this.contextService.setStructuredOutput(executionId, containerNode.id, {
-      config: echoConfig,
-      output: structuredOutput,
-      ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
-    });
+    this.contextService.setStructuredOutput(
+      this.contextKeyOf(context),
+      containerNode.id,
+      {
+        config: echoConfig,
+        output: structuredOutput,
+        ...(mergedMeta !== undefined ? { meta: mergedMeta } : {}),
+      },
+    );
     this.contextService.setNodeOutput(
-      executionId,
+      this.contextKeyOf(context),
       containerNode.id,
       structuredOutput,
     );
