@@ -19,6 +19,7 @@ model: opus
 - **TDD 준수**: 스펙 해석 즉시 테스트 선작성, 구현 후 보강.
 - **품질 책임**: Warning 이상 이슈와 누락 테스트는 지시 범위 밖이라도 해결. 기존부터 있던 이슈도 발견 시 조치.
 - **누락 방지**: `plan/in-progress/` 에 진행 메모 작성·갱신, 재진입 시 먼저 확인. plan 라이프사이클: [`.claude/docs/plan-lifecycle.md`](../../docs/plan-lifecycle.md).
+- **plan 체크박스 = 실제 상태**: `plan/in-progress/<task>.md` 의 체크리스트는 **각 단계가 끝날 때마다 그 즉시** 갱신한다 (실제 통과한 단계만 `[x]`). 아직 안 돌린 단계(e2e·`/ai-review` 등)를 **미리 `[x]` 로 적거나, 코드 커밋 시 forward-looking 으로 적어두고 방치 금지**. 근거: review 산출물(`review/code/**`)은 gitignored 라 PR 에 없고, **plan 노트가 PR 에서 워크플로 이행을 확인할 유일한 흔적**이다 — stale 체크박스는 "단계 건너뜀" 으로 오인된다. e2e/ai-review 결과는 통과 직후 갱신해 REVIEW WORKFLOW 커밋(step 9) 또는 별도 `docs(plan):` 커밋으로 PR 에 반영한다.
 
 ## 경로별 권한
 
@@ -149,6 +150,7 @@ Warning 이상·테스트 누락은 지시 범위 밖이라도 해결. TEST·REV
 - **commit 사이 `git status`·`git diff` 호출 최소화**. 단계 종료 후 1회만 `git status --short` 로 변경 set 확인. `git diff --staged` 는 commit 직전 자가 점검이 필요할 때만, 그 외엔 pre-commit hook 결과로 검증.
 - pre-commit hook 실패 → `--no-verify` 우회 금지. 원인 fix 후 새 commit.
 - 사용자가 "잠깐"·"한 번에 합쳐"·"보고 결정할게" 명시 시 자동 commit 일시 중단.
+- **plan 체크박스는 그 단계의 통과를 담은 commit 에 함께 갱신**한다. 예: 8단계 TEST WORKFLOW(e2e 포함) 통과 → 그 commit 에 `[x] e2e`; 9단계 REVIEW WORKFLOW 완료 → 그 commit 에 `[x] /ai-review`. 단계를 수행해놓고 plan 박스를 `[ ]` 로 남긴 채 push 금지 (§절대 원칙 "plan 체크박스 = 실제 상태").
 
 > 0~3단계는 자체 commit 없음. 산출물은 4단계 commit 또는 `chore(plan):` 별 commit.
 
