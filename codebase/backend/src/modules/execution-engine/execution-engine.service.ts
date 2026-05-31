@@ -1814,8 +1814,20 @@ export class ExecutionEngineService
           finishedAt: new Date(),
         })
         .where('id = :id', { id: executionId })
-        .andWhere('status = :status', {
-          status: ExecutionStatus.WAITING_FOR_INPUT,
+        // WAITING_FOR_INPUT **및 RUNNING** 둘 다 cancel 대상. 호출처 중
+        // `driveResumeDetached` 의 RehydrationError 분기(ai_agent _resumeCheckpoint
+        // 재구성 실패 등)는 `updateExecutionStatus(RUNNING)` **이후**에 도달하므로
+        // 이 시점 Execution.status 는 RUNNING 이다. WAITING_FOR_INPUT 만 매치하면
+        // affected=0 → DB cancel 미반영(Execution RUNNING 고착) + EXECUTION_CANCELLED
+        // emit 억제 → 채널(텔레그램) graceful "세션 만료" 안내 무음. 나머지 호출처
+        // (rehydrateAndResume outer catch = launch 이전 pre-check)는 WAITING_FOR_INPUT.
+        // 두 상태 모두 "재개 실패" 의 합법적 cancel 대상이며, 이미 terminal
+        // (CANCELLED/COMPLETED/FAILED) 이면 affected=0 으로 idempotent (중복 emit 회피).
+        .andWhere('status IN (:...statuses)', {
+          statuses: [
+            ExecutionStatus.WAITING_FOR_INPUT,
+            ExecutionStatus.RUNNING,
+          ],
         })
         .execute();
       // §7.5 / 방안 D — rehydration 실패로 cancelled 마킹 시 `EXECUTION_CANCELLED`

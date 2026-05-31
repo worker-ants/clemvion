@@ -8467,6 +8467,32 @@ describe('ExecutionEngineService', () => {
         expect(codes).toContain('RESUME_INCOMPATIBLE_STATE');
         // 동반 NodeExecution failed 마킹도 수행 (createQueryBuilder 사용).
         expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+
+        // RUNNING-stuck 가드 — 본 경로는 driveResumeDetached 가
+        // updateExecutionStatus(RUNNING) 이후 도달하므로, Execution cancel UPDATE 의
+        // status 조건이 **RUNNING 도 포함**해야 한다 (WAITING_FOR_INPUT 만이면
+        // 운영에서 affected=0 → cancel 미반영 + EXECUTION_CANCELLED emit 억제 →
+        // 텔레그램 graceful 안내 무음). `status IN (:...statuses)` 의 statuses 검증.
+        const andWhereStatusGuards =
+          mockExecutionRepo.createQueryBuilder.mock.results
+            .flatMap(
+              (r) =>
+                (
+                  r.value as {
+                    andWhere?: { mock?: { calls: unknown[][] } };
+                  }
+                ).andWhere?.mock?.calls ?? [],
+            )
+            .map(
+              (c) => (c[1] as { statuses?: unknown[] } | undefined)?.statuses,
+            )
+            .filter((s): s is unknown[] => Array.isArray(s));
+        expect(andWhereStatusGuards.length).toBeGreaterThan(0);
+        const cancelStatusGuard = andWhereStatusGuards.find((s) =>
+          s.includes(ExecutionStatus.WAITING_FOR_INPUT),
+        );
+        expect(cancelStatusGuard).toBeDefined();
+        expect(cancelStatusGuard).toContain(ExecutionStatus.RUNNING);
       } finally {
         svcAny.loadAndBuildGraph = orig.load;
         svcAny.buildRetryReentryState = orig.build;
