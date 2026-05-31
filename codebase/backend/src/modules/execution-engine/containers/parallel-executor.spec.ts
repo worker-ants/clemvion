@@ -192,7 +192,7 @@ describe('ParallelExecutor', () => {
       let currentRunning = 0;
       await executor.execute(
         { branchCount, maxConcurrency: 8, waitAll: true },
-        { ...baseContext, parentParallelConcurrency: 8 },
+        baseContext,
         async () => {
           currentRunning++;
           observedConcurrencyPeak = Math.max(
@@ -202,6 +202,7 @@ describe('ParallelExecutor', () => {
           await new Promise((r) => setTimeout(r, 5));
           currentRunning--;
         },
+        8,
       );
       expect(observedConcurrencyPeak).toBeLessThanOrEqual(4);
       expect(observedConcurrencyPeak).toBeGreaterThan(0);
@@ -215,7 +216,7 @@ describe('ParallelExecutor', () => {
       let currentRunning = 0;
       await executor.execute(
         { branchCount, maxConcurrency: 8, waitAll: true },
-        { ...baseContext, parentParallelConcurrency: 4 },
+        baseContext,
         async () => {
           currentRunning++;
           observedConcurrencyPeak = Math.max(
@@ -225,6 +226,7 @@ describe('ParallelExecutor', () => {
           await new Promise((r) => setTimeout(r, 5));
           currentRunning--;
         },
+        4,
       );
       expect(observedConcurrencyPeak).toBeGreaterThanOrEqual(5);
       expect(observedConcurrencyPeak).toBeLessThanOrEqual(8);
@@ -234,10 +236,11 @@ describe('ParallelExecutor', () => {
       const seen: Array<number | undefined> = [];
       await executor.execute(
         { branchCount: 8, maxConcurrency: 16, waitAll: true },
-        { ...baseContext, parentParallelConcurrency: 8 },
+        baseContext,
         async (_idx, branchCtx) => {
           seen.push(branchCtx.parentParallelConcurrency);
         },
+        8,
       );
       // intended inner effective = min(16, 8) = 8 (capped to branchCount semantics)
       // but with parent=8: clamped = floor(32/8) = 4

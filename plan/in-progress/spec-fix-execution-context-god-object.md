@@ -1,11 +1,13 @@
 ---
-worktree: parallel-p2-ai-review-0296c4
+worktree: spec-fix-execution-context-god-object-e0323d
 started: 2026-05-30
 owner: project-planner
 ---
 # Spec Fix Draft — ExecutionContext God Object 방지 설계 원칙
 
-> **상태**: consistency-check `BLOCK: YES` (review/consistency/2026/05/30/20_06_06/SUMMARY.md). C-1/C-2/C-3/W-1~W-7 **모두 해소**.
+> **상태**: ✅ **spec 작업 완료 (2026-05-31)**. 4개 spec 파일 반영 + 재검 consistency-check `BLOCK: NO` (review/consistency/2026/05/31/19_30_46/SUMMARY.md — plan-coherence 의 CRITICAL 은 frontmatter-vs-body 다른 hunk 라 auto-merge, 비차단으로 강등. Warning 반영). 코드 작업은 `parallel-p2-followups.md` §7 (developer 별 PR) 추적.
+>
+> 원본 (2026-05-30): consistency-check `BLOCK: YES` (review/consistency/2026/05/30/20_06_06/SUMMARY.md). C-1/C-2/C-3/W-1~W-7 **모두 해소**.
 >
 > **C-1 사용자 결정 (2026-05-30)**: **옵션 (a) 결정 G 번복 채택** — `parentParallelConcurrency` 를 `ParallelBranchContext` 로 분리. `spec/4-nodes/1-logic/10-parallel.md §Rationale 결정 G` 갱신 + code 변경 별 PR (parallel-p2-followups.md 후속 표 등재).
 
@@ -56,15 +58,15 @@ interface ParallelBranchContext extends ExecutionContext {
 ### 후속 작업
 
 #### spec 작업 (project-planner 책임)
-- [ ] `spec/conventions/execution-context.md` 신규 작성 — frontmatter 의무 항목 포함:
+- [x] `spec/conventions/execution-context.md` 신규 작성 — frontmatter 의무 항목 포함:
   - `id: execution-context`
   - `status: spec-only`
   - `code: []` (codebase 식별자 직접 참조 없음)
-  - `pending_plans: []` (또는 본 draft 로 partial 처리)
-- [ ] 본 spec 의 `## Rationale` 섹션 작성 — "왜 ParallelBranchContext 분리인가" / "abortSignal 을 Stable core 에 둔 이유" / "No runtime optional sprawl 의 적용 범위" 의 trade-off 설명. C-1 결정 결과 (옵션 a) 반영.
-- [ ] `spec/4-nodes/1-logic/10-parallel.md §Rationale 결정 G` **번복 근거 갱신** — 2026-05-30 ai-review SUMMARY#11 의 God Object 우려 + consistency-check C-1 결과로 ParallelBranchContext 분리 채택. 본 신규 convention 참조.
-- [ ] `spec/conventions/node-cancellation.md` 의 상호참조 추가 — `abortSignal` 의 필드 정의는 `execution-context.md`, 동작 계약은 `node-cancellation.md` SoT 분리 명시.
-- [ ] spec 목차 (예: `spec/4-nodes/0-overview.md` 또는 conventions 인덱스) 에 신규 convention 링크 추가.
+  - `pending_plans: []` (consistency-check W 반영 — spec-only 순수 설계 문서라 빈 배열. 코드 추적은 본문 §원칙 2 / Rationale 의 parallel-p2-followups §7 링크)
+- [x] 본 spec 의 `## Rationale` 섹션 작성 — "왜 ParallelBranchContext 분리인가" / "abortSignal 을 Stable core 에 둔 이유" / "No runtime optional sprawl 의 적용 범위" 의 trade-off 설명. C-1 결정 결과 (옵션 a) 반영.
+- [x] `spec/4-nodes/1-logic/10-parallel.md §Rationale 결정 G` **번복 근거 갱신** — 2026-05-30 ai-review SUMMARY#11 의 God Object 우려 + consistency-check C-1 결과로 ParallelBranchContext 분리 채택. 본 신규 convention 참조.
+- [x] `spec/conventions/node-cancellation.md` 의 상호참조 추가 — `abortSignal` 의 필드 정의는 `execution-context.md`, 동작 계약은 `node-cancellation.md` SoT 분리 명시.
+- [x] spec 목차 (`spec/0-overview.md` conventions 인덱스 표) 에 신규 convention 링크 추가.
 
 #### code 작업 (developer 책임, 본 spec 확정 후 별 PR)
 - [ ] `parentParallelConcurrency` → `ParallelBranchContext` 로 이동 (`parallel-executor.ts` 타입 수정 + branchContext 생성처 + 호출처)
