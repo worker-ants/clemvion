@@ -8137,6 +8137,127 @@ describe('ExecutionEngineService', () => {
         svcAny.waitForAiConversation = origWait;
       }
     });
+
+    // 회귀 가드 — continuation worker deadlock (운영 §7.4/§7.5).
+    // slow-path 재개는 BullMQ worker 의 process() 안에서 수행되므로, 현재 대기
+    // 노드로의 입력 전달(Phase 1) 이후의 그래프 순회(Phase 2)를 **await 하면**
+    // 그래프의 다음 대기 노드에서 worker(WorkerHost concurrency=1)가 영구 점유돼
+    // 이후 모든 continuation job 이 wait 큐에 적체된다 (deadlock). 본 테스트는
+    // Phase 2 (`runNodeDispatchLoop`) 가 영구 미완료여도 `rehydrateAndResume`
+    // (worker 가 await 하는 promise) 이 resolve 됨을 보장한다. 수정 전이라면
+    // rehydrateAndResume 가 hang 하여 jest 타임아웃으로 실패한다.
+    it('slow-path resume 은 다운스트림 그래프 구동을 detach — 다음 대기 노드를 기다리지 않고 worker(process()) 반환 (deadlock 방지)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          meta: { interactionType: 'buttons' },
+          status: 'waiting_for_input',
+          buttonConfig: {
+            buttons: [{ id: 'b1', type: 'port', label: 'B1' }],
+          },
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-1',
+        type: 'carousel',
+        config: {},
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      const svcAny = service as unknown as {
+        loadAndBuildGraph: jest.Mock;
+        waitForButtonInteraction: jest.Mock;
+        runNodeDispatchLoop: jest.Mock;
+        updateExecutionStatus: jest.Mock;
+      };
+      const origLoad = svcAny.loadAndBuildGraph;
+      const origWait = svcAny.waitForButtonInteraction;
+      const origLoop = svcAny.runNodeDispatchLoop;
+      const origUpdate = svcAny.updateExecutionStatus;
+
+      // 그래프: 현재 대기 노드(node-1) + 다운스트림(node-2).
+      svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue({
+        graphNodes: [],
+        graphEdges: [],
+        forwardEdges: [],
+        backEdges: [],
+        sortedNodeIds: ['node-1', 'node-2'],
+        sortedIndexMap: new Map([
+          ['node-1', 0],
+          ['node-2', 1],
+        ]),
+        backEdgeMap: new Map(),
+        outgoingEdgeMap: new Map(),
+        incomingEdgeMap: new Map(),
+        nodeMap: new Map([
+          ['node-1', { id: 'node-1', type: 'carousel' }],
+          ['node-2', { id: 'node-2', type: 'carousel' }],
+        ]),
+      });
+      svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
+      // Phase 1 — 현재 대기 노드 입력 전달은 즉시 완료된 것으로 시뮬레이션.
+      svcAny.waitForButtonInteraction = jest.fn().mockResolvedValue(undefined);
+      // Phase 2 — 다음 대기 노드에서 영구 대기하는 그래프 구동을 시뮬레이션:
+      //   resolve 되지 않는 promise. 수정 전이라면 rehydrateAndResume 가 이를
+      //   await 하다 hang → jest 타임아웃 실패. 수정 후라면 detach 되어 resolve.
+      let releaseDispatch!: () => void;
+      const dispatchGate = new Promise<void>((r) => {
+        releaseDispatch = r;
+      });
+      svcAny.runNodeDispatchLoop = jest.fn().mockReturnValue(dispatchGate);
+
+      // 명시적 짧은 timeout race — 회귀(detach 누락) 시 jest 기본 5s 를 기다리지
+      // 않고 빠르고 명확하게 실패시킨다. dispatchGate(다음 대기 노드)가 영구
+      // 미완료여도 rehydrateAndResume 은 즉시 resolve 되어야 한다.
+      let deadlockTimer: NodeJS.Timeout | undefined;
+      const deadlockGuard = new Promise<never>((_, reject) => {
+        deadlockTimer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                'DEADLOCK: rehydrateAndResume 가 반환하지 않음 — detached 그래프 구동이 worker 슬롯을 점유 (수정 회귀)',
+              ),
+            ),
+          1000,
+        );
+      });
+
+      try {
+        await Promise.race([
+          subject().rehydrateAndResume(executionId, 'ne-1', {
+            type: 'button_click',
+            buttonId: 'b1',
+          }),
+          deadlockGuard,
+        ]);
+
+        // 여기 도달 = worker 가 다음 대기 노드를 기다리지 않고 풀렸다.
+        expect(svcAny.waitForButtonInteraction).toHaveBeenCalledTimes(1);
+        expect(svcAny.runNodeDispatchLoop).toHaveBeenCalledTimes(1);
+      } finally {
+        if (deadlockTimer) clearTimeout(deadlockTimer);
+        // detached Phase 2 가 종결하도록 gate 해제 후 drain (dangling promise 정리).
+        releaseDispatch();
+        await flushPromises();
+        svcAny.loadAndBuildGraph = origLoad;
+        svcAny.waitForButtonInteraction = origWait;
+        svcAny.runNodeDispatchLoop = origLoop;
+        svcAny.updateExecutionStatus = origUpdate;
+      }
+    });
   });
 
   // spec/5-system/4-execution-engine.md §1.3 / spec/5-system/6-websocket-protocol.md
