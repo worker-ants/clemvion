@@ -558,7 +558,7 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
     "error": {
       "code": "LLM_CALL_FAILED",
       "message": "OpenAI API returned 503 after 3 retries",
-      "details": { "provider": "openai", "statusCode": 503, "attempt": 3 }
+      "details": { "retryable": true, "retryAfterSec": 30, "provider": "openai", "statusCode": 503, "attempt": 3 }
     }
   },
   "meta": {
@@ -575,7 +575,10 @@ LLM 응답의 `toolCalls`를 순회할 때 다음 로직을 적용:
 |------|------|------|
 | `output.error.code` | string (UPPER_SNAKE_CASE) | 에러 분류 — §10 에러 코드 표 참조 |
 | `output.error.message` | string | 사람이 읽는 메시지 (로그·디버깅용 원문, 국제화 없음) |
-| `output.error.details` | object? | 노드별 추가 컨텍스트 (provider/statusCode/attempt 등) |
+| `output.error.details` | object? | 노드별 추가 컨텍스트 (provider/statusCode/attempt 등) — 아래 두 키 포함 |
+| `output.error.details.retryable` | boolean | **필수** (LLM 계열 노드, CONVENTIONS Principle 3.2.1) — 일시적 오류 여부. `true` = HTTP 429/5xx/timeout 등 transient (예: 503), `false` = 인증 실패/schema fatal/사용자 취소 |
+| `output.error.details.retryAfterSec` | number? | 재시도 권장 대기 초 (있을 때). §7.9 멀티턴과 동일 형식 |
+| `status` | `"ended"` | 에러 종결 상태 (handler return) |
 | `port` | `"error"` | handler return |
 
 ### 7.4 Multi Turn 모드 — 사용자 입력 대기 (`status: "waiting_for_input"`)

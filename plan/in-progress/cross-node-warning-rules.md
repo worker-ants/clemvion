@@ -52,10 +52,12 @@
 
 ### 4. frontend canvas 평가 인프라
 
-- [ ] frontend canvas 가 graph 변경 시점 (노드 추가/삭제/edge 변경/config 변경) 마다 `graphWarningRules` 평가 호출
-- [ ] severity 별 UI 표현:
-  - `error`: 노드에 빨간 배지 + 워크플로우 "저장 불가" 상태
-  - `warning`: 노드에 노란 배지 + 저장은 가능
+> **현재 구현 상태 (2026-05-31, `/goal` coverage 감사 ground-truth)**: graph-warning 평가 + "저장 불가" 상태(저장 버튼 disable + tooltip) 는 구현됨 — `workflow-editor.tsx` / `editor-store.ts` / `editor-toolbar.tsx` / `lib/api/workflows.ts`. **잔여 갭 = per-node 색상 배지 미렌더** (coverage-gaps 감사의 A3). 즉 사용자는 저장 버튼 tooltip 으로만 경고를 보고, 어느 노드가 문제인지 노드 위 배지로는 아직 못 본다.
+
+- [x] frontend canvas 가 graph 변경 시점 (노드 추가/삭제/edge 변경/config 변경) 마다 `graphWarningRules` 평가 호출
+- [ ] severity 별 UI 표현 (**A3 잔여 갭 — per-node 배지 미구현**):
+  - `error`: 워크플로우 "저장 불가" 상태 [x] / 노드에 빨간 배지 [ ]
+  - `warning`: 저장은 가능 [x] / 노드에 노란 배지 [ ]
 - [ ] backend 와의 SSOT 보장:
   - 함수형 rule 의 정의가 backend 와 frontend 에서 동일 실행되어야 함
   - 옵션: rule 정의를 shared package (`codebase/packages/`) 로 분리, 또는 metadata API 가 rule 함수를 직렬화/eval (보안 우려)

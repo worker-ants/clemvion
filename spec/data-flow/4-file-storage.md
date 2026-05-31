@@ -102,18 +102,16 @@ KB 도메인 외에는 라이프사이클이 정의되어 있지 않다. KB 의 
 
 ## Rationale
 
-### S3 key 패턴이 spec/0-overview.md §2.7 과 다른 이유
+### S3 key 패턴: workspace prefix 를 두지 않는 이유
 
-`spec/0-overview.md §2.7` 은 `{bucket}/{workspaceId}/knowledge-base/{kbId}/{documentId}_{filename}`
-을 제안하지만 실제 코드 (`knowledge-base.service.ts:723`) 는 `kb/<kbId>/<docId>/<filename>` 으로
-업로드한다. 워크스페이스 prefix 가 없어 S3 정책 (`s3:GetObject` IAM condition) 에서 workspace 단위
-격리를 키 prefix 만으로는 강제할 수 없다.
+KB 원본 문서의 S3 key 는 `kb/<kbId>/<docId>/<filename>` 으로, 워크스페이스 prefix 를 두지 않는다.
+`spec/0-overview.md §2.7` 의 키 패턴 표·Rationale 가 단일 진실이며, 실제 코드
+(`knowledge-base.service.ts:723`) 와 본 문서 모두 동일 패턴으로 정합돼 있다 (과거 `{workspaceId}/knowledge-base/...`
+제안은 §2.7 에서 코드 기준으로 일원화됨 — 옵션 1 채택).
 
-본 폴더는 **현재 코드가 진실** 이라는 원칙으로 코드 기준 키를 기재했다. 정합성 정리는 다음 두 옵션 중
-하나를 별도 plan 으로 진행 권장:
-
-1. spec §2.7 을 코드에 맞춰 `kb/<kbId>/<docId>/...` 로 수정 + workspace 격리는 DB 권한 + presigned URL
-2. 코드를 spec §2.7 에 맞춰 마이그레이션 (기존 객체 이동 + DB `file_url` 업데이트 배치)
+워크스페이스 prefix 가 없으므로 S3 정책 (`s3:GetObject` IAM condition) 의 키 prefix 만으로는 workspace 단위
+격리를 강제하지 않는다. 대신 workspace 격리는 **DB 권한 검증 + presigned URL** 로 보장한다 (키 prefix 격리는
+비채택 — 근거는 [`spec/0-overview.md` Rationale § S3 객체 키 prefix 설계](../0-overview.md#s3-객체-키-prefix-설계--kb-원본-키에서-workspaceid-제외-27)).
 
 ### `s3Service.delete` 실패가 warn 처리인 이유
 

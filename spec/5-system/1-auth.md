@@ -325,7 +325,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 워크스페이스 | workspace.create, workspace.update, workspace.delete |
 | 멤버 | member.invite, member.role_change, member.remove |
 | 워크플로우 | workflow.create, workflow.update, workflow.delete, workflow.execute |
-| 트리거 | trigger.create, trigger.update, trigger.delete, trigger.toggle |
+| 트리거 | trigger.create, trigger.update, trigger.delete |
 | 스케줄 | schedule.create, schedule.update, schedule.delete |
 | Integration | integration.create, integration.update, integration.delete |
 | 설정 | auth_config.create, auth_config.update, auth_config.delete, auth_config.regenerate, auth_config.reveal, llm_config.* |
