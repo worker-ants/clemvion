@@ -1,7 +1,8 @@
 ---
 id: if-else
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/if-else/if-else.*.ts
 ---
 
 # Spec: If/Else

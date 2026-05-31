@@ -1,7 +1,8 @@
 ---
 id: user-profile
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/profile/**
 ---
 
 # Spec: 사용자 프로필/설정 화면

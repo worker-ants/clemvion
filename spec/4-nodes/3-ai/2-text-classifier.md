@@ -1,7 +1,9 @@
 ---
 id: text-classifier
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts
+  - codebase/backend/src/nodes/ai/text-classifier/text-classifier.schema.ts
 ---
 
 # Spec: Text Classifier

@@ -1,7 +1,10 @@
 ---
 id: knowledge-base
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/knowledge-bases/page.tsx
+  - codebase/frontend/src/app/(main)/knowledge-bases/[id]/page.tsx
+  - codebase/frontend/src/components/knowledge-base/*.tsx
 ---
 
 # Spec: 지식 저장소 화면

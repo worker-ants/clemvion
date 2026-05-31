@@ -1,7 +1,9 @@
 ---
 id: send-email
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/send-email/send-email.handler.ts
+  - codebase/backend/src/nodes/integration/send-email/send-email.schema.ts
 ---
 
 # Spec: Send Email

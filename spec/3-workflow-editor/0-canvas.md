@@ -1,7 +1,12 @@
 ---
 id: canvas
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/frontend/src/components/editor/canvas/*.tsx
+  - codebase/frontend/src/components/editor/palette/node-palette.tsx
+  - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
+pending_plans:
+  - plan/in-progress/ai-agent-tool-connection-rewrite.md
 ---
 
 # Spec: 캔버스 인터랙션 상세

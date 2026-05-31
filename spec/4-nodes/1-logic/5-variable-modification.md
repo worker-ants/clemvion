@@ -1,7 +1,8 @@
 ---
 id: variable-modification
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/variable-modification/variable-modification.*.ts
 ---
 
 # Spec: Variable Modification

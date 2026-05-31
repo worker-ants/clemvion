@@ -1,7 +1,9 @@
 ---
 id: common
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/_base/integration-handler-base.ts
+  - codebase/backend/src/nodes/integration/*/*.handler.ts
 ---
 
 # Spec: Integration 노드 공통 규약

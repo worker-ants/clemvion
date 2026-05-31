@@ -1,7 +1,9 @@
 ---
 id: common
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.handler.ts
+  - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts
 ---
 
 # Spec: Trigger 노드 공통 규약

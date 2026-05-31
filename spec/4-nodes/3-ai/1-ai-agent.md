@@ -1,7 +1,11 @@
 ---
 id: ai-agent
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts
+  - codebase/backend/src/nodes/ai/ai-agent/ai-agent.schema.ts
+pending_plans:
+  - plan/in-progress/ai-agent-tool-connection-rewrite.md
 ---
 
 # Spec: AI Agent

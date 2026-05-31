@@ -1,7 +1,10 @@
 ---
 id: config
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/authentication/page.tsx
+  - codebase/frontend/src/app/(main)/llm-configs/page.tsx
+  - codebase/frontend/src/components/llm-config/model-combobox.tsx
 ---
 
 # Spec: 설정 (인증, LLM) 화면

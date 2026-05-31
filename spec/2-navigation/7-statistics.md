@@ -1,7 +1,8 @@
 ---
 id: statistics
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/statistics/page.tsx
 ---
 
 # Spec: 통계 화면

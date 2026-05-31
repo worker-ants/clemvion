@@ -1,7 +1,10 @@
 ---
 id: http-request
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/http-request/http-request.handler.ts
+  - codebase/backend/src/nodes/integration/http-request/http-request.schema.ts
+  - codebase/backend/src/nodes/integration/http-request/http-safety.ts
 ---
 
 # Spec: HTTP Request

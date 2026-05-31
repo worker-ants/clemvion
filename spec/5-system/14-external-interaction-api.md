@@ -70,7 +70,7 @@ code:
 | EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / seq / updatedAt) | 필수 |
 | EIA-IN-05 | `POST /api/external/executions/:executionId/cancel` 는 명시적 취소 — `interact` 의 `command:"cancel"` 과 동치 (편의 alias) | 권장 |
 | EIA-IN-06 | 모든 inbound 요청은 §4 의 interaction token 으로 인증. **단 §3.3 EIA-AU-08 + §3.3.1 Implementation Note 의 in-process trusted caller 는 제외** — HTTP 표면을 거치지 않는 in-process 호출에 한정. HTTP guard 의 ctx 합성 시 `scope` 필드 set 금지 invariant 는 §3.3.1 참조 | 필수 |
-| EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 | 필수 |
+| EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 (버퍼 내 재전송은 구현됨; 만료 시 `execution.replay_unavailable` 신호 emit 은 계획·미구현 — §5.2) | 필수 |
 | EIA-IN-08 | SSE 는 15초마다 `: heartbeat` comment 라인 전송 — proxy idle timeout 회피 | 필수 |
 | EIA-IN-09 | execution 당 동시 SSE 연결 수 제한: 기본 3 (multi-tab 허용, 무제한 fan-out 차단) | 권장 |
 | EIA-IN-10 | `submit_form` 검증 실패는 execution 상태를 바꾸지 않고 `400` + `details.fieldErrors` 반환 (waiting_for_input 유지, 재제출 가능) | 필수 |
@@ -144,7 +144,7 @@ type InteractionRequestContext =
 |----|---------|---------|
 | EIA-NF-01 | Outbound notification 발송 latency: 트랜잭션 commit ↔ HTTP POST 시도 사이 평균 200ms 이내 | 필수 |
 | EIA-NF-02 | SSE stream 의 이벤트 fan-out latency: 백엔드 emit ↔ 클라이언트 수신 평균 100ms 이내 (동일 region) | 필수 |
-| EIA-NF-03 | 5분 이벤트 버퍼: 재연결 시 `seq > Last-Event-Id` 인 이벤트를 손실 없이 재전송 | 필수 |
+| EIA-NF-03 | 5분 이벤트 버퍼: 재연결 시 `seq > Last-Event-Id` 인 이벤트를 손실 없이 재전송 (버퍼 만료 시 신호 emit 은 계획·미구현, 만료분은 REST 재조회 폴백 — §5.2) | 필수 |
 | EIA-NF-04 | Inbound 명령 처리는 비동기. REST 응답은 `202 Accepted` 즉시 반환, 실제 워크플로우 진행은 백그라운드 | 필수 |
 | EIA-NF-05 | execution 당 active interact 명령 동시성: 1건 — 동일 노드에 대한 race 는 §5.3 의 lock 전략으로 직렬화 | 필수 |
 
@@ -356,7 +356,7 @@ data: { ... §6 payload ... }
 **규약:**
 - `id` 필드 = execution 내 monotonic `seq` (= WebSocket §2.2 의 `seq` 와 같은 값)
 - `Last-Event-Id` 헤더 또는 query `?lastEventId=` 로 재연결 시 누락 이벤트 재전송 (5분 버퍼)
-- 버퍼 만료된 경우 `execution.replay_unavailable` 이벤트 (한 번) 발송 → 클라이언트는 `GET /api/external/executions/:id` 로 현재 상태 재조회. 이름이 내부 WS 의 `replay.unavailable` ([Spec WS §6.2](./6-websocket-protocol.md#62-놓친-이벤트-복구)) 과 다른 이유는 SSE 의 이벤트 namespace 컨벤션 (`execution.*`) 에 맞추기 위함 — 두 표면의 의미는 동일
+- 버퍼 만료된 경우 `execution.replay_unavailable` 이벤트 (한 번) 발송 → 클라이언트는 `GET /api/external/executions/:id` 로 현재 상태 재조회. 이름이 내부 WS 의 `replay.unavailable` ([Spec WS §6.2](./6-websocket-protocol.md#62-놓친-이벤트-복구)) 과 다른 이유는 SSE 의 이벤트 namespace 컨벤션 (`execution.*`) 에 맞추기 위함 — 두 표면의 의미는 동일. **(계획·미구현)** — 현재 어댑터는 만료/누락분을 silent drop 하며 별도 만료 이벤트를 emit 하지 않는다. 버퍼 내(5분) 재전송은 손실 없이 동작하고(EIA-NF-03 충족), 만료 시엔 위 REST 재조회로 폴백한다. 만료 신호 emit 은 향후 하드닝 항목.
 - terminal 이벤트(`execution.completed` / `execution.failed` / `execution.cancelled`) 발송 후 서버가 SSE 연결 종료
 - 연결 수 제한 초과 시 `429 Too Many Requests`
 
@@ -775,7 +775,7 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 | `execution.completed` | `execution.completed` | `execution.completed` |
 | `execution.failed` | `execution.failed` | `execution.failed` |
 | `execution.cancelled` | `execution.cancelled` | `execution.cancelled` |
-| `replay.unavailable` | `execution.replay_unavailable` | — (재연결 응답 전용) |
+| `replay.unavailable` _(계획·미구현)_ | `execution.replay_unavailable` _(계획·미구현)_ | — (재연결 응답 전용) |
 
 ---
 

@@ -1,7 +1,9 @@
 ---
 id: common
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/flow/workflow/workflow.handler.ts
+  - codebase/backend/src/nodes/flow/workflow/workflow.schema.ts
 ---
 
 # Spec: Flow 노드 공통 규약

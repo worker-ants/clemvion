@@ -1,7 +1,9 @@
 ---
 id: workflow
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/flow/workflow/workflow.handler.ts
+  - codebase/backend/src/nodes/flow/workflow/workflow.schema.ts
 ---
 
 # Spec: Workflow (Sub-Workflow)
