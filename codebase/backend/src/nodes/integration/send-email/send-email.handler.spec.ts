@@ -710,6 +710,68 @@ describe('SendEmailHandler', () => {
       expect(result.output.error.message).toMatch(/workspace context/);
     });
 
+    // -----------------------------------------------------------------
+    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7)
+    // -----------------------------------------------------------------
+    it('returns a dry-run mock and skips the actual send when __dryRun is set', async () => {
+      const { service, logUsage } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const sendConfig = {
+        ...baseConfig,
+        to: ['a@example.com', 'b@example.com'],
+        subject: 'hi',
+      };
+      const ctx = makeContext(sendConfig);
+      ctx.variables = { ...ctx.variables, __dryRun: true };
+      const out = (await handler.execute(null, sendConfig, ctx)) as unknown as {
+        config: { to: unknown };
+        output: {
+          _dryRun: boolean;
+          skippedReason: string;
+          wouldHaveCalled: { kind: string; to?: unknown; subject?: unknown };
+        };
+        meta?: { deliveryStatus?: string };
+        port?: string;
+      };
+
+      // Mock output shape (§7.2)
+      expect(out.output._dryRun).toBe(true);
+      expect(out.output.wouldHaveCalled.kind).toBe('send_email');
+      expect(out.output.wouldHaveCalled.to).toEqual([
+        'a@example.com',
+        'b@example.com',
+      ]);
+      expect(out.output.wouldHaveCalled.subject).toBe('hi');
+      // Success port (no error port) + flow continues as 'sent'.
+      expect(out.port).toBeUndefined();
+      expect(out.meta?.deliveryStatus).toBe('sent');
+      // config echo preserved.
+      expect(out.config.to).toEqual(['a@example.com', 'b@example.com']);
+      // Crucially — no real send, no provider/SMTP contact, no usage row.
+      // (`sendMailMock` / `logUsage` are fresh per test; the SSRF host guard
+      // is a shared module mock so its accumulated count isn't asserted —
+      // sendMail never firing already proves no SMTP path was entered.)
+      expect(sendMailMock).not.toHaveBeenCalled();
+      expect(logUsage).not.toHaveBeenCalled();
+    });
+
+    it('performs a real send when __dryRun is absent (non-dry-run unchanged)', async () => {
+      const { service } = makeService();
+      const handler = new SendEmailHandler(service as never);
+      const out = (await handler.execute(
+        null,
+        baseConfig,
+        makeContext(baseConfig),
+      )) as unknown as {
+        output: { messageId?: string; _dryRun?: boolean };
+        meta: { deliveryStatus: string };
+      };
+      expect(sendMailMock).toHaveBeenCalledTimes(1);
+      expect(out.output._dryRun).toBeUndefined();
+      expect(out.output.messageId).toBe('msg-123');
+      expect(out.meta.deliveryStatus).toBe('sent');
+    });
+
     // SUMMARY#14 — abortSignal 사전 체크 경로 단위 테스트
     it('throws AbortError when context.abortSignal is already aborted', async () => {
       const handler = new SendEmailHandler();

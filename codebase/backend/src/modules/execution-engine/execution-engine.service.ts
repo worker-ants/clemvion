@@ -490,6 +490,8 @@ export type ExecuteOptions =
       // Replay/Re-run (decision F2) — 수동 re-run 으로 생성되는 실행에만 세팅.
       reRunOf?: string;
       chainId?: string;
+      // dry-run re-run (RR-PL-01) — 외부 부수효과 노드가 mock 출력을 반환한다.
+      dryRun?: boolean;
     }
   | { executedBy?: never; triggerId: string }
   | { executedBy?: never; triggerId?: never };
@@ -995,6 +997,9 @@ export class ExecutionEngineService
         __workspaceName: typeof workspaceName === 'string' ? workspaceName : '',
         __workspaceTimezone:
           typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
+        // dry-run 플래그 복원 (rehydration) — spec §7.2. 핸들러는
+        // `context.variables.__dryRun === true` 로 mock 분기.
+        __dryRun: execution.dryRun ?? false,
       },
       execution.recursionDepth,
     );
@@ -1834,6 +1839,8 @@ export class ExecutionEngineService
       options && 'reRunOf' in options ? (options.reRunOf ?? null) : null;
     const chainIdOpt =
       options && 'chainId' in options ? (options.chainId ?? null) : null;
+    const dryRun =
+      options && 'dryRun' in options ? (options.dryRun ?? false) : false;
     const execution = this.executionRepository.create({
       workflowId,
       status: ExecutionStatus.PENDING,
@@ -1842,6 +1849,7 @@ export class ExecutionEngineService
       triggerId: options?.triggerId,
       reRunOf,
       chainId: chainIdOpt,
+      dryRun,
     });
     const savedExecution = await this.executionRepository.save(execution);
     const executionId = savedExecution.id;
@@ -2464,6 +2472,9 @@ export class ExecutionEngineService
             typeof workspaceName === 'string' ? workspaceName : '',
           __workspaceTimezone:
             typeof workspaceTimezone === 'string' ? workspaceTimezone : '',
+          // dry-run 플래그 주입 — spec §7.2. 핸들러는
+          // `context.variables.__dryRun === true` 로 mock 분기.
+          __dryRun: savedExecution.dryRun ?? false,
         },
         savedExecution.recursionDepth,
       );

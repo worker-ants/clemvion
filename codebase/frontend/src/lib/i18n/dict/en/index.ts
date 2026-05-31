@@ -20,6 +20,7 @@ import { llmConfigs } from "./llmConfigs";
 import { authentication } from "./authentication";
 import { statistics } from "./statistics";
 import { executions } from "./executions";
+import { history } from "./history";
 import { docs } from "./docs";
 import { time } from "./time";
 import { errors } from "./errors";
@@ -45,6 +46,7 @@ export const en: Dict = {
   authentication,
   statistics,
   executions,
+  history,
   docs,
   time,
   errors,

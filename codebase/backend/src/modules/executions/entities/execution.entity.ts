@@ -85,6 +85,13 @@ export class Execution {
   @Column({ name: 'chain_id', type: 'uuid', nullable: true })
   chainId: string | null;
 
+  // dry_run: dry-run re-run (RR-PL-01) 으로 생성된 실행만 true. 외부 부수효과
+  //   노드(HTTP/Email/DB-write)가 실제 호출 대신 mock 출력을 반환하도록 엔진이
+  //   createContext 시점에 `variables.__dryRun` 으로 주입한다 (spec §7.2).
+  //   실행 전 수명 동안 고정 — rehydration 에서도 동일 값 복원. (V068)
+  @Column({ name: 'dry_run', type: 'boolean', default: false })
+  dryRun: boolean;
+
   // 노드 실행 순서는 V035 부터 별도 `execution_node_log` 테이블에 append-only
   // 로 기록된다. ExecutionsService.findById 가 (execution_id, id) 정렬 쿼리로
   // executionPath: string[] 응답 필드를 채운다. 본 entity 에 컬럼은 없다.

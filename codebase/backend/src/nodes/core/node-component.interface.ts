@@ -94,6 +94,20 @@ export interface NodeComponentMetadata {
   icon: string;
   color: string;
   /**
+   * Re-run dry-run (spec/5-system/13-replay-rerun.md §7) 지원 여부.
+   *
+   * `true` = 이 노드의 핸들러가 `context.variables.__dryRun === true` 일 때
+   * 외부 호출을 수행하지 않고 mock 출력(`{ _dryRun: true, skippedReason,
+   * wouldHaveCalled }`)을 반환할 수 있다. 외부 부수효과 노드(HTTP Request /
+   * Send Email / Database write / cafe24 write) 는 모두 `true` 를 선언한다 (§7.1).
+   *
+   * 미선언(undefined) = dry-run 비대상(부수효과 없음, dry-run 에서도 그대로 실행)
+   * 또는 외부 부수효과가 있으나 mock 미구현. 후자(외부 부수효과 category 인데
+   * `supportsDryRun !== true`)인 노드가 워크플로에 있으면 엔진/서비스가 dry-run
+   * Re-run 을 진입 전에 `RERUN_DRY_RUN_NOT_APPLICABLE` 로 거부한다 (§7.2).
+   */
+  supportsDryRun?: boolean;
+  /**
    * Engine dispatch metadata. **모든 NodeComponent 가 명시 필수** —
    * `kind: 'standard'` 도 생략 불가 (CRIT #3 시나리오 D).
    *

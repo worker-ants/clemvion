@@ -159,6 +159,13 @@ export type NodeMetadata = {
   dynamicPorts?: DynamicPortsSpec;
   summaryTemplate?: SummaryTemplate;
   /**
+   * Re-run dry-run 지원 여부 (spec/5-system/13-replay-rerun.md §7). `true` 면
+   * 이 노드 핸들러가 dry-run 시 외부 호출을 skip 하고 mock 출력을 반환한다.
+   * Re-run modal 의 external-call 노드 카운트 + dry-run toggle 활성화 판정에
+   * 사용된다. 백엔드 `NodeComponentMetadata.supportsDryRun` 를 미러링.
+   */
+  supportsDryRun?: boolean;
+  /**
    * SSOT declarative warnings shipped from the backend node schema. The
    * canvas badge is derived purely from running `evaluateWarnings(config,
    * warningRules)` so the frontend warning matches the backend
@@ -289,6 +296,8 @@ export type NodeDefinition = {
   isDynamicPorts?: boolean;
   dynamicPorts?: DynamicPortsSpec;
   summaryTemplate?: SummaryTemplate;
+  /** See {@link NodeMetadata.supportsDryRun}. */
+  supportsDryRun?: boolean;
   /** See {@link NodeMetadata.warningRules}. */
   warningRules?: readonly WarningRule[];
   defaultConfig: Record<string, unknown>;

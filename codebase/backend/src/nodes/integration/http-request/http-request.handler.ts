@@ -11,6 +11,7 @@ import {
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { truncateBodyForOutput } from '../../core/truncate-output.util.js';
+import { isDryRun, buildDryRunMock } from '../../core/dry-run.util.js';
 import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
@@ -232,6 +233,11 @@ export class HttpRequestHandler
       url = `${url}${separator}${params.toString()}`;
     }
 
+    // dry-run preview 는 자격증명 query param 이 붙기 **전** 의 URL 을 쓴다 —
+    // credentials.queryParams 는 임의 키명의 API 키일 수 있어 blacklist 기반
+    // sanitize 로는 못 거른다. 여기서 캡처해 노출 자체를 차단한다 (security).
+    const urlBeforeCredentialParams = url;
+
     // Apply integration-provided query params (api_key in query mode).
     if (credentials.queryParams) {
       const params = new URLSearchParams();
@@ -282,6 +288,30 @@ export class HttpRequestHandler
         fetchOptions.body =
           typeof body === 'string' ? body : JSON.stringify(body);
       }
+    }
+
+    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — when the run is
+    // in dry-run mode we MUST NOT perform the real HTTP call. Return a mock
+    // shaped like the normal success path (config echo preserved, success
+    // port) so downstream nodes keep flowing (§7.2). We deliberately branch
+    // BEFORE the SSRF host checks and the `fetch` below: no real request
+    // leaves the process, so those guards have nothing to protect against.
+    // `wouldHaveCalled` carries method/url and a short body preview only —
+    // never the merged auth headers / credentials. URL 은 자격증명 query param
+    // 적용 전 값에 추가로 sanitizeUrlCredentials 를 거쳐 userinfo·blacklist
+    // 시크릿까지 마스킹한다.
+    if (isDryRun(context)) {
+      const bodyPreview = previewRequestBody(fetchOptions.body);
+      return {
+        config: configEcho,
+        output: buildDryRunMock('http_request', {
+          method,
+          url: sanitizeUrlCredentials(urlBeforeCredentialParams),
+          ...(bodyPreview !== undefined ? { bodyPreview } : {}),
+        }),
+        meta: { statusCode: 0, durationMs: Date.now() - start },
+        port: 'success',
+      };
     }
 
     // SSRF guard for Integration-backed calls only. Un-authenticated HTTP
@@ -527,6 +557,34 @@ function buildPreflightErrorOutput(
     meta: { statusCode: 0, durationMs },
     port: 'error',
   };
+}
+
+/**
+ * Re-run dry-run preview of the request body (spec §7). Returns the first
+ * ~200 chars of the wire-shaped request body as a string, or `undefined`
+ * when there is no body (GET/HEAD or `body` omitted) so the caller can drop
+ * the field entirely. `FormData` isn't stringifiable, so we record a small
+ * placeholder listing the part keys rather than leaking values.
+ */
+const DRY_RUN_BODY_PREVIEW_LIMIT = 200;
+function previewRequestBody(
+  body: BodyInit | null | undefined,
+): string | undefined {
+  if (body === undefined || body === null) return undefined;
+  if (typeof body === 'string') {
+    return body.slice(0, DRY_RUN_BODY_PREVIEW_LIMIT);
+  }
+  if (body instanceof URLSearchParams) {
+    return body.toString().slice(0, DRY_RUN_BODY_PREVIEW_LIMIT);
+  }
+  if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    const keys = [...body.keys()];
+    return `[multipart form-data: ${keys.join(', ')}]`.slice(
+      0,
+      DRY_RUN_BODY_PREVIEW_LIMIT,
+    );
+  }
+  return undefined;
 }
 
 /**

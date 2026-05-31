@@ -151,6 +151,10 @@ export const databaseQueryNodeMetadata: NodeComponentMetadata = {
   icon: 'Database',
   color: '#F97316',
   executionMetadata: { kind: 'standard' },
+  // Re-run dry-run (spec/5-system/13-replay-rerun.md §7.1) — Database 노드는
+  // dry-run 지원. 단 핸들러는 WRITE(INSERT/UPDATE/DELETE/UPSERT)만 mock 으로
+  // 단락하고 READ(SELECT)는 dry-run 에서도 실제로 실행한다 (§7.1 표 / L153).
+  supportsDryRun: true,
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `databaseQuerySummary` warning ("Query not set")
