@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import pLimit from 'p-limit';
-import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
+import {
+  ExecutionContext,
+  ParallelBranchContext,
+} from '../../../nodes/core/node-handler.interface';
 
 export type ParallelErrorPolicy = 'stop' | 'continue' | 'cancel-others-on-fail';
 
@@ -58,18 +61,26 @@ export class ParallelExecutor {
    * @param config — Parallel node config (branchCount, maxConcurrency, waitAll, errorPolicy).
    * @param context — Shared execution context. Each branch receives a shallow clone
    *   that clears `itemContext` / `loopContext` so inner ForEach/Loop containers
-   *   do not leak state across branches. `parentParallelConcurrency` (if set)
-   *   triggers the nested concurrency clamp (parallel-p2 결정 #3 + G).
+   *   do not leak state across branches.
    * @param runBranch — Engine-provided branch runner. Takes the 0-based branch
-   *   index and the branch-scoped context; resolves when the branch body completes.
+   *   index and the branch-scoped {@link ParallelBranchContext}; resolves when the
+   *   branch body completes.
+   * @param parentParallelConcurrency — 외부 Parallel 의 effectiveConcurrency.
+   *   중첩 Parallel 일 때 caller (engine) 가 부모 분기의 {@link ParallelBranchContext}
+   *   에서 읽어 명시 전달한다. set 되어 있으면 자기 effective 를 floor(32/parent)
+   *   로 silent clamp (parallel-p2 결정 #3 + G). 미전달 (= 외부 Parallel 없음)
+   *   이면 clamp 없음. 본 값은 더 이상 ExecutionContext 의 필드가 아니라
+   *   ParallelBranchContext 전용이며 (spec/conventions/execution-context.md §원칙 2),
+   *   엔진 호출 경로를 통해서만 운반된다.
    */
   async execute(
     config: ParallelConfig,
     context: ExecutionContext,
     runBranch: (
       branchIndex: number,
-      branchContext: ExecutionContext,
+      branchContext: ParallelBranchContext,
     ) => Promise<void>,
+    parentParallelConcurrency?: number,
   ): Promise<ParallelResult> {
     const branchCount = Math.max(
       2,
@@ -82,9 +93,11 @@ export class ParallelExecutor {
     const intendedEffective = maxConcurrency > 0 ? maxConcurrency : branchCount;
 
     // 중첩 Parallel concurrency cap (parallel-p2 결정 #3 + G + D). 외부 Parallel 의
-    // effectiveConcurrency 가 context.parentParallelConcurrency 에 set 되어 있으면
+    // effectiveConcurrency 가 parentParallelConcurrency 인자로 전달되어 있으면
     // 자기 effective 를 floor(32/parent) 로 silent clamp. 외부 × 내부 ≤ 32 보장.
-    const parentEffective = context.parentParallelConcurrency;
+    // 본 값은 부모 분기의 ParallelBranchContext 에서 engine 이 읽어 명시 전달한다
+    // (spec/conventions/execution-context.md §원칙 2 — ExecutionContext 필드 아님).
+    const parentEffective = parentParallelConcurrency;
     let effectiveConcurrency = intendedEffective;
     let clampedConcurrency: ClampedConcurrency | undefined;
     if (parentEffective !== undefined && parentEffective > 0) {
@@ -141,7 +154,7 @@ export class ParallelExecutor {
     const settled = await Promise.allSettled(
       indices.map((i) =>
         limit(async () => {
-          const branchContext: ExecutionContext = {
+          const branchContext: ParallelBranchContext = {
             ...context,
             // WARN #14 (Concurrency) — 중첩 객체를 두 브랜치가 await 경계를
             // 넘어 쓰면 last-write-wins 비결정성 발생. structuredClone 으로

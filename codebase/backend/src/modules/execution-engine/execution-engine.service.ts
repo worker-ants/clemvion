@@ -69,11 +69,12 @@ import {
 import { extractBackgroundRunId } from './utils/extract-background-run-id';
 import {
   ExecutionContext,
-  isResumableNodeHandler,
   NodeHandler,
   NodeHandlerOutput,
+  ParallelBranchContext,
   ResumableMessageSource,
   ResumableNodeHandler,
+  isResumableNodeHandler,
 } from '../../nodes/core/node-handler.interface';
 import { NODE_TYPES } from '../../nodes/core/node-types.constants';
 import {
@@ -6937,8 +6938,8 @@ export class ExecutionEngineService
    * 분기 body 에 내부 Parallel 발견 시 허용 (depth=2 가 되는 시점에 dispatch
    * 되어 내부 planParallelBody 가 다시 호출됨). depth=2 의 분기 body 에 또
    * Parallel 발견 시 (= depth 3 시도) `PARALLEL_NESTED_DEPTH_EXCEEDED` throw.
-   * `runParallel` 가 `context.parentParallelConcurrency` 의 set 여부로 자기
-   * depth 를 판별.
+   * `runParallel` 가 context 가 `ParallelBranchContext` 인지 (즉
+   * `parentParallelConcurrency` 보유 여부) 로 자기 depth 를 판별.
    */
   private planParallelBody(
     parallelNode: Node,
@@ -7394,11 +7395,18 @@ export class ExecutionEngineService
     }
 
     // parallel-p2 결정 #3 + G (2026-05-30): 중첩 Parallel 깊이 판별. 외부 Parallel
-    // 이 자기 effectiveConcurrency 를 branch context 의 parentParallelConcurrency
-    // 에 set 하므로, 본 runParallel 의 context 에 이 값이 있으면 자기는 inner
+    // 이 자기 effectiveConcurrency 를 branch 의 ParallelBranchContext 에 set 하므로,
+    // 본 runParallel 의 context 가 ParallelBranchContext 면 자기는 inner
     // (depth=2). 없으면 outermost (depth=1).
+    // `parentParallelConcurrency` 는 더 이상 ExecutionContext 공통 필드가 아니라
+    // ParallelBranchContext 전용이므로 (spec/conventions/execution-context.md §원칙 2)
+    // `in` 연산자로 좁혀 접근한다.
+    const parentParallelConcurrency: number | undefined =
+      'parentParallelConcurrency' in context
+        ? (context as ParallelBranchContext).parentParallelConcurrency
+        : undefined;
     const currentParallelDepth: 1 | 2 =
-      context.parentParallelConcurrency !== undefined ? 2 : 1;
+      parentParallelConcurrency !== undefined ? 2 : 1;
 
     const plan = this.planParallelBody(
       parallelNode,
@@ -7438,6 +7446,10 @@ export class ExecutionEngineService
           input,
         );
       },
+      // 결정 #3 + G: 본 Parallel 이 inner (depth=2) 면 부모 분기가 넘긴
+      // effectiveConcurrency 를 executor 에 명시 전달해 자기 concurrency 를
+      // floor(32/parent) 로 silent clamp 시킨다. outermost (depth=1) 면 undefined.
+      parentParallelConcurrency,
     );
 
     // Collect each branch's terminal output for the `done` port.
