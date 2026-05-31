@@ -1,7 +1,8 @@
 ---
 id: order
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/order.ts
 ---
 
 # Cafe24 API Catalog — Order (주문)

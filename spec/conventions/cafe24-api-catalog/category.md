@@ -1,7 +1,8 @@
 ---
 id: category
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/category.ts
 ---
 
 # Cafe24 API Catalog — Category (상품분류)

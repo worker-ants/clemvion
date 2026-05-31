@@ -1,7 +1,9 @@
 ---
 id: swagger
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/common/swagger/**
+  - codebase/backend/nest-cli.json
 ---
 
 # Swagger 문서화 일관된 패턴 가이드

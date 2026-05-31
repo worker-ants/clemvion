@@ -1,7 +1,8 @@
 ---
 id: design
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/design.ts
 ---
 
 # Cafe24 API Catalog — Design (디자인)

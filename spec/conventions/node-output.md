@@ -1,7 +1,11 @@
 ---
 id: node-output
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/nodes/core/node-handler.interface.ts
+  - codebase/backend/src/modules/execution-engine/handler-output.adapter.ts
+pending_plans:
+  - plan/in-progress/node-output-redesign/README.md
 ---
 
 # Output 변수 일관성 규칙 (Conventions)

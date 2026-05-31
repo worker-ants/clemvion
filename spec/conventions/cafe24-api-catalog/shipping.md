@@ -1,7 +1,8 @@
 ---
 id: shipping
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/shipping.ts
 ---
 
 # Cafe24 API Catalog — Shipping (배송)

@@ -1,7 +1,9 @@
 ---
 id: data-hydration-surfaces
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/lib/conversation/__tests__/hydration-coverage.test.ts
+  - codebase/frontend/src/lib/websocket/apply-execution-snapshot.ts
 ---
 
 # Data Hydration Surfaces
