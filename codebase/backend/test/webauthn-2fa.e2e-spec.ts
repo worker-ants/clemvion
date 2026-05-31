@@ -32,6 +32,7 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 interface CredentialRow {
   id: string;
   counter: string;
+  last_used_at: string | null;
 }
 
 describe('WebAuthn 2FA (e2e)', () => {
@@ -48,7 +49,7 @@ describe('WebAuthn 2FA (e2e)', () => {
 
   async function credentialRows(userId: string): Promise<CredentialRow[]> {
     const res = await db.query<CredentialRow>(
-      'SELECT id, counter FROM webauthn_credential WHERE user_id = $1',
+      'SELECT id, counter, last_used_at FROM webauthn_credential WHERE user_id = $1',
       [userId],
     );
     return res.rows;
@@ -114,6 +115,7 @@ describe('WebAuthn 2FA (e2e)', () => {
     // DB: counter 0 → 1 갱신 + last_used_at 기록.
     rows = await credentialRows(userId);
     expect(rows[0].counter).toBe('1');
+    expect(rows[0].last_used_at).not.toBeNull();
   });
 
   it('B. counter 역행 → 401 + credential 삭제 + 활성 세션 전체 revoke (트랜잭션 원자성)', async () => {
@@ -235,6 +237,9 @@ describe('WebAuthn 2FA (e2e)', () => {
     expect(res.status).toBe(401);
     // UV 실패는 검증 실패(WEBAUTHN_INVALID)이지 counter 역행이 아니므로 credential 보존.
     expect(res.body.error.code).toBe('WEBAUTHN_INVALID');
-    expect(await credentialRows(userId)).toHaveLength(1);
+    const rows = await credentialRows(userId);
+    expect(rows).toHaveLength(1);
+    // 검증 실패는 counter 를 갱신하지 않는다 (성공 verify 만 newCounter 반영).
+    expect(rows[0].counter).toBe('0');
   });
 });

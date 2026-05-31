@@ -373,6 +373,38 @@ describe('WebAuthnService', () => {
       );
     });
 
+    // COUNTER_REGRESSION_REASON_PATTERN 의 모든 키워드(과거/타 버전 문구 포함)가
+    // 역행 분기를 트리거하는지 잠근다 — "lower" 만 검증하면 호환 키워드 회귀를 놓친다.
+    it.each([
+      ['lower', 'Response counter value 0 was lower than expected 5'],
+      ['less', 'Response counter value 0 is less than or equal to current counter 5'],
+      ['regress', 'authenticator counter regression detected'],
+      ['same', 'counter value is the same as the stored counter'],
+    ])(
+      'treats "%s" counter message as regression (delete + revoke)',
+      async (_keyword, message) => {
+        mockedVerifyAuthResp.mockRejectedValue(new Error(message));
+        await expect(
+          service.verifyAuthentication(
+            userId,
+            'opts.tok',
+            validResponse as never,
+          ),
+        ).rejects.toMatchObject({
+          response: expect.objectContaining({
+            code: 'WEBAUTHN_COUNTER_REGRESSION',
+          }),
+        });
+        expect(credentialRepo.delete).toHaveBeenCalledWith({
+          id: credentialRow.id,
+        });
+        expect(refreshTokenRepo.update).toHaveBeenCalledWith(
+          { userId, isRevoked: false },
+          { isRevoked: true },
+        );
+      },
+    );
+
     it('records WEBAUTHN_INVALID on generic verify failure', async () => {
       mockedVerifyAuthResp.mockRejectedValue(new Error('signature failed'));
       await expect(
