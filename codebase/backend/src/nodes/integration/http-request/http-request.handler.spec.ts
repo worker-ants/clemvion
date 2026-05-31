@@ -474,6 +474,155 @@ describe('HttpRequestHandler', () => {
       expect(result.port).toBe('success');
       expect(result.output.response).toBe('plain text response');
     });
+
+    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — when
+    // `context.variables.__dryRun === true` the handler must NOT perform the
+    // real HTTP call and instead return a success-shaped dry-run mock.
+    describe('dry-run (__dryRun)', () => {
+      function dryRunContext(): ExecutionContext {
+        return {
+          executionId: 'exec-1',
+          workflowId: 'wf-1',
+          variables: { __dryRun: true },
+          nodeOutputCache: {},
+          structuredOutputCache: {},
+          engineResolvedConfigCache: {},
+          conversationThread: createEmptyConversationThread(),
+          recursionDepth: 0,
+        };
+      }
+
+      it('returns a dry-run mock on success port and performs NO fetch', async () => {
+        const fetchSpy = jest.fn();
+        global.fetch = fetchSpy as unknown as typeof global.fetch;
+
+        const result = (await handler.execute(
+          null,
+          {
+            method: 'POST',
+            url: 'https://api.example.com/orders',
+            body: { sku: 'ABC', qty: 2 },
+            bodyType: 'json',
+          },
+          dryRunContext(),
+        )) as unknown as {
+          port: string;
+          config: { url: string };
+          output: {
+            _dryRun: boolean;
+            skippedReason: string;
+            wouldHaveCalled: {
+              kind: string;
+              method: string;
+              url: string;
+              bodyPreview?: string;
+            };
+          };
+        };
+
+        // No real call.
+        expect(fetchSpy).not.toHaveBeenCalled();
+        // Success-shaped output (mirrors the normal 2xx return).
+        expect(result.port).toBe('success');
+        expect(result.config.url).toBe('https://api.example.com/orders');
+        // Dry-run mock contract (§7.2).
+        expect(result.output._dryRun).toBe(true);
+        expect(result.output.wouldHaveCalled.kind).toBe('http_request');
+        expect(result.output.wouldHaveCalled.method).toBe('POST');
+        expect(result.output.wouldHaveCalled.url).toBe(
+          'https://api.example.com/orders',
+        );
+        // bodyPreview reflects the JSON-serialized request body.
+        expect(result.output.wouldHaveCalled.bodyPreview).toContain('ABC');
+      });
+
+      it('skips SSRF host checks in dry-run (no throw, no fetch) for blocked hosts', async () => {
+        const fetchSpy = jest.fn();
+        global.fetch = fetchSpy as unknown as typeof global.fetch;
+        const { service } = (() => {
+          const getForExecution = jest.fn().mockResolvedValue({
+            id: 'int-1',
+            name: 'API',
+            serviceType: 'http',
+            authType: 'bearer_token',
+            status: 'connected',
+            credentials: { token: 't' },
+          });
+          const logUsage = jest.fn().mockResolvedValue(undefined);
+          return { service: { getForExecution, logUsage } };
+        })();
+        const authedHandler = new HttpRequestHandler(service as never);
+
+        const ctx: ExecutionContext = {
+          executionId: 'exec-1',
+          workflowId: 'wf-1',
+          variables: { __dryRun: true, __workspaceId: 'ws-1' },
+          nodeOutputCache: {},
+          structuredOutputCache: {},
+          engineResolvedConfigCache: {},
+          conversationThread: createEmptyConversationThread(),
+          recursionDepth: 0,
+        };
+
+        const result = (await authedHandler.execute(
+          null,
+          {
+            method: 'GET',
+            // would normally be SSRF-blocked (link-local metadata endpoint)
+            url: 'http://169.254.169.254/latest/meta-data/',
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          ctx,
+        )) as unknown as {
+          port: string;
+          output: { _dryRun: boolean; wouldHaveCalled: { kind: string } };
+        };
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(result.port).toBe('success');
+        expect(result.output._dryRun).toBe(true);
+        expect(result.output.wouldHaveCalled.kind).toBe('http_request');
+      });
+
+      it('omits bodyPreview when there is no request body (GET)', async () => {
+        const fetchSpy = jest.fn();
+        global.fetch = fetchSpy as unknown as typeof global.fetch;
+
+        const result = (await handler.execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/data' },
+          dryRunContext(),
+        )) as unknown as {
+          output: { wouldHaveCalled: { bodyPreview?: string } };
+        };
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(result.output.wouldHaveCalled.bodyPreview).toBeUndefined();
+      });
+
+      it('normal (non-dry-run) behavior is unchanged — fetch IS called', async () => {
+        const fetchSpy = jest.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue({ ok: true }),
+        });
+        global.fetch = fetchSpy as unknown as typeof global.fetch;
+
+        const result = (await handler.execute(
+          null,
+          { method: 'GET', url: 'https://api.example.com/data' },
+          context, // variables: {} — no __dryRun
+        )) as unknown as {
+          port: string;
+          output: { _dryRun?: boolean };
+        };
+
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(result.port).toBe('success');
+        expect(result.output._dryRun).toBeUndefined();
+      });
+    });
   });
 
   describe('integration-backed authentication', () => {

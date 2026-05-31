@@ -11,6 +11,7 @@ import {
   toLogError,
 } from '../_base/integration-handler-base.js';
 import { truncateBodyForOutput } from '../../core/truncate-output.util.js';
+import { isDryRun, buildDryRunMock } from '../../core/dry-run.util.js';
 import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
@@ -284,6 +285,28 @@ export class HttpRequestHandler
       }
     }
 
+    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — when the run is
+    // in dry-run mode we MUST NOT perform the real HTTP call. Return a mock
+    // shaped like the normal success path (config echo preserved, success
+    // port) so downstream nodes keep flowing (§7.2). We deliberately branch
+    // BEFORE the SSRF host checks and the `fetch` below: no real request
+    // leaves the process, so those guards have nothing to protect against.
+    // `wouldHaveCalled` carries method/url and a short body preview only —
+    // never the merged auth headers / credentials.
+    if (isDryRun(context)) {
+      const bodyPreview = previewRequestBody(fetchOptions.body);
+      return {
+        config: configEcho,
+        output: buildDryRunMock('http_request', {
+          method,
+          url,
+          ...(bodyPreview !== undefined ? { bodyPreview } : {}),
+        }),
+        meta: { statusCode: 0, durationMs: Date.now() - start },
+        port: 'success',
+      };
+    }
+
     // SSRF guard for Integration-backed calls only. Un-authenticated HTTP
     // requests (authentication=none / custom) may legitimately target
     // internal services in some deployments, so we don't block those here.
@@ -527,6 +550,34 @@ function buildPreflightErrorOutput(
     meta: { statusCode: 0, durationMs },
     port: 'error',
   };
+}
+
+/**
+ * Re-run dry-run preview of the request body (spec §7). Returns the first
+ * ~200 chars of the wire-shaped request body as a string, or `undefined`
+ * when there is no body (GET/HEAD or `body` omitted) so the caller can drop
+ * the field entirely. `FormData` isn't stringifiable, so we record a small
+ * placeholder listing the part keys rather than leaking values.
+ */
+const DRY_RUN_BODY_PREVIEW_LIMIT = 200;
+function previewRequestBody(
+  body: BodyInit | null | undefined,
+): string | undefined {
+  if (body === undefined || body === null) return undefined;
+  if (typeof body === 'string') {
+    return body.slice(0, DRY_RUN_BODY_PREVIEW_LIMIT);
+  }
+  if (body instanceof URLSearchParams) {
+    return body.toString().slice(0, DRY_RUN_BODY_PREVIEW_LIMIT);
+  }
+  if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    const keys = [...body.keys()];
+    return `[multipart form-data: ${keys.join(', ')}]`.slice(
+      0,
+      DRY_RUN_BODY_PREVIEW_LIMIT,
+    );
+  }
+  return undefined;
 }
 
 /**

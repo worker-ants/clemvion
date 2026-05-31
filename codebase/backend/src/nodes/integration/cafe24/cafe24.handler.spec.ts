@@ -585,4 +585,126 @@ describe('Cafe24Handler', () => {
       expect(integrationsService.logUsage).toHaveBeenCalled();
     });
   });
+
+  // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — cafe24 mocks WRITE
+  // operations (POST/PUT/DELETE) and passes READ (GET) operations through.
+  describe('execute — dry-run (§7)', () => {
+    function makeDryRunContext(): ExecutionContext {
+      const ctx = makeContext();
+      ctx.variables = { ...ctx.variables, __dryRun: true };
+      return ctx;
+    }
+
+    it('WRITE op (PUT) — returns _dryRun mock on success port, no ApiClient call', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_update',
+          fields: {
+            product_no: 1001,
+            product_name: 'New name',
+            price: '10000.00',
+          },
+        },
+        makeDryRunContext(),
+      );
+
+      // No external commerce API call in the mocked write path.
+      expect(apiClient.call).not.toHaveBeenCalled();
+      // Integration resolve is also short-circuited (mock is pre-resolve).
+      expect(integrationsService.getForExecution).not.toHaveBeenCalled();
+
+      expect(result.port).toBe('success');
+      const output = result.output as {
+        _dryRun?: boolean;
+        skippedReason?: string;
+        wouldHaveCalled?: Record<string, unknown>;
+      };
+      expect(output._dryRun).toBe(true);
+      expect(output.skippedReason).toBe('dry-run mode');
+      expect(output.wouldHaveCalled).toEqual({
+        kind: 'cafe24',
+        operation: 'product_update',
+        method: 'PUT',
+        resource: 'product',
+      });
+
+      // Config echo still mirrors the real success shape.
+      expect(result.config.resource).toBe('product');
+      expect(result.config.operation).toBe('product_update');
+
+      // Usage logged as success (flow proceeds, §7.2).
+      expect(integrationsService.logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'success' }),
+      );
+    });
+
+    it('READ op (GET) — ApiClient IS called normally even in dry-run', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({
+        status: 200,
+        body: { products: [{ product_no: 1 }] },
+        headers: {},
+        retries: 0,
+      });
+
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_list',
+          fields: { shop_no: 1 },
+        },
+        makeDryRunContext(),
+      );
+
+      // GET passes through — real call performed, no dry-run mock.
+      expect(apiClient.call).toHaveBeenCalledTimes(1);
+      expect(apiClient.call.mock.calls[0][1]).toEqual(
+        expect.objectContaining({ method: 'GET' }),
+      );
+      expect(result.port).toBe('success');
+      const output = result.output as { _dryRun?: boolean; response?: unknown };
+      expect(output._dryRun).toBeUndefined();
+      expect(output.response).toEqual({ products: [{ product_no: 1 }] });
+    });
+
+    it('non-dry-run WRITE op — unchanged, real ApiClient call performed', async () => {
+      integrationsService.getForExecution.mockResolvedValue(makeIntegration());
+      apiClient.call.mockResolvedValue({
+        status: 200,
+        body: {},
+        headers: {},
+        retries: 0,
+      });
+
+      const result = await handler.execute(
+        null,
+        {
+          integrationId: 'id',
+          resource: 'product',
+          operation: 'product_update',
+          fields: {
+            product_no: 1001,
+            product_name: 'New name',
+            price: '10000.00',
+          },
+        },
+        makeContext(),
+      );
+
+      expect(apiClient.call).toHaveBeenCalledTimes(1);
+      expect(apiClient.call.mock.calls[0][1]).toEqual(
+        expect.objectContaining({ method: 'PUT' }),
+      );
+      expect(result.port).toBe('success');
+      const output = result.output as { _dryRun?: boolean };
+      expect(output._dryRun).toBeUndefined();
+    });
+  });
 });

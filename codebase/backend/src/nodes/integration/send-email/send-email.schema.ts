@@ -272,6 +272,9 @@ export const sendEmailNodeMetadata: NodeComponentMetadata = {
   icon: 'Mail',
   color: '#F97316',
   executionMetadata: { kind: 'standard' },
+  // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — 외부 SMTP 발송을
+  // 수행하는 부수효과 노드이므로 dry-run 시 mock 반환을 지원한다.
+  supportsDryRun: true,
   // SSOT for warnings (frontend canvas + backend handler.validate).
   // Mirror points:
   //  - frontend `sendEmailSummary` warning ("Recipient not set" — covered

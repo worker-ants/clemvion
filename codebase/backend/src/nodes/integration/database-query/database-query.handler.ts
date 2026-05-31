@@ -22,6 +22,7 @@ import {
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
+import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
 
 interface DbCredentials {
@@ -135,6 +136,27 @@ export class DatabaseQueryHandler
     // 토큰이 동사가 아닌 경우 (raw 쿼리 분기 등) 는 NULL fallback. api_path 는
     // 확정된 driver 토큰 — 그 전엔 default 'postgres'.
     const apiMethod = extractSqlVerb(query);
+
+    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7.1) — config 검증/echo
+    // 직후, DB 연결을 열기 전에 WRITE(INSERT/UPDATE/DELETE/UPSERT)만 mock 으로
+    // 단락한다. READ(SELECT)는 부수효과가 아니므로 dry-run 에서도 아래 실제
+    // 실행 경로로 그대로 흐른다 (§7.1 L153). mock 경로는 pool/connect 를 절대
+    // 호출하지 않으며 success 포트로 흐름을 정상 진행시킨다. sqlPreview 는 SQL
+    // 앞 ~200자만 노출(바인딩 파라미터 값은 미포함).
+    if (isDryRun(context) && isWriteOperation(configEcho.queryType, query)) {
+      const sqlPreview =
+        typeof query === 'string' ? query.slice(0, 200) : undefined;
+      return {
+        config: configEcho,
+        output: buildDryRunMock('database_query', {
+          operation: configEcho.queryType,
+          sqlPreview,
+        }),
+        meta: { durationMs: 0 },
+        port: 'success',
+      };
+    }
+
     try {
       const parameters = parseParameters(config.parameters);
 
@@ -425,6 +447,53 @@ export function extractSqlVerb(query: string | undefined): string | null {
   const match = query.trim().match(/^([A-Za-z]+)/);
   if (!match) return null;
   return match[1].toUpperCase();
+}
+
+/**
+ * Re-run dry-run (spec/5-system/13-replay-rerun.md §7.1, L148/L153) —
+ * WRITE 작업(INSERT/UPDATE/DELETE/UPSERT)만 부수효과로 분류해 mock 으로 단락하고,
+ * READ(SELECT)는 dry-run 에서도 실제로 실행한다.
+ *
+ * 분류는 두 신호를 결합한다:
+ *  1. `config.queryType` (`select`/`insert`/`update`/`delete`/`raw`) — UI 가
+ *     명시한 1차 신호. insert/update/delete 는 곧바로 write.
+ *  2. SQL 첫 토큰(`extractSqlVerb`) — `queryType` 이 `raw` 이거나 누락된 경우의
+ *     보조 신호. UPSERT(`INSERT ... ON CONFLICT`/`MERGE`/`REPLACE`)와 DDL/DML
+ *     write 동사도 여기서 포착한다.
+ *
+ * 모호하면 read 로 떨어뜨려(=실제 실행) dry-run 의 안전 기본값(부수효과 차단)
+ * 보다 결과 재현성을 우선한다 — write 동사 화이트리스트 명시.
+ */
+const SQL_WRITE_VERBS = new Set([
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'UPSERT',
+  'MERGE',
+  'REPLACE',
+  'TRUNCATE',
+  'DROP',
+  'CREATE',
+  'ALTER',
+  'GRANT',
+  'REVOKE',
+]);
+
+export function isWriteOperation(
+  queryType: unknown,
+  query: string | undefined,
+): boolean {
+  if (
+    queryType === 'insert' ||
+    queryType === 'update' ||
+    queryType === 'delete'
+  ) {
+    return true;
+  }
+  if (queryType === 'select') return false;
+  // queryType === 'raw' 또는 누락 — SQL 동사로 판정.
+  const verb = extractSqlVerb(query);
+  return verb !== null && SQL_WRITE_VERBS.has(verb);
 }
 
 function parseParameters(raw: unknown): unknown[] {

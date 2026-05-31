@@ -11,8 +11,10 @@ import { Repository } from 'typeorm';
 import { Execution, ExecutionStatus } from './entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-log.entity';
-import { Node } from '../nodes/entities/node.entity';
+import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
@@ -93,6 +95,8 @@ export class ExecutionsService {
     @InjectRepository(Node)
     private readonly nodeRepository: Repository<Node>,
     private readonly executionEngineService: ExecutionEngineService,
+    private readonly nodeComponentRegistry: NodeComponentRegistry,
+    private readonly auditLogsService: AuditLogsService,
   ) {}
 
   private readSnapshotCache(
@@ -268,13 +272,14 @@ export class ExecutionsService {
       });
     }
 
-    // dry-run — v1 미지원 (supportsDryRun 노드 인프라 미구축). 안전하게 거부해
-    // 외부 부수효과가 실제로 실행되는 것을 막는다 (spec §8.1 게이트).
-    if (dto.dryRun) {
-      throw new BadRequestException({
-        code: 'RERUN_DRY_RUN_NOT_APPLICABLE',
-        message: 'dry-run mode is not supported yet',
-      });
+    // dry-run pre-flight (spec §7.2) — 워크플로에 외부 부수효과 노드인데
+    // dry-run mock 미구현(`supportsDryRun !== true`)인 노드가 있으면 진입 전에
+    // 전체 Re-run 을 거부한다. 모든 v1 외부 부수효과 노드는 supportsDryRun:true
+    // 라 정상 워크플로는 통과 — 미래에 mock 없는 부수효과 노드가 추가될 때의
+    // 안전 가드.
+    const dryRun = dto.dryRun ?? false;
+    if (dryRun) {
+      await this.assertDryRunSupported(original.workflowId);
     }
 
     // RR-PL-05 — chain 깊이 32 제한 (새 실행 포함 시 초과면 거부).
@@ -319,11 +324,60 @@ export class ExecutionsService {
     const newExecutionId = await this.executionEngineService.execute(
       original.workflowId,
       executionInput,
-      { executedBy: user.sub, reRunOf: executionId, chainId },
+      { executedBy: user.sub, reRunOf: executionId, chainId, dryRun },
     );
 
+    // 감사 로그 (spec §11) — 실패는 swallow (audit 가 주 동작을 깨지 않음).
+    // inputModified: 사용자 입력 수정 모드이고 resolved 입력이 원본과 다를 때.
+    const inputModified =
+      !useOriginal &&
+      JSON.stringify(
+        (executionInput as { parameters?: unknown }).parameters ?? null,
+      ) !==
+        JSON.stringify(
+          (original.inputData as { parameters?: unknown } | null)?.parameters ??
+            null,
+        );
+    await this.auditLogsService.record({
+      workspaceId,
+      userId: user.sub,
+      action: 're_run_initiated',
+      resourceType: 'execution',
+      resourceId: newExecutionId,
+      details: {
+        originalExecutionId: executionId,
+        chainId,
+        dryRun,
+        inputModified,
+      },
+    });
+
     const detail = await this.findById(newExecutionId);
-    return { ...detail, reRunOf: executionId, chainId, dryRun: false };
+    return { ...detail, reRunOf: executionId, chainId, dryRun };
+  }
+
+  /**
+   * dry-run pre-flight (spec §7.2). 워크플로의 노드 중 외부 부수효과
+   * (Integration category) 인데 `supportsDryRun !== true` 인 노드가 하나라도
+   * 있으면 `RERUN_DRY_RUN_NOT_APPLICABLE` 로 거부한다. mock 출력을 보장할 수
+   * 없는 노드가 dry-run 으로 실행돼 실제 외부 호출이 일어나는 것을 차단.
+   */
+  private async assertDryRunSupported(workflowId: string): Promise<void> {
+    const nodes = await this.nodeRepository.find({
+      where: { workflowId },
+      select: { id: true, type: true, category: true },
+    });
+    const offending = nodes.find((node) => {
+      if (node.category !== NodeCategory.INTEGRATION) return false;
+      const meta = this.nodeComponentRegistry.getComponent(node.type)?.metadata;
+      return meta?.supportsDryRun !== true;
+    });
+    if (offending) {
+      throw new BadRequestException({
+        code: 'RERUN_DRY_RUN_NOT_APPLICABLE',
+        message: `Workflow contains a node (type='${offending.type}') that does not support dry-run`,
+      });
+    }
   }
 
   /**

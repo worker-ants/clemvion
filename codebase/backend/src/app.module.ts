@@ -3,8 +3,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { shouldSkipThrottle } from './common/utils/throttler-skip';
+import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
 import { BullModule } from '@nestjs/bullmq';
 import {
   appConfig,
@@ -247,8 +248,12 @@ export const ROOT_ENTITIES = [
     { provide: APP_PIPE, useClass: CustomValidationPipe },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // JwtAuthGuard 를 throttler 앞에 둬서 req.user 가 채워진 상태로 throttle 키를
+    // 만든다 → UserThrottlerGuard 가 사용자당 rate-limit (re-run §12 등) 보장.
+    // @Public 라우트(login/register 등)는 JwtAuthGuard 가 통과시키고 throttler 가
+    // IP 폴백으로 여전히 보호하므로 pre-auth flood 방어는 유지된다.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: UserThrottlerGuard },
     // RolesGuard 는 JwtAuthGuard 다음에 실행돼야 한다 (req.user 가 채워진 뒤 역할 검사).
     // @Roles 가 붙지 않은 라우트는 default-allow 로 통과하므로 opt-in 시맨틱은 유지된다.
     { provide: APP_GUARD, useClass: RolesGuard },

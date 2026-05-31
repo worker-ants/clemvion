@@ -10,6 +10,7 @@ import { BackgroundRunsController } from './background-runs/background-runs.cont
 import { BackgroundRunsService } from './background-runs/background-runs.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -30,6 +31,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     // 위임 — Notification Repository 를 본 모듈에서 직접 forFeature 등록
     // 하지 않는다 (단일 ownership 유지).
     NotificationsModule,
+    // re_run_initiated 감사 로그 기록 (spec §11) — AuditLogsService 주입.
+    AuditLogsModule,
   ],
   controllers: [ExecutionsController, BackgroundRunsController],
   providers: [ExecutionsService, BackgroundRunsService],

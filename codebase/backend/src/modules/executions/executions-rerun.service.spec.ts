@@ -16,7 +16,9 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     createQueryBuilder: jest.Mock;
   };
   let engine: { execute: jest.Mock };
-  let nodeRepo: { findOne: jest.Mock };
+  let nodeRepo: { findOne: jest.Mock; find: jest.Mock };
+  let registry: { getComponent: jest.Mock };
+  let audit: { record: jest.Mock };
 
   // createQueryBuilder 는 호출마다 새 chainable qb 를 반환. getOne/getRawOne/
   // getMany 결과는 큐에서 순서대로 소비.
@@ -57,13 +59,21 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     getManyQueue = [];
     execRepo = { createQueryBuilder: jest.fn(() => makeQb()) };
     engine = { execute: jest.fn().mockResolvedValue('new-exec-id') };
-    nodeRepo = { findOne: jest.fn().mockResolvedValue(null) };
+    nodeRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      // assertDryRunSupported 가 워크플로 노드를 조회 — 기본은 노드 없음(통과).
+      find: jest.fn().mockResolvedValue([]),
+    };
+    registry = { getComponent: jest.fn() };
+    audit = { record: jest.fn().mockResolvedValue(undefined) };
     service = new ExecutionsService(
       execRepo as never,
       {} as never,
       {} as never,
       nodeRepo as never,
       engine as never,
+      registry as never,
+      audit as never,
     );
   });
 
@@ -115,14 +125,27 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf-1',
       {},
-      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1' },
+      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1', dryRun: false },
     );
     expect(res.reRunOf).toBe('e1');
     expect(res.chainId).toBe('e1');
     expect(res.dryRun).toBe(false);
+    // 감사 로그 기록 (spec §11).
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 're_run_initiated',
+        resourceType: 'execution',
+        resourceId: 'new-exec-id',
+        details: expect.objectContaining({
+          originalExecutionId: 'e1',
+          dryRun: false,
+          inputModified: false,
+        }),
+      }),
+    );
   });
 
-  it('rejects dry-run with RERUN_DRY_RUN_NOT_APPLICABLE (v1 gate)', async () => {
+  it('dry-run pre-flight rejects when an integration node lacks supportsDryRun', async () => {
     getOneQueue = [
       {
         id: 'e1',
@@ -131,10 +154,53 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         executedBy: 'user-1',
       },
     ];
+    // 워크플로에 integration 노드가 있고 supportsDryRun 미선언 → 거부.
+    nodeRepo.find.mockResolvedValue([
+      { id: 'n1', type: 'legacy_side_effect', category: 'integration' },
+    ]);
+    registry.getComponent.mockReturnValue({
+      metadata: { supportsDryRun: undefined },
+    });
     await expect(
       service.reRun('e1', 'ws-1', user, { dryRun: true }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(engine.execute).not.toHaveBeenCalled();
+  });
+
+  it('dry-run proceeds when all side-effect nodes support dry-run', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        inputData: {},
+        chainId: null,
+      },
+    ];
+    getRawOneQueue = [{ reRunOf: null }];
+    nodeRepo.find.mockResolvedValue([
+      { id: 'n1', type: 'http_request', category: 'integration' },
+    ]);
+    registry.getComponent.mockReturnValue({
+      metadata: { supportsDryRun: true },
+    });
+    jest
+      .spyOn(service, 'findById')
+      .mockResolvedValue({ id: 'new-exec-id' } as never);
+
+    const res = await service.reRun('e1', 'ws-1', user, { dryRun: true });
+    expect(engine.execute).toHaveBeenCalledWith(
+      'wf-1',
+      {},
+      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1', dryRun: true },
+    );
+    expect(res.dryRun).toBe(true);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({ dryRun: true }),
+      }),
+    );
   });
 
   it('rejects when chain depth limit (32) is exceeded', async () => {
@@ -149,7 +215,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     ];
     // computeChainDepth walks re_run_of — feed 31 parents (→ depth 32).
     getRawOneQueue = Array.from({ length: 31 }, () => ({
-      reRunOf: 'parent',
+      reRunOf: 'parent' as string | null,
     })).concat([{ reRunOf: null }]);
     await expect(service.reRun('e1', 'ws-1', user, dto)).rejects.toBeInstanceOf(
       ConflictException,
@@ -177,7 +243,12 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf-1',
       { __triggerSource: 'manual', parameters: { a: 1 } },
-      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'root-id' },
+      {
+        executedBy: 'user-1',
+        reRunOf: 'e1',
+        chainId: 'root-id',
+        dryRun: false,
+      },
     );
     expect(res.chainId).toBe('root-id');
   });
@@ -205,7 +276,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).toHaveBeenCalledWith(
       'wf-1',
       { __triggerSource: 'manual', parameters: {} },
-      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1' },
+      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1', dryRun: false },
     );
   });
 
@@ -248,7 +319,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     ];
     // 30 parents → depth 31 (< 32, 통과).
     getRawOneQueue = Array.from({ length: 30 }, () => ({
-      reRunOf: 'parent',
+      reRunOf: 'parent' as string | null,
     })).concat([{ reRunOf: null }]);
     jest
       .spyOn(service, 'findById')
