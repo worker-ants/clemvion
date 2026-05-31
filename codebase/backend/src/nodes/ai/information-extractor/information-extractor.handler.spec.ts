@@ -557,7 +557,8 @@ describe('InformationExtractorHandler', () => {
       const conv = outBody.result as Record<string, unknown>;
       expect(conv.message).toBe('주문번호를 알려주세요');
       expect(conv.turnCount).toBe(1);
-      expect(conv.maxTurns).toBe(5);
+      // maxTurns 는 config 전용 — output.result 에 echo 하지 않는다 (Principle 1.1)
+      expect(conv.maxTurns).toBeUndefined();
       const partial = outBody.partial as Record<string, unknown>;
       expect(partial.extracted).toBeDefined();
       const state = output._resumeState as Record<string, unknown>;

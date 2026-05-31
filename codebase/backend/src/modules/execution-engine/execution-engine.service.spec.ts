@@ -9506,11 +9506,15 @@ describe('buildConversationConfigFromOutput', () => {
     expect(conv.messages[3].source).toBe('live');
   });
 
-  it('includes maxTurns only when present', () => {
-    const withMax = buildConversationConfigFromOutput({
+  it('includes maxTurns from config echo only when present (decision C-1)', () => {
+    // maxTurns 는 output.result 가 아니라 config echo (2번째 인자) 에서 읽는다.
+    const withMax = buildConversationConfigFromOutput({}, { maxTurns: 5 });
+    expect(withMax.maxTurns).toBe(5);
+    // output.result.maxTurns 는 더 이상 읽지 않는다.
+    const ignoredFromResult = buildConversationConfigFromOutput({
       result: { maxTurns: 5 },
     });
-    expect(withMax.maxTurns).toBe(5);
+    expect(ignoredFromResult).not.toHaveProperty('maxTurns');
     const without = buildConversationConfigFromOutput({});
     expect(without).not.toHaveProperty('maxTurns');
   });

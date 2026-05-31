@@ -93,6 +93,17 @@ export const executionsApi = {
     const { data } = await apiClient.get(`/executions/workflow/${workflowId}`, { params });
     return data as PaginatedExecutions;
   },
+
+  /**
+   * 실행 중단 (사용자 cancel 버튼 — spec/conventions/node-cancellation.md).
+   * `POST /executions/:id/stop`. running / waiting_for_input / pending 상태에서
+   * 호출 가능하며, 최종 `cancelled` 전이는 WS `execution.cancelled` 이벤트로
+   * 확정된다 (REST 는 즉시 갱신된 entity 를 반환).
+   */
+  stop: async (id: string): Promise<ExecutionData> => {
+    const { data } = await apiClient.post(`/executions/${id}/stop`);
+    return unwrap<ExecutionData>(data);
+  },
 };
 
 // ---------------------------------------------------------------------------

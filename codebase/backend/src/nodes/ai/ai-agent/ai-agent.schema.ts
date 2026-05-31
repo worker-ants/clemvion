@@ -465,10 +465,10 @@ export type AiAgentConfig = z.infer<typeof aiAgentNodeConfigSchema>;
  *
  *  - Single-turn `out` / multi-turn ended / condition / error → `output.result.*`
  *  - Single-turn / multi-turn `error` → `output.error.*`
- *  - Multi-turn waiting / resumed → `output.result.*` (messages/message/turnCount/maxTurns)
+ *  - Multi-turn waiting / resumed → `output.result.*` (messages/message/turnCount)
  *    + `output.interaction?` (resumed only). D6 (2026-05-17) — waiting 시점
- *    의 `messages` / `message` / `turnCount` / `maxTurns` 가 종결 시점과
- *    단일 경로 (`output.result.*`) 로 통일.
+ *    의 `messages` / `message` / `turnCount` 가 종결 시점과 단일 경로
+ *    (`output.result.*`) 로 통일. `maxTurns` 는 config 전용 (Principle 1.1).
  *
  * Intentionally permissive (`.passthrough()` + `.optional()`) — we only need
  * to enumerate stable keys for autocomplete, not reject runtime data.
@@ -480,9 +480,10 @@ export const aiAgentNodeOutputSchema = z
   .object({
     // Terminal results live under `output.result.*` (single-turn `out`,
     // multi-turn ended/condition). D6 (2026-05-17) — waiting/resumed
-    // 시점의 `messages` / `message` / `turnCount` / `maxTurns` 도 동일
-    // 경로 (`output.result.*`) 로 통일되어 schema 가 종결/대기 양쪽을
-    // 단일 형태로 표현한다.
+    // 시점의 `messages` / `message` / `turnCount` 도 동일 경로
+    // (`output.result.*`) 로 통일되어 schema 가 종결/대기 양쪽을 단일
+    // 형태로 표현한다. `maxTurns` 는 config 전용 — output 에 두지 않는다
+    // (Principle 1.1).
     result: z
       .object({
         response: z.unknown(),
@@ -491,7 +492,6 @@ export const aiAgentNodeOutputSchema = z
         messages: z.array(z.unknown()),
         // D6 — waiting/resumed 전용 라이브 스냅샷 필드.
         message: z.string(),
-        maxTurns: z.number(),
         condition: z
           .object({
             id: z.string(),
@@ -516,8 +516,8 @@ export const aiAgentNodeOutputSchema = z
       .optional(),
     // Multi-turn `resumed` snapshots carry the user interaction payload
     // under `output.interaction`. D6 — `messages` / `message` /
-    // `turnCount` / `maxTurns` 의 top-level slot 폐기, `output.result.*`
-    // 로 이동 (위 참조).
+    // `turnCount` 의 top-level slot 폐기, `output.result.*` 로 이동
+    // (위 참조). `maxTurns` 는 config 전용 (Principle 1.1).
     interaction: z
       .object({
         type: z.string(),

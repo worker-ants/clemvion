@@ -1022,16 +1022,16 @@ export class InformationExtractorHandler implements NodeHandler {
         maxCollectionRetries: state.maxCollectionRetries,
       },
       // CONVENTIONS §4.3 — waiting payload. D6 (2026-05-17) — multi-turn
-      // 대화 상태(`messages` / `message` / `turnCount` / `maxTurns`) 를
-      // 종결 시점 (`output.result.*`) 과 단일 경로로 통일. 진행 중 부분
-      // 수집은 별도 `output.partial.*` 슬롯 (5필드 invariant 안에서 result/
-      // partial 의 의미적 분리 유지).
+      // 대화 상태(`messages` / `message` / `turnCount`) 를 종결 시점
+      // (`output.result.*`) 과 단일 경로로 통일. `maxTurns` 는 static config
+      // 값이라 output 에 echo 하지 않는다 (Principle 1.1 — UI 진행률 분모는
+      // config.maxTurns). 진행 중 부분 수집은 별도 `output.partial.*` 슬롯
+      // (5필드 invariant 안에서 result/partial 의 의미적 분리 유지).
       output: {
         result: {
           messages: state.messages,
           message: followUp,
           turnCount: state.turnCount,
-          maxTurns: state.maxTurns,
         },
         partial: {
           extracted,

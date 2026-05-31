@@ -51,19 +51,21 @@
 - [x] [Spec 워크플로 실행/디버깅 §10.14](../../spec/3-workflow-editor/3-execution.md#1014-re-run-진입점) — Run Results 드로어 진입점 신설
 - [x] [Spec AI Assistant §4.1.2](../../spec/3-workflow-editor/4-ai-assistant.md#412-re-run-비트리거-정책) — RR-PL-07 read-only 한계 명시
 
+> **진행 현황 (2026-05-31, decision F2 — backend 코어 구현)**: `/goal` 결정 처리로 backend 코어 완료. dry-run 의 per-node mock 동작·`supportsDryRun` 메타·rate-limit·audit-log·**frontend 전체**·e2e 는 후속(아래 deferred). dry-run 은 인프라 부재로 안전하게 `RERUN_DRY_RUN_NOT_APPLICABLE` 게이트 처리(실 부수효과 차단). 마이그레이션은 NOT NULL 대신 NULLABLE chain_id 채택(복수 execution 생성 경로 회귀 위험 회피 — V067 주석 참조).
+
 ### 3. 백엔드 구현 (TDD) — PR2
 
-- [ ] `POST /api/v1/executions/:executionId/re-run` 엔드포인트 — [Spec Re-run §8.1](../../spec/5-system/13-replay-rerun.md#81-post-apiv1executionsexecutionidre-run) 명세 그대로 구현
-- [ ] `GET /api/v1/executions/:executionId/chain` 엔드포인트 — [Spec §8.2](../../spec/5-system/13-replay-rerun.md#82-get-apiv1executionsexecutionidchain)
-- [ ] V### 마이그레이션 — `re_run_of UUID NULL REFERENCES executions(id)` + `chain_id UUID NOT NULL` + 인덱스 2개 ([Spec §9.1](../../spec/5-system/13-replay-rerun.md#91-executions-테이블-컬럼-추가)). 기존 row 백필: `chain_id = id`. **V057·V058 은 `plan/in-progress/2fa-webauthn.md` 가 선점, V059 는 `plan/complete/external-interaction-api.md` 가 점유 — 본 plan 착수 시 max(V) 재확인 후 V060 이후 사용**
-- [ ] (EIA cross-ref) Re-run 은 워크스페이스 JWT 전용 — External Interaction API 의 `iext_*` / `itk_*` 토큰으로 호출 불가. [Spec External Interaction API §12](../../spec/5-system/14-external-interaction-api.md) 의 호환성 노트에 이미 명시됨. 본 plan 의 backend 구현 시 Re-run endpoint 가 `@Public()` 등 외부 토큰 family 를 수용하지 않도록 라우트/Guard 검증.
-- [ ] dry-run handler 분기 — handler 가 `meta.dryRun === true` + 외부 부수효과 카테고리이면 mock 출력 ([Spec §7.2](../../spec/5-system/13-replay-rerun.md#72-dry-run-동작-명세))
-- [ ] 노드 메타에 `supportsDryRun: boolean` 필드 추가 + Integration 카테고리 노드 (HTTP/Email/Database write) 에 `true` 부여
-- [ ] 권한 가드 (RR-PL-06) + RBAC Editor+ + 워크스페이스 격리
-- [ ] chain 깊이 32 enforce (애플리케이션 레벨)
-- [ ] `audit_log` enum 확장 + `re_run_initiated` 이벤트 기록 ([Spec §11](../../spec/5-system/13-replay-rerun.md#11-감사-로그))
-- [ ] Rate limit — 사용자당 분당 10회 ([Spec §12](../../spec/5-system/13-replay-rerun.md#12-rate-limit))
-- [ ] 단위·통합 테스트 — 입력 동일 / 입력 수정 / dry-run / 권한 거부 / 삭제된 워크플로 / chain 깊이 초과 / multi-turn 새 세션 / `supportsDryRun: false` 거부 케이스
+- [x] `POST /api/executions/:executionId/re-run` 엔드포인트 — [Spec Re-run §8.1](../../spec/5-system/13-replay-rerun.md#81-post-apiv1executionsexecutionidre-run) (executions.controller/service). 전역 prefix `/api` + 기존 라우트 컨벤션(`/executions`) 따름 — `/v1` 미사용.
+- [x] `GET /api/executions/:executionId/chain` 엔드포인트 — [Spec §8.2](../../spec/5-system/13-replay-rerun.md#82-get-apiv1executionsexecutionidchain)
+- [x] V067 마이그레이션 — `re_run_of UUID NULL REFERENCES execution(id) ON DELETE SET NULL` + `chain_id UUID NULL` + 인덱스 2개 (`re_run_of`, `(chain_id, started_at)`). **NULLABLE 채택** — re-run 행만 세팅, 일반 실행은 null, chain root = 원본 id. (spec §9.1 의 NOT NULL/self-chain 은 복수 생성 경로 회귀 위험으로 v1 미채택 — 마이그레이션 주석에 근거 기록.)
+- [x] (EIA cross-ref) Re-run 은 워크스페이스 JWT 전용 — endpoint 는 `@Roles('editor')` + `@WorkspaceId` 만 사용, `@Public()`/외부 토큰 family 미수용 확인.
+- [ ] dry-run handler 분기 — handler 가 `meta.dryRun === true` + 외부 부수효과 카테고리이면 mock 출력 ([Spec §7.2](../../spec/5-system/13-replay-rerun.md#72-dry-run-동작-명세)) **(deferred — per-node mock 인프라. 현재 dryRun=true 는 게이트로 거부)**
+- [ ] 노드 메타에 `supportsDryRun: boolean` 필드 추가 + Integration 카테고리 노드에 `true` 부여 **(deferred — dry-run 인프라와 함께)**
+- [x] 권한 가드 (RR-PL-06) + RBAC Editor+ + 워크스페이스 격리 — `@Roles('editor')` + verifyOwnership(workspace) + 타인 실행 owner/admin 한정 (JWT `role`). 단위 테스트 커버.
+- [x] chain 깊이 32 enforce (애플리케이션 레벨) — `computeChainDepth` (re_run_of walk).
+- [ ] `audit_log` enum 확장 + `re_run_initiated` 이벤트 기록 ([Spec §11](../../spec/5-system/13-replay-rerun.md#11-감사-로그)) **(deferred — SHOULD, 코어 외)**
+- [ ] Rate limit — 사용자당 분당 10회 ([Spec §12](../../spec/5-system/13-replay-rerun.md#12-rate-limit)) **(deferred)**
+- [x] 단위 테스트 — 입력 동일 / 입력 수정(chainId from original) / 권한 거부 / dry-run 게이트 / chain 깊이 초과 / admin 타인 실행 / getChain (executions-rerun.service.spec.ts, 8 케이스). 통합/e2e + multi-turn/삭제 워크플로 케이스는 deferred.
 
 ### 4. 프론트엔드 구현 — PR2
 

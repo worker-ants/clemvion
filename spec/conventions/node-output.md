@@ -218,8 +218,8 @@ code: []
 | `table` (dynamic) | `{ rows, totalRows }` | dataSource 에서 per-row expression 평가 결과. `totalRows` 는 slice 된 페이지 길이. |
 | `chart` | `{ data }` | input 을 xAxis 기준으로 **런타임 집계**한 `[{x, y}, ...]`. chartType/title 은 config. |
 | `template` | `{ rendered }` | 템플릿 문자열이 engine 의 expression resolver 로 **해석된 결과**. `content` / `format` 은 config. |
-| `ai_agent` (multi) | `{ messages }` | 대화 누적. 런타임 상태. |
-| `information_extractor` (multi) | `{ messages, partial? }` | 대화 + 부분적으로 수집된 extracted 필드 (있을 경우). |
+| `ai_agent` (multi) | `{ result: { messages, message, turnCount } }` | 도메인 결과는 `output.result.*` 아래에 모은다 (위 §LLM 계열 규칙). `messages` 대화 누적, `turnCount` 런타임 진행 턴 수. `maxTurns` 는 **config 전용 — output 에 echo 하지 않는다**(Principle 1.1, 진행률은 UI 가 `config.maxTurns` 직접 참조). |
+| `information_extractor` (multi) | `{ result: { messages, message, turnCount }, partial? }` | 위와 동일 + `output.partial.*` (부분 수집된 extracted 필드, 있을 경우). `maxTurns` echo 없음. |
 
 ### 4.4. Resumed 상태의 `output` 내용
 

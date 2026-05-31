@@ -1,7 +1,13 @@
 ---
 id: replay-rerun
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/modules/executions/executions.controller.ts
+  - codebase/backend/src/modules/executions/executions.service.ts
+  - codebase/backend/src/modules/executions/dto/re-run.dto.ts
+  - codebase/backend/migrations/V067__execution_re_run_chain.sql
+pending_plans:
+  - plan/in-progress/replay-rerun.md
 ---
 
 # Spec: 워크플로 Re-run (재실행)
@@ -104,10 +110,10 @@ v1 은 전체 워크플로만 Re-run 한다. 실패 노드부터 이어 실행 (
 ### RR-PL-05 — Chain 추적 모델 (E3)
 
 각 Execution row 는 다음 두 컬럼을 추가로 갖는다 (§9 데이터 모델 참조):
-- `re_run_of UUID NULL REFERENCES executions(id)` — 직계 부모 (NULL 이면 원본)
-- `chain_id UUID NOT NULL` — 같은 chain 의 모든 실행을 묶는 식별자. 원본 실행은 `chain_id = id` (자기 자신)
+- `re_run_of UUID NULL REFERENCES execution(id)` — 직계 부모 (NULL 이면 원본)
+- `chain_id UUID NULL` — chain root id. v1 은 re-run 행에만 세팅(일반 실행 NULL). 상세·근거는 §9.1.
 
-Re-run 시 새 실행은 `re_run_of = <원본 ID>`, `chain_id = <원본 chain_id>` 로 채워진다. 즉 같은 chain 안에서 깊이가 한 단계씩 증가.
+Re-run 시 새 실행은 `re_run_of = <원본 ID>`, `chain_id = <원본 chain root id>` 로 채워진다. 즉 같은 chain 안에서 깊이가 한 단계씩 증가.
 
 **Chain 깊이 32 제한** — `re_run_of` 를 따라 거슬러 올라가 32 단계를 초과하는 Re-run 시도는 `RERUN_CHAIN_DEPTH_EXCEEDED` 로 거부. 사용자가 새 chain 을 시작하려면 워크플로를 새로 실행하거나 원본을 직접 Re-run.
 
@@ -115,7 +121,9 @@ Re-run 시 새 실행은 `re_run_of = <원본 ID>`, `chain_id = <원본 chain_id
 
 다음을 **모두** 만족해야 Re-run 가능:
 - 호출자가 같은 워크스페이스의 멤버이고 Editor 이상 (Owner / Admin / Editor)
-- 호출자가 원본 실행 (`executions.created_by`) 의 작성자이거나, 워크스페이스의 Owner / Admin
+- 호출자가 원본 실행 (`execution.executed_by`) 의 작성자이거나, 워크스페이스의 Owner / Admin
+
+> **`executed_by = NULL` (트리거/스케줄/웹훅 자동 실행) 정책 (v1, 2026-05-31)**: 시작자가 없는 자동 실행은 "타인의 실행" 이 아니므로 **워크스페이스 Editor+ 면 누구나 re-run/chain 조회 허용** (워크스페이스 자원으로 취급). 더 보수적으로 owner/admin 한정이 필요하면 후속 정책 결정 — 현재 구현(`executions.service.ts` reRun/getChain)은 본 v1 정책(Editor+ 허용)을 따른다.
 
 위 조건은 dry-run 모드에도 동일하게 적용된다 (안전한 모드라 해도 다른 사용자의 실행 흐름을 자동으로 재현하는 것은 정보 노출 위험).
 
@@ -240,7 +248,15 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 
 **Response**: `Execution[]` — 본 chain 의 모든 row 를 `started_at ASC` 정렬. 각 항목은 위 §8.1 응답과 동일 shape (단 `nodeExecutions` 는 생략).
 
-권한은 §RR-PL-06 과 동일. 미허가 시 `RERUN_PERMISSION_DENIED`.
+권한은 §RR-PL-06 과 동일.
+
+**에러 코드**:
+
+| HTTP | code | 의미 |
+| --- | --- | --- |
+| 401 | `UNAUTHORIZED` | 인증 토큰 없음/만료 |
+| 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 미충족 (타인 실행이고 owner/admin 아님) |
+| 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 미존재 또는 다른 워크스페이스 |
 
 ---
 
@@ -252,19 +268,21 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 
 | 컬럼 | 타입 | NULL | 설명 |
 | --- | --- | --- | --- |
-| `re_run_of` | `UUID` | NULL | 직계 부모 Execution. NULL 이면 본 실행이 chain 의 시작 (원본). `REFERENCES executions(id) ON DELETE SET NULL` |
-| `chain_id` | `UUID` | NOT NULL | 같은 chain 의 모든 실행을 묶는 식별자. 원본 실행은 `chain_id = id` 로 자기 참조 |
+| `re_run_of` | `UUID` | NULL | 직계 부모 Execution. NULL 이면 본 실행이 chain 의 시작 (원본). `REFERENCES execution(id) ON DELETE SET NULL` |
+| `chain_id` | `UUID` | NULL | chain root Execution id. **v1 은 re-run 으로 생성된 행에만 세팅**하고 일반 실행(원본·sub-workflow·background)은 NULL. chain root id = chain 최상위(원본) 실행의 id. |
 
 **인덱스**:
 - `(re_run_of)` — 단순 부모 조회용 (chain badge 의 직계 부모 표시)
 - `(chain_id, started_at)` — chain 전체 조회용 (`/chain` 엔드포인트가 자주 사용)
 
 **불변식**:
-- 원본 실행은 `chain_id = id` 를 만족 (마이그레이션·INSERT 시점에 강제)
-- `re_run_of != NULL` 인 행은 같은 `chain_id` 의 다른 행을 참조해야 함 (cross-chain re-run 불가)
-- chain 깊이 32 제한은 **애플리케이션 레벨** 에서 enforce (DB constraint 로 표현 어려움)
+- chain root = `re_run_of = NULL` 인 최상위 원본 실행. chain 전체 조회는 `id = rootId OR chain_id = rootId` (rootId = `exec.chain_id ?? exec.id`).
+- re-run 행의 `chain_id` 는 같은 chain root 를 가리킨다 (cross-chain re-run 불가 — 애플리케이션 레벨).
+- chain 깊이 32 제한은 **애플리케이션 레벨** 에서 enforce (`computeChainDepth`, `re_run_of` walk).
 
-마이그레이션 (`codebase/backend/migrations/V###__execution_re_run_chain.sql`) 은 본 spec 의 컬럼·인덱스·불변식을 구현한다. 기존 row 의 백필은 `chain_id = id`, `re_run_of = NULL` 로 일괄 채움 (모두 chain 의 원본으로 간주).
+> **v1 설계 — NULLABLE 채택 (2026-05-31, decision F2)**: 초기 spec 은 `chain_id NOT NULL` + 원본 자기참조(`chain_id = id`) 였으나, Execution row 는 sub-workflow / background / retry 등 **복수 경로**에서 INSERT 되어 모든 경로에 `chain_id` 강제 세팅을 요구하면 core 실행 경로 회귀 위험이 크다. 따라서 v1 은 `chain_id` 를 **NULLABLE** 로 두고 re-run 행만 세팅한다(일반 실행 NULL, chain root = 원본 id). 별도 백필 불요. NOT NULL/self-chain 으로의 강화는 모든 생성 경로 정리 후 v2 에서 검토.
+
+마이그레이션 (`codebase/backend/migrations/V067__execution_re_run_chain.sql`) 이 위 컬럼·인덱스를 구현한다.
 
 ### 9.2 NodeExecution dry-run 표기
 

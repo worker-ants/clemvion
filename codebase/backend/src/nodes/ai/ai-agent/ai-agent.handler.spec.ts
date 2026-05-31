@@ -976,7 +976,8 @@ describe('AiAgentHandler', () => {
       expect(conv.turnCount).toBe(0);
       expect(conv.message).toBe('');
       expect(conv.messages).toHaveLength(1); // system only
-      expect(conv.maxTurns).toBe(10);
+      // maxTurns 는 config 전용 — output.result 에 echo 하지 않는다 (Principle 1.1)
+      expect(conv.maxTurns).toBeUndefined();
 
       const state = output._resumeState as Record<string, unknown>;
       expect(state.turnCount).toBe(0);

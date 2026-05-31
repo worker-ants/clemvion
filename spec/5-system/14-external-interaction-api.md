@@ -568,7 +568,10 @@ ALTER TABLE trigger
 `Trigger.config` 의 확장 필드:
 ```jsonc
 {
-  // 기존 필드 ( authType / secret / bearerToken / hmacHeader / hmacAlgorithm ) 유지
+  // 인증은 trigger.auth_config_id (FK → AuthConfig) 단일 진입. 옛 inline auth
+  // 필드 (authType / secret / bearerToken / hmacHeader / hmacAlgorithm) 는 폐지됐고
+  // V066 cleanup migration 으로 제거된다 — 잔존 row 에 남아 있어도 코드는 무시한다
+  // (SoT: 5-system/12-webhook.md §inline auth path 폐지).
 
   "notification": {
     "url":     "https://...",

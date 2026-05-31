@@ -121,7 +121,7 @@ code: []
 └──────────────────────────────────┘
 ```
 
-- 이메일 인증 링크 클릭 → `GET /api/auth/verify-email?token={token}`
+- 이메일 인증 링크 클릭 → 인증 페이지가 `POST /api/auth/verify-email` 호출 (token 은 **요청 본문**에 동봉; 링크 자체는 `?token=` 쿼리로 전달되나 검증 호출은 POST+body 다). 아래 §API 표 참조.
 - 인증 성공 → 자동 로그인 + 개인 워크스페이스 생성 + 대시보드(`/dashboard`)로 리다이렉트
 - 인증 토큰 유효기간: 24시간
 - 재발송: 60초 쿨다운
@@ -356,7 +356,7 @@ code: []
 | 기존 사용자 | OAuth 프로바이더 정보 연결 → 로그인 처리 |
 | 신규 사용자 | 자동 회원가입 → 개인 워크스페이스 생성 → 로그인 처리 |
 | JWT 발급 | Access Token + Refresh Token 발급 |
-| 리다이렉트 | `{frontend_url}/callback?success=true&token={accessToken}` (Refresh Token은 httpOnly Cookie로 설정, Access Token은 짧게 URL 파라미터로 전달되며 클라이언트가 즉시 메모리에 저장 후 URL 정리) |
+| 리다이렉트 | `{frontend_url}/callback?success=true` — **access token 은 URL 에 싣지 않는다**. Refresh Token 만 httpOnly Cookie 로 설정하고, 콜백 페이지가 `POST /api/auth/refresh`(refresh 쿠키 사용)로 access token 을 발급받아 메모리에 적재한다 (decision A, 2026-05-31 — URL history/Referer/프록시 로그 노출 차단). |
 
 ### 5.4 OAuth 에러 처리
 
@@ -368,7 +368,7 @@ code: []
 | 서버 오류 | `{frontend_url}/callback?error=server_error` |
 
 프론트엔드의 `/callback` 페이지:
-- `success=true` + `token` → `setAccessToken(token)` 후 대시보드(`/dashboard`)로 리다이렉트
+- `success=true` → `refreshAccessToken()`(`POST /api/auth/refresh`)로 access token 발급 → 메모리 적재 → 대시보드(`/dashboard`)로 리다이렉트. refresh 실패 시 에러 표시.
 - `error=*` → 에러 메시지 표시 + "다시 시도" 버튼 + 로그인 화면 링크
 
 ---
@@ -429,7 +429,7 @@ code: []
 |--------|------|------|
 | POST | /api/auth/register | 회원가입 (본문에 `invitationToken?` 동봉 시 [§2.6](#26-초대-토큰을-통한-가입-invitationtoken) 흐름) |
 | GET | /api/invitations/:token | 초대 토큰 메타 조회 (가입 페이지 prefill 용, 인증 불요) |
-| POST | /api/auth/verify-email | 이메일 인증 확인 (쿼리: token) |
+| POST | /api/auth/verify-email | 이메일 인증 확인 (본문: `{ token }`) |
 | POST | /api/auth/resend-verification | 인증 이메일 재발송 |
 | POST | /api/auth/login | 로그인 (2FA 활성 시 `{ requires2fa, methods, challengeToken }` 응답) |
 | POST | /api/auth/login/totp | 2FA TOTP 검증 (`{ challengeToken, code }`) — 옛 `/api/auth/verify-2fa` 표기는 폐기, canonical 정의는 [auth spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
