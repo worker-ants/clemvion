@@ -1,7 +1,9 @@
 ---
 id: user-guide-evidence
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/components/docs/mdx/impl-anchor.tsx
+  - codebase/frontend/src/lib/docs/__tests__/impl-anchor-existence.test.ts
 ---
 
 # Convention: User-Guide Evidence (`<ImplAnchor>`)
@@ -24,7 +26,7 @@ code: []
 
 ### 1.1 위치·시그니처
 
-구현 위치: `codebase/frontend/src/components/docs/impl-anchor.tsx`.
+구현 위치: `codebase/frontend/src/components/docs/mdx/impl-anchor.tsx`.
 
 ```mdx
 <ImplAnchor

@@ -1,7 +1,8 @@
 ---
 id: store
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/store.ts
 ---
 
 # Cafe24 API Catalog — Store (상점)

@@ -1,7 +1,8 @@
 ---
 id: supply
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/supply.ts
 ---
 
 # Cafe24 API Catalog — Supply (공급사)

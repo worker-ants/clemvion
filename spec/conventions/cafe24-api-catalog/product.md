@@ -1,7 +1,8 @@
 ---
 id: product
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/product.ts
 ---
 
 # Cafe24 API Catalog — Product (상품)

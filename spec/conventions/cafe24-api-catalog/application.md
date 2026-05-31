@@ -1,7 +1,8 @@
 ---
 id: application
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/application.ts
 ---
 
 # Cafe24 API Catalog — Application (앱 관리)

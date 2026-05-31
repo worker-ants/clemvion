@@ -1,7 +1,9 @@
 ---
 id: i18n-userguide
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/lib/i18n/backend-labels.ts
+  - codebase/frontend/src/lib/i18n/dict/**
 ---
 
 # i18n / 유저 가이드 정식 규약 (Conventions)

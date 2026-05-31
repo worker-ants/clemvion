@@ -1,7 +1,8 @@
 ---
 id: cafe24-api-metadata
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/**
 ---
 
 # CONVENTION: Cafe24 API Metadata

@@ -1,7 +1,9 @@
 ---
 id: interaction-type-registry
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/lib/__tests__/interaction-type-exhaustiveness.test.ts
+  - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
 ---
 
 # Interaction Type Registry

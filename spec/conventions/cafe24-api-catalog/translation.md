@@ -1,7 +1,8 @@
 ---
 id: translation
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/translation.ts
 ---
 
 # Cafe24 API Catalog — Translation (번역)

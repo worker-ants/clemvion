@@ -1,7 +1,9 @@
 ---
 id: migrations
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/migrations/**
+  - codebase/backend/src/migrations.spec.ts
 ---
 
 # Flyway 마이그레이션 운영 규약

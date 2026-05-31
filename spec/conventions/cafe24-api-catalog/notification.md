@@ -1,7 +1,8 @@
 ---
 id: notification
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/notification.ts
 ---
 
 # Cafe24 API Catalog — Notification (알림)

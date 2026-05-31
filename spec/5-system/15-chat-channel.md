@@ -15,6 +15,10 @@ code:
   - codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx
   - codebase/frontend/src/lib/i18n/dict/ko/triggers.ts
   - codebase/frontend/src/lib/i18n/dict/en/triggers.ts
+pending_plans:
+  - plan/in-progress/chat-channel-discord-gateway.md
+  - plan/in-progress/chat-channel-slack-socket-mode.md
+  - plan/in-progress/chat-channel-visual-ssr-png.md
 ---
 
 # Spec: Chat Channel (외부 chat 플랫폼 ↔ 워크플로우 서버사이드 어댑터)
