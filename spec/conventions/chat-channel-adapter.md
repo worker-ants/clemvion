@@ -3,6 +3,10 @@ id: chat-channel-adapter
 status: partial
 code:
   - codebase/backend/src/modules/chat-channel/**
+pending_plans:
+  - plan/in-progress/chat-channel-discord-gateway.md
+  - plan/in-progress/chat-channel-slack-socket-mode.md
+  - plan/in-progress/chat-channel-visual-ssr-png.md
 ---
 
 # CONVENTION: Chat Channel Adapter
