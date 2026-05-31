@@ -1,7 +1,10 @@
 ---
 id: template
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/presentation/template/template.handler.ts
+  - codebase/backend/src/nodes/presentation/template/template.schema.ts
+  - codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx
 ---
 
 # Spec: Template

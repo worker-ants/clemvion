@@ -1,7 +1,8 @@
 ---
 id: workflow-version-history
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/components/editor/version-history/**
 ---
 
 # Spec: 워크플로우 버전 이력

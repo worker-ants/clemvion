@@ -1,7 +1,8 @@
 ---
 id: merge
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/merge/merge.*.ts
 ---
 
 # Spec: Merge

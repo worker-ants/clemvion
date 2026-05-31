@@ -1,7 +1,10 @@
 ---
 id: mcp-client
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/mcp/mcp-client.service.ts
+  - codebase/backend/src/nodes/ai/ai-agent/tool-providers/mcp-tool-provider.ts
+  - codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts
 ---
 
 # Spec: MCP Client (Model Context Protocol)

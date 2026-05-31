@@ -1,7 +1,10 @@
 ---
 id: expression-language
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/packages/expression-engine/src/**/*.ts
+  - codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.ts
+  - codebase/frontend/src/components/editor/expression/*.ts
 ---
 
 # Spec: 표현식 언어 (Expression Language)

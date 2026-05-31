@@ -1,7 +1,11 @@
 ---
 id: integration
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/integrations/page.tsx
+  - codebase/frontend/src/app/(main)/integrations/new/page.tsx
+  - codebase/frontend/src/app/(main)/integrations/[id]/page.tsx
+  - codebase/frontend/src/app/(main)/integrations/_shared/*.tsx
 ---
 
 # Spec: 통합 관리 화면

@@ -1,7 +1,9 @@
 ---
 id: code
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/data/code/code.handler.ts
+  - codebase/backend/src/nodes/data/code/code.schema.ts
 ---
 
 # Spec: Code

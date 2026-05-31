@@ -1,6 +1,6 @@
 ---
 id: marketplace
-status: spec-only
+status: backlog
 code: []
 ---
 

@@ -1,7 +1,10 @@
 ---
 id: node-common
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/components/editor/canvas/custom-node.tsx
+  - codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx
+  - codebase/frontend/src/components/editor/expression/*.tsx
 ---
 
 # Spec: 노드 공통 스펙

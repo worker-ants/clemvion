@@ -1,7 +1,10 @@
 ---
 id: ai-assistant
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/workflow-assistant/**/*.ts
+  - codebase/frontend/src/components/editor/assistant-panel/*.tsx
+  - codebase/frontend/src/lib/stores/assistant-store.ts
 ---
 
 # Spec: Workflow AI Assistant

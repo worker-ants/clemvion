@@ -1,7 +1,10 @@
 ---
 id: table
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/presentation/table/table.handler.ts
+  - codebase/backend/src/nodes/presentation/table/table.schema.ts
+  - codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx
 ---
 
 # Spec: Table

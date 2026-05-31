@@ -1,7 +1,12 @@
 ---
 id: edge
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/frontend/src/components/editor/canvas/custom-edge.tsx
+  - codebase/frontend/src/components/editor/canvas/use-edge-highlighting.ts
+  - codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx
+pending_plans:
+  - plan/in-progress/ai-agent-tool-connection-rewrite.md
 ---
 
 # Spec: 엣지 연결 규칙

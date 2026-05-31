@@ -1,7 +1,9 @@
 ---
 id: background
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/background/background.*.ts
+  - codebase/backend/src/modules/executions/background-runs/*.ts
 ---
 
 # Spec: Background

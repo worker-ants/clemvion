@@ -1,7 +1,8 @@
 ---
 id: split
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/split/split.*.ts
 ---
 
 # Spec: Split

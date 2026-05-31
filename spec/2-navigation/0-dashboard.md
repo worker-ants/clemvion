@@ -1,7 +1,8 @@
 ---
 id: dashboard
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/dashboard/page.tsx
 ---
 
 # Spec: 대시보드

@@ -1,7 +1,8 @@
 ---
 id: foreach
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/foreach/foreach.*.ts
 ---
 
 # Spec: ForEach

@@ -1,7 +1,11 @@
 ---
 id: common
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/ai/shared/system-context-prefix.ts
+  - codebase/backend/src/nodes/ai/ai-agent/ai-agent.handler.ts
+  - codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts
+  - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
 ---
 
 # Spec: AI 노드 공통 규약

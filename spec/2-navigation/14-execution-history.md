@@ -1,7 +1,8 @@
 ---
 id: execution-history
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/workflows/[id]/executions/**
 ---
 
 # Spec: 워크플로우 실행 내역
@@ -70,8 +71,8 @@ code: []
 | EH-DETAIL-07 | Preview 탭: 버튼이 있는 노드는 모든 버튼 표시 + 선택된 버튼 하이라이트 | 필수 | ✅ |
 | EH-DETAIL-08 | 실행 목록으로 돌아가기 네비게이션 | 필수 | ✅ |
 | EH-DETAIL-09 | 이전/다음 실행으로 이동 | 권장 | ✅ |
-| EH-DETAIL-10 | 실행 상세 헤더에 "Re-run" 버튼 + 입력 미리보기·편집 모달. dry-run 토글 포함. 권한·dry-run 미지원 시 disabled + tooltip. 모달 명세는 [Spec Re-run §10.2](../5-system/13-replay-rerun.md#102-re-run-모달) | 필수 | 🚧 명세 ✅ / 구현 PR2 |
-| EH-DETAIL-11 | Re-run chain 표시 — `re_run_of != null` 인 실행은 chain badge ("#N-th re-run · dry-run · 원본: <ID>") + "View chain" 드롭다운. 모델은 [Spec Re-run §RR-PL-05](../5-system/13-replay-rerun.md#rr-pl-05--chain-추적-모델-e3) | 필수 | 🚧 명세 ✅ / 구현 PR2 |
+| EH-DETAIL-10 | 실행 상세 헤더에 "Re-run" 버튼 + 입력 미리보기·편집 모달. dry-run 토글 포함. 권한·dry-run 미지원 시 disabled + tooltip. 모달 명세는 [Spec Re-run §10.2](../5-system/13-replay-rerun.md#102-re-run-모달) | 필수 | ✅ |
+| EH-DETAIL-11 | Re-run chain 표시 — `re_run_of != null` 인 실행은 chain badge ("#N-th re-run · dry-run · 원본: <ID>") + "View chain" 드롭다운. 모델은 [Spec Re-run §RR-PL-05](../5-system/13-replay-rerun.md#rr-pl-05--chain-추적-모델-e3) | 필수 | ✅ |
 
 #### 3.3 진입점
 
@@ -406,8 +407,8 @@ i18n 키와 에러 매핑은 [Spec Re-run §10.4 i18n 키](../5-system/13-replay
 |--------|------|------|------|
 | GET | `/api/executions/workflow/:workflowId` | 워크플로우별 실행 목록 | 페이지네이션, 상태 필터, 정렬 지원. 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수 |
 | GET | `/api/executions/:id` | 실행 상세 (노드 실행 포함) | nodeExecutions 배열 포함 |
-| POST | `/api/executions/:executionId/re-run` | 원본 실행 기반 새 Execution 시작 | EH-DETAIL-10. 명세는 [Spec Re-run §8.1](../5-system/13-replay-rerun.md#81-post-apiexecutionsexecutionidre-run). 구현은 PR2 |
-| GET | `/api/executions/:executionId/chain` | 같은 chain 의 모든 실행을 시간 순으로 반환 | EH-DETAIL-11. 명세는 [Spec Re-run §8.2](../5-system/13-replay-rerun.md#82-get-apiexecutionsexecutionidchain). 구현은 PR2 |
+| POST | `/api/executions/:executionId/re-run` | 원본 실행 기반 새 Execution 시작 | EH-DETAIL-10. 명세는 [Spec Re-run §8.1](../5-system/13-replay-rerun.md#81-post-apiexecutionsexecutionidre-run) |
+| GET | `/api/executions/:executionId/chain` | 같은 chain 의 모든 실행을 시간 순으로 반환 | EH-DETAIL-11. 명세는 [Spec Re-run §8.2](../5-system/13-replay-rerun.md#82-get-apiexecutionsexecutionidchain) |
 
 **목록 API 쿼리 파라미터:**
 
