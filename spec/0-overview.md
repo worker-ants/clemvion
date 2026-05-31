@@ -340,6 +340,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | Graph RAG | (Overview 섹션 통합) | [`./5-system/10-graph-rag.md`](./5-system/10-graph-rag.md) |
 | 브랜드 가이드 | — | [`./6-brand.md`](./6-brand.md) |
 | 노드 Output 규약 | — | [`./conventions/node-output.md`](./conventions/node-output.md) |
+| ExecutionContext 설계 규약 | — | [`./conventions/execution-context.md`](./conventions/execution-context.md) |
 
 ---
 

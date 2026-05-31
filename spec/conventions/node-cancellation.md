@@ -14,7 +14,9 @@ pending_plans:
 
 # Node Cancellation 컨벤션 (AbortSignal 전파 기반)
 
-> 관련 문서: [노드 Output 규약](./node-output.md) · [parallel-p2.md 결정 A + H](../../plan/in-progress/parallel-p2.md) · [`node-handler.interface.ts`](../../codebase/backend/src/nodes/core/node-handler.interface.ts) ExecutionContext.abortSignal JSDoc
+> 관련 문서: [ExecutionContext 설계 규약](./execution-context.md) · [노드 Output 규약](./node-output.md) · [parallel-p2.md 결정 A + H](../../plan/in-progress/parallel-p2.md) · [`node-handler.interface.ts`](../../codebase/backend/src/nodes/core/node-handler.interface.ts) ExecutionContext.abortSignal JSDoc
+>
+> **SoT 분리**: `abortSignal` 이 `ExecutionContext` 의 어느 분류에 속하는지 (Stable core) 의 **필드 정의 SoT 는 [`execution-context.md`](./execution-context.md) §원칙 1**, 그 **동작 계약 (전파 의무·best-effort·에러 분류) SoT 는 본 문서** 다.
 
 ## 1. 목적
 
@@ -111,7 +113,7 @@ if (upstream) {
 
 | 항목 | 본 PR | 후속 |
 |---|---|---|
-| `ExecutionContext.abortSignal?: AbortSignal` 신규 필드 | ✓ | — |
+| `ExecutionContext.abortSignal?: AbortSignal` 신규 필드 (필드 분류 SoT = [`execution-context.md`](./execution-context.md) §원칙 1, 동작 계약 SoT = 본 문서) | ✓ | — |
 | spec convention 신설 | ✓ | — |
 | HTTP 노드 signal 전파 | ✓ | — |
 | HTTP 단위 테스트 | ✓ | — |
