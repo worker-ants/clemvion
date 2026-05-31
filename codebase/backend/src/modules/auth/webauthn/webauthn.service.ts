@@ -35,6 +35,15 @@ import type { WebAuthnConfig } from '../../../common/config/webauthn.config';
 const RECOVERY_CODE_COUNT = 10;
 const OPTIONS_TOKEN_TTL_SEC = 300; // 5분 (spec/5-system/1-auth.md §1.4.3·§1.4.C)
 
+/**
+ * counter 역행을 나타내는 `@simplewebauthn/server` 검증 에러 메시지의 키워드.
+ *  - `lower`  : v13 실제 문구 "Response counter value N was lower than expected M"
+ *  - `regress`/`same`/`less` : 과거/타 버전 문구 호환
+ * 라이브러리 업그레이드 시 메시지 변경을 즉시 감지하도록 단위(webauthn.service.spec.ts)
+ * 와 e2e(webauthn-2fa.e2e-spec.ts case B) 가 본 패턴을 회귀 잠금한다.
+ */
+const COUNTER_REGRESSION_REASON_PATTERN = /regress|same|less|lower/i;
+
 type OptionsTokenKind = 'webauthn_register' | 'webauthn_auth';
 
 interface OptionsTokenPayload {
@@ -358,7 +367,8 @@ export class WebAuthnService {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           const counterRegression =
-            /counter/i.test(msg) && /regress|same|less/i.test(msg);
+            /counter/i.test(msg) &&
+            COUNTER_REGRESSION_REASON_PATTERN.test(msg);
           if (counterRegression) {
             // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
             // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.

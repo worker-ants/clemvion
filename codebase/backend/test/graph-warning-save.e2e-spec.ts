@@ -132,9 +132,10 @@ describe('Graph Warning Save Validate (e2e)', () => {
 
     const res = await save(id, nodes, edges);
     expect(res.status).toBe(400);
-    expect(res.body.code).toBe('GRAPH_VALIDATION_FAILED');
+    // GlobalExceptionFilter 는 에러를 `{ error: { code, message, details } }` 로 감싼다.
+    expect(res.body.error.code).toBe('GRAPH_VALIDATION_FAILED');
     // details.errors 에 해당 rule 이 포함되어야 한다.
-    const errors = (res.body.details?.errors ?? []) as Array<{
+    const errors = (res.body.error.details?.errors ?? []) as Array<{
       ruleId: string;
       severity: string;
     }>;
