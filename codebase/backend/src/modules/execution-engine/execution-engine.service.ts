@@ -597,8 +597,13 @@ export class ExecutionEngineService
   private readonly logger = new Logger(ExecutionEngineService.name);
 
   /**
-   * Stores pending continuation resolvers for Form nodes that are
-   * waiting for user input. Key: executionId.
+   * Stores pending continuation resolvers for blocking nodes (form / button /
+   * ai_conversation) waiting for user input.
+   *
+   * Key 는 해당 노드를 구동한 ExecutionContext 의 Map 키(`contextKeyOf`)와 동일하다:
+   * - 메인 흐름·sub-workflow: `executionId` — 외부 `continueExecution(executionId)` 로 재개.
+   * - background 본문: `bg:<executionId>:<backgroundRunId>` — 외부 재개 대상이 아니며
+   *   (fire-and-forget, 메인 키와 격리) `executeBackgroundSubgraph` finally 가 정리한다.
    */
   private readonly pendingContinuations = new Map<
     string,
@@ -782,6 +787,9 @@ export class ExecutionEngineService
 
     // Fast path: 로컬 호스팅 인스턴스 (같은 인스턴스가 publish 후 같은 인스턴스
     // worker 가 pick up 한 경우 + sticky LB session 등).
+    // NOTE: `executionId` 키로만 조회한다 — background 본문의 bgKey resolver 는
+    // fire-and-forget 라 외부 재개 대상이 아니며(maxDurationMs 로 종결), 여기서 절대
+    // hit 되지 않는다. (resolver 잔류로 오인해 키를 바꾸지 말 것.)
     if (this.pendingContinuations.has(executionId)) {
       this.resolvePending(executionId, payload);
       return;
@@ -1790,7 +1798,11 @@ export class ExecutionEngineService
     );
   }
 
-  /** rehydration 종결 시 in-memory resolver / context / config 캐시 정리. */
+  /**
+   * rehydration 종결 시 in-memory resolver / context / config 캐시 정리.
+   * executionId 키만 다룬다 — background 본문의 bgKey resolver/context 는
+   * `executeBackgroundSubgraph` finally 가 독립 정리하며 rehydration 경로와 교차하지 않는다.
+   */
   private finalizeRehydrationCleanup(executionId: string): void {
     this.pendingContinuations.delete(executionId);
     this.contextService.deleteContext(executionId);
@@ -4464,8 +4476,9 @@ export class ExecutionEngineService
           } finally {
             // race 종료 — 우리 cancel 핸들러를 제거해 다음 iteration 의 정상
             // 등록과 충돌하지 않게 한다. cancel 이 이긴 경우 rejectPending 이
-            // 이미 삭제했으므로 delete 는 no-op.
-            this.pendingContinuations.delete(executionId);
+            // 이미 삭제했으므로 delete 는 no-op. 키는 set 사이트(4435)와 동일하게
+            // contextKeyOf(context) — background 본문(bgKey)에서도 누수 없이 정리.
+            this.pendingContinuations.delete(this.contextKeyOf(context));
           }
           // 다음 iteration 은 정상 wait 경로로 진입.
           continue;

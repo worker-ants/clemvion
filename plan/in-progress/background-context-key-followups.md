@@ -43,6 +43,7 @@ behavior+spec 결정이 필요해 본 PR 범위 밖으로 둔다(아래 backlog 
 | #3 | `createContext` 5번째 위치 파라미터(중간 기본값 명시 불편) | **deferred** — options-bag 리팩터는 광범위, 즉시 가치 낮음. 아래 backlog. |
 | #4 | bgKey 삼중 폴백 인라인 가독성 | **done** — `bgKeySuffix` 로컬 추출(본 PR). |
 | #5 | execution-context.md frontmatter `status: spec-only` 미갱신 | **N/A** — convention/rule 문서로 특정 코드의 "구현 대상"이 아니라 `code: []` / spec-only 유지가 적절. |
+| #6 | `4-execution-engine.md §3.3` Background 실행에 "in-memory Map 키 분리" 미반영 | **done** — spec commit 1047524f 가 §3.3 보완 + §6.1 createContext contextKey 주석. |
 | #7 | `setStructuredOutput`/`setEngineResolvedConfig` context 미존재 시 silent no-op | **deferred** — 진단 warn 추가는 기존 동작 변경. 아래 backlog. |
 | #8 | 테스트 `contextKey separation` 각 it 의 `new ExecutionContextService()` 중복 | **수용(skip)** — 격리성 우선, 사소. |
 | #9 | 12-background §4 신규 항목 한 문장 3사실 | **수용(skip)** — 가독 사소. |
