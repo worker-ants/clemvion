@@ -44,9 +44,17 @@ hang → jest 타임아웃 실패.
 - [x] 근본 원인 진단 (운영 로그 + Redis 큐 확인)
 - [x] resumeFromCheckpoint Phase 1/2 분리 + detach 구현
 - [x] 회귀 테스트 추가
-- [ ] TEST WORKFLOW (lint/unit/build/e2e)
-- [ ] /ai-review + Critical/Warning fix + RESOLUTION.md
+- [x] /ai-review (4 reviewer, Critical 0) + Warning fix(A 로그·B firePayload 가드·C 테스트 timeout) + RESOLUTION.md
+- [~] TEST WORKFLOW — lint(변경파일 0err)/unit(235)/build 통과, e2e 진행 중
 - [ ] 운영 임시 완화 안내 (큐 정리 + 재기동; 코드 배포 전까지 multi-step interactive 회피)
+
+## 후속 항목 (별도 PR — 본 PR 범위 밖)
+- `updateExecutionStatus(RUNNING)` 성공 후 RehydrationError → Execution `RUNNING` 고착
+  (markExecutionCancelled 가드가 WAITING_FOR_INPUT 만 매칭). **pre-existing**, deadlock 과 직교.
+  markExecutionCancelled 가드를 RUNNING 도 포함하도록 확장 검토 (타 caller 영향 주의).
+- form / ai_agent 경로 deadlock-prevention 테스트 (현재 buttons 만; 셋 다 동일 split 코드 공유).
+- Phase 2 실패→FAILED / COMPLETED emit 단위 assertion 보강.
+- 멀티 인스턴스 double-drive: NodeExecution.status optimistic lock 강화 (pre-existing).
 
 ## 운영 메모
 - 임시 완화: 백엔드 중지 → `bull:execution-continuation:*` 키 정리 → 재기동.

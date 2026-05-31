@@ -8219,16 +8219,36 @@ describe('ExecutionEngineService', () => {
       });
       svcAny.runNodeDispatchLoop = jest.fn().mockReturnValue(dispatchGate);
 
+      // 명시적 짧은 timeout race — 회귀(detach 누락) 시 jest 기본 5s 를 기다리지
+      // 않고 빠르고 명확하게 실패시킨다. dispatchGate(다음 대기 노드)가 영구
+      // 미완료여도 rehydrateAndResume 은 즉시 resolve 되어야 한다.
+      let deadlockTimer: NodeJS.Timeout | undefined;
+      const deadlockGuard = new Promise<never>((_, reject) => {
+        deadlockTimer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                'DEADLOCK: rehydrateAndResume 가 반환하지 않음 — detached 그래프 구동이 worker 슬롯을 점유 (수정 회귀)',
+              ),
+            ),
+          1000,
+        );
+      });
+
       try {
-        await subject().rehydrateAndResume(executionId, 'ne-1', {
-          type: 'button_click',
-          buttonId: 'b1',
-        });
+        await Promise.race([
+          subject().rehydrateAndResume(executionId, 'ne-1', {
+            type: 'button_click',
+            buttonId: 'b1',
+          }),
+          deadlockGuard,
+        ]);
 
         // 여기 도달 = worker 가 다음 대기 노드를 기다리지 않고 풀렸다.
         expect(svcAny.waitForButtonInteraction).toHaveBeenCalledTimes(1);
         expect(svcAny.runNodeDispatchLoop).toHaveBeenCalledTimes(1);
       } finally {
+        if (deadlockTimer) clearTimeout(deadlockTimer);
         // detached Phase 2 가 종결하도록 gate 해제 후 drain (dangling promise 정리).
         releaseDispatch();
         await flushPromises();

@@ -930,8 +930,13 @@ export class ExecutionEngineService
         nodeExec,
         payload,
       });
+      // 주의: `resumeFromCheckpoint` 는 현재 대기 노드로의 continuation 전달
+      // (Phase 1)까지만 await 하고 남은 그래프 순회(Phase 2)는 detach 하므로,
+      // 본 로그는 "Phase 1 정착(입력 전달)" 시점이지 execution 종결(COMPLETED 등)
+      // 시점이 아니다. terminal state 는 Phase 2 의 EXECUTION_COMPLETED/
+      // CANCELLED/FAILED emit 으로 별도 관측한다.
       this.logger.log(
-        `Rehydration finished — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
+        `Rehydration Phase 1 settled (graph drive detached) — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
       );
     } catch (err) {
       if (err instanceof RehydrationError) {
@@ -1440,7 +1445,18 @@ export class ExecutionEngineService
     // 한도가 바닥나 resume 이 영구 hang 하던 결함을 해소한다.
     const FIRE_PAYLOAD_MAX_ATTEMPTS = 250;
     const FIRE_PAYLOAD_POLL_INTERVAL_MS = 20;
+    // Phase 1(현재 노드 input 전달) 이 정착하면 polling 을 멈춘다. firePayload 는
+    // pendingContinuations 키를 처음 본 tick 에 한 번만 fire(resolvePending 이
+    // 키 삭제) 후 return 하는 single-shot 이지만, Phase 2 가 detach 후 다음 대기
+    // 노드에서 같은 executionId 로 키를 재등록하므로, 아직 fire 하지 못한
+    // (waitForX 등록 전) polling 잔여 tick 이 그 키에 **이전 payload** 를 잘못
+    // 주입하지 않도록 명시적으로 차단한다. 동시에 Phase 1 정상 정착 후의 한도
+    // 소진 오탐 warn 도 방지.
+    let phase1Settled = false;
     const firePayload = (attemptsLeft: number): void => {
+      if (phase1Settled) {
+        return;
+      }
       if (this.pendingContinuations.has(executionId)) {
         this.resolvePending(executionId, opts.payload);
         return;
@@ -1558,6 +1574,10 @@ export class ExecutionEngineService
       await this.finalizeResumedExecutionOutcome(savedExecution, error);
       return;
     }
+
+    // Phase 1 정착 — 잔여 firePayload polling tick 이 Phase 2 의 다음 대기 노드
+    // 키에 이전 payload 를 잘못 주입하거나 한도 소진 오탐 warn 을 내지 않도록 차단.
+    phase1Settled = true;
 
     // Phase 2 — 남은 그래프 순회를 **detach** 한다. fast-path 의 background
     // `runExecution` 코루틴과 동일하게, continuation worker 의 `process()` 는
