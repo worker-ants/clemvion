@@ -196,6 +196,14 @@ pending → running ──┤
   - **순환 참조는 반드시 분기 노드(Switch, If/Else 등)의 특정 포트에서만 back-edge를 연결해야 안전함**
 - 활성화된 back-edge가 있으면 해당 타겟 노드부터 재실행, 재실행 구간의 포트 라우팅 스킵 상태가 초기화됨
 
+#### graph-level 순환 내 blocking 노드
+
+컨테이너 body(Loop / ForEach / Map)는 blocking 노드(form / buttons / AI Agent multi-turn)를 금지하지만(§3.2 body 서브그래프 제약), **글로벌 그래프 레벨의 back-edge 순환은 blocking 노드를 포함하거나 타겟으로 가질 수 있다.** 이는 차단하지 않는다.
+
+- 순환 본문에 blocking 노드가 있으면, 순환이 그 노드를 재방문할 때마다 노드가 **재실행되어 사용자에게 다시 입력을 요청한다**(`waiting_for_input` 재진입). 이는 이중 실행 결함이 아니라 **의도된 루프 시맨틱**이다 — 각 iteration 마다 새 `NodeExecution` 레코드가 생성되고, 직전 iteration 의 레코드는 그대로 `COMPLETED` 로 남는다.
+- 재프롬프트 횟수는 `MAX_NODE_ITERATIONS` 가드로 bound 된다. 순환 탈출은 분기 노드(Switch / If·Else 등)의 포트 라우팅으로만 가능하므로, blocking 노드를 포함한 순환도 반드시 분기 노드의 특정 포트에서 back-edge 를 연결해야 한다(위 활성화 조건 참조).
+- **`retry_last_turn` 재진입 경로**(WS §4.2 / `spec/4-nodes/3-ai/1-ai-agent.md §7.9`)도 동일 — 재시도 성공한 AI Agent 노드가 back-edge 소스이면, 재개된 순회는 일반 실행과 동일하게 순환에 재진입한다. 실패 이전에 이미 응답 완료된 blocking 노드가 순환 본문에 속해 있으면 다시 프롬프트된다. 이는 retry 특이 결함이 아니라 "재진입 종결 후 graph 진행은 일반 `COMPLETED` 노드와 동일" 정책의 귀결이다.
+
 #### `_selectedPort` 메타데이터 처리
 
 `_selectedPort`는 해당 노드의 엣지 라우팅에만 사용되는 내부 메타데이터이다. 다운스트림 노드의 input으로 전달될 때 자동으로 제거(strip)된다. 이를 통해 pass-through 노드(Variable, Set Variable 등)를 거쳐도 이후 노드가 잘못 skip되지 않는다.
