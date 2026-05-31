@@ -55,8 +55,24 @@ envelope 에 routing 을 실어 채널 어댑터가 사용자에게 표시.
 
 ## 체크리스트
 
-- [ ] TDD 테스트 선작성 (재개 시 routing 재등록 + chatChannel 동봉 / triggerId-only / 미등록)
-- [ ] 구현 (rehydrateAndResume 재등록)
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] /ai-review + SUMMARY + Critical/Warning fix
-- [ ] plan complete
+- [x] TDD 테스트 선작성 (재개 시 routing 재등록 + chatChannel 동봉 / triggerId-only / 미등록)
+- [x] 구현 (rehydrateAndResume 재등록, best-effort try/catch + triggerId&&workflowId guard)
+- [x] TEST WORKFLOW (lint·unit 5377·build·e2e 140) — 통과
+- [x] /ai-review + SUMMARY(Critical 1·Warning 6) + resolution-applier fix(5/6) + 재테스트(e2e pass)
+- [x] spec §7.5 갱신 (ai-review Critical#1) — consistency-check `--spec` BLOCK:NO 후 반영
+      - 시퀀스에 "outbound routing context 재등록" 단계 명시
+      - "Rehydration 실패 케이스" 표 직후 채널 전달 선행조건 cross-note
+      - Rationale(Durable Continuation)에 재등록 근거 + best-effort trade-off bullet
+- [x] plan complete (본 PR 모든 항목 완료)
+
+## 산출 commit
+
+- `c3b5f864` fix(execution-engine): 재개 시 routing context 재등록 (핵심 fix + TDD)
+- `e4f240d4` style(lint): origin/main pre-existing lint 2건 해소 (무관, TEST 중 발견)
+- `662f3b4f` fix(execution-engine): ai-review Warning #1/#2/#4/#5/#6 반영
+- `docs(spec)` : §7.5 routing 재등록 단계 명시 (본 plan·RESOLUTION 갱신 포함)
+
+## 후속 (별도 plan 권장, 본 PR 차단 아님)
+
+- chatChannel 포함 `RESUME_INCOMPATIBLE_STATE` → 채널 도달 e2e 레벨 검증 (ai-review INFO).
+- `fix-continuation-worker-deadlock` worktree 가 동일 `execution-engine.service.ts` 수정 — 머지 순서 시 rebase 권장 (consistency INFO #6).
