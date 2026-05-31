@@ -187,6 +187,11 @@ export const triggers: Dict["triggers"] = {
       "New token issued. Distribute to your external system immediately.",
     revokeFailed: "Token rotation failed",
     revokeNewToken: "New token (shown once)",
+    secretReveal: "Show",
+    secretHide: "Hide",
+    secretAutoHideNote: "Shown once; automatically hidden after 60 seconds.",
+    notificationUrlInvalid:
+      "The destination URL must be a valid https:// URL.",
     copy: "Copy",
     copied: "Copied",
     eventChoices: "Event selection",
@@ -258,6 +263,7 @@ export const triggers: Dict["triggers"] = {
     saving: "Saving...",
     saveSucceeded: "Saved",
     saveFailed: "Save failed",
+    languageHintsInvalid: "languageHints must be a valid JSON object.",
     rotateBotToken: "Rotate Bot Token",
     rotateBotTokenDescription:
       "Spec §5.4.1 single-path — token changes always go through this API. The old token is honored alongside the new one for 24h.",
