@@ -122,6 +122,32 @@ export function resolveFormOpenLabel(
 }
 
 /**
+ * §7.5 rehydration 실패 (`RESUME_*`) 시 사용자에게 보내는 graceful 안내 default
+ * (KO/EN). 인스턴스 재시작/checkpoint 부재로 multi-turn 대화를 재개할 수 없을 때
+ * generic "취소" 대신 본 문구를 표시한다 — 사용자의 다음 메시지는 새 대화로
+ * 시작된다 (`isActiveExecution` 이 cancelled 를 비활성으로 판정).
+ * SoT: spec/4-nodes/7-trigger/providers/telegram.md / spec/5-system/4-execution-engine.md §7.5.
+ */
+export const SESSION_EXPIRED_DEFAULTS: Record<LanguageLocale, string> = {
+  ko: '대화 세션이 만료되어 재개할 수 없습니다. 새 메시지를 보내면 새 대화가 시작됩니다.',
+  en: 'This conversation session has expired and cannot be resumed. Send a new message to start a fresh conversation.',
+};
+
+/**
+ * 세션 만료 안내 3-level lookup — (1) languageHints.sessionExpired override →
+ * (2) languageLocale default → (3) ko fallback.
+ */
+export function resolveSessionExpiredMessage(
+  languageHints: Record<string, string> | undefined,
+  languageLocale: LanguageLocale | undefined,
+): string {
+  const override = languageHints?.sessionExpired;
+  if (typeof override === 'string' && override.length > 0) return override;
+  if (languageLocale === 'en') return SESSION_EXPIRED_DEFAULTS.en;
+  return SESSION_EXPIRED_DEFAULTS.ko;
+}
+
+/**
  * `{statusCode}` placeholder 치환 — 화이트리스트 1종 (CCH-ERR-03).
  * 다른 placeholder (`{nodeId}` 등) 는 literal 유지 — DTO validator 가 등록 시점에 reject 하지만,
  * runtime 도 안전 (raw 노출되어도 internal label 만, 사용자에게 의미 불명).

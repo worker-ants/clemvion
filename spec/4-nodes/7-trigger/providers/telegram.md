@@ -173,6 +173,18 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 
 민감정보 strip — [CCH-ERR-03](../../../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 그대로. 본 §5.6 은 Telegram 별 매핑 구체만 명시.
 
+### 5.7 Execution Cancelled — Multi-turn 재개 실패 (`RESUME_*`)
+
+Multi-turn AI 대화가 인스턴스 재시작/checkpoint 부재로 재개 불가하면 엔진이 Execution 을 `cancelled` 로 마킹하고 `execution.cancelled` 이벤트에 `error.code` (`RESUME_INCOMPATIBLE_STATE` / `RESUME_CHECKPOINT_MISSING` / `RESUME_FAILED`) 를 실어 emit 한다 ([실행 엔진 §7.5](../../../5-system/4-execution-engine.md#75-resume-after-restart-rehydration)).
+
+| 항목 | Telegram 매핑 |
+|---|---|
+| 분기 | `execution.cancelled` 의 `error.code` 가 `RESUME_*` 로 시작하면 generic 취소 안내(`languageHints.executionCancelled`) 대신 **graceful 세션 만료 안내** (`languageHints.sessionExpired`, [§4.1.1](../../../5-system/15-chat-channel.md#411-languagehints-default-문구--ko--en)) 를 발송. 그 외 cancel(사용자 `/cancel` 등)은 기존 generic 안내 |
+| 본문 | `text` = `sessionExpired` 문구, MarkdownV2 escape, 단일 `sendMessage` |
+| 후속 | 사용자의 다음 메시지는 새 execution 으로 시작 (`isActiveExecution` 이 cancelled 를 비활성 판정 — CCH-CV-03 (c)) |
+
+이는 과거 rehydration 실패가 채널에 **무음**(DB 만 cancelled 갱신, 이벤트 미emit)이던 회귀를 해소한다. 본 안내는 `ai_agent` 정상 재개([실행 엔진 §1.3 `_resumeCheckpoint`](../../../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status)) 가 동작하므로 실제로는 배포 이전 진입한 waiting row / `information_extractor` / 손상 케이스에서만 표시된다.
+
 ---
 
 ## 6. 보안

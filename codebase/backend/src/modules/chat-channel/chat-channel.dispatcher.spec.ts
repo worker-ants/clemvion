@@ -355,6 +355,72 @@ describe('toEiaEvent — execution.failed back-compat (string error wrap, 2026-0
   });
 });
 
+// §7.5 / 방안 D — execution.cancelled 의 payload.error (RESUME_*) 전파.
+// 채널 어댑터가 graceful 세션 만료 안내로 분기하려면 error.code 가 EIA 이벤트로
+// 전달돼야 한다. 일반 cancel (사용자 /cancel 등) 에는 error 미포함.
+describe('toEiaEvent — execution.cancelled error 전파 (방안 D)', () => {
+  const baseEnvelope: Pick<
+    ExecutionChannelEvent,
+    'executionId' | 'eventType' | 'seq'
+  > = {
+    executionId: 'exec-1',
+    eventType: 'execution.cancelled',
+    seq: 11,
+  };
+  const baseRouting = {
+    triggerId: 'trig-1',
+    workflowId: 'wf-1',
+    timestamp: '2026-05-31T00:00:00.000Z',
+  };
+
+  it('payload.error.code=RESUME_INCOMPATIBLE_STATE → error 전파', () => {
+    const event: ExecutionChannelEvent = {
+      ...baseEnvelope,
+      payload: {
+        ...baseRouting,
+        status: 'cancelled',
+        result: { cancelledBy: 'system' },
+        error: { code: 'RESUME_INCOMPATIBLE_STATE', message: 'expired' },
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.cancelled') throw new Error();
+    expect(eia.error?.code).toBe('RESUME_INCOMPATIBLE_STATE');
+  });
+
+  it('payload.error 부재 (일반 cancel) → error 미포함', () => {
+    const event: ExecutionChannelEvent = {
+      ...baseEnvelope,
+      payload: {
+        ...baseRouting,
+        status: 'cancelled',
+        result: { cancelledBy: 'user' },
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.cancelled') throw new Error();
+    expect(eia.error).toBeUndefined();
+  });
+
+  it('payload.error 가 non-object (string) → error 미포함', () => {
+    const event: ExecutionChannelEvent = {
+      ...baseEnvelope,
+      payload: {
+        ...baseRouting,
+        status: 'cancelled',
+        result: { cancelledBy: 'system' },
+        error: 'some string',
+      },
+    };
+    const eia = toEiaEvent(event);
+    expect(eia).not.toBeNull();
+    if (eia?.type !== 'execution.cancelled') throw new Error();
+    expect(eia.error).toBeUndefined();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 2026-05-25 — toEiaEvent 의 `execution.ai_message` 분기가 payload 의
 // `presentations?: PresentationPayload[]` 필드를 추출하는지 회귀 차단.

@@ -300,7 +300,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `INTERACTION_TIMEOUT` | 이미 타임아웃이 발생한 상태 |
 | `RESUME_CHECKPOINT_MISSING` | (공통) rehydration 시 `NodeExecution.outputData` 가 부재 또는 손상. Execution 은 `cancelled` 로 종결 ([§7.5](./4-execution-engine.md#75-resume-after-restart-rehydration)) |
 | `RESUME_FAILED` | (공통) continuation-queue `RESUME_BULLMQ_ATTEMPTS` 소진. Execution 은 `cancelled` 로 종결 |
-| `RESUME_INCOMPATIBLE_STATE` | (공통) `_resumeState` schema 가 deploy 후 변경되어 deserialize 실패. Execution 은 `cancelled` 로 종결 |
+| `RESUME_INCOMPATIBLE_STATE` | (공통) Multi-turn AI 의 `_resumeCheckpoint` 가 부재(기능 배포 이전 waiting row) 또는 손상(schema drift 로 재구성 실패). Execution 은 `cancelled` 로 종결 — 채널은 graceful "세션 만료" 안내. 정상 경로(checkpoint 존재)는 재구성 재개되어 미발생 |
 
 > 위 표의 마지막 3개 코드 (`RESUME_*`) 는 `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation` 의 ack 에 공통 적용된다. **`execution.retry_last_turn` 은 적용 대상 아님** — retry_last_turn 은 동일 nodeId 의 새 NodeExecution row spawn 경로이며 rehydration 경로를 타지 않는다 (전용 코드는 `RETRY_STATE_NOT_FOUND` / `NODE_NOT_RETRYABLE` / `RETRY_TOO_EARLY` 참조).
 

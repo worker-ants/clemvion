@@ -2854,7 +2854,7 @@ describe('ExecutionEngineService', () => {
     // spec/5-system/4-execution-engine.md §646 — "NodeExecution.outputData
     // 가 영구 SoT". spec/4-nodes/3-ai/1-ai-agent.md §7.4 — "종료 조건 미충족
     // 시 다시 waiting_for_input — output.result.messages 가 누적 상태로 갱신".
-    it('persists outputData (messages + interactionType + _resumeState strip) on multi-turn follow-up waiting turn', async () => {
+    it('persists outputData (messages + interactionType + _resumeState strip + _resumeCheckpoint credential-strip) on multi-turn follow-up waiting turn', async () => {
       const handler = makeAiAgentHandler(() => ({
         config: { mode: 'multi_turn' },
         output: {
@@ -2949,9 +2949,31 @@ describe('ExecutionEngineService', () => {
       const meta = outputData.meta as Record<string, unknown> | undefined;
       expect(meta?.interactionType).toBe('ai_conversation');
 
-      // (c) WARN #6 회귀 가드 — `_resumeState` 는 DB 영속 페이로드에서 strip.
+      // (c) WARN #6 회귀 가드 — full `_resumeState` 는 DB 영속 페이로드에서 strip.
       expect(outputData).not.toHaveProperty('_resumeState');
-      // 페이로드 전체를 직렬화해 internal 식별자가 한 줄도 흘러나가지 않았는지 확인.
+
+      // (d) §7.5 — credential-strip 부분집합 `_resumeCheckpoint` 는 영속된다
+      // (ai_agent 한정). 재시작 후 재개의 단일 진실.
+      const checkpoint = outputData._resumeCheckpoint as
+        | Record<string, unknown>
+        | undefined;
+      expect(checkpoint).toBeDefined();
+      // 안전 필드는 보존 (재구성에 필요).
+      expect(checkpoint?.turnCount).toBe(1);
+      expect(checkpoint?.model).toBe('test-model');
+      expect(checkpoint?.totalInputTokens).toBe(5);
+      expect(checkpoint?.totalOutputTokens).toBe(2);
+      const cpMessages = checkpoint?.messages as Array<Record<string, unknown>>;
+      expect(Array.isArray(cpMessages)).toBe(true);
+      expect(cpMessages.length).toBeGreaterThanOrEqual(2);
+      // credential / context-binding 필드는 checkpoint 에 미동봉 (allow-list).
+      expect(checkpoint).not.toHaveProperty('llmConfigId');
+      expect(checkpoint).not.toHaveProperty('systemPrompt');
+      expect(checkpoint).not.toHaveProperty('turnDebugHistory');
+
+      // (e) 페이로드 전체를 직렬화해 internal credential 식별자가 한 줄도
+      // 흘러나가지 않았는지 확인 — `_resumeCheckpoint` 영속 후에도 유지돼야 한다
+      // (allow-list 가 credential 을 배제하므로 canary 가 새면 회귀).
       const serialized = JSON.stringify(outputData);
       expect(serialized).not.toContain(
         'INTERNAL_SYSTEM_PROMPT_SHOULD_NOT_PERSIST',
@@ -7771,7 +7793,7 @@ describe('ExecutionEngineService', () => {
       expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
     });
 
-    it('Multi-turn AI 노드 (meta.interactionType=ai_conversation) → RESUME_INCOMPATIBLE_STATE', async () => {
+    it('Multi-turn AI 노드 + _resumeCheckpoint 부재 → RESUME_INCOMPATIBLE_STATE (graceful reset)', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         workflowId,
@@ -7782,6 +7804,7 @@ describe('ExecutionEngineService', () => {
         nodeId: 'node-1',
         status: NodeExecutionStatus.WAITING_FOR_INPUT,
         outputData: {
+          // _resumeCheckpoint 부재 (배포 이전 진입한 waiting row) → 재구성 불가.
           interactionType: 'ai_conversation',
           meta: { interactionType: 'ai_conversation' },
           status: 'waiting_for_input',
@@ -7816,6 +7839,165 @@ describe('ExecutionEngineService', () => {
         error: { code: string };
       };
       expect(setCall.error.code).toBe('RESUME_INCOMPATIBLE_STATE');
+
+      // 방안 D — affected>0 이면 EXECUTION_CANCELLED 가 error.code 와 함께
+      // emit 돼 채널 어댑터가 graceful 안내를 보낼 수 있다 (과거엔 무음).
+      expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
+        executionId,
+        'execution.cancelled',
+        expect.objectContaining({
+          result: { cancelledBy: 'system' },
+          error: expect.objectContaining({
+            code: 'RESUME_INCOMPATIBLE_STATE',
+          }),
+        }),
+      );
+    });
+
+    it('markExecutionCancelled: affected=0 (이미 처리됨) 이면 EXECUTION_CANCELLED emit 억제', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          interactionType: 'ai_conversation',
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+        },
+      });
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: 'node-1', type: 'ai_agent' });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+      // execution update chain 이 affected:0 (다른 worker 가 먼저 처리) 반환.
+      mockExecutionRepo.createQueryBuilder = jest
+        .fn()
+        .mockImplementation(() => {
+          const chain = {
+            update: jest.fn(),
+            set: jest.fn(),
+            where: jest.fn(),
+            andWhere: jest.fn(),
+            execute: jest.fn().mockResolvedValue({ affected: 0 }),
+          };
+          chain.update.mockReturnValue(chain);
+          chain.set.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          chain.andWhere.mockReturnValue(chain);
+          return chain;
+        });
+      mockWebsocketService.emitExecutionEvent.mockClear();
+
+      await subject().rehydrateAndResume(executionId, 'ne-1', {
+        type: 'ai_message',
+        message: 'hi',
+      });
+
+      // affected=0 → EXECUTION_CANCELLED emit 미발생 (중복 emit 방지).
+      const cancelledEmits =
+        mockWebsocketService.emitExecutionEvent.mock.calls.filter(
+          (c: unknown[]) => c[1] === 'execution.cancelled',
+        );
+      expect(cancelledEmits).toHaveLength(0);
+    });
+
+    it('Multi-turn AI 노드 + _resumeCheckpoint 존재 → 재구성 후 waitForAiConversation 재진입 (RESUME_INCOMPATIBLE_STATE 미발생)', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          interactionType: 'ai_conversation',
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          output: { result: { messages: [], turnCount: 1 } },
+          // §7.5 — credential-strip 부분집합이 영속돼 있으면 재구성 가능.
+          _resumeCheckpoint: {
+            messages: [{ role: 'user', content: 'prev' }],
+            turnCount: 1,
+            model: 'test-model',
+            totalInputTokens: 3,
+            totalOutputTokens: 1,
+          },
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-1',
+        type: 'ai_agent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg-1', maxTurns: 20 },
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      const svcAny = service as unknown as {
+        loadAndBuildGraph: jest.Mock;
+        waitForAiConversation: jest.Mock;
+      };
+      // 그래프는 waiting node 단일 — post-branch traversal 이 즉시 종료.
+      const origLoad = svcAny.loadAndBuildGraph;
+      const origWait = svcAny.waitForAiConversation;
+      svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue({
+        graphNodes: [],
+        graphEdges: [],
+        forwardEdges: [],
+        backEdges: [],
+        sortedNodeIds: ['node-1'],
+        sortedIndexMap: new Map([['node-1', 0]]),
+        backEdgeMap: new Map(),
+        outgoingEdgeMap: new Map(),
+        incomingEdgeMap: new Map(),
+        nodeMap: new Map([['node-1', { id: 'node-1', type: 'ai_agent' }]]),
+      });
+      svcAny.waitForAiConversation = jest.fn().mockResolvedValue(undefined);
+
+      try {
+        await subject().rehydrateAndResume(executionId, 'ne-1', {
+          type: 'ai_message',
+          message: 'hi',
+        });
+
+        // 재구성 분기 도달 — waitForAiConversation 호출 (early throw 미발생).
+        expect(svcAny.waitForAiConversation).toHaveBeenCalledTimes(1);
+
+        // RESUME_INCOMPATIBLE_STATE 로 cancel 되지 않았는지 — execution
+        // createQueryBuilder.set 에 해당 코드가 들어가지 않았다.
+        const cancelSetCalls =
+          mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
+            (r) =>
+              (
+                r.value as {
+                  set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
+                }
+              ).set?.mock?.calls ?? [],
+          );
+        const codes = cancelSetCalls
+          .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
+          .filter(Boolean);
+        expect(codes).not.toContain('RESUME_INCOMPATIBLE_STATE');
+      } finally {
+        svcAny.loadAndBuildGraph = origLoad;
+        svcAny.waitForAiConversation = origWait;
+      }
     });
   });
 
@@ -9203,6 +9385,127 @@ describe('ExecutionEngineService', () => {
       expect(out._resumeState).toBeUndefined();
       expect(out._retryState).toBeUndefined();
       expect('_retryState' in out).toBe(false);
+    });
+
+    // §7.5 — `_resumeCheckpoint` 는 DB 영속 SoT 이지만 downstream 노드 input
+    // 전달 시에는 internal-only 로 strip 돼야 한다 (`_resumeState` 와 동일 정책).
+    // 회귀 가드 — `_resumeState` 가 과거 동일 패턴에서 누수 회귀를 겪은 선례.
+    it('strips _resumeCheckpoint from downstream input (internal-only)', () => {
+      const out = strip({
+        result: { ok: true },
+        port: 'out',
+        _resumeCheckpoint: { messages: [], turnCount: 1, model: 'm' },
+      }) as Record<string, unknown>;
+      expect(out._resumeCheckpoint).toBeUndefined();
+      expect('_resumeCheckpoint' in out).toBe(false);
+      // 다른 result 필드는 보존.
+      expect(out.result).toEqual({ ok: true });
+    });
+  });
+
+  // §7.5 — buildResumeCheckpoint credential-strip allow-list 단위 테스트.
+  // allow-list 변경 시 credential 누수를 자동 감지하는 보안 경계 가드.
+  describe('buildResumeCheckpoint (credential-strip allow-list)', () => {
+    function build(state: unknown): Record<string, unknown> | undefined {
+      return (
+        service as unknown as {
+          buildResumeCheckpoint(
+            s: Record<string, unknown> | undefined,
+          ): Record<string, unknown> | undefined;
+        }
+      ).buildResumeCheckpoint(state as Record<string, unknown> | undefined);
+    }
+
+    it('safe 필드는 보존, credential / context-binding 필드는 배제', () => {
+      const cp = build({
+        // safe (보존)
+        messages: [{ role: 'user', content: 'hi' }],
+        turnCount: 2,
+        totalInputTokens: 7,
+        totalOutputTokens: 3,
+        totalThinkingTokens: 1,
+        toolCalls: 1,
+        model: 'gpt-x',
+        temperature: 0.5,
+        maxTokens: 1000,
+        knowledgeBases: ['kb1'],
+        ragTopK: 4,
+        ragThreshold: 0.7,
+        ragSources: [{ chunkId: 'c1' }],
+        mcpServers: [{ url: 'secret://x' }],
+        // credential / context-binding (배제)
+        llmConfigId: 'cred-canary',
+        workspaceId: 'ws-canary',
+        executionId: 'exec',
+        nodeId: 'node',
+        workflowId: 'wf',
+        presentationTools: [{ a: 1 }],
+        conditions: [{ id: 'c' }],
+        maxTurns: 20,
+        maxToolCalls: 10,
+        conversationThreadRef: { turns: [] },
+        rawConfig: { systemPrompt: 'INTERNAL' },
+        systemPrompt: 'INTERNAL_PROMPT',
+        turnDebugHistory: [{ turnIndex: 1 }],
+      })!;
+      // 보존
+      expect(cp.turnCount).toBe(2);
+      expect(cp.model).toBe('gpt-x');
+      expect(cp.totalInputTokens).toBe(7);
+      expect((cp.messages as unknown[]).length).toBe(1);
+      expect(cp.knowledgeBases).toEqual(['kb1']);
+      expect(cp.mcpServers).toEqual([{ url: 'secret://x' }]);
+      // 배제 (credential / context-binding / debug)
+      for (const k of [
+        'llmConfigId',
+        'workspaceId',
+        'executionId',
+        'nodeId',
+        'workflowId',
+        'presentationTools',
+        'conditions',
+        'maxTurns',
+        'maxToolCalls',
+        'conversationThreadRef',
+        'rawConfig',
+        'systemPrompt',
+        'turnDebugHistory',
+      ]) {
+        expect(cp).not.toHaveProperty(k);
+      }
+      // canary 가 직렬화에 새지 않는다.
+      const s = JSON.stringify(cp);
+      expect(s).not.toContain('cred-canary');
+      expect(s).not.toContain('ws-canary');
+      expect(s).not.toContain('INTERNAL');
+    });
+
+    it('pendingFormToolCall 존재 시 포함, 부재 시 미포함', () => {
+      const withForm = build({
+        messages: [],
+        pendingFormToolCall: { toolCallId: 't1', formConfig: { x: 1 } },
+      })!;
+      expect(withForm.pendingFormToolCall).toEqual({
+        toolCallId: 't1',
+        formConfig: { x: 1 },
+      });
+      const without = build({ messages: [] })!;
+      expect(without).not.toHaveProperty('pendingFormToolCall');
+    });
+
+    it('빈/누락 필드는 안전 기본값으로 정규화', () => {
+      const cp = build({})!;
+      expect(cp.messages).toEqual([]);
+      expect(cp.turnCount).toBe(0);
+      expect(cp.totalInputTokens).toBe(0);
+      expect(cp.ragSources).toEqual([]);
+      expect(cp.mcpServers).toEqual([]);
+    });
+
+    it('undefined / 비-객체 입력 → undefined 반환', () => {
+      expect(build(undefined)).toBeUndefined();
+      expect(build(null)).toBeUndefined();
+      expect(build('x' as unknown)).toBeUndefined();
     });
   });
 });

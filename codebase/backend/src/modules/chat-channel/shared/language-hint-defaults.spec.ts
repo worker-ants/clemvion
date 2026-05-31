@@ -4,8 +4,36 @@ import {
   applyPlaceholders,
   resolveFormOpenLabel,
   FORM_OPEN_LABEL_DEFAULTS,
+  resolveSessionExpiredMessage,
+  SESSION_EXPIRED_DEFAULTS,
   type LanguageLocale,
 } from './language-hint-defaults';
+
+describe('resolveSessionExpiredMessage (§7.5 rehydration 실패 graceful 안내)', () => {
+  it('default KO / EN', () => {
+    expect(resolveSessionExpiredMessage(undefined, 'ko')).toBe(
+      SESSION_EXPIRED_DEFAULTS.ko,
+    );
+    expect(resolveSessionExpiredMessage(undefined, 'en')).toBe(
+      SESSION_EXPIRED_DEFAULTS.en,
+    );
+  });
+  it('locale 미설정 → ko fallback', () => {
+    expect(resolveSessionExpiredMessage(undefined, undefined)).toBe(
+      SESSION_EXPIRED_DEFAULTS.ko,
+    );
+  });
+  it('languageHints.sessionExpired override 우선', () => {
+    expect(
+      resolveSessionExpiredMessage({ sessionExpired: '커스텀' }, 'en'),
+    ).toBe('커스텀');
+  });
+  it('빈 문자열 override 는 무시하고 default 사용', () => {
+    expect(resolveSessionExpiredMessage({ sessionExpired: '' }, 'en')).toBe(
+      SESSION_EXPIRED_DEFAULTS.en,
+    );
+  });
+});
 
 describe('resolveFormOpenLabel (§4.1 form_modal 버튼 라벨)', () => {
   it('default KO / EN', () => {
