@@ -120,7 +120,7 @@ code: []
 ```json
 {
   "error": {
-    "code": "NODE_EXECUTION_FAILED",
+    "code": "LLM_TIMEOUT",
     "message": "Node 'AI Agent' failed: LLM connection timeout",
     "nodeId": "uuid-of-node",
     "nodeName": "AI Agent",

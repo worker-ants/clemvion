@@ -3,6 +3,8 @@ id: execution-engine
 status: partial
 code:
   - codebase/backend/src/modules/execution-engine/**
+  - codebase/frontend/src/lib/websocket/use-execution-events.ts
+  - codebase/frontend/src/lib/websocket/ws-client.ts
 pending_plans:
   - plan/in-progress/execution-engine-residual-gaps.md
 ---

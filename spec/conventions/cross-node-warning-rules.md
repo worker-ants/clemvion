@@ -4,6 +4,10 @@ status: partial
 code:
   - codebase/backend/src/nodes/core/graph-warning-rule.ts
   - codebase/backend/src/nodes/core/node-component.interface.ts
+  - codebase/frontend/src/components/editor/workflow-editor.tsx
+  - codebase/frontend/src/lib/stores/editor-store.ts
+  - codebase/frontend/src/lib/api/workflows.ts
+  - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
 pending_plans:
   - plan/in-progress/cross-node-warning-rules.md
 ---

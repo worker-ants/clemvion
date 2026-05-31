@@ -6,6 +6,8 @@ code:
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/triggers/dto/interaction-config.dto.ts
+  - codebase/channel-web-chat/src/lib/eia-client.ts
+  - codebase/channel-web-chat/src/lib/eia-types.ts
 ---
 
 # Spec: External Interaction API (트리거-원격 인터랙션 채널)
@@ -87,7 +89,7 @@ code:
 | EIA-AU-05 | `per_execution` 토큰은 만료 30분 이내 + execution 이 still alive 일 때 `POST /api/external/executions/:id/refresh-token` 으로 갱신 가능 | 권장 |
 | EIA-AU-06 | 토큰 무효/만료 시 `401` + 응답 헤더 `X-Refresh-Token-Url` 로 갱신 경로 안내 | 권장 |
 | EIA-AU-07 | Per-trigger 토큰은 trigger 삭제 시 자동 invalidate. `POST /api/triggers/:id/interaction/revoke-token` 으로 수동 invalidate 가능 | 필수 |
-| EIA-AU-08 | **In-process trusted caller 예외** — 서버 process 내부의 신뢰 caller (예: [Spec Chat Channel](./15-chat-channel.md) 어댑터) 는 토큰 발급/검증을 우회할 수 있다. 우회는 `InteractionService.interact()` ([코드 SoT](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)) 의 **in-process 직접 호출** 경로에 한정되며, HTTP 표면을 거치지 않는다. 외부 HTTP 호출은 EIA-IN-06 의 `interaction token` 인증을 그대로 따른다. 구현은 `InternalInteractionRequestContext.scope: 'in_process_trusted'` (§3.3.1 EIA-AU-09 union 타입) 로 분기 | 필수 |
+| EIA-AU-08 | **In-process trusted caller 예외** — 서버 process 내부의 신뢰 caller (예: [Spec Chat Channel](./15-chat-channel.md) 어댑터) 는 토큰 발급/검증을 우회할 수 있다. 우회는 `InteractionService.interact()` ([코드 SoT](../../codebase/backend/src/modules/external-interaction/interaction.service.ts)) 의 **in-process 직접 호출** 경로에 한정되며, HTTP 표면을 거치지 않는다. 외부 HTTP 호출은 EIA-IN-06 의 `interaction token` 인증을 그대로 따른다. 구현은 `InternalInteractionRequestContext.scope: 'in_process_trusted'` (§3.3.1 의 `InteractionRequestContext` union 타입) 로 분기 | 필수 |
 
 #### 3.3.1 Implementation Note — in-process trusted caller 오염 방지 (EIA-AU-08)
 
@@ -520,7 +522,8 @@ header value   = "t={timestamp},v1={hex(signature)}"
   "triggerId":   "uuid",
   "workflowId":  "uuid",
   "error": {
-    "code":    "NODE_FAILED" | "TIMEOUT" | "MAX_ITERATIONS" | "INTERNAL_ERROR" | ...,
+    "code":    "EXECUTION_TIMEOUT" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... ,  // 엔진 수준 에러코드 — 정본은 spec/5-system/3-error-handling.md §엔진 수준 에러. 노드 수준 실패는 `error.code` 에 노드 ErrorCode (예: LLM_TIMEOUT)
+    //         (노드 ErrorCode 정식 목록: codebase/backend/src/nodes/core/error-codes.ts)
     "message": "사람-가독 메시지",
     "nodeId":  "uuid" | null,
     "details": { ... }    // 노드 타입별 상세
@@ -902,9 +905,15 @@ Long-polling 은 라이브 chat·multi-turn 에서 latency 가 커 사용자 경
 
 NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채택하지 않는다 — 엔진이 외부 sink 종류·재시도·서명·SSRF 정책을 모두 알아야 해 단일 책임을 위반하고, 실행 엔진 §4.4 의 책임 격리 결정을 번복하게 된다.
 
-**추가 facade 사례 — Chat Channel adapter**: [Spec Chat Channel](./15-chat-channel.md) 의 server-side 어댑터도 NotificationDispatcher 와 **동일 facade 계층** 의 추가 in-process subscriber 로 위치한다. 구체 구독 메커니즘은 **NotificationDispatcher 가 after-commit hook 위에 노출하는 in-process EventEmitter** 의 listener 로 attach. 외부 HTTP notification 와 어댑터의 채널 emit 은 같은 after-commit hook 에서 fan-out 되어 EIA-RL-04 (TX commit 후 발송) 정합. 어댑터는 엔진 내부 코드를 호출하지 않으며, 본 R10 의 **엔진 단일 sink + 외부 facade** 원칙을 깨지 않는다 — 기각된 대안 (NotificationDispatcher 를 엔진 내부에서 직접 호출) 과의 구조적 차이는 어댑터 역시 엔진 외부에서 NotificationDispatcher 가 emit 하는 결과만 받는다는 점.
+**추가 facade 사례 — Chat Channel adapter**: [Spec Chat Channel](./15-chat-channel.md) 의 server-side 어댑터(`ChatChannelDispatcher`)도 NotificationDispatcher 와 **동일 facade 계층의 형제 in-process subscriber** 로 위치한다. 구체 구독 메커니즘은 단일 sink `WebsocketService.executionEvents$` (RxJS Subject) 에 `onModuleInit` 에서 **직접 subscribe** (NotificationDispatcher 의 downstream 이 아닌 형제 listener). 외부 HTTP notification 와 어댑터의 채널 emit 은 같은 단일 sink 에서 commit 후 fan-out 되어 EIA-RL-04 (TX commit 후 발송) 정합. 어댑터는 엔진 내부 코드를 호출하지 않으며, 본 R10 의 **엔진 단일 sink + 외부 facade** 원칙을 깨지 않는다 — 기각된 대안 (NotificationDispatcher 를 엔진 내부에서 직접 호출) 과의 구조적 차이는 어댑터 역시 엔진 외부에서 NotificationDispatcher 가 emit 하는 결과만 받는다는 점.
 
-SSE 어댑터의 **Redis pub/sub** 구독 경로 (다중 인스턴스 환경의 외부 SSE 클라이언트가 임의 인스턴스에 접속 가능해야 함) 와 Chat Channel 어댑터의 **in-process EventEmitter** 구독 경로는 **동시 운영**된다 — 두 어댑터는 NotificationDispatcher 라는 같은 facade 계층의 별도 listener 형태로 병존한다. NotificationDispatcher 의 fan-out 책임은 (a) Redis pub/sub 발행 (외부 SSE 어댑터용) + (b) in-process EventEmitter emit (Chat Channel 어댑터용) + (c) 외부 HTTP POST (notification webhook) 의 세 갈래로 늘어난다 — 세 경로 모두 동일 `seq` 와 동일 TX commit timing 을 공유.
+단일 sink `WebsocketService.executionEvents$` (RxJS Subject) 에는 **세 형제 listener** 가 직접 subscribe 한다 — 모두 같은 facade 계층이며, 셋 다 동일 `seq` 와 동일 TX commit timing 을 공유한다:
+
+- (a) **`NotificationDispatcher`** — 외부 HTTP POST (notification webhook). 다중 인스턴스 환경의 외부 SSE 클라이언트 fan-out 을 위해 **Redis pub/sub** 발행도 담당.
+- (b) **SSE 어댑터** — 외부 SSE 클라이언트가 임의 인스턴스에 접속 가능해야 하므로 Redis pub/sub 경유 구독.
+- (c) **`ChatChannelDispatcher`** — 같은 process 내 in-process 구독으로 외부 채널 `sendMessage` 변환.
+
+즉 Chat Channel 어댑터는 NotificationDispatcher 의 downstream 이 **아니라** 단일 sink 의 형제 consumer 다 (NotificationDispatcher 가 chat-channel 용 EventEmitter 를 별도 emit 하지 않는다).
 
 **chat-channel-internal 추가 listener 의 R10 허용 범위**: chat-channel 어댑터가 outbound 5종 (§6.1 화이트리스트) 외에 in-process fan-out 채널의 추가 이벤트 (현재 `execution.node.completed` — [Convention §1.3 `ChatChannelInternalEvent`](../conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)) 를 sub-filter 로 attach 하는 것은 R10 허용 범위. 단일 sink 자체는 여전히 `WebsocketService.emit*` 하나이며, 어댑터는 그 sink 의 consumer (= NotificationDispatcher 와 동일 facade 계층) 한정 — 새 sink 도입 없음. 외부 HTTP webhook (§6.1) 화이트리스트 5종은 변경 없음 (chat-channel-internal 한정, 외부 SDK 미노출). 결정 SoT: [Chat Channel §R-CC-16](./15-chat-channel.md#r-cc-16-chat-channel-outbound-의-비-blocking-presentation--ai-render_-presentations-발화).
 
