@@ -7074,11 +7074,14 @@ export class ExecutionEngineService
     // (spec/4-nodes/1-logic/12-background.md §4 / execution-context.md 원칙 4).
     // 이로써 부모 runExecution finally 의 deleteContext(executionId) 가 fire-and-forget
     // 본문이 쓰던 context 를 삭제하던 race ("Execution context not found") 를 차단.
-    // backgroundRunId 가 모니터링 전역 유일 키이므로 1차 사용, 옛 데이터(빈 값)는
-    // parentNodeExecutionId → 'root' 로 폴백.
-    const bgKey = `bg:${job.executionId}:${
-      job.backgroundRunId || job.parentNodeExecutionId || 'root'
-    }`;
+    // backgroundRunId 가 모니터링 전역 유일 키(UUID v4, spec §5.1)이므로 1차 사용.
+    // 옛 BullMQ job(빈 backgroundRunId)은 parentNodeExecutionId(Background 노드별
+    // NodeExecution id — 동일 execution 내 bg 노드 간 구분)로, 그마저 없으면 'root'
+    // 로 폴백한다. 정상 경로는 backgroundRunId 로 항상 유일. (backgroundRunId 가 모든
+    // job 레코드에 채워진 이후엔 이 폴백 체인 제거 가능.)
+    const bgKeySuffix =
+      job.backgroundRunId || job.parentNodeExecutionId || 'root';
+    const bgKey = `bg:${job.executionId}:${bgKeySuffix}`;
     const context = this.contextService.createContext(
       job.executionId,
       job.workflowId,

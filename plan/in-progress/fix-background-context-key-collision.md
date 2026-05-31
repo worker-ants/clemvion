@@ -45,11 +45,12 @@ runExecution / resumeFromCheckpoint / rehydrateContext / 동기 sub-workflow(exe
 from workflow.handler) — 모두 별도 키 미지정 → executionId 그대로.
 
 ## 작업 체크리스트
-- [ ] consistency-check --impl-prep
-- [ ] 테스트 선작성 (race 재현 + 격리 검증)
-- [ ] ExecutionContext.contextKey + createContext 시그니처
-- [ ] 엔진 contextService 호출 키 치환
-- [ ] AI 클러스터 contextKey 스레딩
-- [ ] executeBackgroundSubgraph bgKey + finally
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] /ai-review + fix
+- [x] consistency-check --impl-prep (BLOCK:YES → spec 선행 갱신으로 해소)
+- [x] spec SoT 선행 갱신 (project-planner, commit 1047524f) — execution-context 원칙 4 / 12-background §4 / 4-execution-engine §3.3·§6.1
+- [x] 테스트 선작성 (race 재현 + 격리 검증)
+- [x] ExecutionContext._contextKey + createContext 시그니처
+- [x] 엔진 contextService 호출 키 치환 (contextKeyOf 헬퍼)
+- [x] AI 클러스터 contextKey 스레딩
+- [x] executeBackgroundSubgraph bgKey + finally
+- [x] TEST WORKFLOW (lint·unit·build·e2e)
+- [x] /ai-review + fix (Critical=false-positive 검증, WARNING 7건 조치)

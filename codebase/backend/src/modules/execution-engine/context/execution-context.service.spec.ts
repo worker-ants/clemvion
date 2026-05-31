@@ -177,10 +177,23 @@ describe('ExecutionContextService', () => {
       // 부모가 먼저 종료하며 executionId 키로 삭제 (runExecution finally).
       svc.deleteContext('exec-A');
 
-      // 본문 context 는 살아있고 계속 write 가능해야 한다.
+      // 본문 context 는 살아있고 모든 write 경로(setNodeOutput / setStructuredOutput /
+      // setEngineResolvedConfig)가 bgKey 로 계속 라우팅돼야 한다.
       expect(svc.getContext(bgKey)).toBe(bg);
       expect(() => svc.setNodeOutput(bgKey, 'node-1', { x: 1 })).not.toThrow();
       expect(svc.getNodeOutput(bgKey, 'node-1')).toEqual({ x: 1 });
+
+      svc.setStructuredOutput(bgKey, 'node-1', {
+        config: { c: 1 },
+        output: { y: 2 },
+      });
+      svc.setEngineResolvedConfig(bgKey, 'node-1', { count: 3 });
+      const ctx = svc.getContext(bgKey)!;
+      expect(ctx.structuredOutputCache['node-1']).toEqual({
+        config: { c: 1 },
+        output: { y: 2 },
+      });
+      expect(ctx.engineResolvedConfigCache['node-1']).toEqual({ count: 3 });
     });
   });
 

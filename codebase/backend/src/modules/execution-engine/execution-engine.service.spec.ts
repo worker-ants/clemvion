@@ -1329,6 +1329,106 @@ describe('ExecutionEngineService', () => {
       inlineSpy.mockRestore();
     });
 
+    // race 회귀 차단: 본문 context 는 부모 executionId 가 아닌 bgKey 로 등록돼야
+    // 하고(격리), executeBackgroundSubgraph 가 자체 finally 로 정리해야 한다
+    // (spec/4-nodes/1-logic/12-background.md §4 / execution-context.md 원칙 4).
+    const makeBgJob = (over: Record<string, unknown> = {}) => ({
+      executionId,
+      parentNodeExecutionId: 'parent-1',
+      backgroundRunId: 'bg-run-1',
+      workspaceId: 'ws-1',
+      workflowId,
+      bodyEntryNodeIds: ['node-2'],
+      input: {},
+      variables: {},
+      nodeOutputCache: {},
+      expressionContext: {},
+      conversationThread: createEmptyConversationThread(),
+      config: { notifyOnFailure: false, maxDurationMs: 0 },
+      ...over,
+    });
+
+    it('registers the body context under a bgKey (isolated from parent executionId) and cleans it up in finally', async () => {
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+      let capturedKey: string | undefined;
+      let capturedExecId: string | undefined;
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockImplementation((_w, _i, options) => {
+          capturedKey = options.context._contextKey;
+          capturedExecId = options.context.executionId;
+          return Promise.resolve(undefined);
+        });
+
+      await service.executeBackgroundSubgraph(makeBgJob());
+
+      const bgKey = `bg:${executionId}:bg-run-1`;
+      // 본문 context 는 bgKey 로 격리 등록, executionId 필드는 메인 ID 유지.
+      expect(capturedKey).toBe(bgKey);
+      expect(capturedExecId).toBe(executionId);
+      // 부모 executionId 키로는 본문 context 가 등록되지 않는다 (키 충돌 없음).
+      expect(contextService.getContext(executionId)).toBeUndefined();
+      // finally 가 bgKey context 를 정리.
+      expect(contextService.getContext(bgKey)).toBeUndefined();
+      inlineSpy.mockRestore();
+    });
+
+    it('cleans up the bgKey context even when the body throws', async () => {
+      const contextService = (
+        service as unknown as { contextService: ExecutionContextService }
+      ).contextService;
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockRejectedValue(new Error('boom'));
+
+      await expect(
+        service.executeBackgroundSubgraph(
+          makeBgJob({ backgroundRunId: 'bg-run-err' }),
+        ),
+      ).rejects.toThrow('boom');
+
+      expect(
+        contextService.getContext(`bg:${executionId}:bg-run-err`),
+      ).toBeUndefined();
+      inlineSpy.mockRestore();
+    });
+
+    it('derives bgKey suffix from parentNodeExecutionId when backgroundRunId is empty (legacy job)', async () => {
+      let capturedKey: string | undefined;
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockImplementation((_w, _i, options) => {
+          capturedKey = options.context._contextKey;
+          return Promise.resolve(undefined);
+        });
+
+      await service.executeBackgroundSubgraph(
+        makeBgJob({ backgroundRunId: '', parentNodeExecutionId: 'parent-9' }),
+      );
+
+      expect(capturedKey).toBe(`bg:${executionId}:parent-9`);
+      inlineSpy.mockRestore();
+    });
+
+    it("falls back to a 'root' bgKey suffix when backgroundRunId and parentNodeExecutionId are both empty", async () => {
+      let capturedKey: string | undefined;
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockImplementation((_w, _i, options) => {
+          capturedKey = options.context._contextKey;
+          return Promise.resolve(undefined);
+        });
+
+      await service.executeBackgroundSubgraph(
+        makeBgJob({ backgroundRunId: '', parentNodeExecutionId: '' }),
+      );
+
+      expect(capturedKey).toBe(`bg:${executionId}:root`);
+      inlineSpy.mockRestore();
+    });
+
     it('rejects when body exceeds maxDurationMs', async () => {
       const inlineSpy = jest
         .spyOn(service, 'executeInline')
