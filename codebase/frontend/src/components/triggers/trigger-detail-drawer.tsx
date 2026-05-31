@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { SlideDrawer } from "@/components/ui/slide-drawer";
@@ -18,6 +18,7 @@ import {
   useAuthConfigs,
   AUTH_CONFIG_TYPE_LABEL_KEYS,
 } from "./auth-config-select";
+import { SecretRevealBox } from "./secret-reveal-box";
 import {
   Loader2,
   Copy,
@@ -25,8 +26,6 @@ import {
   ChevronRight,
   Pencil,
   ExternalLink,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -38,84 +37,6 @@ import { isValidNotificationUrl } from "@/lib/utils/url-validation";
  * read 표시·edit 폼 초기값·저장 시 fallback 세 곳에서 동일 값을 참조한다.
  */
 const DEFAULT_RATE_LIMIT_PER_MINUTE = 60;
-
-/**
- * 1회성 시크릿(secret / token) 노출 박스.
- *
- * 보안(ai-review W): 평문을 DOM 에 상시 렌더하지 않는다 — 기본 마스킹하고
- * "표시" 클릭 시에만 평문 노출, 그리고 60초 후 부모 state 를 비워 자동으로
- * 사라지게 한다(`onExpire`). 복사 버튼은 마스킹 상태에서도 실제 값을 복사한다.
- */
-function SecretRevealBox({
-  title,
-  secret,
-  onDismiss,
-}: {
-  title: string;
-  secret: string;
-  onDismiss: () => void;
-}) {
-  const t = useT();
-  const copyToClipboard = useCopyToClipboard();
-  const [revealed, setRevealed] = useState(false);
-
-  // 부모가 매 렌더 새 함수를 넘겨도 타이머가 재시작되지 않도록 ref 로 고정.
-  // ref 갱신은 render 중이 아니라 effect 안에서 한다 (react-hooks/refs).
-  const onDismissRef = useRef(onDismiss);
-  useEffect(() => {
-    onDismissRef.current = onDismiss;
-  }, [onDismiss]);
-  useEffect(() => {
-    const timer = setTimeout(() => onDismissRef.current(), 60_000);
-    return () => clearTimeout(timer);
-  }, [secret]);
-
-  return (
-    <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-xs space-y-2">
-      <div className="font-medium">{title}</div>
-      <div className="flex items-center gap-2">
-        <code className="flex-1 font-mono break-all">
-          {revealed ? secret : "•".repeat(Math.min(secret.length, 32))}
-        </code>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setRevealed((v) => !v)}
-          aria-label={
-            revealed
-              ? t("triggers.externalInteraction.secretHide")
-              : t("triggers.externalInteraction.secretReveal")
-          }
-        >
-          {revealed ? (
-            <EyeOff className="h-3 w-3" />
-          ) : (
-            <Eye className="h-3 w-3" />
-          )}
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() =>
-            void copyToClipboard(secret, {
-              success: t("triggers.externalInteraction.copied"),
-              error: t("triggers.copyFailed"),
-            })
-          }
-          aria-label={t("triggers.externalInteraction.copy")}
-        >
-          <Copy className="h-3 w-3" />
-        </Button>
-      </div>
-      <p className="text-[hsl(var(--muted-foreground))]">
-        {t("triggers.externalInteraction.secretAutoHideNote")}
-      </p>
-      <Button size="sm" variant="outline" onClick={onDismiss}>
-        {t("triggers.externalInteraction.cancel")}
-      </Button>
-    </div>
-  );
-}
 
 /** Spec Chat Channel §4.1 + §5.4.2 — config.chatChannel (응답 sanitize 후 형태). */
 interface ChatChannelConfigView {
@@ -813,12 +734,15 @@ function ExternalInteractionCard({
     saveMutation.mutate();
   }
 
-  // cancel 시 미저장 입력값을 원래 값으로 리셋 (carried-over 기존 동작).
-  function resetForm(): void {
+  // cancel 시 미저장 입력값을 원래 값으로 리셋 + 직전 실패 상태 초기화
+  // (ChatChannelCard.cancelEdit 와 동일 패턴).
+  function cancelEdit(): void {
     setUrlValue(notification?.url ?? "");
     setEventsValue(new Set(notification?.events ?? []));
     setInteractionEnabled(interaction?.enabled ?? false);
     setStrategy(interaction?.tokenStrategy ?? "per_execution");
+    saveMutation.reset();
+    setEditing(false);
   }
 
   async function handleRotateSecret(): Promise<void> {
@@ -863,14 +787,7 @@ function ExternalInteractionCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                // useMutation 전환 후 직전 저장 실패의 error 상태가 재진입까지
-                // 잔류하지 않도록 cancel 시 mutation 상태를 초기화하고,
-                // 미저장 입력값을 원래 값으로 되돌린다.
-                saveMutation.reset();
-                resetForm();
-                setEditing(false);
-              }}
+              onClick={cancelEdit}
               disabled={saveMutation.isPending}
             >
               {t("triggers.externalInteraction.cancel")}
@@ -1674,7 +1591,11 @@ function ChatChannelCard({
           <RotateBotTokenModal
             pending={rotateMutation.isPending}
             onConfirm={(token) => rotateMutation.mutate(token)}
-            onClose={() => setRotateOpen(false)}
+            onClose={() => {
+              // 재진입 시 직전 회전 실패 error 상태가 잔류하지 않도록 초기화.
+              rotateMutation.reset();
+              setRotateOpen(false);
+            }}
           />
         ) : null}
       </CardContent>
