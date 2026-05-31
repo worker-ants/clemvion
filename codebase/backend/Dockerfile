@@ -21,6 +21,10 @@ COPY codebase/packages/chat-channel-validation/package.json codebase/packages/ch
 COPY codebase/packages/chat-channel-validation/src ./packages/chat-channel-validation/src
 RUN cd packages/chat-channel-validation && npm ci && npm run build
 
+COPY codebase/packages/graph-warning-rules/package.json codebase/packages/graph-warning-rules/package-lock.json codebase/packages/graph-warning-rules/tsconfig.json ./packages/graph-warning-rules/
+COPY codebase/packages/graph-warning-rules/src ./packages/graph-warning-rules/src
+RUN cd packages/graph-warning-rules && npm ci && npm run build
+
 COPY codebase/backend/package.json codebase/backend/package-lock.json ./backend/
 RUN cd backend && npm ci
 
@@ -29,7 +33,8 @@ RUN cd backend && npm ci
 # `prepare` script that npm re-runs while resolving file: deps.
 RUN cd packages/expression-engine && npm prune --omit=dev \
     && cd ../node-summary && npm prune --omit=dev \
-    && cd ../chat-channel-validation && npm prune --omit=dev
+    && cd ../chat-channel-validation && npm prune --omit=dev \
+    && cd ../graph-warning-rules && npm prune --omit=dev
 
 # ---------- builder: compile TypeScript ----------
 FROM deps AS builder

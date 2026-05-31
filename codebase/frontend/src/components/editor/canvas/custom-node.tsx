@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils/cn";
 import { getNodeDefinition, getCategoryColor } from "@/lib/node-definitions";
 import { resolveDynamicPorts } from "@/lib/node-definitions/resolve-dynamic-ports";
 import { useExecutionStore } from "@/lib/stores/execution-store";
+import { useEditorStore } from "@/lib/stores/editor-store";
 import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
 import { useLocale } from "@/lib/i18n";
@@ -69,6 +70,29 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   const nodeStatus = useExecutionStore((s) => s.nodeStatuses.get(id));
   const showSummary = useStore(zoomSelector);
 
+  // Cross-node graphWarningRules (parallel-p2 결정 D + E + I) — store 에 로컬
+  // 평가된 결과 중 이 노드(id) 에 해당하는 항목만 추려 severity 별 배지를
+  // 렌더한다. error 가 하나라도 있으면 error 우선. SoT:
+  // spec/conventions/cross-node-warning-rules.md.
+  // 배열 reference 안정성을 위해 store 의 results 원본만 구독하고 (zustand
+  // 기본 Object.is 비교가 동작) 필터링은 useMemo 로 파생한다. 셀렉터에서
+  // .filter 를 돌리면 매 스냅샷마다 새 배열이 나와 무한 재렌더가 발생한다.
+  const allGraphWarnings = useEditorStore((s) => s.graphWarnings.results);
+  const graphWarnings = useMemo(
+    () => allGraphWarnings.filter((r) => r.nodeId === id),
+    [allGraphWarnings, id],
+  );
+  const graphWarningSeverity: "error" | "warning" | null = useMemo(() => {
+    if (graphWarnings.length === 0) return null;
+    return graphWarnings.some((r) => r.severity === "error")
+      ? "error"
+      : "warning";
+  }, [graphWarnings]);
+  const graphWarningMessage = useMemo(
+    () => graphWarnings.map((r) => r.message).join("\n"),
+    [graphWarnings],
+  );
+
   const isAiNode = data.type === "ai_agent" || data.type === "text_classifier" || data.type === "information_extractor";
   // Shared workspace-level flag from context — see has-default-llm-config-context.
   const hasDefaultLlmConfig = useHasDefaultLlmConfig();
@@ -119,6 +143,15 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
         "w-[180px] rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm transition-shadow",
         selected && "ring-2 ring-[hsl(var(--ring))] shadow-md",
         data.isDisabled && "opacity-50",
+        // Cross-node graph-warning ring — only when execution status isn't
+        // already painting a ring, so the two signals don't fight. error
+        // takes precedence over warning.
+        !statusStyles &&
+          graphWarningSeverity === "error" &&
+          "ring-2 ring-red-500",
+        !statusStyles &&
+          graphWarningSeverity === "warning" &&
+          "ring-2 ring-amber-400",
         statusStyles,
       )}
     >
@@ -155,6 +188,38 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
               </span>
             </TooltipTrigger>
             <TooltipContent side="bottom">{summary.text}</TooltipContent>
+          </Tooltip>
+        )}
+        {/* Cross-node graph-warning badge — distinct from the single-node
+            config-summary warning above. Red for error, amber for warning.
+            `ml-auto` only when no header summary/warning already pushed to the
+            right, so the two never double up on the same slot. */}
+        {graphWarningSeverity && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={cn(
+                  "shrink-0 inline-flex items-center justify-center rounded-full p-0.5",
+                  !showHeaderSummary && !showHeaderWarning && "ml-auto",
+                  graphWarningSeverity === "error"
+                    ? "bg-red-500 text-white"
+                    : "bg-amber-400 text-amber-950",
+                )}
+                role="img"
+                aria-label={
+                  graphWarningSeverity === "error"
+                    ? "graph error"
+                    : "graph warning"
+                }
+                data-testid="graph-warning-badge"
+                data-severity={graphWarningSeverity}
+              >
+                <AlertTriangle className="h-3 w-3" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="whitespace-pre-line">
+              {graphWarningMessage}
+            </TooltipContent>
           </Tooltip>
         )}
       </div>

@@ -23,6 +23,10 @@ COPY codebase/packages/chat-channel-validation/package.json codebase/packages/ch
 COPY codebase/packages/chat-channel-validation/src ./packages/chat-channel-validation/src
 RUN cd packages/chat-channel-validation && npm ci && npm run build
 
+COPY codebase/packages/graph-warning-rules/package.json codebase/packages/graph-warning-rules/package-lock.json codebase/packages/graph-warning-rules/tsconfig.json ./packages/graph-warning-rules/
+COPY codebase/packages/graph-warning-rules/src ./packages/graph-warning-rules/src
+RUN cd packages/graph-warning-rules && npm ci && npm run build
+
 COPY codebase/frontend/package.json codebase/frontend/package-lock.json ./frontend/
 RUN cd frontend && npm ci
 

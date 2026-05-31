@@ -9,6 +9,10 @@ import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import { getWsClient } from "@/lib/websocket/ws-client";
 import { getAccessToken } from "@/lib/api/client";
 import { useAssistantStore } from "@/lib/stores/assistant-store";
+import {
+  computeNodeTopologyKey,
+  computeEdgeTopologyKey,
+} from "@/lib/utils/topology-key";
 import { EditorToolbar } from "./toolbar/editor-toolbar";
 import { NodePalette } from "./palette/node-palette";
 import { WorkflowCanvas } from "./canvas/workflow-canvas";
@@ -21,7 +25,9 @@ export function WorkflowEditor() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
-  const fetchGraphWarnings = useEditorStore((s) => s.fetchGraphWarnings);
+  const evaluateGraphWarningsLocal = useEditorStore(
+    (s) => s.evaluateGraphWarningsLocal,
+  );
   const workflowId = useEditorStore((s) => s.workflowId);
   const nodes = useEditorStore((s) => s.nodes);
   const edges = useEditorStore((s) => s.edges);
@@ -46,27 +52,26 @@ export function WorkflowEditor() {
   }, []);
 
   // parallel-p2 결정 D + E + I (2026-05-30) — cross-node graphWarningRules
-  // 사전 평가. graph 변경 시점에 debounced 으로 graph-warnings endpoint 호출,
-  // 결과를 store 에 저장. toolbar 의 save 버튼이 hasError 시 disable.
-  // 500ms debounce — 빠른 연속 편집 (drag 중 multiple onChange) 부담 완화.
+  // 사전 평가. graph 변경 시점에 debounced 으로 `@workflow/graph-warning-rules`
+  // 를 **로컬 평가** (네트워크 round-trip 없음), 결과를 store 에 저장. toolbar
+  // 의 save 버튼이 hasError 시 disable. 500ms debounce — 빠른 연속 편집 (drag
+  // 중 multiple onChange) 부담 완화 + 대형 그래프 평가 비용 분산.
   //
-  // SUMMARY#8 최적화: nodes/edges 전체 배열 대신 topology-relevant 변경만 감지.
-  // drag(위치 변경)·선택 변경은 graph rule 평가와 무관하므로 debounce 리셋 불필요.
-  // node type 집합과 edge 연결 구조(source-target-port) 변경 시에만 재평가.
-  const nodeTopologyKey = nodes
-    .map((n) => `${n.id}:${String(n.data?.type ?? "")}`)
-    .join(",");
-  const edgeTopologyKey = edges
-    .map((e) => `${e.source}:${e.sourceHandle ?? ""}→${e.target}:${e.targetHandle ?? ""}`)
-    .join(",");
+  // node config (예: parallel maxConcurrency/branchCount) 도 평가 입력이므로
+  // topology key 외에 config 변경도 debounce 트리거에 포함한다. drag(위치
+  // 변경)·선택 변경은 graph rule 평가와 무관하므로 제외. key 계산은
+  // `@/lib/utils/topology-key` 의 공유 함수로 위임 — debounce 테스트가 동일
+  // 함수를 import 해 프로덕션 동작과 SSOT 를 유지한다.
+  const nodeTopologyKey = computeNodeTopologyKey(nodes);
+  const edgeTopologyKey = computeEdgeTopologyKey(edges);
   useEffect(() => {
     if (!workflowId) return;
     const handle = setTimeout(() => {
-      void fetchGraphWarnings();
+      evaluateGraphWarningsLocal();
     }, 500);
     return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workflowId, nodeTopologyKey, edgeTopologyKey, fetchGraphWarnings]);
+     
+  }, [workflowId, nodeTopologyKey, edgeTopologyKey, evaluateGraphWarningsLocal]);
 
   // Subscribe to WebSocket execution events
   useExecutionEvents({ executionId });

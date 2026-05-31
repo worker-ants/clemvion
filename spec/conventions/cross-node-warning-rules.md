@@ -2,11 +2,14 @@
 id: cross-node-warning-rules
 status: partial
 code:
+  - codebase/packages/graph-warning-rules/**
   - codebase/backend/src/nodes/core/graph-warning-rule.ts
   - codebase/backend/src/nodes/core/node-component.interface.ts
+  - codebase/backend/src/nodes/logic/parallel/parallel.schema.ts
+  - codebase/backend/src/modules/workflows/workflows.service.ts
   - codebase/frontend/src/components/editor/workflow-editor.tsx
   - codebase/frontend/src/lib/stores/editor-store.ts
-  - codebase/frontend/src/lib/api/workflows.ts
+  - codebase/frontend/src/components/editor/canvas/custom-node.tsx
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
 pending_plans:
   - plan/in-progress/cross-node-warning-rules.md
@@ -36,14 +39,29 @@ pending_plans:
 
 ## 3. 타입 정의
 
+타입·평가 유틸·Parallel rule 의 단일 진실은 shared package `@workflow/graph-warning-rules` (`codebase/packages/graph-warning-rules/`). backend·frontend 모두 이 패키지를 import 한다 (§6). 패키지는 TypeORM/앱 비의존 **pure shape** 로 정의한다:
+
 ```ts
-// codebase/backend/src/nodes/core/graph-warning-rule.ts
+// @workflow/graph-warning-rules
+export interface GraphRuleNode {
+  id: string;
+  type: string;
+  config?: Record<string, unknown>;
+  label?: string;
+}
+export interface GraphRuleEdge {
+  source: string;
+  sourceHandle?: string | null;
+  target: string;
+  targetHandle?: string | null;
+}
+
 export interface GraphWarningRule {
   id: string;
   severity: 'error' | 'warning';
   evaluate: (
-    node: Node,
-    graph: { nodes: readonly Node[]; edges: readonly Edge[] },
+    node: GraphRuleNode,
+    graph: { nodes: readonly GraphRuleNode[]; edges: readonly GraphRuleEdge[] },
   ) => { message: string } | null;
 }
 
@@ -55,7 +73,10 @@ export interface GraphWarningRuleResult {
 }
 ```
 
-`NodeComponentMetadata.graphWarningRules?: readonly GraphWarningRule[]` 신규 필드.
+- `NodeComponentMetadata.graphWarningRules?: readonly GraphWarningRule[]` 신규 필드 — Parallel 노드는 패키지의 `parallelGraphWarningRules` 를 참조.
+- backend 는 thin adapter (`graph-warning-rule.ts`) 가 TypeORM `Node`/`Edge` entity 를 `GraphRuleNode`/`GraphRuleEdge` 로 매핑(`toRuleNode`/`toRuleEdge`) 후 패키지 유틸에 위임.
+- frontend 는 canvas/store 의 node·edge 를 동일 pure shape 로 매핑(`mapToRuleGraph`)해 패키지 유틸을 **로컬 실행**.
+- frontend 가 rule 을 type 으로 해석하도록 패키지가 `GRAPH_WARNING_RULES_BY_TYPE: Readonly<Record<string, readonly GraphWarningRule[]>>` 맵을 export.
 
 ## 4. severity 정책
 
@@ -68,20 +89,17 @@ export interface GraphWarningRuleResult {
 
 같은 invariant 가 세 시점에 가드되어야 한다 (특히 severity `error` rule):
 
-1. **workflow save endpoint** — POST/PUT workflow nodes/edges 갱신 시 전수 평가. severity `error` triggered 시 reject. **본 PR 의 후속**.
-2. **frontend canvas** — graph 변경 시점마다 평가, 배지 표시 + 저장 버튼 제어. **본 PR 의 후속** (SSOT 보장 메커니즘 결정 필요).
+1. **workflow save endpoint** — `WorkflowsService.saveCanvas` 가 syncNodes/syncEdges 와 동일 트랜잭션에서 `evaluateGraphWarnings` 호출. severity `error` 시 `BadRequestException(GRAPH_VALIDATION_FAILED)` → rollback. ✅ 구현됨.
+2. **frontend canvas** — graph 변경 시점마다 `evaluateGraphWarningsLocal` 로 로컬 평가, per-node 배지 + 저장 버튼 제어. ✅ 구현됨.
 3. **runtime** — 노드 핸들러 / 엔진의 graph 검증 단계에서 자기 노드 중심 평가. 본 컨벤션과 별개로, runtime 의 hand-coded 검증 (예: `PARALLEL_NESTED_DEPTH_EXCEEDED` throw) 과 메시지 의미 일관성을 보장.
 
-> 본 컨벤션은 인프라 (type + 평가 유틸 + Parallel 등재 sample) 만 정의. 1~2 의 호출처 통합은 [`plan/in-progress/cross-node-warning-rules.md`](../../plan/in-progress/cross-node-warning-rules.md) 의 후속 PR 에서 처리.
+## 6. SSOT 보장 (backend ↔ frontend) — shared package 채택 (옵션 A)
 
-## 6. SSOT 보장 (backend ↔ frontend)
+GraphWarningRule 의 `evaluate` 가 JS 함수라 frontend / backend 가 같은 함수 정의를 실행해야 평가 결과가 일치한다. **shared package `@workflow/graph-warning-rules`** (`codebase/packages/graph-warning-rules/`) 를 단일 진실로 채택했다:
 
-GraphWarningRule 의 `evaluate` 가 JS 함수라 frontend / backend 가 같은 함수 정의를 실행해야 평가 결과가 일치한다. 현 PR 은 **backend-only** — frontend 평가 호출은 후속 PR. 후속 PR 에서 다음 옵션 중 결정:
-
-- (옵션 A) **shared package** (`codebase/packages/node-graph-rules/`) — rule 정의를 별 package 로 분리, backend metadata 와 frontend canvas 모두 import. 추천 — drift 없음.
-- (옵션 B) **metadata API serialization** — backend 가 rule 함수를 직렬화해 frontend 로 전송, eval 로 실행. 보안 우려 (eval). 비추천.
-
-본 PR 은 옵션 A 가정으로 type 정의를 위치 (`nodes/core/`) — 후속 PR 에서 그대로 packages 로 이동하면 됨.
+- rule 정의(types · evaluate 유틸 · Parallel rule · `GRAPH_WARNING_RULES_BY_TYPE` 맵)가 패키지에 거주. backend·frontend 모두 `file:` 의존으로 import → **drift 0**.
+- 패키지는 TypeORM/백엔드 비의존 **pure shape** (`GraphRuleNode {id,type,config,label}` / `GraphRuleEdge {source,sourceHandle,target,targetHandle}`) 로 정의. backend 는 Edge entity→shape thin adapter, frontend 는 store/canvas node·edge→shape 매핑으로 동일 함수 실행.
+- (옵션 B) metadata API 가 rule 함수를 직렬화해 frontend 에서 eval 하는 안은 보안 우려로 비채택.
 
 ## 7. 평가 유틸
 
