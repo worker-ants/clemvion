@@ -15,11 +15,14 @@ import { ThrottlerGuard } from '@nestjs/throttler';
  */
 @Injectable()
 export class UserThrottlerGuard extends ThrottlerGuard {
-  protected async getTracker(req: Record<string, unknown>): Promise<string> {
+  // base `ThrottlerGuard.getTracker` 의 `Promise<string>` 반환 계약을 유지하되,
+  // 내부에 await 가 없어 `async` 는 불필요(@typescript-eslint/require-await).
+  // `Promise.resolve` 로 동일 계약을 충족한다.
+  protected getTracker(req: Record<string, unknown>): Promise<string> {
     const user = req['user'] as { sub?: string; userId?: string } | undefined;
     const userId = user?.sub ?? user?.userId;
-    if (userId) return `user:${userId}`;
+    if (userId) return Promise.resolve(`user:${userId}`);
     const ip = (req['ip'] as string | undefined) ?? 'unknown';
-    return ip;
+    return Promise.resolve(ip);
   }
 }

@@ -52,7 +52,13 @@ export const ALLOWED_QUERY_TYPES = [
  * 검증 전 rawConfig 에서 임의 문자열/누락이 흘러올 수 있어 `| string`/`undefined`
  * 로 넓힌다. {@link isWriteOperation} 의 파라미터 타입과 동일.
  */
-export type QueryType = (typeof ALLOWED_QUERY_TYPES)[number] | string | undefined;
+// `| string` 대신 `| (string & {})` — 리터럴 유니언이 `string` 에 흡수돼
+// 사라지는 것(@typescript-eslint/no-redundant-type-constituents)을 피하면서도
+// UI 가 명시하는 리터럴의 autocomplete 를 보존한다. 런타임/할당 호환은 `string` 과 동일.
+export type QueryType =
+  | (typeof ALLOWED_QUERY_TYPES)[number]
+  | (string & {})
+  | undefined;
 
 const POOL_MAX_CONNECTIONS = 5;
 const POOL_IDLE_TIMEOUT_MS = 30_000;

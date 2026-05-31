@@ -866,6 +866,32 @@ export class ExecutionEngineService
           `Execution ${executionId} not WAITING_FOR_INPUT (status=${execution?.status ?? 'absent'})`,
         );
       }
+
+      // §7.5 / CCH-AD-05 — slow-path 재개 시 in-memory routing context 재등록.
+      // execute() 등록과 동일 형태. terminal event 시 WebsocketService 가 자동 release.
+      // (spec §4-execution-engine.md §7.5)
+      if (execution.triggerId && execution.workflowId) {
+        try {
+          const chatChannel = extractChatChannelFromInput(execution.inputData);
+          this.eventEmitter.registerExecutionRouting(executionId, {
+            triggerId: execution.triggerId,
+            workflowId: execution.workflowId,
+            ...(chatChannel ? { chatChannel } : {}),
+          });
+        } catch (routingErr) {
+          this.logger.warn(
+            'routing context 재등록 실패 — best-effort, 실행 계속',
+            {
+              executionId,
+              error:
+                routingErr instanceof Error
+                  ? routingErr.message
+                  : String(routingErr),
+            },
+          );
+        }
+      }
+
       if (nodeExecutionId === '__no_node_exec__') {
         throw new RehydrationError(
           'RESUME_CHECKPOINT_MISSING',
