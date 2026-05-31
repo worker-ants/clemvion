@@ -4,6 +4,7 @@ status: implemented
 code:
   - codebase/backend/src/nodes/logic/background/background.*.ts
   - codebase/backend/src/modules/executions/background-runs/*.ts
+  - codebase/backend/src/modules/execution-engine/**
 ---
 
 # Spec: Background
@@ -88,6 +89,7 @@ code:
 **격리 컨트랙트**:
 
 - **Variables/cache 분리**: enqueue 후 메인이 `context.variables` 를 바꿔도 본문에는 반영되지 않으며 (스냅샷 참조), 본문에서의 변수 변화도 메인으로 돌아오지 않는다.
+- **Context Map 키 격리**: 본문은 메인과 같은 `executionId` 를 NodeExecution 그룹핑·WS 채널용으로 공유하되, in-memory `ExecutionContext` 는 **별도 키 `bg:<executionId>:<backgroundRunId>`** 로 Map 에 등록돼 메인 컨텍스트와 격리된다. `executeBackgroundSubgraph` 가 **자체 finally 로 해당 bgKey context 를 삭제**하며, 이는 메인 `runExecution` finally 의 `deleteContext(executionId)` 와 독립적이다 (분류 SoT [execution-context 규약 원칙 4](../../conventions/execution-context.md#원칙-4--engine-internal-infrastructure-fields-_-prefix)).
 - **에러 격리**: 본문 실패 → 메인 status 무영향.
 - **결과 비반환**: 본문 마지막 노드의 출력은 메인 흐름의 어떤 노드에서도 참조 불가. 결과를 기다려야 하면 `parallel` 을 사용한다.
 
@@ -298,6 +300,10 @@ AI Assistant 의 read-only 실행 조회 도구 (`ED-AI-35~38`) 는 본 API 를 
 본 API 는 외부 부수효과를 일으키지 않으므로 5xx 는 표준 NestJS 핸들러에 위임 (DB 장애 등).
 
 ## Rationale
+
+### ExecutionContext Map 키 분리 결정
+
+background 본문은 fire-and-forget 으로 BullMQ 워커에서 비동기 실행되는데, 부모와 동일한 `executionId` 를 in-memory context Map 키로 공유했다. 부모 실행이 (대개 본문보다 먼저) 종료하며 `deleteContext(executionId)` 를 호출하면 본문이 쓰던 context 가 같은 키로 삭제돼 후속 `setNodeOutput` 이 "Execution context not found" 로 실패했다. 해소: 본문은 `bg:<executionId>:<backgroundRunId>` 별도 Map 키를 쓰고 `executeBackgroundSubgraph` 자체 finally 로 정리한다. `executionId` 는 NodeExecution 그룹핑·WS(`execution:<id>`)·권한 1차 키이므로 원본 유지하고 in-memory Map 키만 분리한다 — 기존 격리 컨트랙트(§4 Variables/cache 스냅샷 격리)의 키-레벨 확장이다. 필드 분류·`_contextKey` 결정의 주 SoT 는 [execution-context 규약 §Rationale](../../conventions/execution-context.md#rationale) 다.
 
 ### URL 중첩 구조 결정
 

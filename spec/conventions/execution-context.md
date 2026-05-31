@@ -50,13 +50,21 @@ interface ParallelBranchContext extends ExecutionContext {
 
 > **소급 적용 대상 아님**: 기존 cross-cutting 필드 (`abortSignal`, `rawConfig`, `recursionDepth` 등) 는 각자 도입 시점의 Rationale 을 보유한다. 본 원칙은 그것들을 재배치하라는 뜻이 아니라, **앞으로 추가되는 필드**가 분류 기준을 통과하도록 한다.
 
+### 원칙 4 — Engine-internal infrastructure fields (`_`-prefix)
+
+노드 핸들러가 **읽지 않고** 엔진의 그래프 순회·컨텍스트 라우팅에만 쓰이는 상태는 `_`-prefix 로 표기해 internal 임을 신호하고, `node-handler.interface.ts` 에 `_`-prefix optional 로 두되 **핸들러 계약 표면에는 포함하지 않는다**. Stable core(전 노드 공통 소비) 도 container-specific(원칙 2) 도 아닌 **엔진 전용** 범주다.
+
+- 선례: `_executedNodes` (sub-workflow inline 순회), `_resumeState` / `_retryState` (재개·리트라이 continuation). 이들은 본 분류 체계 도입 이전에 추가됐으며, 원칙 4 신설과 함께 소급 분류한다.
+- `_contextKey?: string` — `ExecutionContextService` 의 in-memory `Map<key, ExecutionContext>` 라우팅 키. **기본값 = `executionId`** (비-background context 는 항상 동일 → 동작 불변). background 서브그래프 한정으로 `bg:<executionId>:<backgroundRunId>` 형태의 별도 키를 쓴다. **in-memory Map 라우팅 전용** — Redis 키 패턴([execution-engine §9.1](../5-system/4-execution-engine.md#91-키-패턴))과 무관하다.
+
 ## 2. 새 필드 추가 결정 규칙
 
 | 질문 | 예 | 아니오 |
 | --- | --- | --- |
 | 모든(또는 대다수) 노드가 읽는가? | `ExecutionContext` 에 추가 | ↓ |
 | 특정 컨테이너 내부 분기에서만 의미 있는가? | `XBranchContext extends ExecutionContext` 로 분리 (원칙 2) | ↓ |
-| cross-cutting 이지만 일부 노드만 소비하는가? (예: cancellation) | `ExecutionContext` 의 **optional** 필드 + best-effort 컨벤션 문서(별 SoT)에 동작 계약 위임 | 재검토 |
+| cross-cutting 이지만 일부 노드만 소비하는가? (예: cancellation) | `ExecutionContext` 의 **optional** 필드 + best-effort 컨벤션 문서(별 SoT)에 동작 계약 위임 | ↓ |
+| 핸들러가 읽지 않고 엔진 순회·라우팅에만 쓰는가? | `_`-prefix 엔진 내부 필드 (원칙 4 — `node-handler.interface.ts` optional, 핸들러 계약 비노출) | 재검토 |
 
 ## Rationale
 
@@ -65,5 +73,7 @@ interface ParallelBranchContext extends ExecutionContext {
 **왜 `abortSignal` 은 Stable core 에 두는가** — cancellation 은 단일 컨테이너 한정이 아니라 Parallel `cancel-others-on-fail`·Workflow timeout·사용자 cancel·graceful shutdown 등 **다수 기능이 공유하는 cross-cutting 인프라**다 ([`node-cancellation.md`](./node-cancellation.md) §1). 컨테이너별 인터페이스로 쪼개면 오히려 소비처마다 타입이 갈라진다. 따라서 optional 필드로 Stable core 에 두되, "전 노드 필수 아님 / best-effort" 라는 **동작 계약은 `node-cancellation.md` 가 단일 SoT** 로 보유해 본 문서(필드 분류 SoT)와 책임을 분리한다.
 
 **왜 "No sprawl" 를 신규 필드에만 적용하는가** — 기존 필드를 일괄 재배치하면 24개 프로덕션 핸들러 + 엔진 주입부의 광범위 변경과 회귀 위험을 동반한다 ([`node-cancellation.md`](./node-cancellation.md) §Rationale 의 시그니처 변경 회피 근거와 동일 맥락). 본 규약의 가치는 "이미 있는 것의 정리" 가 아니라 "앞으로의 누적 방지" 이므로, 적용 범위를 신규 변경으로 한정해 비용 대비 효과를 확보한다.
+
+**왜 `_contextKey` 를 엔진 내부 필드(원칙 4)로 두는가** (이 결정의 주 SoT — [Background §Rationale](../4-nodes/1-logic/12-background.md#rationale) · [execution-engine §6.1](../5-system/4-execution-engine.md#61-컨텍스트-구조) 가 상호 참조) — context 의 in-memory Map 키는 어떤 노드 핸들러도 소비하지 않는 순수 라우팅 식별자다. Stable core 에 넣으면 전 핸들러에 무관 필드가 노출되지만, `_`-prefix 엔진 내부 필드(선례 `_executedNodes`)로 두면 핸들러 표면 오염 없이 엔진만 참조한다. God Object 우려(원칙 1·3)는 "핸들러가 보는 필드의 비대화" 가 본질이므로, 핸들러 비노출 internal 필드에는 비해당이다. 도입 동기는 background 본문이 부모와 **동일한 `executionId` 를 Map 키로 공유**해, 먼저 종료한 부모의 `deleteContext(executionId)` 가 fire-and-forget 본문이 쓰던 context 를 같은 키로 삭제하던 race ("Execution context not found") 해소다. `executionId` 자체는 NodeExecution 그룹핑·WS 채널·권한 1차 키이므로 원본 유지하고, **in-memory Map 키만** background 한정 `bg:*` 로 분리한다. 이 원칙 4 신설은 기존 §2 표 "재검토" 케이스를 닫는 것이 아니라 핸들러 비소비 엔진 필드를 위한 **새 분기를 추가**하는 것이다.
 
 **기각된 대안 — `ExecutionOptions` 추출** — 모든 부가 필드를 단일 `options` 객체로 묶는 방안도 검토됐으나 (ai-review SUMMARY#11 제안), 이는 컨테이너별 의미 차이를 타입으로 표현하지 못하고 (`options.parentParallelConcurrency` 가 비 Parallel 컨텍스트에도 노출) optional sprawl 을 객체 내부로 옮길 뿐이다. 컨테이너별 `extends` 분리가 타입 안전성과 책임 경계 모두에서 우월해 채택하지 않았다.

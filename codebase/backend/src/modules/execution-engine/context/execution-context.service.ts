@@ -37,13 +37,18 @@ export class ExecutionContextService {
     workflowId: string,
     initialVariables: Record<string, unknown> = {},
     recursionDepth?: number,
+    // in-memory Map 라우팅 키 (spec/conventions/execution-context.md 원칙 4).
+    // 생략 시 executionId 와 동일 → 비-background 호출은 동작 불변. background
+    // 본문만 `bg:<executionId>:<backgroundRunId>` 를 전달해 부모와 키 격리한다.
+    contextKey?: string,
   ): ExecutionContext {
-    const existing = this.contexts.get(executionId);
+    const key = contextKey ?? executionId;
+    const existing = this.contexts.get(key);
     if (existing) {
-      // 회귀 ③ tracking: 동일 executionId 의 context 가 이미 존재할 때 재생성 시도
+      // 회귀 ③ tracking: 동일 키의 context 가 이미 존재할 때 재생성 시도
       // — 누가 호출했는지 식별. multi-instance race 또는 sub-workflow re-entry 의심.
       this.logger.warn(
-        `[ctx-trace] createContext OVERWRITE — executionId=${executionId} ` +
+        `[ctx-trace] createContext OVERWRITE — key=${key} executionId=${executionId} ` +
           `workflowId=${workflowId} (existing workflowId=${existing.workflowId}, ` +
           `nodes=${Object.keys(existing.nodeOutputCache).length}). ` +
           `Caller stack:\n${new Error().stack?.split('\n').slice(1, 6).join('\n')}`,
@@ -52,6 +57,7 @@ export class ExecutionContextService {
     const context: ExecutionContext = {
       executionId,
       workflowId,
+      _contextKey: key,
       variables: { ...initialVariables },
       nodeOutputCache: {},
       structuredOutputCache: {},
@@ -59,16 +65,16 @@ export class ExecutionContextService {
       recursionDepth: recursionDepth ?? 0,
       conversationThread: createEmptyConversationThread(),
     };
-    this.contexts.set(executionId, context);
+    this.contexts.set(key, context);
     return context;
   }
 
   setStructuredOutput(
-    executionId: string,
+    key: string,
     nodeId: string,
     adapted: NodeHandlerOutput,
   ): void {
-    const context = this.contexts.get(executionId);
+    const context = this.contexts.get(key);
     if (!context) return;
     context.structuredOutputCache[nodeId] = adapted;
   }
@@ -83,44 +89,41 @@ export class ExecutionContextService {
    * `resolvedConfig` reference without leaking changes into the cache.
    */
   setEngineResolvedConfig(
-    executionId: string,
+    key: string,
     nodeId: string,
     resolvedConfig: Record<string, unknown>,
   ): void {
-    const context = this.contexts.get(executionId) as
+    const context = this.contexts.get(key) as
       | MutableExecutionContext
       | undefined;
     if (!context) return;
     context.engineResolvedConfigCache[nodeId] = { ...resolvedConfig };
   }
 
-  getContext(executionId: string): ExecutionContext | undefined {
-    return this.contexts.get(executionId);
+  getContext(key: string): ExecutionContext | undefined {
+    return this.contexts.get(key);
   }
 
-  updateVariables(
-    executionId: string,
-    variables: Record<string, unknown>,
-  ): void {
-    const context = this.contexts.get(executionId);
+  updateVariables(key: string, variables: Record<string, unknown>): void {
+    const context = this.contexts.get(key);
     if (!context) {
-      throw new Error(`Execution context not found: ${executionId}`);
+      throw new Error(`Execution context not found: ${key}`);
     }
     Object.assign(context.variables, variables);
   }
 
-  setNodeOutput(executionId: string, nodeId: string, output: unknown): void {
-    const context = this.contexts.get(executionId);
+  setNodeOutput(key: string, nodeId: string, output: unknown): void {
+    const context = this.contexts.get(key);
     if (!context) {
       // 회귀 ③ tracking (2026-05-25): caller stack 을 함께 남겨 어떤 경로가
       // 사라진 context 에 write 시도했는지 식별. 발생 후 진단용 — production
       // 로그에서 setNodeOutput throw 패턴을 검색해 race window 추적.
       this.logger.error(
-        `[ctx-trace] setNodeOutput MISSING — executionId=${executionId} ` +
+        `[ctx-trace] setNodeOutput MISSING — key=${key} ` +
           `nodeId=${nodeId} (race: deleteContext fired earlier). Caller:\n` +
           `${new Error().stack?.split('\n').slice(1, 10).join('\n')}`,
       );
-      throw new Error(`Execution context not found: ${executionId}`);
+      throw new Error(`Execution context not found: ${key}`);
     }
     context.nodeOutputCache[nodeId] = output;
 
@@ -167,24 +170,24 @@ export class ExecutionContextService {
       : derived;
   }
 
-  getNodeOutput(executionId: string, nodeId: string): unknown {
-    const context = this.contexts.get(executionId);
+  getNodeOutput(key: string, nodeId: string): unknown {
+    const context = this.contexts.get(key);
     if (!context) {
-      throw new Error(`Execution context not found: ${executionId}`);
+      throw new Error(`Execution context not found: ${key}`);
     }
     return context.nodeOutputCache[nodeId];
   }
 
-  deleteContext(executionId: string): void {
-    const existed = this.contexts.has(executionId);
+  deleteContext(key: string): void {
+    const existed = this.contexts.has(key);
     // 회귀 ③ tracking (2026-05-25): context 삭제 caller 식별. 의심 race —
     // runExecution finally / resumeFromCheckpoint finally 중 어느 path 가
     // 동시 진행 중인 다른 await 를 무효화하는지 production 로그로 추적.
     // log 라인 prefix `[ctx-trace] deleteContext` 로 grep 가능.
     this.logger.log(
-      `[ctx-trace] deleteContext — executionId=${executionId} existed=${existed}. ` +
+      `[ctx-trace] deleteContext — key=${key} existed=${existed}. ` +
         `Caller:\n${new Error().stack?.split('\n').slice(1, 6).join('\n')}`,
     );
-    this.contexts.delete(executionId);
+    this.contexts.delete(key);
   }
 }
