@@ -1670,6 +1670,14 @@ describe('ExecutionEngineService', () => {
     const driveResumeSlowPath = async (
       executionRow: Partial<Execution>,
     ): Promise<void> => {
+      // WARNING #2 — 다른 테스트가 같은 executionId 를 pendingContinuations 에
+      // 남기면 applyContinuation 이 fast-path 로 빠져 slow-path(rehydrateAndResume)
+      // 에 진입하지 않아 silent false-negative 가 된다. 매 호출마다 강제 비운다.
+      (
+        service as unknown as {
+          pendingContinuations: Map<string, unknown>;
+        }
+      ).pendingContinuations.clear();
       mockExecutionRepo.findOneBy.mockResolvedValueOnce(executionRow);
       mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValueOnce(null);
       mockWebsocketService.registerExecutionRouting.mockClear();
@@ -7907,7 +7915,17 @@ describe('ExecutionEngineService', () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         workflowId,
+        triggerId: 'trg-ai',
         status: ExecutionStatus.WAITING_FOR_INPUT,
+        inputData: {
+          __triggerSource: 'webhook',
+          chatChannel: {
+            provider: 'telegram',
+            conversationKey: 'ck-ai',
+            channelUserKey: 'u-ai',
+          },
+        },
+        startedAt: new Date(),
       });
       mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
         id: 'ne-1',
@@ -7932,11 +7950,21 @@ describe('ExecutionEngineService', () => {
         workspace: { id: 'ws-1', name: 'WS', settings: {} },
       });
       mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+      mockWebsocketService.registerExecutionRouting.mockClear();
 
       await subject().rehydrateAndResume(executionId, 'ne-1', {
         type: 'ai_message',
         message: 'hi',
       });
+
+      // WARNING #1 회귀 가드 — RESUME_INCOMPATIBLE_STATE 경로에서도 routing context
+      // 재등록이 markExecutionCancelled 보다 먼저 일어나야 graceful 안내가 도달한다.
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(
+        executionId,
+        expect.objectContaining({ triggerId: expect.any(String) }),
+      );
 
       // RESUME_INCOMPATIBLE_STATE 마킹 — execution 과 nodeExecution 양쪽 chain.
       expect(
