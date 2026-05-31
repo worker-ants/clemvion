@@ -24,6 +24,7 @@ import { history } from "./history";
 import { docs } from "./docs";
 import { time } from "./time";
 import { errors } from "./errors";
+import { errorPage } from "./errorPage";
 import { assistant } from "./assistant";
 
 export const en: Dict = {
@@ -50,5 +51,6 @@ export const en: Dict = {
   docs,
   time,
   errors,
+  errorPage,
   assistant,
 };
