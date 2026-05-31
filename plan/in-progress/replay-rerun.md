@@ -30,7 +30,7 @@
 - [Spec 워크플로 실행/디버깅 §10.14](../../spec/3-workflow-editor/3-execution.md#1014-re-run-진입점) — Run Results 드로어 진입점
 - [Spec AI Assistant §4.1.2](../../spec/3-workflow-editor/4-ai-assistant.md#412-re-run-비트리거-정책) — RR-PL-07 적용
 - [`plan/complete/engine-raw-config-exposure.md`](../complete/engine-raw-config-exposure.md) — raw config echo 정책, Re-run 의 핵심 전제
-- [`plan/in-progress/retry-handler-followup.md`](./retry-handler-followup.md) WARNING #10 — 2026-05-30 의 `spec-draft-retry-downstream-graph` PR 이 `spec/5-system/13-replay-rerun.md §14.3` 끝에 retry 직교성 단락을 추가했고 Rationale 끝에 "`execution.retry_last_turn` 과의 경계 (§14.3 보강)" 단락을 신설했다. 본 plan 의 후속 spec 갱신 시 §14.3 / §Rationale 의 변경된 상태를 base 로 rebase 검토 필요 (text 충돌 가능성).
+- [Spec Re-run §14.3](../../spec/5-system/13-replay-rerun.md) retry 직교성 — `retry_last_turn` 과의 경계는 §14.3 끝 retry 직교성 단락 + Rationale 끝 "`execution.retry_last_turn` 과의 경계 (§14.3 보강)" 단락에 이미 명문화되어 main 에 머지됨 (retry-handler-followup plan, 2026-05-31 완료·제거). 후속 spec 갱신 시 §14.3 / §Rationale 현 상태를 base 로 한다.
 
 ## 작업 단위
 
