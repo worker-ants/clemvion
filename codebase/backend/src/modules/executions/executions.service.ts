@@ -2,13 +2,22 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
+  ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Execution, ExecutionStatus } from './entities/execution.entity';
 import { NodeExecution } from '../node-executions/entities/node-execution.entity';
 import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-log.entity';
+import { Node } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
+import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
+import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
+import type { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { ReRunRequestDto } from './dto/re-run.dto';
 import { QueryExecutionDto } from './dto/query-execution.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { ExecutionDto } from './dto/responses/execution-response.dto';
@@ -23,6 +32,12 @@ import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 // 필요하므로 상한을 초과한 경우는 잘려도 표시 흐름은 유지된다.
 // 테스트에서도 동일 상수를 참조하도록 export.
 export const MAX_EXECUTION_PATH_ROWS = 10_000;
+
+// Re-run chain 깊이 한도 (RR-PL-05, spec §9.1). 새 re-run 포함 시 초과면 거부.
+export const RERUN_CHAIN_DEPTH_LIMIT = 32;
+// re_run_of walk 의 안전 상한 — 사이클은 구조상 불가(부모는 항상 더 이른 행)하나
+// 무한 루프 방어로 한도의 2배에서 중단.
+const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 
 /**
  * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
@@ -66,6 +81,8 @@ export class ExecutionsService {
     ExecutionDetailWithTrigger
   >();
 
+  private readonly logger = new Logger(ExecutionsService.name);
+
   constructor(
     @InjectRepository(Execution)
     private readonly executionRepository: Repository<Execution>,
@@ -73,6 +90,8 @@ export class ExecutionsService {
     private readonly nodeExecutionRepository: Repository<NodeExecution>,
     @InjectRepository(ExecutionNodeLog)
     private readonly executionNodeLogRepository: Repository<ExecutionNodeLog>,
+    @InjectRepository(Node)
+    private readonly nodeRepository: Repository<Node>,
     private readonly executionEngineService: ExecutionEngineService,
   ) {}
 
@@ -173,6 +192,181 @@ export class ExecutionsService {
         message: 'Workflow not found',
       });
     }
+  }
+
+  // ─── Replay/Re-run (decision F2, spec/5-system/13-replay-rerun.md §8) ───
+
+  /** RR-PL-06 — 워크스페이스 owner/admin 여부 (JWT role 기준). */
+  private isOwnerOrAdmin(user: JwtPayload): boolean {
+    return user.role === 'owner' || user.role === 'admin';
+  }
+
+  /** chain 깊이 = 본 실행에서 re_run_of 를 따라 root 까지의 조상 수(+자기 1). */
+  private async computeChainDepth(executionId: string): Promise<number> {
+    let depth = 1;
+    let cursor: string | null = executionId;
+    for (let i = 0; i < RERUN_CHAIN_WALK_MAX && cursor; i++) {
+      const row: { reRunOf: string | null } | undefined =
+        await this.executionRepository
+          .createQueryBuilder('e')
+          .select('e.reRunOf', 'reRunOf')
+          .where('e.id = :id', { id: cursor })
+          .getRawOne<{ reRunOf: string | null }>();
+      cursor = row?.reRunOf ?? null;
+      if (cursor) depth += 1;
+    }
+    return depth;
+  }
+
+  /**
+   * 원본 실행을 기반으로 새 Execution 을 시작한다 (spec §8.1).
+   * 권한: RBAC editor+ 는 controller `@Roles('editor')` 가 강제. 본 메서드는
+   * 워크스페이스 격리(RERUN_EXECUTION_NOT_FOUND) + 타인 실행 owner/admin 한정
+   * (RERUN_PERMISSION_DENIED, RR-PL-06) 을 추가 검증한다.
+   */
+  async reRun(
+    executionId: string,
+    workspaceId: string,
+    user: JwtPayload,
+    dto: ReRunRequestDto,
+  ): Promise<
+    ExecutionDetailWithTrigger & {
+      reRunOf: string;
+      chainId: string;
+      dryRun: boolean;
+    }
+  > {
+    const original = await this.executionRepository
+      .createQueryBuilder('e')
+      .leftJoinAndSelect('e.workflow', 'workflow')
+      .where('e.id = :id', { id: executionId })
+      .getOne();
+    if (!original || original.workflow?.workspaceId !== workspaceId) {
+      // ID enumeration 차단 — 존재/타 워크스페이스 모두 동일 404.
+      throw new NotFoundException({
+        code: 'RERUN_EXECUTION_NOT_FOUND',
+        message: 'Execution not found',
+      });
+    }
+    // 방어적 — execution.workflow 는 FK CASCADE 라 정상적으로 항상 존재한다.
+    if (!original.workflow) {
+      throw new NotFoundException({
+        code: 'RERUN_WORKFLOW_DELETED',
+        message: 'Original execution workflow has been deleted',
+      });
+    }
+
+    // RR-PL-06 — 타인의 실행이면 owner/admin 만 re-run 가능.
+    if (
+      original.executedBy &&
+      original.executedBy !== user.sub &&
+      !this.isOwnerOrAdmin(user)
+    ) {
+      throw new ForbiddenException({
+        code: 'RERUN_PERMISSION_DENIED',
+        message: 'You do not have permission to re-run this execution',
+      });
+    }
+
+    // dry-run — v1 미지원 (supportsDryRun 노드 인프라 미구축). 안전하게 거부해
+    // 외부 부수효과가 실제로 실행되는 것을 막는다 (spec §8.1 게이트).
+    if (dto.dryRun) {
+      throw new BadRequestException({
+        code: 'RERUN_DRY_RUN_NOT_APPLICABLE',
+        message: 'dry-run mode is not supported yet',
+      });
+    }
+
+    // RR-PL-05 — chain 깊이 32 제한 (새 실행 포함 시 초과면 거부).
+    const depth = await this.computeChainDepth(executionId);
+    if (depth >= RERUN_CHAIN_DEPTH_LIMIT) {
+      throw new ConflictException({
+        code: 'RERUN_CHAIN_DEPTH_EXCEEDED',
+        message: `Re-run chain depth limit (${RERUN_CHAIN_DEPTH_LIMIT}) exceeded`,
+      });
+    }
+
+    // 입력 — 원본 그대로 / inputOverride (Manual Trigger 스키마 검증).
+    const useOriginal = dto.useOriginalInput ?? true;
+    let executionInput: Record<string, unknown>;
+    if (useOriginal) {
+      executionInput = original.inputData ?? {};
+    } else {
+      const schema = await loadTriggerParameterSchema(
+        this.nodeRepository,
+        original.workflowId,
+        this.logger,
+      );
+      let parameters: Record<string, unknown>;
+      try {
+        parameters = resolveTriggerParameters(schema, dto.inputOverride ?? {});
+      } catch (err) {
+        if (err instanceof TriggerParameterValidationException) {
+          throw new BadRequestException({
+            code: 'INVALID_INPUT',
+            message: 'Invalid input override',
+            errors: err.errors,
+          });
+        }
+        throw err;
+      }
+      executionInput = { __triggerSource: 'manual' as const, parameters };
+    }
+
+    // chain root = 원본의 chain_id (있으면) 아니면 원본 자신의 id.
+    const chainId = original.chainId ?? original.id;
+
+    const newExecutionId = await this.executionEngineService.execute(
+      original.workflowId,
+      executionInput,
+      { executedBy: user.sub, reRunOf: executionId, chainId },
+    );
+
+    const detail = await this.findById(newExecutionId);
+    return { ...detail, reRunOf: executionId, chainId, dryRun: false };
+  }
+
+  /**
+   * 같은 chain 의 모든 실행을 started_at ASC 로 반환 (spec §8.2). nodeExecutions
+   * 는 생략(목록 용).
+   * @param user 인증 사용자 — RR-PL-06 권한 판정용 (타인 실행은 owner/admin 한정).
+   * @throws NotFoundException RERUN_EXECUTION_NOT_FOUND (미존재/타 워크스페이스)
+   * @throws ForbiddenException RERUN_PERMISSION_DENIED (RR-PL-06)
+   */
+  async getChain(
+    executionId: string,
+    workspaceId: string,
+    user: JwtPayload,
+  ): Promise<Execution[]> {
+    const exec = await this.executionRepository
+      .createQueryBuilder('e')
+      .leftJoinAndSelect('e.workflow', 'workflow')
+      .where('e.id = :id', { id: executionId })
+      .getOne();
+    if (!exec || exec.workflow?.workspaceId !== workspaceId) {
+      throw new NotFoundException({
+        code: 'RERUN_EXECUTION_NOT_FOUND',
+        message: 'Execution not found',
+      });
+    }
+    // RR-PL-06 — chain 조회 권한은 re-run 과 동일: 타인 실행은 owner/admin 만.
+    if (
+      exec.executedBy &&
+      exec.executedBy !== user.sub &&
+      !this.isOwnerOrAdmin(user)
+    ) {
+      throw new ForbiddenException({
+        code: 'RERUN_PERMISSION_DENIED',
+        message: 'You do not have permission to view this execution chain',
+      });
+    }
+    const rootId = exec.chainId ?? exec.id;
+    const rows = await this.executionRepository
+      .createQueryBuilder('e')
+      .where('e.id = :rootId OR e.chainId = :rootId', { rootId })
+      .orderBy('e.startedAt', 'ASC')
+      .getMany();
+    return rows.map((e) => this.stripPrivateRelations(e));
   }
 
   async findById(id: string): Promise<ExecutionDetailWithTrigger> {

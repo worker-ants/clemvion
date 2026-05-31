@@ -27,6 +27,8 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 
 신규 값 추가 시 **두 위치를 동시 변경** + 본 §1.2 매트릭스에 행 추가.
 
+> **내부 4값 ↔ EIA 외부 3값 매핑**: 위 `WaitingInteractionType` 은 **엔진 내부** 4값이다. EIA(External Interaction API) HTTP 외부 표면은 `ai_form_render` 를 `ai_conversation` 으로 통합해 **3값(`form` / `buttons` / `ai_conversation`)** 만 노출한다 — 이 4→3 통합은 **`chat-channel.dispatcher` 및 EIA 응답 DTO(`external-interaction/dto/responses.dto.ts`) 계층의 책임**이다. SoT: [EIA §6.2 페이로드](../5-system/14-external-interaction-api.md) · [channel-web-chat 아키텍처 §매핑](../7-channel-web-chat/0-architecture.md). 따라서 `3-workflow-editor/3-execution.md` · `0-canvas.md` 등 **내부 관점** 문서가 4값 전체를 열거하지 않더라도, 외부 표면 3값과 모순이 아니다 (관점 차이).
+
 ### 1.2 값 → 처리 분기 매트릭스
 
 | Enum value | Backend emit 위치 | Frontend 처리 분기 (필수 N) |

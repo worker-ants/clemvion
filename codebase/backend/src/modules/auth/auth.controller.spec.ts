@@ -183,8 +183,10 @@ describe('AuthController', () => {
         'R',
         expect.objectContaining({ httpOnly: true }),
       );
+      // decision A — access token 은 URL 에 싣지 않는다. refresh 쿠키만 설정하고
+      // 프론트가 /auth/refresh 로 access token 을 발급받는다.
       expect(mockRes.redirect).toHaveBeenCalledWith(
-        'http://frontend.test/callback?success=true&token=A',
+        'http://frontend.test/callback?success=true',
       );
     });
 

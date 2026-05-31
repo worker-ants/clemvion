@@ -75,6 +75,16 @@ export class Execution {
   @Column({ name: 'recursion_depth', default: 0 })
   recursionDepth: number;
 
+  // Replay/Re-run (decision F2, spec/5-system/13-replay-rerun.md §9.1).
+  // re_run_of: 직계 부모 Execution (NULL = chain 의 원본/시작).
+  // chain_id: chain root Execution id (re-run 으로 생성된 행에만 세팅 — 일반
+  //   실행은 NULL). chain 전체는 `id = rootId OR chain_id = rootId` 로 조회.
+  @Column({ name: 're_run_of', type: 'uuid', nullable: true })
+  reRunOf: string | null;
+
+  @Column({ name: 'chain_id', type: 'uuid', nullable: true })
+  chainId: string | null;
+
   // 노드 실행 순서는 V035 부터 별도 `execution_node_log` 테이블에 append-only
   // 로 기록된다. ExecutionsService.findById 가 (execution_id, id) 정렬 쿼리로
   // executionPath: string[] 응답 필드를 채운다. 본 entity 에 컬럼은 없다.

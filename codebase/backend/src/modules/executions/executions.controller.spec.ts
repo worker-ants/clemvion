@@ -16,6 +16,8 @@ describe('ExecutionsController', () => {
       stop: jest.fn().mockResolvedValue({ id: 'exec-1', status: 'stopped' }),
       // CRIT #1 — IDOR 차단을 위해 controller 가 verifyOwnership 호출.
       verifyOwnership: jest.fn().mockResolvedValue(undefined),
+      reRun: jest.fn().mockResolvedValue({ id: 'new-exec', reRunOf: 'exec-1' }),
+      getChain: jest.fn().mockResolvedValue([{ id: 'exec-1' }]),
     };
 
     mockExecutionEngineService = {
@@ -130,6 +132,51 @@ describe('ExecutionsController', () => {
         controller.stop('exec-victim', 'workspace-attacker'),
       ).rejects.toThrow('Execution not found');
       expect(mockExecutionsService.stop).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reRun (decision F2)', () => {
+    const user = {
+      sub: 'user-1',
+      email: 'u@e.com',
+      workspaceId: 'ws-1',
+      role: 'editor',
+    };
+
+    it('forwards id / workspaceId / user / dto to the service', async () => {
+      const dto = { useOriginalInput: true };
+      const result = await controller.reRun(
+        'exec-1',
+        'ws-1',
+        user as never,
+        dto,
+      );
+      expect(mockExecutionsService.reRun).toHaveBeenCalledWith(
+        'exec-1',
+        'ws-1',
+        user,
+        dto,
+      );
+      expect(result).toEqual({ id: 'new-exec', reRunOf: 'exec-1' });
+    });
+  });
+
+  describe('getChain (decision F2)', () => {
+    const user = {
+      sub: 'user-1',
+      email: 'u@e.com',
+      workspaceId: 'ws-1',
+      role: 'editor',
+    };
+
+    it('forwards id / workspaceId / user to the service', async () => {
+      const result = await controller.getChain('exec-1', 'ws-1', user as never);
+      expect(mockExecutionsService.getChain).toHaveBeenCalledWith(
+        'exec-1',
+        'ws-1',
+        user,
+      );
+      expect(result).toEqual([{ id: 'exec-1' }]);
     });
   });
 });

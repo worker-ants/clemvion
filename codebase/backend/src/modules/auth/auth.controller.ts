@@ -521,9 +521,11 @@ export class AuthController {
         cookieDomain: this.cookieDomain,
         rememberMe: result.rememberMe,
       });
-      return res.redirect(
-        `${frontendUrl}/callback?success=true&token=${encodeURIComponent(result.accessToken)}`,
-      );
+      // access token 은 URL 에 싣지 않는다 (history/Referer/프록시 로그 노출
+      // 방지 — decision A, 2026-05-31). refresh token 은 위에서 httpOnly 쿠키로
+      // 이미 설정됐으므로, 프론트 콜백 페이지가 `POST /auth/refresh` 로 access
+      // token 을 발급받는다 (spec/2-navigation/10-auth-flow.md §OAuth 콜백).
+      return res.redirect(`${frontendUrl}/callback?success=true`);
     } catch (err) {
       const errorCode = mapOauthError(err);
       if (errorCode === 'server_error') {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { setAccessToken } from "@/lib/api/client";
+import { refreshAccessToken } from "@/lib/api/client";
 import {
   Card,
   CardHeader,
@@ -17,25 +17,39 @@ import { useT } from "@/lib/i18n";
 interface CallbackContentProps {
   success?: string;
   error?: string;
-  token?: string;
 }
 
-export function CallbackContent({ success, error, token }: CallbackContentProps) {
+export function CallbackContent({ success, error }: CallbackContentProps) {
   const t = useT();
   const router = useRouter();
-  const hasError = !!error || (!success && !token);
-  const [status] = useState<"loading" | "error">(
-    hasError ? "error" : "loading",
+  const initialError = !!error || !success;
+  const [status, setStatus] = useState<"loading" | "error">(
+    initialError ? "error" : "loading",
   );
 
   useEffect(() => {
-    if (hasError) return;
-
-    if (token) {
-      setAccessToken(token);
-    }
-    router.push("/dashboard");
-  }, [hasError, token, router]);
+    if (initialError) return;
+    let cancelled = false;
+    // decision A (2026-05-31) — OAuth 콜백은 access token 을 URL 로 받지 않는다.
+    // 콜백 응답이 refresh token 을 httpOnly 쿠키로 이미 설정했으므로,
+    // `refreshAccessToken()` (`POST /auth/refresh`, withCredentials) 로 access
+    // token 을 발급받아 메모리에 적재한 뒤 대시보드로 이동한다.
+    refreshAccessToken()
+      .then((token) => {
+        if (cancelled) return;
+        if (token) {
+          router.push("/dashboard");
+        } else {
+          setStatus("error");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialError, router]);
 
   if (status === "loading") {
     return (
