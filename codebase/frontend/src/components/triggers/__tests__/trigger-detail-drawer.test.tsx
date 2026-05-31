@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   render,
   screen,
@@ -72,6 +72,33 @@ const SCHEDULE_TRIGGER: TriggerData = {
   timezone: "UTC",
 };
 
+const MANUAL_TRIGGER: TriggerData = {
+  id: "t-3",
+  name: "manual-run",
+  type: "manual",
+  isActive: true,
+  workflowId: "wf-3",
+  workflowName: "Manual flow",
+};
+
+const CHATCHANNEL_TRIGGER: TriggerData = {
+  id: "t-4",
+  name: "tg-bot",
+  type: "webhook",
+  isActive: true,
+  workflowId: "wf-4",
+  workflowName: "Bot flow",
+  endpointPath: "tg-abc",
+  authConfigId: null,
+  config: {
+    chatChannel: {
+      provider: "telegram",
+      hasBotToken: true,
+      rateLimitPerMinute: 60,
+    },
+  },
+};
+
 /**
  * Routes apiClient.get by URL: trigger detail + auth-configs are the only
  * endpoints the drawer reads. A `/history` call would mean the removed Recent
@@ -129,6 +156,13 @@ describe("TriggerDetailDrawer", () => {
     setRole("editor");
   });
 
+  // 전역 store 변조가 다른 테스트 파일로 누수되지 않도록 teardown 에서 리셋.
+  afterEach(() => {
+    cleanup();
+    useWorkspaceStore.getState().reset();
+    useLocaleStore.setState({ locale: "ko" });
+  });
+
   // Case 1 — query gated by `!!triggerId && open`.
   it("triggerId=null 이면 API 를 호출하지 않는다", () => {
     mockApi(WEBHOOK_TRIGGER, []);
@@ -180,6 +214,36 @@ describe("TriggerDetailDrawer", () => {
       screen.queryByText("Webhook Configuration"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("External Interaction")).not.toBeInTheDocument();
+  });
+
+  // Case 4b — manual: webhook 전용 카드(Webhook / EIA / Chat Channel) 와
+  // Schedule 카드 모두 미렌더. Overview 만 노출된다.
+  it("type=manual 이면 Webhook·External Interaction·Chat Channel·Schedule 카드를 모두 미렌더한다", async () => {
+    mockApi(MANUAL_TRIGGER, []);
+    renderDrawer({ triggerId: "t-3" });
+    expect(await screen.findByText("Overview")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Webhook Configuration"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("External Interaction")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Chat Channel (Telegram, etc.)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Schedule Configuration"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Case 4c — viewer 역할에서는 어떤 카드의 Edit 버튼도 노출되지 않는다
+  // (useHasRole("editor") gate). 읽기는 가능하되 편집 진입점 숨김.
+  it("viewer 역할이면 카드 Edit 버튼이 노출되지 않는다", async () => {
+    setRole("viewer");
+    mockApi(WEBHOOK_TRIGGER, []);
+    renderDrawer();
+    await screen.findByText("Webhook Configuration");
+    expect(
+      screen.queryByRole("button", { name: "Edit" }),
+    ).not.toBeInTheDocument();
   });
 
   // Case 5 — Recent Calls 제거 회귀 가드: /history 호출 없음.
@@ -306,5 +370,69 @@ describe("TriggerDetailDrawer", () => {
         screen.getByText("External Interaction").parentElement!,
       ).getByRole("button", { name: "Save" }),
     ).toBeInTheDocument();
+  });
+
+  // 보안(EIA-NX-09) — notification URL https-only 클라이언트 가드: http:// 입력 시
+  // PATCH 를 발행하지 않고 error toast 만 띄운다. (url-validation 유닛 + UI 바인딩 통합 검증)
+  it("notification URL 이 https:// 가 아니면 저장이 차단되고 PATCH 가 발행되지 않는다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    fireEvent.change(screen.getByLabelText("Destination URL"), {
+      target: { value: "http://insecure.example.com/webhook" },
+    });
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Save" }));
+
+    expect(toastError).toHaveBeenCalledWith(
+      "The destination URL must be a valid https:// URL.",
+    );
+    expect(apiPatchMock).not.toHaveBeenCalled();
+  });
+
+  // EIA cancel — 변경한 입력값이 cancel 후 원래 값으로 리셋된다.
+  it("External Interaction 편집 취소 시 변경한 URL 이 원래 값으로 리셋된다", async () => {
+    mockApi(WEBHOOK_TRIGGER, []);
+    renderDrawer();
+    await screen.findByText("External Interaction");
+
+    fireEvent.click(cardEditButton("External Interaction"));
+    const input = screen.getByLabelText("Destination URL") as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { value: "https://changed.example.com" },
+    });
+    const eiaHeader = screen.getByText("External Interaction").parentElement!;
+    fireEvent.click(within(eiaHeader).getByRole("button", { name: "Cancel" }));
+
+    // 다시 편집 진입 → 원래 빈 값으로 복원.
+    fireEvent.click(cardEditButton("External Interaction"));
+    expect(
+      (screen.getByLabelText("Destination URL") as HTMLInputElement).value,
+    ).toBe("");
+  });
+
+  // ChatChannel — languageHints 가 잘못된 JSON 이면 PATCH 없이 i18n 전용 error toast.
+  it("Chat Channel languageHints 가 잘못된 JSON 이면 전용 error toast 를 띄우고 PATCH 하지 않는다", async () => {
+    mockApi(CHATCHANNEL_TRIGGER, []);
+    renderDrawer({ triggerId: "t-4" });
+    await screen.findByText("Chat Channel (Telegram, etc.)");
+
+    fireEvent.click(cardEditButton("Chat Channel (Telegram, etc.)"));
+    fireEvent.change(screen.getByLabelText(/languageHints/), {
+      target: { value: "{ not valid json" },
+    });
+    const ccHeader = screen.getByText(
+      "Chat Channel (Telegram, etc.)",
+    ).parentElement!;
+    fireEvent.click(within(ccHeader).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(toastError).toHaveBeenCalledWith(
+        "languageHints must be a valid JSON object.",
+      );
+    });
+    expect(apiPatchMock).not.toHaveBeenCalled();
   });
 });
