@@ -136,6 +136,10 @@ describe("ReRunModal", () => {
     expect(
       await screen.findByText(/includes 2 external-call node/),
     ).toBeInTheDocument();
+    // spec §10.2 — node type 별 breakdown ("<label> × <n>") 도 함께 노출.
+    expect(
+      await screen.findByText(/http-request × 1, send-email × 1/),
+    ).toBeInTheDocument();
   });
 
   it("dry-run 미지원 integration 노드가 있으면 dry-run toggle 이 disabled 된다", async () => {

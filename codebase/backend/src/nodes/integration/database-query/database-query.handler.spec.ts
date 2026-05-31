@@ -1,6 +1,7 @@
 import {
   DatabaseQueryHandler,
   extractSqlVerb,
+  isWriteOperation,
 } from './database-query.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
@@ -951,5 +952,54 @@ describe('extractSqlVerb', () => {
 
   it('returns TRUNCATE (8 chars — exactly at api_method limit)', () => {
     expect(extractSqlVerb('TRUNCATE t')).toBe('TRUNCATE');
+  });
+});
+
+// W8 — isWriteOperation unit tests (re-run dry-run WRITE/READ classification §7.1)
+describe('isWriteOperation', () => {
+  it('classifies queryType insert/update/delete as write', () => {
+    expect(isWriteOperation('insert', undefined)).toBe(true);
+    expect(isWriteOperation('update', undefined)).toBe(true);
+    expect(isWriteOperation('delete', undefined)).toBe(true);
+  });
+
+  it('classifies queryType select as read', () => {
+    // SQL 동사가 write 여도 명시 queryType select 가 우선 → read.
+    expect(isWriteOperation('select', 'DELETE FROM t')).toBe(false);
+  });
+
+  it.each([
+    'INSERT INTO t VALUES (1)',
+    'UPDATE t SET a = 1',
+    'DELETE FROM t',
+    'UPSERT INTO t VALUES (1)',
+    'MERGE INTO t USING s ON (t.id = s.id)',
+    'REPLACE INTO t VALUES (1)',
+    'TRUNCATE TABLE t',
+    'DROP TABLE t',
+    'CREATE TABLE t (id int)',
+    'ALTER TABLE t ADD col int',
+  ])('raw query with write verb is write: %s', (query) => {
+    expect(isWriteOperation('raw', query)).toBe(true);
+  });
+
+  it('raw query with SELECT verb is read', () => {
+    expect(isWriteOperation('raw', 'SELECT * FROM t')).toBe(false);
+  });
+
+  it('raw query with unknown/non-verb first token is read', () => {
+    expect(isWriteOperation('raw', '123 not sql')).toBe(false);
+    expect(isWriteOperation('raw', 'WITH cte AS (SELECT 1) SELECT 1')).toBe(
+      false,
+    );
+  });
+
+  it('missing queryType falls back to SQL verb (write verb → write)', () => {
+    expect(isWriteOperation(undefined, 'INSERT INTO t VALUES (1)')).toBe(true);
+    expect(isWriteOperation(undefined, 'SELECT 1')).toBe(false);
+  });
+
+  it('missing queryType and no query is read', () => {
+    expect(isWriteOperation(undefined, undefined)).toBe(false);
   });
 });

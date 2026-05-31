@@ -15,6 +15,7 @@ import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
@@ -97,6 +98,7 @@ export class ExecutionsService {
     private readonly executionEngineService: ExecutionEngineService,
     private readonly nodeComponentRegistry: NodeComponentRegistry,
     private readonly auditLogsService: AuditLogsService,
+    private readonly workspacesService: WorkspacesService,
   ) {}
 
   private readSnapshotCache(
@@ -200,9 +202,25 @@ export class ExecutionsService {
 
   // ─── Replay/Re-run (decision F2, spec/5-system/13-replay-rerun.md §8) ───
 
-  /** RR-PL-06 — 워크스페이스 owner/admin 여부 (JWT role 기준). */
-  private isOwnerOrAdmin(user: JwtPayload): boolean {
-    return user.role === 'owner' || user.role === 'admin';
+  /**
+   * RR-PL-06 — 사용자가 **대상 워크스페이스**에서 owner/admin 인지 여부.
+   *
+   * 주의: `JwtPayload.role` 을 쓰면 안 된다 — `JwtStrategy` 가 role 을 사용자의
+   * **개인(personal) 워크스페이스** 멤버십에서 도출하므로 모든 사용자가 항상
+   * 'owner' 다. 그 값으로 분기하면 owner/admin 게이트가 무력화돼 동일 워크스페이스
+   * 내 타인 실행을 editor 가 re-run 할 수 있는 IDOR 가 된다. 따라서 RolesGuard 와
+   * 동일하게 `WorkspacesService.getMemberRole(workspaceId, userId)` 로 대상
+   * 워크스페이스의 실제 role 을 조회한다.
+   */
+  private async isOwnerOrAdmin(
+    workspaceId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const role = await this.workspacesService.getMemberRole(
+      workspaceId,
+      userId,
+    );
+    return role === 'owner' || role === 'admin';
   }
 
   /** chain 깊이 = 본 실행에서 re_run_of 를 따라 root 까지의 조상 수(+자기 1). */
@@ -260,11 +278,11 @@ export class ExecutionsService {
       });
     }
 
-    // RR-PL-06 — 타인의 실행이면 owner/admin 만 re-run 가능.
+    // RR-PL-06 — 타인의 실행이면 대상 워크스페이스 owner/admin 만 re-run 가능.
     if (
       original.executedBy &&
       original.executedBy !== user.sub &&
-      !this.isOwnerOrAdmin(user)
+      !(await this.isOwnerOrAdmin(workspaceId, user.sub))
     ) {
       throw new ForbiddenException({
         code: 'RERUN_PERMISSION_DENIED',
@@ -361,6 +379,9 @@ export class ExecutionsService {
    * (Integration category) 인데 `supportsDryRun !== true` 인 노드가 하나라도
    * 있으면 `RERUN_DRY_RUN_NOT_APPLICABLE` 로 거부한다. mock 출력을 보장할 수
    * 없는 노드가 dry-run 으로 실행돼 실제 외부 호출이 일어나는 것을 차단.
+   *
+   * @throws {BadRequestException} RERUN_DRY_RUN_NOT_APPLICABLE — 워크플로에
+   *   `supportsDryRun !== true` 인 Integration 노드가 존재할 때.
    */
   private async assertDryRunSupported(workflowId: string): Promise<void> {
     const nodes = await this.nodeRepository.find({
@@ -403,11 +424,11 @@ export class ExecutionsService {
         message: 'Execution not found',
       });
     }
-    // RR-PL-06 — chain 조회 권한은 re-run 과 동일: 타인 실행은 owner/admin 만.
+    // RR-PL-06 — chain 조회 권한은 re-run 과 동일: 타인 실행은 대상 워크스페이스 owner/admin 만.
     if (
       exec.executedBy &&
       exec.executedBy !== user.sub &&
-      !this.isOwnerOrAdmin(user)
+      !(await this.isOwnerOrAdmin(workspaceId, user.sub))
     ) {
       throw new ForbiddenException({
         code: 'RERUN_PERMISSION_DENIED',

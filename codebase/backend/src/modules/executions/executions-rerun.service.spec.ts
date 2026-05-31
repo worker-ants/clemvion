@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ExecutionsService } from './executions.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 
 /**
@@ -19,6 +20,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
   let nodeRepo: { findOne: jest.Mock; find: jest.Mock };
   let registry: { getComponent: jest.Mock };
   let audit: { record: jest.Mock };
+  let workspaces: { getMemberRole: jest.Mock };
 
   // createQueryBuilder 는 호출마다 새 chainable qb 를 반환. getOne/getRawOne/
   // getMany 결과는 큐에서 순서대로 소비.
@@ -66,6 +68,8 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     };
     registry = { getComponent: jest.fn() };
     audit = { record: jest.fn().mockResolvedValue(undefined) };
+    // RR-PL-06 — 대상 워크스페이스 role 조회. 기본은 editor(owner/admin 아님).
+    workspaces = { getMemberRole: jest.fn().mockResolvedValue('editor') };
     service = new ExecutionsService(
       execRepo as never,
       {} as never,
@@ -74,6 +78,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
       engine as never,
       registry as never,
       audit as never,
+      workspaces as never,
     );
   });
 
@@ -90,6 +95,8 @@ describe('ExecutionsService — reRun (decision F2)', () => {
   });
 
   it('throws RERUN_PERMISSION_DENIED for another user execution (non owner/admin)', async () => {
+    // 대상 워크스페이스에서 editor 인 사용자는 타인 실행을 re-run 할 수 없다 (IDOR 차단).
+    workspaces.getMemberRole.mockResolvedValue('editor');
     getOneQueue = [
       {
         id: 'e1',
@@ -101,11 +108,15 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     await expect(service.reRun('e1', 'ws-1', user, dto)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    // 권한 판정이 JWT role 이 아니라 대상 워크스페이스(ws-1) 멤버십을 조회했는지 확인.
+    expect(workspaces.getMemberRole).toHaveBeenCalledWith('ws-1', 'user-1');
     expect(engine.execute).not.toHaveBeenCalled();
   });
 
   it('allows admin to re-run another user execution (no ForbiddenException)', async () => {
     const admin = { ...user, role: 'admin' };
+    // 권한은 JWT role 이 아니라 대상 워크스페이스 멤버십 role 로 판정된다.
+    workspaces.getMemberRole.mockResolvedValue('admin');
     getOneQueue = [
       {
         id: 'e1',
@@ -327,6 +338,92 @@ describe('ExecutionsService — reRun (decision F2)', () => {
 
     await expect(service.reRun('e1', 'ws-1', user, dto)).resolves.toBeDefined();
     expect(engine.execute).toHaveBeenCalled();
+  });
+
+  it('records inputModified=true when inputOverride differs from original parameters (W9)', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        inputData: {
+          __triggerSource: 'manual',
+          parameters: { orderId: 'old' },
+        },
+        chainId: null,
+      },
+    ];
+    getRawOneQueue = [{ reRunOf: null }];
+    // trigger schema 가 orderId 를 받아 override 가 resolveTriggerParameters 를
+    // 통과 → executionInput.parameters = { orderId: 'new' } (원본과 다름).
+    nodeRepo.findOne.mockResolvedValue({
+      config: {
+        parameters: [{ name: 'orderId', type: 'string', required: true }],
+      },
+    });
+    jest
+      .spyOn(service, 'findById')
+      .mockResolvedValue({ id: 'new-exec-id' } as never);
+
+    await service.reRun('e1', 'ws-1', user, {
+      useOriginalInput: false,
+      inputOverride: { orderId: 'new' },
+    });
+    expect(engine.execute).toHaveBeenCalledWith(
+      'wf-1',
+      { __triggerSource: 'manual', parameters: { orderId: 'new' } },
+      { executedBy: 'user-1', reRunOf: 'e1', chainId: 'e1', dryRun: false },
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        details: expect.objectContaining({ inputModified: true }),
+      }),
+    );
+  });
+
+  it('re-run still resolves when the audit repo save fails — record() swallows (W6/W7)', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        inputData: {},
+        chainId: null,
+      },
+    ];
+    getRawOneQueue = [{ reRunOf: null }];
+    // 실제 AuditLogsService.record() 의 swallow 계약을 검증한다: 내부
+    // repository.save() 가 reject 해도 record() 는 console.warn 후 resolve 하므로
+    // `await auditLogsService.record(...)` 는 re-run 을 깨지 않는다. 그래서
+    // mock 이 아니라 **진짜** AuditLogsService 를 주입하고 save 를 reject 시킨다.
+    const auditRepo = {
+      create: jest.fn((v: unknown) => v),
+      save: jest.fn().mockRejectedValue(new Error('db down')),
+    };
+    const realAudit = new AuditLogsService(auditRepo as never);
+    const saveSpy = jest.spyOn(realAudit, 'record');
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const serviceWithRealAudit = new ExecutionsService(
+      execRepo as never,
+      {} as never,
+      {} as never,
+      nodeRepo as never,
+      engine as never,
+      registry as never,
+      realAudit as never,
+    );
+    jest
+      .spyOn(serviceWithRealAudit, 'findById')
+      .mockResolvedValue({ id: 'new-exec-id' } as never);
+
+    const res = await serviceWithRealAudit.reRun('e1', 'ws-1', user, dto);
+    expect(engine.execute).toHaveBeenCalled();
+    expect(res.reRunOf).toBe('e1');
+    expect(saveSpy).toHaveBeenCalled();
+    expect(auditRepo.save).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   describe('getChain', () => {

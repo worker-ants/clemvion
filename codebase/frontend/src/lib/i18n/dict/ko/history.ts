@@ -23,5 +23,6 @@ export const history = {
     dryRunNotApplicable: "이 워크플로는 dry-run 모드로 재실행할 수 없습니다",
     assistantBlocked:
       "Re-run 은 사용자가 실행 상세 페이지에서 직접 트리거해야 합니다 (RR-PL-07)",
+    genericError: "재실행에 실패했습니다",
   },
 } as const;

@@ -585,6 +585,58 @@ describe('HttpRequestHandler', () => {
         expect(result.output.wouldHaveCalled.kind).toBe('http_request');
       });
 
+      it('does NOT leak integration credential query params (custom key) in wouldHaveCalled.url', async () => {
+        const fetchSpy = jest.fn();
+        global.fetch = fetchSpy as unknown as typeof global.fetch;
+        const getForExecution = jest.fn().mockResolvedValue({
+          id: 'int-1',
+          name: 'API',
+          serviceType: 'http',
+          authType: 'api_key',
+          status: 'connected',
+          // custom key name 'apptoken' — NOT in the URL credential blacklist,
+          // so only capturing the pre-credential URL prevents the leak.
+          credentials: {
+            location: 'query',
+            key_name: 'apptoken',
+            value: 'SECRET123',
+          },
+        });
+        const logUsage = jest.fn().mockResolvedValue(undefined);
+        const authedHandler = new HttpRequestHandler({
+          getForExecution,
+          logUsage,
+        } as never);
+
+        const ctx: ExecutionContext = {
+          executionId: 'exec-1',
+          workflowId: 'wf-1',
+          variables: { __dryRun: true, __workspaceId: 'ws-1' },
+          nodeOutputCache: {},
+          structuredOutputCache: {},
+          engineResolvedConfigCache: {},
+          conversationThread: createEmptyConversationThread(),
+          recursionDepth: 0,
+        };
+
+        const result = (await authedHandler.execute(
+          null,
+          {
+            method: 'GET',
+            url: 'https://api.example.com/data',
+            authentication: 'integration',
+            integrationId: 'int-1',
+          },
+          ctx,
+        )) as unknown as {
+          output: { wouldHaveCalled: { url: string } };
+        };
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(result.output.wouldHaveCalled.url).not.toContain('SECRET123');
+        expect(result.output.wouldHaveCalled.url).not.toContain('apptoken');
+      });
+
       it('omits bodyPreview when there is no request body (GET)', async () => {
         const fetchSpy = jest.fn();
         global.fetch = fetchSpy as unknown as typeof global.fetch;

@@ -29,5 +29,6 @@ export const history: Dict["history"] = {
       "This workflow cannot be re-run in dry-run mode",
     assistantBlocked:
       "Re-run must be triggered manually on the execution detail page (RR-PL-07)",
+    genericError: "Re-run failed",
   },
 };

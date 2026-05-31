@@ -219,6 +219,9 @@ export default function ExecutionDetailPage({
     [chain],
   );
   const chainIndex = useMemo(() => {
+    // root(reRunOf==null) 는 "원본" 이므로 n 계산에서 제외하고, 남은 재실행만
+    // started_at ASC 로 셈한다. 첫 재실행이 n=1 이 되도록 findIndex(0-based) 에
+    // +1 한다. 본 실행이 재실행 목록에 없으면(=root) null → badge 미표시.
     const reRuns = sortedChain.filter((e) => e.reRunOf != null);
     const pos = reRuns.findIndex((e) => e.id === executionId);
     return pos >= 0 ? pos + 1 : null;

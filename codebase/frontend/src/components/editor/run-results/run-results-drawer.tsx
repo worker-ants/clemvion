@@ -146,12 +146,15 @@ export function RunResultsDrawer() {
   const currentRole = useWorkspaceStore(selectCurrentRole);
 
   // 현재 실행의 상세 — `executedBy`(권한 판정) / `inputData`(모달 default) 에
-  // 필요. 실행이 idle 이 아닐 때만 조회하고, 상세 페이지와 같은 query key 로
-  // 캐시를 공유한다.
+  // 필요. Re-run 진입점은 실행이 종료(completed/failed)된 뒤에만 의미가 있으므로
+  // terminal 상태에서만 조회한다 — running 중에는 detail 이 불필요하고, store
+  // `status` 가 reactive 라 완료 시점에 query 가 자동 enable 된다. 상세 페이지와
+  // 같은 query key 로 캐시를 공유한다.
+  const isTerminal = status === "completed" || status === "failed";
   const detailQuery = useQuery({
     queryKey: ["execution", executionId],
     queryFn: () => executionsApi.getById(executionId as string),
-    enabled: !!executionId,
+    enabled: !!executionId && isTerminal,
   });
   const detail = detailQuery.data;
   const allowReRun = canReRun(

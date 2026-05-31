@@ -233,6 +233,11 @@ export class HttpRequestHandler
       url = `${url}${separator}${params.toString()}`;
     }
 
+    // dry-run preview 는 자격증명 query param 이 붙기 **전** 의 URL 을 쓴다 —
+    // credentials.queryParams 는 임의 키명의 API 키일 수 있어 blacklist 기반
+    // sanitize 로는 못 거른다. 여기서 캡처해 노출 자체를 차단한다 (security).
+    const urlBeforeCredentialParams = url;
+
     // Apply integration-provided query params (api_key in query mode).
     if (credentials.queryParams) {
       const params = new URLSearchParams();
@@ -292,14 +297,16 @@ export class HttpRequestHandler
     // BEFORE the SSRF host checks and the `fetch` below: no real request
     // leaves the process, so those guards have nothing to protect against.
     // `wouldHaveCalled` carries method/url and a short body preview only —
-    // never the merged auth headers / credentials.
+    // never the merged auth headers / credentials. URL 은 자격증명 query param
+    // 적용 전 값에 추가로 sanitizeUrlCredentials 를 거쳐 userinfo·blacklist
+    // 시크릿까지 마스킹한다.
     if (isDryRun(context)) {
       const bodyPreview = previewRequestBody(fetchOptions.body);
       return {
         config: configEcho,
         output: buildDryRunMock('http_request', {
           method,
-          url,
+          url: sanitizeUrlCredentials(urlBeforeCredentialParams),
           ...(bodyPreview !== undefined ? { bodyPreview } : {}),
         }),
         meta: { statusCode: 0, durationMs: Date.now() - start },

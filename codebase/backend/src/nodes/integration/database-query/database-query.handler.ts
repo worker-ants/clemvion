@@ -47,6 +47,13 @@ export const ALLOWED_QUERY_TYPES = [
   'raw',
 ] as const;
 
+/**
+ * `config.queryType` 의 타입. UI 가 명시하는 리터럴 유니언이 1차이지만,
+ * 검증 전 rawConfig 에서 임의 문자열/누락이 흘러올 수 있어 `| string`/`undefined`
+ * 로 넓힌다. {@link isWriteOperation} 의 파라미터 타입과 동일.
+ */
+export type QueryType = (typeof ALLOWED_QUERY_TYPES)[number] | string | undefined;
+
 const POOL_MAX_CONNECTIONS = 5;
 const POOL_IDLE_TIMEOUT_MS = 30_000;
 const logger = new Logger('DatabaseQueryHandler');
@@ -122,7 +129,7 @@ export class DatabaseQueryHandler
     const configEcho = {
       integrationId: rawConfig.integrationId,
       query: rawConfig.query,
-      queryType: rawConfig.queryType ?? 'select',
+      queryType: (rawConfig.queryType ?? 'select') as QueryType,
       parameters: rawConfig.parameters,
     };
 
@@ -480,7 +487,7 @@ const SQL_WRITE_VERBS = new Set([
 ]);
 
 export function isWriteOperation(
-  queryType: unknown,
+  queryType: QueryType,
   query: string | undefined,
 ): boolean {
   if (

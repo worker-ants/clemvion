@@ -57,7 +57,15 @@ export interface ReRunModalProps {
   onSuccess?: (newExecutionId: string) => void;
 }
 
-/** axios 에러에서 백엔드 에러 코드(RERUN_*) 를 추출한다. */
+/**
+ * axios 에러에서 백엔드 에러 코드(RERUN_*) 를 추출한다.
+ *
+ * 정식 wire 형식은 nested `response.data.error.code` — backend
+ * `GlobalExceptionFilter` (codebase/backend/src/common/filters/http-exception.filter.ts)
+ * 가 모든 예외를 `{ error: { code, message, requestId } }` 로 직렬화한다.
+ * flat `response.data.code` fallback 은 같은 코드를 단순 형태로 mock 하는
+ * 기존 테스트/방어 호환을 위해 유지한다.
+ */
 function parseErrorCode(err: unknown): string | undefined {
   const data = (
     err as {
@@ -66,7 +74,7 @@ function parseErrorCode(err: unknown): string | undefined {
       };
     }
   )?.response?.data;
-  return data?.code ?? data?.error?.code;
+  return data?.error?.code ?? data?.code;
 }
 
 /** RERUN_* 코드 → i18n 키 매핑. 미매핑 코드는 undefined (generic fallback). */
@@ -143,14 +151,24 @@ export function ReRunModal({
   }, [open, originalParameters]);
 
   // External-call 노드 — 워크플로 노드 중 정의의 supportsDryRun === true.
-  // type/label 별로 그룹핑한 카운트.
-  const externalCallCount = useMemo(() => {
+  // spec §10.2 — 단순 카운트 + node type/label 별 breakdown ("Send Email × 1,
+  // HTTP × 2") 을 함께 제공한다. label 은 node 정의 메타데이터(이미 로컬라이즈
+  // 됐거나 영문 type label)를 그대로 사용한다.
+  const externalCall = useMemo(() => {
+    const counts = new Map<string, number>();
     let count = 0;
     for (const node of workflowNodes) {
       const def: NodeDefinition | undefined = definitions[node.type];
-      if (def?.supportsDryRun === true) count += 1;
+      if (def?.supportsDryRun === true) {
+        count += 1;
+        const label = def.label ?? node.type;
+        counts.set(label, (counts.get(label) ?? 0) + 1);
+      }
     }
-    return count;
+    const breakdown = [...counts.entries()]
+      .map(([label, n]) => `${label} × ${n}`)
+      .join(", ");
+    return { count, breakdown };
   }, [workflowNodes, definitions]);
 
   // dry-run 미적용: integration category 인데 supportsDryRun !== true 인 노드가
@@ -196,7 +214,7 @@ export function ReRunModal({
     } catch (err) {
       const code = parseErrorCode(err);
       const key = code ? ERROR_CODE_TO_KEY[code] : undefined;
-      toast.error(key ? t(key) : t("history.rerun.modal.title"));
+      toast.error(key ? t(key) : t("history.rerun.genericError"));
     } finally {
       setSubmitting(false);
     }
@@ -224,11 +242,14 @@ export function ReRunModal({
             </div>
           </div>
 
-          {/* External-call 노드 안내 */}
+          {/* External-call 노드 안내 — lead 문장 + node type 별 breakdown. */}
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             {t("history.rerun.modal.sideEffectWarning", {
-              count: externalCallCount,
+              count: externalCall.count,
             })}
+            {externalCall.breakdown && (
+              <span className="block text-xs">{externalCall.breakdown}</span>
+            )}
           </p>
 
           {/* Use original input toggle */}
