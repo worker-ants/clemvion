@@ -77,12 +77,17 @@ describe('GraphWarningRule (parallel-p2 결정 D + E + I)', () => {
       ]);
     });
 
-    it('passes the full graph to the evaluator', () => {
+    it('passes the graph to the evaluator, mapping Edge entities to the pure shape', () => {
       const a = makeNode('a', 'parallel');
       const b = makeNode('b', 'http');
       const edge = makeEdge('e1', 'a', 'b', 'branch_0');
       const graph = { nodes: [a, b], edges: [edge] };
-      let captured: typeof graph | undefined;
+      let captured:
+        | {
+            nodes: readonly { id: string }[];
+            edges: readonly { source: string; sourceHandle?: string | null }[];
+          }
+        | undefined;
       const rules: GraphWarningRule[] = [
         {
           id: 'capture-graph',
@@ -94,7 +99,11 @@ describe('GraphWarningRule (parallel-p2 결정 D + E + I)', () => {
         },
       ];
       evaluateGraphWarningRules(a, graph, rules);
-      expect(captured).toBe(graph);
+      // 노드는 entity 그대로 통과 (구조적 호환), 엣지는 source/sourceHandle 로 매핑.
+      expect(captured!.nodes).toBe(graph.nodes);
+      expect(captured!.edges).toEqual([
+        { source: 'a', sourceHandle: 'branch_0', target: 'b', targetHandle: 'in' },
+      ]);
     });
   });
 

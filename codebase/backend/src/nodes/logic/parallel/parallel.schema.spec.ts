@@ -229,11 +229,13 @@ describe('Parallel node', () => {
       label?: string;
       config?: Record<string, unknown>;
     };
+    // parallelNodeMetadata.graphWarningRules 는 shared package 의 순수 rule 로,
+    // ReactFlow 명명 (source/sourceHandle/target) 의 GraphRuleEdge 를 읽는다.
     type GraphEdge = {
       id: string;
-      sourceNodeId: string;
-      targetNodeId: string;
-      sourcePort: string;
+      source: string;
+      target: string;
+      sourceHandle: string;
     };
     const mkN = (n: GraphNode) =>
       n as unknown as Parameters<
@@ -268,15 +270,15 @@ describe('Parallel node', () => {
       const edges: GraphEdge[] = [
         {
           id: 'e1',
-          sourceNodeId: 'p1',
-          targetNodeId: 'p2',
-          sourcePort: 'branch_0',
+          source: 'p1',
+          target: 'p2',
+          sourceHandle: 'branch_0',
         },
         {
           id: 'e2',
-          sourceNodeId: 'p2',
-          targetNodeId: 't',
-          sourcePort: 'branch_0',
+          source: 'p2',
+          target: 't',
+          sourceHandle: 'branch_0',
         },
       ];
       expect(
@@ -295,15 +297,15 @@ describe('Parallel node', () => {
       const edges: GraphEdge[] = [
         {
           id: 'e1',
-          sourceNodeId: 'p1',
-          targetNodeId: 'p2',
-          sourcePort: 'branch_0',
+          source: 'p1',
+          target: 'p2',
+          sourceHandle: 'branch_0',
         },
         {
           id: 'e2',
-          sourceNodeId: 'p2',
-          targetNodeId: 'p3',
-          sourcePort: 'branch_0',
+          source: 'p2',
+          target: 'p3',
+          sourceHandle: 'branch_0',
         },
       ];
       const result = depthRule.evaluate(
@@ -336,9 +338,9 @@ describe('Parallel node', () => {
       const edges: GraphEdge[] = [
         {
           id: 'e1',
-          sourceNodeId: 'p1',
-          targetNodeId: 'p2',
-          sourcePort: 'branch_0',
+          source: 'p1',
+          target: 'p2',
+          sourceHandle: 'branch_0',
         },
       ];
       expect(
@@ -362,9 +364,9 @@ describe('Parallel node', () => {
       const edges: GraphEdge[] = [
         {
           id: 'e1',
-          sourceNodeId: 'p1',
-          targetNodeId: 'p2',
-          sourcePort: 'branch_0',
+          source: 'p1',
+          target: 'p2',
+          sourceHandle: 'branch_0',
         },
       ];
       const result = capRule.evaluate(mkN(outer), mkG([outer, inner], edges));
@@ -389,9 +391,9 @@ describe('Parallel node', () => {
       const edges: GraphEdge[] = [
         {
           id: 'e1',
-          sourceNodeId: 'p1',
-          targetNodeId: 'p2',
-          sourcePort: 'branch_0',
+          source: 'p1',
+          target: 'p2',
+          sourceHandle: 'branch_0',
         },
       ];
       expect(

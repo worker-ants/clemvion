@@ -1,20 +1,29 @@
 /**
- * SUMMARY#19 — WorkflowEditor debounced fetchGraphWarnings 동작 검증.
+ * SUMMARY#19 — WorkflowEditor debounced graph-warning 평가 동작 검증.
  *
  * WorkflowEditor 전체 렌더링은 WebSocket · ReactFlow · QueryClient 등
  * 인프라 의존성이 많아 단위 테스트에 적합하지 않다. 본 파일은
- * debounce 로직의 핵심 조건 (topology-only 감지) 을 독립적으로
+ * debounce 로직의 핵심 조건 (topology + config 감지) 을 독립적으로
  * 검증한다.
  */
 import { describe, it, expect } from "vitest";
 
 // topology key 계산 로직을 직접 테스트하기 위해 helper 로 추출해 검증.
-// WorkflowEditor 의 useEffect dependency 는 이 key 로 결정됨.
+// WorkflowEditor 의 useEffect dependency 는 이 key 로 결정됨. cross-node 규칙은
+// node config (예: parallel maxConcurrency) 도 평가 입력이므로 key 에 config 를
+// 포함해 config 변경 시 재평가가 트리거되도록 한다.
 
 function computeNodeTopologyKey(
-  nodes: Array<{ id: string; data?: { type?: string } }>,
+  nodes: Array<{ id: string; data?: { type?: string; config?: unknown } }>,
 ): string {
-  return nodes.map((n) => `${n.id}:${String(n.data?.type ?? "")}`).join(",");
+  return nodes
+    .map(
+      (n) =>
+        `${n.id}:${String(n.data?.type ?? "")}:${JSON.stringify(
+          n.data?.config ?? null,
+        )}`,
+    )
+    .join(",");
 }
 
 function computeEdgeTopologyKey(
@@ -62,6 +71,18 @@ describe("WorkflowEditor — topology key (debounce dependency logic, SUMMARY#19
       const after = [
         { id: "n1", data: { type: "action" } },
         { id: "n2", data: { type: "trigger" } },
+      ];
+      expect(computeNodeTopologyKey(before)).not.toBe(
+        computeNodeTopologyKey(after),
+      );
+    });
+
+    it("produces different key when a node's config changes (e.g. parallel maxConcurrency)", () => {
+      const before = [
+        { id: "n1", data: { type: "parallel", config: { maxConcurrency: 4 } } },
+      ];
+      const after = [
+        { id: "n1", data: { type: "parallel", config: { maxConcurrency: 8 } } },
       ];
       expect(computeNodeTopologyKey(before)).not.toBe(
         computeNodeTopologyKey(after),
