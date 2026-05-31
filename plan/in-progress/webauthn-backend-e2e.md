@@ -1,7 +1,7 @@
 ---
-worktree: TBD
+worktree: webauthn-backend-e2e-1588c1
 started: 2026-05-26
-owner: TBD
+owner: developer
 ---
 
 # Plan: 백엔드 WebAuthn e2e (`webauthn-2fa.e2e-spec.ts`)
@@ -15,9 +15,9 @@ owner: TBD
 
 ## 작업 항목
 
-- [ ] `SoftWebAuthnDevice` helper — Ed25519 키 쌍 생성 + attestation/assertion 합성, base64url 직렬화
-- [ ] 시나리오: 등록 → 인증 → counter 갱신 → counter 역행 시 401 + credential 삭제 + 세션 revoke → 복구 코드 fallback → 마지막 credential 삭제 시 recovery NULL
-- [ ] `requireUserVerification: true` 정책에 맞춘 flag 합성
+- [x] `SoftWebAuthnDevice` helper — Ed25519 키 쌍 생성 + attestation/assertion 합성, base64url 직렬화 (`test/helpers/webauthn.ts`)
+- [x] 시나리오: 등록 → 인증 → counter 갱신 → counter 역행 시 401 + credential 삭제 + 세션 revoke → 복구 코드 fallback → 마지막 credential 삭제 시 recovery NULL (`test/webauthn-2fa.e2e-spec.ts` A~E)
+- [x] `requireUserVerification: true` 정책에 맞춘 flag 합성 (helper UV flag + case E)
 
 ## 우선순위
 
