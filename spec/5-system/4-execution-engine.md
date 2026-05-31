@@ -330,7 +330,7 @@ $loop.count = 10              $item.index = 1
 4. 백그라운드 완료/실패 시 설정에 따라 알림 — NotificationsService 통해
 ```
 
-- 메인 Execution과 동일한 `execution_id`를 공유. 본문 노드의 `parentNodeExecutionId` 가 Background 노드 자신의 NodeExecution id 를 가리킨다
+- 메인 Execution과 동일한 `execution_id`를 공유 (NodeExecution 그룹핑·WS 채널·권한 1차 키). 단 **in-memory ExecutionContext Map 키만** background 는 별도 `bg:<executionId>:<backgroundRunId>` 를 써서 부모 컨텍스트와 격리하고 `executeBackgroundSubgraph` 가 자체 finally 로 정리한다 ([Background §4 격리 컨트랙트](../4-nodes/1-logic/12-background.md#4-실행-로직), 분류 SoT [execution-context 규약 원칙 4](../conventions/execution-context.md#원칙-4--engine-internal-infrastructure-fields-_-prefix)). 본문 노드의 `parentNodeExecutionId` 가 Background 노드 자신의 NodeExecution id 를 가리킨다
 - 백그라운드 실패가 메인 흐름의 Execution 상태에 영향을 주지 않음
 - conversationThread 는 enqueue 시점 snapshot 으로 격리된다 — background 안에서 발생한 turn 은 메인 thread 에 영향 없고, 그 반대도 마찬가지. PRD §4.12 ND-BG-05 격리 원칙과 일관 ([Spec Conversation Thread §3.2](../conventions/conversation-thread.md#32-background-격리-근거))
 - 백그라운드 실패 시 `notifyOnFailure=true`이면 **워크스페이스 Admin 에게 인앱 알림**:
@@ -580,6 +580,8 @@ interface NodeHandlerRegistry {
 
 ### 6.1 컨텍스트 구조
 
+> 아래 JSON 예시는 핸들러 계약 표면 필드만 보인다. 엔진 내부 `_`-prefix 필드(`_contextKey`, `_executedNodes`, `_resumeState`, `_retryState` — [execution-context 규약 원칙 4](../conventions/execution-context.md#원칙-4--engine-internal-infrastructure-fields-_-prefix))는 핸들러가 소비하지 않으므로 생략한다.
+
 ```json
 {
   "executionId": "uuid",
@@ -628,6 +630,8 @@ interface NodeHandlerRegistry {
 | `nodeExecutionId` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | Integration 핸들러가 `IntegrationUsageLog.node_execution_id`로 기록 |
 | `rawConfig` | 엔진이 handler.execute 호출 직전 주입, 노드별 갱신 | 노드 정의에 저장된 **원본 config** (expression 미평가). 핸들러가 `NodeHandlerOutput.config` echo 에 사용 (Principle 7). Shallow `Object.freeze` 적용 — top-level mutation 차단, 중첩 객체는 read-only 로 다룬다 |
 | `engineResolvedConfigCache` | 엔진이 expression 평가 직후, 노드별로 누적 갱신 | 노드별로 **expression 평가가 끝난 config** 의 snapshot. `runContainerInner` / `runParallel` 같이 핸들러 종료 후 별도 단계에서 동작 파라미터(Loop `count`, Parallel `branchCount`/`maxConcurrency`/`waitAll`, ForEach `errorPolicy` 등) 를 다시 읽어야 하는 경로가 사용한다. **expression 컨텍스트에는 노출하지 않는다** — `$node["X"].config` 는 여전히 raw echo 를 반환해야 한다 (Principle 7 보존). 핸들러가 raw 만 echo 하는 컨테이너의 동작 파라미터가 silent default fallback 되거나 `Number("{{...}}")` 가 NaN 이 되던 문제를 차단 |
+
+**엔진 내부 Map 키 (`_contextKey`)**: `ExecutionContextService` 의 in-memory `Map<key, ExecutionContext>` 라우팅 키. `createContext(executionId, …, contextKey?)` 에서 Map 키 = `contextKey ?? executionId` — 비-background 호출은 `contextKey` 를 생략해 항상 `executionId` 와 동일(동작 불변). background 본문만 `bg:<executionId>:<backgroundRunId>` 를 전달해 부모 컨텍스트와 키 격리한다 (§3.3, [Background §4](../4-nodes/1-logic/12-background.md#4-실행-로직)). **이 키는 in-memory 전용** — Redis 키 패턴(§9.1)과 무관하다. 결정 SoT: [execution-context 규약 §Rationale](../conventions/execution-context.md#rationale).
 
 **Multi-turn 재개 시 `rawConfig` snapshot 정책**:
 - 첫 turn 의 `executeNode` 가 `waiting_for_input` 으로 진입하면 엔진이 `state.rawConfig = Object.freeze({ ...node.config })` 을 자동 snapshot 한다.
