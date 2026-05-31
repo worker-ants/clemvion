@@ -27,6 +27,7 @@ owner: project-planner
 | `implemented` | 약속 surface 전부 구현 | ≥1 glob 매치 의무 | 없음 |
 | `partial` | 일부 구현 | ≥1 매치 의무 | **≥1 (in-progress 실존) 의무** |
 | `backlog` | 장기 로드맵 — 구현 의도 미결정 (spec-impl-evidence §3) | 비어도 OK | — (`0-overview §6.3` 로드맵 매칭 **의무 — 가드**) |
+| `spec-only` | 작성됐고 구현 의도 결정됨 (전환기 기본값) | 비어도 OK | 권장 | TTL 90일 (2026-08-21) 초과 시 build fail |
 | `archived` | 폐기 | — | — |
 
 > 가드 4종: `spec-frontmatter` / `spec-code-paths` / `spec-status-lifecycle` / `spec-pending-plan-existence` (frontend vitest).
@@ -79,7 +80,7 @@ owner: project-planner
 
 ## 권고 후속 흐름
 
-1. **B0·B5·B1·B2·B3·B4 전 배치 전이 완료** (이 PR 로 64개 잔여 처리). 남은 것은 §사용자 결정 대기 항목 3건뿐 — 8/21 deadline 전 사용자 결정 필요.
+1. **B0·B5·B1·B2·B3·B4 전 배치 전이 완료** (이 PR 로 64개 잔여 처리). §사용자 결정 항목 3건도 같은 PR 에서 권장안대로 해소 완료 (2건 implemented 정정, 1건 partial+구현 plan). 가드 대상 spec-only 잔여 0.
 2. 분류 절차(참고): project-planner 가 본문 surface 확정 → frontmatter(`status`+`code:` glob, partial 시 `pending_plans:` 실존 plan) 적용 → `/consistency-check --spec` → 4 가드 vitest.
 3. `backlog` 격하는 `0-overview §6.3` 로드맵 매칭이 실제 가능한 spec 에만 적용 (가드 (d) — 임의 보류 금지, spec-impl-evidence R-2·R-3). 그 외 미완 spec 은 `spec-only` 유지 또는 `partial`(+pending_plan).
 
@@ -90,20 +91,24 @@ owner: project-planner
 
 ## B1–B4 결과 (이 PR, 2026-05-31)
 
-잔여 64개 `spec-only` (B1 `5-system` 10 · B2 `4-nodes` 35 · B3 `3-workflow-editor` 5 · B4 `2-navigation` 14) 를 영역별 분류 sub-agent fan-out (7 batch) 으로 전수 분류 후 전이. 노드 spec 은 backend handler/schema/spec + (프레젠테이션) frontend 렌더러 + (트리거) config UI 까지 실파일 매치 검증. `node-output-redesign/<node>.md` plan 은 **이미 구현된 노드의 output polish** 라 pending_plans 에서 제외 (미구현 surface 아님).
+잔여 64개 `spec-only` (B1 `5-system` 10 · B2 `4-nodes` 35 · B3 `3-workflow-editor` 5 · B4 `2-navigation` 14) 를 영역별 분류 sub-agent fan-out (7 batch) 으로 전수 분류 후 전이. 노드 spec 은 backend handler/schema/spec + (프레젠테이션) frontend 렌더러 + (트리거) config UI 까지 실파일 매치 검증.
+
+**분류 기준 (polish vs 미구현 surface) — Rationale**: `node-output-redesign/<node>.md` plan 은 대개 **이미 구현·테스트된 노드의 output 필드 형태 개선(refinement)** 이라 "약속 surface 미구현" 이 아니므로 pending_plans 에서 제외하고 노드를 `implemented` 로 뒀다 (spec-impl-evidence §3 `implemented` = 약속 surface 전부 구현; README 의 P0/P1 항목은 출력 형태 정합·다중시리즈 등 *개선*). **단, 같은 plan 이 다루는 항목 중 명백히 "약속됐으나 부재한 surface" 가 있는 노드는 별도 partial 로 처리했다** — 예: `ai-agent` 는 일반 도구연결(`tool_*`) 제거·재작성 surface 때문에 `ai-agent-tool-connection-rewrite` 로 `partial`. node-output-redesign README 의 ai-agent `output.error`/`port:'error'` builder(P0) 등 잔여 형태 개선도 ai-agent 가 이미 partial 이라 status 정합성에 영향 없다. (경계가 모호한 노드는 본 PR 에서 발견되지 않음 — 발견 시 partial 로 격하한다.)
 
 **전이 결과 (64개)**:
 - **implemented 55**: 5-system 8 (2-api-convention·3-error-handling·5-expression-language·7-llm-client·8-embedding-pipeline·9-rag-search·11-mcp-client·12-webhook) · 4-nodes logic 13 + flow 2 + ai 3 (0-common·2-text-classifier·3-information-extractor) + data 3 + integration 4 (0-common·http-request·database-query·send-email) + presentation 5 + trigger 3 = 33 · 3-workflow-editor 2 (1-node-common·4-ai-assistant) · 2-navigation 12 (0~7 + 9-user-profile·10-auth-flow·12-version-history·14-execution-history).
 - **partial 5** (+pending_plans): `5-system/1-auth` → `auth-config-webhook-followups` (§4.1 AuthConfig 감사로그 5종 중 4종 미기록) · `4-nodes/3-ai/1-ai-agent` → `ai-agent-tool-connection-rewrite` (일반 도구연결 `tool_*` 제거·재작성 예정) · `4-nodes/4-integration/4-cafe24` → `cafe24-restricted-scopes-followups` (§8.3/§9.11 operation-grouping 승인 UI + §2 invalid_scope 분기 미구현) · `3-workflow-editor/0-canvas`·`2-edge` → `ai-agent-tool-connection-rewrite` (§12/§7 Tool Area 제거·재작성 예정).
 - **backlog 1**: `2-navigation/8-marketplace` (구현 0건, `0-overview §6.3 로드맵 마켓플레이스(❌)` 매칭, backlog 가드 충족).
 - **stale 본문 정정 1건**: `2-navigation/14-execution-history.md` EH-DETAIL-10/11 + §5 API 표 "🚧 구현 PR2" → ✅/제거 (Re-run/chain 프론트·백엔드 구현 완료 확인).
-- **검증**: 4 가드 vitest (`spec-{frontmatter,code-paths,status-lifecycle,pending-plan-existence}`) **767 passed**.
+- **`12-webhook` implemented 격상 근거**: `auth-config-webhook-followups` 가 가리키는 AuthConfig 감사로그 갭은 `1-auth.md §4.1` (AuthConfig CRUD) scope 다 — webhook 수신/인증/처리 surface(`hooks.*`, `verifyWebhookRequest`) 자체는 완전 구현이므로 `12-webhook` 은 implemented, audit 갭은 `1-auth` 가 partial 로 인수.
+- **검증**: 4 가드 vitest (`spec-{frontmatter,code-paths,status-lifecycle,pending-plan-existence}`) **775 passed** (결정 항목 해소·리뷰 반영 후 재실행).
 
-### 사용자 결정 대기 항목 (3개 — `spec-only` 유지)
+### 사용자 결정 항목 (3개 — 2026-05-31 권장안대로 해소, 같은 PR)
 
-> 미구현 surface 가 실재하나 이를 책임지는 in-progress plan 이 없어 implemented/partial 자동 분류 불가. 각 항목은 (a) 신규 plan 신설 → partial, (b) backlog/spec 본문 개정으로 축소·연기, (c) 이미 충분하다고 보고 spec 개정 → implemented 중 제품 결정 필요.
-> **⏰ 셋 다 `spec-only` 라 TTL 2026-08-21 적용 — 그 전에 결정하지 않으면 build fail.**
+> 미구현 surface 가 실재하나 책임 plan 이 없던 3건. 사용자가 권장안 승인 → 아래대로 해소.
 
-- [ ] **`spec/5-system/6-websocket-protocol.md`** — §6.2/§4.6 의 native WS `subscribe.lastSeq` 5분 버퍼-replay + `replay.unavailable` 이벤트가 WS 경로엔 미배선(snapshot 기반 복구). 버퍼-replay 는 SSE 전송(`external-interaction/sse-adapter`)에만 존재. → WS spec 을 SSE 전용으로 정정(implemented)할지, 미구현 surface 로 보고 plan 신설(partial)할지. (cross-spec W2: `spec/5-system/14-external-interaction-api.md` §738 "5분 버퍼 공유" 문구도 함께 정정 필요. `spec-drift-ws-button-config.md` 와 동일 파일 변경 가능성 — 함께 처리 가능.)
-- [ ] **`spec/3-workflow-editor/3-execution.md`** — §6 Breakpoints/Step Over/Continue (WS `execution.continue`·`execution.step`) 프론트·백엔드 전무. docs MDX 는 기능 안내 중. 그 외 surface 전부 구현. → plan 신설(partial) / backlog 격하 / §6 제거 중 결정. (cross-spec W1: implemented 인 `14-execution-history`·partial 인 `5-system/4-execution-engine` 가 본 spec 을 참조.)
-- [ ] **`spec/2-navigation/11-error-empty-states.md`** — §2 빈 상태는 광범위 구현됨(`components/ui/empty-state.tsx`). 그러나 §1 전체화면 에러 페이지 5종(401/403/404/500/네트워크)은 미구현(`app/` 에 `not-found.tsx`/`error.tsx`/`global-error.tsx` 부재). → 에러 페이지 plan 신설(partial) / 축소·연기 / interceptor 방식으로 충분하다 보고 §1 개정(implemented) 중 결정.
+- [x] **`spec/5-system/6-websocket-protocol.md` → implemented** — 권장 (c) 채택: native WS 복구를 snapshot 모델로 spec 정정. §6.2 재작성(`execution.snapshot` 명문화 + seq 버퍼-replay 는 SSE 전송 `Last-Event-Id` 담당), §4.6 "버퍼 공유"→"SSE 어댑터 소유" 정정, `replay.unavailable`/`execution.replay_unavailable` 은 "계획·미구현" 으로 명시 강등(만료분 silent drop 후 snapshot/REST 폴백). EIA(`14-external-interaction-api.md`) §SSE replay 행도 동일 주석. Rationale 추가(폐기 대안: native WS 버퍼-replay 전면 구현). code: websocket.gateway/service + sse-adapter.
+- [x] **`spec/3-workflow-editor/3-execution.md` → implemented** — 권장 (b) 채택: §6 브레이크포인트/Step 실행을 "향후 로드맵 — 미구현" 으로 강등(설계 보존, 약속 surface 에서 제외). **사용자 문서 광고 제거**: `running-a-workflow.{en.mdx,mdx}` 의 breakpoint 안내 bullet 2건 삭제(없는 기능 안내 — 신뢰 버그). 나머지 surface 전부 구현 → implemented. code: run-results/*.tsx + toolbar/editor-toolbar.tsx.
+- [x] **`spec/2-navigation/11-error-empty-states.md` → partial** — 권장 (a) 채택: §2 빈 상태(`empty-state.tsx`)는 구현 완료, §1 전체화면 에러 페이지 5종(401/403/404/500/네트워크)은 미구현이라 구현 plan `plan/in-progress/error-pages-impl.md` 신설(developer owner). 본 plan 완료(후속 PR 구현) 시 `implemented` 승격. code: empty-state.tsx, pending_plans: error-pages-impl.
+
+> 결과 status 갱신: 이 PR 누적 — implemented 57(+2) · partial 6(+1, 본 영역) · backlog 1 · spec-only 잔여 0 (가드 대상 전 배치 전이 완료). `error-empty-states` 만 구현 plan 인수 partial.

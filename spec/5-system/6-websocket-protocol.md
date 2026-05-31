@@ -1,7 +1,10 @@
 ---
 id: websocket-protocol
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/websocket/websocket.gateway.ts
+  - codebase/backend/src/modules/websocket/websocket.service.ts
+  - codebase/backend/src/modules/external-interaction/sse-adapter.service.ts
 ---
 
 # Spec: WebSocket 프로토콜
@@ -179,7 +182,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.completed` | `{ executionId, status, duration, nodeCount }` | 실행 완료 |
 | `execution.failed` | `{ executionId, error, failedNodeId, duration }` | 실행 실패 |
 | `execution.cancelled` | `{ executionId, cancelledBy, duration }` | 실행 취소 |
-| `execution.paused` | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지 |
+| `execution.snapshot` | `{ executionId, status, nodeExecutions[] }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조 |
+| `execution.paused` _(계획·미구현)_ | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지. 브레이크포인트 기능은 미구현 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeName, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
 | `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeName, output, duration }` | 노드 실행 완료. `output` 은 `NodeHandlerOutput` 의 `output` 필드 — `output.error` 가 set 된 경우 (예: AI Agent multi-turn 의 `port: 'error'` 종결) 도 포함 ([Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). `output.error.details.retryable` / `retryAfterSec` 표준 필드는 CONVENTIONS Principle 3.2.1 정의 |
 | `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패. `error` 는 `output.error` 전체 구조 — `{ code: string, message: string, details?: { retryable?: boolean, retryAfterSec?: number, ... 노드별 } }` ([CONVENTIONS Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)). LLM 계열 노드는 `details.retryable` 필수 |
@@ -193,10 +197,10 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 | 명령 type | payload | 설명 |
 |-----------|---------|------|
-| `execution.start` | `{ workflowId, input?, fromNodeId?, breakpoints? }` | 실행 시작 요청 |
+| `execution.start` | `{ workflowId, input?, fromNodeId?, breakpoints? }` | 실행 시작 요청. `breakpoints?` 는 브레이크포인트 기능(미구현)용 _(계획)_ 필드 |
 | `execution.stop` | `{ executionId, force? }` | 실행 중단 요청 |
-| `execution.continue` | `{ executionId }` | 브레이크포인트 후 계속 |
-| `execution.step` | `{ executionId }` | 한 노드만 실행 후 다시 정지 |
+| `execution.continue` _(계획·미구현)_ | `{ executionId }` | 브레이크포인트 후 계속 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
+| `execution.step` _(계획·미구현)_ | `{ executionId }` | 한 노드만 실행 후 다시 정지 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.submit_form` | `{ executionId, nodeId, formData, toolCallId? }` | Form 노드에 사용자 입력 제출. `toolCallId` 는 AI Agent 의 `render_form` 도구 응답 시에만 동봉 — `interactionType: 'ai_form_render'` 의 `conversationConfig.pendingFormToolCall.toolCallId` 와 일치해야 한다 ([Spec AI Agent §6.2 step 2](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). 미일치 시 reject. **외부 wire 호환**: 본 payload shape 은 internal continuation bus 의 sentinel wrap (`{type:'form_submitted', formData}`, [Presentation 공통 §10.9](../4-nodes/6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)) 과 layer 분리 — 외부 wire 는 본 표 형식 유지, internal bus 만 sentinel wrap |
 | `execution.click_button` | `{ executionId, nodeId, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션) |
 | `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송. **form bypass**: `interactionType: 'ai_form_render'` 활성 중 본 명령이 수신되면 backend 가 `pendingFormToolCall.toolCallId` 매칭하는 render_form 도구의 tool_result content 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채우고 `pendingFormToolCall` 클리어 후 정상 `ai_user` turn 진행 ([Spec AI Agent §6.2 step 2.c.bypass](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)) — LLM 의 다음 reasoning 자유 보존. UI 의 MessageInput 은 항상 활성 (form 우회 허용) |
@@ -722,7 +726,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `execution.node.completed` | `execution.node.completed` | — |
 | `execution.node.failed` | `execution.node.failed` | — |
 | `execution.node.skipped` | `execution.node.skipped` | — |
-| `execution.paused` | `execution.paused` | — (디버깅 전용) |
+| `execution.paused` _(계획·미구현)_ | `execution.paused` | — (디버깅 전용) |
 | `execution.waiting_for_input` | `execution.waiting_for_input` | `execution.waiting_for_input` |
 | `execution.resumed` (transient) | `execution.resumed` | — (transient, notification 미발송) |
 | `execution.ai_message` | `execution.ai_message` | `execution.ai_message` (옵션 구독) |
@@ -731,11 +735,11 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `execution.completed` | `execution.completed` | `execution.completed` |
 | `execution.failed` | `execution.failed` | `execution.failed` |
 | `execution.cancelled` | `execution.cancelled` | `execution.cancelled` |
-| `replay.unavailable` | `execution.replay_unavailable` | — |
+| `replay.unavailable` _(계획·미구현)_ | `execution.replay_unavailable` _(계획·미구현)_ | — |
 
 **핵심 규약:**
 - **`seq` 동일 공유**: SSE 의 `id:` 필드와 Outbound Notification 페이로드의 `seq` 는 본 spec §2.2 의 monotonic counter 와 같은 값을 사용한다 ([Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification)).
-- **5분 버퍼 공유**: §6.2 의 재연결 이벤트 버퍼를 SSE 어댑터도 동일하게 사용한다. 외부 클라이언트의 `Last-Event-Id` 는 본 spec 의 `lastSeq` 와 동일 의미.
+- **5분 버퍼는 SSE 어댑터 소유**: seq 기반 5분 재전송 버퍼는 SSE 어댑터(`external-interaction/sse-adapter.service.ts`)가 자체 보유한다. 외부 클라이언트의 `Last-Event-Id` 가 그 버퍼에서 `seq > Last-Event-Id` 인 이벤트를 재전송한다. native WS 는 별도 버퍼 없이 §6.2 의 `execution.snapshot` 으로 갈음한다 (두 전송이 같은 `seq` 공간을 공유할 뿐, 버퍼 자체는 공유하지 않는다).
 - **transaction-after emit**: 본 spec §4.1 의 트랜잭션 commit 후 emit 규약은 SSE / Notification 에도 그대로 적용된다 ([Spec EIA §9.3](./14-external-interaction-api.md#93-트랜잭션과-발송-순서-eia-rl-04)).
 - **단일 구현 경로**: 외부 표면은 내부 WebSocket 의 명령/이벤트 처리 경로를 facade 로 감싼 형태로만 구현해야 한다. 두 표면이 분기되면 §R5 가 경고하는 maintenance 부담이 발생.
 
@@ -783,34 +787,25 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 
 ### 6.2 놓친 이벤트 복구
 
-재연결 후 놓친 이벤트를 복구하기 위해 `lastSeq`를 전달한다:
+**native WebSocket 복구 모델 — `execution.snapshot`.** 재연결 후 채널을 다시 구독하면 서버는 해당 execution 의 **현재 전체 상태**를 1회성 `execution.snapshot` 이벤트로 발행한다 (`ExecutionEventType.EXECUTION_SNAPSHOT`, `websocket.gateway.ts`). 클라이언트는 이 스냅샷으로 노드별 최종 상태·terminal 상태를 재동기화한다 — 끊긴 동안의 모든 중간 이벤트를 순서대로 재생하는 대신, 재구독 시점의 권위 있는 현재 상태를 한 번에 받는 방식이다.
 
 ```json
-// 구독 시 마지막 수신 시퀀스 전달
+// 재구독 — 누락 복구 트리거 (payload 는 channel 만 필요)
 {
   "type": "subscribe",
   "id": "req-010",
-  "payload": {
-    "channel": "execution:550e8400...",
-    "lastSeq": 42
-  }
+  "payload": { "channel": "execution:550e8400..." }
 }
-```
-
-- 서버는 `seq > lastSeq`인 이벤트를 버퍼에서 재전송
-- 이벤트 버퍼 보관 기간: **5분** (이후 만료된 이벤트는 REST API로 조회)
-- 버퍼에 없는 경우: `replay.unavailable` 이벤트 전송 → 클라이언트는 REST API로 현재 상태 조회
-
-```json
+// 서버 응답 (1회성 현재 상태 스냅샷)
 {
-  "type": "replay.unavailable",
-  "payload": {
-    "channel": "execution:550e8400...",
-    "reason": "Events expired from buffer",
-    "suggestion": "Fetch current state via REST API"
-  }
+  "type": "execution.snapshot",
+  "payload": { "executionId": "550e8400...", "status": "running", "nodeExecutions": [ /* ... */ ] }
 }
 ```
+
+**seq 기반 정밀 재전송은 SSE 전송 표면의 메커니즘이다.** 끊긴 구간의 개별 이벤트를 `seq > lastSeq` 단위로 손실 없이 재생하는 경로(5분 버퍼)는 native WS subscribe 명령이 아니라 **SSE 어댑터**가 `Last-Event-Id` 헤더로 제공한다 (§4.6, [Spec EIA §5.2 SSE 이벤트 스트림](./14-external-interaction-api.md)). 즉 5분 버퍼는 SSE 어댑터(`external-interaction/sse-adapter.service.ts`)가 자체 보유하며, native WS 는 위 snapshot 으로 갈음한다.
+
+> **`replay.unavailable` / `execution.replay_unavailable` — 계획(미구현).** 버퍼 만료 시 명시적 만료 신호를 보내는 이벤트는 아직 emit 되지 않는다. 현재는 만료/누락분이 silent drop 되고 클라이언트가 위 `execution.snapshot`(WS) 또는 REST `GET /executions/:id`(폴백)로 현재 상태를 재조회한다. 만료 신호 emit 은 향후 하드닝 항목이다 (EIA §SSE 와 동일).
 
 ---
 
@@ -875,12 +870,21 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 4. **이벤트 처리**: `type` 기반 디스패칭
 5. **Heartbeat 응답**: `ping` 수신 시 즉시 `pong` 전송
 6. **토큰 갱신**: Access Token 만료 1분 전에 REST API로 갱신 → `auth.refresh` 전송
-7. **재연결**: `onclose` 이벤트에서 지수 백오프 재연결 + `lastSeq` 전달
+7. **재연결**: `onclose` 이벤트에서 지수 백오프 재연결 → 재구독 시 수신되는 `execution.snapshot`(현재 상태)으로 재동기화 (§6.2)
 8. **정리**: 페이지 이탈 시 `unsubscribe` + 정상 종료 (close code 1000)
 
 ---
 
 ## Rationale
+
+### 재연결 복구 — native WS 는 snapshot, seq 버퍼-replay 는 SSE 전송 (§6.2)
+
+초기 §6.2 초안은 native WS `subscribe.lastSeq` → 5분 버퍼에서 `seq > lastSeq` 재전송 + 만료 시 `replay.unavailable` 을 약속했으나, 구현은 native WS 에 버퍼를 두지 않고 재구독 시 `execution.snapshot`(현재 전체 상태) 1회 발행으로 수렴했다. 본 spec 을 구현에 맞춰 정정한다.
+
+- **결정**: native WS 복구는 snapshot 모델. seq 단위 정밀 재전송(5분 버퍼)은 SSE 전송 표면(`Last-Event-Id`, `sse-adapter.service.ts`)이 담당한다. 두 전송은 같은 `seq` 공간만 공유하고 버퍼 인스턴스는 공유하지 않는다.
+- **근거**: WS 채널의 실사용은 에디터/실행 모니터링 UI 다. snapshot 은 노드별 최종·terminal 상태를 권위 있게 재동기화하므로 재연결 후 화면 복구에 충분하다. 잃는 것은 끊긴 짧은 창의 중간 이벤트(`node.started`·progress·tool 진행) 입자뿐이고, 이는 다음 이벤트/스냅샷으로 곧 수렴한다. native WS 버퍼-replay 를 별도 배선하는 비용(WS room 단위 seq 버퍼 신설 + 분산 다중 인스턴스 fan-out 미해결, SSE 어댑터도 동일 한계)은 그 한계이득에 비해 크다.
+- **폐기된 대안**: native WS lastSeq 버퍼-replay 전면 구현 → 분산 환경 미해결·저 ROI 로 보류. 외부 클라이언트용 손실 없는 재전송 요구(EIA-NF-03)는 SSE 버퍼-replay 로 이미 충족된다.
+- **잔여(계획)**: 버퍼 만료 신호 `replay.unavailable`/`execution.replay_unavailable` emit 은 미구현 — 현재 만료/누락분은 silent drop 후 snapshot·REST 폴백. 향후 하드닝 시 양 전송에 동시 도입.
 
 ### 메시지 origin 마커 도입 — `messages[].source`
 

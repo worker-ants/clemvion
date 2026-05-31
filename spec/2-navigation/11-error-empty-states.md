@@ -1,7 +1,10 @@
 ---
 id: error-empty-states
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/frontend/src/components/ui/empty-state.tsx
+pending_plans:
+  - plan/in-progress/error-pages-impl.md
 ---
 
 # Spec: 에러 페이지 / 빈 상태 UI
