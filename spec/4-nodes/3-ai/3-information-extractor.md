@@ -321,7 +321,6 @@ handler 가 `output: { result: {...}, partial?: {...} }` 런타임 필드와 `_r
   "output": {
     "result": {
       "messages": [
-        { "role": "system", "content": "You are engaged in a multi-turn conversation…" },
         { "role": "user", "content": "환불 요청합니다." },
         { "role": "assistant", "content": "주문번호를 알려주세요." }
       ],
@@ -346,7 +345,7 @@ handler 가 `output: { result: {...}, partial?: {...} }` 런타임 필드와 `_r
 | `config.schema` | FieldDef[] | config echo | 대기 시점의 스키마 raw |
 | `config.mode` | `'multi_turn'` | config echo | |
 | `config.maxCollectionRetries` | number | config echo | 대기 UI 진행률 표시용 (`output.partial.collectionRetryCount` 와 비교) |
-| `output.result.messages` | `ChatMessage[]` | handler — runtime | 누적 대화 (system + user + assistant + tool). `ai_agent` 와 동일 구조 / 동일 경로 (D6 통일) |
+| `output.result.messages` | `ChatMessage[]` | handler — runtime | 누적 대화 (**system 제외** — user + assistant + tool). `ai_agent` 와 동일 구조 / 동일 경로 (D6 통일, conversation-thread §1.4 의 system 제외 규칙 정합) |
 | `output.result.message` | string | handler — runtime | 가장 최근 assistant followup. WS 페이로드 구성 편의용 |
 | `output.result.turnCount` | number | handler — runtime | 현재까지 진행된 턴 수. 진행률 분모 `maxTurns` 는 `config.maxTurns` 에서 읽는다 (output echo 없음, Principle 1.1) |
 | `output.partial.extracted` | `Record<string, unknown>` | handler — runtime | 스키마 전 필드 기준의 현재 스냅샷. 미수집은 `null` |

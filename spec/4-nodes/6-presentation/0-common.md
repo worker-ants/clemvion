@@ -6,6 +6,7 @@ code:
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
   - codebase/backend/src/nodes/ai/ai-agent/tool-providers/render-tool-provider.ts
   - codebase/backend/src/shared/conversation-thread/**
+  - codebase/frontend/src/components/editor/run-results/**
 ---
 
 # Spec: Presentation 노드 공통 규약

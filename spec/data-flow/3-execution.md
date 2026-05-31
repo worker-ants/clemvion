@@ -38,12 +38,12 @@ sequenceDiagram
 
   Trig->>Eng: execute(workflowId, inputData, triggerId?)
   Eng->>PG: INSERT execution (workflow_id, trigger_id, status='pending', input_data, started_at)
-  Eng->>WS: emit 'execution:started' to workflow room
+  Eng->>WS: emit 'execution.started' to workflow room
   Eng->>PG: UPDATE execution SET status='running'
 
   loop topological order
     Eng->>PG: INSERT node_execution (execution_id, node_id, status='running', input_data)
-    Eng->>WS: emit 'nodeExecution:started'
+    Eng->>WS: emit 'execution.node.started'
     Eng->>PG: INSERT execution_node_log (execution_id, node_id, created_at)  -- append-only path log
     Eng->>Handler: execute(input, context)
     alt blocking (waiting_for_input)
@@ -55,11 +55,11 @@ sequenceDiagram
       Note over Eng: 메인 흐름은 다음 노드로 계속 진행
     else completed
       Eng->>PG: UPDATE node_execution SET status='completed', output_data, finished_at, duration_ms
-      Eng->>WS: emit 'nodeExecution:completed'
+      Eng->>WS: emit 'execution.node.completed'
     else failed (retry exhausted)
       Eng->>PG: UPDATE node_execution SET status='failed', error
       Eng->>PG: UPDATE execution SET status='failed', error = COPY(first failed node.error + nodeId)
-      Eng->>WS: emit 'execution:failed'
+      Eng->>WS: emit 'execution.failed'
     end
   end
 
@@ -163,10 +163,11 @@ sequenceDiagram
 
 | Event | 발행 시점 | 구독 room |
 | --- | --- | --- |
-| `execution:started/running/completed/failed/cancelled` | execution 상태 전이 | `workflow:<id>` 또는 `execution:<id>` |
-| `nodeExecution:started/completed/failed/waiting_for_input` | node_execution 상태 전이 | 동일 |
-| `execution:snapshot` | client connect 시 server push | 동일 |
+| `execution.started/completed/failed/cancelled` | execution 상태 전이 | `workflow:<id>` 또는 `execution:<id>` |
+| `execution.node.started/completed/failed`, `execution.waiting_for_input` | node_execution 상태 전이 | 동일 |
+| `execution.snapshot` | client connect 시 server push | 동일 |
 
+> 이벤트 이름의 정본은 `spec/5-system/6-websocket-protocol.md §Server → Client 이벤트 매핑` 표 (dot 표기). 위는 요약이며 충돌 시 그 표가 우선한다. Room 이름(`workflow:<id>`/`execution:<id>`)은 socket.io room 네임스페이스로 이벤트명과 별개다.
 > Emit 은 모두 `WebsocketService` (단일 sink) 를 거친다 (`spec/5-system/4-execution-engine.md §4.4`).
 
 ---
