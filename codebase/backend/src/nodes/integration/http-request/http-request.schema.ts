@@ -221,6 +221,9 @@ export function validateHttpRequestConfig(config: unknown): string[] {
 export const httpRequestNodeMetadata: NodeComponentMetadata = {
   type: 'http_request',
   category: 'integration',
+  // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — handler returns a
+  // mock instead of performing the real HTTP call when `__dryRun === true`.
+  supportsDryRun: true,
   label: 'HTTP Request',
   description: 'Make HTTP requests',
   icon: 'Globe',

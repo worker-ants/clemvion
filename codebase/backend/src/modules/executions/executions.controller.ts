@@ -32,6 +32,7 @@ import {
   ApiOkWrappedArrayResponse,
   ApiCreatedWrappedResponse,
 } from '../../common/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ReRunRequestDto } from './dto/re-run.dto';
 import { ExecutionsService } from './executions.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
@@ -175,6 +176,9 @@ export class ExecutionsController {
   @Post(':id/re-run')
   @HttpCode(HttpStatus.CREATED)
   @Roles('editor')
+  // Rate limit — 사용자당 분당 10회 (spec §12). UserThrottlerGuard 가 user.sub
+  // 로 키를 만들어 사용자 단위로 카운트한다 (429 TOO_MANY_REQUESTS).
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({
     summary: '실행 재실행 (Re-run)',
     description:

@@ -3,6 +3,8 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLocaleStore } from "@/lib/stores/locale-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useWorkspaceStore } from "@/lib/stores/workspace-store";
 
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -19,11 +21,13 @@ vi.mock("@/lib/api/workflows", () => ({
 
 const mockGetById = vi.fn();
 const mockGetByWorkflow = vi.fn();
+const mockGetChain = vi.fn();
 
 vi.mock("@/lib/api/executions", () => ({
   executionsApi: {
     getById: (...args: unknown[]) => mockGetById(...args),
     getByWorkflow: (...args: unknown[]) => mockGetByWorkflow(...args),
+    getChain: (...args: unknown[]) => mockGetChain(...args),
   },
 }));
 
@@ -95,6 +99,32 @@ function createWrapper() {
   };
 }
 
+function setupAuth(
+  role: "owner" | "admin" | "editor" | "viewer" | null,
+  userId = "user-me",
+) {
+  useAuthStore.setState({
+    user: userId
+      ? {
+          id: userId,
+          email: "me@test.dev",
+          name: "Me",
+          locale: "en",
+          theme: "light",
+        }
+      : null,
+    isAuthenticated: !!userId,
+    isLoading: false,
+  });
+  useWorkspaceStore.setState({
+    workspaces: role
+      ? [{ id: "ws-1", name: "WS", type: "team", slug: "ws", role }]
+      : [],
+    currentWorkspaceId: role ? "ws-1" : null,
+    loaded: true,
+  });
+}
+
 async function renderPage(executionId = "exec-1") {
   // Create fresh wrapper per render to avoid query cache from previous tests
   const wrapper = createWrapper();
@@ -112,12 +142,14 @@ describe("ExecutionDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useLocaleStore.setState({ locale: "en" });
-    const exec = makeExecution();
+    setupAuth("editor");
+    const exec = makeExecution({ executedBy: "user-me" });
     mockGetById.mockResolvedValue(exec);
     mockGetByWorkflow.mockResolvedValue({
       data: [exec],
       pagination: { page: 1, limit: 100, totalItems: 1, totalPages: 1 },
     });
+    mockGetChain.mockResolvedValue([]);
   });
 
   it("renders execution summary card with status", async () => {
@@ -209,11 +241,13 @@ describe("ExecutionDetailPage - Failed Execution", () => {
         },
       ],
     });
+    setupAuth("editor");
     mockGetById.mockResolvedValue(failedExec);
     mockGetByWorkflow.mockResolvedValue({
       data: [failedExec],
       pagination: { page: 1, limit: 100, totalItems: 1, totalPages: 1 },
     });
+    mockGetChain.mockResolvedValue([]);
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -235,5 +269,101 @@ describe("ExecutionDetailPage - Failed Execution", () => {
 
     expect(await screen.findByText("Failed")).toBeDefined();
     expect(screen.getAllByText(/Connection timeout/).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("ExecutionDetailPage - Re-run entry point (spec §10.1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useLocaleStore.setState({ locale: "en" });
+    mockGetByWorkflow.mockResolvedValue({
+      data: [],
+      pagination: { page: 1, limit: 100, totalItems: 0, totalPages: 0 },
+    });
+    mockGetChain.mockResolvedValue([]);
+  });
+
+  function rerunButton(): HTMLButtonElement | undefined {
+    return screen
+      .getAllByRole("button")
+      .find((b) => b.textContent?.includes("Re-run")) as
+      | HTMLButtonElement
+      | undefined;
+  }
+
+  it("editor + 본인 실행이면 Re-run 버튼이 enabled", async () => {
+    setupAuth("editor", "user-me");
+    mockGetById.mockResolvedValue(
+      makeExecution({ executedBy: "user-me" }),
+    );
+    await renderPage();
+    await screen.findByText("Completed");
+    const btn = rerunButton();
+    expect(btn).toBeDefined();
+    expect(btn).not.toBeDisabled();
+  });
+
+  it("viewer 면 Re-run 버튼이 disabled", async () => {
+    setupAuth("viewer", "user-me");
+    mockGetById.mockResolvedValue(
+      makeExecution({ executedBy: "user-me" }),
+    );
+    await renderPage();
+    await screen.findByText("Completed");
+    const btn = rerunButton();
+    expect(btn).toBeDefined();
+    expect(btn).toBeDisabled();
+  });
+
+  it("editor 인데 타인 실행이면 Re-run 버튼이 disabled", async () => {
+    setupAuth("editor", "user-me");
+    mockGetById.mockResolvedValue(
+      makeExecution({ executedBy: "user-other" }),
+    );
+    await renderPage();
+    await screen.findByText("Completed");
+    expect(rerunButton()).toBeDisabled();
+  });
+
+  it("reRunOf 가 있으면 chain badge 와 원본 링크를 표시", async () => {
+    setupAuth("editor", "user-me");
+    const root = {
+      id: "exec-root",
+      workflowId: "wf-1",
+      status: "completed",
+      triggerSource: "manual",
+      triggerLabel: null,
+      startedAt: "2024-01-15T14:00:00Z",
+      finishedAt: "2024-01-15T14:00:03Z",
+      durationMs: 3000,
+      recursionDepth: 0,
+      executionPath: [],
+      reRunOf: null,
+      chainId: "exec-root",
+      dryRun: false,
+    };
+    const me = {
+      ...root,
+      id: "exec-1",
+      startedAt: "2024-01-15T14:05:00Z",
+      reRunOf: "exec-root",
+      dryRun: true,
+    };
+    mockGetById.mockResolvedValue(
+      makeExecution({
+        executedBy: "user-me",
+        reRunOf: "exec-root",
+        chainId: "exec-root",
+        dryRun: true,
+      }),
+    );
+    mockGetChain.mockResolvedValue([root, me]);
+    await renderPage();
+    await screen.findByText("Completed");
+    // "#1-th re-run" (root 제외, 재실행 목록 1번째) + dry-run suffix
+    expect(await screen.findByText(/#1-th re-run/)).toBeDefined();
+    expect(screen.getByText("#exec-root")).toBeDefined();
+    // chain 길이 2 → View chain 드롭다운
+    expect(screen.getByText(/View chain \(2\)/)).toBeDefined();
   });
 });

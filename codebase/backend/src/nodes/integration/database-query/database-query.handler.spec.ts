@@ -1,6 +1,7 @@
 import {
   DatabaseQueryHandler,
   extractSqlVerb,
+  isWriteOperation,
 } from './database-query.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
@@ -766,6 +767,110 @@ describe('DatabaseQueryHandler', () => {
       expect(output.error.message).toMatch(/integrations service/);
     });
 
+    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7.1) — WRITE 만 mock,
+    // READ(SELECT)는 dry-run 에서도 실제 실행.
+    describe('dry-run (spec §7.1)', () => {
+      function dryRunCtx(): ExecutionContext {
+        const c = ctx();
+        c.variables = { ...c.variables, __dryRun: true };
+        return c;
+      }
+
+      it('mocks a WRITE op (INSERT) without opening a DB connection', async () => {
+        const { service, logUsage } = makeService();
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          {
+            integrationId: 'int-1',
+            query: 'INSERT INTO users(id) VALUES ($1)',
+            parameters: ['u_1'],
+            queryType: 'insert',
+          },
+          dryRunCtx(),
+        )) as unknown as {
+          port: string;
+          output: {
+            _dryRun: boolean;
+            wouldHaveCalled: {
+              kind: string;
+              operation: string;
+              sqlPreview: string;
+            };
+          };
+        };
+        expect(out.port).toBe('success');
+        expect(out.output._dryRun).toBe(true);
+        expect(out.output.wouldHaveCalled.kind).toBe('database_query');
+        expect(out.output.wouldHaveCalled.operation).toBe('insert');
+        expect(out.output.wouldHaveCalled.sqlPreview).toContain('INSERT INTO');
+        // No DB work: pool never constructed, connect/query never called, and
+        // the integration is never even resolved.
+        expect(jest.requireMock('pg').Pool).not.toHaveBeenCalled();
+        expect(connectMock).not.toHaveBeenCalled();
+        expect(queryMock).not.toHaveBeenCalled();
+        expect(service.getForExecution).not.toHaveBeenCalled();
+        // logUsage is also skipped on the mock short-circuit.
+        expect(logUsage).not.toHaveBeenCalled();
+        await handler.shutdown();
+      });
+
+      it('mocks a raw write verb (UPDATE via queryType=raw)', async () => {
+        const { service } = makeService();
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          {
+            integrationId: 'int-1',
+            query: 'UPDATE t SET a = 1',
+            queryType: 'raw',
+          },
+          dryRunCtx(),
+        )) as unknown as {
+          port: string;
+          output: { _dryRun: boolean; wouldHaveCalled: { kind: string } };
+        };
+        expect(out.port).toBe('success');
+        expect(out.output._dryRun).toBe(true);
+        expect(out.output.wouldHaveCalled.kind).toBe('database_query');
+        expect(connectMock).not.toHaveBeenCalled();
+        expect(queryMock).not.toHaveBeenCalled();
+        await handler.shutdown();
+      });
+
+      it('runs a READ (SELECT) normally even in dry-run', async () => {
+        const { service } = makeService();
+        queryMock.mockResolvedValue({
+          rows: [{ id: 1 }],
+          rowCount: 1,
+          fields: [{ name: 'id', dataTypeID: 23 }],
+        });
+        const handler = new DatabaseQueryHandler(service as never);
+        const out = (await handler.execute(
+          null,
+          {
+            integrationId: 'int-1',
+            query: 'SELECT id FROM users WHERE age > $1',
+            parameters: [18],
+          },
+          dryRunCtx(),
+        )) as unknown as {
+          port: string;
+          output: { _dryRun?: boolean; rowCount: number };
+        };
+        // Real path: query executed, no dry-run envelope.
+        expect(out.port).toBe('success');
+        expect(out.output._dryRun).toBeUndefined();
+        expect(out.output.rowCount).toBe(1);
+        expect(queryMock).toHaveBeenCalledWith(
+          'SELECT id FROM users WHERE age > $1',
+          [18],
+        );
+        expect(connectMock).toHaveBeenCalled();
+        await handler.shutdown();
+      });
+    });
+
     // SUMMARY#14 — abortSignal 사전 체크 경로 단위 테스트
     it('throws AbortError when context.abortSignal is already aborted', async () => {
       const { service } = makeService();
@@ -847,5 +952,54 @@ describe('extractSqlVerb', () => {
 
   it('returns TRUNCATE (8 chars — exactly at api_method limit)', () => {
     expect(extractSqlVerb('TRUNCATE t')).toBe('TRUNCATE');
+  });
+});
+
+// W8 — isWriteOperation unit tests (re-run dry-run WRITE/READ classification §7.1)
+describe('isWriteOperation', () => {
+  it('classifies queryType insert/update/delete as write', () => {
+    expect(isWriteOperation('insert', undefined)).toBe(true);
+    expect(isWriteOperation('update', undefined)).toBe(true);
+    expect(isWriteOperation('delete', undefined)).toBe(true);
+  });
+
+  it('classifies queryType select as read', () => {
+    // SQL 동사가 write 여도 명시 queryType select 가 우선 → read.
+    expect(isWriteOperation('select', 'DELETE FROM t')).toBe(false);
+  });
+
+  it.each([
+    'INSERT INTO t VALUES (1)',
+    'UPDATE t SET a = 1',
+    'DELETE FROM t',
+    'UPSERT INTO t VALUES (1)',
+    'MERGE INTO t USING s ON (t.id = s.id)',
+    'REPLACE INTO t VALUES (1)',
+    'TRUNCATE TABLE t',
+    'DROP TABLE t',
+    'CREATE TABLE t (id int)',
+    'ALTER TABLE t ADD col int',
+  ])('raw query with write verb is write: %s', (query) => {
+    expect(isWriteOperation('raw', query)).toBe(true);
+  });
+
+  it('raw query with SELECT verb is read', () => {
+    expect(isWriteOperation('raw', 'SELECT * FROM t')).toBe(false);
+  });
+
+  it('raw query with unknown/non-verb first token is read', () => {
+    expect(isWriteOperation('raw', '123 not sql')).toBe(false);
+    expect(isWriteOperation('raw', 'WITH cte AS (SELECT 1) SELECT 1')).toBe(
+      false,
+    );
+  });
+
+  it('missing queryType falls back to SQL verb (write verb → write)', () => {
+    expect(isWriteOperation(undefined, 'INSERT INTO t VALUES (1)')).toBe(true);
+    expect(isWriteOperation(undefined, 'SELECT 1')).toBe(false);
+  });
+
+  it('missing queryType and no query is read', () => {
+    expect(isWriteOperation(undefined, undefined)).toBe(false);
   });
 });

@@ -22,6 +22,7 @@ import {
 } from '../../core/error-codes.js';
 import { sendEmailNodeMetadata } from './send-email.schema.js';
 import { isSmtpHostBlocked } from '../../../common/utils/smtp-host-guard.js';
+import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 
 interface SmtpCredentials {
   host: string;
@@ -122,6 +123,18 @@ export class SendEmailHandler
 
     if (to.length === 0) {
       throw new Error('No valid recipients after normalizing the `to` field');
+    }
+
+    // Re-run dry-run (spec/5-system/13-replay-rerun.md §7) — config 검증을 모두
+    // 통과한 뒤, 실제 SMTP 발송 직전에 mock 으로 단락한다. 어떤 SMTP/provider
+    // 도 건드리지 않으며 success 포트로 흐름을 정상 진행시킨다. wouldHaveCalled
+    // 에는 수신자(to)와 subject 만 노출한다.
+    if (isDryRun(context)) {
+      return {
+        config: configEcho,
+        output: buildDryRunMock('send_email', { to, subject }),
+        meta: { deliveryStatus: 'sent' },
+      };
     }
 
     if (!this.integrationsService) {

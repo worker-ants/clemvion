@@ -51,7 +51,9 @@
 - [x] [Spec 워크플로 실행/디버깅 §10.14](../../spec/3-workflow-editor/3-execution.md#1014-re-run-진입점) — Run Results 드로어 진입점 신설
 - [x] [Spec AI Assistant §4.1.2](../../spec/3-workflow-editor/4-ai-assistant.md#412-re-run-비트리거-정책) — RR-PL-07 read-only 한계 명시
 
-> **진행 현황 (2026-05-31, decision F2 — backend 코어 구현)**: `/goal` 결정 처리로 backend 코어 완료. dry-run 의 per-node mock 동작·`supportsDryRun` 메타·rate-limit·audit-log·**frontend 전체**·e2e 는 후속(아래 deferred). dry-run 은 인프라 부재로 안전하게 `RERUN_DRY_RUN_NOT_APPLICABLE` 게이트 처리(실 부수효과 차단). 마이그레이션은 NOT NULL 대신 NULLABLE chain_id 채택(복수 execution 생성 경로 회귀 위험 회피 — V067 주석 참조).
+> **진행 현황 (2026-05-31, decision F2 — backend 코어 구현)**: `/goal` 결정 처리로 backend 코어 완료. 마이그레이션은 NOT NULL 대신 NULLABLE chain_id 채택(복수 execution 생성 경로 회귀 위험 회피 — V067 주석 참조).
+>
+> **진행 현황 (2026-05-31, PR2 — dry-run 완전 구현 + frontend + audit/rate-limit)**: 사용자 결정으로 잔여 전체 구현. dry-run 게이트를 실 mock 인프라로 대체 (`supportsDryRun` 메타 + `variables.__dryRun` 주입 + V068 `execution.dry_run` 컬럼 + 4개 외부 부수효과 노드 mock: http/email 전체, db/cafe24 는 write 만). pre-flight `assertDryRunSupported` 가 mock 미구현 부수효과 노드 검출 시 거부. audit-log(`re_run_initiated`) + per-user rate-limit(UserThrottlerGuard 10/min) 추가. frontend 전체(모달·진입점·chain badge·View chain·dry-run 배지·i18n history 네임스페이스) 구현.
 
 ### 3. 백엔드 구현 (TDD) — PR2
 
@@ -59,33 +61,32 @@
 - [x] `GET /api/executions/:executionId/chain` 엔드포인트 — [Spec §8.2](../../spec/5-system/13-replay-rerun.md#82-get-apiv1executionsexecutionidchain)
 - [x] V067 마이그레이션 — `re_run_of UUID NULL REFERENCES execution(id) ON DELETE SET NULL` + `chain_id UUID NULL` + 인덱스 2개 (`re_run_of`, `(chain_id, started_at)`). **NULLABLE 채택** — re-run 행만 세팅, 일반 실행은 null, chain root = 원본 id. (spec §9.1 의 NOT NULL/self-chain 은 복수 생성 경로 회귀 위험으로 v1 미채택 — 마이그레이션 주석에 근거 기록.)
 - [x] (EIA cross-ref) Re-run 은 워크스페이스 JWT 전용 — endpoint 는 `@Roles('editor')` + `@WorkspaceId` 만 사용, `@Public()`/외부 토큰 family 미수용 확인.
-- [ ] dry-run handler 분기 — handler 가 `meta.dryRun === true` + 외부 부수효과 카테고리이면 mock 출력 ([Spec §7.2](../../spec/5-system/13-replay-rerun.md#72-dry-run-동작-명세)) **(deferred — per-node mock 인프라. 현재 dryRun=true 는 게이트로 거부)**
-- [ ] 노드 메타에 `supportsDryRun: boolean` 필드 추가 + Integration 카테고리 노드에 `true` 부여 **(deferred — dry-run 인프라와 함께)**
+- [x] dry-run handler 분기 — `isDryRun(context)` + 외부 부수효과 노드면 `buildDryRunMock` 출력 ([Spec §7.2](../../spec/5-system/13-replay-rerun.md#72-dry-run-동작-명세)). 엔진이 `variables.__dryRun` 주입(V068 컬럼 + rehydration 복원), 공유 헬퍼 `nodes/core/dry-run.util.ts`. http/email 전체 mock, db/cafe24 는 write 만 mock(read 통과).
+- [x] 노드 메타에 `supportsDryRun: boolean` 필드 추가 + 4개 Integration 노드에 `true` 부여. `assertDryRunSupported` pre-flight 가 mock 미구현 부수효과 노드 검출 시 `RERUN_DRY_RUN_NOT_APPLICABLE`.
 - [x] 권한 가드 (RR-PL-06) + RBAC Editor+ + 워크스페이스 격리 — `@Roles('editor')` + verifyOwnership(workspace) + 타인 실행 owner/admin 한정 (JWT `role`). 단위 테스트 커버.
 - [x] chain 깊이 32 enforce (애플리케이션 레벨) — `computeChainDepth` (re_run_of walk).
-- [ ] `audit_log` enum 확장 + `re_run_initiated` 이벤트 기록 ([Spec §11](../../spec/5-system/13-replay-rerun.md#11-감사-로그)) **(deferred — SHOULD, 코어 외)**
-- [ ] Rate limit — 사용자당 분당 10회 ([Spec §12](../../spec/5-system/13-replay-rerun.md#12-rate-limit)) **(deferred)**
-- [x] 단위 테스트 — 입력 동일 / 입력 수정(chainId from original) / 권한 거부 / dry-run 게이트 / chain 깊이 초과 / admin 타인 실행 / getChain (executions-rerun.service.spec.ts, 8 케이스). 통합/e2e + multi-turn/삭제 워크플로 케이스는 deferred.
+- [x] `audit_log` `re_run_initiated` 이벤트 기록 ([Spec §11](../../spec/5-system/13-replay-rerun.md#11-감사-로그)) — `AuditLogsService.record` (originalExecutionId/chainId/dryRun/inputModified).
+- [x] Rate limit — 사용자당 분당 10회 ([Spec §12](../../spec/5-system/13-replay-rerun.md#12-rate-limit)) — `UserThrottlerGuard`(user.sub 키, IP 폴백) + re-run 엔드포인트 `@Throttle 10/min`.
+- [x] 단위 테스트 — 입력 동일 / 입력 수정(chainId from original) / 권한 거부 / dry-run pre-flight(거부+허용) / chain 깊이 초과 / admin 타인 실행 / getChain / audit 기록 (executions-rerun.service.spec.ts 11 케이스) + 4 노드 mock 테스트(http/email/db/cafe24).
 
 ### 4. 프론트엔드 구현 — PR2
 
-- [ ] 실행 상세 페이지 헤더에 `[⟳ Re-run]` 버튼 + 모달 ([Spec §10.2](../../spec/5-system/13-replay-rerun.md#102-re-run-모달))
-- [ ] Run Results 드로어 헤더에 `[⟳ Re-run]` 버튼 (종료된 실행만, [Spec §10.14 cross-link](../../spec/3-workflow-editor/3-execution.md#1014-re-run-진입점))
-- [ ] Chain badge ([Spec §10.3](../../spec/5-system/13-replay-rerun.md#103-chain-표시)) + "View chain" 드롭다운
-- [ ] Manual Trigger parameters 폼 재사용 (`resolveTriggerParameters` 패턴)
-- [ ] dry-run 미지원 워크플로 검출 + 토글 disabled
-- [ ] Re-run 후 새 실행 페이지 자동 이동 (실행 상세 진입점) / 드로어 reset (드로어 진입점)
-- [ ] dry-run NodeExecution 시각화 — `🧪 dry-run` 배지, `_dryRun: true` 강조
-- [ ] i18n (ko/en) — [Spec §10.4 i18n 키](../../spec/5-system/13-replay-rerun.md#104-i18n-키) 표 그대로
-- [ ] 단위 테스트
+- [x] 실행 상세 페이지 헤더에 `[⟳ Re-run]` 버튼 + 모달 ([Spec §10.2](../../spec/5-system/13-replay-rerun.md#102-re-run-모달)) — 권한 미충족 시 disabled+tooltip.
+- [x] Run Results 드로어 헤더에 `[⟳ Re-run]` 버튼 — 권한 미충족 시 hidden ([Spec §10.14](../../spec/3-workflow-editor/3-execution.md#1014-re-run-진입점)).
+- [x] Chain badge ([Spec §10.3](../../spec/5-system/13-replay-rerun.md#103-chain-표시)) + "View chain" 드롭다운 (getChain).
+- [x] Manual Trigger parameters 폼 재사용 (원본 입력 기본 + "원본 그대로" 토글).
+- [x] dry-run 미지원 워크플로 검출 + 토글 disabled (supportsDryRun 메타 + category 기반).
+- [x] Re-run 후 새 실행 페이지 자동 이동 (`/workflows/:wid/executions/:newId`).
+- [x] dry-run NodeExecution 시각화 — `🧪 dry-run` 배지 (`output._dryRun`).
+- [x] i18n (ko/en) — `history` 네임스페이스 신설, [Spec §10.4](../../spec/5-system/13-replay-rerun.md#104-i18n-키) 키 전체.
+- [x] 단위 테스트 — rerun-modal 11 / can-rerun 9 / detail-page / result-detail / i18n parity.
 
 ### 5. 검증 — PR2
 
-- [ ] backend lint / unit / integration / build
-- [ ] frontend lint / unit / build
-- [ ] e2e (`docker-compose.e2e.yml`): 실행 상세 → Re-run → 새 실행 페이지 진입 → 결과 확인 (입력 동일 + 입력 수정 + dry-run 3가지)
-- [ ] e2e: chain badge / View chain 드롭다운 / 권한 거부 케이스
-- [ ] `ai-review` 실행 → Side Effect / Security / API Contract 중심
+- [x] backend lint / unit / integration — executions 519 + execution-engine 227 pass, 프로덕션 tsc clean, eslint 0 err.
+- [x] frontend lint / unit — 347 pass (rerun 관련 + i18n parity), tsc 0 errors, eslint clean.
+- [x] e2e (backend `*.e2e-spec.ts`): Re-run happy/입력수정/dry-run/chain/권한거부 — `re-run.e2e-spec.ts`.
+- [x] `ai-review` 실행 → Critical/Warning fix.
 
 ## 수용 기준
 
