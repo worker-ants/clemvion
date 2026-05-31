@@ -173,6 +173,23 @@ executionFailedRateLimit      → Too many requests. Please try again later.
 executionFailedInternal       → The service is temporarily unavailable. Please try again later.
 ```
 
+### 7.3 Conversation session-expired key (`sessionExpired`)
+
+If the backend restarts or the session state expires during a multi-turn conversation with an AI agent, the bot sends a **session-expired notice** instead of a generic "cancelled" message. Operators can override it via `languageHints.sessionExpired`.
+
+| Key | Sent when | `{statusCode}` allowed |
+|---|---|---|
+| `sessionExpired` | Multi-turn conversation cannot be resumed (instance restart / session expired) | no |
+
+**default messages**:
+
+```
+ko → 대화 세션이 만료되어 재개할 수 없습니다. 새 메시지를 보내면 새 대화가 시작됩니다.
+en → This conversation session has expired and cannot be resumed. Send a new message to start a fresh conversation.
+```
+
+After receiving this notice, the user's next message automatically starts a **new conversation**.
+
 ## 8. Limitations
 
 - **1:1 (private) chats only** — messages in group chats are silently ignored.
