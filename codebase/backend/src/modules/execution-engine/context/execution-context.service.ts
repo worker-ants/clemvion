@@ -37,13 +37,18 @@ export class ExecutionContextService {
     workflowId: string,
     initialVariables: Record<string, unknown> = {},
     recursionDepth?: number,
+    // in-memory Map 라우팅 키 (spec/conventions/execution-context.md 원칙 4).
+    // 생략 시 executionId 와 동일 → 비-background 호출은 동작 불변. background
+    // 본문만 `bg:<executionId>:<backgroundRunId>` 를 전달해 부모와 키 격리한다.
+    contextKey?: string,
   ): ExecutionContext {
-    const existing = this.contexts.get(executionId);
+    const key = contextKey ?? executionId;
+    const existing = this.contexts.get(key);
     if (existing) {
-      // 회귀 ③ tracking: 동일 executionId 의 context 가 이미 존재할 때 재생성 시도
+      // 회귀 ③ tracking: 동일 키의 context 가 이미 존재할 때 재생성 시도
       // — 누가 호출했는지 식별. multi-instance race 또는 sub-workflow re-entry 의심.
       this.logger.warn(
-        `[ctx-trace] createContext OVERWRITE — executionId=${executionId} ` +
+        `[ctx-trace] createContext OVERWRITE — key=${key} executionId=${executionId} ` +
           `workflowId=${workflowId} (existing workflowId=${existing.workflowId}, ` +
           `nodes=${Object.keys(existing.nodeOutputCache).length}). ` +
           `Caller stack:\n${new Error().stack?.split('\n').slice(1, 6).join('\n')}`,
@@ -52,6 +57,7 @@ export class ExecutionContextService {
     const context: ExecutionContext = {
       executionId,
       workflowId,
+      _contextKey: key,
       variables: { ...initialVariables },
       nodeOutputCache: {},
       structuredOutputCache: {},
@@ -59,7 +65,7 @@ export class ExecutionContextService {
       recursionDepth: recursionDepth ?? 0,
       conversationThread: createEmptyConversationThread(),
     };
-    this.contexts.set(executionId, context);
+    this.contexts.set(key, context);
     return context;
   }
 

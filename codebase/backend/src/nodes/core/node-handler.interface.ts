@@ -159,6 +159,16 @@ export interface ExecutionContext {
    */
   _executedNodes?: Set<string>;
   /**
+   * 엔진 내부 상태 — `ExecutionContextService` 의 in-memory
+   * `Map<key, ExecutionContext>` 라우팅 키 (spec/conventions/execution-context.md
+   * 원칙 4). 핸들러는 읽지 않는다. **기본값 = `executionId`** (비-background
+   * context 는 항상 동일 → 동작 불변). background 서브그래프 본문만
+   * `bg:<executionId>:<backgroundRunId>` 별도 키를 써서 부모와 동일한 executionId 를
+   * 공유하더라도 in-memory context 가 부모 cleanup(`deleteContext(executionId)`)에
+   * 의해 삭제되지 않도록 격리한다. in-memory 전용 — Redis 키 패턴과 무관.
+   */
+  _contextKey?: string;
+  /**
    * 노드 단계 cancellation signal (parallel-p2 결정 A + H, 2026-05-30 —
    * SoT: spec/conventions/node-cancellation.md). 장기 외부 I/O 를 수행하는
    * 노드 (HTTP / DB / AI / Email / chat-channel) 는 본 signal 을 fetch /

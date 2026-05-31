@@ -3360,7 +3360,7 @@ describe('ExecutionEngineService', () => {
 
     it('W11 — form_submitted dispatch: handleAiMessageTurn 이 JSON.stringify(formData) 인자로 호출됨', async () => {
       // spec §10.9 + §10.9 dispatch 표 — form_submitted case 는
-      // handleAiMessageTurn(executionId, node, JSON.stringify(formData), ...) 호출.
+      // handleAiMessageTurn(executionId, contextKey, node, JSON.stringify(formData), ...) 호출.
       const processReturn = {
         config: { mode: 'multi_turn' },
         output: { result: { messages: [], message: 'ok', turnCount: 1 } },

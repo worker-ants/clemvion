@@ -139,6 +139,51 @@ describe('ExecutionContextService', () => {
     });
   });
 
+  // Background 본문 race 회귀 차단: 본문은 부모와 같은 executionId 를 NodeExecution
+  // 그룹핑·WS 채널용으로 공유하되, in-memory context Map 키는 별도 bgKey 로 분리해야
+  // 한다 (spec/conventions/execution-context.md 원칙 4). 키를 공유하면 먼저 끝난
+  // 부모의 deleteContext(executionId) 가 본문 context 를 삭제해 "Execution context
+  // not found" 가 발생했다.
+  describe('contextKey separation (background isolation)', () => {
+    it('defaults the Map key to executionId and stamps _contextKey', () => {
+      const svc = new ExecutionContextService();
+      const ctx = svc.createContext('exec-A', 'wf-1');
+      expect(ctx._contextKey).toBe('exec-A');
+      expect(svc.getContext('exec-A')).toBe(ctx);
+    });
+
+    it('registers under an explicit contextKey while keeping executionId field intact', () => {
+      const svc = new ExecutionContextService();
+      const bgKey = 'bg:exec-A:run-1';
+      const ctx = svc.createContext('exec-A', 'wf-1', {}, 0, bgKey);
+
+      // executionId 필드는 실제 메인 실행 ID 유지 (NodeExecution/WS/권한 1차 키).
+      expect(ctx.executionId).toBe('exec-A');
+      // Map 키만 분리.
+      expect(ctx._contextKey).toBe(bgKey);
+      expect(svc.getContext(bgKey)).toBe(ctx);
+      // 부모 executionId 로는 조회되지 않는다 (키 충돌 없음).
+      expect(svc.getContext('exec-A')).toBeUndefined();
+    });
+
+    it('survives the parent deleteContext(executionId) race', () => {
+      const svc = new ExecutionContextService();
+      // 부모(메인) context — 키 = executionId
+      svc.createContext('exec-A', 'wf-1');
+      // background 본문 context — 키 = bgKey (별도)
+      const bgKey = 'bg:exec-A:run-1';
+      const bg = svc.createContext('exec-A', 'wf-1', {}, 0, bgKey);
+
+      // 부모가 먼저 종료하며 executionId 키로 삭제 (runExecution finally).
+      svc.deleteContext('exec-A');
+
+      // 본문 context 는 살아있고 계속 write 가능해야 한다.
+      expect(svc.getContext(bgKey)).toBe(bg);
+      expect(() => svc.setNodeOutput(bgKey, 'node-1', { x: 1 })).not.toThrow();
+      expect(svc.getNodeOutput(bgKey, 'node-1')).toEqual({ x: 1 });
+    });
+  });
+
   describe('setNodeOutput — existing structured cache preservation', () => {
     it('keeps existing config when setStructuredOutput ran first', () => {
       service.setStructuredOutput(executionId, nodeId, {
