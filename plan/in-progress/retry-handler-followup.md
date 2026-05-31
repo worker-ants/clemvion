@@ -6,6 +6,8 @@ owner: project-planner
 
 # Plan — retry_last_turn 백엔드 핸들러 follow-up (Phase D)
 
+> **✅ 완료 (2026-05-31)** — 추적 항목 전부 해소(✅/covered/skip), 미해결 follow-up 0건. 본 commit 직후 `git rm` 으로 제거됨 (PROJECT.md §plan·review 산출물 git 취급).
+
 > 본 plan 은 `d109dbd3` commit body 에 명시된 follow-up PR 스코프 — WS `execution.retry_last_turn` 서버 핸들러 / `_retryState` DB 영속 정책 정밀화 / 새 NodeExecution spawn.
 
 이 plan 은 코드 리뷰 (review/code/2026/05/23/18_30_48/SUMMARY.md) 의 다음 항목을 추적한다:
@@ -105,7 +107,7 @@ PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 
 | W4 downstream blocking — buttons | ✅ PR #382 | commit `a60925e8` — `waitForButtonInteraction` private method spy 패턴으로 분기 도달 회귀 가드 (spec line ~9213). flat/structured 양쪽 캐시는 `mockOutput` 1차 arg `interactionType` + 2차 arg `meta.interactionType` 로 동시 충족 |
 | W4 downstream blocking — ai_conversation | ✅ PR #382 | commit `a60925e8` — `waitForAiConversation` spy 패턴으로 분기 도달 회귀 가드 (spec line ~9279). aiHandler 에 `processMultiTurnMessage`/`endMultiTurnConversation` 스텁 추가 |
 | W5/I2 (back-edge waiting node 이중 실행 가능성 spec 검토) | ✅ (2026-05-31) | 분석 결과 **버그 아닌 의도된 loop semantics** — graph-level back-edge 순환은 (container body 와 달리) blocking 노드를 합법적으로 포함/타겟할 수 있고, 매 iteration 재프롬프트는 정상. retry 재진입도 동일 귀결. `spec/5-system/4-execution-engine.md §2.1` 에 "graph-level 순환 내 blocking 노드" 절 명문화. `/consistency-check --spec` BLOCK: NO (`review/consistency/2026/05/31/18_06_40`, LOW) |
-| PR3 — AI Agent → HTTP retry e2e 시나리오 | 🔲 후속 PR | LLM mock 인프라 (LlmService.chat 429 시뮬레이션) + WS 클라이언트 명령 시뮬레이션이 별 PR scope. 본 PR (#365/#371/#378/#379) 의 unit 7+ 회귀 가드가 핵심 케이스 모두 커버 |
+| PR3 — AI Agent → HTTP retry e2e 시나리오 | ✅ covered (2026-05-31) | **e2e 신규 구축 안 함 — unit 커버로 종결.** 스코핑 결과 대규모 신규 인프라(도커 내부 실패-LLM HTTP mock 서비스 + 백엔드 e2e 최초 socket.io-client WS 드라이버)가 필요하고, 런타임 `LlmService.chat()` SSRF private-host 가드가 도커 내부 mock 을 차단할 경우 우회를 위해 production 코드(env-gated bypass)까지 PR scope 가 확대되는 리스크 존재. 한편 `extractAiTurnErrorPayload`/`classifyLlmError`(분류 매트릭스 25+), `retryLastTurn`(atomic consume·TTL·NOT_RETRYABLE·TOO_EARLY), `applyRetryLastTurn`(loop 재진입·재실패·cancel), `resumeGraphAfterRetry`(downstream dispatch) 가 unit 으로 전수 커버 — e2e 의 유일한 신규 가치는 cross-process wiring seam 뿐. 비용 대비 한계효용이 낮아 사용자 결정(2026-05-31)으로 covered/종결 처리. 향후 WS e2e 하니스가 일반 인프라로 구축되면 그 위에서 저비용 재추가 가능 |
 
 ## 의존 관계
 
