@@ -71,3 +71,18 @@ owner: project-planner
 
 - 코드 변경 없음 (frontmatter + spec 본문 문구 정정만). build-guard 는 frontend vitest.
 - `implemented`(6)·`partial`(2) 기존 spec 은 대상 외.
+
+## 다음 세션 인계 메모 (2026-05-31 조사 — 분류 미착수, 사실 확정만)
+
+> 본 세션은 trigger-drawer 작업에 이어진 장기 세션 + 도구 I/O 글리치로, 사용자 결정에 따라
+> **분류는 새 세션에서 재시작**한다. 아래는 다음 세션이 그대로 신뢰해도 되는 확정 사실이다.
+> worktree: `spec-frontmatter-status-migration-d97565` (branch `claude/spec-frontmatter-status-migration-d97565`).
+
+- **현 status 분포 실측 (5/31)**: `spec-only` 94 · `implemented` 9 · `partial` 12 (plan 작성 5/29 의 96/6/2 에서 변동 — 그동안 타 작업이 일부 전이). deadline 2026-08-21 불변.
+- **배치별 spec-only 실측 (94)**: B1 `5-system` 10 · B2 `4-nodes` 35 · B3 `3-workflow-editor` 5 · B4 `2-navigation` 14 · B5 `conventions` 30 (cafe24-api-catalog 18 + cafe24-api-metadata + cafe24-restricted-scopes + 일반 conventions 10).
+- **가드 적용 대상 scope 확정** (`spec-frontmatter-parse.ts isApplicable`): `spec/{2-navigation,3-workflow-editor,4-nodes,5-system,conventions}/**.md` 중 **basename `_*` 제외** + `{0-overview,1-data-model,6-brand}.md` 제외. → 위 94개는 전부 정당한 대상 (밑줄 basename 없음). `providers/telegram.md` 는 대상 포함.
+- **cafe24-api-catalog 주의 (오판 함정)**: 카탈로그 파일은 본문 표의 row 별 `status`(`supported`/`planned`/`deprecated`)를 갖는데 이는 **frontmatter `status` 와 별 도메인** (`_overview.md §3` 명시). 가드는 frontmatter 만 본다. 18개 카탈로그는 외부 API enumeration 레퍼런스 — `code:` 후보는 `codebase/backend/src/nodes/integration/cafe24/metadata/*.ts` (catalog-sync.spec.ts 가 양방향 동기). `supported` row 가 1개라도 있으면 메타데이터 구현이 존재 → frontmatter `implemented` 후보. row 전부 `planned` 면 `backlog`/`spec-only` 후보. **일괄 아님 — 파일별 supported 유무 확인 필요.**
+- **분류 절차 (배치당)**: `/spec-coverage` 1차(NLP) → 본문 surface 수동 확정 → frontmatter(`status`+`code:` glob, partial 시 `pending_plans:` 실존 plan) 적용 → `/consistency-check --spec` (BLOCK:YES 차단) → 4 가드 vitest (`codebase/frontend/src/lib/docs/__tests__/spec-{frontmatter,code-paths,status-lifecycle,pending-plan-existence}.test.ts`) → 배치별 PR (`docs(spec): ...`).
+- **partial 의 pending_plans**: `plan/in-progress/` 실존 필수. 가드 (c) — pending_plans 가 전부 complete 면 implemented 로 승격 의무. 현 in-progress plan 목록은 세션 조사 시점 기준 29개 + `node-output-redesign/` 하위 다수.
+- **B5 frontmatter 현황**: cafe24 카탈로그 18 + cafe24-api-metadata + cafe24-restricted-scopes + conventions 10(conversation-thread, data-hydration-surfaces, i18n-userguide, interaction-type-registry, migrations, node-output, secret-store, swagger, user-guide-evidence + ...) 모두 `status: spec-only, code: []`. `spec-impl-evidence.md` 만 이미 `implemented`.
+- 권고 시작 배치: **B5 (cafe24 우선)**. plan 끝부분(L66~72)에 권고 후속 흐름 줄이 일부 중복돼 있으니 다음 세션에서 정리 가능.
