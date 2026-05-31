@@ -3165,7 +3165,7 @@ export class ExecutionEngineService
     // of the function continues to see raw formData (back-compat with the
     // pre-wrap signature).
     const submitted = await new Promise<unknown>((resolve, reject) => {
-      this.pendingContinuations.set(executionId, {
+      this.pendingContinuations.set(this.contextKeyOf(context), {
         nodeId: node.id,
         resolve,
         reject,
@@ -4432,7 +4432,7 @@ export class ExecutionEngineService
               : undefined;
         if (replayMessage !== undefined) {
           const cancelSignal = new Promise<never>((_, reject) => {
-            this.pendingContinuations.set(executionId, {
+            this.pendingContinuations.set(this.contextKeyOf(context), {
               nodeId: node.id,
               resolve: () => {},
               reject,
@@ -4475,7 +4475,7 @@ export class ExecutionEngineService
       } else {
         // Wait for user message or end signal (no timeout — external cancel only)
         const userData = await new Promise<unknown>((resolve, reject) => {
-          this.pendingContinuations.set(executionId, {
+          this.pendingContinuations.set(this.contextKeyOf(context), {
             nodeId: node.id,
             resolve,
             reject,
@@ -5627,7 +5627,7 @@ export class ExecutionEngineService
 
     // Await user button click indefinitely; external cancel is the only exit.
     const clickData = await new Promise<unknown>((resolve, reject) => {
-      this.pendingContinuations.set(executionId, {
+      this.pendingContinuations.set(this.contextKeyOf(context), {
         nodeId: node.id,
         resolve,
         reject,
@@ -7132,6 +7132,11 @@ export class ExecutionEngineService
       // 본문 전용 bgKey context 를 자체 정리 — 메인 runExecution finally 의
       // deleteContext(executionId) 와 독립. (멱등: 미존재 시 no-op.)
       this.contextService.deleteContext(bgKey);
+      // 본문이 interactive 노드(form/button/ai)로 대기에 진입했다면 waitForX 가
+      // pendingContinuations 를 bgKey 로 등록한다. background 는 fire-and-forget 라
+      // 외부 continueExecution(executionId) 로 재개되지 않으므로(메인 키와 격리됨)
+      // maxDurationMs 타임아웃 후 본 finally 에서 resolver 누수를 정리한다.
+      this.pendingContinuations.delete(bgKey);
     }
   }
 

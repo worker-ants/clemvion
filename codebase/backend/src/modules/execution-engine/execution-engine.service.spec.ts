@@ -1429,6 +1429,50 @@ describe('ExecutionEngineService', () => {
       inlineSpy.mockRestore();
     });
 
+    // interactive 본문 노드의 pendingContinuations 는 bgKey 로 격리돼야 하고
+    // (메인 executionId resolver stomp 금지), finally 에서 정리돼야 한다.
+    it('isolates body pendingContinuations under bgKey and cleans it up without stomping the main resolver', async () => {
+      const svcAny = service as unknown as {
+        pendingContinuations: Map<string, unknown>;
+      };
+      const bgKey = `bg:${executionId}:bg-run-iso`;
+
+      // 메인 흐름이 대기 중인 resolver (executionId 키) — bg 가 덮어쓰면 안 된다.
+      const mainEntry = {
+        nodeId: 'main',
+        resolve: jest.fn(),
+        reject: jest.fn(),
+      };
+      svcAny.pendingContinuations.set(executionId, mainEntry);
+
+      const inlineSpy = jest
+        .spyOn(service, 'executeInline')
+        .mockImplementation((_w, _i, options) => {
+          // waitForX 가 하는 일을 모사: 본문 context 키(bgKey)로 resolver 등록.
+          svcAny.pendingContinuations.set(
+            options.context._contextKey as string,
+            {
+              nodeId: 'body',
+              resolve: jest.fn(),
+              reject: jest.fn(),
+            },
+          );
+          return Promise.resolve(undefined);
+        });
+
+      await service.executeBackgroundSubgraph(
+        makeBgJob({ backgroundRunId: 'bg-run-iso' }),
+      );
+
+      // 본문 resolver 는 bgKey 로 등록됐다가 finally 에서 정리됨.
+      expect(svcAny.pendingContinuations.has(bgKey)).toBe(false);
+      // 메인 resolver(executionId)는 stomp/삭제되지 않고 그대로 유지.
+      expect(svcAny.pendingContinuations.get(executionId)).toBe(mainEntry);
+
+      svcAny.pendingContinuations.delete(executionId);
+      inlineSpy.mockRestore();
+    });
+
     it('rejects when body exceeds maxDurationMs', async () => {
       const inlineSpy = jest
         .spyOn(service, 'executeInline')
