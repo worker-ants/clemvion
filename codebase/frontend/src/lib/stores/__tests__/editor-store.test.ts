@@ -1,17 +1,28 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { Node, Edge } from "@xyflow/react";
 
-// vi.hoisted 로 mock 변수를 hoisting 안전하게 정의 (vi.mock factory 참조 허용)
-const { graphWarningsMock } = vi.hoisted(() => ({
-  graphWarningsMock: vi.fn(),
-}));
-
 vi.mock("../../api/workflows", () => ({
   workflowsApi: {
     saveCanvas: vi.fn(),
-    graphWarnings: graphWarningsMock,
   },
 }));
+
+// `@workflow/graph-warning-rules` 는 실제 평가 로직을 그대로 사용하되,
+// `evaluateGraphWarningRulesForGraph` 만 per-test 로 throw 시킬 수 있도록
+// spy 로 감싼다 (W14 catch 경로 회귀 가드). 평문 호출 시엔 실제 구현 위임.
+const { evaluateMock } = vi.hoisted(() => ({ evaluateMock: vi.fn() }));
+vi.mock("@workflow/graph-warning-rules", async () => {
+  const actual = await vi.importActual<
+    typeof import("@workflow/graph-warning-rules")
+  >("@workflow/graph-warning-rules");
+  evaluateMock.mockImplementation(actual.evaluateGraphWarningRulesForGraph);
+  return {
+    ...actual,
+    evaluateGraphWarningRulesForGraph: (
+      ...args: Parameters<typeof actual.evaluateGraphWarningRulesForGraph>
+    ) => evaluateMock(...args),
+  };
+});
 
 import { useEditorStore } from "../editor-store";
 import { workflowsApi } from "../../api/workflows";
@@ -351,57 +362,122 @@ describe("useEditorStore", () => {
     });
   });
 
-  // SUMMARY#17 — fetchGraphWarnings 액션 테스트
-  describe("fetchGraphWarnings", () => {
+  // cross-node graphWarningRules 로컬 평가 (네트워크 round-trip 제거).
+  // SoT: spec/conventions/cross-node-warning-rules.md.
+  describe("evaluateGraphWarningsLocal", () => {
+    // Parallel 노드를 만든다. config (maxConcurrency/branchCount) 와 label 은
+    // data 페이로드에 들어가야 평가 규칙이 본다.
+    const parallelNode = (
+      id: string,
+      config?: Record<string, unknown>,
+    ): Node => ({
+      id,
+      position: { x: 0, y: 0 },
+      data: { type: "parallel", label: id, config: config ?? {} },
+    });
+    // branch_0 outgoing edge — parallel 분기 body 진입점.
+    const branchEdge = (source: string, target: string): Edge => ({
+      id: `${source}-branch_0-${target}`,
+      source,
+      sourceHandle: "branch_0",
+      target,
+    });
+
     beforeEach(() => {
-      graphWarningsMock.mockReset();
       useEditorStore.setState({
         ...initialState,
         workflowId: "wf-1",
-        graphWarnings: undefined,
+        graphWarnings: { results: [], hasError: false, hasWarning: false },
       } as never);
     });
 
-    it("early returns without API call when workflowId is null", async () => {
-      useEditorStore.setState({ workflowId: null } as never);
-      await useEditorStore.getState().fetchGraphWarnings();
-      expect(graphWarningsMock).not.toHaveBeenCalled();
+    it("produces an error result for a 3-level nested Parallel graph", () => {
+      // P1.body ⊃ P2 ; P2.body ⊃ P3 → depth 3 → error.
+      const nodes: Node[] = [
+        parallelNode("P1"),
+        parallelNode("P2"),
+        parallelNode("P3"),
+      ];
+      const edges: Edge[] = [
+        branchEdge("P1", "P2"),
+        branchEdge("P2", "P3"),
+      ];
+      useEditorStore.setState({ nodes, edges } as never);
+
+      useEditorStore.getState().evaluateGraphWarningsLocal();
+
+      const { results, hasError } = useEditorStore.getState().graphWarnings;
+      expect(hasError).toBe(true);
+      expect(
+        results.some(
+          (r) =>
+            r.severity === "error" &&
+            r.ruleId === "parallel:nested-depth-exceeded" &&
+            r.nodeId === "P1",
+        ),
+      ).toBe(true);
     });
 
-    it("sets graphWarnings state on success", async () => {
-      const responseBody = {
-        results: [{ ruleId: "r1", severity: "error", nodeId: "n1", message: "err" }],
+    it("produces an empty result (no error/warning) for a flat graph", () => {
+      const nodes: Node[] = [makeNode("a"), makeNode("b")];
+      const edges: Edge[] = [makeEdge("a", "b")];
+      useEditorStore.setState({ nodes, edges } as never);
+
+      useEditorStore.getState().evaluateGraphWarningsLocal();
+
+      const { results, hasError, hasWarning } =
+        useEditorStore.getState().graphWarnings;
+      expect(results).toEqual([]);
+      expect(hasError).toBe(false);
+      expect(hasWarning).toBe(false);
+    });
+
+    it("maps node config so the concurrency-cap warning fires", () => {
+      // P1 (maxConcurrency 8) ⊃ P2 (maxConcurrency 8) = 64 > cap 32 → warning.
+      const nodes: Node[] = [
+        parallelNode("P1", { maxConcurrency: 8 }),
+        parallelNode("P2", { maxConcurrency: 8 }),
+      ];
+      const edges: Edge[] = [branchEdge("P1", "P2")];
+      useEditorStore.setState({ nodes, edges } as never);
+
+      useEditorStore.getState().evaluateGraphWarningsLocal();
+
+      const { hasError, hasWarning } = useEditorStore.getState().graphWarnings;
+      expect(hasError).toBe(false);
+      expect(hasWarning).toBe(true);
+    });
+
+    // W14 회귀 가드 — 평가기가 throw 하면 새 그래프 상태로 결과를 덮어쓰지 않고
+    // 직전 `graphWarnings` 를 보존해야 한다 (spec: "평가 실패 시 기존 결과 유지").
+    it("preserves prior graphWarnings when the evaluator throws", () => {
+      const prior = {
+        results: [
+          {
+            ruleId: "parallel:nested-depth-exceeded",
+            severity: "error" as const,
+            nodeId: "P1",
+            message: "기존 경고",
+          },
+        ],
         hasError: true,
         hasWarning: false,
       };
-      graphWarningsMock.mockResolvedValue({ data: responseBody });
-      await useEditorStore.getState().fetchGraphWarnings();
-      expect(useEditorStore.getState().graphWarnings).toEqual(responseBody);
-    });
+      useEditorStore.setState({
+        nodes: [parallelNode("P1")],
+        edges: [],
+        graphWarnings: prior,
+      } as never);
 
-    it("preserves existing graphWarnings state on failure (silent warn)", async () => {
-      const existing = {
-        results: [],
-        hasError: false,
-        hasWarning: false,
-      };
-      useEditorStore.setState({ graphWarnings: existing } as never);
-      graphWarningsMock.mockRejectedValue(new Error("network error"));
-      await useEditorStore.getState().fetchGraphWarnings();
-      // 실패 시 기존 결과 유지 (saveCanvas 차단을 막기 위해)
-      expect(useEditorStore.getState().graphWarnings).toEqual(existing);
-    });
+      evaluateMock.mockImplementationOnce(() => {
+        throw new Error("boom");
+      });
 
-    it("handles response.data === undefined by falling back to response itself", async () => {
-      const responseBody = {
-        results: [],
-        hasError: false,
-        hasWarning: true,
-      };
-      // data 없는 응답 (direct body)
-      graphWarningsMock.mockResolvedValue(responseBody);
-      await useEditorStore.getState().fetchGraphWarnings();
-      expect(useEditorStore.getState().graphWarnings).toEqual(responseBody);
+      // throw 가 store action 밖으로 새지 않고(catch) 직전 상태가 그대로 유지.
+      expect(() =>
+        useEditorStore.getState().evaluateGraphWarningsLocal(),
+      ).not.toThrow();
+      expect(useEditorStore.getState().graphWarnings).toEqual(prior);
     });
   });
 

@@ -4,6 +4,14 @@ import { create } from "zustand";
 import type { Node, Edge, OnNodesChange, OnEdgesChange, Connection } from "@xyflow/react";
 import { applyNodeChanges, applyEdgeChanges, addEdge } from "@xyflow/react";
 import { toast } from "sonner";
+import {
+  evaluateGraphWarningRulesForGraph,
+  GRAPH_WARNING_RULES_BY_TYPE,
+} from "@workflow/graph-warning-rules";
+import type {
+  GraphRuleNode,
+  GraphRuleEdge,
+} from "@workflow/graph-warning-rules";
 import { workflowsApi } from "@/lib/api/workflows";
 import { getNodeDefinition } from "@/lib/node-definitions";
 import { buildEdgeData } from "@/lib/utils/edge-utils";
@@ -74,11 +82,16 @@ interface EditorState {
   setVersionHistoryOpen: (open: boolean) => void;
   saveWorkflow: () => Promise<boolean>;
   /**
-   * graph-warnings endpoint 호출 후 결과를 store 에 저장. graph 변경 시점에
-   * debounced 호출 권고 (워크플로 에디터의 useEffect 에서). 본 action 의
-   * 호출 빈도는 caller 책임.
+   * 현재 canvas 의 nodes/edges 를 `@workflow/graph-warning-rules` 로 **로컬
+   * 평가**해 결과를 store 에 저장한다 (네트워크 round-trip 없음). graph 변경
+   * 시점에 debounced 호출 권고 (워크플로 에디터의 useEffect 에서) — 대형
+   * 그래프의 평가 비용을 분산하기 위한 것일 뿐, 호출 자체는 동기.
+   *
+   * 평가는 backend 의 graph-warnings endpoint / saveCanvas validate 와 동일한
+   * SSOT (`@workflow/graph-warning-rules`) 를 공유하므로 결과가 일치한다.
+   * backend 의 save-time reject 는 "3중 가드" 의 최종 안전망으로 유지된다.
    */
-  fetchGraphWarnings: () => Promise<void>;
+  evaluateGraphWarningsLocal: () => void;
   pushUndo: () => void;
   undo: () => void;
   redo: () => void;
@@ -410,9 +423,52 @@ function propagateContainerInMap(
   return changed;
 }
 
-// SUMMARY#4: fetchGraphWarnings in-flight 요청 경쟁 조건 해소 — 새 요청 시작 전
-// 이전 in-flight 요청을 abort 해 stale 응답이 최신 상태를 덮어쓰지 않도록 한다.
-let _graphWarningsAbortController: AbortController | null = null;
+/**
+ * 에디터 스토어의 ReactFlow 노드 `data` 페이로드 shape. ReactFlow 기본 `Node`
+ * 의 `data` 는 `Record<string, unknown>` 이지만, 본 앱은 node 의 정체(type)·
+ * 설정(config)·표시 라벨(label)을 이 페이로드에 싣는다. graph-warning-rules
+ * 매핑은 이 중 평가 입력(type/config/label)만 읽는다.
+ */
+type EditorNodeData = {
+  type?: string;
+  config?: Record<string, unknown>;
+  label?: string;
+};
+
+/**
+ * ReactFlow 의 store node/edge 모델을 `@workflow/graph-warning-rules` 가 받는
+ * 순수 graph shape 으로 매핑한다.
+ *
+ * - 노드: type/config/label 은 ReactFlow `node.data` 페이로드에 들어 있다
+ *   (`data.type` / `data.config` / `data.label`). 평가 규칙(예: parallel)은
+ *   `node.type === 'parallel'` 과 `config.maxConcurrency` / `config.branchCount`
+ *   을 본다.
+ * - 엣지: ReactFlow 의 `source/sourceHandle/target/targetHandle` 명명이 그대로
+ *   GraphRuleEdge 와 일치한다. parallel 규칙은 `sourceHandle` 이 `branch_N`
+ *   인지로 분기 body 를 BFS 한다.
+ */
+function mapToRuleGraph(
+  nodes: Node[],
+  edges: Edge[],
+): { nodes: GraphRuleNode[]; edges: GraphRuleEdge[] } {
+  const ruleNodes: GraphRuleNode[] = nodes.map((n) => {
+    // 스토어 노드의 `data` 페이로드(`EditorNodeData`)에서 평가 입력만 추출.
+    const data = n.data as EditorNodeData;
+    return {
+      id: n.id,
+      type: data?.type ?? "",
+      config: data?.config,
+      label: data?.label,
+    };
+  });
+  const ruleEdges: GraphRuleEdge[] = edges.map((e) => ({
+    source: e.source,
+    sourceHandle: e.sourceHandle ?? null,
+    target: e.target,
+    targetHandle: e.targetHandle ?? null,
+  }));
+  return { nodes: ruleNodes, edges: ruleEdges };
+}
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   workflowId: null,
@@ -798,32 +854,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  fetchGraphWarnings: async () => {
-    const { workflowId } = get();
-    if (!workflowId) return;
-    // SUMMARY#4: 이전 in-flight 요청 abort — race condition 방어
-    _graphWarningsAbortController?.abort();
-    _graphWarningsAbortController = new AbortController();
-    const { signal } = _graphWarningsAbortController;
+  // 순수 로컬 평가 — `workflowId` 나 네트워크 호출이 필요 없다 (그래프 snapshot 만
+  // 입력). 따라서 과거 async fetch 시절의 `_graphWarningsAbortController` 도 제거됨;
+  // 평가가 다시 async(서버 round-trip)로 돌아가면 race 방지를 위해 AbortController
+  // 패턴을 복원해야 한다.
+  evaluateGraphWarningsLocal: () => {
+    const { nodes, edges } = get();
     try {
-      const response = await workflowsApi.graphWarnings(workflowId, { signal });
-      if (signal.aborted) return; // 응답 도착 시 이미 abort 됐으면 상태 갱신 skip
-      const body = (response.data ?? response) as {
-        results: Array<{
-          ruleId: string;
-          severity: "error" | "warning";
-          nodeId: string;
-          message: string;
-        }>;
-        hasError: boolean;
-        hasWarning: boolean;
-      };
-      set({ graphWarnings: body });
+      const graph = mapToRuleGraph(nodes, edges);
+      const results = evaluateGraphWarningRulesForGraph(
+        graph,
+        (type) => GRAPH_WARNING_RULES_BY_TYPE[type],
+      );
+      const hasError = results.some((r) => r.severity === "error");
+      const hasWarning = results.some((r) => r.severity === "warning");
+      // GraphWarningRuleResult 는 store 의 graphWarnings.results shape 과 동일.
+      set({ graphWarnings: { results: [...results], hasError, hasWarning } });
     } catch (error) {
-      if (signal.aborted) return; // AbortError — 후속 요청이 있으므로 무시
       // 평가 실패는 경고만 — 저장 차단까지 가지 않음 (backend 단의 reject 가
       // 안전망). 새 그래프 상태에 대한 평가가 실패한 경우 기존 결과 유지.
-      console.warn("fetchGraphWarnings failed", error);
+      console.warn("evaluateGraphWarningsLocal failed", error);
     }
   },
 

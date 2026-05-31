@@ -39,29 +39,21 @@
 
 - [x] `NodeComponentMetadata` 인터페이스 확장 (§1 과 동시 작업)
 - [x] Parallel rule 등재 (`parallel.schema.ts`) — `parallel:nested-depth-exceeded` (error) + `parallel:nested-concurrency-cap` (warning)
-- [ ] handler registry / metadata 노출 API 가 `graphWarningRules` 를 frontend 로 직렬화 가능한 형태로 노출 — **후속 PR** (frontend canvas 작업과 함께)
+- [x] rule 직렬화 문제 해소 — frontend 직렬화 대신 **shared package `@workflow/graph-warning-rules`** 로 rule 정의를 이동(아래 §4 SSOT). frontend 가 같은 함수를 로컬 실행하므로 metadata 직렬화 불요.
 
-### 3. backend workflow save endpoint 의 validate 확장
+### 3. backend workflow save endpoint 의 validate 확장 — ✅ 완료
 
-> **후속 PR 로 분리**. 본 PR 은 type + util + Parallel rule 등재 + spec convention 만. workflow nodes/edges 저장 endpoint 위치 조사 (WorkflowsService.update 는 metadata 만 다룸 — graph 저장은 별 service / controller) + validate 통합 후속.
-
-- [ ] workflow nodes/edges 저장 endpoint 위치 조사 (WorkflowsService 외 nodes/edges 별 service)
-- [ ] 저장 시점 validate 에서 `evaluateGraphWarningRulesForGraph` 호출 + severity `error` 시 400 reject
-- [ ] 단위 테스트 — 3층 중첩 Parallel graph 가 저장 reject
-- [ ] 통합 테스트 — POST/PUT 워크플로우 API 적절한 400 응답
+- [x] 저장 endpoint = `WorkflowsService.saveCanvas` (`PATCH /workflows/:id/canvas`). graph 저장(syncNodes/syncEdges) 과 동일 트랜잭션.
+- [x] 저장 시점 validate — `saveCanvas` 가 `evaluateGraphWarnings(savedNodes, savedEdges)` 호출, severity `error` 시 `BadRequestException(GRAPH_VALIDATION_FAILED)` → 트랜잭션 rollback (저장 차단). frontend 우회·옛 워크플로 마이그레이션 안전망.
+- [x] 단위/통합 테스트 — workflows.service.spec 가 3층 중첩 Parallel reject 커버.
 
 ### 4. frontend canvas 평가 인프라
 
-> **현재 구현 상태 (2026-05-31, `/goal` coverage 감사 ground-truth)**: graph-warning 평가 + "저장 불가" 상태(저장 버튼 disable + tooltip) 는 구현됨 — `workflow-editor.tsx` / `editor-store.ts` / `editor-toolbar.tsx` / `lib/api/workflows.ts`. **잔여 갭 = per-node 색상 배지 미렌더** (coverage-gaps 감사의 A3). 즉 사용자는 저장 버튼 tooltip 으로만 경고를 보고, 어느 노드가 문제인지 노드 위 배지로는 아직 못 본다.
+> **완료 (2026-05-31, cross-node PR)**: 평가를 **로컬화** + per-node 배지 구현. 더 이상 `GET /graph-warnings` 엔드포인트 round-trip 에 의존하지 않는다 (canvas 는 shared package 로 로컬 즉시 평가; 백엔드 save-validate 는 §3 으로 별도 enforce — 3중 가드).
 
-- [x] frontend canvas 가 graph 변경 시점 (노드 추가/삭제/edge 변경/config 변경) 마다 `graphWarningRules` 평가 호출
-- [ ] severity 별 UI 표현 (**A3 잔여 갭 — per-node 배지 미구현**):
-  - `error`: 워크플로우 "저장 불가" 상태 [x] / 노드에 빨간 배지 [ ]
-  - `warning`: 저장은 가능 [x] / 노드에 노란 배지 [ ]
-- [ ] backend 와의 SSOT 보장:
-  - 함수형 rule 의 정의가 backend 와 frontend 에서 동일 실행되어야 함
-  - 옵션: rule 정의를 shared package (`codebase/packages/`) 로 분리, 또는 metadata API 가 rule 함수를 직렬화/eval (보안 우려)
-  - **권고**: shared package 로 rule 정의 이동 — backend metadata 가 그 package 의 함수 reference 만 import
+- [x] frontend canvas 가 graph 변경 시점 마다 `evaluateGraphWarningsLocal` 로 **로컬 평가** (config 변경 포함, 500ms debounce). `@workflow/graph-warning-rules` 의 `evaluateGraphWarningRulesForGraph` + `GRAPH_WARNING_RULES_BY_TYPE` 사용.
+- [x] severity 별 UI 표현 — `custom-node.tsx` 가 `graphWarnings.results` 를 nodeId 로 필터해 **per-node 배지** 렌더 (error=빨강 배지+ring, warning=노랑, error 우선) + Tooltip 메시지. 저장버튼 disable(error)은 기존대로.
+- [x] backend↔frontend SSOT — **shared package 채택** (사용자 결정). `codebase/packages/graph-warning-rules` (`@workflow/graph-warning-rules`) 에 types/evaluate/Parallel rule 이동. backend 는 thin adapter(Edge entity→pure shape 매핑)로, frontend 는 store node/edge→pure shape 매핑으로 **동일 함수** 실행 → drift 0.
 
 ### 5. spec / convention 문서
 
