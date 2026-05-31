@@ -357,8 +357,12 @@ export class WebAuthnService {
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
+          // @simplewebauthn v13 의 실제 메시지는 "Response counter value N was lower
+          // than expected M" — "lower" 를 빠뜨리면 진짜 역행이 generic invalid 로 새서
+          // credential 삭제·세션 revoke 가 누락된다 (webauthn-2fa.e2e-spec.ts 가 회귀
+          // 잠금). 과거/타 버전 메시지(regress/same/less)도 함께 허용.
           const counterRegression =
-            /counter/i.test(msg) && /regress|same|less/i.test(msg);
+            /counter/i.test(msg) && /regress|same|less|lower/i.test(msg);
           if (counterRegression) {
             // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
             // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.

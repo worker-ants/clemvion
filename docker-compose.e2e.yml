@@ -137,6 +137,11 @@ services:
       ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
       INTEGRATION_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
       OAUTH_STUB_MODE: "true"
+      # WebAuthn 2FA e2e(webauthn-2fa.e2e-spec.ts) 활성화. 미설정 시 기능이 503 으로
+      # 꺼져 suite 가 전부 실패한다. 값은 test/helpers/webauthn.ts 의 RP_ID/RP_ORIGIN 과
+      # 반드시 일치해야 한다(불일치 시 origin/rpIdHash 검증 실패).
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_ORIGIN: http://localhost:3012
     depends_on:
       postgres:
         condition: service_healthy

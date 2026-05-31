@@ -340,10 +340,11 @@ describe('WebAuthnService', () => {
     });
 
     it('deletes credential + revokes all active refresh tokens + records WEBAUTHN_COUNTER_REGRESSION on counter regression', async () => {
+      // @simplewebauthn v13 의 실제 에러 메시지 문구 그대로 사용 — mock 과 실제
+      // 라이브러리 메시지가 어긋나면 역행 감지 분기가 e2e 에서만 깨진다 (regex 의
+      // "lower" 누락 회귀를 단위에서도 잠근다).
       mockedVerifyAuthResp.mockRejectedValue(
-        new Error(
-          'Response counter value 0 is less than or equal to current counter 5',
-        ),
+        new Error('Response counter value 0 was lower than expected 5'),
       );
       await expect(
         service.verifyAuthentication(
