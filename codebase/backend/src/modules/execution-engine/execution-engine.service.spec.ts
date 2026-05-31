@@ -1651,6 +1651,124 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  describe('rehydrateAndResume — chat-channel routing context 재등록 (재개 경로)', () => {
+    // Spec [chat-channel.md §3.1 CCH-AD-05] + [4-execution-engine.md §7.5 line 858]:
+    // routing context(`{triggerId, workflowId, chatChannel.conversationKey}`)는
+    // `WebsocketService.executionRouting` in-memory per-process Map 으로, 최초
+    // execute() 진입 시 1회만 등록된다. 재개(rehydration slow path)는 다른
+    // 인스턴스/재시작 후 worker 가 pick up 할 수 있어 그 Map 이 비어 있다. 특히
+    // `RESUME_INCOMPATIBLE_STATE` 는 "인스턴스 재시작으로 multi-turn in-memory
+    // 상태 소실"(§7.5 line 858)일 때 발생 — 즉 routing context 도 항상 함께
+    // 사라져 있다. 영속된 execution row 로 재등록하지 않으면 markExecutionCancelled
+    // 의 graceful "세션 만료" 안내가 conversationKey 없이 emit 돼 ChatChannelDispatcher
+    // 가 outbound skip → 사용자 무음. 본 describe 는 재개 시 재등록 회귀 가드.
+
+    // pendingContinuations 가 비어 있으면 applyContinuation 이 slow path
+    // (rehydrateAndResume) 로 진입한다. execution row 만 WAITING_FOR_INPUT 로
+    // 주고 nodeExec 를 null 로 만들어 RESUME_CHECKPOINT_MISSING 으로 조기 종료시킨다
+    // (재등록은 그 실패 이전에 일어나므로 어떤 RESUME_* 케이스든 동일하게 보장됨).
+    const driveResumeSlowPath = async (
+      executionRow: Partial<Execution>,
+    ): Promise<void> => {
+      // WARNING #2 — 다른 테스트가 같은 executionId 를 pendingContinuations 에
+      // 남기면 applyContinuation 이 fast-path 로 빠져 slow-path(rehydrateAndResume)
+      // 에 진입하지 않아 silent false-negative 가 된다. 매 호출마다 강제 비운다.
+      (
+        service as unknown as {
+          pendingContinuations: Map<string, unknown>;
+        }
+      ).pendingContinuations.clear();
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(executionRow);
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValueOnce(null);
+      mockWebsocketService.registerExecutionRouting.mockClear();
+      await service.applyContinuation(executionId, 'ne-some-node', {
+        type: 'ai_message',
+        message: 'hi',
+      });
+      await flushPromises();
+      await flushPromises();
+    };
+
+    it('chatChannel 발화 execution → execute() 와 동일한 {triggerId, workflowId, chatChannel} 로 재등록', async () => {
+      await driveResumeSlowPath({
+        id: executionId,
+        workflowId,
+        triggerId: 'trg-tele',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        inputData: {
+          __triggerSource: 'webhook',
+          chatChannel: {
+            provider: 'telegram',
+            conversationKey: '12345',
+            channelUserKey: 'user-1',
+          },
+        },
+        startedAt: new Date(),
+      });
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-tele',
+        workflowId,
+        chatChannel: {
+          provider: 'telegram',
+          conversationKey: '12345',
+          channelUserKey: 'user-1',
+        },
+      });
+    });
+
+    it('triggerId 만 있고 chatChannel 미설정인 재개 → triggerId + workflowId 만 재등록', async () => {
+      await driveResumeSlowPath({
+        id: executionId,
+        workflowId,
+        triggerId: 'trg-wh',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        inputData: { parameters: {} },
+        startedAt: new Date(),
+      });
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-wh',
+        workflowId,
+      });
+    });
+
+    it('triggerId 없는 (수동 실행) 재개 → 재등록 호출 안 함', async () => {
+      await driveResumeSlowPath({
+        id: executionId,
+        workflowId,
+        // triggerId 미설정 (수동 실행)
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        inputData: { data: 'x' },
+        startedAt: new Date(),
+      });
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('inputData.chatChannel.conversationKey 가 빈 문자열이면 chatChannel 제외하고 재등록', async () => {
+      await driveResumeSlowPath({
+        id: executionId,
+        workflowId,
+        triggerId: 'trg-bad',
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        inputData: {
+          chatChannel: { provider: 'telegram', conversationKey: '' },
+        },
+        startedAt: new Date(),
+      });
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(executionId, {
+        triggerId: 'trg-bad',
+        workflowId,
+      });
+    });
+  });
+
   describe('runExecution — workspace timezone injection', () => {
     // spec/4-nodes/3-ai/0-common.md §11.3 — runExecution 의 createContext 단계가
     // workflow.workspace.settings.timezone 을 IANA name 그대로 `__workspaceTimezone`
@@ -7797,7 +7915,17 @@ describe('ExecutionEngineService', () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         workflowId,
+        triggerId: 'trg-ai',
         status: ExecutionStatus.WAITING_FOR_INPUT,
+        inputData: {
+          __triggerSource: 'webhook',
+          chatChannel: {
+            provider: 'telegram',
+            conversationKey: 'ck-ai',
+            channelUserKey: 'u-ai',
+          },
+        },
+        startedAt: new Date(),
       });
       mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
         id: 'ne-1',
@@ -7822,11 +7950,21 @@ describe('ExecutionEngineService', () => {
         workspace: { id: 'ws-1', name: 'WS', settings: {} },
       });
       mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+      mockWebsocketService.registerExecutionRouting.mockClear();
 
       await subject().rehydrateAndResume(executionId, 'ne-1', {
         type: 'ai_message',
         message: 'hi',
       });
+
+      // WARNING #1 회귀 가드 — RESUME_INCOMPATIBLE_STATE 경로에서도 routing context
+      // 재등록이 markExecutionCancelled 보다 먼저 일어나야 graceful 안내가 도달한다.
+      expect(
+        mockWebsocketService.registerExecutionRouting,
+      ).toHaveBeenCalledWith(
+        executionId,
+        expect.objectContaining({ triggerId: expect.any(String) }),
+      );
 
       // RESUME_INCOMPATIBLE_STATE 마킹 — execution 과 nodeExecution 양쪽 chain.
       expect(
