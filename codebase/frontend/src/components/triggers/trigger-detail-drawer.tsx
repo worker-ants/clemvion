@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/date";
 import { useT } from "@/lib/i18n";
@@ -17,6 +18,7 @@ import {
   useAuthConfigs,
   AUTH_CONFIG_TYPE_LABEL_KEYS,
 } from "./auth-config-select";
+import { SecretRevealBox } from "./secret-reveal-box";
 import {
   Loader2,
   Copy,
@@ -28,6 +30,13 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 import { getWebhookUrl } from "@/lib/utils/webhook-url";
+import { isValidNotificationUrl } from "@/lib/utils/url-validation";
+
+/**
+ * Chat Channel `rateLimitPerMinute` 의 제품 기본값 (spec Chat Channel §4.1).
+ * read 표시·edit 폼 초기값·저장 시 fallback 세 곳에서 동일 값을 참조한다.
+ */
+const DEFAULT_RATE_LIMIT_PER_MINUTE = 60;
 
 /** Spec Chat Channel §4.1 + §5.4.2 — config.chatChannel (응답 sanitize 후 형태). */
 interface ChatChannelConfigView {
@@ -653,7 +662,6 @@ function ExternalInteractionCard({
 }) {
   const t = useT();
   const canEdit = useHasRole("editor");
-  const copyToClipboard = useCopyToClipboard();
   const notification = trigger.config?.notification;
   const interaction = trigger.config?.interaction;
   const hasAny = Boolean(notification?.url || interaction?.enabled);
@@ -709,12 +717,33 @@ function ExternalInteractionCard({
       setEditing(false);
       onSaved();
     },
-    onError: (err) => {
-      toast.error(
-        `${t("triggers.externalInteraction.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    // 보안(ai-review W): 서버 err.message 원문을 toast 에 노출하지 않는다 —
+    // i18n 문자열만. (OverviewCard.onError 와 동일 패턴.)
+    onError: () => {
+      toast.error(t("triggers.externalInteraction.saveFailed"));
     },
   });
+
+  function handleSave(): void {
+    // 클라이언트 사전 검증 — https:// 만 허용 (spec EIA-NX-09). 빈 값은 통과
+    // (notification 은 선택). 최종 SSRF 차단은 백엔드 권위.
+    if (!isValidNotificationUrl(urlValue)) {
+      toast.error(t("triggers.externalInteraction.notificationUrlInvalid"));
+      return;
+    }
+    saveMutation.mutate();
+  }
+
+  // cancel 시 미저장 입력값을 원래 값으로 리셋 + 직전 실패 상태 초기화
+  // (ChatChannelCard.cancelEdit 와 동일 패턴).
+  function cancelEdit(): void {
+    setUrlValue(notification?.url ?? "");
+    setEventsValue(new Set(notification?.events ?? []));
+    setInteractionEnabled(interaction?.enabled ?? false);
+    setStrategy(interaction?.tokenStrategy ?? "per_execution");
+    saveMutation.reset();
+    setEditing(false);
+  }
 
   async function handleRotateSecret(): Promise<void> {
     if (!window.confirm(t("triggers.externalInteraction.rotateConfirm"))) return;
@@ -724,10 +753,8 @@ function ExternalInteractionCard({
       }>(`/triggers/${trigger.id}/notification/rotate-secret`, {});
       setRotateResult(res.data.data.secret);
       toast.success(t("triggers.externalInteraction.rotateSucceeded"));
-    } catch (err) {
-      toast.error(
-        `${t("triggers.externalInteraction.rotateFailed")}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    } catch {
+      toast.error(t("triggers.externalInteraction.rotateFailed"));
     }
   }
 
@@ -740,18 +767,9 @@ function ExternalInteractionCard({
       );
       setRevokeResult(res.data.data.token);
       toast.success(t("triggers.externalInteraction.revokeSucceeded"));
-    } catch (err) {
-      toast.error(
-        `${t("triggers.externalInteraction.revokeFailed")}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    } catch {
+      toast.error(t("triggers.externalInteraction.revokeFailed"));
     }
-  }
-
-  function copyText(text: string): void {
-    void copyToClipboard(text, {
-      success: t("triggers.externalInteraction.copied"),
-      error: t("triggers.copyFailed"),
-    });
   }
 
   return (
@@ -769,19 +787,14 @@ function ExternalInteractionCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                // useMutation 전환 후 직전 저장 실패의 error 상태가 재진입까지
-                // 잔류하지 않도록 cancel 시 mutation 상태를 초기화한다.
-                saveMutation.reset();
-                setEditing(false);
-              }}
+              onClick={cancelEdit}
               disabled={saveMutation.isPending}
             >
               {t("triggers.externalInteraction.cancel")}
             </Button>
             <Button
               size="sm"
-              onClick={() => saveMutation.mutate()}
+              onClick={handleSave}
               disabled={saveMutation.isPending}
             >
               {saveMutation.isPending
@@ -891,15 +904,16 @@ function ExternalInteractionCard({
         {editing && (
           <div className="space-y-3 text-sm">
             <div>
-              <label className="block text-xs font-medium mb-1">
+              <Label htmlFor="eia-notification-url">
                 {t("triggers.externalInteraction.notificationUrl")}
-              </label>
-              <input
+              </Label>
+              <Input
+                id="eia-notification-url"
                 type="text"
-                className="w-full px-2 py-1.5 text-xs font-mono border rounded bg-[hsl(var(--background))] border-[hsl(var(--border))]"
-                placeholder={
-                  t("triggers.externalInteraction.notificationUrlPlaceholder")
-                }
+                className="mt-1 font-mono text-xs"
+                placeholder={t(
+                  "triggers.externalInteraction.notificationUrlPlaceholder",
+                )}
                 value={urlValue}
                 onChange={(e) => setUrlValue(e.target.value)}
               />
@@ -908,9 +922,9 @@ function ExternalInteractionCard({
               </p>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">
+              <Label className="mb-1 block">
                 {t("triggers.externalInteraction.eventChoices")}
-              </label>
+              </Label>
               <div className="space-y-1">
                 {NOTIFICATION_EVENT_CHOICES.map((ev) => (
                   <label
@@ -943,11 +957,12 @@ function ExternalInteractionCard({
               </label>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">
+              <Label htmlFor="eia-token-strategy">
                 {t("triggers.externalInteraction.interactionTokenStrategy")}
-              </label>
-              <select
-                className="px-2 py-1.5 text-xs font-mono border rounded bg-[hsl(var(--background))] border-[hsl(var(--border))]"
+              </Label>
+              <NativeSelect
+                id="eia-token-strategy"
+                className="mt-1 font-mono text-xs"
                 value={strategy}
                 onChange={(e) =>
                   setStrategy(
@@ -956,14 +971,12 @@ function ExternalInteractionCard({
                 }
               >
                 <option value="per_execution">
-                  {
-                    t("triggers.externalInteraction.tokenStrategyPerExecution")
-                  }
+                  {t("triggers.externalInteraction.tokenStrategyPerExecution")}
                 </option>
                 <option value="per_trigger">
                   {t("triggers.externalInteraction.tokenStrategyPerTrigger")}
                 </option>
-              </select>
+              </NativeSelect>
             </div>
           </div>
         )}
@@ -975,59 +988,277 @@ function ExternalInteractionCard({
           </Button>
         )}
 
-        {/* Secret rotation result (1회 표시) */}
+        {/* Secret rotation result (마스킹 + 클릭 노출 + 60s 자동 소거) */}
         {rotateResult && (
-          <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-xs space-y-2">
-            <div className="font-medium">
-              {t("triggers.externalInteraction.rotateNewSecret")}
-            </div>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 font-mono break-all">{rotateResult}</code>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => void copyText(rotateResult)}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setRotateResult(null)}
-            >
-              {t("triggers.externalInteraction.cancel")}
-            </Button>
-          </div>
+          <SecretRevealBox
+            title={t("triggers.externalInteraction.rotateNewSecret")}
+            secret={rotateResult}
+            onDismiss={() => setRotateResult(null)}
+          />
         )}
 
-        {/* Per-trigger token revoke result */}
+        {/* Per-trigger token revoke result (마스킹 + 클릭 노출 + 60s 자동 소거) */}
         {revokeResult && (
-          <div className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-3 text-xs space-y-2">
-            <div className="font-medium">
-              {t("triggers.externalInteraction.revokeNewToken")}
-            </div>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 font-mono break-all">{revokeResult}</code>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => void copyText(revokeResult)}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setRevokeResult(null)}
-            >
-              {t("triggers.externalInteraction.cancel")}
-            </Button>
-          </div>
+          <SecretRevealBox
+            title={t("triggers.externalInteraction.revokeNewToken")}
+            secret={revokeResult}
+            onDismiss={() => setRevokeResult(null)}
+          />
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** ChatChannel edit 폼의 편집 가능 필드 묶음. */
+interface ChatChannelEditValues {
+  visualNode: "text" | "photo" | "auto";
+  buttonLayout: "auto" | "vertical" | "horizontal";
+  rateLimitPerMinute: string;
+  languageHintsJson: string;
+  languageLocale: "ko" | "en";
+}
+
+/** chatChannel config 에서 edit 폼 초기값을 도출한다 (마운트·cancel 리셋 공용). */
+function initialChatChannelEditValues(
+  chatChannel: ChatChannelConfigView | undefined,
+): ChatChannelEditValues {
+  return {
+    visualNode: chatChannel?.uiMapping?.visualNode ?? "auto",
+    buttonLayout: chatChannel?.uiMapping?.buttonLayout ?? "auto",
+    rateLimitPerMinute: String(
+      chatChannel?.rateLimitPerMinute ?? DEFAULT_RATE_LIMIT_PER_MINUTE,
+    ),
+    languageHintsJson: chatChannel?.languageHints
+      ? JSON.stringify(chatChannel.languageHints, null, 2)
+      : "",
+    languageLocale: chatChannel?.languageLocale ?? "ko",
+  };
+}
+
+/** languageHints JSON 파싱 실패를 saveFailed 와 구분해 i18n 메시지로 분기하기 위한 마커. */
+class LanguageHintsParseError extends Error {}
+
+/**
+ * languageHints textarea(JSON) 를 flat `Record<string,string>` 로 파싱한다.
+ * 빈 입력은 `undefined` (미설정). 형식 오류 시 `LanguageHintsParseError`.
+ */
+function parseLanguageHints(
+  json: string,
+): Record<string, string> | undefined {
+  if (json.trim().length === 0) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new LanguageHintsParseError();
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new LanguageHintsParseError();
+  }
+  return Object.fromEntries(
+    Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [
+      k,
+      String(v),
+    ]),
+  );
+}
+
+/**
+ * ChatChannel edit 폼 — uiMapping / rateLimit / languageLocale / languageHints.
+ * 책임 분리(ai-review W): 폼 마크업을 카드 본체에서 분리한다.
+ */
+function ChatChannelEditForm({
+  values,
+  onChange,
+}: {
+  values: ChatChannelEditValues;
+  onChange: (next: ChatChannelEditValues) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-3 text-sm">
+      <div>
+        <Label htmlFor="cc-visualNode">
+          {t("triggers.chatChannel.uiMappingVisualNode")}
+        </Label>
+        <NativeSelect
+          id="cc-visualNode"
+          className="mt-1"
+          value={values.visualNode}
+          onChange={(e) =>
+            onChange({
+              ...values,
+              visualNode: e.target.value as "text" | "photo" | "auto",
+            })
+          }
+        >
+          <option value="auto">
+            {t("triggers.chatChannel.visualNodeAuto")}
+          </option>
+          <option value="text">
+            {t("triggers.chatChannel.visualNodeText")}
+          </option>
+          <option value="photo">
+            {t("triggers.chatChannel.visualNodePhoto")}
+          </option>
+        </NativeSelect>
+      </div>
+      <div>
+        <Label htmlFor="cc-buttonLayout">
+          {t("triggers.chatChannel.uiMappingButtonLayout")}
+        </Label>
+        <NativeSelect
+          id="cc-buttonLayout"
+          className="mt-1"
+          value={values.buttonLayout}
+          onChange={(e) =>
+            onChange({
+              ...values,
+              buttonLayout: e.target.value as
+                | "auto"
+                | "vertical"
+                | "horizontal",
+            })
+          }
+        >
+          <option value="auto">
+            {t("triggers.chatChannel.buttonLayoutAuto")}
+          </option>
+          <option value="vertical">
+            {t("triggers.chatChannel.buttonLayoutVertical")}
+          </option>
+          <option value="horizontal">
+            {t("triggers.chatChannel.buttonLayoutHorizontal")}
+          </option>
+        </NativeSelect>
+      </div>
+      <div>
+        <Label htmlFor="cc-rateLimit">
+          {t("triggers.chatChannel.rateLimitPerMinute")}
+        </Label>
+        <Input
+          id="cc-rateLimit"
+          type="number"
+          min={1}
+          max={600}
+          value={values.rateLimitPerMinute}
+          onChange={(e) =>
+            onChange({ ...values, rateLimitPerMinute: e.target.value })
+          }
+          className="mt-1"
+        />
+      </div>
+      <div>
+        <Label htmlFor="cc-languageLocale">
+          {t("triggers.chatChannel.languageLocale")}
+        </Label>
+        <NativeSelect
+          id="cc-languageLocale"
+          className="mt-1"
+          value={values.languageLocale}
+          onChange={(e) =>
+            onChange({
+              ...values,
+              languageLocale: e.target.value as "ko" | "en",
+            })
+          }
+        >
+          <option value="ko">
+            {t("triggers.chatChannel.languageLocaleKo")}
+          </option>
+          <option value="en">
+            {t("triggers.chatChannel.languageLocaleEn")}
+          </option>
+        </NativeSelect>
+        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+          {t("triggers.chatChannel.languageLocaleHelp")}
+        </p>
+      </div>
+      <div>
+        <Label htmlFor="cc-languageHints">
+          {t("triggers.chatChannel.languageHints")}
+        </Label>
+        <textarea
+          id="cc-languageHints"
+          rows={6}
+          className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent p-2 font-mono text-xs"
+          placeholder={`{\n  "groupChatRefusal": "...",\n  "executionStarted": "...",\n  "executionCompleted": "...",\n  "executionStillRunning": "...",\n  "help": "..."\n}`}
+          value={values.languageHintsJson}
+          onChange={(e) =>
+            onChange({ ...values, languageHintsJson: e.target.value })
+          }
+        />
+        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+          {t("triggers.chatChannel.languageHintsHelp")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Bot Token 재발급 모달 — spec §5.4.1 single-path.
+ * 책임 분리(ai-review W): modal 마크업·입력 state 를 카드 본체에서 분리한다.
+ */
+function RotateBotTokenModal({
+  pending,
+  onConfirm,
+  onClose,
+}: {
+  pending: boolean;
+  onConfirm: (newBotToken: string) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [value, setValue] = useState("");
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-5">
+        <h3 className="mb-2 text-base font-semibold">
+          {t("triggers.chatChannel.rotateBotTokenDialogTitle")}
+        </h3>
+        <p className="mb-2 text-xs text-[hsl(var(--muted-foreground))]">
+          {t("triggers.chatChannel.rotateBotTokenDescription")}
+        </p>
+        <p className="mb-3 text-sm">
+          {t("triggers.chatChannel.rotateBotTokenConfirm")}
+        </p>
+        <Label htmlFor="cc-rotate-input">
+          {t("triggers.chatChannel.botTokenInputLabel")}
+        </Label>
+        <Input
+          id="cc-rotate-input"
+          placeholder={t("triggers.chatChannel.botTokenInputPlaceholder")}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="mt-1 font-mono"
+          autoFocus
+        />
+        <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+          {t("triggers.chatChannel.botTokenFormatHelp")}
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onClose}
+            disabled={pending}
+          >
+            {t("triggers.chatChannel.cancel")}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => onConfirm(value.trim())}
+            disabled={pending || value.trim().length === 0}
+          >
+            {pending
+              ? t("triggers.chatChannel.saving")
+              : t("triggers.chatChannel.rotateBotTokenDialogConfirm")}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1067,29 +1298,12 @@ function ChatChannelCard({
 
   // Edit state
   const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [visualNode, setVisualNode] = useState<"text" | "photo" | "auto">(
-    chatChannel?.uiMapping?.visualNode ?? "auto",
-  );
-  const [buttonLayout, setButtonLayout] = useState<
-    "auto" | "vertical" | "horizontal"
-  >(chatChannel?.uiMapping?.buttonLayout ?? "auto");
-  const [rateLimitPerMinute, setRateLimitPerMinute] = useState(
-    String(chatChannel?.rateLimitPerMinute ?? 60),
-  );
-  const [languageHintsJson, setLanguageHintsJson] = useState(
-    chatChannel?.languageHints
-      ? JSON.stringify(chatChannel.languageHints, null, 2)
-      : "",
-  );
-  const [languageLocale, setLanguageLocale] = useState<"ko" | "en">(
-    chatChannel?.languageLocale ?? "ko",
+  const [editValues, setEditValues] = useState<ChatChannelEditValues>(() =>
+    initialChatChannelEditValues(chatChannel),
   );
 
   // Rotate Bot Token modal
   const [rotateOpen, setRotateOpen] = useState(false);
-  const [rotateValue, setRotateValue] = useState("");
-  const [rotating, setRotating] = useState(false);
 
   // PROVIDER LABEL — extensible when more providers land
   function providerLabel(p?: string): string {
@@ -1111,36 +1325,11 @@ function ChatChannelCard({
     return t("triggers.chatChannel.formModeMultiStep");
   }
 
-  async function handleSave(): Promise<void> {
-    setSaving(true);
-    try {
-      // languageHints JSON 검증
-      let parsedHints: Record<string, string> | undefined;
-      if (languageHintsJson.trim().length > 0) {
-        try {
-          const parsed = JSON.parse(languageHintsJson) as unknown;
-          if (
-            typeof parsed !== "object" ||
-            parsed === null ||
-            Array.isArray(parsed)
-          ) {
-            throw new Error("languageHints must be a flat object");
-          }
-          parsedHints = Object.fromEntries(
-            Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [
-              k,
-              String(v),
-            ]),
-          );
-        } catch (err) {
-          toast.error(
-            `${t("triggers.chatChannel.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          setSaving(false);
-          return;
-        }
-      }
-      const rateLimitParsed = Number(rateLimitPerMinute);
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      // languageHints JSON 검증 — 잘못된 JSON 은 네트워크 호출 전 차단.
+      const parsedHints = parseLanguageHints(editValues.languageHintsJson);
+      const rateLimitParsed = Number(editValues.rateLimitPerMinute);
       const patchChatChannel: Record<string, unknown> = {
         provider: chatChannel?.provider ?? "telegram",
         // botToken 은 입력 단계에서 별 path — 본 PATCH 에는 미포함 (single-path).
@@ -1148,13 +1337,13 @@ function ChatChannelCard({
         // botToken 없으면 botTokenRef 유지 (mergeExternalConfig).
         uiMapping: {
           formMode: "multi_step",
-          visualNode,
-          buttonLayout,
+          visualNode: editValues.visualNode,
+          buttonLayout: editValues.buttonLayout,
         },
         rateLimitPerMinute: Number.isFinite(rateLimitParsed)
           ? rateLimitParsed
-          : 60,
-        languageLocale,
+          : DEFAULT_RATE_LIMIT_PER_MINUTE,
+        languageLocale: editValues.languageLocale,
         ...(parsedHints ? { languageHints: parsedHints } : {}),
       };
       // backend mergeExternalConfig 가 chatChannel 전체를 교체하므로 비편집 필드도 동봉
@@ -1163,37 +1352,44 @@ function ChatChannelCard({
       await apiClient.patch(`/triggers/${trigger.id}`, {
         chatChannel: patchChatChannel,
       });
+    },
+    onSuccess: () => {
       toast.success(t("triggers.chatChannel.saveSucceeded"));
       setEditing(false);
       onSaved();
-    } catch (err) {
+    },
+    // 보안(ai-review W): 서버/검증 err.message 원문을 toast 에 노출하지 않는다.
+    onError: (err) => {
       toast.error(
-        `${t("triggers.chatChannel.saveFailed")}: ${err instanceof Error ? err.message : String(err)}`,
+        err instanceof LanguageHintsParseError
+          ? t("triggers.chatChannel.languageHintsInvalid")
+          : t("triggers.chatChannel.saveFailed"),
       );
-    } finally {
-      setSaving(false);
-    }
-  }
+    },
+  });
 
-  async function handleRotate(): Promise<void> {
-    if (rotateValue.trim().length === 0) return;
-    setRotating(true);
-    try {
+  const rotateMutation = useMutation({
+    mutationFn: async (newBotToken: string) => {
       await apiClient.post(
         `/triggers/${trigger.id}/chat-channel/rotate-bot-token`,
-        { newBotToken: rotateValue.trim() },
+        { newBotToken },
       );
+    },
+    onSuccess: () => {
       toast.success(t("triggers.chatChannel.rotateBotTokenSucceeded"));
-      setRotateValue("");
       setRotateOpen(false);
       onSaved();
-    } catch (err) {
-      toast.error(
-        `${t("triggers.chatChannel.rotateBotTokenFailed")}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    } finally {
-      setRotating(false);
-    }
+    },
+    onError: () => {
+      toast.error(t("triggers.chatChannel.rotateBotTokenFailed"));
+    },
+  });
+
+  function cancelEdit(): void {
+    // cancel 시 미저장 입력값을 원래 값으로 리셋.
+    setEditValues(initialChatChannelEditValues(chatChannel));
+    saveMutation.reset();
+    setEditing(false);
   }
 
   if (!hasChatChannel) {
@@ -1228,13 +1424,17 @@ function ChatChannelCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setEditing(false)}
-              disabled={saving}
+              onClick={cancelEdit}
+              disabled={saveMutation.isPending}
             >
               {t("triggers.chatChannel.cancel")}
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={saving}>
-              {saving
+            <Button
+              size="sm"
+              onClick={() => saveMutation.mutate()}
+              disabled={saveMutation.isPending}
+            >
+              {saveMutation.isPending
                 ? t("triggers.chatChannel.saving")
                 : t("triggers.chatChannel.save")}
             </Button>
@@ -1354,7 +1554,10 @@ function ChatChannelCard({
                 <dt className="text-[hsl(var(--muted-foreground))]">
                   {t("triggers.chatChannel.rateLimitPerMinute")}
                 </dt>
-                <dd>{chatChannel?.rateLimitPerMinute ?? 60}</dd>
+                <dd>
+                  {chatChannel?.rateLimitPerMinute ??
+                    DEFAULT_RATE_LIMIT_PER_MINUTE}
+                </dd>
                 <dt className="text-[hsl(var(--muted-foreground))]">
                   {t("triggers.chatChannel.languageLocale")}
                 </dt>
@@ -1380,163 +1583,20 @@ function ChatChannelCard({
             ) : null}
           </>
         ) : (
-          /* EDIT MODE */
-          <div className="space-y-3 text-sm">
-            <div>
-              <Label htmlFor="cc-visualNode">
-                {t("triggers.chatChannel.uiMappingVisualNode")}
-              </Label>
-              <select
-                id="cc-visualNode"
-                className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent px-2 py-1.5 text-sm"
-                value={visualNode}
-                onChange={(e) =>
-                  setVisualNode(e.target.value as "text" | "photo" | "auto")
-                }
-              >
-                <option value="auto">
-                  {t("triggers.chatChannel.visualNodeAuto")}
-                </option>
-                <option value="text">
-                  {t("triggers.chatChannel.visualNodeText")}
-                </option>
-                <option value="photo">
-                  {t("triggers.chatChannel.visualNodePhoto")}
-                </option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="cc-buttonLayout">
-                {t("triggers.chatChannel.uiMappingButtonLayout")}
-              </Label>
-              <select
-                id="cc-buttonLayout"
-                className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent px-2 py-1.5 text-sm"
-                value={buttonLayout}
-                onChange={(e) =>
-                  setButtonLayout(
-                    e.target.value as "auto" | "vertical" | "horizontal",
-                  )
-                }
-              >
-                <option value="auto">
-                  {t("triggers.chatChannel.buttonLayoutAuto")}
-                </option>
-                <option value="vertical">
-                  {t("triggers.chatChannel.buttonLayoutVertical")}
-                </option>
-                <option value="horizontal">
-                  {t("triggers.chatChannel.buttonLayoutHorizontal")}
-                </option>
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="cc-rateLimit">
-                {t("triggers.chatChannel.rateLimitPerMinute")}
-              </Label>
-              <Input
-                id="cc-rateLimit"
-                type="number"
-                min={1}
-                max={600}
-                value={rateLimitPerMinute}
-                onChange={(e) => setRateLimitPerMinute(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="cc-languageLocale">
-                {t("triggers.chatChannel.languageLocale")}
-              </Label>
-              <select
-                id="cc-languageLocale"
-                className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent px-2 py-1.5 text-sm"
-                value={languageLocale}
-                onChange={(e) =>
-                  setLanguageLocale(e.target.value as "ko" | "en")
-                }
-              >
-                <option value="ko">
-                  {t("triggers.chatChannel.languageLocaleKo")}
-                </option>
-                <option value="en">
-                  {t("triggers.chatChannel.languageLocaleEn")}
-                </option>
-              </select>
-              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                {t("triggers.chatChannel.languageLocaleHelp")}
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="cc-languageHints">
-                {t("triggers.chatChannel.languageHints")}
-              </Label>
-              <textarea
-                id="cc-languageHints"
-                rows={6}
-                className="mt-1 w-full rounded border border-[hsl(var(--input))] bg-transparent p-2 font-mono text-xs"
-                placeholder={`{\n  "groupChatRefusal": "...",\n  "executionStarted": "...",\n  "executionCompleted": "...",\n  "executionStillRunning": "...",\n  "help": "..."\n}`}
-                value={languageHintsJson}
-                onChange={(e) => setLanguageHintsJson(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                {t("triggers.chatChannel.languageHintsHelp")}
-              </p>
-            </div>
-          </div>
+          <ChatChannelEditForm values={editValues} onChange={setEditValues} />
         )}
 
         {/* Rotate Bot Token modal — single-path via rotate API */}
         {rotateOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="w-full max-w-md rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-5">
-              <h3 className="mb-2 text-base font-semibold">
-                {t("triggers.chatChannel.rotateBotTokenDialogTitle")}
-              </h3>
-              <p className="mb-2 text-xs text-[hsl(var(--muted-foreground))]">
-                {t("triggers.chatChannel.rotateBotTokenDescription")}
-              </p>
-              <p className="mb-3 text-sm">
-                {t("triggers.chatChannel.rotateBotTokenConfirm")}
-              </p>
-              <Label htmlFor="cc-rotate-input">
-                {t("triggers.chatChannel.botTokenInputLabel")}
-              </Label>
-              <Input
-                id="cc-rotate-input"
-                placeholder={t("triggers.chatChannel.botTokenInputPlaceholder")}
-                value={rotateValue}
-                onChange={(e) => setRotateValue(e.target.value)}
-                className="mt-1 font-mono"
-                autoFocus
-              />
-              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-                {t("triggers.chatChannel.botTokenFormatHelp")}
-              </p>
-              <div className="mt-4 flex justify-end gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setRotateOpen(false);
-                    setRotateValue("");
-                  }}
-                  disabled={rotating}
-                >
-                  {t("triggers.chatChannel.cancel")}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleRotate}
-                  disabled={rotating || rotateValue.trim().length === 0}
-                >
-                  {rotating
-                    ? t("triggers.chatChannel.saving")
-                    : t("triggers.chatChannel.rotateBotTokenDialogConfirm")}
-                </Button>
-              </div>
-            </div>
-          </div>
+          <RotateBotTokenModal
+            pending={rotateMutation.isPending}
+            onConfirm={(token) => rotateMutation.mutate(token)}
+            onClose={() => {
+              // 재진입 시 직전 회전 실패 error 상태가 잔류하지 않도록 초기화.
+              rotateMutation.reset();
+              setRotateOpen(false);
+            }}
+          />
         ) : null}
       </CardContent>
     </Card>

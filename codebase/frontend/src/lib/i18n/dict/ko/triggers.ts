@@ -178,6 +178,11 @@ export const triggers = {
     revokeSucceeded: "새 토큰을 발급했어요. 외부 시스템에 즉시 배포해 주세요.",
     revokeFailed: "토큰 재발급에 실패했어요",
     revokeNewToken: "새 token (1회만 표시)",
+    secretReveal: "표시",
+    secretHide: "가리기",
+    secretAutoHideNote: "이 값은 1회만 표시되며 60초 후 자동으로 사라져요.",
+    notificationUrlInvalid:
+      "수신 URL 은 https:// 로 시작하는 올바른 URL 이어야 해요.",
     copy: "복사",
     copied: "복사했어요",
     eventChoices: "이벤트 선택",
@@ -249,6 +254,7 @@ export const triggers = {
     saving: "저장 중...",
     saveSucceeded: "저장했어요",
     saveFailed: "저장에 실패했어요",
+    languageHintsInvalid: "languageHints 는 올바른 JSON 객체여야 해요.",
     rotateBotToken: "Bot Token 재발급",
     rotateBotTokenDescription:
       "Spec §5.4.1 single-path — 토큰 변경은 항상 이 API 만 사용. 24h grace 동안 기존 토큰도 함께 받습니다.",
