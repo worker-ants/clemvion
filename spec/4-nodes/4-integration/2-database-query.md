@@ -1,7 +1,9 @@
 ---
 id: database-query
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/database-query/database-query.handler.ts
+  - codebase/backend/src/nodes/integration/database-query/database-query.schema.ts
 ---
 
 # Spec: Database Query

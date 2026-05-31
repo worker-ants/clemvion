@@ -1,7 +1,9 @@
 ---
 id: common
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/data/transform/transform.handler.ts
+  - codebase/backend/src/nodes/data/code/code.handler.ts
 ---
 
 # Spec: Data 노드 공통 규약

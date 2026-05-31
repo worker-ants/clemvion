@@ -1,7 +1,8 @@
 ---
 id: workflow-list
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/workflows/page.tsx
 ---
 
 # Spec: 워크플로우 목록 화면

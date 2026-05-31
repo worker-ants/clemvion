@@ -1,7 +1,11 @@
 ---
 id: telegram
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/chat-channel/providers/telegram/telegram.adapter.ts
+  - codebase/backend/src/modules/chat-channel/providers/telegram/telegram-message.renderer.ts
+  - codebase/backend/src/modules/chat-channel/providers/telegram/telegram-update.parser.ts
+  - codebase/backend/src/modules/chat-channel/providers/telegram/telegram-client.ts
 ---
 
 # Spec: Telegram Chat Channel Adapter

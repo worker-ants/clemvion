@@ -1,7 +1,11 @@
 ---
 id: llm-client
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/llm/clients/*.ts
+  - codebase/backend/src/modules/llm/llm-client.factory.ts
+  - codebase/backend/src/modules/llm/interfaces/llm-client.interface.ts
+  - codebase/backend/src/modules/llm/llm.service.ts
 ---
 
 # Spec: LLM 클라이언트 추상화 계층

@@ -1,7 +1,8 @@
 ---
 id: filter
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/filter/filter.*.ts
 ---
 
 # Spec: Filter

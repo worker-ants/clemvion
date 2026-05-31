@@ -1,7 +1,8 @@
 ---
 id: parallel
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/parallel/parallel.*.ts
 ---
 
 # Spec: Parallel

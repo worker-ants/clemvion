@@ -1,7 +1,10 @@
 ---
 id: carousel
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/presentation/carousel/carousel.handler.ts
+  - codebase/backend/src/nodes/presentation/carousel/carousel.schema.ts
+  - codebase/frontend/src/components/editor/run-results/renderers/presentation-renderers.tsx
 ---
 
 # Spec: Carousel

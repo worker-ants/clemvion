@@ -1,7 +1,9 @@
 ---
 id: information-extractor
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/ai/information-extractor/information-extractor.handler.ts
+  - codebase/backend/src/nodes/ai/information-extractor/information-extractor.schema.ts
 ---
 
 # Spec: Information Extractor

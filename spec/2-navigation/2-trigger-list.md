@@ -1,7 +1,10 @@
 ---
 id: trigger-list
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/triggers/page.tsx
+  - codebase/frontend/src/components/triggers/*.tsx
+  - codebase/frontend/src/lib/utils/webhook-url.ts
 ---
 
 # Spec: 트리거 목록 화면

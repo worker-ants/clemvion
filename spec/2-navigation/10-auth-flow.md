@@ -1,7 +1,9 @@
 ---
 id: auth-flow
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(auth)/**
+  - codebase/frontend/src/components/auth/**
 ---
 
 # Spec: 인증 UI 플로우

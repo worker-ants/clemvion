@@ -1,7 +1,10 @@
 ---
 id: form
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/presentation/form/form.handler.ts
+  - codebase/backend/src/nodes/presentation/form/form.schema.ts
+  - codebase/frontend/src/components/editor/run-results/dynamic-form-ui.tsx
 ---
 
 # Spec: Form (Human-in-the-loop)

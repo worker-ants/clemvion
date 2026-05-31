@@ -1,7 +1,11 @@
 ---
 id: api-convention
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/common/filters/http-exception.filter.ts
+  - codebase/backend/src/common/pipes/validation.pipe.ts
+  - codebase/backend/src/common/dto/*.ts
+  - codebase/backend/src/common/swagger/error-response.dto.ts
 ---
 
 # Spec: API 설계 규칙

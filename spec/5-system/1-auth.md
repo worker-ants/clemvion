@@ -1,7 +1,12 @@
 ---
 id: auth
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/modules/auth/**/*.ts
+  - codebase/backend/src/modules/auth-configs/auth-configs.service.ts
+  - codebase/backend/src/common/guards/*.ts
+pending_plans:
+  - plan/in-progress/auth-config-webhook-followups.md
 ---
 
 # Spec: 인증/인가 시스템

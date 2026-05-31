@@ -1,7 +1,9 @@
 ---
 id: schedule
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/schedules/page.tsx
+  - codebase/frontend/src/lib/utils/cron-to-visual.ts
 ---
 
 # Spec: 스케줄 관리 화면

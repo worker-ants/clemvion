@@ -1,7 +1,11 @@
 ---
 id: webhook
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/hooks/hooks.controller.ts
+  - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/modules/auth-configs/auth-configs.service.ts
+  - codebase/backend/src/modules/triggers/triggers.service.ts
 ---
 
 # Spec: Webhook 트리거 시스템

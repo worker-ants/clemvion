@@ -1,7 +1,9 @@
 ---
 id: rag-search
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts
+  - codebase/backend/src/nodes/ai/ai-agent/tool-providers/kb-tool-provider.ts
 ---
 
 # Spec: RAG 검색 엔진

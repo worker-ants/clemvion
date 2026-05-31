@@ -1,7 +1,10 @@
 ---
 id: common
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/_shared/*.ts
+  - codebase/backend/src/nodes/logic/*/*.handler.ts
+  - codebase/backend/src/nodes/logic/*/*.schema.ts
 ---
 
 # Spec: Logic 노드 공통 규약

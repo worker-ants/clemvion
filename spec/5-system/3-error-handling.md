@@ -1,7 +1,10 @@
 ---
 id: error-handling
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/common/filters/http-exception.filter.ts
+  - codebase/backend/src/common/pipes/validation.pipe.ts
+  - codebase/backend/src/common/swagger/error-response.dto.ts
 ---
 
 # Spec: 에러 처리 정책

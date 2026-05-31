@@ -1,7 +1,10 @@
 ---
 id: manual-trigger
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.handler.ts
+  - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts
+  - codebase/frontend/src/components/editor/settings-panel/node-configs/trigger-configs.tsx
 ---
 
 # Spec: Manual Trigger

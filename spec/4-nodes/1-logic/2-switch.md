@@ -1,7 +1,8 @@
 ---
 id: switch
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/logic/switch/switch.*.ts
 ---
 
 # Spec: Switch
