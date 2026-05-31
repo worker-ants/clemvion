@@ -253,17 +253,6 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 
 > **매트릭스 참조 무결성 가드**: 위 표·목록이 이름으로 참조하는 `*.test.ts` 가드와 `spec/...md` 문서가 rename·삭제로 stale 되지 않았는지 [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 검증한다 (harness-checks CI, PROJECT.md 변경 시 실행). dangling 참조 시 빌드 fail.
 
-## plan·review 산출물 git 취급
-
-`plan/complete/` 와 `review/` 하위 파일은 **버전 관리 대상에서 제외**한다. 작업 추적·검토 산출물은 로컬 작업 흐름의 부산물이지 커밋 이력에 남길 자산이 아니다.
-
-이 비추적은 nested `.gitignore` 가 강제한다 — `plan/.gitignore` 의 `complete/`, `review/.gitignore` 의 `*` (`!.gitignore` 만 예외). 따라서 `git add .` / `git add -A` 같은 일반 경로로는 이 디렉토리의 신규 파일이 staging 에 잡히지 않으므로, 별도의 수동 add/commit 회피 절차는 불필요하다. (의도적 `git add -f` 로 강제 추가하지 말 것.)
-
-- **plan 완료 처리 (이동이 아니라 삭제)**: `plan/in-progress/<name>.md` 는 추적 대상이다. 완료 시 `plan/complete/` 로 옮기지 않고 **두 단계로 삭제**한다 — (1) 완료된 항목을 모두 `[x]` 로 체크하고 commit (`chore(plan): mark <name> complete`), (2) 이어서 해당 plan 파일을 `git rm` 으로 삭제하고 commit (`chore(plan): remove completed <name>`). `complete/` 가 gitignore 라 그쪽으로의 `mv` 는 사실상 추적 파일 삭제와 동일하므로, 처음부터 삭제로 명확히 한다 (완료 plan 의 로컬 사본을 남기지 않는다).
-- **review 산출물은 별도 이동·정리 불필요**: `review/` 전체가 gitignore 이므로 산출물을 생성한 위치에 그대로 둔다. 옮길 추적/비추적 경계가 없어 `mv` 가 필요 없다.
-
-> `plan/in-progress/` 는 추적된다 — 위 (1)(2) 두 commit 으로 완료 plan 을 git history 에서 제거하는 것이 완료 전이의 전부다. 두 commit 모두 마지막 작업 PR 안에서 처리하고, 삭제만 담은 별 PR 은 만들지 않는다.
-
 ## e2e 테스트 작성 가이드
 
 e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 안전망이다. unit · integration 으로 이미 보호되는 단일 핸들러 로직은 침범하지 않는다.
