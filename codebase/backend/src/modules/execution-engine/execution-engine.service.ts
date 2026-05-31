@@ -1405,15 +1405,10 @@ export class ExecutionEngineService
     // 그래프 상태 재구축 — `loadAndBuildGraph` 가 3 호출자 공통 (PR #365
     // ai-review WARNING #11 해소).
     const graphState = await this.loadAndBuildGraph(savedExecution.workflowId);
-    const {
-      sortedNodeIds,
-      sortedIndexMap,
-      backEdgeMap,
-      outgoingEdgeMap,
-      nodeMap,
-      forwardEdges,
-      graphEdges,
-    } = graphState;
+    // backEdgeMap / outgoingEdgeMap 는 Phase 2 (`driveGraphAfterResume`) 가
+    // graphState 에서 직접 destructure 한다 — 여기(Phase 1 setup)에서는 미사용.
+    const { sortedNodeIds, sortedIndexMap, nodeMap, forwardEdges, graphEdges } =
+      graphState;
 
     const waitingPointer = sortedIndexMap.get(opts.node.id);
     if (waitingPointer === undefined) {
@@ -1551,27 +1546,93 @@ export class ExecutionEngineService
           } (node type=${opts.node.type})`,
         );
       }
+    } catch (error: unknown) {
+      // Phase 1 (현재 대기 노드로의 continuation 전달) 단계 실패. detached
+      // Phase 2 가 돌지 않으므로 정리 + 단말 처리를 여기서 수행한다.
+      this.finalizeRehydrationCleanup(executionId);
+      if (error instanceof RehydrationError) {
+        // Pre-check / unsupported-interaction 등 — outer rehydrateAndResume 가
+        // markExecutionCancelled 로 처리.
+        throw error;
+      }
+      await this.finalizeResumedExecutionOutcome(savedExecution, error);
+      return;
+    }
 
+    // Phase 2 — 남은 그래프 순회를 **detach** 한다. fast-path 의 background
+    // `runExecution` 코루틴과 동일하게, continuation worker 의 `process()` 는
+    // 현재 노드로의 입력 전달(Phase 1)까지만 await 하고 즉시 반환해야 한다.
+    // 여기서 `runNodeDispatchLoop` 를 await 하면 그래프의 다음 대기 노드
+    // (presentation / form / ai_conversation)에서 worker(WorkerHost
+    // concurrency=1)가 영구 점유돼 이후 모든 continuation job 이 wait 큐에
+    // 적체된다 (deadlock). spec §7.4/§7.5 의 "이후 그래프 순회를 평소대로
+    // 진행" 은 백그라운드 진행을 의미하며 worker 점유가 아니다. detach 후에도
+    // 다음 대기 노드는 DB 에 `waiting_for_input` 으로 남아 다음 입력이 다시
+    // rehydrate 하므로 안전하다 (멱등 가드: NodeExecution.status 재검증).
+    this.driveGraphAfterResume(savedExecution, context, {
+      node: opts.node,
+      graphState,
+      reachable,
+      executedNodes,
+      nodeExecutionCount,
+      waitingPointer,
+    }).catch((err: unknown) => {
+      // driveGraphAfterResume 는 내부 try/catch/finally 로 자기 완결적이지만,
+      // 단말 마킹 자체(`finalizeResumedExecutionOutcome` 의 DB save)가 실패하는
+      // 극단 케이스의 floating-promise unhandledRejection 을 차단한다.
+      this.logger.error(
+        `driveGraphAfterResume unexpected escape — execution=${executionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    });
+  }
+
+  /**
+   * §7.5 rehydration Phase 2 — Phase 1(현재 대기 노드 재개)이 continuation 을
+   * 전달한 뒤의 **남은 그래프 순회 + 종결**. `resumeFromCheckpoint` 가 `void`
+   * 로 호출(detach)하므로 continuation worker 의 `process()` 는 본 메서드
+   * 완료를 기다리지 않고 즉시 반환한다 — 다음 대기 노드에서 worker 가 점유되는
+   * deadlock 을 차단 (fast-path 의 background `runExecution` 코루틴과 동일 역할).
+   * 본 메서드는 스스로 단말 상태 마킹 + cleanup 을 책임진다.
+   */
+  private async driveGraphAfterResume(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    opts: {
+      node: Node;
+      graphState: ExecutionGraphState;
+      reachable: Set<string>;
+      executedNodes: Set<string>;
+      nodeExecutionCount: Map<string, number>;
+      waitingPointer: number;
+    },
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    const { node, graphState, reachable, executedNodes, nodeExecutionCount } =
+      opts;
+    const { sortedNodeIds, outgoingEdgeMap, backEdgeMap } = graphState;
+    try {
       // waitForX 종결 → waiting node 완료. executedNodes 에 등록 + reachability 전파.
-      executedNodes.add(opts.node.id);
+      executedNodes.add(node.id);
       this.graphTraversal.propagateReachability(
-        opts.node.id,
+        node.id,
         outgoingEdgeMap,
         context.nodeOutputCache,
         reachable,
       );
 
       // back-edge 처리 (cyclic workflow 지원). runExecution 의 동일 부분과 일치.
-      let pointer = waitingPointer + 1;
-      const backEdgesFromWaiting = backEdgeMap.get(opts.node.id);
+      let pointer = opts.waitingPointer + 1;
+      const backEdgesFromWaiting = backEdgeMap.get(node.id);
       if (backEdgesFromWaiting?.length) {
         const activated = this.findActivatedBackEdge(
-          opts.node.id,
+          node.id,
           backEdgesFromWaiting,
           context.nodeOutputCache,
         );
         if (activated) {
-          for (let i = activated.targetIndex; i <= waitingPointer; i++) {
+          for (let i = activated.targetIndex; i <= opts.waitingPointer; i++) {
             reachable.delete(sortedNodeIds[i]);
           }
           reachable.add(sortedNodeIds[activated.targetIndex]);
@@ -1579,11 +1640,9 @@ export class ExecutionEngineService
         }
       }
 
-      // WARNING #16 — nodeExecutionCount 초기값 0 통일 (이전엔 1). 첫 helper
-      // visit 의 +1 이 1 이 되도록 — MAX_NODE_ITERATIONS=1 환경에서 false
-      // positive 방지. waitingNode 는 이미 위에서 executedNodes 에 추가되어
-      // helper 는 그 다음 노드부터 dispatch.
-      nodeExecutionCount.set(opts.node.id, 0);
+      // WARNING #16 — nodeExecutionCount 초기값 0 통일. waitingNode 는 위에서
+      // executedNodes 에 추가되어 helper 는 그 다음 노드부터 dispatch.
+      nodeExecutionCount.set(node.id, 0);
 
       // 남은 그래프 traversal — `runNodeDispatchLoop` 가 공통 helper
       // (resumeGraphAfterRetry 와 공유, PR #365 ai-review WARNING #10 해소).
@@ -1627,41 +1686,28 @@ export class ExecutionEngineService
         { status: ExecutionStatus.COMPLETED },
       );
     } catch (error: unknown) {
-      if (error instanceof RehydrationError) {
-        // Pre-check 분기 (interaction type unsupported 등) — outer 가 처리.
-        throw error;
-      }
-      if (error instanceof ExecutionCancelledError) {
-        savedExecution.status = ExecutionStatus.CANCELLED;
-        savedExecution.finishedAt = new Date();
-        savedExecution.durationMs =
-          savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
-        await this.executionRepository.save(savedExecution);
-        this.eventEmitter.emitExecution(
-          executionId,
-          ExecutionEventType.EXECUTION_CANCELLED,
-          { status: ExecutionStatus.CANCELLED },
-        );
-        return;
-      }
-      savedExecution.status = ExecutionStatus.FAILED;
-      const errMessage = error instanceof Error ? error.message : String(error);
-      if (error instanceof Error && error.stack) {
-        this.logger.error(
-          `Execution ${executionId} (rehydrated) failed: ${errMessage}`,
-          error.stack,
-        );
-      }
-      savedExecution.error = {
-        message: errMessage,
-        // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error
-        // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
-        // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
-        ...(error instanceof ErrorPortFallbackError
-          ? { code: error.code }
-          : {}),
-      };
+      // Phase 2 는 detached — 여기 발생 에러는 BullMQ retry 대상이 아니라
+      // Execution 단말 상태로 직접 마감한다 (다운스트림 노드 실패가
+      // continuation 전달을 retry 시키지 않는 게 옳다).
+      await this.finalizeResumedExecutionOutcome(savedExecution, error);
+    } finally {
+      this.finalizeRehydrationCleanup(executionId);
+    }
+  }
+
+  /**
+   * Resume(rehydration) 중 입력 처리 / 그래프 구동 실패를 Execution 단말 상태로
+   * 마감한다. `ExecutionCancelledError` → `cancelled`, 그 외 → `failed`.
+   * `RehydrationError` 는 호출 측(Phase 1)이 outer 로 rethrow 하므로 여기 도달
+   * 하지 않는다 (도달 시 방어적으로 failed 처리).
+   */
+  private async finalizeResumedExecutionOutcome(
+    savedExecution: Execution,
+    error: unknown,
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    if (error instanceof ExecutionCancelledError) {
+      savedExecution.status = ExecutionStatus.CANCELLED;
       savedExecution.finishedAt = new Date();
       savedExecution.durationMs =
         savedExecution.finishedAt.getTime() -
@@ -1669,17 +1715,45 @@ export class ExecutionEngineService
       await this.executionRepository.save(savedExecution);
       this.eventEmitter.emitExecution(
         executionId,
-        ExecutionEventType.EXECUTION_FAILED,
-        {
-          status: ExecutionStatus.FAILED,
-          error: errMessage,
-        },
+        ExecutionEventType.EXECUTION_CANCELLED,
+        { status: ExecutionStatus.CANCELLED },
       );
-    } finally {
-      this.pendingContinuations.delete(executionId);
-      this.contextService.deleteContext(executionId);
-      this.clearLlmDefaultConfigCache(executionId);
+      return;
     }
+    savedExecution.status = ExecutionStatus.FAILED;
+    const errMessage = error instanceof Error ? error.message : String(error);
+    if (error instanceof Error && error.stack) {
+      this.logger.error(
+        `Execution ${executionId} (rehydrated) failed: ${errMessage}`,
+        error.stack,
+      );
+    }
+    savedExecution.error = {
+      message: errMessage,
+      // §1.4 — ErrorPortFallbackError 의 엔진 레벨 code 만 보존. 임의 Error
+      // (예: Node `SystemError`) 의 우발적 `.code` 가 Execution.error 로
+      // 누수되지 않도록 sentinel 타입으로 좁힌다 (ai-review side-effect WARNING).
+      ...(error instanceof ErrorPortFallbackError ? { code: error.code } : {}),
+    };
+    savedExecution.finishedAt = new Date();
+    savedExecution.durationMs =
+      savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
+    await this.executionRepository.save(savedExecution);
+    this.eventEmitter.emitExecution(
+      executionId,
+      ExecutionEventType.EXECUTION_FAILED,
+      {
+        status: ExecutionStatus.FAILED,
+        error: errMessage,
+      },
+    );
+  }
+
+  /** rehydration 종결 시 in-memory resolver / context / config 캐시 정리. */
+  private finalizeRehydrationCleanup(executionId: string): void {
+    this.pendingContinuations.delete(executionId);
+    this.contextService.deleteContext(executionId);
+    this.clearLlmDefaultConfigCache(executionId);
   }
 
   private async markExecutionCancelled(
