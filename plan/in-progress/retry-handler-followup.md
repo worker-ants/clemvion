@@ -87,7 +87,7 @@ PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 
 | #11 | `loadAndBuildGraph` 추출 (graph rebuild 3중 복제) | ✅ PR #371 | commit `2a85693b` — `loadAndBuildGraph(workflowId): ExecutionGraphState` 신설. `runExecution` + `resumeFromCheckpoint` + `resumeGraphAfterRetry` 공유 |
 | #14 | parallel 분기 `gatherNodeInput` 중복 호출 (2회→1회) | ✅ PR #371 | commit `2a85693b` — `nodeInput` 변수 재사용 |
 | #16 | `nodeExecutionCount` 초기값 1→0 (`MAX_NODE_ITERATIONS=1` 방어) | ✅ PR #371 | commit `2a85693b` 행동 변경 + commit `3fde6b81` 경계 테스트 신규 추가 |
-| #13 | `rehydrateContext` + `resumeGraphAfterRetry` 이중 DB 조회 진정한 제거 | 🔲 별 PR 후속 | PR #371 의 helper 추출로 graph rebuild 1회 호출 통일은 됐으나, `rehydrateContext` 가 별도 workflow 로드 — `ExecutionContext` 에 nodes/edges 캐시 추가 또는 인자 전달 필요 |
+| #13 | `rehydrateContext` + `resumeGraphAfterRetry` 이중 DB 조회 진정한 제거 | ❌ skip — 갭 없음 | 아래 §"PR #371 ai-review 남은 후속" 에서 재검토 결과 false positive 로 확정: `rehydrateContext` (workflow/log/node_execution) vs `loadAndBuildGraph` (node/edge) 가 직교 영역. 추가 fix 가치 없음 |
 
 **네이밍 결정 근거** (consistency-check `review/consistency/2026/05/30/16_54_36` W7/W8):
 - `runGraphTraversalLoop` → `runNodeDispatchLoop` — 기존 `GraphTraversalService` (pure reachability) 와 도메인 책임 분리. 본 helper 는 dispatch + blocking wait + 외부 service 호출.
@@ -95,13 +95,15 @@ PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 
 
 ### PR #371 ai-review 남은 후속 (`review/code/2026/05/30/17_21_35`)
 
+> **잔여 상태 동기화 (2026-05-31)**: 아래 표의 W4 buttons/ai_conversation 이 PR #382 (`a60925e8`) 로 완료됐으나 표기가 stale 했던 것을 정정. #13 은 skip 확정. **이 plan 에 남은 진짜 미해결 항목은 2건뿐**: ① W5/I2 (back-edge→waiting node 이중 실행 spec 검토 — project-planner), ② PR3 (HTTP retry e2e — LLM mock 인프라 별 PR). 둘 다 핵심 회귀 가드는 unit 7+ 로 이미 커버되어 차단성 아님.
+
 | 항목 | 상태 | 비고 |
 | --- | --- | --- |
 | WARNING #13 (이중 DB 조회 진정한 제거) | ❌ skip — **갭 없음** | `rehydrateContext` (workflow/log/node_execution) vs `loadAndBuildGraph` (node/edge) 가 직교 영역. PR #371 ai-review 의 분석이 false positive. 추가 fix 가치 없음 (1 query 절약 가능한 `applyRetryLastTurn:3253` `nodeRepository.findOneBy` 정도) |
 | W2 (resume 경로 parallel/background dispatch 테스트) | ✅ PR #378 | commit `8ef5c29c` — 2 시나리오 추가 |
 | W4 downstream blocking — form | ✅ PR #379 | commit `ce44acd9` — 1 시나리오 추가. helper 의 `downstreamMetadata` 일반화 동반 |
-| W4 downstream blocking — buttons | 🔲 후속 PR | `getInteractionType` 의 flat path (`nodeOutputCache[nodeId].interactionType`) / structured path (`structuredOutputCache[nodeId].meta.interactionType`) 양쪽 캐시 정확 일치 fixture 디버깅 필요. `mockOutput` 의 1차/2차 인자에 어떤 위치로 들어가는지 setNodeOutput / `toEngineFlatShape` 의 처리 경로 추가 추적 |
-| W4 downstream blocking — ai_conversation | 🔲 후속 PR | multi-turn AI handler 의 dispatch 가 단순 `executeNode` 아닌 `processMultiTurnMessage` 별도 경로라 fixture 설계 추가 필요 |
+| W4 downstream blocking — buttons | ✅ PR #382 | commit `a60925e8` — `waitForButtonInteraction` private method spy 패턴으로 분기 도달 회귀 가드 (spec line ~9213). flat/structured 양쪽 캐시는 `mockOutput` 1차 arg `interactionType` + 2차 arg `meta.interactionType` 로 동시 충족 |
+| W4 downstream blocking — ai_conversation | ✅ PR #382 | commit `a60925e8` — `waitForAiConversation` spy 패턴으로 분기 도달 회귀 가드 (spec line ~9279). aiHandler 에 `processMultiTurnMessage`/`endMultiTurnConversation` 스텁 추가 |
 | W5/I2 (back-edge waiting node 이중 실행 가능성 spec 검토) | 🔲 후속 PR | project-planner 위임 |
 | PR3 — AI Agent → HTTP retry e2e 시나리오 | 🔲 후속 PR | LLM mock 인프라 (LlmService.chat 429 시뮬레이션) + WS 클라이언트 명령 시뮬레이션이 별 PR scope. 본 PR (#365/#371/#378/#379) 의 unit 7+ 회귀 가드가 핵심 케이스 모두 커버 |
 
