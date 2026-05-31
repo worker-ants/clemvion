@@ -1,7 +1,8 @@
 ---
 id: salesreport
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/salesreport.ts
 ---
 
 # Cafe24 API Catalog — Salesreport (매출통계)

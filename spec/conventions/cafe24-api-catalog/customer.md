@@ -1,7 +1,8 @@
 ---
 id: customer
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/customer.ts
 ---
 
 # Cafe24 API Catalog — Customer (회원)

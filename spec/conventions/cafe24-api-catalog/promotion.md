@@ -1,7 +1,8 @@
 ---
 id: promotion
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/promotion.ts
 ---
 
 # Cafe24 API Catalog — Promotion (프로모션)

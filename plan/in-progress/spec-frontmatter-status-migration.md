@@ -1,5 +1,5 @@
 ---
-worktree: spec-frontmatter-status-migration-027c17
+worktree: spec-frontmatter-status-migration-d97565
 started: 2026-05-29
 owner: project-planner
 ---
@@ -26,7 +26,7 @@ owner: project-planner
 | --- | --- | --- | --- |
 | `implemented` | 약속 surface 전부 구현 | ≥1 glob 매치 의무 | 없음 |
 | `partial` | 일부 구현 | ≥1 매치 의무 | **≥1 (in-progress 실존) 의무** |
-| `backlog` | 미구현(구현 plan 미작성) | 비어도 OK | — (단 `0-overview §6.3` 로드맵 매칭 권장) |
+| `backlog` | 장기 로드맵 — 구현 의도 미결정 (spec-impl-evidence §3) | 비어도 OK | — (`0-overview §6.3` 로드맵 매칭 **의무 — 가드**) |
 | `archived` | 폐기 | — | — |
 
 > 가드 4종: `spec-frontmatter` / `spec-code-paths` / `spec-status-lifecycle` / `spec-pending-plan-existence` (frontend vitest).
@@ -49,8 +49,8 @@ owner: project-planner
 | B2 | `4-nodes/` (logic·flow·ai·integration·data·presentation·trigger) | ~33 | ⏳ |
 | B3 | `3-workflow-editor/` | 5 | ⏳ |
 | B4 | `2-navigation/` | 14 | ⏳ |
-| B5 | `conventions/` (cafe24-api-catalog 18 + 기타 13) | ~31 | ⏳ |
-| B6 | `7-channel-web-chat/` (architecture·widget-app·sdk·auth-session·security) | 5 | ⏳ — 모두 `status: spec-only` + `pending_plans: channel-web-chat-impl`. 구현 완료 시 `implemented` 전이 |
+| B5 | `conventions/` (cafe24-api-catalog 18 + 기타 13) | ~31 | ✅ (이 PR — 아래 §B5 결과) |
+| B6 | `7-channel-web-chat/` (architecture·widget-app·sdk·auth-session·security) | 0 | N/A — 이미 전이됨. 5개 모두 `status: partial` + `pending_plans: [channel-web-chat-impl, channel-web-chat-followups]`. 양 plan 완료 시 `implemented` 전이 (가드 scope 내) |
 
 > 각 배치는 별 PR 권장 (리뷰 단위 관리 + consistency-check 부담 분산). cafe24-api-catalog 는
 > 외부 API 카탈로그(레퍼런스 성격)라 `implemented` 또는 `archived`/`backlog` 일괄 판정 가능성 높음 — 우선 검토.
@@ -61,11 +61,27 @@ owner: project-planner
 - [x] frontmatter: `status: partial` + `code: codebase/backend/src/modules/execution-engine/**` + `pending_plans: [plan/in-progress/execution-engine-residual-gaps.md]`.
 - [x] 미구현 surface(G1 WS start gate / G2 errorPolicy continue / G3 seq TTL)는 `execution-engine-residual-gaps.md` 가 인수.
 
+## B5 — conventions 결과 (이 PR, 2026-05-31)
+
+29개 `spec/conventions/**` frontmatter 를 `spec-only` → 실상태로 전이.
+
+**검증 (실측, 2026-05-31)**: 4 가드 vitest (`spec-{frontmatter,code-paths,status-lifecycle,pending-plan-existence}`) 실행 — `Test Files 1 failed | 3 passed`, `Tests 2 failed | 629 passed (631)`. **B5 가 건드린 29개 파일은 전부 통과**. 잔여 2 fail 은 **B5 무관·origin/main 기존 결함** — `spec/conventions/chat-channel-adapter.md` 와 `spec/5-system/15-chat-channel.md` 가 `status: partial` 인데 `pending_plans: []` (둘 다 B5 changeset 밖이며 `git diff origin/main` 무차이로 확인). 별도 후속 fix 필요 (15-chat-channel 은 B1, chat-channel-adapter 는 conventions). `/consistency-check --spec` 5-checker workflow 실행 결과 **BLOCK: NO** (Critical 0; Warning 은 모두 본 plan 문서 stale 기재 — 같은 PR 에서 정정). 결과: `review/consistency/2026/05/31/17_12_00/SUMMARY.md`.
+
+- **18 cafe24-api-catalog/<domain>.md → `implemented`**: code `codebase/backend/src/nodes/integration/cafe24/metadata/<domain>.ts` (도메인별 메타데이터 파일. `registry/` 하위가 아니라 `metadata/` 직속 — 인계 메모의 `registry/` 추정은 오류였음). 18 도메인 전부 `supported` row 보유 → 카탈로그가 약속한 surface(메타데이터) 구현 완료. `planned` row 는 카탈로그 내부 로드맵 표기라 frontmatter 와 별 도메인(`_overview.md §3`).
+- **`cafe24-api-metadata` → implemented** (`metadata/**`).
+- **`cafe24-restricted-scopes` → partial** (`metadata/restricted-approval.ts`, pending `cafe24-restricted-scopes-followups.md`).
+- **`conversation-thread`·`data-hydration-surfaces`·`i18n-userguide`·`interaction-type-registry`·`migrations`·`secret-store`·`swagger`·`user-guide-evidence` → implemented**.
+- **`node-output` → partial** (`nodes/core/node-handler.interface.ts` + `execution-engine/handler-output.adapter.ts`, pending `node-output-redesign/README.md`).
+- 본문 stale 정정 1건: `user-guide-evidence.md §1.1` 컴포넌트 경로 `components/docs/impl-anchor.tsx` → `components/docs/mdx/impl-anchor.tsx`.
+- 주의 (인계 메모 정정): 여러 spec 본문이 stale 경로를 갖고 있었으나 frontmatter `code:` 는 실경로로 검증해 채웠다 — migrations 는 `codebase/backend/migrations/`(src 아님), conversation-thread 는 `src/shared/conversation-thread/`, swagger 는 `src/common/swagger/`(+nest-cli plugin, backlog 아님). `_overview.md` 는 `_` basename 이라 가드 대상 외 — `spec-only` 유지(무변경).
+
+> 잔여 배치: B1(`5-system` 10) · B2(`4-nodes` 35) · B3(`3-workflow-editor` 5) · B4(`2-navigation` 14). 8/21 deadline 전 완료 필요.
+
 ## 권고 후속 흐름
 
-1. B0 (본 PR) merge 후, B5(cafe24 카탈로그) → B1 → B2 → B3 → B4 순으로 배치 PR.
+1. B0·B5 완료. 잔여: B1 → B2 → B3 → B4 순으로 배치 PR (B6 `7-channel-web-chat` 는 이미 partial 전이됨).
 2. 각 배치는 project-planner 가 `/spec-coverage` 로 1차 분류 후 수동 확정 → frontmatter 적용 → `/consistency-check --spec`.
-3. 8/21 deadline 전 완료. 미완 spec 은 `backlog` 로 임시 격하해 build fail 회피 가능 (단 `0-overview §6.3` 로드맵 등재 필요).
+3. 8/21 deadline 전 완료. `backlog` 격하는 `0-overview §6.3` 로드맵 매칭이 실제 가능한 spec 에만 적용 (가드 (d) — 임의 보류 금지, spec-impl-evidence R-2·R-3). 그 외 미완 spec 은 `spec-only` 유지 또는 `partial`(+pending_plan).
 
 ## 영향받지 않는 영역
 

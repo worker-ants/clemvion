@@ -1,7 +1,10 @@
 ---
 id: cafe24-restricted-scopes
-status: spec-only
-code: []
+status: partial
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/restricted-approval.ts
+pending_plans:
+  - plan/in-progress/cafe24-restricted-scopes-followups.md
 ---
 
 # CONVENTION: Cafe24 별도 승인이 필요한 Scope · Operation

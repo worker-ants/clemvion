@@ -1,7 +1,8 @@
 ---
 id: collection
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/collection.ts
 ---
 
 # Cafe24 API Catalog — Collection (판매분류)

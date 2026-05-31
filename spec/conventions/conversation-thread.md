@@ -1,7 +1,9 @@
 ---
 id: conversation-thread
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/shared/conversation-thread/**
+  - codebase/backend/src/modules/execution-engine/conversation-thread/**
 ---
 
 # Conversation Thread (대화 스레드)

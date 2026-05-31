@@ -1,7 +1,8 @@
 ---
 id: mileage
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/mileage.ts
 ---
 
 # Cafe24 API Catalog — Mileage (적립금)

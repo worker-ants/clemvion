@@ -1,7 +1,8 @@
 ---
 id: secret-store
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/modules/secret-store/**
 ---
 
 # CONVENTION: Secret Store (자격증명·시크릿 보관 추상화)

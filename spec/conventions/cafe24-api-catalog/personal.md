@@ -1,7 +1,8 @@
 ---
 id: personal
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/integration/cafe24/metadata/personal.ts
 ---
 
 # Cafe24 API Catalog — Personal (개인화)
