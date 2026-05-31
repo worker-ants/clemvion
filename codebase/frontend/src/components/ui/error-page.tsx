@@ -11,8 +11,10 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useT, type TFunction, type TranslationKey } from "@/lib/i18n";
+import { useT, type TranslationKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils/cn";
+
+const DASHBOARD_PATH = "/dashboard";
 
 /** 전체화면 에러 페이지의 5종 (spec/2-navigation/11-error-empty-states.md §1.2). */
 export type ErrorVariant =
@@ -42,17 +44,22 @@ export function isSafeRedirectPath(pathname: string | null): boolean {
   );
 }
 
+/** SSR 안전한 현재 페이지 새로고침 (network 폴백). */
+function reloadPage(): void {
+  if (typeof window !== "undefined") window.location.reload();
+}
+
 /**
  * 던져진 에러(주로 axios 에러)의 HTTP 상태를 에러 페이지 variant 로 매핑한다.
  * spec/2-navigation/11-error-empty-states.md §1.3 의 감지 규칙:
  *   401 → sessionExpired · 403 → forbidden · 404 → notFound · 5xx → server · no-response → network.
- * 분류 불가한 일반 throw 는 `server` 로 폴백한다.
+ * 미정의 4xx(400/405/429 등)와 분류 불가한 일반 throw 는 `server` 로 폴백한다 (spec §Rationale).
  */
 export function errorToVariant(error: unknown): ErrorVariant {
+  // 런타임 덕타이핑: axios 에러(`response`/`request`/`code`)·커스텀 에러(`status`)·원시값 모두 허용.
   const err = error as
     | { response?: { status?: number }; request?: unknown; code?: string; status?: number }
     | undefined;
-  // axios: err.response.status / 커스텀 에러: err.status
   const status = err?.response?.status ?? err?.status;
   if (status === 401) return "sessionExpired";
   if (status === 403) return "forbidden";
@@ -78,56 +85,6 @@ interface ErrorPageProps {
   className?: string;
 }
 
-/** variant 별 CTA 버튼 목록을 구성한다 (렌더 책임과 분리). */
-function buildActions(
-  variant: ErrorVariant,
-  t: TFunction,
-  loginHref: string,
-  onRetry?: () => void,
-): React.ReactNode[] {
-  const linkCta = (key: TranslationKey, href: string) => (
-    <Button key={href} asChild>
-      <Link href={href}>{t(key)}</Link>
-    </Button>
-  );
-
-  switch (variant) {
-    case "sessionExpired":
-      return [linkCta("errorPage.sessionExpired.cta", loginHref)];
-    case "forbidden":
-      return [linkCta("errorPage.forbidden.cta", "/dashboard")];
-    case "notFound":
-      return [linkCta("errorPage.notFound.cta", "/dashboard")];
-    case "server":
-      return [
-        ...(onRetry
-          ? [
-              <Button key="retry" onClick={onRetry}>
-                {t("errorPage.server.retry")}
-              </Button>,
-            ]
-          : []),
-        <Button key="dashboard" variant={onRetry ? "outline" : "default"} asChild>
-          <Link href="/dashboard">{t("errorPage.server.dashboard")}</Link>
-        </Button>,
-      ];
-    case "network":
-      return [
-        <Button
-          key="retry"
-          onClick={
-            onRetry ??
-            (() => {
-              if (typeof window !== "undefined") window.location.reload();
-            })
-          }
-        >
-          {t("errorPage.network.retry")}
-        </Button>,
-      ];
-  }
-}
-
 /**
  * 전체화면 에러 페이지 (아이콘 + 제목 + 설명 + CTA). 5 variant 공통 레이아웃.
  * route 파일(not-found.tsx / error.tsx / global-error.tsx)이 공유한다.
@@ -140,8 +97,48 @@ export function ErrorPage({ variant, onRetry, className }: ErrorPageProps) {
   const title = t(`errorPage.${variant}.title` as TranslationKey);
   const description = t(`errorPage.${variant}.description` as TranslationKey);
 
-  const redirectTarget = isSafeRedirectPath(pathname) ? pathname! : "/dashboard";
+  const redirectTarget = isSafeRedirectPath(pathname) ? pathname! : DASHBOARD_PATH;
   const loginHref = `/login?redirect=${encodeURIComponent(redirectTarget)}`;
+
+  /** variant 별 CTA 버튼 목록 (t·loginHref·onRetry 를 클로저로 캡처). */
+  function buildActions(): React.ReactNode[] {
+    const linkCta = (key: TranslationKey, href: string) => (
+      <Button key={href} asChild>
+        <Link href={href}>{t(key)}</Link>
+      </Button>
+    );
+    switch (variant) {
+      case "sessionExpired":
+        return [linkCta("errorPage.sessionExpired.cta", loginHref)];
+      case "forbidden":
+        return [linkCta("errorPage.forbidden.cta", DASHBOARD_PATH)];
+      case "notFound":
+        return [linkCta("errorPage.notFound.cta", DASHBOARD_PATH)];
+      case "server":
+        return [
+          ...(onRetry
+            ? [
+                <Button key="retry" onClick={onRetry}>
+                  {t("errorPage.server.retry")}
+                </Button>,
+              ]
+            : []),
+          <Button
+            key="dashboard"
+            variant={onRetry ? "outline" : "default"}
+            asChild
+          >
+            <Link href={DASHBOARD_PATH}>{t("errorPage.server.dashboard")}</Link>
+          </Button>,
+        ];
+      case "network":
+        return [
+          <Button key="retry" onClick={onRetry ?? reloadPage}>
+            {t("errorPage.network.retry")}
+          </Button>,
+        ];
+    }
+  }
 
   return (
     <div
@@ -162,7 +159,7 @@ export function ErrorPage({ variant, onRetry, className }: ErrorPageProps) {
         {description}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3">
-        {buildActions(variant, t, loginHref, onRetry)}
+        {buildActions()}
       </div>
     </div>
   );

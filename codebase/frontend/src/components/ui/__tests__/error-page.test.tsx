@@ -39,12 +39,19 @@ describe("errorToVariant", () => {
     expect(errorToVariant(undefined)).toBe("server");
   });
 
+  it("falls back to server for undefined 4xx (400/429 등 — spec §Rationale)", () => {
+    expect(errorToVariant({ response: { status: 400 } })).toBe("server");
+    expect(errorToVariant({ response: { status: 429 } })).toBe("server");
+    expect(errorToVariant({ response: { status: 502 } })).toBe("server");
+  });
+
   it("reads a bare `status` field when present", () => {
     expect(errorToVariant({ status: 403 })).toBe("forbidden");
   });
 });
 
 describe("ErrorPage", () => {
+  // ErrorPage 자체는 redirect 하지 않는다 — 401 의 /login redirect 는 (main)/error.tsx 의 useEffect 담당.
   it("renders session-expired (401) with a re-login link carrying the redirect", () => {
     render(<ErrorPage variant="sessionExpired" />);
     expect(screen.getByText("세션이 만료되었습니다")).toBeInTheDocument();
@@ -64,9 +71,13 @@ describe("ErrorPage", () => {
     );
   });
 
-  it("renders not-found (404)", () => {
+  it("renders not-found (404) with a dashboard link", () => {
     render(<ErrorPage variant="notFound" />);
     expect(screen.getByText("페이지를 찾을 수 없습니다")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "대시보드로 이동" })).toHaveAttribute(
+      "href",
+      "/dashboard",
+    );
   });
 
   it("renders server (500) with a working retry button + dashboard link", () => {
@@ -90,20 +101,13 @@ describe("ErrorPage", () => {
 
   it("network retry without onRetry falls back to window.location.reload", () => {
     const reload = vi.fn();
-    const original = window.location;
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...original, reload },
-    });
+    vi.stubGlobal("location", { ...window.location, reload });
     try {
       render(<ErrorPage variant="network" />);
       fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
       expect(reload).toHaveBeenCalledOnce();
     } finally {
-      Object.defineProperty(window, "location", {
-        configurable: true,
-        value: original,
-      });
+      vi.unstubAllGlobals();
     }
   });
 
