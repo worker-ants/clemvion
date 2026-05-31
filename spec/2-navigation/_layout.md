@@ -148,7 +148,7 @@
 
 §2.1 로고 행에 expanded/collapsed 변종 규칙을 두는 이유: 본 문서는 사이드바의 **자리**만 정의하고, 자리에 들어가는 로고 변종·색은 `spec/6-brand.md §8.4` (brand spec) 가 단일 진실로 결정한다. 본 행은 brand spec §8.4.6 의 결정(expanded → Full logo / collapsed → Icon mark)을 자리 정의에 반영한 것이다.
 
-근거 출처: `spec/6-brand.md §8.4.6` (로고 노출 자리) 및 동 문서 R-9 (브랜드 spec 의 라우트 spec 우선권).
+근거 출처: `spec/6-brand.md §8.4.6` (로고 노출 자리) 및 동 문서 Rationale "브랜드 spec 의 라우트 spec 우선권".
 
 ### R-2. §2.1 로고 행 — 라이트/다크 자산 선택 위임
 
