@@ -70,12 +70,21 @@ PR #368 가 backend 인프라 + `GET /workflows/:id/graph-warnings` endpoint 까
 ### 7. ExecutionContext God Object 해소 — ParallelBranchContext 분리 (ai-review SUMMARY#11 / C-1 결정)
 
 > **선행**: `spec/conventions/execution-context.md` 신규 작성 (project-planner). 본 항목은 그 spec 확정 후 developer 가 별 PR 로 실행. 출처: `plan/in-progress/spec-fix-execution-context-god-object.md` (C-1 옵션 a 채택, 2026-05-30).
+>
+> ✅ **핵심 구현 완료 (2026-05-31, commit `ec0f56e1`)** — spec(`1a411542`) 확정 후 같은 worktree 에서 구현. 첫 developer 에이전트가 tsc 신규 에러 0 + jest 575 통과로 검증. ai-review (review/code/2026/05/31/20_55_42/) **Critical 0 / Warning 2** (아래 잔여).
 
-- [ ] `parentParallelConcurrency` 를 `ExecutionContext` 에서 제거하고 `ParallelBranchContext extends ExecutionContext` 로 이동 (`node-handler.interface.ts` / `parallel-executor.ts`)
-- [ ] branchContext 생성처 + 하위 노드 호출처 타입 좁히기 (Parallel 내부에서만 `parentParallelConcurrency` 접근 가능)
-- [ ] 단위 테스트 `parallel-p2-integration.spec.ts` 의 nested concurrency cap silent clamp / pass 케이스 시그니처 수정
-- [ ] e2e 통합 테스트 회귀 확인
-- [ ] `spec/4-nodes/1-logic/10-parallel.md §Rationale 결정 G` 갱신 commit hash 본 PR description 에 참조
+- [x] `parentParallelConcurrency` 를 `ExecutionContext` 에서 제거하고 `ParallelBranchContext extends ExecutionContext` 로 이동 (`node-handler.interface.ts` / `parallel-executor.ts`)
+- [x] branchContext 생성처 + 하위 노드 호출처 타입 좁히기 — `execute()` 4번째 인자 `parentParallelConcurrency?` 로 운반, `runBranch`/branchContext 타입을 `ParallelBranchContext` 로 좁힘. engine 호출부는 `'parentParallelConcurrency' in context` narrowing 으로 추출 전달
+- [x] 단위 테스트 `parallel-p2-integration.spec.ts` + `parallel-executor.spec.ts` 의 nested concurrency cap silent clamp / pass 케이스 시그니처 수정 — jest parallel suites 21/21, execution-engine 554/554 pass
+- [ ] e2e 통합 테스트 회귀 확인 — 실 HTTP server + browser e2e 는 §4 "e2e 통합 테스트" 와 함께 별 PR (본 변경은 런타임 동작 불변·타입 리팩토링이라 단위/통합 그린으로 회귀 잠금)
+- [x] `spec/4-nodes/1-logic/10-parallel.md §Rationale 결정 G` 갱신 — spec commit `1a411542`, 코드 commit `ec0f56e1`
+
+#### ai-review 잔여 Warning (2건, LOW — 별 PR 권고)
+
+> 2026-05-31 ai-review 5-reviewer fan-out (architecture/concurrency/side-effect/scope/maintainability) 결과 Critical 0. 아래 2건은 **동일 근원 LOW-risk** 로, 본 작업 worktree 의 환경 제약(worktree 에 node_modules 부재 → tsc/jest 미실행, sub-agent 의 worktree write 차단, tool 출력 채널 불안정)으로 **검증된 적용이 이번 턴 불가** → 별 PR 로 분리. 둘 다 즉각 버그 아님 (프로덕션 호출처 1곳이 이미 올바르게 전달).
+
+- [ ] **W-1 (side-effect/concurrency/maintainability)**: `ParallelExecutor.execute()` 4번째 인자 `parentParallelConcurrency?: number` 를 `number | undefined` (required) 로 강제 → 미래 호출처 누락 시 nested concurrency silent clamp 누락을 컴파일 타임 차단. 단위 테스트 `.execute()` 3-인자 호출 ~30곳에 명시 `undefined` 추가 필요 (tsc 로 누락 검출). **검증(tsc+jest) 의무.**
+- [ ] **W-2 (side-effect/architecture)**: `execution-engine.service.ts` `branchParentContext: ExecutionContext` 의 명시 타입 제거(추론 위임) → `ParallelBranchContext` ghost field 은닉 해소. (참고: architecture/maintainability 가 INFO 로 `isParallelBranchContext` type guard 추출도 제안했으나 narrowing 사이트 1곳이라 보류 권고.)
 
 ## 의존성·리스크
 

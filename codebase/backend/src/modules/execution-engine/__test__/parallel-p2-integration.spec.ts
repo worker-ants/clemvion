@@ -109,14 +109,15 @@ describe('parallel-p2 integration (§4 followups)', () => {
       let currentRunning = 0;
       const result = await executor.execute(
         { branchCount: 8, maxConcurrency: 8, waitAll: true },
-        // 외부 Parallel 의 effective=16 가 set 됐다고 가정
-        { ...baseContext, parentParallelConcurrency: 16 },
+        baseContext,
         async () => {
           currentRunning++;
           observedPeak = Math.max(observedPeak, currentRunning);
           await new Promise((r) => setTimeout(r, 5));
           currentRunning--;
         },
+        // 외부 Parallel 의 effective=16 가 set 됐다고 가정
+        16,
       );
       // intended 내부 effective = 8, allowed = floor(32/16) = 2 → clamp to 2
       expect(observedPeak).toBeLessThanOrEqual(2);
@@ -132,10 +133,11 @@ describe('parallel-p2 integration (§4 followups)', () => {
       const executor = new ParallelExecutor();
       const result = await executor.execute(
         { branchCount: 4, maxConcurrency: 4, waitAll: true },
-        { ...baseContext, parentParallelConcurrency: 8 },
+        baseContext,
         async () => {
           await new Promise((r) => setTimeout(r, 1));
         },
+        8,
       );
       // 8 × 4 = 32 ≤ 32 → no clamp
       expect(result.clampedConcurrency).toBeUndefined();
