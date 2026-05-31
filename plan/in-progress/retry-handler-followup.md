@@ -104,7 +104,7 @@ PR2 `/ai-review` SUMMARY 에서 도출된 후속 plan 항목 (자동 fix 대상 
 | W4 downstream blocking — form | ✅ PR #379 | commit `ce44acd9` — 1 시나리오 추가. helper 의 `downstreamMetadata` 일반화 동반 |
 | W4 downstream blocking — buttons | ✅ PR #382 | commit `a60925e8` — `waitForButtonInteraction` private method spy 패턴으로 분기 도달 회귀 가드 (spec line ~9213). flat/structured 양쪽 캐시는 `mockOutput` 1차 arg `interactionType` + 2차 arg `meta.interactionType` 로 동시 충족 |
 | W4 downstream blocking — ai_conversation | ✅ PR #382 | commit `a60925e8` — `waitForAiConversation` spy 패턴으로 분기 도달 회귀 가드 (spec line ~9279). aiHandler 에 `processMultiTurnMessage`/`endMultiTurnConversation` 스텁 추가 |
-| W5/I2 (back-edge waiting node 이중 실행 가능성 spec 검토) | 🔲 후속 PR | project-planner 위임 |
+| W5/I2 (back-edge waiting node 이중 실행 가능성 spec 검토) | ✅ (2026-05-31) | 분석 결과 **버그 아닌 의도된 loop semantics** — graph-level back-edge 순환은 (container body 와 달리) blocking 노드를 합법적으로 포함/타겟할 수 있고, 매 iteration 재프롬프트는 정상. retry 재진입도 동일 귀결. `spec/5-system/4-execution-engine.md §2.1` 에 "graph-level 순환 내 blocking 노드" 절 명문화. `/consistency-check --spec` BLOCK: NO (`review/consistency/2026/05/31/18_06_40`, LOW) |
 | PR3 — AI Agent → HTTP retry e2e 시나리오 | 🔲 후속 PR | LLM mock 인프라 (LlmService.chat 429 시뮬레이션) + WS 클라이언트 명령 시뮬레이션이 별 PR scope. 본 PR (#365/#371/#378/#379) 의 unit 7+ 회귀 가드가 핵심 케이스 모두 커버 |
 
 ## 의존 관계
