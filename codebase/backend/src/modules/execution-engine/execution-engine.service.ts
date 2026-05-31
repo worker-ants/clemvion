@@ -931,15 +931,22 @@ export class ExecutionEngineService
         nodeExec,
         payload,
       });
-      // 주의: `resumeFromCheckpoint` 는 현재 대기 노드로의 continuation 전달
-      // (Phase 1)까지만 await 하고 남은 그래프 순회(Phase 2)는 detach 하므로,
-      // 본 로그는 "Phase 1 정착(입력 전달)" 시점이지 execution 종결(COMPLETED 등)
-      // 시점이 아니다. terminal state 는 Phase 2 의 EXECUTION_COMPLETED/
-      // CANCELLED/FAILED emit 으로 별도 관측한다.
+      // 주의: `resumeFromCheckpoint` 는 setup(graph load + invariant 검증)까지만
+      // await 하고 **전체 resume 구동(waitForX + 그래프 순회 + 종결)을 detach** 하므로,
+      // 본 로그는 "resume 구동 launch" 시점이지 입력 처리/execution 종결 시점이
+      // 아니다. terminal state 는 detached drive 의 EXECUTION_COMPLETED/CANCELLED/
+      // FAILED emit 으로 별도 관측한다.
       this.logger.log(
-        `Rehydration Phase 1 settled (graph drive detached) — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
+        `Rehydration launched (drive detached) — execution=${executionId} waitingNode=${nodeExec.nodeId}`,
       );
     } catch (err) {
+      // 본 catch 는 detached drive launch **이전**(invariant 검증 / rehydrateContext
+      // / resumeFromCheckpoint 의 pre-check·graph load)에서 throw 된 경우만 도달한다
+      // (launch 후 에러는 driveResumeDetached 가 자체 finally 로 처리). 따라서 그
+      // 전에 rehydrateContext 가 생성한 in-memory context / pendingContinuations /
+      // config 캐시를 여기서 정리한다 — 미정리 시 동일 executionId 재시도가 오염된
+      // context 를 재사용한다. (`finalizeRehydrationCleanup` 은 멱등.)
+      this.finalizeRehydrationCleanup(executionId);
       if (err instanceof RehydrationError) {
         // W19: internal identifiers は structured params へ — error.message は
         // コード分類のみ。BullMQ DLQ Board / 外部ログ集積への情報漏洩防止.
@@ -1411,10 +1418,10 @@ export class ExecutionEngineService
     // 그래프 상태 재구축 — `loadAndBuildGraph` 가 3 호출자 공통 (PR #365
     // ai-review WARNING #11 해소).
     const graphState = await this.loadAndBuildGraph(savedExecution.workflowId);
-    // backEdgeMap / outgoingEdgeMap 는 Phase 2 (`driveGraphAfterResume`) 가
-    // graphState 에서 직접 destructure 한다 — 여기(Phase 1 setup)에서는 미사용.
-    const { sortedNodeIds, sortedIndexMap, nodeMap, forwardEdges, graphEdges } =
-      graphState;
+    // graphEdges / backEdgeMap / outgoingEdgeMap 는 detached drive
+    // (`driveResumeDetached`) 가 graphState 에서 직접 destructure — 여기(worker 가
+    // await 하는 setup)에서는 reachability seed / pointer 산출만 필요하다.
+    const { sortedNodeIds, sortedIndexMap, nodeMap, forwardEdges } = graphState;
 
     const waitingPointer = sortedIndexMap.get(opts.node.id);
     if (waitingPointer === undefined) {
@@ -1446,18 +1453,13 @@ export class ExecutionEngineService
     // 한도가 바닥나 resume 이 영구 hang 하던 결함을 해소한다.
     const FIRE_PAYLOAD_MAX_ATTEMPTS = 250;
     const FIRE_PAYLOAD_POLL_INTERVAL_MS = 20;
-    // Phase 1(현재 노드 input 전달) 이 정착하면 polling 을 멈춘다. firePayload 는
-    // pendingContinuations 키를 처음 본 tick 에 한 번만 fire(resolvePending 이
-    // 키 삭제) 후 return 하는 single-shot 이지만, Phase 2 가 detach 후 다음 대기
-    // 노드에서 같은 executionId 로 키를 재등록하므로, 아직 fire 하지 못한
-    // (waitForX 등록 전) polling 잔여 tick 이 그 키에 **이전 payload** 를 잘못
-    // 주입하지 않도록 명시적으로 차단한다. 동시에 Phase 1 정상 정착 후의 한도
-    // 소진 오탐 warn 도 방지.
-    let phase1Settled = false;
+    // single-shot: pendingContinuations 키를 처음 본 tick 에 한 번 fire
+    // (resolvePending 이 키 삭제) 후 return — 재스케줄하지 않으므로, detached drive
+    // 가 다음 대기 노드 / ai_agent 멀티턴의 후속 turn 에서 같은 executionId 키를
+    // 재등록해도 이전 payload 를 잘못 주입하지 않는다 (후속 입력은 새 continuation
+    // job 으로 도착해 fast-path 로 처리). 한도 소진 시 warn 은 waitForX 등록 실패
+    // 의심 신호.
     const firePayload = (attemptsLeft: number): void => {
-      if (phase1Settled) {
-        return;
-      }
       if (this.pendingContinuations.has(executionId)) {
         this.resolvePending(executionId, opts.payload);
         return;
@@ -1475,17 +1477,99 @@ export class ExecutionEngineService
     };
     setTimeout(() => firePayload(FIRE_PAYLOAD_MAX_ATTEMPTS), 0);
 
+    // 전체 resume 구동(현재 노드 input 전달 → waitForX → 남은 그래프 순회 →
+    // 종결)을 **detach** 한다. continuation worker 의 `process()` 는 본 setup
+    // (graph load + invariant 검증)까지만 await 하고 즉시 반환해야 한다 —
+    // fast-path 의 background `runExecution` 코루틴과 동일한 모델이다.
+    //
+    // 특히 ai_agent 멀티턴의 `waitForAiConversation` 은 대화 종료까지 다음
+    // 메시지를 차례로 await 하는 **장수 루프**다. 이를 worker 안에서 await 하면
+    // WorkerHost(concurrency=1) 슬롯이 대화 수명 내내 점유돼 이후 모든
+    // continuation job(버튼 클릭 등)이 wait 큐에 적체된다 (deadlock — 운영 실측).
+    // buttons/form 의 waitForX 는 단일 상호작용 후 반환하므로 점유가 짧지만,
+    // 동일 원칙(worker 는 waitForX 를 await 하지 않는다)을 적용해 일관 처리한다.
+    //
+    // detach 후 firePayload 가 도착한 `opts.payload` 를 background drive 의
+    // waitForX 로 전달하며, 이후 turn/다음 대기 노드의 입력은 **새 continuation
+    // job** 으로 도착해 fast-path(pendingContinuations hit → resolvePending)로
+    // 처리된다 — runExecution fast-path 와 동형. RehydrationError(unsupported
+    // interaction / ai 재구성 실패)도 detached drive 내부에서 graceful 단말
+    // 처리(markExecutionCancelled + node failed)하므로 채널 graceful 안내가 도달.
+    this.driveResumeDetached(savedExecution, context, {
+      node: opts.node,
+      nodeExec: opts.nodeExec,
+      graphState,
+      waitingPointer,
+      reachable,
+      executedNodes,
+      nodeExecutionCount,
+      persistedInteractionType,
+      isAiConversation,
+      resumeCheckpoint,
+      cachedOutput,
+    }).catch((err: unknown) => {
+      // driveResumeDetached 는 내부 try/catch/finally 로 자기 완결적이지만, 단말
+      // 마킹 DB save 자체가 실패하는 극단 케이스의 unhandledRejection 을 차단한다.
+      this.logger.error(
+        `driveResumeDetached unexpected escape — execution=${executionId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    });
+  }
+
+  /**
+   * §7.5 rehydration — `resumeFromCheckpoint` 가 setup 후 `void` 로(detach)
+   * 호출하는 **전체 resume 구동**: 현재 대기 노드로의 continuation 전달
+   * (waitForX 재진입) → 남은 그래프 순회 → 종결. continuation worker 의
+   * `process()` 는 본 메서드 완료를 기다리지 않고 즉시 반환하므로, ai_agent
+   * 멀티턴(`waitForAiConversation` 장수 루프)이나 다음 대기 노드에서 worker
+   * (concurrency=1)가 점유되는 deadlock 을 차단한다 (fast-path 의 background
+   * `runExecution` 코루틴과 동일 역할). 본 메서드는 스스로 단말 상태 마킹 +
+   * cleanup 을 책임진다 — detach 됐으므로 에러를 worker 로 전파하지 않는다.
+   */
+  private async driveResumeDetached(
+    savedExecution: Execution,
+    context: ExecutionContext,
+    opts: {
+      node: Node;
+      nodeExec: NodeExecution;
+      graphState: ExecutionGraphState;
+      waitingPointer: number;
+      reachable: Set<string>;
+      executedNodes: Set<string>;
+      nodeExecutionCount: Map<string, number>;
+      persistedInteractionType: string | undefined;
+      isAiConversation: boolean;
+      resumeCheckpoint: Record<string, unknown> | undefined;
+      cachedOutput: Record<string, unknown> | undefined;
+    },
+  ): Promise<void> {
+    const executionId = savedExecution.id;
+    const {
+      node,
+      graphState,
+      reachable,
+      executedNodes,
+      nodeExecutionCount,
+      persistedInteractionType,
+      isAiConversation,
+      resumeCheckpoint,
+      cachedOutput,
+    } = opts;
+    const { sortedNodeIds, outgoingEdgeMap, backEdgeMap, graphEdges } =
+      graphState;
     try {
-      // 사전 상태 전이: 본 Execution 은 DB 에서 WAITING_FOR_INPUT 으로 로드됨.
-      // waitForX 가 (RUNNING → WAITING_FOR_INPUT) 전이를 시도하므로 먼저
-      // RUNNING 으로 옮긴다. spec/5-system/4-execution-engine.md §1.1 state
-      // machine 의 WAITING_FOR_INPUT → RUNNING 전이는 정상 (resume sentinel).
+      // 사전 상태 전이: Execution 은 DB 에서 WAITING_FOR_INPUT 으로 로드됨.
+      // waitForX 가 (RUNNING → WAITING_FOR_INPUT) 전이를 시도하므로 먼저 RUNNING
+      // 으로 옮긴다 (spec §1.1 의 resume sentinel transition).
       await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
 
       // waitForX 직접 invoke — executeNode 우회. waitForX 내부에서 nodeExec
       // lookup → status WAITING_FOR_INPUT 갱신 + outputData save → emit →
-      // pending 등록 + await → resolve.
-      const blockingMeta = this.handlerRegistry.getMetadata(opts.node.type);
+      // pending 등록 + await. firePayload(resumeFromCheckpoint 가 스케줄)가 도착한
+      // payload 를 그 pending 으로 전달해 현재 turn 을 처리한다.
+      const blockingMeta = this.handlerRegistry.getMetadata(node.type);
       if (
         blockingMeta.kind === 'blocking' &&
         blockingMeta.interaction === 'form'
@@ -1493,35 +1577,32 @@ export class ExecutionEngineService
         await this.waitForFormSubmission(
           savedExecution,
           executionId,
-          opts.node,
+          node,
           context,
         );
       } else if (persistedInteractionType === 'buttons') {
         await this.waitForButtonInteraction(
           savedExecution,
           executionId,
-          opts.node,
+          node,
           context,
           graphEdges,
         );
       } else if (
         isAiConversation &&
         resumeCheckpoint &&
-        opts.node.type === 'ai_agent'
+        node.type === 'ai_agent'
       ) {
         // §7.5 Multi-turn AI 재개 — `_resumeCheckpoint` 로 `_resumeState` 재구성
-        // 후 `waitForAiConversation` 재진입. `buildRetryReentryState` 는
-        // `_retryState` retry 재진입과 공유하는 재구성기 — checkpoint 의
-        // credential-strip 부분집합 + `node.config` 재평가로 context-binding 필드를
-        // 재유도한다. checkpoint 에는 `lastUserMessage` 가 없으므로 initialAction 은
-        // undefined — 대신 위에서 스케줄한 `firePayload` 가 도착한 사용자 메시지
-        // (`opts.payload`) 를 loop 의 pendingContinuations 로 전달해 다음 turn 으로
-        // 처리한다 (form/button 재개와 동일한 firePayload 메커니즘).
+        // 후 `waitForAiConversation` 재진입 (`buildRetryReentryState` 는 retry
+        // 재진입과 공유하는 재구성기). 이 호출은 대화 종료까지 다음 메시지를
+        // 차례로 await 하는 장수 루프지만, 본 메서드가 detach 돼 있으므로 worker
+        // 슬롯을 점유하지 않는다 (후속 turn 은 새 continuation job → fast-path).
         let resumeState: Record<string, unknown>;
         try {
           ({ resumeState } = this.buildRetryReentryState(
             savedExecution,
-            opts.node,
+            node,
             context,
             resumeCheckpoint,
             { resumeMode: true },
@@ -1530,29 +1611,22 @@ export class ExecutionEngineService
           // 재구성 실패 (schema drift / 손상) — graceful reset.
           throw new RehydrationError(
             'RESUME_INCOMPATIBLE_STATE',
-            `Multi-turn AI 노드(${opts.node.type}) _resumeCheckpoint 재구성 실패: ${
+            `Multi-turn AI 노드(${node.type}) _resumeCheckpoint 재구성 실패: ${
               err instanceof Error ? err.message : String(err)
             }`,
           );
         }
-        // 재구성한 `_resumeState` 를 nodeOutputCache 에 주입한다. `rehydrateContext`
-        // 가 이미 waiting node 의 outputData (output.result.messages / meta 등) 를
-        // seed 했으므로 그 위에 `_resumeState` 만 덧입혀 `waitForAiConversation`
-        // (nodeOutput._resumeState 를 읽음) 와 `emitAiWaitingForInput` (transient
-        // 재-emit 시 messages echo 보존) 양쪽이 올바른 shape 을 보게 한다.
+        // 재구성한 `_resumeState` 를 nodeOutputCache 에 주입 (waitForAiConversation
+        // / emitAiWaitingForInput 양쪽이 올바른 shape 을 보도록).
         const seededOutput = {
           ...(cachedOutput ?? {}),
           _resumeState: resumeState,
         };
-        this.contextService.setNodeOutput(
-          executionId,
-          opts.node.id,
-          seededOutput,
-        );
+        this.contextService.setNodeOutput(executionId, node.id, seededOutput);
         await this.waitForAiConversation(
           savedExecution,
           executionId,
-          opts.node,
+          node,
           context,
         );
       } else {
@@ -1560,80 +1634,10 @@ export class ExecutionEngineService
           'RESUME_CHECKPOINT_MISSING',
           `Unsupported interaction type for rehydration: ${
             persistedInteractionType ?? '(unknown)'
-          } (node type=${opts.node.type})`,
+          } (node type=${node.type})`,
         );
       }
-    } catch (error: unknown) {
-      // Phase 1 (현재 대기 노드로의 continuation 전달) 단계 실패. detached
-      // Phase 2 가 돌지 않으므로 정리 + 단말 처리를 여기서 수행한다.
-      this.finalizeRehydrationCleanup(executionId);
-      if (error instanceof RehydrationError) {
-        // Pre-check / unsupported-interaction 등 — outer rehydrateAndResume 가
-        // markExecutionCancelled 로 처리.
-        throw error;
-      }
-      await this.finalizeResumedExecutionOutcome(savedExecution, error);
-      return;
-    }
 
-    // Phase 1 정착 — 잔여 firePayload polling tick 이 Phase 2 의 다음 대기 노드
-    // 키에 이전 payload 를 잘못 주입하거나 한도 소진 오탐 warn 을 내지 않도록 차단.
-    phase1Settled = true;
-
-    // Phase 2 — 남은 그래프 순회를 **detach** 한다. fast-path 의 background
-    // `runExecution` 코루틴과 동일하게, continuation worker 의 `process()` 는
-    // 현재 노드로의 입력 전달(Phase 1)까지만 await 하고 즉시 반환해야 한다.
-    // 여기서 `runNodeDispatchLoop` 를 await 하면 그래프의 다음 대기 노드
-    // (presentation / form / ai_conversation)에서 worker(WorkerHost
-    // concurrency=1)가 영구 점유돼 이후 모든 continuation job 이 wait 큐에
-    // 적체된다 (deadlock). spec §7.4/§7.5 의 "이후 그래프 순회를 평소대로
-    // 진행" 은 백그라운드 진행을 의미하며 worker 점유가 아니다. detach 후에도
-    // 다음 대기 노드는 DB 에 `waiting_for_input` 으로 남아 다음 입력이 다시
-    // rehydrate 하므로 안전하다 (멱등 가드: NodeExecution.status 재검증).
-    this.driveGraphAfterResume(savedExecution, context, {
-      node: opts.node,
-      graphState,
-      reachable,
-      executedNodes,
-      nodeExecutionCount,
-      waitingPointer,
-    }).catch((err: unknown) => {
-      // driveGraphAfterResume 는 내부 try/catch/finally 로 자기 완결적이지만,
-      // 단말 마킹 자체(`finalizeResumedExecutionOutcome` 의 DB save)가 실패하는
-      // 극단 케이스의 floating-promise unhandledRejection 을 차단한다.
-      this.logger.error(
-        `driveGraphAfterResume unexpected escape — execution=${executionId}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    });
-  }
-
-  /**
-   * §7.5 rehydration Phase 2 — Phase 1(현재 대기 노드 재개)이 continuation 을
-   * 전달한 뒤의 **남은 그래프 순회 + 종결**. `resumeFromCheckpoint` 가 `void`
-   * 로 호출(detach)하므로 continuation worker 의 `process()` 는 본 메서드
-   * 완료를 기다리지 않고 즉시 반환한다 — 다음 대기 노드에서 worker 가 점유되는
-   * deadlock 을 차단 (fast-path 의 background `runExecution` 코루틴과 동일 역할).
-   * 본 메서드는 스스로 단말 상태 마킹 + cleanup 을 책임진다.
-   */
-  private async driveGraphAfterResume(
-    savedExecution: Execution,
-    context: ExecutionContext,
-    opts: {
-      node: Node;
-      graphState: ExecutionGraphState;
-      reachable: Set<string>;
-      executedNodes: Set<string>;
-      nodeExecutionCount: Map<string, number>;
-      waitingPointer: number;
-    },
-  ): Promise<void> {
-    const executionId = savedExecution.id;
-    const { node, graphState, reachable, executedNodes, nodeExecutionCount } =
-      opts;
-    const { sortedNodeIds, outgoingEdgeMap, backEdgeMap } = graphState;
-    try {
       // waitForX 종결 → waiting node 완료. executedNodes 에 등록 + reachability 전파.
       executedNodes.add(node.id);
       this.graphTraversal.propagateReachability(
@@ -1707,10 +1711,21 @@ export class ExecutionEngineService
         { status: ExecutionStatus.COMPLETED },
       );
     } catch (error: unknown) {
-      // Phase 2 는 detached — 여기 발생 에러는 BullMQ retry 대상이 아니라
-      // Execution 단말 상태로 직접 마감한다 (다운스트림 노드 실패가
-      // continuation 전달을 retry 시키지 않는 게 옳다).
-      await this.finalizeResumedExecutionOutcome(savedExecution, error);
+      // 본 메서드는 detached — 에러를 worker 로 전파할 수 없으므로 모두 in-band
+      // 단말 처리한다 (BullMQ retry 대상 아님).
+      if (error instanceof RehydrationError) {
+        // unsupported interaction / ai 재구성 실패 등. 옛 rehydrateAndResume
+        // outer catch 와 동일한 graceful reset: Execution cancelled + node failed.
+        // markExecutionCancelled 가 EXECUTION_CANCELLED 를 emit → 채널 어댑터
+        // (텔레그램 등)에 "세션 만료 — 새 대화 시작" 안내 도달 (#398 routing).
+        await this.markExecutionCancelled(executionId, error.code);
+        await this.markNodeExecutionFailed(opts.nodeExec.id, error.code);
+      } else {
+        // 다운스트림 노드 실패 등 — ExecutionCancelledError → cancelled, 그 외
+        // → failed. (다운스트림 노드 실패가 continuation 전달을 retry 시키지
+        // 않는 게 옳다.)
+        await this.finalizeResumedExecutionOutcome(savedExecution, error);
+      }
     } finally {
       this.finalizeRehydrationCleanup(executionId);
     }
@@ -1719,8 +1734,9 @@ export class ExecutionEngineService
   /**
    * Resume(rehydration) 중 입력 처리 / 그래프 구동 실패를 Execution 단말 상태로
    * 마감한다. `ExecutionCancelledError` → `cancelled`, 그 외 → `failed`.
-   * `RehydrationError` 는 호출 측(Phase 1)이 outer 로 rethrow 하므로 여기 도달
-   * 하지 않는다 (도달 시 방어적으로 failed 처리).
+   * `RehydrationError` 는 호출 측(`driveResumeDetached` catch / `rehydrateAndResume`
+   * outer)이 `markExecutionCancelled` 로 직접 처리하므로 여기로 넘기지 않는다
+   * (도달 시 방어적으로 failed 처리).
    */
   private async finalizeResumedExecutionOutcome(
     savedExecution: Execution,
