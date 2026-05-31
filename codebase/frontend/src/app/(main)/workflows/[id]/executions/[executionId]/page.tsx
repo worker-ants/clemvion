@@ -14,10 +14,33 @@ import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
 } from "lucide-react";
-import { executionsApi, type ExecutionData, type NodeExecutionData } from "@/lib/api/executions";
+import {
+  executionsApi,
+  type ExecutionData,
+  type ExecutionChainItem,
+  type NodeExecutionData,
+} from "@/lib/api/executions";
 import { workflowsApi } from "@/lib/api/workflows";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { RotateCcw, ChevronDown as ChevronDownIcon } from "lucide-react";
+import Link from "next/link";
+import { ReRunModal } from "@/components/executions/rerun-modal";
+import { canReRun } from "@/lib/executions/can-rerun";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { selectCurrentRole, useWorkspaceStore } from "@/lib/stores/workspace-store";
 import { formatDate } from "@/lib/utils/date";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -28,6 +51,7 @@ import {
 } from "@/lib/utils/execution-status";
 import { useT, type TranslationKey } from "@/lib/i18n";
 import { getNodeDefinition, loadNodeDefinitions } from "@/lib/node-definitions";
+import { isDryRunOutput } from "@/components/editor/run-results/result-detail";
 import { PresentationContent } from "@/components/editor/run-results/renderers/presentation-renderers";
 import { GenericRenderer } from "@/components/editor/run-results/renderers/generic-renderer";
 import { ConversationInspector } from "@/components/editor/run-results/conversation-inspector";
@@ -166,6 +190,40 @@ export default function ExecutionDetailPage({
 
   const execution = executionQuery.data;
 
+  // Re-run 진입점 (spec/5-system/13-replay-rerun.md §10.1 / §10.3).
+  const [rerunOpen, setRerunOpen] = useState(false);
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
+  const currentRole = useWorkspaceStore(selectCurrentRole);
+  const allowReRun = canReRun(
+    { id: currentUserId, role: currentRole },
+    { executedBy: execution?.executedBy ?? null },
+  );
+
+  // Re-run chain (spec §8.2). re-run 이거나 본 실행이 chain root 일 수 있으므로
+  // 항상 조회하되, 단일 실행(길이 1)이면 badge/dropdown 둘 다 숨긴다.
+  const chainQuery = useQuery<ExecutionChainItem[]>({
+    queryKey: ["execution-chain", executionId],
+    queryFn: () => executionsApi.getChain(executionId),
+  });
+  const chain = useMemo(() => chainQuery.data ?? [], [chainQuery.data]);
+
+  // chain "n" — started_at ASC chain 에서 root(reRunOf==null) 를 제외한 재실행
+  // 목록 중 본 실행의 1-based 위치. (chain 은 백엔드가 ASC 정렬해 반환하지만
+  // 방어적으로 다시 정렬한다.)
+  const sortedChain = useMemo(
+    () =>
+      [...chain].sort(
+        (a, b) =>
+          new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime(),
+      ),
+    [chain],
+  );
+  const chainIndex = useMemo(() => {
+    const reRuns = sortedChain.filter((e) => e.reRunOf != null);
+    const pos = reRuns.findIndex((e) => e.id === executionId);
+    return pos >= 0 ? pos + 1 : null;
+  }, [sortedChain, executionId]);
+
   const nodeExecutions = execution?.nodeExecutions;
 
   const sortedNodeExecutions = useMemo(() => {
@@ -274,6 +332,31 @@ export default function ExecutionDetailPage({
             {t("executions.nextBtn")}
             <ChevronRightIcon className="ml-1 h-4 w-4" />
           </Button>
+          {/* Re-run 진입점 (spec §10.1) — 권한 미충족 시 disabled + tooltip. */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* span wrapper: disabled button 은 hover 이벤트를 발생시키지
+                    않아 tooltip 이 안 뜨므로 감싼다. */}
+                <span className="inline-flex">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!allowReRun}
+                    onClick={() => setRerunOpen(true)}
+                  >
+                    <RotateCcw className="mr-1 h-4 w-4" />
+                    {t("history.actions.rerun")}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!allowReRun && (
+                <TooltipContent>
+                  {t("history.rerun.permissionDenied")}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
@@ -326,12 +409,83 @@ export default function ExecutionDetailPage({
             <strong>{t("executions.errorHeading")}</strong> {execution.error.message}
           </div>
         )}
+
+        {/* Chain 표시 (spec §10.3) — re-run 이거나 chain 길이 ≥2 일 때. */}
+        {(execution.reRunOf != null || chain.length >= 2) && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[hsl(var(--border))] pt-3 text-sm">
+            {execution.reRunOf != null && (
+              <>
+                <Badge variant="outline" className="font-mono">
+                  📎 {t("history.rerun.chainBadge", { n: chainIndex ?? 1 })}
+                  {execution.dryRun &&
+                    ` · ${t("history.rerun.chainBadgeDryRun")}`}
+                </Badge>
+                <span className="text-[hsl(var(--muted-foreground))]">
+                  {t("history.rerun.chainOrigin")}:{" "}
+                  <Link
+                    href={`/workflows/${workflowId}/executions/${execution.reRunOf}`}
+                    className="font-mono text-[hsl(var(--primary))] hover:underline"
+                  >
+                    #{execution.reRunOf}
+                  </Link>
+                </span>
+              </>
+            )}
+            {chain.length >= 2 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="ml-auto">
+                    {t("history.rerun.viewChain", { count: chain.length })}
+                    <ChevronDownIcon className="ml-1 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-w-[20rem]">
+                  {sortedChain.map((item) => (
+                    <DropdownMenuItem key={item.id} asChild>
+                      <Link
+                        href={`/workflows/${workflowId}/executions/${item.id}`}
+                        className="flex items-center gap-2"
+                      >
+                        <span className="font-mono text-xs">#{item.id}</span>
+                        <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                          {formatDate(item.startedAt, "datetime")}
+                        </span>
+                        <Badge variant="outline" className="ml-auto text-[10px]">
+                          {item.status}
+                        </Badge>
+                        {item.dryRun && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {t("history.rerun.chainBadgeDryRun")}
+                          </Badge>
+                        )}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Node Results */}
       <NodeResultsTab
         executionId={executionId}
         nodeExecutions={sortedNodeExecutions}
+        executionDryRun={execution.dryRun === true}
+      />
+
+      {/* Re-run 모달 (spec §10.2) — 두 진입점이 공유한다. */}
+      <ReRunModal
+        original={{
+          id: execution.id,
+          workflowId: execution.workflowId,
+          status: execution.status,
+          startedAt: execution.startedAt,
+          inputData: execution.inputData,
+        }}
+        open={rerunOpen}
+        onClose={() => setRerunOpen(false)}
       />
     </div>
   );
@@ -356,9 +510,11 @@ function toNodeResult(ne: NodeExecutionData): NodeResult {
 function NodeResultsTab({
   executionId,
   nodeExecutions,
+  executionDryRun,
 }: {
   executionId: string;
   nodeExecutions: NodeExecutionData[];
+  executionDryRun: boolean;
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodeDetailTab, setNodeDetailTab] = useState<DetailTab>("preview");
@@ -566,6 +722,14 @@ function NodeResultsTab({
                 {selectedNode.node?.type && (
                   <Badge variant="outline" className="text-xs">
                     {selectedNode.node.type}
+                  </Badge>
+                )}
+                {(executionDryRun || isDryRunOutput(selectedNode.outputData)) && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs text-purple-600 border-purple-300"
+                  >
+                    🧪 dry-run
                   </Badge>
                 )}
                 <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">

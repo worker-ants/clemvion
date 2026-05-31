@@ -85,6 +85,18 @@ export class ExecutionDto {
   /** 실행 경로 (중첩 실행 추적) */
   @ApiProperty({ type: [String], example: [] })
   executionPath: string[];
+
+  /** 직계 부모 실행 UUID — Re-run 으로 생성된 실행만 세팅, 일반 실행은 null (spec §9.1) */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  reRunOf?: string | null;
+
+  /** Re-run chain root 실행 UUID — Re-run 으로 생성된 실행만 세팅, 일반 실행은 null */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  chainId?: string | null;
+
+  /** dry-run 모드로 생성된 실행 여부 (외부 부수효과 노드가 mock 출력, spec §7) */
+  @ApiProperty({ example: false })
+  dryRun: boolean;
 }
 
 /** 노드 실행 이력 요약 */

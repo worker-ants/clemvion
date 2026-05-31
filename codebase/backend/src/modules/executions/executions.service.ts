@@ -653,6 +653,10 @@ export class ExecutionsService {
       // list 응답에서는 N+1 회피를 위해 빈 배열로 유지. 단건 조회 (`findById`)
       // 는 별도 경로로 execution_node_log 를 채워서 응답한다.
       executionPath: [],
+      // Re-run chain 메타 — chain badge / View chain (spec §10.3) 가 사용.
+      reRunOf: execution.reRunOf ?? null,
+      chainId: execution.chainId ?? null,
+      dryRun: execution.dryRun ?? false,
     };
   }
 

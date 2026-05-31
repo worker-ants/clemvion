@@ -53,6 +53,33 @@ export function extractBackgroundRunId(output: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/**
+ * NodeExecution 이 dry-run 으로 실행됐는지 판정 (spec §7.4). 핸들러가 mock
+ * 출력에 `_dryRun: true` 마커를 심는다. envelope (`{ output: {...} }`) 와 평면
+ * 출력 양쪽을 확인한다.
+ */
+export function isDryRunOutput(output: unknown): boolean {
+  if (output == null || typeof output !== "object") return false;
+  const o = output as Record<string, unknown>;
+  if (o._dryRun === true) return true;
+  const inner = o.output;
+  if (inner != null && typeof inner === "object") {
+    return (inner as Record<string, unknown>)._dryRun === true;
+  }
+  return false;
+}
+
+function DryRunBadge() {
+  return (
+    <Badge
+      variant="outline"
+      className="text-[10px] px-1.5 py-0 text-purple-600 border-purple-300"
+    >
+      🧪 dry-run
+    </Badge>
+  );
+}
+
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case "running":
@@ -1134,6 +1161,7 @@ export function ResultDetail({
           {definition?.label ?? result.nodeType}
         </span>
         <StatusBadge status={result.status} />
+        {isDryRunOutput(result.outputData) && <DryRunBadge />}
         {result.duration != null && (
           <span className="text-xs text-[hsl(var(--muted-foreground))]">
             {formatDuration(result.duration)}

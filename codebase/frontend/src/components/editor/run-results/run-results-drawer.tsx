@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useExecutionStore, selectPendingFormToolCallId } from "@/lib/stores/execution-store";
 import {
   ChevronDown,
@@ -11,11 +12,17 @@ import {
   PauseCircle,
   GripHorizontal,
   History,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResultTimeline } from "./result-timeline";
 import { ResultDetail } from "./result-detail";
 import { useT } from "@/lib/i18n";
+import { ReRunModal } from "@/components/executions/rerun-modal";
+import { canReRun } from "@/lib/executions/can-rerun";
+import { executionsApi } from "@/lib/api/executions";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { selectCurrentRole, useWorkspaceStore } from "@/lib/stores/workspace-store";
 
 const DEFAULT_HEIGHT = 420;
 const MIN_HEIGHT = 240;
@@ -87,6 +94,7 @@ export function RunResultsDrawer() {
 
   const status = useExecutionStore((s) => s.status);
   const executionId = useExecutionStore((s) => s.executionId);
+  const startedAt = useExecutionStore((s) => s.startedAt);
   const nodeStatuses = useExecutionStore((s) => s.nodeStatuses);
   const nodeResults = useExecutionStore((s) => s.nodeResults);
   const waitingNodeId = useExecutionStore((s) => s.waitingNodeId);
@@ -129,6 +137,27 @@ export function RunResultsDrawer() {
   // display-only `FormSubmittedContent`. 早期 return 이전에 hook 을 호출해야
   // Rules of Hooks 를 준수한다.
   const pendingFormToolCallId = useExecutionStore(selectPendingFormToolCallId);
+
+  // Re-run 진입점 (spec/5-system/13-replay-rerun.md §10.1). 드로어에서는 권한
+  // 미충족 시 버튼을 hidden (disabled 아님) — 워크플로 작성 중 컨텍스트라 노이즈
+  // 를 줄인다.
+  const [rerunOpen, setRerunOpen] = useState(false);
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
+  const currentRole = useWorkspaceStore(selectCurrentRole);
+
+  // 현재 실행의 상세 — `executedBy`(권한 판정) / `inputData`(모달 default) 에
+  // 필요. 실행이 idle 이 아닐 때만 조회하고, 상세 페이지와 같은 query key 로
+  // 캐시를 공유한다.
+  const detailQuery = useQuery({
+    queryKey: ["execution", executionId],
+    queryFn: () => executionsApi.getById(executionId as string),
+    enabled: !!executionId,
+  });
+  const detail = detailQuery.data;
+  const allowReRun = canReRun(
+    { id: currentUserId, role: currentRole },
+    { executedBy: detail?.executedBy ?? null },
+  );
 
   // Auto-selection of blocking nodes is handled directly in store actions
   // (pauseForForm, pauseForButtons, pauseForConversation set selectedResultNodeId atomically)
@@ -335,6 +364,18 @@ export function RunResultsDrawer() {
               {t("editor.allExecutions")}
             </a>
           )}
+          {/* Re-run (spec §10.1) — 권한 미충족 시 hidden. */}
+          {allowReRun && executionId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 gap-1 px-2 text-xs"
+              onClick={() => setRerunOpen(true)}
+            >
+              <RotateCcw className="h-3 w-3" />
+              {t("history.actions.rerun")}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -416,6 +457,21 @@ export function RunResultsDrawer() {
             />
           </div>
         </div>
+      )}
+
+      {/* Re-run 모달 (spec §10.2). 상세 페이지와 동일 컴포넌트를 공유한다. */}
+      {executionId && (
+        <ReRunModal
+          original={{
+            id: executionId,
+            workflowId: (workflowId as string) ?? detail?.workflowId ?? "",
+            status: detail?.status ?? "running",
+            startedAt: detail?.startedAt ?? startedAt ?? "",
+            inputData: detail?.inputData,
+          }}
+          open={rerunOpen}
+          onClose={() => setRerunOpen(false)}
+        />
       )}
     </div>
   );
