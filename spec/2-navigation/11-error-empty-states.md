@@ -1,10 +1,13 @@
 ---
 id: error-empty-states
-status: partial
+status: implemented
 code:
   - codebase/frontend/src/components/ui/empty-state.tsx
-pending_plans:
-  - plan/in-progress/error-pages-impl.md
+  - codebase/frontend/src/components/ui/error-page.tsx
+  - codebase/frontend/src/app/not-found.tsx
+  - codebase/frontend/src/app/global-error.tsx
+  - codebase/frontend/src/app/(main)/error.tsx
+  - codebase/frontend/src/app/(main)/not-found.tsx
 ---
 
 # Spec: 에러 페이지 / 빈 상태 UI
@@ -41,7 +44,7 @@ pending_plans:
 | 에러 | HTTP 코드 | 아이콘 | 제목 | 설명 | CTA |
 |------|-----------|--------|------|------|-----|
 | 세션 만료 | 401 | 🔒 자물쇠 | 세션이 만료되었습니다 | 보안을 위해 자동 로그아웃 되었습니다. 다시 로그인해주세요. | **다시 로그인** → 로그인 페이지 |
-| 권한 없음 | 403 | 🚫 차단 | 접근 권한이 없습니다 | 이 페이지에 접근할 권한이 없습니다. 워크스페이스 관리자에게 문의하세요. | **워크스페이스 목록으로** → 워크스페이스 선택 화면 |
+| 권한 없음 | 403 | 🚫 차단 | 접근 권한이 없습니다 | 이 페이지에 접근할 권한이 없습니다. 워크스페이스 관리자에게 문의하세요. | **대시보드로 이동** → 대시보드 |
 | 페이지 없음 | 404 | 🔍 돋보기 | 페이지를 찾을 수 없습니다 | 요청하신 페이지가 존재하지 않거나 이동되었습니다. | **대시보드로 이동** → 대시보드 |
 | 서버 에러 | 500 | ⚠️ 경고 | 문제가 발생했습니다 | 서버에서 예기치 않은 오류가 발생했습니다. 잠시 후 다시 시도해주세요. | **다시 시도** → 현재 페이지 새로고침, **대시보드로 이동** → 대시보드 |
 | 네트워크 오류 | — | 📡 연결 끊김 | 네트워크에 연결할 수 없습니다 | 인터넷 연결을 확인하고 다시 시도해주세요. | **다시 시도** → 현재 페이지 새로고침 |
@@ -50,7 +53,7 @@ pending_plans:
 
 | 규칙 | 설명 |
 |------|------|
-| 401 감지 | API 응답 401 수신 시 현재 페이지를 세션 만료 에러 페이지로 교체. 로그인 후 원래 URL로 리디렉트 |
+| 401 감지 | 세션 만료 시 사이드바 없는 `/login?redirect=<현재경로>` 로 리디렉트(§Rationale) — 로그인 후 원래 URL 복귀. (에러 바운더리로 401 이 전파되면 `(main)/error.tsx` 가 동일 redirect 수행) |
 | 403 감지 | API 응답 403 수신 시 권한 없음 에러 페이지 표시 |
 | 404 감지 | 존재하지 않는 라우트 접근 또는 API 404 응답 시 표시 |
 | 500 감지 | API 응답 5xx 수신 시 서버 에러 페이지 표시 |
@@ -117,3 +120,19 @@ pending_plans:
 | 안내 문구 | "검색 결과가 없습니다. 다른 키워드로 검색하거나 필터를 변경해보세요." |
 | CTA | **필터 초기화** → 검색어 및 필터를 모두 초기화하여 전체 목록 표시 |
 | 적용 범위 | 검색바 또는 필터가 존재하는 모든 목록 화면 공통 |
+
+---
+
+## Rationale
+
+### 403 CTA 목적지 — 대시보드 (워크스페이스 선택 화면 미구현)
+
+초기 §1.2 는 403 CTA 를 "워크스페이스 선택 화면(목록)" 으로 정의했으나, 현 앱에는 워크스페이스 *선택/전환* 화면이 없다 (`/workspace/settings` 워크스페이스 설정만 존재). 멀티 워크스페이스 선택 UI 는 미구현 surface 라, 403 CTA 는 권한과 무관하게 항상 접근 가능한 **대시보드(`/dashboard`)** 로 보낸다. 향후 워크스페이스 선택 화면이 추가되면 본 CTA 를 그 경로로 갱신한다.
+
+### 에러 페이지 감지 메커니즘 — Next.js 에러 바운더리
+
+§1.3 의 401/403/404/500/네트워크 감지는 별도 전역 interceptor takeover 가 아니라 **Next.js App Router 에러 바운더리**(`error.tsx` / `not-found.tsx` / `global-error.tsx`)로 구현한다. 페이지에서 전파된(uncaught) 에러의 HTTP 상태를 `errorToVariant()` 가 variant 로 매핑한다. 컴포넌트가 국소 처리하는 에러(인라인 메시지 등)는 화면을 덮지 않으며, 이는 "모든 403 이 전체화면을 덮는" literal interceptor 방식보다 실제 UX 에 부합한다.
+
+- **401 사이드바 숨김 (§1.3)**: sessionExpired 는 `(main)/error.tsx` 에서 사이드바 없는 `/login?redirect=` 로 redirect 해 충족한다 (auth-provider 의 세션 만료 처리와 동일 경로).
+- **미정의 4xx (402/405/408/429 등)**: spec 이 명시하지 않은 상태 코드는 `server` variant 로 폴백한다 (보수적 기본값). 개별 4xx 페이지가 필요하면 후속 spec 개정으로 추가한다.
+- **네트워크 감지**: axios 기준 `!response && request` / `ERR_NETWORK` / `ECONNABORTED` 를 네트워크 오류로 본다.
