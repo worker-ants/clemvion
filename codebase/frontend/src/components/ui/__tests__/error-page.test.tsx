@@ -1,10 +1,22 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ErrorPage, errorToVariant } from "../error-page";
+import { ErrorPage, errorToVariant, isSafeRedirectPath } from "../error-page";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/workflows/abc",
 }));
+
+describe("isSafeRedirectPath", () => {
+  it("accepts in-app absolute paths", () => {
+    expect(isSafeRedirectPath("/dashboard")).toBe(true);
+    expect(isSafeRedirectPath("/workflows/abc")).toBe(true);
+  });
+  it("rejects protocol-relative / external / null paths (open-redirect)", () => {
+    expect(isSafeRedirectPath("//evil.com")).toBe(false);
+    expect(isSafeRedirectPath("https://evil.com")).toBe(false);
+    expect(isSafeRedirectPath(null)).toBe(false);
+  });
+});
 
 describe("errorToVariant", () => {
   it("maps HTTP status → variant per spec §1.3", () => {
@@ -42,12 +54,12 @@ describe("ErrorPage", () => {
     );
   });
 
-  it("renders forbidden (403) with a dashboard link", () => {
+  it("renders forbidden (403) with a workspace link (spec §1.2)", () => {
     render(<ErrorPage variant="forbidden" />);
     expect(screen.getByText("접근 권한이 없습니다")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "대시보드로 이동" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "워크스페이스로 이동" })).toHaveAttribute(
       "href",
-      "/dashboard",
+      "/workspace/settings",
     );
   });
 

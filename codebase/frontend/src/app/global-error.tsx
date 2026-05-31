@@ -4,6 +4,7 @@
 // 자체 <html><body> 와 전역 스타일을 직접 포함해야 한다 (Next.js global-error 규약).
 // spec/2-navigation/11-error-empty-states.md §1.2 서버 에러.
 import "./globals.css";
+import { useEffect } from "react";
 import { ErrorPage, errorToVariant } from "@/components/ui/error-page";
 
 export default function GlobalError({
@@ -13,7 +14,15 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[global-error]", error.message, error.digest ?? "");
+    }
+  }, [error]);
+
   return (
+    // global-error 컨텍스트에서는 i18n 훅·Providers 가 마운트되지 않을 수 있어
+    // 기본 언어를 ko 로 고정한다 (루트 layout 의 lang="ko" 와 동일).
     <html lang="ko">
       <body>
         <ErrorPage variant={errorToVariant(error)} onRetry={reset} />

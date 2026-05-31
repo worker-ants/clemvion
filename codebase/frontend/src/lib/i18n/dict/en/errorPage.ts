@@ -9,7 +9,7 @@ export const errorPage: Dict["errorPage"] = {
   forbidden: {
     title: "Access denied",
     description: "You don't have permission to access this page. Contact your workspace admin.",
-    cta: "Go to dashboard",
+    cta: "Go to workspace",
   },
   notFound: {
     title: "Page not found",
