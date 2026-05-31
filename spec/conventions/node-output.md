@@ -27,7 +27,7 @@ pending_plans:
 
 이 5필드의 의미는 **어떤 노드에서든 동일**해야 합니다.
 
-> **internal top-level 필드 허용 예외**: `_resumeState` (multi-turn waiting/resumed 의 internal 전달) 와 `_retryState` (retryable error 종결 시 DB 보존 — Principle 4.2.1 보존 예외) 는 5필드 외 top-level 위치를 갖는다. expression resolver / autocomplete 비노출, credential strip 정책은 두 필드 동일. 상세: Principle 4.2.1.
+> **internal top-level 필드 허용 예외**: `_resumeState` (multi-turn waiting/resumed 의 internal 전달), `_resumeCheckpoint` (재시작 후 재개용 DB 보존 부분집합 — §7.5 rehydration), `_retryState` (retryable error 종결 시 DB 보존 — Principle 4.2.1 보존 예외) 는 5필드 외 top-level 위치를 갖는다. expression resolver / autocomplete 비노출, credential strip 정책은 세 필드 동일. 상세: Principle 4.2.1.
 
 ---
 
@@ -194,14 +194,17 @@ pending_plans:
 - 현재 presentation 노드의 `output.type: 'carousel'|'table'|...` 판별자 → **폐기** (동일 이유).
 - 현재 presentation 노드의 `output.rendered` (HTML snapshot) → **프런트 렌더링용** 이라면 유지 가능하나, 후속 노드 로직이 참조할 런타임 값이 아니면 `meta.rendered` 로 이동 검토.
 
-#### 4.2.1. 보존 예외 — `_retryState`
+#### 4.2.1. 보존 예외 — `_resumeCheckpoint` / `_retryState`
 
-`_resumeState` 는 DB 영속 시 `stripControlFields()` 가 무조건 제거하지만, **`_retryState` 는 strip 예외 — retryable error 종결 시 `NodeExecution.outputData` 안에 보존**된다.
+`_resumeState` (full) 는 DB 영속 시 `stripControlFields()` 가 무조건 제거하지만, 그 **credential-strip 부분집합**인 `_resumeCheckpoint` 와 `_retryState` 는 strip 예외 — `NodeExecution.outputData` 안에 보존된다.
 
 | 필드 | strip 정책 | 영속 위치 |
 | --- | --- | --- |
-| `_resumeState` | 무조건 strip (DB 영속 시) | in-memory `ExecutionContext` 만 (waiting/resumed 중) |
+| `_resumeState` | 무조건 strip (DB 영속 시) — credential / rawConfig / turn debug 포함 가능 | in-memory `ExecutionContext` 만 (waiting/resumed 중) |
+| `_resumeCheckpoint` | **waiting_for_input 진입·매 turn 영속 시 보존** — `_resumeState` 의 credential-strip 부분집합 | `NodeExecution.outputData._resumeCheckpoint` (DB JSONB) |
 | `_retryState` | **retryable error 종결 시 보존** — `output.error.details.retryable === true` 일 때만 `buildMultiTurnFinalOutput` 이 운반 | `NodeExecution.outputData._retryState` (DB JSONB) |
+
+`_resumeCheckpoint` 는 §7.5 rehydration(재시작/타 인스턴스 재개)용으로 상시 영속되며, `_retryState` 와 **동일 부분집합 + 동일 masking 정책**이되 **`expiresAt`(TTL) 과 `lastUserMessage` 가 없다** (재개는 도착한 사용자 메시지를 그대로 처리, 장시간 idle 후에도 가능). 부재/손상 시 graceful reset (`RESUME_INCOMPATIBLE_STATE`). 재구성 로직(`buildRetryReentryState`)은 `_retryState` 와 공유한다. 상세: [Spec 실행 엔진 §1.3 / §7.5](../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status).
 
 `_retryState` 포함 필드: `_resumeState` 동일 shape (messages / turnCount / model / temperature / maxTokens / knowledgeBases / RAG / MCP / pendingFormToolCall? 등) + `expiresAt: ISO 8601` (TTL — 기본 60분) + `lastUserMessage?: string` (실패한 turn 의 사용자 메시지 원문, `truncateForErrorDetails(500)` 로 cap — retry 재진입 시 replay 용. `_resumeState.messages` 는 turn 직전 스냅샷이라 실패 메시지를 포함하지 않으므로 별도 보관) + `lastUserMessageSource?: 'ai_message' | 'form_submitted'` (replay 출처). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` 가 boundary 에서 strip). expression resolver / autocomplete 비노출. `lastUserMessage` 부재 시 (옛 payload 호환) replay 없이 wait loop 진입.
 

@@ -95,6 +95,10 @@ export interface ChatChannelConfig {
    *   - `executionFailedRateLimit`     — Rate limit 초과
    *   - `executionFailedInternal`      — 내부 서비스 오류 (fallback)
    *
+   * 기타 안내 키 (CCH-ERR-* 외):
+   *   - `formOpenLabel`  — native modal `form_modal` 버튼 라벨 (§4.1)
+   *   - `sessionExpired` — §7.5 rehydration 실패(`RESUME_*`) 시 graceful 세션 만료 안내 (§4.1.1)
+   *
    * @deprecated `executionFailed` 단일 키 + `{{code}}`/`{{message}}` placeholder 는 제거됨.
    *   6 키 체계로 마이그레이션 필요. runtime 에서 deprecation 경고 로그 발생.
    * @see spec/5-system/15-chat-channel.md §4.1 / §4.1.1
@@ -330,6 +334,13 @@ export interface EiaFailedEvent extends EiaEventBase {
 export interface EiaCancelledEvent extends EiaEventBase {
   type: 'execution.cancelled';
   result: { cancelledBy?: 'user' | 'system' | 'timeout' };
+  /**
+   * §7.5 rehydration 실패로 인한 system cancel 의 사유 코드. `RESUME_*`
+   * (CHECKPOINT_MISSING / FAILED / INCOMPATIBLE_STATE) 면 어댑터가 generic
+   * "취소" 대신 graceful "세션 만료 — 새 대화 시작" 안내를 렌더한다. 사용자
+   * cancel 등 일반 취소에는 부재.
+   */
+  error?: { code: string; message?: string };
   durationMs?: number;
 }
 

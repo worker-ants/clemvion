@@ -154,6 +154,68 @@ describe('renderTelegramMessages', () => {
     expect(m[0].body.kind).toBe('text');
   });
 
+  // §7.5 / 방안 D — rehydration 실패(RESUME_*) system cancel 은 generic 취소가
+  // 아닌 graceful "세션 만료" 안내(sessionExpired)를 발송한다.
+  it('cancelled(error.code=RESUME_INCOMPATIBLE_STATE) → sessionExpired 안내 (ko default)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.cancelled',
+      result: { cancelledBy: 'system' },
+      error: { code: 'RESUME_INCOMPATIBLE_STATE' },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    expect(m).toHaveLength(1);
+    if (m[0].body.kind === 'text') {
+      expect(m[0].body.text).toContain('세션이 만료');
+      expect(m[0].body.text).toContain('새 메시지');
+    } else {
+      fail('expected text body');
+    }
+  });
+
+  it('cancelled(error.code=RESUME_CHECKPOINT_MISSING) → sessionExpired (en locale)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.cancelled',
+      result: { cancelledBy: 'system' },
+      error: { code: 'RESUME_CHECKPOINT_MISSING' },
+    };
+    const m = renderTelegramMessages(event, {
+      ...BASE_CONFIG,
+      languageLocale: 'en',
+    });
+    const text = m[0].body.kind === 'text' ? m[0].body.text : '';
+    expect(text.toLowerCase()).toContain('expired');
+  });
+
+  it('cancelled(error.code=RESUME_INCOMPATIBLE_STATE) → languageHints.sessionExpired override 우선', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.cancelled',
+      result: { cancelledBy: 'system' },
+      error: { code: 'RESUME_INCOMPATIBLE_STATE' },
+    };
+    const m = renderTelegramMessages(event, {
+      ...BASE_CONFIG,
+      languageHints: { sessionExpired: '커스텀 만료 안내' },
+    });
+    const text = m[0].body.kind === 'text' ? m[0].body.text : '';
+    expect(text).toContain('커스텀 만료 안내');
+  });
+
+  it('cancelled(비-RESUME error.code) → generic 취소 (sessionExpired 미적용)', () => {
+    const event: EiaEvent = {
+      ...BASE_EVENT_FIELDS,
+      type: 'execution.cancelled',
+      result: { cancelledBy: 'system' },
+      error: { code: 'SOME_OTHER_CODE' },
+    };
+    const m = renderTelegramMessages(event, BASE_CONFIG);
+    const text = m[0].body.kind === 'text' ? m[0].body.text : '';
+    expect(text).not.toContain('세션이 만료');
+    expect(text).toContain('취소');
+  });
+
   // chat channel 에서 ai_conversation / ai_form_render waiting 은 silent (빈 array) —
   // ai_message event 가 응답 본문 단독 발송 책임. 중복 발송 회귀 fix (R-CCA-6, 2026-05-25).
   it('waiting_for_input(ai_form_render) → silent (빈 array, R-CCA-6)', () => {

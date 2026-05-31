@@ -1357,14 +1357,22 @@ export class ExecutionEngineService
       (cachedMeta.interactionType as string | undefined) ??
       (cachedOutput?.interactionType as string | undefined);
 
-    // Multi-turn AI 는 _resumeState 미영속 — 사전 거부.
-    if (
+    // Multi-turn AI 재개 (§7.5) — `_resumeCheckpoint` (credential-strip 부분집합)
+    // 가 DB 영속돼 있으면 `node.config` 재평가로 `_resumeState` 를 재구성해 재개한다
+    // (아래 ai_conversation 분기). checkpoint 가 **부재**(이 기능 배포 이전 진입한
+    // waiting row) 또는 손상이면 재구성 불가 — graceful reset 으로 fail-fast 한다.
+    // 채널 어댑터(텔레그램 등)는 `RESUME_INCOMPATIBLE_STATE` 를 raw 에러가 아닌
+    // "대화 세션 만료 — 새로 시작" 안내로 사용자에게 표시한다.
+    const isAiConversation =
       persistedInteractionType === 'ai_conversation' ||
-      persistedInteractionType === 'ai_form_render'
-    ) {
+      persistedInteractionType === 'ai_form_render';
+    const resumeCheckpoint = cachedOutput?._resumeCheckpoint as
+      | Record<string, unknown>
+      | undefined;
+    if (isAiConversation && !resumeCheckpoint) {
       throw new RehydrationError(
         'RESUME_INCOMPATIBLE_STATE',
-        `Multi-turn AI 노드(${opts.node.type})의 _resumeState 는 보안상 DB 에 저장되지 않음 (engine-internal, WARN #6). 인스턴스 재시작 후 재개 불가.`,
+        `Multi-turn AI 노드(${opts.node.type})의 _resumeCheckpoint 부재 — 재구성 불가 (배포 이전 waiting row 또는 손상). graceful reset: 사용자는 새 대화로 시작.`,
       );
     }
 
@@ -1457,6 +1465,57 @@ export class ExecutionEngineService
           opts.node,
           context,
           graphEdges,
+        );
+      } else if (
+        isAiConversation &&
+        resumeCheckpoint &&
+        opts.node.type === 'ai_agent'
+      ) {
+        // §7.5 Multi-turn AI 재개 — `_resumeCheckpoint` 로 `_resumeState` 재구성
+        // 후 `waitForAiConversation` 재진입. `buildRetryReentryState` 는
+        // `_retryState` retry 재진입과 공유하는 재구성기 — checkpoint 의
+        // credential-strip 부분집합 + `node.config` 재평가로 context-binding 필드를
+        // 재유도한다. checkpoint 에는 `lastUserMessage` 가 없으므로 initialAction 은
+        // undefined — 대신 위에서 스케줄한 `firePayload` 가 도착한 사용자 메시지
+        // (`opts.payload`) 를 loop 의 pendingContinuations 로 전달해 다음 turn 으로
+        // 처리한다 (form/button 재개와 동일한 firePayload 메커니즘).
+        let resumeState: Record<string, unknown>;
+        try {
+          ({ resumeState } = this.buildRetryReentryState(
+            savedExecution,
+            opts.node,
+            context,
+            resumeCheckpoint,
+            { resumeMode: true },
+          ));
+        } catch (err) {
+          // 재구성 실패 (schema drift / 손상) — graceful reset.
+          throw new RehydrationError(
+            'RESUME_INCOMPATIBLE_STATE',
+            `Multi-turn AI 노드(${opts.node.type}) _resumeCheckpoint 재구성 실패: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+        // 재구성한 `_resumeState` 를 nodeOutputCache 에 주입한다. `rehydrateContext`
+        // 가 이미 waiting node 의 outputData (output.result.messages / meta 등) 를
+        // seed 했으므로 그 위에 `_resumeState` 만 덧입혀 `waitForAiConversation`
+        // (nodeOutput._resumeState 를 읽음) 와 `emitAiWaitingForInput` (transient
+        // 재-emit 시 messages echo 보존) 양쪽이 올바른 shape 을 보게 한다.
+        const seededOutput = {
+          ...(cachedOutput ?? {}),
+          _resumeState: resumeState,
+        };
+        this.contextService.setNodeOutput(
+          executionId,
+          opts.node.id,
+          seededOutput,
+        );
+        await this.waitForAiConversation(
+          savedExecution,
+          executionId,
+          opts.node,
+          context,
         );
       } else {
         throw new RehydrationError(
@@ -1605,14 +1664,15 @@ export class ExecutionEngineService
       | 'RESUME_INCOMPATIBLE_STATE',
   ): Promise<void> {
     try {
-      await this.executionRepository
+      const message = ExecutionEngineService.resumeErrorMessage(code);
+      const result = await this.executionRepository
         .createQueryBuilder()
         .update(Execution)
         .set({
           status: ExecutionStatus.CANCELLED,
           error: {
             code,
-            message: ExecutionEngineService.resumeErrorMessage(code),
+            message,
           },
           finishedAt: new Date(),
         })
@@ -1621,6 +1681,34 @@ export class ExecutionEngineService
           status: ExecutionStatus.WAITING_FOR_INPUT,
         })
         .execute();
+      // §7.5 / 방안 D — rehydration 실패로 cancelled 마킹 시 `EXECUTION_CANCELLED`
+      // 를 emit 해 채널 어댑터(텔레그램 등)가 사용자에게 graceful "세션 만료 —
+      // 새 대화 시작" 안내를 보낼 수 있게 한다. 과거에는 DB 만 갱신해 채널에
+      // 무음이었다 (사용자는 응답 없음 후 다음 메시지가 새 대화로 시작). affected
+      // 가 0 (이미 다른 worker 가 처리) 이면 중복 emit 회피.
+      if ((result.affected ?? 0) > 0) {
+        // emit 은 DB cancel 성공과 독립 — emit 실패가 cancel 자체를 무효화하지
+        // 않도록 별도 try/catch 로 격리해 오해 소지 있는 "markExecutionCancelled
+        // 실패" 로그를 방지한다 (cancel 은 이미 commit 됨).
+        try {
+          this.eventEmitter.emitExecution(
+            executionId,
+            ExecutionEventType.EXECUTION_CANCELLED,
+            {
+              status: ExecutionStatus.CANCELLED,
+              result: { cancelledBy: 'system' },
+              error: { code, message },
+            },
+          );
+        } catch (emitErr) {
+          this.logger.warn(
+            `markExecutionCancelled(${code}): EXECUTION_CANCELLED emit 실패 ` +
+              `(cancel 은 DB 에 반영됨) — execution=${executionId}: ${
+                emitErr instanceof Error ? emitErr.message : String(emitErr)
+              }`,
+          );
+        }
+      }
     } catch (err) {
       this.logger.error(
         `markExecutionCancelled(${code}) 실패 — execution=${executionId}: ${
@@ -1675,7 +1763,7 @@ export class ExecutionEngineService
       case 'RESUME_FAILED':
         return 'Execution rehydration failed — continuation queue retry 소진 또는 후속 (Phase 2.3a) 미구현 분기';
       case 'RESUME_INCOMPATIBLE_STATE':
-        return 'Execution checkpoint incompatible — _resumeState deserialize 실패 (schema drift 가능)';
+        return '대화 세션을 재개할 수 없습니다 — 새 대화를 시작해 주세요 (재개 체크포인트 부재/손상)';
     }
   }
 
@@ -3546,6 +3634,7 @@ export class ExecutionEngineService
     node: Node,
     context: ExecutionContext,
     retryState: Record<string, unknown>,
+    opts?: { resumeMode?: boolean },
   ): {
     resumeState: Record<string, unknown>;
     initialAction: ContinuationPayload | undefined;
@@ -3611,7 +3700,10 @@ export class ExecutionEngineService
           : { type: 'ai_message', message: replayMessage }
         : undefined;
 
-    if (replayMessage === undefined) {
+    // resumeMode (§7.5 rehydration) 에서는 lastUserMessage 부재가 정상이다 —
+    // 재개 시 도착한 continuation payload 를 firePayload 가 loop 로 전달하므로
+    // replay 가 불필요. retry 재진입(`applyRetryLastTurn`)에서만 anomaly 로 warn.
+    if (replayMessage === undefined && !opts?.resumeMode) {
       this.logger.warn(
         `applyRetryLastTurn: _retryState has no lastUserMessage for ` +
           `execution=${execution.id} node=${node.id} — re-entering wait loop without replay ` +
@@ -3620,6 +3712,53 @@ export class ExecutionEngineService
     }
 
     return { resumeState, initialAction };
+  }
+
+  /**
+   * §7.5 rehydration — in-memory `_resumeState` 에서 DB 영속용
+   * `_resumeCheckpoint` 부분집합을 만든다. credential / context-binding 필드
+   * (`llmConfigId` / `workspaceId` / `executionId` / `nodeId` / `workflowId` /
+   * `presentationTools` / `conditions` / `maxTurns` / `maxToolCalls` /
+   * `conversationThreadRef` / `rawConfig` 등) 는 **의도적으로 미동봉** — DB 영속
+   * 이므로 credential 참조를 담지 않는다 (`AiAgentHandler.buildRetryState` 와
+   * 동일 allow-list 정책; 재구성 시 `buildRetryReentryState` 가 node.config 에서
+   * 재유도). `_retryState` 와 달리 `expiresAt`(TTL) / `lastUserMessage` 는 없다 —
+   * 재개는 도착한 continuation payload 를 그대로 처리하며 장시간 idle 후에도
+   * 가능 (waiting Execution 무기한 보존). 부재 시 graceful reset
+   * (`RESUME_INCOMPATIBLE_STATE`).
+   *
+   * NOTE — allow-list 는 `AiAgentHandler.buildRetryState` 의 부분집합과 동기화
+   * 유지. 새 비-credential resume 필드 추가 시 양쪽 모두 갱신.
+   */
+  private buildResumeCheckpoint(
+    resumeState: Record<string, unknown> | undefined,
+  ): Record<string, unknown> | undefined {
+    if (!resumeState || typeof resumeState !== 'object') return undefined;
+    const s = resumeState;
+    const pendingFormToolCall = s.pendingFormToolCall as
+      | Record<string, unknown>
+      | undefined;
+    // allow-list invariant — 아래 필드는 credential 을 담지 않는다: `ragSources`/
+    // `mcpServers` 는 secret-ref 기반(평문 secret 미포함), `pendingFormToolCall`
+    // 은 form schema, `messages` 는 이미 `output.result.messages` 로 평문 영속 중.
+    // credential 참조(`llmConfigId` 등)는 미동봉하고 재개 시 node.config 에서 재유도.
+    return {
+      messages: (s.messages as unknown[] | undefined) ?? [],
+      turnCount: (s.turnCount as number | undefined) ?? 0,
+      totalInputTokens: (s.totalInputTokens as number | undefined) ?? 0,
+      totalOutputTokens: (s.totalOutputTokens as number | undefined) ?? 0,
+      totalThinkingTokens: (s.totalThinkingTokens as number | undefined) ?? 0,
+      toolCalls: (s.toolCalls as number | undefined) ?? 0,
+      model: s.model,
+      temperature: s.temperature,
+      maxTokens: s.maxTokens,
+      knowledgeBases: (s.knowledgeBases as unknown[] | undefined) ?? [],
+      ragTopK: s.ragTopK,
+      ragThreshold: s.ragThreshold,
+      ragSources: (s.ragSources as unknown[] | undefined) ?? [],
+      mcpServers: (s.mcpServers as unknown[] | undefined) ?? [],
+      ...(pendingFormToolCall ? { pendingFormToolCall } : {}),
+    };
   }
 
   /**
@@ -4317,6 +4456,19 @@ export class ExecutionEngineService
         ...(structured ?? nodeOutput),
       };
       delete persistedOutput._resumeState;
+      // §7.5 rehydration — full `_resumeState` 는 위에서 strip 하되, 재시작 후
+      // 재개를 위해 credential-strip 부분집합 `_resumeCheckpoint` 를 DB 영속한다.
+      // **`ai_agent` 한정** — 재구성기(`buildRetryReentryState`)와 checkpoint
+      // allow-list 가 ai_agent 의 `_resumeState` shape 에 맞춰져 있다. 다른
+      // ai_conversation 핸들러(information_extractor 등)는 고유 state 필드를
+      // 가지므로 checkpoint 를 영속하지 않고 (재구성 시 누락 방지) 재개 시
+      // graceful reset 으로 처리한다 (변경 전 동작 유지 — 회귀 없음).
+      if (node.type === 'ai_agent') {
+        const checkpoint = this.buildResumeCheckpoint(resumeState);
+        if (checkpoint) {
+          persistedOutput._resumeCheckpoint = checkpoint;
+        }
+      }
       // meta.interactionType 명시 — snapshot reconcile 이 정확한 분기로 hydrate.
       nodeExec.outputData = withInteractionMeta(
         persistedOutput,
@@ -4525,6 +4677,18 @@ export class ExecutionEngineService
         const { _resumeState: _stripped, ...safe } = adaptedNext as unknown as {
           _resumeState?: unknown;
         } & Record<string, unknown>;
+        // §7.5 rehydration — full `_resumeState` 는 strip, credential-strip
+        // 부분집합 `_resumeCheckpoint` 만 DB 영속해 재시작 후 재개를 보장한다.
+        // `ai_agent` 한정 (emitAiWaitingForInput 와 동일 — 재구성기가 ai_agent
+        // shape 전용).
+        if (node.type === 'ai_agent') {
+          const checkpoint = this.buildResumeCheckpoint(
+            _stripped as Record<string, unknown> | undefined,
+          );
+          if (checkpoint) {
+            (safe as Record<string, unknown>)._resumeCheckpoint = checkpoint;
+          }
+        }
         void _stripped;
         nodeExec.outputData = withInteractionMeta(safe, 'ai_conversation');
         try {
@@ -6257,6 +6421,9 @@ export class ExecutionEngineService
    *    Leaking `"resumed"` confuses blocking detection on successors.
    *  - `_resumeState`: per-node interaction state. Strictly owned by the
    *    node that emitted it.
+   *  - `_resumeCheckpoint`: DB-persisted credential-strip subset of
+   *    `_resumeState` (§7.5 rehydration). Internal-only — downstream nodes
+   *    must not receive it (same policy as `_resumeState`).
    *
    * The `structuredOutputCache` (what `$node["X"].port` resolves against)
    * is not touched — downstream expressions can still read the predecessor's
@@ -6271,7 +6438,8 @@ export class ExecutionEngineService
       !('_selectedPort' in o) &&
       !('port' in o) &&
       !('status' in o) &&
-      !('_resumeState' in o)
+      !('_resumeState' in o) &&
+      !('_resumeCheckpoint' in o)
     ) {
       return output;
     }
@@ -6280,12 +6448,14 @@ export class ExecutionEngineService
       port: _p,
       status: _st,
       _resumeState: _rs,
+      _resumeCheckpoint: _rc,
       ...rest
     } = o;
     void _sp;
     void _p;
     void _st;
     void _rs;
+    void _rc;
     return rest;
   }
 

@@ -567,12 +567,20 @@ export function toChatChannelEvent(
       };
     }
     case 'execution.cancelled': {
+      // §7.5 / 방안 D — rehydration 실패 system cancel 은 payload.error.code 에
+      // `RESUME_*` 를 싣는다. 어댑터가 graceful "세션 만료" 안내로 분기하도록 전달.
+      const errRaw = (event.payload as { error?: unknown }).error;
+      const error =
+        errRaw && typeof errRaw === 'object'
+          ? (errRaw as { code: string; message?: string })
+          : undefined;
       return {
         ...base,
         type: 'execution.cancelled',
         result: ((event.payload as { result?: unknown }).result ?? {}) as {
           cancelledBy?: 'user' | 'system' | 'timeout';
         },
+        ...(error ? { error } : {}),
         durationMs: (event.payload as { durationMs?: number }).durationMs,
       };
     }

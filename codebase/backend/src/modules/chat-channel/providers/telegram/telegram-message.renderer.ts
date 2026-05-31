@@ -9,6 +9,7 @@ import type { PresentationPayload } from '../../../../shared/conversation-thread
 import { classifyExecutionFailure } from '../../shared/execution-failure-classifier';
 import {
   resolveLanguageHint,
+  resolveSessionExpiredMessage,
   applyPlaceholders,
   type LanguageLocale,
 } from '../../shared/language-hint-defaults';
@@ -54,11 +55,22 @@ export function renderTelegramMessages(
       );
     case 'execution.failed':
       return renderText(renderFailureMessage(event, config));
-    case 'execution.cancelled':
+    case 'execution.cancelled': {
+      // §7.5 / 방안 D — rehydration 실패(`RESUME_*`)로 인한 system cancel 은
+      // generic "취소" 대신 graceful "세션 만료 — 새 대화 시작" 안내를 보낸다.
+      if (event.error?.code?.startsWith('RESUME_')) {
+        return renderText(
+          resolveSessionExpiredMessage(
+            config.languageHints,
+            config.languageLocale as LanguageLocale | undefined,
+          ),
+        );
+      }
       return renderText(
         config.languageHints?.executionCancelled ??
           '워크플로우가 취소되었습니다.',
       );
+    }
     case 'execution.waiting_for_input':
       return renderWaitingForInput(event, config);
     case 'execution.node.completed':
