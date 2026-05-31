@@ -39,14 +39,29 @@ pending_plans:
 
 ## 3. 타입 정의
 
+타입·평가 유틸·Parallel rule 의 단일 진실은 shared package `@workflow/graph-warning-rules` (`codebase/packages/graph-warning-rules/`). backend·frontend 모두 이 패키지를 import 한다 (§6). 패키지는 TypeORM/앱 비의존 **pure shape** 로 정의한다:
+
 ```ts
-// codebase/backend/src/nodes/core/graph-warning-rule.ts
+// @workflow/graph-warning-rules
+export interface GraphRuleNode {
+  id: string;
+  type: string;
+  config?: Record<string, unknown>;
+  label?: string;
+}
+export interface GraphRuleEdge {
+  source: string;
+  sourceHandle?: string | null;
+  target: string;
+  targetHandle?: string | null;
+}
+
 export interface GraphWarningRule {
   id: string;
   severity: 'error' | 'warning';
   evaluate: (
-    node: Node,
-    graph: { nodes: readonly Node[]; edges: readonly Edge[] },
+    node: GraphRuleNode,
+    graph: { nodes: readonly GraphRuleNode[]; edges: readonly GraphRuleEdge[] },
   ) => { message: string } | null;
 }
 
@@ -58,7 +73,10 @@ export interface GraphWarningRuleResult {
 }
 ```
 
-`NodeComponentMetadata.graphWarningRules?: readonly GraphWarningRule[]` 신규 필드.
+- `NodeComponentMetadata.graphWarningRules?: readonly GraphWarningRule[]` 신규 필드 — Parallel 노드는 패키지의 `parallelGraphWarningRules` 를 참조.
+- backend 는 thin adapter (`graph-warning-rule.ts`) 가 TypeORM `Node`/`Edge` entity 를 `GraphRuleNode`/`GraphRuleEdge` 로 매핑(`toRuleNode`/`toRuleEdge`) 후 패키지 유틸에 위임.
+- frontend 는 canvas/store 의 node·edge 를 동일 pure shape 로 매핑(`mapToRuleGraph`)해 패키지 유틸을 **로컬 실행**.
+- frontend 가 rule 을 type 으로 해석하도록 패키지가 `GRAPH_WARNING_RULES_BY_TYPE: Readonly<Record<string, readonly GraphWarningRule[]>>` 맵을 export.
 
 ## 4. severity 정책
 

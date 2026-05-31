@@ -424,6 +424,18 @@ function propagateContainerInMap(
 }
 
 /**
+ * 에디터 스토어의 ReactFlow 노드 `data` 페이로드 shape. ReactFlow 기본 `Node`
+ * 의 `data` 는 `Record<string, unknown>` 이지만, 본 앱은 node 의 정체(type)·
+ * 설정(config)·표시 라벨(label)을 이 페이로드에 싣는다. graph-warning-rules
+ * 매핑은 이 중 평가 입력(type/config/label)만 읽는다.
+ */
+type EditorNodeData = {
+  type?: string;
+  config?: Record<string, unknown>;
+  label?: string;
+};
+
+/**
  * ReactFlow 의 store node/edge 모델을 `@workflow/graph-warning-rules` 가 받는
  * 순수 graph shape 으로 매핑한다.
  *
@@ -440,9 +452,8 @@ function mapToRuleGraph(
   edges: Edge[],
 ): { nodes: GraphRuleNode[]; edges: GraphRuleEdge[] } {
   const ruleNodes: GraphRuleNode[] = nodes.map((n) => {
-    const data = n.data as
-      | { type?: string; config?: Record<string, unknown>; label?: string }
-      | undefined;
+    // 스토어 노드의 `data` 페이로드(`EditorNodeData`)에서 평가 입력만 추출.
+    const data = n.data as EditorNodeData;
     return {
       id: n.id,
       type: data?.type ?? "",
@@ -843,6 +854,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  // 순수 로컬 평가 — `workflowId` 나 네트워크 호출이 필요 없다 (그래프 snapshot 만
+  // 입력). 따라서 과거 async fetch 시절의 `_graphWarningsAbortController` 도 제거됨;
+  // 평가가 다시 async(서버 round-trip)로 돌아가면 race 방지를 위해 AbortController
+  // 패턴을 복원해야 한다.
   evaluateGraphWarningsLocal: () => {
     const { nodes, edges } = get();
     try {

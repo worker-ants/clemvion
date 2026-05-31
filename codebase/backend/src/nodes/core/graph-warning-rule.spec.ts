@@ -5,6 +5,7 @@ import {
 } from './graph-warning-rule';
 import type { Node } from '../../modules/nodes/entities/node.entity';
 import type { Edge } from '../../modules/edges/entities/edge.entity';
+import { parallelNodeMetadata } from '../logic/parallel/parallel.schema';
 
 describe('GraphWarningRule (parallel-p2 결정 D + E + I)', () => {
   const makeNode = (id: string, type: string, label = id): Node =>
@@ -99,11 +100,39 @@ describe('GraphWarningRule (parallel-p2 결정 D + E + I)', () => {
         },
       ];
       evaluateGraphWarningRules(a, graph, rules);
-      // 노드는 entity 그대로 통과 (구조적 호환), 엣지는 source/sourceHandle 로 매핑.
-      expect(captured!.nodes).toBe(graph.nodes);
+      // 노드는 toRuleNode 로 명시 매핑 (id/type/config/label), 엣지는
+      // source/sourceHandle 로 매핑.
+      expect(captured!.nodes).toEqual([
+        { id: 'a', type: 'parallel', config: {}, label: 'a' },
+        { id: 'b', type: 'http', config: {}, label: 'b' },
+      ]);
       expect(captured!.edges).toEqual([
         { source: 'a', sourceHandle: 'branch_0', target: 'b', targetHandle: 'in' },
       ]);
+    });
+
+    it('skips a node whose type is undefined (no compile-time cast safety net)', () => {
+      // entity 필드 누락(예: type undefined) 시 as 단언이면 런타임에서야 터지지만,
+      // toRuleNode 는 평가 graph 에서 안전하게 제외한다.
+      const typeless = { id: 'x', label: 'x', workflowId: 'wf-1', config: {} } as unknown as Node;
+      const ok = makeNode('p', 'parallel', 'P');
+      const graph = { nodes: [typeless, ok], edges: [] };
+      let captured: { nodes: readonly { id: string }[] } | undefined;
+      const rules: GraphWarningRule[] = [
+        {
+          id: 'capture',
+          severity: 'warning',
+          evaluate: (_n, g) => {
+            captured = g;
+            return null;
+          },
+        },
+      ];
+      // type 누락 노드를 직접 평가해도 throw 없이 빈 결과.
+      expect(evaluateGraphWarningRules(typeless, graph, rules)).toEqual([]);
+      // 정상 노드를 평가하면 graph.nodes 에서 type 누락 노드는 빠진다.
+      evaluateGraphWarningRules(ok, graph, rules);
+      expect(captured!.nodes.map((n) => n.id)).toEqual(['p']);
     });
   });
 
@@ -157,6 +186,35 @@ describe('GraphWarningRule (parallel-p2 결정 D + E + I)', () => {
       expect(hasError).toBe(true);
       expect(hasWarning).toBe(true);
       expect(results).toHaveLength(3); // a: err + warn, b: warn only
+    });
+  });
+
+  describe('end-to-end with real parallelNodeMetadata.graphWarningRules', () => {
+    // adapter (Node/Edge entity → 순수 shape) → 실제 패키지 rule 평가까지 통합.
+    // resolver 는 backend registry 가 하듯 type → metadata.graphWarningRules 를 준다.
+    const realResolver = (type: string): readonly GraphWarningRule[] | undefined =>
+      type === 'parallel' ? parallelNodeMetadata.graphWarningRules : undefined;
+
+    const branchEdge = (id: string, source: string, target: string): Edge =>
+      makeEdge(id, source, target, 'branch_0');
+
+    it('3-level nested Parallel graph surfaces parallel:nested-depth-exceeded', () => {
+      const outer = makeNode('p1', 'parallel', 'Outer');
+      const inner = makeNode('p2', 'parallel', 'Inner');
+      const innermost = makeNode('p3', 'parallel', 'Innermost');
+      const graph = {
+        nodes: [outer, inner, innermost],
+        edges: [branchEdge('e1', 'p1', 'p2'), branchEdge('e2', 'p2', 'p3')],
+      };
+
+      const results = evaluateGraphWarningRulesForGraph(graph, realResolver);
+      const depthError = results.find(
+        (r) => r.ruleId === 'parallel:nested-depth-exceeded',
+      );
+      expect(depthError).toBeDefined();
+      expect(depthError!.severity).toBe('error');
+      expect(depthError!.nodeId).toBe('p1');
+      expect(depthError!.message).toContain('depth > 2');
     });
   });
 });

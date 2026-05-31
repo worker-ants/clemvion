@@ -3,7 +3,7 @@
 graph 구조 전체를 보고 평가하는 cross-node warning/error rule(`graphWarningRules`)의 SSOT.
 
 - 백엔드: workflow save validate + `GET /workflows/:id/graph-warnings` 엔드포인트
-- 프론트엔드: 캔버스 graph 변경 시점 사전 평가 + severity 별 배지 (후속 작업)
+- 프론트엔드: 캔버스 graph 변경 시점 사전 평가 + severity 별 배지
 
 같은 규칙을 두 layer 가 공유해야 spec 변경 시 자동으로 정렬된다.
 

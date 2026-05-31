@@ -1,17 +1,28 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { Node, Edge } from "@xyflow/react";
 
-// vi.hoisted 로 mock 변수를 hoisting 안전하게 정의 (vi.mock factory 참조 허용)
-const { graphWarningsMock } = vi.hoisted(() => ({
-  graphWarningsMock: vi.fn(),
-}));
-
 vi.mock("../../api/workflows", () => ({
   workflowsApi: {
     saveCanvas: vi.fn(),
-    graphWarnings: graphWarningsMock,
   },
 }));
+
+// `@workflow/graph-warning-rules` 는 실제 평가 로직을 그대로 사용하되,
+// `evaluateGraphWarningRulesForGraph` 만 per-test 로 throw 시킬 수 있도록
+// spy 로 감싼다 (W14 catch 경로 회귀 가드). 평문 호출 시엔 실제 구현 위임.
+const { evaluateMock } = vi.hoisted(() => ({ evaluateMock: vi.fn() }));
+vi.mock("@workflow/graph-warning-rules", async () => {
+  const actual = await vi.importActual<
+    typeof import("@workflow/graph-warning-rules")
+  >("@workflow/graph-warning-rules");
+  evaluateMock.mockImplementation(actual.evaluateGraphWarningRulesForGraph);
+  return {
+    ...actual,
+    evaluateGraphWarningRulesForGraph: (
+      ...args: Parameters<typeof actual.evaluateGraphWarningRulesForGraph>
+    ) => evaluateMock(...args),
+  };
+});
 
 import { useEditorStore } from "../editor-store";
 import { workflowsApi } from "../../api/workflows";
@@ -435,6 +446,38 @@ describe("useEditorStore", () => {
       const { hasError, hasWarning } = useEditorStore.getState().graphWarnings;
       expect(hasError).toBe(false);
       expect(hasWarning).toBe(true);
+    });
+
+    // W14 회귀 가드 — 평가기가 throw 하면 새 그래프 상태로 결과를 덮어쓰지 않고
+    // 직전 `graphWarnings` 를 보존해야 한다 (spec: "평가 실패 시 기존 결과 유지").
+    it("preserves prior graphWarnings when the evaluator throws", () => {
+      const prior = {
+        results: [
+          {
+            ruleId: "parallel:nested-depth-exceeded",
+            severity: "error" as const,
+            nodeId: "P1",
+            message: "기존 경고",
+          },
+        ],
+        hasError: true,
+        hasWarning: false,
+      };
+      useEditorStore.setState({
+        nodes: [parallelNode("P1")],
+        edges: [],
+        graphWarnings: prior,
+      } as never);
+
+      evaluateMock.mockImplementationOnce(() => {
+        throw new Error("boom");
+      });
+
+      // throw 가 store action 밖으로 새지 않고(catch) 직전 상태가 그대로 유지.
+      expect(() =>
+        useEditorStore.getState().evaluateGraphWarningsLocal(),
+      ).not.toThrow();
+      expect(useEditorStore.getState().graphWarnings).toEqual(prior);
     });
   });
 

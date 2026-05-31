@@ -8,39 +8,15 @@
  */
 import { describe, it, expect } from "vitest";
 
-// topology key 계산 로직을 직접 테스트하기 위해 helper 로 추출해 검증.
-// WorkflowEditor 의 useEffect dependency 는 이 key 로 결정됨. cross-node 규칙은
-// node config (예: parallel maxConcurrency) 도 평가 입력이므로 key 에 config 를
-// 포함해 config 변경 시 재평가가 트리거되도록 한다.
-
-function computeNodeTopologyKey(
-  nodes: Array<{ id: string; data?: { type?: string; config?: unknown } }>,
-): string {
-  return nodes
-    .map(
-      (n) =>
-        `${n.id}:${String(n.data?.type ?? "")}:${JSON.stringify(
-          n.data?.config ?? null,
-        )}`,
-    )
-    .join(",");
-}
-
-function computeEdgeTopologyKey(
-  edges: Array<{
-    source: string;
-    sourceHandle?: string | null;
-    target: string;
-    targetHandle?: string | null;
-  }>,
-): string {
-  return edges
-    .map(
-      (e) =>
-        `${e.source}:${e.sourceHandle ?? ""}→${e.target}:${e.targetHandle ?? ""}`,
-    )
-    .join(",");
-}
+// topology key 계산 로직은 프로덕션(`workflow-editor.tsx`)이 사용하는 것과 동일한
+// 공유 함수를 import 해 검증한다 — 별도 로컬 재구현 시 프로덕션과 diverge 하면
+// 테스트가 실제 동작과 다른 것을 검증하게 되므로 SSOT 를 유지한다. cross-node
+// 규칙은 node config (예: parallel maxConcurrency/branchCount) 도 평가 입력이므로
+// key 에 해당 필드를 포함해 config 변경 시 재평가가 트리거되도록 한다.
+import {
+  computeNodeTopologyKey,
+  computeEdgeTopologyKey,
+} from "@/lib/utils/topology-key";
 
 describe("WorkflowEditor — topology key (debounce dependency logic, SUMMARY#19)", () => {
   describe("nodeTopologyKey", () => {

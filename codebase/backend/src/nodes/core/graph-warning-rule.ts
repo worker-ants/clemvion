@@ -17,8 +17,9 @@ import type { Edge } from '../../modules/edges/entities/edge.entity';
  * `Node`/`Edge` entity 를 패키지의 순수 graph shape (`GraphRuleNode` /
  * `GraphRuleEdge`) 로 매핑하는 thin adapter 만 남긴다.
  *
- * - `Node` entity 는 `id/type/config/label` 을 그대로 가지므로 구조적으로
- *   `GraphRuleNode` 에 호환 — 그대로 넘긴다.
+ * - `Node` entity 는 `id/type/config/label` 을 가지므로 `toRuleNode` 로 명시
+ *   매핑한다 (`as` 단언 대신 — entity 필드 리팩터링을 컴파일 타임에 감지).
+ *   `type` 누락 entity 는 평가 불가하므로 graph 에서 제외한다.
  * - `Edge` entity 는 `sourceNodeId/targetNodeId/sourcePort/targetPort` 명명이라
  *   패키지의 `source/target/sourceHandle/targetHandle` 로 매핑이 필요하다.
  *
@@ -43,12 +44,32 @@ function toRuleEdge(edge: Edge): GraphRuleEdge {
   };
 }
 
+/**
+ * backend `Node` entity → 패키지 `GraphRuleNode` 매핑. `as` 단언 대신 명시
+ * 매핑으로 컴파일 타임 안전성 확보. `type` 누락(undefined) entity 는 평가
+ * 대상이 될 수 없으므로 null 반환 → caller 가 graph 에서 제외한다.
+ */
+function toRuleNode(node: Node): GraphRuleNode | null {
+  if (node.type == null) return null;
+  return {
+    id: node.id,
+    type: node.type,
+    config: node.config,
+    label: node.label,
+  };
+}
+
 function toRuleGraph(graph: {
   nodes: readonly Node[];
   edges: readonly Edge[];
 }): { nodes: readonly GraphRuleNode[]; edges: readonly GraphRuleEdge[] } {
+  const nodes: GraphRuleNode[] = [];
+  for (const node of graph.nodes) {
+    const mapped = toRuleNode(node);
+    if (mapped) nodes.push(mapped);
+  }
   return {
-    nodes: graph.nodes as readonly GraphRuleNode[],
+    nodes,
     edges: graph.edges.map(toRuleEdge),
   };
 }
@@ -62,11 +83,9 @@ export function evaluateGraphWarningRules(
   graph: { nodes: readonly Node[]; edges: readonly Edge[] },
   rules: readonly GraphWarningRule[],
 ): GraphWarningRuleResult[] {
-  return evaluateGraphWarningRulesPure(
-    node as GraphRuleNode,
-    toRuleGraph(graph),
-    rules,
-  );
+  const ruleNode = toRuleNode(node);
+  if (!ruleNode) return [];
+  return evaluateGraphWarningRulesPure(ruleNode, toRuleGraph(graph), rules);
 }
 
 /**

@@ -9,6 +9,10 @@ import { useExecutionEvents } from "@/lib/websocket/use-execution-events";
 import { getWsClient } from "@/lib/websocket/ws-client";
 import { getAccessToken } from "@/lib/api/client";
 import { useAssistantStore } from "@/lib/stores/assistant-store";
+import {
+  computeNodeTopologyKey,
+  computeEdgeTopologyKey,
+} from "@/lib/utils/topology-key";
 import { EditorToolbar } from "./toolbar/editor-toolbar";
 import { NodePalette } from "./palette/node-palette";
 import { WorkflowCanvas } from "./canvas/workflow-canvas";
@@ -55,18 +59,11 @@ export function WorkflowEditor() {
   //
   // node config (예: parallel maxConcurrency/branchCount) 도 평가 입력이므로
   // topology key 외에 config 변경도 debounce 트리거에 포함한다. drag(위치
-  // 변경)·선택 변경은 graph rule 평가와 무관하므로 제외.
-  const nodeTopologyKey = nodes
-    .map(
-      (n) =>
-        `${n.id}:${String(n.data?.type ?? "")}:${JSON.stringify(
-          (n.data as { config?: unknown } | undefined)?.config ?? null,
-        )}`,
-    )
-    .join(",");
-  const edgeTopologyKey = edges
-    .map((e) => `${e.source}:${e.sourceHandle ?? ""}→${e.target}:${e.targetHandle ?? ""}`)
-    .join(",");
+  // 변경)·선택 변경은 graph rule 평가와 무관하므로 제외. key 계산은
+  // `@/lib/utils/topology-key` 의 공유 함수로 위임 — debounce 테스트가 동일
+  // 함수를 import 해 프로덕션 동작과 SSOT 를 유지한다.
+  const nodeTopologyKey = computeNodeTopologyKey(nodes);
+  const edgeTopologyKey = computeEdgeTopologyKey(edges);
   useEffect(() => {
     if (!workflowId) return;
     const handle = setTimeout(() => {
