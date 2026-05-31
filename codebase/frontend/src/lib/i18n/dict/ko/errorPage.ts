@@ -8,7 +8,7 @@ export const errorPage = {
   forbidden: {
     title: "접근 권한이 없습니다",
     description: "이 페이지에 접근할 권한이 없습니다. 워크스페이스 관리자에게 문의하세요.",
-    cta: "워크스페이스로 이동",
+    cta: "대시보드로 이동",
   },
   notFound: {
     title: "페이지를 찾을 수 없습니다",

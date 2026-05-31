@@ -26,7 +26,7 @@ export default function MainError({
   const variant = errorToVariant(error);
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV === "development") {
       // 민감정보(axios error.response.data 등) 노출을 피해 message/digest 만 남긴다.
       console.error("[error-boundary]", error.message, error.digest ?? "");
     }

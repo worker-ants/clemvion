@@ -69,6 +69,7 @@ export function errorToVariant(error: unknown): ErrorVariant {
   return "server";
 }
 
+/** ErrorPage 컴포넌트 props. `variant` 는 ErrorVariant 5종 중 하나 (spec §1.2). */
 interface ErrorPageProps {
   variant: ErrorVariant;
   /** 재시도 콜백 (server/network). error.tsx 는 Next.js error boundary 의 `reset` 콜백을 넘긴다. */
@@ -94,7 +95,7 @@ function buildActions(
     case "sessionExpired":
       return [linkCta("errorPage.sessionExpired.cta", loginHref)];
     case "forbidden":
-      return [linkCta("errorPage.forbidden.cta", "/workspace/settings")];
+      return [linkCta("errorPage.forbidden.cta", "/dashboard")];
     case "notFound":
       return [linkCta("errorPage.notFound.cta", "/dashboard")];
     case "server":
@@ -114,7 +115,12 @@ function buildActions(
       return [
         <Button
           key="retry"
-          onClick={onRetry ?? (() => window.location.reload())}
+          onClick={
+            onRetry ??
+            (() => {
+              if (typeof window !== "undefined") window.location.reload();
+            })
+          }
         >
           {t("errorPage.network.retry")}
         </Button>,

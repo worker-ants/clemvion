@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import MainError from "../error";
 
 const mockReplace = vi.fn();
@@ -17,12 +17,14 @@ function httpError(status: number): Error & { digest?: string } {
 beforeEach(() => mockReplace.mockClear());
 
 describe("(main)/error.tsx", () => {
-  it("redirects 401 to /login (사이드바 없는 경로) — spec §1.3", () => {
+  it("redirects 401 to /login (사이드바 없는 경로) — spec §1.3", async () => {
     const { container } = render(
       <MainError error={httpError(401)} reset={vi.fn()} />,
     );
-    expect(mockReplace).toHaveBeenCalledWith(
-      "/login?redirect=" + encodeURIComponent("/workflows/abc"),
+    await waitFor(() =>
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/login?redirect=" + encodeURIComponent("/workflows/abc"),
+      ),
     );
     // redirect 중에는 (main) 사이드바와 함께 렌더하지 않는다.
     expect(container).toBeEmptyDOMElement();

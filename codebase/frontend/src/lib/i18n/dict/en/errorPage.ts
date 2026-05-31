@@ -1,3 +1,4 @@
+// 전체화면 에러 페이지 5종 (spec/2-navigation/11-error-empty-states.md §1.2)
 import type { Dict } from "../types";
 
 export const errorPage: Dict["errorPage"] = {
@@ -9,7 +10,7 @@ export const errorPage: Dict["errorPage"] = {
   forbidden: {
     title: "Access denied",
     description: "You don't have permission to access this page. Contact your workspace admin.",
-    cta: "Go to workspace",
+    cta: "Go to dashboard",
   },
   notFound: {
     title: "Page not found",

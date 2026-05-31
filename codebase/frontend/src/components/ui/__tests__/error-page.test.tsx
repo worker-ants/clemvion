@@ -11,9 +11,10 @@ describe("isSafeRedirectPath", () => {
     expect(isSafeRedirectPath("/dashboard")).toBe(true);
     expect(isSafeRedirectPath("/workflows/abc")).toBe(true);
   });
-  it("rejects protocol-relative / external / null paths (open-redirect)", () => {
+  it("rejects protocol-relative / external / empty / null paths (open-redirect)", () => {
     expect(isSafeRedirectPath("//evil.com")).toBe(false);
     expect(isSafeRedirectPath("https://evil.com")).toBe(false);
+    expect(isSafeRedirectPath("")).toBe(false);
     expect(isSafeRedirectPath(null)).toBe(false);
   });
 });
@@ -54,12 +55,12 @@ describe("ErrorPage", () => {
     );
   });
 
-  it("renders forbidden (403) with a workspace link (spec §1.2)", () => {
+  it("renders forbidden (403) with a dashboard link (spec §1.2)", () => {
     render(<ErrorPage variant="forbidden" />);
     expect(screen.getByText("접근 권한이 없습니다")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "워크스페이스로 이동" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "대시보드로 이동" })).toHaveAttribute(
       "href",
-      "/workspace/settings",
+      "/dashboard",
     );
   });
 
@@ -85,6 +86,33 @@ describe("ErrorPage", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("network retry without onRetry falls back to window.location.reload", () => {
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...original, reload },
+    });
+    try {
+      render(<ErrorPage variant="network" />);
+      fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+      expect(reload).toHaveBeenCalledOnce();
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: original,
+      });
+    }
+  });
+
+  it("server without onRetry renders only the dashboard link (no retry button)", () => {
+    render(<ErrorPage variant="server" />);
+    expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "대시보드로 이동" }),
+    ).toHaveAttribute("href", "/dashboard");
   });
 
   it("exposes an alert role for assistive tech", () => {
