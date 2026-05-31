@@ -2558,11 +2558,18 @@ describe('ExecutionEngineService', () => {
         type: 'form_submitted',
         formData: { approved: true },
       });
-      // setImmediate polling 이 동작할 시간 확보 — flushPromises 두 번 (한 번은
-      // setImmediate fire, 두 번째는 그 콜백의 후속 promise chain).
-      await flushPromises();
-      await flushPromises();
-      await flushPromises();
+      // applyContinuation 은 slow-path 에서 전체 resume 구동을 detach 하고 즉시
+      // 반환한다 (worker 비점유). 구동은 백그라운드에서 firePayload(real
+      // setTimeout 0 → 20ms polling)가 form 입력을 전달 → waitForFormSubmission
+      // → 그래프 순회 → COMPLETED 로 진행하므로, real-timer 로 완료까지 polling.
+      for (let i = 0; i < 50; i++) {
+        const completed = (
+          mockWebsocketService.emitExecutionEvent.mock.calls as unknown[][]
+        ).some((c) => c[1] === 'execution.completed');
+        if (completed) break;
+        await new Promise((r) => setTimeout(r, 20));
+        await flushPromises();
+      }
 
       // 6. 검증 — workflow 가 COMPLETED 까지 도달.
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
@@ -8139,14 +8146,73 @@ describe('ExecutionEngineService', () => {
     });
 
     // 회귀 가드 — continuation worker deadlock (운영 §7.4/§7.5).
-    // slow-path 재개는 BullMQ worker 의 process() 안에서 수행되므로, 현재 대기
-    // 노드로의 입력 전달(Phase 1) 이후의 그래프 순회(Phase 2)를 **await 하면**
-    // 그래프의 다음 대기 노드에서 worker(WorkerHost concurrency=1)가 영구 점유돼
-    // 이후 모든 continuation job 이 wait 큐에 적체된다 (deadlock). 본 테스트는
-    // Phase 2 (`runNodeDispatchLoop`) 가 영구 미완료여도 `rehydrateAndResume`
-    // (worker 가 await 하는 promise) 이 resolve 됨을 보장한다. 수정 전이라면
-    // rehydrateAndResume 가 hang 하여 jest 타임아웃으로 실패한다.
-    it('slow-path resume 은 다운스트림 그래프 구동을 detach — 다음 대기 노드를 기다리지 않고 worker(process()) 반환 (deadlock 방지)', async () => {
+    // slow-path 재개는 BullMQ worker 의 process() 안에서 수행된다. worker 는
+    // **waitForX(현재 노드 재진입)도, 남은 그래프 구동도 await 하면 안 된다** —
+    // 그러면 다음 대기 노드 / ai_agent 멀티턴 대화에서 worker(WorkerHost
+    // concurrency=1)가 점유돼 이후 모든 continuation job 이 wait 큐에 적체된다
+    // (deadlock). 본 블록은 `driveResumeDetached` 가 영구 미완료(다음 노드 대기
+    // / 진행 중 대화)여도 `rehydrateAndResume`(worker 가 await 하는 promise)이
+    // 즉시 resolve 됨을 보장한다. 수정 전이면 hang → 1s deadlockGuard 로 실패.
+
+    // pendingContinuations 키를 등록하는 waitForX spy — firePayload 가 현재
+    // payload 를 한 번 전달(single-shot)한 뒤 polling 을 멈추게 해 테스트 타이머
+    // 누수를 방지한다. 반환 promise 는 호출자가 제어한다.
+    const stubWaitForX = (gate: Promise<unknown>): jest.Mock =>
+      jest.fn().mockImplementation((_se: unknown, eid: string) => {
+        (
+          service as unknown as {
+            pendingContinuations: Map<
+              string,
+              { nodeId: string; resolve: () => void; reject: () => void }
+            >;
+          }
+        ).pendingContinuations.set(eid, {
+          nodeId: 'node-1',
+          resolve: () => undefined,
+          reject: () => undefined,
+        });
+        return gate;
+      });
+
+    const twoNodeGraph = {
+      graphNodes: [],
+      graphEdges: [],
+      forwardEdges: [],
+      backEdges: [],
+      sortedNodeIds: ['node-1', 'node-2'],
+      sortedIndexMap: new Map([
+        ['node-1', 0],
+        ['node-2', 1],
+      ]),
+      backEdgeMap: new Map(),
+      outgoingEdgeMap: new Map(),
+      incomingEdgeMap: new Map(),
+      nodeMap: new Map([
+        ['node-1', { id: 'node-1', type: 'carousel' }],
+        ['node-2', { id: 'node-2', type: 'carousel' }],
+      ]),
+    };
+
+    function makeDeadlockGuard(): {
+      guard: Promise<never>;
+      timer: NodeJS.Timeout;
+    } {
+      let timer!: NodeJS.Timeout;
+      const guard = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                'DEADLOCK: rehydrateAndResume 가 반환하지 않음 — worker 가 waitForX/그래프 구동을 await (detach 회귀)',
+              ),
+            ),
+          1000,
+        );
+      });
+      return { guard, timer };
+    }
+
+    it('slow-path resume 은 buttons waitForX + 다운스트림 그래프 구동을 detach — worker(process()) 즉시 반환', async () => {
       mockExecutionRepo.findOneBy.mockResolvedValue({
         id: executionId,
         workflowId,
@@ -8160,16 +8226,12 @@ describe('ExecutionEngineService', () => {
         outputData: {
           meta: { interactionType: 'buttons' },
           status: 'waiting_for_input',
-          buttonConfig: {
-            buttons: [{ id: 'b1', type: 'port', label: 'B1' }],
-          },
+          buttonConfig: { buttons: [{ id: 'b1', type: 'port', label: 'B1' }] },
         },
       });
-      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
-        id: 'node-1',
-        type: 'carousel',
-        config: {},
-      });
+      mockNodeRepo.findOneBy = jest
+        .fn()
+        .mockResolvedValue({ id: 'node-1', type: 'carousel', config: {} });
       mockWorkflowRepo.findOne.mockResolvedValue({
         ...mockWorkflow,
         workspaceId: 'ws-1',
@@ -8183,79 +8245,232 @@ describe('ExecutionEngineService', () => {
         runNodeDispatchLoop: jest.Mock;
         updateExecutionStatus: jest.Mock;
       };
-      const origLoad = svcAny.loadAndBuildGraph;
-      const origWait = svcAny.waitForButtonInteraction;
-      const origLoop = svcAny.runNodeDispatchLoop;
-      const origUpdate = svcAny.updateExecutionStatus;
-
-      // 그래프: 현재 대기 노드(node-1) + 다운스트림(node-2).
-      svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue({
-        graphNodes: [],
-        graphEdges: [],
-        forwardEdges: [],
-        backEdges: [],
-        sortedNodeIds: ['node-1', 'node-2'],
-        sortedIndexMap: new Map([
-          ['node-1', 0],
-          ['node-2', 1],
-        ]),
-        backEdgeMap: new Map(),
-        outgoingEdgeMap: new Map(),
-        incomingEdgeMap: new Map(),
-        nodeMap: new Map([
-          ['node-1', { id: 'node-1', type: 'carousel' }],
-          ['node-2', { id: 'node-2', type: 'carousel' }],
-        ]),
-      });
+      const orig = {
+        load: svcAny.loadAndBuildGraph,
+        wait: svcAny.waitForButtonInteraction,
+        loop: svcAny.runNodeDispatchLoop,
+        upd: svcAny.updateExecutionStatus,
+      };
+      svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue(twoNodeGraph);
       svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
-      // Phase 1 — 현재 대기 노드 입력 전달은 즉시 완료된 것으로 시뮬레이션.
-      svcAny.waitForButtonInteraction = jest.fn().mockResolvedValue(undefined);
-      // Phase 2 — 다음 대기 노드에서 영구 대기하는 그래프 구동을 시뮬레이션:
-      //   resolve 되지 않는 promise. 수정 전이라면 rehydrateAndResume 가 이를
-      //   await 하다 hang → jest 타임아웃 실패. 수정 후라면 detach 되어 resolve.
+      // waitForButtonInteraction: 현재 클릭 처리 후 반환(단일 상호작용).
+      svcAny.waitForButtonInteraction = stubWaitForX(Promise.resolve());
+      // 다음 대기 노드에서 영구 대기하는 그래프 구동.
       let releaseDispatch!: () => void;
       const dispatchGate = new Promise<void>((r) => {
         releaseDispatch = r;
       });
       svcAny.runNodeDispatchLoop = jest.fn().mockReturnValue(dispatchGate);
 
-      // 명시적 짧은 timeout race — 회귀(detach 누락) 시 jest 기본 5s 를 기다리지
-      // 않고 빠르고 명확하게 실패시킨다. dispatchGate(다음 대기 노드)가 영구
-      // 미완료여도 rehydrateAndResume 은 즉시 resolve 되어야 한다.
-      let deadlockTimer: NodeJS.Timeout | undefined;
-      const deadlockGuard = new Promise<never>((_, reject) => {
-        deadlockTimer = setTimeout(
-          () =>
-            reject(
-              new Error(
-                'DEADLOCK: rehydrateAndResume 가 반환하지 않음 — detached 그래프 구동이 worker 슬롯을 점유 (수정 회귀)',
-              ),
-            ),
-          1000,
-        );
-      });
-
+      const { guard, timer } = makeDeadlockGuard();
       try {
         await Promise.race([
           subject().rehydrateAndResume(executionId, 'ne-1', {
             type: 'button_click',
             buttonId: 'b1',
           }),
-          deadlockGuard,
+          guard,
         ]);
-
-        // 여기 도달 = worker 가 다음 대기 노드를 기다리지 않고 풀렸다.
+        // worker 반환됨. detached drive 가 백그라운드에서 진행하는지 확인.
+        await flushPromises();
+        await flushPromises();
+        await flushPromises();
         expect(svcAny.waitForButtonInteraction).toHaveBeenCalledTimes(1);
         expect(svcAny.runNodeDispatchLoop).toHaveBeenCalledTimes(1);
       } finally {
-        if (deadlockTimer) clearTimeout(deadlockTimer);
-        // detached Phase 2 가 종결하도록 gate 해제 후 drain (dangling promise 정리).
+        clearTimeout(timer);
         releaseDispatch();
         await flushPromises();
-        svcAny.loadAndBuildGraph = origLoad;
-        svcAny.waitForButtonInteraction = origWait;
-        svcAny.runNodeDispatchLoop = origLoop;
-        svcAny.updateExecutionStatus = origUpdate;
+        svcAny.loadAndBuildGraph = orig.load;
+        svcAny.waitForButtonInteraction = orig.wait;
+        svcAny.runNodeDispatchLoop = orig.loop;
+        svcAny.updateExecutionStatus = orig.upd;
+      }
+    });
+
+    it('slow-path ai_agent 재개: waitForAiConversation 멀티턴 루프가 영구 미반환이어도 worker(process()) 반환 — 텔레그램 대화가 다른 continuation 을 막지 않음', async () => {
+      // 운영 실측 회귀: 텔레그램 ai_message 재개가 worker 안에서
+      // waitForAiConversation(대화 종료까지 다음 메시지를 차례로 await 하는 장수
+      // 루프)을 await 하면, concurrency=1 worker 가 대화 수명 내내 점유돼 버튼
+      // 클릭 등 다른 continuation 이 wait 큐에 영구 적체됐다.
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          output: { result: { messages: [], turnCount: 1 } },
+          _resumeCheckpoint: { messages: [], turnCount: 1, model: 'm' },
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-1',
+        type: 'ai_agent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg', maxTurns: 20 },
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      const svcAny = service as unknown as {
+        loadAndBuildGraph: jest.Mock;
+        buildRetryReentryState: jest.Mock;
+        waitForAiConversation: jest.Mock;
+        runNodeDispatchLoop: jest.Mock;
+        updateExecutionStatus: jest.Mock;
+      };
+      const orig = {
+        load: svcAny.loadAndBuildGraph,
+        build: svcAny.buildRetryReentryState,
+        wait: svcAny.waitForAiConversation,
+        loop: svcAny.runNodeDispatchLoop,
+        upd: svcAny.updateExecutionStatus,
+      };
+      svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue({
+        ...twoNodeGraph,
+        sortedNodeIds: ['node-1'],
+        sortedIndexMap: new Map([['node-1', 0]]),
+        nodeMap: new Map([['node-1', { id: 'node-1', type: 'ai_agent' }]]),
+      });
+      svcAny.buildRetryReentryState = jest
+        .fn()
+        .mockReturnValue({ resumeState: {}, initialAction: undefined });
+      svcAny.runNodeDispatchLoop = jest.fn().mockResolvedValue(undefined);
+      svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
+      // 멀티턴 대화 진행 중 — 대화 종료(gate 해제) 전까지 반환하지 않는다.
+      let releaseAi!: () => void;
+      const aiGate = new Promise<void>((r) => {
+        releaseAi = r;
+      });
+      svcAny.waitForAiConversation = stubWaitForX(aiGate);
+
+      const { guard, timer } = makeDeadlockGuard();
+      try {
+        await Promise.race([
+          subject().rehydrateAndResume(executionId, 'ne-1', {
+            type: 'ai_message',
+            message: 'hi',
+          }),
+          guard,
+        ]);
+        // 핵심: waitForAiConversation 이 (대화 진행 중이라) 미반환이어도 worker 가
+        // 풀렸다 — 즉 worker 는 waitForAiConversation 을 await 하지 않는다.
+        await flushPromises();
+        await flushPromises();
+        expect(svcAny.waitForAiConversation).toHaveBeenCalledTimes(1);
+      } finally {
+        clearTimeout(timer);
+        // 대화 종료 모사 → detached drive 가 완주하도록 gate 해제 후 drain.
+        releaseAi();
+        await flushPromises();
+        svcAny.loadAndBuildGraph = orig.load;
+        svcAny.buildRetryReentryState = orig.build;
+        svcAny.waitForAiConversation = orig.wait;
+        svcAny.runNodeDispatchLoop = orig.loop;
+        svcAny.updateExecutionStatus = orig.upd;
+      }
+    });
+
+    // detached drive 내부에서 발생한 RehydrationError(ai_agent _resumeCheckpoint
+    // 재구성 실패 = schema drift/손상)는 worker 로 rethrow 할 수 없으므로 in-band
+    // graceful 단말 처리해야 한다: Execution cancelled(RESUME_INCOMPATIBLE_STATE) +
+    // node failed. markExecutionCancelled 의 EXECUTION_CANCELLED emit 으로 채널
+    // (텔레그램)에 "세션 만료" 안내가 도달한다 (#398 routing). full-detach 로 이
+    // 분기가 outer catch → detached catch 로 이동했으므로 가드한다.
+    it('detached ai_agent 재개: buildRetryReentryState 실패 → graceful cancelled(RESUME_INCOMPATIBLE_STATE) + node failed', async () => {
+      mockExecutionRepo.findOneBy.mockResolvedValue({
+        id: executionId,
+        workflowId,
+        status: ExecutionStatus.WAITING_FOR_INPUT,
+        startedAt: new Date(),
+      });
+      mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'ne-1',
+        nodeId: 'node-1',
+        status: NodeExecutionStatus.WAITING_FOR_INPUT,
+        outputData: {
+          meta: { interactionType: 'ai_conversation' },
+          status: 'waiting_for_input',
+          output: { result: { messages: [], turnCount: 1 } },
+          _resumeCheckpoint: { messages: [], turnCount: 1, model: 'm' },
+        },
+      });
+      mockNodeRepo.findOneBy = jest.fn().mockResolvedValue({
+        id: 'node-1',
+        type: 'ai_agent',
+        config: { mode: 'multi_turn', llmConfigId: 'cfg', maxTurns: 20 },
+      });
+      mockWorkflowRepo.findOne.mockResolvedValue({
+        ...mockWorkflow,
+        workspaceId: 'ws-1',
+        workspace: { id: 'ws-1', name: 'WS', settings: {} },
+      });
+      mockExecutionNodeLogRepo.find.mockResolvedValue([]);
+
+      const svcAny = service as unknown as {
+        loadAndBuildGraph: jest.Mock;
+        buildRetryReentryState: jest.Mock;
+        updateExecutionStatus: jest.Mock;
+      };
+      const orig = {
+        load: svcAny.loadAndBuildGraph,
+        build: svcAny.buildRetryReentryState,
+        upd: svcAny.updateExecutionStatus,
+      };
+      svcAny.loadAndBuildGraph = jest.fn().mockResolvedValue({
+        ...twoNodeGraph,
+        sortedNodeIds: ['node-1'],
+        sortedIndexMap: new Map([['node-1', 0]]),
+        nodeMap: new Map([['node-1', { id: 'node-1', type: 'ai_agent' }]]),
+      });
+      svcAny.updateExecutionStatus = jest.fn().mockResolvedValue(undefined);
+      // 재구성 실패 (schema drift) 모사 — driveResumeDetached 내부에서
+      // RehydrationError(RESUME_INCOMPATIBLE_STATE)로 래핑된다.
+      svcAny.buildRetryReentryState = jest.fn().mockImplementation(() => {
+        throw new Error('schema drift');
+      });
+
+      try {
+        // worker 가 await 하는 부분(setup)은 throw 없이 통과 → 즉시 resolve.
+        await subject().rehydrateAndResume(executionId, 'ne-1', {
+          type: 'ai_message',
+          message: 'hi',
+        });
+        // detached drive 가 단말 처리하도록 drain.
+        await flushPromises();
+        await flushPromises();
+        await flushPromises();
+
+        // Execution cancel UPDATE 에 RESUME_INCOMPATIBLE_STATE 코드가 들어갔는지.
+        const cancelCodes =
+          mockExecutionRepo.createQueryBuilder.mock.results.flatMap(
+            (r) =>
+              (
+                r.value as {
+                  set?: { mock?: { calls: Array<Array<{ error?: unknown }>> } };
+                }
+              ).set?.mock?.calls ?? [],
+          );
+        const codes = cancelCodes
+          .map((c) => (c[0]?.error as { code?: string } | undefined)?.code)
+          .filter(Boolean);
+        expect(codes).toContain('RESUME_INCOMPATIBLE_STATE');
+        // 동반 NodeExecution failed 마킹도 수행 (createQueryBuilder 사용).
+        expect(mockNodeExecutionRepo.createQueryBuilder).toHaveBeenCalled();
+      } finally {
+        svcAny.loadAndBuildGraph = orig.load;
+        svcAny.buildRetryReentryState = orig.build;
+        svcAny.updateExecutionStatus = orig.upd;
       }
     });
   });
