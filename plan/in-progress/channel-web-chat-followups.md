@@ -11,11 +11,15 @@ owner: developer (TBD)
 
 ## 잔여 항목
 
-### 1. 공개 webhook 남용 방어 — auth-scoped rate-limit (spec 4-security §4)
+### 1. 공개 webhook 남용 방어 — auth-scoped rate-limit (spec 4-security §4) — ✅ 완료 (2026-06-02, D#1)
 - **왜 분리**: `/api/hooks/:endpointPath` 는 위젯뿐 아니라 모든 webhook(서버-to-서버 GitHub 등 고빈도)을 받는
   공유 엔드포인트. blanket `@Throttle` 은 정당한 webhook 을 깨뜨린다. **trigger 의 `auth_config_id IS NULL`(공개)
   여부를 먼저 해석한 뒤 그 경우에만** IP/세션 throttle 을 적용하는 **커스텀 throttler/guard** 가 필요.
-- 범위: per-IP 시작 rate-limit, 익명 세션+IP 동시/누적 대화 상한, 메시지/페이로드 크기 제한.
+- 구현: `PublicWebhookQuotaService`(Redis fixed-window, fail-open) + `PublicWebhookThrottleGuard`
+  (`hooks` 모듈). per-IP 시작 rate-limit(분당 10) + 시간당 신규 상한(20) + body 32KB. `@UseGuards` 로
+  `receiveWebhook` 에만 적용. hooks 44 tests ✓ / tsc 0 err.
+- [ ] **동시 ≤3 캡 잔여**: 대화 종료(conversationEnded) 신호 연동 필요 → 별도 increment(quota service 확장).
+- [ ] **opt-in invisible challenge(Turnstile/hCaptcha)**: spec §4 opt-in 항목, 미구현.
 
 ### 2. 워크플로우 측 비용 가드 (spec 4-security §4 — 핵심)
 - AI 노드 대화당 최대 turn + 워크스페이스 일일 토큰/비용 예산 → 초과 시 우아한 종료. AI Agent 노드 설정 영역과
