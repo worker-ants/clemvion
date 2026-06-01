@@ -70,6 +70,14 @@ export enum ExecutionEventType {
   EXECUTION_FAILED = 'execution.failed',
   EXECUTION_CANCELLED = 'execution.cancelled',
   EXECUTION_WAITING_FOR_INPUT = 'execution.waiting_for_input',
+  /**
+   * AI Agent Multi Turn 모드에서 사용자 발화(q)를 수신 즉시(다음 턴 LLM 호출 전)
+   * 라이브로 노출하기 위한 진행 신호. tool_call_* 와 동형의 비권위 신호 —
+   * turn 종료 `AI_MESSAGE.messages` 스냅샷이 권위 출처이며 동일 user 메시지를
+   * 포함한다. 영속 대상 아님 (spec/5-system/6-websocket-protocol.md §4.4
+   * `execution.user_message`, spec/4-nodes/3-ai/1-ai-agent.md §7.5).
+   */
+  USER_MESSAGE = 'execution.user_message',
   AI_MESSAGE = 'execution.ai_message',
   /** AI Agent provider tool 실행 시작. 디버깅 타임라인의 pending 표시용 */
   TOOL_CALL_STARTED = 'execution.tool_call_started',
@@ -98,6 +106,25 @@ export interface ToolCallStartedPayload {
   name: string;
   /** Raw JSON-string arguments from the LLM; the client parses defensively. */
   arguments: string;
+}
+
+/**
+ * Wire payload for {@link ExecutionEventType.USER_MESSAGE}. 사용자 발화(q)를
+ * 다음 턴 LLM 호출 전에 라이브로 노출하는 비권위 진행 신호. Frontend
+ * `use-execution-events.ts` 가 구조 호환 로컬 타입을 유지하므로 두 정의를
+ * 동기화한다. SoT: spec/5-system/6-websocket-protocol.md §4.4 execution.user_message.
+ */
+export interface UserMessagePayload {
+  /** 실행 ID. */
+  executionId: string;
+  /** 메시지를 수신한 AI 노드의 graph UUID. */
+  nodeId: string;
+  /** 이 시점 `waiting_for_input` 상태였던 NodeExecution row PK (multi-row 라우팅). */
+  nodeExecutionId?: string;
+  /** 사용자가 보낸 발화 본문. */
+  message: string;
+  /** 엔진 수신 시각 (ISO 8601). 클라이언트 optimistic bubble dedup 키. */
+  receivedAt: string;
 }
 
 /**

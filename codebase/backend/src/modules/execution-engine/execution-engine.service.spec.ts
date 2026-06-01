@@ -8,6 +8,7 @@ import {
   buildAiMessageDebugFromResumeState,
   buildConversationConfigFromOutput,
   buildConversationMetaFromResumeState,
+  userMessageSignalApplies,
 } from './execution-engine.service';
 import { InvalidExecutionStateError } from './workflow-errors';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
@@ -3041,6 +3042,83 @@ describe('ExecutionEngineService', () => {
       // accidental reintroduction.
       expect(payload).not.toHaveProperty('requestPayload');
       expect(payload).not.toHaveProperty('responsePayload');
+    });
+
+    // spec/5-system/6-websocket-protocol.md §4.4 execution.user_message +
+    // spec/4-nodes/3-ai/1-ai-agent.md §7.5 — 사용자 발화(q)를 다음 턴 LLM 호출
+    // 전에 라이브로 노출하기 위한 진행 신호. AI 응답(a) emit(ai_message) 보다
+    // 먼저 발화해야 q 가 a 전에 보인다.
+    it('emits execution.user_message (q) before execution.ai_message (a), with the expected payload', async () => {
+      const handler = makeAiAgentHandler(() => ({
+        config: { mode: 'multi_turn' },
+        output: {
+          result: {
+            messages: [
+              { role: 'user', content: '주문 확인해줘' },
+              { role: 'assistant', content: '네, 확인하겠습니다' },
+            ],
+            message: '네, 확인하겠습니다',
+            turnCount: 1,
+          },
+        },
+        meta: { interactionType: 'ai_conversation' },
+        status: 'waiting_for_input',
+        _resumeState: {
+          messages: [
+            { role: 'user', content: '주문 확인해줘' },
+            { role: 'assistant', content: '네, 확인하겠습니다' },
+          ],
+          turnCount: 1,
+          model: 'test-model',
+          totalInputTokens: 5,
+          totalOutputTokens: 2,
+          turnDebugHistory: [],
+        },
+      }));
+      handlerRegistry.register('ai_agent', handler);
+
+      await service.execute(workflowId, {});
+      await flushPromises();
+      mockWebsocketService.emitExecutionEvent.mockClear();
+
+      service.continueAiConversation(executionId, '주문 확인해줘');
+      await flushPromises();
+
+      const calls = mockWebsocketService.emitExecutionEvent.mock.calls;
+      const userMsgCalls = calls.filter(
+        (call: unknown[]) => call[1] === 'execution.user_message',
+      );
+      // 정확히 1회 emit + payload contract.
+      expect(userMsgCalls).toHaveLength(1);
+      const userPayload = userMsgCalls[0][2] as Record<string, unknown>;
+      expect(userPayload).toMatchObject({
+        nodeId: 'node-agent',
+        message: '주문 확인해줘',
+      });
+      // nodeExecutionId 는 waiting NodeExecution row PK — 존재 + 문자열 보장
+      // (toHaveProperty 만으로는 undefined 도 통과하므로 강화, ai-review W8).
+      expect(typeof userPayload.nodeExecutionId).toBe('string');
+      expect(userPayload.nodeExecutionId).toBeTruthy();
+      expect(typeof userPayload.receivedAt).toBe('string');
+
+      // ordering: user_message(q) 가 ai_message(a) 보다 먼저.
+      const userIdx = calls.findIndex(
+        (call: unknown[]) => call[1] === 'execution.user_message',
+      );
+      const aiIdx = calls.findIndex(
+        (call: unknown[]) => call[1] === 'execution.ai_message',
+      );
+      expect(userIdx).toBeGreaterThanOrEqual(0);
+      expect(aiIdx).toBeGreaterThanOrEqual(0);
+      expect(userIdx).toBeLessThan(aiIdx);
+    });
+
+    // ai-review W6 — form 제출 경로는 USER_MESSAGE 미발화 (spec §6.2 / §7.5).
+    // 발화 게이팅 predicate 를 직접 단언해 회귀를 차단한다 (full form-render
+    // blocking flow 의 무거운 fixture 없이 결정적 검증).
+    it('userMessageSignalApplies: ai_message 발화 / form_submitted 미발화', () => {
+      expect(userMessageSignalApplies('ai_message')).toBe(true);
+      expect(userMessageSignalApplies('form_submitted')).toBe(false);
     });
 
     it('preserves the full llmCalls sequence for tool-loop turns', async () => {

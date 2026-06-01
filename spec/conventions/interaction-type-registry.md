@@ -64,6 +64,8 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 
 `threadTurnsToConversationItems` 의 switch 는 이미 exhaustive `default: never` 패턴 적용됨 (`const _exhaustive: never = turn.source`). `system_error` 추가 시 새 case 명시 의무.
 
+> **`execution.user_message` 와 `ConversationTurnSource`**: WS 이벤트 `execution.user_message` ([WebSocket §4.4](../5-system/6-websocket-protocol.md#44-실행-진행-이벤트)) 는 **신규 `ConversationTurnSource` 값을 추가하지 않는다** — optimistic user bubble 은 기존 `ai_user` 분기를 그대로 재사용한다. 이벤트 자체의 store 변환 책임은 frontend `use-execution-events` 의 신규 핸들러(store 의 `conversationMessages` 에 optimistic `ai_user` append, dedup by `receivedAt`)에 있으며, 변환 계약 SoT 는 [Conversation Thread §9.7](./conversation-thread.md#97-ws-이벤트--store-변환-계약). `WaitingInteractionType`(§1) 에도 영향 없다 — `user_message` 는 waiting 진입 이벤트가 아니라 진행 신호다.
+
 ---
 
 ## 3. Presentation type (`render_*` 도구 5종)

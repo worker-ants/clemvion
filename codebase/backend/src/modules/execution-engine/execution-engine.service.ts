@@ -590,6 +590,19 @@ interface NodeDispatchLoopParams {
   dispatchMeta: { startedAt?: string; mode: 'manual' };
 }
 
+/**
+ * USER_MESSAGE 라이브 신호 발화 여부 게이팅 (spec/4-nodes/3-ai/1-ai-agent.md §7.5).
+ * 일반 채팅(`'ai_message'`) 과 form bypass(텍스트 메시지, 동일 source — §6.2 step
+ * 2.c.bypass) 에서는 발화하고, form 제출(`'form_submitted'` → `presentation_user`)
+ * 에서는 발화하지 않는다. `ResumableMessageSource` union 에 source 가 추가되면
+ * 본 predicate 의 분기를 명시적으로 갱신해야 한다.
+ */
+export function userMessageSignalApplies(
+  source: ResumableMessageSource,
+): boolean {
+  return source !== 'form_submitted';
+}
+
 @Injectable()
 export class ExecutionEngineService
   implements OnModuleInit, OnApplicationBootstrap, WorkflowExecutor
@@ -4729,6 +4742,33 @@ export class ExecutionEngineService
   }
 
   /**
+   * 사용자 발화(q)를 다음 턴 LLM 호출 전에 라이브로 노출하는 USER_MESSAGE
+   * 진행 신호를 1회 emit 한다. `tool_call_*` 와 동형의 **비권위 라이브 신호**로
+   * 영속 대상이 아니다 — 권위 출처는 turn 종료 `AI_MESSAGE.messages` 스냅샷.
+   * `nodeExecutionId` 는 현재 `waiting_for_input` NodeExecution row PK,
+   * `receivedAt` 은 엔진 수신 시각 (handler 의 `output.interaction.receivedAt`
+   * 과 같은 수신 tick). 호출 게이팅은 {@link userMessageSignalApplies}.
+   * SoT: spec/5-system/6-websocket-protocol.md §4.4 / spec/4-nodes/3-ai/1-ai-agent.md §7.5.
+   */
+  private emitUserMessageLiveSignal(
+    executionId: string,
+    node: Node,
+    nodeExec: NodeExecution | null,
+    message: string,
+  ): void {
+    this.eventEmitter.emitExecution(
+      executionId,
+      ExecutionEventType.USER_MESSAGE,
+      {
+        nodeExecutionId: nodeExec?.id,
+        nodeId: node.id,
+        message,
+        receivedAt: new Date().toISOString(),
+      },
+    );
+  }
+
+  /**
    * PR-H — 사용자 메시지 1회 turn 처리. 핸들러 (`processMultiTurnMessage`)
    * 호출 → 결과 정규화 → 분기:
    *  - waiting → AI_MESSAGE + 후속 EXECUTION_WAITING_FOR_INPUT emit, 다음 turn
@@ -4777,6 +4817,10 @@ export class ExecutionEngineService
         `Node type "${node.type}" cannot process multi-turn message: ` +
           'handler does not implement ResumableNodeHandler interface',
       );
+    }
+    // 사용자 발화(q) 조기 노출 — 다음 턴 LLM 호출 전에 1회 emit (§7.5 / WS §4.4).
+    if (userMessageSignalApplies(source)) {
+      this.emitUserMessageLiveSignal(executionId, node, nodeExec, message);
     }
     // spec §7.9 — handler throw (LLM 429 / timeout / connection 등) 시 conversation
     // loop 를 자연 종료시키고 `finalizeAiNode(.., 'FAILED')` 로 노드 상태를
