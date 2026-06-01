@@ -24,26 +24,54 @@ describe('ExecutionSeqAllocator', () => {
     };
   }
 
+  type PipelineOp = [string, ...unknown[]];
   type FakeRedis = {
-    incr: jest.Mock;
-    expire: jest.Mock;
     del: jest.Mock;
     quit: jest.Mock;
     on: jest.Mock;
+    pipeline: jest.Mock;
+    /** 모든 pipeline 에 누적 기록된 op 목록 (검증용). */
+    __pipelineOps: PipelineOp[];
   };
 
+  /**
+   * `next()` 는 `pipeline().incr(key).expire(key, ttl).exec()` 단일 round-trip 을
+   * 사용한다. fake 는 store 를 공유하는 pipeline 빌더를 제공하고, exec() 가
+   * ioredis 와 동일한 `[[err, result], ...]` 튜플 배열을 반환한다.
+   */
   function makeRedis(overrides: Partial<FakeRedis> = {}): FakeRedis {
     const store = new Map<string, number>();
+    const ops: PipelineOp[] = [];
+    const incrImpl = (key: string): number => {
+      const n = (store.get(key) ?? 0) + 1;
+      store.set(key, n);
+      return n;
+    };
     return {
-      incr: jest.fn(async (key: string) => {
-        const n = (store.get(key) ?? 0) + 1;
-        store.set(key, n);
-        return n;
-      }),
-      expire: jest.fn(async () => 1),
       del: jest.fn(async () => 1),
       quit: jest.fn(async () => 'OK'),
       on: jest.fn(),
+      __pipelineOps: ops,
+      pipeline: jest.fn(() => {
+        const builder: Record<string, unknown> = {};
+        const local: PipelineOp[] = [];
+        builder.incr = (key: string) => {
+          local.push(['incr', key]);
+          ops.push(['incr', key]);
+          return builder;
+        };
+        builder.expire = (key: string, ttl: number) => {
+          local.push(['expire', key, ttl]);
+          ops.push(['expire', key, ttl]);
+          return builder;
+        };
+        builder.exec = jest.fn(async () =>
+          local.map((op) =>
+            op[0] === 'incr' ? [null, incrImpl(op[1] as string)] : [null, 1],
+          ),
+        );
+        return builder;
+      }),
       ...overrides,
     };
   }
@@ -72,7 +100,9 @@ describe('ExecutionSeqAllocator', () => {
       expect(await alloc.next('exec-1')).toBe(1);
       expect(await alloc.next('exec-1')).toBe(2);
       expect(await alloc.next('exec-1')).toBe(3);
-      expect(redis.incr).toHaveBeenCalledWith('exec:seq:exec-1');
+      // 단일 round-trip pipeline 으로 INCR 발행됨.
+      expect(redis.pipeline).toHaveBeenCalledTimes(3);
+      expect(redis.__pipelineOps).toContainEqual(['incr', 'exec:seq:exec-1']);
     });
 
     it('서로 다른 execution 은 독립 counter', async () => {
@@ -83,24 +113,50 @@ describe('ExecutionSeqAllocator', () => {
       expect(await alloc.next('exec-A')).toBe(2);
     });
 
-    it('매 next() 가 sliding TTL EXPIRE 를 갱신', async () => {
+    it('매 next() 가 sliding TTL EXPIRE 를 같은 pipeline 에서 갱신', async () => {
       const redis = makeRedis();
       const alloc = makeAllocator(redis);
       await alloc.next('exec-ttl');
-      expect(redis.expire).toHaveBeenCalledWith(
+      expect(redis.__pipelineOps).toContainEqual([
+        'expire',
         'exec:seq:exec-ttl',
         expect.any(Number),
-      );
+      ]);
     });
 
-    it('EXPIRE 실패는 INCR 로 발급된 seq 를 무효화하지 않는다 (swallow)', async () => {
+    it('EXPIRE 실패(pipeline 의 expire 튜플 err)는 INCR seq 를 무효화하지 않는다 (swallow)', async () => {
+      // pipeline.exec() 가 [[null, seq], [expireErr, null]] 을 반환하는 경우.
       const redis = makeRedis({
-        expire: jest.fn(async () => {
-          throw new Error('EXPIRE failed');
+        pipeline: jest.fn(() => {
+          const b: Record<string, unknown> = {};
+          b.incr = () => b;
+          b.expire = () => b;
+          b.exec = jest.fn(async () => [
+            [null, 1],
+            [new Error('EXPIRE failed'), null],
+          ]);
+          return b;
         }),
       });
       const alloc = makeAllocator(redis);
       await expect(alloc.next('exec-e')).resolves.toBe(1);
+    });
+
+    it('pipeline.exec() reject (연결 실패) 시 degraded fallback', async () => {
+      const redis = makeRedis({
+        pipeline: jest.fn(() => {
+          const b: Record<string, unknown> = {};
+          b.incr = () => b;
+          b.expire = () => b;
+          b.exec = jest.fn(async () => {
+            throw new Error('Connection lost');
+          });
+          return b;
+        }),
+      });
+      const alloc = makeAllocator(redis);
+      expect(await alloc.next('exec-x')).toBe(1); // in-memory degraded
+      expect(await alloc.next('exec-x')).toBe(2);
     });
   });
 
@@ -162,6 +218,77 @@ describe('ExecutionSeqAllocator', () => {
       (alloc as unknown as { redisClient: unknown }).redisClient = redis;
       alloc.release('exec-del');
       expect(redis.del).toHaveBeenCalledWith('exec:seq:exec-del');
+    });
+  });
+
+  describe('getClient — redis 설정 누락 시', () => {
+    it('host/port 미설정이면 next() 가 throw 를 잡아 degraded fallback (엔진 emit 중단 없음)', async () => {
+      // 실제 getClient 경로 (monkey-patch 안 함). host/port falsy → throw → catch → degraded.
+      const config = {
+        get: jest.fn((key: string) =>
+          key === 'redis.host' || key === 'redis.port' ? undefined : undefined,
+        ),
+      };
+      const alloc = new ExecutionSeqAllocator(config as never);
+      expect(await alloc.next('exec-nocfg')).toBe(1);
+      expect(await alloc.next('exec-nocfg')).toBe(2);
+    });
+  });
+
+  describe('seqKeyTtlSeconds — EXECUTION_SEQ_TTL_SECONDS env 분기', () => {
+    const ENV = 'EXECUTION_SEQ_TTL_SECONDS';
+    const orig = process.env[ENV];
+    afterEach(() => {
+      if (orig === undefined) delete process.env[ENV];
+      else process.env[ENV] = orig;
+    });
+
+    function ttlOf(alloc: ExecutionSeqAllocator): number {
+      return (alloc as unknown as { seqKeyTtlSeconds: number })
+        .seqKeyTtlSeconds;
+    }
+
+    it('양수 정수 env → 채택', () => {
+      process.env[ENV] = '3600';
+      expect(ttlOf(new ExecutionSeqAllocator(makeConfig() as never))).toBe(
+        3600,
+      );
+    });
+
+    it('NaN/음수/0 env → default 86400', () => {
+      for (const bad of ['abc', '-5', '0']) {
+        process.env[ENV] = bad;
+        expect(ttlOf(new ExecutionSeqAllocator(makeConfig() as never))).toBe(
+          86_400,
+        );
+      }
+    });
+
+    it('미설정 → default 86400', () => {
+      delete process.env[ENV];
+      expect(ttlOf(new ExecutionSeqAllocator(makeConfig() as never))).toBe(
+        86_400,
+      );
+    });
+  });
+
+  describe('onModuleDestroy', () => {
+    it('quit() 호출 + in-memory mirror 반납', async () => {
+      const redis = makeRedis();
+      const alloc = makeAllocator(redis);
+      (alloc as unknown as { redisClient: unknown }).redisClient = redis;
+      await alloc.next('exec-d'); // mirror 채움
+      await alloc.onModuleDestroy();
+      expect(redis.quit).toHaveBeenCalledTimes(1);
+      expect(
+        (alloc as unknown as { fallbackCounters: Map<string, number> })
+          .fallbackCounters.size,
+      ).toBe(0);
+    });
+
+    it('client 없으면 quit 호출 없이 안전 종료', async () => {
+      const alloc = makeAllocator(null);
+      await expect(alloc.onModuleDestroy()).resolves.toBeUndefined();
     });
   });
 });

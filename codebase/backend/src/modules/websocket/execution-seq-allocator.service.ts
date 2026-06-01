@@ -101,41 +101,60 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
     const key = `${ExecutionSeqAllocator.SEQ_KEY_PREFIX}${executionId}`;
     try {
       const client = this.getClient();
-      const seq = await client.incr(key);
-      // sliding-window TTL — 매 발급이 만료 시계를 갱신. EXPIRE 실패는 이미 성공한
-      // INCR(= 유효 seq)를 무효화하지 않도록 swallow (다음 발급이 TTL 재시도).
-      await client.expire(key, this.seqKeyTtlSeconds).catch((err: unknown) => {
+      // INCR + sliding-window EXPIRE 를 **단일 round-trip pipeline** 으로 묶는다 —
+      // emit 당 Redis RTT 를 2회 → 1회로 절감 (대규모 ForEach / AI multi-turn 워크플로
+      // latency 누적 방지). exec() → [[incrErr, seq], [expireErr, _]]. 연결 자체
+      // 실패 시 reject → 아래 catch 의 degraded fallback.
+      const results = await client
+        .pipeline()
+        .incr(key)
+        .expire(key, this.seqKeyTtlSeconds)
+        .exec();
+      const incrEntry = results?.[0];
+      if (!incrEntry) {
+        throw new Error('Redis pipeline 가 INCR 결과를 반환하지 않음');
+      }
+      const [incrErr, seqRaw] = incrEntry;
+      if (incrErr) throw incrErr;
+      const seq = Number(seqRaw);
+      // EXPIRE 실패는 이미 성공한 INCR(= 유효 seq)를 무효화하지 않도록 swallow —
+      // 다음 발급의 pipeline 이 TTL 을 다시 시도하므로 누수는 일시적.
+      const expireErr = results?.[1]?.[0];
+      if (expireErr) {
         this.logger.warn(
           `seq 키 EXPIRE 실패 (${ExecutionSeqAllocator.sanitize(executionId)}): ${
-            err instanceof Error ? err.message : String(err)
+            expireErr instanceof Error ? expireErr.message : String(expireErr)
           }`,
         );
-        return 0;
-      });
+      }
       // in-memory mirror — 장애 전환 시 high-water mark 를 이어받기 위함.
       this.fallbackCounters.set(executionId, seq);
       return seq;
     } catch (err) {
       // degraded: in-memory per-instance monotonic. 분산 monotonic 미보장(수용된 mode).
       const current = this.fallbackCounters.get(executionId) ?? 0;
-      const next = current + 1;
-      this.fallbackCounters.set(executionId, next);
+      const degradedSeq = current + 1;
+      this.fallbackCounters.set(executionId, degradedSeq);
       this.logger.warn(
-        `Redis INCR 실패 — in-memory degraded seq=${next} ` +
+        `Redis INCR 실패 — in-memory degraded seq=${degradedSeq} ` +
           `(${ExecutionSeqAllocator.sanitize(executionId)}): ${
             err instanceof Error ? err.message : String(err)
           }`,
       );
-      return next;
+      return degradedSeq;
     }
   }
 
   /**
    * terminal event 발송 후 호출 — in-memory mirror 회수 + Redis 키 best-effort DEL.
-   * DEL 실패해도 TTL 이 결국 회수하므로 swallow.
+   * DEL 실패해도 TTL 이 결국 회수하므로 swallow. 같은 executionId 가 즉시 재사용되면
+   * (테스트 fixture 등) seq 가 1 부터 다시 시작 — 정상 흐름에서는 execution id 가
+   * UUID 라 충돌하지 않는다 (수용된 trade-off).
    */
   release(executionId: string): void {
     this.fallbackCounters.delete(executionId);
+    // best-effort DEL — 연결을 새로 열지 않는다 (getClient 의 lazy 생성과 비대칭):
+    // release 는 종료 정리이므로 이미 열린 client 가 있을 때만 시도.
     const client = this.redisClient;
     if (client) {
       const key = `${ExecutionSeqAllocator.SEQ_KEY_PREFIX}${executionId}`;
@@ -151,12 +170,14 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
+    // graceful shutdown 시 in-memory mirror 반납 (release 누락분 누수 방지).
+    this.fallbackCounters.clear();
     if (this.redisClient) {
       await this.redisClient.quit().catch(() => undefined);
     }
   }
 
-  /** 로그 인젝션 방지 — executionId 의 제어문자/개행 제거 + 길이 cap. */
+  /** 로그 인젝션 방지 — executionId 의 CR/LF/탭 제거 (기타 C0 생략) + 길이 cap. */
   private static sanitize(value: string): string {
     return String(value)
       .replace(/[\r\n\t]/g, ' ')

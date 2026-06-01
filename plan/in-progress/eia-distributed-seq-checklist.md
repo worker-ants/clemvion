@@ -113,10 +113,14 @@ parent: eia-distributed-seq-counter.md
 > 가 `13-replay-rerun.md` frontmatter 의 stale `pending_plans` 정리** (본 PR scope 외, 별도 처리 권고).
 
 ## 6. REVIEW WORKFLOW
-- [ ] `/ai-review` + SUMMARY 기록
-- [ ] Critical/Warning fix (resolution-applier) + RESOLUTION.md
-- [ ] (spec 영역 변경) `/consistency-check --impl-done`
-- [ ] TEST WORKFLOW 재통과
+- [x] `/ai-review` + SUMMARY 기록 — **위험도 MEDIUM, Critical 0, Warning 6, INFO 22**. `review/code/2026/06/02/08_12_43/SUMMARY.md`
+- [x] Warning/INFO 수동 조치 (resolution-applier 대신 main 직접 — bgIsolation 우회) + RESOLUTION.md
+  - W1 (perf, pipeline) **수정**: INCR+EXPIRE 단일 round-trip
+  - INFO-3(dead JSDoc)·8(변수명)·9(주석)·10(주석)·19(onModuleDestroy clear) **수정**
+  - INFO-13/14/15 커버리지 테스트 **추가** (onModuleDestroy·config 누락·TTL env). allocator spec 9→16개
+  - W2(SANITIZE_CACHE pre-existing)·W3(JWT fallback 코드베이스 전역 dead pattern)·W4(생성자 검증완료)·W5(continuation-bus 동일 패턴)·W6(테스트 green) → **out-of-scope/검증, RESOLUTION 문서화**
+- [x] spec 영역 코드 변경 없음 (codebase only) → `--impl-done` 불필요. impl-prep 로 사전 정합 확인 완료
+- [ ] TEST WORKFLOW 재통과 (lint·unit·build ✓, e2e 재실행 중)
 
 ## 7. 완료
 - [ ] 본체 plan 체크박스 갱신

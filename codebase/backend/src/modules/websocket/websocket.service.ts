@@ -308,7 +308,7 @@ export class WebsocketService {
    * 에만 자동 첨부된다. **wire envelope** (`gateway.broadcastToChannel`) 에는
    * 첨부하지 않아 WS spec §4.4 의 frontend wire shape 호환성을 유지한다.
    *
-   * Lifecycle 은 {@link seqCounters} 와 동일 — terminal event 발송 후 자동
+   * Lifecycle 은 seq allocator 의 키와 동일 — terminal event 발송 후 자동
    * release. 명시 release 필요 시 {@link releaseExecutionRouting}.
    */
   private readonly executionRouting = new Map<
