@@ -57,8 +57,10 @@ owner: developer (TBD)
   visible/hidden 상태 추가가 선행돼야 하고(project-planner), `updateProfile` 는 진행 중 세션 profile 갱신 의미
   정의 필요. spec 2-sdk §3 `wc:command` 표·§5 타입에는 명시됨 — handler 갭만 잔존.
 
-### 5. per_execution 토큰 auto-refresh (spec 3-auth-session §3)
-- `EiaClient.refreshToken` 메서드는 있으나, 만료 30분 이내 자동 갱신 스케줄링 미연결.
+### 5. per_execution 토큰 auto-refresh (spec 3-auth-session §3) — ✅ 완료 (2026-06-02, D#5)
+- `use-widget` 에 자동 갱신 스케줄러 연결(§3 step7). 만료 `TOKEN_REFRESH_LEAD_MS`(30분) 이전 시점에 setTimeout →
+  `EiaClient.refreshToken` → sessionRef/saveSession 갱신 → 재예약. start·복원 시 예약, ENDED·언마운트 시 정리.
+  갱신 실패는 흡수(SSE 는 hard expiry 까지 유지). `refreshDelayMs` 순수 함수 추출 + 단위테스트(+5).
 
 ### 6. M2 BYO-UI headless client 정식 패키징
 - 현재 `@workflow/sdk`(EIA 클라이언트) 재사용을 샘플로만 시연. 정식 headless API 표면 노출·문서는 후속.
