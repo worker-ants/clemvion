@@ -1,0 +1,14 @@
+{
+  "name": "mermaid-lint",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Harness tooling: static syntax check for ```mermaid blocks in markdown (mermaid.parse + jsdom). Invoked by the Claude PostToolUse hook and .githooks/pre-commit.",
+  "bin": {
+    "lint-mermaid": "./lint-mermaid.mjs"
+  },
+  "dependencies": {
+    "jsdom": "*",
+    "mermaid": "*"
+  }
+}
