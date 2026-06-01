@@ -15,6 +15,10 @@ import { ParallelExecutor } from '../containers/parallel-executor';
 import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
+// SUMMARY#4 (W-1): parentParallelConcurrency 는 required `number | undefined` —
+// 최외각 Parallel 테스트에서 `undefined` 를 명시 전달하는 이유:
+// W-1 시그니처 강화로 optional → required number|undefined 로 바뀌어
+// 타입 체커가 인자 누락을 오류로 잡기 위해 undefined 를 명시해야 한다.
 describe('parallel-p2 integration (§4 followups)', () => {
   const baseContext: ExecutionContext = {
     executionId: 'exec-1',
@@ -122,6 +126,8 @@ describe('parallel-p2 integration (§4 followups)', () => {
         16,
       );
       // intended 내부 effective = 8, allowed = floor(32/16) = 2 → clamp to 2
+      // SUMMARY#1/#3: clamp 하한(최소 1 브랜치 실행) 및 상한 양방향 검증
+      expect(observedPeak).toBeGreaterThan(0);
       expect(observedPeak).toBeLessThanOrEqual(2);
       expect(result.clampedConcurrency).toEqual({
         intended: 8,
