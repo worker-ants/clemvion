@@ -4820,7 +4820,12 @@ export class ExecutionEngineService
     }
     // 사용자 발화(q) 조기 노출 — 다음 턴 LLM 호출 전에 1회 emit (§7.5 / WS §4.4).
     if (userMessageSignalApplies(source)) {
-      await this.emitUserMessageLiveSignal(executionId, node, nodeExec, message);
+      await this.emitUserMessageLiveSignal(
+        executionId,
+        node,
+        nodeExec,
+        message,
+      );
     }
     // spec §7.9 — handler throw (LLM 429 / timeout / connection 등) 시 conversation
     // loop 를 자연 종료시키고 `finalizeAiNode(.., 'FAILED')` 로 노드 상태를
