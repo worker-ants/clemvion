@@ -50,6 +50,37 @@ export const CONTINUATION_QUEUE_DEFAULT_OPTS = {
 };
 
 /**
+ * continuation worker 동시성 기본값. full detach (PR #402) 로 `process()` 가
+ * 빨라져 직렬(1)로 충분하나, 대량 동시 resume 의 setup (`rehydrateContext` /
+ * `loadAndBuildGraph`) 직렬화 latency 가 운영에서 관측되면 상향한다.
+ */
+export const DEFAULT_CONTINUATION_WORKER_CONCURRENCY = 1;
+
+/**
+ * SoT: spec §11 `CONTINUATION_WORKER_CONCURRENCY`. continuation worker 의 BullMQ
+ * concurrency 를 환경변수로 결정한다.
+ *
+ * `@Processor` 데코레이터 인자는 DI 이전 모듈 로드 시점에 평가되므로 factory
+ * 주입(예: SHUTDOWN_GRACE_MS)이 불가 — 데코레이터에서 직접 호출하는 순수 파서로
+ * 둔다. env 미주입 테스트를 위해 `env` 인자를 받는다.
+ *
+ * 비숫자 / 0 / 음수 / 비정수(소수·공학표기) 는 기본값 fallback — `1e10` 같은
+ * 공학표기 차단을 위해 정규식 선검증 (continuation-dlq-monitor.config.ts 동일 규약).
+ */
+export function resolveContinuationWorkerConcurrency(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env.CONTINUATION_WORKER_CONCURRENCY;
+  if (raw === undefined || !/^\d+$/.test(raw.trim())) {
+    return DEFAULT_CONTINUATION_WORKER_CONCURRENCY;
+  }
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_CONTINUATION_WORKER_CONCURRENCY;
+}
+
+/**
  * Typed payload variants for ContinuationJob / waitForAiConversation dispatch.
  *
  * 각 type 에 대응하는 payload shape 을 명시함으로써 처리 코드의 `as { ... }`
