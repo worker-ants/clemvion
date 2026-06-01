@@ -2,16 +2,19 @@
   "version": 1,
   "started_at": "2026-06-02T00:00:00Z",
   "summary_items_total": 15,
-  "items_resolved_ids": [],
-  "items_pending_ids": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
-  "items_escalated_ids": {},
-  "commits_made": [],
-  "spec_drafts_pending": [],
+  "items_resolved_ids": [1,3,4,6,7,8,9,10,11,13,14,15],
+  "items_pending_ids": [],
+  "items_escalated_ids": {"2": "spec", "5": "spec"},
+  "commits_made": [
+    {"sha": "85350518", "summary_ids": [1,3,4,6,7,8,9,10,11,13,14,15], "scope": "hooks+web-chat-sdk"},
+    {"sha": "d4dc28cd", "summary_ids": [], "scope": "review/RESOLUTION"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-fix-public-webhook-security.md"],
   "spec_drafts_applied": [],
   "e2e_attempts": 0,
-  "e2e_last_status": null,
+  "e2e_last_status": "skipped",
   "e2e_log_paths": [],
   "auto_fix_iterations": {},
-  "escalation_reason": null,
+  "escalation_reason": "spec-only: W2 fixed-window bursting note + W5 concurrent-cap deferral note in spec/7-channel-web-chat/4-security.md",
   "last_reset_hint_sec": null
 }
