@@ -700,6 +700,8 @@ Manual Trigger 핸들러의 `execute()` 출력은 항상 다음 형태이다:
 | waiting_for_input 진입 시 | PostgreSQL (`NodeExecution.outputData`) + Redis (`ExecutionContext`) | 다음 노드 재개에 필요한 모든 정보를 commit. (a) `interactionType` 과 노드의 `rawConfig` snapshot (§5.5), (b) multi-turn 의 경우 `_resumeState` 의 credential-strip 부분집합인 `_resumeCheckpoint` (§1.3 — `_resumeState` full 은 in-memory 만), (c) 누적된 `conversationThread` (`output.messages` 또는 `output.interaction`). **별도 `_continuationCheckpoint` 컬럼 신설하지 않는다** — 기존 SoT 인 `NodeExecution.outputData` 를 §7.5 rehydration 의 단일 진실로 활용 |
 | 실행 완료 시 | PostgreSQL | 전체 컨텍스트를 PostgreSQL에 영구 저장, Redis에서 삭제 |
 
+> **라이브 조기 노출 신호는 비영속**: multi-turn 재개 chokepoint(WS `execution.submit_message` 와 채널 텍스트 인바운드의 공통 경로 = [AI Agent §7.5](../4-nodes/3-ai/1-ai-agent.md#75-multi-turn-모드--사용자-메시지-수신-status-resumed-transient) `message_received` resume tick)는 다음 턴 LLM 호출 전에 WS `execution.user_message` 이벤트를 emit 해 사용자 발화를 라이브로 조기 노출한다 ([WebSocket §4.4](./6-websocket-protocol.md#44-실행-진행-이벤트)). 이는 `tool_call_*` 와 동형의 **라이브 전용 진행 신호로 영속 대상이 아니다** — `NodeExecution.outputData` 는 위 표대로 turn 경계에서만 저장(single-write 불변)되고, 사용자 발화의 영속 정합은 turn 종료 `execution.ai_message` 스냅샷(`output.result.messages`)이 보장한다.
+
 ### 6.3 재실행/조회 정책 (Replay Policy)
 
 저장된 실행 이력을 사용자가 다시 활용하는 시나리오의 정책. 의미가 다른 두 모드를 분리해 정의한다 — 한쪽은 외부 부수효과 0, 다른 쪽은 새 실행으로 부수효과 재트리거.

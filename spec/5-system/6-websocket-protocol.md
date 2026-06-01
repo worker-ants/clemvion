@@ -192,6 +192,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs?, presentations? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷이며, 각 항목은 `source: 'live' \| 'injected'` 마커를 동봉한다 (§4.4.6). `presentations` 는 AI Agent 의 `render_*` 표현 도구 출력 (§4.4 표 / [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)). 상세 필드 정의는 §4.4 참조 |
 | `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI Agent 가 provider tool(KB/MCP 등)을 실행하기 시작했음을 알림. 디버깅 타임라인이 즉시 pending 상태의 tool 항목을 표시할 수 있도록 turn 종료 전에 발송 |
 | `execution.tool_call_completed` | `{ executionId, nodeId, turnIndex, toolCallId, content, status, error?, durationMs }` | provider tool 실행이 끝났음을 알림. `status` 는 `'success' \| 'error'`. provider 가 throw 한 경우 핸들러가 캐치해 `status: 'error'` 와 `error` 메시지를 채우고 LLM 에는 에러 content 를 그대로 넘겨 다음 턴에서 회복할 기회를 준다 |
+| `execution.user_message` | `{ executionId, nodeId, nodeExecutionId, message, receivedAt }` | AI Agent Multi Turn 모드에서 **사용자 발화(q)를 수신 즉시(다음 턴 LLM 호출 전) 라이브로 노출**하기 위한 진행 신호. `tool_call_started` 와 동형의 **비권위 라이브 신호** — turn 종료 `execution.ai_message.messages` 스냅샷이 권위 출처이며 동일 user 메시지를 포함한다. 클라이언트는 이 이벤트로 optimistic `ai_user` bubble 을 즉시 띄우고 후속 `ai_message` 로 reconcile (§4.4 `user_message` 상세 / §4.4.6 소비 규약 / §588 Reconciliation). `submit_message`(일반 채팅) 및 채널 텍스트 인바운드(텔레그램 등) → `message_received` 경로에서만 발화하며, form 제출(`submit_form` → `presentation_user`)에는 발화하지 않는다 |
 
 ### 4.2 실행 제어 명령 (Client → Server)
 
@@ -517,6 +518,37 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 }
 ```
 
+**사용자 발화 조기 노출 이벤트 (`execution.user_message`):**
+
+엔진이 사용자 메시지를 수신해 multi-turn 노드를 재개하는 시점(= [Spec AI Agent §7.5](../4-nodes/3-ai/1-ai-agent.md#75-multi-turn-모드--사용자-메시지-수신-status-resumed-transient) 의 `message_received` resume tick, **다음 턴 LLM 호출 전**)에 1회 emit. 목적은 **사용자 발화(q)가 AI 응답(a) 생성 전에 라이브 대화 surface 에 즉시 노출**되도록 하는 것 — WS `submit_message` 와 채널 텍스트 인바운드(텔레그램 등)의 공통 재개 chokepoint 에서 발화하므로 채널 출처 메시지도 자동 커버한다.
+
+**페이로드 필드:**
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `executionId` | uuid | 실행 ID |
+| `nodeId` | uuid | 메시지를 수신한 AI 노드 ID |
+| `nodeExecutionId` | uuid | **이 시점에 `waiting_for_input` 상태였던 NodeExecution row 의 PK**. dedup / reconcile 시 turn row 식별자. (`waiting_for_input` row lookup 은 [Spec 실행 엔진 §7.5 / §1.3](../5-system/4-execution-engine.md) 의 `execution_id + node_id + status='waiting_for_input'` 단일 매칭과 동일 row) |
+| `message` | string | 사용자가 보낸 발화 본문. **[Spec Presentation 공통](../4-nodes/6-presentation/0-common.md) 의 `ButtonDef.userMessage`(버튼 클릭 발화 텍스트)와 무관** |
+| `receivedAt` | ISO8601 string | 엔진이 메시지를 수신한 시각. **[Spec AI Agent §7.5](../4-nodes/3-ai/1-ai-agent.md) `output.interaction.receivedAt` 와 동일 값** |
+
+```json
+{
+  "type": "execution.user_message",
+  "payload": {
+    "executionId": "uuid",
+    "nodeId": "uuid",
+    "nodeExecutionId": "uuid",
+    "message": "주문 ORD-12345 확인해줘",
+    "receivedAt": "2026-05-10T06:42:01.123Z"
+  }
+}
+```
+
+> **위치/시맨틱 구분**: 본 WS 페이로드는 [Spec AI Agent §7.5](../4-nodes/3-ai/1-ai-agent.md) 의 `NodeHandlerOutput.interaction.data`(`message_received` shape, [node-output Principle 4.5](../conventions/node-output.md#45-interactiondata-payload-규격))와 **별개의 표면**이다 — 후자는 observability/run-history 기록용 핸들러 출력 스냅샷, 전자는 라이브 대화 UI 용 경량 신호. 동일 수신 이벤트의 두 전송이며 `receivedAt` 값을 공유한다.
+>
+> **dedup 단일 진실**: 클라이언트는 `receivedAt` 을 1차 dedup 키로 사용해 optimistic `ai_user` bubble 의 중복 노출을 막는다. 후속 `ai_message.messages` 권위 스냅샷의 마지막 `source:'live'` user 메시지와의 매칭은 fallback 경로다 ([Spec Conversation Thread §9.7](../conventions/conversation-thread.md#97-ws-이벤트--store-변환-계약)).
+
 **대화 종료 요청 (`execution.end_conversation`):**
 
 ```json
@@ -585,7 +617,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 }
 ```
 
-> **Reconciliation**: `tool_call_started` / `tool_call_completed` 가 손실되어도 turn 종료 시 도착하는 `execution.ai_message` 의 `messages` 스냅샷과 `meta.turnDebug[].toolCalls` 가 권위적이다. 클라이언트는 `toolCallId` 를 키로 dedup 한다.
+> **Reconciliation**: `tool_call_started` / `tool_call_completed` / `user_message` 가 손실되어도 turn 종료 시 도착하는 `execution.ai_message` 의 `messages` 스냅샷과 `meta.turnDebug[].toolCalls` 가 권위적이다. 클라이언트는 tool 항목은 `toolCallId`, optimistic user bubble 은 `receivedAt` 을 키로 dedup 한다. 즉 `user_message` 는 q 의 조기 노출(라이브 UX)만 담당하고, 영속/이력 정합은 `ai_message` 스냅샷이 보장한다.
 
 #### 4.4.5 Conversation Thread snapshot (`conversationThread`)
 
@@ -654,6 +686,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 - 디버깅 타임라인의 turn 카운팅(`llmCalls[]` 와 어시스턴트 메시지 매칭) 은 `source === 'live'` 인 user 메시지만 세야 backend `turnCount` 와 일치한다.
 - 대화 UI (conversation Preview 탭, conversation timeline) 는 emit messages 가 아닌 `waiting_for_input.conversationThread.turns` snapshot (§4.4.5) 을 1차 소스로 사용한다. source 별 시각 매핑은 [Spec Conversation Thread §9](../conventions/conversation-thread.md#9-미리보기-ui-렌더-규칙) 의 강제 규약을 따른다 — `injected` chip 표시는 "권장" 이 아니라 §9.2 의 3중 신호(아이콘 + 컨테이너 형식 + chip) 동시 적용이 **필수** 다. LLM debug 패널 (Request / Response / LLM Usage) 만 emit messages 의 raw payload 를 사용하며, 이때도 "Raw payload" 토글로 명시한다 (§9.3·§9.4).
 - `source` 필드가 누락된 경우 (옛 backend / 옛 DB 영속 페이로드 호환) `'live'` 로 간주한다 — 이력 재구성 경로 (`parseHistoryMessages`) 도 동일.
+- **라이브 조기 노출**: live 대화 timeline 은 `execution.user_message` (위 §4.4) 수신 즉시 optimistic `ai_user` bubble 을 append 해 사용자 발화(q)를 AI 응답(a) 생성 전에 보여주고, 후속 `execution.ai_message.messages` 권위 스냅샷으로 reconcile 한다. 이 조기 노출은 **라이브 전용 UX 속성**이다 — history 뷰(`parseHistoryMessages(outputData)`)는 turn 완결 후 q+a 가 삽입 순서대로 함께 존재하므로(이미 정상) 별도 조기 노출이 없으며, turn 생성 도중 새로고침 시 노드는 `running` 으로 표시되고 optimistic q 는 복원되지 않는다(스냅샷/`tool_call_started` 진행 신호가 live-only 인 것과 동형).
 
 ---
 
@@ -729,6 +762,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `execution.paused` _(계획·미구현)_ | `execution.paused` | — (디버깅 전용) |
 | `execution.waiting_for_input` | `execution.waiting_for_input` | `execution.waiting_for_input` |
 | `execution.resumed` (transient) | `execution.resumed` | — (transient, notification 미발송) |
+| `execution.user_message` | `execution.user_message` | — (라이브 조기 노출 신호, `tool_call_*` 동형 — notification 미발송) |
 | `execution.ai_message` | `execution.ai_message` | `execution.ai_message` (옵션 구독) |
 | `execution.tool_call_started` | `execution.tool_call_started` | — |
 | `execution.tool_call_completed` | `execution.tool_call_completed` | — |
