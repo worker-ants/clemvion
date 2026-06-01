@@ -349,7 +349,7 @@ data: { ... §6 payload ... }
 
 §6 의 outbound notification 이벤트 + 디버깅용 추가 이벤트:
 `execution.node.started` / `execution.node.completed` / `execution.node.failed` / `execution.node.skipped` /
-`execution.ai_message` / `execution.tool_call_started` / `execution.tool_call_completed` / `execution.resumed`.
+`execution.ai_message` / `execution.user_message` / `execution.tool_call_started` / `execution.tool_call_completed` / `execution.resumed`.
 
 각 이벤트의 페이로드는 [Spec WebSocket 프로토콜 §4.1·§4.4](./6-websocket-protocol.md#41-실행-이벤트-server--client) 와 동일.
 
@@ -769,6 +769,7 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 기존대로 `@Public()` + `@Ap
 | `execution.paused` | `execution.paused` | — (디버깅 전용, 외부 미발송) |
 | `execution.waiting_for_input` | `execution.waiting_for_input` | `execution.waiting_for_input` |
 | `execution.resumed` | `execution.resumed` | — (transient) |
+| `execution.user_message` | `execution.user_message` | — (라이브 조기 노출 신호, `tool_call_*` 동형) |
 | `execution.ai_message` | `execution.ai_message` | `execution.ai_message` (optional 구독) |
 | `execution.tool_call_started` | `execution.tool_call_started` | — |
 | `execution.tool_call_completed` | `execution.tool_call_completed` | — |

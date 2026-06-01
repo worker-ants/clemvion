@@ -25,6 +25,7 @@ const initialState = {
   selectedResultNodeId: null,
   conversationMessages: [],
   selectedConversationItemIndex: null,
+  isWaitingAiResponse: false,
 };
 
 describe("useExecutionStore", () => {
@@ -539,6 +540,64 @@ describe("useExecutionStore", () => {
       expect(
         useExecutionStore.getState().conversationMessages[0].type,
       ).toBe("user");
+    });
+  });
+
+  // spec/conventions/conversation-thread.md §9.7 — execution.user_message →
+  // optimistic ai_user append, dedup by receivedAt.
+  describe("appendOptimisticUserMessage", () => {
+    it("appends an optimistic user item and flags isWaitingAiResponse", () => {
+      useExecutionStore.getState().appendOptimisticUserMessage({
+        content: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      });
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        type: "user",
+        content: "주문 확인해줘",
+        timestamp: "2026-06-01T00:00:00.000Z",
+      });
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    });
+
+    it("dedups by receivedAt (re-emit / re-subscribe does not double-append)", () => {
+      const args = {
+        content: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      };
+      useExecutionStore.getState().appendOptimisticUserMessage(args);
+      useExecutionStore.getState().appendOptimisticUserMessage(args);
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+    });
+
+    // ai-review W1/W7 — 빈 receivedAt(옛 backend fallback)는 dedup 키가 없으므로
+    // 서로 다른 발화가 무음 drop 되지 않고 모두 append 돼야 한다 (손실 < 중복).
+    it("does NOT drop distinct messages when receivedAt is empty (no dedup on empty key)", () => {
+      useExecutionStore
+        .getState()
+        .appendOptimisticUserMessage({ content: "첫 발화", receivedAt: "" });
+      useExecutionStore
+        .getState()
+        .appendOptimisticUserMessage({ content: "둘째 발화", receivedAt: "" });
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(2);
+      expect(items.map((i) => i.content)).toEqual(["첫 발화", "둘째 발화"]);
+    });
+
+    it("subsequent setConversationMessages (ai_message REPLACE) reconciles the optimistic bubble", () => {
+      useExecutionStore.getState().appendOptimisticUserMessage({
+        content: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      });
+      // Authoritative ai_message snapshot arrives → REPLACE.
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "주문 확인해줘", turnIndex: 0 },
+        { type: "assistant", content: "네, 확인하겠습니다", turnIndex: 0 },
+      ]);
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(2);
+      expect(items[1].type).toBe("assistant");
     });
   });
 });

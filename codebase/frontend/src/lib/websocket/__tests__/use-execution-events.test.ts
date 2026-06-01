@@ -1239,6 +1239,69 @@ describe("useExecutionEvents", () => {
     });
   });
 
+  // spec/5-system/6-websocket-protocol.md §4.4 execution.user_message —
+  // 사용자 발화(q) 조기 노출.
+  describe("user_message (q) early surface", () => {
+    function bindUserMessage() {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const onCalls = (mockClient.on as Mock).mock.calls;
+      return onCalls.find(
+        (c: unknown[]) => c[0] === "execution.user_message",
+      )?.[1] as ((data: unknown) => void) | undefined;
+    }
+
+    it("registers a handler for execution.user_message", () => {
+      renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
+      const bound = (mockClient.on as Mock).mock.calls.map(
+        (c: unknown[]) => c[0],
+      );
+      expect(bound).toContain("execution.user_message");
+    });
+
+    it("appends an optimistic user bubble on execution.user_message", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const handler = bindUserMessage();
+      expect(handler).toBeDefined();
+
+      handler!({
+        nodeExecutionId: "ne-1",
+        nodeId: "agent-1",
+        message: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        type: "user",
+        content: "주문 확인해줘",
+        timestamp: "2026-06-01T00:00:00.000Z",
+      });
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    });
+
+    it("dedups repeated user_message by receivedAt", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const handler = bindUserMessage();
+      const payload = {
+        nodeId: "agent-1",
+        message: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      };
+      handler!(payload);
+      handler!(payload);
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+    });
+
+    it("ignores empty/missing message", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      const handler = bindUserMessage();
+      handler!({ nodeId: "agent-1", message: "", receivedAt: "t" });
+      handler!({ nodeId: "agent-1", receivedAt: "t2" });
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(0);
+    });
+  });
+
   describe("tool call events", () => {
     function bind() {
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
