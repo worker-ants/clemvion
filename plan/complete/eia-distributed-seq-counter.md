@@ -70,7 +70,7 @@ follow-up 명시.
 ### 3. 검증
 
 - [x] backend lint + unit(5406) + build + e2e(140)
-- [ ] (선택적 follow-up) 부하 — 2-instance docker-compose 실 race / 1000 events/s 단조. Redis INCR 원자성으로 설계상 보장 + unit 커버. 별도 follow-up 권고
+- [x] 부하 repro 는 **선택적 follow-up 으로 분리** → [`eia-distributed-seq-load-verify.md`](../in-progress/eia-distributed-seq-load-verify.md). 핵심 보장은 Redis INCR 원자성 + unit(100 동시 유일성)으로 충족 (본 plan 범위 완료)
 
 ## 수용 기준
 

@@ -95,7 +95,7 @@ parent: eia-distributed-seq-counter.md
 
 ## 4. 회귀·부하 테스트
 - [x] 분산 race regression — 100개 동시 `next()` → 1..100 유일(중복·gap 0). allocator spec (atomic INCR 계약 고정)
-- [ ] (보류) 2-instance docker-compose 실 race repro / 1000 events/s 부하 — Redis INCR 원자성으로 설계상 보장 + unit 커버. 실 multi-instance 부하 repro 는 follow-up (plan §1 PoC 수준, 별도)
+- [x] 2-instance 실 부하 repro 는 **선택적 follow-up 으로 분리** → [`eia-distributed-seq-load-verify.md`](./eia-distributed-seq-load-verify.md) (plan §1 PoC 수준, 본 plan 범위 외)
 
 ## 5. TEST WORKFLOW
 - [x] lint — PASS (33s)
@@ -124,7 +124,9 @@ parent: eia-distributed-seq-counter.md
 
 ## 7. 완료
 - [x] 본체 plan(`eia-distributed-seq-counter.md`) 체크박스 갱신
-- [ ] **plan `git mv` complete 보류** — follow-up 1건 잔존 (§4 2-instance docker-compose 실 race / 1000 events/s 부하 repro). 핵심 강화(Redis INCR atomic seq + async emit)는 완료·전 테스트 통과. 부하 repro 는 선택적 검증이라 별도 follow-up plan 으로 분리 권고 후 complete 이동.
+- [x] 선택적 부하 repro 를 `eia-distributed-seq-load-verify.md` follow-up plan 으로 분리 → 본 plan follow-up 0건
+- [x] frontend replay-rerun frontmatter breakage = 최신 main 의 #412(269bd8ee)가 이미 해소 (본 worktree base 가 그 이전이라 보였을 뿐, 별도 조치 불필요)
+- [x] main plan + checklist `git mv` → `plan/complete/`
 
 ## 위험 등록부 (Risk register)
 
