@@ -120,11 +120,11 @@ parent: eia-distributed-seq-counter.md
   - INFO-13/14/15 커버리지 테스트 **추가** (onModuleDestroy·config 누락·TTL env). allocator spec 9→16개
   - W2(SANITIZE_CACHE pre-existing)·W3(JWT fallback 코드베이스 전역 dead pattern)·W4(생성자 검증완료)·W5(continuation-bus 동일 패턴)·W6(테스트 green) → **out-of-scope/검증, RESOLUTION 문서화**
 - [x] spec 영역 코드 변경 없음 (codebase only) → `--impl-done` 불필요. impl-prep 로 사전 정합 확인 완료
-- [ ] TEST WORKFLOW 재통과 (lint·unit·build ✓, e2e 재실행 중)
+- [x] TEST WORKFLOW 재통과 — lint ✓ / unit backend 5406 ✓ / build ✓ / **e2e 140 ✓**. RESOLUTION.md 기록
 
 ## 7. 완료
-- [ ] 본체 plan 체크박스 갱신
-- [ ] follow-up 0건 시 plan `git mv` complete
+- [x] 본체 plan(`eia-distributed-seq-counter.md`) 체크박스 갱신
+- [ ] **plan `git mv` complete 보류** — follow-up 1건 잔존 (§4 2-instance docker-compose 실 race / 1000 events/s 부하 repro). 핵심 강화(Redis INCR atomic seq + async emit)는 완료·전 테스트 통과. 부하 repro 는 선택적 검증이라 별도 follow-up plan 으로 분리 권고 후 complete 이동.
 
 ## 위험 등록부 (Risk register)
 
