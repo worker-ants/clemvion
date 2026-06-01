@@ -29,6 +29,7 @@ describe('ParallelExecutor', () => {
       async (branchIndex) => {
         calls.push(branchIndex);
       },
+      undefined,
     );
     expect(calls.sort()).toEqual([0, 1]);
     expect(result.settled.length).toBe(2);
@@ -52,6 +53,7 @@ describe('ParallelExecutor', () => {
           hasLoop: branchCtx.loopContext !== undefined,
         });
       },
+      undefined,
     );
 
     expect(received.length).toBe(3);
@@ -86,6 +88,7 @@ describe('ParallelExecutor', () => {
         await barriers[branchIndex];
         running--;
       },
+      undefined,
     );
 
     // Let the first 2 start (microtask flush)
@@ -119,6 +122,7 @@ describe('ParallelExecutor', () => {
         async (branchIndex) => {
           if (branchIndex === 1) throw new Error('branch-1-fail');
         },
+        undefined,
       ),
     ).rejects.toThrow('branch-1-fail');
   });
@@ -135,6 +139,7 @@ describe('ParallelExecutor', () => {
       async (branchIndex) => {
         if (branchIndex === 2) throw new Error('branch-2-fail');
       },
+      undefined,
     );
 
     expect(result.failures.length).toBe(1);
@@ -154,6 +159,7 @@ describe('ParallelExecutor', () => {
       async (i) => {
         calls.push(i);
       },
+      undefined,
     );
     expect(calls.length).toBe(2);
   });
@@ -167,6 +173,7 @@ describe('ParallelExecutor', () => {
         async (_idx, branchCtx) => {
           seen.push(branchCtx.parentParallelConcurrency);
         },
+        undefined,
       );
       // effectiveConcurrency = maxConcurrency(0) → branchCount(4)
       expect(seen).toEqual([4, 4, 4, 4]);
@@ -180,6 +187,7 @@ describe('ParallelExecutor', () => {
         async (_idx, branchCtx) => {
           seen.push(branchCtx.parentParallelConcurrency);
         },
+        undefined,
       );
       expect(seen).toEqual([2, 2, 2, 2]);
     });
@@ -256,6 +264,7 @@ describe('ParallelExecutor', () => {
         async (_idx, branchCtx) => {
           seen.push(branchCtx.parentParallelConcurrency);
         },
+        undefined,
       );
       // no parent → effective = 16, propagated as-is
       expect(new Set(seen)).toEqual(new Set([16]));
@@ -277,6 +286,7 @@ describe('ParallelExecutor', () => {
           async (_idx, branchCtx) => {
             signals.push(branchCtx.abortSignal);
           },
+          undefined,
         )
         .catch(() => undefined);
       expect(signals).toHaveLength(3);
@@ -321,6 +331,7 @@ describe('ParallelExecutor', () => {
               }
             });
           },
+          undefined,
         )
         .catch((e: Error) => e);
       // root cause re-thrown
@@ -345,6 +356,7 @@ describe('ParallelExecutor', () => {
           async (_i, branchCtx) => {
             seenAborted.push(branchCtx.abortSignal?.aborted ?? false);
           },
+          undefined,
         )
         .catch(() => undefined);
       expect(seenAborted.every((b) => b === true)).toBe(true);
@@ -364,6 +376,7 @@ describe('ParallelExecutor', () => {
           async (_i, branchCtx) => {
             signalsStop.push(branchCtx.abortSignal);
           },
+          undefined,
         )
         .catch(() => undefined);
       // No upstream + no cancel-others-on-fail → branch signal is undefined
@@ -404,6 +417,7 @@ describe('ParallelExecutor', () => {
               }
             });
           },
+          undefined,
         )
         .catch((e: Error) => e);
 

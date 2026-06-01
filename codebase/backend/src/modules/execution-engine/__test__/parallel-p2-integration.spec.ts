@@ -68,6 +68,7 @@ describe('parallel-p2 integration (§4 followups)', () => {
               );
             });
           },
+          undefined,
         )
         .catch((e: Error) => e);
       expect((result as Error).message).toBe('first-branch-fails');
@@ -96,6 +97,7 @@ describe('parallel-p2 integration (§4 followups)', () => {
             await new Promise((r) => setTimeout(r, 10));
             branch1Completed = true;
           },
+          undefined,
         )
         .catch(() => undefined);
       expect(branch1Completed).toBe(true);
