@@ -22,7 +22,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 ```text
 ./
   ├── spec/                # 제품의 단일 진실
-  ├── plan/                # 작업 추적 (in-progress/ → 완료 시 git rm 삭제)
+  ├── plan/                # 작업 추적 (in-progress/ ↔ complete/)
   ├── review/              # 코드 리뷰 / 일관성 검토 산출물 (nested ISO)
   ├── codebase/{frontend,backend,packages,channel-web-chat}/  # channel-web-chat: 임베드형 웹채팅 위젯 SPA (Next.js CSR, spec/7-channel-web-chat)
   └── .claude/worktrees/   # 모든 신규 작업의 git worktree
@@ -38,7 +38,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 결정의 배경·근거 | 해당 spec 문서 끝의 `## Rationale` |
 | 정식 규약 | `spec/conventions/<name>.md` |
 | 진행 중 작업 | `plan/in-progress/<name>.md` (frontmatter 에 `worktree` 명시) |
-| 완료된 작업 | 별도 저장 없음 — 완료 plan 은 옮기지 않고 `git rm` 으로 삭제 (절차는 [`PROJECT.md`](PROJECT.md) §plan·review 산출물 git 취급) |
+| 완료된 작업 | `plan/complete/` — 라이프사이클·이동 방식은 [`.claude/docs/plan-lifecycle.md`](.claude/docs/plan-lifecycle.md) |
 | 1회성·역사 문서 | `plan/complete/archive/from-*/` 만 보관, 신규 생성 금지 |
 | 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
 | 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
