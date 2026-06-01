@@ -33,10 +33,15 @@ owner: developer (TBD)
   - **공개 위젯 vs 일반 execution 구분 적용 여부**(D#1 의 `auth_config_id IS NULL` 신호 재사용?).
 - 구현 범위(설계 후): execution-engine 토큰 미터 + 예산 초과 가드 + AI 노드/워크스페이스 config 표면 + 종료 UX.
 
-### 3. 임베드 allowlist hard 강제 (opt-in) (spec 4-security §3-③)
-- v1 은 클라이언트 soft 검증(`detectHostOrigin` helper 만 존재, 실제 allowlist fetch·렌더 차단 미연결).
-  - [ ] per-workspace 임베드 allowlist config 엔드포인트(캐시 가능 JSON) + 위젯 부팅 시 soft 차단 연결.
-  - [ ] opt-in hard `frame-ancestors`(동적 문서) — 비기본.
+### 3. 임베드 allowlist (spec 4-security §3) — ✅ soft 검증 완료 (2026-06-02, D#3)
+- v1 클라이언트 soft 검증(§3-①) 연결 완료:
+  - [x] per-workspace 임베드 allowlist config 엔드포인트(`GET /api/hooks/:endpointPath/embed-config`, 캐시 가능
+    `Cache-Control: max-age=300`) — `EmbedConfigService`(trigger→workspace `interactionAllowedOrigins`, 미설정 시
+    allow-all). 백엔드 66 tests.
+  - [x] 위젯 부팅 시 soft 차단 연결 — `use-widget` boot 시 `detectHostOrigin` + embed-config fetch → 불허 host 면
+    `BLOCKED` phase(렌더 거부). fail-open(fetch 실패·enforce off·origin 미탐지 시 허용). 프론트 44 tests.
+  - [ ] **opt-in hard `frame-ancestors`(§3-③, 동적 문서) — 비기본**: spec 상 v1 기본 아님. 동적 문서 제공이 필요한
+    워크스페이스만 감수 → 별도 increment(현재 미구현, 의도적 비목표).
 
 ### 4. rich presentation 렌더 (spec 1-widget-app §2 — 전체 렌더 A)
 - 현재 위젯은 텍스트·버튼·Form·추천질문·AI multi-turn 렌더. **carousel/table/chart/template presentation 의

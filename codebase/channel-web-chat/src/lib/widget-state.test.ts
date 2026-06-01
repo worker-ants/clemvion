@@ -99,4 +99,12 @@ describe("widgetReducer", () => {
     expect(s.phase).toBe("streaming");
     expect(s.executionId).toBe("e9");
   });
+
+  it("BLOCKED → phase blocked + open false(임베드 차단, 4-security §3-①)", () => {
+    const opened = widgetReducer(initialState, { type: "OPEN" });
+    const s = widgetReducer(opened, { type: "BLOCKED", reason: "origin_not_allowed" });
+    expect(s.phase).toBe("blocked");
+    expect(s.open).toBe(false);
+    expect(s.error).toBe("origin_not_allowed");
+  });
 });

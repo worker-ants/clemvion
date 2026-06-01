@@ -10,7 +10,9 @@ export type WidgetPhase =
   | "booting"
   | "streaming"
   | "awaiting_user_message"
-  | "ended";
+  | "ended"
+  // 임베드 allowlist soft 검증 실패 — 렌더/시작 거부(4-security §3-①).
+  | "blocked";
 
 export interface PendingInteraction {
   type: ExternalInteractionType;
@@ -48,6 +50,7 @@ export type WidgetAction =
   | { type: "USER_MESSAGE"; text: string }
   | { type: "ENDED"; reason?: string }
   | { type: "ERROR"; message: string }
+  | { type: "BLOCKED"; reason?: string }
   | { type: "NEW_CHAT" };
 
 function assistantMsg(text: string): DisplayMessage {
@@ -107,6 +110,15 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
       return { ...state, phase: "ended", pending: null };
     case "ERROR":
       return { ...state, phase: "ended", pending: null, error: action.message };
+    case "BLOCKED":
+      // 임베드 허용 안 된 호스트 — 위젯을 띄우지 않는다(렌더 거부 + 시작 차단).
+      return {
+        ...state,
+        phase: "blocked",
+        open: false,
+        pending: null,
+        error: action.reason,
+      };
     case "NEW_CHAT":
       return {
         ...initialState,

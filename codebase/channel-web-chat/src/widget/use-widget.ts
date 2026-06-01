@@ -13,7 +13,47 @@ import type {
 import { threadToMessages } from "@/lib/conversation";
 import { clearSession, loadSession, saveSession } from "@/lib/session-store";
 import { initialState, widgetReducer } from "@/lib/widget-state";
-import { createIframeBridge, type BootMessage } from "./host-bridge";
+import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
+
+interface EmbedConfig {
+  allowlist: string[];
+  enforce: boolean;
+}
+
+/** 임베드 설정 조회 — 공개 GET, TransformInterceptor `{ data }` 래핑 해제. 실패 시 null(=제한 없음 취급). */
+async function fetchEmbedConfig(
+  apiBase: string,
+  triggerEndpointPath: string,
+): Promise<EmbedConfig | null> {
+  try {
+    const base = apiBase.replace(/\/$/, "");
+    const res = await fetch(
+      `${base}/api/hooks/${encodeURIComponent(triggerEndpointPath)}/embed-config`,
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: EmbedConfig } & Partial<EmbedConfig>;
+    return (json.data ?? (json as EmbedConfig)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 임베드 soft 검증(4-security §3-①) — 호스트 origin 이 워크스페이스 allowlist 에 있는지.
+ * soft 컨트롤이므로 **fail-open**: 설정 조회 실패·enforce 꺼짐·호스트 origin 미탐지 시 허용한다
+ * (정당한 임베드를 네트워크/환경 이유로 깨지 않는다). enforce=true 이고 호스트가 불일치할 때만 차단.
+ */
+async function isEmbedAllowed(
+  apiBase: string,
+  triggerEndpointPath: string,
+  win: Window = window,
+): Promise<boolean> {
+  const cfg = await fetchEmbedConfig(apiBase, triggerEndpointPath);
+  if (!cfg || !cfg.enforce || cfg.allowlist.length === 0) return true;
+  const host = detectHostOrigin(win);
+  if (!host) return true; // 호스트 origin 미탐지(직접 로드 등) → soft 허용.
+  return cfg.allowlist.includes(host);
+}
 
 interface SessionRef {
   executionId: string;
@@ -194,8 +234,16 @@ export function useWidget() {
 
   // 마운트: bridge + config + 세션 복원.
   useEffect(() => {
-    const applyConfig = (cfg: BootMessage) => {
+    let cancelled = false;
+    const applyConfig = async (cfg: BootMessage) => {
       if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
+      // 임베드 soft 검증(4-security §3-①) — 렌더/시작 전에 호스트 origin 허용 여부 확인.
+      const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
+      if (cancelled) return;
+      if (!allowed) {
+        dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
+        return;
+      }
       configRef.current = cfg;
       setConfig(cfg);
       clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
@@ -210,7 +258,9 @@ export function useWidget() {
 
     const bridge = createIframeBridge();
     bridgeRef.current = bridge;
-    bridge.onBoot((c) => applyConfig({ ...configFromQuery(), ...c } as BootMessage));
+    bridge.onBoot((c) => {
+      void applyConfig({ ...configFromQuery(), ...c } as BootMessage);
+    });
     bridge.onCommand((cmd) => {
       switch (cmd.action) {
         case "open":
@@ -231,10 +281,11 @@ export function useWidget() {
     // host 없이 직접 로드(샘플/개발): query param 만으로도 부팅 시도.
     const fallback = configFromQuery();
     if (fallback.apiBase && fallback.triggerEndpointPath) {
-      applyConfig(fallback as BootMessage);
+      void applyConfig(fallback as BootMessage);
     }
 
     return () => {
+      cancelled = true;
       closeStream();
       bridge.destroy();
     };
