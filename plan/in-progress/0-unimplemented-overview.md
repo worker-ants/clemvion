@@ -19,10 +19,9 @@
 1. **`ai-agent-tool-connection-rewrite.md`** — AI Agent 도구 연결은 의도적으로 제거되어 재설계 대기 중. 사용자 가치 큼, 다른 plan과 독립적.
 2. **`parallel-p2.md`** — 중첩 Parallel, `waitAll: false`, `errorPolicy` schema 노출. `logic-node-followups`와 별개로 진행 가능.
 2-1. **`merge-p2-async-fanin.md`** (신규) — Merge `timeout` / `partialOnTimeout` P2 활성화. `logic-node-followups` D3 의 fallback 분리 — 엔진 비동기 dispatch 모델 도입 PoC 가 선결 조건.
-3. **`replay-rerun.md`** — Re-run (재실행) 정책 도입.
-4. **`2fa-webauthn-followups.md`** — WebAuthn 2FA 후속 (10개 항목: requiresTotp 제거, e2e, 모듈 분리 등). 본 PR 인 `2fa-webauthn.md` 는 ✅ 완료되어 `plan/complete/` 로 이동됨.
-5. **`self-hosting-deployment.md`** — Docker Compose 셀프 호스팅 풀 번들, Helm Chart, 운영·보안 가이드.
-6. **`marketplace-and-plugin-sdk.md`** — 마켓플레이스 + 커스텀 노드 SDK (가장 큰 미구현 덩어리).
+3. **`2fa-webauthn-followups.md`** — WebAuthn 2FA 후속 (10개 항목: requiresTotp 제거, e2e, 모듈 분리 등). 본 PR 인 `2fa-webauthn.md` 는 ✅ 완료되어 `plan/complete/` 로 이동됨.
+4. **`self-hosting-deployment.md`** — Docker Compose 셀프 호스팅 풀 번들, Helm Chart, 운영·보안 가이드.
+5. **`marketplace-and-plugin-sdk.md`** — 마켓플레이스 + 커스텀 노드 SDK (가장 큰 미구현 덩어리).
 
 ## 하네스·프로세스 개선 (2026-05-23 신규)
 
@@ -42,6 +41,7 @@
 ### 최근 완료
 
 - ✅ **`20260516-full-review/`** (2026-05-16~18, `plan/complete/20260516-full-review/`) — 전체 코드베이스 audit 13 reviewer × 154 issue. RESOLUTION.md 의 처리 완료 표 (Critical 7건 + Warning 15건 + 후속 ai-review F-A~F-G) 반영, 의사결정 보류 항목은 본 인덱스의 각 plan 으로 흡수.
+- ✅ **`replay-rerun.md`** (2026-05-31, git rm) — Re-run (재실행) 정책 도입. PR1 (spec) + PR2 (구현 #390: backend re-run/chain 엔드포인트, V067/V068 마이그레이션, dry-run mock 인프라, audit-log + per-user rate-limit, frontend 모달·chain badge·i18n) 머지 완료.
 - ✅ **`agent-session-restore-on-rejoin.md`** (2026-05-17, `plan/complete/`) — 페이지 재진입 시 AI Agent 대화 메시지 복원 (frontend hydration 분기 보완).
 - ✅ **`ai-agent-multiturn-waiting-persist.md`** (2026-05-17, `plan/complete/`) — AI Agent multi-turn 후속 turn 의 `NodeExecution.outputData` DB 영속 보강 (REST snapshot 경로 복원 가능).
 - ✅ **`background-monitoring-api.md`** (2026-05-15, `plan/complete/background-monitoring-api.md`) — `GET /api/executions/:executionId/background-runs/:backgroundRunId` + cursor 페이지네이션 페이로드.
@@ -67,7 +67,7 @@
 | **PRD 3 §6.1 ND-AG-06/10/21 AI Agent 도구 연결** | 🚧 의도적 제거, 재작성 예정 | `ai-agent-tool-connection-rewrite.md` |
 | **PRD 3 §4.9 ND-PL Parallel P2 전체** | ✅ 완료 (2026-05-30) — 중첩 Parallel (깊이 ≤ 2 + cap=32 silent clamp), ND-PL-03 격상 (`done` 포트 직접 합산), errorPolicy 확장 (stop / continue / cancel-others-on-fail), PARALLEL_ENGINE default ON. waitAll=false 는 spec out (결정 K, Background 노드 권고). 인프라 별 plan: node-cancellation-infrastructure (HTTP signal 전파 MVP), cross-node-warning-rules (backend graphWarningRules MVP). 후속 = 추가 노드 (DB/AI/Email) signal 전파, frontend canvas warningRule 평가. | `plan/complete/parallel-p2.md` |
 | **Spec 4-nodes/1-logic/11-merge `timeout` / `partialOnTimeout`** | 🚧 P2 dormant (엔진 비동기 모델 선결) | `merge-p2-async-fanin.md` |
-| **Spec 5-system/4-execution-engine §6.3 Re-run** | 🚧 PR1 (spec) ✅ / PR2 (구현) 대기 | `replay-rerun.md` |
+| **Spec 5-system/4-execution-engine §6.3 Re-run** | ✅ 완료 (2026-05-31) — PR1 (spec) + PR2 (구현 #390). 위 `### 최근 완료` 참고 | (완료, git rm) |
 | **PRD 5 NF-SC-10 2FA WebAuthn** | ✅ TOTP + WebAuthn (Passkey) 모두 ✅. 잔존 follow-up 10건 | `2fa-webauthn-followups.md` (본 작업은 `plan/complete/2fa-webauthn.md`) |
 
 > Logic 카테고리 (Loop breakCondition / If-Else `is_type`·`regex` / If-Else·Switch `meta.matchedConditions` / Variable Decl·Mod meta) 및 Background 모니터링 API, NAV-UP-05·NAV-WF-07 는 모두 ✅ 완료 — 본 표에서 제거. 상세는 위 `### 최근 완료` 또는 `plan/complete/{logic-node-followups,background-monitoring-api,team-workspace-followups}.md` 참고.
