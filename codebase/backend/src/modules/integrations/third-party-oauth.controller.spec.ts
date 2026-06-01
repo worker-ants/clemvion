@@ -45,6 +45,13 @@ function makeRes() {
   return res as unknown as Response & typeof res;
 }
 
+function makeRateLimit() {
+  return {
+    isLockedOut: jest.fn().mockResolvedValue(false),
+    recordFailure: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
   let controller: ThirdPartyOAuthController;
   let oauthService: jest.Mocked<
@@ -65,7 +72,10 @@ describe('ThirdPartyOAuthController — oauthCallback error paths', () => {
       markIntegrationCallbackError: jest.fn().mockResolvedValue(undefined),
       handleInstall: jest.fn(),
     } as unknown as typeof oauthService;
-    controller = new ThirdPartyOAuthController(oauthService as never);
+    controller = new ThirdPartyOAuthController(
+      oauthService as never,
+      makeRateLimit() as never,
+    );
   });
 
   afterEach(() => {
@@ -161,6 +171,7 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
     handleCallback: jest.Mock;
     markIntegrationCallbackError: jest.Mock;
   };
+  let rateLimit: ReturnType<typeof makeRateLimit>;
   // 16-byte base64url = 22 chars. spec/2-navigation/4-integration.md §9.2.
   const validToken = 'AbCdEfGhIjKlMnOpQrStUv';
 
@@ -174,7 +185,11 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
           'https://myshop.cafe24api.com/api/v2/oauth/authorize',
         ),
     };
-    controller = new ThirdPartyOAuthController(oauthService as never);
+    rateLimit = makeRateLimit();
+    controller = new ThirdPartyOAuthController(
+      oauthService as never,
+      rateLimit as never,
+    );
   });
 
   it('rejects non-base64url install_token with 404 CAFE24_INSTALL_INVALID_TOKEN before calling service', async () => {
@@ -463,6 +478,107 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       302,
       'https://myshop.cafe24api.com/api/v2/oauth/authorize',
     );
+  });
+
+  // A-3 Layer 2: token oracle enumeration 방어 — 실패 페널티 lockout.
+  // spec/4-nodes/4-integration/4-cafe24.md §9.8 Rate limiting note.
+  describe('rate limiting (A-3 Layer 2 — fail penalty)', () => {
+    const req = {
+      url: '/api/3rd-party/cafe24/install/X?mall_id=shop',
+      ip: '9.9.9.9',
+      headers: {},
+    };
+    const call = (
+      token: string,
+      q: { mall_id?: string; timestamp?: string; hmac?: string } = {
+        mall_id: 'shop',
+        timestamp: '1700000000',
+        hmac: 'sig',
+      },
+    ) => {
+      const res = makeRes();
+      return controller
+        .cafe24Install(
+          token,
+          q.mall_id,
+          q.timestamp,
+          q.hmac,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          req as never,
+          res as never,
+        )
+        .then(() => res);
+    };
+
+    it('locked-out IP → 429 CAFE24_INSTALL_RATE_LIMITED before any processing', async () => {
+      rateLimit.isLockedOut.mockResolvedValue(true);
+      const res = await call(validToken);
+      expect(res.statusCode).toBe(429);
+      expect((res.body as { error: { code: string } }).error.code).toBe(
+        'CAFE24_INSTALL_RATE_LIMITED',
+      );
+      expect(rateLimit.isLockedOut).toHaveBeenCalledWith('9.9.9.9');
+      expect(oauthService.handleInstall).not.toHaveBeenCalled();
+    });
+
+    it('records failure on invalid token format (404)', async () => {
+      const res = await call('a'.repeat(64)); // legacy hex, fails pattern
+      expect(res.statusCode).toBe(404);
+      expect(rateLimit.recordFailure).toHaveBeenCalledWith('9.9.9.9');
+    });
+
+    it('records failure when service throws INVALID_TOKEN (404)', async () => {
+      oauthService.handleInstall.mockRejectedValue(
+        Object.assign(new Error('gone'), {
+          status: 404,
+          response: { code: 'CAFE24_INSTALL_INVALID_TOKEN', message: 'gone' },
+        }),
+      );
+      await call(validToken);
+      expect(rateLimit.recordFailure).toHaveBeenCalledWith('9.9.9.9');
+    });
+
+    it('records failure when service throws INVALID_HMAC (403)', async () => {
+      oauthService.handleInstall.mockRejectedValue(
+        Object.assign(new Error('hmac'), {
+          status: 403,
+          response: { code: 'CAFE24_INSTALL_INVALID_HMAC', message: 'hmac' },
+        }),
+      );
+      await call(validToken);
+      expect(rateLimit.recordFailure).toHaveBeenCalledWith('9.9.9.9');
+    });
+
+    it('does NOT record failure on REPLAY (400 — not an enumeration signal)', async () => {
+      oauthService.handleInstall.mockRejectedValue(
+        Object.assign(new Error('replay'), {
+          status: 400,
+          response: { code: 'CAFE24_INSTALL_REPLAY', message: 'replay' },
+        }),
+      );
+      await call(validToken);
+      expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('does NOT record failure on missing params (400)', async () => {
+      const res = await call(validToken, {});
+      expect(res.statusCode).toBe(400);
+      expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+    });
+
+    it('does NOT record failure on successful install (302) but DOES check lockout', async () => {
+      const res = await call(validToken);
+      expect(res.redirect).toHaveBeenCalledWith(302, expect.any(String));
+      expect(rateLimit.isLockedOut).toHaveBeenCalledWith('9.9.9.9');
+      expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+    });
   });
 });
 

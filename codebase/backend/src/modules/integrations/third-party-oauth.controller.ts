@@ -10,6 +10,7 @@ import {
   ApiBadRequestResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiTooManyRequestsResponse,
   ApiProduces,
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
@@ -23,6 +24,7 @@ import {
   INSTALL_TOKEN_PATTERN,
   THIRD_PARTY_PREFIX,
 } from './third-party-oauth.constants';
+import { Cafe24InstallRateLimitService } from './cafe24-install-rate-limit.service';
 
 /**
  * 3rd-party 가 호출하는 OAuth endpoints (Cafe24 "테스트 실행" install +
@@ -37,16 +39,24 @@ import {
 @ApiTags('Third-Party OAuth')
 @Controller(THIRD_PARTY_PREFIX)
 export class ThirdPartyOAuthController {
-  constructor(private readonly oauthService: IntegrationOAuthService) {}
+  constructor(
+    private readonly oauthService: IntegrationOAuthService,
+    private readonly installRateLimit: Cafe24InstallRateLimitService,
+  ) {}
 
   /**
    * Cafe24 Private 앱 App URL 엔드포인트. Cafe24 Developers 의 "테스트 실행"
    * 이 path 의 install_token 으로 단일 row 조회 → HMAC 1회 검증 후 Cafe24
    * authorize URL 로 redirect.
    *
-   * Rate limit: install_token 이 URL path 에 노출되어 (logs / Referer) 추가
-   * 보호가 필요. spec Rationale "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안
-   * 전제" 참조.
+   * Rate limit (spec/4-nodes/4-integration/4-cafe24.md §9.8 Rate limiting note):
+   * install_token 이 URL path 에 노출되어 (logs / Referer) 추가 보호가 필요.
+   * - Layer 1: `@Throttle({ limit: 30, ttl: 60_000 })` (미인증 IP per-min).
+   * - Layer 2: 조회/HMAC 실패한 IP 를 카운트해 임계치 초과 시 `429
+   *   CAFE24_INSTALL_RATE_LIMITED` lockout (token oracle enumeration 방어).
+   *   성공 install 은 카운트하지 않아 정상 사용자는 무영향.
+   * spec Rationale "install endpoint rate limiting" / "CAFE24_INSTALL_INVALID_TOKEN(404)
+   * 의 보안 전제" 참조.
    */
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -74,6 +84,10 @@ export class ThirdPartyOAuthController {
     description:
       'CAFE24_INSTALL_INVALID_TOKEN — install_token 형식 불일치(22 base64url 아님) 또는 미존재(callback 성공/TTL 만료로 NULL).',
   })
+  @ApiTooManyRequestsResponse({
+    description:
+      'CAFE24_INSTALL_RATE_LIMITED — 같은 IP 의 install_token 조회/HMAC 실패가 임계치 초과(token oracle enumeration 방어 lockout). 성공 install 은 카운트하지 않음.',
+  })
   async cafe24Install(
     @Param('installToken') installToken: string,
     @Query('mall_id') mallId: string | undefined,
@@ -90,10 +104,26 @@ export class ThirdPartyOAuthController {
     @Req() req: Request,
     @Res() res: Response,
   ) {
+    const clientIp = req.ip;
+    // A-3 Layer 2: token oracle enumeration 방어. 같은 IP 의 조회/HMAC 실패가
+    // 임계치를 넘으면 HMAC 검증·row 조회 이전에 즉시 거절한다. 성공 install 은
+    // 카운트하지 않으므로 정상 사용자는 트리거되지 않는다.
+    // spec/4-nodes/4-integration/4-cafe24.md §9.8 Rate limiting note.
+    if (await this.installRateLimit.isLockedOut(clientIp)) {
+      res.status(429).json({
+        error: {
+          code: 'CAFE24_INSTALL_RATE_LIMITED',
+          message: 'Too many failed install attempts. Please retry later.',
+        },
+      });
+      return;
+    }
     // API H-1 (2026-05-16): spec/5-system/2-api-convention.md §5.3 은
     // 에러 응답을 `{ error: { code, message } }` envelope 으로 통일한다.
     // 옛 코드는 bare `{ code, message }` 를 반환해 규약 위반이었다.
     if (!INSTALL_TOKEN_PATTERN.test(installToken)) {
+      // install_token 형식 불일치 = enumeration 신호 → 실패 카운트.
+      await this.installRateLimit.recordFailure(clientIp);
       res.status(404).json({
         error: {
           code: 'CAFE24_INSTALL_INVALID_TOKEN',
@@ -141,6 +171,14 @@ export class ThirdPartyOAuthController {
       const status = e.status ?? 400;
       const code = e.response?.code ?? 'CAFE24_INSTALL_FAILED';
       const message = e.response?.message ?? e.message ?? 'Install failed';
+      // A-3 Layer 2: install_token 조회/HMAC 검증 실패만 enumeration 신호로 카운트.
+      // REPLAY(400) / MISSING_PARAMS(400) / 서버측 FAILED 는 카운트 제외.
+      if (
+        code === 'CAFE24_INSTALL_INVALID_TOKEN' ||
+        code === 'CAFE24_INSTALL_INVALID_HMAC'
+      ) {
+        await this.installRateLimit.recordFailure(clientIp);
+      }
       // Render an HTML page when the browser is the consumer (Cafe24's "테스트
       // 실행" / "앱으로 가기" opens this URL in a new tab → user sees this page
       // directly). JSON is still returned to API-style clients. req.headers

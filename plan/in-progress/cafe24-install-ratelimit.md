@@ -54,10 +54,10 @@ ttl: 60_000 })` (pod별 메모리 IP throttle) 만 존재.
 - [x] 1. 스펙 분석 (§9.8 / §9.6, install endpoint throttle)
 - [x] 2. 모호성 해소 (설계 확정 — 위 + consistency-check 확정 사항)
 - [x] 3. consistency-check --impl-prep (BLOCK: NO — review/consistency/2026/06/02/00_56_06)
-- [ ] 4. DOCUMENTATION — spec 갱신 (§9.8 보안 추가 조치 + 상수 테이블 + Rationale, §9.2/§10.3 에러코드), README ops 노트(A-2 와 분리 가능)
-- [ ] 5. 테스트 선작성 (실패 카운터 서비스 unit + controller 분기)
-- [ ] 6. 구현 (Redis throttle store + fail-penalty service + controller 연동)
-- [ ] 7. 테스트 보강
+- [x] 4. DOCUMENTATION — spec 갱신 (§9.8 Rate limiting note + 상수 테이블 + Rationale, §9.2/§10.3 에러코드 CAFE24_INSTALL_RATE_LIMITED). A-2 README 는 별 항목으로 분리.
+- [x] 5. 테스트 선작성 (Cafe24InstallRateLimitService unit + controller lockout/recordFailure 분기)
+- [x] 6. 구현 (fail-penalty service + controller 연동 + 모듈 등록). Layer 1 분산 store 는 deferred.
+- [x] 7. 테스트 보강 (서비스 13 + 컨트롤러 7 케이스, targeted jest 52 pass)
 - [ ] 8. TEST WORKFLOW (lint/unit/build/e2e)
 - [ ] 9. REVIEW WORKFLOW (/ai-review + resolution)
 - [ ] 10. plan complete
