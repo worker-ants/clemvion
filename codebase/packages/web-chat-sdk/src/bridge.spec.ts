@@ -155,3 +155,13 @@ describe("destroy", () => {
     expect(cb).not.toHaveBeenCalled();
   });
 });
+
+describe("wc:resize — state 필드 누락 시 dataset.wcState 미변경 (Info#15)", () => {
+  it("state 없는 resize payload → dataset.wcState 변경 안 됨", () => {
+    const b = makeBridge();
+    b.element.dataset.wcState = "collapsed";
+    postFromIframe(b, { type: "wc:resize", payload: { width: 200 } });
+    expect(b.element.dataset.wcState).toBe("collapsed"); // 변경 안 됨
+    expect(b.element.style.width).toBe("200px");
+  });
+});

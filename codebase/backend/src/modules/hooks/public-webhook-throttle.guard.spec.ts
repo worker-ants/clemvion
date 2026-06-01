@@ -7,9 +7,13 @@ import {
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { PublicWebhookQuotaService } from './public-webhook-quota.service';
-import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
+import {
+  PublicWebhookThrottleGuard,
+  extractClientIp,
+} from './public-webhook-throttle.guard';
 
-interface ReqShape {
+/** Exported for shared use — guard + tests share the same shape definition. */
+export interface ReqShape {
   params?: { endpointPath?: string };
   headers?: Record<string, unknown>;
   body?: unknown;
@@ -29,6 +33,7 @@ function makeGuard(opts: {
   trigger?: Partial<Trigger> | null;
   consume?: { allowed: boolean; reason: 'startup_rate' | 'hourly_new' | null };
   findThrows?: boolean;
+  maxBodyBytes?: number;
 }) {
   const triggerRepository = {
     findOne: opts.findThrows
@@ -40,7 +45,22 @@ function makeGuard(opts: {
       .fn()
       .mockResolvedValue(opts.consume ?? { allowed: true, reason: null }),
   } as unknown as PublicWebhookQuotaService;
-  const guard = new PublicWebhookThrottleGuard(triggerRepository, quota);
+
+  // inject optional configService with maxBodyBytes override
+  const configService =
+    opts.maxBodyBytes !== undefined
+      ? ({
+          get: jest.fn((k: string) =>
+            k === 'publicWebhook.maxBodyBytes' ? opts.maxBodyBytes : undefined,
+          ),
+        } as unknown as import('@nestjs/config').ConfigService)
+      : undefined;
+
+  const guard = new PublicWebhookThrottleGuard(
+    triggerRepository,
+    quota,
+    configService,
+  );
   return { guard, triggerRepository, quota };
 }
 
@@ -159,5 +179,102 @@ describe('PublicWebhookThrottleGuard', () => {
       true,
     );
     expect(quota.consumeStart).not.toHaveBeenCalled();
+  });
+
+  // ── W11: measureBodyBytes 분기 테스트 ──────────────────────────────────────
+
+  it('measureBodyBytes — rawBody Buffer → 정확한 byte 수 반환', () => {
+    const { guard } = makeGuard({});
+    const buf = Buffer.from('hello');
+    expect(guard.measureBodyBytes(buf, undefined)).toBe(5);
+  });
+
+  it('measureBodyBytes — rawBody 없고 body null → 0 반환', () => {
+    const { guard } = makeGuard({});
+    expect(guard.measureBodyBytes(undefined, null)).toBe(0);
+  });
+
+  it('measureBodyBytes — rawBody 없고 body undefined → 0 반환', () => {
+    const { guard } = makeGuard({});
+    expect(guard.measureBodyBytes(undefined, undefined)).toBe(0);
+  });
+
+  it('measureBodyBytes — rawBody 없고 body string → utf8 byte 수', () => {
+    const { guard } = makeGuard({});
+    const str = '안녕'; // 3 bytes per char in UTF-8
+    const expected = Buffer.byteLength(str, 'utf8');
+    expect(guard.measureBodyBytes(undefined, str)).toBe(expected);
+  });
+
+  it('measureBodyBytes — rawBody 없고 body object → JSON 직렬화 byte 수', () => {
+    const { guard } = makeGuard({});
+    const obj = { hello: 'world' };
+    const expected = Buffer.byteLength(JSON.stringify(obj), 'utf8');
+    expect(guard.measureBodyBytes(undefined, obj)).toBe(expected);
+  });
+
+  it('measureBodyBytes — 직렬화 불가(순환 참조) → maxBodyBytes+1 반환 (W6 보수적 차단)', () => {
+    const { guard } = makeGuard({});
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    // 직렬화 불가 → 보수적으로 maxBodyBytes + 1 반환
+    const result = guard.measureBodyBytes(undefined, circular);
+    expect(result).toBe(PublicWebhookThrottleGuard.DEFAULT_MAX_BODY_BYTES + 1);
+  });
+
+  // ── Info#13: extractClientIp 엣지 케이스 ─────────────────────────────────
+
+  it('extractClientIp — XFF 다중 IP 중 첫 번째만 추출', () => {
+    const ip = extractClientIp({
+      'x-forwarded-for': '10.0.0.1, 10.0.0.2, 10.0.0.3',
+    });
+    expect(ip).toBe('10.0.0.1');
+  });
+
+  it('extractClientIp — cf-connecting-ip 빈 문자열 → XFF 폴백', () => {
+    const ip = extractClientIp({
+      'cf-connecting-ip': '   ',
+      'x-forwarded-for': '8.8.8.8',
+    });
+    expect(ip).toBe('8.8.8.8');
+  });
+
+  it('extractClientIp — 헤더 모두 없음 → undefined', () => {
+    expect(extractClientIp({})).toBeUndefined();
+  });
+
+  it('extractClientIp — XFF 값이 공백만 → undefined', () => {
+    expect(extractClientIp({ 'x-forwarded-for': '   ' })).toBeUndefined();
+  });
+
+  // ── Info#14: maxBodyBytes config override ────────────────────────────────
+
+  it('maxBodyBytes config override — 낮은 한도 적용 시 초과 → 413', async () => {
+    const { guard } = makeGuard({
+      trigger: { authConfigId: null } as Partial<Trigger>,
+      maxBodyBytes: 10,
+    });
+    const req: ReqShape = {
+      params: { endpointPath: 'abc123' },
+      headers: { 'x-forwarded-for': '9.9.9.9' },
+      rawBody: Buffer.alloc(11), // 11 bytes > 10
+    };
+    await expect(guard.canActivate(makeContext(req))).rejects.toBeInstanceOf(
+      PayloadTooLargeException,
+    );
+  });
+
+  it('maxBodyBytes config override — 낮은 한도 적용 시 미만 → 통과', async () => {
+    const { guard, quota } = makeGuard({
+      trigger: { authConfigId: null } as Partial<Trigger>,
+      maxBodyBytes: 100,
+    });
+    const req: ReqShape = {
+      params: { endpointPath: 'abc123' },
+      headers: { 'x-forwarded-for': '9.9.9.9' },
+      rawBody: Buffer.alloc(50), // 50 < 100
+    };
+    await expect(guard.canActivate(makeContext(req))).resolves.toBe(true);
+    expect(quota.consumeStart).toHaveBeenCalled();
   });
 });

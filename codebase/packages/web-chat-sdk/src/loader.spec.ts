@@ -173,3 +173,38 @@ describe("installGlobal — 큐 스텁 replay", () => {
     warn.mockRestore();
   });
 });
+
+describe("installGlobal — boot 예외 및 off 엣지 케이스 (Info#16, Info#17)", () => {
+  it("boot 예외 발생 시 큐 replay 중 오류 흡수 후 다음 항목 계속 실행 (Info#16)", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const inst = fakeInstance();
+    let callCount = 0;
+    const bootFn = () => {
+      callCount++;
+      if (callCount === 1) throw new Error("boot failed");
+      return inst;
+    };
+
+    const stub = ((...a: unknown[]) => {
+      (stub as QueueStub).q!.push(a as [string, ...unknown[]]);
+    }) as QueueStub;
+    stub.q = [];
+    (window as unknown as { ClemvionChat: QueueStub }).ClemvionChat = stub;
+    // Queue: first boot (throws), then open
+    stub("boot", { apiBase: "a", triggerEndpointPath: "t" }); // will throw
+    stub("open"); // boot 전 no-op (instance null)
+
+    // replay should not throw; open runs but no instance → no-op
+    expect(() => installGlobal(window, bootFn)).not.toThrow();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("boot 전 off 호출 시 throw 없음 (Info#17)", () => {
+    const inst = fakeInstance();
+    const api = createGlobalApi(() => inst);
+    // No boot yet — off should silently no-op
+    expect(() => api("off", "message")).not.toThrow();
+    expect(inst.calls).toEqual([]);
+  });
+});

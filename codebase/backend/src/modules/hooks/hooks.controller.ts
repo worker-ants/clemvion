@@ -42,9 +42,26 @@ export class HooksController {
   })
   @ApiTooManyRequestsResponse({
     description: '공개 webhook IP 시작 한도 초과(분당/시간당)',
+    schema: {
+      example: {
+        error: {
+          code: 'PUBLIC_WEBHOOK_RATE_LIMIT',
+          message:
+            'Too many conversation starts from this client. Try again later.',
+        },
+      },
+    },
   })
   @ApiPayloadTooLargeResponse({
     description: '공개 webhook body 크기 초과(32KB)',
+    schema: {
+      example: {
+        error: {
+          code: 'PUBLIC_WEBHOOK_BODY_TOO_LARGE',
+          message: 'Webhook body exceeds 32768 bytes',
+        },
+      },
+    },
   })
   @ApiParam({
     name: 'endpointPath',

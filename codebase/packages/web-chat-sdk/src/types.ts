@@ -35,7 +35,8 @@ export type ClemvionChatMethod =
   | "on"
   | "off";
 
-/** 이벤트 구독 해제 함수 — on() 이 반환. 호출 시 해당 핸들러만 제거. */
+/** 이벤트 구독 해제 함수 — on() 이 반환. 호출 시 해당 핸들러만 제거.
+ *  공개 API 표면: index.ts 에서 re-export 됨 — 호스트 페이지가 타입으로 import 가능. (Info#20) */
 export type Unsubscribe = () => void;
 
 /** iframe → host 이벤트 (구독 가능). */

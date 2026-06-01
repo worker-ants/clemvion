@@ -17,6 +17,22 @@ chat.on("message", (m) => {/* host 자체 분석 */});
 chat.open();
 ```
 
+### 이벤트 구독 해제
+
+`on()` 은 구독 해제 함수(`Unsubscribe`)를 반환한다. SPA 언마운트 시 cleanup 에 사용한다:
+
+```ts
+// unsubscribe 함수로 특정 핸들러 해제
+const unsubscribe = chat.on("message", handleMessage);
+unsubscribe(); // 해당 핸들러만 제거
+
+// off(event) 로 이벤트 전체 해제
+chat.off("message");
+
+// off(event, cb) 로 특정 핸들러만 해제
+chat.off("unread", handleUnread);
+```
+
 ## 상태
 
 구현됨: 타입(`BootConfig`/`ChatInstance`/`wc:*` 프로토콜) + `boot`/`validateBootConfig`/`setWidgetBase` +

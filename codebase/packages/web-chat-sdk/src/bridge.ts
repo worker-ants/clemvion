@@ -136,8 +136,12 @@ export class WidgetBridge {
     }
   }
 
-  /** wc:resize 적용 — iframe 박스를 위젯 요청 크기에 맞춘다(2-sdk §3 필수).
-   *  width/height 누락 시 해당 축은 유지. 숫자는 px 로, 문자열은 그대로(예: '100%'). */
+  /**
+   * wc:resize 적용 — iframe 박스를 위젯 요청 크기에 맞춘다(2-sdk §3 필수).
+   * 위젯 SPA 자체는 iframe 내부에서 자신의 iframe 크기를 제어할 수 없으므로(Same-Origin 아님)
+   * host 가 부모 iframe 요소의 style 을 직접 변경해야 한다. (Info#19)
+   * width/height 누락 시 해당 축은 유지. 숫자는 px 로, 문자열은 그대로(예: '100%').
+   */
   private applyResize(payload?: WcResizePayload): void {
     if (!payload) return;
     const toCss = (v: number | string | undefined): string | undefined => {
