@@ -1,6 +1,6 @@
 ---
 id: cross-node-warning-rules
-status: partial
+status: implemented
 code:
   - codebase/packages/graph-warning-rules/**
   - codebase/backend/src/nodes/core/graph-warning-rule.ts
@@ -11,8 +11,6 @@ code:
   - codebase/frontend/src/lib/stores/editor-store.ts
   - codebase/frontend/src/components/editor/canvas/custom-node.tsx
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
-pending_plans:
-  - plan/in-progress/cross-node-warning-rules.md
 ---
 
 # Cross-Node WarningRule 컨벤션
