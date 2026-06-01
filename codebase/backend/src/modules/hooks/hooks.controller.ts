@@ -17,6 +17,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiNotFoundResponse,
+  ApiResponse,
   ApiUnauthorizedResponse,
   ApiTooManyRequestsResponse,
   ApiPayloadTooLargeResponse,
@@ -32,6 +33,9 @@ import { EmbedConfigService } from './embed-config.service';
 import { WebhookAcceptedDto } from './dto/responses/webhook-response.dto';
 import { EmbedConfigDto } from './dto/responses/embed-config.dto';
 
+/** embed-config 응답 캐시 max-age (초). CDN·브라우저 캐시 의존 설계 — 워크스페이스 설정 변경 후 최대 이 시간 내 반영(I17/I1). */
+const EMBED_CONFIG_CACHE_SEC = 300;
+
 @ApiTags('Hooks')
 @Controller('hooks')
 export class HooksController {
@@ -45,7 +49,7 @@ export class HooksController {
   @ApiOperation({
     summary: '위젯 임베드 설정(공개)',
     description:
-      '공개 웹챗 위젯이 부팅 시 조회하는 임베드 allowlist(캐시 가능). 워크스페이스 `interactionAllowedOrigins` 를 반환하며, 비어 있으면 제한 없음(allow-all). 위젯은 enforce=true 이고 호스트 origin 이 allowlist 에 없으면 렌더/시작을 거부한다. spec 7-channel-web-chat/4-security §3-①.',
+      '공개 웹챗 위젯이 부팅 시 조회하는 임베드 allowlist(캐시 가능). 워크스페이스 `interactionAllowedOrigins` 를 반환하며, 비어 있으면 제한 없음(allow-all). 위젯은 enforce=true 이고 호스트 origin 이 allowlist 에 없으면 렌더/시작을 거부한다. spec 7-channel-web-chat/4-security §3-①.\n\n**fail-open 정책**: DB 조회 실패·trigger 미존재 시 `{ allowlist: [], enforce: false }` (HTTP 200) 를 반환 — 위젯을 깨지 않는 soft 검증. 인증 webhook(authConfigId NOT NULL)도 동일하게 allow-all 반환(allowlist 노출 방지).\n\n**캐싱**: 응답에 `Cache-Control: public, max-age=300` 헤더가 포함된다. 워크스페이스 allowlist 변경 후 최대 5분 지연.',
   })
   @ApiParam({
     name: 'endpointPath',
@@ -56,13 +60,23 @@ export class HooksController {
     description:
       '임베드 allowlist. 전역 TransformInterceptor 에 의해 `{ data: ... }` 로 래핑.',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Cache-Control 응답 헤더 — CDN/브라우저 캐시 허용(W10).',
+    headers: {
+      'Cache-Control': {
+        description: `public, max-age=${300} — 워크스페이스 설정 변경 후 최대 5분 반영 지연(I1).`,
+        schema: { type: 'string', example: 'public, max-age=300' },
+      },
+    },
+  })
   async getEmbedConfig(
     @Param('endpointPath') endpointPath: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<EmbedConfigDto> {
     const result = await this.embedConfigService.resolve(endpointPath);
     // 캐시 가능 — 워크스페이스 설정 변경 주기 대비 짧게(5분). trigger 존재 노출 회피 위해 동일 응답형.
-    res.set('Cache-Control', 'public, max-age=300');
+    res.set('Cache-Control', `public, max-age=${EMBED_CONFIG_CACHE_SEC}`);
     return result;
   }
 

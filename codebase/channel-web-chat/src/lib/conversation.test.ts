@@ -51,3 +51,42 @@ describe("threadToMessages", () => {
     expect(msgs[0].text).toBe("유효");
   });
 });
+
+describe("threadToMessages — presentations 처리 (I13)", () => {
+  it("presentations-only turn(text 없음) → 메시지에 포함", () => {
+    const msgs = threadToMessages({
+      turns: [
+        { role: "assistant", presentations: [{ config: { chartType: "bar" }, output: { data: [] } }] },
+      ],
+    });
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].text).toBe("");
+    expect(msgs[0].presentations).toHaveLength(1);
+  });
+
+  it("text + presentations 동시 존재 → 둘 다 포함", () => {
+    const msgs = threadToMessages({
+      turns: [
+        {
+          role: "assistant",
+          text: "차트를 확인하세요",
+          presentations: [{ config: { chartType: "pie" }, output: { data: [] } }],
+        },
+      ],
+    });
+    expect(msgs[0].text).toBe("차트를 확인하세요");
+    expect(msgs[0].presentations).toHaveLength(1);
+  });
+
+  it("presentations: [] (빈 배열) 인 turn → 텍스트 없으면 필터", () => {
+    const msgs = threadToMessages({
+      turns: [
+        { role: "assistant", text: "", presentations: [] },
+        { role: "assistant", text: "유효" },
+      ],
+    });
+    // presentations 빈 배열 + text 없음 → 포함하지 않음(filter 조건).
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].text).toBe("유효");
+  });
+});

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import WidgetApp from "./widget-app";
 
@@ -89,6 +89,11 @@ describe("WidgetApp", () => {
     // 차단된 호스트 — 런처/패널 모두 미렌더.
     expect(screen.queryByLabelText("채팅 열기")).toBeNull();
     expect(screen.queryByLabelText("채팅 패널")).toBeNull();
-    Object.defineProperty(document, "referrer", { value: "", configurable: true });
+    // 복원은 afterEach 에서 보장 — assertion 실패 시에도 전역 상태 누수 없음(W6).
   });
+});
+
+// document.referrer 전역 상태 복원 — assertion 실패 시에도 누수하지 않도록 afterEach 로 보장(W6).
+afterEach(() => {
+  Object.defineProperty(document, "referrer", { value: "", configurable: true });
 });

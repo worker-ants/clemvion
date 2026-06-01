@@ -10,8 +10,17 @@
 import { ClemvionClient } from "@workflow/sdk";
 
 export interface HeadlessChat {
+  /** 사용자 메시지 전송. */
   send: (text: string) => Promise<void>;
+  /**
+   * 대화 종료(서버 신호) — `end_conversation` 커맨드를 서버에 전송해 워크플로우 실행을 종료시킨다.
+   * 서버 응답으로 `execution.completed` 이벤트가 도착하면 SSE 구독도 자동 종료된다(I20).
+   */
   end: () => Promise<void>;
+  /**
+   * SSE 연결만 해제(클라이언트 측) — 서버 워크플로우 실행은 계속 진행된다.
+   * 페이지 언마운트·컴포넌트 정리 시 호출. 실행 자체를 끝내려면 `end()` 를 사용(I20).
+   */
   close: () => void;
 }
 

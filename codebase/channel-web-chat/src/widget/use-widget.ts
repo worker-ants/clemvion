@@ -293,8 +293,10 @@ export function useWidget() {
             saveSession(cfg.triggerEndpointPath, updated);
             scheduleRefresh(); // 다음 만료 기준 재예약.
           })
-          .catch(() => {
+          .catch((err: unknown) => {
             // 갱신 실패 — SSE 는 hard expiry 까지 유지. 다음 입력이 401 이면 sendCommand 가 ERROR 처리.
+            // I23: console.warn 으로 운영 추적 가능하게 — browser widget 에서 console 적절.
+            console.warn('[widget] token refresh failed:', err instanceof Error ? err.message : String(err));
           });
       }, delay);
     }

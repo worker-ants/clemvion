@@ -50,7 +50,7 @@ export type WidgetAction =
   | { type: "USER_MESSAGE"; text: string }
   | { type: "ENDED"; reason?: string }
   | { type: "ERROR"; message: string }
-  | { type: "BLOCKED"; reason?: string }
+  | { type: "BLOCKED"; reason?: "origin_not_allowed" | string }
   | { type: "NEW_CHAT" };
 
 function assistantMsg(

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Workspace } from '../workspaces/entities/workspace.entity';
 
@@ -17,6 +17,9 @@ export interface EmbedAllowlist {
  * (`Workspace.settings.interactionAllowedOrigins`, 단일 진실)를 재사용한다. 미설정(빈 배열)이면
  * 제한 없음(allow-all) — 임베드 제어는 opt-in 이다.
  */
+/** `Workspace.settings` 내 임베드 허용 origin 목록 키 (I18 타입 오타 방지). */
+const INTERACTION_ALLOWED_ORIGINS_KEY = 'interactionAllowedOrigins' as const;
+
 @Injectable()
 export class EmbedConfigService {
   private readonly logger = new Logger(EmbedConfigService.name);
@@ -29,13 +32,16 @@ export class EmbedConfigService {
   ) {}
 
   /**
-   * endpointPath 로 trigger → 워크스페이스 allowlist 를 해석. trigger 미존재 시 빈 allowlist(allow-all)
-   * — 존재 여부 노출 회피 + 위젯 fail-open. 조회 오류도 동일하게 allow-all(렌더 차단으로 위젯을 깨지 않음).
+   * endpointPath 로 **공개(authConfigId IS NULL)** webhook trigger → 워크스페이스 allowlist 를 해석.
+   * 인증 webhook(authConfigId NOT NULL)은 공개 위젯 embed 대상이 아니므로 allow-all(빈 allowlist)을 반환 —
+   * 인증 webhook의 워크스페이스 설정이 공개 엔드포인트로 노출되지 않도록 필터링한다(W4).
+   * trigger 미존재 시 빈 allowlist(allow-all) — 존재 여부 노출 회피 + 위젯 fail-open.
+   * 조회 오류도 동일하게 allow-all(렌더 차단으로 위젯을 깨지 않음).
    */
   async resolve(endpointPath: string): Promise<EmbedAllowlist> {
     try {
       const trigger = await this.triggerRepository.findOne({
-        where: { endpointPath, type: 'webhook' },
+        where: { endpointPath, type: 'webhook', authConfigId: IsNull() },
         select: { workspaceId: true },
       });
       if (!trigger) return { allowlist: [], enforce: false };
@@ -44,7 +50,7 @@ export class EmbedConfigService {
         where: { id: trigger.workspaceId },
         select: { settings: true },
       });
-      const origins = workspace?.settings?.['interactionAllowedOrigins'];
+      const origins = workspace?.settings?.[INTERACTION_ALLOWED_ORIGINS_KEY];
       const allowlist = Array.isArray(origins)
         ? origins.filter((o): o is string => typeof o === 'string')
         : [];

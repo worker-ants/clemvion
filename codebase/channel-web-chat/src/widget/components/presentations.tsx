@@ -14,6 +14,11 @@ import {
   type PresentationButton,
 } from "@/lib/presentation";
 
+// SVG chart 크기 상수 — styles.ts 와 동기화 필요 시 이 값을 기준으로 맞출 것(I16).
+const CHART_SVG_W = 280;
+const CHART_SVG_H = 140;
+const CHART_SVG_PAD = 24;
+
 interface PresentationProps {
   payload: unknown;
   /** port 버튼 클릭 — click_button 디스패치. */
@@ -195,9 +200,9 @@ function ChartView({ payload, onButton }: PresentationProps) {
   const pts = numericPoints(chart.points);
   if (!pts.length) return null;
   const colors = chart.colors.length ? chart.colors : DEFAULT_CHART_COLORS;
-  const W = 280;
-  const H = 140;
-  const pad = 24;
+  const W = CHART_SVG_W;
+  const H = CHART_SVG_H;
+  const pad = CHART_SVG_PAD;
   const max = Math.max(...pts.map((p) => p.value), 1);
   const min = Math.min(...pts.map((p) => p.value), 0);
   const range = max - min || 1;
@@ -284,6 +289,11 @@ function PieSlices({
     <g>
       {pts.map((p, i) => {
         const frac = Math.max(0, p.value) / total;
+        // I6: 단일 슬라이스(frac ≈ 1.0) 시 arc start=end → SVG 렌더 실패.
+        // frac >= 0.999 이면 <circle> 로 대체 렌더.
+        if (frac >= 0.999) {
+          return <circle key={i} cx={cx} cy={cy} r={r} fill={colors[i % colors.length]} />;
+        }
         const start = starts[i] * 2 * Math.PI;
         const end = (starts[i] + frac) * 2 * Math.PI;
         const x1 = cx + r * Math.sin(start);

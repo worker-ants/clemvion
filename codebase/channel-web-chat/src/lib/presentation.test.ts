@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyPresentation,
+  isSafeUrl,
   toCarousel,
   toChart,
   toTable,
@@ -75,5 +76,77 @@ describe("converters", () => {
       config: { layout: "card", buttons: [{ id: "ok", label: "L" }, { label: "no-id" }, {}] },
     });
     expect(c.buttons).toHaveLength(1);
+  });
+});
+
+describe("isSafeUrl", () => {
+  it("http:/https: URL 허용", () => {
+    expect(isSafeUrl("https://example.com/img.png")).toBe(true);
+    expect(isSafeUrl("http://example.com/page")).toBe(true);
+  });
+  it("javascript: 스킴 차단 (W1 XSS)", () => {
+    expect(isSafeUrl("javascript:alert(1)")).toBe(false);
+    expect(isSafeUrl("  javascript:alert(1)")).toBe(false); // leading whitespace
+    expect(isSafeUrl("JAVASCRIPT:alert(1)")).toBe(false); // case-insensitive
+  });
+  it("data: 스킴 차단 (W1 XSS)", () => {
+    expect(isSafeUrl("data:text/html,<h1>hi</h1>")).toBe(false);
+  });
+  it("vbscript: 스킴 차단", () => {
+    expect(isSafeUrl("vbscript:msgbox(1)")).toBe(false);
+  });
+  it("프로토콜-상대 URL(//) 허용", () => {
+    expect(isSafeUrl("//cdn.example.com/img.png")).toBe(true);
+  });
+  it("상대 경로 허용", () => {
+    expect(isSafeUrl("/images/photo.png")).toBe(true);
+    expect(isSafeUrl("images/photo.png")).toBe(true);
+  });
+});
+
+describe("isSafeUrl in button/carousel", () => {
+  it("asButtons: javascript: url → url undefined (W1)", () => {
+    const c = toCarousel({
+      config: {
+        layout: "card",
+        buttons: [{ id: "b1", label: "악성", type: "link", url: "javascript:alert(1)" }],
+      },
+    });
+    expect(c.buttons[0].url).toBeUndefined();
+  });
+  it("toCarousel: javascript: image src → image undefined (I4)", () => {
+    const c = toCarousel({
+      output: { items: [{ title: "T", image: "javascript:alert(1)" }] },
+    });
+    expect(c.items[0].image).toBeUndefined();
+  });
+  it("toCarousel: https: image src → 유지", () => {
+    const c = toCarousel({
+      output: { items: [{ title: "T", image: "https://cdn.example.com/img.png" }] },
+    });
+    expect(c.items[0].image).toBe("https://cdn.example.com/img.png");
+  });
+});
+
+describe("toTable — config 폴백 (I15)", () => {
+  it("config.columns 폴백 — output.columns 없을 때", () => {
+    const t = toTable({
+      config: { columns: [{ field: "id", label: "ID" }] },
+      output: { rows: [{ id: 1 }] },
+    });
+    expect(t.columns).toEqual([{ field: "id", label: "ID" }]);
+    expect(t.rows).toEqual([{ id: 1 }]);
+  });
+  it("config.rows 폴백 — output.rows 없을 때", () => {
+    const t = toTable({
+      config: { columns: [{ field: "x", label: "X" }], rows: [{ x: "v" }] },
+    });
+    expect(t.rows).toEqual([{ x: "v" }]);
+  });
+  it("column label 없으면 field 값으로 fallback", () => {
+    const t = toTable({
+      config: { columns: [{ field: "name" }] },
+    });
+    expect(t.columns[0].label).toBe("name");
   });
 });
