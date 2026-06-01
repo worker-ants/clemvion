@@ -1730,7 +1730,7 @@ export class ExecutionEngineService
           savedExecution.startedAt.getTime();
         await this.executionRepository.save(savedExecution);
       }
-      this.eventEmitter.emitExecution(
+      await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_COMPLETED,
         { status: ExecutionStatus.COMPLETED },
@@ -1775,7 +1775,7 @@ export class ExecutionEngineService
         savedExecution.finishedAt.getTime() -
         savedExecution.startedAt.getTime();
       await this.executionRepository.save(savedExecution);
-      this.eventEmitter.emitExecution(
+      await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_CANCELLED,
         { status: ExecutionStatus.CANCELLED },
@@ -1801,7 +1801,7 @@ export class ExecutionEngineService
     savedExecution.durationMs =
       savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
     await this.executionRepository.save(savedExecution);
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_FAILED,
       {
@@ -1869,7 +1869,7 @@ export class ExecutionEngineService
         // 않도록 별도 try/catch 로 격리해 오해 소지 있는 "markExecutionCancelled
         // 실패" 로그를 방지한다 (cancel 은 이미 commit 됨).
         try {
-          this.eventEmitter.emitExecution(
+          await this.eventEmitter.emitExecution(
             executionId,
             ExecutionEventType.EXECUTION_CANCELLED,
             {
@@ -2711,7 +2711,7 @@ export class ExecutionEngineService
     try {
       // 3. Transition to RUNNING
       await this.updateExecutionStatus(savedExecution, ExecutionStatus.RUNNING);
-      this.eventEmitter.emitExecution(
+      await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_STARTED,
         { status: ExecutionStatus.RUNNING },
@@ -3010,7 +3010,7 @@ export class ExecutionEngineService
       }
 
       // Emit after all DB writes are complete
-      this.eventEmitter.emitExecution(
+      await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_COMPLETED,
         { status: ExecutionStatus.COMPLETED },
@@ -3024,7 +3024,7 @@ export class ExecutionEngineService
           savedExecution.finishedAt.getTime() -
           savedExecution.startedAt.getTime();
         await this.executionRepository.save(savedExecution);
-        this.eventEmitter.emitExecution(
+        await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_CANCELLED,
           { status: ExecutionStatus.CANCELLED },
@@ -3057,7 +3057,7 @@ export class ExecutionEngineService
         savedExecution.finishedAt.getTime() -
         savedExecution.startedAt.getTime();
       await this.executionRepository.save(savedExecution);
-      this.eventEmitter.emitExecution(
+      await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_FAILED,
         {
@@ -3158,7 +3158,7 @@ export class ExecutionEngineService
       ExecutionStatus.WAITING_FOR_INPUT,
       nodeExec ?? undefined,
     );
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
       {
@@ -3302,7 +3302,7 @@ export class ExecutionEngineService
     );
 
     if (nodeExec) {
-      this.eventEmitter.emitNode(
+      await this.eventEmitter.emitNode(
         executionId,
         node.id,
         NodeEventType.NODE_COMPLETED,
@@ -3323,7 +3323,7 @@ export class ExecutionEngineService
         },
       );
     }
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
       { status: ExecutionStatus.RUNNING },
@@ -3759,7 +3759,7 @@ export class ExecutionEngineService
     // 의 retry 전용 전이) 을 수행하고, 재실패 시 catch 가 FAILED 로 직접 마감한다.
     // 여기서 미리 RUNNING 으로 옮기면 finalizeAiNode 의 RUNNING → RUNNING 전이가
     // invalid 가 되므로 전이를 finalize 단계로 미룬다.
-    this.eventEmitter.emitNode(
+    await this.eventEmitter.emitNode(
       executionId,
       node.id,
       NodeEventType.NODE_STARTED,
@@ -3982,7 +3982,7 @@ export class ExecutionEngineService
     execution.durationMs =
       execution.finishedAt.getTime() - execution.startedAt.getTime();
     await this.executionRepository.save(execution);
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_COMPLETED,
       { status: ExecutionStatus.COMPLETED },
@@ -4138,7 +4138,7 @@ export class ExecutionEngineService
         savedExecution.startedAt.getTime();
       await this.executionRepository.save(savedExecution);
     }
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_COMPLETED,
       { status: ExecutionStatus.COMPLETED },
@@ -4168,7 +4168,7 @@ export class ExecutionEngineService
     execution.durationMs =
       execution.finishedAt.getTime() - execution.startedAt.getTime();
     await this.executionRepository.save(execution);
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       isCancelled
         ? ExecutionEventType.EXECUTION_CANCELLED
@@ -4690,7 +4690,7 @@ export class ExecutionEngineService
       structuredConfig as Record<string, unknown> | undefined,
     );
 
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
       {
@@ -4750,13 +4750,13 @@ export class ExecutionEngineService
    * 과 같은 수신 tick). 호출 게이팅은 {@link userMessageSignalApplies}.
    * SoT: spec/5-system/6-websocket-protocol.md §4.4 / spec/4-nodes/3-ai/1-ai-agent.md §7.5.
    */
-  private emitUserMessageLiveSignal(
+  private async emitUserMessageLiveSignal(
     executionId: string,
     node: Node,
     nodeExec: NodeExecution | null,
     message: string,
-  ): void {
-    this.eventEmitter.emitExecution(
+  ): Promise<void> {
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.USER_MESSAGE,
       {
@@ -4820,7 +4820,7 @@ export class ExecutionEngineService
     }
     // 사용자 발화(q) 조기 노출 — 다음 턴 LLM 호출 전에 1회 emit (§7.5 / WS §4.4).
     if (userMessageSignalApplies(source)) {
-      this.emitUserMessageLiveSignal(executionId, node, nodeExec, message);
+      await this.emitUserMessageLiveSignal(executionId, node, nodeExec, message);
     }
     // spec §7.9 — handler throw (LLM 429 / timeout / connection 등) 시 conversation
     // loop 를 자연 종료시키고 `finalizeAiNode(.., 'FAILED')` 로 노드 상태를
@@ -4968,7 +4968,7 @@ export class ExecutionEngineService
       // lastTurnDurationMs on resumeState) are intentionally not emitted —
       // turnDebugHistory's last entry already carries the same data and
       // additionally preserves the per-call sequence in tool loops.
-      this.eventEmitter.emitExecution(
+      await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.AI_MESSAGE,
         {
@@ -5012,7 +5012,7 @@ export class ExecutionEngineService
           : undefined;
 
       // Emit waiting_for_input again
-      this.eventEmitter.emitExecution(
+      await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
         {
@@ -5084,7 +5084,7 @@ export class ExecutionEngineService
     const terminalPresentations = Array.isArray(newResult.presentations)
       ? (newResult.presentations as Array<Record<string, unknown>>)
       : undefined;
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.AI_MESSAGE,
       {
@@ -5525,7 +5525,7 @@ export class ExecutionEngineService
           fromOutputMessage ?? fromExecError ?? 'AI Agent turn failed';
         // spec/5-system/6-websocket-protocol.md §3 — `execution.node.failed`
         // 단일 발사. AI_MESSAGE 양발사 안 함 (정상 응답 전용 채널).
-        this.eventEmitter.emitNode(
+        await this.eventEmitter.emitNode(
           executionId,
           node.id,
           NodeEventType.NODE_FAILED,
@@ -5566,7 +5566,7 @@ export class ExecutionEngineService
     );
 
     if (nodeExec) {
-      this.eventEmitter.emitNode(
+      await this.eventEmitter.emitNode(
         executionId,
         node.id,
         NodeEventType.NODE_COMPLETED,
@@ -5585,7 +5585,7 @@ export class ExecutionEngineService
         },
       );
     }
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
       { status: ExecutionStatus.RUNNING },
@@ -5655,7 +5655,7 @@ export class ExecutionEngineService
     );
 
     // Emit waiting event so frontend can render buttons
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
       {
@@ -5913,7 +5913,7 @@ export class ExecutionEngineService
     );
 
     if (nodeExec) {
-      this.eventEmitter.emitNode(
+      await this.eventEmitter.emitNode(
         executionId,
         node.id,
         NodeEventType.NODE_COMPLETED,
@@ -5932,7 +5932,7 @@ export class ExecutionEngineService
         },
       );
     }
-    this.eventEmitter.emitExecution(
+    await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_RESUMED,
       { status: ExecutionStatus.RUNNING },
@@ -5990,7 +5990,7 @@ export class ExecutionEngineService
       context.parentNodeExecutionId,
       nodeInput,
     );
-    this.eventEmitter.emitNode(
+    await this.eventEmitter.emitNode(
       executionId,
       node.id,
       NodeEventType.NODE_STARTED,
@@ -6181,7 +6181,7 @@ export class ExecutionEngineService
           nodeExecution.finishedAt.getTime() -
           nodeExecution.startedAt.getTime();
         await this.nodeExecutionRepository.save(nodeExecution);
-        this.eventEmitter.emitNode(
+        await this.eventEmitter.emitNode(
           executionId,
           node.id,
           NodeEventType.NODE_COMPLETED,
@@ -6227,7 +6227,7 @@ export class ExecutionEngineService
             nodeExecution.finishedAt.getTime() -
             nodeExecution.startedAt.getTime();
           await this.nodeExecutionRepository.save(nodeExecution);
-          this.eventEmitter.emitNode(
+          await this.eventEmitter.emitNode(
             executionId,
             node.id,
             NodeEventType.NODE_SKIPPED,
@@ -6292,7 +6292,7 @@ export class ExecutionEngineService
             nodeExecution.finishedAt.getTime() -
             nodeExecution.startedAt.getTime();
           await this.nodeExecutionRepository.save(nodeExecution);
-          this.eventEmitter.emitNode(
+          await this.eventEmitter.emitNode(
             executionId,
             node.id,
             NodeEventType.NODE_FAILED,
@@ -6368,7 +6368,7 @@ export class ExecutionEngineService
     nodeExecution.durationMs =
       nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
     await this.nodeExecutionRepository.save(nodeExecution);
-    this.eventEmitter.emitNode(
+    await this.eventEmitter.emitNode(
       executionId,
       node.id,
       NodeEventType.NODE_FAILED,
@@ -6750,7 +6750,7 @@ export class ExecutionEngineService
       NodeExecutionStatus.SKIPPED,
       context.parentNodeExecutionId,
     );
-    this.eventEmitter.emitNode(
+    await this.eventEmitter.emitNode(
       executionId,
       nodeId,
       NodeEventType.NODE_SKIPPED,
@@ -6828,7 +6828,7 @@ export class ExecutionEngineService
           NodeExecutionStatus.SKIPPED,
           context.parentNodeExecutionId,
         );
-        this.eventEmitter.emitNode(
+        await this.eventEmitter.emitNode(
           executionId,
           nodeId,
           NodeEventType.NODE_SKIPPED,
@@ -7417,7 +7417,7 @@ export class ExecutionEngineService
           NodeExecutionStatus.SKIPPED,
           context.parentNodeExecutionId,
         );
-        this.eventEmitter.emitNode(
+        await this.eventEmitter.emitNode(
           executionId,
           nodeId,
           NodeEventType.NODE_SKIPPED,
@@ -7835,7 +7835,7 @@ export class ExecutionEngineService
         }
         await this.nodeExecutionRepository.save(nodeExec);
       }
-      this.eventEmitter.emitNode(
+      await this.eventEmitter.emitNode(
         executionId,
         containerNode.id,
         NodeEventType.NODE_FAILED,
