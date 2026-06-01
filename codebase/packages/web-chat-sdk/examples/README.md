@@ -6,7 +6,7 @@ spec/7-channel-web-chat 의 두 사용 모드를 시연한다.
 |---|---|---|
 | [`snippet.html`](./snippet.html) | M1 Hosted (스니펫) | 비개발자용 — `<script>` 로더 + `ClemvionChat('boot', ...)` 한 블록 |
 | [`npm-usage.ts`](./npm-usage.ts) | M1 Hosted (npm) | 개발자용 — `@workflow/web-chat` import, 타입·이벤트·프로그래matic 제어 |
-| [`byo-ui-headless.ts`](./byo-ui-headless.ts) | M2 BYO-UI | 개발자가 EIA 클라이언트로 자체 UI 구성·자기 도메인 서빙(개념 예시) |
+| [`byo-ui-headless.ts`](./byo-ui-headless.ts) | M2 BYO-UI | 개발자가 **`@workflow/sdk`(ClemvionClient)** 로 자체 UI 구성·자기 도메인 서빙. `startHeadlessChat` 헬퍼(start→SSE→submit) |
 
 ## 플레이스홀더
 

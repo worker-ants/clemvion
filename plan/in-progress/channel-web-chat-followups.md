@@ -62,8 +62,12 @@ owner: developer (TBD)
   `EiaClient.refreshToken` → sessionRef/saveSession 갱신 → 재예약. start·복원 시 예약, ENDED·언마운트 시 정리.
   갱신 실패는 흡수(SSE 는 hard expiry 까지 유지). `refreshDelayMs` 순수 함수 추출 + 단위테스트(+5).
 
-### 6. M2 BYO-UI headless client 정식 패키징
-- 현재 `@workflow/sdk`(EIA 클라이언트) 재사용을 샘플로만 시연. 정식 headless API 표면 노출·문서는 후속.
+### 6. M2 BYO-UI headless client 정식 패키징 — ✅ 완료 (2026-06-02, D#6)
+- **결정**: M2 headless client = `@workflow/sdk`(ClemvionClient) 단일 진실. web-chat 전용 headless 패키지 미신설
+  (2-sdk §2 의존 방향 — web-chat → @workflow/sdk). ClemvionClient 가 이미 triggerWebhook/subscribeToExecution(SSE)/
+  interact/refreshToken/cancel 전체 표면 보유.
+- `examples/byo-ui-headless.ts`: 의사코드 → **실제 ClemvionClient 사용**(`startHeadlessChat` 헬퍼: start→SSE→submit→end).
+- web-chat-sdk README `## M2 BYO-UI (headless)` 섹션 + examples README 갱신. 토큰 refresh 직접 스케줄 안내.
 
 ### 7-b. 위젯 리사이즈·이벤트 API 보강 (코드 리뷰 지적) — ✅ 완료 (2026-06-02, C-2)
 - [x] `wc:resize` 수신 처리 — host(WidgetBridge)가 iframe 의 collapsed/expanded 크기 요청을 받아 iframe 엘리먼트 resize. spec `2-sdk §3` 명문화 + `bridge.applyResize` 구현·테스트.

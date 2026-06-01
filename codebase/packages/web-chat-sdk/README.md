@@ -50,3 +50,28 @@ ClemvionChat.setWidgetBase("https://cdn.example.com");
 ```
 
 스니펫 큐: 로더가 비동기 로드되는 동안 `ClemvionChat(...)` 호출은 `ClemvionChat.q` 에 버퍼링됐다가 로드 완료 시 순서대로 replay 된다.
+
+## M2 BYO-UI (headless)
+
+Hosted iframe 위젯 대신 **자체 UI 를 직접 구성**하려면 별도 web-chat 패키지가 아니라 **EIA 클라이언트
+[`@workflow/sdk`](../sdk/)(`ClemvionClient`)를 직접 사용**한다(2-sdk §2 · 0-architecture §5.3). web-chat 은 그 위에
+얹는 hosted 레이어이며, M2 의 headless client 표면은 `@workflow/sdk` 가 단일 진실이다(중복 패키지 미신설).
+
+```ts
+import { ClemvionClient } from "@workflow/sdk";
+
+const client = new ClemvionClient({ baseUrl: apiBase });
+const { executionId, interaction } = await client.triggerWebhook(endpointPath, { firstMessage });
+const token = interaction!.token!;
+
+const sub = client.subscribeToExecution(executionId, token, {
+  onEvent: (e) => {
+    if (e.event === "execution.ai_message") renderAssistant(e.data.message); // 자체 UI
+  },
+});
+await client.interact(executionId, token, { command: "submit_message", message: "..." });
+```
+
+- 전체 예제: [`examples/byo-ui-headless.ts`](./examples/byo-ui-headless.ts) (`startHeadlessChat` 헬퍼).
+- 호출 Origin = 고객 도메인 → 워크스페이스 `interactionAllowedOrigins` 등록 필요(4-security §2).
+- 토큰 만료 30분 이내 자동 갱신은 `client.refreshToken(...)` 으로 직접 스케줄링(hosted 위젯은 내장, 3-auth-session §3).
