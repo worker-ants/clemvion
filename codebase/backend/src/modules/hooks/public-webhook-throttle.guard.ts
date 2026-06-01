@@ -100,7 +100,8 @@ export class PublicWebhookThrottleGuard implements CanActivate {
               reason === 'hourly_new'
                 ? 'PUBLIC_WEBHOOK_HOURLY_LIMIT'
                 : 'PUBLIC_WEBHOOK_RATE_LIMIT',
-            message: 'Too many conversation starts from this client. Try again later.',
+            message:
+              'Too many conversation starts from this client. Try again later.',
           },
         },
         HttpStatus.TOO_MANY_REQUESTS,

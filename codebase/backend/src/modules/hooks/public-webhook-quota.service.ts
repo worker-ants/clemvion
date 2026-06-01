@@ -95,9 +95,10 @@ export class PublicWebhookQuotaService implements OnModuleDestroy {
    *
    * @returns allowed=false 일 때 reason 으로 어떤 한도인지 식별.
    */
-  async consumeStart(
-    ip: string,
-  ): Promise<{ allowed: boolean; reason: 'startup_rate' | 'hourly_new' | null }> {
+  async consumeStart(ip: string): Promise<{
+    allowed: boolean;
+    reason: 'startup_rate' | 'hourly_new' | null;
+  }> {
     if (!this.redis) return { allowed: true, reason: null };
     try {
       const minuteCount = await this.incrWithWindow(`wh:rl:min:${ip}`, 60);
@@ -126,7 +127,10 @@ export class PublicWebhookQuotaService implements OnModuleDestroy {
   }
 
   /** fixed-window 증가 — 윈도우 첫 증가(=1)일 때만 EXPIRE 를 건다. */
-  private async incrWithWindow(key: string, windowSec: number): Promise<number> {
+  private async incrWithWindow(
+    key: string,
+    windowSec: number,
+  ): Promise<number> {
     const count = await this.redis!.incr(key);
     if (count === 1) {
       await this.redis!.expire(key, windowSec);

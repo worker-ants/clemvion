@@ -25,6 +25,10 @@ import { AuthConfigsModule } from '../auth-configs/auth-configs.module';
     AuthConfigsModule,
   ],
   controllers: [HooksController],
-  providers: [HooksService],
+  providers: [
+    HooksService,
+    PublicWebhookQuotaService,
+    PublicWebhookThrottleGuard,
+  ],
 })
 export class HooksModule {}
