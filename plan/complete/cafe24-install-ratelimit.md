@@ -60,7 +60,7 @@ ttl: 60_000 })` (pod별 메모리 IP throttle) 만 존재.
 - [x] 7. 테스트 보강 (서비스 13 + 컨트롤러 7 케이스, targeted jest 52 pass)
 - [x] 8. TEST WORKFLOW — lint PASS · unit PASS(5409) · build PASS(docker) · e2e PASS(140). (구현 무관 base 깨짐 replay-rerun frontmatter 별 커밋 보정)
 - [x] 9. REVIEW WORKFLOW — /ai-review (12/14 reviewer, HIGH) → SUMMARY 판독 → 수동 fix + RESOLUTION.md. Critical 1=false positive(spec 이미 갱신), 진짜 이슈 W7(상수명)·W2(IP 가드)·W6(분류 메서드 추출)·테스트 보강 fix. W1(trust proxy 기설정)·W3(pre-existing)·W4/5(codebase 패턴)·INFO14(anti-abuse 비사용자) 보류(근거 RESOLUTION). 재테스트 lint/unit(5418)/build/e2e(140) PASS.
-- [ ] 10. plan complete
+- [x] 10. plan complete — `git mv` to plan/complete/. Layer 1·A-2 README 후속은 cafe24-backlog-residual.md 에 등록.
 
 ## Spec 갱신 (정식 phase — 외부 위임 아님)
 
