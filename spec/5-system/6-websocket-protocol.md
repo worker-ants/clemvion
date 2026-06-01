@@ -528,9 +528,9 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 |------|------|------|
 | `executionId` | uuid | 실행 ID |
 | `nodeId` | uuid | 메시지를 수신한 AI 노드 ID |
-| `nodeExecutionId` | uuid | **이 시점에 `waiting_for_input` 상태였던 NodeExecution row 의 PK**. dedup / reconcile 시 turn row 식별자. (`waiting_for_input` row lookup 은 [Spec 실행 엔진 §7.5 / §1.3](../5-system/4-execution-engine.md) 의 `execution_id + node_id + status='waiting_for_input'` 단일 매칭과 동일 row) |
+| `nodeExecutionId` | uuid | **이 시점에 `waiting_for_input` 상태였던 NodeExecution row 의 PK**. dedup / reconcile 시 turn row 식별자. (`waiting_for_input` row lookup 은 [Spec 실행 엔진 §7.5 / §1.3](./4-execution-engine.md) 의 `execution_id + node_id + status='waiting_for_input'` 단일 매칭과 동일 row) |
 | `message` | string | 사용자가 보낸 발화 본문. **[Spec Presentation 공통](../4-nodes/6-presentation/0-common.md) 의 `ButtonDef.userMessage`(버튼 클릭 발화 텍스트)와 무관** |
-| `receivedAt` | ISO8601 string | 엔진이 메시지를 수신한 시각. **[Spec AI Agent §7.5](../4-nodes/3-ai/1-ai-agent.md) `output.interaction.receivedAt` 와 동일 값** |
+| `receivedAt` | ISO8601 string | 엔진이 메시지를 수신한 시각. [Spec AI Agent §7.5](../4-nodes/3-ai/1-ai-agent.md) `output.interaction.receivedAt` 과 **같은 수신 tick** (engine 과 handler 가 각각 생성해 ms 단위 차이 가능 — dedup 은 본 필드 단독, reconcile 은 `ai_message` content 기준이라 정확한 일치에 의존하지 않음) |
 
 ```json
 {

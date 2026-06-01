@@ -8,6 +8,7 @@ import {
   buildAiMessageDebugFromResumeState,
   buildConversationConfigFromOutput,
   buildConversationMetaFromResumeState,
+  userMessageSignalApplies,
 } from './execution-engine.service';
 import { InvalidExecutionStateError } from './workflow-errors';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
@@ -3094,7 +3095,10 @@ describe('ExecutionEngineService', () => {
         nodeId: 'node-agent',
         message: '주문 확인해줘',
       });
-      expect(userPayload).toHaveProperty('nodeExecutionId');
+      // nodeExecutionId 는 waiting NodeExecution row PK — 존재 + 문자열 보장
+      // (toHaveProperty 만으로는 undefined 도 통과하므로 강화, ai-review W8).
+      expect(typeof userPayload.nodeExecutionId).toBe('string');
+      expect(userPayload.nodeExecutionId).toBeTruthy();
       expect(typeof userPayload.receivedAt).toBe('string');
 
       // ordering: user_message(q) 가 ai_message(a) 보다 먼저.
@@ -3107,6 +3111,14 @@ describe('ExecutionEngineService', () => {
       expect(userIdx).toBeGreaterThanOrEqual(0);
       expect(aiIdx).toBeGreaterThanOrEqual(0);
       expect(userIdx).toBeLessThan(aiIdx);
+    });
+
+    // ai-review W6 — form 제출 경로는 USER_MESSAGE 미발화 (spec §6.2 / §7.5).
+    // 발화 게이팅 predicate 를 직접 단언해 회귀를 차단한다 (full form-render
+    // blocking flow 의 무거운 fixture 없이 결정적 검증).
+    it('userMessageSignalApplies: ai_message 발화 / form_submitted 미발화', () => {
+      expect(userMessageSignalApplies('ai_message')).toBe(true);
+      expect(userMessageSignalApplies('form_submitted')).toBe(false);
     });
 
     it('preserves the full llmCalls sequence for tool-loop turns', async () => {

@@ -109,6 +109,25 @@ export interface ToolCallStartedPayload {
 }
 
 /**
+ * Wire payload for {@link ExecutionEventType.USER_MESSAGE}. 사용자 발화(q)를
+ * 다음 턴 LLM 호출 전에 라이브로 노출하는 비권위 진행 신호. Frontend
+ * `use-execution-events.ts` 가 구조 호환 로컬 타입을 유지하므로 두 정의를
+ * 동기화한다. SoT: spec/5-system/6-websocket-protocol.md §4.4 execution.user_message.
+ */
+export interface UserMessagePayload {
+  /** 실행 ID. */
+  executionId: string;
+  /** 메시지를 수신한 AI 노드의 graph UUID. */
+  nodeId: string;
+  /** 이 시점 `waiting_for_input` 상태였던 NodeExecution row PK (multi-row 라우팅). */
+  nodeExecutionId?: string;
+  /** 사용자가 보낸 발화 본문. */
+  message: string;
+  /** 엔진 수신 시각 (ISO 8601). 클라이언트 optimistic bubble dedup 키. */
+  receivedAt: string;
+}
+
+/**
  * Wire payload for {@link ExecutionEventType.TOOL_CALL_COMPLETED}. `content`
  * is a 200-char preview string (full result lives in
  * `ai_message.messages` snapshot + persisted `outputData`).

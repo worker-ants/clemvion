@@ -565,10 +565,15 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
   appendOptimisticUserMessage: ({ content, receivedAt }) =>
     set((state) => {
       // Dedup by receivedAt — re-emit / re-subscribe must not double-append.
-      const exists = state.conversationMessages.some(
-        (i) => i.type === "user" && i.timestamp === receivedAt,
-      );
-      if (exists) return {};
+      // 단, receivedAt 가 빈 문자열(옛 backend 호환 fallback)이면 dedup 키가
+      // 없는 셈이라 같은 빈 키의 *다른* 발화가 무음 drop 되지 않도록 append 한다
+      // (드문 중복 < 메시지 손실). 권위 출처 ai_message REPLACE 가 reconcile.
+      if (receivedAt) {
+        const exists = state.conversationMessages.some(
+          (i) => i.type === "user" && i.timestamp === receivedAt,
+        );
+        if (exists) return {};
+      }
       // turnIndex best-effort: the count of live (non-injected) user turns so
       // far. The subsequent authoritative `ai_message` REPLACE recomputes all
       // indices, so precision here only affects the brief optimistic window.

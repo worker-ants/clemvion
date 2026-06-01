@@ -25,6 +25,7 @@ const initialState = {
   selectedResultNodeId: null,
   conversationMessages: [],
   selectedConversationItemIndex: null,
+  isWaitingAiResponse: false,
 };
 
 describe("useExecutionStore", () => {
@@ -568,6 +569,20 @@ describe("useExecutionStore", () => {
       useExecutionStore.getState().appendOptimisticUserMessage(args);
       useExecutionStore.getState().appendOptimisticUserMessage(args);
       expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+    });
+
+    // ai-review W1/W7 — 빈 receivedAt(옛 backend fallback)는 dedup 키가 없으므로
+    // 서로 다른 발화가 무음 drop 되지 않고 모두 append 돼야 한다 (손실 < 중복).
+    it("does NOT drop distinct messages when receivedAt is empty (no dedup on empty key)", () => {
+      useExecutionStore
+        .getState()
+        .appendOptimisticUserMessage({ content: "첫 발화", receivedAt: "" });
+      useExecutionStore
+        .getState()
+        .appendOptimisticUserMessage({ content: "둘째 발화", receivedAt: "" });
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(2);
+      expect(items.map((i) => i.content)).toEqual(["첫 발화", "둘째 발화"]);
     });
 
     it("subsequent setConversationMessages (ai_message REPLACE) reconciles the optimistic bubble", () => {
