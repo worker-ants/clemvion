@@ -74,10 +74,14 @@ owner: developer (TBD)
 - [x] `on()` 구독 해제 — `on()` 이 unsubscribe 함수 반환 + `off(event, cb?)` 제공(SPA 언마운트 누수 방지). spec `2-sdk §1/R3` 명문화 + bridge/index/loader 구현·테스트.
 - [x] 전역 함수명(`ClemvionChat`) 충돌 방지 패턴 — loader `<script data-global="...">` opt-in 재지정 + 비-함수 점유 시 경고·중단(silent overwrite 금지). spec `2-sdk §1` 명문화 + `installGlobal(globalName)` 구현·테스트.
 
-### 7. CI 테스트 오케스트레이션 wiring
-- `codebase/channel-web-chat` + `codebase/packages/web-chat-sdk` 를 `.claude/test-stages.sh`(lint/unit/build) + CI
-  install 절차에 편입. 현재는 **로컬 검증만 완료**(각 패키지 lint/test/build 통과) — 공유 harness/CI 설치 순서를
-  깨지 않도록 별도 작업으로 분리. (~~web-chat-sdk lint 처리 결정 필요~~ → **eslint devDep 채택 완료** C-1: `eslint.config.mjs` flat config.)
+### 7. CI 테스트 오케스트레이션 wiring — ✅ 완료 (2026-06-02, D#7)
+- `.claude/test-stages.sh`: `cmd_lint`/`cmd_unit`/`cmd_build` 에 web-chat-sdk + channel-web-chat 편입.
+  독립 패키지(backend/frontend file:dep 에 안 묶임)라 `_ensure_web_chat_deps`(node_modules 부재 시 npm ci)로
+  설치 순서를 분리 — 공유 harness install 순서 비파손.
+- CI: `.github/workflows/web-chat-checks.yml` 신설 — 두 패키지 경로 변경 시 각 독립 install + lint/typecheck/
+  test/build(SDK: tsc+loader, widget: next static export). frontend-checks.yml 흐름과 분리.
+- 검증: `bash -n` 문법 OK, 양 패키지 `npm ci --dry-run` 정합(lock↔package.json), ensure helper 동작.
+  (web-chat-sdk lint = eslint flat config, C-1 채택 완료.)
 
 ## 선행
 - ~~npm scope·운영 CDN 확정~~ → **확정 완료**(2026-06-02): scope `@workflow/web-chat`, CDN 플레이스홀더+env ([`channel-web-chat-impl.md`](./channel-web-chat-impl.md) 진입 조건).
