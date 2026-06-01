@@ -4,6 +4,7 @@ import type { Job } from 'bullmq';
 import {
   CONTINUATION_EXECUTION_QUEUE,
   CONTINUATION_QUEUE_DEFAULT_OPTS,
+  resolveContinuationWorkerConcurrency,
   type ContinuationJob,
 } from '../queues/continuation-execution.queue';
 import { ExecutionEngineService } from '../execution-engine.service';
@@ -13,8 +14,11 @@ import { ExecutionEngineService } from '../execution-engine.service';
  *
  * SoT: spec/5-system/4-execution-engine.md §7.4 / §7.5.
  *
- * BullMQ `execution-continuation` 큐의 단일 consumer. 옛 Redis pub/sub
+ * BullMQ `execution-continuation` 큐의 consumer. 옛 Redis pub/sub
  * subscriber (ExecutionEngineService.registerContinuationHandlers) 를 대체.
+ *
+ * Worker 동시성은 `CONTINUATION_WORKER_CONCURRENCY` (기본 1, spec §7.4 / §11) 로
+ * 설정. 기본 직렬이며, 대량 동시 resume 의 setup latency 가 관측되면 상향한다.
  *
  * 처리 흐름 (spec §7.5):
  * - 임의 인스턴스의 worker 가 job pick up.
@@ -37,7 +41,12 @@ import { ExecutionEngineService } from '../execution-engine.service';
  * - 추가 가드: 처리 전 NodeExecution.status === 'waiting_for_input' 재검증.
  *   COMPLETED / FAILED 면 다른 worker 가 먼저 처리한 것 — ack-and-discard.
  */
-@Processor(CONTINUATION_EXECUTION_QUEUE)
+// concurrency 는 모듈 로드(데코레이터 평가) 시점에 1회 결정된다 — DI factory
+// 주입 불가 배경·env 파싱 규약은 resolveContinuationWorkerConcurrency JSDoc
+// (continuation-execution.queue.ts) 참조. env 변경은 인스턴스 재시작 시 반영.
+@Processor(CONTINUATION_EXECUTION_QUEUE, {
+  concurrency: resolveContinuationWorkerConcurrency(),
+})
 export class ContinuationExecutionProcessor extends WorkerHost {
   private readonly logger = new Logger(ContinuationExecutionProcessor.name);
 
@@ -84,7 +93,15 @@ export class ContinuationExecutionProcessor extends WorkerHost {
         break;
       case 'cancel':
         // applyCancellation 은 sync (rejectPending 만 호출) — fire-and-forget.
-        // TODO: async 전환 시 `void` 제거 후 `await` 복원 필요.
+        // CONTINUATION_WORKER_CONCURRENCY > 1 동시성 안전: 본 호출이 동기 완료
+        // 되므로 process() 반환 전에 cancel 이 끝난다 (async race window 없음).
+        // 동일 executionId 의 cancel vs resume 가 서로 다른 slot 에서 동시 픽업
+        // 되는 순서 경합은 위 isNodeExecutionWaiting status 가드 + BullMQ jobId
+        // 멱등성이 흡수한다 (plan/in-progress/continuation-resume-optional-
+        // followups.md 항목2 — optimistic lock 강화는 in-memory 코루틴 누수까지
+        // 차단하는 후속 검토).
+        // TODO: applyCancellation 을 async 로 전환하면 `void` 제거 후 `await`
+        // 복원 필요 — 그때부터는 동기 완료 전제가 깨져 concurrency > 1 race 발생.
         void this.engine.applyCancellation(executionId);
         break;
       case 'button_click':
