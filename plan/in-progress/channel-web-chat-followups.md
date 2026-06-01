@@ -29,6 +29,10 @@ owner: developer (TBD)
 ### 4. rich presentation 렌더 (spec 1-widget-app §2 — 전체 렌더 A)
 - 현재 위젯은 텍스트·버튼·Form·추천질문·AI multi-turn 렌더. **carousel/table/chart/template presentation 의
   전용 inline 컴포넌트**는 미구현(`ai_message.presentations[]` 수신은 되나 전용 렌더 없음).
+- **[연관] `show`/`hide`/`updateProfile` command 위젯 SPA 핸들러 미구현**: `use-widget.ts` `onCommand` switch 는
+  `open`/`close`/`sendMessage`/`shutdown` 만 처리. `show`/`hide`(런처 가시성)는 1-widget-app §3 상태기계에 런처
+  visible/hidden 상태 추가가 선행돼야 하고(project-planner), `updateProfile` 는 진행 중 세션 profile 갱신 의미
+  정의 필요. spec 2-sdk §3 `wc:command` 표·§5 타입에는 명시됨 — handler 갭만 잔존.
 
 ### 5. per_execution 토큰 auto-refresh (spec 3-auth-session §3)
 - `EiaClient.refreshToken` 메서드는 있으나, 만료 30분 이내 자동 갱신 스케줄링 미연결.

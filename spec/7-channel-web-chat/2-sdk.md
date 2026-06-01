@@ -138,7 +138,16 @@ DX 약화 → 둘 다 제공이 커버리지 최적. npm scope 는 `@workflow/we
 
 ### R3. 구독 해제·전역명 충돌 방지 (SPA 안전 통합)
 `on()` 만 있고 해제 수단이 없으면 SPA(특히 React `useEffect`) 재마운트마다 핸들러가 누적돼 메모리 누수·중복 호출이
-난다. `on()` 의 **해제 함수 반환** + `off()` 둘 다 제공하는 건 표준 DX(EventEmitter/addEventListener 양식)와 일치하고
-호스트가 cleanup 패턴 중 편한 쪽을 고를 수 있게 한다. 전역명은 단일 `ClemvionChat` 고정 대신 **`data-global` opt-in
-재지정**으로 — 호스트 전역 오염·동명 충돌·복수 위젯 동시 탑재를 비파괴적으로 허용하되, 기본값은 단순성을 위해
-`ClemvionChat` 유지하고 점유 충돌 시 silent overwrite 대신 경고+중단으로 안전측에 둔다.
+난다. **기존 v1 spec 은 `off()` 없이 `on()` 만 두었으나 이는 미결정(단순화 보류) 상태였고**, SPA 통합 피드백으로
+cleanup 패턴 명시 요구가 확인돼 추가한다. `on()` 의 **해제 함수 반환** + `off()` 둘 다 제공하는 건 표준 DX
+(EventEmitter/addEventListener 양식)와 일치하고 호스트가 cleanup 패턴 중 편한 쪽을 고를 수 있게 한다.
+전역명은 단일 `ClemvionChat` 고정 대신 **`data-global` opt-in 재지정**으로 — **기존 §1 의 "전역명 충돌 방지 패턴은
+구현 단계 검토" 보류를 `data-global` 로 확정**한다 — 호스트 전역 오염·동명 충돌·복수 위젯 동시 탑재를 비파괴적으로
+허용하되, 기본값은 단순성을 위해 `ClemvionChat` 유지하고 점유 충돌 시 silent overwrite 대신 경고+중단으로 안전측에 둔다.
+
+### R4. `show`/`hide`(런처) vs `open`/`close`(패널) 두 축 분리
+위젯 제어를 **런처 가시성**(`show`/`hide`)과 **대화 패널 전개**(`open`/`close`) 두 축으로 나눈 건, 호스트가
+"위젯을 페이지에서 완전히 숨김"(예: 특정 라우트에서 비표시)과 "런처는 두되 대화창만 접음"을 독립 제어해야 하기
+때문이다. 한 축(open/close)으로 합치면 "런처도 숨기고 싶다"를 표현할 수 없다. 상세 상태 전이는
+[1-widget-app](./1-widget-app.md) 상태기계가 SoT. 또한 **§5 의 `ChatInstance` 타입 블록이 공개 메서드 계약의
+타입 SoT** 이며 §1·§2 산문/예시는 설명 보조다(상충 시 §5 우선).

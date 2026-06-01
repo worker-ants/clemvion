@@ -4,6 +4,8 @@ import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node } from '../nodes/entities/node.entity';
 import { HooksController } from './hooks.controller';
 import { HooksService } from './hooks.service';
+import { PublicWebhookQuotaService } from './public-webhook-quota.service';
+import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { ExternalInteractionModule } from '../external-interaction/external-interaction.module';
 import { ExecutionsModule } from '../executions/executions.module';

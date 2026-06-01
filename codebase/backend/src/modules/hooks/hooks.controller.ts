@@ -8,6 +8,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import {
@@ -16,10 +17,13 @@ import {
   ApiParam,
   ApiNotFoundResponse,
   ApiUnauthorizedResponse,
+  ApiTooManyRequestsResponse,
+  ApiPayloadTooLargeResponse,
 } from '@nestjs/swagger';
 import { ApiAcceptedWrappedResponse } from '../../common/swagger';
 import { Public } from '../../common/decorators';
 import { HooksService } from './hooks.service';
+import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
 import { WebhookAcceptedDto } from './dto/responses/webhook-response.dto';
 
 @ApiTags('Hooks')
@@ -28,12 +32,19 @@ export class HooksController {
   constructor(private readonly hooksService: HooksService) {}
 
   @Public()
+  @UseGuards(PublicWebhookThrottleGuard)
   @Post(':endpointPath')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: '웹훅 수신',
     description:
-      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다.',
+      '외부 서비스가 호출하는 웹훅 엔드포인트입니다. 등록된 `endpointPath`에 해당하는 트리거를 찾아 워크플로우 실행을 비동기로 시작합니다. 본 엔드포인트는 인증이 필요 없으며, 트리거 자체의 시크릿·서명 검증 정책에 따라 보호됩니다. 공개(인증 없음) 트리거에 한해 IP 단위 시작 rate-limit·body 크기 제한이 적용됩니다(spec 7-channel-web-chat/4-security §4).',
+  })
+  @ApiTooManyRequestsResponse({
+    description: '공개 webhook IP 시작 한도 초과(분당/시간당)',
+  })
+  @ApiPayloadTooLargeResponse({
+    description: '공개 webhook body 크기 초과(32KB)',
   })
   @ApiParam({
     name: 'endpointPath',
