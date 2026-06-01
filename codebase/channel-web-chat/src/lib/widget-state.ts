@@ -46,15 +46,23 @@ export type WidgetAction =
   | { type: "RESTORED"; executionId: string }
   | { type: "BOOTED"; executionId: string }
   | { type: "WAITING"; interaction: PendingInteraction; threadMessages?: DisplayMessage[] }
-  | { type: "AI_MESSAGE"; text: string }
+  | { type: "AI_MESSAGE"; text: string; presentations?: Array<Record<string, unknown>> }
   | { type: "USER_MESSAGE"; text: string }
   | { type: "ENDED"; reason?: string }
   | { type: "ERROR"; message: string }
   | { type: "BLOCKED"; reason?: string }
   | { type: "NEW_CHAT" };
 
-function assistantMsg(text: string): DisplayMessage {
-  return { role: "assistant", text, source: "live" };
+function assistantMsg(
+  text: string,
+  presentations?: Array<Record<string, unknown>>,
+): DisplayMessage {
+  return {
+    role: "assistant",
+    text,
+    source: "live",
+    presentations: presentations?.length ? presentations : undefined,
+  };
 }
 function userMsg(text: string): DisplayMessage {
   return { role: "user", text, source: "live" };
@@ -95,7 +103,7 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
     case "AI_MESSAGE":
       return {
         ...state,
-        messages: [...state.messages, assistantMsg(action.text)],
+        messages: [...state.messages, assistantMsg(action.text, action.presentations)],
         // 패널 닫힌 채 도착한 in-flight 메시지 → unread(N4).
         unread: state.open ? state.unread : state.unread + 1,
       };

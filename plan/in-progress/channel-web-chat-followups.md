@@ -43,9 +43,15 @@ owner: developer (TBD)
   - [ ] **opt-in hard `frame-ancestors`(§3-③, 동적 문서) — 비기본**: spec 상 v1 기본 아님. 동적 문서 제공이 필요한
     워크스페이스만 감수 → 별도 increment(현재 미구현, 의도적 비목표).
 
-### 4. rich presentation 렌더 (spec 1-widget-app §2 — 전체 렌더 A)
-- 현재 위젯은 텍스트·버튼·Form·추천질문·AI multi-turn 렌더. **carousel/table/chart/template presentation 의
-  전용 inline 컴포넌트**는 미구현(`ai_message.presentations[]` 수신은 되나 전용 렌더 없음).
+### 4. rich presentation 렌더 (spec 1-widget-app §2 — 전체 렌더 A) — ✅ 완료 (2026-06-02, D#4)
+- carousel/table/chart/template 전용 inline 렌더러 구현 (`components/presentations.tsx` + `lib/presentation.ts`).
+  - shape 기반 판별(`classifyPresentation`) — flat envelope `{config,output,...}` 에서 type 추론.
+  - carousel: 슬라이드+nav+per-item/공통 버튼. table: 헤더/행+truncated. chart: **의존성 없는 inline SVG**
+    (bar/line/area/pie/donut). template: rendered **plain text 안전 렌더(태그 미해석, XSS 방어)**.
+  - 메시지 타임라인 통합: `ConversationTurn.presentations`·`DisplayMessage.presentations`·reducer `AI_MESSAGE`·
+    `threadToMessages`(presentation-only turn 포함)·`panel` inline. port 버튼 → `click_button`, link 버튼 → 새 탭.
+  - 검증: lint/typecheck/build(static export) ✓, vitest 64 tests(+20).
+- [ ] **잔여**: template html/markdown 풍부 렌더(현재 안전 text), chart 축 레이블·범례·툴팁(현재 최소 SVG) — followup.
 - **[연관] `show`/`hide`/`updateProfile` command 위젯 SPA 핸들러 미구현**: `use-widget.ts` `onCommand` switch 는
   `open`/`close`/`sendMessage`/`shutdown` 만 처리. `show`/`hide`(런처 가시성)는 1-widget-app §3 상태기계에 런처
   visible/hidden 상태 추가가 선행돼야 하고(project-planner), `updateProfile` 는 진행 중 세션 profile 갱신 의미

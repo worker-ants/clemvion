@@ -101,9 +101,15 @@ export function useWidget() {
         });
       } else if (name === "execution.ai_message") {
         const ev = data as AiMessageEvent;
-        if (ev.text) {
-          dispatch({ type: "AI_MESSAGE", text: ev.text });
-          bridgeRef.current?.sendEvent("message", { role: "assistant", text: ev.text });
+        const presentations =
+          Array.isArray(ev.presentations) && ev.presentations.length
+            ? ev.presentations
+            : undefined;
+        // 텍스트 또는 presentation 중 하나라도 있으면 메시지로 추가(presentation-only 도 렌더).
+        if (ev.text || presentations) {
+          dispatch({ type: "AI_MESSAGE", text: ev.text ?? "", presentations });
+          if (ev.text)
+            bridgeRef.current?.sendEvent("message", { role: "assistant", text: ev.text });
         }
       } else if (
         name === "execution.completed" ||
