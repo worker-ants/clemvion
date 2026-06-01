@@ -98,6 +98,7 @@ export function boot(config: BootConfig): ChatInstance {
     sendMessage: (text: string) => cmd("sendMessage", { text }),
     updateProfile: (profile: Record<string, unknown>) => cmd("updateProfile", { profile }),
     on: (event: WidgetEvent, callback: (payload: unknown) => void) => bridge.on(event, callback),
+    off: (event: WidgetEvent, callback?: (payload: unknown) => void) => bridge.off(event, callback),
     shutdown: () => bridge.destroy(),
   };
 }

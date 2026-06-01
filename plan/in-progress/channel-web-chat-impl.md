@@ -1,5 +1,5 @@
 ---
-worktree: .claude/worktrees/channel-web-chat-spec-3b22b3
+worktree: .claude/worktrees/channel-web-chat-followups-1feff2
 started: 2026-05-30
 owner: developer (TBD)
 ---
@@ -23,7 +23,7 @@ EIA(External Interaction API, `spec/5-system/14`)는 **이미 구현됨**(`codeb
 ## 진행 상태
 
 - ✅ **impl-prep consistency-check** (review/consistency/2026/05/30/18_24_13) — Critical(0-architecture §5 dead ref) 해소(commit 2c86950e), 저비용 WARNING 반영. 잔여 WARNING: npm scope 확정(보류), §6.3 parallel-* merge 경합(PR rebase 시 처리).
-- ✅ **스캐폴딩 foundation** (commit 6573c38b) — 위젯 SPA(Next 16 CSR, static export build ✓ tsc ✓ eslint ✓) + SDK 패키지(@clemvion/web-chat 잠정, tsc build ✓ jest 7 ✓).
+- ✅ **스캐폴딩 foundation** (commit 6573c38b) — 위젯 SPA(Next 16 CSR, static export build ✓ tsc ✓ eslint ✓) + SDK 패키지(`@workflow/web-chat`, scope 통일 후. build ✓ jest ✓ eslint ✓).
 - ⏳ 후속 increment (아래 체크박스).
 
 ## 작업 범위

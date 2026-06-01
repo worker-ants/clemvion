@@ -1,5 +1,5 @@
 ---
-worktree: .claude/worktrees/channel-web-chat-spec-3b22b3
+worktree: .claude/worktrees/channel-web-chat-followups-1feff2
 started: 2026-05-30
 owner: developer (TBD)
 ---
@@ -36,15 +36,15 @@ owner: developer (TBD)
 ### 6. M2 BYO-UI headless client 정식 패키징
 - 현재 `@workflow/sdk`(EIA 클라이언트) 재사용을 샘플로만 시연. 정식 headless API 표면 노출·문서는 후속.
 
-### 7-b. 위젯 리사이즈·이벤트 API 보강 (코드 리뷰 지적)
-- [ ] `wc:resize` 수신 처리 — host(SDK WidgetBridge)가 iframe 의 collapsed/expanded 크기 요청을 받아 iframe 엘리먼트 resize.
-- [ ] `on()` 구독 해제 — `off(event, cb)` 또는 `on()` 이 unsubscribe 함수 반환(SPA 언마운트 메모리 누수 방지). spec `2-sdk` 표면 변경 → **project-planner 위임** 필요.
-- [ ] 전역 함수명(`ClemvionChat`) 충돌 방지 패턴 — 호스트 전역 네임스페이스 오염 대비. spec `2-sdk §1` 유보 항목 명문화 → project-planner.
+### 7-b. 위젯 리사이즈·이벤트 API 보강 (코드 리뷰 지적) — ✅ 완료 (2026-06-02, C-2)
+- [x] `wc:resize` 수신 처리 — host(WidgetBridge)가 iframe 의 collapsed/expanded 크기 요청을 받아 iframe 엘리먼트 resize. spec `2-sdk §3` 명문화 + `bridge.applyResize` 구현·테스트.
+- [x] `on()` 구독 해제 — `on()` 이 unsubscribe 함수 반환 + `off(event, cb?)` 제공(SPA 언마운트 누수 방지). spec `2-sdk §1/R3` 명문화 + bridge/index/loader 구현·테스트.
+- [x] 전역 함수명(`ClemvionChat`) 충돌 방지 패턴 — loader `<script data-global="...">` opt-in 재지정 + 비-함수 점유 시 경고·중단(silent overwrite 금지). spec `2-sdk §1` 명문화 + `installGlobal(globalName)` 구현·테스트.
 
 ### 7. CI 테스트 오케스트레이션 wiring
 - `codebase/channel-web-chat` + `codebase/packages/web-chat-sdk` 를 `.claude/test-stages.sh`(lint/unit/build) + CI
   install 절차에 편입. 현재는 **로컬 검증만 완료**(각 패키지 lint/test/build 통과) — 공유 harness/CI 설치 순서를
-  깨지 않도록 별도 작업으로 분리. (web-chat-sdk 는 eslint devDep 추가 또는 tsc-only 로 lint 처리 결정 필요.)
+  깨지 않도록 별도 작업으로 분리. (~~web-chat-sdk lint 처리 결정 필요~~ → **eslint devDep 채택 완료** C-1: `eslint.config.mjs` flat config.)
 
 ## 선행
-- npm scope·운영 CDN 확정([`channel-web-chat-impl.md`](./channel-web-chat-impl.md) 진입 조건).
+- ~~npm scope·운영 CDN 확정~~ → **확정 완료**(2026-06-02): scope `@workflow/web-chat`, CDN 플레이스홀더+env ([`channel-web-chat-impl.md`](./channel-web-chat-impl.md) 진입 조건).

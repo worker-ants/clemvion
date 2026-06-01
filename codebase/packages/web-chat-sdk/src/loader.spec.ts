@@ -20,7 +20,11 @@ function fakeInstance(): ChatInstance & { calls: string[] } {
     hide: () => void calls.push("hide"),
     sendMessage: (t: string) => void calls.push(`send:${t}`),
     updateProfile: () => void calls.push("updateProfile"),
-    on: () => void calls.push("on"),
+    on: () => {
+      calls.push("on");
+      return () => void calls.push("unsub");
+    },
+    off: () => void calls.push("off"),
     shutdown: () => void calls.push("shutdown"),
   };
 }
@@ -63,6 +67,15 @@ describe("createGlobalApi", () => {
     expect(inst.calls).not.toContain("on");
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it("off 위임 — off(event) / off(event, cb)", () => {
+    const inst = fakeInstance();
+    const api = createGlobalApi(() => inst);
+    api("boot", { apiBase: "a", triggerEndpointPath: "t" });
+    api("off", "message");
+    api("off", "unread", () => {});
+    expect(inst.calls).toEqual(["off", "off"]);
   });
 
   it("알 수 없는 메서드 → throw 없이 warn(호스트 중단 방지)", () => {
@@ -130,5 +143,33 @@ describe("installGlobal — 큐 스텁 replay", () => {
     const first = installGlobal(window, () => inst);
     const second = installGlobal(window, () => fakeInstance());
     expect(second).toBe(first); // 동일 dispatcher
+  });
+
+  it("data-global: 커스텀 전역명에 설치", () => {
+    const inst = fakeInstance();
+    const w = window as unknown as Record<string, unknown>;
+    delete w.SupportChat;
+    installGlobal(window, () => inst, "SupportChat");
+    expect(typeof w.SupportChat).toBe("function");
+    (w.SupportChat as (m: string, ...a: unknown[]) => unknown)("boot", {
+      apiBase: "a",
+      triggerEndpointPath: "t",
+    });
+    (w.SupportChat as (m: string, ...a: unknown[]) => unknown)("open");
+    expect(inst.calls).toEqual(["open"]);
+    delete w.SupportChat;
+  });
+
+  it("점유 가드: 비-함수 전역이 점유 중이면 덮어쓰지 않고 warn", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const w = window as unknown as Record<string, unknown>;
+    w.ClemvionChat = { foreign: true }; // 호스트가 이미 동명 객체 사용
+    const api = installGlobal(window, () => fakeInstance());
+    expect(warn).toHaveBeenCalled();
+    // 전역은 보존(silent overwrite 금지)
+    expect(w.ClemvionChat).toEqual({ foreign: true });
+    // 반환된 분리 인스턴스는 동작(전역 미설치)
+    expect(typeof api).toBe("function");
+    warn.mockRestore();
   });
 });

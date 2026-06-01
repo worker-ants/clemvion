@@ -91,6 +91,57 @@ describe("이벤트 구독 — wc:event", () => {
     postFromIframe(b, { type: "wc:event", payload: { name: "message" } });
     expect(cb).not.toHaveBeenCalled();
   });
+
+  it("on() 이 반환한 해제 함수 호출 시 더 이상 호출 안 됨", () => {
+    const b = makeBridge();
+    const cb = jest.fn();
+    const unsubscribe = b.on("message", cb);
+    unsubscribe();
+    postFromIframe(b, { type: "wc:event", payload: { name: "message", data: 1 } });
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it("off(event, cb) 는 해당 핸들러만, off(event) 는 이벤트 전체 해제", () => {
+    const b = makeBridge();
+    const a = jest.fn();
+    const c = jest.fn();
+    b.on("message", a);
+    b.on("message", c);
+    b.off("message", a); // a 만 해제
+    postFromIframe(b, { type: "wc:event", payload: { name: "message", data: 1 } });
+    expect(a).not.toHaveBeenCalled();
+    expect(c).toHaveBeenCalledTimes(1);
+
+    b.off("message"); // 전체 해제
+    postFromIframe(b, { type: "wc:event", payload: { name: "message", data: 2 } });
+    expect(c).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("wc:resize — host 가 iframe 박스를 위젯 요청 크기에 맞춤", () => {
+  it("width/height 숫자는 px, 문자열은 그대로 적용 + state 기록", () => {
+    const b = makeBridge();
+    postFromIframe(b, {
+      type: "wc:resize",
+      payload: { width: 380, height: "100%", state: "expanded" },
+    });
+    expect(b.element.style.width).toBe("380px");
+    expect(b.element.style.height).toBe("100%");
+    expect(b.element.dataset.wcState).toBe("expanded");
+  });
+
+  it("누락된 축은 기존 값 유지", () => {
+    const b = makeBridge();
+    b.element.style.width = "64px";
+    postFromIframe(b, { type: "wc:resize", payload: { height: 600 } });
+    expect(b.element.style.width).toBe("64px"); // 유지
+    expect(b.element.style.height).toBe("600px");
+  });
+
+  it("payload 누락 시 무시(throw 없음)", () => {
+    const b = makeBridge();
+    expect(() => postFromIframe(b, { type: "wc:resize" })).not.toThrow();
+  });
 });
 
 describe("destroy", () => {
