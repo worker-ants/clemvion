@@ -172,11 +172,9 @@ export class ThirdPartyOAuthController {
       const code = e.response?.code ?? 'CAFE24_INSTALL_FAILED';
       const message = e.response?.message ?? e.message ?? 'Install failed';
       // A-3 Layer 2: install_token 조회/HMAC 검증 실패만 enumeration 신호로 카운트.
-      // REPLAY(400) / MISSING_PARAMS(400) / 서버측 FAILED 는 카운트 제외.
-      if (
-        code === 'CAFE24_INSTALL_INVALID_TOKEN' ||
-        code === 'CAFE24_INSTALL_INVALID_HMAC'
-      ) {
+      // REPLAY(400) / MISSING_PARAMS(400) / 서버측 FAILED 는 카운트 제외. 분류 규칙은
+      // Cafe24InstallRateLimitService.isEnumerationFailureCode 가 단일 진실.
+      if (Cafe24InstallRateLimitService.isEnumerationFailureCode(code)) {
         await this.installRateLimit.recordFailure(clientIp);
       }
       // Render an HTML page when the browser is the consumer (Cafe24's "테스트

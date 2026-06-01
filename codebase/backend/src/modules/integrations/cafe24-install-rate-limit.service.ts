@@ -23,8 +23,8 @@ import Redis from 'ioredis';
  *   세그먼트로 분리되어 충돌하지 않는다.
  * - `recordFailure`: 원자적 INCR + (최초 생성 시) EXPIRE — Lua 스크립트로 한 번에 실행해
  *   INCR 직후 크래시로 TTL 누락(영구 키) 되는 race 를 차단. fixed window (최초 실패 시점부터
- *   `FAIL_WINDOW_SEC`) — 정상 사용자의 산발적 재시도에 관대.
- * - `isLockedOut`: GET 후 `FAIL_THRESHOLD` 비교.
+ *   `INSTALL_FAIL_WINDOW_SEC`) — 정상 사용자의 산발적 재시도에 관대.
+ * - `isLockedOut`: GET 후 `INSTALL_FAIL_THRESHOLD` 비교.
  * - Redis 미설정 / 연결 실패 시: warn 로깅 + **fail-open** (`isLockedOut`=false,
  *   `recordFailure`=no-op). nonce-cache 와 동일한 graceful degradation — in-memory 등가물이
  *   없는 순수 강화 layer 라, Redis 부재 시 차단을 끄고 기존 정책(±5분 윈도우 + capability-token)
@@ -40,9 +40,29 @@ export class Cafe24InstallRateLimitService implements OnModuleDestroy {
   private readonly redis: Redis | null;
 
   /** window 내 허용 실패 횟수. 이 값 이상이면 lockout — `429 CAFE24_INSTALL_RATE_LIMITED`. */
-  static readonly FAIL_THRESHOLD = 10;
+  static readonly INSTALL_FAIL_THRESHOLD = 10;
   /** 실패 카운터(`cafe24:install:fail:{ip}`) Redis TTL(초). nonce TTL(10분)과 동일 마진. */
-  static readonly FAIL_WINDOW_SEC = 600;
+  static readonly INSTALL_FAIL_WINDOW_SEC = 600;
+
+  /** Redis 키 세그먼트로 안전한 IP 형식(IPv4/IPv6 charset). 제어문자·공백 유입 차단. */
+  private static readonly IP_PATTERN = /^[0-9a-fA-F:.%]{1,45}$/;
+
+  /**
+   * install_token 조회/HMAC 검증 실패 = token oracle enumeration 신호 (실패 카운트 대상).
+   * REPLAY / MISSING_PARAMS / 서버측 FAILED 는 정상 운영 신호라 카운트하지 않는다.
+   * enumeration 분류 규칙의 단일 진실 지점 — 컨트롤러가 본 메서드로 위임한다.
+   */
+  static isEnumerationFailureCode(code: string | undefined): boolean {
+    return (
+      code === 'CAFE24_INSTALL_INVALID_TOKEN' ||
+      code === 'CAFE24_INSTALL_INVALID_HMAC'
+    );
+  }
+
+  /** ip 가 Redis 키 세그먼트로 안전한 형식인지. 비정상 값(개행 등)은 키 공간 오염 방지로 거부. */
+  private static isPlausibleIp(ip: string): boolean {
+    return Cafe24InstallRateLimitService.IP_PATTERN.test(ip);
+  }
 
   /**
    * 원자적 INCR + 최초 생성 시 EXPIRE. INCR 와 EXPIRE 사이 크래시로 TTL 누락되는
@@ -99,14 +119,15 @@ export class Cafe24InstallRateLimitService implements OnModuleDestroy {
    *          false (fail-open).
    */
   async isLockedOut(ip: string | undefined): Promise<boolean> {
-    if (!this.redis || !ip) return false;
+    if (!this.redis || !ip || !Cafe24InstallRateLimitService.isPlausibleIp(ip))
+      return false;
     try {
       const raw = await this.redis.get(this.buildKey(ip));
       if (raw === null) return false;
       const count = Number.parseInt(raw, 10);
       return (
         Number.isFinite(count) &&
-        count >= Cafe24InstallRateLimitService.FAIL_THRESHOLD
+        count >= Cafe24InstallRateLimitService.INSTALL_FAIL_THRESHOLD
       );
     } catch (err) {
       this.logger.warn(
@@ -121,13 +142,14 @@ export class Cafe24InstallRateLimitService implements OnModuleDestroy {
    * Redis 미설정 / 통신 실패 / ip 부재 시 no-op (graceful degradation).
    */
   async recordFailure(ip: string | undefined): Promise<void> {
-    if (!this.redis || !ip) return;
+    if (!this.redis || !ip || !Cafe24InstallRateLimitService.isPlausibleIp(ip))
+      return;
     try {
       await this.redis.eval(
         Cafe24InstallRateLimitService.INCR_EXPIRE_LUA,
         1,
         this.buildKey(ip),
-        String(Cafe24InstallRateLimitService.FAIL_WINDOW_SEC),
+        String(Cafe24InstallRateLimitService.INSTALL_FAIL_WINDOW_SEC),
       );
     } catch (err) {
       this.logger.warn(

@@ -579,6 +579,28 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
       expect(rateLimit.isLockedOut).toHaveBeenCalledWith('9.9.9.9');
       expect(rateLimit.recordFailure).not.toHaveBeenCalled();
     });
+
+    it('handles req.ip undefined gracefully (passes undefined to service)', async () => {
+      const res = makeRes();
+      await controller.cafe24Install(
+        validToken,
+        'shop',
+        '1700000000',
+        'sig',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { url: '/cafe24?mall_id=shop', ip: undefined, headers: {} } as never,
+        res as never,
+      );
+      expect(rateLimit.isLockedOut).toHaveBeenCalledWith(undefined);
+      expect(res.redirect).toHaveBeenCalledWith(302, expect.any(String));
+    });
   });
 });
 
