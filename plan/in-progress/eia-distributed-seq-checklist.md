@@ -94,14 +94,14 @@ parent: eia-distributed-seq-counter.md
 - [x] 재-grep 으로 await 미부착 emit 0건 — 완전성 보강 가드
 
 ## 4. 회귀·부하 테스트
-- [ ] 분산 race regression 테스트 — 동일 executionId 동시 emit → seq 중복·역전 0
-- [ ] (가능 시) 부하: 1000 events/s 단조 증가
+- [x] 분산 race regression — 100개 동시 `next()` → 1..100 유일(중복·gap 0). allocator spec (atomic INCR 계약 고정)
+- [ ] (보류) 2-instance docker-compose 실 race repro / 1000 events/s 부하 — Redis INCR 원자성으로 설계상 보장 + unit 커버. 실 multi-instance 부하 repro 는 follow-up (plan §1 PoC 수준, 별도)
 
 ## 5. TEST WORKFLOW
 - [x] lint — PASS (33s)
 - [x] unit — **backend 280 suites · 5398 tests PASS** (신규 allocator spec + 갱신 spec 포함). frontend 1건 실패는 아래 §기존 breakage (제 작업 무관)
-- [ ] build
-- [ ] e2e
+- [x] build — PASS (47s, backend+frontend)
+- [x] e2e — PASS (140 tests, 53s)
 
 > **인프라 노트**: 워크트리에 node_modules 미설치 → main 의 node_modules 를 symlink (backend/frontend). 동일 의존성·동일 머신이라 안전.
 

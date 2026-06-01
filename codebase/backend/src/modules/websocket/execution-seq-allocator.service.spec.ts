@@ -129,6 +129,23 @@ describe('ExecutionSeqAllocator', () => {
     });
   });
 
+  describe('동시성 regression — 같은 execution 의 동시 next() 가 중복·역전 없이 유일', () => {
+    // plan §4: 분산 race regression. atomic INCR 계약에 의존 — 같은 executionId 의
+    // 동시 emit 이 다른 발급을 받아야 한다 (중복 0, 1..N 빠짐없이). Redis INCR 의
+    // 원자성을 fake 가 재현(JS 단일 스레드 + get/set 사이 await 없음)해 계약을 고정한다.
+    it('100개 동시 next() → 1..100 유일 집합 (중복·누락 0)', async () => {
+      const redis = makeRedis();
+      const alloc = makeAllocator(redis);
+      const seqs = await Promise.all(
+        Array.from({ length: 100 }, () => alloc.next('exec-race')),
+      );
+      const unique = new Set(seqs);
+      expect(unique.size).toBe(100); // 중복 0
+      expect(Math.min(...seqs)).toBe(1);
+      expect(Math.max(...seqs)).toBe(100); // 1..100 빠짐없이 (gap 0)
+    });
+  });
+
   describe('release()', () => {
     it('release 후 같은 executionId 의 in-memory mirror 가 0 부터 재시작', async () => {
       const alloc = makeAllocator(null); // degraded path 로 mirror 동작 검증
