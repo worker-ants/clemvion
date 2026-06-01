@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-02T00:56:06.767779",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/4-nodes/4-integration/)",
+  "target_path": "spec/4-nodes/4-integration/",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
