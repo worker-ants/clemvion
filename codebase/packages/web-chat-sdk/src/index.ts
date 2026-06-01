@@ -1,4 +1,4 @@
-// @clemvion/web-chat (잠정 scope) — 공개 진입점.
+// @workflow/web-chat — 공개 진입점.
 // 스니펫 로더와 npm 이 공유하는 단일 코어. spec/7-channel-web-chat/2-sdk.
 //
 // 현 increment: 공개 타입 + boot 검증 + host↔iframe wc:* bridge + 명령 큐 + iframe 주입.
