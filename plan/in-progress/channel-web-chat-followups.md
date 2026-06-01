@@ -21,9 +21,17 @@ owner: developer (TBD)
 - [ ] **동시 ≤3 캡 잔여**: 대화 종료(conversationEnded) 신호 연동 필요 → 별도 increment(quota service 확장).
 - [ ] **opt-in invisible challenge(Turnstile/hCaptcha)**: spec §4 opt-in 항목, 미구현.
 
-### 2. 워크플로우 측 비용 가드 (spec 4-security §4 — 핵심)
+### 2. 워크플로우 측 비용 가드 (spec 4-security §4 — 핵심) — ⏸ 이연 (2026-06-02 사용자 결정: well-specified followup)
 - AI 노드 대화당 최대 turn + 워크스페이스 일일 토큰/비용 예산 → 초과 시 우아한 종료. AI Agent 노드 설정 영역과
-  맞물려 별도 설계(본 영역 밖, execution-engine/AI 노드 spec 연계).
+  맞물려 별도 설계(본 영역 밖, **execution-engine/AI 노드 spec 연계**).
+- **선행: project-planner spec 설계 필요** (execution-engine 영역). 착수 전 결정해야 할 설계 질문:
+  - **예산 단위/스코프**: (a) 워크스페이스 일일 토큰 예산 (b) 일일 비용($) 예산 (c) per-trigger(공개 위젯별) 예산 (d) 조합. 저장 위치(workspace 설정 vs trigger config vs AI 노드 config)?
+  - **대화당 max turn**: AI 노드 config 필드인가, 채널/워크스페이스 전역인가? 기본값?
+  - **미터링 지점**: 토큰 사용량 집계를 어디서 — AI 노드 실행 후 usage 이벤트? execution-engine 의 어느 hook? 실시간 누적 저장소(Redis/DB)?
+  - **우아한 종료 의미**: 초과 시 (a) 현재 turn 완료 후 중단 (b) 즉시 중단 + 사용자 고지 메시지 (c) 워크플로우 종료 노드로 라우팅. 엔드유저에게 보이는 문구?
+  - **리셋 주기/타임존**: "일일" 경계(워크스페이스 타임존? UTC?).
+  - **공개 위젯 vs 일반 execution 구분 적용 여부**(D#1 의 `auth_config_id IS NULL` 신호 재사용?).
+- 구현 범위(설계 후): execution-engine 토큰 미터 + 예산 초과 가드 + AI 노드/워크스페이스 config 표면 + 종료 UX.
 
 ### 3. 임베드 allowlist hard 강제 (opt-in) (spec 4-security §3-③)
 - v1 은 클라이언트 soft 검증(`detectHostOrigin` helper 만 존재, 실제 allowlist fetch·렌더 차단 미연결).
