@@ -246,6 +246,18 @@ interface ExecutionState {
    */
   upsertToolItem: (item: ConversationItem) => void;
   /**
+   * Append an optimistic `user` ConversationItem for the `execution.user_message`
+   * live signal (spec/5-system/6-websocket-protocol.md §4.4 / Conversation Thread
+   * §9.7), surfacing the user utterance(q) before the AI response(a) is generated.
+   * Dedups by `receivedAt` (stored on `timestamp`) so WS re-emit / re-subscribe
+   * doesn't double-append. The authoritative `ai_message` snapshot
+   * (`setConversationMessages` REPLACE) reconciles this bubble afterward.
+   */
+  appendOptimisticUserMessage: (args: {
+    content: string;
+    receivedAt: string;
+  }) => void;
+  /**
    * Patch the tool ConversationItem matching `toolCallId`. No-op if no
    * matching item is found (the snapshot path will recreate it later).
    */
@@ -547,6 +559,32 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       return {
         conversationMessages: items,
         selectedConversationItemIndex: nextIndex,
+      };
+    }),
+
+  appendOptimisticUserMessage: ({ content, receivedAt }) =>
+    set((state) => {
+      // Dedup by receivedAt — re-emit / re-subscribe must not double-append.
+      const exists = state.conversationMessages.some(
+        (i) => i.type === "user" && i.timestamp === receivedAt,
+      );
+      if (exists) return {};
+      // turnIndex best-effort: the count of live (non-injected) user turns so
+      // far. The subsequent authoritative `ai_message` REPLACE recomputes all
+      // indices, so precision here only affects the brief optimistic window.
+      const liveUserTurns = state.conversationMessages.filter(
+        (i) => i.type === "user" && !i.isInjected,
+      ).length;
+      const item: ConversationItem = {
+        type: "user",
+        content,
+        turnIndex: liveUserTurns,
+        timestamp: receivedAt,
+      };
+      return {
+        conversationMessages: [...state.conversationMessages, item],
+        // The user just spoke — an AI response is now pending.
+        isWaitingAiResponse: true,
       };
     }),
 

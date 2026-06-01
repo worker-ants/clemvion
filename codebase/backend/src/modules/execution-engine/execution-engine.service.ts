@@ -4778,6 +4778,26 @@ export class ExecutionEngineService
           'handler does not implement ResumableNodeHandler interface',
       );
     }
+    // 사용자 발화(q) 조기 노출 — 다음 턴 LLM 호출 전에 USER_MESSAGE 라이브 신호를
+    // 1회 emit 한다 (spec/5-system/6-websocket-protocol.md §4.4 execution.user_message
+    // / spec/4-nodes/3-ai/1-ai-agent.md §7.5). tool_call_* 와 동형의 비권위 진행
+    // 신호로 영속 대상이 아니다 — 권위 출처는 turn 종료 AI_MESSAGE.messages 스냅샷.
+    // `source === 'form_submitted'` (presentation_user 경로) 는 일반 채팅이 아니므로
+    // 제외하고, 일반 채팅(`'ai_message'`)과 form bypass(텍스트 메시지, 동일 source)만
+    // 발화한다 (§6.2 step 2.c.bypass). WS submit_message 와 채널 인바운드(텔레그램 등)
+    // 는 continueAiConversation 단일 chokepoint 로 수렴하므로 채널 출처도 자동 커버.
+    if (source !== 'form_submitted') {
+      this.eventEmitter.emitExecution(
+        executionId,
+        ExecutionEventType.USER_MESSAGE,
+        {
+          nodeExecutionId: nodeExec?.id,
+          nodeId: node.id,
+          message,
+          receivedAt: new Date().toISOString(),
+        },
+      );
+    }
     // spec §7.9 — handler throw (LLM 429 / timeout / connection 등) 시 conversation
     // loop 를 자연 종료시키고 `finalizeAiNode(.., 'FAILED')` 로 노드 상태를
     // FAILED 전이한다. catch 없이 propagate 하면 `waitForAiConversation` 의

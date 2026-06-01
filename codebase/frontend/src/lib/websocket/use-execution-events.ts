@@ -187,6 +187,7 @@ export function useExecutionEvents({
     pauseForConversation,
     resumeFromConversation,
     setConversationMessages,
+    appendOptimisticUserMessage,
     upsertToolItem,
     updateToolItem,
     flushPendingToolItemsAsError,
@@ -502,6 +503,29 @@ export function useExecutionEvents({
       updateNodeStatus,
       addNodeResult,
     ],
+  );
+
+  // spec/5-system/6-websocket-protocol.md §4.4 execution.user_message —
+  // 사용자 발화(q) 조기 노출. AI 응답(a) 생성 전에 optimistic user bubble 을
+  // 즉시 append 한다. 권위 출처는 후속 execution.ai_message 스냅샷이며
+  // (handleAiMessage 의 REPLACE), receivedAt 로 dedup (Conversation Thread §9.7).
+  const handleUserMessage = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        nodeExecutionId?: string;
+        nodeId?: string;
+        message?: string;
+        receivedAt?: string;
+      };
+      if (payload.message == null || payload.message === "") return;
+      appendOptimisticUserMessage({
+        content: payload.message,
+        // receivedAt 누락 (옛 backend 호환) 시 빈 문자열 dedup 키 — 그래도
+        // 후속 ai_message REPLACE 가 권위 스냅샷으로 reconcile 한다.
+        receivedAt: payload.receivedAt ?? "",
+      });
+    },
+    [appendOptimisticUserMessage],
   );
 
   const handleAiMessage = useCallback(
@@ -943,6 +967,7 @@ export function useExecutionEvents({
     client.on("execution.failed", handleExecutionFailed);
     client.on("execution.cancelled", handleExecutionCancelled);
     client.on("execution.waiting_for_input", handleWaitingForInput);
+    client.on("execution.user_message", handleUserMessage);
     client.on("execution.ai_message", handleAiMessage);
     client.on("execution.tool_call_started", handleToolCallStarted);
     client.on("execution.tool_call_completed", handleToolCallCompleted);
@@ -1017,6 +1042,7 @@ export function useExecutionEvents({
       client.off("execution.failed", handleExecutionFailed);
       client.off("execution.cancelled", handleExecutionCancelled);
       client.off("execution.waiting_for_input", handleWaitingForInput);
+      client.off("execution.user_message", handleUserMessage);
       client.off("execution.ai_message", handleAiMessage);
       client.off("execution.tool_call_started", handleToolCallStarted);
       client.off("execution.tool_call_completed", handleToolCallCompleted);
@@ -1036,6 +1062,7 @@ export function useExecutionEvents({
     handleExecutionFailed,
     handleExecutionCancelled,
     handleWaitingForInput,
+    handleUserMessage,
     handleAiMessage,
     handleToolCallStarted,
     handleToolCallCompleted,

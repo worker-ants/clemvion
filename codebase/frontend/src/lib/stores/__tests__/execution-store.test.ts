@@ -541,4 +541,48 @@ describe("useExecutionStore", () => {
       ).toBe("user");
     });
   });
+
+  // spec/conventions/conversation-thread.md §9.7 — execution.user_message →
+  // optimistic ai_user append, dedup by receivedAt.
+  describe("appendOptimisticUserMessage", () => {
+    it("appends an optimistic user item and flags isWaitingAiResponse", () => {
+      useExecutionStore.getState().appendOptimisticUserMessage({
+        content: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      });
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        type: "user",
+        content: "주문 확인해줘",
+        timestamp: "2026-06-01T00:00:00.000Z",
+      });
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    });
+
+    it("dedups by receivedAt (re-emit / re-subscribe does not double-append)", () => {
+      const args = {
+        content: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      };
+      useExecutionStore.getState().appendOptimisticUserMessage(args);
+      useExecutionStore.getState().appendOptimisticUserMessage(args);
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+    });
+
+    it("subsequent setConversationMessages (ai_message REPLACE) reconciles the optimistic bubble", () => {
+      useExecutionStore.getState().appendOptimisticUserMessage({
+        content: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      });
+      // Authoritative ai_message snapshot arrives → REPLACE.
+      useExecutionStore.getState().setConversationMessages([
+        { type: "user", content: "주문 확인해줘", turnIndex: 0 },
+        { type: "assistant", content: "네, 확인하겠습니다", turnIndex: 0 },
+      ]);
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(2);
+      expect(items[1].type).toBe("assistant");
+    });
+  });
 });
