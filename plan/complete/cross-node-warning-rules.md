@@ -59,12 +59,14 @@
 
 - [x] 신규 [`spec/conventions/cross-node-warning-rules.md`](../../spec/conventions/cross-node-warning-rules.md) 작성 — 컨트랙트, severity 정책 (error/warning), 두 메커니즘 (mini-DSL warningRules vs graphWarningRules) 의 분기, 3중 가드 (save + canvas + runtime), SSOT 보장 옵션 (shared package vs metadata serialization), 평가 유틸, 현재 등재 sample, § Rationale (왜 함수형 채택)
 
-### 6. 통합 시나리오
+### 6. 통합 시나리오 — ✅ 인프라 잠금 완료 (전 계층 e2e 는 후속 plan 소유)
 
-- [ ] e2e 테스트 — 3층 중첩 Parallel 같은 잘못된 graph 가:
-  - frontend 에서 빨간 배지 + 저장 버튼 disabled
-  - backend save endpoint 가 reject (UI 우회 케이스)
-  - runtime planParallelBody 가 reject (저장 후 마이그레이션 케이스)
+3중 가드는 각 계층 테스트로 이미 잠겨 있다:
+- [x] frontend 빨간 배지 + 저장 버튼 disabled — `custom-node-graph-warning.test.tsx` (배지) + `editor-toolbar-rbac.test.tsx` (`graphWarnings.hasError=true` 시 Save disable)
+- [x] backend save endpoint reject (UI 우회 케이스) — `workflows.service.spec.ts` (`GRAPH_VALIDATION_FAILED`) + 실 HTTP e2e `test/graph-warning-save.e2e-spec.ts` 케이스 A (3층 중첩 Parallel → 400) / B (2층 → 200) / C (단일 → 200)
+- [x] runtime planParallelBody reject (저장 후 마이그레이션 케이스) — depth rule 자체는 shared package `graph-warning-rules/__tests__/parallel.spec.ts` + backend core `graph-warning-rule.spec.ts` (3층 중첩 → `parallel:nested-depth-exceeded`) 로 잠김. 실행 엔진은 `planParallelBody` 가 `currentDepth >= 2` 에서 `PARALLEL_NESTED_DEPTH_EXCEEDED` throw (구현 완료).
+
+> **종결 결정 (2026-06-02, 사용자 승인)**: 본 plan 의 cross-node warningRule **인프라**(타입·shared package·save-validate·canvas 평가·convention)는 100% 완료. 남은 단 한 조각인 **3중 가드를 한 흐름으로 묶는 browser+HTTP 통합 e2e** (canvas 배지 → save 400 → runtime reject 를 실 server + browser 로 한 시나리오에 검증)는 본 plan 의 인프라 scope 밖이며, 이미 [`parallel-p2-followups.md`](./parallel-p2-followups.md) §2~4 ("e2e — 3층 중첩 Parallel 워크플로우의 canvas 배지 → save 400 reject → runtime reject 3중 가드 흐름") 가 소유·추적 중이다. 중복 추적을 피하기 위해 본 plan 에서는 닫고 그 plan 으로 위임.
 
 ## 수용 기준
 
@@ -73,7 +75,7 @@
 - frontend canvas 가 graph 변경 시점에 평가 + severity 별 배지
 - backend/frontend SSOT 보장 (shared package 또는 동등 메커니즘)
 - cross-node warningRule convention spec 작성
-- 단위/통합/e2e 테스트가 메커니즘 잠금
+- 단위/통합/e2e 테스트가 메커니즘 잠금 — 각 가드 계층별 테스트 완료 (§6). 3중 가드를 한 흐름으로 묶는 browser+HTTP 통합 e2e 는 `parallel-p2-followups.md` §2~4 소유
 - 본 plan 완료 후 [`parallel-p2.md`](./parallel-p2.md) §6 가 진행 가능 상태
 
 ## 의존성·리스크
