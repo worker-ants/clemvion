@@ -19,7 +19,7 @@ owner: developer (다음 진입자)
   - [ ] **A-3 follow-up — Layer 1 (분산 throttle store)**: 기존 30/min IP throttle 을 Redis 분산 store 로 이전 (멀티 인스턴스 quota 직렬화). `@nestjs/throttler` storage 가 전역 단일 설정이라 모든 throttled 엔드포인트에 영향 + 새 의존성/커스텀 storage 필요 → 별 infra PR 로 분리(deferred, 사용자 결정 2026-06-02). enumeration 방어 핵심은 Layer 2 가 cross-pod 로 완수.
 - [ ] **C-6**: `buildIntegrationMeta` 레지스트리 패턴 — 현재 cafe24 하드코딩. 두 번째 provider 추가 직전 `Map<serviceType, (entity) => IntegrationMeta>` 전환. (deferred — 2nd provider 시점까지)
 - [ ] **D-2**: `process()` 에러 격리 정책 spec 명시 (`.catch(logger.error)` BullMQ 재시도 회피) — Sentry/Datadog 등 관측 도구 선정 결정 필요. (ai-review W7)
-- [ ] **F-3 follow-up**: 에러 코드 의미 기반 명명 원칙의 정식 규약화 — `spec/conventions/error-codes.md`(또는 `naming.md`) 신설 여부 결정. 현재 SoT 는 `4-integration.md` line 1349 의 self-contained 진술뿐. 신규 코드 증가 시 격상 검토. (consistency-check `2026/05/21/19_46_41` INFO #6)
+- [x] **F-3 follow-up — 결정: 신설 (2026-06-02)**: 에러 코드 의미 기반 명명 원칙을 정식 규약 `spec/conventions/error-codes.md` 로 격상. draft `plan/in-progress/spec-draft-error-codes.md` 작성 → consistency-check --spec → spec 신설 진행 중 (worktree `cafe24-error-codes-convention-523e2d`). SoT 분리: 카탈로그·envelope 은 `5-system/3-error-handling.md`, 본 규약은 명명 규율만. (기존 SoT: `4-integration.md` Rationale "(c) 의미 기반 명명 선례 예외")
 
 ### G-1-remaining — field-set 대량 확장 (별 PR — 본 PR 은 path/method 만 정렬)
 

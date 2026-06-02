@@ -196,7 +196,7 @@ code:
 
 | 필드 | 타입 | 설명 |
 |------|------|------|
-| code | String | UPPER_SNAKE_CASE 에러 코드 (`codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 참조) |
+| code | String | UPPER_SNAKE_CASE 에러 코드 (`codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 참조). 코드 **명명 규율**(의미 기반 명명·rename 안정성·historical-artifact 예외)의 SoT 는 [`conventions/error-codes.md`](../conventions/error-codes.md) — 본 문서는 표기(`UPPER_SNAKE_CASE`)·카탈로그·envelope 만 정의한다 |
 | message | String | 사람이 읽을 수 있는 에러 메시지 (국제화 없음) |
 | details | Object? | 노드별 부가 정보 — stack / originalInput / attempts / missingFields 등. JSON 직렬화 가능해야 함 |
 
