@@ -341,6 +341,56 @@ describe('InteractionTokenService — iext_* (per_execution)', () => {
       expect(result.token).toMatch(new RegExp(`^${IEXT_PREFIX}`));
     });
   });
+
+  describe('RedisConnectionProvider 공유 경로 (W-5)', () => {
+    // injectedRedis (2번째 인자) 없이 redisConn (4번째 인자) 만으로 blacklist
+    // 검사가 공유 provider 경로를 타는지 검증한다.
+    function makeConfig() {
+      return {
+        get: jest.fn((key: string) => {
+          if (key === 'interaction.jwtSecret') return TEST_SECRET;
+          if (key === 'redis.host') return undefined;
+          return undefined;
+        }),
+      };
+    }
+    function makeRedisConn(client: unknown) {
+      return {
+        getClient: () => client,
+        getClientOrNull: () => client,
+      };
+    }
+
+    it('redisConn 주입 시 blacklist GET 이 공유 client 로 수행된다', async () => {
+      const sharedRedis = makeRedisMock();
+      sharedRedis.get.mockResolvedValue('1'); // blacklisted
+      const svc = new InteractionTokenService(
+        makeConfig() as never,
+        undefined, // injectedRedis 없음 — 공유 provider 경로 강제
+        undefined,
+        makeRedisConn(sharedRedis) as never,
+      );
+      const { token } = await svc.issuePerExecution('exec-shared');
+      const v = await svc.verifyPerExecution(token);
+      expect(v.valid).toBe(false);
+      expect(v.reason).toBe('blacklisted');
+      expect(sharedRedis.get).toHaveBeenCalledWith(
+        expect.stringContaining('iext:blacklist:'),
+      );
+    });
+
+    it('redisConn 이 null 반환(공유 미가용) → blacklist 검사 skip (fail-open valid)', async () => {
+      const svc = new InteractionTokenService(
+        makeConfig() as never,
+        undefined,
+        undefined,
+        makeRedisConn(null) as never,
+      );
+      const { token } = await svc.issuePerExecution('exec-nored');
+      const v = await svc.verifyPerExecution(token);
+      expect(v.valid).toBe(true);
+    });
+  });
 });
 
 describe('InteractionTokenService — itk_* (per_trigger)', () => {

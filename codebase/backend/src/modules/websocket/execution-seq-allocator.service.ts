@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Redis, { RedisOptions } from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
 /**
  * `exec:cont:seq:` (continuation-bus) 와 별개의 emit-event seq 네임스페이스 default TTL.
@@ -41,9 +41,6 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
   /** monotonic seq per executionId 용 Redis INCR 키 prefix. */
   private static readonly SEQ_KEY_PREFIX = 'exec:seq:';
 
-  /** lazy 초기화 ioredis 클라이언트 (continuation-bus 의 lockClient 패턴 동일). */
-  private redisClient: Redis | null = null;
-
   /**
    * Redis 미가용 시 사용하는 in-memory per-execution high-water mark.
    * 정상 경로에서도 mirror 로 갱신된다 (위 클래스 주석 참조).
@@ -53,7 +50,7 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
 
   private readonly seqKeyTtlSeconds: number;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(private readonly redisConn: RedisConnectionProvider) {
     // ENV 오버라이드 (양수 정수만 채택). continuation-bus 의 NaN/음수 방어 패턴 동일.
     const parsed = Number(process.env.EXECUTION_SEQ_TTL_SECONDS);
     this.seqKeyTtlSeconds =
@@ -63,34 +60,11 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
   }
 
   /**
-   * Lazy 초기화: 클라이언트가 처음 필요할 때 connect (onModuleInit 으로 미루지 않는
-   * 이유 — 모듈 초기화 순서 race 회피). continuation-bus.getLockClient 와 동일 패턴.
+   * 공유 command 연결 반환 (INFO-12) — RedisConnectionProvider 가 lazy connect·소유.
+   * config 누락 시 throw → 아래 next() 의 catch 가 degraded fallback 처리.
    */
   private getClient(): Redis {
-    if (!this.redisClient) {
-      const host = this.configService.get<string>('redis.host');
-      const port = this.configService.get<number>('redis.port');
-      if (!host || !port) {
-        throw new Error(
-          'redis.host / redis.port 설정이 누락됐습니다. REDIS_HOST / REDIS_PORT 를 확인하세요.',
-        );
-      }
-      const password = this.configService.get<string>('redis.password');
-      const tlsEnabled = this.configService.get<boolean>('redis.tls');
-      const opts: RedisOptions = {
-        host,
-        port,
-        ...(password ? { password } : {}),
-        ...(tlsEnabled ? { tls: {} } : {}),
-        enableReadyCheck: true,
-        maxRetriesPerRequest: 3,
-      };
-      this.redisClient = new Redis(opts);
-      this.redisClient.on('error', (err: Error) => {
-        this.logger.error(`Redis seqAllocator client error: ${err.message}`);
-      });
-    }
-    return this.redisClient;
+    return this.redisConn.getClient();
   }
 
   /**
@@ -153,9 +127,9 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
    */
   release(executionId: string): void {
     this.fallbackCounters.delete(executionId);
-    // best-effort DEL — 연결을 새로 열지 않는다 (getClient 의 lazy 생성과 비대칭):
-    // release 는 종료 정리이므로 이미 열린 client 가 있을 때만 시도.
-    const client = this.redisClient;
+    // best-effort DEL — 공유 연결이 가용할 때만 시도 (config 누락 시 null → skip).
+    // release 는 종료 정리이므로 getClientOrNull 로 degrade-safe.
+    const client = this.redisConn.getClientOrNull();
     if (client) {
       const key = `${ExecutionSeqAllocator.SEQ_KEY_PREFIX}${executionId}`;
       client.del(key).catch((err: unknown) => {
@@ -169,12 +143,10 @@ export class ExecutionSeqAllocator implements OnModuleDestroy {
     }
   }
 
-  async onModuleDestroy(): Promise<void> {
+  onModuleDestroy(): void {
     // graceful shutdown 시 in-memory mirror 반납 (release 누락분 누수 방지).
+    // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
     this.fallbackCounters.clear();
-    if (this.redisClient) {
-      await this.redisClient.quit().catch(() => undefined);
-    }
   }
 
   /** 로그 인젝션 방지 — executionId 의 CR/LF/탭 제거 (기타 C0 생략) + 길이 cap. */

@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { getQueueToken } from '@nestjs/bullmq';
+import { RedisConnectionProvider } from '../../../common/redis/redis-connection.provider';
 import {
   ContinuationBusService,
   RECOVERY_LOCK_KEY,
@@ -15,8 +15,9 @@ import { CONTINUATION_EXECUTION_QUEUE } from '../queues/continuation-execution.q
  * 본 spec 은 publish → queue.add 매핑 + lock helpers 만 검증.
  */
 
-// ioredis lock client 의 in-memory stub. ContinuationBusService 가 lazy 로
-// `new Redis(...)` 를 직접 호출하므로 module-level mock 으로 대체.
+// 공유 command 연결의 in-memory stub. ContinuationBusService 는 이제
+// RedisConnectionProvider.getClient() 가 반환하는 단일 공유 client 로 lock command 를
+// 실행하므로, provider mock 이 본 fake 를 반환하도록 구성한다.
 type FakeRedisCmds = {
   incr: jest.Mock;
   expire: jest.Mock;
@@ -29,6 +30,9 @@ type FakeRedisCmds = {
 const fakeRedisInstances: FakeRedisCmds[] = [];
 
 function createFakeRedis(): FakeRedisCmds {
+  // W-7: 매 호출마다 counter/store 를 fresh 하게 닫는다 — beforeEach 가
+  // fakeRedisInstances 를 비우고 createFakeRedis() 를 새로 호출하므로 각 it
+  // 블록은 독립된 store 를 받는다 (테스트 간 lock/seq 상태 누수 없음).
   let counter = 0;
   const store = new Map<string, string>();
   const instance: FakeRedisCmds = {
@@ -59,30 +63,24 @@ function createFakeRedis(): FakeRedisCmds {
   return instance;
 }
 
-jest.mock('ioredis', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => createFakeRedis()),
-}));
-
 describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
   let bus: ContinuationBusService;
   let queueAdd: jest.Mock;
 
   beforeEach(async () => {
+    // W-7: 모듈 스코프 배열을 비우고 매 it 마다 fresh fake 를 만들어 store 격리.
     fakeRedisInstances.length = 0;
+    const fakeRedis = createFakeRedis();
     queueAdd = jest.fn().mockResolvedValue({ id: 'mock-job-id' });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContinuationBusService,
         {
-          provide: ConfigService,
+          provide: RedisConnectionProvider,
           useValue: {
-            get: jest.fn((key: string) => {
-              if (key === 'redis.host') return 'localhost';
-              if (key === 'redis.port') return 6379;
-              return undefined;
-            }),
+            getClient: jest.fn(() => fakeRedis),
+            getClientOrNull: jest.fn(() => fakeRedis),
           },
         },
         {
@@ -95,10 +93,6 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
     }).compile();
 
     bus = module.get(ContinuationBusService);
-  });
-
-  afterEach(async () => {
-    await bus.onModuleDestroy();
   });
 
   describe('publish → BullMQ enqueue', () => {
@@ -275,18 +269,12 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
     });
   });
 
-  describe('onModuleDestroy', () => {
-    it('lockClient.quit() 호출 (lazy init 이 한 번이라도 됐을 때)', async () => {
-      // lazy init 트리거 — acquireLock 한 번 호출.
+  describe('공유 연결 lifecycle (INFO-12)', () => {
+    it('lock command 는 공유 client 를 quit 하지 않는다 — 종료는 RedisConnectionProvider 소관', async () => {
+      // lock command 트리거 후에도 본 서비스가 client.quit() 을 호출하지 않음을 확인.
       await bus.acquireLock(RECOVERY_LOCK_KEY, 60);
       expect(fakeRedisInstances.length).toBeGreaterThan(0);
-      await bus.onModuleDestroy();
-      expect(fakeRedisInstances[0].quit).toHaveBeenCalled();
-    });
-
-    it('lockClient lazy init 전 호출이면 no-op (TypeError 없음)', async () => {
-      // 단위 인스턴스 — lazy init 트리거 전.
-      await expect(bus.onModuleDestroy()).resolves.not.toThrow();
+      expect(fakeRedisInstances[0].quit).not.toHaveBeenCalled();
     });
   });
 });

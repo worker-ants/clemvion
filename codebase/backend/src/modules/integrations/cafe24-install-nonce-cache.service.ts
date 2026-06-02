@@ -1,12 +1,7 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  Optional,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
 /**
  * Cafe24 install endpoint 의 timestamp+hmac 재전송 방지 nonce cache.
@@ -29,47 +24,21 @@ import Redis from 'ioredis';
  * spec/4-nodes/4-integration/4-cafe24.md (HMAC verification / replay 절) 참조.
  */
 @Injectable()
-export class Cafe24InstallNonceCache implements OnModuleDestroy {
+export class Cafe24InstallNonceCache {
   private readonly logger = new Logger(Cafe24InstallNonceCache.name);
   private readonly redis: Redis | null;
   /** ±5분 윈도우 의 2배 — Cafe24 가 윈도우 안에서 다시 호출하지 못하게 한다. */
   static readonly TTL_SEC = 10 * 60;
 
   constructor(
-    @Optional() configService?: ConfigService,
+    // _configService: DI 파라미터 순서 고정(하위 호환) — Redis 는 redisConn 으로 대체 (INFO-12).
+    @Optional() _configService?: ConfigService,
     @Optional() @Inject('CAFE24_INSTALL_NONCE_REDIS') injectedRedis?: Redis,
+    @Optional() redisConn?: RedisConnectionProvider,
   ) {
-    if (injectedRedis) {
-      // 테스트가 mock redis 를 주입할 수 있게 한다.
-      this.redis = injectedRedis;
-      return;
-    }
-    if (!configService) {
-      this.redis = null;
-      return;
-    }
-    const host = configService.get<string>('redis.host');
-    const port = configService.get<number>('redis.port');
-    if (!host || !port) {
-      this.redis = null;
-      return;
-    }
-    const password = configService.get<string>('redis.password');
-    const tlsEnabled = configService.get<boolean>('redis.tls');
-    try {
-      this.redis = new Redis({
-        host,
-        port,
-        ...(password ? { password } : {}),
-        ...(tlsEnabled ? { tls: {} } : {}),
-        lazyConnect: true,
-      });
-    } catch (err) {
-      this.logger.warn(
-        `Cafe24InstallNonceCache: Redis 초기화 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      this.redis = null;
-    }
+    // 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
+    // 미가용 시 null 로 degrade — nonce 검사 skip (graceful degradation).
+    this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
   }
 
   /**
@@ -115,24 +84,5 @@ export class Cafe24InstallNonceCache implements OnModuleDestroy {
     return `cafe24:install:nonce:${params.mallId}:${params.timestamp}:${hmacPrefix}`;
   }
 
-  /**
-   * 테스트 / shutdown 용도. Redis 연결을 닫는다.
-   */
-  async close(): Promise<void> {
-    if (!this.redis) return;
-    try {
-      await this.redis.quit();
-    } catch {
-      // shutdown 중 실패는 무시
-    }
-  }
-
-  /**
-   * NestJS lifecycle — graceful shutdown 시 Redis 연결 누수 방지 (W-73).
-   * 옛 코드는 close() 만 두고 어디서도 호출하지 않아 SIGTERM 후에도 connection
-   * pool 이 dangling 상태였다.
-   */
-  async onModuleDestroy(): Promise<void> {
-    await this.close();
-  }
+  // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
 }
