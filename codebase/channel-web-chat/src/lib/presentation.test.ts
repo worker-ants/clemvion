@@ -66,6 +66,19 @@ describe("converters", () => {
     expect(c.chartType).toBe("bar");
     expect(c.points).toEqual([{ x: "a", y: 3 }]);
   });
+  it("toChart — xAxis/yAxis.label 추출", () => {
+    const c = toChart({
+      config: { chartType: "line", xAxis: { field: "m", label: "월" }, yAxis: { field: "v", label: "매출" } },
+      output: { data: [{ x: "1월", y: 5 }] },
+    });
+    expect(c.xLabel).toBe("월");
+    expect(c.yLabel).toBe("매출");
+  });
+  it("toChart — label 없으면 undefined", () => {
+    const c = toChart({ config: { chartType: "bar", xAxis: { field: "m" } }, output: { data: [] } });
+    expect(c.xLabel).toBeUndefined();
+    expect(c.yLabel).toBeUndefined();
+  });
   it("toTemplate — rendered + 기본 html", () => {
     const t = toTemplate({ config: {}, output: { rendered: "<b>x</b>" } });
     expect(t.outputFormat).toBe("html");

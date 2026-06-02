@@ -46,6 +46,9 @@ export interface ChartPoint {
 export interface ChartData {
   chartType: "bar" | "line" | "area" | "pie" | "donut";
   title?: string;
+  /** 축 레이블(config.xAxis.label / config.yAxis.label). */
+  xLabel?: string;
+  yLabel?: string;
   points: ChartPoint[];
   colors: string[];
   buttons: PresentationButton[];
@@ -181,9 +184,15 @@ export function toChart(p: unknown): ChartData {
   const chartType = CHART_TYPES.has(config.chartType as string)
     ? (config.chartType as ChartData["chartType"])
     : "bar";
+  const axisLabel = (axis: unknown): string | undefined => {
+    const label = asRecord(axis).label;
+    return typeof label === "string" && label ? label : undefined;
+  };
   return {
     chartType,
     title: typeof config.title === "string" ? config.title : undefined,
+    xLabel: axisLabel(config.xAxis),
+    yLabel: axisLabel(config.yAxis),
     points,
     colors: asArray<string>(config.colors).filter((c) => typeof c === "string"),
     buttons: asButtons(config.buttons),

@@ -50,5 +50,20 @@ export const widgetStyles = `
 .wc-table-truncated { font-size: 11px; color: #9ca3af; margin-top: 4px; }
 .wc-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .wc-chart-svg { width: 100%; max-width: 280px; height: auto; }
+.wc-chart-tick { font-size: 7px; fill: #6b7280; }
+.wc-chart-axis { stroke: #d1d5db; stroke-width: 1; }
+.wc-chart-axis-label { font-size: 8px; fill: #4b5563; font-weight: 600; }
+.wc-chart-pie-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wc-chart-pie-wrap .wc-chart-svg { max-width: 140px; }
+.wc-chart-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #4b5563; }
+.wc-chart-legend li { display: flex; align-items: center; gap: 5px; }
+.wc-legend-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex: 0 0 auto; }
 .wc-template-body { font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+.wc-template-body[data-rich] { white-space: normal; }
+.wc-template-body[data-rich] p { margin: 0 0 6px; }
+.wc-template-body[data-rich] ul, .wc-template-body[data-rich] ol { margin: 0 0 6px; padding-left: 18px; }
+.wc-template-body[data-rich] a { color: #5B4FE9; }
+.wc-template-body[data-rich] code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+.wc-template-body[data-rich] table { border-collapse: collapse; font-size: 13px; }
+.wc-template-body[data-rich] th, .wc-template-body[data-rich] td { border: 1px solid #e5e7eb; padding: 4px 7px; }
 `;
