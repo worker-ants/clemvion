@@ -19,7 +19,7 @@
 | I-1 | 59c28d41 | `catch(err)` + `this.logger.error(...)` 추가 — Redis 장애 무음 실패 방지 |
 | I-8 | 59c28d41 | `deriveHealth` 복합 우선순위 테스트 2건 추가 (paused+failed 동시, waiting+failed 동시) |
 | I-9 | 59c28d41 | `computeUtilization` `Math.min(…, 1)` 상한 추가 + 테스트 케이스 |
-| I-11 | 59c28d41 | e2e `EXPECTED_QUEUE_NAMES` 하드코딩 → `SYSTEM_STATUS_QUEUE_NAMES` 직접 import |
+| I-11 | 59c28d41 → **388ac7b3 되돌림** | e2e 가 constants 를 import 하면 큐 상수가 서비스 파일→nodes 그래프(`@workflow/node-summary`)를 전이 로드해 e2e jest 모듈 해석이 깨짐. 블랙박스 e2e 원칙에 따라 하드코딩 + SoT 동기화 주석으로 복원 (docker 기동 후 e2e 실행에서 발견) |
 | I-12 | 59c28d41 | `.env.example` `SYSTEM_STATUS_FAILED_THRESHOLD` / `SYSTEM_STATUS_DELAYED_THRESHOLD` 기본값·설명 추가 |
 | I-13 | 59c28d41 | `spec/2-navigation/_product-overview.md` NAV-SS-01~06 🚧(계획) → ✅ |
 | I-14 | 59c28d41 | `spec/5-system/_product-overview.md` NF-OB-06 🚧(계획) → ✅ |
@@ -33,7 +33,7 @@
 - lint  : 통과
 - unit  : 통과 (13 passed, system-status.service.spec 포함 — 기존 10 + 신규 3)
 - build : 통과
-- e2e   : 자동 흐름 환경 차단 (docker daemon 미가동 — `unix:///Users/gehrig/.docker/run/docker.sock`). 로그: `_test_logs/e2e-20260603-012448.log`. CI 위임.
+- e2e   : **통과** (143 tests, system-status 3건 포함 — docker 데몬 기동 후 실행. 로그 `_test_logs/e2e-20260603-072640.log`). 최초엔 docker 미가동으로 차단됐으나 재실행 시 I-11 import 가 모듈 로드를 깨 1회 실패 → 388ac7b3 으로 복원 후 PASS.
 
 ## 보류·후속 항목
 
