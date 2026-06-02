@@ -3,6 +3,8 @@
 > 작성일: 2026-05-30
 > 분리 출처: [`parallel-p2.md`](./parallel-p2.md) 결정 H (cancellation 인프라를 별 plan 으로 분리)
 > 후속 plan: `parallel-p2.md` §5 (Parallel `cancel-others-on-fail` errorPolicy 활용)
+>
+> **재검증 (2026-06-03)**: §1·§3·§7(spec) 완료. 노드별 signal 전파는 §4 Database(`database-query.handler.ts`), §5 AI Agent·Text Classifier·IE **single-turn**, §6 Send Email 까지 구현됨(각 `*.handler.ts` + spec 테스트). **잔여**: §2 엔진단(dispatch 직전 `abortSignal.aborted` 사전체크 + `NodeExecution.status='cancelled'` enum/migration + AbortError 분류 — `execution-engine.service.ts` 에 `.aborted` 0건), §5 IE **multi-turn**(`information-extractor.handler.ts:634` TODO 잔존), §6 chat-channel, §7 e2e. **NodeExecution `cancelled` enum 작업은 [`parallel-p2-followups.md`](./parallel-p2-followups.md) §1 과 동일 작업** — 하나 닫으면 둘 다 닫힘. (체크박스는 단면 매핑이 모호해 본 note 로 상태 기록, §4~§6 박스는 후속 PR 에서 정밀 체크.)
 
 ## 배경
 
@@ -19,10 +21,10 @@
 - [`codebase/backend/src/modules/execution-engine/execution-engine.service.ts`](../../codebase/backend/src/modules/execution-engine/execution-engine.service.ts) — 노드 dispatch / handler.execute 호출
 - [`codebase/backend/src/modules/execution-engine/shutdown/`](../../codebase/backend/src/modules/execution-engine/shutdown/) — graceful shutdown (향후 통합 지점)
 - 외부 I/O 노드:
-  - HTTP: `codebase/backend/src/nodes/integration/http/`
-  - Database: `codebase/backend/src/nodes/integration/database/`
+  - HTTP: `codebase/backend/src/nodes/integration/http-request/`
+  - Database: `codebase/backend/src/nodes/integration/database-query/`
   - AI Agent / Text Classifier / Information Extractor: `codebase/backend/src/nodes/ai/`
-  - Send Email: `codebase/backend/src/nodes/integration/email/`
+  - Send Email: `codebase/backend/src/nodes/integration/send-email/`
 
 ## 작업 단위
 
@@ -48,7 +50,7 @@
 
 ### 4. Database 노드 signal 전파
 
-- [ ] `codebase/backend/src/nodes/integration/database/` 에서 사용 중인 driver 의 cancel 지원 확인 (PostgreSQL `pg`: `client.cancel()`, MySQL `mysql2`: connection destroy, MongoDB: `signal` option 직접 지원 등)
+- [ ] `codebase/backend/src/nodes/integration/database-query/` 에서 사용 중인 driver 의 cancel 지원 확인 (PostgreSQL `pg`: `client.cancel()`, MySQL `mysql2`: connection destroy, MongoDB: `signal` option 직접 지원 등)
 - [ ] driver 별 signal 전파 구현
 - [ ] 단위 테스트 — signal abort 시 쿼리가 중단되는지
 

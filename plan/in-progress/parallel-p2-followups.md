@@ -24,9 +24,9 @@
 ### 6. GRAPH_VALIDATION_FAILED i18n + 사용자 문서 갱신 (ai-review SUMMARY#20)
 > **2026-06-02 재범위**: 메시지가 동적 템플릿(`${node.label}` 등)이라 정적 매핑 불가 + `ERROR_KO` 인프라를 spec 이 미정의 상태였음이 드러나, i18n 아키텍처를 선행 spec 으로 분리 정의했다. 구현은 별 plan [`backend-msg-i18n-impl.md`](./backend-msg-i18n-impl.md) 로 이관 — 본 §6 은 그 plan 으로 대체된다.
 - [x] (선행 spec) 동적·코드 기반 backend 메시지 localization 정책 — `i18n-userguide.md` Principle 3-C (`ERROR_KO`·`GRAPH_WARNING_KO`·`translateBackendError`/`translateGraphWarning`) + `cross-node-warning-rules.md §3` rule 계약(`params`) 확정.
-- [ ] (→ `backend-msg-i18n-impl.md`) `GRAPH_VALIDATION_FAILED` 한국어 매핑은 **의무** (조건절 제거): `ERROR_KO` 신설 + 매핑 추가.
-- [ ] (→ `backend-msg-i18n-impl.md`) user-guide MDX(`05-run-and-debug/validation-errors.mdx` + `.en`)에 graph validation 에러 응답 안내 추가.
-- [ ] (→ `backend-msg-i18n-impl.md`) `GET /workflows/:id/graph-warnings` 엔드포인트를 API 참조 가이드(존재 시)에 반영.
+- [x] (→ `backend-msg-i18n-impl.md`, 완료 `60c01585`) `GRAPH_VALIDATION_FAILED` 한국어 매핑 — i18n 아키텍처가 frontend 로 안착해 `backend-labels.ts:526` `translateBackendError` 매핑으로 구현 (plan 의 backend `ERROR_KO` 신설 위치 문구는 stale, 결과 동등).
+- [x] (→ `backend-msg-i18n-impl.md`, 완료 `60c01585`) user-guide MDX(`05-run-and-debug/validation-errors.mdx` + `.en`) graph validation 에러 안내 추가됨.
+- [x] (→ `backend-msg-i18n-impl.md`, 완료 `60c01585`) `GET /workflows/:id/graph-warnings` 엔드포인트 존재 확인 (`workflows.controller.ts:111-126`).
 
 ### 7. ExecutionContext God Object — ParallelBranchContext 분리: 잔여 Warning
 > **핵심 구현 완료** (commit `ec0f56e1`, complete 기록 §7). spec body(`10-parallel.md §Rationale 결정 G`,
