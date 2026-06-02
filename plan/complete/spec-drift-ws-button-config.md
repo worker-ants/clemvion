@@ -42,3 +42,11 @@ owner: project-planner
 ## 처리 우선순위
 
 MEDIUM — Presentation 영역과 직접 인접하나 본 fix (frontend isSelected 가드 + backend normalizeButtonIds) 와는 독립. WS protocol spec 차기 갱신 시 묶어 처리.
+
+## 해소 (2026-06-03, worktree `spec-drift-resolve-efb608`)
+
+- **C2=A, C3=A 채택** (사용자). 코드 재검증으로 두 결정 모두 확정 지지됨:
+  - C2: 엔진 `waitForButtonInteraction` 이 timeout 타이머 없이 무한 await (`timeoutAction` 코드 부재) — WS §4.4 예시의 `timeout`/`timeoutAction` 만 stale.
+  - C3: 엔진이 `buttonConfig.nodeOutput = nodeOutputForEvent (= structured ?? flatNodeOutput)` 로 `NodeHandlerOutput` 5필드를 그대로 실어보냄 — `type` 판별자 없음.
+- **적용**: `spec/5-system/6-websocket-protocol.md` §4.4 예시에서 `timeout`/`timeoutAction` 제거 + `nodeOutput` 을 `{ config, output, status }` 형태로 교체. 필드표(`buttonConfig`·`buttonConfig.nodeOutput`) 갱신 + Rationale C2/C3 추가.
+- **잔여 advisory (비차단)**: W3 (`config.buttonConfig` vs WS payload top-level 레이어 기술 혼용 명료화) — 별도 추적 미생성. 차후 WS protocol spec 갱신 시 함께 확인. 인접 관찰: §4.4 Form 예시의 `formConfig.timeout: 300` 도 Presentation 무제한 대기 원칙과 어긋날 수 있으나 본 티켓(buttonConfig) scope 밖 — 별도 확인 권고.

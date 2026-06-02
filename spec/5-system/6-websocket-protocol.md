@@ -403,9 +403,11 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
         { "id": "uuid-1", "label": "승인", "type": "port", "style": "primary" },
         { "id": "uuid-2", "label": "상세보기", "type": "link", "url": "https://...", "style": "outline" }
       ],
-      "timeout": 300,
-      "timeoutAction": "cancel",
-      "nodeOutput": { "type": "carousel", "items": [...], "rendered": "..." }
+      "nodeOutput": {
+        "config": { "items": [ "..." ], "buttonConfig": { "...": "..." } },
+        "output": { "items": [ "..." ] },
+        "status": "waiting_for_input"
+      }
     }
   }
 }
@@ -415,8 +417,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 |------|------|
 | `interactionType` | `form`: Form 노드, `buttons`: 버튼이 설정된 Presentation 노드, `ai_conversation`: AI Agent Multi Turn 일반 대화, `ai_form_render`: AI Agent 가 `render_form` 도구 호출로 사용자 form 제출 대기 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) |
 | `formConfig` | **`interactionType = form` 한정** top-level 필드. 그래프 Form 노드의 폼 설정. `ai_form_render` 의 경우 top-level 에는 없고 `conversationConfig.pendingFormToolCall.formConfig` 위치로 nest (아래 행) — UI 가 form payload 출처를 단일 위치에서 읽도록 SoT 정리 |
-| `buttonConfig` | `interactionType = buttons` 시 존재. 버튼 정의 + 타임아웃 + 노드 렌더링 출력 |
-| `buttonConfig.nodeOutput` | 노드의 렌더링 결과 (클라이언트가 콘텐츠 + 버튼을 함께 표시) |
+| `buttonConfig` | `interactionType = buttons` 시 존재. 버튼 정의 + 노드 렌더링 출력 (`{ buttons, nodeOutput }`). 버튼 클릭까지 무제한 대기 — 타임아웃 필드 없음 ([Presentation 공통 §3·§6.1](../4-nodes/6-presentation/0-common.md)) |
+| `buttonConfig.nodeOutput` | 노드의 구조화 출력 (`NodeHandlerOutput`: `{ config, output, meta?, port?, status }`). 클라이언트가 콘텐츠 + 버튼을 함께 표시. 노드 종류는 상위 `payload.nodeType` 로 식별 — `nodeOutput` 에 `type` 판별자 래퍼는 두지 않는다 ([node-output.md Principle 1.1.4](../conventions/node-output.md)) |
 | `conversationConfig` | `interactionType ∈ {ai_conversation, ai_form_render}` 시 존재. AI Agent Multi Turn 대화 설정 |
 | `conversationConfig.pendingFormToolCall` | **`interactionType = ai_form_render` 한정**. shape `{ toolCallId: string, formConfig: object }` — `toolCallId` 는 클라이언트가 `execution.submit_form` 매칭 근거, `formConfig` 는 LLM 페이로드 ∪ `presentationTools[*].defaults` overlay 결과 (form 노드 input schema shape). UI 의 `AssistantPresentationsBlock` 이 assistant turn 의 `presentations[*]` 중 `payload.toolCallId === pendingFormToolCall.toolCallId` 인 form 페이로드를 interactive `DynamicFormUI` 로 렌더 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn) / [§7.4](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)) |
 
@@ -910,6 +912,13 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 ---
 
 ## Rationale
+
+### §4.4 `buttonConfig` 예시 정정 — 타임아웃 제거 + `nodeOutput` 판별자 폐지 (2026-06-03 spec-drift 결정 C2·C3)
+
+초기 §4.4 `buttonConfig` 예시는 `timeout: 300` / `timeoutAction: "cancel"` 과 `nodeOutput: { "type": "carousel", ... }` 를 포함했으나, 둘 다 다른 SoT 와 모순되는 **stale 예시** 였다.
+
+- **C2 — 타임아웃 제거**: [Presentation 공통 §3·§6.1](../4-nodes/6-presentation/0-common.md) 은 버튼 클릭까지 "외부 cancel/종료 외에는 무제한 대기" 를 규정하고, 엔진 구현(`waitForButtonInteraction`)도 timeout 타이머 없이 무한 await 한다 (`timeoutAction` 은 코드에 부재). 예시의 `timeout`/`timeoutAction` 만 stale 이었으므로 제거. (대안: 공통 규약에 타임아웃 정책을 정식 도입 — 현 구현·다른 spec 이 모두 무제한 대기라 기각.)
+- **C3 — `nodeOutput` 판별자 폐지**: [Presentation 공통 §4](../4-nodes/6-presentation/0-common.md) 의 Principle 1.1.4 (`type` 판별자 래퍼 금지) 에 따라, 엔진은 `buttonConfig.nodeOutput` 으로 노드의 `NodeHandlerOutput`(`{ config, output, meta?, port?, status }`)을 그대로 실어 보낸다 (`nodeOutputForEvent = structured ?? flatNodeOutput`). 노드 종류는 상위 `payload.nodeType` 로 이미 식별되므로 `nodeOutput` 안의 `type` 판별자는 불필요·중복. 예시를 실제 5필드 구조로 교체. (대안: `nodeOutput` 전용 별도 스키마 명시 — Principle 1.1.4 와 충돌해 기각.)
 
 ### 재연결 복구 — native WS 는 snapshot, seq 버퍼-replay 는 SSE 전송 (§6.2)
 
