@@ -612,6 +612,7 @@ describe("useExecutionStore", () => {
         timestamp: "2026-06-01T00:00:09.999Z", // 권위 receivedAt 로 스탬프
       });
       expect(items[0].optimisticPending).toBeUndefined(); // flag 해제
+      expect(items[0].turnIndex).toBe(1); // I-12: reconcile 후 turnIndex 보존
       expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
     });
 

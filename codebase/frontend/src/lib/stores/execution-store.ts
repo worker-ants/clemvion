@@ -272,6 +272,13 @@ interface ExecutionState {
    * Dedups by `receivedAt` (stored on `timestamp`) so WS re-emit / re-subscribe
    * doesn't double-append. The authoritative `ai_message` snapshot
    * (`setConversationMessages` REPLACE) reconciles this bubble afterward.
+   *
+   * Reconcile branch: if a client-side `optimisticPending` bubble (appended by
+   * `sendMessage` the instant the user hits send) exists with matching `content`,
+   * this action stamps the server `receivedAt` and clears the flag **instead of
+   * appending a second bubble**. Without this branch the local bubble and the WS
+   * echo coexist as duplicates until `ai_message` REPLACE collapses them —
+   * the "한 메시지가 둘로 보이다 합쳐짐" regression fixed in this commit.
    */
   appendOptimisticUserMessage: (args: {
     content: string;
@@ -602,17 +609,23 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       // collapses them (the "한 메시지가 둘로 보이다 합쳐짐" bug). Match on the
       // pending flag + content; stamp the authoritative `receivedAt` (so a
       // re-emit is caught above) and clear the flag — append nothing.
-      const pendingIdx = state.conversationMessages.findIndex(
+      //
+      // Trade-off: content 기반 매칭이므로 동일 발화를 연속으로 전송하면 첫
+      // 번째 pending 버블이 흡수된다. 극단적 엣지 케이스이며 후속
+      // ai_message REPLACE 가 최종 보정하므로 허용 가능한 trade-off.
+      const optimisticPendingIdx = state.conversationMessages.findIndex(
         (i) =>
           i.type === "user" &&
           i.optimisticPending === true &&
           i.content === content,
       );
-      if (pendingIdx !== -1) {
+      if (optimisticPendingIdx !== -1) {
         const next = state.conversationMessages.map((i, idx) =>
-          idx === pendingIdx
+          idx === optimisticPendingIdx
             ? {
                 ...i,
+                // spread 불변 패턴 — `delete` 대신 `undefined` 할당으로
+                // React/Zustand 의 reference equality 를 유지하면서 flag 해제.
                 optimisticPending: undefined,
                 timestamp: receivedAt || i.timestamp,
               }
