@@ -1,6 +1,8 @@
 ---
 id: cross-node-warning-rules
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/backend-msg-i18n-impl.md
 code:
   - codebase/packages/graph-warning-rules/**
   - codebase/backend/src/nodes/core/graph-warning-rule.ts
@@ -60,16 +62,21 @@ export interface GraphWarningRule {
   evaluate: (
     node: GraphRuleNode,
     graph: { nodes: readonly GraphRuleNode[]; edges: readonly GraphRuleEdge[] },
-  ) => { message: string } | null;
+  ) => { message: string; params?: Record<string, string | number> } | null;
 }
 
 export interface GraphWarningRuleResult {
   ruleId: string;
   severity: 'error' | 'warning';
   nodeId: string;
+  /** 영문 SoT / fallback. ko 로케일 표시 문자열은 frontend 가 ruleId 로 localize. */
   message: string;
+  /** 동적 메시지의 보간 값 (노드 라벨·수치 등). frontend 가 `GRAPH_WARNING_KO[ruleId]` 템플릿에 `{{name}}` 보간. */
+  params?: Record<string, string | number>;
 }
 ```
+
+- **메시지 localization**: `message` 는 **영문 SoT/fallback** 이며, 동적 값(노드 라벨·수치)을 보간하는 rule 은 그 값을 `params` 로 분리해 노출한다. ko 로케일 canvas 배지·저장 거부 안내 등 사용자 표시 문자열은 frontend `translateGraphWarning(result, locale)` 가 `ruleId` 키로 한국어 템플릿을 골라 `params` 를 `{{name}}` 보간해 만든다. 매핑 SoT·의무·자동 가드는 [`i18n-userguide.md` Principle 3-C](./i18n-userguide.md). 신규 graphWarningRule 추가 시 동적 값 `params` 노출 + `GRAPH_WARNING_KO` 매핑이 동일 PR 의무.
 
 - `NodeComponentMetadata.graphWarningRules?: readonly GraphWarningRule[]` 신규 필드 — Parallel 노드는 패키지의 `parallelGraphWarningRules` 를 참조.
 - backend 는 thin adapter (`graph-warning-rule.ts`) 가 TypeORM `Node`/`Edge` entity 를 `GraphRuleNode`/`GraphRuleEdge` 로 매핑(`toRuleNode`/`toRuleEdge`) 후 패키지 유틸에 위임.
@@ -133,3 +140,5 @@ evaluateGraphWarningRulesForGraph(graph, resolver) → GraphWarningRuleResult[]
 - **SSOT 보장 비용** — 옵션 1 도 frontend / backend 양쪽에 같은 평가 엔진 구현 필요 (현재 `@workflow/node-summary` 가 이를 담당). 옵션 2 는 함수 정의 자체를 shared package 로 분리하면 평가 엔진 중복 불요.
 
 mini-DSL 의 단일 노드 평가는 사용 빈도 압도적으로 높고 표현 간결 — 그대로 유지. graphWarningRules 는 cross-node case 에만 한정.
+
+**왜 `evaluate` 반환에 `params` 를 추가했나** (2026-06-02) — rule 메시지가 `Parallel "${node.label}" ... > cap=${product}` 처럼 노드 라벨·수치를 런타임 보간한 **동적 문자열** 이라, 영문 문자열 전체를 키로 쓰는 기존 `WARNING_KO` 정적 매핑으로는 ko 번역이 불가능했다 (보간 결과가 매번 달라 키가 성립 안 됨). 영문 SoT 원칙([i18n-userguide Principle 3](./i18n-userguide.md))을 유지하면서 번역하려면 **표시 문자열과 보간 값을 분리**하는 것이 유일한 정합 경로다 — `message` 는 영문 SoT/fallback 으로 두고, 보간 값을 `params` 로 노출해 frontend 가 `ruleId` 별 로케일 템플릿에 끼워넣는다. backend `Accept-Language` 서버 localization 은 응답에 한국어를 박아 영문 SoT 원칙을 깨고 이중 사전 SoT 를 만들므로 기각. `params` 는 optional 이라 기존 정적 메시지 rule 과 하위호환되며, 정책·매핑 의무·자동 가드의 SoT 는 i18n-userguide Principle 3-C 에 위임한다.
