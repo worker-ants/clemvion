@@ -152,6 +152,10 @@ export const nodeConfigs = {
     cafe24OperationSelectResourceFirst: "리소스를 먼저 선택하세요",
     cafe24OperationPlannedSuffix: "(지원 예정)",
     cafe24OperationApprovalSuffix: "별도 승인 필요",
+    cafe24AllowlistTitle: "작업 허용 목록",
+    cafe24AllowlistHint:
+      "선택한 작업만 AI Agent 가 호출할 수 있어요. 모두 선택하면 전부 허용됩니다. ⚠ 는 카페24 본사 별도 승인이 필요한 권한이에요.",
+    cafe24AllowlistLoading: "작업 정의를 불러오는 중…",
     cafe24OperationCoverageHint:
       "지원 {{ supported }}개 · 추후 지원 {{ planned }}개",
     cafe24OperationPlannedHint:

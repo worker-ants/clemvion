@@ -4,11 +4,11 @@ import { IntegrationSelector } from "./integration-selector";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { useT } from "@/lib/i18n";
-import type { Locale } from "@/lib/i18n/types";
 import { useLocaleStore } from "@/lib/stores/locale-store";
-import { cafe24Catalog as cafe24CatalogKo } from "@/lib/i18n/dict/ko/cafe24Catalog";
-import { cafe24Catalog as cafe24CatalogEn } from "@/lib/i18n/dict/en/cafe24Catalog";
-import { getNodeDefinition } from "@/lib/node-definitions";
+import {
+  readCafe24Extras,
+  resolveCafe24OperationLabel,
+} from "@/lib/node-definitions/cafe24-extras";
 import type {
   Cafe24NodeExtras,
   Cafe24OperationField,
@@ -285,35 +285,6 @@ const CAFE24_RESOURCE_KEYS = [
 type Cafe24ResourceKey = (typeof CAFE24_RESOURCE_KEYS)[number];
 
 /**
- * Read the cafe24 node definition's `extras` payload — supplied by the
- * backend through `GET /nodes/definitions` (see
- * `codebase/backend/src/nodes/integration/cafe24/metadata/public-meta.ts`). Returns
- * `null` when definitions haven't loaded yet (initial editor mount) or when
- * the node ships without extras (older backend). In both cases the form
- * degrades gracefully — Operation select shows a "definitions loading"
- * placeholder and Fields editor falls back to free-form text.
- */
-function readCafe24Extras(): Cafe24NodeExtras | null {
-  const def = getNodeDefinition("cafe24");
-  const extras = def?.extras;
-  if (!extras || typeof extras !== "object") return null;
-  // The extras payload is shipped as Record<string, unknown> on
-  // NodeDefinition (the typed surface is intentionally opaque per
-  // `NodeDefinitionResponse.extras` JSDoc) — narrow here using a few
-  // structural checks so callers can rely on the typed shape.
-  const e = extras as Partial<Cafe24NodeExtras>;
-  if (
-    !e.operationsByResource ||
-    !e.plannedByResource ||
-    typeof e.operationsByResource !== "object" ||
-    typeof e.plannedByResource !== "object"
-  ) {
-    return null;
-  }
-  return e as Cafe24NodeExtras;
-}
-
-/**
  * Convert the persisted `config.fields` shape (or any unknown input) to the
  * `{key, value}[]` form the editor renders. Accepts:
  *
@@ -382,27 +353,6 @@ function findPlannedOperation(
  * surfaced as hint text rather than specialised widgets so the
  * expression-input experience stays uniform.
  */
-/**
- * `cafe24.<resource>.<operation>` catalog key → KO/EN 사람 친화 라벨.
- *
- * dict 키 자체에 `.` 가 포함돼 있어 일반 `useT(dotted.key)` 의 nested-lookup
- * 흐름과 충돌한다. 따라서 `cafe24Catalog` flat dict 를 직접 import 해 lookup.
- *
- * dict 에 key 가 등록되지 않은 경우 (catalog drift) 본 key 자체를 그대로 반환
- * — 사용자가 보면 어색하지만 dict 누락 즉시 감지 가능. SoT:
- * spec/conventions/cafe24-api-metadata.md §7.5 "dict lookup miss fallback".
- *
- * @param locale - Active UI locale ("ko" | "en"). Drives dict selection.
- * @param labelKey - `cafe24.<resource>.<id>` key from PublicCafe24Operation.labelKey.
- * @returns Human-friendly label string, or `labelKey` itself on dict miss.
- */
-function resolveCafe24OperationLabel(
-  locale: Locale,
-  labelKey: string,
-): string {
-  const dict = locale === "en" ? cafe24CatalogEn : cafe24CatalogKo;
-  return dict[labelKey] ?? labelKey;
-}
 
 function Cafe24FieldRow({
   field,
