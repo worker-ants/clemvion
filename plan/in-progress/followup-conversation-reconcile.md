@@ -33,13 +33,18 @@ PR #428(user 발화 버블 중복 수정) 머지 후, RESOLUTION.md 의 보류·
 - [x] (INFO I-5) fix-duplicate-user-bubble.md → plan/complete/ 이동
 
 ## Phase B — 방어 테스트·리팩토링 (developer)
-- [ ] I-7: `appendOptimisticUserMessage` 의 reconcile 매칭을 순수 헬퍼
-  (`findReconcilableOptimisticIdx` 등) 로 분리
-- [ ] I-5/I-13: `receivedAt=""` + optimisticPending 버블 조합 방어 테스트
-- [ ] I-6: 동일 content 연속 전송 시 trade-off(첫 pending 흡수) 동작 테스트
-- [ ] TEST WORKFLOW (lint·unit·build·e2e)
-- [ ] /ai-review + SUMMARY + fix
+- [x] I-7: reconcile 매칭을 순수 헬퍼 `findReconcilableOptimisticIdx` 로 분리 (commit e7e2fc84)
+- [x] I-5/I-13: `receivedAt=""` + optimisticPending reconcile 방어 테스트
+- [x] I-6: 동일 content 연속 전송 trade-off(첫 pending 흡수) 테스트 + 헬퍼 단위 테스트 5건
+- [x] TEST WORKFLOW: lint PASS · unit PASS · build PASS(103s, docker 포함) · e2e PASS(143)
+- [x] /ai-review (range origin/main..HEAD): 위험도 LOW, Critical 0, Warning 2
+  (review/code/2026/06/03/08_28_32/SUMMARY.md) → resolution-applier 로 fix
+  (W-1 events 레이어 빈 receivedAt 통합 테스트 a6106e2f, W-2 spec-draft archive 이동
+  9d7d2f96, I-1/I-6 정리). e2e PASS(143). RESOLUTION.md 작성.
+  - 주: lint wrapper 의 eslint --fix 가 무관 backend 파일을 건드린 것을 발견,
+    `git checkout` 으로 되돌려 PR 범위를 frontend+spec+plan 으로 유지.
 
 ## 보류·후속 (별도 PR/이슈 후보)
 - I-1 errorCode→i18n ack 계약 cross-stack enhancement (보안 결함 아님, 낮은 우선순위)
-- I-3 LLM Information 패널 접근제어 (제품 결정 필요)
+- I-3/I-4 LLM Information 패널 접근제어·raw payload 마스킹 (제품 결정 — spec §4.4 /
+  Rationale 에 open item 으로 기록 완료)
