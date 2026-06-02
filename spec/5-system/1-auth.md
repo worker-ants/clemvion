@@ -303,8 +303,11 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Auth Config Reveal (평문 노출) | ✅ | ✅ | — | — |
 | LLM Config | CRUD | CRUD | R | R |
 | Statistics | R | R | R | R |
+| System Status ※ | R | R | R | R |
 | Marketplace 설치 | ✅ | ✅ | ✅ | — |
 | Audit Log | R | R | — | — |
+
+> ※ **System Status**: 큐 적체 집계만 노출하는 시스템 전역 읽기 API(`/api/system-status/overview`)로, 워크스페이스 경계를 갖지 않는다. 개별 job·payload·워크스페이스 식별자를 노출하지 않으므로 모든 역할이 동일하게 읽기만 가능하다 (별도 admin 가드 없음). 상세는 [System Status API §4 보안](./16-system-status-api.md#4-보안).
 
 ### 3.3 API 인가 흐름
 

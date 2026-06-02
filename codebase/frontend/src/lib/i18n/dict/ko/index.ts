@@ -16,6 +16,7 @@ import { knowledgeBases } from "./knowledgeBases";
 import { llmConfigs } from "./llmConfigs";
 import { authentication } from "./authentication";
 import { statistics } from "./statistics";
+import { systemStatus } from "./systemStatus";
 import { executions } from "./executions";
 import { history } from "./history";
 import { docs } from "./docs";
@@ -43,6 +44,7 @@ export const ko = {
   llmConfigs,
   authentication,
   statistics,
+  systemStatus,
   executions,
   history,
   docs,

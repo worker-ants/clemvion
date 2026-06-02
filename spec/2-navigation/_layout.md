@@ -29,6 +29,7 @@
 │ │  LLM Cfg   │                                              │ │
 │ │  Auth      │                                              │ │
 │ │  Stats     │                                              │ │
+│ │  SysStatus │                                              │ │
 │ │  User Gd   │                                              │ │
 │ │            │                                              │ │
 │ │  --------  │                                              │ │
@@ -65,9 +66,10 @@
 | 7 | LLM Config | 두뇌 아이콘 (Brain) | /llm-configs | AI 노드가 호출할 LLM 프로바이더·기본 모델·파라미터. 상세는 [Config](./6-config.md) Part B |
 | 8 | Authentication | 자물쇠 아이콘 (Lock) | /authentication | 외부 호출자용 API Key·Bearer·Basic 인증. 상세는 [Config](./6-config.md) Part A |
 | 9 | Statistics | 차트 아이콘 (BarChart3) | /statistics | |
-| 10 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
+| 10 | System Status | 활동 아이콘 (Activity) | /system-status | 전체 시스템(큐) 상태 지표. 워크스페이스/유저 무관. 상세는 [System Status](./15-system-status.md) 참조 |
+| 11 | User Guide | 책 아이콘 (BookMarked) | /docs | 사용자 매뉴얼. 에디터·설정·노드 도움말. 상세는 [User Guide](./13-user-guide.md) 참조 |
 
-<!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 Statistics 아래에 배치한다. -->
+<!-- 로드맵 — Marketplace는 아직 미구현이며, 구현 시 System Status(10) 이후에 배치한다. -->
 
 ### 2.3 사이드바 동작
 

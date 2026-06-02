@@ -9,7 +9,7 @@
 
 | PRD 항목 | 상태 |
 |----------|------|
-| **PRD 1 §3.9 NAV-MP-01~07** | ❌ 전체 미구현 |
+| **PRD 1 §3.10 NAV-MP-01~07** | ❌ 전체 미구현 |
 | **PRD 4 §4 MP-CT-01~04 (콘텐츠 유형: 워크플로 템플릿 / AI Agent 프리셋 / Integration 플러그인 / 커스텀 노드)** | ❌ |
 | **PRD 4 §4 MP-CS-01~06 (소비: 검색·설치·평점)** | ❌ |
 | **PRD 4 §4 MP-PB-01~05 (게시: 검증·버전 관리·통계)** | ❌ |
@@ -21,7 +21,7 @@
 
 ## 관련 문서
 
-- `prd/1-navigation.md` §3.9 Marketplace
+- `prd/1-navigation.md` §3.10 Marketplace
 - `prd/4-integration.md` §4 Marketplace
 - `prd/3-node-system.md` §10 노드 확장성, §1.4 카테고리 시각 구분 — Custom (마켓) 행
 - `spec/2-navigation/8-marketplace.md` (UI 와이어프레임 일부)
@@ -51,7 +51,7 @@
 - [ ] 프론트엔드 — `/marketplace` 페이지 (spec `2-navigation/8-marketplace.md` 와이어프레임 참고)
 - [ ] 사이드바 메뉴 추가 (현재 PRD 1 §2 에 명시되어 있지만 노출 안 됨)
 - [ ] 단위/통합 테스트
-- [ ] PRD 1 §3.9 NAV-MP-01~07 + PRD 4 MP-CT-01 / MP-CS-01~06 / MP-PB-01~03 부분 갱신 (워크플로 템플릿만)
+- [ ] PRD 1 §3.10 NAV-MP-01~07 + PRD 4 MP-CT-01 / MP-CS-01~06 / MP-PB-01~03 부분 갱신 (워크플로 템플릿만)
 
 ### Phase B: AI Agent 프리셋
 

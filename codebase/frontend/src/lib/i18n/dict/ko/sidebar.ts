@@ -8,6 +8,7 @@ export const sidebar = {
   llmConfig: "LLM 설정",
   authentication: "인증",
   statistics: "통계",
+  systemStatus: "시스템 상태",
   userGuide: "사용자 가이드",
   notifications: "알림",
   noNotifications: "알림이 없습니다",

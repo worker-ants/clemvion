@@ -10,6 +10,7 @@ export const sidebar: Dict["sidebar"] = {
   llmConfig: "LLM Config",
   authentication: "Authentication",
   statistics: "Statistics",
+  systemStatus: "System Status",
   userGuide: "User Guide",
   notifications: "Notifications",
   noNotifications: "No notifications",
