@@ -1300,6 +1300,69 @@ describe("useExecutionEvents", () => {
       handler!({ nodeId: "agent-1", receivedAt: "t2" });
       expect(useExecutionStore.getState().conversationMessages).toHaveLength(0);
     });
+
+    // W-1 회귀 방어 — 버그의 실제 발생 경로(이벤트 핸들러 레이어) 통합 시나리오.
+    // sendMessage 가 로컬 optimisticPending 버블을 store 에 삽입한 상태에서
+    // execution.user_message echo(handleUserMessage)가 도달했을 때 버블이
+    // 1개로 유지되어야 한다 (중복 append 없음).
+    it("reconciles pre-existing optimisticPending bubble when handleUserMessage echo arrives (W-1)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+
+      // sendMessage 가 즉시 삽입하는 로컬 optimistic 버블 (클라이언트 timestamp,
+      // optimisticPending: true). handleUserMessage 이전에 store 에 존재한다.
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "주문 확인해줘",
+        turnIndex: 1,
+        timestamp: "2026-06-01T00:00:00.000Z", // 클라이언트 timestamp
+        optimisticPending: true,
+      });
+
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+
+      // execution.user_message echo 가 도착 — 서버 receivedAt 포함.
+      const handler = bindUserMessage();
+      handler!({
+        nodeExecutionId: "ne-1",
+        nodeId: "agent-1",
+        message: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:09.999Z",
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      // 핵심 회귀 방어: 버블이 1개로 유지 (중복 append 없음).
+      expect(items).toHaveLength(1);
+      // 서버 권위 receivedAt 로 스탬프됨.
+      expect(items[0].timestamp).toBe("2026-06-01T00:00:09.999Z");
+      // optimisticPending 플래그 해제됨.
+      expect(items[0].optimisticPending).toBeUndefined();
+      // turnIndex 보존됨.
+      expect(items[0].turnIndex).toBe(1);
+      // isWaitingAiResponse 활성화됨.
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    });
+
+    // W-1 보완 — optimisticPending 버블 없이 echo 가 도착하면 정상 append
+    // (observer / 채널 인입 클라이언트 시나리오).
+    it("appends normally when no optimisticPending bubble exists (observer path)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+
+      const handler = bindUserMessage();
+      handler!({
+        nodeId: "agent-1",
+        message: "채널 인입 발화",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        type: "user",
+        content: "채널 인입 발화",
+        timestamp: "2026-06-01T00:00:00.000Z",
+      });
+      expect(items[0].optimisticPending).toBeUndefined();
+    });
   });
 
   describe("tool call events", () => {

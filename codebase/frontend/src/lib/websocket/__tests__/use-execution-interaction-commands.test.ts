@@ -183,6 +183,9 @@ describe("useExecutionInteractionCommands", () => {
       type: "user",
       content: "Hello",
       turnIndex: 1,
+      // 로컬 optimistic 버블은 optimisticPending 플래그를 단다 — 후속
+      // execution.user_message echo 가 이 버블과 reconcile (중복 append 방지).
+      optimisticPending: true,
     });
     expect(state.isWaitingAiResponse).toBe(true);
     expect(emitMock).toHaveBeenCalledWith("execution.submit_message", {
