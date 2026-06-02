@@ -47,6 +47,15 @@ export function Cafe24AllowlistEditor({ enabledTools, onChange }: Props) {
     );
   }
 
+  // resource 키는 런타임 string 이라 typed TranslationKey union 보다 넓다 —
+  // dict miss 시 key 자체로 fallback 하므로 캐스팅해 사용한다.
+  const resourceLabel = (r: string): string =>
+    t(
+      `nodeConfigs.integration.cafe24Resources.${r}` as Parameters<
+        typeof t
+      >[0],
+    );
+
   const resources = Object.keys(extras.operationsByResource).sort();
   const allIds = resources.flatMap((r) =>
     (extras.operationsByResource[r] ?? []).map((o) => o.id),
@@ -114,14 +123,10 @@ export function Cafe24AllowlistEditor({ enabledTools, onChange }: Props) {
                 }}
                 onChange={(e) => setCategory(ops, e.target.checked)}
                 className="h-3 w-3"
-                aria-label={t(
-                  `nodeConfigs.integration.cafe24Resources.${resource}` as const,
-                )}
+                aria-label={resourceLabel(resource)}
               />
               <span className="text-[11px] font-medium">
-                {t(
-                  `nodeConfigs.integration.cafe24Resources.${resource}` as const,
-                )}
+                {resourceLabel(resource)}
               </span>
               {categoryRestricted && <ApprovalRequiredBadge t={t} />}
               <span className="ml-auto text-[9px] text-[hsl(var(--muted-foreground))]">
