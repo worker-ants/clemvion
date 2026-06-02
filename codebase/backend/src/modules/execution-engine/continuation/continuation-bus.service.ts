@@ -200,8 +200,8 @@ export class ContinuationBusService {
    * 못하도록 보장. 대표 사용처: recoverStuckExecutions 가 부팅 시 동시에
    * 여러 인스턴스에서 stuck row 를 FAIL 시키지 않도록 하는 가드.
    *
-   * Phase 2 — 옛 publisher Redis 클라이언트가 BullMQ 로 이전되었으므로 lock
-   * 전용 별도 ioredis 클라이언트를 lazy 초기화 (getLockClient).
+   * Phase 2 / INFO-12 — 옛 별도 ioredis lock 클라이언트는 폐기되고, 공유 command
+   * 연결(RedisConnectionProvider)을 재사용한다 (getLockClient 가 provider 위임).
    */
   async acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
     try {
@@ -220,6 +220,9 @@ export class ContinuationBusService {
           err instanceof Error ? err.message : String(err)
         }`,
       );
+      // fail-closed: Redis 미가용 시 false 를 반환해 lock 미획득으로 처리한다.
+      // recovery 같은 보호 작업은 "중복 실행" 보다 "이번엔 skip" 이 안전하므로,
+      // ChannelConversationService 의 fail-open(true) 과 의도적으로 반대 방향이다 (INFO-8).
       return false;
     }
   }

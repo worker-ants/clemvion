@@ -16,8 +16,9 @@ import { RedisConnectionProvider } from '../../common/redis/redis-connection.pro
  * (ChannelConversationService 와 동일 graceful degradation 정책).
  *
  * DI 토큰(W4): `PUBLIC_WEBHOOK_QUOTA_REDIS` 는 `@Optional()` 로 주입 — 주입 시
- * Redis 인스턴스를 재사용(테스트·공용 RedisModule 연동). 미주입 시 config 기반으로
- * 내부 생성. HooksModule 에 별도 provider 등록 불필요 (ChannelConversationService 동일 패턴).
+ * Redis 인스턴스를 재사용(테스트·공용 RedisModule 연동). 미주입 시
+ * `RedisConnectionProvider` 공유 command 연결을 사용 (INFO-12). HooksModule 에 별도
+ * provider 등록 불필요 (ChannelConversationService 동일 패턴).
  *
  * config keys (publicWebhook.*):
  *   publicWebhook.startupPerMinute  분당 IP 시작 한도 (기본 10)

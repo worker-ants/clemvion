@@ -3,6 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import Redis, { RedisOptions } from 'ioredis';
 
 /**
+ * 공유 command 연결의 per-request 재시도 한도 (INFO-10). 옛 소비자들의
+ * maxRetriesPerRequest(2~3) 중 더 관대한 3 으로 통합. command-only 공유
+ * 연결이라 BullMQ 의 `null` 정책은 적용하지 않는다.
+ */
+const SHARED_MAX_RETRIES_PER_REQUEST = 3;
+
+/**
  * 단일 공유 command Redis 연결 provider (ai-review INFO-12).
  *
  * **배경**: 옛 코드는 7~8개 서비스 (`ExecutionSeqAllocator` · `ContinuationBusService` 의
@@ -28,6 +35,12 @@ import Redis, { RedisOptions } from 'ioredis';
 export class RedisConnectionProvider implements OnModuleDestroy {
   private readonly logger = new Logger(RedisConnectionProvider.name);
   private client: Redis | null = null;
+  /**
+   * config 누락으로 {@link getClientOrNull} 이 이미 warn 을 남겼는지 (INFO-4).
+   * 소비자 7~8개가 부팅 직후 각자 getClientOrNull 을 호출해 동일 warn 이
+   * 중복 폭주하는 것을 막는다 — 최초 1회만 경고.
+   */
+  private degradeWarned = false;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -41,7 +54,9 @@ export class RedisConnectionProvider implements OnModuleDestroy {
     if (!this.client) {
       const host = this.configService.get<string>('redis.host');
       const port = this.configService.get<number>('redis.port');
-      if (!host || !port) {
+      // host 는 빈 문자 falsy 로 "누락" 취급; port 는 0 도 유효값이므로
+      // null/undefined 만 "누락" 으로 판별 (W-10).
+      if (!host || port == null) {
         throw new Error(
           'redis.host / redis.port 설정이 누락됐습니다. REDIS_HOST / REDIS_PORT 를 확인하세요.',
         );
@@ -56,7 +71,7 @@ export class RedisConnectionProvider implements OnModuleDestroy {
         // 통합 정책: 옛 소비자들의 maxRetriesPerRequest(2~3) 중 더 관대한 3, ready check on.
         // command-only 공유 연결이라 BullMQ 의 null 정책은 적용하지 않는다.
         enableReadyCheck: true,
-        maxRetriesPerRequest: 3,
+        maxRetriesPerRequest: SHARED_MAX_RETRIES_PER_REQUEST,
         // lazyConnect: getClient() 만으론 connect 하지 않고 첫 command 에서 연결.
         // app 부팅 시 Redis 미사용 모듈까지 eager connect 하던 회귀 방지 (옛 소비자 일부가
         // lazyConnect 사용하던 동작 보존).
@@ -80,19 +95,26 @@ export class RedisConnectionProvider implements OnModuleDestroy {
     try {
       return this.getClient();
     } catch (err) {
-      this.logger.warn(
-        `shared Redis 미가용 — degrade: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
+      // INFO-4: config 누락은 프로세스 수명 내내 불변 — 소비자 수만큼 warn 을
+      // 반복하지 않고 최초 1회만 경고한다.
+      if (!this.degradeWarned) {
+        this.degradeWarned = true;
+        this.logger.warn(
+          `shared Redis 미가용 — degrade: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
       return null;
     }
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.client) {
-      await this.client.quit().catch(() => undefined);
-      this.client = null;
-    }
+    // W-2: 먼저 참조를 옮겨 null 로 교체한 뒤 quit. quit await 구간에 다른
+    // getClient 가 재진입해 새 인스턴스를 만들어도, 그 인스턴스를 null 이
+    // 덮어써 quit 되지 않은 채 누수되는 것을 방지한다.
+    const c = this.client;
+    this.client = null;
+    if (c) await c.quit().catch(() => undefined);
   }
 }

@@ -48,6 +48,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
   private readonly redis: Redis | null;
 
   constructor(
+    // _configService: DI 파라미터 순서 고정(하위 호환) — Redis 는 redisConn 으로 대체 (INFO-12).
     @Optional() _configService?: ConfigService,
     @Optional() @Inject('IDEMPOTENCY_REDIS') injectedRedis?: Redis,
     @Optional() redisConn?: RedisConnectionProvider,

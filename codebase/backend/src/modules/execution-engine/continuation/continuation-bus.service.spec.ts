@@ -30,6 +30,9 @@ type FakeRedisCmds = {
 const fakeRedisInstances: FakeRedisCmds[] = [];
 
 function createFakeRedis(): FakeRedisCmds {
+  // W-7: 매 호출마다 counter/store 를 fresh 하게 닫는다 — beforeEach 가
+  // fakeRedisInstances 를 비우고 createFakeRedis() 를 새로 호출하므로 각 it
+  // 블록은 독립된 store 를 받는다 (테스트 간 lock/seq 상태 누수 없음).
   let counter = 0;
   const store = new Map<string, string>();
   const instance: FakeRedisCmds = {
@@ -65,6 +68,7 @@ describe('ContinuationBusService (Phase 2 BullMQ-based)', () => {
   let queueAdd: jest.Mock;
 
   beforeEach(async () => {
+    // W-7: 모듈 스코프 배열을 비우고 매 it 마다 fresh fake 를 만들어 store 격리.
     fakeRedisInstances.length = 0;
     const fakeRedis = createFakeRedis();
     queueAdd = jest.fn().mockResolvedValue({ id: 'mock-job-id' });

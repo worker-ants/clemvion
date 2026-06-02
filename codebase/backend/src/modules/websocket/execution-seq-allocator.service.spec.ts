@@ -232,6 +232,33 @@ describe('ExecutionSeqAllocator', () => {
     });
   });
 
+  describe('RedisConnectionProvider 위임 경로 (W-6, monkey-patch 없음)', () => {
+    // makeAllocator 는 검증 편의를 위해 private getClient 를 monkey-patch 하지만,
+    // 본 블록은 monkey-patch 없이 실제 redisConn.getClient() 위임만으로 INCR 가
+    // 공유 provider 의 client 를 타는지 직접 검증한다 (provider mock 단일 레이어).
+    it('provider.getClient() 가 반환한 client 로 INCR pipeline 수행', async () => {
+      const redis = makeRedis();
+      const conn = makeRedisConn(redis);
+      const alloc = new ExecutionSeqAllocator(conn as never);
+      expect(await alloc.next('exec-deleg')).toBe(1);
+      expect(await alloc.next('exec-deleg')).toBe(2);
+      expect(conn.getClient).toHaveBeenCalled();
+      expect(redis.__pipelineOps).toContainEqual([
+        'incr',
+        'exec:seq:exec-deleg',
+      ]);
+    });
+
+    it('release() 가 provider.getClientOrNull() 의 client 로 DEL 수행', () => {
+      const redis = makeRedis();
+      const conn = makeRedisConn(redis);
+      const alloc = new ExecutionSeqAllocator(conn as never);
+      alloc.release('exec-deleg-del');
+      expect(conn.getClientOrNull).toHaveBeenCalled();
+      expect(redis.del).toHaveBeenCalledWith('exec:seq:exec-deleg-del');
+    });
+  });
+
   describe('seqKeyTtlSeconds — EXECUTION_SEQ_TTL_SECONDS env 분기', () => {
     const ENV = 'EXECUTION_SEQ_TTL_SECONDS';
     const orig = process.env[ENV];

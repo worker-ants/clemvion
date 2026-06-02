@@ -23,6 +23,7 @@ export class ChannelConversationService {
   static readonly TTL_SEC = 7 * 24 * 60 * 60;
 
   constructor(
+    // _configService: DI 파라미터 순서 고정(하위 호환) — Redis 는 redisConn 으로 대체 (INFO-12).
     @Optional() _configService?: ConfigService,
     @Optional()
     @Inject('CHAT_CHANNEL_CONVERSATION_REDIS')
