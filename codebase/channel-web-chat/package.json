@@ -29,7 +29,12 @@
     "eslint-config-next": "^16.2.6",
     "jsdom": "^25",
     "typescript": "^5",
-    "vitest": "^3"
+    "vitest": "^4.1.8"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.14"
+    }
   },
   "engines": {
     "node": ">=20"
