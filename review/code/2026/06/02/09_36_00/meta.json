@@ -1,0 +1,112 @@
+{
+  "timestamp": "2026-06-02T09:36:00.176888",
+  "files": [
+    {
+      "file_path": "codebase/backend/src/modules/workflows/dto/responses/workflow-response.dto.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/test/graph-warning-save.e2e-spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/canvas/custom-node.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx",
+      "change_type": "Review",
+      "file_extension": "tsx"
+    },
+    {
+      "file_path": "codebase/frontend/src/content/docs/05-run-and-debug/validation-errors.en.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "codebase/frontend/src/content/docs/05-run-and-debug/validation-errors.mdx",
+      "change_type": "Review",
+      "file_extension": "mdx"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/i18n/__tests__/backend-labels.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/i18n/backend-labels.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/i18n/core.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/stores/editor-store.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/packages/graph-warning-rules/src/__tests__/parallel.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/packages/graph-warning-rules/src/evaluator.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/packages/graph-warning-rules/src/rules/parallel.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/packages/graph-warning-rules/src/types.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/backend-msg-i18n-impl.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

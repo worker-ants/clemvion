@@ -1,5 +1,5 @@
 ---
-worktree: (미정 — 구현 착수 시 생성)
+worktree: parallel-p2-w1w2
 status: in-progress
 spec:
   - spec/conventions/i18n-userguide.md
