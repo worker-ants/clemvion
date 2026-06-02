@@ -1,12 +1,7 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  Optional,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
 /**
  * 공개(인증 없음) webhook 남용 방어용 IP 단위 quota 카운터.
@@ -30,7 +25,7 @@ import Redis from 'ioredis';
  *   publicWebhook.maxBodyBytes      body 크기 제한 bytes (기본 32768, Guard 사용)
  */
 @Injectable()
-export class PublicWebhookQuotaService implements OnModuleDestroy {
+export class PublicWebhookQuotaService {
   private readonly logger = new Logger(PublicWebhookQuotaService.name);
   private readonly redis: Redis | null;
 
@@ -47,6 +42,7 @@ export class PublicWebhookQuotaService implements OnModuleDestroy {
     @Optional()
     @Inject('PUBLIC_WEBHOOK_QUOTA_REDIS')
     injectedRedis?: Redis,
+    @Optional() redisConn?: RedisConnectionProvider,
   ) {
     this.startupPerMinute =
       configService?.get<number>('publicWebhook.startupPerMinute') ??
@@ -55,42 +51,9 @@ export class PublicWebhookQuotaService implements OnModuleDestroy {
       configService?.get<number>('publicWebhook.hourlyNewMax') ??
       PublicWebhookQuotaService.DEFAULT_HOURLY_NEW_MAX;
 
-    if (injectedRedis) {
-      this.redis = injectedRedis;
-      return;
-    }
-    if (!configService) {
-      this.redis = null;
-      return;
-    }
-    const host = configService.get<string>('redis.host');
-    const port = configService.get<number>('redis.port');
-    if (!host || !port) {
-      this.redis = null;
-      return;
-    }
-    const password = configService.get<string>('redis.password');
-    const tlsEnabled = configService.get<boolean>('redis.tls');
-    try {
-      this.redis = new Redis({
-        host,
-        port,
-        ...(password ? { password } : {}),
-        ...(tlsEnabled ? { tls: {} } : {}),
-        lazyConnect: true,
-        maxRetriesPerRequest: 2,
-      });
-      this.redis.on('error', (err) => {
-        this.logger.warn(
-          `PublicWebhookQuotaService Redis error — fail-open: ${err.message}`,
-        );
-      });
-    } catch (err) {
-      this.logger.warn(
-        `PublicWebhookQuotaService: Redis 초기화 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      this.redis = null;
-    }
+    // 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
+    // 미가용 시 null 로 degrade — fail-open (정당한 webhook 을 막지 않음).
+    this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
   }
 
   /** Redis 가용성 여부. */
@@ -170,15 +133,7 @@ export class PublicWebhookQuotaService implements OnModuleDestroy {
     return count;
   }
 
-  async onModuleDestroy(): Promise<void> {
-    if (this.redis) {
-      try {
-        await this.redis.quit();
-      } catch {
-        // 종료 best-effort.
-      }
-    }
-  }
+  // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
 }
 
 /** 분 단위 슬라이딩 윈도우 초 (60 s). */

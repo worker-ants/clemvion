@@ -144,18 +144,15 @@ describe('PublicWebhookQuotaService', () => {
     expect(last).toEqual({ allowed: false, reason: 'hourly_new' });
   });
 
-  it('onModuleDestroy — redis.quit 정상 호출 (Info#12)', async () => {
+  it('공유 connection 은 quit 하지 않는다 — 종료는 RedisConnectionProvider 소관 (INFO-12)', () => {
+    // 옛 동작: 본 서비스가 onModuleDestroy 에서 자기 redis 를 quit 했다. 통합 후에는
+    // 단일 공유 command 연결을 다른 소비자와 공유하므로 본 서비스가 quit 하면 안 된다.
     const redis = makeFakeRedis();
     const svc = new PublicWebhookQuotaService(undefined, redis);
-    await svc.onModuleDestroy();
-    expect(redis.quit).toHaveBeenCalledTimes(1);
-  });
-
-  it('onModuleDestroy — redis.quit 예외 시 throw 없이 종료 (Info#12)', async () => {
-    const redis = makeFakeRedis();
-    (redis.quit as jest.Mock).mockRejectedValueOnce(new Error('quit error'));
-    const svc = new PublicWebhookQuotaService(undefined, redis);
-    await expect(svc.onModuleDestroy()).resolves.toBeUndefined();
+    expect(
+      (svc as unknown as { onModuleDestroy?: unknown }).onModuleDestroy,
+    ).toBeUndefined();
+    expect(redis.quit).not.toHaveBeenCalled();
   });
 
   it('key 포맷 상수 — makeMinKey/makeHourKey (Info#10)', () => {

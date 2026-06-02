@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { hostname } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import Redis, { RedisOptions } from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionProvider } from '../../../common/redis/redis-connection.provider';
 import {
   CONTINUATION_EXECUTION_QUEUE,
   CONTINUATION_QUEUE_DEFAULT_OPTS,
@@ -73,8 +73,6 @@ export const DEFAULT_SEQ_KEY_TTL_SECONDS = 86_400;
 @Injectable()
 export class ContinuationBusService {
   private readonly logger = new Logger(ContinuationBusService.name);
-  /** lock 용 Redis 클라이언트. BullMQ 큐와 별개 (BullMQ 가 자체 관리). */
-  private lockClient?: Redis;
   /** 분산 lock 의 owner token — 컨테이너에서도 고유 (hostname + UUID). */
   private readonly lockToken = `${hostname()}:${randomUUID()}`;
   /** monotonic seq per executionId 용 Redis INCR 키 prefix. */
@@ -83,7 +81,7 @@ export class ContinuationBusService {
   private readonly seqKeyTtlSeconds: number;
 
   constructor(
-    private readonly configService: ConfigService,
+    private readonly redisConn: RedisConnectionProvider,
     @InjectQueue(CONTINUATION_EXECUTION_QUEUE)
     private readonly continuationQueue: Queue<ContinuationJob>,
   ) {
@@ -97,42 +95,13 @@ export class ContinuationBusService {
   }
 
   /**
-   * Lazy 초기화: lockClient 가 처음 필요할 때 connect.
-   * onModuleInit 으로 미루지 않는 이유 — 모듈 초기화 순서 race 회피
-   * (다른 onModuleInit 이 본 service 의 publish/acquireLock 을 호출하는 경우).
+   * 공유 command 연결 반환 (INFO-12) — lock command (SET NX / EVAL / INCR) 전용.
+   * BullMQ 큐 연결과 별개 (BullMQ 가 자체 관리). RedisConnectionProvider 가
+   * lazy connect·소유·종료하므로 본 서비스는 client 를 quit 하지 않는다.
+   * config 누락 시 throw → 각 호출부 catch 가 degrade 처리.
    */
   private getLockClient(): Redis {
-    if (!this.lockClient) {
-      const host = this.configService.get<string>('redis.host');
-      const port = this.configService.get<number>('redis.port');
-      if (!host || !port) {
-        throw new Error(
-          'redis.host / redis.port 설정이 누락됐습니다. 환경 변수 REDIS_HOST / REDIS_PORT 를 확인하세요.',
-        );
-      }
-      const password = this.configService.get<string>('redis.password');
-      const tlsEnabled = this.configService.get<boolean>('redis.tls');
-      const opts: RedisOptions = {
-        host,
-        port,
-        ...(password ? { password } : {}),
-        ...(tlsEnabled ? { tls: {} } : {}),
-        // lock 전용이므로 ready check 와 retry 정책은 BullMQ 기본보다 보수적.
-        enableReadyCheck: true,
-        maxRetriesPerRequest: 3,
-      };
-      this.lockClient = new Redis(opts);
-      this.lockClient.on('error', (err: Error) => {
-        this.logger.error(`Redis lockClient error: ${err.message}`);
-      });
-    }
-    return this.lockClient;
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.lockClient) {
-      await this.lockClient.quit().catch(() => undefined);
-    }
+    return this.redisConn.getClient();
   }
 
   /**

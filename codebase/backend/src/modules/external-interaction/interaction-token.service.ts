@@ -1,14 +1,9 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  Optional,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import { randomBytes, createHash, timingSafeEqual } from 'crypto';
 import {
   JsonWebTokenError,
@@ -66,7 +61,7 @@ export interface VerifyResult {
 }
 
 @Injectable()
-export class InteractionTokenService implements OnModuleDestroy {
+export class InteractionTokenService {
   private readonly logger = new Logger(InteractionTokenService.name);
   private readonly redis: Redis | null;
   /** HS256 시크릿. `INTERACTION_JWT_SECRET` env (없으면 access-token secret 으로 fallback). */
@@ -83,43 +78,11 @@ export class InteractionTokenService implements OnModuleDestroy {
     @Optional()
     @InjectRepository(ExecutionToken)
     private readonly executionTokenRepository?: Repository<ExecutionToken>,
+    @Optional() redisConn?: RedisConnectionProvider,
   ) {
-    if (injectedRedis) {
-      // 테스트가 mock redis 주입 — 별도 connection 생성 안 함.
-      this.redis = injectedRedis;
-    } else if (configService) {
-      const host = configService.get<string>('redis.host');
-      const port = configService.get<number>('redis.port');
-      if (host && port) {
-        const password = configService.get<string>('redis.password');
-        const tlsEnabled = configService.get<boolean>('redis.tls');
-        try {
-          this.redis = new Redis({
-            host,
-            port,
-            ...(password ? { password } : {}),
-            ...(tlsEnabled ? { tls: {} } : {}),
-            lazyConnect: true,
-            maxRetriesPerRequest: 2,
-            enableReadyCheck: true,
-          });
-          this.redis.on('error', (err) => {
-            this.logger.warn(
-              `InteractionTokenService: Redis error — blacklist 검사 일시 비활성: ${err.message}`,
-            );
-          });
-        } catch (err) {
-          this.logger.warn(
-            `InteractionTokenService: Redis init 실패 — blacklist graceful degrade: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          this.redis = null;
-        }
-      } else {
-        this.redis = null;
-      }
-    } else {
-      this.redis = null;
-    }
+    // Redis: 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
+    // 미가용(config 누락/장애) 시 null 로 degrade — blacklist 검사 fail-open (위 클래스 주석).
+    this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
 
     const envSecret =
       configService?.get<string>('interaction.jwtSecret') ??
@@ -136,15 +99,7 @@ export class InteractionTokenService implements OnModuleDestroy {
     this.secret = envSecret ?? 'interaction-fallback';
   }
 
-  async onModuleDestroy(): Promise<void> {
-    if (this.redis) {
-      try {
-        await this.redis.quit();
-      } catch {
-        // ignore — 종료 경로의 redis quit 실패는 무시 (이미 disconnected 일 수 있음)
-      }
-    }
-  }
+  // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
 
   // ===========================================================
   // per_execution (iext_*)

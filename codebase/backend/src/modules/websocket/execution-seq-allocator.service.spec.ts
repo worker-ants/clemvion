@@ -7,20 +7,23 @@ import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
  *  - Redis 정상: `INCR exec:seq:<id>` 단조 증가 + sliding TTL EXPIRE
  *  - Redis 장애: in-memory per-instance degraded fallback (logged, best-effort monotonic)
  *
- * Redis client 는 lazy `getClient()` 가 만든다. 본 테스트는 그 팩토리를 stub 으로
- * 주입해 ioredis 실연결 없이 INCR/EXPIRE/DEL 의 호출과 fallback 분기를 검증한다.
+ * 공유 command 연결은 RedisConnectionProvider 가 소유한다. 본 테스트는 provider mock
+ * 또는 private getClient() monkey-patch 로 ioredis 실연결 없이 INCR/EXPIRE/DEL 의 호출과
+ * fallback 분기를 검증한다.
  */
 describe('ExecutionSeqAllocator', () => {
-  // configService stub — redis.host/port 등 존재 가정.
-  function makeConfig(values: Record<string, unknown> = {}): {
-    get: jest.Mock;
+  // RedisConnectionProvider stub — getClient/getClientOrNull 가 주어진 client 를 반환.
+  // client=null 이면 getClient 가 throw (config 누락/장애 시뮬레이션), getClientOrNull 은 null.
+  function makeRedisConn(client: unknown = null): {
+    getClient: jest.Mock;
+    getClientOrNull: jest.Mock;
   } {
-    const defaults: Record<string, unknown> = {
-      'redis.host': 'localhost',
-      'redis.port': 6379,
-    };
     return {
-      get: jest.fn((key: string) => values[key] ?? defaults[key]),
+      getClient: jest.fn(() => {
+        if (!client) throw new Error('Redis unavailable (test)');
+        return client;
+      }),
+      getClientOrNull: jest.fn(() => client ?? null),
     };
   }
 
@@ -77,14 +80,14 @@ describe('ExecutionSeqAllocator', () => {
   }
 
   /**
-   * allocator 를 만들고, 내부 lazy getClient 를 주어진 redis stub 으로 치환한다.
-   * getClient 는 private 이므로 인스턴스 메서드를 직접 monkey-patch.
+   * allocator 를 만든다. 공유 연결은 RedisConnectionProvider mock 으로 주입하되,
+   * 본 테스트는 추가로 private getClient 를 monkey-patch 해 explicit redis stub 의
+   * 호출·fallback 분기를 직접 검증한다 (redis=null 이면 throw 로 장애 시뮬레이션).
+   * release() 의 best-effort DEL 은 provider.getClientOrNull() 경로를 쓰므로
+   * provider mock 도 같은 stub 을 반환하도록 구성한다.
    */
-  function makeAllocator(
-    redis: FakeRedis | null,
-    config = makeConfig(),
-  ): ExecutionSeqAllocator {
-    const alloc = new ExecutionSeqAllocator(config as never);
+  function makeAllocator(redis: FakeRedis | null): ExecutionSeqAllocator {
+    const alloc = new ExecutionSeqAllocator(makeRedisConn(redis) as never);
     // private getClient 치환 — redis 가 null 이면 throw 로 장애 시뮬레이션.
     (alloc as unknown as { getClient: () => unknown }).getClient = () => {
       if (!redis) throw new Error('Redis unavailable (test)');
@@ -213,23 +216,17 @@ describe('ExecutionSeqAllocator', () => {
 
     it('Redis 가용 시 release 가 best-effort DEL 호출', () => {
       const redis = makeRedis();
+      // makeAllocator 의 provider mock 이 getClientOrNull 로 같은 redis 를 반환.
       const alloc = makeAllocator(redis);
-      // redisClient 를 미리 set (getClient 가 캐시하지 않는 stub 이므로 직접 주입)
-      (alloc as unknown as { redisClient: unknown }).redisClient = redis;
       alloc.release('exec-del');
       expect(redis.del).toHaveBeenCalledWith('exec:seq:exec-del');
     });
   });
 
   describe('getClient — redis 설정 누락 시', () => {
-    it('host/port 미설정이면 next() 가 throw 를 잡아 degraded fallback (엔진 emit 중단 없음)', async () => {
-      // 실제 getClient 경로 (monkey-patch 안 함). host/port falsy → throw → catch → degraded.
-      const config = {
-        get: jest.fn((key: string) =>
-          key === 'redis.host' || key === 'redis.port' ? undefined : undefined,
-        ),
-      };
-      const alloc = new ExecutionSeqAllocator(config as never);
+    it('공유 연결 미가용(provider getClient throw) 시 next() 가 throw 를 잡아 degraded fallback (엔진 emit 중단 없음)', async () => {
+      // 실제 getClient 경로 (monkey-patch 안 함) → redisConn.getClient() 가 throw → catch → degraded.
+      const alloc = new ExecutionSeqAllocator(makeRedisConn(null) as never);
       expect(await alloc.next('exec-nocfg')).toBe(1);
       expect(await alloc.next('exec-nocfg')).toBe(2);
     });
@@ -250,7 +247,7 @@ describe('ExecutionSeqAllocator', () => {
 
     it('양수 정수 env → 채택', () => {
       process.env[ENV] = '3600';
-      expect(ttlOf(new ExecutionSeqAllocator(makeConfig() as never))).toBe(
+      expect(ttlOf(new ExecutionSeqAllocator(makeRedisConn() as never))).toBe(
         3600,
       );
     });
@@ -258,7 +255,7 @@ describe('ExecutionSeqAllocator', () => {
     it('NaN/음수/0 env → default 86400', () => {
       for (const bad of ['abc', '-5', '0']) {
         process.env[ENV] = bad;
-        expect(ttlOf(new ExecutionSeqAllocator(makeConfig() as never))).toBe(
+        expect(ttlOf(new ExecutionSeqAllocator(makeRedisConn() as never))).toBe(
           86_400,
         );
       }
@@ -266,29 +263,29 @@ describe('ExecutionSeqAllocator', () => {
 
     it('미설정 → default 86400', () => {
       delete process.env[ENV];
-      expect(ttlOf(new ExecutionSeqAllocator(makeConfig() as never))).toBe(
+      expect(ttlOf(new ExecutionSeqAllocator(makeRedisConn() as never))).toBe(
         86_400,
       );
     });
   });
 
   describe('onModuleDestroy', () => {
-    it('quit() 호출 + in-memory mirror 반납', async () => {
+    it('in-memory mirror 반납 + 공유 client 는 quit 하지 않음 (RedisConnectionProvider 소관, INFO-12)', async () => {
       const redis = makeRedis();
       const alloc = makeAllocator(redis);
-      (alloc as unknown as { redisClient: unknown }).redisClient = redis;
       await alloc.next('exec-d'); // mirror 채움
-      await alloc.onModuleDestroy();
-      expect(redis.quit).toHaveBeenCalledTimes(1);
+      alloc.onModuleDestroy();
+      // 공유 연결이므로 본 서비스는 quit 하지 않는다.
+      expect(redis.quit).not.toHaveBeenCalled();
       expect(
         (alloc as unknown as { fallbackCounters: Map<string, number> })
           .fallbackCounters.size,
       ).toBe(0);
     });
 
-    it('client 없으면 quit 호출 없이 안전 종료', async () => {
+    it('redis 미가용이어도 안전 종료 (TypeError 없음)', () => {
       const alloc = makeAllocator(null);
-      await expect(alloc.onModuleDestroy()).resolves.toBeUndefined();
+      expect(() => alloc.onModuleDestroy()).not.toThrow();
     });
   });
 });

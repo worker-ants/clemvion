@@ -1,37 +1,25 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { InjectDataSource } from '@nestjs/typeorm';
-import Redis from 'ioredis';
-import { ConfigService } from '@nestjs/config';
+import type Redis from 'ioredis';
+import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 
 @Injectable()
-export class HealthService implements OnModuleDestroy {
+export class HealthService {
   private redis: Redis;
   private startTime: number;
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly configService: ConfigService,
+    private readonly redisConn: RedisConnectionProvider,
   ) {
-    // redis.config 의 password/tls 옵션을 누락 없이 전달 — cafe24-install-nonce-cache
-    // / continuation-bus 의 동일 패턴과 일치. AUTH 운영 환경에서 /health 의 redis
-    // 체크가 ECONNREFUSED 로 false-negative unhealthy 가 되던 잠복 결함 해소.
-    const password = this.configService.get<string>('redis.password');
-    const tls = this.configService.get<boolean>('redis.tls');
-    this.redis = new Redis({
-      host: this.configService.get<string>('redis.host'),
-      port: this.configService.get<number>('redis.port'),
-      ...(password ? { password } : {}),
-      ...(tls ? { tls: {} } : {}),
-      lazyConnect: true,
-    });
+    // 공유 command 연결 (INFO-12) — RedisConnectionProvider 가 host/port/password/tls
+    // config 를 한 곳에서 관리·소유·종료. /health 의 redis ping 도 이 단일 연결 사용.
+    this.redis = this.redisConn.getClient();
     this.startTime = Date.now();
   }
 
-  onModuleDestroy(): void {
-    // 모듈 종료 시 ioredis 연결을 정리 — connection leak 방지.
-    void this.redis.quit();
-  }
+  // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
 
   async check() {
     const checks: Record<string, { status: string; latency?: number }> = {};

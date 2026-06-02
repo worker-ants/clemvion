@@ -1,12 +1,7 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-  Optional,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import { ChannelConversationState } from './types';
 
 /**
@@ -21,54 +16,22 @@ import { ChannelConversationState } from './types';
  * 차단 회피). 본 케이스에서는 매 update 가 새 execution 으로 처리됨 (fallback).
  */
 @Injectable()
-export class ChannelConversationService implements OnModuleDestroy {
+export class ChannelConversationService {
   private readonly logger = new Logger(ChannelConversationService.name);
   private readonly redis: Redis | null;
   /** Spec §4.3 — TTL 7일. */
   static readonly TTL_SEC = 7 * 24 * 60 * 60;
 
   constructor(
-    @Optional() configService?: ConfigService,
+    @Optional() _configService?: ConfigService,
     @Optional()
     @Inject('CHAT_CHANNEL_CONVERSATION_REDIS')
     injectedRedis?: Redis,
+    @Optional() redisConn?: RedisConnectionProvider,
   ) {
-    if (injectedRedis) {
-      this.redis = injectedRedis;
-      return;
-    }
-    if (!configService) {
-      this.redis = null;
-      return;
-    }
-    const host = configService.get<string>('redis.host');
-    const port = configService.get<number>('redis.port');
-    if (!host || !port) {
-      this.redis = null;
-      return;
-    }
-    const password = configService.get<string>('redis.password');
-    const tlsEnabled = configService.get<boolean>('redis.tls');
-    try {
-      this.redis = new Redis({
-        host,
-        port,
-        ...(password ? { password } : {}),
-        ...(tlsEnabled ? { tls: {} } : {}),
-        lazyConnect: true,
-        maxRetriesPerRequest: 2,
-      });
-      this.redis.on('error', (err) => {
-        this.logger.warn(
-          `ChannelConversationService Redis error — fail-open: ${err.message}`,
-        );
-      });
-    } catch (err) {
-      this.logger.warn(
-        `ChannelConversationService: Redis 초기화 실패 — graceful degradation: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      this.redis = null;
-    }
+    // 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
+    // 미가용 시 null 로 degrade — lookup null / upsert noop (graceful degradation).
+    this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
   }
 
   /** Redis 가용성 여부 — 호출자가 graceful degradation 판단에 사용. */
@@ -219,12 +182,5 @@ export class ChannelConversationService implements OnModuleDestroy {
     return `chat-channel-lock:${triggerId}:${conversationKey}:formsubmit`;
   }
 
-  async onModuleDestroy(): Promise<void> {
-    if (!this.redis) return;
-    try {
-      await this.redis.quit();
-    } catch {
-      // shutdown 중 실패는 무시
-    }
-  }
+  // 공유 connection 은 RedisConnectionProvider 가 소유·종료 (INFO-12) — 본 서비스는 quit 안 함.
 }
