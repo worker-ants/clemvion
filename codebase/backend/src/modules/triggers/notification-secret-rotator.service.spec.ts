@@ -36,6 +36,15 @@ describe('NotificationSecretRotatorService', () => {
     );
   });
 
+  it('onModuleInit 은 scheduler 등록 실패를 전파 — Redis 장애 시 fail-fast (부팅 거부)', async () => {
+    const triggers = makeTriggersServiceMock();
+    const queue = makeQueueMock();
+    queue.upsertJobScheduler.mockRejectedValue(new Error('redis down'));
+    const svc = new NotificationSecretRotatorService(triggers, queue);
+
+    await expect(svc.onModuleInit()).rejects.toThrow('redis down');
+  });
+
   it('process 는 handleHourly 로 위임', async () => {
     const triggers = makeTriggersServiceMock();
     triggers.promoteRotatedNotificationSecrets.mockResolvedValue({
@@ -54,10 +63,7 @@ describe('NotificationSecretRotatorService', () => {
       promoted: 2,
     });
     const svc = new NotificationSecretRotatorService(triggers, makeQueueMock());
-    const logSpy = jest.spyOn(
-      (svc as never as { logger: { log: () => void } }).logger,
-      'log',
-    );
+    const logSpy = jest.spyOn((svc as any).logger, 'log');
 
     await svc.handleHourly();
 
@@ -71,10 +77,7 @@ describe('NotificationSecretRotatorService', () => {
       promoted: 0,
     });
     const svc = new NotificationSecretRotatorService(triggers, makeQueueMock());
-    const logSpy = jest.spyOn(
-      (svc as never as { logger: { log: () => void } }).logger,
-      'log',
-    );
+    const logSpy = jest.spyOn((svc as any).logger, 'log');
 
     await expect(svc.handleHourly()).resolves.toBeUndefined();
     expect(logSpy).not.toHaveBeenCalled();

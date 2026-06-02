@@ -36,6 +36,15 @@ describe('ChatChannelTokenRotatorService', () => {
     );
   });
 
+  it('onModuleInit 은 scheduler 등록 실패를 전파 — Redis 장애 시 fail-fast (부팅 거부)', async () => {
+    const triggers = makeTriggersServiceMock();
+    const queue = makeQueueMock();
+    queue.upsertJobScheduler.mockRejectedValue(new Error('redis down'));
+    const svc = new ChatChannelTokenRotatorService(triggers, queue);
+
+    await expect(svc.onModuleInit()).rejects.toThrow('redis down');
+  });
+
   it('process 는 handleHourly 로 위임', async () => {
     const triggers = makeTriggersServiceMock();
     triggers.cleanupRotatedChatChannelTokens.mockResolvedValue({ cleaned: 0 });

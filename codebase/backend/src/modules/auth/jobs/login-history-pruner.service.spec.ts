@@ -45,6 +45,12 @@ describe('LoginHistoryPrunerService', () => {
     );
   });
 
+  it('onModuleInit 은 scheduler 등록 실패를 전파 — Redis 장애 시 fail-fast (부팅 거부)', async () => {
+    queue.upsertJobScheduler.mockRejectedValue(new Error('redis down'));
+
+    await expect(service.onModuleInit()).rejects.toThrow('redis down');
+  });
+
   it('process 는 prune 으로 위임', async () => {
     loginHistory.pruneOlderThanRetention.mockResolvedValue(0);
 

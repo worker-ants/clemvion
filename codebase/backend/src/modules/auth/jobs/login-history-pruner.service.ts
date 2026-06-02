@@ -36,8 +36,11 @@ export class LoginHistoryPrunerService
   async onModuleInit(): Promise<void> {
     // 매일 03:00 Asia/Seoul. upsertJobScheduler 는 idempotent — 같은 ID 를 여러 번
     // 등록해도 Redis 에 단일 repeatable entry 만 남아 멀티 인스턴스에서도 중복되지 않는다.
+    // scheduler ID 는 큐 이름에서 파생 — 큐 상수 변경 시 ID 가 함께 따라가 orphan entry 회귀 차단.
+    // removeOnComplete 만 실질 동작한다 (process 가 에러를 swallow 해 잡이 항상 성공으로 종료) —
+    // removeOnFail 은 process 가 향후 재-throw 로 바뀔 때를 위한 방어적 설정.
     await this.queue.upsertJobScheduler(
-      'login-history-pruner-daily',
+      `${LOGIN_HISTORY_PRUNER_QUEUE}-daily`,
       { pattern: '0 3 * * *', tz: 'Asia/Seoul' },
       {
         name: PRUNE_JOB,

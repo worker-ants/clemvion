@@ -36,8 +36,12 @@ export class ChatChannelTokenRotatorService
   }
 
   async onModuleInit(): Promise<void> {
+    // upsertJobScheduler 는 idempotent — 같은 ID 를 여러 번 등록해도 Redis 에 단일
+    // repeatable entry 만 남아 멀티 인스턴스에서도 중복되지 않는다. scheduler ID 는 큐
+    // 이름에서 파생해 상수 변경 시 orphan entry 회귀를 차단. removeOnComplete 만 실질
+    // 동작 (process 가 에러를 swallow 해 잡이 항상 성공 종료) — removeOnFail 은 방어적.
     await this.queue.upsertJobScheduler(
-      'chat-channel-token-rotator-hourly',
+      `${CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE}-hourly`,
       { pattern: '0 * * * *' },
       {
         name: CLEANUP_JOB,
