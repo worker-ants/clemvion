@@ -26,6 +26,8 @@ npm run typecheck
 
 구현됨: 상태기계(`src/lib/widget-state`), EIA 클라이언트(`src/lib/eia-client`), conversation 렌더 규약
 (`src/lib/conversation` — `[user-input]` strip·`live`/`injected`), 세션 복원(`src/lib/session-store`),
-화면(런처/패널/메시지/Form/입력/면책), host↔iframe bridge(`src/widget/host-bridge`).
-잔여(rich presentation 전용 컴포넌트 등): [`channel-web-chat-followups.md`](../../plan/in-progress/channel-web-chat-followups.md).
+화면(런처/패널/메시지/Form/입력/면책), host↔iframe bridge(`src/widget/host-bridge`),
+rich presentation 렌더러(carousel/table/chart/template — `src/widget/components/presentations.tsx`),
+DOMPurify+marked 기반 template 안전 HTML 렌더(`src/lib/safe-html.ts`),
+차트 축 레이블·범례·툴팁(`CartesianChart`/`PieChart` inline SVG).
 진행 추적: [`channel-web-chat-impl.md`](../../plan/in-progress/channel-web-chat-impl.md).

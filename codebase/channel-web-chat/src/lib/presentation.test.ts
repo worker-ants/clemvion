@@ -66,6 +66,27 @@ describe("converters", () => {
     expect(c.chartType).toBe("bar");
     expect(c.points).toEqual([{ x: "a", y: 3 }]);
   });
+  it("toChart — xAxis/yAxis.label 추출", () => {
+    const c = toChart({
+      config: { chartType: "line", xAxis: { field: "m", label: "월" }, yAxis: { field: "v", label: "매출" } },
+      output: { data: [{ x: "1월", y: 5 }] },
+    });
+    expect(c.xLabel).toBe("월");
+    expect(c.yLabel).toBe("매출");
+  });
+  it("toChart — label 없으면 undefined", () => {
+    const c = toChart({ config: { chartType: "bar", xAxis: { field: "m" } }, output: { data: [] } });
+    expect(c.xLabel).toBeUndefined();
+    expect(c.yLabel).toBeUndefined();
+  });
+  it("toChart — axisLabel 빈 문자열('') → undefined (I6)", () => {
+    const c = toChart({
+      config: { chartType: "bar", xAxis: { label: "" }, yAxis: { label: "" } },
+      output: { data: [] },
+    });
+    expect(c.xLabel).toBeUndefined();
+    expect(c.yLabel).toBeUndefined();
+  });
   it("toTemplate — rendered + 기본 html", () => {
     const t = toTemplate({ config: {}, output: { rendered: "<b>x</b>" } });
     expect(t.outputFormat).toBe("html");
@@ -94,6 +115,13 @@ describe("isSafeUrl", () => {
   });
   it("vbscript: 스킴 차단", () => {
     expect(isSafeUrl("vbscript:msgbox(1)")).toBe(false);
+  });
+  it("blob: 스킴 차단 (W1 XSS)", () => {
+    expect(isSafeUrl("blob:https://example.com/some-uuid")).toBe(false);
+  });
+  it("file: 스킴 차단 (W1 XSS)", () => {
+    expect(isSafeUrl("file:///etc/passwd")).toBe(false);
+    expect(isSafeUrl("FILE:///etc/passwd")).toBe(false); // case-insensitive
   });
   it("프로토콜-상대 URL(//) 허용", () => {
     expect(isSafeUrl("//cdn.example.com/img.png")).toBe(true);

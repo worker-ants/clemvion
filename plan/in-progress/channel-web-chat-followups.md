@@ -51,7 +51,10 @@ owner: developer (TBD)
   - 메시지 타임라인 통합: `ConversationTurn.presentations`·`DisplayMessage.presentations`·reducer `AI_MESSAGE`·
     `threadToMessages`(presentation-only turn 포함)·`panel` inline. port 버튼 → `click_button`, link 버튼 → 새 탭.
   - 검증: lint/typecheck/build(static export) ✓, vitest 64 tests(+20).
-- [ ] **잔여**: template html/markdown 풍부 렌더(현재 안전 text), chart 축 레이블·범례·툴팁(현재 최소 SVG) — followup.
+- [x] **presentation 보강 완료** (2026-06-02): template html/markdown **풍부 렌더 + DOMPurify sanitize**
+  (`lib/safe-html.ts`: marked→sanitize, 링크 새탭·noopener 강제, window 가드로 SSR/static-export 안전; text 는 plain).
+  chart **축 레이블(xAxis/yAxis.label)·x틱·값 툴팁(`<title>`)·pie/donut 범례** 추가. deps: marked·dompurify.
+  검증: lint/typecheck/build(static export) ✓, vitest 92 tests(+6).
 - **[연관] `show`/`hide`/`updateProfile` command 위젯 SPA 핸들러 미구현**: `use-widget.ts` `onCommand` switch 는
   `open`/`close`/`sendMessage`/`shutdown` 만 처리. `show`/`hide`(런처 가시성)는 1-widget-app §3 상태기계에 런처
   visible/hidden 상태 추가가 선행돼야 하고(project-planner), `updateProfile` 는 진행 중 세션 profile 갱신 의미
