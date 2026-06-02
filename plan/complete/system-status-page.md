@@ -262,6 +262,6 @@ NF-OB-06 추가:
 - [x] 구현 (backend system-status 모듈 + frontend `/system-status` 페이지) (64432ad7)
 - [x] 사이드바 nav 순서 확인 — Statistics 다음, User Guide 앞 (Activity 아이콘) (W-10)
 - [x] KO/EN i18n dict 갱신 (`sidebar.systemStatus` + systemStatus 페이지 dict)
-- [x] unit 테스트 (service 10건) + lint + build 통과 (ccc56c7f). e2e 작성 완료(test/system-status.e2e-spec.ts) — **로컬 docker 데몬 미가동으로 실행 불가(환경 차단)**, CI/실환경 실행 대상
+- [x] TEST WORKFLOW 전부 통과: lint + unit(service 13건) + build (ccc56c7f) + **e2e PASS (143 tests, system-status 3건 — docker 기동 후 실행, 388ac7b3)**
 - [x] 구현 완료 반영: `spec/0-overview.md §6.1` 내비 목록 + frontmatter implemented 승격 + `code:` 경로 (80961cfa). spec-impl-evidence 가드 781 tests 통과
 - [x] ai-review + fix (59c28d41 — W-1~W-7 전체, INFO 10건 포함. e2e: CI 위임(docker 미가동))
