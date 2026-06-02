@@ -29,11 +29,14 @@ export function deriveDeviceLabel(
 }
 
 function detectBrowser(ua: string): string | null {
-  // 순서가 중요: Edg/Opera/Chromium 변종이 Chrome 보다 먼저 검사되어야 한다
-  if (/\bEdg\//.test(ua)) return 'Edge';
-  if (/\bOPR\/|Opera\//.test(ua)) return 'Opera';
-  if (/Firefox\//.test(ua)) return 'Firefox';
-  if (/Chrome\//.test(ua)) return 'Chrome';
+  // 순서가 중요: Edg/Opera/Chromium 변종이 Chrome 보다 먼저 검사되어야 한다.
+  // iOS 는 WebKit 강제 정책으로 브라우저마다 전용 토큰을 쓴다
+  // (Chrome=CriOS, Firefox=FxiOS, Edge=EdgiOS, Opera=OPT/OPiOS).
+  // EdgiOS UA 는 Version/ 토큰도 포함하므로 Safari 보다 먼저 검사한다.
+  if (/\bEdgiOS\/|\bEdg\//.test(ua)) return 'Edge';
+  if (/\bOPR\/|Opera\/|\bOPT\/|\bOPiOS\//.test(ua)) return 'Opera';
+  if (/Firefox\/|FxiOS\//.test(ua)) return 'Firefox';
+  if (/Chrome\/|CriOS\//.test(ua)) return 'Chrome';
   if (/Safari\//.test(ua) && /Version\//.test(ua)) return 'Safari';
   return null;
 }
