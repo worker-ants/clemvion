@@ -1,9 +1,8 @@
 ---
 id: system-status
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/system-status-page.md
+status: implemented
+code:
+  - codebase/frontend/src/app/(main)/system-status/page.tsx
 ---
 
 # Spec: 시스템 상태 화면

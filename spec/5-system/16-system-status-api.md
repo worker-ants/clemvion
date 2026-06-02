@@ -1,9 +1,8 @@
 ---
 id: system-status-api
-status: spec-only
-code: []
-pending_plans:
-  - plan/in-progress/system-status-page.md
+status: implemented
+code:
+  - codebase/backend/src/modules/system-status/**
 ---
 
 # Spec: 시스템 상태 API (큐 모니터링)
