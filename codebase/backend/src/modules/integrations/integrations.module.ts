@@ -18,6 +18,7 @@ import { IntegrationsService } from './integrations.service';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { IntegrationActionRequiredNotifier } from './integration-action-required-notifier.service';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
+import { Cafe24InstallRateLimitService } from './cafe24-install-rate-limit.service';
 import {
   IntegrationExpiryScannerService,
   INTEGRATION_EXPIRY_QUEUE,
@@ -55,6 +56,7 @@ import { CAFE24_REFRESH_QUEUE } from './cafe24-token-refresh.constants';
     IntegrationExpiryScannerService,
     IntegrationActionRequiredNotifier,
     Cafe24InstallNonceCache,
+    Cafe24InstallRateLimitService,
   ],
   exports: [
     IntegrationsService,
