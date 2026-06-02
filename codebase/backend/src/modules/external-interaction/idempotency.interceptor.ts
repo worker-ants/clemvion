@@ -12,7 +12,8 @@ import { ConfigService } from '@nestjs/config';
 import { Observable, of, from } from 'rxjs';
 import { switchMap, tap } from 'rxjs/operators';
 import { createHash } from 'crypto';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { RedisConnectionProvider } from '../../common/redis/redis-connection.provider';
 import type { Request } from 'express';
 
 export const IDEMPOTENCY_HEADER = 'idempotency-key';
@@ -47,43 +48,14 @@ export class IdempotencyInterceptor implements NestInterceptor {
   private readonly redis: Redis | null;
 
   constructor(
-    @Optional() configService?: ConfigService,
+    // _configService: DI 파라미터 순서 고정(하위 호환) — Redis 는 redisConn 으로 대체 (INFO-12).
+    @Optional() _configService?: ConfigService,
     @Optional() @Inject('IDEMPOTENCY_REDIS') injectedRedis?: Redis,
+    @Optional() redisConn?: RedisConnectionProvider,
   ) {
-    if (injectedRedis) {
-      this.redis = injectedRedis;
-    } else if (configService) {
-      const host = configService.get<string>('redis.host');
-      const port = configService.get<number>('redis.port');
-      if (host && port) {
-        try {
-          this.redis = new Redis({
-            host,
-            port,
-            ...(configService.get<string>('redis.password')
-              ? { password: configService.get<string>('redis.password') }
-              : {}),
-            ...(configService.get<boolean>('redis.tls') ? { tls: {} } : {}),
-            lazyConnect: true,
-            maxRetriesPerRequest: 2,
-          });
-          this.redis.on('error', (err) => {
-            this.logger.warn(
-              `IdempotencyInterceptor Redis error — fail-open: ${err.message}`,
-            );
-          });
-        } catch (err) {
-          this.logger.warn(
-            `IdempotencyInterceptor Redis init 실패 — fail-open: ${err instanceof Error ? err.message : String(err)}`,
-          );
-          this.redis = null;
-        }
-      } else {
-        this.redis = null;
-      }
-    } else {
-      this.redis = null;
-    }
+    // Redis: 테스트 주입(injectedRedis) 우선, 아니면 공유 command connection (INFO-12).
+    // 미가용(config 누락/장애) 시 null 로 degrade — idempotency fail-open.
+    this.redis = injectedRedis ?? redisConn?.getClientOrNull() ?? null;
   }
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {

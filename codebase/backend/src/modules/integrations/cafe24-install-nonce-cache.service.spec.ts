@@ -95,14 +95,14 @@ describe('Cafe24InstallNonceCache', () => {
     expect(new Set(keys).size).toBe(4);
   });
 
-  it('close() closes the Redis connection', async () => {
-    await cache.close();
-    expect(redis.quit).toHaveBeenCalled();
-  });
-
-  it('close() is a no-op (no throw) when Redis is not configured', async () => {
-    const noRedis = new Cafe24InstallNonceCache();
-    await expect(noRedis.close()).resolves.toBeUndefined();
+  it('공유 connection 은 quit/close 하지 않는다 — 종료는 RedisConnectionProvider 소관 (INFO-12)', () => {
+    // 옛 동작: close()/onModuleDestroy 가 자기 redis 를 quit 했다. 통합 후에는 단일
+    // 공유 command 연결을 다른 소비자와 공유하므로 본 서비스가 연결을 닫으면 안 된다.
+    expect((cache as unknown as { close?: unknown }).close).toBeUndefined();
+    expect(
+      (cache as unknown as { onModuleDestroy?: unknown }).onModuleDestroy,
+    ).toBeUndefined();
+    expect(redis.quit).not.toHaveBeenCalled();
   });
 
   // INFO-5 — collision 테스트는 trade-off 의 "동일 prefix → 동일 키" 만 검증할 뿐

@@ -19,6 +19,7 @@ import {
 } from './common/config';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RedisModule } from './common/redis/redis.module';
 import { RolesGuard } from './common/guards/roles.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -210,6 +211,9 @@ export const ROOT_ENTITIES = [
 
     // Scheduled jobs (login_history pruner 등)
     ScheduleModule.forRoot(),
+
+    // 공유 인프라 — command Redis 단일 연결 (ai-review INFO-12). @Global.
+    RedisModule,
 
     // Feature Modules
     HealthModule,

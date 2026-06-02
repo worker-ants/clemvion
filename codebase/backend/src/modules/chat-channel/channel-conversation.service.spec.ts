@@ -283,6 +283,40 @@ describe('ChannelConversationService', () => {
     });
   });
 
+  describe('RedisConnectionProvider 공유 경로 (W-3)', () => {
+    // injectedRedis 없이 redisConn (3번째 인자) 만으로도 공유 provider 경로가
+    // 동작함을 검증한다. provider.getClientOrNull() 이 fakeRedis 를 반환.
+    function makeRedisConn(client: unknown) {
+      return {
+        getClient: () => client,
+        getClientOrNull: () => client,
+      };
+    }
+
+    it('injectedRedis 미지정 + redisConn 주입 → 공유 client 로 동작 (isAvailable=true)', async () => {
+      const fakeRedis = new MockRedis();
+      const sharedService = new ChannelConversationService(
+        undefined,
+        undefined,
+        makeRedisConn(fakeRedis) as never,
+      );
+      expect(sharedService.isAvailable()).toBe(true);
+      await sharedService.upsert('t-shared', 'c-shared', state);
+      const result = await sharedService.lookup('t-shared', 'c-shared');
+      expect(result?.executionId).toBe('exec-abc');
+    });
+
+    it('redisConn 이 null 반환(공유 미가용) → isAvailable=false, lookup null', async () => {
+      const sharedService = new ChannelConversationService(
+        undefined,
+        undefined,
+        makeRedisConn(null) as never,
+      );
+      expect(sharedService.isAvailable()).toBe(false);
+      expect(await sharedService.lookup('t-x', 'c-x')).toBeNull();
+    });
+  });
+
   describe('Redis key 형식', () => {
     it('키 형식이 chat-channel:{triggerId}:{conversationKey} 규격 준수', async () => {
       await service.upsert('t-123', 'c-456', state);
