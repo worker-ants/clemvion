@@ -1,6 +1,7 @@
 import { forwardRef, Module, OnApplicationBootstrap } from '@nestjs/common';
 import { TypeOrmModule, InjectRepository } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { TriggersModule } from '../triggers/triggers.module';
@@ -10,7 +11,10 @@ import { ChannelListenerRegistry } from './channel-listener.registry';
 import { ChannelConversationService } from './channel-conversation.service';
 import { ChatChannelDispatcher } from './chat-channel.dispatcher';
 import { ChatChannelController } from './chat-channel.controller';
-import { ChatChannelTokenRotatorService } from './chat-channel-token-rotator.service';
+import {
+  ChatChannelTokenRotatorService,
+  CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE,
+} from './chat-channel-token-rotator.service';
 import { TelegramAdapter } from './providers/telegram/telegram.adapter';
 import { TelegramClient } from './providers/telegram/telegram-client';
 import { SlackAdapter } from './providers/slack/slack.adapter';
@@ -35,6 +39,7 @@ import { ChatChannelInboundAuthenticator } from './chat-channel-inbound-authenti
   imports: [
     ConfigModule,
     TypeOrmModule.forFeature([Trigger]),
+    BullModule.registerQueue({ name: CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE }),
     WebsocketModule,
     SecretStoreModule,
     // ChatChannelController 가 TriggersService.rotateBotToken 위임 — 양방향 import 회피.

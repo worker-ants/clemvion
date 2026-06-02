@@ -3,6 +3,7 @@ import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bullmq';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthOauthService } from './auth-oauth.service';
@@ -16,7 +17,10 @@ import { LoginHistory } from './entities/login-history.entity';
 import { LoginHistoryService } from './login-history.service';
 import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
-import { LoginHistoryPrunerService } from './jobs/login-history-pruner.service';
+import {
+  LoginHistoryPrunerService,
+  LOGIN_HISTORY_PRUNER_QUEUE,
+} from './jobs/login-history-pruner.service';
 import { UsersModule } from '../users/users.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { MailModule } from '../mail/mail.module';
@@ -35,6 +39,7 @@ import { MailModule } from '../mail/mail.module';
       }),
     }),
     TypeOrmModule.forFeature([RefreshToken, AuthOAuthState, LoginHistory]),
+    BullModule.registerQueue({ name: LOGIN_HISTORY_PRUNER_QUEUE }),
     UsersModule,
     WorkspacesModule,
     MailModule,

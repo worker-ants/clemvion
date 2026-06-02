@@ -226,7 +226,7 @@ async removeTrigger(triggerId: string) {
 async rotateBotToken(triggerId: string, newToken: string, workspaceId: string) {
   const refV2 = buildSecretRef({ scope: 'triggers', resourceId: triggerId, name: 'bot-token.v2' });
   await this.secrets.rotate(refV2, workspaceId, newToken);  // grace 기간 신규 token
-  // 24h 후 cron 이 v2 → primary 승격 + v2 row 삭제. 구현: ChatChannelTokenRotatorService.
+  // 24h 후 정기 배치(ChatChannelTokenRotatorService, BullMQ)가 v2 → primary 승격 + v2 row 삭제.
 }
 ```
 
