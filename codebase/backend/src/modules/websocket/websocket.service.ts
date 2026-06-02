@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { WebsocketGateway } from './websocket.gateway';
+import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
 
 /**
  * 외부 SSE 어댑터 (P5) 및 NotificationDispatcher (P6) 가 구독하는 fan-out stream payload.
@@ -278,16 +279,14 @@ export class WebsocketService {
    * Execution-scoped monotonic sequence counter.
    *
    * 외부 SSE 의 `id:` 와 Outbound Notification 의 `seq` 가 본 카운터와 같은 값을
-   * 공유한다 (Spec WS §2.2 + Spec EIA §R7). v1 은 single-instance in-memory Map —
-   * 분산 환경에서 다중 backend instance 가 같은 execution 에 동시 emit 하는
-   * 시나리오는 추후 follow-up 으로 Redis `INCR exec:seq:<id>` 또는 DB row-level
-   * lock 으로 강화한다 (Spec EIA §R7 보강 노트).
+   * 공유한다 (Spec WS §2.2 + Spec EIA §R7).
    *
-   * Map 키 = executionId, 값 = 마지막 발급된 seq. emit 시 ++ 후 반환.
-   * EXECUTION_COMPLETED / FAILED / CANCELLED 이벤트 발송 후 키를 delete 해
-   * 누수를 방지한다.
+   * v2 (2026-06): seq 발급을 {@link ExecutionSeqAllocator} (Redis `INCR exec:seq:<id>`)
+   * 로 분산-안전하게 강화. multi-instance 환경에서 같은 execution 의 emit 이 다른
+   * 인스턴스에서 발생해도 atomic INCR 로 monotonic invariant 가 유지된다
+   * (Spec EIA §R7 "execution 별 atomic INCR" 전제). Redis 장애 시 allocator 가
+   * in-memory degraded fallback. emit 메서드가 async 인 이유 = Redis round-trip await.
    */
-  private readonly seqCounters = new Map<string, number>();
 
   /**
    * 외부 fan-out subject — execution: 채널 이벤트만 발행. SseAdapter / NotificationDispatcher 가
@@ -309,7 +308,7 @@ export class WebsocketService {
    * 에만 자동 첨부된다. **wire envelope** (`gateway.broadcastToChannel`) 에는
    * 첨부하지 않아 WS spec §4.4 의 frontend wire shape 호환성을 유지한다.
    *
-   * Lifecycle 은 {@link seqCounters} 와 동일 — terminal event 발송 후 자동
+   * Lifecycle 은 seq allocator 의 키와 동일 — terminal event 발송 후 자동
    * release. 명시 release 필요 시 {@link releaseExecutionRouting}.
    */
   private readonly executionRouting = new Map<
@@ -317,7 +316,10 @@ export class WebsocketService {
     ExecutionRoutingContext
   >();
 
-  constructor(private readonly gateway: WebsocketGateway) {}
+  constructor(
+    private readonly gateway: WebsocketGateway,
+    private readonly seqAllocator: ExecutionSeqAllocator,
+  ) {}
 
   /**
    * Execution 시작 시 호출 — 이후 emit 되는 모든 이벤트의 fanout envelope 에
@@ -352,32 +354,14 @@ export class WebsocketService {
     this.executionRouting.delete(executionId);
   }
 
-  /**
-   * execution 채널 emit 직전에 호출. atomic INCR 후 새 seq 반환.
-   *
-   * 메모리 회수 정책: 본 메서드 호출만으로는 counter 가 release 되지 않는다.
-   * emit 이 완료된 후 호출자(emitExecutionEvent/emitNodeEvent)가 terminal 이벤트
-   * 인지 판정해 {@link releaseSeqCounter} 를 호출한다.
-   */
-  private nextSeq(executionId: string): number {
-    const current = this.seqCounters.get(executionId) ?? 0;
-    const next = current + 1;
-    this.seqCounters.set(executionId, next);
-    return next;
-  }
-
-  private releaseSeqCounter(executionId: string): void {
-    this.seqCounters.delete(executionId);
-  }
-
-  emitExecutionEvent(
+  async emitExecutionEvent(
     executionId: string,
     eventType: ExecutionEventType,
     payload: unknown,
-  ): void {
+  ): Promise<void> {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
-    const seq = this.nextSeq(executionId);
+    const seq = await this.seqAllocator.next(executionId);
     const wireEnvelope: Record<string, unknown> = {
       executionId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
@@ -413,7 +397,7 @@ export class WebsocketService {
       );
     }
     if (TERMINAL_EXECUTION_EVENTS.has(eventType)) {
-      this.releaseSeqCounter(executionId);
+      this.seqAllocator.release(executionId);
       this.releaseExecutionRouting(executionId);
     }
   }
@@ -438,15 +422,15 @@ export class WebsocketService {
     });
   }
 
-  emitNodeEvent(
+  async emitNodeEvent(
     executionId: string,
     nodeId: string,
     eventType: NodeEventType,
     payload: unknown,
-  ): void {
+  ): Promise<void> {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
-    const seq = this.nextSeq(executionId);
+    const seq = await this.seqAllocator.next(executionId);
     const wireEnvelope: Record<string, unknown> = {
       executionId,
       nodeId,

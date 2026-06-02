@@ -27,25 +27,29 @@ export class ExecutionEventEmitter {
    * Execution 단위 이벤트 발행 — `execution:<id>` 채널.
    * 옛 `websocketService.emitExecutionEvent` 와 동작·payload 동일.
    */
-  emitExecution(
+  async emitExecution(
     executionId: string,
     eventType: ExecutionEventType,
     payload: unknown,
-  ): void {
-    this.websocketService.emitExecutionEvent(executionId, eventType, payload);
+  ): Promise<void> {
+    await this.websocketService.emitExecutionEvent(
+      executionId,
+      eventType,
+      payload,
+    );
   }
 
   /**
    * Node 단위 이벤트 발행 — `execution:<id>` 채널, payload 에 nodeId 첨부.
    * 옛 `websocketService.emitNodeEvent` 와 동작·payload 동일.
    */
-  emitNode(
+  async emitNode(
     executionId: string,
     nodeId: string,
     eventType: NodeEventType,
     payload: unknown,
-  ): void {
-    this.websocketService.emitNodeEvent(
+  ): Promise<void> {
+    await this.websocketService.emitNodeEvent(
       executionId,
       nodeId,
       eventType,

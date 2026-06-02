@@ -12,9 +12,34 @@ describe('WebsocketService', () => {
   let service: WebsocketService;
   let gateway: { broadcastToChannel: jest.Mock };
 
+  /**
+   * Fake ExecutionSeqAllocator — 실 Redis 없이 per-execution monotonic 발급 +
+   * release 의미를 재현해 emit 의 seq 동봉/단조/해제 동작을 결정적으로 검증한다.
+   * 실제 분산 발급(INCR)·degraded fallback 은 execution-seq-allocator.service.spec.ts 가 별도 커버.
+   */
+  function makeFakeAllocator(): {
+    next: jest.Mock;
+    release: jest.Mock;
+  } {
+    const counters = new Map<string, number>();
+    return {
+      next: jest.fn((id: string) => {
+        const n = (counters.get(id) ?? 0) + 1;
+        counters.set(id, n);
+        return Promise.resolve(n);
+      }),
+      release: jest.fn((id: string) => {
+        counters.delete(id);
+      }),
+    };
+  }
+
   beforeEach(() => {
     gateway = { broadcastToChannel: jest.fn() };
-    service = new WebsocketService(gateway as never);
+    service = new WebsocketService(
+      gateway as never,
+      makeFakeAllocator() as never,
+    );
   });
 
   describe('emitBackgroundRunEvent', () => {
@@ -185,8 +210,8 @@ describe('WebsocketService', () => {
     // monotonic seq 를 동봉해야 한다 (외부 SSE 의 `id:` 와 Notification `seq` 가
     // 같은 값을 공유). 본 PR2 의 phase P0 가 그 backend 구현을 담당.
 
-    it('emitExecutionEvent 가 첫 호출 시 seq=1 부터 시작', () => {
-      service.emitExecutionEvent(
+    it('emitExecutionEvent 가 첫 호출 시 seq=1 부터 시작', async () => {
+      await service.emitExecutionEvent(
         'exec-1',
         ExecutionEventType.EXECUTION_STARTED,
         { workflowId: 'wf-1' },
@@ -198,17 +223,26 @@ describe('WebsocketService', () => {
       expect(payload.seq).toBe(1);
     });
 
-    it('같은 execution 내 다중 emit 은 seq 가 1,2,3... 단조 증가', () => {
-      service.emitExecutionEvent(
+    it('같은 execution 내 다중 emit 은 seq 가 1,2,3... 단조 증가', async () => {
+      await service.emitExecutionEvent(
         'exec-A',
         ExecutionEventType.EXECUTION_STARTED,
         {},
       );
-      service.emitNodeEvent('exec-A', 'node-1', NodeEventType.NODE_STARTED, {});
-      service.emitExecutionEvent('exec-A', ExecutionEventType.AI_MESSAGE, {
-        message: 'hi',
-      });
-      service.emitNodeEvent(
+      await service.emitNodeEvent(
+        'exec-A',
+        'node-1',
+        NodeEventType.NODE_STARTED,
+        {},
+      );
+      await service.emitExecutionEvent(
+        'exec-A',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          message: 'hi',
+        },
+      );
+      await service.emitNodeEvent(
         'exec-A',
         'node-1',
         NodeEventType.NODE_COMPLETED,
@@ -221,19 +255,27 @@ describe('WebsocketService', () => {
       expect(seqs).toEqual([1, 2, 3, 4]);
     });
 
-    it('서로 다른 execution 은 독립된 seq counter 를 사용', () => {
-      service.emitExecutionEvent(
+    it('서로 다른 execution 은 독립된 seq counter 를 사용', async () => {
+      await service.emitExecutionEvent(
         'exec-X',
         ExecutionEventType.EXECUTION_STARTED,
         {},
       );
-      service.emitExecutionEvent(
+      await service.emitExecutionEvent(
         'exec-Y',
         ExecutionEventType.EXECUTION_STARTED,
         {},
       );
-      service.emitExecutionEvent('exec-X', ExecutionEventType.AI_MESSAGE, {});
-      service.emitExecutionEvent('exec-Y', ExecutionEventType.AI_MESSAGE, {});
+      await service.emitExecutionEvent(
+        'exec-X',
+        ExecutionEventType.AI_MESSAGE,
+        {},
+      );
+      await service.emitExecutionEvent(
+        'exec-Y',
+        ExecutionEventType.AI_MESSAGE,
+        {},
+      );
 
       const calls = gateway.broadcastToChannel.mock.calls;
       // call[0] = exec-X seq 1, call[1] = exec-Y seq 1, call[2] = exec-X seq 2, call[3] = exec-Y seq 2
@@ -243,19 +285,19 @@ describe('WebsocketService', () => {
       expect((calls[3][2] as { seq: number }).seq).toBe(2);
     });
 
-    it('execution.completed / failed / cancelled 발송 후 counter 가 해제됨 (메모리 누수 방지)', () => {
-      service.emitExecutionEvent(
+    it('execution.completed / failed / cancelled 발송 후 counter 가 해제됨 (메모리 누수 방지)', async () => {
+      await service.emitExecutionEvent(
         'exec-done',
         ExecutionEventType.EXECUTION_STARTED,
         {},
       );
-      service.emitExecutionEvent(
+      await service.emitExecutionEvent(
         'exec-done',
         ExecutionEventType.EXECUTION_COMPLETED,
         {},
       );
       // 같은 execution id 를 새 실행이 재사용하더라도 (e.g. test fixture) 다시 1 부터.
-      service.emitExecutionEvent(
+      await service.emitExecutionEvent(
         'exec-done',
         ExecutionEventType.EXECUTION_STARTED,
         {},
@@ -314,10 +356,14 @@ describe('WebsocketService', () => {
         },
       });
       const eventP = nextFanoutEvent(service);
-      service.emitExecutionEvent('exec-1', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-1',
-        message: 'hi',
-      });
+      await service.emitExecutionEvent(
+        'exec-1',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-1',
+          message: 'hi',
+        },
+      );
       const fanout = await eventP;
       const payload = fanout.payload;
       expect(payload.triggerId).toBe('trg-A');
@@ -331,15 +377,19 @@ describe('WebsocketService', () => {
       });
     });
 
-    it('wire envelope (gateway broadcast) 에는 triggerId/chatChannel 미주입 — WS spec §4.4 wire shape 보존', () => {
+    it('wire envelope (gateway broadcast) 에는 triggerId/chatChannel 미주입 — WS spec §4.4 wire shape 보존', async () => {
       service.registerExecutionRouting('exec-1', {
         triggerId: 'trg-A',
         chatChannel: { provider: 'telegram', conversationKey: '12345' },
       });
-      service.emitExecutionEvent('exec-1', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-1',
-        message: 'hi',
-      });
+      await service.emitExecutionEvent(
+        'exec-1',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-1',
+          message: 'hi',
+        },
+      );
       const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
         string,
         unknown
@@ -353,10 +403,14 @@ describe('WebsocketService', () => {
 
     it('register 안 한 execution (수동 실행 등) 은 fanout envelope 에도 routing context 없음', async () => {
       const eventP = nextFanoutEvent(service);
-      service.emitExecutionEvent('exec-manual', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-1',
-        message: 'hi',
-      });
+      await service.emitExecutionEvent(
+        'exec-manual',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-1',
+          message: 'hi',
+        },
+      );
       const fanout = await eventP;
       expect(fanout.payload).not.toHaveProperty('triggerId');
       expect(fanout.payload).not.toHaveProperty('chatChannel');
@@ -369,10 +423,14 @@ describe('WebsocketService', () => {
       // 독립적으로 register 가능해야 한다.
       service.registerExecutionRouting('exec-wh', { triggerId: 'trg-webhook' });
       const eventP = nextFanoutEvent(service);
-      service.emitExecutionEvent('exec-wh', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-1',
-        message: 'hi',
-      });
+      await service.emitExecutionEvent(
+        'exec-wh',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-1',
+          message: 'hi',
+        },
+      );
       const fanout = await eventP;
       expect(fanout.payload.triggerId).toBe('trg-webhook');
       expect(fanout.payload).not.toHaveProperty('chatChannel');
@@ -384,20 +442,28 @@ describe('WebsocketService', () => {
         chatChannel: { provider: 'telegram', conversationKey: '12345' },
       });
       const eventsP = collectFanoutEvents(service, 3);
-      service.emitExecutionEvent('exec-2', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-1',
-        message: 'first',
-      });
-      service.emitExecutionEvent(
+      await service.emitExecutionEvent(
+        'exec-2',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-1',
+          message: 'first',
+        },
+      );
+      await service.emitExecutionEvent(
         'exec-2',
         ExecutionEventType.EXECUTION_COMPLETED,
         { status: 'completed' },
       );
       // 같은 executionId 를 새 실행이 재사용했다고 가정. register 안 함.
-      service.emitExecutionEvent('exec-2', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-2',
-        message: 'reused',
-      });
+      await service.emitExecutionEvent(
+        'exec-2',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-2',
+          message: 'reused',
+        },
+      );
       const events = await eventsP;
       expect(events[0].payload.triggerId).toBe('trg-A');
       expect(events[1].payload.triggerId).toBe('trg-A');
@@ -409,25 +475,37 @@ describe('WebsocketService', () => {
       service.registerExecutionRouting('exec-3', { triggerId: 'trg-A' });
       service.releaseExecutionRouting('exec-3');
       const eventP = nextFanoutEvent(service);
-      service.emitExecutionEvent('exec-3', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-1',
-        message: 'hi',
-      });
+      await service.emitExecutionEvent(
+        'exec-3',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-1',
+          message: 'hi',
+        },
+      );
       const fanout = await eventP;
       expect(fanout.payload).not.toHaveProperty('triggerId');
     });
 
     it('register 이전 emit (race) — 그 emit 은 첨부 없이 통과, 이후 register/emit 부터 첨부', async () => {
       const eventsP = collectFanoutEvents(service, 2);
-      service.emitExecutionEvent('exec-race', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-1',
-        message: 'before-register',
-      });
+      await service.emitExecutionEvent(
+        'exec-race',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-1',
+          message: 'before-register',
+        },
+      );
       service.registerExecutionRouting('exec-race', { triggerId: 'trg-late' });
-      service.emitExecutionEvent('exec-race', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-2',
-        message: 'after-register',
-      });
+      await service.emitExecutionEvent(
+        'exec-race',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-2',
+          message: 'after-register',
+        },
+      );
       const events = await eventsP;
       expect(events[0].payload).not.toHaveProperty('triggerId');
       expect(events[1].payload.triggerId).toBe('trg-late');
@@ -442,7 +520,7 @@ describe('WebsocketService', () => {
         chatChannel: { provider: 'telegram', conversationKey: '999' },
       });
       const eventP = nextFanoutEvent(service);
-      service.emitNodeEvent(
+      await service.emitNodeEvent(
         'exec-node',
         'node-1',
         NodeEventType.NODE_COMPLETED,
@@ -470,10 +548,14 @@ describe('WebsocketService', () => {
         } as Record<string, unknown>,
       });
       const eventP = nextFanoutEvent(service);
-      service.emitExecutionEvent('exec-4', ExecutionEventType.AI_MESSAGE, {
-        nodeId: 'n-1',
-        message: 'hi',
-      });
+      await service.emitExecutionEvent(
+        'exec-4',
+        ExecutionEventType.AI_MESSAGE,
+        {
+          nodeId: 'n-1',
+          message: 'hi',
+        },
+      );
       const fanout = await eventP;
       const chatChannel = fanout.payload.chatChannel as Record<string, unknown>;
       expect(chatChannel.api_key).toBe('[REDACTED]');
