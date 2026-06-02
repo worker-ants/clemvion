@@ -14,7 +14,7 @@ describe('AiAgentHandler', () => {
   let mockLlmService: Record<string, jest.Mock>;
   let mockRagService: { search: jest.Mock };
   let mockKbService: { findById: jest.Mock };
-  let mockWebsocketService: { emitExecutionEvent: jest.Mock };
+  let mockEventEmitter: { emitExecution: jest.Mock };
   let kbProvider: KbToolProvider;
 
   beforeEach(() => {
@@ -46,12 +46,12 @@ describe('AiAgentHandler', () => {
       mockKbService as never,
     );
 
-    mockWebsocketService = { emitExecutionEvent: jest.fn() };
+    mockEventEmitter = { emitExecution: jest.fn() };
 
     handler = new AiAgentHandler(
       mockLlmService as never,
       [kbProvider],
-      mockWebsocketService as never,
+      mockEventEmitter as never,
     );
   });
 
@@ -1605,7 +1605,7 @@ describe('AiAgentHandler', () => {
       handlerWithThread = new AiAgentHandler(
         mockLlmService as never,
         [kbProvider],
-        mockWebsocketService as never,
+        mockEventEmitter as never,
         mockConversationThreadService as never,
       );
     });
@@ -3112,7 +3112,7 @@ describe('AiAgentHandler', () => {
     }
 
     function emittedEvents() {
-      return mockWebsocketService.emitExecutionEvent.mock.calls.map((c) => ({
+      return mockEventEmitter.emitExecution.mock.calls.map((c) => ({
         executionId: c[0],
         type: c[1],
         payload: c[2],
@@ -3536,7 +3536,7 @@ describe('AiAgentHandler', () => {
 describe('AiAgentHandler — render_* dispatch (spec §4.1)', () => {
   let handler: AiAgentHandler;
   let mockLlmService: Record<string, jest.Mock>;
-  let mockWebsocketService: { emitExecutionEvent: jest.Mock };
+  let mockEventEmitter: { emitExecution: jest.Mock };
 
   beforeEach(() => {
     mockLlmService = {
@@ -3547,11 +3547,11 @@ describe('AiAgentHandler — render_* dispatch (spec §4.1)', () => {
       }),
       chat: jest.fn(),
     };
-    mockWebsocketService = { emitExecutionEvent: jest.fn() };
+    mockEventEmitter = { emitExecution: jest.fn() };
     handler = new AiAgentHandler(
       mockLlmService as never,
       [new RenderToolProvider()],
-      mockWebsocketService as never,
+      mockEventEmitter as never,
     );
   });
 
