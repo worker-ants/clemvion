@@ -66,10 +66,13 @@ export class ParallelExecutor {
    *   index and the branch-scoped {@link ParallelBranchContext}; resolves when the
    *   branch body completes.
    * @param parentParallelConcurrency — 외부 Parallel 의 effectiveConcurrency.
+   *   **required (`number | undefined`)** — caller 가 매 호출 명시 전달해야 한다
+   *   (W-1, parallel-p2-followups §7): optional 로 두면 미래 호출처가 인자를 누락해도
+   *   컴파일이 통과해 중첩 Parallel 의 silent clamp 가 조용히 빠지는 회귀를 못 막는다.
    *   중첩 Parallel 일 때 caller (engine) 가 부모 분기의 {@link ParallelBranchContext}
-   *   에서 읽어 명시 전달한다. set 되어 있으면 자기 effective 를 floor(32/parent)
-   *   로 silent clamp (parallel-p2 결정 #3 + G). 미전달 (= 외부 Parallel 없음)
-   *   이면 clamp 없음. 본 값은 더 이상 ExecutionContext 의 필드가 아니라
+   *   에서 읽은 값을 넘기면 자기 effective 를 floor(32/parent) 로 silent clamp
+   *   (parallel-p2 결정 #3 + G). 외부 Parallel 이 없으면 `undefined` 를 명시 전달하며
+   *   이때는 clamp 없음. 본 값은 더 이상 ExecutionContext 의 필드가 아니라
    *   ParallelBranchContext 전용이며 (spec/conventions/execution-context.md §원칙 2),
    *   엔진 호출 경로를 통해서만 운반된다.
    */
@@ -80,7 +83,7 @@ export class ParallelExecutor {
       branchIndex: number,
       branchContext: ParallelBranchContext,
     ) => Promise<void>,
-    parentParallelConcurrency?: number,
+    parentParallelConcurrency: number | undefined,
   ): Promise<ParallelResult> {
     const branchCount = Math.max(
       2,

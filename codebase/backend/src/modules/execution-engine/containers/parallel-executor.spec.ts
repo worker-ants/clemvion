@@ -1,7 +1,14 @@
 import { ParallelExecutor } from './parallel-executor';
-import { ExecutionContext } from '../../../nodes/core/node-handler.interface';
+import {
+  ExecutionContext,
+  ParallelBranchContext,
+} from '../../../nodes/core/node-handler.interface';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
+// SUMMARY#4 (W-1): parentParallelConcurrency 는 required `number | undefined` —
+// 최외각 Parallel 테스트에서 `undefined` 를 명시 전달하는 이유:
+// W-1 시그니처 강화로 optional → required number|undefined 로 바뀌어
+// 타입 체커가 인자 누락을 오류로 잡기 위해 undefined 를 명시해야 한다.
 describe('ParallelExecutor', () => {
   let executor: ParallelExecutor;
   const baseContext: ExecutionContext = {
@@ -29,6 +36,7 @@ describe('ParallelExecutor', () => {
       async (branchIndex) => {
         calls.push(branchIndex);
       },
+      undefined,
     );
     expect(calls.sort()).toEqual([0, 1]);
     expect(result.settled.length).toBe(2);
@@ -52,6 +60,7 @@ describe('ParallelExecutor', () => {
           hasLoop: branchCtx.loopContext !== undefined,
         });
       },
+      undefined,
     );
 
     expect(received.length).toBe(3);
@@ -86,6 +95,7 @@ describe('ParallelExecutor', () => {
         await barriers[branchIndex];
         running--;
       },
+      undefined,
     );
 
     // Let the first 2 start (microtask flush)
@@ -119,6 +129,7 @@ describe('ParallelExecutor', () => {
         async (branchIndex) => {
           if (branchIndex === 1) throw new Error('branch-1-fail');
         },
+        undefined,
       ),
     ).rejects.toThrow('branch-1-fail');
   });
@@ -135,6 +146,7 @@ describe('ParallelExecutor', () => {
       async (branchIndex) => {
         if (branchIndex === 2) throw new Error('branch-2-fail');
       },
+      undefined,
     );
 
     expect(result.failures.length).toBe(1);
@@ -154,6 +166,7 @@ describe('ParallelExecutor', () => {
       async (i) => {
         calls.push(i);
       },
+      undefined,
     );
     expect(calls.length).toBe(2);
   });
@@ -167,6 +180,7 @@ describe('ParallelExecutor', () => {
         async (_idx, branchCtx) => {
           seen.push(branchCtx.parentParallelConcurrency);
         },
+        undefined,
       );
       // effectiveConcurrency = maxConcurrency(0) → branchCount(4)
       expect(seen).toEqual([4, 4, 4, 4]);
@@ -180,6 +194,7 @@ describe('ParallelExecutor', () => {
         async (_idx, branchCtx) => {
           seen.push(branchCtx.parentParallelConcurrency);
         },
+        undefined,
       );
       expect(seen).toEqual([2, 2, 2, 2]);
     });
@@ -256,6 +271,7 @@ describe('ParallelExecutor', () => {
         async (_idx, branchCtx) => {
           seen.push(branchCtx.parentParallelConcurrency);
         },
+        undefined,
       );
       // no parent → effective = 16, propagated as-is
       expect(new Set(seen)).toEqual(new Set([16]));
@@ -277,6 +293,7 @@ describe('ParallelExecutor', () => {
           async (_idx, branchCtx) => {
             signals.push(branchCtx.abortSignal);
           },
+          undefined,
         )
         .catch(() => undefined);
       expect(signals).toHaveLength(3);
@@ -321,6 +338,7 @@ describe('ParallelExecutor', () => {
               }
             });
           },
+          undefined,
         )
         .catch((e: Error) => e);
       // root cause re-thrown
@@ -345,6 +363,7 @@ describe('ParallelExecutor', () => {
           async (_i, branchCtx) => {
             seenAborted.push(branchCtx.abortSignal?.aborted ?? false);
           },
+          undefined,
         )
         .catch(() => undefined);
       expect(seenAborted.every((b) => b === true)).toBe(true);
@@ -364,6 +383,7 @@ describe('ParallelExecutor', () => {
           async (_i, branchCtx) => {
             signalsStop.push(branchCtx.abortSignal);
           },
+          undefined,
         )
         .catch(() => undefined);
       // No upstream + no cancel-others-on-fail → branch signal is undefined
@@ -404,11 +424,53 @@ describe('ParallelExecutor', () => {
               }
             });
           },
+          undefined,
         )
         .catch((e: Error) => e);
 
       expect((result as Error).message).toBe('real-root-cause');
       expect((result as Error).name).not.toBe('AbortError');
+    });
+  });
+
+  // SUMMARY#2 (W-2) 타입 레벨 회귀 테스트 — 컴파일 타임 전용, 런타임 assertion 없음.
+  //
+  // W-2 결정: `branchParentContext` 에서 명시 `: ExecutionContext` 어노테이션을 제거해
+  // TypeScript 추론에 위임. 이유: context 가 ParallelBranchContext 일 때 spread 로
+  // 따라오는 `parentParallelConcurrency` ghost field 가 명시 타입으로 은닉되는 버그 방지.
+  //
+  // 아래 테스트는 세 가지 타입 불변식을 컴파일 시점에 검증한다:
+  //   1. ParallelBranchContext spread → 결과에 parentParallelConcurrency 접근 가능
+  //   2. 명시 `: ExecutionContext` 어노테이션 적용 시 위 접근이 컴파일 에러 (은닉 증명)
+  //   3. ParallelBranchContext 자체에 parentParallelConcurrency 필드 존재
+  describe('W-2 type-level regression (compile-time only)', () => {
+    it('branchParentContext spread preserves parentParallelConcurrency when inferred', () => {
+      const branchCtx: ParallelBranchContext = {
+        executionId: 'e',
+        workflowId: 'w',
+        variables: {},
+        nodeOutputCache: {},
+        structuredOutputCache: {},
+        engineResolvedConfigCache: {},
+        conversationThread: createEmptyConversationThread(),
+        recursionDepth: 0,
+        parentParallelConcurrency: 4,
+      };
+      const extra = { parentNodeExecutionId: 'pne-1' };
+
+      // 추론에 위임 — 결과 타입이 parentParallelConcurrency 를 포함해야 한다.
+      const inferred = { ...branchCtx, ...extra };
+      // 접근 가능 여부를 컴파일 타임 검증 (런타임은 항상 통과).
+      const _val: number = inferred.parentParallelConcurrency;
+      expect(_val).toBe(4);
+
+      // 반대 증명: 명시 `: ExecutionContext` 어노테이션 하에서는 동일 접근이 타입 에러.
+      const explicit: ExecutionContext = { ...branchCtx, ...extra };
+      // @ts-expect-error — ExecutionContext 에는 parentParallelConcurrency 가 없어
+      // 명시 타입으로 은닉됨. 이 라인이 에러를 기대하는 한 W-2 의 "은닉" 문제가
+      // 재현 가능하다는 컴파일 타임 증명이다.
+      const _hidden: number = explicit.parentParallelConcurrency;
+      void _hidden; // suppress unused warning
     });
   });
 });
