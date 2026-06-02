@@ -153,6 +153,8 @@ Cafe24 requires **comma-delimited** scopes on `/oauth/authorize` (a deviation fr
 
 2. **App type mismatch** — a Front-store app requesting Admin scope (`mall.*`) or vice versa.
 
+3. **Scopes that need Cafe24 partner approval** — some sensitive scopes (e.g. mileage / notification / privacy `mall.read_*` / `mall.write_*`) are rejected with `invalid_scope` until Cafe24 grants **partner approval**, even when they are registered on the app. When this happens, the integration detail page's **`Scope & Permissions`** tab shows which scopes require approval — request approval from Cafe24 for the listed scopes, then reconnect.
+
 > Tip: To narrow down which scope is missing, reduce the integration form selection to a single scope (e.g. `mall.read_product`) first. If it succeeds, add the rest one by one to find the failing one.
 
 **Q. Can I register an integration while my service is still in development?**
