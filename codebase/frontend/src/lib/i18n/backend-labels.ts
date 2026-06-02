@@ -17,6 +17,7 @@
  */
 
 import type { Locale } from "./types";
+import { interpolate } from "./core";
 
 const LABEL_KO: Record<string, string> = {
   Aggregation: "집계",
@@ -513,6 +514,31 @@ export const NODE_DESCRIPTION_KO: Record<string, string> = {
   "Call another workflow": "다른 워크플로우 호출",
 };
 
+/**
+ * Backend error 코드 → 한국어 메시지 (i18n Principle 3-C). 키 = UPPER_SNAKE
+ * 에러 코드 (메시지가 throw-site 별로 달라 코드를 안정 키로 사용). 값은 `{{name}}`
+ * 보간 placeholder 를 가질 수 있다. 등록 안 된 코드는 영문 fallback (graceful).
+ *
+ * P3-C-2 가드(`backend-labels.test.ts`)가 user-facing 등록 코드의 매핑 존재를
+ * 강제한다. `ErrorCode` enum 전체가 아니라 사용자 노출 빈도순 점진 확장.
+ */
+export const ERROR_KO: Record<string, string> = {
+  GRAPH_VALIDATION_FAILED:
+    "워크플로우 그래프 검증에 실패했어요. 캔버스의 오류 배지를 확인해 주세요.",
+};
+
+/**
+ * graphWarningRule ruleId → 한국어 메시지 템플릿 (i18n Principle 3-C). 동적 보간
+ * 값은 `GraphWarningRuleResult.params` 로 전달되어 `{{name}}` 에 대응한다. 영문
+ * `message` 는 SoT/fallback. P3-C-1 가드가 등재된 모든 ruleId 의 매핑을 강제한다.
+ */
+export const GRAPH_WARNING_KO: Record<string, string> = {
+  "parallel:nested-depth-exceeded":
+    '병렬 노드 "{{node}}" 의 분기 안에 중첩된 병렬 "{{child}}" 가 있고, 그 분기 안에 또 다른 병렬 "{{grand}}" 가 있어요. 병렬 중첩은 2단계까지만 지원해요.',
+  "parallel:nested-concurrency-cap":
+    '병렬 "{{node}}"(동시 실행 {{outerEffective}}) 안의 중첩 병렬 "{{child}}"(동시 실행 {{innerEffective}}) 를 곱하면 {{product}} 으로 한도 {{cap}} 을 넘어요. 실행 시 안쪽 동시 실행 수가 자동으로 줄어들어요.',
+};
+
 function pickKo(
   table: Record<string, string>,
   value: string | undefined,
@@ -575,6 +601,42 @@ export function translateBackendWarning(
 ): string | undefined {
   if (locale !== "ko") return value;
   return pickKo(WARNING_KO, value);
+}
+
+/**
+ * Backend error 코드 → 한국어 메시지 (i18n Principle 3-C). ko 로케일에서
+ * `ERROR_KO[code]` 템플릿에 `params` 를 `{{name}}` 보간; 매핑 없거나 비-ko 면
+ * `fallback`(영문 message) 을 그대로 반환 (graceful).
+ */
+export function translateBackendError(
+  code: string,
+  params: Record<string, string | number> | undefined,
+  locale: Locale,
+  fallback: string,
+): string {
+  if (locale !== "ko") return fallback;
+  const template = ERROR_KO[code];
+  if (template == null) return fallback;
+  return interpolate(template, params);
+}
+
+/**
+ * graphWarningRule 결과 → 한국어 표시 메시지 (i18n Principle 3-C). ko 로케일에서
+ * `GRAPH_WARNING_KO[ruleId]` 템플릿에 `result.params` 를 `{{name}}` 보간; 매핑
+ * 없거나 비-ko 면 영문 `result.message`(SoT/fallback) 반환.
+ */
+export function translateGraphWarning(
+  result: {
+    ruleId: string;
+    message: string;
+    params?: Record<string, string | number>;
+  },
+  locale: Locale,
+): string {
+  if (locale !== "ko") return result.message;
+  const template = GRAPH_WARNING_KO[result.ruleId];
+  if (template == null) return result.message;
+  return interpolate(template, result.params);
 }
 
 export function translateNodeCategory(

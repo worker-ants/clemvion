@@ -5,7 +5,10 @@ import {
   WARNING_KO,
   NODE_LABEL_KO,
   NODE_DESCRIPTION_KO,
+  ERROR_KO,
+  GRAPH_WARNING_KO,
 } from "../backend-labels";
+import { GRAPH_WARNING_RULES_BY_TYPE } from "@workflow/graph-warning-rules";
 
 /**
  * Backend ↔ frontend i18n parity guard.
@@ -275,5 +278,45 @@ describe.runIf(hasBackend)("backend-labels parity (영문 SoT → ko 매핑)", (
 
   it(`발견한 schema 파일이 sanity 수준이에요 (>= ${MIN_EXPECTED_NODE_SCHEMAS} 개)`, () => {
     expect(schemaFiles.length).toBeGreaterThanOrEqual(MIN_EXPECTED_NODE_SCHEMAS);
+  });
+});
+
+/**
+ * i18n Principle 3-C 자동 가드 — 코드/동적 backend 메시지 localization parity.
+ *
+ * 기존 P1-B(위 describe)는 `*.schema.ts` 의 **정적** warningRules[].message 만
+ * 커버한다. 동적 graphWarningRules 메시지(`${node.label}` 보간)와 error 코드는
+ * P1-B 미커버이며 아래 P3-C-1 / P3-C-2 가 전담한다 (ruleId·code 는 렌더 메시지가
+ * 동적이어도 정적 상수라 키 parity 검증이 성립).
+ *
+ * SoT: spec/conventions/i18n-userguide.md Principle 3-C.
+ */
+describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
+  it("P3-C-1: 등재된 모든 graphWarningRule ruleId 가 GRAPH_WARNING_KO 에 매핑돼요", () => {
+    const ruleIds = Object.values(GRAPH_WARNING_RULES_BY_TYPE)
+      .flatMap((rules) => rules.map((r) => r.id))
+      .sort();
+    const koKeys = new Set(Object.keys(GRAPH_WARNING_KO));
+    const missing = ruleIds.filter((id) => !koKeys.has(id));
+    expect(
+      missing,
+      `GRAPH_WARNING_KO 에 매핑이 없는 graphWarningRule ruleId ${missing.length} 건:\n` +
+        missing.map((s) => `  - ${s}`).join("\n") +
+        "\n→ codebase/frontend/src/lib/i18n/backend-labels.ts 의 GRAPH_WARNING_KO 에 한국어 템플릿을 추가해주세요. (Principle 3-C)",
+    ).toEqual([]);
+  });
+
+  it("P3-C-2: user-facing 등록 error 코드가 ERROR_KO 에 매핑돼요", () => {
+    // "user-facing localized" 로 등록한 코드 집합. ErrorCode enum 전체가 아니라
+    // 사용자 노출이 확정된 코드만 — 점진 확장 (Principle 3-C 범위).
+    const LOCALIZED_ERROR_CODES = ["GRAPH_VALIDATION_FAILED"];
+    const koKeys = new Set(Object.keys(ERROR_KO));
+    const missing = LOCALIZED_ERROR_CODES.filter((c) => !koKeys.has(c));
+    expect(
+      missing,
+      `ERROR_KO 에 매핑이 없는 user-facing error 코드 ${missing.length} 건:\n` +
+        missing.map((s) => `  - ${s}`).join("\n") +
+        "\n→ codebase/frontend/src/lib/i18n/backend-labels.ts 의 ERROR_KO 에 한국어 메시지를 추가해주세요. (Principle 3-C)",
+    ).toEqual([]);
   });
 });
