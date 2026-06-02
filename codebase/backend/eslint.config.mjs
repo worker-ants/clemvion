@@ -27,7 +27,10 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-floating-promises': 'warn',
+      // error 승격 (ai-review INFO-11): await 누락(floating promise)을 빌드 전 lint 에서
+      // 차단. async emit 등 await 의존 코드의 회귀를 조기 검출 (PR #413 분산 seq counter
+      // 의 await 마이그레이션 리스크 class). 승격 시점 기존 위반 0건.
+      '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unsafe-assignment': 'warn',
       '@typescript-eslint/no-unsafe-return': 'warn',
