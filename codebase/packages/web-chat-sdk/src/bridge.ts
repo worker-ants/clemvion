@@ -3,7 +3,13 @@
 // - origin 검증 필수(양방향). host 는 위젯 origin 만, iframe 은 boot 시 host origin 만 수용.
 // - 명령 큐: wc:ready 이전 host→iframe 명령은 버퍼링 후 ready 시 flush.
 
-import type { BootConfig, WcMessageType, WidgetEvent } from "./types";
+import type {
+  BootConfig,
+  Unsubscribe,
+  WcMessageType,
+  WcResizePayload,
+  WidgetEvent,
+} from "./types";
 import { WC_MESSAGE_PREFIX } from "./types";
 
 export interface BridgeDeps {
@@ -64,14 +70,27 @@ export class WidgetBridge {
     this.send(type, payload);
   }
 
-  /** iframe → host 이벤트 구독. */
-  on(event: WidgetEvent, cb: Listener): void {
+  /** iframe → host 이벤트 구독. 구독 해제 함수를 반환(SPA 언마운트 cleanup). */
+  on(event: WidgetEvent, cb: Listener): Unsubscribe {
     let set = this.listeners.get(event);
     if (!set) {
       set = new Set();
       this.listeners.set(event, set);
     }
     set.add(cb);
+    return () => this.off(event, cb);
+  }
+
+  /** 구독 해제. cb 지정 시 해당 핸들러만, 생략 시 해당 이벤트 전체 해제. */
+  off(event: WidgetEvent, cb?: Listener): void {
+    const set = this.listeners.get(event);
+    if (!set) return;
+    if (cb) {
+      set.delete(cb);
+      if (set.size === 0) this.listeners.delete(event);
+    } else {
+      this.listeners.delete(event);
+    }
   }
 
   destroy(): void {
@@ -110,8 +129,30 @@ export class WidgetBridge {
     if (data.type === "wc:event") {
       const ev = data.payload as { name?: WidgetEvent; data?: unknown } | undefined;
       if (ev?.name) this.emit(ev.name, ev.data);
+      return;
     }
-    // wc:resize 등 추가 처리는 후속 increment.
+    if (data.type === "wc:resize") {
+      this.applyResize(data.payload as WcResizePayload | undefined);
+    }
+  }
+
+  /**
+   * wc:resize 적용 — iframe 박스를 위젯 요청 크기에 맞춘다(2-sdk §3 필수).
+   * 위젯 SPA 자체는 iframe 내부에서 자신의 iframe 크기를 제어할 수 없으므로(Same-Origin 아님)
+   * host 가 부모 iframe 요소의 style 을 직접 변경해야 한다. (Info#19)
+   * width/height 누락 시 해당 축은 유지. 숫자는 px 로, 문자열은 그대로(예: '100%').
+   */
+  private applyResize(payload?: WcResizePayload): void {
+    if (!payload) return;
+    const toCss = (v: number | string | undefined): string | undefined => {
+      if (v === undefined) return undefined;
+      return typeof v === "number" ? `${v}px` : v;
+    };
+    const w = toCss(payload.width);
+    const h = toCss(payload.height);
+    if (w !== undefined) this.iframe.style.width = w;
+    if (h !== undefined) this.iframe.style.height = h;
+    if (payload.state) this.iframe.dataset.wcState = payload.state;
   }
 
   private flush(): void {

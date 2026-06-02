@@ -1,0 +1,135 @@
+This page explains how to embed an AI chat widget on external websites (customer landing pages, SaaS products, etc.) and connect it to a workflow.
+
+The widget connects to a public webhook trigger. When a site visitor starts a chat, the workflow runs and all interactions — AI Multi-turn, buttons, and forms — take place inside the chat panel.
+
+## 1. Installation
+
+Choose one of the two methods below.
+
+### CDN snippet (no build step required)
+
+Paste the two blocks below into the `<head>` or at the end of `<body>` of your HTML page.
+
+```html
+<script>
+  (function(d,s){var j=d.createElement(s);j.async=1;
+   j.src="https://<widget-cdn>/web-chat/v1/loader.js";
+   d.head.appendChild(j);})(document,"script");
+</script>
+<script>
+  ClemvionChat('boot', {
+    apiBase: 'https://<api-domain>',
+    triggerEndpointPath: 'a1b2c3-...',
+    locale: 'en',
+    appearance: { primaryColor: '#5B4FE9', position: 'bottom-right' },
+    headerTitle: 'AI Assistant',
+    welcome: {
+      text: 'Hi! How can I help you today?',
+      suggestions: ['Tell me about your product', 'How do I get started?']
+    },
+    disclaimer: 'AI responses are based on limited data and may not always be accurate.'
+  });
+</script>
+```
+
+| Field | Description |
+|---|---|
+| `apiBase` | The domain of your Clemvion API (enter the value for your deployment) |
+| `triggerEndpointPath` | The endpoint path of the public webhook trigger to connect to. Find it in the [Triggers list](/triggers) |
+| `locale` | Widget UI language (`ko` or `en`) |
+| `headerTitle` | Bot name shown at the top of the chat panel |
+| `welcome.text` | Welcome message shown immediately when the chat panel opens |
+| `welcome.suggestions` | Suggestion bubbles. Tapping one sends that text as the first message |
+| `disclaimer` | AI disclaimer text shown at the bottom of the chat |
+
+<Callout type="note">
+`triggerEndpointPath` is not an auth token. It is a public webhook path and is safe to expose in your site source. The widget execution token is issued automatically by the server when a workflow starts and is managed internally by the widget.
+</Callout>
+
+### npm package (for developers)
+
+```bash
+npm install @workflow/web-chat
+```
+
+```ts
+import { ClemvionChat } from '@workflow/web-chat';
+
+const chat = ClemvionChat.boot({
+  apiBase: 'https://<api-domain>',
+  triggerEndpointPath: 'a1b2c3-...',
+  locale: 'en',
+  appearance: { primaryColor: '#5B4FE9' },
+  headerTitle: 'AI Assistant',
+});
+
+// Clean up handlers when an SPA route changes
+const unsubscribe = chat.on('message', (m) => console.log(m));
+// On page unmount
+unsubscribe();
+chat.shutdown();
+```
+
+The npm package provides the same functionality as the CDN snippet, with full TypeScript types.
+
+### Renaming the global (`data-global`)
+
+If you need to embed multiple widgets on the same page or avoid a conflict with an existing global variable, add a `data-global` attribute to the CDN `<script>` tag to rename the global function.
+
+```html
+<script data-global="SupportChat" async src="...loader.js"></script>
+<script>
+  SupportChat('boot', { ... });
+</script>
+```
+
+## 2. Allowed domains (embed restriction)
+
+If you configure the **allowed domains list** (`interactionAllowedOrigins`) in your workspace settings, the widget will only appear on domains in that list. On any other domain, the widget render is refused and the chat will not start.
+
+- An empty list means no restriction — all domains are allowed.
+- This is a soft control intended to prevent casual misuse. Changes take effect within 5 minutes (cache refresh).
+
+```json
+{
+  "interactionAllowedOrigins": [
+    "https://example.com",
+    "https://shop.example.com"
+  ]
+}
+```
+
+<Callout type="note">
+If you use BYO-UI (bring your own UI) mode, you must also add your service domain to the allowed domains list. See §4 below for details.
+</Callout>
+
+## 3. Rich message rendering
+
+When a workflow uses presentation nodes (Carousel · Table · Chart · Template · Form), the output is displayed inline inside the chat panel. No extra work is needed on the widget side — rendering is automatic.
+
+| Node type | Widget rendering |
+|---|---|
+| **Carousel** | Card-style slides |
+| **Table** | Table |
+| **Chart** | Bar/line chart |
+| **Template** | Body text |
+| **Form** | Multi-field input form |
+| **Button Presentation** | Selection buttons |
+
+## 4. Bring Your Own UI (BYO-UI)
+
+If you want to build your own chat interface instead of using the widget, use `@workflow/sdk` (`ClemvionClient`) directly. This is a headless approach that calls the External Interaction API without the widget iframe.
+
+```ts
+import { ClemvionClient } from "@workflow/sdk";
+// Full example: codebase/packages/web-chat-sdk/examples/byo-ui-headless.ts
+```
+
+In BYO-UI mode the request Origin is your own service domain. You must add that domain to the **allowed domains list** in your workspace settings for API requests to be accepted.
+
+## Tips & reference
+
+- **Automatic token and session management**: The widget automatically manages per-execution tokens and refreshes them before they expire. Users never need to handle tokens directly.
+- **Programmatic panel control**: Use `chat.open()` / `chat.close()` to expand or collapse the chat panel, and `chat.show()` / `chat.hide()` to show or hide the launcher button itself. Useful when you want to hide the widget on specific SPA routes.
+- **Event subscriptions**: Subscribe to events like `chat.on('conversationStarted', cb)` and `chat.on('message', cb)` to feed your own analytics.
+- **Public webhook trigger**: The widget must connect to a trigger with no authentication (public). Find the trigger's endpoint path in [Triggers](/triggers).

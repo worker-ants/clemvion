@@ -1,0 +1,74 @@
+# Web-chat 위젯 SPA(channel-web-chat) + SDK(packages/web-chat-sdk) 단위 테스트 + build 가드.
+#
+# 두 패키지는 backend/frontend 의 file:dep 에 묶이지 않은 독립 패키지라 기존
+# frontend-checks.yml 의 설치 흐름이 커버하지 못한다. 본 워크플로가 각 패키지를 독립 설치하고
+# lint/unit/build 를 실행해 PR 단계에서 회귀를 조기 차단한다.
+# (e2e.yml 과 분리 — 두 패키지만 변할 때 빠르게 fail 하도록.)
+
+name: web-chat-checks
+
+on:
+  pull_request:
+    paths:
+      - 'codebase/channel-web-chat/**'
+      - 'codebase/packages/web-chat-sdk/**'
+      - '.github/workflows/web-chat-checks.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'codebase/channel-web-chat/**'
+      - 'codebase/packages/web-chat-sdk/**'
+
+concurrency:
+  group: web-chat-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sdk:
+    name: web-chat-sdk (lint/test/build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: codebase/packages/web-chat-sdk
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: codebase/packages/web-chat-sdk/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Jest (unit)
+        run: npm test
+      - name: Build (tsc + loader IIFE)
+        run: npm run build
+
+  widget:
+    name: channel-web-chat (lint/test/build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: codebase/channel-web-chat
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: codebase/channel-web-chat/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Vitest (unit)
+        run: npm test
+      # next build (static export) — 위젯 SPA prerender + typecheck 동반 검증.
+      - name: Next build (static export)
+        run: npm run build

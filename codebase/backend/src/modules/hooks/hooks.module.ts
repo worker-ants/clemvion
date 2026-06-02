@@ -2,8 +2,12 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { Node } from '../nodes/entities/node.entity';
+import { Workspace } from '../workspaces/entities/workspace.entity';
 import { HooksController } from './hooks.controller';
 import { HooksService } from './hooks.service';
+import { PublicWebhookQuotaService } from './public-webhook-quota.service';
+import { PublicWebhookThrottleGuard } from './public-webhook-throttle.guard';
+import { EmbedConfigService } from './embed-config.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { ExternalInteractionModule } from '../external-interaction/external-interaction.module';
 import { ExecutionsModule } from '../executions/executions.module';
@@ -12,7 +16,7 @@ import { AuthConfigsModule } from '../auth-configs/auth-configs.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Trigger, Node]),
+    TypeOrmModule.forFeature([Trigger, Node, Workspace]),
     ExecutionEngineModule,
     forwardRef(() => ExternalInteractionModule),
     forwardRef(() => ExecutionsModule),
@@ -23,6 +27,11 @@ import { AuthConfigsModule } from '../auth-configs/auth-configs.module';
     AuthConfigsModule,
   ],
   controllers: [HooksController],
-  providers: [HooksService],
+  providers: [
+    HooksService,
+    PublicWebhookQuotaService,
+    PublicWebhookThrottleGuard,
+    EmbedConfigService,
+  ],
 })
 export class HooksModule {}

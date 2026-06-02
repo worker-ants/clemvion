@@ -4,6 +4,7 @@ import type { WidgetState } from "@/lib/widget-state";
 import type { BootMessage } from "../host-bridge";
 import { Composer } from "./composer";
 import { DynamicForm } from "./dynamic-form";
+import { PresentationList } from "./presentations";
 
 interface PanelActions {
   close: () => void;
@@ -54,6 +55,9 @@ export function Panel({ state, config, actions }: PanelProps) {
           {messages.map((m, i) => (
             <li key={i} className={`wc-bubble-msg wc-${m.role}`} data-source={m.source}>
               {m.text}
+              {m.presentations && (
+                <PresentationList presentations={m.presentations} onButton={actions.clickButton} />
+              )}
             </li>
           ))}
         </ul>

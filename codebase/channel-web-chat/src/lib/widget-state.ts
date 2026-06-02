@@ -10,7 +10,9 @@ export type WidgetPhase =
   | "booting"
   | "streaming"
   | "awaiting_user_message"
-  | "ended";
+  | "ended"
+  // 임베드 allowlist soft 검증 실패 — 렌더/시작 거부(4-security §3-①).
+  | "blocked";
 
 export interface PendingInteraction {
   type: ExternalInteractionType;
@@ -44,14 +46,23 @@ export type WidgetAction =
   | { type: "RESTORED"; executionId: string }
   | { type: "BOOTED"; executionId: string }
   | { type: "WAITING"; interaction: PendingInteraction; threadMessages?: DisplayMessage[] }
-  | { type: "AI_MESSAGE"; text: string }
+  | { type: "AI_MESSAGE"; text: string; presentations?: Array<Record<string, unknown>> }
   | { type: "USER_MESSAGE"; text: string }
   | { type: "ENDED"; reason?: string }
   | { type: "ERROR"; message: string }
+  | { type: "BLOCKED"; reason?: "origin_not_allowed" | string }
   | { type: "NEW_CHAT" };
 
-function assistantMsg(text: string): DisplayMessage {
-  return { role: "assistant", text, source: "live" };
+function assistantMsg(
+  text: string,
+  presentations?: Array<Record<string, unknown>>,
+): DisplayMessage {
+  return {
+    role: "assistant",
+    text,
+    source: "live",
+    presentations: presentations?.length ? presentations : undefined,
+  };
 }
 function userMsg(text: string): DisplayMessage {
   return { role: "user", text, source: "live" };
@@ -92,7 +103,7 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
     case "AI_MESSAGE":
       return {
         ...state,
-        messages: [...state.messages, assistantMsg(action.text)],
+        messages: [...state.messages, assistantMsg(action.text, action.presentations)],
         // 패널 닫힌 채 도착한 in-flight 메시지 → unread(N4).
         unread: state.open ? state.unread : state.unread + 1,
       };
@@ -107,6 +118,15 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
       return { ...state, phase: "ended", pending: null };
     case "ERROR":
       return { ...state, phase: "ended", pending: null, error: action.message };
+    case "BLOCKED":
+      // 임베드 허용 안 된 호스트 — 위젯을 띄우지 않는다(렌더 거부 + 시작 차단).
+      return {
+        ...state,
+        phase: "blocked",
+        open: false,
+        pending: null,
+        error: action.reason,
+      };
     case "NEW_CHAT":
       return {
         ...initialState,

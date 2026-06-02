@@ -34,6 +34,8 @@ export interface ConversationTurn {
   nodeLabel?: string;
   data?: Record<string, unknown>;
   role?: "user" | "assistant";
+  /** carousel/table/chart/template presentation 페이로드(메시지 타임라인 inline 렌더). */
+  presentations?: Array<Record<string, unknown>>;
 }
 
 export interface ConversationThread {

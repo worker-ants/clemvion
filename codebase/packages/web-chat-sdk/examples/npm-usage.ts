@@ -1,7 +1,7 @@
 // npm 통합 예제 (M1 Hosted, 빌드 통합형). spec/7-channel-web-chat/2-sdk §2.
 // 개발자가 자기 SPA 빌드에 import 하여 위젯을 부팅하고 프로그래matic 제어 + 이벤트 구독.
 
-import { ClemvionChat } from "@clemvion/web-chat"; // 잠정 scope (eia-sdk-publish 결정 종속)
+import { ClemvionChat } from "@workflow/web-chat"; // scope 확정: @workflow/* (eia-sdk-publish §결정 #3)
 
 // 위젯 CDN base 를 빌드 env 로 주입(0-architecture §4). 명시 지정도 가능:
 ClemvionChat.setWidgetBase(process.env.WEB_CHAT_WIDGET_BASE ?? "https://cdn.example.com");

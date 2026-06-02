@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "started_at": "2026-06-02T08:33:00Z",
+  "summary_items_total": 11,
+  "items_resolved_ids": [1, 4, 6, 9, 10, 11],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "3": "spec",
+    "7": "user-guide",
+    "8": "user-guide"
+  },
+  "commits_made": [
+    {
+      "sha": "d0d595b0",
+      "summary_ids": [1, 4, 6, 9, 10, 11],
+      "scope": "channel-web-chat/hooks/web-chat-sdk"
+    }
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-fix-waiting-for-input-presentations.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 0,
+  "e2e_last_status": "skipped",
+  "e2e_log_paths": [],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec(W3/I7) + user-guide(W7/W8)",
+  "last_reset_hint_sec": null
+}

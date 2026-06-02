@@ -20,6 +20,8 @@ export interface DisplayMessage {
   nodeLabel?: string;
   /** source 마커 — 누락 시 'live' 폴백(conversation-thread §4.4.6). */
   source: TurnSource;
+  /** inline presentation 페이로드(carousel/table/chart/template). */
+  presentations?: Array<Record<string, unknown>>;
 }
 
 function roleOf(turn: ConversationTurn): "user" | "assistant" {
@@ -28,15 +30,21 @@ function roleOf(turn: ConversationTurn): "user" | "assistant" {
   return "assistant";
 }
 
-/** conversationThread.turns → 표시 메시지. raw text 직접 노출 대신 strip+메타 분기. */
+/** conversationThread.turns → 표시 메시지. raw text 직접 노출 대신 strip+메타 분기.
+ *  텍스트가 비어도 presentation 이 있으면 메시지로 포함(inline presentation 전용 turn). */
 export function threadToMessages(thread: ConversationThread | undefined): DisplayMessage[] {
   if (!thread?.turns?.length) return [];
   return thread.turns
-    .filter((t) => typeof t.text === "string" && t.text.length > 0)
+    .filter(
+      (t) =>
+        (typeof t.text === "string" && t.text.length > 0) ||
+        (Array.isArray(t.presentations) && t.presentations.length > 0),
+    )
     .map((t) => ({
       role: roleOf(t),
-      text: stripUserInputMarkers(t.text as string),
+      text: typeof t.text === "string" ? stripUserInputMarkers(t.text) : "",
       nodeLabel: t.nodeLabel,
       source: (t.source as TurnSource) ?? "live", // 누락 시 live 폴백
+      presentations: Array.isArray(t.presentations) ? t.presentations : undefined,
     }));
 }

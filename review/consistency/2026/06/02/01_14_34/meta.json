@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-06-02T01:14:34.230982",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "spec/7-channel-web-chat/2-sdk.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

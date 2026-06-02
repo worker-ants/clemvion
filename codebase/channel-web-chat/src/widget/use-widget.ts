@@ -13,13 +13,68 @@ import type {
 import { threadToMessages } from "@/lib/conversation";
 import { clearSession, loadSession, saveSession } from "@/lib/session-store";
 import { initialState, widgetReducer } from "@/lib/widget-state";
-import { createIframeBridge, type BootMessage } from "./host-bridge";
+import { createIframeBridge, detectHostOrigin, type BootMessage } from "./host-bridge";
+
+interface EmbedConfig {
+  allowlist: string[];
+  enforce: boolean;
+}
+
+/** 임베드 설정 조회 — 공개 GET, TransformInterceptor `{ data }` 래핑 해제. 실패 시 null(=제한 없음 취급). */
+async function fetchEmbedConfig(
+  apiBase: string,
+  triggerEndpointPath: string,
+): Promise<EmbedConfig | null> {
+  try {
+    const base = apiBase.replace(/\/$/, "");
+    const res = await fetch(
+      `${base}/api/hooks/${encodeURIComponent(triggerEndpointPath)}/embed-config`,
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: EmbedConfig } & Partial<EmbedConfig>;
+    return (json.data ?? (json as EmbedConfig)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 임베드 soft 검증(4-security §3-①) — 호스트 origin 이 워크스페이스 allowlist 에 있는지.
+ * soft 컨트롤이므로 **fail-open**: 설정 조회 실패·enforce 꺼짐·호스트 origin 미탐지 시 허용한다
+ * (정당한 임베드를 네트워크/환경 이유로 깨지 않는다). enforce=true 이고 호스트가 불일치할 때만 차단.
+ */
+async function isEmbedAllowed(
+  apiBase: string,
+  triggerEndpointPath: string,
+  win: Window = window,
+): Promise<boolean> {
+  const cfg = await fetchEmbedConfig(apiBase, triggerEndpointPath);
+  if (!cfg || !cfg.enforce || cfg.allowlist.length === 0) return true;
+  const host = detectHostOrigin(win);
+  if (!host) return true; // 호스트 origin 미탐지(직접 로드 등) → soft 허용.
+  return cfg.allowlist.includes(host);
+}
 
 interface SessionRef {
   executionId: string;
   token: string;
   expiresAt: string;
   endpoints: InteractionEndpoints;
+}
+
+/** 토큰 만료 이 시간 이내로 진입하면 갱신(3-auth-session §3 step7). */
+export const TOKEN_REFRESH_LEAD_MS = 30 * 60 * 1000;
+/** 갱신 타이머 최소 지연(즉시 폭주 방지). */
+export const TOKEN_REFRESH_MIN_DELAY_MS = 5_000;
+
+/**
+ * 만료 시각(ISO)과 현재 시각으로 다음 토큰 갱신 지연(ms) 계산.
+ * 만료 30분 이전 시점을 목표로 하되, 이미 그 안쪽이면 최소 지연으로 즉시 갱신. 파싱 불가 시 null.
+ */
+export function refreshDelayMs(expiresAt: string, nowMs: number): number | null {
+  const expiryMs = Date.parse(expiresAt);
+  if (Number.isNaN(expiryMs)) return null;
+  return Math.max(TOKEN_REFRESH_MIN_DELAY_MS, expiryMs - nowMs - TOKEN_REFRESH_LEAD_MS);
 }
 
 /** boot config 를 query param 으로 폴백 해석(host 없이 직접 로드/샘플 대비). */
@@ -41,6 +96,9 @@ export function useWidget() {
   const sessionRef = useRef<SessionRef | null>(null);
   const streamRef = useRef<EventSourceLike | null>(null);
   const configRef = useRef<BootMessage | null>(null);
+  // per_execution 토큰 자동 갱신(3-auth-session §3 step7) 타이머 + schedule 함수 ref(mount effect 에서 설정).
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefreshRef = useRef<() => void>(() => {});
 
   const closeStream = useCallback(() => {
     streamRef.current?.close();
@@ -61,9 +119,15 @@ export function useWidget() {
         });
       } else if (name === "execution.ai_message") {
         const ev = data as AiMessageEvent;
-        if (ev.text) {
-          dispatch({ type: "AI_MESSAGE", text: ev.text });
-          bridgeRef.current?.sendEvent("message", { role: "assistant", text: ev.text });
+        const presentations =
+          Array.isArray(ev.presentations) && ev.presentations.length
+            ? ev.presentations
+            : undefined;
+        // 텍스트 또는 presentation 중 하나라도 있으면 메시지로 추가(presentation-only 도 렌더).
+        if (ev.text || presentations) {
+          dispatch({ type: "AI_MESSAGE", text: ev.text ?? "", presentations });
+          if (ev.text)
+            bridgeRef.current?.sendEvent("message", { role: "assistant", text: ev.text });
         }
       } else if (
         name === "execution.completed" ||
@@ -71,6 +135,11 @@ export function useWidget() {
         name === "execution.cancelled"
       ) {
         closeStream();
+        // 대화 종료 → 토큰 갱신 타이머 정리(더 갱신할 필요 없음).
+        if (refreshTimerRef.current) {
+          clearTimeout(refreshTimerRef.current);
+          refreshTimerRef.current = null;
+        }
         if (configRef.current) clearSession(configRef.current.triggerEndpointPath);
         dispatch({ type: "ENDED", reason: name });
         bridgeRef.current?.sendEvent("conversationEnded", { reason: name });
@@ -122,7 +191,10 @@ export function useWidget() {
         dispatch({ type: "BOOTED", executionId: res.executionId });
         bridgeRef.current?.sendEvent("conversationStarted", { executionId: res.executionId });
         const session = persist(cfg, res);
-        if (session) openStream(session);
+        if (session) {
+          openStream(session);
+          scheduleRefreshRef.current(); // 토큰 자동 갱신 예약(§3 step7).
+        }
       } catch (e) {
         dispatch({ type: "ERROR", message: errMessage(e) });
       }
@@ -194,8 +266,51 @@ export function useWidget() {
 
   // 마운트: bridge + config + 세션 복원.
   useEffect(() => {
-    const applyConfig = (cfg: BootMessage) => {
+    let cancelled = false;
+
+    // per_execution 토큰 자동 갱신 — 만료 30분 이내 진입 시 refresh 후 재예약(3-auth-session §3 step7).
+    // 함수 선언이라 setTimeout 콜백에서 자기 재귀 호출(재예약) 가능. cancelled 시 no-op.
+    function scheduleRefresh() {
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      const session = sessionRef.current;
+      if (!session || cancelled) return;
+      const delay = refreshDelayMs(session.expiresAt, Date.now());
+      if (delay === null) return;
+      refreshTimerRef.current = setTimeout(() => {
+        const s = sessionRef.current;
+        const client = clientRef.current;
+        const cfg = configRef.current;
+        if (!s || !client || !cfg || cancelled) return;
+        void client
+          .refreshToken(s.endpoints, s.token)
+          .then(({ token, expiresAt }) => {
+            if (cancelled) return;
+            const updated = { ...s, token, expiresAt };
+            sessionRef.current = updated;
+            saveSession(cfg.triggerEndpointPath, updated);
+            scheduleRefresh(); // 다음 만료 기준 재예약.
+          })
+          .catch((err: unknown) => {
+            // 갱신 실패 — SSE 는 hard expiry 까지 유지. 다음 입력이 401 이면 sendCommand 가 ERROR 처리.
+            // I23: console.warn 으로 운영 추적 가능하게 — browser widget 에서 console 적절.
+            console.warn('[widget] token refresh failed:', err instanceof Error ? err.message : String(err));
+          });
+      }, delay);
+    }
+    scheduleRefreshRef.current = scheduleRefresh;
+
+    const applyConfig = async (cfg: BootMessage) => {
       if (!cfg.apiBase || !cfg.triggerEndpointPath) return;
+      // 임베드 soft 검증(4-security §3-①) — 렌더/시작 전에 호스트 origin 허용 여부 확인.
+      const allowed = await isEmbedAllowed(cfg.apiBase, cfg.triggerEndpointPath);
+      if (cancelled) return;
+      if (!allowed) {
+        dispatch({ type: "BLOCKED", reason: "origin_not_allowed" });
+        return;
+      }
       configRef.current = cfg;
       setConfig(cfg);
       clientRef.current = new EiaClient({ apiBase: cfg.apiBase });
@@ -205,12 +320,15 @@ export function useWidget() {
         sessionRef.current = saved;
         dispatch({ type: "RESTORED", executionId: saved.executionId });
         openStream(saved);
+        scheduleRefresh(); // 복원된 세션도 갱신 예약.
       }
     };
 
     const bridge = createIframeBridge();
     bridgeRef.current = bridge;
-    bridge.onBoot((c) => applyConfig({ ...configFromQuery(), ...c } as BootMessage));
+    bridge.onBoot((c) => {
+      void applyConfig({ ...configFromQuery(), ...c } as BootMessage);
+    });
     bridge.onCommand((cmd) => {
       switch (cmd.action) {
         case "open":
@@ -231,10 +349,15 @@ export function useWidget() {
     // host 없이 직접 로드(샘플/개발): query param 만으로도 부팅 시도.
     const fallback = configFromQuery();
     if (fallback.apiBase && fallback.triggerEndpointPath) {
-      applyConfig(fallback as BootMessage);
+      void applyConfig(fallback as BootMessage);
     }
 
     return () => {
+      cancelled = true;
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
       closeStream();
       bridge.destroy();
     };
