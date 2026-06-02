@@ -26,6 +26,7 @@ import { findService } from './services/service-registry';
 import { decryptJson } from './services/credentials-transformer';
 import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import { normalizeStatusReason } from './integration-status-reason';
+import { pickRestrictedApprovalScopes } from '../../nodes/integration/cafe24/metadata/restricted-approval';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
 import { parseJwtExp } from './jwt-exp';
 import { normalizeCafe24IsoTimezone } from './cafe24-token-utils';
@@ -150,6 +151,13 @@ export interface CallbackContext {
   integrationId: string;
   workspaceId: string;
   mode: OAuthStateMode;
+  /**
+   * Cafe24 `invalid_scope` 콜백에서만 채워진다 — 요청 scope ∩ 별도 승인 명단(§1).
+   * `handleCallbackWithErrorCapture` 가 `markIntegrationCallbackError` 의
+   * `extra.requiresCafe24Approval` 로 전달해 `last_error.details` 에 기록한다.
+   * spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
+   */
+  requiresCafe24Approval?: string[];
 }
 
 export function attachCallbackContext<E extends Error>(
@@ -493,6 +501,17 @@ export class IntegrationOAuthService {
       });
     }
     if (query.error) {
+      // Cafe24 가 요청 scope 를 거부(`?error=invalid_scope`)한 경우: state 를 소비해
+      // row 를 식별하고, 요청 scope ∩ 별도 승인 명단(§1)을 last_error.details.
+      // requiresCafe24Approval 로 남긴다. status 는 보존되어 재시도 가능.
+      // spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
+      if (
+        provider === 'cafe24' &&
+        query.error === 'invalid_scope' &&
+        query.state
+      ) {
+        await this.rejectCafe24InvalidScope(query.state); // always throws
+      }
       throw new BadRequestException({
         code: 'OAUTH_DENIED',
         message: 'Authorization was denied',
@@ -707,6 +726,46 @@ export class IntegrationOAuthService {
   }
 
   /**
+   * Cafe24 `invalid_scope` 콜백 처리 — state 를 소비해 row 를 식별하고, 요청 scope
+   * ∩ 별도 승인 명단(§1)을 attach 한 `OAUTH_INVALID_SCOPE` 를 throw 한다 (항상 throw).
+   * `handleCallbackWithErrorCapture` 가 `context.requiresCafe24Approval` 를
+   * `markIntegrationCallbackError` 로 전달해 `statusReason='oauth_invalid_scope'` +
+   * `last_error.details.requiresCafe24Approval` 를 기록한다. status 는 보존되어 재시도 가능.
+   * spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
+   */
+  private async rejectCafe24InvalidScope(state: string): Promise<never> {
+    const queryResult = await this.dataSource.query<
+      [IntegrationOAuthState[], number]
+    >('DELETE FROM integration_oauth_state WHERE state = $1 RETURNING *', [
+      state,
+    ]);
+    const consumed = queryResult[0];
+    const err = new BadRequestException({
+      code: 'OAUTH_INVALID_SCOPE',
+      message: 'Authorization rejected: invalid scope',
+    });
+    // state 가 이미 소비됐거나 미존재하면 row context 가 없어 진단 기록 불가 —
+    // context 없이 throw 한다 (UI 는 팝업 에러만 표시).
+    if (!consumed || consumed.length === 0) {
+      throw err;
+    }
+    const record = normalizeRawStateRow(
+      consumed[0] as unknown as Record<string, unknown>,
+    );
+    if (!record.integrationId) {
+      throw err;
+    }
+    throw attachCallbackContext(err, {
+      integrationId: record.integrationId,
+      workspaceId: record.workspaceId,
+      mode: record.mode,
+      requiresCafe24Approval: pickRestrictedApprovalScopes(
+        record.requestedScopes,
+      ),
+    });
+  }
+
+  /**
    * Public callback entry point — wraps `handleCallback` and, when it
    * throws after the state row has been consumed, records the diagnostic
    * onto the Integration row before re-throwing. The controller only needs
@@ -726,6 +785,12 @@ export class IntegrationOAuthService {
       if (ctx?.integrationId && ctx.workspaceId) {
         const errorCode = readErrorCode(err);
         const message = readErrorMessage(err);
+        // Cafe24 invalid_scope 콜백은 context 에 별도 승인 명단을 실어 보낸다 —
+        // last_error.details.requiresCafe24Approval 로 기록 (§10.4).
+        const extra =
+          ctx.requiresCafe24Approval && ctx.requiresCafe24Approval.length > 0
+            ? { requiresCafe24Approval: ctx.requiresCafe24Approval }
+            : undefined;
         // Best-effort — markIntegrationCallbackError already has its own
         // try/catch internally, the .catch here is defence-in-depth so a
         // future refactor cannot block the caller from re-throwing.
@@ -734,6 +799,7 @@ export class IntegrationOAuthService {
           ctx.workspaceId,
           errorCode,
           message,
+          extra,
         ).catch(() => {
           /* swallow — never block the original error from propagating */
         });
@@ -808,6 +874,13 @@ export class IntegrationOAuthService {
         // §10.4: reauthorize code-exchange failure on a connected row
         integration.status = 'error';
         integration.statusReason = 'auth_failed';
+      } else if (
+        integration.status === 'connected' &&
+        errorCode === 'OAUTH_INVALID_SCOPE'
+      ) {
+        // §10.4: Cafe24 가 reauthorize 단계에서 scope 를 거부 — status 는 보존하고
+        // 사유만 기록해 상세 페이지가 별도 승인 안내를 분기한다. 별도 승인 후 재시도 가능.
+        integration.statusReason = 'oauth_invalid_scope';
       }
       // Otherwise (connected + non-token error): last_error only.
       await this.integrationRepository.save(integration);

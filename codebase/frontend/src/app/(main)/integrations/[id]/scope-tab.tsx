@@ -149,6 +149,22 @@ export function ScopeTab({
         </section>
       )}
 
+      {/* OAuth invalid_scope 콜백 — Cafe24 가 authorize/token exchange 단계에서 scope
+          를 거부한 케이스. statusReason='oauth_invalid_scope' + last_error.details.
+          requiresCafe24Approval 를 읽어 별도 승인 안내를 분기한다 (missingScopes 경로와
+          달리 statusReason='insufficient_scope' 가 아니므로 별도 섹션).
+          spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3. */}
+      {integration.statusReason === "oauth_invalid_scope" &&
+        requiresApprovalFromError.length > 0 && (
+          <section className="rounded-md border border-red-300 bg-red-50 p-3 text-sm dark:border-red-900 dark:bg-red-950">
+            <p className="text-xs text-red-900 dark:text-red-200">
+              {t("integrations.cafe24RestrictedApprovalApiError", {
+                scopes: requiresApprovalFromError.join(", "),
+              })}
+            </p>
+          </section>
+        )}
+
       {cafe24Pending && (
         <section
           role="status"
