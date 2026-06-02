@@ -60,19 +60,26 @@ parent_session: review/consistency/2026/05/17/12_37_41/ (W-7), cafe24-restricted
 
 상기 변경은 OAuth 콜백 전체 흐름의 분기를 손대는 작업이라 본 PR 의 범위와 다르다. 호출 단계의 `INSUFFICIENT_SCOPE` 보강 (`cafe24-api.client.ts markAuthFailed` 의 `requiresCafe24Approval` 추가) 만으로도 사용자가 위저드 체크 → OAuth 통과 → 호출 시 403 시점에서 안내를 받을 수 있어 UX 의 가치 대부분이 확보된다.
 
-### 작업
-- [ ] `handleCallback` 에서 `query.error === 'invalid_scope'` 분기 추가 + state 소비 + context 첨부 throw
-- [ ] `handleCallbackWithErrorCapture` 에서 OAUTH_INVALID_SCOPE 시 state 의 requestedScopes 를 읽어 `pickRestrictedApprovalScopes` 호출 + `markIntegrationCallbackError({ requiresCafe24Approval })` 호출
-- [ ] `markIntegrationCallbackError` 의 statusReason 매핑에 명시적 분기 (`oauth_invalid_scope`)
-- [ ] integration-oauth.service.cafe24.spec.ts 에 케이스 추가
-- [ ] frontend: 통합 상세 페이지가 `Integration.statusReason==='oauth_invalid_scope'` + `last_error.details.requiresCafe24Approval` 를 읽어 분기 메시지 노출 (INSUFFICIENT_SCOPE 메시지 컴포넌트 재사용)
+### 작업 — ✅ 완료 (2026-06-02, worktree cafe24-oauth-invalid-scope-408b14)
+- [x] `handleCallback` invalid_scope 분기 + state 소비(`consumeOAuthState`) + context(approval) attach throw (`rejectCafe24InvalidScope`)
+- [x] `handleCallbackWithErrorCapture` 에서 ctx.requiresCafe24Approval → `markIntegrationCallbackError` extra 전달
+- [x] `markIntegrationCallbackError` statusReason 매핑 (pending_install normalize + connected 명시 분기)
+- [x] integration-oauth.service.cafe24.spec.ts invalid_scope 7 케이스
+- [x] frontend scope-tab oauth_invalid_scope 전용 섹션 (cafe24RestrictedApprovalApiError 재사용)
 
 ### 비목표
 - 새 에러 코드 추가 (사용자 facing UX 는 status_reason + details 로 충분)
 
 ---
 
-## §3. store 카탈로그의 `privacy_*` planned operation id 재명명
+## §3. store 카탈로그의 `privacy_*` planned operation id 재명명 — ❌ 재명명 안 함 (CLOSED 2026-06-02)
+
+> **결정 (2026-06-02): 재명명하지 않는다.** 근거: 앞으로 다양한 외부 시스템과 통합을 진행하며 이런
+> 명명 충돌은 빈번하게 발생할 것이고, 매번 충돌하지 않는 이름을 찾는 것은 현실적으로 불가능하다.
+> 6 row 는 이미 supported 로 안정적으로 호출 가능하고, 재명명은 backend 메타데이터 + AI agent
+> allowlist 저장값 마이그레이션을 포함하는 breaking change 라 비용 대비 실익이 낮다. 따라서 `privacy_*`
+> id 를 **현행 유지**하고 본 §3 는 종결한다. (`privacy.md` resource 와의 prefix 혼동은 catalog 주석/
+> 문서 레벨로 흡수하며, 명명 충돌 일반 정책이 필요해지면 별도 컨벤션으로 다룬다.)
 
 ### 배경
 impl-prep consistency-check (`review/consistency/2026/05/17/12_37_41/` W-7) 가 `spec/conventions/cafe24-api-catalog/store.md` 의 6 planned row 가 `privacy_` 접두사를 사용해 별개 resource 인 `privacy.md` 와 명명 혼동을 유발한다고 지적.
@@ -90,15 +97,15 @@ impl-prep consistency-check (`review/consistency/2026/05/17/12_37_41/` W-7) 가 
 1. 새 prefix 선택 — `store_privacy_*` (resource prefix 유지) vs `policy_privacy_*` (정책 그룹 명시) vs 기타.
 2. catalog row + backend metadata id 동시 갱신 + 기존 `enabledTools` (AI agent allowlist) 저장값 마이그레이션 절차 결정.
 
-### 작업
-- [ ] prefix 결정 (필요 시)
-- [ ] backend 메타데이터 + catalog + planned mirror 동기 갱신
-- [ ] 기존 사용자 `enabledTools` 마이그레이션 (id 변경은 breaking 이므로 deprecated alias 또는 일괄 변환)
-- [ ] PR
+### 작업 — 진행 안 함 (CLOSED)
+- [~] prefix 결정 — **취소** (재명명 안 함)
+- [~] backend 메타데이터 + catalog + planned mirror 동기 갱신 — 취소
+- [~] 기존 사용자 `enabledTools` 마이그레이션 — 취소
+- [~] PR — 취소
 
 ### 비목표
 - 다른 resource 의 명명 일관성 점검 — 별 plan.
 
-### 진행 조건
-- 본 작업은 본 worktree 의 spec 변경에 종속되지 않음 (별 worktree 에서 가능).
-- 사용자가 재명명을 명시적으로 요청한 시점에 착수 — 현재는 backend 가 실제 호출 가능한 supported 상태로 안정되어 있으므로 긴급도 낮음.
+### 진행 조건 (히스토리)
+- 본 작업은 본 worktree 의 spec 변경에 종속되지 않음 (별 worktree 에서 가능했음).
+- 재명명은 사용자 명시 요청 시 착수 예정이었으나, 2026-06-02 결정으로 **현행 유지·종결**.
