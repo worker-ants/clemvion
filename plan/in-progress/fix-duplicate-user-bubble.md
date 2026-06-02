@@ -43,7 +43,5 @@ spec §9.7은 frontend 구현 식별자를 본문에 노출하지 않는 방침 
 - [x] lint (frontend 0 errors) / unit (176 파일·3266 통과) / build (frontend 통과)
 - [x] /ai-review + SUMMARY — 위험도 LOW, Critical 0, Warning 1 (review/code/2026/06/03/00_27_33/SUMMARY.md)
 - [x] Critical/Warning fix — W-1(events 레이어 reconcile 통합 테스트) + 권장 INFO 반영 (commit 6c8eef0c, RESOLUTION.md)
-- [ ] e2e — **환경 차단 / 사용자 결정 대기**: 변경이 `.ts` 소스라 화이트리스트
-  밖이나 이 세션은 docker daemon 미가용(`docker info` 실패)으로 구조적 실행 불가.
-  변경은 frontend client-state(Zustand store reconcile + flag)로 unit·event-handler
-  통합 테스트로 커버됨. 보류 승인 시 RESOLUTION e2e 줄에 사용자 응답 인용.
+- [x] e2e — 통과 (140 passed, 120s). 사용자가 docker daemon 기동 후 재시도
+  ("도커 데몬 실행했으니 다시 시도해봐"). 마지막 코드 commit(6c8eef0c) 이후 통과.

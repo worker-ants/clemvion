@@ -16,7 +16,7 @@
 - lint  : 통과 (0 errors, 3 warnings — 기존 pre-existing)
 - unit  : 통과 (3268 passed, 1 skipped / 176 test files)
 - build : 통과
-- e2e   : 자동 흐름 환경 차단 (docker daemon 미가용)
+- e2e   : 통과 (140 passed, 120s — 사용자가 docker daemon 기동 후 재시도: "도커 데몬 실행했으니 다시 시도해봐")
 
 ## 보류·후속 항목
 
