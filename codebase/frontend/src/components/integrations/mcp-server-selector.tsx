@@ -3,10 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { integrationsApi, type IntegrationDto } from "@/lib/api/integrations";
 import { MCP_CAPABLE_SERVICE_TYPES } from "@/lib/integrations/mcp-capable-service-types";
-import { Plus, X, AlertTriangle } from "lucide-react";
+import { Plus, X, AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useT } from "@/lib/i18n";
+import { Cafe24AllowlistEditor } from "@/components/integrations/cafe24-allowlist-editor";
 
 /** Bound on the MCP server list fetched for picker — matches API page limit. */
 const MCP_LIST_LIMIT = 100;
@@ -52,15 +53,28 @@ interface Props {
 
 /**
  * Lets the workflow author attach one or more workspace MCP servers to an
- * AI Agent node. The component is intentionally tight: it does not let the
- * user edit allowlists / per-tool overrides inline (those are advanced
- * surfaces tracked separately) — for now toggling a server on/off and
- * controlling resource/prompt exposure is enough for the 80% case.
+ * AI Agent node. Toggling a server on/off and controlling resource/prompt
+ * exposure covers the 80% case for generic MCP servers.
+ *
+ * **Cafe24 servers** additionally expose an expandable "Operations allowlist"
+ * editor (`Cafe24AllowlistEditor`) — resource-grouped `enabledTools` editing
+ * with ⚠ partner-approval labels (§1 / spec/4-nodes/4-integration/4-cafe24.md
+ * §8.3). Per-tool description overrides remain an advanced surface tracked
+ * separately.
  */
 export function McpServerSelector({ value, onChange }: Props) {
   const t = useT();
   const safe = Array.isArray(value) ? value : [];
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Cafe24 server 별 "Operations allowlist" 펼침 상태 (advanced surface — §1).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // MCP-capable integrations cover external HTTP servers (service_type='mcp')
   // and Internal Bridge integrations (currently service_type='cafe24'). Both
@@ -91,6 +105,13 @@ export function McpServerSelector({ value, onChange }: Props) {
 
   function remove(integrationId: string) {
     onChange(safe.filter((r) => r.integrationId !== integrationId));
+    // stale 펼침 상태 정리 — 같은 id 재추가 시 의도치 않은 복원 방지 (ai-review INFO #3).
+    setExpanded((prev) => {
+      if (!prev.has(integrationId)) return prev;
+      const next = new Set(prev);
+      next.delete(integrationId);
+      return next;
+    });
   }
 
   function patch(integrationId: string, patch: Partial<McpServerRef>) {
@@ -210,6 +231,40 @@ export function McpServerSelector({ value, onChange }: Props) {
                       />
                       Expose Prompts
                     </label>
+                  </div>
+                )}
+                {/* Cafe24 server — operation 단위 allowlist 편집 (advanced surface,
+                    §1 / spec §8.3). 별도 승인(⚠) 라벨은 에디터가 자동 렌더. */}
+                {!isMissing && integration?.serviceType === "cafe24" && (
+                  <div className="mt-1.5 border-t border-[hsl(var(--border))] pt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(ref.integrationId)}
+                      aria-expanded={expanded.has(ref.integrationId)}
+                      className="flex w-full items-center gap-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                    >
+                      {expanded.has(ref.integrationId) ? (
+                        <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                      )}
+                      {t("nodeConfigs.integration.cafe24AllowlistTitle")}
+                      {ref.enabledTools && (
+                        <span className="ml-1 rounded bg-[hsl(var(--muted))] px-1 py-0.5 text-[9px]">
+                          {ref.enabledTools.length}
+                        </span>
+                      )}
+                    </button>
+                    {expanded.has(ref.integrationId) && (
+                      <div className="mt-1.5">
+                        <Cafe24AllowlistEditor
+                          enabledTools={ref.enabledTools}
+                          onChange={(et) =>
+                            patch(ref.integrationId, { enabledTools: et })
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
