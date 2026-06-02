@@ -27,9 +27,9 @@ describe('ExecutionEventEmitter', () => {
     );
   });
 
-  it('emitExecution delegates to WebsocketService.emitExecutionEvent verbatim', () => {
+  it('emitExecution delegates to WebsocketService.emitExecutionEvent verbatim', async () => {
     const payload = { foo: 'bar' };
-    emitter.emitExecution(
+    await emitter.emitExecution(
       'exec-1',
       ExecutionEventType.EXECUTION_STARTED,
       payload,
@@ -42,9 +42,14 @@ describe('ExecutionEventEmitter', () => {
     );
   });
 
-  it('emitNode delegates to WebsocketService.emitNodeEvent verbatim', () => {
+  it('emitNode delegates to WebsocketService.emitNodeEvent verbatim', async () => {
     const payload = { status: 'ok' };
-    emitter.emitNode('exec-1', 'node-9', NodeEventType.NODE_COMPLETED, payload);
+    await emitter.emitNode(
+      'exec-1',
+      'node-9',
+      NodeEventType.NODE_COMPLETED,
+      payload,
+    );
     expect(websocket.emitNodeEvent).toHaveBeenCalledTimes(1);
     expect(websocket.emitNodeEvent).toHaveBeenCalledWith(
       'exec-1',

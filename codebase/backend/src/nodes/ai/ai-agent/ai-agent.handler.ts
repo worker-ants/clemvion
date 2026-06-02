@@ -789,7 +789,7 @@ export class AiAgentHandler implements NodeHandler {
       name: call.name,
       arguments: call.arguments,
     };
-    this.websocketService?.emitExecutionEvent(
+    await this.websocketService?.emitExecutionEvent(
       executionId,
       ExecutionEventType.TOOL_CALL_STARTED,
       startedPayload,
@@ -853,7 +853,7 @@ export class AiAgentHandler implements NodeHandler {
       ...(error !== undefined ? { error } : {}),
       durationMs,
     };
-    this.websocketService?.emitExecutionEvent(
+    await this.websocketService?.emitExecutionEvent(
       executionId,
       ExecutionEventType.TOOL_CALL_COMPLETED,
       completedPayload,

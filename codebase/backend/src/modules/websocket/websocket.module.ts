@@ -3,6 +3,7 @@ import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { WebsocketGateway } from './websocket.gateway';
 import { WebsocketService } from './websocket.service';
+import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { ExecutionsModule } from '../executions/executions.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
@@ -25,7 +26,7 @@ import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
     // KB ↔ WS 양방향 의존이라 forwardRef 필요 (KB Module 가 이미 WebsocketModule 를 forwardRef import).
     forwardRef(() => KnowledgeBaseModule),
   ],
-  providers: [WebsocketGateway, WebsocketService],
+  providers: [WebsocketGateway, WebsocketService, ExecutionSeqAllocator],
   exports: [WebsocketService],
 })
 export class WebsocketModule {}

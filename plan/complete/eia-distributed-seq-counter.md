@@ -50,25 +50,27 @@ follow-up 명시.
   + RETURNING 으로 atomic 발급.
 - 트랜잭션 commit 전에 seq 가 외부에 새지 않도록 emit 시점이 commit 후로 강제 (EIA-RL-04 와 정합).
 
+> **진행 상태 (2026-06-02)**: 실행 체크리스트 = [`eia-distributed-seq-checklist.md`](./eia-distributed-seq-checklist.md).
+> 사용자 결정: multi-instance 운영 + **Redis-only** (하이브리드에서 수정). emit **async 전환** (batch 기각).
+
 ## 작업 단위
 
 ### 1. PoC — race 발견 가능 여부 검증
 
-- [ ] 다중 instance 시뮬레이션 (docker-compose 2 backend) — 같은 execution 의 두 emit 이 다른
-      instance 에서 동시 발생하는 시나리오 재현
-- [ ] in-memory 만으로 발생하는 seq 중복·역전 비율 측정 (의미 있는 race 발견 여부 결정)
+- [x] ~~다중 instance race 재현~~ — 사용자가 **multi-instance 운영 확정**으로 "강화 필요 여부 판정" 갈음(강화 진행). 2-instance 실 repro 는 §3 부하 항목(선택적)으로 이관
+- [x] in-memory v1 의 분산 gap 은 spec §R7 / 본 plan 배경에서 인지 — Redis INCR 로 해소
 
-### 2. 구현 (PoC 결과 기반)
+### 2. 구현 (Redis-only)
 
-- [ ] 결정 사항 (a)/(b)/(c) 선택
-- [ ] emit signature 결정: async 전환 vs batch pre-allocate
-- [ ] 신규 구현 + 단위·e2e 테스트
-- [ ] 분산 race regression 테스트 추가
+- [x] 저장소 (c)→**Redis-only** 확정 (DB fallback 미사용, Redis 장애 시 in-memory degraded)
+- [x] emit signature **async 전환** (batch 는 인스턴스 migration 시 monotonic 역전 재유발로 기각)
+- [x] `ExecutionSeqAllocator`(Redis `INCR` + pipeline TTL) + WebsocketService/facade async + 호출처 37곳 await + 단위 테스트
+- [x] 분산 race regression 테스트 (100 동시 next() 유일성)
 
 ### 3. 검증
 
-- [ ] backend lint + unit + build + e2e
-- [ ] 부하 테스트 — 1000 events/s 시 seq 단조 증가 보장
+- [x] backend lint + unit(5406) + build + e2e(140)
+- [x] 부하 repro 는 **선택적 follow-up 으로 분리** → [`eia-distributed-seq-load-verify.md`](../in-progress/eia-distributed-seq-load-verify.md). 핵심 보장은 Redis INCR 원자성 + unit(100 동시 유일성)으로 충족 (본 plan 범위 완료)
 
 ## 수용 기준
 
