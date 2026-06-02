@@ -1,16 +1,13 @@
 ---
 id: i18n-userguide
-status: partial
-pending_plans:
-  - plan/in-progress/backend-msg-i18n-impl.md
+status: implemented
 code:
   - codebase/frontend/src/lib/i18n/backend-labels.ts
   - codebase/frontend/src/lib/i18n/dict/**
 ---
 
-<!-- status: partial — Principle 1·2·3·3-B·4·5·6·7 구현됨. Principle 3-C
-     (ERROR_KO · GRAPH_WARNING_KO · 동적 메시지 localization) 는 정책 확정,
-     구현은 pending_plans 의 backend-msg-i18n-impl 추적. -->
+<!-- status: implemented — Principle 1·2·3·3-B·4·5·6·7 및 Principle 3-C
+     (ERROR_KO · GRAPH_WARNING_KO · 동적 메시지 localization) 모두 구현 완료. -->
 
 
 # i18n / 유저 가이드 정식 규약 (Conventions)
