@@ -1,7 +1,7 @@
 ---
 worktree: fix-duplicate-user-bubble
 branch: worktree-fix-duplicate-user-bubble
-status: in-progress
+status: complete
 ---
 
 # AI Agent chat user 발화 버블 중복 표시 버그 수정

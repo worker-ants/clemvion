@@ -723,7 +723,7 @@ describe("useExecutionStore", () => {
 // spec/conventions/conversation-thread.md §9.7 — pure helper backing the
 // echo→optimistic-bubble reconcile branch of appendOptimisticUserMessage.
 describe("findReconcilableOptimisticIdx", () => {
-  const u = (over: Partial<ConversationItem>): ConversationItem => ({
+  const makeUserItem = (over: Partial<ConversationItem>): ConversationItem => ({
     type: "user",
     content: "",
     turnIndex: 1,
@@ -731,31 +731,31 @@ describe("findReconcilableOptimisticIdx", () => {
   });
 
   it("finds a pending user bubble matching content", () => {
-    const msgs = [u({ content: "안녕", optimisticPending: true })];
+    const msgs = [makeUserItem({ content: "안녕", optimisticPending: true })];
     expect(findReconcilableOptimisticIdx(msgs, "안녕")).toBe(0);
   });
 
   it("returns -1 when content differs", () => {
-    const msgs = [u({ content: "안녕", optimisticPending: true })];
+    const msgs = [makeUserItem({ content: "안녕", optimisticPending: true })];
     expect(findReconcilableOptimisticIdx(msgs, "다른 말")).toBe(-1);
   });
 
   it("returns -1 when the matching bubble is not optimisticPending (already reconciled / authoritative)", () => {
-    const msgs = [u({ content: "안녕" })];
+    const msgs = [makeUserItem({ content: "안녕" })];
     expect(findReconcilableOptimisticIdx(msgs, "안녕")).toBe(-1);
   });
 
   it("ignores non-user items with matching content", () => {
     const msgs = [
-      u({ type: "assistant", content: "안녕", optimisticPending: true }),
+      makeUserItem({ type: "assistant", content: "안녕", optimisticPending: true }),
     ];
     expect(findReconcilableOptimisticIdx(msgs, "안녕")).toBe(-1);
   });
 
   it("returns the first pending bubble on duplicate identical content (documented trade-off)", () => {
     const msgs = [
-      u({ content: "같은 말", optimisticPending: true, turnIndex: 1 }),
-      u({ content: "같은 말", optimisticPending: true, turnIndex: 2 }),
+      makeUserItem({ content: "같은 말", optimisticPending: true, turnIndex: 1 }),
+      makeUserItem({ content: "같은 말", optimisticPending: true, turnIndex: 2 }),
     ];
     expect(findReconcilableOptimisticIdx(msgs, "같은 말")).toBe(0);
   });
