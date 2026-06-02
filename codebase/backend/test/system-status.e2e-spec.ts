@@ -4,7 +4,6 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail } from './helpers/db';
 import { registerAndLogin } from './helpers/auth';
-import { SYSTEM_STATUS_QUEUE_NAMES } from '../src/modules/system-status/system-status.constants';
 
 /**
  * e2e: 시스템 상태 API (spec/5-system/16-system-status-api.md).
@@ -20,8 +19,23 @@ import { SYSTEM_STATUS_QUEUE_NAMES } from '../src/modules/system-status/system-s
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
-// I-11: SYSTEM_STATUS_QUEUE_NAMES 직접 import — MONITORED_QUEUES 추가 시 자동 동기화 보장.
-const EXPECTED_QUEUE_NAMES = SYSTEM_STATUS_QUEUE_NAMES;
+// SoT: src/modules/system-status/system-status.constants.ts 의 MONITORED_QUEUES.
+// 블랙박스 e2e 는 앱 소스를 import 하지 않는다 (constants 가 큐 상수를 서비스 파일에서
+// 끌어와 nodes 그래프 전체를 전이 로드 → e2e jest 모듈 해석 실패). 큐 추가 시 본 목록도 갱신.
+const EXPECTED_QUEUE_NAMES = [
+  'background-execution',
+  'execution-continuation',
+  'document-embedding',
+  'graph-extraction',
+  'notification-webhook',
+  'cafe24-token-refresh',
+  'schedule-execution',
+  'login-history-pruner',
+  'notification-secret-rotator',
+  'chat-channel-token-rotator',
+  'integration-expiry-scanner',
+  'alerts-evaluator',
+];
 
 const HEALTH_VALUES = ['healthy', 'degraded', 'down'];
 const GROUP_VALUES = ['execution', 'knowledge-base', 'integration', 'system'];
