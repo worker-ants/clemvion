@@ -68,9 +68,7 @@ describe('SystemStatusService.getOverview', () => {
   });
 
   it('concurrency=0 이면 utilization 0 (0 division 방지)', async () => {
-    const handles = [
-      makeHandle('x', 'system', 0, { active: 5 }),
-    ];
+    const handles = [makeHandle('x', 'system', 0, { active: 5 })];
     const service = new SystemStatusService(handles);
 
     const res = await service.getOverview();
@@ -94,7 +92,9 @@ describe('SystemStatusService.getOverview', () => {
   });
 
   it('waiting>0 && active=0 → 워커 미가동 추정 down', async () => {
-    const handles = [makeHandle('a', 'execution', 1, { waiting: 3, active: 0 })];
+    const handles = [
+      makeHandle('a', 'execution', 1, { waiting: 3, active: 0 }),
+    ];
     const service = new SystemStatusService(handles);
 
     const res = await service.getOverview();
@@ -117,7 +117,9 @@ describe('SystemStatusService.getOverview', () => {
   });
 
   it('delayed >= 임계(기본 50) → degraded', async () => {
-    const handles = [makeHandle('a', 'execution', 1, { active: 1, delayed: 50 })];
+    const handles = [
+      makeHandle('a', 'execution', 1, { active: 1, delayed: 50 }),
+    ];
     const service = new SystemStatusService(handles);
 
     const res = await service.getOverview();
@@ -126,7 +128,9 @@ describe('SystemStatusService.getOverview', () => {
   });
 
   it('delayed 가 임계 미만이면 degraded 아님', async () => {
-    const handles = [makeHandle('a', 'execution', 1, { active: 1, delayed: 49 })];
+    const handles = [
+      makeHandle('a', 'execution', 1, { active: 1, delayed: 49 }),
+    ];
     const service = new SystemStatusService(handles);
 
     const res = await service.getOverview();

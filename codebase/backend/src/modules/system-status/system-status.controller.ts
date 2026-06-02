@@ -27,7 +27,9 @@ export class SystemStatusController {
       '전체 BullMQ 큐의 상태별 집계 카운트, 포화도, 파생 health 를 반환합니다. ' +
       '개별 job·payload 는 노출하지 않으며, 워크스페이스/유저 무관한 시스템 전역 집계입니다.',
   })
-  @ApiOkWrappedResponse(SystemStatusOverviewDto, { description: '시스템 상태 개요' })
+  @ApiOkWrappedResponse(SystemStatusOverviewDto, {
+    description: '시스템 상태 개요',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async getOverview(): Promise<SystemStatusOverviewDto> {
     return this.systemStatusService.getOverview();

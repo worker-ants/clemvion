@@ -61,9 +61,8 @@ export const MONITORED_QUEUES: readonly MonitoredQueue[] = [
 ];
 
 /** BullModule.registerQueue 및 DI factory 의 inject 순서에 쓰이는 큐 이름 목록. */
-export const SYSTEM_STATUS_QUEUE_NAMES: readonly string[] = MONITORED_QUEUES.map(
-  (q) => q.name,
-);
+export const SYSTEM_STATUS_QUEUE_NAMES: readonly string[] =
+  MONITORED_QUEUES.map((q) => q.name);
 
 /** 모니터링 대상 Queue 인스턴스 배열을 주입받는 DI 토큰. */
 export const MONITORED_QUEUE_HANDLES = 'MONITORED_QUEUE_HANDLES';

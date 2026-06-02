@@ -21,7 +21,10 @@ export class QueueCountsDto {
 }
 
 export class QueueStatusDto {
-  @ApiProperty({ example: 'background-execution', description: 'BullMQ 큐 이름' })
+  @ApiProperty({
+    example: 'background-execution',
+    description: 'BullMQ 큐 이름',
+  })
   name: string;
 
   @ApiProperty({
