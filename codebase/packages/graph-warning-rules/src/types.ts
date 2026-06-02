@@ -65,13 +65,26 @@ export interface GraphWarningRule {
    * 인자:
    *  - `node` — rule 이 등재된 노드 인스턴스 (graph 안의 자기 자신)
    *  - `graph` — workflow 의 nodes/edges 전체 view (read-only)
+   *
+   * 반환:
+   *  - `message` — 영문 SoT / fallback (로그·비-ko 로케일·매핑 누락 시 그대로 노출)
+   *  - `params` — 동적 메시지의 보간 값(노드 라벨·수치 등). frontend 가
+   *    `GRAPH_WARNING_KO[ruleId]` 한국어 템플릿에 `{{name}}` 으로 보간한다
+   *    (SoT: spec/conventions/i18n-userguide.md Principle 3-C). optional —
+   *    정적 메시지 rule 은 생략 가능(하위호환).
    */
-  evaluate: (node: GraphRuleNode, graph: GraphRuleGraph) => { message: string } | null;
+  evaluate: (
+    node: GraphRuleNode,
+    graph: GraphRuleGraph,
+  ) => { message: string; params?: Record<string, string | number> } | null;
 }
 
 export interface GraphWarningRuleResult {
   ruleId: string;
   severity: 'error' | 'warning';
   nodeId: string;
+  /** 영문 SoT / fallback. ko 표시 문자열은 frontend 가 `ruleId` 키로 localize. */
   message: string;
+  /** 동적 메시지 보간 값. `GRAPH_WARNING_KO[ruleId]` 템플릿의 `{{name}}` 에 대응. */
+  params?: Record<string, string | number>;
 }
