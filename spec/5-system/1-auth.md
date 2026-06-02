@@ -357,7 +357,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | session_revoked | 사용자가 활성 세션 목록에서 다른 family 강제 종료 |
 | token_reuse_detected | revoke된 refresh token 재사용 감지 → family 전체 revoke |
 
-보존: **180일** 경과 row 는 일일 배치(`@Cron('0 3 * * *')`)로 자동 삭제. 조회는 사용자 본인만 가능하며 워크스페이스 관리자에게는 노출되지 않는다.
+보존: **180일** 경과 row 는 일일 배치(BullMQ repeatable scheduler, `0 3 * * *` Asia/Seoul)로 자동 삭제. 조회는 사용자 본인만 가능하며 워크스페이스 관리자에게는 노출되지 않는다.
 
 ---
 
@@ -473,11 +473,11 @@ WebAuthn 등록 사용자에게 로그인 화면이 TOTP 입력란을 함께 노
 
 V058 (`chk_login_history_event` CHECK 제약에 `webauthn_failed` 추가) 는 `DROP/ADD CONSTRAINT` 단일 statement 로 작성됐다. `codebase/backend/migrations/README.md §1` 의 기본 컨벤션은 NOT VALID + VALIDATE 2-step 이지만, 본 건은 다음 모든 조건이 충족돼 단일 statement 가 안전하다고 판단:
 
-1. **append-only 테이블** — `login_history` 는 INSERT 만 발생 (UPDATE/DELETE 없음 — 보존 기간 cron 만 DELETE). long-running write 트랜잭션이 ACCESS EXCLUSIVE 와 경합할 가능성이 낮다.
+1. **append-only 테이블** — `login_history` 는 INSERT 만 발생 (UPDATE/DELETE 없음 — 보존 기간 정기 배치만 DELETE). long-running write 트랜잭션이 ACCESS EXCLUSIVE 와 경합할 가능성이 낮다.
 2. **enum 확장 시나리오** — 신규 enum 값 (`webauthn_failed`) 은 기존 row 에 존재하지 않으므로 NOT VALID 의 "기존 row 검증 스킵" 이 주는 이득이 없다 (어차피 전체 검증 시 0건 위배).
 3. **테이블 크기가 아직 작음** — `login_history` 는 락 영향이 무시 가능한 규모. 다만 장기적으로 성장하면 다음과 같은 사후 검토를 권장:
    - 1M row 도달 시: 다음 CHECK 변경부터 의무적으로 NOT VALID + VALIDATE 분리
-   - 보존 기간 (180일) 정책이 효과적으로 동작하는지 cron 모니터링 (`login_history_pruner_service`)
+   - 보존 기간 (180일) 정책이 효과적으로 동작하는지 스케줄 job 모니터링 (`login-history-pruner` 큐)
 
 이미 적용된 제약을 NOT VALID 로 재선언하는 것은 의미 불명이고 (제약명 동일 시 `ERROR: relation already exists`), DROP → NOT VALID ADD → VALIDATE 3-step 우회는 단일 statement 보다 더 긴 락 윈도우(총 3개 ACCESS EXCLUSIVE 락)를 만든다. 미래의 동일 패턴 변경에 대해서는 위 조건 점검 후 분기하며, `login_history` 같은 append-only 테이블도 1M row 이후에는 NOT VALID 2-step 의무화를 권장한다.
 
