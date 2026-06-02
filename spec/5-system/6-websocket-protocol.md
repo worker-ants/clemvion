@@ -485,6 +485,8 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `durationMs` | number? | **턴 전체** 소요시간 (모든 LLM 호출 + tool 실행 합) |
 | `presentations` | PresentationPayload[]? | AI Agent 가 `render_*` 표현 도구 ([Spec AI Agent §4.1](../4-nodes/3-ai/1-ai-agent.md#41-presentation-tool-family-render_)) 를 호출한 turn 에서만 동봉. `ai_assistant` ConversationTurn 의 top-level `presentations[]` snapshot. type 정의의 단일 진실은 [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반). 클라이언트가 chat UI 에서 텍스트와 함께 inline 렌더 |
 
+> **`llmCalls[].requestPayload` / `responsePayload` 는 raw 디버그 payload** 다 — LLM provider 와의 원본 요청/응답(시스템 프롬프트·대화 이력·tool 정의·사용자 입력 등 민감 데이터 포함 가능)을 마스킹(redaction) 없이 운반하며, 에디터의 디버깅 타임라인(Response/Request/LLM Usage 탭) 같은 **개발자·에디터 surface** 전용이다. v1 은 별도 마스킹(redaction)을 적용하지 않으며, 에디터 surface 는 기존 워크플로 RBAC 로 간접 제한된다. 다중 테넌트·비편집자 노출 범위에 대한 **명시적 접근제어·마스킹 정책은 open item** (제품 결정 필요) — 본 노트는 현행 동작을 명문화할 뿐 정책을 규정하지 않는다. 설계 근거는 본 문서 ## Rationale 의 "`ai_message.llmCalls[]` raw payload 운반" 항목 참조.
+
 ```json
 {
   "type": "execution.ai_message",
@@ -617,7 +619,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 }
 ```
 
-> **Reconciliation**: `tool_call_started` / `tool_call_completed` / `user_message` 가 손실되어도 turn 종료 시 도착하는 `execution.ai_message` 의 `messages` 스냅샷과 `meta.turnDebug[].toolCalls` 가 권위적이다. 클라이언트는 tool 항목은 `toolCallId`, optimistic user bubble 은 `receivedAt` 을 키로 dedup 한다. 즉 `user_message` 는 q 의 조기 노출(라이브 UX)만 담당하고, 영속/이력 정합은 `ai_message` 스냅샷이 보장한다.
+> **Reconciliation**: `tool_call_started` / `tool_call_completed` / `user_message` 가 손실되어도 turn 종료 시 도착하는 `execution.ai_message` 의 `messages` 스냅샷과 `meta.turnDebug[].toolCalls` 가 권위적이다. 클라이언트는 tool 항목은 `toolCallId`, optimistic user bubble 은 `receivedAt` 을 키로 dedup 한다. 단, 클라이언트가 직접 발화해 송신 즉시 표시한 동일 발화 bubble 이 이미 있으면 `user_message` 는 새 bubble 을 append 하지 않고 기존 bubble 에 `receivedAt` 을 stamp 해 reconcile 한다 (`receivedAt` 은 이후 재emit 의 dedup 키로 계속 동작). 즉 `user_message` 는 q 의 조기 노출(라이브 UX)만 담당하고, 영속/이력 정합은 `ai_message` 스냅샷이 보장한다.
 
 #### 4.4.5 Conversation Thread snapshot (`conversationThread`)
 
@@ -948,6 +950,21 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 `pendingFormToolCall.formConfig` nest 는 `toolCallId` 와 묶여 단일 원자 운반체로 의미가 명확하다.
 
 **근거**: [Spec AI Agent §12.5](../4-nodes/3-ai/1-ai-agent.md#125-render_form-활성-form-의-timeline-인라인-표현-통합).
+
+### `user_message` optimistic bubble 의 stamp-reconcile 분기
+
+`user_message` 는 `receivedAt` 을 dedup 단일 키로 쓴다(§4.4 Reconciliation 노트). 그러나 클라이언트가 **직접** 발화하는 경로에서는 송신 즉시 로컬 optimistic `ai_user` bubble 을 먼저 표시하는데, 이 로컬 bubble 의 타임스탬프는 *클라이언트* 시각이고 후속 `user_message` echo 의 dedup 키는 *서버* `receivedAt` 이라 둘이 불일치한다. 따라서 `receivedAt` 단일 dedup 만으로는 이 로컬 bubble 케이스를 잡지 못해 동일 발화가 두 bubble 로 중복 표시되는 회귀가 났다.
+
+- **결정**: echo 가 동일 발화의 기존 optimistic bubble 을 발견하면 새 항목을 append 하지 않고 기존 bubble 에 `receivedAt` 을 **stamp** 해 reconcile 한다(append 대신). 로컬 bubble 이 없는 경로(채널 텍스트 인바운드 등)에서만 append 한다.
+- **근거**: 발신자의 즉시 피드백(로컬 optimistic)과 WS echo 유실 내성을 보존하면서 중복만 제거한다. stamp 이후 `receivedAt` 은 재emit/재구독 dedup 키로 계속 동작하고, 최종 정합은 turn 종료 `ai_message` 스냅샷 REPLACE 가 보장한다(stamp 는 그 보조 선행 단계). frontend 구현 식별자는 [Conversation Thread §9.7.1](../conventions/conversation-thread.md#971-store-reset-정책-실행-lifecycle-별) 방침에 따라 본문에 노출하지 않는다.
+
+### `ai_message.llmCalls[]` raw payload 운반 (v1, 마스킹 없음)
+
+디버깅 타임라인이 어시스턴트 메시지 단위로 Request/Response/Usage 를 보여주려면 LLM provider 와의 원본 payload 가 필요하다.
+
+- **결정**: `llmCalls[].requestPayload` / `responsePayload` 를 마스킹(redaction) 없이 그대로 운반한다(§4.4 `llmCalls[]` 노트).
+- **근거**: v1 은 에디터 surface 전용이라 기존 워크플로 RBAC 로 간접 제한된다. 별도 redaction 배선 비용 대비 디버깅 가치가 크다.
+- **open item**: 다중 테넌트·비편집자 노출 범위에 대한 명시적 접근제어·마스킹 정책은 미결(제품 결정). 향후 보안/멀티테넌시 plan 신설 시 §4.4 `llmCalls[]` 노트를 체크리스트 항목으로 포함한다.
 
 ### `execution.retry_last_turn` 의 graph 진행 의미 — Re-run 과의 경계
 

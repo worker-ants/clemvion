@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useExecutionStore } from "../execution-store";
-import type { NodeResult, NodeStatusInfo } from "../execution-store";
+import {
+  useExecutionStore,
+  findReconcilableOptimisticIdx,
+} from "../execution-store";
+import type {
+  ConversationItem,
+  NodeResult,
+  NodeStatusInfo,
+} from "../execution-store";
 
 function makeResult(overrides: Partial<NodeResult> = {}): NodeResult {
   return {
@@ -645,6 +652,57 @@ describe("useExecutionStore", () => {
       expect(items[0]).toMatchObject({ type: "user", content: "채널에서 온 발화" });
     });
 
+    // 옛 backend 호환: echo 의 receivedAt 가 빈 문자열이어도 optimisticPending
+    // 로컬 버블과 reconcile 돼야 한다(append 금지). 빈 receivedAt 는 dedup 키가
+    // 없으므로 stamp 는 기존 client timestamp 를 보존한다 (`receivedAt || i.timestamp`).
+    it("reconciles an optimisticPending bubble even when echo receivedAt is empty (legacy backend)", () => {
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "주문 확인해줘",
+        turnIndex: 1,
+        timestamp: "2026-06-01T00:00:00.000Z",
+        optimisticPending: true,
+      });
+      useExecutionStore.getState().appendOptimisticUserMessage({
+        content: "주문 확인해줘",
+        receivedAt: "", // 옛 backend
+      });
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1); // append 되지 않고 reconcile
+      expect(items[0].optimisticPending).toBeUndefined(); // flag 해제
+      expect(items[0].timestamp).toBe("2026-06-01T00:00:00.000Z"); // client ts 보존
+    });
+
+    // 문서화된 trade-off: 동일 content 를 연속 전송해 optimisticPending 버블이
+    // 둘 생기면, echo 는 첫 번째(가장 오래된) pending 버블을 흡수한다. 두 번째
+    // 버블은 그대로 남고 후속 ai_message REPLACE 가 최종 보정한다.
+    it("absorbs the first pending bubble on duplicate identical sends (documented trade-off)", () => {
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "같은 말",
+        turnIndex: 1,
+        timestamp: "2026-06-01T00:00:00.000Z",
+        optimisticPending: true,
+      });
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "같은 말",
+        turnIndex: 2,
+        timestamp: "2026-06-01T00:00:01.000Z",
+        optimisticPending: true,
+      });
+      useExecutionStore.getState().appendOptimisticUserMessage({
+        content: "같은 말",
+        receivedAt: "2026-06-01T00:00:09.999Z",
+      });
+      const items = useExecutionStore.getState().conversationMessages;
+      // 첫 버블이 reconcile(stamp + flag clear), 둘째는 그대로 pending 잔류.
+      expect(items).toHaveLength(2);
+      expect(items[0].timestamp).toBe("2026-06-01T00:00:09.999Z");
+      expect(items[0].optimisticPending).toBeUndefined();
+      expect(items[1].optimisticPending).toBe(true);
+    });
+
     it("subsequent setConversationMessages (ai_message REPLACE) reconciles the optimistic bubble", () => {
       useExecutionStore.getState().appendOptimisticUserMessage({
         content: "주문 확인해줘",
@@ -659,5 +717,46 @@ describe("useExecutionStore", () => {
       expect(items).toHaveLength(2);
       expect(items[1].type).toBe("assistant");
     });
+  });
+});
+
+// spec/conventions/conversation-thread.md §9.7 — pure helper backing the
+// echo→optimistic-bubble reconcile branch of appendOptimisticUserMessage.
+describe("findReconcilableOptimisticIdx", () => {
+  const makeUserItem = (over: Partial<ConversationItem>): ConversationItem => ({
+    type: "user",
+    content: "",
+    turnIndex: 1,
+    ...over,
+  });
+
+  it("finds a pending user bubble matching content", () => {
+    const msgs = [makeUserItem({ content: "안녕", optimisticPending: true })];
+    expect(findReconcilableOptimisticIdx(msgs, "안녕")).toBe(0);
+  });
+
+  it("returns -1 when content differs", () => {
+    const msgs = [makeUserItem({ content: "안녕", optimisticPending: true })];
+    expect(findReconcilableOptimisticIdx(msgs, "다른 말")).toBe(-1);
+  });
+
+  it("returns -1 when the matching bubble is not optimisticPending (already reconciled / authoritative)", () => {
+    const msgs = [makeUserItem({ content: "안녕" })];
+    expect(findReconcilableOptimisticIdx(msgs, "안녕")).toBe(-1);
+  });
+
+  it("ignores non-user items with matching content", () => {
+    const msgs = [
+      makeUserItem({ type: "assistant", content: "안녕", optimisticPending: true }),
+    ];
+    expect(findReconcilableOptimisticIdx(msgs, "안녕")).toBe(-1);
+  });
+
+  it("returns the first pending bubble on duplicate identical content (documented trade-off)", () => {
+    const msgs = [
+      makeUserItem({ content: "같은 말", optimisticPending: true, turnIndex: 1 }),
+      makeUserItem({ content: "같은 말", optimisticPending: true, turnIndex: 2 }),
+    ];
+    expect(findReconcilableOptimisticIdx(msgs, "같은 말")).toBe(0);
   });
 });

@@ -1342,6 +1342,44 @@ describe("useExecutionEvents", () => {
       expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
     });
 
+    // W-1 추가 — receivedAt="" (옛 backend,빈 문자열) + optimisticPending 버블
+    // 조합. handleUserMessage 가 payload.receivedAt ?? "" 로 빈 문자열을
+    // appendOptimisticUserMessage 에 넘길 때 기존 optimisticPending 버블이
+    // 중복 append 되지 않고 reconcile(1개 유지)되어야 한다.
+    it("reconciles optimisticPending bubble when handleUserMessage receives receivedAt='' (legacy backend)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+
+      // sendMessage 가 즉시 삽입한 로컬 optimistic 버블.
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "주문 확인해줘",
+        turnIndex: 1,
+        timestamp: "2026-06-01T00:00:00.000Z",
+        optimisticPending: true,
+      });
+
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+
+      // 옛 backend 가 receivedAt 을 빈 문자열로 보낸 echo.
+      const handler = bindUserMessage();
+      handler!({
+        nodeExecutionId: "ne-1",
+        nodeId: "agent-1",
+        message: "주문 확인해줘",
+        receivedAt: "", // 옛 backend — payload.receivedAt ?? "" 경로
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      // 핵심 회귀 방어: receivedAt="" 이어도 버블이 1개로 유지 (중복 append 없음).
+      expect(items).toHaveLength(1);
+      // receivedAt="" 이면 기존 클라이언트 타임스탬프가 보존됨 (receivedAt || i.timestamp).
+      expect(items[0].timestamp).toBe("2026-06-01T00:00:00.000Z");
+      // optimisticPending 플래그 해제됨.
+      expect(items[0].optimisticPending).toBeUndefined();
+      // isWaitingAiResponse 활성화됨.
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    });
+
     // W-1 보완 — optimisticPending 버블 없이 echo 가 도착하면 정상 append
     // (observer / 채널 인입 클라이언트 시나리오).
     it("appends normally when no optimisticPending bubble exists (observer path)", () => {
