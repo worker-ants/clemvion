@@ -257,11 +257,11 @@ NF-OB-06 추가:
 
 - [x] consistency-check --spec (이 draft) — BLOCK: NO
 - [x] spec 반영 (A~E + WARNING/INFO 교정)
-- [ ] spec commit
-- [ ] consistency-check --impl-prep spec/2-navigation/ (또는 spec/5-system/)
-- [ ] 구현 (backend system-status 모듈 + frontend `/system-status` 페이지)
-- [ ] 사이드바 nav 순서 확인 — Statistics 다음, User Guide 앞 (Activity 아이콘) (W-10)
-- [ ] KO/EN i18n dict 갱신 (`sidebar.systemStatus` + 페이지 문자열)
-- [ ] unit/integration/e2e 테스트
-- [ ] **구현 완료 후** `spec/0-overview.md §6.1` 내비게이션 완료 목록에 "시스템 상태" 추가 + spec frontmatter status 승격(spec-only→partial/implemented) + `code:` 실제 경로 기입 (W-7, W-2)
+- [x] spec commit (8d9954b0, a448fa48)
+- [x] consistency-check --impl-prep spec/5-system/ — BLOCK: NO (W-1/2/3 동기화, W-4/5/6 범위 밖)
+- [x] 구현 (backend system-status 모듈 + frontend `/system-status` 페이지) (64432ad7)
+- [x] 사이드바 nav 순서 확인 — Statistics 다음, User Guide 앞 (Activity 아이콘) (W-10)
+- [x] KO/EN i18n dict 갱신 (`sidebar.systemStatus` + systemStatus 페이지 dict)
+- [x] unit 테스트 (service 10건) + lint + build 통과 (ccc56c7f). e2e 작성 완료(test/system-status.e2e-spec.ts) — **로컬 docker 데몬 미가동으로 실행 불가(환경 차단)**, CI/실환경 실행 대상
+- [x] 구현 완료 반영: `spec/0-overview.md §6.1` 내비 목록 + frontmatter implemented 승격 + `code:` 경로 (80961cfa). spec-impl-evidence 가드 781 tests 통과
 - [ ] ai-review + fix
