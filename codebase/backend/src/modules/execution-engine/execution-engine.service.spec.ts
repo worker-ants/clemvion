@@ -2440,7 +2440,7 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       // Resume with form data
-      service.continueExecution(executionId, { approved: true });
+      void service.continueExecution(executionId, { approved: true });
       await flushPromises();
 
       // End node should now have been executed
@@ -2475,7 +2475,7 @@ describe('ExecutionEngineService', () => {
 
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();
-      service.continueExecution(executionId, { approved: true });
+      void service.continueExecution(executionId, { approved: true });
       await flushPromises();
 
       expect(appendSpy).toHaveBeenCalledTimes(1);
@@ -2503,7 +2503,7 @@ describe('ExecutionEngineService', () => {
       mockWebsocketService.emitExecutionEvent.mockClear();
 
       // Resume with form data
-      service.continueExecution(executionId, { approved: true });
+      void service.continueExecution(executionId, { approved: true });
       await flushPromises();
 
       // Should emit execution.resumed, NOT execution.started
@@ -2526,7 +2526,7 @@ describe('ExecutionEngineService', () => {
 
       mockWebsocketService.emitNodeEvent.mockClear();
 
-      service.continueExecution(executionId, { approved: true });
+      void service.continueExecution(executionId, { approved: true });
       await flushPromises();
 
       // Form node should have a NODE_COMPLETED event
@@ -2852,7 +2852,7 @@ describe('ExecutionEngineService', () => {
 
       await service.execute(workflowId, { data: 'test' });
       await flushPromises();
-      service.continueButtonClick(executionId, 'btn-1');
+      void service.continueButtonClick(executionId, 'btn-1');
       await flushPromises();
 
       expect(appendSpy).toHaveBeenCalledTimes(1);
@@ -3010,7 +3010,7 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
-      service.continueAiConversation(executionId, 'hi');
+      void service.continueAiConversation(executionId, 'hi');
       await flushPromises();
 
       const aiMessageCalls =
@@ -3081,7 +3081,7 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
-      service.continueAiConversation(executionId, '주문 확인해줘');
+      void service.continueAiConversation(executionId, '주문 확인해줘');
       await flushPromises();
 
       const calls = mockWebsocketService.emitExecutionEvent.mock.calls;
@@ -3173,7 +3173,7 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
       mockWebsocketService.emitExecutionEvent.mockClear();
 
-      service.continueAiConversation(executionId, 'hi');
+      void service.continueAiConversation(executionId, 'hi');
       await flushPromises();
 
       const aiMessageCalls =
@@ -3246,7 +3246,7 @@ describe('ExecutionEngineService', () => {
       // entry point 자체는 동기 디스패치라 await 가 즉시 풀리지만,
       // flushPromises 를 2회 호출해 후속 마이크로태스크 (NodeExec save 등)
       // 가 모두 settle 될 시간을 확보한다.
-      service.continueAiConversation(executionId, 'hi');
+      void service.continueAiConversation(executionId, 'hi');
       await flushPromises();
       await flushPromises();
 
@@ -3379,7 +3379,7 @@ describe('ExecutionEngineService', () => {
       mockWebsocketService.emitNodeEvent.mockClear();
 
       // 사용자 종료
-      service.endAiConversation(executionId);
+      void service.endAiConversation(executionId);
       await flushPromises();
 
       // (a) handler.endMultiTurnConversation 호출됨
@@ -3456,7 +3456,7 @@ describe('ExecutionEngineService', () => {
       mockWebsocketService.emitNodeEvent.mockClear();
       mockNodeExecutionRepo.save.mockClear();
 
-      service.continueAiConversation(executionId, 'trigger error');
+      void service.continueAiConversation(executionId, 'trigger error');
       // ai-review W4 / testing-W — FAILED 경로는 nodeExecutionRepository.save →
       // eventEmitter.emitNode → sentinel throw → runExecution catch 체인을 거치므로
       // 깊은 마이크로태스크 플러시를 위해 flushPromises 를 2회 호출한다.
@@ -3608,7 +3608,7 @@ describe('ExecutionEngineService', () => {
 
       // form_submitted sentinel payload 로 continueExecution 호출.
       const formPayload = { field1: 'value1', type: '주문 문의' };
-      service.continueExecution(executionId, formPayload);
+      void service.continueExecution(executionId, formPayload);
       await flushPromises();
 
       // processMultiTurnMessage 가 첫 번째 인자로 JSON.stringify(formPayload) 를 받았는지.
@@ -3622,7 +3622,7 @@ describe('ExecutionEngineService', () => {
 
       // 이후 ai_end_conversation 으로 종료 — processReturn 이 waiting_for_input
       // 이어서 loop 이 다음 이벤트를 기다리므로 endAiConversation 후 flushPromises 필요.
-      service.endAiConversation(executionId);
+      void service.endAiConversation(executionId);
       await flushPromises();
       await execPromise;
     });
@@ -3655,7 +3655,7 @@ describe('ExecutionEngineService', () => {
       await flushPromises();
 
       // continueAiConversation → bus publish ai_message → handler 호출
-      service.continueAiConversation(executionId, '안녕하세요');
+      void service.continueAiConversation(executionId, '안녕하세요');
       await flushPromises();
 
       expect(handler.processMultiTurnMessage).toHaveBeenCalledWith(
@@ -3664,7 +3664,7 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({ source: 'ai_message' }),
       );
 
-      service.endAiConversation(executionId);
+      void service.endAiConversation(executionId);
       await flushPromises();
       await execPromise;
     });
@@ -3713,7 +3713,7 @@ describe('ExecutionEngineService', () => {
       expect(hasUnknownWarn).toBe(true);
 
       // 이후 ai_end_conversation 으로 정상 종료.
-      service.endAiConversation(executionId);
+      void service.endAiConversation(executionId);
       await execPromise;
 
       warnSpy.mockRestore();
@@ -3767,7 +3767,7 @@ describe('ExecutionEngineService', () => {
       const stillAlive = pendings.get(executionId);
       expect(stillAlive).toBeDefined();
 
-      service.endAiConversation(executionId);
+      void service.endAiConversation(executionId);
       await execPromise;
 
       // FAILED 종결을 야기하는 cap 도달 warn 이 없어야 함.
@@ -3834,7 +3834,7 @@ describe('ExecutionEngineService', () => {
       );
 
       // ai_end_conversation 으로 정상 종결.
-      service.endAiConversation(executionId);
+      void service.endAiConversation(executionId);
       await execPromise;
     });
 
@@ -3887,7 +3887,7 @@ describe('ExecutionEngineService', () => {
         });
         expect(hasButtonClickWarn).toBe(true);
 
-        service.endAiConversation(executionId);
+        void service.endAiConversation(executionId);
         await execPromise;
         warnSpy.mockRestore();
       });
@@ -3909,7 +3909,7 @@ describe('ExecutionEngineService', () => {
         const stillAlive = pendings.get(executionId);
         expect(stillAlive).toBeDefined();
 
-        service.endAiConversation(executionId);
+        void service.endAiConversation(executionId);
         await execPromise;
         warnSpy.mockRestore();
       });
@@ -3933,7 +3933,7 @@ describe('ExecutionEngineService', () => {
         });
         expect(hasButtonClickWarn).toBe(true);
 
-        service.endAiConversation(executionId);
+        void service.endAiConversation(executionId);
         await execPromise;
         warnSpy.mockRestore();
       });
@@ -4682,7 +4682,7 @@ describe('ExecutionEngineService', () => {
       await service.execute(wf, {});
       await flushPromises();
 
-      service.continueAiConversation(executionId, 'hello');
+      void service.continueAiConversation(executionId, 'hello');
       await flushPromises();
 
       expect(processSpy).toHaveBeenCalledTimes(1);
@@ -9912,7 +9912,7 @@ describe('ExecutionEngineService', () => {
       expect(completedDuringWait.length).toBe(0);
 
       // 사용자 form submit 시뮬레이션.
-      service.continueExecution(EXEC, { formData: { approved: true } });
+      void service.continueExecution(EXEC, { formData: { approved: true } });
       await retryPromise;
       await flushPromises();
 
