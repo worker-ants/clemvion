@@ -56,6 +56,14 @@ code:
 X-Workspace-Id: {workspace-uuid}
 ```
 
+#### 시스템 전역 API 예외
+
+일부 관측성 API 는 워크스페이스 경계가 없는 **시스템 전역 집계**를 반환한다. 이 카테고리는 `X-Workspace-Id` 를 받더라도 무시하며, 개별 워크스페이스·유저를 식별할 수 있는 데이터(레코드 id·payload 등)를 노출하지 않는다.
+
+| 전역 API | 설명 |
+|----------|------|
+| `GET /api/system-status/overview` | 전체 BullMQ 큐의 집계 카운트·health. 상세 [16-system-status-api.md](./16-system-status-api.md) |
+
 ---
 
 ## 3. HTTP 메서드

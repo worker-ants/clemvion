@@ -241,6 +241,18 @@ NF-OB-06 추가:
 - `_layout.md §1` ASCII + §2.2 표, `_product-overview.md §2` 트리 동기화 완료 (W-5, W-6).
 - health 어휘 `healthy/degraded/down` (기존 `healthy` 유지, Rationale R-4) (I-6). `/api/` prefix·`refetchInterval:5000`·X-Workspace-Id 무시 명시 (I-1,I-4,I-5).
 
+## impl-prep 결과 (2026-06-03, BLOCK: NO)
+
+- 내 신규 spec 의 직접 entailment WARNING 동기화 완료:
+  - W-1/W-7: `3-error-handling.md §7.2` 에 큐 상태 API 별도 health 어휘 노트 추가.
+  - W-2: `1-auth.md §3.2` RBAC 매트릭스에 System Status 행 + 전역 예외 각주.
+  - W-3: `2-api-convention.md §2.3` 에 시스템 전역 API 예외 카테고리 + 첫 사례.
+- **본 PR 범위 밖 (무관 기존 spec 결함, 별도 처리 필요)**:
+  - W-4: `1-auth.md §1.5.4` 초대 에러코드 6개 lower_snake_case → UPPER_SNAKE 교정 필요.
+  - W-5/W-6: `10-graph-rag.md` Overview/본문/Rationale 구조 정리 필요.
+  - → scope 확대 방지를 위해 본 기능 PR 에서 건드리지 않음. 발견 사실만 기록.
+- 후속 문서 동기화(구현 완료 단계): `data-flow/9-observability.md` 흐름 추가(I-1), `0-overview.md §8` 문서맵·§6.1 내비 등록(I-2).
+
 ## 작업 체크리스트
 
 - [x] consistency-check --spec (이 draft) — BLOCK: NO
