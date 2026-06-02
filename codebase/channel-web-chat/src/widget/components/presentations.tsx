@@ -1,9 +1,10 @@
 // Rich presentation inline 렌더러 — carousel/table/chart/template. spec/7-channel-web-chat/1-widget-app §2.
 // ai_message.presentations[] / waiting_for_input 의 presentation 페이로드를 메시지 타임라인 안에 inline 렌더.
 // 차트는 임베드 위젯 번들 경량 유지를 위해 외부 차트 라이브러리 없이 inline SVG 로 그린다.
+// template 풍부 렌더는 lib/safe-html(DOMPurify+marked) 사용.
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   classifyPresentation,
   toCarousel,
@@ -13,11 +14,26 @@ import {
   type ChartData,
   type PresentationButton,
 } from "@/lib/presentation";
+import { renderTemplateHtml } from "@/lib/safe-html";
 
 // SVG chart 크기 상수 — styles.ts 와 동기화 필요 시 이 값을 기준으로 맞출 것(I16).
 const CHART_SVG_W = 280;
 const CHART_SVG_H = 140;
 const CHART_SVG_PAD = 24;
+
+// CartesianChart 마진 상수 (I11 — 매직 넘버 추출)
+const CHART_MARGIN_LEFT = 30;    // 좌측 여백 (y눈금 텍스트 공간)
+const CHART_MARGIN_RIGHT = CHART_SVG_PAD / 3;  // 우측 여백
+const CHART_MARGIN_TOP = CHART_SVG_PAD / 3;    // 상단 여백
+const CHART_MARGIN_BOTTOM_WITH_LABEL = 38;     // x축 레이블 있을 때 하단 여백 (틱 + 레이블)
+const CHART_MARGIN_BOTTOM_NO_LABEL = 26;       // x축 레이블 없을 때 하단 여백 (틱만)
+const CHART_MAX_X_TICKS = 6;                   // x축 최대 틱 수
+
+// PieChart SVG 상수 (I12 — 하드코딩 추출)
+const PIE_SVG_SIZE = 140;
+const PIE_CX = PIE_SVG_SIZE / 2;   // 70
+const PIE_CY = PIE_SVG_SIZE / 2;   // 70
+const PIE_R = PIE_SVG_SIZE * 5 / 14; // 50
 
 interface PresentationProps {
   payload: unknown;
@@ -195,75 +211,188 @@ function numericPoints(data: ChartData["points"]): Array<{ label: string; value:
 
 const DEFAULT_CHART_COLORS = ["#5B4FE9", "#22B8CF", "#F59F00", "#E64980", "#37B24D"];
 
+/** 긴 라벨은 축 표기용으로 잘라낸다. */
+function truncLabel(s: string, max = 7): string {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
 function ChartView({ payload, onButton }: PresentationProps) {
   const chart = toChart(payload);
   const pts = numericPoints(chart.points);
   if (!pts.length) return null;
   const colors = chart.colors.length ? chart.colors : DEFAULT_CHART_COLORS;
+  const isPie = chart.chartType === "pie" || chart.chartType === "donut";
+  return (
+    <div className="wc-chart" data-testid="wc-chart" data-chart-type={chart.chartType}>
+      {chart.title && <div className="wc-chart-title">{chart.title}</div>}
+      {isPie ? (
+        <PieChart pts={pts} colors={colors} donut={chart.chartType === "donut"} />
+      ) : (
+        <CartesianChart
+          pts={pts}
+          colors={colors}
+          type={chart.chartType as "bar" | "line" | "area"}
+          xLabel={chart.xLabel}
+          yLabel={chart.yLabel}
+        />
+      )}
+      <ButtonBar buttons={chart.buttons} onButton={onButton} />
+    </div>
+  );
+}
+
+/** bar/line/area — 축 레이블·x틱·값 툴팁(<title>) 포함. */
+function CartesianChart({
+  pts,
+  colors,
+  type,
+  xLabel,
+  yLabel,
+}: {
+  pts: Array<{ label: string; value: number }>;
+  colors: string[];
+  type: "bar" | "line" | "area";
+  xLabel?: string;
+  yLabel?: string;
+}) {
   const W = CHART_SVG_W;
-  const H = CHART_SVG_H;
-  const pad = CHART_SVG_PAD;
+  const mL = CHART_MARGIN_LEFT;        // 좌측 여백 (y눈금 텍스트 공간)
+  const mR = CHART_MARGIN_RIGHT;       // 우측 여백
+  const mT = CHART_MARGIN_TOP;         // 상단 여백
+  const mB = xLabel ? CHART_MARGIN_BOTTOM_WITH_LABEL : CHART_MARGIN_BOTTOM_NO_LABEL; // x틱 + (있으면) 축 레이블 공간.
+  const plotH = CHART_SVG_H;
+  const H = mT + plotH + mB;
+  const innerW = W - mL - mR;
   const max = Math.max(...pts.map((p) => p.value), 1);
   const min = Math.min(...pts.map((p) => p.value), 0);
   const range = max - min || 1;
-  const innerW = W - pad * 2;
-  const innerH = H - pad * 2;
+  const yOf = (v: number) => mT + plotH - ((v - min) / range) * plotH;
+  const baseY = yOf(Math.max(0, min));
 
-  let body: React.ReactNode;
-  if (chart.chartType === "pie" || chart.chartType === "donut") {
-    body = <PieSlices pts={pts} colors={colors} donut={chart.chartType === "donut"} />;
-  } else if (chart.chartType === "line" || chart.chartType === "area") {
+  let series: React.ReactNode;
+  if (type === "line" || type === "area") {
     const stepX = pts.length > 1 ? innerW / (pts.length - 1) : 0;
-    const coords = pts.map((p, i) => {
-      const x = pad + i * stepX;
-      const y = pad + innerH - ((p.value - min) / range) * innerH;
-      return `${x},${y}`;
-    });
-    body = (
+    const coords = pts.map((p, i) => `${mL + i * stepX},${yOf(p.value)}`);
+    series = (
       <>
-        {chart.chartType === "area" && (
+        {type === "area" && (
           <polygon
-            points={`${pad},${pad + innerH} ${coords.join(" ")} ${pad + innerW},${pad + innerH}`}
+            points={`${mL},${mT + plotH} ${coords.join(" ")} ${mL + innerW},${mT + plotH}`}
             fill={colors[0]}
             fillOpacity={0.2}
           />
         )}
         <polyline points={coords.join(" ")} fill="none" stroke={colors[0]} strokeWidth={2} />
+        {pts.map((p, i) => (
+          <circle key={i} cx={mL + i * stepX} cy={yOf(p.value)} r={2.5} fill={colors[0]}>
+            <title>{`${p.label}: ${p.value}`}</title>
+          </circle>
+        ))}
       </>
     );
   } else {
     const barW = innerW / pts.length;
-    body = (
+    series = (
       <>
         {pts.map((p, i) => {
-          const h = ((p.value - min) / range) * innerH;
+          const top = yOf(Math.max(p.value, min === 0 ? 0 : min));
+          const h = Math.abs(baseY - yOf(p.value));
           return (
             <rect
               key={i}
-              x={pad + i * barW + barW * 0.15}
-              y={pad + innerH - h}
+              x={mL + i * barW + barW * 0.15}
+              y={Math.min(top, baseY)}
               width={barW * 0.7}
               height={Math.max(0, h)}
               fill={colors[i % colors.length]}
-            />
+            >
+              <title>{`${p.label}: ${p.value}`}</title>
+            </rect>
           );
         })}
       </>
     );
   }
 
+  // x틱 라벨(촘촘하면 일부만).
+  const tickStep = Math.ceil(pts.length / CHART_MAX_X_TICKS);
+  const slotW = innerW / pts.length;
   return (
-    <div className="wc-chart" data-testid="wc-chart" data-chart-type={chart.chartType}>
-      {chart.title && <div className="wc-chart-title">{chart.title}</div>}
+    <svg
+      className="wc-chart-svg"
+      viewBox={`0 0 ${W} ${H}`}
+      role="img"
+      aria-label={`${type} chart`}
+    >
+      {/* y축 min/max 눈금 */}
+      <text x={mL - 3} y={mT + 4} className="wc-chart-tick" textAnchor="end">
+        {max}
+      </text>
+      <text x={mL - 3} y={mT + plotH} className="wc-chart-tick" textAnchor="end">
+        {min}
+      </text>
+      <line x1={mL} y1={mT} x2={mL} y2={mT + plotH} className="wc-chart-axis" />
+      <line x1={mL} y1={mT + plotH} x2={mL + innerW} y2={mT + plotH} className="wc-chart-axis" />
+      {series}
+      {pts.map((p, i) =>
+        i % tickStep === 0 ? (
+          <text
+            key={i}
+            x={mL + i * slotW + slotW / 2}
+            y={mT + plotH + 11}
+            className="wc-chart-tick"
+            textAnchor="middle"
+          >
+            {truncLabel(p.label)}
+          </text>
+        ) : null,
+      )}
+      {xLabel && (
+        <text x={mL + innerW / 2} y={H - 4} className="wc-chart-axis-label" textAnchor="middle">
+          {xLabel}
+        </text>
+      )}
+      {yLabel && (
+        <text
+          transform={`translate(9 ${mT + plotH / 2}) rotate(-90)`}
+          className="wc-chart-axis-label"
+          textAnchor="middle"
+        >
+          {yLabel}
+        </text>
+      )}
+    </svg>
+  );
+}
+
+/** pie/donut — 슬라이스 + 카테고리 범례. */
+function PieChart({
+  pts,
+  colors,
+  donut,
+}: {
+  pts: Array<{ label: string; value: number }>;
+  colors: string[];
+  donut: boolean;
+}) {
+  return (
+    <div className="wc-chart-pie-wrap">
       <svg
         className="wc-chart-svg"
-        viewBox={`0 0 ${W} ${H}`}
+        viewBox={`0 0 ${PIE_SVG_SIZE} ${PIE_SVG_SIZE}`}
         role="img"
-        aria-label={chart.title ?? `${chart.chartType} chart`}
+        aria-label={donut ? "donut chart" : "pie chart"}
       >
-        {body}
+        <PieSlices pts={pts} colors={colors} donut={donut} />
       </svg>
-      <ButtonBar buttons={chart.buttons} onButton={onButton} />
+      <ul className="wc-chart-legend" aria-label="범례">
+        {pts.map((p, i) => (
+          <li key={i}>
+            <span className="wc-legend-swatch" style={{ background: colors[i % colors.length] }} />
+            {truncLabel(p.label, 10)}: {p.value}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -278,9 +407,9 @@ function PieSlices({
   donut: boolean;
 }) {
   const total = pts.reduce((s, p) => s + Math.max(0, p.value), 0) || 1;
-  const cx = 70;
-  const cy = 70;
-  const r = 50;
+  const cx = PIE_CX;
+  const cy = PIE_CY;
+  const r = PIE_R;
   // 각 슬라이스 시작 누적 비율(render 중 변수 변이 없이 prefix-sum). n 작아 O(n²) 무해.
   const starts = pts.map((_, i) =>
     pts.slice(0, i).reduce((s, q) => s + Math.max(0, q.value) / total, 0),
@@ -292,7 +421,11 @@ function PieSlices({
         // I6: 단일 슬라이스(frac ≈ 1.0) 시 arc start=end → SVG 렌더 실패.
         // frac >= 0.999 이면 <circle> 로 대체 렌더.
         if (frac >= 0.999) {
-          return <circle key={i} cx={cx} cy={cy} r={r} fill={colors[i % colors.length]} />;
+          return (
+            <circle key={i} cx={cx} cy={cy} r={r} fill={colors[i % colors.length]}>
+              <title>{`${p.label}: ${p.value}`}</title>
+            </circle>
+          );
         }
         const start = starts[i] * 2 * Math.PI;
         const end = (starts[i] + frac) * 2 * Math.PI;
@@ -306,7 +439,9 @@ function PieSlices({
             key={i}
             d={`M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`}
             fill={colors[i % colors.length]}
-          />
+          >
+            <title>{`${p.label}: ${p.value}`}</title>
+          </path>
         );
       })}
       {donut && <circle cx={cx} cy={cy} r={r * 0.55} fill="#fff" />}
@@ -316,12 +451,22 @@ function PieSlices({
 
 function TemplateView({ payload, onButton }: PresentationProps) {
   const { outputFormat, rendered, buttons } = toTemplate(payload);
+  // markdown/html 은 sanitize 후 풍부 렌더, text(및 SSR/build)는 plain text(태그 미해석).
+  // sanitize 는 DOMPurify(safe-html) 가 script·이벤트핸들러·javascript: 등 XSS 를 제거한다.
+  const safeHtml = useMemo(
+    () => (rendered ? renderTemplateHtml(rendered, outputFormat) : null),
+    [rendered, outputFormat],
+  );
   if (!rendered) return null;
-  // 보안: html 은 워크스페이스 작성 콘텐츠(준-신뢰)지만 위젯에서 임의 HTML 주입은 XSS 위험 →
-  // v1 은 html/markdown/text 모두 **plain text 로 안전 렌더**(태그 미해석). 풍부한 마크업은 followup.
   return (
     <div className="wc-template" data-testid="wc-template" data-format={outputFormat}>
-      <div className="wc-template-body">{rendered}</div>
+      {safeHtml !== null && safeHtml.length > 0 ? (
+        // W2: safeHtml.length > 0 guard — empty sanitized output (e.g. all content stripped)
+        // falls back to plain text render rather than rendering an empty rich div.
+        <div className="wc-template-body" data-rich dangerouslySetInnerHTML={{ __html: safeHtml }} />
+      ) : (
+        <div className="wc-template-body">{rendered}</div>
+      )}
       <ButtonBar buttons={buttons} onButton={onButton} />
     </div>
   );
