@@ -5,7 +5,12 @@ import {
   WARNING_KO,
   NODE_LABEL_KO,
   NODE_DESCRIPTION_KO,
+  ERROR_KO,
+  GRAPH_WARNING_KO,
+  translateGraphWarning,
+  translateBackendError,
 } from "../backend-labels";
+import { GRAPH_WARNING_RULES_BY_TYPE } from "@workflow/graph-warning-rules";
 
 /**
  * Backend ↔ frontend i18n parity guard.
@@ -275,5 +280,150 @@ describe.runIf(hasBackend)("backend-labels parity (영문 SoT → ko 매핑)", (
 
   it(`발견한 schema 파일이 sanity 수준이에요 (>= ${MIN_EXPECTED_NODE_SCHEMAS} 개)`, () => {
     expect(schemaFiles.length).toBeGreaterThanOrEqual(MIN_EXPECTED_NODE_SCHEMAS);
+  });
+});
+
+/**
+ * i18n Principle 3-C 자동 가드 — 코드/동적 backend 메시지 localization parity.
+ *
+ * 기존 P1-B(위 describe)는 `*.schema.ts` 의 **정적** warningRules[].message 만
+ * 커버한다. 동적 graphWarningRules 메시지(`${node.label}` 보간)와 error 코드는
+ * P1-B 미커버이며 아래 P3-C-1 / P3-C-2 가 전담한다 (ruleId·code 는 렌더 메시지가
+ * 동적이어도 정적 상수라 키 parity 검증이 성립).
+ *
+ * SoT: spec/conventions/i18n-userguide.md Principle 3-C.
+ */
+describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
+  it("P3-C-1: 등재된 모든 graphWarningRule ruleId 가 GRAPH_WARNING_KO 에 매핑돼요", () => {
+    const ruleIds = Object.values(GRAPH_WARNING_RULES_BY_TYPE)
+      .flatMap((rules) => rules.map((r) => r.id))
+      .sort();
+    const koKeys = new Set(Object.keys(GRAPH_WARNING_KO));
+    const missing = ruleIds.filter((id) => !koKeys.has(id));
+    expect(
+      missing,
+      `GRAPH_WARNING_KO 에 매핑이 없는 graphWarningRule ruleId ${missing.length} 건:\n` +
+        missing.map((s) => `  - ${s}`).join("\n") +
+        "\n→ codebase/frontend/src/lib/i18n/backend-labels.ts 의 GRAPH_WARNING_KO 에 한국어 템플릿을 추가해주세요. (Principle 3-C)",
+    ).toEqual([]);
+  });
+
+  it("P3-C-2: user-facing 등록 error 코드가 ERROR_KO 에 매핑돼요", () => {
+    // "user-facing localized" 로 등록한 코드 집합. ErrorCode enum 전체가 아니라
+    // 사용자 노출이 확정된 코드만 — 점진 확장 (Principle 3-C 범위).
+    const LOCALIZED_ERROR_CODES = ["GRAPH_VALIDATION_FAILED"];
+    const koKeys = new Set(Object.keys(ERROR_KO));
+    const missing = LOCALIZED_ERROR_CODES.filter((c) => !koKeys.has(c));
+    expect(
+      missing,
+      `ERROR_KO 에 매핑이 없는 user-facing error 코드 ${missing.length} 건:\n` +
+        missing.map((s) => `  - ${s}`).join("\n") +
+        "\n→ codebase/frontend/src/lib/i18n/backend-labels.ts 의 ERROR_KO 에 한국어 메시지를 추가해주세요. (Principle 3-C)",
+    ).toEqual([]);
+  });
+});
+
+/**
+ * SUMMARY#5 — translateGraphWarning / translateBackendError 직접 단위 테스트.
+ * 로케일 분기 · params 보간 · fallback · null params 처리를 직접 검증한다
+ * (기존 parity 가드는 키 존재 여부만 검증하며 함수 동작은 미커버).
+ */
+describe("translateGraphWarning — 직접 단위 테스트", () => {
+  const NESTED_DEPTH_RULE_ID = "parallel:nested-depth-exceeded";
+  const CONCURRENCY_CAP_RULE_ID = "parallel:nested-concurrency-cap";
+
+  it("(1) ko + known ruleId + params → 한국어 보간 문자열 반환", () => {
+    const result = {
+      ruleId: NESTED_DEPTH_RULE_ID,
+      message: 'Parallel "Outer" has nested "Middle" which has "Inner".',
+      params: { node: "Outer", child: "Middle", grand: "Inner" },
+    };
+    const translated = translateGraphWarning(result, "ko");
+    // 한국어 보간 결과여야 하며 params 값이 포함돼야 함
+    expect(translated).toContain("Outer");
+    expect(translated).toContain("Middle");
+    expect(translated).toContain("Inner");
+    // 영문 원문 그대로가 아닌 한국어 템플릿이 적용돼야 함
+    expect(translated).not.toBe(result.message);
+  });
+
+  it("(2) ko + unknown ruleId → 영문 fallback(result.message) 반환", () => {
+    const result = {
+      ruleId: "unknown:rule-does-not-exist",
+      message: "some english fallback message",
+    };
+    const translated = translateGraphWarning(result, "ko");
+    expect(translated).toBe(result.message);
+  });
+
+  it("(3) en 로케일 → 영문 fallback(result.message) 반환 (ruleId 무관)", () => {
+    const result = {
+      ruleId: NESTED_DEPTH_RULE_ID,
+      message: 'Parallel "Outer" nested depth exceeded.',
+      params: { node: "Outer", child: "Middle", grand: "Inner" },
+    };
+    const translated = translateGraphWarning(result, "en");
+    expect(translated).toBe(result.message);
+  });
+
+  it("(4) ko + known ruleId + params 없음(undefined) → template 빈 보간(graceful)", () => {
+    const result = {
+      ruleId: NESTED_DEPTH_RULE_ID,
+      message: 'Parallel depth exceeded.',
+      // params 없음
+    };
+    const translated = translateGraphWarning(result, "ko");
+    // params 없으면 interpolate 는 template 그대로 반환 (placeholder 는 빈 문자열로 대체)
+    expect(typeof translated).toBe("string");
+    expect(translated.length).toBeGreaterThan(0);
+  });
+
+  it("(5) ko + concurrency-cap ruleId + params → 보간 값 포함", () => {
+    const result = {
+      ruleId: CONCURRENCY_CAP_RULE_ID,
+      message: "Concurrency cap exceeded.",
+      params: {
+        node: "Outer",
+        child: "Inner",
+        outerEffective: 4,
+        innerEffective: 4,
+        product: 16,
+        cap: 12,
+      },
+    };
+    const translated = translateGraphWarning(result, "ko");
+    expect(translated).toContain("Outer");
+    expect(translated).toContain("Inner");
+    expect(translated).toContain("16");
+    expect(translated).toContain("12");
+    expect(translated).not.toBe(result.message);
+  });
+});
+
+describe("translateBackendError — 직접 단위 테스트", () => {
+  const KNOWN_CODE = "GRAPH_VALIDATION_FAILED";
+  const FALLBACK = "Graph validation failed. Check the canvas.";
+
+  it("(1) ko + known code + params → 한국어 보간 문자열 반환", () => {
+    // GRAPH_VALIDATION_FAILED 는 params 보간 없는 단순 메시지이므로 한국어 그대로 반환
+    const translated = translateBackendError(KNOWN_CODE, undefined, "ko", FALLBACK);
+    expect(translated).toBe(ERROR_KO[KNOWN_CODE]);
+    expect(translated).not.toBe(FALLBACK);
+  });
+
+  it("(2) ko + unknown code → fallback(영문 message) 반환", () => {
+    const translated = translateBackendError("UNKNOWN_CODE", undefined, "ko", FALLBACK);
+    expect(translated).toBe(FALLBACK);
+  });
+
+  it("(3) en 로케일 → fallback(영문 message) 반환 (code 무관)", () => {
+    const translated = translateBackendError(KNOWN_CODE, undefined, "en", FALLBACK);
+    expect(translated).toBe(FALLBACK);
+  });
+
+  it("(4) params undefined → graceful (template 에 placeholder 없으면 그대로 반환)", () => {
+    const translated = translateBackendError(KNOWN_CODE, undefined, "ko", FALLBACK);
+    expect(typeof translated).toBe("string");
+    expect(translated.length).toBeGreaterThan(0);
   });
 });

@@ -89,6 +89,11 @@ export const parallelNestedDepthExceededRule: GraphWarningRule = {
         if (g && g.type === 'parallel') {
           return {
             message: `Parallel node "${node.label ?? node.type}" body contains nested Parallel "${child.label ?? child.type}" whose body contains another Parallel "${g.label ?? g.type}". Parallel nesting depth > 2 is not supported.`,
+            params: {
+              node: node.label ?? node.type,
+              child: child.label ?? child.type,
+              grand: g.label ?? g.type,
+            },
           };
         }
       }
@@ -118,6 +123,14 @@ export const parallelNestedConcurrencyCapRule: GraphWarningRule = {
       if (product > PARALLEL_NESTED_CONCURRENCY_CAP) {
         return {
           message: `Parallel "${node.label ?? node.type}" (effective=${myEffective}) × nested Parallel "${child.label ?? child.type}" (effective=${cEffective}) = ${product} > cap=${PARALLEL_NESTED_CONCURRENCY_CAP}. Runtime will silently clamp the inner concurrency.`,
+          params: {
+            node: node.label ?? node.type,
+            child: child.label ?? child.type,
+            outerEffective: myEffective,
+            innerEffective: cEffective,
+            product,
+            cap: PARALLEL_NESTED_CONCURRENCY_CAP,
+          },
         };
       }
     }

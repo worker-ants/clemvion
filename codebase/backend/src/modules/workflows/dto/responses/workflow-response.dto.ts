@@ -96,9 +96,20 @@ export class GraphWarningResultDto {
   @ApiProperty({ format: 'uuid' })
   nodeId: string;
 
-  /** 사용자 노출 메시지 */
+  /** 영문 SoT / fallback 메시지. ko 표시는 frontend 가 ruleId 로 localize */
   @ApiProperty({ example: 'Nested parallel depth exceeds limit' })
   message: string;
+
+  /**
+   * 동적 메시지의 보간 값(노드 라벨·수치). frontend 가 `GRAPH_WARNING_KO[ruleId]`
+   * 한국어 템플릿의 `{{name}}` 에 보간 (i18n Principle 3-C). 정적 메시지 rule 은 생략.
+   */
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    example: { node: 'Outer', child: 'Inner', product: 64, cap: 32 },
+  })
+  params?: Record<string, string | number>;
 }
 
 /**

@@ -45,6 +45,9 @@ interface EditorState {
       severity: "error" | "warning";
       nodeId: string;
       message: string;
+      // i18n Principle 3-C: 동적 메시지 보간 값. frontend 가 ruleId 별 ko 템플릿에
+      // {{name}} 보간 (translateGraphWarning). 영문 message 는 SoT/fallback.
+      params?: Record<string, string | number>;
     }>;
     hasError: boolean;
     hasWarning: boolean;

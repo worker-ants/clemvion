@@ -26,6 +26,7 @@ export function evaluateGraphWarningRules(
         severity: rule.severity,
         nodeId: node.id,
         message: triggered.message,
+        ...(triggered.params ? { params: triggered.params } : {}),
       });
     }
   }

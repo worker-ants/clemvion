@@ -47,6 +47,12 @@ describe('parallel graphWarningRules', () => {
       expect(result!.message).toContain('Inner');
       expect(result!.message).toContain('Innermost');
       expect(result!.message).toContain('depth > 2');
+      // i18n Principle 3-C: 동적 값을 params 로 분리 노출 (frontend localize 용)
+      expect(result!.params).toEqual({
+        node: 'Outer',
+        child: 'Inner',
+        grand: 'Innermost',
+      });
     });
 
     it('2-level nesting passes', () => {
@@ -88,6 +94,15 @@ describe('parallel graphWarningRules', () => {
       expect(result).not.toBeNull();
       expect(result!.message).toMatch(/64/);
       expect(result!.message).toMatch(/cap=32/);
+      // i18n Principle 3-C: 보간 값 분리 노출
+      expect(result!.params).toEqual({
+        node: 'Outer',
+        child: 'Inner',
+        outerEffective: 8,
+        innerEffective: 8,
+        product: 64,
+        cap: 32,
+      });
     });
 
     it('product === 32 passes (boundary)', () => {
@@ -151,6 +166,9 @@ describe('parallel graphWarningRules', () => {
       expect(ids).toContain('parallel:nested-depth-exceeded');
       expect(ids).toContain('parallel:nested-concurrency-cap');
       expect(results.some((r) => r.severity === 'error')).toBe(true);
+      // evaluator 가 evaluate 의 params 를 result 로 전파 (i18n Principle 3-C)
+      const depth = results.find((r) => r.ruleId === 'parallel:nested-depth-exceeded');
+      expect(depth!.params).toMatchObject({ node: 'Outer', child: 'Inner' });
     });
 
     it('returns [] for node types with no rules', () => {

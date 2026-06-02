@@ -31,7 +31,7 @@ function resolve(dict: Dict, key: string): string | undefined {
   return typeof current === "string" ? current : undefined;
 }
 
-function interpolate(
+export function interpolate(
   template: string,
   params?: Record<string, string | number>,
 ): string {
