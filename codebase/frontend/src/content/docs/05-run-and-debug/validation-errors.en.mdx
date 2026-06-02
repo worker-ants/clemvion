@@ -1,0 +1,60 @@
+This page covers when a **canvas save is rejected or a warning badge appears** — and how to fix it.
+
+## Badges and the save button
+
+When a problem is detected on the canvas, a badge appears on the affected node.
+
+<FieldTable rows={[
+  { name: "Red badge", type: "Error", description: "Save is blocked. The save button is disabled until the problem is resolved." },
+  { name: "Yellow badge", type: "Warning", description: "Save and run are still possible, but the runtime may automatically adjust values." }
+]} />
+
+<Callout type="note">Badges update in real time as you edit the canvas — restructure a node and the badge changes immediately.</Callout>
+
+## Parallel node nesting rules
+
+There are two rules to keep in mind when nesting [Parallel nodes](/docs/02-nodes/logic#parallel).
+
+### Nesting depth limit (error — save blocked)
+
+Parallel nodes support **up to 2 levels of nesting**. A structure with an outer Parallel containing one inner Parallel (outer → inner) is allowed.
+
+However, placing **another Parallel** inside the inner Parallel's branch creates 3 levels of nesting. The affected node gets a **red badge** and the save button is disabled.
+
+```
+Outer Parallel          ← level 1 (allowed)
+  └── Inner Parallel   ← level 2 (allowed)
+        └── Parallel   ← level 3 (save blocked ❌)
+```
+
+**Fix**: Remove the third-level Parallel, or redesign the structure so the nesting stays at 2 levels or fewer. Options include replacing the deepest parallel branches with sequential steps, or splitting the logic into a separate workflow.
+
+<Callout type="warn">The server re-validates on every save attempt, so the red badge can't be bypassed. You must resolve it before the save completes.</Callout>
+
+### Concurrent execution cap exceeded (warning — save allowed)
+
+If the product of the outer Parallel's concurrency and the inner Parallel's concurrency exceeds **32**, a **yellow badge** warning appears.
+
+For example, if the outer Parallel's `Max Concurrency` is 6 and the inner's is also 6, the product is 36 — over the limit.
+
+Save and run proceed normally, but at runtime the inner Parallel's concurrency is **automatically reduced** to stay within the limit. You can check the actual value applied in `meta.clampedConcurrency` of the run result.
+
+**Fix**: Lower the `Max Concurrency` on either the outer or inner Parallel so their product is 32 or less.
+
+<FieldTable rows={[
+  { name: "Outer Max Concurrency", type: "Example", description: "Set to 4" },
+  { name: "Inner Max Concurrency", type: "Example", description: "Set to 8" },
+  { name: "Product", type: "36 → over limit", description: "Warning badge shown. Inner concurrency is silently clamped at runtime." }
+]} />
+
+<FieldTable rows={[
+  { name: "Outer Max Concurrency", type: "Example", description: "Set to 4" },
+  { name: "Inner Max Concurrency", type: "Example", description: "Lowered from 8 to 6" },
+  { name: "Product", type: "24 → within limit", description: "No warning badge." }
+]} />
+
+## Tips & reference
+
+- For `Branch Count` and `Max Concurrency` field details, see the [Parallel node](/docs/02-nodes/logic#parallel) page.
+- For handling errors that occur during execution (retry, error port, etc.), see [Error handling policies](/docs/05-run-and-debug/error-handling).
+- If execution fails after a successful save, use [Reading run results](/docs/05-run-and-debug/run-results) to inspect the timeline and per-node I/O.

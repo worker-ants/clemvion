@@ -1,0 +1,71 @@
+---
+title: "그래프 검증 오류"
+title_en: "Graph validation errors"
+section: "05-run-and-debug"
+order: 5
+summary: "이 페이지에서는 캔버스 저장이 거부되는 경우와 경고가 표시되는 경우를 설명해요. Parallel 노드 중첩 관련 규칙을 중심으로 해결 방법을 안내해요."
+summary_en: "When the canvas save is rejected or a warning badge appears — covering Parallel nesting rules and how to fix them."
+spec: ["spec/conventions/cross-node-warning-rules.md"]
+code: ["codebase/packages/graph-warning-rules/src/rules/parallel.ts", "codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx", "codebase/frontend/src/components/editor/canvas/custom-node.tsx"]
+---
+
+이 페이지에서는 워크플로우 캔버스에서 **저장이 거부되거나 경고 배지가 표시되는 경우**를 설명해요. 문제 원인과 해결 방법을 함께 안내해요.
+
+## 배지와 저장 버튼 상태
+
+캔버스에서 문제가 감지되면 해당 노드 위에 배지가 나타나요. 배지 색상에 따라 의미가 달라져요.
+
+<FieldTable rows={[
+  { name: "빨간 배지", type: "오류", description: "저장이 차단되는 문제예요. 저장 버튼이 비활성화되고, 문제를 해결할 때까지 저장할 수 없어요." },
+  { name: "노란 배지", type: "경고", description: "저장과 실행은 가능하지만 주의가 필요한 상태예요. 실행 시 자동으로 보정될 수 있어요." }
+]} />
+
+<Callout type="note">배지는 캔버스를 편집하는 동안 실시간으로 갱신돼요. 구조를 바꾸면 즉시 반영돼요.</Callout>
+
+## Parallel 노드 중첩 규칙
+
+[Parallel 노드](/docs/02-nodes/logic#parallel)를 중첩할 때 지켜야 하는 두 가지 규칙이 있어요.
+
+### 중첩 깊이 제한 (오류 — 저장 차단)
+
+Parallel 노드는 **최대 2단계 중첩**까지 지원해요. 외부 Parallel 분기 안에 내부 Parallel 하나를 두는 구조(외부 → 내부)까지는 허용돼요.
+
+그런데 내부 Parallel 의 분기 안에 **또 Parallel** 을 넣으면 3단계 중첩이 되어, 해당 노드에 **빨간 배지**가 표시되고 저장 버튼이 비활성화돼요.
+
+```
+외부 Parallel          ← 1단계 (허용)
+  └── 내부 Parallel   ← 2단계 (허용)
+        └── Parallel  ← 3단계 (저장 차단 ❌)
+```
+
+**해결 방법**: 3단계에 해당하는 Parallel 노드를 제거하거나, 중첩 구조를 2단계 이하로 재설계해요. 예를 들어 내부 Parallel 분기 안의 작업들을 병렬이 아닌 순차 흐름으로 바꾸거나, 워크플로우를 분리하는 방식으로 풀 수 있어요.
+
+<Callout type="warn">저장을 시도해도 서버에서 재검증하므로 빨간 배지를 무시하고 저장할 수 없어요. 배지를 해소한 뒤에만 저장이 완료돼요.</Callout>
+
+### 동시 실행 수 한도 초과 (경고 — 저장은 가능)
+
+외부 Parallel 의 동시 실행 수와 내부 Parallel 의 동시 실행 수를 곱한 값이 **32**를 넘으면 **노란 배지** 경고가 표시돼요.
+
+예를 들어 외부 Parallel 의 Max Concurrency 가 6이고 내부 Parallel 의 Max Concurrency 가 6이면, 곱이 36이 되어 한도를 초과해요.
+
+저장과 실행은 정상적으로 진행되지만, 실행 시 내부 Parallel 의 동시 실행 수가 한도 내로 **자동으로 줄어들어요**. 실행 결과의 `meta.clampedConcurrency` 값에서 실제 적용된 수를 확인할 수 있어요.
+
+**해결 방법**: 외부 또는 내부 Parallel 의 `Max Concurrency` 값을 낮춰서 곱이 32 이하가 되도록 조정해요.
+
+<FieldTable rows={[
+  { name: "외부 Max Concurrency", type: "예시", description: "4로 설정" },
+  { name: "내부 Max Concurrency", type: "예시", description: "8로 설정" },
+  { name: "곱", type: "36 → 한도 초과", description: "경고 배지 표시. 실행 시 내부 동시 실행 수가 자동으로 줄어들어요." }
+]} />
+
+<FieldTable rows={[
+  { name: "외부 Max Concurrency", type: "예시", description: "4로 설정" },
+  { name: "내부 Max Concurrency", type: "예시", description: "8 → 6으로 낮춤" },
+  { name: "곱", type: "24 → 한도 이내", description: "경고 배지 없음." }
+]} />
+
+## 팁 & 참고
+
+- Parallel 노드의 분기 수(`Branch Count`)와 동시 실행 수(`Max Concurrency`) 필드 설명은 [Parallel 노드](/docs/02-nodes/logic#parallel)를 확인해요.
+- 노드 실행 중 발생한 에러 처리 방법(재시도, 에러 포트 등)은 [에러 처리 정책](/docs/05-run-and-debug/error-handling)을 확인해요.
+- 저장 후 실행이 실패한 경우에는 [실행 결과 읽기](/docs/05-run-and-debug/run-results)에서 타임라인과 노드별 입출력을 확인할 수 있어요.
