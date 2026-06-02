@@ -137,4 +137,40 @@ describe("EditorToolbar — RBAC", () => {
       graphWarnings: { results: [], hasError: false, hasWarning: false },
     });
   });
+
+  // SUMMARY#4 — ko 로케일 + params 보간 경로: translateGraphWarning 결과가 title 에 반영
+  it("Editor: ko 로케일 + params error 결과 → Save 버튼 title 이 한국어 보간 문자열", () => {
+    useLocaleStore.setState({ locale: "ko" });
+    Object.assign(editorState, {
+      graphWarnings: {
+        results: [
+          {
+            ruleId: "parallel:nested-depth-exceeded",
+            severity: "error",
+            nodeId: "n1",
+            message: 'Parallel "Outer" has nested "Middle" which has "Inner".',
+            params: { node: "Outer", child: "Middle", grand: "Inner" },
+          },
+        ],
+        hasError: true,
+        hasWarning: false,
+      },
+    });
+    setRole("editor");
+    renderToolbar();
+    // ko 로케일에서 save 버튼 텍스트는 "저장"
+    const saveBtn = screen.getByRole("button", { name: /저장/i });
+    expect(saveBtn).toBeDisabled();
+    // ko 로케일에서 translateGraphWarning 이 한국어 보간 결과를 반환해야 함
+    // 보간된 노드 이름("Outer", "Middle", "Inner")이 title 에 포함돼야 함
+    const title = saveBtn.getAttribute("title") ?? "";
+    expect(title).toContain("Outer");
+    expect(title).toContain("Middle");
+    expect(title).toContain("Inner");
+    // 테스트 후 초기화
+    Object.assign(editorState, {
+      graphWarnings: { results: [], hasError: false, hasWarning: false },
+    });
+    useLocaleStore.setState({ locale: "en" });
+  });
 });

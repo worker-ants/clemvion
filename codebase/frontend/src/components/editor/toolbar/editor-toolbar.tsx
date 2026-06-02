@@ -28,12 +28,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { useT } from "@/lib/i18n";
+import { useT, useLocale } from "@/lib/i18n";
+import { translateGraphWarning } from "@/lib/i18n/backend-labels";
 import { useHasRole } from "@/components/auth/role-gate";
 import { executionsApi } from "@/lib/api/executions";
 
 export function EditorToolbar() {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -319,12 +321,14 @@ export function EditorToolbar() {
               className="h-8 gap-1.5 text-xs"
               disabled={!isDirty || isSaving || graphWarnings.hasError}
               onClick={() => void saveAndInvalidate()}
-              title={
-                graphWarnings.hasError
-                  ? graphWarnings.results.find((r) => r.severity === "error")
-                      ?.message
-                  : undefined
-              }
+              title={(() => {
+                if (!graphWarnings.hasError) return undefined;
+                const err = graphWarnings.results.find(
+                  (r) => r.severity === "error",
+                );
+                // i18n Principle 3-C: 동적 rule 메시지를 ko 로 localize (영문 fallback).
+                return err ? translateGraphWarning(err, locale) : undefined;
+              })()}
             >
               <Save size={14} />
               {t("common.save")}

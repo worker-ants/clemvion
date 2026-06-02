@@ -12,7 +12,10 @@ import { useEditorStore } from "@/lib/stores/editor-store";
 import { getConfigSummary, truncateSummary } from "@/lib/utils/node-config-summary";
 import type { SummaryContext } from "@/lib/utils/node-config-summary";
 import { useLocale } from "@/lib/i18n";
-import { translateNodePortLabel } from "@/lib/i18n/backend-labels";
+import {
+  translateNodePortLabel,
+  translateGraphWarning,
+} from "@/lib/i18n/backend-labels";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { NodeIcon } from "./node-icon";
 import { useHasDefaultLlmConfig } from "./has-default-llm-config-context";
@@ -88,11 +91,6 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
       ? "error"
       : "warning";
   }, [graphWarnings]);
-  const graphWarningMessage = useMemo(
-    () => graphWarnings.map((r) => r.message).join("\n"),
-    [graphWarnings],
-  );
-
   const isAiNode = data.type === "ai_agent" || data.type === "text_classifier" || data.type === "information_extractor";
   // Shared workspace-level flag from context — see has-default-llm-config-context.
   const hasDefaultLlmConfig = useHasDefaultLlmConfig();
@@ -102,6 +100,12 @@ function CustomNodeComponent({ id, data, selected }: NodeProps<CustomNodeType>) 
   }, [isAiNode, hasDefaultLlmConfig]);
 
   const locale = useLocale();
+  // i18n Principle 3-C: 동적 graphWarning 메시지를 ruleId 별 ko 템플릿으로 localize
+  // (영문 message 는 SoT/fallback). 배지 tooltip 은 캔버스에서 사용자에게 직접 노출.
+  const graphWarningMessage = useMemo(
+    () => graphWarnings.map((r) => translateGraphWarning(r, locale)).join("\n"),
+    [graphWarnings, locale],
+  );
   const summary = useMemo(
     () => getConfigSummary(data.type, data.config, summaryContext, locale),
     [data.type, data.config, summaryContext, locale],

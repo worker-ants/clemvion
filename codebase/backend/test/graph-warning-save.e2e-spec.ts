@@ -123,11 +123,26 @@ describe('Graph Warning Save Validate (e2e)', () => {
     const nodes = [trigger, outer, middle, inner];
     const edges: CanvasEdge[] = [
       // trigger → outer (일반 흐름)
-      { sourceNodeId: trigger.id, sourcePort: 'out', targetNodeId: outer.id, targetPort: 'in' },
+      {
+        sourceNodeId: trigger.id,
+        sourcePort: 'out',
+        targetNodeId: outer.id,
+        targetPort: 'in',
+      },
       // outer 의 분기 body 안에 middle Parallel
-      { sourceNodeId: outer.id, sourcePort: 'branch_0', targetNodeId: middle.id, targetPort: 'in' },
+      {
+        sourceNodeId: outer.id,
+        sourcePort: 'branch_0',
+        targetNodeId: middle.id,
+        targetPort: 'in',
+      },
       // middle 의 분기 body 안에 inner Parallel  → depth 3 성립
-      { sourceNodeId: middle.id, sourcePort: 'branch_0', targetNodeId: inner.id, targetPort: 'in' },
+      {
+        sourceNodeId: middle.id,
+        sourcePort: 'branch_0',
+        targetNodeId: inner.id,
+        targetPort: 'in',
+      },
     ];
 
     const res = await save(id, nodes, edges);
@@ -138,10 +153,18 @@ describe('Graph Warning Save Validate (e2e)', () => {
     const errors = (res.body.error.details?.errors ?? []) as Array<{
       ruleId: string;
       severity: string;
+      params?: Record<string, string | number>;
     }>;
-    expect(
-      errors.some((e) => e.ruleId === 'parallel:nested-depth-exceeded'),
-    ).toBe(true);
+    const depthErr = errors.find(
+      (e) => e.ruleId === 'parallel:nested-depth-exceeded',
+    );
+    expect(depthErr).toBeDefined();
+    // i18n Principle 3-C: 동적 메시지 보간 값(params)이 실 HTTP 응답까지 전파되어
+    // frontend 가 ko 템플릿에 보간할 수 있어야 한다.
+    expect(depthErr!.params).toBeDefined();
+    expect(depthErr!.params).toHaveProperty('node');
+    expect(depthErr!.params).toHaveProperty('child');
+    expect(depthErr!.params).toHaveProperty('grand');
   }, 30_000);
 
   it('B. 2-level nested Parallel → 200 저장 성공 (depth 2 는 허용)', async () => {
@@ -153,9 +176,19 @@ describe('Graph Warning Save Validate (e2e)', () => {
 
     const nodes = [trigger, outer, inner];
     const edges: CanvasEdge[] = [
-      { sourceNodeId: trigger.id, sourcePort: 'out', targetNodeId: outer.id, targetPort: 'in' },
+      {
+        sourceNodeId: trigger.id,
+        sourcePort: 'out',
+        targetNodeId: outer.id,
+        targetPort: 'in',
+      },
       // outer 분기 body 안에 inner Parallel 1개 → depth 2, error rule 미triggered.
-      { sourceNodeId: outer.id, sourcePort: 'branch_0', targetNodeId: inner.id, targetPort: 'in' },
+      {
+        sourceNodeId: outer.id,
+        sourcePort: 'branch_0',
+        targetNodeId: inner.id,
+        targetPort: 'in',
+      },
     ];
 
     const res = await save(id, nodes, edges);
@@ -176,7 +209,12 @@ describe('Graph Warning Save Validate (e2e)', () => {
 
     const nodes = [trigger, solo];
     const edges: CanvasEdge[] = [
-      { sourceNodeId: trigger.id, sourcePort: 'out', targetNodeId: solo.id, targetPort: 'in' },
+      {
+        sourceNodeId: trigger.id,
+        sourcePort: 'out',
+        targetNodeId: solo.id,
+        targetPort: 'in',
+      },
     ];
 
     const res = await save(id, nodes, edges);

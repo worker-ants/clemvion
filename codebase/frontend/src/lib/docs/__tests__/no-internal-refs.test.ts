@@ -61,7 +61,7 @@ const FORBIDDEN: ForbiddenPattern[] = [
   {
     name: "internal i18n mapping table name",
     regex:
-      /\b(?:ERROR_KO|WARNING_KO|LABEL_KO|HINT_KO|GROUP_KO|ITEM_LABEL_KO|OPTION_LABEL_KO)\b/g,
+      /\b(?:ERROR_KO|GRAPH_WARNING_KO|WARNING_KO|LABEL_KO|HINT_KO|GROUP_KO|ITEM_LABEL_KO|OPTION_LABEL_KO)\b/g,
     hint: "프론트 i18n 매핑 테이블 이름(ERROR_KO 등)은 사용자 가이드 본문에 노출하지 말 것. 매핑은 내부 구현이라 사용자 안내에는 등장할 이유가 없어요.",
   },
   {
