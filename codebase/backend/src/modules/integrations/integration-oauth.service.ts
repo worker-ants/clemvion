@@ -26,6 +26,7 @@ import { findService } from './services/service-registry';
 import { decryptJson } from './services/credentials-transformer';
 import { isPostgresUniqueViolation } from '../../common/db/pg-error';
 import { normalizeStatusReason } from './integration-status-reason';
+import { pickRestrictedApprovalScopes } from '../../nodes/integration/cafe24/metadata/restricted-approval';
 import { Cafe24InstallNonceCache } from './cafe24-install-nonce-cache.service';
 import { parseJwtExp } from './jwt-exp';
 import { normalizeCafe24IsoTimezone } from './cafe24-token-utils';
@@ -150,6 +151,13 @@ export interface CallbackContext {
   integrationId: string;
   workspaceId: string;
   mode: OAuthStateMode;
+  /**
+   * Cafe24 `invalid_scope` 콜백에서만 채워진다 — 요청 scope ∩ 별도 승인 명단(§1).
+   * `handleCallbackWithErrorCapture` 가 `markIntegrationCallbackError` 의
+   * `extra.requiresCafe24Approval` 로 전달해 `last_error.details` 에 기록한다.
+   * spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
+   */
+  requiresCafe24Approval?: string[];
 }
 
 export function attachCallbackContext<E extends Error>(
@@ -493,6 +501,17 @@ export class IntegrationOAuthService {
       });
     }
     if (query.error) {
+      // Cafe24 가 요청 scope 를 거부(`?error=invalid_scope`)한 경우: state 를 소비해
+      // row 를 식별하고, 요청 scope ∩ 별도 승인 명단(§1)을 last_error.details.
+      // requiresCafe24Approval 로 남긴다. status 는 보존되어 재시도 가능.
+      // spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
+      if (
+        provider === 'cafe24' &&
+        query.error === 'invalid_scope' &&
+        query.state
+      ) {
+        await this.rejectCafe24InvalidScope(query.state); // always throws
+      }
       throw new BadRequestException({
         code: 'OAUTH_DENIED',
         message: 'Authorization was denied',
@@ -511,33 +530,16 @@ export class IntegrationOAuthService {
       });
     }
 
-    // Atomically consume the state row. DELETE … RETURNING guarantees a single
-    // winner across concurrent callbacks.
-    //
-    // TypeORM 0.3.x 의 PostgresQueryRunner 는 **DELETE/UPDATE** 명령에 한해
-    // `[rowsArray, rowCount]` 튜플로 raw 결과를 반환하고, 그 외 명령은
-    // 단순 rows array 를 반환한다 (PostgresQueryRunner.query 의 switch
-    // 분기 참조). 따라서 DELETE … RETURNING 의 결과는 `result[0]` 으로
-    // rows array 를 꺼내 사용한다.
-    const queryResult = await this.dataSource.query<
-      [IntegrationOAuthState[], number]
-    >('DELETE FROM integration_oauth_state WHERE state = $1 RETURNING *', [
-      query.state,
-    ]);
-    const consumed = queryResult[0];
-    if (!consumed || consumed.length === 0) {
+    // state row 를 원자적으로 소비한다 (DELETE … RETURNING — 동시 콜백 단일 winner).
+    // 소비 로직은 `consumeOAuthState` 단일 메서드로 추출 — invalid_scope 분기
+    // (`rejectCafe24InvalidScope`) 와 소비 경로를 공유해 중복·이중 소비를 방지한다.
+    const record = await this.consumeOAuthState(query.state);
+    if (!record) {
       throw new BadRequestException({
         code: 'OAUTH_STATE_MISMATCH',
         message: 'Invalid or already consumed OAuth state',
       });
     }
-    // Raw SQL DELETE…RETURNING 의 컬럼은 snake_case 이고 transformer 도
-    // bypass 된다. `normalizeRawStateRow` 로 entity-shape (camelCase +
-    // decrypted providerMeta) 단일 진실 객체로 변환해 이하 코드가 entity
-    // property 만 다루도록 한다.
-    const record = normalizeRawStateRow(
-      consumed[0] as unknown as Record<string, unknown>,
-    );
     // Build the diagnostic context once — every post-state-consumption throw
     // attaches this so the controller can surface the failure on the row
     // (see `markIntegrationCallbackError`). Pre-consumption throws (state
@@ -707,6 +709,64 @@ export class IntegrationOAuthService {
   }
 
   /**
+   * Cafe24 `invalid_scope` 콜백 처리 — state 를 소비해 row 를 식별하고, 요청 scope
+   * ∩ 별도 승인 명단(§1)을 attach 한 `OAUTH_INVALID_SCOPE` 를 throw 한다 (항상 throw).
+   * `handleCallbackWithErrorCapture` 가 `context.requiresCafe24Approval` 를
+   * `markIntegrationCallbackError` 로 전달해 `statusReason='oauth_invalid_scope'` +
+   * `last_error.details.requiresCafe24Approval` 를 기록한다. status 는 보존되어 재시도 가능.
+   * spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
+   */
+  private async rejectCafe24InvalidScope(state: string): Promise<never> {
+    const record = await this.consumeOAuthState(state);
+    const invalidScope = () =>
+      new BadRequestException({
+        code: 'OAUTH_INVALID_SCOPE',
+        message: 'Authorization rejected: invalid scope',
+      });
+    // state 가 이미 소비됐거나, row context 가 없거나(integrationId NULL), state 가
+    // 다른 provider 것이면 진단 기록 대상이 없으므로 context 없이 throw 한다
+    // (UI 는 팝업 에러만 표시). provider 검증은 다른 흐름 state 오소비 방어.
+    if (!record || record.provider !== 'cafe24' || !record.integrationId) {
+      throw invalidScope();
+    }
+    throw attachCallbackContext(invalidScope(), {
+      integrationId: record.integrationId,
+      workspaceId: record.workspaceId,
+      mode: record.mode,
+      requiresCafe24Approval: pickRestrictedApprovalScopes(
+        record.requestedScopes,
+      ),
+    });
+  }
+
+  /**
+   * state row 를 원자적으로 소비한다 (DELETE … RETURNING — 동시 콜백 단일 winner).
+   *
+   * TypeORM 0.3.x 의 PostgresQueryRunner 는 DELETE/UPDATE 명령에 한해
+   * `[rowsArray, rowCount]` 튜플로 raw 결과를 반환한다. raw row 의 컬럼은
+   * snake_case 이고 transformer 도 bypass 되므로 `normalizeRawStateRow` 로
+   * entity-shape (camelCase + decrypted providerMeta) 단일 진실 객체로 변환한다.
+   *
+   * @returns 소비된 state record. 매칭 row 가 없으면(이미 소비/미존재) null.
+   */
+  private async consumeOAuthState(
+    state: string,
+  ): Promise<IntegrationOAuthState | null> {
+    const queryResult = await this.dataSource.query<
+      [IntegrationOAuthState[], number]
+    >('DELETE FROM integration_oauth_state WHERE state = $1 RETURNING *', [
+      state,
+    ]);
+    const consumed = queryResult[0];
+    if (!consumed || consumed.length === 0) {
+      return null;
+    }
+    return normalizeRawStateRow(
+      consumed[0] as unknown as Record<string, unknown>,
+    );
+  }
+
+  /**
    * Public callback entry point — wraps `handleCallback` and, when it
    * throws after the state row has been consumed, records the diagnostic
    * onto the Integration row before re-throwing. The controller only needs
@@ -726,6 +786,12 @@ export class IntegrationOAuthService {
       if (ctx?.integrationId && ctx.workspaceId) {
         const errorCode = readErrorCode(err);
         const message = readErrorMessage(err);
+        // Cafe24 invalid_scope 콜백은 context 에 별도 승인 명단을 실어 보낸다 —
+        // last_error.details.requiresCafe24Approval 로 기록 (§10.4).
+        const extra =
+          ctx.requiresCafe24Approval && ctx.requiresCafe24Approval.length > 0
+            ? { requiresCafe24Approval: ctx.requiresCafe24Approval }
+            : undefined;
         // Best-effort — markIntegrationCallbackError already has its own
         // try/catch internally, the .catch here is defence-in-depth so a
         // future refactor cannot block the caller from re-throwing.
@@ -734,6 +800,7 @@ export class IntegrationOAuthService {
           ctx.workspaceId,
           errorCode,
           message,
+          extra,
         ).catch(() => {
           /* swallow — never block the original error from propagating */
         });
@@ -808,6 +875,13 @@ export class IntegrationOAuthService {
         // §10.4: reauthorize code-exchange failure on a connected row
         integration.status = 'error';
         integration.statusReason = 'auth_failed';
+      } else if (
+        integration.status === 'connected' &&
+        errorCode === 'OAUTH_INVALID_SCOPE'
+      ) {
+        // §10.4: Cafe24 가 reauthorize 단계에서 scope 를 거부 — status 는 보존하고
+        // 사유만 기록해 상세 페이지가 별도 승인 안내를 분기한다. 별도 승인 후 재시도 가능.
+        integration.statusReason = 'oauth_invalid_scope';
       }
       // Otherwise (connected + non-token error): last_error only.
       await this.integrationRepository.save(integration);

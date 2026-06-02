@@ -511,6 +511,9 @@ describe('IntegrationOAuthService', () => {
         'ws-1',
         'OAUTH_STATE_EXPIRED',
         expect.stringContaining('expired'),
+        // §2: 5번째 extra 인자 — invalid_scope 외에는 undefined (context 에
+        // requiresCafe24Approval 없음).
+        undefined,
       );
       spy.mockRestore();
     });
@@ -550,6 +553,8 @@ describe('IntegrationOAuthService', () => {
         'ws-1',
         'OAUTH_CALLBACK_FAILED',
         'boom',
+        // §2: 5번째 extra 인자 — invalid_scope 외에는 undefined.
+        undefined,
       );
       spy.mockRestore();
     });

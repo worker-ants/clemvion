@@ -60,12 +60,12 @@ parent_session: review/consistency/2026/05/17/12_37_41/ (W-7), cafe24-restricted
 
 상기 변경은 OAuth 콜백 전체 흐름의 분기를 손대는 작업이라 본 PR 의 범위와 다르다. 호출 단계의 `INSUFFICIENT_SCOPE` 보강 (`cafe24-api.client.ts markAuthFailed` 의 `requiresCafe24Approval` 추가) 만으로도 사용자가 위저드 체크 → OAuth 통과 → 호출 시 403 시점에서 안내를 받을 수 있어 UX 의 가치 대부분이 확보된다.
 
-### 작업
-- [ ] `handleCallback` 에서 `query.error === 'invalid_scope'` 분기 추가 + state 소비 + context 첨부 throw
-- [ ] `handleCallbackWithErrorCapture` 에서 OAUTH_INVALID_SCOPE 시 state 의 requestedScopes 를 읽어 `pickRestrictedApprovalScopes` 호출 + `markIntegrationCallbackError({ requiresCafe24Approval })` 호출
-- [ ] `markIntegrationCallbackError` 의 statusReason 매핑에 명시적 분기 (`oauth_invalid_scope`)
-- [ ] integration-oauth.service.cafe24.spec.ts 에 케이스 추가
-- [ ] frontend: 통합 상세 페이지가 `Integration.statusReason==='oauth_invalid_scope'` + `last_error.details.requiresCafe24Approval` 를 읽어 분기 메시지 노출 (INSUFFICIENT_SCOPE 메시지 컴포넌트 재사용)
+### 작업 — ✅ 완료 (2026-06-02, worktree cafe24-oauth-invalid-scope-408b14)
+- [x] `handleCallback` invalid_scope 분기 + state 소비(`consumeOAuthState`) + context(approval) attach throw (`rejectCafe24InvalidScope`)
+- [x] `handleCallbackWithErrorCapture` 에서 ctx.requiresCafe24Approval → `markIntegrationCallbackError` extra 전달
+- [x] `markIntegrationCallbackError` statusReason 매핑 (pending_install normalize + connected 명시 분기)
+- [x] integration-oauth.service.cafe24.spec.ts invalid_scope 7 케이스
+- [x] frontend scope-tab oauth_invalid_scope 전용 섹션 (cafe24RestrictedApprovalApiError 재사용)
 
 ### 비목표
 - 새 에러 코드 추가 (사용자 facing UX 는 status_reason + details 로 충분)
