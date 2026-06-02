@@ -18,6 +18,7 @@ import {
   Puzzle,
   Lock,
   BarChart3,
+  Activity,
   BookOpen,
   BookMarked,
   Brain,
@@ -117,6 +118,7 @@ const navItems = [
   { labelKey: "sidebar.llmConfig", href: "/llm-configs", icon: Brain },
   { labelKey: "sidebar.authentication", href: "/authentication", icon: Lock },
   { labelKey: "sidebar.statistics", href: "/statistics", icon: BarChart3 },
+  { labelKey: "sidebar.systemStatus", href: "/system-status", icon: Activity },
   { labelKey: "sidebar.userGuide", href: "/docs", icon: BookMarked },
 ] as const satisfies ReadonlyArray<{
   labelKey: TranslationKey;
