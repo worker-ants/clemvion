@@ -530,33 +530,16 @@ export class IntegrationOAuthService {
       });
     }
 
-    // Atomically consume the state row. DELETE … RETURNING guarantees a single
-    // winner across concurrent callbacks.
-    //
-    // TypeORM 0.3.x 의 PostgresQueryRunner 는 **DELETE/UPDATE** 명령에 한해
-    // `[rowsArray, rowCount]` 튜플로 raw 결과를 반환하고, 그 외 명령은
-    // 단순 rows array 를 반환한다 (PostgresQueryRunner.query 의 switch
-    // 분기 참조). 따라서 DELETE … RETURNING 의 결과는 `result[0]` 으로
-    // rows array 를 꺼내 사용한다.
-    const queryResult = await this.dataSource.query<
-      [IntegrationOAuthState[], number]
-    >('DELETE FROM integration_oauth_state WHERE state = $1 RETURNING *', [
-      query.state,
-    ]);
-    const consumed = queryResult[0];
-    if (!consumed || consumed.length === 0) {
+    // state row 를 원자적으로 소비한다 (DELETE … RETURNING — 동시 콜백 단일 winner).
+    // 소비 로직은 `consumeOAuthState` 단일 메서드로 추출 — invalid_scope 분기
+    // (`rejectCafe24InvalidScope`) 와 소비 경로를 공유해 중복·이중 소비를 방지한다.
+    const record = await this.consumeOAuthState(query.state);
+    if (!record) {
       throw new BadRequestException({
         code: 'OAUTH_STATE_MISMATCH',
         message: 'Invalid or already consumed OAuth state',
       });
     }
-    // Raw SQL DELETE…RETURNING 의 컬럼은 snake_case 이고 transformer 도
-    // bypass 된다. `normalizeRawStateRow` 로 entity-shape (camelCase +
-    // decrypted providerMeta) 단일 진실 객체로 변환해 이하 코드가 entity
-    // property 만 다루도록 한다.
-    const record = normalizeRawStateRow(
-      consumed[0] as unknown as Record<string, unknown>,
-    );
     // Build the diagnostic context once — every post-state-consumption throw
     // attaches this so the controller can surface the failure on the row
     // (see `markIntegrationCallbackError`). Pre-consumption throws (state
@@ -734,28 +717,19 @@ export class IntegrationOAuthService {
    * spec/2-navigation/4-integration.md §10.4 / cafe24-restricted-scopes.md §4.3.
    */
   private async rejectCafe24InvalidScope(state: string): Promise<never> {
-    const queryResult = await this.dataSource.query<
-      [IntegrationOAuthState[], number]
-    >('DELETE FROM integration_oauth_state WHERE state = $1 RETURNING *', [
-      state,
-    ]);
-    const consumed = queryResult[0];
-    const err = new BadRequestException({
-      code: 'OAUTH_INVALID_SCOPE',
-      message: 'Authorization rejected: invalid scope',
-    });
-    // state 가 이미 소비됐거나 미존재하면 row context 가 없어 진단 기록 불가 —
-    // context 없이 throw 한다 (UI 는 팝업 에러만 표시).
-    if (!consumed || consumed.length === 0) {
-      throw err;
+    const record = await this.consumeOAuthState(state);
+    const invalidScope = () =>
+      new BadRequestException({
+        code: 'OAUTH_INVALID_SCOPE',
+        message: 'Authorization rejected: invalid scope',
+      });
+    // state 가 이미 소비됐거나, row context 가 없거나(integrationId NULL), state 가
+    // 다른 provider 것이면 진단 기록 대상이 없으므로 context 없이 throw 한다
+    // (UI 는 팝업 에러만 표시). provider 검증은 다른 흐름 state 오소비 방어.
+    if (!record || record.provider !== 'cafe24' || !record.integrationId) {
+      throw invalidScope();
     }
-    const record = normalizeRawStateRow(
-      consumed[0] as unknown as Record<string, unknown>,
-    );
-    if (!record.integrationId) {
-      throw err;
-    }
-    throw attachCallbackContext(err, {
+    throw attachCallbackContext(invalidScope(), {
       integrationId: record.integrationId,
       workspaceId: record.workspaceId,
       mode: record.mode,
@@ -763,6 +737,33 @@ export class IntegrationOAuthService {
         record.requestedScopes,
       ),
     });
+  }
+
+  /**
+   * state row 를 원자적으로 소비한다 (DELETE … RETURNING — 동시 콜백 단일 winner).
+   *
+   * TypeORM 0.3.x 의 PostgresQueryRunner 는 DELETE/UPDATE 명령에 한해
+   * `[rowsArray, rowCount]` 튜플로 raw 결과를 반환한다. raw row 의 컬럼은
+   * snake_case 이고 transformer 도 bypass 되므로 `normalizeRawStateRow` 로
+   * entity-shape (camelCase + decrypted providerMeta) 단일 진실 객체로 변환한다.
+   *
+   * @returns 소비된 state record. 매칭 row 가 없으면(이미 소비/미존재) null.
+   */
+  private async consumeOAuthState(
+    state: string,
+  ): Promise<IntegrationOAuthState | null> {
+    const queryResult = await this.dataSource.query<
+      [IntegrationOAuthState[], number]
+    >('DELETE FROM integration_oauth_state WHERE state = $1 RETURNING *', [
+      state,
+    ]);
+    const consumed = queryResult[0];
+    if (!consumed || consumed.length === 0) {
+      return null;
+    }
+    return normalizeRawStateRow(
+      consumed[0] as unknown as Record<string, unknown>,
+    );
   }
 
   /**

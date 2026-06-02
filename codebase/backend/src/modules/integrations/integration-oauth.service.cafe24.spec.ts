@@ -2320,6 +2320,17 @@ describe('IntegrationOAuthService — Cafe24', () => {
   // 하면 state 를 소비해 row 를 식별하고 statusReason='oauth_invalid_scope' +
   // last_error.details.requiresCafe24Approval 를 기록한다. status 는 보존.
   describe('handleCallbackWithErrorCapture — cafe24 invalid_scope (§10.4)', () => {
+    type SavedIntegration = {
+      status: string;
+      statusReason: string;
+      lastError: {
+        code: string;
+        details?: { requiresCafe24Approval?: string[] };
+      };
+    };
+    // mode='new' + integrationId 조합: Cafe24 Private 초기 install 은 begin 단계에서
+    // pending_install Integration row 를 먼저 만들고 state 가 그 row 를 참조하므로
+    // 'new' 흐름이라도 integrationId 가 채워진다 (cafe24 특화 — §9.2).
     function makeStateRow(
       overrides: Partial<Record<string, unknown>> = {},
     ): Record<string, unknown> {
@@ -2372,7 +2383,10 @@ describe('IntegrationOAuthService — Cafe24', () => {
       const saved = integrationRepo.save.mock.calls[0][0] as {
         status: string;
         statusReason: string;
-        lastError: { code: string; details?: { requiresCafe24Approval?: string[] } };
+        lastError: {
+          code: string;
+          details?: { requiresCafe24Approval?: string[] };
+        };
       };
       expect(saved.status).toBe('pending_install'); // 보존
       expect(saved.statusReason).toBe('oauth_invalid_scope');
@@ -2419,7 +2433,12 @@ describe('IntegrationOAuthService — Cafe24', () => {
         lastError: null,
       });
       dataSource.query.mockResolvedValueOnce([
-        [makeStateRow({ mode: 'reauthorize', requestedScopes: ['mall.write_privacy'] })],
+        [
+          makeStateRow({
+            mode: 'reauthorize',
+            requestedScopes: ['mall.write_privacy'],
+          }),
+        ],
         1,
       ]);
 
@@ -2467,6 +2486,55 @@ describe('IntegrationOAuthService — Cafe24', () => {
         'OAUTH_DENIED',
       );
       expect(dataSource.query).not.toHaveBeenCalled();
+    });
+
+    it('integrationId=null (new mode) → context 없이 OAUTH_INVALID_SCOPE throw, save 미호출', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        [makeStateRow({ integrationId: null })],
+        1,
+      ]);
+      const err = await service
+        .handleCallbackWithErrorCapture('cafe24', {
+          error: 'invalid_scope',
+          state: 'st-iscope',
+        })
+        .catch((e: unknown) => e);
+      expect((err as { response?: { code?: string } }).response?.code).toBe(
+        'OAUTH_INVALID_SCOPE',
+      );
+      // state 는 소비됐지만 row context(integrationId)가 없어 진단 기록 불가.
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('connected + restricted 아닌 scope → statusReason 기록하되 details 생략', async () => {
+      integrationRepo.findOne = jest.fn().mockResolvedValue({
+        id: 'int-iscope',
+        workspaceId: 'ws-1',
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      });
+      dataSource.query.mockResolvedValueOnce([
+        [
+          makeStateRow({
+            mode: 'reauthorize',
+            requestedScopes: ['mall.read_product'],
+          }),
+        ],
+        1,
+      ]);
+
+      await service
+        .handleCallbackWithErrorCapture('cafe24', {
+          error: 'invalid_scope',
+          state: 'st-iscope',
+        })
+        .catch(() => undefined);
+
+      const saved = integrationRepo.save.mock.calls[0][0] as SavedIntegration;
+      expect(saved.status).toBe('connected'); // 보존
+      expect(saved.statusReason).toBe('oauth_invalid_scope');
+      expect(saved.lastError.details).toBeUndefined();
     });
   });
 });
