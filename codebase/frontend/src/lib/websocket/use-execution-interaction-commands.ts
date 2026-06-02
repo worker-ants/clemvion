@@ -209,6 +209,11 @@ export function useExecutionInteractionCommands(
         turnIndex:
           conversationMessages.filter(isUserInitiatedTurn).length + 1,
         timestamp: new Date().toISOString(),
+        // 이 로컬 optimistic 버블은 backend 의 `execution.user_message` echo
+        // (서버 receivedAt) 와 dedup 키가 다르다. 플래그로 표시해 echo 핸들러
+        // (appendOptimisticUserMessage) 가 중복 append 대신 reconcile 하게 한다
+        // (ConversationItem.optimisticPending 주석 / 중복 버블 회귀 차단).
+        optimisticPending: true,
       });
       setWaitingAiResponse(true);
       emitWithAck(

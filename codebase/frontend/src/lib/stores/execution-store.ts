@@ -163,6 +163,26 @@ export interface ConversationItem {
    * and by UI to render an "injected context" chip.
    */
   isInjected?: boolean;
+  /**
+   * `true` for a client-side optimistic `user` bubble that `sendMessage`
+   * (use-execution-interaction-commands) appends the instant the user hits
+   * send — before the authoritative `execution.user_message` echo arrives.
+   *
+   * The echo handler (`appendOptimisticUserMessage`) reconciles this item —
+   * stamping its server `receivedAt` and clearing this flag — instead of
+   * appending a *second* bubble. Without it the local bubble (client
+   * timestamp) and the WS echo (server `receivedAt`) coexist as two identical
+   * user messages throughout the "AI 응답 대기" window, collapsing back to one
+   * only when the turn-end `ai_message` snapshot REPLACE arrives — the
+   * reported "한 메시지가 둘로 보이다 합쳐짐" bug.
+   *
+   * Absent on authoritative `ai_message` snapshots (`messagesToConversationItems`
+   * never sets it), so it self-clears on REPLACE. An echo with no matching
+   * local optimistic bubble (channel inbound / observer client) still appends
+   * normally (spec/conventions/conversation-thread.md §9.7,
+   * spec/5-system/6-websocket-protocol.md §4.4).
+   */
+  optimisticPending?: boolean;
   /** Timestamp when the message was sent/received */
   timestamp?: string;
   /** Duration in ms (for assistant: LLM latency, for tool: provider exec time) */
@@ -573,6 +593,32 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
           (i) => i.type === "user" && i.timestamp === receivedAt,
         );
         if (exists) return {};
+      }
+      // Reconcile with the client-side optimistic bubble that `sendMessage`
+      // appended on send (`optimisticPending`). Its dedup key is a *client*
+      // timestamp, so the `receivedAt` check above never catches it — without
+      // this branch the local bubble and this server echo coexist as two
+      // identical user messages until the turn-end `ai_message` REPLACE
+      // collapses them (the "한 메시지가 둘로 보이다 합쳐짐" bug). Match on the
+      // pending flag + content; stamp the authoritative `receivedAt` (so a
+      // re-emit is caught above) and clear the flag — append nothing.
+      const pendingIdx = state.conversationMessages.findIndex(
+        (i) =>
+          i.type === "user" &&
+          i.optimisticPending === true &&
+          i.content === content,
+      );
+      if (pendingIdx !== -1) {
+        const next = state.conversationMessages.map((i, idx) =>
+          idx === pendingIdx
+            ? {
+                ...i,
+                optimisticPending: undefined,
+                timestamp: receivedAt || i.timestamp,
+              }
+            : i,
+        );
+        return { conversationMessages: next, isWaitingAiResponse: true };
       }
       // turnIndex best-effort: the count of live (non-injected) user turns so
       // far. The subsequent authoritative `ai_message` REPLACE recomputes all

@@ -585,6 +585,65 @@ describe("useExecutionStore", () => {
       expect(items.map((i) => i.content)).toEqual(["첫 발화", "둘째 발화"]);
     });
 
+    // 버그: AI Agent chat 에서 user 발화가 응답 생성 중 두 버블로 표시됐다.
+    // sendMessage 의 로컬 optimistic 버블(클라이언트 timestamp, optimisticPending)
+    // 과 execution.user_message echo(서버 receivedAt)가 dedup 키 불일치로 둘 다
+    // append 됐기 때문. echo 는 같은 content 의 optimisticPending 버블을 발견하면
+    // append 대신 reconcile (receivedAt 스탬프 + flag clear) 해야 한다.
+    it("reconciles a client-side optimisticPending bubble instead of double-appending", () => {
+      // sendMessage 가 만든 로컬 optimistic 버블 (서버 echo 이전 상태).
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "주문 확인해줘",
+        turnIndex: 1,
+        timestamp: "2026-06-01T00:00:00.000Z", // 클라이언트 timestamp
+        optimisticPending: true,
+      });
+      // 서버 echo (execution.user_message) — 다른(서버) receivedAt 로 도착.
+      useExecutionStore.getState().appendOptimisticUserMessage({
+        content: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:09.999Z",
+      });
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1); // 두 번째 버블이 생기지 않는다
+      expect(items[0]).toMatchObject({
+        type: "user",
+        content: "주문 확인해줘",
+        timestamp: "2026-06-01T00:00:09.999Z", // 권위 receivedAt 로 스탬프
+      });
+      expect(items[0].optimisticPending).toBeUndefined(); // flag 해제
+      expect(useExecutionStore.getState().isWaitingAiResponse).toBe(true);
+    });
+
+    // reconcile 후 re-emit 은 스탬프된 receivedAt 로 dedup 되어 중복되지 않는다.
+    it("does not duplicate when the echo re-emits after reconciling the optimistic bubble", () => {
+      useExecutionStore.getState().addConversationMessage({
+        type: "user",
+        content: "주문 확인해줘",
+        turnIndex: 1,
+        timestamp: "2026-06-01T00:00:00.000Z",
+        optimisticPending: true,
+      });
+      const echo = {
+        content: "주문 확인해줘",
+        receivedAt: "2026-06-01T00:00:09.999Z",
+      };
+      useExecutionStore.getState().appendOptimisticUserMessage(echo);
+      useExecutionStore.getState().appendOptimisticUserMessage(echo); // re-emit
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(1);
+    });
+
+    // 관찰자/채널 인입: 로컬 optimistic 버블이 없으므로 echo 가 정상 append.
+    it("appends when there is no local optimisticPending bubble (observer / channel inbound)", () => {
+      useExecutionStore.getState().appendOptimisticUserMessage({
+        content: "채널에서 온 발화",
+        receivedAt: "2026-06-01T00:00:00.000Z",
+      });
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({ type: "user", content: "채널에서 온 발화" });
+    });
+
     it("subsequent setConversationMessages (ai_message REPLACE) reconciles the optimistic bubble", () => {
       useExecutionStore.getState().appendOptimisticUserMessage({
         content: "주문 확인해줘",
