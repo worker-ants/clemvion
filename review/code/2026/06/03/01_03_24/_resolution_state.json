@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "started_at": "2026-06-03T01:30:00Z",
+  "summary_items_total": 7,
+  "items_resolved_ids": ["W-1", "W-2", "W-3", "W-4", "W-5", "W-6", "W-7"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "59c28d41",
+      "summary_id": "W-1~W-7",
+      "scope": "system-status"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "blocked",
+  "e2e_log_paths": ["_test_logs/e2e-20260603-012448.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "infra - docker daemon not running",
+  "last_reset_hint_sec": null
+}

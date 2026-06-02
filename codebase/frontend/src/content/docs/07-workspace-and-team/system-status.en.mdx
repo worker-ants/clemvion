@@ -1,0 +1,66 @@
+---
+title: "System Status"
+section: "07-workspace-and-team"
+order: 3
+summary: "How to read the System Status page to monitor the overall health of the BullMQ queue infrastructure."
+spec: ["spec/5-system/16-system-status-api.md", "spec/2-navigation/15-system-status.md"]
+code: [
+  "codebase/backend/src/modules/system-status/system-status.service.ts",
+  "codebase/frontend/src/app/(main)/system-status/page.tsx",
+]
+---
+
+The **System Status** page (sidebar menu) gives you a real-time overview of the entire BullMQ queue infrastructure. It is a **system-wide** view — not scoped to any workspace or user — and is accessible to all authenticated users.
+
+## Page layout
+
+### Overall status header
+
+The card at the top summarises the worst queue state across all 12 monitored queues.
+
+| Indicator | Meaning |
+|-----------|---------|
+| 🟢 System healthy | All queues are operating normally |
+| 🟡 Partial delay | One or more queues have accumulated failed jobs or processing delays |
+| 🔴 Needs attention | One or more queues are paused or the worker appears to be down |
+
+The **total failed jobs** badge shows the sum of failed jobs across all queues.
+
+### Queue group cards
+
+The 12 BullMQ queues are grouped into four sections.
+
+| Group | Queues |
+|-------|--------|
+| Execution | background-execution, execution-continuation |
+| Knowledge Base | document-embedding, graph-extraction |
+| Integration | notification-webhook, cafe24-token-refresh |
+| System | schedule-execution, login-history-pruner, notification-secret-rotator, chat-channel-token-rotator, integration-expiry-scanner, alerts-evaluator |
+
+Each queue card shows:
+
+- **Health indicator**: per-queue status (healthy / degraded / down).
+- **Counts**: waiting · active · delayed · failed.
+- **Utilisation gauge**: `active / concurrency` ratio. Shown for execution, knowledge-base, and integration groups.
+- **Scheduled job** label: shown instead of the gauge for the system (cron) group.
+
+### Auto-refresh
+
+The page **refreshes every 5 seconds**. If a request fails, automatic polling stops and an error banner with a retry button appears. You can also refresh manually with the **Refresh** button in the top-right corner.
+
+## Health evaluation rules
+
+Queue health is determined in the following priority order (heuristic, based on a single snapshot).
+
+1. **Paused** (`isPaused = true`) → 🔴 Needs attention
+2. **Waiting jobs with no active worker** (`waiting > 0`, `active = 0`) → 🔴 Needs attention (suspected worker down)
+3. **Failed or delayed above threshold** (`failed ≥ 1` or `delayed ≥ 50`) → 🟡 Degraded
+4. Otherwise → 🟢 Healthy
+
+> Thresholds are configurable via environment variables (`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`). Rule 2 is a single-snapshot heuristic and may produce false positives when a low-concurrency queue is momentarily idle.
+
+## What this page does not show
+
+- **Individual job details, payloads, or job IDs**: only aggregate counts are exposed.
+- **Per-workspace breakdown**: the view is system-global and cannot be attributed to a specific workspace or user.
+- **Throughput time series**: out of scope for v1.

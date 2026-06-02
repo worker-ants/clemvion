@@ -1,4 +1,4 @@
-# Data Flow: 관측성 (Health · Dashboard · Statistics · Alerts)
+# Data Flow: 관측성 (Health · Dashboard · Statistics · Alerts · System Status)
 
 > 관련 spec: [데이터 모델 §2 (alert_rule V016)](../1-data-model.md) · [data-flow 개요](./0-overview.md)
 
@@ -88,6 +88,17 @@ sequenceDiagram
     Eval->>ALS: record(resource_type='alert_rule', action='triggered', details={value, threshold})
   end
 ```
+
+### 1.4 System Status (큐 집계)
+
+```mermaid
+flowchart LR
+  REG[QueueRegistry · 12개 BullMQ 큐] --> SSS[SystemStatusService]
+  SSS -->|getJobCounts + isPaused| REDIS[(Redis · BullMQ)]
+  SSS -->|GET /api/system-status/overview| Client
+```
+
+`SystemStatusService` 는 본인 명의 테이블·job payload 를 읽지 않고, 12개 큐의 상태별 카운트(`getJobCounts`)와 `isPaused` 만 집계해 health 를 파생한다. 워크스페이스 경계 없는 시스템 전역 집계이며, 개별 job 식별자·payload 는 노출하지 않는다. 큐 목록 SoT 는 [`0-overview.md §4`](./0-overview.md#4-bullmq-큐-카탈로그), API 상세는 [`5-system/16-system-status-api.md`](../5-system/16-system-status-api.md).
 
 ---
 

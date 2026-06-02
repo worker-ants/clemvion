@@ -33,6 +33,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { StatisticsModule } from './modules/statistics/statistics.module';
+import { SystemStatusModule } from './modules/system-status/system-status.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { NodesModule } from './modules/nodes/nodes.module';
 import { EdgesModule } from './modules/edges/edges.module';
@@ -222,6 +223,7 @@ export const ROOT_ENTITIES = [
     AuditLogsModule,
     DashboardModule,
     StatisticsModule,
+    SystemStatusModule,
     WorkflowsModule,
     NodesModule,
     EdgesModule,
