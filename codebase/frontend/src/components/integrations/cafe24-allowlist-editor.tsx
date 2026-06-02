@@ -14,7 +14,9 @@ interface Props {
    * `undefined` 면 전부 허용(default_true, spec/5-system/11-mcp-client.md §5.6).
    */
   enabledTools: string[] | undefined;
-  onChange: (enabledTools: string[]) => void;
+  // `undefined` 면 default_true(전부 허용) 로 복원한다 — McpServerRef.enabledTools
+  // 가 optional 이므로 부모는 그대로 patch 한다.
+  onChange: (enabledTools: string[] | undefined) => void;
 }
 
 /**
@@ -61,22 +63,27 @@ export function Cafe24AllowlistEditor({ enabledTools, onChange }: Props) {
     (extras.operationsByResource[r] ?? []).map((o) => o.id),
   );
 
+  // 전부 허용 상태: `undefined` 또는 `['*']` wildcard (spec/5-system/11-mcp-client.md
+  // §5.6 default_true). 둘 다 모든 operation 을 enabled 로 본다.
+  const allAllowed =
+    enabledTools == null || enabledTools.includes("*");
+
   const isEnabled = (id: string): boolean =>
-    enabledTools ? enabledTools.includes(id) : true;
+    allAllowed || (enabledTools?.includes(id) ?? false);
 
-  // 명시 배열 base — undefined(전부 허용) 면 전체 id 로 materialize.
-  const base = (): string[] => enabledTools ?? allIds;
+  // 토글 기준값 — 전부 허용(undefined/['*']) 이면 전체 id 로 materialize 한다.
+  const effectiveTools = (): string[] => (allAllowed ? allIds : enabledTools ?? []);
 
-  // 명시 배열이 전체 id 와 동일하면 undefined(default_true) 로 되돌려 의미 보존.
+  // 명시 배열이 전체 id 와 동일하면 `undefined`(default_true) 로 되돌려 의미 보존.
   const commit = (next: string[]) => {
     const allSet = new Set(allIds);
     const sameAsAll =
       next.length === allIds.length && next.every((id) => allSet.has(id));
-    onChange(sameAsAll ? (undefined as unknown as string[]) : next);
+    onChange(sameAsAll ? undefined : next);
   };
 
   const toggleOp = (id: string) => {
-    const b = base();
+    const b = effectiveTools();
     commit(
       isEnabled(id)
         ? b.filter((x) => x !== id)
@@ -87,7 +94,7 @@ export function Cafe24AllowlistEditor({ enabledTools, onChange }: Props) {
   const setCategory = (ops: Cafe24SupportedOperation[], on: boolean) => {
     const ids = ops.map((o) => o.id);
     const idSet = new Set(ids);
-    const b = base();
+    const b = effectiveTools();
     commit(
       on
         ? Array.from(new Set([...b, ...ids]))

@@ -105,6 +105,13 @@ export function McpServerSelector({ value, onChange }: Props) {
 
   function remove(integrationId: string) {
     onChange(safe.filter((r) => r.integrationId !== integrationId));
+    // stale 펼침 상태 정리 — 같은 id 재추가 시 의도치 않은 복원 방지 (ai-review INFO #3).
+    setExpanded((prev) => {
+      if (!prev.has(integrationId)) return prev;
+      const next = new Set(prev);
+      next.delete(integrationId);
+      return next;
+    });
   }
 
   function patch(integrationId: string, patch: Partial<McpServerRef>) {

@@ -284,10 +284,6 @@ const CAFE24_RESOURCE_KEYS = [
 ] as const;
 type Cafe24ResourceKey = (typeof CAFE24_RESOURCE_KEYS)[number];
 
-// `readCafe24Extras` · `resolveCafe24OperationLabel` 는 AI Agent allowlist 편집기
-// (`cafe24-allowlist-editor.tsx`) 와 공유하기 위해 `@/lib/node-definitions/cafe24-extras`
-// 로 추출됨 (drift 방지). 위 import 참조.
-
 /**
  * Convert the persisted `config.fields` shape (or any unknown input) to the
  * `{key, value}[]` form the editor renders. Accepts:

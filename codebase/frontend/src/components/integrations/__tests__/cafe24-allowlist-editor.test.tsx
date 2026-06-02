@@ -173,4 +173,56 @@ describe("Cafe24AllowlistEditor", () => {
     render(<Cafe24AllowlistEditor enabledTools={undefined} onChange={vi.fn()} />);
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });
+
+  it("['*'] wildcard → 전부 허용으로 해석(전부 checked), 토글 시 명시 배열로 materialize", () => {
+    const onChange = vi.fn();
+    render(<Cafe24AllowlistEditor enabledTools={["*"]} onChange={onChange} />);
+    const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+    expect(boxes.every((b) => b.checked)).toBe(true);
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /cafe24\.tst\.product_list/ }),
+    );
+    const next = onChange.mock.calls[0][0] as string[];
+    expect(next).not.toContain("*");
+    expect(next).not.toContain("product_list");
+    expect(next).toHaveLength(ALL_IDS.length - 1);
+  });
+
+  it("sameAsAll: 마지막 빠진 op 를 다시 켜면 onChange(undefined) 로 default 복원", () => {
+    const onChange = vi.fn();
+    const allButProduct = ALL_IDS.filter((id) => id !== "product_list");
+    render(
+      <Cafe24AllowlistEditor enabledTools={allButProduct} onChange={onChange} />,
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /cafe24\.tst\.product_list/ }),
+    );
+    expect(onChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it("빈 배열 [] → 명시적 전부 차단(전부 unchecked)", () => {
+    render(<Cafe24AllowlistEditor enabledTools={[]} onChange={vi.fn()} />);
+    const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
+    expect(boxes.some((b) => b.checked)).toBe(false);
+  });
+
+  it("level='program' operation 도 행 ⚠ 배지 (operation 과 동일 취급)", () => {
+    const PROGRAM_R: Cafe24RestrictedApproval = {
+      level: "program" as Cafe24RestrictedApproval["level"],
+      approvalGroup: "analytics",
+      inquiryUrl: "https://x",
+    };
+    seed({
+      operationsByResource: {
+        analytics: [
+          op("analytics_get", "cafe24.tst.analytics_get", PROGRAM_R),
+          op("analytics_list", "cafe24.tst.analytics_list"),
+        ],
+      },
+      plannedByResource: {},
+    } as unknown as Cafe24NodeExtras);
+    render(<Cafe24AllowlistEditor enabledTools={undefined} onChange={vi.fn()} />);
+    // program op 1개 → 행 배지 1개 (카테고리 헤더는 scope 아님 → 미표기).
+    expect(screen.getAllByRole("img")).toHaveLength(1);
+  });
 });

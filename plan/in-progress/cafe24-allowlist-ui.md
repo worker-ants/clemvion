@@ -73,9 +73,9 @@ operation 단위 enabledTools 편집 UI 가 없음. 본 작업이 그 advanced s
 - [x] 3. consistency-check --impl-prep (BLOCK:YES → spec 미편집으로 Critical 해소, 위 확정)
 - [x] 4. DOCUMENTATION (spec §8.3 이미 명세 — spec 미편집. i18n ko/en parity. partial surface 없음)
 - [x] 5-7. TDD + 구현 (위 구현 — 완료)
-- [ ] 8. TEST WORKFLOW
-- [ ] 9. REVIEW WORKFLOW
-- [ ] 10. plan complete
+- [x] 8. TEST WORKFLOW — lint·unit·build·e2e(140) PASS
+- [x] 9. REVIEW WORKFLOW — /ai-review(MEDIUM, Critical 0) → 수동 fix(W1 onChange 타입·W2 '*'·W3/4/5/6 테스트·INFO 3/9/10/12/19/20) + RESOLUTION.md. W8(기존 하드코딩 i18n)·OCP 등 보류. 재테스트 PASS.
+- [x] 10. plan complete — git mv to plan/complete/. restricted-scopes-followups.md §1 갱신.
 
 ## 비목표
 

@@ -33,11 +33,11 @@ parent_session: review/consistency/2026/05/17/12_37_41/ (W-7), cafe24-restricted
 - frontend `Cafe24SupportedOperation.restrictedApproval` 타입 + 공통 컴포넌트 `ApprovalRequiredBadge`, `RestrictedScopeNotice` — 신규 화면에서도 그대로 재사용.
 - i18n 키 (`integrations.approvalRequiredBadge` 등) — 이미 등록됨.
 
-### 작업 (advanced surface 도입 시)
-- [ ] AI Agent allowlist UI 신설 (mcp-server-selector 에 expand 또는 별도 페이지)
-- [ ] 카테고리 단위 grouping — `restrictedApproval.level==='scope'` 면 그룹 헤더 ⚠
-- [ ] operation 단위 row — `restrictedApproval.level==='operation'` 면 행 단위 ⚠
-- [ ] 공통 컴포넌트 재사용
+### 작업 (advanced surface) — ✅ 완료 (2026-06-02, worktree cafe24-allowlist-ui)
+- [x] AI Agent allowlist UI 신설 — `cafe24-allowlist-editor.tsx` + `mcp-server-selector` cafe24 expandable 섹션
+- [x] 카테고리 단위 grouping — `restrictedApproval.level==='scope'` → 그룹 헤더 ⚠
+- [x] operation 단위 row — `level!=='scope'`(operation/program) → 행 ⚠
+- [x] 공통 컴포넌트 재사용 (`ApprovalRequiredBadge`) + `cafe24-extras` 공유 헬퍼 추출
 
 ---
 
