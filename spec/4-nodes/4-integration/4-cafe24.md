@@ -1,13 +1,11 @@
 ---
 id: cafe24
-status: partial
+status: implemented
 code:
   - codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts
   - codebase/backend/src/nodes/integration/cafe24/cafe24.schema.ts
   - codebase/backend/src/nodes/integration/cafe24/metadata/index.ts
   - codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts
-pending_plans:
-  - plan/in-progress/cafe24-restricted-scopes-followups.md
 ---
 
 # Spec: Cafe24
