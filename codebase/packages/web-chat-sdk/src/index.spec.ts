@@ -85,4 +85,20 @@ describe("boot", () => {
     );
     expect(cb).toHaveBeenCalledWith({ text: "응답" });
   });
+
+  it("off: 구독 해제 후 wc:event 무시(통합)", () => {
+    const chat = boot(valid);
+    const cb = jest.fn();
+    chat.on("message", cb);
+    chat.off("message");
+    const iframe = document.querySelector("iframe") as HTMLIFrameElement;
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "wc:event", payload: { name: "message", data: { text: "x" } } },
+        origin: "https://cdn.example.com",
+        source: iframe.contentWindow,
+      }),
+    );
+    expect(cb).not.toHaveBeenCalled();
+  });
 });

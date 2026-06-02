@@ -6,14 +6,17 @@
  */
 import { HooksController } from './hooks.controller';
 import { HooksService } from './hooks.service';
+import { EmbedConfigService } from './embed-config.service';
 
 describe('HooksController', () => {
   let controller: HooksController;
   let hooksService: jest.Mocked<Pick<HooksService, 'handleWebhook'>>;
+  let embedConfigService: jest.Mocked<Pick<EmbedConfigService, 'resolve'>>;
 
   const makeRes = () => ({
     status: jest.fn().mockReturnThis(),
     json: jest.fn(),
+    set: jest.fn().mockReturnThis(),
   });
 
   const makeReq = (extra?: Record<string, unknown>) => ({
@@ -27,7 +30,34 @@ describe('HooksController', () => {
     hooksService = {
       handleWebhook: jest.fn(),
     };
-    controller = new HooksController(hooksService as unknown as HooksService);
+    embedConfigService = {
+      resolve: jest.fn(),
+    };
+    controller = new HooksController(
+      hooksService as unknown as HooksService,
+      embedConfigService as unknown as EmbedConfigService,
+    );
+  });
+
+  it('getEmbedConfig — allowlist 반환 + Cache-Control 설정', async () => {
+    embedConfigService.resolve.mockResolvedValue({
+      allowlist: ['https://shop.example.com'],
+      enforce: true,
+    });
+    const res = makeRes();
+    const result = await controller.getEmbedConfig(
+      'abc',
+      res as unknown as import('express').Response,
+    );
+    expect(result).toEqual({
+      allowlist: ['https://shop.example.com'],
+      enforce: true,
+    });
+    expect(res.set).toHaveBeenCalledWith(
+      'Cache-Control',
+      expect.stringContaining('max-age'),
+    );
+    expect(embedConfigService.resolve).toHaveBeenCalledWith('abc');
   });
 
   it('interactionHttpResponse 있을 때 res.status(200).json(interactionHttpResponse) 직접 전송', async () => {

@@ -75,11 +75,21 @@ M2 에서는 "서빙 origin = 호출 origin"이라 CORS·임베드가 같은 도
 공개 AI 챗봇의 실질 리스크는 **인프라 부하**와 **LLM 토큰 비용**이다. 인증 대신 다층 방어:
 
 **v1 기본 적용**
-- IP 단위 대화 시작 rate-limit(예: 분당 10/IP).
+- IP 단위 대화 시작 rate-limit(예: 분당 10/IP). **[구현됨 v1]** `PublicWebhookThrottleGuard` + `PublicWebhookQuotaService`.
 - 익명 세션 + IP 조합 동시/누적 대화 상한(예: 동시 ≤3, 시간당 신규 ≤20).
+  - **누적 신규(시간당 ≤20/IP): 구현됨 v1.** **동시 ≤3 캡: v1.1 이연** — 대화 종료 신호(`conversationEnded`) 의 backend 연동이
+    필요하나 현재 widget↔backend 신호 흐름 미구현. [followups #1 동시캡 잔여](../../plan/in-progress/channel-web-chat-followups.md).
 - 메시지/페이로드 크기 제한(예: 메시지 4KB, body 32KB).
+  - **body 32KB: webhook gate(`PublicWebhookThrottleGuard`)에서 구현됨 v1.** **메시지 4KB**: 대화 중 메시지는 EIA interact
+    레이어 책임 — 현재 별도 body 검증 미적용, 네트워크/proxy 계층 한도에 의존(별도 강화는 EIA §8.4 연계 followup).
 - 기존 EIA §8.4 유지(interact 분당 60/execution, SSE 동시 3/execution).
 - **워크플로우 측 비용 가드(핵심)**: AI 노드 대화당 최대 turn + 워크스페이스 일일 토큰/비용 예산 → 초과 시 우아한 종료.
+  **별도 설계 필요(execution-engine/AI 노드 spec 연계, 본 영역 밖)** — [followups #2](../../plan/in-progress/channel-web-chat-followups.md).
+
+> **rate-limit 구현 특성(v1)**: Redis **fixed-window** 카운터를 쓴다 — 윈도우 경계에서 최대 2배 버스팅이 허용되는 특성이
+> 있다. 본 rate-limit 은 인증 대체가 아닌 **best-effort defense-in-depth** 이며, Redis 미가용 시 **fail-open**(정당한
+> webhook 보호)이다. 더 강한 보장이 필요하면 sliding-window 전환이 followup 후보. 공개 trigger(`auth_config_id IS NULL`)
+> 에만 적용되고 인증 webhook(서버-to-서버)은 무제한 통과한다.
 
 **opt-in (워크스페이스 선택)**
 - 첫 대화 시작 전 invisible challenge(예: Turnstile/hCaptcha).

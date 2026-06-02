@@ -99,4 +99,26 @@ describe("widgetReducer", () => {
     expect(s.phase).toBe("streaming");
     expect(s.executionId).toBe("e9");
   });
+
+  it("BLOCKED → phase blocked + open false(임베드 차단, 4-security §3-①)", () => {
+    const opened = widgetReducer(initialState, { type: "OPEN" });
+    const s = widgetReducer(opened, { type: "BLOCKED", reason: "origin_not_allowed" });
+    expect(s.phase).toBe("blocked");
+    expect(s.open).toBe(false);
+    expect(s.error).toBe("origin_not_allowed");
+  });
+
+  it("AI_MESSAGE with presentations → 메시지에 presentations 전파 (I14)", () => {
+    const pres = [{ config: { chartType: "bar" }, output: { data: [{ x: "a", y: 1 }] } }];
+    const s = reduce([{ type: "AI_MESSAGE", text: "차트입니다", presentations: pres }]);
+    const last = s.messages.at(-1);
+    expect(last?.role).toBe("assistant");
+    expect(last?.presentations).toHaveLength(1);
+  });
+
+  it("AI_MESSAGE with presentations: [] (빈) → presentations 미첨부 (I14)", () => {
+    const s = reduce([{ type: "AI_MESSAGE", text: "응답", presentations: [] }]);
+    const last = s.messages.at(-1);
+    expect(last?.presentations).toBeUndefined();
+  });
 });

@@ -20,7 +20,11 @@ function fakeInstance(): ChatInstance & { calls: string[] } {
     hide: () => void calls.push("hide"),
     sendMessage: (t: string) => void calls.push(`send:${t}`),
     updateProfile: () => void calls.push("updateProfile"),
-    on: () => void calls.push("on"),
+    on: () => {
+      calls.push("on");
+      return () => void calls.push("unsub");
+    },
+    off: () => void calls.push("off"),
     shutdown: () => void calls.push("shutdown"),
   };
 }
@@ -63,6 +67,15 @@ describe("createGlobalApi", () => {
     expect(inst.calls).not.toContain("on");
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it("off 위임 — off(event) / off(event, cb)", () => {
+    const inst = fakeInstance();
+    const api = createGlobalApi(() => inst);
+    api("boot", { apiBase: "a", triggerEndpointPath: "t" });
+    api("off", "message");
+    api("off", "unread", () => {});
+    expect(inst.calls).toEqual(["off", "off"]);
   });
 
   it("알 수 없는 메서드 → throw 없이 warn(호스트 중단 방지)", () => {
@@ -130,5 +143,68 @@ describe("installGlobal — 큐 스텁 replay", () => {
     const first = installGlobal(window, () => inst);
     const second = installGlobal(window, () => fakeInstance());
     expect(second).toBe(first); // 동일 dispatcher
+  });
+
+  it("data-global: 커스텀 전역명에 설치", () => {
+    const inst = fakeInstance();
+    const w = window as unknown as Record<string, unknown>;
+    delete w.SupportChat;
+    installGlobal(window, () => inst, "SupportChat");
+    expect(typeof w.SupportChat).toBe("function");
+    (w.SupportChat as (m: string, ...a: unknown[]) => unknown)("boot", {
+      apiBase: "a",
+      triggerEndpointPath: "t",
+    });
+    (w.SupportChat as (m: string, ...a: unknown[]) => unknown)("open");
+    expect(inst.calls).toEqual(["open"]);
+    delete w.SupportChat;
+  });
+
+  it("점유 가드: 비-함수 전역이 점유 중이면 덮어쓰지 않고 warn", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const w = window as unknown as Record<string, unknown>;
+    w.ClemvionChat = { foreign: true }; // 호스트가 이미 동명 객체 사용
+    const api = installGlobal(window, () => fakeInstance());
+    expect(warn).toHaveBeenCalled();
+    // 전역은 보존(silent overwrite 금지)
+    expect(w.ClemvionChat).toEqual({ foreign: true });
+    // 반환된 분리 인스턴스는 동작(전역 미설치)
+    expect(typeof api).toBe("function");
+    warn.mockRestore();
+  });
+});
+
+describe("installGlobal — boot 예외 및 off 엣지 케이스 (Info#16, Info#17)", () => {
+  it("boot 예외 발생 시 큐 replay 중 오류 흡수 후 다음 항목 계속 실행 (Info#16)", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const inst = fakeInstance();
+    let callCount = 0;
+    const bootFn = () => {
+      callCount++;
+      if (callCount === 1) throw new Error("boot failed");
+      return inst;
+    };
+
+    const stub = ((...a: unknown[]) => {
+      (stub as QueueStub).q!.push(a as [string, ...unknown[]]);
+    }) as QueueStub;
+    stub.q = [];
+    (window as unknown as { ClemvionChat: QueueStub }).ClemvionChat = stub;
+    // Queue: first boot (throws), then open
+    stub("boot", { apiBase: "a", triggerEndpointPath: "t" }); // will throw
+    stub("open"); // boot 전 no-op (instance null)
+
+    // replay should not throw; open runs but no instance → no-op
+    expect(() => installGlobal(window, bootFn)).not.toThrow();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("boot 전 off 호출 시 throw 없음 (Info#17)", () => {
+    const inst = fakeInstance();
+    const api = createGlobalApi(() => inst);
+    // No boot yet — off should silently no-op
+    expect(() => api("off", "message")).not.toThrow();
+    expect(inst.calls).toEqual([]);
   });
 });

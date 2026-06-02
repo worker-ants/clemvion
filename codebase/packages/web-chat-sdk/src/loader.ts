@@ -49,6 +49,14 @@ export function createGlobalApi(bootFn: (c: BootConfig) => ChatInstance = defaul
         }
         return instance?.on(args[0] as WidgetEvent, cb as (p: unknown) => void);
       }
+      case "off": {
+        // off(event) 또는 off(event, cb) — cb 생략 시 이벤트 전체 해제.
+        const cb = args[1];
+        return instance?.off(
+          args[0] as WidgetEvent,
+          typeof cb === "function" ? (cb as (p: unknown) => void) : undefined,
+        );
+      }
       default:
         // 공개 SDK — 미지원 메서드로 호스트 페이지를 중단시키지 않는다(throw 대신 warn).
         console.warn(`[web-chat] 알 수 없는 메서드: ${String(method)}`);
@@ -59,19 +67,35 @@ export function createGlobalApi(bootFn: (c: BootConfig) => ChatInstance = defaul
 
 type InstalledApi = GlobalApi & { __wcInstalled?: boolean };
 
-/** window 에 실제 dispatcher 설치 + 큐 스텁 replay. loader.js 진입점에서 호출. */
+/** 기본 전역명. loader `<script data-global>` 로 재지정 가능(2-sdk §1 전역명 충돌 방지). */
+export const DEFAULT_GLOBAL_NAME = "ClemvionChat";
+
+/** window 에 실제 dispatcher 설치 + 큐 스텁 replay. loader.js 진입점에서 호출.
+ *  globalName: 전역 진입점 이름(기본 `ClemvionChat`). 호스트가 `data-global` 로 재지정 시 그 이름.
+ *  동명 전역이 **큐 스텁이 아닌 다른 값**으로 점유돼 있으면 silent overwrite 하지 않고 경고 후 중단. */
 export function installGlobal(
-  win: Window & { ClemvionChat?: QueueStub | GlobalApi } = window,
+  win: Window = window,
   bootFn?: (c: BootConfig) => ChatInstance,
+  globalName: string = DEFAULT_GLOBAL_NAME,
 ): GlobalApi {
-  const existing = win.ClemvionChat as (QueueStub & { __wcInstalled?: boolean }) | undefined;
+  // 전역명이 동적이라 Window 인덱스 접근을 위해 캐스팅.
+  const w = win as unknown as Record<string, unknown>;
+  const existing = w[globalName] as (QueueStub & { __wcInstalled?: boolean }) | undefined;
   // 중복 로드 가드 — 이미 실제 dispatcher 가 설치됐으면 재설치/재replay 하지 않는다.
-  if (existing && existing.__wcInstalled) return existing as GlobalApi;
+  if (typeof existing === "function" && existing.__wcInstalled) return existing as GlobalApi;
+  // 점유 가드 — 함수(큐 스텁) 가 아닌 값이 점유 중이면 호스트 전역 오염 방지를 위해 덮어쓰지 않는다.
+  if (existing !== undefined && typeof existing !== "function") {
+    console.warn(
+      `[web-chat] window.${globalName} 가 이미 다른 값으로 점유되어 있어 위젯을 설치하지 않습니다. ` +
+        `loader <script> 에 data-global="<다른이름>" 으로 전역명을 지정하세요.`,
+    );
+    return createGlobalApi(bootFn); // 호스트 전역은 건드리지 않고 분리 인스턴스 반환(설치 안 함).
+  }
 
   const api = createGlobalApi(bootFn) as InstalledApi;
   api.__wcInstalled = true;
   const queued = Array.isArray(existing?.q) ? existing!.q! : [];
-  win.ClemvionChat = api;
+  w[globalName] = api;
   // 스니펫이 boot 전 큐잉한 호출 순서대로 replay. 형식 불량/예외는 흡수하고 계속 진행.
   for (const call of queued) {
     if (!Array.isArray(call) || typeof call[0] !== "string") continue;

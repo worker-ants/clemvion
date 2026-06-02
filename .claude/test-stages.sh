@@ -10,19 +10,36 @@
 # 한쪽만 돌리면 cross-stack 회귀가 누락된다 (예: PR-E3 의 i18n drawer
 # t.x.y → t("x.y") 타입 오류가 backend-only 검증으로 빠져나가 0f05d3e5
 # 핫픽스가 필요했다). 단일 wrapper 호출이 양쪽을 모두 커버하도록 묶어 둔다.
+# web-chat 위젯 SPA(channel-web-chat) + SDK(packages/web-chat-sdk) 는 backend/frontend 의 file:dep 에
+# 묶이지 않은 **독립 패키지**라 별도 install 이 필요하다. harness 가 매번 install 하지 않으므로 stage
+# 진입 시 node_modules 부재면 npm ci 로 보충(install 순서를 backend/frontend 와 분리 — followup #7).
+_ensure_web_chat_deps() {
+  ( cd codebase/packages/web-chat-sdk && { [ -d node_modules ] || npm ci; } ) && \
+  ( cd codebase/channel-web-chat && { [ -d node_modules ] || npm ci; } )
+}
+
 cmd_lint() {
   (cd codebase/backend && npx eslint "{src,apps,libs,test}/**/*.ts" --fix) && \
-  (cd codebase/frontend && npm run lint)
+  (cd codebase/frontend && npm run lint) && \
+  _ensure_web_chat_deps && \
+  (cd codebase/packages/web-chat-sdk && npm run lint) && \
+  (cd codebase/channel-web-chat && npm run lint)
 }
 
 cmd_unit() {
   (cd codebase/backend && npm test) && \
-  (cd codebase/frontend && npm test)
+  (cd codebase/frontend && npm test) && \
+  _ensure_web_chat_deps && \
+  (cd codebase/packages/web-chat-sdk && npm test) && \
+  (cd codebase/channel-web-chat && npm test)
 }
 
 cmd_build() {
   (cd codebase/backend && npm run build) && \
   (cd codebase/frontend && npm run build) && \
+  _ensure_web_chat_deps && \
+  (cd codebase/packages/web-chat-sdk && npm run build) && \
+  (cd codebase/channel-web-chat && npm run build) && \
   _cmd_build_docker_images
 }
 

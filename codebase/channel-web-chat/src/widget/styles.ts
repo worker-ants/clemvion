@@ -30,4 +30,25 @@ export const widgetStyles = `
 .wc-composer-send { width: 36px; height: 36px; border: 0; border-radius: 50%; background: #5B4FE9; color: #fff; cursor: pointer; }
 .wc-composer-send:disabled { opacity: .4; cursor: default; }
 .wc-disclaimer { padding: 6px 12px; font-size: 11px; color: #9ca3af; text-align: center; }
+.wc-presentations { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.wc-pres-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.wc-pres-button { background: #fff; border: 1px solid #d1d5db; border-radius: 12px; padding: 5px 11px; font-size: 13px; cursor: pointer; text-decoration: none; color: inherit; }
+.wc-pres-button[data-style="primary"] { background: #5B4FE9; color: #fff; border-color: #5B4FE9; }
+.wc-pres-button[data-style="danger"] { background: #e64980; color: #fff; border-color: #e64980; }
+.wc-carousel { border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px; background: #fff; }
+.wc-carousel-img { width: 100%; max-height: 140px; object-fit: cover; border-radius: 8px; }
+.wc-carousel-title { font-weight: 600; font-size: 14px; margin-top: 6px; }
+.wc-carousel-desc { font-size: 13px; color: #4b5563; margin-top: 2px; }
+.wc-carousel-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.wc-carousel-prev, .wc-carousel-next { border: 1px solid #d1d5db; background: #fff; border-radius: 8px; width: 28px; height: 28px; cursor: pointer; }
+.wc-carousel-prev:disabled, .wc-carousel-next:disabled { opacity: .4; cursor: default; }
+.wc-carousel-count { font-size: 12px; color: #6b7280; }
+.wc-table-wrap { overflow-x: auto; }
+.wc-table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.wc-table th, .wc-table td { border: 1px solid #e5e7eb; padding: 5px 8px; text-align: left; }
+.wc-table th { background: #f9fafb; font-weight: 600; }
+.wc-table-truncated { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+.wc-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.wc-chart-svg { width: 100%; max-width: 280px; height: auto; }
+.wc-template-body { font-size: 14px; white-space: pre-wrap; word-break: break-word; }
 `;
