@@ -334,6 +334,33 @@ function sortByStartedAt(results: NodeResult[]): NodeResult[] {
 }
 
 /**
+ * Index of a client-side optimistic `user` bubble (`optimisticPending`) whose
+ * content matches an incoming `execution.user_message` echo — so the echo can
+ * reconcile (stamp the authoritative `receivedAt`, clear the flag) instead of
+ * appending a duplicate bubble. Returns -1 when none matches (channel inbound /
+ * observer client has no local optimistic bubble → echo should append).
+ *
+ * Pure helper extracted from `appendOptimisticUserMessage` for readability and
+ * direct unit testing. Matches on the pending flag + content; since a client
+ * sends one message at a time, at most one such bubble normally exists. The
+ * content-based match means consecutive *identical* sends absorb the first
+ * pending bubble (extreme edge case; the turn-end `ai_message` REPLACE is the
+ * final reconciler). SoT: spec/conventions/conversation-thread.md §9.7
+ * `user_message` 행.
+ */
+export function findReconcilableOptimisticIdx(
+  messages: ConversationItem[],
+  content: string,
+): number {
+  return messages.findIndex(
+    (i) =>
+      i.type === "user" &&
+      i.optimisticPending === true &&
+      i.content === content,
+  );
+}
+
+/**
  * Lifecycle 별 store reset 정책 — SoT:
  * spec/conventions/conversation-thread.md §9.7.1 + §9.9 Inv-6.
  *
@@ -606,18 +633,13 @@ export const useExecutionStore = create<ExecutionState>((set) => ({
       // timestamp, so the `receivedAt` check above never catches it — without
       // this branch the local bubble and this server echo coexist as two
       // identical user messages until the turn-end `ai_message` REPLACE
-      // collapses them (the "한 메시지가 둘로 보이다 합쳐짐" bug). Match on the
-      // pending flag + content; stamp the authoritative `receivedAt` (so a
-      // re-emit is caught above) and clear the flag — append nothing.
-      //
-      // Trade-off: content 기반 매칭이므로 동일 발화를 연속으로 전송하면 첫
-      // 번째 pending 버블이 흡수된다. 극단적 엣지 케이스이며 후속
-      // ai_message REPLACE 가 최종 보정하므로 허용 가능한 trade-off.
-      const optimisticPendingIdx = state.conversationMessages.findIndex(
-        (i) =>
-          i.type === "user" &&
-          i.optimisticPending === true &&
-          i.content === content,
+      // collapses them (the "한 메시지가 둘로 보이다 합쳐짐" bug). When matched,
+      // stamp the authoritative `receivedAt` (so a re-emit is caught above) and
+      // clear the flag — append nothing. Match logic + trade-off:
+      // findReconcilableOptimisticIdx.
+      const optimisticPendingIdx = findReconcilableOptimisticIdx(
+        state.conversationMessages,
+        content,
       );
       if (optimisticPendingIdx !== -1) {
         const next = state.conversationMessages.map((i, idx) =>
