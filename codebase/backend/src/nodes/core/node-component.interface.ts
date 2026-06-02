@@ -16,7 +16,6 @@ import { IntegrationsService } from '../../modules/integrations/integrations.ser
 import { McpClientService } from '../../modules/mcp/mcp-client.service';
 import type { ConversationThreadService } from '../../modules/execution-engine/conversation-thread/conversation-thread.service';
 import { WorkflowExecutor } from './workflow-executor.interface';
-import { WebsocketService } from '../../modules/websocket/websocket.service';
 
 export type {
   ExecutionContext,
@@ -311,9 +310,10 @@ export interface HandlerDependencies {
   integrationsService: IntegrationsService;
   mcpClientService: McpClientService;
   workflowExecutor: WorkflowExecutor;
-  /** Optional — handlers that emit live debug WS events (e.g. AI Agent's
-   *  tool_call_started/completed) consume it. Other handlers ignore. */
-  websocketService?: WebsocketService;
+  /** Optional — handlers that emit live debug events (e.g. AI Agent's
+   *  tool_call_started/completed) consume the engine's ExecutionEventEmitter
+   *  facade (single emit sink, spec EIA §R10). Other handlers ignore. */
+  eventEmitter?: import('../../modules/execution-engine/events/execution-event-emitter.service').ExecutionEventEmitter;
   /** Optional — only the cafe24 node consumes it. Wired by
    *  ExecutionEngineService.registerHandlers (see spec/4-nodes/4-integration/4-cafe24.md). */
   cafe24ApiClient?: import('../integration/cafe24/cafe24-api.client').Cafe24ApiClient;

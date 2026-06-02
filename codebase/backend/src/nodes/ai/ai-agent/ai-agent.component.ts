@@ -45,7 +45,7 @@ export const aiAgentNodeComponent: NodeComponent = {
     return new AiAgentHandler(
       deps.llmService,
       providers,
-      deps.websocketService,
+      deps.eventEmitter,
       deps.conversationThreadService,
     );
   },

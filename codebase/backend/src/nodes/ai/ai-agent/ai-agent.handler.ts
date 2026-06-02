@@ -33,7 +33,6 @@ import {
   ExecutionEventType,
   ToolCallCompletedPayload,
   ToolCallStartedPayload,
-  WebsocketService,
 } from '../../../modules/websocket/websocket.service';
 import type {
   ConversationThread,
@@ -518,12 +517,13 @@ export class AiAgentHandler implements NodeHandler {
     private readonly toolProviders: AgentToolProvider[] = [],
     /**
      * Optional. When provided, each provider tool execution emits
-     * `tool_call_started` / `tool_call_completed` events on the WS channel
-     * `execution:{executionId}` so the debugging timeline can render
+     * `tool_call_started` / `tool_call_completed` events via the engine's
+     * `ExecutionEventEmitter` facade (single emit sink, spec EIA §R10) on
+     * channel `execution:{executionId}` so the debugging timeline can render
      * pending → success / error transitions live. Test fixtures may omit
      * this — the handler runs unchanged otherwise.
      */
-    private readonly websocketService?: WebsocketService,
+    private readonly eventEmitter?: import('../../../modules/execution-engine/events/execution-event-emitter.service').ExecutionEventEmitter,
     /**
      * Optional. When provided, the handler pushes user / assistant turns
      * into the workflow-scoped ConversationThread (single mutation entrypoint
@@ -789,7 +789,7 @@ export class AiAgentHandler implements NodeHandler {
       name: call.name,
       arguments: call.arguments,
     };
-    await this.websocketService?.emitExecutionEvent(
+    await this.eventEmitter?.emitExecution(
       executionId,
       ExecutionEventType.TOOL_CALL_STARTED,
       startedPayload,
@@ -853,7 +853,7 @@ export class AiAgentHandler implements NodeHandler {
       ...(error !== undefined ? { error } : {}),
       durationMs,
     };
-    await this.websocketService?.emitExecutionEvent(
+    await this.eventEmitter?.emitExecution(
       executionId,
       ExecutionEventType.TOOL_CALL_COMPLETED,
       completedPayload,
