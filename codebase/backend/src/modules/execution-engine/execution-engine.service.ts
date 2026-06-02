@@ -7706,7 +7706,11 @@ export class ExecutionEngineService
       order: { startedAt: 'DESC' },
     });
     const parentNodeExecutionId = parentNodeExecution?.id;
-    const branchParentContext: ExecutionContext = parentNodeExecutionId
+    // W-2 (parallel-p2-followups §7): 명시 `: ExecutionContext` 주석 제거 — 추론에
+    // 위임. 주석을 달면 context 가 ParallelBranchContext 일 때 spread 로 따라오는
+    // `parentParallelConcurrency` ghost field 가 타입에서 은닉돼, 읽는 쪽이 "없는 필드"
+    // 로 오인한다. 추론에 맡기면 실제 객체 shape 이 타입에 그대로 드러난다.
+    const branchParentContext = parentNodeExecutionId
       ? { ...context, parentNodeExecutionId }
       : context;
 

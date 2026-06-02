@@ -33,8 +33,9 @@
 
 #### ai-review 잔여 Warning (2건, LOW — 별 PR)
 > 2026-05-31 ai-review 5-reviewer fan-out 결과 Critical 0. 둘 다 즉각 버그 아님(프로덕션 호출처 1곳이 이미 올바르게 전달). 본 작업 worktree 의 환경 제약으로 검증된 적용이 미뤄짐.
-- [ ] **W-1**: `ParallelExecutor.execute()` 4번째 인자 `parentParallelConcurrency?: number` 를 `number | undefined`(required)로 강제 → 미래 호출처 누락 시 nested concurrency silent clamp 누락을 컴파일 타임 차단. 단위 테스트 3-인자 호출 ~30곳에 명시 `undefined` 추가. **검증(tsc+jest) 의무.**
-- [ ] **W-2**: `execution-engine.service.ts` `branchParentContext: ExecutionContext` 명시 타입 제거(추론 위임) → `ParallelBranchContext` ghost field 은닉 해소.
+> **2026-06-02 별 PR 로 W-1·W-2 적용 완료.** tsc+jest 검증: lint·unit(5400)·build·e2e(140) 그린. execute() 3-인자 호출처 16곳에 명시 `undefined` 추가(tsc `TS2554` ground-truth 로 전수 확인).
+- [x] **W-1**: `ParallelExecutor.execute()` 4번째 인자 `parentParallelConcurrency?: number` 를 `number | undefined`(required)로 강제 → 미래 호출처 누락 시 nested concurrency silent clamp 누락을 컴파일 타임 차단. 단위/통합 테스트 3-인자 호출 16곳에 명시 `undefined` 추가. **검증(tsc+jest) 완료.**
+- [x] **W-2**: `execution-engine.service.ts` `branchParentContext: ExecutionContext` 명시 타입 제거(추론 위임) → `ParallelBranchContext` ghost field 은닉 해소.
 
 ## 수용 기준 (잔여)
 - e2e 통합 테스트로 cancel-others-on-fail + 3층 중첩 reject 잠금
