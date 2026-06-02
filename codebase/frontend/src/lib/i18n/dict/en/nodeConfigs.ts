@@ -154,6 +154,10 @@ export const nodeConfigs: Dict["nodeConfigs"] = {
     cafe24OperationSelectResourceFirst: "Select a resource first",
     cafe24OperationPlannedSuffix: "(coming soon)",
     cafe24OperationApprovalSuffix: "Approval required",
+    cafe24AllowlistTitle: "Operations allowlist",
+    cafe24AllowlistHint:
+      "The agent can call only the checked operations. With all checked, every operation is allowed. ⚠ marks scopes that need Cafe24 partner approval.",
+    cafe24AllowlistLoading: "Loading operation definitions…",
     cafe24OperationCoverageHint:
       "{{ supported }} supported · {{ planned }} planned",
     cafe24OperationPlannedHint:
