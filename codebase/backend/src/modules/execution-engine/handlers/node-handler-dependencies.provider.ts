@@ -7,7 +7,7 @@ import { KnowledgeBaseService } from '../../knowledge-base/knowledge-base.servic
 import { IntegrationsService } from '../../integrations/integrations.service';
 import { McpClientService } from '../../mcp/mcp-client.service';
 import { Cafe24ApiClient } from '../../../nodes/integration/cafe24/cafe24-api.client';
-import { WebsocketService } from '../../websocket/websocket.service';
+import { ExecutionEventEmitter } from '../events/execution-event-emitter.service';
 import { ConversationThreadService } from '../conversation-thread/conversation-thread.service';
 
 /**
@@ -16,7 +16,7 @@ import { ConversationThreadService } from '../conversation-thread/conversation-t
  *
  * 옛 `ExecutionEngineService` 는 7개 서비스 (`ragSearchService` ·
  * `knowledgeBaseService` · `integrationsService` · `mcpClientService` ·
- * `cafe24ApiClient` · `websocketService` · `conversationThreadService`) 를
+ * `cafe24ApiClient` · `eventEmitter` · `conversationThreadService`) 를
  * 자기가 직접 주입받아 단순히 `componentRegistry.bootstrap` 한 줄에 forward
  * 하기만 했다. 엔진은 이들 중 일부만 직접 사용하면서도 모두를 들고 있어
  * constructor 가 비대화 됐다 (C-6 strangle step 3).
@@ -33,7 +33,7 @@ export class NodeHandlerDependenciesProvider {
     private readonly knowledgeBaseService: KnowledgeBaseService,
     private readonly integrationsService: IntegrationsService,
     private readonly mcpClientService: McpClientService,
-    private readonly websocketService: WebsocketService,
+    private readonly eventEmitter: ExecutionEventEmitter,
     @Optional() private readonly cafe24ApiClient?: Cafe24ApiClient,
     @Optional()
     private readonly conversationThreadService?: ConversationThreadService,
@@ -51,7 +51,7 @@ export class NodeHandlerDependenciesProvider {
       integrationsService: this.integrationsService,
       mcpClientService: this.mcpClientService,
       workflowExecutor,
-      websocketService: this.websocketService,
+      eventEmitter: this.eventEmitter,
       cafe24ApiClient: this.cafe24ApiClient,
       conversationThreadService: this.conversationThreadService,
     };

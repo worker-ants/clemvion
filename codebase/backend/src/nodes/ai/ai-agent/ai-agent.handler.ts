@@ -33,7 +33,6 @@ import {
   ExecutionEventType,
   ToolCallCompletedPayload,
   ToolCallStartedPayload,
-  WebsocketService,
 } from '../../../modules/websocket/websocket.service';
 import type {
   ConversationThread,
@@ -66,7 +65,7 @@ export interface ToolCallTrace {
 }
 
 /**
- * Cap for tool_result preview broadcast over WebSocket (`tool_call_completed`).
+ * Cap for tool_result preview emitted via ExecutionEventEmitter (`tool_call_completed`).
  * The full content is still recorded in `messages` (sent only via the
  * `ai_message` snapshot at turn end) and persisted in `outputData`. The live
  * event is informational — it just needs enough to identify the result.
@@ -518,12 +517,18 @@ export class AiAgentHandler implements NodeHandler {
     private readonly toolProviders: AgentToolProvider[] = [],
     /**
      * Optional. When provided, each provider tool execution emits
-     * `tool_call_started` / `tool_call_completed` events on the WS channel
-     * `execution:{executionId}` so the debugging timeline can render
+     * `tool_call_started` / `tool_call_completed` events via the engine's
+     * `ExecutionEventEmitter` facade (single emit sink, spec EIA §R10) on
+     * channel `execution:{executionId}` so the debugging timeline can render
      * pending → success / error transitions live. Test fixtures may omit
      * this — the handler runs unchanged otherwise.
+     *
+     * 인라인 `import()` 타입을 쓰는 이유: 형제 의존성 `conversationThreadService`
+     * (아래) 및 `HandlerDependencies.cafe24ApiClient` 와 동일하게, `nodes/` 레이어가
+     * `modules/execution-engine/` 의 구체 클래스를 **top-level import 없이 타입으로만**
+     * 참조해 레이어 간 import 그래프·잠재 순환을 만들지 않기 위함.
      */
-    private readonly websocketService?: WebsocketService,
+    private readonly eventEmitter?: import('../../../modules/execution-engine/events/execution-event-emitter.service').ExecutionEventEmitter,
     /**
      * Optional. When provided, the handler pushes user / assistant turns
      * into the workflow-scoped ConversationThread (single mutation entrypoint
@@ -764,7 +769,8 @@ export class AiAgentHandler implements NodeHandler {
   }
 
   /**
-   * Run a provider tool with telemetry: emit started/completed WS events,
+   * Run a provider tool with telemetry: emit started/completed events via
+   * the ExecutionEventEmitter facade,
    * catch exceptions so the LLM can still recover in the next turn, and
    * record a {@link ToolCallTrace} for `meta.turnDebug[].toolCalls`.
    */
@@ -789,7 +795,7 @@ export class AiAgentHandler implements NodeHandler {
       name: call.name,
       arguments: call.arguments,
     };
-    await this.websocketService?.emitExecutionEvent(
+    await this.eventEmitter?.emitExecution(
       executionId,
       ExecutionEventType.TOOL_CALL_STARTED,
       startedPayload,
@@ -853,7 +859,7 @@ export class AiAgentHandler implements NodeHandler {
       ...(error !== undefined ? { error } : {}),
       durationMs,
     };
-    await this.websocketService?.emitExecutionEvent(
+    await this.eventEmitter?.emitExecution(
       executionId,
       ExecutionEventType.TOOL_CALL_COMPLETED,
       completedPayload,
