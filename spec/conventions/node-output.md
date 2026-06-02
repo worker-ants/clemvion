@@ -122,7 +122,7 @@ pending_plans:
 ```
 
 - `code` 는 `UPPER_SNAKE_CASE`.
-- `message` 는 국제화 고려 없음 (로그/디버깅용 원문).
+- `message` 자체는 영문 원문 (로그/디버깅용 SoT). 사용자 가시 surface 에서의 ko 표시는 frontend 가 `code` 를 키로 `ERROR_KO` 매핑을 적용한다 — code 기반 localization 정책·점진 적용 범위는 [`i18n-userguide.md` Principle 3-C](./i18n-userguide.md) 에 위임 (`ErrorCode` enum 전체 강제 아님, graceful 영문 fallback).
 - `details` 는 두 계층 — §3.2.1 공통 표준 필드 (LLM 계열 노드 한정 필수) + §3.2.2 노드별 선택 스키마.
 
 #### 3.2.1 `details` 의 공통 표준 필드 (LLM 계열 노드 한정 필수)
