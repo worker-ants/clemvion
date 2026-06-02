@@ -118,6 +118,22 @@ client bundle 에 인라인되는 한계상 환경별 이미지 빌드. `codebas
 - `readOnlyRootFilesystem: true` + `/tmp` 는 emptyDir.
 - `capabilities.drop: ["ALL"]`, `allowPrivilegeEscalation: false`.
 
+### Access log — Cafe24 install_token 마스킹 (운영 ops, A-2)
+
+Cafe24 Private 앱 설치 진입점 `GET /api/3rd-party/cafe24/install/:installToken` 은 capability-token 성격의 `install_token`(16바이트 base64url, 22자) 을 **URL path segment 에 노출**한다. ingress/LB 가 전체 request URI 를 access log 에 남기면 토큰이 로그에 영속화되어, 로그 열람 권한자에게 토큰이 노출될 수 있다 (spec [`4-cafe24.md §9.8`](../spec/4-nodes/4-integration/4-cafe24.md) / 통합 화면 Rationale "CAFE24_INSTALL_INVALID_TOKEN(404) 의 보안 전제" 의 위험 벡터).
+
+> **앱 코드는 이미 다층 방어를 갖춘다** (HMAC 검증 + ±5분 timestamp 윈도우 + Redis nonce replay 방지 + A-3 실패 페널티 rate limiting). 본 항목은 **그 위의 로그-위생 defense-in-depth** 로, 코드 변경 없이 **인프라(ingress) 레벨에서 처리**한다 (결정 2026-06-02).
+
+**적용 가이드 (HAProxy Ingress 기준):**
+
+- access log 의 install path 를 마스킹한다. HAProxy 는 커스텀 `log-format` 에서 capture 한 path 를 정규식 치환할 수 있다 — 예: `http-request set-var(txn.path) path`, 이어서 `/api/3rd-party/cafe24/install/<token>` 의 token 세그먼트를 `:masked` 로 치환한 변수를 로그 포맷에 사용 (`%{+Q}[var(txn.masked_path)]`). 컨트롤러(`haproxytech` vs `jcmoraisjr`)별 `configmap`/`backend-config-snippet` annotation 위치는 `base/ingress.yaml` 상단 주석 참고.
+- 또는 해당 path 만 access log 레벨을 낮추거나(`option dontlog-normal` 범위 조정) 제외한다.
+- 향후 클라우드 LB(ALB/GCLB) 전환 시에도 동일 원칙 적용: install path 의 path-segment 를 로그에서 마스킹하거나 query 화하지 않는 한 token 이 남는다.
+
+**대안 (미채택):** install_token 을 path → query parameter 로 이동하면 일부 LB 의 기본 로그가 query 를 생략해 노출이 줄지만, Cafe24 App URL 100자 한도(spec §9.2 Rationale)·HMAC 메시지 구성·App URL 등록 UX 에 영향을 주므로 **앱 변경 없이 로그 마스킹** 으로 해결한다.
+
+> 트래킹: `plan/in-progress/cafe24-backlog-residual.md` A-2.
+
 ## Placeholder 체크리스트 (배포 전 필수 교체)
 
 본 매니페스트는 환경 무관하게 commit 가능한 형태이므로, 실 클러스터에 적용하기 전 다음 placeholder 들을 환경에 맞게 교체해야 합니다. (`local` overlay 는 placeholder 없이 그대로 동작.)
