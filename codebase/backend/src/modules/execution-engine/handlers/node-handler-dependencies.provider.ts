@@ -16,7 +16,7 @@ import { ConversationThreadService } from '../conversation-thread/conversation-t
  *
  * 옛 `ExecutionEngineService` 는 7개 서비스 (`ragSearchService` ·
  * `knowledgeBaseService` · `integrationsService` · `mcpClientService` ·
- * `cafe24ApiClient` · `websocketService` · `conversationThreadService`) 를
+ * `cafe24ApiClient` · `eventEmitter` · `conversationThreadService`) 를
  * 자기가 직접 주입받아 단순히 `componentRegistry.bootstrap` 한 줄에 forward
  * 하기만 했다. 엔진은 이들 중 일부만 직접 사용하면서도 모두를 들고 있어
  * constructor 가 비대화 됐다 (C-6 strangle step 3).
