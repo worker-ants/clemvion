@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ScheduleModule } from '@nestjs/schedule';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { shouldSkipThrottle } from './common/utils/throttler-skip';
@@ -208,9 +207,6 @@ export const ROOT_ENTITIES = [
       // development 동작은 무변경 (NODE_ENV=test 일 때만 skip).
       skipIf: shouldSkipThrottle,
     }),
-
-    // Scheduled jobs (login_history pruner 등)
-    ScheduleModule.forRoot(),
 
     // 공유 인프라 — command Redis 단일 연결 (ai-review INFO-12). @Global.
     RedisModule,
