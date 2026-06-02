@@ -1422,7 +1422,7 @@ Public 흐름은 begin 단계에서 Integration row 를 만들지 않으므로 V
 
 - **(a) 클라이언트 호환성** — 기존 클라이언트(프론트엔드, integration 사용자)는 코드의 *의미* (mall_id 기준 중복) 로 분기 처리하므로 이름 변경으로 얻는 가독성 이득은 없다. rename 시 deprecated 처리·alias 추가 등 호환성 부담만 발생.
 - **(b) swagger 규약 정합** — `spec/conventions/swagger.md §2-4` 의 중복/충돌 409 정책과 `INTEGRATION_IN_USE(409)` 선례에 부합. 이름 토큰의 정확성보다 상태 코드·의미의 정확성이 우선.
-- **(c) 의미 기반 명명 선례 예외** — 본 프로젝트의 에러 코드는 의미 기반 명명을 원칙으로 하나, `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 는 historical artifact 예외로 등록한다 (신설 당시 Private 흐름 한정이었으나 이후 app_type 무관으로 확장). 신규 코드는 이 예외를 따르지 않으며 처음부터 의미 정확한 이름을 부여한다.
+- **(c) 의미 기반 명명 선례 예외** — 에러 코드 명명 규율(의미 기반 명명·rename 안정성·예외 레지스트리)의 정식 SoT 는 [`spec/conventions/error-codes.md`](../conventions/error-codes.md) (F-3 으로 격상). 본 (c) 는 그 §3 historical-artifact 레지스트리의 **도메인 근거** 다: `CAFE24_PRIVATE_APP_ALREADY_CONNECTED` 의 `PRIVATE` 토큰은 historical artifact (신설 당시 Private 흐름 한정이었으나 이후 app_type 무관으로 확장)이며, 클라이언트는 이름이 아닌 의미(mall_id 기준 중복)로 분기한다. 신규 코드는 이 예외를 선례로 삼지 않고 처음부터 의미 정확한 이름을 부여한다 (규율 본문은 [`error-codes.md §1·§3`](../conventions/error-codes.md)).
 
 장기적으로 본 코드가 다른 mall_id 충돌 케이스 (예: cross-workspace 정책 변경) 와 분리해야 할 필요가 생기면 별도 코드 신설을 고려하되, 그 시점까지는 본 코드의 정의를 spec 으로 명확화해 유지한다.
 
