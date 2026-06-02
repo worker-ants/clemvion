@@ -79,6 +79,14 @@ describe("converters", () => {
     expect(c.xLabel).toBeUndefined();
     expect(c.yLabel).toBeUndefined();
   });
+  it("toChart — axisLabel 빈 문자열('') → undefined (I6)", () => {
+    const c = toChart({
+      config: { chartType: "bar", xAxis: { label: "" }, yAxis: { label: "" } },
+      output: { data: [] },
+    });
+    expect(c.xLabel).toBeUndefined();
+    expect(c.yLabel).toBeUndefined();
+  });
   it("toTemplate — rendered + 기본 html", () => {
     const t = toTemplate({ config: {}, output: { rendered: "<b>x</b>" } });
     expect(t.outputFormat).toBe("html");
@@ -107,6 +115,13 @@ describe("isSafeUrl", () => {
   });
   it("vbscript: 스킴 차단", () => {
     expect(isSafeUrl("vbscript:msgbox(1)")).toBe(false);
+  });
+  it("blob: 스킴 차단 (W1 XSS)", () => {
+    expect(isSafeUrl("blob:https://example.com/some-uuid")).toBe(false);
+  });
+  it("file: 스킴 차단 (W1 XSS)", () => {
+    expect(isSafeUrl("file:///etc/passwd")).toBe(false);
+    expect(isSafeUrl("FILE:///etc/passwd")).toBe(false); // case-insensitive
   });
   it("프로토콜-상대 URL(//) 허용", () => {
     expect(isSafeUrl("//cdn.example.com/img.png")).toBe(true);

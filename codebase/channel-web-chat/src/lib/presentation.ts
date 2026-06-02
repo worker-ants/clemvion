@@ -46,8 +46,9 @@ export interface ChartPoint {
 export interface ChartData {
   chartType: "bar" | "line" | "area" | "pie" | "donut";
   title?: string;
-  /** 축 레이블(config.xAxis.label / config.yAxis.label). */
+  /** X축 레이블(config.xAxis.label). */
   xLabel?: string;
+  /** Y축 레이블(config.yAxis.label). */
   yLabel?: string;
   points: ChartPoint[];
   colors: string[];
@@ -67,12 +68,19 @@ type Envelope = {
 
 
 /**
- * XSS 방어: `javascript:` / `data:` 스킴을 차단. http:/https:/프로토콜-상대(//) / 상대경로만 허용.
+ * XSS 방어: `javascript:` / `data:` / `vbscript:` / `blob:` / `file:` 스킴을 차단.
+ * http:/https:/프로토콜-상대(//) / 상대경로만 허용.
  * (W1 — link 버튼 URL, 카루셀 이미지 src 적용)
  */
 export function isSafeUrl(u: string): boolean {
   const lower = u.trimStart().toLowerCase();
-  if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("vbscript:")) {
+  if (
+    lower.startsWith("javascript:") ||
+    lower.startsWith("data:") ||
+    lower.startsWith("vbscript:") ||
+    lower.startsWith("blob:") ||
+    lower.startsWith("file:")
+  ) {
     return false;
   }
   return true;
@@ -172,6 +180,7 @@ const CHART_TYPES = new Set(["bar", "line", "area", "pie", "donut"]);
 /**
  * presentation envelope → ChartData. output.data[{x,y}] 배열에서 point 목록 추출.
  * chartType 이 알 수 없는 값이면 "bar" 기본값. colors 미설정 시 렌더러가 DEFAULT_CHART_COLORS 사용.
+ * xLabel/yLabel 은 config.xAxis.label / config.yAxis.label 에서 추출(빈 문자열이면 undefined).
  */
 export function toChart(p: unknown): ChartData {
   const env = asRecord(p) as Envelope;

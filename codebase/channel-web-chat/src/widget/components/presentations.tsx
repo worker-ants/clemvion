@@ -1,6 +1,7 @@
 // Rich presentation inline 렌더러 — carousel/table/chart/template. spec/7-channel-web-chat/1-widget-app §2.
 // ai_message.presentations[] / waiting_for_input 의 presentation 페이로드를 메시지 타임라인 안에 inline 렌더.
 // 차트는 임베드 위젯 번들 경량 유지를 위해 외부 차트 라이브러리 없이 inline SVG 로 그린다.
+// template 풍부 렌더는 lib/safe-html(DOMPurify+marked) 사용.
 "use client";
 
 import { useMemo, useState } from "react";
@@ -19,6 +20,20 @@ import { renderTemplateHtml } from "@/lib/safe-html";
 const CHART_SVG_W = 280;
 const CHART_SVG_H = 140;
 const CHART_SVG_PAD = 24;
+
+// CartesianChart 마진 상수 (I11 — 매직 넘버 추출)
+const CHART_MARGIN_LEFT = 30;    // 좌측 여백 (y눈금 텍스트 공간)
+const CHART_MARGIN_RIGHT = CHART_SVG_PAD / 3;  // 우측 여백
+const CHART_MARGIN_TOP = CHART_SVG_PAD / 3;    // 상단 여백
+const CHART_MARGIN_BOTTOM_WITH_LABEL = 38;     // x축 레이블 있을 때 하단 여백 (틱 + 레이블)
+const CHART_MARGIN_BOTTOM_NO_LABEL = 26;       // x축 레이블 없을 때 하단 여백 (틱만)
+const CHART_MAX_X_TICKS = 6;                   // x축 최대 틱 수
+
+// PieChart SVG 상수 (I12 — 하드코딩 추출)
+const PIE_SVG_SIZE = 140;
+const PIE_CX = PIE_SVG_SIZE / 2;   // 70
+const PIE_CY = PIE_SVG_SIZE / 2;   // 70
+const PIE_R = PIE_SVG_SIZE * 5 / 14; // 50
 
 interface PresentationProps {
   payload: unknown;
@@ -241,10 +256,10 @@ function CartesianChart({
   yLabel?: string;
 }) {
   const W = CHART_SVG_W;
-  const mL = 30;
-  const mR = CHART_SVG_PAD / 3;
-  const mT = CHART_SVG_PAD / 3;
-  const mB = xLabel ? 38 : 26; // x틱 + (있으면) 축 레이블 공간.
+  const mL = CHART_MARGIN_LEFT;        // 좌측 여백 (y눈금 텍스트 공간)
+  const mR = CHART_MARGIN_RIGHT;       // 우측 여백
+  const mT = CHART_MARGIN_TOP;         // 상단 여백
+  const mB = xLabel ? CHART_MARGIN_BOTTOM_WITH_LABEL : CHART_MARGIN_BOTTOM_NO_LABEL; // x틱 + (있으면) 축 레이블 공간.
   const plotH = CHART_SVG_H;
   const H = mT + plotH + mB;
   const innerW = W - mL - mR;
@@ -300,7 +315,7 @@ function CartesianChart({
   }
 
   // x틱 라벨(촘촘하면 일부만).
-  const tickStep = Math.ceil(pts.length / 6);
+  const tickStep = Math.ceil(pts.length / CHART_MAX_X_TICKS);
   const slotW = innerW / pts.length;
   return (
     <svg
@@ -362,7 +377,12 @@ function PieChart({
 }) {
   return (
     <div className="wc-chart-pie-wrap">
-      <svg className="wc-chart-svg" viewBox="0 0 140 140" role="img" aria-label="pie chart">
+      <svg
+        className="wc-chart-svg"
+        viewBox={`0 0 ${PIE_SVG_SIZE} ${PIE_SVG_SIZE}`}
+        role="img"
+        aria-label={donut ? "donut chart" : "pie chart"}
+      >
         <PieSlices pts={pts} colors={colors} donut={donut} />
       </svg>
       <ul className="wc-chart-legend" aria-label="범례">
@@ -387,9 +407,9 @@ function PieSlices({
   donut: boolean;
 }) {
   const total = pts.reduce((s, p) => s + Math.max(0, p.value), 0) || 1;
-  const cx = 70;
-  const cy = 70;
-  const r = 50;
+  const cx = PIE_CX;
+  const cy = PIE_CY;
+  const r = PIE_R;
   // 각 슬라이스 시작 누적 비율(render 중 변수 변이 없이 prefix-sum). n 작아 O(n²) 무해.
   const starts = pts.map((_, i) =>
     pts.slice(0, i).reduce((s, q) => s + Math.max(0, q.value) / total, 0),
@@ -440,7 +460,9 @@ function TemplateView({ payload, onButton }: PresentationProps) {
   if (!rendered) return null;
   return (
     <div className="wc-template" data-testid="wc-template" data-format={outputFormat}>
-      {safeHtml !== null ? (
+      {safeHtml !== null && safeHtml.length > 0 ? (
+        // W2: safeHtml.length > 0 guard — empty sanitized output (e.g. all content stripped)
+        // falls back to plain text render rather than rendering an empty rich div.
         <div className="wc-template-body" data-rich dangerouslySetInnerHTML={{ __html: safeHtml }} />
       ) : (
         <div className="wc-template-body">{rendered}</div>

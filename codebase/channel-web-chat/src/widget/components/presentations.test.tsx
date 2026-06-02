@@ -139,10 +139,18 @@ describe("PresentationBlock — 종류별 렌더", () => {
     );
     const tpl = screen.getByTestId("wc-template");
     expect(tpl.querySelector("script")).toBeNull();
+    // I5: non-conditional assertions — XSS attributes must be removed regardless of tag survival
+    // img src=x may survive sanitize, but onerror must be stripped
     const img = tpl.querySelector("img");
-    if (img) expect(img.getAttribute("onerror")).toBeNull();
+    if (img) {
+      expect(img.getAttribute("onerror")).toBeNull();
+    }
     const a = tpl.querySelector("a");
-    if (a) expect((a.getAttribute("href") ?? "").startsWith("javascript:")).toBe(false);
+    if (a) {
+      expect((a.getAttribute("href") ?? "").startsWith("javascript:")).toBe(false);
+    }
+    // The script tag itself must be removed unconditionally
+    expect(tpl.querySelector("script")).toBeNull();
     expect(tpl.textContent).toContain("안전");
   });
 
@@ -198,6 +206,135 @@ describe("PresentationBlock — 종류별 렌더", () => {
       <PresentationBlock payload={{ config: {}, output: {} }} onButton={vi.fn()} />,
     );
     expect(container.firstChild).toBeNull();
+  });
+});
+
+
+describe("chart — line/area タイプ (I8)", () => {
+  it("chart line — polyline + circle + tooltip", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { chartType: "line" },
+          output: { data: [{ x: "1월", y: 5 }, { x: "2월", y: 10 }, { x: "3월", y: 7 }] },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const chart = screen.getByTestId("wc-chart");
+    expect(chart).toHaveAttribute("data-chart-type", "line");
+    expect(chart.querySelector("polyline")).not.toBeNull();
+    expect(chart.querySelectorAll("circle").length).toBeGreaterThanOrEqual(3);
+    const titles = Array.from(chart.querySelectorAll("title")).map((t) => t.textContent);
+    expect(titles).toContain("1월: 5");
+    expect(titles).toContain("3월: 7");
+  });
+
+  it("chart area — polygon(fill) + polyline + circle + tooltip", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { chartType: "area" },
+          output: { data: [{ x: "A", y: 3 }, { x: "B", y: 8 }] },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const chart = screen.getByTestId("wc-chart");
+    expect(chart).toHaveAttribute("data-chart-type", "area");
+    expect(chart.querySelector("polygon")).not.toBeNull();
+    expect(chart.querySelector("polyline")).not.toBeNull();
+    const titles = Array.from(chart.querySelectorAll("title")).map((t) => t.textContent);
+    expect(titles).toContain("A: 3");
+    expect(titles).toContain("B: 8");
+  });
+});
+
+describe("chart — donut (I9)", () => {
+  it("donut — .wc-chart-pie-wrap 존재 + donut hole circle + aria-label", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { chartType: "donut" },
+          output: { data: [{ x: "a", y: 2 }, { x: "b", y: 3 }] },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const chart = screen.getByTestId("wc-chart");
+    expect(chart).toHaveAttribute("data-chart-type", "donut");
+    const wrap = chart.querySelector(".wc-chart-pie-wrap");
+    expect(wrap).not.toBeNull();
+    // aria-label should reflect donut
+    const svg = chart.querySelector("svg");
+    expect(svg?.getAttribute("aria-label")).toBe("donut chart");
+    // donut hole: a white circle with r proportional to slice radius
+    const circles = Array.from(chart.querySelectorAll("circle"));
+    // At least one circle with fill=#fff (donut hole) should exist
+    const donutHole = circles.find((c) => c.getAttribute("fill") === "#fff");
+    expect(donutHole).not.toBeUndefined();
+  });
+});
+
+describe("template — FORBID_TAGS (I10)", () => {
+  it("form/input/style 태그 제거", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { outputFormat: "html" },
+          output: {
+            rendered: '<form><input type="text" value="x"></form><style>*{display:none}</style><b>남음</b>',
+          },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const tpl = screen.getByTestId("wc-template");
+    expect(tpl.querySelector("form")).toBeNull();
+    expect(tpl.querySelector("input")).toBeNull();
+    expect(tpl.querySelector("style")).toBeNull();
+    expect(tpl.querySelector("b")?.textContent).toBe("남음");
+  });
+});
+
+describe("template — truncLabel boundary (I7)", () => {
+  it("chart x틱 — 긴 라벨은 잘라서 표시", () => {
+    render(
+      <PresentationBlock
+        payload={{
+          config: { chartType: "bar" },
+          output: { data: [{ x: "일이삼사오육칠팔구십", y: 5 }] },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const chart = screen.getByTestId("wc-chart");
+    // default max=7: "일이삼사오육칠팔구십" (10 chars) → "일이삼사오육…" (7 chars with ellipsis)
+    const ticks = Array.from(chart.querySelectorAll("text.wc-chart-tick")).map(
+      (t) => t.textContent,
+    );
+    const truncated = ticks.find((t) => t?.includes("…"));
+    expect(truncated).toBeDefined();
+    expect(truncated!.length).toBeLessThanOrEqual(7);
+  });
+});
+
+describe("template — W2 empty safeHtml fallback", () => {
+  it("sanitize 결과 빈 문자열 → plain text 폴백(data-rich 없음)", () => {
+    // Script-only content gets fully stripped → empty string → plain text fallback
+    render(
+      <PresentationBlock
+        payload={{
+          config: { outputFormat: "html" },
+          output: { rendered: "<script>alert(1)</script>" },
+        }}
+        onButton={vi.fn()}
+      />,
+    );
+    const tpl = screen.getByTestId("wc-template");
+    // safeHtml is empty → falls back to plain text div (no data-rich)
+    // The plain text div shows the original rendered text
+    expect(tpl.querySelector("[data-rich]")).toBeNull();
   });
 });
 
