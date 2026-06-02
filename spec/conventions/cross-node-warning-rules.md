@@ -1,8 +1,6 @@
 ---
 id: cross-node-warning-rules
-status: partial
-pending_plans:
-  - plan/in-progress/backend-msg-i18n-impl.md
+status: implemented
 code:
   - codebase/packages/graph-warning-rules/**
   - codebase/backend/src/nodes/core/graph-warning-rule.ts
