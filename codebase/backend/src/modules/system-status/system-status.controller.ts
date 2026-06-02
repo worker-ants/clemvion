@@ -25,7 +25,8 @@ export class SystemStatusController {
     summary: '시스템 상태 개요',
     description:
       '전체 BullMQ 큐의 상태별 집계 카운트, 포화도, 파생 health 를 반환합니다. ' +
-      '개별 job·payload 는 노출하지 않으며, 워크스페이스/유저 무관한 시스템 전역 집계입니다.',
+      '개별 job·payload 는 노출하지 않으며, 워크스페이스/유저 무관한 시스템 전역 집계입니다. ' +
+      'admin role 제한 없음 — 집계 카운트만 반환하므로 민감정보 노출이 구조적으로 불가능하며, 모든 로그인 사용자가 접근 가능한 의도적 설계입니다.',
   })
   @ApiOkWrappedResponse(SystemStatusOverviewDto, {
     description: '시스템 상태 개요',

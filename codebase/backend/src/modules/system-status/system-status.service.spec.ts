@@ -172,4 +172,41 @@ describe('SystemStatusService.getOverview', () => {
 
     expect(res.overall).toBe('degraded');
   });
+
+  // I-8: 복합 조건 우선순위 테스트
+  it('paused + failed 초과 동시 → paused 우선 (down)', async () => {
+    // isPaused rule 1 이 failed rule 3 보다 먼저 평가된다
+    const handles = [
+      makeHandle('a', 'execution', 1, { failed: 5 }, { isPaused: true }),
+    ];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].isPaused).toBe(true);
+    expect(res.queues[0].health).toBe('down');
+  });
+
+  it('waiting>0, active=0, failed>=임계 → waiting 우선 (down)', async () => {
+    // 규칙 2(waiting>0 && active=0) 가 규칙 3(failed>=임계) 보다 먼저 평가된다
+    const handles = [
+      makeHandle('a', 'execution', 1, { waiting: 3, active: 0, failed: 2 }),
+    ];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    // down(rule2) — degraded(rule3) 보다 우선
+    expect(res.queues[0].health).toBe('down');
+  });
+
+  // I-9: utilization 상한 테스트 (active > concurrency)
+  it('active > concurrency 일 때 utilization 은 1.0 상한', async () => {
+    const handles = [makeHandle('a', 'execution', 2, { active: 5 })];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].utilization).toBe(1);
+  });
 });

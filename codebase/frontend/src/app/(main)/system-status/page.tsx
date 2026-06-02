@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils/cn";
 import { useT, type TranslationKey } from "@/lib/i18n";
-import { Activity, Info, Loader2, RefreshCw } from "lucide-react";
+import { Activity, Info, RefreshCw } from "lucide-react";
 
 /* ---------- types (mirror of backend SystemStatusOverviewDto) ---------- */
 
@@ -80,7 +80,9 @@ export default function SystemStatusPage() {
         const res = await apiClient.get("/system-status/overview");
         return extractData<SystemStatusOverview>(res);
       },
-      refetchInterval: 5000,
+      // 에러 상태에서는 폴링 중단 — 401/5xx 연속 발생 시 서버 로그 오염 방지 (I-16).
+      refetchInterval: (query) =>
+        query.state.status === "error" ? false : 5000,
     });
 
   return (
@@ -114,12 +116,7 @@ export default function SystemStatusPage() {
         <span>{t("systemStatus.systemWideBanner")}</span>
       </div>
 
-      {isLoading && (
-        <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-          {t("systemStatus.loading")}
-        </div>
-      )}
+      {isLoading && <SystemStatusSkeleton />}
 
       {isError && (
         <div className="flex flex-col items-center gap-3 py-16">
@@ -156,6 +153,49 @@ export default function SystemStatusPage() {
     </div>
   );
 }
+
+function SystemStatusSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading">
+      {/* overall header skeleton */}
+      <div className="rounded-lg border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-3 w-3 animate-pulse rounded-full bg-muted" />
+            <div className="h-5 w-24 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+        </div>
+      </div>
+      {/* queue group skeletons */}
+      {[0, 1].map((g) => (
+        <div key={g} className="space-y-3">
+          <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[0, 1].map((c) => (
+              <div key={c} className="rounded-lg border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                  <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="h-3 w-full animate-pulse rounded bg-muted" />
+                      <div className="h-5 w-6 mx-auto animate-pulse rounded bg-muted" />
+                    </div>
+                  ))}
+                </div>
+                <div className="h-1.5 w-full animate-pulse rounded-full bg-muted" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
 function OverallHeader({
   overall,
@@ -198,7 +238,7 @@ function OverallHeader({
 function QueueCard({ queue }: { queue: QueueStatus }) {
   const t = useT();
   const utilPct = Math.min(Math.round(queue.utilization * 100), 100);
-  const isCron = queue.group === "system";
+  const isSystemGroup = queue.group === "system";
 
   return (
     <Card>
@@ -228,7 +268,7 @@ function QueueCard({ queue }: { queue: QueueStatus }) {
           />
         </dl>
 
-        {isCron ? (
+        {isSystemGroup ? (
           <p className="text-xs text-muted-foreground">
             {t("systemStatus.scheduledJob")}
             {queue.isPaused && ` · ${t("systemStatus.paused")}`}

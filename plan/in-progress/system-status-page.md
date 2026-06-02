@@ -80,7 +80,7 @@ code:
 ```
 SystemStatusOverviewDto {
   generatedAt: string;          // ISO8601, 응답 생성 시각
-  overall: "ok" | "degraded" | "down";   // 큐 health 의 최악값 집계
+  overall: "healthy" | "degraded" | "down";   // 큐 health 의 최악값 집계
   totalFailed: number;          // 전 큐 failed 합산
   queues: QueueStatusDto[];
 }
@@ -92,7 +92,7 @@ QueueStatusDto {
   concurrency: number;
   utilization: number;          // active / concurrency, 소수 2자리 (concurrency=0 이면 0)
   isPaused: boolean;
-  health: "ok" | "degraded" | "down";
+  health: "healthy" | "degraded" | "down";
 }
 ```
 

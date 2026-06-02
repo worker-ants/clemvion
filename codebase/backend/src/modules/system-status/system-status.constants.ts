@@ -67,8 +67,20 @@ export const SYSTEM_STATUS_QUEUE_NAMES: readonly string[] =
 /** 모니터링 대상 Queue 인스턴스 배열을 주입받는 DI 토큰. */
 export const MONITORED_QUEUE_HANDLES = 'MONITORED_QUEUE_HANDLES';
 
-/** health 파생 임계값 (env 로 조정 가능). spec §3. */
-export const FAILED_DEGRADED_THRESHOLD =
-  Number(process.env.SYSTEM_STATUS_FAILED_THRESHOLD) || 1;
-export const DELAYED_DEGRADED_THRESHOLD =
-  Number(process.env.SYSTEM_STATUS_DELAYED_THRESHOLD) || 50;
+/**
+ * health 파생 임계값 (env 로 조정 가능). spec §3.
+ *
+ * 함수 형태로 제공해 테스트 격리(jest.resetModules 없이 process.env 변경 후
+ * 즉시 반영)와 런타임 반영을 보장한다. 성능 영향은 무시 가능.
+ */
+export function getFailedDegradedThreshold(): number {
+  return Number(process.env.SYSTEM_STATUS_FAILED_THRESHOLD) || 1;
+}
+export function getDelayedDegradedThreshold(): number {
+  return Number(process.env.SYSTEM_STATUS_DELAYED_THRESHOLD) || 50;
+}
+
+/** @deprecated 테스트 또는 모듈 로드 순서에 영향을 받지 않도록 getter 를 사용하세요. */
+export const FAILED_DEGRADED_THRESHOLD = getFailedDegradedThreshold();
+/** @deprecated 테스트 또는 모듈 로드 순서에 영향을 받지 않도록 getter 를 사용하세요. */
+export const DELAYED_DEGRADED_THRESHOLD = getDelayedDegradedThreshold();

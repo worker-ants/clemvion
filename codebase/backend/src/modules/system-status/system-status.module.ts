@@ -30,11 +30,14 @@ import {
     SystemStatusService,
     {
       provide: MONITORED_QUEUE_HANDLES,
-      useFactory: (...queues: Queue[]): QueueHandle[] =>
-        MONITORED_QUEUES.map((meta, index) => ({
+      useFactory: (...queues: Queue[]): QueueHandle[] => {
+        // queue.name 기반 매핑 — MONITORED_QUEUES 와 inject 순서의 암묵적 결합을 제거한다.
+        const queueByName = new Map(queues.map((q) => [q.name, q]));
+        return MONITORED_QUEUES.map((meta) => ({
           meta,
-          queue: queues[index],
-        })),
+          queue: queueByName.get(meta.name)!,
+        }));
+      },
       inject: SYSTEM_STATUS_QUEUE_NAMES.map((name) => getQueueToken(name)),
     },
   ],

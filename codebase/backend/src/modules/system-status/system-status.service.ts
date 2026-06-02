@@ -1,10 +1,10 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Queue } from 'bullmq';
 import {
   MONITORED_QUEUE_HANDLES,
   MonitoredQueue,
-  FAILED_DEGRADED_THRESHOLD,
-  DELAYED_DEGRADED_THRESHOLD,
+  getFailedDegradedThreshold,
+  getDelayedDegradedThreshold,
 } from './system-status.constants';
 import {
   SystemStatusOverviewDto,
@@ -39,6 +39,8 @@ const ZERO_COUNTS: QueueCountsDto = {
  */
 @Injectable()
 export class SystemStatusService {
+  private readonly logger = new Logger(SystemStatusService.name);
+
   constructor(
     @Inject(MONITORED_QUEUE_HANDLES)
     private readonly handles: readonly QueueHandle[],
@@ -69,13 +71,16 @@ export class SystemStatusService {
   private async inspect(handle: QueueHandle): Promise<QueueStatusDto> {
     const { meta } = handle;
     try {
-      const raw = await handle.queue.getJobCounts(
-        'waiting',
-        'active',
-        'delayed',
-        'failed',
-        'paused',
-      );
+      const [raw, isPaused] = await Promise.all([
+        handle.queue.getJobCounts(
+          'waiting',
+          'active',
+          'delayed',
+          'failed',
+          'paused',
+        ),
+        handle.queue.isPaused(),
+      ]);
       const counts: QueueCountsDto = {
         waiting: raw.waiting ?? 0,
         active: raw.active ?? 0,
@@ -83,7 +88,6 @@ export class SystemStatusService {
         failed: raw.failed ?? 0,
         paused: raw.paused ?? 0,
       };
-      const isPaused = await handle.queue.isPaused();
 
       return {
         name: meta.name,
@@ -94,7 +98,11 @@ export class SystemStatusService {
         isPaused,
         health: this.deriveHealth(counts, isPaused),
       };
-    } catch {
+    } catch (err) {
+      this.logger.error(
+        `inspect() failed for queue '${meta.name}': ${err instanceof Error ? err.message : String(err)}`,
+        err instanceof Error ? err.stack : undefined,
+      );
       return {
         name: meta.name,
         group: meta.group,
@@ -109,7 +117,8 @@ export class SystemStatusService {
 
   private computeUtilization(active: number, concurrency: number): number {
     if (concurrency <= 0) return 0;
-    return Math.round((active / concurrency) * 100) / 100;
+    // Math.min(…, 1): active 가 concurrency 를 초과하는 과도 상태에서도 1.0 상한을 보장한다 (I-9).
+    return Math.min(Math.round((active / concurrency) * 100) / 100, 1);
   }
 
   /**
@@ -123,8 +132,8 @@ export class SystemStatusService {
     if (isPaused) return 'down';
     if (counts.waiting > 0 && counts.active === 0) return 'down';
     if (
-      counts.failed >= FAILED_DEGRADED_THRESHOLD ||
-      counts.delayed >= DELAYED_DEGRADED_THRESHOLD
+      counts.failed >= getFailedDegradedThreshold() ||
+      counts.delayed >= getDelayedDegradedThreshold()
     ) {
       return 'degraded';
     }

@@ -1,0 +1,68 @@
+---
+title: "시스템 상태"
+title_en: "System Status"
+section: "07-workspace-and-team"
+order: 3
+summary: "전체 BullMQ 큐 인프라의 상태를 집계 카운트·health 신호등으로 한눈에 확인하는 방법을 알아봐요."
+summary_en: "How to read the System Status page to monitor the overall health of the BullMQ queue infrastructure."
+spec: ["spec/5-system/16-system-status-api.md", "spec/2-navigation/15-system-status.md"]
+code: [
+  "codebase/backend/src/modules/system-status/system-status.service.ts",
+  "codebase/frontend/src/app/(main)/system-status/page.tsx",
+]
+---
+
+사이드바의 **시스템 상태** 메뉴를 클릭하면 전체 BullMQ 큐 인프라가 지금 정상 운영 중인지 한눈에 확인할 수 있어요. 특정 워크스페이스나 사용자 기준이 아니라 **시스템 전역** 상태를 보여 주며, 모든 로그인 사용자가 접근할 수 있어요.
+
+## 페이지 구성
+
+### 종합 상태 헤더
+
+페이지 상단의 카드에서 전체 큐 인프라의 최악 상태를 한 줄로 확인할 수 있어요.
+
+| 신호등 | 의미 |
+|--------|------|
+| 🟢 시스템 정상 | 모든 큐가 정상 |
+| 🟡 일부 지연 | 하나 이상의 큐에 실패 작업이 누적되었거나 처리 지연이 있음 |
+| 🔴 점검 필요 | 하나 이상의 큐가 일시 중지되었거나 워커가 응답하지 않는 것으로 추정됨 |
+
+**실패 작업 합계** 배지는 전체 큐의 실패(failed) 작업 수를 합산해 보여줘요.
+
+### 큐 그룹 카드
+
+12개 BullMQ 큐를 4개 그룹으로 묶어 카드 형태로 표시해요.
+
+| 그룹 | 큐 |
+|------|----|
+| 실행 (Execution) | background-execution, execution-continuation |
+| 지식베이스 (Knowledge Base) | document-embedding, graph-extraction |
+| 알림·통합 (Integration) | notification-webhook, cafe24-token-refresh |
+| 스케줄·시스템 (System) | schedule-execution, login-history-pruner, notification-secret-rotator, chat-channel-token-rotator, integration-expiry-scanner, alerts-evaluator |
+
+각 큐 카드에는 다음 정보가 표시돼요.
+
+- **health 신호등**: 큐 단위 상태 (정상 / 일부 지연 / 점검 필요).
+- **카운트**: 대기(waiting) · 처리중(active) · 지연(delayed) · 실패(failed).
+- **포화도 게이지**: `처리중 / concurrency` 비율. 실행·지식베이스·통합 그룹에만 표시.
+- **정기 작업** 라벨: 스케줄·시스템 그룹(cron 큐) 에는 대신 라벨이 표시됩니다.
+
+### 자동 갱신
+
+페이지는 **5초마다 자동으로 갱신**돼요. 에러가 발생하면 자동 갱신이 중단되고 "상태를 불러오지 못했습니다" 메시지와 재시도 버튼이 나타납니다. 우측 상단의 **새로고침** 버튼으로 즉시 갱신할 수도 있어요.
+
+## health 판정 기준
+
+큐 단위 health 는 다음 우선순위로 결정됩니다 (휴리스틱, 단일 스냅샷 기반).
+
+1. **일시 중지 상태** (`isPaused = true`) → 🔴 점검 필요
+2. **대기 중인데 처리중 없음** (`waiting > 0`, `active = 0`) → 🔴 점검 필요 (워커 미가동 추정)
+3. **실패·지연 임계 초과** (`failed ≥ 1` 또는 `delayed ≥ 50`) → 🟡 일부 지연
+4. 그 외 → 🟢 정상
+
+> 임계값은 환경변수(`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`)로 조정 가능해요. 2번 판정은 단일 스냅샷 기반 휴리스틱이라 잠깐 idle 한 순간에 오탐이 발생할 수 있어요.
+
+## 이 페이지에서 볼 수 없는 것
+
+- **개별 job 상세 · payload · jobId**: 집계 카운트만 노출합니다.
+- **워크스페이스별 분리**: 시스템 전역 집계이므로 특정 워크스페이스/사용자 귀속이 불가능합니다.
+- **throughput 시계열**: v1 범위 밖입니다.

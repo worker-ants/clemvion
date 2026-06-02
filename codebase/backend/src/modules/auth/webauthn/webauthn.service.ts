@@ -367,8 +367,7 @@ export class WebAuthnService {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           const counterRegression =
-            /counter/i.test(msg) &&
-            COUNTER_REGRESSION_REASON_PATTERN.test(msg);
+            /counter/i.test(msg) && COUNTER_REGRESSION_REASON_PATTERN.test(msg);
           if (counterRegression) {
             // Rationale 1.4.E — credential row 즉시 삭제 + 활성 세션 전체 revoke
             // (ai-review C-3): 같은 트랜잭션 안에서 함께 commit 해 부분 적용 차단.

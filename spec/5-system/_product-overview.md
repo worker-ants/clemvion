@@ -69,7 +69,7 @@
 | NF-OB-03 | 분산 트레이싱 (OpenTelemetry 호환) | 권장 | ✅ (`OTEL_ENABLED=true`로 활성, OTLP HTTP exporter 기본 endpoint `/v1/traces`) |
 | NF-OB-04 | 워크플로우 실행 추적 — 각 노드별 실행 시간, 입출력 크기 기록 | 필수 | ✅ |
 | NF-OB-05 | 알림(Alert) 설정 — 실패율, 지연 임계값 초과 시 | 권장 | ✅ (룰 CRUD API + `/profile/alerts` UI + `AlertsEvaluatorService` 가 BullMQ repeatable scheduler `*/5 * * * *` (UTC) 로 5분마다 평가 + rule window 단위 cooldown 으로 노티 스팸 방지) |
-| NF-OB-06 | 시스템 상태 가시화 — 큐 적체/실패/포화도를 집계 UI 로 노출 (개별 job 미노출) | 권장 | 🚧 (계획 — `GET /api/system-status/overview` + `/system-status` 페이지. 상세 [16-system-status-api](./16-system-status-api.md), [2-navigation/15-system-status](../2-navigation/15-system-status.md)) |
+| NF-OB-06 | 시스템 상태 가시화 — 큐 적체/실패/포화도를 집계 UI 로 노출 (개별 job 미노출) | 권장 | ✅ (구현 완료 — `GET /api/system-status/overview` + `/system-status` 페이지. 상세 [16-system-status-api](./16-system-status-api.md), [2-navigation/15-system-status](../2-navigation/15-system-status.md)) |
 
 ---
 
