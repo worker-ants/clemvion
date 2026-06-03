@@ -397,7 +397,8 @@ describe('IntegrationsService', () => {
         expect(result.appUrl).toBeNull();
       });
 
-      it('returns null for makeshop in Phase 1 (ShopStore install URL is Phase 3, even with installToken)', async () => {
+      it('builds the makeshop ShopStore install App URL when installToken is present (Phase 3)', async () => {
+        process.env.APP_URL = 'https://app.example.com';
         integrationRepo.findOne.mockResolvedValue(
           makeIntegration({
             serviceType: 'makeshop',
@@ -411,6 +412,28 @@ describe('IntegrationsService', () => {
               refresh_token: 'rtok',
               scopes: ['store.read'],
               expires_at: '2026-06-04T00:00:00Z',
+            },
+          }),
+        );
+        const result = await service.findById('int-1', 'ws-1');
+        expect(result.appUrl).toBe(
+          'https://app.example.com/api/3rd-party/makeshop/install/AbCdEfGhIjKlMnOpQrStUv',
+        );
+      });
+
+      it('returns null appUrl for makeshop without an installToken', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'makeshop',
+            authType: 'oauth2',
+            installToken: null,
+            credentials: {
+              shop_uid: 'myshop',
+              client_id: 'cid',
+              client_secret: 'csec',
+              access_token: 'tok',
+              refresh_token: 'rtok',
+              scopes: ['store.read'],
             },
           }),
         );

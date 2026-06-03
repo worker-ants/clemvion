@@ -21,7 +21,10 @@ import {
   IntegrationOAuthService,
   type BeginResult,
 } from './integration-oauth.service';
-import { buildCafe24InstallUrl } from './third-party-oauth.constants';
+import {
+  buildCafe24InstallUrl,
+  buildMakeshopInstallUrl,
+} from './third-party-oauth.constants';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import {
   ListIntegrationsQueryDto,
@@ -243,18 +246,24 @@ export const INTEGRATION_DERIVED_REGISTRY = new Map<
     },
   ],
   // makeshop — no app_type (confidential-client single form). appUrl is the
-  // ShopStore install App URL, built in Phase 3 once the install controller
-  // exists; null for now. autoRefresh / mall_id projection flow through the
-  // generic service-registry paths, not here.
+  // ShopStore install App URL (`${APP_URL}/api/3rd-party/makeshop/install/
+  // :installToken`), built when the row has an install_token (Phase 3 install
+  // controller now exists). autoRefresh / mall_id (=shop_uid) projection flow
+  // through the generic service-registry paths, not here.
+  // spec/2-navigation/4-integration.md §5.9 설치(ShopStore) + makeshop node §9.8.
   [
     'makeshop',
-    (): Partial<IntegrationDerivedFields> => ({
-      appType: null,
-      // TODO(Phase 3): makeshop ShopStore install App URL
-      // (`${APP_URL}/api/3rd-party/makeshop/install/...`) — install controller
-      // doesn't exist yet. spec/2-navigation/4-integration.md §5.9 설치(ShopStore).
-      appUrl: null,
-    }),
+    (entity, ctx): Partial<IntegrationDerivedFields> => {
+      let appUrl: string | null = null;
+      if (
+        ctx &&
+        typeof entity.installToken === 'string' &&
+        entity.installToken.length > 0
+      ) {
+        appUrl = buildMakeshopInstallUrl(ctx.appBaseUrl, entity.installToken);
+      }
+      return { appType: null, appUrl };
+    },
   ],
 ]);
 
@@ -1329,6 +1338,17 @@ export class IntegrationsService {
         code: 'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
         message:
           'A Cafe24 integration with this mall_id already exists in this workspace. Use the existing integration or delete it first.',
+      });
+    }
+    // V071 partial UNIQUE `(workspace_id, mall_id) WHERE service_type=
+    // 'makeshop'` — shop_uid (→ mall_id projection) duplicate. Same race
+    // backstop as cafe24. spec/2-navigation/4-integration.md §5.9 + makeshop
+    // node §9.3.
+    if (constraint === 'idx_integration_makeshop_workspace_mall') {
+      throw new ConflictException({
+        code: 'MAKESHOP_ALREADY_CONNECTED',
+        message:
+          'A MakeShop integration with this shop_uid already exists in this workspace. Use the existing integration or delete it first.',
       });
     }
   }
