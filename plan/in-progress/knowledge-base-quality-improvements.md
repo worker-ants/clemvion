@@ -59,17 +59,20 @@ owner: developer
 - [x] `plan-stale-audit.sh` 가 sentinel 을 "(none)" 으로 인식
 - [x] `plan-lifecycle.md §4` 에 sentinel 규약 명문화 (보수적 — 레지스트리 분리 아님, Rationale 참조)
 
-### item 5 — 거대 클러스터 트리아지 (비파괴적)
-- [ ] `spec-sync-*` 31개 중 `⚠ decision-free 아님 → planner 결정 필요` 항목을 명시 분류(개발 착수가능 vs 기획 결정대기). 파일 mass-move 아님 — 표기/owner 조정
-- [ ] `spec-sync-expression-language-gaps.md` 자기모순(일부 done/일부 blocked) 분리 표기
-- [ ] `node-output-redesign/` README 상태표 stale 표기 갱신 (parked 명시)
+### item 5 — 거대 클러스터 트리아지 (비파괴적) — **직전 groom 이 이미 처리됨 확인**
+검증 결과, item 5 가 겨냥한 트리아지는 **2026-06-03 groom(본 세션 직전)** 이 이미 수행한 상태였다. 비파괴 원칙상 불필요한 재편집을 만들지 않고 검증으로 갈음:
+- [x] `spec-sync-*` 31개 → **전부 `owner: planner`** 로 이미 분류됨 (developer 큐 오염 없음). 7개는 `⚠ decision-free 아님 → planner 결정 필요` 마커 보유로 결정대기 가시화 완료
+- [x] `spec-sync-expression-language-gaps.md` → 자기모순 아님. `$thread`(decision-free) `[x]` 완료 / `$trigger`·`$env`(보안·데이터소스 결정 포함) `[ ]` planner 로 `## 처리 결과` 섹션이 명확 분리. 추가 조치 불요
+- [x] `node-output-redesign/README.md` → parked 아님. "5차 갱신(2026-06-03)" 노트가 stale 행·잔여 실착수 대상(Code 노드·ai-agent single-turn·information-extractor)을 코드 라인까지 명시한 **활성 재검증** 상태. 추가 조치 불요
+- 결론: 클러스터 위생은 이미 양호. 향후 재발 방지는 plan-stale-audit `DONE?`/`ORPHAN?` 플래그(item 2)가 담당
 
 ### item 6 — 영역 index 완전성 + 가드
-- [ ] `5-system/_product-overview.md` 형제 16개 전부 링크 (4-execution-engine 등 12개 누락 보강)
-- [ ] `2-navigation` index 누락 6개 보강
-- [ ] `4-nodes/7-trigger/providers/` index 신설 (slack·telegram·discord)
-- [ ] `7-channel-web-chat` index `1-widget-app` 보강
-- [ ] `spec-area-index.test.ts` 신설 — 영역 폴더 형제 spec 이 entry 문서에서 링크되는지 검증
+- [x] `5-system/_product-overview.md` 에 **시스템 영역 spec 맵**(16개 전부) 추가
+- [x] `2-navigation/_product-overview.md` 에 **내비게이션 화면 spec 맵**(14개) 추가
+- [x] `7-channel-web-chat/_product-overview.md` 에 **구성요소 spec**(1-widget-app 등 4개) 추가
+- [x] `4-nodes/7-trigger/providers/` — 이미 `_overview.md`(Provider Catalog)가 slack·telegram·discord 링크. index 패턴에 `_overview.md` 포함시켜 인식
+- [x] `spec-area-index.test.ts` 신설 — 영역 폴더(≥2 sibling, conventions·catalog 제외)에 index 문서 존재 + 모든 sibling 링크 검증. 33 tests green
+- 비고: `spec/conventions/` 는 flat reference(의도적 무-index)라 가드 제외
 
 ### item 7 — Gate C/D 재개
 - [ ] Gate D (advisory): spec-coverage reverse 모드 — `code:`/본문 어디서도 참조 안 되는 신규 controller route·event·ENV 탐지. high-confidence(spec-less 라우트)만 강조. `review/spec-coverage` 산출
