@@ -1,13 +1,11 @@
 ---
 id: execution-history
-status: partial
+status: implemented
 code:
   - codebase/frontend/src/app/(main)/workflows/[id]/executions/**
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/executions/dto/responses/execution-response.dto.ts
   - codebase/backend/src/modules/executions/utils/execution-trigger.ts
-pending_plans:
-  - plan/in-progress/spec-sync-execution-history-gaps.md
 ---
 
 # Spec: 워크플로우 실행 내역
