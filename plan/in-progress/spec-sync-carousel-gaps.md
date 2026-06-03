@@ -16,3 +16,7 @@ owner: planner
 - `layout` config 필드 자체는 schema 검증·echo 됨 (백엔드 정상). 미구현 surface 는 **프론트 렌더 변형**에 한정.
 - §7 에러 메시지(영문화)·§5.1 meta 누락은 본 audit 에서 spec 본문 정정으로 처리 완료 (코드 변경 불필요).
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__6-presentation__1-carousel.md 참조.
+
+## ⚠ 재분류 (2026-06-03 groom): decision-free 아님 → planner 결정 필요
+- spec 은 `card` 레이아웃만 ASCII mockup 으로 정의하고 `image`/`minimal` 은 이름만 명시 — **두 변형의 실제 시각 디자인이 미정의**(image-dominant? text-only?). 단순 구현 불가, UX 결정 선행.
+- 구현 위치(결정 후): `presentation-renderers.tsx` `CarouselContent`(:194) 상단에서 `(config?.layout as string) ?? 'card'` switch (ChartContent `chartType` switch :302-309 패턴). 테스트: `run-results/__tests__/presentation-renderers.test.tsx`.
