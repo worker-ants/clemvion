@@ -1,6 +1,7 @@
 ---
+worktree: (unstarted)
 status: backlog
-created: 2026-05-22
+started: 2026-05-22
 owner: project-planner
 priority: v2 (의존성 추가 결정 필요 — 사용자 escalate)
 related_pr: PR #261 (v1 MarkdownV2 fallback 구현)

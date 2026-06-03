@@ -29,16 +29,20 @@
 ```markdown
 ---
 worktree: <task_name>-<slug>     # 이 plan 이 살아있는 worktree 디렉토리 이름
-started: 2026-05-13              # ISO 날짜
+started: 2026-05-13              # ISO 날짜 (YYYY-MM-DD)
 owner: <역할/이름>                 # planner / developer / 사용자 본인 등
 ---
 ```
+
+세 필드(`worktree`·`started`·`owner`)는 top-level `plan/in-progress/*.md` 에서 **필수** — build guard `plan-frontmatter.test.ts` 가 강제한다. 하위 그룹 폴더의 작업 material(예: `node-output-redesign/*.md`)은 클러스터 index 아래 부속 문서이므로 면제. `priority`/`status`/`title` 등 추가 필드는 허용.
+
+- **`worktree` sentinel**: 아직 worktree 가 없는 미착수 plan 은 placeholder(`TBD`·`(assigned at impl-start)` 등) 대신 명시 sentinel `(unstarted)` 를 쓴다. placeholder 는 죽은 worktree 처럼 보여 `plan_coherence` 충돌 검출을 오염시키므로 guard 가 거부한다. 착수 시 실제 `<task>-<slug>` 로 교체.
 
 `complete/` 로 옮긴 후에도 frontmatter 유지 (history 보존).
 
 용도:
 - 동시 작업 추적
-- worktree 충돌 검출 (`consistency-checker` 의 `plan_coherence` checker)
+- worktree 충돌 검출 (`consistency-checker` 의 `plan_coherence` checker) — sentinel `(unstarted)` 는 "충돌 대상 worktree 없음" 으로 처리
 
 ## 5. 이동 commit 자가 점검
 

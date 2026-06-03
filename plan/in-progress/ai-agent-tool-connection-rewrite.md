@@ -1,3 +1,9 @@
+---
+worktree: (unstarted)
+started: 2026-05-11
+owner: developer
+---
+
 # AI Agent 일반 도구 연결 재설계
 
 > 작성일: 2026-05-11

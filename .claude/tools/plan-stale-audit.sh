@@ -131,7 +131,7 @@ for plan in "${PLANS[@]}"; do
 
   # Worktree field check
   wt_value="$(sed -n -E 's/^worktree:[[:space:]]+([^[:space:]]+)/\1/p' "$plan" | head -n1)"
-  if [[ -z "$wt_value" ]] || [[ "$wt_value" == "pending" ]]; then
+  if [[ -z "$wt_value" ]] || [[ "$wt_value" == "pending" ]] || [[ "$wt_value" == "(unstarted)" ]]; then
     wt_status="(none)"
   elif [[ -d ".claude/worktrees/$wt_value" ]]; then
     wt_status="exists"

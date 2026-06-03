@@ -1,3 +1,9 @@
+---
+worktree: (unstarted)
+started: 2026-05-11
+owner: developer
+---
+
 # 마켓플레이스 + 노드 플러그인 SDK
 
 > 작성일: 2026-05-11

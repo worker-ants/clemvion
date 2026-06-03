@@ -48,14 +48,16 @@ owner: developer
 - [x] 이동 후 spec-pending-plan-existence·spec-status-lifecycle 206 tests green 확인
 
 ### item 3 — plan frontmatter 백필 + 가드
-- [ ] 무 frontmatter 6건 백필: `ai-agent-tool-connection-rewrite`, `marketplace-and-plugin-sdk`, `merge-p2-async-fanin`, `node-cancellation-infrastructure`, `parallel-p2-followups`, `self-hosting-deployment`
-- [ ] 부분 위반 6건 정규화 (`continuation-resume-optional-followups`, `eia-strip-llmcalls`, `followup-conversation-reconcile`, `chat-channel-secret-store-infra`, `chat-channel-visual-ssr-png` 등)
-- [ ] `plan-frontmatter.test.ts` 신설 — `worktree`/`started`/`owner` 필수 + ISO 날짜 형식
+- [x] 무 frontmatter 6건 백필 (top-level): `ai-agent-tool-connection-rewrite`, `marketplace-and-plugin-sdk`, `merge-p2-async-fanin`, `node-cancellation-infrastructure`, `parallel-p2-followups`, `self-hosting-deployment`
+- [x] 부분 위반 5건 정규화: `chat-channel-secret-store-infra`·`chat-channel-visual-ssr-png`·`security-jwt-secret-fallback`(created→started rename + worktree/owner 보강), `continuation-resume-optional-followups`·`followup-conversation-reconcile`(started/owner 보강)
+- [x] `plan-frontmatter.test.ts` 신설 — top-level plan 의 `worktree`/`started`(ISO)/`owner` 필수, sentinel 허용, placeholder 거부 (257 tests)
+- [x] scope: top-level `plan/in-progress/*.md` 만. subfolder 클러스터(node-output-redesign/) 면제 — `plan-lifecycle.md §4` 명문화
 
 ### item 4 — worktree 필드 sentinel 정리
-- [ ] 미착수 plan 의 placeholder(`TBD`·`(assigned at impl-start)`·인라인 주석 값) → 명시 sentinel `worktree: (unstarted)` 로 정규화
-- [ ] `plan-frontmatter.test.ts` 가 sentinel 을 유효값으로 허용
-- [ ] 결정: 보수적(레지스트리 분리 아님) — Rationale 참조
+- [x] 미착수 plan 7건 placeholder(`TBD`·`(assigned at impl-start)`·`(미정…)`·인라인 주석 값) → sentinel `worktree: (unstarted)` 정규화
+- [x] `plan-frontmatter.test.ts` 가 `(unstarted)` 허용 + 옛 placeholder 거부
+- [x] `plan-stale-audit.sh` 가 sentinel 을 "(none)" 으로 인식
+- [x] `plan-lifecycle.md §4` 에 sentinel 규약 명문화 (보수적 — 레지스트리 분리 아님, Rationale 참조)
 
 ### item 5 — 거대 클러스터 트리아지 (비파괴적)
 - [ ] `spec-sync-*` 31개 중 `⚠ decision-free 아님 → planner 결정 필요` 항목을 명시 분류(개발 착수가능 vs 기획 결정대기). 파일 mass-move 아님 — 표기/owner 조정

@@ -1,4 +1,6 @@
 ---
+started: 2026-06-03
+owner: developer
 worktree: followup-conversation-reconcile
 branch: worktree-followup-conversation-reconcile
 status: in-progress

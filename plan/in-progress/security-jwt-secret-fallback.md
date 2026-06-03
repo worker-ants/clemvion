@@ -1,7 +1,9 @@
 ---
+worktree: (unstarted)
+owner: developer
 title: "JWT 서명 secret 하드코딩 fallback 제거 — 프로덕션 부팅 시 JWT_SECRET 강제"
 status: backlog
-created: 2026-06-02
+started: 2026-06-02
 origin: ai-review (review/code/2026/06/02/23_09_02 WARNING-1) — refactor-cron-to-bullmq PR 에서 분리
 ---
 

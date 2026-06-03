@@ -1,3 +1,9 @@
+---
+worktree: (unstarted)
+started: 2026-05-11
+owner: developer
+---
+
 # 셀프 호스팅 배포 (Docker Compose 풀 번들 / Helm Chart / 운영·보안 가이드)
 
 > 작성일: 2026-05-11

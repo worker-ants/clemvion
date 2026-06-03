@@ -1,6 +1,7 @@
 ---
+worktree: (unstarted)
 status: backlog
-created: 2026-05-22
+started: 2026-05-22
 owner: project-planner
 priority: v2 (인프라 의존 — 사용자 결정 필요)
 ---

@@ -1,3 +1,9 @@
+---
+worktree: (unstarted)
+started: 2026-05-30
+owner: developer
+---
+
 # Node Cancellation Infrastructure (AbortSignal 전파 기반)
 
 > 작성일: 2026-05-30

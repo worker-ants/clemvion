@@ -1,3 +1,9 @@
+---
+worktree: (unstarted)
+started: 2026-05-11
+owner: developer
+---
+
 # Merge 노드 P2 — 비동기 fan-in barrier + timeout / partialOnTimeout 활성화
 
 > 작성일: 2026-05-11

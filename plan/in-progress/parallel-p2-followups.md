@@ -1,3 +1,9 @@
+---
+worktree: (unstarted)
+started: 2026-05-30
+owner: developer
+---
+
 # Parallel P2 — 후속 작업 잔여
 
 > 작성일: 2026-05-30 / 분리: 2026-06-01 (split)

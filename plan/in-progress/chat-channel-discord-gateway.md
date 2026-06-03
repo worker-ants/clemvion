@@ -1,5 +1,5 @@
 ---
-worktree: (assigned at impl-start)
+worktree: (unstarted)
 started: 2026-05-24
 owner: developer (TBD)
 status: backlog

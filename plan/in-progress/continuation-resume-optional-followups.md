@@ -1,4 +1,6 @@
 ---
+started: 2026-05-31
+owner: developer
 worktree: continuation-worker-concurrency-env
 branch: worktree-continuation-worker-concurrency-env
 status: in-progress
