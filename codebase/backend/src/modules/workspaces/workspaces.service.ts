@@ -13,6 +13,7 @@ import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
 import { User } from '../users/entities/user.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { WorkspaceRole } from './dto/add-member.dto';
+import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
@@ -273,6 +274,68 @@ export class WorkspacesService {
     }
     workspace.name = name.trim();
     return this.workspaceRepository.save(workspace);
+  }
+
+  /**
+   * 워크스페이스 설정 변경 (Admin+). 현재는 `interactionAllowedOrigins` 만 갱신한다.
+   * 형식 검증(scheme 필수·path/query 불가)은 DTO가 선행 수행한다. 여기서는 각 origin 의
+   * 단일 trailing slash 만 제거해 정규화하고, 기존 settings 의 다른 키(timezone 등)는 보존한다.
+   */
+  async updateWorkspaceSettings(
+    workspaceId: string,
+    dto: UpdateWorkspaceSettingsDto,
+    userId: string,
+  ): Promise<Workspace> {
+    await this.assertAdmin(workspaceId, userId);
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+    if (!workspace) {
+      throw new NotFoundException({
+        code: 'WORKSPACE_NOT_FOUND',
+        message: '워크스페이스를 찾을 수 없습니다.',
+      });
+    }
+    const normalized = dto.interactionAllowedOrigins.map((o) =>
+      o.replace(/\/$/, ''),
+    );
+    workspace.settings = {
+      ...(workspace.settings ?? {}),
+      interactionAllowedOrigins: normalized,
+    };
+    return this.workspaceRepository.save(workspace);
+  }
+
+  /**
+   * 워크스페이스 설정 조회 — `interactionAllowedOrigins` 만 반환.
+   * **멤버 read**(viewer 포함): 설정 화면에서 현재 값을 표시(편집은 Admin+, 조회는 모든 멤버).
+   */
+  async getWorkspaceSettings(
+    workspaceId: string,
+    userId: string,
+  ): Promise<{ interactionAllowedOrigins: string[] }> {
+    const role = await this.getMemberRole(workspaceId, userId);
+    if (!role) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: '워크스페이스 멤버만 조회할 수 있습니다.',
+      });
+    }
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+    if (!workspace) {
+      throw new NotFoundException({
+        code: 'WORKSPACE_NOT_FOUND',
+        message: '워크스페이스를 찾을 수 없습니다.',
+      });
+    }
+    const origins = workspace.settings?.interactionAllowedOrigins;
+    return {
+      interactionAllowedOrigins: Array.isArray(origins)
+        ? (origins as string[])
+        : [],
+    };
   }
 
   /**

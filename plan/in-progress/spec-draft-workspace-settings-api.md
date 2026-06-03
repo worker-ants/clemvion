@@ -58,16 +58,16 @@ sequenceDiagram
 - origin 목록 표시 + 추가/삭제 + [저장]. 편집은 `useHasRole("admin")` 게이트(ROLE_LEVEL 상 **owner 포함** — owner≥admin). 비권한자는 read-only 표시.
 - 클라이언트 검증(형식·중복) → `PATCH /:id/settings`. 성공/실패 toast. 저장 후 5분 내 반영 안내.
 
-## Phase: 구현 (developer — spec 확정 후)
-- [ ] backend DTO `update-workspace-settings.dto.ts` — `interactionAllowedOrigins: string[]`, 각 항목 `@IsUrl({require_tld:false, protocols:['http','https']})` + path/query 불가 검증, `@IsArray`, 배열·길이 상한. origin 후행 슬래시 정규화.
-- [ ] backend controller `@Patch(':id/settings')` — swagger.md §5-4 체크리스트(`@ApiParam({format:'uuid'})`·`@ApiForbiddenResponse`·`ApiOkWrappedResponse`). `@CurrentUser` + service `assertAdmin`.
-- [ ] backend service `updateWorkspaceSettings(id, patch, userId)` — `assertAdmin` → load → `settings = {...settings, interactionAllowedOrigins}` 부분 머지 → save. `{ data: workspace }` 반환.
-- [ ] backend unit test(service) + **e2e** `workspace-rbac.e2e-spec.ts` — owner/admin 200, viewer/non-member 403.
-- [ ] frontend API client `workspacesApi.updateSettings(id, patch)`.
-- [ ] frontend UI — 개요 탭 "임베드 허용 도메인" 섹션(origin 목록 add/remove/저장, 형식·중복 검증, `useHasRole("admin")` 게이트). react-query mutation + toast + `parseApiError`.
-- [ ] frontend i18n KO/EN `dict/{ko,en}/workspace.ts` 키.
-- [ ] user-guide 동반(web-chat.mdx "허용 도메인" → 실제 UI 경로; 07-workspace-and-team 관련 갱신 — `user-guide-writer` 위임).
-- [ ] TEST WORKFLOW(lint·unit·build·**e2e** 필수 — backend API+RBAC) + REVIEW WORKFLOW(/ai-review).
+## Phase: 구현 (developer)
+- [x] backend DTO `update-workspace-settings.dto.ts` — `interactionAllowedOrigins: string[]`, `@IsArray`/`@ArrayMaxSize(100)` + 각 항목 `@IsString`/`@MaxLength(2048)`/`@Matches(origin-only)`. 서비스에서 후행 슬래시 정규화.
+- [x] backend controller `@Patch(':id/settings')`(Admin+) + **`@Get(':id/settings')`(멤버 read — viewer 포함, 에디터 시드용)** — swagger 데코레이터.
+- [x] backend service `updateWorkspaceSettings`(assertAdmin→부분 머지→save) + `getWorkspaceSettings`(멤버 check→origins 반환).
+- [x] backend unit(service spec, getWorkspaceSettings 3 포함 = **82 pass**) + **e2e** `workspace-rbac.e2e-spec.ts` G(PATCH Admin+ 200/403 + GET 멤버 200/비멤버 403).
+- [x] frontend API client `updateSettings` + `getSettings`.
+- [x] frontend UI — 개요 탭 `EmbedOriginsCard`(GET 시드→key remount 로 effect-setState 회피) + `EmbedOriginsEditor`(add/remove/검증/저장, `useHasRole("admin")` 게이트). react-query + toast + `parseApiError`.
+- [x] frontend i18n KO/EN 14키.
+- [ ] user-guide 동반(web-chat.mdx "허용 도메인" → 실제 UI 경로 — `user-guide-writer` 위임).
+- [ ] TEST WORKFLOW(lint·unit·build·**e2e** 필수) + REVIEW WORKFLOW(/ai-review).
 
 ## Rationale
 - 전용 settings 엔드포인트는 **신규 결정**(기존 spec 에 prior art 없음) — 기존 `PATCH /:id`(name 필수, rename) 흡수안은

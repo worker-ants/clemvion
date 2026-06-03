@@ -335,6 +335,139 @@ describe('WorkspacesService', () => {
     });
   });
 
+  describe('updateWorkspaceSettings', () => {
+    it('merges interactionAllowedOrigins, preserves other keys, normalizes trailing slash (owner)', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+        settings: { timezone: 'Asia/Seoul' },
+      });
+
+      const result = await service.updateWorkspaceSettings(
+        'ws-uuid-1',
+        {
+          interactionAllowedOrigins: [
+            'https://example.com/',
+            'https://shop.example.com',
+          ],
+        },
+        'user-uuid-1',
+      );
+
+      expect(workspaceRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          settings: {
+            timezone: 'Asia/Seoul',
+            interactionAllowedOrigins: [
+              'https://example.com',
+              'https://shop.example.com',
+            ],
+          },
+        }),
+      );
+      expect(result.settings).toEqual({
+        timezone: 'Asia/Seoul',
+        interactionAllowedOrigins: [
+          'https://example.com',
+          'https://shop.example.com',
+        ],
+      });
+    });
+
+    it('updates when requester is admin', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+        settings: {},
+      });
+
+      const result = await service.updateWorkspaceSettings(
+        'ws-uuid-1',
+        { interactionAllowedOrigins: ['https://example.com'] },
+        'user-uuid-1',
+      );
+
+      expect(result.settings).toEqual({
+        interactionAllowedOrigins: ['https://example.com'],
+      });
+    });
+
+    it('throws ADMIN_REQUIRED when requester is editor', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'editor' });
+
+      await expect(
+        service.updateWorkspaceSettings(
+          'ws-uuid-1',
+          { interactionAllowedOrigins: ['https://example.com'] },
+          'user-uuid-1',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+    });
+
+    it('throws ADMIN_REQUIRED when requester is viewer', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'viewer' });
+
+      await expect(
+        service.updateWorkspaceSettings(
+          'ws-uuid-1',
+          { interactionAllowedOrigins: [] },
+          'user-uuid-1',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+    });
+
+    it('throws WORKSPACE_NOT_FOUND when workspace missing', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateWorkspaceSettings(
+          'ws-uuid-1',
+          { interactionAllowedOrigins: ['https://example.com'] },
+          'user-uuid-1',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'WORKSPACE_NOT_FOUND' } });
+    });
+  });
+
+  describe('getWorkspaceSettings', () => {
+    it('returns interactionAllowedOrigins for a member (viewer)', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'viewer' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        settings: { interactionAllowedOrigins: ['https://example.com'] },
+      });
+
+      const result = await service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1');
+
+      expect(result).toEqual({
+        interactionAllowedOrigins: ['https://example.com'],
+      });
+    });
+
+    it('returns empty array when key absent', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'editor' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        settings: { timezone: 'Asia/Seoul' },
+      });
+
+      const result = await service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1');
+
+      expect(result).toEqual({ interactionAllowedOrigins: [] });
+    });
+
+    it('throws FORBIDDEN when requester is not a member', async () => {
+      memberRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+    });
+  });
+
   describe('deleteWorkspace', () => {
     it('deletes team workspace when requester is owner', async () => {
       memberRepo.findOne.mockResolvedValue({ role: 'owner' });

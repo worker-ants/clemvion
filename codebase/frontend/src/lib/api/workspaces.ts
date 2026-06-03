@@ -26,6 +26,18 @@ export const workspacesApi = {
     const { data } = await apiClient.patch(`/workspaces/${workspaceId}`, patch);
     return data.data;
   },
+  updateSettings: async (
+    workspaceId: string,
+    patch: { interactionAllowedOrigins: string[] },
+  ): Promise<void> => {
+    await apiClient.patch(`/workspaces/${workspaceId}/settings`, patch);
+  },
+  getSettings: async (
+    workspaceId: string,
+  ): Promise<{ interactionAllowedOrigins: string[] }> => {
+    const { data } = await apiClient.get(`/workspaces/${workspaceId}/settings`);
+    return data.data;
+  },
   delete: async (workspaceId: string): Promise<void> => {
     await apiClient.delete(`/workspaces/${workspaceId}`);
   },

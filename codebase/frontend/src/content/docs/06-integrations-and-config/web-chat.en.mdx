@@ -85,10 +85,31 @@ If you need to embed multiple widgets on the same page or avoid a conflict with 
 
 ## 2. Allowed domains (embed restriction)
 
-If you configure the **allowed domains list** (`interactionAllowedOrigins`) in your workspace settings, the widget will only appear on domains in that list. On any other domain, the widget render is refused and the chat will not start.
+**GUI configuration flow**
 
-- An empty list means no restriction — all domains are allowed.
-- This is a soft control intended to prevent casual misuse. Changes take effect within 5 minutes (cache refresh).
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/workspace/settings/page.tsx"
+  symbol="EmbedOriginsCard"
+  describes="Embed allowed-origins editor card in the workspace settings Overview tab"
+/>
+
+Go to [Workspace settings](/workspace/settings) → **Overview** tab → **Embed allowed domains** section to add or remove allowed origins and save.
+
+- **Edit access**: Owner or Admin
+- **View access**: all members
+
+Enter origins in `scheme://host[:port]` format (no path). For example: `https://example.com`, `https://shop.example.com`.
+
+Only domains in the list are allowed to display the widget. On any unlisted domain, the widget render is refused and the chat will not start.
+
+<Callout type="note">
+An empty list means no domain restriction is applied. The widget CDN origin is always allowed. If you use BYO-UI (bring your own UI) mode and call the API directly, you must also add your service domain to this list for API requests to be accepted (see §4).
+</Callout>
+
+This is a soft control intended to prevent casual misuse. Changes take effect within 5 minutes (cache refresh).
+
+The stored value looks like this:
 
 ```json
 {
@@ -98,10 +119,6 @@ If you configure the **allowed domains list** (`interactionAllowedOrigins`) in y
   ]
 }
 ```
-
-<Callout type="note">
-If you use BYO-UI (bring your own UI) mode, you must also add your service domain to the allowed domains list. See §4 below for details.
-</Callout>
 
 ## 3. Rich message rendering
 
@@ -125,7 +142,7 @@ import { ClemvionClient } from "@workflow/sdk";
 // Full example: codebase/packages/web-chat-sdk/examples/byo-ui-headless.ts
 ```
 
-In BYO-UI mode the request Origin is your own service domain. You must add that domain to the **allowed domains list** in your workspace settings for API requests to be accepted.
+In BYO-UI mode the request Origin is your own service domain. You must add that domain to the **Embed allowed domains** section in [Workspace settings](/workspace/settings) for API requests to be accepted.
 
 ## Tips & reference
 

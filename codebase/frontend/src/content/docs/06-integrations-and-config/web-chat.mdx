@@ -102,10 +102,31 @@ npm 패키지는 CDN 스니펫과 동일한 기능을 타입과 함께 제공해
 
 ## 2. 허용 도메인 설정 (임베드 제한)
 
-워크스페이스 설정의 **허용 도메인 목록**(`interactionAllowedOrigins`)을 지정하면, 목록에 있는 도메인에서만 위젯이 표시돼요. 목록에 없는 도메인에서는 위젯 렌더가 거부되고 채팅이 시작되지 않아요.
+**GUI 설정 흐름**
 
-- 목록이 비어 있으면 제한이 없어요(모든 도메인 허용).
-- 이 설정은 캐주얼 오남용을 방지하는 soft 컨트롤이에요. 설정 변경 후 최대 5분 이내에 반영돼요(캐시 갱신).
+<ImplAnchor
+  kind="ui-entry"
+  file="codebase/frontend/src/app/(main)/workspace/settings/page.tsx"
+  symbol="EmbedOriginsCard"
+  describes="워크스페이스 설정 개요 탭의 임베드 허용 도메인 편집 카드"
+/>
+
+[워크스페이스 설정](/workspace/settings) 페이지의 **개요** 탭 → **임베드 허용 도메인** 섹션에서 허용할 origin 을 추가하거나 삭제하고 저장해요.
+
+- **편집 권한**: Owner 또는 Admin
+- **조회**: 모든 멤버
+
+origin 은 `scheme://host[:port]` 형식으로 입력해요(경로 제외). 예: `https://example.com`, `https://shop.example.com`.
+
+목록에 등록된 도메인에서만 위젯이 표시돼요. 목록에 없는 도메인에서는 위젯 렌더가 거부되고 채팅이 시작되지 않아요.
+
+<Callout type="note">
+목록이 비어 있으면 도메인 제한을 적용하지 않아요. 위젯 CDN origin 은 항상 허용돼요. BYO-UI(자체 UI) 모드처럼 API 를 직접 호출하는 경우, 자체 서비스 도메인도 목록에 추가해야 API 요청이 수락돼요(§4 참고).
+</Callout>
+
+이 설정은 캐주얼 오남용을 방지하는 soft 컨트롤이에요. 설정 변경 후 최대 5분 이내에 반영돼요(캐시 갱신).
+
+저장되는 값의 형식은 아래와 같아요.
 
 ```json
 {
@@ -115,10 +136,6 @@ npm 패키지는 CDN 스니펫과 동일한 기능을 타입과 함께 제공해
   ]
 }
 ```
-
-<Callout type="note">
-BYO-UI(자체 UI) 모드를 사용할 때는 자체 서비스 도메인도 허용 도메인 목록에 추가해야 해요. 자세한 내용은 아래 §4를 확인해요.
-</Callout>
 
 ## 3. 리치 메시지 렌더
 
@@ -142,7 +159,7 @@ import { ClemvionClient } from "@workflow/sdk";
 // 전체 예시: codebase/packages/web-chat-sdk/examples/byo-ui-headless.ts 참고
 ```
 
-BYO-UI 방식에서는 API 요청의 Origin이 자체 서비스 도메인이 돼요. 그러므로 해당 도메인을 워크스페이스 설정의 **허용 도메인 목록**에 추가해야 API 요청이 허용돼요.
+BYO-UI 방식에서는 API 요청의 Origin이 자체 서비스 도메인이 돼요. 그러므로 해당 도메인을 [워크스페이스 설정](/workspace/settings)의 **임베드 허용 도메인** 섹션에 추가해야 API 요청이 허용돼요.
 
 ## 팁 & 참고
 

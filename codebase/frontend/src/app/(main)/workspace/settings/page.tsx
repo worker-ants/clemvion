@@ -12,6 +12,8 @@ import {
   LogOut,
   AlertTriangle,
   ArrowRightLeft,
+  Plus,
+  Globe,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,11 +131,17 @@ export default function WorkspaceSettingsPage() {
         </TabsList>
 
         <TabsContent value="overview">
-          <OverviewTab
-            key={currentWorkspace.id}
-            workspace={currentWorkspace}
-            onRenamed={refreshWorkspaces}
-          />
+          <div className="space-y-4">
+            <OverviewTab
+              key={currentWorkspace.id}
+              workspace={currentWorkspace}
+              onRenamed={refreshWorkspaces}
+            />
+            <EmbedOriginsCard
+              key={`embed-${currentWorkspace.id}`}
+              workspaceId={currentWorkspace.id}
+            />
+          </div>
         </TabsContent>
 
         {isTeam && (
@@ -262,6 +270,184 @@ function OverviewTab({ workspace, onRenamed }: OverviewTabProps) {
             </div>
           </RoleGate>
         </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** scheme://host[:port] — 경로/쿼리/프래그먼트 없음. */
+const ORIGIN_PATTERN = /^https?:\/\/[^/\s?#]+$/i;
+
+interface EmbedOriginsCardProps {
+  workspaceId: string;
+}
+
+/**
+ * 웹채팅 위젯 임베드 허용 도메인(`interactionAllowedOrigins`) 편집 카드.
+ *
+ * NOTE: 현재 workspace store 의 `WorkspaceSummary` 는 `settings.interactionAllowedOrigins`
+ * 를 노출하지 않는다. 별도의 GET 엔드포인트도 (아직) 없으므로 편집기는 빈 목록에서
+ * 시작하며, 저장은 PATCH 로 origin 목록 전체를 교체한다. 추후 GET 으로 현재 값을
+ * 시드하려면 이 컴포넌트에서 useQuery 로 초기화하면 된다.
+ */
+function EmbedOriginsCard({ workspaceId }: EmbedOriginsCardProps) {
+  // GET 으로 현재 origin 목록을 로드한 뒤, key 기반 remount 로 editor 의 초기 state 를 시드한다
+  // (effect 내 setState 회피 — react-hooks/set-state-in-effect). 빈 목록에서 시작해 덮어쓰는 파괴를 방지.
+  const settingsQuery = useQuery({
+    queryKey: ["workspace-settings", workspaceId],
+    queryFn: () => workspacesApi.getSettings(workspaceId),
+  });
+  return (
+    <EmbedOriginsEditor
+      key={`${workspaceId}:${settingsQuery.isSuccess ? "loaded" : "pending"}`}
+      workspaceId={workspaceId}
+      initialOrigins={settingsQuery.data?.interactionAllowedOrigins ?? []}
+      isLoading={settingsQuery.isLoading}
+    />
+  );
+}
+
+interface EmbedOriginsEditorProps {
+  workspaceId: string;
+  initialOrigins: string[];
+  isLoading: boolean;
+}
+
+function EmbedOriginsEditor({
+  workspaceId,
+  initialOrigins,
+  isLoading,
+}: EmbedOriginsEditorProps) {
+  const t = useT();
+  const canEdit = useHasRole("admin");
+  const queryClient = useQueryClient();
+  const [origins, setOrigins] = useState<string[]>(initialOrigins);
+  const [draft, setDraft] = useState("");
+
+  const saveMutation = useMutation({
+    mutationFn: (next: string[]) =>
+      workspacesApi.updateSettings(workspaceId, {
+        interactionAllowedOrigins: next,
+      }),
+    onSuccess: async () => {
+      toast.success(t("workspace.settingsSaved"));
+      await queryClient.invalidateQueries({
+        queryKey: ["workspace-settings", workspaceId],
+      });
+    },
+    onError: (err: unknown) => {
+      const parsed = parseApiError(err);
+      toast.error(parsed.message ?? t("workspace.settingsSaveFailed"));
+    },
+  });
+
+  const addOrigin = () => {
+    const value = draft.trim();
+    if (!value) return;
+    if (!ORIGIN_PATTERN.test(value)) {
+      toast.error(t("workspace.originInvalid"));
+      return;
+    }
+    if (origins.includes(value)) {
+      toast.error(t("workspace.originDuplicate"));
+      return;
+    }
+    setOrigins((prev) => [...prev, value]);
+    setDraft("");
+  };
+
+  const removeOrigin = (value: string) => {
+    setOrigins((prev) => prev.filter((o) => o !== value));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <Globe className="h-4 w-4" />
+          {t("workspace.embedOriginsTitle")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            {t("workspace.embedOriginsDesc")}
+          </p>
+
+          {canEdit && (
+            <form
+              className="flex flex-col gap-2 sm:flex-row sm:items-end"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addOrigin();
+              }}
+            >
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="embed-origin">
+                  {t("workspace.embedOriginsLabel")}
+                </Label>
+                <Input
+                  id="embed-origin"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={t("workspace.embedOriginsPlaceholder")}
+                  autoComplete="off"
+                />
+              </div>
+              <Button type="submit" variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                {t("workspace.addOrigin")}
+              </Button>
+            </form>
+          )}
+
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-[hsl(var(--muted-foreground))]" />
+          ) : origins.length === 0 ? (
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              {t("workspace.embedOriginsEmpty")}
+            </p>
+          ) : (
+            <ul className="divide-y divide-[hsl(var(--border))] rounded-md border border-[hsl(var(--border))]">
+              {origins.map((origin) => (
+                <li
+                  key={origin}
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                >
+                  <span className="truncate font-mono">{origin}</span>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeOrigin(origin)}
+                    >
+                      {t("workspace.removeOrigin")}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            {t("workspace.embedOriginsCacheNote")}
+          </p>
+
+          {canEdit && (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={() => saveMutation.mutate(origins)}
+                disabled={saveMutation.isPending}
+              >
+                {saveMutation.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {t("workspace.saveSettings")}
+              </Button>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

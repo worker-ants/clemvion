@@ -37,6 +37,7 @@ import { WorkspacesService } from './workspaces.service';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
+import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto';
 import { AddMemberDto, UpdateMemberRoleDto } from './dto/add-member.dto';
 import { AcceptInvitationDto, CreateInvitationDto } from './dto/invitation.dto';
 import { TransferOwnershipDto } from './dto/transfer-ownership.dto';
@@ -134,6 +135,61 @@ export class WorkspacesController {
     return {
       data: { id: ws.id, name: ws.name, type: ws.type, slug: ws.slug },
     };
+  }
+
+  @Patch(':id/settings')
+  @ApiOperation({
+    summary: '워크스페이스 설정 변경(Admin+)',
+    description:
+      '워크스페이스 설정을 변경합니다. 현재는 외부 상호작용 허용 origin 목록(interactionAllowedOrigins)을 갱신합니다. 기존 설정의 다른 키는 보존됩니다.',
+  })
+  @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(WorkspaceDto, { description: '변경된 워크스페이스' })
+  @ApiBadRequestResponse({ description: '입력값 검증 실패' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '권한 부족 (Admin+)' })
+  @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
+  async updateSettings(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @Body() dto: UpdateWorkspaceSettingsDto,
+  ) {
+    const ws = await this.workspacesService.updateWorkspaceSettings(
+      workspaceId,
+      dto,
+      user.sub,
+    );
+    return {
+      data: {
+        id: ws.id,
+        name: ws.name,
+        type: ws.type,
+        slug: ws.slug,
+        settings: ws.settings,
+      },
+    };
+  }
+
+  @Get(':id/settings')
+  @ApiOperation({
+    summary: '워크스페이스 설정 조회(멤버)',
+    description:
+      '워크스페이스 설정을 조회합니다. 현재는 외부 상호작용 허용 origin 목록(interactionAllowedOrigins)만 반환합니다. 모든 멤버가 조회 가능(편집은 Admin+).',
+  })
+  @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
+  @ApiOkWrappedResponse(UpdateWorkspaceSettingsDto, { description: '워크스페이스 설정' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiForbiddenResponse({ description: '멤버 아님' })
+  @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
+  async getSettings(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+  ) {
+    const settings = await this.workspacesService.getWorkspaceSettings(
+      workspaceId,
+      user.sub,
+    );
+    return { data: settings };
   }
 
   @Delete(':id')

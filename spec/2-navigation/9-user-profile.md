@@ -215,7 +215,7 @@ pending_plans:
 | 항목 | 내용 |
 |------|------|
 | 편집 권한 | **Owner / Admin** (그 외 read-only 표시). `useHasRole("admin")` — ROLE_LEVEL 상 owner≥admin 이라 owner 포함 |
-| 동작 | origin 추가/삭제 + [저장] → `PATCH /api/workspaces/:id/settings`(§6.1) |
+| 동작 | 현재 값은 `GET /api/workspaces/:id/settings`(멤버)로 로드 → origin 추가/삭제 + [저장] → `PATCH /api/workspaces/:id/settings`(§6.1, Admin+) |
 | 검증 | 형식 `http(s)://host[:port]`(scheme 필수, path/query 불가) + 중복 방지(클라이언트) |
 | 의미 | 목록의 origin 은 **built-in 위젯 CDN origin 에 더해** `/api/external/*` CORS·임베드에 허용. **빈 목록 = 추가 origin 없음**(built-in 만 CORS 허용; 임베드 soft 검증은 enforce=false=allow-all). [7-channel-web-chat 보안 §2·§3](../7-channel-web-chat/4-security.md) |
 | 반영 지연 | 임베드 soft 검증 캐시 최대 5분(`Cache-Control: max-age=300`) |
@@ -293,6 +293,7 @@ pending_plans:
 | GET | /api/workspaces | 내 워크스페이스 목록 |
 | POST | /api/workspaces | 팀 워크스페이스 생성 (요청자가 owner) |
 | PATCH | /api/workspaces/:id | 워크스페이스 이름 변경 (Admin+). body `{ name: string }`(min2/max100) — **rename 전용** |
+| GET | /api/workspaces/:id/settings | 워크스페이스 설정 조회 (**멤버 read** — viewer 포함, 설정 화면 표시용). 응답 `{ interactionAllowedOrigins: string[] }`. 비-멤버 403 |
 | PATCH | /api/workspaces/:id/settings | 워크스페이스 설정 변경 (Admin+). body `{ interactionAllowedOrigins: string[] }` — `settings` JSONB 부분 머지(타 키 보존). 각 origin `http(s)://host[:port]`(path/query 불가). 빈 배열=추가 origin 없음(built-in 위젯 origin 만 `/api/external/*` CORS, [7-channel-web-chat 보안 §2](../7-channel-web-chat/4-security.md)). 키 정의: [1-data-model §2.2](../1-data-model.md#22-workspace) |
 | DELETE | /api/workspaces/:id | 워크스페이스 삭제 (Owner, team 전용, 트랜잭션) |
 | POST | /api/workspaces/:id/leave | 자가 탈퇴 (본인, 유일한 owner는 차단) |
