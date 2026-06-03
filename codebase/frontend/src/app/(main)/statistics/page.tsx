@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardHeader,
@@ -20,6 +21,8 @@ import {
   Clock,
   Download,
   ChevronDown,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import {
   BarChart,
@@ -45,6 +48,7 @@ interface StatsSummary {
   cancelledCount: number;
   successRate: number;
   avgDurationMs: number;
+  totalExecutionsChangeRate?: number | null;
 }
 
 interface ExecutionDataPoint {
@@ -105,9 +109,10 @@ interface Workflow {
 /* ---------- constants ---------- */
 
 const PERIODS = ["1d", "7d", "30d", "90d"] as const;
-type Period = (typeof PERIODS)[number];
+type Preset = (typeof PERIODS)[number];
+type Period = Preset | "custom";
 
-const PERIOD_LABEL_KEYS: Record<Period, TranslationKey> = {
+const PERIOD_LABEL_KEYS: Record<Preset, TranslationKey> = {
   "1d": "statistics.periodToday",
   "7d": "statistics.period7d",
   "30d": "statistics.period30d",
@@ -237,8 +242,33 @@ export default function StatisticsPage() {
   const t = useT();
   const [period, setPeriod] = useState<Period>("7d");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>("");
+  // 적용된 custom 범위 (period === "custom" 일 때만 쿼리에 반영).
+  const [customStart, setCustomStart] = useState<string>("");
+  const [customEnd, setCustomEnd] = useState<string>("");
+  // 드래프트 입력값 (Apply 전까지는 쿼리에 반영하지 않는다).
+  const [draftStart, setDraftStart] = useState<string>("");
+  const [draftEnd, setDraftEnd] = useState<string>("");
 
   const workflowParam = selectedWorkflowId || undefined;
+
+  // period=custom 일 때 모든 /statistics/* 쿼리에 startDate/endDate 를 함께 전달한다.
+  const rangeParams = useMemo(
+    () =>
+      period === "custom" && customStart && customEnd
+        ? { startDate: customStart, endDate: customEnd }
+        : {},
+    [period, customStart, customEnd],
+  );
+
+  // custom 모드인데 아직 범위 미적용이면 쿼리를 보류한다.
+  const rangeReady = period !== "custom" || (!!customStart && !!customEnd);
+
+  const applyCustomRange = useCallback(() => {
+    if (!draftStart || !draftEnd) return;
+    setCustomStart(draftStart);
+    setCustomEnd(draftEnd);
+    setPeriod("custom");
+  }, [draftStart, draftEnd]);
 
   /* --- queries --- */
 
@@ -259,72 +289,76 @@ export default function StatisticsPage() {
     isLoading: summaryLoading,
     isError: summaryError,
   } = useQuery<StatsSummary>({
-    queryKey: ["statistics-summary", period, selectedWorkflowId],
+    queryKey: ["statistics-summary", period, selectedWorkflowId, rangeParams],
     queryFn: async () => {
       const res = await apiClient.get("/statistics/summary", {
-        params: { period, workflowId: workflowParam },
+        params: { period, workflowId: workflowParam, ...rangeParams },
       });
       return extractData<StatsSummary>(res);
     },
+    enabled: rangeReady,
   });
 
   const { data: executions, isLoading: executionsLoading } = useQuery<
     ExecutionDataPoint[]
   >({
-    queryKey: ["statistics-executions", period, selectedWorkflowId],
+    queryKey: ["statistics-executions", period, selectedWorkflowId, rangeParams],
     queryFn: async () => {
       const res = await apiClient.get("/statistics/executions", {
-        params: { period, workflowId: workflowParam },
+        params: { period, workflowId: workflowParam, ...rangeParams },
       });
       return extractData<ExecutionDataPoint[]>(res);
     },
+    enabled: rangeReady,
   });
 
   const { data: errors, isLoading: errorsLoading } = useQuery<ErrorEntry[]>({
-    queryKey: ["statistics-errors", period, selectedWorkflowId],
+    queryKey: ["statistics-errors", period, selectedWorkflowId, rangeParams],
     queryFn: async () => {
       const res = await apiClient.get("/statistics/errors", {
-        params: { period, workflowId: workflowParam },
+        params: { period, workflowId: workflowParam, ...rangeParams },
       });
       return extractData<ErrorEntry[]>(res);
     },
+    enabled: rangeReady,
   });
 
   const { data: topWorkflows, isLoading: topLoading } = useQuery<
     TopWorkflow[]
   >({
-    queryKey: ["statistics-top-workflows", period],
+    queryKey: ["statistics-top-workflows", period, rangeParams],
     queryFn: async () => {
       const res = await apiClient.get("/statistics/top-workflows", {
-        params: { period },
+        params: { period, ...rangeParams },
       });
       return extractData<TopWorkflow[]>(res);
     },
-    enabled: !selectedWorkflowId,
+    enabled: !selectedWorkflowId && rangeReady,
   });
 
   const { data: nodeStats, isLoading: nodeStatsLoading } = useQuery<
     NodeStat[]
   >({
-    queryKey: ["statistics-node-stats", period, selectedWorkflowId],
+    queryKey: ["statistics-node-stats", period, selectedWorkflowId, rangeParams],
     queryFn: async () => {
       const res = await apiClient.get("/statistics/node-stats", {
-        params: { period, workflowId: selectedWorkflowId },
+        params: { period, workflowId: selectedWorkflowId, ...rangeParams },
       });
       return extractData<NodeStat[]>(res);
     },
-    enabled: !!selectedWorkflowId,
+    enabled: !!selectedWorkflowId && rangeReady,
   });
 
   const { data: llmUsage, isLoading: llmUsageLoading } =
     useQuery<LlmUsageSummaryResponse>({
-      queryKey: ["statistics-llm-usage", period, selectedWorkflowId],
+      queryKey: ["statistics-llm-usage", period, selectedWorkflowId, rangeParams],
       queryFn: async () => {
         const res = await apiClient.get("/statistics/llm-usage/summary", {
-          params: { period, workflowId: workflowParam },
+          params: { period, workflowId: workflowParam, ...rangeParams },
         });
         return extractData<LlmUsageSummaryResponse>(res);
       },
+      enabled: rangeReady,
     });
 
   /* --- derived --- */
@@ -344,6 +378,7 @@ export default function StatisticsPage() {
         title: t("statistics.totalRuns"),
         value: summary?.totalExecutions ?? 0,
         format: (v: number) => v.toLocaleString(),
+        change: summary?.totalExecutionsChangeRate ?? null,
         icon: (
           <Activity className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
         ),
@@ -352,18 +387,21 @@ export default function StatisticsPage() {
         title: t("statistics.successRate"),
         value: summary?.successRate ?? 0,
         format: (v: number) => `${v.toFixed(1)}%`,
+        change: null,
         icon: <CheckCircle className="h-5 w-5 text-green-500" />,
       },
       {
         title: t("statistics.failureRate"),
         value: failureRate,
         format: (v: number) => `${v.toFixed(1)}%`,
+        change: null,
         icon: <XCircle className="h-5 w-5 text-red-500" />,
       },
       {
         title: t("statistics.avgDuration"),
         value: summary?.avgDurationMs ?? 0,
         format: (v: number) => formatDuration(v),
+        change: null,
         icon: (
           <Clock className="h-5 w-5 text-[hsl(var(--muted-foreground))]" />
         ),
@@ -378,7 +416,7 @@ export default function StatisticsPage() {
     async (format: "csv" | "json") => {
       try {
         const res = await apiClient.get("/statistics/export", {
-          params: { period, format },
+          params: { period, format, ...rangeParams },
           responseType: "blob",
         });
         const blob = new Blob([res.data as BlobPart]);
@@ -394,7 +432,7 @@ export default function StatisticsPage() {
         // silently fail — could add toast in the future
       }
     },
-    [period],
+    [period, rangeParams],
   );
 
   /* --- bottleneck detection for node stats --- */
@@ -461,7 +499,7 @@ export default function StatisticsPage() {
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         {/* Period Selector */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {PERIODS.map((p) => (
             <Button
               key={p}
@@ -472,7 +510,47 @@ export default function StatisticsPage() {
               {t(PERIOD_LABEL_KEYS[p])}
             </Button>
           ))}
+          <Button
+            variant={period === "custom" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setPeriod("custom")}
+          >
+            {t("statistics.periodCustom")}
+          </Button>
         </div>
+
+        {/* Custom Date Range Picker */}
+        {period === "custom" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="date"
+              aria-label={t("statistics.customRangeStart")}
+              className="h-9 w-auto text-sm"
+              value={draftStart}
+              max={draftEnd || undefined}
+              onChange={(e) => setDraftStart(e.target.value)}
+            />
+            <span className="text-sm text-[hsl(var(--muted-foreground))]">
+              –
+            </span>
+            <Input
+              type="date"
+              aria-label={t("statistics.customRangeEnd")}
+              className="h-9 w-auto text-sm"
+              value={draftEnd}
+              min={draftStart || undefined}
+              onChange={(e) => setDraftEnd(e.target.value)}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!draftStart || !draftEnd}
+              onClick={applyCustomRange}
+            >
+              {t("statistics.customRangeApply")}
+            </Button>
+          </div>
+        )}
 
         {/* Workflow Filter */}
         <div className="relative">
@@ -530,6 +608,22 @@ export default function StatisticsPage() {
                   <div className="text-2xl font-bold">
                     {card.format(card.value)}
                   </div>
+                  {card.change !== null && (
+                    <p
+                      className={cn(
+                        "mt-1 flex items-center text-xs",
+                        card.change >= 0 ? "text-green-600" : "text-red-600",
+                      )}
+                    >
+                      {card.change >= 0 ? (
+                        <TrendingUp className="mr-1 h-3 w-3" />
+                      ) : (
+                        <TrendingDown className="mr-1 h-3 w-3" />
+                      )}
+                      {card.change >= 0 ? "+" : ""}
+                      {card.change}% {t("statistics.changeVsPrev")}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))}

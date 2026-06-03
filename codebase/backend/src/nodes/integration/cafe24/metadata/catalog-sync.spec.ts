@@ -159,7 +159,12 @@ function parseCatalogFile(filePath: string): CatalogRow[] {
     const cells = line
       .split('|')
       .slice(1, -1)
-      .map((c) => c.trim().replace(/\s*\[\^[^\]]+\]/g, '').trim());
+      .map((c) =>
+        c
+          .trim()
+          .replace(/\s*\[\^[^\]]+\]/g, '')
+          .trim(),
+      );
     if (cells.length < MIN_CATALOG_COLUMNS) continue;
 
     const idCell = cellOr(cells, columnIndex.id);

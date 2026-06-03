@@ -17,3 +17,7 @@ owner: planner
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__3-ai__2-text-classifier.md 참조.
 - §6 warningRule 메시지 영문 source 화는 spec 본문에서 이미 정정 완료(코드 변경 불요).
+
+## 구현 상태 (branch claude/spec-sync-impl-644d19, 2026-06-03)
+- 미구현 항목 **코드 구현 완료** — commit 0d65f322. ai-review(13 reviewer)+resolution-applier 처리, build/lint/unit/e2e green. (reserved-word·retryable·summaryTemplate 전 항목)
+- **미해결 follow-up**: spec marker flip / 본문 보강(planner) → `plan/in-progress/spec-fix-impl-marker-flips.md`. 그 완료 시 본 ticket 을 `complete/` 이동 (plan-lifecycle §2).

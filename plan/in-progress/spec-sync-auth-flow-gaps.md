@@ -18,3 +18,7 @@ owner: planner
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings 의 auth-flow 섹션 참조.
 - 강도바 단계수(§2.3 3→5단계)·OAuth providers Cache-Control(public→private)·라우트 `/auth` 접두사 제거는 spec 본문을 코드 현실에 맞춰 이미 정정 완료(구현 갭 아님).
+
+## 구현 상태 (branch claude/spec-sync-impl-644d19, 2026-06-03)
+- 미구현 항목 **코드 구현 완료** — commit 27b6c362. ai-review(13 reviewer)+resolution-applier 처리, build/lint/unit/e2e green. (resend-verification + cooldown + onBlur; +SEC-CRITICAL emailVerifyToken 해시 7fc682c3)
+- **미해결 follow-up**: spec marker flip / 본문 보강(planner) → `plan/in-progress/spec-fix-impl-marker-flips.md`. 그 완료 시 본 ticket 을 `complete/` 이동 (plan-lifecycle §2).

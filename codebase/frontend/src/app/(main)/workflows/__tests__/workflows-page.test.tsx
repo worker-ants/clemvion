@@ -267,3 +267,55 @@ describe("WorkflowsPage — ownership filter (NAV-WF-07)", () => {
     expect(firstCallParams?.ownership).toBeUndefined();
   });
 });
+
+describe("WorkflowsPage — search/filter no-results reset CTA", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearchParams = new URLSearchParams();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.setState({
+      workspaces: [],
+      currentWorkspaceId: null,
+      loaded: true,
+    });
+    cleanup();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows the reset-filters CTA (not the create CTA) when a filter is active and no results match, and clears the filter on click", async () => {
+    setListResponse({
+      data: [],
+      pagination: { page: 1, limit: 10, totalItems: 0, totalPages: 0 },
+    });
+    await renderPage();
+
+    // Default empty state (no active filters) offers the create CTA.
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+
+    // Activating the "Active" status filter makes hasActiveFilters true.
+    await userEvent.click(screen.getByRole("button", { name: /^Active$/ }));
+
+    // Now the no-results state offers a reset CTA instead of create.
+    const resetBtn = await screen.findByRole("button", {
+      name: /Reset Filters/i,
+    });
+    expect(resetBtn).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Create Workflow/i }),
+    ).toBeNull();
+
+    // Clicking reset restores the default empty state (create CTA returns).
+    await userEvent.click(resetBtn);
+    expect(
+      await screen.findByRole("button", { name: /Create Workflow/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Reset Filters/i }),
+    ).toBeNull();
+  });
+});

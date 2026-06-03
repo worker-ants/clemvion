@@ -17,3 +17,7 @@ owner: planner
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__3-ai__3-information-extractor.md 참조.
 - 본 plan 완료 후 spec frontmatter status 를 `implemented` 로 복귀하고 §5.3 retryable/retryAfterSec 행의 "미구현 (Planned)" 표기를 제거한다.
 - 별건(코드/구현 정합 — spec 범위 밖, 본 plan 추적 아님): (1) 정적 backend schema `informationExtractorNodePorts` 의 `out` type 이 `data` 인 반면 frontend `resolveDynamicPorts` 는 `system` 발행 — backend/frontend 포트 type 불일치. (2) `information-extractor.component.ts` 가 `conversationThreadService` 미주입 → `pushExtractorTurn` no-op.
+
+## 구현 상태 (branch claude/spec-sync-impl-644d19, 2026-06-03)
+- 미구현 항목 **코드 구현 완료** — commit 0d65f322. ai-review(13 reviewer)+resolution-applier 처리, build/lint/unit/e2e green.
+- **미해결 follow-up**: spec marker flip / 본문 보강(planner) → `plan/in-progress/spec-fix-impl-marker-flips.md`. 그 완료 시 본 ticket 을 `complete/` 이동 (plan-lifecycle §2).

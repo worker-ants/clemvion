@@ -297,7 +297,11 @@ describe('Execution Re-run (e2e)', () => {
 
     // 별도 owner / 워크스페이스. 자기 워크스페이스 컨텍스트(X-Workspace-Id=otherWs)로
     // 타 워크스페이스 실행을 re-run 시도 → service 의 workspace 격리 검증이 404 로 막는다.
-    const intruder = await registerAndLogin(BASE_URL, uniqueEmail('rerun-x'), db);
+    const intruder = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rerun-x'),
+      db,
+    );
     const otherWs = await createTeamWorkspace(
       BASE_URL,
       intruder.accessToken,

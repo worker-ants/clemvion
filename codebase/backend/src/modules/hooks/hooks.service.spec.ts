@@ -506,8 +506,27 @@ describe('HooksService', () => {
       const res = await service.handleWebhook('abc', chatInput);
 
       expect(res).toMatchObject({ executionId: 'ignored' });
-      // adapter/parseUpdate 까지 가지 않고 즉시 무시.
+      // inbound 서명 검증은 수행하되(W1), adapter/parseUpdate·execute 까지는 가지 않음.
+      expect(authenticator.verify).toHaveBeenCalled();
       expect(mockAdapter.parseUpdate).not.toHaveBeenCalled();
+      expect(engine.execute).not.toHaveBeenCalled();
+    });
+
+    // W1 (ai-review SUMMARY#W1 / R-CC-12(d)): 비활성 chatChannel 트리거도 inbound 서명
+    // 검증을 먼저 수행한다 — 검증 실패는 비활성 여부와 무관하게 전파(401)되어, 미인증
+    // 요청이 'ignored' 단락으로 trigger 활성 상태를 탐지·우회하지 못한다.
+    it('비활성 chatChannel + 서명 검증 실패 → 전파 (ignored 로 우회 불가, W1)', async () => {
+      triggerRepo.findOne.mockResolvedValue({
+        ...chatChannelTrigger,
+        isActive: false,
+      } as Trigger);
+      authenticator.verify.mockRejectedValueOnce(
+        new Error('signature invalid'),
+      );
+
+      await expect(service.handleWebhook('abc', chatInput)).rejects.toThrow(
+        'signature invalid',
+      );
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
@@ -648,7 +667,11 @@ describe('HooksService', () => {
         channelUserKey: 'user-456',
         command: {
           kind: 'open_form_modal',
-          openContext: { interactionId: 'I9', interactionToken: 'tok9', modal: 'reply' },
+          openContext: {
+            interactionId: 'I9',
+            interactionToken: 'tok9',
+            modal: 'reply',
+          },
         },
         idempotencyKey: 'I9',
         receivedAt: new Date().toISOString(),
@@ -676,7 +699,10 @@ describe('HooksService', () => {
         expect.objectContaining({ modalKind: 'reply', fields: [] }),
       );
       expect(res).toMatchObject({
-        interactionHttpResponse: { type: 9, data: { custom_id: 'clemvion_reply' } },
+        interactionHttpResponse: {
+          type: 9,
+          data: { custom_id: 'clemvion_reply' },
+        },
       });
     });
 

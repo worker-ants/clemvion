@@ -59,6 +59,7 @@ export const triggers = {
   activateFailed: "트리거 활성화에 실패했어요",
   loadFailed: "트리거를 불러올 수 없어요",
   addWebhook: "웹훅 추가",
+  addTrigger: "트리거 추가",
   addWebhookTrigger: "웹훅 트리거 추가",
   nameLabel: "이름",
   namePlaceholder: "내 웹훅",

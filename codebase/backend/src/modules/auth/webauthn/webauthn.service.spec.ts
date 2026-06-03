@@ -377,7 +377,10 @@ describe('WebAuthnService', () => {
     // 역행 분기를 트리거하는지 잠근다 — "lower" 만 검증하면 호환 키워드 회귀를 놓친다.
     it.each([
       ['lower', 'Response counter value 0 was lower than expected 5'],
-      ['less', 'Response counter value 0 is less than or equal to current counter 5'],
+      [
+        'less',
+        'Response counter value 0 is less than or equal to current counter 5',
+      ],
       ['regress', 'authenticator counter regression detected'],
       ['same', 'counter value is the same as the stored counter'],
     ])(

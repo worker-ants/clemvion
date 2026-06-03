@@ -98,9 +98,9 @@ export class HooksService {
     //     spec/5-system/12-webhook.md WH-EP-07 의 chatChannel 예외).
     const chatChannelCfg = readChatChannelConfig(trigger.config);
     if (chatChannelCfg) {
-      if (!trigger.isActive) {
-        return { executionId: 'ignored' };
-      }
+      // 비활성 chatChannel 트리거도 inbound 서명 검증은 먼저 수행한다 (R-CC-12(d):
+      // 인증 실패 시 401). isActive 단락은 handleChatChannelWebhook 의 verify() 뒤에서
+      // 처리하여, 인증되지 않은 요청이 trigger 활성 상태를 우회·탐지하지 못하게 한다.
       return this.handleChatChannelWebhook(
         trigger,
         chatChannelCfg,
@@ -229,6 +229,13 @@ export class HooksService {
       input.headers,
       rawBodyString,
     );
+
+    // 서명 검증을 통과한 뒤에야 비활성 트리거를 202 { executionId: 'ignored' } 로
+    // 무시한다 (R-CC-12(d) / §5.5). 인증은 활성/비활성 무관하게 수행하되, 비활성이면
+    // adapter·execution 을 호출하지 않는다. (verify 실패 시 위에서 이미 401 throw.)
+    if (!trigger.isActive) {
+      return { executionId: 'ignored' };
+    }
 
     // Slack url_verification handshake (Spec providers/slack §3.1) — Slack 이 Request URL 등록 시
     // 1회 발송. parser 가 null 반환 후 challenge 추출하여 controller 에 전달.

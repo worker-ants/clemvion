@@ -32,6 +32,7 @@ describe('AuthController', () => {
     authService = {
       refresh: jest.fn(),
       logout: jest.fn(),
+      resendVerification: jest.fn(),
     } as unknown as jest.Mocked<AuthService>;
 
     oauthService = {
@@ -96,6 +97,27 @@ describe('AuthController', () => {
         'new-refresh',
         expect.objectContaining({ httpOnly: true, path: '/' }),
       );
+    });
+  });
+
+  describe('resendVerification', () => {
+    it('should delegate to authService and wrap the generic message', async () => {
+      authService.resendVerification.mockResolvedValue({
+        message: 'If an account exists and is not yet verified, ...',
+      });
+
+      const result = await controller.resendVerification({
+        email: 'user@example.com',
+      });
+
+      expect(authService.resendVerification).toHaveBeenCalledWith(
+        'user@example.com',
+      );
+      expect(result).toEqual({
+        data: {
+          message: 'If an account exists and is not yet verified, ...',
+        },
+      });
     });
   });
 

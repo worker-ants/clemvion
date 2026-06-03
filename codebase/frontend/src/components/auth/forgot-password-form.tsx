@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -20,11 +20,25 @@ import {
 } from "@/components/ui/card";
 import { useT, useLocale } from "@/lib/i18n";
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
 function ForgotPasswordFormInner() {
   const t = useT();
   const emailErrorId = useId();
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  // 제출된 이메일을 보관해 재발송 버튼이 동일 주소로 재요청할 수 있게 한다.
+  const [submittedEmail, setSubmittedEmail] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // 쿨다운 카운트다운 — 1초마다 감소, 0 도달 시 정지.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => {
+      setResendCooldown((s) => s - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   // defined inside component so validation messages pick up the current locale via t()
   const forgotPasswordSchema = useMemo(
@@ -60,8 +74,23 @@ function ForgotPasswordFormInner() {
       void error;
     } finally {
       setIsLoading(false);
+      setSubmittedEmail(data.email);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
       setIsSubmitted(true);
       toast.success(t("auth.forgotPassword.genericInfo"));
+    }
+  }
+
+  async function handleResend() {
+    if (!submittedEmail || resendCooldown > 0) return;
+    try {
+      await authApi.forgotPassword(submittedEmail);
+    } catch (err) {
+      const error = err as AxiosError;
+      void error;
+    } finally {
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      toast.success(t("auth.forgotPassword.resendSent"));
     }
   }
 
@@ -74,7 +103,20 @@ function ForgotPasswordFormInner() {
             {t("auth.forgotPassword.submittedDescription")}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={resendCooldown > 0}
+            onClick={() => void handleResend()}
+          >
+            {resendCooldown > 0
+              ? t("auth.forgotPassword.resendCooldown", {
+                  seconds: String(resendCooldown),
+                })
+              : t("auth.forgotPassword.resend")}
+          </Button>
           <Button asChild variant="outline" className="w-full">
             <Link href="/login">{t("auth.forgotPassword.backToLogin")}</Link>
           </Button>

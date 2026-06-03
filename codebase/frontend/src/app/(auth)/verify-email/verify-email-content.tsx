@@ -18,15 +18,20 @@ import { Button } from "@/components/ui/button";
 import { useT, translate } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
 export function VerifyEmailContent() {
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const email = searchParams.get("email");
   const [status, setStatus] = useState<
     "verifying" | "success" | "error" | "check-email"
   >(token ? "verifying" : "check-email");
   const [errorMessage, setErrorMessage] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [isResending, setIsResending] = useState(false);
   const calledRef = useRef(false);
 
   useEffect(() => {
@@ -57,6 +62,35 @@ export function VerifyEmailContent() {
 
     verify();
   }, [token, router]);
+
+  // 쿨다운 카운트다운 — 1초마다 감소, 0 도달 시 정지.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => {
+      setResendCooldown((s) => s - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  async function handleResend() {
+    // Basic format guard: reject malformed ?email= param before hitting the API.
+    // The backend DTO (@IsEmail) is the authoritative validator; this is a
+    // cheap client-side shield against crafted links reusing the resend endpoint.
+    if (!email || !EMAIL_RE.test(email) || resendCooldown > 0 || isResending) return;
+    setIsResending(true);
+    const currentLocale = useLocaleStore.getState().locale;
+    try {
+      await authApi.resendVerification(email);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      toast.success(translate(currentLocale, "auth.verifyEmail.resendSent"));
+    } catch {
+      toast.error(translate(currentLocale, "auth.verifyEmail.resendFailed"));
+    } finally {
+      setIsResending(false);
+    }
+  }
 
   return (
     <Card>
@@ -100,6 +134,22 @@ export function VerifyEmailContent() {
               <Link href="/login">{t("auth.verifyEmail.backToLogin")}</Link>
             </Button>
           </div>
+        )}
+
+        {status === "check-email" && email && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={resendCooldown > 0 || isResending}
+            onClick={() => void handleResend()}
+          >
+            {resendCooldown > 0
+              ? t("auth.verifyEmail.resendCooldown", {
+                  seconds: String(resendCooldown),
+                })
+              : t("auth.verifyEmail.resendLink")}
+          </Button>
         )}
 
         {status === "check-email" && (

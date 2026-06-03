@@ -90,6 +90,12 @@ export const authApi = {
   verifyEmail: (token: string) =>
     apiClient.post<{ data: { accessToken: string } }>("/auth/verify-email", { token }),
 
+  resendVerification: (email: string) =>
+    apiClient.post<{ data: { message: string } }>(
+      "/auth/resend-verification",
+      { email },
+    ),
+
   login: (data: LoginData) =>
     apiClient.post<{ data: LoginResponseData }>("/auth/login", data),
 

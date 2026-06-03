@@ -14,6 +14,7 @@ export interface StatisticsSummary {
   cancelledCount: number;
   successRate: number;
   avgDurationMs: number;
+  totalExecutionsChangeRate: number | null;
 }
 
 export interface ExecutionsByPeriod {
@@ -104,7 +105,39 @@ export class StatisticsService {
     }
 
     const result = await qb.getRawOne<Record<string, unknown>>();
-    return this.buildSummary(result ?? {});
+    const summary = this.buildSummary(result ?? {});
+
+    // 전 기간 대비 증감률: 현재 범위와 동일 길이의 직전 구간 총 실행 건수와 비교.
+    // (dashboard runs7dChangePercent 와 동일 의미·반올림 규약.)
+    const prevDurationMs = endDate.getTime() - startDate.getTime();
+    const prevEndDate = new Date(startDate.getTime());
+    const prevStartDate = new Date(startDate.getTime() - prevDurationMs);
+
+    const prevQb = this.executionRepository
+      .createQueryBuilder('e')
+      .innerJoin('e.workflow', 'w')
+      .where('w.workspace_id = :workspaceId', { workspaceId })
+      .andWhere('e.started_at >= :prevStartDate', { prevStartDate })
+      .andWhere('e.started_at < :prevEndDate', { prevEndDate });
+
+    if (query.workflowId) {
+      prevQb.andWhere('e.workflow_id = :workflowId', {
+        workflowId: query.workflowId,
+      });
+    }
+
+    const prevTotalExecutions = await prevQb.getCount();
+
+    summary.totalExecutionsChangeRate =
+      prevTotalExecutions > 0
+        ? Math.round(
+            ((summary.totalExecutions - prevTotalExecutions) /
+              prevTotalExecutions) *
+              10000,
+          ) / 100
+        : null;
+
+    return summary;
   }
 
   async getExecutionsByPeriod(
@@ -469,6 +502,7 @@ export class StatisticsService {
       cancelledCount,
       successRate,
       avgDurationMs,
+      totalExecutionsChangeRate: null,
     };
   }
 }

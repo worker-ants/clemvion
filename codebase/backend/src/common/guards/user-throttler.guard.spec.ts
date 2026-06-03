@@ -19,9 +19,9 @@ describe('UserThrottlerGuard.getTracker', () => {
   });
 
   it('returns user:<sub> when req.user.sub is present', async () => {
-    await expect(guard.track({ user: { sub: 'u-1' }, ip: '1.2.3.4' })).resolves.toBe(
-      'user:u-1',
-    );
+    await expect(
+      guard.track({ user: { sub: 'u-1' }, ip: '1.2.3.4' }),
+    ).resolves.toBe('user:u-1');
   });
 
   it('falls back to user:<userId> when sub is absent', async () => {

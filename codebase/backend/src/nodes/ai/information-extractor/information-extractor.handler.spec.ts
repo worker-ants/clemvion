@@ -439,6 +439,9 @@ describe('InformationExtractorHandler', () => {
       const details = err.details as Record<string, unknown>;
       expect(details.attempts).toBe(3);
       expect(details.originalInput).toBe('test input');
+      // spec §5.3 — LLM_RESPONSE_INVALID is deterministic → not retryable.
+      expect(details.retryable).toBe(false);
+      expect(details.retryAfterSec).toBeUndefined();
       expect(output.result).toBeUndefined();
 
       // 1 initial + 2 retries = 3 calls total
@@ -469,6 +472,42 @@ describe('InformationExtractorHandler', () => {
       const err = getError(output);
       expect(err.code).toBe('LLM_CALL_FAILED');
       expect(err.message).toBe('network down');
+      // spec §5.3 — LLM_CALL_FAILED is transient → retryable. No Retry-After
+      // header on a bare Error → retryAfterSec omitted.
+      const details = err.details as Record<string, unknown>;
+      expect(details.retryable).toBe(true);
+      expect(details.retryAfterSec).toBeUndefined();
+    });
+
+    it('sets retryAfterSec from the provider Retry-After header on LLM_CALL_FAILED', async () => {
+      const rateLimitErr = Object.assign(new Error('429 rate limited'), {
+        headers: { 'retry-after': '30' },
+      });
+      mockLlmService.chat.mockRejectedValue(rateLimitErr);
+
+      const rawResult = await handler.execute(
+        {},
+        {
+          inputField: 'x',
+          outputSchema: [
+            {
+              name: 'field1',
+              type: 'string',
+              description: 'desc',
+              required: true,
+            },
+          ],
+        },
+        context,
+      );
+
+      const { output } = asNodeHandlerOutput(rawResult);
+      const err = getError(output);
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      const details = err.details as Record<string, unknown>;
+      expect(details.retryable).toBe(true);
+      // 30s delta-seconds → 30 (ms→sec, ceil).
+      expect(details.retryAfterSec).toBe(30);
     });
   });
 
@@ -815,6 +854,29 @@ describe('InformationExtractorHandler', () => {
       expect(extracted.senderName).toBe('John');
       expect(extracted.orderNumber).toBeNull();
     });
+
+    it('routes mid-conversation provider throw to error port with retryable LLM_CALL_FAILED', async () => {
+      const rateLimitErr = Object.assign(new Error('429 rate limit'), {
+        headers: { 'retry-after': '12' },
+      });
+      mockLlmService.chat.mockRejectedValue(rateLimitErr);
+
+      const rawResult = await handler.processMultiTurnMessage(
+        'ORD-7',
+        buildState(),
+      );
+
+      const { output, port } = asNodeHandlerOutput(rawResult);
+      expect(port).toBe('error');
+      const err = getError(output);
+      expect(err.code).toBe('LLM_CALL_FAILED');
+      const details = err.details as Record<string, unknown>;
+      // spec §5.3 — transient → retryable; Retry-After header propagates.
+      expect(details.retryable).toBe(true);
+      expect(details.retryAfterSec).toBe(12);
+      // Partial extraction is preserved alongside the error envelope.
+      expect(getResult(output).endReason).toBe('error');
+    });
   });
 
   describe('collection retry loop', () => {
@@ -904,6 +966,10 @@ describe('InformationExtractorHandler', () => {
       expect(errDetails.turnCount).toBe(2);
       expect(errDetails.collectionRetryCount).toBe(3);
       expect(Array.isArray(errDetails.missingFields)).toBe(true);
+      // spec §5.3 — MAX_COLLECTION_RETRIES_EXCEEDED is deterministic → not
+      // retryable.
+      expect(errDetails.retryable).toBe(false);
+      expect(errDetails.retryAfterSec).toBeUndefined();
 
       const result = getResult(output);
       expect(result.endReason).toBe('max_retries');

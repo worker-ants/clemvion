@@ -128,16 +128,28 @@ describe('Auth flow (e2e)', () => {
       })
       .expect(201);
 
-    const tokenRow = await db.query<{ id: string; email_verify_token: string }>(
-      'SELECT id, email_verify_token FROM "user" WHERE email = $1',
+    // DB now stores SHA-256(rawToken); the API hashes the received token before
+    // comparing. We inject a known rawToken into the DB (as its hash) so we can
+    // send the raw value to the endpoint.
+    const rawToken = crypto.randomUUID();
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+
+    const idRow = await db.query<{ id: string }>(
+      'SELECT id FROM "user" WHERE email = $1',
       [email],
     );
-    const verifyToken = tokenRow.rows[0].email_verify_token;
-    expect(verifyToken).toBeDefined();
+    const userId = idRow.rows[0].id;
+    await db.query('UPDATE "user" SET email_verify_token = $1 WHERE id = $2', [
+      hashedToken,
+      userId,
+    ]);
 
     const verifyRes = await request(BASE_URL)
       .post('/api/auth/verify-email')
-      .send({ token: verifyToken });
+      .send({ token: rawToken }); // raw token → API hashes and matches stored hash
     expect(verifyRes.status).toBe(200);
     expect(verifyRes.body.data.accessToken).toBeDefined();
 
@@ -146,7 +158,7 @@ describe('Auth flow (e2e)', () => {
       `SELECT w.type FROM workspace w
          JOIN workspace_member wm ON wm.workspace_id = w.id
          WHERE wm.user_id = $1 AND wm.role = 'owner'`,
-      [tokenRow.rows[0].id],
+      [userId],
     );
     expect(wsRow.rows.length).toBeGreaterThanOrEqual(1);
     expect(wsRow.rows[0].type).toBe('personal');
@@ -154,7 +166,7 @@ describe('Auth flow (e2e)', () => {
     // 토큰이 단발성으로 무효화됐는지.
     const after = await db.query<{ email_verify_token: string | null }>(
       'SELECT email_verify_token FROM "user" WHERE id = $1',
-      [tokenRow.rows[0].id],
+      [userId],
     );
     expect(after.rows[0].email_verify_token).toBeNull();
   });

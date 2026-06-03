@@ -107,7 +107,11 @@ describe('IfElseHandler', () => {
         { email: 'alice@example.com' },
         {
           conditions: [
-            { field: 'email', operator: 'regex', value: '^[^@]+@example\\.com$' },
+            {
+              field: 'email',
+              operator: 'regex',
+              value: '^[^@]+@example\\.com$',
+            },
           ],
           combineMode: 'and',
         },
@@ -124,7 +128,11 @@ describe('IfElseHandler', () => {
         { email: 'bob@other.org' },
         {
           conditions: [
-            { field: 'email', operator: 'regex', value: '^[^@]+@example\\.com$' },
+            {
+              field: 'email',
+              operator: 'regex',
+              value: '^[^@]+@example\\.com$',
+            },
           ],
           combineMode: 'and',
         },

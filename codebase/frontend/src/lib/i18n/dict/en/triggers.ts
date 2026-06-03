@@ -62,6 +62,7 @@ export const triggers: Dict["triggers"] = {
   activateFailed: "Failed to update trigger",
   loadFailed: "Failed to load triggers",
   addWebhook: "Add Webhook",
+  addTrigger: "Add Trigger",
   addWebhookTrigger: "Add Webhook Trigger",
   nameLabel: "Name",
   namePlaceholder: "My Webhook",
