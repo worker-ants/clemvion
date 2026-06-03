@@ -41,6 +41,7 @@ code:
 - `spec/0-overview.md` (cross-cutting 진입 문서)
 - `spec/1-data-model.md` · `spec/6-brand.md` (단순 overview 성격)
 - `spec/_*.md` 및 `spec/<영역>/_*.md` (밑줄 prefix — leaf 가 아닌 layout/index 성격, 예: `_layout.md`, `_product-overview.md`, `_overview.md`)
+- `spec/conventions/<name>-api-catalog/<resource>/**.md` (API 레퍼런스 카탈로그의 **필드 단위 파일** — 생성기 산출물, frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source` 인 lifecycle 비추적 레퍼런스. 카탈로그 최상위 `<name>-api-catalog/<resource>.md` 인덱스는 `id`/`status` 보유한 정식 spec 이므로 **검증 유지**. 근거 §Rationale R-7)
 
 ## 2. Frontmatter 스키마
 
@@ -204,3 +205,9 @@ user_guide:
 - spec `.md` `code:` → `spec-code-paths.test.ts` — spec 이 *약속한* 구현 surface (책임용)
 
 두 가드가 같은 키를 검증하지만 대상 문서 (`*.mdx` vs `*.md`) 가 다르고, 검증 강도도 다름 (user-guide 는 stale 허용, spec 은 `implemented/partial` 시 매치 의무). 통합 안 함 — 같은 이름이지만 다른 invariant.
+
+### R-7. API 레퍼런스 카탈로그 필드 파일 제외 (`<name>-api-catalog/<resource>/**`)
+
+`spec/conventions/cafe24-api-catalog/<resource>/<entity>.md` 같은 필드 단위 카탈로그는 외부 API 문서를 기계 추출한 **생성기 산출물**(`_overview.md` 의 `_generator.py`)로, frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source` 다 — 제품 surface 의 구현 lifecycle (`backlog`→`implemented`) 을 추적하는 정식 spec 이 아니다. 따라서 `id`/`status` 를 부여하는 것은 (a) 의미상 부적절(추적할 구현 lifecycle 이 없음)하고 (b) 생성기가 매 재생성마다 수백 개 파일에 무의미한 메타를 찍어야 해 유지보수 부담이다.
+
+반면 카탈로그 **최상위 `<resource>.md` 인덱스**(`application.md` 등 18개)는 해당 리소스군의 metadata 구현(`code:`)을 약속하는 정식 spec 이라 `id`+`status: implemented` 를 보유하고 검증을 유지한다. 그래서 제외는 카탈로그 디렉토리 *뒤에 path segment 가 하나 더 있는* 중첩 경로(`<name>-api-catalog/<resource>/…`)로 한정한다 — `_*.md`(밑줄 prefix, leaf 아님) 제외와는 다른 논리(생성물 vs layout/index)이므로 별 항으로 둔다. 가드 구현은 `spec-frontmatter-parse.ts` 의 `CATALOG_FIELD_FILE` 정규식이 §1 제외와 동기화한다.

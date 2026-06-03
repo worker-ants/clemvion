@@ -141,6 +141,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 - 경로: `spec/conventions/cafe24-api-catalog/<resource>/<entity_id>.md` (예: `store/activitylogs.md`, `product/products.md`).
 - `<entity_id>` 는 Cafe24 docs 의 sub-resource 식별자 (snake_case). 한 resource 내 unique.
 - frontmatter: `resource`, `entity`, `cafe24_docs` (공식 docs anchor URL), `source` (추출 출처·일자).
+- **spec frontmatter 가드 제외**: 본 field-level 파일은 생성기 산출물(레퍼런스)이라 [`spec-impl-evidence.md §1`](../spec-impl-evidence.md) 의 lifecycle frontmatter(`id`/`status`) 의무에서 **제외**된다 (`<name>-api-catalog/<resource>/**` 패턴, 근거 §Rationale R-7). 카탈로그 최상위 `<resource>.md` 인덱스는 정식 spec 으로 계속 검증된다.
 
 ### 7.2 문서 구성
 
