@@ -149,7 +149,7 @@ sequenceDiagram
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `workspace` | 생성 | INSERT `name, type IN (personal/team), owner_id, slug, settings={}, created_at` | `slug UNIQUE` (V001 컬럼 제약), `(owner_id, type)` 는 **TypeORM `@Unique` 데코레이터로만** 강제 — V001 등 마이그레이션에 DB UNIQUE 제약 없음 (아래 Rationale 참고) |
+| `workspace` | 생성 | INSERT `name, type IN (personal/team), owner_id, slug, settings={}, created_at` | `slug UNIQUE` (V001 컬럼 제약). personal 유일성(owner 당 1개)은 **앱 레이어**(`findOrCreatePersonalWorkspace`)로 보장 — team 다중 소유 허용이라 broad `(owner_id, type)` UNIQUE 는 두지 않음 (아래 Rationale 참고) |
 | `workspace` | 소유권 이전 | UPDATE `owner_id` | — |
 | `workspace_member` | 가입·초대 수락 | INSERT `workspace_id, user_id, role IN (owner/admin/editor/viewer), invited_at, joined_at` | `(workspace_id, user_id) UNIQUE` |
 | `workspace_member` | 역할 변경 | UPDATE `role` | — |
@@ -219,9 +219,17 @@ stateDiagram-v2
 멤버로 합류한다 (§1.3, 불일치 시 `400 BadRequest` code=`invitation_email_mismatch`). 초대받지 않은
 다른 사용자가 token 을 가로채도 이메일이 다르면 거부된다.
 
-### `(owner_id, type) UNIQUE`
+### personal 워크스페이스 유일성 (owner 당 1개)
 
-한 사용자가 personal 워크스페이스를 2개 이상 가질 수 없도록 의도한 제약이다. 다만 **현재는 TypeORM
-엔티티의 `@Unique(['ownerId', 'type'])` 데코레이터로만 표현**되어 있고, V001 등 어떤 마이그레이션에도
-대응하는 DB UNIQUE 제약이 없다 — schema 가 마이그레이션 SQL 로 관리되므로(엔티티 synchronize 비활성) 이
-데코레이터는 런타임 DB 레벨에서 강제되지 않는 갭이다. team 워크스페이스는 다수 보유 가능.
+의도된 invariant 는 "한 사용자가 personal 워크스페이스를 2개 이상 가질 수 없다" 뿐이다. **team 워크스페이스는
+한 사용자가 다수 보유 가능**하다.
+
+따라서 과거의 broad `@Unique(['ownerId', 'type'])` 엔티티 데코레이터는 **의미상 부정확**했다 — (owner_id,
+type) 전체 UNIQUE 는 team 다중 소유까지 금지하기 때문이다. 게다가 대응 마이그레이션이 없어(엔티티
+synchronize 비활성) DB 레벨에서 강제되지도 않는 미적용 선언이었다. 이 데코레이터는 제거했다.
+
+현재 personal 유일성은 **앱 레이어**(`WorkspacesService.findOrCreatePersonalWorkspace` — find-or-create +
+catch-refind 폴백)로 보장한다. DB 레벨 강제(defense-in-depth)가 필요하면 broad UNIQUE 가 아니라 **부분
+유니크 인덱스** `CREATE UNIQUE INDEX ... ON workspace (owner_id) WHERE type = 'personal'` 로 도입한다
+(team 다중 소유는 유지). 부분 인덱스 도입 시 기존 데이터의 owner 당 중복 personal 정리(dedup)가 선행돼야
+하므로, 동시 요청 TOCTOU race 까지 막는 DB 레벨 강제는 **별도 hardening 마이그레이션**으로 분리한다.

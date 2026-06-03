@@ -94,7 +94,7 @@ mode=expression 으로 전환 시 각 case 의 `Value` 입력이 `Condition` (co
    - `valueType` 으로 `case.value` 를 강제 변환 (`coerceCaseValue` — number 는 `Number()`, boolean 은 `'true'`/`'false'` 매칭, 실패 시 원본 유지).
    - `strictComparison=true` 면 `===`, 아니면 `==` 로 `switchValue` 와 비교.
    - 첫 매칭 case 채택 → §5.1 (`port: <case.id>`).
-3. **mode=expression**: `cases` 를 순회하며 `evaluateCondition(input, case.condition, { strict })` 를 평가, 첫 true case 채택 → §5.1 (`port: <case.id>`).
+3. **mode=expression**: `regex` 연산자를 쓰는 case 의 정규식을 case 별로 `compileRegexCache` 로 미리 컴파일한 뒤(잘못된/과길이 패턴은 skip → 해당 case false), `cases` 를 순회하며 `evaluateCondition(input, case.condition, { strict, regex })` (regex 는 그 case 의 컴파일된 `RegExp`) 를 평가, 첫 true case 채택 → §5.1 (`port: <case.id>`). If/Else 와 동일 평가 경로 — `regex` 연산자가 정상 동작한다.
 4. 매칭 실패:
    - `hasDefault !== false` (즉 `true` 또는 미설정) → §5.2 (`port: 'default'`).
    - `hasDefault === false` → throw `'No matching case found and no default case configured'` (§6).
