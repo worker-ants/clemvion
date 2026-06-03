@@ -21,6 +21,18 @@ const TAB_LABEL_KEYS: Record<Tab, TranslationKey> = {
   info: "editor.tabInfo",
 };
 
+/**
+ * Migrate the legacy flat `config.errorPolicy` short values to the engine's
+ * canonical `errorHandling.policy` enum (execution-engine error-policy.handler).
+ */
+const LEGACY_POLICY_MAP: Record<string, string> = {
+  stop: "stop_workflow",
+  skip: "skip_node",
+  default_output: "use_default_output",
+  retry: "retry",
+  error_port: "route_to_error_port",
+};
+
 export function NodeSettingsPanel() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const nodes = useEditorStore((s) => s.nodes);
@@ -144,8 +156,34 @@ function SettingsTab({
   const [notes, setNotes] = useState(
     (nodeData.config?.notes as string) ?? "",
   );
-  const [errorPolicy, setErrorPolicy] = useState(
-    (nodeData.config?.errorPolicy as string) ?? "stop",
+  // Error handling — persisted as the engine's nested `errorHandling`
+  // contract `{ policy, retryConfig?, defaultOutput? }`. Legacy flat
+  // `config.errorPolicy` (short values) is migrated on load.
+  const initialErrorHandling = nodeData.config?.errorHandling as
+    | {
+        policy?: string;
+        retryConfig?: { maxRetries?: number; retryInterval?: number };
+        defaultOutput?: unknown;
+      }
+    | undefined;
+  const [policy, setPolicy] = useState<string>(
+    initialErrorHandling?.policy ??
+      LEGACY_POLICY_MAP[(nodeData.config?.errorPolicy as string) ?? ""] ??
+      "stop_workflow",
+  );
+  const [maxRetries, setMaxRetries] = useState<number>(
+    initialErrorHandling?.retryConfig?.maxRetries ?? 3,
+  );
+  const [retryInterval, setRetryInterval] = useState<number>(
+    initialErrorHandling?.retryConfig?.retryInterval ?? 1000,
+  );
+  const [defaultOutputText, setDefaultOutputText] = useState<string>(
+    initialErrorHandling?.defaultOutput !== undefined
+      ? JSON.stringify(initialErrorHandling.defaultOutput, null, 2)
+      : "{}",
+  );
+  const [defaultOutputError, setDefaultOutputError] = useState<string | null>(
+    null,
   );
 
   const handleConfigChange = useCallback(
@@ -169,27 +207,63 @@ function SettingsTab({
       return;
     }
 
+    // Build the engine's nested `errorHandling` contract.
+    const errorHandling: Record<string, unknown> = { policy };
+    if (policy === "retry") {
+      errorHandling.retryConfig = {
+        maxRetries,
+        retryInterval,
+        backoffMultiplier: 2,
+      };
+    }
+    if (policy === "use_default_output") {
+      try {
+        errorHandling.defaultOutput = defaultOutputText.trim()
+          ? JSON.parse(defaultOutputText)
+          : null;
+      } catch {
+        setDefaultOutputError(t("editor.errorDefaultOutputInvalid"));
+        toast.error(t("editor.errorDefaultOutputInvalid"));
+        return;
+      }
+    }
+    setDefaultOutputError(null);
+
     useEditorStore.getState().pushUndo();
 
     useEditorStore.setState((state) => ({
-      nodes: state.nodes.map((n) =>
-        n.id === nodeId
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                label,
-                isDisabled,
-                config: { ...nodeConfig, notes, errorPolicy },
-              },
-            }
-          : n,
-      ),
+      nodes: state.nodes.map((n) => {
+        if (n.id !== nodeId) return n;
+        // Drop the legacy flat `errorPolicy` key in favour of `errorHandling`.
+        const { errorPolicy: _legacyErrorPolicy, ...restConfig } =
+          nodeConfig as Record<string, unknown>;
+        return {
+          ...n,
+          data: {
+            ...n.data,
+            label,
+            isDisabled,
+            config: { ...restConfig, notes, errorHandling },
+          },
+        };
+      }),
       isDirty: true,
     }));
 
     toast.success(t("editor.settingsSavedToast"));
-  }, [nodeId, label, isDuplicateLabel, isDisabled, nodeConfig, notes, errorPolicy, t]);
+  }, [
+    nodeId,
+    label,
+    isDuplicateLabel,
+    isDisabled,
+    nodeConfig,
+    notes,
+    policy,
+    maxRetries,
+    retryInterval,
+    defaultOutputText,
+    t,
+  ]);
 
   const isTrigger = nodeData.type === "manual_trigger";
 
@@ -227,17 +301,90 @@ function SettingsTab({
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">{t("editor.errorHandling")}</Label>
             <select
-              value={errorPolicy}
-              onChange={(e) => setErrorPolicy(e.target.value)}
+              value={policy}
+              onChange={(e) => setPolicy(e.target.value)}
               className="h-8 rounded-md border border-[hsl(var(--input))] bg-transparent px-2 text-xs text-[hsl(var(--foreground))]"
             >
-              <option value="stop">{t("editor.errorStop")}</option>
-              <option value="skip">{t("editor.errorSkip")}</option>
-              <option value="default_output">{t("editor.errorDefaultOutput")}</option>
+              <option value="stop_workflow">{t("editor.errorStop")}</option>
+              <option value="skip_node">{t("editor.errorSkip")}</option>
+              <option value="use_default_output">
+                {t("editor.errorDefaultOutput")}
+              </option>
               <option value="retry">{t("editor.errorRetry")}</option>
-              <option value="error_port">{t("editor.errorRoutePort")}</option>
+              <option value="route_to_error_port">
+                {t("editor.errorRoutePort")}
+              </option>
             </select>
           </div>
+
+          {/* Retry config — shown only for the `retry` policy */}
+          {policy === "retry" && (
+            <div className="flex gap-2">
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label className="text-xs">{t("editor.errorMaxRetries")}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={maxRetries}
+                  onChange={(e) => setMaxRetries(Number(e.target.value))}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label className="text-xs">
+                  {t("editor.errorRetryInterval")}
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={retryInterval}
+                  onChange={(e) => setRetryInterval(Number(e.target.value))}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Default-output JSON editor — shown only for `use_default_output` */}
+          {policy === "use_default_output" && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">
+                  {t("editor.errorDefaultOutputJson")}
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDefaultOutputText("{}");
+                    setDefaultOutputError(null);
+                  }}
+                  className="text-[10px] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                >
+                  {t("editor.errorDefaultOutputReset")}
+                </button>
+              </div>
+              <textarea
+                value={defaultOutputText}
+                onChange={(e) => {
+                  setDefaultOutputText(e.target.value);
+                  setDefaultOutputError(null);
+                }}
+                rows={5}
+                spellCheck={false}
+                className={cn(
+                  "rounded-md border bg-transparent px-2 py-1.5 font-mono text-xs text-[hsl(var(--foreground))]",
+                  defaultOutputError
+                    ? "border-red-500 focus-visible:ring-red-500"
+                    : "border-[hsl(var(--input))]",
+                )}
+              />
+              {defaultOutputError && (
+                <span className="text-[10px] text-red-500">
+                  {defaultOutputError}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Disabled */}
           <div className="flex items-center gap-2">

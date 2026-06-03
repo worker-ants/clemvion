@@ -1,14 +1,12 @@
 ---
 id: node-common
-status: partial
+status: implemented
 code:
   - codebase/frontend/src/components/editor/canvas/custom-node.tsx
   - codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx
   - codebase/frontend/src/components/editor/expression/*.tsx
   - codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts
   - codebase/backend/src/nodes/**/*.schema.ts
-pending_plans:
-  - plan/in-progress/spec-sync-node-common-gaps.md
 ---
 
 # Spec: 노드 공통 스펙
@@ -165,18 +163,20 @@ pending_plans:
 | **Stop Workflow** (기본) | 에러 발생 시 워크플로우 실행 중단. 상태: failed |
 | **Skip Node** | 에러 발생 시 이 노드를 건너뛰고 다음 노드로 진행. 출력: null |
 | **Use Default Output** | 에러 발생 시 미리 설정한 기본 출력 값 사용. 아래 §2.5 참조 |
-| **Retry** | 재시도 (최대 재시도 횟수 `maxRetries`, 재시도 간격 `retryInterval` 설정). **구현 상태**: Error Handling select 에 `Retry` 옵션은 존재하나, `maxRetries`/`retryInterval` 입력 UI 는 미구현 (Planned) — `node-settings-panel.tsx` 에 별도 입력 필드 없음 |
+| **Retry** | 재시도. `Retry` 선택 시 설정 패널에 `maxRetries`(최대 재시도 횟수)·`retryInterval`(재시도 간격 ms) 입력 필드가 표시된다 (`node-settings-panel.tsx`). 엔진은 `retryInterval × backoffMultiplier^attempt` 의 지수 백오프로 재시도한다 (`backoffMultiplier` 기본 2) |
 | **Route to Error Port** | 에러 발생 시 에러 데이터를 `error` 포트로 전달. 선택 시 노드에 error 포트가 동적 생성됨. error 포트에 연결된 노드가 없으면 Stop Workflow 폴백. ([에러 처리 상세](../5-system/3-error-handling.md#32-route-to-error-port-상세) 참조) |
+
+> **config 저장 형태**: 설정 패널은 위 정책을 엔진 계약인 nested `config.errorHandling = { policy, retryConfig?: { maxRetries, retryInterval, backoffMultiplier }, defaultOutput? }` 로 저장한다 (`policy` enum: `stop_workflow`/`skip_node`/`use_default_output`/`retry`/`route_to_error_port`, `execution-engine`의 `error-policy.handler.ts` 와 일치). 과거 flat `config.errorPolicy` 단축값은 로드 시 자동 마이그레이션된다.
 
 ### 2.5 Use Default Output — 기본 출력값 정의
 
 "Use Default Output" 정책 선택 시, 에러가 발생하면 사용자가 미리 설정한 기본 출력값을 대신 출력 포트로 전달한다.
 
-#### 2.5.1 기본값 설정 UI (미구현 — Planned)
+#### 2.5.1 기본값 설정 UI
 
-> **구현 상태**: 현재 설정 패널의 Error Handling 은 단일 select(`Stop`/`Skip`/`Use Default Output`/`Retry`/`Route to Error Port`)만 렌더링한다. "Use Default Output" 선택 시 아래의 조건부 JSON 에디터·"Reset to Type Default" 버튼은 아직 구현되어 있지 않다 (`node-settings-panel.tsx` §Error handling policy). 아래는 계획된 UI 다.
+"Use Default Output" 선택 시 설정 패널에 조건부 JSON 에디터와 "Reset to Default" 버튼이 표시된다 (`node-settings-panel.tsx`). JSON 파싱 실패 시 저장이 차단되고 인라인 오류가 표시되며, 빈 값은 `null` 로 저장된다. 입력값은 `config.errorHandling.defaultOutput` 으로 저장된다.
 
-"Use Default Output" 선택 시 설정 패널에 기본값 입력 폼이 추가로 표시된다(계획):
+"Use Default Output" 선택 시 설정 패널에 기본값 입력 폼이 추가로 표시된다:
 
 ```
 ┌──────────────────────────────────┐
