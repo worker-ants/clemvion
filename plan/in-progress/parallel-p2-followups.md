@@ -11,8 +11,8 @@
 
 ### 1. signal-aware 노드 — 미구현 잔여
 > 완료: Database·AI Agent·Text Classifier·IE single-turn·Send Email 의 사전 체크/전파 (complete 기록 §1).
-- [ ] Information Extractor multi-turn (`runTurnWithCollectionRetries`) — params chain 에 signal 추가 (별 PR).
-- [ ] `NodeExecution.status='cancelled'` 추가 (엔티티 + migration) — 별 plan 권고.
+- [ ] Information Extractor multi-turn (`runTurnWithCollectionRetries`) — params chain 에 signal 추가 (→ cancel-status 작업에서 함께 처리, `spec-draft-node-execution-cancelled.md`).
+- [ ] `NodeExecution.status='cancelled'` 추가 (엔티티 + migration) — **별 plan 구체화됨**: [`spec-draft-node-execution-cancelled.md`](./spec-draft-node-execution-cancelled.md) (옵션 B 확정, V069 migration), `node-cancellation-engine` worktree 구현 중.
 
 ### 2~4. e2e 통합 테스트 (묶음 — 별 PR)
 > 완료: §2 frontend canvas 배지·§3 backend save reject·§4 단위/통합 테스트 (complete 기록).

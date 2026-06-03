@@ -644,6 +644,39 @@ describe('InformationExtractorHandler', () => {
       expect(extracted.amount).toBeNull();
       expect(result.endReason).toBe('completed');
     });
+
+    // W4 (ai-review): multi-turn 초기 실행 경로(executeMultiTurn → runTurnWithCollectionRetries)
+    // 가 context.abortSignal 을 traceChat → llmService.chat 의 4번째 인자 signal 로
+    // 전파하는지 검증 (node-cancellation §2.1).
+    it('multi-turn initial path forwards context.abortSignal to llmService.chat (W4)', async () => {
+      mockLlmService.chat.mockResolvedValue(
+        finalizeCall({ senderName: 'John', orderNumber: 'ORD-1' }),
+      );
+
+      const controller = new AbortController();
+      const contextWithSignal = {
+        ...context,
+        abortSignal: controller.signal,
+      };
+
+      await handler.execute(
+        {},
+        {
+          mode: 'multi_turn',
+          inputField: 'John ORD-1',
+          outputSchema: multiTurnSchema,
+        },
+        contextWithSignal,
+      );
+
+      // traceChat 이 llmService.chat 을 signal 포함 4번째 인자로 호출했는지 검증.
+      expect(mockLlmService.chat).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        undefined,
+        expect.objectContaining({ signal: controller.signal }),
+      );
+    });
   });
 
   describe('processMultiTurnMessage', () => {

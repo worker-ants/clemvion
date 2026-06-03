@@ -921,6 +921,55 @@ export function useExecutionEvents({
     [updateNodeStatus, addNodeResult],
   );
 
+  // execution.node.cancelled — 노드 외부 I/O 가 abortSignal 로 중단됨 (AbortError).
+  // failed 와 별도 terminal 상태로, 타임라인이 running 에 잔류하지 않도록 처리한다
+  // (spec/5-system/6-websocket-protocol.md §4.4 / node-cancellation §5.1).
+  const handleNodeCancelled = useCallback(
+    (data: unknown) => {
+      const payload = data as {
+        nodeExecutionId?: string;
+        parentNodeExecutionId?: string;
+        nodeId?: string;
+        nodeType?: string;
+        nodeLabel?: string;
+        error?: string | { message?: string };
+        input?: unknown;
+        startedAt?: string;
+      };
+      if (payload.nodeId) {
+        const errorMessage =
+          typeof payload.error === "string"
+            ? payload.error
+            : payload.error?.message;
+        updateNodeStatus(payload.nodeId, {
+          status: "cancelled",
+          error: errorMessage,
+        });
+        const existing = useExecutionStore.getState().nodeResults.find((r) =>
+          payload.nodeExecutionId
+            ? r.nodeExecutionId === payload.nodeExecutionId
+            : !r.nodeExecutionId && r.nodeId === payload.nodeId,
+        );
+        addNodeResult({
+          nodeExecutionId: sanitizeUuid(payload.nodeExecutionId),
+          parentNodeExecutionId:
+            sanitizeUuid(payload.parentNodeExecutionId) ??
+            existing?.parentNodeExecutionId,
+          nodeId: payload.nodeId,
+          nodeLabel: payload.nodeLabel ?? payload.nodeId,
+          nodeType: payload.nodeType ?? "unknown",
+          nodeCategory: getCategoryForType(payload.nodeType ?? "unknown"),
+          status: "cancelled",
+          error: errorMessage,
+          outputData: null,
+          inputData: payload.input ?? existing?.inputData,
+          startedAt: payload.startedAt ?? existing?.startedAt,
+        });
+      }
+    },
+    [updateNodeStatus, addNodeResult],
+  );
+
   useEffect(() => {
     if (!executionId) return;
 
@@ -977,6 +1026,7 @@ export function useExecutionEvents({
     client.on("execution.node.completed", handleNodeCompleted);
     client.on("execution.node.failed", handleNodeFailed);
     client.on("execution.node.skipped", handleNodeSkipped);
+    client.on("execution.node.cancelled", handleNodeCancelled);
 
     const channel = `execution:${executionId}`;
 
@@ -1050,6 +1100,7 @@ export function useExecutionEvents({
       client.off("execution.node.completed", handleNodeCompleted);
       client.off("execution.node.failed", handleNodeFailed);
       client.off("execution.node.skipped", handleNodeSkipped);
+      client.off("execution.node.cancelled", handleNodeCancelled);
       client.off("execution.snapshot", handleSnapshot);
       client.unsubscribe(channel);
       // Do NOT disconnect - singleton stays alive
@@ -1070,6 +1121,7 @@ export function useExecutionEvents({
     handleNodeCompleted,
     handleNodeFailed,
     handleNodeSkipped,
+    handleNodeCancelled,
     updateNodeStatus,
     addNodeResult,
     completeExecution,

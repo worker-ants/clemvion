@@ -13,6 +13,10 @@ export enum NodeExecutionStatus {
   RUNNING = 'running',
   COMPLETED = 'completed',
   FAILED = 'failed',
+  // 외부 abortSignal (cancel-others-on-fail / 사용자 cancel / timeout) 로 노드의
+  // 외부 I/O 가 중단됨 — 핸들러가 throw 한 AbortError 를 엔진이 failed 가 아닌
+  // cancelled 로 분류 (spec/conventions/node-cancellation.md §5.1).
+  CANCELLED = 'cancelled',
   SKIPPED = 'skipped',
   WAITING_FOR_INPUT = 'waiting_for_input',
 }
