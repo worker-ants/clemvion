@@ -127,3 +127,11 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
   `socials_apple_settings_get` 는 **최종 API 부재 확정**. 제거 여부를 G-2 결정과 합쳐 재판단 (planner 트랙).
 - [ ] **G-3m catalog-sync 가드 보강 (선택)**: metadata↔index 동기만으로는 docs 드리프트를 못 잡으므로,
   field-level 카탈로그(또는 docs 스냅샷) 의 path/method/scope 와 metadata 를 대조하는 가드 신설 검토.
+
+> **G-3 FIX 배치 검증 결과 (2026-06-03)**: 구현(13 ops) 후 TEST WORKFLOW 전 단계 통과
+> (lint·unit[cafe24.handler 25/25, 변경 5 resource catalog-sync pass]·build·e2e[143 pass]).
+> `/ai-review`: Critical 0, Warning 10. W7(path-param 보간 테스트)·W8/W9(description) + INFO#9
+> (exchange 단수 주석) 본 배치에서 fix. breaking-change 우려(W1~3)는 해당 op 들이 정정 전 이미
+> 비동작(404)이라 회귀 아님으로 정리. carts scope 실증(W4/W10)·field-set(W5/W6)은 각각 G-3k·
+> G-1-remaining 으로 이관. (review 산출물은 gitignored — 본 노트가 PR trace.)
+> 잔존 catalog-sync 3 fail 은 `category.md` footnote 마커 pre-existing(본 변경 무관).

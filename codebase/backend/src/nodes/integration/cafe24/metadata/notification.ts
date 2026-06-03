@@ -118,7 +118,8 @@ export const notificationOperations: Cafe24OperationMetadata[] = [
   // Phase 8e — Notification 완성 (invitation + recipientgroups CUD)
   {
     id: 'customers_invitation_send',
-    description: 'Send an invitation to a member to activate their account.',
+    description:
+      'Send an invitation to a member (member_id is a path parameter) to activate their account.',
     scopeType: 'write',
     method: 'POST',
     path: 'customers/{member_id}/invitation',

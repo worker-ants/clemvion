@@ -1187,6 +1187,8 @@ export const orderOperations: Cafe24OperationMetadata[] = [
     description: 'Update multiple order exchanges in bulk.',
     scopeType: 'write',
     method: 'PUT',
+    // path 는 단수 `exchange` 가 정답 (docs SoT). 복수 자원이지만 Cafe24 가
+    // 의도적으로 단수 경로명을 쓴다 — `exchanges` 로 되돌리지 말 것 (plan G-3b).
     path: 'exchange',
     requiredFields: [],
     fields: {},

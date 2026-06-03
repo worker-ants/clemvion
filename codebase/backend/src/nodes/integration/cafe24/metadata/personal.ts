@@ -32,7 +32,8 @@ export const personalOperations: Cafe24OperationMetadata[] = [
   // Phase 8d — Personal 완성
   {
     id: 'customers_wishlist_count',
-    description: "Retrieve the count of products in a customer's wishlist.",
+    description:
+      "Retrieve the count of products in a customer's wishlist. Requires member_id as a path parameter.",
     scopeType: 'read',
     method: 'GET',
     path: 'customers/{member_id}/wishlist/count',
