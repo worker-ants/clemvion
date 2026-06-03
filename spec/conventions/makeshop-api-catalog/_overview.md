@@ -53,9 +53,9 @@ spec/conventions/makeshop-api-catalog/
 
 - **CPIK 섹션**: 외부 연동(장바구니/회원 join·login/online_order) REST + 상품·주문·배송·카테고리 변경 **webhook 이벤트**로 구성. webhook 은 호출형 REST 가 아니라 워크플로 trigger 노드 매핑 대상이다.
 
-## 6. 구현 착수 시 추가 컬럼 (sync 승격 — Phase 0)
+## 6. 추가 컬럼 (sync 승격 — Phase 0 완료)
 
-현재 섹션별 카탈로그(`<section>.md`)는 순수 레퍼런스라 `id / 라벨(한) / method / path / 권한 / docs` 컬럼만 가진다. 메이크샵 노드 구현([MakeShop 노드 §2](../../4-nodes/4-integration/5-makeshop.md#2-설정-ui))에 backend 메타데이터가 생기는 시점에, cafe24 catalog([cafe24-api-catalog `_overview.md §2·§3`](../cafe24-api-catalog/_overview.md))와 동일 체계로 아래 컬럼을 추가하고 `catalog-sync` 양방향 테스트로 보호한다.
+Phase 0 에서 섹션별 카탈로그(`<section>.md`)에 아래 컬럼을 추가하고, `catalog-sync.spec.ts` 양방향 테스트로 보호했다 (cafe24 catalog([cafe24-api-catalog `_overview.md §2·§3`](../cafe24-api-catalog/_overview.md))와 동일 체계). 현재 모든 161 REST op 이 `status: supported` 로 등록돼 있다.
 
 | 추가 컬럼 | 값 | 정의 |
 |----------|-----|------|

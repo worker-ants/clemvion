@@ -82,9 +82,11 @@ interface MakeshopOperationMetadata {
 - **scope wire format**: OAuth 2.1 표준 **공백 구분** (`store.read store.write`) — Cafe24 콤마 예외 미적용 ([MakeShop 노드 §9.2](../4-nodes/4-integration/5-makeshop.md#92-oauth-scope-wire-format--공백-구분-표준-cafe24-콤마-quirk-없음)).
 - **timezone**: 미확인 — 구현 시 확정 ([MakeShop 노드 §4.1](../4-nodes/4-integration/5-makeshop.md#41-timezone-semantics)).
 
-## 5. Catalog 동기 (구현 시)
+## 5. Catalog 동기
 
-cafe24 의 `catalog-sync.spec.ts` 양방향 동기 정책([cafe24-api-catalog `_overview.md §4`](./cafe24-api-catalog/_overview.md#4-동기-정책-sync-contract))을 makeshop 에도 도입한다 — backend 메타데이터 `(resource, id)` ↔ catalog 표 행의 method/path/scope/paginated 일치 검증. 단 makeshop catalog 은 현재 status 컬럼이 없는 순수 레퍼런스이므로, 구현 착수 시 catalog 에 `status` (supported/planned) 컬럼을 추가하고 sync 대상으로 승격한다.
+cafe24 의 `catalog-sync.spec.ts` 양방향 동기 정책([cafe24-api-catalog `_overview.md §4`](./cafe24-api-catalog/_overview.md#4-동기-정책-sync-contract))을 makeshop 에도 도입한다 — backend 메타데이터 `(resource, id)` ↔ catalog 표 행의 method/path/scope/paginated 일치 검증.
+
+**Phase 0 완료**: catalog 에 `status` (`supported`/`planned`) · `scope` · `paginated` 컬럼을 추가하고, `catalog-sync.spec.ts` 양방향 동기 보호를 도입했다 (`codebase/backend/src/nodes/integration/makeshop/metadata/catalog-sync.spec.ts`). 섹션별 catalog 표([`makeshop-api-catalog/`](./makeshop-api-catalog/_overview.md))와 backend 메타데이터는 테스트로 상시 동기 보호된다.
 
 ## 6. 신규 endpoint 등재 절차
 

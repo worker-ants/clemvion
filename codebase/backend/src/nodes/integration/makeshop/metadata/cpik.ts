@@ -1,3 +1,5 @@
+/** MakeShop Shop API — CPIK (외부연동) 섹션 (8 operations). SoT: spec/conventions/makeshop-api-catalog/cpik.md */
+
 import type { MakeshopOperationMetadata } from './types.js';
 
 export const cpikOperations: MakeshopOperationMetadata[] = [

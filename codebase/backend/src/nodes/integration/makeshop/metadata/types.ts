@@ -42,10 +42,10 @@ export type MakeshopResponseShape = 'list' | 'single' | 'empty';
  * Spec: `spec/conventions/cafe24-api-metadata.md` §2 "constraints 의 의미"
  * (referenced from `spec/conventions/makeshop-api-metadata.md` §2).
  *
- * Three kinds:
- * - `oneOf`     — at-least-one-of (NOT JSON Schema's exactly-one).
- * - `allOrNone` — listed fields must all be present together or all absent.
- * - `implies`   — when `if` is present, every field in `then` is required.
+ * Four kinds:
+ * - `oneOf`        — at-least-one-of (NOT JSON Schema's exactly-one).
+ * - `allOrNone`    — listed fields must all be present together or all absent.
+ * - `implies`      — when `if` is present, every field in `then` is required.
  * - `impliesValue` — value-aware implication (strict-equal on the `if` field).
  *
  * Invariants enforced by `metadata.spec.ts`:
@@ -73,7 +73,9 @@ export type MakeshopFieldConstraint =
  *
  * Note: `scopeType` is decoupled from HTTP `method`. MakeShop encodes mutating
  * actions (create/update/delete) as POST + path segment, so most POST rows are
- * `scopeType: 'write'`, but the CPIK member check/login POSTs are read-style.
+ * `scopeType: 'write'`. The CPIK member check/login POSTs are also `scopeType:
+ * 'write'` — POST is write-style per the Phase 0 rule regardless of semantic
+ * read intent. The exact scope classification is confirmed at OAuth (Phase 3).
  */
 export interface MakeshopOperationMetadata {
   id: string;

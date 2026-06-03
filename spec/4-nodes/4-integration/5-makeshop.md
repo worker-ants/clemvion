@@ -10,7 +10,7 @@ pending_plans:
 
 > 관련 문서: [Integration 공통 규약](./0-common.md) · [Spec 노드 개요](../0-overview.md) · [Spec 실행 엔진 §10](../../5-system/4-execution-engine.md#10-integration-handler-계약) · [Spec 통합 §5.9 MakeShop](../../2-navigation/4-integration.md#59-makeshop) · [Spec MCP Client §2.3 Internal Bridge](../../5-system/11-mcp-client.md#23-internal-bridge-in-process) · [CONVENTIONS](../../conventions/node-output.md) · [MakeShop API Metadata 컨벤션](../../conventions/makeshop-api-metadata.md) · [MakeShop API Catalog](../../conventions/makeshop-api-catalog/_overview.md) · **참조 패턴** [Cafe24 노드](./4-cafe24.md)
 
-> **구현 상태 (status: spec-only)**: 본 노드는 아직 구현 전이다 (frontmatter `status: spec-only`, `pending_plans` 가 [plan `makeshop-integration.md`](../../../plan/in-progress/makeshop-integration.md) 를 가리킨다). 설계는 [Cafe24 노드](./4-cafe24.md) 와 동형이며, 본 문서는 메이크샵 고유 분기를 명시하고 공유 메커니즘은 Cafe24 노드·통합 화면 spec 을 참조한다. 구현 착수 시 `developer` 가 `/consistency-check --impl-prep` 부터 시작하고, backend 메타데이터 + `catalog-sync` 테스트를 함께 도입한다 ([MakeShop API Catalog `_overview.md`](../../conventions/makeshop-api-catalog/_overview.md) 는 현재 sync test 미보호).
+> **구현 상태 (status: spec-only)**: 본 노드는 아직 구현 전이다 (frontmatter `status: spec-only`, `pending_plans` 가 [plan `makeshop-integration.md`](../../../plan/in-progress/makeshop-integration.md) 를 가리킨다). 설계는 [Cafe24 노드](./4-cafe24.md) 와 동형이며, 본 문서는 메이크샵 고유 분기를 명시하고 공유 메커니즘은 Cafe24 노드·통합 화면 spec 을 참조한다. **Phase 0 완료**: backend 메타데이터 레이어 (161 REST op) + `catalog-sync.spec.ts` 양방향 동기 보호 도입 완료 ([MakeShop API Catalog `_overview.md`](../../conventions/makeshop-api-catalog/_overview.md)). 구현 착수(Phase 1+) 시 `developer` 가 `/consistency-check --impl-prep` 부터 시작한다.
 
 ## Overview (제품 정의)
 
@@ -46,7 +46,7 @@ pending_plans:
 - Fields: Operation 선택 시 메타데이터 입력 스키마로 동적 폼 렌더 (Required / Optional 분리, `ExpressionInput` 베이스). 호환 키 보존 규칙은 Cafe24 §2 동일.
 - **별도 승인 라벨 없음**: Cafe24 와 달리 MakeShop 은 per-scope/operation 의 별도 파트너 승인 티어가 없다 (심사 시 일괄 검토만). 따라서 ⚠ "별도 승인 필요" 라벨·`restrictedApproval` 메타데이터·`makeshop-restricted-scopes.md` 는 도입하지 않는다 (§9.5).
 - Pagination: operation 메타데이터에 `paginated: true` 가 있을 때만 표시.
-- Operation 후보: 구현 진행에 따른 supported/planned 표기 정책은 Cafe24 §2 동일. 단 현재 [MakeShop catalog](../../conventions/makeshop-api-catalog/_overview.md) 는 `status` 컬럼이 없는 순수 레퍼런스이므로, 구현 착수 시 catalog 에 `status` 컬럼을 도입한 뒤 적용한다 ([makeshop-api-metadata §5](../../conventions/makeshop-api-metadata.md#5-catalog-동기-구현-시)).
+- Operation 후보: 구현 진행에 따른 supported/planned 표기 정책은 Cafe24 §2 동일. **Phase 0 완료**: [MakeShop catalog](../../conventions/makeshop-api-catalog/_overview.md) 에 `status` 컬럼을 도입하고 backend 메타데이터와 `catalog-sync.spec.ts` 양방향 동기 보호를 적용했다 ([makeshop-api-metadata §5](../../conventions/makeshop-api-metadata.md#5-catalog-동기)).
 
 ## 3. 포트
 

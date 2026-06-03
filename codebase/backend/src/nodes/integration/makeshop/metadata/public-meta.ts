@@ -94,10 +94,11 @@ export function toPublicMakeshopOperation(
 }
 
 /**
- * Build the full `extras` payload for the makeshop node — called once per
- * `GET /nodes/definitions` request. Cheap (pure map over compile-time data).
+ * Full `extras` payload for the makeshop node — module-level constant so each
+ * `GET /nodes/definitions` request returns the same object without re-mapping
+ * 161 operations. Pure derivation from compile-time data; safe to hoist.
  */
-export function buildMakeshopExtras(): PublicMakeshopExtras {
+export const PUBLIC_MAKESHOP_EXTRAS: PublicMakeshopExtras = (() => {
   const operationsByResource = {} as Record<
     MakeshopResource,
     readonly PublicMakeshopOperation[]
@@ -112,4 +113,13 @@ export function buildMakeshopExtras(): PublicMakeshopExtras {
   }
 
   return { operationsByResource };
+})();
+
+/**
+ * Build the full `extras` payload for the makeshop node.
+ * Returns the module-level memoized constant — identical result on every call.
+ * Kept as a function for API parity with the Cafe24 counterpart.
+ */
+export function buildMakeshopExtras(): PublicMakeshopExtras {
+  return PUBLIC_MAKESHOP_EXTRAS;
 }

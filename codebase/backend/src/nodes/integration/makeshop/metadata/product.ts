@@ -1,3 +1,5 @@
+/** MakeShop Shop API — 상품 (Product) 섹션 (37 operations). SoT: spec/conventions/makeshop-api-catalog/product.md */
+
 import type { MakeshopOperationMetadata } from './types.js';
 
 export const productOperations: MakeshopOperationMetadata[] = [

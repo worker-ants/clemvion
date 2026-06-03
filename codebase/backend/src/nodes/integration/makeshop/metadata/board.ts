@@ -1,3 +1,5 @@
+/** MakeShop Shop API — 게시판 (Board) 섹션 (12 operations). SoT: spec/conventions/makeshop-api-catalog/board.md */
+
 import type { MakeshopOperationMetadata } from './types.js';
 
 export const boardOperations: MakeshopOperationMetadata[] = [

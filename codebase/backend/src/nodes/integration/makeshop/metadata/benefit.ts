@@ -1,3 +1,5 @@
+/** MakeShop Shop API — 혜택 (Benefit) 섹션 (15 operations). SoT: spec/conventions/makeshop-api-catalog/benefit.md */
+
 import type { MakeshopOperationMetadata } from './types.js';
 
 export const benefitOperations: MakeshopOperationMetadata[] = [
