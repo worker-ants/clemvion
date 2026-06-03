@@ -125,6 +125,47 @@ describe("ResultTimeline", () => {
     expect(screen.getByText("Got it.")).toBeDefined();
   });
 
+  // C-18 regression guard: structured envelope keeps `turnCount` in
+  // `output.result.*` and `maxTurns` in top-level `config.*` (handler never
+  // echoes `output.conversationConfig`). The denominator must be read from
+  // `config.maxTurns`, otherwise it falls back to 0 and "/M" is hidden.
+  it("reads Turn denominator from config.maxTurns in structured envelope", () => {
+    const results = [
+      makeResult({
+        nodeId: "n1",
+        nodeLabel: "Agent",
+        nodeType: "ai_agent",
+        nodeCategory: "ai",
+        status: "completed",
+        outputData: {
+          config: { mode: "multi_turn", maxTurns: 5 },
+          output: {
+            result: {
+              turnCount: 3,
+              endReason: "completed",
+              messages: [{ role: "user", content: "hi" }],
+            },
+          },
+          meta: { interactionType: "ai_conversation" },
+        },
+      }),
+    ];
+
+    const { container } = render(
+      <ResultTimeline
+        results={results}
+        selectedId="n1"
+        onSelect={vi.fn()}
+        conversationMessages={[]}
+        selectedConversationItemIndex={null}
+        onSelectConversationItem={vi.fn()}
+        isLiveConversation={false}
+      />,
+    );
+
+    expect(container.textContent).toContain("Turn 3/5");
+  });
+
   it("does not show conversation UI for non-conversation waiting nodes", () => {
     const results = [
       makeResult({

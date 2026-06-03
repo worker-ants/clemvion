@@ -13,8 +13,9 @@ import {
   type DemoFormState,
 } from "./demo-config";
 
-// 위젯이 실제 처리하는 wc:command 만 노출(use-widget onCommand). show/hide/updateProfile 는 위젯 SPA
-// 미구현(channel-web-chat-followups §4)이라 데모에서 일부러 제외.
+// 데모는 wc:command 중 open/close/sendMessage 만 버튼으로 노출한다. show/hide/updateProfile 은
+// 위젯 SPA(use-widget onCommand show/hide/updateProfile case)에 구현돼 있으나, 데모 시뮬레이션
+// 단순화를 위해 버튼을 두지 않는다 (실제 SDK 에서는 동작).
 type DemoCommand = "open" | "close" | "sendMessage";
 
 interface LogEntry {
@@ -268,7 +269,7 @@ export default function DemoHost() {
             </button>
           </Row>
           <p style={S.hint}>
-            <code>show</code>/<code>hide</code>/<code>updateProfile</code> 는 위젯 SPA 미구현이라 데모에서 제외.
+            <code>show</code>/<code>hide</code>/<code>updateProfile</code> 은 위젯 SPA 에 구현돼 있으나(실제 SDK 에서 동작), 데모에서는 단순화를 위해 버튼을 두지 않습니다.
           </p>
         </Section>
 
