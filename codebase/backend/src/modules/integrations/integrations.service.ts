@@ -159,25 +159,137 @@ export interface IntegrationMeta {
 }
 
 /**
- * Build the safe-to-expose meta hints. Currently only cafe24 emits anything
- * (`appType`) — extracted so FE can decide flow gating (e.g. Reauthorize
- * button visibility) without ever touching the encrypted credentials blob.
- * `credsUnreadable` lets the caller skip a duplicate
- * `isUnreadableCredentials` call when it already has the result.
+ * Service-specific derived fields exposed on the API response — `meta.appType`
+ * (this `IntegrationMeta`) plus the top-level `appUrl` (built in `toPublic`).
+ * C-6: these were cafe24-hardcoded; now each service registers its own
+ * derivation fn in {@link INTEGRATION_DERIVED_REGISTRY} keyed by `serviceType`.
+ */
+export interface IntegrationDerivedFields {
+  appType: IntegrationMeta['appType'];
+  /**
+   * Actionable install/App URL for the integration's detail page, or `null`.
+   * cafe24 Private 통합은 `${APP_URL}/api/3rd-party/cafe24/install/:installToken`.
+   * makeshop ShopStore 설치 URL 은 Phase 3 (install controller) 에서 채운다.
+   */
+  appUrl: string | null;
+}
+
+/**
+ * Context threaded into a service's derivation fn for fields that need
+ * request-time inputs not present on the entity itself (the configured app
+ * base URL, the install token, etc.). `buildIntegrationMeta` (appType-only,
+ * standalone) passes no context — only `toPublic` supplies it when it also
+ * needs `appUrl`.
+ */
+export interface IntegrationDerivedContext {
+  appBaseUrl: string;
+}
+
+/**
+ * Per-service derivation of {@link IntegrationDerivedFields}. Registered by
+ * `serviceType` so adding a provider no longer means editing a cafe24-shaped
+ * `if` chain. Each fn receives the entity (with already-decrypted credentials)
+ * and an optional context; it returns only the fields it owns — callers merge
+ * over a `{ appType: null, appUrl: null }` baseline. Implementations assume
+ * `credentials` is readable (the dispatcher short-circuits unreadable rows to
+ * the all-null baseline before calling).
+ *
+ * SoT: spec/2-navigation/4-integration.md §9.2 (C-6 derived-field 일반화),
+ * spec/4-nodes/4-integration/5-makeshop.md §9.8.
+ */
+/**
+ * The minimal entity shape a derivation fn reads. `installToken` is optional so
+ * the standalone `buildIntegrationMeta` (appType-only, no install URL) can pass
+ * a row projection without it.
+ */
+type DerivedEntityInput = Pick<Integration, 'serviceType' | 'credentials'> & {
+  installToken?: Integration['installToken'];
+};
+
+type IntegrationDerivedFn = (
+  entity: DerivedEntityInput,
+  ctx?: IntegrationDerivedContext,
+) => Partial<IntegrationDerivedFields>;
+
+const DERIVED_BASELINE: IntegrationDerivedFields = {
+  appType: null,
+  appUrl: null,
+};
+
+export const INTEGRATION_DERIVED_REGISTRY = new Map<
+  string,
+  IntegrationDerivedFn
+>([
+  // cafe24 — behavior-preserving: appType from credentials.app_type, appUrl
+  // for Private apps with an install_token (verbatim from the old hardcoded
+  // paths). spec/2-navigation/4-integration.md §4.2 + §9.1 + Rationale
+  // "Cafe24 App URL 상세 페이지 표시".
+  [
+    'cafe24',
+    (entity, ctx): Partial<IntegrationDerivedFields> => {
+      const appTypeRaw = entity.credentials?.app_type;
+      const appType =
+        appTypeRaw === 'public' || appTypeRaw === 'private' ? appTypeRaw : null;
+      let appUrl: string | null = null;
+      if (
+        appType === 'private' &&
+        ctx &&
+        typeof entity.installToken === 'string' &&
+        entity.installToken.length > 0
+      ) {
+        appUrl = buildCafe24InstallUrl(ctx.appBaseUrl, entity.installToken);
+      }
+      return { appType, appUrl };
+    },
+  ],
+  // makeshop — no app_type (confidential-client single form). appUrl is the
+  // ShopStore install App URL, built in Phase 3 once the install controller
+  // exists; null for now. autoRefresh / mall_id projection flow through the
+  // generic service-registry paths, not here.
+  [
+    'makeshop',
+    (): Partial<IntegrationDerivedFields> => ({
+      appType: null,
+      // TODO(Phase 3): makeshop ShopStore install App URL
+      // (`${APP_URL}/api/3rd-party/makeshop/install/...`) — install controller
+      // doesn't exist yet. spec/2-navigation/4-integration.md §5.9 설치(ShopStore).
+      appUrl: null,
+    }),
+  ],
+]);
+
+/**
+ * Compute the full set of service-specific derived fields for a row. Unreadable
+ * credentials short-circuit to the all-null baseline (no decrypt → no peek, and
+ * appUrl needs app_type which we cannot read). Services without a registry
+ * entry also get the baseline.
+ */
+export function buildDerivedFields(
+  entity: DerivedEntityInput,
+  ctx?: IntegrationDerivedContext,
+  credsUnreadable: boolean = isUnreadableCredentials(entity.credentials),
+): IntegrationDerivedFields {
+  if (credsUnreadable) return { ...DERIVED_BASELINE };
+  const fn = INTEGRATION_DERIVED_REGISTRY.get(entity.serviceType);
+  if (!fn) return { ...DERIVED_BASELINE };
+  return { ...DERIVED_BASELINE, ...fn(entity, ctx) };
+}
+
+/**
+ * Build the safe-to-expose meta hints (`appType`). Thin wrapper over
+ * {@link buildDerivedFields} that projects out just the `meta` slice — kept as
+ * a named export so existing callers/tests stay stable. `credsUnreadable` lets
+ * the caller skip a duplicate `isUnreadableCredentials` call.
  *
  * Pure helper (no class state) — directly unit-testable.
  */
 export function buildIntegrationMeta(
-  entity: Pick<Integration, 'serviceType' | 'credentials'>,
+  entity: DerivedEntityInput,
   credsUnreadable: boolean = isUnreadableCredentials(entity.credentials),
 ): IntegrationMeta {
-  if (entity.serviceType === 'cafe24' && !credsUnreadable) {
-    const appType = entity.credentials?.app_type;
-    if (appType === 'public' || appType === 'private') {
-      return { appType };
-    }
-  }
-  return { appType: null };
+  // appType needs no context — install URL is the only ctx-dependent field.
+  const { appType } = buildDerivedFields(entity, undefined, credsUnreadable);
+  return { appType };
 }
 
 export type PublicIntegration = Omit<
@@ -1124,7 +1236,16 @@ export class IntegrationsService {
   private toPublic(entity: Integration): PublicIntegration {
     const credsUnreadable = isUnreadableCredentials(entity.credentials);
     const lastErrorUnreadable = isUnreadableCredentials(entity.lastError);
-    const meta = buildIntegrationMeta(entity, credsUnreadable);
+    // C-6: service-specific derived fields (meta.appType + top-level appUrl)
+    // dispatched via INTEGRATION_DERIVED_REGISTRY keyed by serviceType, instead
+    // of the old cafe24-hardcoded branches. The install-URL needs the app base
+    // URL so it's threaded through the context.
+    const derived = buildDerivedFields(
+      entity,
+      { appBaseUrl: getAppBaseUrl() },
+      credsUnreadable,
+    );
+    const meta: IntegrationMeta = { appType: derived.appType };
     // `installToken` / `installTokenIssuedAt` 는 PublicIntegration 응답에서
     // 제외 — App URL path segment 안에 이미 포함되어 별도 필드 노출은 식별자
     // 분산을 유발한다. spec/2-navigation/4-integration.md Rationale "Cafe24
@@ -1136,7 +1257,7 @@ export class IntegrationsService {
     } = entity;
     void _installToken;
     void _installTokenIssuedAt;
-    const appUrl = this.buildCafe24AppUrl(entity, credsUnreadable);
+    const appUrl = derived.appUrl;
     // autoRefresh — derived from service registry, not a DB column. Computed
     // once per response. credsUnreadable 분기에서도 service 정의 기반이라
     // 일관된 값. spec/2-navigation/4-integration.md §9.1 + Rationale.
@@ -1171,29 +1292,6 @@ export class IntegrationsService {
       appUrl,
       autoRefresh,
     };
-  }
-
-  /**
-   * Cafe24 Private 통합의 App URL 을 계산. 그 외 service_type / app_type 은
-   * 항상 `null`. credentials 가 unreadable 이면 app_type 판별 불가이므로 `null`.
-   * spec/2-navigation/4-integration.md §4.2 + §9.1 + Rationale "Cafe24 App
-   * URL 상세 페이지 표시".
-   */
-  private buildCafe24AppUrl(
-    entity: Integration,
-    credsUnreadable: boolean,
-  ): string | null {
-    if (credsUnreadable) return null;
-    if (entity.serviceType !== 'cafe24') return null;
-    const appType = entity.credentials?.app_type;
-    if (appType !== 'private') return null;
-    if (
-      typeof entity.installToken !== 'string' ||
-      entity.installToken.length === 0
-    ) {
-      return null;
-    }
-    return buildCafe24InstallUrl(getAppBaseUrl(), entity.installToken);
   }
 
   private validateServiceAndAuth(serviceType: string, authType: string): void {
