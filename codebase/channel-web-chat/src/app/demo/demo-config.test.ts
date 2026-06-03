@@ -4,6 +4,7 @@ import {
   defaultDemoForm,
   isBootReady,
   isDemoEnabled,
+  normalizeApiBase,
   parseSuggestions,
   type DemoFormState,
 } from "./demo-config";
@@ -35,6 +36,29 @@ describe("isBootReady", () => {
   });
 });
 
+describe("normalizeApiBase", () => {
+  it("strips a trailing /api so EIA client doesn't build /api/api/hooks", () => {
+    expect(normalizeApiBase("http://localhost:3011/api")).toBe("http://localhost:3011");
+    expect(normalizeApiBase("  http://localhost:3011/api/  ")).toBe("http://localhost:3011");
+  });
+  it("leaves a bare origin untouched", () => {
+    expect(normalizeApiBase("http://localhost:3011")).toBe("http://localhost:3011");
+    expect(normalizeApiBase("https://eia.example.com/")).toBe("https://eia.example.com");
+  });
+  it("does not strip an 'api' hostname or non-trailing /api", () => {
+    expect(normalizeApiBase("https://api.example.com")).toBe("https://api.example.com");
+    expect(normalizeApiBase("https://h/api/v1")).toBe("https://h/api/v1");
+  });
+  it("handles empty / whitespace / slash-only input", () => {
+    expect(normalizeApiBase("")).toBe("");
+    expect(normalizeApiBase("   ")).toBe("");
+    expect(normalizeApiBase("/")).toBe("");
+  });
+  it("strips only one trailing /api segment (not repeated)", () => {
+    expect(normalizeApiBase("http://host/api/api")).toBe("http://host/api");
+  });
+});
+
 describe("buildBootConfig", () => {
   const form: DemoFormState = {
     ...defaultDemoForm,
@@ -50,9 +74,10 @@ describe("buildBootConfig", () => {
     disclaimer: " 주의 ",
   };
 
-  it("trims required fields and carries locale", () => {
+  it("trims/normalizes required fields and carries locale", () => {
     const cfg = buildBootConfig(form);
-    expect(cfg.apiBase).toBe("http://localhost:3011/api");
+    // apiBase 는 origin 으로 정규화 — 후행 `/api` 제거(EIA 클라이언트가 /api/hooks 덧붙임)
+    expect(cfg.apiBase).toBe("http://localhost:3011");
     expect(cfg.triggerEndpointPath).toBe("abc-123");
     expect(cfg.locale).toBe("en");
   });
@@ -77,6 +102,7 @@ describe("buildBootConfig", () => {
       launcherSuggestions: "",
       disclaimer: "",
     });
+    expect(cfg.apiBase).toBe("http://x"); // 후행 /api 정규화 적용 확인
     expect(cfg.headerTitle).toBeUndefined();
     expect(cfg.welcome).toBeUndefined();
     expect(cfg.launcher).toBeUndefined();

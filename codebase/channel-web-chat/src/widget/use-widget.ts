@@ -156,7 +156,16 @@ export function useWidget() {
       streamRef.current = client.openStream(
         session.endpoints,
         session.token,
-        { onEvent: handleEiaEvent },
+        {
+          onEvent: handleEiaEvent,
+          // SSE 연결 오류 가시화 — EventSource 는 자동 재연결하므로 흐름은 유지하되, CORS/네트워크 차단을
+          // 조용히 삼키지 않도록 console.warn 으로 진단 신호를 남긴다(특히 /api/external/* CORS 미허용 시).
+          onError: (e) =>
+            console.warn(
+              "[widget] SSE stream error — /api/external/* CORS(WEB_CHAT_WIDGET_ORIGINS)·네트워크 확인:",
+              e,
+            ),
+        },
         lastEventId,
       );
     },
