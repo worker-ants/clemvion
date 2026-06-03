@@ -106,7 +106,7 @@ STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS
 | ESCALATE | main 후속 |
 |---|---|
 | `no` | RESOLUTION 경로와 ITEMS·E2E 결과를 1-2문장으로 보고 + 종료 |
-| `spec` | `/consistency-check --spec <NEEDS_SPEC>` 실행 → BLOCK:NO 시 spec 반영 + commit, resolution-applier 재호출 (동일 session_dir). BLOCK:YES 시 사용자 escalate |
+| `spec` | spec 결함 **또는 SPEC-DRIFT(구현이 spec 을 의도적으로 개선해 spec 이 낡음)**. `/consistency-check --spec <NEEDS_SPEC>` 실행 → BLOCK:NO 시 spec 반영 + commit, resolution-applier 재호출 (동일 session_dir). BLOCK:YES 시 사용자 escalate. SPEC-DRIFT 는 코드를 되돌리지 않고 spec 만 갱신하는 정식 역류 경로다 |
 | `user-decision` / `infra` / `e2e-fail-3x` / `sensitive-fix` | `AskUserQuestion` 으로 사유·옵션 제시. 사용자 결정 후 resolution-applier 재호출 또는 부분 RESOLUTION 종료 |
 | `rate_limit` / `network` (STATUS 자체) | ScheduleWakeup 으로 재예약 — wake 시 resolution-applier 같은 session_dir 로 재호출 (idempotency 로 복구) |
 | `fatal` | RESOLUTION 부분 + 사유 사용자 보고 |

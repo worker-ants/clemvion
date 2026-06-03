@@ -49,7 +49,7 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
 - `--spec <path>` — spec draft (project-planner 의 `spec/` 쓰기 직전 의무).
 - `--plan <path>` — plan draft.
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
-- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). developer 의 REVIEW WORKFLOW 에서 권장 호출.
+- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **spec 연결 코드(어떤 spec 의 frontmatter `code:` glob 에 매칭) 변경 시 developer REVIEW WORKFLOW 의 의무 단계** — `BLOCK: NO` 산출물이 없으면 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 push·턴종료를 차단한다. (이전엔 "권장" 이었으나 종료 게이트로 승격: code-vs-spec 일치 검증의 비대칭 해소.)
 
 stdout 마지막 줄 = 세션 디렉토리.
 

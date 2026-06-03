@@ -34,7 +34,7 @@ STATUS=<success|rate_limit|network|fatal> ITEMS=<resolved>/<total> E2E=<pass|fai
 | ESCALATE | 조건 | main 의 후속 |
 |---|---|---|
 | `no` | 모든 항목 처리 + e2e 통과 + spec 변경 0건 | 사용자에게 1-2문장 보고 + 종료 |
-| `spec` | spec 관련 항목 있음 — draft 만 작성 후 main 으로 위임 | `/consistency-check --spec <NEEDS_SPEC>` → BLOCK:NO 시 spec 반영 + resolution-applier 재호출 (동일 session_dir) |
+| `spec` | spec 관련 항목 있음 (spec 결함 **또는 SPEC-DRIFT**) — draft 만 작성 후 main 으로 위임 | `/consistency-check --spec <NEEDS_SPEC>` → BLOCK:NO 시 spec 반영 + resolution-applier 재호출 (동일 session_dir) |
 | `user-decision` | SUMMARY 가 "사용자 결정 필요" 표기 | AskUserQuestion 으로 escalate |
 | `infra` | docker daemon 미동작, 디스크 부족 등 환경 차단 | AskUserQuestion + 환경 복구 안내 |
 | `e2e-fail-3x` | e2e 3회 연속 실패 | AskUserQuestion + 부분 RESOLUTION 표시 |
@@ -59,10 +59,13 @@ STATUS=<success|rate_limit|network|fatal> ITEMS=<resolved>/<total> E2E=<pass|fai
 ### 1. SUMMARY 읽기·분류
 
 1. `<session_dir>/SUMMARY.md` Read.
-2. Critical/Warning 항목 각각을 두 부류로 분류:
-   - **spec 관련**: 요구사항 ID / API 계약 / Rationale / convention 위반 / spec 문서 자체의 누락. `project-planner` 책임 영역.
-   - **코드 관련**: 구현 버그 / 테스트 누락 / 리팩토링 / 의존성 / 성능 / 보안 / DB / 동시성. `developer` 책임 영역.
+2. Critical/Warning 항목 각각을 세 부류로 분류:
+   - **SPEC-DRIFT** (발견사항/카테고리에 `[SPEC-DRIFT]` 또는 `SPEC-DRIFT` 표기): 구현이 spec 을 **의도적으로 개선·확장**해 spec 본문이 낡은 경우. 코드가 맞고 spec 이 따라와야 한다. → **§3 spec draft 경로로만 처리. 절대 코드를 되돌리지 않는다** (코드 fix·revert 금지). draft 는 `plan/in-progress/spec-update-<area>.md`, `ESCALATE=spec`.
+   - **spec 관련 (spec 결함)**: 요구사항 ID / API 계약 / Rationale / convention 위반 / spec 문서 자체의 누락·모순. spec 이 권위지만 spec 자체에 손볼 곳이 있음. `project-planner` 책임 영역 → §3 spec draft (`plan/in-progress/spec-fix-<area>.md`), `ESCALATE=spec`.
+   - **코드 관련**: 구현 버그 / 테스트 누락 / 리팩토링 / 의존성 / 성능 / 보안 / DB / 동시성 — spec 이 옳고 코드가 틀림 포함. `developer` 책임 영역 → §2 코드 fix.
 3. INFO 항목은 RESOLUTION 의 `## 보류·후속 항목` 추적용으로만 기록 — 자동 수정 대상 아님.
+
+> **방향 판별이 핵심**: "코드 vs spec 불일치" 를 만나면 기본값으로 코드를 고치지 말 것. requirement-reviewer 가 `[SPEC-DRIFT]` 로 태깅했거나 SUMMARY 가 "코드가 의도적 개선" 임을 시사하면 SPEC-DRIFT 로 분류해 spec 을 갱신한다. 모호하면 코드 fix 가 아니라 spec draft + ESCALATE=spec 로 사람 판단에 맡긴다 (잘못된 자동 revert 가 의도적 개선을 지우는 사고 방지).
 
 ### 2. 코드 관련 항목 처리
 
@@ -88,23 +91,31 @@ STATUS=<success|rate_limit|network|fatal> ITEMS=<resolved>/<total> E2E=<pass|fai
 
 spec 항목이 있으면:
 
-1. 각 spec 항목에 대해 draft 작성 — `plan/in-progress/spec-fix-<area>.md` 에 다음 구조로:
+1. 각 spec 항목에 대해 draft 작성. 파일명은 분류에 따른다:
+   - **SPEC-DRIFT** (구현 개선을 spec 이 따라가야 함): `plan/in-progress/spec-update-<area>.md` — developer/PROJECT.md 의 spec 갱신 제안 컨벤션과 일치.
+   - **spec 결함** (spec 자체 누락·모순): `plan/in-progress/spec-fix-<area>.md`.
+
+   구조:
    ```markdown
    ---
    worktree: <현재 worktree>
    started: <ISO 날짜>
    owner: resolution-applier
    ---
-   # Spec Fix Draft — <area>
-   
+   # Spec Update/Fix Draft — <area>
+
+   ## 분류
+   SPEC-DRIFT (코드 개선을 spec 에 반영) | spec 결함 (spec 자체 수정)
+
    ## 원본 발견사항
    SUMMARY#<n>: <발견 내용 그대로 인용>
-   
+
    ## 제안 변경
-   (구체적인 spec 본문/Rationale 변경안)
+   (구체적인 spec 본문/Rationale 변경안. SPEC-DRIFT 면 코드가 이미 구현한 동작/flow 를 어느 문서·§·표 행에 어떻게 반영할지 — before/after.)
    ```
 2. 모든 spec 항목 draft 작성 후 STATUS line 의 `ESCALATE=spec NEEDS_SPEC=<첫 draft 경로>` 로 반환. 여러 draft 가 있으면 RESOLUTION.md 의 `## 보류·후속 항목` 에 전체 목록 기록.
 3. **spec 항목과 코드 항목이 섞여 있는 경우**: 코드 항목은 먼저 완료, e2e 까지 실행. 그 다음 spec draft 만 남기고 `ESCALATE=spec` 반환. main 은 spec 처리 후 resolution-applier 재호출 → idempotency 로 코드는 skip, 남은 spec 만 마무리.
+4. **SPEC-DRIFT 는 코드 무수정**: SPEC-DRIFT 항목에 대해서는 §2 코드 fix 를 수행하지 않는다 — draft 작성만. 코드를 spec 에 맞춰 되돌리는 것은 의도적 개선을 지우는 사고이므로 금지.
 
 ### 4. e2e 실행 (코드 변경이 있을 때만)
 
@@ -222,3 +233,4 @@ main ctx 엔 안 들어오지만 사용자가 디버그 시 Read 가능. commit 
 5. **`--amend` 금지**: 항상 새 commit. pre-commit hook 실패 시 `--no-verify` 우회 금지.
 6. **본문 응답 금지**: STATUS 한 줄만. 진행 로그가 필요하면 `_resolution_log.md` 에 디스크 기록.
 7. **idempotency 보장**: 같은 session_dir 로 재호출되어도 같은 결과. 디스크 상태(_resolution_state.json + git log + RESOLUTION.md) 우선.
+8. **SPEC-DRIFT 코드 revert 금지**: `[SPEC-DRIFT]` 항목 — 즉 구현이 spec 을 의도적으로 개선한 경우 — 은 코드를 spec 에 맞춰 되돌리지 않는다. spec draft (`spec-update-<area>.md`) 작성 + `ESCALATE=spec` 로만 처리. 의도적 개선을 자동 revert 로 지우는 것이 가장 위험한 오답이다.
