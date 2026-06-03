@@ -1,6 +1,6 @@
 # PRD: 워크플로우 에디터
 
-> 관련 문서: [제품 개요](../0-overview.md) · [노드 시스템](../4-nodes/_product-overview.md) · [AI 플랫폼](../4-nodes/3-ai/_product-overview.md) · [Spec 캔버스](./0-canvas.md) · [Spec 실행/디버깅](./3-execution.md) · [Spec AI Assistant](./4-ai-assistant.md)
+> 관련 문서: [제품 개요](../0-overview.md) · [노드 시스템](../4-nodes/_product-overview.md) · [AI 플랫폼](../4-nodes/3-ai/_product-overview.md) · [Spec 캔버스](./0-canvas.md) · [Spec 실행/디버깅](./3-execution.md) · [Spec AI Assistant](./4-ai-assistant.md) · [Spec 버전 이력](./5-version-history.md)
 
 ---
 
