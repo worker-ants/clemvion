@@ -40,7 +40,7 @@ export class QueueStatusDto {
   @ApiProperty({
     example: 0,
     description:
-      '최근 윈도우(failedWindowMinutes) 내 finishedOn 기준 실패 job 수. 스캔 캡 도달 시 하한값',
+      '최근 윈도우(failedWindowMinutes) 내 finishedOn 기준 실패 job 수. 보관 집합의 부분집합이므로 recentFailed <= counts.failed. 스캔 캡 도달 시 하한값',
   })
   recentFailed: number;
 

@@ -35,7 +35,11 @@ const ZERO_COUNTS: QueueCountsDto = {
   paused: 0,
 };
 
-/** getFailed 역순 스캔의 페이지 크기 (큐당 Redis round-trip 단위). */
+/**
+ * getFailed 역순 스캔의 페이지 크기 (큐당 Redis round-trip 단위).
+ * 100 은 RTT 횟수와 페이지당 전송량의 절충값 — env 로 노출하지 않는다(운영 튜닝 대상이
+ * 아니며, 실효 비용 상한은 SYSTEM_STATUS_FAILED_SCAN_CAP 로 조정).
+ */
 const FAILED_SCAN_PAGE = 100;
 
 /**
@@ -52,8 +56,10 @@ export class SystemStatusService {
   ) {}
 
   async getOverview(): Promise<SystemStatusOverviewDto> {
+    // 단일 now 로 cutoff 와 generatedAt 을 일관되게 파생한다.
+    const now = Date.now();
     const failedWindowMinutes = getFailedWindowMinutes();
-    const cutoffMs = Date.now() - failedWindowMinutes * 60_000;
+    const cutoffMs = now - failedWindowMinutes * 60_000;
     const scanCap = getFailedScanCap();
 
     const queues = await Promise.all(
@@ -72,7 +78,7 @@ export class SystemStatusService {
     );
 
     return {
-      generatedAt: new Date().toISOString(),
+      generatedAt: new Date(now).toISOString(),
       overall,
       totalFailed,
       totalRecentFailed,
@@ -92,7 +98,7 @@ export class SystemStatusService {
   ): Promise<QueueStatusDto> {
     const { meta } = handle;
     try {
-      const [raw, isPaused, recentFailed] = await Promise.all([
+      const [raw, isPaused] = await Promise.all([
         handle.queue.getJobCounts(
           'waiting',
           'active',
@@ -101,7 +107,6 @@ export class SystemStatusService {
           'paused',
         ),
         handle.queue.isPaused(),
-        this.computeRecentFailed(handle.queue, cutoffMs, scanCap),
       ]);
       const counts: QueueCountsDto = {
         waiting: raw.waiting ?? 0,
@@ -110,6 +115,13 @@ export class SystemStatusService {
         failed: raw.failed ?? 0,
         paused: raw.paused ?? 0,
       };
+
+      // recentFailed 는 보관 집합(failed)의 부분집합이므로 failed===0 이면 0 이다.
+      // 정상 상태(대다수 큐)에서 getFailed() 스캔을 건너뛰어 Redis 비용을 제거한다.
+      const recentFailed =
+        counts.failed > 0
+          ? await this.computeRecentFailed(handle.queue, cutoffMs, scanCap)
+          : 0;
 
       return {
         name: meta.name,
@@ -145,7 +157,8 @@ export class SystemStatusService {
    * BullMQ `getFailed()` 는 newest→oldest 로 반환한다. 페이지 단위로 역순 스캔하다
    * `finishedOn` 이 윈도우를 벗어나는 첫 job 에서 중단한다(이후는 모두 더 오래됨).
    * 큐당 `scanCap` job 까지만 스캔하며, 캡에 도달하면 반환값은 **하한값**이다.
-   * `finishedOn` 이 없는(이론상) job 은 enqueue `timestamp` 로 대체한다.
+   * `finishedOn` 이 없는(이론상) job 은 enqueue `timestamp` 로 대체하고, 둘 다 없으면
+   * 판정 불가로 보아 집계에서 제외한다(카운트하지 않음).
    */
   private async computeRecentFailed(
     queue: QueueHandle['queue'],
@@ -169,7 +182,9 @@ export class SystemStatusService {
         if (ts >= cutoffMs) {
           recent++;
         } else {
-          crossedWindow = true; // newest→oldest 라 이후는 전부 더 오래됨
+          // newest→oldest 라 윈도우를 벗어난 job 을 만나면 이후는 전부 더 오래됨.
+          // 이 job 도 scanned 에 포함된 채(위 scanned++) 스캔을 종료한다.
+          crossedWindow = true;
           break;
         }
       }

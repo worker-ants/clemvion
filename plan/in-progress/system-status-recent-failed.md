@@ -66,7 +66,7 @@ owner: planner → developer
 ### Phase 5 — 품질 검증
 - [x] lint PASS / unit PASS (backend 290 suites·5554 + frontend 가드 포함 전부 green) / build PASS.
 - [x] e2e PASS (143 통과 — system-status.e2e-spec.ts 에 recentFailed/totalRecentFailed/failedWindowMinutes 단언 추가).
-- [ ] `/ai-review` 의무 수행 + Critical/Warning fix.
+- [x] `/ai-review` 수행 (RISK=LOW, CRITICAL=0, WARNING=1) + WARNING·고가치 INFO fix (RESOLUTION.md). security(NONE)·side_effect(LOW) 재실행 포함. fix 후 lint·unit·build·e2e 전부 재통과.
 
 ## Rationale
 

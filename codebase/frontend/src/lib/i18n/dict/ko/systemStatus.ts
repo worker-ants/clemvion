@@ -8,7 +8,6 @@ export const systemStatus = {
     degraded: "일부 지연",
     down: "점검 필요",
   },
-  totalFailed: "실패 작업 합계",
   totalRecentFailed: "최근 {{minutes}}분 실패",
   totalRetainedFailed: "누적 보관",
   groups: {
@@ -21,7 +20,6 @@ export const systemStatus = {
     waiting: "대기",
     active: "처리 중",
     delayed: "지연",
-    failed: "실패",
     recentFailed: "실패(최근)",
     retainedFailed: "누적 보관",
   },

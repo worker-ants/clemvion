@@ -1,5 +1,9 @@
 import { SystemStatusService, QueueHandle } from './system-status.service';
-import { MonitoredQueue } from './system-status.constants';
+import {
+  MonitoredQueue,
+  getFailedWindowMinutes,
+  getFailedScanCap,
+} from './system-status.constants';
 
 type Counts = {
   waiting: number;
@@ -237,6 +241,100 @@ describe('SystemStatusService.getOverview', () => {
     }
   });
 
+  it('경계: 캡 == 실제 job 수 — scanned>=cap 분기로 정확히 종료(중복 카운트 없음)', async () => {
+    const prev = process.env.SYSTEM_STATUS_FAILED_SCAN_CAP;
+    process.env.SYSTEM_STATUS_FAILED_SCAN_CAP = '2';
+    try {
+      const handles = [
+        // 캡(2) == 페이지 슬라이스 == 실제 job 수(2): jobs.length<limit 분기가 아니라
+        // scanned>=scanCap 분기로 종료되어야 하며 정확히 2 를 반환한다.
+        makeHandle(
+          'a',
+          'execution',
+          2,
+          { active: 1, failed: 2 },
+          {
+            failedJobs: recentJobs(2),
+          },
+        ),
+      ];
+      const service = new SystemStatusService(handles);
+
+      const res = await service.getOverview();
+
+      expect(res.queues[0].recentFailed).toBe(2);
+    } finally {
+      if (prev === undefined) delete process.env.SYSTEM_STATUS_FAILED_SCAN_CAP;
+      else process.env.SYSTEM_STATUS_FAILED_SCAN_CAP = prev;
+    }
+  });
+
+  it('failed===0 이면 getFailed 스캔을 건너뛴다 (정상 상태 비용 제거)', async () => {
+    const getFailed = jest.fn();
+    const handle: QueueHandle = {
+      meta: { name: 'a', group: 'execution', concurrency: 1 },
+      queue: {
+        getJobCounts: jest.fn(async () => ({
+          waiting: 0,
+          active: 1,
+          delayed: 0,
+          failed: 0,
+          paused: 0,
+        })),
+        isPaused: jest.fn(async () => false),
+        getFailed,
+      },
+    };
+    const service = new SystemStatusService([handle]);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].recentFailed).toBe(0);
+    expect(getFailed).not.toHaveBeenCalled();
+  });
+
+  it('finishedOn 없으면 timestamp 로 대체, 둘 다 없으면 집계 제외', async () => {
+    const handles = [
+      makeHandle(
+        'a',
+        'execution',
+        2,
+        { active: 1, failed: 3 },
+        {
+          failedJobs: [
+            { timestamp: Date.now() }, // finishedOn 없음 → timestamp(최근) 대체 → 카운트
+            { timestamp: Date.now() - 2 * HOUR }, // timestamp(오래됨) → 미카운트 + 스캔 중단
+          ],
+        },
+      ),
+    ];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].recentFailed).toBe(1);
+  });
+
+  it('finishedOn·timestamp 둘 다 없는 job 은 건너뛰고 다음 job 계속 스캔', async () => {
+    const handles = [
+      makeHandle(
+        'a',
+        'execution',
+        2,
+        { active: 1, failed: 2 },
+        {
+          // 첫 job 은 판정 불가(건너뜀, 스캔 중단 아님) → 다음 최근 job 은 카운트
+          failedJobs: [{}, { finishedOn: Date.now() }],
+        },
+      ),
+    ];
+    const service = new SystemStatusService(handles);
+
+    const res = await service.getOverview();
+
+    expect(res.queues[0].recentFailed).toBe(1);
+  });
+
   it('윈도우 길이 env 조정 — SYSTEM_STATUS_FAILED_WINDOW_MINUTES 반영', async () => {
     const prev = process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES;
     process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES = '10';
@@ -372,5 +470,33 @@ describe('SystemStatusService.getOverview', () => {
     const res = await service.getOverview();
 
     expect(res.queues[0].utilization).toBe(1);
+  });
+});
+
+describe('failed window/scan-cap getter 가드', () => {
+  it.each([
+    ['SYSTEM_STATUS_FAILED_WINDOW_MINUTES', getFailedWindowMinutes, 60],
+    ['SYSTEM_STATUS_FAILED_SCAN_CAP', getFailedScanCap, 1000],
+  ])('%s: 빈/NaN/0 은 기본값, 음수는 1 로 클램프', (env, getter, dflt) => {
+    const prev = process.env[env];
+    try {
+      delete process.env[env];
+      expect(getter()).toBe(dflt); // 미설정 → 기본값
+
+      process.env[env] = 'abc';
+      expect(getter()).toBe(dflt); // NaN → 기본값
+
+      process.env[env] = '0';
+      expect(getter()).toBe(dflt); // 0 은 falsy → 기본값 (0 분/0 스캔은 무의미)
+
+      process.env[env] = '-5';
+      expect(getter()).toBe(1); // 음수 → Math.max 클램프 1
+
+      process.env[env] = '30';
+      expect(getter()).toBe(30); // 정상값 반영
+    } finally {
+      if (prev === undefined) delete process.env[env];
+      else process.env[env] = prev;
+    }
   });
 });

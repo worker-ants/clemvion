@@ -85,7 +85,11 @@ export function getDelayedDegradedThreshold(): number {
  * env `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`, 기본 60. spec §2·§3 / R-5.
  */
 export function getFailedWindowMinutes(): number {
-  return Number(process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES) || 60;
+  // Math.max(1, …): 음수·0 입력 시 cutoff 가 미래가 되는 것을 방지(최소 1분).
+  return Math.max(
+    1,
+    Number(process.env.SYSTEM_STATUS_FAILED_WINDOW_MINUTES) || 60,
+  );
 }
 
 /**
@@ -94,7 +98,8 @@ export function getFailedWindowMinutes(): number {
  * 상수 비용을 포기하는 대신 비용 상한을 보장한다 (spec R-5).
  */
 export function getFailedScanCap(): number {
-  return Number(process.env.SYSTEM_STATUS_FAILED_SCAN_CAP) || 1000;
+  // Math.max(1, …): 음수·0 입력 시 스캔이 0 회가 되어 recentFailed 가 항상 0 이 되는 것을 방지(최소 1).
+  return Math.max(1, Number(process.env.SYSTEM_STATUS_FAILED_SCAN_CAP) || 1000);
 }
 
 /** @deprecated 테스트 또는 모듈 로드 순서에 영향을 받지 않도록 getter 를 사용하세요. */

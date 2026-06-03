@@ -62,7 +62,7 @@ code: [
 3. **최근 실패·지연 임계 초과** (최근 윈도우 실패 수 ≥ 임계값 또는 `delayed ≥ 50`) → 🟡 일부 지연
 4. 그 외 → 🟢 정상
 
-> 임계값은 환경변수(`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`)로 조정 가능해요. 3번 판정의 실패 기준은 **최근 윈도우 실패 수**예요 — 보관 중 누적 실패만으로는 더 이상 🟡로 판정되지 않아요. 최근 실패가 사라지면 자동으로 🟢 정상으로 복귀해요. 최근 윈도우 길이는 `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`(기본 60분)로 조정할 수 있어요. 2번 판정은 단일 스냅샷 기반 휴리스틱이라 잠깐 idle 한 순간에 오탐이 발생할 수 있어요.
+> 임계값은 환경변수(`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`)로 조정 가능해요. 3번 판정의 실패 기준은 **최근 윈도우 실패 수**예요 — 보관 중 누적 실패만으로는 더 이상 🟡로 판정되지 않아요. 최근 실패가 사라지면 자동으로 🟢 정상으로 복귀해요. 최근 윈도우 길이는 `SYSTEM_STATUS_FAILED_WINDOW_MINUTES`(기본 60분)로 조정할 수 있어요. 한 큐에 실패가 아주 많이 쌓인 경우 스캔 상한(`SYSTEM_STATUS_FAILED_SCAN_CAP`, 기본 1000건)까지만 세므로 "최근 실패" 수치가 실제보다 낮은 하한값일 수 있어요. 2번 판정은 단일 스냅샷 기반 휴리스틱이라 잠깐 idle 한 순간에 오탐이 발생할 수 있어요.
 
 ## 이 페이지에서 볼 수 없는 것
 

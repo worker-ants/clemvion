@@ -60,7 +60,7 @@ Queue health is determined in the following priority order (heuristic, based on 
 3. **Recent failures or delays above threshold** (recent-window failure count ≥ threshold, or `delayed ≥ 50`) → 🟡 Degraded
 4. Otherwise → 🟢 Healthy
 
-> Thresholds are configurable via environment variables (`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`). Note that `SYSTEM_STATUS_FAILED_THRESHOLD` now compares against **recent-window failures** — retained historical failures alone no longer trigger a degraded state. Once recent failures clear, the queue automatically returns to healthy. The window length is controlled by `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` (default 60 minutes). Rule 2 is a single-snapshot heuristic and may produce false positives when a low-concurrency queue is momentarily idle.
+> Thresholds are configurable via environment variables (`SYSTEM_STATUS_FAILED_THRESHOLD`, `SYSTEM_STATUS_DELAYED_THRESHOLD`). Note that `SYSTEM_STATUS_FAILED_THRESHOLD` now compares against **recent-window failures** — retained historical failures alone no longer trigger a degraded state. Once recent failures clear, the queue automatically returns to healthy. The window length is controlled by `SYSTEM_STATUS_FAILED_WINDOW_MINUTES` (default 60 minutes). If a queue has a very large number of failures, only up to a scan cap (`SYSTEM_STATUS_FAILED_SCAN_CAP`, default 1000) are counted, so the "recent failures" figure may be a lower bound. Rule 2 is a single-snapshot heuristic and may produce false positives when a low-concurrency queue is momentarily idle.
 
 ## What this page does not show
 

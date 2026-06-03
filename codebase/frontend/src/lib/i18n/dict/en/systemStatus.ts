@@ -10,7 +10,6 @@ export const systemStatus: Dict["systemStatus"] = {
     degraded: "Partial delays",
     down: "Attention needed",
   },
-  totalFailed: "Total failed jobs",
   totalRecentFailed: "Failed in last {{minutes}}m",
   totalRetainedFailed: "Retained",
   groups: {
@@ -23,7 +22,6 @@ export const systemStatus: Dict["systemStatus"] = {
     waiting: "Waiting",
     active: "Active",
     delayed: "Delayed",
-    failed: "Failed",
     recentFailed: "Failed (recent)",
     retainedFailed: "Retained",
   },
