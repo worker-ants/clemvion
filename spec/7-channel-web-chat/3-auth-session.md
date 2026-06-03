@@ -8,6 +8,7 @@ code:
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
+  - plan/in-progress/channel-web-chat-demo.md
 ---
 
 # Spec: Channel Web Chat — 인증 / 세션 흐름
@@ -45,8 +46,21 @@ pending_plans:
 7. (만료 30분 이내 & 대화 alive) → POST .../:id/refresh-token → 토큰 갱신
 8. 종료/ completed → SSE 종료, 토큰 invalidate, [ended]
 ```
-- 새로고침 지속: `executionId`+단명 토큰을 iframe-origin storage 저장 → 재로드 시 `GET /:id`+SSE 재연결로 복원
-  ([1-widget-app §3.1](./1-widget-app.md)). 사용자 식별은 v1 익명.
+- 새로고침 지속: `executionId`+단명 토큰을 iframe-origin storage 에 저장해 재로드 시 복원한다. **상세 절차는 §3.1**.
+  사용자 식별은 v1 익명.
+
+### 3.1 재로드 복원 시퀀스 (per_execution)
+
+1. iframe-origin storage 에서 `{executionId, token, expiresAt, endpoints}` 조회 — 없으면 신규(collapsed).
+2. `GET /api/external/executions/:id` 로 상태 확인:
+   - `200`(진행 중) → SSE 재연결(`Last-Event-Id` 절차 = [1-widget-app §3.1](./1-widget-app.md)) → 복원.
+   - `410 Gone`(종료/만료) → storage 정리 후 `[ended]`.
+   - `401` → **만료 vs blacklist 구분 불가**: per_execution 토큰은 execution 종료 시 즉시 **jti blacklist**
+     ([EIA §8.3](../5-system/14-external-interaction-api.md), EIA-AU-04)되므로, 재로드 `401` 은 (a) 단순 만료(refresh
+     가능) 또는 (b) 종료 후 blacklist(복구 불가) 둘 다 가능하다. 위젯은 **낙관적으로 `POST .../refresh-token` 1회**
+     시도 → 성공 시 SSE 재연결로 복원, 재차 `401`/`410` 이면 종료로 간주.
+3. **storage 정리 책임**: 종료(`completed`/`failed`/`cancelled`) 수신 시, 그리고 위 복원에서 `410`/복구불가 `401`
+   확인 시 위젯이 즉시 storage 항목을 제거한다(stale 토큰 잔존 금지).
 
 ## Rationale
 
@@ -58,3 +72,9 @@ pending_plans:
 리로드 간 연속성은 토큰 재사용이 아니라 `executionId`+단명 토큰 클라이언트 저장·복원으로 해결(노출 면을 늘리지 않음).
 EIA §R4 의 "default per_execution(안전)" 원칙과 정합 — per_trigger 는 EIA 가 "사용자가 변환층을 직접 구현하는 advanced
 봇" 한정으로 두는데, 공개 브라우저 위젯은 그 조건이 아니므로 노출하지 않는 것이 EIA 의도와 일치한다.
+
+### R4. 재로드 `401` — 낙관적 refresh 1회 후 종료
+재로드 시점에 위젯은 `401` 의 원인(단순 만료 vs 종료 후 jti blacklist, EIA §8.3)을 **사전 판별할 수 없다**. 따라서
+**낙관적으로 `refresh-token` 1회** 시도해 만료면 복구하고, 재차 실패(`401`/`410`)면 종료로 확정한다 — 항상 종료로 보면
+정당한 만료 세션을 잃고, 항상 refresh 만 믿으면 blacklist 세션을 못 끊는다. 1회 시도는 EIA-AU-04(종료 시 invalidate)
+invariant 안에서 안전하며 추가 왕복 1회로 양 케이스를 모두 올바르게 수렴시킨다.

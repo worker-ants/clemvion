@@ -4,7 +4,7 @@
   "private": true,
   "description": "임베드형 웹채팅 위젯 SPA (Next.js CSR 전용, output:export). spec/7-channel-web-chat.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "source .env 2>/dev/null; next dev --port ${PORT:-3013}",
     "build": "next build",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",

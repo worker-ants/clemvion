@@ -34,6 +34,7 @@ code:
 - `spec/3-workflow-editor/**.md`
 - `spec/4-nodes/**.md`
 - `spec/5-system/**.md`
+- `spec/7-channel-web-chat/**.md`
 - `spec/conventions/**.md`
 
 **제외**:
