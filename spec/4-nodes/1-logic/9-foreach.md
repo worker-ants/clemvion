@@ -1,12 +1,10 @@
 ---
 id: foreach
-status: partial
+status: implemented
 code:
   - codebase/backend/src/nodes/logic/foreach/foreach.*.ts
   - codebase/backend/src/modules/execution-engine/containers/foreach-executor.ts
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
-pending_plans:
-  - plan/in-progress/spec-sync-foreach-gaps.md
 ---
 
 # Spec: ForEach
@@ -67,8 +65,10 @@ pending_plans:
 
 - `$item`: 현재 배열 항목 (raw — 입력 배열 원소 그대로)
 - `$itemIndex`: 현재 인덱스 (0부터)
+- `$itemIsFirst`: 첫 항목 여부 (boolean)
+- `$itemIsLast`: 마지막 항목 여부 (boolean)
 
-> 표현식 컨텍스트에 노출되는 항목 변수는 위 두 개뿐이다 (`expression-resolver.service.ts`: `$item`, `$itemIndex`). 엔진 내부 `itemContext` 는 `isFirst`/`isLast` 플래그도 보유하지만(`foreach-executor.ts`), 이는 컨테이너 실행 제어용 내부 상태이며 expression 으로 노출되지 않는다. `$item.isFirst` / `$item.isLast` 같은 first/last 플래그를 body 표현식에서 직접 읽는 surface 는 **미구현 (Planned)** 이다 — 현재는 `$itemIndex === 0` 등으로 직접 판별해야 한다.
+> first/last 플래그는 **top-level 변수** `$itemIsFirst` / `$itemIsLast` 로 노출된다 (`expression-resolver.service.ts` 가 `itemContext.isFirst`/`isLast` 를 그대로 전달). `$item` 은 raw 값(string/number 가능)이라 `$item.isFirst` 형태의 속성 부착은 불가하므로 별도 top-level 변수로 둔다.
 
 ## 4. 실행 로직
 

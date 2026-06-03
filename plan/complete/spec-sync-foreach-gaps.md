@@ -10,7 +10,7 @@ owner: planner
 > 관련 spec: spec/4-nodes/1-logic/9-foreach.md
 
 ## 미구현 항목
-- [ ] body 표현식에서 `$item.isFirst` / `$item.isLast` 첫·마지막 항목 플래그 노출. 현재 엔진 내부 `itemContext` 는 `isFirst`/`isLast` 를 보유하지만(`foreach-executor.ts:78-83`) `expression-resolver.service.ts` 는 `$item`(raw)/`$itemIndex` 만 노출 → body 표현식에서 first/last 직접 판별 불가. (현재 workaround: `$itemIndex === 0`)
+- [x] body 표현식에서 `$item.isFirst` / `$item.isLast` 첫·마지막 항목 플래그 노출. 현재 엔진 내부 `itemContext` 는 `isFirst`/`isLast` 를 보유하지만(`foreach-executor.ts:78-83`) `expression-resolver.service.ts` 는 `$item`(raw)/`$itemIndex` 만 노출 → body 표현식에서 first/last 직접 판별 불가. (현재 workaround: `$itemIndex === 0`)
 
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/4-nodes/4-nodes__1-logic__9-foreach.md 참조.

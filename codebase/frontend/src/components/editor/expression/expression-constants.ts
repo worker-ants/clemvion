@@ -33,6 +33,8 @@ export const ROOT_VARIABLES: RootVariable[] = [
   { label: "$loop", insertText: "$loop", type: "variable", detail: "Loop context", isExpandable: true, scopeKey: "hasLoop" },
   { label: "$item", insertText: "$item", type: "variable", detail: "ForEach current item", isExpandable: true, scopeKey: "hasItem" },
   { label: "$itemIndex", insertText: "$itemIndex", type: "variable", detail: "ForEach index", scopeKey: "hasItem" },
+  { label: "$itemIsFirst", insertText: "$itemIsFirst", type: "variable", detail: "ForEach first-item flag", scopeKey: "hasItem" },
+  { label: "$itemIsLast", insertText: "$itemIsLast", type: "variable", detail: "ForEach last-item flag", scopeKey: "hasItem" },
   { label: "$trigger", insertText: "$trigger", type: "variable", detail: "Trigger data", isExpandable: true },
   { label: "$env", insertText: "$env", type: "variable", detail: "Environment variables", isExpandable: true },
 ];

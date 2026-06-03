@@ -33,6 +33,8 @@ export interface ExpressionContext {
   };
   $item?: unknown;
   $itemIndex?: number;
+  $itemIsFirst?: boolean;
+  $itemIsLast?: boolean;
   $trigger?: Record<string, unknown>;
   $dataSource?: unknown[];
   $sourceItem?: unknown;
