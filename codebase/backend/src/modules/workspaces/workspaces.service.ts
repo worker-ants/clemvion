@@ -296,7 +296,11 @@ export class WorkspacesService {
         message: '워크스페이스를 찾을 수 없습니다.',
       });
     }
-    const normalized = dto.interactionAllowedOrigins.map((o) =>
+    // personal 워크스페이스도 허용한다 — delete/leave/transfer 와 달리, 공개 웹챗 트리거(임베드)는
+    // personal 워크스페이스에도 존재할 수 있어 interactionAllowedOrigins 편집이 정당하다(owner=admin-tier).
+    // 동시 편집은 last-write-wins(전체 목록 교체 의미라 허용 가능). 향후 settings 다중 키 동시 쓰기가
+    // 생기면 jsonb `||` 원자 머지 전환 고려(현재 origins 만 편집 가능하므로 키 간 lost-update 없음).
+    const normalized = (dto.interactionAllowedOrigins ?? []).map((o) =>
       o.replace(/\/$/, ''),
     );
     workspace.settings = {
@@ -333,7 +337,7 @@ export class WorkspacesService {
     const origins = workspace.settings?.interactionAllowedOrigins;
     return {
       interactionAllowedOrigins: Array.isArray(origins)
-        ? (origins as string[])
+        ? origins.filter((o): o is string => typeof o === 'string')
         : [],
     };
   }

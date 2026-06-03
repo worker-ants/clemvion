@@ -50,6 +50,7 @@ import {
   WorkspaceInvitationDto,
   WorkspaceListItemDto,
   WorkspaceMemberDto,
+  WorkspaceSettingsDto,
 } from './dto/responses/workspace-response.dto';
 import { CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
@@ -177,7 +178,9 @@ export class WorkspacesController {
       '워크스페이스 설정을 조회합니다. 현재는 외부 상호작용 허용 origin 목록(interactionAllowedOrigins)만 반환합니다. 모든 멤버가 조회 가능(편집은 Admin+).',
   })
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
-  @ApiOkWrappedResponse(UpdateWorkspaceSettingsDto, { description: '워크스페이스 설정' })
+  @ApiOkWrappedResponse(WorkspaceSettingsDto, {
+    description: '워크스페이스 설정',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: '멤버 아님' })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })

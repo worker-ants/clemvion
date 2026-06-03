@@ -418,6 +418,18 @@ describe('WorkspacesService', () => {
       ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
     });
 
+    it('throws ADMIN_REQUIRED when requester is not a member', async () => {
+      memberRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateWorkspaceSettings(
+          'ws-uuid-1',
+          { interactionAllowedOrigins: ['https://example.com'] },
+          'user-uuid-1',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+    });
+
     it('throws WORKSPACE_NOT_FOUND when workspace missing', async () => {
       memberRepo.findOne.mockResolvedValue({ role: 'owner' });
       workspaceRepo.findOne.mockResolvedValue(null);
@@ -440,7 +452,10 @@ describe('WorkspacesService', () => {
         settings: { interactionAllowedOrigins: ['https://example.com'] },
       });
 
-      const result = await service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1');
+      const result = await service.getWorkspaceSettings(
+        'ws-uuid-1',
+        'user-uuid-1',
+      );
 
       expect(result).toEqual({
         interactionAllowedOrigins: ['https://example.com'],
@@ -454,7 +469,10 @@ describe('WorkspacesService', () => {
         settings: { timezone: 'Asia/Seoul' },
       });
 
-      const result = await service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1');
+      const result = await service.getWorkspaceSettings(
+        'ws-uuid-1',
+        'user-uuid-1',
+      );
 
       expect(result).toEqual({ interactionAllowedOrigins: [] });
     });
@@ -465,6 +483,15 @@ describe('WorkspacesService', () => {
       await expect(
         service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1'),
       ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+    });
+
+    it('throws WORKSPACE_NOT_FOUND when member but workspace missing', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'viewer' });
+      workspaceRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({ response: { code: 'WORKSPACE_NOT_FOUND' } });
     });
   });
 

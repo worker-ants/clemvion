@@ -276,7 +276,8 @@ function OverviewTab({ workspace, onRenamed }: OverviewTabProps) {
 }
 
 /** scheme://host[:port] — 경로/쿼리/프래그먼트 없음. */
-const ORIGIN_PATTERN = /^https?:\/\/[^/\s?#]+$/i;
+// scheme://host[:port] — path/query/fragment 불가, 후행 슬래시는 허용(서버에서 정규화).
+const ORIGIN_PATTERN = /^https?:\/\/[^/\s?#]+\/?$/i;
 
 interface EmbedOriginsCardProps {
   workspaceId: string;
@@ -285,10 +286,9 @@ interface EmbedOriginsCardProps {
 /**
  * 웹채팅 위젯 임베드 허용 도메인(`interactionAllowedOrigins`) 편집 카드.
  *
- * NOTE: 현재 workspace store 의 `WorkspaceSummary` 는 `settings.interactionAllowedOrigins`
- * 를 노출하지 않는다. 별도의 GET 엔드포인트도 (아직) 없으므로 편집기는 빈 목록에서
- * 시작하며, 저장은 PATCH 로 origin 목록 전체를 교체한다. 추후 GET 으로 현재 값을
- * 시드하려면 이 컴포넌트에서 useQuery 로 초기화하면 된다.
+ * `GET /workspaces/:id/settings` 로 현재 값을 로드(멤버 read)해 editor 초기 state 를 시드하고,
+ * 저장은 `PATCH /workspaces/:id/settings`(Admin+)로 origin 목록 전체를 교체한다. 편집은
+ * owner/admin 만(`useHasRole("admin")`), 그 외 멤버는 read-only 로 조회한다.
  */
 function EmbedOriginsCard({ workspaceId }: EmbedOriginsCardProps) {
   // GET 으로 현재 origin 목록을 로드한 뒤, key 기반 remount 로 editor 의 초기 state 를 시드한다
