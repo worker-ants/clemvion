@@ -143,6 +143,8 @@ LIMIT $4;
 | `$2` | Knowledge Base ID 배열 (KB tool 호출에서는 단일 KB) | - |
 | `$3` | 유사도 임계값 (threshold) | LLM 호출 인자 또는 0.7 |
 | `$4` | 최대 결과 수 (topK) | LLM 호출 인자 또는 5 |
+
+> **`rerank_mode ≠ off` 시 분기** (§3.3, Planned): KB 의 `rerank_mode` 가 `off` 가 아니면 위 SQL 은 cosine 임계(`$3`)를 적용하지 않고 `rerank_candidate_k` 만큼 wide 회수만 수행한다 — 컷은 리랭크 단계 이후로 미뤄진다. 이때 `kb_*` 의 `threshold` 인자·노드 `ragThreshold` 는 **rerank 점수 임계**로 해석된다. `rerank_mode = 'off'`(기본)이면 위 SQL 그대로 cosine 임계+topK 컷 (현행 동작).
 | `$5` | 워크스페이스 ID (멀티테넌시 격리) | - |
 
 > 실제 쿼리는 임베딩 차원 `<dim>` 으로 `::vector(<dim>)` 캐스트를 양변에 적용하고, `vector_dims(dc.embedding) = <dim>` 으로 차원이 다른 청크를 배제하며, `knowledge_base` 조인의 `workspace_id` 로 테넌트를 격리한다. KB ID 필터는 동일 차원의 KB 들을 그룹핑한 뒤 그룹 단위로 바인딩된다 (`searchVectorGroup`, `rag-search.service.ts`). 위 SQL 은 핵심 score 계산을 보여주는 개념 축약본이다.
@@ -152,6 +154,39 @@ LIMIT $4;
 - **Cosine Similarity**: `1 - (embedding <=> query_vector)`
 - pgvector `<=>` 연산자: cosine distance
 - 점수 범위: 0.0 (무관) ~ 1.0 (동일)
+
+---
+
+### 3.3 검색 후처리 — 리랭킹 (선택적)
+
+회수된 후보 청크를 LLM 컨텍스트에 주입하기 전, KB 단위 `rerank_mode` 에 따라 **2차 정밀화(reranking)** 하는 선택적 단계. KB tool 인터페이스(`kb_*` 의 `query`/`top_k`/`threshold`)는 불변이며, 후처리는 `RagSearchService` 내부에서 일어난다.
+
+> **상태**: Planned (미구현). 본 절은 [`plan/in-progress/spec-draft-rag-reranking.md`](../../plan/in-progress/spec-draft-rag-reranking.md) draft 의 spec 반영분으로, 구현 시 frontmatter `code:` 에 리랭커 모듈 경로를 추가한다. 본 리랭킹은 `rag_mode`(vector/graph)와 **직교** — graph 모드의 centrality-weighted score blending([Graph RAG §4](./10-graph-rag.md))은 graph 내부 1차 정렬이고, 본 절의 cross-encoder reranking 은 vector/graph 어느 회수 결과든 적용되는 2차 후처리다.
+
+#### 3.3.1 모드
+
+| `rerank_mode` | 동작 |
+|---|---|
+| `off` (기본) | 후처리 없음 — §3.1 SQL 그대로 (cosine 임계 + topK). **현행과 byte-identical (하위호환)**. 셀프호스팅에 리랭커 의존성을 강제하지 않기 위한 기본값 |
+| `cross_encoder` | wide 회수 → cross-encoder 재점수화 → 동적 점수 컷 → top-k |
+| `cross_encoder_llm` | `cross_encoder` 후 escalate 조건 충족 시 listwise LLM grading 1콜 추가 |
+
+#### 3.3.2 흐름 (`rerank_mode ≠ off`)
+
+```
+1) wide 회수: cosine 임계 미적용, rerank_candidate_k(기본 50) 만큼 회수
+2) cross-encoder rerank: (query, chunk.content) 쌍을 RerankConfig endpoint 로 점수화
+   (LLMClient.rerank() — Spec LLM Client §3.6)
+3) [cross_encoder_llm] escalate 조건(① cross-encoder 상위 점수 평탄/모호 ② 정책·지시 판단 KB)
+   충족 시 survivors(~15) listwise LLM grading (id 순위 + 1~10 점수, 1콜; pointwise 금지)
+4) 동적 점수 컷: rerank_score_threshold 가 있으면 점수 < 임계 청크 drop (없으면 정렬만)
+5) 최종 top_k(노드 ragTopK 또는 LLM override)로 slice
+```
+
+- 컷 기준이 cosine → **rerank 점수**로 이동한다. 고정 top-k 컷으로 의미 있는 청크가 잘리는 문제를 점수 기반 동적 컷으로 해소한다.
+- 한국어 권장 cross-encoder 모델: `dragonkue/bge-reranker-v2-m3-ko` (자가호스팅 `tei`).
+
+> 설계 결정·근거·폐기 대안: 위 draft `## Rationale`.
 
 ---
 
@@ -176,7 +211,8 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 ```
 
 - `content`: 원본 청크 텍스트의 앞 200자 (미리보기용)
-- `score`: 유사도 점수 (0.0 ~ 1.0)
+- `score`: 점수 (0.0 ~ 1.0). `rerank_mode = 'off'` 면 cosine 유사도, `rerank_mode ≠ off` 면 **리랭크 점수**(정규화). (Planned)
+- `origin?`: 점수 출처/회수 단계. `cosine` (기본 vector) / `reranked` (리랭크 후처리 적용, Planned) / graph 모드의 `seed` / `expanded` ([Graph RAG §4.3](./10-graph-rag.md#43-출력-메타데이터)). 생략 시 `cosine`
 - KB tool 이 한 노드 실행 동안 여러 번 호출되면 모든 결과가 누적된다 (multi-turn 도 포함).
 - 멀티턴에서 "어느 응답이 어느 청크를 사용했는지"가 필요한 경우, 동일 항목이 turn 단위로 분리되어 `meta.turnDebug[].ragSources` / `meta.turnDebug[].ragDiagnostics` 에도 노출된다 — 노드 전체 누적은 `meta.ragSources` 그대로 유지하되, run-results UI 의 References 탭은 turn delta 를 메시지(턴)별 그룹으로 렌더한다.
 - run-results UI: AI 노드가 KB 호출을 시도한 경우(`ragDiagnostics.attempted=true` 또는 `ragSources.length > 0`) 별도 **References 탭**을 노출해 노드 전체 요약 + turn 단위 그룹을 보여준다. Output / Meta 탭은 더 이상 KB 청크를 중복 노출하지 않으며, 발견성을 위해 Preview 탭의 assistant 메시지 하단에 사용 문서명 chip 을 1줄로 표시하고 클릭 시 References 탭으로 점프한다.
@@ -201,6 +237,24 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 | `queriesUsed` | LLM 이 발행한 모든 query 의 합집합 (호출 순서 유지) |
 | `resultCount` | 모든 KB tool 호출에서 회수된 chunk 수의 합 |
 | `skipReason` | `empty_kb_list` (KB 미설정) 또는 `no_results` (모든 호출이 0건) — 정상 시 생략 |
+| `rerank?` | 리랭킹 후처리 진단 (`rerank_mode ≠ off` 호출 시에만, Planned). 아래 스키마 |
+
+**`rerank` 서브객체** (Planned — §3.3):
+
+```json
+{
+  "rerank": {
+    "mode": "cross_encoder",
+    "candidateCount": 50,
+    "returnedCount": 6,
+    "llmGradingApplied": false,
+    "cutoffApplied": true,
+    "error": null
+  }
+}
+```
+
+`error` 는 실패 시 `RERANK_ENDPOINT_FAILED` / `RERANK_LLM_GRADING_FAILED` / `RERANK_CONFIG_INVALID` (UPPER_SNAKE_CASE). 어떤 값이든 검색은 cosine 경로로 안전 강등되며 노드 실패가 아니다 (§6).
 
 ---
 
@@ -220,6 +274,9 @@ AI Agent 응답의 `meta.ragSources` 와 `meta.ragDiagnostics`:
 | LLM 이 KB tool 을 호출하지 않음 | 정상 — `ragDiagnostics.attempted=false` 로 노출 |
 | 검색 결과 0건 | `tool_result` 의 `results: []` 로 LLM 에 전달. LLM 이 재검색 또는 일반 답변 결정 |
 | 임베딩 API / pgvector 쿼리 실패 | `tool_result` 의 `error: "search_failed"` 로 LLM 에 전달. LLM 이 graceful 응답 결정. 노드 실패는 아님 |
+| 리랭커 endpoint 실패/타임아웃 (Planned) | wide 회수 결과를 cosine score 순 top-k 컷으로 **안전 강등**. `ragDiagnostics.rerank.error = "RERANK_ENDPOINT_FAILED"` |
+| RerankConfig 미구성/미지원 provider (Planned) | 해당 KB `off` 강등 (cosine 경로). `RERANK_CONFIG_INVALID`. 경고 로그 |
+| `cross_encoder_llm` grading LLM 실패 (Planned) | cross-encoder 결과로 fallback (LLM 단계만 skip). `RERANK_LLM_GRADING_FAILED` |
 | `maxToolCalls` 도달 | tool loop 종료 후 마지막 LLM 응답을 그대로 반환 |
 
 > **원칙**: KB 검색 실패 시에도 LLM 대화는 계속된다 (graceful degradation). LLM 이 검색 실패 사실을 인지하고 사용자에게 적절히 안내할 수 있도록 tool_result 에 명시적으로 알린다.
