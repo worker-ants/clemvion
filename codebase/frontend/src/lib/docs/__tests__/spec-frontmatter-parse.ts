@@ -64,7 +64,8 @@ const EXCLUDE_BASENAMES = new Set<string>([
 // lifecycle-tracked specs. The top-level `<resource>.md` index files ARE specs
 // (id + status: implemented) and stay validated; only the nested per-entity
 // catalog files are excluded. SoT: spec/conventions/spec-impl-evidence.md §1
-// 제외 + Rationale R-7. Matches `spec/conventions/<name>-api-catalog/<seg>/…md`
+// 제외 + spec-impl-evidence.md §Rationale R-7. Matches
+// `spec/conventions/<name>-api-catalog/<seg>/…md`
 // (a path segment AFTER the catalog dir → nested field file), so a top-level
 // `<name>-api-catalog/<resource>.md` does not match and stays validated.
 const CATALOG_FIELD_FILE =

@@ -32,7 +32,7 @@ describe("isApplicable", () => {
   // cafe24-api-catalog: the top-level <resource>.md files ARE lifecycle specs
   // (id + status) and stay validated; the nested per-entity field catalogs are
   // generated API reference data (frontmatter: resource/entity/...) and are NOT
-  // lifecycle-tracked specs. SoT: spec-impl-evidence.md §1 제외 + Rationale R-7.
+  // lifecycle-tracked specs. SoT: spec-impl-evidence.md §1 제외 + §Rationale R-7.
   it("keeps the top-level resource index files validated", () => {
     expect(isApplicable("spec/conventions/cafe24-api-catalog/application.md")).toBe(true);
     expect(isApplicable("spec/conventions/cafe24-api-catalog/category.md")).toBe(true);
