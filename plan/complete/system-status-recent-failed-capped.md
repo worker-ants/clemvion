@@ -41,6 +41,11 @@ owner: planner → developer
 - [x] `/ai-review` (RISK=HIGH 보고됐으나 CRITICAL 2건은 documentation-reviewer 의 base/stale 오독 false positive — HEAD spec 검증으로 확인). WARNING 2 + 고가치 INFO 반영, RESOLUTION.md 기록.
 - [ ] plan complete 이동 + spec partial→implemented 재승격 (본 turn 마무리).
 
+## 완료 (2026-06-03)
+
+- Phase 1~5 전부 완료. lint·unit·build·e2e green, `/ai-review` 반영(CRITICAL 2건은 reviewer base 오독 false positive 로 검증).
+- spec `16-system-status-api.md`·`15-system-status.md` `partial → implemented` 재승격(본 plan 이동 commit).
+
 ## Rationale
 
 - 별도 `recentFailedCapped` boolean 으로 둔 이유: `recentFailed===scanCap` 휴리스틱은 "정확히 캡과 같은 정상 케이스"와 "캡으로 잘린 케이스"를 구분 못 한다. 스캔 종료 사유(윈도우 경계/집합끝 vs 캡 소진)를 직접 추적해야 정확하다.
