@@ -6,6 +6,11 @@ code:
   - codebase/backend/src/common/pipes/validation.pipe.ts
   - codebase/backend/src/common/dto/*.ts
   - codebase/backend/src/common/swagger/error-response.dto.ts
+  - codebase/backend/src/common/interceptors/transform.interceptor.ts
+  - codebase/backend/src/common/guards/user-throttler.guard.ts
+  - codebase/backend/src/common/utils/throttler-skip.ts
+  - codebase/backend/src/modules/hooks/hooks.controller.ts
+  - codebase/backend/src/modules/hooks/hooks.service.ts
 ---
 
 # Spec: API 설계 규칙
@@ -138,15 +143,21 @@ GET /api/triggers?type=webhook&status=active
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Workflow name is required",
+    "requestId": "f3b6d2e0-9d4a-4b77-9d19-7a0f8f4c1e2b",
     "details": [
       {
         "field": "name",
-        "message": "This field is required"
+        "message": "This field is required",
+        "code": "INVALID_FIELD"
       }
     ]
   }
 }
 ```
+
+- `requestId`: 모든 에러 응답에 항상 포함되는 추적용 UUID (서버 로그 상관관계). `GlobalExceptionFilter` 가 매 응답마다 발급한다.
+- `details`: 선택 필드 (검증 오류 등 추가 컨텍스트 존재 시에만 동봉). 검증 오류 항목은 `{ field, message, code: "INVALID_FIELD" }` 구조이며 `field` 는 중첩 경로(`nodes[3].type`)를 유지한다.
+- `code` 의 상태코드별 기본값: 400=`VALIDATION_ERROR`, 401=`AUTH_REQUIRED`, 403=`FORBIDDEN`, 404=`RESOURCE_NOT_FOUND`, 409=`RESOURCE_CONFLICT`, 422=`INVALID_STATE`, 429=`RATE_LIMITED`, 5xx=`INTERNAL_ERROR`.
 
 ---
 
@@ -175,7 +186,7 @@ GET /api/triggers?type=webhook&status=active
 | 일반 API | 100 req/min (사용자 기준) | `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` |
 | 인증 API | 10 req/min (IP 기준) | 동일 |
 | Webhook 수신 | 100 req/min (글로벌 throttler `default`) | 동일 |
-| 파일 업로드 | 10 req/min (사용자 기준) | 동일 |
+| 파일 업로드 (KB 문서) | 글로벌 100 req/min 상속 (`POST /api/knowledge-bases/:id/documents` 에 별도 `@Throttle` 없음) | 동일 |
 
 Rate Limit 초과 시 `429` 응답 + `Retry-After` 헤더.
 
@@ -191,22 +202,29 @@ Rate Limit 초과 시 `429` 응답 + `Retry-After` 헤더.
 GET /api/workflows?page=2&limit=20
 ```
 
-### 8.2 Cursor 기반 (실행 이력 등 대량 데이터)
+### 8.2 Cursor 기반 (대량 NodeExecution 등)
+
+Background 노드 본문의 NodeExecution 목록처럼 대량·append 성 데이터는 cursor 페이지네이션을 쓴다.
 
 ```
-GET /api/executions?cursor=eyJ...&limit=20
+GET /api/executions/{executionId}/background-runs/{backgroundRunId}?cursor=eyJ...&limit=20
 ```
+
+응답의 `nodeExecutions` 묶음이 cursor 페이지를 담는다. 키는 `nextCursor`(opaque base64, 없으면 `null`) + `hasMore`(추가 페이지 존재 여부):
 
 ```json
 {
-  "data": [...],
-  "pagination": {
-    "cursor": "eyJ...",
-    "hasNext": true,
-    "limit": 20
+  "data": {
+    "nodeExecutions": {
+      "data": [...],
+      "nextCursor": "eyJ...",
+      "hasMore": true
+    }
   }
 }
 ```
+
+> 워크플로우별 실행 목록(`GET /api/executions/workflow/:workflowId`)은 cursor 가 아니라 §8.1 offset 기반(`{ page, limit, totalItems, totalPages }`)이다.
 
 ---
 
@@ -214,10 +232,12 @@ GET /api/executions?cursor=eyJ...&limit=20
 
 | 항목 | 규칙 |
 |------|------|
-| 형식 | `multipart/form-data` |
-| 최대 크기 | 단일 파일 50MB |
-| 허용 타입 | 엔드포인트별 제한 (Knowledge Base: txt/md/pdf/csv, Avatar: jpg/png) |
-| 응답 | 업로드된 파일 메타데이터 (id, url, size 등) |
+| 형식 | `multipart/form-data` (필드명 `file`) |
+| 최대 크기 | 단일 파일 50MB (`FileInterceptor` `limits.fileSize`) |
+| 허용 타입 | 엔드포인트별 제한 (Knowledge Base 문서: PDF/Markdown/텍스트 등) |
+| 응답 | 업로드된 파일 메타데이터 (id, status 등) |
+
+현재 파일 업로드 엔드포인트는 Knowledge Base 문서 업로드(`POST /api/knowledge-bases/:id/documents`)가 유일하다. 유저 아바타는 multipart 업로드가 아니라 `avatarUrl` URL 필드로 관리한다(별도 업로드 엔드포인트 없음).
 
 ---
 
@@ -277,7 +297,7 @@ POST {base_url}/api/hooks/{endpoint_path}
 |--------|------|------|
 | POST | ✓ | 표준 webhook 수신 (유일 지원 메서드) |
 
-POST 외 메서드는 `405 Method Not Allowed`. (GET/PUT 은 v1 미지원 — [Spec Webhook WH-EP-03](./12-webhook.md#31-webhook-엔드포인트).)
+webhook **수신**(workflow trigger) 메서드로는 POST 만 지원하며 그 외 메서드는 `405 Method Not Allowed`. (GET/PUT trigger 수신은 v1 미지원 — [Spec Webhook WH-EP-03](./12-webhook.md#31-webhook-엔드포인트).) 단, 같은 라우터에는 위젯 부팅용 공개 읽기 엔드포인트 `GET /api/hooks/{endpoint_path}/embed-config` 가 별도로 존재한다 — webhook 수신이 아니라 임베드 allowlist 조회용 ([7-channel-web-chat/4-security §3](../7-channel-web-chat/4-security.md)).
 
 ### 11.3 요청 처리 플로우
 

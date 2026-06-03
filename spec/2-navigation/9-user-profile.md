@@ -1,8 +1,16 @@
 ---
 id: user-profile
-status: implemented
+status: partial
 code:
   - codebase/frontend/src/app/(main)/profile/**
+  - codebase/frontend/src/app/(main)/workspace/settings/**
+  - codebase/frontend/src/lib/stores/workspace-store.ts
+  - codebase/backend/src/modules/users/**
+  - codebase/backend/src/modules/workspaces/**
+  - codebase/backend/src/modules/auth/sessions.controller.ts
+  - codebase/backend/src/modules/notifications/**
+pending_plans:
+  - plan/in-progress/spec-sync-user-profile-gaps.md
 ---
 
 # Spec: 사용자 프로필/설정 화면
@@ -96,11 +104,11 @@ code:
 
 | 필드 | 편집 가능 | 편집 방식 | 설명 |
 |------|-----------|-----------|------|
-| 아바타 | O | 인라인 토글 | 이미지 업로드 또는 제거 |
+| 아바타 | O | 인라인 토글 | 현재 구현: `PATCH /users/me` 의 `avatarUrl` 필드로 URL 갱신/제거. **이미지 파일 업로드는 미구현 (Planned)** — 전용 업로드 엔드포인트(§6.1 참조) 부재 |
 | 이름 | O | 인라인 토글 | 표시 이름 |
 | 이메일 | X (별도 변경) | 별도 프로세스 | 이메일 변경 시 확인 메일 발송 플로우 |
 | 언어 | O | 인라인 토글 | UI 언어 (ko, en) |
-| 테마 | O | 인라인 토글 (라이브 프리뷰는 임시 state 로 격리) | Light / Dark / System |
+| 테마 | O | 인라인 토글 (라이브 프리뷰는 임시 state 로 격리) | Light / Dark (현재 구현. `System` 자동 추종은 **미구현 (Planned)** — `UpdateMeDto` 의 `USER_THEMES` 는 `['light','dark']`) |
 | 비밀번호 | O | 전용 페이지 `/profile/change-password` | 현재 비밀번호 확인 → 새 비밀번호 입력 |
 
 ### 2.2 보안 설정
@@ -117,7 +125,8 @@ code:
 ## 3. 워크스페이스 전환
 
 - 팝업 메뉴에서 워크스페이스 선택 시 즉시 전환
-- 전환 시 URL 경로에 워크스페이스 슬러그 반영 (예: `/w/team-alpha/workflows`)
+- 현재 구현: 선택된 워크스페이스 ID 를 `useWorkspaceStore` (`currentWorkspaceId`, localStorage 영속) 에 보관하고, axios 인터셉터가 모든 API 요청에 `X-Workspace-Id` 헤더로 첨부한다. URL 경로는 워크스페이스에 따라 바뀌지 않는다 (`workspace-store.ts`)
+- **미구현 (Planned)**: 전환 시 URL 경로에 워크스페이스 슬러그 반영 (예: `/w/team-alpha/workflows`). 현재 `/w/[slug]` 라우트는 존재하지 않으며 슬러그는 데이터 필드로만 사용된다
 - 선택된 워크스페이스에 따라 사이드바 메뉴의 데이터 범위 변경
 
 ---
@@ -203,6 +212,8 @@ code:
 
 ### 5.1 알림 유형별 채널
 
+> **구현 상태**: 아래 "사용자 변경 가능 (채널별 on/off)" 컬럼은 **미구현 (Planned)**. 알림 설정 조회/수정 엔드포인트(`GET/PATCH /api/notifications/settings`, §6.2)와 설정 저장 entity 가 없어, 현재는 표의 기본 채널로 고정 발송된다. (`profile/alerts` 페이지는 채널 on/off 설정이 아니라 별개의 **알림 규칙(failure_rate/duration/llm_cost 임계치)** 관리 화면이다.)
+
 | 항목 | 기본 채널 | 사용자 변경 가능 |
 |------|-----------|-----------------|
 | 워크플로우 실행 실패 | 인앱 + 이메일 | O (채널별 on/off) |
@@ -243,7 +254,7 @@ code:
 | 항목 | 설명 |
 |------|------|
 | 즉시 발송 | 실행 실패, Integration 만료, 팀 초대 |
-| 일일 요약 | 하루 동안의 실패 요약 (설정 가능) |
+| 일일 요약 | 하루 동안의 실패 요약. **미구현 (Planned)** — "설정 가능" 토글은 §5.1 의 알림 설정 저장소가 없어 동작하지 않음 |
 | 수신 거부 | 이메일 하단 unsubscribe 링크 |
 
 ---
@@ -256,13 +267,13 @@ code:
 |--------|------|------|
 | GET | /api/users/me | 내 프로필 조회 |
 | PATCH | /api/users/me | 프로필 수정 |
-| POST | /api/users/me/avatar | 아바타 업로드 |
+| ~~POST~~ | ~~/api/users/me/avatar~~ | 아바타 **이미지 파일** 업로드 — **미구현 (Planned)**. 현재는 `PATCH /api/users/me` 의 `avatarUrl` 로 URL 설정/제거만 가능 |
 | POST | /api/users/me/change-password | 비밀번호 변경 |
 | POST | /api/users/me/enable-2fa | 2FA TOTP 활성화 시작 (canonical: `POST /api/auth/2fa/setup` — [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트)) |
 | POST | /api/users/me/confirm-2fa | 2FA TOTP 활성화 verify (canonical: `POST /api/auth/2fa/verify`) |
 | — | /api/auth/2fa/webauthn/* | Passkey · 보안 키 등록·인증·관리. canonical 정의는 [인증 spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
 | GET | /api/users/me/sessions | 활성 세션 목록 (family 단위, isCurrent 플래그 포함) |
-| DELETE | /api/users/me/sessions/:familyId | 단일 세션 강제 종료 (family 전체 revoke, 비밀번호/TOTP 재인증) |
+| POST | /api/users/me/sessions/:familyId/revoke | 단일 세션 강제 종료 (family 전체 revoke, 비밀번호/TOTP 재인증). 일부 CDN/프록시가 DELETE 바디를 제거하는 호환성 이슈 회피를 위해 DELETE 대신 POST + `/revoke` 사용 (`sessions.controller.ts`) |
 | POST | /api/users/me/sessions/revoke-others | 현재 세션 제외 일괄 종료 (비밀번호/TOTP 재인증) |
 | GET | /api/users/me/login-history | 본인 로그인 이력 (커서 페이징, 180일 보존) |
 | GET | /api/workspaces | 내 워크스페이스 목록 |
@@ -290,8 +301,10 @@ code:
 | GET | /api/notifications/unread-count | 미읽은 알림 수 |
 | PATCH | /api/notifications/:id/read | 알림 읽음 처리 |
 | POST | /api/notifications/mark-all-read | 전체 읽음 처리 |
-| GET | /api/notifications/settings | 알림 설정 조회 |
-| PATCH | /api/notifications/settings | 알림 설정 수정 |
+| POST | /api/notifications/dismiss-all | 전체 알림 닫기 (soft delete 일괄, `mark-all-read` 와 독립) |
+| POST | /api/notifications/:id/dismiss | 알림 단건 닫기 (soft delete, 멱등) |
+| ~~GET~~ | ~~/api/notifications/settings~~ | 알림 설정 조회 — **미구현 (Planned)**. 라우트·저장 entity 부재 (§5.1 채널 on/off 와 연동) |
+| ~~PATCH~~ | ~~/api/notifications/settings~~ | 알림 설정 수정 — **미구현 (Planned)** |
 
 ---
 

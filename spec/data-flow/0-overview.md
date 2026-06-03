@@ -89,9 +89,9 @@ flowchart LR
 
 | 항목 | 사실 |
 | --- | --- |
-| Primary DB | PostgreSQL (`pgvector/pgvector:pg18`), TypeORM 매핑. 마이그레이션은 Flyway (`codebase/backend/migrations/V*.sql`). |
+| Primary DB | PostgreSQL (`pgvector/pgvector:pg18` — `docker-compose.yml` 기본값; k8s local overlay `k8s/overlays/local/infra-postgres.yaml` 는 아직 `pg16`), TypeORM 매핑. 마이그레이션은 Flyway (`codebase/backend/migrations/V*.sql`). |
 | Queue | Redis 7 + BullMQ. 현재 등록된 큐: `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`. |
-| Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 (`codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:723`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
+| Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 (`codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:726`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
 | WebSocket | Socket.io. 실행 상태·KB 진행률·AI Assistant 스트리밍 emit. 단일 sink (`WebsocketService`). |
 | Auth | JWT access + rotated refresh (`refresh_token` table). Bearer 또는 cookie. |
 
@@ -169,9 +169,9 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 | `background-execution` | `execution-engine.module.ts` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | Background 노드의 자식 흐름 |
 | `document-embedding` | `knowledge-base.module.ts` | KB 문서 업로드·재임베딩 API | `DocumentEmbeddingProcessor` | 문서 1건 임베딩 |
 | `graph-extraction` | `knowledge-base.module.ts` | 임베딩 완료 hook·재추출 API | `GraphExtractionProcessor` | 문서 1건 entity/relation 추출 |
-| `schedule-execution` | `schedules.module.ts` | `ScheduleRunnerService` (cron sweep) | `ScheduleRunnerService` (`@Processor`) | 스케줄 1회 실행 트리거 |
-| `alerts-evaluator` | `alerts.module.ts` | `AlertsEvaluatorService` (cron sweep) | 동일 service | alert_rule 1건 평가 |
-| `integration-expiry-scanner` | `integrations.module.ts` | `IntegrationExpiryScanner` (daily sweep) | 동일 module 내 processor | OAuth 만료 후보 1건 처리 |
+| `schedule-execution` | `schedules.module.ts` | `ScheduleRunnerService` (BullMQ repeatable scheduler, schedule 별 `upsertJobScheduler`) | `ScheduleRunnerService` (`@Processor`) | 스케줄 1회 실행 트리거 |
+| `alerts-evaluator` | `alerts.module.ts` | `AlertsEvaluatorService` (BullMQ repeatable scheduler, 5분 주기 `upsertJobScheduler`) | 동일 service | alert_rule 1건 평가 |
+| `integration-expiry-scanner` | `integrations.module.ts` | `IntegrationExpiryScanner` (BullMQ repeatable scheduler, daily `upsertJobScheduler`) | 동일 module 내 processor | OAuth 만료 후보 1건 처리 |
 | `cafe24-token-refresh` | `integrations.module.ts` · `cafe24.module.ts` | `IntegrationExpiryScanner` (background·0d refresh enqueue) | `Cafe24TokenRefreshProcessor` | cafe24 통합 1건 token refresh |
 | `notification-webhook` | `external-interaction.module.ts` | `NotificationDispatcher` | `NotificationWebhookProcessor` | webhook 알림 1건 발송 |
 | `login-history-pruner` | `auth.module.ts` | `LoginHistoryPrunerService` (daily scheduler, `0 3 * * *` Asia/Seoul) | 동일 service (`@Processor`) | login_history 180일 경과 prune |
@@ -210,7 +210,7 @@ read/write 되는 컬럼** 만 발췌하고, 전체 정의는 `1-data-model.md` 
 ### S3 key 의 코드/spec 불일치 처리
 
 `spec/0-overview.md` §2.7 은 S3 버킷 구조를 `{bucket}/{workspaceId}/knowledge-base/{kbId}/...` 로
-기술하지만, 현재 코드 (`knowledge-base.service.ts:723`) 는 `kb/{kbId}/{docId}/{filename}` 으로
+기술하지만, 현재 코드 (`knowledge-base.service.ts:726`) 는 `kb/{kbId}/{docId}/{filename}` 으로
 업로드한다. data-flow 는 **현재 코드 동작이 진실** 이라는 원칙으로 후자를 기재하고,
 `file-storage.md` 의 Rationale 에 이 불일치를 명시했다. spec/0-overview.md §2.7 의 재구성은 본 작업의
 범위를 벗어나며, 별도 plan 에서 다룬다.

@@ -27,7 +27,7 @@ KB 의 `rag_mode` 에 따라 흐름이 분기된다:
 
 **호출 결과의 분리 유지**: 각 `kb_*` 호출은 단일 KB 만 검색하며, 결과는 호출별로 분리된 tool_result 메시지로 LLM 에 전달된다. **호출 간 score 기준 병합·재정렬은 수행하지 않는다** — 에이전트가 각 호출 결과를 그대로 인용·종합해 최종 답변을 만든다. 노드 메타(`meta.ragSources`) 누적 시점에는 chunkId 기반 dedup 만 적용해 References UI 의 중복 표시를 막을 뿐, LLM 에 전달되는 tool_result content 는 가공 없이 호출별로 분리된다.
 
-> 참고: `RagSearchService.search()` 자체는 multi-KB 인자 호출 시 score 기준 병합 후 topK slicing 을 수행하지만, 이는 디버그 컨트롤러(`POST /knowledge-base/search`) 의 멀티-KB 검색 경로에서만 사용된다. AI Agent 노드의 `KbToolProvider` 는 항상 단일 KB 로 호출하므로 위 병합 로직이 작동하지 않는다.
+> 참고: `RagSearchService.search()` 자체는 multi-KB 인자 호출 시 score 기준 병합 후 topK slicing 을 수행하지만, 이는 디버그 컨트롤러(`POST /api/knowledge-bases/search`) 의 멀티-KB 검색 경로에서만 사용된다. AI Agent 노드의 `KbToolProvider` 는 항상 단일 KB 로 호출하므로 위 병합 로직이 작동하지 않는다.
 
 ---
 
@@ -125,12 +125,14 @@ SELECT
   dc.content,
   dc.metadata,
   d.name AS document_name,
-  1 - (dc.embedding <=> $1) AS score
+  1 - (dc.embedding::vector(<dim>) <=> $1::vector(<dim>)) AS score
 FROM document_chunk dc
 JOIN document d ON d.id = dc.document_id
-WHERE d.knowledge_base_id = ANY($2)
+JOIN knowledge_base kb ON kb.id = d.knowledge_base_id AND kb.workspace_id = $5
+WHERE vector_dims(dc.embedding) = <dim>
   AND d.embedding_status = 'completed'
-  AND 1 - (dc.embedding <=> $1) >= $3
+  AND dc.embedding IS NOT NULL
+  AND 1 - (dc.embedding::vector(<dim>) <=> $1::vector(<dim>)) >= $3
 ORDER BY score DESC
 LIMIT $4;
 ```
@@ -141,6 +143,9 @@ LIMIT $4;
 | `$2` | Knowledge Base ID 배열 (KB tool 호출에서는 단일 KB) | - |
 | `$3` | 유사도 임계값 (threshold) | LLM 호출 인자 또는 0.7 |
 | `$4` | 최대 결과 수 (topK) | LLM 호출 인자 또는 5 |
+| `$5` | 워크스페이스 ID (멀티테넌시 격리) | - |
+
+> 실제 쿼리는 임베딩 차원 `<dim>` 으로 `::vector(<dim>)` 캐스트를 양변에 적용하고, `vector_dims(dc.embedding) = <dim>` 으로 차원이 다른 청크를 배제하며, `knowledge_base` 조인의 `workspace_id` 로 테넌트를 격리한다. KB ID 필터는 동일 차원의 KB 들을 그룹핑한 뒤 그룹 단위로 바인딩된다 (`searchVectorGroup`, `rag-search.service.ts`). 위 SQL 은 핵심 score 계산을 보여주는 개념 축약본이다.
 
 ### 3.2 거리 함수
 

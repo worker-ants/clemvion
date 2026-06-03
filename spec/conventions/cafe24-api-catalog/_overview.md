@@ -55,7 +55,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 | 값 | 의미 | 백엔드 메타데이터 |
 |-----|------|------|
 | `supported` | 노드/MCP Bridge 에서 호출 가능 | `CAFE24_OPERATIONS_BY_RESOURCE[resource]` 에 row 존재 |
-| `planned` | 카탈로그에 등재만, 미구현. UI 의 Operation 드롭다운에 **disabled + "지원 예정" 배지** 로 노출 | row 없음 |
+| `planned` | 카탈로그에 등재만, 미구현. UI 의 Operation 드롭다운에 **disabled + "지원 예정" 배지** 로 노출 | `CAFE24_OPERATIONS_BY_RESOURCE` (supported 메타데이터) 에는 row 없음. 단 전용 mirror `CAFE24_PLANNED_BY_RESOURCE` (`metadata/planned.ts`) 에 `{ id, paginated? }` row 가 존재해야 하며, 이 mirror 가 `GET /nodes/definitions` 로 노출돼 프론트 Operation select 의 "지원 예정" 배지를 구동한다. catalog 의 모든 `planned` row ↔ mirror 는 §4 규칙8 로 양방향 강제. 현재 18 resource 전부 planned 0 이므로 mirror (`planned.ts`) 도 모두 빈 배열 |
 | `deprecated` | Cafe24 가 제거 또는 deprecate 했고 우리 노드에서도 더 이상 호출 안 함. **본 도메인은 외부 API endpoint 폐기 상태이며, spec frontmatter `status: archived` ([`spec-impl-evidence.md`](../spec-impl-evidence.md)) 와는 별 도메인 (spec 문서 자체의 폐기)** | row 없으면 정상. 있으면 마이그레이션 대상 |
 
 `planned` 행의 `method`/`path`/`scope` 가 `?` 인 경우, 구현 시점에 공식 docs 를 다시 검증한 뒤 `supported` 로 승격시키며 정확한 값으로 갱신한다.
@@ -75,7 +75,8 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 5. **`scope` 일치**: `supported` row 의 `scope` 가 메타데이터 `scopeType` 과 일치.
 6. **id 의 resource 내 unique**: 한 카탈로그 파일 안에 같은 `id` 가 두 번 나오면 fail.
 7. **status 가 enum 중 하나**: `supported` / `planned` / `deprecated` 외의 값이 있으면 fail.
-8. **`restricted` 컬럼 ↔ 메타데이터 `restrictedApproval` 동기**: catalog row 의 `restricted` 컬럼이 `scope` 또는 `operation` 이면 그 row 에 대응하는 backend 메타데이터에 `restrictedApproval` 필드가 존재해야 하고, 그 역도 동일. 컬럼 값과 메타데이터 `level` 은 동일 토큰 (`'scope'` ↔ `'scope'`, `'operation'` ↔ `'operation'`). `restrictedApproval.approvalGroup` 필드 (UI 메시지·tooltip 묶음 식별자) 는 catalog 컬럼으로 노출하지 않으므로 본 검증 대상이 아니다 — 정의는 [`cafe24-api-metadata.md §2`](../cafe24-api-metadata.md#2-operation-메타데이터-형식) 참고. **`level='program'` 인 메타데이터 row 는 catalog 화 대상이 아닌 별도 트랙 (Analytics 등) 이므로 본 검증에서 제외**된다 — catalog 에 대응 row 가 없는 것이 정상. SoT 명단의 진위 검증은 [`cafe24-restricted-scopes.md`](../cafe24-restricted-scopes.md) §5 절차에서 별도로 다룬다. **`status: planned` 행은 backend 메타데이터 row 가 아직 없으므로 본 검증 대상에서 제외**된다 — `planned` 행의 `restricted` 컬럼은 구현 예정 메모용이며 `planned → supported` 승격 시 메타데이터와 함께 동기 검증 대상이 된다.
+8. **`planned` row ↔ `planned.ts` mirror 양방향 동기**: catalog 의 모든 `status: planned` row 가 `CAFE24_PLANNED_BY_RESOURCE` (`metadata/planned.ts`) 에 매칭돼야 하고 그 역도 동일. (a) catalog→mirror 누락 fail, (b) mirror→catalog 누락 fail, (c) `paginated` 플래그 일치, (d) planned id 가 같은 resource 의 supported id 와 충돌 금지 — 의 4개 `it` 로 검증 (`catalog-sync.spec.ts` `describe('catalog ↔ planned.ts')`). (테스트 헤더 주석은 이를 "규칙7" 로 칭한다 — 본 문서 번호와 1칸 어긋남에 유의.)
+9. **`restricted` 컬럼 ↔ 메타데이터 `restrictedApproval` 동기**: catalog row 의 `restricted` 컬럼이 `scope` 또는 `operation` 이면 그 row 에 대응하는 backend 메타데이터에 `restrictedApproval` 필드가 존재해야 하고, 그 역도 동일. 컬럼 값과 메타데이터 `level` 은 동일 토큰 (`'scope'` ↔ `'scope'`, `'operation'` ↔ `'operation'`). `restrictedApproval.approvalGroup` 필드 (UI 메시지·tooltip 묶음 식별자) 는 catalog 컬럼으로 노출하지 않으므로 본 검증 대상이 아니다 — 정의는 [`cafe24-api-metadata.md §2`](../cafe24-api-metadata.md#2-operation-메타데이터-형식) 참고. **`level='program'` 인 메타데이터 row 는 catalog 화 대상이 아닌 별도 트랙 (Analytics 등) 이므로 본 검증에서 제외**된다 — catalog 에 대응 row 가 없는 것이 정상. SoT 명단의 진위 검증은 [`cafe24-restricted-scopes.md`](../cafe24-restricted-scopes.md) §5 절차에서 별도로 다룬다. **`status: planned` 행은 backend 메타데이터 row 가 아직 없으므로 본 검증 대상에서 제외**된다 — `planned` 행의 `restricted` 컬럼은 구현 예정 메모용이며 `planned → supported` 승격 시 메타데이터와 함께 동기 검증 대상이 된다.
 
 테스트는 카탈로그 MD 의 표를 파싱한다 — MD 표 구문이 깨지면 곧장 fail. 따라서 본 카탈로그는 **사람이 직접 손으로 수정하는 SoT** 이며, 코드 변경 시점에 반드시 카탈로그 동기 갱신을 함께 commit 해야 한다(`spec/conventions/cafe24-api-metadata.md` §5 의 신규 endpoint 추가 절차에 인용).
 

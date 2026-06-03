@@ -5,8 +5,10 @@ code:
   - codebase/backend/src/modules/auth/**/*.ts
   - codebase/backend/src/modules/auth-configs/auth-configs.service.ts
   - codebase/backend/src/common/guards/*.ts
+  - codebase/backend/src/common/config/webauthn.config.ts
 pending_plans:
   - plan/in-progress/auth-config-webhook-followups.md
+  - plan/in-progress/spec-sync-auth-gaps.md
 ---
 
 # Spec: 인증/인가 시스템
@@ -57,12 +59,14 @@ pending_plans:
 - 소셜 로그인 시 기존 이메일 계정과 자동 연결 (이메일 일치 시)
 - 최초 소셜 로그인 시 자동 회원가입 + 개인 워크스페이스 생성
 
-### 1.3 셀프 호스팅 추가 인증
+### 1.3 셀프 호스팅 추가 인증 *(미구현 · Planned)*
+
+> **상태**: 아래 두 방식은 아직 구현되지 않았다 (백엔드에 LDAP/SAML 핸들러·passport strategy·의존성 부재). 셀프 호스팅 운영자를 위한 **선택** 기능으로 계획만 확정된 상태이며, 추적은 [`plan/in-progress/spec-sync-auth-gaps.md`](../../plan/in-progress/spec-sync-auth-gaps.md).
 
 | 방식 | 설명 |
 |------|------|
-| LDAP | LDAP/Active Directory 연동 (선택) |
-| SAML 2.0 | 기업 SSO 연동 (선택) |
+| LDAP | LDAP/Active Directory 연동 (선택, **미구현**) |
+| SAML 2.0 | 기업 SSO 연동 (선택, **미구현**) |
 
 ### 1.4 2FA (Two-Factor Authentication)
 

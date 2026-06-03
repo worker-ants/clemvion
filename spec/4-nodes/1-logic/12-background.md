@@ -268,7 +268,7 @@ URL 은 중첩 구조 (`executions/:id/background-runs/:id`) 를 사용한다. `
 | 채널 | 이벤트 | payload |
 |------|--------|---------|
 | `background:run:<backgroundRunId>` | `execution.background_run.started` | `{ backgroundRunId, executionId, parentNodeExecutionId, startedAt }` |
-| 〃 | `execution.background_run.completed` | `{ backgroundRunId, status: 'completed' \| 'failed' \| 'cancelled', completedAt, durationMs, failedNodeId?, errorMessage? }` |
+| 〃 | `execution.background_run.completed` | `{ backgroundRunId, executionId, parentNodeExecutionId, status: 'completed' \| 'failed', completedAt, durationMs, errorMessage? }` |
 
 - 본문 안의 개별 NodeExecution 이벤트(`execution.node.started` 등) 는 **기존 `execution:<id>` 채널에 그대로 발행** 된다. 본문 노드의 `parentNodeExecutionId` 가 Background 노드의 `NodeExecution.id` 와 일치하므로 클라이언트가 그 키로 필터해 본문 카드 안의 타임라인을 갱신한다.
 - `background:run:<id>` 채널은 **run 수명주기 이벤트만** 발행한다 — 채널의 책임을 좁혀 메인 채널과의 데이터 중복을 막는다.
@@ -314,7 +314,7 @@ background 본문은 fire-and-forget 으로 BullMQ 워커에서 비동기 실행
 - 권한 검증이 단순화됨 — `executionId` 1차 키로 워크스페이스 검증 후 `backgroundRunId` 확인. flat URL 은 backgroundRunId → NodeExecution → executionId → 워크스페이스 체인 필요
 - REST 의미상 background run 은 execution 에 종속된 자원
 
-`executionId` 컬럼에 대한 별도 인덱스 + `(executionId, JSONB 'meta.backgroundRunId')` 의 GIN 인덱스로 조회 성능을 보강한다.
+조회 성능은 `NodeExecution.outputData` JSONB 의 `meta.backgroundRunId` 경로에 대한 **부분 expression B-tree 인덱스** (`output_data #>> '{meta,backgroundRunId}'`, `WHERE ... IS NOT NULL`) 로 보강한다 — Background 노드의 NodeExecution 행만 인덱싱해 크기를 최소화한다 (`migrations/V047__node_execution_background_run_id_index.sql`). 조회는 `executionId` 범위 + 이 expression 인덱스를 함께 사용한다.
 
 ### 페이지네이션 선적용 결정
 

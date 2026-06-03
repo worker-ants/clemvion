@@ -1,7 +1,9 @@
 ---
 id: execution-context
-status: spec-only
-code: []
+status: implemented
+code:
+  - codebase/backend/src/nodes/core/node-handler.interface.ts
+  - codebase/backend/src/modules/execution-engine/context/execution-context.service.ts
 pending_plans: []
 ---
 

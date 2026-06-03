@@ -6,6 +6,8 @@ code:
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/executions/dto/re-run.dto.ts
   - codebase/backend/migrations/V067__execution_re_run_chain.sql
+  - codebase/backend/migrations/V068__execution_dry_run.sql
+  - codebase/backend/src/nodes/core/dry-run.util.ts
 ---
 
 # Spec: 워크플로 Re-run (재실행)

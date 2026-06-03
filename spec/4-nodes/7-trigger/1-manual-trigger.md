@@ -4,6 +4,7 @@ status: implemented
 code:
   - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.handler.ts
   - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts
+  - codebase/backend/src/modules/execution-engine/utils/resolve-trigger-parameters.ts
   - codebase/frontend/src/components/editor/settings-panel/node-configs/trigger-configs.tsx
 ---
 
@@ -155,15 +156,27 @@ webhook 진입 시 어댑터가 `input` 으로 `{ __triggerSource: 'webhook', pa
 
 Manual Trigger 핸들러는 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 핸들러 진입 이전(어댑터 또는 config 검증) pre-flight 단계에서 처리된다 (CONVENTIONS Principle 3.1):
 
-| 발생 조건 | 메시지 | 시점 |
+검증 실패 reason 은 source(`validateTriggerParameterSchema` / `resolveTriggerParameters`)에서 단일 enum 코드로 산출되며, handler.validate 는 이를 `parameters.<field>: <reason>` 형태로 평면화한다. (사람이 읽는 풍부한 문장 메시지가 아니라 안정적인 머신 reason 코드다 — Source of truth: `codebase/backend/src/modules/execution-engine/utils/resolve-trigger-parameters.ts`.)
+
+| 발생 조건 | reason 코드 (`parameters.<field>: <reason>`) | 시점 |
 |-----------|--------|------|
-| `parameters[i].name` 가 빈 문자열 또는 식별자 규칙(`^[A-Za-z_][A-Za-z0-9_]*$`) 위반 | `parameters.<name>: name must be a valid identifier` | handler.validate (저장 시점) |
-| `parameters` 내 `name` 중복 | `parameters.<name>: duplicate parameter name` | handler.validate |
-| `parameters` 가 배열 아님 | `parameters: must be an array` | handler.validate |
-| `parameters[i].type` 가 enum (`string`/`number`/`boolean`/`object`/`array`) 미일치 | `parameters.<name>: type must be one of: string, number, ...` | handler.validate |
-| required 파라미터의 값 누락 (Manual API) | `400 INVALID_INPUT` (Execution 미생성) | adapter `resolveTriggerParameters` (실행 시점) |
-| required 파라미터의 값 누락 (Webhook) | `400 Bad Request` (Execution 미생성) | HooksService (실행 시점) |
-| required 파라미터의 값 누락 (Schedule) | DTO 검증 실패 (스케줄 등록/수정 시) 또는 런타임 default 채움 | Schedule 모듈 |
+| `parameters[i].name` 가 빈 문자열 또는 식별자 규칙(`^[A-Za-z_][A-Za-z0-9_]*$`) 위반 | `invalid_schema` | handler.validate (저장 시점) |
+| `parameters` 내 `name` 중복 | `invalid_schema` | handler.validate |
+| `parameters` 가 배열 아님 (`field` 는 `(root)`) | `invalid_schema` | handler.validate |
+| `parameters[i].type` 가 enum (`string`/`number`/`boolean`/`object`/`array`) 미일치 | `invalid_schema` | handler.validate |
+| required 파라미터의 값 누락 (실행 시점, 어댑터 공통) | `missing_required` | adapter `resolveTriggerParameters` |
+| 값이 선언 타입으로 coerce 불가 (number/object/array) | `coerce_failed` | adapter `resolveTriggerParameters` |
+
+> 위 4가지 구조 위반(저장 시점)은 모두 단일 `invalid_schema` reason 으로 산출된다 — distinct 한 사람 친화 메시지로 분기하지 않는다(머신 코드 단일화).
+
+실행 시점 어댑터별 누락(`missing_required`)의 HTTP 응답 코드는 어댑터마다 다르다:
+
+| 어댑터 | 응답 (Execution 미생성) | 처리 위치 |
+|--------|------------------------|-----------|
+| Manual (주 실행 경로) | `400 BadRequest` code `INVALID_TRIGGER_PARAMETERS` (`{ code, message, errors }`) | `workflows.controller.ts` |
+| Manual re-run (inputOverride) | `400 INVALID_INPUT` | `executions.service.ts` |
+| Webhook | `400 BadRequest` code `INVALID_WEBHOOK_PAYLOAD` (`{ code, message, errors }`) | `hooks.service.ts` |
+| Schedule | Execution 미생성으로 끝나지 않음 — 런타임에 `warn` 로그 후 schema-less fallback 으로 실행 진행 (가능한 default 채움) | `schedule-runner.service.ts` |
 
 세 어댑터의 공통 검증 시점·실패 응답은 [Trigger 공통 §1](./0-common.md#1-트리거-진입-파라미터-공통-계약) 참조.
 

@@ -4,6 +4,10 @@ status: implemented
 code:
   - codebase/backend/migrations/**
   - codebase/backend/src/migrations.spec.ts
+  - scripts/check-migration-versions.py
+  - .github/workflows/migration-check.yml
+  - .github/workflows/migration-recheck-on-main.yml
+  - .github/PULL_REQUEST_TEMPLATE.md
 ---
 
 # Flyway 마이그레이션 운영 규약
@@ -28,7 +32,7 @@ codebase/backend/migrations/V<번호>__<snake_case_descriptor>.conf  # 필요한
 ```
 
 - 번호는 **단조 증가하는 정수**. `V001__initial_schema.sql` 부터 시작해 1씩 증가한다.
-- 설명자는 `snake_case`. 영문 소문자 + 숫자 + `_` 만 사용한다.
+- 설명자는 `snake_case`. **권장 문자집합은 영문 소문자 + 숫자 + `_`** 이며, 모든 실파일(`V001`~)이 이를 따른다. 단 가드 정규식의 허용 집합은 위치마다 더 넓다 — `codebase/backend/src/migrations.spec.ts` 의 `SQL_NAME_RE` 는 하이픈까지 허용(`[a-z0-9_-]+`), `scripts/check-migration-versions.py` 의 `SQL_RE` 는 대문자까지 허용(`[A-Za-z0-9_]+`). 권장 집합을 벗어나도 두 가드는 통과하므로, 일관성은 본 컨벤션으로 보장한다.
 - `.conf` 페어는 항상 `.sql` 과 동일한 base name (`V<NNN>__<descriptor>`) 을 사용한다. 예: `V033__embedding_hnsw_1024.sql` ↔ `V033__embedding_hnsw_1024.conf`.
 - ⚠️ **alphanumeric suffix 금지** — `V035a`, `V035_1` 처럼 정수가 아닌 접미사를 붙이면 Flyway 의 기본 version 파서가 매치에 실패해 schema_history 에 미등록된 채 silent skip 된다. 이 조건은 `codebase/backend/src/migrations.spec.ts` 가 빌드/CI 마다 자동 검증한다.
 
@@ -46,7 +50,7 @@ codebase/backend/migrations/V<번호>__<snake_case_descriptor>.conf  # 필요한
 
 - Flyway 는 부팅 시 각 적용된 마이그레이션의 SQL 내용 checksum 을 `flyway_schema_history` 와 비교한다. 파일이 한 글자라도 바뀌면 `Migration checksum mismatch for migration version NNN` 으로 부팅이 실패한다.
 - 컬럼/인덱스/제약 추가·변경·삭제가 필요하면 **새 V<N+k>** 로 `ALTER`·`DROP`·`CREATE` 를 작성한다.
-- 운영 사고로 어쩔 수 없이 checksum 을 재정렬해야 한다면 `migrate-repair` 서비스를 사용한다 (절차는 [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §4 참고).
+- 운영 사고로 어쩔 수 없이 checksum 을 재정렬해야 한다면 `migrate-repair` 서비스를 사용한다 (절차는 [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §5 참고).
 
 ## 4. `outOfOrder=false` 유지
 
@@ -75,12 +79,14 @@ Flyway 의 `outOfOrder=true` 옵션은 옛 V번호가 늦게 들어와도 실행
 
 `pull_request` 이벤트마다 [`/.github/workflows/migration-check.yml`](../../.github/workflows/migration-check.yml) 이 실행되어 다음을 검사한다.
 
+모든 위반 메시지는 `[migration-guard] ` prefix 로 시작한다 (아래 표는 prefix 이후 본문).
+
 | 검사 | 위반 예시 | 메시지 |
 | --- | --- | --- |
-| 중복 | 같은 V<N>__*.sql 두 개 | `FAIL: V041 is duplicated` |
-| 단조성 | 신규 V<N> 가 main_max 이하 | `FAIL: V040 is not greater than base (origin/main) max V040` |
-| 연속성 | gap 발생 (예: V041 없이 V042) | `FAIL: V042 leaves a gap (expected V041 after base max V040)` |
-| `.conf` 페어 | `.conf` 의 base name 이 `.sql` 과 다름 | `FAIL: V041 .conf base name does not match its .sql` |
+| 중복 | 같은 V<N>__*.sql 두 개 | `[migration-guard] FAIL: V041 is duplicated` |
+| 단조성 | 신규 V<N> 가 main_max 이하 | `[migration-guard] FAIL: V040 is not greater than base (origin/main) max V040` |
+| 연속성 | gap 발생 (예: V041 없이 V042) | `[migration-guard] FAIL: V042 leaves a gap (expected V041 after base max V040)` |
+| `.conf` 페어 | `.conf` 의 base name 이 `.sql` 과 다름 | `[migration-guard] FAIL: V041 .conf base name does not match its .sql` |
 
 위반 시 workflow exit 1 로 PR 머지가 막힌다. 작성자가 rebase 해 V번호를 재할당하면 즉시 재검증된다.
 

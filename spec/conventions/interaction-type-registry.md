@@ -4,6 +4,9 @@ status: implemented
 code:
   - codebase/frontend/src/lib/__tests__/interaction-type-exhaustiveness.test.ts
   - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
+  - codebase/frontend/src/lib/conversation/conversation-utils.ts
+  - codebase/backend/src/shared/conversation-thread/conversation-thread.types.ts
+  - codebase/backend/src/nodes/ai/ai-agent/tool-providers/render-tool-provider.ts
 ---
 
 # Interaction Type Registry
@@ -43,13 +46,13 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 **규칙**:
 1. 표의 모든 위치를 한 PR 안에서 동시 갱신.
 2. exhaustive switch (`switch (value) { case ...; default: const _exhaustive: never = value }`) 패턴으로 TypeScript 컴파일러가 누락을 직접 fail 시킨다 (`codebase/frontend/src/lib/utils/exhaustive.ts` 의 `assertNever` 헬퍼 사용).
-3. AST 가드 (`interaction-type-exhaustiveness.test.ts`) 가 위 매트릭스의 모든 enum 값이 각 처리 위치에 명시적으로 등장하는지 grep 검증.
+3. AST 가드 (`interaction-type-exhaustiveness.test.ts` 의 `REGISTRY_SITES`) 가 매트릭스의 모든 enum 값이 **등록된 grep 대상 파일**에 string literal 로 등장하는지 검증한다. 현재 `REGISTRY_SITES` 는 4개 파일 — `use-execution-events.ts` (위 (a)·(b)), `apply-execution-snapshot.ts` ((c)), `run-results-drawer.tsx` ((d)), `executions/[executionId]/page.tsx` ((e)). (f) `result-detail.tsx` formPreview / `AssistantPresentationsBlock` 은 grep 가드가 아니라 TS exhaustive `default: never` 로만 커버된다 (동작 drift 아님). switch 기반이 아닌 if/else·flag 파생 소비처를 잡기 위한 보조 가드이며, switch 누락은 rule 2 의 컴파일러 단계에서 별도로 fail 한다.
 
 ---
 
 ## 2. ConversationTurnSource
 
-`source` enum — [`spec/conventions/conversation-thread.md` §1.1](./conversation-thread.md#11-conversationturnsource) 단일 진실. 값 6개 (`presentation_user`, `ai_user`, `ai_assistant`, `ai_tool`, `system`, `system_error`).
+`source` enum — [`spec/conventions/conversation-thread.md` §1.1](./conversation-thread.md#11-conversationturnsource) 단일 진실. **frontend union 6개** (`presentation_user`, `ai_user`, `ai_assistant`, `ai_tool`, `system`, `system_error`); **backend 누적 enum 은 `system_error` 제외 5값** (`system_error` 는 frontend 가 WS 에러 이벤트로 합성하는 6번째 source — conversation-thread.md §1.1.1). 아래 매트릭스는 frontend 6값 기준이다.
 
 ### 2.1 처리 분기 매트릭스
 
@@ -60,7 +63,7 @@ backend `WaitingInteractionType` ([execution-engine §1.3](../5-system/4-executi
 | `ai_assistant` | 동일 함수 · 🤖 assistant bubble (presentations 부착 분기 포함) |
 | `ai_tool` | 동일 함수 · 🔧 tool row |
 | `system` | 동일 함수 · ℹ️ system note (v1 자동 push 없음 — 미리 분기 구현) |
-| `system_error` | **AST 가드 대상 코드 파일**: `threadTurnsToConversationItems` switch (`codebase/frontend/src/lib/conversation/conversation-utils.ts`), `ConversationTimelineItem` 렌더 분기 (`codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx` + `result-timeline.tsx`). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — ❌ 빨간 라인 + `<nodeLabel> · <code>` chip + `data.message` 본문 + `data.retryable === true` 시 `[다시 시도]` 버튼. |
+| `system_error` | **AST 가드 대상 코드 파일** (test `SOURCE_REGISTRY_SITES` — grep 검증 대상은 `threadTurnsToConversationItems` switch 1개뿐): `codebase/frontend/src/lib/conversation/conversation-utils.ts`. **렌더 분기 (TS exhaustive 커버, grep 가드 비대상)**: 좌측 timeline chip 은 `ConversationTimelineItem` (`codebase/frontend/src/components/editor/run-results/conversation-timeline-item.tsx` 의 `item.type === "system_error"` 분기 — `result-timeline.tsx` 는 이 컴포넌트에 위임만, 자체 source 분기 없음), 우측 인스펙터는 `SelectedItemDetail` / `SystemErrorRow` (`codebase/frontend/src/components/editor/run-results/conversation-inspector.tsx` — `[다시 시도]` 버튼 surface). **spec cross-ref (AST 가드 비대상)**: `conversation-thread.md §9.1` 매핑표 — ❌ 빨간 라인 + `<nodeLabel> · <code>` chip + `data.message` 본문 + `data.retryable === true` 시 `[다시 시도]` 버튼. |
 
 `threadTurnsToConversationItems` 의 switch 는 이미 exhaustive `default: never` 패턴 적용됨 (`const _exhaustive: never = turn.source`). `system_error` 추가 시 새 case 명시 의무.
 

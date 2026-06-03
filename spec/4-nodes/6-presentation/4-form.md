@@ -1,9 +1,12 @@
 ---
 id: form
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-sync-form-gaps.md
 code:
   - codebase/backend/src/nodes/presentation/form/form.handler.ts
   - codebase/backend/src/nodes/presentation/form/form.schema.ts
+  - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
   - codebase/frontend/src/components/editor/run-results/dynamic-form-ui.tsx
 ---
 
@@ -37,10 +40,12 @@ code:
 | options | Option[]? | | `select`/`radio`/`checkbox` 용 선택지 (`{ label, value }`). `value` 가 빈 문자열·`null`·`undefined` 인 경우는 LLM tool 모드 (`render_form`) 에 한해 backend 가 결정적 fallback `opt-{fieldIdx}-{optIdx}` (인덱스 단일 형식) 으로 backfill — [공통 §10.5 step 4](./0-common.md#105-schema-위반-처리-및-정규화) SoT. 사용자 직접 config 의 빈 value 는 frontend 입력 시점에 가드되므로 본 단계 영향권 밖. |
 | defaultValue | Any? | | 기본값 (`{{ }}` 표현식 사용 가능) |
 | validation | ValidationRule? | | 유효성 검증 규칙 |
-| allowedMimeTypes | String[]? | | `type: 'file'` 전용. 허용 MIME 타입 목록 (기본은 아래 참조) |
-| maxFileSize | Number? | | `type: 'file'` 전용. 단일 파일 최대 크기 (MB, 기본 10) |
-| maxTotalSize | Number? | | `type: 'file'` 전용. 필드 내 전체 파일 합계 최대 크기 (MB, 기본 50) |
-| maxFiles | Number? | | `type: 'file'` 전용. 필드당 최대 파일 수 (기본 5) |
+| allowedMimeTypes | String[]? | | `type: 'file'` 전용. 허용 MIME 타입 목록 (계획상 기본은 아래 참조) |
+| maxFileSize | Number? | | `type: 'file'` 전용. 단일 파일 최대 크기 (MB, 계획상 기본 10) |
+| maxTotalSize | Number? | | `type: 'file'` 전용. 필드 내 전체 파일 합계 최대 크기 (MB, 계획상 기본 50) |
+| maxFiles | Number? | | `type: 'file'` 전용. 필드당 최대 파일 수 (계획상 기본 5) |
+
+> ⚠ 위 4개 file 옵션은 `formFieldSchema` (`form.schema.ts:71-74`) 에서 모두 `optional()` 로만 선언돼 있고 **zod default 가 없다** — 즉 미설정 시 아래 기본값(13종 MIME, 10MB/50MB/5)이 코드에서 자동 주입되지 않으며, frontend `DynamicFormUI` 도 `accept = (allowedMimeTypes ?? []).join(",")` / `multiple = maxFiles > 1` 만 사용한다. 기본값 적용·서버 강제는 **미구현 (Planned)** — `plan/in-progress/spec-sync-form-gaps.md` 추적.
 
 **ValidationRule 구조:**
 
@@ -51,10 +56,12 @@ code:
 | min | Number? | 최솟값 (`number`) |
 | max | Number? | 최댓값 (`number`) |
 | pattern | String? | 정규표현식 패턴 (custom) |
-| preset | ValidationPreset? | 미리 정의된 검증 카탈로그 — `pattern` 보다 우선 적용. 외부 어댑터 (Chat Channel 등) 가 UI hint 도출에 활용 |
+| preset | ValidationPreset? | **미구현 (Planned)** — 미리 정의된 검증 카탈로그. `pattern` 보다 우선 적용. 외부 어댑터 (Chat Channel 등) 가 UI hint 도출에 활용 |
 | message | String? | 유효성 실패 시 에러 메시지 |
 
-**ValidationPreset 카탈로그:**
+> ⚠ `preset` 은 현재 `validationRuleSchema` (`form.schema.ts:20-29`) 에 **존재하지 않는다** — `minLength`/`maxLength`/`min`/`max`/`pattern`/`message` 만 정의돼 있고 ValidationPreset 카탈로그·서버 regex·어댑터 UI hint 도출 코드가 모두 부재하다. 아래 카탈로그는 **계획(Planned)** 으로, 구현 추적은 `plan/in-progress/spec-sync-form-gaps.md` 참조.
+
+**ValidationPreset 카탈로그 (미구현 / Planned):**
 
 `pattern` 직접 작성 대신 self-documenting preset 으로 의도를 표현 — Form 노드 사용자가 정규식을 직접 적지 않아도 되고, 외부 어댑터 (예: [Telegram Chat Channel](../7-trigger/providers/telegram.md#53-form-cch-mp-03)) 가 preset 식별자로 UI hint (share_contact 키보드 등) 를 도출할 수 있다.
 
@@ -62,9 +69,9 @@ code:
 |---|---|---|---|---|
 | `phone` | `text` | 전화번호 — 국제 포맷 허용 (`+`, 숫자, 공백, `-`, `()`) | `^\+?[\d\s\-()]+$` (1자 이상) | Telegram: `request_contact: true` (share_contact 버튼). 미지원 provider: 일반 text 입력 |
 
-(v1 카탈로그 = 1종. URL / datetime 등 후속 preset 은 사용 사례 발생 시 추가.)
+(계획상 v1 카탈로그 = 1종. URL / datetime 등 후속 preset 은 사용 사례 발생 시 추가.)
 
-`preset` 과 `pattern` 이 동시에 설정되면 `preset` 이 우선 적용된다. `message` 가 없으면 preset 별 default 메시지 사용 (`phone` → "전화번호 형식이 올바르지 않습니다.").
+(Planned) `preset` 과 `pattern` 이 동시에 설정되면 `preset` 이 우선 적용된다. `message` 가 없으면 preset 별 default 메시지 사용 (`phone` → "전화번호 형식이 올바르지 않습니다.").
 
 **`type: 'file'` 의 `allowedMimeTypes` 기본값** (문서/이미지만 허용):
 
@@ -90,15 +97,15 @@ code:
 
 **UI 렌더 (`DynamicFormUI.renderField` 의 file case)**:
 
-- 입력 element: `<input type="file" accept={allowedMimeTypes.join(",")} multiple={maxFiles > 1}>`
+- 입력 element: `<input type="file" accept={(allowedMimeTypes ?? []).join(",") || undefined} multiple={maxFiles > 1}>` (`dynamic-form-ui.tsx:185-202`)
   - `maxFiles` 가 1 이면 단일 파일 선택, >1 이면 multiple 모드.
-  - `accept` 는 §1 의 `allowedMimeTypes` 기본값 또는 사용자 명시 값을 그대로 콤마 결합.
-- 실시간 검증 (제출 전 클라이언트 가드):
-  - `allowedMimeTypes` 미일치 시 즉시 reject + `validation.message` (없으면 기본 메시지 "허용되지 않은 파일 형식입니다.").
-  - 단일 파일 크기 > `maxFileSize` (MB) 시 즉시 reject.
-  - 합계 크기 > `maxTotalSize` (MB) 시 즉시 reject.
-  - 선택 개수 > `maxFiles` 시 즉시 reject.
-- 검증 실패 시 selection 자체를 거부 (선택된 file 이 fieldState 에 들어가지 않음) — 제출 버튼 활성 상태 그대로 유지.
+  - `accept` 는 사용자 명시 `allowedMimeTypes` 값을 그대로 콤마 결합 (미설정 시 `accept` 미부여 — §1 의 기본 MIME 목록은 코드에서 주입되지 않음).
+- **실시간 검증 (제출 전 클라이언트 가드) — 미구현 (Planned)**: 현재 `onChange` 는 `FileList` 를 그대로 `Array.from(...).map(toFileMetadata)` 로 변환해 fieldState 에 넣을 뿐, 아래 reject 로직이 전혀 없다 (`dynamic-form-ui.tsx:193-200`). 아래는 계획 사양:
+  - (Planned) `allowedMimeTypes` 미일치 시 즉시 reject + `validation.message` (없으면 기본 메시지 "허용되지 않은 파일 형식입니다.").
+  - (Planned) 단일 파일 크기 > `maxFileSize` (MB) 시 즉시 reject.
+  - (Planned) 합계 크기 > `maxTotalSize` (MB) 시 즉시 reject.
+  - (Planned) 선택 개수 > `maxFiles` 시 즉시 reject.
+- (Planned) 검증 실패 시 selection 자체를 거부 (선택된 file 이 fieldState 에 들어가지 않음) — 제출 버튼 활성 상태 그대로 유지.
 
 **제출 payload (metadata-only)**:
 

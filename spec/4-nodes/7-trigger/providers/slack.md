@@ -1,6 +1,8 @@
 ---
 id: slack
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-sync-slack-gaps.md
 code:
   - codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts
   - codebase/backend/src/modules/chat-channel/providers/slack/slack-client.ts
@@ -54,11 +56,11 @@ code:
 | `setupChannel` | (a) [`POST /api/auth.test`](https://api.slack.com/methods/auth.test) — bot identity 캐시. (b) Events API "Request URL" 은 Slack 앱 manifest 측 설정이므로 어댑터는 URL Verification handshake (`type: "url_verification"`) 응답 코드만 보장. (c) signing secret 은 사용자가 OAuth Install 단계에서 받아 별도 입력 — 어댑터가 발급하지 않음 |
 | `teardownChannel` | best-effort no-op — Slack 앱 manifest 의 Request URL 은 우리 측에서 revoke 할 수 없음. 다만 bot token rotation (`auth.revoke`) 은 별도 [CCH-SE-04](../../../5-system/15-chat-channel.md#34-신뢰성--보안) rotate API 의 책임 — `teardownChannel` 자체는 외부 호출 없음 |
 | `parseUpdate` | Events API (`event_callback` envelope) + Interactivity (`payload=<URL-encoded JSON>` — `block_actions` / `view_submission`) + Slash Commands (`application/x-www-form-urlencoded`) → `ChannelUpdate` |
-| `sendMessage` (text) | [`POST /api/chat.postMessage`](https://api.slack.com/methods/chat.postMessage) (channel, text, mrkdwn=true) |
+| `sendMessage` (text) | [`POST /api/chat.postMessage`](https://api.slack.com/methods/chat.postMessage) (channel, text) — `mrkdwn` 파라미터는 미전달이며 Slack 서버 default (`mrkdwn=true`) 에 의존 |
 | `sendMessage` (buttons) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", ...}]}]` |
 | `sendMessage` (form_prompt) | `chat.postMessage` + 옵션 `blocks: [{type: "input", ...}]` 으로 single-field 안내 (§4.2 다단계 텍스트 시퀀스) |
 | `sendMessage` (form_modal) | `chat.postMessage` + `blocks: [{type: "actions", elements: [{type: "button", action_id: "__open_form__", ...}]}]` — "양식 작성하기" 버튼 발송 (§4.1 native modal 게이팅). 클릭 시 `HooksService` 가 `openFormModal` 에서 [`POST /api/views.open`](https://api.slack.com/methods/views.open) 으로 modal open (§3.3) |
-| `sendMessage` (image) | [`POST /api/files.uploadV2`](https://api.slack.com/methods/files.uploadV2) (channel, file, initial_comment) — v1 carousel/chart/table 의 image fallback path |
+| `sendMessage` (image) | **미구현 (Planned)** — [`POST /api/files.uploadV2`](https://api.slack.com/methods/files.uploadV2) (channel, file, initial_comment) 는 `slack-client.ts` 에서 Phase 3 스텁(호출 시 reject)이다. 현재 `image` kind 는 caption/fallbackText 를 `chat.postMessage` text 로 발송 (v1 = text fallback) |
 | `sendMessage` (typing) | **no-op** — Slack Web API 에 server-initiated typing indicator 가 없다 (Rationale R-S-5) |
 | `ackInteraction` (button_callback / view_submission) | Interactivity 응답: 3초 안에 HTTP `200 OK` 반환 (빈 body 또는 `response_action`) — 비동기 갱신은 [`response_url`](https://api.slack.com/interactivity/handling#message_responses) 사용 |
 
@@ -68,8 +70,10 @@ code:
 POST https://slack.com/api/auth.test
 Authorization: Bearer {botToken}
 → { ok: true, team_id, user_id, bot_id, url, team, user, ... }
-  → config.chatChannel.botIdentity = { botId: bot_id, username: user, teamId: team_id }
+  → config.chatChannel.botIdentity = { botId: hashStringToInt(user_id ?? bot_id), username: (user ?? bot_id), teamId: team_id }
 ```
+
+Slack 의 식별자 (`user_id` `U…` / `bot_id` `B…`) 는 문자열이지만 `botIdentity.botId` 슬롯이 `number` (Convention §2.3 SoT) 이므로 `slack.adapter.ts` 의 `hashStringToInt` 로 deterministic int 변환하여 저장한다 — Slack identity 의 실제 식별자는 `username` + `teamId` 이고 `botId` 는 키로 쓰이지 않는다.
 
 Events API 의 "Request URL" 은 Slack 앱 manifest 의 사전 등록 사항 — 어댑터가 API 로 등록·해제하지 않는다 (R-S-2). 사용자는 Slack 앱 manifest 의 `event_subscriptions.request_url` 을 `${BASE_URL}/api/hooks/${trigger.endpointPath}` 로 설정해 둔 상태여야 한다 (UI 가이드 시점에 안내).
 
@@ -122,7 +126,7 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 |---|---|
 | `event.type === "message"` & `event.channel_type === "im"` & no `bot_id` & `subtype === undefined` | `{ kind: "text_message", text: event.text }` |
 | `event.type === "app_mention"` (모든 채널) | DM 외 채널 → `null` (R-S-4). DM 안의 mention 은 `text_message` 로 흡수 |
-| `event.type === "file_shared"` & DM | `parseUpdate` 는 `{ kind: "file_upload", fileId: event.file_id, mimeType: "application/octet-stream" }` 를 동기 반환 (Convention §1.1 pure 계약 유지). 실제 mimeType / filename / url_private 보강은 **호출자 (`HooksService`) 가 `files.info` 1회 후속 호출** 책임 — 자세한 흐름은 Rationale R-S-7 |
+| `event.type === "file_shared"` & DM | `parseUpdate` 는 `{ kind: "file_upload", fileId: event.file_id, mimeType: "application/octet-stream" }` 를 동기 반환 (Convention §1.1 pure 계약 유지) — **구현됨**. 실제 mimeType / filename / url_private 보강 (호출자 `HooksService` 의 `files.info` 후속 호출 → `submit_form`) 은 **미구현 (Planned)**: `HooksService` 의 file_upload 경로는 Phase 4 스텁(no-op)이고 `SlackClient` 에 `filesInfo` 메서드가 없다. 목표 흐름은 Rationale R-S-7 |
 | `event.type === "message"` & `event.channel_type ∈ ('channel', 'group', 'mpim')` | `null` — 호출자가 `groupChatRefusal` 안내 |
 | `event.type === "message"` & `bot_id` 존재 또는 `subtype === "bot_message"` | `null` — 봇/자기 메시지 무시 |
 | 그 외 event (`reaction_added`, `team_join` 등) | `null` — v1 미처리 |
@@ -138,7 +142,7 @@ Slack 의 inbound 진입은 3종 envelope (Events API · Interactivity · Slash 
 | `"view_submission"` & `view.callback_id === "clemvion_form"` (modal submit) | **`{ kind: "form_submission", fields }`** — `payload.view.state.values` 를 `{ <field.name>: rawValue }` 로 평탄화 (block_id=field.name, element value 추출). native form modal 채택 ([R-S-6](#r-s-6-form--5-fields-이하-native-modal-6-또는-multi_step-opt-out-시-다단계)) |
 | `"shortcut"` / `"message_action"` / `"view_closed"` | v1 `null` (view_closed 시 execution 은 waiting 유지 — 버튼 메시지 잔존, 사용자 재클릭 가능. Convention §4) |
 
-**3초 ack 의무**: Slack Interactivity 는 endpoint 가 3초 안에 `200 OK` 를 반환해야 한다. `ackInteraction` 이 즉시 빈 body 200 응답 — 비동기 후속 갱신은 `response_url` (1시간 유효, 5회 한도) 로 별 POST.
+**3초 ack 의무**: Slack Interactivity 는 endpoint 가 3초 안에 `200 OK` 를 반환해야 한다. `ackInteraction` 이 즉시 빈 body 200 응답 (구현됨) — 비동기 후속 갱신을 위한 `response_url` (1시간 유효, 5회 한도) POST 는 **미구현 (Planned)** (§5.2 step 3 참조).
 
 ### 4.3 Slash Commands (`Content-Type: application/x-www-form-urlencoded`, body `{ command, text, ... }`)
 
@@ -181,7 +185,7 @@ Slack slash command 는 **workspace 단위 1개 prefix** 만 등록 가능하므
 - `block_actions` payload 도착 시:
   1. 즉시 `200 OK` (3초 ack 의무) — 빈 body
   2. EIA `click_button` 호출
-  3. (옵션) `response_url` 로 `replace_original: true, text: "선택 완료: <라벨>"` POST — 키보드 제거 + 선택 시각화
+  3. (옵션, **미구현 Planned**) `response_url` 로 `replace_original: true, text: "선택 완료: <라벨>"` POST — 키보드 제거 + 선택 시각화. 현재 `response_url` 은 payload 타입(`slack.types.ts`)에만 존재하고 이를 사용한 비동기 POST 경로는 없다 (`sendMessage` 도 `chat.postMessage` 만 호출)
 
 ### 5.3 Form (CCH-MP-03)
 
@@ -290,7 +294,7 @@ Telegram §7 의 `/start` / `/cancel` / `/help` 와 의미 1:1 — Slack 은 단
 
 ## 8. 비기능
 
-- `chat.postMessage` 5초 타임아웃 + 3회 지수 백오프 (1s / 2s / 4s). 최종 실패 시 trigger 의 `chat_channel_health` = `degraded`.
+- `chat.postMessage` 5초 타임아웃 + 3회 시도 (지수 백오프). 시도 사이 대기는 1s · 2s 두 번 — 3번째(마지막) 시도 실패 후엔 더 대기하지 않으므로 4s 대기는 실제로 발생하지 않는다 (`slack-client.ts` `call`). 최종 실패 시 trigger 의 `chat_channel_health` = `degraded`.
 - Slack [Rate limits](https://api.slack.com/docs/rate-limits): `chat.postMessage` = **Tier 4** (≈ 100/min/workspace), `files.uploadV2` = **Tier 2** (≈ 20/min). 어댑터가 channel (DM) 단위 큐 + per-method bucket 으로 자체 throttle. 응답의 `Retry-After` 헤더 존중.
 - Events API dedup — 같은 `event_id` 가 30초 안에 두 번 도착하면 두 번째 무시 (Slack 의 retry 정책: 3회까지 `X-Slack-Retry-Num`).
 

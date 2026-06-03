@@ -3,13 +3,21 @@ id: graph-rag
 status: implemented
 code:
   - codebase/backend/src/modules/knowledge-base/graph/**
+  - codebase/backend/src/modules/knowledge-base/queues/graph-extraction.processor.ts
+  - codebase/backend/src/modules/knowledge-base/queues/stuck-document-recovery.service.ts
+  - codebase/backend/src/modules/knowledge-base/graph.controller.ts
+  - codebase/backend/src/modules/knowledge-base/dto/retry-failed.dto.ts
   - codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts
   - codebase/frontend/src/components/knowledge-base/graph-3d-renderer.tsx
+  - codebase/frontend/src/components/knowledge-base/graph-visualization.tsx
   - codebase/frontend/src/components/knowledge-base/entity-list.tsx
   - codebase/frontend/src/components/knowledge-base/relation-list.tsx
+  - codebase/frontend/src/components/knowledge-base/entity-detail-dialog.tsx
+  - codebase/frontend/src/components/knowledge-base/kb-form-body.tsx
   - codebase/backend/migrations/V025__graph_rag.sql
   - codebase/backend/migrations/V026__graph_extraction_status_nullable_index.sql
   - codebase/backend/migrations/V027__relation_head_tail_index.sql
+  - codebase/backend/migrations/V037__kb_retry_failed_status.sql
 ---
 
 # Spec: Graph RAG
@@ -105,7 +113,7 @@ code:
 | KB-GR-SR-03 | 검색 2단계: 회수된 chunk 가 언급한 entity 들에서 1~`maxHops` (기본 1) 까지 그래프 확장 | 필수 | ✅ (recursive CTE) |
 | KB-GR-SR-04 | 검색 3단계: 확장된 entity 들이 등장한 chunk 를 추가 회수 (총 chunk 수는 `expandedChunkLimit`, 기본 15 내) | 필수 | ✅ |
 | KB-GR-SR-05 | 검색 4단계: vector seed + expanded chunk 를 score 재정렬해 상위 `topK` 반환 (graph expansion 청크는 entity centrality 기반 가중치 부여) | 필수 | ✅ |
-| KB-GR-SR-06 | 검색 결과 메타데이터에 `traversedEntities`, `traversalDepth`, `seedChunkIds` 포함 | 권장 | ✅ (`GraphTraversalSummary` — `maxDepthUsed` 포함) |
+| KB-GR-SR-06 | 검색 결과 메타데이터에 그래프 순회 요약 (`seedChunkCount`, `traversedEntityCount`, `maxDepth`, `expandedChunkCount`) 포함 (§4.3) | 권장 | ✅ (`GraphTraversalSummary`. 출력은 개수형 — 목록형 ID 배열이 아님) |
 
 #### 3.5 KB 검색 파라미터 (`KB-GR-PA-*`)
 
@@ -132,7 +140,7 @@ code:
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|------|
 | KB-GR-OB-01 | 추출에 사용된 LLM 토큰을 LLMUsageLog 에 기록 (기존 사용량 추적과 동일 채널) | 필수 | ✅ (`LlmService.chat` 호출 boundary 에서 자동 기록) |
-| KB-GR-OB-02 | 추출 진행 / 완료 / 에러 이벤트를 WebSocket 으로 노출 (KB 상세 실시간 갱신) | 필수 | ✅ (`document:graph_started` / `_progress` / `_completed` / `_error` / `_retry` / `_failed`) |
+| KB-GR-OB-02 | 추출 진행 / 완료 / 에러 이벤트를 WebSocket 으로 노출 (KB 상세 실시간 갱신) | 필수 | ✅ (`document:graph_started` / `_progress` / `_completed` / `_retry` / `_failed`. `_error` 는 타입 union 에만 dead-declared, 미emit) |
 | KB-GR-OB-03 | KB 단위 entity / relation 카운트는 캐시 컬럼으로 유지 (조회 시 매번 SELECT COUNT 회피) | 권장 | ✅ (V025 `entity_count` / `relation_count` 컬럼) |
 
 ---
@@ -376,8 +384,8 @@ LLM 호출 시 JSON Schema 강제:
 
 ### 3.4 재추출
 
-- 문서 단건: `POST /api/knowledge-bases/:kbId/documents/:docId/re-extract`
-- KB 전체: `POST /api/knowledge-bases/:kbId/re-extract` — KB 의 모든 entity/relation/chunk_entity 를 삭제 후 모든 문서에 대해 큐잉
+- 문서 단건: `POST /api/knowledge-bases/:id/documents/:docId/re-extract`
+- KB 전체: `POST /api/knowledge-bases/:id/re-extract` — KB 의 모든 entity/relation/chunk_entity 를 삭제 후 모든 문서에 대해 큐잉
 - 임베딩 재실행 (`re-embed`) 은 그래프 추출도 자동 chained (KB 가 graph 모드인 경우)
 
 ---
@@ -507,20 +515,20 @@ LIMIT $5;        -- ragTopK
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| POST | `/api/knowledge-bases/:kbId/documents/:docId/re-extract` | 문서 단건 그래프 재추출 (graph 모드 KB 에서만 유효) |
-| POST | `/api/knowledge-bases/:kbId/re-extract` | KB 전체 재추출 — 모든 entity/relation/chunk_entity 삭제 후 모든 문서 재추출. `KB_REEXTRACT_IN_PROGRESS` 잠금 (재임베딩과 동일 패턴) |
+| POST | `/api/knowledge-bases/:id/documents/:docId/re-extract` | 문서 단건 그래프 재추출 (graph 모드 KB 에서만 유효) |
+| POST | `/api/knowledge-bases/:id/re-extract` | KB 전체 재추출 — 모든 entity/relation/chunk_entity 삭제 후 모든 문서 재추출. `KB_REEXTRACT_IN_PROGRESS` 잠금 (재임베딩과 동일 패턴) |
 
 ### 5.2 그래프 조회 (P1)
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | `/api/knowledge-bases/:kbId/entities` | entity 목록 (페이지네이션, 검색, 타입 필터) |
-| GET | `/api/knowledge-bases/:kbId/entities/:entityId` | entity 상세 + 등장 chunk 목록 |
-| DELETE | `/api/knowledge-bases/:kbId/entities/:entityId` | entity 삭제 (관련 relation, chunk_entity CASCADE) |
-| GET | `/api/knowledge-bases/:kbId/relations` | relation 목록 (페이지네이션, head/tail 검색) |
-| DELETE | `/api/knowledge-bases/:kbId/relations/:relationId` | relation 삭제 |
-| GET | `/api/knowledge-bases/:kbId/graph/stats` | entity_count / relation_count / 추출 진행 상태 요약 |
-| GET | `/api/knowledge-bases/:kbId/graph/visualization` | 상위 mention_count entity + relation 페이로드 (시각화 용) |
+| GET | `/api/knowledge-bases/:id/entities` | entity 목록 (페이지네이션, 검색, 타입 필터) |
+| GET | `/api/knowledge-bases/:id/entities/:entityId` | entity 상세 + 등장 chunk 목록 |
+| DELETE | `/api/knowledge-bases/:id/entities/:entityId` | entity 삭제 (관련 relation, chunk_entity CASCADE) |
+| GET | `/api/knowledge-bases/:id/relations` | relation 목록 (페이지네이션, head/tail 검색) |
+| DELETE | `/api/knowledge-bases/:id/relations/:relationId` | relation 삭제 |
+| GET | `/api/knowledge-bases/:id/graph/stats` | entity_count / relation_count / 추출 진행 상태 요약 |
+| GET | `/api/knowledge-bases/:id/graph/visualization` | 상위 mention_count entity + relation 페이로드 (시각화 용) |
 
 ---
 
@@ -533,9 +541,10 @@ LIMIT $5;        -- ragTopK
 | `document:graph_started` | `{ documentId, knowledgeBaseId }` | 추출 시작 |
 | `document:graph_progress` | `{ documentId, progress: number, entityDelta: number, relationDelta: number }` | chunk 처리마다 |
 | `document:graph_completed` | `{ documentId, entityCount, relationCount }` | 완료 |
-| `document:graph_error` | `{ documentId, error: string }` | in-flight 일시 오류 — `document:graph_retry` 또는 `graph_failed` 가 곧 따라온다. **영구 실패 신호로 사용하지 말 것** (영구 실패는 `graph_failed`) |
-| `document:graph_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
+| `document:graph_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 (in-flight 일시 오류 신호) |
 | `document:graph_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
+
+> `document:graph_error` 는 `websocket.service.ts` 의 이벤트 타입 union 에 선언돼 있으나 `graph-extraction.service.ts` 에서 실제로 emit 하지 않는다 (dead-declared). in-flight 일시 오류는 `document:graph_retry`, 최종 실패는 `document:graph_failed` 로만 신호한다.
 
 ---
 

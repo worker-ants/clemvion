@@ -1,9 +1,12 @@
 ---
 id: common
-status: implemented
+status: partial
 code:
   - codebase/backend/src/nodes/flow/workflow/workflow.handler.ts
   - codebase/backend/src/nodes/flow/workflow/workflow.schema.ts
+  - codebase/frontend/src/lib/utils/node-config-summary.ts
+pending_plans:
+  - plan/in-progress/spec-sync-common-gaps.md
 ---
 
 # Spec: Flow 노드 공통 규약
@@ -36,7 +39,7 @@ Flow 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 |------|--------------------------------|
 | `config` | 사용자 입력 raw echo (Principle 7). `inputMapping[]` 의 expression 템플릿 보존. `workflowId` / `mode` / `timeout` 등 |
 | `output` | **Sync 모드**: 서브 워크플로우의 최종 출력. **Async 모드**: `{ executionId, workflowId, status }` 형식의 즉시 반환 메타. 두 경우 모두 분명히 다른 형태 → 노드 문서에서 case 분리 |
-| `meta` | 실행 메트릭만 (Principle 2). `meta.{durationMs, recursionDepth, subExecutionId?, mode}` |
+| `meta` | 실행 메트릭만 (Principle 2). **현재 구현**: Sync 모드만 `meta.{durationMs}` 를 반환하고, Async 모드는 `meta` 를 반환하지 않음. `recursionDepth` 는 inline/async 호출 인자로만 전달되며 meta 로 노출하지 않음 (`workflow.handler.ts:158-169,115-123`). *계획*: `recursionDepth` / `subExecutionId` / `mode` 의 meta 노출은 미구현 (Planned). |
 | `port` | `'out'` (성공) / `'error'` (서브 워크플로우 실패, 동기 모드) |
 | `status` | Flow 노드는 비-블로킹 (sync 모드도 인라인 실행으로 즉시 종결) → `undefined` |
 
@@ -45,8 +48,8 @@ Flow 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 | 시나리오 | 처리 방식 |
 |----------|-----------|
 | Pre-flight: `workflowId` 미설정·존재 안 함·재귀 깊이 초과 | throw |
-| Sync 모드: 서브 워크플로우 런타임 실패 | `output.error.{code: 'SUB_WORKFLOW_FAILED', message, details: {workflowId, mode}}` + `port: 'error'` |
-| Async 모드: 큐 enqueue 실패 | `port: 'error'` (드물게 발생) |
+| Sync 모드: 서브 워크플로우 런타임 실패 | `output.error.{code, message, details: {workflowId, mode}}` + `port: 'error'`. `code` 는 세분화: `SUB_WORKFLOW_NOT_FOUND` (대상 부재) / `SUB_WORKFLOW_TIMEOUT` (timeout 초과) / 그 외 generic `SUB_WORKFLOW_FAILED` (`workflow.handler.ts:237-269`) |
+| Async 모드: 큐 enqueue 실패 | `output.error.{code: 'SUB_WORKFLOW_QUEUE_FAILED', ...}` + `port: 'error'` (드물게 발생) |
 | Async 모드: 서브 워크플로우의 런타임 에러 | 부모에 전파되지 않음 (fire-and-forget) — 서브 Execution의 로그에만 기록 |
 
 > `error` 포트에 엣지가 연결되지 않은 상태에서 서브 워크플로우 실패 시 동작은 [Spec 에러 핸들링 §3.2 Route to Error Port](../../5-system/3-error-handling.md#32-route-to-error-port-상세) 의 일반 정책을 따른다.
@@ -65,6 +68,10 @@ Flow 노드는 모두 [CONVENTIONS Principle 0](../../conventions/node-output.md
 
 ## 4. 캔버스 요약
 
+캔버스 본문 요약은 노드 SSOT 메타데이터의 `summaryTemplate` 을 `renderSummaryTemplate` 으로 렌더링한다 (`node-config-summary.ts:89`). blocking warningRule 이 발화하면 `⚠ <message>` 가 우선 표시된다.
+
 | 노드 | 요약 포맷 | 예시 |
 |------|-----------|------|
-| Workflow | `{workflowName 또는 workflowId} · {mode}`. `workflowName`이 있으면 이름 표시, 없으면 ID 표시. 워크플로우 삭제 시 `⚠ Missing workflow` | `Data Pipeline · sync` |
+| Workflow | *계획*: `{workflowName 또는 workflowId} · {mode}` (`workflowName` 있으면 이름, 없으면 ID). | `Data Pipeline · sync` |
+
+> **현재 구현 (미완)**: `workflowNodeMetadata` 에 `summaryTemplate` 이 정의되지 않아 (`workflow.schema.ts:169-192`) 위 `{name} · {mode}` 요약은 렌더링되지 않으며, `⚠ Missing workflow` 텍스트도 존재하지 않는다 (미구현, Planned). `workflowId` 미설정 시에는 warningRule `workflow:no-workflow-selected` 가 발화해 `⚠ Target workflow must be selected.` 만 표시된다 (`workflow.schema.ts:184-190`).
