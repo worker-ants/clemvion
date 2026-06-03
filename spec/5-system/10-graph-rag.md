@@ -112,7 +112,7 @@ code:
 | KB-GR-SR-02 | 검색 1단계: query 임베딩 → KB 의 chunk 에서 vector top-K (`vectorSeedTopK`, 기본 5) 회수 | 필수 | ✅ |
 | KB-GR-SR-03 | 검색 2단계: 회수된 chunk 가 언급한 entity 들에서 1~`maxHops` (기본 1) 까지 그래프 확장 | 필수 | ✅ (recursive CTE) |
 | KB-GR-SR-04 | 검색 3단계: 확장된 entity 들이 등장한 chunk 를 추가 회수 (총 chunk 수는 `expandedChunkLimit`, 기본 15 내) | 필수 | ✅ |
-| KB-GR-SR-05 | 검색 4단계: vector seed + expanded chunk 를 score 재정렬해 상위 `topK` 반환 (graph expansion 청크는 entity centrality 기반 가중치 부여) | 필수 | ✅ |
+| KB-GR-SR-05 | 검색 4단계 — **centrality-weighted score blending**: vector seed + expanded chunk 를 score 재정렬해 상위 `topK` 반환 (graph expansion 청크는 entity centrality 기반 가중치 부여). 이는 graph 내부 1차 정렬이며, cross-encoder 후처리 reranking([RAG 검색 §3.3](./9-rag-search.md#33-검색-후처리--리랭킹-선택적), Planned)과는 **별개 단계**다 | 필수 | ✅ |
 | KB-GR-SR-06 | 검색 결과 메타데이터에 그래프 순회 요약 (`seedChunkCount`, `traversedEntityCount`, `maxDepth`, `expandedChunkCount`) 포함 (§4.3) | 권장 | ✅ (`GraphTraversalSummary`. 출력은 개수형 — 목록형 ID 배열이 아님) |
 
 #### 3.5 KB 검색 파라미터 (`KB-GR-PA-*`)
@@ -205,7 +205,9 @@ code:
 
 ## 1. 개요
 
-Graph RAG 는 KB 의 검색 모드(`rag_mode`) 가 `graph` 일 때 활성화되는 검색 흐름이다. vector seed → graph expansion → rerank 의 Hybrid 형태로 동작하며, 기존 `vector` 모드 KB 와 동일 인프라(PostgreSQL + pgvector + BullMQ) 위에서 추가 의존성 없이 작동한다.
+Graph RAG 는 KB 의 검색 모드(`rag_mode`) 가 `graph` 일 때 활성화되는 검색 흐름이다. vector seed → graph expansion → **centrality-weighted score blending** 의 Hybrid 형태로 동작하며, 기존 `vector` 모드 KB 와 동일 인프라(PostgreSQL + pgvector + BullMQ) 위에서 추가 의존성 없이 작동한다.
+
+> **용어 disambiguation**: 본 문서에서 그래프 4단계의 "rerank"·"score 재정렬" 은 **centrality-weighted score blending**(cosine × centrality 가중) 을 뜻하는 graph 내부 1차 정렬이다. 별도의 선택적 cross-encoder 후처리 reranking([RAG 검색 §3.3](./9-rag-search.md#33-검색-후처리--리랭킹-선택적), Planned)과 혼동하지 않는다 — 후자는 `rerank_mode ≠ off` 일 때 vector/graph 어느 회수 결과에도 적용되는 2차 단계다.
 
 ```
 문서 업로드
