@@ -340,7 +340,7 @@ codebase/backend/src/modules/hooks/
 7. config.chatChannel 가 있으면 (Chat Channel 분기):
    a. adapter = ChannelAdapterRegistry.get(config.chatChannel.provider)
    b. update = await adapter.parseUpdate(rawBody, config.chatChannel)   // 50ms 이내 (CCH-NF-01)
-   c. update === null 이면 (group chat / 무시 대상) → 202 Accepted + { ignored: true } 즉시 반환 (Execution 미생성)
+   c. update === null 이면 (group chat / 무시 대상) → 202 Accepted + { executionId: 'ignored' } 즉시 반환 (Execution 미생성)
    d. ChannelConversationService.lookup(triggerId, update.conversationKey) → ChannelConversation 조회
    e. 활성 execution 이 있으면 InteractionService.interact() in-process 호출 (token bypass — [EIA §3.3 EIA-AU-08](./14-external-interaction-api.md#33-인증))
       없으면 ExecutionEngineService.execute() 시작 (입력 = parseUpdate 결과 변환)
