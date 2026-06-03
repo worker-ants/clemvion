@@ -1,198 +1,108 @@
 {
-  "timestamp": "2026-06-03T21:34:09.132150",
+  "timestamp": "2026-06-03T21:34:09.976101",
   "files": [
     {
-      "file_path": "codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.spec.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/benefit.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/execution-engine/expression/expression-resolver.service.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/board.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/chunking/text-chunker.spec.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/catalog-sync.spec.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/constraint-validator.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/embedding/embedding.service.spec.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/cpik.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/index.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/md.parser.spec.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/member.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/md.parser.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/metadata.spec.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/parser.factory.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/order.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/pdf.parser.spec.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/product.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/modules/knowledge-base/parsers/pdf.parser.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/public-meta.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/nodes/data/code/code.schema.spec.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/shop.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/nodes/data/code/code.schema.ts",
+      "file_path": "codebase/backend/src/nodes/integration/makeshop/metadata/types.ts",
       "change_type": "Review",
       "file_extension": "ts"
     },
     {
-      "file_path": "codebase/backend/src/nodes/integration/database-query/database-query.schema.spec.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/backend/src/nodes/integration/database-query/database-query.schema.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/backend/src/nodes/integration/send-email/send-email.schema.spec.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/backend/src/nodes/integration/send-email/send-email.schema.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/backend/src/nodes/presentation/template/template.schema.spec.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/backend/src/nodes/presentation/template/template.schema.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/frontend/src/components/editor/expression/expression-constants.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/frontend/src/components/editor/settings-panel/__tests__/node-settings-panel-error-handling.test.tsx",
-      "change_type": "Review",
-      "file_extension": "tsx"
-    },
-    {
-      "file_path": "codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx",
-      "change_type": "Review",
-      "file_extension": "tsx"
-    },
-    {
-      "file_path": "codebase/frontend/src/lib/i18n/dict/en/editor.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/frontend/src/lib/i18n/dict/ko/editor.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "codebase/packages/expression-engine/src/evaluator.ts",
-      "change_type": "Review",
-      "file_extension": "ts"
-    },
-    {
-      "file_path": "plan/complete/spec-sync-data-common-gaps.md",
+      "file_path": "spec/conventions/makeshop-api-catalog/_overview.md",
       "change_type": "Review",
       "file_extension": "md"
     },
     {
-      "file_path": "plan/complete/spec-sync-embedding-pipeline-gaps.md",
+      "file_path": "spec/conventions/makeshop-api-catalog/benefit.md",
       "change_type": "Review",
       "file_extension": "md"
     },
     {
-      "file_path": "plan/complete/spec-sync-foreach-gaps.md",
+      "file_path": "spec/conventions/makeshop-api-catalog/board.md",
       "change_type": "Review",
       "file_extension": "md"
     },
     {
-      "file_path": "plan/complete/spec-sync-node-common-gaps.md",
+      "file_path": "spec/conventions/makeshop-api-catalog/cpik.md",
       "change_type": "Review",
       "file_extension": "md"
     },
     {
-      "file_path": "plan/complete/spec-sync-template-gaps.md",
+      "file_path": "spec/conventions/makeshop-api-catalog/member.md",
       "change_type": "Review",
       "file_extension": "md"
     },
     {
-      "file_path": "plan/in-progress/spec-sync-integration-common-gaps.md",
+      "file_path": "spec/conventions/makeshop-api-catalog/order.md",
       "change_type": "Review",
       "file_extension": "md"
     },
     {
-      "file_path": "spec/3-workflow-editor/1-node-common.md",
+      "file_path": "spec/conventions/makeshop-api-catalog/product.md",
       "change_type": "Review",
       "file_extension": "md"
     },
     {
-      "file_path": "spec/4-nodes/1-logic/9-foreach.md",
-      "change_type": "Review",
-      "file_extension": "md"
-    },
-    {
-      "file_path": "spec/4-nodes/4-integration/0-common.md",
-      "change_type": "Review",
-      "file_extension": "md"
-    },
-    {
-      "file_path": "spec/4-nodes/5-data/0-common.md",
-      "change_type": "Review",
-      "file_extension": "md"
-    },
-    {
-      "file_path": "spec/4-nodes/6-presentation/0-common.md",
-      "change_type": "Review",
-      "file_extension": "md"
-    },
-    {
-      "file_path": "spec/4-nodes/6-presentation/5-template.md",
-      "change_type": "Review",
-      "file_extension": "md"
-    },
-    {
-      "file_path": "spec/5-system/5-expression-language.md",
-      "change_type": "Review",
-      "file_extension": "md"
-    },
-    {
-      "file_path": "spec/5-system/8-embedding-pipeline.md",
+      "file_path": "spec/conventions/makeshop-api-catalog/shop.md",
       "change_type": "Review",
       "file_extension": "md"
     }

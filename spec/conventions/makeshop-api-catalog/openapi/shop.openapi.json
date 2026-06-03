@@ -1,0 +1,6359 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Makeshop Shop API — 상점 설정 (Shop)",
+    "version": "v1",
+    "x-source": "https://developer.makeshop.co.kr/docs/api/shop",
+    "x-extracted": "2026-06-03 (Docusaurus chunk decode)"
+  },
+  "servers": [
+    {
+      "url": "https://connect.makeshop.co.kr",
+      "description": "Production server"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/{shopId}/authority": {
+      "get": {
+        "operationId": "get-authority",
+        "description": "상점 권한을 조회합니다.<br />해당 상점에 등록된 경우 Shopkey 없이 조회가 가능합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "properties": {
+                        "modify": {
+                          "type": "object",
+                          "description": "수정 선택",
+                          "properties": {
+                            "use": {
+                              "type": "array",
+                              "description": "허용권한 (shop_setting : 상점 설정, order : 주문, product : 상품관리, user : 회원, board/review : 게시판/리뷰, null : 권한 없음)",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "inquiry": {
+                          "type": "object",
+                          "description": "조회 권한",
+                          "properties": {
+                            "use": {
+                              "type": "array",
+                              "description": "허용권한 (shop_setting : 상점 설정, order : 주문, product : 상품관리, user : 회원, board/review : 게시판/리뷰, null : 권한 없음)",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "shop_key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "상점 권한 조회",
+          "description": {
+            "content": "상점 권한을 조회합니다.<br />해당 상점에 등록된 경우 Shopkey 없이 조회가 가능합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "authority"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "상점 권한 조회"
+      }
+    },
+    "/api/v1/{shopId}/bank_account": {
+      "get": {
+        "operationId": "get-bank_account",
+        "description": "상점에 등록된 무통장 계좌 정보를 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "무통장 계좌 조회",
+          "description": {
+            "content": "상점에 등록된 무통장 계좌 정보를 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "bank_account"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "무통장 계좌 조회"
+      }
+    },
+    "/api/v1/{shopId}/cart_free_config": {
+      "get": {
+        "operationId": "get-cart_free_config",
+        "description": "카트프리 설정값을 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "properties": {
+                        "product": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "uid": {
+                                "type": "string",
+                                "description": "상품번호"
+                              }
+                            }
+                          }
+                        },
+                        "version": {
+                          "type": "string",
+                          "description": "버전 정보 (PC, MOBILE)"
+                        },
+                        "category": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "cate1": {
+                                "type": "string",
+                                "description": "대분류"
+                              },
+                              "cate2": {
+                                "type": "string",
+                                "description": "중분류"
+                              },
+                              "cate3": {
+                                "type": "string",
+                                "description": "소분류"
+                              },
+                              "virtual": {
+                                "type": "string",
+                                "description": "가상분류 여부 (Y : 가상, N : 일반)"
+                              }
+                            }
+                          }
+                        },
+                        "product_sort": {
+                          "type": "string",
+                          "description": "상품정렬 (BEST : 판매순, NEW : 신상품순)"
+                        },
+                        "use_cart_free": {
+                          "type": "string",
+                          "description": "카트프리 사용 여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "select_product": {
+                          "type": "string",
+                          "description": "상품 선택 (ALL : 전체, CATEGORY : 카테고리 상품, PRODUCT : 상품 선택)"
+                        },
+                        "price_range_set": {
+                          "type": "string",
+                          "description": "가격 범위 지정 (ALL : 전체 상품, RANGE : 범위 설정)"
+                        },
+                        "price_range_start": {
+                          "type": "string",
+                          "description": "무료배송기준 (-)범위 금액"
+                        },
+                        "price_range_end": {
+                          "type": "string",
+                          "description": "무료배송기준 (+)범위 금액"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "카트프리 설정 조회",
+          "description": {
+            "content": "카트프리 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cart_free_config"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "카트프리 설정 조회"
+      }
+    },
+    "/api/v1/{shopId}/cart_free_config/update": {
+      "get": {
+        "operationId": "get-cart_free_config-update",
+        "description": "카트프리 설정을 변경합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true,false)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "use",
+            "in": "query",
+            "required": true,
+            "description": "카트프리 사용여부 (Y : 사용함, N : 사용안함)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "select_product",
+            "in": "query",
+            "required": false,
+            "description": "상품 선택 (ALL : 전체, CATEGORY : 카테고리 상품, PRODUCT : 상품 선택)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "price_range_set",
+            "in": "query",
+            "required": false,
+            "description": "가격 범위 지정 (ALL : 전체 상품, RANGE : 범위 설정)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "price_range_start",
+            "in": "query",
+            "required": false,
+            "description": "무료배송기준 (-)범위 금액",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "price_range_end",
+            "in": "query",
+            "required": false,
+            "description": "무료배송기준 (+)범위 금액",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "product_sort",
+            "in": "query",
+            "required": false,
+            "description": "상품정렬 (BEST : 판매순, NEW : 신상품순)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "codes",
+            "in": "query",
+            "required": false,
+            "description": "분류 코드 (ex.codes[0][cate1]=001,codes[0][cate2]=001,codes[0][cate3]=001)",
+            "schema": {
+              "type": "array"
+            }
+          },
+          {
+            "name": "uids",
+            "in": "query",
+            "required": false,
+            "description": "다중 상품 번호 (ex.uids[]=10000000,uids[]=10000001)",
+            "schema": {
+              "type": "array"
+            }
+          },
+          {
+            "name": "versions",
+            "in": "query",
+            "required": false,
+            "description": "버전 선택 (ex.versions[]=PC,versions[]=MOBILE)",
+            "schema": {
+              "type": "array"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "카트프리 설정 변경",
+          "description": {
+            "content": "카트프리 설정을 변경합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "cart_free_config",
+              "update"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 카트프리 사용여부 (Y : 사용함, N : 사용안함)",
+                  "type": "text/plain"
+                },
+                "key": "use",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "상품 선택 (ALL : 전체, CATEGORY : 카테고리 상품, PRODUCT : 상품 선택)",
+                  "type": "text/plain"
+                },
+                "key": "select_product",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "가격 범위 지정 (ALL : 전체 상품, RANGE : 범위 설정)",
+                  "type": "text/plain"
+                },
+                "key": "price_range_set",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "무료배송기준 (-)범위 금액",
+                  "type": "text/plain"
+                },
+                "key": "price_range_start",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "무료배송기준 (+)범위 금액",
+                  "type": "text/plain"
+                },
+                "key": "price_range_end",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "상품정렬 (BEST : 판매순, NEW : 신상품순)",
+                  "type": "text/plain"
+                },
+                "key": "product_sort",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "분류 코드 (ex.codes[0][cate1]=001,codes[0][cate2]=001,codes[0][cate3]=001)",
+                  "type": "text/plain"
+                },
+                "key": "codes",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "다중 상품 번호 (ex.uids[]=10000000,uids[]=10000001)",
+                  "type": "text/plain"
+                },
+                "key": "uids",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "버전 선택 (ex.versions[]=PC,versions[]=MOBILE)",
+                  "type": "text/plain"
+                },
+                "key": "versions",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "카트프리 설정 변경"
+      }
+    },
+    "/api/v1/{shopId}/crm_board_config": {
+      "get": {
+        "operationId": "get-crm_board_config",
+        "description": "1:1 문의 게시판 설정을 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "use": {
+                          "type": "string",
+                          "description": "게시판 사용 여부 (Y : 사용 N : 미사용)"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "게시판 등록 시 알림 메일 주소"
+                        },
+                        "guest": {
+                          "type": "string",
+                          "description": "비회원 게시판 사용 여부 (Y : 사용 N : 미사용)"
+                        },
+                        "add_file": {
+                          "type": "string",
+                          "description": "첨부 파일 가능 여부 (Y : 사용 N : 미사용)"
+                        },
+                        "add_title_use": {
+                          "type": "string",
+                          "description": "말머리 자동 설정 여부 (Y : 사용 N : 미사용)"
+                        },
+                        "add_file_image": {
+                          "type": "string",
+                          "description": "첨부 파일 이미지 전용 여부 (Y : 이미지 파일만 등록 가능 N : 구분 없음)"
+                        },
+                        "add_title_list": {
+                          "type": "string",
+                          "description": "말머리 문구"
+                        },
+                        "add_content_use": {
+                          "type": "string",
+                          "description": "사용자 추가 입력 사용 여부 (Y : 사용 N : 미사용)"
+                        },
+                        "guest_notice_use": {
+                          "type": "string",
+                          "description": "비회원 공지사항 노출 여부 (Y : 사용 N : 미사용)"
+                        },
+                        "add_content_title": {
+                          "type": "string",
+                          "description": "사용자 추가 입력시 제목"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "1:1 게시판 설정 조회",
+          "description": {
+            "content": "1:1 문의 게시판 설정을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "crm_board_config"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "1:1 게시판 설정 조회"
+      }
+    },
+    "/api/v1/{shopId}/delivery_company": {
+      "get": {
+        "operationId": "get-delivery_company",
+        "description": "상점의 택배사 정보를 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "택배사 코드"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "택배사 명"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "택배사 조회",
+          "description": {
+            "content": "상점의 택배사 정보를 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "delivery_company"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "택배사 조회"
+      }
+    },
+    "/api/v1/{shopId}/information": {
+      "get": {
+        "operationId": "get-information",
+        "description": "상점의 기본 정보를 조회합니다.<br />상점에 설정된 배송 정보를 포함하고 있습니다.<br />상점 메인 노출 정보를 포함하고 있습니다.\n\n:::info\n조회시 검색 조건을 지원하지 않습니다.\n:::",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "shop_id": {
+                          "type": "string",
+                          "description": "상점 ID"
+                        },
+                        "deli_type": {
+                          "type": "string",
+                          "description": "기본 배송비 설정 (무료배송, 착불배송, 고정 배송, 조건배송, 금액별 차등 배송, 무게별 차등 배송)"
+                        },
+                        "shop_name": {
+                          "type": "string",
+                          "description": "상점명"
+                        },
+                        "deli_price": {
+                          "type": "string",
+                          "description": "기본 배송비 (고정배송비인 경우 출력)"
+                        },
+                        "price_deli": {
+                          "type": "object",
+                          "description": "금액별 차등 배송",
+                          "properties": {
+                            "to": {
+                              "type": "string",
+                              "description": "최대금액"
+                            },
+                            "from": {
+                              "type": "string",
+                              "description": "최소금액"
+                            },
+                            "step": {
+                              "type": "array",
+                              "description": "금액별 차등 조건",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "deli_price": {
+                              "type": "string",
+                              "description": "배송비"
+                            }
+                          }
+                        },
+                        "company_biz": {
+                          "type": "string",
+                          "description": "업태"
+                        },
+                        "company_num": {
+                          "type": "string",
+                          "description": "사업자 번호"
+                        },
+                        "shop_number": {
+                          "type": "string",
+                          "description": "상점번호"
+                        },
+                        "shop_url": {
+                          "type": "string",
+                          "description": "상점URL"
+                        },
+                        "shop_email": {
+                          "type": "string",
+                          "description": "상점 대표 이메일"
+                        },
+                        "weight_deli": {
+                          "type": "object",
+                          "description": "무게별  배송",
+                          "properties": {
+                            "to": {
+                              "type": "string",
+                              "description": "최대금액 (max 미만)"
+                            },
+                            "min": {
+                              "type": "string",
+                              "description": "최소금액 (min 이상)"
+                            },
+                            "step": {
+                              "type": "array",
+                              "description": "무게별 차등 조건",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "unit": {
+                              "type": "string",
+                              "description": "무게단위"
+                            },
+                            "price": {
+                              "type": "string",
+                              "description": "주문금액 (price보다 낮은 경우 무게별 차등 적용)"
+                            },
+                            "deli_price": {
+                              "type": "string",
+                              "description": "배송비"
+                            }
+                          }
+                        },
+                        "company_addr": {
+                          "type": "string",
+                          "description": "회사 주소"
+                        },
+                        "company_item": {
+                          "type": "string",
+                          "description": "업종"
+                        },
+                        "company_name": {
+                          "type": "string",
+                          "description": "회사명"
+                        },
+                        "company_post": {
+                          "type": "string",
+                          "description": "회사 우편번호"
+                        },
+                        "product_type": {
+                          "type": "string",
+                          "description": "상점 상품 타입 (파워옵션, 통합옵션)"
+                        },
+                        "company_owner": {
+                          "type": "string",
+                          "description": "대표자명"
+                        },
+                        "condition_deli": {
+                          "type": "object",
+                          "description": "조건 배송",
+                          "properties": {
+                            "price": {
+                              "type": "string",
+                              "description": "주문 금액"
+                            },
+                            "sp_end": {
+                              "type": "string",
+                              "description": "종료일 (특수기간설정->기간 설정)"
+                            },
+                            "sp_week": {
+                              "type": "string",
+                              "description": "적용 요일 (특수기간설정-> 요일별 설정 ,로 구분)"
+                            },
+                            "sp_price": {
+                              "type": "string",
+                              "description": "[특수기간설정]주문 금액"
+                            },
+                            "sp_start": {
+                              "type": "string",
+                              "description": "시작일 (특수기간설정-> 기간 설정)"
+                            },
+                            "deli_price": {
+                              "type": "string",
+                              "description": "배송비 (price값 보다 주문금액이 낮은 경우 발생하는 배송비)"
+                            },
+                            "sp_deli_price": {
+                              "type": "string",
+                              "description": "[특수기간설정]배송비 (price값 보다 주문금액이 낮은 경우 발생하는 배송비)"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "주문",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "주문"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "상점 정보 조회",
+          "description": {
+            "content": "상점의 기본 정보를 조회합니다.<br />상점에 설정된 배송 정보를 포함하고 있습니다.<br />상점 메인 노출 정보를 포함하고 있습니다.\n\n:::info\n조회시 검색 조건을 지원하지 않습니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "information"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "상점 정보 조회"
+      }
+    },
+    "/api/v1/{shopId}/kakaopay": {
+      "get": {
+        "operationId": "get-kakaopay",
+        "description": "카카오페이 바로구매 설정값을 조회합니다.",
+        "tags": [
+          "간편구매"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "checkout": {
+                          "type": "string",
+                          "description": "바로구매 사용여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "kakaopay_id": {
+                          "type": "string",
+                          "description": "카카오페이 아이디"
+                        },
+                        "direct_order": {
+                          "type": "string",
+                          "description": "바로구매 시 장바구니 옵션 처리 (Y : 사용함, N : 사용안함)"
+                        },
+                        "pc_button_type": {
+                          "type": "string",
+                          "description": "PC 버튼 디자인 타입 (A1,B1,C1)"
+                        },
+                        "mobile_button_type": {
+                          "type": "string",
+                          "description": "MOBILE 버튼 디자인 타입 (A1,B1,C1)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "카카오페이 바로구매 설정 조회",
+          "description": {
+            "content": "카카오페이 바로구매 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "kakaopay"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "카카오페이 바로구매 설정 조회"
+      },
+      "post": {
+        "operationId": "post-kakaopay",
+        "description": "상점에 카카오페이 바로구매 결제방식을 등록합니다.",
+        "tags": [
+          "간편구매"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "true : 성공, false : 실패"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "result 값이 false 경우 출력",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "checkout": {
+                    "type": "string",
+                    "description": "바로구매 사용여부 (Y : 사용함, N : 사용안함)"
+                  },
+                  "pc_button_type": {
+                    "type": "string",
+                    "description": "PC 버튼 디자인 타입 (A1,B1,C1)"
+                  },
+                  "mobile_button_type": {
+                    "type": "string",
+                    "description": "MOBILE 버튼 디자인 타입 (A1,B1,C1)"
+                  },
+                  "direct_order": {
+                    "type": "string",
+                    "description": "바로구매 시 장바구니 옵션 처리 (Y : 사용함, N : 사용안함)"
+                  }
+                },
+                "required": [
+                  "checkout",
+                  "pc_button_type",
+                  "mobile_button_type",
+                  "direct_order"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "checkout": "string",
+          "pc_button_type": "string",
+          "mobile_button_type": "string",
+          "direct_order": "string"
+        },
+        "postman": {
+          "name": "카카오페이 바로구매 설정",
+          "description": {
+            "content": "상점에 카카오페이 바로구매 결제방식을 등록합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "kakaopay"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "카카오페이 바로구매 설정"
+      }
+    },
+    "/api/v1/{shopId}/main_display_code": {
+      "get": {
+        "operationId": "get-main_display_code",
+        "description": "메인 화면 상품 진열에 설정된 항목을 조회합니다.\n\n:::info\n(구)메인상품 상품 진열 관리 사용 상점은 지원되지 않습니다.<br />[상품 > 진열 > 메인 진열 설정]에서 신버전으로 변경시 이용 가능합니다.\n:::",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "메인 노출 코드"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "메인 노출명"
+                          },
+                          "sort": {
+                            "type": "string",
+                            "description": "정렬 순서"
+                          },
+                          "custom_name": {
+                            "type": "string",
+                            "description": "사용자 지정명"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "메인 화면 상품 진열 코드 조회",
+          "description": {
+            "content": "메인 화면 상품 진열에 설정된 항목을 조회합니다.\n\n:::info\n(구)메인상품 상품 진열 관리 사용 상점은 지원되지 않습니다.<br />[상품 > 진열 > 메인 진열 설정]에서 신버전으로 변경시 이용 가능합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "main_display_code"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "메인 화면 상품 진열 코드 조회"
+      }
+    },
+    "/api/v1/{shopId}/naverpay": {
+      "get": {
+        "operationId": "get-naverpay",
+        "description": "네이버페이 설정값을 조회합니다.",
+        "tags": [
+          "간편구매"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "enabled": {
+                          "type": "string",
+                          "description": "사용여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "auth_key": {
+                          "type": "string",
+                          "description": "인증키"
+                        },
+                        "button_key": {
+                          "type": "string",
+                          "description": "버튼키"
+                        },
+                        "except_uid": {
+                          "type": "array",
+                          "description": "구매 제외 상품 번호",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "cts_linkage": {
+                          "type": "string",
+                          "description": "CTS 연동 (Y : 사용함, N : 사용안함)"
+                        },
+                        "except_cate": {
+                          "type": "array",
+                          "description": "구매 제외 분류",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "naverpay_id": {
+                          "type": "string",
+                          "description": "네이버페이 아이디"
+                        },
+                        "order_target": {
+                          "type": "string",
+                          "description": "버튼키 (SELF : 현재창, BLANK : 새창)"
+                        },
+                        "order_linkage": {
+                          "type": "string",
+                          "description": "주문내역 연동 (Y : 사용함, N : 사용안함)"
+                        },
+                        "mobile_enabled": {
+                          "type": "string",
+                          "description": "모바일 사용여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "pc_button_type": {
+                          "type": "string",
+                          "description": "PC 버튼 디자인 타입 (A_1,B_1,C_1,C_2,C_3,D_1,D_2,D_3,E_1,E_2,E_3)"
+                        },
+                        "return_delicom": {
+                          "type": "string",
+                          "description": "반품 택배사 코드"
+                        },
+                        "review_linkage": {
+                          "type": "string",
+                          "description": "상품 리뷰 연동 (Y : 사용함, N : 사용안함)"
+                        },
+                        "return_deli_price": {
+                          "type": "string",
+                          "description": "착불 배송료"
+                        },
+                        "mobile_button_type": {
+                          "type": "string",
+                          "description": "MOBILE 버튼 디자인 타입 (MA_1,MA_2,MB_1,MB_2)"
+                        },
+                        "product_stock_linkage": {
+                          "type": "string",
+                          "description": "상품 재고 연동 (Y : 사용함, N : 사용안함)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "네이버페이 설정 조회",
+          "description": {
+            "content": "네이버페이 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "naverpay"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "네이버페이 설정 조회"
+      },
+      "post": {
+        "operationId": "post-naverpay",
+        "description": "상점에 네이버페이 결제방식을 등록합니다.",
+        "tags": [
+          "간편구매"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "true : 성공, false : 실패"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "result 값이 false 경우 출력",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "string",
+                    "description": "사용여부 (Y : 사용함, N : 사용안함)"
+                  },
+                  "mobile_enabled": {
+                    "type": "string",
+                    "description": "모바일 사용여부 (Y : 사용함, N : 사용안함)"
+                  },
+                  "naverpay_id": {
+                    "type": "string",
+                    "description": "네이버페이 아이디"
+                  },
+                  "auth_key": {
+                    "type": "string",
+                    "description": "인증키"
+                  },
+                  "button_key": {
+                    "type": "string",
+                    "description": "버튼키"
+                  },
+                  "pc_button_type": {
+                    "type": "string",
+                    "description": "PC 버튼 디자인 타입 (A_1,B_1,C_1,C_2,C_3,D_1,D_2,D_3,E_1,E_2,E_3)"
+                  },
+                  "mobile_button_type": {
+                    "type": "string",
+                    "description": "MOBILE 버튼 디자인 타입 (MA_1,MA_2,MB_1,MB_2)"
+                  },
+                  "except_cate": {
+                    "type": "string",
+                    "description": "구매 제외 분류"
+                  },
+                  "except_uid": {
+                    "type": "string",
+                    "description": "구매 제외 상품 번호"
+                  },
+                  "order_target": {
+                    "type": "string",
+                    "description": "버튼키 (SELF : 현재창, BLANK : 새창 (기본값 : SELF))"
+                  },
+                  "order_linkage": {
+                    "type": "string",
+                    "description": "주문내역 연동 (Y : 사용함, N : 사용안함)"
+                  },
+                  "product_stock_linkage": {
+                    "type": "string",
+                    "description": "상품 재고 연동 (Y : 사용함, N : 사용안함)"
+                  },
+                  "review_linkage": {
+                    "type": "string",
+                    "description": "상품 리뷰 연동 (Y : 사용함, N : 사용안함)"
+                  },
+                  "cts_linkage": {
+                    "type": "string",
+                    "description": "CTS 연동 (Y : 사용함, N : 사용안함)"
+                  },
+                  "return_delicom": {
+                    "type": "string",
+                    "description": "반품 택배사 코드 (API문서 상점정보>상점설정정보>택배사조회)"
+                  },
+                  "return_deli_price": {
+                    "type": "string",
+                    "description": "착불 배송료 (기본값 0)"
+                  }
+                },
+                "required": [
+                  "enabled",
+                  "mobile_enabled",
+                  "naverpay_id",
+                  "auth_key",
+                  "button_key",
+                  "pc_button_type",
+                  "mobile_button_type",
+                  "order_target",
+                  "order_linkage",
+                  "product_stock_linkage",
+                  "review_linkage",
+                  "cts_linkage",
+                  "return_delicom"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "enabled": "string",
+          "mobile_enabled": "string",
+          "naverpay_id": "string",
+          "auth_key": "string",
+          "button_key": "string",
+          "pc_button_type": "string",
+          "mobile_button_type": "string",
+          "except_cate": "string",
+          "except_uid": "string",
+          "order_target": "string",
+          "order_linkage": "string",
+          "product_stock_linkage": "string",
+          "review_linkage": "string",
+          "cts_linkage": "string",
+          "return_delicom": "string",
+          "return_deli_price": "string"
+        },
+        "postman": {
+          "name": "네이버페이 설정",
+          "description": {
+            "content": "상점에 네이버페이 결제방식을 등록합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "naverpay"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "네이버페이 설정"
+      }
+    },
+    "/api/v1/{shopId}/order_config": {
+      "get": {
+        "operationId": "get-order_config",
+        "description": "주문서 2.0 관련 설정값을 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "use": {
+                          "type": "string",
+                          "description": "게시판 사용 여부"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "게시판 등록 시 알림 메일 주소"
+                        },
+                        "guest": {
+                          "type": "string",
+                          "description": "비회원 게시판 사용 여부 (Y : 사용, N : 미사용)"
+                        },
+                        "guest_notice_use": {
+                          "type": "string",
+                          "description": "비회원 공지사항 노출 여부 (Y : 사용, N : 미사용)"
+                        },
+                        "add_title_use": {
+                          "type": "string",
+                          "description": "말머리 자동 설정 여부 (Y : 사용, N : 미사용)"
+                        },
+                        "add_title_list": {
+                          "type": "string",
+                          "description": "말머리 문구"
+                        },
+                        "add_content_use": {
+                          "type": "string",
+                          "description": "사용자 추가 입력 사용 여부 (Y : 사용, N : 미사용)"
+                        },
+                        "add_content_title": {
+                          "type": "string",
+                          "description": "게시판 사용 여부"
+                        },
+                        "add_file": {
+                          "type": "string",
+                          "description": "첨부 파일 가능 여부 (Y : 사용, N : 미사용)"
+                        },
+                        "add_file_image": {
+                          "type": "string",
+                          "description": "첨부 파일 이미지 전용 여부 (Y : 이미지 파일만 등록 가능, N : 구분 없음)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "주문서 2.0 설정 조회",
+          "description": {
+            "content": "주문서 2.0 관련 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "order_config"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "주문서 2.0 설정 조회"
+      }
+    },
+    "/api/v1/{shopId}/page_min_image_size": {
+      "get": {
+        "operationId": "get-page_min_image_size",
+        "description": "메인, 상품화면의 최소 이미지 크기를 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "allow_height": {
+                          "type": "string",
+                          "description": "세로 허용 픽셀 (사용하는 경우에만 출력)"
+                        },
+                        "min_image_size": {
+                          "type": "string",
+                          "description": "최소 이미지 픽셀"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "메인/상품화면 최소 이미지 크기 조회",
+          "description": {
+            "content": "메인, 상품화면의 최소 이미지 크기를 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "page_min_image_size"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "메인/상품화면 최소 이미지 크기 조회"
+      },
+      "post": {
+        "operationId": "post-page_min_image_size",
+        "description": "메인, 상품화면의 최소 이미지 크기를 설정합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true : 성공 false : 실패)"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "실패 사유 (result 값이 false 경우 출력)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "min_image_size": {
+                    "type": "string",
+                    "description": "상품 이미지 최소 사이즈"
+                  },
+                  "allow_height_use": {
+                    "type": "string",
+                    "description": "허용 세로 픽셀 사용여부 (Y : 사용함, N : 사용안함)"
+                  }
+                },
+                "required": [
+                  "min_image_size"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "min_image_size": "string",
+          "allow_height_use": "string"
+        },
+        "postman": {
+          "name": "메인/상품화면 최소 이미지 크기 설정",
+          "description": {
+            "content": "메인, 상품화면의 최소 이미지 크기를 설정합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "page_min_image_size"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "메인/상품화면 최소 이미지 크기 설정"
+      }
+    },
+    "/api/v1/{shopId}/page_seo": {
+      "get": {
+        "operationId": "get-page_seo",
+        "description": "상점의 페이지 SEO 정보를 조회할 수 있습니다.\n\n:::info\npage_type 은 필수 입력값 입니다.\n:::",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "게시판, 상품분류인 경우 반환"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "페이지명"
+                        },
+                        "keywords": {
+                          "type": "string",
+                          "description": "키워드"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "설명"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_type",
+            "in": "query",
+            "required": true,
+            "description": "페이지 타입 (페이지 API 참고)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "description": "코드 (게시판, 상품분류인 경우)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "num1",
+            "in": "query",
+            "required": false,
+            "description": "게시판 SEO 조회 시 (게시글 번호)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cat1",
+            "in": "query",
+            "required": false,
+            "description": "대분류 (상품분류 SEO 조회 시)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cat2",
+            "in": "query",
+            "required": false,
+            "description": "중분류 (상품분류 SEO 조회 시)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cat3",
+            "in": "query",
+            "required": false,
+            "description": "소분류 (상품분류 SEO 조회 시)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "페이지 SEO 조회",
+          "description": {
+            "content": "상점의 페이지 SEO 정보를 조회할 수 있습니다.\n\n:::info\npage_type 은 필수 입력값 입니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "page_seo"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 페이지 타입 (페이지 API 참고)",
+                  "type": "text/plain"
+                },
+                "key": "page_type",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "코드 (게시판, 상품분류인 경우)",
+                  "type": "text/plain"
+                },
+                "key": "code",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "게시판 SEO 조회 시 (게시글 번호)",
+                  "type": "text/plain"
+                },
+                "key": "num1",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "대분류 (상품분류 SEO 조회 시)",
+                  "type": "text/plain"
+                },
+                "key": "cat1",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "중분류 (상품분류 SEO 조회 시)",
+                  "type": "text/plain"
+                },
+                "key": "cat2",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "소분류 (상품분류 SEO 조회 시)",
+                  "type": "text/plain"
+                },
+                "key": "cat3",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "페이지 SEO 조회"
+      },
+      "post": {
+        "operationId": "post-page_seo",
+        "description": "페이지 검색엔진 최적화(SEO) 설정을 등록합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "true : 성공, false : 실패"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "result 값이 false 경우 출력",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "enabled",
+            "in": "query",
+            "required": true,
+            "description": "ex.Y",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kakao_type",
+            "in": "query",
+            "required": true,
+            "description": "ex.login",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "api_key",
+            "in": "query",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "page_type": {
+                    "type": "string",
+                    "description": "페이지타입"
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "코드 (게시판, 상품분류인 경우 입력)"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "페이지명"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "설명"
+                  },
+                  "keywords": {
+                    "type": "string",
+                    "description": "키워드"
+                  }
+                },
+                "required": [
+                  "page_type"
+                ]
+              }
+            }
+          }
+        },
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "page_type": "string",
+          "code": "string",
+          "title": "string",
+          "description": "string",
+          "keywords": "string"
+        },
+        "postman": {
+          "name": "페이지 SEO 등록",
+          "description": {
+            "content": "페이지 검색엔진 최적화(SEO) 설정을 등록합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "page_seo"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) ex.Y",
+                  "type": "text/plain"
+                },
+                "key": "enabled",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) ex.login",
+                  "type": "text/plain"
+                },
+                "key": "kakao_type",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) ",
+                  "type": "text/plain"
+                },
+                "key": "api_key",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "페이지 SEO 등록"
+      }
+    },
+    "/api/v1/{shopId}/payco": {
+      "get": {
+        "operationId": "get-payco",
+        "description": "페이코 바로구매 설정값을 조회합니다.",
+        "tags": [
+          "간편구매"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "checkout": {
+                          "type": "string",
+                          "description": "바로구매 사용여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "payco_id": {
+                          "type": "string",
+                          "description": "페이코 아이디"
+                        },
+                        "pc_button_type": {
+                          "type": "string",
+                          "description": "PC 버튼 디자인 타입 (A1,B1,C1)"
+                        },
+                        "mobile_button_type": {
+                          "type": "string",
+                          "description": "MOBILE 버튼 디자인 타입 (A1,B1,C1)"
+                        },
+                        "except_cate": {
+                          "type": "array",
+                          "description": "구매 제외 분류",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "except_uid": {
+                          "type": "array",
+                          "description": "구매 제외 상품 번호",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "direct_order": {
+                          "type": "string",
+                          "description": "바로구매 시 장바구니 옵션 처리 (Y : 사용함, N : 사용안함)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "페이코 바로구매 설정 조회",
+          "description": {
+            "content": "페이코 바로구매 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "payco"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "페이코 바로구매 설정 조회"
+      },
+      "post": {
+        "operationId": "post-payco",
+        "description": "상점에 페이코 바로구매 결제방식을 등록합니다.",
+        "tags": [
+          "간편구매"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "true : 성공, false : 실패"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "result 값이 false 경우 출력",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "checkout": {
+                    "type": "string",
+                    "description": "바로구매 사용여부 (Y : 사용함, N : 사용안함)"
+                  },
+                  "pc_button_type": {
+                    "type": "string",
+                    "description": "PC 버튼 디자인 타입 (A1,B1,C1)"
+                  },
+                  "mobile_button_type": {
+                    "type": "string",
+                    "description": "MOBILE 버튼 디자인 타입 (A1,B1,C1)"
+                  },
+                  "except_cate": {
+                    "type": "array",
+                    "description": "구매 제외 분류",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "except_uid": {
+                    "type": "array",
+                    "description": "구매 제외 상품 번호",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "direct_order": {
+                    "type": "string",
+                    "description": "바로구매 시 장바구니 옵션 처리 (Y : 사용함, N : 사용안함)"
+                  }
+                },
+                "required": [
+                  "checkout",
+                  "pc_button_type",
+                  "mobile_button_type",
+                  "direct_order"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "checkout": "string",
+          "pc_button_type": "string",
+          "mobile_button_type": "string",
+          "except_cate": [
+            "string"
+          ],
+          "except_uid": [
+            "string"
+          ],
+          "direct_order": "string"
+        },
+        "postman": {
+          "name": "페이코 바로구매 설정",
+          "description": {
+            "content": "상점에 페이코 바로구매 결제방식을 등록합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "payco"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "페이코 바로구매 설정"
+      }
+    },
+    "/api/v1/{shopId}/privacy": {
+      "get": {
+        "operationId": "get-privacy",
+        "description": "회원 약관 내역 추가 사항을 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "join_A : [필수]개인정보 수집 · 이용 관리,\n\njoin_B : [선택]개인정보 수집 · 이용 관리,\n\norder : [필수]주문서 개인정보 수집 · 이용 관리,\n\njoin_C : [선택]개인정보 제3자 제공 관리,\n\njoin_D : [선택]개인정보 처리 위탁 관리\n\n##비회원 개인정보 수집 이용\n\nemail : [필수]이메일 문의(폼메일), \n\nperson : [필수]1:1 고객 게시판, \n\nreview : [필수]상품 후기 등록(게시판 연동), \n\nboard : [필수]게시판(게시글), \n\ncomment : [필수]게시판(댓글)"
+                          },
+                          "fixed": {
+                            "type": "string",
+                            "description": "약관 삭제 가능 여부 (Y : 삭제 가능,  N : 삭제 불가)"
+                          },
+                          "items": {
+                            "type": "array",
+                            "description": "정보 수집 항목",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string",
+                                  "description": "정보 수집 항목 코드"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "description": "정보 수집 항목명"
+                                }
+                              }
+                            }
+                          },
+                          "deleted": {
+                            "type": "string",
+                            "description": "약관 삭제 여부 (Y : 삭제, N : 사용중)"
+                          },
+                          "purpose": {
+                            "type": "string",
+                            "description": "약관 목적"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "등록일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "required": {
+                            "type": "string",
+                            "description": "약관 필수 동의 여부 (Y : 필수, N : 선택)"
+                          },
+                          "receipient": {
+                            "type": "string",
+                            "description": "정보 수집자"
+                          },
+                          "privacy_uid": {
+                            "type": "string",
+                            "description": "약관 ID"
+                          },
+                          "retention_period": {
+                            "type": "string",
+                            "description": "정보 보존 기간"
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "string",
+                      "description": "현재 페이지"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "조회된 예치금 내역의 수"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "총 검색 수"
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도 (MAX: 5000 (default))",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지 (default: 1)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "privacy_uid",
+            "in": "query",
+            "required": false,
+            "description": "회원 약관 등록 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "query",
+            "required": false,
+            "description": "사용 목적",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipient",
+            "in": "query",
+            "required": false,
+            "description": "정보 수집자",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "회원 약관 내역 조회",
+          "description": {
+            "content": "회원 약관 내역 추가 사항을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "privacy"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도 (MAX: 5000 (default))",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지 (default: 1)",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 약관 등록 ID",
+                  "type": "text/plain"
+                },
+                "key": "privacy_uid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "사용 목적",
+                  "type": "text/plain"
+                },
+                "key": "purpose",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "정보 수집자",
+                  "type": "text/plain"
+                },
+                "key": "recipient",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "회원 약관 내역 조회"
+      }
+    },
+    "/api/v1/{shopId}/product_neogift": {
+      "get": {
+        "operationId": "get-product_neogift",
+        "description": "고급형 사은품 이벤트 설정을 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "use": {
+                          "type": "string",
+                          "description": "사은품 이벤트 사용여부 (Y : 사용함)"
+                        },
+                        "gift_pages": {
+                          "type": "array",
+                          "description": "사은품 선택 화면 노출 (order_pay : 주문서 작성, pop_order_complate : 주문완료(자동), button_order_complate : 주문완료(버튼), button_order_list : 주문내역 상세(버튼))",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "except_free": {
+                          "type": "string",
+                          "description": "최종금액 0원 사은품 미제공 여부 (Y : 제공안함, N : 제공함)"
+                        },
+                        "provide_type": {
+                          "type": "string",
+                          "description": "사은품 제공 금액 기준 (origin : 상품할인 후 상품 금액, sale_emoney : 최종 결제 금액 + 예치금, sale_money : 최종 결제 금액)"
+                        },
+                        "price_provide_type": {
+                          "type": "string",
+                          "description": "금액별 사은품 제공 방법 (point : 사은품 포인트, product : N개 선택)"
+                        },
+                        "except_delivery_price": {
+                          "type": "string",
+                          "description": "배송비 사은품 제외 (Y : 제외함 N : 제외안함)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "고급형 사은품 이벤트 조회",
+          "description": {
+            "content": "고급형 사은품 이벤트 설정을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "product_neogift"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "고급형 사은품 이벤트 조회"
+      },
+      "post": {
+        "operationId": "post-product_neogift",
+        "description": "고급형 사은품 이벤트 설정값을 변경합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true : 성공, false : 실패)"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "실패 사유 (result 값이 false 경우 출력) ex.[0] => use 은(는) 필수 입력 항목입니다.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "use": {
+                    "type": "string",
+                    "description": "사은품 이벤트 사용여부 (Y : 사용함, N : 사용안함)"
+                  },
+                  "provide_type": {
+                    "type": "string",
+                    "description": "사은품 제공 금액 기준 (origin : 상품할인 후 상품 금액, sale_emoney : 최종 결제 금액 + 예치금, sale_money : 최종 결제 금액)"
+                  },
+                  "except_free": {
+                    "type": "string",
+                    "description": "최종금액 0원 사은품 미제공 여부 (Y : 제공안함, N : 제공함"
+                  },
+                  "except_delivery_price": {
+                    "type": "string",
+                    "description": "배송비 사은품 제외 (Y : 제외함, N : 제외안함)"
+                  },
+                  "price_provide_type": {
+                    "type": "string",
+                    "description": "금액별 사은품 제공 방법 (point : 사은품 포인트, product : N개 선택)"
+                  },
+                  "gift_pages": {
+                    "type": "string",
+                    "description": "사은품 선택 화면 노출 (order_pay : 주문서 작성, pop_order_complate : 주문완료(자동), button_order_complate : 주문완료(버튼), button_order_list : 주문내역 상세(버튼)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "use": "string",
+          "provide_type": "string",
+          "except_free": "string",
+          "except_delivery_price": "string",
+          "price_provide_type": "string",
+          "gift_pages": "string"
+        },
+        "postman": {
+          "name": "고급형 사은품 이벤트 설정",
+          "description": {
+            "content": "고급형 사은품 이벤트 설정값을 변경합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "product_neogift"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "고급형 사은품 이벤트 설정"
+      }
+    },
+    "/api/v1/{shopId}/provider_sub_admin": {
+      "get": {
+        "operationId": "get-provider_sub_admin",
+        "description": "공급자 부운영자 조회",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "부운영자ID"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "부운영자명"
+                          },
+                          "access_auths": {
+                            "type": "object",
+                            "description": "메뉴 접근 권한",
+                            "properties": {
+                              "board": {
+                                "type": "string",
+                                "description": "게시판 관리 (Y,N)"
+                              },
+                              "order": {
+                                "type": "string",
+                                "description": "주문 관리 (Y,N)"
+                              },
+                              "coupon": {
+                                "type": "string",
+                                "description": "공급자 쿠폰 (Y,N 상점권한에서 공급자 쿠폰을 사용할 경우에만 출력)"
+                              },
+                              "product": {
+                                "type": "string",
+                                "description": "상품 관리 (Y,N)"
+                              },
+                              "makeshop": {
+                                "type": "string",
+                                "description": "기본 설정 (Y,N 주문서 버전이 1.0일 때 출력)"
+                              },
+                              "calculate": {
+                                "type": "string",
+                                "description": "정산관리 (Y,N)"
+                              },
+                              "main_page": {
+                                "type": "string",
+                                "description": "메인 화면 (Y,N)"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "출력된 부운영자 수"
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "provider_id",
+            "in": "query",
+            "required": true,
+            "description": "공급자ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "공급자 부운영자 조회",
+          "description": {
+            "content": "공급자 부운영자 조회",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "provider_sub_admin"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 공급자ID",
+                  "type": "text/plain"
+                },
+                "key": "provider_id",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "공급자 부운영자 조회"
+      }
+    },
+    "/api/v1/{shopId}/smart_coupon_config": {
+      "get": {
+        "operationId": "get-smart_coupon_config",
+        "description": "스마트 쿠폰 설정 정보를 조회합니다.\n\n:::info\n스마트 쿠폰 이용가능 상점만 조회 가능합니다. (이용 불가 상점의 경우, 9008 에러코드가 반환됩니다.)\n:::",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "basic": {
+                          "type": "object",
+                          "description": "기본설정",
+                          "properties": {
+                            "target": {
+                              "type": "string",
+                              "description": "쿠폰 사용 범위 설정 (ALL : 전체, PRODUCT : 상품, CART : 장바구니)"
+                            },
+                            "auto_max_discount": {
+                              "type": "string",
+                              "description": "최대 할인 자동 적용 (Y : 사용함, N : 사용안함)"
+                            },
+                            "product_duplication": {
+                              "type": "string",
+                              "description": "상품 중복 쿠폰 사용 여부 (ALL : 전체, PRODUCT : 상품, CART : 장바구니)"
+                            },
+                            "product_duplication_count": {
+                              "type": "string",
+                              "description": "상품당 최대 중복 사용 가능 수"
+                            },
+                            "cart_duplication": {
+                              "type": "string",
+                              "description": "장바구니 중복 쿠폰 사용 (Y : 사용함, N : 사용안함)"
+                            },
+                            "cart_duplication_count": {
+                              "type": "string",
+                              "description": "장바구니 최대 중복 사용 가능 수"
+                            }
+                          }
+                        },
+                        "popup": {
+                          "type": "array",
+                          "description": "노출 팝업 설정",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "view_page": {
+                                "type": "string",
+                                "description": "노출 페이지 (product_list : 상품 리스트, product_preview_list : 상품 미리보기, product_detail_list : 상품 상세)"
+                              },
+                              "use": {
+                                "type": "string",
+                                "description": "사용여부 (Y : 사용함, N : 사용안함)"
+                              },
+                              "target_device": {
+                                "type": "string",
+                                "description": "노출 범위 (PC, MOBILE ,로 구분하여 출력)"
+                              },
+                              "target_user": {
+                                "type": "string",
+                                "description": "노출 대상 (MEMBER : 회원 GUEST : 비회원 ,로 구분하여 출력)"
+                              },
+                              "benefit_member": {
+                                "type": "string",
+                                "description": "회원 노출 혜택 (DISCOUNT : 기간할인, GROUP : 그룹할인, BULK : 대량구매 로 구분하여 출력)"
+                              },
+                              "benefit_guest": {
+                                "type": "string",
+                                "description": "비회원 노출 혜택 (DISCOUNT : 기간할인, GROUP : 그룹할인, BULK : 대량구매 로 구분하여 출력)"
+                              }
+                            }
+                          }
+                        },
+                        "use_smart_coupon": {
+                          "type": "string",
+                          "description": "스마트 쿠폰 사용여부 (Y : 사용함 N : 사용안함)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "스마트 쿠폰 설정 조회",
+          "description": {
+            "content": "스마트 쿠폰 설정 정보를 조회합니다.\n\n:::info\n스마트 쿠폰 이용가능 상점만 조회 가능합니다. (이용 불가 상점의 경우, 9008 에러코드가 반환됩니다.)\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "smart_coupon_config"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "스마트 쿠폰 설정 조회"
+      }
+    },
+    "/api/v1/{shopId}/smart_reserve_config": {
+      "get": {
+        "operationId": "get-smart_reserve_config",
+        "description": "스마트 적립금 설정 정보를 조회합니다.\n\n:::info\n스마트 적립금 이용가능 상점만 조회 가능합니다. (이용 불가 상점의 경우, 9008 에러코드가 반환됩니다.)\n:::",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "use": {
+                          "type": "string",
+                          "description": "스마트 적립금 사용 여부 (Y : 사용함 N : 사용안함)"
+                        },
+                        "reserve_type": {
+                          "type": "string",
+                          "description": "적립방법 (EACH : 상품 배송 시 상품마다 지급 ALL : 주문서 배송 시 지급)"
+                        },
+                        "mobile_reserve": {
+                          "type": "string",
+                          "description": "모바일 적립금 별도 지급 (Y : 사용함 N : 사용안함)"
+                        },
+                        "cut_position": {
+                          "type": "integer",
+                          "description": "절사 금액 (1 : 원단위 2 : 십원단위 3 : 백원단위 4 : 천원단위)"
+                        },
+                        "cut_option": {
+                          "type": "string",
+                          "description": "절사 방식 (ceil : 올림 round : 반올림 floor : 절사)"
+                        },
+                        "usage_type": {
+                          "type": "string",
+                          "description": "사용기준 (Y : 현금결제만, N : 조건없음)"
+                        },
+                        "step_price": {
+                          "type": "integer",
+                          "description": "단위 가격"
+                        },
+                        "price_limit": {
+                          "type": "integer",
+                          "description": "1회 최대 사용한도 (음수값은 퍼센트 적용 ex) -10 : 10%)"
+                        },
+                        "useable_price": {
+                          "type": "integer",
+                          "description": "보유금액 조건"
+                        },
+                        "mypage_display": {
+                          "type": "string",
+                          "description": "마이페이지 적립금 통합노출 (Y : 노출함, N : 노출안함)"
+                        },
+                        "send_sms_expire": {
+                          "type": "object",
+                          "description": "만료 시 sms 전송",
+                          "properties": {
+                            "day": {
+                              "type": "integer",
+                              "description": "일 (발송전일)"
+                            },
+                            "hour": {
+                              "type": "string",
+                              "description": "시간"
+                            },
+                            "minute": {
+                              "type": "string",
+                              "description": "분"
+                            }
+                          }
+                        },
+                        "send_mail_expire": {
+                          "type": "object",
+                          "description": "만료 시 mail 전송",
+                          "properties": {
+                            "day": {
+                              "type": "integer",
+                              "description": "일 (발송전일)"
+                            },
+                            "hour": {
+                              "type": "string",
+                              "description": "시간"
+                            },
+                            "minute": {
+                              "type": "string",
+                              "description": "분"
+                            }
+                          }
+                        },
+                        "step_price_condition": {
+                          "type": "integer",
+                          "description": "단위 가격 적용 조건"
+                        },
+                        "reserve_delivery_type": {
+                          "type": "string",
+                          "description": "배송비 포함 사용 여부 (N : 배송비 비포함, Y : 기본 배송비 포함, A : 기본 + 추가 배송비 포함)"
+                        },
+                        "useable_product_price": {
+                          "type": "integer",
+                          "description": "구매금액 조건"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "스마트 적립금 설정 조회",
+          "description": {
+            "content": "스마트 적립금 설정 정보를 조회합니다.\n\n:::info\n스마트 적립금 이용가능 상점만 조회 가능합니다. (이용 불가 상점의 경우, 9008 에러코드가 반환됩니다.)\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "smart_reserve_config"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "스마트 적립금 설정 조회"
+      }
+    },
+    "/api/v1/{shopId}/sms_config": {
+      "get": {
+        "operationId": "get-sms_config",
+        "description": "SMS 서비스 설정 정보를 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "shopname": {
+                          "type": "string",
+                          "description": "쇼핑몰"
+                        },
+                        "reply_phone": {
+                          "type": "string",
+                          "description": "회신 전화번호"
+                        },
+                        "block_phone": {
+                          "type": "string",
+                          "description": "수신거부 전화번호"
+                        },
+                        "admin_phone": {
+                          "type": "string",
+                          "description": "운영자 핸드폰"
+                        },
+                        "sms_amount": {
+                          "type": "integer",
+                          "description": "SMS 발송 가능 건수"
+                        },
+                        "sub_admin": {
+                          "type": "object",
+                          "description": "SMS 부운영자 정보",
+                          "properties": {
+                            "phone_1": {
+                              "type": "string",
+                              "description": "부운영자 핸드폰1 - 빈값일 경우 미출력"
+                            },
+                            "phone_2": {
+                              "type": "string",
+                              "description": "부운영자 핸드폰2 - 빈값일 경우 미출력"
+                            },
+                            "phone_3": {
+                              "type": "string",
+                              "description": "부운영자 핸드폰3 - 빈값일 경우 미출력"
+                            },
+                            "phone_4": {
+                              "type": "string",
+                              "description": "부운영자 핸드폰4 - 빈값일 경우 미출력"
+                            },
+                            "phone_5": {
+                              "type": "string",
+                              "description": "부운영자 핸드폰5 - 빈값일 경우 미출력"
+                            }
+                          }
+                        },
+                        "add_number_option": {
+                          "type": "string",
+                          "description": "추가번호 발송옵션 (Y : 사용함, N : 사용안함)"
+                        },
+                        "message_option": {
+                          "type": "string",
+                          "description": "메세지 발송옵션 (L : LMS로 발송, Y : 메세지 이어서 발송, N : 메세지 발송, M : LMS로 발송(제목 미발송))"
+                        },
+                        "lms_subject": {
+                          "type": "string",
+                          "description": "LMS 제목 (Y : 사용함, N : 사용안함)"
+                        },
+                        "submit_admin_option": {
+                          "type": "string",
+                          "description": "관리자 발송옵션 (Y : 회신전화번호, N : 소비자 전화번호)"
+                        },
+                        "display_reply_phone": {
+                          "type": "string",
+                          "description": "관리자 핸드폰 발신번호 표시"
+                        },
+                        "admin_sleep_status": {
+                          "type": "string",
+                          "description": "운영자 SMS취침모드 (Y : 사용함, N : 사용안함)"
+                        },
+                        "admin_sleep_time_from": {
+                          "type": "integer",
+                          "description": "운영자 SMS 취침 시작 시간"
+                        },
+                        "admin_sleep_time_to": {
+                          "type": "integer",
+                          "description": "운영자 SMS 취침 종료 시간"
+                        },
+                        "user_sleep_status": {
+                          "type": "string",
+                          "description": "회원 SMS취침모드 (Y : 사용함, N : 사용안함)"
+                        },
+                        "user_sleep_time_from": {
+                          "type": "integer",
+                          "description": "회원 SMS 취침 시작 시간"
+                        },
+                        "user_sleep_time_to": {
+                          "type": "integer",
+                          "description": "회원 SMS 취침 종료 시간"
+                        },
+                        "remain_repeat": {
+                          "type": "string",
+                          "description": "운영자 SMS남은 건수 알림"
+                        },
+                        "remain_count": {
+                          "type": "integer",
+                          "description": "알림 발송 기준 SMS 수"
+                        },
+                        "remain_repeat_count": {
+                          "type": "integer",
+                          "description": "반복 단위 SMS 수"
+                        },
+                        "spam_users": {
+                          "type": "array",
+                          "description": "스팸으로 등록된 휴대폰번호 (ex.[0] => 010-XXXX-XXXX)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "SMS 서비스 설정 조회",
+          "description": {
+            "content": "SMS 서비스 설정 정보를 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "sms_config"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "SMS 서비스 설정 조회"
+      }
+    },
+    "/api/v1/{shopId}/social_apple": {
+      "get": {
+        "operationId": "get-social_apple",
+        "description": "간편가입 Apple 연동 설정값을 조회합니다.",
+        "tags": [
+          "간편가입"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "enabled": {
+                          "type": "string",
+                          "description": "social apple 사용여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "client_id": {
+                          "type": "string",
+                          "description": "클라이언트 아이디"
+                        },
+                        "team_id": {
+                          "type": "string",
+                          "description": "팀 아이디"
+                        },
+                        "key_id": {
+                          "type": "string",
+                          "description": "Key 아이디"
+                        },
+                        "file_path": {
+                          "type": "string",
+                          "description": "Private Key 파일 경로"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "간편가입 Apple 연동 조회",
+          "description": {
+            "content": "간편가입 Apple 연동 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "social_apple"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "간편가입 Apple 연동 조회"
+      },
+      "post": {
+        "operationId": "post-social_apple",
+        "description": "Apple과 연동하여, 간편가입 기능을 제공합니다.",
+        "tags": [
+          "간편가입"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "true : 성공, false : 실패"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "result 값이 false 경우 출력",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "string",
+                    "description": "social apple 사용여부 (Y : 사용함, N : 사용안함)"
+                  },
+                  "client_id": {
+                    "type": "string",
+                    "description": "클라이언트 아이디"
+                  },
+                  "team_id": {
+                    "type": "string",
+                    "description": "팀 아이디"
+                  },
+                  "key_id": {
+                    "type": "string",
+                    "description": "Key 아이디"
+                  },
+                  "filename": {
+                    "type": "string",
+                    "description": "Private key 파일명. 예) AuthKey_2YD6PC1234.p8"
+                  },
+                  "file_content": {
+                    "type": "string",
+                    "description": "Private key 파일 내용. 예) MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdw..."
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "enabled": "string",
+          "client_id": "string",
+          "team_id": "string",
+          "key_id": "string",
+          "filename": "string",
+          "file_content": "string"
+        },
+        "postman": {
+          "name": "간편가입 Apple 연동 설정",
+          "description": {
+            "content": "Apple과 연동하여, 간편가입 기능을 제공합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "social_apple"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "간편가입 Apple 연동 설정"
+      }
+    },
+    "/api/v1/{shopId}/social_facebook": {
+      "get": {
+        "operationId": "get-social_facebook",
+        "description": "간편가입 Facebook 연동 설정값을 조회합니다.",
+        "tags": [
+          "간편가입"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "enabled": {
+                          "type": "string",
+                          "description": "social facebook 사용여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "app_id": {
+                          "type": "string",
+                          "description": "앱 아이디"
+                        },
+                        "app_secret": {
+                          "type": "string",
+                          "description": "앱 시크릿 코드"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "간편가입 Facebook 연동 조회",
+          "description": {
+            "content": "간편가입 Facebook 연동 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "social_facebook"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "간편가입 Facebook 연동 조회"
+      },
+      "post": {
+        "operationId": "post-social_facebook",
+        "description": "Facebook과 연동하여, 간편가입 기능을 제공합니다.",
+        "tags": [
+          "간편가입"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "true : 성공, false : 실패"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "result 값이 false 경우 출력",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "string",
+                    "description": "social facebook 사용여부 (Y : 사용함, N : 사용안함)"
+                  },
+                  "app_id": {
+                    "type": "string",
+                    "description": "앱 아이디"
+                  },
+                  "app_secret": {
+                    "type": "string",
+                    "description": "앱 시크릿 코드"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "enabled": "string",
+          "app_id": "string",
+          "app_secret": "string"
+        },
+        "postman": {
+          "name": "간편가입 Facebook 연동 설정",
+          "description": {
+            "content": "Facebook과 연동하여, 간편가입 기능을 제공합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "social_facebook"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "간편가입 Facebook 연동 설정"
+      }
+    },
+    "/api/v1/{shopId}/social_kakao": {
+      "get": {
+        "operationId": "get-social_kakao",
+        "description": "간편가입 카카오 연동 설정값을 조회합니다.",
+        "tags": [
+          "간편가입"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "js_key": {
+                          "type": "string",
+                          "description": "javascript Key"
+                        },
+                        "api_key": {
+                          "type": "string",
+                          "description": "rest api key"
+                        },
+                        "enabled": {
+                          "type": "string",
+                          "description": "social kakao 사용여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "kakao_type": {
+                          "type": "string",
+                          "description": "연동 방식 (login : 카카오 로그인, sync : 카카오 싱크)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "간편가입 카카오 연동 조회",
+          "description": {
+            "content": "간편가입 카카오 연동 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "social_kakao"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "간편가입 카카오 연동 조회"
+      },
+      "post": {
+        "operationId": "post-social_kakao",
+        "description": "카카오와 연동하여, 간편가입 기능을 제공합니다.\n\n:::info\n카카오와 먼저 연동을 한 후 openapi 연동을 해야합니다.\n:::",
+        "tags": [
+          "간편가입"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "true : 성공, false : 실패"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "result 값이 false 경우 출력",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과. 성공시 0000, 실패시 error code 출력 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "string",
+                    "description": "social kakao 사용여부 (Y : 사용함, N : 사용안함)"
+                  },
+                  "kakao_type": {
+                    "type": "string",
+                    "description": "연동 방식 (login : 카카오 로그인, sync : 카카오 싱크)"
+                  },
+                  "api_key": {
+                    "type": "string",
+                    "description": "rest api key"
+                  },
+                  "js_key": {
+                    "type": "string",
+                    "description": "javascript Key"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "enabled": "string",
+          "kakao_type": "string",
+          "api_key": "string",
+          "js_key": "string"
+        },
+        "postman": {
+          "name": "간편가입 카카오 연동 설정",
+          "description": {
+            "content": "카카오와 연동하여, 간편가입 기능을 제공합니다.\n\n:::info\n카카오와 먼저 연동을 한 후 openapi 연동을 해야합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "social_kakao"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "간편가입 카카오 연동 설정"
+      }
+    },
+    "/api/v1/{shopId}/social_naver": {
+      "get": {
+        "operationId": "get-social_naver",
+        "description": "간편가입 네이버 연동 설정값을 조회합니다.",
+        "tags": [
+          "간편가입"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "description": "조회 리스트",
+                      "properties": {
+                        "enabled": {
+                          "type": "string",
+                          "description": "social naver 사용여부 (Y : 사용함, N : 사용안함)"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "client_id": {
+                          "type": "string",
+                          "description": "아이디"
+                        },
+                        "client_secret": {
+                          "type": "string",
+                          "description": "client_secret"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "orderVersion": {
+                      "type": "string",
+                      "description": "주문서 버전"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "간편가입 네이버 연동 조회",
+          "description": {
+            "content": "간편가입 네이버 연동 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "social_naver"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "간편가입 네이버 연동 조회"
+      },
+      "post": {
+        "operationId": "post-social_naver",
+        "description": "네이버와 연동하여, 간편가입 기능을 제공합니다.",
+        "tags": [
+          "간편가입"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "true : 성공, false : 실패"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "result 값이 false 경우 출력",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "string",
+                    "description": "social naver 사용여부"
+                  },
+                  "client_id": {
+                    "type": "string",
+                    "description": "Client ID"
+                  },
+                  "client_secret": {
+                    "type": "string",
+                    "description": "Client Secret"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "카테고리"
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "enabled": "string",
+          "client_id": "string",
+          "client_secret": "string",
+          "category": "string"
+        },
+        "postman": {
+          "name": "간편가입 네이버 연동 설정",
+          "description": {
+            "content": "네이버와 연동하여, 간편가입 기능을 제공합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "social_naver"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "간편가입 네이버 연동 설정"
+      }
+    },
+    "/api/v1/{shopId}/sub_admin": {
+      "get": {
+        "operationId": "get-sub_admin",
+        "description": "부운영자의 정보 및 권한을 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "array",
+                      "description": "조회 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "부운영자 이름"
+                          },
+                          "access_ips": {
+                            "type": "array",
+                            "description": "접근 허용 IP",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "access_auths": {
+                            "type": "array",
+                            "description": "접근 권한",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string",
+                                  "description": "권한 코드 (빈값일 경우 미출력)"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "권한명 (빈값일 경우 미출력)"
+                                },
+                                "grant": {
+                                  "type": "string",
+                                  "description": "권한 부여 상태 (빈값일 경우 미출력)"
+                                }
+                              }
+                            }
+                          },
+                          "mobile_auths": {
+                            "type": "array",
+                            "description": "모바일 관리자 접근 권한",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string",
+                                  "description": "권한 코드 (빈값일 경우 미출력)"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "권한명 (빈값일 경우 미출력)"
+                                },
+                                "grant": {
+                                  "type": "string",
+                                  "description": "권한 부여 상태 (빈값일 경우 미출력)"
+                                }
+                              }
+                            }
+                          },
+                          "sub_admin_id": {
+                            "type": "string",
+                            "description": "부운영자 ID"
+                          },
+                          "login_timeout": {
+                            "type": "string",
+                            "description": "로그인 유지 시간"
+                          },
+                          "process_auths": {
+                            "type": "array",
+                            "description": "관리 권한",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string",
+                                  "description": "권한 코드 (빈값일 경우 미출력)"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "description": "권한명 (빈값일 경우 미출력)"
+                                },
+                                "grant": {
+                                  "type": "string",
+                                  "description": "권한 부여 상태 (빈값일 경우 미출력)"
+                                }
+                              }
+                            }
+                          },
+                          "main_page_access": {
+                            "type": "string",
+                            "description": "메인 관리자 페이지 접근 (Y: 접근 가능, N : 접근 불가)"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sub_admin_id",
+            "in": "query",
+            "required": false,
+            "description": "부운영자 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "부운영자 설정 조회",
+          "description": {
+            "content": "부운영자의 정보 및 권한을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "sub_admin"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "부운영자 ID",
+                  "type": "text/plain"
+                },
+                "key": "sub_admin_id",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "부운영자 설정 조회"
+      }
+    },
+    "/api/v1/{shopId}/subs_config": {
+      "get": {
+        "operationId": "get-subs_config",
+        "description": "정기배송/구독 관련 설정값을 조회합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "list": {
+                      "type": "object",
+                      "properties": {
+                        "use": {
+                          "type": "string",
+                          "description": "정기배송 사용여부 (Y, N)"
+                        },
+                        "first_day": {
+                          "type": "string",
+                          "description": "최초 정기배송일 (2~14)"
+                        },
+                        "week_cycle": {
+                          "type": "array",
+                          "description": "배송 주기 (1,2,3,4,8)",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "days": {
+                          "type": "array",
+                          "description": "배송 요일 (Mon,Tue,Wed,Thu,Fri,Sat,Sun)",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "icon": {
+                          "type": "string",
+                          "description": "PC 아이콘 (상점URL과 조합하여 아이콘 확인 가능)"
+                        },
+                        "icon_mobile": {
+                          "type": "string",
+                          "description": "모바일 아이콘 (상점URL과 조합하여 아이콘 확인 가능)"
+                        },
+                        "payment_time": {
+                          "type": "object",
+                          "description": "고객 결제시간 설정",
+                          "properties": {
+                            "before_delivery_day": {
+                              "type": "string",
+                              "description": "배송 예정일 N일 전"
+                            },
+                            "pay_hour_time": {
+                              "type": "string",
+                              "description": "결제 시간"
+                            },
+                            "repay_hour_cycle": {
+                              "type": "string",
+                              "description": "재결제 주기"
+                            }
+                          }
+                        },
+                        "use_minus_stock": {
+                          "type": "string",
+                          "description": "품절시 결제 적용 (Y, N)"
+                        },
+                        "default_discount": {
+                          "type": "string",
+                          "description": "정기배송 할인율 기본값"
+                        },
+                        "use_discount_period": {
+                          "type": "string",
+                          "description": "기간할인 적용 (Y, N)"
+                        },
+                        "use_discount_group": {
+                          "type": "string",
+                          "description": "그룹할인 적용 (Y, N)"
+                        },
+                        "use_auto_coupon": {
+                          "type": "string",
+                          "description": "쿠폰 자동적용 (Y, N)"
+                        },
+                        "use_auto_reserve": {
+                          "type": "string",
+                          "description": "적립금 자동적용 (Y, N)"
+                        },
+                        "contract": {
+                          "type": "string",
+                          "description": "정기배송 약관"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "정기배송/구독 설정 조회",
+          "description": {
+            "content": "정기배송/구독 관련 설정값을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "subs_config"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "정기배송/구독 설정 조회"
+      }
+    },
+    "/api/v1/{shopId}/provider_sub_admin/create": {
+      "post": {
+        "operationId": "post-provider_sub_admin-create",
+        "description": "공급자 부운영자 계정을 등록합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true,false)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider_id": {
+                    "type": "string",
+                    "description": "공급자 ID"
+                  },
+                  "sub_admin_id": {
+                    "type": "string",
+                    "description": "공급자 ID"
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "비밀번호"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "부운영자명"
+                  },
+                  "access_auths": {
+                    "type": "object",
+                    "description": "메뉴접근 권한",
+                    "properties": {
+                      "main_page": {
+                        "type": "string",
+                        "description": "메인 화면 (Y, N)"
+                      },
+                      "makeshop": {
+                        "type": "string",
+                        "description": "기본 설정 (Y, N)"
+                      },
+                      "product": {
+                        "type": "string",
+                        "description": "상품 관리 (Y, N)"
+                      },
+                      "order": {
+                        "type": "string",
+                        "description": "주문 관리 (Y, N)"
+                      },
+                      "calculate": {
+                        "type": "string",
+                        "description": "정산 관리 (Y, N)"
+                      },
+                      "board": {
+                        "type": "string",
+                        "description": "게시판 관리 (Y, N)"
+                      },
+                      "coupon": {
+                        "type": "string",
+                        "description": "공급자 쿠폰 (Y, N)"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "provider_id",
+                  "sub_admin_id",
+                  "password",
+                  "access_auths"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "provider_id": "string",
+          "sub_admin_id": "string",
+          "password": "string",
+          "name": "string",
+          "access_auths": {
+            "main_page": "string",
+            "makeshop": "string",
+            "product": "string",
+            "order": "string",
+            "calculate": "string",
+            "board": "string",
+            "coupon": "string"
+          }
+        },
+        "postman": {
+          "name": "공급자 부운영자 등록",
+          "description": {
+            "content": "공급자 부운영자 계정을 등록합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "provider_sub_admin",
+              "create"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "공급자 부운영자 등록"
+      }
+    },
+    "/api/v1/{shopId}/provider_sub_admin/delete": {
+      "post": {
+        "operationId": "post-provider_sub_admin-delete",
+        "description": "공급자 부운영자 계정을 삭제합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true,false)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider_id": {
+                    "type": "string",
+                    "description": "공급자 ID"
+                  },
+                  "sub_admin_id": {
+                    "type": "string",
+                    "description": "공급자 ID"
+                  }
+                },
+                "required": [
+                  "provider_id",
+                  "sub_admin_id"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "provider_id": "string",
+          "sub_admin_id": "string"
+        },
+        "postman": {
+          "name": "공급자 부운영자 삭제",
+          "description": {
+            "content": "공급자 부운영자 계정을 삭제합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "provider_sub_admin",
+              "delete"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "공급자 부운영자 삭제"
+      }
+    },
+    "/api/v1/{shopId}/provider_sub_admin/update": {
+      "post": {
+        "operationId": "post-provider_sub_admin-update",
+        "description": "공급자 부운영자 계정정보를 수정합니다.",
+        "tags": [
+          "상점 설정 정보"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true,false)"
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider_id": {
+                    "type": "string",
+                    "description": "공급자 ID"
+                  },
+                  "sub_admin_id": {
+                    "type": "string",
+                    "description": "공급자 ID"
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "비밀번호"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "부운영자명"
+                  },
+                  "access_auths": {
+                    "type": "object",
+                    "description": "메뉴접근 권한",
+                    "properties": {
+                      "main_page": {
+                        "type": "string",
+                        "description": "메인 화면 (Y, N)"
+                      },
+                      "makeshop": {
+                        "type": "string",
+                        "description": "기본 설정 (Y, N)"
+                      },
+                      "product": {
+                        "type": "string",
+                        "description": "상품 관리 (Y, N)"
+                      },
+                      "order": {
+                        "type": "string",
+                        "description": "주문 관리 (Y, N)"
+                      },
+                      "calculate": {
+                        "type": "string",
+                        "description": "정산 관리 (Y, N)"
+                      },
+                      "board": {
+                        "type": "string",
+                        "description": "게시판 관리 (Y, N)"
+                      },
+                      "coupon": {
+                        "type": "string",
+                        "description": "공급자 쿠폰 (Y, N)"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "provider_id",
+                  "sub_admin_id"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "상점 설정",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "상점 설정"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "provider_id": "string",
+          "sub_admin_id": "string",
+          "password": "string",
+          "name": "string",
+          "access_auths": {
+            "main_page": "string",
+            "makeshop": "string",
+            "product": "string",
+            "order": "string",
+            "calculate": "string",
+            "board": "string",
+            "coupon": "string"
+          }
+        },
+        "postman": {
+          "name": "공급자 부운영자 수정",
+          "description": {
+            "content": "공급자 부운영자 계정정보를 수정합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "provider_sub_admin",
+              "update"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "공급자 부운영자 수정"
+      }
+    }
+  }
+}

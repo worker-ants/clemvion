@@ -233,4 +233,44 @@ export const integrations = {
     "Private 앱은 client_id 가 필수예요.",
   cafe24ValidatePrivateClientSecretRequired:
     "Private 앱은 client_secret 이 필수예요.",
+  // ----- MakeShop (install-first confidential client) -----
+  // cafe24 Private 대응 — client_id/client_secret 입력 + App URL 등록 + 설치 폴링.
+  // shop_uid 는 begin 에 없고 ShopStore 설치 redirect 로 도착.
+  // spec/2-navigation/4-integration.md §5.9.
+  makeshopExtraFieldsHint:
+    "MakeShop 파트너센터에서 발급한 OAuth client_id / client_secret 을 입력하세요. 상점 식별자(shop_uid)는 입력하지 않아요 — ShopStore 앱 설치 시 자동으로 전달돼요.",
+  makeshopValidateClientIdRequired: "MakeShop client_id 가 필수예요.",
+  makeshopValidateClientSecretRequired: "MakeShop client_secret 이 필수예요.",
+  makeshopPendingTitle: "MakeShop 파트너센터 설정을 완료해 주세요",
+  makeshopPendingDesc:
+    "통합이 연결 대기 상태로 생성됐어요. MakeShop 파트너센터의 ShopStore 앱에 아래 URL 을 등록하고, 상점에서 앱을 설치하면 자동으로 활성화돼요.",
+  makeshopAppUrlLabel: "App URL (MakeShop 파트너센터 ShopStore 앱에 등록)",
+  makeshopCallbackUrlLabel: "Redirect URI (MakeShop 파트너센터에 등록)",
+  makeshopPendingSteps:
+    "① MakeShop 파트너센터 → ShopStore 앱 설정에서 App URL 과 Redirect URI 를 위 값으로 전체 복사해서 등록하세요 (App URL 은 끝의 설치 토큰까지 모두 포함). ② 요청한 scope 가 앱 권한과 일치하는지 확인하세요. ③ 상점에서 앱을 설치하면 통합이 활성화됩니다.",
+  makeshopPendingViewList: "통합 상세 보기",
+  makeshopPendingWaiting: "MakeShop 앱 설치 완료를 기다리는 중… (자동 새로고침)",
+  makeshopPendingTimedOut:
+    "10분이 지나도 활성화되지 않았어요. 페이지를 새로고침해 다시 확인하거나 통합 상세를 여세요.",
+  makeshopPendingExpired:
+    "설치가 제한 시간 안에 완료되지 않아 만료됐어요. 통합을 삭제하고 다시 등록해 주세요.",
+  makeshopPendingTerminal:
+    "이 통합은 더 이상 대기 상태가 아니에요. 상세 페이지에서 상태와 다음 단계를 확인하세요.",
+  makeshopPendingLastErrorLabel: "마지막 콜백 오류",
+  // 알려진 statusReason → 사용자 친화 메시지 (W7: 내부 에러 원문 노출 방지)
+  makeshopErrorOauthTokenExchangeFailed:
+    "OAuth 토큰 교환에 실패했어요. MakeShop 파트너센터에서 설정을 확인하고 앱을 다시 설치해 주세요.",
+  makeshopErrorOauthStateMismatch:
+    "OAuth 상태 값이 일치하지 않아요. 설치 흐름을 다시 시작해 주세요.",
+  makeshopErrorOauthStateExpired:
+    "OAuth 상태 값이 만료됐어요. 설치 흐름을 다시 시작해 주세요.",
+  makeshopErrorOauthInvalidScope:
+    "요청한 scope 가 앱 권한과 일치하지 않아요. 파트너센터 앱 설정에서 scope 를 확인해 주세요.",
+  makeshopErrorHmacVerificationFailed:
+    "App URL HMAC 검증에 실패했어요. App URL 이 정확히 등록돼 있는지 확인해 주세요.",
+  makeshopErrorGenericCallback:
+    "설치 중 문제가 발생했어요. 파트너센터 설정을 확인하고 다시 시도해 주세요.",
+  makeshopDetailAppUrlTitle: "MakeShop App URL",
+  makeshopDetailAppUrlDesc:
+    "MakeShop 파트너센터의 ShopStore 앱 'App URL' 에 이 값을 등록하세요. 상점의 앱 설치가 이 URL 을 호출합니다. URL 이 일치하지 않으면 HMAC 검증이 실패해 호출이 거부됩니다.",
 } as const;

@@ -90,7 +90,7 @@ flowchart LR
 | 항목 | 사실 |
 | --- | --- |
 | Primary DB | PostgreSQL (`pgvector/pgvector:pg18` — `docker-compose.yml` 기본값; k8s local overlay `k8s/overlays/local/infra-postgres.yaml` 는 아직 `pg16`), TypeORM 매핑. 마이그레이션은 Flyway (`codebase/backend/migrations/V*.sql`). |
-| Queue | Redis 7 + BullMQ. 현재 등록된 큐: `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`. |
+| Queue | Redis 7 + BullMQ. 현재 등록된 큐: `alerts-evaluator`, `background-execution`, `cafe24-token-refresh`, `makeshop-token-refresh`, `chat-channel-token-rotator`, `document-embedding`, `execution-continuation`, `graph-extraction`, `integration-expiry-scanner`, `login-history-pruner`, `notification-secret-rotator`, `notification-webhook`, `schedule-execution`. |
 | Object Storage | S3 호환 (개발/셀프 호스팅은 MinIO, SaaS 는 AWS S3). 현재 코드에서 실제 사용처는 KB 문서 파일뿐 (`codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:726`). Forms / Avatars 는 정의되어 있으나 구현 단계가 다르다. |
 | WebSocket | Socket.io. 실행 상태·KB 진행률·AI Assistant 스트리밍 emit. 단일 sink (`WebsocketService`). |
 | Auth | JWT access + rotated refresh (`refresh_token` table). Bearer 또는 cookie. |
@@ -173,6 +173,7 @@ Mermaid `sequenceDiagram` 또는 `flowchart` 로 actor → API → service → s
 | `alerts-evaluator` | `alerts.module.ts` | `AlertsEvaluatorService` (BullMQ repeatable scheduler, 5분 주기 `upsertJobScheduler`) | 동일 service | alert_rule 1건 평가 |
 | `integration-expiry-scanner` | `integrations.module.ts` | `IntegrationExpiryScanner` (BullMQ repeatable scheduler, daily `upsertJobScheduler`) | 동일 module 내 processor | OAuth 만료 후보 1건 처리 |
 | `cafe24-token-refresh` | `integrations.module.ts` · `cafe24.module.ts` | `IntegrationExpiryScanner` (background·0d refresh enqueue) | `Cafe24TokenRefreshProcessor` | cafe24 통합 1건 token refresh |
+| `makeshop-token-refresh` | `makeshop.module.ts` | `MakeshopApiClient` (proactive·reactive_401 enqueue — background cron 없음, refresh TTL 30~90일) | `MakeshopTokenRefreshProcessor` | makeshop 통합 1건 token refresh |
 | `notification-webhook` | `external-interaction.module.ts` | `NotificationDispatcher` | `NotificationWebhookProcessor` | webhook 알림 1건 발송 |
 | `login-history-pruner` | `auth.module.ts` | `LoginHistoryPrunerService` (daily scheduler, `0 3 * * *` Asia/Seoul) | 동일 service (`@Processor`) | login_history 180일 경과 prune |
 | `chat-channel-token-rotator` | `chat-channel.module.ts` | `ChatChannelTokenRotatorService` (hourly scheduler) | 동일 service (`@Processor`) | chat_channel_token_v2 24h grace 정리 |

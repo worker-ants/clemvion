@@ -26,6 +26,7 @@ import {
   DatabaseQueryConfig,
   SendEmailConfig,
   Cafe24Config,
+  MakeshopConfig,
 } from "./integration-configs";
 
 // Data
@@ -75,6 +76,7 @@ export const OVERRIDE_REGISTRY: Record<string, ComponentType<ConfigProps>> = {
   database_query: DatabaseQueryConfig,
   send_email: SendEmailConfig,
   cafe24: Cafe24Config,
+  makeshop: MakeshopConfig,
   // Data
   transform: TransformConfig,
   code: CodeConfig,

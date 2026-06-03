@@ -604,6 +604,152 @@ describe('ThirdPartyOAuthController — cafe24 install routes', () => {
   });
 });
 
+describe('ThirdPartyOAuthController — makeshop install routes', () => {
+  let controller: ThirdPartyOAuthController;
+  let oauthService: { handleMakeshopInstall: jest.Mock };
+  let rateLimit: ReturnType<typeof makeRateLimit>;
+  const validToken = 'AbCdEfGhIjKlMnOpQrStUv';
+
+  beforeEach(() => {
+    oauthService = {
+      handleMakeshopInstall: jest
+        .fn()
+        .mockResolvedValue('https://auth.makeshop.com/oauth/authorize?x=1'),
+    };
+    rateLimit = makeRateLimit();
+    controller = new ThirdPartyOAuthController(
+      oauthService as never,
+      rateLimit as never,
+    );
+  });
+
+  const req = {
+    url: '/api/3rd-party/makeshop/install/X?shop_uid=myshop&timestamp=1700000000&hmac=sig',
+    ip: '9.9.9.9',
+    headers: {},
+  };
+
+  it('rejects non-base64url install_token with 404 before calling service', async () => {
+    const res = makeRes();
+    await controller.makeshopInstall(
+      'a'.repeat(64),
+      'myshop',
+      '1700000000',
+      'sig',
+      'install',
+      req as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(404);
+    expect((res.body as { error: { code: string } }).error.code).toBe(
+      'MAKESHOP_INSTALL_INVALID_TOKEN',
+    );
+    expect(oauthService.handleMakeshopInstall).not.toHaveBeenCalled();
+    expect(rateLimit.recordFailure).toHaveBeenCalledWith('9.9.9.9');
+  });
+
+  it('returns 400 MAKESHOP_INSTALL_MISSING_PARAMS when shop_uid missing', async () => {
+    const res = makeRes();
+    await controller.makeshopInstall(
+      validToken,
+      undefined,
+      '1700000000',
+      'sig',
+      'install',
+      req as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect((res.body as { error: { code: string } }).error.code).toBe(
+      'MAKESHOP_INSTALL_MISSING_PARAMS',
+    );
+  });
+
+  it('delegates valid input to handleMakeshopInstall and 302-redirects', async () => {
+    const res = makeRes();
+    await controller.makeshopInstall(
+      validToken,
+      'myshop',
+      '1700000000',
+      'sig',
+      'install',
+      req as never,
+      res as never,
+    );
+    expect(oauthService.handleMakeshopInstall).toHaveBeenCalledWith(
+      validToken,
+      expect.objectContaining({ shop_uid: 'myshop', hmac: 'sig' }),
+    );
+    expect(res.redirect).toHaveBeenCalledWith(
+      302,
+      'https://auth.makeshop.com/oauth/authorize?x=1',
+    );
+    // success → no failure penalty.
+    expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('locked-out IP → 429 before processing', async () => {
+    rateLimit.isLockedOut.mockResolvedValue(true);
+    const res = makeRes();
+    await controller.makeshopInstall(
+      validToken,
+      'myshop',
+      '1700000000',
+      'sig',
+      'install',
+      req as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(429);
+    expect((res.body as { error: { code: string } }).error.code).toBe(
+      'MAKESHOP_INSTALL_RATE_LIMITED',
+    );
+    expect(oauthService.handleMakeshopInstall).not.toHaveBeenCalled();
+  });
+
+  it('propagates 403 INVALID_HMAC + records enumeration failure', async () => {
+    oauthService.handleMakeshopInstall.mockRejectedValue(
+      Object.assign(new Error('hmac'), {
+        status: 403,
+        response: { code: 'MAKESHOP_INSTALL_INVALID_HMAC', message: 'hmac' },
+      }),
+    );
+    const res = makeRes();
+    await controller.makeshopInstall(
+      validToken,
+      'myshop',
+      '1700000000',
+      'sig',
+      'install',
+      req as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(403);
+    expect(rateLimit.recordFailure).toHaveBeenCalledWith('9.9.9.9');
+  });
+
+  it('does NOT record failure on REPLAY (400 — not an enumeration signal)', async () => {
+    oauthService.handleMakeshopInstall.mockRejectedValue(
+      Object.assign(new Error('replay'), {
+        status: 400,
+        response: { code: 'MAKESHOP_INSTALL_REPLAY', message: 'replay' },
+      }),
+    );
+    const res = makeRes();
+    await controller.makeshopInstall(
+      validToken,
+      'myshop',
+      '1700000000',
+      'sig',
+      'install',
+      req as never,
+      res as never,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(rateLimit.recordFailure).not.toHaveBeenCalled();
+  });
+});
+
 // SEC H-3 — `isValidPostMessageOrigin` 회귀 보호. postMessage targetOrigin
 // 으로 들어가는 FRONTEND_URL / APP_URL 의 shape 가 잘못 설정되면 OAuth
 // 결과 (previewToken 등) 가 외부 origin 에 누출되므로 엄격 검증.

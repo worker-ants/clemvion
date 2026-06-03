@@ -282,6 +282,65 @@ export type Cafe24PlannedOperation = {
 
 export type Cafe24Operation = Cafe24SupportedOperation | Cafe24PlannedOperation;
 
+// ---------------------------------------------------------------------------
+// MakeShop node extras
+//
+// Mirrors the backend `PublicMakeshopExtras`
+// (`codebase/backend/src/nodes/integration/makeshop/metadata/public-meta.ts`).
+// Divergences from the Cafe24 shape:
+//   - No `plannedByResource` channel — every MakeShop operation is `supported`.
+//   - No `restrictedApproval` / partner-approval tier (MakeShop has none).
+// `method` / `path` are intentionally absent — the frontend renders the
+// dynamic form from labels + field types only.
+// ---------------------------------------------------------------------------
+
+/** Mirrors backend `MakeshopFieldType`. Keep in sync with the backend metadata
+ * model + `spec/conventions/makeshop-api-metadata.md` §2. */
+export type MakeshopFieldType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "array"
+  | "object"
+  | "enum";
+
+/** Mirrors backend `MakeshopFieldLocation`. */
+export type MakeshopFieldLocation = "path" | "query" | "body";
+
+export type MakeshopOperationField = {
+  name: string;
+  type: MakeshopFieldType;
+  location: MakeshopFieldLocation;
+  required: boolean;
+  description?: string;
+  enum?: readonly string[];
+  default?: unknown;
+};
+
+export type MakeshopSupportedOperation = {
+  status: "supported";
+  id: string;
+  /**
+   * i18n dict (`makeshopCatalog.<key>`) lookup key. 형식:
+   * `makeshop.<resource>.<id>`. SoT: `spec/conventions/makeshop-api-metadata.md` §2.
+   * dict lookup miss 시 본 키 자체를 그대로 노출 (fallback) — drift 즉시 감지.
+   */
+  labelKey: string;
+  description: string;
+  scope: "read" | "write";
+  paginated: boolean;
+  requiredFields: readonly string[];
+  fields: readonly MakeshopOperationField[];
+};
+
+/**
+ * Shape of the `makeshop` node's `extras` payload. Unlike Cafe24 there is no
+ * `plannedByResource` channel — every operation is supported.
+ */
+export type MakeshopNodeExtras = {
+  operationsByResource: Record<string, MakeshopSupportedOperation[]>;
+};
+
 /** Flattened definition used by the rest of the app (palette, canvas, panels). */
 export type NodeDefinition = {
   type: string;

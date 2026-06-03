@@ -1,0 +1,3162 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Makeshop Shop API — 게시판 (Board)",
+    "version": "v1",
+    "x-source": "https://developer.makeshop.co.kr/docs/api/board",
+    "x-extracted": "2026-06-03 (Docusaurus chunk decode)"
+  },
+  "servers": [
+    {
+      "url": "https://connect.makeshop.co.kr",
+      "description": "Production server"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/{shopId}/board": {
+      "get": {
+        "operationId": "get-board",
+        "description": "게시글을 조회합니다.\n\n:::info\n최근 게시글 순으로 정렬됩니다.<br />조회 범위는 30일 까지 가능합니다.\n:::",
+        "tags": [
+          "게시글"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "결과 <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "조회한 게시글 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "조회한 게시글 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "게시글 코드"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "게시판제목"
+                          },
+                          "num1": {
+                            "type": "string",
+                            "description": "글번호"
+                          },
+                          "num2": {
+                            "type": "string",
+                            "description": "글번호(답글)"
+                          },
+                          "ordernum": {
+                            "type": "string",
+                            "description": "주문번호 (주문번호와 \"_숫자\"를  품목번호 포함)"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "작성자"
+                          },
+                          "cnt": {
+                            "type": "string",
+                            "description": "조회수"
+                          },
+                          "comment": {
+                            "type": "string",
+                            "description": "댓글수"
+                          },
+                          "comments": {
+                            "type": "array",
+                            "description": "댓글",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "description": "답글 번호"
+                                },
+                                "hname": {
+                                  "type": "string",
+                                  "description": "작성자명"
+                                },
+                                "comment": {
+                                  "type": "string",
+                                  "description": "내용"
+                                },
+                                "display": {
+                                  "type": "string",
+                                  "description": "노출여부"
+                                },
+                                "write_path": {
+                                  "type": "string",
+                                  "description": "경로"
+                                },
+                                "lock_ok": {
+                                  "type": "string",
+                                  "description": "비밀글 (Y : 비밀글, N : 일반)"
+                                },
+                                "reg_date": {
+                                  "type": "string",
+                                  "description": "작성일 (0000-00-00 00:00:00)",
+                                  "format": "date-time",
+                                  "example": "0000-00-00 00:00:00"
+                                }
+                              }
+                            }
+                          },
+                          "subject": {
+                            "type": "string",
+                            "description": "제목"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "내용"
+                          },
+                          "display": {
+                            "type": "string",
+                            "description": "노출여부 (YES - 노출 , NO - 미 노출)"
+                          },
+                          "lock_ok": {
+                            "type": "string",
+                            "description": "비밀글 설정 여부 (Y - 비밀글 설정 , N - 일반)"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "description": "상품번호"
+                          },
+                          "product_name": {
+                            "type": "string",
+                            "description": "상품명 (fields 추가 시 출력됩니다.)"
+                          },
+                          "write_path": {
+                            "type": "string",
+                            "description": "작성경로 (WEB, MOBILE, NAVER_PAY)"
+                          },
+                          "id": {
+                            "type": "string",
+                            "description": "아이디"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "작성일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          },
+                          "score_1": {
+                            "type": "string",
+                            "description": "리뷰 점수 1"
+                          },
+                          "score_2": {
+                            "type": "string",
+                            "description": "리뷰 점수 2"
+                          },
+                          "score_3": {
+                            "type": "string",
+                            "description": "리뷰 점수 3"
+                          },
+                          "score_4": {
+                            "type": "string",
+                            "description": "리뷰 점수 4"
+                          },
+                          "score_5": {
+                            "type": "string",
+                            "description": "리뷰 점수 5"
+                          },
+                          "reply_cnt": {
+                            "type": "string",
+                            "description": "답변 수"
+                          },
+                          "recommend_cnt": {
+                            "type": "string",
+                            "description": "추천 수"
+                          },
+                          "duplication": {
+                            "type": "string",
+                            "description": "중복리뷰여부(주문서 기준) (fields=duplication 요청전문 필수)"
+                          },
+                          "add_infos": {
+                            "type": "string",
+                            "description": "추가 정보 입력"
+                          },
+                          "attach": {
+                            "type": "string",
+                            "description": "첨부파일(1)"
+                          },
+                          "attach2": {
+                            "type": "string",
+                            "description": "첨부파일(2)"
+                          },
+                          "attach3": {
+                            "type": "string",
+                            "description": "첨부파일(3)"
+                          },
+                          "attach4": {
+                            "type": "string",
+                            "description": "첨부파일(4)"
+                          },
+                          "orders": {
+                            "type": "array",
+                            "description": "요청 전문에 fields=orders 추가 시 출력됩니다.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "ordernum": {
+                                  "type": "string",
+                                  "description": "주문번호"
+                                },
+                                "num": {
+                                  "type": "string",
+                                  "description": "품목번호"
+                                },
+                                "product_name": {
+                                  "type": "string",
+                                  "description": "상품"
+                                },
+                                "product_reserve": {
+                                  "type": "string",
+                                  "description": "적립금"
+                                },
+                                "reserve_chk": {
+                                  "type": "string",
+                                  "description": "적립금 지급 여부"
+                                },
+                                "option_data": {
+                                  "type": "string",
+                                  "description": "상품 옵션"
+                                },
+                                "delicomplete_date": {
+                                  "type": "string",
+                                  "description": "배송완료일"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자 (0000-00-00 00:00:00)",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": true,
+            "description": "검색 종료 일자 (0000-00-00 00:00:00)",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "BoardCode",
+            "in": "query",
+            "required": true,
+            "description": "조회 게시판 코드. 예)jih_board2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "num1",
+            "in": "query",
+            "required": false,
+            "description": "글번호",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "num2",
+            "in": "query",
+            "required": false,
+            "description": "글번호(답글)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "description": "상품번호",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lock_ok",
+            "in": "query",
+            "required": false,
+            "description": "비밀글. Y : 비밀글, N : 일반",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "write_path",
+            "in": "query",
+            "required": false,
+            "description": "작성경로. WEB,MOBILE,NAVER_PAY : 네이버페이",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderByType",
+            "in": "query",
+            "required": false,
+            "description": "정렬 순서. asc : 오름차순, desc : 내림차순 (default : desc)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드. 서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=ordernum,num,basket_status",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "게시글 조회",
+          "description": {
+            "content": "게시글을 조회합니다.\n\n:::info\n최근 게시글 순으로 정렬됩니다.<br />조회 범위는 30일 까지 가능합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "board"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자 (0000-00-00 00:00:00)",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 종료 일자 (0000-00-00 00:00:00)",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 조회 게시판 코드. 예)jih_board2",
+                  "type": "text/plain"
+                },
+                "key": "BoardCode",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "글번호",
+                  "type": "text/plain"
+                },
+                "key": "num1",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "글번호(답글)",
+                  "type": "text/plain"
+                },
+                "key": "num2",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "상품번호",
+                  "type": "text/plain"
+                },
+                "key": "uid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 ID",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "비밀글. Y : 비밀글, N : 일반",
+                  "type": "text/plain"
+                },
+                "key": "lock_ok",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "작성경로. WEB,MOBILE,NAVER_PAY : 네이버페이",
+                  "type": "text/plain"
+                },
+                "key": "write_path",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "정렬 순서. asc : 오름차순, desc : 내림차순 (default : desc)",
+                  "type": "text/plain"
+                },
+                "key": "orderByType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드. 서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=ordernum,num,basket_status",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "게시글 조회"
+      }
+    },
+    "/api/v1/{shopId}/board_code": {
+      "get": {
+        "operationId": "get-board_code",
+        "description": "등록 게시판 조회 합니다.",
+        "tags": [
+          "게시글"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "게시판 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "description": "게시판 코드"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "게시판제목"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "타입 (일반, 갤러리, 미니홈피, 방명록, 자료실, 컨텐츠, 동영상, 운영자 일기2)"
+                          },
+                          "read_type": {
+                            "type": "string",
+                            "description": "게시물조회권한 (Y : 비회원 조회 불가, N : 회원/비회원 조회 가능, U : 비회원 목록 조회)"
+                          },
+                          "write_type": {
+                            "type": "string",
+                            "description": "게시물 쓰기권한 (Y : 회원 전용, N : 회원/비회원 쓰기 가능, A : 관리자 전용)"
+                          },
+                          "comment": {
+                            "type": "string",
+                            "description": "게시판댓글기능 (Y : 사용, N : 사용 안함)"
+                          },
+                          "lock_ok": {
+                            "type": "string",
+                            "description": "게시판잠금기능 (A : 고객 의무 사용, Y : 고객 선택사용, N : 사용하지 않음)"
+                          },
+                          "reply": {
+                            "type": "string",
+                            "description": "게시판답변기능 (Y : 회원/비회원, M : 회원 전용, A : 관리자 전용, N : 사용안함)"
+                          },
+                          "writer": {
+                            "type": "string",
+                            "description": "작성자 표시 구분\n\n(0 : 회원 이름, 1 : 회원 아이디, 2 : 회원 이름/아이디, 3 : 익명, 4 : 회원 닉네임, 5 : 아이디 일부표시, 6 : 이름 일부표시)"
+                          },
+                          "review_score_configs": {
+                            "type": "object",
+                            "description": "코멘트 리뷰 게시판 설정",
+                            "properties": {
+                              "review_score_use": {
+                                "type": "string",
+                                "description": "평점 사용여부 (Y, N)"
+                              },
+                              "icon_type": {
+                                "type": "string",
+                                "description": "아이콘 타입 (색상 : color, 이미지 : image)"
+                              },
+                              "icon": {
+                                "type": "string",
+                                "description": "아이콘"
+                              },
+                              "scores": {
+                                "type": "array",
+                                "description": "평점",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "integer",
+                                      "description": "평점 아이디"
+                                    },
+                                    "use": {
+                                      "type": "string",
+                                      "description": "사용여부 (Y, N)"
+                                    },
+                                    "title": {
+                                      "type": "string",
+                                      "description": "평점명"
+                                    },
+                                    "on_color": {
+                                      "type": "string",
+                                      "description": "활성화 색상"
+                                    },
+                                    "on_image": {
+                                      "type": "string",
+                                      "description": "활성화 이미지"
+                                    },
+                                    "off_color": {
+                                      "type": "string",
+                                      "description": "비활성화 색상"
+                                    },
+                                    "off_image": {
+                                      "type": "string",
+                                      "description": "비활성화 이미지"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "등록 게시판 조회",
+          "description": {
+            "content": "등록 게시판 조회 합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "board_code"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "등록 게시판 조회"
+      }
+    },
+    "/api/v1/{shopId}/comment": {
+      "get": {
+        "operationId": "get-comment",
+        "description": "게시글의 댓글을 조회합니다.",
+        "tags": [
+          "게시글"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "총 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "string",
+                      "description": "현재 페이지"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "댓글번호"
+                          },
+                          "num1": {
+                            "type": "string",
+                            "description": "글번호"
+                          },
+                          "num2": {
+                            "type": "string",
+                            "description": "글번호(답글)"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "작성자"
+                          },
+                          "comment": {
+                            "type": "string",
+                            "description": "댓글내용"
+                          },
+                          "display": {
+                            "type": "string",
+                            "description": "노출여부 (Y, N)"
+                          },
+                          "lock_ok": {
+                            "type": "string",
+                            "description": "비밀글 설정 여부"
+                          },
+                          "write_path": {
+                            "type": "string",
+                            "description": "작성경로 (WEB, MOBILE)"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "작성일 (0000-00-00 00:00:00)",
+                            "format": "date-time",
+                            "example": "0000-00-00 00:00:00"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00, 등록일, 특정 회원을 검색하는 경우가 아니면 필수 입력",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00, 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "BoardCode",
+            "in": "query",
+            "required": true,
+            "description": "조회 게시판 코드. 예)jih_board2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "num1",
+            "in": "query",
+            "required": false,
+            "description": "게시글 번호1. 게시글 번호 입력시 검색일자 조건 무시",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "num2",
+            "in": "query",
+            "required": false,
+            "description": "게시글 번호2",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lock_ok",
+            "in": "query",
+            "required": false,
+            "description": "비밀댓글. Y : 비밀댓글, N : 일반댓글",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderByType",
+            "in": "query",
+            "required": false,
+            "description": "정렬 순서. asc : 오름차순, desc : 내림차순 (default : desc)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX: 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지. default: 1",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "게시글 댓글 조회",
+          "description": {
+            "content": "게시글의 댓글을 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "comment"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00, 등록일, 특정 회원을 검색하는 경우가 아니면 필수 입력",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00 00:00:00, 검색 시작 일자만 있는 경우 종료 일자는 당일 일자로 검색",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 조회 게시판 코드. 예)jih_board2",
+                  "type": "text/plain"
+                },
+                "key": "BoardCode",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "게시글 번호1. 게시글 번호 입력시 검색일자 조건 무시",
+                  "type": "text/plain"
+                },
+                "key": "num1",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "게시글 번호2",
+                  "type": "text/plain"
+                },
+                "key": "num2",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "비밀댓글. Y : 비밀댓글, N : 일반댓글",
+                  "type": "text/plain"
+                },
+                "key": "lock_ok",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "정렬 순서. asc : 오름차순, desc : 내림차순 (default : desc)",
+                  "type": "text/plain"
+                },
+                "key": "orderByType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX: 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지. default: 1",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "게시글 댓글 조회"
+      }
+    },
+    "/api/v1/{shopId}/crm_board": {
+      "get": {
+        "operationId": "get-crm_board",
+        "description": "1:1 게시판 정보를 조회합니다.",
+        "tags": [
+          "1 대 1 게시판"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "returnCode": {
+                      "type": "string",
+                      "description": "결과"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "총 상품 수"
+                    },
+                    "totalPage": {
+                      "type": "string",
+                      "description": "총 페이지 수"
+                    },
+                    "count": {
+                      "type": "string",
+                      "description": "조회한 게시글 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "조회한 게시글 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "회원 (MEMBER : 회원, GUEST : 비회원)"
+                          },
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "회원 이름"
+                          },
+                          "email": {
+                            "type": "string",
+                            "description": "메일 주소"
+                          },
+                          "phone": {
+                            "type": "string",
+                            "description": "전화번호"
+                          },
+                          "atthach": {
+                            "type": "string",
+                            "description": "첨부파일"
+                          },
+                          "subject": {
+                            "type": "string",
+                            "description": "제목"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "내용"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "작성일"
+                          },
+                          "counsel_id": {
+                            "type": "string",
+                            "description": "답변자 아이디"
+                          },
+                          "reply_content": {
+                            "type": "string",
+                            "description": "답변 내용"
+                          },
+                          "reply_date": {
+                            "type": "string",
+                            "description": "답변 작성일"
+                          },
+                          "recommend_product": {
+                            "type": "array",
+                            "description": "추천 상품",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": true,
+            "description": "검색 시작 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": true,
+            "description": "검색 종료 일자. 0000-00-00 00:00:00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "is_member",
+            "in": "query",
+            "required": false,
+            "description": "회원 여부. MEMBER : 회원, GUEST : 비회원, 미입력 시 전체",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 아이디",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderByType",
+            "in": "query",
+            "required": false,
+            "description": "정렬 순서. asc : 오름차순, desc : 내림차순 (default : desc)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=uid,cate1,product_name",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "1:1 게시판 조회",
+          "description": {
+            "content": "1:1 게시판 정보를 조회합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "crm_board"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 시작 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 검색 종료 일자. 0000-00-00 00:00:00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 여부. MEMBER : 회원, GUEST : 비회원, 미입력 시 전체",
+                  "type": "text/plain"
+                },
+                "key": "is_member",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 아이디",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "정렬 순서. asc : 오름차순, desc : 내림차순 (default : desc)",
+                  "type": "text/plain"
+                },
+                "key": "orderByType",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드\n\n서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=uid,cate1,product_name",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "1:1 게시판 조회"
+      }
+    },
+    "/api/v1/{shopId}/review": {
+      "get": {
+        "operationId": "get-review",
+        "description": "코멘트 평점타입 후기를 조회 합니다.\n\n:::info\n최근 코멘트 평점타입 후기 순으로 정렬됩니다.<br />조회 범위는 30일 까지 가능합니다.\n:::",
+        "tags": [
+          "후기"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "totalCount": {
+                      "type": "string",
+                      "description": "전체 검색 수"
+                    },
+                    "totalPage": {
+                      "type": "integer",
+                      "description": "총 페이지 수"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "description": "검색 페이지"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "출력된 검색 수"
+                    },
+                    "list": {
+                      "type": "array",
+                      "description": "리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "회원 아이디"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "description": "상품번호"
+                          },
+                          "hname": {
+                            "type": "string",
+                            "description": "작성자"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "내용"
+                          },
+                          "display": {
+                            "type": "string",
+                            "description": "노출 여부 (Y, N)"
+                          },
+                          "score_1": {
+                            "type": "string",
+                            "description": "리뷰 점수 1"
+                          },
+                          "score_2": {
+                            "type": "string",
+                            "description": "리뷰 점수 2"
+                          },
+                          "score_3": {
+                            "type": "string",
+                            "description": "리뷰 점수 3"
+                          },
+                          "score_4": {
+                            "type": "string",
+                            "description": "리뷰 점수 4"
+                          },
+                          "score_5": {
+                            "type": "string",
+                            "description": "리뷰 점수 5"
+                          },
+                          "reg_date": {
+                            "type": "string",
+                            "description": "작성일"
+                          },
+                          "uploadfile": {
+                            "type": "string",
+                            "description": "첨부파일 경로"
+                          },
+                          "product_name": {
+                            "type": "string",
+                            "description": "상품명 (fields 추가 시 출력됩니다.)"
+                          },
+                          "reply_content": {
+                            "type": "string",
+                            "description": "답변 내용"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "InquiryTimeFrom",
+            "in": "query",
+            "required": false,
+            "description": "검색 시작 일자. 0000-00-00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "InquiryTimeTo",
+            "in": "query",
+            "required": false,
+            "description": "검색 종료 일자. 0000-00-00",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "example": "0000-00-00 00:00:00"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "검색 한도. MAX : 5000 (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "검색할 페이지",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uid",
+            "in": "query",
+            "required": false,
+            "description": "상품번호",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userid",
+            "in": "query",
+            "required": false,
+            "description": "회원 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "조회필드. 서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=ordernum,num,basket_status",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "postman": {
+          "name": "코멘트 평점타입 후기 조회",
+          "description": {
+            "content": "코멘트 평점타입 후기를 조회 합니다.\n\n:::info\n최근 코멘트 평점타입 후기 순으로 정렬됩니다.<br />조회 범위는 30일 까지 가능합니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "review"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 시작 일자. 0000-00-00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeFrom",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 종료 일자. 0000-00-00",
+                  "type": "text/plain"
+                },
+                "key": "InquiryTimeTo",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색 한도. MAX : 5000 (default)",
+                  "type": "text/plain"
+                },
+                "key": "limit",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "검색할 페이지",
+                  "type": "text/plain"
+                },
+                "key": "page",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "상품번호",
+                  "type": "text/plain"
+                },
+                "key": "uid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "회원 ID",
+                  "type": "text/plain"
+                },
+                "key": "userid",
+                "value": ""
+              },
+              {
+                "disabled": false,
+                "description": {
+                  "content": "조회필드. 서버 부하를 줄이고 API 이용 시 응답 속도 개선 fields=ordernum,num,basket_status",
+                  "type": "text/plain"
+                },
+                "key": "fields",
+                "value": ""
+              }
+            ],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "GET"
+        },
+        "summary": "코멘트 평점타입 후기 조회"
+      }
+    },
+    "/api/v1/{shopId}/board/store": {
+      "post": {
+        "operationId": "post-board-store",
+        "description": "게시글을 등록 또는 수정합니다.\n\n:::info\n게시글 삭제 시 num1, num2 값을 필수로 입력해야 합니다.<br />게시판 설정이 비회원 쓰기가 가능한 경우 게시글 등록시 회원ID 유무를 체크하지 않습니다.<br />Beta 버전으로 수정이 될 수 있습니다.\n:::",
+        "tags": [
+          "게시글"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (1:성공)"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "게시판 코드"
+                        },
+                        "num1": {
+                          "type": "string",
+                          "description": "글번호"
+                        },
+                        "num2": {
+                          "type": "string",
+                          "description": "글번호(답글)"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "오류 메시지",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "save_type": {
+                    "type": "string",
+                    "description": "등록 방식. create(등록), update(수정), answer(답변), delete()"
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "게시판 코드"
+                  },
+                  "uid": {
+                    "type": "string",
+                    "description": "상품번호"
+                  },
+                  "gid": {
+                    "type": "string",
+                    "description": "스타일코드"
+                  },
+                  "hname": {
+                    "type": "string",
+                    "description": "작성자"
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "회원 아이디"
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "작성일 (0000-00-00 00:00:00 or 00000000000000, 미입력시 현재 시간)"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "제목"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "내용"
+                  },
+                  "num1": {
+                    "type": "string",
+                    "description": "글번호"
+                  },
+                  "num2": {
+                    "type": "string",
+                    "description": "글번호(답글)"
+                  },
+                  "ordernum": {
+                    "type": "string",
+                    "description": "주문번호(리뷰연동)"
+                  },
+                  "score_1": {
+                    "type": "string",
+                    "description": "리뷰 점수 1 (1~5)"
+                  },
+                  "score_2": {
+                    "type": "string",
+                    "description": "리뷰 점수 2 (1~5)"
+                  },
+                  "score_3": {
+                    "type": "string",
+                    "description": "리뷰 점수 3 (1~5)"
+                  },
+                  "score_4": {
+                    "type": "string",
+                    "description": "리뷰 점수 4 (1~5)"
+                  },
+                  "score_5": {
+                    "type": "string",
+                    "description": "리뷰 점수 5 (1~5)"
+                  },
+                  "display": {
+                    "type": "string",
+                    "description": "노출 여부. Y : 노출, N : 미노출"
+                  },
+                  "lock_ok": {
+                    "type": "string",
+                    "description": "비밀글 여부. 게시판 설정이 비밀글 작성 가능한 경우. Y : 비밀글, N : 일반 default N(일반)"
+                  },
+                  "file_url": {
+                    "type": "string",
+                    "description": "첨부파일 URL\n\nfile_url, file_url_2,file_url_3,file_url_4의 이미지가 하나로 합쳐서 저장\n\njpg,jpeg,png,gif 500kb 이하"
+                  },
+                  "file_url_2": {
+                    "type": "string",
+                    "description": "첨부파일 URI\n\nfile_url, file_url_2,file_url_3,file_url_4의 이미지가 하나로 합쳐서 저장\n\njpg,jpeg,png,gif 500kb 이하"
+                  },
+                  "file_url_3": {
+                    "type": "string",
+                    "description": "첨부파일 URI\n\nfile_url, file_url_2,file_url_3,file_url_4의 이미지가 하나로 합쳐서 저장\n\njpg,jpeg,png,gif 500kb 이하"
+                  },
+                  "file_url_4": {
+                    "type": "string",
+                    "description": "첨부파일 URI\n\nfile_url, file_url_2,file_url_3,file_url_4의 이미지가 하나로 합쳐서 저장\n\njpg,jpeg,png,gif 500kb 이하"
+                  }
+                },
+                "required": [
+                  "save_type",
+                  "code",
+                  "hname",
+                  "subject",
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "save_type": "string",
+          "code": "string",
+          "uid": "string",
+          "gid": "string",
+          "hname": "string",
+          "id": "string",
+          "date": "string",
+          "subject": "string",
+          "content": "string",
+          "num1": "string",
+          "num2": "string",
+          "ordernum": "string",
+          "score_1": "string",
+          "score_2": "string",
+          "score_3": "string",
+          "score_4": "string",
+          "score_5": "string",
+          "display": "string",
+          "lock_ok": "string",
+          "file_url": "string",
+          "file_url_2": "string",
+          "file_url_3": "string",
+          "file_url_4": "string"
+        },
+        "postman": {
+          "name": "게시글 등록/수정/삭제",
+          "description": {
+            "content": "게시글을 등록 또는 수정합니다.\n\n:::info\n게시글 삭제 시 num1, num2 값을 필수로 입력해야 합니다.<br />게시판 설정이 비회원 쓰기가 가능한 경우 게시글 등록시 회원ID 유무를 체크하지 않습니다.<br />Beta 버전으로 수정이 될 수 있습니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "board",
+              "store"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "게시글 등록/수정/삭제"
+      }
+    },
+    "/api/v1/{shopId}/comment/store": {
+      "post": {
+        "operationId": "post-comment-store",
+        "description": "게시글에 댓글을 등록, 수정, 삭제합니다.\n\n:::info\nuid(댓글 Id)는 게시글 조회 API 통해 list.comments.id 값으로 사용하여야 합니다.<br />Beta 버전으로 수정이 될 수 있습니다.\n:::",
+        "tags": [
+          "게시글"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true:성공, false:실패)"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "게시판 코드"
+                        },
+                        "num1": {
+                          "type": "string",
+                          "description": "글번호"
+                        },
+                        "num2": {
+                          "type": "string",
+                          "description": "글번호(답글)"
+                        },
+                        "uid": {
+                          "type": "string",
+                          "description": "댓글번호"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "오류메시지 (실패시 출력)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "save_type": {
+                    "type": "string",
+                    "description": "등록 방식. create(등록), update(수정), delete(삭제)"
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "게시판 코드"
+                  },
+                  "uid": {
+                    "type": "string",
+                    "description": "등록된 댓글 ID\n\n댓글 수정시 사용"
+                  },
+                  "date": {
+                    "type": "string",
+                    "description": "작성일\n\n0000-00-00 00:00:00 or 00000000000000, 미입력시 현재 시간"
+                  },
+                  "hname": {
+                    "type": "string",
+                    "description": "작성자"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "내용"
+                  },
+                  "num1": {
+                    "type": "string",
+                    "description": "글번호"
+                  },
+                  "num2": {
+                    "type": "string",
+                    "description": "글번호"
+                  }
+                },
+                "required": [
+                  "save_type",
+                  "code",
+                  "uid",
+                  "hname"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "save_type": "string",
+          "code": "string",
+          "uid": "string",
+          "date": "string",
+          "hname": "string",
+          "content": "string",
+          "num1": "string",
+          "num2": "string"
+        },
+        "postman": {
+          "name": "게시글 댓글 등록/수정/삭제",
+          "description": {
+            "content": "게시글에 댓글을 등록, 수정, 삭제합니다.\n\n:::info\nuid(댓글 Id)는 게시글 조회 API 통해 list.comments.id 값으로 사용하여야 합니다.<br />Beta 버전으로 수정이 될 수 있습니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "comment",
+              "store"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "게시글 댓글 등록/수정/삭제"
+      }
+    },
+    "/api/v1/{shopId}/crm_board/create": {
+      "post": {
+        "operationId": "post-crm_board-create",
+        "description": "1:1 게시글을 등록합니다.",
+        "tags": [
+          "1 대 1 게시판"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "작성일"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "userid": {
+                          "type": "string",
+                          "description": "회원 ID"
+                        },
+                        "date": {
+                          "type": "string",
+                          "description": "작성일. 0000-00-00 00:00:00 or 00000000000000, 미입력시 현재 시간"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "이메일 주소. 미입력시 회원 정보를 토대로 저장"
+                        },
+                        "phone": {
+                          "type": "string",
+                          "description": "휴대폰 번호. 미입력시 회원 정보를 토대로 저장"
+                        },
+                        "subject": {
+                          "type": "string",
+                          "description": "제목"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "문의 내용"
+                        },
+                        "add_title": {
+                          "type": "string",
+                          "description": "말머리. 게시판 설정 조회 필요. 말머리 설정이 된 경우 add_title_list 항목 필수 입력"
+                        },
+                        "add_content": {
+                          "type": "string",
+                          "description": "본문 추가 내용"
+                        }
+                      },
+                      "required": [
+                        "userid",
+                        "phone",
+                        "subject",
+                        "content",
+                        "add_title",
+                        "add_content"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "userid": "string",
+              "date": "string",
+              "email": "string",
+              "phone": "string",
+              "subject": "string",
+              "content": "string",
+              "add_title": "string",
+              "add_content": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "1:1 게시글 등록",
+          "description": {
+            "content": "1:1 게시글을 등록합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "crm_board",
+              "create"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "1:1 게시글 등록"
+      }
+    },
+    "/api/v1/{shopId}/crm_board/reply": {
+      "post": {
+        "operationId": "post-crm_board-reply",
+        "description": "등록된 1:1 게시글에 답변 등록합니다.",
+        "tags": [
+          "1 대 1 게시판"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "userid": {
+                            "type": "string",
+                            "description": "회원 ID"
+                          },
+                          "date": {
+                            "type": "string",
+                            "description": "작성일"
+                          },
+                          "send_type": {
+                            "type": "string",
+                            "description": "답변 전송 방법 (SMS,EMAIL)"
+                          },
+                          "send_email_msg": {
+                            "type": "string",
+                            "description": "email 전송 실패 메세지 (정상인 경우 미출력)"
+                          },
+                          "send_sms_msg": {
+                            "type": "string",
+                            "description": "sms 전송 실패 메세지 (정상인 경우 미출력)"
+                          },
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true : 성공, false : 실패)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "description": "작성일. 답변할 게시글의 작성일 입력, 0000-00-00 00:00:00 or 00000000000000 형식"
+                        },
+                        "userid": {
+                          "type": "string",
+                          "description": "비회원인 경우 미입력"
+                        },
+                        "reply_content": {
+                          "type": "string",
+                          "description": "답변 내용"
+                        },
+                        "send_email": {
+                          "type": "string",
+                          "description": "답변 등록 메일 전송 여부. Y : 전송, N : 전송안함 default : Y"
+                        },
+                        "send_sms": {
+                          "type": "string",
+                          "description": "답변 등록시 문자 전송 여부. Y : 전송, N : 전송안함 default : N"
+                        },
+                        "sms_msg": {
+                          "type": "string",
+                          "description": "답변 문자 메시지. 미등록시 기본 설정 메세지로 전송"
+                        },
+                        "sms_ad": {
+                          "type": "string",
+                          "description": "문자 광고성 정보 추가 여부. Y : 추가, N : 미추가 default : N"
+                        },
+                        "sms_spam": {
+                          "type": "string",
+                          "description": "문자 무료 수신거 안내 여부. Y : 추가, N : 미추가 default : N"
+                        }
+                      },
+                      "required": [
+                        "date",
+                        "reply_content"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "date": "string",
+              "userid": "string",
+              "reply_content": "string",
+              "send_email": "string",
+              "send_sms": "string",
+              "sms_msg": "string",
+              "sms_ad": "string",
+              "sms_spam": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "1:1 게시글 답변 등록",
+          "description": {
+            "content": "등록된 1:1 게시글에 답변 등록합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "crm_board",
+              "reply"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "1:1 게시글 답변 등록"
+      }
+    },
+    "/api/v1/{shopId}/crm_board/update": {
+      "post": {
+        "operationId": "post-crm_board-update",
+        "description": "등록된 1:1 게시글을 수정합니다.",
+        "tags": [
+          "1 대 1 게시판"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "array",
+                      "description": "처리 리스트",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "result": {
+                            "type": "boolean",
+                            "description": "결과 (true,false)"
+                          },
+                          "message": {
+                            "type": "array",
+                            "description": "실패 사유 (result 값이 false 경우 출력)",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "datas": {
+                    "type": "array",
+                    "description": "처리 데이터",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "delivery_num": {
+                          "type": "string",
+                          "description": "배송 번호"
+                        },
+                        "receiver": {
+                          "type": "string",
+                          "description": "수령인"
+                        },
+                        "receiver_mobile": {
+                          "type": "string",
+                          "description": "휴대폰. 000-0000-0000 형식. 휴대폰, 연락처 둘 중 하나만 입력시 입력한 번호로 통일"
+                        },
+                        "receiver_phone": {
+                          "type": "string",
+                          "description": "연락처"
+                        },
+                        "post": {
+                          "type": "string",
+                          "description": "우편번호"
+                        },
+                        "address": {
+                          "type": "string",
+                          "description": "주소"
+                        },
+                        "address_detail": {
+                          "type": "string",
+                          "description": "상세 주소"
+                        },
+                        "deli_msg": {
+                          "type": "string",
+                          "description": "배송 메세지 (null 입력시 공백으로 수정)"
+                        }
+                      },
+                      "required": [
+                        "delivery_num"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "datas"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "datas": [
+            {
+              "delivery_num": "string",
+              "receiver": "string",
+              "receiver_mobile": "string",
+              "receiver_phone": "string",
+              "post": "string",
+              "address": "string",
+              "address_detail": "string",
+              "deli_msg": "string"
+            }
+          ]
+        },
+        "postman": {
+          "name": "1:1 게시글 수정",
+          "description": {
+            "content": "등록된 1:1 게시글을 수정합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "crm_board",
+              "update"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "1:1 게시글 수정"
+      }
+    },
+    "/api/v1/{shopId}/review/delete": {
+      "post": {
+        "operationId": "post-review-delete",
+        "description": "코멘트 평점타입 후기를 삭제합니다.",
+        "tags": [
+          "후기"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true : 성공, false : 실패)"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "실패 사유 (result 값이 false 경우 출력)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reg_date": {
+                    "type": "string",
+                    "description": "등록일"
+                  },
+                  "uid": {
+                    "type": "string",
+                    "description": "상품 아이디"
+                  }
+                },
+                "required": [
+                  "reg_date"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "reg_date": "string",
+          "uid": "string"
+        },
+        "postman": {
+          "name": "코멘트 평점타입 후기 삭제",
+          "description": {
+            "content": "코멘트 평점타입 후기를 삭제합니다.",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "review",
+              "delete"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "코멘트 평점타입 후기 삭제"
+      }
+    },
+    "/api/v1/{shopId}/review/store": {
+      "post": {
+        "operationId": "post-review-store",
+        "description": "코멘트 평점타입 후기를 등록합니다.\n\n:::info\n리뷰 수정 시 작성일, 상품번호를 통해 리뷰가 매칭됩니다.<br />Beta 버전으로 수정이 될 수 있습니다.\n:::",
+        "tags": [
+          "후기"
+        ],
+        "responses": {
+          "200": {
+            "description": "성공",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "return_code": {
+                      "type": "string",
+                      "description": "처리결과 (성공시 0000, 실패시 error code 출력) <a href='/docs/guide/app/makeshop-code-list#B-1-1' target='_blank'>코드정보</a>"
+                    },
+                    "datas": {
+                      "type": "object",
+                      "description": "처리 리스트",
+                      "properties": {
+                        "result": {
+                          "type": "boolean",
+                          "description": "결과 (true : 성공, false : 실패)"
+                        },
+                        "uid": {
+                          "type": "string",
+                          "description": "상품 번호"
+                        },
+                        "date": {
+                          "type": "string",
+                          "description": "등록일 (예) 20201207101708)"
+                        },
+                        "message": {
+                          "type": "array",
+                          "description": "실패 사유 (result 값이 false 경우 출력)",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "save_type": {
+                    "type": "string",
+                    "description": "등록 방식. create(등록), update(수정), answer(답변)"
+                  },
+                  "uid": {
+                    "type": "string",
+                    "description": "상품번호"
+                  },
+                  "hname": {
+                    "type": "string",
+                    "description": "작성자"
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "회원 아이디"
+                  },
+                  "reg_date": {
+                    "type": "string",
+                    "description": "작성일. 0000-00-00 00:00:00 or 00000000000000, 미입력시 현재 시간"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "내용"
+                  },
+                  "score_1": {
+                    "type": "string",
+                    "description": "리뷰 점수 1 (1~5)"
+                  },
+                  "score_2": {
+                    "type": "string",
+                    "description": "리뷰 점수 2 (1~5)"
+                  },
+                  "score_3": {
+                    "type": "string",
+                    "description": "리뷰 점수 3 (1~5)"
+                  },
+                  "score_4": {
+                    "type": "string",
+                    "description": "리뷰 점수 4 (1~5)"
+                  },
+                  "score_5": {
+                    "type": "string",
+                    "description": "리뷰 점수 5 (1~5)"
+                  },
+                  "display": {
+                    "type": "string",
+                    "description": "노출 여부 (Y : 노출, N : 미노출)"
+                  },
+                  "reply_content": {
+                    "type": "string",
+                    "description": "답변내용"
+                  },
+                  "file_url": {
+                    "type": "string",
+                    "description": "첨부파일 URL. file_url, file_url_2,file_url_3,file_url_4의 이미지가 하나로 합쳐서 저장\n\njpg,jpeg,png,gif 500kb 이하"
+                  },
+                  "file_url_2": {
+                    "type": "string",
+                    "description": "첨부파일 URL. file_url, file_url_2,file_url_3,file_url_4의 이미지가 하나로 합쳐서 저장\n\njpg,jpeg,png,gif 500kb 이하"
+                  },
+                  "file_url_3": {
+                    "type": "string",
+                    "description": "첨부파일 URL. file_url, file_url_2,file_url_3,file_url_4의 이미지가 하나로 합쳐서 저장\n\njpg,jpeg,png,gif 500kb 이하"
+                  },
+                  "file_url_4": {
+                    "type": "string",
+                    "description": "첨부파일 URL. file_url, file_url_2,file_url_3,file_url_4의 이미지가 하나로 합쳐서 저장\n\njpg,jpeg,png,gif 500kb 이하"
+                  }
+                },
+                "required": [
+                  "save_type",
+                  "hname",
+                  "content"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "shopId",
+            "in": "path",
+            "required": true,
+            "description": "상점Id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-scope": "게시판",
+        "extensions": [
+          {
+            "key": "x-scope",
+            "value": "게시판"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "jsonRequestBodyExample": {
+          "save_type": "string",
+          "uid": "string",
+          "hname": "string",
+          "id": "string",
+          "reg_date": "string",
+          "content": "string",
+          "score_1": "string",
+          "score_2": "string",
+          "score_3": "string",
+          "score_4": "string",
+          "score_5": "string",
+          "display": "string",
+          "reply_content": "string",
+          "file_url": "string",
+          "file_url_2": "string",
+          "file_url_3": "string",
+          "file_url_4": "string"
+        },
+        "postman": {
+          "name": "코멘트 평점타입 후기 등록",
+          "description": {
+            "content": "코멘트 평점타입 후기를 등록합니다.\n\n:::info\n리뷰 수정 시 작성일, 상품번호를 통해 리뷰가 매칭됩니다.<br />Beta 버전으로 수정이 될 수 있습니다.\n:::",
+            "type": "text/plain"
+          },
+          "url": {
+            "path": [
+              "api",
+              "v1",
+              ":shopId",
+              "review",
+              "store"
+            ],
+            "host": [
+              "{{baseUrl}}"
+            ],
+            "query": [],
+            "variable": [
+              {
+                "disabled": false,
+                "description": {
+                  "content": "(Required) 상점Id",
+                  "type": "text/plain"
+                },
+                "type": "any",
+                "value": "",
+                "key": "shopId"
+              }
+            ]
+          },
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "application/json"
+            }
+          ],
+          "method": "POST",
+          "body": {
+            "mode": "raw",
+            "raw": "",
+            "options": {
+              "raw": {
+                "language": "json"
+              }
+            }
+          }
+        },
+        "summary": "코멘트 평점타입 후기 등록"
+      }
+    }
+  }
+}

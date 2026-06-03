@@ -1,95 +1,67 @@
-# 요구사항(Requirement) 리뷰 결과
+# 요구사항(Requirement) Review — MakeShop Phase 0 Metadata Layer
 
 ## 발견사항
 
----
-
-### [SPEC-DRIFT][WARNING] `$itemIsFirst` / `$itemIsLast` 구현 — spec §3.3 미갱신
-
-- **위치**: `expression-resolver.service.ts` (파일 2), `evaluator.ts` (파일 25), `expression-constants.ts` (파일 20), `expression-resolver.service.spec.ts` (파일 1)
-- **상세**: 코드 구현은 명확히 의도된 결정(plan 파일 `spec-sync-foreach-gaps.md` §재분류 옵션 (a) 선택)이다. `$itemIsFirst` / `$itemIsLast` 를 `ExpressionContext` 인터페이스(`evaluator.ts`)와 `buildExpressionContext`(`expression-resolver.service.ts`), `ROOT_VARIABLES`(`expression-constants.ts`) 세 곳에 일관성 있게 추가했다. 그러나 `spec/4-nodes/1-logic/9-foreach.md` §3.3 "실행 컨텍스트 변수"는 여전히 `$item`, `$itemIndex` 두 변수만 나열하고 `$itemIsFirst`/`$itemIsLast` 는 "Planned" 상태(`$item.isFirst` 형태)로만 언급하고 있다. `spec/5-system/5-expression-language.md` §4 의 변수 목록에도 이 두 변수가 없다. 코드는 올바르며 되돌리면 안 된다 — spec 두 곳 갱신 누락이 문제다.
-- **제안**: 코드 유지 + 아래 spec 갱신 필요:
-  - `spec/4-nodes/1-logic/9-foreach.md` §3.3 표에 `$itemIsFirst` / `$itemIsLast` 행 추가 (Planned → 구현됨으로 변경), "Planned" 주석 제거.
-  - `spec/5-system/5-expression-language.md` §4 맥락에서 ForEach 컨텍스트 변수 목록(`$item`, `$itemIndex`)에 두 변수 추가.
-  - `spec/4-nodes/1-logic/9-foreach.md` frontmatter `pending_plans` 에서 foreach-gaps 항목 제거(또는 resolved 마킹).
+### **[INFO]** TODO 주석 — 타임존 미확인 (의도적 보류)
+- 위치: `codebase/backend/src/nodes/integration/makeshop/metadata/index.ts` L1153–1155
+- 상세: `// TODO(Phase 3 / makeshop-api-metadata §4): MakeShop timezone is unconfirmed` 주석이 존재한다. 이는 미완성 작업 시사 주석이지만, spec `makeshop-api-metadata.md §4` 에서 "timezone: 미확인 — 구현 시 확정" 으로 **명시적으로 보류**된 사항이므로 버그가 아니다. Phase 3 이전에는 타임존 접미사를 MCP description 에 붙이지 않는다는 의도가 정확히 코드화돼 있다.
+- 제안: 그대로 유지. 다만 추적 가시성을 위해 plan 에 Phase 3 task 로 명시하는 것을 권장.
 
 ---
 
-### [SPEC-DRIFT][WARNING] `spec/5-system/8-embedding-pipeline.md` §6.1 metadata 구현 완료 — spec 미갱신
-
-- **위치**: 파일 4(`text-chunker.ts`), 파일 6(`embedding.service.ts`), 파일 8(`md.parser.ts`), 파일 9(`parser.factory.ts`), 파일 11(`pdf.parser.ts`)
-- **상세**: `spec/5-system/8-embedding-pipeline.md` §6.1 의 `metadata` 필드 설명이 여전히 **"현재 항상 빈 `{}` 로 INSERT (page/section 채우는 파서 경로 미구현, Planned)"** 로 남아 있다. 코드는 이미 `parseDocumentSegments` 를 통해 md=section, pdf=page 메타데이터를 채우는 경로를 구현 완료했으며(plan/complete/spec-sync-embedding-pipeline-gaps.md §6.1 처리 결과 참조), 구현이 의도적이고 올바르다. spec §6.1 표 행과 frontmatter `pending_plans` 가 구현 이전 상태를 유지하고 있다.
-- **제안**: 코드 유지 + 아래 spec 갱신 필요:
-  - `spec/5-system/8-embedding-pipeline.md` §6.1 `metadata` 행 설명을 구현 완료 상태로 교체 (`md: { section }`, `pdf: { page }`, `txt/csv: {}`).
-  - frontmatter `pending_plans: plan/in-progress/spec-sync-embedding-pipeline-gaps.md` 제거(이미 complete로 이동됨).
-  - spec §2 "파이프라인 흐름" 내 "파일 파싱" → "텍스트 청킹" 사이의 흐름 기술이 segment 단위 경로를 반영하도록 선택적 업데이트 검토.
+### **[WARNING]** cpik.md catalog 의 `post-cpik_member-check` / `post-cpik_member-login` scope 불일치 가능성
+- 위치: `spec/conventions/makeshop-api-catalog/cpik.md` L2125, L2128; `codebase/.../cpik.ts` L949, L1040
+- 상세: 카탈로그에서 두 operation 모두 `scope: write` 로 표시됐다. 그런데 `types.ts` 주석(L1819)은 "CPIK member check/login POSTs are read-style" 이라고 명시한다. 즉 구현자가 의미론적으로 이 두 operation 이 read에 가깝다고 판단했으나, catalog 과 metadata 모두 `write` 로 일치시킨 상태다. 이는 catalog-sync 테스트는 통과하지만, OAuth scope 관점에서 나중에 `write` 토큰을 요구하게 된다. 또한 types.ts 주석과 실제 catalog/metadata 값이 불일치한다 — 주석은 "read-style"이라 하고 코드는 `write`로 기록한다.
+- 제안: `post-cpik_member-check` (연동 여부 "확인"), `post-cpik_member-login` (SSO 토큰 "획득")의 scopeType 을 `read` 로 변경할지 결정 필요. 의도적으로 `write`로 통일했다면 types.ts L1819 주석의 "read-style" 표현을 제거하거나 수정해야 한다. 판단이 모호하므로 WARNING으로 둠.
 
 ---
 
-### [SPEC-DRIFT][WARNING] `spec/3-workflow-editor/1-node-common.md` §2.4/§2.5 — 에러 핸들링 UI 구현 완료 미반영
-
-- **위치**: 파일 22(`node-settings-panel.tsx`), 파일 21(`node-settings-panel-error-handling.test.tsx`), 파일 23/24(i18n 사전)
-- **상세**: `spec/3-workflow-editor/1-node-common.md` §2.4 는 `Retry maxRetries/retryInterval 입력 UI 는 **미구현 (Planned)**`, §2.5.1 은 **"기본값 설정 UI (미구현 — Planned)"** 로 명시되어 있다. 코드는 두 기능을 모두 구현했으며(policy=retry 시 maxRetries/retryInterval 입력 필드, policy=use_default_output 시 JSON 에디터+유효성검증+Reset 버튼), config shape 도 flat `errorPolicy` 에서 nested `errorHandling.{policy, retryConfig?, defaultOutput?}` 로 전환했다. 이는 plan/complete/spec-sync-node-common-gaps.md §재분류 결정 이후의 의도적 구현이다. spec §2.4/§2.5.1 의 "Planned" 표기와 구현부재 서술이 stale하다.
-- **제안**: 코드 유지 + 아래 spec 갱신 필요:
-  - `spec/3-workflow-editor/1-node-common.md` §2.4 Retry 행: "미구현 (Planned)" → 구현됨으로 변경.
-  - §2.5.1 제목 `"(미구현 — Planned)"` 제거, 구현된 UI 서술로 교체.
-  - spec 에 `config.errorHandling` nested shape 과 policy vocabulary (`stop_workflow`, `skip_node`, `use_default_output`, `retry`, `route_to_error_port`) 를 명시. 레거시 `errorPolicy` 마이그레이션 규칙 추가.
+### **[INFO]** `MakeshopOperationMetadata.labelKey` 필드 부재 (public-meta 에서 생성)
+- 위치: `codebase/.../types.ts`; `codebase/.../public-meta.ts` L1670
+- 상세: spec `makeshop-api-metadata.md §2` 의 인터페이스 정의에 `labelKey` 필드가 없다. `public-meta.ts` 에서 `labelKey: \`makeshop.${resource}.${op.id}\`` 를 동적으로 생성한다. spec §2 의 주석 "사람 친화 라벨은 frontend i18n dict (`makeshop.<resource>.<operation>`) 로 lookup" 과 일치하므로 구현 방향은 올바르다. spec 에 `labelKey` 는 `PublicMakeshopOperation` 에 존재하는 파생 필드임이 명시되지 않아 누락처럼 보이지만, internal metadata type 에 없고 public projection 에서 생성하는 구조가 의도적이다.
+- 제안: spec 갱신 없이도 기능상 문제 없음. 필요시 spec §2 에 "internal metadata 에는 labelKey 없음, public projection 에서 파생" 한 줄 추가 가능.
 
 ---
 
-### [SPEC-DRIFT][WARNING] `spec/4-nodes/5-data/0-common.md` §3 Code 노드 캔버스 요약 — 결정 반영 미완
-
-- **위치**: 파일 13(`code.schema.ts`), 파일 12(`code.schema.spec.ts`)
-- **상세**: `spec/4-nodes/5-data/0-common.md` §3 Code 행은 `{language} · {N} lines` 포맷을 **"미구현 (Planned)"** 으로 기술하고 있다. 코드는 `summaryTemplate: { template: '{{language|upper}}' }` 를 구현했다 — plan/complete/spec-sync-data-common-gaps.md §재분류에 따르면 DSL 이 줄 세기/title-case 를 미지원하므로 downscope 방향으로 결정된 것이다. spec §3 의 Code 행이 결정된 실제 포맷(`JAVASCRIPT`, upper-case only)을 반영하지 않고 있다.
-- **제안**: 코드 유지 + `spec/4-nodes/5-data/0-common.md` §3 Code 행을 구현된 `{{language|upper}}` 출력(`JAVASCRIPT`) 으로 업데이트. "미구현 (Planned)" 제거.
-
----
-
-### [SPEC-DRIFT][WARNING] `spec/4-nodes/6-presentation/5-template.md` §7 캔버스 요약 — 결정 반영 미완
-
-- **위치**: 파일 19(`template.schema.ts`), 파일 18(`template.schema.spec.ts`)
-- **상세**: `spec/4-nodes/6-presentation/5-template.md` §7 "버튼 없음" 행은 `{outputFormat} · {N} lines` 포맷을 기술한다. 코드는 `summaryTemplate: { template: '{{outputFormat}} · {{buttons.length}} buttons' }` 를 구현했다(plan/complete/spec-sync-template-gaps.md §재분류 결정). spec §7 의 "버튼 없음" 행(`html · 9 lines`)이 구현된 동작(`html · 2 buttons`)과 일치하지 않는다.
-- **제안**: 코드 유지 + `spec/4-nodes/6-presentation/5-template.md` §7 표를 구현된 `{{outputFormat}} · {{buttons.length}} buttons` 포맷으로 업데이트. "버튼 없음" / "버튼 있음" 분기 대신 단일 포맷으로 통일.
+### **[INFO]** `[SPEC-DRIFT]` spec `makeshop-api-metadata.md §5` 표현 낡음
+- 위치: `spec/conventions/makeshop-api-metadata.md` §5
+- 상세: §5 본문은 "단 makeshop catalog 은 현재 status 컬럼이 없는 순수 레퍼런스이므로, 구현 착수 시 catalog 에 `status` 컬럼을 추가하고 sync 대상으로 승격한다"고 서술한다. 이번 PR 이 정확히 그 승격을 완료했으므로 §5 의 서술이 낡았다. 코드·catalog 변경은 합리적이고 의도적이다.
+- 제안: 코드 유지 + spec 반영. `spec/conventions/makeshop-api-metadata.md §5` 본문을 "Phase 0 에서 완료됨 — catalog 에 `status`/`scope`/`paginated` 컬럼 추가, `catalog-sync.spec.ts` 양방향 동기 보호 도입" 으로 갱신 필요 (project-planner 위임).
 
 ---
 
-### [WARNING] `node-settings-panel.tsx` — `use_default_output` 정책에서 빈 JSON 처리 시 `null` 저장
-
-- **위치**: 파일 22 (`node-settings-panel.tsx`), diff 의 `errorHandling.defaultOutput` 계산 경로
-- **상세**: `defaultOutputText.trim()` 가 falsy 일 때(빈 문자열 또는 공백만) `defaultOutput` 값으로 `null` 을 저장한다(`JSON.parse` 를 건너뛰고 `null`). 그러나 초기값은 `"{}"` 로 세팅되어 있고 Reset 버튼도 `"{}"` 로 돌아가므로 실제로 빈 문자열 경로에 도달하는 시나리오는 사용자가 내용을 모두 지운 경우다. `spec/3-workflow-editor/1-node-common.md` §2.5.2 에서 미지정 시 기본값은 타입별 기본값(`{}`, `[]`, `""` 등)이고, 사용자 미설정 시 `null` 이 아닌 타입 기본값 적용을 명시한다. UI 에서 에디터를 비우면 `null` 이 저장되는 것은 spec §2.5.2 의 타입별 기본값 자동 적용 규칙과 충돌한다. 저장 시 유효성 검사(`JSON.parse`)를 건너뛰므로 의도치 않은 `null` 이 `defaultOutput` 에 저장될 수 있다.
-- **제안**: `defaultOutputText.trim()` falsy 일 때 `null` 대신 저장을 막거나(`setDefaultOutputError` 호출) 기본값 `'{}'` 로 폴백하도록 수정. 또는 해당 케이스를 명시적으로 `{}` (빈 객체 기본값)으로 처리.
-
----
-
-### [WARNING] `parsePdfSegments` — 빈 페이지 텍스트 segments 포함
-
-- **위치**: 파일 11 (`pdf.parser.ts`)
-- **상세**: `parsePdfSegments` 는 `pagerender` 콜백이 반환한 텍스트를 `pages.push(text)` 하고, 빈 문자열(`""`)인 경우에도 `{ text: '', metadata: { page: N } }` 세그먼트를 생성한다. `embedding.service.ts` 는 `chunkText(segment.text, ...)` 를 호출하는데, `chunkText` 내부에서 `text.trim()` 가 falsy 이면 `[]` 를 반환하므로 해당 페이지 청크는 실제로 생성되지 않는다. 기능 동작은 올바르나 빈 페이지 텍스트 segment 를 명시적으로 필터링하지 않아 `parsePdfSegments` 반환 배열에 빈 텍스트 항목이 포함되고, 이 점이 테스트에서 검증되지 않았다. 대용량 스캔 PDF(이미지만 있는 페이지 다수)에서는 무의미한 루프가 발생할 수 있다.
-- **제안**: `parsePdfSegments` 에서 `pages` push 전 `text.trim()` 가 비어 있으면 skip 하거나(`if (text.trim()) pages.push(...)`), `map` 이후 `filter(s => s.text.trim())` 를 추가하는 것을 권장.
+### **[INFO]** `[SPEC-DRIFT]` spec `5-makeshop.md §2` (설정 UI) 표현 낡음
+- 위치: `spec/4-nodes/4-integration/5-makeshop.md` §2 마지막 bullet
+- 상세: "현재 MakeShop catalog 는 `status` 컬럼이 없는 순수 레퍼런스이므로, 구현 착수 시 catalog 에 `status` 컬럼을 도입한 뒤 적용한다" 라고 쓰여 있다. Phase 0 에서 status 컬럼이 도입됐으므로 낡은 서술이다.
+- 제안: 코드 유지 + spec 반영. `spec/4-nodes/4-integration/5-makeshop.md §2` 해당 bullet 을 "Phase 0 에서 catalog 에 `status` 컬럼 도입 완료" 로 갱신 필요 (project-planner 위임).
 
 ---
 
-### [INFO] `node-settings-panel.tsx` — `backoffMultiplier` 값 하드코딩
-
-- **위치**: 파일 22 (`node-settings-panel.tsx`)
-- **상세**: retry config 저장 시 `backoffMultiplier: 2` 로 하드코딩한다. `spec/5-system/3-error-handling.md` §3.3 에서 `backoffMultiplier` 기본값은 `2.0` 이고 UI 에서 노출한다는 명시는 없다. 현재 구현에서 사용자가 backoffMultiplier 를 변경할 UI 는 없으므로 기본값(`2`)을 고정하는 것은 spec 과 일치한다. 단, 향후 UI 확장 시 상수화 필요.
+### **[INFO]** `constraints` 필드 — 현재 모든 operation 에 선언 없음
+- 위치: `codebase/.../types.ts` L1840 주석
+- 상세: 주석에 "Empty for all rows today (no MakeShop op declares constraints yet) but the field exists for parity with Cafe24" 라고 명시됐다. 실제로 7개 섹션 파일 어디에도 `constraints` 선언이 없다. 향후 사용을 위한 scaffolding으로 기능상 문제 없다.
+- 제안: 현재 상태 유지. 첫 번째 constraint 추가 PR 시 metadata.spec.ts 의 constraints 검증 테스트가 자동으로 적용된다.
 
 ---
 
-### [INFO] `spec/4-nodes/6-presentation/5-template.md` §7 — database-query/send-email summaryTemplate spec 대응 없음
+### **[INFO]** `catalog-sync.spec.ts` — `cells.length < REST_HEADERS.length` 조건이 열 수 부족 행을 조용히 skip
+- 위치: `codebase/.../catalog-sync.spec.ts` L542
+- 상세: `if (cells.length < REST_HEADERS.length) continue;` 는 열 수가 8 미만인 data 행을 오류 없이 건너뛴다. 유효하지 않은 catalog 행이 소리 없이 무시될 수 있다. 현재 catalog 파일은 정규화돼 있으므로 즉각적인 위험은 없지만, 나중에 잘못된 행이 추가될 경우 테스트가 통과하면서 sync 보장이 깨질 수 있다.
+- 제안: INFO 수준. 향후 `throw new Error(...)` 로 강화 가능.
 
-- **위치**: 파일 14(`database-query.schema.spec.ts`), 파일 15(`database-query.schema.ts`), 파일 16(`send-email.schema.spec.ts`), 파일 17(`send-email.schema.ts`)
-- **상세**: `databaseQueryNodeMetadata.summaryTemplate` (`{{queryType|upper}} · {{query}}`)와 `sendEmailNodeMetadata.summaryTemplate` (`{{to.length}} recipients · {{subject}}`)는 spec 대응 문서가 없거나 추적된 plan 이 없다. spec/4-nodes/integration 영역의 해당 노드 spec 에서 캔버스 요약 절이 정의돼 있지 않거나 아직 작성 안 된 경우다. 기능 구현 자체는 올바르며 동작한다.
+---
+
+### **[INFO]** `get-cart_free_config-update` — GET 으로 상태 변경 (spec 침묵)
+- 위치: `spec/conventions/makeshop-api-catalog/shop.md` L2537; `codebase/.../shop.ts` (미노출된 diff)
+- 상세: `get-cart_free_config-update` 의 method 가 GET 이고 path 도 `cart_free_config/update` 이다. MakeShop 공식 API 가 GET 으로 카트프리 설정 변경을 구현한 외부 API 설계상의 이상함이다. 이는 MakeShop API 자체의 설계이며, 본 메타데이터는 공식 API 를 그대로 반영한다. scopeType 이 `read` 로 지정돼 있어 GET 메서드와 일치하지만 사실상 write 동작이다. 그러나 MakeShop OAuth scope 체계에서 이 operation 의 실제 scope 요구사항은 미확인이다.
+- 제안: 공식 API 동작을 그대로 반영한 것이므로 현재 구현 유지. 구현 Phase(Phase 2)에서 실제 OAuth 호출 테스트 시 scope 재확인 필요.
 
 ---
 
 ## 요약
 
-전반적으로 코드 변경은 의도한 기능을 완전히 구현하고 있으며 비즈니스 로직도 올바르다. 5개의 spec-drift 발견사항이 있는데, 이는 코드 구현이 계획된 방향(plan/complete 파일들의 결정)을 정확히 따랐으나 대응 spec 문서가 아직 갱신되지 않아 발생한 것이다: foreach §3.3의 `$itemIsFirst`/`$itemIsLast` 미반영, embedding-pipeline §6.1의 "미구현" 서술 유지, node-common §2.4/§2.5의 "Planned" 표기 잔존, data/0-common §3 Code 요약 포맷 미업데이트, template §7 요약 포맷 미업데이트. 코드 로직 관점에서는 `use_default_output` 정책에서 사용자가 JSON 에디터를 비울 때 `null` 이 저장되는 점이 spec §2.5.2의 타입별 기본값 규칙과 충돌하며, `parsePdfSegments` 에서 빈 페이지 텍스트 필터링이 누락된 점도 개선이 필요하다.
+Phase 0 의도 — 7개 섹션 161 REST operation 메타데이터 레이어 신설 + catalog ↔ metadata 양방향 sync 테스트 도입 + catalog MD 파일 승격 — 을 코드가 **완전히 구현**한다. `types.ts` 인터페이스는 spec `makeshop-api-metadata.md §2` 와 line-level 로 일치하며, `restrictedApproval` 부재·GET/POST 전용·constraints 형식도 spec 명세와 정확히 대응한다. `catalog-sync.spec.ts` 의 6종 검증(구조·형식·양방향 동기)은 spec §5 에서 요구하는 sync 보호를 충실히 구현한다. 주요 기능적 위험은 없다. `cpik.md` 의 check/login scope `write` 지정과 `types.ts` 주석 불일치(WARNING) 는 향후 OAuth 구현 Phase 에서 재검토가 필요하다. spec 두 곳(makeshop-api-metadata §5, 5-makeshop.md §2 bullet)이 Phase 0 완료로 낡아진 서술을 담고 있어 project-planner 에 의한 갱신이 필요하다.
 
 ## 위험도
 
-MEDIUM
-
----
-STATUS: SUCCESS
+LOW

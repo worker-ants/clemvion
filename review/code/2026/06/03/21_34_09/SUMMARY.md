@@ -1,96 +1,108 @@
 # Code Review 통합 보고서
 
+대상 커밋: `721e832b` — feat(makeshop): Phase 0 — operation metadata 레이어 (161 REST op)
+
+---
+
 ## 전체 위험도
-**MEDIUM** — spec-drift(구현 완료 후 spec 미갱신) 5건 + 기능 버그 가능성(null 저장, 빈 페이지 필터링 누락) 2건 + 테스트 격리·커버리지 갭 2건이 주요 이슈. 보안·아키텍처 레이어는 LOW 수준으로 안정적.
+
+**MEDIUM** — 데이터 정합성 및 아키텍처는 양호하나, 런타임 로직(`constraint-validator`, `public-meta`)에 대한 테스트 공백이 Phase 2 handler 연결 시 무증상 버그 위험을 내포. 복수 reviewer 가 공통 지적한 cpik scope 주석 불일치는 수정 필요.
+
+---
 
 ## Critical 발견사항
 
-_없음_
+없음.
+
+---
 
 ## 경고 (WARNING)
 
 | # | 카테고리 | 발견사항 | 위치 | 제안 |
 |---|----------|----------|------|------|
-| 1 | SPEC-DRIFT | [SPEC-DRIFT] `$itemIsFirst`/`$itemIsLast` 구현 완료 — `spec/4-nodes/1-logic/9-foreach.md` §3.3 및 `spec/5-system/5-expression-language.md` §4 미갱신. spec 에 여전히 "Planned" 표기 잔존 | `expression-resolver.service.ts`, `evaluator.ts`, `expression-constants.ts` | 코드 유지. spec 두 곳 갱신: §3.3 표에 두 변수 추가(Planned→구현됨), expression-language §4 목록에 추가, foreach frontmatter pending_plans 제거 |
-| 2 | SPEC-DRIFT | [SPEC-DRIFT] embedding pipeline §6.1 `metadata` 구현 완료 — `spec/5-system/8-embedding-pipeline.md` §6.1 에 여전히 "현재 항상 빈 `{}` (Planned)" 서술 잔존 | `text-chunker.ts`, `embedding.service.ts`, `md.parser.ts`, `pdf.parser.ts` | 코드 유지. spec §6.1 metadata 행을 구현 완료 상태(md: `{section}`, pdf: `{page}`)로 교체, frontmatter pending_plans 제거 |
-| 3 | SPEC-DRIFT | [SPEC-DRIFT] errorHandling nested 계약 + retry/default-output UI 구현 완료 — `spec/3-workflow-editor/1-node-common.md` §2.4/§2.5.1 에 "미구현 (Planned)" 표기 잔존 | `node-settings-panel.tsx`, `node-settings-panel-error-handling.test.tsx`, i18n 사전 | 코드 유지. spec §2.4 Retry 행·§2.5.1 제목에서 "Planned" 제거, `errorHandling` nested shape + policy vocabulary + 레거시 마이그레이션 규칙 spec에 명시 |
-| 4 | SPEC-DRIFT | [SPEC-DRIFT] Code 노드 summaryTemplate `{{language\|upper}}` 구현 완료 — `spec/4-nodes/5-data/0-common.md` §3 Code 행에 "미구현 (Planned)" 잔존 | `code.schema.ts`, `code.schema.spec.ts` | 코드 유지. spec §3 Code 행을 구현된 `{{language\|upper}}` (`JAVASCRIPT`) 포맷으로 업데이트, "미구현" 제거 |
-| 5 | SPEC-DRIFT | [SPEC-DRIFT] Template 노드 summaryTemplate `{{outputFormat}} · {{buttons.length}} buttons` 구현 — `spec/4-nodes/6-presentation/5-template.md` §7 "버튼 없음" 행이 구현 동작(`html · 2 buttons`)과 불일치 | `template.schema.ts`, `template.schema.spec.ts` | 코드 유지. spec §7 표를 구현된 단일 포맷으로 통일, "버튼 없음/있음" 분기 제거 |
-| 6 | 기능 버그 | `use_default_output` 정책에서 JSON 에디터를 비울 때 `null` 이 저장됨 — spec §2.5.2 의 "미지정 시 타입별 기본값" 규칙과 충돌 | `node-settings-panel.tsx` `handleSave` | `defaultOutputText.trim()` falsy 시 저장 차단(`setDefaultOutputError` 호출) 또는 기본값 `'{}'`로 폴백 |
-| 7 | 기능 버그 | `parsePdfSegments` 에서 빈 페이지 텍스트(`str: ''`)를 필터링하지 않고 `{ text: '', metadata: { page: N } }` segment로 포함 — 대용량 스캔 PDF에서 무의미한 루프 발생 가능 | `pdf.parser.ts` `parsePdfSegments` | `pages.push` 전 `text.trim()` 공백 체크 후 skip, 또는 map 이후 `filter(s => s.text.trim())` 추가 |
-| 8 | 테스트 격리 | NodeSettingsPanel 테스트에서 Zustand store 가 `afterEach`에서 명시적으로 리셋되지 않아 테스트 간 상태 누출 위험 — 순서 의존·간헐적 실패 가능성 | `node-settings-panel-error-handling.test.tsx` | `beforeEach`/`afterEach`에서 `useEditorStore.setState({ nodes: [], ... })`로 store 명시적 리셋 |
-| 9 | 테스트 커버리지 | `embedding.service.spec.ts` mock이 단일 segment만 반환 — 다중 segment의 chunk index 연속 재부여·metadata 전파 로직이 전혀 검증되지 않음 | `embedding.service.spec.ts` | mock을 다중 segment(`[{text:'seg1',metadata:{section:'A'}},{text:'seg2',metadata:{section:'B'}}]`)로 교체, 최종 chunk.index 연속성과 metadata 부착 어설션 추가 |
-| 10 | 부작용 | `errorPolicy`→`errorHandling` 저장 포맷 전환 시 backend handler가 새 형식(`errorHandling.policy`)을 처리하는지 확인 필요. frontend만 마이그레이션되고 backend가 미지원이면 런타임 오류 가능 | `node-settings-panel.tsx` `handleSave`, backend error-policy handler | backend handler가 `errorHandling.policy`(신규)와 `errorPolicy`(레거시) 양쪽을 수용하는지 확인 |
+| 1 | Testing | `constraint-validator.ts` 전용 단위 테스트 없음. Cafe24 대응 파일은 14개 테스트 보유하나 MakeShop 측은 0개. Phase 2 handler 연결 시 `isAbsent` 경계값·4종 kind·미지 kind throw 경로가 무검증 상태로 런타임 호출됨. | `metadata/constraint-validator.ts` | `constraint-validator.spec.ts` 추가. `validateMakeshopConstraints` 대상으로 Cafe24 버전과 동일한 테스트 세트(4종 constraint, 경계값, 다중 constraint 순서, 첫 위반 반환, 미지 kind throw) 작성. |
+| 2 | Testing | `public-meta.ts`(`toPublicMakeshopOperation`, `buildMakeshopExtras`) 테스트 없음. Cafe24 대응 파일은 8개 테스트 보유. `method`/`path` 미노출 불변, `labelKey` 포맷, `paginated` 기본값 등 핵심 보안·동작 불변이 미검증. | `metadata/public-meta.ts` | `public-meta.spec.ts` 추가. (1) `method`/`path` 미노출, (2) `labelKey` 포맷 `makeshop.${resource}.${id}`, (3) `required` 플래그 정합, (4) `paginated` 기본값 false, (5) 전체 resource 키 포함, (6) JSON 직렬화 가능 검증. |
+| 3 | Architecture | `constraint-validator.ts`가 Cafe24 validator의 verbatim copy로 선언됨. 로직 수정·constraint 종류 확장 시 양측을 동시 수정해야 하는 DRY 위반. | `metadata/constraint-validator.ts` L8 주석 | Phase 2 이전에 `packages/` 또는 `_base/` 공통 레이어에 제네릭 함수 추출. 현 Phase 0에서는 즉각 강제 아님. |
+| 4 | Architecture | `SECTION_SCOPE` 매핑이 `index.ts` 내부 private 상수로만 존재. `cpik` 리소스가 실제로 두 scope 그룹에 걸치나 `order` 하나로 고정. Phase 3 전환 시 drift 가능성. | `metadata/index.ts` L1189–L1197 | Phase 3 전환 시 per-operation `scopeGroup?` 필드 추가 또는 `SECTION_SCOPE`를 spec과 기계적으로 동기화하는 단위 테스트 추가. |
+| 5 | SPEC-DRIFT | [SPEC-DRIFT] `spec/conventions/makeshop-api-metadata.md §5`가 Phase 0 완료로 낡아짐. "catalog에 `status` 컬럼을 추가하고 sync 대상으로 승격한다"는 미래형 서술이 이미 완료됨. | `spec/conventions/makeshop-api-metadata.md §5` | spec §5 본문을 "Phase 0에서 완료됨 — catalog에 `status`/`scope`/`paginated` 컬럼 추가, `catalog-sync.spec.ts` 양방향 동기 보호 도입"으로 갱신 (project-planner 위임). |
+| 6 | SPEC-DRIFT | [SPEC-DRIFT] `spec/4-nodes/4-integration/5-makeshop.md §2` 마지막 bullet이 낡아짐. "구현 착수 시 catalog에 `status` 컬럼을 도입한다"는 서술이 Phase 0에서 이미 완료됨. | `spec/4-nodes/4-integration/5-makeshop.md §2` | 해당 bullet을 "Phase 0에서 catalog에 `status` 컬럼 도입 완료"로 갱신 (project-planner 위임). |
+| 7 | Documentation | `_overview.md §4` Coverage Matrix의 `권한 그룹` 컬럼 참조가 이번 변경(`scope` 컬럼으로 교체)에 맞춰 업데이트됐는지 미확인. diff 범위 밖 §4가 잔류 가능성. | `spec/conventions/makeshop-api-catalog/_overview.md §4` | `_overview.md §4` Coverage Matrix 확인 후 `권한 그룹` → `scope group` 업데이트 필요 시 반영. |
+
+---
 
 ## 참고 (INFO)
 
 | # | 카테고리 | 발견사항 | 위치 | 제안 |
 |---|----------|----------|------|------|
-| 1 | 보안 | PDF 파서: `pdfParse(buffer)` 에 악성 입력 시 ReDoS/메모리 폭발 가능성 — 기존 구조적 이슈, 이번 변경이 attack surface 소폭 확대 | `pdf.parser.ts` | 업로드 크기·MIME 검증 강화, pdf-parse 버전 최신 고정, npm audit CI gate 유지, 파싱을 별도 워커에서 실행 고려 |
-| 2 | 보안 | Markdown 파서: 파일 크기 상한 없어 수백 MB 입력 시 메모리 압박 DoS 벡터 | `md.parser.ts` | 업로드 레이어 크기 제한이 md 파일에도 적용되는지 확인 |
-| 3 | 아키텍처 | `ParsedSegment` 인터페이스가 `parser.factory.ts`에 정의되어 하위 파서가 팩토리를 역참조하는 레이어 방향 역전 | `parser.factory.ts`, `md.parser.ts`, `pdf.parser.ts` | `ParsedSegment`를 별도 `types.ts`로 분리하여 parsers가 factory를 바라보지 않도록 개선 |
-| 4 | 아키텍처 | `parsePdf`(flat) 경로가 embedding.service에서 더 이상 사용되지 않아 데드코드화 가능성 | `pdf.parser.ts`, `embedding.service.ts` | `parsePdf` 호출 경로 확인 후 미사용이면 제거 또는 `parsePdfSegments`에 위임 |
-| 5 | 아키텍처 | `EmbeddingService` 내 segment 루프·chunk index 재부여 로직이 서비스 레이어에 인라인 — 포맷 추가 시 서비스 코드 직접 수정 필요(OCP 위반 잠재성) | `embedding.service.ts` | `chunkSegments(segments, options): Chunk[]` 헬퍼를 chunking 레이어에 두어 서비스는 파이프라인만 orchestrate |
-| 6 | 아키텍처 | `NodeSettingsPanel` — 에러 핸들링 config 변환 도메인 로직이 UI 컴포넌트에 집중, useState 수 증가 | `node-settings-panel.tsx` | `useErrorHandlingConfig(initialConfig)` 커스텀 훅으로 상태·파생·빌드·마이그레이션 로직 분리 |
-| 7 | 아키텍처 | expression context 변수 추가 시 엔진 타입·서비스 구현·프론트엔드 자동완성 3곳을 동시 수정해야 하는 구조적 결합 | `evaluator.ts`, `expression-resolver.service.ts`, `expression-constants.ts` | 장기적으로 context 변수 레지스트리를 shared 패키지 단일 정의로 수렴 |
-| 8 | 범위 | `code.schema.ts`·`template.schema.ts`·`expression-resolver.service.ts` 구현이 plan 파일 "결정 필요" 표기 제거 없이 포함됨 — 결정 근거가 plan 문서에 명시적으로 기록되지 않음 | `plan/complete/*.md` | plan 파일에 "결정 A 채택" 근거 기록, "결정 필요" 표시 제거 |
-| 9 | 유지보수성 | `forceSplitAndPush` 내 청크 객체 리터럴 두 곳 중복 — `pushChunk` 헬퍼가 있음에도 우회 | `text-chunker.ts` | `pushChunk` 재사용 또는 `buildChunk()` 유틸 추출 |
-| 10 | 유지보수성 | `SettingsTab` 컴포넌트가 300+ 라인으로 증가, 에러 핸들링 state 4개 + 조건부 렌더링 흡수 | `node-settings-panel.tsx` | `ErrorHandlingSection` 서브컴포넌트 추출 |
-| 11 | 유지보수성 | `LEGACY_POLICY_MAP` 에서 `retry: "retry"` 항목이 실질적으로 무의미(동일값 매핑) | `node-settings-panel.tsx` | 주석으로 "retry was unchanged" 명시하거나 맵에서 제거 후 fallback 로직 조정 |
-| 12 | 유지보수성 | `pdf.parser.spec.ts` mock 타입 구조가 두 곳에서 40+ 라인 중복 인라인 | `pdf.parser.spec.ts` | `type PdfParseMock = ...` 추출 후 재사용 |
-| 13 | 유지보수성 | `ContainerScopeFlags.hasItem` JSDoc이 `$itemIsFirst`/`$itemIsLast` 미반영(stale) | `expression-constants.ts` | JSDoc에 두 신규 변수 추가 언급 |
-| 14 | 문서화 | `ChunkMetadata`/`Chunk` 인터페이스에 필드별 JSDoc 없음; `metadata`가 optional이나 항상 채워지는 불변식 미명시 | `text-chunker.ts` | 인터페이스에 JSDoc 추가, `metadata`를 non-optional로 변경 또는 "항상 존재 (빈 객체 기본)" 주석 |
-| 15 | 문서화 | `LEGACY_POLICY_MAP` JSDoc에 라이프사이클(제거 조건, deprecated 여부) 미명시 | `node-settings-panel.tsx` | `@deprecated` 여부와 제거 조건 또는 관련 spec 링크 추가 |
-| 16 | 문서화 | `spec/5-system/5-expression-language.md` 표에서 `$itemIsFirst`/`$itemIsLast`가 `$loop.isFirst`/`isLast`와 병립 — ForEach vs Loop 구분 설명 부재 | `spec/5-system/5-expression-language.md` | 각주 또는 표에 "`$itemIsFirst`/`$itemIsLast`는 ForEach 전용; Loop는 `$loop.isFirst`/`$loop.isLast`" 한 줄 추가 |
-| 17 | 테스트 커버리지 | `$itemIsLast=true` 케이스 테스트 누락 — `isFirst=true`만 검증 | `expression-resolver.service.spec.ts` | `isFirst=false, isLast=true` 케이스 추가 |
-| 18 | 테스트 커버리지 | `chunkText baseMetadata` 테스트가 단일 청크 가능성 높은 입력값 사용 — `forceSplitAndPush` 경로 metadata 전파 미검증 | `text-chunker.spec.ts` | `chunkSize: 5`처럼 강제 다중 청크 유도 값으로 테스트, `forceSplitAndPush` 경로 직접 트리거 케이스 추가 |
-| 19 | 테스트 커버리지 | `parsePdfSegments` 빈 페이지 처리 테스트 없음 | `pdf.parser.spec.ts` | 빈 페이지 포함 PDF 케이스 추가, segment 필터링 여부 명세 |
-| 20 | 테스트 커버리지 | `parseMdSegments` — 중간 body 없는 연속 헤딩 케이스 미검증 | `md.parser.spec.ts` | 연속 헤딩(body 없음) 및 헤딩 레벨 혼재 케이스 추가 |
-| 21 | 테스트 커버리지 | `retryInterval` 변경 UI 테스트 없음 | `node-settings-panel-error-handling.test.tsx` | `retryInterval` 변경 후 저장 케이스 추가 |
-| 22 | 테스트 커버리지 | 기존 nested `errorHandling` 구조로 seed 된 노드 로드 케이스 없음 (정상 경로) | `node-settings-panel-error-handling.test.tsx` | nested errorHandling seed 후 UI 초기값 표시 검증 케이스 추가 |
-| 23 | 테스트 커버리지 | summaryTemplate 테스트에서 undefined/null 필드 입력 케이스 없음 | `code/database-query/send-email/template.schema.spec.ts` | 관련 필드 undefined·빈 배열 시 `renderSummaryTemplate` 안전 처리 여부 엣지 케이스 추가 |
+| 1 | Security | `default?: unknown` 필드가 `PublicMakeshopField`를 통해 프론트엔드로 노출. 현재 어떤 operation도 `default` 선언 없어 실질 위험 없음. | `public-meta.ts` L627, `types.ts` L1785 | `default`를 `string \| number \| boolean \| null \| undefined` 스칼라 유니언으로 좁히거나, 직렬화 지점에서 화이트리스트 타입 체크 추가 권장. |
+| 2 | Security | `cpik.ts` — `redirect_url`/`redirect_fail_url` 필드. 현재 메타데이터 레이어이며 런타임 핸들러 없음. | `cpik.ts` L1067–1075 | Phase 2 핸들러 구현 시 허용 도메인 화이트리스트 또는 오리진 검증 추가 필수. |
+| 3 | Architecture / Consistency | `cpik.ts`의 `post-cpik_member-check`/`post-cpik_member-login`이 `scopeType: 'write'`로 등록됐으나 `index.ts` 주석(L1164)은 "read-style"이라 서술. 코드-주석 불일치. 3개 reviewer(architecture, requirement, side_effect)가 공통 지적. | `cpik.ts` L961–L984, L1051–L1085; `index.ts` L1164 | (a) `scopeType`을 `read`로 변경해 catalog·metadata·테스트 일괄 수정, 또는 (b) `index.ts` 주석에서 "read-style" 표현 제거/수정. Phase 3 OAuth 구현 전에 결정 필요. |
+| 4 | Architecture | `listAllMakeshopOperations()` 반환 타입 인라인 중복. `Array<{ resource: MakeshopResource; operation: MakeshopOperationMetadata }>` 가 두 곳에 반복. | `metadata/index.ts` L1221–L1237 | `type MakeshopResourceOperation = {...}` 타입 별칭 추출. |
+| 5 | Architecture | `findMakeshopOperation`의 `resource: string` 파라미터 타입 이완. `MakeshopResource` 유니언 타입 보호를 우회함. | `metadata/index.ts` L1203–L1215 | Phase 2 착수 전 overload 방식으로 정리 권장. |
+| 6 | Maintainability | `types.ts` 주석 "Three kinds:" 오기. 실제 constraint kind는 4가지(`impliesValue` 추가). | `types.ts` ~L1800 | `Three kinds:` → `Four kinds:` 수정. |
+| 7 | Maintainability | `cpik.ts`의 `timestamp` 필드 description 표현 방식이 4가지 스타일로 혼용됨. | `cpik.ts` (check/delete/login/join) | `'요청 시각 (Unix timestamp, 5분 유효)'`로 통일. |
+| 8 | Maintainability | `Object.entries(MAKESHOP_OPERATIONS_BY_RESOURCE) as Array<[MakeshopResource, ...]>` 캐스팅 패턴이 `index.ts`와 `public-meta.ts` 두 곳에서 중복. | `index.ts`, `public-meta.ts` | `entriesOfOperationsByResource()` 헬퍼 함수로 추출. |
+| 9 | Maintainability | 테스트 단언 패턴 혼용 — `throw new Error(...)` vs `expect().toBe()`. | `metadata.spec.ts` 여러 테스트 | 전체를 throw-early 또는 violations 배열 수집 후 일괄 throw 패턴으로 통일. |
+| 10 | Maintainability | `resolveRepoRoot()` fallback 경로 7단계 상위 하드코딩에 의미 주석 없음. | `catalog-sync.spec.ts` ~L435 | `// 7 levels up: metadata → makeshop → integration → nodes → src → backend → codebase → repo root` 주석 추가. |
+| 11 | Side Effect | `catalog-sync.spec.ts` describe 상단에서 `loadCatalog()` 모듈 평가 시점 동기 호출. | `catalog-sync.spec.ts` L586 | `beforeAll(() => { catalog = loadCatalog(); })`로 이동하면 Jest 라이프사이클과 정렬됨. 필수 아님. |
+| 12 | Side Effect | `buildMakeshopExtras()`가 매 `GET /nodes/definitions` 요청마다 161개 operation을 map. 순수 함수이나 GC 압력 가능. | `public-meta.ts` L1694–1709 | `const PUBLIC_MAKESHOP_EXTRAS = buildMakeshopExtras()`로 모듈 수준 1회 계산. 요청 빈도 높을 경우 검토. |
+| 13 | Scope | `listAllMakeshopOperations` 커밋 메시지 미기재. 기능 범위 밖 추가는 아님. | `index.ts` L1221–L1237 | 커밋 메시지에 명시 추가. 코드 수정 불필요. |
+| 14 | Requirement | `catalog-sync.spec.ts` — `cells.length < REST_HEADERS.length` 조건이 열 수 부족 행을 조용히 skip. | `catalog-sync.spec.ts` L542 | 향후 `throw new Error(...)` 로 강화 가능. 현재 INFO. |
+| 15 | Documentation | 섹션 파일 7개(benefit/board/cpik/member/order/product/shop)에 모듈 레벨 JSDoc 없음. | 각 섹션 파일 상단 | 파일 상단에 1행 JSDoc(`/** MakeShop Shop API — <섹션명> 섹션 (<N> operations). SoT: spec/conventions/makeshop-api-catalog/<섹션>.md */`) 추가. |
+| 16 | Documentation | `PublicMakeshopExtras` 인터페이스 JSDoc 없음. GET /nodes/definitions 응답 페이로드와 직결되는 공개 타입. | `public-meta.ts` ~L646 | 인터페이스 위에 JSDoc 추가. |
+| 17 | Documentation | 섹션 카탈로그 파일 `pending_plans:` frontmatter에 Phase 0 완료 항목이 잔류 가능성. | 각 섹션 `.md` frontmatter | Phase 0 관련 항목을 완료 처리(제거 또는 완료 표기). |
+| 18 | Documentation | `index.ts` 모듈 JSDoc에서 `MAKESHOP_RESOURCES` re-export 미언급. | `index.ts` 모듈 JSDoc | JSDoc에 `MAKESHOP_RESOURCES` re-export 및 용도 1줄 추가. |
+
+---
 
 ## 에이전트별 위험도 요약
 
 | 에이전트 | 위험도 | 핵심 발견 |
 |----------|--------|-----------|
-| requirement | MEDIUM | SPEC-DRIFT 5건(spec 미갱신) + 기능 버그 2건(null 저장, 빈 페이지 필터링) |
-| testing | MEDIUM | embedding.service 다중 segment 테스트 부재, Zustand store 격리 미흡 |
-| security | LOW | PDF 파서 악성 입력 처리(기존 구조적 이슈), 신규 취약점 없음 |
-| architecture | LOW | ParsedSegment 역방향 의존, EmbeddingService 인라인 로직, 3-위치 expression context 결합 |
-| side_effect | LOW | errorPolicy→errorHandling 저장 포맷 전환 시 backend 정합성 확인 필요 |
-| maintainability | LOW | forceSplitAndPush 중복, SettingsTab 컴포넌트 과다, pdf.parser.spec.ts mock 타입 중복 |
-| scope | LOW | plan 파일 "결정 필요" 표기가 제거 없이 구현 포함, 결정 근거 미기록 |
-| documentation | LOW | ContainerScopeFlags JSDoc stale, ChunkMetadata 인터페이스 설명 부재, LEGACY_POLICY_MAP 라이프사이클 미명시 |
+| security | LOW | Phase 0 메타데이터 레이어 — 런타임 공격 표면 없음. `default: unknown` 타입 좁히기 및 Phase 2 redirect URL 검증 필요. |
+| architecture | LOW | OCP 구조·레이어 분리 양호. `SECTION_SCOPE` 테스트 미보호, `constraint-validator.ts` DRY 위반(WARNING 2건). |
+| requirement | LOW | 161 op 완전 구현. cpik scope-주석 불일치(WARNING). spec 2곳 낡은 서술(SPEC-DRIFT 2건). |
+| scope | NONE | 커밋 범위 정확. 범위 외 수정 없음. INFO 3건. |
+| side_effect | LOW | 신규 파일 추가 위주, 기존 시그니처 무변경. cpik scope 의미 불일치 INFO. |
+| maintainability | LOW | 구조 일관성 양호. "Three kinds" 오기, timestamp description 불일치, 캐스팅 중복 INFO. |
+| testing | MEDIUM | 데이터 정합성 테스트 충분. 런타임 로직(`constraint-validator`, `public-meta`) 단위 테스트 전무(WARNING 2건). |
+| documentation | LOW | 전반 JSDoc 양호. 섹션 파일 모듈 JSDoc 부재, `_overview.md §4` 컬럼 잔류 가능성(WARNING 1건). |
+
+---
 
 ## 발견 없는 에이전트
 
-없음 — 모든 에이전트가 발견사항을 보고함.
+- **scope**: 범위 위반 없음 (위험도 NONE).
+- **security**: 실질 보안 취약점 없음 (전항목 INFO).
+
+---
 
 ## 권장 조치사항
 
-1. **[즉시] SPEC-DRIFT 5건 해소** — `spec/4-nodes/1-logic/9-foreach.md` §3.3, `spec/5-system/5-expression-language.md` §4, `spec/5-system/8-embedding-pipeline.md` §6.1, `spec/3-workflow-editor/1-node-common.md` §2.4/§2.5.1, `spec/4-nodes/5-data/0-common.md` §3, `spec/4-nodes/6-presentation/5-template.md` §7 갱신 (코드 revert 불필요, spec만 갱신)
-2. **[즉시] `use_default_output` 빈 JSON 저장 버그 수정** — `node-settings-panel.tsx` `defaultOutputText.trim()` falsy 시 `null` 대신 저장 차단 또는 `'{}'` 폴백 적용
-3. **[즉시] `parsePdfSegments` 빈 페이지 필터링 추가** — `text.trim()` 가드로 빈 텍스트 segment 제외
-4. **[권장] `embedding.service.spec.ts` 다중 segment 테스트 추가** — chunk index 연속성·metadata 전파 로직 검증
-5. **[권장] NodeSettingsPanel 테스트 store 격리** — `beforeEach`/`afterEach`에서 Zustand store 명시적 리셋
-6. **[권장] backend errorHandling 포맷 호환성 확인** — `errorHandling.policy`(신규)와 `errorPolicy`(레거시) 양쪽 수용 여부 검증
-7. **[개선] `forceSplitAndPush` 내 청크 객체 리터럴 중복 제거** — `pushChunk` 헬퍼 재사용
-8. **[개선] plan 파일 결정 근거 기록** — `spec-sync-data-common-gaps.md`, `spec-sync-template-gaps.md`, `spec-sync-node-common-gaps.md` 의 "결정 필요" 표기를 채택된 결정으로 교체
-9. **[개선] `ContainerScopeFlags.hasItem` JSDoc 업데이트** — `$itemIsFirst`/`$itemIsLast` 추가 언급
-10. **[장기] expression context 변수 레지스트리 단일화** — shared 패키지에서 타입 정의, 프론트엔드 자동완성 자동 파생
+1. **(Phase 2 착수 전 필수)** `constraint-validator.spec.ts` 신규 작성 — 4종 constraint, 경계값, 미지 kind throw 포함 14개 이상 테스트. Cafe24 버전 동일 커버리지 달성.
+2. **(Phase 2 착수 전 필수)** `public-meta.spec.ts` 신규 작성 — `method`/`path` 미노출, `labelKey` 포맷, `paginated` 기본값, JSON 직렬화 등 6개 이상 테스트.
+3. **(즉시)** `types.ts` 주석 "Three kinds:" → "Four kinds:" 오기 수정.
+4. **(즉시)** `cpik.ts`/`index.ts` scope 주석 불일치 해소 — `scopeType: 'write'` 유지 시 `index.ts` L1164 "read-style" 표현 삭제, 또는 `scopeType: 'read'` 변경 시 catalog·metadata·테스트 일괄 수정. 결정을 내리고 코드-주석 일치화.
+5. **(project-planner 위임)** `spec/conventions/makeshop-api-metadata.md §5`와 `spec/4-nodes/4-integration/5-makeshop.md §2` — Phase 0 완료 반영으로 갱신.
+6. **(문서)** `_overview.md §4` Coverage Matrix의 `권한 그룹` 컬럼 참조 확인 및 `scope group` 업데이트.
+7. **(Phase 2 이전)** `constraint-validator.ts` 및 `public-meta.ts`의 `Object.entries` 캐스팅 패턴 — `packages/` 공통 레이어 추출 계획 수립. SECTION_SCOPE per-operation 전환 계획도 동반.
+8. **(Phase 2 핸들러 구현 시)** `redirect_url`/`redirect_fail_url` 필드 허용 도메인 화이트리스트 검증 추가. `default: unknown` 타입 스칼라 유니언으로 좁히기.
+
+---
 
 ## 라우터 결정
 
-- `routing_status=done` (router 가 선별):
-  - **실행**: `security`, `architecture`, `requirement`, `scope`, `side_effect`, `maintainability`, `testing`, `documentation` (8명 — 전원 router_safety 강제 포함)
-  - **제외**: `performance`, `dependency`, `database`, `concurrency`, `api_contract` (5개)
-  - **강제 포함(router_safety)**: `documentation`, `maintainability`, `requirement`, `scope`, `security`, `side_effect`, `testing`
+라우터가 reviewer 를 선별했습니다 (`routing_status=done`).
 
-  | 제외된 reviewer | 이유 |
-  |------------------|------|
-  | performance | router 에 의해 생략 |
-  | dependency | router 에 의해 생략 |
-  | database | router 에 의해 생략 |
-  | concurrency | router 에 의해 생략 |
-  | api_contract | router 에 의해 생략 |
+- **실행**: `security`, `architecture`, `requirement`, `scope`, `side_effect`, `maintainability`, `testing`, `documentation` (8명, 전원 router_safety 강제 포함)
+- **제외**: `performance`, `dependency`, `database`, `concurrency`, `api_contract`, `user_guide_sync` (6명)
+- **강제 포함(router_safety)**: `documentation`, `maintainability`, `requirement`, `scope`, `security`, `side_effect`, `testing`
+
+| 제외된 reviewer | 이유 |
+|------------------|------|
+| performance | Phase 0 정적 메타데이터 레이어 — 런타임 성능 임계 경로 없음 |
+| dependency | 외부 패키지 신규 추가 없음 |
+| database | DB 스키마·쿼리 변경 없음 |
+| concurrency | 비동기 경쟁 조건 관련 코드 없음 |
+| api_contract | 외부 공개 API 엔드포인트 변경 없음 (Phase 0) |
+| user_guide_sync | 사용자 대면 기능 변경 없음 (Phase 0) |

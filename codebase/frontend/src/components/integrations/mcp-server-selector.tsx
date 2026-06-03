@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useT } from "@/lib/i18n";
 import { Cafe24AllowlistEditor } from "@/components/integrations/cafe24-allowlist-editor";
+import { MakeshopAllowlistEditor } from "@/components/integrations/makeshop-allowlist-editor";
 
 /** Bound on the MCP server list fetched for picker — matches API page limit. */
 const MCP_LIST_LIMIT = 100;
@@ -233,40 +234,56 @@ export function McpServerSelector({ value, onChange }: Props) {
                     </label>
                   </div>
                 )}
-                {/* Cafe24 server — operation 단위 allowlist 편집 (advanced surface,
-                    §1 / spec §8.3). 별도 승인(⚠) 라벨은 에디터가 자동 렌더. */}
-                {!isMissing && integration?.serviceType === "cafe24" && (
-                  <div className="mt-1.5 border-t border-[hsl(var(--border))] pt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleExpanded(ref.integrationId)}
-                      aria-expanded={expanded.has(ref.integrationId)}
-                      className="flex w-full items-center gap-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                    >
-                      {expanded.has(ref.integrationId) ? (
-                        <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                      ) : (
-                        <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                {/* Internal Bridge server — operation 단위 allowlist 편집
+                    (advanced surface). Cafe24 는 별도 승인(⚠) 라벨을 에디터가
+                    자동 렌더 (§1 / spec/4-nodes/4-integration/4-cafe24.md §8.3);
+                    MakeShop 은 승인 tier 가 없어 배지 없이 렌더
+                    (spec/4-nodes/4-integration/5-makeshop.md §8). */}
+                {!isMissing &&
+                  (integration?.serviceType === "cafe24" ||
+                    integration?.serviceType === "makeshop") && (
+                    <div className="mt-1.5 border-t border-[hsl(var(--border))] pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(ref.integrationId)}
+                        aria-expanded={expanded.has(ref.integrationId)}
+                        className="flex w-full items-center gap-1 text-[10px] font-medium text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                      >
+                        {expanded.has(ref.integrationId) ? (
+                          <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                        )}
+                        {integration.serviceType === "makeshop"
+                          ? t("nodeConfigs.integration.makeshopAllowlistTitle")
+                          : t("nodeConfigs.integration.cafe24AllowlistTitle")}
+                        {ref.enabledTools && (
+                          <span className="ml-1 rounded bg-[hsl(var(--muted))] px-1 py-0.5 text-[9px]">
+                            {ref.enabledTools.length}
+                          </span>
+                        )}
+                      </button>
+                      {expanded.has(ref.integrationId) && (
+                        <div className="mt-1.5">
+                          {integration.serviceType === "makeshop" ? (
+                            <MakeshopAllowlistEditor
+                              enabledTools={ref.enabledTools}
+                              onChange={(et) =>
+                                patch(ref.integrationId, { enabledTools: et })
+                              }
+                            />
+                          ) : (
+                            <Cafe24AllowlistEditor
+                              enabledTools={ref.enabledTools}
+                              onChange={(et) =>
+                                patch(ref.integrationId, { enabledTools: et })
+                              }
+                            />
+                          )}
+                        </div>
                       )}
-                      {t("nodeConfigs.integration.cafe24AllowlistTitle")}
-                      {ref.enabledTools && (
-                        <span className="ml-1 rounded bg-[hsl(var(--muted))] px-1 py-0.5 text-[9px]">
-                          {ref.enabledTools.length}
-                        </span>
-                      )}
-                    </button>
-                    {expanded.has(ref.integrationId) && (
-                      <div className="mt-1.5">
-                        <Cafe24AllowlistEditor
-                          enabledTools={ref.enabledTools}
-                          onChange={(et) =>
-                            patch(ref.integrationId, { enabledTools: et })
-                          }
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
               </div>
             );
           })}
@@ -291,6 +308,11 @@ export function McpServerSelector({ value, onChange }: Props) {
                   key: "cafe24",
                   heading: "🛒 Cafe24 stores (Internal Bridge)",
                   items: available.filter((i) => i.serviceType === "cafe24"),
+                },
+                {
+                  key: "makeshop",
+                  heading: "🛒 MakeShop stores (Internal Bridge)",
+                  items: available.filter((i) => i.serviceType === "makeshop"),
                 },
               ] as const).map((group) =>
                 group.items.length === 0 ? null : (
