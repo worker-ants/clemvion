@@ -51,3 +51,17 @@ owner: developer→planner
 
 - **Switch expression mode regex no-op** — C-4 는 If/Else 만 고쳤다. Switch 도 동일 패턴으로 고칠지
   별도 plan 으로 추적할지 결정 필요.
+
+## 4. ai-review full-branch 발견 (planner triage)
+
+> 가드 충족을 위해 `--branch main` 전수 ai-review (`review/code/2026/06/03/16_16_02`) 를 수행했다.
+> 실행 reviewer (architecture/requirement/documentation/api_contract) 가 코드-spec 정합성 확인 중
+> **spec 문서 자체의 사전 불일치** 를 보고했다. 아래는 모두 **(a) 제 §C diff 밖** (`main..HEAD` 의
+> spec 변경 = 0), **(b) 이미 origin/main 에 있는 spec 문서**, **(c) developer read-only 영역** 이라
+> planner 가 처리한다. 제 §C **코드** 에 귀속된 critical/warning 은 없다 (scoped 리뷰 16_02_44 = LOW/0).
+
+- **[CRITICAL] finish_reason 교차 spec 불일치** — `spec/data-flow/11-workflow.md §3.3` 이 `stop/tool_calls/error` 3종만 기재하나 `spec/3-workflow-editor/4-ai-assistant.md §8` 은 사용자 Stop 시 `aborted` 를 명시. §3.3 을 `stop/tool_calls/error/aborted` 로 확장(+ `auto_resume_pending` 중간 마커 주석).
+- **[WARNING] auth/integration/workspace/execution API 계약 spec** (`data-flow/2-auth.md §1.1~1.5`, `5-integration.md §1.2`, `12-workspace.md §1.3/1.6`, `3-execution.md §1.3`) — 이미 배포된 breaking change 를 기술한 spec. **프론트엔드 정합성 확인** 권고 (별 작업 — 본 §C 와 무관).
+- **[WARNING] 아키텍처/보안 관찰** — `WorkflowsService` SRP, `X-Workspace-Id` 헤더 우선 RBAC, thinking_tokens cost 제외 Rationale 부재 등. spec Rationale 보강 영역.
+- **[WARNING] workspace `(owner_id,type)` UNIQUE 마이그레이션 갭** (`12-workspace.md §2.1`) — TypeORM `@Unique` 만 있고 DB 마이그레이션 SQL 부재. (C-16.4 의 node 라벨 케이스와 동류 — planner 가 일괄 결정.)
+- **(stale 신호 — 무시 가능)** review 가 `alert_<rule.type>` CHECK 제약 갭(INFO 8)을 플래그했으나 **이미 본 PR C-6/V069 로 해소** 됨. review 가 본 spec 이 갱신 전 상태였던 데서 비롯된 stale 발견.
