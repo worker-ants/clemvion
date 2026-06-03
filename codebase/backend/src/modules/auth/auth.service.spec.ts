@@ -545,6 +545,72 @@ describe('AuthService', () => {
     });
   });
 
+  describe('resendVerification', () => {
+    it('should return the same message regardless of email existence', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+      const result = await service.resendVerification(
+        'nonexistent@example.com',
+      );
+      expect(result.message).toContain('If an account exists');
+      expect(mailService.sendVerificationEmail).not.toHaveBeenCalled();
+      expect(usersService.update).not.toHaveBeenCalled();
+    });
+
+    it('should re-issue a token and mail it for an unverified account', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+      } as User);
+
+      const result = await service.resendVerification('test@example.com');
+
+      expect(result.message).toContain('If an account exists');
+      expect(usersService.update).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.objectContaining({
+          emailVerifyToken: expect.any(String),
+          emailVerifyExpiresAt: expect.any(Date),
+        }),
+      );
+      const mailCall = mailService.sendVerificationEmail.mock.calls[0];
+      expect(mailCall[0]).toBe(mockUser.email);
+      expect(mailCall[1]).toBe(mockUser.name);
+      // The mailed token must match the freshly persisted token.
+      const [, patch] = usersService.update.mock.calls[0] as [
+        string,
+        { emailVerifyToken: string; emailVerifyExpiresAt: Date },
+      ];
+      expect(mailCall[2]).toBe(patch.emailVerifyToken);
+    });
+
+    it('should NOT re-issue for an already-verified account', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: true,
+      } as User);
+
+      const result = await service.resendVerification('test@example.com');
+
+      expect(result.message).toContain('If an account exists');
+      expect(usersService.update).not.toHaveBeenCalled();
+      expect(mailService.sendVerificationEmail).not.toHaveBeenCalled();
+    });
+
+    it('should return the same message even if mail dispatch fails', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        emailVerified: false,
+      } as User);
+      mailService.sendVerificationEmail.mockRejectedValueOnce(
+        new Error('SMTP error'),
+      );
+
+      const result = await service.resendVerification('test@example.com');
+
+      expect(result.message).toContain('If an account exists');
+    });
+  });
+
   describe('forgotPassword', () => {
     it('should always return same message regardless of email existence', async () => {
       usersService.findByEmail.mockResolvedValue(null);

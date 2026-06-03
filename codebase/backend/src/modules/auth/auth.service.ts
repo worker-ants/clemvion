@@ -610,6 +610,37 @@ export class AuthService {
     };
   }
 
+  // ========== RESEND VERIFICATION ==========
+  async resendVerification(email: string): Promise<{ message: string }> {
+    try {
+      const user = await this.usersService.findByEmail(email);
+      // Only re-issue for accounts that exist and are not yet verified.
+      if (user && !user.emailVerified) {
+        const emailVerifyToken = uuidv4();
+        const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+        await this.usersService.update(user.id, {
+          emailVerifyToken,
+          emailVerifyExpiresAt,
+        });
+        await this.mailService.sendVerificationEmail(
+          user.email,
+          user.name,
+          emailVerifyToken,
+        );
+      }
+    } catch {
+      // Swallow all errors (DB, mail dispatch) so the response is
+      // indistinguishable from the "user not found / already verified" path.
+      // Without this, different failure modes leak whether an account exists.
+      // The underlying services log their own errors for operators.
+    }
+    // Always return the same response to prevent email enumeration.
+    return {
+      message:
+        'If an account exists and is not yet verified, a verification email has been sent.',
+    };
+  }
+
   // ========== RESET PASSWORD ==========
   async resetPassword(token: string, newPassword: string): Promise<void> {
     validatePasswordStrength(newPassword);

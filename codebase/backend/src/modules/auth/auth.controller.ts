@@ -56,6 +56,7 @@ import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CheckEmailDto } from './dto/check-email.dto';
@@ -172,6 +173,24 @@ export class AuthController {
       cookieDomain: this.cookieDomain,
     });
     return { data: { accessToken: result.accessToken } };
+  }
+
+  @Public()
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({
+    summary: '인증 메일 재발송',
+    description:
+      '아직 이메일 인증을 완료하지 않은 계정에 새 인증 메일(24시간 유효)을 재발송합니다. 이메일 열람 여부를 유출하지 않도록 존재·인증 여부와 무관하게 동일한 응답을 반환합니다.',
+  })
+  @ApiOkWrappedResponse(AuthMessageDto, {
+    description: '인증 메일 재발송 요청 접수',
+  })
+  @ApiBadRequestResponse({ description: '이메일 형식 오류' })
+  async resendVerification(@Body() dto: ResendVerificationDto) {
+    const result = await this.authService.resendVerification(dto.email);
+    return { data: result };
   }
 
   @Public()

@@ -92,6 +92,8 @@ export const auth: Dict["auth"] = {
     invitationFetchFailed: "Couldn't load the invitation. Please try again in a moment.",
     invitationEmailMismatch: "Sign-up email must match the invitation email.",
     invitationSuccess: "Signed up and joined the workspace.",
+    emailChecking: "Checking email...",
+    emailTaken: "This email is already in use.",
   },
   forgotPassword: {
     title: "Forgot Password",
@@ -106,6 +108,9 @@ export const auth: Dict["auth"] = {
     submittedTitle: "Check Your Email",
     submittedDescription: "If an account exists with the email you provided, we have sent a password reset link.",
     genericInfo: "If an account exists with that email, you will receive a reset link.",
+    resend: "Resend email",
+    resendCooldown: "Resend available in {{seconds}}s",
+    resendSent: "Reset email sent again.",
   },
   resetPassword: {
     title: "Reset Password",
@@ -147,6 +152,9 @@ export const auth: Dict["auth"] = {
     redirecting: "Redirecting to dashboard...",
     verifiedToast: "Email verified successfully!",
     genericFailed: "Verification failed. Please try again.",
+    resendCooldown: "Resend available in {{seconds}}s",
+    resendSent: "Verification email sent again.",
+    resendFailed: "Couldn't resend the email. Please try again in a moment.",
   },
   twoFactor: {
     title: "Two-factor authentication",
