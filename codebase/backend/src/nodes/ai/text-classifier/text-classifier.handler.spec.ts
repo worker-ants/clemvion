@@ -381,6 +381,48 @@ describe('TextClassifierHandler', () => {
       const err = data.error as Record<string, unknown>;
       expect(err.code).toBe('LLM_CALL_FAILED');
       expect(err.message).toBe('API timeout');
+      // spec §5.3/§6 — non-rate-limit throw → LLM_CALL_FAILED, retryable, no
+      // Retry-After header → retryAfterSec omitted.
+      const details = err.details as Record<string, unknown>;
+      expect(details.retryable).toBe(true);
+      expect(details.retryAfterSec).toBeUndefined();
+    });
+
+    it('should classify a 429 throw as retryable LLM_RATE_LIMIT with retryAfterSec', async () => {
+      const rateLimitErr = Object.assign(new Error('429 Too Many Requests'), {
+        headers: { 'retry-after': '15' },
+      });
+      mockLlmService.chat.mockRejectedValueOnce(rateLimitErr);
+      const result = (await handler.execute(
+        {},
+        baseConfig,
+        createContext(),
+      )) as unknown as Record<string, unknown>;
+      expect((result as any).port).toBe('error');
+      const err = (result.output as Record<string, unknown>)
+        .error as Record<string, unknown>;
+      expect(err.code).toBe('LLM_RATE_LIMIT');
+      const details = err.details as Record<string, unknown>;
+      expect(details.retryable).toBe(true);
+      expect(details.retryAfterSec).toBe(15);
+    });
+
+    it('should classify a "rate limit" message throw as LLM_RATE_LIMIT', async () => {
+      mockLlmService.chat.mockRejectedValueOnce(
+        new Error('Provider rate limit exceeded'),
+      );
+      const result = (await handler.execute(
+        {},
+        baseConfig,
+        createContext(),
+      )) as unknown as Record<string, unknown>;
+      const err = (result.output as Record<string, unknown>)
+        .error as Record<string, unknown>;
+      expect(err.code).toBe('LLM_RATE_LIMIT');
+      const details = err.details as Record<string, unknown>;
+      expect(details.retryable).toBe(true);
+      // No Retry-After header → retryAfterSec omitted even when rate-limited.
+      expect(details.retryAfterSec).toBeUndefined();
     });
 
     it('should include execution metrics in meta on LLM failure (Principle 2)', async () => {
