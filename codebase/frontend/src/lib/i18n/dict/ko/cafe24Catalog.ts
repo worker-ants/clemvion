@@ -248,7 +248,7 @@ export const cafe24Catalog: Record<string, string> = {
   "cafe24.personal.customers_wishlist_count": "위시리스트 상품 개수",
   "cafe24.personal.products_carts_count": "상품 담은 장바구니 수",
   "cafe24.personal.products_carts_list": "상품 담은 장바구니 목록",
-  "cafe24.personal.customers_wishlist_list": "위시리스트 조회",
+  "cafe24.personal.customers_wishlist_list": "위시리스트 목록 조회",
   "cafe24.privacy.customers_privacy_count": "회원 개인정보 개수 조회",
   "cafe24.privacy.customers_privacy_get": "회원 개인정보 조회",
   "cafe24.privacy.customers_privacy_list": "회원 개인정보 목록 조회",
