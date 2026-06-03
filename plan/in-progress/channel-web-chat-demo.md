@@ -50,11 +50,11 @@ draft: `spec-draft-channel-web-chat-gaps.md`. consistency-check --spec(09_46_31)
 - [x] W4: `4-security.md` `## Rationale`(CORS 분리·soft/hard·fixed-window) + §3-① blocked enum + §2.1 env 키
 - [x] W5(spec): `0-architecture.md §4` `WEB_CHAT_WIDGET_ORIGINS` 명시
 - [x] W3(spec): `spec-impl-evidence.md §1` INCLUDE_PREFIXES 에 `spec/7-channel-web-chat/**.md` 추가
-- [ ] W3(codebase): `spec-frontmatter-parse.ts` INCLUDE_PREFIXES 동기 + frontend `npm test -- spec-frontmatter`
-- [ ] W5(codebase): `codebase/backend/.env.example` 에 `WEB_CHAT_WIDGET_ORIGINS=` 추가
+- [x] W3(codebase): `spec-frontmatter-parse.ts` INCLUDE_PREFIXES 동기 → frontend 가드 4 files/842 tests 통과
+- [x] W5(codebase): `codebase/backend/.env.example` 에 `WEB_CHAT_WIDGET_ORIGINS=`(CORS 섹션 배치, 말미충돌 회피)
 
 ## 섹션4 — show/hide/updateProfile (사용자 결정: 본 PR 에 포함)
 - [x] 설계: `1-widget-app §2/§3.2`(가시성 visible/hidden 축 + updateProfile 소급불가 + blocked 분리) + R5
-- [ ] 구현(developer): `use-widget` onCommand `show`/`hide`/`updateProfile` 핸들러 + reducer `hidden` 상태 +
-  `widget-app` 렌더 게이트 + 단위테스트
-- [ ] TEST + REVIEW WORKFLOW(섹션2·4 코드 변경 후)
+- [x] 구현(developer): `use-widget` onCommand `show`/`hide`/`updateProfile` + reducer `hidden`(SHOW/HIDE) +
+  `widget-app` 렌더 게이트 + 테스트(reducer 3 + 명령 3). channel-web-chat unit 134/134
+- [ ] TEST + REVIEW WORKFLOW(섹션2·4 코드 변경 후) — /ai-review 진행 중

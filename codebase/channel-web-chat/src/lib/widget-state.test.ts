@@ -121,4 +121,24 @@ describe("widgetReducer", () => {
     const last = s.messages.at(-1);
     expect(last?.presentations).toBeUndefined();
   });
+
+  // 위젯 가시성 축(show/hide) — open/close 와 직교 (1-widget-app §3.2)
+  it("initial hidden=false", () => {
+    expect(initialState.hidden).toBe(false);
+  });
+
+  it("HIDE: hidden=true, 패널 open·phase 유지(대화 유지, 화면만 숨김)", () => {
+    const opened = reduce([{ type: "OPEN" }]);
+    const s = widgetReducer(opened, { type: "HIDE" });
+    expect(s.hidden).toBe(true);
+    expect(s.open).toBe(true);
+    expect(s.phase).toBe("panel");
+  });
+
+  it("SHOW: hidden=false 복귀, 직전 open 보존", () => {
+    const hidden = reduce([{ type: "OPEN" }, { type: "HIDE" }]);
+    const s = widgetReducer(hidden, { type: "SHOW" });
+    expect(s.hidden).toBe(false);
+    expect(s.open).toBe(true);
+  });
 });

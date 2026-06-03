@@ -13,6 +13,9 @@ export default function WidgetApp() {
   // 임베드 allowlist soft 검증 실패 → 위젯을 전혀 렌더하지 않음(렌더 거부, 4-security §3-①).
   if (state.phase === "blocked") return null;
 
+  // host `hide` → 위젯(런처+패널) 전체 미렌더. open/close 와 직교한 가시성 축(§3.2). `show` 로 복귀.
+  if (state.hidden) return null;
+
   // config 미수신(boot 대기) → 런처만 노출(추천질문 없음).
   const primaryColor = config?.appearance?.primaryColor ?? "#5B4FE9";
   const position = config?.appearance?.position ?? "bottom-right";

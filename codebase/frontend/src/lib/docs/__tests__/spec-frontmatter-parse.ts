@@ -49,6 +49,7 @@ const INCLUDE_PREFIXES = [
   "spec/3-workflow-editor/",
   "spec/4-nodes/",
   "spec/5-system/",
+  "spec/7-channel-web-chat/",
   "spec/conventions/",
 ];
 
