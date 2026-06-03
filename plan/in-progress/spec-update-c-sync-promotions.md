@@ -65,3 +65,37 @@ owner: developer→planner
 - **[WARNING] 아키텍처/보안 관찰** — `WorkflowsService` SRP, `X-Workspace-Id` 헤더 우선 RBAC, thinking_tokens cost 제외 Rationale 부재 등. spec Rationale 보강 영역.
 - **[WARNING] workspace `(owner_id,type)` UNIQUE 마이그레이션 갭** (`12-workspace.md §2.1`) — TypeORM `@Unique` 만 있고 DB 마이그레이션 SQL 부재. (C-16.4 의 node 라벨 케이스와 동류 — planner 가 일괄 결정.)
 - **(stale 신호 — 무시 가능)** review 가 `alert_<rule.type>` CHECK 제약 갭(INFO 8)을 플래그했으나 **이미 본 PR C-6/V070 로 해소** 됨. review 가 본 spec 이 갱신 전 상태였던 데서 비롯된 stale 발견.
+
+## 5. Planner 처리 결과 (2026-06-03, #443 머지 후 후속 PR)
+
+> #443(§C 코드 19건)이 main 머지됨. 그 위에서 planner 가 §1·§2·§3·§4 를 처리. 각 gaps 스텁의 §C 외 잔여 항목 유무를 전수 분석(서브에이전트)한 결과 대부분 **잔여 surface 가 남아 `partial` 유지**가 정답이었다.
+
+### §2 본문 정정 — 완료 (#443 에 포함)
+- `data-flow/11-workflow.md §3.3` finish_reason `aborted`+`auto_resume_pending` / `3-workflow-editor/4-ai-assistant.md §8` 표 `aborted` 정합 (full-branch ai-review CRITICAL 해소). ✅
+- `4-nodes/1-logic/1-if-else.md §6` If/Else regex 정상 동작 정정, Switch 만 no-op 명시. ✅
+
+### §1 status 승격 — 전수 분석 후 처리
+| spec | 결과 | 사유 |
+| --- | --- | --- |
+| `2-navigation/14-execution-history` | **→ implemented** ✅ | gaps 스텁(C-7) 완전 해소·다른 pending 없음. pending_plans 제거 + 스텁 `plan/complete/` 이동. spec 가드 4종 통과 |
+| `2-navigation/1-workflow-list` | partial 유지 | gaps 스텁 6항목 중 C-1 만 해소, 5항목(정렬/태그/폴더 UI 등) 잔여 |
+| `5-system/12-webhook` | partial 유지 | C-2 해소, 1MB 본문 임계(WH-NF-02) 잔여 |
+| `5-system/15-chat-channel` | partial 유지 | C-2 해소, 3항목 잔여 + v2 plan(gateway/socket/ssr) 별도 |
+| `4-nodes/7-trigger/providers/telegram` | partial 유지 | C-5 해소, 6항목(typing/photo/rate-limit 등) 잔여 |
+| `2-navigation/7-statistics` | partial 유지 | C-9·C-15 해소, 2항목(증감률/custom range UI) 잔여 |
+| `2-navigation/3-schedule` | partial 유지 | C-10 해소, 4항목(오버플로 메뉴/링크 등) 잔여 |
+| `4-nodes/7-trigger/providers/discord` | partial 유지 | C-11(2항목) 해소, 3항목(image/carousel 등) 잔여 + provider 검증 미확보 |
+| `4-nodes/7-trigger/providers/slack` | partial 유지 | C-12(3항목) **code 해소**되나 **실 Slack 프로토콜 mock-e2e 미검증**(§39-40 caveat) + 본문 Planned 잔존 → "Planned 해제" 보류, provider 검증 후 별도 승격 |
+| `4-nodes/1-logic/5-variable-modification`, `1-manual-trigger`, `13-replay-rerun` | 이미 implemented | C-3/C-13/C-14 — 승격 불필요 |
+| `data-flow/8-notifications`, `data-flow/4-file-storage` | status 가드 대상 아님 | `spec/data-flow/**` 는 spec-frontmatter/lifecycle 가드 `INCLUDE_PREFIXES` 밖 — frontmatter status 미적용 |
+
+> 결론: gaps 스텁의 §C 항목은 #443 으로 해소됐으나 스텁 자체는 **잔여 surface** 때문에 `plan/in-progress/` 유지(execution-history 만 예외). 스텁 내 §C 항목 체크오프는 developer 가 잔여 항목 착수 시 정리.
+
+### §3 Switch expression-mode regex no-op — developer 후속으로 분리
+C-4 는 If/Else 만 고쳤다. Switch 의 동일 fix 는 **코드 변경**(planner 영역 아님) → `plan/in-progress/switch-regex-noop-fix.md` 신설(developer 착수 대상).
+
+### §4 full-branch ai-review triage 처리
+- **[CRITICAL] finish_reason** — §2 에서 해소 ✅
+- **[WARNING] auth/integration/workspace/execution API 계약 spec** — 이미 배포된 동작을 기술한 spec(정확). "프론트엔드 정합성 확인" 은 **코드 검증 작업**이라 planner spec 편집 아님 → 잔여 검증 권고로만 기록.
+- **[WARNING] workspace `(owner_id,type)` UNIQUE 마이그레이션 갭** — C-16.4(node 라벨) 와 동류(엔티티 데코레이터 vs DB 제약). **코드/마이그레이션 결정**이라 developer 후속 → `switch-regex-noop-fix.md` 와 함께 또는 별 plan. 현 spec 본문은 정확(앱 검증 기술)하므로 spec 편집 불요.
+- **[WARNING] 아키텍처 관찰**(WorkflowsService SRP / X-Workspace-Id RBAC / thinking_tokens Rationale) — 비차단 관찰. 필요 시 해당 spec Rationale 보강은 별도.
