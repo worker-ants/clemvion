@@ -12,13 +12,13 @@ code:
 
 > 관련 문서: [Spec MakeShop 노드](../4-nodes/4-integration/5-makeshop.md) · [Spec 통합 §5.9 MakeShop](../2-navigation/4-integration.md#59-makeshop) · [Spec MCP Client §2.3 Internal Bridge](../5-system/11-mcp-client.md#23-internal-bridge-in-process) · [MakeShop API Catalog](./makeshop-api-catalog/_overview.md) · **참조 패턴** [Cafe24 API Metadata](./cafe24-api-metadata.md)
 
-> **구현 상태 (status: spec-only)**: backend 메타데이터·노드는 아직 구현 전이다. 본 컨벤션은 구현 시 적용할 메타데이터 **형식** 을 정의한다. 형식은 [Cafe24 API Metadata](./cafe24-api-metadata.md) 와 동형이며 메이크샵 고유 분기만 명시한다.
+> **구현 상태 (status: implemented)**: 메타데이터 레이어 구현 완료. 본 컨벤션이 정의하는 메타데이터 **형식** 은 `codebase/backend/src/nodes/integration/makeshop/metadata/` (frontmatter `code:`) 에 실제 구현돼 있다. 형식은 [Cafe24 API Metadata](./cafe24-api-metadata.md) 와 동형이며 메이크샵 고유 분기만 명시한다.
 
-본 컨벤션은 MakeShop Shop API 의 endpoint 매핑 메타데이터 **형식** 을 정의한다. endpoint 의 전수 카탈로그와 요청/응답 **필드 스키마**는 [`makeshop-api-catalog/`](./makeshop-api-catalog/_overview.md) (섹션별 카탈로그 표 + `openapi/<section>.openapi.json` 풀 스키마) 에 있다. 구현 시 backend 의 `Makeshop` 노드 핸들러와 `MakeshopMcpToolProvider` (AI Agent Internal Bridge) 양쪽이 **같은 메타데이터 테이블** 을 소비한다.
+본 컨벤션은 MakeShop Shop API 의 endpoint 매핑 메타데이터 **형식** 을 정의한다. endpoint 의 전수 카탈로그와 요청/응답 **필드 스키마**는 [`makeshop-api-catalog/`](./makeshop-api-catalog/_overview.md) (섹션별 카탈로그 표 + `openapi/<section>.openapi.json` 풀 스키마) 에 있다. backend 의 `Makeshop` 노드 핸들러와 `MakeshopMcpToolProvider` (AI Agent Internal Bridge) 양쪽이 **같은 메타데이터 테이블** 을 소비한다.
 
 ---
 
-## 1. 디렉토리 구조 (구현 시)
+## 1. 디렉토리 구조
 
 ```
 codebase/backend/src/nodes/integration/makeshop/metadata/
@@ -75,18 +75,18 @@ interface MakeshopOperationMetadata {
 
 ## 3. 필드 스키마 출처 — catalog openapi json
 
-각 operation 의 `fields` (요청 파라미터) 와 응답 구조는 [`makeshop-api-catalog/openapi/<section>.openapi.json`](./makeshop-api-catalog/_overview.md) 의 OpenAPI 3 operation 객체가 **단일 진실(SoT)** 이다 (메이크샵 공식 문서에서 자동 추출, 한글 description 포함). backend 메타데이터의 `fields` 는 이 스키마에서 도출하며, 구현 시 catalog ↔ 메타데이터 동기를 `catalog-sync` 테스트로 보호한다 (cafe24 동일 패턴 — 현재 makeshop catalog 은 미보호, 구현 PR 에서 도입).
+각 operation 의 `fields` (요청 파라미터) 와 응답 구조는 [`makeshop-api-catalog/openapi/<section>.openapi.json`](./makeshop-api-catalog/_overview.md) 의 OpenAPI 3 operation 객체가 **단일 진실(SoT)** 이다 (메이크샵 공식 문서에서 자동 추출, 한글 description 포함). backend 메타데이터의 `fields` 는 이 스키마에서 도출하며, catalog ↔ 메타데이터 동기를 `catalog-sync.spec.ts` 테스트로 보호한다 (cafe24 동일 패턴, §5).
 
 ## 4. Wire format
 
 - **인증**: `Authorization: Bearer {access_token}` (OAuth 2.1 access token). base URL `https://connect.makeshop.co.kr/api/v1/{shop_uid}/{path}`.
-- **POST body**: **flat JSON** — Cafe24 의 `{request:{...}}` envelope 래핑 미적용 ([MakeShop 노드 §9.4](../4-nodes/4-integration/5-makeshop.md#94-postput-request-envelope-미적용)). ⚠ 구현 시 검증. (MakeShop Shop API 는 PUT/DELETE 를 HTTP method 로 쓰지 않는다 — 삭제·수정도 `cart/delete`·`cart/update` 처럼 path segment + POST.)
+- **POST body**: **flat JSON** — Cafe24 의 `{request:{...}}` envelope 래핑 미적용 ([MakeShop 노드 §9.4](../4-nodes/4-integration/5-makeshop.md#94-postput-request-envelope-미적용)). ⚠ production 전 검증 (코드 `VERIFY`). (MakeShop Shop API 는 PUT/DELETE 를 HTTP method 로 쓰지 않는다 — 삭제·수정도 `cart/delete`·`cart/update` 처럼 path segment + POST.)
 - **scope wire format**: OAuth 2.1 표준 **공백 구분** (`store.read store.write`) — Cafe24 콤마 예외 미적용 ([MakeShop 노드 §9.2](../4-nodes/4-integration/5-makeshop.md#92-oauth-scope-wire-format--공백-구분-표준-cafe24-콤마-quirk-없음)).
-- **timezone**: 미확인 — 구현 시 확정 ([MakeShop 노드 §4.1](../4-nodes/4-integration/5-makeshop.md#41-timezone-semantics)).
+- **timezone**: 미확인 — production 전 확정 ([MakeShop 노드 §4.1](../4-nodes/4-integration/5-makeshop.md#41-timezone-semantics)).
 
 ## 5. Catalog 동기
 
-cafe24 의 `catalog-sync.spec.ts` 양방향 동기 정책([cafe24-api-catalog `_overview.md §4`](./cafe24-api-catalog/_overview.md#4-동기-정책-sync-contract))을 makeshop 에도 도입한다 — backend 메타데이터 `(resource, id)` ↔ catalog 표 행의 method/path/scope/paginated 일치 검증.
+cafe24 의 `catalog-sync.spec.ts` 양방향 동기 정책([cafe24-api-catalog `_overview.md §4`](./cafe24-api-catalog/_overview.md#4-동기-정책-sync-contract))을 makeshop 에도 도입했다 — backend 메타데이터 `(resource, id)` ↔ catalog 표 행의 method/path/scope/paginated 일치 검증.
 
 **Phase 0 완료**: catalog 에 `status` (`supported`/`planned`) · `scope` · `paginated` 컬럼을 추가하고, `catalog-sync.spec.ts` 양방향 동기 보호를 도입했다 (`codebase/backend/src/nodes/integration/makeshop/metadata/catalog-sync.spec.ts`). 섹션별 catalog 표([`makeshop-api-catalog/`](./makeshop-api-catalog/_overview.md))와 backend 메타데이터는 테스트로 상시 동기 보호된다.
 

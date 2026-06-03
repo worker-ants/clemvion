@@ -53,9 +53,20 @@ spec/conventions/makeshop-api-catalog/
 
 - **CPIK 섹션**: 외부 연동(장바구니/회원 join·login/online_order) REST + 상품·주문·배송·카테고리 변경 **webhook 이벤트**로 구성. webhook 은 호출형 REST 가 아니라 워크플로 trigger 노드 매핑 대상이다.
 
-## 6. 추가 컬럼 (sync 승격 — Phase 0 완료)
+## 5. 신규 endpoint 등재 절차
 
-Phase 0 에서 섹션별 카탈로그(`<section>.md`)에 아래 컬럼을 추가하고, `catalog-sync.spec.ts` 양방향 테스트로 보호했다 (cafe24 catalog([cafe24-api-catalog `_overview.md §2·§3`](../cafe24-api-catalog/_overview.md))와 동일 체계). 현재 모든 161 REST op 이 `status: supported` 로 등록돼 있다.
+1. MakeShop 공식 문서에서 endpoint 확인.
+2. 본 카탈로그 해당 섹션 파일(`<section>.md`)에 표 row 추가:
+   - 처음 등재 시 `status: planned`, `method`/`path` 는 `?` 허용.
+   - 구현 PR 에서 backend 메타데이터(`codebase/backend/src/nodes/integration/makeshop/metadata/`) row 1줄 추가 + 카탈로그 row 를 `planned → supported` 로 갱신 + `method`/`path`/`scope`/`paginated` 채움.
+3. `_overview.md §4` 의 Coverage Matrix 카운트도 함께 갱신.
+4. `npm test --workspace backend -- catalog-sync` 통과 확인.
+
+> 카탈로그 row 갱신과 backend 메타데이터 row 추가는 **같은 PR** 에 묶는다 (cafe24 catalog([`_overview.md §6`](../cafe24-api-catalog/_overview.md#6-신규-endpoint-등재-절차))와 동일 체계). [`spec/conventions/makeshop-api-metadata.md §6`](../makeshop-api-metadata.md#6-신규-endpoint-등재-절차) 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
+
+## 6. 추가 컬럼 (sync 승격 — Phase 0 에서 추가 완료)
+
+Phase 0 에서 섹션별 카탈로그(`<section>.md`)에 아래 컬럼을 추가 완료했고, `catalog-sync.spec.ts` 양방향 테스트로 보호한다 (cafe24 catalog([cafe24-api-catalog `_overview.md §2·§3`](../cafe24-api-catalog/_overview.md))와 동일 체계). 현재 모든 161 REST op 이 `status: supported` 로 등록돼 있다.
 
 | 추가 컬럼 | 값 | 정의 |
 |----------|-----|------|

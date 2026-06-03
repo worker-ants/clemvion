@@ -41,7 +41,7 @@ code:
 
 표현식(`{{ }}`)은 `fields[*]` · `pagination.*` 모든 값에서 사용 가능.
 
-> Source of truth (구현 시): `codebase/backend/src/nodes/integration/makeshop/makeshop.schema.ts` (예정).
+> Source of truth: `codebase/backend/src/nodes/integration/makeshop/makeshop.schema.ts`.
 
 ## 2. 설정 UI
 
@@ -63,7 +63,9 @@ code:
 |------|-------|------|---------|------|
 | `in` | Input | data | false | 입력 데이터 (`$input` 으로 참조) |
 | `success` | Success | data | false | MakeShop API 2xx 응답 |
-| `error` | Error | error | false | MakeShop API 4xx/5xx (3xx 는 §4 step 12 — fetch 자동 추종), transport 실패, rate-limit 소진, 메타데이터 검증 실패 |
+| `error` | Error | error | false | MakeShop API 4xx/5xx, transport 실패, rate-limit 소진, 메타데이터 검증 실패 |
+
+> 3xx 리다이렉트는 `fetch` 가 자동 추종하므로 통상 surface 되지 않는다 (§4 step 12 — 잔여 3xx 는 `MAKESHOP_4XX` fallback).
 
 `status` 는 비-블로킹 노드이므로 항상 생략 (Principle 0).
 
@@ -73,12 +75,12 @@ code:
 
 1. **Config 정규화**: `resource` / `operation` → 메타데이터 조회 `{ method, path, requiredFields, optionalFields, paginated }`. 미존재 시 `MAKESHOP_UNKNOWN_OPERATION` 으로 §5.3 라우팅 (D4).
 2. **Config echo** (Principle 7): `integrationId`·`resource`·`operation`·`fields`·`pagination` echo. **자격증명 echo 금지**.
-3. **Integration 자격증명 해석**: `service_type='makeshop'` + `status='connected'` 검증. 실패 시 `INTEGRATION_*` 코드 ([공통 §4.2](./0-common.md#42-공통-에러-코드)).
-4. **credentials 충족 검증 + shop_uid 형식**: `shop_uid`, `access_token`, `refresh_token`, `client_id`, `client_secret` 누락 시 `INTEGRATION_INCOMPLETE` (D4). `shop_uid` 가 형식 규약(영숫자·하이픈·언더스코어, SSRF 방어 — base URL path segment 주입 차단) 위반 시 `MAKESHOP_INVALID_SHOP_UID` (D4). *(MakeShop OAuth 는 confidential client 모델이라 client_id/secret 가 항상 필요 — Cafe24 의 public/private 분기와 달리 단일 형태. shop_uid 정확한 형식 정규식은 구현 시 makeshop 문서로 확정 — §9.7.)*
+3. **Integration 자격증명 해석**: `service_type='makeshop'` + `status='connected'` 검증. 실패 시 `INTEGRATION_*` 코드 ([공통 §4.2](./0-common.md#42-공통-에러-코드)). integrationId 미존재/타 워크스페이스 소속은 공통 §4.2 의 `NotFoundException` 흡수 동작을 그대로 따른다 (별도 `INTEGRATION_NOT_FOUND` 코드 없음).
+4. **credentials 충족 검증 + shop_uid 형식**: `shop_uid`, `access_token`, `refresh_token`, `client_id`, `client_secret` 누락 시 `INTEGRATION_INCOMPLETE` (D4). `shop_uid` 가 형식 규약(영숫자·하이픈·언더스코어, SSRF 방어 — base URL path segment 주입 차단) 위반 시 `MAKESHOP_INVALID_SHOP_UID` (D4). *(MakeShop OAuth 는 confidential client 모델이라 client_id/secret 가 항상 필요 — Cafe24 의 public/private 분기와 달리 단일 형태. shop_uid 정확한 형식 정규식은 코드에 잠정값 + `VERIFY` 마킹, production 전 makeshop 문서로 확정 — §9.7.)*
 5. **Required fields + constraints 검증**: Cafe24 §4 step 5 동일. 위반 시 `MAKESHOP_MISSING_FIELDS`.
 6. **토큰 만료 확인 및 갱신**: `Integration.token_expires_at` ([데이터 모델 §2.10](../../1-data-model.md#210-integration)) 만료/임박(60초) 시 자동 갱신. **갱신 endpoint = `https://auth.makeshop.com/oauth/token` (`grant_type=refresh_token`)**. refresh token 은 **1회 사용 후 회전(rotation)** 되므로 새 refresh_token 을 반드시 저장한다 (Cafe24 와 동일한 rotation 특성). access token TTL 1시간, refresh token TTL 기본 30일·최대 90일. cross-pod 직렬화는 **전용 `makeshop-token-refresh` BullMQ 큐 (`jobId = integrationId` dedup)** 를 신설한다 — cafe24 의 `cafe24-token-refresh` 큐와 분리 (service 별 token endpoint·rotation 정책이 달라 큐를 공유하지 않음). 갱신 실패 분기·reactive_401 직렬화 정책은 [Cafe24 §4 step 6](./4-cafe24.md#4-실행-로직) 및 [통합 §10.5](../../2-navigation/4-integration.md#105-토큰-자동-갱신) 와 동형.
-7. **URL 구성**: `https://connect.makeshop.co.kr/api/v1/{shop_uid}/{operation.path}` — `{path}` 는 메타데이터 path template (예: `information`, `product/{product_id}`, `cart/create`). path parameter 는 `fields` 에서 채움. *(Cafe24 의 `{mall_id}.cafe24api.com` 서브도메인 방식과 달리 단일 호스트 + `{shopId}` path segment.)*
-8. **Query / Body 구성**: 메타데이터 `fields[*].location` (path / query / body) 에 따라 분배. `pagination.{limit, offset}` 는 query. **POST/PUT body 는 flat JSON 그대로 전송** — Cafe24 의 `{request:{...}}` envelope 래핑은 MakeShop 에 적용하지 않는다 (§9.4. ⚠ 구현 시 makeshop 문서로 재확인).
+7. **URL 구성**: `https://connect.makeshop.co.kr/api/v1/{shop_uid}/{operation.path}` — `{path}` 는 메타데이터 path template (예: `information`, `product/{product_id}`, `cart/create`). path parameter 는 `fields` 에서 채움. *(Cafe24 의 `{mall_id}.cafe24api.com` 서브도메인 방식과 달리 단일 호스트 + `{shopId}` path segment.)* 호스트가 단일 고정(`connect.makeshop.co.kr`)이라 사용자 입력이 호스트를 결정하지 않으므로 `assertSafeOutboundHostResolved` SSRF 가드는 불필요하다 — SSRF 방어는 step 4 의 `shop_uid` 형식 검증(path segment 주입 차단)으로 충분하다.
+8. **Query / Body 구성**: 메타데이터 `fields[*].location` (path / query / body) 에 따라 분배. `pagination.{limit, offset}` 는 query. **POST/PUT body 는 flat JSON 그대로 전송** — Cafe24 의 `{request:{...}}` envelope 래핑은 MakeShop 에 적용하지 않는다 (§9.4. ⚠ production 전 makeshop 문서로 재확인 — 코드 `VERIFY`).
 9. **호출 (rate-limit-aware + 401 reactive refresh)**: `MakeshopApiClient` wrapper — `Authorization: Bearer {access_token}` → fetch → **401 응답 시** refresh + 동일 요청 1회 재시도 (Cafe24 §6.1 401 분기 동일 정책). 403 은 즉시 격하. **rate limit**: MakeShop 은 data-call rate limit 헤더·정책을 공개 문서화하지 않았다 (§9.7) — 429 응답 시 `Retry-After` 헤더가 있으면 그 값만큼, 없으면 고정 backoff 로 최대 2회 재시도 후 `MAKESHOP_RATE_LIMITED`.
 10. **응답 파싱**: JSON body 를 `output.response` 에 보존. `meta.statusCode`, `meta.durationMs`.
 11. **Usage 로깅** ([공통 §4](./0-common.md#4-handler-실행-세멘틱)): 성공·실패 1건. **활동 로그 API 식별 정보** ([`_product-overview.md` INT-US-05](./_product-overview.md#24-사용처-추적-및-라이프사이클)):
@@ -91,7 +93,7 @@ code:
 
 ### 4.1 Timezone semantics
 
-MakeShop API 의 date/time 필드 timezone 규약은 **구현 전 미확인 (open question)** 이다 (§9.7). 구현 착수 시 makeshop 공식 문서로 확정하고, KST 고정이면 Cafe24 §4.3·[Cafe24 API Metadata §5](../../conventions/cafe24-api-metadata.md#5-timezone-semantics) 와 동일하게 AI Agent 도구 description suffix 를 도입한다.
+MakeShop API 의 date/time 필드 timezone 규약은 **미확인 (open question)** 이다 (§9.7, 코드 `VERIFY`). production 전 makeshop 공식 문서로 확정하고, KST 고정이면 Cafe24 §4.3·[Cafe24 API Metadata §5](../../conventions/cafe24-api-metadata.md#5-timezone-semantics) 와 동일하게 AI Agent 도구 description suffix 를 도입한다.
 
 ## 5. 출력 구조
 
@@ -124,6 +126,8 @@ MakeShop API 의 date/time 필드 timezone 규약은 **구현 전 미확인 (ope
 | `meta.statusCode` | number | engine inject | HTTP status (2xx) |
 | `meta.durationMs` | number | engine inject | 요청~응답 ms |
 | `port` | `'success'` | handler return | 2xx 응답 분기 |
+
+> Cafe24 §5.1 의 `meta.callUsage`/`meta.callRemain` (leaky-bucket rate-limit 메트릭) 은 **makeshop 에 없다** — MakeShop 은 data-call rate limit 헤더를 공개 문서화하지 않아 노출할 메트릭이 없다 (§9.7).
 
 ### 5.3 Case: API 에러 또는 Transport 실패 (port `error`)
 
@@ -197,10 +201,10 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 
 | 노드 측 | MCP 측 |
 |---------|--------|
-| `resource='product'`, `operation='get-product'` | `mcp_<int8자>__get_product` |
-| `resource='cpik'`, `operation='post-cart-create'` | `mcp_<int8자>__post_cart_create` |
+| `resource='product'`, `operation='get-product'` | `mcp_<8자>__get_product` |
+| `resource='cpik'`, `operation='post-cart-create'` | `mcp_<8자>__post_cart_create` |
 
-> **MakeShop operationId 의 하이픈·언더스코어 혼용**: MakeShop operationId 는 `get-product`·`get-cart_free_config` 처럼 하이픈과 언더스코어를 혼용한다. MCP §5.2 도구 이름 규칙은 영숫자·underscore 외 문자를 sanitize 하므로 하이픈은 `_` 로 치환된다 (`get-cart-free-config` → `get_cart_free_config`). **sanitize 충돌 방지**: 한 resource 안에서 sanitize 후 토큰이 충돌하면(예: `get-a_b` 와 `get-a-b` 가 모두 `get_a_b` 로) 도구 이름이 겹치므로, `catalog-sync` 테스트가 **resource 내 sanitize-후 operationId 의 unique 성**을 검증한다 (현재 catalog 161 op 은 충돌 없음 — 구현 시 가드로 고정). bare operation id(원형)는 allowlist·Bridge 내부 `execute(name, args)` 에서 유지하고, sanitize 는 MCP Client 레이어가 도구 노출 시점에 적용한다.
+> **MakeShop operationId 의 하이픈·언더스코어 혼용**: MakeShop operationId 는 `get-product`·`get-cart_free_config` 처럼 하이픈과 언더스코어를 혼용한다. MCP §5.2 도구 이름 규칙은 영숫자·underscore 외 문자를 sanitize 하므로 하이픈은 `_` 로 치환된다 (`get-cart-free-config` → `get_cart_free_config`). **sanitize 충돌 방지**: 한 resource 안에서 sanitize 후 토큰이 충돌하면(예: `get-a_b` 와 `get-a-b` 가 모두 `get_a_b` 로) 도구 이름이 겹치므로, `catalog-sync` 테스트가 **resource 내 sanitize-후 operationId 의 unique 성**을 검증한다 (현재 catalog 161 op 은 충돌 없음 — `catalog-sync` 가드로 고정됨). bare operation id(원형)는 allowlist·Bridge 내부 `execute(name, args)` 에서 유지하고, sanitize 는 MCP Client 레이어가 도구 노출 시점에 적용한다.
 
 ### 8.2 메타도구 미사용 / 8.3 allowlist / 8.4 Rate Limit 공유 / 8.5 UsageLog / 8.6 expired 자가 회복
 
@@ -212,7 +216,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 
 ### 9.1 인증 흐름 — Authorization-Code + refresh (cafe24 동형 선택)
 
-MakeShop 신형 API 는 두 OAuth 흐름을 병행 제공한다 — (a) Authorization-Code(OAuth 2.1 + PKCE, `auth.makeshop.com`, refresh 30~90일) 와 (b) Client-Credentials(`connect.makeshop.co.kr`, `shop_uid`, 토큰 TTL 5분, 발급 5회/분 throttle). **본 통합은 (a) Authorization-Code + refresh 를 채택**한다 — 사용자가 "cafe24 와 동일하게" 요구했고, 기존 third-party-oauth 인프라(authorize 시작·callback·token-refresh 큐·install rate-limit/nonce)를 그대로 재사용하기 때문이다. (b) 는 사용자 redirect·refresh 저장이 불필요한 단순성이 있으나 cafe24 와 다른 흐름이라 신규 인프라가 필요하고 토큰 TTL·throttle 제약이 있어 채택하지 않았다 (구현 시 재평가 가능).
+MakeShop 신형 API 는 두 OAuth 흐름을 병행 제공한다 — (a) Authorization-Code(OAuth 2.1 + PKCE, `auth.makeshop.com`, refresh 30~90일) 와 (b) Client-Credentials(`connect.makeshop.co.kr`, `shop_uid`, 토큰 TTL 5분, 발급 5회/분 throttle). **본 통합은 (a) Authorization-Code + refresh 를 채택**한다 — 사용자가 "cafe24 와 동일하게" 요구했고, 기존 third-party-oauth 인프라(authorize 시작·callback·token-refresh 큐·install rate-limit/nonce)를 그대로 재사용하기 때문이다. (b) 는 사용자 redirect·refresh 저장이 불필요한 단순성이 있으나 cafe24 와 다른 흐름이라 신규 인프라가 필요하고 토큰 TTL·throttle 제약이 있어 채택하지 않았다 (향후 재평가 가능).
 
 ### 9.2 OAuth scope wire format — 공백 구분 (표준, cafe24 콤마 quirk 없음)
 
@@ -224,7 +228,7 @@ Cafe24 는 `{mall_id}.cafe24api.com` 서브도메인이지만 MakeShop 은 **단
 
 ### 9.4 POST/PUT request envelope 미적용
 
-Cafe24 POST/PUT 은 `{request:{...}}` wire envelope 가 필수([Cafe24 §4.2](./4-cafe24.md#42-request-body-envelope-postput-전용))지만, MakeShop 은 **flat JSON body** 를 받는다 (catalog 의 requestBody 스키마가 모두 flat object). 따라서 `MakeshopApiClient` 에 envelope wrapper 를 두지 않는다. ⚠ **구현 시 검증**: 일부 operation 이 별도 wrapper 를 요구하면 그 operation 메타데이터에 표기하고 wrapper 정책을 재검토한다.
+Cafe24 POST/PUT 은 `{request:{...}}` wire envelope 가 필수([Cafe24 §4.2](./4-cafe24.md#42-request-body-envelope-postput-전용))지만, MakeShop 은 **flat JSON body** 를 받는다 (catalog 의 requestBody 스키마가 모두 flat object). 따라서 `MakeshopApiClient` 에 envelope wrapper 를 두지 않는다. ⚠ **production 전 검증** (코드 `VERIFY`): 일부 operation 이 별도 wrapper 를 요구하면 그 operation 메타데이터에 표기하고 wrapper 정책을 재검토한다.
 
 ### 9.5 별도 승인(restricted) scope 미도입
 
@@ -234,13 +238,15 @@ Cafe24 는 일부 scope/operation 이 파트너 별도 승인 대상이라 `rest
 
 CPIK 섹션의 webhook 11개(`event_code` 기반 상품·주문·배송·카테고리 변경 이벤트)는 호출형 REST 가 아니라 **이벤트 수신(trigger)** 정의다. 본 노드(호출형)·MCP Bridge(도구) 범위 밖이며 워크플로 **trigger 노드**에 매핑된다. **Cafe24 역시 inbound webhook trigger 가 아직 없으므로**, makeshop cpik webhook + cafe24 webhook 을 함께 다루는 **통합 공통 webhook/trigger 노드**를 별 후속 과제로 분리한다 ([plan `makeshop-integration.md` §후속](../../../plan/in-progress/makeshop-integration.md)). MakeShop 측 webhook **구독 등록 API** 는 현재 미문서화(open question) — 후속 착수 전 파트너센터 확인이 선행돼야 한다.
 
-### 9.7 미확인 항목 (구현 전 검증 필요)
+### 9.7 미확인 항목 (production 전 검증 필요)
 
-- **OAuth authorize/token 호스트**: `auth.makeshop.com` (authorize·token·refresh) — 본 spec 의 1차 출처는 makeshop 가이드 페이지 추출이다. 구현 착수 시 공식 OAuth 문서로 호스트·endpoint·Basic auth 방식을 재확인한다 (§4 step 6, §9.1).
+> 노드·MCP 는 구현 완료(status: implemented)다. 아래는 makeshop 공식 문서 미확정분으로 코드에 `VERIFY` 주석으로 표시되어 production 전 확인 대상이다 — 구현 surface 의 미완이 아니다.
+
+- **OAuth authorize/token 호스트**: `auth.makeshop.com` (authorize·token·refresh) — 본 spec 의 1차 출처는 makeshop 가이드 페이지 추출이며 코드에 `VERIFY` 마킹돼 있다. production 전 공식 OAuth 문서로 호스트·endpoint·Basic auth 방식을 재확인한다 (§4 step 6, §9.1).
 - **data-call rate limit**: MakeShop 은 데이터 API 호출의 rate limit 헤더·정책을 공개 문서화하지 않았다 (문서화된 5회/분은 client_credentials **토큰 발급** 한정). §4 step 9 의 429 best-effort backoff 로 시작하고, 운영 관측 후 정책을 보강한다 — Cafe24 의 `meta.callUsage`/`callRemain` 같은 leaky-bucket 메트릭은 헤더 부재로 §5.1 에 노출하지 않는다.
 - **timezone**: date/time 필드 timezone 미확인 (§4.1).
-- **POST/PUT envelope**: §9.4 — flat 가정, 구현 시 확인.
-- **pagination 방식**: catalog 의 `limit`/`offset` 가정 (§1). cursor 기반 지원 여부는 구현 시 catalog openapi 로 확인.
+- **POST/PUT envelope**: §9.4 — flat 가정, production 전 확인.
+- **pagination 방식**: catalog 의 `limit`/`offset` 가정 (§1). cursor 기반은 Cafe24([Cafe24 §9 B-3-7](./4-cafe24.md#9-rationale))와 동일하게 미채택 — production 전 catalog openapi 로 API 지원 여부 확인.
 
 ### 9.8 `buildIntegrationMeta` derived 필드 일반화 (C-6 동반 해소)
 

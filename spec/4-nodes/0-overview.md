@@ -165,7 +165,7 @@ codebase/backend/src/nodes/
 | `text_classifier` | Text Classifier | 🏷️ | 1 | N | 카테고리 목록, 모델 |
 | `information_extractor` | Info Extractor | 🔍 | 1 | 1 | 출력 스키마, 모델 |
 
-### 2.4 Integration 노드 (4종 + MakeShop Planned)
+### 2.4 Integration 노드 (5종)
 
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
@@ -173,7 +173,7 @@ codebase/backend/src/nodes/
 | `database_query` | Database Query | 🗄️ | 1 | 1 | integrationId, query, parameters, queryType |
 | `send_email` | Send Email | 📧 | 1 | 1 | integrationId, to, subject, body, bodyType |
 | `cafe24` | Cafe24 | 🛍️ | 1 | 2 (success/error) | integrationId, resource, operation, parameters |
-| `makeshop` | MakeShop | 🛒 | 1 | 2 (success/error) | integrationId, resource, operation, fields — **Planned** ([§5-makeshop.md](./4-integration/5-makeshop.md)) |
+| `makeshop` | MakeShop | 🛒 | 1 | 2 (success/error) | integrationId, resource, operation, fields ([§5-makeshop.md](./4-integration/5-makeshop.md)) |
 
 ### 2.5 Data 노드 (2종)
 
