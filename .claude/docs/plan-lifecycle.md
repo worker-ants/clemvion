@@ -51,9 +51,22 @@ commit 전 확인:
 - [ ] 본 PR 의 변경으로 plan 의 모든 체크박스가 `[x]` 인가
 - [ ] 미해결 follow-up·"TODO"·"결정 필요" 항목이 0건인가
 - [ ] PROJECT.md 지정 방식(미명시 시 `git mv`)으로 옮겼는가 (단순 복사·삭제 아님)
+- [ ] frontmatter 에 `spec_impact` 가 선언됐는가 (**Gate C** — 아래)
 - [ ] commit 메시지가 `chore(plan): mark <name> complete` 형식인가
 
 한 항목이라도 `[ ]` 이면 이동 skip — 이번 PR 은 plan 의 일부만 처리한 것이고 plan 은 `in-progress/` 에 남는다.
+
+### Gate C — 완료 plan 의 spec 정합 결정 (`spec_impact`)
+
+완료 시 spec↔코드 정합 결정을 암묵에 두지 않고 frontmatter 에 명시한다:
+
+```markdown
+spec_impact: none                       # spec 변경 불요 (의식적 no-op)
+spec_impact:                            # 또는: 본 작업이 건드린 spec 파일들
+  - spec/5-system/4-execution-engine.md
+```
+
+리스트 항목은 실존 spec 파일이어야 한다(dangling 금지 — `spec-pending-plan-existence` 와 동형). build guard `spec-plan-completion.test.ts` 가 강제하되, **`started` 가 2026-06-04 이후인 plan 만** 대상(그 전 시작 plan 은 grandfather — 기존 백로그 소급 면제). SoT: [`spec/conventions/spec-impl-evidence.md`](../../spec/conventions/spec-impl-evidence.md).
 
 ## 6. Audit 도구 (운영 보조)
 

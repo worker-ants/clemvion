@@ -75,8 +75,9 @@ owner: developer
 - 비고: `spec/conventions/` 는 flat reference(의도적 무-index)라 가드 제외
 
 ### item 7 — Gate C/D 재개
-- [ ] Gate D (advisory): spec-coverage reverse 모드 — `code:`/본문 어디서도 참조 안 되는 신규 controller route·event·ENV 탐지. high-confidence(spec-less 라우트)만 강조. `review/spec-coverage` 산출
-- [ ] Gate C (hard): plan 이 complete/ 이동 시, 건드린 `code:`-linked 코드가 변했으면 spec-update 섹션 또는 "spec 변경 불요" 명시 강제 (`spec-pending-plan-existence.test.ts` 미러링)
+- [x] Gate D (advisory): spec-coverage `--mode reverse` 추가 — Heuristic 4(spec 미참조 controller route, high)·5(이벤트/큐, medium)·6(env, low). orchestrator `--mode {forward,reverse,both}` 인자 + agent §모드/H4·5·6 + SKILL 문서. `review/spec-coverage` 산출, advisory(NLP FP)
+- [x] Gate C (hard build test): `spec-plan-completion.test.ts` — `started ≥ 2026-06-04` 완료 plan 은 frontmatter `spec_impact`(spec path 목록 실존 또는 `none`) 선언 필수. date cutoff grandfather(기존 백로그 소급 면제, lifecycle TTL 패턴 동형). 현 상태 즉시 green(전부 grandfather), 미래 완료부터 강제
+- [x] 문서화: plan-lifecycle §4/§5(spec_impact 스키마·자가점검), spec-impl-evidence §4(가드 5건+인접 가드+Gate D) + code: 등재
 
 ## Rationale
 

@@ -8,6 +8,7 @@ code:
   - codebase/frontend/src/lib/docs/__tests__/spec-code-paths.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-status-lifecycle.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-pending-plan-existence.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-plan-completion.test.ts
 ---
 
 # Convention: Spec-Impl Evidence (frontmatter)
@@ -95,9 +96,9 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 - `partial` → `implemented`: 마지막 `pending_plans` 가 `complete/` 로 이동한 commit 안에서 승격 (가드)
 - `*` → `archived`: spec 결정 폐기 시 즉시 (Rationale 본문에 사유 추가)
 
-## 4. Build-time 가드 (4건)
+## 4. Build-time 가드 (5건)
 
-본 컨벤션의 정합성은 다음 4개 단위 테스트가 강제. 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치.
+본 컨벤션의 정합성은 다음 5개 단위 테스트가 강제. 모두 `codebase/frontend/src/lib/docs/__tests__/` 또는 별도 frontend test 영역에 위치.
 
 | 가드 | 검증 |
 |---|---|
@@ -105,6 +106,16 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 | `spec-code-paths.test.ts` | `status ∈ {partial, implemented}` 인 spec 의 `code:` 글로브가 ≥1 파일 매치 |
 | `spec-status-lifecycle.test.ts` | (a) `spec-only` TTL 90일 초과 (b) `partial` 의 `pending_plans:` 미작성 (c) `partial` 의 `pending_plans` 모두 complete 인데 status 미승격 (d) `backlog` 의 `id:` 가 `0-overview.md` 본문 텍스트에 미등장 (overview 부재 시 warn-only) |
 | `spec-pending-plan-existence.test.ts` | `pending_plans:` 의 모든 path 가 `plan/in-progress/` 또는 `plan/complete/`(in-progress→complete 치환) 에 실존 |
+| `spec-plan-completion.test.ts` (**Gate C**) | `started ≥ 2026-06-04` 인 완료 plan 은 frontmatter `spec_impact` 선언 필수 (spec path 목록은 실존, 또는 `none`/`없음`). spec↔코드 정합 결정을 완료 시점에 강제. grandfather: cutoff 이전 시작 plan 면제 |
+
+### 4.0 인접 지식저장소 가드 (별도 SoT)
+
+본 frontmatter-evidence 가드 외에, 지식저장소 무결성을 함께 지키는 가드 — SoT 는 [`plan/in-progress/knowledge-base-quality-improvements.md`](../../plan/in-progress/knowledge-base-quality-improvements.md):
+
+- `spec-link-integrity.test.ts` — spec 본문 in-repo 링크/heading 앵커 실존
+- `spec-area-index.test.ts` — 영역 폴더 index 가 모든 sibling spec 링크
+- `plan-frontmatter.test.ts` — top-level in-progress plan 의 worktree/started/owner ([plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md))
+- **Gate D** (advisory, build 아님): `/spec-coverage --mode reverse` — spec 미참조 controller route·이벤트·env 탐지 (impl→spec 역커버리지)
 
 ### 4.1 가드와 다른 가드의 관계
 
