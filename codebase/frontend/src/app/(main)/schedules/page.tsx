@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import cronstrue from "cronstrue";
 import { CronExpressionParser } from "cron-parser";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { normalizePagedResponse } from "@/lib/api/paginated";
 import { usePageParam } from "@/lib/hooks/use-page-param";
@@ -976,10 +977,18 @@ export default function SchedulesPage() {
       )}
 
       {!isLoading && !isError && schedules.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
-          <Inbox className="mb-2 h-10 w-10" />
-          <p className="text-sm">{t("schedules.noneFound")}</p>
-        </div>
+        <EmptyState
+          icon={Inbox}
+          title={t("schedules.noneFound")}
+          action={
+            <RoleGate minRole="editor">
+              <Button onClick={() => setShowDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t("schedules.addSchedule")}
+              </Button>
+            </RoleGate>
+          }
+        />
       )}
 
       {!isLoading && !isError && schedules.length > 0 && viewMode === "list" && (

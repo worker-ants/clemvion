@@ -283,6 +283,18 @@ export default function WorkflowsPage() {
     { labelKey: "workflows.ownership.shared", value: "shared" },
   ];
 
+  const hasActiveFilters =
+    !!debouncedSearch ||
+    filter !== "all" ||
+    (isTeamWorkspace && ownership !== "all");
+
+  function handleResetFilters() {
+    setSearch("");
+    setFilter("all");
+    setOwnership("all");
+    setPage(1);
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -380,16 +392,16 @@ export default function WorkflowsPage() {
           icon={Workflow}
           title={t("workflows.noneFound")}
           description={
-            debouncedSearch ||
-            filter !== "all" ||
-            (isTeamWorkspace && ownership !== "all")
+            hasActiveFilters
               ? t("workflows.adjustFiltersHint")
               : t("workflows.firstWorkflowHint")
           }
           action={
-            !debouncedSearch &&
-            filter === "all" &&
-            !(isTeamWorkspace && ownership !== "all") ? (
+            hasActiveFilters ? (
+              <Button variant="outline" onClick={handleResetFilters}>
+                {t("workflows.resetFilters")}
+              </Button>
+            ) : (
               <Button
                 onClick={() => createMutation.mutate()}
                 disabled={createMutation.isPending}
@@ -397,7 +409,7 @@ export default function WorkflowsPage() {
                 <Plus className="mr-2 h-4 w-4" />
                 {t("workflows.createWorkflow")}
               </Button>
-            ) : undefined
+            )
           }
         />
       ) : (

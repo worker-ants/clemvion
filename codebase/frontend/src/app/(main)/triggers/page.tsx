@@ -31,6 +31,7 @@ import {
   type TriggerDeleteTarget,
 } from "@/components/triggers/trigger-delete-dialog";
 import { TriggerHistoryDialog } from "@/components/triggers/trigger-history-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import {
   DropdownMenu,
@@ -616,10 +617,18 @@ export default function TriggersPage() {
       )}
 
       {!isLoading && !isError && triggers.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-[hsl(var(--muted-foreground))]">
-          <Inbox className="mb-2 h-10 w-10" />
-          <p className="text-sm">{t("triggers.noTriggersFound")}</p>
-        </div>
+        <EmptyState
+          icon={Inbox}
+          title={t("triggers.noTriggersFound")}
+          action={
+            <RoleGate minRole="editor">
+              <Button onClick={() => setShowDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t("triggers.addTrigger")}
+              </Button>
+            </RoleGate>
+          }
+        />
       )}
 
       {!isLoading && !isError && triggers.length > 0 && (

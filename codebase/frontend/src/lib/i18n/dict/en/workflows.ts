@@ -68,6 +68,7 @@ export const workflows: Dict["workflows"] = {
   searchPlaceholder: "Search workflows...",
   noneFound: "No workflows found",
   adjustFiltersHint: "Try adjusting your search or filters.",
+  resetFilters: "Reset Filters",
   firstWorkflowHint: "Create your first workflow to get started.",
   createWorkflow: "Create Workflow",
   importWorkflow: "Import Workflow",

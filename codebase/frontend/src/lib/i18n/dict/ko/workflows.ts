@@ -68,6 +68,7 @@ export const workflows = {
   searchPlaceholder: "워크플로우 검색...",
   noneFound: "워크플로우를 찾을 수 없어요",
   adjustFiltersHint: "검색어나 필터를 조정해 보세요",
+  resetFilters: "필터 초기화",
   firstWorkflowHint: "첫 워크플로우를 만들어 시작해 보세요",
   createWorkflow: "워크플로우 만들기",
   importWorkflow: "워크플로우 가져오기",
