@@ -3,6 +3,7 @@ worktree: workflow-turn-timing-69fee2
 started: 2026-06-03
 owner: developer
 status: in-progress
+pr: 445
 ---
 
 # 워크플로우 실행 디버깅 UI — 요소별 발생 시각(절대) + 소요시간 노출
