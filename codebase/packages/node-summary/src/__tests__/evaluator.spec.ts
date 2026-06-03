@@ -210,6 +210,43 @@ describe('renderTemplate', () => {
         }),
       ).toBe('workflowId');
     });
+
+    it('chained filter: fallback result is passed through subsequent filters (e.g. upper)', () => {
+      // Primary is absent → fallback resolves workflowId → upper applies to it.
+      expect(
+        renderTemplate(
+          '{{ workflowName | fallback:workflowId | upper }}',
+          { workflowId: 'wf-1' },
+        ),
+      ).toBe('WF-1');
+      // Primary present → upper applies to the primary value.
+      expect(
+        renderTemplate(
+          '{{ workflowName | fallback:workflowId | upper }}',
+          { workflowName: 'checkout', workflowId: 'wf-1' },
+        ),
+      ).toBe('CHECKOUT');
+    });
+
+    it('dot-path arg: resolves nested config field as fallback', () => {
+      expect(
+        renderTemplate('{{ name | fallback:meta.id }}', { meta: { id: 'x' } }),
+      ).toBe('x');
+      // Primary present → dot-path arg is never consulted.
+      expect(
+        renderTemplate('{{ name | fallback:meta.id }}', {
+          name: 'Alice',
+          meta: { id: 'x' },
+        }),
+      ).toBe('Alice');
+    });
+
+    it('empty arg (fallback:): resolves getPath(config, "") → undefined → renders empty string', () => {
+      // When the arg after the colon is blank, getPath gets '' as path.
+      // The empty-string path segment produces undefined, which stringify()
+      // converts to '' — making the overall output an empty string.
+      expect(renderTemplate('{{ name | fallback: }}', {})).toBe('');
+    });
   });
 });
 
