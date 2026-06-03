@@ -178,7 +178,7 @@ codebase/backend/src/nodes/
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
 | `transform` | Transform | 🔄 | 1 | 1 | operations (변환 체인) |
-| `code` | Code | 💻 | 1 | 1 | language, code |
+| `code` | Code | 💻 | 1 | 2 | language, code |
 
 ### 2.6 Presentation 노드 (5종)
 

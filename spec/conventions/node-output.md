@@ -89,7 +89,7 @@ pending_plans:
 | **LLM 계열** | `meta.model`, `meta.inputTokens`, `meta.outputTokens`, `meta.totalTokens`, `meta.thinkingTokens?`, `meta.toolCalls?`, `meta.contextInjection?` (ConversationThread 자동 주입 시 — `{ appliedScope, appliedMode, injectedTurns, droppedTurns, totalInjectedChars }` echo. 상세: [Spec Conversation Thread §5.3](./conversation-thread.md#53-cap-v1--char-기반)) |
 | **HTTP** | `meta.statusCode`, `meta.durationMs` |
 | **DB** | `meta.durationMs`, `meta.rowCount` |
-| **Code** | `meta.durationMs`, `meta.success`, `meta.logs?`, `meta.error?`, `meta.errorCode?` |
+| **Code** | `meta.durationMs`, `meta.success`, `meta.logs?` (런타임 에러는 `output.error` + `port:'error'` — `meta.error`/`meta.errorCode` 별칭은 Phase 1 D 에서 폐기) |
 | **Container** | `meta.iterations?`, `meta.branches?`, `meta.matchedCount?` |
 
 > `ai_agent` 가 현재 사용하는 `output.metadata.*` 는 **폐지**합니다. 모든 토큰/모델 정보는 `meta.*` 로 이동.
@@ -292,11 +292,12 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 > 두 영역의 직교성은 Principle 1.1 의 핵심 전제입니다. 핸들러가 `context.rawConfig` 를 echo 함으로써 이 직교성이 유지됩니다 (PRD `ENG-RC-*`, Spec [실행 엔진 §5.5](../../spec/5-system/4-execution-engine.md)).
 
 **항상 echo** (NodeHandlerOutput.config 에 raw 형태로): 사용자가 UI 에서 설정한 **비민감** 값
-- `method`, `url` (credential 제거된 raw 형태), `queryType`, `mode`, `model`, `systemPrompt` (raw — `{{ }}` 포함 가능), `userPrompt` (raw), `subject` (raw), `body` (raw), `fields`, `title`, `submitLabel`, `layout`, `items`, `columns`, `chartType`, `conditions`, `categories`, `iterationLimit`, `branchCount`, `maxTurns`, `maxCollectionRetries`, `outputFormat` 등.
+- `method`, `url` (credential 제거된 raw 형태), `queryType`, `mode`, `model`, `systemPrompt` (raw — `{{ }}` 포함 가능), `userPrompt` (raw), `subject` (raw), `body` (raw), `code` (raw — 사용자 코드 본문, `code.config.code`), `fields`, `title`, `submitLabel`, `layout`, `items`, `columns`, `chartType`, `conditions`, `categories`, `iterationLimit`, `branchCount`, `maxTurns`, `maxCollectionRetries`, `outputFormat` 등.
+
+> **`code.config.code` echo 명확화**: 코드 본문은 `systemPrompt`/`userPrompt`/`body` 와 동일한 부류의 **사용자 작성 raw 텍스트** 로, `config.code` 에 그대로 echo 한다 (디버깅·후속 노드 참조 목적, 비민감). 코드가 `expression-exclusions` 에 등록된 것은 **expression(`{{ }}`) 평가 대상에서 제외** 한다는 의미일 뿐 echo 금지가 아니다 — 두 개념을 혼동하지 않는다. SoT: [Code §5.1 / §Rationale](../4-nodes/5-data/2-code.md).
 
 **절대 echo 금지**:
 - 자격증명 (password, apiKey, token, secret, oauth credentials).
-- 코드 본문 (`code.config.code` — 이미 `expression-exclusions`에 등록되어 있음).
 - URL 내 임베디드 credential (`https://user:pass@host` → `https://host` 로 sanitize).
 - 파일 업로드 원본 바이너리 (reference만).
 
@@ -384,10 +385,10 @@ async execute(input, config /* evaluated */, context /* { rawConfig, ... } */) {
 | HTTP 요청 본문 (evaluated) | `output.requestBody`, `output.requestBodyType` (Principle 7 — config 의 raw 와 직교) |
 | DB 쿼리 결과 | `output.rows`, `output.rowCount`, `output.fields`, `output.insertId?` (그대로 유지) |
 | 이메일 전송 결과 | `output.messageId`, `output.accepted`, `output.rejected`, `output.subject`, `output.body`, `output.bodyType` (subject·body 는 Principle 7 — config 의 raw 와 직교) |
-| 코드 실행 결과 | `output.result` |
+| 코드 실행 결과 (사용자 `return` 값) | `output` (root 직접) — **Code/Transform 은 `output.result` 래핑 미적용**. 사용자 코드/연산이 shape 을 결정하므로 인위적 래핑을 두지 않는다 (각 노드 §5.1 참조). |
 | 프레젠테이션 뷰 (런타임 필드) | `output.items` (carousel dynamic) / `output.rows` + `output.totalRows` (table) / `output.data` (chart) / `output.rendered` (template). 빈 출력 (`{}`) 은 form / carousel static. 옛 `output.view` 래퍼는 Principle 4.2 에서 폐기됨. (Principle 4.3 의 노드별 표 참고) |
 
-> 규칙: **LLM 계열 노드 (ai_agent, text_classifier, information_extractor) 는 `output.result` 아래에 도메인 결과를 모은다.** 이 한 문장이면 3개 노드 모두 일관됩니다.
+> 규칙: **`output.result` 래핑은 LLM 계열 노드 (ai_agent, text_classifier, information_extractor) 한정** — 이 3개 노드만 도메인 결과를 `output.result` 아래에 모은다. Code/Transform 은 사용자가 shape 을 결정하므로 `output` root 에 직접 둔다 (Principle 8 래핑 예외 — SoT 는 [Code §Rationale](../4-nodes/5-data/2-code.md) · [Transform §5.1](../4-nodes/5-data/1-transform.md)).
 
 ---
 
