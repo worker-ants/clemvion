@@ -88,8 +88,7 @@ Clemvion 은 SaaS + 셀프호스팅 병행이므로 본 spec 의 도메인은 **
 - **npm scope**: `@workflow/web-chat` 로 확정 — [eia-sdk-publish.md §결정 #3](../../plan/in-progress/eia-sdk-publish.md) (`@workflow/sdk` 와 일관, [2-sdk](./2-sdk.md)).
 - CORS allowlist 의 "위젯 CDN 빌트인 허용"([4-security §2](./4-security.md))도 이 `<widget-cdn-base>` 를 가리킨다 — 배포 설정값.
   빌트인 origin 상수는 **빌드타임 env 주입**(loader/SPA 빌드) + 백엔드는 **런타임 config**(워크스페이스 무관 고정값)로 관리한다.
-  - 백엔드 런타임 키 = **`WEB_CHAT_WIDGET_ORIGINS`**(콤마 구분, `main.ts` → `parseWidgetOrigins`). allowlist 정책·
-    키 SoT 는 [4-security §2·§2.1](./4-security.md). `.env.example` 에 샘플 항목 제공.
+  - 백엔드 런타임 allowlist(env 키·파싱·`.env.example` 샘플 등 구현 세부)의 SoT 는 [4-security §2·§2.1](./4-security.md).
 
 ## 5. 사용 모드 (M1 Hosted iframe / M2 BYO-UI)
 

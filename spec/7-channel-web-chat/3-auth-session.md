@@ -8,6 +8,7 @@ code:
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
   - plan/in-progress/channel-web-chat-followups.md
+  - plan/in-progress/channel-web-chat-demo.md
 ---
 
 # Spec: Channel Web Chat — 인증 / 세션 흐름
@@ -45,8 +46,8 @@ pending_plans:
 7. (만료 30분 이내 & 대화 alive) → POST .../:id/refresh-token → 토큰 갱신
 8. 종료/ completed → SSE 종료, 토큰 invalidate, [ended]
 ```
-- 새로고침 지속: `executionId`+단명 토큰을 iframe-origin storage 저장 → 재로드 시 `GET /:id`+SSE 재연결로 복원
-  ([1-widget-app §3.1](./1-widget-app.md)). 사용자 식별은 v1 익명.
+- 새로고침 지속: `executionId`+단명 토큰을 iframe-origin storage 에 저장해 재로드 시 복원한다. **상세 절차는 §3.1**.
+  사용자 식별은 v1 익명.
 
 ### 3.1 재로드 복원 시퀀스 (per_execution)
 

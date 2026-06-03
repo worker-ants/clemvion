@@ -34,7 +34,7 @@ code:
 - `spec/3-workflow-editor/**.md`
 - `spec/4-nodes/**.md`
 - `spec/5-system/**.md`
-- `spec/7-channel-web-chat/**.md` (클라이언트 채널 영역도 제품 표면(UI/SDK/API)을 약속하므로 frontmatter 의무 대상)
+- `spec/7-channel-web-chat/**.md`
 - `spec/conventions/**.md`
 
 **제외**:

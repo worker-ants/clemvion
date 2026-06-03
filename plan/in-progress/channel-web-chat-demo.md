@@ -57,4 +57,5 @@ draft: `spec-draft-channel-web-chat-gaps.md`. consistency-check --spec(09_46_31)
 - [x] 설계: `1-widget-app §2/§3.2`(가시성 visible/hidden 축 + updateProfile 소급불가 + blocked 분리) + R5
 - [x] 구현(developer): `use-widget` onCommand `show`/`hide`/`updateProfile` + reducer `hidden`(SHOW/HIDE) +
   `widget-app` 렌더 게이트 + 테스트(reducer 3 + 명령 3). channel-web-chat unit 134/134
-- [ ] TEST + REVIEW WORKFLOW(섹션2·4 코드 변경 후) — /ai-review 진행 중
+- [x] TEST + REVIEW WORKFLOW(섹션2·4) — /ai-review(10_10_09) RISK MEDIUM, Critical 0, Warning 12(전부 spec
+  SoT/cross-ref/plan 정제, 코드 지적 0) → 수동 조치 + RESOLUTION. lint·unit 134·frontend 가드 843 통과
