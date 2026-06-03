@@ -70,7 +70,13 @@ export function chunkText(
             overlapBuffer = getOverlapText(currentChunk, chunkOverlap);
             currentChunk = '';
           }
-          forceSplitAndPush(chunks, sentence, chunkSize, chunkOverlap, baseMetadata);
+          forceSplitAndPush(
+            chunks,
+            sentence,
+            chunkSize,
+            chunkOverlap,
+            baseMetadata,
+          );
           overlapBuffer = '';
         } else if (estimateTokens(currentChunk + ' ' + sentence) > chunkSize) {
           pushChunk(chunks, currentChunk, overlapBuffer, baseMetadata);

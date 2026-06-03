@@ -1,4 +1,7 @@
-import { evaluateWarnings, renderSummaryTemplate } from '@workflow/node-summary';
+import {
+  evaluateWarnings,
+  renderSummaryTemplate,
+} from '@workflow/node-summary';
 import {
   codeNodeConfigSchema,
   codeNodeMetadata,

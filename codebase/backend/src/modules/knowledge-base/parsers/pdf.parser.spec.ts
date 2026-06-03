@@ -38,7 +38,7 @@ describe('parsePdfSegments (spec §6.1 page metadata)', () => {
   });
 
   it('inserts a newline when the vertical position changes', async () => {
-    const pdfParse = require('pdf-parse') as jest.Mock;
+    const pdfParse = jest.requireMock('pdf-parse');
     pdfParse.mockImplementationOnce(
       async (
         _buffer: Buffer,

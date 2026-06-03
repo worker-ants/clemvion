@@ -40,7 +40,5 @@ export function parseMdSegments(buffer: Buffer): ParsedSegment[] {
   }
   flush();
 
-  return segments.length > 0
-    ? segments
-    : [{ text: text.trim(), metadata: {} }];
+  return segments.length > 0 ? segments : [{ text: text.trim(), metadata: {} }];
 }

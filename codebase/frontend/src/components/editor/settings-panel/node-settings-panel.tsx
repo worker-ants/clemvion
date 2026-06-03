@@ -235,8 +235,8 @@ function SettingsTab({
       nodes: state.nodes.map((n) => {
         if (n.id !== nodeId) return n;
         // Drop the legacy flat `errorPolicy` key in favour of `errorHandling`.
-        const { errorPolicy: _legacyErrorPolicy, ...restConfig } =
-          nodeConfig as Record<string, unknown>;
+        const restConfig: Record<string, unknown> = { ...nodeConfig };
+        delete restConfig.errorPolicy;
         return {
           ...n,
           data: {

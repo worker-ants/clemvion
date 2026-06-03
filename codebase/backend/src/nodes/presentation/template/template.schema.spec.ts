@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { evaluateWarnings, renderSummaryTemplate } from '@workflow/node-summary';
+import {
+  evaluateWarnings,
+  renderSummaryTemplate,
+} from '@workflow/node-summary';
 import {
   templateNodeConfigSchema,
   templateNodeMetadata,
