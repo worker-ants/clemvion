@@ -24,14 +24,14 @@ owner: project-planner
 
 ## Phase: Spec 갱신 (각 파일 정식 반영)
 
-- [ ] **`spec/2-navigation/9-user-profile.md`**
+- [x] **`spec/2-navigation/9-user-profile.md`**
   - §4 워크스페이스 관리 화면: **개요 탭에 "임베드 허용 도메인" 섹션** 추가(origin 목록 추가/삭제+저장). **owner/admin 만 편집**, 그 외 read-only. 탭 구조(개요·멤버·위험영역) 유지 — 신규 탭 아닌 개요 탭 내 섹션.
   - §4.2 역할 권한 매트릭스: "워크스페이스 설정(✅✅❌❌)" 가 본 origins 편집을 포함함을 inline 명시(매트릭스 값 변경 없음).
   - §6.1 API 표: `PATCH /api/workspaces/:id/settings`(Admin+, body `{ interactionAllowedOrigins: string[] }`) 신규 행 + 기존 `PATCH /api/workspaces/:id`(rename 전용 `{ name }`) 행 body 스키마 명시.
-- [ ] **`spec/data-flow/12-workspace.md`** — §1.7 워크스페이스 설정 변경 플로우 신설(아래 다이어그램).
-- [ ] **`spec/1-data-model.md §2.2`** — `interactionAllowedOrigins` 키에 "편집 경로: `PATCH /api/workspaces/:id/settings` ([9-user-profile §6.1])" cross-ref.
-- [ ] **`spec/7-channel-web-chat/4-security.md §2·§3`** + **`spec/5-system/14 §8.5`** — "워크스페이스 설정/사용자가 명시 설정 필요" 문구에 실제 config 표면(`/workspace/settings` 개요 탭 + `PATCH /:id/settings`) cross-ref.
-- [ ] **`spec/5-system/3-error-handling.md §1.2`** — 기존 `assertAdmin()` 이 이미 발행하나 카탈로그 미등재인 `ADMIN_REQUIRED`(403) 정식 등재.
+- [x] **`spec/data-flow/12-workspace.md`** — §1.7 워크스페이스 설정 변경 플로우 신설(아래 다이어그램).
+- [x] **`spec/1-data-model.md §2.2`** — `interactionAllowedOrigins` 키에 "편집 경로: `PATCH /api/workspaces/:id/settings` ([9-user-profile §6.1])" cross-ref.
+- [x] **`spec/7-channel-web-chat/4-security.md §2·§3`** + **`spec/5-system/14 §8.5`** — "워크스페이스 설정/사용자가 명시 설정 필요" 문구에 실제 config 표면(`/workspace/settings` 개요 탭 + `PATCH /:id/settings`) cross-ref.
+- [x] **`spec/5-system/3-error-handling.md §1.2`** — 기존 `assertAdmin()` 이 이미 발행하나 카탈로그 미등재인 `ADMIN_REQUIRED`(403) 정식 등재.
 
 ## data-flow/12-workspace.md §1.7 — 워크스페이스 설정 변경
 ```mermaid
@@ -66,8 +66,8 @@ sequenceDiagram
 - [x] frontend API client `updateSettings` + `getSettings`.
 - [x] frontend UI — 개요 탭 `EmbedOriginsCard`(GET 시드→key remount 로 effect-setState 회피) + `EmbedOriginsEditor`(add/remove/검증/저장, `useHasRole("admin")` 게이트). react-query + toast + `parseApiError`.
 - [x] frontend i18n KO/EN 14키.
-- [ ] user-guide 동반(web-chat.mdx "허용 도메인" → 실제 UI 경로 — `user-guide-writer` 위임).
-- [ ] TEST WORKFLOW(lint·unit·build·**e2e** 필수) + REVIEW WORKFLOW(/ai-review).
+- [x] user-guide 동반(web-chat.mdx "허용 도메인" → 실제 UI 경로 — `user-guide-writer` 위임).
+- [x] TEST WORKFLOW(lint·unit·build·**e2e** 필수) + REVIEW WORKFLOW(/ai-review).
 
 ## Rationale
 - 전용 settings 엔드포인트는 **신규 결정**(기존 spec 에 prior art 없음) — 기존 `PATCH /:id`(name 필수, rename) 흡수안은
