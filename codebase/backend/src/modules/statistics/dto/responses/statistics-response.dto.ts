@@ -19,6 +19,14 @@ export class StatisticsSummaryDto {
 
   @ApiProperty({ example: 1320 })
   avgDurationMs: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    example: 12.5,
+    description:
+      '직전 동일 길이 구간 대비 총 실행 건수 증감률(%). 직전 구간 실행이 0 이면 null',
+  })
+  totalExecutionsChangeRate?: number | null;
 }
 
 /** 일자별 실행 집계 */

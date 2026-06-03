@@ -56,4 +56,9 @@ export const statistics = {
   colExecutions: "실행 수",
   colAvgDuration: "평균 실행 시간",
   colErrorRate: "오류율",
+  periodCustom: "사용자 지정",
+  customRangeStart: "시작일",
+  customRangeEnd: "종료일",
+  customRangeApply: "적용",
+  changeVsPrev: "직전 기간 대비",
 } as const;
