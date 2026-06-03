@@ -125,8 +125,12 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 - [ ] **G-3l KNOWN_G2 재검토 (7)**: HTML 이 최종 상태로 확정됐으므로, 위 G-2 의 "production 검증 전 보류" 전제가
   해소됨 — docs 에 없는 `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·
   `socials_apple_settings_get` 는 **최종 API 부재 확정**. 제거 여부를 G-2 결정과 합쳐 재판단 (planner 트랙).
-- [ ] **G-3m catalog-sync 가드 보강 (선택)**: metadata↔index 동기만으로는 docs 드리프트를 못 잡으므로,
-  field-level 카탈로그(또는 docs 스냅샷) 의 path/method/scope 와 metadata 를 대조하는 가드 신설 검토.
+- [x] **G-3m catalog-sync 가드 보강** ✅ 2026-06-03 완료: `catalog-docs-drift.spec.ts` 신설 —
+  metadata 의 모든 supported op `(method, path, scope)` 를 field-level 카탈로그(docs SoT) 와 대조.
+  metadata↔index 동기(둘 다 Chrome 유래)로는 못 잡던 docs 드리프트를 단방향 검출. G-2 docs-부재
+  9개는 `KNOWN_DOCS_ABSENT` allowlist 면제. **즉시 실효 입증**: DECIDE 배치에서 누락된
+  `orders_calculation_total` (path `orders/{order_id}/calculation/total`→`orders/calculation`,
+  scope `read`→`write` 둘 다 오류)을 가드가 검출 → 정정. 이후 가드 green.
 
 > **G-3 FIX 배치 검증 결과 (2026-06-03)**: 구현(13 ops) 후 TEST WORKFLOW 전 단계 통과
 > (lint·unit[cafe24.handler 25/25, 변경 5 resource catalog-sync pass]·build·e2e[143 pass]).

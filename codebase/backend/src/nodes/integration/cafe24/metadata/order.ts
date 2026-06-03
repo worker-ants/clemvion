@@ -790,12 +790,12 @@ export const orderOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'orders_calculation_total',
-    description: 'Calculate the total payment amount for an order.',
-    scopeType: 'read',
+    description: 'Calculate the total due for an order.',
+    scopeType: 'write',
     method: 'POST',
-    path: 'orders/{order_id}/calculation/total',
-    requiredFields: ['order_id'],
-    fields: { order_id: { type: 'string', location: 'path' } },
+    path: 'orders/calculation',
+    requiredFields: [],
+    fields: {},
     responseShape: 'single',
   },
   {
