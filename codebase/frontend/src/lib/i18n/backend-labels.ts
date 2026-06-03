@@ -138,6 +138,7 @@ const LABEL_KO: Record<string, string> = {
   "System Prompt": "시스템 프롬프트",
   Template: "템플릿",
   "Timeout (ms)": "타임아웃(ms)",
+  "Timeout (sec)": "타임아웃(초)",
   "Timeout (seconds)": "타임아웃(초)",
   Title: "제목",
   "Title Field": "제목 필드",
@@ -236,8 +237,8 @@ const HINT_KO: Record<string, string> = {
   "URL not set": "URL이 설정되지 않았습니다",
   "Use {{ $item.* }} to reference the current array item":
     "현재 배열 항목을 참조하려면 {{ $item.* }}을(를) 사용하세요",
-  "Use return to produce output. $input, $vars, $helpers are injected.":
-    "return으로 출력값을 만드세요. $input, $vars, $helpers가 주입됩니다.",
+  "Use return to produce output. $input, $vars, $execution, $node, $helpers are injected.":
+    "return으로 출력값을 만드세요. $input, $vars, $execution, $node, $helpers가 주입됩니다.",
   "true: continue to the next node only after all branches finish. Phase P1 hardcodes true; false is not supported yet.":
     "true: 모든 분기 완료 후 다음 노드로 진행. Phase P1에서는 항상 true로 동작하며 false는 미지원입니다.",
 };

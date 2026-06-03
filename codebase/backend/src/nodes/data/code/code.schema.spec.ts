@@ -1,6 +1,32 @@
 import { evaluateWarnings } from '@workflow/node-summary';
-import { codeNodeMetadata, validateCodeConfig } from './code.schema';
+import {
+  codeNodeConfigSchema,
+  codeNodeMetadata,
+  validateCodeConfig,
+} from './code.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+
+describe('codeNodeConfigSchema — timeout field (spec §1)', () => {
+  it('declares timeout with a default of 30 when omitted', () => {
+    const parsed = codeNodeConfigSchema.parse({ code: 'return 1;' });
+    expect(parsed.timeout).toBe(30);
+  });
+
+  it('preserves an explicitly configured timeout', () => {
+    const parsed = codeNodeConfigSchema.parse({
+      code: 'return 1;',
+      timeout: 60,
+    });
+    expect(parsed.timeout).toBe(60);
+  });
+
+  it('carries the 1–120 sec UI hint metadata on the timeout field', () => {
+    const meta = codeNodeConfigSchema.shape.timeout.meta() as {
+      ui: { min: number; max: number };
+    };
+    expect(meta.ui).toMatchObject({ min: 1, max: 120 });
+  });
+});
 
 describe('codeNodeMetadata.warningRules', () => {
   const firedIds = (config: unknown) =>

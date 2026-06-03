@@ -164,8 +164,8 @@ Code 는 사용자 정의 JS 실행 노드 (단계 1개). 정상 / 런타임 thr
 
 ## 종합 개선안 (2026-05-16)
 
-- [ ] (spec) `codeNodeConfigSchema` 에 `timeout` 필드를 추가할지 확정 — spec §1 표가 `timeout: Number, 기본 30, 1-120초` 로 명시하고 §2 UI mockup 이 "Timeout : [30] sec (1–120)" 슬라이더를 보여주지만, 현 zod schema (`code.schema.ts:37-57`) 에는 `timeout` 정의가 없다. frontend NodeConfigForm 의 자동 UI 생성 동작에 영향. 결정 후 (a) schema 에 추가 또는 (b) spec 표/UI 에서 "schema 외 imperative 검증" 으로 명시. 근거: spec `2-code.md:9-17` ↔ `code.schema.ts:37-57`.
-- [ ] (impl) `codeNodeConfigSchema` 에 `timeout: z.number().min(1).max(120).default(30).meta({ ui: { label: 'Timeout (sec)', widget: 'number' } }).optional()` 추가 — 위 spec 결정에서 (a) 노선일 경우. 기존 `validateCodeConfig` 의 imperative 검증과 zod 의 default/range 가 중복되지만 `validateCodeConfig` 가 비-numeric/Infinity/NaN 등 zod 가 놓치는 케이스를 잡으므로 둘 다 유지. 근거: `code.schema.ts:76-93` (imperative validator), `code.handler.ts:130-131` (fallback).
-- [ ] (impl) `buildSandbox` 에 `$node` 와 `$helpers` 주입 — spec §2.1 / §2.2 / §7.3 "허용" 표가 약속한 두 컨텍스트 객체가 실제 sandbox 에 없다. `$node` 는 `context` 의 `nodeId` / `nodeLabel` (또는 metadata 에서 얻는 형태) 으로 노출, `$helpers` 는 `dayjs` + `node:crypto` 의 `createHash` / `randomUUID` + `Buffer.from(...).toString('base64')` 등을 래핑. 근거: `code.handler.ts:35-90` ↔ `spec/4-nodes/5-data/2-code.md:60-78`.
-- [ ] (impl) `buildSandbox` 의 명시 셰도잉 목록에 `setTimeout` / `setInterval` / `setImmediate` 를 `undefined` 로 추가 — spec §7.3 차단 표 명시. 현재 `node:vm` 격리로 우연 차단되지만 명시 셰도잉이 spec 의도. 근거: `code.handler.ts:78-89` ↔ `spec/4-nodes/5-data/2-code.md:347` ("setTimeout, setInterval, setImmediate | 비결정적 스케줄링 차단").
-- [ ] (impl) `code.handler.spec.ts` 에 `$node` / `$helpers` 접근 테스트 추가 — 위 impl 보강 동시 진행. 예: `code: 'return { id: $node.id, hash: $helpers.crypto.hash("sha256", "x") };'` 가 정상 종료하는지 검증. 근거: 현 테스트 (`code.handler.spec.ts:83-217`) 에 `$input`/`$vars`/`$execution` 만 검증 — `$node`/`$helpers` 누락.
+- [x] (spec) `codeNodeConfigSchema` 에 `timeout` 필드 추가 확정 → 커밋 8419923b 에서 (a) 노선으로 구현. `z.number().default(30).meta({ ui: { label: 'Timeout (sec)', widget: 'number', min: 1, max: 120 } })` 추가. 근거: spec `2-code.md:9-17` ↔ `code.schema.ts:37-57`.
+- [x] (impl) `codeNodeConfigSchema` 에 `timeout` 필드 구현 완료 — 커밋 8419923b. `validateCodeConfig` 의 imperative 검증과 병존. `DEFAULT_TIMEOUT_SEC` 상수를 schema 에서 export 하여 handler 에서 참조 (INFO-6 해소).
+- [x] (impl) `buildSandbox` 에 `$node` 와 `$helpers` 주입 완료 — 커밋 8419923b. `$helpers` 는 `HelpersApi` typed interface 로 강화, `crypto.hash` 알고리즘 화이트리스트 + 타입 가드 추가.
+- [x] (impl) `buildSandbox` 의 명시 셰도잉 목록에 `setTimeout` / `setInterval` / `setImmediate` 추가 완료 — 커밋 8419923b.
+- [x] (impl) `code.handler.spec.ts` 에 `$node` / `$helpers` 테스트 추가 완료 — 커밋 8419923b. + 추가: crypto.hash 무효 알고리즘/타입, base64 silent-failure, date invalid, host-realm isolation 테스트.

@@ -34,6 +34,10 @@ export const codeNodeOutputSchema = z
   })
   .passthrough();
 
+// Single source of truth for the default timeout value — also exported so
+// code.handler.ts can reference it without maintaining a separate copy (INFO-6).
+export const DEFAULT_TIMEOUT_SEC = 30;
+
 export const codeNodeConfigSchema = z
   .object({
     language: z
@@ -50,8 +54,18 @@ export const codeNodeConfigSchema = z
           label: 'Code',
           widget: 'code',
           language: 'javascript',
-          hint: 'Use return to produce output. $input, $vars, $helpers are injected.',
+          hint: 'Use return to produce output. $input, $vars, $execution, $node, $helpers are injected.',
         },
+      }),
+    // Declared field (spec §1: 1–120s, default 30). Range *enforcement* stays
+    // in `validateCodeConfig` (spec §6 SoT — it owns the custom error message
+    // + non-numeric guard); the zod field declares the type/default and the
+    // UI slider bounds so the editor renders `Timeout [30] sec (1–120)`.
+    timeout: z
+      .number()
+      .default(DEFAULT_TIMEOUT_SEC)
+      .meta({
+        ui: { label: 'Timeout (sec)', widget: 'number', min: 1, max: 120 },
       }),
   })
   .passthrough();
