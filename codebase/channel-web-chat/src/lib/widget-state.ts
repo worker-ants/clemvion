@@ -24,6 +24,11 @@ export interface WidgetState {
   phase: WidgetPhase;
   /** 패널 가시성. close 해도 대화(phase)는 유지(§3.1). */
   open: boolean;
+  /**
+   * 위젯(런처) 가시성 — host `hide`/`show` 로 토글하는 **open/close 와 직교한 축**(§3.2).
+   * `hidden` 이면 런처+패널 모두 미렌더(대화·SSE 는 유지). `blocked`(정책 거부)와 달리 host 가 복구 가능.
+   */
+  hidden: boolean;
   messages: DisplayMessage[];
   pending: PendingInteraction | null;
   unread: number;
@@ -34,6 +39,7 @@ export interface WidgetState {
 export const initialState: WidgetState = {
   phase: "collapsed",
   open: false,
+  hidden: false,
   messages: [],
   pending: null,
   unread: 0,
@@ -51,6 +57,8 @@ export type WidgetAction =
   | { type: "ENDED"; reason?: string }
   | { type: "ERROR"; message: string }
   | { type: "BLOCKED"; reason?: "origin_not_allowed" | string }
+  | { type: "SHOW" }
+  | { type: "HIDE" }
   | { type: "NEW_CHAT" };
 
 function assistantMsg(
@@ -127,6 +135,11 @@ export function widgetReducer(state: WidgetState, action: WidgetAction): WidgetS
         pending: null,
         error: action.reason,
       };
+    case "HIDE":
+      // 위젯(런처) 자체를 페이지에서 숨김 — 대화 phase·open 은 그대로 유지(§3.2).
+      return { ...state, hidden: true };
+    case "SHOW":
+      return { ...state, hidden: false };
     case "NEW_CHAT":
       return {
         ...initialState,

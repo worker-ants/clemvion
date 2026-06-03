@@ -256,12 +256,24 @@ export function useWidget() {
     bridgeRef.current?.sendEvent("close");
   }, []);
   const newChat = useCallback(() => dispatch({ type: "NEW_CHAT" }), []);
+  // 위젯(런처) 가시성 — open/close 와 직교한 축(§3.2). hide 해도 대화·SSE 유지.
+  const show = useCallback(() => dispatch({ type: "SHOW" }), []);
+  const hide = useCallback(() => dispatch({ type: "HIDE" }), []);
+  // 진행 중 execution 의 기전송 profile 은 소급 변경 불가(webhook payload 는 시작 1회) — boot profile 에
+  // merge 해 **다음 시작(첫 메시지/새 대화)** payload 에만 반영(§3.2 / 2-sdk §5 updateProfile).
+  const updateProfile = useCallback((profile: Record<string, unknown>) => {
+    const cfg = configRef.current;
+    if (!cfg) return;
+    const merged: BootMessage = { ...cfg, profile: { ...(cfg.profile ?? {}), ...profile } };
+    configRef.current = merged;
+    setConfig(merged);
+  }, []);
 
   // host 명령은 1회 등록 핸들러에서 최신 함수를 참조해야 함(stale closure 회피).
   // ref 갱신은 render 중이 아니라 effect 에서(매 렌더).
-  const apiRef = useRef({ open, close, submitMessage, closeStream });
+  const apiRef = useRef({ open, close, submitMessage, closeStream, show, hide, updateProfile });
   useEffect(() => {
-    apiRef.current = { open, close, submitMessage, closeStream };
+    apiRef.current = { open, close, submitMessage, closeStream, show, hide, updateProfile };
   });
 
   // 마운트: bridge + config + 세션 복원.
@@ -343,6 +355,16 @@ export function useWidget() {
         case "shutdown":
           apiRef.current.closeStream();
           break;
+        case "show":
+          apiRef.current.show();
+          break;
+        case "hide":
+          apiRef.current.hide();
+          break;
+        case "updateProfile":
+          if (cmd.profile && typeof cmd.profile === "object")
+            apiRef.current.updateProfile(cmd.profile as Record<string, unknown>);
+          break;
       }
     });
 
@@ -368,7 +390,7 @@ export function useWidget() {
   return {
     state,
     config,
-    actions: { open, close, start, submitMessage, clickButton, submitForm, newChat },
+    actions: { open, close, start, submitMessage, clickButton, submitForm, newChat, show, hide, updateProfile },
   };
 }
 
