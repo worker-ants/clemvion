@@ -1,10 +1,14 @@
 ---
 id: websocket-protocol
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-sync-websocket-protocol-gaps.md
 code:
   - codebase/backend/src/modules/websocket/websocket.gateway.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
+  - codebase/backend/src/modules/websocket/ws-error-codes.ts
   - codebase/backend/src/modules/external-interaction/sse-adapter.service.ts
+  - codebase/frontend/src/lib/websocket/ws-client.ts
 ---
 
 # Spec: WebSocket 프로토콜
@@ -15,65 +19,58 @@ code:
 
 ## 1. 연결
 
+> **전송 계층 (구현 현실)**: 본 채널은 **Socket.IO** 로 구현되어 있다 (`@WebSocketGateway({ namespace: '/ws' })`, 클라이언트 `socket.io-client`). 따라서 메시지는 Socket.IO 의 이벤트/ack 모델을 따른다 — 클라이언트는 `socket.emit('<event>', data)` 로 보내고, 명령 ack 는 `{ event, data }` 형태의 callback payload 로 돌려받는다 (아래 §3.3 / §4.2 의 ack 예시 참조). 본 문서의 `{ type, id, payload }` JSON 프레임 표기는 **논리적 메시지 형태를 보이기 위한 추상화** 이며, 실제 wire 는 Socket.IO 가 감싼다 (raw WebSocket 프레임 / `Sec-WebSocket-Protocol` 서브프로토콜 / raw close code 를 직접 다루지 않는다). 본 §1~§9 중 raw-WS 전제 항목(서브프로토콜 인증·서버발신 app ping·close 코드 등)은 **미구현 (Planned)** 으로 표기한다 — `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 참조.
+
 ### 1.1 엔드포인트
 
 ```
-wss://{base_url}/ws
+wss://{base_url}/ws        # Socket.IO namespace '/ws'
 ```
 
 - 프로토콜: `wss://` (TLS 필수). 개발 환경에서만 `ws://` 허용
-- 서버는 WebSocket 핸드셰이크 시 HTTP 업그레이드 요청을 처리
+- 서버는 Socket.IO 게이트웨이로 핸드셰이크를 처리한다 (transport: `websocket` → `polling` fallback). 클라이언트 기본 transport 는 `['websocket', 'polling']`
 
 ### 1.2 인증
 
-연결 시 JWT Access Token을 전달한다. 두 가지 방식을 지원하며, 우선순위는 (1) → (2) 순이다.
+연결 시 JWT Access Token을 전달한다. 구현은 다음 두 핸드셰이크 위치를 지원하며, 우선순위는 (1) → (2) 순이다 (`handleConnection` 의 `handshake.query.token || handshake.auth.token`).
 
 | 방식 | 형태 | 예시 |
 |------|------|------|
-| (1) 쿼리 파라미터 | `?token={access_token}` | `wss://api.example.com/ws?token=eyJ...` |
-| (2) 서브프로토콜 헤더 | `Sec-WebSocket-Protocol: bearer, {token}` | 브라우저 WebSocket API 제한 환경용 |
+| (1) 쿼리 파라미터 | `?token={access_token}` | Socket.IO `io(url, { query: { token } })` 또는 URL 쿼리 |
+| (2) Socket.IO auth payload | `handshake.auth.token` | 클라이언트 `io(url, { auth: { token } })` (프론트 기본 경로) |
+
+> **미구현 (Planned)**: raw WebSocket `Sec-WebSocket-Protocol: bearer, {token}` 서브프로토콜 인증 경로는 구현에 없다. Socket.IO 전송에서는 위 두 위치만 인식한다.
 
 **인증 실패 시:**
-- 핸드셰이크 단계: HTTP `401 Unauthorized` 응답 후 연결 거부
-- 연결 중 토큰 만료: 서버가 `auth.token_expired` 이벤트 전송 → 클라이언트가 재인증 필요
+- 핸드셰이크 단계: 토큰 부재/무효이면 서버가 `error` 이벤트(`{ message }`)를 emit 한 직후 `disconnect()` 로 연결을 끊는다 (raw HTTP `401` 이 아니라 Socket.IO connection error 경로).
+- 연결 중 토큰 만료: 클라이언트는 `connect_error` 를 받으면 REST `/auth/refresh` 로 토큰을 새로 받아 Socket.IO `auth` payload 를 교체한 뒤 재연결한다 (`ws-client.ts`). **서버발신 `auth.token_expired` 이벤트는 미구현 (Planned)** — §4.5 참조.
 
 ### 1.3 토큰 갱신 (연결 유지)
 
-Access Token (15분) 만료 전에 연결을 유지하려면:
+**구현 현실**: 별도의 in-band WS 갱신 메시지(`auth.refresh`/`auth.refreshed`)는 **미구현 (Planned)** 이다. 현재 클라이언트는 토큰 만료/`connect_error` 시 REST `/auth/refresh` 로 새 Access Token 을 받아 Socket.IO `auth.token` 을 교체하고 **재연결** 하는 방식으로 세션을 유지한다 (`ws-client.ts` 의 `connect_error` 핸들러). 끊김 없는 in-band 갱신은 향후 항목이다.
 
-```json
-// 클라이언트 → 서버
-{
-  "type": "auth.refresh",
-  "payload": {
-    "token": "{new_access_token}"
-  }
-}
-```
-
-```json
-// 서버 → 클라이언트
-{
-  "type": "auth.refreshed",
-  "payload": {
-    "expiresAt": "2026-03-29T14:30:00Z"
-  }
-}
-```
-
-클라이언트는 Access Token 갱신 후 (REST API `/api/auth/refresh`로 갱신) 새 토큰을 WebSocket으로도 전달해야 한다.
+> **미구현 (Planned)** — 아래 in-band 갱신 프로토콜:
+>
+> ```json
+> // 클라이언트 → 서버
+> { "type": "auth.refresh", "payload": { "token": "{new_access_token}" } }
+> // 서버 → 클라이언트
+> { "type": "auth.refreshed", "payload": { "expiresAt": "2026-03-29T14:30:00Z" } }
+> ```
+>
+> 현재는 위 메시지 핸들러/emit 이 backend 에 없다. 클라이언트는 Access Token 갱신 후 (REST `/auth/refresh`) 재연결로 새 토큰을 전달한다.
 
 ---
 
 ## 2. 메시지 형식
 
-### 2.1 기본 프레임
+> **Socket.IO 매핑 (구현 현실)**: 메시지의 `type` 은 별도 `type` JSON 필드가 아니라 **Socket.IO 이벤트 이름** 으로 전달된다 — 서버는 `socket.emit(eventType, envelope)`, 클라이언트는 `socket.on(eventType, handler)`. 따라서 아래 `{ type, id, payload }` 표기는 **논리 구조**이며, 실제 wire 는 "이벤트 이름 = `type`" + "payload = envelope" 형태다. 명령 요청-응답 매칭도 `id` 필드가 아니라 Socket.IO ack callback 으로 이뤄진다 (§3.3·§4.2).
 
-모든 메시지는 JSON 텍스트 프레임이다. 바이너리 프레임은 사용하지 않는다.
+### 2.1 기본 프레임 (논리 구조)
 
 ```json
 {
-  "type": "string",
+  "type": "string",      // 실제 wire 에서는 Socket.IO 이벤트 이름
   "id": "string (optional)",
   "payload": {}
 }
@@ -81,26 +78,30 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
-| `type` | String | ✓ | 이벤트/명령 유형 (네임스페이스.액션 형태) |
-| `id` | String | — | 메시지 고유 ID. 요청-응답 매칭 및 재전송 감지에 사용. UUID v4 권장 |
+| `type` | String | ✓ | 이벤트/명령 유형 (네임스페이스.액션 형태). **wire 상으로는 Socket.IO 이벤트 이름** |
+| `id` | String | — | _(계획·일부 미구현)_ 메시지 고유 ID. 구현된 명령 ack 는 `id` echo 대신 Socket.IO ack callback 으로 짝지어진다 |
 | `payload` | Object | ✓ | 이벤트/명령별 데이터 |
 
 ### 2.2 서버 → 클라이언트 이벤트 래퍼
 
-```json
+**구현 현실** — 서버발신 execution/node 이벤트의 wire envelope 는 `type`/`payload` 를 nest 하지 않고, `executionId`(+node 이벤트는 `nodeId`) + payload 필드 + `seq` + `timestamp` 를 **평면 병합** 한 객체다 (`emitExecutionEvent` / `emitNodeEvent`). 이벤트 이름은 Socket.IO 이벤트 이름으로 분리된다.
+
+```js
+// Socket.IO event name: "execution.node.completed"
 {
-  "type": "execution.node.completed",
-  "id": "evt-550e8400-e29b-41d4-a716-446655440001",
-  "payload": { ... },
-  "timestamp": "2026-03-29T14:00:01.234Z",
-  "seq": 42
+  "executionId": "550e8400-...",
+  "nodeId": "...",
+  /* ...payload 필드 평면 병합... */
+  "seq": 42,
+  "timestamp": "2026-03-29T14:00:01.234Z"
 }
 ```
 
 | 추가 필드 | 설명 |
 |-----------|------|
+| `executionId` | 채널 execution ID (envelope top-level 자동 첨부) |
 | `timestamp` | 서버 이벤트 발생 시각 (ISO 8601) |
-| `seq` | 채널 내 순서 번호 (재연결 시 놓친 이벤트 감지용). `execution:{executionId}` 채널의 경우 = "execution 내 monotonic counter", 외부 SSE 의 `id:` / Outbound Notification 의 `seq` 와 동일 값 공유 — [Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification) |
+| `seq` | 채널 내 순서 번호 (재연결 시 놓친 이벤트 감지용). `execution:{executionId}` 채널의 경우 = "execution 내 monotonic counter" (`ExecutionSeqAllocator`, Redis `INCR`), 외부 SSE 의 `id:` / Outbound Notification 의 `seq` 와 동일 값 공유 — [Spec EIA §R7](./14-external-interaction-api.md#r7-seq-동일-공유--sse-와-notification) |
 
 ---
 
@@ -121,52 +122,34 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 ### 3.3 구독/구독 해제
 
-```json
-// 구독 요청
-{
-  "type": "subscribe",
-  "id": "req-001",
-  "payload": {
-    "channel": "execution:550e8400-e29b-41d4-a716-446655440000"
-  }
-}
+구독/해제는 Socket.IO 이벤트 `subscribe` / `unsubscribe` 로 보내며, 서버는 ack callback 으로 `{ event, data }` 를 반환한다.
 
-// 구독 확인
-{
-  "type": "subscribed",
-  "id": "req-001",
-  "payload": {
-    "channel": "execution:550e8400-e29b-41d4-a716-446655440000"
-  }
-}
+```js
+// 구독 요청 (클라이언트)
+socket.emit("subscribe", { channel: "execution:550e8400-e29b-41d4-a716-446655440000" });
+
+// 구독 확인 (ack callback payload)
+{ "event": "subscribed", "data": { "success": true, "channel": "execution:550e8400-e29b-41d4-a716-446655440000" } }
 
 // 구독 해제
-{
-  "type": "unsubscribe",
-  "id": "req-002",
-  "payload": {
-    "channel": "execution:550e8400-e29b-41d4-a716-446655440000"
-  }
-}
+socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-446655440000" });
+// ack: { "event": "unsubscribed", "data": { "success": true, "channel": "..." } }
 ```
 
-**권한 검증:** 서버는 구독 시 해당 리소스에 대한 접근 권한을 확인한다. 권한 없으면:
+> 본 ack 는 `{ type, id, payload }` 가 아니라 Socket.IO ack callback 의 `{ event, data }` shape 다 (`handleSubscribe` 반환). `id` 기반 요청-응답 매칭 대신 Socket.IO ack callback 으로 응답이 짝지어진다.
+
+**권한 검증:** 서버는 구독 시 해당 리소스에 대한 접근 권한을 확인한다 (`execution:` / `kb:` / `background:run:` 채널은 workspace 소유 검증 — IDOR 차단). 권한 없으면 **별도 `error` 메시지가 아니라 동일한 `subscribed` ack 에 `success: false` 와 평문 `error` 문자열** 로 응답한다 (전용 에러 코드 필드 없음):
 
 ```json
-{
-  "type": "error",
-  "id": "req-001",
-  "payload": {
-    "code": "FORBIDDEN",
-    "message": "No access to this resource"
-  }
-}
+{ "event": "subscribed", "data": { "success": false, "error": "Not authorized for this execution" } }
 ```
+
+> **미구현 (Planned)**: §7.2 의 `{ type: 'error', payload: { code: 'FORBIDDEN', message } }` 코드 기반 거부 메시지는 구독 거부 경로에서 발행되지 않는다. 거부는 위 평문 `error` 문자열로만 표면화된다.
 
 ### 3.4 최대 구독 수
 
-- 연결당 최대 동시 구독: **20개**
-- 초과 시 `error` 메시지 (code: `SUBSCRIPTION_LIMIT_EXCEEDED`)
+- 연결당 최대 동시 구독: **20개** (`MAX_SUBSCRIPTIONS_PER_CONNECTION`)
+- 초과 시 구독 ack 에 `{ success: false, error: "Maximum subscriptions (20) reached" }` 평문 문자열 반환. **전용 `SUBSCRIPTION_LIMIT_EXCEEDED` 코드는 미구현 (Planned)** — §7.1 참조.
 
 ---
 
@@ -182,7 +165,7 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.completed` | `{ executionId, status, duration, nodeCount }` | 실행 완료 |
 | `execution.failed` | `{ executionId, error, failedNodeId, duration }` | 실행 실패 |
 | `execution.cancelled` | `{ executionId, cancelledBy, duration }` | 실행 취소 |
-| `execution.snapshot` | `{ executionId, status, nodeExecutions[] }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조 |
+| `execution.snapshot` | `{ executionId, execution, timestamp }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `execution` 은 `ExecutionsService.findById` 의 **Execution 전체 객체** (그 안에 `status` 와 `nodeExecutions[]` 등이 nest) — top-level 에 `status`/`nodeExecutions` 가 평면으로 있는 게 아니라 `payload.execution.*` 로 nest 된다. `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조 |
 | `execution.paused` _(계획·미구현)_ | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지. 브레이크포인트 기능은 미구현 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeName, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
 | `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeName, output, duration }` | 노드 실행 완료. `output` 은 `NodeHandlerOutput` 의 `output` 필드 — `output.error` 가 set 된 경우 (예: AI Agent multi-turn 의 `port: 'error'` 종결) 도 포함 ([Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). `output.error.details.retryable` / `retryAfterSec` 표준 필드는 CONVENTIONS Principle 3.2.1 정의 |
@@ -196,10 +179,12 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 
 ### 4.2 실행 제어 명령 (Client → Server)
 
+> **구현 현실 — 실행 시작/중단은 REST**: `execution.start` / `execution.stop` WS 명령은 **미구현 (Planned)** 이다. 현재 실행 시작은 REST `POST /workflows/:id/execute`, 중단은 REST `POST /executions/:id/stop` 로 수행하며, 진행 상황은 `execution:{executionId}` 채널 구독으로 받는다. WS gateway 의 `@SubscribeMessage` 핸들러는 `subscribe`/`unsubscribe`/`ping`/`execution.submit_form`/`execution.click_button`/`execution.submit_message`/`execution.end_conversation`/`execution.retry_last_turn` 8개뿐이다 (start/stop/continue/step 핸들러 없음).
+
 | 명령 type | payload | 설명 |
 |-----------|---------|------|
-| `execution.start` | `{ workflowId, input?, fromNodeId?, breakpoints? }` | 실행 시작 요청. `breakpoints?` 는 브레이크포인트 기능(미구현)용 _(계획)_ 필드 |
-| `execution.stop` | `{ executionId, force? }` | 실행 중단 요청 |
+| `execution.start` _(계획·미구현 WS 경로)_ | `{ workflowId, input?, fromNodeId?, breakpoints? }` | 실행 시작 요청. **현재는 REST `POST /workflows/:id/execute`** 사용. `breakpoints?` 는 브레이크포인트 기능(미구현)용 _(계획)_ 필드 |
+| `execution.stop` _(계획·미구현 WS 경로)_ | `{ executionId, force? }` | 실행 중단 요청. **현재는 REST `POST /executions/:id/stop`** 사용 |
 | `execution.continue` _(계획·미구현)_ | `{ executionId }` | 브레이크포인트 후 계속 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.step` _(계획·미구현)_ | `{ executionId }` | 한 노드만 실행 후 다시 정지 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.submit_form` | `{ executionId, nodeId, formData, toolCallId? }` | Form 노드에 사용자 입력 제출. `toolCallId` 는 AI Agent 의 `render_form` 도구 응답 시에만 동봉 — `interactionType: 'ai_form_render'` 의 `conversationConfig.pendingFormToolCall.toolCallId` 와 일치해야 한다 ([Spec AI Agent §6.2 step 2](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)). 미일치 시 reject. **외부 wire 호환**: 본 payload shape 은 internal continuation bus 의 sentinel wrap (`{type:'form_submitted', formData}`, [Presentation 공통 §10.9](../4-nodes/6-presentation/0-common.md#109-form-submission-wire-format-internal-bus-sentinel)) 과 layer 분리 — 외부 wire 는 본 표 형식 유지, internal bus 만 sentinel wrap |
@@ -208,7 +193,9 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 | `execution.end_conversation` | `{ executionId, nodeId }` | AI Agent Multi Turn 대화 종료 요청 |
 | `execution.retry_last_turn` | `{ executionId, nodeExecutionId }` | AI Agent Multi Turn 의 retryable error (`output.error.details.retryable === true`) 종결 후 동일 nodeId 의 새 NodeExecution row 를 spawn 해 마지막 LLM 호출 재진입. `nodeId` 대신 `nodeExecutionId` 사용 사유: 동일 nodeId 가 여러 NodeExecution row 를 가질 수 있어 row 단위 식별 필요. 워크플로우 Re-run ([§13 replay-rerun](./13-replay-rerun.md)) 과 다름 — 동일 Execution 안 노드 단위 재시도. |
 
-**실행 시작 응답:**
+**실행 시작 응답 (_계획·미구현 WS 경로_):**
+
+> `execution.start.ack` WS 응답은 미구현이다 (실행 시작은 REST `POST /workflows/:id/execute` — 그 REST 응답이 `executionId` 를 반환한다). 아래는 향후 WS 시작 경로 도입 시의 ack 형태 _(계획)_.
 
 ```json
 {
@@ -221,21 +208,22 @@ Access Token (15분) 만료 전에 연결을 유지하려면:
 }
 ```
 
-**버튼 클릭 응답:**
+**버튼 클릭 응답** (Socket.IO ack callback — `{ event, data }`):
 
 ```json
 {
-  "type": "execution.click_button.ack",
-  "id": "req-uuid",
-  "payload": {
+  "event": "execution.click_button.ack",
+  "data": {
+    "success": true,
     "executionId": "uuid",
-    "nodeId": "uuid",
     "buttonId": "uuid",
     "resumed": true,
     "queued": true
   }
 }
 ```
+
+> 위 wire shape 은 Socket.IO ack callback 의 `{ event, data }` 다 (`handleClickButton` 반환). 아래 §4.2 의 다른 ack 예시들이 보이는 `{ type, id, payload }` 표기는 논리적 형태이며, 실제 4개 continuation 명령 + retry 의 ack 는 모두 `{ event, data: { success, ... } }` 로 반환된다 (success/error 필드는 §4.2 의 "공통 ack" / "성공·실패 ack" 노트 참조).
 
 `queued: boolean` 은 선택 필드 — `true` 면 continuation-queue ([Spec 실행 엔진 §7.4](./4-execution-engine.md#74-분산-실행-multi-instance)) 로 정상 enqueue 됨 (Phase 2 의 "모든 진입점 항상 BullMQ enqueue" 라우팅 원칙 상 정상 publish 는 항상 `true`). `false` 면 publish 단계 실패 (Redis 장애 등) — 재시도 권장. 본 필드는 관측·디버깅 용도이며 클라이언트 routing 결정에 사용하지 않는다.
 
@@ -717,13 +705,15 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 상태 전이 및 의미는 [`spec/5-system/8-embedding-pipeline.md §9.2`](./8-embedding-pipeline.md#92-상태-전이) 와 직접 대응된다.
 
-### 4.4 알림 이벤트 (Server → Client)
+### 4.4 알림 이벤트 (Server → Client) — _계획·미구현_
 
 채널: `notifications:{userId}`
 
+> **미구현 (Planned)**: `notifications:` 채널 prefix 는 gateway 의 `VALID_CHANNEL_PREFIXES` 에 등록되어 구독은 가능하지만, **`notification.new` 를 emit 하는 backend 코드가 없다** (검색 결과 emit 경로 부재). 따라서 현재 이 채널로 전송되는 이벤트는 없다 — 알림 실시간 push 는 향후 항목.
+
 | 이벤트 type | payload | 설명 |
 |-------------|---------|------|
-| `notification.new` | `{ id, type, title, message, resourceType, resourceId }` | 새 알림 |
+| `notification.new` _(계획·미구현)_ | `{ id, type, title, message, resourceType, resourceId }` | 새 알림 (emit 미구현) |
 
 ### 4.5 시스템 이벤트
 
@@ -731,9 +721,9 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 | 이벤트 type | payload | 설명 |
 |-------------|---------|------|
-| `auth.token_expired` | `{ message }` | 토큰 만료 알림 |
-| `system.maintenance` | `{ message, scheduledAt }` | 예정된 유지보수 알림 |
-| `error` | `{ code, message }` | 프로토콜 레벨 에러 |
+| `auth.token_expired` _(계획·미구현)_ | `{ message }` | 토큰 만료 알림. **backend emit 없음** — 현재 만료는 클라이언트가 `connect_error` 로 감지해 REST refresh + 재연결 (§1.2). `TOKEN_EXPIRED` 는 REST/JWT 검증 에러 코드일 뿐 WS 이벤트로 발행되지 않는다 |
+| `system.maintenance` _(계획·미구현)_ | `{ message, scheduledAt }` | 예정된 유지보수 알림. **backend emit 없음** |
+| `error` | `{ message }` | 핸드셰이크/연결 레벨 에러. 인증 실패 시 `handleConnection` 이 `{ message }` 를 emit 하고 disconnect 한다 (`{ code, message }` 형태 아님 — `message` 단일 필드) |
 
 ### 4.6 외부 표면 매핑 (External Interaction API)
 
@@ -787,59 +777,56 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 ## 5. Heartbeat
 
-### 5.1 메커니즘
+### 5.1 메커니즘 (Socket.IO 내장 — 구현 현실)
 
-WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
+전송 계층 heartbeat 는 **Socket.IO/Engine.IO 내장 ping/pong** 으로 처리된다 (서버가 Engine.IO ping 을 보내고 클라이언트가 pong; 기본 `pingInterval` 25s / `pingTimeout` 20s, gateway 에서 별도 override 없음). 본 spec 초안의 "서버 30s 간격 / 10s pong 타임아웃 / 미응답 시 close 1001" 수치는 raw-WS 전제였고 구현과 다르다.
 
-| 항목 | 값 |
-|------|-----|
-| 발신자 | 서버 |
-| 간격 | 30초 |
-| Pong 타임아웃 | 10초 |
-| 미응답 시 | 서버가 연결 종료 (close code: 1001) |
+> **미구현 (Planned)**: raw WebSocket 프로토콜 레벨 Ping/Pong 을 30s/10s 로 직접 운용하고 미응답 시 close code 1001 로 끊는 동작은 구현에 없다 (Socket.IO 가 자체 transport ping 으로 갈음).
 
-### 5.2 애플리케이션 레벨 Ping (폴백)
+### 5.2 애플리케이션 레벨 Ping
 
-일부 프록시/로드 밸런서가 WebSocket Ping/Pong을 차단하는 경우를 위한 대안:
+구현에는 **클라이언트 → 서버 방향** app-level `ping` 핸들러가 있다 (`@SubscribeMessage('ping')`). 서버는 `pong` ack 를 돌려준다. spec 초안의 "서버 → 클라이언트 ping" 방향과 반대다.
 
-```json
-// 서버 → 클라이언트
-{ "type": "ping", "payload": { "ts": 1711706400000 } }
-
+```js
 // 클라이언트 → 서버
-{ "type": "pong", "payload": { "ts": 1711706400000 } }
+socket.emit("ping");
+// 서버 ack (callback payload)
+{ "event": "pong", "data": { "timestamp": 1711706400000 } }
 ```
+
+> **방향 정정**: 구현은 server-발신 app ping 이 아니라 **client-발신 ping → server pong** 이다 (`handlePing`). 서버가 주기적으로 app `ping` 을 push 하는 경로는 미구현 (Planned).
 
 ---
 
 ## 6. 재연결 전략
 
-### 6.1 클라이언트 재연결
+### 6.1 클라이언트 재연결 (Socket.IO 내장)
 
-| 항목 | 값 |
+재연결은 **Socket.IO 클라이언트 내장 reconnection** 으로 처리한다 (`ws-client.ts`: `reconnection: true`, `reconnectionDelay: 1000`, `reconnectionDelayMax: 30000`, `reconnectionAttempts: Infinity`).
+
+| 항목 | 값 (구현) |
 |------|-----|
-| 재연결 시도 | 자동 |
-| 백오프 전략 | 지수 백오프 (1s, 2s, 4s, 8s, 16s, 최대 30s) |
-| 지터(Jitter) | ±500ms 랜덤 추가 (동시 재연결 폭주 방지) |
-| 최대 재시도 | 무제한 (사용자가 수동 종료할 때까지) |
+| 재연결 시도 | 자동 (Socket.IO Manager) |
+| 백오프 전략 | Socket.IO 내장 지수 백오프 (`reconnectionDelay` 1s → `reconnectionDelayMax` 30s) |
+| 지터(Jitter) | Socket.IO 내장 randomizationFactor (기본 0.5) 적용 — spec 초안의 "±500ms" 수치는 Socket.IO 의 비율 기반 지터로 대체 |
+| 최대 재시도 | 무제한 (`reconnectionAttempts: Infinity`) |
+
+> 추가로 클라이언트는 첫 `connect_error` 시 1회 REST `/auth/refresh` → `auth.token` 교체 → 명시적 재연결을 시도해 stale token auth race 를 차단한다 (`ws-client.ts`). 구체 backoff sequence (1/2/4/8/16s) 는 spec 초안 값이며 실제는 Socket.IO Manager 의 내장 알고리즘을 따른다.
 
 ### 6.2 놓친 이벤트 복구
 
 **native WebSocket 복구 모델 — `execution.snapshot`.** 재연결 후 채널을 다시 구독하면 서버는 해당 execution 의 **현재 전체 상태**를 1회성 `execution.snapshot` 이벤트로 발행한다 (`ExecutionEventType.EXECUTION_SNAPSHOT`, `websocket.gateway.ts`). 클라이언트는 이 스냅샷으로 노드별 최종 상태·terminal 상태를 재동기화한다 — 끊긴 동안의 모든 중간 이벤트를 순서대로 재생하는 대신, 재구독 시점의 권위 있는 현재 상태를 한 번에 받는 방식이다.
 
-```json
+```js
 // 재구독 — 누락 복구 트리거 (payload 는 channel 만 필요)
-{
-  "type": "subscribe",
-  "id": "req-010",
-  "payload": { "channel": "execution:550e8400..." }
-}
-// 서버 응답 (1회성 현재 상태 스냅샷)
-{
-  "type": "execution.snapshot",
-  "payload": { "executionId": "550e8400...", "status": "running", "nodeExecutions": [ /* ... */ ] }
-}
+socket.emit("subscribe", { channel: "execution:550e8400..." });
+
+// 서버 응답 (1회성 현재 상태 스냅샷 — Socket.IO 이벤트)
+// event: "execution.snapshot"
+{ "executionId": "550e8400...", "execution": { "status": "running", "nodeExecutions": [ /* ... */ ] }, "timestamp": "2026-..." }
 ```
+
+> 스냅샷 payload 는 `{ executionId, execution, timestamp }` 다 — `status` / `nodeExecutions[]` 는 `execution` 객체(`ExecutionsService.findById` 반환) 안에 nest 된다 (`emitExecutionSnapshot`). 재구독 시 첫 구독에서만 1회 발행한다 (재구독 중복 emit 방지 — `isNewSubscription` 가드).
 
 **seq 기반 정밀 재전송은 SSE 전송 표면의 메커니즘이다.** 끊긴 구간의 개별 이벤트를 `seq > lastSeq` 단위로 손실 없이 재생하는 경로(5분 버퍼)는 native WS subscribe 명령이 아니라 **SSE 어댑터**가 `Last-Event-Id` 헤더로 제공한다 (§4.6, [Spec EIA §5.2 SSE 이벤트 스트림](./14-external-interaction-api.md)). 즉 5분 버퍼는 SSE 어댑터(`external-interaction/sse-adapter.service.ts`)가 자체 보유하며, native WS 는 위 snapshot 으로 갈음한다.
 
@@ -851,33 +838,37 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 
 ### 7.1 에러 코드
 
-| 코드 | 설명 |
-|------|------|
-| `INVALID_MESSAGE` | JSON 파싱 실패 또는 필수 필드 누락 |
-| `UNKNOWN_TYPE` | 알 수 없는 메시지 type |
-| `FORBIDDEN` | 채널 접근 권한 없음 |
-| `SUBSCRIPTION_LIMIT_EXCEEDED` | 최대 구독 수 초과 |
-| `RATE_LIMITED` | 명령 전송 빈도 초과 (60 msg/min) |
-| `INTERNAL_ERROR` | 서버 내부 오류 |
+**구현 현실** — transport/auth/ownership 실패용 코드는 `ws-error-codes.ts` 의 `WsErrorCode` enum 4개뿐이며, 이들은 주로 `execution.retry_last_turn.ack` 의 nested `error.code` 로 surface 된다. 구독/한도 거부는 코드가 아니라 평문 `error` 문자열로 응답한다 (§3.3·§3.4).
+
+| 코드 | 구현 | 설명 |
+|------|------|------|
+| `UNAUTHENTICATED` | ✅ | socket 에 userId 없음 |
+| `FORBIDDEN` | ✅ (정의) | 권한 없음 (일반). IDOR 차단 핸들러는 존재 추론 방지로 의도적으로 `NOT_FOUND` 사용 |
+| `NOT_FOUND` | ✅ | 리소스 부재 또는 소유 검증 실패 (verifyOwnership 통일) |
+| `INTERNAL_ERROR` | ✅ | 서버/transport 내부 실패 (enqueue 실패 등) |
+| `INVALID_EXECUTION_STATE` | ✅ | continuation 명령의 평면 `errorCode` (§4.2). publisher 사전 검증 실패 |
+| `RETRY_*` / `RESUME_*` | ✅ | retry/continuation 도메인 코드 (§4.2). `nodes/core/error-codes.ts` 의 `ErrorCode` enum |
+| `INVALID_MESSAGE` _(계획·미구현)_ | 🚧 | JSON 파싱 실패/필수 필드 누락 시 전용 코드 응답 — 미구현 |
+| `UNKNOWN_TYPE` _(계획·미구현)_ | 🚧 | 알 수 없는 메시지 type 전용 코드 — 미구현 (Socket.IO 가 미등록 이벤트를 silent drop) |
+| `SUBSCRIPTION_LIMIT_EXCEEDED` _(계획·미구현)_ | 🚧 | 한도 초과는 평문 문자열로만 응답 (§3.4) — 전용 코드 미구현 |
+| `RATE_LIMITED` _(계획·미구현)_ | 🚧 | WS 명령 빈도 제한 (60 msg/min) 자체가 미구현 |
 
 ### 7.2 에러 메시지 형식
 
+명령 ack 의 실패 형태는 Socket.IO ack callback 의 `{ event, data }` 다. continuation 명령(4종)은 평면 `{ success: false, error, errorCode? }`, `retry_last_turn` 은 nested `{ success: false, ..., error: { code, message } }` 를 쓴다 (§4.2). 구독 거부는 `{ event: 'subscribed', data: { success: false, error } }` (§3.3).
+
 ```json
-{
-  "type": "error",
-  "id": "req-003",
-  "payload": {
-    "code": "FORBIDDEN",
-    "message": "You do not have access to this execution"
-  }
-}
+// retry_last_turn 실패 ack (nested error.code)
+{ "event": "execution.retry_last_turn.ack", "data": { "success": false, "executionId": "...", "nodeExecutionId": "...", "resumed": false, "error": { "code": "NOT_FOUND", "message": "Execution not found" } } }
 ```
 
-`id`가 있으면 해당 요청에 대한 에러. 없으면 범용 에러.
+> **미구현 (Planned)**: spec 초안의 독립 `{ type: 'error', id, payload: { code, message } }` 범용 프로토콜 에러 프레임은 발행되지 않는다. 연결 레벨 에러는 §4.5 의 `error` 이벤트(`{ message }`)로만, 명령 에러는 위 ack 형태로만 표면화된다.
 
 ---
 
-## 8. WebSocket Close 코드
+## 8. WebSocket Close 코드 — _계획·미구현_
+
+> **미구현 (Planned)**: Socket.IO 전송은 raw WebSocket close code (1000/1001/1008/4000/4001 등) 를 애플리케이션 레벨에서 직접 노출하지 않는다. 구현은 인증 실패/오류 시 `error` 이벤트 emit 후 `socket.disconnect()` 를 호출하며, 별도 close-code 매핑 로직이 없다. 클라이언트는 close code 가 아니라 Socket.IO 의 `disconnect` / `connect_error` 이벤트로 재연결을 판단한다 (§6.1). 아래 표는 raw-WS 전제의 향후 설계 _(계획)_ 이며 현 구현과 무관하다.
 
 | 코드 | 설명 | 재연결 |
 |------|------|--------|
@@ -902,14 +893,16 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 
 ### 9.2 권장 구현 패턴
 
-1. **연결**: WebSocket 인스턴스 생성 + 토큰 전달
-2. **인증 확인**: 연결 성공 후 첫 메시지 수신 대기 (또는 타임아웃 5초)
-3. **구독**: 필요한 채널에 구독 요청
-4. **이벤트 처리**: `type` 기반 디스패칭
-5. **Heartbeat 응답**: `ping` 수신 시 즉시 `pong` 전송
-6. **토큰 갱신**: Access Token 만료 1분 전에 REST API로 갱신 → `auth.refresh` 전송
-7. **재연결**: `onclose` 이벤트에서 지수 백오프 재연결 → 재구독 시 수신되는 `execution.snapshot`(현재 상태)으로 재동기화 (§6.2)
-8. **정리**: 페이지 이탈 시 `unsubscribe` + 정상 종료 (close code 1000)
+> 아래는 Socket.IO 클라이언트 기준 권장 패턴이다 (프론트 `ws-client.ts`).
+
+1. **연결**: `io(url + '/ws', { auth: { token } })` — Socket.IO 인스턴스 생성 + 토큰 전달
+2. **인증 확인**: `connect` 이벤트 수신으로 확인. 실패는 `connect_error` 로 통지된다
+3. **구독**: `socket.emit('subscribe', { channel })` → ack callback 의 `data.success` 확인
+4. **이벤트 처리**: `socket.on('<event>', handler)` 로 이벤트별 디스패칭 (이벤트명 = §4 의 `type`)
+5. **Heartbeat**: Socket.IO 내장 transport ping/pong 이 자동 처리 (§5). app-level `ping` 은 클라이언트가 보내고 서버 `pong` ack 를 받는 선택적 경로
+6. **토큰 갱신**: `connect_error` 시 REST `/auth/refresh` 로 새 토큰 → `socket.auth.token` 교체 후 재연결 (§1.3). in-band `auth.refresh` 메시지는 미구현 (Planned)
+7. **재연결**: Socket.IO 내장 reconnection 에 위임 (`reconnection: true`) → 재구독 시 1회 수신되는 `execution.snapshot`(현재 상태)으로 재동기화 (§6.2). raw `onclose` 핸들링 불필요
+8. **정리**: 페이지 이탈 시 `unsubscribe` + `socket.disconnect()` (raw close code 1000 미사용)
 
 ---
 
@@ -921,6 +914,14 @@ WebSocket 프로토콜 레벨의 Ping/Pong을 사용한다.
 
 - **C2 — 타임아웃 제거**: [Presentation 공통 §3·§6.1](../4-nodes/6-presentation/0-common.md) 은 버튼 클릭까지 "외부 cancel/종료 외에는 무제한 대기" 를 규정하고, 엔진 구현(`waitForButtonInteraction`)도 timeout 타이머 없이 무한 await 한다 (`timeoutAction` 은 코드에 부재). 예시의 `timeout`/`timeoutAction` 만 stale 이었으므로 제거. (대안: 공통 규약에 타임아웃 정책을 정식 도입 — 현 구현·다른 spec 이 모두 무제한 대기라 기각.)
 - **C3 — `nodeOutput` 판별자 폐지**: [Presentation 공통 §4](../4-nodes/6-presentation/0-common.md) 의 Principle 1.1.4 (`type` 판별자 래퍼 금지) 에 따라, 엔진은 `buttonConfig.nodeOutput` 으로 노드의 `NodeHandlerOutput`(`{ config, output, meta?, port?, status }`)을 그대로 실어 보낸다 (`nodeOutputForEvent = structured ?? flatNodeOutput`). 노드 종류는 상위 `payload.nodeType` 로 이미 식별되므로 `nodeOutput` 안의 `type` 판별자는 불필요·중복. 예시를 실제 5필드 구조로 교체. (대안: `nodeOutput` 전용 별도 스키마 명시 — Principle 1.1.4 와 충돌해 기각.)
+### 전송 계층 정정 — raw WebSocket 프레이밍 → Socket.IO + status partial 강등 (2026-06-03 spec-vs-code audit)
+
+본 spec 초안은 "native/raw WebSocket 프로토콜" 을 전제로 `{ type, id, payload }` 프레임·`Sec-WebSocket-Protocol` 서브프로토콜 인증·`auth.refresh`/`auth.refreshed` in-band 갱신·`execution.start`/`execution.stop` WS 명령·서버발신 30s/10s app ping·raw close code(1000/1001/1008/4000/4001)·`{type:'error',code}` 프레임을 약속했다. 그러나 구현(`websocket.gateway.ts` / `websocket.service.ts` / 프론트 `ws-client.ts`)은 **Socket.IO** (namespace `/ws`) 기반이고, 위 raw-WS 표면 중 다수가 부재하거나 형태가 다르다.
+
+- **정정한 사실 (구현 일치)**: 전송 = Socket.IO; 인증 = `handshake.query.token || handshake.auth.token` (서브프로토콜 경로 없음); 구독 ack = `{ event:'subscribed', data:{ success, channel?, error? } }`; 권한/한도 거부 = 평문 `error` 문자열 (코드 필드 없음); snapshot payload = `{ executionId, execution, timestamp }` (status/nodeExecutions 는 `execution` nest); app ping = client→server (`handlePing`); heartbeat = Socket.IO 내장; 재연결 = Socket.IO 내장 backoff; 토큰 갱신 = REST refresh + 재연결; 서버발신 이벤트 wire = `{ executionId, ...payload, seq, timestamp }` 평면 + 이벤트 이름 분리.
+- **미구현 (Planned) 으로 분리한 약속**: 서브프로토콜 인증·`auth.refresh`/`auth.refreshed`·`auth.token_expired` emit·`execution.start`/`stop`/`start.ack` WS 경로·서버발신 app ping·raw close code·`notification.new` emit·`system.maintenance` emit·`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED` 전용 에러 코드·60 msg/min WS rate-limit. 이들은 삭제하지 않고 본문에서 _(계획·미구현)_ 로 표기 분리했다.
+- **status 강등**: 본문이 약속한 다수 surface(WS start/stop 명령·auth.refresh·notification.new emit·rate-limit 등)가 코드에 실재 부재하므로 `implemented` → `partial` 로 강등하고 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 로 추적한다. `code:` 글로브에 백엔드 SoT(`ws-error-codes.ts`)와 프론트 SoT(`ws-client.ts`)를 추가했다.
+- **drift 아닌 positive**: §4.2 의 continuation/retry 코드(`INVALID_EXECUTION_STATE`/`RESUME_*`/`RETRY_*`)는 코드와 정합 — 변경 없음.
 
 ### 재연결 복구 — native WS 는 snapshot, seq 버퍼-replay 는 SSE 전송 (§6.2)
 

@@ -1,10 +1,14 @@
 ---
 id: node-common
-status: implemented
+status: partial
 code:
   - codebase/frontend/src/components/editor/canvas/custom-node.tsx
   - codebase/frontend/src/components/editor/settings-panel/node-settings-panel.tsx
   - codebase/frontend/src/components/editor/expression/*.tsx
+  - codebase/frontend/src/lib/node-definitions/resolve-dynamic-ports.ts
+  - codebase/backend/src/nodes/**/*.schema.ts
+pending_plans:
+  - plan/in-progress/spec-sync-node-common-gaps.md
 ---
 
 # Spec: 노드 공통 스펙
@@ -49,13 +53,14 @@ code:
 | Split | 1 | 1 | `out` (분리된 항목을 `[{index, value}]` 배열로 일괄 출력) |
 | Map (**컨테이너**) | 2 | 2 (+error) | 입력: `in`, `emit`(보라색, body 결과 수집). 출력: `body` (각 항목 진입점), `done` (변환된 배열) |
 | ForEach (**컨테이너**) | 2 | 2 (+error) | 입력: `in`, `emit`(보라색, body 결과 수집). 출력: `body` (각 항목 진입점), `done` (수집된 배열) |
-| Parallel | 1 | N (동적) | `branch_0`, `branch_1`, ... |
+| Parallel | 1 | N (동적) + done | `branch_0`, `branch_1`, ... (분기별, 동적) + `done` (모든 분기 완료 후 수집 결과, 항상 추가) |
 | Merge | N (동적) | 1 | `out` |
+| Filter | 1 | 2 | `match`, `unmatched` |
 | Background | 1 | 2 (+error) | `main` (즉시 진행), `background` (백그라운드 본문 진입점 — 컨테이너 박스 없이 평면으로 렌더링. PRD 3 §4.12 ND-BG-05 대안 구현) |
-| Workflow | 1 | 1 | `out` |
-| AI Agent | 1 | 1 | `out` |
-| Text Classifier | 1 | N (동적) | `class_0`, `class_1`, ..., (카테고리별) |
-| Information Extractor | 1 | 1 | `out` |
+| Workflow | 1 | 2 | `out`(data), `error`(error) |
+| AI Agent | 1 | N (동적) | `cond_0`, `cond_1`, ... (사용자 조건별, 동적, data) + 시스템 포트 + `error`(error). 시스템 포트는 모드별로 다름 — 단일턴: `out`(system); 멀티턴: `user_ended`(system), `max_turns`(system). 조건이 0개여도 시스템 포트·`error` 는 항상 발행. §1.2 시스템 포트 설명 참조 |
+| Text Classifier | 1 | N (동적) + fallback + error | `class_0`, `class_1`, ... (카테고리별, 동적, data) + `fallback`(data, 항상 추가) + `error`(error, 항상 추가) |
+| Information Extractor | 1 | 2 (모드별) | 단일턴: `out`(system), `error`(error). 멀티턴: `completed`(system), `user_ended`(system), `max_turns`(system), `error`(error) |
 | HTTP Request | 1 | 2 | `success`, `error` |
 | Database Query | 1 | 1 | `out` |
 | Send Email | 1 | 1 | `out` |
@@ -160,16 +165,18 @@ code:
 | **Stop Workflow** (기본) | 에러 발생 시 워크플로우 실행 중단. 상태: failed |
 | **Skip Node** | 에러 발생 시 이 노드를 건너뛰고 다음 노드로 진행. 출력: null |
 | **Use Default Output** | 에러 발생 시 미리 설정한 기본 출력 값 사용. 아래 §2.5 참조 |
-| **Retry** | 재시도 (최대 재시도 횟수, 재시도 간격 설정) |
+| **Retry** | 재시도 (최대 재시도 횟수 `maxRetries`, 재시도 간격 `retryInterval` 설정). **구현 상태**: Error Handling select 에 `Retry` 옵션은 존재하나, `maxRetries`/`retryInterval` 입력 UI 는 미구현 (Planned) — `node-settings-panel.tsx` 에 별도 입력 필드 없음 |
 | **Route to Error Port** | 에러 발생 시 에러 데이터를 `error` 포트로 전달. 선택 시 노드에 error 포트가 동적 생성됨. error 포트에 연결된 노드가 없으면 Stop Workflow 폴백. ([에러 처리 상세](../5-system/3-error-handling.md#32-route-to-error-port-상세) 참조) |
 
 ### 2.5 Use Default Output — 기본 출력값 정의
 
 "Use Default Output" 정책 선택 시, 에러가 발생하면 사용자가 미리 설정한 기본 출력값을 대신 출력 포트로 전달한다.
 
-#### 2.5.1 기본값 설정 UI
+#### 2.5.1 기본값 설정 UI (미구현 — Planned)
 
-"Use Default Output" 선택 시 설정 패널에 기본값 입력 폼이 추가로 표시된다:
+> **구현 상태**: 현재 설정 패널의 Error Handling 은 단일 select(`Stop`/`Skip`/`Use Default Output`/`Retry`/`Route to Error Port`)만 렌더링한다. "Use Default Output" 선택 시 아래의 조건부 JSON 에디터·"Reset to Type Default" 버튼은 아직 구현되어 있지 않다 (`node-settings-panel.tsx` §Error handling policy). 아래는 계획된 UI 다.
+
+"Use Default Output" 선택 시 설정 패널에 기본값 입력 폼이 추가로 표시된다(계획):
 
 ```
 ┌──────────────────────────────────┐

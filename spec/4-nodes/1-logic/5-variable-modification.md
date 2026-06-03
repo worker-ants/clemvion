@@ -3,6 +3,7 @@ id: variable-modification
 status: implemented
 code:
   - codebase/backend/src/nodes/logic/variable-modification/variable-modification.*.ts
+  - codebase/backend/src/nodes/logic/_shared/value-masking.util.ts
 ---
 
 # Spec: Variable Modification
@@ -61,6 +62,9 @@ code:
 │  └─────────────────────────────────────────┘│
 │                                             │
 │  [+ Add Modification]                       │
+│                                             │
+│  [ ] Record values in meta                  │
+│      (before/after 스냅샷, 마스킹·opt-in)    │
 └─────────────────────────────────────────────┘
 ```
 
@@ -146,11 +150,13 @@ Variable Modification 은 **runtime 에러 포트를 갖지 않는다**. 모든 
 
 | 발생 조건 | 메시지 | 시점 |
 |-----------|--------|------|
-| `modifications` 가 빈 배열 | `최소 1개 이상의 변경을 추가해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
-| `modifications[0].variable` 가 빈 문자열 | `첫 번째 변경의 대상 변수를 선택해야 합니다.` | warningRule (캔버스 배지) |
+| `modifications` 가 빈 배열 | `At least one modification must be added.` | warningRule (캔버스 배지) + handler.validate |
+| `modifications[0].variable` 가 빈 문자열 | `First modification's target variable must be selected.` | warningRule (캔버스 배지) |
 | `modifications[i].variable` 누락 또는 비-string | `modifications[i].variable is required and must be a string` | handler.validate (`validateVariableModificationConfig`) |
 | `modifications[i].operation` 가 화이트리스트 미일치 (임의 문자열) | `modifications[i].operation must be one of: set, increment, decrement, append, push, pop` | handler.validate |
 | `modifications` 가 배열이 아님 | `modifications must be an array` | handler.validate |
+
+> 위 메시지는 SoT 인 영문 원문이다 (warningRule: `variable-modification.schema.ts` 의 `warningRules[].message`; handler.validate: `validateVariableModificationConfig` 반환 문자열). 캔버스에서는 frontend i18n (`codebase/frontend/src/lib/i18n/backend-labels.ts`) 이 한국어로 렌더한다 — 예: "최소 1개 이상의 변경을 추가해야 합니다." / "첫 번째 변경의 대상 변수를 선택해야 합니다.".
 
 ## 7. 캔버스 요약
 

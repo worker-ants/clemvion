@@ -5,8 +5,11 @@ code:
   - codebase/frontend/src/components/editor/canvas/custom-edge.tsx
   - codebase/frontend/src/components/editor/canvas/use-edge-highlighting.ts
   - codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx
+  - codebase/frontend/src/lib/stores/editor-store.ts
+  - codebase/frontend/src/lib/utils/edge-utils.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
+  - plan/in-progress/spec-sync-edge-gaps.md
 ---
 
 # Spec: 엣지 연결 규칙
@@ -24,15 +27,19 @@ pending_plans:
 3. 유효한 입력 포트 위에서 마우스 업 → 엣지 생성(실선)
 4. 유효하지 않은 곳에서 마우스 업 → 임시 엣지 제거
 
-### 1.2 빈 영역 드롭 시
+### 1.2 빈 영역 드롭 시 (미구현 · Planned)
 
 - 출력 포트에서 드래그 후 빈 영역에 드롭하면 노드 추가 검색 팝업 표시
 - 노드 선택 시 해당 노드 생성 + 자동으로 엣지 연결
 
-### 1.3 역방향 연결
+> 현재 구현: 노드 추가 검색 팝업은 빈 캔버스 **더블클릭**·우클릭 메뉴(`add-node`)로만 열린다 (`workflow-canvas.tsx` `onPaneClick`/`handleCanvasMenuAction`). 출력 포트 드래그→빈 영역 드롭에 따른 팝업 표시·자동 엣지 연결(`onConnectEnd` 핸들러)은 아직 없다.
+
+### 1.3 역방향 연결 (미구현 · Planned)
 
 - 입력 포트에서 드래그 시작하면 역방향으로 엣지 생성 (드롭 대상: 출력 포트)
 - 기존 연결이 있는 입력 포트에서 드래그 시작하면 기존 엣지를 분리하여 재연결 모드
+
+> 현재 구현: React Flow 에 `onReconnect`/역방향 드래그 핸들러가 연결돼 있지 않다 (`workflow-canvas.tsx` `<ReactFlow>` props). 입력 포트 시작 역방향 연결·기존 엣지 분리 재연결 모두 아직 없다.
 
 ---
 
@@ -47,7 +54,7 @@ pending_plans:
 | 1개의 출력 포트 → N개의 입력 포트 | 하나의 출력에서 여러 노드로 분기 가능 |
 | N개의 출력 포트 → 1개의 입력 포트 | 여러 노드의 출력이 하나의 입력으로 합류 가능 |
 
-### 2.2 금지되는 연결
+### 2.2 금지되는 연결 (대부분 미구현 · Planned)
 
 | 규칙 | 시각적 피드백 |
 |------|--------------|
@@ -57,11 +64,15 @@ pending_plans:
 | 동일 연결 중복 | "이미 연결되어 있습니다" 툴팁 |
 | 순환 참조 (Cycle) | "순환 연결은 허용되지 않습니다" 툴팁 |
 
-### 2.3 순환 참조 탐지
+> 현재 구현: `onConnect` (`editor-store.ts` `onConnect`) 는 `detectContainerConflict` (컨테이너 소속 충돌) 만 검사한 뒤 곧바로 `addEdge` 한다. `source === target` 자기연결, 출력→출력 / 입력→입력 방향 검사, 동일 연결 중복 검사, 그에 따른 커서 금지 아이콘·툴팁은 **아직 없다**. 출력→입력 방향 자체는 React Flow 핸들 타입(source/target)으로 강제된다.
+
+### 2.3 순환 참조 탐지 (미구현 · Planned)
 
 - 엣지 생성 시 DAG(Directed Acyclic Graph) 검증 수행
 - 새 엣지가 사이클을 생성하는지 DFS로 확인
 - 예외: Loop, ForEach 노드 내부의 `body` 포트에서 자신의 입력으로 돌아오는 것은 허용 (이는 노드 내부 반복이지 그래프 사이클이 아님)
+
+> 현재 구현: 엣지 생성 시 DFS 사이클 검사·DAG 검증은 클라이언트 `onConnect` 에 없다 (`editor-store.ts` `onConnect`). 사이클 차단·툴팁은 미구현이며, 본 절은 계획 사양이다.
 
 ---
 
@@ -80,13 +91,15 @@ pending_plans:
 
 ### 3.2 엣지 상태별 스타일
 
-| 상태 | 스타일 |
-|------|--------|
-| 기본 | 곡선(Bezier) 실선, 포트 타입별 색상, 1.5px |
-| 선택됨 | 2.5px, primary 색상 |
-| 데이터 흐름 (실행 중) | 애니메이션 점선 (데이터 이동 방향으로) |
-| 실행 완료 | 초록색으로 잠시 변경 후 복귀 |
-| 비활성 노드 연결 | 반투명 점선 |
+| 상태 | 스타일 | 구현 |
+|------|--------|------|
+| 기본 | 곡선(Bezier) 실선, 포트 타입별 색상, 1.5px | 구현됨 (`custom-edge.tsx`) |
+| 선택됨 | 2.5px, primary 색상 | 구현됨 (`custom-edge.tsx`) |
+| 데이터 흐름 (실행 중) | 애니메이션 점선 (데이터 이동 방향으로) | 미구현 (Planned) |
+| 실행 완료 | 초록색으로 잠시 변경 후 복귀 | 미구현 (Planned) |
+| 비활성 노드 연결 | 반투명 점선 | 미구현 (Planned) |
+
+> `custom-edge.tsx` 는 `selected` / `isHighlighted` 에 따른 strokeWidth(1.5 / 2.5)·색상(포트색 / primary)만 처리한다. 실행 상태(애니메이션 점선·완료 초록·비활성 반투명)는 아직 엣지에 반영되지 않는다. (§3.3 하이라이팅의 흐름 애니메이션은 hover/선택 트리거로, 실행 중 데이터 흐름과는 별개다.)
 
 ### 3.3 인터랙티브 하이라이팅
 
@@ -110,16 +123,18 @@ pending_plans:
 
 ## 4. 엣지 조작
 
-| 인터랙션 | 동작 |
-|----------|------|
-| 클릭 | 엣지 선택 |
-| Delete | 선택된 엣지 삭제 |
-| 호버 | 엣지 하이라이트 + (실행 후) 전달된 데이터 미리보기 툴팁 |
-| 엣지 중간에 노드 드롭 | 엣지를 분리하고 중간에 노드 삽입 (source→새노드, 새노드→target) |
+| 인터랙션 | 동작 | 구현 |
+|----------|------|------|
+| 클릭 | 엣지 선택 | 구현됨 (React Flow 기본) |
+| Delete | 선택된 엣지 삭제 | 구현됨 (`deleteKeyCode={["Delete","Backspace"]}`) |
+| 호버 | 엣지 하이라이트 + (실행 후) 전달된 데이터 미리보기 툴팁 | 하이라이트만 구현됨 (`onEdgeMouseEnter` → `setHoveredEdge`). 데이터 미리보기 툴팁은 미구현 (Planned, §5 참조) |
+| 엣지 중간에 노드 드롭 | 엣지를 분리하고 중간에 노드 삽입 (source→새노드, 새노드→target) | 미구현 (Planned) |
 
 ---
 
-## 5. 엣지 데이터 미리보기
+## 5. 엣지 데이터 미리보기 (미구현 · Planned)
+
+> 현재 구현: 엣지 hover 는 하이라이팅용 `hoveredEdgeId` 만 설정한다 (`workflow-canvas.tsx` `onEdgeMouseEnter`). 아래 Data Flow Preview 툴팁·축약 표시·전체 데이터 모달은 아직 없다.
 
 실행 완료 후 엣지에 마우스 오버 시:
 

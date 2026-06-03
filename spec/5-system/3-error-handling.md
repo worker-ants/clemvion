@@ -5,6 +5,9 @@ code:
   - codebase/backend/src/common/filters/http-exception.filter.ts
   - codebase/backend/src/common/pipes/validation.pipe.ts
   - codebase/backend/src/common/swagger/error-response.dto.ts
+  - codebase/backend/src/nodes/core/error-codes.ts
+  - codebase/backend/src/modules/execution-engine/error/error-policy.handler.ts
+  - codebase/backend/src/modules/health/health.service.ts
 ---
 
 # Spec: 에러 처리 정책
@@ -100,23 +103,25 @@ code:
 {
   "error": {
     "code": "VALIDATION_ERROR",
-    "message": "입력 데이터가 유효하지 않습니다.",
+    "message": "Input validation failed",
     "details": [
       {
         "field": "name",
-        "message": "이름은 필수 항목입니다.",
-        "code": "REQUIRED"
+        "message": "name should not be empty",
+        "code": "INVALID_FIELD"
       },
       {
-        "field": "cron_expression",
-        "message": "유효하지 않은 Cron 표현식입니다.",
-        "code": "INVALID_FORMAT"
+        "field": "nodes[3].type",
+        "message": "type must be a string",
+        "code": "INVALID_FIELD"
       }
     ],
     "requestId": "req_abc123"
   }
 }
 ```
+
+> 현재 구현(`common/pipes/validation.pipe.ts` `CustomValidationPipe`)은 `message` 로 고정 문자열 `"Input validation failed"`, `details[].message` 로 class-validator constraint 원문(영문), `details[].code` 로 단일 값 `"INVALID_FIELD"` 만 방출한다. `details[].field` 는 중첩/배열 경로를 `nodes[3].type` 형식으로 유지한다. 위 표의 사용자향 한국어 메시지·세분화 코드(`REQUIRED`/`INVALID_FORMAT`)는 **계획(Planned)** 이며 미구현이다.
 
 ### 2.2 실행 에러 형식
 
@@ -232,12 +237,14 @@ code:
 | maxRetries | Integer | 3 | 최대 재시도 횟수 |
 | retryInterval | Integer | 1000 | 재시도 간격 (ms) |
 | backoffMultiplier | Float | 2.0 | 지수 백오프 배수 |
-| maxInterval | Integer | 30000 | 최대 재시도 간격 (ms) |
+| maxInterval | Integer | 30000 | 최대 재시도 간격 (ms) — **계획(Planned), 미구현**: 현재 `RetryConfig`(`execution-engine/error/error-policy.handler.ts`)는 이 필드를 두지 않으며 백오프 간격에 상한 클램프가 없다 |
 
-**재시도 간격 계산:**
+**재시도 간격 계산** (현재 구현 — 상한 클램프 없음):
 ```
-interval = min(retryInterval × backoffMultiplier^attempt, maxInterval)
+interval = retryInterval × backoffMultiplier^attempt
 ```
+
+> `maxInterval` 클램프(`min(..., maxInterval)`)는 **계획**이다. 현재 `error-policy.handler.ts` 와 `execution-engine.service.ts` 의 retry 경로 모두 무제한으로 증가하는 지수 백오프를 사용한다.
 
 ---
 
@@ -348,16 +355,18 @@ GET /api/health
   "uptime": 86400,
   "checks": {
     "database": { "status": "healthy", "latency": 5 },
-    "redis": { "status": "healthy", "latency": 2 },
-    "vectorDb": { "status": "healthy", "latency": 8 }
+    "redis": { "status": "healthy", "latency": 2 }
   }
 }
 ```
 
+현재 구현(`modules/health/health.service.ts` `HealthService.check()`)은 **database 와 redis 두 항목만** 점검한다. 전체 `status` 는 **binary** 이며 두 항목 중 하나라도 비정상이면 `unhealthy` 다.
+
 | 전체 상태 | 조건 |
 |-----------|------|
-| `healthy` | 모든 checks가 healthy |
-| `degraded` | 일부 checks 실패 (비필수) |
-| `unhealthy` | 필수 checks 실패 (database, redis) |
+| `healthy` | database·redis 두 checks 모두 healthy |
+| `unhealthy` | database 또는 redis 비정상 — Redis config 누락 시 redis 체크는 `unconfigured` 로 표기되고 전체 status 는 `unhealthy` 로 내려 미구성 상태를 외부 모니터가 감지하게 한다 |
+
+> **계획(Planned)**: `vectorDb` 체크 항목과 `degraded`(비필수 checks 일부 실패) 3-state 어휘는 아직 미구현이다. 현재는 database·redis(필수)만 점검하는 binary 판정이다.
 
 > **참고**: `/api/health` 는 liveness probe 용 binary 판정(`unhealthy`)을 쓴다. 큐 적체 상태를 보여주는 시스템 상태 API(`/api/system-status/overview`)는 "처리 중이나 적체(degraded)" 와 "처리 정지(down)" 를 구분할 가치가 있어 별도 어휘 `healthy/degraded/down` 을 사용한다 — 근거는 [16-system-status-api.md Rationale R-4](./16-system-status-api.md#r-4-health-어휘를-healthydegradeddown-으로-둔-이유).

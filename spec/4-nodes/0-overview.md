@@ -35,7 +35,7 @@ codebase/backend/src/nodes/
 - **`<type>.schema.ts`** — 노드의 구조(input/output/config)를 Zod로 선언한다. `NodeComponentMetadata`, `NodePorts`, `defaultConfig`도 동일 파일에서 export 한다. Zod 스키마는 런타임 검증과 JSON Schema 직렬화의 단일 소스로 사용된다.
 - **`<type>.component.ts`** — schema/metadata와 handler 팩토리를 묶은 `NodeComponent` 객체를 export 한다. `createHandler(deps)`는 LLM/RAG/Integration/WorkflowExecutor 등 의존성을 주입받아 `NodeHandler` 인스턴스를 생성한다.
 - **`<type>.handler.ts`** — 노드 실행 로직(`NodeHandler.execute`)을 담는다. 한 노드의 스키마·컴포넌트·핸들러·테스트가 동일 디렉터리에 co-locate 된다.
-- 카테고리 내부에서만 공유되는 유틸/베이스 클래스는 `<category>/_shared/` 또는 `<category>/_base/`에 배치한다. (예: `integration/_base/integration-handler-base.ts`, `logic/_shared/condition-eval.util.ts`, `presentation/_shared/button.types.ts`)
+- 카테고리 내부에서만 공유되는 유틸/베이스 클래스는 `<category>/_shared/`·`<category>/_base/` 또는 `<category>/shared/`에 배치한다. (예: `integration/_base/integration-handler-base.ts`, `logic/_shared/condition-eval.util.ts`, `presentation/_shared/button.types.ts`, `ai/shared/system-context-prefix.ts`) — 디렉터리 prefix 컨벤션(`_` 유무)은 카테고리별로 혼재한다.
 - `execution-engine` 모듈은 오케스트레이션(그래프 탐색·표현식 해석·state machine·큐 등)만 담당하며, 개별 노드의 실행 로직은 포함하지 않는다.
 
 `NodeComponentRegistry`는 서버 부팅 시 `ALL_NODE_COMPONENTS` 배열을 순회하며 각 컴포넌트의 `createHandler(deps)`를 호출하여 `NodeHandlerRegistry`에 등록한다. 또한 `listDefinitions()`를 통해 메타데이터, 포트, JSON Schema를 프론트엔드에 제공한다.
@@ -104,7 +104,7 @@ codebase/backend/src/nodes/
 
 **포트 ID 생성 규칙:**
 - 정적 포트: 노드 정의에서 고정 문자열 (`in`, `out`, `true`, `false`, `body`, `done` 등)
-- 동적 포트: 생성 시 **UUID v4**를 할당한다. 포트 이름 변경, 재정렬, 다른 포트 삭제 등 편집 작업에도 **기존 포트 ID는 불변**이다. 이를 통해 포트에 연결된 엣지가 편집 이후에도 유지된다.
+- 동적 포트: config 항목(switch case, classifier category, presentation button 등)이 보유한 **stable slug id** 를 포트 ID 로 사용한다. slug 는 `^[a-zA-Z0-9_-]{1,64}$` 형식이며, 형식을 벗어나면 인덱스 기반 fallback(`case_0`, `branch_1` 등)으로 떨어진다. 포트 이름 변경, 재정렬, 다른 포트 삭제 등 편집 작업에도 **기존 slug id 는 불변**이므로 포트에 연결된 엣지가 편집 이후에도 유지된다. 검증·해석 단일 출처는 backend `nodes/core/port-id.util.ts` 와 frontend `lib/node-definitions/resolve-dynamic-ports.ts` 가 lockstep 으로 보유한다. (UUID v4 는 사용하지 않는다.)
 
 ### 1.4 캔버스 설정 요약 (summaryTemplate)
 
@@ -165,13 +165,14 @@ codebase/backend/src/nodes/
 | `text_classifier` | Text Classifier | 🏷️ | 1 | N | 카테고리 목록, 모델 |
 | `information_extractor` | Info Extractor | 🔍 | 1 | 1 | 출력 스키마, 모델 |
 
-### 2.4 Integration 노드 (3종)
+### 2.4 Integration 노드 (4종)
 
 | type | 표시 이름 | 아이콘 | 입력 | 출력 | 키 설정 |
 |------|-----------|--------|------|------|---------|
 | `http_request` | HTTP Request | 🌐 | 1 | 2 (success/error) | method, url, headers, body, responseType |
 | `database_query` | Database Query | 🗄️ | 1 | 1 | integrationId, query, parameters, queryType |
 | `send_email` | Send Email | 📧 | 1 | 1 | integrationId, to, subject, body, bodyType |
+| `cafe24` | Cafe24 | 🛍️ | 1 | 2 (success/error) | integrationId, resource, operation, parameters |
 
 ### 2.5 Data 노드 (2종)
 
@@ -203,13 +204,16 @@ codebase/backend/src/nodes/
 | Integration | `#F97316` (주황) | 외부 서비스 연동 |
 | Data | `#06B6D4` (시안) | 데이터 변환, 코드 실행 |
 | Presentation | `#EC4899` (핑크) | 시각적 콘텐츠 생성, 사용자 입력 |
-| Custom (마켓) | `#F59E0B` (앰버) | 마켓플레이스 설치 노드 |
+
+> 구현된 `NodeCategory` enum 은 위 7개(`trigger`/`logic`/`flow`/`ai`/`integration`/`data`/`presentation`)뿐이며, 동일 메타데이터(label·color·icon·order)는 `nodes/core/categories.ts` 의 `NODE_CATEGORIES` 가 단일 소스로 보유한다. 아래 §4 의 `custom` (마켓플레이스 설치 노드) 카테고리는 **미구현 (Planned)** — enum 에 존재하지 않는다.
 
 ---
 
-## 4. 노드 플러그인 인터페이스
+## 4. 노드 플러그인 인터페이스 (미구현 / Planned)
 
-마켓플레이스를 통한 커스텀 노드 개발을 위한 표준 인터페이스.
+> **구현 상태**: 본 절(마켓플레이스 플러그인 패키지·`manifest.json`·동적 노드 로딩)은 **아직 구현되지 않은 계획**이다. 현재 노드는 전부 빌트인이며 `nodes/index.ts` 의 `ALL_NODE_COMPONENTS` 정적 배열로 부팅 시 부트스트랩된다 — 런타임 플러그인/마켓플레이스 로딩 경로는 존재하지 않는다. 단, 빌트인·향후 플러그인 노드가 공유하는 §4.3 실행 인터페이스(핸들러 계약)는 이미 빌트인에 적용된 현행 계약이다.
+
+마켓플레이스를 통한 커스텀 노드 개발을 위한 표준 인터페이스(계획).
 
 ### 4.1 플러그인 패키지 구조
 
@@ -257,10 +261,12 @@ execute(input: JSON, config: JSON, context: ExecutionContext) → JSON
 
 ## 5. 노드 실행 샌드박싱
 
-| 항목 | 설명 |
-|------|------|
-| 실행 격리 | 각 노드는 독립된 실행 컨텍스트에서 수행 |
-| 타임아웃 | 노드별 실행 시간 제한 (기본: 30초, 설정 가능) |
-| 메모리 제한 | 노드별 메모리 사용량 제한 |
-| 네트워크 접근 | Integration을 통해서만 외부 접근 (커스텀 노드 제한) |
-| 파일 시스템 | 읽기 전용 (임시 디렉토리만 쓰기 가능) |
+본 절의 샌드박싱은 **현재 `code` 노드(임의 JS 실행)에만 적용**된다 — 일반 노드는 in-process 핸들러로 실행되며 별도 메모리/FS 격리를 두지 않는다.
+
+| 항목 | 설명 | 구현 상태 |
+|------|------|-----------|
+| 실행 격리 | `code` 노드는 `node:vm` 컨텍스트에서 격리 실행하며 제한된 글로벌(`JSON`/`Math`/`Date` 등)만 노출하고 `Reflect`/`Proxy`/`globalThis`/`SharedArrayBuffer`/`Atomics` 등은 차단한다 (`nodes/data/code/code.handler.ts` `buildSandbox`) | 구현됨 (code 노드) |
+| 타임아웃 | `code` 노드 실행 시간 제한 (기본 30초, config 로 설정 가능). sub-workflow 호출은 별도로 기본 300초 타임아웃 (`execution-engine.service.ts`) | 구현됨 (code 노드 / sub-workflow) |
+| 네트워크 접근 | `code` 노드 sandbox 에는 `fetch`/`http` 등 네트워크 API 를 노출하지 않는다. 외부 호출은 Integration 노드를 통해서만 가능 | 구현됨 (code 노드) |
+| 메모리 제한 | 노드별 메모리 사용량 제한 | **미구현 (Planned)** |
+| 파일 시스템 | 읽기 전용 (임시 디렉토리만 쓰기 가능) — `code` sandbox 는 `fs`/`require` 미노출이나 명시적 FS 정책은 없음 | **미구현 (Planned)** |

@@ -1,8 +1,11 @@
 ---
 id: statistics
-status: implemented
+status: partial
 code:
   - codebase/frontend/src/app/(main)/statistics/page.tsx
+  - codebase/backend/src/modules/statistics/**
+pending_plans:
+  - plan/in-progress/spec-sync-statistics-gaps.md
 ---
 
 # Spec: 통계 화면
@@ -55,14 +58,14 @@ code:
 
 | 필터 | 옵션 |
 |------|------|
-| 기간 | 오늘 / 최근 7일(기본) / 최근 30일 / 최근 90일 / 커스텀 범위 |
+| 기간 | 오늘(`1d`) / 최근 7일(`7d`, 기본) / 최근 30일(`30d`) / 최근 90일(`90d`) — 프리셋 버튼. **커스텀 범위는 미구현 (Planned)**: 백엔드 `QueryStatisticsDto` 는 `period=custom` + `startDate`/`endDate` 를 지원하나 프론트에 범위 선택 UI 없음. 반대로 프리셋 `1d`(오늘)는 프론트에만 있고 백엔드 enum(`7d`/`30d`/`90d`/`custom`)에는 없음 |
 | 워크플로우 | 전체 / 특정 워크플로우 선택 |
 
 ### 2.2 요약 카드
 
 | 카드 | 내용 |
 |------|------|
-| Total Runs | 선택 기간 내 총 실행 횟수 (전 기간 대비 증감률) |
+| Total Runs | 선택 기간 내 총 실행 횟수. **전 기간 대비 증감률은 미구현 (Planned)** — `StatisticsSummaryDto` 및 프론트 카드 모두 증감률 필드 없음 |
 | Success Rate | 성공 비율 (%) |
 | Failure Rate | 실패 비율 (%) |
 | Avg Duration | 평균 실행 시간 |
@@ -72,7 +75,7 @@ code:
 | 차트 | 내용 |
 |------|------|
 | Executions Over Time | 기간별 실행 횟수. 성공(초록)/실패(빨강) 스택 바 차트 |
-| Error Distribution | 에러 유형별 비율 (파이/도넛 차트) |
+| Error Distribution | **워크플로우별** 실패 건수 비율 (파이/도넛 차트). `GET /api/statistics/errors` 는 실패 실행을 워크플로우별로 집계(`workflowId`/`workflowName`/`errorCount`/`lastErrorAt`)하며, 차트는 `workflowName` 을 분류 키로 사용. (에러 유형/코드별 분류는 아님) |
 | Top Workflows | 실행 횟수 기준 상위 워크플로우 (수평 바 차트) |
 
 ### 2.4 노드별 통계 (선택 필터로 특정 워크플로우 선택 시)
@@ -105,10 +108,13 @@ code:
 
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
-| GET | /api/statistics/summary | 요약 카드 데이터 (쿼리: period, workflow_id) |
-| GET | /api/statistics/executions | 기간별 실행 집계 |
-| GET | /api/statistics/errors | 에러 유형별 집계 |
-| GET | /api/statistics/top-workflows | 상위 워크플로우 |
-| GET | /api/statistics/node-stats | 노드별 통계 (쿼리: workflow_id) |
-| GET | /api/statistics/llm-usage | LLM 토큰 사용량 |
-| GET | /api/statistics/export | 데이터 내보내기 (쿼리: format=csv|json) |
+| GET | /api/statistics/summary | 요약 카드 데이터 (쿼리: `period`, `workflowId`) |
+| GET | /api/statistics/executions | 기간별(일자별) 실행 집계 |
+| GET | /api/statistics/errors | **워크플로우별** 실패 집계 (오류 건수 내림차순, 상위 20건) |
+| GET | /api/statistics/top-workflows | 상위 워크플로우 (실행 횟수 기준 상위 10개) |
+| GET | /api/statistics/node-stats | 노드별 통계 (쿼리: `workflowId`) |
+| GET | /api/statistics/llm-usage/summary | LLM 토큰 사용량 요약 (프로바이더×모델별 합계 + 추정 비용) |
+| GET | /api/statistics/llm-usage/timeseries | LLM 토큰 사용량 시계열 (일자×프로바이더별) |
+| GET | /api/statistics/export | 데이터 내보내기 (쿼리: `format=csv|json`) |
+
+> 쿼리 파라미터는 `QueryStatisticsDto`(`period`/`workflowId`/`startDate`/`endDate`) 를 공유한다. `workflow_id` 가 아닌 `workflowId` camelCase 임에 유의.

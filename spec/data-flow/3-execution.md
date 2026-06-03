@@ -64,7 +64,7 @@ sequenceDiagram
   end
 
   Eng->>PG: UPDATE execution SET status='completed'/'failed'/'cancelled', finished_at, duration_ms, output_data
-  Eng->>WS: emit 'execution:completed'
+  Eng->>WS: emit 'execution.completed'
 ```
 
 ### 1.2 Background 본문 실행 (별도 큐 consumer)
@@ -100,12 +100,12 @@ sequenceDiagram
   participant Proc as ContinuationExecutionProcessor (임의 instance)
   participant Eng as ExecutionEngineService
 
-  C->>API: POST /api/executions/:id/interactions { nodeId, type, payload }
-  API->>PG: SELECT node_execution WHERE execution_id+node_id+status='waiting_for_input' (publisher 측 사전 검증 — §7.5.1)
+  C->>API: REST POST /executions/:id/continue { formData? } | WS execution.{submit_form,click_button,submit_message,end_conversation,retry_last_turn}
+  API->>PG: SELECT node_execution WHERE execution_id+(node_id)+status='waiting_for_input' (publisher 측 사전 검증 — §7.5.1)
   alt lookup 0건 / 다중 row
-    API-->>C: INVALID_EXECUTION_STATE (동기 ack)
+    API-->>C: REST 422 INVALID_STATE / WS INVALID_EXECUTION_STATE (동기 ack)
   else 1건 매칭
-    API->>Bus: enqueue { executionId, nodeExecutionId, type, payload, jobId=`<exec>:<ne>:<seq>` }
+    API->>Bus: enqueue { type, executionId, nodeExecutionId, payload, jobId=`<exec>:<ne>:<seq>` }
     Bus-->>Proc: deliver (any instance — at-least-once)
     Proc->>Eng: applyContinuation(executionId, nodeExecutionId, payload)
     alt 로컬 pendingContinuations hit (fast path)
@@ -119,7 +119,8 @@ sequenceDiagram
   end
 ```
 
-> Publisher 측 사전 검증 (`INVALID_EXECUTION_STATE` 동기 ack) 의 상세 분류는 [실행 엔진 §7.5.1](../5-system/4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 참조. rehydration 슬로우 패스의 실패 (`RESUME_CHECKPOINT_MISSING` / `RESUME_INCOMPATIBLE_STATE` / `RESUME_FAILED`) 는 후행 `EXECUTION_CANCELLED` 이벤트로 surface.
+> 재개 진입 surface 는 두 가지다: (1) REST `POST /executions/:id/continue` — body `{ formData? }` 만 받으며, waiting 아님이면 동기 422 `INVALID_STATE` (`executions.controller.ts` `continueExecution`); (2) WebSocket 메시지 `execution.submit_form` / `execution.click_button` / `execution.submit_message` / `execution.end_conversation` / `execution.retry_last_turn` (각 `<event>.ack` 응답, `websocket.gateway.ts`). `type` / `nodeExecutionId` / `payload` 는 클라이언트가 직접 보내는 필드가 아니라 publisher 가 `node_execution` lookup 후 구성해 `execution-continuation` 큐에 싣는 내부 ContinuationMessage 필드다.
+> Publisher 측 사전 검증 (REST 422 `INVALID_STATE` / WS `INVALID_EXECUTION_STATE` 동기 ack) 의 상세 분류는 [실행 엔진 §7.5.1](../5-system/4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) 참조. rehydration 슬로우 패스의 실패 (`RESUME_CHECKPOINT_MISSING` / `RESUME_INCOMPATIBLE_STATE` / `RESUME_FAILED`) 는 후행 `EXECUTION_CANCELLED` 이벤트로 surface.
 
 ### 1.4 Sub-workflow 호출 (Workflow 노드 = flow.workflow)
 
@@ -138,7 +139,7 @@ sequenceDiagram
 | --- | --- | --- | --- |
 | `execution` | 실행 진입 | INSERT `workflow_id, trigger_id?, status='pending', input_data, started_at, executed_by?, parent_execution_id?, recursion_depth` | `(workflow_id, started_at DESC)`, `(status)` |
 | `execution` | 상태 전이 | UPDATE `status, finished_at, duration_ms, output_data, error` | error 는 최초 failed NodeExecution.error + nodeId 복사 |
-| `node_execution` | 노드 실행 시작 | INSERT `execution_id, node_id, status='running', started_at, input_data, retry_count=0, parent_node_execution_id?` (V006/V012) | `(execution_id)`, V034 `(execution_id, started_at)` composite |
+| `node_execution` | 노드 실행 시작 | INSERT `execution_id, node_id, status='running', started_at, input_data, retry_count=0, parent_node_execution_id?` (V006/V012) | `(execution_id)`, V034 `(execution_id, node_id, started_at DESC)` composite |
 | `node_execution` | 노드 완료 | UPDATE `status, finished_at, duration_ms, output_data, error, retry_count, interaction_data` (V004) | — |
 | `execution_node_log` | 노드 진입마다 | INSERT `execution_id, node_id, created_at` (append-only) | `(execution_id, id)` (V035). bigserial PK 가 인스턴스 간 결정적 순서 보장 |
 | `execution` (legacy column) | — | V001 의 `execution_path UUID[]` 컬럼은 V036 에서 DROP. 현재는 `execution_node_log` 가 진실 | — |
@@ -148,7 +149,7 @@ sequenceDiagram
 | 큐 | producer | consumer | payload 핵심 필드 |
 | --- | --- | --- | --- |
 | `execution-continuation` | `ContinuationBusService.publish` (WS gateway / REST controller 경유) | `ContinuationExecutionProcessor` | `{type, executionId, nodeExecutionId, payload}` — jobId = `${executionId}:${nodeExecutionId}:${seq}` (Redis INCR per executionId — idempotency key). 자세한 라이프사이클은 [Spec 실행 엔진 §7.4 / §7.5](../5-system/4-execution-engine.md#74-분산-실행-multi-instance) |
-| `background-execution` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | `executionId, parentNodeExecutionId, workspaceId, workflowId, bodyEntryNodeIds[], input, variables, nodeOutputCache, expressionContext, config{notifyOnFailure, maxDurationMs}` (`background-execution.queue.ts`) |
+| `background-execution` | `ExecutionEngineService.scheduleBackgroundBody` | `BackgroundExecutionProcessor` | `executionId, parentNodeExecutionId, backgroundRunId?, workspaceId, workflowId, bodyEntryNodeIds[], input, variables, nodeOutputCache, expressionContext, conversationThread?, config{notifyOnFailure, maxDurationMs}` (`background-execution.queue.ts`). `backgroundRunId?`/`conversationThread?` 는 후방호환용 optional — legacy 큐 메시지엔 부재 |
 
 ### 2.3 Redis (보조 키 — 분산 lock & seq)
 
@@ -182,16 +183,18 @@ stateDiagram-v2
   pending --> running: 첫 노드 처리 진입
   running --> waiting_for_input: 블로킹 노드 (form/button/ai_agent)
   waiting_for_input --> running: continuation-queue (BullMQ) consume
+  waiting_for_input --> failed: AI Agent multi-turn turn 오류 (handleAiTurnError → finalizeAiNode)
   running --> completed: 마지막 노드 정상 종료
   running --> failed: 어떤 노드든 retry 소진 실패
   running --> cancelled: 사용자 cancel API
   waiting_for_input --> cancelled: 사용자 cancel API
+  failed --> running: execution.retry_last_turn 재진입 (opt-in allowRetryReentry — 표 밖 전이)
   completed --> [*]
   failed --> [*]
   cancelled --> [*]
 ```
 
-상세 가드는 `spec/5-system/4-execution-engine.md §1` 및 `state-machine.ts`.
+상세 가드는 `spec/5-system/4-execution-engine.md §1` 및 `state-machine.ts`. `failed → running` 은 일반 `ALLOWED_TRANSITIONS` 표에 없고 `applyRetryLastTurn` 경로의 `allowRetryReentry` opt-in 으로만 허용된다 (`state-machine.ts` `canTransition`).
 
 ### 3.2 `node_execution.status`
 
@@ -237,7 +240,7 @@ V001 은 `execution.execution_path UUID[]` 로 노드 실행 순서를 저장했
 read-modify-write 가 직렬화되어야 했고 (배열 append), 충돌과 성능 모두 문제였다. V035 에서 별도
 `execution_node_log` 테이블 (`bigserial` PK 가 PostgreSQL sequence 로 단조 증가) 을 도입해
 append-only 로 바꿨고 V036 에서 옛 컬럼을 drop 했다. 응답 시 `executionPath: string[]` 필드는
-`(execution_id, id) ASC` 정렬 쿼리로 채워진다 (`execution.entity.ts:78` 주석).
+`(execution_id, id) ASC` 정렬 쿼리로 채워진다 (`execution.entity.ts:97` 주석).
 
 ### Background 의 snapshot context
 

@@ -4,6 +4,7 @@ status: partial
 code:
   - codebase/backend/src/nodes/core/node-handler.interface.ts
   - codebase/backend/src/modules/execution-engine/handler-output.adapter.ts
+  - codebase/backend/src/modules/execution-engine/execution-engine.service.ts
 pending_plans:
   - plan/in-progress/node-output-redesign/README.md
 ---
@@ -332,7 +333,7 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
   1. **credential leak 위험** — schema 에 신규 민감 필드가 추가됐을 때 자동 노출.
   2. **회귀 감지 곤란** — 어떤 필드가 echo 되는지 단위 테스트로 명시 검증 불가.
   3. **dead field echo** — 폐기 예정 필드가 자동으로 계속 surface.
-- 본 정책의 baseline 패턴: `background.handler.ts:64-68` + `background.handler.spec.ts:84-103` 의 `apiKey` 가드 테스트.
+- 본 정책의 baseline 패턴: `background.handler.ts:64-68` 의 명시 키 enumeration echo 블록 (`notes` / `notifyOnFailure` / `maxDurationMs` 만 나열 — spread 미사용). 이 enumeration 이 credential leak 을 막는다는 사실은 `background.handler.spec.ts:84-103` 의 credential-leak 가드 테스트 (rawConfig 에 가상의 `apiKey` 를 주입해도 echo 에 새지 않음을 검증) 가 강제한다.
 - 모든 노드 handler 는 schema 의 비민감 필드를 **항상 echo 한다** (`undefined` 도 포함). 일부 노드(`switch.hasDefault`, `if-else.strictComparison`, `map.errorPolicy`, `foreach.errorPolicy`, `carousel.maxItems`, `chart.dataField`/`groupBy`/`colors`, `template.helpers`, `table.pagination`, `variable-modification.recordValues` 등) 의 echo 누락은 본 정책에 부합하도록 보강한다.
 
 ### 핸들러 구현 가이드

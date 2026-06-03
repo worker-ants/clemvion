@@ -38,16 +38,19 @@ sequenceDiagram
   C->>Ctl: POST /api/auth/register {email, password, name}
   Ctl->>Svc: register()
   Svc->>PG: SELECT user WHERE email = ? (중복 검사)
-  Svc->>Svc: bcrypt.hash(password)
-  Svc->>PG: BEGIN transaction
-  Svc->>PG: INSERT INTO "user" (...)
-  Svc->>PG: INSERT INTO workspace (type='personal', owner_id=user.id)
-  Svc->>PG: INSERT INTO workspace_member (role='owner', joined_at=NOW())
-  Svc->>PG: COMMIT
+  Svc->>Svc: validatePasswordStrength + bcrypt.hash(password)
+  Svc->>PG: INSERT INTO "user" (email_verify_token, email_verify_expires_at = now+24h, email_verified=false)
   Svc->>Mail: 이메일 인증 메일 발송 (email_verify_token)
-  Svc-->>Ctl: { user, accessToken, refreshToken }
-  Ctl-->>C: 200 + Set-Cookie
+  Svc-->>Ctl: { message }
+  Ctl-->>C: 201 (토큰·쿠키·personal workspace 없음)
 ```
+
+> 로컬 회원가입은 2단계다 — `register` 는 user row + 인증 메일만 만들고 토큰을 발급하지 않는다.
+> personal workspace 생성과 토큰·`Set-Cookie` 는 이후 `POST /api/auth/verify-email` 단계에서 일어난다
+> (`auth.service.ts` `verifyEmail` 트랜잭션이 `createPersonalWorkspace` 호출 + `generateTokens`).
+> 예외: `invitationToken` 동봉 가입은 인증 메일 없이 한 트랜잭션에서 user + workspace_member(초대된 팀) 를
+> 만들고 자동 로그인 — 응답은 `{ message, accessToken }` + Refresh Token 쿠키이며 personal workspace 는
+> 만들지 않는다.
 
 ### 1.2 로그인 (Local + 2FA: WebAuthn 우선 / TOTP)
 
@@ -62,7 +65,7 @@ sequenceDiagram
   C->>Svc: POST /api/auth/login {email, password, rememberMe}
   Svc->>PG: SELECT user WHERE email = ?
   alt user.locked_until > now
-    Svc-->>C: 423 ACCOUNT_LOCKED
+    Svc-->>C: 401 code=ACCOUNT_LOCKED
     Svc->>Hist: event=login_failed reason=ACCOUNT_LOCKED
   end
   Svc->>Svc: bcrypt.compare(password, password_hash)
@@ -93,10 +96,10 @@ sequenceDiagram
   Svc->>PG: INSERT refresh_token (family_id=new uuid, token_hash=sha256, ip, ua, device_label)
   Svc->>PG: UPDATE login_attempts=0
   Svc->>Hist: event=login_success
-  Svc-->>C: { accessToken, refreshToken, user } + Set-Cookie
+  Svc-->>C: { accessToken } + Set-Cookie (refreshToken httpOnly)
 ```
 
-응답 필드: 클라이언트는 `requires2fa` + `methods` 만 본다 — `requires2fa=true` 이면 challenge 단계, `methods[0]` 으로 WebAuthn / TOTP 화면을 분기. 상세 분기 규칙은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지).
+응답 필드: 성공 응답 body 는 `{ accessToken }` 뿐이다 — refresh token 은 httpOnly 쿠키로만 내려가고 `user` 객체는 포함되지 않는다 (`auth.controller.ts` `login`). 2FA 활성 계정의 challenge 단계 응답은 `{ requires2fa, methods, challengeToken }` 이며, 클라이언트는 `requires2fa=true` 이면 challenge 단계로 보고 `methods[0]` 으로 WebAuthn / TOTP 화면을 분기. 상세 분기 규칙은 [auth spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지).
 
 ### 1.3 OAuth 소셜 로그인
 
@@ -108,7 +111,7 @@ sequenceDiagram
   participant PG as Postgres
   participant Prov as OAuth Provider
 
-  C->>Svc: GET /api/auth/oauth/:provider/start
+  C->>Svc: GET /api/auth/oauth/:provider?mode&rememberMe
   Svc->>PG: INSERT auth_oauth_state (state, provider, mode, rememberMe, expires_at = now+10m)
   Svc-->>C: 302 → provider authorize URL with state
   Prov-->>C: 302 → /api/auth/oauth/:provider/callback?code&state
@@ -126,8 +129,10 @@ sequenceDiagram
     Svc->>PG: INSERT workspace + workspace_member (personal)
   end
   Svc->>PG: INSERT refresh_token (family_id=new)
-  Svc-->>C: 302 → frontend with tokens
+  Svc-->>C: Set-Cookie (refreshToken httpOnly) + 302 → {frontendUrl}/callback?success=true
 ```
+
+> OAuth 콜백은 access token 을 URL 에 싣지 않는다 (history/Referer/프록시 로그 노출 방지, decision A 2026-05-31). refresh token 만 httpOnly 쿠키로 설정하고 프론트 `/callback` 페이지가 `POST /api/auth/refresh` 로 access token 을 발급받는다. 실패 시 `{frontendUrl}/callback?error={code}` 로 리다이렉트.
 
 ### 1.4 Refresh token 회전
 
@@ -159,11 +164,13 @@ sequenceDiagram
   participant C as Client
   participant Svc as SessionsService
   participant PG as Postgres
-  C->>Svc: DELETE /api/auth/sessions/:familyId
+  C->>Svc: POST /api/users/me/sessions/:familyId/revoke { 본인 재인증: password 또는 TOTP }
   Svc->>PG: UPDATE refresh_token SET is_revoked=true WHERE user_id=me AND family_id=:familyId
   Svc->>PG: INSERT login_history (event=session_revoked, family_id=:familyId)
-  Svc-->>C: 204
+  Svc-->>C: 200 { items: [...갱신된 세션 목록] }
 ```
+
+> revoke 는 `SessionsController` (`@Controller('users/me')`) 의 `POST sessions/:familyId/revoke` 다 — DELETE 대신 POST 를 쓰는 이유는 일부 CDN/프록시가 DELETE 바디(재인증 자격)를 제거하기 때문 (`sessions.controller.ts`). 응답은 204 가 아니라 200 + 갱신된 세션 목록. 같은 컨트롤러에 `POST sessions/revoke-others` (다른 세션 일괄 종료) 도 있다.
 
 ---
 
@@ -188,7 +195,7 @@ sequenceDiagram
 | `auth_oauth_state` | OAuth start | INSERT `state, provider, mode, remember_me, expires_at = now+10m` | `state UNIQUE` (V013) |
 | `auth_oauth_state` | OAuth callback | DELETE WHERE `state=?` (one-shot) | — |
 | `login_history` | 모든 이벤트 | INSERT `user_id, email, event, ip_address, user_agent, device_label, family_id, failure_reason, created_at` | `(user_id, created_at DESC)`, `(email, created_at DESC)` (V040) |
-| `workspace` | 회원가입 | INSERT `name, type='personal', owner_id, slug` | `slug UNIQUE`, `(owner_id, type) UNIQUE` |
+| `workspace` | 회원가입 (이메일 검증 단계) | INSERT `name, type='personal', owner_id, slug` | `slug UNIQUE` (V001) |
 | `workspace_member` | 회원가입 | INSERT `workspace_id, user_id, role='owner', joined_at` | `(workspace_id, user_id) UNIQUE` |
 
 ### 2.2 Redis
@@ -223,8 +230,8 @@ stateDiagram-v2
 
 | 조건 | 동작 |
 | --- | --- |
-| 연속 로그인 실패 N회 (`login_attempts` 임계) | `locked_until = now + Δ` |
-| `locked_until > now` 인 상태에서 로그인 시도 | 423 `ACCOUNT_LOCKED` + `login_history.event=login_failed reason=ACCOUNT_LOCKED` |
+| 연속 로그인 실패 5회 (`login_attempts >= 5`) | `locked_until = now + 10m` (`users.service.ts`) |
+| `locked_until > now` 인 상태에서 로그인 시도 | 401 (`UnauthorizedException`) code=`ACCOUNT_LOCKED` + `login_history.event=login_failed reason=ACCOUNT_LOCKED` |
 | 로그인 성공 | `login_attempts = 0`, `locked_until = NULL` |
 
 ### 3.3 OAuth state TTL

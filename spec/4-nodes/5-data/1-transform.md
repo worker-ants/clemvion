@@ -130,7 +130,7 @@ code:
    - `type_convert` 의 `array` / `object` 변환은 문자열을 `JSON.parse` 시도하고 실패 시 no-op.
    - `array_filter` / `array_sort` 는 대상이 배열이 아니면 no-op.
    - `string_op.replace` 의 `regex: true` 패턴이 200자를 넘으면 no-op (ReDoS 방지).
-   - `object_pick` / `object_omit` 은 `__proto__` / `constructor` / `prototype` 키를 차단.
+   - `object_omit` 은 `__proto__` / `constructor` / `prototype` 키 제거를 차단 (해당 키는 omit 대상에서 제외). `object_pick` 은 차단하지 않고 지정된 `keys` 를 그대로 복사한다.
 4. 모든 연산 적용 후 결과를 `output` 으로, raw `operations` 를 `config.operations` 로 echo 하여 반환 (Principle 7).
 5. 단일 출력 포트 `out` 만 활성화 — `port` 는 `undefined` (Principle 5).
 
@@ -171,7 +171,7 @@ code:
 | `config.operations` | Operation[] | config echo (Principle 7) | 사용자가 입력한 raw 연산 목록 — 표현식 `{{ }}` 보존 |
 | `output` | object | runtime — 변환 결과 | input 에 모든 op 를 순차 적용한 최종 객체. 루트 키는 input + operations 에 따라 가변. 후속 노드는 `$node["X"].output.<변형된 필드>` 로 직접 접근 (Principle 8 예외 — 변형 결과를 root 에 둠) |
 | `meta.durationMs` | number | engine inject | 핸들러 실행 시간 (ms). Principle 2 공통 필드 |
-| `meta.operationsApplied` | number | runtime — 핸들러 카운트 | 실제 변형이 발생한 op 수. `applied + skipped === config.operations.length` |
+| `meta.operationsApplied` | number | runtime — 핸들러 카운트 | 실제 변형이 발생한 op 수. `applied + skipped === config.operations.length`. `set_field` 는 항상 applied 로 카운트한다 — `setNestedValue` 가 prototype pollution 차단으로 무시한 경우에도 사용자가 의도한 변형 시도이므로 applied (skipped 분류는 필드/타입 부재 케이스에 한정) |
 | `meta.operationsSkipped` | number | runtime — 핸들러 카운트 | 필드 부재 / 타입 불일치 / `divide` operand=0 / 유효하지 않은 dayjs 입력 / JSON 파싱 실패 / 길이 초과 regex 등으로 silent no-op 처리된 op 수 |
 | `port` | `undefined` | — | 단일 출력 (Principle 5 — 기본 단일 출력의 대표 사례) |
 | `status` | `undefined` | — | 일반 완료 (비-블로킹 노드, Data 공통 §4) |
@@ -195,7 +195,7 @@ Error: operations[2].operation is invalid
 
 | 발생 조건 | 메시지 | 시점 |
 |-----------|--------|------|
-| `operations` 가 빈 배열 | `하나 이상의 변환 작업을 추가해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
+| `operations` 가 빈 배열 | `At least one transform operation must be added.` (warningRule SoT — `transform.schema.ts` `warningRules`. legacy `summaryTemplate.warnMessage` 는 `No operations defined`) | warningRule (캔버스 배지) + handler.validate |
 | `operations` 가 배열이 아님 | `operations is required and must be an array` | handler.validate |
 | `operations[i]` 가 객체가 아니거나 `type` 누락 | `operations[i] is invalid` | validateConfig |
 | `operations[i].type` 가 화이트리스트 미일치 | `operations[i].type must be one of: rename_field, remove_field, …` | validateConfig |

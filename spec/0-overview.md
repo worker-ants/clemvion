@@ -75,6 +75,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | **AI 플랫폼** | LLM Config(프로바이더·모델·API Key — v1 의 5개 provider OpenAI/Anthropic/Google/Azure OpenAI/Local Ollama·vLLM 모두 스트리밍 ✅), Knowledge Base(문서 업로드·임베딩·RAG 검색), **Graph RAG**(KB 모드 선택 + entity/relation 자동 추출 + Hybrid 검색 + Entity/Relation 목록·삭제 + 3D 그래프 시각화 — 상세: [PRD 9](./5-system/10-graph-rag.md)) |
 | **Workflow AI Assistant** | 에디터 내 채팅형 AI로 자연어 요청 → 노드·엣지 자동 구성. Clarify → Plan → Execute 3단계 대화 루프, SSE 스트리밍, 세션 영속. 상세: [PRD 2 §10](./3-workflow-editor/_product-overview.md#10-ai-assistant-ed-ai-), [PRD 6 §3.6](./4-nodes/3-ai/_product-overview.md#36-workflow-ai-assistant). |
 | **팀 워크스페이스·RBAC** | 데이터 모델(`Workspace.type = personal \| team`, `WorkspaceMember.role`) + 백엔드 모듈(`codebase/backend/src/modules/workspaces`) + 프런트엔드 UI(워크스페이스 전환, 멤버 초대·역할·소유권 이전). 회원가입 시 개인 워크스페이스가 자동 생성되고 `X-Workspace-Id`는 서버가 자동 매핑한다. |
+| **워크스페이스 단위 Integration 공유·RBAC** | Integration 은 워크스페이스 단위로 격리되어 팀 멤버 간 공유되며, 모든 엔드포인트가 `@WorkspaceId()` 로 스코프되고 작성/수정/삭제(create·update·delete·rotate)는 `@Roles('editor')` 가드로 Editor+ 로 제한된다 (`codebase/backend/src/modules/integrations/integrations.controller.ts`). navigation NAV-IN-07 ✅ 와 일치. 여러 워크스페이스를 가로지르는 조직(상위) 레벨 공유는 §6.3 참조. |
 | **Cafe24 통합** | 워크플로 `cafe24` 단일 노드 (18 카테고리 메타데이터 기반 Resource × Operation) + AI Agent Internal MCP Bridge 양방향 노출 + Public/Private 앱 OAuth + Cafe24 Developers "테스트 실행" / "앱으로 가기" App URL 흐름 + leaky-bucket rate limit + BullMQ 기반 cross-pod refresh 직렬화 + 7일 임계 + 6h cron 백그라운드 갱신 (refresh_token 14일 만료 전 자동 갱신) — 모두 구현 완료. spec: [Cafe24 노드](./4-nodes/4-integration/4-cafe24.md), [통합 §5.8](./2-navigation/4-integration.md#58-cafe24). 다른 first-party 이커머스(Shopify·Naver Smartstore)로의 Internal MCP Bridge 패턴 확장은 §6.3 참조. |
 | **시스템** | 인증/인가(개인·팀 워크스페이스), REST API, 에러 처리, 표현식 엔진(`{{ }}`), 실행 엔진(Redis 큐 + 워커 풀, BullMQ 영속 `execution-continuation` 큐 기반 분산 continuation + §7.5 rehydration), WebSocket 실시간 상태, Webhook 수신, 실행 이력 |
 
@@ -83,17 +84,17 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 영역 | 상태 |
 |------|------|
 | **Parallel 노드 (P1+P2)** | `ParallelExecutor`가 `p-limit` + `Promise.allSettled`로 분기를 동시 실행한다 (default ON — `PARALLEL_ENGINE=v1` 가 기본값. `PARALLEL_ENGINE=off` 로 rollback). branchCount(2~16), maxConcurrency(0=무제한, 1~16) 지원. 분기 내 블로킹 노드·back-edge 금지. 중첩 Parallel 은 깊이 ≤ 2 허용 + 외부 × 내부 concurrency 곱셈 cap = 32 silent clamp (P2, 2026-05-30 결정 #3). Merge `wait_all` 조합으로 결과 합산 가능. `waitAll=false` 는 spec out — fire-and-forget 의미는 Background 노드 사용 권고. |
-| **조직 레벨 Integration 공유** | 팀 워크스페이스 단위 Integration 공유는 후속 단계에서 도입 예정이다. |
+| **임베드형 웹채팅 위젯 + SDK** | 외부 사이트에 삽입하는 iframe 격리형 웹채팅 위젯 SPA(`codebase/channel-web-chat`, Next.js CSR) + 개발자 SDK(스니펫 로더 / npm, `codebase/packages/web-chat-sdk`) + 샘플이 구현됐다. [External Interaction API](./5-system/14-external-interaction-api.md) 의 client-side consumer. 영역 spec 은 `status: partial` (인증/세션·보안 후속 항목 잔존). spec: [Channel Web Chat](./7-channel-web-chat/_product-overview.md). |
 
 #### 6.3 로드맵 / 미구현 (❌)
 
 | 영역 | 내용 |
 |------|------|
 | **Graph RAG 후속 (P2+)** | community detection / 글로벌 요약 / 도메인별 entity 타입 사전 / KB 단위 prompt override. P0~P2 본체는 §6.1 에서 ✅. 상세: [PRD 9 §8](./5-system/10-graph-rag.md#8-미결--후속-검토). |
+| **조직(상위) 레벨 Integration 공유** | 워크스페이스 단위 Integration 공유·RBAC 는 §6.1 에서 ✅ (NAV-IN-07 ✅). 미구현 잔여는 **여러 워크스페이스를 가로지르는** 조직(상위) 단위 공유 — 후속 단계에서 도입 예정. |
 | **마켓플레이스** | 워크플로우 템플릿·AI Agent 프리셋·Integration 플러그인·커스텀 노드 게시 기능. |
 | **배포 자동화 확장** | 공식 Docker/Kubernetes 배포 가이드, 셀프 호스팅 번들. |
 | **확장 SDK** | 노드 플러그인 SDK, 외부 커스텀 노드 개발/게시. |
-| **임베드형 웹채팅 위젯 + SDK** | 외부 사이트에 삽입하는 iframe 격리형 웹채팅 위젯 + 개발자 SDK(스니펫 로더 / npm) + 샘플. [External Interaction API](./5-system/14-external-interaction-api.md) 의 client-side consumer (서버는 구현 완료, 클라이언트 레이어 신규). spec: [Channel Web Chat](./7-channel-web-chat/_product-overview.md). |
 | **Internal MCP Bridge 패턴 확장** | Cafe24 (구현 완료, §6.1) 이후 Shopify·Naver Smartstore 등 first-party 이커머스 통합을 같은 [Spec MCP Client §2.3](./5-system/11-mcp-client.md#23-internal-bridge-in-process) 패턴으로 추가. |
 
 ---
@@ -132,7 +133,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 브랜드 가이드 | `spec/6-brand.md` | — |
 | 정식 규약 | `spec/conventions/` | 노드 Output 규약, Swagger 패턴 등 |
 | 내비게이션 화면 | `spec/2-navigation/` | `_product-overview.md` + 화면별 문서 |
-| 워크플로우 에디터 | `spec/3-workflow-editor/` | `_product-overview.md` + 캔버스·노드 공통·엣지·실행·AI Assistant |
+| 워크플로우 에디터 | `spec/3-workflow-editor/` | `_product-overview.md` + 캔버스·노드 공통·엣지·실행·AI Assistant·버전 이력 |
 | 노드 시스템 | `spec/4-nodes/` | `_product-overview.md` + `0-overview.md` + 카테고리별 폴더 (`1-logic/` ~ `7-trigger/`) |
 | 시스템 공통 | `spec/5-system/` | `_product-overview.md` + 영역별 spec (인증·API 규칙·실행 엔진·LLM Client·임베딩·RAG·Graph RAG·MCP·Webhook 등) |
 | 채널 웹채팅 위젯 | `spec/7-channel-web-chat/` | `_product-overview.md` + 아키텍처·위젯 SPA·SDK·인증/세션·보안 |
@@ -271,7 +272,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | Knowledge Base 원본 문서 | `kb/{kbId}/{documentId}/{sanitizedFilename}` | 구현됨 | `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:723` |
 | Form 노드 업로드 / Avatar | `{workspaceId}/forms/...`, `{workspaceId}/avatars/...` | 계획 (코드 미구현) | — |
 
-> KB 원본 키는 `workspaceId` 를 prefix 로 두지 않는다 (`kb/...` 로 시작). 버킷 이름은 `S3_BUCKET` 환경변수 (기본 `workflow-storage`, `codebase/backend/.env.example:55`) 로 지정한다. 키 설계 근거·기각된 대안은 [Rationale § S3 객체 키 prefix 설계](#s3-객체-키-prefix-설계--kb-원본-키에서-workspaceid-제외-27) 참조.
+> KB 원본 키는 `workspaceId` 를 prefix 로 두지 않는다 (`kb/...` 로 시작). 버킷 이름은 `S3_BUCKET` 환경변수 (기본 `workflow-storage`, `codebase/backend/.env.example:102`) 로 지정한다. 키 설계 근거·기각된 대안은 [Rationale § S3 객체 키 prefix 설계](#s3-객체-키-prefix-설계--kb-원본-키에서-workspaceid-제외-27) 참조.
 
 ### 2.8 DB 마이그레이션 (Flyway)
 
@@ -279,9 +280,9 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 |------|------|
 | 도구 | **Flyway** |
 | 버전 관리 | SQL 기반 마이그레이션 파일, `V{version}__{description}.sql` 네이밍 |
-| 롤백 지원 | 각 마이그레이션에 대응하는 undo 스크립트 작성 (`U{version}__{description}.sql`) |
+| 롤백 정책 | **forward-only**. 별도 undo 스크립트(`U{version}__...sql`)는 두지 않는다. 운영 사고 대비 롤백 SQL 은 각 마이그레이션 파일 하단에 `-- DOWN:` 주석으로 보존한다 ([migrations/README.md §2](../codebase/backend/migrations/README.md)) |
 | CI/CD 연동 | 배포 파이프라인에서 `flyway migrate` 자동 실행. 마이그레이션 실패 시 배포 중단 |
-| 환경 분리 | dev/staging/production 환경별 설정 파일 분리 (`flyway-{env}.conf`) |
+| 실행 방식 | 전용 Flyway Docker 이미지(`migrations/Dockerfile`, `flyway/flyway:10-alpine`)에 `V*.sql` + per-migration `V*.conf` 를 COPY 하고 DB 접속 정보는 CLI 인자(`-url` / `-user` / `-password`)로 주입한다. 환경별 `flyway-{env}.conf` 분리 파일은 쓰지 않는다 |
 | 기준선 | 최초 배포 시 `flyway baseline`으로 기준점 설정 |
 
 ---
@@ -330,7 +331,7 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 | 영역 | 제품 정의 | 상세 spec |
 |------|-------------------|-----------|
 | 내비게이션 | [`./2-navigation/_product-overview.md`](./2-navigation/_product-overview.md) | [`./2-navigation/`](./2-navigation/) 의 화면별 문서 |
-| 워크플로우 에디터 | [`./3-workflow-editor/_product-overview.md`](./3-workflow-editor/_product-overview.md) | [`0-canvas`](./3-workflow-editor/0-canvas.md) · [`1-node-common`](./3-workflow-editor/1-node-common.md) · [`2-edge`](./3-workflow-editor/2-edge.md) · [`3-execution`](./3-workflow-editor/3-execution.md) · [`4-ai-assistant`](./3-workflow-editor/4-ai-assistant.md) |
+| 워크플로우 에디터 | [`./3-workflow-editor/_product-overview.md`](./3-workflow-editor/_product-overview.md) | [`0-canvas`](./3-workflow-editor/0-canvas.md) · [`1-node-common`](./3-workflow-editor/1-node-common.md) · [`2-edge`](./3-workflow-editor/2-edge.md) · [`3-execution`](./3-workflow-editor/3-execution.md) · [`4-ai-assistant`](./3-workflow-editor/4-ai-assistant.md) · [`5-version-history`](./3-workflow-editor/5-version-history.md) |
 | 노드 시스템 | [`./4-nodes/_product-overview.md`](./4-nodes/_product-overview.md) | [`./4-nodes/0-overview.md`](./4-nodes/0-overview.md) + 카테고리별 폴더 |
 | AI 플랫폼 (LLM/KB/Assistant) | [`./4-nodes/3-ai/_product-overview.md`](./4-nodes/3-ai/_product-overview.md) | [`./4-nodes/3-ai/`](./4-nodes/3-ai/) · [`./5-system/7-llm-client.md`](./5-system/7-llm-client.md) |
 | 통합·KB·마켓플레이스 | [`./4-nodes/4-integration/_product-overview.md`](./4-nodes/4-integration/_product-overview.md) | [`./4-nodes/4-integration/`](./4-nodes/4-integration/) · [`./2-navigation/4-integration.md`](./2-navigation/4-integration.md) · [`./2-navigation/5-knowledge-base.md`](./2-navigation/5-knowledge-base.md) · [`./2-navigation/8-marketplace.md`](./2-navigation/8-marketplace.md) |
@@ -373,6 +374,8 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 - **배경**: Backend 가 NestJS + Prisma 를 사용하므로 `prisma migrate` 를 그대로 쓰는 것이 가장 자연스러운 선택지였다.
 - **채택**: SQL 기반 Flyway (`V<NNN>__<descriptor>.sql`) 를 별도 도구로 도입. `prisma migrate` 대신 SQL 기반을 쓰는 이유: (a) 운영 DB 에 적용되는 SQL 을 PR 에서 그대로 리뷰 가능, (b) `ALTER` 의 락 거동·트랜잭션 모드 세밀 제어, (c) extension·partial index·CHECK 제약·`NOT VALID` 등 Postgres 고유 기능 표현.
 - **trade-off**: Prisma client 의 schema 와 Flyway SQL 의 schema 가 이중으로 존재 — drift 위험. `codebase/backend/src/migrations.spec.ts` 가 CI 마다 schema_history vs 파일 정합성을 검증해 silent skip 을 차단하지만, schema 정의 자체의 이중 source 는 받아들인 비용이다. 상세 운영 규약: [Flyway 마이그레이션 운영 규약](./conventions/migrations.md).
+- **forward-only 채택 (§2.8 롤백 정책)**: 별도 undo 스크립트(`U{version}__...sql`)는 두지 않는다. 운영 사고 시 빠른 복구는 각 마이그레이션 파일 하단의 `-- DOWN:` 주석(migrations/README.md §2)으로 충분하고, 자동 undo 체인을 유지하는 비용·리스크(부분 적용 상태에서의 down 실패) 대비 이득이 낮다고 판단했다. (구 초안의 `U{version}` undo 스크립트 전제는 폐기.)
+- **CLI 인자 주입 채택 (§2.8 실행 방식)**: 환경별 `flyway-{env}.conf` 분리 파일 대신, 전용 Flyway Docker 이미지에 DB 접속 정보를 CLI 인자(`-url`/`-user`/`-password`)로 주입한다. 컨테이너 오케스트레이션(시크릿 주입)과 자연스럽게 맞고, 환경별 conf 파일을 레포에 두지 않아 시크릿 노출면을 줄인다. (구 초안의 환경별 conf 전제는 폐기.)
 
 ### 실행 엔진: Redis 큐 + 분산 워커 풀 (§2.4)
 

@@ -16,7 +16,7 @@ LLM 호출을 단일 facade (`LlmService`) 로 통합한다. 호출마다 사용
 
 - `codebase/backend/src/modules/llm-config/llm-config.service.ts` — LLMConfig CRUD
 - `codebase/backend/src/modules/llm/llm.service.ts` — `chat`, `embed`, `resolveConfig`
-- `codebase/backend/src/modules/llm/llm-client.factory.ts` — provider 별 client 생성 (OpenAI · Anthropic · Google · Azure · Ollama · vLLM)
+- `codebase/backend/src/modules/llm/llm-client.factory.ts` — provider 별 client 생성. switch 분기 5종: `openai` · `anthropic` · `google` · `azure` · `local`. `local` 은 OpenAI 호환 엔드포인트(Ollama · vLLM 등)를 base_url 로 받는 `LocalClient` (`OpenAIClient` 확장) 이며 독립 provider enum 이 아니다 (`clients/local.client.ts`)
 - `codebase/backend/src/modules/llm/llm-usage-log.service.ts` — usage 적재
 - `codebase/backend/src/modules/llm/llm-preview.service.ts` — UI 의 모델 시험 호출
 
@@ -52,14 +52,16 @@ sequenceDiagram
   participant PG as Postgres
   participant Log as LlmUsageLogService
 
-  Caller->>LL: chat({messages, model, params, workspaceId, llmConfigId?, context{workflowId?, executionId?, nodeExecutionId?}})
-  LL->>Cf: resolveConfig(llmConfigId, workspaceId)
+  Caller->>LL: resolveConfig(llmConfigId?, workspaceId)
+  LL->>Cf: findEntity 또는 findDefault
   Cf->>PG: SELECT llm_config WHERE id=? OR is_default=true
   Cf-->>LL: config (api_key 복호화)
-  LL->>Fac: createClient(config.provider, config.base_url)
-  LL->>Prov: chat completions (stream or sync)
-  Prov-->>LL: { content, usage{prompt_tokens, completion_tokens, total_tokens, thinking_tokens?} }
-  LL->>Log: record({workspaceId, workflowId?, executionId?, nodeExecutionId?, llmConfigId, provider, model, tokens, costUsd})
+  LL-->>Caller: config (LlmConfig 엔티티)
+  Caller->>LL: chat(config, params, context?, opts?)
+  LL->>Fac: create — config 의 provider/base_url 사용
+  LL->>Prov: chat completions (sync, streaming 은 chatStream)
+  Prov-->>LL: { content, usage{inputTokens, outputTokens, totalTokens, thinkingTokens?} }
+  LL->>Log: record({workspaceId, workflowId?, executionId?, nodeExecutionId?, llmConfigId, provider, model, usage})
   Log->>PG: INSERT llm_usage_log (...)
   LL-->>Caller: response
 ```
@@ -84,13 +86,13 @@ sequenceDiagram
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
 | `llm_config` | 생성·갱신 | INSERT/UPDATE `workspace_id, provider, name, api_key (encrypted), base_url?, default_model, default_params, is_default` | V001 + `llm_config_workspace_default_unique` (`workspace_id WHERE is_default=true`) UNIQUE partial — 워크스페이스 당 default 1개 |
-| `llm_usage_log` | 호출 후 | INSERT `workspace_id, workflow_id?, execution_id?, node_execution_id?, llm_config_id?, provider, model, prompt_tokens, completion_tokens, total_tokens, thinking_tokens? (V018), cost_usd?` | V014/V018. `(workspace_id, created_at)`, `(provider, model, created_at)` 통계용 |
+| `llm_usage_log` | 호출 후 | INSERT `workspace_id, workflow_id?, execution_id?, node_execution_id?, llm_config_id?, provider, model, prompt_tokens, completion_tokens, total_tokens, thinking_tokens? (V018), cost_usd?` | V014/V018. `(workspace_id, created_at DESC)`, `(provider, model, created_at DESC)`, `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (partial) 통계용 |
 
 ### 2.2 외부
 
 | Sink | 흐름 |
 | --- | --- |
-| OpenAI / Anthropic / Google / Azure OpenAI / Ollama / vLLM | chat / embed |
+| OpenAI / Anthropic / Google / Azure OpenAI / OpenAI 호환 local 엔드포인트 (`local` provider — Ollama · vLLM 등) | chat / embed |
 
 ---
 
@@ -100,9 +102,9 @@ sequenceDiagram
 
 ### 3.1 비용 계산
 
-- `LlmService` 가 provider 응답의 token 수를 받아 `pricing.ts` 의 (provider, model) → (input_per_M, output_per_M) 단가 표로 `cost_usd` 를 계산
+- `LlmUsageLogService.record` 가 provider 응답의 token 수를 받아 `pricing.ts` 의 `calculateCostUsd(provider, model, promptTokens, completionTokens)` 로 `cost_usd` 를 계산. 단가 표는 `provider:model` 키의 `(promptPer1k, completionPer1k)` (1K 토큰당 USD)
 - 단가표에 없는 모델은 `cost_usd = NULL` (집계 시 unknown 으로 분류)
-- `thinking_tokens` (예: o1 류) 는 별도 컬럼이며 단가는 output 단가에 합산되어 `cost_usd` 에 포함 (V018)
+- `thinking_tokens` (예: OpenAI reasoning · Gemini 2.5) 는 V018 에서 추가된 별도 컬럼으로 **저장만** 되고 `cost_usd` 계산에는 포함되지 않는다 — `calculateCostUsd` 는 prompt·completion 토큰만 받는다 (`pricing.ts`, `llm-usage-log.service.ts`)
 
 ---
 

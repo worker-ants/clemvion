@@ -65,7 +65,7 @@
 | ID | 요구사항 | 우선순위 | 상태 |
 |----|----------|----------|-------|
 | NF-OB-01 | 구조화된 로깅 (JSON 형식) | 필수 | ✅ |
-| NF-OB-02 | 메트릭 수집 및 모니터링 (Prometheus 호환) | 필수 | ✅ |
+| NF-OB-02 | 메트릭 수집 및 모니터링 (Prometheus 호환) | 필수 | ❌ 미구현 (Planned) — 현 백엔드는 OTel **traces-only** (`@opentelemetry/exporter-trace-otlp-http`, `instrumentation.ts`). 메트릭 파이프라인(`@opentelemetry/sdk-metrics`·Prometheus exporter·`prom-client`·`/metrics` 엔드포인트·`MeterProvider`) 부재. 추적: [`plan/in-progress/spec-sync-5-system-metrics-gap.md`](../../plan/in-progress/spec-sync-5-system-metrics-gap.md) |
 | NF-OB-03 | 분산 트레이싱 (OpenTelemetry 호환) | 권장 | ✅ (`OTEL_ENABLED=true`로 활성, OTLP HTTP exporter 기본 endpoint `/v1/traces`) |
 | NF-OB-04 | 워크플로우 실행 추적 — 각 노드별 실행 시간, 입출력 크기 기록 | 필수 | ✅ |
 | NF-OB-05 | 알림(Alert) 설정 — 실패율, 지연 임계값 초과 시 | 권장 | ✅ (룰 CRUD API + `/profile/alerts` UI + `AlertsEvaluatorService` 가 BullMQ repeatable scheduler `*/5 * * * *` (UTC) 로 5분마다 평가 + rule window 단위 cooldown 으로 노티 스팸 방지) |

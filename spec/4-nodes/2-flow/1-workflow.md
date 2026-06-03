@@ -1,9 +1,12 @@
 ---
 id: workflow
-status: implemented
+status: partial
 code:
   - codebase/backend/src/nodes/flow/workflow/workflow.handler.ts
   - codebase/backend/src/nodes/flow/workflow/workflow.schema.ts
+  - codebase/backend/src/nodes/flow/workflow/workflow.component.ts
+pending_plans:
+  - plan/in-progress/spec-sync-workflow-gaps.md
 ---
 
 # Spec: Workflow (Sub-Workflow)
@@ -29,11 +32,13 @@ code:
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | paramName | string | 서브 워크플로우 입력 키 이름 (handler 가 읽는 키) |
-| expression | unknown | 매핑할 값의 expression 또는 리터럴 (engine 이 평가 후 핸들러에 전달) |
+| expression | string | 매핑할 값의 expression 또는 리터럴 문자열. config 스키마(zod)는 `z.string()` 으로 저장 — engine 이 평가 후 핸들러에 evaluated 값(런타임 `unknown`)을 전달 |
 
 > Source of truth: `codebase/backend/src/nodes/flow/workflow/workflow.schema.ts` (export `workflowNodeConfigSchema`). 스키마 / 핸들러 모두 `paramName` / `expression` 을 사용한다.
 
 ## 2. 설정 UI
+
+> ⚠️ **미구현 (Planned)**: 아래 와이어프레임 중 **Target Workflow 셀렉터 드롭다운**(워크플로우 후보 목록 노출)과 **`⚠ Missing workflow` 캔버스 배지**는 아직 구현되지 않았다. config 스키마는 `widget: 'workflow-selector'` 를 선언하지만, 프론트엔드 `WIDGET_REGISTRY` 에서 `workflow-selector` 가 `UnsupportedWidget` 스텁으로 매핑되어 있어(`widget-registry.ts:49`) 전용 셀렉터 UI 가 렌더되지 않는다. 현재 `workflowId` 는 텍스트/expression 입력만 가능하다. 셀렉터·Missing 배지는 `plan/in-progress/spec-sync-workflow-gaps.md` 로 추적한다.
 
 ```
 ┌────────────────────────────────────────┐
@@ -64,10 +69,12 @@ code:
 └────────────────────────────────────────┘
 ```
 
-- 셀렉터에서 선택 시 `workflowId` + `workflowName` 동시 저장
-- 직접 입력 시 `workflowName` 초기화
-- 같은 워크스페이스 내 워크플로우만 후보로 노출 (현재 편집 중 워크플로우 제외)
-- 비활성 / 삭제된 워크플로우는 캔버스 배지에서 `⚠ Missing workflow` 표시
+- (셀렉터 구현 시 계획) 셀렉터에서 선택 시 `workflowId` + `workflowName` 동시 저장
+- (셀렉터 구현 시 계획) 직접 입력 시 `workflowName` 초기화
+- (셀렉터 구현 시 계획) 같은 워크스페이스 내 워크플로우만 후보로 노출 (현재 편집 중 워크플로우 제외)
+- (미구현, Planned) 비활성 / 삭제된 워크플로우는 캔버스 배지에서 `⚠ Missing workflow` 표시 — 코드에 해당 배지 분기 없음
+
+> ℹ️ **런타임 워크스페이스 격리 (구현됨, W-6)**: 셀렉터 후보 필터링과 별개로, 엔진은 sub-workflow 실행 시 `assertSameWorkspace` 로 대상 워크플로우가 호출자(부모)와 다른 워크스페이스이면 `WORKFLOW_FORBIDDEN_WORKSPACE` 를 throw 하여 cross-workspace 호출을 차단한다. handler 가 `parentWorkspaceId`(`context.variables.__workspaceId`)를 engine 의 `executeInline`/`executeAsync` 에 전달하며, 검증은 `execution-engine.service.ts:2562,2665` 에서 수행된다.
 
 ## 3. 포트
 
@@ -89,7 +96,7 @@ code:
 ## 4. 실행 로직
 
 1. **Pre-flight 검증** (Principle 3.1, throw):
-   - `workflowId` 미설정 → schema warningRule "실행할 워크플로우를 선택해야 합니다."
+   - `workflowId` 미설정 → schema warningRule `Target workflow must be selected.` (SoT: `workflow.schema.ts` warningRule id `workflow:no-workflow-selected`; 캔버스 배지는 i18n 으로 한국어 렌더)
    - `workflowId` 가 string 아님 / `mode` 가 `sync`·`async` 외 / `timeout` 음수·non-numeric / `inputMapping` 비배열 / `inputMapping[i].paramName` 누락 → handler.validate
    - `context.recursionDepth >= 10` → throw `Maximum recursion depth exceeded (limit: 10)`
    - sync 모드에서 `context._executedNodes` 누락 → throw `Inline execution requires _executedNodes in context`
@@ -234,7 +241,7 @@ code:
 
 | 발생 조건 | 메시지 | 시점 |
 |-----------|--------|------|
-| `workflowId` 미설정·빈 문자열 | `실행할 워크플로우를 선택해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
+| `workflowId` 미설정·빈 문자열 | `Target workflow must be selected.` (warningRule source. 캔버스 배지는 i18n 한국어 렌더) | warningRule (캔버스 배지) + handler.validate |
 | `workflowId` 가 string 아님 | `workflowId is required and must be a string` | handler.validate |
 | `mode` 가 `sync`/`async` 외 | `mode must be "sync" or "async"` | handler.validate |
 | `timeout` 음수 또는 non-numeric | `timeout must be a non-negative number (0 = no timeout)` | validateConfig (schema) |
@@ -263,4 +270,6 @@ code:
 
 ## 7. 캔버스 요약
 
-[Flow 공통 §4](./0-common.md#4-캔버스-요약) — `Workflow` 행 인용 (`{workflowName 또는 workflowId} · {mode}`. 대상 워크플로우가 삭제·비활성화되면 `⚠ Missing workflow` 배지).
+> ⚠️ **미구현 (Planned)**: 아래 요약 템플릿(`{workflowName 또는 workflowId} · {mode}`)과 `⚠ Missing workflow` 배지는 아직 구현되지 않았다. `workflowNodeMetadata` 에 `summaryTemplate` 이 없어(타 노드 — parallel/http-request/map 등은 보유) 캔버스는 본문 요약을 렌더하지 않는다(`node-config-summary.ts`: `summaryTemplate` 부재 시 `null` 반환). 현재 노출되는 캔버스 텍스트는 `workflowId` 미설정 시 blocking warning 배지(`⚠ Target workflow must be selected.`)뿐이다. 요약 템플릿·Missing 배지는 `plan/in-progress/spec-sync-workflow-gaps.md` 로 추적한다.
+
+(계획) [Flow 공통 §4](./0-common.md#4-캔버스-요약) — `Workflow` 행 인용 (`{workflowName 또는 workflowId} · {mode}`. 대상 워크플로우가 삭제·비활성화되면 `⚠ Missing workflow` 배지).

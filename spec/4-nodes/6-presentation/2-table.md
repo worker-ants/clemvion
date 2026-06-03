@@ -149,11 +149,11 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
    1. `config.dataSource` 가 있으면 그 값을, 없으면 입력 포트 데이터를 사용. 비배열은 `[obj]` 로 래핑.
    2. 컬럼을 expression(`{{` 포함) 과 plain field 로 사전 분류.
    3. 각 항목에 대해 `{ $dataSource, $sourceItem, $sourceItemIndex }` 를 expressionContext 에 추가하여 셀 값 산출 — expression 컬럼은 `evaluate()` 로 평가, plain 컬럼은 `getNestedValue` 로 dot-path 접근. 평가 실패 시 해당 셀은 `null`.
-4. `sortBy` 가 지정되면 `sortOrder` 에 따라 `dataRows` 정렬 (null 값은 항상 끝으로).
+4. `sortBy` 가 지정되면 `sortOrder` 에 따라 `dataRows` 정렬. null 비교는 "non-null 우선" 규칙(`aVal != null && bVal != null && aVal < bVal ? -1 : 1`)을 쓴 뒤 `desc` 면 부호를 반전하므로, **`asc` 에서는 null 이 뒤로, `desc` 에서는 null 이 앞으로** 간다 (양쪽 모두 끝으로 모으지는 않음). 출처: `table.handler.ts:118-126`.
 5. `pageSize` 가 truthy 이면 `dataRows = dataRows.slice(0, pageSize)`.
 6. **Cap 적용**: `truncateArrayForOutput(dataRows, PRESENTATION_MAX_BYTES)` — 직렬화 후 1MB 초과 시 tail 부터 element 단위로 잘라낸다 ([공통 §4](./0-common.md#4-출력-포맷-principle-11--43--45)).
 7. **컬럼 라벨 평가** (dynamic 모드 한정): label 에 `{{` 가 포함된 컬럼만 `$dataSource` 컨텍스트로 평가 → `resolvedColumns`. `output.columns` 에 surface.
-8. **HTML 렌더링**: `resolvedColumns` 헤더 + cap 적용된 `cappedRows.value` 본문. 잘린 행의 HTML 이 leak 되지 않는다.
+8. **출력 구성** (D5, 2026-05-17 — backend HTML snapshot 폐기): `output.rows` 에 cap 적용된 `cappedRows.value`, `output.columns` 에 `resolvedColumns` 를 surface 한다. backend 는 더 이상 HTML 을 생성하지 않으며, frontend `TableContent` 가 `rows` + `columns` 로 직접 렌더한다 (cap 으로 잘린 행은 `rows` 에 포함되지 않으므로 누출 없음). 출처: `table.handler.ts:21-24,148-158`.
 9. **버튼 분기**:
    - `buttons.length > 0` → §5.4 (waiting). 엔진이 사용자 입력 수신 후 §5.5 (resumed).
    - 아니면 → §5.1 (비-블로킹).
@@ -196,12 +196,17 @@ ButtonDef / 포트 토폴로지 / Blocking Mode / 출력 cap / Resumed 규약은
 
 > **`output.rendered` 폐기, frontend client-side 렌더**: backend 는 HTML snapshot 을 더 이상 생성하지 않는다. 다운스트림/UI 는 `output.rows` + `output.columns` 로 직접 렌더한다 (Carousel/Chart 와 완전 일관). escape 책임은 표시 계층 (React JSX 자동 escape) 으로 이동. 다운스트림 expression `$node["T"].output.rendered` 참조 워크플로는 깨지므로 마이그레이션 필요.
 
+> **config echo 는 무조건 enumerate (D1, 2026-05-17)**: 핸들러는 비-민감 schema 필드를 전부 echo 한다 — `mode`/`dataSource`/`columns`/`rows`/`pagination`/`pageSize`/`sortBy`/`sortOrder`. raw 값이 없으면 `undefined` 키로 남는다 (JSON 직렬화 시 생략됨). 위 JSON 예시는 `undefined` 필드를 생략한 표기이며, 실제 echo 객체는 모든 키를 포함한다. 출처: `table.handler.ts:166-177` (`configEcho`).
+
 | 필드 | 타입 | 출처 | 설명 |
 |------|------|------|------|
-| `config.mode` | `'static'` / `'dynamic'` | config echo (Principle 7) | 행 생성 방식 |
-| `config.columns` | ColumnDef[] | config echo | **raw** 컬럼 정의 — `label` 에 `{{ }}` 가 있으면 보존됨 |
-| `config.pageSize` | number? | config echo | 사용자 설정 (있을 때만 echo) |
-| `config.sortBy` / `config.sortOrder` | string? / enum? | config echo | 정렬 설정 (sortBy 있을 때만 echo) |
+| `config.mode` | `'static'` / `'dynamic'` | config echo (Principle 7) | 행 생성 방식. `rawConfig.mode ?? mode` (정규화된 기본값 fallback) |
+| `config.dataSource` | string? | config echo | 배열 데이터 소스 표현식 (raw). 미지정 시 `undefined` |
+| `config.columns` | ColumnDef[] | config echo | **raw** 컬럼 정의 — `label` 에 `{{ }}` 가 있으면 보존됨 (`rawConfig.columns ?? columns`) |
+| `config.rows` | RowDef[]? | config echo | static 모드 raw 행 데이터. dynamic 모드/미지정 시 `undefined` |
+| `config.pagination` | boolean? | config echo | 페이지네이션 활성화 플래그 (raw) |
+| `config.pageSize` | number? | config echo | 사용자 설정 (`rawConfig.pageSize ?? pageSize`) |
+| `config.sortBy` / `config.sortOrder` | string? / enum? | config echo | 정렬 설정 (`rawConfig.* ?? 런타임값`) |
 | `output.rows` | `Record<string, unknown>[]` | runtime | static: `columns[*].field` 기준으로 필터링된 행 / dynamic: `dataSource` 항목별로 평가된 셀. cap 후 잘린 결과일 수 있음 |
 | `output.totalRows` | number | runtime | **cap 적용 전** 데이터셋 크기 (pageSize / sort 적용 후). `rows.length !== totalRows` 만으로 cap 감지 가능 |
 | `output.columns` | ColumnDef[] | runtime | `label` 표현식이 평가된 컬럼 (dynamic 모드 한정). config 의 raw label 과 직교 (Principle 1.1 / Principle 7) |
@@ -354,8 +359,8 @@ Table 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는
 
 | 발생 조건 | 메시지 | 시점 | 출처 |
 |-----------|--------|------|------|
-| `columns` 가 빈 배열/누락 | `컬럼을 1개 이상 정의해야 합니다.` | warningRule (캔버스 배지) + handler.validate | `warningRules.table:no-columns` |
-| `mode` 가 `static`/`dynamic` 외 | `Mode 는 static 또는 dynamic 이어야 합니다.` | warningRule + handler.validate | `warningRules.table:invalid-mode` |
+| `columns` 가 빈 배열/누락 | `At least one column must be defined.` (UI 한국어: `컬럼을 1개 이상 정의해야 합니다.`) | warningRule (캔버스 배지) + handler.validate | `warningRules.table:no-columns` |
+| `mode` 가 `static`/`dynamic` 외 | `Mode must be either static or dynamic.` (UI 한국어: `Mode 는 static 또는 dynamic 이어야 합니다.`) | warningRule + handler.validate | `warningRules.table:invalid-mode` |
 | `columns` 가 array 아님 | `columns must be an array` | handler.validate | `validateTableConfig` |
 | static 모드에서 `rows` 가 array 아님 | `rows must be an array in static mode` | handler.validate | `validateTableConfig` |
 | `sortBy` 가 `columns[*].field` 와 mismatch | `sortBy "<value>" must match one of the defined column fields` | handler.validate | `validateTableConfig` |

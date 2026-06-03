@@ -117,7 +117,8 @@ hasBotToken: boolean;
 ## 2) Controller 패턴
 
 ### 2-1. 상단에 `@ApiTags` + `@ApiBearerAuth('access-token')`
-`access-token`은 `main.ts`에서 등록한 Bearer scheme 이름입니다.
+`access-token`은 `main.ts`에서 등록한 Bearer scheme 이름입니다 (`.addBearerAuth({ scheme: 'bearer', bearerFormat: 'JWT', ... }, 'access-token')`).
+`main.ts`는 추가로 **`interaction-token`** Bearer scheme 도 등록합니다 — External Interaction API 전용으로 `iext_<JWT>`(per_execution) / `itk_<opaque>`(per_trigger) 토큰을 받습니다. 해당 엔드포인트는 `@ApiBearerAuth('interaction-token')`을 사용합니다.
 `@Public()` 전용 컨트롤러(auth, health, hooks)는 `@ApiBearerAuth`를 **넣지 않습니다**.
 혼합 컨트롤러는 클래스 레벨 `@ApiBearerAuth('access-token')`를 넣고, `@Public()` 엔드포인트에는 `@ApiSecurity({})` 대신 설명에서 '인증 불필요'를 명시합니다.
 
@@ -247,6 +248,7 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 | 헬퍼 | 용도 | 반환 스키마 |
 |------|------|------------|
 | `ApiOkWrappedResponse(Dto)` | 단일 객체 200 OK | `{ data: <Dto> }` |
+| `ApiOkWrappedOneOfResponse([DtoA, DtoB], { discriminator })` | 200 OK, `data` 가 여러 DTO 중 하나 (예: OAuth begin 분기 응답) | `{ data: oneOf(<DtoA>, <DtoB>) }` (`wrapOneOfDataSchema`) |
 | `ApiCreatedWrappedResponse(Dto)` | 단일 객체 201 Created | `{ data: <Dto> }` |
 | `ApiAcceptedWrappedResponse(Dto)` | 단일 객체 202 Accepted | `{ data: <Dto> }` |
 | `ApiOkWrappedArrayResponse(Dto)` | 배열 200 OK | `{ data: <Dto>[] }` |

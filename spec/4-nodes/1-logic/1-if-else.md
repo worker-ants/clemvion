@@ -150,16 +150,18 @@ code:
 
 If/Else는 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 pre-flight (config 검증) 단계에서 throw 된다 (CONVENTIONS Principle 3.1):
 
-| 발생 조건 | 메시지 | 시점 |
+| 발생 조건 | 메시지 (SoT) | 시점 |
 |-----------|--------|------|
-| `conditions` 가 빈 배열 | `최소 1개 이상의 조건을 추가해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
-| `conditions[0].field` 가 빈 문자열 | `첫 번째 조건의 필드를 입력해야 합니다.` | warningRule (캔버스 배지) |
+| `conditions` 가 빈 배열 | `At least one condition must be added.` | warningRule (캔버스 배지) + handler.validate |
+| `conditions[0].field` 가 빈 문자열 | `First condition's field must be entered.` | warningRule (캔버스 배지) |
 | `conditions[i].field` 누락 | `conditions[i].field is required and must be a string` | handler.validate |
 | `conditions[i].operator` 가 enum 미일치 | `conditions[i].operator must be one of: eq, neq, …` | handler.validate |
 | `combineMode` 가 `and`/`or` 외 | `combineMode must be "and" or "or"` | handler.validate |
 | `strictComparison` 가 boolean 아님 | `strictComparison must be a boolean` | handler.validate |
 
-> `is_type` / `regex` 연산자는 If/Else / Switch (expression mode) / Filter / Transform.array_filter 모두에서 동일하게 동작한다 (`core/condition-evaluator.util.ts`). `regex` 는 schema 가 string literal 만 허용하며, `is_type` 은 `string` / `number` / `boolean` / `object` / `array` / `null` / `undefined` 중 하나여야 한다 (그 외 값은 `false`). 본 문서 §1 표는 [공통 §2 지원 연산자](./0-common.md#2-지원-연산자) 인용에 의존한다.
+> `is_type` 연산자는 If/Else / Switch (expression mode) / Filter / Transform.array_filter 모두에서 동일하게 동작하며, `string` / `number` / `boolean` / `object` / `array` / `null` / `undefined` 중 하나여야 한다 (그 외 값은 `false`). 본 문서 §1 표는 [공통 §2 지원 연산자](./0-common.md#2-지원-연산자) 인용에 의존한다.
+>
+> **`regex` 연산자 주의**: schema(`conditionOperatorSchema`)는 `regex` 를 허용하지만, **If/Else (와 Switch expression mode) 핸들러는 컴파일된 정규식을 평가기에 전달하지 않으므로 `regex` 는 현재 항상 `false` 를 반환하는 no-op 이다** (`evaluateCondition` 의 `options.regex` 미설정 → `evaluateResolvedCondition` 의 `case 'regex': if (!compiledRegex) return false`, `core/condition-evaluator.util.ts:80-86,150-153`). 실제 정규식 매칭은 per-item regex cache 를 컴파일해 전달하는 Filter / Transform.array_filter 에서만 동작한다 (`compileRegexCache`). If/Else 에서 정규식 매칭이 필요하면 표현식(`{{ }}`)으로 우회한다.
 
 ## 7. 캔버스 요약
 

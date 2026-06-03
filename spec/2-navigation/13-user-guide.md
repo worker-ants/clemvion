@@ -6,6 +6,9 @@ code:
   - codebase/frontend/src/app/(main)/docs/[...slug]/page.tsx
   - codebase/frontend/src/lib/docs/registry.ts
   - codebase/frontend/src/lib/docs/locale.ts
+  - codebase/frontend/src/lib/docs/route.ts
+  - codebase/frontend/src/lib/docs/links.ts
+  - codebase/frontend/src/lib/i18n/**
   - codebase/frontend/src/components/docs/**
 ---
 
@@ -17,9 +20,13 @@ code:
 
 ## 1. 목적
 
-제품의 UI만으로는 파악이 어려운 개념(워크플로우 구조, 노드 종류, 표현식 언어, 실행/디버깅, 연동/설정)을 **제품 내부에서** 한글로 안내한다. 별도 외부 문서 사이트 대신 `/docs` 경로로 제공하여 에디터 작업 중 즉시 접근 가능하게 한다.
+제품의 UI만으로는 파악이 어려운 개념(워크플로우 구조, 노드 종류, 표현식 언어, 실행/디버깅, 연동/설정)을 **제품 내부에서** 안내한다. 별도 외부 문서 사이트 대신 `/docs` 경로로 제공하여 에디터 작업 중 즉시 접근 가능하게 한다.
+
+콘텐츠는 한국어(`ko`, 기본 locale)와 영어(`en`) **이중언어**로 제공한다. 기본 콘텐츠는 한글(`<slug>.mdx`)이며, 영어 번역은 같은 디렉터리의 sibling(`<slug>.en.mdx`)으로 둔다. 지원 locale 목록·기본 locale 은 `codebase/frontend/src/lib/i18n/types.ts` 의 `LOCALES`(`["ko", "en"]`)·`DEFAULT_LOCALE`(`ko`)가 단일 진실원이다. 특정 페이지에 `en` sibling 이 없으면 한국어 본문으로 폴백하고 `DocBodyNotice` 로 폴백 사실을 안내한다(`[...slug]/page.tsx`).
 
 ## 2. 정보 구조 (IA)
+
+아래 트리는 **canonical(기본 locale, 한글) 페이지**를 나타낸다. 각 페이지는 같은 디렉터리에 선택적 영어 sibling(`<slug>.en.mdx`)을 가질 수 있다(§1). 내비게이션 트리는 canonical `<slug>.mdx` 만 스캔해 구성하고, locale sibling 은 중복 등록을 막기 위해 스캔에서 제외한다(`registry.ts` `listMdxFiles`·`isLocaleSibling`). 따라서 사이드바 항목 수는 아래 canonical 페이지 수와 같다.
 
 ```
 /docs
@@ -52,7 +59,12 @@ code:
 │   ├── integration-management  # 통합 관리
 │   ├── llm-config             # LLM 설정
 │   ├── knowledge-base         # 지식 저장소
-│   └── mcp-servers            # MCP 서버 통합 (AI Agent 도구 호출용)
+│   ├── mcp-servers            # MCP 서버 통합 (AI Agent 도구 호출용)
+│   ├── cafe24                 # Cafe24 채널 연동
+│   ├── discord                # Discord 채널 연동
+│   ├── slack                  # Slack 채널 연동
+│   ├── telegram               # Telegram 채널 연동
+│   └── web-chat               # 임베드형 웹채팅 위젯 연동
 ├── 07-workspace-and-team/
 │   └── workspaces-and-members  # 개인·팀 워크스페이스, 멤버 초대, 공유 표시
 └── 99-faq/                     # 항상 사이드바 맨 아래 (§5 규칙)
@@ -61,11 +73,14 @@ code:
 
 ## 3. 라우트
 
+단일 catch-all `/docs/[...slug]` 라우트가 모든 문서 URL 을 처리한다. **slug 의 첫 세그먼트는 locale**(`ko`|`en`)로 해석하고, 나머지가 canonical 파일 경로(섹션 + 페이지)에 매핑된다. 즉 정상 URL 은 `/docs/<locale>/<section>/<slug>` 형태로 **최소 3 세그먼트**다 (`parseDocsRoute`, `route.ts`).
+
 | 경로 | 동작 |
 | --- | --- |
-| `/docs` | 허브 페이지 — `/docs/01-getting-started/what-is-this`로 리다이렉트 (또는 섹션 카드 노출) |
-| `/docs/[...slug]` | 동적 MDX 렌더링. 슬러그는 파일 경로와 1:1 (예: `/docs/02-nodes/ai` → `content/docs/02-nodes/ai.mdx`) |
-| 존재하지 않는 슬러그 | `notFound()` 호출 → 표준 404 |
+| `/docs/<locale>/<section>/<slug>` | 동적 MDX 렌더링. 첫 세그먼트(locale) 를 제거한 나머지가 파일 경로와 1:1 (예: `/docs/ko/02-nodes/ai` → canonical `content/docs/02-nodes/ai.mdx`, `/docs/en/02-nodes/ai` → 번역 sibling `content/docs/02-nodes/ai.en.mdx`, sibling 부재 시 한글 본문 폴백) |
+| 첫 세그먼트가 locale 이 아닌 경로 (레거시 북마크) | 쿠키 locale(없으면 `DEFAULT_LOCALE`) 을 프리픽스로 붙여 `/docs/<locale>/...` 로 `redirect` (`page.tsx`) |
+| 첫 세그먼트가 locale 이지만 세그먼트 수 부족·존재하지 않는 슬러그 | `notFound()` 호출 → 표준 404 |
+| `/docs` | 허브 페이지 — 섹션 카드/리다이렉트 (`docs/page.tsx`) |
 
 ## 4. 프론트매터 스키마
 
@@ -73,10 +88,12 @@ code:
 
 | 키 | 필수 | 타입 | 설명 |
 | --- | --- | --- | --- |
-| `title` | 필수 | string | 페이지 제목. 사이드바와 본문 H1에 사용 |
+| `title` | 필수 | string | 페이지 제목(기본 locale=ko). 사이드바와 본문 H1에 사용 |
+| `title_en` | 선택 | string | 영어 제목. `en` locale 렌더 시 우선 사용, 없으면 `title` 폴백 (`locale.ts` `localizedTitle`) |
 | `section` | 필수 | string | 섹션 키 (예: `02-nodes`) — 디렉터리명과 일치 |
 | `order` | 필수 | number | 섹션 내 정렬 기준 |
-| `summary` | 필수 | string | 사이드바 미리보기 및 OG 설명 |
+| `summary` | 필수 | string | 사이드바 미리보기 및 OG 설명(기본 locale=ko) |
+| `summary_en` | 선택 | string | 영어 요약. `en` locale 렌더 시 우선 사용, 없으면 `summary` 폴백 (`locale.ts` `localizedSummary`) |
 | `spec` | 선택 | string[] | 1차 소스 spec 파일 경로 |
 | `code` | 선택 | string[] | 검증에 사용할 코드 경로(glob 허용) |
 | `draft` | 선택 | boolean | true면 production 빌드에서 제외 |
@@ -102,8 +119,9 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 
 ## 6. 딥링크 규약
 
-- 사이드바 네비·Empty State·FieldHelp·다른 매뉴얼 페이지 간 링크 모두 `/docs/<dir>/<slug>` 형태를 따른다.
-- 페이지 내 앵커는 `rehype-slug`가 헤딩 텍스트를 슬러그화한 값으로 자동 생성한다(예: `/docs/02-nodes/ai#fallback`).
+- 코드 상의 딥링크 **상수**(`lib/docs/links.ts` `DOCS`)는 locale 프리픽스가 없는 **canonical** `/docs/<dir>/<slug>` 형태로 저장한다. 실제 내비게이션 URL 은 렌더 타임에 `localizedDocsHref(slug, locale)` 로 현재 locale 프리픽스를 붙여 `/docs/<locale>/<dir>/<slug>` 로 만든다(`lib/docs/locale.ts`).
+- 사이드바 네비·Empty State·FieldHelp·다른 매뉴얼 페이지 간 링크 모두 위 규약(canonical 상수 → locale 프리픽스 부여)을 따른다.
+- 페이지 내 앵커는 `rehype-slug`가 헤딩 텍스트를 슬러그화한 값으로 자동 생성한다(예: `/docs/<locale>/02-nodes/ai#fallback`).
 - 에디터에서 매뉴얼로 이동하는 링크는 새 탭(`target="_blank"`)으로 열어 작업 맥락을 보존한다.
 - 매뉴얼 간 링크는 기본 탭 전환(`<Link>`)을 사용한다.
 

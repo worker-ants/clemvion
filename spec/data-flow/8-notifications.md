@@ -8,53 +8,72 @@
 
 ### System role
 
-사용자에게 비동기 이벤트를 전달하는 단일 경로. in-app 알림 표시, 이메일 발송, WebSocket emit 을 한
-표면 (`NotificationsService`) 에 모은다. 알림의 source 는 실행 실패·통합 만료·초대·마켓플레이스 업데이트·
-백그라운드 실패 등 다양하지만, 모두 `notification` row 적재로 통일된다.
+사용자에게 비동기 이벤트를 전달하는 경로. 알림의 source 는 실행 실패·통합 만료·통합 액션 필요·
+백그라운드 실패·알림(alert) 규칙 위반 등 다양하지만, 모두 `notification` row 적재로 통일된다.
+
+> **구현 현황 주의** — 본 spec 의 일부는 to-be 설계다. 현재 코드는:
+> - 적재 진입점이 단일 `notify()` 표면이 **아니라** `NotificationsService.createMany(entries[])` 배치 INSERT 다 (단일 `notify()` 표면은 미구현 (Planned)).
+> - 사용자 환경설정(`integrationExpiryEmail`) 확인은 `NotificationsService` 가 아니라 **호출자**(예: `IntegrationActionRequiredNotifierService`) 가 `channel` 을 계산해 `createMany` 에 넘기는 방식이다.
+> - 알림 **이메일 발송 경로는 미구현 (Planned)** — `MailService` 는 verification / invitation / password-reset 3종만 발송하며, 알림 type 별 템플릿 발송도 `email_sent_at` setter 도 코드에 없다 (entity·DTO 에 컬럼만 존재).
+> - WebSocket emit 도 미구현 (아래).
 
 코드 진입점:
 
-- `codebase/backend/src/modules/notifications/notifications.service.ts` — 적재 + 사용자 환경설정 확인 + 이메일 발송
-- `codebase/backend/src/modules/notifications/notifications.controller.ts` — 목록 / 읽음 처리
-- `codebase/backend/src/modules/mail/mail.service.ts` — SMTP 발송
-- `codebase/backend/src/modules/websocket/websocket.service.ts` — `notification.new` emit (follow-up phase 에서 구현; [`spec/5-system/6-websocket-protocol.md §4.4`](../5-system/6-websocket-protocol.md#44-알림-이벤트-server--client) 권위 표기)
+- `codebase/backend/src/modules/notifications/notifications.service.ts` — 적재(`createMany`) + 목록 / 카운트 / 읽음 / dismiss + `hasRecentByResource` 중복 방지. (사용자 환경설정 확인·이메일 발송은 본 서비스에 미구현 — 위 주의 참조)
+- `codebase/backend/src/modules/notifications/notifications.controller.ts` — 목록 / 읽음 / dismiss 처리
+- `codebase/backend/src/modules/mail/mail.service.ts` — SMTP 발송 (현재 verification / invitation / password-reset 만; 알림 이메일은 **미구현 (Planned)**)
+- `codebase/backend/src/modules/websocket/websocket.service.ts` — `notification.new` emit (**미구현 (Planned)**, follow-up phase; [`spec/5-system/6-websocket-protocol.md §4.4`](../5-system/6-websocket-protocol.md#44-알림-이벤트-server--client) 권위 표기)
 
 ---
 
 ## 1. Source → Sink
 
+아래 다이어그램은 **to-be 목표 흐름**이다. 굵게 표시한 단계는 현재 미구현 (Planned). 현재 구현은
+호출자가 환경설정을 확인해 `channel` 을 계산한 뒤 `NotificationsService.createMany(entries[])` 로
+배치 INSERT 만 수행한다 (preference 확인은 서비스 밖, WS emit·이메일은 미구현). 단계별 현황은
+다이어그램 하단 표 참조.
+
 ```mermaid
 sequenceDiagram
   autonumber
-  participant Src as Source<br/>(Execution · Integration · Workspace · Marketplace · Schedule · Background)
+  participant Src as Source<br/>(Background · Integration · Alerts)
   participant Svc as NotificationsService
   participant PG as Postgres
   participant WS as WebsocketService
   participant Mail as MailService
 
-  Src->>Svc: notify({workspaceId, userId, type, title, message, resource_type?, resource_id?, channel='in_app'|'email'|'both'})
-  Svc->>PG: SELECT user.notification_preferences (type별 토글 확인)
-  alt 사용자가 해당 type 을 disable
-    Svc-->>Src: skip
-  end
+  Note over Src,Svc: 현재: 호출자가 user.notification_preferences 를 읽어 channel 계산
+  Src->>Svc: createMany([{workspaceId, userId, type, title, message, resource_type?, resource_id?, channel='in_app'|'email'|'both'}])
   Svc->>PG: INSERT notification (workspace_id, user_id, type, title, message, resource_*, is_read=false, channel)
-  Svc->>WS: emit 'notification.new' to notifications:<userId> channel
-  alt channel IN ('email', 'both')
-    Svc->>Mail: send (template by type)
-    Svc->>PG: UPDATE notification SET email_sent_at=now
-  end
+  Note over Svc,WS: 미구현 (Planned)
+  Svc-->>WS: emit 'notification.new' to notifications:<userId> channel
+  Note over Svc,Mail: 미구현 (Planned)
+  Svc-->>Mail: channel IN ('email','both') 시 send (template by type)
+  Svc-->>PG: UPDATE notification SET email_sent_at=now
 ```
+
+| 단계 | 현황 |
+| --- | --- |
+| preference 확인 후 `channel` 계산 | 구현됨 — 단, `NotificationsService` 가 아니라 **호출자** (예: `IntegrationActionRequiredNotifierService.notify`) 가 수행 |
+| `createMany` 배치 INSERT | 구현됨 (`notifications.service.ts` `createMany`). 단일 `notify()` 표면은 미구현 (Planned) |
+| `notification.new` WS emit | 미구현 (Planned) — §2.2 / Rationale 참조 |
+| 이메일 발송 + `email_sent_at` UPDATE | 미구현 (Planned) — `MailService` 에 알림 템플릿·`email_sent_at` setter 부재 |
 
 ### 1.1 Type 별 source · 트리거
 
-| `type` | source | 발사 조건 |
-| --- | --- | --- |
-| `execution_failed` | `ExecutionEngineService` (실행 종료 시) | `execution.status='failed'`. 워크플로우 owner / 실행자에게. |
-| `background_failed` | `BackgroundExecutionProcessor` | `config.notifyOnFailure=true` 인 Background 본문 실패 |
-| `schedule_failed` | `ScheduleRunnerService` | 스케줄 발사 후 execution 이 즉시 실패 또는 enqueue 자체 실패 |
-| `integration_expired` | `IntegrationExpiryScanner` | refresh_token 없는 provider 의 `token_expires_at` 만료(`token_expired`) **에만** 발사 (`run()` / `connected-expiry` 잡). 다음 전이는 본 type 으로 알림 **미발사**: ① Cafe24 Private 24h TTL 만료 (`install_timeout`) — `expirePendingInstalls()` 가 bulk UPDATE 만 수행하고 알림 호출 없음. 사용자가 외부 흐름(Cafe24 Developers) 진행 중인 명시적 상태로, UI 배지 + 통합 상세 페이지로 통지 충분 (over-noise 방지). ② refresh 실패의 `error(auth_failed)`, transport 3회 실패의 `error(network)`, scope 부족의 `error(insufficient_scope)` — 사용자 액션 필요한 별도 도메인 알림 검토 대상. UI 배지 (사이드바 카운트, 목록 카드 뱃지, 노드 에디터 경고) 로만 통지 ([Spec 통합 §11.2](../2-navigation/4-integration.md#112-알림-생성)). 향후 `error` 도메인 알림 필요 시 `integration_action_required` 타입 신설 검토. `user.notification_preferences.integrationExpiryEmail` 토글로 채널 (in_app / both) 선택. |
-| `marketplace_update` | (도입 시) 마켓플레이스 모듈 | 설치한 템플릿·에이전트의 새 버전 |
-| `team_invite` | `WorkspaceInvitationsService` | 새 멤버 초대 (해당 이메일이 이미 가입자인 경우에만 in-app 알림 + 이메일 둘 다) |
+`상태` 열: **구현됨** = 코드가 실제로 해당 type 의 `notification` row 를 발사. **미구현 (Planned)** =
+DB CHECK 제약(V052)에는 허용 값으로 존재하나 어떤 코드도 발사하지 않는 설계상 type.
+
+| `type` | 상태 | source | 발사 조건 |
+| --- | --- | --- | --- |
+| `background_failed` | 구현됨 | `BackgroundExecutionProcessor` (`background-execution.processor.ts:177`) | `config.notifyOnFailure=true` 인 Background 본문 실패 |
+| `integration_expired` | 구현됨 | `IntegrationExpiryScanner` (`integration-expiry-scanner.service.ts:417,430`) | refresh_token 없는 provider 의 `token_expires_at` 만료(`token_expired`) **에만** 발사 (`run()` / `connected-expiry` 잡). 다음 전이는 본 type 으로 알림 **미발사**: ① Cafe24 Private 24h TTL 만료 (`install_timeout`) — `expirePendingInstalls()` 가 bulk UPDATE 만 수행하고 알림 호출 없음. 사용자가 외부 흐름(Cafe24 Developers) 진행 중인 명시적 상태로, UI 배지 + 통합 상세 페이지로 통지 충분 (over-noise 방지). ② refresh 실패의 `error(auth_failed)`, transport 3회 실패의 `error(network)`, scope 부족의 `error(insufficient_scope)` — 본 케이스는 아래 `integration_action_required` 가 처리. UI 배지 (사이드바 카운트, 목록 카드 뱃지, 노드 에디터 경고) 로도 통지 ([Spec 통합 §11.2](../2-navigation/4-integration.md#112-알림-생성)). `user.notification_preferences.integrationExpiryEmail` 토글로 채널 (in_app / both) 선택. |
+| `integration_action_required` | 구현됨 | `IntegrationActionRequiredNotifierService.notify` (`integration-action-required-notifier.service.ts:37-93`, type 값 V052 추가) | refresh 실패 `auth_failed` / transport 3회 실패 `network` / scope 부족 `insufficient_scope` — 사용자 액션 필요. `hasRecentByResource` 로 (workspace, type, resourceId, title) 기준 24h 중복 방지. `notification_preferences.integrationExpiryEmail` 토글로 채널 (in_app / both) 계산 (전용 토글 미신설, expiry 와 공유). |
+| `alert_<rule.type>` | 구현됨 | `AlertsEvaluatorService.dispatchBreach` (`alerts-evaluator.service.ts:209`) | alert rule breach. 워크스페이스 admin 들에게. `rule.channel==='email'` 이면 channel='both', 아니면 'in_app'. (※ type 값이 동적 `alert_<type>` 라 V052 CHECK 제약 목록 밖 — 코드/마이그레이션 정합성은 본 spec 범위 밖 별도 추적) |
+| `execution_failed` | 미구현 (Planned) | `ExecutionEngineService` (실행 종료 시) | `execution.status='failed'`. 워크플로우 owner / 실행자에게. (현재 어떤 코드도 본 type 발사 안 함) |
+| `schedule_failed` | 미구현 (Planned) | `ScheduleRunnerService` | 스케줄 발사 후 execution 이 즉시 실패 또는 enqueue 자체 실패. (현재 미발사) |
+| `marketplace_update` | 미구현 (Planned) | (도입 시) 마켓플레이스 모듈 | 설치한 템플릿·에이전트의 새 버전. (현재 미발사) |
+| `team_invite` | 미구현 (Planned) | `WorkspaceInvitationsService` | 새 멤버 초대 (해당 이메일이 이미 가입자인 경우에만 in-app 알림 + 이메일 둘 다). (현재 본 type 의 `notification` row 미발사) |
 
 ---
 
@@ -76,7 +95,7 @@ sequenceDiagram
 | Sink | 흐름 | 비고 |
 | --- | --- | --- |
 | WebSocket 채널 `notifications:<userId>` | `notification.new` emit | 모든 알림에 대해 즉시. 이벤트 정의는 [`spec/5-system/6-websocket-protocol.md §4.4`](../5-system/6-websocket-protocol.md#44-알림-이벤트-server--client). 본 emit 은 follow-up phase 작업 — 현재 `WebsocketService` 에 해당 메서드 미구현이며, `WebsocketGateway.VALID_CHANNEL_PREFIXES` 에 `notifications:` prefix 만 등록되어 있다 |
-| SMTP | type 별 이메일 템플릿 (실패 알림, 만료 알림, 초대 등) | `channel IN ('email', 'both')` 일 때 |
+| SMTP | type 별 이메일 템플릿 (실패 알림, 만료 알림 등) | **미구현 (Planned)** — `channel IN ('email', 'both')` 시 발송 설계이나, `MailService` 에 알림 type 템플릿·발송 경로 및 `email_sent_at` setter 가 아직 없다 (verification / invitation / password-reset 메일만 구현됨) |
 
 ---
 
@@ -91,8 +110,9 @@ stateDiagram-v2
   Dismissed --> [*]
 ```
 
-이메일 발송 라이프사이클은 별도 컬럼 `email_sent_at` 으로 추적 (NULL=미발송, 채워짐=발송 완료). 발송 실패는
-재시도 없이 warn log 만 (현재 구현).
+이메일 발송 라이프사이클은 별도 컬럼 `email_sent_at` 으로 추적할 설계 (NULL=미발송, 채워짐=발송 완료).
+**미구현 (Planned)** — 현재 `email_sent_at` 은 entity·DTO 에 컬럼만 존재하고 이를 채우는 코드(발송 경로)가
+없다. 설계상 발송 실패는 재시도 없이 warn log 만 둔다.
 
 > 위 다이어그램은 **읽음(`is_read`)** 단일 차원의 전이만 단순화해 표시한다. 실제 알림은
 > `is_read` 와 `dismissed_at` 두 차원을 독립적으로 가진다 — 두 차원의 조합 표는 §4.1 참조.
@@ -190,7 +210,9 @@ hard delete 배치, (b) 분석용 ETL 의 dismiss 이벤트 집계 를 도입할
 알림 type 이 늘어날 때마다 user 테이블 컬럼을 추가하지 않아도 되도록 JSONB 로 둔다 (V010). 현재는
 `integrationExpiryEmail` 등 일부 키만 사용. 누락된 키는 default true 로 해석.
 
-### Email 실패는 warn 만, 재시도 없음
+### Email 실패는 warn 만, 재시도 없음 (Planned)
+
+> 알림 이메일 발송 경로 자체가 현재 미구현 (Planned). 아래는 발송 도입 시의 설계 의도다.
 
 SMTP 실패는 보통 일시 오류이지만 알림 도메인 자체에서 재시도 큐를 운영하면 복잡도가 커진다. 발송 실패가
 빈번해질 경우 SMTP 외부 서비스 (예: SES) 도입과 함께 큐를 추가하는 것을 계획. 그 전까지는 `email_sent_at`

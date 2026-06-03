@@ -4,6 +4,8 @@ status: partial
 code:
   - codebase/backend/src/common/cors/web-chat-cors.ts
   - codebase/backend/src/modules/web-chat-cors/**
+  - codebase/backend/src/modules/hooks/public-webhook-throttle.guard.ts
+  - codebase/backend/src/modules/hooks/public-webhook-quota.service.ts
   - codebase/channel-web-chat/src/widget/host-bridge.ts
 pending_plans:
   - plan/in-progress/channel-web-chat-impl.md
@@ -43,18 +45,22 @@ pending_plans:
   워크스페이스 공통이므로 빌트인 상수로 항상 허용**, 유저 설정은 M2(자기 도메인)·임베드 제어용. (EIA §8.5 의 "미설정 시
   차단" invariant 와의 경계: 빌트인 CDN 은 always-allow, `interactionAllowedOrigins` 는 추가 origin 병합.)
 
-### 2.1 현황·구현 제약 (코드 SoT)
-backend 는 [`main.ts` 전역 단일 `app.enableCors({ origin: corsOriginCallback })`](../../codebase/backend/src/main.ts)
-하나로 **모든 라우트**에 동일 allowlist(`CORS_ORIGINS`→`FRONTEND_URL`, 현재 **frontend origin 만**) 적용
-([`common/utils/cors-origins.ts`](../../codebase/backend/src/common/utils/cors-origins.ts)). 위젯 CDN/고객 도메인은
-frontend 와 다른 도메인이라 **현 상태로는 브라우저 요청이 차단**된다(서버-to-서버 webhook 은 `Origin` 미동봉이라 통과).
+### 2.1 구현 (코드 SoT)
+backend 는 **단일 CORS 레이어**(`main.ts` 의 `app.enableCors(webChatCorsDelegate)`)로 경로-스코프 분기를 적용한다 —
+이중 `Access-Control-Allow-Origin` 헤더 충돌 없이 라우트별로 다른 정책을 돌려준다
+([`common/cors/web-chat-cors.ts`](../../codebase/backend/src/common/cors/web-chat-cors.ts) `createWebChatCorsDelegate`,
+[`main.ts`](../../codebase/backend/src/main.ts) 의 `app.enableCors` 호출).
 
-**구현 제약**:
-- `/api/external/*`(+ browser `/api/hooks/*` 무제한)에 **경로-스코프 CORS** 를 분리 도입하고, 전역 `enableCors`(frontend
-  전용)는 그 경로를 제외(또는 경로별 미들웨어 우선)하여 **이중 `Access-Control-Allow-Origin` 헤더 충돌** 방지. 내부
-  endpoint(`/api/*`, 워크스페이스 JWT)에 위젯/BYO origin 노출 금지.
-- 워크스페이스 해석은 path 로 가능: `/api/external/executions/:id/*` 는 `:id` 로 워크스페이스 역인덱스 →
-  **preflight(OPTIONS) 단계에서도** path param 으로 allowlist 조회해 `Origin` echo(token 없이 동적 CORS 가능).
+**구현된 분기**:
+- `/api/hooks/*`(`HOOKS_PATH_RE`): **무제한**(`origin: true`, `credentials: false`) — 위젯/BYO 는 credential 없이 POST.
+- `/api/external/executions/:id/*`(`EXTERNAL_EXEC_PATH_RE`): `:id` 로 execution → workflow → 워크스페이스 역인덱스
+  ([`web-chat-cors-origin.resolver.ts`](../../codebase/backend/src/modules/web-chat-cors/web-chat-cors-origin.resolver.ts),
+  60s TTL 캐시) → **빌트인 위젯 CDN origin(`WEB_CHAT_WIDGET_ORIGINS` env) ∪ 워크스페이스 `interactionAllowedOrigins`** 합집합과
+  대조해 `Origin` echo. 일치 시 허용, 불일치/해석 실패 시 차단. **preflight(OPTIONS) 단계에서도** path param 으로 동작하므로
+  token 없이 동적 CORS 가 가능하다(`credentials: false`).
+- 그 외 모든 라우트(내부 `/api/*`, 워크스페이스 JWT): 기존 동작(frontend allowlist `CORS_ORIGINS`→`FRONTEND_URL` +
+  `credentials: true`, [`common/utils/cors-origins.ts`](../../codebase/backend/src/common/utils/cors-origins.ts)). 위젯/BYO
+  origin 은 이 분기에 노출되지 않는다.
 - `interactionAllowedOrigins` 는 [`spec/1-data-model.md §2.2 Workspace.settings`](../1-data-model.md#22-workspace) 알려진 키.
 - **빌트인 위젯 CDN origin 의 backend env 키 = `WEB_CHAT_WIDGET_ORIGINS`**(콤마 구분, `main.ts` →
   `parseWidgetOrigins`, [`common/cors/web-chat-cors.ts`](../../codebase/backend/src/common/cors/web-chat-cors.ts)).

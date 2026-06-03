@@ -3,6 +3,7 @@ id: variable-declaration
 status: implemented
 code:
   - codebase/backend/src/nodes/logic/variable-declaration/variable-declaration.*.ts
+  - codebase/backend/src/modules/execution-engine/utils/coerce-type.ts
 ---
 
 # Spec: Variable Declaration
@@ -33,8 +34,9 @@ code:
 - `defaultValue` 가 이미 `type` 과 일치 → 그대로 저장
 - 문자열인데 `type='number'` → `Number()` 변환, 실패(`NaN`) 시 `null`
 - 문자열인데 `type='boolean'` → `'true'` / `'false'` 매칭, 그 외 `null`
-- 문자열인데 `type='array'` / `'object'` → `JSON.parse` 시도, 실패 시 `null`
-- 변환 실패는 **silent** — 사용자 의도와 다른 저장이 일어나도 별도 에러 throw 하지 않음
+- 문자열인데 `type='array'` → `'['` 로 시작하면 `JSON.parse` 시도 후 배열이면 그 값, 아니면(파싱 실패 / `'['` 미시작) **원본 value 그대로 반환** (`null` 아님)
+- 문자열인데 `type='object'` → `'{'` 로 시작하면 `JSON.parse` 시도 후 객체이면 그 값, 아니면(파싱 실패 / `'{'` 미시작) **원본 value 그대로 반환** (`null` 아님)
+- 변환 실패는 **silent** — 사용자 의도와 다른 저장이 일어나도 별도 에러 throw 하지 않음. `number` / `boolean` 만 실패 시 `null` 로 collapse 하며, `array` / `object` 는 원본을 보존한다 (따라서 §5.1 `coercionWarnings` 는 `number` / `boolean` coerce 실패만 잡는다)
 
 > Source of truth: `codebase/backend/src/nodes/logic/variable-declaration/variable-declaration.schema.ts` (export `variableDeclarationNodeConfigSchema`, `varDefSchema`) / `codebase/backend/src/modules/execution-engine/utils/coerce-type.ts`
 
@@ -120,7 +122,7 @@ code:
 | `meta.durationMs` | number | engine inject | 실행 시간 (ms). 엔진이 모든 노드에 공통 주입 |
 | `meta.declared` | string[] | runtime metric (Principle 2) | 이번 실행에서 신규 등록된 변수 이름들 (skip 되지 않은 항목). skip-if-exists 동작 가시화 |
 | `meta.skipped` | string[] | runtime metric (Principle 2) | 이미 같은 이름의 변수가 존재하여 등록이 skip 된 변수 이름들. 사용자 의도한 초기화가 silent 로 누락된 경우 진단 |
-| `meta.coercionWarnings` | `Array<{ name: string, attemptedType: string, error?: string }>` | runtime metric (Principle 2) | `coerceToType` 이 silent `null` fallback 한 항목들 (예: `type='number'` + `defaultValue='abc'`). 명시적 `defaultValue` 미설정으로 `null` 저장된 경우는 포함되지 않는다 (의도된 null-init) |
+| `meta.coercionWarnings` | `Array<{ name: string, attemptedType: string, error?: string }>` | runtime metric (Principle 2) | `coerceToType` 이 silent `null` fallback 한 항목들 — 핸들러는 `raw !== null && coerced === null` 인 경우에만 push 한다. 따라서 `number`(`Number()` → `NaN`) / `boolean` coerce 실패만 잡히며, `array` / `object` 는 실패 시 원본을 반환(`null` 아님)하므로 **여기에 절대 포함되지 않는다**. 명시적 `defaultValue` 미설정으로 `null` 저장된 경우도 포함되지 않는다 (의도된 null-init) |
 | `port` | `undefined` | — | 단일 출력이므로 미설정 (Principle 5: `port: undefined` = 기본 단일 출력) |
 
 **Expression 접근 예**:
@@ -135,18 +137,18 @@ code:
 
 ## 6. 에러 코드
 
-Variable Declaration 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 pre-flight (config 검증) 단계에서 throw 된다 (CONVENTIONS Principle 3.1):
+Variable Declaration 은 **runtime 에러 포트를 갖지 않는다**. 모든 검증 실패는 pre-flight (config 검증) 단계에서 throw 된다 (CONVENTIONS Principle 3.1). warningRule 메시지의 SoT 는 영문이며(`variable-declaration.schema.ts` 의 `warningRules[].message`), 한국어는 프론트엔드 i18n(`WARNING_KO`) 렌더 결과다:
 
 | 발생 조건 | 메시지 | 시점 |
 |-----------|--------|------|
-| `variables` 가 빈 배열 | `최소 1개 이상의 변수를 정의해야 합니다.` | warningRule (캔버스 배지) + handler.validate (`evaluateMetadataBlockingErrors`) |
-| `variables[0].name` 이 빈 문자열 | `첫 번째 변수의 이름을 입력해야 합니다.` | warningRule (캔버스 배지) |
+| `variables` 가 빈 배열 | `At least one variable must be defined.` | warningRule (캔버스 배지) + handler.validate (`evaluateMetadataBlockingErrors`) |
+| `variables[0].name` 이 빈 문자열 | `First variable's name must be entered.` | warningRule (캔버스 배지) |
 | `variables` 가 array 아님 (raw fixture / zod 우회) | `variables must be an array` | handler.validate |
 | `variables[i].name` 미설정 / 비-string | `variables[i].name is required and must be a string` | `validateVariableDeclarationConfig` |
 | `variables[i].type` 미설정 / 비-string | `variables[i].type is required and must be a string` | `validateVariableDeclarationConfig` |
 | `variables[i].type` 가 enum 외 (`string`/`number`/`boolean`/`array`/`object` 외) | zod schema error (`varDefSchema.type`) | schema parse |
 
-> ⚠ **silent fallback** (런타임 throw 아님): `defaultValue` 가 `type` 으로 coerce 실패하면 `null` 이 저장된다 (예: `type='number'` + `defaultValue='abc'`). 별도 throw 는 없지만 §5.1 `meta.coercionWarnings` 에 항목이 추가되어 가시화된다.
+> ⚠ **silent fallback** (런타임 throw 아님): `type='number'` / `type='boolean'` 에서 `defaultValue` coerce 가 실패하면 `null` 이 저장된다 (예: `type='number'` + `defaultValue='abc'`). 이 경우 별도 throw 는 없지만 §5.1 `meta.coercionWarnings` 에 항목이 추가되어 가시화된다. `type='array'` / `type='object'` 는 coerce 실패 시 원본 value 를 그대로 저장하며 `coercionWarnings` 에 잡히지 않는다.
 >
 > ⚠ **silent skip**: 같은 이름 변수가 이미 등록되어 있으면 신규 `defaultValue` 가 무시된다 (덮어쓰기 금지). skip 된 항목은 §5.1 `meta.skipped` 에서 관찰 가능하며, 재초기화가 필요하면 [Variable Modification](./5-variable-modification.md) 의 `set` 작업을 사용한다.
 

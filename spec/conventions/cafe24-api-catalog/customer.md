@@ -8,6 +8,7 @@ code:
 # Cafe24 API Catalog — Customer (회원)
 
 > 카탈로그 형식·동기 정책: [`_overview.md`](./_overview.md).
+> **주의 (provisional seed)**: `customer_get`(GET) / `customer_update`(PUT) `customers/{member_id}` 두 행은 Cafe24 admin docs (Latest 2026-03-01) 에 **노출되지 않는** seed endpoint 다 (공식 문서는 `DELETE customers/{member_id}` 만 등재). 노드 메타데이터에는 `supported` 로 존재하나 wire 상 실제 동작 여부는 미검증이며, 운영 검증·제거·대체(`customer_list` + filter) 결정은 [`plan/in-progress/cafe24-backlog-residual.md` §G-2](../../../plan/in-progress/cafe24-backlog-residual.md) 트랙에서 진행 중이다. 그래서 두 행의 `docs` 링크는 단건 GET/PUT 전용 anchor 가 없어 목록 조회 anchor(`#retrieve-a-list-of-customers`) 를 재사용한다. 근거: `codebase/backend/src/nodes/integration/cafe24/metadata/customer.ts:26-62`.
 
 base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 

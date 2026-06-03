@@ -39,12 +39,12 @@ pending_plans:
 
 | 호출 | signal 전파 |
 |---|---|
-| `fetch(url, init)` | `init.signal = context.abortSignal` (자체 timeout 과 결합 시 cascade — 본 컨벤션 §4) |
-| PostgreSQL (`pg`) | `client.cancel()` 호출을 `signal.addEventListener('abort', ...)` 으로 등록 |
-| MongoDB | driver 의 `signal` 옵션 직접 전달 |
-| Anthropic SDK | `client.messages.create({ ..., signal })` |
-| OpenAI SDK | `client.chat.completions.create({ ..., signal })` |
-| Email (nodemailer) | connection close 를 signal abort 시 등록 |
+| `fetch(url, init)` | `init.signal = context.abortSignal` (자체 timeout 과 결합 시 cascade — 본 컨벤션 §4). **구현됨** (HTTP 노드) |
+| Anthropic SDK | `client.messages.create({ ..., signal })`. **구현됨** (AI 노드 — ai-agent / text-classifier / information-extractor) |
+| PostgreSQL (`pg`) | `client.cancel()` 호출을 `signal.addEventListener('abort', ...)` 으로 등록. **미구현 (Planned)** — 현재 DB 노드는 진입 직전 `abortSignal?.aborted` 사전 체크만 (in-flight 쿼리 중단 X) |
+| MongoDB | driver 의 `signal` 옵션 직접 전달. **미구현 (Planned)** |
+| Email (nodemailer) | connection close 를 signal abort 시 등록. **미구현 (Planned)** — 현재 Email 노드는 진입 직전 사전 체크만 |
+| OpenAI SDK | `client.chat.completions.create({ ..., signal })` (OpenAI 사용 노드 도입 시) |
 
 abort 시 throw 되는 `AbortError` 류는 노드가 그대로 throw — 엔진의 `errorPolicyHandler` 가 그 에러를 cancelled 의미로 분류한다 (별도 처리 없음).
 
@@ -54,7 +54,7 @@ signal 미지원 — best-effort. 자기 작업 완료까지 계속 진행해도
 
 ### 2.3 생산자 (signal 을 만들고 set 하는 caller)
 
-- **`ParallelExecutor`** (parallel-p2 §5, 후속) — `errorPolicy === 'cancel-others-on-fail'` 일 때 내부 `AbortController` 생성, 첫 branch 실패 시 `controller.abort()` 호출, 각 `branchContext.abortSignal` 에 set
+- **`ParallelExecutor`** (parallel-p2 §5, 구현됨) — `errorPolicy === 'cancel-others-on-fail'` 일 때 내부 `AbortController` 생성, 첫 branch 실패 시 `controller.abort()` 호출, 각 `branchContext.abortSignal` 에 set. 상위 `context.abortSignal` 이 있으면 그 abort 도 그룹 controller 로 cascade (`parallel-executor.ts`).
 - **향후 Workflow 단위 timeout** — `runExecution` 진입 시 타이머 시작, 한도 초과 시 abort
 - **사용자 cancel 버튼** (구현됨 2026-05-31) — REST API `POST /executions/:id/stop` 가 실행을 중단(running/pending → cancelled, waiting_for_input → continuation 취소). 에디터 툴바 Stop 버튼이 진입점.
 - **향후 graceful shutdown** — SIGTERM 수신 시 진행 중 execution 의 abort
@@ -109,20 +109,24 @@ if (upstream) {
 
 `NodeExecution` 의 상태 분류는 본 컨벤션 범위 밖 — 현 `failed` 상태 + `error.name === 'AbortError'` 로 구분 가능. 별 `cancelled` status 추가는 후속 plan.
 
-## 6. 본 PR 범위 / 후속
+## 6. 구현 현황 / 후속
 
-| 항목 | 본 PR | 후속 |
+> 2026-06-03 코드 대조로 갱신. ✓ = 구현됨, 🚧 = 부분 구현(사전 abort 체크만, in-flight 중단은 미구현), — = 미구현(Planned, 추적 plan: `node-cancellation-infrastructure.md`).
+
+| 항목 | 상태 | 비고 |
 |---|---|---|
-| `ExecutionContext.abortSignal?: AbortSignal` 신규 필드 (필드 분류 SoT = [`execution-context.md`](./execution-context.md) §원칙 1, 동작 계약 SoT = 본 문서) | ✓ | — |
-| spec convention 신설 | ✓ | — |
-| HTTP 노드 signal 전파 | ✓ | — |
-| HTTP 단위 테스트 | ✓ | — |
-| DB 노드 signal 전파 | — | 후속 PR (driver 별 cancel 메커니즘 조사) |
-| AI 노드 signal 전파 | — | 후속 PR (Anthropic / OpenAI SDK 의 signal 지원 확인) |
-| Email / chat-channel 노드 signal 전파 | — | 후속 PR (driver / webhook 패턴 조사) |
-| ExecutionEngineService 의 사전 abort 체크 (dispatch 직전) | — | 후속 PR |
-| `NodeExecution.status = 'cancelled'` 추가 (엔티티 + migration) | — | 후속 plan (별 작업) |
-| Parallel `cancel-others-on-fail` 통합 | — | parallel-p2 §5 (본 plan 이 unblock) |
+| `ExecutionContext.abortSignal?: AbortSignal` 신규 필드 (필드 분류 SoT = [`execution-context.md`](./execution-context.md) §원칙 1, 동작 계약 SoT = 본 문서) | ✓ | `node-handler.interface.ts:193` |
+| spec convention 신설 | ✓ | 본 문서 |
+| HTTP 노드 signal 전파 (fetch cascade) | ✓ | `http-request.handler.ts` (§4 cascade 패턴) |
+| HTTP 단위 테스트 | ✓ | `http-request.handler.spec.ts` |
+| AI 노드 signal 전파 (Anthropic SDK `signal`) | ✓ | `ai-agent.handler.ts` / `text-classifier.handler.ts` / `information-extractor.handler.ts` 의 SDK 호출에 `signal: context.abortSignal` 전파 |
+| Parallel `cancel-others-on-fail` 통합 | ✓ | `parallel-executor.ts` — `errorPolicy==='cancel-others-on-fail'` 시 그룹 `AbortController` 생성, 첫 분기 실패 시 abort, upstream cascade (parallel-p2 §5) |
+| 사용자 cancel (`POST /executions/:id/stop` + 툴바 Stop) | ✓ | `executions.controller.ts` / `executions.service.ts` / `editor-toolbar.tsx` (§2.3) |
+| DB 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`database-query.handler.ts` — 진입 직전 `abortSignal?.aborted` → AbortError). in-flight `pg.client.cancel` 은 미구현 (Planned) |
+| Email 노드 signal 전파 | 🚧 | 사전 abort 체크만 (`send-email.handler.ts`). in-flight SMTP `transporter.close()` 는 미구현 (Planned) |
+| chat-channel 노드 signal 전파 | — | 미구현 (Planned) |
+| `NodeExecution.status = 'cancelled'` 추가 (엔티티 + migration) | — | 미구현 (Planned). 현재 `NodeExecutionStatus` enum 에 `cancelled` 없음 — `failed` + `error.name === 'AbortError'` 로 구분 (§5) |
+| Workflow 단위 timeout / graceful shutdown 의 노드 abort | — | 미구현 (Planned) |
 
 ## Rationale
 

@@ -66,7 +66,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 | `id` | string (kebab-case) | ✓ | spec 식별자. 파일 basename(확장자 제외) 기반 권장 |
 | `status` | enum (5 값) | ✓ | §3 라이프사이클 참조 |
 | `code` | string[] (glob 허용) | status 별 다름 — §3 | 본 spec 이 약속한 surface 의 구현 경로. 레포 루트 기준 상대경로 |
-| `pending_plans` | string[] (path) | `status: partial` 시 ✓ | 미구현 surface 를 책임지는 plan 경로. `plan/in-progress/` 실존 의무 |
+| `pending_plans` | string[] (path) | `status: partial` 시 ✓ | 미구현 surface 를 책임지는 plan 경로. `plan/in-progress/` 또는 `plan/complete/`(in-progress 경로를 complete 로 치환) 에 실존 의무 — §4 가드 참조 |
 | `user_guide` | string[] (path) | 선택 | 본 spec 의 가이드 페이지 cross-link |
 
 ### 2.2 의미 도메인 구분 (혼동 방지)
@@ -79,7 +79,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 
 | 값 | 의미 | `code:` 검증 | `pending_plans:` | TTL / 가드 |
 |---|---|---|---|---|
-| `backlog` | 장기 로드맵. 아직 구현 의도가 결정 안 됨 | 비어도 OK | 선택 | TTL 없음. `spec/0-overview.md §6.3 로드맵` 매칭 의무 (가드) |
+| `backlog` | 장기 로드맵. 아직 구현 의도가 결정 안 됨 | 비어도 OK | 선택 | TTL 없음. `id:` 가 `spec/0-overview.md` 본문 텍스트에 등장 의무 (가드 — §6.3 로드맵 항목에 등재 권장) |
 | `spec-only` | 작성됐고 구현 의도 결정됨 | 비어도 OK | 권장 | **TTL 90일** — 초과 시 build fail (PR 강제 또는 `backlog` 격하) |
 | `partial` | 일부 구현됨 | ≥1 매치 의무 | **의무** | 모든 `pending_plans` 가 `complete/` 로 이동하면 `implemented` 로 승격 의무 (가드) |
 | `implemented` | 모든 약속 구현 완료 | ≥1 매치 의무 | 없음 | — |
@@ -100,8 +100,8 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 |---|---|
 | `spec-frontmatter.test.ts` | §1 대상 모든 spec 에 frontmatter 존재 + §2.1 의 의무 필드 (id/status) 유효 |
 | `spec-code-paths.test.ts` | `status ∈ {partial, implemented}` 인 spec 의 `code:` 글로브가 ≥1 파일 매치 |
-| `spec-status-lifecycle.test.ts` | (a) `spec-only` TTL 90일 초과 (b) `partial` 의 `pending_plans:` 미작성 (c) `partial` 의 `pending_plans` 모두 complete 인데 status 미승격 (d) `backlog` 의 `0-overview.md §6.3` 매칭 누락 |
-| `spec-pending-plan-existence.test.ts` | `pending_plans:` 의 모든 path 가 `plan/in-progress/` 에 실존 |
+| `spec-status-lifecycle.test.ts` | (a) `spec-only` TTL 90일 초과 (b) `partial` 의 `pending_plans:` 미작성 (c) `partial` 의 `pending_plans` 모두 complete 인데 status 미승격 (d) `backlog` 의 `id:` 가 `0-overview.md` 본문 텍스트에 미등장 (overview 부재 시 warn-only) |
+| `spec-pending-plan-existence.test.ts` | `pending_plans:` 의 모든 path 가 `plan/in-progress/` 또는 `plan/complete/`(in-progress→complete 치환) 에 실존 |
 
 ### 4.1 가드와 다른 가드의 관계
 
@@ -179,11 +179,11 @@ user_guide:
 `spec-only` TTL 은 90일, `backlog` enum 신설로 이중 안전망:
 - 30일 같은 짧은 TTL 은 backlog 항목까지 강제 분류해 false-pressure 유발
 - 90일은 spec 작성 후 분기 1회 단위로 검토 — Phase 분리 결정 사이클과 정합
-- backlog 는 §6.3 로드맵 매칭을 가드로 강제해 "임의 보류" 차단
+- backlog 는 `id:` 의 `0-overview.md` 본문 등장을 가드로 강제해 "임의 보류" 차단 (로드맵 §6.3 등재 권장 — 가드 매칭 세부는 R-3)
 
 ### R-3. `backlog` enum 신설 근거
 
-`spec/0-overview.md §6.3 로드맵` 항목 (Marketplace, 고급 권한 모델 등) 은 *결정 후 spec 작성됐으나 구현 plan 은 분기/연 단위 후* 인 자연스러운 상태. `spec-only` (90일 카운터) 와 강제 분리해 카운터 압력에서 보호. **가드**: `backlog` 의 `id:` 가 §6.3 항목 텍스트에 grep 매칭 의무 — §6.3 구조 변경 시 가드 갱신 의무.
+`spec/0-overview.md §6.3 로드맵` 항목 (Marketplace, 고급 권한 모델 등) 은 *결정 후 spec 작성됐으나 구현 plan 은 분기/연 단위 후* 인 자연스러운 상태. `spec-only` (90일 카운터) 와 강제 분리해 카운터 압력에서 보호. **가드**: `backlog` 의 `id:` 가 `0-overview.md` 본문 텍스트에 `includes` 매칭 의무 (현 구현은 §6.3 절 한정이 아닌 문서 전체 텍스트 검사 — 로드맵 항목에 등재하는 것을 권장). 향후 §6.3 절 단위 검증으로 좁히려면 가드 갱신 필요.
 
 ### R-4. `archived` 명명 근거 (cafe24 deprecated 와의 구분)
 

@@ -7,7 +7,7 @@ code:
 
 # Spec: 워크플로우 버전 이력
 
-> 관련 문서: [Spec 워크플로우 편집기](../3-workflow-editor/) · [데이터 모델 - WorkflowVersion](../1-data-model.md)
+> 관련 문서: [PRD 워크플로우 편집기](./_product-overview.md) · [Spec 실행/디버깅](./3-execution.md) · [데이터 모델 - WorkflowVersion](../1-data-model.md)
 
 ---
 

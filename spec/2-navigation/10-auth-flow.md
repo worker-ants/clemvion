@@ -1,9 +1,12 @@
 ---
 id: auth-flow
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-sync-auth-flow-gaps.md
 code:
   - codebase/frontend/src/app/(auth)/**
   - codebase/frontend/src/components/auth/**
+  - codebase/backend/src/modules/auth/**
 ---
 
 # Spec: 인증 UI 플로우
@@ -69,17 +72,21 @@ code:
 | 필드 | 검증 규칙 | 실시간 피드백 |
 |------|-----------|--------------|
 | Name | 필수, 2~50자 | 입력 즉시 |
-| Email | 필수, 이메일 형식 | blur 시 형식 검증 + 중복 확인 API 호출 |
+| Email | 필수, 이메일 형식 | blur 시 형식 검증 (blur 시 `POST /api/auth/check-email` 중복 확인은 **미구현 (Planned)** — 백엔드 엔드포인트·`authApi.checkEmail` 클라이언트는 존재하나 register 폼이 아직 호출하지 않음) |
 | Password | 필수, 최소 8자, 대소문자+숫자+특수문자 중 3가지 이상 | 입력 중 강도 바 표시 (약함/보통/강함) |
 | Terms | 필수 체크 | 미체크 시 버튼 비활성화 |
 
 ### 2.3 비밀번호 강도 바
 
-| 강도 | 조건 | 색상 |
+구현은 5개 기준(8자 이상 / 소문자 / 대문자 / 숫자 / 특수문자)을 각 1점으로 합산한 `score`(0~5)에 따라 5단계 라벨을 노출한다 (`codebase/frontend/src/lib/utils/password.ts`).
+
+| 강도 라벨 (i18n key) | score | 색상 |
 |------|------|------|
-| 약함 | 8자 미만 또는 1가지 문자 유형 | 빨강 |
-| 보통 | 8자 이상 + 2가지 문자 유형 | 주황 |
-| 강함 | 8자 이상 + 3가지 이상 문자 유형 | 초록 |
+| 약함 (`auth.register.strengthWeak`) | 0~1 | 빨강 (`bg-red-500`) |
+| 보통 (`auth.register.strengthFair`) | 2 | 주황 |
+| 양호 (`auth.register.strengthGood`) | 3 | 노랑 |
+| 강함 (`auth.register.strengthStrong`) | 4 | 연초록 (`green-400`) |
+| 매우 강함 (`auth.register.strengthVeryStrong`) | 5 | 진초록 (`green-600`) |
 
 ### 2.4 처리 플로우
 
@@ -115,18 +122,16 @@ code:
 │    We sent a verification link   │
 │    to gehrig@example.com         │
 │                                  │
-│    [   Resend Email   ]          │
+│    [   Resend Email   ]  (계획)  │
 │                                  │
-│    Didn't receive?               │
-│    Check spam folder or          │
-│    → use a different email       │
+│    → Back to login               │
 └──────────────────────────────────┘
 ```
 
 - 이메일 인증 링크 클릭 → 인증 페이지가 `POST /api/auth/verify-email` 호출 (token 은 **요청 본문**에 동봉; 링크 자체는 `?token=` 쿼리로 전달되나 검증 호출은 POST+body 다). 아래 §API 표 참조.
 - 인증 성공 → 자동 로그인 + 개인 워크스페이스 생성 + 대시보드(`/dashboard`)로 리다이렉트
 - 인증 토큰 유효기간: 24시간
-- 재발송: 60초 쿨다운
+- **미구현 (Planned)**: Resend Email 버튼 + 60초 쿨다운 + `POST /api/auth/resend-verification`. 현재 화면(`codebase/frontend/src/app/(auth)/verify-email/verify-email-content.tsx`)은 "Back to login" 링크만 노출하며, 백엔드 `resend-verification` 핸들러도 아직 없다. 추적: `plan/in-progress/spec-sync-auth-flow-gaps.md`
 
 ---
 
@@ -272,10 +277,12 @@ code:
 │    we sent a password reset      │
 │    link.                         │
 │                                  │
-│    [   Resend Email   ]          │
+│    [   Resend Email   ]  (계획)  │
 │    [   ← Back to Sign In   ]    │
 └──────────────────────────────────┘
 ```
+
+> **미구현 (Planned)**: 위 Resend Email 버튼은 아직 없다. 현재 안내 화면(`codebase/frontend/src/components/auth/forgot-password-form.tsx`)은 "Back to login" 링크만 노출한다 (`POST /api/auth/forgot-password` 자체는 재요청 시 동일하게 재호출 가능하나 전용 Resend UI 미배선).
 
 ### 4.3 Step 3: 새 비밀번호 입력
 
@@ -319,7 +326,7 @@ code:
 | 빈 배열 `[]` | 구분선과 버튼 모두 비표시 (이메일/비밀번호 폼만 노출) |
 
 - Provider 활성화 기준: `OAUTH_STUB_MODE=true` (개발) 또는 `{PROVIDER}_CLIENT_ID` 환경변수가 설정된 경우
-- 응답은 `Cache-Control: public, max-age=300` 으로 5분 캐싱 (Next.js Server Component `fetch` 의 `revalidate: 300` 와 정합)
+- 응답은 `Cache-Control: private, max-age=300` 으로 5분 캐싱 (Next.js Server Component `fetch` 의 `revalidate: 300` 와 정합; 공유 캐시 비저장을 위해 `private`, `codebase/backend/src/modules/auth/auth.controller.ts` `@Header`)
 - 이 API 호출이 실패하면 안전 기본값으로 빈 배열 처리하여 SSO UI 비표시 (이메일/비밀번호 로그인은 정상 동작)
 
 ### 5.1 플로우
@@ -404,11 +411,13 @@ code:
 
 ### 7.1 라우트 가드
 
+인증 페이지는 Next.js route group `(auth)` 로 묶여 URL 세그먼트에 `/auth` 접두사가 붙지 않는다 → 실제 경로는 `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password`, `/callback`.
+
 | 라우트 | 인증 필요 | 미인증 시 |
 |--------|-----------|-----------|
-| `/auth/*` (로그인, 가입 등) | X | — |
-| `/auth/callback` | X | — |
-| 그 외 모든 라우트 | O | `/auth/login`으로 리다이렉트 (원래 URL을 `redirect` 파라미터에 보존) |
+| `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password` 등 `(auth)` 그룹 | X | — |
+| `/callback` (OAuth 콜백) | X | — |
+| 그 외 모든 라우트 | O | `/login`으로 리다이렉트 (원래 URL을 `redirect` 파라미터에 보존; `codebase/frontend/src/components/auth/auth-provider.tsx`) |
 
 ### 7.2 로그인 후 리다이렉트
 
@@ -419,7 +428,7 @@ code:
 
 1. `POST /api/auth/logout` 호출 (Refresh Token 무효화)
 2. 클라이언트: Access Token 메모리에서 제거, Cookie 삭제
-3. `/auth/login`으로 리다이렉트
+3. `/login`으로 리다이렉트
 
 ---
 
@@ -432,7 +441,7 @@ code:
 | POST | /api/auth/register | 회원가입 (본문에 `invitationToken?` 동봉 시 [§2.6](#26-초대-토큰을-통한-가입-invitationtoken) 흐름) |
 | GET | /api/invitations/:token | 초대 토큰 메타 조회 (가입 페이지 prefill 용, 인증 불요) |
 | POST | /api/auth/verify-email | 이메일 인증 확인 (본문: `{ token }`) |
-| POST | /api/auth/resend-verification | 인증 이메일 재발송 |
+| POST | /api/auth/resend-verification | 인증 이메일 재발송 — **미구현 (Planned)**, 백엔드 핸들러 부재. 추적: `plan/in-progress/spec-sync-auth-flow-gaps.md` |
 | POST | /api/auth/login | 로그인 (2FA 활성 시 `{ requires2fa, methods, challengeToken }` 응답) |
 | POST | /api/auth/login/totp | 2FA TOTP 검증 (`{ challengeToken, code }`) — 옛 `/api/auth/verify-2fa` 표기는 폐기, canonical 정의는 [auth spec §5](../5-system/1-auth.md#5-api-엔드포인트) |
 | POST | /api/auth/2fa/webauthn/authenticate/options · /verify · /recovery | WebAuthn 2FA 흐름. canonical 정의는 [auth spec §5](../5-system/1-auth.md#5-api-엔드포인트) |

@@ -31,9 +31,9 @@ code:
 
 설정 UI 는 LLM Provider 드롭다운 → Model 드롭다운 (provider 선택에 따라 동적 갱신) 패턴을 공유한다.
 
-## 2. Knowledge Base 연동
+## 2. Knowledge Base 연동 (AI Agent 전용)
 
-AI Agent / Information Extractor 노드는 다음 필드로 Knowledge Base 검색을 활성화한다:
+AI Agent 노드는 다음 필드로 Knowledge Base 검색을 활성화한다 (Text Classifier / Information Extractor 노드에는 KB·RAG 설정 필드가 없다 — KB 연동은 AI Agent 한정):
 
 | 필드 | 타입 | 설명 |
 |------|------|------|

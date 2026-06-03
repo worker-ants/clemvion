@@ -293,7 +293,7 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 
 | 발생 조건 | 메시지 | 시점 |
 |-----------|--------|------|
-| `code` 가 빈 문자열 / 누락 | `실행할 코드를 입력해야 합니다.` | warningRule (캔버스 배지) + handler.validate |
+| `code` 가 빈 문자열 / 누락 | `Body of the code to run must be entered.` (warningRule source 문자열; 캔버스 배지는 i18n 렌더) | warningRule (캔버스 배지) + handler.validate |
 | `code` 가 string 타입이 아님 | `code is required and must be a string` | handler.validate (zod default `''` 우회한 raw fixture 가드) |
 | `timeout` 이 `[1, 120]` 밖 | `timeout must be a number between 1 and 120 seconds` | handler.validate (`validateCodeConfig`) |
 | `language` 가 `javascript` 외 | (zod enum) `Invalid enum value. Expected 'javascript', received '...'` | schema parse 시점 |
@@ -341,18 +341,21 @@ config: `{ "code": "while (true) {}", "timeout": 1 }` (또는 `await new Promise
 | `Promise`, `async/await` | 비동기 처리 |
 | `Error`, `TypeError`, `RangeError`, `SyntaxError` | 예외 클래스 |
 
-**차단 (주입하지 않음 — `undefined` 로 명시 셰도잉)**:
+**차단**: 두 가지 차단 방식이 있다 (`buildSandbox`, `code.handler.ts`).
+1. **미주입 (sandbox 키 부재 → 참조 시 `ReferenceError`)**: `require`/`import`/`fetch`/`fs`/`process`/`Buffer`/`eval`/`Function` 등. vm context 에 키 자체가 없다 (`eval`/`new Function` 은 추가로 `codeGeneration.strings: false` 로도 차단).
+2. **명시 `undefined` 셰도잉 (sandbox 에 `undefined` 로 키 등록)**: `Reflect`/`Proxy`/`globalThis`/`Symbol`/`WeakMap`/`WeakSet`/`WeakRef`/`FinalizationRegistry`/`Atomics`/`SharedArrayBuffer`/`Intl`/`setTimeout`/`setInterval`/`setImmediate`. (vm context 가 이미 생략하지만 계약을 명시적으로 드러내기 위함.)
 
-| API | 차단 이유 |
-|-----|-----------|
-| `require`, `import` | 외부 모듈 로드 방지 |
-| `fetch`, `XMLHttpRequest`, `WebSocket` | 네트워크 접근 차단 |
-| `fs`, `path`, `os`, `child_process` 등 Node.js 모듈 | 시스템 접근 차단 |
-| `eval`, `Function` 생성자 | 동적 코드 실행 추가 방지 |
-| `process`, `global`, `globalThis`, `Buffer` | 런타임 환경 접근 차단 |
-| `Reflect`, `Proxy`, `Symbol` | 샌드박스 탈출 / 메타프로그래밍 방지 |
-| `WeakMap`, `WeakSet`, `WeakRef`, `FinalizationRegistry`, `Atomics`, `SharedArrayBuffer`, `Intl` | 비결정적 / cross-realm leak 방지 |
-| `setTimeout`, `setInterval`, `setImmediate` | 비결정적 스케줄링 차단 (Promise.race 타임아웃 흐름 단순화) |
+| API | 차단 방식 | 차단 이유 |
+|-----|-----------|-----------|
+| `require`, `import` | 미주입 | 외부 모듈 로드 방지 |
+| `fetch`, `XMLHttpRequest`, `WebSocket` | 미주입 | 네트워크 접근 차단 |
+| `fs`, `path`, `os`, `child_process` 등 Node.js 모듈 | 미주입 | 시스템 접근 차단 |
+| `eval`, `Function` 생성자 | 미주입 + `codeGeneration.strings: false` | 동적 코드 실행 추가 방지 |
+| `process`, `global`, `Buffer` | 미주입 | 런타임 환경 접근 차단 |
+| `globalThis`, `Symbol` | `undefined` 셰도잉 | 런타임 환경 접근 / 메타프로그래밍 방지 |
+| `Reflect`, `Proxy` | `undefined` 셰도잉 | 샌드박스 탈출 / 메타프로그래밍 방지 |
+| `WeakMap`, `WeakSet`, `WeakRef`, `FinalizationRegistry`, `Atomics`, `SharedArrayBuffer`, `Intl` | `undefined` 셰도잉 | 비결정적 / cross-realm leak 방지 |
+| `setTimeout`, `setInterval`, `setImmediate` | `undefined` 셰도잉 | 비결정적 스케줄링 차단 (Promise.race 타임아웃 흐름 단순화) |
 
 ## 8. 캔버스 요약
 
