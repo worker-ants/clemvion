@@ -1,0 +1,154 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/_router.md",
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_routing_decision.json",
+  "routing_status": "pending",
+  "routing_skip_reason": null,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: plan/in-progress/spec-draft-workspace-settings-api.md, review/consistency/2026/06/03/15_00_43/SUMMARY.md, review/consistency/2026/06/03/15_00_43/convention_compliance.md (외 16건)"
+    ],
+    "requirement": [
+      "spec 본문 변경 — documentation 외에도 요구사항 일관성 검증 필요: spec/1-data-model.md, spec/2-navigation/9-user-profile.md, spec/5-system/14-external-interaction-api.md (외 3건)",
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts, codebase/backend/src/modules/workspaces/workspaces.controller.ts, codebase/backend/src/modules/workspaces/workspaces.service.spec.ts (외 6건)"
+    ],
+    "security": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts, codebase/backend/src/modules/workspaces/workspaces.controller.ts, codebase/backend/src/modules/workspaces/workspaces.service.spec.ts (외 6건)"
+    ],
+    "scope": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts, codebase/backend/src/modules/workspaces/workspaces.controller.ts, codebase/backend/src/modules/workspaces/workspaces.service.spec.ts (외 6건)"
+    ],
+    "side_effect": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts, codebase/backend/src/modules/workspaces/workspaces.controller.ts, codebase/backend/src/modules/workspaces/workspaces.service.spec.ts (외 6건)"
+    ],
+    "maintainability": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts, codebase/backend/src/modules/workspaces/workspaces.controller.ts, codebase/backend/src/modules/workspaces/workspaces.service.spec.ts (외 6건)"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts, codebase/backend/src/modules/workspaces/workspaces.controller.ts, codebase/backend/src/modules/workspaces/workspaces.service.spec.ts (외 6건)"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/security.md"
+    },
+    {
+      "name": "performance",
+      "subagent_type": "performance-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/performance.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/performance.md"
+    },
+    {
+      "name": "architecture",
+      "subagent_type": "architecture-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/architecture.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/architecture.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/scope.md"
+    },
+    {
+      "name": "side_effect",
+      "subagent_type": "side-effect-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/side_effect.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/side_effect.md"
+    },
+    {
+      "name": "maintainability",
+      "subagent_type": "maintainability-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/maintainability.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/maintainability.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/documentation.md"
+    },
+    {
+      "name": "dependency",
+      "subagent_type": "dependency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/dependency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/dependency.md"
+    },
+    {
+      "name": "database",
+      "subagent_type": "database-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/database.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/database.md"
+    },
+    {
+      "name": "concurrency",
+      "subagent_type": "concurrency-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/concurrency.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/concurrency.md"
+    },
+    {
+      "name": "api_contract",
+      "subagent_type": "api-contract-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/api_contract.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/api_contract.md"
+    },
+    {
+      "name": "user_guide_sync",
+      "subagent_type": "user-guide-sync-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/_prompts/user_guide_sync.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/feat-web-chat-demo/review/code/2026/06/03/15_40_51/user_guide_sync.md"
+    }
+  ],
+  "agents_pending": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

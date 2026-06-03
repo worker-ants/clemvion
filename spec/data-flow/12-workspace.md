@@ -117,6 +117,30 @@ sequenceDiagram
 | `POST /api/workspaces/:id/transfer-ownership {newOwnerMemberId}` | owner (`@Roles('owner')` 가드 + service 재검증) | 단일 트랜잭션으로 (1) 현 owner.role='admin', (2) 대상 member.role='owner', (3) `workspace.owner_id = 대상.userId`. 본인 지정 시 `TARGET_IS_SELF`(400), 대상이 이미 owner 면 `TARGET_ALREADY_OWNER`(409), personal 워크스페이스는 이양 불가. `newOwnerMemberId` 는 user id 가 아니라 **member id**. |
 | `DELETE /api/workspaces/:id/members/:memberId` | owner / admin | `DELETE workspace_member`. owner 는 제거 불가. 본인 제거는 자가 탈퇴(`leaveWorkspace`)로 위임. |
 
+### 1.7 워크스페이스 설정 변경 (`settings`)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant C as Client (owner/admin)
+  participant Svc as WorkspacesService
+  participant PG as Postgres
+  C->>Svc: PATCH /api/workspaces/:id/settings { interactionAllowedOrigins }
+  Svc->>PG: SELECT workspace_member WHERE workspace_id=:id AND user_id=me (assertAdmin)
+  alt role ∉ {owner, admin}
+    Svc-->>C: 403 ADMIN_REQUIRED
+  end
+  Svc->>PG: SELECT workspace WHERE id=:id
+  Svc->>Svc: settings = { ...settings, interactionAllowedOrigins }  (부분 머지 — 타 키 보존)
+  Svc->>PG: UPDATE workspace SET settings=…, updated_at=now WHERE id=:id
+  Svc-->>C: 200 { data: workspace }
+```
+
+- 현 단계 `settings` 부분 키는 `interactionAllowedOrigins` 만(`timezone` 등은 본 엔드포인트 비대상). 각 origin
+  `http(s)://host[:port]`(path/query 불가) 검증 + 후행 슬래시 정규화. **빈 배열 = 추가 origin 없음**(secure-by-default
+  유지 — [7-channel-web-chat 보안 §2](../7-channel-web-chat/4-security.md), EIA §8.5). RBAC: [9-user-profile §4.3](../2-navigation/9-user-profile.md).
+- **Schema 매핑(§2.1)**: `workspace.settings`(JSONB) — 설정 변경은 `UPDATE workspace SET settings = settings || :patch`(부분 머지) 형태.
+
 ---
 
 ## 2. Schema 매핑
