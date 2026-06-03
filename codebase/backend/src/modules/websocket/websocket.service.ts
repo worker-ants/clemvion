@@ -244,6 +244,36 @@ function sanitizeInner(value: object, depth: number): unknown {
 }
 
 /**
+ * Debug-only payload fields that must NOT reach **external** fanout recipients
+ * (external-interaction SSE / notification webhook / chat-channel outbound).
+ *
+ * `llmCalls` carries the raw LLM provider request/response (system prompt,
+ * conversation history, tool definitions, user inputs) — an editor-only debug
+ * surface. It is delivered solely on the authenticated, workspace-ownership
+ * gated internal WS channel (`execution:{executionId}`), and stripped from the
+ * fanout envelope so SSE token holders / channel end-users never receive it.
+ *
+ * SoT: spec/5-system/6-websocket-protocol.md §4.4 `llmCalls[]` strip-only 결정
+ * (+ EIA §6.5, chat-channel CCH-MP-01).
+ */
+const EXTERNAL_STRIPPED_FIELDS = ['llmCalls'] as const;
+
+/**
+ * Return a shallow clone of the wire envelope with debug-only fields removed,
+ * for publishing to the external fanout. Returns the input unchanged when no
+ * stripped field is present (no allocation on the common path). Never mutates
+ * the input — the WS wire envelope keeps the full payload.
+ */
+function stripExternalOnlyFields(
+  envelope: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!EXTERNAL_STRIPPED_FIELDS.some((f) => f in envelope)) return envelope;
+  const clone = { ...envelope };
+  for (const f of EXTERNAL_STRIPPED_FIELDS) delete clone[f];
+  return clone;
+}
+
+/**
  * Knowledge Base 도메인 이벤트 — frontend `useKbEvents` 가 구독하는 12개 이벤트.
  * 채널 명명규약: `kb:${documentId}`. (execution: 채널과 구분)
  */
@@ -370,13 +400,18 @@ export class WebsocketService {
       seq,
       timestamp: new Date().toISOString(),
     };
-    // wire envelope (frontend socket.io) — WS spec §4.4 shape 그대로.
+    // wire envelope (frontend socket.io) — WS spec §4.4 shape 그대로. 인증된
+    // 내부 WS(에디터) 채널은 debug 필드(llmCalls) 를 포함한 full payload 수신.
     this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);
     // fanout envelope (internal subscriber: SseAdapter / NotificationFanout /
     // ChatChannelDispatcher) — routing context 가 등록되어 있으면 첨부.
     // wire 와 분리한 이유: frontend wire shape 의 호환성을 유지하면서 dispatcher
     // 가 trigger 식별에 필요한 추가 context 만 internal subscriber 에 전달.
-    const fanoutEnvelope = this.attachRoutingContext(executionId, wireEnvelope);
+    // 또한 fanout 은 외부 수신자(SSE 토큰 보유 채널 end-user 포함) 로 나가므로
+    // debug 전용 llmCalls 를 strip 한다 (WS §4.4 strip-only 결정). wireEnvelope
+    // 은 위에서 이미 broadcast 됐고 여기선 새 clone 을 strip 하므로 WS copy 불변.
+    const externalPayload = stripExternalOnlyFields(wireEnvelope);
+    const fanoutEnvelope = this.attachRoutingContext(executionId, externalPayload);
     this.executionEventSubject.next({
       executionId,
       eventType,

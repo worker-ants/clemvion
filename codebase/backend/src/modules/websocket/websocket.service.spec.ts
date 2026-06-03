@@ -562,4 +562,88 @@ describe('WebsocketService', () => {
       expect(chatChannel.conversationKey).toBe('12345');
     });
   });
+
+  // Spec [WS §4.4 llmCalls[] strip-only 결정 / EIA §6.5 / chat-channel CCH-MP-01]:
+  // debug 전용 llmCalls (raw LLM 요청/응답) 는 인증 내부 WS(에디터) 채널에만
+  // 전달하고, 외부 fanout (SSE / webhook / chat-channel) 에서는 strip 한다.
+  describe('llmCalls strip — 외부 fanout 수신자 보호', () => {
+    async function nextFanoutEvent(
+      svc: WebsocketService,
+    ): Promise<ExecutionChannelEvent> {
+      return firstValueFrom(svc.executionEvents$.pipe(take(1)));
+    }
+
+    const aiPayload = {
+      nodeId: 'n-1',
+      message: 'hi',
+      turnCount: 1,
+      messages: [{ role: 'assistant', content: 'hi' }],
+      metadata: { model: 'claude' },
+      llmCalls: [
+        {
+          requestPayload: { system: 'SECRET PROMPT', messages: [] },
+          responsePayload: { content: 'hi' },
+          durationMs: 12,
+        },
+      ],
+    };
+
+    it('wire envelope (에디터 WS) 는 llmCalls 를 그대로 포함', async () => {
+      await service.emitExecutionEvent(
+        'exec-ws',
+        ExecutionEventType.AI_MESSAGE,
+        aiPayload,
+      );
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(wire.llmCalls).toBeDefined();
+      expect(Array.isArray(wire.llmCalls)).toBe(true);
+    });
+
+    it('fanout envelope (외부: SSE/webhook/chat) 는 llmCalls 를 strip', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-fan',
+        ExecutionEventType.AI_MESSAGE,
+        aiPayload,
+      );
+      const fanout = await eventP;
+      expect(fanout.payload).not.toHaveProperty('llmCalls');
+      // 나머지 비-debug 필드는 외부 수신자에게도 그대로 유지
+      expect(fanout.payload.message).toBe('hi');
+      expect(fanout.payload.turnCount).toBe(1);
+      expect(fanout.payload).toHaveProperty('messages');
+      expect(fanout.payload).toHaveProperty('metadata');
+    });
+
+    it('strip 은 wire envelope 를 변형하지 않는다 (같은 emit 의 WS copy 보존)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-both',
+        ExecutionEventType.AI_MESSAGE,
+        aiPayload,
+      );
+      const fanout = await eventP;
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(wire.llmCalls).toBeDefined();
+      expect(fanout.payload).not.toHaveProperty('llmCalls');
+    });
+
+    it('llmCalls 없는 이벤트는 그대로 fanout (no-op strip)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-plain',
+        ExecutionEventType.AI_MESSAGE,
+        { nodeId: 'n-1', message: 'hi' },
+      );
+      const fanout = await eventP;
+      expect(fanout.payload.message).toBe('hi');
+      expect(fanout.payload).not.toHaveProperty('llmCalls');
+    });
+  });
 });
