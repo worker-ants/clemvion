@@ -26,6 +26,10 @@ describe('SwitchHandler', () => {
   // primitive/object in config.switchValue. It must NOT perform another
   // path lookup on the input. See plan/switch-node-input-lucky-dove for
   // the bug these tests guard against.
+  // Expression mode `regex` contract: the handler pre-compiles each case's
+  // pattern via `compileRegexCache` and passes the matching `RegExp` as
+  // `evaluateCondition(..., { strict, regex })` — so `regex` evaluates for
+  // real (mirrors If/Else; was a no-op before the spec-sync §C-4 follow-up).
 
   describe('validate', () => {
     it('returns valid for minimal value-mode config', () => {
@@ -494,6 +498,116 @@ describe('SwitchHandler', () => {
   });
 
   describe('execute — mode: expression', () => {
+    // Switch regex no-op fix (spec-sync §C-4 후속): expression mode 의 regex
+    // 연산자가 case 별 compileRegexCache 로 컴파일된 정규식을 전달받아 실제
+    // 평가된다 (이전엔 options.regex 미전달로 항상 false no-op).
+    it('regex 연산자가 매칭되면 해당 case 로 라우팅', async () => {
+      const result = await handler.execute(
+        { email: 'alice@example.com' },
+        {
+          mode: 'expression',
+          cases: [
+            {
+              id: 'example_domain',
+              condition: {
+                field: 'email',
+                operator: 'regex',
+                value: '^[^@]+@example\\.com$',
+              },
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'example_domain' });
+    });
+
+    it('regex 불일치 시 default 로', async () => {
+      const result = await handler.execute(
+        { email: 'bob@other.org' },
+        {
+          mode: 'expression',
+          cases: [
+            {
+              id: 'example_domain',
+              condition: {
+                field: 'email',
+                operator: 'regex',
+                value: '^[^@]+@example\\.com$',
+              },
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'default' });
+    });
+
+    it('잘못된 regex 패턴은 false (throw 없음) → default', async () => {
+      const result = await handler.execute(
+        { email: 'alice@example.com' },
+        {
+          mode: 'expression',
+          cases: [
+            {
+              id: 'bad',
+              condition: { field: 'email', operator: 'regex', value: '([' },
+            },
+          ],
+          hasDefault: true,
+        },
+        context,
+      );
+      expect(result).toMatchObject({ port: 'default' });
+    });
+
+    // 혼합 case (non-regex, regex, regex) — caseRegex Map 의 case 인덱스 정합 검증.
+    // 컴파일된 RegExp 가 올바른 case 에 매핑돼야 첫 매칭 regex case 로 라우팅된다.
+    it('non-regex + regex 혼합 case 에서 인덱스 정합하게 매칭', async () => {
+      const cfg = {
+        mode: 'expression' as const,
+        cases: [
+          {
+            id: 'eq_case',
+            condition: { field: 'kind', operator: 'eq', value: 'x' },
+          },
+          {
+            id: 're_a',
+            condition: {
+              field: 'email',
+              operator: 'regex',
+              value: '^a.*@example\\.com$',
+            },
+          },
+          {
+            id: 're_b',
+            condition: {
+              field: 'email',
+              operator: 'regex',
+              value: '^b.*@example\\.com$',
+            },
+          },
+        ],
+        hasDefault: true,
+      };
+      // bob… → 2번째 regex case(re_b) 매칭 (인덱스 2 의 RegExp 가 정확히 적용돼야 함).
+      const r1 = await handler.execute(
+        { kind: 'y', email: 'bob@example.com' },
+        cfg,
+        context,
+      );
+      expect(r1).toMatchObject({ port: 're_b' });
+      // alice… → 1번째 regex case(re_a) 매칭.
+      const r2 = await handler.execute(
+        { kind: 'y', email: 'alice@example.com' },
+        cfg,
+        context,
+      );
+      expect(r2).toMatchObject({ port: 're_a' });
+    });
+
     it('matches the first case whose condition is true', async () => {
       const result = await handler.execute(
         { user: { age: 20, role: 'admin' } },
