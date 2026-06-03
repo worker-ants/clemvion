@@ -515,7 +515,9 @@ export function toChatChannelEvent(
         turnCount: typeof turnCount === 'number' ? turnCount : 0,
         messages: (event.payload as { messages?: unknown[] }).messages,
         metadata: (event.payload as { metadata?: unknown }).metadata,
-        llmCalls: (event.payload as { llmCalls?: unknown[] }).llmCalls,
+        // `llmCalls` 는 fanout seam 에서 strip 되어 외부 수신자(본 dispatcher 포함)
+        // 에 도달하지 않는다 (WS §4.4 strip-only). 채널 변환은 message/presentations
+        // 만 사용하므로 더 이상 복사하지 않는다.
         ...(presentations !== undefined ? { presentations } : {}),
       };
     }
