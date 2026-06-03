@@ -7,6 +7,7 @@ import {
   validateAiAgentConfig,
 } from './ai-agent.schema';
 import { evaluateMetadataBlockingErrors } from '../../core/metadata-validation';
+import { PRESENTATION_TYPES } from '../../../shared/conversation-thread/conversation-thread.types';
 
 describe('aiAgentNodeConfigSchema', () => {
   it('applies defaults for empty input', () => {
@@ -81,6 +82,22 @@ describe('aiAgentNodeConfigSchema', () => {
       widget: 'expression',
       multiline: true,
     });
+  });
+
+  it('exposes the presentationTools item type default in JSON Schema', () => {
+    // buildNewItem (frontend) reads JSON Schema `default` to pre-fill new rows
+    // so the displayed first option is committed instead of saved as `{}`.
+    const jsonSchema = z.toJSONSchema(aiAgentNodeConfigSchema) as unknown as {
+      properties?: {
+        presentationTools?: {
+          items?: { properties?: { type?: { default?: unknown } } };
+        };
+      };
+    };
+    expect(
+      jsonSchema.properties?.presentationTools?.items?.properties?.type
+        ?.default,
+    ).toBe(PRESENTATION_TYPES[0]);
   });
 });
 
@@ -368,6 +385,17 @@ describe('validateAiAgentConfig (imperative)', () => {
     ];
     const result = aiAgentNodeConfigSchema.parse({ presentationTools: tools });
     expect(result.presentationTools).toHaveLength(5);
+  });
+
+  it('defaults a presentationTool row with missing type to the first enum value', () => {
+    // Regression: the frontend field-array "add row" widget persisted `{}`
+    // because the native <select> showed the first option (table) without
+    // committing it to form state. The zod `.default` now coerces an absent
+    // type → first PRESENTATION_TYPES value so a stale `{}` row hydrates as a
+    // valid tool instead of triggering `RenderToolProvider: Skipping ... type:
+    // undefined` at runtime.
+    const result = aiAgentNodeConfigSchema.parse({ presentationTools: [{}] });
+    expect(result.presentationTools[0].type).toBe(PRESENTATION_TYPES[0]);
   });
 
   it('accepts presentationTool with description and defaults overlay', () => {

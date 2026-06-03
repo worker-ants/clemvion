@@ -71,9 +71,19 @@ const mcpServerRefSchema = z.object({
  * 의 `PRESENTATION_TYPES` 상수. 신규 type 추가 시 본 파일 수정 불필요.
  */
 const presentationToolDefSchema = z.object({
-  type: z.enum(PRESENTATION_TYPES).meta({
-    ui: { label: 'Type', widget: 'select' },
-  }),
+  // `.default(첫 enum)` — frontend field-array 의 "행 추가" 위젯이 새 행을 만들 때,
+  // native `<select>` 는 첫 옵션을 시각적으로 보여주지만 사용자가 드롭다운을 건드리지
+  // 않으면 onChange 가 발화되지 않아 `type` 이 폼 상태에 안 들어가 `{}` 로 저장된다
+  // (런타임 `RenderToolProvider: Skipping ... type: undefined` 의 근본 원인).
+  // JSON Schema 에 `default` 를 노출해 frontend `buildNewItem` 이 새 행을 첫 옵션으로
+  // 미리 채우게 하고, parse 시 absent→첫 옵션으로 보정한다. `PRESENTATION_TYPES[0]` 을
+  // 써서 enum 변경에 drift-free (line 71 주석 참조).
+  type: z
+    .enum(PRESENTATION_TYPES)
+    .default(PRESENTATION_TYPES[0])
+    .meta({
+      ui: { label: 'Type', widget: 'select' },
+    }),
   description: z
     .string()
     .optional()

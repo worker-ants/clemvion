@@ -261,11 +261,12 @@ type FieldEntry = {
 /**
  * Build a new item populated from schema defaults + `ui.itemDefault`. Fields
  * with `.default(...)` in zod (which surface as JSON Schema `default`) are
- * copied in; required string `id` / `*Id` fields without a default get an
- * auto-generated UUID so schemas like AI Agent conditions (where `id` is
- * required) produce valid items on "Add".
+ * copied in; single-select / enum fields without a `.default` are pre-filled
+ * with their first option (see below); required string `id` / `*Id` fields
+ * without a default get an auto-generated UUID so schemas like AI Agent
+ * conditions (where `id` is required) produce valid items on "Add".
  */
-function buildNewItem(
+export function buildNewItem(
   itemSchema: JsonSchemaNode,
   itemDefault: Record<string, unknown> | undefined,
 ): Record<string, unknown> {
@@ -276,6 +277,28 @@ function buildNewItem(
   for (const [key, field] of Object.entries(props)) {
     if (field.default !== undefined) {
       item[key] = field.default;
+    }
+  }
+
+  // Pre-fill single-select / enum fields with their first option when no
+  // explicit `.default` is present. A native `<select>` (SelectField) has no
+  // empty/placeholder option, so it displays the first option visually while
+  // the stored value stays undefined until the user fires onChange. Saving the
+  // item before the user touches the dropdown then persists a missing field
+  // (e.g. a presentationTools row `{}` → backend `RenderToolProvider: Skipping
+  // ... type: undefined`). Committing the displayed first option keeps the
+  // stored value equal to what's shown. Array/object fields (multi-select,
+  // json) are excluded — their "unset" state ([] / absent) is meaningful and
+  // `resolveWidgetOptions` returns [] for them anyway.
+  for (const [key, field] of Object.entries(props)) {
+    if (item[key] !== undefined) continue;
+    // `type` may be a union array (e.g. ["string", "null"]) — normalize to the
+    // primary type before excluding non-scalar fields.
+    const fieldType = Array.isArray(field.type) ? field.type[0] : field.type;
+    if (fieldType === "array" || fieldType === "object") continue;
+    const options = resolveWidgetOptions(field, field.ui);
+    if (options.length > 0) {
+      item[key] = options[0].value;
     }
   }
 
