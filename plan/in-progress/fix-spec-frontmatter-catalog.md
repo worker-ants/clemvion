@@ -34,7 +34,7 @@ owner: developer
 - [x] 3. `/consistency-check --impl-prep` → BLOCK: YES (단, Critical = **현재 red 상태 자체**이며 본 fix 가 해소 대상. checker 가 권장한 fix = 본 plan 과 동일). 산출 `review/consistency/2026/06/03/21_45_50/`
 - [x] 5–7. 테스트 + 구현 (code + spec)
 - [x] 8. TEST WORKFLOW — lint PASS · **unit PASS (444 실패 → 0, frontend 182 files green)** · build PASS · e2e PASS(144)
-- [ ] 9. `/ai-review` + `--impl-done`
+- [x] 9. `/ai-review` (`review/code/2026/06/03/22_01_57/`) — LOW, Critical 0, WARNING 3(W1/W2 테스트 커버리지 + W3 glob 표기) 전부 fix + INFO 다수 반영(37c5ee3e). RESOLUTION.md 기록. `--impl-done` 최종(`22_22_34`, 22e517a5 postdates) **BLOCK: NO**.
 
 ## 후속 (비차단 — pre-existing, 별 task)
 consistency-check 가 함께 지적했으나 본 카탈로그 fix 와 무관한 pre-existing 항목:
