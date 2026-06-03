@@ -31,3 +31,15 @@ related_plan: plan/in-progress/ai-context-memory-auto.md
 - [ ] **요약/추출 전용 저비용 모델 옵션**: 현재 노드 `model` 재사용. 별도 모델 필드 검토.
 
 > 위 항목들은 본 PR(`ai-context-memory-auto.md`) 범위 밖. 우선순위·picking 후 개별 착수.
+
+## spec 정밀화 백로그 (코드 리뷰 도출, 경미)
+
+- [ ] `0-common.md §10` memoryStrategy 행에 `[AI Agent §12.9]` 근거 링크(W-11), `includeToolTurns`
+      행에 push/inject 분리 한 줄(W-12).
+- [ ] `1-ai-agent.md §7` Config echo 열거에 memory 5필드 추가(impl-done W-3).
+- [ ] `0-common.md §10` 첫 단락 "v1 세 노드 모두 push 출하, ai_agent 만 inject" 로 정밀화(W-7).
+- [ ] `1-ai-agent.md §6.1 d.5` summary_buffer(1.5만) vs persistent(1.3+1.5+2.7) 분기 명시(W-8).
+- [ ] `5-system/_product-overview.md` 에 AGM-01~07 등재(W-10).
+- [ ] `conversation-thread.md §7` Token-aware cap 에 "tokenizer-exact 는 v3 잔존" 명시(SPEC-DRIFT I-11).
+- [ ] `1-ai-agent.md §12.10/12.11` 에 요약 LLM 모델 재사용(별도 필드 없음) Rationale 소항(I-6).
+- [ ] Redis TTL 만료 시 runningSummary 유실 fallback 정책 명시(W-6).
