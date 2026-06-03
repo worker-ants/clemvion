@@ -38,10 +38,14 @@ owner: developer
 - [ ] 전체 spec/plan green 확인 후 게이트 on
 
 ### item 2 — plan-stale-audit.sh 수정 + 완료 plan 이동
-- [ ] `find -maxdepth 1` → 재귀화 (node-output-redesign/ 28개 포함)
-- [ ] staleness 신호 보강: worktree 미존재 + branch merged + 체크박스 전부 done 복합 판정
-- [ ] 완료 plan `git mv` → complete/: `eia-strip-llmcalls`(8/8), `fix-spec-frontmatter-catalog`(7/7), `channel-web-chat-demo`(22/22)
-- [ ] (잔류 정당: `channel-web-chat-followups`·`followup-conversation-reconcile` — 보류항목 보유)
+- [x] `find -maxdepth 1` → 재귀화 (node-output-redesign/ 포함 — 64→93 plan)
+- [x] staleness 신호 보강: 체크박스 전부 done `DONE?` + (worktree 미존재 ∧ done) `ORPHAN?` 복합 플래그
+- [x] 완료 plan `git mv` → complete/: `eia-strip-llmcalls`(8/8, spec 참조·잔여 마커 없음)
+- [x] 이동 보류 (검증 결과 부적격):
+  - `fix-spec-frontmatter-catalog`(7/7) — 본문에 "별 doc 수정·표현 명확화·노트 추가" pre-existing follow-up 4건 문서화 → lifecycle §5 미해결 follow-up 보유로 in-progress 유지
+  - `channel-web-chat-demo`(22/22) — `1-widget-app`·`3-auth-session` 두 partial spec 의 `pending_plans:` 타깃 → 이동 시 spec-status-lifecycle 졸업 로직과 결합, 일방 해소 위험. planner 판단으로 분리
+  - `channel-web-chat-followups`·`followup-conversation-reconcile` — 보류항목 보유(정당 잔류)
+- [x] 이동 후 spec-pending-plan-existence·spec-status-lifecycle 206 tests green 확인
 
 ### item 3 — plan frontmatter 백필 + 가드
 - [ ] 무 frontmatter 6건 백필: `ai-agent-tool-connection-rewrite`, `marketplace-and-plugin-sdk`, `merge-p2-async-fanin`, `node-cancellation-infrastructure`, `parallel-p2-followups`, `self-hosting-deployment`
