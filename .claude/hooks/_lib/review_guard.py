@@ -18,13 +18,22 @@ Scope decision — **only `codebase/**` counts as "code that needs review".**
   so a spec-only or harness-only PR is never blocked by this guard. This both
   matches the review domain and avoids false-blocking doc/spec/meta PRs.
 
-Policy (see evaluate_review):
-  BLOCK when BOTH:
-    1. the branch has codebase/ changes (uncommitted, or committed since the
-       merge-base with the default branch), AND
-    2. there is no *fresh, resolved* review covering them.
-  ALLOW otherwise — including no code change, no git repo, detached HEAD, or
-  any internal error (fail-open: a guard must never wedge the session).
+Policy (see evaluate_review): BLOCK when the branch has codebase/ changes
+(uncommitted, or committed since the merge-base with the default branch) AND
+EITHER of these coverage gates fails:
+    1. CODE-REVIEW gate — there is no *fresh, resolved* code review covering the
+       changes, OR
+    2. SPEC-CONSISTENCY gate (spec-impl drift) — some changed file matches a
+       spec's frontmatter `code:` glob (i.e. it implements a documented spec
+       surface) but there is no *fresh* `--impl-done` consistency report
+       (BLOCK: NO) postdating that change. This is the enforcement teeth behind
+       developer SKILL's "구현이 spec 을 준수하는지" — promoting the previously
+       *advisory* `/consistency-check --impl-done` to a hard exit gate, but only
+       for changes that touch spec-linked code (a refactor of code no spec
+       references is never blocked by this gate).
+  ALLOW otherwise — including no code change, no git repo, detached HEAD, no
+  spec-linked change, or any internal error (fail-open: a guard must never
+  wedge the session; either gate's parsing falls back to "not blocked").
 
 "Fresh, resolved review" =
   a `review/code/**/SUMMARY.md` in the working tree whose
@@ -32,6 +41,11 @@ Policy (see evaluate_review):
       `RESOLUTION.md` exists (critical/warning were addressed), AND
     - freshness:         its mtime >= the newest changed codebase file's mtime
       (the review postdates the latest code edit).
+
+"Fresh impl-done consistency report" =
+  a `review/consistency/**/SUMMARY.md` whose session `meta.json` mode names
+  `--impl-done` AND whose top `BLOCK:` line is NO (no Critical spec-impl
+  divergence), with mtime >= the newest spec-linked changed file's mtime.
 
 The freshness check uses filesystem mtime for both sides — they are compared
 within the *same* working tree at the same instant, so the comparison is
@@ -43,6 +57,7 @@ worktree guard it errs toward not false-blocking, and BYPASS_REVIEW_GUARD=1
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -60,6 +75,12 @@ except Exception:  # pragma: no cover - import path fallback
 
 CODE_PREFIX = "codebase/"
 REVIEW_GLOB_ROOT = os.path.join("review", "code")
+SPEC_DIR = "spec"
+CONSISTENCY_GLOB_ROOT = os.path.join("review", "consistency")
+# The impl-done consistency mode label written into each session's meta.json
+# carries this token (see consistency_orchestrator.py mode_label for --impl-done).
+_IMPL_DONE_MODE_TOKEN = "--impl-done"
+_BLOCK_LINE = re.compile(r"BLOCK:\s*(YES|NO)", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -246,6 +267,171 @@ def _newest_resolved_review_mtime(repo_root: str) -> float:
     return best
 
 
+# ---------------------------------------------------------------------------
+# SPEC-CONSISTENCY gate (spec-impl drift) — see module docstring §2.
+# ---------------------------------------------------------------------------
+
+
+def _glob_to_regex(glob: str) -> re.Pattern:
+    """Compile a spec `code:` glob into an anchored regex over repo-relative
+    POSIX paths. Supports `**` (across directories), `*` (within a segment) and
+    `?`. Best-effort — the gate fails open if anything here misbehaves."""
+    out: list[str] = []
+    i, n = 0, len(glob)
+    while i < n:
+        c = glob[i]
+        if c == "*":
+            if i + 1 < n and glob[i + 1] == "*":
+                out.append(".*")           # ** → cross-directory wildcard
+                i += 2
+                if i < n and glob[i] == "/":  # consume the slash in `**/`
+                    i += 1
+                continue
+            out.append("[^/]*")            # * → within one path segment
+        elif c == "?":
+            out.append("[^/]")
+        else:
+            out.append(re.escape(c))
+        i += 1
+    return re.compile("^" + "".join(out) + "$")
+
+
+def _parse_frontmatter_code(path: str) -> list[str]:
+    """Extract the `code:` glob list from a markdown file's YAML frontmatter.
+    Handles inline (`code: [a, b]`), single-value (`code: a`) and block-list
+    (`code:\\n  - a\\n  - b`) forms. Returns [] when there is no frontmatter or
+    no `code:` field."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            if f.readline().strip() != "---":
+                return []
+            fm: list[str] = []
+            for line in f:
+                if line.strip() == "---":
+                    break
+                fm.append(line.rstrip("\n"))
+    except OSError:
+        return []
+
+    def _clean(tok: str) -> str:
+        return tok.strip().strip('"').strip("'")
+
+    globs: list[str] = []
+    i, n = 0, len(fm)
+    while i < n:
+        m = re.match(r"^code:\s*(.*)$", fm[i])
+        if not m:
+            i += 1
+            continue
+        rest = m.group(1).strip()
+        if rest.startswith("["):
+            for part in rest.strip("[]").split(","):
+                g = _clean(part)
+                if g:
+                    globs.append(g)
+        elif rest:
+            g = _clean(rest)
+            if g:
+                globs.append(g)
+        else:  # block list on following `  - <glob>` lines
+            j = i + 1
+            while j < n:
+                mm = re.match(r"^\s*-\s*(.+)$", fm[j])
+                if not mm:
+                    break
+                g = _clean(mm.group(1))
+                if g:
+                    globs.append(g)
+                j += 1
+        break  # only the first `code:` key matters
+    return globs
+
+
+def _spec_code_patterns(repo_root: str) -> list[re.Pattern]:
+    """All compiled `code:` glob regexes across spec/**/*.md (deduped)."""
+    spec_root = os.path.join(repo_root, SPEC_DIR)
+    if not os.path.isdir(spec_root):
+        return []
+    seen: set[str] = set()
+    patterns: list[re.Pattern] = []
+    for dirpath, _dirs, files in os.walk(spec_root):
+        for name in files:
+            if not name.endswith(".md"):
+                continue
+            for g in _parse_frontmatter_code(os.path.join(dirpath, name)):
+                if g in seen:
+                    continue
+                seen.add(g)
+                try:
+                    patterns.append(_glob_to_regex(g))
+                except re.error:
+                    continue
+    return patterns
+
+
+def _spec_linked_changes(repo_root: str, changed: list[str]) -> list[str]:
+    """Subset of `changed` (repo-relative codebase/ paths) that matches at least
+    one spec `code:` glob — i.e. code that implements a documented spec surface."""
+    patterns = _spec_code_patterns(repo_root)
+    if not patterns:
+        return []
+    linked: list[str] = []
+    for rel in changed:
+        posix = rel.replace(os.sep, "/")
+        if any(p.match(posix) for p in patterns):
+            linked.append(rel)
+    return linked
+
+
+def _iter_consistency_summaries(repo_root: str) -> list[str]:
+    root = os.path.join(repo_root, CONSISTENCY_GLOB_ROOT)
+    found: list[str] = []
+    if not os.path.isdir(root):
+        return found
+    for dirpath, _dirs, files in os.walk(root):
+        if "SUMMARY.md" in files:
+            found.append(os.path.join(dirpath, "SUMMARY.md"))
+    return found
+
+
+def _is_impl_done_session(session_dir: str) -> bool:
+    """True when the session's meta.json mode names the --impl-done mode."""
+    try:
+        with open(os.path.join(session_dir, "meta.json"), "r", encoding="utf-8") as f:
+            mode = (json.load(f) or {}).get("mode", "")
+    except (OSError, ValueError):
+        return False
+    return _IMPL_DONE_MODE_TOKEN in (mode or "")
+
+
+def _summary_block_is_no(summary_path: str) -> bool:
+    """True when the consistency SUMMARY's top `BLOCK:` line reads NO (no
+    Critical spec-impl divergence). Unparseable / BLOCK: YES → False."""
+    try:
+        with open(summary_path, "r", encoding="utf-8", errors="replace") as f:
+            head = f.read(4096)
+    except OSError:
+        return False
+    m = _BLOCK_LINE.search(head)
+    return bool(m) and m.group(1).upper() == "NO"
+
+
+def _newest_resolved_impl_done_mtime(repo_root: str) -> float:
+    """mtime of the most recent --impl-done consistency SUMMARY with BLOCK: NO
+    (0.0 if none)."""
+    best = 0.0
+    for summary in _iter_consistency_summaries(repo_root):
+        session_dir = os.path.dirname(summary)
+        if not _is_impl_done_session(session_dir):
+            continue
+        if not _summary_block_is_no(summary):
+            continue
+        m = _mtime(summary)
+        if m > best:
+            best = m
+    return best
+
+
 def evaluate_review(cwd: str | None = None) -> ReviewDecision:
     """Return a ReviewDecision for the working dir (cwd or '.').
 
@@ -268,6 +454,7 @@ def evaluate_review(cwd: str | None = None) -> ReviewDecision:
     if not changed:
         return ReviewDecision(False, "no codebase/ changes on this branch — allowed")
 
+    # ---- Gate 1: code review coverage --------------------------------------
     newest_code = _newest_code_mtime(repo_root, changed)
     newest_review = _newest_resolved_review_mtime(repo_root)
 
@@ -285,8 +472,40 @@ def evaluate_review(cwd: str | None = None) -> ReviewDecision:
             f"resolved review — the code was edited since it was reviewed.",
         )
 
+    # ---- Gate 2: spec-impl consistency (--impl-done) -----------------------
+    # Only the subset of changes that implement a documented spec surface
+    # (matches a spec frontmatter `code:` glob) is held to this gate.
+    spec_linked = _spec_linked_changes(repo_root, changed)
+    if spec_linked:
+        newest_spec_code = _newest_code_mtime(repo_root, spec_linked)
+        newest_impl_done = _newest_resolved_impl_done_mtime(repo_root)
+        if newest_impl_done <= 0.0:
+            return ReviewDecision(
+                True,
+                f"{len(spec_linked)} changed file(s) implement a spec-documented "
+                f"surface (matched a spec `code:` glob) but no passing "
+                f"`--impl-done` consistency report (review/consistency/**, "
+                f"BLOCK: NO) was found. Run "
+                f"`/consistency-check --impl-done <spec/영역>` to verify the "
+                f"implementation still matches the spec.",
+            )
+        if newest_impl_done < newest_spec_code:
+            return ReviewDecision(
+                True,
+                f"{len(spec_linked)} spec-linked file(s) changed AFTER the most "
+                f"recent `--impl-done` consistency report — re-run "
+                f"`/consistency-check --impl-done <spec/영역>` so the spec-impl "
+                f"check postdates the latest edit.",
+            )
+
     return ReviewDecision(
         False,
-        f"{len(changed)} codebase/ change(s) covered by a fresh resolved review "
-        f"— allowed",
+        f"{len(changed)} codebase/ change(s) covered by a fresh resolved review"
+        + (
+            f" and a fresh --impl-done consistency report ({len(spec_linked)} "
+            f"spec-linked)"
+            if spec_linked
+            else ""
+        )
+        + " — allowed",
     )

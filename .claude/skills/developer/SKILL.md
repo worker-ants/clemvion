@@ -89,7 +89,8 @@ model: opus
    ```
 
    반환 STATUS 의 `ESCALATE` 분기 (`code-review-agents` SKILL §6 표) 를 — `ESCALATE=no` (조치 완료) 또는 사용자 escalate 까지 — 처리하기 전엔 턴을 끝내지 않는다.
-4. **(post-impl 일관성 검토 권장)** spec 영역 변경이 포함된 경우 `/consistency-check --impl-done <spec/영역>` 추가 호출 — 구현 코드 diff vs spec 본문 / Rationale / conventions / plan 정합성을 5 checker 가 사후 검증. Critical 발견 시 `resolution-applier` 가 동일 흐름으로 처리.
+   - **SPEC-DRIFT 처리**: SUMMARY 에 `[SPEC-DRIFT]` 발견사항(구현이 spec 을 의도적으로 개선해 spec 이 낡음)이 있으면, resolution-applier 가 코드를 되돌리지 않고 `plan/in-progress/spec-update-<area>.md` draft + `ESCALATE=spec` 로 반환한다. main 은 `/consistency-check --spec <draft>` → `BLOCK: NO` 시 spec 에 반영 후 resolution-applier 재호출. 이것이 "구현 중 개선된 flow 가 spec 에 역류" 하는 정식 경로다.
+4. **(post-impl 일관성 검토 — spec 연결 코드 변경 시 의무)** 변경에 spec 의 frontmatter `code:` glob 에 매칭되는 파일이 포함되면 `/consistency-check --impl-done <spec/영역>` 호출은 **의무**다 (이전의 "권장" 에서 승격). 구현 코드 diff vs spec 본문 / Rationale / conventions / plan 정합성을 5 checker 가 사후 검증하고, Critical 발견(`BLOCK: YES`) 시 `resolution-applier` 가 동일 흐름으로 처리. **강제**: spec 연결 코드 변경이 있는데 `BLOCK: NO` 인 fresh `--impl-done` 산출물이 없으면 `guard_review_before_push.py`/`guard_review_before_stop.py` 가 push·턴종료를 차단한다 (`review_guard.py` SPEC-CONSISTENCY 게이트). spec 무관 코드(어떤 spec 도 참조 않는 내부 리팩토링)는 이 게이트에 걸리지 않는다.
 5. **수동 처리 시**: SUMMARY 보고 이슈 해결 + `review/code/<...>/RESOLUTION.md` 에 §RESOLUTION schema 로 기록. (RESOLUTION.md 가 있어야 push 가드가 '해결됨' 으로 인정한다.)
 6. **조치 끝나면 TEST WORKFLOW 재수행.**
 
@@ -100,6 +101,8 @@ model: opus
 - [ ] TEST WORKFLOW (lint·unit·build·e2e) 통과
 - [ ] `/ai-review` 실행 + SUMMARY 기록
 - [ ] SUMMARY 의 Critical/Warning 0 (애초에 없었거나, `resolution-applier`/수동으로 fix + RESOLUTION.md)
+- [ ] SPEC-DRIFT 발견사항은 spec 반영(`spec-update-<area>` → `/consistency-check --spec` → 반영) 또는 사용자 escalate 로 처리
+- [ ] (spec 연결 코드 변경 시) `/consistency-check --impl-done <spec/영역>` `BLOCK: NO` 산출물 존재 (SPEC-CONSISTENCY 가드)
 - [ ] fix 가 있었으면 TEST WORKFLOW 재통과
 - [ ] (codebase 변경 시) push/stop 강제 가드 통과
 
