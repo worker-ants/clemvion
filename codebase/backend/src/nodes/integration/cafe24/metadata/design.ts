@@ -42,14 +42,16 @@ export const designOperations: Cafe24OperationMetadata[] = [
   },
   {
     id: 'theme_pages_get',
-    description: 'Retrieve theme page contents (HTML/CSS).',
+    // docs: GET themes/{skin_no}/pages 는 `path` (query, 필수) 로 단건 페이지를 식별한다
+    // (컬렉션 경로지만 path 쿼리로 single 반환). 과거 `{page_path}` path-param 은 오기였음.
+    description: 'Retrieve theme page contents (HTML/CSS) by file path.',
     scopeType: 'read',
     method: 'GET',
-    path: 'themes/{skin_no}/pages/{page_path}',
-    requiredFields: ['skin_no', 'page_path'],
+    path: 'themes/{skin_no}/pages',
+    requiredFields: ['skin_no', 'path'],
     fields: {
       skin_no: { type: 'number', location: 'path' },
-      page_path: { type: 'string', location: 'path' },
+      path: { type: 'string', location: 'query', description: 'File path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
     },
     responseShape: 'single',

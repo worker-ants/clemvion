@@ -40,3 +40,19 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `customergroups_count` | 회원 등급 개수 | Retrieve a count of customer tiers | GET | `customergroups/count` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-count-of-customer-tiers) |
 | `customergroups_get` | 회원 등급 단건 조회 | Retrieve a customer tier | GET | `customergroups/{group_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-customer-tier) |
 | `customergroups_settings_get` | 회원 등급 설정 조회 | Retrieve customer tier settings | GET | `customergroups/setting` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-customer-tier-settings) |
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`customer/customergroups.md`](./customer/customergroups.md) · Customergroups — 14 fields, 3 ops
+- [`customer/customergroups__customers.md`](./customer/customergroups__customers.md) · Customergroups customers — 4 fields, 1 ops
+- [`customer/customergroups-setting.md`](./customer/customergroups-setting.md) · Customergroups setting — 21 fields, 1 ops
+- [`customer/customers.md`](./customer/customers.md) · Customers — 19 fields, 2 ops
+- [`customer/customers__autoupdate.md`](./customer/customers__autoupdate.md) · Customers autoupdate — 7 fields, 1 ops
+- [`customer/customers__memos.md`](./customer/customers__memos.md) · Customers memos — 6 fields, 6 ops
+- [`customer/customers__paymentinformation.md`](./customer/customers__paymentinformation.md) · Customers paymentinformation — 7 fields, 3 ops
+- [`customer/customers__plusapp.md`](./customer/customers__plusapp.md) · Customers plusapp — 5 fields, 1 ops
+- [`customer/customers-properties.md`](./customer/customers-properties.md) · Customers properties — 3 fields, 2 ops
+- [`customer/customers__social.md`](./customer/customers__social.md) · Customers social — 5 fields, 1 ops
+- [`customer/social.md`](./customer/social.md) · Social — 5 fields, 1 ops

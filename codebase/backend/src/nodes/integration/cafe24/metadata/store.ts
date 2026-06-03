@@ -344,7 +344,9 @@ export const storeOperations: Cafe24OperationMetadata[] = [
   {
     id: 'carts_setting_update',
     description: 'Update shopping-cart settings.',
-    scopeType: 'write',
+    // scopeType: docs 기본스펙 = mall.read_store (read). PUT 이지만 read scope —
+    // Cafe24 docs authoritative (plan G-3k, 2026-06-03).
+    scopeType: 'read',
     method: 'PUT',
     path: 'carts/setting',
     requiredFields: [],

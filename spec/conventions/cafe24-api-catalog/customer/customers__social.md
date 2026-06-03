@@ -1,0 +1,39 @@
+---
+resource: customer
+entity: customers__social
+cafe24_docs: https://developers.cafe24.com/docs/ko/api/admin/#customers--social
+source: Cafe24 REST API Documentation (admin) — downloaded 2026-06-03
+---
+
+# Cafe24 API — Customer / Customers social
+
+> Field-level 카탈로그. Endpoint enumeration index: [`../customer.md`](../customer.md) · 규약: [`../_overview.md`](../_overview.md) · 공식 docs: [Customers social](https://developers.cafe24.com/docs/ko/api/admin/#customers--social)
+> 복합(nested) 필드의 하위 요소는 `↳` 로 표기한다.
+
+회원의 SNS(Customers social)는 특정 회원에게 연동된 SNS 계정의 정보를 조회할 수 있는 기능입니다.
+
+## 응답 속성 (Property list)
+
+| Attribute | 제약 | 설명 |
+|---|---|---|
+| `shop_no` |  | 멀티쇼핑몰 번호 |
+| `member_id` |  | 회원아이디 |
+| `social_name` |  | 연동 된 SNS명 |
+| `social_member_code` |  | 연동 된 SNS 제공코드 |
+| `linked_date` |  | 연동 날짜 |
+
+## Operations
+
+### `GET /api/v2/admin/customers/{member_id}/social` — Retrieve a customer's social account
+
+- **Scope**: `mall.read_customer` (read)
+- **호출건수 제한**: 40
+- **Platform**: cafe24
+- **Docs**: https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-customer-s-social-account
+
+#### 요청 파라미터 (Request)
+
+| Parameter | 필수 | 제약 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `shop_no` |  |  | 1 | 멀티쇼핑몰 번호 |
+| `member_id` | ✓ |  |  | 회원아이디 |

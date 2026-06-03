@@ -10,7 +10,7 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
     description: 'Daily sales statistics for a date range.',
     scopeType: 'read',
     method: 'GET',
-    path: 'salesreport/sales',
+    path: 'financials/dailysales',
     requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
@@ -33,7 +33,7 @@ export const salesreportOperations: Cafe24OperationMetadata[] = [
     description: 'Sales statistics grouped by product.',
     scopeType: 'read',
     method: 'GET',
-    path: 'salesreport/products',
+    path: 'reports/productsales',
     requiredFields: ['start_date', 'end_date'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },

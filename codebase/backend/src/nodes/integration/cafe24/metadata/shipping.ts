@@ -2,11 +2,11 @@ import type { Cafe24OperationMetadata } from './types.js';
 
 export const shippingOperations: Cafe24OperationMetadata[] = [
   {
-    id: 'shipping_companies_list',
-    description: 'List shipping companies (carriers).',
+    id: 'carriers_list',
+    description: 'Retrieve a list of shipping carriers.',
     scopeType: 'read',
     method: 'GET',
-    path: 'shippingcompanies',
+    path: 'carriers',
     requiredFields: [],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },

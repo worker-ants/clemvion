@@ -15,7 +15,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 
 | id | 라벨 (한) | English title | method | path | scope | paginated | status | docs |
 |----|---|---|---|---|---|---|---|---|
-| `shipping_companies_list` | 배송사 목록 조회 | Retrieve a list of shipping carriers | GET | `shippingcompanies` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-shipping-carriers) |
+| `carriers_list` | 배송사 목록 조회 | Retrieve a list of shipping carriers | GET | `carriers` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-shipping-carriers) |
 | `carriers_get` | 배송사 단건 조회 | Retrieve a shipping carrier | GET | `carriers/{carrier_no}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-shipping-carrier) |
 | `carriers_create` | 배송사 등록 | Create a shipping carrier | POST | `carriers` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-shipping-carrier) |
 | `carriers_update` | 배송사 수정 | Update a shipping carrier | PUT | `carriers/{carrier_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-shipping-carrier) |
@@ -30,3 +30,13 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `shippingorigins_create` | 출고지 등록 | Create a shipping origin | POST | `shippingorigins` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-shipping-origin) |
 | `shippingorigins_update` | 출고지 수정 | Update a shipping origin | PUT | `shippingorigins/{origin_code}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-shipping-origin) |
 | `shippingorigins_delete` | 출고지 삭제 | Delete a shipping origin | DELETE | `shippingorigins/{origin_code}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-a-shipping-origin) |
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`shipping/carriers.md`](./shipping/carriers.md) · Carriers — 16 fields, 5 ops
+- [`shipping/regionalsurcharges.md`](./shipping/regionalsurcharges.md) · Regionalsurcharges — 6 fields, 2 ops
+- [`shipping/shipping.md`](./shipping/shipping.md) · Shipping — 37 fields, 2 ops
+- [`shipping/shipping-additionalfees.md`](./shipping/shipping-additionalfees.md) · Shipping additionalfees — 10 fields, 1 ops
+- [`shipping/shippingorigins.md`](./shipping/shippingorigins.md) · Shippingorigins — 10 fields, 5 ops

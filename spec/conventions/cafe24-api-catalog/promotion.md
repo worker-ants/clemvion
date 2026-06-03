@@ -52,3 +52,18 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `serialcoupons_issues_register` | 시리얼 쿠폰 발급 코드 등록 | Register a code of coupon codes | POST | `serialcoupons/{coupon_no}/issues` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#register-a-code-of-coupon-codes) |
 
 > ⚠ **docs 부재 seed (`coupon_get`, `coupon_delete`)**: 두 row 의 endpoint (`GET coupons/{coupon_no}` / `DELETE coupons/{coupon_no}`) 는 cafe24 admin docs (Latest 2026-03-01) 에 **노출되지 않는다** — coupon 단건 path 에는 `PUT` (즉 `coupon_manage`) 만 문서화되어 있다. 메타데이터 row 는 backwards-compat seed 로 유지되며 cafe24 wire 상 실제 동작 여부는 **미확인 (production 검증 전)**. `status: supported` 는 §3 정의상 "노드에서 호출 가능 = 메타데이터 row 존재" 를 뜻하므로 유효하나, 위 두 row 의 docs 링크는 잠정적이다. JSDoc ⚠ 마크 + 운영 검증/제거 결정 트랙: [`plan/in-progress/cafe24-backlog-residual.md §G-2`](../../../plan/in-progress/cafe24-backlog-residual.md). 근거: [`promotion.ts`](../../../codebase/backend/src/nodes/integration/cafe24/metadata/promotion.ts) JSDoc 주석.
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`promotion/benefits.md`](./promotion/benefits.md) · Benefits — 25 fields, 6 ops
+- [`promotion/commonevents.md`](./promotion/commonevents.md) · Commonevents — 8 fields, 4 ops
+- [`promotion/coupons.md`](./promotion/coupons.md) · Coupons — 93 fields, 4 ops
+- [`promotion/coupons__issuancecustomers.md`](./promotion/coupons__issuancecustomers.md) · Coupons issuancecustomers — 9 fields, 1 ops
+- [`promotion/coupons__issues.md`](./promotion/coupons__issues.md) · Coupons issues — 11 fields, 2 ops
+- [`promotion/customerevents.md`](./promotion/customerevents.md) · Customerevents — 19 fields, 3 ops
+- [`promotion/customers__coupons.md`](./promotion/customers__coupons.md) · Customers coupons — 17 fields, 3 ops
+- [`promotion/discountcodes.md`](./promotion/discountcodes.md) · Discountcodes — 18 fields, 5 ops
+- [`promotion/serialcoupons.md`](./promotion/serialcoupons.md) · Serialcoupons — 51 fields, 3 ops
+- [`promotion/serialcoupons__issues.md`](./promotion/serialcoupons__issues.md) · Serialcoupons issues — 8 fields, 2 ops

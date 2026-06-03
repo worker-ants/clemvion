@@ -16,15 +16,15 @@ export const personalOperations: Cafe24OperationMetadata[] = [
     paginated: true,
   },
   {
-    id: 'wishlists_list',
-    description: 'List wishlists for members.',
+    id: 'customers_wishlist_list',
+    description: "List the products in a customer's wishlist.",
     scopeType: 'read',
     method: 'GET',
-    path: 'wishlists',
-    requiredFields: ['shop_no'],
+    path: 'customers/{member_id}/wishlist',
+    requiredFields: ['member_id'],
     fields: {
+      member_id: { type: 'string', location: 'path' },
       shop_no: { type: 'number', location: 'query', default: 1 },
-      member_id: { type: 'string', location: 'query' },
     },
     responseShape: 'list',
     paginated: true,
@@ -32,14 +32,15 @@ export const personalOperations: Cafe24OperationMetadata[] = [
   // Phase 8d — Personal 완성
   {
     id: 'customers_wishlist_count',
-    description: "Retrieve the count of products in a customer's wishlist.",
+    description:
+      "Retrieve the count of products in a customer's wishlist. Requires member_id as a path parameter.",
     scopeType: 'read',
     method: 'GET',
-    path: 'customers/wishlist/count',
-    requiredFields: [],
+    path: 'customers/{member_id}/wishlist/count',
+    requiredFields: ['member_id'],
     fields: {
       shop_no: { type: 'number', location: 'query', default: 1 },
-      member_id: { type: 'string', location: 'query' },
+      member_id: { type: 'string', location: 'path' },
     },
     responseShape: 'single',
   },

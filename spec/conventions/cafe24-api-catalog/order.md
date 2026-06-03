@@ -38,7 +38,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `order_items_labels_get` | 주문 상품 라벨 조회 | Retrieve an order label | GET | `orders/{order_id}/items/{order_item_code}/labels` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-order-label) |
 | `order_items_labels_create` | 주문 상품 라벨 생성 | Create an order label | POST | `orders/{order_id}/items/{order_item_code}/labels` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-label) |
 | `order_items_labels_update` | 주문 상품 라벨 수정 | Update an order label | PUT | `orders/{order_id}/items/{order_item_code}/labels` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-an-order-label) |
-| `order_items_labels_delete` | 주문 상품 라벨 삭제 | Delete an order label | DELETE | `orders/{order_id}/items/{order_item_code}/labels` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-an-order-label) |
+| `order_items_labels_delete` | 주문 상품 라벨 삭제 | Delete an order label | DELETE | `orders/{order_id}/items/{order_item_code}/labels/{name}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-an-order-label) |
 | `order_items_options_create` | 주문 상품 옵션 생성 | Create order item options | POST | `orders/{order_id}/items/{order_item_code}/options` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-order-item-options) |
 | `order_items_options_update` | 주문 상품 옵션 수정 | Edit order item options | PUT | `orders/{order_id}/items/{order_item_code}/options` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#edit-order-item-options) |
 | `order_memos_list` | 주문 메모 목록 | Retrieve a list of order memos | GET | `orders/{order_id}/memos` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-order-memos) |
@@ -60,9 +60,9 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `order_shippingfeecancellation_get` | 배송비 취소 상세 | Retrieve shipping fee cancellation details of an order | GET | `orders/{order_id}/shippingfeecancellation` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-shipping-fee-cancellation-details-of-an-order) |
 | `order_shippingfeecancellation_create` | 배송비 취소 생성 | Create an order shipping fee cancellation | POST | `orders/{order_id}/shippingfeecancellation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-shipping-fee-cancellation) |
 | `order_shortagecancellation_create` | 재고 부족 취소 생성 | Create an order cancellation on stock shortage | POST | `orders/{order_id}/shortagecancellation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-an-order-cancellation-on-stock-shortage) |
-| `orders_benefits_list` | 주문 혜택 목록 | Retrieve a list of order benefits applied to an order | GET | `orders/{order_id}/benefits` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-order-benefits-applied-to-an-order) |
-| `orders_calculation_total` | 주문 결제 금액 계산 | Calculate total due | POST | `orders/{order_id}/calculation/total` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#calculate-total-due) |
-| `orders_coupons_list` | 주문 쿠폰 목록 | Retrieve a list of coupons applied to an order | GET | `orders/{order_id}/coupons` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-coupons-applied-to-an-order) |
+| `orders_benefits_list` | 주문 혜택 목록 | Retrieve a list of order benefits applied to an order | GET | `orders/benefits` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-order-benefits-applied-to-an-order) |
+| `orders_calculation_total` | 주문 결제 금액 계산 | Calculate the total due for an order | POST | `orders/calculation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#calculate-total-due) |
+| `orders_coupons_list` | 주문 쿠폰 목록 | Retrieve a list of coupons applied to an order | GET | `orders/coupons` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-coupons-applied-to-an-order) |
 | `orders_dashboard_list` | 주문 대시보드 | List all orders dashboard | GET | `orders/dashboard` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#list-all-orders-dashboard) |
 | `orders_inflowgroups_list` | 유입 그룹 목록 | Retrieve a list of traffic source groups | GET | `orders/inflowgroups` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-list-of-traffic-source-groups) |
 | `orders_inflowgroups_create` | 유입 그룹 생성 | Create a traffic source group | POST | `orders/inflowgroups` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-traffic-source-group) |
@@ -101,10 +101,9 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `cashreceipt_update` | 현금영수증 수정 | Update a cash receipt | PUT | `cashreceipt/{cashreceipt_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-cash-receipt) |
 | `cashreceipt_cancel` | 현금영수증 취소 | Update a cash receipt cancellation | PUT | `cashreceipt/{cashreceipt_no}/cancellation` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-cash-receipt-cancellation) |
 | `collectrequests_update` | 수거 요청 수정 | Update a collection request | PUT | `collectrequests/{request_no}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-collection-request) |
-| `control` | 주문 컨트롤 | Order control | POST | `orders/control` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#order-control) |
 | `exchange_get` | 교환 조회 | Retrieve an exchange | GET | `exchange/{claim_code}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-an-exchange) |
 | `exchange_create_multiple` | 교환 일괄 생성 | Create multiple exchanges | POST | `exchange` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-multiple-exchanges) |
-| `exchange_update_multiple` | 교환 일괄 수정 | Update multiple order exchanges | PUT | `exchanges` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-multiple-order-exchanges) |
+| `exchange_update_multiple` | 교환 일괄 수정 | Update multiple order exchanges | PUT | `exchange` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-multiple-order-exchanges) |
 | `exchangerequests_create_bulk` | 교환 요청 일괄 생성 | Bulk exchange request API | POST | `exchangerequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#bulk-exchange-request-api) |
 | `exchangerequests_reject_multiple` | 교환 요청 일괄 거부 | Reject an exchange request for multiple items | PUT | `exchangerequests` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#reject-an-exchange-request-for-multiple-items) |
 | `fulfillments_create` | 풀필먼트 배송 생성 | Create shipping information for multiple orders via fulfillment | POST | `fulfillments` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-shipping-information-for-multiple-orders-via-fulfillment) |
@@ -116,8 +115,64 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 | `orderform_properties_delete` | 주문서 추가 필드 삭제 | Delete an additional checkout field | DELETE | `orderform/properties/{orderform_property_id}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#delete-an-additional-checkout-field) |
 | `shipments_create_multiple` | 배송 일괄 생성 | Create shipping information for multiple orders | POST | `shipments` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-shipping-information-for-multiple-orders) |
 | `shipments_update_multiple` | 배송 일괄 수정 | Update multiple order shippings | PUT | `shipments` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-multiple-order-shippings) |
-| `subscription_shipments_get` | 정기배송 조회 | Retrieve a subscription | GET | `subscription/shipments/{subscription_id}` | read |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-a-subscription) |
 | `subscription_shipments_create` | 정기배송 생성 | Create a subscription | POST | `subscription/shipments` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#create-a-subscription) |
 | `subscription_shipments_update` | 정기배송 수정 | Update a subscription | PUT | `subscription/shipments/{subscription_id}` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-a-subscription) |
 | `subscription_shipments_items_update` | 정기배송 상품 옵션 수정 | Update product variants in subscription | PUT | `subscription/shipments/{subscription_id}/items` | write |  | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#update-product-variants-in-subscription) |
 | `unpaidorders_list` | 미결제 주문 목록 | Retrieve unpaid orders | GET | `unpaidorders` | read | ✓ | supported | [↗](https://developers.cafe24.com/docs/ko/api/admin/#retrieve-unpaid-orders) |
+
+## Field-level 상세 카탈로그
+
+> 각 sub-resource 의 **응답 속성(field) + operation 요청 파라미터**를 Cafe24 공식 docs 기준으로 담은 상세 카탈로그. 위 표가 endpoint enumeration index 라면, 아래는 field-level 본문이다. 출처: Cafe24 REST API Documentation (admin), 2026-06-03 download.
+
+- [`order/cancellation.md`](./order/cancellation.md) · Cancellation — 31 fields, 3 ops
+- [`order/cancellationrequests.md`](./order/cancellationrequests.md) · Cancellationrequests — 5 fields, 2 ops
+- [`order/cashreceipt.md`](./order/cashreceipt.md) · Cashreceipt — 20 fields, 3 ops
+- [`order/cashreceipt__cancellation.md`](./order/cashreceipt__cancellation.md) · Cashreceipt cancellation — 3 fields, 1 ops
+- [`order/collectrequests.md`](./order/collectrequests.md) · Collectrequests — 6 fields, 1 ops
+- [`order/control.md`](./order/control.md) · Control — 2 fields, 1 ops
+- [`order/exchange.md`](./order/exchange.md) · Exchange — 44 fields, 3 ops
+- [`order/exchangerequests.md`](./order/exchangerequests.md) · Exchangerequests — 7 fields, 2 ops
+- [`order/fulfillments.md`](./order/fulfillments.md) · Fulfillments — 9 fields, 1 ops
+- [`order/labels.md`](./order/labels.md) · Labels — 4 fields, 2 ops
+- [`order/orderform-properties.md`](./order/orderform-properties.md) · Orderform properties — 18 fields, 4 ops
+- [`order/orders.md`](./order/orders.md) · Orders — 83 fields, 5 ops
+- [`order/orders__autocalculation.md`](./order/orders__autocalculation.md) · Orders autocalculation — 2 fields, 1 ops
+- [`order/orders-benefits.md`](./order/orders-benefits.md) · Orders benefits — 10 fields, 1 ops
+- [`order/orders__buyer.md`](./order/orders__buyer.md) · Orders buyer — 18 fields, 2 ops
+- [`order/orders__buyer-history.md`](./order/orders__buyer-history.md) · Orders buyer history — 9 fields, 1 ops
+- [`order/orders-calculation.md`](./order/orders-calculation.md) · Orders calculation — 26 fields, 1 ops
+- [`order/orders__cancellation.md`](./order/orders__cancellation.md) · Orders cancellation — 12 fields, 2 ops
+- [`order/orders__completions.md`](./order/orders__completions.md) · Orders completions — 5 fields, 1 ops
+- [`order/orders-coupons.md`](./order/orders-coupons.md) · Orders coupons — 8 fields, 1 ops
+- [`order/orders-dashboard.md`](./order/orders-dashboard.md) · Orders dashboard — 17 fields, 1 ops
+- [`order/orders__exchange.md`](./order/orders__exchange.md) · Orders exchange — 22 fields, 2 ops
+- [`order/orders__exchangerequests.md`](./order/orders__exchangerequests.md) · Orders exchangerequests — 5 fields, 1 ops
+- [`order/orders-inflowgroups.md`](./order/orders-inflowgroups.md) · Orders inflowgroups — 2 fields, 4 ops
+- [`order/orders-inflowgroups__inflows.md`](./order/orders-inflowgroups__inflows.md) · Orders inflowgroups inflows — 4 fields, 4 ops
+- [`order/orders__items.md`](./order/orders__items.md) · Orders items — 115 fields, 3 ops
+- [`order/orders__items__history.md`](./order/orders__items__history.md) · Orders items history — 6 fields, 1 ops
+- [`order/orders__items__labels.md`](./order/orders__items__labels.md) · Orders items labels — 5 fields, 4 ops
+- [`order/orders__items__options.md`](./order/orders__items__options.md) · Orders items options — 6 fields, 2 ops
+- [`order/orders__memos.md`](./order/orders__memos.md) · Orders memos — 13 fields, 4 ops
+- [`order/orders-memos.md`](./order/orders-memos.md) · Orders memos — 12 fields, 1 ops
+- [`order/orders-migrations.md`](./order/orders-migrations.md) · Orders migrations — 15 fields, 4 ops
+- [`order/orders-paymentamount.md`](./order/orders-paymentamount.md) · Orders paymentamount — 9 fields, 1 ops
+- [`order/orders__payments.md`](./order/orders__payments.md) · Orders payments — 10 fields, 1 ops
+- [`order/orders__paymenttimeline.md`](./order/orders__paymenttimeline.md) · Orders paymenttimeline — 12 fields, 2 ops
+- [`order/orders__receivers.md`](./order/orders__receivers.md) · Orders receivers — 29 fields, 3 ops
+- [`order/orders__receivers-history.md`](./order/orders__receivers-history.md) · Orders receivers history — 23 fields, 1 ops
+- [`order/orders__refunds.md`](./order/orders__refunds.md) · Orders refunds — 4 fields, 1 ops
+- [`order/orders__return.md`](./order/orders__return.md) · Orders return — 20 fields, 2 ops
+- [`order/orders-saleschannels.md`](./order/orders-saleschannels.md) · Orders saleschannels — 3 fields, 4 ops
+- [`order/orders__shipments.md`](./order/orders__shipments.md) · Orders shipments — 11 fields, 4 ops
+- [`order/orders__shippingfeecancellation.md`](./order/orders__shippingfeecancellation.md) · Orders shippingfeecancellation — 24 fields, 2 ops
+- [`order/orders__shortagecancellation.md`](./order/orders__shortagecancellation.md) · Orders shortagecancellation — 5 fields, 1 ops
+- [`order/payments.md`](./order/payments.md) · Payments — 6 fields, 1 ops
+- [`order/refunds.md`](./order/refunds.md) · Refunds — 61 fields, 2 ops
+- [`order/reservations.md`](./order/reservations.md) · Reservations — 26 fields, 1 ops
+- [`order/return.md`](./order/return.md) · Return — 51 fields, 3 ops
+- [`order/returnrequests.md`](./order/returnrequests.md) · Returnrequests — 6 fields, 2 ops
+- [`order/shipments.md`](./order/shipments.md) · Shipments — 9 fields, 2 ops
+- [`order/subscription-shipments.md`](./order/subscription-shipments.md) · Subscription shipments — 26 fields, 3 ops
+- [`order/subscription-shipments__items.md`](./order/subscription-shipments__items.md) · Subscription shipments items — 7 fields, 1 ops
+- [`order/unpaidorders.md`](./order/unpaidorders.md) · Unpaidorders — 13 fields, 1 ops
