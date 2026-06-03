@@ -37,6 +37,7 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
 세 필드(`worktree`·`started`·`owner`)는 top-level `plan/in-progress/*.md` 에서 **필수** — build guard `plan-frontmatter.test.ts` 가 강제한다. 하위 그룹 폴더의 작업 material(예: `node-output-redesign/*.md`)은 클러스터 index 아래 부속 문서이므로 면제. `priority`/`status`/`title` 등 추가 필드는 허용.
 
 - **`worktree` sentinel**: 아직 worktree 가 없는 미착수 plan 은 placeholder(`TBD`·`(assigned at impl-start)` 등) 대신 명시 sentinel `(unstarted)` 를 쓴다. placeholder 는 죽은 worktree 처럼 보여 `plan_coherence` 충돌 검출을 오염시키므로 guard 가 거부한다. 착수 시 실제 `<task>-<slug>` 로 교체.
+- **`spec_impact` (완료 시점 필드, Gate C)**: 완료(`complete/` 이동) plan 은 frontmatter 에 `spec_impact` 를 선언한다 — spec path 목록 또는 `none`. 스키마·강제 규칙은 [§5 Gate C](#gate-c--완료-plan-의-spec-정합-결정-spec_impact). in-progress 단계에선 의무 아님(완료 시점에만 `spec-plan-completion.test.ts` 가 강제).
 
 `complete/` 로 옮긴 후에도 frontmatter 유지 (history 보존).
 

@@ -9,6 +9,10 @@ code:
   - codebase/frontend/src/lib/docs/__tests__/spec-status-lifecycle.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-pending-plan-existence.test.ts
   - codebase/frontend/src/lib/docs/__tests__/spec-plan-completion.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/plan-frontmatter.test.ts
+  - codebase/frontend/src/lib/docs/__tests__/spec-links.ts
 ---
 
 # Convention: Spec-Impl Evidence (frontmatter)
@@ -27,7 +31,7 @@ code:
 - `user-guide-sync-reviewer` — code → guide 단방향
 - `nodes-coverage` / `hydration-coverage` 등 build-time 가드 — 등록부 enumeration 만
 
-→ "spec 가 약속한 surface 가 *지금* 구현됐는가" 는 어떤 검사도 묻지 않음. 본 컨벤션은 spec 파일 frontmatter 에 `status` + `code:` + `pending_plans:` 를 의무화하고, 4개 build-time 가드로 정합성을 강제해 이 갭을 닫는다.
+→ "spec 가 약속한 surface 가 *지금* 구현됐는가" 는 어떤 검사도 묻지 않음. 본 컨벤션은 spec 파일 frontmatter 에 `status` + `code:` + `pending_plans:` 를 의무화하고, §4 의 frontmatter-evidence 가드(5건)로 정합성을 강제해 이 갭을 닫는다 (§4.0 의 지식저장소 무결성 가드는 별개 family).
 
 ## 1. 적용 대상
 
@@ -110,14 +114,16 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 | `spec-pending-plan-existence.test.ts` | `pending_plans:` 의 모든 path 가 `plan/in-progress/` 또는 `plan/complete/`(in-progress→complete 치환) 에 실존 |
 | `spec-plan-completion.test.ts` (**Gate C**) | `started ≥ 2026-06-04` 인 완료 plan 은 frontmatter `spec_impact` 선언 필수 (spec path 목록은 실존, 또는 `none`/`없음`). spec↔코드 정합 결정을 완료 시점에 강제. grandfather: cutoff 이전 시작 plan 면제 |
 
-### 4.0 인접 지식저장소 가드 (위 5건과 별개, 별도 SoT)
+### 4.0 지식저장소 무결성 가드 (§4 5건과 별개, 본 문서가 SoT)
 
-본 frontmatter-evidence 가드(§4 의 5건) 외에, 지식저장소 무결성을 함께 지키는 **추가** 가드 — SoT 는 [`plan/in-progress/knowledge-base-quality-improvements.md`](../../plan/in-progress/knowledge-base-quality-improvements.md):
+§4 의 frontmatter-evidence 5건과 **별개 family** 로, 지식저장소(링크·index·plan frontmatter) 무결성을 지키는 build-time 가드 3건 + advisory 1건. **본 절(spec-impl-evidence.md §4.0)이 규약 SoT** 이며, 도입 경위·로드맵은 [`plan/in-progress/knowledge-base-quality-improvements.md`](../../plan/in-progress/knowledge-base-quality-improvements.md). 세 build 가드의 구현 파일은 본 문서 frontmatter `code:` 에 등재.
 
-- `spec-link-integrity.test.ts` (build 차단) — spec 본문 in-repo 링크/heading 앵커 실존
-- `spec-area-index.test.ts` (build 차단) — 영역 폴더 index 가 모든 sibling spec 링크
-- `plan-frontmatter.test.ts` (build 차단) — top-level in-progress plan 의 worktree/started/owner ([plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md))
-- **Gate D** (**advisory — build 차단 아님**): `/spec-coverage --mode reverse` — spec 미참조 controller route·이벤트·env 탐지 (impl→spec 역커버리지). NLP 휴리스틱이라 보고형
+| 가드 | 대상 / 검증 | 예외 |
+|---|---|---|
+| `spec-link-integrity.test.ts` (build 차단) | `spec/**.md` 본문 in-repo `[..](path)` 타깃 존재 + `#anchor` heading slug 대조. slug 는 실제 렌더러(`rehype-slug`=`mdast`+`github-slugger`) 파이프라인과 동등 | 생성형 `*-api-catalog/` 트리. plan/ 링크(=plan-coherence 담당) |
+| `spec-area-index.test.ts` (build 차단) | 각 영역 폴더(≥2 sibling)에 index 문서 존재 + 모든 sibling spec 이 index 에서 링크 | `spec/conventions/`(flat reference, 무-index), 카탈로그 |
+| `plan-frontmatter.test.ts` (build 차단) | top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`(ISO)/`owner` 필수 ([plan-lifecycle §4](../../.claude/docs/plan-lifecycle.md)) | subfolder 클러스터 작업물, `0-`/`_` index |
+| **Gate D** (**advisory — build 차단 아님**) | `/spec-coverage --mode reverse` — spec 미참조 controller route·이벤트·env 탐지(impl→spec 역커버리지) | NLP 휴리스틱이라 보고형, CI 비차단 |
 
 ### 4.1 가드와 다른 가드의 관계
 
@@ -181,8 +187,8 @@ user_guide:
    - `spec/0-overview.md §6.3` 로드맵 매칭 → `backlog`
    - 부분 구현 + 후속 plan 존재 → `partial` + `pending_plans:` 채움
    - 그 외 → `spec-only`
-3. 4개 가드 테스트 동반 작성
-4. PROJECT.md §자동 가드 표에 4개 row 추가
+3. frontmatter-evidence 가드 테스트 동반 작성 (초기 4건 → 현재 §4 5건; §4.0 지식저장소 무결성 가드 3건은 후속 kb-quality 에서 확장)
+4. PROJECT.md §자동 가드 표에 해당 row 추가
 
 ## Rationale
 
