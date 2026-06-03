@@ -10540,6 +10540,31 @@ describe('buildAiMessageDebugFromResumeState', () => {
     });
   });
 
+  // spec/5-system/6-websocket-protocol.md §4.4 — llmCalls[].startedAt/finishedAt
+  // 절대 발생 시각이 payload 로 전파돼야 어시스턴트 turn 발생 시각을 표시할 수 있다.
+  it('carries per-call startedAt/finishedAt through to the payload', () => {
+    const lastTurn = {
+      turnIndex: 1,
+      llmCalls: [
+        {
+          requestPayload: {},
+          responsePayload: { content: 'a' },
+          durationMs: 100,
+          startedAt: '2026-05-10T06:42:01.500Z',
+          finishedAt: '2026-05-10T06:42:01.600Z',
+        },
+      ],
+      totalDurationMs: 100,
+    };
+    const debug = buildAiMessageDebugFromResumeState({
+      turnDebugHistory: [lastTurn],
+    });
+    expect(debug.llmCalls?.[0]).toMatchObject({
+      startedAt: '2026-05-10T06:42:01.500Z',
+      finishedAt: '2026-05-10T06:42:01.600Z',
+    });
+  });
+
   it('preserves multi-call llm sequence for tool-loop turns', () => {
     const llmCalls = [
       {

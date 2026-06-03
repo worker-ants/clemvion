@@ -334,6 +334,10 @@ interface LlmCallRecord {
   requestPayload?: unknown;
   responsePayload?: unknown;
   durationMs?: number;
+  /** ISO8601 — LLM 호출 시작/종료 절대 시각. 디버깅 타임라인의 어시스턴트
+   *  발생 시각 표시 출처. spec/5-system/6-websocket-protocol.md §4.4 */
+  startedAt?: string;
+  finishedAt?: string;
 }
 
 /** One entry of `state.turnDebugHistory`. `totalDurationMs` is the wall-clock

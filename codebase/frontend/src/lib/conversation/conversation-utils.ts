@@ -336,6 +336,10 @@ interface LlmCallEntry {
   requestPayload?: unknown;
   responsePayload?: unknown;
   durationMs?: number;
+  /** ISO8601 — LLM 호출 시작/종료 절대 시각. 어시스턴트 turn 발생 시각 출처.
+   *  spec/5-system/6-websocket-protocol.md §4.4 */
+  startedAt?: string;
+  finishedAt?: string;
 }
 
 /** Provider tool execution metadata persisted on each turnDebug entry.
@@ -347,6 +351,9 @@ interface TurnToolCallEntry {
   providerKey?: string;
   status: "success" | "error";
   durationMs?: number;
+  /** ISO8601 — tool 실행 시작/종료 절대 시각. 영속(history) tool turn 발생 시각 출처. */
+  startedAt?: string;
+  finishedAt?: string;
   error?: string;
 }
 
@@ -383,6 +390,8 @@ export interface RawMessage {
 interface ToolStatusInfo {
   status: "success" | "error";
   durationMs?: number;
+  /** ISO8601 — tool 실행 시작 절대 시각 (영속 turnDebug 출처). */
+  startedAt?: string;
   error?: string;
 }
 
@@ -504,6 +513,9 @@ export function messagesToConversationItems(
         requestPayload: callDebug?.requestPayload,
         responsePayload: callDebug?.responsePayload,
         durationMs: callDebug?.durationMs,
+        // spec/conventions/conversation-thread.md §9.12 — 어시스턴트 발생
+        // 절대 시각은 해당 LLM 호출의 startedAt (tool-call 만 있는 응답 포함).
+        timestamp: callDebug?.startedAt,
         metadata: {
           model: (resp?.model as string) ?? metaModel,
           inputTokens: (usage?.inputTokens as number) ?? undefined,
@@ -537,6 +549,8 @@ export function messagesToConversationItems(
       if (status) {
         item.toolStatus = status.status;
         if (status.durationMs !== undefined) item.durationMs = status.durationMs;
+        // §9.12 — 영속(history) tool 발생 시각은 turnDebug 의 startedAt.
+        if (status.startedAt !== undefined) item.timestamp = status.startedAt;
         if (status.error !== undefined) item.error = status.error;
       }
       items.push(item);
@@ -563,6 +577,7 @@ function toolStatusMapFromDebug(
       map.set(tc.toolCallId, {
         status: tc.status,
         durationMs: tc.durationMs,
+        startedAt: tc.startedAt,
         error: tc.error,
       });
     }
@@ -588,6 +603,10 @@ export function toolStatusMapFromItems(
     map.set(item.toolCallId, {
       status: item.toolStatus,
       durationMs: item.durationMs,
+      // §9.12 — carry tool 발생 시각도 보존. 없으면 ai_message 스냅샷 REPLACE 시
+      // messagesToConversationItems 가 tool item 을 재생성할 때 timestamp 가
+      // 유실된다 (toolStatusMapFromDebug 영속 경로와 대칭 유지).
+      startedAt: item.timestamp,
       error: item.error,
     });
   }

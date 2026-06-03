@@ -2161,6 +2161,18 @@ describe('AiAgentHandler', () => {
       const diag = turnDebug[0].ragDiagnostics as Record<string, unknown>;
       expect(diag.attempted).toBe(true);
       expect(diag.searchedKbCount).toBe(1);
+
+      // spec/5-system/6-websocket-protocol.md §4.4 — 각 LLM 호출·tool 실행의
+      // 절대 발생/종료 시각(ISO8601)이 turnDebug 에 영속돼야 실행 내역 화면이
+      // 라이브와 동일한 시각을 복원한다.
+      const llmCalls = turnDebug[0].llmCalls as Array<Record<string, unknown>>;
+      expect(llmCalls.length).toBeGreaterThan(0);
+      expect(typeof llmCalls[0].startedAt).toBe('string');
+      expect(typeof llmCalls[0].finishedAt).toBe('string');
+      const toolCalls = turnDebug[0].toolCalls as Array<Record<string, unknown>>;
+      expect(toolCalls.length).toBeGreaterThan(0);
+      expect(typeof toolCalls[0].startedAt).toBe('string');
+      expect(typeof toolCalls[0].finishedAt).toBe('string');
     });
   });
 

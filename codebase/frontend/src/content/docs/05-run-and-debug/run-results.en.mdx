@@ -40,6 +40,7 @@ The left timeline lists **every executed node** in run order.
 <FieldTable rows={[
   { name: "Category color dot", type: "Visual", description: "Shows the node's category: Trigger=🟡, Logic=🔵, Flow=🟣, AI=🟢, Integration=🟠, Data=🔵, Presentation=🩷" },
   { name: "Status icon", type: "Status", description: "⏳ Running, ✅ Completed, ❌ Failed, ⏸ Waiting, — Skipped, ⊘ Cancelled" },
+  { name: "Timestamp", type: "DateTime", description: "The absolute time a node (or AI conversation element) started, e.g. 14:23:01. The same value is shown both during a live run and in the persisted execution history." },
   { name: "Duration", type: "Duration", description: "Elapsed time such as 142ms or 1.2s." },
   { name: "`(iter N)` suffix", type: "Iteration", description: "Each body iteration of Loop/ForEach/Map shows as its own entry." }
 ]} />
@@ -67,7 +68,7 @@ Default tab priority is `Error → Preview → Output`. If there's an error, the
 
 ## AI node Multi Turn results
 
-AI Agent / Information Extractor runs in Multi Turn mode appear on the timeline as a collapsible tree. Expanding it shows **user messages, AI responses, and tool calls** inline as preview cards.
+AI Agent / Information Extractor runs in Multi Turn mode appear on the timeline as a collapsible tree. Expanding it shows **user messages, AI responses, and tool calls** inline as preview cards. Each element also shows its **timestamp** (absolute time), and AI responses and tool calls additionally show their **duration**. An AI response that only makes tool calls (no text) shows its timestamp and LLM latency the same way.
 
 - While the conversation is active, a message-input UI sticks to the bottom of the inspector.
 - After the conversation ends it reads like a chat thread. Clicking an item changes the detail panel's tabs:

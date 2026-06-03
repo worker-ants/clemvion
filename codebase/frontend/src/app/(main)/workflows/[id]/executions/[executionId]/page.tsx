@@ -700,8 +700,10 @@ function NodeResultsTab({
             <span className="flex-1 truncate">
               {ne.node?.label ?? ne.nodeId}
             </span>
-            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">
-              {formatDuration(ne.durationMs)}
+            {/* spec/conventions/conversation-thread.md §9.12 — 노드 발생 시각(절대) + 소요시간 */}
+            <span className="flex shrink-0 flex-col items-end text-[10px] text-[hsl(var(--muted-foreground))]">
+              {ne.startedAt && <span>{formatDate(ne.startedAt, "time-seconds")}</span>}
+              <span>{formatDuration(ne.durationMs)}</span>
             </span>
           </button>
         ))}
@@ -736,6 +738,9 @@ function NodeResultsTab({
                   </Badge>
                 )}
                 <span className="ml-auto text-xs text-[hsl(var(--muted-foreground))]">
+                  {selectedNode.startedAt
+                    ? `${formatDate(selectedNode.startedAt, "datetime")} · `
+                    : ""}
                   {formatDuration(selectedNode.durationMs)}
                 </span>
               </div>
