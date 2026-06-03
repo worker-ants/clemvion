@@ -68,6 +68,12 @@ export interface ToolCallTrace {
   error?: string;
 }
 
+/** epoch ms → ISO8601 문자열. LLM·tool 호출의 startedAt/finishedAt 스탬프를
+ *  생성하는 단일 변환 지점 (spec/5-system/6-websocket-protocol.md §4.4). */
+function toIso(ms: number): string {
+  return new Date(ms).toISOString();
+}
+
 /**
  * Cap for tool_result preview emitted via ExecutionEventEmitter (`tool_call_completed`).
  * The full content is still recorded in `messages` (sent only via the
@@ -791,7 +797,7 @@ export class AiAgentHandler implements NodeHandler {
   }): Promise<{ result: AgentToolResult; trace: ToolCallTrace }> {
     const { provider, call, executionId, nodeId, turnIndex } = args;
     const startedAt = Date.now();
-    const startedAtIso = new Date(startedAt).toISOString();
+    const startedAtIso = toIso(startedAt);
 
     const startedPayload: ToolCallStartedPayload = {
       nodeId,
@@ -838,8 +844,9 @@ export class AiAgentHandler implements NodeHandler {
       error = sanitized;
     }
 
-    const durationMs = Date.now() - startedAt;
-    const finishedAtIso = new Date().toISOString();
+    const finishedAtMs = Date.now();
+    const durationMs = finishedAtMs - startedAt;
+    const finishedAtIso = toIso(finishedAtMs);
     const trace: ToolCallTrace = {
       toolCallId: call.id,
       name: call.name,
@@ -1227,8 +1234,8 @@ export class AiAgentHandler implements NodeHandler {
       requestPayload: firstRequest,
       responsePayload: result,
       durationMs: Date.now() - callStartedAt,
-      startedAt: new Date(callStartedAt).toISOString(),
-      finishedAt: new Date().toISOString(),
+      startedAt: toIso(callStartedAt),
+      finishedAt: toIso(Date.now()),
     });
 
     let toolCallCount = 0;
@@ -1441,8 +1448,8 @@ export class AiAgentHandler implements NodeHandler {
         requestPayload: loopRequest,
         responsePayload: result,
         durationMs: Date.now() - callStartedAt,
-        startedAt: new Date(callStartedAt).toISOString(),
-        finishedAt: new Date().toISOString(),
+        startedAt: toIso(callStartedAt),
+        finishedAt: toIso(Date.now()),
       });
     }
 
@@ -1986,8 +1993,8 @@ export class AiAgentHandler implements NodeHandler {
       requestPayload: chatParams,
       responsePayload: result,
       durationMs: Date.now() - callStart,
-      startedAt: new Date(callStart).toISOString(),
-      finishedAt: new Date().toISOString(),
+      startedAt: toIso(callStart),
+      finishedAt: toIso(Date.now()),
     });
 
     while (
@@ -2223,8 +2230,8 @@ export class AiAgentHandler implements NodeHandler {
         requestPayload: loopReq,
         responsePayload: result,
         durationMs: Date.now() - callStart,
-        startedAt: new Date(callStart).toISOString(),
-        finishedAt: new Date().toISOString(),
+        startedAt: toIso(callStart),
+        finishedAt: toIso(Date.now()),
       });
     }
 

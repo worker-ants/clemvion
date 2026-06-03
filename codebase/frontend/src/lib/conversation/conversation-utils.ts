@@ -603,6 +603,10 @@ export function toolStatusMapFromItems(
     map.set(item.toolCallId, {
       status: item.toolStatus,
       durationMs: item.durationMs,
+      // §9.12 — carry tool 발생 시각도 보존. 없으면 ai_message 스냅샷 REPLACE 시
+      // messagesToConversationItems 가 tool item 을 재생성할 때 timestamp 가
+      // 유실된다 (toolStatusMapFromDebug 영속 경로와 대칭 유지).
+      startedAt: item.timestamp,
       error: item.error,
     });
   }

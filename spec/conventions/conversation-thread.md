@@ -595,7 +595,7 @@ threadTurnsToConversationItems(turns) ⊆ messagesToConversationItems(messages)
 
 **표시 규약**
 
-1. **절대 시각**: 시각은 `@/lib/utils/date` 의 `formatDate(item.timestamp, "time")` (좁은 row) 또는 `"datetime"` (상세 헤더) 로 렌더한다. `toLocaleString` 직접 호출 금지 (AGENTS.md Datetime 규약).
+1. **절대 시각**: 시각은 `@/lib/utils/date` 의 `formatDate(item.timestamp, "time-seconds")` (좁은 row — 같은 분 내 여러 turn 구분 위해 초까지 표시) 또는 `"datetime"` (상세 헤더) 로 렌더한다. `toLocaleString` 직접 호출 금지 (AGENTS.md Datetime 규약).
 2. **소요시간**: `assistant`·`tool` 의 `durationMs` 를 `formatDuration` 으로 렌더. tool-call 만 있는 assistant 응답도 동일하게 LLM latency 를 표시한다.
 3. **적용 surface (동시 적용 의무)** — §9.6 적용 surface 와 동일 두 timeline + 상세/이력:
    - conversation Preview 탭 (`SummaryView`) 및 SelectedItemDetail 인스펙터

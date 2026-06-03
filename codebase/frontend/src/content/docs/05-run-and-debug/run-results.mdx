@@ -51,6 +51,7 @@ code: ["codebase/frontend/src/components/editor/run-results", "codebase/backend/
 <FieldTable rows={[
   { name: "카테고리 색상 점", type: "Visual", description: "노드 카테고리를 나타내요. Trigger=🟡, Logic=🔵, Flow=🟣, AI=🟢, Integration=🟠, Data=🔵, Presentation=🩷" },
   { name: "상태 아이콘", type: "Status", description: "⏳ Running, ✅ Completed, ❌ Failed, ⏸ Waiting, — Skipped, ⊘ Cancelled" },
+  { name: "발생 시각", type: "DateTime", description: "노드(또는 AI 대화 요소)가 시작된 절대 시각이에요(예: 14:23:01). 라이브 실행 중과 실행 내역(영속) 양쪽에서 같은 값을 표시해요." },
   { name: "실행 시간", type: "Duration", description: "142ms, 1.2s 같은 소요 시간이에요." },
   { name: "(iter N) 접미사", type: "반복", description: "Loop/ForEach/Map body 노드가 여러 번 실행될 때 각 반복이 독립 항목으로 나타나요." }
 ]} />
@@ -78,7 +79,7 @@ code: ["codebase/frontend/src/components/editor/run-results", "codebase/backend/
 
 ## AI 노드 Multi Turn 결과
 
-AI Agent / Information Extractor의 Multi Turn 실행은 타임라인에서 접힘/펼침 가능한 트리로 나와요. 펼치면 **사용자 메시지, AI 응답, Tool 호출**이 프리뷰 카드로 인라인 표시돼요.
+AI Agent / Information Extractor의 Multi Turn 실행은 타임라인에서 접힘/펼침 가능한 트리로 나와요. 펼치면 **사용자 메시지, AI 응답, Tool 호출**이 프리뷰 카드로 인라인 표시돼요. 각 요소에는 **발생 시각**(절대 시각)이 함께 표시되고, AI 응답과 Tool 호출에는 **소요 시간**도 함께 나와요. Tool 호출만 있는(텍스트 없는) AI 응답도 발생 시각과 LLM 응답 시간을 똑같이 보여줘요.
 
 - 대화 진행 중이면 인스펙터 하단에 메시지 입력 UI가 sticky로 고정돼요.
 - 완료된 대화는 채팅 스레드처럼 읽을 수 있고, 항목을 클릭하면 상세 패널 탭 구성이 바뀌어요:
