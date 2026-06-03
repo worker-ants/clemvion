@@ -8,8 +8,11 @@ import { S3Service } from '../../../common/services/s3.service';
 import { LlmService } from '../../llm/llm.service';
 import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
 import { WebsocketService } from '../../websocket/websocket.service';
-import { parseDocument } from '../parsers/parser.factory';
-import { chunkText } from '../chunking/text-chunker';
+import {
+  parseDocument,
+  parseDocumentSegments,
+} from '../parsers/parser.factory';
+import { chunkText, type Chunk } from '../chunking/text-chunker';
 import { chunkCsv } from '../chunking/csv-chunker';
 import {
   isRetryableLlmError,
@@ -163,32 +166,33 @@ export class EmbeddingService {
     // 1. Download file from S3
     const fileBuffer = await this.s3Service.download(doc.fileUrl);
 
-    // 2. Parse file to text
-    const text = await parseDocument(fileBuffer, doc.fileType);
-    if (!text.trim()) {
-      await this.documentRepository.update(documentId, {
-        embeddingStatus: 'completed',
-        chunkCount: 0,
-        embeddingRetryCount: 0,
-        embeddingErrorMessage: null,
-      });
-      this.emitEvent(documentId, 'document:embedding_completed', {
-        chunkCount: 0,
-      });
-      return;
-    }
-
-    // 3. Chunk text
+    // 2-3. Parse + chunk.
     // CSV 는 행 중간 분할을 막기 위해 행 단위 전용 청커를 사용한다
-    // (spec/5-system/8-embedding-pipeline.md §4.3). 그 외 포맷은 공통 chunkText.
+    // (spec/5-system/8-embedding-pipeline.md §4.3). 그 외 포맷은 metadata 를 담은
+    // segment (§6.1: md=section / pdf=page) 로 파싱해 각 segment 를 chunkText 로
+    // 분할하고 segment metadata 를 chunk 에 전파한다. chunk index 는 segment 경계를
+    // 넘어 연속(0..N-1)으로 재부여한다.
     const chunkOptions = {
       chunkSize: kb.chunkSize,
       chunkOverlap: kb.chunkOverlap,
     };
-    const chunks =
-      doc.fileType === 'csv'
-        ? chunkCsv(text, chunkOptions)
-        : chunkText(text, chunkOptions);
+    let chunks: Chunk[];
+    if (doc.fileType === 'csv') {
+      const text = await parseDocument(fileBuffer, 'csv');
+      chunks = chunkCsv(text, chunkOptions);
+    } else {
+      const segments = await parseDocumentSegments(fileBuffer, doc.fileType);
+      chunks = [];
+      for (const segment of segments) {
+        for (const chunk of chunkText(
+          segment.text,
+          chunkOptions,
+          segment.metadata,
+        )) {
+          chunks.push({ ...chunk, index: chunks.length });
+        }
+      }
+    }
 
     if (chunks.length === 0) {
       await this.documentRepository.update(documentId, {

@@ -1,13 +1,11 @@
 ---
 id: embedding-pipeline
-status: partial
+status: implemented
 code:
   - codebase/backend/src/modules/knowledge-base/embedding/embedding.service.ts
   - codebase/backend/src/modules/knowledge-base/chunking/text-chunker.ts
   - codebase/backend/src/modules/knowledge-base/parsers/*.ts
   - codebase/backend/src/modules/knowledge-base/queues/document-embedding.processor.ts
-pending_plans:
-  - plan/in-progress/spec-sync-embedding-pipeline-gaps.md
 ---
 
 # Spec: 벡터 임베딩 파이프라인
@@ -146,7 +144,7 @@ DocumentChunk 테이블의 `embedding` 컬럼은 가변 차원을 지원해야 �
 | content | text | 청크 텍스트 원본 |
 | embedding | vector | 벡터 임베딩 (pgvector) |
 | token_count | integer | 청크의 토큰 수 |
-| metadata | jsonb | `{ page?: number, section?: string }` — **현재 항상 빈 `{}` 로 INSERT** (page/section 채우는 파서 경로 미구현, Planned). 추적: [`plan/in-progress/spec-sync-embedding-pipeline-gaps.md`](../../plan/in-progress/spec-sync-embedding-pipeline-gaps.md) |
+| metadata | jsonb | `{ page?: number, section?: string }` — 파서가 segment 단위로 추출한다: **md** 는 직전 heading 을 `section` 으로, **pdf** 는 1-based `page` 를 채운다 (`parseDocumentSegments` → `chunkText(baseMetadata)`). txt/csv 는 위치 메타데이터가 없어 `{}` |
 
 ### 6.2 pgvector 설정
 

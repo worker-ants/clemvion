@@ -12,6 +12,9 @@ import { chunkText } from '../chunking/text-chunker';
 
 jest.mock('../parsers/parser.factory', () => ({
   parseDocument: jest.fn().mockResolvedValue('parsed text body'),
+  parseDocumentSegments: jest
+    .fn()
+    .mockResolvedValue([{ text: 'parsed text body', metadata: {} }]),
 }));
 
 jest.mock('../chunking/text-chunker', () => ({

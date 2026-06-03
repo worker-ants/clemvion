@@ -88,3 +88,25 @@ describe('TextChunker', () => {
     expect(hasOverlap).toBe(true);
   });
 });
+
+describe('chunkText baseMetadata propagation (spec §6.1)', () => {
+  it('copies baseMetadata onto every chunk', () => {
+    const chunks = chunkText(
+      'hello world. this is a small document body.',
+      { chunkSize: 100, chunkOverlap: 0 },
+      { section: 'Intro', page: 2 },
+    );
+    expect(chunks.length).toBeGreaterThan(0);
+    for (const c of chunks) {
+      expect(c.metadata).toEqual({ section: 'Intro', page: 2 });
+    }
+  });
+
+  it('defaults to empty metadata when no baseMetadata is passed', () => {
+    const chunks = chunkText('hello world', {
+      chunkSize: 100,
+      chunkOverlap: 0,
+    });
+    expect(chunks[0].metadata).toEqual({});
+  });
+});
