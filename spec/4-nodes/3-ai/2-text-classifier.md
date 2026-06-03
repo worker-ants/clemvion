@@ -1,12 +1,10 @@
 ---
 id: text-classifier
-status: partial
+status: implemented
 code:
   - codebase/backend/src/nodes/ai/text-classifier/text-classifier.handler.ts
   - codebase/backend/src/nodes/ai/text-classifier/text-classifier.schema.ts
   - codebase/frontend/src/lib/utils/node-config-summary.ts
-pending_plans:
-  - plan/in-progress/spec-sync-text-classifier-gaps.md
 ---
 
 # Spec: Text Classifier
@@ -103,7 +101,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 
 > Multi-label 모드에서는 매칭된 카테고리 포트들이 동시에 활성화되어 `port: string[]` (fan-out, CONVENTIONS Principle 5) 로 반환된다. Single-label 모드에서는 항상 단일 포트(`port: string`).
 
-> 🚧 **미구현 (Planned)** — 사용자 카테고리 이름·id 가 시스템 예약어 (`out`, `error`, `default`, `done`, `user_ended`, `max_turns`, `completed`, `fallback`, `continue`) 와 충돌할 때 schema 가 거부하는 검증은 **현재 미구현**이다. `validateTextClassifierConfig` (schema.ts:148-179) 는 `name === '__none__'` 예약어와 카테고리 간 `id` 중복만 거부하며, 나머지 예약어 충돌 검증은 없다. (`__none__` 만 현재 차단됨.)
+> 사용자 카테고리 이름·id 가 시스템 예약어 (`out`, `error`, `default`, `done`, `user_ended`, `max_turns`, `completed`, `fallback`, `continue`) 와 충돌하면 schema 가 거부한다. `RESERVED_PORT_WORDS` (text-classifier.schema.ts) 에 정의된 예약어 집합과 카테고리 `name`/`id` 충돌, 카테고리 간 `id` 중복을 `validateTextClassifierConfig` 가 모두 거부한다.
 
 ## 4. 실행 로직
 
@@ -327,8 +325,8 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 |------|------|------|------|
 | `output.error.code` | String | handler return | `UPPER_SNAKE_CASE`. 본 노드의 예약어: `LLM_CALL_FAILED` (네트워크/타임아웃/5xx), `LLM_RATE_LIMIT` (429), `LLM_RESPONSE_INVALID` (JSON 파싱 + substring fallback 모두 실패 — 현재 핸들러는 substring fallback 으로 회복하므로 이 코드는 reserved) |
 | `output.error.message` | String | handler return | 사람이 읽는 메시지 (provider 원문 보존, 국제화 없음). 다운스트림에서 사용자에게 노출 시 sanitize 책임은 호출자 |
-| `output.error.details.retryable` | `boolean` | handler return | 🚧 **미구현 (Planned)** — [CONVENTIONS Principle 3.2.1](../../conventions/node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수) 은 LLM 계열 노드에 이 필드를 **필수**로 규정하지만, 현재 핸들러 catch 블록 (handler.ts:203-227) 은 `details` 에 `originalInput` 만 set 하고 `retryable` 은 넣지 않는다. (계획: `LLM_CALL_FAILED` (timeout/5xx) / `LLM_RATE_LIMIT` (429) → `true`, auth(401/403) → `false`.) |
-| `output.error.details.retryAfterSec?` | `number?` | handler return | 🚧 **미구현 (Planned)** — provider 가 `Retry-After` 등 신호를 제공한 경우의 권장 대기 시간 (초). invariant: `retryable === true` 일 때만 set (Principle 3.2.1). 현재 핸들러는 set 하지 않는다. |
+| `output.error.details.retryable` | `boolean` | handler return | [CONVENTIONS Principle 3.2.1](../../conventions/node-output.md#321-details-의-공통-표준-필드-llm-계열-노드-한정-필수) 에 따라 핸들러가 채운다: `LLM_CALL_FAILED` (timeout/5xx) / `LLM_RATE_LIMIT` (429) → `true`, auth(401/403) → `false` |
+| `output.error.details.retryAfterSec?` | `number?` | handler return | provider 가 `Retry-After` 등 신호를 제공한 경우의 권장 대기 시간 (초). invariant: `retryable === true` 일 때만 set (Principle 3.2.1). 핸들러가 provider 응답의 `Retry-After` 를 파싱해 채운다 |
 | `output.error.details.originalInput` | String | handler return | LLM 에 투입된 입력. `truncateForErrorDetails` 로 500 자 cap (에러 envelope 의 PII / 대용량 방지). D6 통일 — 정상은 `output.result.originalInput` (full), 에러는 본 필드 (truncated) 단일 경로 |
 | `meta.durationMs` | number | handler return | `execute()` 진입부터 catch 블록 진입 직전까지의 소요 시간 (ms). 성공 경로와 동일 측정 기준 (Principle 2) |
 | `meta.model` | String | handler return | 호출 시도된 모델 ID (`config.model` 또는 `llmConfig.defaultModel`) |
@@ -367,7 +365,7 @@ LLM 을 사용하여 입력 텍스트를 미리 정의된 카테고리로 분류
 
 ## 7. 캔버스 요약
 
-🚧 **미구현 (Planned)** — [공통 §8](./0-common.md#8-캔버스-요약) 의 `Text Classifier` 행은 포맷 `{model} · {N} categories` (예: `gpt-4o-mini · 3 categories`) 를 약속하지만, 캔버스 요약은 `textClassifierNodeMetadata.summaryTemplate` 을 통해 렌더된다 (`node-config-summary.ts:getConfigSummary` → `renderSummaryTemplate(def.summaryTemplate, config)`). 현재 metadata (schema.ts:181-223) 에 `summaryTemplate` 이 정의돼 있지 않아 — warningRule 미발화 시 요약 본문이 숨겨진다. (계획: `summaryTemplate` 추가.)
+[공통 §8](./0-common.md#8-캔버스-요약) 의 `Text Classifier` 행 포맷 `{model} · {N} categories` (예: `gpt-4o-mini · 3 categories`) 는 `textClassifierNodeMetadata.summaryTemplate` (`{{model}} · {{categories.length}} categories`) 으로 렌더된다 (`node-config-summary.ts:getConfigSummary` → `renderSummaryTemplate(def.summaryTemplate, config)`).
 
 ## 8. Rationale
 

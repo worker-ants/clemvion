@@ -122,6 +122,19 @@ codebase/backend/src/nodes/
 
 각 노드 유형별 구체적인 요약 포맷은 해당 노드 스펙 문서의 "캔버스 요약" 항목에 정의된다.
 
+#### 1.4.1 템플릿 문법 (filter DSL)
+
+`summaryTemplate` 은 `{{ config.path }}` 보간과 파이프 필터를 지원한다. 문법: `{{ path | filter:arg | filter2 }}`. 해석 단일 출처는 `codebase/packages/node-summary/src/evaluator.ts` (`renderSummaryTemplate`).
+
+| filter | 효과 | 예시 |
+|--------|------|------|
+| `upper` | 대문자 변환 | `{{method\|upper}}` |
+| `lower` | 소문자 변환 | `{{method\|lower}}` |
+| `default:LIT` | 값이 비어 있으면 리터럴 문자열 출력 | `{{mode\|default:sync}}` |
+| `fallback:path` | 값이 비어 있으면 다른 config 경로의 값으로 대체 | `{{workflowName\|fallback:workflowId}}` |
+
+`default:` 는 리터럴 문자열을, `fallback:` 은 다른 config 경로를 인수로 받는다. 필터는 좌→우로 연쇄 적용된다.
+
 ---
 
 ## 2. 노드 전체 목록
