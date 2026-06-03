@@ -68,6 +68,12 @@ owner: planner → developer
 - [x] e2e PASS (143 통과 — system-status.e2e-spec.ts 에 recentFailed/totalRecentFailed/failedWindowMinutes 단언 추가).
 - [x] `/ai-review` 수행 (RISK=LOW, CRITICAL=0, WARNING=1) + WARNING·고가치 INFO fix (RESOLUTION.md). security(NONE)·side_effect(LOW) 재실행 포함. fix 후 lint·unit·build·e2e 전부 재통과.
 
+## 완료 (2026-06-03)
+
+- Phase 1~5 전부 완료. lint·unit·build·e2e green, `/ai-review` (CRITICAL 0 / WARNING 1 해소).
+- spec `16-system-status-api.md`·`15-system-status.md` `partial → implemented` 승격(본 plan 이동 commit).
+- **선택적 후속(미착수, spec 상 optional)**: 스캔 캡 초과 시 UI "N+" 표기 + `recentFailedCapped` DTO 플래그. spec §2.3 에서 "허용"(optional) 항목이라 약속 갭 아님. 필요 시 후속 plan 으로 신설. (RESOLUTION 보류 항목 참조)
+
 ## Rationale
 
 - failed 만 손보는 이유·다른 지표가 윈도우 무의미한 이유: 본 plan 배경 + spec R-5.

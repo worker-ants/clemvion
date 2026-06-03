@@ -1,10 +1,8 @@
 ---
 id: system-status
-status: partial
+status: implemented
 code:
   - codebase/frontend/src/app/(main)/system-status/page.tsx
-pending_plans:
-  - plan/in-progress/system-status-recent-failed.md
 ---
 
 # Spec: 시스템 상태 화면

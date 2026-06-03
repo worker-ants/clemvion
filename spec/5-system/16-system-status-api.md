@@ -1,10 +1,8 @@
 ---
 id: system-status-api
-status: partial
+status: implemented
 code:
   - codebase/backend/src/modules/system-status/**
-pending_plans:
-  - plan/in-progress/system-status-recent-failed.md
 ---
 
 # Spec: 시스템 상태 API (큐 모니터링)
