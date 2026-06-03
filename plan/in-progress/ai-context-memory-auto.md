@@ -145,7 +145,11 @@ WARNING 13 + INFO 15 전부 Phase A 에서 해소. 확정 채택:
       frontend backend-labels/mdx 동반 갱신.
 - [x] **Phase F — TEST WORKFLOW** ✅: lint✓ / unit✓(backend 5738, frontend 외 cafe24 pre-existing
       만) / build✓ / e2e✓(144, Flyway V071~V077 docker 실행). manual 하위호환 회귀 테스트 통과.
-- [ ] **Phase G — REVIEW**: `/ai-review` + `/consistency-check --impl-done` + critical/warning fix.
+- [x] **Phase G — REVIEW** ✅: `/ai-review`(코드범위 전 14 reviewer, CRITICAL 0/WARNING 5) +
+      `/consistency-check --impl-done`(BLOCK:NO) + 보안 2(W-2 indirect prompt injection wrap·
+      W-1 scope_key 검증) + 테스트 5 fix(`eae813d4`) + RESOLUTION.md. TEST 재통과.
+      잔여 spec 정밀화는 followup-v2 백로그. (1차 ai-review 는 router 가 spec-only 오판해
+      코드 미리뷰 → 코드범위 `--route all` 재리뷰로 정정.)
 
 ## 5. 미해결 / 결정 (Phase A 에서 모두 확정)
 - [x] persistent 추출 스키마 — v1 은 단순 텍스트 사실 단위(`metadata.kind` optional 분류). `17-agent-memory.md §3`.
