@@ -175,7 +175,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 | 코드 | 조건 |
 |------|------|
 | `MAKESHOP_4XX` / `MAKESHOP_404` / `MAKESHOP_422` | 4xx (404·422 자주 분기, 그 외 fallback) |
-| `MAKESHOP_AUTH_FAILED` | 401(refresh+1회 재시도 후에도 401) / 403(즉시). `Integration.status` 를 `error(auth_failed)` 또는 `error(insufficient_scope)` 로 atomic 전이 |
+| `MAKESHOP_AUTH_FAILED` | 401(refresh+1회 재시도 후에도 401) / 403(즉시). `Integration.status` 를 `error(auth_failed)` 로 atomic 전이. **현재 구현은 403/401 모두 `auth_failed` 로 격하한다** — `insufficient_scope` 세분 전이는 cafe24 한정(INT-AU-07)이며 makeshop 은 미구현 (별도 승인 티어 없음 — §9.5) |
 | `MAKESHOP_RATE_LIMITED` | 429 + 재시도 소진 |
 | `MAKESHOP_5XX` | 5xx |
 | `MAKESHOP_TRANSPORT_FAILED` | fetch reject (DNS/연결/타임아웃). `meta.statusCode=0` |
@@ -187,7 +187,7 @@ CONVENTIONS Principle 3.2 표준 envelope `output.error.{code, message, details?
 
 ### 6.1 인증 실패 자동 status 전환
 
-[Cafe24 §6.1](./4-cafe24.md#61-인증-실패-자동-status-전환) 정책 그대로 재사용 — **401**: refresh + 1회 재시도, 재시도도 401 이면 격하. **403**: 즉시 격하 (`insufficient_scope` 시그널 시 `status_reason='insufficient_scope'`). 격하 후 `error→connected` 자동 전이 없음 (사용자 `Reauthorize` 필요).
+[Cafe24 §6.1](./4-cafe24.md#61-인증-실패-자동-status-전환) 정책 그대로 재사용 — **401**: refresh + 1회 재시도, 재시도도 401 이면 격하. **403**: 즉시 격하. **현재 구현은 403/401 모두 `error(auth_failed)` 로 격하한다** — cafe24 의 `insufficient_scope` 세분 전이는 makeshop 에 미구현이다. makeshop 은 per-scope 별도 승인 티어가 없어(§9.5) 403 을 scope 부족으로 세분할 근거가 없고, `insufficient_scope` 세분 감지는 cafe24 한정(INT-AU-07)이다. 격하 후 `error→connected` 자동 전이 없음 (사용자 `Reauthorize` 필요).
 
 ## 7. 캔버스 요약
 
