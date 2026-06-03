@@ -76,7 +76,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | type | Enum | personal / team |
 | owner_id | UUID | FK → User |
 | slug | String | URL 슬러그 |
-| settings | JSONB | 워크스페이스 설정. 알려진 키: `timezone: string?` (IANA, NAV-SC-06 — 미설정 시 서버 default `process.env.TZ` → `UTC`. AI 노드의 System Context Prefix ([Spec AI 공통 §11.3](./4-nodes/3-ai/0-common.md#113-timezone-sot-정책)) 와 Schedule 의 default timezone 이 본 값을 참조); `interactionAllowedOrigins: string[]?` (External Interaction API 의 `/api/external/*` CORS allowlist 및 임베드 origin allowlist — [Spec EIA §8.5](./5-system/14-external-interaction-api.md#85-cors), [Spec Channel Web Chat 보안](./7-channel-web-chat/4-security.md). 위젯 hosted CDN origin 은 빌트인 허용, 본 목록은 BYO-UI 고객 도메인 등 추가 origin 용) |
+| settings | JSONB | 워크스페이스 설정. 알려진 키: `timezone: string?` (IANA, NAV-SC-06 — 미설정 시 서버 default `process.env.TZ` → `UTC`. AI 노드의 System Context Prefix ([Spec AI 공통 §11.3](./4-nodes/3-ai/0-common.md#113-timezone-sot-정책)) 와 Schedule 의 default timezone 이 본 값을 참조); `interactionAllowedOrigins: string[]?` (External Interaction API 의 `/api/external/*` CORS allowlist 및 임베드 origin allowlist — [Spec EIA §8.5](./5-system/14-external-interaction-api.md#85-cors), [Spec Channel Web Chat 보안](./7-channel-web-chat/4-security.md). 위젯 hosted CDN origin 은 빌트인 허용, 본 목록은 BYO-UI 고객 도메인 등 추가 origin 용. **편집: `PATCH /api/workspaces/:id/settings`**(Admin+, [Spec 사용자/워크스페이스 §6.1·§4.3](./2-navigation/9-user-profile.md))) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 

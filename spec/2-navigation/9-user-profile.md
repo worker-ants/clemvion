@@ -206,6 +206,20 @@ pending_plans:
 | Admin 역할 부여 | ✅ | ❌ | ❌ | ❌ |
 | 워크스페이스 삭제 | ✅ | ❌ | ❌ | ❌ |
 
+> "워크스페이스 설정"(Owner✅/Admin✅)에는 §4.3 임베드 허용 도메인(`interactionAllowedOrigins`) 편집이 포함된다.
+
+### 4.3 임베드 허용 도메인 (개요 탭)
+
+개요 탭에 **임베드 허용 도메인** 섹션을 둔다 — 웹챗 위젯이 임베드될 수 있는 origin 목록(`Workspace.settings.interactionAllowedOrigins`)을 관리한다.
+
+| 항목 | 내용 |
+|------|------|
+| 편집 권한 | **Owner / Admin** (그 외 read-only 표시). `useHasRole("admin")` — ROLE_LEVEL 상 owner≥admin 이라 owner 포함 |
+| 동작 | origin 추가/삭제 + [저장] → `PATCH /api/workspaces/:id/settings`(§6.1) |
+| 검증 | 형식 `http(s)://host[:port]`(scheme 필수, path/query 불가) + 중복 방지(클라이언트) |
+| 의미 | 목록의 origin 은 **built-in 위젯 CDN origin 에 더해** `/api/external/*` CORS·임베드에 허용. **빈 목록 = 추가 origin 없음**(built-in 만 CORS 허용; 임베드 soft 검증은 enforce=false=allow-all). [7-channel-web-chat 보안 §2·§3](../7-channel-web-chat/4-security.md) |
+| 반영 지연 | 임베드 soft 검증 캐시 최대 5분(`Cache-Control: max-age=300`) |
+
 ---
 
 ## 5. 알림 설정
@@ -278,7 +292,8 @@ pending_plans:
 | GET | /api/users/me/login-history | 본인 로그인 이력 (커서 페이징, 180일 보존) |
 | GET | /api/workspaces | 내 워크스페이스 목록 |
 | POST | /api/workspaces | 팀 워크스페이스 생성 (요청자가 owner) |
-| PATCH | /api/workspaces/:id | 워크스페이스 이름 변경 (Admin+) |
+| PATCH | /api/workspaces/:id | 워크스페이스 이름 변경 (Admin+). body `{ name: string }`(min2/max100) — **rename 전용** |
+| PATCH | /api/workspaces/:id/settings | 워크스페이스 설정 변경 (Admin+). body `{ interactionAllowedOrigins: string[] }` — `settings` JSONB 부분 머지(타 키 보존). 각 origin `http(s)://host[:port]`(path/query 불가). 빈 배열=추가 origin 없음(built-in 위젯 origin 만 `/api/external/*` CORS, [7-channel-web-chat 보안 §2](../7-channel-web-chat/4-security.md)). 키 정의: [1-data-model §2.2](../1-data-model.md#22-workspace) |
 | DELETE | /api/workspaces/:id | 워크스페이스 삭제 (Owner, team 전용, 트랜잭션) |
 | POST | /api/workspaces/:id/leave | 자가 탈퇴 (본인, 유일한 owner는 차단) |
 | POST | /api/workspaces/:id/transfer-ownership | Owner 이양 (현재 owner 만, 대상은 비-owner 멤버, 트랜잭션 내 role swap + ownerId 동기화) |

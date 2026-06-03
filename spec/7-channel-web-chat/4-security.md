@@ -62,6 +62,7 @@ backend 는 **단일 CORS 레이어**(`main.ts` 의 `app.enableCors(webChatCorsD
   `credentials: true`, [`common/utils/cors-origins.ts`](../../codebase/backend/src/common/utils/cors-origins.ts)). 위젯/BYO
   origin 은 이 분기에 노출되지 않는다.
 - `interactionAllowedOrigins` 는 [`spec/1-data-model.md §2.2 Workspace.settings`](../1-data-model.md#22-workspace) 알려진 키.
+  **편집 표면**: 워크스페이스 설정 화면 개요 탭(Admin+) → `PATCH /api/workspaces/:id/settings`([9-user-profile §4.3·§6.1](../2-navigation/9-user-profile.md)).
 - **빌트인 위젯 CDN origin 의 backend env 키 = `WEB_CHAT_WIDGET_ORIGINS`**(콤마 구분, `main.ts` →
   `parseWidgetOrigins`, [`common/cors/web-chat-cors.ts`](../../codebase/backend/src/common/cors/web-chat-cors.ts)).
   워크스페이스 무관 고정 always-allow 목록의 SoT 이며 [0-architecture §4](./0-architecture.md) 가 이 키를 참조한다.
@@ -81,6 +82,12 @@ backend 는 **단일 CORS 레이어**(`main.ts` 의 `app.enableCors(webChatCorsD
 
 워크스페이스 설정은 CORS(§2)와 **동일한 `interactionAllowedOrigins` 단일 키로 통합**(별도 키 미신설 — 단일 진실 원칙).
 M2 에서는 "서빙 origin = 호출 origin"이라 CORS·임베드가 같은 도메인을 가리키고, M1 에서만 서빙(위젯 CDN)≠호스트(고객)가 갈린다.
+설정 편집은 워크스페이스 설정 개요 탭(Admin+, [9-user-profile §4.3](../2-navigation/9-user-profile.md)).
+
+> **빈 목록 의미(레이어별)**: `interactionAllowedOrigins` 가 비면 — (a) **임베드 soft 검증(§3-①)**: allowlist 0 →
+> `enforce=false` → allow-all(soft, 캐주얼 오남용만 방지); (b) **`/api/external/*` CORS(§2)**: 추가 origin 0 →
+> **built-in 위젯 CDN origin 만 허용**(secure-by-default 유지, EIA §8.5 "미설정 시 차단"과 정합). 두 레이어가 다르게
+> 동작하므로 "빈 목록 = 전체 개방" 이 아니다.
 
 ## 4. 공개(인증 없음) webhook 남용 방어
 
