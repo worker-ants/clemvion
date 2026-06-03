@@ -16,7 +16,7 @@ export const personalOperations: Cafe24OperationMetadata[] = [
     paginated: true,
   },
   {
-    id: 'wishlists_list',
+    id: 'customers_wishlist_list',
     description: "List the products in a customer's wishlist.",
     scopeType: 'read',
     method: 'GET',

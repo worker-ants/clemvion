@@ -157,3 +157,10 @@ production 검증 후 row 제거 또는 cafe24 본사 문의 후 docs 등재 요
 >   단건 조회, 누락된 `path` query 추가) fix. W5(`shipping_companies_list` vs `carriers_get` 중복 아님 —
 >   목록/단건) · W6(community field-level 링크는 유효 entity) · W1~W3(breaking 우려는 정정 전 이미 404
 >   비동작) 은 문서화로 정리. 네이밍 정비(id rename = breaking)·field-set 은 후속 트랙. e2e 144 pass.
+
+> **네이밍 정비 완료 (2026-06-03, 사용자 결정)**: sibling 컨벤션 일치 op id rename —
+> `shipping_companies_list`→`carriers_list` (형제 `carriers_get/create/update/delete`),
+> `wishlists_list`→`customers_wishlist_list` (형제 `customers_wishlist_count`). metadata + index +
+> i18n ko/en 동기 (해당 op 들은 정정 전 비동작이라 호환 영향 미미). salesreport id 는 resource 와
+> 일치하므로 유지(path namespace 가 financials/reports 로 분산된 것은 docs 측 분류). 검증:
+> catalog-sync 16/16·drift·frontend i18n parity 12 통과.
